@@ -1755,7 +1755,7 @@ Esperado: PASA, 8 pruebas.
 
 ```ts
 import "server-only";
-import type { Prisma } from "@repo/db";
+import { Prisma } from "@repo/db";
 import { matchExistingClient } from "./match";
 import { nextClientNumber } from "./client-number";
 
@@ -1804,30 +1804,41 @@ export async function findOrCreateClient(
     if (encontrado) return { id: encontrado.id, created: false };
   }
 
-  const ultimo = await tx.client.findFirst({
-    where: { workspaceId: input.workspaceId },
-    orderBy: { clientNumber: "desc" },
-    select: { clientNumber: true },
-  });
+  // Mismo reintento que `saveClientAction`: el número se calcula leyendo el último y sumando
+  // uno, y dos altas simultáneas leen el mismo. Acá importa más que en el formulario, porque
+  // por esta puerta entran las reservas y las ventas, que sí pueden llegar a la vez.
+  const datos = {
+    workspaceId: input.workspaceId,
+    kind: input.businessName ? "EMPRESA" : "PERSONA",
+    firstName: input.firstName ?? null,
+    lastName: input.lastName ?? null,
+    businessName: input.businessName ?? null,
+    docNumber: doc,
+    docType: doc ? (doc.length === 11 ? "CUIT" : "DNI") : null,
+    email: mail,
+    phone: tel,
+    createdByUserId: input.createdByUserId ?? null,
+  };
 
-  const creado = await tx.client.create({
-    data: {
-      workspaceId: input.workspaceId,
-      clientNumber: nextClientNumber(ultimo?.clientNumber ?? null),
-      kind: input.businessName ? "EMPRESA" : "PERSONA",
-      firstName: input.firstName ?? null,
-      lastName: input.lastName ?? null,
-      businessName: input.businessName ?? null,
-      docNumber: doc,
-      docType: doc ? (doc.length === 11 ? "CUIT" : "DNI") : null,
-      email: mail,
-      phone: tel,
-      createdByUserId: input.createdByUserId ?? null,
-    },
-    select: { id: true },
-  });
+  for (let intento = 0; intento < 3; intento++) {
+    const ultimo = await tx.client.findFirst({
+      where: { workspaceId: input.workspaceId },
+      orderBy: { clientNumber: "desc" },
+      select: { clientNumber: true },
+    });
+    try {
+      const creado = await tx.client.create({
+        data: { ...datos, clientNumber: nextClientNumber(ultimo?.clientNumber ?? null) },
+        select: { id: true },
+      });
+      return { id: creado.id, created: true };
+    } catch (e) {
+      const choque = e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
+      if (!choque) throw e;
+    }
+  }
 
-  return { id: creado.id, created: true };
+  throw new Error("No se pudo asignar un número de cliente después de tres intentos.");
 }
 ```
 
@@ -2913,6 +2924,9 @@ import type { MovementSource } from "./constants";
  *
  * Si el módulo de Caja no está habilitado para ese workspace, esto no debe llamarse. Lo
  * verifica quien llama, no esta función: acá no hay a quién redirigir.
+ *
+ * Resuelve solo el turno abierto de la cuenta de destino. Ver el comentario de adentro: es
+ * lo que evita que una cuota cobrada en efectivo quede fuera del arqueo.
  */
 export type RecordMovementInput = {
   workspaceId: string;
@@ -2934,12 +2948,30 @@ export async function recordCashMovement(
   tx: Prisma.TransactionClient | PrismaClient,
   input: RecordMovementInput,
 ): Promise<{ id: string; created: boolean }> {
+  // El turno abierto de esa cuenta, cuando quien llama no lo pasó.
+  //
+  // Va acá adentro y no en cada llamador a propósito. Una cuota cobrada en efectivo que se
+  // deposita SIN turno no entra en el arqueo, y entonces la caja da sobrante todos los días
+  // que alguien pague en mano. Es un error silencioso —nadie investiga un sobrante— y
+  // pedirle a cada módulo que se acuerde de buscar el turno garantiza que alguno se olvide.
+  //
+  // Las cuentas digitales no llevan turno, así que la consulta no devuelve nada y el
+  // movimiento queda suelto, que es lo correcto para un cobro por Mercado Pago.
+  let shiftId = input.shiftId ?? null;
+  if (shiftId === null) {
+    const abierto = await tx.cashShift.findFirst({
+      where: { accountId: input.accountId, status: "ABIERTO" },
+      select: { id: true },
+    });
+    shiftId = abierto?.id ?? null;
+  }
+
   try {
     const creado = await tx.cashMovement.create({
       data: {
         workspaceId: input.workspaceId,
         accountId: input.accountId,
-        shiftId: input.shiftId ?? null,
+        shiftId,
         kind: input.kind,
         amountArs: minorToDecimalString(input.amountMinor),
         occurredAt: input.occurredAt,
