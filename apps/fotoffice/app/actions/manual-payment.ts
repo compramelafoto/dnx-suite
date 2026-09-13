@@ -7,19 +7,12 @@ import { getPlatformFeeBps } from "@/lib/platform-fee/store";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { FEE_SINCE_PERIOD } from "@/lib/platform-fee/debt";
 import { MANUAL_METHODS, registerManualPayment, type ManualMethod } from "@/lib/membership/manual-payment";
+import { parseArsToMinor } from "@/lib/membership/money";
 
 export type ManualPaymentState = {
   error: string | null;
   ok: string | null;
 };
-
-/** "8000", "8.000", "8000,50" — se acepta lo que la Secretaría escribe naturalmente. */
-function parseArsToMinor(raw: string): number | null {
-  const texto = raw.trim().replace(/\./g, "").replace(",", ".");
-  if (!/^\d+(\.\d{1,2})?$/.test(texto)) return null;
-  const [entera = "0", decimal = ""] = texto.split(".");
-  return Number(entera) * 100 + Number(`${decimal}00`.slice(0, 2));
-}
 
 const money = (minor: number) =>
   `$${(minor / 100).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;

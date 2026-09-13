@@ -1,5 +1,11 @@
 import type { WeeklyHour } from "./availability";
 
+// Se reexporta porque `lib/bookings/extra-form.ts` importa `parseArsToMinor` desde acá, y
+// `parseSpaceForm` (más abajo) también lo usa: un `export ... from` puro no deja un
+// identificador local, así que hace falta importarlo además de reexportarlo.
+import { parseArsToMinor } from "@/lib/membership/money";
+export { parseArsToMinor };
+
 /**
  * Validación del formulario de un espacio. Módulo PURO: sin base y sin red.
  *
@@ -26,21 +32,6 @@ export type SpaceFormValues = {
 };
 
 export type SpaceFormResult = { ok: true; values: SpaceFormValues } | { ok: false; error: string };
-
-/**
- * "3.000,50" → 300050 centavos.
- *
- * Se acepta el formato que la gente escribe de verdad —con punto de miles, con coma
- * decimal, con signo pesos— porque rechazarlo obligaría a la Secretaría a aprender una
- * notación para que la computadora esté cómoda.
- */
-export function parseArsToMinor(raw: string): number | null {
-  const limpio = raw.replace(/[$\s]/g, "").replace(/\./g, "").replace(",", ".");
-  if (limpio === "") return null;
-  const numero = Number(limpio);
-  if (!Number.isFinite(numero) || numero < 0) return null;
-  return Math.round(numero * 100);
-}
 
 function entero(raw: string | null, porDefecto: number): number {
   const n = Number((raw ?? "").trim());

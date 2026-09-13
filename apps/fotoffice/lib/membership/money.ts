@@ -26,6 +26,21 @@ export function minorToDecimalString(minor: number): string {
   return `${negativo ? "-" : ""}${entera}.${centavos}`;
 }
 
+/**
+ * "3.000,50" → 300050 centavos.
+ *
+ * Se acepta el formato que la gente escribe de verdad —con punto de miles, con coma
+ * decimal, con signo pesos— porque rechazarlo obligaría a la Secretaría a aprender una
+ * notación para que la computadora esté cómoda.
+ */
+export function parseArsToMinor(raw: string): number | null {
+  const limpio = raw.replace(/[$\s]/g, "").replace(/\./g, "").replace(",", ".");
+  if (limpio === "") return null;
+  const numero = Number(limpio);
+  if (!Number.isFinite(numero) || numero < 0) return null;
+  return Math.round(numero * 100);
+}
+
 /** Para mostrarle un importe a una persona. */
 export function formatMinorArs(minor: number): string {
   const negativo = minor < 0;
