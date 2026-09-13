@@ -3,8 +3,15 @@ import { PageHeader } from "@/components/page-header";
 import { requireClientsStaff } from "@/lib/clients/access";
 import { getClient, listMembersAvailableToLink } from "@/lib/clients/repository";
 import { clientDisplayName } from "@/lib/clients/display";
+import { CASH_MODULE_KEY } from "@/lib/cash/constants";
+import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
+import { listMovements } from "@/lib/cash/repository";
+import { MovementsTable } from "@/app/(shell)/caja/movements-table";
 import { ClientForm } from "../client-form";
 import { linkClientToMemberAction } from "../actions";
+
+/** Cuántos movimientos recientes se muestran en la ficha: es un resumen, no el libro completo. */
+const MOVIMIENTOS_RECIENTES = 20;
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +30,15 @@ export default async function ClientePage({
   if (!cliente) notFound();
 
   const socios = await listMembersAvailableToLink(workspace.id, cliente.member?.id ?? null);
+
+  // El módulo de Caja es de otro workspace-feature: si está apagado acá, no hay libro que
+  // mostrar. Ocultar la sección entera evita el error de la Tarea 11 —un texto fijo de "no
+  // hay movimientos" que mentía incluso cuando sí los había— sin reemplazarlo por un cartel
+  // vacío igual de inútil cuando el módulo ni siquiera está encendido.
+  const cajaHabilitada = await isModuleEnabledForWorkspace(workspace.id, CASH_MODULE_KEY);
+  const movimientos = cajaHabilitada
+    ? await listMovements(workspace.id, { clientId: cliente.id, take: MOVIMIENTOS_RECIENTES })
+    : [];
 
   return (
     <div className="space-y-8">
@@ -70,11 +86,12 @@ export default async function ClientePage({
         </form>
       </section>
 
-      <section className="fo-card space-y-2 p-5">
-        <h2 className="text-base font-semibold">Consumo</h2>
-        {/* La Tarea 11 va a listar acá los movimientos de caja de este cliente. */}
-        <p className="text-sm text-[var(--fo-muted)]">Todavía no hay movimientos.</p>
-      </section>
+      {cajaHabilitada ? (
+        <section className="fo-card space-y-3 p-5">
+          <h2 className="text-base font-semibold">Consumo</h2>
+          <MovementsTable movements={movimientos} showAccount />
+        </section>
+      ) : null}
     </div>
   );
 }
