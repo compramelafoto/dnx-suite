@@ -93,6 +93,19 @@ export async function createCashTransfer(
     select: { id: true },
   });
 
+  // La pata de ENTRADA resuelve el turno abierto de SU PROPIA cuenta, igual que
+  // `recordCashMovement` (ver el comentario de ese archivo). No es sólo el caso de todos los
+  // días —mostrador a caja fuerte, donde la caja fuerte no lleva turno y esto no cambia
+  // nada—: la pantalla de Pases también ofrece el camino inverso, sacar plata de la caja
+  // fuerte para reponer el fondo de vuelto del mostrador. Si esa entrada naciera sin turno,
+  // `expectedAmountMinor` no la vería y el cierre de esa caja marcaría sobrante por el
+  // importe entero, todos los días que se repita el pase — el mismo error silencioso que
+  // `recordCashMovement` ya corrige para los depósitos automáticos.
+  const turnoDestino = await tx.cashShift.findFirst({
+    where: { workspaceId: input.workspaceId, accountId: input.toAccountId, status: "ABIERTO" },
+    select: { id: true },
+  });
+
   const comun = {
     workspaceId: input.workspaceId,
     amountArs: importe,
@@ -116,7 +129,7 @@ export async function createCashTransfer(
       {
         ...comun,
         accountId: input.toAccountId,
-        shiftId: null,
+        shiftId: turnoDestino?.id ?? null,
         kind: "INGRESO",
         description: input.note ?? "Pase desde otra cuenta",
       },
