@@ -7000,6 +7000,12 @@ model Workspace {
   bookingResources            BookingResource[]
   bookingExtras               BookingExtra[]
   raffles                     Raffle[]
+  clients        Client[]
+  cashAccounts   CashAccount[]
+  cashCategories CashCategory[]
+  cashShifts     CashShift[]
+  cashMovements  CashMovement[]
+  cashTransfers  CashTransfer[]
   feeLedger                   WorkspaceFeeLedgerEntry[]
   membershipApplications      MembershipApplication[]
   membershipDuesSettings      MembershipDuesSettings?
@@ -7313,6 +7319,8 @@ model Member {
   bookings                        Booking[]
   raffleEntries                   RaffleEntry[]
   raffleAwards                    RafflePrizeAward[]
+  /// Ficha de cliente de este mismo socio, cuando también le compra algo al negocio.
+  clientLink Client?
 
   @@unique([workspaceId, memberNumber])
   @@unique([workspaceId, email])
@@ -16813,4 +16821,245 @@ model WorkspaceFeeLedgerEntry {
   @@index([workspaceId, createdAt])
   @@index([membershipPaymentId])
   @@index([bookingId])
+}
+
+/// Cliente de un workspace: quien le compra algo al negocio.
+///
+/// Independiente de `Member` a propósito. Socio y cliente son vínculos distintos con la
+/// institución, y una misma persona puede tener los dos: el socio que además alquila el
+/// estudio. `memberId` es el puente opcional para ese caso, y por eso es único.
+model Client {
+  id           String @id @default(cuid())
+  workspaceId  String
+  /// Correlativo DENTRO del workspace, no global. Mismo criterio que `Member.memberNumber`.
+  clientNumber Int
+
+  /// PERSONA | EMPRESA. Texto y no enum: el esquema lo comparten cinco aplicaciones.
+  kind         String  @default("PERSONA")
+  firstName    String?
+  lastName     String?
+  businessName String?
+
+  /// DNI | CUIT | CUIL | PASAPORTE | OTRO
+  docType   String?
+  docNumber String?
+  /// RESPONSABLE_INSCRIPTO | MONOTRIBUTO | EXENTO | CONSUMIDOR_FINAL | NO_CATEGORIZADO
+  ///
+  /// Obligatorio desde el día uno aunque todavía no se facture: una venta que no guardó la
+  /// condición fiscal no se puede facturar nunca más. Ver §11.1 del diseño.
+  ivaCondition String @default("CONSUMIDOR_FINAL")
+
+  email   String?
+  phone   String?
+  address String?
+  city    String?
+  notes   String?
+
+  /// ACTIVO | INACTIVO
+  status String @default("ACTIVO")
+
+  /// Cuando este cliente es además socio de este mismo workspace.
+  memberId String? @unique
+  /// Cuenta de FotoOffice, para el portal del cliente (etapa 5).
+  userId   Int?
+
+  /// Consentimiento para comunicaciones. Separado a propósito de la adhesión al Club:
+  /// estar en una lista no es lo mismo que aceptar que te escriban.
+  consentsMarketing Boolean   @default(false)
+  consentedAt       DateTime?
+
+  createdByUserId Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member    Member?        @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  movements CashMovement[]
+
+  @@unique([workspaceId, clientNumber])
+  @@index([workspaceId, status])
+  @@index([workspaceId, docNumber])
+  @@index([workspaceId, email])
+}
+
+/// Una cuenta de caja: dónde está la plata.
+///
+/// El efectivo se cuenta; Mercado Pago y el banco se concilian. Meterlos en la misma bolsa
+/// haría que el arqueo diera mal todos los días. Las crea el administrador del workspace sin
+/// tope: tres sucursales son tres cuentas de efectivo, cada una con su turno.
+model CashAccount {
+  id          String  @id @default(cuid())
+  workspaceId String
+  name        String
+  /// EFECTIVO | DIGITAL. Sólo las EFECTIVO se arquean.
+  kind        String  @default("EFECTIVO")
+  /// La caja fuerte. No lleva turno diario: no se abre todas las mañanas, se cuenta cada tanto.
+  isVault     Boolean @default(false)
+  /// Fondo fijo: lo que queda para dar vuelto. Al cerrar, la pantalla propone pasar el resto.
+  fixedFloatArs Decimal? @db.Decimal(12, 2)
+  isDefault   Boolean @default(false)
+  isActive    Boolean @default(true)
+  order       Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  shifts        CashShift[]
+  movements     CashMovement[]
+  transfersOut  CashTransfer[] @relation("CashTransferFrom")
+  transfersIn   CashTransfer[] @relation("CashTransferTo")
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, isActive])
+}
+
+/// Un pase de plata entre dos cuentas del mismo workspace.
+///
+/// El caso de todos los días: al cerrar el mostrador se guarda lo recaudado en la caja
+/// fuerte y queda el fondo fijo para el vuelto. No es un ingreso ni un egreso del negocio
+/// —la plata no entró ni salió, cambió de lugar— y por eso los dos asientos que genera
+/// llevan `transferId` y los reportes de ingresos y egresos los excluyen.
+model CashTransfer {
+  id            String @id @default(cuid())
+  workspaceId   String
+  fromAccountId String
+  toAccountId   String
+
+  amountArs  Decimal  @db.Decimal(12, 2)
+  occurredAt DateTime
+  note       String?
+
+  createdByUserId Int?
+  createdAt       DateTime @default(now())
+
+  workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  fromAccount CashAccount    @relation("CashTransferFrom", fields: [fromAccountId], references: [id], onDelete: Restrict)
+  toAccount   CashAccount    @relation("CashTransferTo", fields: [toAccountId], references: [id], onDelete: Restrict)
+  movements   CashMovement[]
+
+  @@index([workspaceId, occurredAt])
+}
+
+/// Categoría de un movimiento, definida por cada negocio.
+///
+/// Sirve para un solo lado: "Sueldos" no puede ser un ingreso. Por eso `kind` entra en la
+/// clave única, y "Reparaciones" puede existir de los dos lados sin chocar.
+model CashCategory {
+  id          String  @id @default(cuid())
+  workspaceId String
+  name        String
+  /// INGRESO | EGRESO
+  kind        String
+  isActive    Boolean @default(true)
+  order       Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  movements CashMovement[]
+
+  @@unique([workspaceId, kind, name])
+  @@index([workspaceId, kind, isActive])
+}
+
+/// Un turno de caja: se abre declarando un monto y se cierra contando.
+///
+/// La diferencia se guarda calculada y no se recalcula al leer: el saldo de hace dos años
+/// tiene que seguir diciendo lo mismo aunque después se corrija un movimiento.
+model CashShift {
+  id          String @id @default(cuid())
+  workspaceId String
+  accountId   String
+
+  openedAt         DateTime @default(now())
+  openedByUserId   Int?
+  openingAmountArs Decimal  @db.Decimal(12, 2)
+
+  closedAt          DateTime?
+  closedByUserId    Int?
+  /// Lo que se contó de verdad al cerrar.
+  countedAmountArs  Decimal?  @db.Decimal(12, 2)
+  /// Apertura + ingresos − egresos, congelado al cerrar.
+  expectedAmountArs Decimal?  @db.Decimal(12, 2)
+  /// Contado − esperado.
+  differenceArs     Decimal?  @db.Decimal(12, 2)
+  /// Obligatoria cuando la diferencia no es cero: una diferencia sin explicar no sirve.
+  differenceNote    String?
+
+  /// ABIERTO | CERRADO
+  status String @default("ABIERTO")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  account   CashAccount    @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  movements CashMovement[]
+
+  @@index([workspaceId, openedAt])
+  @@index([accountId, status])
+}
+
+/// Un asiento del libro.
+///
+/// Los que vienen de otro módulo NO se editan: se anulan con un contramovimiento que deja
+/// los dos asientos a la vista. Un libro que se puede reescribir no prueba nada — mismo
+/// criterio que `WorkspaceFeeLedgerEntry`.
+model CashMovement {
+  id          String  @id @default(cuid())
+  workspaceId String
+  accountId   String
+  shiftId     String?
+
+  /// INGRESO | EGRESO
+  kind       String
+  amountArs  Decimal  @db.Decimal(12, 2)
+  occurredAt DateTime
+
+  categoryId String?
+  /// EFECTIVO | TRANSFERENCIA | MERCADO_PAGO | TARJETA | OTRO
+  paymentMethod String @default("EFECTIVO")
+
+  /// La llave de los puntos del Club (etapa 3): todo ingreso con cliente genera puntos.
+  clientId    String?
+  description String
+  receiptRef  String?
+
+  /// manual | membership | bookings | sales | work-orders
+  sourceModule String  @default("manual")
+  /// Id del pago, la reserva o la venta que lo originó.
+  sourceRef    String?
+
+  /// El asiento que este anula. Único: un movimiento se anula una sola vez.
+  reversesMovementId String? @unique
+  reverseReason      String?
+
+  /// El pase que lo generó. Cuando no es nulo, este asiento NO es un ingreso ni un egreso
+  /// del negocio: es una pata de una transferencia, y los reportes lo excluyen.
+  transferId String?
+
+  createdByUserId Int?
+  createdAt       DateTime @default(now())
+
+  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  account   CashAccount   @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  shift     CashShift?    @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  category  CashCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  client    Client?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  transfer   CashTransfer? @relation(fields: [transferId], references: [id], onDelete: SetNull)
+  reverses   CashMovement? @relation("CashMovementReversal", fields: [reversesMovementId], references: [id], onDelete: SetNull)
+  reversedBy CashMovement? @relation("CashMovementReversal")
+
+  /// Lo que hace idempotente al depósito automático: una reserva no puede entrar dos veces.
+  /// Los manuales no chocan entre sí porque `sourceRef` es nulo y Postgres no considera
+  /// iguales dos nulos en un índice único.
+  @@unique([sourceModule, sourceRef])
+  @@index([workspaceId, occurredAt])
+  @@index([accountId, occurredAt])
+  @@index([shiftId])
+  @@index([clientId, occurredAt])
+  @@index([transferId])
 }
