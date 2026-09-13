@@ -4,6 +4,7 @@ import { listAccounts, listCategories, listMovements } from "@/lib/cash/reposito
 import { listClients } from "@/lib/clients/repository";
 import { MOVEMENT_KINDS, type MovementKind } from "@/lib/cash/constants";
 import { MovementsTable } from "../movements-table";
+import { MovementForm } from "../movement-form";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +59,16 @@ export default async function MovimientosPage({
         </p>
       ) : null}
       {sp.ok ? <p className="fo-card p-4 text-sm text-[var(--fo-success)]">Listo.</p> : null}
+
+      {/*
+        La carga manual con selector de cuenta vive acá y no en `/caja`: es el único lugar de
+        la interfaz donde anotar un movimiento en una cuenta sin panel de turno —Mercado
+        Pago, el banco, la caja fuerte—. Sin esto, una transferencia recibida no tendría
+        dónde quedar registrada, que es justo lo que este módulo existe para evitar. El botón
+        "Nuevo movimiento" del mostrador (dentro de `ShiftPanel`, en `/caja`) no se toca: es
+        el gesto rápido del día a día y sigue con la cuenta fija.
+      */}
+      <MovementForm accounts={cuentas} categories={categorias} clients={clientes} />
 
       <form method="GET" className="fo-card grid gap-4 !p-4 sm:grid-cols-3 lg:grid-cols-6">
         <div className="fo-field-stack">

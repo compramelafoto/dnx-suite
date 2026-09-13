@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { createMovementAction } from "./actions";
 import { MOVEMENT_KINDS, PAYMENT_METHODS, type MovementKind, type PaymentMethod } from "@/lib/cash/constants";
-import type { CashCategoryRow } from "@/lib/cash/repository";
+import type { CashAccountRow, CashCategoryRow } from "@/lib/cash/repository";
 import type { ClientRow } from "@/lib/clients/repository";
 
 const ETIQUETA_KIND: Record<MovementKind, string> = { INGRESO: "Ingreso", EGRESO: "Egreso" };
@@ -17,28 +17,43 @@ const ETIQUETA_METODO: Record<PaymentMethod, string> = {
 };
 
 /**
- * Cargar un movimiento manual, con la cuenta ya fija.
+ * Cargar un movimiento manual.
  *
- * Arranca escondido: es el botón "Nuevo movimiento" del turno abierto, no una pantalla
- * propia. El único motivo para correr en el navegador es que la categoría depende de si el
- * movimiento es ingreso o egreso — un ingreso no puede ir a "Sueldos" — y mostrar las diez
- * categorías juntas confunde más de lo que ahorra.
+ * Tiene dos modos, según de dónde se lo llame:
+ *
+ * - Con `accountId` fijo (el uso original): es el botón "Nuevo movimiento" del turno
+ *   abierto de mostrador. Arranca escondido detrás del botón, la cuenta no se elige.
+ * - Con `accounts` (una lista): es la carga manual de `/caja/movimientos`, para una cuenta
+ *   que no tiene panel de turno —Mercado Pago, el banco, la caja fuerte— y que si no fuera
+ *   por acá no tendría ningún lugar de la interfaz donde anotar un movimiento. Siempre está
+ *   visible y deja elegir la cuenta con un `<select>` en vez de fijarla. La lista que
+ *   recibe ya viene filtrada a las cuentas activas del workspace activo, pero eso es sólo
+ *   comodidad de la pantalla: `createMovementAction` vuelve a verificar la cuenta contra el
+ *   workspace en el servidor, porque esconder una opción en el cliente no es control de
+ *   acceso.
+ *
+ * En los dos modos el único motivo para correr en el navegador es que la categoría depende
+ * de si el movimiento es ingreso o egreso — un ingreso no puede ir a "Sueldos" — y mostrar
+ * las diez categorías juntas confunde más de lo que ahorra.
  */
 export function MovementForm({
   accountId,
   accountName,
+  accounts,
   categories,
   clients,
 }: {
-  accountId: string;
-  accountName: string;
+  accountId?: string;
+  accountName?: string;
+  accounts?: CashAccountRow[];
   categories: CashCategoryRow[];
   clients: ClientRow[];
 }) {
   const [abierto, setAbierto] = useState(false);
   const [kind, setKind] = useState<MovementKind>("INGRESO");
+  const conSelector = accounts !== undefined;
 
-  if (!abierto) {
+  if (!conSelector && !abierto) {
     return (
       <button type="button" className="fo-btn fo-btn-secondary text-sm" onClick={() => setAbierto(true)}>
         Nuevo movimiento
@@ -50,19 +65,40 @@ export function MovementForm({
 
   return (
     <form action={createMovementAction} className="fo-card space-y-4 p-5">
-      <input type="hidden" name="accountId" value={accountId} />
+      {conSelector ? null : <input type="hidden" name="accountId" value={accountId} />}
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold">Nuevo movimiento — {accountName}</h3>
-        <button
-          type="button"
-          className="text-xs text-[var(--fo-muted)] underline underline-offset-4"
-          onClick={() => setAbierto(false)}
-        >
-          Cancelar
-        </button>
+        <h3 className="text-sm font-semibold">
+          {conSelector ? "Cargar movimiento" : `Nuevo movimiento — ${accountName}`}
+        </h3>
+        {conSelector ? null : (
+          <button
+            type="button"
+            className="text-xs text-[var(--fo-muted)] underline underline-offset-4"
+            onClick={() => setAbierto(false)}
+          >
+            Cancelar
+          </button>
+        )}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
+        {conSelector ? (
+          <div className="fo-field-stack">
+            <label className="fo-label" htmlFor="mov-account">
+              Cuenta
+            </label>
+            <select id="mov-account" name="accountId" className="fo-input" required defaultValue="">
+              <option value="" disabled>
+                Elegí una cuenta
+              </option>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
         <div className="fo-field-stack">
           <label className="fo-label" htmlFor="mov-kind">
             Tipo

@@ -13,6 +13,7 @@ import { createCashTransfer, validateTransfer } from "@/lib/cash/transfer";
 import { parseAccountForm } from "@/lib/cash/account-form";
 import { parseCategoryForm } from "@/lib/cash/category-form";
 import { seedRowsFor } from "@/lib/cash/seed";
+import { sanitizeReturnTo } from "@/lib/cash/return-to";
 
 const CAJA = "/caja";
 const MOVIMIENTOS = "/caja/movimientos";
@@ -122,7 +123,11 @@ export async function closeShiftAction(formData: FormData): Promise<void> {
   });
 
   revalidatePath("/caja");
-  redirect("/caja/turnos?ok=1");
+  // El `shiftId` viaja en la URL a propósito: la propuesta de pase en `/caja/turnos` tiene
+  // que atarse a ESTE turno, no adivinarlo por "el arqueo cerrado más reciente" — con dos
+  // cajas cerrando casi al mismo tiempo, lo más reciente por fecha podría ser el de otra
+  // cuenta, y se ofrecería pasar el importe equivocado.
+  redirect(`/caja/turnos?ok=1&shiftId=${encodeURIComponent(shiftId)}`);
 }
 
 /**
@@ -280,7 +285,10 @@ export async function transferAction(formData: FormData): Promise<void> {
   const amountMinor = parseArsToMinor(String(formData.get("amountArs") ?? ""));
   const note = String(formData.get("note") ?? "").trim() || null;
   const fromShiftId = String(formData.get("fromShiftId") ?? "").trim() || null;
-  const volver = String(formData.get("returnTo") ?? PASES).trim() || PASES;
+  // `returnTo` viaja en un campo oculto del propio formulario, pero no se usa tal cual para
+  // no dejar una redirección abierta: `sanitizeReturnTo` exige que sea una ruta interna y si
+  // no, cae a `/caja/pases`. Ver el porqué completo en `lib/cash/return-to.ts`.
+  const volver = sanitizeReturnTo(String(formData.get("returnTo") ?? ""), PASES);
 
   if (amountMinor === null) redirect(`${volver}?error=${encodeURIComponent("El importe no se entiende.")}`);
 

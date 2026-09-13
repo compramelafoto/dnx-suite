@@ -15,7 +15,7 @@ function fecha(d: Date) {
 export default async function TurnosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; ok?: string }>;
+  searchParams: Promise<{ error?: string; ok?: string; shiftId?: string }>;
 }) {
   const { workspace } = await requireCashStaff();
   const params = await searchParams;
@@ -33,18 +33,23 @@ export default async function TurnosPage({
           select: { id: true, name: true },
         })
       : null;
+  // Atado al turno concreto que `closeShiftAction` acaba de cerrar (viaja en `shiftId` por la
+  // URL de redirect), no al "arqueo cerrado más reciente" por fecha: con dos cajas cerrando
+  // casi al mismo tiempo —dos sucursales, o dos cuentas— lo más reciente por fecha puede ser
+  // el turno de OTRA cuenta, y se propondría pasar el importe equivocado. El `workspaceId` en
+  // el `where` verifica de paso que el turno referenciado sea del workspace activo.
   const cierreReciente =
-    cajaFuerte &&
-    (await prisma.cashShift.findFirst({
-      where: { workspaceId: workspace.id, status: "CERRADO" },
-      orderBy: { closedAt: "desc" },
-      select: {
-        id: true,
-        accountId: true,
-        countedAmountArs: true,
-        account: { select: { name: true, fixedFloatArs: true } },
-      },
-    }));
+    cajaFuerte && params.shiftId
+      ? await prisma.cashShift.findFirst({
+          where: { id: params.shiftId, workspaceId: workspace.id, status: "CERRADO" },
+          select: {
+            id: true,
+            accountId: true,
+            countedAmountArs: true,
+            account: { select: { name: true, fixedFloatArs: true } },
+          },
+        })
+      : null;
 
   const propuestaDePase =
     cierreReciente && cajaFuerte && cierreReciente.accountId !== cajaFuerte.id
