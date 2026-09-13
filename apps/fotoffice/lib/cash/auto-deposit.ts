@@ -9,7 +9,13 @@
  * tiene que seguir funcionando con el módulo de Caja apagado o a medio configurar.
  */
 
-export type AccountOption = { id: string; name: string; kind: string; isDefault: boolean };
+export type AccountOption = {
+  id: string;
+  name: string;
+  kind: string;
+  isDefault: boolean;
+  isVault: boolean;
+};
 export type CategoryOption = { id: string; name: string; kind: string };
 
 export type DepositTarget =
@@ -33,11 +39,19 @@ export function resolveDepositTarget(input: {
     return { ok: false, reason: "El workspace no tiene ninguna cuenta de caja." };
   }
 
+  // La caja fuerte queda afuera de este reparto siempre, sin excepción: nadie la arquea a
+  // diario, así que un cobro automático que cae ahí infla su saldo contra plata que en
+  // realidad está en el mostrador, y ningún arqueo lo va a notar — es silencioso justo por
+  // ser automático. Si el administrador desactiva o reordena la caja diaria, el cobro tiene
+  // que quedar sin depositar antes que depositarse mal.
+  const candidatas = input.accounts.filter((a) => !a.isVault);
+  if (candidatas.length === 0) {
+    return { ok: false, reason: "El workspace no tiene ninguna cuenta de caja que no sea la caja fuerte." };
+  }
+
   const quiereDigital = MEDIOS_DIGITALES.has(input.paymentMethod);
-  const porTipo = input.accounts.find((a) =>
-    quiereDigital ? a.kind === "DIGITAL" : a.kind === "EFECTIVO",
-  );
-  const cuenta = porTipo ?? input.accounts.find((a) => a.isDefault) ?? input.accounts[0];
+  const porTipo = candidatas.find((a) => (quiereDigital ? a.kind === "DIGITAL" : a.kind === "EFECTIVO"));
+  const cuenta = porTipo ?? candidatas.find((a) => a.isDefault) ?? candidatas[0];
 
   const categoria =
     input.categories.find((c) => c.kind === "INGRESO" && c.name === input.categoryName) ?? null;

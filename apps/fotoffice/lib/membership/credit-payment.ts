@@ -190,7 +190,7 @@ export async function creditMembershipPayment(input: {
         paymentMethod: "MERCADO_PAGO",
         accounts: await tx.cashAccount.findMany({
           where: { workspaceId: intento.workspaceId, isActive: true },
-          select: { id: true, name: true, kind: true, isDefault: true },
+          select: { id: true, name: true, kind: true, isDefault: true, isVault: true },
           orderBy: { order: "asc" },
         }),
         categories: await tx.cashCategory.findMany({

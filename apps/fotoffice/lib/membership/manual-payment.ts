@@ -151,7 +151,7 @@ export async function registerManualPayment(input: {
         paymentMethod: input.method,
         accounts: await tx.cashAccount.findMany({
           where: { workspaceId: input.workspaceId, isActive: true },
-          select: { id: true, name: true, kind: true, isDefault: true },
+          select: { id: true, name: true, kind: true, isDefault: true, isVault: true },
           orderBy: { order: "asc" },
         }),
         categories: await tx.cashCategory.findMany({
