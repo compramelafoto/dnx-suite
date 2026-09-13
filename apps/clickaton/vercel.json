@@ -38,6 +38,10 @@
     {
       "path": "/api/cron/clickaton-notes-purge",
       "schedule": "30 4 * * *"
+    },
+    {
+      "path": "/api/cron/purge-proposals",
+      "schedule": "45 4 * * *"
     }
   ]
 }

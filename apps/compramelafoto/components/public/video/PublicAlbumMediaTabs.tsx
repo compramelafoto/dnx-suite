@@ -12,6 +12,8 @@ type Props = {
   accentColor?: string;
   defaultTab?: "photos" | "videos";
   photoCount?: number;
+  /** Habilita la compra de videos. Sin esto la galería es sólo un visor. */
+  albumId?: number;
 };
 
 /** Galería de álbum `/album/[slug]` — solo API de álbum. */
@@ -23,6 +25,7 @@ export default function PublicAlbumMediaTabs({
   accentColor,
   defaultTab = "photos",
   photoCount = 0,
+  albumId,
 }: Props) {
   if (!publicSlug?.trim()) {
     return <>{photosContent}</>;
@@ -37,6 +40,7 @@ export default function PublicAlbumMediaTabs({
       photosContent={photosContent}
       accentColor={accentColor}
       defaultTab={photoCount === 0 ? "videos" : defaultTab}
+      albumId={albumId}
     />
   );
 }

@@ -7,11 +7,16 @@ import { ProposalStudio } from "./ProposalStudio";
 import { PROPOSAL_SELLER } from "@/lib/propuesta/seller";
 
 /**
- * Pantalla interna para armar una propuesta comercial en el momento: un
- * vendedor sube el logo de una marca potencial y ve al instante cómo se
- * vería en las superficies publicitarias que ese vendedor puede ofrecer.
+ * Pantalla para armar una propuesta comercial en el momento: un vendedor sube
+ * el logo de una marca potencial y ve al instante cómo se vería en las
+ * superficies publicitarias que ese vendedor puede ofrecer.
  *
- * No se publica: en producción responde 404, igual que `/demo-partners`.
+ * **Es pública**: cualquiera con el enlace la usa sin cuenta, para que el
+ * vendedor pueda abrirla en la reunión sin iniciar sesión. Lo que la protege son
+ * los topes de uso y la validación del archivo, en `public-guard.ts`.
+ *
+ * Al descargar el PDF la propuesta queda guardada con un código; se recupera en
+ * `/propuesta/<código>`.
  */
 
 export const metadata: Metadata = {
