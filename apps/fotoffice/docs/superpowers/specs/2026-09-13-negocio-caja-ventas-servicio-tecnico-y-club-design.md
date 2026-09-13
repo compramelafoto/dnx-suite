@@ -182,19 +182,30 @@ de trabajo cobra señas y saldos, Ventas cobra el mostrador, y si Caja no existe
 uno inventa su propio registro. Cuando Caja llegue después, el negocio queda con dos libros
 que no cierran y alguien tiene que migrar uno al otro.
 
-### 6.2 Cuentas: por qué no alcanza con una
+### 6.2 Cuentas: por qué no alcanza con una, y las define el negocio
 
 El efectivo se cuenta; Mercado Pago y el banco se concilian. Meterlos en la misma bolsa
 haría que el arqueo diera mal todos los días.
 
 ```
 CashAccount
-  workspaceId, name ("Efectivo", "Mercado Pago", "Banco", "Tarjeta")
+  workspaceId, name ("Efectivo", "Mercado Pago", "Banco", "Tarjeta",
+                     "Efectivo Sucursal Centro", "Efectivo Sucursal Norte"...)
   kind: "EFECTIVO" | "DIGITAL"
   isDefault, isActive, order
 ```
 
 Sólo las cuentas `EFECTIVO` se arquean.
+
+**Las crea el administrador de cada workspace, sin tope.** Un negocio con una sola caja usa
+dos cuentas y no piensa más en el tema; uno con tres sucursales crea un efectivo por sucursal
+y arquea cada uno por separado. No hace falta una entidad "sucursal": la cuenta ya es la
+unidad que se abre, se cierra y se cuenta, y agregar una capa arriba sería inventar jerarquía
+sin que nadie la haya pedido. Si algún día hace falta agrupar sucursales para un reporte, se
+agrega un campo, no un modelo.
+
+Al encender el módulo se crean "Efectivo" y "Mercado Pago" por omisión, porque una pantalla
+vacía no la llena nadie.
 
 ### 6.3 Turnos y arqueo
 
@@ -209,8 +220,10 @@ CashShift
   status: "ABIERTO" | "CERRADO"
 ```
 
-Un solo turno abierto por cuenta a la vez. La diferencia no se corrige borrando movimientos:
-se explica por escrito. Un arqueo que siempre da cero no sirve para detectar nada.
+Un solo turno abierto por cuenta a la vez — y como cada sucursal es su propia cuenta, tres
+sucursales pueden tener tres turnos abiertos en simultáneo sin pisarse. La diferencia no se
+corrige borrando movimientos: se explica por escrito. Un arqueo que siempre da cero no sirve
+para detectar nada.
 
 ### 6.4 Movimientos
 
@@ -472,7 +485,7 @@ ClubProgram
   workspaceId (uno por workspace), name, isActive
   pointsPerAmountArs      — p. ej. 1 punto cada $1.000
   roundingMode
-  pointsExpireMonths?     — null = no vencen
+  pointsExpireMonths?     — null = no vencen. **Nulo por omisión y por decisión** (§9.5)
   enrollmentMode: "ADHESION" | "AUTOMATICA"
   termsText, termsVersion
 
@@ -525,16 +538,20 @@ El saldo de puntos es **la suma del libro**, no un número que alguien pueda pis
 en `ClubMembership` es una copia que se recalcula. Mismo criterio que el stock y que el libro
 de comisiones que ya está en producción.
 
-### 9.5 Vencimiento
+### 9.5 Vencimiento: no vencen
 
-Los puntos vencen estén activados o no. Si no, el saldo latente crece para siempre y un día
-el negocio se encuentra con una deuda enorme en premios que nunca previó.
+Decidido el 2026-09-13: **los puntos no vencen.** `pointsExpireMonths` queda en nulo por
+omisión y el proceso de vencimiento no se construye en la etapa 3.
 
-Aviso previo por correo: *"te vencen 800 puntos el 31 de octubre"*. Es el mensaje que más
-canjes genera en cualquier programa de fidelidad.
+La contra, dicha una sola vez y por escrito: el saldo acumulado es una deuda en premios que
+sólo crece, y un cliente que vuelve a los cuatro años con veinte mil puntos los tiene todos.
+Es una decisión comercial legítima —premiar al que vuelve es justamente el punto— y el campo
+queda en el modelo, así que activar un plazo es cambiar un número, no rehacer el módulo.
 
-Si alguien se da de baja del Club, los puntos se congelan. Si vuelve, recupera los que no
-hayan vencido mientras tanto.
+Lo que sí se construye desde el principio: el asiento `VENCIMIENTO` existe en el libro de
+puntos. Sin él, encender el vencimiento más adelante obligaría a migrar el histórico.
+
+Si alguien se da de baja del Club, los puntos se congelan. Si vuelve, los recupera enteros.
 
 ### 9.6 Sponsors
 
@@ -883,13 +900,12 @@ Quedan abiertas:
 1. **¿Cuál es la condición fiscal exacta de SFPR?** Si es exenta o no alcanzada por IVA, la RG
    5893/2026 le pone fecha: 1 de marzo de 2027. Lo tiene que confirmar su contador, y de eso
    depende si la etapa 6 tiene un plazo real o no. Es la única pregunta con fecha encima.
-2. **¿El servicio técnico es un workspace nuevo o es `Emeveph`**, el que se creó el 2026-09-10 y
-   todavía no tiene ningún módulo encendido?
-3. **¿Cuántas cajas físicas hay?** El diseño soporta varias; el valor por omisión es una.
-4. **¿Quién puede abrir y cerrar caja?** Hace falta decidir si alcanza con los roles de
-   workspace que ya existen o si el módulo necesita los suyos.
-5. **¿Cada cuánto vencen los puntos?** Es configuración, pero conviene fijar el valor recomendado
-   antes de la etapa 3.
+2. **¿Quién puede abrir y cerrar caja?** Hace falta decidir si alcanza con los roles de
+   workspace que ya existen o si el módulo necesita los suyos. Se resuelve dentro de la etapa 1a.
+
+Contestadas también el 2026-09-13: **`Emeveph` no es el servicio técnico** —ése va a ser un
+workspace nuevo—; **las cajas las define el administrador de cada workspace**, tantas como
+sucursales tenga (§6.2); y **los puntos no vencen** (§9.5).
 
 ## 16. Fuentes consultadas
 
