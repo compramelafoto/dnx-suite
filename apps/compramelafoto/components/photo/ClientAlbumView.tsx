@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import FaceSearchVideoResults from "@/components/public/video/FaceSearchVideoResults";
+import type { VideoSelfieHit } from "@/lib/videos/video-frame-matching";
 import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGateVisibility } from "@/contexts/GateVisibilityContext";
@@ -503,6 +505,8 @@ export default function ClientAlbumView({
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<Array<{ id: number; previewUrl: string; originalKey: string; analysisStatus?: string | null }>>([]);
+  // La misma selfie encuentra fotos y videos: una sola consulta a Amazon.
+  const [faceVideos, setFaceVideos] = useState<VideoSelfieHit[]>([]);
   /** Solo búsqueda facial (no OCR): base del pack en álbumes no ocultos. */
   const [lastFaceSearchMatchIds, setLastFaceSearchMatchIds] = useState<number[]>([]);
   const [faceFile, setFaceFile] = useState<File | null>(null);
@@ -1745,6 +1749,7 @@ export default function ClientAlbumView({
       if (!res.ok) throw new Error(data?.error || "Error buscando rostro");
       const items = Array.isArray(data.items) ? data.items : [];
       setSearchResults(items);
+      setFaceVideos(Array.isArray(data.videos) ? data.videos : []);
       const faceIdsForBulk = album.hiddenPhotosEnabled ? [] : uniqueAlbumPhotoIdsFromFaceItems(album, items);
       setLastFaceSearchMatchIds(faceIdsForBulk);
 
@@ -2404,6 +2409,7 @@ export default function ClientAlbumView({
         publicVideosEnabled={publicVideosEnabled}
         initialPublicVideos={initialPublicVideos}
         accentColor={accentColor}
+        albumId={album.id}
         photoCount={album.photos.length}
         defaultTab={album.photos.length === 0 && hasPublicReadyVideos ? "videos" : "photos"}
         photosContent={
@@ -2804,6 +2810,18 @@ export default function ClientAlbumView({
                 No encontramos resultados todavía. Probá con otro texto o una selfie más clara.
               </div>
             )}
+            {faceVideos.length > 0 && (
+              <FaceSearchVideoResults
+                videos={faceVideos}
+                onOpenVideo={() => {
+                  // Los videos viven en su pestaña; ahí se ven y se compran.
+                  const tab = document.querySelector<HTMLElement>('[data-media-tab="videos"]');
+                  tab?.click();
+                  tab?.scrollIntoView({ behavior: "smooth", block: "start" });
+                }}
+              />
+            )}
+
             {searchResults.length > 0 && (
               <div className="mt-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">

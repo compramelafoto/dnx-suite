@@ -19,6 +19,8 @@ type Props = {
   accentColor?: string;
   defaultTab?: MediaTab;
   photoCount?: number;
+  /** Habilita la compra de videos. Sin esto la grilla es sólo un visor. */
+  albumId?: number;
 };
 
 export default function PublicMediaTabs({
@@ -29,6 +31,7 @@ export default function PublicMediaTabs({
   accentColor,
   defaultTab = "photos",
   photoCount = 0,
+  albumId,
 }: Props) {
   const preferVideosOnly =
     photoCount === 0 &&
@@ -138,6 +141,7 @@ export default function PublicMediaTabs({
           videos={videos}
           accentColor={accentColor}
           showEventAlbumContext={showEventAlbumContext}
+          albumId={albumId}
         />
       )}
     </section>
@@ -173,7 +177,14 @@ export default function PublicMediaTabs({
             Fotos
           </button>
         ) : null}
-        <button type="button" className={tabBtnClass(tab === "videos")} onClick={() => setTab("videos")}>
+        {/* data-media-tab lo usa la búsqueda por selfie para traer al cliente
+            hasta acá cuando encuentra un video suyo. */}
+        <button
+          type="button"
+          data-media-tab="videos"
+          className={tabBtnClass(tab === "videos")}
+          onClick={() => setTab("videos")}
+        >
           Videos
           <span className="ml-1.5 text-xs font-normal opacity-80">({videos.length})</span>
         </button>
