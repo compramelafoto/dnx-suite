@@ -60,6 +60,30 @@ se apila encima.
 
 **Salida:** se crea un evento y se abre su experiencia pública desde un celular.
 
+## Estado al 2026-09-13
+
+La Etapa 1 cerró el 12/9, **ocho días antes de lo previsto**. De la Etapa 2 ya
+están hechas y verificadas en producción:
+
+| # | Tarea | Verificación |
+|---|---|---|
+| 2.2 | Consentimiento y `SubilafotoConsent` | La puerta pide aceptar; sin aceptar, la API de subida devuelve 403. Se guarda la versión del texto, no un "sí" |
+| 2.3 | Adaptador con interfaz de proveedor | 42 tests que no tocan red ni base |
+| 2.4 | Análisis asíncrono e idempotente | La condición la resuelve la base: dos procesos a la vez guardan una sola decisión |
+| 2.5 | Motor de reglas con perfiles y versión | Las cinco categorías de riesgo alto no se aprueban en ningún perfil |
+| 2.6 | Falla cerrada | Todo error termina en `REVIEW_REQUIRED`, nunca en `APPROVED` |
+
+Falta todavía **probar la moderación contra Amazon con una foto real**: los tests
+cubren la lógica, no que la credencial y el bucket se hablen en el camino completo.
+
+Lo que sigue, en este orden porque cada uno habilita al siguiente: panel de
+revisión (2.7), galería (2.8), tiempo real (2.9), pantalla del salón (2.10),
+control remoto (2.11), cierre automático (2.12) y materiales impresos (2.13).
+
+Fuera del backlog quedaron hechas dos cosas que no estaban previstas y que
+bloqueaban: los textos legales (documento 12 y `lib/legal/`) y la entrada de
+Subí la Foto al design system de la suite.
+
 ## Etapa 2 — Núcleo en vivo: 21 al 27 de septiembre
 
 | # | Tarea | Criterio de aceptación |
