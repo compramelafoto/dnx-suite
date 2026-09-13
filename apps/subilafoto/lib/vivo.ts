@@ -76,3 +76,22 @@ export function condicionDesdeCursor(
     ],
   };
 }
+
+/**
+ * Qué sacar de la pantalla.
+ *
+ * El canal manda cada tanto la lista completa de lo que está vigente, y la
+ * pantalla se queda sólo con eso. Es la red de seguridad: los avisos de "sacá
+ * esta" viajan sueltos y se pueden perder en un corte, pero la lista completa
+ * corrige cualquier diferencia sin que nadie tenga que darse cuenta.
+ *
+ * Sin esto, una foto que el organizador oculta mientras la pantalla estuvo unos
+ * segundos desconectada se queda proyectada toda la noche.
+ */
+export function idsAQuitar(
+  vigentes: readonly string[],
+  enPantalla: readonly string[],
+): string[] {
+  const siguenVigentes = new Set(vigentes);
+  return enPantalla.filter((id) => !siguenVigentes.has(id));
+}

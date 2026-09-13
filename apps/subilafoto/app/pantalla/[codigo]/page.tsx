@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
 import { condicionDePublicadas } from "@/lib/album";
+import { estadoDeAcceso } from "@/lib/acceso-evento";
 import { resolverTema } from "@/lib/tema";
 import { DURACION, enlacesParaMirar } from "@/lib/moderacion/vista";
 import { Proyeccion, type FotoEnVivo } from "./proyeccion";
@@ -25,9 +26,49 @@ export default async function Pantalla({ params }: Props) {
 
   const evento = await prisma.subilafotoEvent.findUnique({
     where: { screenCode: codigo.toUpperCase() },
-    select: { id: true, code: true, themeTokens: true },
+    select: {
+      id: true,
+      code: true,
+      themeTokens: true,
+      name: true,
+      status: true,
+      activationAt: true,
+      deactivationAt: true,
+      closingCardText: true,
+    },
   });
   if (!evento) notFound();
+
+  const tema = resolverTema(evento.themeTokens);
+
+  /*
+    La placa de cierre. Cuando el evento termina, la pantalla deja de rotar y
+    queda con un mensaje fijo: si siguiera pasando fotos, el salón vacío tendría
+    una pantalla encendida toda la noche.
+
+    Se mira el acceso y no sólo el estado: el cron corre cada cinco minutos, así
+    que entre que vence la ventana y se marca `CLOSED` hay un rato en el que la
+    base todavía dice `ACTIVE`. La pantalla no tiene por qué esperar al cron.
+  */
+  if (!estadoDeAcceso(evento, new Date()).puedeSubir) {
+    return (
+      <main
+        className="flex h-[100svh] w-full flex-col items-center justify-center px-16 text-center"
+        style={{
+          background: tema.fondo,
+          color: tema.texto,
+          fontFamily: `${tema.tipografia}, system-ui, sans-serif`,
+        }}
+      >
+        <p className="text-balance text-[clamp(2rem,6vw,4.5rem)] font-extrabold leading-[1.1]">
+          {evento.closingCardText?.trim() || "Gracias por la noche"}
+        </p>
+        <p className="mt-8 text-[clamp(1rem,2vw,1.75rem)]" style={{ opacity: 0.7 }}>
+          {evento.name}
+        </p>
+      </main>
+    );
+  }
 
   const ultimas = await prisma.subilafotoMedia.findMany({
     where: { ...condicionDePublicadas(evento.id), kind: "PHOTO" },
@@ -49,8 +90,6 @@ export default async function Pantalla({ params }: Props) {
     pie: f.caption,
     nombre: f.guestName,
   }));
-
-  const tema = resolverTema(evento.themeTokens);
 
   return (
     <Proyeccion

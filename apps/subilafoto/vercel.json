@@ -3,6 +3,10 @@
     {
       "path": "/api/moderacion/procesar",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/eventos/cerrar",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

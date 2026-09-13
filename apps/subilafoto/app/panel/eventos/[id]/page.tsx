@@ -88,6 +88,7 @@ export default async function DetalleEvento({ params }: Props) {
 
       <nav className="mt-10 flex flex-wrap gap-4">
         {[
+          { href: `/panel/eventos/${id}/control`, texto: "Control de pantalla" },
           { href: `/panel/eventos/${id}/moderacion`, texto: "Moderación" },
           { href: `/panel/eventos/${id}/plantilla`, texto: "Plantilla" },
           { href: `/panel/eventos/${id}/qr`, texto: "QR y materiales" },
