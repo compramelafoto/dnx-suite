@@ -3,7 +3,7 @@ import Link from "next/link";
 import { prisma } from "@repo/db";
 import { condicionDePublicadas } from "@/lib/album";
 import { resolverTema } from "@/lib/tema";
-import { enlacesParaMirar } from "@/lib/moderacion/vista";
+import { DURACION, enlacesParaMirar } from "@/lib/moderacion/vista";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +41,10 @@ export default async function Album({ params }: Props) {
     select: { id: true, originalKey: true, caption: true, guestName: true },
   });
 
-  const enlaces = await enlacesParaMirar(fotos.map((f) => f.originalKey));
+  const enlaces = await enlacesParaMirar(
+    fotos.map((f) => f.originalKey),
+    DURACION.proyeccion,
+  );
   const tema = resolverTema(evento.themeTokens);
 
   return (
