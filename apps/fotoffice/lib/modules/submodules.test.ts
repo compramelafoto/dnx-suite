@@ -1,8 +1,9 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { claimedPrefixes, submodulesFor } from "./submodules";
+import { allSubmoduleItems, claimedPrefixes, submodulesFor } from "./submodules";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
+import { ICONOS } from "@/components/shell/nav-icons";
 
 const RAIZ = join(import.meta.dirname, "..", "..");
 
@@ -44,6 +45,22 @@ describe("submodulesFor", () => {
   it("no hay rutas repetidas", () => {
     const hrefs = submodulesFor(MEMBERS_MODULE_KEY, { canManage: true }).map((s) => s.href);
     expect(new Set(hrefs).size).toBe(hrefs.length);
+  });
+});
+
+describe("íconos de los submódulos", () => {
+  it("cada ícono declarado existe en el mapa que dibuja el menú", () => {
+    // Este es el hallazgo que motiva la prueba: declarar acá un nombre de lucide-react que no
+    // esté en ICONOS no rompe nada — shell-nav.tsx cae en su ícono genérico de reserva, en
+    // silencio, y nadie se entera hasta que alguien mira la pantalla. Barremos TODOS los
+    // módulos (no solo Socios) porque el problema apareció justo en los que se acaban de dar
+    // de alta.
+    for (const sub of allSubmoduleItems()) {
+      expect(
+        ICONOS[sub.icon],
+        `"${sub.icon}" (usado por ${sub.href}) no está en ICONOS: caería en el ícono genérico`,
+      ).toBeDefined();
+    }
   });
 });
 

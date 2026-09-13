@@ -269,3 +269,14 @@ export function claimedPrefixes(moduleKey: string): string[] {
   const raiz = items.find((i) => i.activeMatch === "rest")?.href;
   return items.filter((i) => i.href !== raiz).map((i) => i.href);
 }
+
+/**
+ * Todas las pantallas declaradas, de todos los módulos, sin filtrar por permiso.
+ *
+ * Existe para pruebas que necesitan barrer el catálogo entero (por ejemplo, validar que cada
+ * `icon` nombrado acá exista de verdad en el mapa que usa el menú) sin tener que enumerar las
+ * claves de módulo a mano y quedar desactualizadas el día que se agregue una nueva.
+ */
+export function allSubmoduleItems(): SubmoduleItem[] {
+  return Object.values(POR_MODULO).flat();
+}
