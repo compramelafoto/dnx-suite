@@ -134,34 +134,47 @@ export async function registerManualPayment(input: {
     // libro mintiendo. Pero un fallo del depósito NO puede voltear el pago, así que lo que se
     // decide antes —con `resolveDepositTarget`— es si corresponde depositar o no, y sólo si
     // corresponde se escribe.
-    const destino = resolveDepositTarget({
-      cashEnabled: await isModuleEnabledForWorkspace(input.workspaceId, CASH_MODULE_KEY),
-      paymentMethod: input.method,
-      accounts: await tx.cashAccount.findMany({
-        where: { workspaceId: input.workspaceId, isActive: true },
-        select: { id: true, name: true, kind: true, isDefault: true },
-        orderBy: { order: "asc" },
-      }),
-      categories: await tx.cashCategory.findMany({
-        where: { workspaceId: input.workspaceId, kind: "INGRESO", isActive: true },
-        select: { id: true, name: true, kind: true },
-      }),
-      categoryName: "Cuotas",
-    });
-
-    if (destino.ok) {
-      await recordCashMovement(tx, {
-        workspaceId: input.workspaceId,
-        accountId: destino.accountId,
-        categoryId: destino.categoryId,
-        kind: "INGRESO",
-        amountMinor: input.amountMinor,
-        occurredAt: input.paidAt,
-        description: `Cuota — socio ${socio.memberNumber}`,
+    //
+    // Por qué se pregunta ACÁ, antes de tocar `cashAccount`/`cashCategory`, y no después de
+    // armar el input: esas dos tablas las trae una migración que en este repo se aplica a
+    // mano, en un paso aparte y posterior al deploy del código (no hay `migrate deploy`
+    // automático). Si el código de Caja sale a producción antes que esa migración —ya pasó
+    // antes con otras tablas—, un `findMany` contra una tabla ausente rompe con un error de
+    // Postgres DENTRO de esta transacción, y eso voltea el cobro completo: un socio que pagó
+    // quedaría figurando como deudor por un asiento contable que ni siquiera le corresponde.
+    // Cortar acá, antes de cualquier consulta a Caja, hace que ese despliegue desordenado sea
+    // inofensivo, y de paso evita las dos consultas de más en el caso común (Caja apagada).
+    const cashEnabled = await isModuleEnabledForWorkspace(input.workspaceId, CASH_MODULE_KEY);
+    if (cashEnabled) {
+      const destino = resolveDepositTarget({
+        cashEnabled,
         paymentMethod: input.method,
-        sourceModule: "membership",
-        sourceRef: pago.id,
+        accounts: await tx.cashAccount.findMany({
+          where: { workspaceId: input.workspaceId, isActive: true },
+          select: { id: true, name: true, kind: true, isDefault: true },
+          orderBy: { order: "asc" },
+        }),
+        categories: await tx.cashCategory.findMany({
+          where: { workspaceId: input.workspaceId, kind: "INGRESO", isActive: true },
+          select: { id: true, name: true, kind: true },
+        }),
+        categoryName: "Cuotas",
       });
+
+      if (destino.ok) {
+        await recordCashMovement(tx, {
+          workspaceId: input.workspaceId,
+          accountId: destino.accountId,
+          categoryId: destino.categoryId,
+          kind: "INGRESO",
+          amountMinor: input.amountMinor,
+          occurredAt: input.paidAt,
+          description: `Cuota — socio ${socio.memberNumber}`,
+          paymentMethod: input.method,
+          sourceModule: "membership",
+          sourceRef: pago.id,
+        });
+      }
     }
 
     return {

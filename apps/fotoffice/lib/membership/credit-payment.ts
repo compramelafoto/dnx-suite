@@ -172,11 +172,21 @@ export async function creditMembershipPayment(input: {
     // idempotencia de `recordCashMovement` hace que un aviso de MercadoPago repetido —el
     // caso normal— no duplique el depósito.
     //
+    // Por qué se pregunta si Caja está habilitada ANTES de tocar `cashAccount`/`cashCategory`:
+    // esas tablas las trae una migración que en este repo se aplica a mano, después del deploy
+    // del código (no hay `migrate deploy` automático). Si el código sale antes que la
+    // migración, un `findMany` contra una tabla ausente rompe con un error de Postgres DENTRO
+    // de esta transacción y voltea la acreditación completa — el pago quedaría sin acreditar
+    // en TODOS los workspaces, tengan Caja encendida o no. Cortar acá antes de cualquier
+    // consulta a Caja hace que ese despliegue desordenado sea inofensivo.
+    //
     // `recordCashMovement` lanza si el importe no es mayor que cero, y eso volcaría toda la
-    // acreditación del pago: se resguarda acá, aunque un pago de $0 no debería llegar nunca.
-    if (input.paidAmountMinor > 0) {
+    // acreditación del pago: se resguarda acá también, aunque un pago de $0 no debería llegar
+    // nunca.
+    const cashEnabled = await isModuleEnabledForWorkspace(intento.workspaceId, CASH_MODULE_KEY);
+    if (cashEnabled && input.paidAmountMinor > 0) {
       const destino = resolveDepositTarget({
-        cashEnabled: await isModuleEnabledForWorkspace(intento.workspaceId, CASH_MODULE_KEY),
+        cashEnabled,
         paymentMethod: "MERCADO_PAGO",
         accounts: await tx.cashAccount.findMany({
           where: { workspaceId: intento.workspaceId, isActive: true },
