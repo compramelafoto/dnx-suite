@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@/lib/prisma";
 import { deleteMultipleFromR2 } from "@/lib/r2-client";
+import { deleteFace } from "@/lib/faces/rekognition";
 
 /**
  * Limpieza de videos vencidos.
@@ -23,6 +24,8 @@ export type PurgeCandidate = {
   thumbnailKey: string | null;
   isRemoved: boolean;
   expiresAt: Date;
+  /// Fotogramas extraídos para reconocimiento facial: también hay que borrarlos.
+  frames: { key: string }[];
 };
 
 /** Un video ya purgado no tiene archivos que borrar. */
@@ -43,9 +46,20 @@ export function shouldPurgeVideo(video: PurgeCandidate, now: Date): boolean {
   return video.expiresAt.getTime() < now.getTime();
 }
 
-/** Las keys de R2 a borrar: original, preview y miniatura, sin repetir. */
+/**
+ * Las keys de R2 a borrar, sin repetir: original, preview, miniatura y los
+ * fotogramas del reconocimiento facial.
+ *
+ * Los fotogramas son 20 por video. Olvidarlos repetiría exactamente la fuga que
+ * esta limpieza vino a tapar.
+ */
 export function collectPurgeKeys(video: PurgeCandidate): string[] {
-  const keys = [video.originalKey, video.previewKey, video.thumbnailKey];
+  const keys = [
+    video.originalKey,
+    video.previewKey,
+    video.thumbnailKey,
+    ...(video.frames ?? []).map((f) => f.key),
+  ];
   const limpias = keys
     .map((k) => k?.trim() ?? "")
     .filter((k) => k !== "" && k !== PURGED_ORIGINAL_KEY);
@@ -89,6 +103,7 @@ export async function runVideoCleanup(
       isRemoved: true,
       expiresAt: true,
       fileSizeBytes: true,
+      frames: { select: { key: true, faces: { select: { rekognitionFaceId: true } } } },
     },
     orderBy: { expiresAt: "asc" },
     take: maxVideos,
@@ -116,6 +131,23 @@ export async function runVideoCleanup(
         await deleteMultipleFromR2(keys);
       }
 
+      // Las caras del video borrado no pueden quedar en la colección de
+      // Rekognition: una selfie seguiría encontrando un video que ya no existe,
+      // y son datos biométricos de personas.
+      const faceIds = video.frames.flatMap((f) => f.faces.map((c) => c.rekognitionFaceId));
+      for (const faceId of faceIds) {
+        await deleteFace(faceId).catch((err: unknown) => {
+          console.warn("[video-cleanup] no se pudo borrar la cara", {
+            videoId: video.id,
+            faceId,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+      }
+
+      // Borrar las filas de fotogramas arrastra sus caras por cascada.
+      await prisma.videoFrame.deleteMany({ where: { videoId: video.id } });
+
       await prisma.videoAsset.update({
         where: { id: video.id },
         data: {
@@ -135,6 +167,8 @@ export async function runVideoCleanup(
       console.info("[video-cleanup] purgado", {
         videoId: video.id,
         archivos: keys.length,
+        fotogramas: video.frames.length,
+        carasBorradas: faceIds.length,
         motivo: video.isRemoved ? "eliminado" : "vencido",
       });
     } catch (err: unknown) {
