@@ -38,14 +38,38 @@ export function codigoDeError(error: unknown): string {
   return "ErrorDesconocido";
 }
 
-/** Normaliza lo que devuelve el proveedor a la forma que entienden las reglas. */
-export function normalizarEtiquetas(
-  crudas: readonly { Name?: string; Confidence?: number }[] | undefined,
-): Etiqueta[] {
+/**
+ * Normaliza lo que devuelve el proveedor a la forma que entienden las reglas.
+ *
+ * Rekognition devuelve la categoría y sus subcategorías, todas juntas y con la
+ * misma confianza. Se conserva el nivel de cada una porque las reglas tratan
+ * distinto a una categoría desconocida de primer nivel —que va a revisión— que
+ * a una subcategoría desconocida, que se ignora porque su madre ya vino.
+ */
+export type EtiquetaCruda = {
+  Name?: string;
+  Confidence?: number;
+  TaxonomyLevel?: number;
+  ParentName?: string;
+};
+
+export function normalizarEtiquetas(crudas: readonly EtiquetaCruda[] | undefined): Etiqueta[] {
   if (!crudas) return [];
-  return crudas
-    .filter((e): e is { Name: string; Confidence: number } =>
-      typeof e.Name === "string" && typeof e.Confidence === "number",
-    )
-    .map((e) => ({ nombre: e.Name, confianza: e.Confidence }));
+
+  const salida: Etiqueta[] = [];
+  for (const cruda of crudas) {
+    // Sin nombre o sin confianza no se puede decidir nada, y ponerle un valor
+    // sería inventarlo. Se descarta y se sigue con el resto.
+    if (typeof cruda.Name !== "string" || typeof cruda.Confidence !== "number") continue;
+
+    salida.push({
+      nombre: cruda.Name,
+      confianza: cruda.Confidence,
+      // Dos señales, porque no todas las respuestas traen las dos: el nivel
+      // explícito y, si no está, tener madre significa no ser de primer nivel.
+      esDePrimerNivel:
+        typeof cruda.TaxonomyLevel === "number" ? cruda.TaxonomyLevel === 1 : !cruda.ParentName,
+    });
+  }
+  return salida;
 }

@@ -169,16 +169,44 @@ El `vercel.json` de la app declara **sólo** el cron. El comando de build y el d
 instalación los sigue poniendo el panel de Vercel; agregarlos acá pisaría la
 configuración que ya funciona.
 
-## PENDIENTE — Probar la moderación con fotos reales
+## La prueba de la moderación con fotos reales
 
-**No se hizo todavía.** Los 42 tests cubren la política y la idempotencia, pero
-corren con un proveedor falso: **no prueban que la credencial de Rekognition, el
-bucket y la red se hablen en el camino completo**, ni si los umbrales elegidos
-son razonables con fotos de fiesta de verdad.
+Son tres preguntas distintas y conviene no mezclarlas.
 
-Son dos preguntas distintas y conviene no mezclarlas.
+### Parte 1 — ¿Funciona la cañería? — HECHA el 2026-09-13
 
-### Parte 1 — ¿Funciona la cañería?
+**Sí.** Dos fotos reales subidas a un evento de prueba en producción:
+
+| | |
+|---|---|
+| Estado final | `APPROVED` con `publishedAt` |
+| Proveedor | `aws-rekognition`, modelo 7.0 |
+| Latencia | **243 ms y 219 ms** desde Vercel |
+| `errorCode` | Nulo en las dos |
+
+También quedó verificado el resto del recorrido: el álbum las muestra, el canal
+en vivo las emite, y al reconectar con el cursor **no repite ni pierde ninguna**.
+
+#### Lo que encontró esta prueba, que ningún test había visto
+
+Amazon devuelve **la categoría y también su subcategoría**, las dos con la misma
+confianza. En la foto de los novios llegaron `Alcohol` y `Alcoholic Beverages`.
+
+La política trataba a la subcategoría como una categoría desconocida, y la regla
+de lo desconocido manda a revisión arriba del 80%. Con una copa bien visible
+—que en un casamiento es casi todas las fotos— **la subcategoría habría retenido
+la foto en el perfil `SOCIAL`, que es justamente donde el alcohol está
+permitido**.
+
+Arreglado el mismo día: las reglas distinguen nivel uno de subcategoría. Una
+categoría nueva de primer nivel sigue yendo a revisión; una subcategoría
+desconocida se ignora, porque su categoría madre llega en la misma respuesta y
+es la que decide. Hay cuatro tests que reproducen el caso exacto.
+
+Es el mejor argumento a favor de la Parte 2: esto no aparece en un test, aparece
+subiendo una foto de verdad.
+
+### El procedimiento de la Parte 1, para repetirla
 
 Una sola foto normal, de un evento cualquiera. Lo que hay que ver:
 

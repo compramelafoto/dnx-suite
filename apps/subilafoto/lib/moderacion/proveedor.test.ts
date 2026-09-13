@@ -9,9 +9,25 @@ describe("normalizar lo que devuelve el proveedor", () => {
         { Name: "Alcohol", Confidence: 60 },
       ]),
     ).toEqual([
-      { nombre: "Violence", confianza: 91.2 },
-      { nombre: "Alcohol", confianza: 60 },
+      { nombre: "Violence", confianza: 91.2, esDePrimerNivel: true },
+      { nombre: "Alcohol", confianza: 60, esDePrimerNivel: true },
     ]);
+  });
+
+  test("distingue la categoría de su subcategoría por el nivel", () => {
+    const [madre, hija] = normalizarEtiquetas([
+      { Name: "Alcohol", Confidence: 96, TaxonomyLevel: 1 },
+      { Name: "Alcoholic Beverages", Confidence: 96, TaxonomyLevel: 2, ParentName: "Alcohol" },
+    ]);
+    expect(madre!.esDePrimerNivel).toBe(true);
+    expect(hija!.esDePrimerNivel).toBe(false);
+  });
+
+  test("si no viene el nivel, tener madre alcanza para saber que no es de primer nivel", () => {
+    const [e] = normalizarEtiquetas([
+      { Name: "Alcoholic Beverages", Confidence: 96, ParentName: "Alcohol" },
+    ]);
+    expect(e!.esDePrimerNivel).toBe(false);
   });
 
   test("descarta las que vienen incompletas en lugar de inventarles valores", () => {

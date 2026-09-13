@@ -10,7 +10,7 @@
  */
 
 /** Cambiala cada vez que cambien los umbrales. Queda guardada en cada decisión. */
-export const VERSION_DE_POLITICA = "2026-09-12.1";
+export const VERSION_DE_POLITICA = "2026-09-13.1";
 
 export const PERFILES = ["FAMILIAR", "SOCIAL", "EMPRESARIAL"] as const;
 export type Perfil = (typeof PERFILES)[number];
@@ -20,6 +20,17 @@ export type Etiqueta = {
   nombre: string;
   /** Confianza de 0 a 100. */
   confianza: number;
+  /**
+   * Si es una categoría de primer nivel o una subcategoría.
+   *
+   * Amazon devuelve las dos: en una foto de brindis llegan "Alcohol" y
+   * "Alcoholic Beverages", con la misma confianza. Sin esta distinción, la
+   * subcategoría cae en la regla de lo desconocido y manda a revisión toda foto
+   * de casamiento con una copa a la vista.
+   *
+   * Ante la duda se asume primer nivel, que es lo prudente.
+   */
+  esDePrimerNivel?: boolean;
 };
 
 export type Estado = "APPROVED" | "REVIEW_REQUIRED" | "BLOCKED";
@@ -86,11 +97,15 @@ const UMBRALES: Record<Perfil, Record<string, Umbral>> = {
 };
 
 /**
- * Una categoría que la política no contempla, con esta confianza o más, va a
- * revisión en lugar de aprobarse.
+ * Una categoría **de primer nivel** que la política no contempla, con esta
+ * confianza o más, va a revisión en lugar de aprobarse.
  *
  * Amazon agrega categorías cuando publica un modelo nuevo. Sin esto, la primera
  * foto de una categoría que todavía no evaluamos se publicaría sola.
+ *
+ * Sólo se aplica al primer nivel a propósito: las subcategorías desconocidas se
+ * ignoran, porque su categoría madre ya viene en la misma respuesta y es la que
+ * decide.
  */
 const CONFIANZA_DE_LO_DESCONOCIDO = 80;
 
@@ -107,6 +122,9 @@ function evaluar(etiqueta: Etiqueta, perfil: Perfil): Estado {
   const umbral = esDeRiesgoAlto ? UMBRAL_DE_RIESGO_ALTO : UMBRALES[perfil][etiqueta.nombre];
 
   if (!umbral) {
+    // Una subcategoría que la política no nombra no dice nada por su cuenta: su
+    // categoría madre llega en la misma respuesta y es la que se evalúa.
+    if (etiqueta.esDePrimerNivel === false) return "APPROVED";
     return etiqueta.confianza >= CONFIANZA_DE_LO_DESCONOCIDO ? "REVIEW_REQUIRED" : "APPROVED";
   }
   if (umbral.bloquear !== null && etiqueta.confianza >= umbral.bloquear) return "BLOCKED";
