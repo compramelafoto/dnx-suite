@@ -81,3 +81,51 @@ Toda acción de la columna "delicada" (override de moderación, cambio de ventan
 de original, revocación de enlace) escribe en `SubilafotoAudit` **en la misma transacción**
 que el cambio. Si la auditoría falla, el cambio no ocurre. Auditar después, en un
 `try/catch` aparte, es una auditoría que se pierde justo cuando hace falta.
+
+## El panel de revisión y la regla anti-bypass (2026-09-13)
+
+Construido en `app/panel/eventos/[id]/moderacion`. Respeta la regla: **no hay
+ningún botón de descarga**, ni de una foto ni de todas.
+
+Las fotos se muestran con **enlaces firmados que vencen en un minuto**. Alcanza
+para pintar la pantalla y no para pasarle el enlace a nadie.
+
+**Deuda conocida:** hoy esos enlaces apuntan al archivo original, porque todavía
+no se generan variantes. El capítulo dice que el profesional ve el contenido *en
+calidad de pantalla*. Cuando exista `SubilafotoMediaVariant`, `lib/moderacion/vista.ts`
+tiene que apuntar a la versión reducida. Está anotado en el propio archivo.
+
+### Qué puede revertir a mano y qué no
+
+Las reglas no son simétricas, y es a propósito. Equivocarse por retener es
+barato: alguien la aprueba y sale. Equivocarse por publicar no se deshace — ya la
+vieron ciento cincuenta personas en una pantalla de tres metros.
+
+| Estado | Qué puede hacer | ¿Pide motivo? |
+|---|---|---|
+| Retenida | Publicar o bloquear | Sólo para publicar |
+| Bloqueada | Publicar | Sí |
+| Publicada | Ocultar | No — es su evento |
+| Oculta | Volver a mostrar | No |
+| Analizándose | Nada | — |
+
+**Tres categorías no se pueden desbloquear a mano, ni siquiera siendo el dueño
+del evento:** contenido explícito, desnudez no explícita y símbolos de odio.
+
+No es desconfianza hacia el fotógrafo: es que no hay ninguna razón legítima para
+proyectar eso en una fiesta, y sí hay razones para que alguien con la cuenta
+abierta —o que se la prestaron— lo intente.
+
+Violencia y contenido perturbador **sí** se pueden rescatar. Una espada de
+cotillón o un disfraz de Halloween dan falso positivo, y eso tiene que poder
+arreglarse.
+
+### Todo queda auditado
+
+Cada acción escribe en `SubilafotoAudit`: quién, qué, cuándo, el estado anterior,
+el nuevo, qué había dicho la IA y el motivo que escribió la persona. Además marca
+la decisión automática como corregida (`overriddenBy`, `overrideReason`,
+`overriddenAt`).
+
+No es burocracia. Es la única forma de responder si alguna vez alguien pregunta
+cómo llegó una foto determinada a una pantalla.

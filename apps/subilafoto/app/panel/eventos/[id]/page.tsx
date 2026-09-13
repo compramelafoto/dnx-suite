@@ -1,14 +1,11 @@
 import { notFound, redirect } from "next/navigation";
+import Link from "next/link";
 import { cookies } from "next/headers";
 import { DNX_SESSION_COOKIE, getSessionUserByRawToken } from "@repo/auth";
 import { prisma } from "@repo/db";
+import { estiloBotonDnx } from "@/lib/boton-dnx";
 
 export const dynamic = "force-dynamic";
-
-const FECHA = new Intl.DateTimeFormat("es-AR", {
-  dateStyle: "full",
-  timeStyle: "short",
-});
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -88,6 +85,26 @@ export default async function DetalleEvento({ params }: Props) {
       <p className="mt-8 text-sm" style={{ color: "var(--slf-tinta-suave)" }}>
         El código de la pantalla es distinto y no se comparte con los invitados.
       </p>
+
+      <nav className="mt-10 flex flex-wrap gap-4">
+        {[
+          { href: `/panel/eventos/${id}/moderacion`, texto: "Moderación" },
+          { href: `/panel/eventos/${id}/plantilla`, texto: "Plantilla" },
+          { href: `/panel/eventos/${id}/qr`, texto: "QR y materiales" },
+        ].map((enlace) => (
+          <Link
+            key={enlace.href}
+            href={enlace.href}
+            style={{
+              ...estiloBotonDnx("secundario"),
+              color: "var(--slf-violeta)",
+              border: "1px solid var(--slf-violeta)",
+            }}
+          >
+            {enlace.texto}
+          </Link>
+        ))}
+      </nav>
     </main>
   );
 }
