@@ -19,6 +19,8 @@ type Props = {
   accentColor?: string;
   defaultTab?: MediaTab;
   photoCount?: number;
+  /** Habilita la compra de videos. Sin esto la grilla es sólo un visor. */
+  albumId?: number;
 };
 
 export default function PublicMediaTabs({
@@ -29,6 +31,7 @@ export default function PublicMediaTabs({
   accentColor,
   defaultTab = "photos",
   photoCount = 0,
+  albumId,
 }: Props) {
   const preferVideosOnly =
     photoCount === 0 &&
@@ -138,6 +141,7 @@ export default function PublicMediaTabs({
           videos={videos}
           accentColor={accentColor}
           showEventAlbumContext={showEventAlbumContext}
+          albumId={albumId}
         />
       )}
     </section>

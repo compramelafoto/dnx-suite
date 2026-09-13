@@ -20,11 +20,24 @@ import {
 type Props = {
   video: PublicVideoDto | null;
   onClose: () => void;
+  /** Sin esto el modal es sólo un visor: no muestra precio ni botón de compra. */
+  albumId?: number;
+  /** El video ya está en el carrito del cliente. */
+  inCart?: boolean;
+  onAddToCart?: (videoId: number) => void;
+  onGoToCheckout?: () => void;
 };
 
 const isDev = process.env.NODE_ENV === "development";
 
-export default function PublicVideoPreviewModal({ video, onClose }: Props) {
+export default function PublicVideoPreviewModal({
+  video,
+  onClose,
+  albumId,
+  inCart = false,
+  onAddToCart,
+  onGoToCheckout,
+}: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [playError, setPlayError] = useState<string | null>(null);
 
@@ -140,6 +153,41 @@ export default function PublicVideoPreviewModal({ video, onClose }: Props) {
               {orientationLabel(orientation)}
             </span>
           </div>
+          {/* El precio ya viene con el fee incluido: es lo que va a pagar. */}
+          {video.purchasable && video.priceLabel ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-white/5 px-4 py-3">
+              <div className="min-w-0">
+                <p className="text-xs text-white/60">Precio del video completo</p>
+                <p className="text-2xl font-semibold text-white">{video.priceLabel}</p>
+                <p className="mt-1 text-xs text-white/50">
+                  Sin marca de agua, en calidad original
+                </p>
+              </div>
+              {albumId && onAddToCart ? (
+                inCart ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="whitespace-nowrap text-sm text-emerald-300">
+                      ✓ Agregado
+                    </span>
+                    {onGoToCheckout ? (
+                      <Button type="button" onClick={onGoToCheckout} className="whitespace-nowrap">
+                        Ir a pagar
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    onClick={() => onAddToCart(video.id)}
+                    className="whitespace-nowrap"
+                  >
+                    Comprar este video
+                  </Button>
+                )
+              ) : null}
+            </div>
+          ) : null}
+
           <div className="flex flex-wrap justify-end gap-2 pt-1">
             {isDev && hasPreview ? (
               <Button
