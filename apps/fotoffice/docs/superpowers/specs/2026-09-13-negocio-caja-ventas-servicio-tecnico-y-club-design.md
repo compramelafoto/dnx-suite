@@ -620,21 +620,48 @@ Por eso la etapa 1a, que no factura nada, tiene que guardar desde el primer día
 
 Ese es todo el costo de la etapa 1a. El resto se construye cuando toque.
 
-### 11.2 El plazo ya venció
+### 11.2 Qué normativa alcanza a cada workspace
 
-Verificado el 2026-09-13: la **RG 5782**, con la prórroga de la **RG 5852/2026**, estableció
-que desde el **1 de agosto de 2026** el CAE en tiempo real es la modalidad obligatoria para los
-responsables inscriptos, y dejó el CAEA reservado **sólo para contingencia**. Desde el 1 de
-junio de 2026 ARCA ya no admite nuevas adhesiones al CAEA como modalidad principal.
+Relevado el 2026-09-13. **No reemplaza la opinión del contador de cada workspace**, que es
+quien tiene que confirmar la situación fiscal concreta.
 
-Dos consecuencias para el diseño:
+| Norma | A quién alcanza | Desde cuándo |
+|---|---|---|
+| **RG 5782** + prórroga **RG 5852/2026** | Responsables inscriptos en IVA: el CAE en tiempo real pasa a ser la modalidad obligatoria y el CAEA queda sólo para contingencia | 1 de agosto de 2026 (ya rige) |
+| **RG 5893/2026** | Amplía el universo obligado a emitir comprobantes electrónicos. Régimen de Inclusión Social y Efectores: 1 de noviembre de 2026. **Quienes no estén alcanzados por el IVA: 1 de marzo de 2027** | según el grupo |
 
-1. **Se construye un solo camino: CAE en tiempo real.** No hay que implementar CAEA, que es la
-   parte más incómoda del servicio. Menos trabajo del que este módulo hubiera costado hace un
-   año.
-2. Si DNX Estudio es responsable inscripto, **ya está obligado hoy**. Que esté facturando a
-   mano o con una app de terceros lo cumple, así que no hay urgencia inmediata — pero conviene
-   saber que el módulo no es una mejora opcional, es el reemplazo de algo que ya es obligatorio.
+Traducido a los dos casos concretos:
+
+- **DNX Estudio es monotributista y emite Factura C.** La RG 5782 apunta a responsables
+  inscriptos, así que **no lo alcanza**. Y como monotributista ya emite electrónicamente con
+  CAE desde hace años. Conclusión: no hay ningún plazo colgando sobre él. Conectar FotoOffice
+  con ARCA es comodidad y control, no cumplimiento.
+- **SFPR es una asociación civil**, presumiblemente exenta o no alcanzada por IVA. Si está en
+  ese grupo, la RG 5893/2026 le pone fecha: **1 de marzo de 2027**. Eso es menos de seis meses
+  y coincide exactamente con lo que este módulo resuelve. Conviene confirmarlo con su contador
+  antes de planificar la etapa 6.
+
+### 11.2.1 La simplificación que esto habilita
+
+Un monotributista emite **Factura C**. Un exento o no alcanzado por IVA también emite
+**Factura C**. Los dos workspaces que van a usar este módulo emiten lo mismo.
+
+Entonces **la primera versión de la etapa 6 sólo necesita comprobantes clase C**, que no
+discriminan IVA. Eso saca de encima: la Factura A y la B, la tabla de alícuotas por renglón en
+el pedido a ARCA, el desglose de IVA, y las notas de débito y crédito de las otras clases.
+
+Es una reducción real del módulo, no un atajo: si algún día un workspace pasa a responsable
+inscripto, se agregan las clases A y B sobre la misma maquinaria —el certificado, el ticket,
+la numeración y la conciliación son idénticos—.
+
+La alícuota por renglón se sigue guardando desde la etapa 1b (§7.4). No se manda a ARCA en un
+comprobante C, pero sin ella el día que haga falta una Factura B no hay de dónde sacarla.
+
+### 11.2.2 Un solo camino: CAE en tiempo real
+
+No se implementa CAEA, que es la parte más incómoda del servicio: ARCA ya no admite adhesiones
+como modalidad principal y lo dejó reservado a contingencia. Si el servicio se cae, se espera.
+Este módulo cuesta menos hoy que hace un año.
 
 ### 11.3 Cómo funciona
 
@@ -755,13 +782,25 @@ Google en SFPR:
 5. Probar en homologación de punta a punta.
 6. Recién ahí, producción.
 
-### 11.8 SFPR es un caso distinto de DNX Estudio
+### 11.8 SFPR factura las cuotas: la etapa 6 toca también el módulo de Cuotas
 
-DNX Estudio vende productos y servicios. SFPR es una asociación civil: probablemente exenta,
-emitiendo comprobantes tipo C, y con la pregunta abierta de si las cuotas societarias se
-facturan o se recibían. Si se facturan, son unas **1.900 facturas al año** para 159 socios, que
-es exactamente el volumen que justifica automatizar. Eso además haría que la facturación toque
-el módulo de Cuotas y no sólo el de Ventas. Está en §15.
+Confirmado el 2026-09-13: SFPR quiere facturar las cuotas societarias para poder armar el
+balance anual. Eso tiene tres consecuencias que no tiene el caso de DNX Estudio.
+
+**El volumen.** 159 socios por doce meses son unas **1.900 facturas al año**. Es exactamente el
+volumen que justifica automatizar: a mano no lo hace nadie, y es la razón más fuerte para
+construir este módulo.
+
+**La emisión masiva.** Una corrida mensual emite ~159 comprobantes de una vez, y ahí el
+problema de la numeración (§11.4c) deja de ser teórico. Las reglas: la corrida va **en serie o
+en lote, nunca en paralelo**; si se corta a mitad de camino, los que ya tienen CAE quedan
+firmes y la corrida se reanuda desde el último conciliado, nunca desde cero. El servicio admite
+enviar varios comprobantes en un mismo pedido; el tope exacto y su forma se confirman contra el
+manual del desarrollador V. 4.7 al implementar, no ahora.
+
+**El consumidor nuevo.** La factura se engancha a `MembershipCharge`, no a `Sale`. El modelo de
+`Invoice` ya lo contempla con `membershipChargeId` (§11.5), pero significa que la etapa 6 toca
+Cuotas además de Ventas y Órdenes de trabajo. Está contado en el alcance de esa etapa.
 
 ### 11.9 Lo que no se construye
 
@@ -794,7 +833,7 @@ Cada una queda usable sola.
 | **3** | **Club** | Puntos automáticos desde Caja, niveles, catálogo y canje, beneficio del mes, carnet | Los tres |
 | **4** | **Sorteos con destinatario** | Sorteos para clientes y para el Club | Los tres |
 | **5** | **Portal del cliente y avisos** | Seguimiento de la orden, puntos, canjes, correos automáticos | Los tres |
-| **6** | **Facturación con ARCA** | CAE en tiempo real, notas de crédito, PDF con QR, homologación y producción | DNX Estudio y SFPR |
+| **6** | **Facturación con ARCA** | Factura C con CAE en tiempo real, notas de crédito, PDF con QR, emisión masiva de cuotas, homologación y producción | DNX Estudio, y **SFPR para las cuotas** |
 
 Clientes no es una etapa propia: es la tabla más barata de las seis y sin ella Caja repetiría
 el error que ya tiene Reservas —un nombre suelto en un campo de texto— y no habría forma de
@@ -836,16 +875,20 @@ Explícitamente **no** entra en este diseño, y si hace falta es un proyecto apa
 
 ## 15. Preguntas abiertas
 
-1. **¿SFPR factura las cuotas societarias, o emite recibos?** Cambia si la etapa 6 toca también
-   el módulo de Cuotas, y son unas 1.900 facturas al año. Ver §11.8.
-2. **¿DNX Estudio es responsable inscripto o monotributo?** Define el tipo de comprobante
-   —Factura A y B contra Factura C— y si ya está alcanzado por la RG 5782.
-3. **¿El servicio técnico es un workspace nuevo o es `Emeveph`**, el que se creó el 2026-09-10 y
+Contestadas el 2026-09-13: SFPR **sí** factura las cuotas, para el balance anual (§11.8). DNX
+Estudio es **monotributista y emite Factura C**, por lo que no lo alcanza la RG 5782 (§11.2).
+
+Quedan abiertas:
+
+1. **¿Cuál es la condición fiscal exacta de SFPR?** Si es exenta o no alcanzada por IVA, la RG
+   5893/2026 le pone fecha: 1 de marzo de 2027. Lo tiene que confirmar su contador, y de eso
+   depende si la etapa 6 tiene un plazo real o no. Es la única pregunta con fecha encima.
+2. **¿El servicio técnico es un workspace nuevo o es `Emeveph`**, el que se creó el 2026-09-10 y
    todavía no tiene ningún módulo encendido?
-4. **¿Cuántas cajas físicas hay?** El diseño soporta varias; el valor por omisión es una.
-5. **¿Quién puede abrir y cerrar caja?** Hace falta decidir si alcanza con los roles de
+3. **¿Cuántas cajas físicas hay?** El diseño soporta varias; el valor por omisión es una.
+4. **¿Quién puede abrir y cerrar caja?** Hace falta decidir si alcanza con los roles de
    workspace que ya existen o si el módulo necesita los suyos.
-6. **¿Cada cuánto vencen los puntos?** Es configuración, pero conviene fijar el valor recomendado
+5. **¿Cada cuánto vencen los puntos?** Es configuración, pero conviene fijar el valor recomendado
    antes de la etapa 3.
 
 ## 16. Fuentes consultadas
@@ -854,3 +897,5 @@ Explícitamente **no** entra en este diseño, y si hace falta es un proyecto apa
 - [Ayuda — Factura electrónica, ARCA](https://www.afip.gob.ar/fe/ayuda/webservice.asp)
 - [Resolución General (ARCA) 5852/2026 — prórroga](https://tristanyasociados.com/2026/05/resolucin-general-arca-58522026/)
 - [CAE obligatorio desde agosto 2026: qué cambia con el CAEA](https://wynges.com/blog/caea-cae-cambio-2026/)
+- [RG 5893/2026 — amplía el universo obligado a emitir comprobantes electrónicos (ARCA)](https://servicioscf.afip.gob.ar/publico/sitio/contenido/novedad/ver.aspx?id=5881)
+- [Factura C: quién la emite y cómo se hace en ARCA](https://garca.app/monotributo/factura-c)
