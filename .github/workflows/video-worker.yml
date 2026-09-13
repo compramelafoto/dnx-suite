@@ -1,0 +1,73 @@
+name: Procesar videos pendientes
+
+# Genera la preview y la miniatura de los videos que esperan en la cola
+# (VideoProcessingJob en PENDING) y apaga la máquina al terminar.
+#
+# Por qué por evento y no por reloj: este repo es privado, así que cada minuto
+# de ejecución se descuenta de los 2.000 gratis del mes. Un reloj cada 15
+# minutos gastaría ~5.000 minutos en corridas que casi siempre no encuentran
+# nada. Disparado por evento, el gasto real es de unos 60 minutos al mes.
+#
+# Disparo principal: la app llama a este workflow por la API de GitHub cuando un
+# fotógrafo termina de subir un video (ver app/api/.../direct-upload/complete).
+# El cron diario es sólo la red de seguridad por si ese disparo falla.
+
+on:
+  workflow_dispatch:
+    inputs:
+      max:
+        description: "Tope de videos a procesar en esta corrida"
+        required: false
+        default: "10"
+  schedule:
+    # 06:00 UTC = 03:00 en Argentina. Red de seguridad, una vez por día.
+    - cron: "0 6 * * *"
+
+# Dos corridas a la vez tomarían el mismo job; el worker ya usa lock en la base,
+# pero igual no tiene sentido pagar dos máquinas para la misma cola.
+concurrency:
+  group: video-worker
+  cancel-in-progress: false
+
+jobs:
+  procesar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verificar ffmpeg
+        run: |
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update && sudo apt-get install -y ffmpeg
+          fi
+          ffmpeg -version | head -1
+          ffprobe -version | head -1
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      # El postinstall de @repo/db corre `prisma generate`, así que el cliente
+      # queda listo con la instalación.
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile --filter compramelafoto-video-worker...
+
+      - name: Drenar la cola
+        working-directory: apps/compramelafoto-workers/video
+        env:
+          DATABASE_URL: ${{ secrets.VIDEO_WORKER_DATABASE_URL }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+          R2_PUBLIC_BASE_URL: ${{ secrets.R2_PUBLIC_BASE_URL }}
+          VIDEO_WORKER_DRAIN_MAX: ${{ github.event.inputs.max || '10' }}
+        run: pnpm drain

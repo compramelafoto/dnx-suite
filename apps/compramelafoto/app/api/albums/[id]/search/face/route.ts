@@ -4,6 +4,7 @@ import { getAuthUser } from "@/lib/auth";
 import { isAlbumPubliclyAccessible } from "@/lib/album-helpers";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { searchFacesByImage } from "@/lib/faces/rekognition";
+import { findVideosBySelfieFaceIds } from "@/lib/videos/video-selfie-search";
 import { Role } from "@/lib/prisma";
 import { denyIfTestAlbumNotOwnerPreview } from "@/lib/public-album-test-access";
 
@@ -97,7 +98,7 @@ export async function POST(
     const imageBytes = await getImageBytes(req);
     const matches = await searchFacesByImage(imageBytes);
     if (matches.length === 0) {
-      return NextResponse.json({ items: [] });
+      return NextResponse.json({ items: [], videos: [] });
     }
 
     const faceIds = matches.map((m) => m.rekognitionFaceId);
@@ -143,7 +144,23 @@ export async function POST(
       }))
       .sort((a, b) => (b.similarity || 0) - (a.similarity || 0));
 
-    return NextResponse.json({ items });
+    // Los mismos ids de cara sirven para los videos: ya se pagó la consulta a
+    // Amazon. Si algo falla acá, la búsqueda de fotos sigue respondiendo igual.
+    let videos: Awaited<ReturnType<typeof findVideosBySelfieFaceIds>> = [];
+    try {
+      videos = await findVideosBySelfieFaceIds(prisma, {
+        albumId,
+        faceIds,
+        similarityByFace,
+      });
+    } catch (videoErr: unknown) {
+      console.warn("[face-search] búsqueda de videos falló", {
+        albumId,
+        error: videoErr instanceof Error ? videoErr.message : String(videoErr),
+      });
+    }
+
+    return NextResponse.json({ items, videos });
   } catch (err: any) {
     return NextResponse.json(
       { error: "Error buscando rostro", detail: String(err?.message ?? err) },
