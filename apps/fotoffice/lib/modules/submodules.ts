@@ -211,6 +211,14 @@ const CAJA: SubmoduleItem[] = [
     activeMatch: "under",
   },
   {
+    href: "/caja/pases",
+    label: "Pases entre cuentas",
+    icon: "CreditCard",
+    description: "Cada pase de una cuenta a otra, como el de mostrador a caja fuerte.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
     href: "/caja/configuracion",
     label: "Cuentas y categorías",
     icon: "Settings",

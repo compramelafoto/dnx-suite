@@ -22,10 +22,19 @@ export type CashAccountRow = {
   order: number;
 };
 
-/** Las cuentas del workspace, activas primero y en el orden en que se configuraron. */
-export async function listAccounts(workspaceId: string): Promise<CashAccountRow[]> {
+/**
+ * Las cuentas del workspace, en el orden en que se configuraron.
+ *
+ * Por omisión sólo las activas —es lo que necesita casi todo llamador, para no ofrecer una
+ * cuenta dada de baja en un selector—. La pantalla de configuración pide `includeInactive`
+ * porque ahí sí hace falta verlas, para poder reactivarlas.
+ */
+export async function listAccounts(
+  workspaceId: string,
+  opts: { includeInactive?: boolean } = {},
+): Promise<CashAccountRow[]> {
   const rows = await prisma.cashAccount.findMany({
-    where: { workspaceId, isActive: true },
+    where: { workspaceId, ...(opts.includeInactive ? {} : { isActive: true }) },
     select: {
       id: true,
       name: true,
@@ -54,20 +63,35 @@ export type CashCategoryRow = {
   id: string;
   name: string;
   kind: "INGRESO" | "EGRESO";
+  isActive: boolean;
   order: number;
 };
 
-/** Las categorías activas, opcionalmente filtradas por lado: una categoría sirve para uno solo. */
+/**
+ * Las categorías, opcionalmente filtradas por lado: una categoría sirve para uno solo.
+ * Por omisión sólo las activas; `includeInactive` es para la pantalla de configuración.
+ */
 export async function listCategories(
   workspaceId: string,
   kind?: "INGRESO" | "EGRESO",
+  opts: { includeInactive?: boolean } = {},
 ): Promise<CashCategoryRow[]> {
   const rows = await prisma.cashCategory.findMany({
-    where: { workspaceId, isActive: true, ...(kind ? { kind } : {}) },
-    select: { id: true, name: true, kind: true, order: true },
+    where: {
+      workspaceId,
+      ...(opts.includeInactive ? {} : { isActive: true }),
+      ...(kind ? { kind } : {}),
+    },
+    select: { id: true, name: true, kind: true, isActive: true, order: true },
     orderBy: { order: "asc" },
   });
-  return rows.map((r) => ({ id: r.id, name: r.name, kind: r.kind as "INGRESO" | "EGRESO", order: r.order }));
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    kind: r.kind as "INGRESO" | "EGRESO",
+    isActive: r.isActive,
+    order: r.order,
+  }));
 }
 
 export type OpenShiftRow = {
@@ -229,4 +253,123 @@ export async function movementsOfShift(workspaceId: string, shiftId: string): Pr
     orderBy: { occurredAt: "asc" },
   });
   return rows.map(toMovementRow);
+}
+
+export type ShiftRow = {
+  id: string;
+  accountId: string;
+  accountName: string;
+  status: "ABIERTO" | "CERRADO";
+  openedAt: Date;
+  openedByUserId: number | null;
+  closedAt: Date | null;
+  closedByUserId: number | null;
+  openingAmountMinor: number;
+  /// Null mientras el turno sigue abierto: todavía no se contó.
+  countedAmountMinor: number | null;
+  expectedAmountMinor: number | null;
+  differenceMinor: number | null;
+  differenceNote: string | null;
+};
+
+/** El historial de arqueos del workspace, más reciente primero. */
+export async function listShifts(workspaceId: string, opts: { take?: number } = {}): Promise<ShiftRow[]> {
+  const rows = await prisma.cashShift.findMany({
+    where: { workspaceId },
+    select: {
+      id: true,
+      accountId: true,
+      account: { select: { name: true } },
+      status: true,
+      openedAt: true,
+      openedByUserId: true,
+      closedAt: true,
+      closedByUserId: true,
+      openingAmountArs: true,
+      countedAmountArs: true,
+      expectedAmountArs: true,
+      differenceArs: true,
+      differenceNote: true,
+    },
+    orderBy: { openedAt: "desc" },
+    take: opts.take ?? 200,
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    accountId: r.accountId,
+    accountName: r.account.name,
+    status: r.status as "ABIERTO" | "CERRADO",
+    openedAt: r.openedAt,
+    openedByUserId: r.openedByUserId,
+    closedAt: r.closedAt,
+    closedByUserId: r.closedByUserId,
+    openingAmountMinor: decimalArsToMinor(r.openingAmountArs),
+    countedAmountMinor: r.countedAmountArs === null ? null : decimalArsToMinor(r.countedAmountArs),
+    expectedAmountMinor: r.expectedAmountArs === null ? null : decimalArsToMinor(r.expectedAmountArs),
+    differenceMinor: r.differenceArs === null ? null : decimalArsToMinor(r.differenceArs),
+    differenceNote: r.differenceNote,
+  }));
+}
+
+export type TransferRow = {
+  id: string;
+  occurredAt: Date;
+  fromAccountId: string;
+  fromAccountName: string;
+  toAccountId: string;
+  toAccountName: string;
+  amountMinor: number;
+  note: string | null;
+  createdByUserId: number | null;
+};
+
+/** El historial de pases entre cuentas del workspace, más reciente primero. */
+export async function listTransfers(
+  workspaceId: string,
+  opts: { take?: number } = {},
+): Promise<TransferRow[]> {
+  const rows = await prisma.cashTransfer.findMany({
+    where: { workspaceId },
+    select: {
+      id: true,
+      occurredAt: true,
+      amountArs: true,
+      note: true,
+      createdByUserId: true,
+      fromAccountId: true,
+      fromAccount: { select: { name: true } },
+      toAccountId: true,
+      toAccount: { select: { name: true } },
+    },
+    orderBy: { occurredAt: "desc" },
+    take: opts.take ?? 200,
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    occurredAt: r.occurredAt,
+    fromAccountId: r.fromAccountId,
+    fromAccountName: r.fromAccount.name,
+    toAccountId: r.toAccountId,
+    toAccountName: r.toAccount.name,
+    amountMinor: decimalArsToMinor(r.amountArs),
+    note: r.note,
+    createdByUserId: r.createdByUserId,
+  }));
+}
+
+/**
+ * Nombre para mostrar de cada usuario, a partir de su id.
+ *
+ * Quién abrió y quién cerró un turno —o quién hizo un pase— se guarda como un id suelto
+ * (`lib/cash` no tiene relación con `User` en el esquema), así que las pantallas de
+ * historial arman este mapa una vez y lo consultan por id en vez de resolver de a uno.
+ */
+export async function userDisplayNames(ids: readonly (number | null)[]): Promise<Map<number, string>> {
+  const unicos = [...new Set(ids.filter((id): id is number => id !== null))];
+  if (unicos.length === 0) return new Map();
+  const rows = await prisma.user.findMany({
+    where: { id: { in: unicos } },
+    select: { id: true, name: true, email: true },
+  });
+  return new Map(rows.map((r) => [r.id, r.name?.trim() || r.email]));
 }
