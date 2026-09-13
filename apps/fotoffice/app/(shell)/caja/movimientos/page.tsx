@@ -68,7 +68,7 @@ export default async function MovimientosPage({
         "Nuevo movimiento" del mostrador (dentro de `ShiftPanel`, en `/caja`) no se toca: es
         el gesto rápido del día a día y sigue con la cuenta fija.
       */}
-      <MovementForm accounts={cuentas} categories={categorias} clients={clientes} />
+      <MovementForm accounts={cuentas} categories={categorias} clients={clientes} returnTo="/caja/movimientos" />
 
       <form method="GET" className="fo-card grid gap-4 !p-4 sm:grid-cols-3 lg:grid-cols-6">
         <div className="fo-field-stack">

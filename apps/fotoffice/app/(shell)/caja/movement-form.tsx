@@ -35,6 +35,9 @@ const ETIQUETA_METODO: Record<PaymentMethod, string> = {
  * En los dos modos el único motivo para correr en el navegador es que la categoría depende
  * de si el movimiento es ingreso o egreso — un ingreso no puede ir a "Sueldos" — y mostrar
  * las diez categorías juntas confunde más de lo que ahorra.
+ *
+ * `returnTo` es de `/caja/movimientos` nomás: sin él, `createMovementAction` vuelve a
+ * `/caja` por omisión, que es el comportamiento de siempre del botón del mostrador.
  */
 export function MovementForm({
   accountId,
@@ -42,12 +45,14 @@ export function MovementForm({
   accounts,
   categories,
   clients,
+  returnTo,
 }: {
   accountId?: string;
   accountName?: string;
   accounts?: CashAccountRow[];
   categories: CashCategoryRow[];
   clients: ClientRow[];
+  returnTo?: string;
 }) {
   const [abierto, setAbierto] = useState(false);
   const [kind, setKind] = useState<MovementKind>("INGRESO");
@@ -66,6 +71,9 @@ export function MovementForm({
   return (
     <form action={createMovementAction} className="fo-card space-y-4 p-5">
       {conSelector ? null : <input type="hidden" name="accountId" value={accountId} />}
+      {/* Sin `returnTo` el mostrador sigue volviendo a `/caja`, que es lo que ya hacía —el
+          gesto rápido del día a día no cambia. Sólo `/caja/movimientos` lo manda. */}
+      {returnTo ? <input type="hidden" name="returnTo" value={returnTo} /> : null}
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold">
           {conSelector ? "Cargar movimiento" : `Nuevo movimiento — ${accountName}`}

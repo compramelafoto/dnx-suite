@@ -136,18 +136,26 @@ export async function closeShiftAction(formData: FormData): Promise<void> {
  * El turno no lo elige quien carga: se busca solo, el que esté abierto para la cuenta
  * elegida. Una cuenta digital o sin turno abierto simplemente no le asigna ninguno, y el
  * movimiento queda igual de válido — es una cuenta que no se arquea.
+ *
+ * `returnTo` es opcional a propósito: el botón del mostrador (panel del turno, en `/caja`)
+ * no lo manda, así que sigue volviendo a `/caja` como siempre. Sólo lo manda el formulario
+ * con selector de cuenta de `/caja/movimientos`, para no perder de vista el asiento recién
+ * cargado saltando a otra pantalla. Mismo tratamiento que `transferAction`: ver el porqué en
+ * `lib/cash/return-to.ts`.
  */
 export async function createMovementAction(formData: FormData): Promise<void> {
   const { workspace, user } = await requireCashStaff();
 
+  const volver = sanitizeReturnTo(String(formData.get("returnTo") ?? ""), CAJA);
+
   const parsed = parseMovementForm(formData);
-  if (!parsed.ok) redirect(`${CAJA}?error=${encodeURIComponent(parsed.error)}`);
+  if (!parsed.ok) redirect(`${volver}?error=${encodeURIComponent(parsed.error)}`);
   const v = parsed.values;
 
   const cuenta = await prisma.cashAccount.count({
     where: { id: v.accountId, workspaceId: workspace.id },
   });
-  if (cuenta === 0) redirect(`${CAJA}?error=${encodeURIComponent("Esa cuenta no existe.")}`);
+  if (cuenta === 0) redirect(`${volver}?error=${encodeURIComponent("Esa cuenta no existe.")}`);
 
   if (v.categoryId) {
     // La categoría es de un solo lado: se verifica también que sea del mismo `kind` que el
@@ -156,13 +164,13 @@ export async function createMovementAction(formData: FormData): Promise<void> {
       where: { id: v.categoryId, workspaceId: workspace.id, kind: v.kind },
     });
     if (categoria === 0) {
-      redirect(`${CAJA}?error=${encodeURIComponent("Esa categoría no existe para ese tipo de movimiento.")}`);
+      redirect(`${volver}?error=${encodeURIComponent("Esa categoría no existe para ese tipo de movimiento.")}`);
     }
   }
 
   if (v.clientId) {
     const cliente = await prisma.client.count({ where: { id: v.clientId, workspaceId: workspace.id } });
-    if (cliente === 0) redirect(`${CAJA}?error=${encodeURIComponent("Ese cliente no existe.")}`);
+    if (cliente === 0) redirect(`${volver}?error=${encodeURIComponent("Ese cliente no existe.")}`);
   }
 
   const turno = await prisma.cashShift.findFirst({
@@ -190,7 +198,7 @@ export async function createMovementAction(formData: FormData): Promise<void> {
 
   revalidatePath(CAJA);
   revalidatePath(MOVIMIENTOS);
-  redirect(`${CAJA}?ok=1`);
+  redirect(`${volver}?ok=1`);
 }
 
 /**
