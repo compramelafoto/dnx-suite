@@ -189,9 +189,13 @@ haría que el arqueo diera mal todos los días.
 
 ```
 CashAccount
-  workspaceId, name ("Efectivo", "Mercado Pago", "Banco", "Tarjeta",
-                     "Efectivo Sucursal Centro", "Efectivo Sucursal Norte"...)
+  workspaceId, name ("Caja diaria", "Caja fuerte", "Mercado Pago", "Banco",
+                     "Caja Sucursal Centro"...)
   kind: "EFECTIVO" | "DIGITAL"
+  /// La caja fuerte. No lleva turno diario: no se abre todas las mañanas, se cuenta cada tanto.
+  isVault: bool
+  /// Fondo fijo: lo que queda en la caja para dar vuelto. Sugiere cuánto pasar al cerrar.
+  fixedFloatArs
   isDefault, isActive, order
 ```
 
@@ -204,8 +208,42 @@ unidad que se abre, se cierra y se cuenta, y agregar una capa arriba sería inve
 sin que nadie la haya pedido. Si algún día hace falta agrupar sucursales para un reporte, se
 agrega un campo, no un modelo.
 
-Al encender el módulo se crean "Efectivo" y "Mercado Pago" por omisión, porque una pantalla
-vacía no la llena nadie.
+Al encender el módulo se crean "Caja diaria", "Caja fuerte" y "Mercado Pago" por omisión,
+porque una pantalla vacía no la llena nadie.
+
+### 6.2.1 La caja fuerte y el pase diario
+
+Al cerrar el día, el negocio no deja en el mostrador todo lo que recaudó: guarda la mayor
+parte en la caja fuerte y deja un **fondo fijo** para el vuelto del día siguiente. En la
+jerga eso es un *retiro de caja*; en la pantalla se llama "Pasar a la caja fuerte".
+
+**No es un concepto nuevo: la caja fuerte es otra cuenta de efectivo, y el pase es una
+transferencia entre cuentas.** Sale de una, entra a la otra, el total del negocio no cambia.
+
+```
+CashTransfer
+  workspaceId, fromAccountId, toAccountId
+  amountArs, occurredAt, note?
+  createdByUserId
+  fromMovementId, toMovementId   — los dos asientos hermanos que genera
+```
+
+Cada pase escribe **dos** `CashMovement` —un egreso y un ingreso— con `transferId` apuntando
+al pase. Y de ahí sale la única regla que importa de todo esto:
+
+> **Una transferencia no es un ingreso ni un egreso del negocio.** Los saldos por cuenta la
+> incluyen —si no, la caja fuerte daría siempre cero—. Los reportes de ingresos y egresos la
+> excluyen —si no, los treinta pases del mes aparecen como treinta gastos que nunca se
+> hicieron, y el reporte miente por un orden de magnitud—.
+
+Al cerrar el turno, la pantalla propone el pase con la cuenta ya hecha: *"Contaste $47.300.
+El fondo fijo de esta caja es $20.000. ¿Pasás $27.300 a la caja fuerte?"*. Es un gesto que se
+hace todos los días, así que tiene que costar un clic y no una carga manual donde cualquiera
+se equivoca de importe.
+
+La caja fuerte no lleva turno diario porque no se abre y se cierra por jornada. Se cuenta
+cuando alguien quiere: un arqueo de caja fuerte es un turno que se abre y se cierra en el
+mismo acto.
 
 ### 6.3 Turnos y arqueo
 
@@ -261,8 +299,9 @@ que nadie arqueó nunca.
 
 ### 6.6 Reportes
 
-Saldo por cuenta, ingresos y egresos por categoría y período, cierre del día, ranking de
-clientes por consumo, historial de arqueos con sus diferencias.
+Saldo por cuenta —incluida la caja fuerte—, ingresos y egresos por categoría y período
+**sin contar las transferencias**, cierre del día, ranking de clientes por consumo, historial
+de arqueos con sus diferencias, y el registro de pases entre cuentas.
 
 ---
 
