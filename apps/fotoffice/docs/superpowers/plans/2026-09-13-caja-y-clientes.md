@@ -15,7 +15,7 @@
 Estas reglas valen para **todas** las tareas. No se negocian por apuro.
 
 - **Ningún enum de Prisma nuevo.** Todos los estados y tipos van como `String` en el esquema y como unión de literales en TypeScript. El `schema.prisma` está compartido por las cinco aplicaciones de la suite y un enum que no exista en alguna de las cinco bases rompe las escrituras de esa aplicación. Precedentes en el repositorio: `Booking.status`, `Raffle.status`.
-- **El despliegue NO corre `prisma migrate deploy`.** La migración se aplica a mano y se registra en `_prisma_migrations`. Ver Tarea 12.
+- **El despliegue NO corre `prisma migrate deploy`.** La migración se aplica a mano y se registra en `_prisma_migrations`. Ver Tarea 13.
 - **Dinero:** en la base `Decimal(12, 2)`; en el código, centavos enteros (`number`). La conversión se hace **siempre** con `lib/membership/money.ts` (`decimalArsToMinor`, `minorToDecimalString`, `formatMinorArs`), nunca con `Number(decimal)`.
 - **Todo texto de cara al usuario va en castellano rioplatense**, en segunda persona del singular ("Poné un nombre", no "Ingrese un nombre"). Mirá los mensajes de `lib/bookings/space-form.ts` para el tono.
 - **Los comentarios del código se escriben en castellano y explican el porqué, no el qué.** Es el estilo de todo el repositorio.
@@ -54,6 +54,7 @@ Estas reglas valen para **todas** las tareas. No se negocian por apuro.
 | `lib/cash/category-form.ts` | Parseo del formulario de categoría. **Puro** |
 | `lib/cash/movement-form.ts` | Parseo del formulario de movimiento. **Puro** |
 | `lib/cash/shift.ts` | Reglas del turno: esperado, diferencia, si se puede abrir o cerrar. **Puro** |
+| `lib/cash/transfer.ts` | Pases entre cuentas y el pase sugerido a la caja fuerte |
 | `lib/cash/balance.ts` | Saldos y totales por categoría y período. **Puro** |
 | `lib/cash/access.ts` | Guardias del módulo |
 | `lib/cash/repository.ts` | Consultas Prisma |
@@ -63,6 +64,7 @@ Estas reglas valen para **todas** las tareas. No se negocian por apuro.
 | `app/(shell)/caja/page.tsx` | Libro del turno abierto, con saldo |
 | `app/(shell)/caja/movimientos/page.tsx` | Libro completo con filtros |
 | `app/(shell)/caja/turnos/page.tsx` | Historial de arqueos |
+| `app/(shell)/caja/pases/page.tsx` | Historial de pases entre cuentas |
 | `app/(shell)/caja/configuracion/page.tsx` | Cuentas y categorías |
 | `app/(shell)/caja/actions.ts` | Acciones de servidor |
 | `components/cash/*.tsx` | Formularios y tablas |
@@ -85,12 +87,12 @@ Estas reglas valen para **todas** las tareas. No se negocian por apuro.
 ## Tarea 1: Esquema y migración
 
 **Files:**
-- Modify: `packages/db/prisma/schema.prisma` (cinco modelos nuevos + relaciones en `Workspace` y `Member`)
+- Modify: `packages/db/prisma/schema.prisma` (seis modelos nuevos + relaciones en `Workspace` y `Member`)
 - Create: `packages/db/prisma/migrations/20260913000000_cash_and_clients/migration.sql`
 
 **Interfaces:**
 - Consumes: nada. Es la primera tarea.
-- Produces: los modelos Prisma `Client`, `CashAccount`, `CashCategory`, `CashShift` y `CashMovement`, accesibles como `prisma.client`, `prisma.cashAccount`, `prisma.cashCategory`, `prisma.cashShift` y `prisma.cashMovement`. Todas las tareas siguientes dependen de esto.
+- Produces: los modelos Prisma `Client`, `CashAccount`, `CashCategory`, `CashShift`, `CashMovement` y `CashTransfer`, accesibles como `prisma.client`, `prisma.cashAccount`, `prisma.cashCategory`, `prisma.cashShift`, `prisma.cashMovement` y `prisma.cashTransfer`. Todas las tareas siguientes dependen de esto.
 
 **Contexto que hace falta leer antes:** `packages/db/prisma/migrations/20260911000000_sorteos/migration.sql` es el modelo a imitar — SQL crudo, aditivo, con los índices y las claves foráneas explícitas.
 
@@ -169,6 +171,10 @@ model CashAccount {
   name        String
   /// EFECTIVO | DIGITAL. Sólo las EFECTIVO se arquean.
   kind        String  @default("EFECTIVO")
+  /// La caja fuerte. No lleva turno diario: no se abre todas las mañanas, se cuenta cada tanto.
+  isVault     Boolean @default(false)
+  /// Fondo fijo: lo que queda para dar vuelto. Al cerrar, la pantalla propone pasar el resto.
+  fixedFloatArs Decimal? @db.Decimal(12, 2)
   isDefault   Boolean @default(false)
   isActive    Boolean @default(true)
   order       Int     @default(0)
@@ -176,12 +182,41 @@ model CashAccount {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  shifts    CashShift[]
-  movements CashMovement[]
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  shifts        CashShift[]
+  movements     CashMovement[]
+  transfersOut  CashTransfer[] @relation("CashTransferFrom")
+  transfersIn   CashTransfer[] @relation("CashTransferTo")
 
   @@unique([workspaceId, name])
   @@index([workspaceId, isActive])
+}
+
+/// Un pase de plata entre dos cuentas del mismo workspace.
+///
+/// El caso de todos los días: al cerrar el mostrador se guarda lo recaudado en la caja
+/// fuerte y queda el fondo fijo para el vuelto. No es un ingreso ni un egreso del negocio
+/// —la plata no entró ni salió, cambió de lugar— y por eso los dos asientos que genera
+/// llevan `transferId` y los reportes de ingresos y egresos los excluyen.
+model CashTransfer {
+  id            String @id @default(cuid())
+  workspaceId   String
+  fromAccountId String
+  toAccountId   String
+
+  amountArs  Decimal  @db.Decimal(12, 2)
+  occurredAt DateTime
+  note       String?
+
+  createdByUserId Int?
+  createdAt       DateTime @default(now())
+
+  workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  fromAccount CashAccount    @relation("CashTransferFrom", fields: [fromAccountId], references: [id], onDelete: Restrict)
+  toAccount   CashAccount    @relation("CashTransferTo", fields: [toAccountId], references: [id], onDelete: Restrict)
+  movements   CashMovement[]
+
+  @@index([workspaceId, occurredAt])
 }
 
 /// Categoría de un movimiento, definida por cada negocio.
@@ -279,6 +314,10 @@ model CashMovement {
   reversesMovementId String? @unique
   reverseReason      String?
 
+  /// El pase que lo generó. Cuando no es nulo, este asiento NO es un ingreso ni un egreso
+  /// del negocio: es una pata de una transferencia, y los reportes lo excluyen.
+  transferId String?
+
   createdByUserId Int?
   createdAt       DateTime @default(now())
 
@@ -288,6 +327,7 @@ model CashMovement {
   category  CashCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   client    Client?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
 
+  transfer   CashTransfer? @relation(fields: [transferId], references: [id], onDelete: SetNull)
   reverses   CashMovement? @relation("CashMovementReversal", fields: [reversesMovementId], references: [id], onDelete: SetNull)
   reversedBy CashMovement? @relation("CashMovementReversal")
 
@@ -299,6 +339,7 @@ model CashMovement {
   @@index([accountId, occurredAt])
   @@index([shiftId])
   @@index([clientId, occurredAt])
+  @@index([transferId])
 }
 ```
 
@@ -312,6 +353,7 @@ En `model Workspace`, junto a las otras listas (cerca de `raffles Raffle[]`):
   cashCategories CashCategory[]
   cashShifts     CashShift[]
   cashMovements  CashMovement[]
+  cashTransfers  CashTransfer[]
 ```
 
 En `model Member`, junto a las otras relaciones:
@@ -340,7 +382,7 @@ Esperado: `Generated Prisma Client`. Si falla por una relación inversa faltante
 Crear `packages/db/prisma/migrations/20260913000000_cash_and_clients/migration.sql`:
 
 ```sql
--- Etapa 1a: Caja y Clientes. Puramente aditiva — cinco tablas nuevas, ninguna columna
+-- Etapa 1a: Caja y Clientes. Puramente aditiva — seis tablas nuevas, ninguna columna
 -- existente modificada, ningún enum nuevo (el esquema lo comparten cinco aplicaciones).
 
 CREATE TABLE "Client" (
@@ -384,6 +426,8 @@ CREATE TABLE "CashAccount" (
     "workspaceId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "kind" TEXT NOT NULL DEFAULT 'EFECTIVO',
+    "isVault" BOOLEAN NOT NULL DEFAULT false,
+    "fixedFloatArs" DECIMAL(12,2),
     "isDefault" BOOLEAN NOT NULL DEFAULT false,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "order" INTEGER NOT NULL DEFAULT 0,
@@ -411,6 +455,26 @@ CREATE UNIQUE INDEX "CashCategory_workspaceId_kind_name_key" ON "CashCategory"("
 CREATE INDEX "CashCategory_workspaceId_kind_isActive_idx" ON "CashCategory"("workspaceId", "kind", "isActive");
 ALTER TABLE "CashCategory" ADD CONSTRAINT "CashCategory_workspaceId_fkey"
     FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+CREATE TABLE "CashTransfer" (
+    "id" TEXT NOT NULL,
+    "workspaceId" TEXT NOT NULL,
+    "fromAccountId" TEXT NOT NULL,
+    "toAccountId" TEXT NOT NULL,
+    "amountArs" DECIMAL(12,2) NOT NULL,
+    "occurredAt" TIMESTAMP(3) NOT NULL,
+    "note" TEXT,
+    "createdByUserId" INTEGER,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "CashTransfer_pkey" PRIMARY KEY ("id")
+);
+CREATE INDEX "CashTransfer_workspaceId_occurredAt_idx" ON "CashTransfer"("workspaceId", "occurredAt");
+ALTER TABLE "CashTransfer" ADD CONSTRAINT "CashTransfer_workspaceId_fkey"
+    FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "CashTransfer" ADD CONSTRAINT "CashTransfer_fromAccountId_fkey"
+    FOREIGN KEY ("fromAccountId") REFERENCES "CashAccount"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "CashTransfer" ADD CONSTRAINT "CashTransfer_toAccountId_fkey"
+    FOREIGN KEY ("toAccountId") REFERENCES "CashAccount"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 CREATE TABLE "CashShift" (
     "id" TEXT NOT NULL,
@@ -461,6 +525,7 @@ CREATE TABLE "CashMovement" (
     "sourceRef" TEXT,
     "reversesMovementId" TEXT,
     "reverseReason" TEXT,
+    "transferId" TEXT,
     "createdByUserId" INTEGER,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "CashMovement_pkey" PRIMARY KEY ("id")
@@ -471,6 +536,7 @@ CREATE INDEX "CashMovement_workspaceId_occurredAt_idx" ON "CashMovement"("worksp
 CREATE INDEX "CashMovement_accountId_occurredAt_idx" ON "CashMovement"("accountId", "occurredAt");
 CREATE INDEX "CashMovement_shiftId_idx" ON "CashMovement"("shiftId");
 CREATE INDEX "CashMovement_clientId_occurredAt_idx" ON "CashMovement"("clientId", "occurredAt");
+CREATE INDEX "CashMovement_transferId_idx" ON "CashMovement"("transferId");
 ALTER TABLE "CashMovement" ADD CONSTRAINT "CashMovement_workspaceId_fkey"
     FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "CashMovement" ADD CONSTRAINT "CashMovement_accountId_fkey"
@@ -483,6 +549,8 @@ ALTER TABLE "CashMovement" ADD CONSTRAINT "CashMovement_clientId_fkey"
     FOREIGN KEY ("clientId") REFERENCES "Client"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 ALTER TABLE "CashMovement" ADD CONSTRAINT "CashMovement_reversesMovementId_fkey"
     FOREIGN KEY ("reversesMovementId") REFERENCES "CashMovement"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "CashMovement" ADD CONSTRAINT "CashMovement_transferId_fkey"
+    FOREIGN KEY ("transferId") REFERENCES "CashTransfer"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 ```
 
 - [ ] **Paso 5: Confirmar que el esquema y la migración dicen lo mismo**
@@ -493,7 +561,7 @@ pnpm --filter @repo/db db:drift
 
 Esperado: sin diferencias entre `schema.prisma` y el historial de migraciones. Si reporta drift, la migración y el esquema se separaron: corregir la migración, **nunca** el esquema para que calce.
 
-> **No aplicar todavía la migración a ninguna base.** Eso es la Tarea 12, al final, cuando el código esté completo y probado. Hasta entonces el trabajo es sólo de tipos.
+> **No aplicar todavía la migración a ninguna base.** Eso es la Tarea 13, al final, cuando el código esté completo y probado. Hasta entonces el trabajo es sólo de tipos.
 
 - [ ] **Paso 6: Commit**
 
@@ -634,8 +702,9 @@ export type MovementSource = (typeof MOVEMENT_SOURCES)[number];
  * para ningún reporte. Son un punto de partida editable, no una imposición.
  */
 export const SEED_ACCOUNTS = [
-  { name: "Efectivo", kind: "EFECTIVO" as const, isDefault: true, order: 0 },
-  { name: "Mercado Pago", kind: "DIGITAL" as const, isDefault: false, order: 10 },
+  { name: "Caja diaria", kind: "EFECTIVO" as const, isVault: false, isDefault: true, order: 0 },
+  { name: "Caja fuerte", kind: "EFECTIVO" as const, isVault: true, isDefault: false, order: 10 },
+  { name: "Mercado Pago", kind: "DIGITAL" as const, isVault: false, isDefault: false, order: 20 },
 ] as const;
 
 export const SEED_CATEGORIES = [
@@ -1516,7 +1585,7 @@ Copiar la estructura visual de `app/(shell)/reservas/espacios/space-form.tsx`: m
 
 - `app/(shell)/clientes/page.tsx` — listado con `listClients`, buscador que escribe `?q=` y botón "Nuevo cliente". Mostrar número, nombre, documento, contacto, y una etiqueta "Socio 124" cuando `memberNumber` no es nulo.
 - `app/(shell)/clientes/nuevo/page.tsx` — el formulario vacío.
-- `app/(shell)/clientes/[clientId]/page.tsx` — el formulario cargado con `getClient`, más un bloque "Consumo" que por ahora dice "Todavía no hay movimientos" y que la Tarea 10 va a llenar.
+- `app/(shell)/clientes/[clientId]/page.tsx` — el formulario cargado con `getClient`, más un bloque "Consumo" que por ahora dice "Todavía no hay movimientos" y que la Tarea 11 va a llenar.
 
 - [ ] **Paso 6: Verificar en el navegador**
 
@@ -1524,7 +1593,7 @@ Copiar la estructura visual de `app/(shell)/reservas/espacios/space-form.tsx`: m
 pnpm dev
 ```
 
-Navegar a `http://localhost:3010/clientes`. Como la migración todavía no se aplicó (Tarea 12), esperá un error de Prisma sobre la tabla `Client`. **Eso es lo correcto en este punto.** Lo que hay que verificar acá es que compila y que el menú lateral muestra "Clientes" con sus dos entradas.
+Navegar a `http://localhost:3010/clientes`. Como la migración todavía no se aplicó (Tarea 13), esperá un error de Prisma sobre la tabla `Client`. **Eso es lo correcto en este punto.** Lo que hay que verificar acá es que compila y que el menú lateral muestra "Clientes" con sus dos entradas.
 
 ```bash
 pnpm lint && pnpm --filter fotoffice exec tsc --noEmit
@@ -2063,12 +2132,18 @@ import { describe, expect, it } from "vitest";
 import { seedRowsFor } from "./seed";
 
 describe("seedRowsFor", () => {
-  it("crea efectivo y Mercado Pago, y el efectivo es la cuenta por omisión", () => {
+  it("crea caja diaria, caja fuerte y Mercado Pago, y la diaria es la de omisión", () => {
     const { accounts } = seedRowsFor("ws-1");
-    expect(accounts.map((a) => a.name)).toEqual(["Efectivo", "Mercado Pago"]);
+    expect(accounts.map((a) => a.name)).toEqual(["Caja diaria", "Caja fuerte", "Mercado Pago"]);
     expect(accounts[0].isDefault).toBe(true);
     expect(accounts[0].kind).toBe("EFECTIVO");
-    expect(accounts[1].kind).toBe("DIGITAL");
+    expect(accounts[2].kind).toBe("DIGITAL");
+  });
+
+  it("la caja fuerte queda marcada como bóveda y la diaria no", () => {
+    const { accounts } = seedRowsFor("ws-1");
+    expect(accounts[0].isVault).toBe(false);
+    expect(accounts[1].isVault).toBe(true);
   });
 
   it("todas las filas llevan el workspace recibido", () => {
@@ -2122,6 +2197,7 @@ export type SeedAccountRow = {
   workspaceId: string;
   name: string;
   kind: "EFECTIVO" | "DIGITAL";
+  isVault: boolean;
   isDefault: boolean;
   order: number;
 };
@@ -2189,7 +2265,7 @@ las mañanas, y el arqueo ya registra quién abrió y quién cerró."
   - `expectedAmountMinor(input: { openingMinor: number; movements: ShiftMovement[] }): number` con `ShiftMovement = { kind: "INGRESO" | "EGRESO"; amountMinor: number }`
   - `shiftDifferenceMinor(expectedMinor: number, countedMinor: number): number`
   - `canCloseShift(input: { status: string; differenceMinor: number; note: string | null }): { ok: true } | { ok: false; error: string }`
-  - `canOpenShift(input: { accountKind: string; openShiftExists: boolean }): { ok: true } | { ok: false; error: string }`
+  - `canOpenShift(input: { accountKind: string; isVault: boolean; openShiftExists: boolean }): { ok: true } | { ok: false; error: string }`
 
 **Por qué puro:** el arqueo es la parte del módulo donde un error se ve en plata, y probarlo exige poder inventar veinte combinaciones de movimientos en un milisegundo.
 
@@ -2289,20 +2365,29 @@ describe("canCloseShift", () => {
 
 describe("canOpenShift", () => {
   it("una cuenta de efectivo sin turno abierto se puede abrir", () => {
-    expect(canOpenShift({ accountKind: "EFECTIVO", openShiftExists: false })).toEqual({ ok: true });
+    expect(canOpenShift({ accountKind: "EFECTIVO", isVault: false, openShiftExists: false })).toEqual({
+      ok: true,
+    });
   });
 
   it("no se abre un segundo turno en la misma cuenta", () => {
-    expect(canOpenShift({ accountKind: "EFECTIVO", openShiftExists: true })).toEqual({
+    expect(canOpenShift({ accountKind: "EFECTIVO", isVault: false, openShiftExists: true })).toEqual({
       ok: false,
       error: "Esa caja ya tiene un turno abierto.",
     });
   });
 
   it("una cuenta digital no se arquea", () => {
-    expect(canOpenShift({ accountKind: "DIGITAL", openShiftExists: false })).toEqual({
+    expect(canOpenShift({ accountKind: "DIGITAL", isVault: false, openShiftExists: false })).toEqual({
       ok: false,
       error: "Mercado Pago y el banco se concilian, no se cuentan: no llevan turno.",
+    });
+  });
+
+  it("la caja fuerte no lleva turno diario", () => {
+    expect(canOpenShift({ accountKind: "EFECTIVO", isVault: true, openShiftExists: false })).toEqual({
+      ok: false,
+      error: "La caja fuerte no se abre por jornada. Se cuenta con un arqueo cuando quieras.",
     });
   });
 });
@@ -2365,7 +2450,11 @@ export function canCloseShift(input: {
 }
 
 /**
- * Sólo el efectivo lleva turno.
+ * Sólo el efectivo del mostrador lleva turno.
+ *
+ * La caja fuerte queda afuera aunque sea efectivo: no se abre y se cierra por jornada, se
+ * cuenta cada tanto. Un turno diario de caja fuerte sería un trámite que nadie hace y que
+ * después ensucia el historial de arqueos con treinta filas vacías por mes.
  *
  * El índice único parcial de la base garantiza que no haya dos turnos abiertos por cuenta;
  * esta función existe para dar un mensaje entendible antes de que la base tire un error que
@@ -2373,12 +2462,19 @@ export function canCloseShift(input: {
  */
 export function canOpenShift(input: {
   accountKind: string;
+  isVault: boolean;
   openShiftExists: boolean;
 }): ShiftCheck {
   if (input.accountKind !== "EFECTIVO") {
     return {
       ok: false,
       error: "Mercado Pago y el banco se concilian, no se cuentan: no llevan turno.",
+    };
+  }
+  if (input.isVault) {
+    return {
+      ok: false,
+      error: "La caja fuerte no se abre por jornada. Se cuenta con un arqueo cuando quieras.",
     };
   }
   if (input.openShiftExists) return { ok: false, error: "Esa caja ya tiene un turno abierto." };
@@ -2912,12 +3008,20 @@ copiar sourceRef rompería la idempotencia."
 **Interfaces:**
 - Consumes: nada nuevo.
 - Produces:
-  - `accountBalanceMinor(movements: BalanceMovement[]): number` con `BalanceMovement = { kind: "INGRESO" | "EGRESO"; amountMinor: number }`
+  - `accountBalanceMinor(movements: BalanceMovement[]): number` con `BalanceMovement = { kind: "INGRESO" | "EGRESO"; amountMinor: number; isTransfer?: boolean }`
   - `totalsByCategory(movements: CategorizedMovement[]): CategoryTotal[]` con `CategorizedMovement = BalanceMovement & { categoryId: string | null; categoryName: string | null }` y `CategoryTotal = { categoryId: string | null; categoryName: string; kind: "INGRESO" | "EGRESO"; totalMinor: number; count: number }`
   - `periodSummary(movements: BalanceMovement[]): { incomeMinor: number; expenseMinor: number; netMinor: number }`
   - `topClients(movements: ClientMovement[], limit: number): ClientTotal[]`
 
-**El único movimiento que estas funciones ignoran:** ninguno. Un contramovimiento es un asiento como cualquier otro y entra en las sumas — ése es justamente el punto de anular en vez de borrar: el neto queda bien sin que nadie tenga que acordarse de excluir nada.
+**Qué entra y qué no en cada función, que es la parte que más fácil se hace mal:**
+
+| | Anulaciones | Transferencias entre cuentas |
+|---|---|---|
+| `accountBalanceMinor` (saldo de una cuenta) | **Entran.** Un contramovimiento es un asiento como cualquier otro, y ése es el punto de anular en vez de borrar | **Entran.** Si no, la caja fuerte daría siempre cero |
+| `periodSummary` y `totalsByCategory` (cuánto entró y salió del negocio) | **Entran** | **NO entran.** La plata no entró ni salió del negocio: cambió de lugar |
+| `topClients` | Entran | No aplica: una transferencia no tiene cliente |
+
+Si los pases a la caja fuerte se contaran como egresos, los "gastos" del mes incluirían los treinta pases diarios y el reporte mentiría por un orden de magnitud. Es el error más caro que puede tener este módulo, y por eso hay una prueba dedicada.
 
 - [ ] **Paso 1: Escribir las pruebas**
 
@@ -2949,6 +3053,46 @@ describe("accountBalanceMinor", () => {
       { kind: "EGRESO" as const, amountMinor: 1_000_00 },
     ];
     expect(accountBalanceMinor(conAnulacion)).toBe(0);
+  });
+});
+
+describe("las transferencias no son ingresos ni egresos", () => {
+  const conPase = [
+    { kind: "INGRESO" as const, amountMinor: 50_000_00, categoryId: "c1", categoryName: "Ventas" },
+    // El pase diario a la caja fuerte: sale de esta cuenta, pero no es un gasto.
+    { kind: "EGRESO" as const, amountMinor: 30_000_00, categoryId: null, categoryName: null, isTransfer: true },
+  ];
+
+  it("el saldo de la cuenta SÍ descuenta el pase: la plata ya no está ahí", () => {
+    expect(accountBalanceMinor(conPase)).toBe(20_000_00);
+  });
+
+  it("el resumen del período NO cuenta el pase como egreso", () => {
+    expect(periodSummary(conPase)).toEqual({
+      incomeMinor: 50_000_00,
+      expenseMinor: 0,
+      netMinor: 50_000_00,
+    });
+  });
+
+  it("los totales por categoría tampoco lo cuentan", () => {
+    const r = totalsByCategory(conPase);
+    expect(r).toHaveLength(1);
+    expect(r[0].categoryName).toBe("Ventas");
+  });
+
+  it("treinta pases en el mes no inflan los egresos ni un peso", () => {
+    const mes = [
+      { kind: "INGRESO" as const, amountMinor: 100_000_00, categoryId: "c1", categoryName: "Ventas" },
+      ...Array.from({ length: 30 }, () => ({
+        kind: "EGRESO" as const,
+        amountMinor: 3_000_00,
+        categoryId: null,
+        categoryName: null,
+        isTransfer: true,
+      })),
+    ];
+    expect(periodSummary(mes).expenseMinor).toBe(0);
   });
 });
 
@@ -3050,13 +3194,25 @@ Esperado: FALLA con `Failed to resolve import "./balance"`.
 /**
  * Saldos y totales. Módulo PURO, todo en centavos enteros.
  *
- * Ninguna de estas funciones excluye movimientos. Un contramovimiento es un asiento como
- * cualquier otro y entra en las sumas: ése es justamente el punto de anular en vez de
- * borrar, que el neto quede bien sin que nadie tenga que acordarse de excluir nada.
+ * Hay una sola distinción que hacer, y es la que más fácil se hace mal: **el saldo de una
+ * cuenta no es lo mismo que lo que entró y salió del negocio.**
+ *
+ * Las anulaciones entran en las dos cosas —ése es el punto de anular en vez de borrar—. Las
+ * transferencias entre cuentas entran en el saldo y NO en los ingresos y egresos: la plata
+ * no entró ni salió, cambió de lugar.
  */
 
-export type BalanceMovement = { kind: "INGRESO" | "EGRESO"; amountMinor: number };
+export type BalanceMovement = {
+  kind: "INGRESO" | "EGRESO";
+  amountMinor: number;
+  /** Es una pata de un pase entre cuentas. Quien lee de la base lo pasa como `transferId !== null`. */
+  isTransfer?: boolean;
+};
 
+/**
+ * El saldo de una cuenta. **Incluye las transferencias**: si el pase a la caja fuerte no
+ * descontara de la caja diaria, el mostrador figuraría con plata que ya no tiene.
+ */
 export function accountBalanceMinor(movements: readonly BalanceMovement[]): number {
   return movements.reduce(
     (acc, m) => acc + (m.kind === "INGRESO" ? m.amountMinor : -m.amountMinor),
@@ -3064,6 +3220,13 @@ export function accountBalanceMinor(movements: readonly BalanceMovement[]): numb
   );
 }
 
+/**
+ * Cuánto entró y cuánto salió **del negocio**, que no es lo mismo que de una cuenta.
+ *
+ * Las transferencias quedan afuera. Un pase a la caja fuerte no es un gasto: la plata no
+ * salió del negocio, cambió de lugar. Contarlo haría que los egresos del mes incluyeran los
+ * treinta pases diarios, y el reporte mentiría por un orden de magnitud.
+ */
 export function periodSummary(movements: readonly BalanceMovement[]): {
   incomeMinor: number;
   expenseMinor: number;
@@ -3072,6 +3235,7 @@ export function periodSummary(movements: readonly BalanceMovement[]): {
   let incomeMinor = 0;
   let expenseMinor = 0;
   for (const m of movements) {
+    if (m.isTransfer) continue;
     if (m.kind === "INGRESO") incomeMinor += m.amountMinor;
     else expenseMinor += m.amountMinor;
   }
@@ -3101,6 +3265,8 @@ export type CategoryTotal = {
 export function totalsByCategory(movements: readonly CategorizedMovement[]): CategoryTotal[] {
   const mapa = new Map<string, CategoryTotal>();
   for (const m of movements) {
+    // Mismo criterio que `periodSummary`: un pase entre cuentas no es ingreso ni egreso.
+    if (m.isTransfer) continue;
     const clave = `${m.kind}|${m.categoryId ?? ""}`;
     const actual = mapa.get(clave);
     if (actual) {
@@ -3170,15 +3336,278 @@ daría un número que no significa nada."
 
 ---
 
-## Tarea 10: Caja — las cuatro pantallas
+## Tarea 10: Caja fuerte y pases entre cuentas
+
+**Files:**
+- Create: `lib/cash/transfer.ts`, `lib/cash/transfer.test.ts`
+
+**Interfaces:**
+- Consumes: `minorToDecimalString` de `lib/membership/money.ts`; `prisma.cashTransfer` (Tarea 1).
+- Produces:
+  - `suggestedDropMinor(input: { countedMinor: number; fixedFloatMinor: number }): number`
+  - `validateTransfer(input: { fromAccountId: string; toAccountId: string; amountMinor: number; fromBalanceMinor: number }): { ok: true } | { ok: false; error: string }`
+  - `createCashTransfer(tx, input: CreateTransferInput): Promise<{ transferId: string }>`
+
+**El caso de todos los días.** Al cerrar el mostrador, el negocio guarda lo recaudado en la caja fuerte y deja un **fondo fijo** para el vuelto del día siguiente. En la jerga eso es un *retiro de caja*; en la pantalla se llama "Pasar a la caja fuerte".
+
+**La regla que ordena todo:** la caja fuerte es otra cuenta de efectivo, y el pase es una **transferencia**. No es un ingreso ni un egreso del negocio. Los saldos la incluyen; los reportes de ingresos y egresos la excluyen (Tarea 9).
+
+- [ ] **Paso 1: Escribir las pruebas**
+
+Crear `lib/cash/transfer.test.ts`:
+
+```ts
+import { describe, expect, it } from "vitest";
+import { suggestedDropMinor, validateTransfer } from "./transfer";
+
+describe("suggestedDropMinor", () => {
+  it("propone pasar todo lo que sobra del fondo fijo", () => {
+    expect(suggestedDropMinor({ countedMinor: 47_300_00, fixedFloatMinor: 20_000_00 })).toBe(27_300_00);
+  });
+
+  it("si contaste justo el fondo fijo, no hay nada que pasar", () => {
+    expect(suggestedDropMinor({ countedMinor: 20_000_00, fixedFloatMinor: 20_000_00 })).toBe(0);
+  });
+
+  it("si contaste menos que el fondo fijo, no propone un pase negativo", () => {
+    expect(suggestedDropMinor({ countedMinor: 15_000_00, fixedFloatMinor: 20_000_00 })).toBe(0);
+  });
+
+  it("sin fondo fijo configurado propone pasar todo", () => {
+    expect(suggestedDropMinor({ countedMinor: 47_300_00, fixedFloatMinor: 0 })).toBe(47_300_00);
+  });
+});
+
+describe("validateTransfer", () => {
+  const base = { fromAccountId: "diaria", toAccountId: "fuerte", fromBalanceMinor: 50_000_00 };
+
+  it("un pase normal se acepta", () => {
+    expect(validateTransfer({ ...base, amountMinor: 30_000_00 })).toEqual({ ok: true });
+  });
+
+  it("pasar todo el saldo se acepta", () => {
+    expect(validateTransfer({ ...base, amountMinor: 50_000_00 })).toEqual({ ok: true });
+  });
+
+  it("no se pasa más de lo que hay en la cuenta de origen", () => {
+    expect(validateTransfer({ ...base, amountMinor: 60_000_00 })).toEqual({
+      ok: false,
+      error: "No podés pasar más plata de la que hay en esa cuenta.",
+    });
+  });
+
+  it("un importe de cero se rechaza", () => {
+    expect(validateTransfer({ ...base, amountMinor: 0 })).toEqual({
+      ok: false,
+      error: "El importe tiene que ser mayor que cero.",
+    });
+  });
+
+  it("un importe negativo se rechaza: el sentido lo dan las cuentas, no el signo", () => {
+    expect(validateTransfer({ ...base, amountMinor: -100_00 })).toEqual({
+      ok: false,
+      error: "El importe tiene que ser mayor que cero.",
+    });
+  });
+
+  it("no se pasa plata de una cuenta a sí misma", () => {
+    expect(
+      validateTransfer({ ...base, toAccountId: "diaria", amountMinor: 10_000_00 }),
+    ).toEqual({ ok: false, error: "Elegí dos cuentas distintas." });
+  });
+});
+```
+
+- [ ] **Paso 2: Correr y verificar que falla**
+
+```bash
+pnpm test lib/cash/transfer.test.ts
+```
+
+Esperado: FALLA con `Failed to resolve import "./transfer"`.
+
+- [ ] **Paso 3: Escribir `transfer.ts`**
+
+```ts
+import "server-only";
+import type { Prisma } from "@repo/db";
+import { minorToDecimalString } from "@/lib/membership/money";
+
+/**
+ * Los pases de plata entre dos cuentas del mismo workspace.
+ *
+ * El caso que motiva todo esto es el de todos los días: al cerrar el mostrador se guarda lo
+ * recaudado en la caja fuerte y queda el fondo fijo para el vuelto. Es un *retiro de caja*.
+ *
+ * Un pase NO es un ingreso ni un egreso del negocio. Los saldos por cuenta lo incluyen —la
+ * plata efectivamente ya no está en el mostrador— y los reportes de ingresos y egresos lo
+ * excluyen. Ver `lib/cash/balance.ts`.
+ */
+
+/**
+ * Cuánto conviene pasar a la caja fuerte al cerrar.
+ *
+ * Nunca propone un pase negativo. Si la caja quedó por debajo del fondo fijo —porque hubo un
+ * faltante o porque el día fue flojo—, lo que hace falta no es un pase al revés: es que el
+ * arqueo deje asentada la diferencia, que es otra cosa y ya la resuelve `canCloseShift`.
+ */
+export function suggestedDropMinor(input: {
+  countedMinor: number;
+  fixedFloatMinor: number;
+}): number {
+  return Math.max(0, input.countedMinor - input.fixedFloatMinor);
+}
+
+export type TransferCheck = { ok: true } | { ok: false; error: string };
+
+/**
+ * El importe es siempre positivo: el sentido del pase lo dan las dos cuentas, no el signo.
+ * Permitir un negativo sería tener dos maneras de expresar lo mismo, y tarde o temprano las
+ * dos se usan y se contradicen.
+ */
+export function validateTransfer(input: {
+  fromAccountId: string;
+  toAccountId: string;
+  amountMinor: number;
+  fromBalanceMinor: number;
+}): TransferCheck {
+  if (input.fromAccountId === input.toAccountId) {
+    return { ok: false, error: "Elegí dos cuentas distintas." };
+  }
+  if (input.amountMinor <= 0) {
+    return { ok: false, error: "El importe tiene que ser mayor que cero." };
+  }
+  if (input.amountMinor > input.fromBalanceMinor) {
+    return { ok: false, error: "No podés pasar más plata de la que hay en esa cuenta." };
+  }
+  return { ok: true };
+}
+
+export type CreateTransferInput = {
+  workspaceId: string;
+  fromAccountId: string;
+  toAccountId: string;
+  amountMinor: number;
+  occurredAt: Date;
+  note: string | null;
+  /** Turno al que se imputa la pata de salida, cuando el pase se hace al cerrar. */
+  fromShiftId?: string | null;
+  createdByUserId?: number | null;
+};
+
+/**
+ * Escribe el pase y sus dos asientos hermanos, en una sola transacción.
+ *
+ * Los tres nacen juntos o no nace ninguno. Un egreso sin su ingreso hermano sería plata
+ * evaporada entre dos cuentas, y encontrar eso meses después es prácticamente imposible.
+ *
+ * Los dos asientos van sin categoría a propósito: una transferencia no pertenece a ninguna
+ * categoría de ingreso ni de egreso, y forzarle una la metería en los reportes por la puerta
+ * de atrás.
+ */
+export async function createCashTransfer(
+  tx: Prisma.TransactionClient,
+  input: CreateTransferInput,
+): Promise<{ transferId: string }> {
+  const importe = minorToDecimalString(input.amountMinor);
+
+  const pase = await tx.cashTransfer.create({
+    data: {
+      workspaceId: input.workspaceId,
+      fromAccountId: input.fromAccountId,
+      toAccountId: input.toAccountId,
+      amountArs: importe,
+      occurredAt: input.occurredAt,
+      note: input.note,
+      createdByUserId: input.createdByUserId ?? null,
+    },
+    select: { id: true },
+  });
+
+  const comun = {
+    workspaceId: input.workspaceId,
+    amountArs: importe,
+    occurredAt: input.occurredAt,
+    categoryId: null,
+    paymentMethod: "EFECTIVO",
+    transferId: pase.id,
+    sourceModule: "manual",
+    createdByUserId: input.createdByUserId ?? null,
+  };
+
+  await tx.cashMovement.createMany({
+    data: [
+      {
+        ...comun,
+        accountId: input.fromAccountId,
+        shiftId: input.fromShiftId ?? null,
+        kind: "EGRESO",
+        description: input.note ?? "Pase a otra cuenta",
+      },
+      {
+        ...comun,
+        accountId: input.toAccountId,
+        shiftId: null,
+        kind: "INGRESO",
+        description: input.note ?? "Pase desde otra cuenta",
+      },
+    ],
+  });
+
+  return { transferId: pase.id };
+}
+```
+
+- [ ] **Paso 4: Correr y verificar que pasa**
+
+```bash
+pnpm test lib/cash/transfer.test.ts
+```
+
+Esperado: PASAN, 10 pruebas.
+
+- [ ] **Paso 5: Verificar que el resto sigue en verde**
+
+```bash
+pnpm test lib/cash/
+```
+
+Esperado: PASAN todas, incluidas las cuatro pruebas nuevas de la Tarea 9 que comprueban que un pase no infla los egresos.
+
+- [ ] **Paso 6: Commit**
+
+```bash
+git add lib/cash/transfer.ts lib/cash/transfer.test.ts
+git commit -m "Escribir los pases a la caja fuerte
+
+El gesto de todos los días: al cerrar el mostrador se guarda lo recaudado en la
+caja fuerte y queda el fondo fijo para el vuelto. La caja fuerte no es un
+concepto nuevo, es otra cuenta de efectivo, y el pase es una transferencia.
+
+Un pase no es un ingreso ni un egreso del negocio. Los saldos por cuenta lo
+incluyen, porque la plata efectivamente ya no está en el mostrador. Los reportes
+de ingresos y egresos lo excluyen: si no, los treinta pases del mes aparecerían
+como treinta gastos que nunca se hicieron.
+
+El pase y sus dos asientos nacen juntos o no nace ninguno. Un egreso sin su
+ingreso hermano es plata evaporada entre dos cuentas, y encontrar eso meses
+después es prácticamente imposible.
+
+Los dos asientos van sin categoría a propósito: forzarles una los metería en los
+reportes por la puerta de atrás."
+```
+
+---
+
+## Tarea 11: Caja — las pantallas
 
 **Files:**
 - Create: `app/(shell)/caja/layout.tsx`, `page.tsx`, `movimientos/page.tsx`, `turnos/page.tsx`, `configuracion/page.tsx`, `actions.ts`
 - Create: `components/cash/movement-form.tsx`, `components/cash/shift-panel.tsx`, `components/cash/movements-table.tsx`, `components/cash/account-form.tsx`, `components/cash/category-form.tsx`
 
 **Interfaces:**
-- Consumes: todo lo de las Tareas 6 a 9, más `listClients` (Tarea 4) para el selector de cliente.
-- Produces: `openShiftAction`, `closeShiftAction`, `createMovementAction`, `reverseMovementAction`, `saveAccountAction`, `saveCategoryAction`, `enableCashForWorkspaceAction` (siembra).
+- Consumes: todo lo de las Tareas 6 a 10, más `listClients` (Tarea 4) para el selector de cliente.
+- Produces: `openShiftAction`, `closeShiftAction`, `createMovementAction`, `reverseMovementAction`, `transferAction`, `saveAccountAction`, `saveCategoryAction`, `enableCashForWorkspaceAction` (siembra).
 
 **Referencias visuales a copiar:** `app/(shell)/reservas/page.tsx` para la pantalla principal, `app/(shell)/reservas/configuracion/page.tsx` para la de ajustes, `components/page-header.tsx` para el encabezado.
 
@@ -3205,12 +3634,16 @@ export async function openShiftAction(formData: FormData): Promise<void> {
 
   const cuenta = await prisma.cashAccount.findFirst({
     where: { id: accountId, workspaceId: workspace.id },
-    select: { kind: true },
+    select: { kind: true, isVault: true },
   });
   if (!cuenta) redirect(`/caja?error=${encodeURIComponent("Esa cuenta no existe.")}`);
 
   const abierto = await prisma.cashShift.count({ where: { accountId, status: "ABIERTO" } });
-  const permiso = canOpenShift({ accountKind: cuenta.kind, openShiftExists: abierto > 0 });
+  const permiso = canOpenShift({
+    accountKind: cuenta.kind,
+    isVault: cuenta.isVault,
+    openShiftExists: abierto > 0,
+  });
   if (!permiso.ok) redirect(`/caja?error=${encodeURIComponent(permiso.error)}`);
 
   try {
@@ -3325,7 +3758,17 @@ export async function enableCashForWorkspaceAction(): Promise<void> {
 - **`/caja`** — el turno abierto. Si no hay ninguno: selector de cuenta y campo de monto inicial para abrirlo. Si hay uno: saldo esperado en vivo, botón de nuevo movimiento, lista del turno y panel de cierre con el campo de conteo y el de explicación.
 - **`/caja/movimientos`** — el libro completo, con filtros por fecha, cuenta, categoría, tipo y cliente. Cada fila muestra origen (una etiqueta "Automático" cuando `sourceModule !== "manual"`) y un botón de anular. **Los automáticos no muestran botón de editar, sólo de anular.**
 - **`/caja/turnos`** — historial de arqueos: cuenta, quién abrió, quién cerró, esperado, contado, diferencia y explicación. Las diferencias distintas de cero se destacan.
-- **`/caja/configuracion`** — cuentas y categorías, con el botón de siembra cuando no hay ninguna.
+- **`/caja/pases`** — historial de pases entre cuentas: fecha, de dónde a dónde, importe, quién lo hizo y la nota.
+- **`/caja/configuracion`** — cuentas y categorías, con el botón de siembra cuando no hay ninguna. Cada cuenta de efectivo tiene además el campo de **fondo fijo**, y una marca para señalar cuál es la **caja fuerte**.
+
+**El pase al cerrar, que es el gesto de todos los días.** Después de contar y cerrar el turno, la pantalla propone el pase con la cuenta ya hecha:
+
+> Contaste **$47.300**. El fondo fijo de esta caja es **$20.000**.
+> ¿Pasás **$27.300** a la caja fuerte? — [Sí, pasar] [Ahora no]
+
+El importe sale de `suggestedDropMinor` y es editable: hay días en que se deja más cambio. Si el negocio no tiene ninguna cuenta marcada como caja fuerte, este paso no aparece — no hay a dónde pasar.
+
+`transferAction` valida con `validateTransfer`, verifica que **las dos cuentas sean del workspace**, y escribe con `createCashTransfer` dentro de una transacción.
 
 - [ ] **Paso 6: Verificar que compila**
 
@@ -3353,7 +3796,7 @@ de verdad vive en el módulo que los originó."
 
 ---
 
-## Tarea 11: Que lo que ya se cobra aparezca en Caja
+## Tarea 12: Que lo que ya se cobra aparezca en Caja
 
 **Files:**
 - Create: `lib/cash/auto-deposit.ts`, `lib/cash/auto-deposit.test.ts`
@@ -3606,13 +4049,13 @@ una sola."
 
 ---
 
-## Tarea 12: Aplicar la migración y encender el módulo
+## Tarea 13: Aplicar la migración y encender el módulo
 
 **Files:** ninguno. Esta tarea es operación sobre las bases y la configuración.
 
 **Interfaces:**
 - Consumes: la migración de la Tarea 1 y todo el código de las Tareas 2 a 11.
-- Produces: las cinco tablas existiendo en las bases, y los dos módulos encendidos en SFPR.
+- Produces: las seis tablas existiendo en las bases, y los dos módulos encendidos en SFPR.
 
 > **Esta tarea se hace cuando TODO lo anterior está en verde.** Aplicar la migración antes deja tablas sin código que las use, que es la peor combinación: ocupan lugar, confunden a quien mire el esquema, y si hay que cambiar el diseño ya no se puede editar la migración.
 
@@ -3625,16 +4068,16 @@ una sola."
 
 Crear una rama Neon a partir de la de producción de FOTOFFICE y aplicar ahí el `migration.sql` completo. Si algo falla —un nombre de índice repetido, una clave foránea hacia una tabla que no existe en esa base— se descubre acá y no en la base con 159 socios.
 
-Verificar que las cinco tablas quedaron:
+Verificar que las seis tablas quedaron:
 
 ```sql
 select table_name from information_schema.tables
 where table_schema = 'public'
-  and table_name in ('Client','CashAccount','CashCategory','CashShift','CashMovement')
+  and table_name in ('Client','CashAccount','CashCategory','CashShift','CashMovement','CashTransfer')
 order by table_name;
 ```
 
-Esperado: cinco filas.
+Esperado: seis filas.
 
 Verificar que el índice parcial existe, que es lo que más fácil se pierde al copiar SQL:
 
@@ -3697,6 +4140,9 @@ En `/caja/configuracion`, apretar el botón de siembra. Después, de punta a pun
 4. Verificar que el saldo esperado dice $11.200.
 5. Anular el egreso con un motivo, y verificar que el esperado vuelve a $11.500 y que los dos asientos quedan a la vista.
 6. Cerrar el turno contando $11.500 y verificar que la diferencia da cero.
+6b. Poner $10.000 de fondo fijo en la caja diaria, cerrar un turno con $25.000 contados, y verificar que **propone pasar $15.000** a la caja fuerte. Aceptar.
+6c. Verificar que la caja diaria queda en $10.000 y la caja fuerte en $15.000.
+6d. **Verificar en el reporte del período que los egresos NO incluyen ese pase.** Es la comprobación más importante de toda la prueba: si el pase figura como gasto, el reporte miente.
 7. Cerrar otro turno contando de menos y verificar que **no deja cerrar sin explicación**.
 8. Registrar un pago de cuota a mano y verificar que **aparece solo** en el libro, marcado como automático y sin botón de editar.
 9. Dar de alta un cliente que sea también socio, enlazarlo, y verificar que el listado muestra la etiqueta de socio.
@@ -3721,7 +4167,7 @@ SFPR pasa a tener por primera vez un libro donde figura lo que cobra. La etapa 1
 
 Hecha después de escribirlo, contra el spec.
 
-**Cobertura.** §5 Clientes → Tareas 3, 4 y 5. §6 Caja → Tareas 6 a 10. §6.5 (reflejo de otros módulos) → Tarea 11. §11.1 (datos fiscales desde ahora) → Tarea 1 (`ivaCondition` en el esquema) y Tarea 3 (validación). §12 etapa 1a → el plan entero.
+**Cobertura.** §5 Clientes → Tareas 3, 4 y 5. §6 Caja → Tareas 6 a 11. §6.2.1 (caja fuerte y pases) → Tareas 1, 7, 9 y 10. §6.5 (reflejo de otros módulos) → Tarea 12. §11.1 (datos fiscales desde ahora) → Tarea 1 (`ivaCondition` en el esquema) y Tarea 3 (validación). §12 etapa 1a → el plan entero.
 
 **Tres cosas del diseño que este plan NO construye, a propósito:**
 
