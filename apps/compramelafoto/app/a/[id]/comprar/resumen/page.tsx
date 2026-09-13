@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
+import { clearVideoCart, readVideoCart } from "@/lib/videos/video-cart-storage";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -144,6 +145,7 @@ export default function AlbumResumenPage() {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
+  const [videoCartIds, setVideoCartIds] = useState<number[]>([]);
   const albumId = params.id as string;
   const checkoutDebugEnabled =
     searchParams.get("debugCheckout") === "1" ||
@@ -212,6 +214,12 @@ export default function AlbumResumenPage() {
       }
     } catch {}
   }, [buyerName, buyerEmail]);
+
+  // Cargar los videos elegidos. Van en el mismo pedido que las fotos.
+  useEffect(() => {
+    if (!albumId) return;
+    setVideoCartIds(readVideoCart(Number(albumId)));
+  }, [albumId]);
 
   // Cargar items desde sessionStorage
   useEffect(() => {
@@ -555,6 +563,9 @@ export default function AlbumResumenPage() {
           idempotencyKey,
           termsAccepted: true,
           ...(faceBulkPackPhotoIds.length > 0 ? { faceBulkPackPhotoIds } : {}),
+          // Los videos elegidos viajan en el MISMO pedido que las fotos: el
+          // cliente paga una sola vez y descarga todo del mismo lugar.
+          ...(videoCartIds.length > 0 ? { videoIds: videoCartIds } : {}),
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -576,6 +587,11 @@ export default function AlbumResumenPage() {
             orderId: oid,
             buyerEmail: buyerEmail.trim(),
           });
+        }
+        // El pedido ya tiene los videos adentro: si el carrito quedara cargado,
+        // el cliente los volvería a agregar en la próxima compra.
+        if (videoCartIds.length > 0) {
+          clearVideoCart(Number(albumId));
         }
         setMpPreparing(true);
         setMpPreparingStep(1);
