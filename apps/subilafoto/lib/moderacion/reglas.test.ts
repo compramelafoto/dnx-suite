@@ -90,3 +90,41 @@ describe("motor de reglas de moderación", () => {
     expect(d.confianza).toBe(77.5);
   });
 });
+
+describe("las subcategorías no se cuentan como categorías desconocidas", () => {
+  // Encontrado el 2026-09-13 probando con una foto real: Amazon devuelve la
+  // categoría y también su subcategoría. En una foto de brindis llegan
+  // "Alcohol" (nivel 1) y "Alcoholic Beverages" (nivel 2), las dos con la misma
+  // confianza. Si la subcategoría se trata como desconocida, arriba del 80%
+  // manda a revisión — y entonces **toda foto de casamiento con una copa a la
+  // vista queda retenida**, justo en el perfil donde el alcohol está permitido.
+
+  test("una copa bien visible en un casamiento se aprueba", () => {
+    const brindis = [
+      { nombre: "Alcohol", confianza: 96, esDePrimerNivel: true },
+      { nombre: "Alcoholic Beverages", confianza: 96, esDePrimerNivel: false },
+    ];
+    expect(decidir(brindis, "SOCIAL").estado).toBe("APPROVED");
+  });
+
+  test("pero una categoría nueva de primer nivel sigue yendo a revisión", () => {
+    expect(
+      decidir([{ nombre: "Algo Que Amazon Agregue", confianza: 92, esDePrimerNivel: true }], "SOCIAL")
+        .estado,
+    ).toBe("REVIEW_REQUIRED");
+  });
+
+  test("una subcategoría que sí está en la política se sigue evaluando", () => {
+    // Si algún día se agrega una subcategoría concreta a los umbrales, tiene
+    // que funcionar igual: lo que se ignora es lo desconocido, no lo profundo.
+    expect(
+      decidir([{ nombre: "Alcohol", confianza: 96, esDePrimerNivel: false }], "FAMILIAR").estado,
+    ).toBe("REVIEW_REQUIRED");
+  });
+
+  test("sin el dato de nivel se asume primer nivel, que es lo prudente", () => {
+    expect(decidir([{ nombre: "Desconocida", confianza: 92 }], "SOCIAL").estado).toBe(
+      "REVIEW_REQUIRED",
+    );
+  });
+});
