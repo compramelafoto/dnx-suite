@@ -168,3 +168,69 @@ una categoría que todavía no evaluamos se publicaría sola.
 El `vercel.json` de la app declara **sólo** el cron. El comando de build y el de
 instalación los sigue poniendo el panel de Vercel; agregarlos acá pisaría la
 configuración que ya funciona.
+
+## PENDIENTE — Probar la moderación con fotos reales
+
+**No se hizo todavía.** Los 42 tests cubren la política y la idempotencia, pero
+corren con un proveedor falso: **no prueban que la credencial de Rekognition, el
+bucket y la red se hablen en el camino completo**, ni si los umbrales elegidos
+son razonables con fotos de fiesta de verdad.
+
+Son dos preguntas distintas y conviene no mezclarlas.
+
+### Parte 1 — ¿Funciona la cañería?
+
+Una sola foto normal, de un evento cualquiera. Lo que hay que ver:
+
+1. Se sube y queda en `PROCESSING`.
+2. En segundos pasa a `APPROVED` y le aparece `publishedAt`.
+3. En `SubilafotoModerationDecision` queda una fila con `provider` =
+   `aws-rekognition`, la versión del modelo, la latencia y `errorCode` en nulo.
+
+Si el estado queda en `REVIEW_REQUIRED` con un `errorCode`, la cañería está
+rota y ese código dice exactamente dónde: `AccessDeniedException` es la clave
+IAM, `NoSuchKey` es el bucket, `UnrecognizedClientException` es la región.
+
+**Medir también la latencia real**, no la del diagnóstico: desde Vercel debería
+rondar los 100 ms más la descarga desde R2.
+
+### Parte 2 — ¿Los umbrales son razonables?
+
+Esta es la que de verdad importa y **necesita fotos reales de eventos**, no
+imágenes de prueba. Lo que se busca no es que bloquee lo prohibido —eso lo hace—
+sino **cuántas fotos buenas retiene por error**, que es lo que arruina una fiesta.
+
+Material mínimo, unas veinte fotos:
+
+| Cuántas | Qué | Qué debería pasar |
+|---|---|---|
+| 10 | Fotos normales de casamiento y de quince | Todas aprobadas. **Si retiene una, hay un problema** |
+| 3 | Gente brindando, con copas bien visibles | Aprobadas en perfil `SOCIAL`, retenidas en `FAMILIAR` |
+| 2 | Baile, abrazos, gente muy junta | Aprobadas. Es el falso positivo más probable |
+| 2 | Fiesta con pileta o playa, en malla | Aprobadas en `SOCIAL`, retenidas en `FAMILIAR` |
+| 2 | Alguien fumando | Retenidas en `FAMILIAR`, aprobadas en `SOCIAL` |
+| 1 | Un gesto con el dedo, de esos que salen en toda fiesta | Retenida en `FAMILIAR` |
+
+**Cómo se corre:** crear un evento de prueba por perfil (`FAMILIAR`, `SOCIAL`,
+`EMPRESARIAL`), subir el mismo lote a los tres y comparar. Las diferencias entre
+perfiles son el resultado de la prueba; si los tres deciden igual, los umbrales
+no están haciendo nada.
+
+**Qué se ajusta después:** los números de `UMBRALES` en
+`lib/moderacion/reglas.ts`, y hay que subir `VERSION_DE_POLITICA` en el mismo
+commit. Las decisiones ya tomadas quedan atadas a la versión con la que se
+tomaron, que es el punto de guardarla.
+
+**Lo que no se puede probar con fotos propias** es el contenido explícito, y no
+hace falta: para eso están los tests de riesgo alto, que verifican que ninguna
+categoría grave se apruebe en ningún perfil.
+
+### Parte 3 — La falla cerrada, en producción
+
+Ya hay tests, pero conviene verla una vez de verdad: romper temporalmente
+`AWS_ACCESS_KEY_ID` en Vercel, subir una foto y confirmar que queda retenida y
+**no publicada**. Después restaurar la variable y reprocesar con
+`/api/moderacion/procesar`.
+
+Es la prueba que más tranquilidad da y la que menos ganas dan de hacer. Vale la
+pena hacerla antes del lanzamiento y no después del primer evento real.
