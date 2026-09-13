@@ -162,14 +162,37 @@ plataforma se vende— sí tiene que verse como Subí la Foto y no como otra cos
 **Cuándo se paga:** después del lanzamiento, y junto con el buscador ⌘K del menú DNX, que
 toca los mismos cinco formatos de menú. Hacer las dos cosas por separado es pagar dos veces.
 
-### D2. Faltan `/privacidad` y `/terminos`
+### D2. Los textos legales están escritos y sin revisar — RESUELTA A MEDIAS
 
-La ficha de marca de Subí la Foto en `@repo/auth-ui` declara esas dos rutas
-porque el contrato del paquete las exige. **Hoy ninguna de las dos existe.**
+`/privacidad` y `/terminos` existen desde el 2026-09-13. El texto vive en
+`apps/subilafoto/lib/legal/contenido.ts` y **está atado a lo que la plataforma
+hace de verdad**: el borrado automático a los 30 días, el análisis con Amazon en
+los Estados Unidos, la comisión del 15%, la ventana de 12 horas y el cierre
+automático.
 
-No se rompe nada todavía porque la pantalla de ingreso no dibuja los enlaces
-legales, pero son obligatorias antes del lanzamiento: la puerta del invitado
-pide aceptar condiciones y esas condiciones tienen que estar en algún lado.
+Eso último no es un detalle de redacción. Si cambia la retención, el proveedor
+de moderación o dónde se guardan los archivos, hay que cambiar el texto **el
+mismo día**: un texto legal que describe otro producto es peor que no tener
+ninguno.
+
+**Falta que los apruebe un asesor legal.** El titular lo va a hacer. Lo que hay
+es un borrador informado, no un documento validado.
+
+### D2b. Dos obligaciones de comercio electrónico que todavía no están
+
+Aparecieron al redactar los términos y **hay que resolverlas antes de vender el
+primer evento**, no antes del lanzamiento técnico:
+
+- **Botón de arrepentimiento.** La Resolución 424/2020 de la Secretaría de
+  Comercio Interior obliga a que todo sitio que venda en línea tenga un enlace
+  visible en la portada para revocar una compra dentro de los 10 días corridos
+  (artículo 34 de la Ley 24.240). Hoy no existe.
+- **Enlace al Libro de Quejas Online.** La misma resolución exige un enlace
+  visible al formulario de la Ventanilla Única Federal de Defensa del
+  Consumidor. Tampoco está.
+
+Las dos son enlaces en la portada, no desarrollo. Pero las controla Defensa del
+Consumidor y su ausencia es sancionable.
 
 ### D3. `/api/diagnostico` está abierto en producción
 
