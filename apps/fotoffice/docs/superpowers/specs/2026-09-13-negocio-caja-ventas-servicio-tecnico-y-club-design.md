@@ -13,7 +13,7 @@ sorteos, cursos. No sabe administrar un **negocio**: no tiene dónde anotar la p
 entra y sale, ni a quién le vendió, ni qué mercadería le queda, ni qué equipo ajeno tiene
 en el taller.
 
-Esto lo resuelve, en cinco módulos nuevos y una extensión del que ya existe.
+Esto lo resuelve, en seis módulos nuevos y una extensión del que ya existe.
 
 El disparador fue un servicio técnico de fotografía que necesita registrar el ingreso y el
 egreso de equipos en reparación, una caja, y un club de fidelidad con puntos, premios y
@@ -81,6 +81,10 @@ Acordadas en conversación entre el 2026-09-11 y el 2026-09-13.
    compartido por las cinco aplicaciones de la suite y un enum que no exista en alguna de las
    cinco bases rompe las escrituras de esa aplicación. Mismo criterio ya aplicado en
    `Booking.status` y `Raffle.status`.
+9. **La facturación electrónica se construye, no se terceriza.** Conexión directa con ARCA
+   (WSFEv1), para DNX Estudio y para SFPR. Va al final, con emisión manual o por una app de
+   terceros mientras tanto — pero **los datos fiscales se capturan desde la etapa 1a**, porque
+   sin condición frente al IVA ni tipo de documento no hay nada que facturar después. Ver §11.
 
 ## 4. El mapa
 
@@ -140,6 +144,9 @@ Client
   firstName, lastName          — persona
   businessName, taxId          — empresa
   docType, docNumber
+  ivaCondition   — Responsable Inscripto | Monotributo | Exento | Consumidor Final |
+                   No Categorizado. Obligatorio, por omisión "Consumidor Final".
+                   Sin esto no se puede facturar después: ver §11.1
   email, phone, address, city
   notes, tags
   status: "ACTIVO" | "INACTIVO"
@@ -303,11 +310,15 @@ Sale
   subtotalArs, discountArs, totalArs
   clubDiscountBps?, clubBenefitId?   — qué descuento del Club se aplicó, si alguno
   cashMovementId       — el ingreso que generó
+  externalInvoiceRef?  — "Factura B 0003-00001234", cuando se emitió a mano o en otra app
+  invoiceId?           — la factura de FotoOffice, desde la etapa 6
   createdByUserId
 
 SaleItem
   saleId, productId?, description
   qty, unitPriceArs, unitCostArs, lineTotalArs
+  ivaRate              — la alícuota del renglón. Se guarda desde la 1b aunque no se
+                         discrimine en ningún lado hasta la etapa 6
 ```
 
 Una venta hace tres cosas en la misma transacción: crea el ingreso de caja, descuenta el
@@ -376,6 +387,7 @@ WorkOrder
   — entrega
   deliveredAt?, deliveredToName?, warrantyDays?, warrantyUntil?
   reworkOfOrderId?        — volvió dentro de la garantía: no se cobra
+  externalInvoiceRef?, invoiceId?    — mismo criterio que Sale: ver §11.1
   status, createdByUserId
 
 WorkOrderItem
@@ -584,59 +596,261 @@ que implica antes de dejarla usar.
 
 ---
 
-## 11. Etapas
+## 11. Facturación electrónica con ARCA (`invoicing`)
+
+### 11.1 Lo que hay que decidir hoy, aunque se construya al final
+
+Éste es el punto que importa de toda la sección. La facturación va en la última etapa, pero
+**una venta que no guardó los datos fiscales no se puede facturar nunca más.** Si en marzo
+vendiste un trípode y sólo anotaste "Juan", en septiembre no hay forma de emitir esa factura
+ni de reconstruir el libro.
+
+Por eso la etapa 1a, que no factura nada, tiene que guardar desde el primer día:
+
+- En `Client`: tipo y número de documento, y **condición frente al IVA** —Responsable
+  Inscripto, Monotributo, Exento, Consumidor Final, No Categorizado—. Es un campo obligatorio
+  con valor por omisión "Consumidor Final", que es el caso del noventa por ciento del
+  mostrador.
+- En el workspace: su propia identidad fiscal (§11.5).
+- En `Sale` y `WorkOrder`: el tratamiento de IVA de cada renglón, aunque todavía no se
+  discrimine en ningún lado.
+- En `Sale` y `WorkOrder`: `externalInvoiceRef`, un campo de texto donde anotar *"Factura B
+  0003-00001234"* de la factura emitida a mano o en la app de terceros. Cuesta nada y es lo
+  que después permite saber qué está facturado y qué no, sin tener que adivinar.
+
+Ese es todo el costo de la etapa 1a. El resto se construye cuando toque.
+
+### 11.2 El plazo ya venció
+
+Verificado el 2026-09-13: la **RG 5782**, con la prórroga de la **RG 5852/2026**, estableció
+que desde el **1 de agosto de 2026** el CAE en tiempo real es la modalidad obligatoria para los
+responsables inscriptos, y dejó el CAEA reservado **sólo para contingencia**. Desde el 1 de
+junio de 2026 ARCA ya no admite nuevas adhesiones al CAEA como modalidad principal.
+
+Dos consecuencias para el diseño:
+
+1. **Se construye un solo camino: CAE en tiempo real.** No hay que implementar CAEA, que es la
+   parte más incómoda del servicio. Menos trabajo del que este módulo hubiera costado hace un
+   año.
+2. Si DNX Estudio es responsable inscripto, **ya está obligado hoy**. Que esté facturando a
+   mano o con una app de terceros lo cumple, así que no hay urgencia inmediata — pero conviene
+   saber que el módulo no es una mejora opcional, es el reemplazo de algo que ya es obligatorio.
+
+### 11.3 Cómo funciona
+
+Son dos servicios SOAP encadenados, y cada uno tiene su ambiente de homologación —pruebas— y
+el de producción, con **certificados distintos**.
+
+**WSAA** (autenticación). Se firma un pedido con el certificado X.509 y su clave privada, y
+devuelve un **Token y un Sign válidos por doce horas**. No se pide uno por operación: ARCA
+rechaza un pedido nuevo mientras el anterior siga vigente.
+
+**WSFEv1** (facturación, RG 4291, manual del desarrollador V. 4.7). Las operaciones que este
+módulo usa:
+
+| Operación | Para qué |
+|---|---|
+| `FECAESolicitar` | Pedir el CAE de un comprobante |
+| `FECompUltimoAutorizado` | El último número autorizado. **Es lo que salva la numeración** |
+| `FECompConsultar` | Qué pasó realmente con un comprobante, cuando la respuesta se perdió |
+| `FEParamGetTiposCbte` / `TiposDoc` / `TiposIva` | Las tablas de referencia, que cambian |
+| `FEDummy` | Si el servicio está vivo |
+
+### 11.4 Los tres problemas reales
+
+**a) Las claves privadas.** Cada CUIT tiene su certificado y su clave privada, y una clave
+privada filtrada permite facturar en nombre de otro. Se guardan cifradas con el mismo cofre
+AES-256-GCM que ya cifra los *refresh token* de Google (`lib/integrations/vault.ts`), que está
+construido, probado y en producción. Google Secret Manager no es una opción: la facturación de
+Google Cloud está cerrada.
+
+**b) El token de doce horas en un entorno sin memoria.** Vercel no comparte memoria entre
+invocaciones, así que un token guardado en una variable se pierde. Y como ARCA rechaza un
+*login* nuevo mientras el anterior siga vigente, la implementación ingenua —pedir token en cada
+pedido— falla apenas hay dos operaciones juntas. El ticket se guarda en la base, con su fecha
+de vencimiento, y se renueva sólo cuando falta.
+
+**c) La numeración. Éste es el peligroso.** Los comprobantes son estrictamente correlativos por
+punto de venta y por tipo. Si `FECAESolicitar` se corta por tiempo de espera, **no se sabe si
+el comprobante quedó autorizado o no**: pedir otro número duplica, y reintentar con el mismo
+puede rechazar.
+
+Se resuelve así, y no de otra manera:
+
+1. El comprobante se guarda **antes** de llamar a ARCA, con su número asignado y estado
+   `PENDIENTE`.
+2. Se llama. La respuesta —CAE o rechazo— se guarda con el pedido y la respuesta crudos.
+3. Si no hubo respuesta, el comprobante queda `PENDIENTE` y **nadie asigna el número siguiente
+   hasta conciliar**: se consulta `FECompUltimoAutorizado` y `FECompConsultar` para saber qué
+   pasó de verdad.
+
+Es el mismo criterio de idempotencia que ya rige en los pagos de Mercado Pago y en la
+resolución de los sorteos: el estado se persiste antes del efecto, nunca después.
+
+### 11.5 Datos
+
+```
+WorkspaceFiscalProfile
+  workspaceId (uno por workspace)
+  cuit, razonSocial
+  ivaCondition: "RESPONSABLE_INSCRIPTO" | "MONOTRIBUTO" | "EXENTO" | ...
+  ingresosBrutos?, inicioActividades?, domicilioFiscal
+  defaultPointOfSale
+
+WorkspaceArcaCredential
+  workspaceId, environment: "HOMOLOGACION" | "PRODUCCION"
+  certPem + keyPem            — cifrados con el cofre; cuatro columnas inseparables
+  alias, certExpiresAt        — el certificado vence: hay que avisar antes
+  status, createdByUserId
+
+ArcaAuthTicket                — el ticket de doce horas, cacheado
+  workspaceId, environment, service ("wsfe")
+  token, sign, generationTime, expirationTime
+
+InvoicePointOfSale
+  workspaceId, number, description, isActive
+
+Invoice
+  workspaceId, pointOfSale, cbteTipo, cbteNumero
+  clientId?
+  — instantáneas del receptor: la factura se lee igual dentro de diez años
+  receptorDocTipo, receptorDocNro, receptorName, receptorIvaCondition
+  cbteFecha, concepto
+  impNeto, impIVA, impTotConc, impOpEx, impTrib, impTotal
+  cae?, caeVto?
+  status: "BORRADOR" | "PENDIENTE" | "AUTORIZADA" | "RECHAZADA" | "ANULADA"
+  arcaRequestJson, arcaResponseJson     — el pedido y la respuesta crudos, siempre
+  relatedInvoiceId?                     — la factura que esta nota de crédito corrige
+  saleId? / workOrderId? / membershipChargeId?
+  pdfUrl?, createdByUserId
+
+InvoiceItem
+  invoiceId, description, qty, unitPriceArs, ivaRate, lineTotalArs
+
+InvoiceEvent
+  invoiceId, type, actorUserId?, actorLabel?, note?, createdAt
+```
+
+**Una factura autorizada no se borra ni se edita jamás.** Se corrige emitiendo una nota de
+crédito que la referencia. Es la misma regla que ya rige en Caja y en el libro de puntos, pero
+acá además es la ley.
+
+### 11.6 El QR y el PDF
+
+La RG 4892 exige el código QR en el comprobante impreso o en PDF, con una carga útil en JSON
+codificada en base64. El PDF se genera con la misma maquinaria que ya arma los carnets de
+socio, de modo que el comprobante sale con la marca de cada negocio.
+
+### 11.7 Puesta en marcha, por workspace
+
+Parte de esto **sólo lo puede hacer el titular del CUIT**, igual que pasó con el calendario de
+Google en SFPR:
+
+1. Generar la clave privada y el pedido de certificado.
+2. Subirlo en ARCA y descargar el certificado.
+3. Asociar el certificado al servicio `wsfe` y al CUIT, en Administración de Certificados
+   Digitales.
+4. Dar de alta el punto de venta como *Factura Electrónica – Web Services*. **Uno distinto del
+   que se use para facturar a mano**, o los números chocan.
+5. Probar en homologación de punta a punta.
+6. Recién ahí, producción.
+
+### 11.8 SFPR es un caso distinto de DNX Estudio
+
+DNX Estudio vende productos y servicios. SFPR es una asociación civil: probablemente exenta,
+emitiendo comprobantes tipo C, y con la pregunta abierta de si las cuotas societarias se
+facturan o se recibían. Si se facturan, son unas **1.900 facturas al año** para 159 socios, que
+es exactamente el volumen que justifica automatizar. Eso además haría que la facturación toque
+el módulo de Cuotas y no sólo el de Ventas. Está en §15.
+
+### 11.9 Lo que no se construye
+
+CAEA (queda para contingencia y ARCA ya no admite adhesiones como modalidad principal);
+facturas de exportación (WSFExv1); bonos fiscales; comprobantes de turismo; libro IVA digital;
+percepciones y retenciones; multi-moneda.
+
+### 11.10 El riesgo, dicho con todas las letras
+
+Esto es software fiscal. Un error de numeración o de importe no es un bug de pantalla: tiene
+consecuencias con el organismo y con el cliente. Por eso, tres reglas que el plan tiene que
+respetar y que no se negocian por apuro:
+
+1. **Homologación completa antes de producción**, por workspace.
+2. **Conciliación obligatoria** ante cualquier respuesta perdida, antes de emitir el siguiente.
+3. **Al principio, emitir es una acción explícita de una persona.** La emisión automática al
+   cobrar llega después, cuando el módulo tenga meses de uso encima.
+
+---
+
+## 12. Etapas
 
 Cada una queda usable sola.
 
 | # | Etapa | Qué queda funcionando | Para quién |
 |---|---|---|---|
-| **1a** | **Caja + Clientes** | Libro con cuentas y categorías, arqueo por turno, reportes, padrón de clientes, reflejo de cuotas y reservas | SFPR **completo** y DNX Estudio en parte |
+| **1a** | **Caja + Clientes** | Libro con cuentas y categorías, arqueo por turno, reportes, padrón de clientes con datos fiscales, reflejo de cuotas y reservas | SFPR **completo** y DNX Estudio en parte |
 | **1b** | **Ventas** | Catálogo con costo y precio, stock simple, venta de mostrador, compra de mercadería, margen real | DNX Estudio |
 | **2** | **Órdenes de trabajo** | Reparaciones y pedidos tercerizados, presupuesto aprobable por enlace, entrega con garantía, equipos sin retirar | El cliente nuevo y DNX Estudio |
 | **3** | **Club** | Puntos automáticos desde Caja, niveles, catálogo y canje, beneficio del mes, carnet | Los tres |
 | **4** | **Sorteos con destinatario** | Sorteos para clientes y para el Club | Los tres |
 | **5** | **Portal del cliente y avisos** | Seguimiento de la orden, puntos, canjes, correos automáticos | Los tres |
+| **6** | **Facturación con ARCA** | CAE en tiempo real, notas de crédito, PDF con QR, homologación y producción | DNX Estudio y SFPR |
 
 Clientes no es una etapa propia: es la tabla más barata de las seis y sin ella Caja repetiría
 el error que ya tiene Reservas —un nombre suelto en un campo de texto— y no habría forma de
-enganchar el Club después sin rehacer los datos viejos.
+enganchar el Club ni de facturar después sin rehacer los datos viejos.
 
-## 12. Riesgos y operación
+**La etapa 6 se puede adelantar** a continuación de la 2 si hace falta dejar de depender de la
+app de terceros antes. Sus únicos requisitos duros son Ventas —que define qué se factura— y los
+datos fiscales que la 1a ya captura. Va al final por prudencia, no por dependencia técnica.
+
+## 13. Riesgos y operación
 
 1. **El esquema está compartido por cinco aplicaciones y el despliegue no corre las
-   migraciones solo.** Son unas veinticinco tablas nuevas. Cada una hay que aplicarla a mano y
-   registrarla en `_prisma_migrations` de las cinco bases, o queda desincronizada. El
-   procedimiento verificado está en la nota de memoria de registrar con el checksum de una base
-   sana. Va planificado en cada etapa, no improvisado al final.
+   migraciones solo.** Son veintinueve tablas nuevas contando facturación. Cada una hay
+   que aplicarla a mano y registrarla en `_prisma_migrations` de las cinco bases, o queda
+   desincronizada. El procedimiento verificado está en la nota de memoria de registrar con el
+   checksum de una base sana. Va planificado en cada etapa, no improvisado al final.
 2. **La etapa 4 toca datos vivos.** Es la única. Va al final y con copia previa.
-3. **Ninguna de las cinco etapas depende de que salgan los correos de FotoOffice.** Los avisos
-   automáticos son la etapa 5 justamente por eso: los correos siguen sin desplegarse y atar
-   Caja o el taller a ellos las dejaría bloqueadas.
-4. **Alcance.** Son seis módulos. El riesgo real no es técnico, es empezar los seis y no
-   terminar ninguno. Por eso 1a sale a producción sola, en SFPR, antes de escribir la 1b.
+3. **Ninguna etapa depende de que salgan los correos de FotoOffice.** Los avisos automáticos son
+   la etapa 5 justamente por eso: los correos siguen sin desplegarse y atar Caja o el taller a
+   ellos las dejaría bloqueadas.
+4. **La etapa 6 guarda claves privadas.** Se reusa el cofre cifrado que ya existe, y el acceso a
+   emitir tiene que quedar restringido a roles de administración del workspace.
+5. **Alcance.** Son seis módulos nuevos más una extensión. El riesgo real no es técnico: es
+   empezarlos todos y no terminar ninguno. Por eso 1a sale a producción sola, en SFPR, antes
+   de escribir una línea de la 1b.
 
-## 13. Fuera de alcance
+## 14. Fuera de alcance
 
 Explícitamente **no** entra en este diseño, y si hace falta es un proyecto aparte:
 
-- **Facturación electrónica / AFIP.** Ni comprobantes fiscales, ni puntos de venta, ni
-  CAE. Caja registra movimientos, no emite facturas. Ver §14.
 - **Contabilidad**: plan de cuentas, asientos, balances.
+- **Libro IVA digital**, percepciones y retenciones.
 - **Sueldos y empleados** más allá de un egreso con categoría.
 - **Cuentas corrientes**: fiado a clientes y deuda con proveedores.
 - **Proveedores como entidad**, órdenes de compra formales, FIFO o costo promedio ponderado.
 - **Depósitos múltiples** y transferencias de stock entre ellos.
 - **Un módulo de ventas en línea.** Esto es un mostrador, no una tienda.
+- **Facturación fuera de la Argentina.** El módulo de la etapa 6 es específico de ARCA.
 
-## 14. Preguntas abiertas
+## 15. Preguntas abiertas
 
-1. **¿El negocio necesita emitir facturas desde FotoOffice?** Es la más importante. Si la
-   respuesta es sí, cambia la etapa 1b y probablemente convenga resolverlo con un servicio de
-   terceros antes que construirlo. Si es no, Caja alcanza y sobra.
-2. **¿El servicio técnico es un workspace nuevo o es `Emeveph`**, el que se creó el 2026-09-10
-   y todavía no tiene ningún módulo encendido?
-3. **¿Cuántas cajas físicas hay?** El diseño soporta varias; el valor por omisión es una.
-4. **¿Quién puede abrir y cerrar caja?** Hace falta decidir si alcanza con los roles de
+1. **¿SFPR factura las cuotas societarias, o emite recibos?** Cambia si la etapa 6 toca también
+   el módulo de Cuotas, y son unas 1.900 facturas al año. Ver §11.8.
+2. **¿DNX Estudio es responsable inscripto o monotributo?** Define el tipo de comprobante
+   —Factura A y B contra Factura C— y si ya está alcanzado por la RG 5782.
+3. **¿El servicio técnico es un workspace nuevo o es `Emeveph`**, el que se creó el 2026-09-10 y
+   todavía no tiene ningún módulo encendido?
+4. **¿Cuántas cajas físicas hay?** El diseño soporta varias; el valor por omisión es una.
+5. **¿Quién puede abrir y cerrar caja?** Hace falta decidir si alcanza con los roles de
    workspace que ya existen o si el módulo necesita los suyos.
-5. **¿Cada cuánto vencen los puntos?** Es configuración, pero conviene fijar el valor
-   recomendado antes de la etapa 3.
+6. **¿Cada cuánto vencen los puntos?** Es configuración, pero conviene fijar el valor recomendado
+   antes de la etapa 3.
+
+## 16. Fuentes consultadas
+
+- [Webservices de factura electrónica — documentación oficial ARCA](https://www.afip.gob.ar/ws/documentacion/ws-factura-electronica.asp)
+- [Ayuda — Factura electrónica, ARCA](https://www.afip.gob.ar/fe/ayuda/webservice.asp)
+- [Resolución General (ARCA) 5852/2026 — prórroga](https://tristanyasociados.com/2026/05/resolucin-general-arca-58522026/)
+- [CAE obligatorio desde agosto 2026: qué cambia con el CAEA](https://wynges.com/blog/caea-cae-cambio-2026/)
