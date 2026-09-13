@@ -43,7 +43,7 @@ Estas reglas valen para **todas** las tareas. No se negocian por apuro.
 | `app/(shell)/clientes/nuevo/page.tsx` | Alta |
 | `app/(shell)/clientes/[clientId]/page.tsx` | Ficha y edición |
 | `app/(shell)/clientes/actions.ts` | Acciones de servidor |
-| `components/clients/client-form.tsx` | Formulario compartido por alta y edición |
+| `app/(shell)/clientes/client-form.tsx` | Formulario compartido por alta y edición. Va junto a su acción, como `reservas/espacios/space-form.tsx` |
 
 ### Módulo Caja
 
@@ -67,7 +67,7 @@ Estas reglas valen para **todas** las tareas. No se negocian por apuro.
 | `app/(shell)/caja/pases/page.tsx` | Historial de pases entre cuentas |
 | `app/(shell)/caja/configuracion/page.tsx` | Cuentas y categorías |
 | `app/(shell)/caja/actions.ts` | Acciones de servidor |
-| `components/cash/*.tsx` | Formularios y tablas |
+| `app/(shell)/caja/*-form.tsx` | Formularios y tablas. **Van junto a sus acciones**, no en `components/`: es la convención de la casa (ver Tarea 4) |
 
 ### Archivos existentes que se modifican
 
@@ -1305,7 +1305,7 @@ export function parseClientForm(formData: FormData): ClientFormResult {
 pnpm test lib/clients/
 ```
 
-Esperado: PASAN las 22 pruebas de los tres archivos.
+Esperado: PASAN las 21 pruebas de los tres archivos.
 
 - [ ] **Paso 13: Commit**
 
@@ -2499,7 +2499,7 @@ export function canOpenShift(input: {
 pnpm test lib/cash/shift.test.ts
 ```
 
-Esperado: PASAN, 15 pruebas.
+Esperado: PASAN, 16 pruebas.
 
 - [ ] **Paso 5: Commit**
 
@@ -3351,7 +3351,7 @@ export function topClients(movements: readonly ClientMovement[], limit: number):
 pnpm test lib/cash/balance.test.ts
 ```
 
-Esperado: PASAN, 11 pruebas.
+Esperado: PASAN, 16 pruebas.
 
 ```bash
 git add lib/cash/balance.ts lib/cash/balance.test.ts
@@ -3635,7 +3635,7 @@ reportes por la puerta de atrás."
 
 **Files:**
 - Create: `app/(shell)/caja/layout.tsx`, `page.tsx`, `movimientos/page.tsx`, `turnos/page.tsx`, `configuracion/page.tsx`, `actions.ts`
-- Create: `components/cash/movement-form.tsx`, `components/cash/shift-panel.tsx`, `components/cash/movements-table.tsx`, `components/cash/account-form.tsx`, `components/cash/category-form.tsx`
+- Create: `app/(shell)/caja/movement-form.tsx`, `shift-panel.tsx`, `movements-table.tsx`, `account-form.tsx`, `category-form.tsx` (junto a `actions.ts`, no en `components/`)
 
 **Interfaces:**
 - Consumes: todo lo de las Tareas 6 a 10, más `listClients` (Tarea 4) para el selector de cliente.
