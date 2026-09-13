@@ -1,5 +1,6 @@
 import {
   ArrowLeftRight,
+  BarChart3,
   CalendarClock,
   CalendarDays,
   ClipboardCheck,
@@ -34,6 +35,7 @@ import type { ComponentType } from "react";
  */
 export const ICONOS: Record<string, ComponentType<{ className?: string }>> = {
   ArrowLeftRight,
+  BarChart3,
   CalendarClock,
   CalendarDays,
   ClipboardCheck,

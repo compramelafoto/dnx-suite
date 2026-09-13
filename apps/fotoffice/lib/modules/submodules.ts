@@ -203,6 +203,14 @@ const CAJA: SubmoduleItem[] = [
     activeMatch: "under",
   },
   {
+    href: "/caja/reportes",
+    label: "Reportes",
+    icon: "BarChart3",
+    description: "Saldo por cuenta, ingresos y egresos por categoría y los clientes que más compraron.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
     href: "/caja/turnos",
     label: "Arqueos",
     icon: "ClipboardCheck",

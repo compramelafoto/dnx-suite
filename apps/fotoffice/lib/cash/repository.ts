@@ -357,6 +357,58 @@ export async function listTransfers(
   }));
 }
 
+export type ReportMovementRow = {
+  kind: "INGRESO" | "EGRESO";
+  amountMinor: number;
+  /** Es una pata de un pase entre cuentas. Se lo pasa tal cual a `lib/cash/balance.ts`. */
+  isTransfer: boolean;
+  categoryId: string | null;
+  categoryName: string | null;
+  clientId: string | null;
+  clientName: string | null;
+};
+
+export type ReportFilters = { from: Date; to: Date; accountId?: string };
+
+/**
+ * Los movimientos crudos que alimentan el reporte del período: `lib/cash/balance.ts` hace
+ * las cuentas, esto sólo los trae con la forma que esas funciones necesitan.
+ *
+ * Sin `take`, a propósito: `listMovements` corta en 200 porque es para una tabla que se mira
+ * en pantalla, pero un total del mes que se queda a mitad de camino no suma menos plata, dice
+ * una cifra falsa. Un reporte de período no puede permitirse eso.
+ */
+export async function movementsForReport(
+  workspaceId: string,
+  filtros: ReportFilters,
+): Promise<ReportMovementRow[]> {
+  const rows = await prisma.cashMovement.findMany({
+    where: {
+      workspaceId,
+      occurredAt: { gte: filtros.from, lte: filtros.to },
+      ...(filtros.accountId ? { accountId: filtros.accountId } : {}),
+    },
+    select: {
+      kind: true,
+      amountArs: true,
+      transferId: true,
+      categoryId: true,
+      category: { select: { name: true } },
+      clientId: true,
+      client: { select: { kind: true, firstName: true, lastName: true, businessName: true } },
+    },
+  });
+  return rows.map((r) => ({
+    kind: r.kind as "INGRESO" | "EGRESO",
+    amountMinor: decimalArsToMinor(r.amountArs),
+    isTransfer: r.transferId !== null,
+    categoryId: r.categoryId,
+    categoryName: r.category?.name ?? null,
+    clientId: r.clientId,
+    clientName: r.client ? clientDisplayName(r.client) : null,
+  }));
+}
+
 /**
  * Nombre para mostrar de cada usuario, a partir de su id.
  *
