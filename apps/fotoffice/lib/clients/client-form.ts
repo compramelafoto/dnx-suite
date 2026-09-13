@@ -6,6 +6,7 @@ import {
   type DocType,
   type IvaCondition,
 } from "./constants";
+import { soloDigitos } from "./match";
 
 /**
  * Validación del formulario de un cliente. Módulo PURO: sin base y sin red.
@@ -110,6 +111,13 @@ export function parseClientForm(formData: FormData): ClientFormResult {
   const statusRaw = String(formData.get("status") ?? "ACTIVO").trim();
   const status = statusRaw === "INACTIVO" ? "INACTIVO" : "ACTIVO";
 
+  // Igual que el documento: se guarda sólo en dígitos. Si no, "341 123-4567" cargado acá y
+  // "3411234567" buscado desde una reserva no se reconocen como el mismo número, y
+  // `findOrCreateClient` termina creando una ficha duplicada. El "+54 9" de un prefijo
+  // internacional no se pierde: sus dígitos (5, 4, 9) quedan igual, sólo se va el símbolo "+".
+  const telCrudo = texto(formData, "phone");
+  const phone = telCrudo === null ? null : soloDigitos(telCrudo) || null;
+
   return {
     ok: true,
     values: {
@@ -121,7 +129,7 @@ export function parseClientForm(formData: FormData): ClientFormResult {
       docNumber,
       ivaCondition,
       email,
-      phone: texto(formData, "phone"),
+      phone,
       address: texto(formData, "address"),
       city: texto(formData, "city"),
       notes: texto(formData, "notes"),

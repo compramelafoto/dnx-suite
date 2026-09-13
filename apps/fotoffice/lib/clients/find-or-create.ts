@@ -1,6 +1,6 @@
 import "server-only";
 import { Prisma } from "@repo/db";
-import { matchExistingClient } from "./match";
+import { matchExistingClient, soloDigitos } from "./match";
 import { nextClientNumber } from "./client-number";
 
 /**
@@ -29,7 +29,11 @@ export async function findOrCreateClient(
 ): Promise<{ id: string; created: boolean }> {
   const doc = input.docNumber?.replace(/[.\-\s]/g, "") || null;
   const mail = input.email?.trim().toLowerCase() || null;
-  const tel = input.phone?.trim() || null;
+  // Mismo criterio que `client-form.ts` al guardar: si acá se dejara el teléfono tal cual
+  // llega, el `where` de abajo (comparación exacta contra la base) no encontraría a un
+  // cliente guardado como "341 123-4567" al buscarlo como "3411234567", y se crearía una
+  // ficha duplicada aunque `matchExistingClient` los reconoce como el mismo número.
+  const tel = input.phone ? soloDigitos(input.phone) || null : null;
 
   if (doc || mail || tel) {
     const candidatos = await tx.client.findMany({

@@ -21,7 +21,16 @@ export type ClientLookup = {
   phone?: string | null;
 };
 
-const soloDigitos = (v: string) => v.replace(/\D/g, "");
+/**
+ * Deja sólo los dígitos. Se exporta porque el mismo criterio de limpieza lo necesitan
+ * `client-form.ts` (al guardar el teléfono) y `find-or-create.ts` (al prefiltrar candidatos
+ * contra la base con una comparación exacta): si cada lado normaliza a su manera, el
+ * prefiltro deja de encontrar lo que este emparejamiento sí encontraría, y aparece una
+ * ficha duplicada del mismo cliente.
+ */
+export function soloDigitos(v: string): string {
+  return v.replace(/\D/g, "");
+}
 const normalizarCorreo = (v: string) => v.trim().toLowerCase();
 
 export function matchExistingClient<T extends ClientCandidate>(

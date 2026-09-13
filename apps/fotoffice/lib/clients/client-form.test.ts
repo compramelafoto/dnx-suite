@@ -87,4 +87,23 @@ describe("parseClientForm", () => {
     expect(r.ok && r.values.firstName).toBe("Juan");
     expect(r.ok && r.values.lastName).toBe("Pérez");
   });
+
+  it("el teléfono se guarda sólo en dígitos, igual que el documento", () => {
+    // Si esto no se normaliza, un cliente cargado como "341 123-4567" y buscado después
+    // como "3411234567" desde una reserva no se encuentra en el prefiltro de la base y
+    // termina duplicado (ver find-or-create.ts).
+    const r = parseClientForm(form({ ...persona, phone: "(341) 123-4567" }));
+    expect(r.ok && r.values.phone).toBe("3411234567");
+  });
+
+  it("un prefijo internacional no pierde ningún dígito al normalizarse", () => {
+    // Sólo se va el símbolo "+"; el 54 del país y el 9 de celular son dígitos y quedan.
+    const r = parseClientForm(form({ ...persona, phone: "+54 9 341 123-4567" }));
+    expect(r.ok && r.values.phone).toBe("5493411234567");
+  });
+
+  it("el teléfono vacío es válido: no todo cliente deja un número", () => {
+    const r = parseClientForm(form({ ...persona, phone: "  " }));
+    expect(r.ok && r.values.phone).toBeNull();
+  });
 });
