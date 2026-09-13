@@ -5,6 +5,8 @@ import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
+import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
+import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 
 /**
  * Catálogo central de módulos de FotoOffice.
@@ -87,12 +89,14 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
 
   // --- Reservados para etapas futuras. Claves fijadas, SIN implementar. ---
   {
-    key: "cash",
+    key: CASH_MODULE_KEY,
     label: "Caja",
-    description: "Ingresos y egresos genéricos del workspace.",
+    description:
+      "Ingresos y egresos del negocio, con cuentas separadas, arqueo por turno y reportes por período.",
     category: "GENERAL",
     order: 30,
-    status: "PLANNED",
+    route: "/caja",
+    status: "AVAILABLE",
   },
   {
     key: "communications",
@@ -111,12 +115,14 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     status: "PLANNED",
   },
   {
-    key: "clients",
+    key: CLIENTS_MODULE_KEY,
     label: "Clientes",
-    description: "Padrón de clientes del workspace.",
+    description:
+      "Padrón de clientes del negocio: ficha, contacto, datos fiscales y enlace opcional al socio.",
     category: "GENERAL",
     order: 70,
-    status: "PLANNED",
+    route: "/clientes",
+    status: "AVAILABLE",
   },
   {
     key: MEMBERS_MODULE_KEY,
