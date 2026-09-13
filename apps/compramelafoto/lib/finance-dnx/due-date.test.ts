@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { isOverdueUnpaid } from "./due-date";
+import { daysOverdue, isOverdueUnpaid } from "./due-date";
 
 const AHORA = new Date("2026-09-12T12:00:00Z");
 
@@ -61,4 +61,23 @@ test("una factura que vence mañana no se pinta de vencida ni de noche, hora Arg
   // porque en UTC ya era 13/9 (aunque en Argentina todavía es 12/9 a la
   // noche). Es el caso concreto del hallazgo M-1.
   assert.equal(isOverdueUnpaid("2026-09-13", "IMPAGO", AHORA_LIMITE), false);
+});
+
+// `daysOverdue` usa el mismo sistema de días calendario que `isOverdueUnpaid`
+// (día calendario UTC guardado vs. día calendario Argentina de "ahora"), para
+// que las dos funciones nunca se contradigan sobre la misma factura.
+
+test("una factura vencida ayer lleva 1 día de atraso", () => {
+  assert.equal(daysOverdue("2026-09-11", AHORA), 1);
+});
+
+test("una factura vencida hace una semana lleva 7 días de atraso", () => {
+  assert.equal(daysOverdue("2026-09-05", AHORA), 7);
+});
+
+test("daysOverdue respeta el mismo huso horario que isOverdueUnpaid", () => {
+  // Con AHORA_LIMITE (00:30 UTC del 13/9 = 21:30 del 12/9 en Argentina), una
+  // factura vencida el 11/9 lleva 1 día de atraso, no 2 — el día calendario
+  // que cuenta es el argentino, no el UTC.
+  assert.equal(daysOverdue("2026-09-11", AHORA_LIMITE), 1);
 });

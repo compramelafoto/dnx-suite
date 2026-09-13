@@ -28,8 +28,13 @@ const FORMATO_DIA_ARGENTINA = new Intl.DateTimeFormat("en-CA", {
   day: "2-digit",
 });
 
-/** El día calendario de "ahora", visto con el huso horario de Argentina. */
-function diaCalendarioArgentina(fecha: Date): string {
+/**
+ * El día calendario de "ahora", visto con el huso horario de Argentina.
+ * Exportada para que otras piezas de Finanzas DNX (como el aviso diario)
+ * puedan saber "qué día es hoy" en el mismo sistema que usa esta función,
+ * en vez de recalcularlo con su propia lógica de huso horario.
+ */
+export function diaCalendarioArgentina(fecha: Date): string {
   return FORMATO_DIA_ARGENTINA.format(fecha);
 }
 
@@ -61,4 +66,21 @@ export function isOverdueUnpaid(
   const fecha = dueDate instanceof Date ? dueDate : new Date(dueDate);
   if (Number.isNaN(fecha.getTime())) return false;
   return diaCalendarioUTC(fecha) < diaCalendarioArgentina(now);
+}
+
+/**
+ * Cuántos días de atraso lleva una factura vencida, contados en el mismo
+ * sistema de días calendario que `isOverdueUnpaid` (día calendario UTC en el
+ * que se guardó `dueDate` vs. día calendario de "ahora" en Argentina). Usar
+ * un cálculo distinto para "vencida" y para "cuántos días" es exactamente el
+ * tipo de inconsistencia que este módulo existe para evitar.
+ *
+ * No valida el estado de la factura: quien llama ya debería haber usado
+ * `isOverdueUnpaid` para decidir si corresponde mostrar este número.
+ */
+export function daysOverdue(dueDate: string | Date, now: Date = new Date()): number {
+  const fecha = dueDate instanceof Date ? dueDate : new Date(dueDate);
+  const vencimiento = Date.parse(`${diaCalendarioUTC(fecha)}T00:00:00Z`);
+  const hoy = Date.parse(`${diaCalendarioArgentina(now)}T00:00:00Z`);
+  return Math.round((hoy - vencimiento) / 86_400_000);
 }

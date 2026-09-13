@@ -95,6 +95,10 @@
       "schedule": "0 3 * * *"
     },
     {
+      "path": "/api/cron/finance-dnx-alerts",
+      "schedule": "0 11 * * *"
+    },
+    {
       "path": "/api/cron/refresh-mp-oauth-tokens",
       "schedule": "0 7 * * *"
     },
