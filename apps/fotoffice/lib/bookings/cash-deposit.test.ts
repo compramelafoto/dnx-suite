@@ -212,4 +212,49 @@ describe("depositBookingPayment — cliente de una reserva de no socio", () => {
       expect.objectContaining({ clientId: null }),
     );
   });
+
+  it("normaliza espacios de más antes de partir el nombre en firstName/lastName", async () => {
+    moduleState({ cash: false, clients: true });
+    findOrCreateClient.mockResolvedValue({ id: "client-nuevo-3", created: true });
+    const tx = fakeTx();
+
+    await depositBookingPayment(tx as never, {
+      ...inputBase,
+      bookingId: "b4",
+      memberId: null,
+      contactName: "  Juan   Pérez  ",
+    });
+
+    expect(findOrCreateClient).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ firstName: "Juan", lastName: "Pérez" }),
+    );
+  });
+});
+
+describe("depositBookingPayment — reserva de SOCIO con Caja y Clientes apagados (regresión de la Tarea 15)", () => {
+  // Este es el escenario que la Tarea 15 dejó sin cubrir: todas las pruebas de "módulos
+  // apagados" usaban memberId: null, así que ninguna agarró que `resolveBookingClient` tocaba
+  // `tx.client.findUnique` para el socio ANTES de preguntar si Clientes estaba habilitado.
+  // `Client` es una tabla nueva que en este repo se aplica a mano después del deploy — acá se
+  // simula esa ventana (el doble de `tx` lanza si se toca `client.findUnique`, igual que ya se
+  // hace arriba con `cashAccount`/`cashCategory`) para probar que una reserva de socio con los
+  // dos módulos apagados nunca la roza, y que el cobro se completa igual (la función resuelve
+  // sin lanzar, en vez de reventar la transacción del llamador).
+  it("no toca `Client` para el socio y el cobro se completa igual", async () => {
+    moduleState({ cash: false, clients: false });
+    const tx = {
+      cashAccount: { findMany: tablaAusente("cash_account") },
+      cashCategory: { findMany: tablaAusente("cash_category") },
+      client: { findUnique: tablaAusente("Client") },
+    };
+
+    await expect(
+      depositBookingPayment(tx as never, { ...inputBase, memberId: "member1" }),
+    ).resolves.toBeUndefined();
+
+    expect(tx.client.findUnique).not.toHaveBeenCalled();
+    expect(findOrCreateClient).not.toHaveBeenCalled();
+    expect(recordCashMovement).not.toHaveBeenCalled();
+  });
 });

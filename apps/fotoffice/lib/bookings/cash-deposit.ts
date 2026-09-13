@@ -25,19 +25,16 @@ function splitContactName(contactName: string): { firstName: string; lastName: s
 }
 
 /**
- * Busca o crea el `Client` de una reserva ya pagada, o `null` si no corresponde crear nada.
+ * Busca o crea el `Client` de una reserva ya pagada, o `null` si no corresponde tocar nada.
  *
- * Si la reserva es de un socio, se conserva el comportamiento de siempre: la ficha (si existe)
- * es la que ya está enlazada a ese socio por `Client.memberId`, único por socio.
+ * Con el módulo Clientes habilitado: si la reserva es de un socio, se busca la ficha (si
+ * existe) ya enlazada a ese socio por `Client.memberId`, único por socio. Si no es de un
+ * socio, se resuelve o da de alta el contacto con `findOrCreateClient` a partir de
+ * `contactName`/`contactEmail`/`contactPhone` — es lo que tapa el agujero que motivó el
+ * módulo Clientes: sin esto, un no socio que pagó no quedaba registrado en ningún padrón.
  *
- * Si no es de un socio, acá es donde se tapaba el agujero que motivó el módulo Clientes: sin
- * esto, `contactName`/`contactEmail`/`contactPhone` quedaban sueltos en la reserva y un no
- * socio que pagó no quedaba registrado en ningún padrón. `findOrCreateClient` decide si ese
- * contacto ya existe (por documento, correo o teléfono) o si hay que darlo de alta.
- *
- * Independiente de si Caja está habilitada: son dos módulos que se prenden por separado, y
- * cliente es quien compró algo — no depende de si la institución además asienta el cobro en
- * un libro de caja.
+ * Con el módulo Clientes apagado: no se resuelve nada, ni siquiera para el socio — ver el
+ * comentario de la guarda más abajo.
  */
 async function resolveBookingClient(
   tx: Prisma.TransactionClient | PrismaClient,
@@ -49,6 +46,20 @@ async function resolveBookingClient(
     contactPhone: string | null;
   },
 ): Promise<string | null> {
+  // La guarda va PRIMERO, antes de CUALQUIER acceso a `Client` — el del socio incluido.
+  // `Client` es una tabla nueva de la misma migración que las de Caja, y en este repo las
+  // migraciones se aplican a mano después del deploy del código: hay una ventana en la que el
+  // código ya corre en producción pero la tabla todavía no existe. La Tarea 15 había movido la
+  // resolución del socio (`tx.client.findUnique`) antes de este chequeo, así que una reserva de
+  // socio con la migración sin aplicar rompía `depositBookingPayment` con un error de Postgres
+  // que revienta la transacción del llamador (Mercado Pago o transferencia): el cobro no se
+  // completaba, tuviera o no Caja encendida. Es la misma familia del crítico de la Tarea 12,
+  // ahora por `Client` en vez de `CashAccount`/`CashCategory`. Por eso los dos caminos —socio y
+  // no socio— quedan detrás de este único chequeo: si alguna vez alguien reordena esto de
+  // nuevo, que sea a propósito y leyendo este comentario primero.
+  const clientsEnabled = await isModuleEnabledForWorkspace(input.workspaceId, CLIENTS_MODULE_KEY);
+  if (!clientsEnabled) return null;
+
   if (input.memberId) {
     const cliente = await tx.client.findUnique({
       where: { memberId: input.memberId },
@@ -56,12 +67,6 @@ async function resolveBookingClient(
     });
     return cliente?.id ?? null;
   }
-
-  // Mismo criterio que con Caja: preguntar si el módulo está habilitado ANTES de tocar
-  // `Client`, para que un workspace con Clientes apagado no dependa de que esa tabla exista
-  // ni de que nadie la vaya a usar.
-  const clientsEnabled = await isModuleEnabledForWorkspace(input.workspaceId, CLIENTS_MODULE_KEY);
-  if (!clientsEnabled) return null;
 
   const { firstName, lastName } = splitContactName(input.contactName);
   const { id } = await findOrCreateClient(tx as Prisma.TransactionClient, {
