@@ -17,17 +17,36 @@ import { almacenamiento, bucket } from "@/lib/almacenamiento";
  * porque si el fotógrafo se lleva los originales, el adicional de descarga —que
  * es 100% ingreso de la plataforma— no se vende nunca.
  */
-const DURACION_DE_LA_FIRMA = 60;
+/**
+ * Cuánto vale una firma, según para qué es.
+ *
+ * No es lo mismo el panel que la pantalla del salón. En el panel el enlace se
+ * usa al instante y no tiene por qué sobrevivir; la pantalla queda encendida
+ * seis horas y si la firma vence a mitad de la fiesta, las fotos que el
+ * navegador tenga que volver a pedir se caen.
+ */
+export const DURACION = {
+  /** Panel de revisión: lo justo para pintar la grilla. */
+  panel: 60,
+  /** Álbum y pantalla del salón: lo que dura un evento, con margen. */
+  proyeccion: 6 * 60 * 60,
+} as const;
 
-export async function enlaceParaMirar(clave: string): Promise<string> {
+export async function enlaceParaMirar(
+  clave: string,
+  segundos: number = DURACION.panel,
+): Promise<string> {
   return getSignedUrl(
     almacenamiento(),
     new GetObjectCommand({ Bucket: bucket(), Key: clave }),
-    { expiresIn: DURACION_DE_LA_FIRMA },
+    { expiresIn: segundos },
   );
 }
 
 /** Firma varias de una, que es lo que hace el panel al pintar la grilla. */
-export async function enlacesParaMirar(claves: readonly string[]): Promise<string[]> {
-  return Promise.all(claves.map(enlaceParaMirar));
+export async function enlacesParaMirar(
+  claves: readonly string[],
+  segundos: number = DURACION.panel,
+): Promise<string[]> {
+  return Promise.all(claves.map((c) => enlaceParaMirar(c, segundos)));
 }

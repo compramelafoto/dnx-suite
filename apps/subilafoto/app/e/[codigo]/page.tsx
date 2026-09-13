@@ -176,6 +176,16 @@ export default async function PuertaDelInvitado({ params }: Props) {
               Podés subir hasta el {hora.format(evento.deactivationAt)}
             </p>
           ) : null}
+
+          {evento.guestsCanSeeAlbum ? (
+            <Link
+              href={`/e/${codigo.toUpperCase()}/album`}
+              className="mt-6 text-sm underline underline-offset-4"
+              style={{ color: tema.texto, opacity: 0.78 }}
+            >
+              Ver las fotos del evento
+            </Link>
+          ) : null}
         </>
       ) : acceso.momento === "ANTES" ? (
         <p
@@ -187,12 +197,25 @@ export default async function PuertaDelInvitado({ params }: Props) {
           este código y volvé entonces.
         </p>
       ) : (
-        <p
-          className="mt-8 max-w-[34ch] text-[1.05rem] leading-relaxed"
-          style={{ color: tema.texto, opacity: 0.78 }}
-        >
-          El evento terminó y ya no se pueden subir fotos. Gracias por participar.
-        </p>
+        <>
+          <p
+            className="mt-8 max-w-[34ch] text-[1.05rem] leading-relaxed"
+            style={{ color: tema.texto, opacity: 0.78 }}
+          >
+            El evento terminó y ya no se pueden subir fotos. Gracias por participar.
+          </p>
+
+          {/* Terminado es justo cuando más se mira el álbum. */}
+          {evento.guestsCanSeeAlbum ? (
+            <Link
+              href={`/e/${codigo.toUpperCase()}/album`}
+              className="mt-10 w-full max-w-sm rounded-2xl px-8 py-5 text-lg font-extrabold"
+              style={{ background: tema.acento, color: tema.textoSobreAcento }}
+            >
+              Ver las fotos del evento
+            </Link>
+          ) : null}
+        </>
       )}
     </main>
   );
