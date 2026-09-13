@@ -10,8 +10,10 @@ import { CLIENTS_MODULE_KEY } from "./constants";
  * Control de acceso del módulo, en dos niveles y siempre en el servidor.
  *
  * Nivel 1: el módulo está habilitado para ESE workspace. Nivel 2: la persona tiene rol.
- * Ver y cargar clientes es STAFF+: el mostrador da de alta sin pedirle permiso a nadie.
- * Borrar o desactivar es ADMIN+.
+ * Ver, cargar y desactivar un cliente es STAFF+: desactivar es reversible y de bajo riesgo
+ * —no borra nada, sólo lo saca de las listas por omisión— y exigir un administrador para eso
+ * dejaría al mostrador sin forma de ordenar su propio padrón. `requireClientsAdmin` queda
+ * disponible para lo que sí necesite ese nivel más adelante.
  */
 async function contextoBase() {
   const { user, workspace } = await requireActiveWorkspace();

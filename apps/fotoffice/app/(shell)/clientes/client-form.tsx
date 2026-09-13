@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { saveClientAction } from "@/app/(shell)/clientes/actions";
+import { saveClientAction } from "./actions";
 import {
   CLIENT_KINDS,
   CLIENT_STATUSES,

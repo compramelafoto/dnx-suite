@@ -3,7 +3,7 @@ import { PageHeader } from "@/components/page-header";
 import { requireClientsStaff } from "@/lib/clients/access";
 import { getClient } from "@/lib/clients/repository";
 import { clientDisplayName } from "@/lib/clients/display";
-import { ClientForm } from "@/components/clients/client-form";
+import { ClientForm } from "../client-form";
 
 export const dynamic = "force-dynamic";
 
