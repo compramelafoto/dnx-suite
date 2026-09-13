@@ -287,8 +287,14 @@ export default function Home() {
         className="sobre-claro px-6 pb-16"
         style={{ color: "var(--slf-tinta-suave)" }}
       >
-        <div className="mx-auto max-w-5xl text-sm">
-          Subí la Foto es parte de DNX Suite.
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-6 gap-y-3 text-sm">
+          <span>Subí la Foto es parte de DNX Suite.</span>
+          <Link href="/terminos" className="underline underline-offset-4">
+            Términos y condiciones
+          </Link>
+          <Link href="/privacidad" className="underline underline-offset-4">
+            Política de privacidad
+          </Link>
         </div>
       </footer>
     </main>
