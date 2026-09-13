@@ -3,7 +3,11 @@ import test from "node:test";
 
 import { fixedClock } from "./clock";
 import { toPromptPublicDto } from "./prompt-dto";
-import { millisecondsUntilGateOpens, resolvePromptGate } from "./prompt-gate";
+import {
+  isPromptOpenForSubmission,
+  millisecondsUntilGateOpens,
+  resolvePromptGate,
+} from "./prompt-gate";
 import type { PromptRecord, TimelineEventView } from "./types";
 
 const ANTES = fixedClock(new Date("2026-09-19T18:00:00.000Z"));
@@ -162,4 +166,58 @@ test("con el portón abierto una consigna en preparación sigue oculta", () => {
 test("sin portón se conserva el comportamiento por consigna", () => {
   const dto = toPromptPublicDto(consigna({ status: "READY" }), { clock: DESPUES });
   assert.equal(dto.status, "RELEASED");
+});
+
+// ---------------------------------------------------------------------------
+// Apertura por horario para subir y admitir fotos.
+//
+// Que el cron haya corrido o no NO puede decidir si la foto de un competidor
+// vale: la hora planificada manda, igual que en la pantalla.
+// ---------------------------------------------------------------------------
+
+test("una consigna lista cuya hora ya pasó admite fotos sin que el cron la haya marcado", () => {
+  const gate = resolvePromptGate({
+    prompts: [{ status: "READY", releasedAt: null, captureStartsAt: APERTURA }],
+    clock: DESPUES,
+  });
+
+  assert.equal(isPromptOpenForSubmission({ status: "READY", gate }), true);
+});
+
+test("una consigna en borrador nunca admite fotos, aunque el portón esté abierto", () => {
+  const gate = resolvePromptGate({
+    prompts: [{ status: "READY", releasedAt: null, captureStartsAt: APERTURA }],
+    clock: DESPUES,
+  });
+
+  assert.equal(gate.isOpen, true);
+  assert.equal(isPromptOpenForSubmission({ status: "DRAFT", gate }), false);
+});
+
+test("antes de la hora de apertura no se admiten fotos", () => {
+  const gate = resolvePromptGate({
+    prompts: [{ status: "READY", releasedAt: null, captureStartsAt: APERTURA }],
+    clock: ANTES,
+  });
+
+  assert.equal(isPromptOpenForSubmission({ status: "READY", gate }), false);
+});
+
+test("una consigna cancelada nunca admite fotos", () => {
+  const gate = resolvePromptGate({
+    prompts: [{ status: "READY", releasedAt: null, captureStartsAt: APERTURA }],
+    clock: DESPUES,
+  });
+
+  assert.equal(isPromptOpenForSubmission({ status: "CANCELLED", gate }), false);
+});
+
+test("lo ya liberado por el cron sigue admitiendo fotos igual que antes", () => {
+  const gate = resolvePromptGate({
+    prompts: [{ status: "RELEASED", releasedAt: APERTURA, captureStartsAt: APERTURA }],
+    clock: DESPUES,
+  });
+
+  assert.equal(isPromptOpenForSubmission({ status: "RELEASED", gate }), true);
+  assert.equal(isPromptOpenForSubmission({ status: "CLOSED", gate }), true);
 });

@@ -48,6 +48,7 @@ const base: AdmissionRuleInput = {
   declarationAcceptedAt: new Date(),
   requireDeclaration: true,
   promptStatus: "RELEASED",
+  promptGateOpen: true,
   uploadWithinWindow: true,
   captureWithinWindow: true,
   captureFailOutsideWindow: false,
