@@ -6,6 +6,7 @@ import { splitMinorByPlatformFee } from "@/lib/platform-fee/fee";
 import { getPlatformFeeBps } from "@/lib/platform-fee/store";
 import { recordAccrual } from "@/lib/platform-fee/ledger";
 import { ACTIVE_BOOKING_STATUSES, BOOKINGS_MODULE_KEY } from "./constants";
+import { depositBookingPayment } from "./cash-deposit";
 
 /**
  * Los tres caminos que no pasan por Mercado Pago: la transferencia que alguien confirma a
@@ -60,7 +61,14 @@ export async function confirmTransferPayment(input: {
     return await prisma.$transaction(async (tx) => {
       const reserva = await tx.booking.findFirst({
         where: { id: input.bookingId, workspaceId: input.workspaceId },
-        select: { id: true, status: true, paymentStatus: true, totalArs: true },
+        select: {
+          id: true,
+          status: true,
+          paymentStatus: true,
+          totalArs: true,
+          memberId: true,
+          space: { select: { name: true } },
+        },
       });
       if (!reserva) return { ok: false, error: "No encontramos esa reserva." };
       if (reserva.paymentStatus === "PAID") return { ok: false, error: "Esa reserva ya está paga." };
@@ -70,13 +78,14 @@ export async function confirmTransferPayment(input: {
 
       const totalMinor = decimalArsToMinor(reserva.totalArs);
       const feeMinor = splitMinorByPlatformFee(totalMinor, feeBps).feeMinor;
+      const pagadaAt = new Date();
 
       await tx.booking.update({
         where: { id: reserva.id },
         data: {
           status: "CONFIRMED",
           paymentStatus: "PAID",
-          paidAt: new Date(),
+          paidAt: pagadaAt,
           holdExpiresAt: null,
           decidedByUserId: input.byUserId,
           feeBps,
@@ -89,6 +98,16 @@ export async function confirmTransferPayment(input: {
         bookingId: reserva.id,
         amountMinor: feeMinor,
         note: `Comisión de la reserva ${reserva.id}, cobrada por transferencia`,
+      });
+
+      await depositBookingPayment(tx, {
+        workspaceId: input.workspaceId,
+        bookingId: reserva.id,
+        memberId: reserva.memberId,
+        spaceName: reserva.space.name,
+        amountMinor: totalMinor,
+        occurredAt: pagadaAt,
+        paymentMethod: "TRANSFERENCIA",
       });
 
       return { ok: true };

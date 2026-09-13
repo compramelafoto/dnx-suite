@@ -10,6 +10,10 @@ import { getPlatformFeeBps } from "@/lib/platform-fee/store";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { splitMinorByPlatformFee } from "@/lib/platform-fee/fee";
 import { pendingFeeDebtMinor, recordDischarge, recordReversal } from "@/lib/platform-fee/ledger";
+import { resolveDepositTarget } from "@/lib/cash/auto-deposit";
+import { recordCashMovement } from "@/lib/cash/record-movement";
+import { CASH_MODULE_KEY } from "@/lib/cash/constants";
+import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 
 export type CreditResult =
   | { ok: true; applied: boolean; motivo: string }
@@ -42,6 +46,7 @@ export async function creditMembershipPayment(input: {
       amountArs: true,
       workspaceId: true,
       platformFeeArs: true,
+      member: { select: { memberNumber: true } },
     },
   });
   if (!intento) {
@@ -160,6 +165,46 @@ export async function creditMembershipPayment(input: {
       amountMinor: aCancelar,
       note: "Comisión arrastrada, cobrada de este pago",
     });
+
+    // Depositar en Caja, si el workspace la tiene encendida. Mismo criterio que el cobro en
+    // mano: la decisión de a dónde entra —o si no corresponde depositar— se toma antes y
+    // adentro de esta misma transacción, para que el pago y su asiento nazcan juntos. La
+    // idempotencia de `recordCashMovement` hace que un aviso de MercadoPago repetido —el
+    // caso normal— no duplique el depósito.
+    //
+    // `recordCashMovement` lanza si el importe no es mayor que cero, y eso volcaría toda la
+    // acreditación del pago: se resguarda acá, aunque un pago de $0 no debería llegar nunca.
+    if (input.paidAmountMinor > 0) {
+      const destino = resolveDepositTarget({
+        cashEnabled: await isModuleEnabledForWorkspace(intento.workspaceId, CASH_MODULE_KEY),
+        paymentMethod: "MERCADO_PAGO",
+        accounts: await tx.cashAccount.findMany({
+          where: { workspaceId: intento.workspaceId, isActive: true },
+          select: { id: true, name: true, kind: true, isDefault: true },
+          orderBy: { order: "asc" },
+        }),
+        categories: await tx.cashCategory.findMany({
+          where: { workspaceId: intento.workspaceId, kind: "INGRESO", isActive: true },
+          select: { id: true, name: true, kind: true },
+        }),
+        categoryName: "Cuotas",
+      });
+
+      if (destino.ok) {
+        await recordCashMovement(tx, {
+          workspaceId: intento.workspaceId,
+          accountId: destino.accountId,
+          categoryId: destino.categoryId,
+          kind: "INGRESO",
+          amountMinor: input.paidAmountMinor,
+          occurredAt: input.paidAt,
+          description: `Cuota — socio ${intento.member.memberNumber}`,
+          paymentMethod: "MERCADO_PAGO",
+          sourceModule: "membership",
+          sourceRef: intento.id,
+        });
+      }
+    }
   });
 
   // Fuera de la transacción a propósito: si el pago se imputó, eso ya es cierto, y no poder

@@ -7,6 +7,10 @@ import { accrualForManualPayment } from "@/lib/platform-fee/debt";
 import { recordAccrual } from "@/lib/platform-fee/ledger";
 import { releasePaidPrintOrders } from "@/lib/carnet/print-order";
 import { completeApplicationIfPaid } from "./complete-application";
+import { resolveDepositTarget } from "@/lib/cash/auto-deposit";
+import { recordCashMovement } from "@/lib/cash/record-movement";
+import { CASH_MODULE_KEY } from "@/lib/cash/constants";
+import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 
 /** Medios que la Secretaría puede registrar a mano. Mercado Pago entra solo, por webhook. */
 export const MANUAL_METHODS = ["EFECTIVO", "TRANSFERENCIA"] as const;
@@ -54,7 +58,7 @@ export async function registerManualPayment(input: {
 
   const socio = await prisma.member.findFirst({
     where: { id: input.memberId, workspaceId: input.workspaceId },
-    select: { id: true },
+    select: { id: true, memberNumber: true },
   });
   if (!socio) return { ok: false, error: "Ese socio no pertenece a esta institución." };
 
@@ -123,6 +127,42 @@ export async function registerManualPayment(input: {
       amountMinor: feeMinor,
       note: `Comisión no retenida: cobro por ${input.method.toLowerCase()}`,
     });
+
+    // Depositar en Caja, si el workspace la tiene encendida.
+    //
+    // Va dentro de la misma transacción a propósito: un pago registrado sin su asiento deja el
+    // libro mintiendo. Pero un fallo del depósito NO puede voltear el pago, así que lo que se
+    // decide antes —con `resolveDepositTarget`— es si corresponde depositar o no, y sólo si
+    // corresponde se escribe.
+    const destino = resolveDepositTarget({
+      cashEnabled: await isModuleEnabledForWorkspace(input.workspaceId, CASH_MODULE_KEY),
+      paymentMethod: input.method,
+      accounts: await tx.cashAccount.findMany({
+        where: { workspaceId: input.workspaceId, isActive: true },
+        select: { id: true, name: true, kind: true, isDefault: true },
+        orderBy: { order: "asc" },
+      }),
+      categories: await tx.cashCategory.findMany({
+        where: { workspaceId: input.workspaceId, kind: "INGRESO", isActive: true },
+        select: { id: true, name: true, kind: true },
+      }),
+      categoryName: "Cuotas",
+    });
+
+    if (destino.ok) {
+      await recordCashMovement(tx, {
+        workspaceId: input.workspaceId,
+        accountId: destino.accountId,
+        categoryId: destino.categoryId,
+        kind: "INGRESO",
+        amountMinor: input.amountMinor,
+        occurredAt: input.paidAt,
+        description: `Cuota — socio ${socio.memberNumber}`,
+        paymentMethod: input.method,
+        sourceModule: "membership",
+        sourceRef: pago.id,
+      });
+    }
 
     return {
       paymentId: pago.id,
