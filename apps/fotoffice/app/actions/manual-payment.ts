@@ -36,9 +36,13 @@ export async function registerManualPaymentAction(
   const memberId = String(formData.get("memberId") ?? "").trim();
   if (!memberId) return { error: "Elegí a qué socio corresponde el pago.", ok: null };
 
+  // El parser compartido (lib/membership/money.ts) acepta más de dos decimales y los
+  // redondea al centavo en vez de rechazarlos —es el mismo comportamiento que ya tenía
+  // Reservas—, así que el mensaje no puede prometer un tope de decimales que ya no existe:
+  // sólo rechaza lo que de verdad no es un importe (vacío, texto, negativo o cero).
   const amountMinor = parseArsToMinor(String(formData.get("amount") ?? ""));
   if (amountMinor === null || amountMinor <= 0) {
-    return { error: "Escribí el importe cobrado, con hasta dos decimales.", ok: null };
+    return { error: "Escribí el importe cobrado: un número mayor que cero.", ok: null };
   }
 
   const method = String(formData.get("method") ?? "") as ManualMethod;

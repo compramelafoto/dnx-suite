@@ -39,6 +39,18 @@ export async function recordCashMovement(
   tx: Prisma.TransactionClient | PrismaClient,
   input: RecordMovementInput,
 ): Promise<{ id: string; created: boolean }> {
+  // Guarda de positividad: esta función es la costura por la que van a entrar Cuotas,
+  // Reservas, Ventas y Órdenes de trabajo (Tarea 12 en adelante), y no hay `CHECK > 0` en la
+  // base que la respalde (`amountArs` es un `Decimal` cualquiera). Si algún llamador futuro
+  // manda un cero o un negativo, tiene que enterarse ahí mismo —lanzando, no devolviendo un
+  // valor cualquiera—, porque está adentro de una transacción y un movimiento en cero o
+  // negativo ensucia el libro en silencio: nadie audita un asiento que "no rompió nada".
+  if (input.amountMinor <= 0) {
+    throw new Error(
+      `recordCashMovement: el importe tiene que ser mayor que cero (recibido: ${input.amountMinor}).`,
+    );
+  }
+
   // El turno abierto de esa cuenta, cuando quien llama no lo pasó.
   //
   // Va acá adentro y no en cada llamador a propósito. Una cuota cobrada en efectivo que se
@@ -50,8 +62,12 @@ export async function recordCashMovement(
   // movimiento queda suelto, que es lo correcto para un cobro por Mercado Pago.
   let shiftId = input.shiftId ?? null;
   if (shiftId === null) {
+    // `workspaceId` va en el `where` aunque `accountId` ya ata unívocamente a un solo
+    // workspace por FK (no es explotable sin él): la Restricción Global no admite
+    // excepciones sin explicación, y una consulta que se salta esa regla es la que el
+    // próximo módulo copia y pega sin volver a pensarlo.
     const abierto = await tx.cashShift.findFirst({
-      where: { accountId: input.accountId, status: "ABIERTO" },
+      where: { workspaceId: input.workspaceId, accountId: input.accountId, status: "ABIERTO" },
       select: { id: true },
     });
     shiftId = abierto?.id ?? null;
