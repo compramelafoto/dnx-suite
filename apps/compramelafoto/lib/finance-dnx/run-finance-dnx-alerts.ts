@@ -21,6 +21,7 @@ import {
 } from "./alerts";
 import { daysOverdue, diaCalendarioArgentina, isOverdueUnpaid } from "./due-date";
 import { previousPeriod } from "./expense-form";
+import { findVendorsMissingThisPeriod } from "./missing-vendors";
 
 const DEFAULT_RECIPIENT = "dnxfotografia@gmail.com";
 
@@ -107,31 +108,12 @@ export async function runFinanceDnxAlerts(options: {
   let missingPeriod: { year: number; month: number } | null = null;
 
   if (shouldNagAboutMissingExpenses(day)) {
-    const anterior = previousPeriod(year, month);
-    missingPeriod = anterior;
+    missingPeriod = previousPeriod(year, month);
 
-    const entradasEsteMes = await prisma.expenseEntry.findMany({
-      where: { periodYear: year, periodMonth: month },
-      select: { vendorId: true },
-    });
-    const cargadosEsteMes = new Set(entradasEsteMes.map((e) => e.vendorId));
-
-    const entradasMesAnterior = await prisma.expenseEntry.findMany({
-      where: {
-        periodYear: anterior.year,
-        periodMonth: anterior.month,
-        vendor: { active: true },
-        vendorId: { notIn: [...cargadosEsteMes] },
-      },
-      include: { vendor: true },
-    });
-
-    const vistos = new Set<number>();
-    for (const entry of entradasMesAnterior) {
-      if (vistos.has(entry.vendorId)) continue;
-      vistos.add(entry.vendorId);
-      missingVendors.push({ vendorName: entry.vendor.name });
-    }
+    // Misma función que usa la pantalla de resumen, para que el correo y
+    // la pantalla nunca se contradigan sobre qué proveedor falta.
+    const proveedoresFaltantes = await findVendorsMissingThisPeriod({ year, month });
+    missingVendors = proveedoresFaltantes.map((vendor) => ({ vendorName: vendor.name }));
   }
 
   const email = buildAlertEmail({ overdueInvoices, missingVendors, missingPeriod });
