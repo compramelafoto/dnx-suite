@@ -4212,3 +4212,54 @@ Hecha después de escribirlo, contra el spec.
 **Una duplicación que el plan corrige de paso.** `parseArsToMinor` ya existe dos veces en el repositorio —exportada en `lib/bookings/space-form.ts:36` y copiada en privado en `app/actions/manual-payment.ts:17`—. Caja habría sido la tercera. La Tarea 8 la unifica en `lib/membership/money.ts`, que ya es de hecho el módulo de dinero compartido. Es una limpieza acotada de código que el plan toca igual, no una refactorización aparte.
 
 **Lo que queda listo al terminar.** SFPR pasa a tener, por primera vez, un libro donde figura lo que cobra: cuotas, alquileres de estudio y lo que se cargue a mano, con arqueo del efectivo y un padrón de clientes que hoy no existe. DNX Estudio queda con la mitad que le sirve y esperando la etapa 1b.
+
+---
+
+# Anexo — dos tareas que la revisión final descubrió que faltaban
+
+La revisión de toda la rama, ya con las doce tareas de código hechas, encontró dos huecos que ninguna revisión por tarea podía ver: no eran defectos de algo construido, eran **cosas que el diseño describía y que después el plan no le pidió a ninguna tarea**. Van acá, antes de la migración.
+
+## Tarea 14: Caja — la pantalla de reportes
+
+**Files:**
+- Create: `app/(shell)/caja/reportes/page.tsx`, `app/(shell)/caja/reportes/period-filter.tsx`
+- Modify: `lib/cash/repository.ts` (la consulta del período), `lib/modules/submodules.ts` (la entrada de menú)
+
+**Interfaces:**
+- Consumes: `periodSummary`, `totalsByCategory`, `topClients`, `accountBalanceMinor` de `lib/cash/balance.ts`; `listAccounts` y `listCategories` de `lib/cash/repository.ts`; `requireCashStaff` de `lib/cash/access.ts`; `formatMinorArs` de `lib/membership/money.ts`.
+- Produces: `movementsForReport(workspaceId, { from, to, accountId? })` en `repository.ts`, devolviendo lo que las cuatro funciones de `balance.ts` necesitan: `kind`, `amountMinor`, `isTransfer`, `categoryId`, `categoryName`, `clientId`, `clientName`.
+
+**Por qué faltaba.** El §6.6 del diseño promete "saldo por cuenta, ingresos y egresos por categoría y período **sin contar las transferencias**, cierre del día, ranking de clientes por consumo". Las cuatro funciones que hacen esa cuenta están escritas y probadas desde la Tarea 9 —incluidas las cuatro pruebas que garantizan que un pase a la caja fuerte no figure como gasto— pero **ninguna pantalla las llama**. El registro de módulos ya le promete reportes al usuario.
+
+**Consecuencia práctica:** el paso 6d de verificación de la Tarea 13 pide comprobar en el reporte del período que los egresos no incluyan el pase a la caja fuerte. Sin esta pantalla, ese paso no se puede ejecutar.
+
+**Qué muestra**, en este orden:
+
+1. **Un selector de período** con atajos —este mes, el mes pasado, los últimos 30 días— y fechas libres. Por omisión, el mes en curso.
+2. **Saldo actual por cuenta**, con `accountBalanceMinor` sobre **todos** los movimientos de cada cuenta, no sólo los del período: un saldo es una foto de hoy, no de un rango. Las transferencias **entran** en este número.
+3. **Resumen del período** con `periodSummary`: entró, salió, neto. Las transferencias **no entran**. Debajo, en letra chica, la aclaración de que los pases entre cuentas no se cuentan acá y por qué.
+4. **Ingresos y egresos por categoría** con `totalsByCategory`, en dos columnas, con el importe y la cantidad de movimientos.
+5. **Los diez clientes que más compraron** en el período, con `topClients`.
+
+**Reglas que hereda:** `workspaceId` en toda consulta; nada se recalcula a mano en la pantalla —todo sale de `lib/cash/balance.ts`, que ya está probado—; textos en castellano rioplatense.
+
+## Tarea 15: que el no socio que alquila el estudio quede registrado
+
+**Files:**
+- Modify: `lib/bookings/cash-deposit.ts` y las pruebas que correspondan.
+
+**Interfaces:**
+- Consumes: `findOrCreateClient` de `lib/clients/find-or-create.ts`.
+
+**Por qué faltaba.** `findOrCreateClient` se construyó en la Tarea 5 con sus pruebas y **nunca se llamó**. La Tarea 12 resolvió el cliente de una reserva buscando la ficha del socio, y para el no socio deja `clientId` en nulo — aunque `Booking` ya guarda `contactName`, `contactEmail` y `contactPhone`.
+
+Es exactamente el agujero que §5 del diseño dice que el módulo Clientes viene a tapar: *"El no socio que alquila el estudio de SFPR hoy no queda registrado en ninguna parte (la reserva guarda un nombre suelto en un campo de texto)"*.
+
+**Qué hacer.** En `lib/bookings/cash-deposit.ts`, al resolver el cliente de una reserva pagada:
+- si la reserva tiene socio, se conserva el comportamiento de hoy (la ficha de cliente enlazada a ese socio);
+- si no lo tiene, se busca o se crea con `findOrCreateClient` a partir de los datos de contacto de la reserva.
+
+**Tres cuidados:**
+1. **El disparador es el pago, no la reserva.** Una reserva que nunca se pagó no crea un cliente: cliente es quien compró algo.
+2. **Todo dentro de la misma transacción**, que es para lo que `findOrCreateClient` recibe `tx`.
+3. **Si el módulo Clientes está apagado** para ese workspace, no se crea nada y el cobro sigue igual — el mismo criterio que ya rige para Caja.
