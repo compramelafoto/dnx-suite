@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { requireCashStaff } from "@/lib/cash/access";
+import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { listAccounts, listCategories, movementsOfShift, openShiftFor } from "@/lib/cash/repository";
 import { expectedAmountMinor } from "@/lib/cash/shift";
 import { listClients } from "@/lib/clients/repository";
@@ -14,7 +15,7 @@ export default async function CajaPage({
 }: {
   searchParams: Promise<{ error?: string; ok?: string }>;
 }) {
-  const { workspace } = await requireCashStaff();
+  const { workspace, role } = await requireCashStaff();
   const params = await searchParams;
 
   const cuentas = await listAccounts(workspace.id);
@@ -23,17 +24,25 @@ export default async function CajaPage({
   const cuentasDeMostrador = cuentas.filter((c) => c.kind === "EFECTIVO" && !c.isVault);
 
   if (cuentasDeMostrador.length === 0) {
+    // `/caja/configuracion` es ADMIN+ (`requireCashAdmin`) y rebota a `/caja` para cualquier
+    // otro rol. Ofrecerle el botón a un STAFF sin ese permiso era un callejón sin salida: lo
+    // clickeaba y volvía a esta misma pantalla vacía. El control de verdad sigue siendo el
+    // servidor en `lib/cash/access.ts` — esto es sólo no mostrar un camino cerrado.
+    const puedeConfigurar = canManageWorkspaceSettings(role);
     return (
       <div className="space-y-8">
         <PageHeader title="Caja" description="El turno abierto: lo que entró y salió desde que se abrió." />
         <div className="fo-card space-y-3 p-6 text-center">
           <p className="text-sm text-[var(--fo-muted)]">
-            Todavía no hay ninguna cuenta de efectivo de mostrador. Configurala en Cuentas y
-            categorías antes de abrir un turno.
+            {puedeConfigurar
+              ? "Todavía no hay ninguna cuenta de efectivo de mostrador. Configurala en Cuentas y categorías antes de abrir un turno."
+              : "Todavía no hay ninguna cuenta de efectivo de mostrador. Pedile a un administrador que la configure en Cuentas y categorías."}
           </p>
-          <Link href="/caja/configuracion" className="fo-btn fo-btn-primary text-sm">
-            Ir a configuración
-          </Link>
+          {puedeConfigurar ? (
+            <Link href="/caja/configuracion" className="fo-btn fo-btn-primary text-sm">
+              Ir a configuración
+            </Link>
+          ) : null}
         </div>
       </div>
     );
