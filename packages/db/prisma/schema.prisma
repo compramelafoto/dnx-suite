@@ -3428,6 +3428,7 @@ model VideoAsset {
   uploadedBy           User?                 @relation("VideoUploader", fields: [userId], references: [id], onDelete: SetNull)
   processingJob        VideoProcessingJob?
   frames               VideoFrame[]
+  orderItems           VideoOrderItem[]
   frameMatches         VideoFrameMatch[]
 
   @@index([albumId])
@@ -3527,6 +3528,40 @@ model VideoFrameMatch {
   @@index([subjectId])
   @@index([videoId])
   @@index([videoFrameId])
+}
+
+/// Un video dentro de un pedido.
+///
+/// Tabla aparte de `OrderItem` a propósito: esa tabla exige `photoId` y la dan
+/// por sentada 134 archivos (precios, fee, reparto con MP, mails, zips,
+/// reportes). Tocarla para agregar video pondría en riesgo la venta de fotos,
+/// que es el negocio principal. El pedido sigue siendo uno solo —un pago, un
+/// fee, un reparto— y los videos viven en su propio renglón.
+///
+/// **Los montos van en PESOS ENTEROS**, igual que `Order.totalCents`, y los
+/// campos se llaman `Ars` justamente para no repetir la confusión del sufijo
+/// `Cents`: `VideoAsset.priceCents` guarda centavos reales y estos no.
+model VideoOrderItem {
+  id          Int        @id @default(autoincrement())
+  orderId     Int
+  videoId     Int
+  /// Lo que cobra el fotógrafo, en pesos enteros.
+  priceArs    Int        @default(0)
+  /// Lo que queda para la plataforma, en pesos enteros.
+  feeArs      Int        @default(0)
+  /// Lo que paga el cliente por este video: priceArs + feeArs.
+  subtotalArs Int        @default(0)
+  /// Porcentaje de fee congelado al momento de la compra.
+  feePercent  Float      @default(0)
+  /// Copia del título: el video se borra a los 15 días y el pedido queda.
+  videoTitle  String?
+  createdAt   DateTime   @default(now())
+  order       Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  video       VideoAsset @relation(fields: [videoId], references: [id])
+
+  @@unique([orderId, videoId])
+  @@index([orderId])
+  @@index([videoId])
 }
 
 enum CameraConnectionAssignmentMode {
@@ -3690,6 +3725,7 @@ model Order {
   buyerUser                 User?                     @relation("OrderBuyerUser", fields: [buyerUserId], references: [id])
   fulfillmentGroups         OrderFulfillmentGroup[]
   items                     OrderItem[]
+  videoItems                VideoOrderItem[]
   packRedemptionEntitlement PackPurchaseEntitlement?
   whatsappDeliveryLogs      WhatsAppDeliveryLog[]
   organizerCommissions      OrganizerCommission[]
