@@ -191,7 +191,9 @@ export type CheckoutInput = {
   client: RawCheckoutClient;
 };
 
-export type CheckoutResult = { ok: true; saleNumber: number } | { ok: false; error: string };
+export type CheckoutResult =
+  | { ok: true; saleNumber: number; deposited: boolean }
+  | { ok: false; error: string };
 
 /**
  * Cobrar. Es el botón que cierra el ticket, con gente esperando del otro lado del mostrador:
@@ -257,7 +259,7 @@ export async function checkoutAction(input: CheckoutInput): Promise<CheckoutResu
       }),
     );
     revalidatePath("/ventas");
-    return { ok: true, saleNumber: venta.saleNumber };
+    return { ok: true, saleNumber: venta.saleNumber, deposited: venta.deposited };
   } catch (e) {
     console.error("[fotoffice][ventas] error al cobrar", e);
     return { ok: false, error: "No se pudo registrar la venta. Probá de nuevo." };

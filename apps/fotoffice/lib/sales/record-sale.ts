@@ -129,6 +129,13 @@ async function descontarStock(
  * venta se registra igual (§regla 3). La guarda de `isModuleEnabledForWorkspace` va antes de
  * tocar `cashAccount`/`cashCategory`, por el mismo motivo que en `resolveSaleClient`: es el
  * error que ya se cometió dos veces en la etapa anterior de este proyecto.
+ *
+ * Devuelve el motivo del "no deposité" además del id (o su ausencia): con Caja apagada, o
+ * encendida pero sin ninguna cuenta configurada (o sólo con caja fuerte), el dinero de la
+ * venta no cae en ningún lado, y antes de este arreglo no quedaba ni un `console.warn` — a
+ * diferencia del precedente de `depositBookingPayment` en `lib/bookings/cash-deposit.ts`, que
+ * sí avisa cuando el importe es cero. `checkoutAction` usa `deposited` para que la pantalla
+ * pueda avisarle al mostrador que esta venta en particular no entró al libro de caja.
  */
 async function depositarEnCaja(
   tx: Tx,
@@ -137,14 +144,23 @@ async function depositarEnCaja(
     "paymentMethod" | "occurredAt"
   >,
   totalMinor: number,
-): Promise<string | null> {
+): Promise<{ cashMovementId: string | null; deposited: boolean }> {
   // Sin importe no hay nada que depositar: un ticket que da $0 (descuento igual al
   // subtotal) es válido y no genera movimiento — `recordCashMovement` rechaza un importe en
-  // cero, así que ni se intenta.
-  if (totalMinor <= 0) return null;
+  // cero, así que ni se intenta. No es el silencio que preocupa acá (no hay plata que
+  // extraviar), así que no amerita el mismo warn que los dos casos de abajo.
+  if (totalMinor <= 0) return { cashMovementId: null, deposited: false };
 
   const cashEnabled = await isModuleEnabledForWorkspace(input.workspaceId, CASH_MODULE_KEY);
-  if (!cashEnabled) return null;
+  if (!cashEnabled) {
+    console.warn("[fotoffice][ventas] Caja apagada: la venta se registra sin depositar", {
+      workspaceId: input.workspaceId,
+      saleId: input.saleId,
+      saleNumber: input.saleNumber,
+      totalMinor,
+    });
+    return { cashMovementId: null, deposited: false };
+  }
 
   const destino = resolveDepositTarget({
     cashEnabled,
@@ -161,7 +177,19 @@ async function depositarEnCaja(
     // Si "Ventas" no existe como categoría, se deposita sin categoría: no es un error.
     categoryName: SALES_CASH_CATEGORY_NAME,
   });
-  if (!destino.ok) return null;
+  if (!destino.ok) {
+    // El caso que el aviso de "Caja apagada" NO cubre: Caja está encendida pero sin ninguna
+    // cuenta usable (ninguna cuenta, o sólo la caja fuerte). Sin este warn, la venta se
+    // registraba igual y no quedaba ninguna traza de que el dinero no cayó en ningún lado.
+    console.warn("[fotoffice][ventas] Caja encendida pero sin destino configurado: la venta se registra sin depositar", {
+      workspaceId: input.workspaceId,
+      saleId: input.saleId,
+      saleNumber: input.saleNumber,
+      totalMinor,
+      motivo: destino.reason,
+    });
+    return { cashMovementId: null, deposited: false };
+  }
 
   const movimiento = await recordCashMovement(tx, {
     workspaceId: input.workspaceId,
@@ -176,13 +204,13 @@ async function depositarEnCaja(
     sourceModule: "sales",
     sourceRef: input.saleId,
   });
-  return movimiento.id;
+  return { cashMovementId: movimiento.id, deposited: true };
 }
 
 export async function recordSale(
   tx: Tx,
   input: RecordSaleInput,
-): Promise<{ saleId: string; saleNumber: number }> {
+): Promise<{ saleId: string; saleNumber: number; deposited: boolean }> {
   const totals = ticketTotals(input.lines, input.discountMinor);
 
   const clientId = await resolveSaleClient(tx, input.workspaceId, input.createdByUserId, input.client);
@@ -205,10 +233,10 @@ export async function recordSale(
   // (Tarea 5) para `upsertGlobalProduct`, con el mismo arreglo: `createMany` + `skipDuplicates`
   // compila a `ON CONFLICT DO NOTHING`, así que un choque de unicidad deja de ser un error de
   // SQL y la transacción sigue viva para releer y reintentar con el próximo número. Ésta es la
-  // TERCERA vez que este proyecto tropieza con la misma familia de bug (welcome de vuelta,
-  // "un `catch` de P2002 no puede vivir dentro de una transacción interactiva"): si en algún
-  // momento esto "se simplifica" de vuelta a un `create` con `catch`, va a romperse apenas dos
-  // cajas cobren al mismo tiempo, y las pruebas con una sola caja nunca lo van a notar.
+  // TERCERA vez que este proyecto tropieza con la misma familia de bug —"un `catch` de P2002
+  // no puede vivir dentro de una transacción interactiva"—: si en algún momento esto "se
+  // simplifica" de vuelta a un `create` con `catch`, va a romperse apenas dos cajas cobren al
+  // mismo tiempo, y las pruebas con una sola caja nunca lo van a notar.
   let creada: { id: string; saleNumber: number } | null = null;
   for (let intento = 0; intento < 3 && !creada; intento++) {
     const ultima = await tx.sale.findFirst({
@@ -271,7 +299,7 @@ export async function recordSale(
 
   await descontarStock(tx, input.workspaceId, creada.id, input.createdByUserId, input.lines);
 
-  const cashMovementId = await depositarEnCaja(
+  const { cashMovementId, deposited } = await depositarEnCaja(
     tx,
     {
       workspaceId: input.workspaceId,
@@ -287,5 +315,5 @@ export async function recordSale(
     await tx.sale.update({ where: { id: creada.id }, data: { cashMovementId } });
   }
 
-  return { saleId: creada.id, saleNumber: creada.saleNumber };
+  return { saleId: creada.id, saleNumber: creada.saleNumber, deposited };
 }

@@ -40,11 +40,13 @@ export function Pos({
   categories,
   clientsEnabled,
   clients,
+  cashEnabled,
 }: {
   products: ProductRow[];
   categories: ProductCategoryRow[];
   clientsEnabled: boolean;
   clients: ClientRow[];
+  cashEnabled: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -67,7 +69,7 @@ export function Pos({
   const [sueltoPrecio, setSueltoPrecio] = useState("");
 
   const [error, setError] = useState<string | null>(null);
-  const [ultimaVenta, setUltimaVenta] = useState<number | null>(null);
+  const [ultimaVenta, setUltimaVenta] = useState<{ saleNumber: number; deposited: boolean } | null>(null);
   const [procesando, startTransition] = useTransition();
 
   const discountMinor = parseArsToMinor(discountText) ?? 0;
@@ -220,7 +222,7 @@ export function Pos({
     startTransition(async () => {
       const resultado = await checkoutAction(input);
       if (resultado.ok) {
-        setUltimaVenta(resultado.saleNumber);
+        setUltimaVenta({ saleNumber: resultado.saleNumber, deposited: resultado.deposited });
         reiniciarTicket();
         searchRef.current?.focus();
       } else {
@@ -233,6 +235,12 @@ export function Pos({
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_420px]">
       {/* Buscar y agregar */}
       <section className="space-y-4">
+        {!cashEnabled ? (
+          <div className="rounded-[var(--fo-radius-sm)] border border-[var(--fo-warning-border)] bg-[var(--fo-warning-soft)] p-3 text-sm text-[var(--fo-warning)]">
+            El módulo de Caja está apagado. Las ventas se registran igual, pero el dinero no
+            entra al libro de caja.
+          </div>
+        ) : null}
         <div className="fo-card space-y-3 p-4">
           <input
             ref={searchRef}
@@ -466,7 +474,14 @@ export function Pos({
           </p>
         ) : null}
         {ultimaVenta !== null ? (
-          <p className="fo-card p-3 text-sm text-[var(--fo-success)]">Venta #{ultimaVenta} registrada.</p>
+          <div className="fo-card space-y-1 p-3 text-sm">
+            <p className="text-[var(--fo-success)]">Venta #{ultimaVenta.saleNumber} registrada.</p>
+            {!ultimaVenta.deposited ? (
+              <p className="text-[var(--fo-warning)]">
+                No se depositó en Caja: este ingreso no va a aparecer en el libro.
+              </p>
+            ) : null}
+          </div>
         ) : null}
 
         <button
