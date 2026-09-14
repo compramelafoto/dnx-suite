@@ -7,6 +7,7 @@ import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
+import { SALES_MODULE_KEY } from "@/lib/sales/constants";
 
 /**
  * Catálogo central de módulos de FotoOffice.
@@ -96,6 +97,16 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     category: "GENERAL",
     order: 30,
     route: "/caja",
+    status: "AVAILABLE",
+  },
+  {
+    key: SALES_MODULE_KEY,
+    label: "Ventas",
+    description:
+      "Catálogo de productos y servicios con stock, y una pantalla de mostrador que cobra y deposita en Caja.",
+    category: "GENERAL",
+    order: 35,
+    route: "/ventas",
     status: "AVAILABLE",
   },
   {

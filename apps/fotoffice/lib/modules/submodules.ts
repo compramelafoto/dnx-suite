@@ -4,6 +4,7 @@ import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
+import { SALES_MODULE_KEY } from "@/lib/sales/constants";
 
 /**
  * Las pantallas de cada módulo, en un solo lugar.
@@ -255,6 +256,41 @@ const CLIENTES: SubmoduleItem[] = [
   },
 ];
 
+const VENTAS: SubmoduleItem[] = [
+  {
+    href: "/ventas",
+    label: "Mostrador",
+    icon: "ShoppingCart",
+    description: "Buscá, sumá al ticket y cobrá.",
+    requiresManage: false,
+    activeMatch: "rest",
+  },
+  {
+    href: "/ventas/catalogo",
+    label: "Catálogo",
+    icon: "Package",
+    description: "Los productos y servicios, con su precio, su costo y su foto.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
+    href: "/ventas/stock",
+    label: "Stock",
+    icon: "Boxes",
+    description: "Qué queda, qué entró y qué hay que reponer.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
+    href: "/ventas/historial",
+    label: "Ventas hechas",
+    icon: "ReceiptText",
+    description: "Lo vendido, con su detalle y su anulación.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+];
+
 const POR_MODULO: Record<string, SubmoduleItem[]> = {
   [MEMBERS_MODULE_KEY]: SOCIOS,
   [COURSES_SALES_MODULE_KEY]: CURSOS,
@@ -262,6 +298,7 @@ const POR_MODULO: Record<string, SubmoduleItem[]> = {
   [RAFFLES_MODULE_KEY]: SORTEOS,
   [CASH_MODULE_KEY]: CAJA,
   [CLIENTS_MODULE_KEY]: CLIENTES,
+  [SALES_MODULE_KEY]: VENTAS,
 };
 
 /**
