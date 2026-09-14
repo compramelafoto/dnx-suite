@@ -1,3 +1,5 @@
+import { REQUEST_LIVE_STATUSES } from "./states";
+
 /**
  * Las pestañas de la bandeja, como criterios puros.
  *
@@ -8,6 +10,7 @@
  * **Ningún filtro incluye el workspace.** Eso lo pone el repositorio, siempre, para que el
  * aislamiento no dependa de qué pestaña se está mirando.
  */
+
 export type InboxFilterKey =
   | "nuevas"
   | "incompletas"
@@ -34,8 +37,6 @@ export function isInboxFilter(value: unknown): value is InboxFilterKey {
 /** Qué se considera "urgente": que ocurra dentro de los próximos siete días. */
 const DIAS_URGENTE = 7;
 
-const VIVAS = ["RECIBIDA", "EN_EVALUACION", "REQUIERE_INFO", "APROBADA"] as const;
-
 type Where = {
   status?: string | { in: string[] };
   startsAt?: { gte?: Date; lte?: Date };
@@ -53,7 +54,7 @@ export function whereForFilter(filter: string, now: Date): Where {
       return { status: "APROBADA", startsAt: { gte: now } };
     case "urgentes":
       return {
-        status: { in: [...VIVAS] },
+        status: { in: [...REQUEST_LIVE_STATUSES] },
         startsAt: {
           gte: now,
           lte: new Date(now.getTime() + DIAS_URGENTE * 24 * 60 * 60 * 1000),

@@ -10,6 +10,11 @@ import { describe, expect, it } from "vitest";
  * y dentro de seis meses alguien la llama desde otra pantalla y la SFPR ve una solicitud de
  * FOTOPOSITIVA. No se puede verificar renderizando; se verifica sobre el código, igual que ya
  * hacen otras tres barreras del proyecto.
+ *
+ * El barrido es sobre TODAS las funciones que consultan prisma en `repository.ts`, detectadas
+ * por código y no tipeadas a mano: una lista de nombres escrita a mano es una lista blanca — se
+ * queda vieja el día que alguien agrega una consulta y se olvida de sumarla ahí, y el test sigue
+ * en verde. Acá, en cambio, una consulta nueva sin `workspaceId` entra sola al barrido.
  */
 describe("el repositorio no puede filtrar entre workspaces", () => {
   const fuente = readFileSync(
@@ -38,16 +43,15 @@ describe("el repositorio no puede filtrar entre workspaces", () => {
     expect(consultas.length).toBeGreaterThanOrEqual(5);
   });
 
-  it.each([
-    "loadSettings",
-    "listRequests",
-    "loadRequest",
-    "countRecentSubmissions",
-    "findDuplicateRequest",
-  ])("%s consulta por workspaceId", (nombre) => {
-    const fn = consultas.find((c) => c.nombre === nombre);
-    expect(fn, `no se encontró ${nombre} en repository.ts`).toBeDefined();
-    expect(fn!.cuerpo).toMatch(/workspaceId/);
+  it("ninguna consulta a prisma se olvida del workspaceId", () => {
+    // Recorre TODAS las funciones detectadas, no una lista escrita a mano: si mañana se agrega
+    // una consulta nueva sin workspaceId, entra en este barrido y el test la nombra. Una lista
+    // fija no lo haría: se puede olvidar agregar el nombre nuevo y el test sigue en verde.
+    const sinAislamiento = consultas
+      .filter((f) => f.nombre !== "findByTrackingToken")
+      .filter((f) => !/workspaceId/.test(f.cuerpo))
+      .map((f) => f.nombre);
+    expect(sinAislamiento).toEqual([]);
   });
 
   it("la única que no lleva workspace es la del token, y está justificada", () => {

@@ -3,6 +3,7 @@ import { prisma } from "@repo/db";
 import { DEFAULT_COVERAGE_SETTINGS, type CoverageSettingsShape } from "./settings";
 import { whereForFilter } from "./inbox-filters";
 import { PUBLIC_FORM_WINDOW_MINUTES } from "./rate-limit";
+import { REQUEST_LIVE_STATUSES } from "./states";
 import { hashTrackingToken } from "./tracking-token";
 
 /**
@@ -98,6 +99,17 @@ export async function findByTrackingToken(rawToken: string) {
  *
  * Se cuenta sobre `CoverageRequest`, sin tabla nueva: las filas que queremos limitar son
  * exactamente las que ya se guardan.
+ *
+ * El `OR` entre correo y origen comparte el cupo entre los dos criterios, y eso tiene dos
+ * costados imperfectos, aceptados a propósito para esta etapa:
+ * - Falso positivo: dos organizaciones detrás del mismo origen (misma red, mismo dispositivo)
+ *   se gastan el cupo entre sí. Alguien que nunca envió nada puede quedar frenado por un envío
+ *   ajeno.
+ * - Evasión: si `originHash` es `null` (sin sal configurada, ver `hashOrigen`), cambiar de
+ *   correo en cada envío evade el límite por completo.
+ * Se acepta igual porque el tope de 3 por hora es alto para una organización real (no lo va a
+ * rozar) y bajo para un envío automático (lo corta enseguida). Afinar esto de verdad requeriría
+ * identificar a quien envía, que es justo el dato que este formulario público evita pedir.
  */
 export async function countRecentSubmissions(input: {
   workspaceId: string;
@@ -132,7 +144,7 @@ export async function findDuplicateRequest(input: {
     where: {
       workspaceId: input.workspaceId,
       startsAt: input.startsAt,
-      status: { in: ["RECIBIDA", "EN_EVALUACION", "REQUIERE_INFO"] },
+      status: { in: [...REQUEST_LIVE_STATUSES] },
       client: { email: input.email },
     },
     select: { id: true, publicCode: true },

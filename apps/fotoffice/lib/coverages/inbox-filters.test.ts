@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { INBOX_FILTERS, isInboxFilter, whereForFilter } from "./inbox-filters";
+import { REQUEST_LIVE_STATUSES } from "./states";
 
 const ahora = new Date("2026-09-14T12:00:00Z");
 
@@ -31,6 +32,15 @@ describe("whereForFilter", () => {
     expect(w.startsAt?.gte).toEqual(ahora);
     expect(w.startsAt?.lte).toEqual(new Date("2026-09-21T12:00:00Z"));
     expect(w.status).toEqual({ in: ["RECIBIDA", "EN_EVALUACION", "REQUIERE_INFO", "APROBADA"] });
+  });
+
+  it("«urgentes» incluye los cuatro estados vivos, ni uno de menos", () => {
+    // Compara contra REQUEST_LIVE_STATUSES (la única definición de "solicitud viva") y no
+    // contra una lista repetida acá: si alguna vez ese conjunto cambia y "urgentes" no se
+    // actualiza junto con él, este test lo nota en vez de quedar en verde por casualidad.
+    const w = whereForFilter("urgentes", ahora);
+    expect(w.status).toEqual({ in: [...REQUEST_LIVE_STATUSES] });
+    expect(REQUEST_LIVE_STATUSES).toHaveLength(4);
   });
 
   it("«cerradas» junta cerradas y rechazadas, que es como se las mira", () => {
