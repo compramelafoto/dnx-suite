@@ -70,12 +70,16 @@ export function parseProductForm(fd: FormData): ProductFormResult {
   let minStockQty: number | null = null;
   if (minStockRaw !== "") {
     const numero = Number(minStockRaw);
-    if (Number.isFinite(numero)) {
-      if (numero < 0) {
-        return { ok: false, error: "El mínimo de stock no puede ser negativo." };
-      }
-      minStockQty = Math.floor(numero);
+    // Un mínimo de stock que no se entiende se rechaza, igual que el costo: si cayera a
+    // null en silencio, la persona que escribió "tres" en vez de "3" se queda sin la
+    // alerta de reposición y nunca se entera de que el dato no se guardó.
+    if (!Number.isFinite(numero)) {
+      return { ok: false, error: "El mínimo de stock no se entiende." };
     }
+    if (numero < 0) {
+      return { ok: false, error: "El mínimo de stock no puede ser negativo." };
+    }
+    minStockQty = Math.floor(numero);
   }
 
   // Un servicio nunca controla stock, aunque la casilla venga marcada: la pantalla se puede

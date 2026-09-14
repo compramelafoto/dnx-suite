@@ -37,4 +37,12 @@ describe("looksLikeBarcode", () => {
   it("pocos dígitos tampoco: '25' es una cantidad, no un código", () => {
     expect(looksLikeBarcode("25")).toBe(false);
   });
+
+  it("un largo intermedio que no es de ningún estándar también se rechaza", () => {
+    // Cubre el hueco entre EAN-8 (8) y UPC-A (12): si mañana alguien agrega por error
+    // un largo inválido al conjunto de LARGOS_VALIDOS, esta prueba tiene que romperse.
+    expect(looksLikeBarcode("123456789")).toBe(false); // 9 dígitos
+    expect(looksLikeBarcode("1234567890")).toBe(false); // 10 dígitos
+    expect(looksLikeBarcode("12345678901")).toBe(false); // 11 dígitos
+  });
 });

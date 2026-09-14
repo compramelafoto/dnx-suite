@@ -96,9 +96,16 @@ describe("parseProductForm", () => {
     });
   });
 
-  it("el mínimo de stock vacío queda null", () => {
+  it("el mínimo de stock vacío queda null: vacío y basura no son lo mismo", () => {
     const r = parseProductForm(form(base));
     expect(r.ok && r.values.minStockQty).toBeNull();
+  });
+
+  it("un mínimo de stock que no se entiende se rechaza en vez de guardarse como null", () => {
+    expect(parseProductForm(form({ ...base, minStockQty: "tres" }))).toEqual({
+      ok: false,
+      error: "El mínimo de stock no se entiende.",
+    });
   });
 
   it("un mínimo de stock negativo se rechaza", () => {
