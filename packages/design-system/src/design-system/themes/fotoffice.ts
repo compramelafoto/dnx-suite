@@ -1,16 +1,21 @@
 /**
  * Tema Fotoffice (modo claro)
  * Fuente de verdad en CSS: `apps/fotoffice/app/globals.css` (`:root` `--fo-*`).
- * Logo oficial (PNG transparente): `apps/fotoffice/public/fotoffice.png` → URL `/fotoffice.png`.
+ * Logo oficial (PNG con transparencia de verdad): `apps/fotoffice/public/fotoffice-logo.png`
+ * → URL `/fotoffice-logo.png`. El archivo anterior no existía con ese nombre —el disco tenía
+ * `Fotoffice.png` con mayúscula— y en Linux, que distingue mayúsculas, no se servía nunca.
  */
 
 export const themeFotoffice = {
   colorScheme: "light" as const,
   /** Marca — servido por la app Fotoffice (sin fondo propio; ve el `--fo-bg` / `--fo-bg-elevated` de la vista). */
   assets: {
-    wordmarkPublicPath: "/fotoffice.png" as const,
-    wordmarkWidth: 1024,
-    wordmarkHeight: 576,
+    wordmarkPublicPath: "/fotoffice-logo.png" as const,
+    wordmarkWidth: 1224,
+    wordmarkHeight: 372,
+    /** Sólo el símbolo, cuadrado. Para encabezados y paneles laterales angostos. */
+    isotipoPublicPath: "/fotoffice-isotipo.png" as const,
+    isotipoSize: 388,
   },
   bg: "#f4f6f9",
   bgElevated: "#ffffff",

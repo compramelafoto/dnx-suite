@@ -90,10 +90,11 @@ export async function GET(
       if (v) headers.set(h, v);
     }
 
-    return new NextResponse(upstream.body, {
-      status: upstream.status,
-      headers,
-    });
+    // Si vino un rango, la respuesta TIENE que ser 206. Un 200 con
+    // Content-Range es incorrecto y Safari lo rechaza al reproducir.
+    const status = headers.has("content-range") ? 206 : upstream.status;
+
+    return new NextResponse(upstream.body, { status, headers });
   } catch (err: unknown) {
     console.error("[video-preview] fatal", err);
     return NextResponse.json({ error: "Vista previa no disponible" }, { status: 500 });
