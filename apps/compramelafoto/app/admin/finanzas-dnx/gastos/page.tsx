@@ -7,6 +7,7 @@ import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import Textarea from "@/components/ui/Textarea";
 import { formatARS } from "@/lib/admin/helpers";
+import { isOverdueUnpaid } from "@/lib/finance-dnx/due-date";
 import type { VendorJson } from "@/lib/finance-dnx/vendor-json";
 import type { ExpenseEntryJson } from "@/lib/finance-dnx/expense-json";
 import type { ExpenseStatus } from "@repo/finance-control";
@@ -49,6 +50,7 @@ type FormState = {
   taxPercent: string;
   status: ExpenseStatus;
   notes: string;
+  dueDate: string;
 };
 
 const FORM_VACIO: FormState = {
@@ -59,7 +61,48 @@ const FORM_VACIO: FormState = {
   taxPercent: "0",
   status: "FACTURADO",
   notes: "",
+  dueDate: "",
 };
+
+/**
+ * La fecha de vencimiento se guarda como medianoche UTC del día calendario
+ * elegido en el input (ver `fechaParaInput` más abajo): no es un instante,
+ * es "ese día". Formatearla con `toLocaleDateString(..., { timeZone:
+ * "America/Argentina/Buenos_Aires" })` (como hace `formatDateOnly`) la
+ * corre un día para atrás, porque medianoche UTC todavía es el día
+ * anterior en Argentina. Acá se muestra en UTC para que el día que aparece
+ * sea el día que se guardó.
+ */
+function formatDueDate(dueDate: string | Date): string {
+  const fecha = dueDate instanceof Date ? dueDate : new Date(dueDate);
+  return fecha.toLocaleDateString("es-AR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/** yyyy-mm-dd para el input type="date"; acepta lo que llegue de la API (una fecha ISO como string, o null). */
+function fechaParaInput(dueDate: string | Date | null | undefined): string {
+  if (!dueDate) return "";
+  const fecha = dueDate instanceof Date ? dueDate : new Date(dueDate);
+  if (Number.isNaN(fecha.getTime())) return "";
+  return fecha.toISOString().slice(0, 10);
+}
+
+function formDesdeEntry(entry: ExpenseEntryJson): FormState {
+  return {
+    vendorId: String(entry.vendorId),
+    currency: entry.currency as "ARS" | "USD",
+    amountOriginal: String(entry.amountOriginalMinor / 100),
+    fxRate: entry.fxRate != null ? String(entry.fxRate) : "",
+    taxPercent: String(entry.taxPercent),
+    status: entry.status as ExpenseStatus,
+    notes: entry.notes ?? "",
+    dueDate: fechaParaInput(entry.dueDate as unknown as string | Date | null),
+  };
+}
 
 export default function FinanzasDnxGastosPage() {
   const [year, setYear] = useState(AHORA.getFullYear());
@@ -70,10 +113,26 @@ export default function FinanzasDnxGastosPage() {
   const [vendors, setVendors] = useState<VendorJson[]>([]);
   const [copiando, setCopiando] = useState(false);
   const [copiaMensaje, setCopiaMensaje] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
+  const [editingId, setEditingId] = useState<number | null>(null);
+  // El período del gasto que se está editando, tomado del gasto mismo — NO
+  // del selector de arriba. El selector puede cambiar mientras se edita
+  // (ver "cancelarEdicionPorCambioDePeriodo" más abajo) y el PUT tiene que
+  // mandar siempre el período dueño del gasto, nunca el que esté elegido
+  // en pantalla en ese momento (hallazgo I-2: si no, editar una factura
+  // vieja mientras se navega a otro mes la mueve de mes sin querer).
+  const [editingPeriod, setEditingPeriod] = useState<{ year: number; month: number } | null>(null);
   const [form, setForm] = useState<FormState>(FORM_VACIO);
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // Tipo de cambio del período: bloque propio, separado del formulario de
+  // carga. Éste es el que de verdad se guarda con PUT /fx.
+  const [fxValue, setFxValue] = useState("");
+  const [fxError, setFxError] = useState<string | null>(null);
+  const [fxMessage, setFxMessage] = useState<string | null>(null);
+  const [fxSaving, setFxSaving] = useState(false);
 
   const loadEntries = useCallback(async () => {
     setLoading(true);
@@ -111,20 +170,29 @@ export default function FinanzasDnxGastosPage() {
     }
   }, []);
 
-  // El tipo de cambio del período se propone solo en el formulario, pero
-  // queda editable: es el valor por defecto, no una imposición.
+  // El tipo de cambio del período se propone solo en el formulario de carga,
+  // pero queda editable: es el valor por defecto, no una imposición. También
+  // alimenta el bloque de "dólar del mes" de más abajo.
   const loadFx = useCallback(async () => {
+    setFxError(null);
     try {
       const res = await fetch(`/api/admin/finance-dnx/fx?year=${year}&month=${month}`, {
         credentials: "include",
         cache: "no-store",
       });
       const data = await res.json().catch(() => ({}));
-      if (res.ok && data.usdToArs != null) {
-        setForm((f) => ({ ...f, fxRate: String(data.usdToArs) }));
+      if (!res.ok) {
+        setFxError(data.error || "No se pudo cargar el tipo de cambio.");
+        setFxValue("");
+        return;
+      }
+      const valor = data.usdToArs != null ? String(data.usdToArs) : "";
+      setFxValue(valor);
+      if (data.usdToArs != null) {
+        setForm((f) => ({ ...f, fxRate: valor }));
       }
     } catch {
-      // Sin tipo de cambio cargado, el campo queda vacío y editable a mano.
+      setFxError("Error de conexión al cargar el tipo de cambio.");
     }
   }, [year, month]);
 
@@ -162,6 +230,65 @@ export default function FinanzasDnxGastosPage() {
     }
   }
 
+  function iniciarNuevo() {
+    setEditingId(null);
+    setEditingPeriod(null);
+    setForm(FORM_VACIO);
+    setFormError(null);
+    // Sin esto, el formulario de carga queda con el dólar en blanco: se
+    // vuelve a proponer el tipo de cambio del período.
+    loadFx();
+  }
+
+  function iniciarEdicion(entry: ExpenseEntryJson) {
+    setEditingId(entry.id);
+    setEditingPeriod({ year: entry.periodYear, month: entry.periodMonth });
+    setForm(formDesdeEntry(entry));
+    setFormError(null);
+  }
+
+  // Si el selector de mes/año cambia mientras se está editando un gasto, se
+  // cancela la edición en vez de dejarla a medias: si no, la pantalla queda
+  // mostrando el mes X arriba y el formulario con los datos de un gasto del
+  // mes Y, que es justo la confusión que describe el hallazgo I-2. No hace
+  // falta volver a pedir el dólar acá: el efecto que ya escucha
+  // [year, month] llama a loadFx() con el período nuevo.
+  function cancelarEdicionPorCambioDePeriodo() {
+    setEditingId(null);
+    setEditingPeriod(null);
+    setForm(FORM_VACIO);
+    setFormError(null);
+  }
+
+  async function handleDelete(entry: ExpenseEntryJson) {
+    const proveedor = entry.vendor?.name ?? "este proveedor";
+    const periodo = `${MESES[entry.periodMonth - 1]} ${entry.periodYear}`;
+    const confirmado = window.confirm(
+      `¿Borrar el gasto de ${proveedor} de ${periodo}? No se puede deshacer.`,
+    );
+    if (!confirmado) return;
+
+    setError(null);
+    setDeletingId(entry.id);
+    try {
+      const res = await fetch(`/api/admin/finance-dnx/expenses/${entry.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || "No se pudo borrar el gasto.");
+        return;
+      }
+      if (editingId === entry.id) iniciarNuevo();
+      await loadEntries();
+    } catch {
+      setError("Error de conexión al borrar el gasto.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setFormError(null);
@@ -181,35 +308,82 @@ export default function FinanzasDnxGastosPage() {
       return;
     }
 
+    // El período que se manda es siempre el del gasto que se está editando
+    // (editingPeriod), nunca el del selector de arriba (year/month): son
+    // cosas distintas y confundirlas es el hallazgo I-2. Al dar de alta un
+    // gasto nuevo sí corresponde el período del selector, porque es donde
+    // se lo está cargando.
+    const periodoAEnviar = editingId && editingPeriod ? editingPeriod : { year, month };
+
     setSaving(true);
     try {
-      const res = await fetch("/api/admin/finance-dnx/expenses", {
-        method: "POST",
+      const url = editingId
+        ? `/api/admin/finance-dnx/expenses/${editingId}`
+        : "/api/admin/finance-dnx/expenses";
+      const res = await fetch(url, {
+        method: editingId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
           vendorId: Number(form.vendorId),
-          periodYear: year,
-          periodMonth: month,
+          periodYear: periodoAEnviar.year,
+          periodMonth: periodoAEnviar.month,
           currency: form.currency,
           amountOriginal,
           fxRate,
           taxPercent: Number(form.taxPercent) || 0,
           status: form.status,
           notes: form.notes.trim() || null,
+          dueDate: form.dueDate || null,
         }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setFormError(data.error || "No se pudo crear el gasto.");
+        setFormError(data.error || (editingId ? "No se pudo editar el gasto." : "No se pudo crear el gasto."));
         return;
       }
+      setEditingId(null);
       setForm({ ...FORM_VACIO, fxRate: form.currency === "USD" ? form.fxRate : "" });
       await loadEntries();
     } catch {
-      setFormError("Error de conexión al crear el gasto.");
+      setFormError(editingId ? "Error de conexión al editar el gasto." : "Error de conexión al crear el gasto.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleGuardarFx(e: React.FormEvent) {
+    e.preventDefault();
+    setFxError(null);
+    setFxMessage(null);
+
+    const usdToArs = Number(fxValue);
+    if (!Number.isFinite(usdToArs) || usdToArs <= 0) {
+      setFxError("El tipo de cambio tiene que ser un número mayor a 0.");
+      return;
+    }
+
+    setFxSaving(true);
+    try {
+      const res = await fetch("/api/admin/finance-dnx/fx", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ year, month, usdToArs }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setFxError(data.error || "No se pudo guardar el tipo de cambio.");
+        return;
+      }
+      const valor = String(data.usdToArs);
+      setFxValue(valor);
+      setForm((f) => ({ ...f, fxRate: valor }));
+      setFxMessage("Tipo de cambio guardado.");
+    } catch {
+      setFxError("Error de conexión al guardar el tipo de cambio.");
+    } finally {
+      setFxSaving(false);
     }
   }
 
@@ -221,12 +395,26 @@ export default function FinanzasDnxGastosPage() {
           <p className="text-gray-600 mt-1">Gastos cargados para {MESES[month - 1]} {year}.</p>
         </div>
         <div className="flex gap-2">
-          <Select value={month} onChange={(e) => setMonth(Number(e.target.value))} className="w-auto">
+          <Select
+            value={month}
+            onChange={(e) => {
+              if (editingId !== null) cancelarEdicionPorCambioDePeriodo();
+              setMonth(Number(e.target.value));
+            }}
+            className="w-auto"
+          >
             {MESES.map((nombre, i) => (
               <option key={nombre} value={i + 1}>{nombre}</option>
             ))}
           </Select>
-          <Select value={year} onChange={(e) => setYear(Number(e.target.value))} className="w-auto">
+          <Select
+            value={year}
+            onChange={(e) => {
+              if (editingId !== null) cancelarEdicionPorCambioDePeriodo();
+              setYear(Number(e.target.value));
+            }}
+            className="w-auto"
+          >
             {ANIOS.map((a) => (
               <option key={a} value={a}>{a}</option>
             ))}
@@ -245,6 +433,37 @@ export default function FinanzasDnxGastosPage() {
           {copiaMensaje}
         </div>
       )}
+
+      <Card className="p-6">
+        <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+          <div className="flex-1">
+            <h2 className="text-lg font-semibold text-gray-900">Dólar de {MESES[month - 1]} {year}</h2>
+            <p className="text-sm text-gray-500 mt-1">
+              Es el dólar tarjeta, que ya incluye impuestos — por eso el impuesto de la factura
+              queda en 0% cuando se usa este valor. No sumarle el 30% de nuevo.
+            </p>
+          </div>
+          <form onSubmit={handleGuardarFx} className="flex items-end gap-2">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Pesos por dólar</label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={fxValue}
+                onChange={(e) => setFxValue(e.target.value)}
+                placeholder="Ej: 1450.00"
+                className="w-40"
+              />
+            </div>
+            <Button type="submit" variant="secondary" disabled={fxSaving}>
+              {fxSaving ? "Guardando..." : "Guardar"}
+            </Button>
+          </form>
+        </div>
+        {fxError && <p className="text-sm text-red-700 mt-2">{fxError}</p>}
+        {fxMessage && <p className="text-sm text-green-700 mt-2">{fxMessage}</p>}
+      </Card>
 
       <div className="flex justify-end">
         <Button
@@ -268,39 +487,65 @@ export default function FinanzasDnxGastosPage() {
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Impuesto</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Costo real</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vencimiento</th>
+                <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-gray-500">Cargando...</td>
+                  <td colSpan={9} className="px-4 py-8 text-center text-gray-500">Cargando...</td>
                 </tr>
               ) : entries.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-gray-500">No hay gastos cargados este mes</td>
+                  <td colSpan={9} className="px-4 py-8 text-center text-gray-500">No hay gastos cargados este mes</td>
                 </tr>
               ) : (
-                entries.map((entry) => (
-                  <tr key={entry.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{entry.vendor?.name}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900 text-right">
-                      {(entry.amountOriginalMinor / 100).toLocaleString("es-AR", { minimumFractionDigits: 2 })}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-500">{entry.currency}</td>
-                    <td className="px-4 py-3 text-sm text-gray-500 text-right">
-                      {entry.fxRate != null ? entry.fxRate.toLocaleString("es-AR") : "—"}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-500 text-right">{entry.taxPercent}%</td>
-                    <td className="px-4 py-3 text-sm text-gray-900 font-medium text-right">
-                      {formatARS(entry.amountArsMinor / 100)}
-                    </td>
-                    <td className="px-4 py-3 text-sm">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${ESTADO_COLOR[entry.status] ?? "bg-gray-100 text-gray-800"}`}>
-                        {ESTADO_LABEL[entry.status] ?? entry.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))
+                entries.map((entry) => {
+                  const vencida = isOverdueUnpaid(
+                    entry.dueDate as unknown as string | null,
+                    entry.status as ExpenseStatus,
+                  );
+                  return (
+                    <tr key={entry.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{entry.vendor?.name}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900 text-right">
+                        {(entry.amountOriginalMinor / 100).toLocaleString("es-AR", { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-500">{entry.currency}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500 text-right">
+                        {entry.fxRate != null ? entry.fxRate.toLocaleString("es-AR") : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-500 text-right">{entry.taxPercent}%</td>
+                      <td className="px-4 py-3 text-sm text-gray-900 font-medium text-right">
+                        {formatARS(entry.amountArsMinor / 100)}
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${ESTADO_COLOR[entry.status] ?? "bg-gray-100 text-gray-800"}`}>
+                          {ESTADO_LABEL[entry.status] ?? entry.status}
+                        </span>
+                      </td>
+                      <td className={`px-4 py-3 text-sm ${vencida ? "text-red-700 font-semibold" : "text-gray-500"}`}>
+                        {entry.dueDate ? formatDueDate(entry.dueDate as unknown as string) : "—"}
+                        {vencida ? " · vencida" : ""}
+                      </td>
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
+                        <Button variant="outline" size="sm" onClick={() => iniciarEdicion(entry)}>
+                          Editar
+                        </Button>{" "}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-red-600 border-red-200 hover:bg-red-50"
+                          onClick={() => handleDelete(entry)}
+                          disabled={deletingId === entry.id}
+                        >
+                          {deletingId === entry.id ? "Borrando..." : "Borrar"}
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -308,7 +553,9 @@ export default function FinanzasDnxGastosPage() {
       </Card>
 
       <Card className="p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Cargar un gasto</h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          {editingId ? "Editar gasto" : "Cargar un gasto"}
+        </h2>
 
         {formError && (
           <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-red-800 text-sm mb-4">
@@ -392,6 +639,17 @@ export default function FinanzasDnxGastosPage() {
                 onChange={(e) => setForm({ ...form, taxPercent: e.target.value })}
               />
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Fecha de vencimiento (opcional)
+              </label>
+              <Input
+                type="date"
+                value={form.dueDate}
+                onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
+              />
+            </div>
           </div>
 
           <div>
@@ -404,9 +662,16 @@ export default function FinanzasDnxGastosPage() {
             />
           </div>
 
-          <Button type="submit" disabled={saving}>
-            {saving ? "Guardando..." : "Cargar gasto"}
-          </Button>
+          <div className="flex gap-2">
+            <Button type="submit" disabled={saving}>
+              {saving ? "Guardando..." : editingId ? "Guardar cambios" : "Cargar gasto"}
+            </Button>
+            {editingId && (
+              <Button type="button" variant="outline" onClick={iniciarNuevo}>
+                Cancelar edición
+              </Button>
+            )}
+          </div>
         </form>
       </Card>
     </div>

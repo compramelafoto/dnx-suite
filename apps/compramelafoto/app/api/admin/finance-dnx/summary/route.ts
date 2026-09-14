@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { Role } from "@prisma/client";
 import { buildMonthlySummary, type ExpenseStatus, type SummaryEntry } from "@repo/finance-control";
-import { previousPeriod } from "@/lib/finance-dnx/expense-form";
+import { findVendorsMissingThisPeriod } from "@/lib/finance-dnx/missing-vendors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -60,23 +60,9 @@ export async function GET(req: NextRequest) {
 
     // Aviso "te olvidaste de cargar esto": proveedores activos con gasto el
     // mes pasado que todavía no tienen ninguno cargado en el mes pedido.
-    const anterior = previousPeriod(year, month);
-    const cargadosEsteMs = new Set(entries.map((entry) => entry.vendorId));
-    const entradasMesAnterior = await prisma.expenseEntry.findMany({
-      where: {
-        periodYear: anterior.year,
-        periodMonth: anterior.month,
-        vendor: { active: true },
-        vendorId: { notIn: [...cargadosEsteMs] },
-      },
-      include: { vendor: true },
-    });
-
-    const faltantes = [
-      ...new Map(
-        entradasMesAnterior.map((entry) => [entry.vendorId, { id: entry.vendor.id, key: entry.vendor.key, name: entry.vendor.name }]),
-      ).values(),
-    ];
+    // Misma función que usa el correo diario, para que pantalla y correo
+    // nunca se contradigan sobre qué proveedor falta.
+    const faltantes = await findVendorsMissingThisPeriod({ year, month });
 
     return NextResponse.json({ summary, faltantes, accumulatedDebtArsMinor });
   } catch (err: any) {
