@@ -2,6 +2,7 @@ import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
+import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
@@ -145,6 +146,23 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
       "Cinco estilos de menú",
       "Tipografías y botones",
       "Borrador y publicación por versiones",
+    ],
+  },
+  {
+    key: COVERAGES_MODULE_KEY,
+    // Repite el 10 de "Presupuestos" en EN_CONSTRUCCION. Son secciones distintas y el número
+    // es decorativo; correr esa serie no se puede porque `lib/landing/tipos.ts` apunta a sus
+    // cuadros por número.
+    cuadro: "10",
+    nombre: "Solicitudes y Coberturas",
+    resuelve:
+      "Alguien te pide una cobertura por un formulario público y el pedido entra acá con todo: qué actividad es, cuándo, dónde y qué necesitan. Lo evaluás, pedís lo que falte y decidís. Quien lo pidió sigue su pedido por un enlace privado, sin tener que crearse una cuenta ni llamar para preguntar cómo viene.",
+    pantallas: [
+      "Formulario público de pedidos",
+      "Bandeja de solicitudes",
+      "Evaluación con notas internas",
+      "Seguimiento por enlace privado",
+      "Historial de cada cambio",
     ],
   },
 ];
