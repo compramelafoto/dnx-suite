@@ -170,12 +170,20 @@ export default async function CatalogoPage({
                           {p.tracksStock ? p.stockQty : "—"}
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <Link
-                            href={`/ventas/catalogo/${p.id}`}
-                            className="font-medium text-[var(--fo-accent)] hover:underline"
-                          >
-                            {puedeEditar ? "Editar" : "Ver"}
-                          </Link>
+                          {/* La ficha exige ADMIN+ (`requireSalesAdmin`): a quien atiende el
+                              mostrador ofrecerle un link que va a rebotar sin aviso es peor
+                              que no ofrecerle nada. El guardia de la ficha no se toca; esto
+                              sólo evita el clic que no lleva a ningún lado. */}
+                          {puedeEditar ? (
+                            <Link
+                              href={`/ventas/catalogo/${p.id}`}
+                              className="font-medium text-[var(--fo-accent)] hover:underline"
+                            >
+                              Editar
+                            </Link>
+                          ) : (
+                            <span className="text-[var(--fo-muted)]">—</span>
+                          )}
                         </td>
                       </tr>
                     );
