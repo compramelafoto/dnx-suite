@@ -188,8 +188,27 @@ export async function recordSale(
   const clientId = await resolveSaleClient(tx, input.workspaceId, input.createdByUserId, input.client);
 
   // El número correlativo se calcula leyendo el último y sumando uno, con reintento ante
-  // choque del índice único `(workspaceId, saleNumber)` — mismo patrón que `clientNumber`
-  // en `lib/clients/find-or-create.ts`.
+  // choque del índice único `(workspaceId, saleNumber)` — mismo criterio que `clientNumber`
+  // (`lib/clients/find-or-create.ts`), pero NO con la misma implementación.
+  //
+  // Ahí el `create` se envuelve en un `try/catch` de P2002 porque `findOrCreateClient` corre
+  // dentro de la transacción de QUIEN LO LLAMA sin abrir la suya propia — pero mirá
+  // `app/(shell)/clientes/actions.ts`: `saveClientAction`, el alta suelta de un cliente desde
+  // su propia pantalla, ni siquiera abre `$transaction`, así que cada `create` es su propia
+  // sentencia autónoma y un P2002 no deja nada abortado. Acá NO: este `for` corre dentro del
+  // `$transaction` que abre `checkoutAction`, junto con el descuento de stock y el depósito en
+  // Caja — los tres tienen que nacer juntos o no nacer (ver el comentario de arriba del
+  // archivo). En PostgreSQL, un error DENTRO de un `BEGIN…COMMIT` aborta la transacción
+  // ENTERA: la sentencia siguiente no corre, revienta con "current transaction is aborted"
+  // (25P02), y el `catch` nunca llega a ver el P2002 limpio que espera — el reintento no podía
+  // funcionar nunca. Es el MISMO defecto que ya se corrigió en `lib/sales/global-catalog.ts`
+  // (Tarea 5) para `upsertGlobalProduct`, con el mismo arreglo: `createMany` + `skipDuplicates`
+  // compila a `ON CONFLICT DO NOTHING`, así que un choque de unicidad deja de ser un error de
+  // SQL y la transacción sigue viva para releer y reintentar con el próximo número. Ésta es la
+  // TERCERA vez que este proyecto tropieza con la misma familia de bug (welcome de vuelta,
+  // "un `catch` de P2002 no puede vivir dentro de una transacción interactiva"): si en algún
+  // momento esto "se simplifica" de vuelta a un `create` con `catch`, va a romperse apenas dos
+  // cajas cobren al mismo tiempo, y las pruebas con una sola caja nunca lo van a notar.
   let creada: { id: string; saleNumber: number } | null = null;
   for (let intento = 0; intento < 3 && !creada; intento++) {
     const ultima = await tx.sale.findFirst({
@@ -198,9 +217,10 @@ export async function recordSale(
       select: { saleNumber: true },
     });
     const saleNumber = nextSaleNumber(ultima?.saleNumber ?? null);
-    try {
-      creada = await tx.sale.create({
-        data: {
+
+    const resultado = await tx.sale.createMany({
+      data: [
+        {
           workspaceId: input.workspaceId,
           saleNumber,
           clientId,
@@ -211,28 +231,43 @@ export async function recordSale(
           paymentMethod: input.paymentMethod,
           note: input.note,
           createdByUserId: input.createdByUserId,
-          items: {
-            create: input.lines.map((line) => ({
-              productId: line.productId,
-              description: line.description,
-              qty: line.qty,
-              unitPriceArs: minorToDecimalString(line.unitPriceMinor),
-              unitCostArs: line.unitCostMinor === null ? null : minorToDecimalString(line.unitCostMinor),
-              lineTotalArs: minorToDecimalString(lineTotalMinor(line)),
-              priceWasOverridden: line.priceWasOverridden,
-            })),
-          },
         },
+      ],
+      skipDuplicates: true,
+    });
+
+    if (resultado.count === 1) {
+      // Ganamos la carrera con este número. `createMany` no devuelve el `id` que Prisma le
+      // generó (a diferencia de `create`), así que se relee por el único compuesto que
+      // acabamos de asegurar.
+      creada = await tx.sale.findUniqueOrThrow({
+        where: { workspaceId_saleNumber: { workspaceId: input.workspaceId, saleNumber } },
         select: { id: true, saleNumber: true },
       });
-    } catch (e) {
-      const choque = e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
-      if (!choque) throw e;
     }
+    // `count === 0`: otra caja tomó este número un instante antes (`ON CONFLICT DO NOTHING`
+    // descartó la fila). Se reintenta con el próximo número, sin que esto haya sido un error.
   }
   if (!creada) {
     throw new Error("No se pudo asignar un número de venta después de tres intentos.");
   }
+  const saleId = creada.id;
+
+  // Los renglones van aparte: `createMany` no admite `items: { create: [...] }` anidado como
+  // sí admitía el `create` que reemplaza. `saleId` ya es conocido porque la fila de `Sale`
+  // existe.
+  await tx.saleItem.createMany({
+    data: input.lines.map((line) => ({
+      saleId,
+      productId: line.productId,
+      description: line.description,
+      qty: line.qty,
+      unitPriceArs: minorToDecimalString(line.unitPriceMinor),
+      unitCostArs: line.unitCostMinor === null ? null : minorToDecimalString(line.unitCostMinor),
+      lineTotalArs: minorToDecimalString(lineTotalMinor(line)),
+      priceWasOverridden: line.priceWasOverridden,
+    })),
+  });
 
   await descontarStock(tx, input.workspaceId, creada.id, input.createdByUserId, input.lines);
 
