@@ -81,14 +81,25 @@ async function acreditar(ordenId: string, mpPaymentId: string) {
 
   const orden = await prisma.subilafotoOrder.findUnique({
     where: { id: ordenId },
-    select: {
-      sellerProfileId: true,
-      buyerName: true,
-      eventId: true,
-      sellerProfile: { select: { displayName: true } },
-    },
+    select: { kind: true, sellerProfileId: true, buyerName: true, eventId: true },
   });
-  if (!orden || orden.eventId) return { accion: "PAGAR", yaEstaba: false };
+  if (!orden) return { accion: "PAGAR", yaEstaba: false };
+
+  /*
+    El adicional de descarga no crea ningún evento: se compra sobre uno que ya existe. Lo
+    único que cambia es que ese evento pasa a tener la descarga comprada, y de ahí sale la
+    generación del paquete.
+  */
+  if (orden.kind === "DOWNLOAD_ADDON") {
+    if (!orden.eventId) return { accion: "PAGAR", yaEstaba: false };
+    await prisma.subilafotoEvent.updateMany({
+      where: { id: orden.eventId, downloadStatus: { notIn: ["PURCHASED", "DELIVERED"] } },
+      data: { downloadStatus: "PURCHASED" },
+    });
+    return { accion: "PAGAR", yaEstaba: false, descargaComprada: true };
+  }
+
+  if (orden.eventId) return { accion: "PAGAR", yaEstaba: false };
 
   /*
     El evento nace sin fecha: la pone el cliente al configurarlo. Crearlo con una fecha

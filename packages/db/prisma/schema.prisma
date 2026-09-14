@@ -17324,7 +17324,8 @@ model SubilafotoSellerProfile {
 model SubilafotoOrder {
   id               String                @id @default(cuid())
   sellerProfileId  String
-  eventId          String?               @unique
+  /// Sin `@unique`: un evento tiene su orden de venta y, si se compra, la del adicional.
+  eventId          String?
   kind             SubilafotoOrderKind
   status           SubilafotoOrderStatus @default(PENDING)
   buyerEmail       String
@@ -17347,6 +17348,7 @@ model SubilafotoOrder {
   event         SubilafotoEvent?        @relation(fields: [eventId], references: [id])
 
   @@index([sellerProfileId])
+  @@index([eventId])
   @@index([status, kind])
   @@index([buyerEmail])
 }
@@ -17395,7 +17397,7 @@ model SubilafotoEvent {
 
   sellerProfile SubilafotoSellerProfile  @relation(fields: [sellerProfileId], references: [id])
   template      SubilafotoTemplate?      @relation(fields: [templateId], references: [id])
-  order         SubilafotoOrder?
+  orders        SubilafotoOrder[]
   media         SubilafotoMedia[]
   guests        SubilafotoGuestSession[]
   screens       SubilafotoScreen[]
