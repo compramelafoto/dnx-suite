@@ -9,6 +9,7 @@ import { parseCategoryForm } from "@/lib/sales/category-form";
 import { findGlobalByBarcode, upsertGlobalProduct } from "@/lib/sales/global-catalog";
 import { globalFieldsFromProduct, prefillFromGlobal, type ProductPrefill } from "@/lib/sales/global-catalog-fields";
 import { requireSalesAdmin, requireSalesStaff } from "@/lib/sales/access";
+import { findProductByCode, listProducts, type ProductRow } from "@/lib/sales/repository";
 import { validateTicket } from "@/lib/sales/ticket";
 import {
   buildTicketLines,
@@ -181,6 +182,43 @@ export async function lookupGlobalProductAction(formData: FormData): Promise<Pro
   const barcode = String(formData.get("barcode") ?? "");
   const global = await findGlobalByBarcode(barcode);
   return prefillFromGlobal(global);
+}
+
+/**
+ * Busca UN producto por código exacto —sku o código de barras—, para cuando el Enter del
+ * lector no encontró nada entre los productos que `page.tsx` ya precargó en pantalla.
+ *
+ * `listProducts` corta en 200 (ver el comentario en `lib/sales/repository.ts`) y la pantalla
+ * nunca vuelve a pedir el catálogo entero: con más de 200 productos activos, el resto es
+ * invisible para la grilla y para el lector por igual. `findProductByCode` —la interfaz que
+ * la Tarea 6 construyó exactamente para este caso, con la normalización del código de barras
+ * ya adentro— es la puerta más chica posible para tapar ese agujero: una acción de servidor
+ * que la pantalla llama sólo cuando de verdad hace falta (no encontró nada localmente), no un
+ * endpoint nuevo ni un cambio de arquitectura.
+ */
+export async function findProductByCodeAction(code: string): Promise<ProductRow | null> {
+  const { workspace } = await requireSalesStaff();
+  return findProductByCode(workspace.id, code);
+}
+
+/**
+ * Busca productos por texto en el servidor, sin el techo de 200 de la precarga.
+ *
+ * Mismo motivo que `findProductByCodeAction`: un negocio con un catálogo mediano tiene
+ * productos que la pantalla nunca llegó a traer. La pantalla dispara esto con lo que se va
+ * tipeando (con una demora corta del lado del cliente, para no pegarle a la base en cada
+ * tecla) y usa el resultado en vez de filtrar sólo el array precargado.
+ */
+export async function searchProductsAction(input: {
+  search: string;
+  categoryId?: string;
+}): Promise<ProductRow[]> {
+  const { workspace } = await requireSalesStaff();
+  return listProducts(workspace.id, {
+    search: input.search,
+    categoryId: input.categoryId || undefined,
+    onlyActive: true,
+  });
 }
 
 export type CheckoutInput = {

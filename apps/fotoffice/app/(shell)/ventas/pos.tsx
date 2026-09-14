@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Package } from "lucide-react";
 import { formatMinorArs, parseArsToMinor } from "@/lib/membership/money";
 import { ticketTotals, validateTicket, type TicketLine } from "@/lib/sales/ticket";
@@ -8,7 +8,7 @@ import { normalizeBarcode } from "@/lib/sales/barcode";
 import { SALE_PAYMENT_METHODS, type SalePaymentMethod } from "@/lib/sales/constants";
 import type { ProductCategoryRow, ProductRow } from "@/lib/sales/repository";
 import type { ClientRow } from "@/lib/clients/repository";
-import { checkoutAction, type CheckoutInput } from "./actions";
+import { checkoutAction, findProductByCodeAction, searchProductsAction, type CheckoutInput } from "./actions";
 
 const ETIQUETA_PAGO: Record<SalePaymentMethod, string> = {
   EFECTIVO: "Efectivo",
@@ -73,10 +73,18 @@ export function Pos({
   const [ultimaVenta, setUltimaVenta] = useState<{ saleNumber: number; deposited: boolean } | null>(null);
   const [procesando, startTransition] = useTransition();
 
+  // `products` es sólo lo que `page.tsx` precargó —como mucho 200, ver el comentario de
+  // `listProducts` en `lib/sales/repository.ts`— y la pantalla nunca lo vuelve a pedir
+  // completo. `serverResults` es la respuesta AUTORITATIVA del servidor para el texto
+  // actual, sin ese techo: mientras no llega (o no hay texto tipeado), se muestra el
+  // filtro local, que es instantáneo pero puede no tener el producto 250.
+  const [serverResults, setServerResults] = useState<ProductRow[] | null>(null);
+  const [buscando, startSearchTransition] = useTransition();
+
   const discountMinor = parseArsToMinor(discountText) ?? 0;
   const totals = ticketTotals(rows, discountMinor);
 
-  const filtrados = useMemo(() => {
+  const filtradosLocal = useMemo(() => {
     const q = search.trim().toLowerCase();
     return products.filter((p) => {
       if (categoryId && p.categoryId !== categoryId) return false;
@@ -88,6 +96,27 @@ export function Pos({
       );
     });
   }, [products, search, categoryId]);
+
+  const filtrados = search.trim() === "" ? filtradosLocal : (serverResults ?? filtradosLocal);
+
+  // Búsqueda en el servidor, con una demora corta para no pegarle a la base en cada tecla.
+  // Corre siempre que hay texto —no sólo cuando el filtro local viene vacío— porque un
+  // catálogo de 350 productos puede tener coincidencias locales Y coincidencias más allá del
+  // producto 200 al mismo tiempo, y las dos tienen que verse.
+  useEffect(() => {
+    const q = search.trim();
+    // Con el campo vacío no hace falta pedir ni limpiar nada: `filtrados` ya ignora
+    // `serverResults` cuando no hay texto (ver más arriba), así que un resultado viejo acá
+    // sentado no se llega a mostrar.
+    if (q === "") return;
+    const id = setTimeout(() => {
+      startSearchTransition(async () => {
+        const resultados = await searchProductsAction({ search: q, categoryId: categoryId || undefined });
+        setServerResults(resultados);
+      });
+    }, 250);
+    return () => clearTimeout(id);
+  }, [search, categoryId]);
 
   function limpiarAviso() {
     setError(null);
@@ -127,6 +156,13 @@ export function Pos({
    * guardar en `product-form.ts`): la base sólo guarda dígitos, pero el lector —o una persona
    * que copia el código a mano— puede mandar un espacio o un guión de más, y sin normalizar
    * ninguno de los dos lados coincide nunca.
+   *
+   * Primero se busca LOCAL —en `products` (los primeros 200) y en `serverResults` (lo que ya
+   * trajo la búsqueda en vivo, si el texto también coincide por nombre)—, porque no tiene
+   * demora. Si no hay nada ahí, el producto puede seguir existiendo más allá del tope de 200:
+   * se le pregunta directo al servidor con `findProductByCodeAction`, que envuelve
+   * `findProductByCode` (Tarea 6) y ya normaliza el código de barras adentro. Sin este último
+   * paso, escanear el producto 201 no hacía nada, en silencio.
    */
   function onSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key !== "Enter") return;
@@ -134,14 +170,25 @@ export function Pos({
     const texto = search.trim();
     if (texto === "") return;
     const codigoBarras = normalizeBarcode(texto);
-    const match = products.find(
-      (p) => p.sku === texto || (codigoBarras !== null && p.barcode === codigoBarras),
-    );
-    if (match) {
-      agregarProducto(match);
+    const coincideCodigo = (p: ProductRow) =>
+      p.sku === texto || (codigoBarras !== null && p.barcode === codigoBarras);
+
+    const local = products.find(coincideCodigo) ?? serverResults?.find(coincideCodigo);
+    if (local) {
+      agregarProducto(local);
       setSearch("");
+      searchRef.current?.focus();
+      return;
     }
-    searchRef.current?.focus();
+
+    startSearchTransition(async () => {
+      const encontrado = await findProductByCodeAction(texto);
+      if (encontrado) {
+        agregarProducto(encontrado);
+        setSearch("");
+      }
+      searchRef.current?.focus();
+    });
   }
 
   function actualizarCantidad(key: string, qty: number) {
@@ -263,6 +310,7 @@ export function Pos({
             className="fo-input text-base"
             placeholder="Escaneá un código, o buscá por nombre…"
           />
+          {buscando ? <p className="fo-helper">Buscando en todo el catálogo…</p> : null}
           {categories.length > 0 ? (
             <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="fo-input">
               <option value="">Todas las categorías</option>
