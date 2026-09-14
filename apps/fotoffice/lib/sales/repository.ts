@@ -95,13 +95,14 @@ function toProductRow(r: ProductRowRecord): ProductRow {
  */
 export async function listProducts(
   workspaceId: string,
-  opts: { search?: string; categoryId?: string; onlyActive?: boolean } = {},
+  opts: { search?: string; categoryId?: string; onlyActive?: boolean; tracksStock?: boolean } = {},
 ): Promise<ProductRow[]> {
   const q = opts.search?.trim();
   const rows = await prisma.product.findMany({
     where: {
       workspaceId,
       ...(opts.onlyActive ? { isActive: true } : {}),
+      ...(opts.tracksStock ? { tracksStock: true } : {}),
       ...(opts.categoryId ? { categoryId: opts.categoryId } : {}),
       ...(q
         ? {

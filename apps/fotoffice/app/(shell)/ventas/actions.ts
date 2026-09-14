@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma, Prisma } from "@repo/db";
-import { decimalArsToMinor, minorToDecimalString } from "@/lib/membership/money";
+import { decimalArsToMinor, minorToDecimalString, parseArsToMinor } from "@/lib/membership/money";
 import { parseProductForm } from "@/lib/sales/product-form";
 import { parseCategoryForm } from "@/lib/sales/category-form";
 import { findGlobalByBarcode, upsertGlobalProduct } from "@/lib/sales/global-catalog";
@@ -19,8 +19,10 @@ import {
 } from "@/lib/sales/checkout";
 import { recordSale } from "@/lib/sales/record-sale";
 import { SALE_PAYMENT_METHODS, type SalePaymentMethod } from "@/lib/sales/constants";
+import { adjustmentQty, validateAdjustment, validateStockEntry } from "@/lib/sales/stock";
 
 const CATALOGO = "/ventas/catalogo";
+const STOCK = "/ventas/stock";
 
 /**
  * Alta y edición de un producto.
@@ -307,4 +309,102 @@ export async function checkoutAction(input: CheckoutInput): Promise<CheckoutResu
     console.error("[fotoffice][ventas] error al cobrar", e);
     return { ok: false, error: "No se pudo registrar la venta. Probá de nuevo." };
   }
+}
+
+/**
+ * Cargar una entrada de mercadería.
+ *
+ * Sólo suma (§regla 3 de la Tarea 8: la entrada nunca resta, para eso está el ajuste, que
+ * deja la nota). Escribe el `StockMovement` con motivo `ENTRADA` y actualiza la copia en
+ * `Product.stockQty` en la MISMA transacción: si se separaran, el catálogo mostraría un
+ * número y el libro otro, y nadie sabría cuál creer.
+ *
+ * Vender STAFF+ ya carga y ajusta stock desde este mismo mostrador (`requireSalesStaff`, no
+ * `requireSalesAdmin`): recibir mercadería y contar son tareas del día a día, no de
+ * administración del catálogo.
+ */
+export async function recordStockEntryAction(formData: FormData): Promise<void> {
+  const { workspace, user } = await requireSalesStaff();
+  const productId = String(formData.get("productId") ?? "").trim();
+  const qty = Number(formData.get("qty"));
+  const costoTexto = String(formData.get("unitCostArs") ?? "").trim();
+  const unitCostMinor = costoTexto === "" ? null : parseArsToMinor(costoTexto);
+  if (costoTexto !== "" && unitCostMinor === null) {
+    redirect(`${STOCK}?error=${encodeURIComponent("El costo no se entiende.")}`);
+  }
+
+  const check = validateStockEntry({ qty, unitCostMinor });
+  if (!check.ok) redirect(`${STOCK}?error=${encodeURIComponent(check.error)}`);
+
+  // El mismo `count` contra el workspace que ya usa `saveProductAction`: la fuga de
+  // aislamiento que se coló en la Tarea 6 con una categoría ajena no se repite acá con un
+  // producto ajeno.
+  const propio = await prisma.product.count({ where: { id: productId, workspaceId: workspace.id } });
+  if (propio === 0) redirect(`${STOCK}?error=${encodeURIComponent("Ese producto no existe.")}`);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.stockMovement.create({
+      data: {
+        workspaceId: workspace.id,
+        productId,
+        qty,
+        reason: "ENTRADA",
+        unitCostArs: unitCostMinor === null ? null : minorToDecimalString(unitCostMinor),
+        sourceModule: "sales",
+        createdByUserId: user.id,
+      },
+    });
+    await tx.product.update({ where: { id: productId }, data: { stockQty: { increment: qty } } });
+  });
+
+  revalidatePath(STOCK);
+  redirect(`${STOCK}?ok=1`);
+}
+
+/**
+ * Ajustar la existencia después de un conteo.
+ *
+ * `adjustmentQty` calcula cuánto mover a partir de lo que el libro dice hoy y de lo que se
+ * contó; el movimiento queda firmado (puede sumar o restar) con motivo `AJUSTE` y la nota
+ * que `validateAdjustment` ya exigió (§regla 2: un ajuste sin explicación no se entiende tres
+ * meses después). Se escribe siempre, incluso cuando el conteo coincide con el libro y el
+ * movimiento resulta en cero: eso también es información —confirma que alguien contó ese
+ * día y que estaba bien— y la nota queda de todos modos.
+ */
+export async function recordAdjustmentAction(formData: FormData): Promise<void> {
+  const { workspace, user } = await requireSalesStaff();
+  const productId = String(formData.get("productId") ?? "").trim();
+  const countedQty = Number(formData.get("countedQty"));
+  const note = String(formData.get("note") ?? "").trim() || null;
+
+  const check = validateAdjustment({ countedQty, note });
+  if (!check.ok) redirect(`${STOCK}?error=${encodeURIComponent(check.error)}`);
+
+  // `findFirst`, no `count`: además de confirmar que el producto es de ESTE workspace, hace
+  // falta la existencia actual para calcular cuánto mover.
+  const producto = await prisma.product.findFirst({
+    where: { id: productId, workspaceId: workspace.id },
+    select: { stockQty: true },
+  });
+  if (!producto) redirect(`${STOCK}?error=${encodeURIComponent("Ese producto no existe.")}`);
+
+  const qty = adjustmentQty({ currentQty: producto.stockQty, countedQty });
+
+  await prisma.$transaction(async (tx) => {
+    await tx.stockMovement.create({
+      data: {
+        workspaceId: workspace.id,
+        productId,
+        qty,
+        reason: "AJUSTE",
+        note,
+        sourceModule: "sales",
+        createdByUserId: user.id,
+      },
+    });
+    await tx.product.update({ where: { id: productId }, data: { stockQty: { increment: qty } } });
+  });
+
+  revalidatePath(STOCK);
+  redirect(`${STOCK}?ok=1`);
 }
