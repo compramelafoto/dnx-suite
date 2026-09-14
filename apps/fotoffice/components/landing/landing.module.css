@@ -1,0 +1,1194 @@
+/*
+ * La portada pública de FOTOFFICE.
+ *
+ * ── De dónde salen los colores ──
+ *
+ * Del logo, muestreado pixel a pixel: el azul eléctrico del diafragma (#0286FF), el azul marino
+ * profundo de las hojas en sombra (#0B2650), el celeste del brillo (#A5FAFF) y el amarillo del
+ * tilde sobre el maletín (#FFE400). El logo es un cartel retroiluminado, así que el azul de la
+ * página también ilumina: los resplandores no son adorno de moda, son la misma luz de la marca.
+ *
+ * ── De dónde sale la forma ──
+ *
+ * El sistema es una grilla de módulos que cada organización enciende por separado. La hoja de
+ * contactos —la tira de negativos con los cuadros numerados y los elegidos marcados— es
+ * exactamente eso, y es del oficio del que va a leer la página. Por eso los números de cuadro no
+ * son decoración: los fotogramas de un rollo van numerados de verdad.
+ *
+ * Lo que marca un cuadro elegido es el tilde amarillo del logo, el mismo que está sobre el
+ * maletín. Es la marca de la casa diciendo "este va".
+ *
+ * Estilos propios de esta pantalla, aislados en un módulo CSS: no tocan el design system
+ * `--fo-*` de la aplicación, que está pensado para el panel de trabajo y no para vender.
+ */
+
+.pagina {
+  /* Azules del diafragma. */
+  --azul: #0a8cff;
+  --azul-700: #0270d8;
+  --azul-300: #6cc0ff;
+  --celeste: #a5faff;
+  --celeste-suave: #e4f2ff;
+
+  /* Azul marino de las hojas en sombra. Es la tinta de la página. */
+  --navy-900: #061426;
+  --navy-800: #0b2650;
+  --navy-700: #14396e;
+
+  /* El tilde del maletín. Marca lo elegido y nada más. */
+  --ambar: #ffd400;
+  --ambar-700: #e8a900;
+
+  --papel: #edf3fb;
+  --blanco: #ffffff;
+  --ink: #0b2650;
+  --ink-2: #3e5c85;
+  --ink-3: #7590b4;
+  --borde: #d7e3f3;
+  --borde-fino: #e7eff9;
+
+  --r: 14px;
+  --r-sm: 10px;
+
+  background: var(--papel);
+  color: var(--ink);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  overflow-x: clip;
+}
+
+.pagina :where(h1, h2, h3, .cuadroNombre, .pasoTitulo, .puertaTitulo) {
+  font-family: var(--font-archivo), var(--font-geist-sans), ui-sans-serif, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.022em;
+}
+
+.ancho {
+  width: 100%;
+  max-width: 1160px;
+  margin-inline: auto;
+  padding-inline: 22px;
+}
+
+/* ─────────────────────────── Barra superior ─────────────────────────── */
+
+.barra {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: color-mix(in srgb, var(--papel) 86%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--borde);
+}
+
+.barraFila {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  min-height: 64px;
+}
+
+.barraMarca {
+  display: inline-flex;
+  align-items: center;
+  margin-right: auto;
+  border-radius: 6px;
+}
+
+.barraNav {
+  display: none;
+  gap: 24px;
+  align-items: center;
+}
+
+.barraNav a {
+  color: var(--ink-2);
+  text-decoration: none;
+  font-size: 0.9rem;
+  transition: color 140ms ease;
+}
+
+.barraNav a:hover {
+  color: var(--azul-700);
+}
+
+@media (min-width: 880px) {
+  .barraNav {
+    display: flex;
+  }
+}
+
+/* ─────────────────────────── Botones ─────────────────────────── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 0 22px;
+  border-radius: var(--r-sm);
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform 140ms ease, box-shadow 140ms ease, background-color 140ms ease,
+    border-color 140ms ease, color 140ms ease;
+}
+
+.btnPrimario {
+  background: linear-gradient(180deg, #2f9dff, var(--azul-700));
+  color: #ffffff;
+  box-shadow: 0 8px 20px rgba(10, 140, 255, 0.3);
+}
+
+.btnPrimario:hover {
+  box-shadow: 0 10px 26px rgba(10, 140, 255, 0.42);
+  transform: translateY(-1px);
+}
+
+.btnSecundario {
+  background: var(--blanco);
+  color: var(--ink);
+  border-color: var(--borde);
+  box-shadow: 0 2px 6px rgba(11, 38, 80, 0.05);
+}
+
+.btnSecundario:hover {
+  border-color: var(--azul-300);
+  color: var(--azul-700);
+}
+
+.btnClaro {
+  background: linear-gradient(180deg, #ffffff, #e8f3ff);
+  color: var(--navy-800);
+  box-shadow: 0 8px 24px rgba(10, 140, 255, 0.28);
+}
+
+.btnClaro:hover {
+  transform: translateY(-1px);
+}
+
+.pagina :where(a, button):focus-visible {
+  outline: 2px solid var(--azul);
+  outline-offset: 3px;
+}
+
+/* ─────────────────────────── Portada ─────────────────────────── */
+
+.hero {
+  position: relative;
+  padding-block: clamp(56px, 9vw, 104px) 0;
+}
+
+/* La misma luz del logo: un resplandor azul detrás del titular. */
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: -14% -10% 34% 10%;
+  background: radial-gradient(
+    46% 62% at 68% 34%,
+    rgba(10, 140, 255, 0.22),
+    rgba(10, 140, 255, 0) 68%
+  );
+  pointer-events: none;
+}
+
+.heroFila {
+  position: relative;
+  display: grid;
+  gap: 40px;
+  align-items: center;
+}
+
+@media (min-width: 1040px) {
+  .heroFila {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  }
+}
+
+.heroTitulo {
+  font-size: clamp(2.5rem, 6.6vw, 4.6rem);
+  line-height: 0.98;
+  letter-spacing: -0.035em;
+  max-width: 14ch;
+  margin: 0;
+  text-wrap: balance;
+}
+
+.heroBajada {
+  margin: 26px 0 0;
+  font-size: clamp(1.05rem, 1.7vw, 1.28rem);
+  line-height: 1.55;
+  color: var(--ink-2);
+  max-width: 54ch;
+}
+
+.heroAcciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 32px;
+}
+
+.heroPie {
+  margin: 18px 0 0;
+  font-size: 0.85rem;
+  color: var(--ink-3);
+  max-width: 52ch;
+  line-height: 1.6;
+}
+
+/* El diafragma del logo, en grande y apenas encendido. */
+.heroDiafragma {
+  display: none;
+  position: relative;
+  justify-self: end;
+  margin-right: -70px;
+  color: var(--azul);
+}
+
+.heroDiafragma svg {
+  opacity: 0.22;
+  filter: drop-shadow(0 0 46px rgba(10, 140, 255, 0.55));
+}
+
+.heroDiafragma::after {
+  content: "";
+  position: absolute;
+  inset: 18%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(165, 250, 255, 0.28), rgba(10, 140, 255, 0) 70%);
+}
+
+@media (min-width: 1040px) {
+  .heroDiafragma {
+    display: block;
+  }
+}
+
+
+/* ─────────────────────────── La pregunta ─────────────────────────── */
+
+/*
+ * La portada entera es una pregunta. Todo lo demás aparece recién cuando se contesta, así que
+ * esta pantalla tiene que bastarse sola: alto de sobra, una sola jerarquía y siete respuestas
+ * del mismo peso visual, para que ninguna parezca la correcta.
+ */
+.pregunta {
+  position: relative;
+  padding-block: clamp(44px, 7vw, 84px) clamp(44px, 6vw, 76px);
+}
+
+.pregunta::before {
+  content: "";
+  position: absolute;
+  inset: -10% -10% 20% 10%;
+  background: radial-gradient(
+    44% 60% at 66% 30%,
+    rgba(10, 140, 255, 0.2),
+    rgba(10, 140, 255, 0) 68%
+  );
+  pointer-events: none;
+}
+
+/* Ya contestada, la pregunta ocupa un renglón: el aire de la pantalla inicial acá sobra. */
+.preguntaCompacta {
+  padding-block: 26px 24px;
+}
+
+.preguntaMarca {
+  position: relative;
+  margin: 0 0 22px;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--ink-3);
+  max-width: 52ch;
+}
+
+.preguntaTitulo {
+  position: relative;
+  font-size: clamp(2.1rem, 5.4vw, 3.9rem);
+  line-height: 1.02;
+  letter-spacing: -0.034em;
+  margin: 0;
+  max-width: 19ch;
+  text-wrap: balance;
+}
+
+.preguntaBajada {
+  position: relative;
+  margin: 22px 0 0;
+  font-size: clamp(1rem, 1.5vw, 1.15rem);
+  line-height: 1.6;
+  color: var(--ink-2);
+  max-width: 60ch;
+}
+
+.tipos {
+  position: relative;
+  display: grid;
+  gap: 14px;
+  margin-top: 40px;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 680px) {
+  .tipos {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1040px) {
+  .tipos {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  /*
+   * Son siete: a tres columnas, el último quedaba solo con dos huecos al lado. En vez de
+   * dejar el agujero se acuesta y ocupa la fila entera. No es que valga más — es que una
+   * grilla con un pozo se lee como un error.
+   */
+  .tipoCard:last-child {
+    grid-column: span 3;
+    flex-direction: row;
+    align-items: center;
+    gap: 18px;
+    padding: 20px 24px;
+  }
+
+  .tipoCard:last-child .tipoLabel {
+    flex: 0 0 auto;
+  }
+
+  .tipoCard:last-child .tipoResumen {
+    max-width: 52ch;
+  }
+}
+
+.tipoCard {
+  appearance: none;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 24px 22px 26px;
+  border-radius: var(--r);
+  border: 1px solid var(--borde);
+  background: var(--blanco);
+  box-shadow: 0 2px 10px rgba(11, 38, 80, 0.05);
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+
+.tipoCard:hover {
+  border-color: var(--azul-300);
+  box-shadow: 0 12px 28px rgba(10, 140, 255, 0.18);
+  transform: translateY(-2px);
+}
+
+.tipoLabel {
+  font-family: var(--font-archivo), var(--font-geist-sans), sans-serif;
+  font-weight: 700;
+  font-size: 1.0625rem;
+  line-height: 1.25;
+  letter-spacing: -0.018em;
+  color: var(--ink);
+}
+
+.tipoResumen {
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+
+.escapes {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 20px;
+  margin-top: 32px;
+}
+
+.verTodo {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  color: var(--azul-700);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.verTodo:hover {
+  color: var(--ink);
+}
+
+/* Ya contestada: la pregunta se encoge a un renglón con la respuesta y cómo cambiarla. */
+.elegido {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 18px;
+}
+
+.elegidoLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--font-archivo), var(--font-geist-sans), sans-serif;
+  font-weight: 700;
+  font-size: clamp(1.125rem, 2.2vw, 1.5rem);
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.volver {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--blanco);
+  border: 1px solid var(--borde);
+  border-radius: 999px;
+  padding: 7px 15px 7px 12px;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: border-color 140ms ease, color 140ms ease;
+}
+
+.volver:hover {
+  border-color: var(--azul-300);
+  color: var(--azul-700);
+}
+
+/* ─────────────────────────── La respuesta ─────────────────────────── */
+
+.destacados {
+  display: grid;
+  gap: 16px;
+  margin-top: 40px;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 900px) {
+  .destacados {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.destacado {
+  position: relative;
+  background: var(--blanco);
+  border-radius: var(--r);
+  padding: 26px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 0 0 2px var(--azul), 0 16px 38px rgba(10, 140, 255, 0.34);
+}
+
+.destacado .tilde {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.destacadoPorque {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.62;
+  color: var(--ink-2);
+}
+
+.subtitulo {
+  margin: 48px 0 0;
+  font-size: 1.0625rem;
+  color: #d5e4f6;
+  letter-spacing: -0.01em;
+}
+
+.ademas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.ademasItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px 8px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(146, 196, 255, 0.2);
+  color: #dbe9fa;
+  font-size: 0.875rem;
+  text-decoration: none;
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+
+.ademasItem:hover {
+  background: rgba(10, 140, 255, 0.16);
+  border-color: rgba(108, 192, 255, 0.55);
+}
+
+.proximo {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-top: 36px;
+  padding: 18px 20px;
+  border-radius: var(--r-sm);
+  border: 1px dashed rgba(146, 196, 255, 0.28);
+}
+
+.proximo p {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: #a9c2e0;
+  max-width: 72ch;
+}
+
+.proximo strong {
+  color: #dbe9fa;
+  font-weight: 600;
+}
+
+.btnFantasma {
+  background: transparent;
+  color: #dbe9fa;
+  border-color: rgba(146, 196, 255, 0.35);
+}
+
+.btnFantasma:hover {
+  border-color: var(--azul-300);
+  color: #ffffff;
+}
+
+/* ─────────────────────────── Tira de película ─────────────────────────── */
+
+
+.tira {
+  position: relative;
+  background: linear-gradient(180deg, var(--navy-800), var(--navy-900));
+  padding-block: 42px 30px;
+  border-radius: 8px;
+  isolation: isolate;
+}
+
+/* Las perforaciones. Corren por el borde de la tira, no de cada cuadro. */
+.tira::before,
+.tira::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 9px;
+  background-image: repeating-linear-gradient(
+    90deg,
+    transparent 0 12px,
+    #a5c4e8 12px 27px,
+    transparent 27px 39px
+  );
+  opacity: 0.34;
+  pointer-events: none;
+}
+
+.tira::before {
+  top: 23px;
+}
+
+.tira::after {
+  bottom: 10px;
+}
+
+.tiraBorde {
+  position: absolute;
+  left: 24px;
+  top: 7px;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.5625rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--azul-300);
+  opacity: 0.75;
+  z-index: 2;
+}
+
+/* El índice de la portada: la tira chica que además lleva a cada módulo. */
+.indice {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 2px 22px 6px;
+  scrollbar-width: thin;
+  /* El desvanecido del borde derecho avisa que la tira sigue. Sin él parecía terminar ahí. */
+  mask-image: linear-gradient(to right, #000 calc(100% - 72px), transparent);
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 72px), transparent);
+}
+
+.indiceCuadro {
+  flex: 0 0 auto;
+  width: 148px;
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(146, 196, 255, 0.18);
+  border-radius: var(--r-sm);
+  padding: 14px 14px 16px;
+  text-decoration: none;
+  color: #eaf4ff;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: background-color 150ms ease, border-color 150ms ease, transform 150ms ease;
+}
+
+.indiceCuadro:hover {
+  background: rgba(10, 140, 255, 0.16);
+  border-color: rgba(108, 192, 255, 0.55);
+  transform: translateY(-2px);
+}
+
+.indiceNumero {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.625rem;
+  letter-spacing: 0.14em;
+  color: var(--azul-300);
+}
+
+.indiceNombre {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+/* ─────────────────────────── Baldosa de ícono ─────────────────────────── */
+
+.tile {
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  background: linear-gradient(150deg, #45aaff, var(--azul-700));
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(10, 140, 255, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.38);
+}
+
+.tileChico {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  box-shadow: 0 5px 12px rgba(10, 140, 255, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.38);
+}
+
+/* En los cuadros sin revelar la baldosa está apagada: no hay luz donde no hay módulo. */
+.tileApagada {
+  background: rgba(146, 196, 255, 0.12);
+  color: #7fa3d0;
+  box-shadow: none;
+}
+
+/* ─────────────────────────── Secciones ─────────────────────────── */
+
+.seccion {
+  padding-block: clamp(60px, 8vw, 100px);
+}
+
+.seccionBlanca {
+  background: var(--blanco);
+  border-block: 1px solid var(--borde);
+}
+
+.seccionOscura {
+  position: relative;
+  background: var(--navy-900);
+  color: #d5e4f6;
+  isolation: isolate;
+}
+
+.seccionOscura::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    60% 42% at 20% 0%,
+    rgba(10, 140, 255, 0.22),
+    rgba(10, 140, 255, 0) 70%
+  );
+  pointer-events: none;
+  z-index: -1;
+}
+
+.seccionOscura h2 {
+  color: #f2f8ff;
+}
+
+.tituloSeccion {
+  font-size: clamp(1.75rem, 3.6vw, 2.7rem);
+  line-height: 1.06;
+  letter-spacing: -0.028em;
+  margin: 0;
+  max-width: 20ch;
+  text-wrap: balance;
+}
+
+.textoSeccion {
+  margin: 18px 0 0;
+  font-size: 1.0625rem;
+  line-height: 1.65;
+  color: var(--ink-2);
+  max-width: 64ch;
+}
+
+.seccionOscura .textoSeccion {
+  color: #a9c2e0;
+}
+
+/* ─────────────────────────── Cómo funciona ─────────────────────────── */
+
+.pasos {
+  display: grid;
+  gap: 18px;
+  margin-top: 44px;
+}
+
+@media (min-width: 860px) {
+  .pasos {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.paso {
+  position: relative;
+  background: var(--blanco);
+  border: 1px solid var(--borde);
+  border-radius: var(--r);
+  padding: 28px 26px 30px;
+  box-shadow: 0 2px 10px rgba(11, 38, 80, 0.04);
+}
+
+.pasoCabeza {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.pasoNumero {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.6875rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ambar-700);
+}
+
+.pasoTitulo {
+  font-size: 1.1875rem;
+  margin: 0 0 10px;
+  letter-spacing: -0.015em;
+}
+
+.pasoTexto {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  color: var(--ink-2);
+}
+
+/* ─────────────────────────── Selector de perfil ─────────────────────────── */
+
+.selector {
+  margin-top: 34px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.opcion {
+  appearance: none;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(146, 196, 255, 0.26);
+  color: #cfe2f7;
+  border-radius: 999px;
+  padding: 10px 20px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 150ms ease, color 150ms ease, background 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.opcion:hover {
+  border-color: rgba(108, 192, 255, 0.6);
+  color: #ffffff;
+}
+
+.opcionActiva,
+.opcionActiva:hover {
+  background: linear-gradient(180deg, #2f9dff, var(--azul-700));
+  border-color: transparent;
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 8px 20px rgba(10, 140, 255, 0.38);
+}
+
+.resumenPerfil {
+  margin: 20px 0 0;
+  font-size: 1rem;
+  line-height: 1.65;
+  color: #a9c2e0;
+  max-width: 60ch;
+  min-height: 3.3em;
+}
+
+/* ─────────────────────────── Hoja de contactos ─────────────────────────── */
+
+.hoja {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 1fr;
+  padding-inline: 22px;
+}
+
+@media (min-width: 640px) {
+  .hoja {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1000px) {
+  .hoja {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.cuadro {
+  position: relative;
+  background: var(--blanco);
+  border-radius: var(--r);
+  padding: 24px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  scroll-margin-top: 86px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.5) inset;
+  transition: box-shadow 220ms ease, transform 220ms ease;
+}
+
+.cuadroCabeza {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.cuadroNumero {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.6875rem;
+  letter-spacing: 0.16em;
+  color: var(--ink-3);
+  margin-left: auto;
+}
+
+.cuadroNombre {
+  font-size: 1.1875rem;
+  line-height: 1.15;
+  margin: 0;
+  letter-spacing: -0.018em;
+  /* Declarado y no heredado: el cuadro es papel blanco aunque la sección sea oscura. */
+  color: var(--ink);
+}
+
+.cuadroResuelve {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.62;
+  color: var(--ink-2);
+}
+
+.cuadroPantallas {
+  list-style: none;
+  margin: auto 0 0;
+  padding: 16px 0 0;
+  border-top: 1px solid var(--borde-fino);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cuadroPantallas li {
+  font-size: 0.75rem;
+  line-height: 1.3;
+  color: #29456b;
+  background: var(--celeste-suave);
+  border-radius: 999px;
+  padding: 5px 11px;
+}
+
+/* Cuadro elegido: se enciende el borde y aparece el tilde del logo. */
+.cuadroMarcado {
+  box-shadow: 0 0 0 2px var(--azul), 0 14px 34px rgba(10, 140, 255, 0.32);
+}
+
+.tilde {
+  position: absolute;
+  top: -11px;
+  right: -11px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(150deg, #ffe24d, var(--ambar-700));
+  color: var(--navy-800);
+  box-shadow: 0 6px 16px rgba(232, 169, 0, 0.5);
+  opacity: 0;
+  transform: scale(0.4);
+  transition: opacity 140ms ease, transform 220ms cubic-bezier(0.34, 1.42, 0.6, 1);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.cuadroMarcado .tilde {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/*
+ * La invitación que cierra el catálogo.
+ *
+ * Ocupa las celdas que sobran en vez de dejar un hueco oscuro: con quince cuadros no sobra
+ * ninguna a tres columnas —así que se lleva una fila entera— y sobra una a dos columnas. El
+ * ancho del bloque es esa cuenta hecha CSS. Además es donde alguien decide, justo después de
+ * leerlo todo.
+ */
+.cta {
+  grid-column: span 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 28px 26px;
+  border-radius: var(--r);
+  background: linear-gradient(135deg, rgba(10, 140, 255, 0.2), rgba(10, 140, 255, 0.06));
+  border: 1px solid rgba(108, 192, 255, 0.32);
+}
+
+@media (min-width: 1000px) {
+  .cta {
+    grid-column: span 3;
+    /* Ocupa una fila entera, así que se acuesta: el texto a la izquierda y el botón a la
+       derecha, en vez de una tarjeta alta y medio vacía. */
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 32px;
+    padding: 26px 30px;
+  }
+
+  .ctaCopy {
+    display: grid;
+    gap: 8px;
+  }
+}
+
+.ctaCopy {
+  display: grid;
+  gap: 10px;
+}
+
+.ctaTitulo {
+  font-size: 1.25rem;
+  margin: 0;
+  color: #f2f8ff;
+  letter-spacing: -0.02em;
+  max-width: 24ch;
+}
+
+.ctaTexto {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: #b9d2ee;
+  max-width: 52ch;
+}
+
+/* Los cuadros sin revelar: lo que está previsto y todavía no anda. */
+.hojaVelada .cuadro {
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(146, 196, 255, 0.16);
+  box-shadow: none;
+}
+
+.hojaVelada .cuadroNombre {
+  color: #c3d8f0;
+}
+
+.hojaVelada .cuadroResuelve {
+  color: #8ba9ce;
+}
+
+.hojaVelada .cuadroNumero {
+  color: #6d8cb4;
+}
+
+/* ─────────────────────────── Dos columnas ─────────────────────────── */
+
+.dos {
+  display: grid;
+  gap: 18px;
+  margin-top: 44px;
+}
+
+@media (min-width: 900px) {
+  .dos {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.puerta {
+  background: var(--blanco);
+  border: 1px solid var(--borde);
+  border-radius: var(--r);
+  padding: 30px 28px 32px;
+  box-shadow: 0 2px 10px rgba(11, 38, 80, 0.04);
+}
+
+.puertaCabeza {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.puertaTitulo {
+  font-size: 1.3125rem;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.puertaTexto {
+  margin: 0 0 20px;
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  color: var(--ink-2);
+}
+
+.lista {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 12px;
+}
+
+.lista li {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+
+.listaIcono {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  margin-top: 1px;
+  background: var(--celeste-suave);
+  color: var(--azul-700);
+}
+
+/* ─────────────────────────── Cierre ─────────────────────────── */
+
+.cierre {
+  position: relative;
+  background: linear-gradient(180deg, var(--navy-800), var(--navy-900));
+  color: #d5e4f6;
+  padding-block: clamp(64px, 8vw, 100px);
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.cierre::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    50% 70% at 78% 50%,
+    rgba(10, 140, 255, 0.3),
+    rgba(10, 140, 255, 0) 68%
+  );
+  pointer-events: none;
+  z-index: -1;
+}
+
+.cierre h2 {
+  color: #f2f8ff;
+  font-size: clamp(1.875rem, 4vw, 2.9rem);
+  line-height: 1.04;
+  letter-spacing: -0.03em;
+  margin: 0;
+  max-width: 18ch;
+}
+
+.cierreTexto {
+  margin: 20px 0 0;
+  font-size: 1.0625rem;
+  line-height: 1.65;
+  color: #a9c2e0;
+  max-width: 58ch;
+}
+
+.pie {
+  background: var(--navy-900);
+  border-top: 1px solid rgba(146, 196, 255, 0.14);
+  padding-block: 28px 36px;
+}
+
+.pieFila {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  align-items: center;
+  font-size: 0.8125rem;
+  color: #7f9dc2;
+}
+
+.pieFila a {
+  color: #b3ccea;
+  text-decoration: none;
+}
+
+.pieFila a:hover {
+  color: #ffffff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.pieNota {
+  margin-left: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pagina *,
+  .pagina *::before,
+  .pagina *::after {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+  }
+}
