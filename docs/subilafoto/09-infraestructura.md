@@ -143,3 +143,32 @@ Lo que hay que hacer, y no genera credenciales nuevas:
 
 Si más adelante molesta que el consentimiento diga otro nombre, se puede cambiar el nombre
 público del proyecto OAuth a algo neutro como "DNX Suite", que sirve para todas.
+
+## Mercado Pago: qué falta cargar (2026-09-13)
+
+| Variable | Estado | De dónde sale |
+|---|---|---|
+| `MP_CREDENTIAL_KEY` | ✅ cargada el 13/9 | Generada con `openssl rand -base64 32`. Cifra el token del vendedor |
+| `MP_REDIRECT_URI` | ✅ cargada el 13/9 | `https://subilafoto.com/api/pagos/conectar/retorno` |
+| `MP_CLIENT_ID` | ❌ falta | Panel de desarrolladores de Mercado Pago, aplicación de Subí la Foto |
+| `MP_CLIENT_SECRET` | ❌ falta | Lo mismo. **Es secreta** |
+| `MP_ACCESS_TOKEN` | ❌ falta | Token de la cuenta de DNX, para consultar pagos. **Es secreta** |
+
+Las dos primeras las cargó Claude por la CLI, generando el valor y pasándolo
+por una tubería: **el valor nunca apareció en la conversación**.
+
+Las tres que faltan las tiene que cargar el titular, y salen de crear la
+aplicación de Subí la Foto en
+`https://www.mercadopago.com.ar/developers/panel/app`. La URL de retorno que hay
+que declarar ahí es exactamente la de `MP_REDIRECT_URI`.
+
+**Una variable nueva no la ve el deploy que ya está corriendo.** Después de
+cargar las tres hay que redesplegar, o el código sigue sin verlas. Se comprueba
+sin adivinar: `/api/pagos/conectar` devuelve un error claro mientras falte alguna.
+
+### La clave de cifrado no se rota a la ligera
+
+`MP_CREDENTIAL_KEY` es la que descifra los tokens guardados. Si se cambia, **los
+vendedores ya conectados dejan de poder cobrar** y hay que pedirles que conecten
+de nuevo. Si alguna vez hay que rotarla, primero hay que descifrar con la vieja y
+volver a cifrar con la nueva, no reemplazarla y listo.
