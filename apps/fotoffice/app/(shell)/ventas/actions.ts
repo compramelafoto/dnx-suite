@@ -226,13 +226,18 @@ export async function checkoutAction(input: CheckoutInput): Promise<CheckoutResu
     productIds.length > 0
       ? await prisma.product.findMany({
           where: { id: { in: productIds }, workspaceId: workspace.id },
-          select: { id: true, name: true, costArs: true },
+          select: { id: true, name: true, priceArs: true, costArs: true },
         })
       : [];
   const productMap = new Map(
     productos.map((p) => [
       p.id,
-      { id: p.id, name: p.name, costMinor: p.costArs === null ? null : decimalArsToMinor(p.costArs) },
+      {
+        id: p.id,
+        name: p.name,
+        priceMinor: decimalArsToMinor(p.priceArs),
+        costMinor: p.costArs === null ? null : decimalArsToMinor(p.costArs),
+      },
     ]),
   );
 

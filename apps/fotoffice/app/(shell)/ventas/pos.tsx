@@ -201,12 +201,15 @@ export function Pos({
     }
 
     const input: CheckoutInput = {
+      // `priceWasOverridden` no viaja: lo recalcula el servidor comparando contra el precio
+      // de catálogo (ver el comentario de `buildTicketLines`). Lo que se ve acá en pantalla
+      // (`r.priceWasOverridden`) es sólo el aviso inmediato del mostrador, con el precio que
+      // ya llegó cargado — no la fuente de verdad de la auditoría.
       lines: rows.map((r) => ({
         productId: r.productId,
         description: r.description,
         qty: r.qty,
         unitPriceMinor: r.unitPriceMinor,
-        priceWasOverridden: r.priceWasOverridden,
       })),
       discountMinor,
       paymentMethod,

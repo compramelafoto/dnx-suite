@@ -6,11 +6,10 @@ const renglonProducto = (over: Partial<RawCheckoutLine> = {}): RawCheckoutLine =
   description: "lo que sea que mandó el navegador",
   qty: 2,
   unitPriceMinor: 1_500_00,
-  priceWasOverridden: false,
   ...over,
 });
 
-const productos = new Map([["p1", { id: "p1", name: "Trípode", costMinor: 800_00 }]]);
+const productos = new Map([["p1", { id: "p1", name: "Trípode", priceMinor: 1_500_00, costMinor: 800_00 }]]);
 
 describe("buildTicketLines", () => {
   it("un renglón con producto toma nombre y costo de la base, no del navegador", () => {
@@ -29,12 +28,19 @@ describe("buildTicketLines", () => {
     ]);
   });
 
-  it("respeta el precio y el signo de pisado que mandó el mostrador", () => {
-    const r = buildTicketLines([renglonProducto({ unitPriceMinor: 1_200_00, priceWasOverridden: true })], productos);
+  it("un precio distinto del catálogo se marca pisado — no importa lo que mande el navegador", () => {
+    const r = buildTicketLines([renglonProducto({ unitPriceMinor: 1_200_00 })], productos);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.lines[0].unitPriceMinor).toBe(1_200_00);
     expect(r.lines[0].priceWasOverridden).toBe(true);
+  });
+
+  it("un precio igual al de catálogo no se marca pisado, aunque el mostrador lo haya retipeado", () => {
+    const r = buildTicketLines([renglonProducto({ unitPriceMinor: 1_500_00 })], productos);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.lines[0].priceWasOverridden).toBe(false);
   });
 
   it("un producto que no está en el mapa (de otro workspace o borrado) rechaza el ticket entero", () => {
@@ -42,9 +48,9 @@ describe("buildTicketLines", () => {
     expect(r.ok).toBe(false);
   });
 
-  it("un renglón suelto no cruza nada: usa la descripción tal cual y no tiene costo", () => {
+  it("un renglón suelto no cruza nada: usa la descripción tal cual, no tiene costo y nunca se marca pisado", () => {
     const r = buildTicketLines(
-      [{ productId: null, description: "  Arreglo a medida  ", qty: 1, unitPriceMinor: 500_00, priceWasOverridden: false }],
+      [{ productId: null, description: "  Arreglo a medida  ", qty: 1, unitPriceMinor: 500_00 }],
       productos,
     );
     expect(r.ok).toBe(true);

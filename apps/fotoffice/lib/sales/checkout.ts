@@ -8,24 +8,33 @@
 
 import type { TicketLine } from "./ticket";
 
-/** Un renglón tal cual lo arma la pantalla, antes de cruzarlo contra la base. */
+/**
+ * Un renglón tal cual lo arma la pantalla, antes de cruzarlo contra la base.
+ *
+ * `priceWasOverridden` YA NO viaja acá: lo mandaba el navegador sin verificar, y ese campo
+ * existe (`SaleItem.priceWasOverridden`, comentario del schema) justo para poder explicar
+ * meses después por qué un renglón se cobró distinto del catálogo — si lo decide el
+ * navegador, cualquiera puede bajar el precio y mandar el flag en `false`, y la auditoría
+ * nunca lo ve. `buildTicketLines` lo calcula solo, comparando contra el precio real.
+ */
 export type RawCheckoutLine = {
   productId: string | null;
   description: string;
   qty: number;
   unitPriceMinor: number;
-  priceWasOverridden: boolean;
 };
 
 /**
  * Lo que el servidor sabe de un producto citado en el ticket, recién leído de la base —nunca
  * lo que mandó el navegador. El costo ni siquiera viaja hasta el mostrador (la grilla de
  * venta no lo expone: ver `ProductRow` en `lib/sales/repository.ts`), así que no hay otra
- * fuente posible.
+ * fuente posible. `priceMinor` es el precio de catálogo vigente, la vara contra la que se mide
+ * si el renglón se pisó.
  */
 export type CheckoutProductInfo = {
   id: string;
   name: string;
+  priceMinor: number;
   costMinor: number | null;
 };
 
@@ -43,6 +52,12 @@ export type BuildTicketLinesResult = { ok: true; lines: TicketLine[] } | { ok: f
  * y el costo porque el navegador ni lo tiene. El precio y la cantidad sí vienen del
  * mostrador —ahí es donde se vende y se puede pisar el precio a mano—, pero tienen que ser
  * números enteros de verdad.
+ *
+ * `priceWasOverridden` se calcula acá, nunca se recibe: comparando el precio del renglón
+ * contra `producto.priceMinor`, el precio de catálogo que el servidor acaba de leer. Un
+ * renglón suelto (`productId: null`) no tiene contra qué comparar —no hay catálogo del que
+ * "pisarse"— así que queda siempre en `false`: no es que nunca se pise el precio, es que la
+ * pregunta no tiene sentido sin un precio de referencia.
  */
 export function buildTicketLines(
   rawLines: readonly RawCheckoutLine[],
@@ -66,7 +81,7 @@ export function buildTicketLines(
         qty: raw.qty,
         unitPriceMinor: raw.unitPriceMinor,
         unitCostMinor: null,
-        priceWasOverridden: raw.priceWasOverridden,
+        priceWasOverridden: false,
       });
       continue;
     }
@@ -85,7 +100,7 @@ export function buildTicketLines(
       qty: raw.qty,
       unitPriceMinor: raw.unitPriceMinor,
       unitCostMinor: producto.costMinor,
-      priceWasOverridden: raw.priceWasOverridden,
+      priceWasOverridden: raw.unitPriceMinor !== producto.priceMinor,
     });
   }
 
