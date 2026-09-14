@@ -2,6 +2,8 @@ import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
+import { CASH_MODULE_KEY } from "@/lib/cash/constants";
+import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 
 /**
  * Las pantallas de cada módulo, en un solo lugar.
@@ -183,11 +185,83 @@ const SORTEOS: SubmoduleItem[] = [
   },
 ];
 
+const CAJA: SubmoduleItem[] = [
+  {
+    href: "/caja",
+    label: "Panorama",
+    icon: "Wallet",
+    description: "El saldo de cada cuenta, lo último que entró y salió, y el turno de cada mostrador.",
+    requiresManage: false,
+    activeMatch: "rest",
+  },
+  {
+    href: "/caja/movimientos",
+    label: "Movimientos",
+    icon: "ArrowLeftRight",
+    description: "El libro completo, con filtros por fecha, cuenta y categoría.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
+    href: "/caja/reportes",
+    label: "Reportes",
+    icon: "BarChart3",
+    description: "Saldo por cuenta, ingresos y egresos por categoría y los clientes que más compraron.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
+    href: "/caja/turnos",
+    label: "Arqueos",
+    icon: "ClipboardCheck",
+    description: "Cada apertura y cierre, con su diferencia y su explicación.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
+    href: "/caja/pases",
+    label: "Pases entre cuentas",
+    icon: "CreditCard",
+    description: "Cada pase de una cuenta a otra, como el de mostrador a caja fuerte.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
+    href: "/caja/configuracion",
+    label: "Cuentas y categorías",
+    icon: "Settings",
+    description: "Dónde está la plata y cómo se clasifica lo que entra y sale.",
+    requiresManage: true,
+    activeMatch: "under",
+  },
+];
+
+const CLIENTES: SubmoduleItem[] = [
+  {
+    href: "/clientes",
+    label: "Padrón",
+    icon: "Users",
+    description: "Todos los clientes, su ficha y su historial de consumo.",
+    requiresManage: false,
+    activeMatch: "rest",
+  },
+  {
+    href: "/clientes/nuevo",
+    label: "Nuevo cliente",
+    icon: "UserPlus",
+    description: "Dar de alta a alguien que compra por primera vez.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+];
+
 const POR_MODULO: Record<string, SubmoduleItem[]> = {
   [MEMBERS_MODULE_KEY]: SOCIOS,
   [COURSES_SALES_MODULE_KEY]: CURSOS,
   [BOOKINGS_MODULE_KEY]: RESERVAS,
   [RAFFLES_MODULE_KEY]: SORTEOS,
+  [CASH_MODULE_KEY]: CAJA,
+  [CLIENTS_MODULE_KEY]: CLIENTES,
 };
 
 /**
@@ -210,4 +284,15 @@ export function claimedPrefixes(moduleKey: string): string[] {
   const items = POR_MODULO[moduleKey] ?? [];
   const raiz = items.find((i) => i.activeMatch === "rest")?.href;
   return items.filter((i) => i.href !== raiz).map((i) => i.href);
+}
+
+/**
+ * Todas las pantallas declaradas, de todos los módulos, sin filtrar por permiso.
+ *
+ * Existe para pruebas que necesitan barrer el catálogo entero (por ejemplo, validar que cada
+ * `icon` nombrado acá exista de verdad en el mapa que usa el menú) sin tener que enumerar las
+ * claves de módulo a mano y quedar desactualizadas el día que se agregue una nueva.
+ */
+export function allSubmoduleItems(): SubmoduleItem[] {
+  return Object.values(POR_MODULO).flat();
 }

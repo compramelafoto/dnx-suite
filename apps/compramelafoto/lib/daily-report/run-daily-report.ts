@@ -18,6 +18,7 @@ import {
   createClfMonorepoCollector,
   createClickatonCollector,
   createFaceRecognitionCollector,
+  createFinanceCollector,
   createFotofficeCollector,
   createFotorankCollector,
   createIncidentsCollector,
@@ -28,6 +29,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { createClfLegacyCollector } from "./clf-legacy-collector";
 import { createPrismaClickatonPort } from "./prisma-clickaton-port";
+import { createPrismaFinancePort } from "./prisma-finance-port";
 import { createPrismaFotofficePort } from "./prisma-fotoffice-port";
 import { createPrismaFotorankPort } from "./prisma-fotorank-port";
 import { createPrismaInfoSpotPort } from "./prisma-infospot-port";
@@ -139,6 +141,10 @@ export async function runDailyReport(options: { now: Date }): Promise<RunDailyRe
       createFotofficeCollector(createPrismaFotofficePort(prisma), window, {
         adminBaseUrl: resolveAppUrl("FOTOFFICE_PUBLIC_URL", "https://fotoffice.dnxsuite.com"),
       }),
+      // A diferencia de FotOffice/FotoRank/etc., acá el mismo `prisma` de
+      // ComprameLaFoto SÍ es la base correcta: las tablas de Finanzas DNX
+      // viven en ella, no en otra branch de Neon.
+      createFinanceCollector(createPrismaFinancePort(prisma), window, { adminBaseUrl }),
       createIncidentsCollector(createPrismaIncidentsPort(prisma), window, {
         adminBaseUrl,
         now: options.now,

@@ -7,6 +7,7 @@ import { getDuesSettings } from "@/lib/membership/settings";
 import { ensureRecommendationCode } from "@/lib/membership/recommendation-store";
 import { decimalArsToMinor, formatMinorArs } from "@/lib/membership/money";
 import { chargePeriodLabel } from "@/lib/membership/charge-labels";
+import { recommendationBenefitPhrase } from "@/lib/membership/recommendation-labels";
 import { appUrl } from "@/lib/app-url";
 import { RecommendationLinkCard } from "@/components/portal/recommendation-link-card";
 
@@ -63,10 +64,7 @@ export default async function RecomendadosPage() {
   const enlace =
     base && branding?.publicSlug ? `${base}/w/${branding.publicSlug}/asociarse?rec=${code}` : null;
 
-  const beneficio =
-    settings.recommendationBenefitPercent >= 100
-      ? "una cuota completa sin cargo"
-      : `un ${settings.recommendationBenefitPercent}% de descuento en una cuota`;
+  const beneficio = recommendationBenefitPhrase(settings.recommendationBenefitPercent);
 
   return (
     <div className="min-h-screen bg-[var(--fo-bg)] text-[var(--fo-text)]">

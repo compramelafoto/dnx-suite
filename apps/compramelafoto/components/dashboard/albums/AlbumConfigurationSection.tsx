@@ -33,6 +33,8 @@ export type AlbumConfigurationSectionProps = {
   albumMode: AlbumNextStepsMode;
   albumModeSaving: boolean;
   saving: boolean;
+  hasUnsavedChanges?: boolean;
+  savedNotice?: boolean;
   photographerHandler?: string | null;
   onTitleChange: (value: string) => void;
   onLocationChange: (value: string) => void;
@@ -91,6 +93,8 @@ export default function AlbumConfigurationSection({
   albumMode,
   albumModeSaving,
   saving,
+  hasUnsavedChanges = false,
+  savedNotice = false,
   photographerHandler,
   onTitleChange,
   onLocationChange,
@@ -348,7 +352,7 @@ export default function AlbumConfigurationSection({
         </ul>
       </ConfigBlock>
 
-      <div className="flex flex-wrap gap-3 pt-1">
+      <div className="flex flex-wrap items-center gap-3 pt-1">
         <Button
           variant="primary"
           size="md"
@@ -363,7 +367,31 @@ export default function AlbumConfigurationSection({
             Ir a publicación
           </Button>
         </Link>
+        {savedNotice ? (
+          <span className="text-sm font-medium text-[#16a34a]">Configuración guardada.</span>
+        ) : null}
       </div>
+
+      {/* El botón de guardar vive al final de la página: sin este aviso, un cambio
+          en "Privacidad y acceso" se pierde al recargar sin que nadie lo note. */}
+      {hasUnsavedChanges ? (
+        <div className="sticky bottom-3 z-20 mt-1">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#f0c98a] bg-[#fffaf1] px-4 py-3 shadow-lg">
+            <span className="text-sm font-medium text-[#7a4b12]">
+              Tenés cambios sin guardar en esta pantalla.
+            </span>
+            <Button
+              variant="primary"
+              size="md"
+              className="whitespace-nowrap"
+              onClick={onSave}
+              disabled={saving}
+            >
+              {saving ? "Guardando…" : "Guardar configuración"}
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

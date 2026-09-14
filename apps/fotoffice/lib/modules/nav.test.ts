@@ -30,7 +30,7 @@ describe("resolveEnabledNavModules", () => {
   });
 
   it("una key PLANNED en el Set de habilitados nunca aparece (no es AVAILABLE)", () => {
-    const items = resolveEnabledNavModules(new Set(["cash", "communications", COURSES_SALES_MODULE_KEY]));
+    const items = resolveEnabledNavModules(new Set(["events", "communications", COURSES_SALES_MODULE_KEY]));
     expect(items.map((i) => i.key)).toEqual([COURSES_SALES_MODULE_KEY]);
   });
 

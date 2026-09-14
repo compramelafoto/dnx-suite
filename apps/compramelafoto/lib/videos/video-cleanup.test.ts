@@ -17,6 +17,7 @@ function video(over: Partial<Parameters<typeof shouldPurgeVideo>[0]> = {}) {
     thumbnailKey: null,
     isRemoved: false,
     expiresAt: new Date("2026-12-01T00:00:00Z"),
+    frames: [],
     ...over,
   };
 }
@@ -97,6 +98,33 @@ describe("collectPurgeKeys", () => {
     assert.deepEqual(
       collectPurgeKeys(video({ originalKey: "a.mp4", previewKey: "a.mp4" })),
       ["a.mp4"]
+    );
+  });
+
+  it("incluye los fotogramas del reconocimiento facial", () => {
+    // Sin esto, los 20 JPG de cada video quedaban en R2 para siempre: la misma
+    // fuga que esta limpieza vino a tapar.
+    assert.deepEqual(
+      collectPurgeKeys(
+        video({
+          originalKey: "o.mp4",
+          frames: [{ key: "f/1000.jpg" }, { key: "f/2000.jpg" }],
+        })
+      ),
+      ["o.mp4", "f/1000.jpg", "f/2000.jpg"]
+    );
+  });
+
+  it("soporta un video sin fotogramas extraídos", () => {
+    assert.deepEqual(collectPurgeKeys(video({ originalKey: "o.mp4", frames: [] })), [
+      "o.mp4",
+    ]);
+  });
+
+  it("ignora un fotograma con key vacía", () => {
+    assert.deepEqual(
+      collectPurgeKeys(video({ originalKey: "o.mp4", frames: [{ key: "  " }] })),
+      ["o.mp4"]
     );
   });
 });

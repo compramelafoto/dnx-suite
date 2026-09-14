@@ -6,10 +6,13 @@ const appDir = path.dirname(fileURLToPath(import.meta.url));
 const monorepoRoot = path.join(appDir, "../..");
 
 // vercel.live siempre permitido (Vercel lo inyecta en previews; en prod no se carga)
+// va.vercel-scripts.com: Vercel Web Analytics en desarrollo y previews. En
+// producción el script se sirve desde /_vercel/insights (mismo origen), pero
+// sin este origen la analítica de las landings /dnx no carga fuera de prod.
 // Card Payment Brick (homologation) — official MP origins only (no wildcards).
 // Observed Brick frames: sdk / http2.mlstatic / secure-fields / mercadolibre.com (device).
 const scriptSrcValue =
-  "'self' 'unsafe-inline' 'unsafe-eval' https://sdk.mercadopago.com https://www.mercadopago.com https://www.mercadopago.com.ar https://http2.mlstatic.com https://secure-fields.mercadopago.com https://www.mercadolibre.com https://vercel.live";
+  "'self' 'unsafe-inline' 'unsafe-eval' https://sdk.mercadopago.com https://www.mercadopago.com https://www.mercadopago.com.ar https://http2.mlstatic.com https://secure-fields.mercadopago.com https://www.mercadolibre.com https://vercel.live https://va.vercel-scripts.com";
 
 const frameSrcValue = [
   "https://www.mercadopago.com",
@@ -65,6 +68,22 @@ const nextConfig: NextConfig = {
   // Reduce parallel workers during typecheck/static generation (Vercel 8–16 GB builders).
   experimental: {
     cpus: 1,
+  },
+  // El chequeo de tipos NO corre en el build: corre en CI, antes de mergear.
+  //
+  // Por qué. `next build` compila esta app en 3 minutos y después se quedaba
+  // colgado en "Running TypeScript" hasta que la máquina de Vercel lo mataba
+  // por falta de memoria. Son 250 páginas y 579 rutas de API: `tsc` necesita
+  // más de los 7 GB que tiene el build, y por eso NINGÚN deploy llegaba a
+  // producción. Apagarlo acá no afloja el control, lo mueve: el workflow
+  // `.github/workflows/chequeos.yml` corre `typecheck` en cada pull request
+  // contra main, así un error de tipos frena el merge en vez de frenar el
+  // despliegue.
+  //
+  // Si alguna vez se saca el workflow, hay que volver a prender esto o nadie
+  // estaría chequeando tipos en ningún lado.
+  typescript: {
+    ignoreBuildErrors: true,
   },
   // Evita que un pnpm-lock.yaml fuera del monorepo hijackee la resolución de @prisma/client.
   outputFileTracingRoot: monorepoRoot,

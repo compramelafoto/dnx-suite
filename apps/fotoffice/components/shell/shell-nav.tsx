@@ -4,32 +4,21 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Building2,
-  CalendarClock,
   ClipboardCheck,
-  CreditCard,
   FileText,
-  Palette,
   Globe,
   Plug,
-  CalendarDays,
-  DoorOpen,
-  PackageCheck,
-  PackagePlus,
-  GraduationCap,
   Inbox,
   LayoutDashboard,
-  LayoutGrid,
   Settings,
   Shield,
-  Tag,
-  Ticket,
   UserCog,
   Users,
-  Wallet,
   Wallet2,
 } from "lucide-react";
 import type { ComponentType } from "react";
 import { useShellNav } from "./shell-frame";
+import { ICONOS } from "./nav-icons";
 import {
   claimedPrefixes,
   submodulesFor,
@@ -75,24 +64,6 @@ function exact(href: string) {
 function under(href: string) {
   return (path: string) => path === href || path.startsWith(`${href}/`);
 }
-
-/** Los íconos que puede nombrar un submódulo. Cerrado a propósito: un nombre suelto no dibuja nada. */
-const ICONOS: Record<string, ComponentType<{ className?: string }>> = {
-  CalendarClock,
-  CalendarDays,
-  CreditCard,
-  DoorOpen,
-  GraduationCap,
-  Inbox,
-  LayoutGrid,
-  PackageCheck,
-  PackagePlus,
-  Palette,
-  Tag,
-  Ticket,
-  Users,
-  Wallet,
-};
 
 /**
  * Convierte las pantallas declaradas de un módulo en entradas del menú.
