@@ -1150,6 +1150,9 @@ export async function getOrGenerateClickatonParticipantCard(
       actorKind: input.actor.kind,
       errorCode:
         err instanceof ClickatonCardError ? err.code : "CLICKATON_CARD_RENDER_FAILED",
+      // El código sólo dice "el render falló". Sin el motivo, un fallo en producción obliga a
+      // desplegar de nuevo únicamente para averiguar qué pasó.
+      errorMessage: err instanceof Error ? err.message : String(err),
       recordId: record.id,
     });
     throw err;

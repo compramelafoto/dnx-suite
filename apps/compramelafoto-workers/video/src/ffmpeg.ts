@@ -1,6 +1,7 @@
 import { execa } from "execa";
 import fs from "node:fs/promises";
 import path from "node:path";
+import sharp from "sharp";
 import { createWatermarkOverlayFile } from "./watermark.js";
 
 export type VideoProbe = {
@@ -93,17 +94,26 @@ export function buildRotationFilter(rotationDegrees: number): string | null {
  */
 export function buildPreviewScaleFilter(
   orientation: VideoProbe["orientation"],
-  rotationDegrees = 0
+  _rotationDegrees = 0
 ): string {
-  const rotate = buildRotationFilter(rotationDegrees);
+  // Sin giro propio, a propósito.
+  //
+  // Un video de celular llega como 1920x1080 con `rotation: 90` en el metadata.
+  // ffmpeg aplica ese giro al decodificar, así que al filtro le llega el cuadro
+  // ya derecho (1080x1920). El `transpose` que había acá lo volvía a acostar:
+  // en producción salía 720x406, horizontal, con la cara de costado, aunque la
+  // orientación estuviera bien detectada como vertical.
+  //
+  // La rotación sigue usándose para calcular las dimensiones visuales —eso es
+  // lo que decide si el video es vertical u horizontal— pero no para girarlo
+  // una segunda vez.
   const primary =
     orientation === "landscape"
       ? "scale=-2:720"
       : orientation === "portrait"
         ? "scale=720:-2"
         : "scale=720:720";
-  const parts = [rotate, primary, EVEN_DIMENSIONS_SCALE].filter(Boolean);
-  return parts.join(",");
+  return [primary, EVEN_DIMENSIONS_SCALE].join(",");
 }
 
 function logScaleFilter(
@@ -220,6 +230,52 @@ export async function generateThumbnail(
     ],
     { stdio: "pipe" }
   );
+
+  // La miniatura es pública y hasta ahora salía limpia: un cuadro del video en
+  // buena calidad, listo para usar sin comprar nada. Lleva la misma marca que
+  // el adelanto.
+  await burnWatermarkIntoImage(outputPath, scaleOpts?.videoId ?? 0);
+}
+
+/**
+ * Quema la marca de agua en una imagen ya generada.
+ *
+ * Se hace con sharp y no con ffmpeg porque la imagen ya está en disco: es
+ * componer dos capas, no volver a decodificar el video.
+ *
+ * Si algo falla, la miniatura queda sin marca pero el video sigue publicándose:
+ * una miniatura sin marca es un problema menor comparado con un video que no
+ * llega a la galería.
+ */
+async function burnWatermarkIntoImage(imagePath: string, videoId: number): Promise<void> {
+  try {
+    const meta = await sharp(imagePath).metadata();
+    if (!meta.width || !meta.height) return;
+
+    const overlayPath = `${imagePath}.wm.png`;
+    await createWatermarkOverlayFile({
+      videoId,
+      width: meta.width,
+      height: meta.height,
+      outputPath: overlayPath,
+    });
+
+    // sharp no puede escribir sobre el archivo que está leyendo.
+    const conMarca = await sharp(imagePath)
+      .composite([{ input: overlayPath }])
+      .jpeg({ quality: 85 })
+      .toBuffer();
+
+    await fs.writeFile(imagePath, conMarca);
+    await fs.rm(overlayPath, { force: true }).catch(() => undefined);
+
+    console.log("[video-worker] marca de agua en la miniatura", { videoId });
+  } catch (err: unknown) {
+    console.warn("[video-worker] no se pudo marcar la miniatura", {
+      videoId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 }
 
 export type FragmentPlan = {
@@ -234,45 +290,58 @@ export type FragmentPlan = {
  * - 12–30s: 3 × 3s (~9s)
  * - < 12s: 3 fragmentos (o menos si no entra), duración acotada al video
  */
+/** El adelanto nunca dura más que esto, por largo que sea el video. */
+export const PREVIEW_MAX_SECONDS = 15;
+
+/**
+ * Ni más que esta porción del video.
+ *
+ * Antes el adelanto era una cantidad fija de segundos, y en un video corto eso
+ * significaba regalar el producto: uno de 10 segundos mostraba 6, el 60%. En
+ * una ceremonia de 15 minutos daba igual, pero para un reel era fatal.
+ */
+export const PREVIEW_MAX_RATIO = 0.25;
+
+/** Por debajo de esto el adelanto no le sirve a nadie para decidir la compra. */
+const PREVIEW_MIN_SECONDS = 1;
+
 export function buildFragmentPlan(duration: number): FragmentPlan {
-  const minStart = Math.min(0.5, Math.max(0, duration * 0.05));
-  const headroom = Math.max(0, duration - minStart - 0.05);
+  const dur = Number.isFinite(duration) && duration > 0 ? duration : 0;
+  const minStart = Math.min(0.5, Math.max(0, dur * 0.05));
+  const headroom = Math.max(0, dur - minStart - 0.05);
 
-  let count: number;
-  let fragSeconds: number;
+  // Cuánto se puede mostrar en total: el menor entre el tope fijo y la porción.
+  const objetivo = Math.min(
+    PREVIEW_MAX_SECONDS,
+    dur * PREVIEW_MAX_RATIO,
+    headroom
+  );
+  const total = Math.max(Math.min(PREVIEW_MIN_SECONDS, headroom), objetivo);
 
-  if (duration >= 30) {
-    count = 5;
-    fragSeconds = 3;
-  } else if (duration >= 12) {
-    count = 3;
-    fragSeconds = 3;
-  } else {
-    count = 3;
-    if (headroom < 1.2) {
-      count = headroom >= 0.7 ? 2 : 1;
-    }
-    fragSeconds =
-      count > 0 ? Math.min(2, headroom / count) : Math.min(2, headroom);
-    fragSeconds = Math.max(0.35, Math.round(fragSeconds * 100) / 100);
+  // Más fragmentos en videos largos: muestran más momentos distintos sin
+  // mostrar más tiempo.
+  let count = dur >= 60 ? 5 : dur >= 20 ? 3 : 2;
+  if (dur < 4) count = 1;
 
-    while (count > 1 && count * fragSeconds > headroom + 0.01) {
-      count -= 1;
-      fragSeconds = Math.max(0.35, Math.round((headroom / count) * 100) / 100);
-    }
+  let fragSeconds = Math.max(0.35, Math.round((total / count) * 100) / 100);
 
-    if (fragSeconds > duration - minStart) {
-      fragSeconds = Math.max(0.35, Math.round((duration - minStart - 0.05) * 100) / 100);
-    }
+  // Si los fragmentos no entran, se usan menos y más cortos.
+  while (count > 1 && count * fragSeconds > headroom + 0.01) {
+    count -= 1;
+    fragSeconds = Math.max(0.35, Math.round((total / count) * 100) / 100);
   }
 
-  const maxStart = Math.max(minStart, duration - fragSeconds);
+  if (fragSeconds > headroom) {
+    fragSeconds = Math.max(0.35, Math.round(headroom * 100) / 100);
+  }
+
+  const maxStart = Math.max(minStart, dur - fragSeconds);
   const starts: number[] = [];
 
   for (let i = 0; i < count; i++) {
     const t =
       count === 1 ? minStart : minStart + ((maxStart - minStart) * i) / (count - 1);
-    const clamped = Math.min(t, Math.max(minStart, duration - fragSeconds));
+    const clamped = Math.min(t, Math.max(minStart, dur - fragSeconds));
     starts.push(Math.round(clamped * 1000) / 1000);
   }
 

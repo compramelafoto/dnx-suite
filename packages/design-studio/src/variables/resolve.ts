@@ -7,7 +7,13 @@ import type {
   VariableValues,
 } from "./contract";
 
-const MARCADOR = /\{\{\s*([A-Za-z_][\w]*)\s*\}\}/g;
+/**
+ * El punto forma parte del nombre porque no todos los productos nombran sus variables igual:
+ * el carnet usa `fullName`, y los catálogos por grupos —Clickatón, por ejemplo— usan
+ * `participant.fullName`. Sin el punto, esos marcadores no coincidían y salían impresos tal
+ * cual en la pieza, sin ningún error que lo avisara.
+ */
+const MARCADOR = /\{\{\s*([A-Za-z_][\w.]*)\s*\}\}/g;
 
 function ausente(valor: unknown): boolean {
   if (valor === null || valor === undefined) return true;

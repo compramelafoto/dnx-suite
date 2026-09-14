@@ -1,3 +1,4 @@
+/* eslint-disable turbo/no-undeclared-env-vars -- el test enciende y apaga las banderas documentadas */
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 import {
@@ -94,6 +95,59 @@ describe("autogeneración de placas de participante", () => {
     delete process.env.CLICKATON_PARTICIPANT_CARDS_V2_ENABLED;
     assert.doesNotThrow(() =>
       enqueueParticipantCardsAfterPaid({ registrationId: "reg_inexistente" })
+    );
+  });
+});
+
+/**
+ * En Vercel el servidor se congela apenas responde. Una tarea lanzada y olvidada queda a mitad
+ * de camino, y la placa aparece recién cuando pasa el cron: hasta cinco minutos después de
+ * pagar. Programarla hace que el servidor la espere antes de apagarse.
+ */
+describe("la placa que se dispara al confirmarse el pago", () => {
+  function habilitar() {
+    process.env.CLICKATON_PARTICIPANT_CARDS_V2_ENABLED = "true";
+    process.env.CLICKATON_PARTICIPANT_CARDS_PERSISTENCE_ENABLED = "true";
+    process.env.CLICKATON_CARD_RENDER_PROVIDER = "design-studio";
+    process.env.CLICKATON_PARTICIPANT_CARDS_STORAGE_PROVIDER = "local";
+  }
+
+  it("se programa para que el servidor la espere, en vez de quedar suelta", () => {
+    habilitar();
+    const programadas: (() => unknown)[] = [];
+
+    enqueueParticipantCardsAfterPaid(
+      { registrationId: "reg_x" },
+      { schedule: (tarea) => programadas.push(tarea) }
+    );
+
+    assert.equal(programadas.length, 1);
+  });
+
+  it("no programa nada si la generación automática está apagada", () => {
+    delete process.env.CLICKATON_PARTICIPANT_CARDS_V2_ENABLED;
+    const programadas: (() => unknown)[] = [];
+
+    enqueueParticipantCardsAfterPaid(
+      { registrationId: "reg_x" },
+      { schedule: (tarea) => programadas.push(tarea) }
+    );
+
+    assert.equal(programadas.length, 0);
+  });
+
+  it("sigue sin lanzar si no hay dónde programar la tarea", () => {
+    habilitar();
+
+    assert.doesNotThrow(() =>
+      enqueueParticipantCardsAfterPaid(
+        { registrationId: "reg_x" },
+        {
+          schedule: () => {
+            throw new Error("fuera del contexto de una request");
+          },
+        }
+      )
     );
   });
 });

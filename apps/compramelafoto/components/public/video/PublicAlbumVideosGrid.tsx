@@ -4,7 +4,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { PublicVideoDto } from "@/lib/videos/public-video-dto";
 import type { PublicEventVideoDto } from "@/lib/videos/public-event-videos";
 import PublicVideoPreviewModal from "./PublicVideoPreviewModal";
-import { addToVideoCart, readVideoCart } from "@/lib/videos/video-cart-storage";
+import VideoRemovalModal from "./VideoRemovalModal";
+import {
+  addToVideoCart,
+  notifyVideoCartChanged,
+  readVideoCart,
+  removeFromVideoCart,
+} from "@/lib/videos/video-cart-storage";
 import {
   aspectClassForOrientation,
   devLogPublicVideoCard,
@@ -61,7 +67,13 @@ type VideoCardProps = {
   showEventAlbumContext?: boolean;
   onHoverStart: () => void;
   onHoverEnd: () => void;
+  /** Abre el visor ampliado. Es la lupa, igual que en las fotos. */
   onOpen: () => void;
+  /** Elegir o sacar el video del carrito. */
+  onToggleSelect?: () => void;
+  selected?: boolean;
+  /** Pedir que lo saquen de circulación (derecho de imagen). */
+  onRequestRemoval?: () => void;
 };
 
 function PublicVideoCard({
@@ -71,6 +83,9 @@ function PublicVideoCard({
   onHoverStart,
   onHoverEnd,
   onOpen,
+  onToggleSelect,
+  selected = false,
+  onRequestRemoval,
 }: VideoCardProps) {
   const previewRef = useRef<HTMLVideoElement>(null);
   const [hoverPlayFailed, setHoverPlayFailed] = useState(false);
@@ -128,17 +143,68 @@ function PublicVideoCard({
 
   return (
     <article
-      className={`${spanClass} group ds-card overflow-hidden border border-[#e5e7eb] bg-white shadow-sm transition-shadow hover:shadow-md`}
+      className={`${spanClass} group ds-card relative overflow-hidden border border-[#e5e7eb] bg-white shadow-sm transition-shadow hover:shadow-md ${
+        selected ? "ring-2 ring-[#c27b3d] ring-offset-2" : ""
+      }`}
     >
+      {/* Elegido: mismo cartel y mismo color que en las fotos. */}
+      {selected && onToggleSelect ? (
+        <div className="pointer-events-none absolute left-2 top-2 z-20 flex items-center gap-1.5 rounded-full bg-[#c27b3d] px-2.5 py-1 text-xs font-medium text-white shadow">
+          <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden>
+            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+          </svg>
+          Seleccionado
+        </div>
+      ) : null}
+
+      {/* La lupa azul: idéntica a la de las fotos, para ver ampliado. */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpen();
+        }}
+        className="absolute right-2 top-2 z-20 rounded-full bg-[#2563eb] p-2 text-white shadow transition-colors hover:bg-[#1d4ed8]"
+        aria-label="Ver el video ampliado, con marca de agua"
+        title="Ver ampliado (con marca de agua)"
+      >
+        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6" />
+        </svg>
+      </button>
+
+      {/* Pedir la baja: mismo botón amarillo que en las fotos. Acá saca el
+          video ENTERO, porque no se puede recortar a alguien de una escena. */}
+      {onRequestRemoval ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRequestRemoval();
+          }}
+          className="absolute bottom-1.5 right-1.5 z-20 rounded-full bg-yellow-500 p-1.5 text-white opacity-0 shadow-md transition-opacity hover:bg-yellow-600 group-hover:opacity-100"
+          aria-label="Pedir que den de baja este video"
+          title="Pedir que den de baja este video"
+        >
+          <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden>
+            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+          </svg>
+        </button>
+      ) : null}
+
       <button
         type="button"
         className="relative block w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2"
-        onClick={onOpen}
+        onClick={onToggleSelect ?? onOpen}
         onMouseEnter={onHoverStart}
         onMouseLeave={onHoverEnd}
         onFocus={onHoverStart}
         onBlur={onHoverEnd}
-        aria-label={`Reproducir ${displayVideoTitle(video)}`}
+        aria-label={
+          onToggleSelect
+            ? `${selected ? "Sacar" : "Elegir"} ${displayVideoTitle(video)}`
+            : `Reproducir ${displayVideoTitle(video)}`
+        }
       >
         <div className={`relative w-full overflow-hidden bg-[#0a0a0a] ${aspect}`}>
           <GalleryMediaTypeBadgeSingle type="video" />
@@ -206,6 +272,11 @@ function PublicVideoCard({
             {eventContext ? (
               <p className="text-[10px] text-white/65 truncate mt-0.5">{eventContext}</p>
             ) : null}
+            {/* El precio se ve acá, en la grilla. Antes había que entrar al
+                visor para saber cuánto costaba. */}
+            {video.purchasable && video.priceLabel ? (
+              <p className="mt-1 text-base font-bold text-white">{video.priceLabel}</p>
+            ) : null}
           </div>
         </div>
       </button>
@@ -221,6 +292,7 @@ export default function PublicAlbumVideosGrid({
   const [hoveredId, setHoveredId] = useState<number | null>(null);
   const [modalVideo, setModalVideo] = useState<PublicVideoDto | null>(null);
   const [cart, setCart] = useState<number[]>([]);
+  const [removalVideo, setRemovalVideo] = useState<PublicVideoDto | null>(null);
 
   // El carrito vive en sessionStorage, al lado del de fotos: lo que el cliente
   // elige sobrevive hasta el resumen y se paga todo junto.
@@ -232,6 +304,23 @@ export default function PublicAlbumVideosGrid({
     (videoId: number) => {
       if (!albumId) return;
       setCart(addToVideoCart(albumId, videoId));
+    },
+    [albumId]
+  );
+
+  /** Un clic elige, otro saca: igual que tocar una foto. */
+  const handleToggleSelect = useCallback(
+    (videoId: number) => {
+      if (!albumId) return;
+      setCart((actual) => {
+        const siguiente = actual.includes(videoId)
+          ? removeFromVideoCart(albumId, videoId)
+          : addToVideoCart(albumId, videoId);
+        // El botón de comprar vive en otro componente y tiene que enterarse:
+        // es el mismo botón para fotos y videos.
+        notifyVideoCartChanged(albumId, siguiente);
+        return siguiente;
+      });
     },
     [albumId]
   );
@@ -269,25 +358,26 @@ export default function PublicAlbumVideosGrid({
             onHoverStart={() => handleHoverStart(video.id)}
             onHoverEnd={handleHoverEnd}
             onOpen={() => setModalVideo(video)}
+            selected={cart.includes(video.id)}
+            onToggleSelect={
+              albumId && video.purchasable
+                ? () => handleToggleSelect(video.id)
+                : undefined
+            }
+            onRequestRemoval={
+              albumId ? () => setRemovalVideo(video) : undefined
+            }
           />
         ))}
       </div>
-      {albumId && cart.length > 0 ? (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#e5e7eb] bg-white px-4 py-3">
-          <p className="text-sm text-[#374151]">
-            {cart.length === 1
-              ? "1 video en tu carrito"
-              : `${cart.length} videos en tu carrito`}
-          </p>
-          <button
-            type="button"
-            onClick={handleGoToCheckout}
-            className="rounded-lg bg-[#111827] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#374151]"
-          >
-            Ir a pagar
-          </button>
-        </div>
+      {albumId ? (
+        <VideoRemovalModal
+          video={removalVideo}
+          albumId={albumId}
+          onClose={() => setRemovalVideo(null)}
+        />
       ) : null}
+
       <PublicVideoPreviewModal
         video={modalVideo}
         onClose={() => setModalVideo(null)}

@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import FaceSearchVideoResults from "@/components/public/video/FaceSearchVideoResults";
 import type { VideoSelfieHit } from "@/lib/videos/video-frame-matching";
+import { readVideoCart, VIDEO_CART_EVENT } from "@/lib/videos/video-cart-storage";
+import { purchaseButtonState } from "@/lib/videos/purchase-button-label";
 import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGateVisibility } from "@/contexts/GateVisibilityContext";
@@ -507,6 +509,22 @@ export default function ClientAlbumView({
   const [searchResults, setSearchResults] = useState<Array<{ id: number; previewUrl: string; originalKey: string; analysisStatus?: string | null }>>([]);
   // La misma selfie encuentra fotos y videos: una sola consulta a Amazon.
   const [faceVideos, setFaceVideos] = useState<VideoSelfieHit[]>([]);
+
+  // Videos elegidos. El botón de comprar es uno solo para fotos y videos, así
+  // que tiene que enterarse de lo que pasa en la pestaña de videos.
+  const [selectedVideoIds, setSelectedVideoIds] = useState<number[]>([]);
+
+  useEffect(() => {
+    if (!album?.id) return;
+    setSelectedVideoIds(readVideoCart(album.id));
+
+    const onCartChange = (e: Event) => {
+      const detail = (e as CustomEvent<{ albumId: number; ids: number[] }>).detail;
+      if (detail?.albumId === album.id) setSelectedVideoIds(detail.ids ?? []);
+    };
+    window.addEventListener(VIDEO_CART_EVENT, onCartChange);
+    return () => window.removeEventListener(VIDEO_CART_EVENT, onCartChange);
+  }, [album?.id]);
   /** Solo búsqueda facial (no OCR): base del pack en álbumes no ocultos. */
   const [lastFaceSearchMatchIds, setLastFaceSearchMatchIds] = useState<number[]>([]);
   const [faceFile, setFaceFile] = useState<File | null>(null);
@@ -579,6 +597,14 @@ export default function ClientAlbumView({
     searchParams.get("debugCheckout") === "1" ||
     process.env.NEXT_PUBLIC_CHECKOUT_DEBUG === "1";
   const [checkoutSubmitting, setCheckoutSubmitting] = useState(false);
+
+  /** Un solo botón para fotos y videos, que dice qué se está por comprar. */
+  const comprarBoton = purchaseButtonState({
+    photos: selected.size,
+    videos: selectedVideoIds.length,
+    submitting: checkoutSubmitting,
+    videosEnabled: publicVideosEnabled,
+  });
   const [checkoutSubmitError, setCheckoutSubmitError] = useState<string | null>(null);
   const checkoutFallbackTimerRef = useRef<number | null>(null);
   const checkoutRetryHrefRef = useRef<string | null>(null);
@@ -864,6 +890,15 @@ export default function ClientAlbumView({
 
   function handleComprar() {
     if (checkoutSubmitting) return;
+
+    // Sólo videos: no hay fotos que pasar por el selector, así que va derecho
+    // al resumen. Antes esta línea cortaba y el botón no hacía nada.
+    if (selected.size === 0 && selectedVideoIds.length > 0) {
+      setCheckoutSubmitting(true);
+      startCheckoutNavigation(`${albumComprarPathBase}/comprar/resumen`);
+      return;
+    }
+
     if (selected.size === 0) return;
     setCheckoutSubmitting(true);
     setCheckoutSubmitError(null);
@@ -3043,15 +3078,15 @@ export default function ClientAlbumView({
         <button
           type="button"
           onClick={handleComprar}
-          disabled={!hasSelection || checkoutSubmitting}
+          disabled={comprarBoton.disabled}
           className={`fixed z-50 right-5 bottom-5 md:right-8 md:bottom-8 px-4 py-3 rounded-full shadow-lg text-white text-sm font-semibold transition-all disabled:pointer-events-none ${
-            hasSelection && !checkoutSubmitting
+            !comprarBoton.disabled
               ? "bg-[#c27b3d] hover:bg-[#a0652d]"
               : "bg-[#9ca3af] cursor-not-allowed"
           }`}
           style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)" }}
         >
-          {checkoutSubmitting ? "Procesando..." : hasSelection ? "Comprar fotos" : "Seleccioná fotos"}
+          {comprarBoton.label}
         </button>
       )}
 

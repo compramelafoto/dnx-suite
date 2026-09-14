@@ -146,6 +146,10 @@ export default function AlbumResumenPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const [videoCartIds, setVideoCartIds] = useState<number[]>([]);
+  const [videoQuote, setVideoQuote] = useState<{
+    items: { videoId: number; title: string | null; subtotalArs: number; subtotalLabel: string | null }[];
+    clientTotalArs: number;
+  }>({ items: [], clientTotalArs: 0 });
   const albumId = params.id as string;
   const checkoutDebugEnabled =
     searchParams.get("debugCheckout") === "1" ||
@@ -221,10 +225,46 @@ export default function AlbumResumenPage() {
     setVideoCartIds(readVideoCart(Number(albumId)));
   }, [albumId]);
 
+  // El total de los videos lo calcula el servidor con la misma función que
+  // cobra: así el cliente no puede ver un monto y pagar otro.
+  useEffect(() => {
+    if (!albumId || videoCartIds.length === 0) {
+      setVideoQuote({ items: [], clientTotalArs: 0 });
+      return;
+    }
+    let cancelado = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/a/${albumId}/video-quote`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ videoIds: videoCartIds }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (cancelado || !res.ok) return;
+        setVideoQuote({
+          items: Array.isArray(data.items) ? data.items : [],
+          clientTotalArs: Number(data.clientTotalArs) || 0,
+        });
+      } catch {
+        /* sin cotización de video, el pedido sigue con las fotos */
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [albumId, videoCartIds]);
+
   // Cargar items desde sessionStorage
   useEffect(() => {
     const savedItems = sessionStorage.getItem(`album_${albumId}_items`);
     if (!savedItems) {
+      // Un pedido de sólo videos no tiene fotos guardadas, y antes eso mandaba
+      // al cliente de vuelta al selector de fotos en mitad de la compra.
+      if (readVideoCart(Number(albumId)).length > 0) {
+        setItems([]);
+        return;
+      }
       router.push(`/a/${albumId}/comprar`);
       return;
     }
@@ -412,7 +452,10 @@ export default function AlbumResumenPage() {
     });
   }, [albumPricing, pricingItems, quote]);
 
-  const totalDisplayArs = totals.displayTotalCents;
+  const photoTotalArs = totals.displayTotalCents;
+  // Lo que realmente va a pagar: fotos + videos. Tiene que coincidir con lo que
+  // cobra el servidor, que suma las mismas dos partes.
+  const totalDisplayArs = photoTotalArs + videoQuote.clientTotalArs;
   const extensionSurchargeArs = totals.extensionSurchargeCents ?? 0;
 
   useEffect(() => {
@@ -509,12 +552,12 @@ export default function AlbumResumenPage() {
     }
     setTermsError(null);
 
-    if (quoteLoading) {
+    if (items.length > 0 && quoteLoading) {
       setError("Estamos calculando los precios. Esperá un momento e intentá de nuevo.");
       setLoading(false);
       return;
     }
-    if (!quote || totalDisplayArs <= 0) {
+    if ((items.length > 0 && !quote) || totalDisplayArs <= 0) {
       setError(
         quoteError ??
           "No pudimos calcular el total de tu pedido. Volvé al carrito, actualizá la selección e intentá de nuevo."
@@ -633,7 +676,9 @@ export default function AlbumResumenPage() {
     }
   }
 
-  if (items.length === 0) {
+  // Antes alcanzaba con no tener fotos para que esta pantalla no existiera, y
+  // por eso una compra de sólo videos no llegaba nunca al pago.
+  if (items.length === 0 && videoCartIds.length === 0) {
     return null;
   }
 
@@ -840,6 +885,27 @@ export default function AlbumResumenPage() {
             </Card>
           )}
 
+          {/* Los videos elegidos, con su precio. Van en el mismo pedido. */}
+          {videoQuote.items.length > 0 && (
+            <Card>
+              <div className="space-y-3">
+                <h3 className="text-base font-medium text-[#1a1a1a]">
+                  {videoQuote.items.length === 1 ? "Tu video" : "Tus videos"}
+                </h3>
+                {videoQuote.items.map((v) => (
+                  <div key={v.videoId} className="flex items-center justify-between gap-3">
+                    <span className="min-w-0 truncate text-sm text-[#374151]">
+                      {v.title?.trim() || `Video ${v.videoId}`}
+                    </span>
+                    <span className="whitespace-nowrap text-sm font-medium text-[#1a1a1a]">
+                      {v.subtotalLabel}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
           {/* Resumen final */}
           <Card className="bg-[#f8f9fa]">
             <div className="space-y-4">
@@ -992,8 +1058,9 @@ export default function AlbumResumenPage() {
               disabled={
                 loading ||
                 mpPreparing ||
-                quoteLoading ||
-                !quote ||
+                // La cotización de fotos sólo se exige si hay fotos: un pedido
+                // de sólo videos no tiene nada que cotizar por ese lado.
+                (items.length > 0 && (quoteLoading || !quote)) ||
                 totalDisplayArs <= 0 ||
                 !termsAccepted
               }

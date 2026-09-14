@@ -14,6 +14,8 @@ export type ParticipantCardAuditFields = {
   actorKind?: string;
   durationMs?: number;
   errorCode?: string;
+  /** El motivo del fallo, recortado. Sin esto un fallo sólo dice "el render falló". */
+  errorMessage?: string;
   recordId?: string;
   [key: string]: string | number | boolean | null | undefined;
 };
@@ -27,6 +29,7 @@ const SAFE_KEYS = new Set([
   "actorKind",
   "durationMs",
   "errorCode",
+  "errorMessage",
   "recordId",
   "width",
   "height",
@@ -36,6 +39,13 @@ const SAFE_KEYS = new Set([
   "force",
 ]);
 
+/**
+ * Un mensaje de error puede arrastrar la dirección de una foto o el nombre de alguien, así que
+ * se recorta. Doscientos caracteres alcanzan para reconocer la causa —un módulo que falta, un
+ * bloque inválido— sin volcar medio documento al registro.
+ */
+const MAX_ERROR_MESSAGE = 200;
+
 function sanitizeFields(
   fields: ParticipantCardAuditFields
 ): Record<string, string | number | boolean> {
@@ -43,6 +53,10 @@ function sanitizeFields(
   for (const [k, v] of Object.entries(fields)) {
     if (v == null) continue;
     if (!SAFE_KEYS.has(k)) continue;
+    if (k === "errorMessage" && typeof v === "string") {
+      out[k] = v.slice(0, MAX_ERROR_MESSAGE);
+      continue;
+    }
     if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
       out[k] = v;
     }

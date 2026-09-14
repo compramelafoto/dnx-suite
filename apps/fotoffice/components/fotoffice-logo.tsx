@@ -1,45 +1,43 @@
 import Image from "next/image";
 
 /**
- * El logotipo, recortado a su contenido real.
+ * El logo de FotOffice, en sus dos formas.
  *
- * El asset original (`public/Fotoffice.png`, 1536×1024) tiene el logo metido adentro de un
- * lienzo enorme: el dibujo ocupa sólo del píxel 310 al 681 de alto, un 36% de la imagen. Todo
- * lo demás es transparente. Como la altura del `<img>` se aplica al lienzo y no al dibujo, un
- * logo de 56 px de alto se veía de 20: por eso parecía diminuto al lado de cualquier texto.
+ * **Por qué hay dos archivos y no uno.** El logo completo —símbolo más la palabra
+ * "FotOffice"— es muy ancho: en el panel lateral hay que achicarlo tanto para que entre
+ * que la palabra queda ilegible. El isotipo solo (el círculo con el maletín) se lee bien
+ * a cualquier tamaño. Por eso el panel lateral y el encabezado usan el isotipo, y el
+ * logo completo queda para las pantallas grandes, donde hay lugar y hace falta decir el
+ * nombre.
  *
- * `public/fotoffice-logo.png` es ese mismo archivo recortado a (138, 298)-(1374, 693). Con el
- * recorte, la altura que se pide es la que se ve, y de paso el archivo pasó de 2,1 MB a 0,7 MB.
- *
- * El nombre en minúsculas tampoco es casual: el componente pedía `/fotoffice.png` y el archivo
- * se llamaba `Fotoffice.png`. En macOS da igual —el sistema de archivos no distingue mayúsculas—
- * pero el servidor de Vercel corre sobre Linux, donde eso es un 404 y el logo no aparece.
+ * **Los dos tienen fondo transparente**, así que funcionan sobre claro y sobre oscuro.
+ * El archivo anterior (`Fotoffice.png`) decía en su comentario que era transparente y no
+ * lo era: tenía un fondo gris con degradado, pesaba 2,1 MB, y encima estaba referenciado
+ * en minúscula cuando el archivo tenía mayúscula — por eso no se veía en producción.
+ * Ver la nota sobre mayúsculas más abajo.
  */
-const LOGO_SRC = "/fotoffice-logo.png";
-const LOGO_WIDTH = 1236;
-const LOGO_HEIGHT = 395;
 
-export type FotofficeLogoVariant = "landing" | "hero" | "compact" | "sidebar";
+/** Logo completo, recortado a su tinta. 1224x372. */
+const LOGO_SRC = "/fotoffice-logo.png";
+const LOGO_WIDTH = 1224;
+const LOGO_HEIGHT = 372;
+
+/** Sólo el símbolo, sobre lienzo cuadrado para que no se deforme. 388x388. */
+const ISOTIPO_SRC = "/fotoffice-isotipo.png";
+const ISOTIPO_SIZE = 388;
 
 /**
- * Las alturas son las del dibujo, no las del lienzo.
+ * `hero` es el logo completo para pantallas de bienvenida; `compact` e `isotipo` son el
+ * símbolo solo, para encabezados y para el panel lateral.
  *
- * `compact` y `sidebar` quedan cerca de lo que ya se veía en el panel; `landing` es el grande
- * de la portada pública, donde el logo compite con un titular de 60 px y tiene que sostenerlo.
+ * `sidebar` se mantiene como sinónimo de `isotipo` para no romper a quien ya lo usa.
+ *
+ * `landing` es la barra de la portada pública, y es el único encabezado que lleva el logo
+ * completo en vez del isotipo: ahí el visitante todavía no sabe cómo se llama esto, así que
+ * el símbolo solo no alcanza. Va más chico que `hero` porque comparte la barra con el botón
+ * de entrar, y la barra no puede comerse la pantalla.
  */
-const ALTURAS: Record<FotofficeLogoVariant, string> = {
-  landing: "h-14 md:h-[4.5rem] w-auto max-w-[min(100%,20rem)]",
-  hero: "h-12 md:h-16 w-auto max-w-[min(100%,18rem)]",
-  compact: "h-8 md:h-9 w-auto max-w-[min(100%,14rem)]",
-  sidebar: "h-10 md:h-11 w-auto max-w-full",
-};
-
-const TAMANOS: Record<FotofficeLogoVariant, string> = {
-  landing: "(max-width: 768px) 176px, 226px",
-  hero: "(max-width: 768px) 150px, 200px",
-  compact: "(max-width: 768px) 100px, 113px",
-  sidebar: "(max-width: 768px) 125px, 138px",
-};
+export type FotofficeLogoVariant = "hero" | "landing" | "compact" | "sidebar" | "isotipo";
 
 export function FotofficeLogo({
   variant = "compact",
@@ -50,17 +48,31 @@ export function FotofficeLogo({
   className?: string;
   priority?: boolean;
 }) {
-  const align = variant === "sidebar" ? "object-left" : "object-center";
+  const usaIsotipo = variant !== "hero" && variant !== "landing";
+
+  const size = usaIsotipo
+    ? "h-10 w-10 md:h-11 md:w-11"
+    : variant === "landing"
+      ? "h-14 md:h-[4.5rem] w-auto max-w-[min(100%,20rem)]"
+      : "h-[4.5rem] md:h-[5.5rem] w-auto max-w-[min(100%,22rem)]";
+
+  const align = variant === "hero" ? "object-center mx-auto" : "object-left";
 
   return (
     <Image
-      src={LOGO_SRC}
+      src={usaIsotipo ? ISOTIPO_SRC : LOGO_SRC}
       alt="FotOffice"
-      width={LOGO_WIDTH}
-      height={LOGO_HEIGHT}
+      width={usaIsotipo ? ISOTIPO_SIZE : LOGO_WIDTH}
+      height={usaIsotipo ? ISOTIPO_SIZE : LOGO_HEIGHT}
       priority={priority}
-      className={`object-contain ${align} ${ALTURAS[variant]} ${className}`.trim()}
-      sizes={TAMANOS[variant]}
+      className={`object-contain ${align} ${size} ${className}`.trim()}
+      sizes={
+        usaIsotipo
+          ? "44px"
+          : variant === "landing"
+            ? "(max-width: 768px) 185px, 237px"
+            : "(max-width: 768px) 280px, 352px"
+      }
     />
   );
 }

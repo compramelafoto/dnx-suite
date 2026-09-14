@@ -254,13 +254,19 @@ export function editorADocumento(input: {
           }
 
           case "PHOTO": {
-            // El bloque de foto siempre es la foto del socio: es lo que lo distingue de una
-            // imagen cualquiera.
+            /*
+             * El bloque de foto es la foto de la persona: eso lo distingue de una imagen
+             * cualquiera. Cómo se llama esa variable depende del producto —en FotoOffice es
+             * `photo`, en Clickatón `participant.photoUrl`—, así que se respeta la que declare
+             * el diseño y `photo` queda como valor por defecto para quien no declara ninguna.
+             */
+            const clavePhoto =
+              texto(obj(cfg.source).variableKey) || texto(cfg.variableKey) || "photo";
             const recortePhoto = texto(cfg.maskShape, "rect");
             dibujables.push({
               ...geo,
               type: "image",
-              variableKey: "photo",
+              variableKey: clavePhoto,
               fit: "cover",
               mask:
                 recortePhoto === "circle" || recortePhoto === "ellipse" ? recortePhoto : "rect",
@@ -287,10 +293,16 @@ export function editorADocumento(input: {
                 ? { cornerRadius: mm(num(cfg.borderRadius, 0)) }
                 : {}),
             };
+            /*
+             * Un logo tiene que entrar entero en su recuadro; una foto tiene que llenarlo. Antes
+             * todas las imágenes se recortaban como una foto, así que un logo con "contain"
+             * salía recortado sin que nada lo avisara. `cover` sigue siendo el valor por defecto.
+             */
+            const encaje = texto(cfg.fit) === "contain" ? "contain" : "cover";
             if (clave) {
-              dibujables.push({ ...geo, type: "image", variableKey: clave, fit: "cover", ...forma });
+              dibujables.push({ ...geo, type: "image", variableKey: clave, fit: encaje, ...forma });
             } else if (src) {
-              dibujables.push({ ...geo, type: "image", resourceRef: src, fit: "cover", ...forma });
+              dibujables.push({ ...geo, type: "image", resourceRef: src, fit: encaje, ...forma });
             } else {
               avisos.push("Una imagen quedó sin archivo ni variable; no se imprimió.");
             }

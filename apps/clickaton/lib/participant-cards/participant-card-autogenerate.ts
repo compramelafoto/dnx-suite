@@ -151,16 +151,52 @@ export async function autoGenerateParticipantCardsForRegistration(input: {
   return { registrationId: input.registrationId, attempted: true, outcomes };
 }
 
-/** Soft-fail para el hot path de checkout: nunca propaga el error. */
-export function enqueueParticipantCardsAfterPaid(input: {
-  registrationId: string;
-}): void {
+/** Programa una tarea para que corra después de responder. */
+export type ParticipantCardTaskScheduler = (tarea: () => unknown) => void;
+
+/**
+ * El programador de tareas de Next.
+ *
+ * Se carga a demanda porque este módulo también corre fuera de una request —el cron, los
+ * scripts de mantenimiento—, y ahí `next/server` no tiene ningún contexto que ofrecer.
+ */
+function defaultScheduler(tarea: () => unknown): void {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- carga perezosa: fuera de una request no hay contexto
+  const { after } = require("next/server") as { after: ParticipantCardTaskScheduler };
+  after(tarea);
+}
+
+/**
+ * Dispara la generación de las placas apenas se confirma el pago.
+ *
+ * La tarea se **programa**, no se lanza y se olvida: en Vercel el servidor se congela apenas
+ * responde, así que una promesa suelta queda a mitad de camino y la placa recién aparece
+ * cuando pasa el cron, hasta cinco minutos más tarde. Programada, el servidor la espera antes
+ * de apagarse y la placa ya está lista cuando el participante llega a su pantalla.
+ *
+ * Nunca propaga el error: el pago ya está confirmado, y el cron sigue siendo la red de
+ * seguridad si la generación falla.
+ */
+export function enqueueParticipantCardsAfterPaid(
+  input: { registrationId: string },
+  deps: { schedule?: ParticipantCardTaskScheduler } = {}
+): void {
   if (!isParticipantCardAutoGenerationEnabled()) return;
-  void autoGenerateParticipantCardsForRegistration({
-    registrationId: input.registrationId,
-  }).catch(() => {
-    /* el cron reintenta; el pago sigue confirmado */
-  });
+
+  const generar = () =>
+    autoGenerateParticipantCardsForRegistration({
+      registrationId: input.registrationId,
+    }).catch(() => {
+      /* el cron reintenta; el pago sigue confirmado */
+    });
+
+  try {
+    (deps.schedule ?? defaultScheduler)(generar);
+  } catch {
+    // Sin contexto de request —cron, scripts— no hay nadie que espere la tarea: se la lanza
+    // igual, que es exactamente lo que se hacía antes de poder programarla.
+    void generar();
+  }
 }
 
 export type ProcessDueParticipantCardsResult = {
