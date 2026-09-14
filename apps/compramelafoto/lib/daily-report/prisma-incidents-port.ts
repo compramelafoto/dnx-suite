@@ -31,12 +31,23 @@ export function createPrismaIncidentsPort(client: PrismaClient): IncidentsPort {
     async unreconciledPaidOrders(olderThanHours: number) {
       const cutoff = new Date(Date.now() - olderThanHours * MS_PER_HOUR);
 
-      // Pagado en MercadoPago pero sin entrega digital registrada.
+      // Cobrado pero con fotos digitales sin entregar.
+      //
+      // Las dos condiciones de abajo no son un detalle: sin ellas el alerta
+      // contaba 32 casos donde sólo 8 eran reales, y por gritar lobo tres de
+      // cada cuatro veces se dejó de leer.
+      //
+      // - Un pedido de sólo impresión NUNCA va a tener entrega digital, así
+      //   que aparecía como pendiente para siempre.
+      // - Un pack de preventa se paga antes de que existan las fotos: no tiene
+      //   ítems hasta que el cliente canjea, y no hay nada que entregar todavía.
       const where = {
         status: "PAID" as const,
         isTest: false,
         digitalDeliveredAt: null,
         createdAt: { lt: cutoff },
+        origin: { not: "PREVENTA_PACK" as const },
+        items: { some: { productType: "DIGITAL" as const } },
       };
 
       const [count, oldest] = await Promise.all([
