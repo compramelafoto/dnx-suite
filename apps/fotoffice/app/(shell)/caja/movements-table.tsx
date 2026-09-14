@@ -15,9 +15,11 @@ function fecha(d: Date) {
 }
 
 /**
- * El libro, en tabla. La usan tanto `/caja` —los movimientos del turno que está abierto,
- * sin botón de anular: acá se corrige cargando un movimiento nuevo, no tocando el turno en
- * curso— como `/caja/movimientos`, el libro completo con la anulación habilitada.
+ * El libro, en tabla. La usan dos pantallas con intenciones distintas:
+ *
+ * `/caja` la muestra como vistazo —los últimos movimientos de todas las cuentas, sin botón
+ * de anular—, porque el panorama es para mirar de dónde salió y a dónde fue la plata, no
+ * para corregirla. `/caja/movimientos` es el libro de trabajo y ahí sí se anula.
  *
  * Un movimiento de otro módulo (`sourceModule !== "manual"`) nunca lleva botón de editar
  * —no existe esa acción en todo el módulo—, y acá tampoco se le esconde el de anular: el

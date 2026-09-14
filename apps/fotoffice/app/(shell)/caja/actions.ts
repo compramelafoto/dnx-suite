@@ -146,9 +146,8 @@ export async function closeShiftAction(formData: FormData): Promise<void> {
  * elegida. Una cuenta digital o sin turno abierto simplemente no le asigna ninguno, y el
  * movimiento queda igual de válido — es una cuenta que no se arquea.
  *
- * `returnTo` es opcional a propósito: el botón del mostrador (panel del turno, en `/caja`)
- * no lo manda, así que sigue volviendo a `/caja` como siempre. Sólo lo manda el formulario
- * con selector de cuenta de `/caja/movimientos`, para no perder de vista el asiento recién
+ * `returnTo` es opcional a propósito, con `/caja` como destino por omisión: el panorama y
+ * `/caja/movimientos` mandan el suyo propio para no perder de vista el asiento recién
  * cargado saltando a otra pantalla. Mismo tratamiento que `transferAction`: ver el porqué en
  * `lib/cash/return-to.ts`.
  */

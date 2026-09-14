@@ -188,9 +188,9 @@ const SORTEOS: SubmoduleItem[] = [
 const CAJA: SubmoduleItem[] = [
   {
     href: "/caja",
-    label: "Turno abierto",
+    label: "Panorama",
     icon: "Wallet",
-    description: "Lo que entró y salió en el turno que está abierto.",
+    description: "El saldo de cada cuenta, lo último que entró y salió, y el turno de cada mostrador.",
     requiresManage: false,
     activeMatch: "rest",
   },
