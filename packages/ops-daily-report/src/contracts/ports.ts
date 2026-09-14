@@ -170,3 +170,53 @@ export type FotofficeStats = {
 export interface FotofficePort {
   stats(range: DateRange): Promise<FotofficeStats>;
 }
+
+/**
+ * Factura de un proveedor de Finanzas DNX, vencida y todavía sin pagar
+ * (`RECHAZADO` o `IMPAGO`). Es el caso que pasó cuatro meses sin que nadie lo
+ * viera: Neon rechazando facturas desde mayo, descubierto en septiembre.
+ */
+export type FinanceOverdueInvoice = {
+  vendorKey: string;
+  vendorName: string;
+  /** Mes de la factura (el período que se cargó), 1-12. */
+  periodMonth: number;
+  status: "RECHAZADO" | "IMPAGO";
+  /** Importe en pesos, ya convertido (Decimal → number en el borde). */
+  amountArs: number;
+  /** Importe en la moneda original de la factura. */
+  amountOriginal: number;
+  currency: "USD" | "ARS";
+  daysOverdue: number;
+  /** Fecha de vencimiento en ISO-8601, para saber cuál es la más vieja. */
+  dueDate: string;
+};
+
+export type FinanceMissingVendor = {
+  vendorKey: string;
+  vendorName: string;
+};
+
+/**
+ * `null` cuando todavía no corresponde reclamar (antes del día 5 del mes:
+ * las facturas de algunos proveedores todavía pueden no haber llegado).
+ */
+export type FinanceMissingVendorsCheck = {
+  vendors: FinanceMissingVendor[];
+  /** Mes que se está reclamando (el mes pasado). */
+  period: { year: number; month: number };
+} | null;
+
+export type FinanceMonthTotals = {
+  billedArs: number;
+  paidArs: number;
+  /** Todas las facturas rechazadas o impagas, de cualquier mes, no sólo éste. */
+  accumulatedDebtArs: number;
+};
+
+export interface FinancePort {
+  /** Facturas RECHAZADO/IMPAGO con vencimiento pasado, de cualquier período. */
+  overdueInvoices(): Promise<FinanceOverdueInvoice[]>;
+  missingVendors(): Promise<FinanceMissingVendorsCheck>;
+  monthTotals(): Promise<FinanceMonthTotals>;
+}
