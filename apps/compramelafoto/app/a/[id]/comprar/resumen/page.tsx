@@ -255,40 +255,16 @@ export default function AlbumResumenPage() {
     };
   }, [albumId, videoCartIds]);
 
-  // El total de los videos lo calcula el servidor con la misma función que
-  // cobra: así el cliente no puede ver un monto y pagar otro.
-  useEffect(() => {
-    if (!albumId || videoCartIds.length === 0) {
-      setVideoQuote({ items: [], clientTotalArs: 0 });
-      return;
-    }
-    let cancelado = false;
-    (async () => {
-      try {
-        const res = await fetch(`/api/a/${albumId}/video-quote`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ videoIds: videoCartIds }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (cancelado || !res.ok) return;
-        setVideoQuote({
-          items: Array.isArray(data.items) ? data.items : [],
-          clientTotalArs: Number(data.clientTotalArs) || 0,
-        });
-      } catch {
-        /* sin cotización de video, el pedido sigue con las fotos */
-      }
-    })();
-    return () => {
-      cancelado = true;
-    };
-  }, [albumId, videoCartIds]);
-
   // Cargar items desde sessionStorage
   useEffect(() => {
     const savedItems = sessionStorage.getItem(`album_${albumId}_items`);
     if (!savedItems) {
+      // Un pedido de sólo videos no tiene fotos guardadas, y antes eso mandaba
+      // al cliente de vuelta al selector de fotos en mitad de la compra.
+      if (readVideoCart(Number(albumId)).length > 0) {
+        setItems([]);
+        return;
+      }
       router.push(`/a/${albumId}/comprar`);
       return;
     }
