@@ -68,6 +68,11 @@ const nextConfig: NextConfig = {
      *
      * Va ruta por ruta y no en `/**`: pesa unas decenas de megas y Next lo copia una vez por
      * función. Aplicado a todas, el contenedor de build se queda sin disco.
+     *
+     * Copiar los archivos no alcanza por sí solo: el `require` se ejecuta desde el bundle de
+     * esta app, y con pnpm el paquete cuelga de `packages/design-studio/node_modules`, donde
+     * Node no lo busca. Por eso además figura en las dependencias de esta app —que es lo que
+     * crea el enlace en `apps/clickaton/node_modules` y lo vuelve resoluble.
      */
     ...Object.fromEntries(
       [
