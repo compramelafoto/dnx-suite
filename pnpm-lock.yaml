@@ -44,6 +44,9 @@ importers:
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@repo/design-studio':
+        specifier: workspace:*
+        version: link:../../packages/design-studio
       '@repo/design-system':
         specifier: workspace:*
         version: link:../../packages/design-system
@@ -1229,6 +1232,9 @@ importers:
 
   packages/design-studio:
     dependencies:
+      '@fontsource/barlow-condensed':
+        specifier: ^5.3.0
+        version: 5.3.0
       '@fontsource/cinzel':
         specifier: ^5.2.8
         version: 5.2.8
@@ -2565,6 +2571,9 @@ packages:
 
   '@fontsource/allura@5.2.8':
     resolution: {integrity: sha512-NzYZyYj/nET124bL0RfNDRdO2IXG+lhS5AzrwqpBHmovWznJ56t9u3w+RYR4iMa+WuCB6XFE6NTOQ4JzvCOq0A==}
+
+  '@fontsource/barlow-condensed@5.3.0':
+    resolution: {integrity: sha512-RA7MmIx0v3eQ6Gcf74qLVLOwLB0GpPOzx+eU9iG/AmCnSJGcIWYeU8y6CEMGZ210MGwGg5CZhzLkkvyZdTTk1g==}
 
   '@fontsource/caveat@5.2.8':
     resolution: {integrity: sha512-9fUUfFE2IQFKbx+xOcaeQxxmh8iJguEb8z+j1PeueO4UUx+XfT4pRm/B04ZDvFA794/iRxY/IibmP8ZKtIf4rw==}
@@ -8624,6 +8633,8 @@ snapshots:
   '@floating-ui/utils@0.2.11': {}
 
   '@fontsource/allura@5.2.8': {}
+
+  '@fontsource/barlow-condensed@5.3.0': {}
 
   '@fontsource/caveat@5.2.8': {}
 

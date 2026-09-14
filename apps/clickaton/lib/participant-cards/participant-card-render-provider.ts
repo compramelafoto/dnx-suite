@@ -13,6 +13,7 @@ import {
   getCardRemoteRenderUrl,
   getTemplateRenderHmacSecret,
 } from "./participant-card-feature-flags";
+import { DesignStudioRenderProvider } from "./participant-card-design-studio-renderer";
 import { renderClickatonParticipantCard } from "./participant-card-renderer";
 import type { ClickatonParticipantCardType } from "./participant-card-types";
 
@@ -31,7 +32,15 @@ export interface ParticipantCardRenderProvider {
 }
 
 const RETRYABLE_STATUSES = new Set([502, 503, 504]);
-const CONNECT_TIMEOUT_MS = 3_000;
+/**
+ * Un solo plazo para todo el pedido.
+ *
+ * Había además una alarma de 3 segundos pensada para «no pude ni conectarme», pero nunca se
+ * apagaba cuando la conexión sí funcionaba: cortaba cualquier render que pasara de ese tiempo,
+ * y un render con navegador tarda segundos —más de diez si el servidor recién arranca—. La
+ * alarma corta no se puede implementar con `fetch`, que no avisa cuándo se estableció la
+ * conexión: sólo resuelve cuando llegan las cabeceras, y el worker las manda al terminar.
+ */
 const TOTAL_TIMEOUT_MS = 25_000;
 const MAX_ATTEMPTS = 3; // initial + 2 retries
 
@@ -153,7 +162,6 @@ export class RemoteParticipantCardRenderProvider implements ParticipantCardRende
       });
 
       const controller = new AbortController();
-      const connectTimer = setTimeout(() => controller.abort(), CONNECT_TIMEOUT_MS);
       const totalTimer = setTimeout(() => controller.abort(), TOTAL_TIMEOUT_MS);
 
       try {
@@ -224,8 +232,7 @@ export class RemoteParticipantCardRenderProvider implements ParticipantCardRende
         this.circuit.recordFailure();
 
         if (timedOut) {
-          throw cardRenderUnavailable("Timeout conectando o renderizando en worker remoto", {
-            connectTimeoutMs: CONNECT_TIMEOUT_MS,
+          throw cardRenderUnavailable("Timeout renderizando en el worker remoto", {
             totalTimeoutMs: TOTAL_TIMEOUT_MS,
           });
         }
@@ -243,7 +250,6 @@ export class RemoteParticipantCardRenderProvider implements ParticipantCardRende
 
         throw err;
       } finally {
-        clearTimeout(connectTimer);
         clearTimeout(totalTimer);
       }
     }
@@ -270,15 +276,24 @@ function isRetryableFetchError(err: unknown): boolean {
   return err instanceof Error && err.name === "AbortError";
 }
 
+/**
+ * El motor con el que se dibujan las placas.
+ *
+ * Por defecto, `design-studio`: el mismo que imprime el carnet de socio de FotoOffice, que
+ * corre dentro de Vercel y no necesita ningún navegador. Los otros dos siguen disponibles para
+ * quien los configure a propósito, pero ninguno puede ser el valor por defecto: los dos exigen
+ * un Chromium que en el servidor de producción no existe.
+ */
 export function resolveParticipantCardRenderProvider(): ParticipantCardRenderProvider {
   // Env de runtime (Vercel/local); no forma parte del grafo turbo de build.
   // eslint-disable-next-line turbo/no-undeclared-env-vars -- runtime provider switch
-  const raw = (process.env.CLICKATON_CARD_RENDER_PROVIDER ?? "local")
+  const raw = (process.env.CLICKATON_CARD_RENDER_PROVIDER ?? "design-studio")
     .trim()
     .toLowerCase();
   if (raw === "unavailable") return new UnavailableRenderProvider();
   if (raw === "remote") return new RemoteParticipantCardRenderProvider();
-  return new LocalPlaywrightRenderProvider();
+  if (raw === "local") return new LocalPlaywrightRenderProvider();
+  return new DesignStudioRenderProvider();
 }
 
 /** Resuelve documento + render vía pipeline completo (útil en integración). */
