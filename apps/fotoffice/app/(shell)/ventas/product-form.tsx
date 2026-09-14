@@ -245,6 +245,11 @@ export function ProductForm({
               checked={tracksStock}
               onChange={(e) => setTracksStock(e.target.checked)}
             />
+            {/* Una casilla destildada no manda nada: sin este respaldo, el parser nunca ve
+                un "off" y asume que controla existencia igual. Tiene que ir DESPUÉS de la
+                casilla en el DOM: `FormData.get` devuelve la primera coincidencia, y sólo
+                así, cuando está tildada, gana el "on" del checkbox por sobre este "off". */}
+            <input type="hidden" name="tracksStock" value="off" />
             Controla existencia
           </label>
           {tracksStock ? (

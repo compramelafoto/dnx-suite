@@ -43,6 +43,10 @@ export function CategoryForm({ category }: { category: ProductCategoryRow | null
 
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" name="isActive" defaultChecked={category?.isActive ?? true} />
+        {/* Mismo respaldo que en product-form.tsx: sin esto, destildar "Activa" no manda
+            nada y el parser la deja activa igual. Va después de la casilla a propósito —
+            `FormData.get` toma la primera coincidencia, así que tildada gana el checkbox. */}
+        <input type="hidden" name="isActive" value="off" />
         Activa
       </label>
 
