@@ -31,8 +31,13 @@ const ISOTIPO_SIZE = 388;
  * símbolo solo, para encabezados y para el panel lateral.
  *
  * `sidebar` se mantiene como sinónimo de `isotipo` para no romper a quien ya lo usa.
+ *
+ * `landing` es la barra de la portada pública, y es el único encabezado que lleva el logo
+ * completo en vez del isotipo: ahí el visitante todavía no sabe cómo se llama esto, así que
+ * el símbolo solo no alcanza. Va más chico que `hero` porque comparte la barra con el botón
+ * de entrar, y la barra no puede comerse la pantalla.
  */
-export type FotofficeLogoVariant = "hero" | "compact" | "sidebar" | "isotipo";
+export type FotofficeLogoVariant = "hero" | "landing" | "compact" | "sidebar" | "isotipo";
 
 export function FotofficeLogo({
   variant = "compact",
@@ -43,11 +48,13 @@ export function FotofficeLogo({
   className?: string;
   priority?: boolean;
 }) {
-  const usaIsotipo = variant !== "hero";
+  const usaIsotipo = variant !== "hero" && variant !== "landing";
 
   const size = usaIsotipo
     ? "h-10 w-10 md:h-11 md:w-11"
-    : "h-[4.5rem] md:h-[5.5rem] w-auto max-w-[min(100%,22rem)]";
+    : variant === "landing"
+      ? "h-14 md:h-[4.5rem] w-auto max-w-[min(100%,20rem)]"
+      : "h-[4.5rem] md:h-[5.5rem] w-auto max-w-[min(100%,22rem)]";
 
   const align = variant === "hero" ? "object-center mx-auto" : "object-left";
 
@@ -59,7 +66,13 @@ export function FotofficeLogo({
       height={usaIsotipo ? ISOTIPO_SIZE : LOGO_HEIGHT}
       priority={priority}
       className={`object-contain ${align} ${size} ${className}`.trim()}
-      sizes={usaIsotipo ? "44px" : "(max-width: 768px) 280px, 352px"}
+      sizes={
+        usaIsotipo
+          ? "44px"
+          : variant === "landing"
+            ? "(max-width: 768px) 185px, 237px"
+            : "(max-width: 768px) 280px, 352px"
+      }
     />
   );
 }
