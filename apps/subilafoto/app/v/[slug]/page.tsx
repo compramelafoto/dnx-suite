@@ -1,7 +1,9 @@
 import Image from "next/image";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
 import { calcularPrecios, formatearPesos, type ModoDescarga } from "@/lib/precios";
+import { estiloBotonDnx } from "@/lib/boton-dnx";
 
 /**
  * El enlace permanente de venta del profesional (capítulo 6.1).
@@ -120,17 +122,13 @@ export default async function PaginaDeVenta({ params }: Props) {
       </section>
 
       <div className="mt-10">
-        <button
-          type="button"
-          disabled
-          className="w-full rounded-xl px-8 py-4 text-lg font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
-          style={{ background: acento }}
+        <Link
+          href={`/v/${slug}/comprar`}
+          className="w-full text-lg sm:w-auto"
+          style={{ ...estiloBotonDnx("primario"), background: acento, color: "white" }}
         >
           Contratar
-        </button>
-        <p className="mt-3 text-sm" style={{ color: "var(--slf-tinta-suave)" }}>
-          El pago se habilita en octubre.
-        </p>
+        </Link>
       </div>
     </main>
   );
