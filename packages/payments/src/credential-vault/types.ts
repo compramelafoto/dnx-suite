@@ -20,7 +20,9 @@ export type MercadoPagoCredentialOrigin =
   | "clickaton_owner_oauth"
   | "clickaton_partner_oauth"
   /** Institución que conecta su cuenta desde FotoOffice para cobrar cuotas. */
-  | "fotoffice_workspace_oauth";
+  | "fotoffice_workspace_oauth"
+  /** Vendedor que conecta su cuenta desde Subí la Foto para cobrar sus eventos. */
+  | "subilafoto_seller_oauth";
 
 export interface MercadoPagoCredentialPayload {
   accessToken: string;
