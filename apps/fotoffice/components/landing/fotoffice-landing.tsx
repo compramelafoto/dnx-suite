@@ -46,7 +46,7 @@ export function FotofficeLanding({ dbUnavailable }: { dbUnavailable?: boolean })
       <header className={styles.barra}>
         <div className={`${styles.ancho} ${styles.barraFila}`}>
           <Link href="/" className={styles.barraMarca} aria-label="FotOffice, inicio">
-            <FotofficeLogo variant="compact" priority />
+            <FotofficeLogo variant="landing" priority />
           </Link>
           <EnlaceIngresar className={`${styles.btn} ${styles.btnPrimario}`}>Entrar</EnlaceIngresar>
         </div>

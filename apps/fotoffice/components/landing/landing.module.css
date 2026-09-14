@@ -84,7 +84,8 @@
   display: flex;
   align-items: center;
   gap: 20px;
-  min-height: 64px;
+  /* La barra crece con el logo: 72 px de dibujo más el aire de arriba y abajo. */
+  min-height: 96px;
 }
 
 .barraMarca {
@@ -880,7 +881,7 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
-  scroll-margin-top: 86px;
+  scroll-margin-top: 112px;
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.5) inset;
   transition: box-shadow 220ms ease, transform 220ms ease;
 }
