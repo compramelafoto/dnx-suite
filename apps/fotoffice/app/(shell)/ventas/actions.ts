@@ -3,12 +3,21 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma, Prisma } from "@repo/db";
-import { minorToDecimalString } from "@/lib/membership/money";
+import { decimalArsToMinor, minorToDecimalString } from "@/lib/membership/money";
 import { parseProductForm } from "@/lib/sales/product-form";
 import { parseCategoryForm } from "@/lib/sales/category-form";
 import { findGlobalByBarcode, upsertGlobalProduct } from "@/lib/sales/global-catalog";
 import { globalFieldsFromProduct, prefillFromGlobal, type ProductPrefill } from "@/lib/sales/global-catalog-fields";
-import { requireSalesAdmin } from "@/lib/sales/access";
+import { requireSalesAdmin, requireSalesStaff } from "@/lib/sales/access";
+import { validateTicket } from "@/lib/sales/ticket";
+import {
+  buildTicketLines,
+  resolveCheckoutClientInput,
+  type RawCheckoutClient,
+  type RawCheckoutLine,
+} from "@/lib/sales/checkout";
+import { recordSale } from "@/lib/sales/record-sale";
+import { SALE_PAYMENT_METHODS, type SalePaymentMethod } from "@/lib/sales/constants";
 
 const CATALOGO = "/ventas/catalogo";
 
@@ -172,4 +181,85 @@ export async function lookupGlobalProductAction(formData: FormData): Promise<Pro
   const barcode = String(formData.get("barcode") ?? "");
   const global = await findGlobalByBarcode(barcode);
   return prefillFromGlobal(global);
+}
+
+export type CheckoutInput = {
+  lines: RawCheckoutLine[];
+  discountMinor: number;
+  paymentMethod: string;
+  note: string;
+  client: RawCheckoutClient;
+};
+
+export type CheckoutResult = { ok: true; saleNumber: number } | { ok: false; error: string };
+
+/**
+ * Cobrar. Es el botón que cierra el ticket, con gente esperando del otro lado del mostrador:
+ * por eso no redirige ni recarga la pantalla —se llama directo desde `pos.tsx`, no desde un
+ * `<form>`— y devuelve un resultado que el ticket usa para mostrar el número de venta o el
+ * error sin perder lo que ya se había cargado.
+ *
+ * Vender es STAFF+, no ADMIN+ (`requireSalesStaff`, no `requireSalesAdmin`): es lo que hace
+ * el mostrador todo el día.
+ */
+export async function checkoutAction(input: CheckoutInput): Promise<CheckoutResult> {
+  const { workspace, user } = await requireSalesStaff();
+
+  const paymentMethod = input.paymentMethod as SalePaymentMethod;
+  if (!SALE_PAYMENT_METHODS.includes(paymentMethod)) {
+    return { ok: false, error: "Elegí un medio de pago." };
+  }
+
+  if (!Number.isInteger(input.discountMinor) || input.discountMinor < 0) {
+    return { ok: false, error: "El descuento no se entiende." };
+  }
+
+  // Cada `productId` del ticket se verifica contra ESTE workspace antes de escribir nada:
+  // la misma fuga que se coló con una categoría en la tarea anterior, ahora con productos.
+  // De paso, esta lectura trae el nombre y el costo de verdad —el costo ni siquiera viaja
+  // hasta el mostrador— para que `buildTicketLines` no tenga que confiar en lo que mandó el
+  // navegador.
+  const productIds = [...new Set(input.lines.map((l) => l.productId).filter((id): id is string => id !== null))];
+  const productos =
+    productIds.length > 0
+      ? await prisma.product.findMany({
+          where: { id: { in: productIds }, workspaceId: workspace.id },
+          select: { id: true, name: true, costArs: true },
+        })
+      : [];
+  const productMap = new Map(
+    productos.map((p) => [
+      p.id,
+      { id: p.id, name: p.name, costMinor: p.costArs === null ? null : decimalArsToMinor(p.costArs) },
+    ]),
+  );
+
+  const armado = buildTicketLines(input.lines, productMap);
+  if (!armado.ok) return { ok: false, error: armado.error };
+
+  const validacion = validateTicket(armado.lines, input.discountMinor);
+  if (!validacion.ok) return { ok: false, error: validacion.error };
+
+  const client = resolveCheckoutClientInput(input.client);
+  const note = input.note.trim();
+
+  try {
+    const venta = await prisma.$transaction((tx) =>
+      recordSale(tx, {
+        workspaceId: workspace.id,
+        createdByUserId: user.id,
+        occurredAt: new Date(),
+        paymentMethod,
+        discountMinor: input.discountMinor,
+        note: note === "" ? null : note,
+        client,
+        lines: armado.lines,
+      }),
+    );
+    revalidatePath("/ventas");
+    return { ok: true, saleNumber: venta.saleNumber };
+  } catch (e) {
+    console.error("[fotoffice][ventas] error al cobrar", e);
+    return { ok: false, error: "No se pudo registrar la venta. Probá de nuevo." };
+  }
 }
