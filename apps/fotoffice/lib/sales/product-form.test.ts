@@ -13,7 +13,11 @@ function form(campos: Record<string, string>): FormData {
  * el navegador manda las DOS entradas (`"on"` del checkbox primero, `"off"` del oculto
  * después); destildada, sólo queda la del oculto. Como `FormData.get` devuelve la primera
  * coincidencia, esto prueba que el orden real del DOM —no un valor inventado a mano— es el
- * que decide. Si alguna vez se invierte el orden en el componente, esta prueba se rompe.
+ * que decide.
+ *
+ * Ojo: esto es una simulación y no lee el componente, así que por sí sola NO detecta que
+ * alguien borre el respaldo o lo mueva antes de la casilla. De eso se encarga
+ * `checkbox-respaldo.test.ts`, que mira el fuente del formulario.
  */
 function formConCasillaExistencia(campos: Record<string, string>, tildada: boolean): FormData {
   const fd = form(campos);
