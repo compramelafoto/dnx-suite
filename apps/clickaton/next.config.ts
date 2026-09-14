@@ -55,6 +55,19 @@ const nextConfig: NextConfig = {
       "../../node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/**",
       "../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/**",
       "../../packages/db/prisma/**",
+      /*
+       * El motor que dibuja las placas de participante.
+       *
+       * Hay que nombrarlo a mano porque el bloque `webpack` de más abajo lo saca del
+       * empaquetado para que se cargue en tiempo de ejecución, y lo que se saca del
+       * empaquetado deja de ser rastreado: Next no lo sube al servidor y en producción falla
+       * con "Cannot find module". El binario de `@napi-rs/canvas` viene en un paquete
+       * distinto por sistema operativo —en Vercel, Linux—, así que se incluyen todas sus
+       * variantes en vez de la del equipo donde se desarrolla.
+       */
+      "../../node_modules/.pnpm/pdf-to-png-converter@*/node_modules/pdf-to-png-converter/**",
+      "../../node_modules/.pnpm/@napi-rs+canvas@*/node_modules/@napi-rs/canvas/**",
+      "../../node_modules/.pnpm/@napi-rs+canvas-*/node_modules/@napi-rs/**",
     ],
   },
   allowedDevOrigins: ["127.0.0.1", "localhost"],
