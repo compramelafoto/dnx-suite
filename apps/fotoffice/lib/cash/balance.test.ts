@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { accountBalanceMinor, periodSummary, topClients, totalsByCategory } from "./balance";
+import { accountBalanceMinor, balancesByAccountMinor, periodSummary, topClients, totalsByCategory } from "./balance";
 
 const movs = [
   { kind: "INGRESO" as const, amountMinor: 1_000_00, categoryId: "c1", categoryName: "Ventas" },
@@ -23,6 +23,45 @@ describe("accountBalanceMinor", () => {
       { kind: "EGRESO" as const, amountMinor: 1_000_00 },
     ];
     expect(accountBalanceMinor(conAnulacion)).toBe(0);
+  });
+});
+
+describe("balancesByAccountMinor", () => {
+  it("separa el saldo de cada cuenta sin mezclarlos", () => {
+    const r = balancesByAccountMinor(
+      ["a", "b"],
+      [
+        { kind: "INGRESO", amountMinor: 1_000_00, accountId: "a" },
+        { kind: "EGRESO", amountMinor: 200_00, accountId: "a" },
+        { kind: "INGRESO", amountMinor: 500_00, accountId: "b" },
+      ],
+    );
+    expect(r.get("a")).toBe(800_00);
+    expect(r.get("b")).toBe(500_00);
+  });
+
+  it("una cuenta sin movimientos da cero, no undefined", () => {
+    const r = balancesByAccountMinor(["a", "b"], [{ kind: "INGRESO", amountMinor: 100_00, accountId: "a" }]);
+    expect(r.get("b")).toBe(0);
+  });
+
+  it("un pase entre cuentas SÍ mueve los dos saldos: la plata cambió de lugar", () => {
+    const r = balancesByAccountMinor(
+      ["mostrador", "fuerte"],
+      [
+        { kind: "INGRESO", amountMinor: 50_000_00, accountId: "mostrador" },
+        { kind: "EGRESO", amountMinor: 30_000_00, accountId: "mostrador", isTransfer: true },
+        { kind: "INGRESO", amountMinor: 30_000_00, accountId: "fuerte", isTransfer: true },
+      ],
+    );
+    expect(r.get("mostrador")).toBe(20_000_00);
+    expect(r.get("fuerte")).toBe(30_000_00);
+  });
+
+  it("un movimiento de una cuenta que no está en la lista no rompe nada", () => {
+    const r = balancesByAccountMinor(["a"], [{ kind: "INGRESO", amountMinor: 100_00, accountId: "otra" }]);
+    expect(r.get("a")).toBe(0);
+    expect(r.size).toBe(1);
   });
 });
 

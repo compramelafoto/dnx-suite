@@ -27,6 +27,30 @@ export function accountBalanceMinor(movements: readonly BalanceMovement[]): numb
   );
 }
 
+export type AccountBalanceMovement = BalanceMovement & { accountId: string };
+
+/**
+ * El saldo de cada cuenta del workspace, a la vez.
+ *
+ * Es el mismo criterio que `accountBalanceMinor` —una sola pasada, transferencias
+ * incluidas— aplicado a varias cuentas juntas, para no repetir en cada pantalla el `filter`
+ * por cuenta que antes vivía sólo en `/caja/reportes`. Un movimiento de una cuenta que no
+ * viene en `accountIds` (dada de baja, o de otro momento) se ignora en vez de sumarse a un
+ * saldo que nadie va a mostrar.
+ */
+export function balancesByAccountMinor(
+  accountIds: readonly string[],
+  movements: readonly AccountBalanceMovement[],
+): Map<string, number> {
+  const saldos = new Map<string, number>(accountIds.map((id) => [id, 0]));
+  for (const m of movements) {
+    if (!saldos.has(m.accountId)) continue;
+    const delta = m.kind === "INGRESO" ? m.amountMinor : -m.amountMinor;
+    saldos.set(m.accountId, (saldos.get(m.accountId) ?? 0) + delta);
+  }
+  return saldos;
+}
+
 /**
  * Cuánto entró y cuánto salió **del negocio**, que no es lo mismo que de una cuenta.
  *
