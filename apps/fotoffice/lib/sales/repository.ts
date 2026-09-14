@@ -142,6 +142,10 @@ export async function findProductByCode(
   const row = await prisma.product.findFirst({
     where: {
       workspaceId,
+      // Mismo criterio que la grilla y la búsqueda (`listProducts`, más arriba): un producto
+      // dado de baja no aparece para vender. Sin este filtro, el lector lo agregaba igual al
+      // ticket aunque la propia ficha le dijera a la persona que ya no está disponible.
+      isActive: true,
       OR: [{ sku: texto }, ...(codigoBarras ? [{ barcode: codigoBarras }] : [])],
     },
     select: PRODUCT_ROW_SELECT,
