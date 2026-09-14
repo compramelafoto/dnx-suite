@@ -182,3 +182,47 @@ la suite.
 URL de retorno de Subí la Foto en la lista de la app centralizada: eso sí admite
 varias, a diferencia de la de notificación.
 
+## La compra, de punta a punta (2026-09-14)
+
+`/v/[slug]` → `/v/[slug]/comprar` → Mercado Pago → `/compra/[id]/gracias`, con
+`/api/pagos/aviso` recibiendo la confirmación por atrás.
+
+### El orden en que pasan las cosas, y por qué
+
+1. Se revisan los datos del comprador.
+2. Se resuelve **el cobrador**: el token del vendedor, refrescado si hace falta.
+3. Recién ahí se crea la orden.
+4. Y al final se arma la preferencia.
+
+Crear la orden antes dejaría órdenes pendientes de nadie cada vez que un
+vendedor no tiene su cuenta conectada o alguien escribe mal el correo. Y el
+comprador se entera de que ese vendedor no puede cobrar **antes** de completar
+un formulario, no después.
+
+### La pantalla de gracias no miente
+
+Se puede llegar ahí **antes** de que Mercado Pago nos avise: la vuelta del
+navegador y el aviso al servidor son dos caminos distintos y el segundo puede
+tardar. Si la orden todavía figura pendiente, la pantalla dice que estamos
+confirmando. Afirmar que el pago está hecho y que después falle es peor que
+pedir un minuto.
+
+### El evento nace sin fecha
+
+Lo crea el aviso de pago, pero **sin fecha**: la pone el cliente al configurarlo.
+Inventarle una haría que la ventana de 12 horas empiece a correr sin que nadie
+lo sepa.
+
+Si la creación del evento falla, **la orden queda pagada igual**. La plata entró;
+perder el pago sería mucho peor que crear el evento tarde. Queda registrado el
+motivo.
+
+### Variables que faltan cargar
+
+| Variable | Para qué |
+|---|---|
+| `SUBILAFOTO_MP_CLIENT_ID` | La app única de la suite |
+| `SUBILAFOTO_MP_CLIENT_SECRET` | Lo mismo. Es secreta |
+| `SUBILAFOTO_MP_REDIRECT_URI` | `https://subilafoto.com/api/pagos/conectar/retorno` |
+| `SUBILAFOTO_MP_ACCESS_TOKEN` | Para preguntarle a Mercado Pago el estado real de cada pago |
+| `DNX_FINANCIAL_CREDENTIAL_MASTER_KEY` | La bóveda de toda la suite |
