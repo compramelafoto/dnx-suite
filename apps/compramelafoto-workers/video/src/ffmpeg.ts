@@ -94,17 +94,26 @@ export function buildRotationFilter(rotationDegrees: number): string | null {
  */
 export function buildPreviewScaleFilter(
   orientation: VideoProbe["orientation"],
-  rotationDegrees = 0
+  _rotationDegrees = 0
 ): string {
-  const rotate = buildRotationFilter(rotationDegrees);
+  // Sin giro propio, a propósito.
+  //
+  // Un video de celular llega como 1920x1080 con `rotation: 90` en el metadata.
+  // ffmpeg aplica ese giro al decodificar, así que al filtro le llega el cuadro
+  // ya derecho (1080x1920). El `transpose` que había acá lo volvía a acostar:
+  // en producción salía 720x406, horizontal, con la cara de costado, aunque la
+  // orientación estuviera bien detectada como vertical.
+  //
+  // La rotación sigue usándose para calcular las dimensiones visuales —eso es
+  // lo que decide si el video es vertical u horizontal— pero no para girarlo
+  // una segunda vez.
   const primary =
     orientation === "landscape"
       ? "scale=-2:720"
       : orientation === "portrait"
         ? "scale=720:-2"
         : "scale=720:720";
-  const parts = [rotate, primary, EVEN_DIMENSIONS_SCALE].filter(Boolean);
-  return parts.join(",");
+  return [primary, EVEN_DIMENSIONS_SCALE].join(",");
 }
 
 function logScaleFilter(
