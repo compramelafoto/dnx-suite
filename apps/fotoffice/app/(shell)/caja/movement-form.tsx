@@ -17,96 +17,60 @@ const ETIQUETA_METODO: Record<PaymentMethod, string> = {
 };
 
 /**
- * Cargar un movimiento manual.
+ * Cargar un movimiento manual, con selector de cuenta.
  *
- * Tiene dos modos, según de dónde se lo llame:
+ * Siempre visible y con la cuenta a elegir, a propósito: es el único gesto de carga manual
+ * de todo el módulo, tanto para el panorama de `/caja` como para el libro completo de
+ * `/caja/movimientos`. No depende de que haya un turno abierto —ni de que la cuenta elegida
+ * sea de efectivo—, porque cargar un ingreso o pagar algo no puede bloquearse por eso. La
+ * lista de cuentas que recibe ya viene filtrada a las activas del workspace, pero eso es
+ * sólo comodidad de la pantalla: `createMovementAction` vuelve a verificar la cuenta contra
+ * el workspace en el servidor, porque esconder una opción en el cliente no es control de
+ * acceso.
  *
- * - Con `accountId` fijo (el uso original): es el botón "Nuevo movimiento" del turno
- *   abierto de mostrador. Arranca escondido detrás del botón, la cuenta no se elige.
- * - Con `accounts` (una lista): es la carga manual de `/caja/movimientos`, para una cuenta
- *   que no tiene panel de turno —Mercado Pago, el banco, la caja fuerte— y que si no fuera
- *   por acá no tendría ningún lugar de la interfaz donde anotar un movimiento. Siempre está
- *   visible y deja elegir la cuenta con un `<select>` en vez de fijarla. La lista que
- *   recibe ya viene filtrada a las cuentas activas del workspace activo, pero eso es sólo
- *   comodidad de la pantalla: `createMovementAction` vuelve a verificar la cuenta contra el
- *   workspace en el servidor, porque esconder una opción en el cliente no es control de
- *   acceso.
+ * El único motivo para correr en el navegador es que la categoría depende de si el
+ * movimiento es ingreso o egreso —un ingreso no puede ir a "Sueldos"— y mostrar las diez
+ * categorías juntas confunde más de lo que ahorra.
  *
- * En los dos modos el único motivo para correr en el navegador es que la categoría depende
- * de si el movimiento es ingreso o egreso — un ingreso no puede ir a "Sueldos" — y mostrar
- * las diez categorías juntas confunde más de lo que ahorra.
- *
- * `returnTo` es de `/caja/movimientos` nomás: sin él, `createMovementAction` vuelve a
- * `/caja` por omisión, que es el comportamiento de siempre del botón del mostrador.
+ * `returnTo` decide adónde volver después de guardar: `/caja/movimientos` lo manda para
+ * quedarse en el libro completo, `/caja` para volver al panorama. Sin él,
+ * `createMovementAction` cae en `/caja` por omisión.
  */
 export function MovementForm({
-  accountId,
-  accountName,
   accounts,
   categories,
   clients,
   returnTo,
 }: {
-  accountId?: string;
-  accountName?: string;
-  accounts?: CashAccountRow[];
+  accounts: CashAccountRow[];
   categories: CashCategoryRow[];
   clients: ClientRow[];
   returnTo?: string;
 }) {
-  const [abierto, setAbierto] = useState(false);
   const [kind, setKind] = useState<MovementKind>("INGRESO");
-  const conSelector = accounts !== undefined;
-
-  if (!conSelector && !abierto) {
-    return (
-      <button type="button" className="fo-btn fo-btn-secondary text-sm" onClick={() => setAbierto(true)}>
-        Nuevo movimiento
-      </button>
-    );
-  }
-
   const categoriasDelLado = categories.filter((c) => c.kind === kind);
 
   return (
     <form action={createMovementAction} className="fo-card space-y-4 p-5">
-      {conSelector ? null : <input type="hidden" name="accountId" value={accountId} />}
-      {/* Sin `returnTo` el mostrador sigue volviendo a `/caja`, que es lo que ya hacía —el
-          gesto rápido del día a día no cambia. Sólo `/caja/movimientos` lo manda. */}
       {returnTo ? <input type="hidden" name="returnTo" value={returnTo} /> : null}
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold">
-          {conSelector ? "Cargar movimiento" : `Nuevo movimiento — ${accountName}`}
-        </h3>
-        {conSelector ? null : (
-          <button
-            type="button"
-            className="text-xs text-[var(--fo-muted)] underline underline-offset-4"
-            onClick={() => setAbierto(false)}
-          >
-            Cancelar
-          </button>
-        )}
-      </div>
+      <h3 className="text-sm font-semibold">Cargar movimiento</h3>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        {conSelector ? (
-          <div className="fo-field-stack">
-            <label className="fo-label" htmlFor="mov-account">
-              Cuenta
-            </label>
-            <select id="mov-account" name="accountId" className="fo-input" required defaultValue="">
-              <option value="" disabled>
-                Elegí una cuenta
+        <div className="fo-field-stack">
+          <label className="fo-label" htmlFor="mov-account">
+            Cuenta
+          </label>
+          <select id="mov-account" name="accountId" className="fo-input" required defaultValue="">
+            <option value="" disabled>
+              Elegí una cuenta
+            </option>
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
               </option>
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : null}
+            ))}
+          </select>
+        </div>
         <div className="fo-field-stack">
           <label className="fo-label" htmlFor="mov-kind">
             Tipo

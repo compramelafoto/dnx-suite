@@ -61,12 +61,9 @@ export default async function MovimientosPage({
       {sp.ok ? <p className="fo-card p-4 text-sm text-[var(--fo-success)]">Listo.</p> : null}
 
       {/*
-        La carga manual con selector de cuenta vive acá y no en `/caja`: es el único lugar de
-        la interfaz donde anotar un movimiento en una cuenta sin panel de turno —Mercado
-        Pago, el banco, la caja fuerte—. Sin esto, una transferencia recibida no tendría
-        dónde quedar registrada, que es justo lo que este módulo existe para evitar. El botón
-        "Nuevo movimiento" del mostrador (dentro de `ShiftPanel`, en `/caja`) no se toca: es
-        el gesto rápido del día a día y sigue con la cuenta fija.
+        Mismo formulario que el panorama de `/caja` —no hay dos maneras de cargar un
+        movimiento en este módulo—, repetido acá para no obligar a saltar de pantalla cuando
+        ya estás mirando el libro filtrado: `returnTo` es lo único que cambia entre los dos.
       */}
       <MovementForm accounts={cuentas} categories={categorias} clients={clientes} returnTo="/caja/movimientos" />
 

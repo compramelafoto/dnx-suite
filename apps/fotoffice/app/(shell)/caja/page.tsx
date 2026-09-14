@@ -2,14 +2,39 @@ import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { requireCashStaff } from "@/lib/cash/access";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
-import { listAccounts, listCategories, movementsOfShift, openShiftFor } from "@/lib/cash/repository";
+import {
+  listAccounts,
+  listCategories,
+  listMovements,
+  movementsForBalance,
+  movementsOfShift,
+  openShiftFor,
+  type OpenShiftRow,
+} from "@/lib/cash/repository";
+import { balancesByAccountMinor } from "@/lib/cash/balance";
 import { expectedAmountMinor } from "@/lib/cash/shift";
 import { listClients } from "@/lib/clients/repository";
-import { openShiftAction } from "./actions";
-import { ShiftPanel } from "./shift-panel";
+import { AccountCard } from "./account-card";
+import { MovementForm } from "./movement-form";
+import { MovementsTable } from "./movements-table";
 
 export const dynamic = "force-dynamic";
 
+/** Cuántos movimientos recientes mostrar en el panorama: una foto, no el libro completo. */
+const MOVIMIENTOS_RECIENTES = 20;
+
+/**
+ * El panorama del módulo: el saldo de cada cuenta, lo último que entró y salió de todas
+ * juntas, y un lugar único para cargar un movimiento nuevo.
+ *
+ * Antes esta pantalla ERA el turno abierto del mostrador, y si no había cuenta de efectivo
+ * configurada mostraba un cartel de "configurá antes de abrir un turno" — como si abrir
+ * turno fuera un paso obligatorio para poder cobrar. No lo es: `createMovementAction` nunca
+ * exigió un turno, sólo la pantalla lo insinuaba. Por eso el turno bajó a ser un bloque más
+ * dentro de la tarjeta de SU cuenta (`AccountCard` + `ShiftBlock`), y esta pantalla sirve
+ * por igual a la sociedad que sólo cobra por Mercado Pago, al estudio con caja diaria y caja
+ * fuerte, y a todo lo que haya entre las dos, sin que nadie tenga que reconfigurar nada.
+ */
 export default async function CajaPage({
   searchParams,
 }: {
@@ -19,11 +44,8 @@ export default async function CajaPage({
   const params = await searchParams;
 
   const cuentas = await listAccounts(workspace.id);
-  // Sólo el efectivo de mostrador lleva turno: la caja fuerte y lo digital se cuentan o se
-  // concilian de otra manera. Ver `canOpenShift`.
-  const cuentasDeMostrador = cuentas.filter((c) => c.kind === "EFECTIVO" && !c.isVault);
 
-  if (cuentasDeMostrador.length === 0) {
+  if (cuentas.length === 0) {
     // `/caja/configuracion` es ADMIN+ (`requireCashAdmin`) y rebota a `/caja` para cualquier
     // otro rol. Ofrecerle el botón a un STAFF sin ese permiso era un callejón sin salida: lo
     // clickeaba y volvía a esta misma pantalla vacía. El control de verdad sigue siendo el
@@ -31,12 +53,15 @@ export default async function CajaPage({
     const puedeConfigurar = canManageWorkspaceSettings(role);
     return (
       <div className="space-y-8">
-        <PageHeader title="Caja" description="El turno abierto: lo que entró y salió desde que se abrió." />
+        <PageHeader
+          title="Caja"
+          description="Saldo por cuenta, lo último que entró y salió, y el turno de cada mostrador."
+        />
         <div className="fo-card space-y-3 p-6 text-center">
           <p className="text-sm text-[var(--fo-muted)]">
             {puedeConfigurar
-              ? "Todavía no hay ninguna cuenta de efectivo de mostrador. Configurala en Cuentas y categorías antes de abrir un turno."
-              : "Todavía no hay ninguna cuenta de efectivo de mostrador. Pedile a un administrador que la configure en Cuentas y categorías."}
+              ? "Todavía no hay ninguna cuenta configurada. Creá las tuyas en Cuentas y categorías —caja diaria, caja fuerte, Mercado Pago o lo que uses— para empezar a cargar movimientos."
+              : "Todavía no hay ninguna cuenta configurada. Pedile a un administrador que las cree en Cuentas y categorías."}
           </p>
           {puedeConfigurar ? (
             <Link href="/caja/configuracion" className="fo-btn fo-btn-primary text-sm">
@@ -48,27 +73,42 @@ export default async function CajaPage({
     );
   }
 
-  const [categorias, clientes] = await Promise.all([
+  const [categorias, clientes, movimientosRecientes, movimientosParaSaldo] = await Promise.all([
     listCategories(workspace.id),
     listClients(workspace.id),
+    listMovements(workspace.id, { take: MOVIMIENTOS_RECIENTES }),
+    movementsForBalance(workspace.id),
   ]);
 
-  const paneles = await Promise.all(
-    cuentasDeMostrador.map(async (cuenta) => {
-      const turno = await openShiftFor(workspace.id, cuenta.id);
-      if (!turno) return { cuenta, turno: null, movimientos: [], expectedMinor: 0 };
-      const movimientos = await movementsOfShift(workspace.id, turno.id);
-      const expectedMinor = expectedAmountMinor({
-        openingMinor: turno.openingAmountMinor,
-        movements: movimientos.map((m) => ({ kind: m.kind, amountMinor: m.amountMinor })),
-      });
-      return { cuenta, turno, movimientos, expectedMinor };
-    }),
+  const saldos = balancesByAccountMinor(
+    cuentas.map((c) => c.id),
+    movimientosParaSaldo,
+  );
+
+  // Sólo el efectivo de mostrador puede tener turno (`canOpenShift`, en `lib/cash/shift.ts`):
+  // a la caja fuerte y a lo digital ni les preguntamos.
+  const cuentasDeMostrador = cuentas.filter((c) => c.kind === "EFECTIVO" && !c.isVault);
+  const turnosPorCuenta = new Map<string, { turno: OpenShiftRow | null; expectedMinor: number }>(
+    await Promise.all(
+      cuentasDeMostrador.map(async (cuenta) => {
+        const turno = await openShiftFor(workspace.id, cuenta.id);
+        if (!turno) return [cuenta.id, { turno: null, expectedMinor: 0 }] as const;
+        const movimientosDelTurno = await movementsOfShift(workspace.id, turno.id);
+        const expectedMinor = expectedAmountMinor({
+          openingMinor: turno.openingAmountMinor,
+          movements: movimientosDelTurno.map((m) => ({ kind: m.kind, amountMinor: m.amountMinor })),
+        });
+        return [cuenta.id, { turno, expectedMinor }] as const;
+      }),
+    ),
   );
 
   return (
     <div className="space-y-8">
-      <PageHeader title="Caja" description="El turno abierto: lo que entró y salió desde que se abrió." />
+      <PageHeader
+        title="Caja"
+        description="Saldo por cuenta, lo último que entró y salió, y el turno de cada mostrador."
+      />
 
       {params.error ? (
         <p className="fo-card p-4 text-sm text-[var(--fo-danger)]" role="alert">
@@ -77,45 +117,31 @@ export default async function CajaPage({
       ) : null}
       {params.ok ? <p className="fo-card p-4 text-sm text-[var(--fo-success)]">Listo.</p> : null}
 
-      <div className="space-y-6">
-        {paneles.map(({ cuenta, turno, movimientos, expectedMinor }) =>
-          turno ? (
-            <ShiftPanel
+      {/*
+        Siempre disponible y con selector de cuenta: cargar un ingreso o pagar algo no puede
+        depender de que haya un turno abierto en ninguna cuenta, ni hoy ni en ningún otro
+        camino de la interfaz.
+      */}
+      <MovementForm accounts={cuentas} categories={categorias} clients={clientes} returnTo="/caja" />
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {cuentas.map((cuenta) => {
+          const info = turnosPorCuenta.get(cuenta.id);
+          return (
+            <AccountCard
               key={cuenta.id}
-              shift={turno}
-              accountName={cuenta.name}
-              expectedMinor={expectedMinor}
-              movements={movimientos}
-              categories={categorias}
-              clients={clientes}
+              cuenta={cuenta}
+              balanceMinor={saldos.get(cuenta.id) ?? 0}
+              turno={info?.turno ?? null}
+              expectedMinor={info?.expectedMinor ?? 0}
             />
-          ) : (
-            <section key={cuenta.id} className="fo-card space-y-4 p-5">
-              <h2 className="text-base font-semibold">{cuenta.name}</h2>
-              <p className="text-sm text-[var(--fo-muted)]">Sin turno abierto.</p>
-              <form action={openShiftAction} className="grid gap-4 sm:grid-cols-[1fr_auto]">
-                <input type="hidden" name="accountId" value={cuenta.id} />
-                <div className="fo-field-stack">
-                  <label className="fo-label" htmlFor={`apertura-${cuenta.id}`}>
-                    Con cuánto abrís
-                  </label>
-                  <input
-                    id={`apertura-${cuenta.id}`}
-                    name="openingAmountArs"
-                    className="fo-input"
-                    placeholder="20.000"
-                    required
-                  />
-                </div>
-                <div className="self-end">
-                  <button type="submit" className="fo-btn fo-btn-primary text-sm">
-                    Abrir turno
-                  </button>
-                </div>
-              </form>
-            </section>
-          ),
-        )}
+          );
+        })}
+      </div>
+
+      <div className="space-y-2">
+        <h2 className="text-base font-semibold">Últimos movimientos</h2>
+        <MovementsTable movements={movimientosRecientes} showAccount />
       </div>
     </div>
   );

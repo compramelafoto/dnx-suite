@@ -1,10 +1,9 @@
-import { prisma } from "@repo/db";
 import { PageHeader } from "@/components/page-header";
 import { requireCashStaff } from "@/lib/cash/access";
-import { listAccounts, listCategories, movementsForReport } from "@/lib/cash/repository";
-import { accountBalanceMinor, periodSummary, topClients, totalsByCategory } from "@/lib/cash/balance";
+import { listAccounts, listCategories, movementsForBalance, movementsForReport } from "@/lib/cash/repository";
+import { balancesByAccountMinor, periodSummary, topClients, totalsByCategory } from "@/lib/cash/balance";
 import { categoryReportRows, type CategoryReportRow } from "@/lib/cash/category-report";
-import { decimalArsToMinor, formatMinorArs } from "@/lib/membership/money";
+import { formatMinorArs } from "@/lib/membership/money";
 import { esPeriodShortcut, resolvePeriodShortcut, type PeriodShortcut } from "@/lib/cash/period";
 import { PeriodFilter } from "./period-filter";
 
@@ -94,18 +93,15 @@ export default async function ReportesPage({
       // El saldo es una foto de HOY, no del período elegido: por eso esta consulta no lleva
       // fecha ni el filtro de cuenta del selector, y por eso es una consulta aparte de la de
       // arriba en vez de reutilizar `movimientosPeriodo`.
-      prisma.cashMovement.findMany({
-        where: { workspaceId: workspace.id },
-        select: { accountId: true, kind: true, amountArs: true },
-      }),
+      movementsForBalance(workspace.id),
     ]);
 
-  const saldosPorCuenta = cuentas.map((cuenta) => {
-    const propios = movimientosDeTodaLaHistoria
-      .filter((m) => m.accountId === cuenta.id)
-      .map((m) => ({ kind: m.kind as "INGRESO" | "EGRESO", amountMinor: decimalArsToMinor(m.amountArs) }));
-    return { id: cuenta.id, name: cuenta.name, balanceMinor: accountBalanceMinor(propios) };
-  });
+  const saldos = balancesByAccountMinor(cuentas.map((c) => c.id), movimientosDeTodaLaHistoria);
+  const saldosPorCuenta = cuentas.map((cuenta) => ({
+    id: cuenta.id,
+    name: cuenta.name,
+    balanceMinor: saldos.get(cuenta.id) ?? 0,
+  }));
 
   // Ninguna cuenta de las de acá para abajo filtra transferencias a mano: `periodSummary`,
   // `totalsByCategory` y `topClients` ya las excluyen (o no, según corresponda) adentro. Si

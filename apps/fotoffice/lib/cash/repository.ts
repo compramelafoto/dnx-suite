@@ -409,6 +409,27 @@ export async function movementsForReport(
   }));
 }
 
+export type AccountBalanceMovementRow = { accountId: string; kind: "INGRESO" | "EGRESO"; amountMinor: number };
+
+/**
+ * Los movimientos crudos para el saldo de cada cuenta: todo el historial, sin filtro de
+ * fecha —un saldo es una foto de hoy, no de un período— y sólo las tres columnas que
+ * `balancesByAccountMinor` (`lib/cash/balance.ts`) necesita para sumar. Antes esta consulta
+ * vivía suelta en `/caja/reportes`; ahora también la usa el panorama de `/caja`, así que
+ * quedó acá para no repetirla ni desincronizarla.
+ */
+export async function movementsForBalance(workspaceId: string): Promise<AccountBalanceMovementRow[]> {
+  const rows = await prisma.cashMovement.findMany({
+    where: { workspaceId },
+    select: { accountId: true, kind: true, amountArs: true },
+  });
+  return rows.map((r) => ({
+    accountId: r.accountId,
+    kind: r.kind as "INGRESO" | "EGRESO",
+    amountMinor: decimalArsToMinor(r.amountArs),
+  }));
+}
+
 /**
  * Nombre para mostrar de cada usuario, a partir de su id.
  *
