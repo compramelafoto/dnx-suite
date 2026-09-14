@@ -4,8 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { PublicVideoDto } from "@/lib/videos/public-video-dto";
 import type { PublicEventVideoDto } from "@/lib/videos/public-event-videos";
 import PublicVideoPreviewModal from "./PublicVideoPreviewModal";
+import VideoRemovalModal from "./VideoRemovalModal";
 import {
   addToVideoCart,
+  notifyVideoCartChanged,
   readVideoCart,
   removeFromVideoCart,
 } from "@/lib/videos/video-cart-storage";
@@ -70,6 +72,8 @@ type VideoCardProps = {
   /** Elegir o sacar el video del carrito. */
   onToggleSelect?: () => void;
   selected?: boolean;
+  /** Pedir que lo saquen de circulación (derecho de imagen). */
+  onRequestRemoval?: () => void;
 };
 
 function PublicVideoCard({
@@ -81,6 +85,7 @@ function PublicVideoCard({
   onOpen,
   onToggleSelect,
   selected = false,
+  onRequestRemoval,
 }: VideoCardProps) {
   const previewRef = useRef<HTMLVideoElement>(null);
   const [hoverPlayFailed, setHoverPlayFailed] = useState(false);
@@ -167,6 +172,25 @@ function PublicVideoCard({
           <path d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6" />
         </svg>
       </button>
+
+      {/* Pedir la baja: mismo botón amarillo que en las fotos. Acá saca el
+          video ENTERO, porque no se puede recortar a alguien de una escena. */}
+      {onRequestRemoval ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRequestRemoval();
+          }}
+          className="absolute bottom-1.5 right-1.5 z-20 rounded-full bg-yellow-500 p-1.5 text-white opacity-0 shadow-md transition-opacity hover:bg-yellow-600 group-hover:opacity-100"
+          aria-label="Pedir que den de baja este video"
+          title="Pedir que den de baja este video"
+        >
+          <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden>
+            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+          </svg>
+        </button>
+      ) : null}
 
       <button
         type="button"
@@ -268,6 +292,7 @@ export default function PublicAlbumVideosGrid({
   const [hoveredId, setHoveredId] = useState<number | null>(null);
   const [modalVideo, setModalVideo] = useState<PublicVideoDto | null>(null);
   const [cart, setCart] = useState<number[]>([]);
+  const [removalVideo, setRemovalVideo] = useState<PublicVideoDto | null>(null);
 
   // El carrito vive en sessionStorage, al lado del de fotos: lo que el cliente
   // elige sobrevive hasta el resumen y se paga todo junto.
@@ -287,11 +312,15 @@ export default function PublicAlbumVideosGrid({
   const handleToggleSelect = useCallback(
     (videoId: number) => {
       if (!albumId) return;
-      setCart((actual) =>
-        actual.includes(videoId)
+      setCart((actual) => {
+        const siguiente = actual.includes(videoId)
           ? removeFromVideoCart(albumId, videoId)
-          : addToVideoCart(albumId, videoId)
-      );
+          : addToVideoCart(albumId, videoId);
+        // El botón de comprar vive en otro componente y tiene que enterarse:
+        // es el mismo botón para fotos y videos.
+        notifyVideoCartChanged(albumId, siguiente);
+        return siguiente;
+      });
     },
     [albumId]
   );
@@ -335,25 +364,20 @@ export default function PublicAlbumVideosGrid({
                 ? () => handleToggleSelect(video.id)
                 : undefined
             }
+            onRequestRemoval={
+              albumId ? () => setRemovalVideo(video) : undefined
+            }
           />
         ))}
       </div>
-      {albumId && cart.length > 0 ? (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#e5e7eb] bg-white px-4 py-3">
-          <p className="text-sm text-[#374151]">
-            {cart.length === 1
-              ? "1 video en tu carrito"
-              : `${cart.length} videos en tu carrito`}
-          </p>
-          <button
-            type="button"
-            onClick={handleGoToCheckout}
-            className="rounded-lg bg-[#111827] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#374151]"
-          >
-            Ir a pagar
-          </button>
-        </div>
+      {albumId ? (
+        <VideoRemovalModal
+          video={removalVideo}
+          albumId={albumId}
+          onClose={() => setRemovalVideo(null)}
+        />
       ) : null}
+
       <PublicVideoPreviewModal
         video={modalVideo}
         onClose={() => setModalVideo(null)}
