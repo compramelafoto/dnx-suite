@@ -38,6 +38,9 @@ export async function POST(req: Request) {
     const paymentId = body.paymentId as string;
     const orderId = Number(body.orderId);
     const orderType = (body.orderType || "PRINT_ORDER") as OrderType;
+    // Cuántos videos tiene el pedido, para que la pantalla de "pago procesado"
+    // le hable de videos a quien compró videos.
+    let purchasedVideoCountForClient = 0;
 
     if (!paymentId || typeof paymentId !== "string") {
       return NextResponse.json(
@@ -284,6 +287,7 @@ export async function POST(req: Request) {
           select: { videoId: true },
         });
         const purchasedVideoIds = videoItems.map((i) => i.videoId);
+        purchasedVideoCountForClient = purchasedVideoIds.length;
 
         const digitalItems = await prisma.orderItem.findMany({
           where: { orderId, productType: "DIGITAL" },
@@ -430,6 +434,9 @@ export async function POST(req: Request) {
               expiresAt: digitalDelivery.expiresAt,
               emailWhenReady: digitalDelivery.emailWhenReady ?? false,
               isPreparing: digitalDelivery.isPreparing ?? false,
+              // Para que la pantalla no le diga "tus fotos" a quien compró un
+              // video: el texto tiene que nombrar lo que realmente compró.
+              videoCount: purchasedVideoCountForClient,
             }
           : null,
       },

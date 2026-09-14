@@ -26,6 +26,8 @@ export type PhotographerOrderRow = {
   hasDigitalItems?: boolean;
   hasPrintItems?: boolean;
   digitalItemsCount?: number;
+  /** Videos del pedido. Viven en otra tabla que las fotos. */
+  videoItemsCount?: number;
   printItemsCount?: number;
   downloadLinkViewedAt?: string | null;
   _dataProtected?: boolean;
