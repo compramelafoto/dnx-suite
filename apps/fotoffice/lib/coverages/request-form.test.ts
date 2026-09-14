@@ -82,6 +82,14 @@ describe("parseCoverageRequest", () => {
     expect(parseCoverageRequest(base({ requestedPhotographers: "muchos" })).ok).toBe(false);
   });
 
+  it("la cantidad de asistentes, si viene, tiene que ser un número sensato", () => {
+    // Comparte la validación `entero()` con requestedPhotographers: mismos casos.
+    expect(parseCoverageRequest(base({ expectedAttendees: "2" })).ok).toBe(true);
+    expect(parseCoverageRequest(base({ expectedAttendees: "0" })).ok).toBe(false);
+    expect(parseCoverageRequest(base({ expectedAttendees: "-1" })).ok).toBe(false);
+    expect(parseCoverageRequest(base({ expectedAttendees: "muchos" })).ok).toBe(false);
+  });
+
   it("los campos opcionales pueden faltar sin drama", () => {
     const r = parseCoverageRequest(base());
     expect(r.ok).toBe(true);

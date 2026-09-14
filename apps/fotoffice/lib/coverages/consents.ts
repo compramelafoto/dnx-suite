@@ -65,11 +65,34 @@ const TEXTOS_V1: Record<ConsentKind, string> = {
   PRIVACIDAD: "Leí y acepto la política de privacidad y el tratamiento de los datos cargados.",
 };
 
-export function consentTexts(version: string): Record<ConsentKind, string> {
-  // Una versión desconocida cae en v1 en vez de romper el formulario: el texto que se guarda
-  // es siempre el que se mostró, y acá se muestra este.
-  void version;
-  return TEXTOS_V1;
+/**
+ * Los textos, agrupados por versión. Agregar `v2` es sumar una entrada acá, no tocar esta
+ * función.
+ */
+const TEXTOS_POR_VERSION: Record<string, Record<ConsentKind, string>> = {
+  v1: TEXTOS_V1,
+};
+
+/** La versión que se muestra hoy en el formulario. */
+export const CONSENT_TEXT_VERSION_VIGENTE = "v1";
+
+/**
+ * Los textos de una versión, junto con la versión que realmente se está sirviendo.
+ *
+ * Si la versión pedida existe, se devuelve ella y su propio número. Si no existe —por ejemplo,
+ * alguien actualizó la versión vigente en otro lado sin sumarla acá—, se degrada a la vigente
+ * **y se devuelve su número**, nunca el que se pidió. Así `parseConsents` nunca puede guardar un
+ * `textVersion` que no sea el de los textos que realmente calculó el `textHash`: es
+ * estructuralmente imposible que ese campo mienta sobre qué texto exacto leyó la persona. Una
+ * versión desconocida se ve en el dato (queda la vigente), en vez de mentir con la que se pidió.
+ */
+export function consentTexts(version: string): {
+  version: string;
+  texts: Record<ConsentKind, string>;
+} {
+  const textos = TEXTOS_POR_VERSION[version];
+  if (textos) return { version, texts: textos };
+  return { version: CONSENT_TEXT_VERSION_VIGENTE, texts: TEXTOS_POR_VERSION[CONSENT_TEXT_VERSION_VIGENTE] };
 }
 
 export function hashConsentText(text: string): string {
@@ -98,7 +121,10 @@ export function parseConsents(
   form: Record<string, string>,
   version: string,
 ): ConsentParseResult {
-  const textos = consentTexts(version);
+  // `servida` es la versión de la que salió `texts` de verdad —puede no ser la pedida, si la
+  // pedida no existe—. Cada fila guarda esa, nunca el parámetro `version`: así `textVersion` y
+  // `textHash` describen siempre el mismo texto.
+  const { version: servida, texts: textos } = consentTexts(version);
   const data: ParsedConsent[] = [];
 
   for (const kind of CONSENT_KINDS) {
@@ -109,7 +135,7 @@ export function parseConsents(
     data.push({
       kind,
       granted,
-      textVersion: version,
+      textVersion: servida,
       textHash: hashConsentText(textos[kind]),
     });
   }

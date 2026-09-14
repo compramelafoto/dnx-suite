@@ -1,6 +1,18 @@
 import { PUBLIC_CODE_PREFIX } from "./constants";
 
 /**
+ * Escapa los caracteres especiales de regex antes de interpolar el prefijo.
+ *
+ * Hoy `PUBLIC_CODE_PREFIX` es `"SC"` y no tiene nada que escapar, pero es una constante del
+ * módulo, no un literal fijo acá: el día que alguien la cambie a algo con `.`, `+` u otro
+ * carácter especial, sin este escape la validación se rompería en silencio —matchearía de más
+ * o de menos— en vez de fallar de forma visible.
+ */
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
  * El código que se dice por teléfono: `SC-2026-0042`.
  *
  * **No abre nada.** Es correlativo y legible justamente porque no es una credencial: lo que da
@@ -15,7 +27,9 @@ export function buildPublicCode(input: { year: number; sequence: number }): stri
 }
 
 export function parsePublicCode(code: string): { year: number; sequence: number } | null {
-  const m = new RegExp(`^${PUBLIC_CODE_PREFIX}-(\\d{4})-(\\d+)$`, "i").exec(code.trim());
+  const m = new RegExp(`^${escapeRegExp(PUBLIC_CODE_PREFIX)}-(\\d{4})-(\\d+)$`, "i").exec(
+    code.trim(),
+  );
   if (!m) return null;
   return { year: Number(m[1]), sequence: Number(m[2]) };
 }

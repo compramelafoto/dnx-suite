@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { PUBLIC_FORM_LIMIT, decidirEnvio } from "./rate-limit";
+import { describe, expect, it, vi } from "vitest";
+import { PUBLIC_FORM_LIMIT, decidirEnvio, hashOrigen } from "./rate-limit";
 
 /**
  * El freno del formulario público.
@@ -39,5 +39,42 @@ describe("decidirEnvio", () => {
   it("el tope se puede ajustar por llamada", () => {
     expect(decidirEnvio({ recientes: 2, tope: 5 })).toEqual({ ok: true });
     expect(decidirEnvio({ recientes: 5, tope: 5 }).ok).toBe(false);
+  });
+});
+
+/**
+ * `hashOrigen`: sin sal real, el hash de una IP se revierte por fuerza bruta en minutos —hay
+ * unos 4.300 millones de IPv4 posibles—. Antes que guardar algo que aparenta proteger y no
+ * protege, se descarta el origen y el freno por correo sigue funcionando solo.
+ */
+describe("hashOrigen", () => {
+  it("con la sal vacía, no calcula nada: devuelve null", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(hashOrigen("190.1.2.3", "")).toBe(null);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("con una sal de solo espacios, tampoco: devuelve null", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(hashOrigen("190.1.2.3", "   ")).toBe(null);
+    warn.mockRestore();
+  });
+
+  it("con sal real, devuelve un hash de 64 caracteres", () => {
+    const hash = hashOrigen("190.1.2.3", "una-sal-de-verdad");
+    expect(hash).toHaveLength(64);
+  });
+
+  it("la misma IP con sales distintas da hashes distintos", () => {
+    const a = hashOrigen("190.1.2.3", "sal-a");
+    const b = hashOrigen("190.1.2.3", "sal-b");
+    expect(a).not.toBe(b);
+  });
+
+  it("sin IP (vacía o nula), devuelve null", () => {
+    expect(hashOrigen("", "una-sal-de-verdad")).toBe(null);
+    expect(hashOrigen(null, "una-sal-de-verdad")).toBe(null);
+    expect(hashOrigen(undefined, "una-sal-de-verdad")).toBe(null);
   });
 });

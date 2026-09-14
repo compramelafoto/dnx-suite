@@ -35,9 +35,22 @@ export function decidirEnvio(input: { recientes: number; tope?: number }): Envio
  * Se guarda el hash y no la dirección: alcanza para agrupar envíos del mismo origen y para
  * demostrar procedencia, sin acumular un dato personal que nadie va a necesitar leer. La sal
  * hace que el hash no sea reversible con una tabla de todas las IPv4 posibles.
+ *
+ * Sin sal real, ese hash deja de proteger nada: una IPv4 son unos 4.300 millones de valores, y
+ * `sha256(ip)` sin sal se revierte por fuerza bruta en minutos. Por eso, si la sal (después de
+ * `trim()`) queda vacía —por ejemplo, la variable de entorno sin configurar—, se prefiere perder
+ * el dato de origen antes que guardar un hash que aparenta proteger algo que no protege. El
+ * freno por correo sigue funcionando igual.
  */
 export function hashOrigen(ip: string | null | undefined, salt: string): string | null {
   const valor = ip?.trim();
   if (!valor) return null;
-  return createHash("sha256").update(`${salt}:${valor}`).digest("hex");
+  const salReal = salt.trim();
+  if (!salReal) {
+    console.warn(
+      "hashOrigen: falta la sal (COVERAGE_ORIGIN_SALT vacía). Se descarta el origen en vez de guardar un hash reversible.",
+    );
+    return null;
+  }
+  return createHash("sha256").update(`${salReal}:${valor}`).digest("hex");
 }

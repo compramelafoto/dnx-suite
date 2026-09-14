@@ -20,7 +20,19 @@ export function hashTrackingToken(rawToken: string): string {
   return createHash("sha256").update(rawToken).digest("hex");
 }
 
-/** Comparación en tiempo constante, para no filtrar información por el tiempo de respuesta. */
+/**
+ * Comparación en tiempo constante, para no filtrar información por el tiempo de respuesta.
+ *
+ * Dos defensas, cada una para un caso distinto:
+ * - El `try/catch` no protege de un `storedHash` con contenido corrupto: `Buffer.from(str,
+ *   "hex")` no lanza con una entrada string —simplemente corta el parseo en el primer
+ *   carácter no hexadecimal y devuelve un buffer más corto—. Lo que protege es que
+ *   `storedHash` no sea un string en runtime (un `null`/`undefined` que llegó de una columna
+ *   nullable, por ejemplo): eso sí lanza.
+ * - La comparación de longitudes es la que protege de un hash corrupto o truncado: si el
+ *   parseo hexadecimal cortó antes de tiempo, los buffers no miden igual y no llegan siquiera
+ *   a `timingSafeEqual`, que exige el mismo tamaño.
+ */
 export function trackingTokenMatches(rawToken: string, storedHash: string): boolean {
   const calculado = Buffer.from(hashTrackingToken(rawToken), "hex");
   let guardado: Buffer;
