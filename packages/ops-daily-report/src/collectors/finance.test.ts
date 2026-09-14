@@ -74,7 +74,7 @@ test("sin facturas vencidas ni proveedores faltantes, no hay alertas", async () 
   assert.equal(result.section.status, "ok");
 });
 
-test("una factura vencida en ARS arma una alerta crítica e inmediata", async () => {
+test("una factura vencida en ARS con pocos días de atraso arma una alerta alta para hoy, no crítica", async () => {
   const collector = createFinanceCollector(
     stubPort({
       overdueInvoices: [
@@ -85,6 +85,7 @@ test("una factura vencida en ARS arma una alerta crítica e inmediata", async ()
           amountArs: 15_000,
           amountOriginal: 15_000,
           periodMonth: 3,
+          status: "IMPAGO",
           daysOverdue: 1,
           dueDate: "2026-09-11T00:00:00.000Z",
         }),
@@ -98,8 +99,10 @@ test("una factura vencida en ARS arma una alerta crítica e inmediata", async ()
   const alert = result.alerts.find((item) => item.id === "finance:overdue-invoice:cloudflare");
 
   assert.ok(alert, "esperaba una alerta por la factura vencida");
-  assert.equal(alert.severity, "critical");
-  assert.equal(alert.urgency, "immediate");
+  // Un día de atraso no puede rankear igual que Neon con 127 días: por eso
+  // no es "critical"/"immediate" sino "high"/"today".
+  assert.equal(alert.severity, "high");
+  assert.equal(alert.urgency, "today");
   assert.equal(alert.affectedCount, 1);
   assert.equal(alert.since, "2026-09-11T00:00:00.000Z");
   assert.match(alert.title, /Cloudflare/);
@@ -109,6 +112,96 @@ test("una factura vencida en ARS arma una alerta crítica e inmediata", async ()
   // ARS: no debería mostrar un paréntesis de USD.
   assert.doesNotMatch(alert.detail, /USD/);
   assert.equal(alert.actionUrl, "https://compramelafoto.com/admin/finanzas-dnx/gastos");
+});
+
+test("desde los 7 días de atraso la alerta pasa a ser crítica e inmediata", async () => {
+  const collector = createFinanceCollector(
+    stubPort({
+      overdueInvoices: [
+        neonInvoice({ vendorKey: "resend", vendorName: "Resend", daysOverdue: 7 }),
+      ],
+    }),
+    WINDOW,
+    OPTIONS,
+  );
+
+  const result = await collector.run();
+  const alert = result.alerts.find((item) => item.id === "finance:overdue-invoice:resend")!;
+
+  assert.equal(alert.severity, "critical");
+  assert.equal(alert.urgency, "immediate");
+});
+
+test("con 6 días de atraso todavía no es crítica", async () => {
+  const collector = createFinanceCollector(
+    stubPort({
+      overdueInvoices: [
+        neonInvoice({ vendorKey: "resend", vendorName: "Resend", daysOverdue: 6 }),
+      ],
+    }),
+    WINDOW,
+    OPTIONS,
+  );
+
+  const result = await collector.run();
+  const alert = result.alerts.find((item) => item.id === "finance:overdue-invoice:resend")!;
+
+  assert.equal(alert.severity, "high");
+  assert.equal(alert.urgency, "today");
+});
+
+test("facturas rechazadas piden revisar el medio de pago, no pagar de nuevo (caso Neon)", async () => {
+  const collector = createFinanceCollector(
+    stubPort({
+      overdueInvoices: [
+        neonInvoice({ status: "RECHAZADO", periodMonth: 5 }),
+        neonInvoice({ status: "RECHAZADO", periodMonth: 6, dueDate: "2026-06-10T00:00:00.000Z" }),
+      ],
+    }),
+    WINDOW,
+    OPTIONS,
+  );
+
+  const result = await collector.run();
+  const alert = result.alerts.find((item) => item.id === "finance:overdue-invoice:neon")!;
+
+  assert.match(alert.detail, /rechaz/i);
+  assert.match(alert.detail, /revisar el medio de pago/i);
+  assert.doesNotMatch(alert.detail, /hay que pagarlas/i);
+});
+
+test("facturas impagas piden pagarlas", async () => {
+  const collector = createFinanceCollector(
+    stubPort({ overdueInvoices: [neonInvoice({ status: "IMPAGO" })] }),
+    WINDOW,
+    OPTIONS,
+  );
+
+  const result = await collector.run();
+  const alert = result.alerts.find((item) => item.id === "finance:overdue-invoice:neon")!;
+
+  assert.match(alert.detail, /nunca se pagó/i);
+  assert.match(alert.detail, /hay que pagarla/i);
+  assert.doesNotMatch(alert.detail, /medio de pago/i);
+});
+
+test("cuando un proveedor tiene facturas rechazadas e impagas, la alerta menciona ambas acciones", async () => {
+  const collector = createFinanceCollector(
+    stubPort({
+      overdueInvoices: [
+        neonInvoice({ status: "RECHAZADO", periodMonth: 5 }),
+        neonInvoice({ status: "IMPAGO", periodMonth: 6, dueDate: "2026-06-10T00:00:00.000Z" }),
+      ],
+    }),
+    WINDOW,
+    OPTIONS,
+  );
+
+  const result = await collector.run();
+  const alert = result.alerts.find((item) => item.id === "finance:overdue-invoice:neon")!;
+
+  assert.match(alert.detail, /rechaz/i);
+  assert.match(alert.detail, /nunca se pagaron|pagarlas/i);
 });
 
 test("una factura vencida en USD muestra también el importe original", async () => {
@@ -185,7 +278,13 @@ test("antes del día 5 el port no habilita el aviso de proveedores sin cargar (n
 
 test("con período habilitado pero sin proveedores faltantes, no hay alerta", async () => {
   const collector = createFinanceCollector(
-    stubPort({ missingVendors: { vendors: [], period: { year: 2026, month: 8 } } }),
+    stubPort({
+      missingVendors: {
+        vendors: [],
+        period: { year: 2026, month: 9 },
+        evidencePeriod: { year: 2026, month: 8 },
+      },
+    }),
     WINDOW,
     OPTIONS,
   );
@@ -197,7 +296,7 @@ test("con período habilitado pero sin proveedores faltantes, no hay alerta", as
   );
 });
 
-test("proveedores sin cargar este mes arman una alerta informativa con sus nombres", async () => {
+test("proveedores sin cargar este mes arman una alerta informativa con sus nombres, y el título nombra el mes que falta, no el de evidencia", async () => {
   const collector = createFinanceCollector(
     stubPort({
       missingVendors: {
@@ -205,7 +304,10 @@ test("proveedores sin cargar este mes arman una alerta informativa con sus nombr
           { vendorKey: "resend", vendorName: "Resend" },
           { vendorKey: "cloudflare", vendorName: "Cloudflare" },
         ],
-        period: { year: 2026, month: 8 },
+        // El informe se genera el 13/9: agosto es el mes con evidencia de
+        // gasto, septiembre es el mes que todavía no tiene nada cargado.
+        period: { year: 2026, month: 9 },
+        evidencePeriod: { year: 2026, month: 8 },
       },
     }),
     WINDOW,
@@ -221,7 +323,36 @@ test("proveedores sin cargar este mes arman una alerta informativa con sus nombr
   assert.equal(alert.affectedCount, 2);
   assert.match(alert.detail, /Resend/);
   assert.match(alert.detail, /Cloudflare/);
+  // El título tiene que nombrar septiembre (el mes que falta cargar), no
+  // agosto (el mes que sólo sirve de evidencia) — F-1: nombrar el mes
+  // equivocado hace que el dueño vaya a revisar el mes que sí está cargado.
+  assert.match(alert.title, /septiembre/);
+  assert.doesNotMatch(alert.title, /agosto/);
+  // El cuerpo sí menciona agosto: ahí es donde hubo gasto.
   assert.match(alert.detail, /agosto/);
+  // Y el verbo va en plural: "2 proveedores activos tuvieron ... y todavía no tienen".
+  assert.match(alert.detail, /proveedores activos tuvieron/);
+  assert.match(alert.detail, /todavía no tienen/);
+});
+
+test("con un solo proveedor faltante, el verbo va en singular", async () => {
+  const collector = createFinanceCollector(
+    stubPort({
+      missingVendors: {
+        vendors: [{ vendorKey: "resend", vendorName: "Resend" }],
+        period: { year: 2026, month: 9 },
+        evidencePeriod: { year: 2026, month: 8 },
+      },
+    }),
+    WINDOW,
+    OPTIONS,
+  );
+
+  const result = await collector.run();
+  const alert = result.alerts.find((item) => item.id === "finance:missing-vendors")!;
+
+  assert.match(alert.detail, /Un proveedor activo tuvo/);
+  assert.match(alert.detail, /todavía no tiene/);
 });
 
 test("las métricas muestran facturado, pagado y deuda acumulada del mes", async () => {

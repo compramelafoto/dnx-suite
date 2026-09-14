@@ -57,11 +57,40 @@ function groupByVendor(
 }
 
 /**
+ * A partir de esta cantidad de días de atraso, la alerta pasa a ser
+ * crítica/inmediata. Antes de eso es alta/hoy: un proveedor un día atrasado
+ * por $500 no puede rankear igual que Neon con 127 días y $630.000 — eso es
+ * justamente cómo esta alerta se había vuelto ruido.
+ */
+const CRITICAL_OVERDUE_DAYS = 7;
+
+/**
+ * Una frase corta con la acción concreta según el estado de las facturas.
+ * Es el único dato accionable de todo el aviso: RECHAZADO es la tarjeta
+ * rechazando el cobro (la acción es revisar el medio de pago, no pagar de
+ * nuevo — el caso de Neon, cinco facturas rechazadas seguidas) e IMPAGO es
+ * que nunca se pagó (la acción es pagarla).
+ */
+function accionTexto(invoices: FinanceOverdueInvoice[]): string {
+  const hayRechazadas = invoices.some((invoice) => invoice.status === "RECHAZADO");
+  const hayImpagas = invoices.some((invoice) => invoice.status === "IMPAGO");
+
+  if (hayRechazadas && hayImpagas) {
+    return "Algunas fueron rechazadas por la tarjeta (revisar el medio de pago) y otras nunca " +
+      "se pagaron (hay que pagarlas).";
+  }
+  if (hayRechazadas) {
+    return invoices.length === 1
+      ? "La tarjeta rechazó el cobro: hay que revisar el medio de pago, no pagarla de nuevo."
+      : "La tarjeta rechazó los cobros: hay que revisar el medio de pago, no pagarlas de nuevo.";
+  }
+  return invoices.length === 1 ? "Nunca se pagó: hay que pagarla." : "Nunca se pagaron: hay que pagarlas.";
+}
+
+/**
  * Arma la alerta de un proveedor con una o más facturas vencidas e impagas.
  * Es el caso que motivó este colector: Neon rechazando facturas desde mayo,
  * descubierto recién en septiembre porque nadie miraba esto todos los días.
- * Por eso la gravedad es siempre crítica — plata que se debe por
- * infraestructura que puede cortarse no es una alerta "media".
  */
 function buildOverdueInvoiceAlert(
   vendorKey: string,
@@ -84,6 +113,7 @@ function buildOverdueInvoiceAlert(
   const montoTexto = esTodoUsd
     ? `${arsFormatter.format(totalArs)} ARS (USD ${originalFormatter.format(totalOriginal)})`
     : `${arsFormatter.format(totalArs)} ARS`;
+  const esCritica = maxDiasAtraso >= CRITICAL_OVERDUE_DAYS;
 
   return {
     id: `finance:overdue-invoice:${vendorKey}`,
@@ -91,10 +121,9 @@ function buildOverdueInvoiceAlert(
     title: `Facturas vencidas sin pagar: ${vendorName}`,
     detail:
       `${vendorName} tiene ${cantidadTexto} y sin pagar, de ${meses}, por ${montoTexto}. ` +
-      `La más atrasada lleva ${diasTexto} de atraso. Si sigue así, el proveedor puede cortar ` +
-      "el servicio.",
-    severity: "critical",
-    urgency: "immediate",
+      `La más atrasada lleva ${diasTexto} de atraso. ${accionTexto(invoices)}`,
+    severity: esCritica ? "critical" : "high",
+    urgency: esCritica ? "immediate" : "today",
     affectedCount: invoices.length,
     since: masVieja.dueDate,
     actionUrl: `${adminBaseUrl}/admin/finanzas-dnx/gastos`,
@@ -110,18 +139,27 @@ function buildOverdueInvoiceAlert(
 function buildMissingVendorsAlert(
   vendors: FinanceMissingVendor[],
   period: { year: number; month: number },
+  evidencePeriod: { year: number; month: number },
   adminBaseUrl: string,
 ): ReportAlert {
   const nombres = listFormatter.format(vendors.map((vendor) => vendor.vendorName));
-  const cantidadTexto = vendors.length === 1 ? "Un proveedor activo" : `${vendors.length} proveedores activos`;
+  const esPlural = vendors.length > 1;
+  const cantidadTexto = esPlural ? `${vendors.length} proveedores activos` : "Un proveedor activo";
+  const tuvoTexto = esPlural ? "tuvieron" : "tuvo";
+  const tieneTexto = esPlural ? "tienen" : "tiene";
 
   return {
     id: "finance:missing-vendors",
     platform: "platform",
+    // El mes que falta cargar es el actual (`period`), no aquél del que hay
+    // evidencia de gasto (`evidencePeriod`, el mes pasado) — nombrar el mes
+    // equivocado acá hace que el dueño vaya a revisar el mes que sí está
+    // cargado y aprenda a ignorar la alerta.
     title: `Gastos de ${monthName(period.month)} sin cargar`,
     detail:
-      `${cantidadTexto} tuvo gasto en ${monthName(period.month)} de ${period.year} y todavía no ` +
-      `tiene ninguno cargado este mes: ${nombres}. Si no corresponde, se puede ignorar; si falta ` +
+      `${cantidadTexto} ${tuvoTexto} gasto en ${monthName(evidencePeriod.month)} de ` +
+      `${evidencePeriod.year} y todavía no ${tieneTexto} ninguno cargado en ` +
+      `${monthName(period.month)}: ${nombres}. Si no corresponde, se puede ignorar; si falta ` +
       "cargarlo, mientras tanto el módulo va a mostrar un total más bajo que el real.",
     severity: "low",
     urgency: "thisWeek",
@@ -157,6 +195,7 @@ export function createFinanceCollector(
           buildMissingVendorsAlert(
             missingVendorsCheck.vendors,
             missingVendorsCheck.period,
+            missingVendorsCheck.evidencePeriod,
             options.adminBaseUrl,
           ),
         );

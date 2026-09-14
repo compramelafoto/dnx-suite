@@ -181,6 +181,10 @@ export type FinanceOverdueInvoice = {
   vendorName: string;
   /** Mes de la factura (el período que se cargó), 1-12. */
   periodMonth: number;
+  /**
+   * RECHAZADO = la tarjeta rechazó el cobro: la acción es revisar el medio
+   * de pago, no volver a pagar. IMPAGO = nunca se pagó: la acción es pagarla.
+   */
   status: "RECHAZADO" | "IMPAGO";
   /** Importe en pesos, ya convertido (Decimal → number en el borde). */
   amountArs: number;
@@ -203,8 +207,10 @@ export type FinanceMissingVendor = {
  */
 export type FinanceMissingVendorsCheck = {
   vendors: FinanceMissingVendor[];
-  /** Mes que se está reclamando (el mes pasado). */
+  /** Mes que se está reclamando: el actual, el que todavía no tiene nada cargado. */
   period: { year: number; month: number };
+  /** Mes en el que estos proveedores sí tuvieron gasto: la evidencia de que están activos. */
+  evidencePeriod: { year: number; month: number };
 } | null;
 
 export type FinanceMonthTotals = {

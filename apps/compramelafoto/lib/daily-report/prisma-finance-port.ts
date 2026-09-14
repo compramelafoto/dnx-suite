@@ -74,7 +74,8 @@ export function createPrismaFinancePort(client: PrismaClient): FinancePort {
 
       return {
         vendors: faltantes.map((vendor) => ({ vendorKey: vendor.key, vendorName: vendor.name })),
-        period: previousPeriod(year, month),
+        period: { year, month },
+        evidencePeriod: previousPeriod(year, month),
       };
     },
 
