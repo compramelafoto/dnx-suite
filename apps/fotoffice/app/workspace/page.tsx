@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@repo/db";
 import { requireAuth } from "@/lib/auth";
-import { ensureFotofficeWorkspaceForUser } from "@/lib/ensure-workspace";
+import { requireOwnWorkspace } from "@/lib/entrada/require-own-workspace";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { resolveEnabledNavModules } from "@/lib/modules/nav";
 import { submodulesFor } from "@/lib/modules/submodules";
@@ -11,11 +11,7 @@ import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 
 export default async function WorkspaceHomePage() {
   const user = await requireAuth();
-  const ensured = await ensureFotofficeWorkspaceForUser({
-    userId: user.id,
-    email: user.email,
-    name: user.name,
-  });
+  const ensured = await requireOwnWorkspace(user);
 
   const [branding, profile, enabledModuleKeys] = await Promise.all([
     prisma.fotofficeWorkspaceBranding.findUnique({
