@@ -40,4 +40,21 @@ describe("terminologyFor", () => {
     expect(t.collaborator).toBe("Colaborador/a");
     expect(t.requester).toBe("Solicitante");
   });
+
+  it("sin configurar nada, module es la etiqueta por omisión", () => {
+    // El campo module es parte de la terminología: cuando nadie lo configuró,
+    // todos leen "Solicitudes y Coberturas". El test verifica que no se pierde
+    // en un refactor.
+    const t = terminologyFor(DEFAULT_COVERAGE_SETTINGS);
+    expect(t.module).toBe("Solicitudes y Coberturas");
+  });
+
+  it("moduleLabel configurado sobrescribe la etiqueta del módulo", () => {
+    // Si alguien configura una etiqueta propia, esa es la que ven todos.
+    const t = terminologyFor({
+      ...DEFAULT_COVERAGE_SETTINGS,
+      moduleLabel: "Coberturas solidarias",
+    });
+    expect(t.module).toBe("Coberturas solidarias");
+  });
 });
