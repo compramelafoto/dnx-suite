@@ -4,6 +4,7 @@ import { useMemo, useRef, useState, useTransition } from "react";
 import { Package } from "lucide-react";
 import { formatMinorArs, parseArsToMinor } from "@/lib/membership/money";
 import { ticketTotals, validateTicket, type TicketLine } from "@/lib/sales/ticket";
+import { normalizeBarcode } from "@/lib/sales/barcode";
 import { SALE_PAYMENT_METHODS, type SalePaymentMethod } from "@/lib/sales/constants";
 import type { ProductCategoryRow, ProductRow } from "@/lib/sales/repository";
 import type { ClientRow } from "@/lib/clients/repository";
@@ -121,13 +122,21 @@ export function Pos({
    * EXACTO con un `sku` o un `barcode`, el producto se agrega directo, el campo se limpia y
    * vuelve a enfocarse, listo para el siguiente escaneo. Si no coincide exacto, no pasa nada
    * más: la grilla de abajo ya está filtrando en vivo con lo que se tipeó.
+   *
+   * El código de barras se normaliza antes de comparar (`normalizeBarcode`, igual que al
+   * guardar en `product-form.ts`): la base sólo guarda dígitos, pero el lector —o una persona
+   * que copia el código a mano— puede mandar un espacio o un guión de más, y sin normalizar
+   * ninguno de los dos lados coincide nunca.
    */
   function onSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key !== "Enter") return;
     e.preventDefault();
     const texto = search.trim();
     if (texto === "") return;
-    const match = products.find((p) => p.sku === texto || p.barcode === texto);
+    const codigoBarras = normalizeBarcode(texto);
+    const match = products.find(
+      (p) => p.sku === texto || (codigoBarras !== null && p.barcode === codigoBarras),
+    );
     if (match) {
       agregarProducto(match);
       setSearch("");
