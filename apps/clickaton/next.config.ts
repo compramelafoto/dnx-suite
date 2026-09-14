@@ -56,6 +56,36 @@ const nextConfig: NextConfig = {
       "../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/**",
       "../../packages/db/prisma/**",
     ],
+    /*
+     * El motor que dibuja las placas de participante.
+     *
+     * Hay que nombrarlo a mano porque el bloque `webpack` de más abajo lo saca del empaquetado
+     * para que se cargue en tiempo de ejecución, y lo que se saca del empaquetado deja de ser
+     * rastreado: Next no lo sube al servidor y en producción falla con "Cannot find module".
+     * El binario de `@napi-rs/canvas` viene en un paquete distinto por sistema operativo —en
+     * Vercel, Linux—, así que se incluyen todas sus variantes y no la del equipo donde se
+     * desarrolla.
+     *
+     * Va ruta por ruta y no en `/**`: pesa unas decenas de megas y Next lo copia una vez por
+     * función. Aplicado a todas, el contenedor de build se queda sin disco.
+     */
+    ...Object.fromEntries(
+      [
+        "/api/cron/participant-cards",
+        "/api/account/registrations/[registrationId]/cards/[cardType]",
+        "/api/admin/registrations/[registrationId]/cards/[cardType]",
+        // Generan la placa apenas se confirma el pago, vía `after()`.
+        "/api/webhooks/dnx-payments",
+        "/api/cron/payments-reconciliation",
+      ].map((ruta) => [
+        ruta,
+        [
+          "../../node_modules/.pnpm/pdf-to-png-converter@*/node_modules/pdf-to-png-converter/**",
+          "../../node_modules/.pnpm/@napi-rs+canvas@*/node_modules/@napi-rs/canvas/**",
+          "../../node_modules/.pnpm/@napi-rs+canvas-*/node_modules/@napi-rs/**",
+        ],
+      ])
+    ),
   },
   allowedDevOrigins: ["127.0.0.1", "localhost"],
   turbopack: {
