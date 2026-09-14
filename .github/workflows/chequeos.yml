@@ -31,13 +31,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Sin `version`: la toma del campo `packageManager` del package.json raíz.
+      # Si se ponen las dos, la acción falla con "Multiple versions of pnpm".
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # La misma que usa el proyecto en Vercel.
+          node-version: 24
           cache: pnpm
 
       # El postinstall de @repo/db corre `prisma generate`: sin eso `tsc` no
