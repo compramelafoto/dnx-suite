@@ -17,12 +17,18 @@ import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
  *      esta anulación se comporte exactamente igual que la de un movimiento manual.
  *
  * Todo se resuelve y se valida ANTES del primer `create`/`update`: si el contramovimiento no
- * se puede escribir (por ejemplo, alguien ya anuló ese asiento a mano desde
- * `/caja/movimientos`), esto vuelve `{ ok: false }` sin haber tocado ni el stock ni la `Sale`.
- * Escribir la devolución de stock primero y recién después descubrir que Caja rechaza el
- * contramovimiento dejaría la venta completada con media anulación adentro — y como esta
- * función nunca lanza para ese caso (vuelve un resultado, no un `throw`), la transacción de
- * quien llama haría `COMMIT` igual si el orden fuera al revés.
+ * se puede escribir por un motivo que la pantalla de ventas no puede resolver sola (por
+ * ejemplo, el asiento original es la pata de un pase entre cuentas), esto vuelve
+ * `{ ok: false }` sin haber tocado ni el stock ni la `Sale`. Escribir la devolución de stock
+ * primero y recién después descubrir que Caja rechaza el contramovimiento dejaría la venta
+ * completada con media anulación adentro — y como esta función nunca lanza para ese caso
+ * (vuelve un resultado, no un `throw`), la transacción de quien llama haría `COMMIT` igual si
+ * el orden fuera al revés.
+ *
+ * Hay una excepción a propósito: si alguien ya anuló ese mismo asiento a mano desde
+ * `/caja/movimientos`, la plata YA volvió — no hay nada que `voidSale` tenga que corregir en
+ * Caja. Ahí `planCashReversal` no aborta: saltea el contramovimiento (ya existe) y deja
+ * seguir a la venta. Ver el porqué completo en el comentario de `planCashReversal`.
  */
 
 export type VoidSaleInput = {
@@ -87,10 +93,30 @@ export async function voidSale(tx: Tx, input: VoidSaleInput): Promise<VoidSaleRe
  * proyecto ("Caja apagada" en `recordSale`, y antes en `depositBookingPayment`), y una
  * tercera acá si se consultara esa tabla con el módulo apagado.
  *
- * Devuelve `{ ok: false }` cuando SÍ había algo que revertir pero `buildReversal` lo rechaza
- * —por ejemplo, alguien ya anuló ese asiento a mano desde `/caja/movimientos`—: ahí no hay
- * forma correcta de anular la venta sin dejar el libro de Caja mintiendo, así que la
- * anulación entera aborta y quien está en el mostrador se entera del motivo real.
+ * `buildReversal` puede rechazar por dos motivos bien distintos, y acá se los trata distinto
+ * a propósito:
+ *
+ *   - El asiento ya fue anulado a mano desde `/caja/movimientos` (`reversedBy !== null`): la
+ *     plata YA volvió a la cuenta, alguien se adelantó. No hay nada roto en Caja que corregir
+ *     — sólo falta que la venta se entere. Acá NO se aborta: se saltea el contramovimiento
+ *     (escribir uno segundo duplicaría la devolución) y se deja constancia con un
+ *     `console.warn`, mismo estilo que `depositBookingPayment` en `lib/bookings/cash-deposit.ts`.
+ *     Abortar acá dejaría la `Sale` en `COMPLETADA` para siempre —el motivo de rechazo nunca
+ *     cambia, así que nunca se puede reintentar— mientras Caja ya dice que la plata volvió: los
+ *     dos libros contradiciéndose y sin forma de arreglarlo desde la interfaz, que es
+ *     exactamente peor que saltear un contramovimiento que ya está hecho.
+ *
+ *     OJO, esto es DISTINTO de `reverseMovementAction` (`/caja/movimientos`), que ante el mismo
+ *     rechazo SÍ aborta, y ahí abortar es lo correcto: la anulación de un movimiento suelto no
+ *     tiene stock ni estado de venta pendientes — no hay "el resto" que deba completarse. Acá
+ *     sí lo hay, y es independiente de Caja. No es una inconsistencia entre los dos lugares:
+ *     es la misma regla ("no dejes un libro a medio corregir") aplicada a dos situaciones con
+ *     distinta cantidad de libros en juego.
+ *
+ *   - Cualquier otro rechazo (hoy, sólo la pata de un pase entre cuentas): ahí sí hay algo
+ *     roto que la pantalla de ventas no puede resolver por su cuenta —el pase inverso es una
+ *     operación con nombre propio, en `/caja/pases`—, así que la anulación entera aborta y
+ *     quien está en el mostrador se entera del motivo real.
  */
 async function planCashReversal(
   tx: Tx,
@@ -129,6 +155,8 @@ async function planCashReversal(
   // `recordSale`), pero si el asiento no aparece, no hay nada que revertir.
   if (!movimiento) return { ok: true, value: null };
 
+  const yaAnuladoAMano = movimiento.reversedBy !== null;
+
   const resultado = buildReversal(
     {
       id: movimiento.id,
@@ -139,13 +167,24 @@ async function planCashReversal(
       paymentMethod: movimiento.paymentMethod,
       clientId: movimiento.clientId,
       description: movimiento.description,
-      alreadyReversed: movimiento.reversedBy !== null,
+      alreadyReversed: yaAnuladoAMano,
       transferId: movimiento.transferId,
     },
     reason,
   );
-  if (!resultado.ok) return { ok: false, error: resultado.error };
-  return { ok: true, value: resultado.values };
+  if (resultado.ok) return { ok: true, value: resultado.values };
+
+  // Se distingue con el dato que ya se leyó (`yaAnuladoAMano`), no con el texto del error de
+  // `buildReversal` — ese texto es para mostrar en pantalla, no para tomar decisiones acá.
+  if (yaAnuladoAMano) {
+    console.warn(
+      "[fotoffice][ventas] Caja ya tenía el contramovimiento hecho a mano: se anula la venta sin duplicar el asiento",
+      { workspaceId, saleId: venta.id, saleNumber: venta.saleNumber, cashMovementId: movimiento.id },
+    );
+    return { ok: true, value: null };
+  }
+
+  return { ok: false, error: resultado.error };
 }
 
 /** Escribe el contramovimiento que ya armó y validó `buildReversal`. */

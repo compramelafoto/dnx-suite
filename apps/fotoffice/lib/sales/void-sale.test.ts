@@ -237,7 +237,7 @@ describe("voidSale — todo encendido, con depósito", () => {
 });
 
 describe("voidSale — el contramovimiento ya estaba anulado a mano", () => {
-  it("aborta sin devolver stock ni anular la venta", async () => {
+  it("anula la venta y devuelve el stock igual, sin duplicar el contramovimiento", async () => {
     isModuleEnabledForWorkspace.mockResolvedValue(true);
     const tx = voidTx({
       sale: {
@@ -251,6 +251,10 @@ describe("voidSale — el contramovimiento ya estaba anulado a mano", () => {
       },
       saleItem: {
         findMany: vi.fn(async () => [{ productId: "p1", qty: 2 }]),
+      },
+      product: {
+        findMany: vi.fn(async () => [{ id: "p1", tracksStock: true }]),
+        update: vi.fn(async () => ({})),
       },
       cashMovement: {
         findFirst: vi.fn(async () => ({
@@ -271,7 +275,77 @@ describe("voidSale — el contramovimiento ya estaba anulado a mano", () => {
 
     const resultado = await voidSale(tx as never, inputBase);
 
-    expect(resultado).toEqual({ ok: false, error: "Ese movimiento ya está anulado." });
+    // El dinero ya volvió a mano (alguien anuló el asiento desde /caja/movimientos): abortar
+    // acá dejaría la venta COMPLETADA para siempre con Caja ya diciendo lo contrario. Por eso
+    // la venta se anula igual, el stock vuelve, y sólo se saltea el contramovimiento porque
+    // escribir uno segundo duplicaría la devolución de plata.
+    expect(resultado).toEqual({ ok: true, saleNumber: 5 });
+    expect(tx.stockMovement.create).toHaveBeenCalledWith({
+      data: {
+        workspaceId: "ws1",
+        productId: "p1",
+        qty: 2,
+        reason: "DEVOLUCION",
+        sourceModule: "sales",
+        sourceRef: "sale1",
+        createdByUserId: 7,
+      },
+    });
+    expect(tx.product.update).toHaveBeenCalledWith({
+      where: { id: "p1" },
+      data: { stockQty: { increment: 2 } },
+    });
+    expect(tx.cashMovement.create).not.toHaveBeenCalled();
+    expect(tx.sale.update).toHaveBeenCalledWith({
+      where: { id: "sale1" },
+      data: {
+        status: "ANULADA",
+        voidedAt: expect.any(Date),
+        voidedByUserId: 7,
+        voidReason: "El cliente se arrepintió",
+      },
+    });
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Caja ya tenía el contramovimiento hecho a mano"),
+      expect.objectContaining({ saleId: "sale1", saleNumber: 5, cashMovementId: "mov1" }),
+    );
+  });
+
+  it("el resto de los rechazos de buildReversal (una pata de un pase) sigue abortando", async () => {
+    isModuleEnabledForWorkspace.mockResolvedValue(true);
+    const tx = voidTx({
+      sale: {
+        findFirst: vi.fn(async () => ({
+          id: "sale1",
+          saleNumber: 5,
+          status: "COMPLETADA",
+          cashMovementId: "mov1",
+        })),
+        update: vi.fn(async () => ({})),
+      },
+      cashMovement: {
+        findFirst: vi.fn(async () => ({
+          id: "mov1",
+          kind: "INGRESO",
+          amountArs: { toString: () => "2000.00" },
+          accountId: "acc1",
+          categoryId: "cat1",
+          paymentMethod: "EFECTIVO",
+          clientId: null,
+          description: "Venta #5",
+          reversedBy: null,
+          transferId: "pase1",
+        })),
+        create: vi.fn(async () => ({})),
+      },
+    });
+
+    const resultado = await voidSale(tx as never, inputBase);
+
+    expect(resultado).toEqual({
+      ok: false,
+      error: "Ese movimiento es parte de un pase entre cuentas. Para deshacerlo, hacé el pase inverso.",
+    });
     expect(tx.stockMovement.create).not.toHaveBeenCalled();
     expect(tx.product.update).not.toHaveBeenCalled();
     expect(tx.cashMovement.create).not.toHaveBeenCalled();
