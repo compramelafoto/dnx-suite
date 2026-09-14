@@ -207,6 +207,8 @@ model User {
   organizerOfficialPhotographerListings OrganizerOfficialPhotographer[]        @relation("OrganizerOfficialPhotographerUser")
   schoolOrganizerInvitationsSent        SchoolOrganizerInvitation[]            @relation("SchoolOrganizerInvitationInvitedBy")
   removalRequestsDecided                RemovalRequest[]                       @relation("RemovalRequestDecider")
+  videoRemovalRequestsDecided           VideoRemovalRequest[]                  @relation("VideoRemovalRequestDecider")
+  videoRemovalRequestsForPhotographer   VideoRemovalRequest[]                  @relation("VideoRemovalRequestPhotographer")
   removalRequests                       RemovalRequest[]
   contentReportsReported                ContentReport[]                        @relation("ContentReportReportedUser")
   contentReportsAssigned                ContentReport[]                        @relation("ContentReportAssignedAdmin")
@@ -2357,6 +2359,7 @@ model Album {
   cameraIngestJobs                CameraIngestJob[]
   albumFolders                    AlbumFolder[]
   videoFrames                     VideoFrame[]
+  videoRemovalRequests            VideoRemovalRequest[]
 
   @@index([userId])
   @@index([creatorId])
@@ -3429,6 +3432,7 @@ model VideoAsset {
   processingJob        VideoProcessingJob?
   frames               VideoFrame[]
   orderItems           VideoOrderItem[]
+  removalRequests      VideoRemovalRequest[]
   frameMatches         VideoFrameMatch[]
 
   @@index([albumId])
@@ -3562,6 +3566,40 @@ model VideoOrderItem {
   @@unique([orderId, videoId])
   @@index([orderId])
   @@index([videoId])
+}
+
+/// Pedido de baja de un video, por derecho de imagen.
+///
+/// Tabla espejo de `RemovalRequest`, que exige `photoId` y la usan 14 archivos.
+/// Hacer ese campo opcional obligaría a revisar todos esos lugares por una
+/// función nueva; el pedido de baja de video es un caso aparte y va aparte.
+///
+/// A diferencia de una foto, dar de baja un video lo saca ENTERO de
+/// circulación: no se puede recortar a una persona de una escena.
+model VideoRemovalRequest {
+  id              Int                  @id @default(autoincrement())
+  createdAt       DateTime             @default(now())
+  decidedAt       DateTime?
+  status          RemovalRequestStatus @default(PENDING)
+  requesterName   String
+  requesterEmail  String
+  requesterPhone  String
+  reason          String
+  declarationOk   Boolean              @default(false)
+  albumId         Int
+  videoId         Int
+  photographerId  Int
+  decidedByUserId Int?
+  decisionNote    String?
+  album           Album                @relation(fields: [albumId], references: [id])
+  decidedBy       User?                @relation("VideoRemovalRequestDecider", fields: [decidedByUserId], references: [id])
+  video           VideoAsset           @relation(fields: [videoId], references: [id])
+  photographer    User                 @relation("VideoRemovalRequestPhotographer", fields: [photographerId], references: [id])
+
+  @@index([photographerId])
+  @@index([videoId])
+  @@index([albumId])
+  @@index([status])
 }
 
 enum CameraConnectionAssignmentMode {
