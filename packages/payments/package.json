@@ -33,7 +33,8 @@
     "./edition-checkout": "./src/edition-checkout/index.ts",
     "./frontend": "./src/frontend/index.ts",
     "./orders-1n-refunds": "./src/application/services/orders-1n-refunds/index.ts",
-    "./mercado-pago/webhook-signature": "./src/providers/mercado-pago/webhooks/signature.ts"
+    "./mercado-pago/webhook-signature": "./src/providers/mercado-pago/webhooks/signature.ts",
+    "./mercado-pago-connect": "./src/mercado-pago-connect/index.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit -p tsconfig.json",
