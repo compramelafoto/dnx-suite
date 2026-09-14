@@ -5,6 +5,10 @@ import { balancesByAccountMinor, periodSummary, topClients, totalsByCategory } f
 import { categoryReportRows, type CategoryReportRow } from "@/lib/cash/category-report";
 import { formatMinorArs } from "@/lib/membership/money";
 import { esPeriodShortcut, resolvePeriodShortcut, type PeriodShortcut } from "@/lib/cash/period";
+import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
+import { SALES_MODULE_KEY } from "@/lib/sales/constants";
+import { listSaleItemsForMargin } from "@/lib/sales/repository";
+import { marginByProduct, marginTotals, type ProductMargin } from "@/lib/sales/margin";
 import { PeriodFilter } from "./period-filter";
 
 export const dynamic = "force-dynamic";
@@ -54,6 +58,44 @@ function CategoryTable({ title, rows }: { title: string; rows: CategoryReportRow
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+function MarginTable({ rows }: { rows: ProductMargin[] }) {
+  if (rows.length === 0) {
+    return <p className="text-sm text-[var(--fo-muted-soft)]">Todavía no hay ventas completadas en este período.</p>;
+  }
+  return (
+    <div className="overflow-x-auto rounded-[var(--fo-radius)] border border-[var(--fo-border)]">
+      <table className="w-full min-w-[480px] text-left text-sm">
+        <thead className="bg-[var(--fo-bg-elevated)] text-[var(--fo-muted)]">
+          <tr>
+            <th className="px-4 py-2 font-semibold">Producto</th>
+            <th className="px-4 py-2 text-right font-semibold">Cantidad</th>
+            <th className="px-4 py-2 text-right font-semibold">Vendido</th>
+            <th className="px-4 py-2 text-right font-semibold">Costo</th>
+            <th className="px-4 py-2 text-right font-semibold">Margen</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-[var(--fo-border)] bg-[var(--fo-surface)]">
+          {rows.map((r) => (
+            <tr key={r.productId ?? `desc:${r.description}`}>
+              <td className="px-4 py-2">{r.description}</td>
+              <td className="px-4 py-2 text-right text-[var(--fo-muted)]">{r.qty}</td>
+              <td className="px-4 py-2 text-right">{formatMinorArs(r.revenueMinor)}</td>
+              <td className="px-4 py-2 text-right">{formatMinorArs(r.costMinor)}</td>
+              <td
+                className={`px-4 py-2 text-right font-medium ${
+                  r.marginMinor < 0 ? "text-[var(--fo-danger)]" : "text-[var(--fo-success)]"
+                }`}
+              >
+                {formatMinorArs(r.marginMinor)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -112,6 +154,17 @@ export default async function ReportesPage({
   const filasIngresos = categoryReportRows(categoriasIngreso, totalesPorCategoria, "INGRESO");
   const filasEgresos = categoryReportRows(categoriasEgreso, totalesPorCategoria, "EGRESO");
   const clientesTop = topClients(movimientosPeriodo, 10);
+
+  // El margen es una sección más, sólo si el módulo de Ventas está habilitado para ESTE
+  // workspace. La pregunta va ANTES de tocar cualquier tabla de Ventas: si el módulo está
+  // apagado, esta pantalla —la de Caja— tiene que seguir funcionando exactamente como hoy,
+  // sin que una tabla ausente o un workspace sin acceso la rompa.
+  const ventasHabilitadas = await isModuleEnabledForWorkspace(workspace.id, SALES_MODULE_KEY);
+  const lineasMargen = ventasHabilitadas
+    ? await listSaleItemsForMargin(workspace.id, { from: inicioDelDia(range.from), to: finDelDia(range.to) })
+    : [];
+  const margenTotales = marginTotals(lineasMargen);
+  const margenPorProducto = marginByProduct(lineasMargen);
 
   return (
     <div className="space-y-8">
@@ -199,6 +252,46 @@ export default async function ReportesPage({
           </div>
         )}
       </section>
+
+      {ventasHabilitadas && (
+        <section className="fo-card space-y-4 p-5">
+          <div>
+            <h2 className="text-base font-semibold">Margen de Ventas</h2>
+            <p className="text-sm text-[var(--fo-muted)]">
+              Lo vendido, lo que costó y lo que quedó, del período de arriba. Sólo ventas completadas: una anulada no
+              vendió nada.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-[var(--fo-radius)] border border-[var(--fo-border)] p-4">
+              <p className="text-sm text-[var(--fo-muted)]">Vendido</p>
+              <p className="text-lg font-semibold">{formatMinorArs(margenTotales.revenueMinor)}</p>
+            </div>
+            <div className="rounded-[var(--fo-radius)] border border-[var(--fo-border)] p-4">
+              <p className="text-sm text-[var(--fo-muted)]">Costó</p>
+              <p className="text-lg font-semibold">{formatMinorArs(margenTotales.costMinor)}</p>
+            </div>
+            <div className="rounded-[var(--fo-radius)] border border-[var(--fo-border)] p-4">
+              <p className="text-sm text-[var(--fo-muted)]">Margen</p>
+              <p
+                className={`text-lg font-semibold ${
+                  margenTotales.marginMinor < 0 ? "text-[var(--fo-danger)]" : "text-[var(--fo-success)]"
+                }`}
+              >
+                {formatMinorArs(margenTotales.marginMinor)}
+              </p>
+            </div>
+          </div>
+          {margenTotales.withoutCostCount > 0 && (
+            <p className="text-xs text-[var(--fo-muted-soft)]">
+              {margenTotales.withoutCostCount === 1
+                ? "Hay 1 renglón sin costo cargado: no suma al costo, así que el margen de arriba está mejor de lo real."
+                : `Hay ${margenTotales.withoutCostCount} renglones sin costo cargado: no suman al costo, así que el margen de arriba está mejor de lo real.`}
+            </p>
+          )}
+          <MarginTable rows={margenPorProducto} />
+        </section>
+      )}
     </div>
   );
 }

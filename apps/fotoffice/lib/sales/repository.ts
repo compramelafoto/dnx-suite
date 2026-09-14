@@ -324,6 +324,50 @@ function toSaleRow(r: SaleRowRecord): SaleRow {
   };
 }
 
+export type MarginSourceLine = {
+  productId: string | null;
+  description: string;
+  qty: number;
+  revenueMinor: number;
+  costMinor: number | null;
+};
+
+/**
+ * Los renglones para el reporte de margen: sólo de ventas COMPLETADAS del período —una
+ * anulada no vendió nada, y contarla infla el margen con una venta que no existió—.
+ *
+ * El costo sale de `SaleItem.unitCostArs`, la foto del costo al momento de vender, no del
+ * costo actual del producto: si el proveedor subió el precio después, esta venta vieja
+ * tiene que seguir mostrando lo que costó entonces. `null` viaja tal cual —nunca se
+ * convierte en cero acá—: es `lib/sales/margin.ts` quien decide qué hacer con un costo
+ * desconocido.
+ */
+export async function listSaleItemsForMargin(
+  workspaceId: string,
+  range: { from: Date; to: Date },
+): Promise<MarginSourceLine[]> {
+  const rows = await prisma.saleItem.findMany({
+    where: {
+      sale: { workspaceId, status: "COMPLETADA", occurredAt: { gte: range.from, lte: range.to } },
+    },
+    select: {
+      productId: true,
+      description: true,
+      qty: true,
+      unitCostArs: true,
+      lineTotalArs: true,
+    },
+  });
+
+  return rows.map((r) => ({
+    productId: r.productId,
+    description: r.description,
+    qty: r.qty,
+    revenueMinor: decimalArsToMinor(r.lineTotalArs),
+    costMinor: r.unitCostArs === null ? null : decimalArsToMinor(r.unitCostArs) * r.qty,
+  }));
+}
+
 /**
  * El historial, de la más nueva a la más vieja. Trae el detalle de renglones de una: el
  * historial es chico comparado con el catálogo (no hay lector de código de barras compitiendo
