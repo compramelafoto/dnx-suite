@@ -155,8 +155,8 @@ mejor. Queda escrito para que nadie la vuelva a escribir.
 | Lo que hice | Lo que corresponde |
 |---|---|
 | Decir que había que crear una aplicación de Mercado Pago para Subí la Foto | **Una sola app "DNX Suite"** para toda la suite, decidido el 2026-09-03. Cada app nueva pide su propia homologación, que es el trámite que ya frenó a FOTOFFICE |
-| Un `/api/pagos/aviso` propio como URL de notificación | **Mercado Pago no admite más de una URL de notificación.** Hay un receptor único en CompraMeLaFoto que rutea por `external_reference` |
-| `external_reference` = el id de la orden, pelado | La convención es `<producto>-<entidad>-<idOpaco>`, y ya existe `buildOpaqueExternalReference()` con guardas anti-PII |
+| Un `/api/pagos/aviso` propio como URL de notificación | **Acá me pasé de corrección y lo verifiqué después.** El límite de una sola URL es del flujo de **Orders / split 1:N**, que se configura en el panel. En **Checkout Pro la `notification_url` viaja en cada preferencia**, así que cada producto sí puede tener la suya — es como lo hace CompraMeLaFoto hoy y como está diseñado el adaptador del paquete |
+| `external_reference` = el id de la orden, pelado | La convención es `<producto>-<entidad>-<idOpaco>`, y ya existe `buildOpaqueExternalReference()`. **Ojo con sus guardas anti-PII: pierden fuerza con el prefijo puesto.** "Ana Gonzalez" deja de parecer un nombre cuando la cadena es `subilafoto-orden-Ana Gonzalez`; del segmento del id sólo se revisa que no tenga arroba. Subí la Foto valida aparte que el id sea opaco |
 | Un `preferencia.ts` propio con `marketplace_fee` | Ya existe `createMercadoPagoCheckoutProLiveAdapter` en `@repo/payments`, con su `marketplace-fee.test.ts` |
 | Un `estado-oauth.ts` firmado a mano | Existe la tabla compartida `DnxMercadoPagoOAuthState`, con PKCE, vencimiento y un solo uso |
 | Cuatro columnas de credenciales en `SubilafotoSellerProfile` | El vault persiste en `DnxFinancialIdentity` + `DnxPaymentAccount`. No van columnas por app |
