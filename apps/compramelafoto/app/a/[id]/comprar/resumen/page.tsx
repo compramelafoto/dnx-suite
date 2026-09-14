@@ -147,7 +147,13 @@ export default function AlbumResumenPage() {
   const searchParams = useSearchParams();
   const [videoCartIds, setVideoCartIds] = useState<number[]>([]);
   const [videoQuote, setVideoQuote] = useState<{
-    items: { videoId: number; title: string | null; subtotalArs: number; subtotalLabel: string | null }[];
+    items: {
+      videoId: number;
+      title: string | null;
+      subtotalArs: number;
+      subtotalLabel: string | null;
+      thumbnailUrl: string | null;
+    }[];
     clientTotalArs: number;
   }>({ items: [], clientTotalArs: 0 });
   const albumId = params.id as string;
@@ -540,8 +546,9 @@ export default function AlbumResumenPage() {
       setLoading(false);
       return;
     }
-    if (itemsToSend.length === 0) {
-      setError("No hay items para procesar.");
+    // Un pedido de sólo videos no lleva fotos, y esta guarda lo frenaba.
+    if (itemsToSend.length === 0 && videoCartIds.length === 0) {
+      setError("No hay nada seleccionado para comprar.");
       setLoading(false);
       return;
     }
@@ -591,7 +598,15 @@ export default function AlbumResumenPage() {
           sampleUrl,
         });
       }
-      const res = await fetch(`/api/a/${albumId}/orders`, {
+      // Sólo videos: el endpoint de pedidos exige fotos, así que va por el
+      // camino propio de video. Con fotos —haya videos o no— sigue el de
+      // siempre, que ya sabe sumar los videos al mismo pedido.
+      const soloVideos = itemsToSend.length === 0 && videoCartIds.length > 0;
+      const endpoint = soloVideos
+        ? `/api/a/${albumId}/video-orders`
+        : `/api/a/${albumId}/orders`;
+
+      const res = await fetch(endpoint, {
         method: "POST",
         signal: orderCreateController.signal,
         headers: {
@@ -893,8 +908,23 @@ export default function AlbumResumenPage() {
                   {videoQuote.items.length === 1 ? "Tu video" : "Tus videos"}
                 </h3>
                 {videoQuote.items.map((v) => (
-                  <div key={v.videoId} className="flex items-center justify-between gap-3">
-                    <span className="min-w-0 truncate text-sm text-[#374151]">
+                  <div key={v.videoId} className="flex items-center gap-3">
+                    {/* La miniatura, para que vea qué compra y no sólo un título. */}
+                    {v.thumbnailUrl ? (
+                      <img
+                        src={v.thumbnailUrl}
+                        alt=""
+                        className="h-14 w-20 flex-shrink-0 rounded object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="flex h-14 w-20 flex-shrink-0 items-center justify-center rounded bg-[#1a1a2e]">
+                        <svg className="h-6 w-6 text-white/70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h8.25a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25H4.5A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
+                        </svg>
+                      </div>
+                    )}
+                    <span className="min-w-0 flex-1 truncate text-sm text-[#374151]">
                       {v.title?.trim() || `Video ${v.videoId}`}
                     </span>
                     <span className="whitespace-nowrap text-sm font-medium text-[#1a1a1a]">
