@@ -193,3 +193,80 @@ function formatBytes(bytes: bigint): string {
   if (mb >= 1024) return `${(mb / 1024).toFixed(2)} GB`;
   return `${mb.toFixed(1)} MB`;
 }
+
+/**
+ * Saca un video de circulación: borra sus archivos públicos y sus caras.
+ *
+ * Se usa en dos situaciones distintas que hacen lo mismo:
+ * - La limpieza automática, cuando pasan los 15 días.
+ * - Un pedido de baja aprobado por el fotógrafo, por derecho de imagen.
+ *
+ * En el segundo caso borrar las caras no es opcional: si alguien pidió salir de
+ * un video, sus datos biométricos no pueden quedar indexados en Rekognition.
+ *
+ * El archivo original se conserva, igual que con las fotos: lo que se saca de
+ * circulación es lo que el público puede ver.
+ */
+export async function purgeVideoPublicAssets(
+  prisma: PrismaClient,
+  videoId: number,
+  motivo: string
+): Promise<{ archivosBorrados: number; carasBorradas: number }> {
+  const video = await prisma.videoAsset.findUnique({
+    where: { id: videoId },
+    select: {
+      id: true,
+      previewKey: true,
+      thumbnailKey: true,
+      frames: { select: { key: true, faces: { select: { rekognitionFaceId: true } } } },
+    },
+  });
+
+  if (!video) return { archivosBorrados: 0, carasBorradas: 0 };
+
+  const keys = [
+    video.previewKey,
+    video.thumbnailKey,
+    ...video.frames.map((f) => f.key),
+  ]
+    .map((k) => k?.trim() ?? "")
+    .filter((k) => k !== "" && k !== PURGED_ORIGINAL_KEY);
+
+  const unicas = [...new Set(keys)];
+  if (unicas.length > 0) {
+    await deleteMultipleFromR2(unicas);
+  }
+
+  const faceIds = video.frames.flatMap((f) => f.faces.map((c) => c.rekognitionFaceId));
+  for (const faceId of faceIds) {
+    await deleteFace(faceId).catch((err: unknown) => {
+      console.warn("[video-purge] no se pudo borrar la cara", {
+        videoId,
+        faceId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+  }
+
+  await prisma.videoFrame.deleteMany({ where: { videoId } });
+
+  await prisma.videoAsset.update({
+    where: { id: videoId },
+    data: {
+      isRemoved: true,
+      previewKey: null,
+      thumbnailKey: null,
+      processingStatus: "EXPIRED",
+      processingError: motivo,
+    },
+  });
+
+  console.info("[video-purge] fuera de circulación", {
+    videoId,
+    archivos: unicas.length,
+    caras: faceIds.length,
+    motivo,
+  });
+
+  return { archivosBorrados: unicas.length, carasBorradas: faceIds.length };
+}
