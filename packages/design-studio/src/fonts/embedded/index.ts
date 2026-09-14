@@ -7,4 +7,5 @@ export const FUENTES_INCRUSTADAS: Record<string, () => Promise<Record<string, st
   merriweather: () => import("./merriweather").then((m) => m.FUENTE),
   cinzel: () => import("./cinzel").then((m) => m.FUENTE),
   greatVibes: () => import("./greatVibes").then((m) => m.FUENTE),
+  barlowCondensed: () => import("./barlowCondensed").then((m) => m.FUENTE),
 };
