@@ -60,7 +60,12 @@ export function toPublicVideoDto(
   feePercent: number
 ): PublicVideoDto {
   const thumbnailUrl = r2UrlOrNull(video.thumbnailKey);
-  const previewUrl = r2UrlOrNull(video.previewKey);
+  // El adelanto se sirve por el dominio del sitio, no por el de R2: ahí el
+  // reproductor fallaba con "URL no accesible" aunque el archivo estuviera bien,
+  // y además la ubicación real del archivo no tiene por qué viajar al navegador.
+  const previewUrl = video.previewKey?.trim()
+    ? `/api/public/videos/${video.id}/preview`
+    : null;
 
   if (process.env.NODE_ENV === "development") {
     if (video.previewKey?.trim() && !previewUrl) {

@@ -47,7 +47,16 @@ export default function PublicVideoPreviewModal({
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+
+    // Con el modal abierto, la rueda movía la galería de atrás en vez del
+    // contenido del modal, y el botón de pagar quedaba inalcanzable.
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
   }, [video, onClose]);
 
   useEffect(() => {
@@ -99,7 +108,9 @@ export default function PublicVideoPreviewModal({
         }`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className={`relative w-full bg-black ${aspect} max-h-[70vh]`}>
+        <div
+          className={`relative w-full flex-shrink-0 bg-black ${aspect} max-h-[55vh]`}
+        >
           {hasPreview ? (
             <>
               <video
@@ -133,7 +144,7 @@ export default function PublicVideoPreviewModal({
           )}
         </div>
 
-        <div className="flex flex-col gap-3 border-t border-white/10 bg-[#141414] px-4 py-4 sm:px-6 sm:py-5 text-white min-w-0">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain border-t border-white/10 bg-[#141414] px-4 py-4 sm:px-6 sm:py-5 text-white min-w-0">
           <div className="min-w-0">
             <h2 id="public-video-modal-title" className="text-lg sm:text-xl font-semibold text-white truncate">
               {displayVideoTitle(video)}
