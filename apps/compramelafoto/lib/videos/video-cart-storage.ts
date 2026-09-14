@@ -88,3 +88,25 @@ export function clearVideoCart(albumId: number, storage?: CartStorage | null): v
     /* nada que hacer */
   }
 }
+
+/** Evento que avisa que cambió la selección de videos. */
+export const VIDEO_CART_EVENT = "clf:video-cart-changed";
+
+/**
+ * Avisa al resto de la página que cambió la selección.
+ *
+ * El botón de comprar vive en otro componente que el de la grilla, y es el
+ * mismo botón para fotos y videos: sin este aviso, elegir un video no lo
+ * despertaba y el cliente veía "Seleccioná fotos" en gris con un video ya
+ * elegido.
+ */
+export function notifyVideoCartChanged(albumId: number, ids: number[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.dispatchEvent(
+      new CustomEvent(VIDEO_CART_EVENT, { detail: { albumId, ids } })
+    );
+  } catch {
+    /* sin eventos, el botón se actualiza en la próxima carga */
+  }
+}
