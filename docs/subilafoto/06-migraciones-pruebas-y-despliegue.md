@@ -262,3 +262,41 @@ Ya hay tests, pero conviene verla una vez de verdad: romper temporalmente
 
 Es la prueba que más tranquilidad da y la que menos ganas dan de hacer. Vale la
 pena hacerla antes del lanzamiento y no después del primer evento real.
+
+## La migración de Mercado Pago (2026-09-13)
+
+`20260913120000_subilafoto_mercadopago` agrega cuatro columnas opcionales a
+`SubilafotoSellerProfile`: `mpUserId`, `mpCredential`, `mpConnectedAt` y
+`mpTokenExpiresAt`.
+
+### Corrección al registro: las tablas de Subí la Foto viven en UNA base
+
+El documento 05 decía que la migración de la Etapa 1 se aplicó "en las 5 bases".
+**No es así, y está bien que no lo sea.** Verificado el 13/9: la rama
+`development` de Neon —FOTOFFICE y FotoRank— no tiene `SubilafotoSellerProfile`
+ni figura ninguna migración de Subí la Foto en su `_prisma_migrations`.
+
+Las tablas de Subí la Foto sólo existen en la rama `production`, que es la única
+base que esta aplicación usa. La advertencia de aplicar a las cinco vale para
+campos en tablas que **otras** aplicaciones escriben; estas no las toca nadie más.
+
+Así que esta migración también se aplicó sólo a `production`, y queda registrada
+en su `_prisma_migrations` con el checksum del archivo.
+
+### Por qué el token no reutiliza los campos de `User`
+
+`User` ya tiene `mpAccessToken` y `mpRefreshToken`, y sería tentador usarlos.
+**Rompería CompraMeLaFoto.** Los tokens de Mercado Pago son por aplicación: el de
+Subí la Foto no sirve para cobrar desde CLF, y pisarlo dejaría a CLF sin poder
+cobrar sin que nadie se entere hasta el primer cobro fallido.
+
+### El token va cifrado
+
+En `mpCredential`, con AES-GCM del vault de `@repo/payments`. Con ese token se
+puede cobrar en nombre del vendedor, así que no va en texto plano.
+
+AES-GCM y no sólo cifrado: **detecta si alguien tocó el texto cifrado** en lugar
+de devolver basura. Hay un test que lo verifica.
+
+**Hace falta `MP_CREDENTIAL_KEY` en Vercel**: 32 bytes en base64. Sin ella, la
+conexión de Mercado Pago falla con un mensaje claro.

@@ -9,6 +9,18 @@ const nextConfig: NextConfig = {
   // Mismo criterio que fotoffice y clickaton — con webpack, el motor nativo no llega al
   // bundle si se transpila, y toda consulta falla en runtime.
   serverExternalPackages: ["@prisma/client", "@repo/db"],
+  transpilePackages: ["@repo/payments"],
+  // @repo/payments usa imports ESM con extensión .js apuntando a fuentes .ts.
+  // Mismo criterio que apps/fotoffice y apps/clickaton, que consumen el mismo paquete.
+  webpack: (config: { resolve?: Record<string, unknown> }) => {
+    config.resolve = config.resolve ?? {};
+    config.resolve.extensionAlias = {
+      ...((config.resolve.extensionAlias as Record<string, string[]>) ?? {}),
+      ".js": [".ts", ".tsx", ".js"],
+      ".mjs": [".mts", ".mjs"],
+    };
+    return config;
+  },
   outputFileTracingRoot: path.join(appDir, "../.."),
   outputFileTracingIncludes: {
     "/**": [

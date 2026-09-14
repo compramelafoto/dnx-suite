@@ -17270,6 +17270,13 @@ model SubilafotoSellerProfile {
   termsText          String?
   isPublished        Boolean                @default(false)
   mpConnected        Boolean                @default(false)
+  /// Id del vendedor en Mercado Pago. No es secreto.
+  mpUserId           String?
+  /// Token de acceso cifrado con AES-GCM: { ciphertext, nonce, authTag, keyVersion }.
+  /// Nunca en texto plano — con ese token se puede cobrar en nombre del vendedor.
+  mpCredential       Json?
+  mpConnectedAt      DateTime?
+  mpTokenExpiresAt   DateTime?
   createdAt          DateTime               @default(now())
   updatedAt          DateTime               @updatedAt
 
