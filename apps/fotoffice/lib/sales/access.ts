@@ -35,6 +35,8 @@ export async function requireSalesStaff() {
 
 export async function requireSalesAdmin() {
   const ctx = await contextoBase();
-  if (!canManageWorkspaceSettings(ctx.role)) redirect("/ventas");
+  // "/ventas" todavía no tiene pantalla propia: mandar ahí a quien no es admin da un 404,
+  // no un mensaje de permiso. "/ventas/catalogo" sí existe y es donde el STAFF puede estar.
+  if (!canManageWorkspaceSettings(ctx.role)) redirect("/ventas/catalogo");
   return ctx;
 }

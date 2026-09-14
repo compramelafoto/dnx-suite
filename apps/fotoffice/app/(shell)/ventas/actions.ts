@@ -38,6 +38,19 @@ export async function saveProductAction(formData: FormData): Promise<void> {
     if (propio === 0) redirect(`${CATALOGO}?error=${encodeURIComponent("Ese producto no existe.")}`);
   }
 
+  // `ProductCategory` no tiene ninguna restricción que ate la categoría al workspace del
+  // producto: sin este control, un `categoryId` de OTRO negocio se guarda sin problema, y
+  // como `listProducts`/`getProduct` traen `category: { select: { name: true } }`, el nombre
+  // de esa categoría ajena queda visible en la lista y en la ficha de este negocio. Vacío es
+  // válido (un producto puede no tener categoría); lo que se rechaza es la categoría que
+  // existe pero es de otro workspace.
+  if (v.categoryId) {
+    const propia = await prisma.productCategory.count({
+      where: { id: v.categoryId, workspaceId: workspace.id },
+    });
+    if (propia === 0) redirect(`${destinoError}?error=${encodeURIComponent("Esa categoría no existe.")}`);
+  }
+
   // La base guarda `Decimal(12,2)`; el formulario trabaja en centavos enteros. `priceMinor`
   // y `costMinor` no son columnas de `Product` —lo son `priceArs` y `costArs`— así que no se
   // puede volcar `v` entero en el `data` de Prisma sin antes convertirlos.
