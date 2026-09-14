@@ -1,4 +1,5 @@
 import { fail, ok, type Result } from "../result";
+import { ensureCanvasGlobals } from "./canvas-globals";
 
 export type PdfToPngOptions = {
   /** Puntos por pulgada del raster. El PDF está en puntos, que son 72 por pulgada. */
@@ -22,6 +23,10 @@ export async function pdfToPng(
     return fail("El número de cara no puede ser negativo.");
   }
   try {
+    // `pdfjs` usa DOMMatrix y compañía sin comprobar que existan, y en Node no existen. Sólo
+    // fallan los caminos de dibujo que las tocan, así que sin esto la conversión sale bien con
+    // una pieza y muere con otra.
+    await ensureCanvasGlobals();
     const { pdfToPng: convertir } = await import("pdf-to-png-converter");
     // La librería pide un ArrayBuffer, no un Buffer de Node. `slice` acota exactamente la
     // porción del búfer que ocupa este PDF: pasar el búfer entero traería basura de al lado.

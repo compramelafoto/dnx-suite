@@ -1341,6 +1341,9 @@ importers:
       '@fontsource/playfair-display':
         specifier: ^5.2.8
         version: 5.2.8
+      '@napi-rs/canvas':
+        specifier: ^1.0.9
+        version: 1.0.9
       '@pdf-lib/fontkit':
         specifier: ^1.1.1
         version: 1.1.1
