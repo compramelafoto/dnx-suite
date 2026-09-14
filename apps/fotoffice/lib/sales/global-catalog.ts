@@ -71,25 +71,44 @@ export async function upsertGlobalProduct(
   if (existente) return { id: existente.id, created: false };
 
   const campos = globalFieldsFromProduct(input);
-  try {
-    const creado = await tx.globalProduct.create({
-      data: {
+
+  // Acá NO se puede envolver un `create` en un `try/catch` que atrape `P2002` (como sí hacen
+  // `openShiftAction` y `saveAccountAction` en `caja/actions.ts`, con el cliente `prisma` de
+  // nivel superior): `tx` es una transacción interactiva, y en PostgreSQL CUALQUIER error
+  // dentro de un `BEGIN…COMMIT` deja la transacción abortada — la sentencia siguiente no se
+  // ejecuta, falla con `25P02` ("current transaction is aborted") y todo termina en
+  // `ROLLBACK`. La relectura que un `catch` quisiera hacer ahí adentro nunca llegaría a
+  // correr: reemplazaría el `P2002` limpio por un error de base incomprensible, y de paso se
+  // perdería toda la transacción del alta del producto. Prisma tampoco salva la situación:
+  // una transacción interactiva no envuelve cada sentencia en su propio `SAVEPOINT`. Por eso
+  // se inserta con `createMany` + `skipDuplicates`, que en Postgres compila a
+  // `ON CONFLICT DO NOTHING`: un choque de unicidad deja de ser un error de SQL, la
+  // transacción sigue viva, y la relectura de abajo sí puede correr. Si en algún momento
+  // "simplificás" esto de vuelta a un `create` con `catch`, va a volver a romperse apenas dos
+  // cajas escaneen el mismo código nuevo al mismo tiempo — y va a ser más difícil de ver
+  // porque las pruebas con un solo llamador nunca disparan la carrera.
+  const resultado = await tx.globalProduct.createMany({
+    data: [
+      {
         barcode: codigo,
         ...campos,
         createdByWorkspaceId: input.workspaceId,
         createdByUserId: input.userId,
       },
-      select: { id: true },
-    });
-    return { id: creado.id, created: true };
-  } catch (e) {
-    // Dos cajas escaneando el mismo código nuevo a la vez: la segunda choca contra el
-    // `@unique` de `barcode`. No es un error, es la misma política de "el primero crea, el
-    // resto lee" resuelta a nivel de base en vez de en memoria.
-    const choque = e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
-    if (!choque) throw e;
-    const yaCreado = await tx.globalProduct.findUnique({ where: { barcode: codigo }, select: { id: true } });
-    if (!yaCreado) throw e;
-    return { id: yaCreado.id, created: false };
+    ],
+    skipDuplicates: true,
+  });
+
+  // `resultado.count` es 1 si el INSERT de este llamador entró, y 0 si `ON CONFLICT DO
+  // NOTHING` lo descartó porque otra caja ya había creado la fila un instante antes. Con eso
+  // alcanza para saber quién ganó la carrera, sin adivinar: no hace falta comparar contra la
+  // relectura.
+  const fila = await tx.globalProduct.findUnique({ where: { barcode: codigo }, select: { id: true } });
+  if (!fila) {
+    // No debería poder pasar: `barcode` es `@unique` y acabamos de intentar crear esa fila,
+    // así que después del `createMany` tiene que existir la nuestra o la de otra caja. Si
+    // esto se dispara, el problema es otro (la tabla cambió por afuera de esta política).
+    throw new Error("No se pudo crear ni encontrar la ficha del catálogo maestro.");
   }
+  return { id: fila.id, created: resultado.count === 1 };
 }

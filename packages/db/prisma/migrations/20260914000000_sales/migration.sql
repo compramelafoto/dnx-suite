@@ -43,6 +43,7 @@ CREATE TABLE "Product" (
     "globalProductId" TEXT,
     "name" TEXT NOT NULL,
     "description" TEXT,
+    "brand" TEXT,
     "priceArs" DECIMAL(12,2) NOT NULL,
     "costArs" DECIMAL(12,2),
     "tracksStock" BOOLEAN NOT NULL DEFAULT true,

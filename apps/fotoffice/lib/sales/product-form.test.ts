@@ -89,6 +89,16 @@ describe("parseProductForm", () => {
     expect(r.ok && r.values.sku).toBe("TRP-12");
   });
 
+  it("la marca es texto libre: se recorta pero se respeta", () => {
+    const r = parseProductForm(form({ ...base, brand: "  VGO  " }));
+    expect(r.ok && r.values.brand).toBe("VGO");
+  });
+
+  it("la marca vacía queda null, como el resto de los campos de texto", () => {
+    const r = parseProductForm(form(base));
+    expect(r.ok && r.values.brand).toBeNull();
+  });
+
   it("un tipo inventado se rechaza", () => {
     expect(parseProductForm(form({ ...base, kind: "COSA" }))).toEqual({
       ok: false,

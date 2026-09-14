@@ -16,6 +16,7 @@ export type ProductFormValues = {
   barcode: string | null;
   name: string;
   description: string | null;
+  brand: string | null;
   priceMinor: number;
   costMinor: number | null;
   tracksStock: boolean;
@@ -99,6 +100,9 @@ export function parseProductForm(fd: FormData): ProductFormResult {
       barcode,
       name,
       description: trimmedOrNull(fd.get("description")),
+      // Texto libre igual que `description`: no hay un catálogo cerrado de marcas, así que
+      // no hay nada que validar más allá de "vacío queda null".
+      brand: trimmedOrNull(fd.get("brand")),
       priceMinor,
       costMinor,
       tracksStock,

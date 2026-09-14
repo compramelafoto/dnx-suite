@@ -53,6 +53,7 @@ describe("globalFieldsFromProduct — lo que se comparte y lo que no", () => {
     const r = globalFieldsFromProduct({ name: "Cosa", brand: null, description: null, imageUrl: null });
     expect(r.brand).toBeNull();
     expect(r.description).toBeNull();
+    expect(r.imageUrl).toBeNull();
   });
 });
 

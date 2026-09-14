@@ -17812,6 +17812,12 @@ model Product {
 
   name        String
   description String?
+  /// La marca que el negocio decidió quedarse para ESTE producto. Existe también en
+  /// `GlobalProduct.brand` (la ficha maestra dice qué marca es esa cosa en el mundo), pero
+  /// son copias independientes: si no hubiera columna acá, la marca precargada al escanear
+  /// un código se perdería en cuanto se guardara el alta, igual que pasaría con `name` si no
+  /// tuviera su propia columna en esta tabla.
+  brand String?
 
   priceArs Decimal  @db.Decimal(12, 2)
   costArs  Decimal? @db.Decimal(12, 2)
