@@ -69,6 +69,22 @@ const nextConfig: NextConfig = {
   experimental: {
     cpus: 1,
   },
+  // El chequeo de tipos NO corre en el build: corre en CI, antes de mergear.
+  //
+  // Por qué. `next build` compila esta app en 3 minutos y después se quedaba
+  // colgado en "Running TypeScript" hasta que la máquina de Vercel lo mataba
+  // por falta de memoria. Son 250 páginas y 579 rutas de API: `tsc` necesita
+  // más de los 7 GB que tiene el build, y por eso NINGÚN deploy llegaba a
+  // producción. Apagarlo acá no afloja el control, lo mueve: el workflow
+  // `.github/workflows/chequeos.yml` corre `typecheck` en cada pull request
+  // contra main, así un error de tipos frena el merge en vez de frenar el
+  // despliegue.
+  //
+  // Si alguna vez se saca el workflow, hay que volver a prender esto o nadie
+  // estaría chequeando tipos en ningún lado.
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   // Evita que un pnpm-lock.yaml fuera del monorepo hijackee la resolución de @prisma/client.
   outputFileTracingRoot: monorepoRoot,
   transpilePackages: [

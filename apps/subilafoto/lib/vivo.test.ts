@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { codificarCursor, condicionDesdeCursor, parsearCursor } from "./vivo";
+import { codificarCursor, condicionDesdeCursor, idsAQuitar, parsearCursor } from "./vivo";
 
 const T = new Date("2026-10-10T22:15:30.123Z");
 
@@ -54,5 +54,24 @@ describe("qué se trae después de reconectar", () => {
     // Ambas ramas son estrictas: `gt`, no `gte`.
     const ramas = JSON.stringify(donde.OR);
     expect(ramas).not.toContain("gte");
+  });
+});
+
+describe("sacar una foto de la pantalla", () => {
+  test("lo que está en pantalla y ya no está vigente, se saca", () => {
+    expect(idsAQuitar(["a", "c"], ["a", "b", "c", "d"])).toEqual(["b", "d"]);
+  });
+
+  test("si no cambió nada, no se saca nada", () => {
+    expect(idsAQuitar(["a", "b"], ["a", "b"])).toEqual([]);
+  });
+
+  test("una lista vigente vacía saca todo", () => {
+    // Pasa cuando el organizador oculta lo último que quedaba.
+    expect(idsAQuitar([], ["a", "b"])).toEqual(["a", "b"]);
+  });
+
+  test("una foto vigente que la pantalla todavía no tiene no molesta", () => {
+    expect(idsAQuitar(["a", "b", "c"], ["a"])).toEqual([]);
   });
 });

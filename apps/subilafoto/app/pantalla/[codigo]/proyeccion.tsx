@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { idsAQuitar } from "@/lib/vivo";
 
 /**
  * La proyección del salón.
@@ -62,6 +63,22 @@ export function Proyeccion({
       img.onload = agregar;
       // Si la precarga falla, se agrega igual: peor es que no aparezca nunca.
       img.onerror = agregar;
+    });
+
+    // El organizador ocultó una foto: sale de la pantalla enseguida.
+    fuente.addEventListener("quitar", (e) => {
+      const { id } = JSON.parse((e as MessageEvent).data) as { id: string };
+      setFotos((previas) => previas.filter((f) => f.id !== id));
+    });
+
+    // Cada tanto llega la lista completa de lo vigente y se descarta el resto.
+    // Corrige cualquier aviso de baja que se haya perdido en un corte.
+    fuente.addEventListener("vigentes", (e) => {
+      const { ids } = JSON.parse((e as MessageEvent).data) as { ids: string[] };
+      setFotos((previas) => {
+        const sobran = new Set(idsAQuitar(ids, previas.map((f) => f.id)));
+        return sobran.size === 0 ? previas : previas.filter((f) => !sobran.has(f.id));
+      });
     });
 
     return () => fuente.close();

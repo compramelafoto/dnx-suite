@@ -76,6 +76,14 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "El tipo de cambio no es válido." }, { status: 400 });
     }
 
+    // La pantalla de "Dólar del mes" no manda `notes` en su PUT: sólo edita
+    // el número. Si `notes` no vino en el body, no hay que tocar la
+    // columna — mandarla como `null` borraría notas como "es el dólar
+    // tarjeta, ya incluye impuestos" que alguien haya cargado a mano antes.
+    // Sí se respeta que el body la mande explícitamente en null/"" para
+    // borrarla a propósito.
+    const notesEnviadas = Object.prototype.hasOwnProperty.call(body, "notes");
+
     const fx = await prisma.fxRate.upsert({
       where: { periodYear_periodMonth: { periodYear: year, periodMonth: month } },
       create: {
@@ -87,7 +95,7 @@ export async function PUT(req: NextRequest) {
       },
       update: {
         usdToArs,
-        notes: body.notes ? String(body.notes) : null,
+        ...(notesEnviadas ? { notes: body.notes ? String(body.notes) : null } : {}),
       },
     });
 

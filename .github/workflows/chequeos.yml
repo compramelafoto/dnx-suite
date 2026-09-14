@@ -1,0 +1,62 @@
+name: Chequeos
+
+# Chequea tipos y corre las pruebas de CompraMeLaFoto antes de mergear.
+#
+# Por qué existe: el chequeo de tipos lo hacía `next build` en la máquina de
+# Vercel, y ahí se quedaba sin memoria y mataba el deploy — la app tiene 250
+# páginas y 579 rutas de API, y `tsc` necesita más de 7 GB para recorrerlas.
+# Se apagó en el build (ver `typescript.ignoreBuildErrors` en next.config.ts) y
+# se movió acá, que es donde corresponde: un error de tipos tiene que frenar el
+# merge, no el despliegue.
+#
+# Sobre el costo: el repo es privado, así que cada minuto sale de los 2.000
+# gratis del mes. Por eso corre sólo en pull requests contra main —no en cada
+# push a una rama— y cancela la corrida anterior si volvés a pushear.
+
+on:
+  pull_request:
+    branches: [main]
+
+# Pushear tres veces seguidas a un PR no debe pagar tres corridas: sólo importa
+# la última.
+concurrency:
+  group: chequeos-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tipos-y-pruebas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Sin `version`: la toma del campo `packageManager` del package.json raíz.
+      # Si se ponen las dos, la acción falla con "Multiple versions of pnpm".
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # La misma que usa el proyecto en Vercel.
+          node-version: 24
+          cache: pnpm
+
+      # El postinstall de @repo/db corre `prisma generate`: sin eso `tsc` no
+      # encuentra los tipos del cliente y falla por todos lados.
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      # Los 4 GB que Node usa por defecto no alcanzan para este repo.
+      - name: Chequear tipos
+        run: pnpm --filter compramelafoto typecheck
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+
+      - name: Pruebas del paquete de finanzas
+        run: pnpm --filter @repo/finance-control test
+
+      - name: Pruebas de finanzas en la app
+        run: pnpm --filter compramelafoto test:finance-dnx
+
+      - name: Pruebas del informe diario
+        run: pnpm --filter @repo/ops-daily-report test
