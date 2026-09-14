@@ -18,8 +18,18 @@ const ETIQUETA_PAGO: Record<SalePaymentMethod, string> = {
   OTRO: "Otro",
 };
 
-/** Un renglón del ticket en pantalla. `catalogPriceMinor` es null en un renglón suelto: no hay contra qué comparar para saber si se pisó el precio. */
-type TicketRow = TicketLine & { key: string; catalogPriceMinor: number | null };
+/**
+ * Un renglón del ticket en pantalla. `catalogPriceMinor` es null en un renglón suelto: no
+ * hay contra qué comparar para saber si se pisó el precio. `tracksStock`/`stockQty` viajan
+ * desde el `ProductRow` con el que se agregó —igual que `catalogPriceMinor`—: un renglón
+ * suelto no tiene producto detrás, así que nunca controla existencia.
+ */
+type TicketRow = TicketLine & {
+  key: string;
+  catalogPriceMinor: number | null;
+  tracksStock: boolean;
+  stockQty: number | null;
+};
 
 let contador = 0;
 function nuevaKey(): string {
@@ -141,6 +151,8 @@ export function Pos({
           unitCostMinor: null,
           priceWasOverridden: false,
           catalogPriceMinor: p.priceMinor,
+          tracksStock: p.tracksStock,
+          stockQty: p.stockQty,
         },
       ];
     });
@@ -228,6 +240,8 @@ export function Pos({
         unitCostMinor: null,
         priceWasOverridden: false,
         catalogPriceMinor: null,
+        tracksStock: false,
+        stockQty: null,
       },
     ]);
     setSueltoDescripcion("");
@@ -330,29 +344,40 @@ export function Pos({
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-            {filtrados.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => agregarProducto(p)}
-                className="fo-card flex flex-col gap-2 p-3 text-left transition hover:border-[var(--fo-accent)] hover:shadow-sm"
-              >
-                <div className="aspect-square w-full overflow-hidden rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] bg-[var(--fo-bg)]">
-                  {p.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={p.imageUrl} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center text-[var(--fo-muted)]">
-                      <Package className="size-6" aria-hidden />
-                    </div>
-                  )}
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-[var(--fo-text)]">{p.name}</p>
-                  <p className="text-sm font-semibold text-[var(--fo-accent)]">{formatMinorArs(p.priceMinor)}</p>
-                </div>
-              </button>
-            ))}
+            {filtrados.map((p) => {
+              // §2.6 y §4.3 del diseño: vender nunca se bloquea por falta de existencia,
+              // pero el mostrador tiene que avisar. Antes de este arreglo la pantalla no
+              // leía `tracksStock` ni `stockQty` una sola vez, aunque los dos ya viajaban.
+              const sinStock = p.tracksStock && p.stockQty <= 0;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => agregarProducto(p)}
+                  className="fo-card flex flex-col gap-2 p-3 text-left transition hover:border-[var(--fo-accent)] hover:shadow-sm"
+                >
+                  <div className="aspect-square w-full overflow-hidden rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] bg-[var(--fo-bg)]">
+                    {p.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={p.imageUrl} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-[var(--fo-muted)]">
+                        <Package className="size-6" aria-hidden />
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-[var(--fo-text)]">{p.name}</p>
+                    <p className="text-sm font-semibold text-[var(--fo-accent)]">{formatMinorArs(p.priceMinor)}</p>
+                    {p.tracksStock ? (
+                      <p className={`text-xs ${sinStock ? "font-semibold text-[var(--fo-danger)]" : "text-[var(--fo-muted)]"}`}>
+                        {sinStock ? "Sin existencia" : `Existencia: ${p.stockQty}`}
+                      </p>
+                    ) : null}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         )}
       </section>
@@ -428,6 +453,11 @@ export function Pos({
                   </span>
                 </div>
                 {r.priceWasOverridden ? <p className="fo-helper text-[var(--fo-accent)]">Precio pisado a mano.</p> : null}
+                {r.tracksStock && r.stockQty !== null && r.stockQty <= 0 ? (
+                  <p className="fo-helper font-semibold text-[var(--fo-danger)]">
+                    Sin existencia: se vende igual, pero no queda nada cargado.
+                  </p>
+                ) : null}
               </li>
             ))}
           </ul>
