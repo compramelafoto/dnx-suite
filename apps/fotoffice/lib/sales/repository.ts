@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@repo/db";
 import { decimalArsToMinor } from "@/lib/membership/money";
+import { clientDisplayName } from "@/lib/clients/display";
 import { normalizeBarcode } from "./barcode";
 
 /**
@@ -241,4 +242,106 @@ export async function listProductCategories(
     select: { id: true, name: true, order: true, isActive: true },
     orderBy: { order: "asc" },
   });
+}
+
+export type SaleItemRow = {
+  id: string;
+  description: string;
+  qty: number;
+  unitPriceMinor: number;
+  lineTotalMinor: number;
+};
+
+export type SaleRow = {
+  id: string;
+  saleNumber: number;
+  occurredAt: Date;
+  clientName: string | null;
+  totalMinor: number;
+  paymentMethod: string;
+  status: string;
+  voidedAt: Date | null;
+  voidedByUserId: number | null;
+  voidReason: string | null;
+  items: SaleItemRow[];
+};
+
+const SALE_ROW_SELECT = {
+  id: true,
+  saleNumber: true,
+  occurredAt: true,
+  totalArs: true,
+  paymentMethod: true,
+  status: true,
+  voidedAt: true,
+  voidedByUserId: true,
+  voidReason: true,
+  client: { select: { kind: true, firstName: true, lastName: true, businessName: true } },
+  items: {
+    select: { id: true, description: true, qty: true, unitPriceArs: true, lineTotalArs: true },
+  },
+} as const;
+
+type SaleRowRecord = {
+  id: string;
+  saleNumber: number;
+  occurredAt: Date;
+  totalArs: { toString(): string };
+  paymentMethod: string;
+  status: string;
+  voidedAt: Date | null;
+  voidedByUserId: number | null;
+  voidReason: string | null;
+  client: { kind: string; firstName: string | null; lastName: string | null; businessName: string | null } | null;
+  items: {
+    id: string;
+    description: string;
+    qty: number;
+    unitPriceArs: { toString(): string };
+    lineTotalArs: { toString(): string };
+  }[];
+};
+
+function toSaleRow(r: SaleRowRecord): SaleRow {
+  return {
+    id: r.id,
+    saleNumber: r.saleNumber,
+    occurredAt: r.occurredAt,
+    clientName: r.client ? clientDisplayName(r.client) : null,
+    totalMinor: decimalArsToMinor(r.totalArs),
+    paymentMethod: r.paymentMethod,
+    status: r.status,
+    voidedAt: r.voidedAt,
+    voidedByUserId: r.voidedByUserId,
+    voidReason: r.voidReason,
+    items: r.items.map((i) => ({
+      id: i.id,
+      description: i.description,
+      qty: i.qty,
+      unitPriceMinor: decimalArsToMinor(i.unitPriceArs),
+      lineTotalMinor: decimalArsToMinor(i.lineTotalArs),
+    })),
+  };
+}
+
+/**
+ * El historial, de la más nueva a la más vieja. Trae el detalle de renglones de una: el
+ * historial es chico comparado con el catálogo (no hay lector de código de barras compitiendo
+ * por latencia acá) y separar "lista" de "detalle" en dos consultas sólo movería el mismo
+ * costo a un segundo viaje al servidor por cada venta que alguien abra.
+ *
+ * Las anuladas se traen igual que las demás —nunca se esconden (§regla del historial creíble):
+ * `status` viaja tal cual para que la pantalla decida cómo marcarlas.
+ */
+export async function listSales(
+  workspaceId: string,
+  opts: { limit?: number } = {},
+): Promise<SaleRow[]> {
+  const rows = await prisma.sale.findMany({
+    where: { workspaceId },
+    select: SALE_ROW_SELECT,
+    orderBy: [{ occurredAt: "desc" }, { saleNumber: "desc" }],
+    take: opts.limit ?? 200,
+  });
+  return rows.map(toSaleRow);
 }

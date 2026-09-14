@@ -18,11 +18,13 @@ import {
   type RawCheckoutLine,
 } from "@/lib/sales/checkout";
 import { recordSale } from "@/lib/sales/record-sale";
+import { voidSale } from "@/lib/sales/void-sale";
 import { SALE_PAYMENT_METHODS, type SalePaymentMethod } from "@/lib/sales/constants";
 import { adjustmentQty, validateAdjustment, validateStockEntry } from "@/lib/sales/stock";
 
 const CATALOGO = "/ventas/catalogo";
 const STOCK = "/ventas/stock";
+const HISTORIAL = "/ventas/historial";
 
 /**
  * Alta y edición de un producto.
@@ -359,6 +361,42 @@ export async function recordStockEntryAction(formData: FormData): Promise<void> 
 
   revalidatePath(STOCK);
   redirect(`${STOCK}?ok=1`);
+}
+
+/**
+ * Anular una venta.
+ *
+ * No la borra ni la edita: `voidSale` marca la `Sale` como ANULADA, devuelve el stock y
+ * escribe el contramovimiento en Caja, las tres cosas en una sola transacción. Esta acción
+ * sólo junta el `FormData`, abre la transacción, y traduce el resultado —`{ ok: false }` no es
+ * una excepción, es el mismo motivo por el que `reverseMovementAction` en Caja tampoco lanza
+ * cuando el movimiento ya estaba anulado— en una redirección con el mensaje puesto.
+ *
+ * Vender es STAFF+, no ADMIN+ (`requireSalesStaff`): deshacer una venta es corregir un error
+ * del mostrador, no administrar el catálogo, mismo criterio que `checkoutAction`.
+ */
+export async function voidSaleAction(formData: FormData): Promise<void> {
+  const { workspace, user } = await requireSalesStaff();
+  const saleId = String(formData.get("saleId") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "");
+
+  let resultado: Awaited<ReturnType<typeof voidSale>>;
+  try {
+    resultado = await prisma.$transaction((tx) =>
+      voidSale(tx, { workspaceId: workspace.id, saleId, reason, userId: user.id }),
+    );
+  } catch (e) {
+    console.error("[fotoffice][ventas] error al anular la venta", e);
+    redirect(`${HISTORIAL}?error=${encodeURIComponent("No se pudo anular la venta. Probá de nuevo.")}`);
+  }
+
+  if (!resultado.ok) {
+    redirect(`${HISTORIAL}?error=${encodeURIComponent(resultado.error)}`);
+  }
+
+  revalidatePath(HISTORIAL);
+  revalidatePath(STOCK);
+  redirect(`${HISTORIAL}?ok=1`);
 }
 
 /**
