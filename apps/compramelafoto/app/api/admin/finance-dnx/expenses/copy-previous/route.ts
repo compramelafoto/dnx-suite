@@ -25,6 +25,12 @@ export async function POST(req: NextRequest) {
 
     const anterior = previousPeriod(year, month);
 
+    // Esta ruta NO reutiliza `findVendorsMissingThisPeriod`: esa función
+    // responde "qué proveedores faltan", pero acá la pregunta es distinta
+    // ("qué entradas del mes anterior copiar, con sus montos y
+    // allocations completos") y necesita las entradas enteras, no sólo el
+    // id/key/name del proveedor. Forzar una función compartida acá
+    // distorsionaría ambas.
     const origen = await prisma.expenseEntry.findMany({
       where: {
         periodYear: anterior.year,

@@ -79,8 +79,8 @@ export function createIncidentsCollector(
           platform: "platform",
           title: "Pagos acreditados sin conciliar",
           detail:
-            `${unreconciled.count} pedidos figuran pagados pero no terminaron de conciliarse ` +
-            `hace más de ${UNRECONCILED_HOURS} horas. Puede haber plata cobrada sin entregar.`,
+            `${unreconciled.count} clientes pagaron fotos digitales y hace más de ` +
+            `${UNRECONCILED_HOURS} horas que todavía no las recibieron.`,
           severity: "critical",
           urgency: "immediate",
           affectedCount: unreconciled.count,
