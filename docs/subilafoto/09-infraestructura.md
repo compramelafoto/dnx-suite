@@ -144,31 +144,41 @@ Lo que hay que hacer, y no genera credenciales nuevas:
 Si más adelante molesta que el consentimiento diga otro nombre, se puede cambiar el nombre
 público del proyecto OAuth a algo neutro como "DNX Suite", que sirve para todas.
 
-## Mercado Pago: qué falta cargar (2026-09-13)
+## Mercado Pago: cómo se integra de verdad (corregido el 2026-09-14)
 
-| Variable | Estado | De dónde sale |
-|---|---|---|
-| `MP_CREDENTIAL_KEY` | ✅ cargada el 13/9 | Generada con `openssl rand -base64 32`. Cifra el token del vendedor |
-| `MP_REDIRECT_URI` | ✅ cargada el 13/9 | `https://subilafoto.com/api/pagos/conectar/retorno` |
-| `MP_CLIENT_ID` | ❌ falta | Panel de desarrolladores de Mercado Pago, aplicación de Subí la Foto |
-| `MP_CLIENT_SECRET` | ❌ falta | Lo mismo. **Es secreta** |
-| `MP_ACCESS_TOKEN` | ❌ falta | Token de la cuenta de DNX, para consultar pagos. **Es secreta** |
+**El 13/9 se escribió una capa de pagos propia dentro de `apps/subilafoto` y se
+revirtió entera al día siguiente.** Duplicaba infraestructura que ya existe y
+mejor. Queda escrito para que nadie la vuelva a escribir.
 
-Las dos primeras las cargó Claude por la CLI, generando el valor y pasándolo
-por una tubería: **el valor nunca apareció en la conversación**.
+### Lo que estaba mal
 
-Las tres que faltan las tiene que cargar el titular, y salen de crear la
-aplicación de Subí la Foto en
-`https://www.mercadopago.com.ar/developers/panel/app`. La URL de retorno que hay
-que declarar ahí es exactamente la de `MP_REDIRECT_URI`.
+| Lo que hice | Lo que corresponde |
+|---|---|
+| Decir que había que crear una aplicación de Mercado Pago para Subí la Foto | **Una sola app "DNX Suite"** para toda la suite, decidido el 2026-09-03. Cada app nueva pide su propia homologación, que es el trámite que ya frenó a FOTOFFICE |
+| Un `/api/pagos/aviso` propio como URL de notificación | **Mercado Pago no admite más de una URL de notificación.** Hay un receptor único en CompraMeLaFoto que rutea por `external_reference` |
+| `external_reference` = el id de la orden, pelado | La convención es `<producto>-<entidad>-<idOpaco>`, y ya existe `buildOpaqueExternalReference()` con guardas anti-PII |
+| Un `preferencia.ts` propio con `marketplace_fee` | Ya existe `createMercadoPagoCheckoutProLiveAdapter` en `@repo/payments`, con su `marketplace-fee.test.ts` |
+| Un `estado-oauth.ts` firmado a mano | Existe la tabla compartida `DnxMercadoPagoOAuthState`, con PKCE, vencimiento y un solo uso |
+| Cuatro columnas de credenciales en `SubilafotoSellerProfile` | El vault persiste en `DnxFinancialIdentity` + `DnxPaymentAccount`. No van columnas por app |
+| `MP_CREDENTIAL_KEY` propia | La clave del vault es de toda la suite: `DNX_FINANCIAL_CREDENTIAL_MASTER_KEY` |
+| Variables `MP_*` peladas | La convención es `<PRODUCTO>_MP_*`, como `FOTOFFICE_MP_CLIENT_ID` |
 
-**Una variable nueva no la ve el deploy que ya está corriendo.** Después de
-cargar las tres hay que redesplegar, o el código sigue sin verlas. Se comprueba
-sin adivinar: `/api/pagos/conectar` devuelve un error claro mientras falte alguna.
+Todo eso está revertido: código borrado, columnas quitadas de la base y las dos
+variables sacadas de Vercel.
 
-### La clave de cifrado no se rota a la ligera
+### Lo que corresponde hacer
 
-`MP_CREDENTIAL_KEY` es la que descifra los tokens guardados. Si se cambia, **los
-vendedores ya conectados dejan de poder cobrar** y hay que pedirles que conecten
-de nuevo. Si alguna vez hay que rotarla, primero hay que descifrar con la vieja y
-volver a cifrar con la nueva, no reemplazarla y listo.
+Portar el módulo `apps/fotoffice/lib/payments/connect/`, que es el consumidor más
+nuevo y completo de la infraestructura compartida. Son unas 2.200 líneas con sus
+tests y resuelve lo que mi versión ignoraba: PKCE, estado de un solo uso con
+vencimiento, identidad financiera, frescura del token y consentimiento.
+
+Variables que van a hacer falta, con la convención correcta:
+`SUBILAFOTO_MP_CLIENT_ID`, `SUBILAFOTO_MP_CLIENT_SECRET`,
+`SUBILAFOTO_MP_REDIRECT_URI` — y la clave del vault, que ya debería existir para
+la suite.
+
+**No hay que crear ninguna aplicación en Mercado Pago.** Sí hay que declarar la
+URL de retorno de Subí la Foto en la lista de la app centralizada: eso sí admite
+varias, a diferencia de la de notificación.
+
