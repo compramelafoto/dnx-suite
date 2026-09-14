@@ -52,6 +52,16 @@ export function buildOrderProductLines(order: PhotographerOrderRow): OrderProduc
       detail: order.labName && order.labName !== "-" ? order.labName : undefined,
     });
   }
+  // Los videos del pedido, con su propia línea: antes no se contaban en
+  // ninguna parte y un pedido de sólo video figuraba como "0 ítems".
+  const vc = order.videoItemsCount ?? 0;
+  if (vc > 0) {
+    lines.push({
+      label: `${vc} video${vc !== 1 ? "s" : ""}`,
+      detail: "Descarga digital",
+    });
+  }
+
   if (lines.length === 0) {
     lines.push({
       label: `${order.itemsCount} ítem${order.itemsCount !== 1 ? "s" : ""}`,
