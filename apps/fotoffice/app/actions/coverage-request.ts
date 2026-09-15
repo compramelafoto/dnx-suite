@@ -60,13 +60,29 @@ export async function submitCoverageRequestAction(
   const consents = parseConsents(readForm(formData), settings.consentTextVersion);
   if (!consents.ok) return { error: consents.error, ok: null };
 
-  // La sal sale del entorno: sin ella el hash de una IPv4 se revierte con una tabla, porque
-  // el espacio de direcciones es chico.
+  // La sal sale del entorno (`COVERAGE_ORIGIN_SALT`). Si no está configurada, se usa el
+  // `workspaceId` como respaldo: sirve porque es un cuid, no un valor público ni adivinable,
+  // pero conviene configurar la variable igual para que la sal no dependa de un dato del
+  // dominio. El `console.warn` deja el olvido visible en los registros en vez de que se
+  // note sólo el día que alguien necesite ver por qué el respaldo entró en juego.
+  if (!process.env.COVERAGE_ORIGIN_SALT) {
+    console.warn(
+      "COVERAGE_ORIGIN_SALT no está configurada; usando branding.workspaceId como respaldo.",
+    );
+  }
   const cabeceras = await headers();
   const originHash = hashOrigen(
     cabeceras.get("x-forwarded-for")?.split(",")[0] ?? null,
     process.env.COVERAGE_ORIGIN_SALT ?? branding.workspaceId,
   );
+
+  // Antes de consultar la base: si el formulario está cerrado, cortar acá evita las dos
+  // consultas de abajo en cada POST. Esto es sólo una optimización de costo — el control
+  // real, el que garantiza que la comprobación exista aunque alguien reordene esta action,
+  // es el que hace `planSubmission` más abajo. No se borra esa comprobación.
+  if (!settings.publicFormEnabled) {
+    return { error: "Las solicitudes no están abiertas en este momento.", ok: null };
+  }
 
   const [recientes, duplicada] = await Promise.all([
     countRecentSubmissions({
@@ -123,6 +139,17 @@ export async function submitCoverageRequestAction(
     : branding.contactEmail
       ? [branding.contactEmail]
       : [];
+
+  // Una solicitud que nadie mira es peor que una que falló, porque nadie la va a reclamar:
+  // si no hay ni `notifyEmails` ni `contactEmail`, la solicitud queda guardada pero el
+  // aviso a la coordinación no sale para nadie. Sin este `console.warn` eso pasaría en
+  // silencio, sin dejar ni rastro en los registros.
+  if (destinatarios.length === 0) {
+    console.warn(
+      `Solicitud ${guardada.publicCode} del workspace ${branding.workspaceId} guardada, ` +
+        "pero no hay a quién avisarle: no hay notifyEmails ni contactEmail configurados.",
+    );
+  }
 
   for (const destino of destinatarios) {
     await sendAndLogEmail({
