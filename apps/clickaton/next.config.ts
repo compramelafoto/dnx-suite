@@ -86,8 +86,13 @@ const nextConfig: NextConfig = {
         ruta,
         [
           "../../node_modules/.pnpm/pdf-to-png-converter@*/node_modules/pdf-to-png-converter/**",
-          "../../node_modules/.pnpm/@napi-rs+canvas@*/node_modules/@napi-rs/canvas/**",
-          "../../node_modules/.pnpm/@napi-rs+canvas-*/node_modules/@napi-rs/**",
+          /*
+           * Todo el árbol de `@napi-rs/canvas`, no sólo la carpeta `canvas`: el binario vive en
+           * un paquete aparte por sistema operativo y se alcanza por un enlace que cuelga al
+           * lado (`@napi-rs/canvas-linux-x64-gnu`). Copiando sólo `canvas/**` el módulo carga y
+           * después muere con "Cannot find native binding".
+           */
+          "../../node_modules/.pnpm/@napi-rs+canvas*/**",
           /*
            * `pdfjs` carga su worker en tiempo de ejecución armando la ruta con una cadena, así
            * que el rastreo de Next no lo ve y en el servidor falta: "Setting up fake worker
