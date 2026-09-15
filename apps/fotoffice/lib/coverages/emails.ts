@@ -18,6 +18,24 @@ import type { WorkspaceEmailContext } from "@/lib/communications/load-workspace-
 
 export type EmailBody = { subject: string; html: string; text: string };
 
+/**
+ * A quién saludar en el correo.
+ *
+ * Preferimos el nombre de la persona de contacto sobre la razón social: es a ella a quien le
+ * escribimos. Si no hay nombre cargado (una solicitud vieja, de antes de guardar
+ * `firstName`/`lastName`), caemos a la razón social, y si tampoco hay nada, a "Equipo": nunca
+ * "Hola", porque `compose` ya antepone un "Hola" al saludo y un cliente sin nombre ni razón
+ * social terminaría recibiendo un correo que dice «Hola Hola,».
+ */
+export function contactGreetingName(client: {
+  firstName: string | null;
+  lastName: string | null;
+  businessName: string | null;
+}): string {
+  const nombre = [client.firstName, client.lastName].filter(Boolean).join(" ");
+  return nombre || client.businessName || "Equipo";
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")

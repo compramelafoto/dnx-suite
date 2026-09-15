@@ -68,7 +68,14 @@ export default async function FichaSolicitudPage({
         <h2 className="text-base font-semibold">Quién lo pide</h2>
         <Dato label="Organización" valor={solicitud.client.businessName ?? "—"} />
         <Dato label="Correo" valor={solicitud.client.email ?? "—"} />
-        <Dato label="Teléfono" valor={solicitud.client.phone ?? "—"} />
+        {/*
+          El teléfono y el CUIT de la solicitud van primero, antes que los del padrón de
+          clientes: son los que esta organización escribió para ESTE pedido. La ficha del
+          cliente puede tener un teléfono de hace dos años (o el de otra persona, si el correo
+          coincidió con un cliente que ya existía); el de la solicitud es el de ahora.
+        */}
+        <Dato label="Teléfono" valor={solicitud.contactPhone ?? solicitud.client.phone ?? "—"} />
+        <Dato label="CUIT" valor={solicitud.orgTaxId ?? solicitud.client.docNumber ?? "—"} />
       </section>
 
       <section className="fo-card space-y-2 p-5">

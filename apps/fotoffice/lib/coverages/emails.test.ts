@@ -4,6 +4,7 @@ import {
   buildRequestApprovedEmail,
   buildRequestReceivedEmail,
   buildRequestRejectedEmail,
+  contactGreetingName,
 } from "./emails";
 
 const contexto = { organizationName: "FOTOPOSITIVA", signature: null };
@@ -69,14 +70,35 @@ describe("buildRequestReceivedEmail", () => {
 
   it("el saludo nunca repite la palabra «Hola»", () => {
     // `compose` siempre antepone "Hola" al nombre que le llega (ver más arriba, `saludo`). Si
-    // quien llama —`actions.ts`, cuando la solicitud no tiene ni nombre de contacto ni razón
-    // social— usara "Hola" como valor por omisión en vez de "Equipo", el correo saldría
-    // literalmente "Hola Hola,". Se prueba con el valor de omisión real ("Equipo") para que
-    // este caso se rompa si alguien vuelve a usar "Hola" como remplazo del nombre.
-    const m = buildRequestReceivedEmail({ ...base, contactName: "Equipo" });
+    // `contactGreetingName` volviera a usar "Hola" como valor por omisión en vez de "Equipo"
+    // (por ejemplo, para una solicitud sin nombre de contacto ni razón social), el correo
+    // saldría literalmente "Hola Hola,". Se prueba con el resultado real de esa función, no con
+    // un literal escrito a mano, para que este caso se rompa si alguien vuelve a tocarla.
+    const nombre = contactGreetingName({ firstName: null, lastName: null, businessName: null });
+    const m = buildRequestReceivedEmail({ ...base, contactName: nombre });
     expect(m.text).not.toContain("Hola Hola");
     expect(m.html).not.toContain("Hola Hola");
     expect(m.text).toContain("Hola Equipo,");
+  });
+});
+
+describe("contactGreetingName", () => {
+  it("con nombre y apellido, saluda a la persona", () => {
+    expect(
+      contactGreetingName({ firstName: "María", lastName: "Pérez", businessName: "FOTOPOSITIVA" }),
+    ).toBe("María Pérez");
+  });
+
+  it("sin nombre pero con razón social, cae a la razón social", () => {
+    expect(
+      contactGreetingName({ firstName: null, lastName: null, businessName: "FOTOPOSITIVA" }),
+    ).toBe("FOTOPOSITIVA");
+  });
+
+  it("sin nombre ni razón social, cae a «Equipo» y nunca a «Hola»", () => {
+    const nombre = contactGreetingName({ firstName: null, lastName: null, businessName: null });
+    expect(nombre).toBe("Equipo");
+    expect(nombre).not.toBe("Hola");
   });
 });
 
