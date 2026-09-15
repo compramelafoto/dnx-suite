@@ -88,6 +88,14 @@ const nextConfig: NextConfig = {
           "../../node_modules/.pnpm/pdf-to-png-converter@*/node_modules/pdf-to-png-converter/**",
           "../../node_modules/.pnpm/@napi-rs+canvas@*/node_modules/@napi-rs/canvas/**",
           "../../node_modules/.pnpm/@napi-rs+canvas-*/node_modules/@napi-rs/**",
+          /*
+           * `pdfjs` carga su worker en tiempo de ejecución armando la ruta con una cadena, así
+           * que el rastreo de Next no lo ve y en el servidor falta: "Setting up fake worker
+           * failed". Sólo los `.mjs` de `legacy/build`, que son 6 MB; el paquete entero pesa 37
+           * por los mapas de depuración, que acá no sirven para nada.
+           */
+          "../../node_modules/.pnpm/pdfjs-dist@*/node_modules/pdfjs-dist/legacy/build/*.mjs",
+          "../../node_modules/.pnpm/pdfjs-dist@*/node_modules/pdfjs-dist/package.json",
         ],
       ])
     ),
