@@ -10,6 +10,7 @@ export function ShellSidebar({
   membersEnabled,
   bookingsEnabled,
   rafflesEnabled,
+  coveragesEnabled,
   websiteEnabled,
   canManageMembers,
   canManageWorkspaceSettings,
@@ -26,6 +27,7 @@ export function ShellSidebar({
   membersEnabled: boolean;
   bookingsEnabled: boolean;
   rafflesEnabled: boolean;
+  coveragesEnabled: boolean;
   websiteEnabled: boolean;
   canManageMembers: boolean;
   canManageWorkspaceSettings: boolean;
@@ -56,6 +58,7 @@ export function ShellSidebar({
         membersEnabled={membersEnabled}
         bookingsEnabled={bookingsEnabled}
         rafflesEnabled={rafflesEnabled}
+        coveragesEnabled={coveragesEnabled}
         websiteEnabled={websiteEnabled}
         canManageMembers={canManageMembers}
         canManageWorkspaceSettings={canManageWorkspaceSettings}
