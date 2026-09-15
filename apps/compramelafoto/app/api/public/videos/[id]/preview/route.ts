@@ -4,6 +4,7 @@ import { isAlbumPubliclyAccessible } from "@/lib/album-helpers";
 import { isVideoMvpEnabled } from "@/lib/videos/video-feature-flag";
 import { getSignedUrlForFile } from "@/lib/r2-client";
 import { resolveAlbumPublicVideoAccess } from "@/lib/videos/public-album-video-access";
+import { resolvePreviewResponseCache } from "@/lib/videos/preview-response-cache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -116,18 +117,23 @@ export async function GET(
     const headers = new Headers();
     headers.set("Content-Type", "video/mp4");
     headers.set("Accept-Ranges", "bytes");
-    // El adelanto tiene la marca quemada y no cambia: se puede cachear fuerte.
-    headers.set("Cache-Control", "public, max-age=3600");
     for (const h of ["content-length", "content-range", "etag", "last-modified"]) {
       const v = upstream.headers.get(h);
       if (v) headers.set(h, v);
     }
 
-    // Si vino un rango, la respuesta TIENE que ser 206. Un 200 con
-    // Content-Range es incorrecto y Safari lo rechaza al reproducir.
-    const status = headers.has("content-range") ? 206 : upstream.status;
+    // El estado y la caché los decide una sola función, probada aparte: el
+    // adelanto se guarda en el navegador de cada persona y nunca en el CDN
+    // compartido, porque ahí un fragmento terminaba repartido como 200.
+    const cache = resolvePreviewResponseCache({
+      requestedRange: range,
+      upstreamStatus: upstream.status,
+      hasContentRange: headers.has("content-range"),
+    });
+    headers.set("Cache-Control", cache.cacheControl);
+    headers.set("Vary", cache.vary);
 
-    return new NextResponse(upstream.body, { status, headers });
+    return new NextResponse(upstream.body, { status: cache.status, headers });
   } catch (err: unknown) {
     console.error("[video-preview] fatal", err);
     return NextResponse.json({ error: "Vista previa no disponible" }, { status: 500 });

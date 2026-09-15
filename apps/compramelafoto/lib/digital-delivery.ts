@@ -3,6 +3,7 @@ import { getAppConfig } from "@/lib/services/settingsService";
 import { createClientDownloadToken, getOrderDownloadTokens } from "@/lib/download-tokens";
 import { createZipJob, getZipExpiresAt } from "@/lib/zip-job-queue";
 import { resolveDownloadLinkDays } from "@/lib/digital-download/download-link-policy";
+import { orderNeedsDigitalDelivery } from "@/lib/digital-download/order-needs-delivery";
 
 export type DigitalDeliveryResult = {
   /** Centro de descargas (experiencia principal). */
@@ -37,13 +38,16 @@ export async function ensureDigitalDelivery(orderId: number): Promise<DigitalDel
 
   if (!order) return null;
 
-  const hasDigital = order.items.some((item) => item.productType === "DIGITAL");
+  const digitalPhotoCount = order.items.filter(
+    (item) => item.productType === "DIGITAL"
+  ).length;
 
-  // Un pedido de sólo videos no tiene fotos digitales, y esta línea cortaba
-  // antes de crear el token: el cliente pagaba y no recibía ni link ni mail.
+  // Un pedido de sólo videos no tiene fotos digitales. Antes se cortaba acá y
+  // el cliente pagaba sin recibir link ni mail; la regla está aparte y probada
+  // en `order-needs-delivery` para que no vuelva a perderse.
   const videoCount = await prisma.videoOrderItem.count({ where: { orderId: order.id } });
 
-  if (!hasDigital && videoCount === 0) return null;
+  if (!orderNeedsDigitalDelivery({ digitalPhotoCount, videoCount })) return null;
 
   const existingTokens = await getOrderDownloadTokens(order.id);
   const existingDigital = existingTokens.find((t) => t.type === "CLIENT_DIGITAL");
