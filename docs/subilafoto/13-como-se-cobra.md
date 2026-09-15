@@ -317,3 +317,60 @@ publicadas"* y a no tener **ninguna** dirección de R2 en el HTML.
 La primera corrida devolvió **500**: el relleno de plazos usaba `make_interval` con un
 parámetro. Está contado más arriba. Que el primer intento de un borrado destructivo falle
 ruidosamente, en vez de borrar de más, es exactamente lo que tiene que pasar.
+
+## La ficha de venta: lo que faltaba para poder vender (2026-09-15)
+
+Fui a documentar las variables que faltaban y encontré algo peor que una variable.
+
+**Nadie podía vender nada.** El perfil de venta nacía solo, al crear el primer evento, con
+el nombre `"Mi estudio"`, `basePriceCents: 0` y `isPublished: false`. Y la vitrina
+`/v/[slug]` exige las dos cosas:
+
+```ts
+if (!perfil || !perfil.isPublished) notFound();
+if (perfil.basePriceCents <= 0) notFound();
+```
+
+No había ninguna pantalla para cambiar eso. El enlace de venta de cualquier fotógrafo daba
+**404 para siempre**, con Mercado Pago configurado o sin configurar.
+
+### Lo que se puede guardar a medias y lo que no
+
+Escribir la ficha en dos ratos tiene que poder: se guarda sin precio. **Publicar sin
+precio, no** — la vitrina daría 404 y el fotógrafo creería que su enlace anda. Es la clase
+de error que se descubre cuando un cliente avisa que el link no abre.
+
+### El precio se escribe como se escribe acá
+
+El punto es ambiguo: en `120.000` separa los miles y en `1500.50` son centavos. Las dos
+formas se escriben. La regla: si hay coma, la coma manda; si no, un punto seguido de
+**exactamente tres dígitos** es de miles y cualquier otro es decimal.
+
+Y dos topes que no son arbitrarios: menos de mil pesos o más de cinco millones no es un
+precio, es un error de tipeo. Mejor frenarlo acá que en Mercado Pago.
+
+### Ve lo que le queda antes de publicar
+
+Mientras escribe el precio, la pantalla le muestra lo que paga el cliente y lo que cobra
+él, **con la misma función que usa el servidor al cobrar**. Incluyendo la propiedad que
+hace que la decisión sea fácil: con descarga o sin descarga **cobra lo mismo**.
+
+Descubrir la comisión con la primera venta es la peor forma de enterarse.
+
+### El logo, por ahora, es una dirección
+
+Se pega una URL `https`. No `http` —rompe el candado en la única pantalla donde el cliente
+está por pagar— y no `javascript:`, que ahí adentro es un agujero.
+
+Falta la subida de archivo. La maquinaria de subir a R2 ya existe para las fotos de los
+invitados; es reusarla.
+
+## El panel era una pantalla que decía hola
+
+No había forma de encontrar un evento ya creado: había `/panel/eventos/nuevo` y
+`/panel/eventos/[id]`, y **ninguna lista**. Un fotógrafo con tres eventos tenía que guardar
+los enlaces a mano.
+
+Ahora lo primero que muestra es la pregunta que trae al panel —si se puede vender o no—,
+con el enlace publicado o lo que falta para publicarlo, y si Mercado Pago está conectado.
+Después la lista, con el estado de cada evento y cuántas fotos tiene.
