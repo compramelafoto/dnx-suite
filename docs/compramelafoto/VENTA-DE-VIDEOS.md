@@ -1,6 +1,6 @@
 # Venta de videos
 
-Estado al 2026-09-14. En producción y funcionando.
+Estado al 2026-09-15. En producción y funcionando.
 
 ## Cómo funciona
 
@@ -15,6 +15,11 @@ Estado al 2026-09-14. En producción y funcionando.
    10 minutos.
 5. Si manda una selfie, la búsqueda le devuelve fotos **y** videos, con el
    minuto exacto donde aparece.
+6. El fotógrafo puede dejar la galería **oculta hasta la selfie**: nadie ve los
+   videos salvo quien fue reconocido en ellos. Los que no tienen ninguna cara
+   (un paisaje, la cancha, un detalle) se muestran igual; los que todavía no se
+   analizaron **no**, porque podrían tener a cualquiera. La regla vive en
+   `lib/videos/hidden-album-videos.ts`, con pruebas.
 
 ## Lo que está pendiente
 
@@ -76,6 +81,30 @@ una URL pública: ese era el agujero, no el adelanto.
 el reproductor fallaba con "URL no accesible" aunque el archivo estuviera sano.
 De paso, la ubicación real del archivo no viaja al navegador.
 
+**El adelanto no se cachea en el CDN compartido.** Con `Cache-Control: public`
+el CDN guardaba el primer fragmento del video y lo repartía con estado 200 en
+lugar de 206: una respuesta contradictoria que Safari y el iPhone rechazan, y
+el video no arrancaba. El código siempre estuvo bien; la petición ni siquiera
+llegaba al servidor. Ahora va `private` con `Vary: Range`, en
+`lib/videos/preview-response-cache.ts` con pruebas. Si algo en producción
+contradice al código, mirá el encabezado `age:` antes de dudar del código.
+
+**Un solo botón de compra.** Cuando el álbum vende videos, el botón fijo de la
+grilla desaparece y queda el flotante, que vale para las dos pestañas y dice
+qué se está comprando. Antes se veían los dos a la vez y el fijo, que sólo
+contaba fotos, llevaba a "no hay ítems seleccionados" con un video como única
+selección.
+
+**Quién recibe su descarga es una regla aparte y probada.** Un pedido de sólo
+video no tiene fotos digitales; la entrega miraba nada más que las fotos y
+cortaba antes de crear el link. Una compra real quedó sin entregar por eso. La
+condición vive en `lib/digital-download/order-needs-delivery.ts`.
+
+**Reembolsar un pedido revoca su link de descarga.** Es
+`revokeOrderDownloadTokens` dentro de `reverseAlbumOrder`. Si un link de
+descarga que funcionaba empieza a dar 404, verificá primero si el pedido pasó a
+`REFUNDED`: es el sistema haciendo lo correcto, no una rotura.
+
 **ffmpeg ya rota al decodificar.** Agregarle un `transpose` propio acostaba los
 videos verticales. Ver `src/rotation.test.ts` en el worker.
 
@@ -83,7 +112,7 @@ videos verticales. Ver `src/rotation.test.ts` en el worker.
 
 - El circuito completo probado en producción con un video real: 20 fotogramas,
   16 caras detectadas, adelanto vertical de 4,6 s con marca.
-- 108 tests en la app y 22 en el worker.
+- 141 tests en la app y 22 en el worker.
 - El typecheck de `apps/compramelafoto` **necesita**
   `NODE_OPTIONS=--max-old-space-size=8192`: sin eso crashea y termina con
   código 0, lo que parece un chequeo limpio y no lo es.
