@@ -15,6 +15,10 @@
     {
       "path": "/api/correos/avisos",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/eventos/purgar",
+      "schedule": "30 4 * * *"
     }
   ]
 }

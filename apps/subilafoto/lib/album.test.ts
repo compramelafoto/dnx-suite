@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { condicionDePublicadas, estaPublicada } from "./album";
+import { condicionDePublicadas, estaPublicada, puedeVerElAlbum } from "./album";
 
 describe("qué foto llega al álbum y a la pantalla", () => {
   test("una aprobada y publicada, sí", () => {
@@ -31,5 +31,16 @@ describe("qué foto llega al álbum y a la pantalla", () => {
     expect(donde.eventId).toBe("evento-1");
     expect(donde.status).toBe("APPROVED");
     expect(donde.publishedAt).toEqual({ not: null });
+  });
+});
+
+describe("quién puede ver el álbum", () => {
+  test("el invitado depende del interruptor", () => {
+    expect(puedeVerElAlbum({ guestsCanSeeAlbum: true, esElCliente: false })).toBe(true);
+    expect(puedeVerElAlbum({ guestsCanSeeAlbum: false, esElCliente: false })).toBe(false);
+  });
+
+  test("al cliente no lo alcanza el interruptor: es su material", () => {
+    expect(puedeVerElAlbum({ guestsCanSeeAlbum: false, esElCliente: true })).toBe(true);
   });
 });

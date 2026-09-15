@@ -2,11 +2,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
 import { comprarAdicional } from "@/app/actions/adicional";
+import { renovarEnlaces } from "@/app/actions/renovar";
 import { estadoDelAdicional } from "@/lib/adicional";
 import { condicionDePublicadas } from "@/lib/album";
 import { formatearPesos } from "@/lib/precios";
+import { nombreDeCategoria } from "@/lib/proveedores/categorias";
 import { precioDeLaDescarga } from "@/lib/pagos/venta";
 import { estiloBotonDnx } from "@/lib/boton-dnx";
+import { sePuedeRenovar } from "@/lib/paquete/renovar";
 
 export const dynamic = "force-dynamic";
 
@@ -84,12 +87,32 @@ export default async function PanelDelCliente({ params, searchParams }: Props) {
       itemCount: true,
       downloadToken: true,
       tokenExpiresAt: true,
+      regenerations: true,
     },
+  });
+
+  const renovacion = sePuedeRenovar({
+    paquetes,
+    retentionUntil: evento.retentionUntil,
+    ahora,
   });
 
   const publicadas = await prisma.subilafotoMedia.count({
     where: { ...condicionDePublicadas(evento.id), kind: "PHOTO" },
   });
+
+  // Los proveedores de esa noche. Es lo que se les prometió cuando completaron su ficha:
+  // que el evento les sirviera para que los vieran.
+  const vendors = await prisma.subilafotoEventVendor.findMany({
+    where: { eventId: evento.id },
+    orderBy: { category: "asc" },
+    select: { id: true, partnerId: true, category: true },
+  });
+  const empresas = await prisma.dnxPartner.findMany({
+    where: { id: { in: vendors.map((v) => v.partnerId) }, archivedAt: null },
+    select: { id: true, name: true, instagram: true, websiteUrl: true },
+  });
+  const empresaPorId = new Map(empresas.map((e) => [e.id, e]));
 
   return (
     <main className="sobre-claro mx-auto max-w-2xl px-6 py-16">
@@ -121,17 +144,24 @@ export default async function PanelDelCliente({ params, searchParams }: Props) {
         </p>
       ) : null}
 
-      {evento.guestsCanSeeAlbum ? (
-        <p className="mt-10">
-          <Link
-            href={`/e/${evento.code}/album`}
-            className="font-extrabold underline underline-offset-4"
-            style={{ color: acento }}
-          >
-            Ver el álbum del evento
-          </Link>
-        </p>
-      ) : null}
+      {/*
+        El álbum del cliente entra por su propio enlace y no por el del invitado: el
+        interruptor que apaga el álbum es sobre los invitados, no sobre quien lo contrató.
+      */}
+      <p className="mt-10">
+        <Link
+          href={`/cliente/${token}/album`}
+          className="font-extrabold underline underline-offset-4"
+          style={{ color: acento }}
+        >
+          Ver el álbum del evento
+        </Link>
+        {evento.guestsCanSeeAlbum ? null : (
+          <span className="ml-2 text-sm" style={{ color: "var(--slf-tinta-suave)" }}>
+            Sólo vos: el álbum está apagado para los invitados.
+          </span>
+        )}
+      </p>
 
       <section
         className="mt-10 rounded-2xl p-7"
@@ -166,7 +196,23 @@ export default async function PanelDelCliente({ params, searchParams }: Props) {
                     </li>
                   ))}
                 </ul>
-                {paquetes[0]?.tokenExpiresAt ? (
+                {renovacion.sePuede ? (
+                  <form action={renovarEnlaces} className="mt-5">
+                    <input type="hidden" name="token" value={token} />
+                    <button
+                      type="submit"
+                      className="rounded-xl px-5 py-3 text-sm font-extrabold"
+                      style={{
+                        background: "transparent",
+                        color: "var(--slf-amarillo)",
+                        border: "2px solid var(--slf-amarillo)",
+                        minHeight: "44px",
+                      }}
+                    >
+                      Pedir enlaces nuevos
+                    </button>
+                  </form>
+                ) : paquetes[0]?.tokenExpiresAt ? (
                   <p className="mt-4 text-sm" style={{ color: "var(--slf-lila)" }}>
                     Los enlaces valen hasta el {FECHA.format(paquetes[0].tokenExpiresAt)}. Después
                     pedís unos nuevos desde acá.
@@ -218,6 +264,46 @@ export default async function PanelDelCliente({ params, searchParams }: Props) {
           </p>
         ) : null}
       </section>
+
+      {vendors.length > 0 ? (
+        <section className="mt-12">
+          <h2 className="text-xl font-extrabold">Quiénes trabajaron esa noche</h2>
+          <ul className="mt-5 space-y-3">
+            {vendors.map((v) => {
+              const empresa = empresaPorId.get(v.partnerId);
+              if (!empresa) return null;
+              const enlace = empresa.websiteUrl ?? null;
+              return (
+                <li
+                  key={v.id}
+                  className="rounded-xl border px-5 py-4"
+                  style={{ borderColor: "var(--slf-borde)", background: "white" }}
+                >
+                  <p className="font-extrabold">
+                    {enlace ? (
+                      <a
+                        href={enlace}
+                        target="_blank"
+                        rel="noopener noreferrer nofollow"
+                        className="underline underline-offset-4"
+                        style={{ color: acento }}
+                      >
+                        {empresa.name}
+                      </a>
+                    ) : (
+                      empresa.name
+                    )}
+                  </p>
+                  <p className="mt-1 text-sm" style={{ color: "var(--slf-tinta-suave)" }}>
+                    {nombreDeCategoria(v.category)}
+                    {empresa.instagram ? ` · ${empresa.instagram}` : ""}
+                  </p>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
     </main>
   );
 }

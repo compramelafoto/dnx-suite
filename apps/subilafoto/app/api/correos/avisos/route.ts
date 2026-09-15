@@ -39,6 +39,10 @@ export async function GET(req: Request) {
       status: "CLOSED",
       // Más viejo que el último hito no tiene nada que recibir.
       closedAt: { not: null, gte: hace31Dias },
+      // Al material ya borrado no se lo ofrece. El borrado deja el evento en `ARCHIVED`,
+      // así que esto es redundante hoy; queda explícito porque el día que cambie el
+      // estado, lo que no puede pasar es escribirle a alguien sobre fotos que no existen.
+      purgedAt: null,
     },
     orderBy: { closedAt: "asc" },
     take: 200,

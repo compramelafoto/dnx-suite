@@ -677,14 +677,26 @@ export default function ClientAlbumView({
         </>
       );
     }
+    if (publicVideosEnabled) {
+      return (
+        <>
+          Seleccioná las fotos y los videos que quieras. El botón de abajo te va
+          a decir qué estás comprando.
+        </>
+      );
+    }
     return (
       <>
-        Seleccioná las fotos que querés comprar. Después tocá{" "}
-        <strong className="text-[#1a1a1a]">Comprar seleccionadas</strong> para continuar con la
-        compra digital.
+        Seleccioná las fotos que querés comprar. Después tocá el botón de abajo
+        para continuar con la compra digital.
       </>
     );
-  }, [packSelectionMode, enablePrintedPhotos, album.publicVisiblePacks]);
+  }, [
+    packSelectionMode,
+    enablePrintedPhotos,
+    album.publicVisiblePacks,
+    publicVideosEnabled,
+  ]);
 
   const startCheckoutNavigation = useCallback((href: string) => {
     if (typeof window === "undefined") return;
@@ -3001,7 +3013,11 @@ export default function ClientAlbumView({
           {canPurchaseSingles ? (
           <>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
-            {!packSelectionMode && !purchaseUxV2 && (
+            {/* Con videos a la venta, este botón sobra: el flotante ya vale para
+                las dos pestañas y dice qué se está comprando. Tenerlos juntos
+                mostraba dos llamados a la vez, y este llevaba a "no hay ítems
+                seleccionados" cuando lo elegido era un video. */}
+            {!packSelectionMode && !purchaseUxV2 && !publicVideosEnabled && (
               <Button
                 type="button"
                 variant="primary"
@@ -3019,6 +3035,8 @@ export default function ClientAlbumView({
                 )}
               </Button>
             )}
+            {/* El resumen de precios se queda: es lo que deja ver cuánto sale
+                lo elegido sin tener que abrir cada foto. */}
             {!packSelectionMode && !purchaseUxV2 && gallerySelectionEstimate ? (
               <div className="flex flex-col gap-1 text-sm text-[#374151] leading-relaxed">
                 <p className="font-medium text-[#1a1a1a]">

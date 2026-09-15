@@ -3,6 +3,11 @@ import { getAppConfig } from "@/lib/services/settingsService";
 import { createClientDownloadToken, getOrderDownloadTokens } from "@/lib/download-tokens";
 import { createZipJob, getZipExpiresAt } from "@/lib/zip-job-queue";
 import { resolveDownloadLinkDays } from "@/lib/digital-download/download-link-policy";
+import {
+  orderNeedsDigitalDelivery,
+  shouldEmailDownloadRightAway,
+} from "@/lib/digital-download/order-needs-delivery";
+import { resendDigitalDownloadEmailForOrder } from "@/lib/zip-job-notifications";
 
 export type DigitalDeliveryResult = {
   /** Centro de descargas (experiencia principal). */
@@ -37,13 +42,16 @@ export async function ensureDigitalDelivery(orderId: number): Promise<DigitalDel
 
   if (!order) return null;
 
-  const hasDigital = order.items.some((item) => item.productType === "DIGITAL");
+  const digitalPhotoCount = order.items.filter(
+    (item) => item.productType === "DIGITAL"
+  ).length;
 
-  // Un pedido de sólo videos no tiene fotos digitales, y esta línea cortaba
-  // antes de crear el token: el cliente pagaba y no recibía ni link ni mail.
+  // Un pedido de sólo videos no tiene fotos digitales. Antes se cortaba acá y
+  // el cliente pagaba sin recibir link ni mail; la regla está aparte y probada
+  // en `order-needs-delivery` para que no vuelva a perderse.
   const videoCount = await prisma.videoOrderItem.count({ where: { orderId: order.id } });
 
-  if (!hasDigital && videoCount === 0) return null;
+  if (!orderNeedsDigitalDelivery({ digitalPhotoCount, videoCount })) return null;
 
   const existingTokens = await getOrderDownloadTokens(order.id);
   const existingDigital = existingTokens.find((t) => t.type === "CLIENT_DIGITAL");
@@ -85,11 +93,32 @@ export async function ensureDigitalDelivery(orderId: number): Promise<DigitalDel
     }
   }
 
+  // Un pedido de sólo video no arma ningún ZIP, así que el correo que avisa
+  // "tu descarga está lista" —que se dispara al terminar el ZIP— no saldría
+  // nunca. Acá no hay nada que preparar: el link ya sirve, se avisa en el acto.
+  // La clave fija evita que un segundo intento le mande dos correos.
+  const emailAhora = shouldEmailDownloadRightAway({ digitalPhotoCount, videoCount });
+  if (emailAhora) {
+    try {
+      await resendDigitalDownloadEmailForOrder(order.id, {
+        idempotencyKey: `order-${order.id}-video-download`,
+      });
+      await prisma.order.update({
+        where: { id: order.id },
+        data: { digitalDeliveredAt: new Date() },
+      });
+    } catch (err: unknown) {
+      // El correo no puede tumbar la entrega: el link ya está creado y el
+      // cliente lo tiene en la pantalla de compra.
+      console.error("[digital-delivery] aviso de pedido de sólo video", err);
+    }
+  }
+
   return {
     downloadCenterUrl: null,
     downloadUrl: null,
     expiresAt,
-    emailWhenReady: true,
+    emailWhenReady: !emailAhora,
   };
 }
 
