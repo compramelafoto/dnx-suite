@@ -58,6 +58,16 @@ const limpio = (v: string | null | undefined) => {
   return t && t.length > 0 ? t : null;
 };
 
+/**
+ * El teléfono de la empresa.
+ *
+ * El formulario pide WhatsApp y no teléfono, porque es lo que la gente tiene a mano. Si
+ * no se cayera al WhatsApp, la ficha de la empresa quedaría sin ningún número — y en una
+ * base de proveedores el número es lo que más vale.
+ */
+const telefonoDeLaEmpresa = (datos: DatosDelProveedor) =>
+  limpio(datos.telefono) ?? limpio(datos.whatsapp);
+
 export async function registrarProveedor(
   eventoId: string,
   datos: DatosDelProveedor,
@@ -127,7 +137,7 @@ export async function registrarProveedor(
         status: "PROSPECT",
         taxId: limpio(datos.cuit),
         email: limpio(datos.email),
-        phone: limpio(datos.telefono),
+        phone: telefonoDeLaEmpresa(datos),
         websiteUrl: limpio(datos.sitioWeb),
         instagram: limpio(datos.instagram),
         city: limpio(datos.localidad),
@@ -195,7 +205,7 @@ async function completarVacios(partnerId: string, nombre: string, datos: DatosDe
       description: si(actual.description, datos.descripcion),
       taxId: si(actual.taxId, datos.cuit),
       email: si(actual.email, datos.email),
-      phone: si(actual.phone, datos.telefono),
+      phone: actual.phone ? undefined : (telefonoDeLaEmpresa(datos) ?? undefined),
       websiteUrl: si(actual.websiteUrl, datos.sitioWeb),
       instagram: si(actual.instagram, datos.instagram),
       city: si(actual.city, datos.localidad),
