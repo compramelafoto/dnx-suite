@@ -78,3 +78,18 @@ export const MEMBERSHIP_EMAIL_KEYS = {
   WELCOME: "fotoffice.membership.welcome",
   RECOMMENDATION_EARNED: "fotoffice.membership.recommendation-earned",
 } as const;
+
+/**
+ * Claves de las comunicaciones del módulo de coberturas en `SentEmailLog`.
+ *
+ * Se registran todos —también los que fallan— por el mismo motivo que en el alta de socios:
+ * la pregunta «¿le avisamos o no?» aparece siempre, y sin este registro la única respuesta
+ * posible sería encogerse de hombros.
+ */
+export const COVERAGE_EMAIL_KEYS = {
+  RECEIVED: "fotoffice.coverages.request-received",
+  ALERT: "fotoffice.coverages.request-alert",
+  INFO_REQUESTED: "fotoffice.coverages.request-info-requested",
+  APPROVED: "fotoffice.coverages.request-approved",
+  REJECTED: "fotoffice.coverages.request-rejected",
+} as const;

@@ -2,6 +2,7 @@ import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
+import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
@@ -84,6 +85,16 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     category: "GENERAL",
     order: 60,
     route: "/reservas",
+    status: "AVAILABLE",
+  },
+  {
+    key: COVERAGES_MODULE_KEY,
+    label: "Solicitudes y Coberturas",
+    description:
+      "Pedidos de cobertura fotográfica: evaluación, convocatoria de colaboradores, asignación del equipo y control de entregas.",
+    category: "GENERAL",
+    order: 65,
+    route: "/coberturas",
     status: "AVAILABLE",
   },
 

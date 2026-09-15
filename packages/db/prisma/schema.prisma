@@ -324,6 +324,7 @@ model User {
   voidedRecommendationBenefits        MembershipRecommendationBenefit[]  @relation("RecommendationBenefitVoider")
   subilafotoSellerProfiles            SubilafotoSellerProfile[]
   subilafotoCollaborations            SubilafotoCollaborator[]
+  coverageEvents                      CoverageEvent[]
 }
 
 /// Perfil financiero de ¿Cuánto Cobro? (wizard bloque A), 1:1 con User.
@@ -5230,6 +5231,10 @@ model HiddenAlbumGrant {
   guestId         String?
   attemptId       String             @unique
   allowedPhotoIds Json
+  /// Videos que esta persona puede ver: donde fue reconocida, más los que no
+  /// tienen ninguna cara. Null en permisos anteriores a esta función, que se
+  /// tratan como "sin videos visibles" para no exponer material ajeno.
+  allowedVideoIds Json?
   allowedCount    Int
   isRevoked       Boolean            @default(false)
   album           Album              @relation(fields: [albumId], references: [id], onDelete: Cascade)
@@ -7091,6 +7096,12 @@ model Workspace {
   memberCards                 MemberCard[]
   memberCardOperators         MemberCardOperator[]
   recommendationBenefits      MembershipRecommendationBenefit[]
+  coverageSettings      CoverageSettings?
+  coverageRequests      CoverageRequest[]
+  coverages             Coverage[]
+  coverageCalls         CoverageCall[]
+  coverageCollaborators CoverageCollaboratorProfile[]
+  coverageEvents        CoverageEvent[]
 }
 
 model WorkspaceFeatureModule {
@@ -7397,6 +7408,10 @@ model Member {
   raffleAwards                    RafflePrizeAward[]
   /// Ficha de cliente de este mismo socio, cuando también le compra algo al negocio.
   clientLink Client?
+  coverageProfile      CoverageCollaboratorProfile?
+  coverageApplications CoverageApplication[]
+  coverageAssignments  CoverageAssignment[]
+  coverageDeliverables CoverageDeliverable[]
 
   @@unique([workspaceId, memberNumber])
   @@unique([workspaceId, email])
@@ -16952,6 +16967,7 @@ model Client {
   workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   member    Member?        @relation(fields: [memberId], references: [id], onDelete: SetNull)
   movements CashMovement[]
+  coverageRequests CoverageRequest[]
 
   @@unique([workspaceId, clientNumber])
   @@index([workspaceId, status])
@@ -17324,7 +17340,8 @@ model SubilafotoSellerProfile {
 model SubilafotoOrder {
   id               String                @id @default(cuid())
   sellerProfileId  String
-  eventId          String?               @unique
+  /// Sin `@unique`: un evento tiene su orden de venta y, si se compra, la del adicional.
+  eventId          String?
   kind             SubilafotoOrderKind
   status           SubilafotoOrderStatus @default(PENDING)
   buyerEmail       String
@@ -17332,6 +17349,8 @@ model SubilafotoOrder {
   buyerPhone       String?
   amountCents      Int
   currency         String                @default("ARS")
+  /// Si la venta incluía la descarga. De esto depende que al pagar se entregue el paquete.
+  includesDownload Boolean               @default(false)
   platformFeeBps   Int
   platformFeeCents Int
   sellerNetCents   Int
@@ -17347,6 +17366,7 @@ model SubilafotoOrder {
   event         SubilafotoEvent?        @relation(fields: [eventId], references: [id])
 
   @@index([sellerProfileId])
+  @@index([eventId])
   @@index([status, kind])
   @@index([buyerEmail])
 }
@@ -17395,7 +17415,7 @@ model SubilafotoEvent {
 
   sellerProfile SubilafotoSellerProfile  @relation(fields: [sellerProfileId], references: [id])
   template      SubilafotoTemplate?      @relation(fields: [templateId], references: [id])
-  order         SubilafotoOrder?
+  orders        SubilafotoOrder[]
   media         SubilafotoMedia[]
   guests        SubilafotoGuestSession[]
   screens       SubilafotoScreen[]
@@ -17769,4 +17789,415 @@ model PlatformRevenueSnapshot {
 
   @@unique([platformKey, periodYear, periodMonth])
   @@index([periodYear, periodMonth])
+}
+
+/// Configuración del módulo Solicitudes y Coberturas para un workspace.
+///
+/// Todo lo que distingue a una organización de otra vive acá y no en el código: la
+/// terminología, la modalidad de asignación y los umbrales. Es lo que hace que el módulo
+/// sirva a una ONG de voluntarios y a un estudio que reparte trabajos pagos.
+model CoverageSettings {
+  id          String @id @default(cuid())
+  workspaceId String @unique
+
+  /// Cómo se llama cada cosa en las pantallas de ESTE workspace. Vacío = la de por omisión.
+  moduleLabel    String?
+  termRequest    String?
+  termCollaborator String?
+  termRequester  String?
+  termCall       String?
+
+  /// DIRECTA | ABIERTA | AUTOMATICA | MIXTA
+  assignmentMode String  @default("MIXTA")
+  /// Si una solicitud necesita aprobación antes de generar coberturas.
+  requiresApproval Boolean @default(true)
+  /// Si una postulación necesita que un coordinador confirme. Para FOTOPOSITIVA, sí.
+  requiresCoordinatorConfirmation Boolean @default(true)
+
+  /// A partir de cuántos minutos se recomienda sumar gente. 180 = 3 horas.
+  reinforcementThresholdMinutes Int @default(180)
+  /// Cuántas personas recomendar cuando se supera el umbral.
+  recommendedCollaborators      Int @default(2)
+
+  /// Vocabularios abiertos que define cada organización.
+  roleTemplates String[] @default([])
+  specialties   String[] @default([])
+  zones         String[] @default([])
+
+  /// Si el formulario público está abierto.
+  publicFormEnabled Boolean @default(false)
+  publicFormIntro   String?
+
+  /// Versión del texto de consentimientos vigente. Se copia en cada consentimiento firmado.
+  consentTextVersion String @default("v1")
+  /// Días de vida del enlace de seguimiento.
+  trackingLinkTtlDays Int @default(120)
+  /// A quién avisarle cuando entra una solicitud.
+  notifyEmails String[] @default([])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+/// Una solicitud de cobertura. Vive aparte de la cobertura: una solicitud rechazada no debe
+/// ensuciar la agenda ni consumir un número de trabajo.
+model CoverageRequest {
+  id          String @id @default(cuid())
+  workspaceId String
+
+  /// Correlativo por workspace. Es el número que se dice por teléfono; NO abre nada.
+  publicCode String
+  /// La organización solicitante. Nunca se duplican sus datos acá.
+  clientId   String
+
+  /// SHA-256 del token del enlace de seguimiento. El crudo nunca se guarda.
+  tokenHash      String    @unique
+  tokenExpiresAt DateTime
+  tokenRevokedAt DateTime?
+
+  /// --- El evento ---
+  eventTitle       String
+  eventDescription String?
+  startsAt         DateTime
+  endsAt           DateTime
+  addressLine      String?
+  city             String?
+  activityKind     String?
+  expectedAttendees Int?
+  /// INTERIOR | EXTERIOR | AMBOS
+  venueKind        String?
+  onSiteContactName String?
+  onSitePhone      String?
+  /// Teléfono que escribió la organización en el formulario público. NO se usa para emparejar
+  /// contra el padrón de clientes (ver `findOrCreateClient` en `lib/coverages/submit.ts`): un
+  /// dato que el circuito no verifica no puede decidir a qué ficha del padrón se dirigen los
+  /// correos. Vive acá para no perderlo.
+  contactPhone     String?
+  /// CUIT/CUIL que escribió la organización. Mismo motivo que `contactPhone`: no se usa para
+  /// emparejar en el formulario público.
+  orgTaxId         String?
+
+  /// --- La necesidad fotográfica ---
+  /// FOTO | VIDEO | AMBOS
+  mediaKinds          String   @default("FOTO")
+  coverageKind        String?
+  purpose             String?
+  keyMoments          String?
+  requestedPhotographers Int?
+  equipmentNotes      String?
+  needsLighting       Boolean  @default(false)
+  expectedDeliveryAt  DateTime?
+  deliveryChannel     String?
+  notes               String?
+  /// Enlaces que permiten verificar la actividad. Enlaces, no archivos: ver §6 del diseño.
+  documentationLinks  String[] @default([])
+
+  /// --- Evaluación ---
+  /// RECIBIDA | EN_EVALUACION | REQUIERE_INFO | APROBADA | RECHAZADA |
+  /// CANCELADA_SOLICITANTE | CANCELADA_ORGANIZACION | CERRADA
+  status            String    @default("RECIBIDA")
+  /// BAJA | NORMAL | ALTA | URGENTE
+  priority          String    @default("NORMAL")
+  /// SIMPLE | MEDIA | COMPLEJA
+  complexity        String?
+  coordinatorUserId Int?
+  /// Obligatorio al rechazar. Se le comunica a la organización.
+  rejectionReason   String?
+  /// Qué información se le pidió. Lo ve la organización en su enlace.
+  infoRequested     String?
+  resolvedByUserId  Int?
+  resolvedAt        DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace   Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client      Client             @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  consents    CoverageConsent[]
+  coverages   Coverage[]
+
+  @@unique([workspaceId, publicCode])
+  @@index([workspaceId, status])
+  @@index([workspaceId, startsAt])
+  @@index([workspaceId, createdAt])
+  @@index([clientId])
+  @@index([tokenExpiresAt])
+}
+
+/// Un permiso por fila, con la versión del texto que la persona leyó.
+///
+/// No es un checkbox genérico a propósito: si el texto cambia el año que viene, hay que poder
+/// decir cuál firmó cada uno. Y el origen se guarda como hash, no como IP: alcanza para el
+/// límite de envíos y para demostrar procedencia, sin acumular un dato personal que nadie va
+/// a necesitar leer.
+model CoverageConsent {
+  id        String @id @default(cuid())
+  requestId String
+
+  /// AUTORIZA_COBERTURA | MENORES_PRESENTES | CONSENTIMIENTOS_IMAGEN |
+  /// RESTRICCIONES_PUBLICACION | USO_INSTITUCIONAL | TERMINOS | PRIVACIDAD
+  kind        String
+  granted     Boolean
+  textVersion String
+  /// SHA-256 del texto exacto que se mostró.
+  textHash    String
+  acceptedAt  DateTime @default(now())
+  sourceHash  String?
+  userAgent   String?
+
+  request CoverageRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, kind])
+  @@index([requestId])
+}
+
+/// La cobertura operativa. Una solicitud aprobada genera 1..N: una jornada de dos turnos son
+/// dos coberturas.
+model Coverage {
+  id          String @id @default(cuid())
+  workspaceId String
+  requestId   String
+
+  title       String
+  startsAt    DateTime
+  endsAt      DateTime
+  addressLine String?
+  city        String?
+  instructions String?
+
+  /// PLANIFICADA | BUSCANDO_EQUIPO | EQUIPO_CONFIRMADO | REALIZADA | ENTREGADA | CERRADA |
+  /// CANCELADA | SIN_EQUIPO
+  status String @default("PLANIFICADA")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace    Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  request      CoverageRequest       @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  roles        CoverageRole[]
+  call         CoverageCall?
+  assignments  CoverageAssignment[]
+  deliverables CoverageDeliverable[]
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, startsAt])
+  @@index([requestId])
+}
+
+/// Un rol con sus cupos dentro de una cobertura. No se asume que todo trabajo necesita un
+/// solo fotógrafo.
+model CoverageRole {
+  id         String @id @default(cuid())
+  coverageId String
+
+  name             String
+  vacancies        Int     @default(1)
+  requirements     String?
+  minExperience    String?
+  equipmentRequired String?
+  startsAt         DateTime?
+  endsAt           DateTime?
+  /// ABIERTO | COMPLETO | CERRADO
+  status           String  @default("ABIERTO")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  coverage     Coverage               @relation(fields: [coverageId], references: [id], onDelete: Cascade)
+  applications CoverageApplication[]
+  assignments  CoverageAssignment[]
+
+  @@index([coverageId])
+}
+
+/// La convocatoria. `visibility` decide a qué colaboradores se les muestra, NO si sale a
+/// internet: ninguna convocatoria es pública (ver §3.4 del diseño).
+model CoverageCall {
+  id         String @id @default(cuid())
+  /// Repetido desde `Coverage.workspaceId` (y no derivado por join): "convocatorias abiertas
+  /// de este workspace" va a ser de las consultas más frecuentes del módulo, y hoy exige unir
+  /// con `Coverage` para llegar hasta acá.
+  workspaceId String
+  coverageId String @unique
+
+  title            String
+  publicSummary    String?
+  /// Lo que solo le sirve a quien va: teléfono de emergencia, contacto del día. La dirección
+  /// NO va acá — se muestra siempre.
+  privateBriefing  String?
+  /// TODOS | POR_ZONA | POR_ESPECIALIDAD
+  visibility       String  @default("TODOS")
+  visibilityValues String[] @default([])
+  applicationsCloseAt DateTime?
+  /// NORMAL | ALTA | URGENTE
+  urgency          String  @default("NORMAL")
+  /// BORRADOR | PUBLICADA | COMPLETA | CERRADA | CANCELADA | VENCIDA
+  status           String  @default("BORRADOR")
+  publishedAt      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace    Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  coverage     Coverage              @relation(fields: [coverageId], references: [id], onDelete: Cascade)
+  applications CoverageApplication[]
+
+  @@index([status])
+  @@index([workspaceId, status])
+}
+
+/// La postulación de una persona a un rol.
+model CoverageApplication {
+  id       String @id @default(cuid())
+  callId   String
+  roleId   String
+  memberId String
+
+  message          String?
+  availabilityNote String?
+  equipmentNote    String?
+  /// RECIBIDA | EN_REVISION | PRESELECCIONADA | SELECCIONADA | NO_SELECCIONADA | RETIRADA |
+  /// VENCIDA
+  status      String    @default("RECIBIDA")
+  withdrawnAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  call   CoverageCall @relation(fields: [callId], references: [id], onDelete: Cascade)
+  role   CoverageRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  member Member       @relation(fields: [memberId], references: [id], onDelete: Restrict)
+
+  @@unique([roleId, memberId])
+  @@index([callId, status])
+  @@index([memberId])
+}
+
+/// La asignación: quién queda en qué rol, por qué y en qué estado.
+model CoverageAssignment {
+  id         String @id @default(cuid())
+  coverageId String
+  roleId     String
+  memberId   String
+
+  /// POSTULACION | INVITACION_DIRECTA
+  origin           String
+  assignedByUserId Int?
+  /// Por qué se eligió a esta persona. Texto libre: el coordinador lo escribe.
+  criteria         String?
+  respondBy        DateTime?
+  /// PROPUESTA | INVITADA | ACEPTADA | RECHAZADA | CONFIRMADA | CANCELADA | REEMPLAZADA |
+  /// CUMPLIDA | AUSENTE
+  status           String    @default("PROPUESTA")
+  respondedAt      DateTime?
+  confirmedAt      DateTime?
+  /// A quién reemplaza esta asignación, si entró como suplente.
+  replacedAssignmentId String?
+  hoursReported    Decimal?  @db.Decimal(5, 2)
+  notes            String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  coverage Coverage     @relation(fields: [coverageId], references: [id], onDelete: Cascade)
+  role     CoverageRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  member   Member       @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  /// Relación autorreferencial de verdad: sin ella, nada impedía que `replacedAssignmentId`
+  /// apuntara a una asignación de OTRA cobertura. `SetNull` y no `Restrict`: si la asignación
+  /// reemplazada se borra, esta no tiene por qué dejar de existir, sólo pierde la referencia.
+  replacedAssignment CoverageAssignment?  @relation("CoverageAssignmentReemplazo", fields: [replacedAssignmentId], references: [id], onDelete: SetNull)
+  reemplazadaPor     CoverageAssignment[] @relation("CoverageAssignmentReemplazo")
+
+  @@unique([coverageId, memberId])
+  @@index([coverageId, status])
+  @@index([memberId])
+}
+
+/// Un entregable. En esta etapa es un enlace, no subida de archivos pesados.
+model CoverageDeliverable {
+  id         String @id @default(cuid())
+  coverageId String
+
+  /// GALERIA | CARPETA | FOTOS_EDITADAS | VIDEO | DOCUMENTO | ENLACE | PUBLICACION | INFORME
+  kind                String
+  responsibleMemberId String?
+  dueAt               DateTime?
+  deliveredAt         DateTime?
+  /// PENDIENTE | EN_PREPARACION | ENTREGADO | OBSERVADO | APROBADO | CERRADO
+  status              String   @default("PENDIENTE")
+  url                 String?
+  notes               String?
+  reviewNotes         String?
+  approvedByUserId    Int?
+  approvedAt          DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  coverage    Coverage @relation(fields: [coverageId], references: [id], onDelete: Cascade)
+  responsible Member?  @relation(fields: [responsibleMemberId], references: [id], onDelete: SetNull)
+
+  @@index([coverageId, status])
+}
+
+/// Lo propio del módulo para una persona del padrón. 1:1 con `Member`.
+///
+/// Vive aparte y no dentro de `Member` a propósito: son campos que solo le sirven a este
+/// módulo, y una institución que no lo use no tiene por qué verlos en la ficha de sus socios.
+model CoverageCollaboratorProfile {
+  id          String @id @default(cuid())
+  workspaceId String
+  memberId    String @unique
+
+  homeCity        String?
+  coverageZones   String[] @default([])
+  maxTravelKm     Int?
+  /// AUTO | MOTO | BICICLETA | TRANSPORTE_PUBLICO | A_PIE | OTRO
+  transport       String?
+  equipment       String[] @default([])
+  specialties     String[] @default([])
+  /// INICIAL | INTERMEDIO | AVANZADO | PROFESIONAL
+  experienceLevel String?
+  acceptsUrgent   Boolean  @default(false)
+  active          Boolean  @default(true)
+  notes           String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member    Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, active])
+}
+
+/// El historial del módulo, para las seis entidades.
+///
+/// `actorLabel` se guarda aparte de la FK, igual que en `MemberAudit`: el historial tiene que
+/// seguir entendiéndose aunque la persona cambie de nombre o su usuario se elimine.
+model CoverageEvent {
+  id          String @id @default(cuid())
+  workspaceId String
+
+  /// REQUEST | COVERAGE | CALL | APPLICATION | ASSIGNMENT | DELIVERABLE
+  entityType String
+  entityId   String
+  /// CREADA | ESTADO_CAMBIADO | NOTA | INFO_PEDIDA | INFO_RESPONDIDA | EMAIL_ENVIADO
+  type       String
+  fromStatus String?
+  toStatus   String?
+
+  actorUserId Int?
+  actorLabel  String?
+  note        String?
+
+  createdAt DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actorUser User?     @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, entityType, entityId, createdAt])
+  @@index([workspaceId, createdAt])
 }

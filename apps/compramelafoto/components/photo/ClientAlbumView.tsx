@@ -895,6 +895,14 @@ export default function ClientAlbumView({
     // al resumen. Antes esta línea cortaba y el botón no hacía nada.
     if (selected.size === 0 && selectedVideoIds.length > 0) {
       setCheckoutSubmitting(true);
+      // El carrito de fotos se limpia a propósito: el cliente no eligió
+      // ninguna, y si quedaba algo de un intento anterior aparecía en el
+      // resumen como si lo acabara de elegir.
+      try {
+        sessionStorage.removeItem(`album_${album.id}_items`);
+      } catch {
+        /* sin almacenamiento, el resumen igual cotiza lo que llega */
+      }
       startCheckoutNavigation(`${albumComprarPathBase}/comprar/resumen`);
       return;
     }

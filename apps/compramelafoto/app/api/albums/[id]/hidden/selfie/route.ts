@@ -12,6 +12,8 @@ import {
   HIDDEN_ALBUM_GRANT_COOKIE,
 } from "@/lib/hidden-album-audit";
 import { detectFaceCount, searchFacesByImage } from "@/lib/faces/rekognition";
+import { isVideoMvpEnabled } from "@/lib/videos/video-feature-flag";
+import { resolveAllowedVideoIds } from "@/lib/videos/hidden-album-videos";
 import { uploadToR2, generateR2Key } from "@/lib/r2-client";
 import { HiddenAlbumAttemptResult, HiddenAlbumDeviceType } from "@/lib/prisma";
 import crypto from "crypto";
@@ -280,6 +282,51 @@ export async function POST(
   }
 
   const expiresAt = new Date(Date.now() + GRANT_TTL_MS);
+  // 5.b) Los videos que esta persona puede ver, con el mismo criterio que las
+  // fotos: donde fue reconocida, más los que no tienen ninguna cara. Lo que no
+  // se analizó todavía queda afuera: podría tener a cualquiera.
+  let allowedVideoIds: number[] = [];
+  try {
+    if (isVideoMvpEnabled()) {
+      const videosDelAlbum = await prisma.videoAsset.findMany({
+        where: { albumId, isRemoved: false, expiresAt: { gt: new Date() } },
+        select: {
+          id: true,
+          frames: {
+            select: {
+              analysisStatus: true,
+              faces: { select: { rekognitionFaceId: true } },
+            },
+          },
+        },
+      });
+
+      const resumen = videosDelAlbum.map((v) => ({
+        videoId: v.id,
+        hasAnalyzedFrames: v.frames.some((f) => f.analysisStatus === "DONE"),
+        faceIds: v.frames.flatMap((f) => f.faces.map((c) => c.rekognitionFaceId)),
+      }));
+
+      const r = resolveAllowedVideoIds(resumen, [...matchFaceIds]);
+      allowedVideoIds = r.allowedVideoIds;
+
+      console.info("[hidden-album] videos habilitados por la selfie", {
+        albumId,
+        reconocidos: r.matchedCount,
+        sinCaras: r.noFaceCount,
+        sinAnalizar: r.pendingCount,
+      });
+    }
+  } catch (err: unknown) {
+    // Si esto falla, el permiso se crea sin videos: mejor no mostrar ninguno
+    // que arriesgarse a mostrar los de otra persona.
+    console.error("[hidden-album] no se pudieron resolver los videos", {
+      albumId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    allowedVideoIds = [];
+  }
+
   const durationMs = Date.now() - startTotal;
 
   // 6) Crear grant y vincular al attempt
@@ -291,6 +338,7 @@ export async function POST(
       guestId: guestId ?? null,
       expiresAt,
       allowedPhotoIds: allowedPhotoIds as unknown as object,
+      allowedVideoIds: allowedVideoIds as unknown as object,
       allowedCount: allowedPhotoIds.length,
     },
   });
