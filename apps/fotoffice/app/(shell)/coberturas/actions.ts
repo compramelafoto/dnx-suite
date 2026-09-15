@@ -1,0 +1,252 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { prisma } from "@repo/db";
+import { appUrl } from "@/lib/app-url";
+import { COVERAGE_EMAIL_KEYS } from "@/lib/communications/constants";
+import { loadWorkspaceEmailContext } from "@/lib/communications/load-workspace-signature";
+import { sendAndLogEmail } from "@/lib/communications/send-and-log";
+import { requireCoveragesCoordinator, requireCoveragesReviewer } from "@/lib/coverages/access";
+import {
+  buildInfoRequestedEmail,
+  buildRequestApprovedEmail,
+  buildRequestRejectedEmail,
+} from "@/lib/coverages/emails";
+import { recordEvent } from "@/lib/coverages/events";
+import { loadSettings } from "@/lib/coverages/repository";
+import { planStatusChange } from "@/lib/coverages/status-change-plan";
+import {
+  generateTrackingToken,
+  hashTrackingToken,
+  trackingExpiryFrom,
+} from "@/lib/coverages/tracking-token";
+
+export type PanelState = { error: string | null; ok: string | null; warn?: string | null };
+
+/**
+ * `warn` es para lo que salió a medias: el cambio se hizo pero el aviso no salió.
+ *
+ * Sin ese tercer canal habría que elegir entre pintar de verde un fallo o de rojo una
+ * aprobación que sí ocurrió, y las dos cosas hacen que la coordinación actúe mal. Es el mismo
+ * criterio que ya usa el alta de socios.
+ */
+export async function changeRequestStatusAction(
+  _prev: PanelState | undefined,
+  formData: FormData,
+): Promise<PanelState> {
+  const { user, workspace } = await requireCoveragesCoordinator();
+  const id = formData.get("id")?.toString() ?? "";
+  const to = formData.get("to")?.toString() ?? "";
+  const reason = formData.get("reason")?.toString()?.trim() || null;
+
+  const solicitud = await prisma.coverageRequest.findFirst({
+    where: { id, workspaceId: workspace.id },
+    include: { client: { select: { email: true, businessName: true } } },
+  });
+
+  const plan = planStatusChange({ solicitud, workspaceId: workspace.id, to, reason });
+  if (!plan.ok) return { error: plan.error, ok: null };
+  if (!solicitud) return { error: "No encontramos esa solicitud.", ok: null };
+
+  /**
+   * Al aprobar, el plazo del enlace nuevo sale de la configuración del workspace. Se lee antes
+   * de la transacción porque es sólo eso, un número de configuración: no forma parte del hecho
+   * que hay que hacer atómico (el cambio de estado y el guardado del token nuevo), y si
+   * cambiara entre esta lectura y el guardado no hay ninguna inconsistencia que temer.
+   */
+  const settings = plan.to === "APROBADA" ? await loadSettings(workspace.id) : null;
+
+  /**
+   * Rotar el enlace de seguimiento al aprobar.
+   *
+   * El plan original de esta tarea dejaba el `trackingUrl` del correo como un marcador
+   * (`/sc/…`): el token crudo del enlace de recepción nunca se guardó —en la base sólo vive su
+   * SHA-256 (`tokenHash`)— así que no hay forma de reconstruir ESE enlace acá. La única opción
+   * es emitir uno nuevo. De paso, rotar dejar un solo enlace vivo por solicitud en vez de que
+   * convivan el viejo y el nuevo, que es preferible.
+   *
+   * Consecuencia asumida: un enlace viejo que la organización tenga guardado (por ejemplo, el
+   * del correo de recepción) deja de servir en cuanto se emite éste.
+   *
+   * El rechazo NO pasa por acá: no rota ni manda enlace, porque el circuito terminó (ver el
+   * comentario de `buildRequestRejectedEmail`).
+   */
+  let rawToken: string | null = null;
+
+  await prisma.$transaction(async (tx) => {
+    let tokenFields: { tokenHash: string; tokenExpiresAt: Date } | Record<string, never> = {};
+    if (plan.to === "APROBADA" && settings) {
+      rawToken = generateTrackingToken();
+      tokenFields = {
+        tokenHash: hashTrackingToken(rawToken),
+        tokenExpiresAt: trackingExpiryFrom(settings.trackingLinkTtlDays),
+      };
+    }
+
+    await tx.coverageRequest.update({
+      where: { id: solicitud.id },
+      data: {
+        status: plan.to,
+        rejectionReason: plan.to === "RECHAZADA" ? reason : solicitud.rejectionReason,
+        resolvedByUserId: user.id,
+        resolvedAt: new Date(),
+        ...tokenFields,
+      },
+    });
+    await recordEvent(tx, {
+      workspaceId: workspace.id,
+      entityType: "REQUEST",
+      entityId: solicitud.id,
+      type: "ESTADO_CAMBIADO",
+      fromStatus: plan.from,
+      toStatus: plan.to,
+      actorUserId: user.id,
+      actorLabel: user.name ?? user.email,
+      note: reason,
+    });
+  });
+
+  let warn: string | null = null;
+  const destino = solicitud.client.email;
+  if (destino && (plan.to === "APROBADA" || plan.to === "RECHAZADA")) {
+    const contexto = await loadWorkspaceEmailContext(workspace.id);
+    const base = appUrl();
+    const comun = {
+      context: contexto,
+      publicCode: solicitud.publicCode,
+      eventTitle: solicitud.eventTitle,
+      contactName: solicitud.client.businessName ?? "Hola",
+      trackingUrl: rawToken && base ? `${base}/sc/${rawToken}` : "",
+    };
+    const resultado = await sendAndLogEmail({
+      to: destino,
+      templateKey:
+        plan.to === "APROBADA" ? COVERAGE_EMAIL_KEYS.APPROVED : COVERAGE_EMAIL_KEYS.REJECTED,
+      body:
+        plan.to === "APROBADA"
+          ? buildRequestApprovedEmail(comun)
+          : buildRequestRejectedEmail({ ...comun, reason: reason ?? "" }),
+    });
+    if (resultado.status !== "SENT") {
+      warn = "El cambio quedó guardado, pero el correo no salió. Está registrado.";
+    }
+  }
+
+  revalidatePath("/coberturas");
+  revalidatePath(`/coberturas/${solicitud.id}`);
+  return { error: null, ok: "Listo.", warn };
+}
+
+/** Pedirle un dato a la organización. Lo ve en su enlace y puede responder desde ahí. */
+export async function requestInfoAction(
+  _prev: PanelState | undefined,
+  formData: FormData,
+): Promise<PanelState> {
+  const { user, workspace } = await requireCoveragesReviewer();
+  const id = formData.get("id")?.toString() ?? "";
+  const texto = formData.get("infoRequested")?.toString()?.trim();
+  if (!texto) return { error: "Escribí qué hace falta.", ok: null };
+
+  const solicitud = await prisma.coverageRequest.findFirst({
+    where: { id, workspaceId: workspace.id },
+    include: { client: { select: { email: true, businessName: true } } },
+  });
+  if (!solicitud) return { error: "No encontramos esa solicitud.", ok: null };
+
+  const plan = planStatusChange({
+    solicitud,
+    workspaceId: workspace.id,
+    to: "REQUIERE_INFO",
+    reason: texto,
+  });
+  if (!plan.ok) return { error: plan.error, ok: null };
+
+  // Ídem `changeRequestStatusAction`: el plazo sale de la configuración, y esta lectura no
+  // necesita ser parte de la transacción que rota el token y cambia el estado.
+  const settings = await loadSettings(workspace.id);
+
+  /**
+   * Este correo sí lleva un enlace —la organización puede responder desde ahí— y el token
+   * crudo del enlace anterior no se puede recuperar (sólo vive su hash). Se rota acá mismo, ver
+   * el comentario de `changeRequestStatusAction`.
+   */
+  let rawToken = "";
+
+  await prisma.$transaction(async (tx) => {
+    rawToken = generateTrackingToken();
+    await tx.coverageRequest.update({
+      where: { id: solicitud.id },
+      data: {
+        status: "REQUIERE_INFO",
+        infoRequested: texto,
+        tokenHash: hashTrackingToken(rawToken),
+        tokenExpiresAt: trackingExpiryFrom(settings.trackingLinkTtlDays),
+      },
+    });
+    await recordEvent(tx, {
+      workspaceId: workspace.id,
+      entityType: "REQUEST",
+      entityId: solicitud.id,
+      type: "INFO_PEDIDA",
+      fromStatus: plan.from,
+      toStatus: "REQUIERE_INFO",
+      actorUserId: user.id,
+      actorLabel: user.name ?? user.email,
+      note: texto,
+    });
+  });
+
+  let warn: string | null = null;
+  if (solicitud.client.email) {
+    const contexto = await loadWorkspaceEmailContext(workspace.id);
+    const base = appUrl();
+    const r = await sendAndLogEmail({
+      to: solicitud.client.email,
+      templateKey: COVERAGE_EMAIL_KEYS.INFO_REQUESTED,
+      body: buildInfoRequestedEmail({
+        context: contexto,
+        publicCode: solicitud.publicCode,
+        eventTitle: solicitud.eventTitle,
+        contactName: solicitud.client.businessName ?? "Hola",
+        trackingUrl: base ? `${base}/sc/${rawToken}` : "",
+        infoRequested: texto,
+      }),
+    });
+    if (r.status !== "SENT") {
+      warn = "Quedó pedido, pero el correo no salió. Está registrado.";
+    }
+  }
+
+  revalidatePath(`/coberturas/${solicitud.id}`);
+  return { error: null, ok: "Se lo pedimos.", warn };
+}
+
+/** Una nota interna. La organización nunca la ve. */
+export async function addNoteAction(
+  _prev: PanelState | undefined,
+  formData: FormData,
+): Promise<PanelState> {
+  const { user, workspace } = await requireCoveragesReviewer();
+  const id = formData.get("id")?.toString() ?? "";
+  const nota = formData.get("note")?.toString()?.trim();
+  if (!nota) return { error: "Escribí la nota.", ok: null };
+
+  const existe = await prisma.coverageRequest.findFirst({
+    where: { id, workspaceId: workspace.id },
+    select: { id: true },
+  });
+  if (!existe) return { error: "No encontramos esa solicitud.", ok: null };
+
+  await recordEvent(prisma, {
+    workspaceId: workspace.id,
+    entityType: "REQUEST",
+    entityId: existe.id,
+    type: "NOTA",
+    actorUserId: user.id,
+    actorLabel: user.name ?? user.email,
+    note: nota,
+  });
+
+  revalidatePath(`/coberturas/${existe.id}`);
+  return { error: null, ok: "Anotado." };
+}
