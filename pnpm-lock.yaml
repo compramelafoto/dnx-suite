@@ -1578,6 +1578,9 @@ importers:
 
   packages/media-composition:
     dependencies:
+      '@repo/design-studio':
+        specifier: workspace:^
+        version: link:../design-studio
       sharp:
         specifier: ^0.34.2
         version: 0.34.5

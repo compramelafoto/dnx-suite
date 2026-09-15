@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "DNX Media Composition — plantillas, crop, render PNG/WEBP reutilizable (Clickatón, FotoRank, CLF, InfoSpot).",
+  "description": "DNX Media Composition \u2014 plantillas, crop, render PNG/WEBP reutilizable (Clickat\u00f3n, FotoRank, CLF, InfoSpot).",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
@@ -15,10 +15,11 @@
   },
   "scripts": {
     "check-types": "tsc --noEmit -p tsconfig.json",
-    "test": "tsx --test src/media-composition.test.ts",
+    "test": "tsx --test src/media-composition.test.ts src/texto-en-el-servidor.test.ts",
     "lint": "eslint ."
   },
   "dependencies": {
+    "@repo/design-studio": "workspace:^",
     "sharp": "^0.34.2"
   },
   "devDependencies": {
