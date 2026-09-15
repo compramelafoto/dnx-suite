@@ -1,5 +1,6 @@
 import { fail, ok, type Result } from "../result";
 import { ensureCanvasGlobals } from "./canvas-globals";
+import { diagnosticarCanvas } from "./canvas-diagnostico";
 
 export type PdfToPngOptions = {
   /** Puntos por pulgada del raster. El PDF está en puntos, que son 72 por pulgada. */
@@ -41,8 +42,16 @@ export async function pdfToPng(
     }
     return ok(new Uint8Array(primera.content));
   } catch (e) {
+    const mensaje = e instanceof Error ? e.message : String(e);
+    /*
+     * "Cannot find native binding" no dice qué falta, y averiguarlo en el servidor cuesta un
+     * despliegue por intento. Cuando es ése, el error se explica solo.
+     */
+    const detalle = mensaje.includes("native binding")
+      ? ` [${diagnosticarCanvas()}]`
+      : "";
     return fail(
-      `No se pudo convertir el PDF a imagen: ${e instanceof Error ? e.message : String(e)}`,
+      `No se pudo convertir el PDF a imagen: ${mensaje}${detalle}`,
     );
   }
 }

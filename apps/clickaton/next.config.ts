@@ -94,6 +94,12 @@ const nextConfig: NextConfig = {
            */
           "../../node_modules/.pnpm/@napi-rs+canvas*/**",
           /*
+           * La variante de Linux nombrada sin comodín. El patrón de arriba debería alcanzar,
+           * pero el binario seguía sin llegar al servidor y un comodín que no matchea no avisa:
+           * simplemente no copia nada. Vercel corre Linux x64 con glibc.
+           */
+          "../../node_modules/.pnpm/@napi-rs+canvas-linux-x64-gnu@*/node_modules/@napi-rs/canvas-linux-x64-gnu/**",
+          /*
            * `pdfjs` carga su worker en tiempo de ejecución armando la ruta con una cadena, así
            * que el rastreo de Next no lo ve y en el servidor falta: "Setting up fake worker
            * failed". Sólo los `.mjs` de `legacy/build`, que son 6 MB; el paquete entero pesa 37
