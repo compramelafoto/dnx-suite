@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@repo/db";
+import { DIAS_DE_RETENCION, retencionHasta } from "@/lib/retencion/candado";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,8 +41,17 @@ export async function GET(req: Request) {
       status: { in: ["ACTIVE", "SCHEDULED"] },
       deactivationAt: { not: null, lte: ahora },
     },
-    data: { status: "CLOSED", closedAt: ahora },
+    /*
+      El plazo de retención se fija acá y no al borrar. Si se calculara después, cambiar
+      la constante movería la fecha de borrado de eventos ya cerrados —y de los correos
+      que ya le prometieron esa fecha al cliente.
+    */
+    data: { status: "CLOSED", closedAt: ahora, retentionUntil: retencionHasta(ahora) },
   });
 
-  return NextResponse.json({ cerrados: cerrados.count, ahora: ahora.toISOString() });
+  return NextResponse.json({
+    cerrados: cerrados.count,
+    ahora: ahora.toISOString(),
+    diasDeRetencion: DIAS_DE_RETENCION,
+  });
 }
