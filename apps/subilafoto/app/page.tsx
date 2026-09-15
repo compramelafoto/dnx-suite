@@ -295,6 +295,17 @@ export default function Home() {
           <Link href="/privacidad" className="underline underline-offset-4">
             Política de privacidad
           </Link>
+          <Link href="/arrepentimiento" className="underline underline-offset-4">
+            Botón de arrepentimiento
+          </Link>
+          <a
+            href="https://autogestion.produccion.gob.ar/consumidores"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-4"
+          >
+            Libro de Quejas Online
+          </a>
         </div>
       </footer>
     </main>
