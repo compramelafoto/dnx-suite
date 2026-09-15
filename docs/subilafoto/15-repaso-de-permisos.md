@@ -70,17 +70,71 @@ pago: la única fuente que vale es la respuesta de la API.
 Eso es más fuerte que verificar la firma, no más débil. Lo único que un aviso falso
 consigue es que hagamos una consulta de más.
 
-## Lo que sigue abierto: la regla anti-bypass
+## La regla anti-bypass, aplicada
 
 El capítulo 12.4 dice que el fotógrafo **no descarga** las fotos de los invitados: esa es
 la razón de existir del adicional de descarga. Si pudiera entregar los originales por su
 cuenta, el adicional no se vendería nunca.
 
-Hoy el panel de moderación le muestra **el original** con una URL firmada. Puede guardarlo
-con el botón derecho. La regla está escrita y no está aplicada.
+Hasta el 2026-09-15 el panel de moderación le mostraba **el original** con una URL firmada:
+botón derecho y listo. La regla estaba escrita y no estaba aplicada.
 
-El arreglo no es un permiso: es no darle nunca los bytes del original. Hace falta generar
-una variante reducida al subir y que el panel, la pantalla y el álbum miren esa.
-`SubilafotoMediaVariant` existe en el modelo justamente para eso y está vacía.
+**Un permiso no arregla eso.** Mientras la pantalla muestre el archivo bueno, no hay
+control de acceso que sirva. La única forma es no darle nunca los bytes del original.
 
-**Es lo próximo.**
+### Dos variantes por foto
+
+| Etiqueta | Lado mayor | Calidad | Para qué |
+|---|---|---|---|
+| `pantalla` | 1920 px | 82 | Televisor del salón, álbum, control |
+| `panel` | 640 px | 70 | La grilla de moderación |
+
+1920 porque un televisor de salón es 1920×1080 y una foto vertical entra completa. Más que
+eso es regalar resolución que después se vende.
+
+640 en el panel porque moderar es decidir si una foto va o no va, y para eso alcanza con
+verla. Bajar treinta fotos grandes para decidir treinta veces "sí" es espera y tráfico que
+no hace falta.
+
+Se generan **en el mismo paso que modera**, porque ahí los bytes del original ya están en
+memoria: bajarlos otra vez sería pagar el mismo tráfico dos veces. Una sola decodificación
+para las dos medidas.
+
+Dos detalles que se notan justo donde duele:
+
+- **`rotate()` sin argumentos** aplica la orientación del EXIF. Sin eso, una foto sacada
+  con el teléfono de costado se proyecta acostada en la pared del salón.
+- **Sin metadatos.** El EXIF del original lleva el modelo del teléfono y muchas veces las
+  coordenadas de dónde se sacó. La variante es lo que se muestra: no tiene por qué
+  llevarlo.
+
+### Antes que el original, nada
+
+Si una foto no tiene variante, `varianteParaMirar` devuelve `null`. **Nunca cae al
+original.** Cada pantalla decide qué hacer con el hueco:
+
+| Pantalla | Qué hace |
+|---|---|
+| Panel de moderación | Recuadro que dice que la vista no está lista. Se puede decidir igual |
+| Álbum y pantalla del salón | No la muestra. Un recuadro roto en la pared es peor que una foto de menos |
+| SSE en vivo | La saltea **y avanza el cursor igual**: frenar en ella dejaría la pantalla clavada para siempre |
+
+### Lo que no se reduce
+
+Una foto **bloqueada** no se reduce: no aparece en ninguna pantalla, así que sería gastar
+procesador y espacio en algo que nadie va a abrir. Una **retenida** sí, porque el panel de
+revisión tiene que poder mostrarla.
+
+### Si falla, la foto se decide igual
+
+Una foto sin variante se puede volver a intentar; una foto sin decisión queda retenida para
+siempre. El orden de importancia es ese.
+
+Y para que ese "se puede volver a intentar" sea cierto, el cron de moderación también
+levanta las **rezagadas**: las ya decididas que se quedaron sin variante. Sin eso una foto
+sin variante es invisible para siempre, porque nadie vuelve a moderar una foto ya decidida.
+
+### El original sale por un solo lado
+
+Adentro del ZIP que se paga. `lib/paquete/armar.ts` es el único que lee `originalKey` para
+entregar algo.

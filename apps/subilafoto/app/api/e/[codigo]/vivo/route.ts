@@ -1,6 +1,7 @@
 import { prisma } from "@repo/db";
 import { codificarCursor, condicionDesdeCursor, parsearCursor, type Cursor } from "@/lib/vivo";
-import { DURACION, enlaceParaMirar } from "@/lib/moderacion/vista";
+import { DURACION, SELECT_DE_VARIANTES, enlaceParaMirar } from "@/lib/moderacion/vista";
+import { varianteParaMirar } from "@/lib/variantes/medidas";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -84,12 +85,29 @@ export async function GET(req: Request, ctx: { params: Promise<{ codigo: string 
           where: { ...condicionDesdeCursor(evento.id, cursor), kind: "PHOTO" },
           orderBy: [{ publishedAt: "asc" }, { id: "asc" }],
           take: 20,
-          select: { id: true, originalKey: true, caption: true, guestName: true, publishedAt: true },
+          select: {
+            id: true,
+            caption: true,
+            guestName: true,
+            publishedAt: true,
+            variants: SELECT_DE_VARIANTES,
+          },
         });
 
         for (const foto of nuevas) {
-          const url = await enlaceParaMirar(foto.originalKey, DURACION.proyeccion);
+          const clave = varianteParaMirar(foto.variants, "pantalla");
+
+          /*
+            El cursor avanza aunque la foto se saltee. Cuando una foto se publica su
+            variante ya existe —se genera antes de decidir—, así que llegar acá sin
+            variante significa que la generación falló y no va a aparecer sola. Frenar el
+            cursor en ella dejaría la pantalla clavada para siempre en una foto que nunca
+            se va a poder mostrar.
+          */
           cursor = { publishedAt: foto.publishedAt!, id: foto.id };
+          if (!clave) continue;
+
+          const url = await enlaceParaMirar(clave, DURACION.proyeccion);
 
           // El `id:` es lo que el navegador devuelve al reconectar.
           mandar(
