@@ -4,17 +4,22 @@ import { PageHeader } from "@/components/page-header";
 import { requireCoveragesReviewer } from "@/lib/coverages/access";
 import { canCoordinateCoverages } from "@/lib/coverages/access-policy";
 import { lugaresLibres, type EstadoDeRol } from "@/lib/coverages/cupos";
+import { assignmentOriginLabel } from "@/lib/coverages/equipo";
 import { listEvents } from "@/lib/coverages/events";
 import { datetimeLocalValue } from "@/lib/coverages/generar-cobertura";
-import { fechaHoraArgentina } from "@/lib/coverages/format";
-import { loadCoverage } from "@/lib/coverages/repository";
+import { fechaArgentina, fechaHoraArgentina } from "@/lib/coverages/format";
+import { listActiveCollaborators, loadCoverage } from "@/lib/coverages/repository";
 import {
+  APPLICATION_LIVE_STATUSES,
   ASSIGNMENT_LIVE_STATUSES,
+  applicationStatusLabel,
+  assignmentStatusLabel,
   callStatusLabel,
   coverageEventLabel,
   coverageStatusLabel,
 } from "@/lib/coverages/states";
 import { ConvocatoriaPanel } from "./convocatoria-panel";
+import { EquipoPanel, type RolProps } from "./equipo-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +64,44 @@ export default async function FichaCoberturaPage({
       (a) => a.status === "ACEPTADA" || a.status === "CONFIRMADA",
     ).length,
   }));
+
+  // Lo que la pantalla del equipo necesita, armado acá y no adentro del componente cliente: el
+  // componente recibe nombres y números, nunca filas de la base.
+  const esViva = (status: string) => (ASSIGNMENT_LIVE_STATUSES as readonly string[]).includes(status);
+  const rolesDelEquipo: RolProps[] = cobertura.roles.map((r, i) => ({
+    id: r.id,
+    nombre: r.name,
+    vacancies: r.vacancies,
+    libres: lugaresLibres(estadosDeRol[i]),
+    // Solo las asignaciones vivas: una rechazada o cancelada bajo el título "quién quedó" diría
+    // lo contrario de lo que pasó. El historial de la cobertura guarda todas.
+    asignaciones: r.assignments
+      .filter((a) => esViva(a.status))
+      .map((a) => ({
+        id: a.id,
+        nombre: `${a.member.firstName} ${a.member.lastName}`.trim(),
+        statusLabel: assignmentStatusLabel(a.status),
+        origenLabel: assignmentOriginLabel(a.origin),
+      })),
+    postulaciones: r.applications.map((p) => ({
+      id: p.id,
+      nombre: `${p.member.firstName} ${p.member.lastName}`.trim(),
+      mensaje: p.message,
+      fecha: fechaArgentina(p.createdAt),
+      statusLabel: applicationStatusLabel(p.status),
+      pendiente: (APPLICATION_LIVE_STATUSES as readonly string[]).includes(p.status),
+    })),
+  }));
+
+  // Quien ya está en el equipo de esta cobertura no se puede volver a invitar
+  // (`@@unique([coverageId, memberId])` en el modelo), así que tampoco se ofrece. Es cortesía:
+  // la acción lo rechaza igual en el servidor.
+  const yaEnElEquipo = new Set(
+    cobertura.roles.flatMap((r) => r.assignments.filter((a) => esViva(a.status)).map((a) => a.memberId)),
+  );
+  const colaboradores = (await listActiveCollaborators({ workspaceId: workspace.id }))
+    .filter((c) => !yaEnElEquipo.has(c.id))
+    .map((c) => ({ id: c.id, nombre: `${c.firstName} ${c.lastName}`.trim() }));
 
   const call = cobertura.call
     ? {
@@ -139,13 +182,11 @@ export default async function FichaCoberturaPage({
         puedeCoordinar={puedeCoordinar}
       />
 
-      <section className="fo-card space-y-2 p-5">
-        <h2 className="text-base font-semibold">Postulaciones y equipo</h2>
-        <p className="text-sm text-[var(--fo-muted)]">
-          Todavía no hay pantalla para esto: llega en la próxima etapa, cuando se elija el
-          equipo.
-        </p>
-      </section>
+      <EquipoPanel
+        roles={rolesDelEquipo}
+        colaboradores={colaboradores}
+        puedeCoordinar={puedeCoordinar}
+      />
 
       <section className="fo-card space-y-3 p-5">
         <h2 className="text-base font-semibold">Historial de la cobertura</h2>

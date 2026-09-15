@@ -213,9 +213,10 @@ export async function listCollaborators(input: { workspaceId: string }) {
  * solicitud de la que salió, para el enlace de "volver". Devuelve `null` si esa cobertura es de
  * otro workspace.
  *
- * Las asignaciones se traen ahora aunque esta etapa todavía no las genera (eso es de la tanda
- * siguiente, que elige el equipo): sin este campo, esa tanda tendría que volver a tocar esta
- * consulta para poder calcular lugares libres.
+ * Por cada rol vienen sus asignaciones (para calcular lugares libres) y sus postulaciones con
+ * el mensaje que escribió cada persona: de ahí sale la pantalla donde la coordinación elige el
+ * equipo. Los dos con el nombre del socio, porque una lista de identificadores no le sirve a
+ * nadie para decidir.
  */
 export async function loadCoverage(input: { workspaceId: string; coverageId: string }) {
   return prisma.coverage.findFirst({
@@ -224,9 +225,91 @@ export async function loadCoverage(input: { workspaceId: string; coverageId: str
       request: { select: { id: true, publicCode: true, eventTitle: true, status: true } },
       roles: {
         orderBy: { createdAt: "asc" },
-        include: { assignments: { select: { id: true, status: true } } },
+        include: {
+          assignments: {
+            orderBy: { createdAt: "asc" },
+            select: {
+              id: true,
+              status: true,
+              origin: true,
+              memberId: true,
+              member: { select: { firstName: true, lastName: true } },
+            },
+          },
+          applications: {
+            orderBy: { createdAt: "asc" },
+            select: {
+              id: true,
+              status: true,
+              message: true,
+              createdAt: true,
+              memberId: true,
+              member: { select: { firstName: true, lastName: true } },
+            },
+          },
+        },
       },
       call: true,
+    },
+  });
+}
+
+/**
+ * Los colaboradores activos del workspace, para ofrecerlos en la invitación directa.
+ *
+ * Distinta de `listCollaborators`, que trae TODO el padrón porque su pantalla necesita poder
+ * darle el alta a quien todavía no tiene perfil. Acá, en cambio, invitar a alguien sin perfil
+ * activo es justo lo que `planInvitacionDirecta` rechaza, así que ofrecerlo en la lista sería
+ * ofrecer un botón que no puede funcionar.
+ */
+export async function listActiveCollaborators(input: { workspaceId: string }) {
+  return prisma.member.findMany({
+    where: { workspaceId: input.workspaceId, coverageProfile: { active: true } },
+    select: { id: true, firstName: true, lastName: true, memberNumber: true },
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+  });
+}
+
+/**
+ * Una invitación puntual, para la pantalla donde la persona la responde.
+ *
+ * El aislamiento es doble y los dos filtros van en el mismo `where`, no en un `if` después de
+ * traer la fila: por workspace (vía la cobertura) y por persona (`memberId`). Nadie responde la
+ * invitación de otro, y una invitación ajena no vuelve `null` por un chequeo que alguien pueda
+ * borrar sin querer: directamente no aparece.
+ *
+ * Es la única consulta del módulo que trae `privateBriefing` —teléfono de emergencia, contacto
+ * del día—: eso es exactamente lo que ve quien ya está invitada y no ve nadie más (ver
+ * `loadCallForPortal`, que a propósito no lo trae).
+ */
+export async function loadMyAssignment(input: {
+  workspaceId: string;
+  memberId: string;
+  assignmentId: string;
+}) {
+  return prisma.coverageAssignment.findFirst({
+    where: {
+      id: input.assignmentId,
+      memberId: input.memberId,
+      coverage: { workspaceId: input.workspaceId },
+    },
+    select: {
+      id: true,
+      status: true,
+      origin: true,
+      respondBy: true,
+      role: { select: { name: true, requirements: true } },
+      coverage: {
+        select: {
+          title: true,
+          startsAt: true,
+          endsAt: true,
+          addressLine: true,
+          city: true,
+          instructions: true,
+          call: { select: { id: true, publicSummary: true, privateBriefing: true } },
+        },
+      },
     },
   });
 }
