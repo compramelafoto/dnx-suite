@@ -1,9 +1,10 @@
 import "server-only";
 
 import { prisma } from "@repo/db";
-import { createResendProviderFromEnvironment } from "@repo/communications/email/resend-runtime";
+import { Resend } from "resend";
 import type { Aviso } from "./calendario";
 import { textoDelAviso, type DatosDelAviso } from "./textos";
+import { compuertaDeEnvio, direccionDeSalida, remitente } from "./transporte";
 
 /**
  * Manda un aviso a un cliente, una sola vez.
@@ -17,9 +18,9 @@ import { textoDelAviso, type DatosDelAviso } from "./textos";
  * aviso a mandarlo dos veces: el cliente que recibe cinco correos iguales deja de abrir
  * los que importan.
  *
- * Usa el runtime controlado de `@repo/communications`, que sale en seco mientras no esté
- * habilitado el envío real. Eso es lo que evita escribirle a gente de verdad antes de
- * tiempo.
+ * **Nada sale hasta que alguien lo enciende**, y hacen falta dos llaves distintas: la clave
+ * de Resend y el interruptor propio del producto. Eso es lo que evita escribirle a gente
+ * de verdad antes de tiempo, o porque alguien copió las variables de otro proyecto.
  */
 
 export type ResultadoDelAviso =
@@ -59,27 +60,43 @@ export async function enviarAviso(entrada: {
       })
       .catch(() => null);
 
-  const runtime = createResendProviderFromEnvironment();
+  const compuerta = compuertaDeEnvio();
 
-  if (!runtime.canLiveSend) {
-    // No es un error: es la compuerta del paquete diciendo que todavía no se manda de
-    // verdad. Queda anotado para poder revisar qué se habría mandado.
-    await anotar("DRY_RUN", { error: runtime.blockMessage });
-    return { estado: "seco", motivo: runtime.blockMessage ?? "envío real deshabilitado" };
+  if (!compuerta.puede) {
+    // No es un error: es la compuerta diciendo que todavía no se manda de verdad. Queda
+    // anotado para poder revisar qué se habría mandado.
+    await anotar("DRY_RUN", { error: compuerta.motivo });
+    return { estado: "seco", motivo: compuerta.motivo };
   }
 
-  try {
-    const resultado = await runtime.provider.send({
-      to: [{ email: entrada.para }],
+  /*
+    El remitente lleva **el nombre del vendedor** sobre nuestra dirección. La dirección
+    tiene que ser de un dominio verificado, pero el nombre que ve el cliente es el de quien
+    le vendió el servicio: es la misma promesa de marca blanca que cumple el texto.
+  */
+  const from = remitente(entrada.datos.vendedor, direccionDeSalida());
+
+  /*
+    La clave de idempotencia se la damos nosotros. Resend descarta el mismo envío repetido
+    durante 24 horas, así que si algo reintenta entre que mandamos y anotamos, el cliente
+    no recibe dos copias. Es la segunda red después de la restricción de la base.
+  */
+  const { data, error } = await new Resend(compuerta.apiKey).emails.send(
+    {
+      from,
+      to: [entrada.para],
       subject: correo.asunto,
       text: correo.texto,
-    });
+    },
+    { idempotencyKey: `slf-${entrada.aviso}/${entrada.eventoId}` },
+  );
 
-    await anotar("SENT", { providerId: resultado.providerMessageId ?? undefined });
-    return { estado: "enviado" };
-  } catch (error) {
-    const detalle = error instanceof Error ? error.message : "error desconocido";
-    await anotar("FAILED", { error: detalle });
-    return { estado: "fallo", detalle };
+  // El SDK de Resend no lanza: devuelve el error. Un try/catch acá no vería nada.
+  if (error) {
+    await anotar("FAILED", { error: error.message });
+    return { estado: "fallo", detalle: error.message };
   }
+
+  await anotar("SENT", { providerId: data?.id });
+  return { estado: "enviado" };
 }
