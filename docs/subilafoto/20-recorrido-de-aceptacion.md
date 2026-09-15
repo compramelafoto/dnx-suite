@@ -58,7 +58,7 @@ que ya está demostrado y con **quién** tiene que demostrar el resto.
 | 23 | Con la descarga comprada, recibe el enlace al otro día | ⛔ | Faltan las variables de Resend |
 | 24 | Sin comprarla, recibe la secuencia sin duplicados | ⛔ | Ídem. El calendario y la unicidad están probados |
 | 25 | Después del pago tardío, el paquete se genera y se entrega | ⛔ | |
-| 26 | Al vencer el plazo se bloquea la venta y se borra | 🔧 | El candado está probado; el borrado real nunca corrió |
+| 26 | Al vencer el plazo se bloquea la venta y se borra | ✅ | **Corrido en producción**: 300 archivos borrados de R2, con auditoría |
 
 ## Proveedores
 
@@ -91,3 +91,5 @@ Al 15 de septiembre estaban dados de baja tres riesgos que sí bloqueaban:
   bucket, además de escribir en R2 en cada visita.
 - **El resumen de carga mentía** cuando una foto fallaba: decía cuántas subieron y se
   callaba las caídas.
+- **El borrado a los 30 días nunca había corrido.** Corrió, y el primer intento falló
+  ruidosamente por un error de SQL en vez de borrar de más, que es lo que tiene que pasar.

@@ -292,3 +292,28 @@ Instagram. Es lo que se les prometió cuando la completaron: que el evento les
 sirviera para que los vieran.
 
 Falta que también los vean los invitados, en el álbum.
+
+### Verificado en producción (2026-09-15)
+
+Se corrió el borrado de verdad, sobre el evento de la prueba de carga: 100 fotos, sus 200
+variantes y sus 10 sesiones de invitado.
+
+```json
+{"revisados":1,"borrados":1,"resultados":[
+  {"evento":"PRBE4A","borrado":true,"archivos":300,"fotos":100,"paquetes":0}]}
+```
+
+**300 archivos borrados de R2** —los 100 originales y las 200 variantes—, las filas de las
+fotos y las sesiones de invitado eliminadas, el evento en `ARCHIVED` con su `purgedAt`, los
+enlaces revocados, y la auditoría escrita:
+
+```json
+{"fotos": 100, "claves": 300, "archivos": 300, "paquetes": 0}
+```
+
+El álbum, que un minuto antes mostraba 100 fotos, pasó a decir *"Todavía no hay fotos
+publicadas"* y a no tener **ninguna** dirección de R2 en el HTML.
+
+La primera corrida devolvió **500**: el relleno de plazos usaba `make_interval` con un
+parámetro. Está contado más arriba. Que el primer intento de un borrado destructivo falle
+ruidosamente, en vez de borrar de más, es exactamente lo que tiene que pasar.
