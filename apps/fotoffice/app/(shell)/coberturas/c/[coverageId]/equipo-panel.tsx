@@ -165,12 +165,7 @@ function RolCard({
                 <span className="fo-label">Por qué la elegimos (opcional, queda en el historial)</span>
                 <textarea name="criteria" rows={2} className="fo-input" disabled={invitando} />
               </label>
-              {state.error ? (
-                <p role="alert" className="text-sm text-[var(--fo-danger)]">
-                  {state.error}
-                </p>
-              ) : null}
-              {state.ok ? <p className="text-sm text-[var(--fo-muted)]">{state.ok}</p> : null}
+              <Aviso state={state} />
               <button
                 type="submit"
                 className="fo-btn fo-btn-secondary min-h-11"
@@ -224,12 +219,7 @@ function PostulacionItem({
         <p className="text-sm text-[var(--fo-muted)]">«{postulacion.mensaje}»</p>
       ) : null}
 
-      {state.error ? (
-        <p role="alert" className="text-sm text-[var(--fo-danger)]">
-          {state.error}
-        </p>
-      ) : null}
-      {state.ok ? <p className="text-sm text-[var(--fo-muted)]">{state.ok}</p> : null}
+      <Aviso state={state} />
 
       {puedeCoordinar && postulacion.pendiente && !state.ok ? (
         <form action={seleccionar}>
@@ -245,4 +235,28 @@ function PostulacionItem({
       ) : null}
     </li>
   );
+}
+
+/**
+ * El aviso de una acción, en el orden en que importa: el error primero, después lo que salió a
+ * medias, y al final lo que salió bien.
+ *
+ * El del medio es el caso real de esta tanda: la invitación quedó hecha pero el correo no salió
+ * (o esa persona no tiene correo cargado). Pintarlo de verde haría que la coordinación se quede
+ * esperando una respuesta que nadie pidió; pintarlo de rojo haría pensar que no se invitó a
+ * nadie. Es el mismo criterio que ya usa el panel de solicitudes.
+ */
+function Aviso({ state }: { state: EquipoState }) {
+  if (state.error) {
+    return (
+      <p role="alert" className="text-sm text-[var(--fo-danger)]">
+        {state.error}
+      </p>
+    );
+  }
+  if (state.warn) {
+    return <p className="text-sm text-[var(--fo-warning,#b45309)]">{state.warn}</p>;
+  }
+  if (state.ok) return <p className="text-sm text-[var(--fo-muted)]">{state.ok}</p>;
+  return null;
 }

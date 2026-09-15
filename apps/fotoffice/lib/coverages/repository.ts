@@ -271,6 +271,81 @@ export async function listActiveCollaborators(input: { workspaceId: string }) {
 }
 
 /**
+ * Los colaboradores activos con correo cargado, para avisarles de una convocatoria nueva.
+ *
+ * Distinta de `listActiveCollaborators`, que alimenta el desplegable de la invitación directa y
+ * no necesita el correo de nadie. Acá el correo es el punto, y quien no lo tenga cargado no
+ * entra: no hay a dónde escribirle, y devolverlo solo haría que quien llama tenga que filtrar
+ * lo mismo de nuevo.
+ *
+ * El nombre de pila viene para poder saludar por su nombre. Un correo que arranca en el cuerpo,
+ * sin saludo, se lee como una circular.
+ */
+export async function listActiveCollaboratorEmails(input: { workspaceId: string }) {
+  return prisma.member.findMany({
+    where: {
+      workspaceId: input.workspaceId,
+      coverageProfile: { active: true },
+      email: { not: null },
+    },
+    select: { id: true, firstName: true, email: true },
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+  });
+}
+
+/**
+ * El correo de contacto de la institución, para cuando la configuración del módulo no tiene
+ * ninguno cargado (ver `destinatariosDeCoordinacion` en `emails.ts`).
+ *
+ * Devuelve `null` si el workspace todavía no cargó su branding: ahí no hay a quién avisarle, y
+ * quien llama lo registra en vez de inventar un destinatario.
+ */
+export async function loadWorkspaceContactEmail(input: {
+  workspaceId: string;
+}): Promise<string | null> {
+  const fila = await prisma.fotofficeWorkspaceBranding.findUnique({
+    where: { workspaceId: input.workspaceId },
+    select: { contactEmail: true },
+  });
+  return fila?.contactEmail ?? null;
+}
+
+/**
+ * Lo que hace falta para avisarle a la organización solicitante que su equipo ya está armado.
+ *
+ * Trae la cobertura y, por ella, la solicitud de la que salió con los datos de contacto del
+ * padrón. `requestId` viene porque el enlace de seguimiento vive en la solicitud, no en la
+ * cobertura: para mandar ese correo hay que rotar su token (ver `prepararAvisoDeEquipoCompleto`
+ * en `equipo-server.ts`).
+ *
+ * Devuelve `null` si la cobertura es de otro workspace.
+ */
+export async function loadCoverageParaAvisoDeEquipo(input: {
+  workspaceId: string;
+  coverageId: string;
+}) {
+  return prisma.coverage.findFirst({
+    where: { id: input.coverageId, workspaceId: input.workspaceId },
+    select: {
+      id: true,
+      title: true,
+      startsAt: true,
+      city: true,
+      request: {
+        select: {
+          id: true,
+          publicCode: true,
+          eventTitle: true,
+          client: {
+            select: { email: true, businessName: true, firstName: true, lastName: true },
+          },
+        },
+      },
+    },
+  });
+}
+
+/**
  * Una invitación puntual, para la pantalla donde la persona la responde.
  *
  * El aislamiento es doble y los dos filtros van en el mismo `where`, no en un `if` después de

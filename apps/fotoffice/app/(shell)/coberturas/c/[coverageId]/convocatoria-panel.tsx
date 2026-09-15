@@ -152,6 +152,10 @@ export function ConvocatoriaPanel({
                 {publicarState.error}
               </p>
             ) : null}
+            {/* Publicada, pero algún aviso a los colaboradores no salió: ni verde ni rojo. */}
+            {publicarState.warn ? (
+              <p className="text-sm text-[var(--fo-warning,#b45309)]">{publicarState.warn}</p>
+            ) : null}
             {!publicable.ok ? (
               <p className="text-sm text-[var(--fo-muted)]">{publicable.error}</p>
             ) : null}

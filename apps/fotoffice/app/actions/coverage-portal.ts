@@ -2,19 +2,37 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
+import { appUrl } from "@/lib/app-url";
 import { requireAuth } from "@/lib/auth";
+import { COVERAGE_EMAIL_KEYS } from "@/lib/communications/constants";
+import { loadWorkspaceEmailContext } from "@/lib/communications/load-workspace-signature";
+import { sendAndLogEmail } from "@/lib/communications/send-and-log";
 import { loadPortalContext } from "@/lib/portal/access";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
-import { loadCollaboratorProfile } from "@/lib/coverages/repository";
+import {
+  loadCollaboratorProfile,
+  loadSettings,
+  loadWorkspaceContactEmail,
+} from "@/lib/coverages/repository";
 import { perfilHabilitado } from "@/lib/coverages/colaboradores";
+import {
+  buildAssignmentConfirmedEmail,
+  buildTeamCompleteEmail,
+  destinatariosDeCoordinacion,
+} from "@/lib/coverages/emails";
+import { fechaHoraArgentina } from "@/lib/coverages/format";
 import { puedePostularse, type CandidatoAConvocatoria } from "@/lib/coverages/elegibilidad";
 import {
   ConflictoDeEquipo,
   YA_RESPONDIDA,
   planResponderInvitacion,
 } from "@/lib/coverages/equipo";
-import { aplicarEfectosSobreLaBusqueda } from "@/lib/coverages/equipo-server";
+import {
+  aplicarEfectosSobreLaBusqueda,
+  prepararAvisoDeEquipoCompleto,
+  type AvisoDeEquipoCompleto,
+} from "@/lib/coverages/equipo-server";
 import { ASSIGNMENT_LIVE_STATUSES } from "@/lib/coverages/states";
 import { assertAssignmentTransition } from "@/lib/coverages/transitions";
 import { recordEvent } from "@/lib/coverages/events";
@@ -189,7 +207,15 @@ export async function responderInvitacionAction(
       memberId: context.member.id,
       coverage: { workspaceId: context.workspace.id },
     },
-    select: { id: true, status: true, coverageId: true },
+    // El rol y la cobertura son para el aviso a la coordinación: "confirmó Ana, como fotógrafa
+    // principal, para la jornada del sábado". Un identificador no le dice nada a nadie.
+    select: {
+      id: true,
+      status: true,
+      coverageId: true,
+      role: { select: { name: true } },
+      coverage: { select: { title: true, startsAt: true } },
+    },
   });
   // Mismo mensaje para "no existe" y para "no es tuya": la respuesta no revela cuál de las dos.
   if (!asignacion) {
@@ -216,6 +242,23 @@ export async function responderInvitacionAction(
   const ahora = new Date();
   const confirma = plan.nuevoEstado === "CONFIRMADA";
 
+  /**
+   * Todo lo del correo a la organización solicitante se decide ANTES de abrir la transacción.
+   *
+   * Ese correo rota el enlace de seguimiento, y rotar es irreversible: si no hay a quién
+   * mandárselo o no hay con qué armar el enlace, rotar dejaría a la organización sin ningún
+   * enlace vivo (ver `prepararAvisoDeEquipoCompleto`). Solo hace falta al confirmar: un "no
+   * puedo" nunca completa un equipo.
+   */
+  const aviso = confirma
+    ? await prepararAvisoDeEquipoCompleto({
+        workspaceId: context.workspace.id,
+        coverageId: asignacion.coverageId,
+      })
+    : null;
+
+  let equipoQuedoConfirmado = false;
+
   try {
     await prisma.$transaction(async (tx) => {
       const tocadas = await tx.coverageAssignment.updateMany({
@@ -239,18 +282,46 @@ export async function responderInvitacionAction(
         actorLabel: nombre,
       });
 
-      await aplicarEfectosSobreLaBusqueda(tx, {
+      const efectos = await aplicarEfectosSobreLaBusqueda(tx, {
         workspaceId: context.workspace.id,
         coverageId: asignacion.coverageId,
         actorUserId: user.id,
         actorLabel: nombre,
+        avisoDeEquipoCompleto: aviso,
       });
+      // Si fue ESTA respuesta la que completó el equipo, el enlace nuevo ya quedó escrito acá
+      // adentro y el correo sale afuera, con la transacción cerrada.
+      equipoQuedoConfirmado = efectos.coverageStatus === "EQUIPO_CONFIRMADO";
     });
   } catch (error) {
     if (error instanceof ConflictoDeEquipo) {
       return { error: null, ok: null, aviso: error.message };
     }
     throw error;
+  }
+
+  /**
+   * Los dos correos salen DESPUÉS de que la transacción cerró, y ninguno puede voltearla.
+   *
+   * Si el proveedor de correo está caído, esta persona confirmó igual: el estado ya quedó bien y
+   * `sendAndLogEmail` deja registrado el intento. Por eso tampoco se le devuelve ningún aviso de
+   * fallo — que un correo interno no haya salido no es asunto de quien acaba de decir que sí, y
+   * asustarla con un renglón rojo la haría dudar de si confirmó o no.
+   */
+  if (confirma) {
+    await avisarConfirmacion({
+      workspaceId: context.workspace.id,
+      coverageId: asignacion.coverageId,
+      coverageTitle: asignacion.coverage.title,
+      startsAt: asignacion.coverage.startsAt,
+      roleName: asignacion.role.name,
+      personName: nombre,
+      equipoCompleto: equipoQuedoConfirmado,
+    });
+  }
+
+  if (equipoQuedoConfirmado && aviso) {
+    await avisarEquipoCompleto(context.workspace.id, aviso);
   }
 
   revalidatePath("/portal/coberturas");
@@ -263,4 +334,83 @@ export async function responderInvitacionAction(
       : "Gracias por avisarnos. Dejamos tu lugar libre para otra persona.",
     aviso: null,
   };
+}
+
+/**
+ * El aviso interno de que alguien confirmó su lugar.
+ *
+ * Va a los correos de la configuración del módulo y, si no hay ninguno, al de contacto de la
+ * institución (ver `destinatariosDeCoordinacion`). Sin nadie configurado no sale para nadie, y
+ * eso se registra: una confirmación que nadie mira es peor que un correo que falló, porque
+ * nadie la va a reclamar.
+ */
+async function avisarConfirmacion(input: {
+  workspaceId: string;
+  coverageId: string;
+  coverageTitle: string;
+  startsAt: Date;
+  roleName: string;
+  personName: string;
+  equipoCompleto: boolean;
+}): Promise<void> {
+  const [settings, contactEmail] = await Promise.all([
+    loadSettings(input.workspaceId),
+    loadWorkspaceContactEmail({ workspaceId: input.workspaceId }),
+  ]);
+
+  const destinatarios = destinatariosDeCoordinacion({
+    notifyEmails: settings.notifyEmails,
+    contactEmail,
+  });
+
+  if (destinatarios.length === 0) {
+    console.warn(
+      `Confirmación de equipo en la cobertura ${input.coverageId} del workspace ` +
+        `${input.workspaceId}: no hay a quién avisarle (ni notifyEmails ni contactEmail).`,
+    );
+    return;
+  }
+
+  const base = appUrl();
+  for (const destino of destinatarios) {
+    await sendAndLogEmail({
+      to: destino,
+      templateKey: COVERAGE_EMAIL_KEYS.ASSIGNMENT_CONFIRMED,
+      body: buildAssignmentConfirmedEmail({
+        coverageTitle: input.coverageTitle,
+        personName: input.personName,
+        roleName: input.roleName,
+        fechaLabel: fechaHoraArgentina(input.startsAt),
+        equipoCompleto: input.equipoCompleto,
+        panelUrl: base ? `${base}/coberturas/c/${input.coverageId}` : "",
+      }),
+    });
+  }
+}
+
+/**
+ * "Ya tenemos el equipo", a la organización que pidió la cobertura.
+ *
+ * Sale una sola vez, cuando la cobertura llega a `EQUIPO_CONFIRMADO` —no cuando la convocatoria
+ * se pone `COMPLETA`, que es apenas "dejamos de buscar"—. El enlace de seguimiento que lleva ya
+ * se rotó dentro de la transacción; acá solo se manda.
+ */
+async function avisarEquipoCompleto(
+  workspaceId: string,
+  aviso: AvisoDeEquipoCompleto,
+): Promise<void> {
+  const contexto = await loadWorkspaceEmailContext(workspaceId);
+  await sendAndLogEmail({
+    to: aviso.destinatario,
+    templateKey: COVERAGE_EMAIL_KEYS.TEAM_COMPLETE,
+    body: buildTeamCompleteEmail({
+      context: contexto,
+      publicCode: aviso.publicCode,
+      eventTitle: aviso.eventTitle,
+      contactName: aviso.contactName,
+      fechaLabel: aviso.fechaLabel,
+      city: aviso.city,
+      trackingUrl: aviso.trackingUrl,
+    }),
+  });
 }

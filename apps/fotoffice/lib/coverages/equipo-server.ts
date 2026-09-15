@@ -1,6 +1,16 @@
 import "server-only";
 import type { Prisma } from "@repo/db";
+import { appUrl } from "@/lib/app-url";
 import type { EstadoDeRol } from "./cupos";
+import { contactGreetingName } from "./emails";
+import { fechaHoraArgentina } from "./format";
+import { loadCoverageParaAvisoDeEquipo, loadSettings } from "./repository";
+import {
+  generateTrackingToken,
+  hashTrackingToken,
+  trackingExpiryFrom,
+} from "./tracking-token";
+import { debeRotarEnlace } from "./tracking-view";
 import { efectosSobreLaBusqueda, postulacionesQueSeCierran, type EfectosSobreLaBusqueda } from "./equipo";
 import { recordEvent } from "./events";
 import { APPLICATION_LIVE_STATUSES, ASSIGNMENT_LIVE_STATUSES } from "./states";
@@ -29,6 +39,12 @@ export async function aplicarEfectosSobreLaBusqueda(
     coverageId: string;
     actorUserId: number | null;
     actorLabel: string | null;
+    /**
+     * Lo preparado ANTES de abrir la transacción para poder avisarle a la organización
+     * solicitante (ver `prepararAvisoDeEquipoCompleto`). Si el equipo queda confirmado acá, el
+     * enlace de seguimiento se rota en ESTA transacción; el correo sale después, afuera.
+     */
+    avisoDeEquipoCompleto?: AvisoDeEquipoCompleto | null;
   },
 ): Promise<EfectosSobreLaBusqueda> {
   const cobertura = await tx.coverage.findFirst({
@@ -89,6 +105,16 @@ export async function aplicarEfectosSobreLaBusqueda(
       toStatus: efectos.coverageStatus,
       actorUserId: input.actorUserId,
       actorLabel: input.actorLabel,
+    });
+  }
+
+  if (efectos.coverageStatus === "EQUIPO_CONFIRMADO" && input.avisoDeEquipoCompleto?.rotacion) {
+    const { requestId, rotacion } = input.avisoDeEquipoCompleto;
+    // `updateMany` con el workspace en el `where`, no un `update` por id: la solicitud se leyó
+    // afuera de esta transacción y el aislamiento vuelve a viajar con la escritura.
+    await tx.coverageRequest.updateMany({
+      where: { id: requestId, workspaceId: input.workspaceId },
+      data: { tokenHash: rotacion.tokenHash, tokenExpiresAt: rotacion.tokenExpiresAt },
     });
   }
 
@@ -165,4 +191,75 @@ async function cerrarPostulacionesSinRespuesta(
       actorLabel: input.actorLabel,
     });
   }
+}
+
+
+/**
+ * Todo lo que hace falta para avisarle a la organización solicitante que su equipo está armado,
+ * resuelto ANTES de abrir la transacción.
+ *
+ * Por qué antes: ese correo lleva un enlace de seguimiento nuevo, y emitirlo mata el que la
+ * organización ya tenía. Rotar es irreversible, y solo conviene si el correo con el enlace nuevo
+ * va a poder salir — si no hay a quién mandárselo, o no hay `appUrl()` con qué armarlo, rotar
+ * deja a la organización sin ningún enlace vivo y en esta etapa no hay "reenviar enlace" para
+ * repararlo. Por eso la decisión se toma acá, con `debeRotarEnlace`, y la transacción se limita
+ * a ejecutarla. Es el mismo criterio de los correos de la etapa 1a (ver
+ * `changeRequestStatusAction`).
+ *
+ * Devuelve `null` cuando no hay a quién avisarle: sin solicitud detrás de la cobertura, o sin
+ * correo en la ficha del padrón. En ese caso no se rota nada y no sale ningún correo.
+ *
+ * Prepararlo cuesta dos lecturas que casi siempre no se usan —el equipo se completa una sola vez
+ * en la vida de una cobertura—, y se paga igual: saber si ESTA confirmación completó el equipo
+ * recién se sabe adentro de la transacción, y ahí ya es tarde para decidir si rotar.
+ */
+export type AvisoDeEquipoCompleto = {
+  requestId: string;
+  publicCode: string;
+  eventTitle: string;
+  contactName: string;
+  /** Dirección de la organización solicitante. Nunca vacía: sin ella esto devuelve `null`. */
+  destinatario: string;
+  fechaLabel: string;
+  city: string | null;
+  /** El enlace nuevo, ya decidido. `null` cuando no corresponde rotar. */
+  rotacion: { rawToken: string; tokenHash: string; tokenExpiresAt: Date } | null;
+  /** El enlace listo para el correo, o `""` si no se rotó: `compose` no pinta un botón muerto. */
+  trackingUrl: string;
+};
+
+export async function prepararAvisoDeEquipoCompleto(input: {
+  workspaceId: string;
+  coverageId: string;
+}): Promise<AvisoDeEquipoCompleto | null> {
+  const cobertura = await loadCoverageParaAvisoDeEquipo(input);
+  const solicitud = cobertura?.request;
+  const destinatario = solicitud?.client.email?.trim();
+  if (!cobertura || !solicitud || !destinatario) return null;
+
+  const base = appUrl();
+  const rotar = debeRotarEnlace({ tieneDestinatario: true, tieneAppUrl: Boolean(base) });
+
+  let rotacion: AvisoDeEquipoCompleto["rotacion"] = null;
+  if (rotar) {
+    const settings = await loadSettings(input.workspaceId);
+    const rawToken = generateTrackingToken();
+    rotacion = {
+      rawToken,
+      tokenHash: hashTrackingToken(rawToken),
+      tokenExpiresAt: trackingExpiryFrom(settings.trackingLinkTtlDays),
+    };
+  }
+
+  return {
+    requestId: solicitud.id,
+    publicCode: solicitud.publicCode,
+    eventTitle: solicitud.eventTitle,
+    contactName: contactGreetingName(solicitud.client),
+    destinatario,
+    fechaLabel: fechaHoraArgentina(cobertura.startsAt),
+    city: cobertura.city,
+    rotacion,
+    trackingUrl: rotacion ? `${base}/sc/${rotacion.rawToken}` : "",
+  };
 }

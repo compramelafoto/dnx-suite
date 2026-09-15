@@ -2,6 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma, type Prisma } from "@repo/db";
+import { appUrl } from "@/lib/app-url";
+import { COVERAGE_EMAIL_KEYS } from "@/lib/communications/constants";
+import { loadWorkspaceEmailContext } from "@/lib/communications/load-workspace-signature";
+import { sendAndLogEmail } from "@/lib/communications/send-and-log";
 import { requireCoveragesCoordinator } from "@/lib/coverages/access";
 import { perfilHabilitado } from "@/lib/coverages/colaboradores";
 import type { EstadoDeRol } from "@/lib/coverages/cupos";
@@ -15,11 +19,25 @@ import {
   planInvitacionDirecta,
   planSeleccionarPostulacion,
 } from "@/lib/coverages/equipo";
+import {
+  buildAssignmentInvitedEmail,
+  buildCallPublishedEmail,
+  destinatariosDeColaboradores,
+} from "@/lib/coverages/emails";
 import { aplicarEfectosSobreLaBusqueda } from "@/lib/coverages/equipo-server";
 import { recordEvent } from "@/lib/coverages/events";
+import { fechaArgentina, fechaHoraArgentina } from "@/lib/coverages/format";
+import { listActiveCollaboratorEmails } from "@/lib/coverages/repository";
 import { ASSIGNMENT_LIVE_STATUSES } from "@/lib/coverages/states";
 
-export type ConvocatoriaState = { error: string | null; ok: string | null };
+/**
+ * `warn` es para lo que salió a medias: el cambio se hizo pero el aviso no salió.
+ *
+ * Mismo tercer canal que ya usa el panel de solicitudes (ver `PanelState` en
+ * `app/(shell)/coberturas/actions.ts`): sin él habría que elegir entre pintar de verde un fallo
+ * o de rojo una publicación que sí ocurrió, y las dos cosas hacen que la coordinación actúe mal.
+ */
+export type ConvocatoriaState = { error: string | null; ok: string | null; warn?: string | null };
 
 const VISIBILITY_OPTIONS = new Set(["TODOS", "POR_ZONA", "POR_ESPECIALIDAD"]);
 const URGENCY_OPTIONS = new Set(["NORMAL", "ALTA", "URGENTE"]);
@@ -157,6 +175,10 @@ export async function publicarConvocatoriaAction(
       coverage: {
         select: {
           status: true,
+          // Para el correo a los colaboradores: qué actividad es, cuándo y dónde.
+          title: true,
+          startsAt: true,
+          city: true,
           roles: { select: { vacancies: true, assignments: { select: { status: true } } } },
         },
       },
@@ -214,12 +236,153 @@ export async function publicarConvocatoriaAction(
     }
   });
 
+  const warn = await avisarConvocatoriaPublicada({
+    workspaceId: workspace.id,
+    callId: call.id,
+    callTitle: call.title,
+    publicSummary: call.publicSummary,
+    coverageTitle: call.coverage.title,
+    startsAt: call.coverage.startsAt,
+    city: call.coverage.city,
+  });
+
   revalidatePath(`/coberturas/c/${call.coverageId}`);
   revalidatePath("/coberturas");
-  return { error: null, ok: "Publicada. Ya se puede ver y postularse." };
+  return { error: null, ok: "Publicada. Ya se puede ver y postularse.", warn };
 }
 
-export type EquipoState = { error: string | null; ok: string | null };
+/**
+ * El aviso a los colaboradores activos de que hay una convocatoria nueva.
+ *
+ * **Un correo por persona, nunca en copia.** La dirección de un voluntario es un dato personal
+ * suyo: repartirla entre los otros cuarenta colaboradores de la institución no es una
+ * distracción de estilo, es filtrar datos de terceros. `destinatariosDeColaboradores` devuelve
+ * una lista de direcciones sueltas justamente para que acá no haya forma de juntarlas.
+ *
+ * Sale DESPUÉS de que la transacción cerró, y ninguno de estos correos puede voltear la
+ * publicación: `sendAndLogEmail` nunca lanza y cada envío queda registrado. Si alguno falló,
+ * devuelve el aviso para que la coordinación lo vea; la convocatoria ya está publicada igual y
+ * se puede ver en el portal.
+ */
+async function avisarConvocatoriaPublicada(input: {
+  workspaceId: string;
+  callId: string;
+  callTitle: string;
+  publicSummary: string | null;
+  coverageTitle: string;
+  startsAt: Date;
+  city: string | null;
+}): Promise<string | null> {
+  const [contexto, colaboradores] = await Promise.all([
+    loadWorkspaceEmailContext(input.workspaceId),
+    listActiveCollaboratorEmails({ workspaceId: input.workspaceId }),
+  ]);
+
+  const destinatarios = destinatariosDeColaboradores(colaboradores);
+  if (destinatarios.length === 0) return null;
+
+  // El nombre de pila para saludar a cada uno. La clave es el correo en minúsculas porque es
+  // así como `destinatariosDeColaboradores` decide que dos filas son la misma persona.
+  const nombrePorEmail = new Map<string, string>();
+  for (const c of colaboradores) {
+    const clave = c.email?.trim().toLowerCase();
+    if (clave && !nombrePorEmail.has(clave)) nombrePorEmail.set(clave, c.firstName);
+  }
+
+  const base = appUrl();
+  const callUrl = base ? `${base}/portal/coberturas/${input.callId}` : "";
+
+  let fallaron = 0;
+  for (const destino of destinatarios) {
+    const r = await sendAndLogEmail({
+      to: destino,
+      templateKey: COVERAGE_EMAIL_KEYS.CALL_PUBLISHED,
+      body: buildCallPublishedEmail({
+        context: contexto,
+        greetingName: nombrePorEmail.get(destino.toLowerCase()) ?? null,
+        callTitle: input.callTitle,
+        coverageTitle: input.coverageTitle,
+        fechaLabel: fechaHoraArgentina(input.startsAt),
+        city: input.city,
+        publicSummary: input.publicSummary,
+        callUrl,
+      }),
+    });
+    if (r.status !== "SENT") fallaron++;
+  }
+
+  if (fallaron === 0) return null;
+  return fallaron === destinatarios.length
+    ? "Quedó publicada, pero no salió ningún aviso por correo. Está registrado."
+    : `Quedó publicada, pero ${fallaron} de los ${destinatarios.length} avisos no salieron. Está registrado.`;
+}
+
+/** Mismo tercer canal que `ConvocatoriaState`: la invitación se creó, pero el correo no salió. */
+export type EquipoState = { error: string | null; ok: string | null; warn?: string | null };
+
+/**
+ * Lo que hace falta para escribirle a quien acaba de quedar invitada.
+ *
+ * Se arma DENTRO de la transacción —es ahí donde nace la asignación y donde ya se leyó todo lo
+ * demás— y se usa DESPUÉS, cuando la transacción cerró. Nunca al revés: un correo mandado
+ * adentro de una transacción que después se revierte le avisa a una persona de una invitación
+ * que no existe.
+ */
+type DatosDeInvitacion = {
+  assignmentId: string;
+  /** `null` cuando esa persona no tiene correo cargado en el padrón. */
+  destinatario: string | null;
+  greetingName: string | null;
+  coverageTitle: string;
+  roleName: string;
+  startsAt: Date;
+  city: string | null;
+  respondBy: Date | null;
+};
+
+/**
+ * El correo a quien quedó invitada, sea porque se la seleccionó de las postulaciones o porque
+ * se la invitó directo. Es el mismo aviso: lo que sigue es su respuesta.
+ *
+ * Devuelve el aviso para la coordinación si no salió, o `null` si salió o si no había a dónde
+ * mandarlo. Que falle no vuelve atrás nada: la persona ya está invitada y la puede ver en su
+ * portal; `sendAndLogEmail` no lanza y deja registrado el intento.
+ */
+async function avisarInvitacion(
+  workspaceId: string,
+  datos: DatosDeInvitacion | null,
+): Promise<string | null> {
+  if (!datos) return null;
+  if (!datos.destinatario) {
+    // No es un fallo del envío: esa persona no tiene correo en el padrón. La coordinación
+    // necesita saberlo para avisarle por otro lado, o no la va a esperar nunca.
+    return "La invitación quedó hecha, pero esa persona no tiene correo cargado: avisale vos.";
+  }
+
+  const contexto = await loadWorkspaceEmailContext(workspaceId);
+  const base = appUrl();
+
+  const r = await sendAndLogEmail({
+    to: datos.destinatario,
+    templateKey: COVERAGE_EMAIL_KEYS.ASSIGNMENT_INVITED,
+    body: buildAssignmentInvitedEmail({
+      context: contexto,
+      greetingName: datos.greetingName,
+      coverageTitle: datos.coverageTitle,
+      roleName: datos.roleName,
+      fechaLabel: fechaHoraArgentina(datos.startsAt),
+      city: datos.city,
+      // Directo a la pantalla donde contesta: abre el correo en el teléfono y tiene que poder
+      // responder en dos toques.
+      assignmentUrl: base ? `${base}/portal/coberturas/asignacion/${datos.assignmentId}` : "",
+      respondByLabel: datos.respondBy ? fechaArgentina(datos.respondBy) : null,
+    }),
+  });
+
+  return r.status === "SENT"
+    ? null
+    : "La invitación quedó hecha, pero el correo no salió. Está registrado: avisale por otro lado.";
+}
 
 /**
  * Cuántas asignaciones vivas tiene este rol, contadas contra la base en este instante.
@@ -288,6 +451,7 @@ export async function seleccionarPostulacionAction(
   const actorLabel = user.name ?? user.email;
 
   let coverageIdParaRevalidar = "";
+  let invitacion: DatosDeInvitacion | null = null;
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -298,12 +462,15 @@ export async function seleccionarPostulacionAction(
           status: true,
           memberId: true,
           roleId: true,
+          // Para el correo: a quién le escribimos y de qué actividad le hablamos.
+          member: { select: { email: true, firstName: true } },
           role: {
             select: {
               id: true,
+              name: true,
               vacancies: true,
               coverageId: true,
-              coverage: { select: { status: true } },
+              coverage: { select: { status: true, title: true, startsAt: true, city: true } },
             },
           },
         },
@@ -368,6 +535,17 @@ export async function seleccionarPostulacionAction(
         actorLabel,
       });
 
+      invitacion = {
+        assignmentId: asignacion.id,
+        destinatario: postulacion.member.email,
+        greetingName: postulacion.member.firstName,
+        coverageTitle: postulacion.role.coverage.title,
+        roleName: postulacion.role.name,
+        startsAt: postulacion.role.coverage.startsAt,
+        city: postulacion.role.coverage.city,
+        respondBy: asignacion.respondBy,
+      };
+
       await aplicarEfectosSobreLaBusqueda(tx, {
         workspaceId: workspace.id,
         coverageId: postulacion.role.coverageId,
@@ -383,8 +561,10 @@ export async function seleccionarPostulacionAction(
     return { error: "Esa persona ya está en el equipo de esta cobertura.", ok: null };
   }
 
+  const warn = await avisarInvitacion(workspace.id, invitacion);
+
   revalidatePath(`/coberturas/c/${coverageIdParaRevalidar}`);
-  return { error: null, ok: "Le mandamos la invitación. Ahora esperamos su respuesta." };
+  return { error: null, ok: "Le mandamos la invitación. Ahora esperamos su respuesta.", warn };
 }
 
 /**
@@ -407,6 +587,7 @@ export async function invitarDirectoAction(
   if (!memberId) return { error: "Elegí a quién querés invitar.", ok: null };
 
   let coverageIdParaRevalidar = "";
+  let invitacion: DatosDeInvitacion | null = null;
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -417,9 +598,10 @@ export async function invitarDirectoAction(
         where: { id: roleId, coverage: { workspaceId: workspace.id } },
         select: {
           id: true,
+          name: true,
           vacancies: true,
           coverageId: true,
-          coverage: { select: { status: true } },
+          coverage: { select: { status: true, title: true, startsAt: true, city: true } },
         },
       });
       if (!rol) throw new ConflictoDeEquipo("No encontramos ese rol.");
@@ -431,7 +613,13 @@ export async function invitarDirectoAction(
       // padrón, pero eso es cortesía, no el control.
       const socio = await tx.member.findFirst({
         where: { id: memberId, workspaceId: workspace.id },
-        select: { id: true, coverageProfile: { select: { active: true } } },
+        // El correo y el nombre son para el aviso; el perfil, para el control de más abajo.
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          coverageProfile: { select: { active: true } },
+        },
       });
 
       const asignadasVivas = await contarAsignadasVivas(tx, {
@@ -476,6 +664,17 @@ export async function invitarDirectoAction(
         note: criteria,
       });
 
+      invitacion = {
+        assignmentId: asignacion.id,
+        destinatario: socio?.email ?? null,
+        greetingName: socio?.firstName ?? null,
+        coverageTitle: rol.coverage.title,
+        roleName: rol.name,
+        startsAt: rol.coverage.startsAt,
+        city: rol.coverage.city,
+        respondBy: asignacion.respondBy,
+      };
+
       await aplicarEfectosSobreLaBusqueda(tx, {
         workspaceId: workspace.id,
         coverageId: rol.coverageId,
@@ -488,6 +687,8 @@ export async function invitarDirectoAction(
     return { error: "Esa persona ya está en el equipo de esta cobertura.", ok: null };
   }
 
+  const warn = await avisarInvitacion(workspace.id, invitacion);
+
   revalidatePath(`/coberturas/c/${coverageIdParaRevalidar}`);
-  return { error: null, ok: "La invitamos. Ahora esperamos su respuesta." };
+  return { error: null, ok: "La invitamos. Ahora esperamos su respuesta.", warn };
 }
