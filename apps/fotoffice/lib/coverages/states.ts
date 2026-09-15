@@ -54,3 +54,27 @@ export const REQUEST_LIVE_STATUSES: readonly RequestStatus[] = [
   "REQUIERE_INFO",
   "APROBADA",
 ];
+
+/**
+ * Cómo se lee cada tipo de evento del historial.
+ *
+ * Los valores repiten a mano los de `CoverageEventType` (ver `lib/coverages/events.ts`) en vez
+ * de importar ese tipo: `events.ts` es `server-only` y este archivo lo leen también componentes
+ * de cliente, así que importar de ahí arrastraría ese límite hasta acá sin necesidad.
+ *
+ * La ficha de una solicitud es lo único que la organización nunca ve —el historial es interno—
+ * pero igual se lee en español: quien coordina y revisa tampoco tiene por qué conocer los
+ * nombres internos de cada tipo de evento.
+ */
+export const COVERAGE_EVENT_LABELS: Record<string, string> = {
+  CREADA: "Solicitud creada",
+  ESTADO_CAMBIADO: "Cambio de estado",
+  NOTA: "Nota interna",
+  INFO_PEDIDA: "Se pidió información",
+  INFO_RESPONDIDA: "Respondieron",
+  EMAIL_ENVIADO: "Correo enviado",
+};
+
+export function coverageEventLabel(type: string): string {
+  return COVERAGE_EVENT_LABELS[type] ?? type;
+}

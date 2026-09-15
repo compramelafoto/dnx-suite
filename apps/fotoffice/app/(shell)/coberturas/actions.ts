@@ -7,6 +7,7 @@ import { COVERAGE_EMAIL_KEYS } from "@/lib/communications/constants";
 import { loadWorkspaceEmailContext } from "@/lib/communications/load-workspace-signature";
 import { sendAndLogEmail } from "@/lib/communications/send-and-log";
 import { requireCoveragesCoordinator, requireCoveragesReviewer } from "@/lib/coverages/access";
+import { transitionNeedsCoordinator } from "@/lib/coverages/access-policy";
 import {
   buildInfoRequestedEmail,
   buildRequestApprovedEmail,
@@ -14,12 +15,30 @@ import {
 } from "@/lib/coverages/emails";
 import { recordEvent } from "@/lib/coverages/events";
 import { loadSettings } from "@/lib/coverages/repository";
+import { ASSIGNMENT_MODES } from "@/lib/coverages/settings";
 import { planStatusChange } from "@/lib/coverages/status-change-plan";
 import {
   generateTrackingToken,
   hashTrackingToken,
   trackingExpiryFrom,
 } from "@/lib/coverages/tracking-token";
+import { debeRotarEnlace } from "@/lib/coverages/tracking-view";
+
+/**
+ * Los estados en los que una solicitud queda resuelta.
+ *
+ * "Resuelta" es una fecha real que después leen los informes, no un sello de cada movimiento:
+ * por eso `resolvedByUserId`/`resolvedAt` sólo se escriben cuando el destino es uno de estos, y
+ * no en cada cambio de estado (por ejemplo `RECIBIDA → EN_EVALUACION`, que apenas abre la
+ * carpeta).
+ */
+const ESTADOS_RESUELTOS = new Set([
+  "APROBADA",
+  "RECHAZADA",
+  "CERRADA",
+  "CANCELADA_SOLICITANTE",
+  "CANCELADA_ORGANIZACION",
+]);
 
 export type PanelState = { error: string | null; ok: string | null; warn?: string | null };
 
@@ -34,9 +53,20 @@ export async function changeRequestStatusAction(
   _prev: PanelState | undefined,
   formData: FormData,
 ): Promise<PanelState> {
-  const { user, workspace } = await requireCoveragesCoordinator();
-  const id = formData.get("id")?.toString() ?? "";
   const to = formData.get("to")?.toString() ?? "";
+
+  /**
+   * El guard depende de a dónde va la solicitud, no de qué botón se apretó.
+   *
+   * Empezar a evaluar es trabajo de secretaría: alcanza con `requireCoveragesReviewer`.
+   * Aprobar, rechazar, cerrar o cancelar comprometen el tiempo de voluntarios y la palabra de
+   * la institución frente a quien pidió la cobertura, así que exigen coordinar. Ver
+   * `transitionNeedsCoordinator` en `lib/coverages/access-policy.ts`.
+   */
+  const { user, workspace } = transitionNeedsCoordinator(to)
+    ? await requireCoveragesCoordinator()
+    : await requireCoveragesReviewer();
+  const id = formData.get("id")?.toString() ?? "";
   const reason = formData.get("reason")?.toString()?.trim() || null;
 
   const solicitud = await prisma.coverageRequest.findFirst({
@@ -65,17 +95,30 @@ export async function changeRequestStatusAction(
    * es emitir uno nuevo. De paso, rotar deja un solo enlace vivo por solicitud en vez de que
    * convivan el viejo y el nuevo, que es preferible.
    *
-   * Consecuencia asumida: un enlace viejo que la organización tenga guardado (por ejemplo, el
-   * del correo de recepción) deja de servir en cuanto se emite éste.
+   * Pero rotar es irreversible, y sólo conviene si el correo con el enlace nuevo va a poder
+   * salir: si no hay a quién mandárselo o no hay con qué armar el enlace, rotar deja a la
+   * organización sin ningún enlace vivo, y en esta etapa no hay "reenviar enlace" para
+   * repararlo. Por eso se decide con `debeRotarEnlace` ANTES de abrir la transacción: así el
+   * `if` de adentro no repite esta lógica y no puede desalinearse de ella.
+   *
+   * Consecuencia asumida cuando sí se rota: un enlace viejo que la organización tenga guardado
+   * (por ejemplo, el del correo de recepción) deja de servir en cuanto se emite éste.
    *
    * El rechazo NO pasa por acá: no rota ni manda enlace, porque el circuito terminó (ver el
    * comentario de `buildRequestRejectedEmail`).
    */
+  const destino = solicitud.client.email;
+  const base = appUrl();
+  const rotar =
+    plan.to === "APROBADA" &&
+    settings !== null &&
+    debeRotarEnlace({ tieneDestinatario: Boolean(destino), tieneAppUrl: Boolean(base) });
+
   let rawToken: string | null = null;
 
   await prisma.$transaction(async (tx) => {
     let tokenFields: { tokenHash: string; tokenExpiresAt: Date } | Record<string, never> = {};
-    if (plan.to === "APROBADA" && settings) {
+    if (rotar && settings) {
       rawToken = generateTrackingToken();
       tokenFields = {
         tokenHash: hashTrackingToken(rawToken),
@@ -88,8 +131,12 @@ export async function changeRequestStatusAction(
       data: {
         status: plan.to,
         rejectionReason: plan.to === "RECHAZADA" ? reason : solicitud.rejectionReason,
-        resolvedByUserId: user.id,
-        resolvedAt: new Date(),
+        // "Resuelta" es una fecha real que después leen los informes, no un sello de cada
+        // movimiento: sólo se escribe cuando el destino es terminal (ver ESTADOS_RESUELTOS).
+        // `RECIBIDA → EN_EVALUACION`, por ejemplo, no resuelve nada, apenas abre la carpeta.
+        ...(ESTADOS_RESUELTOS.has(plan.to)
+          ? { resolvedByUserId: user.id, resolvedAt: new Date() }
+          : {}),
         ...tokenFields,
       },
     });
@@ -107,10 +154,8 @@ export async function changeRequestStatusAction(
   });
 
   let warn: string | null = null;
-  const destino = solicitud.client.email;
   if (destino && (plan.to === "APROBADA" || plan.to === "RECHAZADA")) {
     const contexto = await loadWorkspaceEmailContext(workspace.id);
-    const base = appUrl();
     const comun = {
       context: contexto,
       publicCode: solicitud.publicCode,
@@ -128,7 +173,9 @@ export async function changeRequestStatusAction(
           : buildRequestRejectedEmail({ ...comun, reason: reason ?? "" }),
     });
     if (resultado.status !== "SENT") {
-      warn = "El cambio quedó guardado, pero el correo no salió. Está registrado.";
+      warn = rotar
+        ? "El cambio quedó guardado, pero el correo no salió. El enlace anterior dejó de funcionar: hay que reenviarle uno nuevo."
+        : "El cambio quedó guardado, pero el correo no salió. Está registrado.";
     }
   }
 
@@ -168,19 +215,31 @@ export async function requestInfoAction(
   /**
    * Este correo sí lleva un enlace —la organización puede responder desde ahí— y el token
    * crudo del enlace anterior no se puede recuperar (sólo vive su hash). Se rota acá mismo, ver
-   * el comentario de `changeRequestStatusAction`.
+   * el comentario de `changeRequestStatusAction`: sólo conviene si el correo con el enlace
+   * nuevo va a poder salir, y eso se decide con `debeRotarEnlace` ANTES de abrir la
+   * transacción, no adentro.
    */
+  const destino = solicitud.client.email;
+  const base = appUrl();
+  const rotar = debeRotarEnlace({ tieneDestinatario: Boolean(destino), tieneAppUrl: Boolean(base) });
+
   let rawToken = "";
 
   await prisma.$transaction(async (tx) => {
-    rawToken = generateTrackingToken();
+    let tokenFields: { tokenHash: string; tokenExpiresAt: Date } | Record<string, never> = {};
+    if (rotar) {
+      rawToken = generateTrackingToken();
+      tokenFields = {
+        tokenHash: hashTrackingToken(rawToken),
+        tokenExpiresAt: trackingExpiryFrom(settings.trackingLinkTtlDays),
+      };
+    }
     await tx.coverageRequest.update({
       where: { id: solicitud.id },
       data: {
         status: "REQUIERE_INFO",
         infoRequested: texto,
-        tokenHash: hashTrackingToken(rawToken),
-        tokenExpiresAt: trackingExpiryFrom(settings.trackingLinkTtlDays),
+        ...tokenFields,
       },
     });
     await recordEvent(tx, {
@@ -197,23 +256,24 @@ export async function requestInfoAction(
   });
 
   let warn: string | null = null;
-  if (solicitud.client.email) {
+  if (destino) {
     const contexto = await loadWorkspaceEmailContext(workspace.id);
-    const base = appUrl();
     const r = await sendAndLogEmail({
-      to: solicitud.client.email,
+      to: destino,
       templateKey: COVERAGE_EMAIL_KEYS.INFO_REQUESTED,
       body: buildInfoRequestedEmail({
         context: contexto,
         publicCode: solicitud.publicCode,
         eventTitle: solicitud.eventTitle,
         contactName: solicitud.client.businessName ?? "Hola",
-        trackingUrl: base ? `${base}/sc/${rawToken}` : "",
+        trackingUrl: rawToken && base ? `${base}/sc/${rawToken}` : "",
         infoRequested: texto,
       }),
     });
     if (r.status !== "SENT") {
-      warn = "Quedó pedido, pero el correo no salió. Está registrado.";
+      warn = rotar
+        ? "El cambio quedó guardado, pero el correo no salió. El enlace anterior dejó de funcionar: hay que reenviarle uno nuevo."
+        : "Quedó pedido, pero el correo no salió. Está registrado.";
     }
   }
 
@@ -267,7 +327,11 @@ export async function saveCoverageSettingsAction(
   const { workspace } = await requireCoveragesCoordinator();
 
   const entero = (nombre: string, min: number, max: number, porOmision: number): number => {
-    const n = Number(formData.get(nombre)?.toString()?.trim());
+    // `Number("")` es `0`, un valor finito: sin este corte previo, borrar el campo no
+    // restauraba el valor por omisión sino que lo acotaba al mínimo permitido.
+    const crudo = formData.get(nombre)?.toString()?.trim();
+    if (!crudo) return porOmision;
+    const n = Number(crudo);
     if (!Number.isFinite(n)) return porOmision;
     return Math.min(max, Math.max(min, Math.round(n)));
   };
@@ -281,13 +345,23 @@ export async function saveCoverageSettingsAction(
       .map((s) => s.trim())
       .filter(Boolean);
 
+  /**
+   * El `<select>` del formulario es una comodidad para quien lo llena, no el control: quien
+   * manda el `FormData` puede escribir cualquier cosa ahí. Los números ya se acotan y los
+   * textos se limpian; a este campo le faltaba el mismo trato.
+   */
+  const assignmentModeCrudo = formData.get("assignmentMode")?.toString() ?? "";
+  const assignmentMode = (ASSIGNMENT_MODES as readonly string[]).includes(assignmentModeCrudo)
+    ? assignmentModeCrudo
+    : "MIXTA";
+
   const datos = {
     moduleLabel: texto("moduleLabel"),
     termRequest: texto("termRequest"),
     termCollaborator: texto("termCollaborator"),
     termRequester: texto("termRequester"),
     termCall: texto("termCall"),
-    assignmentMode: formData.get("assignmentMode")?.toString() ?? "MIXTA",
+    assignmentMode,
     requiresApproval: formData.get("requiresApproval") === "on",
     requiresCoordinatorConfirmation:
       formData.get("requiresCoordinatorConfirmation") === "on",

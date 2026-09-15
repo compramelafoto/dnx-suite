@@ -45,7 +45,13 @@ export function EvaluacionPanel({
       <Aviso state={infoState} />
       <Aviso state={notaState} />
 
-      {!cerrada && status === "RECIBIDA" && puedeCoordinar ? (
+      {/*
+        Empezar a evaluar (RECIBIDA → EN_EVALUACION) no está detrás de `puedeCoordinar`: es
+        trabajo de secretaría, alcanza con revisar. Quien llegó a esta ficha ya pasó
+        `requireCoveragesReviewer` en el servidor, y `changeRequestStatusAction` vuelve a exigir
+        el guard que corresponde según el destino (ver `transitionNeedsCoordinator`).
+      */}
+      {!cerrada && status === "RECIBIDA" ? (
         <form action={cambiarEstado}>
           <input type="hidden" name="id" value={id} />
           <input type="hidden" name="to" value="EN_EVALUACION" />

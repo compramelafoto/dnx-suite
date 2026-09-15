@@ -5,8 +5,9 @@ import { listEvents } from "@/lib/coverages/events";
 import { fechaHoraArgentina } from "@/lib/coverages/format";
 import { recomendarRefuerzo } from "@/lib/coverages/reinforcement";
 import { loadRequest, loadSettings } from "@/lib/coverages/repository";
-import { requestStatusLabel } from "@/lib/coverages/states";
+import { coverageEventLabel, requestStatusLabel } from "@/lib/coverages/states";
 import { canCoordinateCoverages } from "@/lib/coverages/access-policy";
+import { CONSENT_LABELS, type ConsentKind } from "@/lib/coverages/consents";
 import { EvaluacionPanel } from "./evaluacion-panel";
 
 export const dynamic = "force-dynamic";
@@ -77,7 +78,8 @@ export default async function FichaSolicitudPage({
             <li key={c.id} className="flex gap-2">
               <span aria-hidden>{c.granted ? "✓" : "✗"}</span>
               <span className={c.granted ? "" : "text-[var(--fo-muted)]"}>
-                {c.kind} <span className="text-xs">({c.textVersion})</span>
+                {CONSENT_LABELS[c.kind as ConsentKind] ?? c.kind}{" "}
+                <span className="text-xs">({c.textVersion})</span>
               </span>
             </li>
           ))}
@@ -102,7 +104,7 @@ export default async function FichaSolicitudPage({
                   {fechaHoraArgentina(e.createdAt)} · {e.actorLabel ?? "El sistema"}
                 </p>
                 <p>
-                  {e.type}
+                  {coverageEventLabel(e.type)}
                   {e.toStatus ? ` → ${requestStatusLabel(e.toStatus)}` : ""}
                 </p>
                 {e.note ? <p className="text-[var(--fo-muted)]">{e.note}</p> : null}

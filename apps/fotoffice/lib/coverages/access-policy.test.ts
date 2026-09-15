@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canCoordinateCoverages, canReviewCoverages } from "./access-policy";
+import { canCoordinateCoverages, canReviewCoverages, transitionNeedsCoordinator } from "./access-policy";
 
 /**
  * Dos niveles y no uno: evaluar una solicitud y aprobarla son cosas distintas.
@@ -47,5 +47,26 @@ describe("canReviewCoverages", () => {
 
   it("sin rol en el workspace, no se revisa nada", () => {
     expect(canReviewCoverages(null)).toBe(false);
+  });
+});
+
+/**
+ * Empezar a evaluar es trabajo de secretaría: alcanza con revisar. Decidir compromete el
+ * tiempo de voluntarios y la palabra de la institución, así que exige coordinar.
+ */
+describe("transitionNeedsCoordinator", () => {
+  it("empezar a evaluar no exige coordinar", () => {
+    expect(transitionNeedsCoordinator("EN_EVALUACION")).toBe(false);
+  });
+
+  it("aprobar, rechazar y cerrar sí exigen coordinar", () => {
+    expect(transitionNeedsCoordinator("APROBADA")).toBe(true);
+    expect(transitionNeedsCoordinator("RECHAZADA")).toBe(true);
+    expect(transitionNeedsCoordinator("CERRADA")).toBe(true);
+  });
+
+  it("las dos cancelaciones también exigen coordinar", () => {
+    expect(transitionNeedsCoordinator("CANCELADA_SOLICITANTE")).toBe(true);
+    expect(transitionNeedsCoordinator("CANCELADA_ORGANIZACION")).toBe(true);
   });
 });

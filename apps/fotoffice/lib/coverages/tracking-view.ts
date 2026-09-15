@@ -27,3 +27,16 @@ export function resolveTrackingView(
   // otro estado genera mensajes que nadie está esperando y que no disparan ningún aviso.
   return { kind: "OK", puedeResponder: row.status === "REQUIERE_INFO" };
 }
+
+/**
+ * Si conviene rotar el token de seguimiento antes de reescribirlo.
+ *
+ * El token crudo del enlace anterior nunca se guardó —sólo su hash— así que rotar es
+ * irreversible: en cuanto se pisa el hash viejo, ese enlace deja de servir para siempre. Rotar
+ * sin poder entregarle el enlace nuevo a la organización (sin destinatario, o sin `appUrl`
+ * configurada) la deja sin ningún enlace vivo, y en esta etapa no hay "reenviar enlace" para
+ * repararlo. Eso es peor que no rotar, así que las dos condiciones tienen que darse juntas.
+ */
+export function debeRotarEnlace(input: { tieneDestinatario: boolean; tieneAppUrl: boolean }): boolean {
+  return input.tieneDestinatario && input.tieneAppUrl;
+}

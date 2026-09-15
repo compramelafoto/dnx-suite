@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveTrackingView } from "./tracking-view";
+import { debeRotarEnlace, resolveTrackingView } from "./tracking-view";
 
 const ahora = new Date("2026-09-14T12:00:00Z");
 const vigente = new Date("2026-12-01T00:00:00Z");
@@ -61,5 +61,27 @@ describe("resolveTrackingView", () => {
       ahora,
     );
     expect(v).toEqual({ kind: "OK", puedeResponder: false });
+  });
+});
+
+/**
+ * Rotar sin poder entregar el enlace nuevo deja a la organización sin ninguno. Las dos
+ * condiciones —hay a quién mandárselo, hay con qué armar el enlace— tienen que darse juntas.
+ */
+describe("debeRotarEnlace", () => {
+  it("con destinatario y appUrl, rota", () => {
+    expect(debeRotarEnlace({ tieneDestinatario: true, tieneAppUrl: true })).toBe(true);
+  });
+
+  it("sin destinatario, no rota aunque haya appUrl", () => {
+    expect(debeRotarEnlace({ tieneDestinatario: false, tieneAppUrl: true })).toBe(false);
+  });
+
+  it("sin appUrl, no rota aunque haya destinatario", () => {
+    expect(debeRotarEnlace({ tieneDestinatario: true, tieneAppUrl: false })).toBe(false);
+  });
+
+  it("sin ninguna de las dos, no rota", () => {
+    expect(debeRotarEnlace({ tieneDestinatario: false, tieneAppUrl: false })).toBe(false);
   });
 });
