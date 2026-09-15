@@ -1,7 +1,7 @@
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
+import { urlDelLogo } from "@/lib/logo-url";
 import { formatearPesos } from "@/lib/precios";
 import { calcularVenta } from "@/lib/pagos/venta";
 import { estiloBotonDnx } from "@/lib/boton-dnx";
@@ -47,17 +47,22 @@ export default async function PaginaDeVenta({ params, searchParams }: Props) {
   const venta = calcularVenta({ baseCents: perfil.basePriceCents, conDescarga });
 
   const acento = perfil.brandColor ?? "var(--slf-violeta)";
+  const logo = await urlDelLogo(perfil.logoUrl);
 
   return (
     <main className="sobre-claro mx-auto max-w-2xl px-6 py-16 sm:py-24">
       <header>
-        {perfil.logoUrl ? (
-          <Image
-            src={perfil.logoUrl}
+        {logo ? (
+          /*
+            Sin `next/image`: cuando el logo está en nuestro bucket la dirección viene
+            firmada y vence, así que no tiene sentido que el optimizador la cachee —y
+            además no estaría en la lista de dominios permitidos.
+          */
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={logo}
             alt={perfil.displayName}
-            width={200}
-            height={80}
-            className="mb-8 h-auto w-auto max-h-16"
+            className="mb-8 max-h-16 w-auto"
           />
         ) : null}
 

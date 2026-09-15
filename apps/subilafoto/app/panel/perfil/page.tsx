@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { DNX_SESSION_COOKIE, getSessionUserByRawToken } from "@repo/auth";
 import { prisma } from "@repo/db";
 import { perfilDeVenta } from "@/lib/perfil-de-venta";
+import { urlDelLogo } from "@/lib/logo-url";
 import { FormularioPerfil } from "./formulario";
 
 export const dynamic = "force-dynamic";
@@ -59,7 +60,11 @@ export default async function Perfil() {
         nuestros.
       </p>
 
-      <FormularioPerfil perfil={perfil} enlace={`${baseUrl()}/v/${perfil.slug}`} />
+      <FormularioPerfil
+        perfil={perfil}
+        enlace={`${baseUrl()}/v/${perfil.slug}`}
+        vistaDelLogo={await urlDelLogo(perfil.logoUrl)}
+      />
     </main>
   );
 }
