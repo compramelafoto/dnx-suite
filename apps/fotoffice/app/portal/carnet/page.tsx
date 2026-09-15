@@ -14,6 +14,7 @@ import { stateLabel } from "@/lib/carnet/fulfillment";
 import { printedCardOffer } from "@/lib/carnet/reissue";
 import { printedCardWarning } from "@/lib/carnet/printed-warning";
 import { formatMinorArs } from "@/lib/membership/money";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,7 @@ export default async function MiCarnetPage() {
 
   const base = (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "").trim();
   const carnet = await loadMyCard(context.member.id, base);
+  const v = await loadPersonVocabulary(context.workspace.id);
 
   // Quien marcó "quiero la credencial impresa" al asociarse tiene que enterarse de qué le
   // falta. Hasta ahora marcaba la casilla y no volvía a saber nada del asunto.
@@ -148,7 +150,7 @@ export default async function MiCarnetPage() {
             )}
             <div className="min-w-0 space-y-0.5">
               <p className="truncate text-base font-semibold">{carnet.fullName}</p>
-              <p className="text-sm text-[var(--fo-muted)]">Socio N° {carnet.memberNumber}</p>
+              <p className="text-sm text-[var(--fo-muted)]">{v.Singular} N° {carnet.memberNumber}</p>
               {carnet.category ? (
                 <p className="text-sm text-[var(--fo-muted)]">{carnet.category}</p>
               ) : null}
@@ -160,7 +162,7 @@ export default async function MiCarnetPage() {
               {/* eslint-disable-next-line @next/next/no-img-element -- data URI generado acá */}
               <img src={qr} alt="Código QR de tu carnet" className="mx-auto size-44" />
               <p className="text-[11px] text-[var(--fo-muted-soft)]">
-                Mostrá este código para que verifiquen tu condición de socio.
+                {`Mostrá este código para que verifiquen tu condición de ${v.singular}.`}
               </p>
             </div>
           ) : null}

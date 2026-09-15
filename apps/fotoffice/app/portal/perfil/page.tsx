@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
 import { requireAuth } from "@/lib/auth";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 
 export const metadata = { title: "Mi perfil profesional" };
 
@@ -29,10 +30,12 @@ export default async function PerfilProfesionalPage() {
       directoryOptIn: true,
       avatarUrl: true,
       profilePhotoUrl: true,
-      workspace: { select: { name: true } },
+      workspace: { select: { id: true, name: true } },
     },
   });
   if (!socio) redirect("/portal");
+
+  const vocabulary = await loadPersonVocabulary(socio.workspace.id);
 
   const { ProfessionalProfileForm } = await import(
     "@/components/portal/professional-profile-form"
@@ -63,6 +66,7 @@ export default async function PerfilProfesionalPage() {
 
       <ProfessionalProfileForm
         institutionName={socio.workspace.name}
+        vocabulary={vocabulary}
         defaults={{
           businessName: socio.businessName,
           bio: socio.bio,

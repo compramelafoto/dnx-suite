@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { especialidadesPorGrupo, MAX_ESPECIALIDADES } from "@/lib/membership/specialties";
-import { personVocabulary, type PersonVocabulary } from "@/lib/vocabulario/personas";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
 /**
  * Presencia profesional del aspirante: rubros, estudio, redes y sitio.
@@ -35,15 +35,10 @@ export function ProfessionalPresenceFields({
   defaults?: PresenciaDefaults;
   /** Texto de encabezado. El alta explica para qué se piden; el portal ya no hace falta. */
   intro?: string;
-  /**
-   * Opcional: el portal (`components/portal/professional-profile-form.tsx`) todavía no
-   * carga vocabulario propio —es otra tanda— y no debería tener que hacerlo solo para poder
-   * seguir usando este campo. Sin valor, cae en socio/socios, que es lo que ese caller ya
-   * muestra hoy.
-   */
-  vocabulary?: PersonVocabulary;
+  /** El vocabulario del workspace: sus dos callers (alta pública y portal) ya lo cargan. */
+  vocabulary: PersonVocabulary;
 }) {
-  const v = vocabulary ?? personVocabulary(null);
+  const v = vocabulary;
   const [elegidas, setElegidas] = useState<string[]>([
     ...(defaults?.specialties ?? []),
   ]);
