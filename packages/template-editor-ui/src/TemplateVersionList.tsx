@@ -1,9 +1,6 @@
 "use client";
 
-import {
-  DEFAULT_TEMPLATE_V2_BASE_PATH,
-  templateV2EditorPath,
-} from "./template-v2-base-path";
+import { templateV2EditorPath } from "./template-v2-base-path";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Card from "./primitives/Card";
@@ -45,14 +42,15 @@ function badgeClass(kind: "current" | "open"): string {
 type TemplateVersionListProps = {
   templateId: string;
   /** Dónde vive el editor en esta app. */
-  basePath?: string;
+  /** Dónde monta el editor la app que hospeda. Obligatorio: ver `TEMPLATE_V2_BASE_PATHS`. */
+  basePath: string;
   activeVersionId: string;
 };
 
 export function TemplateVersionList({
   templateId,
   activeVersionId,
-  basePath = DEFAULT_TEMPLATE_V2_BASE_PATH,
+  basePath,
 }: TemplateVersionListProps) {
   const [rows, setRows] = useState<TemplateVersionListRow[] | null>(null);
   const [currentVersionId, setCurrentVersionId] = useState<string | null | undefined>(undefined);

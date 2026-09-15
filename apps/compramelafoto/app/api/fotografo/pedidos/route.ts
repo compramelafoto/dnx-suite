@@ -128,6 +128,9 @@ export async function GET(req: Request) {
       take: 200,
       include: {
         items: true,
+        // Los videos van en su propia tabla: sin esto, un pedido de sólo
+        // video le aparecía al fotógrafo como "0 ítems".
+        videoItems: { select: { videoId: true, videoTitle: true } },
         album: { select: { pickupBy: true, eventId: true } },
         buyerUser: { select: { name: true, phone: true, whatsapp: true } },
       },
@@ -212,7 +215,8 @@ export async function GET(req: Request) {
           timeZone: "America/Argentina/Buenos_Aires",
         }).format(o.updatedAt),
         createdAtIso: o.createdAt.toISOString(),
-        itemsCount: o.items.length,
+        itemsCount: o.items.length + (o.videoItems?.length ?? 0),
+        videoItemsCount: o.videoItems?.length ?? 0,
         currency: "ARS",
         total: orderTotal,
         photographerReceivedAmount,

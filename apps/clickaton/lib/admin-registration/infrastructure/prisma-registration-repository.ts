@@ -1,4 +1,5 @@
 import { prisma, Prisma } from "@/lib/admin/db";
+import { welcomeCardMediaUrl } from "@/lib/welcome-card/media-url";
 import type {
   ClickatonPaymentStatus,
   ClickatonRegistrationStatus,
@@ -300,11 +301,14 @@ async function loadDetail(id: string): Promise<AdminRegistrationDetail | null> {
           status: latestCard.status,
           templateId: latestCard.templateId,
           templateVersion: latestCard.templateVersion,
-          pngUrl: latestCard.pngAssetId
-            ? assetUrl.get(latestCard.pngAssetId) ?? null
-            : null,
+          /*
+           * Por el proxy autenticado y no por la dirección que guarda el archivo: esa apunta
+           * al proxy de medios públicos, que rechaza a propósito las placas y devuelve 404.
+           * Era lo que dejaba la vista previa del panel siempre rota.
+           */
+          pngUrl: latestCard.pngAssetId ? welcomeCardMediaUrl(row.id) : null,
           webpUrl: latestCard.webpAssetId
-            ? assetUrl.get(latestCard.webpAssetId) ?? null
+            ? welcomeCardMediaUrl(row.id, { format: "webp" })
             : null,
           publicationStatus: latestCard.publicationStatus,
           lastErrorCode: latestCard.lastErrorCode,

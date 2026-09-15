@@ -38,7 +38,12 @@ export async function ensureDigitalDelivery(orderId: number): Promise<DigitalDel
   if (!order) return null;
 
   const hasDigital = order.items.some((item) => item.productType === "DIGITAL");
-  if (!hasDigital) return null;
+
+  // Un pedido de sólo videos no tiene fotos digitales, y esta línea cortaba
+  // antes de crear el token: el cliente pagaba y no recibía ni link ni mail.
+  const videoCount = await prisma.videoOrderItem.count({ where: { orderId: order.id } });
+
+  if (!hasDigital && videoCount === 0) return null;
 
   const existingTokens = await getOrderDownloadTokens(order.id);
   const existingDigital = existingTokens.find((t) => t.type === "CLIENT_DIGITAL");

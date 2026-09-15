@@ -6,6 +6,7 @@ import { isVideoMvpEnabled } from "@/lib/videos/video-feature-flag";
 import { loadCartVideos } from "@/lib/videos/create-video-order";
 import { quoteVideoCart } from "@/lib/videos/video-cart";
 import { formatVideoPriceArs } from "@/lib/videos/public-video-price";
+import { getR2PublicUrl } from "@/lib/r2-client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -69,12 +70,34 @@ export async function POST(
     const videos = await loadCartVideos(prisma, albumId, videoIds);
     const quote = quoteVideoCart(videos, feePercent);
 
+    // Las miniaturas, para que el cliente vea qué está comprando y no sólo un
+    // título. Es lo que las fotos ya hacen en esta misma pantalla.
+    const miniaturas = new Map<number, string | null>();
+    if (quote.items.length > 0) {
+      const filas = await prisma.videoAsset.findMany({
+        where: { id: { in: quote.items.map((i) => i.videoId) } },
+        select: { id: true, thumbnailKey: true, durationSeconds: true },
+      });
+      for (const f of filas) {
+        let url: string | null = null;
+        if (f.thumbnailKey?.trim()) {
+          try {
+            url = getR2PublicUrl(f.thumbnailKey);
+          } catch {
+            url = null;
+          }
+        }
+        miniaturas.set(f.id, url);
+      }
+    }
+
     return NextResponse.json({
       items: quote.items.map((i) => ({
         videoId: i.videoId,
         title: i.videoTitle,
         subtotalArs: i.subtotalArs,
         subtotalLabel: formatVideoPriceArs(i.subtotalArs),
+        thumbnailUrl: miniaturas.get(i.videoId) ?? null,
       })),
       rejected: quote.rejected,
       clientTotalArs: quote.clientTotalArs,
