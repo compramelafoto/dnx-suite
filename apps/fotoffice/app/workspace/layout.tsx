@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
 import { FotofficeLogo } from "@/components/fotoffice-logo";
 import { hasAppAccess, requireAuth } from "@/lib/auth";
-import { ensureFotofficeWorkspaceForUser } from "@/lib/ensure-workspace";
+import { requireOwnWorkspace } from "@/lib/entrada/require-own-workspace";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { resolveEnabledNavModules } from "@/lib/modules/nav";
 import { PORTAL_HOME } from "@/lib/portal/destination";
@@ -18,11 +18,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
   // institución propia —con rol de dueño— a quien solo es socio de otra.
   if ((await resolveFotofficeUserKind(user.id)) === "MEMBER") redirect(PORTAL_HOME);
 
-  const ensured = await ensureFotofficeWorkspaceForUser({
-    userId: user.id,
-    email: user.email,
-    name: user.name,
-  });
+  const ensured = await requireOwnWorkspace(user);
 
   const membership = await prisma.workspaceMembership.findUnique({
     where: {
