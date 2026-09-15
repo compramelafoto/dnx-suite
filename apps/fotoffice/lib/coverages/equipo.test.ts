@@ -6,6 +6,7 @@ import {
   planInvitacionDirecta,
   planResponderInvitacion,
   planSeleccionarPostulacion,
+  postulacionesQueSeCierran,
   puedeArmarseElEquipo,
 } from "./equipo";
 import type { EstadoDeRol } from "./cupos";
@@ -206,10 +207,21 @@ describe("efectosSobreLaBusqueda", () => {
     ).toEqual({ callStatus: "PUBLICADA", coverageStatus: "BUSCANDO_EQUIPO" });
   });
 
-  it("una invitación directa no saca a la cobertura de PLANIFICADA", () => {
-    // Entrar en búsqueda es lo que hace publicar la convocatoria, y la convocatoria solo se
-    // crea mientras la cobertura está planificada: moverla acá dejaría a la coordinación sin
-    // poder crearla.
+  it("una invitación directa saca a la cobertura de PLANIFICADA", () => {
+    // El modo DIRECTA no publica ninguna convocatoria, así que sin este camino de ida la
+    // cobertura se quedaba en PLANIFICADA aunque todo el mundo confirmara — y desde ahí no
+    // existe el salto a EQUIPO_CONFIRMADO.
+    expect(
+      efectosSobreLaBusqueda({
+        roles: [rol({ asignadasVivas: 1 }), rol()],
+        callStatus: null,
+        coverageStatus: "PLANIFICADA",
+      }),
+    ).toEqual({ callStatus: null, coverageStatus: "BUSCANDO_EQUIPO" });
+  });
+
+  it("una cobertura planificada sin nadie invitado no se mueve sola", () => {
+    // PLANIFICADA quiere decir "todavía no se movió nadie". Sin gente viva, nada cambió.
     expect(
       efectosSobreLaBusqueda({
         roles: [rol(), rol()],
@@ -217,6 +229,18 @@ describe("efectosSobreLaBusqueda", () => {
         coverageStatus: "PLANIFICADA",
       }),
     ).toEqual({ callStatus: null, coverageStatus: null });
+  });
+
+  it("desde PLANIFICADA se avanza de a un paso, nunca salteando a EQUIPO_CONFIRMADO", () => {
+    // Esa transición no existe: proponerla dejaría la cobertura trabada en PLANIFICADA. Se
+    // avanza a BUSCANDO_EQUIPO y el toque siguiente sobre el equipo la confirma.
+    expect(
+      efectosSobreLaBusqueda({
+        roles: [rol({ asignadasVivas: 1, asignadasAceptadas: 1 })],
+        callStatus: null,
+        coverageStatus: "PLANIFICADA",
+      }),
+    ).toEqual({ callStatus: null, coverageStatus: "BUSCANDO_EQUIPO" });
   });
 
   it("sin convocatoria, la cobertura igual se confirma cuando todos aceptaron", () => {
@@ -245,5 +269,65 @@ describe("efectosSobreLaBusqueda", () => {
         coverageStatus: "BUSCANDO_EQUIPO",
       }),
     ).toEqual({ callStatus: null, coverageStatus: "EQUIPO_CONFIRMADO" });
+  });
+});
+
+describe("postulacionesQueSeCierran", () => {
+  const anotadas = [
+    { id: "p1", status: "RECIBIDA" },
+    { id: "p2", status: "RECIBIDA" },
+    { id: "p3", status: "SELECCIONADA" },
+  ];
+
+  it("mientras el equipo no esté confirmado, no cierra nada", () => {
+    // La convocatoria puede estar COMPLETA y volver atrás si alguien rechaza: ahí esas
+    // postulaciones vuelven a servir. Cerrarlas antes sería tirar a la gente que todavía
+    // podríamos necesitar.
+    expect(postulacionesQueSeCierran({ equipoQuedoConfirmado: false, postulaciones: anotadas })).toEqual(
+      [],
+    );
+  });
+
+  it("con el equipo confirmado, cierra las que siguen esperando respuesta", () => {
+    expect(
+      postulacionesQueSeCierran({ equipoQuedoConfirmado: true, postulaciones: anotadas }),
+    ).toEqual(["p1", "p2"]);
+  });
+
+  it("no vuelve a tocar las que ya están resueltas", () => {
+    const resueltas = [
+      { id: "a", status: "SELECCIONADA" },
+      { id: "b", status: "NO_SELECCIONADA" },
+      { id: "c", status: "RETIRADA" },
+      { id: "d", status: "VENCIDA" },
+    ];
+    expect(
+      postulacionesQueSeCierran({ equipoQuedoConfirmado: true, postulaciones: resueltas }),
+    ).toEqual([]);
+  });
+
+  it("también alcanza a las que quedaron a mitad de una revisión", () => {
+    // Hoy ninguna pantalla las pone ahí, pero el día que exista la revisión formal no tienen
+    // que quedar colgadas.
+    const enRevision = [
+      { id: "a", status: "EN_REVISION" },
+      { id: "b", status: "PRESELECCIONADA" },
+    ];
+    expect(
+      postulacionesQueSeCierran({ equipoQuedoConfirmado: true, postulaciones: enRevision }),
+    ).toEqual(["a", "b"]);
+  });
+
+  it("un estado inventado no se toca: la máquina de estados decide, no esta función", () => {
+    expect(
+      postulacionesQueSeCierran({
+        equipoQuedoConfirmado: true,
+        postulaciones: [{ id: "x", status: "EN_VUELO" }],
+      }),
+    ).toEqual([]);
+  });
+
+  it("sin postulaciones, no hay nada que cerrar", () => {
+    expect(postulacionesQueSeCierran({ equipoQuedoConfirmado: true, postulaciones: [] })).toEqual([]);
   });
 });

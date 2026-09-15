@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import type { EstadoDeRol } from "@/lib/coverages/cupos";
-import { puedePublicarse } from "@/lib/coverages/convocatoria";
+import { puedeCrearseConvocatoria, puedePublicarse } from "@/lib/coverages/convocatoria";
 import {
   crearConvocatoriaAction,
   editarConvocatoriaAction,
@@ -65,14 +65,16 @@ export function ConvocatoriaPanel({
   const [publicarState, publicar, publicando] = useActionState(publicarConvocatoriaAction, inicial);
 
   if (!call) {
-    if (coverageStatus !== "PLANIFICADA") {
+    // La misma regla que aplica el servidor, no una lista de estados repetida acá: desde que una
+    // invitación directa mueve la cobertura a BUSCANDO_EQUIPO, comparar contra "PLANIFICADA" a
+    // mano escondía el formulario en un caso donde la acción sí lo habría aceptado.
+    const creable = puedeCrearseConvocatoria({ coverageStatus, yaExiste: false });
+
+    if (!creable.ok) {
       return (
         <section className="fo-card space-y-2 p-5">
           <h2 className="text-base font-semibold">Convocatoria</h2>
-          <p className="text-sm text-[var(--fo-muted)]">
-            Esta cobertura no tiene convocatoria y ya no admite crear una: solo se puede mientras
-            está planificada.
-          </p>
+          <p className="text-sm text-[var(--fo-muted)]">{creable.error}</p>
         </section>
       );
     }

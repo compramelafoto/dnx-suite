@@ -136,8 +136,13 @@ export async function editarConvocatoriaAction(
 }
 
 /**
- * Publicar la convocatoria: pasa a `PUBLICADA` y la cobertura a `BUSCANDO_EQUIPO`, en la misma
- * transacción, con un evento de historial para cada una (ver el plan, Tarea 5).
+ * Publicar la convocatoria: pasa a `PUBLICADA` y —si todavía no estaba buscando equipo— la
+ * cobertura a `BUSCANDO_EQUIPO`, en la misma transacción, con un evento de historial para cada
+ * una (ver el plan, Tarea 5).
+ *
+ * El "si todavía no estaba" no es una precaución teórica: una invitación directa mueve sola la
+ * cobertura a `BUSCANDO_EQUIPO`, así que se puede llegar acá con la cobertura ya en ese estado
+ * y no hay nada que mover. Lo decide `planPublicarConvocatoria`, no un `if` escrito acá.
  */
 export async function publicarConvocatoriaAction(
   _prev: ConvocatoriaState | undefined,
@@ -181,10 +186,6 @@ export async function publicarConvocatoriaAction(
       where: { id: call.id },
       data: { status: "PUBLICADA", publishedAt: new Date() },
     });
-    await tx.coverage.update({
-      where: { id: call.coverageId },
-      data: { status: "BUSCANDO_EQUIPO" },
-    });
     await recordEvent(tx, {
       workspaceId: workspace.id,
       entityType: "CALL",
@@ -195,16 +196,22 @@ export async function publicarConvocatoriaAction(
       actorUserId: user.id,
       actorLabel: user.name ?? user.email,
     });
-    await recordEvent(tx, {
-      workspaceId: workspace.id,
-      entityType: "COVERAGE",
-      entityId: call.coverageId,
-      type: "ESTADO_CAMBIADO",
-      fromStatus: call.coverage.status,
-      toStatus: "BUSCANDO_EQUIPO",
-      actorUserId: user.id,
-      actorLabel: user.name ?? user.email,
-    });
+    if (plan.moverCobertura) {
+      await tx.coverage.update({
+        where: { id: call.coverageId },
+        data: { status: "BUSCANDO_EQUIPO" },
+      });
+      await recordEvent(tx, {
+        workspaceId: workspace.id,
+        entityType: "COVERAGE",
+        entityId: call.coverageId,
+        type: "ESTADO_CAMBIADO",
+        fromStatus: call.coverage.status,
+        toStatus: "BUSCANDO_EQUIPO",
+        actorUserId: user.id,
+        actorLabel: user.name ?? user.email,
+      });
+    }
   });
 
   revalidatePath(`/coberturas/c/${call.coverageId}`);

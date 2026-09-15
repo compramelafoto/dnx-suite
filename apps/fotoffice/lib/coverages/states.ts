@@ -213,6 +213,29 @@ export function applicationStatusLabel(status: string): string {
   return isApplicationStatus(status) ? APPLICATION_STATUS_LABELS[status] : status;
 }
 
+/**
+ * Cómo lee el voluntario el estado de SU propia postulación, cuando la palabra del panel no
+ * sirve para hablarle a él.
+ *
+ * `APPLICATION_STATUS_LABELS` está escrito para quien coordina, que necesita una etiqueta corta
+ * en una lista de veinte. "No seleccionada" ahí está bien. Puesto en la pantalla de la persona
+ * que se ofreció un sábado, en cambio, suena a un veredicto sobre ella — y en un voluntariado
+ * eso es exactamente lo que no queremos decir: no la evaluamos, el equipo ya se completó.
+ *
+ * Solo los estados donde las dos lecturas difieren. El resto cae en la etiqueta común, y por eso
+ * este mapa es parcial en vez de una copia entera que habría que mantener al lado de la otra.
+ */
+export const APPLICATION_STATUS_PORTAL_LABELS: Partial<Record<ApplicationStatus, string>> = {
+  NO_SELECCIONADA: "Esta vez no hizo falta. Gracias por anotarte.",
+};
+
+export function applicationStatusPortalLabel(status: string): string {
+  if (isApplicationStatus(status)) {
+    return APPLICATION_STATUS_PORTAL_LABELS[status] ?? APPLICATION_STATUS_LABELS[status];
+  }
+  return status;
+}
+
 /** Estados en los que la postulación todavía espera una decisión y se puede retirar. */
 export const APPLICATION_LIVE_STATUSES: readonly ApplicationStatus[] = [
   "RECIBIDA",

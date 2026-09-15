@@ -53,14 +53,24 @@ describe("puedeCrearseConvocatoria", () => {
     if (!r.ok) expect(r.error).toContain("ya tiene");
   });
 
-  it("solo se crea mientras la cobertura está planificada", () => {
-    const r = puedeCrearseConvocatoria({ coverageStatus: "BUSCANDO_EQUIPO", yaExiste: false });
-    expect(r.ok).toBe(false);
-  });
-
   it("camino feliz: planificada y sin convocatoria previa", () => {
     const r = puedeCrearseConvocatoria({ coverageStatus: "PLANIFICADA", yaExiste: false });
     expect(r).toEqual({ ok: true });
+  });
+
+  it("una cobertura que ya está buscando equipo también admite crearla", () => {
+    // El caso mixto: se invitó a alguien a dedo —y eso movió la cobertura a BUSCANDO_EQUIPO— y
+    // ahora hace falta publicar para conseguir a quien falta. Exigir PLANIFICADA dejaba esa
+    // cobertura sin poder publicar nunca.
+    const r = puedeCrearseConvocatoria({ coverageStatus: "BUSCANDO_EQUIPO", yaExiste: false });
+    expect(r).toEqual({ ok: true });
+  });
+
+  it("con el equipo ya confirmado, o terminada, no se crea ninguna", () => {
+    for (const estado of ["EQUIPO_CONFIRMADO", "REALIZADA", "ENTREGADA", "CERRADA", "CANCELADA"]) {
+      const r = puedeCrearseConvocatoria({ coverageStatus: estado, yaExiste: false });
+      expect(r.ok).toBe(false);
+    }
   });
 });
 
@@ -139,6 +149,18 @@ describe("planPublicarConvocatoria", () => {
 
   it("camino feliz: borrador de este workspace, con título y un rol con lugar, cobertura planificada", () => {
     const r = planPublicarConvocatoria({ call, coverage, roles: [rolConLugar], workspaceId: "ws-a" });
-    expect(r).toEqual({ ok: true });
+    expect(r).toEqual({ ok: true, moverCobertura: true });
+  });
+
+  it("si la cobertura ya está buscando equipo, se publica igual y no se la vuelve a mover", () => {
+    // Pasa cuando se invitó a alguien a dedo antes de publicar. Escribir otra vez el mismo
+    // estado dejaría en el historial un «buscando equipo → buscando equipo» que no ocurrió.
+    const r = planPublicarConvocatoria({
+      call,
+      coverage: { status: "BUSCANDO_EQUIPO" },
+      roles: [rolConLugar],
+      workspaceId: "ws-a",
+    });
+    expect(r).toEqual({ ok: true, moverCobertura: false });
   });
 });

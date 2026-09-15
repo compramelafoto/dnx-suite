@@ -12,7 +12,10 @@ import {
 } from "@/lib/coverages/repository";
 import { perfilHabilitado } from "@/lib/coverages/colaboradores";
 import { lugaresLibres, type EstadoDeRol } from "@/lib/coverages/cupos";
-import { ASSIGNMENT_LIVE_STATUSES, applicationStatusLabel } from "@/lib/coverages/states";
+import {
+  ASSIGNMENT_LIVE_STATUSES,
+  applicationStatusPortalLabel,
+} from "@/lib/coverages/states";
 import { fechaArgentina, fechaHoraArgentina } from "@/lib/coverages/format";
 
 export const dynamic = "force-dynamic";
@@ -150,7 +153,8 @@ export default async function PortalCoberturasPage() {
                   {fechaArgentina(p.call.coverage.startsAt)}
                   {p.call.coverage.city ? ` · ${p.call.coverage.city}` : ""}
                 </p>
-                <p className="text-sm">{applicationStatusLabel(p.status)}</p>
+                {/* La etiqueta del portal, no la del panel: acá le hablamos a quien se anotó. */}
+                <p className="text-sm">{applicationStatusPortalLabel(p.status)}</p>
               </li>
             ))}
           </ul>

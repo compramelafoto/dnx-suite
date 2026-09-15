@@ -216,20 +216,71 @@ export function efectosSobreLaBusqueda(input: {
     }
   }
 
-  // `BUSCANDO_EQUIPO` acá es solo el camino de VUELTA desde `EQUIPO_CONFIRMADO`, nunca el de
-  // ida: una cobertura `PLANIFICADA` entra en búsqueda cuando se publica su convocatoria (ver
-  // `planPublicarConvocatoria`), no porque se haya invitado a alguien directo. Sin esta
-  // distinción, una invitación directa sacaría a la cobertura de `PLANIFICADA` y dejaría a la
-  // coordinación sin poder crearle la convocatoria, que solo se crea en ese estado.
-  const destinoCobertura = confirmado
-    ? "EQUIPO_CONFIRMADO"
-    : input.coverageStatus === "EQUIPO_CONFIRMADO"
-      ? "BUSCANDO_EQUIPO"
-      : null;
+  /**
+   * El camino de IDA a `BUSCANDO_EQUIPO`, que antes no existía.
+   *
+   * Hasta acá, una cobertura solo salía de `PLANIFICADA` al publicar su convocatoria. Un
+   * workspace que arma el equipo únicamente a dedo —el modo de asignación `DIRECTA`— no publica
+   * ninguna, así que su cobertura se quedaba en `PLANIFICADA` aunque todo el mundo confirmara,
+   * y nunca podía llegar a `EQUIPO_CONFIRMADO` (esa transición sale de `BUSCANDO_EQUIPO`).
+   *
+   * Ahora invitar a alguien alcanza para entrar en búsqueda, y cada estado conserva un solo
+   * significado: `PLANIFICADA` = todavía no se movió nadie; `BUSCANDO_EQUIPO` = falta gente, sea
+   * por convocatoria o a dedo. El precio es que la convocatoria ya no se puede crear solo desde
+   * `PLANIFICADA`: `puedeCrearseConvocatoria` acepta también `BUSCANDO_EQUIPO` (ver
+   * `convocatoria.ts`), así que invitar a alguien primero no deja a la coordinación sin poder
+   * publicar después.
+   *
+   * La ida se mira ANTES que la confirmación a propósito: desde `PLANIFICADA` no existe el salto
+   * directo a `EQUIPO_CONFIRMADO`, así que proponerlo devolvería `null` y la cobertura quedaría
+   * trabada. Avanzando un paso, el toque siguiente sobre el equipo la confirma.
+   */
+  const hayGenteViva = input.roles.some((r) => r.asignadasVivas > 0);
+
+  let destinoCobertura: string | null = null;
+  if (input.coverageStatus === "PLANIFICADA") {
+    destinoCobertura = hayGenteViva ? "BUSCANDO_EQUIPO" : null;
+  } else if (confirmado) {
+    destinoCobertura = "EQUIPO_CONFIRMADO";
+  } else if (input.coverageStatus === "EQUIPO_CONFIRMADO") {
+    // La vuelta: alguien ya asignado rechazó y el rol volvió a tener lugar libre.
+    destinoCobertura = "BUSCANDO_EQUIPO";
+  }
   const coverageStatus =
     destinoCobertura !== null && canTransitionCoverage(input.coverageStatus, destinoCobertura)
       ? destinoCobertura
       : null;
 
   return { callStatus, coverageStatus };
+}
+
+/**
+ * Las postulaciones que hay que cerrar cuando el equipo ya quedó armado.
+ *
+ * Hasta acá, quien se anotaba y no era elegida se quedaba en `RECIBIDA` para siempre: la
+ * coordinación elegía a otra persona y nadie volvía a tocar su postulación, así que el portal
+ * le seguía diciendo "te anotaste" meses después de la actividad. Dejar a alguien esperando una
+ * respuesta que nunca va a llegar es peor que decirle que esta vez no hizo falta.
+ *
+ * Se cierra **cuando la cobertura llega a `EQUIPO_CONFIRMADO`**, no cuando la convocatoria se
+ * pone `COMPLETA`: `COMPLETA` es "dejamos de buscar" y todavía puede volver atrás si alguien
+ * rechaza —y ahí esas postulaciones vuelven a servir—. `EQUIPO_CONFIRMADO` es "el equipo
+ * existe", y recién ahí la espera dejó de tener sentido.
+ *
+ * **Sin correo.** Nadie recibe un "no fuiste elegida": en un voluntariado, un aviso así hace más
+ * daño que el silencio. El estado se ve en el portal, con las palabras del portal.
+ *
+ * Decide con `canTransitionApplication` en vez de comparar contra `"RECIBIDA"` a mano: así
+ * también alcanza a las que quedaron `EN_REVISION` o `PRESELECCIONADA` —hoy ninguna pantalla las
+ * pone ahí, pero el día que exista esa revisión formal no van a quedar colgadas— y es imposible
+ * que esta función proponga una transición que la máquina de estados no admite.
+ */
+export function postulacionesQueSeCierran(input: {
+  equipoQuedoConfirmado: boolean;
+  postulaciones: readonly { id: string; status: string }[];
+}): string[] {
+  if (!input.equipoQuedoConfirmado) return [];
+  return input.postulaciones
+    .filter((p) => canTransitionApplication(p.status, "NO_SELECCIONADA"))
+    .map((p) => p.id);
 }

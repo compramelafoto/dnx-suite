@@ -33,13 +33,26 @@ export function puedePublicarse(
 }
 
 /**
+ * Los dos estados en los que todavía tiene sentido salir a buscar gente.
+ *
+ * `PLANIFICADA` es "todavía no se movió nadie"; `BUSCANDO_EQUIPO`, "falta gente". Las dos
+ * admiten una convocatoria. Más adelante —realizada, entregada, cerrada, cancelada, o con el
+ * equipo ya confirmado— publicar una sería llamar a gente para un lugar que no existe.
+ */
+const ESTADOS_QUE_ADMITEN_CONVOCATORIA = ["PLANIFICADA", "BUSCANDO_EQUIPO"];
+
+/**
  * Si corresponde crear la convocatoria de esta cobertura.
  *
  * `CoverageCall` es 1:1 con `Coverage` (columna `@unique` en el modelo): una cobertura tiene a
  * lo sumo una convocatoria en toda su vida, así que "ya existe" no se resuelve reintentando ni
- * sobrescribiendo, se avisa. Y se crea mientras la cobertura sigue `PLANIFICADA`: publicar es lo
- * que la mueve a `BUSCANDO_EQUIPO` (ver `planPublicarConvocatoria`), así que crear el borrador
- * en cualquier otro estado adelantaría un paso que todavía no pasó.
+ * sobrescribiendo, se avisa.
+ *
+ * Acepta `BUSCANDO_EQUIPO` además de `PLANIFICADA`, y no es un detalle: desde que una invitación
+ * directa mueve la cobertura a `BUSCANDO_EQUIPO` (ver `efectosSobreLaBusqueda` en `equipo.ts`),
+ * exigir `PLANIFICADA` dejaría sin convocatoria a toda cobertura donde se haya invitado a
+ * alguien a dedo primero — que es justo el caso mixto que esto tiene que permitir: invito a la
+ * fotógrafa que sé que puede, y publico para conseguir la segunda.
  */
 export function puedeCrearseConvocatoria(input: {
   coverageStatus: string;
@@ -48,10 +61,10 @@ export function puedeCrearseConvocatoria(input: {
   if (input.yaExiste) {
     return { ok: false, error: "Esta cobertura ya tiene una convocatoria." };
   }
-  if (input.coverageStatus !== "PLANIFICADA") {
+  if (!ESTADOS_QUE_ADMITEN_CONVOCATORIA.includes(input.coverageStatus)) {
     return {
       ok: false,
-      error: "Solo se puede crear la convocatoria mientras la cobertura está planificada.",
+      error: "Esta cobertura ya no admite una convocatoria: solo se crea mientras falta gente.",
     };
   }
   return { ok: true };
@@ -62,15 +75,29 @@ export function puedeEditarseConvocatoria(status: string): boolean {
   return status === "BORRADOR";
 }
 
-export type PlanPublicarConvocatoria = { ok: true } | { ok: false; error: string };
+export type PlanPublicarConvocatoria =
+  /**
+   * `moverCobertura` dice si además hay que pasar la cobertura a `BUSCANDO_EQUIPO`.
+   *
+   * No siempre hace falta: desde que una invitación directa la mueve sola, la cobertura puede
+   * llegar a la publicación ya en `BUSCANDO_EQUIPO`, y ahí escribir el mismo estado otra vez
+   * duplicaría el evento del historial —«cambio de estado: buscando equipo → buscando
+   * equipo»— sobre un cambio que no ocurrió.
+   */
+  | { ok: true; moverCobertura: boolean }
+  | { ok: false; error: string };
 
 /**
  * Los tres controles antes de publicar, en el orden que importa: primero que la convocatoria
  * sea de este workspace, después que la transición de estado exista, y recién ahí el contenido
- * (título y vacantes). Al publicar, la cobertura pasa a `BUSCANDO_EQUIPO` en la misma
- * transacción — por eso esta función también valida esa transición: publicar una convocatoria
- * sobre una cobertura que ya no puede pasar a `BUSCANDO_EQUIPO` (por ejemplo, cancelada) no
- * tiene que dejar a las dos entidades contando historias distintas.
+ * (título y vacantes).
+ *
+ * La cobertura pasa a `BUSCANDO_EQUIPO` en la misma transacción **si todavía no estaba ahí**, y
+ * por eso esta función valida esa transición: publicar sobre una cobertura que ya no puede
+ * entrar en búsqueda (por ejemplo, cancelada) no tiene que dejar a las dos entidades contando
+ * historias distintas. Una que YA está buscando equipo pasa igual —no hay nada que mover— y por
+ * eso el estado propio no se revalida contra la tabla de transiciones, que con razón rechaza
+ * quedarse donde uno está.
  */
 export function planPublicarConvocatoria(input: {
   call: { workspaceId: string; status: string; title: string | null } | null;
@@ -91,11 +118,13 @@ export function planPublicarConvocatoria(input: {
   const publicable = puedePublicarse(input.call, input.roles);
   if (!publicable.ok) return publicable;
 
+  if (input.coverage.status === "BUSCANDO_EQUIPO") return { ok: true, moverCobertura: false };
+
   const transicionCobertura = assertCoverageTransition({
     from: input.coverage.status,
     to: "BUSCANDO_EQUIPO",
   });
   if (!transicionCobertura.ok) return transicionCobertura;
 
-  return { ok: true };
+  return { ok: true, moverCobertura: true };
 }

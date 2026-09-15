@@ -1,9 +1,9 @@
 import "server-only";
 import type { Prisma } from "@repo/db";
 import type { EstadoDeRol } from "./cupos";
-import { efectosSobreLaBusqueda } from "./equipo";
+import { efectosSobreLaBusqueda, postulacionesQueSeCierran, type EfectosSobreLaBusqueda } from "./equipo";
 import { recordEvent } from "./events";
-import { ASSIGNMENT_LIVE_STATUSES } from "./states";
+import { APPLICATION_LIVE_STATUSES, ASSIGNMENT_LIVE_STATUSES } from "./states";
 
 /**
  * Lo que le pasa a la convocatoria y a la cobertura cada vez que se toca el equipo.
@@ -17,6 +17,10 @@ import { ASSIGNMENT_LIVE_STATUSES } from "./states";
  * decisión de estado y la escritura que la provoca tienen que confirmarse juntas o no
  * confirmarse. Por eso vuelve a leer los roles desde la base en vez de recibirlos — adentro de
  * la transacción, esa lectura ya ve la asignación recién escrita.
+ *
+ * Devuelve lo que efectivamente cambió, para que quien llama sepa si ESTA acción fue la que
+ * completó el equipo: de eso depende el correo a la organización solicitante, que sale después
+ * de que la transacción cerró y una sola vez.
  */
 export async function aplicarEfectosSobreLaBusqueda(
   tx: Prisma.TransactionClient,
@@ -26,7 +30,7 @@ export async function aplicarEfectosSobreLaBusqueda(
     actorUserId: number | null;
     actorLabel: string | null;
   },
-): Promise<void> {
+): Promise<EfectosSobreLaBusqueda> {
   const cobertura = await tx.coverage.findFirst({
     where: { id: input.coverageId, workspaceId: input.workspaceId },
     select: {
@@ -36,7 +40,7 @@ export async function aplicarEfectosSobreLaBusqueda(
       call: { select: { id: true, status: true } },
     },
   });
-  if (!cobertura) return;
+  if (!cobertura) return { callStatus: null, coverageStatus: null };
 
   const roles: EstadoDeRol[] = cobertura.roles.map((r) => ({
     vacancies: r.vacancies,
@@ -83,6 +87,80 @@ export async function aplicarEfectosSobreLaBusqueda(
       type: "ESTADO_CAMBIADO",
       fromStatus: cobertura.status,
       toStatus: efectos.coverageStatus,
+      actorUserId: input.actorUserId,
+      actorLabel: input.actorLabel,
+    });
+  }
+
+  await cerrarPostulacionesSinRespuesta(tx, {
+    workspaceId: input.workspaceId,
+    coverageId: cobertura.id,
+    equipoQuedoConfirmado: efectos.coverageStatus === "EQUIPO_CONFIRMADO",
+    actorUserId: input.actorUserId,
+    actorLabel: input.actorLabel,
+  });
+
+  return efectos;
+}
+
+/**
+ * Las postulaciones que nadie contestó, cerradas cuando el equipo ya quedó armado.
+ *
+ * En la MISMA transacción que confirma el equipo: si el equipo queda confirmado y estas
+ * postulaciones siguieran abiertas, el portal le diría "te anotaste" a alguien cuya espera ya
+ * terminó. Son la misma verdad contada en dos tablas, así que se escriben juntas o no se
+ * escribe ninguna.
+ *
+ * **Sin correo**: nadie recibe un "no fuiste elegida" (ver `postulacionesQueSeCierran`).
+ *
+ * `actorUserId` es quien haya provocado el cambio —casi siempre la persona que confirmó su
+ * asignación desde el portal, no la coordinación—, y por eso el evento va sin nota: el
+ * historial registra que el sistema las cerró al completarse el equipo, no que alguien las
+ * rechazó una por una.
+ */
+async function cerrarPostulacionesSinRespuesta(
+  tx: Prisma.TransactionClient,
+  input: {
+    workspaceId: string;
+    coverageId: string;
+    equipoQuedoConfirmado: boolean;
+    actorUserId: number | null;
+    actorLabel: string | null;
+  },
+): Promise<void> {
+  if (!input.equipoQuedoConfirmado) return;
+
+  // El filtro va por la convocatoria, que es quien lleva el `workspaceId` en `CoverageApplication`
+  // (el modelo no tiene la columna directa), y además por la cobertura: una convocatoria es 1:1
+  // con su cobertura, así que esto son exactamente las postulaciones de ESTA cobertura.
+  const abiertas = await tx.coverageApplication.findMany({
+    where: {
+      status: { in: [...APPLICATION_LIVE_STATUSES] },
+      call: { coverageId: input.coverageId, workspaceId: input.workspaceId },
+    },
+    select: { id: true, status: true },
+  });
+
+  const aCerrar = postulacionesQueSeCierran({
+    equipoQuedoConfirmado: input.equipoQuedoConfirmado,
+    postulaciones: abiertas,
+  });
+  if (aCerrar.length === 0) return;
+
+  await tx.coverageApplication.updateMany({
+    where: { id: { in: aCerrar } },
+    data: { status: "NO_SELECCIONADA" },
+  });
+
+  for (const postulacion of abiertas) {
+    if (!aCerrar.includes(postulacion.id)) continue;
+    await recordEvent(tx, {
+      workspaceId: input.workspaceId,
+      entityType: "APPLICATION",
+      entityId: postulacion.id,
+      type: "ESTADO_CAMBIADO",
+      fromStatus: postulacion.status,
+      toStatus: "NO_SELECCIONADA",
       actorUserId: input.actorUserId,
       actorLabel: input.actorLabel,
     });
