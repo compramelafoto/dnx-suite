@@ -96,6 +96,13 @@ const nextConfig: NextConfig = {
            */
           "../../node_modules/.pnpm/pdfjs-dist@*/node_modules/pdfjs-dist/legacy/build/*.mjs",
           "../../node_modules/.pnpm/pdfjs-dist@*/node_modules/pdfjs-dist/package.json",
+          /*
+           * `pdfjs` carga el canvas con `createRequire(import.meta.url)`, o sea que lo busca
+           * **desde su propia carpeta**. Con pnpm eso se resuelve por el enlace que vive al
+           * lado suyo, y hay que copiarlo aparte: sin él el módulo está en el servidor pero
+           * pdfjs no lo encuentra ("Cannot find module '@napi-rs/canvas'").
+           */
+          "../../node_modules/.pnpm/pdfjs-dist@*/node_modules/@napi-rs/**",
         ],
       ])
     ),
