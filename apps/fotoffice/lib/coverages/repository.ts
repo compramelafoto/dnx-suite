@@ -431,14 +431,7 @@ export async function listMyPendingAssignments(input: { workspaceId: string; mem
       id: true,
       createdAt: true,
       role: { select: { name: true } },
-      coverage: {
-        select: {
-          title: true,
-          startsAt: true,
-          city: true,
-          call: { select: { id: true } },
-        },
-      },
+      coverage: { select: { title: true, startsAt: true, city: true } },
     },
     orderBy: { createdAt: "asc" },
   });

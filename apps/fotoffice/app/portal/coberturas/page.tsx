@@ -26,9 +26,8 @@ export const dynamic = "force-dynamic";
  * 2. Convocatorias abiertas.
  * 3. Tus postulaciones.
  *
- * Responder una invitación y elegir el equipo son las tandas siguientes (ver el plan): acá las
- * invitaciones se listan, pero el enlace lleva al detalle de la convocatoria, no a una pantalla
- * de responder que todavía no existe.
+ * El enlace de cada invitación lleva a `/portal/coberturas/asignacion/[id]`, que es donde se
+ * contesta y donde —solo ahí— se muestra el `privateBriefing` de la convocatoria.
  */
 export default async function PortalCoberturasPage() {
   const user = await requireAuth();
@@ -80,15 +79,13 @@ export default async function PortalCoberturasPage() {
                   {fechaHoraArgentina(a.coverage.startsAt)}
                   {a.coverage.city ? ` · ${a.coverage.city}` : ""}
                 </p>
-                <p className="text-sm">Te invitaron a este rol y esperamos tu respuesta.</p>
-                {a.coverage.call ? (
-                  <Link
-                    href={`/portal/coberturas/${a.coverage.call.id}`}
-                    className="fo-btn fo-btn-secondary min-h-11 text-sm"
-                  >
-                    Ver la convocatoria
-                  </Link>
-                ) : null}
+                <p className="text-sm">Te invitamos a participar y esperamos tu respuesta.</p>
+                <Link
+                  href={`/portal/coberturas/asignacion/${a.id}`}
+                  className="fo-btn fo-btn-primary min-h-11 text-sm"
+                >
+                  Ver y responder
+                </Link>
               </li>
             ))}
           </ul>
