@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@repo/db";
+import { prisma, Prisma } from "@repo/db";
 import { appUrl } from "@/lib/app-url";
 import { requireAuth } from "@/lib/auth";
 import { COVERAGE_EMAIL_KEYS } from "@/lib/communications/constants";
@@ -34,7 +34,10 @@ import {
   type AvisoDeEquipoCompleto,
 } from "@/lib/coverages/equipo-server";
 import { ASSIGNMENT_LIVE_STATUSES } from "@/lib/coverages/states";
-import { assertAssignmentTransition } from "@/lib/coverages/transitions";
+import {
+  assertApplicationTransition,
+  assertAssignmentTransition,
+} from "@/lib/coverages/transitions";
 import { recordEvent } from "@/lib/coverages/events";
 
 export type PostularseState = { error: string | null; ok: string | null };
@@ -139,12 +142,24 @@ export async function postularseAction(
         actorLabel: nombre,
       });
     });
-  } catch {
-    // La carrera que el comentario de arriba anticipa, de verdad: entre que se pintó la
-    // pantalla y que se apretó el botón, esta misma persona ya quedó anotada desde otra
-    // pestaña. El índice único de `CoverageApplication` (roleId, memberId) es quien la frena
-    // de verdad; acá solo se traduce ese choque a un aviso que se entiende.
-    return { error: "Ya te anotaste.", ok: null };
+  } catch (error) {
+    // **Solo el choque del índice único significa "ya te anotaste".** Atrapar cualquier error y
+    // decir siempre lo mismo hacía que, con la base caída un segundo, Juan leyera «Ya te
+    // anotaste.» y se quedara tranquilo mientras su postulación no existía y nadie lo iba a
+    // llamar. Un mensaje amable que afirma algo falso es peor que un error.
+    //
+    // P2002 sí es la carrera que el comentario de arriba anticipa: entre que se pintó la pantalla
+    // y que se apretó el botón, esta misma persona ya quedó anotada desde otra pestaña. El índice
+    // único de `CoverageApplication` (roleId, memberId) es quien la frena de verdad.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return { error: "Ya te anotaste.", ok: null };
+    }
+    console.error("[fotoffice][coberturas] no se pudo guardar la postulación", {
+      callId: call.id,
+      roleId: rol.id,
+      detalle: error instanceof Error ? error.message : "error desconocido",
+    });
+    return { error: "No pudimos guardar tu respuesta. Probá de nuevo.", ok: null };
   }
 
   revalidatePath("/portal/coberturas");
@@ -213,6 +228,10 @@ export async function responderInvitacionAction(
       id: true,
       status: true,
       coverageId: true,
+      // `origin` y `roleId` son para poder cerrar la postulación de la que salió esta invitación
+      // cuando la persona avisa que no puede (ver `retirarPostulacionDeLaInvitacion`).
+      origin: true,
+      roleId: true,
       role: { select: { name: true } },
       coverage: { select: { title: true, startsAt: true } },
     },
@@ -282,6 +301,17 @@ export async function responderInvitacionAction(
         actorLabel: nombre,
       });
 
+      if (!confirma) {
+        await retirarPostulacionDeLaInvitacion(tx, {
+          workspaceId: context.workspace.id,
+          origin: asignacion.origin,
+          roleId: asignacion.roleId,
+          memberId: context.member.id,
+          actorUserId: user.id,
+          actorLabel: nombre,
+        });
+      }
+
       const efectos = await aplicarEfectosSobreLaBusqueda(tx, {
         workspaceId: context.workspace.id,
         coverageId: asignacion.coverageId,
@@ -334,6 +364,70 @@ export async function responderInvitacionAction(
       : "Gracias por avisarnos. Dejamos tu lugar libre para otra persona.",
     aviso: null,
   };
+}
+
+/**
+ * Cuando alguien avisa que no puede, su postulación se retira.
+ *
+ * Sin esto, la asignación quedaba `RECHAZADA` —el lugar se liberaba bien— pero la postulación se
+ * quedaba en `SELECCIONADA` para siempre: en «Tus postulaciones» la persona leía "Seleccionada",
+ * que es exactamente lo contrario de lo que acababa de hacer. Tampoco la alcanzaba el cierre
+ * automático del final (`postulacionesQueSeCierran` solo toca los estados vivos, y `SELECCIONADA`
+ * no lo es), así que ese renglón no se arreglaba nunca.
+ *
+ * `RETIRADA` y no `NO_SELECCIONADA` porque son dos hechos distintos: una es "el equipo se
+ * completó sin vos", la otra es "no puedo". Decirle a alguien que no fue elegida cuando fue ella
+ * la que avisó es contarle mal su propia historia.
+ *
+ * **En la misma transacción que la respuesta**: las dos filas cuentan el mismo hecho, y si una se
+ * escribe sin la otra el portal vuelve a mentir.
+ *
+ * Solo cuando la invitación salió de una postulación. A quien se invitó directo no hay ninguna
+ * postulación que cerrar, y buscarla igual sería buscar algo que no existe.
+ */
+async function retirarPostulacionDeLaInvitacion(
+  tx: Prisma.TransactionClient,
+  input: {
+    workspaceId: string;
+    origin: string;
+    roleId: string;
+    memberId: string;
+    actorUserId: number | null;
+    actorLabel: string | null;
+  },
+): Promise<void> {
+  if (input.origin !== "POSTULACION") return;
+
+  // El aislamiento va por la convocatoria, que es quien lleva el `workspaceId`:
+  // `CoverageApplication` no tiene esa columna.
+  const postulacion = await tx.coverageApplication.findFirst({
+    where: {
+      roleId: input.roleId,
+      memberId: input.memberId,
+      call: { workspaceId: input.workspaceId },
+    },
+    select: { id: true, status: true },
+  });
+  if (!postulacion) return;
+
+  // La máquina de estados decide, no un `if` escrito acá. Y si ya estaba retirada —o cerrada por
+  // otro camino—, no hay nada que hacer: esto no pisa una resolución anterior.
+  if (!assertApplicationTransition({ from: postulacion.status, to: "RETIRADA" }).ok) return;
+
+  await tx.coverageApplication.update({
+    where: { id: postulacion.id },
+    data: { status: "RETIRADA" },
+  });
+  await recordEvent(tx, {
+    workspaceId: input.workspaceId,
+    entityType: "APPLICATION",
+    entityId: postulacion.id,
+    type: "ESTADO_CAMBIADO",
+    fromStatus: postulacion.status,
+    toStatus: "RETIRADA",
+    actorUserId: input.actorUserId,
+    actorLabel: input.actorLabel,
+  });
 }
 
 /**

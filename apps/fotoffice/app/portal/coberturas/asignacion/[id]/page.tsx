@@ -5,7 +5,7 @@ import { loadPortalContext } from "@/lib/portal/access";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { loadMyAssignment } from "@/lib/coverages/repository";
-import { assignmentStatusLabel } from "@/lib/coverages/states";
+import { ASSIGNMENT_LIVE_STATUSES, assignmentStatusLabel } from "@/lib/coverages/states";
 import { fechaHoraArgentina, horaArgentina } from "@/lib/coverages/format";
 import { ResponderForm } from "./responder-form";
 
@@ -50,6 +50,19 @@ export default async function PortalInvitacionPage({
   const { coverage, role } = asignacion;
   const yaRespondio = asignacion.status !== "INVITADA";
 
+  /**
+   * Si esta persona sigue siendo parte del equipo.
+   *
+   * De esto depende el bloque reservado del día. Quien dijo «esta vez no puedo» —o a quien la
+   * coordinación canceló o reemplazó— ya no está en el equipo, y el teléfono de emergencia y el
+   * contacto del lugar son datos de terceros que el propio módulo define como "lo ve solamente
+   * quien está en el equipo". El enlace le sigue llegando por WhatsApp y lo puede abrir dos
+   * semanas después: la pantalla tiene que dejar de mostrárselos.
+   */
+  const sigueEnElEquipo = (ASSIGNMENT_LIVE_STATUSES as readonly string[]).includes(
+    asignacion.status,
+  );
+
   return (
     <div className="space-y-6">
       <Volver />
@@ -80,7 +93,7 @@ export default async function PortalInvitacionPage({
         ) : null}
       </section>
 
-      {coverage.call?.privateBriefing ? (
+      {sigueEnElEquipo && coverage.call?.privateBriefing ? (
         <section className="fo-card space-y-2 p-5">
           <h2 className="text-base font-semibold">Para el día de la actividad</h2>
           <p className="whitespace-pre-line text-sm leading-relaxed">

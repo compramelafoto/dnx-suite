@@ -199,13 +199,20 @@ export function assertCallTransition(input: {
  * Ninguna transición de postulación exige motivo: rechazar a alguien de un voluntariado
  * ("en esta oportunidad el equipo ya está completo") no es un reproche que haya que justificar
  * por escrito, y retirarse es una decisión de la propia persona.
+ *
+ * `SELECCIONADA → RETIRADA` es la única salida de `SELECCIONADA`, y existe por un caso concreto:
+ * a quien fue seleccionada le nace una asignación `INVITADA`, y si contesta «esta vez no puedo»
+ * su asignación queda `RECHAZADA` pero su postulación se quedaba en `SELECCIONADA` para siempre.
+ * En «Tus postulaciones» leía "Seleccionada", que es lo contrario de lo que hizo, y el cierre
+ * automático del final no la alcanzaba porque `SELECCIONADA` no es un estado vivo. `RETIRADA` es
+ * la palabra exacta: la decisión fue de ella.
  */
 const TRANSICIONES_POSTULACION: Record<ApplicationStatus, readonly ApplicationStatus[]> = {
   RECIBIDA: ["EN_REVISION"],
   EN_REVISION: ["PRESELECCIONADA"],
+  SELECCIONADA: ["RETIRADA"],
   // Terminales (más allá de las resoluciones, que se resuelven aparte).
   PRESELECCIONADA: [],
-  SELECCIONADA: [],
   NO_SELECCIONADA: [],
   RETIRADA: [],
   VENCIDA: [],
@@ -222,7 +229,13 @@ const RESOLUCIONES_POSTULACION: readonly ApplicationStatus[] = [
 export function canTransitionApplication(from: string, to: string): boolean {
   if (!isApplicationStatus(from) || !isApplicationStatus(to)) return false;
   if (from === to) return false;
-  if (RESOLUCIONES_POSTULACION.includes(to)) return APPLICATION_LIVE_STATUSES.includes(from);
+  // Las resoluciones se alcanzan desde cualquier estado vivo, y ADEMÁS desde donde la tabla lo
+  // diga: `SELECCIONADA` no es un estado vivo y sin embargo tiene su salida a `RETIRADA`. Sin
+  // este segundo camino, el atajo de las resoluciones se comía la única fila de la tabla que dice
+  // algo sobre `SELECCIONADA`.
+  if (RESOLUCIONES_POSTULACION.includes(to)) {
+    return APPLICATION_LIVE_STATUSES.includes(from) || TRANSICIONES_POSTULACION[from].includes(to);
+  }
   return TRANSICIONES_POSTULACION[from].includes(to);
 }
 

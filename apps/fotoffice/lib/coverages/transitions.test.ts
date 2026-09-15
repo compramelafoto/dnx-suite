@@ -332,9 +332,23 @@ describe("canTransitionApplication", () => {
     expect(canTransitionApplication("VENCIDA", "SELECCIONADA")).toBe(false);
   });
 
-  it("seleccionada es el final: no vuelve atrás", () => {
+  it("seleccionada no vuelve atrás ni la puede rechazar la coordinación", () => {
     expect(canTransitionApplication("SELECCIONADA", "NO_SELECCIONADA")).toBe(false);
     expect(canTransitionApplication("SELECCIONADA", "SELECCIONADA")).toBe(false);
+    expect(canTransitionApplication("SELECCIONADA", "RECIBIDA")).toBe(false);
+  });
+
+  it("quien fue seleccionada y después avisa que no puede se retira", () => {
+    // Es la única salida de SELECCIONADA. Sin ella, quien contesta «esta vez no puedo» leía
+    // "Seleccionada" en su portal para siempre: su asignación quedaba rechazada y su postulación
+    // se quedaba congelada diciendo lo contrario.
+    expect(canTransitionApplication("SELECCIONADA", "RETIRADA")).toBe(true);
+  });
+
+  it("retirarse desde seleccionada tampoco exige motivo", () => {
+    expect(assertApplicationTransition({ from: "SELECCIONADA", to: "RETIRADA" })).toEqual({
+      ok: true,
+    });
   });
 
   it("quedarse donde está no es una transición", () => {

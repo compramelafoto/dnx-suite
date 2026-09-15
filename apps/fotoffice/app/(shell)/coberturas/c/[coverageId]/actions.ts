@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma, type Prisma } from "@repo/db";
+import { prisma, Prisma } from "@repo/db";
 import { appUrl } from "@/lib/app-url";
 import { COVERAGE_EMAIL_KEYS } from "@/lib/communications/constants";
 import { loadWorkspaceEmailContext } from "@/lib/communications/load-workspace-signature";
@@ -611,6 +611,35 @@ async function contarAsignadasVivas(
   });
 }
 
+/**
+ * Qué decirle a la coordinación cuando la transacción de armar equipo se cayó por algo que no es
+ * un conflicto previsto.
+ *
+ * **Solo el choque del índice único significa "ya está en el equipo".** Antes los dos `catch`
+ * eran ciegos: cualquier fallo —la base caída un segundo, un timeout— le decía a la coordinación
+ * «Esa persona ya está en el equipo de esta cobertura», que es información falsa sobre el estado
+ * del equipo y la lleva a no reintentar y a buscar a otro. Un mensaje amable que afirma algo
+ * falso es peor que un error.
+ *
+ * P2002 es `@@unique([coverageId, memberId])`: esa persona entró al equipo desde otra pantalla
+ * entre el recuento y la escritura. Es la carrera que el recuento no llega a cubrir —el candado
+ * del rol serializa el cupo, no a la misma persona entrando por dos roles distintos— y se traduce
+ * al aviso legible. Lo demás se registra y se pide reintentar.
+ */
+function errorAlArmarElEquipo(
+  error: unknown,
+  contexto: Record<string, string>,
+): EquipoState {
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+    return { error: "Esa persona ya está en el equipo de esta cobertura.", ok: null };
+  }
+  console.error("[fotoffice][coberturas] no se pudo armar el equipo", {
+    ...contexto,
+    detalle: error instanceof Error ? error.message : "error desconocido",
+  });
+  return { error: "No pudimos guardarlo. Probá de nuevo.", ok: null };
+}
+
 /** Si esta persona ya tiene una asignación viva en esta cobertura, en cualquiera de sus roles. */
 async function yaEstaEnElEquipo(
   tx: Prisma.TransactionClient,
@@ -759,10 +788,7 @@ export async function seleccionarPostulacionAction(
     });
   } catch (error) {
     if (error instanceof ConflictoDeEquipo) return { error: error.message, ok: null };
-    // El índice único `(coverageId, memberId)`: esa persona entró al equipo desde otra pantalla
-    // entre el recuento y la escritura. Es la carrera que el recuento no llega a cubrir, y se
-    // traduce al mismo aviso legible en vez de a un error de sistema.
-    return { error: "Esa persona ya está en el equipo de esta cobertura.", ok: null };
+    return errorAlArmarElEquipo(error, { accion: "seleccionar la postulación", applicationId });
   }
 
   const warn = await avisarInvitacion(workspace.id, invitacion);
@@ -894,7 +920,7 @@ export async function invitarDirectoAction(
     });
   } catch (error) {
     if (error instanceof ConflictoDeEquipo) return { error: error.message, ok: null };
-    return { error: "Esa persona ya está en el equipo de esta cobertura.", ok: null };
+    return errorAlArmarElEquipo(error, { accion: "invitar directo", roleId, memberId });
   }
 
   const warn = await avisarInvitacion(workspace.id, invitacion);
