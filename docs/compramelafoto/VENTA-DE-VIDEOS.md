@@ -100,6 +100,19 @@ video no tiene fotos digitales; la entrega miraba nada más que las fotos y
 cortaba antes de crear el link. Una compra real quedó sin entregar por eso. La
 condición vive en `lib/digital-download/order-needs-delivery.ts`.
 
+**El correo de un pedido de sólo video sale en el acto.** El aviso "tu descarga
+está lista" se dispara al terminar de armarse el ZIP de las fotos, y un pedido
+de sólo video no arma ninguno: el correo no salía nunca. Ésa fue la otra mitad
+de la compra que quedó sin entregar —el link existía, el cliente no se
+enteraba—. Ahora, cuando no hay fotos, se avisa apenas se crea el link, con una
+clave de idempotencia fija para que un segundo intento no mande dos correos.
+Con fotos de por medio se sigue esperando al ZIP, o llegarían duplicados.
+
+**La plantilla `digital_download` ya no dice "fotos".** Por ese mismo correo
+pasan videos y compras mixtas; el texto quedó en "lo que compraste". El cambio
+está en la base de producción, no en el repo: el respaldo del texto anterior es
+del 15/09/2026.
+
 **Reembolsar un pedido revoca su link de descarga.** Es
 `revokeOrderDownloadTokens` dentro de `reverseAlbumOrder`. Si un link de
 descarga que funcionaba empieza a dar 404, verificá primero si el pedido pasó a
@@ -112,7 +125,7 @@ videos verticales. Ver `src/rotation.test.ts` en el worker.
 
 - El circuito completo probado en producción con un video real: 20 fotogramas,
   16 caras detectadas, adelanto vertical de 4,6 s con marca.
-- 141 tests en la app y 22 en el worker.
+- 145 tests en la app y 22 en el worker.
 - El typecheck de `apps/compramelafoto` **necesita**
   `NODE_OPTIONS=--max-old-space-size=8192`: sin eso crashea y termina con
   código 0, lo que parece un chequeo limpio y no lo es.
