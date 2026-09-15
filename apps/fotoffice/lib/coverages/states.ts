@@ -84,8 +84,11 @@ export function coverageEventLabel(type: string): string {
  *
  * `SIN_EQUIPO` no es un error: es lo que queda cuando la convocatoria vence sin completar los
  * roles. La cobertura sigue existiendo —la actividad solidaria ya se comprometió— pero sin
- * gente asignada. No vuelve sola a `BUSCANDO_EQUIPO`: la convocatoria es 1:1 con la cobertura
- * y ya está vencida, así que retomar la búsqueda es una decisión de alguien, no automática.
+ * gente asignada. No vuelve sola a `BUSCANDO_EQUIPO` —la convocatoria es 1:1 con la cobertura y
+ * ya está vencida, así que retomar la búsqueda es una decisión de alguien, no automática— pero
+ * sí puede volver de forma manual: si todavía queda fecha por delante tiene sentido reintentar
+ * sobre esta misma cobertura en vez de perder su historial creando una nueva (ver la transición
+ * en `transitions.ts`).
  */
 export const COVERAGE_STATUSES = [
   "PLANIFICADA",
@@ -208,6 +211,12 @@ export const APPLICATION_LIVE_STATUSES: readonly ApplicationStatus[] = [
  * se lo invitó directamente. `CUMPLIDA` y `AUSENTE` pertenecen al registro de participación
  * —etapa 1c, sin pantalla propia todavía— pero se definen ahora para no volver a tocar este
  * archivo cuando llegue esa etapa.
+ *
+ * `ACEPTADA` y `CONFIRMADA` no son un paso duplicado, aunque en esta etapa se lleguen igual:
+ * `ACEPTADA` es que la persona dijo que sí cuando se la invitó; `CONFIRMADA` es la confirmación
+ * de asistencia cerca de la fecha ("confirmá que venís el sábado"), junto con la ficha
+ * operativa del día — eso es de la etapa 1c. No los unifiquen: son dos momentos distintos del
+ * mismo vínculo, no el mismo momento contado dos veces.
  */
 export const ASSIGNMENT_STATUSES = [
   "PROPUESTA",

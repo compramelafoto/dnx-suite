@@ -127,8 +127,9 @@ describe("assertRequestTransition", () => {
 
 /**
  * La máquina de estados de la cobertura: el trabajo concreto que sale de una solicitud
- * aprobada. `SIN_EQUIPO` no vuelve a `BUSCANDO_EQUIPO` porque la convocatoria es 1:1 con la
- * cobertura y ya está vencida; retomar la búsqueda es una cobertura nueva, no reabrir esta.
+ * aprobada. `SIN_EQUIPO` vuelve a `BUSCANDO_EQUIPO` de forma manual: una cobertura que se
+ * quedó sin gente y todavía tiene fecha por delante se puede reintentar sin perder su
+ * historial creando una cobertura nueva.
  */
 describe("canTransitionCoverage", () => {
   it("el camino feliz completo", () => {
@@ -151,8 +152,12 @@ describe("canTransitionCoverage", () => {
     expect(canTransitionCoverage("PLANIFICADA", "EQUIPO_CONFIRMADO")).toBe(false);
   });
 
-  it("sin equipo es terminal: no se reabre sola", () => {
-    expect(canTransitionCoverage("SIN_EQUIPO", "BUSCANDO_EQUIPO")).toBe(false);
+  it("sin equipo se puede reintentar: vuelve a buscando equipo", () => {
+    expect(canTransitionCoverage("SIN_EQUIPO", "BUSCANDO_EQUIPO")).toBe(true);
+  });
+
+  it("sin equipo sigue sin poder saltar directo a equipo confirmado", () => {
+    expect(canTransitionCoverage("SIN_EQUIPO", "EQUIPO_CONFIRMADO")).toBe(false);
   });
 
   it("cerrada es el final", () => {

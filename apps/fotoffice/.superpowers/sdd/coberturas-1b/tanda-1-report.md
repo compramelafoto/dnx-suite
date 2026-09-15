@@ -123,3 +123,80 @@ Los 3 errores son los ya conocidos y ajenos: 2 en `hero-block-view.tsx`, 1 en
    sea sorpresa, no porque haga falta resolverlo hoy.
 
 No until acá hubo nada que tocara base de datos, Prisma, pantallas o `repository.ts`.
+
+## Corrección: separar rol completo de equipo confirmado
+
+Respuesta a las dos dudas de arriba, más un tercer problema que la primera destapó.
+
+**1. `ACEPTADA` y `CONFIRMADA` no son un paso duplicado.** `ACEPTADA` es que la persona dijo
+que sí cuando se la invitó; `CONFIRMADA` es la confirmación de asistencia cerca de la fecha
+(la etapa 1c, junto con la ficha operativa del día). Las dos transiciones quedan como estaban
+—el dominio no cambió— y agregué el comentario que lo explica en `ASSIGNMENT_STATUSES`
+(`lib/coverages/states.ts`), para que no se lean como un paso sobrante y alguien las unifique.
+
+**2. `SIN_EQUIPO` deja de ser terminal.** `SIN_EQUIPO → BUSCANDO_EQUIPO` ahora es una
+transición válida en `lib/coverages/transitions.ts`: una cobertura que se quedó sin gente y
+todavía tiene fecha por delante se puede reintentar sin perder su historial creando una
+cobertura nueva. Actualicé el comentario de la tabla, el de `COVERAGE_STATUSES` en `states.ts`
+y los tests de `transitions.test.ts` (el que decía "es terminal: no se reabre sola" ahora
+prueba lo contrario, más un test nuevo de que `SIN_EQUIPO` no salta directo a
+`EQUIPO_CONFIRMADO`).
+
+**3. El problema que apareció: "rol completo" y "equipo confirmado" no son lo mismo.** Si se
+invita a alguien para una vacante y todavía no contestó, el rol ya no admite otra invitación
+para ese lugar (cuenta la asignación viva), pero el equipo no está confirmado (nadie dijo que
+sí). La función única `equipoCompleto` habría hecho pasar la cobertura a `EQUIPO_CONFIRMADO` en
+cuanto se mandaran las invitaciones, sin que nadie hubiera aceptado — un falso "ya tenés
+equipo" para la organización solicitante.
+
+Reemplacé `equipoCompleto` en `lib/coverages/cupos.ts` por:
+- `EstadoDeRol` ahora lleva también `asignadasAceptadas` (ACEPTADA | CONFIRMADA), además de
+  `asignadasVivas` (PROPUESTA | INVITADA | ACEPTADA | CONFIRMADA).
+- `rolCompleto` sigue igual en comportamiento (mira `asignadasVivas`), con el comentario que
+  explica por qué cuenta invitaciones sin responder.
+- `equipoConfirmado(roles)`: todos los roles con `asignadasAceptadas >= vacancies`. `false` con
+  lista vacía.
+- `todosLosRolesCompletos(roles)`: todos los roles con `rolCompleto`. `false` con lista vacía.
+
+Until acá nadie más en el repo llamaba a `equipoCompleto` fuera de `cupos.ts` y su test, así que
+no quedó ningún call site roto.
+
+Tests nuevos en `lib/coverages/cupos.test.ts` que fijan la diferencia (los cuatro casos
+pedidos): un rol de 1 vacante con 1 invitada sin responder da `rolCompleto` `true` y
+`equipoConfirmado` `false`; la misma persona aceptando da las dos `true`; dos roles (uno
+aceptado, otro solo invitado) dan `todosLosRolesCompletos` `true` y `equipoConfirmado` `false`;
+y sin roles, `equipoConfirmado` es `false`.
+
+### Comandos y salida
+
+```
+$ pnpm test
+ Test Files  1 failed | 230 passed (231)
+      Tests  1 failed | 2677 passed (2678)
+```
+Única falla: `lib/template-v2/access.test.ts` (ajena, ya rota desde `main`).
+
+```
+$ npx tsc --noEmit -p tsconfig.json
+(sin salida — sin errores)
+```
+
+```
+$ pnpm lint
+✖ 10 problems (3 errors, 7 warnings)
+```
+Los 3 errores son los mismos ya conocidos y ajenos (2 en `hero-block-view.tsx`, 1 en
+`mass-grading-screen.tsx`); ningún archivo de esta corrección aparece en la salida.
+
+### Dudas
+
+1. `SIN_EQUIPO` ahora puede cancelarse, no solo volver a `BUSCANDO_EQUIPO`? Hoy
+   `COVERAGE_LIVE_STATUSES` no incluye `SIN_EQUIPO`, así que `canTransitionCoverage("SIN_EQUIPO",
+   "CANCELADA")` sigue dando `false`. No lo toqué porque no estaba pedido y es una decisión de
+   producto (¿tiene sentido cancelar una cobertura que ya está sin equipo, en vez de solo
+   reintentarla?) — avisen si hace falta.
+2. `rolCompleto` no cambió de comportamiento, solo de comentario. Si en algún lugar de una tanda
+   siguiente hiciera falta un "rol completo y todos aceptaron" combinado (no solo por cobertura
+   sino por rol individual), hoy no hay una función así — se puede armar comparando
+   `asignadasAceptadas >= vacancies` de un solo `EstadoDeRol`, no hizo falta agregarla porque
+   nada la pedía.

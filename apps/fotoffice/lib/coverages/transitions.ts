@@ -89,9 +89,12 @@ export function assertRequestTransition(input: {
 /**
  * Qué transición de cobertura es válida.
  *
- * `SIN_EQUIPO` sale de `BUSCANDO_EQUIPO` cuando la convocatoria vence sin completar los roles;
- * no tiene salida porque la convocatoria es 1:1 con la cobertura y ya está vencida —retomar la
- * búsqueda no es "reabrir esta", es una cobertura nueva.
+ * `SIN_EQUIPO` sale de `BUSCANDO_EQUIPO` cuando la convocatoria vence sin completar los roles.
+ * No es terminal: `SIN_EQUIPO` vuelve a `BUSCANDO_EQUIPO` porque una cobertura que se quedó sin
+ * gente y todavía tiene fecha por delante se puede volver a intentar — cerrarle la puerta
+ * obligaría a crear una cobertura nueva y perder el historial de la que ya existe. Ese reintento
+ * es sobre esta misma cobertura, aunque haga falta una convocatoria nueva para volver a buscar
+ * (la convocatoria sí es 1:1 y ya quedó vencida).
  *
  * `EQUIPO_CONFIRMADO` vuelve a `BUSCANDO_EQUIPO` cuando alguien ya asignado rechaza: sin ese
  * camino de vuelta, un rechazo deja la cobertura con estado "equipo confirmado" mintiendo sobre
@@ -103,9 +106,9 @@ const TRANSICIONES_COBERTURA: Record<CoverageStatus, readonly CoverageStatus[]> 
   EQUIPO_CONFIRMADO: ["BUSCANDO_EQUIPO", "REALIZADA"],
   REALIZADA: ["ENTREGADA"],
   ENTREGADA: ["CERRADA"],
+  SIN_EQUIPO: ["BUSCANDO_EQUIPO"],
   // Terminales.
   CERRADA: [],
-  SIN_EQUIPO: [],
   CANCELADA: [],
 };
 
