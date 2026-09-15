@@ -139,6 +139,19 @@ y un televisor reales.
 **Salida:** el evento es vendible de punta a punta y los proveedores se captan sin ensuciar
 la base de empresas.
 
+**Estado al 2026-09-15: las diez tareas están en `main`.** Lo que falta para que la etapa
+funcione de verdad no es código sino configuración y pruebas:
+
+| Falta | De quién depende |
+|---|---|
+| `SUBILAFOTO_MP_CLIENT_ID`, `_CLIENT_SECRET`, `_REDIRECT_URI`, `_ACCESS_TOKEN` en Vercel | Titular |
+| `DNX_FINANCIAL_CREDENTIAL_MASTER_KEY` en Vercel | Titular |
+| Declarar la URL de retorno en la app "DNX Suite" de Mercado Pago (**no crear una app nueva**) | Titular |
+| `RESEND_API_KEY` y el remitente, para que los correos dejen de salir en seco | Titular |
+| Compra de prueba de punta a punta | Después de lo anterior |
+| Parte 2 y 3 de la prueba de moderación (capítulo 06) | Fotos reales |
+| Probar el ZIP con un evento grande de verdad | Fotos reales |
+
 ## Etapa 4 — Estabilización: 3 al 7 de octubre
 
 - Recorrido de aceptación completo (los 31 pasos del capítulo 28), ejecutado entero.
