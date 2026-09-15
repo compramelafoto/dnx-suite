@@ -5,6 +5,7 @@ import { guardarPerfilAction, type EstadoDelPerfil } from "@/app/actions/perfil"
 import { aCentavos } from "@/lib/perfil";
 import { calcularVenta } from "@/lib/pagos/venta";
 import { formatearPesos } from "@/lib/precios";
+import { SubirLogo } from "./logo";
 
 const ETIQUETA = "block text-sm font-extrabold";
 const CAMPO =
@@ -31,7 +32,16 @@ function aTexto(centavos: number): string {
   return centavos % 100 === 0 ? String(centavos / 100) : (centavos / 100).toFixed(2).replace(".", ",");
 }
 
-export function FormularioPerfil({ perfil, enlace }: { perfil: Perfil; enlace: string }) {
+export function FormularioPerfil({
+  perfil,
+  enlace,
+  vistaDelLogo,
+}: {
+  perfil: Perfil;
+  enlace: string;
+  /** Ya firmada por el servidor: el cliente no sabe firmar claves del bucket. */
+  vistaDelLogo: string | null;
+}) {
   const [estado, accion, guardando] = useActionState<EstadoDelPerfil, FormData>(
     guardarPerfilAction,
     {},
@@ -130,33 +140,20 @@ export function FormularioPerfil({ perfil, enlace }: { perfil: Perfil; enlace: s
         </div>
       </div>
 
-      <div className="grid gap-7 sm:grid-cols-2">
-        <div>
-          <label htmlFor="logoUrl" className={ETIQUETA}>
-            Dirección de tu logo {OPCIONAL}
-          </label>
-          <input
-            id="logoUrl"
-            name="logoUrl"
-            defaultValue={perfil.logoUrl ?? ""}
-            placeholder="https://…"
-            className={CAMPO}
-            style={BORDE}
-          />
-        </div>
-        <div>
-          <label htmlFor="brandColor" className={ETIQUETA}>
-            Tu color {OPCIONAL}
-          </label>
-          <input
-            id="brandColor"
-            name="brandColor"
-            defaultValue={perfil.brandColor ?? ""}
-            placeholder="#7C2BFF"
-            className={CAMPO}
-            style={BORDE}
-          />
-        </div>
+      <SubirLogo valorInicial={perfil.logoUrl ?? ""} vistaPreviaInicial={vistaDelLogo} />
+
+      <div>
+        <label htmlFor="brandColor" className={ETIQUETA}>
+          Tu color {OPCIONAL}
+        </label>
+        <input
+          id="brandColor"
+          name="brandColor"
+          defaultValue={perfil.brandColor ?? ""}
+          placeholder="#7C2BFF"
+          className={CAMPO}
+          style={BORDE}
+        />
       </div>
 
       <div>
