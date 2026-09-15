@@ -36,8 +36,8 @@ vi.mock("@/lib/auth", () => ({
   requireAuth: vi.fn(async () => ({ id: 1, email: "owner@sfpr.test", name: "Owner" })),
 }));
 
-vi.mock("@/lib/ensure-workspace", () => ({
-  ensureFotofficeWorkspaceForUser: vi.fn(async () => ({
+vi.mock("@/lib/entrada/require-own-workspace", () => ({
+  requireOwnWorkspace: vi.fn(async () => ({
     workspaceId: "ws-sfpr",
     created: false,
     onboardingCompleted: true,

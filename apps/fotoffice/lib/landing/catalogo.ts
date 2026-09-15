@@ -2,6 +2,7 @@ import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
+import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
@@ -147,6 +148,20 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
       "Borrador y publicación por versiones",
     ],
   },
+  {
+    key: COVERAGES_MODULE_KEY,
+    cuadro: "10",
+    nombre: "Solicitudes y Coberturas",
+    resuelve:
+      "Alguien te pide una cobertura por un formulario público y el pedido entra acá con todo: qué actividad es, cuándo, dónde y qué necesitan. Lo evaluás, pedís lo que falte y decidís. Quien lo pidió sigue su pedido por un enlace privado, sin tener que crearse una cuenta ni llamar para preguntar cómo viene.",
+    pantallas: [
+      "Formulario público de pedidos",
+      "Bandeja de solicitudes",
+      "Evaluación con notas internas",
+      "Seguimiento por enlace privado",
+      "Historial de cada cambio",
+    ],
+  },
 ];
 
 /** Lo que está siempre, se encienda lo que se encienda. No son módulos con interruptor. */
@@ -215,38 +230,38 @@ export const EN_CONSTRUCCION: {
   icono: string;
 }[] = [
   {
-    cuadro: "10",
+    cuadro: "11",
     icono: "presupuestos",
     nombre: "Presupuestos",
     resuelve:
       "Armar el presupuesto con tus precios, mandárselo al cliente y seguir si lo aceptó. Hoy la consulta te llega con todos los datos del evento; el precio todavía lo ponés vos por afuera.",
   },
   {
-    cuadro: "11",
+    cuadro: "12",
     icono: "comunicacion",
     nombre: "Comunicación",
     resuelve: "Mandar un mensaje a todos los socios o a un grupo, desde adentro.",
   },
   {
-    cuadro: "12",
+    cuadro: "13",
     icono: "eventos",
     nombre: "Eventos",
     resuelve: "Salidas, charlas y encuentros con inscripción y lista de asistencia.",
   },
   {
-    cuadro: "13",
+    cuadro: "14",
     icono: "gobierno",
     nombre: "Gobierno institucional",
     resuelve: "Actas, votaciones y resoluciones de la comisión directiva.",
   },
   {
-    cuadro: "14",
+    cuadro: "15",
     icono: "muestras",
     nombre: "Muestras",
     resuelve: "Las muestras de la institución, con sus obras y sus autores.",
   },
   {
-    cuadro: "15",
+    cuadro: "16",
     icono: "transparencia",
     nombre: "Transparencia",
     resuelve: "Publicar el balance y la rendición para que el socio vea en qué se usó su cuota.",

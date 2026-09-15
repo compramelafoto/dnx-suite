@@ -17,7 +17,7 @@ const { requireAuthMock, listProfilesMock, setChoiceMock, clearChoiceMock, ensur
 
 vi.mock("next/navigation", () => ({ redirect: redirectMock }));
 vi.mock("@/lib/auth", () => ({ requireAuth: requireAuthMock }));
-vi.mock("@/lib/ensure-workspace", () => ({ ensureFotofficeWorkspaceForUser: ensureMock }));
+vi.mock("@/lib/ensure-workspace", () => ({ createFotofficeWorkspaceForUser: ensureMock }));
 vi.mock("@/lib/portal/profile-choice", () => ({
   setProfileChoice: setChoiceMock,
   clearProfileChoice: clearChoiceMock,
