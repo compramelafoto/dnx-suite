@@ -153,6 +153,7 @@ export async function editarConvocatoriaAction(
     return { error: "Ya se publicó: no se puede editar desde acá.", ok: null };
   }
 
+  // aislamiento: por `call`, leída arriba con `workspaceId` en su where.
   await prisma.coverageCall.update({ where: { id: call.id }, data: campos.data });
 
   revalidatePath(`/coberturas/c/${call.coverageId}`);
@@ -215,6 +216,7 @@ export async function publicarConvocatoriaAction(
   const publishedAt = new Date();
 
   await prisma.$transaction(async (tx) => {
+    // aislamiento: por `call`, leída antes de abrir la transacción filtrando por workspace.
     await tx.coverageCall.update({
       where: { id: call.id },
       data: { status: "PUBLICADA", publishedAt },
@@ -230,6 +232,7 @@ export async function publicarConvocatoriaAction(
       actorLabel: user.name ?? user.email,
     });
     if (plan.moverCobertura) {
+      // aislamiento: `call.coverageId` viene de esa misma convocatoria, ya verificada.
       await tx.coverage.update({
         where: { id: call.coverageId },
         data: { status: "BUSCANDO_EQUIPO" },
@@ -581,6 +584,7 @@ async function avisarInvitacion(
  * No necesita migración ni índice nuevo: `CoverageRole.id` es la clave primaria.
  */
 async function bloquearRol(tx: Prisma.TransactionClient, roleId: string): Promise<void> {
+  // aislamiento: no lee ningún dato, sólo toma el candado; quien lo usa filtra por workspace.
   await tx.$executeRaw`SELECT id FROM "CoverageRole" WHERE id = ${roleId} FOR UPDATE`;
 }
 
@@ -733,6 +737,7 @@ export async function seleccionarPostulacionAction(
       });
       if (!plan.ok) throw new ConflictoDeEquipo(plan.error);
 
+      // aislamiento: por `postulacion`, leída acá arriba con `call: { workspaceId }` en su where.
       await tx.coverageApplication.update({
         where: { id: postulacion.id },
         data: { status: "SELECCIONADA" },
@@ -748,6 +753,8 @@ export async function seleccionarPostulacionAction(
         actorLabel,
       });
 
+      // aislamiento: `CoverageAssignment` no tiene columna de workspace; la cuelga `coverageId`,
+      // que sale de la postulación ya verificada contra este workspace.
       const asignacion = await tx.coverageAssignment.create({
         data: {
           coverageId: postulacion.role.coverageId,
@@ -878,6 +885,8 @@ export async function invitarDirectoAction(
       });
       if (!plan.ok) throw new ConflictoDeEquipo(plan.error);
 
+      // aislamiento: `CoverageAssignment` no tiene columna de workspace; la cuelga `coverageId`,
+      // que sale del rol ya verificado contra este workspace.
       const asignacion = await tx.coverageAssignment.create({
         data: {
           coverageId: rol.coverageId,

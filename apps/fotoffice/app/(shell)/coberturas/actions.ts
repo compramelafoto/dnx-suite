@@ -145,6 +145,7 @@ export async function changeRequestStatusAction(
       };
     }
 
+    // aislamiento: por `solicitud`, leída arriba con `workspaceId` en su where.
     await tx.coverageRequest.update({
       where: { id: solicitud.id },
       data: {
@@ -253,6 +254,7 @@ export async function requestInfoAction(
         tokenExpiresAt: trackingExpiryFrom(settings.trackingLinkTtlDays),
       };
     }
+    // aislamiento: por `solicitud`, leída arriba con `workspaceId` en su where.
     await tx.coverageRequest.update({
       where: { id: solicitud.id },
       data: {

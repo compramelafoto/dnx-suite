@@ -75,6 +75,7 @@ export async function aplicarEfectosSobreLaBusqueda(
   });
 
   if (efectos.callStatus !== null && cobertura.call) {
+    // aislamiento: por `cobertura`, leída dos pasos más arriba con `workspaceId` en su where.
     await tx.coverageCall.update({
       where: { id: cobertura.call.id },
       data: { status: efectos.callStatus },
@@ -92,6 +93,7 @@ export async function aplicarEfectosSobreLaBusqueda(
   }
 
   if (efectos.coverageStatus !== null) {
+    // aislamiento: por `cobertura`, leída al principio de esta función filtrando por workspace.
     await tx.coverage.update({
       where: { id: cobertura.id },
       data: { status: efectos.coverageStatus },
@@ -173,6 +175,7 @@ async function cerrarPostulacionesSinRespuesta(
   });
   if (aCerrar.length === 0) return;
 
+  // aislamiento: `aCerrar` sale de `abiertas`, que se leyó filtrando por `call: { workspaceId }`.
   await tx.coverageApplication.updateMany({
     where: { id: { in: aCerrar } },
     data: { status: "NO_SELECCIONADA" },

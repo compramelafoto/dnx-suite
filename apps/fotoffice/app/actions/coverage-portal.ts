@@ -94,10 +94,13 @@ export async function postularseAction(
 
   const [perfil, postulacionExistente, asignacionViva] = await Promise.all([
     loadCollaboratorProfile({ workspaceId: context.workspace.id, memberId: context.member.id }),
+    // aislamiento: por `rol.id`, que se leyó filtrando por la convocatoria de este workspace,
+    // y por el `memberId` de la sesión.
     prisma.coverageApplication.findUnique({
       where: { roleId_memberId: { roleId: rol.id, memberId: context.member.id } },
       select: { id: true },
     }),
+    // aislamiento: por `rol.coverageId`, ya verificado arriba, y por el `memberId` de la sesión.
     prisma.coverageAssignment.findFirst({
       where: {
         coverageId: rol.coverageId,
@@ -123,6 +126,8 @@ export async function postularseAction(
 
   try {
     await prisma.$transaction(async (tx) => {
+      // aislamiento: `CoverageApplication` no tiene columna de workspace; la cuelga `callId`, que
+      // es la convocatoria ya verificada contra este workspace.
       const postulacion = await tx.coverageApplication.create({
         data: {
           callId: call.id,
@@ -280,6 +285,8 @@ export async function responderInvitacionAction(
 
   try {
     await prisma.$transaction(async (tx) => {
+      // aislamiento: por `asignacion.id`, leída arriba con `coverage: { workspaceId }`, y por el
+      // `memberId` de la sesión, que viaja otra vez con la escritura.
       const tocadas = await tx.coverageAssignment.updateMany({
         where: { id: asignacion.id, memberId: context.member.id, status: "INVITADA" },
         data: {
@@ -414,6 +421,7 @@ async function retirarPostulacionDeLaInvitacion(
   // otro camino—, no hay nada que hacer: esto no pisa una resolución anterior.
   if (!assertApplicationTransition({ from: postulacion.status, to: "RETIRADA" }).ok) return;
 
+  // aislamiento: por `postulacion`, leída acá arriba con `call: { workspaceId }` en su where.
   await tx.coverageApplication.update({
     where: { id: postulacion.id },
     data: { status: "RETIRADA" },

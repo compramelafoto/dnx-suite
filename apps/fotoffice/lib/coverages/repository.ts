@@ -95,6 +95,7 @@ export async function loadRequest(input: { workspaceId: string; id: string }) {
  * un registro. Nada de `coordinatorUserId`, `priority` ni ningún otro campo interno.
  */
 export async function findByTrackingToken(rawToken: string) {
+  // aislamiento: el token ES la credencial y no sabe de qué institución es (ver arriba).
   return prisma.coverageRequest.findUnique({
     where: { tokenHash: hashTrackingToken(rawToken) },
     select: {
