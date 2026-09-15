@@ -164,3 +164,76 @@ tiempo.
 
 Para encenderlo hacen falta `RESEND_API_KEY` y la configuración de remitente del
 runtime. Mientras no estén, todo queda anotado y nada sale.
+
+## El borrado a los 30 días y su candado (2026-09-15)
+
+La regla comercial es una línea: **todo se borra a los 30 días del cierre**. La
+implementación no es una línea, porque un borrado no se deshace.
+
+### El plazo se fija al cerrar, no al borrar
+
+`retentionUntil` se escribe en el mismo `updateMany` que cierra el evento. Si se
+calculara al momento de borrar, cambiar la constante movería la fecha de borrado
+de eventos ya cerrados — y de los correos que ya le prometieron esa fecha al
+cliente.
+
+Los eventos que cerraron antes de que existiera el campo se completan desde su
+propio `closedAt`, no desde hoy: no se les acorta ni se les alarga la vida.
+
+### El candado
+
+Antes de tocar nada se descarta que quede plata o una entrega en el aire. Los
+motivos, del más grave al menos:
+
+| Motivo | Qué es | Cuánto frena |
+|---|---|---|
+| `ya-borrado` | Ya pasó | Para siempre |
+| `sin-plazo` | Nunca cerró | Hasta que cierre |
+| `no-vencio` | Todavía no | Hasta la fecha |
+| `disputa-abierta` | Una orden en `DISPUTED` | Hasta que se resuelva |
+| `entrega-pendiente` | Pagó la descarga y nunca hubo paquete listo | **Para siempre** |
+| `pago-en-curso` | Una orden `PENDING` de menos de 72 horas | 72 horas |
+| `paquete-en-curso` | Un ZIP armándose | Hasta que termine |
+
+Se devuelve **uno solo**, el más grave, porque es el que queda en la auditoría y
+el que alguien va a leer cuando pregunte por qué un evento sigue ocupando lugar.
+
+**Las 72 horas del pago en curso** no son arbitrarias: Mercado Pago aprueba una
+tarjeta en segundos, pero un pago en efectivo por Rapipago o Pago Fácil tarda
+hasta tres días hábiles en acreditarse. Pasado eso, una orden pendiente es un
+carrito abandonado y no un pago.
+
+**`entrega-pendiente` frena para siempre, a propósito.** Alguien pagó la descarga
+y nunca la recibió; borrar ahí es quedarse con el dinero y destruir lo comprado en
+el mismo movimiento. Que un evento quede ocupando lugar se arregla; esto no.
+
+### Reclamar antes de borrar
+
+El evento se marca `purgedAt` **antes** de borrar los archivos, con la condición
+en el `where`. Si dos vueltas del cron se pisan, la segunda cambia cero filas.
+
+El costo de este orden es que un corte a mitad de camino deja archivos sueltos en
+R2. Los barre la regla de ciclo de vida del bucket, que también borra a los 30
+días. El orden inverso — borrar y después marcar — permitiría que dos ejecuciones
+borren a la vez, que es peor.
+
+### Por clave, nunca por prefijo
+
+Se junta la lista exacta: originales, variantes y paquetes, sin repetir. Un
+prefijo mal armado se lleva puesto otro evento.
+
+### Qué queda
+
+No se borran el evento, las órdenes, los consentimientos ni la auditoría. Son el
+registro de qué se vendió y de que alguien aceptó los términos. Los paquetes
+quedan marcados `PURGED` con la clave en nulo, para que un enlace viejo diga
+"esto se borró" en vez de dar 404 a alguien que pagó. Los enlaces de acceso se
+revocan.
+
+Sí se borran las fotos, sus variantes y las sesiones de invitado.
+
+### Tres por vuelta, una vez por día
+
+El cron corre a las 4:30. No hay apuro, y de a poco se acota el daño de una
+equivocación: si algo estuviera mal, se descubre con tres eventos borrados y no
+con trescientos.
