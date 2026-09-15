@@ -41,9 +41,15 @@ const nextConfig: NextConfig = {
     "@mercadopago/sdk-react",
   ],
   // Evita que el bundler omita el Query Engine de Prisma en Vercel (rhel-openssl-3.0.x).
+  /*
+   * `mupdf` es WebAssembly: webpack no puede empaquetar su `.wasm` de 10 MB, así que lo carga
+   * Node en tiempo de ejecución. A diferencia de los binarios nativos que estuvieron antes acá,
+   * es **un solo archivo igual para todos los sistemas**: no hay variante por plataforma.
+   */
   serverExternalPackages: [
     "@prisma/client",
     "@repo/db",
+    "mupdf",
   ],
   outputFileTracingRoot: monorepoRoot,
   outputFileTracingIncludes: {
@@ -52,6 +58,27 @@ const nextConfig: NextConfig = {
       "../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/**",
       "../../packages/db/prisma/**",
     ],
+    /*
+     * El motor de rasterizado. Va ruta por ruta y no en `/**`: el `.wasm` pesa 10 MB y Next lo
+     * copia una vez por función; aplicado a todas, el contenedor de build se queda sin disco.
+     * Se excluyen los `.br` —comprimidos, que Node no usa— y las declaraciones de tipos.
+     */
+    ...Object.fromEntries(
+      [
+        "/api/cron/participant-cards",
+        "/api/account/registrations/[registrationId]/cards/[cardType]",
+        "/api/admin/registrations/[registrationId]/cards/[cardType]",
+        // Genera la placa apenas se confirma el pago, vía `after()`.
+        "/api/webhooks/dnx-payments",
+      ].map((ruta) => [
+        ruta,
+        [
+          "../../node_modules/.pnpm/mupdf@*/node_modules/mupdf/dist/*.js",
+          "../../node_modules/.pnpm/mupdf@*/node_modules/mupdf/dist/*.wasm",
+          "../../node_modules/.pnpm/mupdf@*/node_modules/mupdf/package.json",
+        ],
+      ])
+    ),
   },
   allowedDevOrigins: ["127.0.0.1", "localhost"],
   turbopack: {
