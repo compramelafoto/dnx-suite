@@ -153,6 +153,30 @@ describe("planGenerarCobertura", () => {
     expect(r.ok).toBe(false);
   });
 
+  it("un rol con vacantes que no son un número no es válido", () => {
+    // El formulario arma este campo con `Number(...)`, y un texto cualquiera da `NaN`. Como
+    // `NaN <= 0` es `false`, sin un control explícito el `NaN` pasaba y le llegaba a Prisma,
+    // que corta con un error de sistema en lugar de con un aviso legible.
+    const r = planGenerarCobertura({
+      solicitud,
+      workspaceId: "ws-a",
+      roles: [{ name: "Fotógrafo principal", vacancies: Number("no es un número") }],
+    });
+    expect(r.ok).toBe(false);
+  });
+
+  it("basta con que UN rol esté mal para rechazar todo", () => {
+    const r = planGenerarCobertura({
+      solicitud,
+      workspaceId: "ws-a",
+      roles: [
+        { name: "Fotógrafo principal", vacancies: 1 },
+        { name: "Segundo fotógrafo", vacancies: 0 },
+      ],
+    });
+    expect(r.ok).toBe(false);
+  });
+
   it("camino feliz: solicitud aprobada, de este workspace, con roles válidos", () => {
     const r = planGenerarCobertura({ solicitud, workspaceId: "ws-a", roles });
     expect(r).toEqual({ ok: true });

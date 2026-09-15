@@ -260,6 +260,32 @@ describe("efectosSobreLaBusqueda", () => {
     ).toEqual({ callStatus: null, coverageStatus: null });
   });
 
+  it("invitar a alguien con la convocatoria en borrador NO la publica", () => {
+    // Publicar es una decisión de la coordinación: pone `publishedAt`, valida título y vacantes
+    // con `puedePublicarse` y le avisa por correo a cada colaborador activo. Si armar el equipo
+    // la publicara de costado, la convocatoria aparecería en el portal sin que nadie se entere
+    // y el botón «Publicar» del panel pasaría a fallar por una transición que ya ocurrió.
+    expect(
+      efectosSobreLaBusqueda({
+        roles: [rol({ asignadasVivas: 1 }), rol()],
+        callStatus: "BORRADOR",
+        coverageStatus: "BUSCANDO_EQUIPO",
+      }),
+    ).toEqual({ callStatus: null, coverageStatus: null });
+  });
+
+  it("solo vuelve a PUBLICADA la que estaba COMPLETA, no cualquier otra", () => {
+    // `PUBLICADA` es el destino de la VUELTA, no un destino al que se empuje a cualquier
+    // convocatoria que todavía tenga lugares libres.
+    expect(
+      efectosSobreLaBusqueda({
+        roles: [rol({ asignadasVivas: 1 }), rol()],
+        callStatus: "PUBLICADA",
+        coverageStatus: "BUSCANDO_EQUIPO",
+      }),
+    ).toEqual({ callStatus: null, coverageStatus: null });
+  });
+
   it("un estado de convocatoria que no admite el cambio no se fuerza", () => {
     // Un borrador con todos los roles llenos no salta a COMPLETA: esa transición no existe.
     expect(

@@ -208,10 +208,26 @@ export function efectosSobreLaBusqueda(input: {
   const sinLugares = todosLosRolesCompletos(input.roles);
   const confirmado = equipoConfirmado(input.roles);
 
+  /**
+   * La convocatoria se cierra al llenarse, y vuelve a abrirse SOLO si estaba cerrada.
+   *
+   * El destino `PUBLICADA` es el de la VUELTA —`COMPLETA` → `PUBLICADA` porque alguien rechazó
+   * y su lugar quedó libre— y por eso se condiciona a que la convocatoria venga justamente de
+   * `COMPLETA`. Proponerlo para cualquier estado con lugares libres publicaba sola una
+   * convocatoria en `BORRADOR` apenas se invitaba a alguien a dedo: `canTransitionCall` admite
+   * `BORRADOR → PUBLICADA` con razón —es la publicación de verdad— pero esa publicación es una
+   * decisión de la coordinación, que además pone `publishedAt`, valida título y vacantes con
+   * `puedePublicarse` y le avisa a cada colaborador activo. Publicada de costado, la
+   * convocatoria aparecía en el portal sin que nadie se enterara y el botón «Publicar» del
+   * panel quedaba fallando por una transición que ya había ocurrido.
+   */
   let callStatus: string | null = null;
   if (input.callStatus !== null) {
-    const destinoConvocatoria = sinLugares ? "COMPLETA" : "PUBLICADA";
-    if (canTransitionCall(input.callStatus, destinoConvocatoria)) {
+    let destinoConvocatoria: string | null = null;
+    if (sinLugares) destinoConvocatoria = "COMPLETA";
+    else if (input.callStatus === "COMPLETA") destinoConvocatoria = "PUBLICADA";
+
+    if (destinoConvocatoria !== null && canTransitionCall(input.callStatus, destinoConvocatoria)) {
       callStatus = destinoConvocatoria;
     }
   }

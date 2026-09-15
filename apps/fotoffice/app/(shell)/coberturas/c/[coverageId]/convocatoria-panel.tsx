@@ -2,7 +2,11 @@
 
 import { useActionState } from "react";
 import type { EstadoDeRol } from "@/lib/coverages/cupos";
-import { puedeCrearseConvocatoria, puedePublicarse } from "@/lib/coverages/convocatoria";
+import {
+  puedeCrearseConvocatoria,
+  puedeEditarseConvocatoria,
+  puedePublicarse,
+} from "@/lib/coverages/convocatoria";
 import {
   crearConvocatoriaAction,
   editarConvocatoriaAction,
@@ -107,7 +111,10 @@ export function ConvocatoriaPanel({
     );
   }
 
-  const editable = call.status === "BORRADOR" && puedeCoordinar;
+  // La misma función que aplica la acción del servidor, por el mismo motivo que un poco más
+  // arriba: la regla de cuándo se puede editar vive en `convocatoria.ts` y se lee de ahí, no
+  // comparada contra un estado escrito a mano que el día que cambie quede desfasado.
+  const editable = puedeEditarseConvocatoria(call.status) && puedeCoordinar;
   const publicable = puedePublicarse({ title: call.title }, roles);
 
   return (

@@ -113,7 +113,14 @@ export function planGenerarCobertura(input: {
       error: "Solo se puede generar una cobertura desde una solicitud aprobada.",
     };
   }
-  if (input.roles.length === 0 || input.roles.some((r) => !r.name.trim() || r.vacancies <= 0)) {
+  // `Number.isInteger` y no sólo `> 0`: quien llama arma las vacantes con `Number(...)` sobre un
+  // campo del formulario, y un texto que no es un número da `NaN`. `NaN <= 0` es `false`, así
+  // que sin este control el `NaN` pasaba el filtro y llegaba hasta el `create` de Prisma, que
+  // corta con un error de sistema en vez de con este aviso.
+  const rolValido = (r: { name: string; vacancies: number }) =>
+    r.name.trim().length > 0 && Number.isInteger(r.vacancies) && r.vacancies > 0;
+
+  if (input.roles.length === 0 || !input.roles.every(rolValido)) {
     return { ok: false, error: "Agregá al menos un rol, con nombre y con una vacante." };
   }
   return { ok: true };
