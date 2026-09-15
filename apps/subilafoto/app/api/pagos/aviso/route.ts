@@ -81,7 +81,13 @@ async function acreditar(ordenId: string, mpPaymentId: string) {
 
   const orden = await prisma.subilafotoOrder.findUnique({
     where: { id: ordenId },
-    select: { kind: true, sellerProfileId: true, buyerName: true, eventId: true },
+    select: {
+      kind: true,
+      sellerProfileId: true,
+      buyerName: true,
+      eventId: true,
+      includesDownload: true,
+    },
   });
   if (!orden) return { accion: "PAGAR", yaEstaba: false };
 
@@ -128,7 +134,19 @@ async function acreditar(ordenId: string, mpPaymentId: string) {
     data: { eventId: alta.eventoId },
   });
 
-  return { accion: "PAGAR", yaEstaba: false, eventoCreado: true };
+  /*
+    Si la venta incluía la descarga, el evento nace con la descarga ya comprada. De ahí
+    sale la entrega automática: el paquete se arma y se manda dentro de las 24 horas, sin
+    que el cliente tenga que pedir nada.
+  */
+  if (orden.includesDownload) {
+    await prisma.subilafotoEvent.update({
+      where: { id: alta.eventoId },
+      data: { downloadStatus: "PURCHASED" },
+    });
+  }
+
+  return { accion: "PAGAR", yaEstaba: false, eventoCreado: true, conDescarga: orden.includesDownload };
 }
 
 /**

@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
 import { createMercadoPagoCheckoutProLiveAdapter } from "@repo/payments/mercado-pago";
 import { estadoDelAdicional } from "@/lib/adicional";
-import { calcularPrecios, type ModoDescarga } from "@/lib/precios";
+import { precioDeLaDescarga } from "@/lib/pagos/venta";
 import { referenciaDeOrden } from "@/lib/pagos/referencia";
 
 /**
@@ -39,13 +39,7 @@ export async function comprarAdicional(formData: FormData): Promise<void> {
           downloadStatus: true,
           retentionUntil: true,
           sellerProfile: {
-            select: {
-              id: true,
-              basePriceCents: true,
-              downloadMode: true,
-              downloadPercentBps: true,
-              downloadPriceCents: true,
-            },
+            select: { id: true, basePriceCents: true },
           },
         },
       },
@@ -61,16 +55,9 @@ export async function comprarAdicional(formData: FormData): Promise<void> {
   if (!vigente) redirect("/");
 
   const evento = enlace.event;
-  const precios = calcularPrecios({
-    basePriceCents: evento.sellerProfile.basePriceCents,
-    downloadMode: evento.sellerProfile.downloadMode as ModoDescarga,
-    downloadPercentBps: evento.sellerProfile.downloadPercentBps,
-    downloadPriceCents: evento.sellerProfile.downloadPriceCents,
-  });
-
   const estado = estadoDelAdicional({
     downloadStatus: evento.downloadStatus,
-    adicionalCents: precios.adicionalCents,
+    adicionalCents: precioDeLaDescarga(evento.sellerProfile.basePriceCents),
     retentionUntil: evento.retentionUntil,
     ahora,
   });

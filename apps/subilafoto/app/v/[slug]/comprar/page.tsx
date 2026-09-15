@@ -2,14 +2,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
 import { comprarEvento } from "@/app/actions/comprar";
-import { calcularPrecios, formatearPesos, type ModoDescarga } from "@/lib/precios";
+import { formatearPesos } from "@/lib/precios";
+import { calcularVenta } from "@/lib/pagos/venta";
 import { estiloBotonDnx } from "@/lib/boton-dnx";
 
 export const dynamic = "force-dynamic";
 
 type Props = {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; descarga?: string }>;
 };
 
 /**
@@ -21,7 +22,8 @@ type Props = {
  */
 export default async function Comprar({ params, searchParams }: Props) {
   const { slug } = await params;
-  const { error } = await searchParams;
+  const { error, descarga } = await searchParams;
+  const conDescarga = descarga === "si";
 
   const perfil = await prisma.subilafotoSellerProfile.findUnique({
     where: { slug },
@@ -30,26 +32,19 @@ export default async function Comprar({ params, searchParams }: Props) {
       brandColor: true,
       isPublished: true,
       basePriceCents: true,
-      downloadMode: true,
-      downloadPercentBps: true,
-      downloadPriceCents: true,
     },
   });
   if (!perfil || !perfil.isPublished) notFound();
 
-  const precios = calcularPrecios({
-    basePriceCents: perfil.basePriceCents,
-    downloadMode: perfil.downloadMode as ModoDescarga,
-    downloadPercentBps: perfil.downloadPercentBps,
-    downloadPriceCents: perfil.downloadPriceCents,
-  });
+  if (perfil.basePriceCents <= 0) notFound();
+  const venta = calcularVenta({ baseCents: perfil.basePriceCents, conDescarga });
 
   const acento = perfil.brandColor ?? "var(--slf-violeta)";
 
   return (
     <main className="sobre-claro mx-auto max-w-xl px-6 py-16 sm:py-20">
       <Link
-        href={`/v/${slug}`}
+        href={`/v/${slug}${conDescarga ? "?descarga=si" : ""}`}
         className="text-sm font-extrabold"
         style={{ color: acento }}
       >
@@ -66,20 +61,34 @@ export default async function Comprar({ params, searchParams }: Props) {
       >
         <div className="flex items-baseline justify-between gap-4">
           <span style={{ color: "var(--slf-lila)" }}>El evento</span>
+          <span>{formatearPesos(venta.baseCents)}</span>
+        </div>
+
+        {conDescarga ? (
+          <div
+            className="mt-3 flex items-baseline justify-between gap-4"
+            style={{ color: "var(--slf-lila)" }}
+          >
+            <span>Descarga de todas las fotos</span>
+            <span>{formatearPesos(venta.recargoCents)}</span>
+          </div>
+        ) : null}
+
+        <div
+          className="mt-4 flex items-baseline justify-between gap-4 border-t pt-4"
+          style={{ borderColor: "#ffffff22" }}
+        >
+          <span style={{ color: "var(--slf-lila)" }}>Total</span>
           <strong className="text-2xl font-extrabold">
-            {formatearPesos(precios.baseCents)}
+            {formatearPesos(venta.totalCents)}
           </strong>
         </div>
-        {precios.adicionalCents !== null ? (
-          <p className="mt-4 text-sm" style={{ color: "var(--slf-lila)" }}>
-            La descarga de todo el material se compra después del evento, por{" "}
-            {formatearPesos(precios.adicionalCents)}. Ahora pagás sólo el evento.
-          </p>
-        ) : (
-          <p className="mt-4 text-sm" style={{ color: "var(--slf-lila)" }}>
-            La descarga de todo el material está incluida.
-          </p>
-        )}
+
+        <p className="mt-4 text-sm" style={{ color: "var(--slf-lila)" }}>
+          {conDescarga
+            ? "La descarga te llega por correo dentro de las 24 horas de terminado el evento."
+            : "El álbum queda 30 días. La descarga de todas las fotos se compra después, si la querés."}
+        </p>
       </div>
 
       {error ? (
@@ -94,6 +103,7 @@ export default async function Comprar({ params, searchParams }: Props) {
 
       <form action={comprarEvento} className="mt-8 space-y-5">
         <input type="hidden" name="slug" value={slug} />
+        <input type="hidden" name="conDescarga" value={conDescarga ? "si" : "no"} />
 
         <label className="block">
           <span className="text-sm font-extrabold">Tu nombre</span>
@@ -146,7 +156,7 @@ export default async function Comprar({ params, searchParams }: Props) {
           className="w-full"
           style={{ ...estiloBotonDnx("primario"), background: acento, color: "white" }}
         >
-          Ir a pagar {formatearPesos(precios.baseCents)}
+          Ir a pagar {formatearPesos(venta.totalCents)}
         </button>
 
         <p className="text-sm leading-relaxed" style={{ color: "var(--slf-tinta-suave)" }}>

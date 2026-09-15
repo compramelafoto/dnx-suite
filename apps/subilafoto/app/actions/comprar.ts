@@ -5,8 +5,8 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
 import { createMercadoPagoCheckoutProLiveAdapter } from "@repo/payments/mercado-pago";
-import { calcularPrecios, type ModoDescarga } from "@/lib/precios";
-import { COMISION_POR_DEFECTO_BPS, repartir } from "@/lib/pagos/comision";
+import { COMISION_POR_DEFECTO_BPS } from "@/lib/pagos/comision";
+import { calcularVenta } from "@/lib/pagos/venta";
 import { cobradorDelVendedor } from "@/lib/pagos/cobrador";
 import { revisarComprador } from "@/lib/pagos/comprador";
 import { referenciaDeOrden } from "@/lib/pagos/referencia";
@@ -21,8 +21,11 @@ import { referenciaDeOrden } from "@/lib/pagos/referencia";
  */
 export async function comprarEvento(formData: FormData): Promise<void> {
   const slug = String(formData.get("slug") ?? "");
+  // El fotógrafo comparte uno de dos enlaces: con la descarga incluida o sin ella.
+  const conDescarga = formData.get("conDescarga") === "si";
+  const caminoDeVuelta = `/v/${slug}/comprar${conDescarga ? "?descarga=si&" : "?"}`;
   const volver = (error: string) =>
-    redirect(`/v/${slug}/comprar?error=${encodeURIComponent(error)}`);
+    redirect(`${caminoDeVuelta}error=${encodeURIComponent(error)}`);
 
   const revision = revisarComprador({
     nombre: formData.get("nombre"),
@@ -40,20 +43,15 @@ export async function comprarEvento(formData: FormData): Promise<void> {
       displayName: true,
       isPublished: true,
       basePriceCents: true,
-      downloadMode: true,
-      downloadPercentBps: true,
-      downloadPriceCents: true,
     },
   });
   if (!perfil || !perfil.isPublished) redirect("/");
+  if (perfil.basePriceCents <= 0) {
+    volver("Este vendedor todavía no configuró su precio.");
+    return;
+  }
 
-  const precios = calcularPrecios({
-    basePriceCents: perfil.basePriceCents,
-    downloadMode: perfil.downloadMode as ModoDescarga,
-    downloadPercentBps: perfil.downloadPercentBps,
-    downloadPriceCents: perfil.downloadPriceCents,
-  });
-  if (precios.baseCents <= 0) volver("Este vendedor todavía no configuró su precio.");
+  const venta = calcularVenta({ baseCents: perfil.basePriceCents, conDescarga });
 
   /*
     El cobrador se resuelve antes de crear nada. Si el vendedor no conectó su cuenta, el
@@ -67,9 +65,6 @@ export async function comprarEvento(formData: FormData): Promise<void> {
     return;
   }
 
-  // La comisión sale del monto que paga el cliente. El vendedor recibe el resto.
-  const reparto = repartir(precios.baseCents, COMISION_POR_DEFECTO_BPS);
-
   const orden = await prisma.subilafotoOrder.create({
     data: {
       sellerProfileId: perfil.id,
@@ -78,10 +73,12 @@ export async function comprarEvento(formData: FormData): Promise<void> {
       buyerEmail: comprador.email,
       buyerName: comprador.nombre,
       buyerPhone: comprador.telefono,
-      amountCents: precios.baseCents,
+      amountCents: venta.totalCents,
+      includesDownload: conDescarga,
       platformFeeBps: COMISION_POR_DEFECTO_BPS,
-      platformFeeCents: reparto.plataformaCents,
-      sellerNetCents: reparto.vendedorCents,
+      // Comisión más recargo: lo que efectivamente retiene la plataforma.
+      platformFeeCents: venta.plataformaCents,
+      sellerNetCents: venta.vendedorCents,
       mpCollectorId: cobrador.collector.providerUserId,
     },
     select: { id: true },
@@ -96,9 +93,11 @@ export async function comprarEvento(formData: FormData): Promise<void> {
     });
 
     const preferencia = await adaptador.createPreference({
-      amountMinor: precios.baseCents,
+      amountMinor: venta.totalCents,
       currency: "ARS",
-      description: `Subí la Foto — ${perfil.displayName}`,
+      description: conDescarga
+        ? `Subí la Foto — ${perfil.displayName} (con descarga)`
+        : `Subí la Foto — ${perfil.displayName}`,
       externalReference: referenciaDeOrden(orden.id),
       // Si Mercado Pago recibe dos veces el mismo pedido, devuelve la misma
       // preferencia en vez de crear dos. Pasa con un doble clic.
@@ -110,7 +109,7 @@ export async function comprarEvento(formData: FormData): Promise<void> {
       // En Checkout Pro la URL de aviso viaja en la preferencia, no en el panel:
       // por eso cada producto puede tener la suya.
       notificationUrl: `${base}/api/pagos/aviso`,
-      marketplaceFeeMinor: reparto.plataformaCents,
+      marketplaceFeeMinor: venta.plataformaCents,
       sourceApp: "subilafoto",
     });
 

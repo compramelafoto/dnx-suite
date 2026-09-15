@@ -514,6 +514,10 @@ El servicio recomendado inicialmente es **Amazon Rekognition**, utilizando `Dete
 
 ### 10.1 Volumen y costo esperado
 
+> **Corregido el 2026-09-15.** Lo que sigue sobre el adicional de descarga quedó
+> viejo: hoy hay dos formas de vender y la descarga cuesta el 10%. Ver el
+> documento 13.
+
 El supuesto comercial inicial es de aproximadamente **100 fotografías por evento**. Con el precio de referencia publicado para el primer tramo de Amazon Rekognition —aproximadamente USD 0,001 por imagen—, la moderación costaría cerca de **USD 0,10 por evento**.
 
 Referencias de volumen:
