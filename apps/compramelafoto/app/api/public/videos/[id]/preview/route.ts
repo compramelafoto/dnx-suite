@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { isAlbumPubliclyAccessible } from "@/lib/album-helpers";
 import { isVideoMvpEnabled } from "@/lib/videos/video-feature-flag";
 import { getSignedUrlForFile } from "@/lib/r2-client";
+import { resolveAlbumPublicVideoAccess } from "@/lib/videos/public-album-video-access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,7 +46,15 @@ export async function GET(
         expiresAt: true,
         processingStatus: true,
         album: {
-          select: { id: true, isPublic: true, isHidden: true, isTest: true, deletedAt: true },
+          select: {
+            id: true,
+            userId: true,
+            isPublic: true,
+            isHidden: true,
+            isTest: true,
+            deletedAt: true,
+            hiddenPhotosEnabled: true,
+          },
         },
       },
     });
@@ -61,6 +70,30 @@ export async function GET(
       !isAlbumPubliclyAccessible(video.album)
     ) {
       return NextResponse.json({ error: "Vista previa no disponible" }, { status: 404 });
+    }
+
+    // En un álbum con contenido oculto, el adelanto sigue la misma regla que el
+    // listado: sólo los videos que esa persona tiene permitidos. Sin esto,
+    // alguien podía pedir el adelanto de un video ajeno adivinando el número,
+    // porque los ids son correlativos.
+    if (video.album.hiddenPhotosEnabled) {
+      const acceso = await resolveAlbumPublicVideoAccess(req, {
+        id: video.album.id,
+        userId: video.album.userId,
+        isTest: video.album.isTest,
+        isPublic: video.album.isPublic,
+        isHidden: video.album.isHidden,
+        hiddenPhotosEnabled: video.album.hiddenPhotosEnabled,
+      });
+
+      const permitidos = acceso.ok ? acceso.access.allowedVideoIds : [];
+      if (!acceso.ok || (Array.isArray(permitidos) && !permitidos.includes(videoId))) {
+        console.info("[video-preview] adelanto bloqueado por álbum oculto", {
+          videoId,
+          albumId: video.album.id,
+        });
+        return NextResponse.json({ error: "Vista previa no disponible" }, { status: 404 });
+      }
     }
 
     const signedUrl = await getSignedUrlForFile(video.previewKey, 900);

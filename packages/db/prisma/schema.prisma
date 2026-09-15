@@ -5230,6 +5230,10 @@ model HiddenAlbumGrant {
   guestId         String?
   attemptId       String             @unique
   allowedPhotoIds Json
+  /// Videos que esta persona puede ver: donde fue reconocida, más los que no
+  /// tienen ninguna cara. Null en permisos anteriores a esta función, que se
+  /// tratan como "sin videos visibles" para no exponer material ajeno.
+  allowedVideoIds Json?
   allowedCount    Int
   isRevoked       Boolean            @default(false)
   album           Album              @relation(fields: [albumId], references: [id], onDelete: Cascade)

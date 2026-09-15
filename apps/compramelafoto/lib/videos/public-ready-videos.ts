@@ -77,7 +77,15 @@ export async function albumHasPublicReadyVideos(
 export async function listPublicReadyVideosForAlbum(
   prisma: PrismaClient,
   albumId: number,
-  options?: { applyExpiresFilter?: boolean; feePercent?: number }
+  options?: {
+    applyExpiresFilter?: boolean;
+    feePercent?: number;
+    /**
+     * Videos que puede ver quien entró con una selfie. `null` o ausente = sin
+     * restricción. Una lista vacía significa "ninguno", no "todos".
+     */
+    allowedVideoIds?: number[] | null;
+  }
 ): Promise<PublicVideoListResult> {
   if (!isVideoMvpEnabled()) {
     return { videos: [], devDiagnostics: null };
@@ -105,6 +113,17 @@ export async function listPublicReadyVideosForAlbum(
   });
 
   const where = buildListWhere(albumId, applyExpiresFilter);
+
+  // En un álbum oculto, cada persona ve lo suyo: los videos donde fue
+  // reconocida y los que no tienen ninguna cara. Sin este filtro, pasar la
+  // selfie abría todos los videos del álbum, incluidos los de otras personas.
+  const allowed = options?.allowedVideoIds;
+  if (Array.isArray(allowed)) {
+    if (allowed.length === 0) {
+      return { videos: [], devDiagnostics: null };
+    }
+    (where as { id?: unknown }).id = { in: allowed };
+  }
   const filtered = await prisma.videoAsset.findMany({
     where,
     orderBy: { uploadedAt: "desc" },
