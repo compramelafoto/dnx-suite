@@ -14,21 +14,25 @@
   "dependencies": {
     "@aws-sdk/client-rekognition": "^3.985.0",
     "@aws-sdk/client-s3": "^3.972.0",
+    "@aws-sdk/lib-storage": "^3.1079.0",
     "@aws-sdk/s3-request-presigner": "^3.972.0",
     "@repo/auth": "workspace:*",
     "@repo/auth-ui": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/design-system": "workspace:*",
+    "@repo/payments": "workspace:*",
+    "archiver": "^7.0.1",
     "jsqr": "1.4.0",
     "next": "16.2.1",
     "pdf-lib": "1.17.1",
     "qrcode": "^1.5.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "@repo/payments": "workspace:*"
+    "@repo/communications": "workspace:*"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/archiver": "^6.0.3",
     "@types/node": "^20",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19",

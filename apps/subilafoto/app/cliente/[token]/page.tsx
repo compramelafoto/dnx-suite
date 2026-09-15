@@ -73,6 +73,20 @@ export default async function PanelDelCliente({ params, searchParams }: Props) {
     ahora,
   });
 
+  const paquetes = await prisma.subilafotoPackage.findMany({
+    where: { eventId: evento.id },
+    orderBy: { partIndex: "asc" },
+    select: {
+      id: true,
+      status: true,
+      partIndex: true,
+      partCount: true,
+      itemCount: true,
+      downloadToken: true,
+      tokenExpiresAt: true,
+    },
+  });
+
   const publicadas = await prisma.subilafotoMedia.count({
     where: { ...condicionDePublicadas(evento.id), kind: "PHOTO" },
   });
@@ -124,6 +138,54 @@ export default async function PanelDelCliente({ params, searchParams }: Props) {
         style={{ background: "var(--slf-purpura)", color: "white" }}
       >
         <h2 className="text-xl font-extrabold">Descargar todo el material</h2>
+
+        {paquetes.length > 0 ? (
+          <div className="mt-5">
+            {paquetes.every((p) => p.status === "READY") ? (
+              <>
+                <p className="leading-relaxed" style={{ color: "var(--slf-lila)" }}>
+                  {paquetes.length === 1
+                    ? "Tu paquete está listo."
+                    : `Tu paquete viene en ${paquetes.length} partes. Bajalas todas.`}
+                </p>
+                <ul className="mt-4 space-y-2">
+                  {paquetes.map((p) => (
+                    <li key={p.id}>
+                      <a
+                        href={`/descarga/${p.downloadToken}`}
+                        className="font-extrabold underline underline-offset-4"
+                        style={{ color: "var(--slf-amarillo)" }}
+                      >
+                        Parte {p.partIndex} de {p.partCount}
+                      </a>
+                      {p.itemCount ? (
+                        <span className="ml-2 text-sm" style={{ color: "var(--slf-lila)" }}>
+                          {p.itemCount} fotos
+                        </span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+                {paquetes[0]?.tokenExpiresAt ? (
+                  <p className="mt-4 text-sm" style={{ color: "var(--slf-lila)" }}>
+                    Los enlaces valen hasta el {FECHA.format(paquetes[0].tokenExpiresAt)}. Después
+                    pedís unos nuevos desde acá.
+                  </p>
+                ) : null}
+              </>
+            ) : paquetes.some((p) => p.status === "FAILED") ? (
+              <p className="leading-relaxed" style={{ color: "var(--slf-lila)" }}>
+                Algo falló al armar tu paquete. Ya lo estamos viendo: si no tenés noticias en
+                unas horas, escribinos.
+              </p>
+            ) : (
+              <p className="leading-relaxed" style={{ color: "var(--slf-lila)" }}>
+                Estamos armando tu paquete. Te avisamos por correo cuando esté, dentro de las
+                próximas 24 horas.
+              </p>
+            )}
+          </div>
+        ) : null}
 
         {adicional.sePuede ? (
           <>

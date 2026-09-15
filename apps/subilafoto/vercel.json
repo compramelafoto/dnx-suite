@@ -7,6 +7,14 @@
     {
       "path": "/api/eventos/cerrar",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/paquetes/armar",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/correos/avisos",
+      "schedule": "0 * * * *"
     }
   ]
 }

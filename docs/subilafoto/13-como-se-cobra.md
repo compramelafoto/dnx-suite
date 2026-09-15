@@ -64,3 +64,103 @@ lo que viene después: armar el paquete y mandarlo. Es el ZIP con manifiesto
 
 Y falta lo otro que dijo el titular: **venderle la descarga por correo a quien
 compró sin ella**. Es una secuencia de correos, no una pantalla.
+
+## El paquete y la entrega (2026-09-15)
+
+### Se transmite, no se acumula
+
+Cada foto se lee de R2, entra al ZIP y sale hacia R2 en el mismo movimiento, con
+subida multiparte. CompraMeLaFoto escribe el ZIP a disco antes de subirlo, y en
+Vercel eso tiene un techo de 512 MB que un casamiento pasa sin esfuerzo.
+
+**Sin compresión, a propósito.** Un JPEG ya está comprimido: apretarlo otra vez
+gasta minutos de procesador para ahorrar cerca del uno por ciento. El ZIP acá
+sirve para juntar, no para achicar.
+
+### En partes, hasta 2 GB cada una
+
+Un casamiento son varios gigabytes. El modelo ya preveía `partIndex`/`partCount`.
+El invariante que se prueba es el que importa: **ninguna foto queda afuera de
+todas las partes** — el cliente pagó por todas, y una que falta no se nota hasta
+que la busca.
+
+Una foto sola más grande que el tope va igual, en su propia parte. Es preferible
+una parte pasada de tamaño a una foto faltante.
+
+### El manifiesto es lo que lo hace verificable
+
+`manifiesto.json` dentro del ZIP: cada archivo con su tamaño, su checksum, quién
+la subió y cuándo. Sin él, un ZIP al que le faltan tres fotos se abre igual y
+nadie se entera.
+
+Las fotos van **numeradas** y no con su nombre original: hay un `IMG_0001.jpg` en
+cada celular de la fiesta, y un ZIP con nombres repetidos pierde archivos al
+descomprimirse, sin avisar.
+
+### El enlace vence, se revoca y no dice nada de sí mismo
+
+Siete días, nunca más allá del borrado del material —prometer siete días cuando
+se borra en dos es prometer lo que no se puede cumplir—. El identificador es
+opaco: no lleva el evento ni el cliente, así que no se puede adivinar el de otro.
+
+**Un enlace vencido no devuelve un error, devuelve un mensaje**, y con código 410
+en vez de 404: existió y ya no está, que es distinto de un enlace inventado. Quien
+lo abre ya pagó.
+
+### La descarga no pasa por nosotros
+
+La ruta manda al cliente **directo a R2** con una firma corta. Pasar gigabytes por
+una función serverless es pagar por mover bytes, arriesgarse al tope de tiempo y
+perder la reanudación: bajando de R2, si se corta se retoma.
+
+### El armado va por cron, uno por vuelta
+
+Cada quince minutos, **un evento por invocación**. Un casamiento puede tardar
+minutos y la función tiene un tope de cinco; intentar dos seguidos deja el
+segundo cortado. Para la promesa de las 24 horas sobra por mucho.
+
+## Los correos posteriores al evento (2026-09-15)
+
+Cinco: al día siguiente del cierre y a los 3, 7, 15 y 30 días. Hacen dos cosas a
+la vez — contarle al cliente que su álbum está listo y **venderle la descarga si
+compró sin ella**, que es lo que el titular pidió el 15/9.
+
+### El duplicado se evita en la base, no mirando antes
+
+`SubilafotoEmailSent` tiene `@@unique([eventId, aviso])` y **la fila se crea antes
+de enviar**. Si dos ejecuciones del worker llegan juntas, la segunda choca contra
+la restricción y se va.
+
+Consultar un registro antes de enviar no alcanza: entre la consulta y el envío
+entra la otra ejecución. Es el mismo patrón que la moderación y las órdenes.
+
+Si el envío falla, la fila queda con el error anotado. **Es preferible perder un
+aviso a mandarlo dos veces**: quien recibe cinco correos iguales deja de abrir
+los que importan.
+
+### Uno por vuelta, y los viejos se saltean
+
+Si el cron estuvo caído un día, el aviso sale igual — sigue sirviendo. Si estuvo
+caído una semana, el del día 1 **no se manda**: ya no dice nada útil el día 7, y
+mandar los atrasados de golpe serían tres correos en un minuto.
+
+### A quien ya tiene la descarga se le escribe otra cosa
+
+No se le ofrece comprar lo que ya compró. Hay un test que lo verifica en los cinco
+avisos: insistir es la forma más rápida de que marque el correo como spam.
+
+### Sin nuestra marca
+
+El texto firma con el vendedor. Para el cliente el servicio es de quien se lo
+vendió, y que apareciera Subí la Foto rompería la marca blanca. Hay un test que
+verifica que nuestro nombre no aparezca en ninguno de los cinco.
+
+### Sale en seco hasta que se habilite
+
+Usa el runtime controlado de `@repo/communications`, que no manda nada de verdad
+mientras no esté configurado y habilitado. Los avisos quedan registrados como
+`DRY_RUN` con el motivo. Eso es lo que evita escribirle a gente real antes de
+tiempo.
+
+Para encenderlo hacen falta `RESEND_API_KEY` y la configuración de remitente del
+runtime. Mientras no estén, todo queda anotado y nada sale.
