@@ -3,6 +3,7 @@ import "server-only";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { almacenamiento, bucket } from "@/lib/almacenamiento";
+import { type Etiqueta, type VarianteGuardada, varianteParaMirar } from "@/lib/variantes/medidas";
 
 /**
  * Enlaces para *mirar* una foto en el panel, no para bajarla.
@@ -10,12 +11,12 @@ import { almacenamiento, bucket } from "@/lib/almacenamiento";
  * El bucket es privado: sin firma no se ve nada. La firma dura un minuto, lo que
  * alcanza para pintar la pantalla y no para pasarle el enlace a nadie.
  *
- * **Deuda conocida:** hoy apunta al original porque todavía no se generan
- * variantes. El documento 03 dice que el profesional ve el contenido "en calidad
- * de pantalla", así que cuando exista `SubilafotoMediaVariant` esto tiene que
- * apuntar a la versión reducida. No es paranoia: la regla anti-bypass existe
- * porque si el fotógrafo se lleva los originales, el adicional de descarga —que
- * es 100% ingreso de la plataforma— no se vende nunca.
+ * **Nunca apunta al original.** Es la regla anti-bypass del capítulo 12.4: si el fotógrafo
+ * se lleva los originales, el adicional de descarga —que es 100% ingreso de la
+ * plataforma— no se vende nunca, y un permiso no arregla eso mientras la pantalla le
+ * muestre el archivo bueno. Lo que se firma es siempre una variante reducida.
+ *
+ * El original sale por un solo lado: adentro del ZIP que se paga.
  */
 /**
  * Cuánto vale una firma, según para qué es.
@@ -50,3 +51,28 @@ export async function enlacesParaMirar(
 ): Promise<string[]> {
   return Promise.all(claves.map((c) => enlaceParaMirar(c, segundos)));
 }
+
+/**
+ * Enlaces para mirar una lista de fotos, cada una en su variante.
+ *
+ * Devuelve `null` en las que todavía no tienen ninguna variante generada. **Nunca cae al
+ * original**: entre mostrar el archivo bueno y no mostrar nada, no se muestra nada. Cada
+ * pantalla decide qué hacer con ese hueco.
+ */
+export async function enlacesDeVariantes(
+  fotos: readonly { variants: readonly VarianteGuardada[] }[],
+  quiero: Etiqueta,
+  segundos: number = DURACION.panel,
+): Promise<(string | null)[]> {
+  return Promise.all(
+    fotos.map(async (foto) => {
+      const clave = varianteParaMirar(foto.variants, quiero);
+      return clave ? enlaceParaMirar(clave, segundos) : null;
+    }),
+  );
+}
+
+/** Lo que hay que pedirle a Prisma para poder mirar una foto. */
+export const SELECT_DE_VARIANTES = {
+  select: { label: true, storageKey: true },
+} as const;

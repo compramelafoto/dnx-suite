@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { rechazoDeLlave } from "@/lib/llave-de-servicio";
 import { moderarPendientes } from "@/lib/moderacion";
+import { generarVariantesRezagadas } from "@/lib/variantes/rezagadas";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,5 +29,12 @@ export async function GET(req: Request) {
   const arranque = Date.now();
   const resumen = await moderarPendientes();
 
-  return NextResponse.json({ ...resumen, msTotal: Date.now() - arranque });
+  /*
+    Y de paso, las fotos ya decididas que se quedaron sin variante. Normalmente no hay
+    ninguna. Si la hay, sin esto queda invisible para siempre: nadie vuelve a moderar una
+    foto ya decidida, y una foto sin variante no se muestra en ningún lado.
+  */
+  const variantes = await generarVariantesRezagadas();
+
+  return NextResponse.json({ ...resumen, variantes, msTotal: Date.now() - arranque });
 }

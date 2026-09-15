@@ -43,6 +43,14 @@ export type Dependencias = {
    * Ahí vive la idempotencia: la condición la resuelve la base, no este código.
    */
   guardar(entrada: EntradaDeGuardado): Promise<boolean>;
+
+  /**
+   * Genera las versiones reducidas con los bytes que ya se bajaron.
+   *
+   * Va acá y no en un paso aparte porque el original ya está en memoria: bajarlo otra vez
+   * sería pagar el mismo tráfico dos veces.
+   */
+  reducir(mediaId: string, originalKey: string, imagen: Uint8Array): Promise<void>;
 };
 
 export type ResultadoDelProceso =
@@ -59,10 +67,11 @@ export async function procesarFoto(
 
   const arranque = Date.now();
   let analisis: Awaited<ReturnType<ProveedorDeModeracion["analizar"]>>;
+  let bytes: Uint8Array | null = null;
 
   try {
-    const imagen = await deps.descargar(foto.originalKey);
-    analisis = await deps.proveedor.analizar(imagen);
+    bytes = await deps.descargar(foto.originalKey);
+    analisis = await deps.proveedor.analizar(bytes);
   } catch (error) {
     // Que no se pueda bajar el archivo es tan "no la miramos" como que falle
     // Amazon. Mismo camino: la foto queda retenida.
@@ -74,6 +83,25 @@ export async function procesarFoto(
   }
 
   const decision = decidirDesdeElAnalisis(analisis, foto.perfil);
+
+  /*
+    Las versiones reducidas, antes de guardar la decisión.
+
+    **Sólo si la foto se va a poder mirar.** Una bloqueada no aparece en ninguna pantalla,
+    así que reducirla es gastar procesador y espacio en algo que nadie va a abrir. Una
+    retenida sí: el panel de revisión tiene que poder mostrarla, y por la regla anti-bypass
+    lo que muestra es la variante y nunca el original.
+
+    Si esto explota, la foto se decide igual. Una foto sin variante se puede volver a
+    intentar; una foto sin decisión queda retenida para siempre.
+  */
+  if (bytes && decision.estado !== "BLOCKED") {
+    try {
+      await deps.reducir(foto.id, foto.originalKey, bytes);
+    } catch {
+      // El motivo no se pierde: `generarVariantes` lo anota por su cuenta.
+    }
+  }
 
   const guardada = await deps.guardar({
     mediaId: foto.id,
