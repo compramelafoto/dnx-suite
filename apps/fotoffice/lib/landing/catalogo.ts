@@ -7,6 +7,7 @@ import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
+import { SALES_MODULE_KEY } from "@/lib/sales/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 
 /**
@@ -160,6 +161,20 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
       "Evaluación con notas internas",
       "Seguimiento por enlace privado",
       "Historial de cada cambio",
+    ],
+  },
+  {
+    key: SALES_MODULE_KEY,
+    cuadro: "11",
+    nombre: "Ventas",
+    resuelve:
+      "El mostrador: buscás el producto por nombre o lo pasás por el lector de código de barras, armás el ticket y cobrás. Cada venta descuenta la existencia y entra sola a la caja del turno. Los productos con código de barras se comparten con el resto del sistema, así que el que alguien ya cargó no hay que volver a cargarlo.",
+    pantallas: [
+      "Mostrador con lector de código de barras",
+      "Catálogo de productos y servicios con foto",
+      "Existencias y reposición",
+      "Ventas hechas y anulaciones",
+      "Margen por producto",
     ],
   },
 ];

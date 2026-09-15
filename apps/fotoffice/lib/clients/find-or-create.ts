@@ -68,22 +68,43 @@ export async function findOrCreateClient(
     createdByUserId: input.createdByUserId ?? null,
   };
 
+  // CUARTA vez que este proyecto tropieza con la misma familia de bug: un `catch` de P2002
+  // no puede vivir dentro de una transacción interactiva. `findOrCreateClient` siempre recibe
+  // un `tx` —nunca abre el suyo propio (ver el comentario de cabecera)— y desde que
+  // `record-sale.ts` empezó a llamarlo DENTRO de la transacción de la venta, el `catch` de
+  // abajo quedó alcanzable de verdad: en PostgreSQL un error dentro de `BEGIN…COMMIT` deja la
+  // transacción abortada, la sentencia siguiente revienta con "current transaction is
+  // aborted" (25P02), y el reintento que este `for` promete nunca llega a correr — la venta
+  // entera termina en `ROLLBACK` por un choque que debería haberse resuelto solo. Mismo
+  // arreglo que ya se aplicó en `lib/sales/global-catalog.ts` y en `lib/sales/record-sale.ts`:
+  // `createMany` + `skipDuplicates` compila a `ON CONFLICT DO NOTHING`, así que el choque del
+  // índice único `(workspaceId, clientNumber)` deja de ser un error de SQL y la transacción
+  // sigue viva para releer y reintentar con el próximo número.
   for (let intento = 0; intento < 3; intento++) {
     const ultimo = await tx.client.findFirst({
       where: { workspaceId: input.workspaceId },
       orderBy: { clientNumber: "desc" },
       select: { clientNumber: true },
     });
-    try {
-      const creado = await tx.client.create({
-        data: { ...datos, clientNumber: nextClientNumber(ultimo?.clientNumber ?? null) },
+    const clientNumber = nextClientNumber(ultimo?.clientNumber ?? null);
+
+    const resultado = await tx.client.createMany({
+      data: [{ ...datos, clientNumber }],
+      skipDuplicates: true,
+    });
+
+    if (resultado.count === 1) {
+      // Ganamos la carrera con este número. `createMany` no devuelve el `id` que Prisma le
+      // generó (a diferencia de `create`), así que se relee por el único compuesto que
+      // acabamos de asegurar.
+      const creado = await tx.client.findUniqueOrThrow({
+        where: { workspaceId_clientNumber: { workspaceId: input.workspaceId, clientNumber } },
         select: { id: true },
       });
       return { id: creado.id, created: true };
-    } catch (e) {
-      const choque = e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
-      if (!choque) throw e;
     }
+    // `count === 0`: otra alta tomó este número un instante antes (`ON CONFLICT DO NOTHING`
+    // descartó la fila). Se reintenta con el próximo número, sin que esto haya sido un error.
   }
 
   throw new Error("No se pudo asignar un número de cliente después de tres intentos.");

@@ -7087,6 +7087,10 @@ model Workspace {
   cashShifts                  CashShift[]
   cashMovements               CashMovement[]
   cashTransfers               CashTransfer[]
+  productCategories           ProductCategory[]
+  products                    Product[]
+  stockMovements              StockMovement[]
+  sales                       Sale[]
   feeLedger                   WorkspaceFeeLedgerEntry[]
   membershipApplications      MembershipApplication[]
   membershipDuesSettings      MembershipDuesSettings?
@@ -16968,6 +16972,7 @@ model Client {
   member           Member?           @relation(fields: [memberId], references: [id], onDelete: SetNull)
   movements        CashMovement[]
   coverageRequests CoverageRequest[]
+  sales            Sale[]
 
   @@unique([workspaceId, clientNumber])
   @@index([workspaceId, status])
@@ -18259,4 +18264,209 @@ model CoverageEvent {
 
   @@index([workspaceId, entityType, entityId, createdAt])
   @@index([workspaceId, createdAt])
+}
+
+/// Catálogo maestro de productos, por código de barras. **Compartido por toda la suite.**
+///
+/// Es la ÚNICA tabla de FotoOffice sin `workspaceId`, y es a propósito: el código de barras
+/// de un portarretratos es el mismo en Rosario que en Tokio, así que la identidad de la cosa
+/// se puede compartir aunque el negocio no.
+///
+/// Guarda identidad y NADA de comercio: ni precio, ni costo, ni existencia. Lo que cada
+/// negocio cobra es suyo. Si alguna vez alguien agrega acá un campo de plata, está rompiendo
+/// la única razón por la que esta tabla puede ser global.
+model GlobalProduct {
+  id          String  @id @default(cuid())
+  /// La llave. Único en todo el sistema.
+  barcode     String  @unique
+  name        String
+  brand       String?
+  description String?
+  imageUrl    String?
+
+  /// Quién la cargó primero. Para poder preguntarle, no para darle permisos.
+  /// Sin clave foránea: la ficha sobrevive aunque ese workspace se elimine.
+  createdByWorkspaceId String?
+  createdByUserId      Int?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  products Product[]
+}
+
+/// Categoría de producto, definida por cada negocio.
+model ProductCategory {
+  id          String  @id @default(cuid())
+  workspaceId String
+  name        String
+  order       Int     @default(0)
+  isActive    Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  products  Product[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, isActive])
+}
+
+/// Lo que el negocio vende: un producto o un servicio.
+///
+/// Dos interruptores independientes. `kind` dice qué es —sirve para agrupar y para que el
+/// reporte separe la línea—. `tracksStock` dice si hay algo que contar: el trípode sí, la
+/// sesión de fotos no, y el cuadro tercerizado tampoco aunque sea un producto. Atarlos
+/// obligaría a mentir en uno de los dos.
+model Product {
+  id          String  @id @default(cuid())
+  workspaceId String
+  categoryId  String?
+
+  /// PRODUCTO | SERVICIO
+  kind String @default("PRODUCTO")
+  /// Código interno, el que se inventa cada negocio.
+  sku             String?
+  /// Código de barras del fabricante. La llave del catálogo maestro.
+  barcode         String?
+  globalProductId String?
+
+  name        String
+  description String?
+  /// La marca que el negocio decidió quedarse para ESTE producto. Existe también en
+  /// `GlobalProduct.brand` (la ficha maestra dice qué marca es esa cosa en el mundo), pero
+  /// son copias independientes: si no hubiera columna acá, la marca precargada al escanear
+  /// un código se perdería en cuanto se guardara el alta, igual que pasaría con `name` si no
+  /// tuviera su propia columna en esta tabla.
+  brand String?
+
+  priceArs Decimal  @db.Decimal(12, 2)
+  costArs  Decimal? @db.Decimal(12, 2)
+
+  tracksStock Boolean @default(true)
+  /// Copia; la verdad es la suma de StockMovement. Puede ser negativa: eso es información,
+  /// significa que falta cargar una entrada.
+  stockQty    Int     @default(0)
+  minStockQty Int?
+
+  imageUrl     String?
+  supplierName String?
+  /// Se desactiva, no se borra: las ventas viejas lo siguen nombrando.
+  isActive     Boolean @default(true)
+
+  createdByUserId Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  workspace      Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  category       ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  globalProduct  GlobalProduct?   @relation(fields: [globalProductId], references: [id], onDelete: SetNull)
+  stockMovements StockMovement[]
+  saleItems      SaleItem[]
+
+  @@unique([workspaceId, sku])
+  @@index([workspaceId, isActive])
+  @@index([workspaceId, categoryId])
+  @@index([workspaceId, barcode])
+  @@index([globalProductId])
+}
+
+/// El libro de existencias. La cantidad que se muestra es la suma de esta columna.
+model StockMovement {
+  id          String @id @default(cuid())
+  workspaceId String
+  productId   String
+
+  /// Firmado: la venta resta, la entrada suma.
+  qty    Int
+  /// VENTA | ENTRADA | AJUSTE | DEVOLUCION | INICIAL
+  reason String
+
+  /// En las entradas: lo que costó esa vez.
+  unitCostArs Decimal? @db.Decimal(12, 2)
+
+  sourceModule String?
+  sourceRef    String?
+  /// Obligatoria de hecho en los ajustes: un ajuste sin explicar no se entiende después.
+  note         String?
+
+  createdByUserId Int?
+  createdAt       DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId, createdAt])
+  @@index([productId, createdAt])
+}
+
+/// Una venta de mostrador.
+model Sale {
+  id          String @id @default(cuid())
+  workspaceId String
+  /// Correlativo dentro del workspace.
+  saleNumber  Int
+
+  clientId   String?
+  occurredAt DateTime
+  /// COMPLETADA | ANULADA
+  status     String   @default("COMPLETADA")
+
+  subtotalArs Decimal @db.Decimal(12, 2)
+  discountArs Decimal @default(0) @db.Decimal(12, 2)
+  totalArs    Decimal @db.Decimal(12, 2)
+
+  /// EFECTIVO | MERCADO_PAGO | TRANSFERENCIA | TARJETA | OTRO
+  paymentMethod String
+  /// El ingreso que generó. Único: una venta deposita una sola vez.
+  cashMovementId String? @unique
+
+  note String?
+  /// Cuando se facturó por fuera. La facturación propia es la etapa 6.
+  externalInvoiceRef String?
+
+  voidedAt       DateTime?
+  voidedByUserId Int?
+  voidReason     String?
+
+  createdByUserId Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  workspace Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client    Client?    @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  items     SaleItem[]
+
+  @@unique([workspaceId, saleNumber])
+  @@index([workspaceId, occurredAt])
+  @@index([clientId, occurredAt])
+  @@index([workspaceId, status])
+}
+
+/// Un renglón de la venta.
+///
+/// `description`, `unitPriceArs` y `unitCostArs` son instantáneas: la venta del año pasado
+/// tiene que seguir mostrando lo que se cobró y lo que costó ESA vez, aunque el producto
+/// después cambie de nombre o de precio.
+model SaleItem {
+  id     String @id @default(cuid())
+  saleId String
+  /// Nulo en un renglón suelto, escrito a mano.
+  productId String?
+
+  description  String
+  qty          Int
+  unitPriceArs Decimal  @db.Decimal(12, 2)
+  unitCostArs  Decimal? @db.Decimal(12, 2)
+  lineTotalArs Decimal  @db.Decimal(12, 2)
+  /// Si el precio se pisó a mano. Para poder explicarlo meses después.
+  priceWasOverridden Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  sale    Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([saleId])
+  @@index([productId])
 }

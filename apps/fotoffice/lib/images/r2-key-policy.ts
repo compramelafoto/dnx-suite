@@ -14,6 +14,7 @@ export const FOTOFFICE_R2_PREFIXES = {
   websiteBlockImage: "fotoffice/website-block-images",
   favicon: "fotoffice/favicons",
   templateImage: "fotoffice/template-images",
+  productPhoto: "fotoffice/product-photos",
 } as const;
 
 export const FOTOFFICE_R2_DELETABLE_PREFIXES = Object.values(FOTOFFICE_R2_PREFIXES).map(
