@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
+import type { ParsedCollaboratorProfile } from "./colaboradores";
 import { DEFAULT_COVERAGE_SETTINGS, type CoverageSettingsShape } from "./settings";
 import { whereForFilter } from "./inbox-filters";
 import { PUBLIC_FORM_WINDOW_MINUTES } from "./rate-limit";
@@ -165,5 +166,80 @@ export async function findDuplicateRequest(input: {
       client: { email: input.email },
     },
     select: { id: true, publicCode: true },
+  });
+}
+
+/**
+ * Los socios del workspace, con su perfil de colaborador si lo tienen.
+ *
+ * Alimenta la pantalla de administración (`/coberturas/colaboradores`): de ahí sale a quién
+ * marcar como colaborador activo. Trae TODOS los socios, no solo los que ya tienen perfil —
+ * la pantalla necesita poder ofrecerle el alta a alguien que todavía nunca se tocó— y por eso
+ * la consulta es sobre `Member`, no sobre `CoverageCollaboratorProfile`.
+ */
+export async function listCollaborators(input: { workspaceId: string }) {
+  return prisma.member.findMany({
+    where: { workspaceId: input.workspaceId },
+    select: {
+      id: true,
+      memberNumber: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      city: true,
+      status: true,
+      coverageProfile: {
+        select: {
+          active: true,
+          homeCity: true,
+          coverageZones: true,
+          maxTravelKm: true,
+          transport: true,
+          equipment: true,
+          specialties: true,
+          experienceLevel: true,
+          acceptsUrgent: true,
+          notes: true,
+        },
+      },
+    },
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+  });
+}
+
+/** El perfil de colaborador de un socio puntual. `null` si nunca se creó o es de otro workspace. */
+export async function loadCollaboratorProfile(input: { workspaceId: string; memberId: string }) {
+  return prisma.coverageCollaboratorProfile.findFirst({
+    where: { workspaceId: input.workspaceId, memberId: input.memberId },
+  });
+}
+
+/**
+ * Crea o actualiza el perfil de colaborador de un socio.
+ *
+ * Antes de escribir nada, verifica que ese `memberId` sea de ESTE workspace. Sin ese chequeo,
+ * un `memberId` de otra institución llegado a mano en el `FormData` (el formulario solo ofrece
+ * los socios del propio padrón, pero eso es cortesía de la pantalla, no un control) crearía un
+ * `CoverageCollaboratorProfile` que cruza instituciones — el `memberId` es `@unique` en el
+ * modelo, así que el `where` del `upsert` no puede llevar el aislamiento por sí solo: hace
+ * falta esta comprobación antes.
+ *
+ * Devuelve `null`, sin escribir nada, cuando el socio no es de este workspace.
+ */
+export async function upsertCollaboratorProfile(input: {
+  workspaceId: string;
+  memberId: string;
+  datos: ParsedCollaboratorProfile;
+}) {
+  const socio = await prisma.member.findFirst({
+    where: { id: input.memberId, workspaceId: input.workspaceId },
+    select: { id: true },
+  });
+  if (!socio) return null;
+
+  return prisma.coverageCollaboratorProfile.upsert({
+    where: { memberId: input.memberId, workspaceId: input.workspaceId },
+    update: { ...input.datos },
+    create: { workspaceId: input.workspaceId, memberId: input.memberId, ...input.datos },
   });
 }

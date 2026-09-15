@@ -89,6 +89,11 @@ export function coverageEventLabel(type: string): string {
  * sí puede volver de forma manual: si todavía queda fecha por delante tiene sentido reintentar
  * sobre esta misma cobertura en vez de perder su historial creando una nueva (ver la transición
  * en `transitions.ts`).
+ *
+ * `SIN_EQUIPO` también se puede CANCELAR (ver `COVERAGE_LIVE_STATUSES` más abajo): quedarse sin
+ * gente es exactamente el momento en que hace falta poder cerrar la cobertura y avisarle a la
+ * organización que no va a haber cobertura, en vez de dejarla congelada sin ningún camino hacia
+ * adelante.
  */
 export const COVERAGE_STATUSES = [
   "PLANIFICADA",
@@ -122,11 +127,20 @@ export function coverageStatusLabel(status: string): string {
   return isCoverageStatus(status) ? COVERAGE_STATUS_LABELS[status] : status;
 }
 
-/** Estados en los que la cobertura todavía está viva y puede cancelarse. */
+/**
+ * Estados en los que la cobertura todavía está viva y puede cancelarse.
+ *
+ * `SIN_EQUIPO` entra acá a propósito: quedarse sin gente no es un estado de reposo, es
+ * exactamente cuando hay que poder cancelar y avisarle a la organización que la cobertura no
+ * va a salir. Sin esto en la lista, una cobertura sin equipo quedaba sin ningún camino hacia
+ * adelante — ni podía retomar la búsqueda sola (no lo hace, ver el comentario de
+ * `COVERAGE_STATUSES`) ni se la podía cerrar.
+ */
 export const COVERAGE_LIVE_STATUSES: readonly CoverageStatus[] = [
   "PLANIFICADA",
   "BUSCANDO_EQUIPO",
   "EQUIPO_CONFIRMADO",
+  "SIN_EQUIPO",
 ];
 
 /**

@@ -172,6 +172,12 @@ describe("canTransitionCoverage", () => {
     expect(canTransitionCoverage("CERRADA", "CANCELADA")).toBe(false);
   });
 
+  it("sin equipo también se puede cancelar: es cuando hay que avisarle a la organización", () => {
+    // Quedarse sin gente no es un estado de reposo. Sin este camino, una cobertura SIN_EQUIPO
+    // no tenía forma de cerrarse ni de comunicarle a quien la pidió que no va a haber cobertura.
+    expect(canTransitionCoverage("SIN_EQUIPO", "CANCELADA")).toBe(true);
+  });
+
   it("quedarse donde está no es una transición", () => {
     expect(canTransitionCoverage("BUSCANDO_EQUIPO", "BUSCANDO_EQUIPO")).toBe(false);
   });
