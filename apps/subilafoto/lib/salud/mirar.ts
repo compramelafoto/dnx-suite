@@ -3,6 +3,7 @@ import "server-only";
 import { prisma } from "@repo/db";
 import { alertasDeLosDatos, type Alerta } from "./alertas";
 import { CADENCIAS, estadoDeUnCron, semaforoGeneral, type Diagnostico } from "./estado";
+import { revisarConfiguracion, type EstadoDeConfiguracion } from "./configuracion";
 
 /**
  * Cómo va la noche.
@@ -17,6 +18,7 @@ const MINUTOS_TRABADA = 10;
 
 export type Salud = {
   semaforo: ReturnType<typeof semaforoGeneral>;
+  configuracion: EstadoDeConfiguracion;
   crones: { nombre: string; cadencia: number; diagnostico: Diagnostico; ultimoResultado: unknown }[];
   alertas: Alerta[];
   ahora: Date;
@@ -97,6 +99,8 @@ export async function mirarLaSalud(): Promise<Salud> {
 
   return {
     semaforo: semaforoGeneral(crones.map((c) => c.diagnostico)),
+    // Sólo nombres y para qué era cada una. Nunca un valor.
+    configuracion: revisarConfiguracion(),
     crones,
     alertas: alertasDeLosDatos({
       fotosTrabadas,

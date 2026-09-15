@@ -110,6 +110,38 @@ export default async function Salud() {
         </section>
       ) : null}
 
+      {salud.configuracion.faltan.length > 0 ? (
+        <section className="mt-10">
+          <h2 className="text-xl font-extrabold">Falta configurar</h2>
+          <ul className="mt-4 space-y-2">
+            {salud.configuracion.faltan.map((f) => (
+              <li
+                key={f.nombre}
+                className="rounded-xl px-5 py-3 text-sm"
+                style={{ background: COLOR.caido.fondo }}
+              >
+                <code className="font-extrabold" style={{ color: COLOR.caido.texto }}>
+                  {f.nombre}
+                </code>
+                <span className="ml-3" style={{ color: "var(--slf-tinta)" }}>
+                  {f.sinElla}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {!salud.configuracion.correosEnVivo ? (
+        <p
+          className="mt-8 rounded-xl px-5 py-4 text-sm"
+          style={{ background: COLOR.atrasado.fondo, color: COLOR.atrasado.texto }}
+        >
+          Los correos están apagados: quedan anotados y no sale ninguno. Para encenderlos,
+          <code className="mx-1 font-extrabold">SUBILAFOTO_CORREOS_EN_VIVO=true</code>.
+        </p>
+      ) : null}
+
       <section className="mt-10">
         <h2 className="text-xl font-extrabold">Las tareas automáticas</h2>
         <ul className="mt-4 space-y-2">
