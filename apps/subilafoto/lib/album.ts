@@ -33,3 +33,17 @@ export function condicionDePublicadas(eventoId: string) {
     publishedAt: { not: null },
   };
 }
+
+/**
+ * ¿Esta persona puede ver el álbum?
+ *
+ * El interruptor `guestsCanSeeAlbum` es sobre los **invitados**: hay organizadores que no
+ * quieren que la fiesta entera vea las fotos antes que ellos. Al cliente que contrató el
+ * evento no lo alcanza — es su material, y su enlace ya es la prueba de quién es.
+ */
+export function puedeVerElAlbum(entrada: {
+  guestsCanSeeAlbum: boolean;
+  esElCliente: boolean;
+}): boolean {
+  return entrada.esElCliente || entrada.guestsCanSeeAlbum;
+}

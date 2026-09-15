@@ -237,3 +237,42 @@ Sí se borran las fotos, sus variantes y las sesiones de invitado.
 El cron corre a las 4:30. No hay apuro, y de a poco se acota el daño de una
 equivocación: si algo estuviera mal, se descubre con tres eventos borrados y no
 con trescientos.
+
+## El panel del cliente (2026-09-15)
+
+Se entra con un enlace y sin cuenta. Ve su álbum, compra la descarga si la
+compró sin ella, y baja el paquete cuando está.
+
+### El cliente ve su álbum aunque esté apagado para los invitados
+
+`guestsCanSeeAlbum` es un interruptor sobre los **invitados**: hay organizadores
+que no quieren que la fiesta entera vea las fotos antes que ellos. Al cliente no
+lo alcanza — es su material, y su enlace ya es la prueba de quién es.
+
+Por eso el álbum tiene dos puertas, `/e/[codigo]/album` y `/cliente/[token]/album`,
+que muestran exactamente lo mismo desde el mismo componente. Si fueran dos
+pantallas distintas, una se corregiría y la otra no.
+
+### Los enlaces vencidos se pueden renovar
+
+El panel prometía "después pedís unos nuevos desde acá" y no había desde dónde.
+Ahora sí, con tres reglas:
+
+- Se renuevan **todas las partes juntas**: un paquete partido en tres con una
+  parte que no se puede bajar no sirve de nada.
+- **Cada parte estrena token.** Renovar el vencimiento sin cambiar el token
+  dejaría vivo el enlace viejo, que es justamente el que puede haber circulado
+  de más.
+- Hay un tope de diez. De sobra para quien se olvidó de bajarlo; suficiente para
+  que un enlace compartido de más no sea un servidor de archivos permanente.
+
+Y nunca se pasa de la fecha de borrado: no tiene sentido prometer siete días si
+el material se borra en dos.
+
+### Quiénes trabajaron esa noche
+
+El panel lista los proveedores que completaron su ficha, con su sitio y su
+Instagram. Es lo que se les prometió cuando la completaron: que el evento les
+sirviera para que los vieran.
+
+Falta que también los vean los invitados, en el álbum.
