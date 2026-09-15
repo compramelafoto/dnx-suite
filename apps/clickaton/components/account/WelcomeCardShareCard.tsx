@@ -1,6 +1,7 @@
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { presentWelcomeCardStatus, publicToneToBadgeVariant } from "@/lib/public-ux/status-presentation";
+import { welcomeCardMediaUrl } from "@/lib/welcome-card/media-url";
 import { WelcomeCardShareActions } from "./WelcomeCardShareActions";
 
 type Props = {
@@ -24,11 +25,9 @@ export function WelcomeCardShareCard({
 }: Props) {
   const ready = status === "GENERATED";
   const presentation = presentWelcomeCardStatus(status);
-  const previewUrl = ready
-    ? `/api/public/registrations/${registrationId}/welcome-card?format=png&disposition=inline`
-    : null;
+  const previewUrl = ready ? welcomeCardMediaUrl(registrationId) : null;
   const downloadUrl = ready
-    ? `/api/public/registrations/${registrationId}/welcome-card?format=png&disposition=attachment`
+    ? welcomeCardMediaUrl(registrationId, { disposition: "attachment" })
     : null;
 
   return (

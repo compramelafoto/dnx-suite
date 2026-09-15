@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CreateTemplateV2Button } from "@repo/template-editor-ui";
+import { CreateTemplateV2Button, TEMPLATE_V2_BASE_PATHS } from "@repo/template-editor-ui";
 import { AdminMigrationNotice } from "@/components/admin/AdminMigrationNotice";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { Badge } from "@/components/ui/Badge";
@@ -58,7 +58,7 @@ export default async function ClickatonTemplatesPage() {
         title="Plantillas"
         description="Diseñá las piezas de Clickatón. Una vez guardadas, se asignan a las placas de cada edición desde Ediciones → Placas."
         breadcrumbs={breadcrumbs}
-        actions={<CreateTemplateV2Button />}
+        actions={<CreateTemplateV2Button basePath={TEMPLATE_V2_BASE_PATHS.clickaton} />}
       />
 
       {templates.length === 0 ? (

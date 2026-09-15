@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { canDesignTemplates } from "@/lib/template-v2/access";
 import { prisma } from "@repo/db";
-import { CreateTemplateV2Button } from "@repo/template-editor-ui";
+import { CreateTemplateV2Button, TEMPLATE_V2_BASE_PATHS } from "@repo/template-editor-ui";
 import { CreateCarnetTemplate } from "@/components/members/create-carnet-template";
 import { PageHeader } from "@/components/page-header";
 import { requireActiveWorkspace } from "@/lib/workspace";
@@ -80,7 +80,7 @@ export default async function PlantillasPage() {
       <PageHeader
         title="Plantillas"
         description="El diseño de las piezas de la institución: el carnet de socio y lo que venga después."
-        actions={<CreateTemplateV2Button basePath="/members/disenador" />}
+        actions={<CreateTemplateV2Button basePath={TEMPLATE_V2_BASE_PATHS.fotoffice} />}
       />
 
       {faltaMigracion ? (
