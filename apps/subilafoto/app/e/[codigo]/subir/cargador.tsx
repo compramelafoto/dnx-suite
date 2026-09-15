@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import type { Tema } from "@/lib/tema";
+import { resumenDeCarga } from "@/lib/resumen-de-carga";
 
 type Estado = "esperando" | "subiendo" | "listo" | "error" | "repetida";
 type Item = { id: string; nombre: string; estado: Estado; error?: string };
@@ -115,7 +116,8 @@ export function Cargador({ codigo, tema }: { codigo: string; tema: Tema }) {
     [subirUna, actualizar],
   );
 
-  const listas = items.filter((i) => i.estado === "listo").length;
+  // Una repetida ya estaba subida: para el invitado es una foto que está.
+  const listas = items.filter((i) => i.estado === "listo" || i.estado === "repetida").length;
   const enCurso = items.some((i) => i.estado === "subiendo" || i.estado === "esperando");
 
   return (
@@ -140,10 +142,13 @@ export function Cargador({ codigo, tema }: { codigo: string; tema: Tema }) {
 
       {items.length > 0 ? (
         <>
+          {/*
+            La única región viva de la pantalla. La lista de abajo no lo es a propósito:
+            con veinte fotos subiendo, anunciar cada cambio sería imposible de seguir.
+            Por eso el resumen tiene que contar también las que fallaron.
+          */}
           <p className="mt-6 text-center text-sm" aria-live="polite">
-            {enCurso
-              ? `Subiendo… ${listas} de ${items.length} listas`
-              : `${listas} ${listas === 1 ? "foto subida" : "fotos subidas"}`}
+            {resumenDeCarga(items)}
           </p>
 
           <ul className="mt-5 space-y-2 text-left text-sm">
