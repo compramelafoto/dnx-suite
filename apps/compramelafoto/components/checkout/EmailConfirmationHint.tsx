@@ -9,8 +9,11 @@ import {
 export type EmailConfirmationVariant = "album" | "print" | "preventa" | "pack";
 
 const VALID_COPY: Record<EmailConfirmationVariant, (email: string) => string> = {
+  // "tu compra" y no "tus fotos": por acá también pasan los pedidos de video y
+  // los mixtos, y decirle "fotos" a quien está comprando un video confunde
+  // justo en el paso de pagar.
   album: (email) =>
-    `📩 Enviaremos tu comprobante y acceso a tus fotos a: ${email}`,
+    `📩 Enviaremos tu comprobante y acceso a tu compra a: ${email}`,
   print: (email) =>
     `📩 Te avisaremos a este email cuando tu pedido esté listo: ${email}`,
   preventa: (email) =>
@@ -20,7 +23,7 @@ const VALID_COPY: Record<EmailConfirmationVariant, (email: string) => string> = 
 };
 
 export const EMAIL_EMPTY_PLACEHOLDER_COPY: Record<EmailConfirmationVariant, string> = {
-  album: "📩 Enviaremos tu comprobante y acceso a tus fotos a este email.",
+  album: "📩 Enviaremos tu comprobante y acceso a tu compra a este email.",
   print: "📩 Te avisaremos a este email cuando tu pedido esté listo.",
   preventa: "📩 Usaremos este email para enviarte la confirmación y acceder a tu pack.",
   pack: "📩 Usaremos este email para enviarte la confirmación de compra.",
