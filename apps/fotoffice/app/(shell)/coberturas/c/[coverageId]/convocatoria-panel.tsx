@@ -11,6 +11,7 @@ import {
   crearConvocatoriaAction,
   editarConvocatoriaAction,
   publicarConvocatoriaAction,
+  reenviarAvisoConvocatoriaAction,
   type ConvocatoriaState,
 } from "./actions";
 
@@ -67,6 +68,10 @@ export function ConvocatoriaPanel({
   const [crearState, crear, creando] = useActionState(crearConvocatoriaAction, inicial);
   const [editarState, editar, editando] = useActionState(editarConvocatoriaAction, inicial);
   const [publicarState, publicar, publicando] = useActionState(publicarConvocatoriaAction, inicial);
+  const [reenviarState, reenviar, reenviando] = useActionState(
+    reenviarAvisoConvocatoriaAction,
+    inicial,
+  );
 
   if (!call) {
     // La misma regla que aplica el servidor, no una lista de estados repetida acá: desde que una
@@ -136,6 +141,43 @@ export function ConvocatoriaPanel({
             <Dato label="Zonas o especialidades" valor={call.visibilityValues.join(", ")} />
           ) : null}
           {call.publishedAtDisplay ? <Dato label="Publicada" valor={call.publishedAtDisplay} /> : null}
+
+          {/* El aviso de la publicación se sigue viendo acá después de publicar: cuando la
+              convocatoria pasa a PUBLICADA el formulario de arriba desaparece, y con él
+              desaparecía el único renglón que decía que algunos correos no habían salido. */}
+          {publicarState.warn ? (
+            <p className="text-sm text-[var(--fo-warning,#b45309)]">{publicarState.warn}</p>
+          ) : null}
+
+          {call.status === "PUBLICADA" && puedeCoordinar ? (
+            <div className="space-y-2 border-t border-[var(--fo-border)] pt-4">
+              {reenviarState.error ? (
+                <p role="alert" className="text-sm text-[var(--fo-danger)]">
+                  {reenviarState.error}
+                </p>
+              ) : null}
+              {reenviarState.ok ? (
+                <p className="text-sm text-[var(--fo-muted)]">{reenviarState.ok}</p>
+              ) : null}
+              {reenviarState.warn ? (
+                <p className="text-sm text-[var(--fo-warning,#b45309)]">{reenviarState.warn}</p>
+              ) : null}
+              <form action={reenviar}>
+                <input type="hidden" name="callId" value={call.id} />
+                <button
+                  type="submit"
+                  className="fo-btn fo-btn-secondary min-h-11"
+                  disabled={reenviando}
+                >
+                  {reenviando ? "Reenviando…" : "Reenviar el aviso a quienes no lo recibieron"}
+                </button>
+              </form>
+              <p className="text-xs text-[var(--fo-muted)]">
+                Le escribe solo a quien todavía no lo recibió. Se puede apretar las veces que haga
+                falta: a nadie le llega dos veces.
+              </p>
+            </div>
+          ) : null}
         </div>
       ) : (
         <>

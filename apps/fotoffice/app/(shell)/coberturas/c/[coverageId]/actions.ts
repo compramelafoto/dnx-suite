@@ -6,8 +6,11 @@ import { appUrl } from "@/lib/app-url";
 import { COVERAGE_EMAIL_KEYS } from "@/lib/communications/constants";
 import { loadWorkspaceEmailContext } from "@/lib/communications/load-workspace-signature";
 import { sendAndLogEmail } from "@/lib/communications/send-and-log";
+import { direccionesConEnvioExitoso } from "@/lib/communications/sent-log";
 import { requireCoveragesCoordinator } from "@/lib/coverages/access";
+import { enTandas, pendientesDeAviso } from "@/lib/coverages/avisos";
 import { perfilHabilitado } from "@/lib/coverages/colaboradores";
+import { CALL_NOTICE_BATCH_SIZE } from "@/lib/coverages/constants";
 import type { EstadoDeRol } from "@/lib/coverages/cupos";
 import {
   planPublicarConvocatoria,
@@ -27,7 +30,10 @@ import {
 import { aplicarEfectosSobreLaBusqueda } from "@/lib/coverages/equipo-server";
 import { recordEvent } from "@/lib/coverages/events";
 import { fechaArgentina, fechaHoraArgentina } from "@/lib/coverages/format";
-import { listActiveCollaboratorEmails } from "@/lib/coverages/repository";
+import {
+  countActiveCollaboratorEmails,
+  listActiveCollaboratorEmails,
+} from "@/lib/coverages/repository";
 import { ASSIGNMENT_LIVE_STATUSES } from "@/lib/coverages/states";
 
 /**
@@ -203,10 +209,15 @@ export async function publicarConvocatoriaAction(
   // El plan ya garantiza que `call` no es null; este chequeo es solo para que TypeScript lo sepa.
   if (!call) return { error: "No encontramos esa convocatoria.", ok: null };
 
+  // La fecha de publicación se toma acá, antes de escribirla, porque también es el "desde" de
+  // los avisos: un reenvío pregunta qué salió a partir de este instante, y si la leyera de otro
+  // reloj podría dejar afuera los envíos de esta misma corrida.
+  const publishedAt = new Date();
+
   await prisma.$transaction(async (tx) => {
     await tx.coverageCall.update({
       where: { id: call.id },
-      data: { status: "PUBLICADA", publishedAt: new Date() },
+      data: { status: "PUBLICADA", publishedAt },
     });
     await recordEvent(tx, {
       workspaceId: workspace.id,
@@ -236,7 +247,7 @@ export async function publicarConvocatoriaAction(
     }
   });
 
-  const warn = await avisarConvocatoriaPublicada({
+  const resultado = await avisarConvocatoriaPublicada({
     workspaceId: workspace.id,
     callId: call.id,
     callTitle: call.title,
@@ -244,12 +255,106 @@ export async function publicarConvocatoriaAction(
     coverageTitle: call.coverage.title,
     startsAt: call.coverage.startsAt,
     city: call.coverage.city,
+    desde: publishedAt,
+    // En la publicación no hay nada previo que saltear, y preguntarlo sería una consulta de
+    // gusto. El reenvío es el que necesita saber qué ya salió.
+    omitirYaAvisados: false,
   });
 
   revalidatePath(`/coberturas/c/${call.coverageId}`);
   revalidatePath("/coberturas");
-  return { error: null, ok: "Publicada. Ya se puede ver y postularse.", warn };
+  return {
+    error: null,
+    ok: "Publicada. Ya se puede ver y postularse.",
+    warn: avisoDeAvisosQueFaltan(resultado, "Quedó publicada"),
+  };
 }
+
+/**
+ * Reenviar el aviso a quienes no lo recibieron.
+ *
+ * Sin esto, un envío a medias es irreparable desde el producto: el aviso de convocatoria sale
+ * únicamente en la transición `BORRADOR → PUBLICADA`, que ya ocurrió, y el botón de publicar
+ * desaparece. La coordinación leía "3 de los 50 avisos no salieron" y no tenía nada que hacer
+ * con esa información.
+ *
+ * **Le escribe solamente a quien todavía no lo recibió**, leyendo `SentEmailLog` (ver
+ * `direccionesConEnvioExitoso`). Se puede apretar las veces que haga falta: a nadie le llega dos
+ * veces, y cuando ya salieron todos lo dice en vez de mandar nada.
+ *
+ * Solo sobre una convocatoria `PUBLICADA`: en borrador todavía no se avisó a nadie, y una
+ * completa, cerrada, vencida o cancelada ya no busca gente — mandar "anotate" ahí sería llamar a
+ * voluntarios a un lugar que ya no existe.
+ */
+export async function reenviarAvisoConvocatoriaAction(
+  _prev: ConvocatoriaState | undefined,
+  formData: FormData,
+): Promise<ConvocatoriaState> {
+  const { workspace } = await requireCoveragesCoordinator();
+  const callId = formData.get("callId")?.toString() ?? "";
+
+  const call = await prisma.coverageCall.findFirst({
+    where: { id: callId, workspaceId: workspace.id },
+    select: {
+      id: true,
+      title: true,
+      publicSummary: true,
+      status: true,
+      publishedAt: true,
+      createdAt: true,
+      coverageId: true,
+      coverage: { select: { title: true, startsAt: true, city: true } },
+    },
+  });
+  if (!call) return { error: "No encontramos esa convocatoria.", ok: null };
+  if (call.status !== "PUBLICADA") {
+    return { error: "El aviso se reenvía mientras la convocatoria está publicada.", ok: null };
+  }
+
+  const resultado = await avisarConvocatoriaPublicada({
+    workspaceId: workspace.id,
+    callId: call.id,
+    callTitle: call.title,
+    publicSummary: call.publicSummary,
+    coverageTitle: call.coverage.title,
+    startsAt: call.coverage.startsAt,
+    city: call.coverage.city,
+    // `publishedAt` es lo que acota la búsqueda en el registro a los envíos de ESTA corrida de
+    // avisos. Si faltara —una convocatoria publicada antes de que se guardara esa fecha—, la
+    // fecha de creación es el límite más viejo posible y sigue siendo correcto: nunca hubo un
+    // aviso de esta convocatoria antes de que la convocatoria existiera.
+    desde: call.publishedAt ?? call.createdAt,
+    omitirYaAvisados: true,
+  });
+
+  revalidatePath(`/coberturas/c/${call.coverageId}`);
+
+  if (resultado.intentados === 0) {
+    return {
+      error: null,
+      ok: "No hacía falta: el aviso ya le había llegado a todos los colaboradores activos.",
+      warn: avisoDeAvisosQueFaltan(resultado, "No hizo falta reenviar nada"),
+    };
+  }
+
+  const salieron = resultado.intentados - resultado.fallaron;
+  return {
+    error: null,
+    ok: `Reenviado a ${salieron} ${salieron === 1 ? "colaborador" : "colaboradores"}.`,
+    warn: avisoDeAvisosQueFaltan(resultado, "Se reenvió"),
+  };
+}
+
+/** Lo que dejó una corrida de avisos, para que quien llama lo cuente con sus palabras. */
+type ResultadoDeAvisos = {
+  /** Cuántos colaboradores activos con correo hay en el padrón, sin el techo del módulo. */
+  enElPadron: number;
+  /** A cuántos alcanzaba esta corrida: el padrón, recortado por `CALL_NOTICE_MAX_RECIPIENTS`. */
+  alcanzados: number;
+  /** A cuántos se les escribió ahora (los que faltaban, si se pidió omitir a los ya avisados). */
+  intentados: number;
+  fallaron: number;
+};
 
 /**
  * El aviso a los colaboradores activos de que hay una convocatoria nueva.
@@ -259,10 +364,17 @@ export async function publicarConvocatoriaAction(
  * distracción de estilo, es filtrar datos de terceros. `destinatariosDeColaboradores` devuelve
  * una lista de direcciones sueltas justamente para que acá no haya forma de juntarlas.
  *
+ * **Sale en tandas paralelas chicas, no uno detrás del otro.** Cincuenta envíos secuenciales son
+ * quince segundos de espera dentro de una Server Action que ya confirmó su transacción: si la
+ * función se corta ahí, la convocatoria quedó publicada y media institución no se enteró. En
+ * tandas de `CALL_NOTICE_BATCH_SIZE` esa espera baja a unos pocos segundos, y el tope de
+ * destinatarios garantiza que la corrida termine incluso en un padrón enorme.
+ *
  * Sale DESPUÉS de que la transacción cerró, y ninguno de estos correos puede voltear la
- * publicación: `sendAndLogEmail` nunca lanza y cada envío queda registrado. Si alguno falló,
- * devuelve el aviso para que la coordinación lo vea; la convocatoria ya está publicada igual y
- * se puede ver en el portal.
+ * publicación: `sendAndLogEmail` nunca lanza y cada envío queda registrado. Ese registro es lo
+ * que hace reparable un envío a medias: con `omitirYaAvisados`, la corrida le escribe solamente
+ * a quien todavía no lo recibió, y por eso se puede apretar «Reenviar» las veces que haga falta
+ * sin que a nadie le llegue dos veces.
  */
 async function avisarConvocatoriaPublicada(input: {
   workspaceId: string;
@@ -272,14 +384,20 @@ async function avisarConvocatoriaPublicada(input: {
   coverageTitle: string;
   startsAt: Date;
   city: string | null;
-}): Promise<string | null> {
-  const [contexto, colaboradores] = await Promise.all([
+  /** Desde cuándo cuentan los envíos ya registrados. La fecha de publicación de esta convocatoria. */
+  desde: Date;
+  /** `true` en el reenvío: saltea a quien ya tiene un envío exitoso registrado. */
+  omitirYaAvisados: boolean;
+}): Promise<ResultadoDeAvisos> {
+  const [contexto, colaboradores, enElPadron] = await Promise.all([
     loadWorkspaceEmailContext(input.workspaceId),
     listActiveCollaboratorEmails({ workspaceId: input.workspaceId }),
+    countActiveCollaboratorEmails({ workspaceId: input.workspaceId }),
   ]);
 
   const destinatarios = destinatariosDeColaboradores(colaboradores);
-  if (destinatarios.length === 0) return null;
+  const vacio = { enElPadron, alcanzados: destinatarios.length, intentados: 0, fallaron: 0 };
+  if (destinatarios.length === 0) return vacio;
 
   // El nombre de pila para saludar a cada uno. La clave es el correo en minúsculas porque es
   // así como `destinatariosDeColaboradores` decide que dos filas son la misma persona.
@@ -292,29 +410,82 @@ async function avisarConvocatoriaPublicada(input: {
   const base = appUrl();
   const callUrl = base ? `${base}/portal/coberturas/${input.callId}` : "";
 
-  let fallaron = 0;
-  for (const destino of destinatarios) {
-    const r = await sendAndLogEmail({
-      to: destino,
-      templateKey: COVERAGE_EMAIL_KEYS.CALL_PUBLISHED,
-      body: buildCallPublishedEmail({
-        context: contexto,
-        greetingName: nombrePorEmail.get(destino.toLowerCase()) ?? null,
-        callTitle: input.callTitle,
-        coverageTitle: input.coverageTitle,
-        fechaLabel: fechaHoraArgentina(input.startsAt),
-        city: input.city,
-        publicSummary: input.publicSummary,
-        callUrl,
-      }),
+  const cuerpoPara = (destino: string) =>
+    buildCallPublishedEmail({
+      context: contexto,
+      greetingName: nombrePorEmail.get(destino.toLowerCase()) ?? null,
+      callTitle: input.callTitle,
+      coverageTitle: input.coverageTitle,
+      fechaLabel: fechaHoraArgentina(input.startsAt),
+      city: input.city,
+      publicSummary: input.publicSummary,
+      callUrl,
     });
-    if (r.status !== "SENT") fallaron++;
+
+  // El asunto no depende de a quién se le escribe —lleva el título de la convocatoria y el
+  // nombre de la institución— y por eso sirve para reconocer, en `SentEmailLog`, los envíos de
+  // ESTA convocatoria y no los de otra.
+  const asunto = cuerpoPara(destinatarios[0]!).subject;
+
+  const yaAvisados = input.omitirYaAvisados
+    ? await direccionesConEnvioExitoso({
+        templateKey: COVERAGE_EMAIL_KEYS.CALL_PUBLISHED,
+        subject: asunto,
+        desde: input.desde,
+        candidatos: destinatarios,
+      })
+    : new Set<string>();
+
+  const pendientes = pendientesDeAviso(destinatarios, yaAvisados);
+  let fallaron = 0;
+  for (const tanda of enTandas(pendientes, CALL_NOTICE_BATCH_SIZE)) {
+    const resultados = await Promise.all(
+      tanda.map((destino) =>
+        sendAndLogEmail({
+          to: destino,
+          templateKey: COVERAGE_EMAIL_KEYS.CALL_PUBLISHED,
+          body: cuerpoPara(destino),
+        }),
+      ),
+    );
+    fallaron += resultados.filter((r) => r.status !== "SENT").length;
   }
 
-  if (fallaron === 0) return null;
-  return fallaron === destinatarios.length
-    ? "Quedó publicada, pero no salió ningún aviso por correo. Está registrado."
-    : `Quedó publicada, pero ${fallaron} de los ${destinatarios.length} avisos no salieron. Está registrado.`;
+  return {
+    enElPadron,
+    alcanzados: destinatarios.length,
+    intentados: pendientes.length,
+    fallaron,
+  };
+}
+
+/**
+ * Lo que la coordinación necesita saber después de publicar: qué avisos no salieron y a quién no
+ * se le llegó a escribir nunca.
+ *
+ * Devuelve `null` cuando salió todo: un renglón amarillo que dice "no pasó nada" entrena a no
+ * leerlo. Los dos motivos se cuentan juntos porque la pregunta de quien lo lee es una sola:
+ * ¿a cuánta gente tengo que avisarle por otro lado?
+ */
+function avisoDeAvisosQueFaltan(r: ResultadoDeAvisos, prefijo: string): string | null {
+  const partes: string[] = [];
+  if (r.fallaron > 0) {
+    partes.push(
+      r.fallaron === r.intentados
+        ? "no salió ningún aviso por correo"
+        : `${r.fallaron} de los ${r.intentados} avisos no salieron`,
+    );
+  }
+  if (r.enElPadron > r.alcanzados) {
+    partes.push(
+      `el aviso alcanza a ${r.alcanzados} colaboradores y hay ${r.enElPadron} con correo cargado`,
+    );
+  }
+  if (partes.length === 0) return null;
+  // "Está registrado" solo cuando hubo fallas: es lo que le dice a la coordinación que puede
+  // reintentarlas. Un tope de padrón no se reintenta, se resuelve de otro modo.
+  const cola = r.fallaron > 0 ? " Está registrado." : "";
+  return `${prefijo}, pero ${partes.join(", y ")}.${cola}`;
 }
 
 /** Mismo tercer canal que `ConvocatoriaState`: la invitación se creó, pero el correo no salió. */

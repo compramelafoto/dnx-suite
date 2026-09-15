@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@repo/db";
 import type { ParsedCollaboratorProfile } from "./colaboradores";
+import { CALL_NOTICE_MAX_RECIPIENTS } from "./constants";
 import { DEFAULT_COVERAGE_SETTINGS, type CoverageSettingsShape } from "./settings";
 import { whereForFilter } from "./inbox-filters";
 import { PUBLIC_FORM_WINDOW_MINUTES } from "./rate-limit";
@@ -280,16 +281,46 @@ export async function listActiveCollaborators(input: { workspaceId: string }) {
  *
  * El nombre de pila viene para poder saludar por su nombre. Un correo que arranca en el cuerpo,
  * sin saludo, se lee como una circular.
+ *
+ * **Mira también el estado del socio en el padrón, no solo el perfil de colaborador.** Dar de
+ * baja a alguien no le apaga el perfil: sin este filtro, quien se fue de la institución hace un
+ * año seguía recibiendo cada convocatoria nueva. El perfil dice "sabe cubrir esto"; el padrón
+ * dice "sigue siendo de la casa", y para escribirle hacen falta las dos cosas.
+ *
+ * El `take` es un techo, no una paginación: ver `CALL_NOTICE_MAX_RECIPIENTS`. El orden por
+ * apellido lo hace determinista, que es lo que permite comparar contra el total y avisar cuando
+ * el padrón lo supera.
  */
 export async function listActiveCollaboratorEmails(input: { workspaceId: string }) {
   return prisma.member.findMany({
     where: {
       workspaceId: input.workspaceId,
+      status: "ACTIVE",
       coverageProfile: { active: true },
       email: { not: null },
     },
     select: { id: true, firstName: true, email: true },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+    take: CALL_NOTICE_MAX_RECIPIENTS,
+  });
+}
+
+/**
+ * Cuántos colaboradores activos con correo hay en total, sin el techo de la consulta de arriba.
+ *
+ * Solo para poder decir la verdad cuando el padrón supera el tope: "el aviso salió a 200 de 340".
+ * Mismos filtros, exactamente, o el número que se muestra hablaría de otra gente.
+ */
+export async function countActiveCollaboratorEmails(input: {
+  workspaceId: string;
+}): Promise<number> {
+  return prisma.member.count({
+    where: {
+      workspaceId: input.workspaceId,
+      status: "ACTIVE",
+      coverageProfile: { active: true },
+      email: { not: null },
+    },
   });
 }
 
