@@ -266,7 +266,9 @@ export async function loadCoverage(input: { workspaceId: string; coverageId: str
  */
 export async function listActiveCollaborators(input: { workspaceId: string }) {
   return prisma.member.findMany({
-    where: { workspaceId: input.workspaceId, coverageProfile: { active: true } },
+    // Las dos condiciones de `participaDeCoberturas`: perfil encendido y socio vigente. Sin la
+    // segunda, el desplegable ofrecía a quien se dio de baja hace un año con el perfil olvidado.
+    where: { workspaceId: input.workspaceId, status: "ACTIVE", coverageProfile: { active: true } },
     select: { id: true, firstName: true, lastName: true, memberNumber: true },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
   });

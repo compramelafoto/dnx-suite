@@ -136,3 +136,25 @@ export function parseCollaboratorProfileForm(form: Record<string, string>): Pars
 export function perfilHabilitado(perfil: { active: boolean } | null | undefined): boolean {
   return perfil?.active === true;
 }
+
+/**
+ * Si esta persona puede participar de coberturas: perfil de colaborador encendido **y** socio
+ * vigente en el padrón.
+ *
+ * Son dos cosas distintas y hacen falta las dos. El perfil dice "sabe cubrir esto"; el padrón
+ * dice "sigue siendo de la casa". Dar de baja a alguien no le apaga el perfil, así que sin este
+ * chequeo se podía invitar a una cobertura a quien se fue de la institución hace un año.
+ *
+ * Del lado del portal esto ya está resuelto aguas arriba: `loadPortalContext` solo devuelve
+ * socios `ACTIVE`, y quien no lo es no llega ni a la pantalla. Esta función es la misma regla
+ * del lado del panel, donde la coordinación mira el padrón entero.
+ *
+ * Sin dato de padrón devuelve `false`: no saber si alguien sigue en la institución no es razón
+ * para invitarlo.
+ */
+export function participaDeCoberturas(input: {
+  estadoEnElPadron: string | null | undefined;
+  perfil: { active: boolean } | null | undefined;
+}): boolean {
+  return input.estadoEnElPadron === "ACTIVE" && perfilHabilitado(input.perfil);
+}

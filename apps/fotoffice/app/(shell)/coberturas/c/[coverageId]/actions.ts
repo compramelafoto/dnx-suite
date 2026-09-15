@@ -9,7 +9,7 @@ import { sendAndLogEmail } from "@/lib/communications/send-and-log";
 import { direccionesConEnvioExitoso } from "@/lib/communications/sent-log";
 import { requireCoveragesCoordinator } from "@/lib/coverages/access";
 import { enTandas, pendientesDeAviso } from "@/lib/coverages/avisos";
-import { perfilHabilitado } from "@/lib/coverages/colaboradores";
+import { participaDeCoberturas } from "@/lib/coverages/colaboradores";
 import { CALL_NOTICE_BATCH_SIZE } from "@/lib/coverages/constants";
 import type { EstadoDeRol } from "@/lib/coverages/cupos";
 import {
@@ -861,6 +861,7 @@ export async function invitarDirectoAction(
           id: true,
           email: true,
           firstName: true,
+          status: true,
           coverageProfile: { select: { active: true } },
         },
       });
@@ -879,7 +880,10 @@ export async function invitarDirectoAction(
 
       const plan = planInvitacionDirecta({
         coverageStatus: rol.coverage.status,
-        tienePerfilActivo: perfilHabilitado(socio?.coverageProfile),
+        tienePerfilActivo: participaDeCoberturas({
+          estadoEnElPadron: socio?.status,
+          perfil: socio?.coverageProfile,
+        }),
         yaEstaAsignado,
         rol: { vacancies: rol.vacancies, asignadasVivas, asignadasAceptadas: 0 },
       });

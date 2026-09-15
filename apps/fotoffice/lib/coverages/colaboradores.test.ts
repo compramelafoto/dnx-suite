@@ -3,6 +3,7 @@ import {
   MAX_TRAVEL_KM_MAX,
   MAX_TRAVEL_KM_MIN,
   parseCollaboratorProfileForm,
+  participaDeCoberturas,
   perfilHabilitado,
 } from "./colaboradores";
 
@@ -106,5 +107,37 @@ describe("perfilHabilitado", () => {
 
   it("con perfil activo, sí", () => {
     expect(perfilHabilitado({ active: true })).toBe(true);
+  });
+});
+
+/**
+ * Del lado del panel hacen falta dos cosas, no una. El portal ya lo resuelve por su lado
+ * —`loadPortalContext` solo devuelve socios `ACTIVE`—; esto es la misma regla para quien invita.
+ */
+describe("participaDeCoberturas", () => {
+  it("socio vigente con perfil encendido, sí", () => {
+    expect(participaDeCoberturas({ estadoEnElPadron: "ACTIVE", perfil: { active: true } })).toBe(
+      true,
+    );
+  });
+
+  it("dado de baja en el padrón no participa, aunque su perfil siga encendido", () => {
+    expect(participaDeCoberturas({ estadoEnElPadron: "INACTIVE", perfil: { active: true } })).toBe(
+      false,
+    );
+  });
+
+  it("socio vigente sin perfil, o con el perfil apagado, tampoco", () => {
+    expect(participaDeCoberturas({ estadoEnElPadron: "ACTIVE", perfil: null })).toBe(false);
+    expect(participaDeCoberturas({ estadoEnElPadron: "ACTIVE", perfil: { active: false } })).toBe(
+      false,
+    );
+  });
+
+  it("sin dato de padrón no se asume que sigue, se asume que no", () => {
+    expect(participaDeCoberturas({ estadoEnElPadron: null, perfil: { active: true } })).toBe(false);
+    expect(participaDeCoberturas({ estadoEnElPadron: undefined, perfil: { active: true } })).toBe(
+      false,
+    );
   });
 });
