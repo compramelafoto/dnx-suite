@@ -14,7 +14,6 @@
  * siente es la foto que tardó más, no la que tardó el promedio.
  */
 
-import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import sharp from "sharp";
 

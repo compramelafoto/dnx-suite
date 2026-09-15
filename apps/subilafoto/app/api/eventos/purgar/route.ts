@@ -33,12 +33,15 @@ export async function GET(req: Request) {
     cierre, que es la fecha que corresponde: no se les acorta ni se les alarga la vida.
 
     Va en SQL porque Prisma no sabe sumar un intervalo a una columna en un `updateMany`.
-    Con `make_interval` y no con un texto casteado: el parámetro viaja como número y
-    Postgres no tiene que adivinarle el tipo.
+
+    **Multiplicando un intervalo, no con `make_interval`.** Prisma manda los números de
+    JavaScript como `bigint`, y `make_interval(days => bigint)` no existe: Postgres no
+    baja de bigint a int para resolver qué función llamar, y tira 42883. Multiplicar no
+    resuelve ninguna función, así que el tipo del parámetro deja de importar.
   */
   const completados = await prisma.$executeRaw`
     UPDATE "SubilafotoEvent"
-    SET "retentionUntil" = "closedAt" + make_interval(days => ${DIAS_DE_RETENCION})
+    SET "retentionUntil" = "closedAt" + (${DIAS_DE_RETENCION} * interval '1 day')
     WHERE "closedAt" IS NOT NULL AND "retentionUntil" IS NULL AND "purgedAt" IS NULL
   `;
 
