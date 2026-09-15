@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { especialidadesPorGrupo, MAX_ESPECIALIDADES } from "@/lib/membership/specialties";
+import { personVocabulary, type PersonVocabulary } from "@/lib/vocabulario/personas";
 
 /**
  * Presencia profesional del aspirante: rubros, estudio, redes y sitio.
@@ -27,13 +28,22 @@ export function ProfessionalPresenceFields({
   institutionName,
   defaults,
   intro,
+  vocabulary,
 }: {
   institutionName: string;
   /** Valores actuales, cuando el socio edita su perfil desde el portal. */
   defaults?: PresenciaDefaults;
   /** Texto de encabezado. El alta explica para qué se piden; el portal ya no hace falta. */
   intro?: string;
+  /**
+   * Opcional: el portal (`components/portal/professional-profile-form.tsx`) todavía no
+   * carga vocabulario propio —es otra tanda— y no debería tener que hacerlo solo para poder
+   * seguir usando este campo. Sin valor, cae en socio/socios, que es lo que ese caller ya
+   * muestra hoy.
+   */
+  vocabulary?: PersonVocabulary;
 }) {
+  const v = vocabulary ?? personVocabulary(null);
   const [elegidas, setElegidas] = useState<string[]>([
     ...(defaults?.specialties ?? []),
   ]);
@@ -219,7 +229,7 @@ export function ProfessionalPresenceFields({
         />
         <span className="space-y-1">
           <span className="block text-sm font-medium">
-            Autorizo a publicar estos datos en el directorio de socios
+            {`Autorizo a publicar estos datos en el directorio de ${v.plural}`}
           </span>
           <span className="fo-helper block">
             Se publicarían tu nombre, tu estudio, tus rubros, tu presentación, tu sitio y tus
