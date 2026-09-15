@@ -556,6 +556,35 @@ async function avisarInvitacion(
 }
 
 /**
+ * **NO BORRAR: es lo que impide que dos coordinadores llenen la misma vacante.**
+ *
+ * Parece una consulta inútil —lee una fila y tira el resultado— y no lo es: `FOR UPDATE` toma el
+ * candado de esa fila hasta que la transacción confirma. Mientras tanto, cualquier otra
+ * transacción que intente tomarlo sobre el MISMO rol espera.
+ *
+ * Sin esto, el caso es este: un rol de una vacante, dos personas anotadas, dos coordinadores que
+ * aprietan «Sumar al equipo» sobre postulantes DISTINTOS en el mismo instante. Postgres corre las
+ * transacciones de Prisma en `READ COMMITTED`: las dos cuentan cero asignaciones vivas antes de
+ * que ninguna escriba, las dos pasan el control de cupo y las dos escriben. El índice único
+ * `(coverageId, memberId)` no frena nada, porque son dos personas diferentes. Resultado: dos
+ * voluntarios invitados a un solo lugar, los dos confirman, y a la organización solicitante se le
+ * avisa que el equipo está completo.
+ *
+ * Con el candado, la segunda transacción espera a que la primera confirme y recién ahí cuenta —
+ * ya con la asignación nueva a la vista—, así que ve el rol lleno y sale por `ROL_YA_LLENO`, que
+ * es justo lo que esa frase quiere decir.
+ *
+ * Va SIEMPRE antes del recuento y dentro de la misma transacción que escribe. Tomarlo después de
+ * contar no sirve de nada, y tomarlo en una transacción distinta de la que escribe tampoco: el
+ * candado se suelta al confirmar.
+ *
+ * No necesita migración ni índice nuevo: `CoverageRole.id` es la clave primaria.
+ */
+async function bloquearRol(tx: Prisma.TransactionClient, roleId: string): Promise<void> {
+  await tx.$executeRaw`SELECT id FROM "CoverageRole" WHERE id = ${roleId} FOR UPDATE`;
+}
+
+/**
  * Cuántas asignaciones vivas tiene este rol, contadas contra la base en este instante.
  *
  * **Una vacante no se puede asignar dos veces.** Dos coordinadores con la misma pantalla
@@ -563,12 +592,11 @@ async function avisarInvitacion(
  * viejo. Por eso el cupo se cuenta ADENTRO de la transacción y no se confía en lo que trajo la
  * pantalla.
  *
- * Ese recuento no es una garantía absoluta —Postgres en `READ COMMITTED` deja que dos
- * transacciones simultáneas cuenten lo mismo antes de que ninguna escriba— y por eso no es la
- * única barrera: `CoverageAssignment` tiene `@@unique([coverageId, memberId])`, que frena de
- * verdad el caso que más duele, la misma persona asignada dos veces a la misma cobertura. Lo
- * que el recuento cubre es el caso común y el que se puede explicar: el lugar se ocupó mientras
- * mirabas la pantalla.
+ * El recuento solo dice la verdad si nadie más puede estar contando lo mismo al mismo tiempo, y
+ * de eso se ocupa `bloquearRol`, que las dos acciones llaman antes. Detrás quedan las otras dos
+ * barreras, cada una para lo suyo: `@@unique([coverageId, memberId])` impide que la misma
+ * persona entre dos veces a la misma cobertura, y `planSeleccionarPostulacion` /
+ * `planInvitacionDirecta` deciden, con este número, si todavía queda lugar.
  */
 async function contarAsignadasVivas(
   tx: Prisma.TransactionClient,
@@ -648,6 +676,11 @@ export async function seleccionarPostulacionAction(
       });
       if (!postulacion) throw new ConflictoDeEquipo("No encontramos esa postulación.");
       coverageIdParaRevalidar = postulacion.role.coverageId;
+
+      // Lo más temprano posible: acá recién se sabe qué rol hay que bloquear, porque lo que llegó
+      // del formulario es la postulación y no el rol. Lo que importa es que el candado esté ANTES
+      // del recuento —ver `bloquearRol`—, y la lectura de arriba no decide ningún cupo.
+      await bloquearRol(tx, postulacion.roleId);
 
       const asignadasVivas = await contarAsignadasVivas(tx, {
         workspaceId: workspace.id,
@@ -762,6 +795,12 @@ export async function invitarDirectoAction(
 
   try {
     await prisma.$transaction(async (tx) => {
+      // Primera sentencia de la transacción: acá el rol llega derecho del formulario, así que el
+      // candado se puede tomar antes que nada. Ver `bloquearRol` — es lo que impide que dos
+      // coordinadores llenen la misma vacante al mismo tiempo. No es un chequeo de permisos: un
+      // `roleId` ajeno bloquea una fila que después no aparece en la consulta de abajo.
+      await bloquearRol(tx, roleId);
+
       // El rol tiene que ser de una cobertura de ESTE workspace, y el filtro va en la consulta
       // y no en un chequeo posterior: un `roleId` ajeno llegado a mano en el `FormData`
       // simplemente no aparece.
