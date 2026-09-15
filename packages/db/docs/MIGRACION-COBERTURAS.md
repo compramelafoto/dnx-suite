@@ -3,9 +3,17 @@
 Procedimiento para poner las once tablas del módulo `coverages` en las bases Neon.
 Escrito el 2026-09-15, con el estado de cada base verificado ese día.
 
-**El código ya está en `main`** (PR #112). Lo que falta es esto. Mientras no se haga, el
-módulo **no se puede encender**: si alguien lo activa en el panel de super admin, las
-pantallas rompen porque van a buscar tablas que no existen.
+**El código está en `main`** (PR #112).
+
+> ## Estado al 2026-09-15
+>
+> - **FOTOFFICE: HECHO.** Aplicada y verificada. Ver la sección 7.
+> - **CompraMeLaFoto y Clickatón: pendientes**, solo por higiene del historial.
+> - **InfoSpot: no corresponde.** Ver la sección 2.
+> - **El módulo sigue apagado en todos los workspaces.** Encenderlo es la sección 4.
+
+Mientras el módulo esté apagado nadie ve nada distinto. Si se enciende en una base donde la
+migración no corrió, las pantallas rompen porque van a buscar tablas que no existen.
 
 ---
 
@@ -38,12 +46,12 @@ después de que se escribió este procedimiento, y el resto del documento deja d
 
 Estado verificado el 2026-09-15.
 
-| Base | Proyecto Neon / rama | `Workspace` | `Client` | `Member` | `User` | ¿Va? |
+| Base | Proyecto Neon / rama | `Workspace` | `Client` | `Member` | `User` | Estado |
 |---|---|---|---|---|---|---|
-| **FOTOFFICE + FotoRank** | `divine-hall-10689679` / `br-old-rain-adwthzng` (development) | ✅ | ✅ | ✅ | ✅ | **Sí — es la que importa** |
-| **CompraMeLaFoto** | `divine-hall-10689679` / `br-autumn-rain-ad18wq7y` (production) | ✅ | ✅ | ✅ | ✅ | Sí |
-| **Clickatón** | `bitter-math-56019731` / default | ✅ | ✅ | ✅ | ✅ | Sí |
-| **InfoSpot** | `wandering-pine-79918137` / default | ✅ | ❌ | ❌ | — | **NO PUEDE** |
+| **FOTOFFICE + FotoRank** | `divine-hall-10689679` / `br-old-rain-adwthzng` (development) | ✅ | ✅ | ✅ | ✅ | **APLICADA 15.09.2026** |
+| **CompraMeLaFoto** | `divine-hall-10689679` / `br-autumn-rain-ad18wq7y` (production) | ✅ | ✅ | ✅ | ✅ | Pendiente |
+| **Clickatón** | `bitter-math-56019731` / default | ✅ | ✅ | ✅ | ✅ | Pendiente |
+| **InfoSpot** | `wandering-pine-79918137` / default | ✅ | ❌ | ❌ | — | **No corresponde** |
 
 ### Por qué InfoSpot no puede
 
@@ -61,15 +69,19 @@ auditoría de migraciones no lo lea como un olvido.
 
 ### Prioridad
 
-La única base donde el módulo se va a usar es **FOTOFFICE**. Las otras dos se ponen al día
-por higiene, para que el historial no divirja más de lo que ya está. Si hay poco tiempo,
-hacer FOTOFFICE y dejar las otras dos anotadas.
+La única base donde el módulo se va a usar es **FOTOFFICE**, y ya está hecha. Las otras dos
+se ponen al día por higiene, para que el historial no divirja más de lo que ya está.
 
 ---
 
 ## 3. El procedimiento, base por base
 
-Repetir estos cuatro pasos en cada una de las tres bases que corresponden.
+Repetir estos cuatro pasos en cada base que falte. **FOTOFFICE ya pasó por acá** el
+2026-09-15; quedan CompraMeLaFoto y Clickatón.
+
+Los cuatro pasos se corrieron por el MCP de Neon, que ejecuta con las credenciales del lado
+del servidor. Es preferible a bajar un `DATABASE_URL`: la cadena de conexión de producción
+nunca queda escrita en ningún lado.
 
 ### Paso 1 — Comprobar que no está aplicada
 
@@ -196,7 +208,7 @@ que perder.
 
 ---
 
-## 6. Estado de las bases al escribir esto
+## 6. Estado de las bases antes de aplicar
 
 Para que quien lea esto dentro de unos meses sepa contra qué se comparó.
 
@@ -211,3 +223,38 @@ Un detalle para no confundirse: en `packages/db/prisma/migrations/` hay **dos** 
 con el mismo prefijo de fecha, `20260914120000_coberturas` y
 `20260914120000_subilafoto_orden_por_evento`. Son independientes y las dos aditivas; el
 orden lo resuelve el resto del nombre.
+
+---
+
+## 7. Qué pasó al aplicarla en FOTOFFICE
+
+Ejecutada el **2026-09-15** sobre `divine-hall-10689679` / `br-old-rain-adwthzng`, con los
+62 statements y el registro **en una sola transacción**. Sin errores.
+
+Resultado de la verificación del Paso 4:
+
+| Control | Esperado | Obtenido |
+|---|---|---|
+| Tablas `Coverage*` | 11 | **11** |
+| Claves foráneas | 22 | **22** |
+| Índices | — | 39 (28 de la migración + 11 claves primarias) |
+| Fila en `_prisma_migrations` | 1 | **1** |
+| Checksum guardado | `db8a01de…` | **coincide con el archivo** |
+
+Y lo que más importaba comprobar, porque es lo que no se puede deshacer si sale mal:
+
+| Dato existente | Antes | Después |
+|---|---|---|
+| Socios | 159 | **159** |
+| Workspaces | 3 | **3** |
+
+Las once tablas quedaron vacías y **el módulo sigue apagado en todos los workspaces**: cero
+filas en `WorkspaceFeatureModule` con `moduleKey = 'coverages'`. Nadie vio nada distinto.
+
+### Una decisión que se tomó al ejecutar
+
+El registro en `_prisma_migrations` se metió **dentro de la misma transacción** que el DDL,
+en vez de como un paso aparte. Motivo: así es imposible que queden las tablas creadas sin su
+registro, que es el estado que después hace que alguien intente aplicarla de nuevo. El
+procedimiento de la sección 3 los presenta como pasos separados porque son más fáciles de
+seguir así; si los corrés juntos, mejor.
