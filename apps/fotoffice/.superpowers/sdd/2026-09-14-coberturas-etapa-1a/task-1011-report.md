@@ -97,3 +97,52 @@ Sin errores nuevos.
 ### `pnpm build`
 Compila. `/w/[workspaceSlug]/coberturas/solicitar` y `/sc/[token]` aparecen en el árbol de rutas
 como `ƒ` (dinámicas), sin errores de build.
+
+## Corrección del falso positivo en `aislamiento.test.ts` (esta ronda)
+
+El pendiente que quedó anotado arriba ("ajustar ese test para que sólo mire el `where`") es
+exactamente lo que se corrigió acá. El test confundía dos cosas distintas: **filtrar** por
+`workspaceId` (en el `where`) y **devolver** `workspaceId` (en un `select`). `findByTrackingToken`
+hace lo segundo (lo necesita `coverage-tracking.ts`) pero nunca lo primero, y el test —al buscar
+la cadena `workspaceId` en el cuerpo completo de la función— no distinguía ambos casos.
+
+**Cambio, sólo en `lib/coverages/aislamiento.test.ts`**:
+
+- Se agregó una función `extraerWhere(cuerpo)` que ubica `where:` y extrae el objeto que le sigue
+  contando llaves balanceadas desde su apertura hasta que la profundidad vuelve a cero (no corta
+  en la primera `}`, que en consultas con objetos anidados —`client: { email: ... }`,
+  `consents: { some: { ... } }`— pertenece a un objeto interno y deja el bloque a medias).
+- La prueba "ninguna consulta a prisma se olvida del workspaceId" pasa a llamarse "ninguna
+  consulta a prisma filtra sin workspaceId en su where" y ahora aplica el regex sobre
+  `extraerWhere(f.cuerpo)`, no sobre `f.cuerpo` entero.
+- La prueba de `findByTrackingToken` pasa a afirmar que `extraerWhere(fn.cuerpo)` NO contiene
+  `workspaceId` (antes afirmaba eso sobre el cuerpo entero, que ahora sí lo contiene por el
+  `select`). Se mantiene la comprobación de que el comentario de justificación sigue en el
+  archivo.
+- Se reescribió el comentario del `describe` y el de cada `it` para explicar la distinción entre
+  filtrar y devolver, y por qué el barrido mira sólo el `where`.
+
+**Comprobación de que la barrera sigue teniendo dientes** (dos funciones temporales agregadas y
+borradas de `repository.ts`, una por vez, sólo para esta comprobación — el archivo quedó
+exactamente igual al original, confirmado con `git status`/diff sin cambios):
+
+1. Función con `where: { id }` (sin `workspaceId`) y sin devolverlo tampoco:
+   ```
+   AssertionError: expected [ 'funcionInfractoraSinFiltro' ] to deeply equal []
+   ```
+2. Función con el mismo `where: { id }` (sin `workspaceId`) pero que sí lo trae en el `select`
+   (`select: { id: true, workspaceId: true }`) — para probar que devolver no alcanza para pasar
+   la barrera:
+   ```
+   AssertionError: expected [ 'funcionInfractoraSoloDevuelve' ] to deeply equal []
+   ```
+
+Ambas nombran correctamente a la función infractora y ambas fallan por no filtrar en el `where`,
+que es la distinción que se quería asegurar.
+
+**Verificación final (desde `apps/fotoffice`)**:
+- `pnpm test lib/coverages/`: 16 archivos, 128 tests, todo verde.
+- `npx tsc --noEmit -p tsconfig.json`: limpio, sin salida.
+
+Único archivo que quedó modificado: `lib/coverages/aislamiento.test.ts`. No se tocó
+`repository.ts` de forma permanente ni ninguna base de datos.
