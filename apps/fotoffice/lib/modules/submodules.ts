@@ -4,6 +4,7 @@ import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
+import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 
 /**
  * Las pantallas de cada módulo, en un solo lugar.
@@ -255,6 +256,25 @@ const CLIENTES: SubmoduleItem[] = [
   },
 ];
 
+const COBERTURAS: SubmoduleItem[] = [
+  {
+    href: "/coberturas",
+    label: "Solicitudes",
+    icon: "Inbox",
+    description: "Los pedidos que llegaron y en qué anda cada uno.",
+    requiresManage: false,
+    activeMatch: "rest",
+  },
+  {
+    href: "/coberturas/configuracion",
+    label: "Configuración",
+    icon: "Settings",
+    description: "Las palabras, los plazos y quién decide en esta organización.",
+    requiresManage: true,
+    activeMatch: "under",
+  },
+];
+
 const POR_MODULO: Record<string, SubmoduleItem[]> = {
   [MEMBERS_MODULE_KEY]: SOCIOS,
   [COURSES_SALES_MODULE_KEY]: CURSOS,
@@ -262,6 +282,7 @@ const POR_MODULO: Record<string, SubmoduleItem[]> = {
   [RAFFLES_MODULE_KEY]: SORTEOS,
   [CASH_MODULE_KEY]: CAJA,
   [CLIENTS_MODULE_KEY]: CLIENTES,
+  [COVERAGES_MODULE_KEY]: COBERTURAS,
 };
 
 /**

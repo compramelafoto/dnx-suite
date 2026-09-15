@@ -62,7 +62,7 @@ export async function changeRequestStatusAction(
    * El plan original de esta tarea dejaba el `trackingUrl` del correo como un marcador
    * (`/sc/…`): el token crudo del enlace de recepción nunca se guardó —en la base sólo vive su
    * SHA-256 (`tokenHash`)— así que no hay forma de reconstruir ESE enlace acá. La única opción
-   * es emitir uno nuevo. De paso, rotar dejar un solo enlace vivo por solicitud en vez de que
+   * es emitir uno nuevo. De paso, rotar deja un solo enlace vivo por solicitud en vez de que
    * convivan el viejo y el nuevo, que es preferible.
    *
    * Consecuencia asumida: un enlace viejo que la organización tenga guardado (por ejemplo, el
@@ -249,4 +249,65 @@ export async function addNoteAction(
 
   revalidatePath(`/coberturas/${existe.id}`);
   return { error: null, ok: "Anotado." };
+}
+
+/**
+ * Guardar la configuración del módulo.
+ *
+ * `upsert` y no `update`: un workspace que nunca la tocó no tiene fila, y obligar a crearla
+ * antes de poder editarla sería un paso que no le importa a nadie.
+ *
+ * Los números se acotan a rangos sensatos. Un umbral de refuerzo en cero haría que el aviso
+ * salte en toda cobertura y la gente deje de leerlo, que es peor que no tenerlo.
+ */
+export async function saveCoverageSettingsAction(
+  _prev: PanelState | undefined,
+  formData: FormData,
+): Promise<PanelState> {
+  const { workspace } = await requireCoveragesCoordinator();
+
+  const entero = (nombre: string, min: number, max: number, porOmision: number): number => {
+    const n = Number(formData.get(nombre)?.toString()?.trim());
+    if (!Number.isFinite(n)) return porOmision;
+    return Math.min(max, Math.max(min, Math.round(n)));
+  };
+
+  const texto = (nombre: string): string | null =>
+    formData.get(nombre)?.toString()?.trim() || null;
+
+  const lista = (nombre: string): string[] =>
+    (formData.get(nombre)?.toString() ?? "")
+      .split(/[\n,]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+  const datos = {
+    moduleLabel: texto("moduleLabel"),
+    termRequest: texto("termRequest"),
+    termCollaborator: texto("termCollaborator"),
+    termRequester: texto("termRequester"),
+    termCall: texto("termCall"),
+    assignmentMode: formData.get("assignmentMode")?.toString() ?? "MIXTA",
+    requiresApproval: formData.get("requiresApproval") === "on",
+    requiresCoordinatorConfirmation:
+      formData.get("requiresCoordinatorConfirmation") === "on",
+    reinforcementThresholdMinutes: entero("reinforcementThresholdMinutes", 30, 24 * 60, 180),
+    recommendedCollaborators: entero("recommendedCollaborators", 1, 20, 2),
+    publicFormEnabled: formData.get("publicFormEnabled") === "on",
+    publicFormIntro: texto("publicFormIntro"),
+    notifyEmails: lista("notifyEmails"),
+    zones: lista("zones"),
+    specialties: lista("specialties"),
+    roleTemplates: lista("roleTemplates"),
+  };
+
+  await prisma.coverageSettings.upsert({
+    where: { workspaceId: workspace.id },
+    update: datos,
+    create: { workspaceId: workspace.id, ...datos },
+  });
+
+  revalidatePath("/coberturas/configuracion");
+  revalidatePath("/coberturas");
+  return { error: null, ok: "Guardado." };
 }
