@@ -102,7 +102,7 @@ test("dos renders del mismo documento con los mismos datos dan el mismo archivo"
   assert.deepEqual(Buffer.from(a.value), Buffer.from(b.value), "el render no es reproducible");
 });
 
-import { pdfToPng } from "./png";
+import { pdfToPng } from "./png-wasm";
 import { renderSvgPages } from "./svg";
 
 test("rasteriza la primera cara del PDF a PNG", async () => {

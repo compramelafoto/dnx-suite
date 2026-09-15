@@ -300,3 +300,24 @@ de devolver basura. Hay un test que lo verifica.
 
 **Hace falta `MP_CREDENTIAL_KEY` en Vercel**: 32 bytes en base64. Sin ella, la
 conexión de Mercado Pago falla con un mensaje claro.
+
+## La migración del adicional (2026-09-14)
+
+`20260914120000_subilafoto_orden_por_evento` quita el índice único de
+`SubilafotoOrder.eventId`.
+
+### Por qué hizo falta
+
+El modelo ataba **una** orden a un evento, pensando sólo en la venta del evento.
+Pero el adicional de descarga es **otra orden sobre el mismo evento**: se cobra
+aparte, a otra cuenta y con otro reparto. Con el único puesto, comprar la
+descarga fallaba al guardar.
+
+Es un caso lindo de algo que no se ve leyendo el modelo y aparece al primer uso:
+el único parecía razonable hasta que existieron dos tipos de orden.
+
+Quitar un índice único **sólo permite más filas**: no borra nada ni invalida lo
+que ya está. Del lado del evento la relación pasó de `order` a `orders`, y no
+había código usándola.
+
+Aplicada y registrada en `production`, que es donde viven estas tablas.

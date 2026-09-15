@@ -18,7 +18,7 @@ function dibujar(content: string, textTransform?: string): string {
     }] }],
   });
   if (!doc.ok) throw new Error(doc.errors.join(", "));
-  const plan = buildLayoutPlan(doc.value, { values: { nombre: "maría fernanda gómez" }, omitted: [] }, { measurer: medidor });
+  const plan = buildLayoutPlan(doc.value, { values: { nombre: "maría fernanda gómez" }, omitted: [] }, { measurer: medidor, includeBleed: false });
   if (!plan.ok) throw new Error(plan.errors.join(", "));
   const item = plan.value.pages[0]!.items[0] as LayoutTextItem;
   return item.lines.join(" ");

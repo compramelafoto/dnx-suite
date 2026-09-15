@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { DNX_SESSION_COOKIE, getSessionUserByRawToken } from "@repo/auth";
 import { prisma } from "@repo/db";
 import { condicionDePublicadas } from "@/lib/album";
-import { DURACION, enlacesParaMirar } from "@/lib/moderacion/vista";
+import { DURACION, SELECT_DE_VARIANTES, enlacesDeVariantes } from "@/lib/moderacion/vista";
 import { revisarFoto } from "@/app/actions/moderacion";
 
 export const dynamic = "force-dynamic";
@@ -42,13 +42,11 @@ export default async function Control({ params }: Props) {
     where: { ...condicionDePublicadas(evento.id), kind: "PHOTO" },
     orderBy: [{ publishedAt: "desc" }],
     take: 60,
-    select: { id: true, originalKey: true, caption: true, guestName: true },
+    select: { id: true, caption: true, guestName: true, variants: SELECT_DE_VARIANTES },
   });
 
-  const enlaces = await enlacesParaMirar(
-    enPantalla.map((f) => f.originalKey),
-    DURACION.proyeccion,
-  );
+  // La variante, nunca el original: regla anti-bypass.
+  const enlaces = await enlacesDeVariantes(enPantalla, "pantalla", DURACION.proyeccion);
 
   return (
     <main className="sobre-claro mx-auto max-w-3xl px-4 py-8">

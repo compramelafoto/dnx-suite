@@ -1,60 +1,56 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@repo/db";
-import { leerEstado } from "@/lib/pagos/estado-oauth";
-import { canjearCodigo } from "@/lib/pagos/oauth";
-import { cifrarCredencial, claveDeCifrado } from "@/lib/pagos/credencial";
+import {
+  ConnectError,
+  completeMpConnection,
+} from "@repo/payments/mercado-pago-connect";
+import { dependenciasDeConexion } from "@/lib/pagos/dependencias";
+import { SUBILAFOTO_PRODUCTO, perfilDesdeReferencia } from "@/lib/pagos/constantes";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/**
- * Vuelta de Mercado Pago después de que el vendedor autorizó.
- *
- * El `state` se verifica **antes** de tocar la base. Sin eso, cualquiera podría
- * llamar a esta ruta con su propio código y conectar su cuenta de Mercado Pago
- * al perfil de otro vendedor.
- */
-export async function GET(req: Request) {
-  const parametros = new URL(req.url).searchParams;
-  const base = new URL(req.url).origin;
-  const alPanel = (mensaje: string) =>
-    NextResponse.redirect(`${base}/panel?pago=${encodeURIComponent(mensaje)}`);
+const VUELTA = "/panel";
 
-  if (parametros.get("error")) return alPanel("cancelado");
+/**
+ * Vuelta de MercadoPago con el código de autorización.
+ *
+ * El estado se valida contra la base y se marca usado **antes** de canjear el código: si
+ * se pudiera reusar, alguien que capture esta URL podría reconectar la cuenta cuando
+ * quisiera. Esa validación vive en el paquete y la comparten todos los productos.
+ */
+export async function GET(request: Request) {
+  const parametros = new URL(request.url).searchParams;
+  const volver = (mensaje: string) =>
+    NextResponse.redirect(new URL(`${VUELTA}?pago=${mensaje}`, request.url));
+
+  if (parametros.get("error")) return volver("cancelado");
 
   const codigo = parametros.get("code");
   const estado = parametros.get("state");
-  const secreto = process.env.AUTH_SECRET?.trim();
-  if (!codigo || !estado || !secreto) return alPanel("incompleto");
+  if (!codigo || !estado) return volver("incompleto");
 
-  const perfilId = leerEstado(estado, secreto);
-  if (!perfilId) return alPanel("estado-invalido");
-
-  let datos;
   try {
-    datos = await canjearCodigo(codigo);
-  } catch {
-    return alPanel("rechazado");
+    const resultado = await completeMpConnection(
+      { code: codigo, state: estado },
+      { ...dependenciasDeConexion(), product: SUBILAFOTO_PRODUCTO },
+    );
+
+    const perfilId = perfilDesdeReferencia(resultado.organizationRef);
+    if (perfilId) {
+      // `mpConnected` es sólo para mostrar: la verdad de la conexión vive en
+      // `DnxPaymentAccount`. Se guarda igual para no consultar la capa financiera
+      // cada vez que se pinta el panel.
+      await prisma.subilafotoSellerProfile.updateMany({
+        where: { id: perfilId },
+        data: { mpConnected: true },
+      });
+    }
+
+    return volver("conectado");
+  } catch (error) {
+    const codigoDeError = error instanceof ConnectError ? error.code : "ERROR";
+    console.error("[subilafoto][mp-conectar] falló el retorno", { codigo: codigoDeError });
+    return volver(codigoDeError);
   }
-
-  // El token se guarda cifrado: con él se puede cobrar en nombre del vendedor.
-  const credencial = cifrarCredencial(
-    { accessToken: datos.access_token, refreshToken: datos.refresh_token ?? null },
-    claveDeCifrado(),
-  );
-
-  await prisma.subilafotoSellerProfile.updateMany({
-    where: { id: perfilId },
-    data: {
-      mpConnected: true,
-      mpUserId: datos.user_id != null ? String(datos.user_id) : null,
-      mpCredential: credencial,
-      mpConnectedAt: new Date(),
-      mpTokenExpiresAt: datos.expires_in
-        ? new Date(Date.now() + datos.expires_in * 1000)
-        : null,
-    },
-  });
-
-  return alPanel("conectado");
 }

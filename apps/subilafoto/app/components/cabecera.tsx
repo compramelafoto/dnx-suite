@@ -16,12 +16,23 @@ import { estiloBotonDnx } from "@/lib/boton-dnx";
  * Tampoco lleva logo: la cabecera se desplaza con la página y sólo se ve arriba
  * de todo, que es exactamente donde el hero ya muestra el logo grande. Repetirlo
  * a treinta píxeles del otro no agrega nada.
+ *
+ * El enlace al botón de arrepentimiento va acá y no sólo en el pie porque la Resolución
+ * 424/2020 pide que se vea **en la primera pantalla de la portada**, sin tener que bajar.
  */
 export function Cabecera() {
   return (
     <header
-      className="absolute inset-x-0 top-0 z-20 flex items-center justify-end px-5 py-4 sm:px-8 sm:py-6"
+      className="absolute inset-x-0 top-0 z-20 flex items-center justify-between gap-4 px-5 py-4 sm:px-8 sm:py-6"
     >
+      <Link
+        href="/arrepentimiento"
+        className="inline-flex min-h-[44px] items-center text-sm font-extrabold underline underline-offset-4"
+        style={{ color: "var(--slf-lila)" }}
+      >
+        Botón de arrepentimiento
+      </Link>
+
       {/*
         El estilo sale de `estiloBotonDnx`, que arma el botón con los mismos
         tokens que el `Button` de `@repo/design-system`. Antes era una píldora

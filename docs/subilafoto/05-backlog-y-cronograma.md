@@ -139,6 +139,19 @@ y un televisor reales.
 **Salida:** el evento es vendible de punta a punta y los proveedores se captan sin ensuciar
 la base de empresas.
 
+**Estado al 2026-09-15: las diez tareas están en `main`.** Lo que falta para que la etapa
+funcione de verdad no es código sino configuración y pruebas:
+
+| Falta | De quién depende |
+|---|---|
+| `SUBILAFOTO_MP_CLIENT_ID`, `_CLIENT_SECRET`, `_REDIRECT_URI`, `_ACCESS_TOKEN` en Vercel | Titular |
+| `DNX_FINANCIAL_CREDENTIAL_MASTER_KEY` en Vercel | Titular |
+| Declarar la URL de retorno en la app "DNX Suite" de Mercado Pago (**no crear una app nueva**) | Titular |
+| `RESEND_API_KEY` y el remitente, para que los correos dejen de salir en seco | Titular |
+| Compra de prueba de punta a punta | Después de lo anterior |
+| Parte 2 y 3 de la prueba de moderación (capítulo 06) | Fotos reales |
+| Probar el ZIP con un evento grande de verdad | Fotos reales |
+
 ## Etapa 4 — Estabilización: 3 al 7 de octubre
 
 - Recorrido de aceptación completo (los 31 pasos del capítulo 28), ejecutado entero.
@@ -152,11 +165,38 @@ la base de empresas.
 
 **Salida:** candidato de lanzamiento, sin fallos críticos ni altos conocidos.
 
+**Estado al 2026-09-15.** Se adelantó casi toda la etapa:
+
+| Punto | Estado | Dónde |
+|---|---|---|
+| Recorrido de aceptación (31 pasos) | Mapeado con estado y responsable | [20](20-recorrido-de-aceptacion.md) |
+| 100 fotos de 10 dispositivos | **Corrido. 0 fallas** | [19](19-prueba-de-carga.md) |
+| Repaso de permisos y anti-bypass | **Hecho. Tres arreglos** | [15](15-repaso-de-permisos.md) |
+| Accesibilidad | **Hecha. Un arreglo real** | [16](16-accesibilidad.md) |
+| Documentación operativa | **Escrita** | [17](17-manual-de-operacion.md) |
+| Ensayo de rollback | Procedimiento escrito y probado en parte | [18](18-rollback.md) |
+| iPhone, Android, televisor y proyector reales | **Falta** | Necesita los aparatos |
+| Recuperación de conexión (modo avión) | **Falta** | Necesita un teléfono |
+
+Lo que queda de la etapa 4 **no se puede hacer sin aparatos y sin las variables de
+entorno**. No es trabajo de código pendiente.
+
 ## Etapa 5 — Ensayo y lanzamiento: 8 al 10 de octubre
 
 - 8/10: ensayo general con un evento real o simulado, de principio a fin.
 - 9/10: congelamiento. Sólo se corrigen bloqueantes.
 - 10/10: lanzamiento controlado y monitoreo activo.
+
+**Estado al 2026-09-15.** Lo construible de la etapa está hecho:
+
+| Punto | Estado | Dónde |
+|---|---|---|
+| Monitoreo activo | **Construido**: panel, alertas con instrucción y latido de los cron | [21](21-como-va-la-noche.md) |
+| Guion del ensayo del 8 | **Escrito**, 13 pasos | [22](22-ensayo-y-lanzamiento.md) |
+| Criterio de congelamiento del 9 | **Escrito**: una sola pregunta | [22](22-ensayo-y-lanzamiento.md) |
+| Recorrido del 10 y qué mirar | **Escrito** | [22](22-ensayo-y-lanzamiento.md) |
+| Lista de lo que tiene que estar antes del 8 | **Escrita** | [22](22-ensayo-y-lanzamiento.md) |
+| El ensayo en sí | **Falta**: es el 8 de octubre y necesita plata y aparatos | — |
 
 ## El camino crítico
 

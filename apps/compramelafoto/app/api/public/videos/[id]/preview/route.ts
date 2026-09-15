@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { isAlbumPubliclyAccessible } from "@/lib/album-helpers";
 import { isVideoMvpEnabled } from "@/lib/videos/video-feature-flag";
 import { getSignedUrlForFile } from "@/lib/r2-client";
+import { resolveAlbumPublicVideoAccess } from "@/lib/videos/public-album-video-access";
+import { resolvePreviewResponseCache } from "@/lib/videos/preview-response-cache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,7 +47,15 @@ export async function GET(
         expiresAt: true,
         processingStatus: true,
         album: {
-          select: { id: true, isPublic: true, isHidden: true, isTest: true, deletedAt: true },
+          select: {
+            id: true,
+            userId: true,
+            isPublic: true,
+            isHidden: true,
+            isTest: true,
+            deletedAt: true,
+            hiddenPhotosEnabled: true,
+          },
         },
       },
     });
@@ -61,6 +71,30 @@ export async function GET(
       !isAlbumPubliclyAccessible(video.album)
     ) {
       return NextResponse.json({ error: "Vista previa no disponible" }, { status: 404 });
+    }
+
+    // En un álbum con contenido oculto, el adelanto sigue la misma regla que el
+    // listado: sólo los videos que esa persona tiene permitidos. Sin esto,
+    // alguien podía pedir el adelanto de un video ajeno adivinando el número,
+    // porque los ids son correlativos.
+    if (video.album.hiddenPhotosEnabled) {
+      const acceso = await resolveAlbumPublicVideoAccess(req, {
+        id: video.album.id,
+        userId: video.album.userId,
+        isTest: video.album.isTest,
+        isPublic: video.album.isPublic,
+        isHidden: video.album.isHidden,
+        hiddenPhotosEnabled: video.album.hiddenPhotosEnabled,
+      });
+
+      const permitidos = acceso.ok ? acceso.access.allowedVideoIds : [];
+      if (!acceso.ok || (Array.isArray(permitidos) && !permitidos.includes(videoId))) {
+        console.info("[video-preview] adelanto bloqueado por álbum oculto", {
+          videoId,
+          albumId: video.album.id,
+        });
+        return NextResponse.json({ error: "Vista previa no disponible" }, { status: 404 });
+      }
     }
 
     const signedUrl = await getSignedUrlForFile(video.previewKey, 900);
@@ -83,17 +117,23 @@ export async function GET(
     const headers = new Headers();
     headers.set("Content-Type", "video/mp4");
     headers.set("Accept-Ranges", "bytes");
-    // El adelanto tiene la marca quemada y no cambia: se puede cachear fuerte.
-    headers.set("Cache-Control", "public, max-age=3600");
     for (const h of ["content-length", "content-range", "etag", "last-modified"]) {
       const v = upstream.headers.get(h);
       if (v) headers.set(h, v);
     }
 
-    return new NextResponse(upstream.body, {
-      status: upstream.status,
-      headers,
+    // El estado y la caché los decide una sola función, probada aparte: el
+    // adelanto se guarda en el navegador de cada persona y nunca en el CDN
+    // compartido, porque ahí un fragmento terminaba repartido como 200.
+    const cache = resolvePreviewResponseCache({
+      requestedRange: range,
+      upstreamStatus: upstream.status,
+      hasContentRange: headers.has("content-range"),
     });
+    headers.set("Cache-Control", cache.cacheControl);
+    headers.set("Vary", cache.vary);
+
+    return new NextResponse(upstream.body, { status: cache.status, headers });
   } catch (err: unknown) {
     console.error("[video-preview] fatal", err);
     return NextResponse.json({ error: "Vista previa no disponible" }, { status: 500 });

@@ -1,4 +1,7 @@
 import sharp from "sharp";
+import path from "node:path";
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 export type CreateWatermarkOverlayParams = {
   videoId: number;
@@ -17,6 +20,78 @@ function escapeXml(s: string): string {
 
 function watermarkFontSize(width: number, height: number): number {
   return Math.max(16, Math.round(Math.min(width, height) * 0.045));
+}
+
+
+/**
+ * Rejilla de logos, igual que las fotos.
+ *
+ * Antes la marca del video eran tres textos sueltos que no tapaban nada: quien
+ * se llevaba el adelanto tenía una imagen casi limpia. Las fotos usan el logo
+ * repetido en rejilla, y el video ahora hace lo mismo con el mismo archivo.
+ *
+ * Los números salen de `lib/images/watermark-render.ts` de la app: rejilla de
+ * 3x3 y logo al 22% del ancho (con el factor 1.23 que se aplicó allá).
+ */
+const LOGO_GRID_COLS = 3;
+const LOGO_GRID_ROWS = 3;
+const LOGO_WIDTH_RATIO = 0.22 * 1.23;
+const LOGO_OPACITY = 0.45;
+
+/** Ubica el logo de CLF, que viaja junto al worker. */
+function resolveLogoPath(): string | null {
+  const candidatos = [
+    path.join(process.cwd(), "assets", "watermark.png"),
+    path.join(process.cwd(), "apps", "compramelafoto-workers", "video", "assets", "watermark.png"),
+    path.resolve(fileURLToPath(import.meta.url), "..", "..", "assets", "watermark.png"),
+  ];
+  for (const c of candidatos) {
+    if (existsSync(c)) return c;
+  }
+  console.warn("[video-worker] watermark.png no encontrado: la marca queda sólo con texto");
+  return null;
+}
+
+/** Las capas de logo repetidas sobre el cuadro. */
+async function buildLogoTiles(
+  width: number,
+  height: number
+): Promise<sharp.OverlayOptions[]> {
+  const logoPath = resolveLogoPath();
+  if (!logoPath) return [];
+
+  const logoAncho = Math.max(24, Math.round(width * LOGO_WIDTH_RATIO));
+  const logo = await sharp(logoPath)
+    .resize({ width: logoAncho })
+    .composite([
+      {
+        // Baja la opacidad del logo sin tocar el archivo original.
+        input: Buffer.from([255, 255, 255, Math.round(255 * LOGO_OPACITY)]),
+        raw: { width: 1, height: 1, channels: 4 },
+        tile: true,
+        blend: "dest-in",
+      },
+    ])
+    .png()
+    .toBuffer();
+
+  const meta = await sharp(logo).metadata();
+  const lw = meta.width ?? logoAncho;
+  const lh = meta.height ?? logoAncho;
+
+  const capas: sharp.OverlayOptions[] = [];
+  for (let fila = 0; fila < LOGO_GRID_ROWS; fila++) {
+    for (let col = 0; col < LOGO_GRID_COLS; col++) {
+      const cx = ((col + 0.5) * width) / LOGO_GRID_COLS;
+      const cy = ((fila + 0.5) * height) / LOGO_GRID_ROWS;
+      const left = Math.round(cx - lw / 2);
+      const top = Math.round(cy - lh / 2);
+      // Un logo que se sale del cuadro hace fallar la composición entera.
+      if (left < 0 || top < 0 || left + lw > width || top + lh > height) continue;
+      capas.push({ input: logo, left, top });
+    }
+  }
+  return capas;
 }
 
 function buildWatermarkSvg(width: number, height: number, videoId: number): string {
@@ -58,7 +133,12 @@ export async function createWatermarkOverlayFile(
   const h = Math.max(2, Math.round(height));
 
   const svg = buildWatermarkSvg(w, h, videoId);
-  await sharp(Buffer.from(svg)).png().toFile(outputPath);
+  const tiles = await buildLogoTiles(w, h);
+
+  await sharp(Buffer.from(svg))
+    .composite(tiles)
+    .png()
+    .toFile(outputPath);
 
   console.log("[video-worker] watermark overlay generated", {
     videoId,

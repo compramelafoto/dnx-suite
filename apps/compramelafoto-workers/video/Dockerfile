@@ -41,6 +41,10 @@ COPY packages/typescript-config packages/typescript-config
 COPY packages/eslint-config packages/eslint-config
 COPY apps/compramelafoto-workers/video apps/compramelafoto-workers/video
 
+# El logo de la marca de agua: el mismo archivo que usan las fotos.
+RUN test -f apps/compramelafoto-workers/video/assets/watermark.png \
+    || (echo 'FALTA watermark.png: la marca quedaría sin logo' && exit 1)
+
 # Prisma de nuevo: el COPY anterior pudo sobrescribir el cliente generado.
 RUN pnpm --filter @repo/db exec prisma generate
 

@@ -1,15 +1,28 @@
 import { prisma } from "@repo/db";
+import { rechazoDeLlave } from "@/lib/llave-de-servicio";
 
 /**
- * Diagnóstico de arranque: confirma que la app llega a la base y que la moderación
- * responde, sin exponer ningún valor de configuración.
+ * Diagnóstico de arranque: confirma que la app llega a la base, que la moderación responde
+ * y que R2 se puede escribir y leer.
  *
- * Temporal, para verificar el despliegue de la Etapa 1. Se retira antes del lanzamiento.
+ * **Protegida con la llave de servicio.** Estuvo abierta hasta el 2026-09-15 y no debió
+ * estarlo por dos motivos:
+ *
+ * - Publicaba el host de la base, el nombre del bucket, la región y la cantidad de
+ *   eventos. Nada de eso es una credencial, pero es el mapa para buscarlas.
+ * - **Cada visita escribe y borra un archivo en R2 y llama a Rekognition.** Abierta, es un
+ *   endpoint que cualquiera puede poner en un bucle y que se factura.
+ *
+ * Sigue siendo la forma más rápida de saber si un despliegue quedó bien, así que se cierra
+ * en vez de borrarse.
  */
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: Request) {
+  const rechazo = rechazoDeLlave(req);
+  if (rechazo) return rechazo;
+
   const resultado: Record<string, unknown> = {};
 
   try {

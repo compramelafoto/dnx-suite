@@ -41,13 +41,15 @@ const nextConfig: NextConfig = {
     "@mercadopago/sdk-react",
   ],
   // Evita que el bundler omita el Query Engine de Prisma en Vercel (rhel-openssl-3.0.x).
-  // `pdf-to-png-converter` arrastra el binario nativo de `@napi-rs/canvas`.
-  // Webpack no puede empaquetar un .node: hay que dejarlo como dependencia externa.
+  /*
+   * `mupdf` es WebAssembly: webpack no puede empaquetar su `.wasm` de 10 MB, así que lo carga
+   * Node en tiempo de ejecución. A diferencia de los binarios nativos que estuvieron antes acá,
+   * es **un solo archivo igual para todos los sistemas**: no hay variante por plataforma.
+   */
   serverExternalPackages: [
     "@prisma/client",
     "@repo/db",
-    "@napi-rs/canvas",
-    "pdf-to-png-converter",
+    "mupdf",
   ],
   outputFileTracingRoot: monorepoRoot,
   outputFileTracingIncludes: {
@@ -56,6 +58,27 @@ const nextConfig: NextConfig = {
       "../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/**",
       "../../packages/db/prisma/**",
     ],
+    /*
+     * El motor de rasterizado. Va ruta por ruta y no en `/**`: el `.wasm` pesa 10 MB y Next lo
+     * copia una vez por función; aplicado a todas, el contenedor de build se queda sin disco.
+     * Se excluyen los `.br` —comprimidos, que Node no usa— y las declaraciones de tipos.
+     */
+    ...Object.fromEntries(
+      [
+        "/api/cron/participant-cards",
+        "/api/account/registrations/[registrationId]/cards/[cardType]",
+        "/api/admin/registrations/[registrationId]/cards/[cardType]",
+        // Genera la placa apenas se confirma el pago, vía `after()`.
+        "/api/webhooks/dnx-payments",
+      ].map((ruta) => [
+        ruta,
+        [
+          "../../node_modules/.pnpm/mupdf@*/node_modules/mupdf/dist/*.js",
+          "../../node_modules/.pnpm/mupdf@*/node_modules/mupdf/dist/*.wasm",
+          "../../node_modules/.pnpm/mupdf@*/node_modules/mupdf/package.json",
+        ],
+      ])
+    ),
   },
   allowedDevOrigins: ["127.0.0.1", "localhost"],
   turbopack: {
@@ -63,38 +86,13 @@ const nextConfig: NextConfig = {
     root: monorepoRoot,
   },
   // @repo/payments usa imports ESM con extensión .js apuntando a fuentes .ts.
-  webpack: (config, { isServer }) => {
+  webpack: (config) => {
     config.resolve = config.resolve ?? {};
     config.resolve.extensionAlias = {
       ...(config.resolve.extensionAlias ?? {}),
       ".js": [".ts", ".tsx", ".js"],
       ".mjs": [".mts", ".mjs"],
     };
-
-    // `pdf-to-png-converter` arrastra el binario nativo de `@napi-rs/canvas`, que
-    // webpack no puede empaquetar (`Module parse failed` sobre un .node).
-    // `serverExternalPackages` no alcanza: el import nace dentro de un paquete del
-    // workspace (@repo/template-editor-core → design-studio), no dentro de
-    // node_modules, y Next no lo externaliza. Se resuelve en tiempo de ejecución
-    // con require de Node.
-    if (isServer) {
-      const previos = Array.isArray(config.externals)
-        ? config.externals
-        : [config.externals].filter(Boolean);
-      config.externals = [
-        ...previos,
-        ({ request }: { request?: string }, callback: ExternalCallback) => {
-          if (
-            request === "pdf-to-png-converter" ||
-            request === "@napi-rs/canvas" ||
-            request?.endsWith(".node")
-          ) {
-            return callback(null, `commonjs ${request}`);
-          }
-          return callback();
-        },
-      ];
-    }
 
     return config;
   },

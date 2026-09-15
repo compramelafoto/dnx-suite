@@ -21,6 +21,12 @@ export type AlbumPublicVideoAccessContext = {
   isPubliclyAccessible: boolean;
   /** Visitantes sin privilegio: ocultar videos vencidos por expiresAt. */
   applyExpiresFilter: boolean;
+  /**
+   * Videos que puede ver quien entró con una selfie: los suyos y los que no
+   * tienen ninguna cara. `null` cuando no hay restricción por persona (el
+   * dueño, un álbum público). Una lista vacía significa "ninguno", no "todos".
+   */
+  allowedVideoIds: number[] | null;
 };
 
 export async function resolveAlbumPublicVideoAccess(
@@ -63,6 +69,7 @@ export async function resolveAlbumPublicVideoAccess(
         canViewPrivateAlbum,
         isPubliclyAccessible,
         applyExpiresFilter: !canViewPrivateAlbum,
+        allowedVideoIds: null,
       },
     };
   }
@@ -73,7 +80,12 @@ export async function resolveAlbumPublicVideoAccess(
     if (parsed?.albumId === album.id) {
       const grant = await prisma.hiddenAlbumGrant.findUnique({
         where: { id: parsed.grantId },
-        select: { albumId: true, expiresAt: true, isRevoked: true },
+        select: {
+          albumId: true,
+          expiresAt: true,
+          isRevoked: true,
+          allowedVideoIds: true,
+        },
       });
       if (
         grant &&
@@ -81,12 +93,23 @@ export async function resolveAlbumPublicVideoAccess(
         !grant.isRevoked &&
         grant.expiresAt >= new Date()
       ) {
+        // Un permiso viejo, anterior a esta función, no tiene lista de videos.
+        // Se trata como "ninguno": es preferible no mostrar nada a mostrarle a
+        // alguien los videos de otras personas.
+        const rawAllowed = grant.allowedVideoIds;
+        const allowedVideoIds = Array.isArray(rawAllowed)
+          ? rawAllowed
+              .map((n) => (typeof n === "number" ? n : parseInt(String(n), 10)))
+              .filter((n) => Number.isFinite(n) && n > 0)
+          : [];
+
         return {
           ok: true,
           access: {
             canViewPrivateAlbum: false,
             isPubliclyAccessible: false,
             applyExpiresFilter: true,
+            allowedVideoIds,
           },
         };
       }

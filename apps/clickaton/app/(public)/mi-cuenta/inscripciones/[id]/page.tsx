@@ -14,8 +14,9 @@ import { PublicStatusCard } from "@/components/account/PublicStatusCard";
 import { getClickatonAuthUser } from "@/lib/admin/auth";
 import { hasClickatonCardConsent } from "@/lib/participant-cards";
 import { evaluateClickatonCardEligibility } from "@/lib/participant-cards";
-import { isParticipantCardsV2Enabled } from "@/lib/participant-cards/participant-card-feature-flags";
 import { canExposeParticipantCardsActions } from "@/lib/participant-cards/participant-card-runtime-config";
+import { isParticipantCardsPublicUiEnabled } from "@/lib/participant-cards/participant-card-feature-flags";
+import { decideParticipantCardsSections } from "@/lib/participant-cards/participant-card-section-visibility";
 import { CLICKATON_LOGIN_PATH } from "@/lib/auth/return-path";
 import { participantLivePath } from "@/lib/participant-live/routes";
 import { resolveActiveQrPlaintext } from "@/lib/registration/application/confirm-free-registration";
@@ -94,6 +95,13 @@ export default async function RegistrationCredentialPage({ params }: Props) {
     registration.status === "CONFIRMED" &&
     (registration.paymentStatus === "APPROVED" ||
       registration.paymentStatus === "NOT_REQUIRED");
+
+  // Cuál de los dos sistemas de placas se muestra. Nunca los dos, y nunca ninguno si pagó.
+  const cardSections = decideParticipantCardsSections({
+    paid,
+    v2Available: canExposeParticipantCardsActions(),
+    publicUiEnabled: isParticipantCardsPublicUiEnabled(),
+  });
 
   const temporal = await getEditionTemporalState(registration.editionId);
   // El detalle de consignas vive en la pantalla única (/en-vivo). Acá solo el progreso.
@@ -271,7 +279,7 @@ export default async function RegistrationCredentialPage({ params }: Props) {
         </dl>
       </Card>
 
-      {canExposeParticipantCardsActions()
+      {cardSections.v2
         ? (() => {
         const consent = hasClickatonCardConsent(registration);
         const hasPhoto = Boolean(registration.profilePhotoAssetId);
@@ -343,7 +351,7 @@ export default async function RegistrationCredentialPage({ params }: Props) {
       })()
         : null}
 
-      {paid && !isParticipantCardsV2Enabled() ? (
+      {cardSections.legacy ? (
         <WelcomeCardShareCard
           registrationId={registration.id}
           status={registration.welcomeCardStatus}
