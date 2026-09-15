@@ -17648,6 +17648,28 @@ model SubilafotoPackage {
 /// mismo correo dos veces. Mirar un registro antes de enviar no alcanza: entre la consulta
 /// y el envío entra otra ejecución.
 /// Latido de cada tarea automática. Una fila por cron, actualizada en el lugar.
+/// Solicitud de arrepentimiento (Res. 424/2020 y art. 34 de la Ley 24.240).
+model SubilafotoRetractionRequest {
+  id         String    @id @default(cuid())
+  /// Lo que escribió la persona para identificar su compra: código de evento o número.
+  reference  String
+  email      String
+  reason     String?
+  /// El número que se le mostró. Se deriva del id, así que un reintento no da otro.
+  receipt    String    @unique
+  status     String    @default("RECEIVED")
+  /// Se completa cuando alguien encuentra la orden y resuelve.
+  orderId    String?
+  resolvedAt DateTime?
+  resolution String?
+  ipHash     String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([status, createdAt])
+  @@index([email])
+}
+
 model SubilafotoCronRun {
   /// El nombre corto del cron: `moderacion`, `cierre`, `paquetes`, `avisos`, `purga`.
   nombre     String    @id
