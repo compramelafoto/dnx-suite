@@ -232,6 +232,22 @@ revocan.
 
 Sí se borran las fotos, sus variantes y las sesiones de invitado.
 
+### El intervalo se multiplica, no se arma con una función
+
+El relleno de plazos viejos suma 30 días a `closedAt` en SQL, porque Prisma no sabe sumar
+un intervalo a una columna en un `updateMany`.
+
+La primera versión usaba `make_interval(days => $1)` y **daba 500 en producción**. Prisma
+manda los números de JavaScript como `bigint`, y `make_interval(days => bigint)` no existe:
+Postgres no baja de `bigint` a `int` para resolver qué función llamar. Error 42883.
+
+Probar la consulta con el número escrito a mano no lo detecta: con `30` literal funciona.
+El problema aparece **sólo cuando el número viaja como parámetro**, que es como lo manda
+Prisma.
+
+Ahora es `${DIAS} * interval '1 day'`. Multiplicar no resuelve ninguna función, así que el
+tipo del parámetro deja de importar.
+
 ### Tres por vuelta, una vez por día
 
 El cron corre a las 4:30. No hay apuro, y de a poco se acota el daño de una
