@@ -41,6 +41,31 @@ describe("buildRequestReceivedEmail", () => {
     expect(m.text.toLowerCase()).not.toContain("confirmada");
     expect(m.text.toLowerCase()).toContain("vamos a revisar");
   });
+
+  it("sin URL de seguimiento, no muestra un botón que no lleva a ningún lado", () => {
+    // Pasa cuando no se pudo rotar el enlace por falta de `appUrl` (ver `debeRotarEnlace`).
+    // Un botón sin destino, y la línea de "copiá y pegá esta dirección" sin dirección debajo,
+    // son peor que no mostrar nada.
+    const m = buildRequestReceivedEmail({ ...base, trackingUrl: "" });
+    expect(m.html).not.toContain("Ver cómo va tu pedido");
+    expect(m.html).not.toContain("copiá y pegá");
+    expect(m.text).not.toContain("Ver cómo va tu pedido");
+  });
+
+  it("una URL con sólo espacios se trata igual que vacía", () => {
+    const m = buildRequestReceivedEmail({ ...base, trackingUrl: "   " });
+    expect(m.html).not.toContain("Ver cómo va tu pedido");
+    expect(m.html).not.toContain("copiá y pegá");
+    expect(m.text).not.toContain("Ver cómo va tu pedido");
+  });
+
+  it("con una URL real, el botón y la frase de copiar sí aparecen", () => {
+    const m = buildRequestReceivedEmail(base);
+    expect(m.html).toContain("Ver cómo va tu pedido");
+    expect(m.html).toContain("copiá y pegá");
+    expect(m.text).toContain("Ver cómo va tu pedido");
+    expect(m.text).toContain(base.trackingUrl);
+  });
 });
 
 describe("buildInfoRequestedEmail", () => {

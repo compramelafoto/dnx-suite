@@ -15,7 +15,7 @@ import {
 } from "@/lib/coverages/emails";
 import { recordEvent } from "@/lib/coverages/events";
 import { loadSettings } from "@/lib/coverages/repository";
-import { ASSIGNMENT_MODES } from "@/lib/coverages/settings";
+import { acotarEntero, normalizarAssignmentMode } from "@/lib/coverages/settings";
 import { planStatusChange } from "@/lib/coverages/status-change-plan";
 import {
   generateTrackingToken,
@@ -31,6 +31,22 @@ import { debeRotarEnlace } from "@/lib/coverages/tracking-view";
  * por eso `resolvedByUserId`/`resolvedAt` sólo se escriben cuando el destino es uno de estos, y
  * no en cada cambio de estado (por ejemplo `RECIBIDA → EN_EVALUACION`, que apenas abre la
  * carpeta).
+ *
+ * **"Resuelta" no es lo mismo que "terminal" ni que "no viva".** Son dos preguntas distintas:
+ * - Resuelta = ¿alguien ya decidió? Aprobar ES decidir, así que `APROBADA` entra acá.
+ * - Viva (`REQUEST_LIVE_STATUSES`, en `./states.ts`) = ¿todavía se puede cancelar?
+ *
+ * `APROBADA` es las dos cosas a la vez, y no es una contradicción: la solicitud ya fue
+ * decidida, pero la cobertura todavía no ocurrió, así que la organización o el solicitante
+ * todavía la pueden cancelar. Por eso esta lista **no se deriva de** `REQUEST_LIVE_STATUSES`
+ * (ni al revés): una es "¿ya se decidió?" y la otra es "¿se puede cancelar?", y comparten un
+ * estado sin ser la misma pregunta.
+ *
+ * Aviso para quien lea esto en seis meses: si "arreglás" la aparente contradicción unificando
+ * las dos listas (por ejemplo, sacando `APROBADA` de una de las dos porque "ya está en la
+ * otra"), vas a romper o el filtro de la bandeja (`urgentes` necesita ver las aprobadas
+ * pendientes de cobertura) o la fecha de resolución (`resolvedAt` dejaría de marcarse cuando
+ * se aprueba). Las dos listas están bien como están, separadas.
  */
 const ESTADOS_RESUELTOS = new Set([
   "APROBADA",
@@ -326,15 +342,8 @@ export async function saveCoverageSettingsAction(
 ): Promise<PanelState> {
   const { workspace } = await requireCoveragesCoordinator();
 
-  const entero = (nombre: string, min: number, max: number, porOmision: number): number => {
-    // `Number("")` es `0`, un valor finito: sin este corte previo, borrar el campo no
-    // restauraba el valor por omisión sino que lo acotaba al mínimo permitido.
-    const crudo = formData.get(nombre)?.toString()?.trim();
-    if (!crudo) return porOmision;
-    const n = Number(crudo);
-    if (!Number.isFinite(n)) return porOmision;
-    return Math.min(max, Math.max(min, Math.round(n)));
-  };
+  const entero = (nombre: string, min: number, max: number, porOmision: number): number =>
+    acotarEntero(formData.get(nombre)?.toString(), min, max, porOmision);
 
   const texto = (nombre: string): string | null =>
     formData.get(nombre)?.toString()?.trim() || null;
@@ -345,23 +354,13 @@ export async function saveCoverageSettingsAction(
       .map((s) => s.trim())
       .filter(Boolean);
 
-  /**
-   * El `<select>` del formulario es una comodidad para quien lo llena, no el control: quien
-   * manda el `FormData` puede escribir cualquier cosa ahí. Los números ya se acotan y los
-   * textos se limpian; a este campo le faltaba el mismo trato.
-   */
-  const assignmentModeCrudo = formData.get("assignmentMode")?.toString() ?? "";
-  const assignmentMode = (ASSIGNMENT_MODES as readonly string[]).includes(assignmentModeCrudo)
-    ? assignmentModeCrudo
-    : "MIXTA";
-
   const datos = {
     moduleLabel: texto("moduleLabel"),
     termRequest: texto("termRequest"),
     termCollaborator: texto("termCollaborator"),
     termRequester: texto("termRequester"),
     termCall: texto("termCall"),
-    assignmentMode,
+    assignmentMode: normalizarAssignmentMode(formData.get("assignmentMode")?.toString()),
     requiresApproval: formData.get("requiresApproval") === "on",
     requiresCoordinatorConfirmation:
       formData.get("requiresCoordinatorConfirmation") === "on",

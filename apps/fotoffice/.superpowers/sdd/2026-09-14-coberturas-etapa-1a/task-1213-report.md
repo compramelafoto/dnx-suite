@@ -121,3 +121,89 @@ solicitud y nunca lee el historial ni filtra las notas internas.
 - `lib/coverages/states.ts`
 
 No se tocó ninguna base de datos ni se crearon subagentes.
+
+---
+
+# Segunda ronda de corrección (re-revisión sobre task-1213)
+
+La re-revisión encontró tres cosas más sobre lo ya corregido arriba, más un agregado de tests
+que había quedado pendiente.
+
+## HALLAZGO 1 — `ESTADOS_RESUELTOS` incluye `APROBADA`, que el módulo trata como estado vivo
+
+No era una contradicción: son dos preguntas distintas que se estaban leyendo como si fueran
+una sola bajo la palabra "terminal".
+
+- **Resuelta** (`ESTADOS_RESUELTOS`, en `app/(shell)/coberturas/actions.ts`) = ¿alguien ya
+  decidió? Aprobar ES decidir, así que `APROBADA` corresponde ahí.
+- **Viva** (`REQUEST_LIVE_STATUSES`, en `lib/coverages/states.ts`) = ¿todavía se puede cancelar?
+  Una solicitud aprobada sigue viva, porque la cobertura todavía no ocurrió.
+
+**Corrección**: no se tocó la lista (queda `APROBADA`, `RECHAZADA`, `CERRADA`,
+`CANCELADA_SOLICITANTE`, `CANCELADA_ORGANIZACION`). Se reescribió el comentario para explicar
+las dos preguntas, aclarar que `APROBADA` es resuelta y viva a la vez a propósito, decir
+explícitamente que `ESTADOS_RESUELTOS` no se deriva de `REQUEST_LIVE_STATUSES` ni al revés, y
+dejar una advertencia: unificar las dos listas rompe el filtro "urgentes" de la bandeja (que
+necesita ver las aprobadas todavía sin cubrir) o la fecha de resolución (`resolvedAt` dejaría
+de marcarse al aprobar).
+
+## HALLAZGO 2 — correo con botón vacío cuando no se rotó el enlace por falta de `appUrl`
+
+`compose()` en `lib/coverages/emails.ts` armaba siempre el bloque de CTA (botón + línea de
+"copiá y pegá esta dirección"), así que un `trackingUrl: ""` producía un correo con un botón
+sin destino y una línea de copiar sin nada que copiar.
+
+**Corrección**: en `compose()`, `cta` ahora se resuelve como `input.cta?.url.trim() ?
+input.cta : null` antes de armar HTML y texto, así que una URL vacía o de sólo espacios omite
+el bloque entero (botón, línea de copiar y también la línea de texto plano) sin tocar el resto
+del correo. Tests agregados en `emails.test.ts` (sobre `buildRequestReceivedEmail`, que sí usa
+CTA): `trackingUrl: ""` no deja ni el botón ni "copiá y pegá" en HTML ni el label en texto;
+`trackingUrl: "   "` se comporta igual; con la URL real de `base`, las dos versiones sí los
+contienen.
+
+## HALLAZGO 3 — tres correcciones de la ronda anterior sin test por vivir dentro de la server action
+
+Se extrajeron las dos piezas a `lib/coverages/settings.ts` como funciones puras exportadas:
+
+- `acotarEntero(raw, min, max, porOmision)`: vacío/espacios o no-finito devuelven
+  `porOmision`; si no, acota entre `min` y `max` y redondea. Reemplaza a la función interna
+  `entero()` de `saveCoverageSettingsAction`, que ahora sólo hace `formData.get(...).toString()`
+  y delega.
+- `normalizarAssignmentMode(raw)`: devuelve `raw` si está en `ASSIGNMENT_MODES`, si no
+  `"MIXTA"`. Reemplaza la validación inline de `assignmentMode` en la misma acción.
+
+`saveCoverageSettingsAction` (`app/(shell)/coberturas/actions.ts`) quedó llamando a las dos;
+comportamiento sin cambios. Tests agregados en `settings.test.ts`: `acotarEntero` con vacío,
+espacios, texto no numérico, por debajo del mínimo, por encima del máximo y un valor válido en
+el medio (con redondeo); `normalizarAssignmentMode` con cada uno de los cuatro modos válidos,
+uno inventado, vacío y `null`.
+
+## Además — dos casos faltantes en `access-policy.test.ts`
+
+Se agregaron a `transitionNeedsCoordinator`: un estado vacío (`""`) y uno inventado
+(`"ESTADO_INVENTADO"`) exigen coordinador. Es el caso que importaba: lo que la función no
+reconoce cae del lado seguro (exige coordinar) y no del permisivo.
+
+## Verificación (desde `apps/fotoffice`)
+
+- `pnpm test` → 227 archivos pasaron, 1 falló: `lib/template-v2/access.test.ts` (mismo
+  preexistente y ajeno de siempre: `ENOENT` sobre una ruta de disenador que no existe en este
+  worktree). 2587 tests en verde, 1 en rojo. Ningún test de `coverages` falló.
+- `npx tsc --noEmit -p tsconfig.json` → limpio, sin salida.
+- `pnpm lint` → 3 errores y 7 warnings, todos preexistentes y en archivos no tocados en esta
+  ronda (`components/evaluaciones/mass-grading-screen.tsx`,
+  `components/website/render/blocks/hero-block-view.tsx`, y los warnings de siempre). Ningún
+  error nuevo.
+- `pnpm build` → compila, exit code 0.
+
+## Archivos modificados en esta ronda
+
+- `app/(shell)/coberturas/actions.ts` (comentario de `ESTADOS_RESUELTOS`; `entero()` y
+  `assignmentMode` delegan a `lib/coverages/settings`)
+- `lib/coverages/emails.ts` (CTA se omite con URL vacía/espacios)
+- `lib/coverages/emails.test.ts`
+- `lib/coverages/settings.ts` (`acotarEntero`, `normalizarAssignmentMode`)
+- `lib/coverages/settings.test.ts`
+- `lib/coverages/access-policy.test.ts`
+
+No se tocó ninguna base de datos ni se crearon subagentes.

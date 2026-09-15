@@ -69,4 +69,12 @@ describe("transitionNeedsCoordinator", () => {
     expect(transitionNeedsCoordinator("CANCELADA_SOLICITANTE")).toBe(true);
     expect(transitionNeedsCoordinator("CANCELADA_ORGANIZACION")).toBe(true);
   });
+
+  it("un estado vacío o inventado también exige coordinar: lo que no se reconoce cae del lado seguro", () => {
+    // La función sólo exime al único destino conocido que no compromete nada
+    // (`EN_EVALUACION`). Cualquier otra cosa —incluido lo que no es un estado real— tiene
+    // que caer del lado que pide coordinar, no del que lo deja pasar.
+    expect(transitionNeedsCoordinator("")).toBe(true);
+    expect(transitionNeedsCoordinator("ESTADO_INVENTADO")).toBe(true);
+  });
 });

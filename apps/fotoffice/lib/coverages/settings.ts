@@ -65,3 +65,38 @@ export const ASSIGNMENT_MODE_LABELS: Record<AssignmentMode, string> = {
   AUTOMATICA: "El sistema propone candidatos",
   MIXTA: "Se publica, se postulan y el coordinador confirma",
 };
+
+/**
+ * Acota un valor numérico que llegó como texto (de un `FormData`, por ejemplo).
+ *
+ * `Number("")` es `0`, un valor finito: sin el corte previo por vacío, borrar el campo no
+ * restauraba el valor por omisión sino que lo acotaba al mínimo permitido. Por eso el vacío (o
+ * los espacios) y lo que no es un número finito devuelven `porOmision` en vez de pasar por el
+ * acotamiento.
+ */
+export function acotarEntero(
+  raw: string | null | undefined,
+  min: number,
+  max: number,
+  porOmision: number,
+): number {
+  const crudo = raw?.trim();
+  if (!crudo) return porOmision;
+  const n = Number(crudo);
+  if (!Number.isFinite(n)) return porOmision;
+  return Math.min(max, Math.max(min, Math.round(n)));
+}
+
+/**
+ * Valida el modo de asignación que llegó como texto.
+ *
+ * El `<select>` del formulario es una comodidad para quien lo llena, no el control: quien
+ * manda el `FormData` puede escribir cualquier cosa ahí. Lo que no está en `ASSIGNMENT_MODES`
+ * cae en `"MIXTA"`, el modo más conservador (se publica, se postulan y el coordinador
+ * confirma).
+ */
+export function normalizarAssignmentMode(raw: string | null | undefined): AssignmentMode {
+  return (ASSIGNMENT_MODES as readonly string[]).includes(raw ?? "")
+    ? (raw as AssignmentMode)
+    : "MIXTA";
+}

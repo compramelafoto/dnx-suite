@@ -50,11 +50,17 @@ function compose(input: Composition): EmailBody {
 
   const htmlParrafos = input.paragraphs.map((p) => `  <p>${escapeHtml(p)}</p>`).join("\n");
 
-  const htmlCta = input.cta
+  // Sin URL no hay nada a dónde llevar: un botón que no lleva a ningún lado (y la línea de
+  // "copiá y pegá" sin dirección debajo) es peor que no mostrar nada. Pasa cuando no se pudo
+  // rotar el enlace por falta de `appUrl` (ver `debeRotarEnlace`); el resto del correo sale
+  // igual.
+  const cta = input.cta?.url.trim() ? input.cta : null;
+
+  const htmlCta = cta
     ? `\n  <p style="margin:24px 0;">
-    <a href="${escapeHtml(input.cta.url)}" style="background:#1d4ed8;color:#ffffff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600;">${escapeHtml(input.cta.label)}</a>
+    <a href="${escapeHtml(cta.url)}" style="background:#1d4ed8;color:#ffffff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600;">${escapeHtml(cta.label)}</a>
   </p>
-  <p style="font-size:13px;color:#6b7280;">Si el botón no funciona, copiá y pegá esta dirección en tu navegador:<br>${escapeHtml(input.cta.url)}</p>`
+  <p style="font-size:13px;color:#6b7280;">Si el botón no funciona, copiá y pegá esta dirección en tu navegador:<br>${escapeHtml(cta.url)}</p>`
     : "";
 
   const htmlNotas = (input.notes ?? [])
@@ -74,7 +80,7 @@ ${saludo ? `  <p>${escapeHtml(saludo)}</p>\n` : ""}${htmlParrafos}${htmlCta}${ht
   const text = [
     ...(saludo ? [saludo, ""] : []),
     input.paragraphs.join("\n\n"),
-    ...(input.cta ? ["", `${input.cta.label}:`, input.cta.url] : []),
+    ...(cta ? ["", `${cta.label}:`, cta.url] : []),
     ...((input.notes ?? []).length ? ["", (input.notes ?? []).join("\n")] : []),
     ...(input.signature ? ["", input.signature.text] : []),
   ].join("\n");
