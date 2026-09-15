@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { rechazoDeLlave } from "@/lib/llave-de-servicio";
 import { moderarPendientes } from "@/lib/moderacion";
 
 export const runtime = "nodejs";
@@ -19,15 +20,10 @@ export const maxDuration = 300;
  * Protegida con `Authorization: Bearer <CRON_SECRET>`.
  */
 export async function GET(req: Request) {
-  const esperado = process.env.CRON_SECRET?.trim();
-  if (!esperado) {
-    // Sin secreto configurado no se abre: es preferible que el cron falle
-    // ruidosamente a dejar una ruta que cualquiera puede disparar.
-    return NextResponse.json({ error: "Falta CRON_SECRET." }, { status: 503 });
-  }
-  if (req.headers.get("authorization") !== `Bearer ${esperado}`) {
-    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
-  }
+  // Sin secreto configurado no se abre: es preferible que el cron falle ruidosamente a
+  // dejar una ruta que cualquiera puede disparar.
+  const rechazo = rechazoDeLlave(req);
+  if (rechazo) return rechazo;
 
   const arranque = Date.now();
   const resumen = await moderarPendientes();
