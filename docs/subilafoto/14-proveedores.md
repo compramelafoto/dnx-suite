@@ -109,6 +109,26 @@ número. Mientras tanto, cuando se corta queda anotado en la ficha de la empresa
 nueva en vez de fallar en silencio: **un duplicado que se cuela sin que nadie se
 entere es peor que un error**.
 
+## Verificado en producción (2026-09-15)
+
+Se creó un evento de prueba con su enlace y se mandó el formulario **dos veces**:
+
+1. "Salón Luna Prueba S.R.L.", CUIT `30-71234567-4`, Instagram `@salonlunaprueba`.
+   Respuesta: *"Tu empresa quedó vinculada a este evento."*
+2. **Otro nombre** —"Eventos Luna Prueba"— con el **mismo CUIT** escrito distinto
+   (`30712345674`, sin guiones). Respuesta: *"Tu empresa ya figuraba en este evento,
+   así que completamos lo que faltaba."*
+
+En la base quedó **una** empresa y **una** fila en el evento, no dos. El nombre siguió
+siendo el de la primera carga: el segundo envío no lo pisó. Los dos consentimientos
+quedaron registrados en los dos envíos, con el "no" a las novedades.
+
+La prueba encontró un agujero que los tests no veían: el formulario pide **WhatsApp** y
+no teléfono, así que `DnxPartner.phone` quedaba vacío siempre. En una base de proveedores
+el número es lo que más vale. Ahora, si no hay teléfono, se usa el WhatsApp.
+
+Todos los datos de prueba se borraron. La base volvió a tener las mismas filas que antes.
+
 ## Lo que falta
 
 - El panel de administración para revisar, corregir y **fusionar** duplicados. Hoy
