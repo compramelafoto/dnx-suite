@@ -2,6 +2,8 @@
 
 import { useCallback, useRef, useState } from "react";
 import type { Tema } from "@/lib/tema";
+import { resumenDeCarga } from "@/lib/resumen-de-carga";
+import { ErrorDefinitivo, conReintentos, esDefinitivo } from "@/lib/reintentos";
 
 type Estado = "esperando" | "subiendo" | "listo" | "error" | "repetida";
 type Item = { id: string; nombre: string; estado: Estado; error?: string };
@@ -16,20 +18,6 @@ async function checksumDe(archivo: File): Promise<string | null> {
     // Sin checksum se sube igual: perder la deduplicación es mejor que no poder subir.
     return null;
   }
-}
-
-async function conReintentos<T>(tarea: () => Promise<T>, intentos = 3): Promise<T> {
-  let ultimo: unknown;
-  for (let i = 0; i < intentos; i++) {
-    try {
-      return await tarea();
-    } catch (e) {
-      ultimo = e;
-      // Espera creciente: en un salón el wifi se satura de a ráfagas y vuelve solo.
-      if (i < intentos - 1) await new Promise((r) => setTimeout(r, 800 * (i + 1)));
-    }
-  }
-  throw ultimo;
 }
 
 export function Cargador({ codigo, tema }: { codigo: string; tema: Tema }) {
@@ -53,7 +41,11 @@ export function Cargador({ codigo, tema }: { codigo: string; tema: Tema }) {
           body: JSON.stringify({ tipo: archivo.type, bytes: archivo.size, checksum }),
         });
         const datos = await r.json();
-        if (!r.ok) throw new Error(datos.error ?? "No pudimos preparar la subida.");
+        if (!r.ok) {
+          const mensaje = datos.error ?? "No pudimos preparar la subida.";
+          // "El evento ya terminó" o "llegaste al tope" no mejoran esperando.
+          throw esDefinitivo(r.status) ? new ErrorDefinitivo(mensaje) : new Error(mensaje);
+        }
         return datos as { mediaId: string; url?: string; duplicada?: boolean };
       });
 
@@ -68,7 +60,15 @@ export function Cargador({ codigo, tema }: { codigo: string; tema: Tema }) {
           headers: { "content-type": archivo.type },
           body: archivo,
         });
-        if (!r.ok) throw new Error("La subida se cortó.");
+        if (!r.ok) {
+          // R2 rechaza con 403 cuando la firma venció: pedir una nueva es volver a
+          // empezar, no reintentar el mismo PUT.
+          const mensaje =
+            r.status === 403
+              ? "La subida tardó demasiado. Probá de nuevo con esa foto."
+              : "La subida se cortó.";
+          throw esDefinitivo(r.status) ? new ErrorDefinitivo(mensaje) : new Error(mensaje);
+        }
       });
 
       await conReintentos(async () => {
@@ -78,7 +78,10 @@ export function Cargador({ codigo, tema }: { codigo: string; tema: Tema }) {
           body: JSON.stringify({ mediaId: permiso.mediaId }),
         });
         const datos = await r.json();
-        if (!r.ok) throw new Error(datos.error ?? "No pudimos confirmar la foto.");
+        if (!r.ok) {
+          const mensaje = datos.error ?? "No pudimos confirmar la foto.";
+          throw esDefinitivo(r.status) ? new ErrorDefinitivo(mensaje) : new Error(mensaje);
+        }
       });
 
       actualizar(id, { estado: "listo" });
@@ -115,7 +118,8 @@ export function Cargador({ codigo, tema }: { codigo: string; tema: Tema }) {
     [subirUna, actualizar],
   );
 
-  const listas = items.filter((i) => i.estado === "listo").length;
+  // Una repetida ya estaba subida: para el invitado es una foto que está.
+  const listas = items.filter((i) => i.estado === "listo" || i.estado === "repetida").length;
   const enCurso = items.some((i) => i.estado === "subiendo" || i.estado === "esperando");
 
   return (
@@ -140,10 +144,13 @@ export function Cargador({ codigo, tema }: { codigo: string; tema: Tema }) {
 
       {items.length > 0 ? (
         <>
+          {/*
+            La única región viva de la pantalla. La lista de abajo no lo es a propósito:
+            con veinte fotos subiendo, anunciar cada cambio sería imposible de seguir.
+            Por eso el resumen tiene que contar también las que fallaron.
+          */}
           <p className="mt-6 text-center text-sm" aria-live="polite">
-            {enCurso
-              ? `Subiendo… ${listas} de ${items.length} listas`
-              : `${listas} ${listas === 1 ? "foto subida" : "fotos subidas"}`}
+            {resumenDeCarga(items)}
           </p>
 
           <ul className="mt-5 space-y-2 text-left text-sm">

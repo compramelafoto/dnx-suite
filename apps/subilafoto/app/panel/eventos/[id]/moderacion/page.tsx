@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { DNX_SESSION_COOKIE, getSessionUserByRawToken } from "@repo/auth";
 import { prisma } from "@repo/db";
 import { revisarFoto } from "@/app/actions/moderacion";
-import { enlacesParaMirar } from "@/lib/moderacion/vista";
+import { SELECT_DE_VARIANTES, enlacesDeVariantes } from "@/lib/moderacion/vista";
 import { accionesPosibles, exigeMotivo, type AccionDeRevision, type EstadoFoto } from "@/lib/moderacion/revision";
 import { estiloBotonDnx } from "@/lib/boton-dnx";
 
@@ -66,9 +66,9 @@ export default async function Moderacion({ params, searchParams }: Props) {
     select: {
       id: true,
       status: true,
-      originalKey: true,
       caption: true,
       createdAt: true,
+      variants: SELECT_DE_VARIANTES,
       moderation: {
         orderBy: { decidedAt: "desc" },
         take: 1,
@@ -77,8 +77,13 @@ export default async function Moderacion({ params, searchParams }: Props) {
     },
   });
 
-  const enlaces = await enlacesParaMirar(fotos.map((f) => f.originalKey));
-  const conEnlace = fotos.map((f, i) => ({ ...f, enlace: enlaces[i]! }));
+  /*
+    Se mira la variante reducida, nunca el original: es la regla anti-bypass. Una foto sin
+    variante se muestra como un recuadro vacío y se puede decidir igual —lo que no se hace
+    es caer al original para tapar el hueco.
+  */
+  const enlaces = await enlacesDeVariantes(fotos, "panel");
+  const conEnlace = fotos.map((f, i) => ({ ...f, enlace: enlaces[i] ?? null }));
 
   const porEstado = (estado: EstadoFoto) => conEnlace.filter((f) => f.status === estado);
   const enCola = conEnlace.filter((f) => f.status === "PROCESSING").length;
@@ -146,13 +151,22 @@ export default async function Moderacion({ params, searchParams }: Props) {
                         cachee. Y sin botón de descarga, por la regla del
                         documento 03.
                       */}
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={foto.enlace}
-                        alt={foto.caption ?? "Foto subida por un invitado"}
-                        className="aspect-[4/3] w-full bg-black/5 object-cover"
-                        loading="lazy"
-                      />
+                      {foto.enlace ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img
+                          src={foto.enlace}
+                          alt={foto.caption ?? "Foto subida por un invitado"}
+                          className="aspect-[4/3] w-full bg-black/5 object-cover"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div
+                          className="flex aspect-[4/3] w-full items-center justify-center bg-black/5 px-4 text-center text-xs"
+                          style={{ color: "var(--slf-tinta-suave)" }}
+                        >
+                          Todavía no está lista la vista de esta foto.
+                        </div>
+                      )}
 
                       <div className="p-4">
                         {decision?.errorCode ? (

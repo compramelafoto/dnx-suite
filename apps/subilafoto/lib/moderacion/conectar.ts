@@ -3,6 +3,7 @@ import "server-only";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { prisma } from "@repo/db";
 import { almacenamiento, bucket } from "@/lib/almacenamiento";
+import { generarVariantes } from "@/lib/variantes/generar";
 import { rekognition } from "./rekognition";
 import type { Dependencias } from "./procesar";
 import type { Perfil } from "./reglas";
@@ -46,6 +47,16 @@ export function dependenciasReales(): Dependencias {
     },
 
     proveedor: rekognition(),
+
+    async reducir(mediaId, originalKey, imagen) {
+      const r = await generarVariantes(mediaId, originalKey, imagen);
+      if (r.error) {
+        // No se corta el proceso: la foto se decide igual y la variante se reintenta la
+        // próxima vez que se reprocese. Pero queda dicho, porque una foto sin variante no
+        // se ve en el panel y eso se descubre mirando, no adivinando.
+        console.error("[subilafoto][variantes] no se pudieron generar", { mediaId, error: r.error });
+      }
+    },
 
     async guardar(entrada) {
       // La condición `status: PROCESSING` la resuelve la base, no este código:

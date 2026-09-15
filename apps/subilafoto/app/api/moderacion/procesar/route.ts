@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
+import { rechazoDeLlave } from "@/lib/llave-de-servicio";
+import { conLatido } from "@/lib/salud/latido";
 import { moderarPendientes } from "@/lib/moderacion";
+import { generarVariantesRezagadas } from "@/lib/variantes/rezagadas";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,18 +22,33 @@ export const maxDuration = 300;
  * Protegida con `Authorization: Bearer <CRON_SECRET>`.
  */
 export async function GET(req: Request) {
-  const esperado = process.env.CRON_SECRET?.trim();
-  if (!esperado) {
-    // Sin secreto configurado no se abre: es preferible que el cron falle
-    // ruidosamente a dejar una ruta que cualquiera puede disparar.
-    return NextResponse.json({ error: "Falta CRON_SECRET." }, { status: 503 });
-  }
-  if (req.headers.get("authorization") !== `Bearer ${esperado}`) {
-    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
-  }
+  // Sin secreto configurado no se abre: es preferible que el cron falle ruidosamente a
+  // dejar una ruta que cualquiera puede disparar.
+  const rechazo = rechazoDeLlave(req);
+  if (rechazo) return rechazo;
 
-  const arranque = Date.now();
-  const resumen = await moderarPendientes();
+  /*
+    Envuelto en el latido. Deja una fila por cron que responde la única pregunta que
+    ninguna otra tabla contesta: si esto sigue corriendo. Un cron que se detiene no
+    tira error ni rompe una pantalla — las fotos simplemente dejan de moderarse.
 
-  return NextResponse.json({ ...resumen, msTotal: Date.now() - arranque });
+    La tarea devuelve datos pelados y el `NextResponse.json` queda afuera: así lo que
+    se anota es el resultado y no un objeto de respuesta vacío.
+  */
+  const datos = await conLatido("moderacion", async () => {
+
+    const arranque = Date.now();
+    const resumen = await moderarPendientes();
+
+    /*
+      Y de paso, las fotos ya decididas que se quedaron sin variante. Normalmente no hay
+      ninguna. Si la hay, sin esto queda invisible para siempre: nadie vuelve a moderar una
+      foto ya decidida, y una foto sin variante no se muestra en ningún lado.
+    */
+    const variantes = await generarVariantesRezagadas();
+
+    return { ...resumen, variantes, msTotal: Date.now() - arranque };
+  });
+
+  return NextResponse.json(datos);
 }

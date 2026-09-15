@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
 import { formatearPesos } from "@/lib/precios";
+import { correoTapado } from "@/lib/correo-tapado";
 
 export const dynamic = "force-dynamic";
 
@@ -40,13 +41,13 @@ export default async function Gracias({ params }: Props) {
       <p className="mt-5 text-lg leading-relaxed" style={{ color: "var(--slf-tinta-suave)" }}>
         {pagada ? (
           <>
-            Te mandamos a <strong>{orden.buyerEmail}</strong> el acceso para configurar el
+            Te mandamos a <strong>{correoTapado(orden.buyerEmail)}</strong> el acceso para configurar el
             evento: la fecha, la plantilla y el código QR para las mesas.
           </>
         ) : (
           <>
             Mercado Pago nos avisa en unos segundos. Podés cerrar esta pantalla: cuando se
-            confirme te escribimos a <strong>{orden.buyerEmail}</strong>.
+            confirme te escribimos a <strong>{correoTapado(orden.buyerEmail)}</strong>.
           </>
         )}
       </p>

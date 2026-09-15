@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@repo/db";
 import { condicionDePublicadas } from "@/lib/album";
 import { resolverTema } from "@/lib/tema";
-import { DURACION, enlacesParaMirar } from "@/lib/moderacion/vista";
+import { DURACION, SELECT_DE_VARIANTES, enlacesDeVariantes } from "@/lib/moderacion/vista";
 
 /**
  * El álbum del evento: lo que subieron todos y ya está aprobado.
@@ -25,13 +25,15 @@ export async function AlbumDelEvento({
     where: { ...condicionDePublicadas(evento.id), kind: "PHOTO" },
     orderBy: { publishedAt: "desc" },
     take: 300,
-    select: { id: true, originalKey: true, caption: true, guestName: true },
+    select: { id: true, caption: true, guestName: true, variants: SELECT_DE_VARIANTES },
   });
 
-  const enlaces = await enlacesParaMirar(
-    fotos.map((f) => f.originalKey),
-    DURACION.proyeccion,
-  );
+  // La variante reducida, nunca el original: regla anti-bypass. Las que todavía no la
+  // tienen no se muestran; aparecen solas en la próxima carga.
+  const enlaces = await enlacesDeVariantes(fotos, "pantalla", DURACION.proyeccion);
+  const visibles = fotos
+    .map((foto, i) => ({ foto, enlace: enlaces[i] }))
+    .filter((x): x is { foto: (typeof fotos)[number]; enlace: string } => Boolean(x.enlace));
   const tema = resolverTema(evento.themeTokens);
 
   return (
@@ -53,15 +55,15 @@ export async function AlbumDelEvento({
           </p>
         ) : null}
         <p className="mt-4 text-sm" style={{ opacity: 0.7 }}>
-          {fotos.length === 0
+          {visibles.length === 0
             ? "Todavía no hay fotos publicadas."
-            : fotos.length === 1
+            : visibles.length === 1
               ? "1 foto"
-              : `${fotos.length} fotos`}
+              : `${visibles.length} fotos`}
         </p>
       </header>
 
-      {fotos.length === 0 ? (
+      {visibles.length === 0 ? (
         <p
           className="mx-auto mt-16 max-w-[34ch] text-center leading-relaxed"
           style={{ opacity: 0.78 }}
@@ -76,11 +78,11 @@ export async function AlbumDelEvento({
           cada una se ve entera.
         */
         <ul className="mx-auto mt-12 max-w-5xl [column-gap:0.75rem] [columns:2] sm:[columns:3] lg:[columns:4]">
-          {fotos.map((foto, i) => (
+          {visibles.map(({ foto, enlace }, i) => (
             <li key={foto.id} className="mb-3 break-inside-avoid">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={enlaces[i]!}
+                src={enlace}
                 alt={foto.caption ?? "Foto del evento"}
                 className="w-full rounded-xl"
                 loading={i < 8 ? "eager" : "lazy"}
@@ -99,7 +101,12 @@ export async function AlbumDelEvento({
       )}
 
       <p className="mt-16 text-center text-sm" style={{ opacity: 0.62 }}>
-        <Link href={volver.href} className="underline underline-offset-4">
+        {/* Relleno para llegar a los 44 píxeles de alto: es un enlace suelto, no uno
+            adentro de una oración. */}
+        <Link
+          href={volver.href}
+          className="inline-flex min-h-[44px] items-center px-3 py-3 underline underline-offset-4"
+        >
           {volver.texto}
         </Link>
       </p>

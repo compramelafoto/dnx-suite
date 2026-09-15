@@ -165,11 +165,38 @@ funcione de verdad no es código sino configuración y pruebas:
 
 **Salida:** candidato de lanzamiento, sin fallos críticos ni altos conocidos.
 
+**Estado al 2026-09-15.** Se adelantó casi toda la etapa:
+
+| Punto | Estado | Dónde |
+|---|---|---|
+| Recorrido de aceptación (31 pasos) | Mapeado con estado y responsable | [20](20-recorrido-de-aceptacion.md) |
+| 100 fotos de 10 dispositivos | **Corrido. 0 fallas** | [19](19-prueba-de-carga.md) |
+| Repaso de permisos y anti-bypass | **Hecho. Tres arreglos** | [15](15-repaso-de-permisos.md) |
+| Accesibilidad | **Hecha. Un arreglo real** | [16](16-accesibilidad.md) |
+| Documentación operativa | **Escrita** | [17](17-manual-de-operacion.md) |
+| Ensayo de rollback | Procedimiento escrito y probado en parte | [18](18-rollback.md) |
+| iPhone, Android, televisor y proyector reales | **Falta** | Necesita los aparatos |
+| Recuperación de conexión (modo avión) | **Falta** | Necesita un teléfono |
+
+Lo que queda de la etapa 4 **no se puede hacer sin aparatos y sin las variables de
+entorno**. No es trabajo de código pendiente.
+
 ## Etapa 5 — Ensayo y lanzamiento: 8 al 10 de octubre
 
 - 8/10: ensayo general con un evento real o simulado, de principio a fin.
 - 9/10: congelamiento. Sólo se corrigen bloqueantes.
 - 10/10: lanzamiento controlado y monitoreo activo.
+
+**Estado al 2026-09-15.** Lo construible de la etapa está hecho:
+
+| Punto | Estado | Dónde |
+|---|---|---|
+| Monitoreo activo | **Construido**: panel, alertas con instrucción y latido de los cron | [21](21-como-va-la-noche.md) |
+| Guion del ensayo del 8 | **Escrito**, 13 pasos | [22](22-ensayo-y-lanzamiento.md) |
+| Criterio de congelamiento del 9 | **Escrito**: una sola pregunta | [22](22-ensayo-y-lanzamiento.md) |
+| Recorrido del 10 y qué mirar | **Escrito** | [22](22-ensayo-y-lanzamiento.md) |
+| Lista de lo que tiene que estar antes del 8 | **Escrita** | [22](22-ensayo-y-lanzamiento.md) |
+| El ensayo en sí | **Falta**: es el 8 de octubre y necesita plata y aparatos | — |
 
 ## El camino crítico
 

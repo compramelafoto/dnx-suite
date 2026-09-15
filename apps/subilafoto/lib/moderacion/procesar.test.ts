@@ -30,6 +30,7 @@ const FOTO: FotoParaModerar = {
 /** Arma unas dependencias falsas y registra lo que se guardó. */
 function armar(opciones: Partial<Dependencias> & { foto?: FotoParaModerar | null } = {}) {
   const guardados: Parameters<Dependencias["guardar"]>[0][] = [];
+  const reducidas: string[] = [];
   let llamadasAlProveedor = 0;
   let claimado = false;
 
@@ -58,10 +59,14 @@ function armar(opciones: Partial<Dependencias> & { foto?: FotoParaModerar | null
     },
     ...(opciones.descargar ? { descargar: opciones.descargar } : {}),
     ...(opciones.obtenerFoto ? { obtenerFoto: opciones.obtenerFoto } : {}),
+    async reducir(mediaId) {
+      reducidas.push(mediaId);
+    },
     ...(opciones.guardar ? { guardar: opciones.guardar } : {}),
+    ...(opciones.reducir ? { reducir: opciones.reducir } : {}),
   };
 
-  return { deps, guardados, llamadas: () => llamadasAlProveedor };
+  return { deps, guardados, reducidas, llamadas: () => llamadasAlProveedor };
 }
 
 describe("procesar una foto", () => {
@@ -152,5 +157,53 @@ describe("procesar una foto", () => {
     expect(g.latenciaMs).toBe(12);
     expect(g.versionDePolitica).toBeTruthy();
     expect(g.etiquetas).toEqual([{ nombre: "Alcohol", confianza: 99 }]);
+  });
+});
+
+describe("las variantes reducidas", () => {
+  test("se generan con los mismos bytes que se bajaron para moderar", async () => {
+    const { deps, reducidas } = armar();
+    await procesarFoto(deps, "m1");
+    expect(reducidas).toEqual(["m1"]);
+  });
+
+  test("una foto bloqueada no se reduce: no se va a mostrar en ningún lado", async () => {
+    const { deps, reducidas } = armar({
+      proveedor: proveedorQueDevuelve([{ nombre: "Violence", confianza: 95 }]),
+    });
+    await procesarFoto(deps, "m1");
+    expect(reducidas).toEqual([]);
+  });
+
+  test("una retenida SÍ se reduce: el panel la tiene que poder mirar", async () => {
+    const { deps, reducidas } = armar({ proveedor: proveedorRoto });
+    await procesarFoto(deps, "m1");
+    expect(reducidas).toEqual(["m1"]);
+  });
+
+  test("si reducir explota, la foto se decide igual", async () => {
+    const { deps, guardados } = armar({
+      async reducir() {
+        throw new Error("sharp se cayó");
+      },
+    });
+    const r = await procesarFoto(deps, "m1");
+
+    // Una foto sin variante se reintenta; una foto sin decisión queda retenida para
+    // siempre. El orden de importancia es ese.
+    expect(r.estado).toBe("decidida");
+    expect(guardados[0]!.estado).toBe("APPROVED");
+  });
+
+  test("si no se pudo bajar el archivo, no se intenta reducir nada", async () => {
+    const { deps, reducidas, guardados } = armar({
+      async descargar() {
+        throw new Error("no está");
+      },
+    });
+    await procesarFoto(deps, "m1");
+
+    expect(reducidas).toEqual([]);
+    expect(guardados[0]!.estado).toBe("REVIEW_REQUIRED");
   });
 });

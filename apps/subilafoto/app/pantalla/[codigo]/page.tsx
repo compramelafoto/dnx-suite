@@ -3,7 +3,7 @@ import { prisma } from "@repo/db";
 import { condicionDePublicadas } from "@/lib/album";
 import { estadoDeAcceso } from "@/lib/acceso-evento";
 import { resolverTema } from "@/lib/tema";
-import { DURACION, enlacesParaMirar } from "@/lib/moderacion/vista";
+import { DURACION, SELECT_DE_VARIANTES, enlacesDeVariantes } from "@/lib/moderacion/vista";
 import { Proyeccion, type FotoEnVivo } from "./proyeccion";
 
 export const dynamic = "force-dynamic";
@@ -74,22 +74,20 @@ export default async function Pantalla({ params }: Props) {
     where: { ...condicionDePublicadas(evento.id), kind: "PHOTO" },
     orderBy: [{ publishedAt: "desc" }, { id: "desc" }],
     take: 20,
-    select: { id: true, originalKey: true, caption: true, guestName: true },
+    select: { id: true, caption: true, guestName: true, variants: SELECT_DE_VARIANTES },
   });
 
   // Se dan vuelta: la pantalla las recorre en el orden en que se publicaron.
   const enOrden = [...ultimas].reverse();
-  const enlaces = await enlacesParaMirar(
-    enOrden.map((f) => f.originalKey),
-    DURACION.proyeccion,
-  );
+  // La variante, nunca el original: regla anti-bypass. Una foto sin variante no se
+  // proyecta —un recuadro roto en la pared del salón es peor que una foto de menos.
+  const enlaces = await enlacesDeVariantes(enOrden, "pantalla", DURACION.proyeccion);
 
-  const iniciales: FotoEnVivo[] = enOrden.map((f, i) => ({
-    id: f.id,
-    url: enlaces[i]!,
-    pie: f.caption,
-    nombre: f.guestName,
-  }));
+  const iniciales: FotoEnVivo[] = enOrden.flatMap((f, i) => {
+    const url = enlaces[i];
+    if (!url) return [];
+    return [{ id: f.id, url, pie: f.caption, nombre: f.guestName }];
+  });
 
   return (
     <Proyeccion

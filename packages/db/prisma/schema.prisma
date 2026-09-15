@@ -7081,12 +7081,12 @@ model Workspace {
   bookingResources            BookingResource[]
   bookingExtras               BookingExtra[]
   raffles                     Raffle[]
-  clients        Client[]
-  cashAccounts   CashAccount[]
-  cashCategories CashCategory[]
-  cashShifts     CashShift[]
-  cashMovements  CashMovement[]
-  cashTransfers  CashTransfer[]
+  clients                     Client[]
+  cashAccounts                CashAccount[]
+  cashCategories              CashCategory[]
+  cashShifts                  CashShift[]
+  cashMovements               CashMovement[]
+  cashTransfers               CashTransfer[]
   feeLedger                   WorkspaceFeeLedgerEntry[]
   membershipApplications      MembershipApplication[]
   membershipDuesSettings      MembershipDuesSettings?
@@ -7096,12 +7096,12 @@ model Workspace {
   memberCards                 MemberCard[]
   memberCardOperators         MemberCardOperator[]
   recommendationBenefits      MembershipRecommendationBenefit[]
-  coverageSettings      CoverageSettings?
-  coverageRequests      CoverageRequest[]
-  coverages             Coverage[]
-  coverageCalls         CoverageCall[]
-  coverageCollaborators CoverageCollaboratorProfile[]
-  coverageEvents        CoverageEvent[]
+  coverageSettings            CoverageSettings?
+  coverageRequests            CoverageRequest[]
+  coverages                   Coverage[]
+  coverageCalls               CoverageCall[]
+  coverageCollaborators       CoverageCollaboratorProfile[]
+  coverageEvents              CoverageEvent[]
 }
 
 model WorkspaceFeatureModule {
@@ -7407,11 +7407,11 @@ model Member {
   raffleEntries                   RaffleEntry[]
   raffleAwards                    RafflePrizeAward[]
   /// Ficha de cliente de este mismo socio, cuando también le compra algo al negocio.
-  clientLink Client?
-  coverageProfile      CoverageCollaboratorProfile?
-  coverageApplications CoverageApplication[]
-  coverageAssignments  CoverageAssignment[]
-  coverageDeliverables CoverageDeliverable[]
+  clientLink                      Client?
+  coverageProfile                 CoverageCollaboratorProfile?
+  coverageApplications            CoverageApplication[]
+  coverageAssignments             CoverageAssignment[]
+  coverageDeliverables            CoverageDeliverable[]
 
   @@unique([workspaceId, memberNumber])
   @@unique([workspaceId, email])
@@ -16933,13 +16933,13 @@ model Client {
   businessName String?
 
   /// DNI | CUIT | CUIL | PASAPORTE | OTRO
-  docType   String?
-  docNumber String?
+  docType      String?
+  docNumber    String?
   /// RESPONSABLE_INSCRIPTO | MONOTRIBUTO | EXENTO | CONSUMIDOR_FINAL | NO_CATEGORIZADO
   ///
   /// Obligatorio desde el día uno aunque todavía no se facture: una venta que no guardó la
   /// condición fiscal no se puede facturar nunca más. Ver §11.1 del diseño.
-  ivaCondition String @default("CONSUMIDOR_FINAL")
+  ivaCondition String  @default("CONSUMIDOR_FINAL")
 
   email   String?
   phone   String?
@@ -16964,9 +16964,9 @@ model Client {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  member    Member?        @relation(fields: [memberId], references: [id], onDelete: SetNull)
-  movements CashMovement[]
+  workspace        Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member           Member?           @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  movements        CashMovement[]
   coverageRequests CoverageRequest[]
 
   @@unique([workspaceId, clientNumber])
@@ -16981,27 +16981,27 @@ model Client {
 /// haría que el arqueo diera mal todos los días. Las crea el administrador del workspace sin
 /// tope: tres sucursales son tres cuentas de efectivo, cada una con su turno.
 model CashAccount {
-  id          String  @id @default(cuid())
-  workspaceId String
-  name        String
+  id            String   @id @default(cuid())
+  workspaceId   String
+  name          String
   /// EFECTIVO | DIGITAL. Sólo las EFECTIVO se arquean.
-  kind        String  @default("EFECTIVO")
+  kind          String   @default("EFECTIVO")
   /// La caja fuerte. No lleva turno diario: no se abre todas las mañanas, se cuenta cada tanto.
-  isVault     Boolean @default(false)
+  isVault       Boolean  @default(false)
   /// Fondo fijo: lo que queda para dar vuelto. Al cerrar, la pantalla propone pasar el resto.
   fixedFloatArs Decimal? @db.Decimal(12, 2)
-  isDefault   Boolean @default(false)
-  isActive    Boolean @default(true)
-  order       Int     @default(0)
+  isDefault     Boolean  @default(false)
+  isActive      Boolean  @default(true)
+  order         Int      @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  shifts        CashShift[]
-  movements     CashMovement[]
-  transfersOut  CashTransfer[] @relation("CashTransferFrom")
-  transfersIn   CashTransfer[] @relation("CashTransferTo")
+  workspace    Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  shifts       CashShift[]
+  movements    CashMovement[]
+  transfersOut CashTransfer[] @relation("CashTransferFrom")
+  transfersIn  CashTransfer[] @relation("CashTransferTo")
 
   @@unique([workspaceId, name])
   @@index([workspaceId, isActive])
@@ -17111,9 +17111,9 @@ model CashMovement {
   amountArs  Decimal  @db.Decimal(12, 2)
   occurredAt DateTime
 
-  categoryId String?
+  categoryId    String?
   /// EFECTIVO | TRANSFERENCIA | MERCADO_PAGO | TARJETA | OTRO
-  paymentMethod String @default("EFECTIVO")
+  paymentMethod String  @default("EFECTIVO")
 
   /// La llave de los puntos del Club (etapa 3): todo ingreso con cliente genera puntos.
   clientId    String?
@@ -17327,7 +17327,7 @@ model SubilafotoSellerProfile {
   createdAt          DateTime               @default(now())
   updatedAt          DateTime               @updatedAt
 
-  user   User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   events SubilafotoEvent[]
   orders SubilafotoOrder[]
 
@@ -17473,8 +17473,8 @@ model SubilafotoMedia {
   createdAt      DateTime              @default(now())
   updatedAt      DateTime              @updatedAt
 
-  event      SubilafotoEvent               @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  guest      SubilafotoGuestSession?       @relation(fields: [guestSessionId], references: [id])
+  event      SubilafotoEvent                @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  guest      SubilafotoGuestSession?        @relation(fields: [guestSessionId], references: [id])
   variants   SubilafotoMediaVariant[]
   moderation SubilafotoModerationDecision[]
 
@@ -17647,6 +17647,20 @@ model SubilafotoPackage {
 /// La unicidad de `(eventId, aviso)` es lo que impide que un reintento del worker mande el
 /// mismo correo dos veces. Mirar un registro antes de enviar no alcanza: entre la consulta
 /// y el envío entra otra ejecución.
+/// Latido de cada tarea automática. Una fila por cron, actualizada en el lugar.
+model SubilafotoCronRun {
+  /// El nombre corto del cron: `moderacion`, `cierre`, `paquetes`, `avisos`, `purga`.
+  nombre     String    @id
+  lastRunAt  DateTime
+  lastOkAt   DateTime?
+  lastError  String?
+  lastMs     Int?
+  /// Lo que devolvió, para poder mirar qué hizo sin abrir los registros.
+  lastResult Json?
+  runs       Int       @default(0)
+  updatedAt  DateTime  @updatedAt
+}
+
 model SubilafotoEmailSent {
   id         String   @id @default(cuid())
   eventId    String
@@ -17735,28 +17749,28 @@ model VendorAllocation {
 }
 
 model ExpenseEntry {
-  id                 Int      @id @default(autoincrement())
-  vendorId           Int
-  periodYear         Int
-  periodMonth        Int
-  amountOriginal     Decimal  @db.Decimal(12, 2)
+  id             Int       @id @default(autoincrement())
+  vendorId       Int
+  periodYear     Int
+  periodMonth    Int
+  amountOriginal Decimal   @db.Decimal(12, 2)
   /// USD o ARS
-  currency           String
-  fxRate             Decimal? @db.Decimal(12, 4)
-  taxPercent         Decimal  @default(0) @db.Decimal(5, 2)
+  currency       String
+  fxRate         Decimal?  @db.Decimal(12, 4)
+  taxPercent     Decimal   @default(0) @db.Decimal(5, 2)
   /// Calculado y congelado: el dólar de enero no es el de septiembre.
-  amountArs          Decimal  @db.Decimal(14, 2)
-  amountRefunded     Decimal? @db.Decimal(12, 2)
+  amountArs      Decimal   @db.Decimal(14, 2)
+  amountRefunded Decimal?  @db.Decimal(12, 2)
   /// ESTIMADO, FACTURADO, PAGADO, RECHAZADO, IMPAGO, REEMBOLSADO
-  status             String   @default("FACTURADO")
+  status         String    @default("FACTURADO")
   /// Cuándo vence la factura. Permite avisar antes de que un rechazo se vuelva un corte.
-  dueDate            DateTime?
+  dueDate        DateTime?
   /// MANUAL, IMPORTADO, API
-  source             String   @default("MANUAL")
-  invoiceUrl         String?
-  notes              String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  source         String    @default("MANUAL")
+  invoiceUrl     String?
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   vendor      ExpenseVendor            @relation(fields: [vendorId], references: [id])
   allocations ExpenseEntryAllocation[]
@@ -17794,21 +17808,21 @@ model FxRate {
 /// Finanzas DNX — ingresos por plataforma y mes, calculados y congelados.
 /// El job los recalcula; las pantallas leen sólo esta tabla.
 model PlatformRevenueSnapshot {
-  id              Int      @id @default(autoincrement())
-  platformKey     String
-  periodYear      Int
-  periodMonth     Int
+  id                      Int      @id @default(autoincrement())
+  platformKey             String
+  periodYear              Int
+  periodMonth             Int
   /// Lo que pagó el cliente final.
-  grossArs        Decimal  @default(0) @db.Decimal(14, 2)
+  grossArs                Decimal  @default(0) @db.Decimal(14, 2)
   /// Comisión del procesador de pagos.
-  processorFeeArs Decimal  @default(0) @db.Decimal(14, 2)
+  processorFeeArs         Decimal  @default(0) @db.Decimal(14, 2)
   /// Lo que se va a fotógrafos, laboratorios y referidores: no es ingreso propio.
-  payoutToThirdPartiesArs Decimal @default(0) @db.Decimal(14, 2)
+  payoutToThirdPartiesArs Decimal  @default(0) @db.Decimal(14, 2)
   /// Lo que efectivamente queda para DNX. Es el número que se compara contra el gasto.
-  netArs          Decimal  @db.Decimal(14, 2)
-  operationsCount Int      @default(0)
-  computedAt      DateTime @default(now())
-  sourceNote      String?
+  netArs                  Decimal  @db.Decimal(14, 2)
+  operationsCount         Int      @default(0)
+  computedAt              DateTime @default(now())
+  sourceNote              String?
 
   @@unique([platformKey, periodYear, periodMonth])
   @@index([periodYear, periodMonth])
@@ -17824,16 +17838,16 @@ model CoverageSettings {
   workspaceId String @unique
 
   /// Cómo se llama cada cosa en las pantallas de ESTE workspace. Vacío = la de por omisión.
-  moduleLabel    String?
-  termRequest    String?
+  moduleLabel      String?
+  termRequest      String?
   termCollaborator String?
-  termRequester  String?
-  termCall       String?
+  termRequester    String?
+  termCall         String?
 
   /// DIRECTA | ABIERTA | AUTOMATICA | MIXTA
-  assignmentMode String  @default("MIXTA")
+  assignmentMode                  String  @default("MIXTA")
   /// Si una solicitud necesita aprobación antes de generar coberturas.
-  requiresApproval Boolean @default(true)
+  requiresApproval                Boolean @default(true)
   /// Si una postulación necesita que un coordinador confirme. Para FOTOPOSITIVA, sí.
   requiresCoordinatorConfirmation Boolean @default(true)
 
@@ -17852,11 +17866,11 @@ model CoverageSettings {
   publicFormIntro   String?
 
   /// Versión del texto de consentimientos vigente. Se copia en cada consentimiento firmado.
-  consentTextVersion String @default("v1")
+  consentTextVersion  String   @default("v1")
   /// Días de vida del enlace de seguimiento.
-  trackingLinkTtlDays Int @default(120)
+  trackingLinkTtlDays Int      @default(120)
   /// A quién avisarle cuando entra una solicitud.
-  notifyEmails String[] @default([])
+  notifyEmails        String[] @default([])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -17881,41 +17895,41 @@ model CoverageRequest {
   tokenRevokedAt DateTime?
 
   /// --- El evento ---
-  eventTitle       String
-  eventDescription String?
-  startsAt         DateTime
-  endsAt           DateTime
-  addressLine      String?
-  city             String?
-  activityKind     String?
+  eventTitle        String
+  eventDescription  String?
+  startsAt          DateTime
+  endsAt            DateTime
+  addressLine       String?
+  city              String?
+  activityKind      String?
   expectedAttendees Int?
   /// INTERIOR | EXTERIOR | AMBOS
-  venueKind        String?
+  venueKind         String?
   onSiteContactName String?
-  onSitePhone      String?
+  onSitePhone       String?
   /// Teléfono que escribió la organización en el formulario público. NO se usa para emparejar
   /// contra el padrón de clientes (ver `findOrCreateClient` en `lib/coverages/submit.ts`): un
   /// dato que el circuito no verifica no puede decidir a qué ficha del padrón se dirigen los
   /// correos. Vive acá para no perderlo.
-  contactPhone     String?
+  contactPhone      String?
   /// CUIT/CUIL que escribió la organización. Mismo motivo que `contactPhone`: no se usa para
   /// emparejar en el formulario público.
-  orgTaxId         String?
+  orgTaxId          String?
 
   /// --- La necesidad fotográfica ---
   /// FOTO | VIDEO | AMBOS
-  mediaKinds          String   @default("FOTO")
-  coverageKind        String?
-  purpose             String?
-  keyMoments          String?
+  mediaKinds             String    @default("FOTO")
+  coverageKind           String?
+  purpose                String?
+  keyMoments             String?
   requestedPhotographers Int?
-  equipmentNotes      String?
-  needsLighting       Boolean  @default(false)
-  expectedDeliveryAt  DateTime?
-  deliveryChannel     String?
-  notes               String?
+  equipmentNotes         String?
+  needsLighting          Boolean   @default(false)
+  expectedDeliveryAt     DateTime?
+  deliveryChannel        String?
+  notes                  String?
   /// Enlaces que permiten verificar la actividad. Enlaces, no archivos: ver §6 del diseño.
-  documentationLinks  String[] @default([])
+  documentationLinks     String[]  @default([])
 
   /// --- Evaluación ---
   /// RECIBIDA | EN_EVALUACION | REQUIERE_INFO | APROBADA | RECHAZADA |
@@ -17936,10 +17950,10 @@ model CoverageRequest {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workspace   Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  client      Client             @relation(fields: [clientId], references: [id], onDelete: Restrict)
-  consents    CoverageConsent[]
-  coverages   Coverage[]
+  workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client    Client            @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  consents  CoverageConsent[]
+  coverages Coverage[]
 
   @@unique([workspaceId, publicCode])
   @@index([workspaceId, status])
@@ -17983,11 +17997,11 @@ model Coverage {
   workspaceId String
   requestId   String
 
-  title       String
-  startsAt    DateTime
-  endsAt      DateTime
-  addressLine String?
-  city        String?
+  title        String
+  startsAt     DateTime
+  endsAt       DateTime
+  addressLine  String?
+  city         String?
   instructions String?
 
   /// PLANIFICADA | BUSCANDO_EQUIPO | EQUIPO_CONFIRMADO | REALIZADA | ENTREGADA | CERRADA |
@@ -18015,20 +18029,20 @@ model CoverageRole {
   id         String @id @default(cuid())
   coverageId String
 
-  name             String
-  vacancies        Int     @default(1)
-  requirements     String?
-  minExperience    String?
+  name              String
+  vacancies         Int       @default(1)
+  requirements      String?
+  minExperience     String?
   equipmentRequired String?
-  startsAt         DateTime?
-  endsAt           DateTime?
+  startsAt          DateTime?
+  endsAt            DateTime?
   /// ABIERTO | COMPLETO | CERRADO
-  status           String  @default("ABIERTO")
+  status            String    @default("ABIERTO")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  coverage     Coverage               @relation(fields: [coverageId], references: [id], onDelete: Cascade)
+  coverage     Coverage              @relation(fields: [coverageId], references: [id], onDelete: Cascade)
   applications CoverageApplication[]
   assignments  CoverageAssignment[]
 
@@ -18038,27 +18052,27 @@ model CoverageRole {
 /// La convocatoria. `visibility` decide a qué colaboradores se les muestra, NO si sale a
 /// internet: ninguna convocatoria es pública (ver §3.4 del diseño).
 model CoverageCall {
-  id         String @id @default(cuid())
+  id          String @id @default(cuid())
   /// Repetido desde `Coverage.workspaceId` (y no derivado por join): "convocatorias abiertas
   /// de este workspace" va a ser de las consultas más frecuentes del módulo, y hoy exige unir
   /// con `Coverage` para llegar hasta acá.
   workspaceId String
-  coverageId String @unique
+  coverageId  String @unique
 
-  title            String
-  publicSummary    String?
+  title               String
+  publicSummary       String?
   /// Lo que solo le sirve a quien va: teléfono de emergencia, contacto del día. La dirección
   /// NO va acá — se muestra siempre.
-  privateBriefing  String?
+  privateBriefing     String?
   /// TODOS | POR_ZONA | POR_ESPECIALIDAD
-  visibility       String  @default("TODOS")
-  visibilityValues String[] @default([])
+  visibility          String    @default("TODOS")
+  visibilityValues    String[]  @default([])
   applicationsCloseAt DateTime?
   /// NORMAL | ALTA | URGENTE
-  urgency          String  @default("NORMAL")
+  urgency             String    @default("NORMAL")
   /// BORRADOR | PUBLICADA | COMPLETA | CERRADA | CANCELADA | VENCIDA
-  status           String  @default("BORRADOR")
-  publishedAt      DateTime?
+  status              String    @default("BORRADOR")
+  publishedAt         DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -18083,8 +18097,8 @@ model CoverageApplication {
   equipmentNote    String?
   /// RECIBIDA | EN_REVISION | PRESELECCIONADA | SELECCIONADA | NO_SELECCIONADA | RETIRADA |
   /// VENCIDA
-  status      String    @default("RECIBIDA")
-  withdrawnAt DateTime?
+  status           String    @default("RECIBIDA")
+  withdrawnAt      DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -18106,27 +18120,27 @@ model CoverageAssignment {
   memberId   String
 
   /// POSTULACION | INVITACION_DIRECTA
-  origin           String
-  assignedByUserId Int?
+  origin               String
+  assignedByUserId     Int?
   /// Por qué se eligió a esta persona. Texto libre: el coordinador lo escribe.
-  criteria         String?
-  respondBy        DateTime?
+  criteria             String?
+  respondBy            DateTime?
   /// PROPUESTA | INVITADA | ACEPTADA | RECHAZADA | CONFIRMADA | CANCELADA | REEMPLAZADA |
   /// CUMPLIDA | AUSENTE
-  status           String    @default("PROPUESTA")
-  respondedAt      DateTime?
-  confirmedAt      DateTime?
+  status               String    @default("PROPUESTA")
+  respondedAt          DateTime?
+  confirmedAt          DateTime?
   /// A quién reemplaza esta asignación, si entró como suplente.
   replacedAssignmentId String?
-  hoursReported    Decimal?  @db.Decimal(5, 2)
-  notes            String?
+  hoursReported        Decimal?  @db.Decimal(5, 2)
+  notes                String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  coverage Coverage     @relation(fields: [coverageId], references: [id], onDelete: Cascade)
-  role     CoverageRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  member   Member       @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  coverage           Coverage             @relation(fields: [coverageId], references: [id], onDelete: Cascade)
+  role               CoverageRole         @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  member             Member               @relation(fields: [memberId], references: [id], onDelete: Restrict)
   /// Relación autorreferencial de verdad: sin ella, nada impedía que `replacedAssignmentId`
   /// apuntara a una asignación de OTRA cobertura. `SetNull` y no `Restrict`: si la asignación
   /// reemplazada se borra, esta no tiene por qué dejar de existir, sólo pierde la referencia.
@@ -18149,7 +18163,7 @@ model CoverageDeliverable {
   dueAt               DateTime?
   deliveredAt         DateTime?
   /// PENDIENTE | EN_PREPARACION | ENTREGADO | OBSERVADO | APROBADO | CERRADO
-  status              String   @default("PENDIENTE")
+  status              String    @default("PENDIENTE")
   url                 String?
   notes               String?
   reviewNotes         String?
