@@ -2,7 +2,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
-import { calcularPrecios, formatearPesos, type ModoDescarga } from "@/lib/precios";
+import { formatearPesos } from "@/lib/precios";
+import { calcularVenta } from "@/lib/pagos/venta";
 import { estiloBotonDnx } from "@/lib/boton-dnx";
 
 /**
@@ -16,10 +17,15 @@ import { estiloBotonDnx } from "@/lib/boton-dnx";
 
 export const dynamic = "force-dynamic";
 
-type Props = { params: Promise<{ slug: string }> };
+type Props = {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ descarga?: string }>;
+};
 
-export default async function PaginaDeVenta({ params }: Props) {
+export default async function PaginaDeVenta({ params, searchParams }: Props) {
   const { slug } = await params;
+  // El fotógrafo comparte uno de dos enlaces. El que abre el cliente decide qué compra.
+  const conDescarga = (await searchParams).descarga === "si";
 
   const perfil = await prisma.subilafotoSellerProfile.findUnique({
     where: { slug },
@@ -30,9 +36,6 @@ export default async function PaginaDeVenta({ params }: Props) {
       logoUrl: true,
       brandColor: true,
       basePriceCents: true,
-      downloadMode: true,
-      downloadPercentBps: true,
-      downloadPriceCents: true,
       isPublished: true,
     },
   });
@@ -40,12 +43,8 @@ export default async function PaginaDeVenta({ params }: Props) {
   // Un perfil sin publicar no existe para el público: mismo 404, sin pistas.
   if (!perfil || !perfil.isPublished) notFound();
 
-  const precios = calcularPrecios({
-    basePriceCents: perfil.basePriceCents,
-    downloadMode: perfil.downloadMode as ModoDescarga,
-    downloadPercentBps: perfil.downloadPercentBps,
-    downloadPriceCents: perfil.downloadPriceCents,
-  });
+  if (perfil.basePriceCents <= 0) notFound();
+  const venta = calcularVenta({ baseCents: perfil.basePriceCents, conDescarga });
 
   const acento = perfil.brandColor ?? "var(--slf-violeta)";
 
@@ -87,10 +86,10 @@ export default async function PaginaDeVenta({ params }: Props) {
         style={{ background: "var(--slf-purpura)", color: "white" }}
       >
         <p className="text-sm" style={{ color: "var(--slf-lila)" }}>
-          El evento
+          {conDescarga ? "El evento, con la descarga incluida" : "El evento"}
         </p>
         <p className="mt-1 text-[clamp(2rem,6vw,3rem)] font-extrabold leading-none">
-          {formatearPesos(precios.baseCents)}
+          {formatearPesos(venta.totalCents)}
         </p>
 
         <ul className="mt-8 space-y-3 text-[0.95rem]" style={{ color: "var(--slf-lila)" }}>
@@ -100,30 +99,28 @@ export default async function PaginaDeVenta({ params }: Props) {
           <li>Proyección en vivo durante el evento y álbum digital para compartir.</li>
         </ul>
 
-        {precios.adicionalCents === null ? (
-          <p className="mt-8 border-t pt-6 text-[0.95rem]" style={{ borderColor: "#ffffff22" }}>
-            La descarga de todo el material está incluida.
-          </p>
+        {conDescarga ? (
+          <div className="mt-8 border-t pt-6" style={{ borderColor: "#ffffff22" }}>
+            <p className="text-[0.95rem]">
+              Incluye la <strong>descarga de todas las fotos</strong> en su calidad
+              original. Te llega por correo dentro de las 24 horas de terminado el evento.
+            </p>
+          </div>
         ) : (
           <div className="mt-8 border-t pt-6" style={{ borderColor: "#ffffff22" }}>
             <p className="text-[0.95rem]">
-              Podés sumar la <strong>descarga de todo el material</strong> por{" "}
-              <strong style={{ color: "var(--slf-amarillo)" }}>
-                {formatearPesos(precios.adicionalCents)}
-              </strong>{" "}
-              más. Total {formatearPesos(precios.totalCents)}.
-            </p>
-            <p className="mt-3 text-sm" style={{ color: "var(--slf-lila)" }}>
-              Podés decidirlo ahora o después del evento. El álbum queda disponible 30 días
-              para verlo y compartirlo, con o sin descarga.
+              El álbum queda disponible 30 días para verlo y compartirlo. Si querés
+              llevarte todas las fotos en su calidad original, la descarga se compra
+              después.
             </p>
           </div>
         )}
+
       </section>
 
       <div className="mt-10">
         <Link
-          href={`/v/${slug}/comprar`}
+          href={`/v/${slug}/comprar${conDescarga ? "?descarga=si" : ""}`}
           className="w-full text-lg sm:w-auto"
           style={{ ...estiloBotonDnx("primario"), background: acento, color: "white" }}
         >

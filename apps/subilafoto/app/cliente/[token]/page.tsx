@@ -4,7 +4,8 @@ import { prisma } from "@repo/db";
 import { comprarAdicional } from "@/app/actions/adicional";
 import { estadoDelAdicional } from "@/lib/adicional";
 import { condicionDePublicadas } from "@/lib/album";
-import { calcularPrecios, formatearPesos, type ModoDescarga } from "@/lib/precios";
+import { formatearPesos } from "@/lib/precios";
+import { precioDeLaDescarga } from "@/lib/pagos/venta";
 import { estiloBotonDnx } from "@/lib/boton-dnx";
 
 export const dynamic = "force-dynamic";
@@ -46,9 +47,6 @@ export default async function PanelDelCliente({ params, searchParams }: Props) {
               displayName: true,
               brandColor: true,
               basePriceCents: true,
-              downloadMode: true,
-              downloadPercentBps: true,
-              downloadPriceCents: true,
             },
           },
         },
@@ -68,16 +66,9 @@ export default async function PanelDelCliente({ params, searchParams }: Props) {
   const vendedor = evento.sellerProfile;
   const acento = vendedor.brandColor ?? "var(--slf-violeta)";
 
-  const precios = calcularPrecios({
-    basePriceCents: vendedor.basePriceCents,
-    downloadMode: vendedor.downloadMode as ModoDescarga,
-    downloadPercentBps: vendedor.downloadPercentBps,
-    downloadPriceCents: vendedor.downloadPriceCents,
-  });
-
   const adicional = estadoDelAdicional({
     downloadStatus: evento.downloadStatus,
-    adicionalCents: precios.adicionalCents,
+    adicionalCents: precioDeLaDescarga(vendedor.basePriceCents),
     retentionUntil: evento.retentionUntil,
     ahora,
   });

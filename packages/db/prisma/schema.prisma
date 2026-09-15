@@ -17337,6 +17337,8 @@ model SubilafotoOrder {
   buyerPhone       String?
   amountCents      Int
   currency         String                @default("ARS")
+  /// Si la venta incluía la descarga. De esto depende que al pagar se entregue el paquete.
+  includesDownload Boolean               @default(false)
   platformFeeBps   Int
   platformFeeCents Int
   sellerNetCents   Int
