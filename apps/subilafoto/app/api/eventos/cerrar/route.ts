@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@repo/db";
+import { rechazoDeLlave } from "@/lib/llave-de-servicio";
 import { DIAS_DE_RETENCION, retencionHasta } from "@/lib/retencion/candado";
 
 export const runtime = "nodejs";
@@ -19,11 +20,8 @@ export const dynamic = "force-dynamic";
  * Protegida con `Authorization: Bearer <CRON_SECRET>`.
  */
 export async function GET(req: Request) {
-  const esperado = process.env.CRON_SECRET?.trim();
-  if (!esperado) return NextResponse.json({ error: "Falta CRON_SECRET." }, { status: 503 });
-  if (req.headers.get("authorization") !== `Bearer ${esperado}`) {
-    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
-  }
+  const rechazo = rechazoDeLlave(req);
+  if (rechazo) return rechazo;
 
   const ahora = new Date();
 
