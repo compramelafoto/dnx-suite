@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_PERSON_TERMS,
+  personTermsFromRow,
   personVocabulary,
   type PersonTerms,
 } from "./personas";
@@ -79,5 +80,52 @@ describe("personVocabulary", () => {
     const deLaBase: PersonTerms = { singular: null, plural: null };
     const v = personVocabulary(deLaBase);
     expect(v.Plural).toBe("Socios");
+  });
+});
+
+/**
+ * `personTermsFromRow` traduce los nombres de columna de la base
+ * (`personSingular` / `personPlural`) al vocabulario del dominio
+ * (`singular` / `plural`).
+ *
+ * Este mapeo vivía antes suelto dentro del cargador de datos, sin ningún test que lo
+ * alcanzara: pasaba la fila cruda de Prisma directo a `personVocabulary`, que no reconocía
+ * esos nombres de columna y siempre caía en "socio/socios", sin importar lo que un workspace
+ * hubiera configurado. El caso "no reconoce socios donde debería decir otra cosa", al final
+ * de este describe, es el que hubiera atrapado ese bug.
+ */
+describe("personTermsFromRow", () => {
+  it("con una fila con las dos palabras, las mapea a singular/plural", () => {
+    const terms = personTermsFromRow({
+      personSingular: "voluntario/a",
+      personPlural: "voluntarios/as",
+    });
+    expect(terms.singular).toBe("voluntario/a");
+    expect(terms.plural).toBe("voluntarios/as");
+  });
+
+  it("con null (workspace sin configurar), devuelve las dos en null", () => {
+    const terms = personTermsFromRow(null);
+    expect(terms.singular).toBeNull();
+    expect(terms.plural).toBeNull();
+  });
+
+  it("con una fila con solo una de las dos, mapea esa y deja la otra en null", () => {
+    const terms = personTermsFromRow({ personSingular: "voluntario/a", personPlural: null });
+    expect(terms.singular).toBe("voluntario/a");
+    expect(terms.plural).toBeNull();
+
+    const soloPlural = personTermsFromRow({ personSingular: null, personPlural: "alumnos" });
+    expect(soloPlural.singular).toBeNull();
+    expect(soloPlural.plural).toBe("alumnos");
+  });
+
+  it("una fila de voluntarios da Voluntarios/as y no Socios", () => {
+    // El caso que importa: sin este test, un mapeo roto (por ejemplo, uno que ignorara
+    // personSingular/personPlural) seguía "funcionando" en socios y nadie se enteraba.
+    const fila = { personSingular: "voluntario/a", personPlural: "voluntarios/as" };
+    const v = personVocabulary(personTermsFromRow(fila));
+    expect(v.Plural).toBe("Voluntarios/as");
+    expect(v.Plural).not.toBe("Socios");
   });
 });

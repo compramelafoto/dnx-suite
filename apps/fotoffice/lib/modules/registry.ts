@@ -137,8 +137,8 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
   },
   {
     key: MEMBERS_MODULE_KEY,
-    label: "Socios",
-    description: "Padrón de socios de una institución: alta, edición, categorías y estado.",
+    label: "{Personas}",
+    description: "Padrón de {personas} de una institución: alta, edición, categorías y estado.",
     category: "INSTITUTIONAL",
     order: 100,
     route: "/members",
@@ -148,7 +148,7 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     key: MEMBERSHIP_DUES_MODULE_KEY,
     label: "Cuotas societarias",
     description:
-      "Cuotas periódicas de los socios: generación mensual, cobro por Mercado Pago, pagos a mano e historial.",
+      "Cuotas periódicas de los {personas}: generación mensual, cobro por Mercado Pago, pagos a mano e historial.",
     category: "INSTITUTIONAL",
     order: 110,
     route: "/members/cuotas",
@@ -158,7 +158,7 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     key: RAFFLES_MODULE_KEY,
     label: "Sorteos",
     description:
-      "Sorteos entre socios al día, con premios donados por marcas aliadas y un resultado que cualquiera puede comprobar.",
+      "Sorteos entre {personas} al día, con premios donados por marcas aliadas y un resultado que cualquiera puede comprobar.",
     category: "INSTITUTIONAL",
     order: 115,
     route: "/sorteos",

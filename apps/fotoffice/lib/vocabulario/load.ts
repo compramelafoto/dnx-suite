@@ -1,7 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { prisma } from "@repo/db";
-import { personVocabulary, type PersonVocabulary } from "./personas";
+import { personTermsFromRow, personVocabulary, type PersonVocabulary } from "./personas";
 
 /**
  * El vocabulario de un workspace, leído una sola vez por pedido.
@@ -20,6 +20,6 @@ export const loadPersonVocabulary = cache(
       where: { workspaceId },
       select: { personSingular: true, personPlural: true },
     });
-    return personVocabulary(fila);
+    return personVocabulary(personTermsFromRow(fila));
   },
 );

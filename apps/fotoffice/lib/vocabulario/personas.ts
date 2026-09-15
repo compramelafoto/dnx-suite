@@ -26,7 +26,7 @@ export type PersonTerms = {
  * Son las palabras que el sistema usa hoy en todas sus pantallas, así que la SFPR y
  * cualquier workspace existente siguen leyéndose exactamente igual que antes.
  */
-export const DEFAULT_PERSON_TERMS: Required<PersonTerms> = {
+export const DEFAULT_PERSON_TERMS: { singular: string; plural: string } = {
   singular: "socio",
   plural: "socios",
 };
@@ -54,6 +54,23 @@ function conMayusculaInicial(palabra: string): string {
 /** Una palabra vacía no pisa la de por omisión: dejaría la pantalla sin la palabra. */
 function usar(configurada: string | null | undefined, porOmision: string): string {
   return configurada?.trim() || porOmision;
+}
+
+/**
+ * Traduce la fila de la base al vocabulario del dominio.
+ *
+ * Vive acá, pura y probada, y no dentro del cargador: los nombres de las columnas
+ * (`personSingular`) y los del dominio (`singular`) son distintos a propósito —la tabla puede
+ * crecer con otras familias de palabras— y ese desfasaje ya se equivocó una vez, en silencio,
+ * porque el mapeo vivía donde ningún test lo alcanzaba.
+ */
+export function personTermsFromRow(
+  row: { personSingular: string | null; personPlural: string | null } | null,
+): PersonTerms {
+  return {
+    singular: row?.personSingular ?? null,
+    plural: row?.personPlural ?? null,
+  };
 }
 
 /**
