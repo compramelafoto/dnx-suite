@@ -21,6 +21,8 @@ import {
 } from "@/lib/coverages/repository";
 import { planSubmission } from "@/lib/coverages/submit-plan";
 import { saveCoverageRequest } from "@/lib/coverages/submit";
+import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
+import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 
 export type CoverageRequestFormState = {
   error: string | null;
@@ -51,6 +53,23 @@ export async function submitCoverageRequestAction(
     select: { workspaceId: true, contactEmail: true },
   });
   if (!branding) return { error: "No encontramos la organización.", ok: null };
+
+  // La pantalla (`app/w/[workspaceSlug]/coberturas/solicitar/page.tsx`) ya devuelve 404 si el
+  // módulo está apagado, pero eso sólo esconde el formulario: una referencia a esta Server
+  // Action guardada en una pestaña vieja —tomada mientras el módulo estaba encendido— sigue
+  // siendo invocable directamente, sin pasar por la pantalla. Por eso el módulo se comprueba
+  // acá también, antes que cualquier otra cosa.
+  //
+  // Mismo mensaje que cuando el formulario está cerrado, a propósito: quien envía no tiene
+  // por qué distinguir "la organización apagó el módulo" de "cerró el formulario". Para quien
+  // está afuera, es la misma respuesta.
+  const moduloEncendido = await isModuleEnabledForWorkspace(
+    branding.workspaceId,
+    COVERAGES_MODULE_KEY,
+  );
+  if (!moduloEncendido) {
+    return { error: "Las solicitudes no están abiertas en este momento.", ok: null };
+  }
 
   const parsed = parseCoverageRequest(readForm(formData));
   if (!parsed.ok) return { error: parsed.error, ok: null };

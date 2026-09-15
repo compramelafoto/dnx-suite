@@ -86,11 +86,28 @@ export async function loadRequest(input: { workspaceId: string; id: string }) {
  *
  * No filtra por workspace a propósito: el token ES la credencial y no sabe de qué institución
  * es. Quien lo tiene ve esa solicitud y ninguna otra.
+ *
+ * `select` explícito, campo por campo, en vez de `include` sobre la fila entera: esta es la
+ * consulta detrás de una pantalla pública sin cuenta, así que lo que no se trae acá no se
+ * puede filtrar por accidente el día que alguien pase esta fila a un componente cliente o a
+ * un registro. Nada de `coordinatorUserId`, `priority` ni ningún otro campo interno.
  */
 export async function findByTrackingToken(rawToken: string) {
   return prisma.coverageRequest.findUnique({
     where: { tokenHash: hashTrackingToken(rawToken) },
-    include: { client: { select: { businessName: true } } },
+    select: {
+      id: true,
+      workspaceId: true,
+      publicCode: true,
+      eventTitle: true,
+      startsAt: true,
+      status: true,
+      rejectionReason: true,
+      infoRequested: true,
+      tokenExpiresAt: true,
+      tokenRevokedAt: true,
+      client: { select: { businessName: true } },
+    },
   });
 }
 
