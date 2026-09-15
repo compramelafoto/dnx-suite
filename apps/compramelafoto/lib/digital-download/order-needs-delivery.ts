@@ -26,3 +26,23 @@ export function orderNeedsDigitalDelivery(input: {
 function normalizar(n: number): number {
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
+
+/**
+ * Si el aviso por correo hay que mandarlo en el momento, sin esperar nada.
+ *
+ * El correo de "tu descarga está lista" se dispara cuando termina de armarse el
+ * ZIP de las fotos. Un pedido de sólo video no arma ningún ZIP: no hay nada que
+ * preparar, el link ya sirve. Sin esta excepción el correo no salía nunca, que
+ * es la otra mitad de por qué una compra real quedó sin entregar.
+ *
+ * Con fotos de por medio no se manda acá: lo manda el ZIP cuando está listo, y
+ * duplicarlo le llegaría dos veces al cliente.
+ */
+export function shouldEmailDownloadRightAway(input: {
+  digitalPhotoCount: number;
+  videoCount: number;
+}): boolean {
+  const fotos = normalizar(input.digitalPhotoCount);
+  const videos = normalizar(input.videoCount);
+  return fotos === 0 && videos > 0;
+}

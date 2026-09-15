@@ -1,7 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { orderNeedsDigitalDelivery } from "./order-needs-delivery";
+import {
+  orderNeedsDigitalDelivery,
+  shouldEmailDownloadRightAway,
+} from "./order-needs-delivery";
 
 describe("a quién hay que entregarle la descarga", () => {
   it("un pedido de sólo video SÍ recibe su link", () => {
@@ -56,6 +59,43 @@ describe("a quién hay que entregarle la descarga", () => {
     assert.equal(
       orderNeedsDigitalDelivery({ digitalPhotoCount: 0, videoCount: 1 }),
       true
+    );
+  });
+});
+
+describe("cuándo el correo de descarga sale en el momento", () => {
+  it("sólo video: sale ya, porque no hay ZIP que esperar", () => {
+    // La otra mitad del pedido 3278: el token se creaba, pero el correo salía
+    // recién al terminar el ZIP de las fotos, y un pedido de sólo video no
+    // arma ninguno. El cliente nunca se enteraba.
+    assert.equal(
+      shouldEmailDownloadRightAway({ digitalPhotoCount: 0, videoCount: 1 }),
+      true
+    );
+  });
+
+  it("con fotos NO sale acá: lo manda el ZIP y llegaría duplicado", () => {
+    assert.equal(
+      shouldEmailDownloadRightAway({ digitalPhotoCount: 2, videoCount: 1 }),
+      false
+    );
+    assert.equal(
+      shouldEmailDownloadRightAway({ digitalPhotoCount: 2, videoCount: 0 }),
+      false
+    );
+  });
+
+  it("sin nada que descargar no se manda ningún correo", () => {
+    assert.equal(
+      shouldEmailDownloadRightAway({ digitalPhotoCount: 0, videoCount: 0 }),
+      false
+    );
+  });
+
+  it("números inválidos no disparan un correo vacío", () => {
+    assert.equal(
+      shouldEmailDownloadRightAway({ digitalPhotoCount: 0, videoCount: Number.NaN }),
+      false
     );
   });
 });
