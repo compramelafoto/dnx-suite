@@ -93,3 +93,34 @@ curl -s -H "Authorization: Bearer $CRON_SECRET" https://subilafoto.com/api/salud
 
 Responde **503 cuando algo dejó de correr** y 200 cuando está bien, así se le puede colgar
 un chequeo externo sin que tenga que interpretar el cuerpo.
+
+## Verificado en producción (2026-09-15)
+
+Recién desplegado, con la tabla vacía, el panel dijo lo que tenía que decir:
+
+```
+semáforo: caido → HTTP 503
+  moderacion  caido  Nunca corrió
+  cierre      caido  Nunca corrió
+  paquetes    caido  Nunca corrió
+  avisos      caido  Nunca corrió
+  purga       caido  Nunca corrió
+```
+
+**Eso es lo correcto, no un error.** Sin fila no sabemos si el cron corre, y decir "todo
+bien" ahí sería exactamente el fallo que este panel existe para evitar.
+
+Después de disparar las cinco tareas una vez:
+
+```
+semáforo: bien → HTTP 200
+  moderacion  bien  Hace 0 minutos  {"msTotal":343,"decididas":0,"revisadas":0,…}
+  cierre      bien  Hace 0 minutos  {"ahora":"…","cerrados":0,"diasDeRetencion":30}
+  paquetes    bien  Hace 0 minutos  {"armados":0}
+  avisos      bien  Hace 0 minutos  {"secos":0,"fallos":0,"enviados":0,…}
+  purga       bien  Hace 0 minutos  {"borrados":0,"revisados":0,"plazosCompletados":0}
+alertas: 0
+```
+
+Cada latido guarda **lo que devolvió la tarea**, así que se puede ver qué hizo la última
+corrida sin abrir los registros de Vercel.
