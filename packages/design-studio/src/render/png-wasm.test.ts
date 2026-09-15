@@ -125,3 +125,28 @@ test("rasteriza a las medidas que pide el dpi", async () => {
   assert.ok(b.subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47])), "no es un PNG");
   assert.ok(b.readUInt32BE(16) > 100, "ancho inesperado");
 });
+
+/**
+ * Interoperabilidad de módulos.
+ *
+ * Al sacar el paquete del empaquetado, `await import("mupdf")` puede devolver el módulo
+ * envuelto en `default` en vez del espacio de nombres directo. Cuando eso pasa,
+ * `mupdf.Document` queda indefinido y el fallo llega minificado como "a is not a function",
+ * que no dice nada. Hay que aceptar las dos formas.
+ */
+test("acepta el módulo envuelto en `default`", async () => {
+  const real = await import("mupdf");
+  const envuelto = { default: real } as unknown as typeof real;
+
+  const pdf = await renderPdf(documentoDeUnaLinea("dmSans"), resueltas, {
+    includeBleed: false,
+    resources: recursos,
+  });
+  if (!pdf.ok) throw new Error(pdf.errors.join(" | "));
+
+  const png = await pdfToPng(pdf.value, { dpi: 72, pageIndex: 0 }, {
+    cargarMupdf: async () => envuelto,
+  });
+
+  assert.equal(png.ok, true, png.ok ? "" : png.errors.join(" | "));
+});

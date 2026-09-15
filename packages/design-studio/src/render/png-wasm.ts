@@ -25,9 +25,15 @@ export type PdfToPngOptions = {
   pageIndex: number;
 };
 
+export type PdfToPngDeps = {
+  /** Se puede inyectar para probar cómo llega el módulo según lo empaquete quien lo use. */
+  cargarMupdf?: () => Promise<typeof import("mupdf")>;
+};
+
 export async function pdfToPng(
   pdf: Uint8Array,
   options: PdfToPngOptions,
+  deps: PdfToPngDeps = {},
 ): Promise<Result<Uint8Array>> {
   if (options.pageIndex < 0) {
     return fail("El número de cara no puede ser negativo.");
@@ -36,7 +42,18 @@ export async function pdfToPng(
   try {
     // Import dinámico: el módulo carga su WebAssembly al importarse, y quien sólo valida un
     // documento o emite un PDF no tiene por qué pagar ese arranque.
-    const mupdf = await import("mupdf");
+    const cargar = deps.cargarMupdf ?? (() => import("mupdf"));
+    /*
+     * Según cómo lo empaquete quien use el módulo, `import()` devuelve el espacio de nombres o
+     * el módulo envuelto en `default`. Cuando llega envuelto, `mupdf.Document` queda indefinido
+     * y el fallo aparece minificado como "a is not a function", que no dice absolutamente nada.
+     */
+    const cargado = await cargar();
+    const mupdf = (
+      "Document" in cargado
+        ? cargado
+        : (cargado as unknown as { default: typeof cargado }).default
+    ) as typeof cargado;
 
     const doc = mupdf.Document.openDocument(pdf, "application/pdf");
     if (options.pageIndex >= doc.countPages()) {
