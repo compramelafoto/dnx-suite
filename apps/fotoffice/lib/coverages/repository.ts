@@ -267,3 +267,145 @@ export async function upsertCollaboratorProfile(input: {
     create: { workspaceId: input.workspaceId, memberId: input.memberId, ...input.datos },
   });
 }
+
+/**
+ * Las convocatorias publicadas de este workspace, para el portal del voluntario.
+ *
+ * Solo `PUBLICADA`: una convocatoria en borrador, cerrada, vencida o cancelada no tiene nada
+ * que ofrecerle a quien busca anotarse — ni siquiera como lectura, porque mostrarla ahí sugiere
+ * que se puede hacer algo con ella. Trae los roles con sus asignaciones para que la pantalla
+ * calcule cuántos lugares quedan con `lib/coverages/cupos.ts`, sin una segunda vuelta a la base.
+ */
+export async function listOpenCallsForPortal(input: { workspaceId: string }) {
+  return prisma.coverageCall.findMany({
+    where: { workspaceId: input.workspaceId, status: "PUBLICADA" },
+    select: {
+      id: true,
+      title: true,
+      urgency: true,
+      coverage: {
+        select: {
+          startsAt: true,
+          endsAt: true,
+          addressLine: true,
+          city: true,
+          roles: {
+            select: {
+              vacancies: true,
+              assignments: { select: { status: true } },
+            },
+          },
+        },
+      },
+    },
+    orderBy: { coverage: { startsAt: "asc" } },
+  });
+}
+
+/**
+ * Las postulaciones de este colaborador, para "tus postulaciones" del portal.
+ *
+ * El aislamiento acá es doble: por workspace (vía la convocatoria, `CoverageApplication` no
+ * tiene la columna directa) y por persona (`memberId`). Sin el segundo filtro, cualquier socio
+ * vería las postulaciones de cualquier otro — el cuidado del plan sobre "mis postulaciones" es
+ * exactamente este.
+ */
+export async function listMyApplications(input: { workspaceId: string; memberId: string }) {
+  return prisma.coverageApplication.findMany({
+    where: { memberId: input.memberId, call: { workspaceId: input.workspaceId } },
+    select: {
+      id: true,
+      status: true,
+      createdAt: true,
+      role: { select: { name: true } },
+      call: {
+        select: {
+          id: true,
+          title: true,
+          coverage: { select: { startsAt: true, city: true } },
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+/**
+ * Las asignaciones de este colaborador que todavía esperan su respuesta: "tus invitaciones".
+ *
+ * Solo `INVITADA`. `ACEPTADA` y `CONFIRMADA` ya no esperan nada de esta persona, y `RECHAZADA` /
+ * `CANCELADA` / `REEMPLAZADA` tampoco: lo que va acá es exactamente lo que tiene un plazo
+ * corriendo, que es por lo que este bloque va primero en la pantalla (ver el plan).
+ */
+export async function listMyPendingAssignments(input: { workspaceId: string; memberId: string }) {
+  return prisma.coverageAssignment.findMany({
+    where: {
+      memberId: input.memberId,
+      status: "INVITADA",
+      coverage: { workspaceId: input.workspaceId },
+    },
+    select: {
+      id: true,
+      createdAt: true,
+      role: { select: { name: true } },
+      coverage: {
+        select: {
+          title: true,
+          startsAt: true,
+          city: true,
+          call: { select: { id: true } },
+        },
+      },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+}
+
+/**
+ * El detalle de una convocatoria para el portal del voluntario.
+ *
+ * Trae la cobertura completa —**dirección incluida**, ver §3.4 del diseño: quien la ve es un
+ * colaborador con sesión iniciada y sin la dirección no puede decidir si le queda cerca— y sus
+ * roles con TODAS sus asignaciones y postulaciones (de cualquier persona, no solo de quien
+ * mira), para que la pantalla calcule cupos con `cupos.ts` y elegibilidad con `elegibilidad.ts`
+ * sin una segunda consulta. Que ese detalle llegue hasta acá no filtra nada hacia el navegador:
+ * la pantalla lo reduce a números y booleanos antes de pintar nada.
+ *
+ * Devuelve `null` si la convocatoria es de otro workspace. **No** trae `privateBriefing`: eso es
+ * solo para quien ya está asignado (tanda siguiente), y esta consulta la usa cualquier
+ * colaborador que abra el enlace.
+ */
+export async function loadCallForPortal(input: { workspaceId: string; callId: string }) {
+  return prisma.coverageCall.findFirst({
+    where: { id: input.callId, workspaceId: input.workspaceId },
+    select: {
+      id: true,
+      title: true,
+      publicSummary: true,
+      status: true,
+      urgency: true,
+      applicationsCloseAt: true,
+      coverage: {
+        select: {
+          title: true,
+          startsAt: true,
+          endsAt: true,
+          addressLine: true,
+          city: true,
+          instructions: true,
+          roles: {
+            orderBy: { createdAt: "asc" },
+            select: {
+              id: true,
+              name: true,
+              requirements: true,
+              vacancies: true,
+              assignments: { select: { status: true, memberId: true } },
+              applications: { select: { memberId: true } },
+            },
+          },
+        },
+      },
+    },
+  });
+}
