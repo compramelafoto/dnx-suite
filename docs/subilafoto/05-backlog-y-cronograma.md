@@ -187,6 +187,17 @@ entorno**. No es trabajo de código pendiente.
 - 9/10: congelamiento. Sólo se corrigen bloqueantes.
 - 10/10: lanzamiento controlado y monitoreo activo.
 
+**Estado al 2026-09-15.** Lo construible de la etapa está hecho:
+
+| Punto | Estado | Dónde |
+|---|---|---|
+| Monitoreo activo | **Construido**: panel, alertas con instrucción y latido de los cron | [21](21-como-va-la-noche.md) |
+| Guion del ensayo del 8 | **Escrito**, 13 pasos | [22](22-ensayo-y-lanzamiento.md) |
+| Criterio de congelamiento del 9 | **Escrito**: una sola pregunta | [22](22-ensayo-y-lanzamiento.md) |
+| Recorrido del 10 y qué mirar | **Escrito** | [22](22-ensayo-y-lanzamiento.md) |
+| Lista de lo que tiene que estar antes del 8 | **Escrita** | [22](22-ensayo-y-lanzamiento.md) |
+| El ensayo en sí | **Falta**: es el 8 de octubre y necesita plata y aparatos | — |
+
 ## El camino crítico
 
 Si algo de esto se atrasa, se atrasa el lanzamiento:
