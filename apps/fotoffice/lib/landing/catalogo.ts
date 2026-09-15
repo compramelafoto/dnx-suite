@@ -150,9 +150,6 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
   },
   {
     key: COVERAGES_MODULE_KEY,
-    // Repite el 10 de "Presupuestos" en EN_CONSTRUCCION. Son secciones distintas y el número
-    // es decorativo; correr esa serie no se puede porque `lib/landing/tipos.ts` apunta a sus
-    // cuadros por número.
     cuadro: "10",
     nombre: "Solicitudes y Coberturas",
     resuelve:
@@ -233,38 +230,38 @@ export const EN_CONSTRUCCION: {
   icono: string;
 }[] = [
   {
-    cuadro: "10",
+    cuadro: "11",
     icono: "presupuestos",
     nombre: "Presupuestos",
     resuelve:
       "Armar el presupuesto con tus precios, mandárselo al cliente y seguir si lo aceptó. Hoy la consulta te llega con todos los datos del evento; el precio todavía lo ponés vos por afuera.",
   },
   {
-    cuadro: "11",
+    cuadro: "12",
     icono: "comunicacion",
     nombre: "Comunicación",
     resuelve: "Mandar un mensaje a todos los socios o a un grupo, desde adentro.",
   },
   {
-    cuadro: "12",
+    cuadro: "13",
     icono: "eventos",
     nombre: "Eventos",
     resuelve: "Salidas, charlas y encuentros con inscripción y lista de asistencia.",
   },
   {
-    cuadro: "13",
+    cuadro: "14",
     icono: "gobierno",
     nombre: "Gobierno institucional",
     resuelve: "Actas, votaciones y resoluciones de la comisión directiva.",
   },
   {
-    cuadro: "14",
+    cuadro: "15",
     icono: "muestras",
     nombre: "Muestras",
     resuelve: "Las muestras de la institución, con sus obras y sus autores.",
   },
   {
-    cuadro: "15",
+    cuadro: "16",
     icono: "transparencia",
     nombre: "Transparencia",
     resuelve: "Publicar el balance y la rendición para que el socio vea en qué se usó su cuota.",

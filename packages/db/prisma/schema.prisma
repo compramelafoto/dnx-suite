@@ -7095,6 +7095,7 @@ model Workspace {
   coverageSettings      CoverageSettings?
   coverageRequests      CoverageRequest[]
   coverages             Coverage[]
+  coverageCalls         CoverageCall[]
   coverageCollaborators CoverageCollaboratorProfile[]
   coverageEvents        CoverageEvent[]
 }
@@ -17863,6 +17864,14 @@ model CoverageRequest {
   venueKind        String?
   onSiteContactName String?
   onSitePhone      String?
+  /// Teléfono que escribió la organización en el formulario público. NO se usa para emparejar
+  /// contra el padrón de clientes (ver `findOrCreateClient` en `lib/coverages/submit.ts`): un
+  /// dato que el circuito no verifica no puede decidir a qué ficha del padrón se dirigen los
+  /// correos. Vive acá para no perderlo.
+  contactPhone     String?
+  /// CUIT/CUIL que escribió la organización. Mismo motivo que `contactPhone`: no se usa para
+  /// emparejar en el formulario público.
+  orgTaxId         String?
 
   /// --- La necesidad fotográfica ---
   /// FOTO | VIDEO | AMBOS
@@ -18001,6 +18010,10 @@ model CoverageRole {
 /// internet: ninguna convocatoria es pública (ver §3.4 del diseño).
 model CoverageCall {
   id         String @id @default(cuid())
+  /// Repetido desde `Coverage.workspaceId` (y no derivado por join): "convocatorias abiertas
+  /// de este workspace" va a ser de las consultas más frecuentes del módulo, y hoy exige unir
+  /// con `Coverage` para llegar hasta acá.
+  workspaceId String
   coverageId String @unique
 
   title            String
@@ -18021,10 +18034,12 @@ model CoverageCall {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  workspace    Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   coverage     Coverage              @relation(fields: [coverageId], references: [id], onDelete: Cascade)
   applications CoverageApplication[]
 
   @@index([status])
+  @@index([workspaceId, status])
 }
 
 /// La postulación de una persona a un rol.
@@ -18083,6 +18098,11 @@ model CoverageAssignment {
   coverage Coverage     @relation(fields: [coverageId], references: [id], onDelete: Cascade)
   role     CoverageRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
   member   Member       @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  /// Relación autorreferencial de verdad: sin ella, nada impedía que `replacedAssignmentId`
+  /// apuntara a una asignación de OTRA cobertura. `SetNull` y no `Restrict`: si la asignación
+  /// reemplazada se borra, esta no tiene por qué dejar de existir, sólo pierde la referencia.
+  replacedAssignment CoverageAssignment?  @relation("CoverageAssignmentReemplazo", fields: [replacedAssignmentId], references: [id], onDelete: SetNull)
+  reemplazadaPor     CoverageAssignment[] @relation("CoverageAssignmentReemplazo")
 
   @@unique([coverageId, memberId])
   @@index([coverageId, status])

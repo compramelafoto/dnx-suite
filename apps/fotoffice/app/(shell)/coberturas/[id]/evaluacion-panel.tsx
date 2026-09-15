@@ -21,10 +21,13 @@ export function EvaluacionPanel({
   id,
   status,
   puedeCoordinar,
+  infoRequested,
 }: {
   id: string;
   status: string;
   puedeCoordinar: boolean;
+  /** Lo último que se pidió, para mostrarlo mientras el estado sigue en `REQUIERE_INFO`. */
+  infoRequested?: string | null;
 }) {
   const [estadoState, cambiarEstado, cambiando] = useActionState(
     changeRequestStatusAction,
@@ -61,7 +64,12 @@ export function EvaluacionPanel({
         </form>
       ) : null}
 
-      {!cerrada && ["EN_EVALUACION", "REQUIERE_INFO"].includes(status) ? (
+      {/*
+        Sólo en `EN_EVALUACION`: pedir información apunta a `REQUIERE_INFO`, y las transiciones
+        cortan todo `from === to` (ver `planStatusChange`). Mostrar este formulario también en
+        `REQUIERE_INFO` ofrecería un botón que siempre falla, porque ya se está en ese estado.
+      */}
+      {!cerrada && status === "EN_EVALUACION" ? (
         <form action={pedirInfo} className="space-y-2">
           <input type="hidden" name="id" value={id} />
           <label className="block space-y-1">
@@ -77,6 +85,12 @@ export function EvaluacionPanel({
             Pedir información
           </button>
         </form>
+      ) : null}
+
+      {!cerrada && status === "REQUIERE_INFO" ? (
+        <p className="text-sm text-[var(--fo-muted)]">
+          Le pedimos: «{infoRequested}». Estamos esperando su respuesta.
+        </p>
       ) : null}
 
       {!cerrada && status === "EN_EVALUACION" && puedeCoordinar ? (

@@ -25,6 +25,24 @@ import {
 import { debeRotarEnlace } from "@/lib/coverages/tracking-view";
 
 /**
+ * A quién saludar en el correo.
+ *
+ * Preferimos el nombre de la persona de contacto sobre la razón social: es a ella a quien le
+ * escribimos. Si no hay nombre cargado (una solicitud vieja, de antes de guardar
+ * `firstName`/`lastName`), caemos a la razón social, y si tampoco hay nada, a "Equipo": nunca
+ * "Hola", porque `compose` ya antepone un "Hola" al saludo y un cliente sin nombre ni razón
+ * social terminaría recibiendo un correo que dice «Hola Hola,».
+ */
+function contactGreetingName(client: {
+  firstName: string | null;
+  lastName: string | null;
+  businessName: string | null;
+}): string {
+  const nombre = [client.firstName, client.lastName].filter(Boolean).join(" ");
+  return nombre || client.businessName || "Equipo";
+}
+
+/**
  * Los estados en los que una solicitud queda resuelta.
  *
  * "Resuelta" es una fecha real que después leen los informes, no un sello de cada movimiento:
@@ -87,7 +105,7 @@ export async function changeRequestStatusAction(
 
   const solicitud = await prisma.coverageRequest.findFirst({
     where: { id, workspaceId: workspace.id },
-    include: { client: { select: { email: true, businessName: true } } },
+    include: { client: { select: { email: true, businessName: true, firstName: true, lastName: true } } },
   });
 
   const plan = planStatusChange({ solicitud, workspaceId: workspace.id, to, reason });
@@ -176,7 +194,7 @@ export async function changeRequestStatusAction(
       context: contexto,
       publicCode: solicitud.publicCode,
       eventTitle: solicitud.eventTitle,
-      contactName: solicitud.client.businessName ?? "Hola",
+      contactName: contactGreetingName(solicitud.client),
       trackingUrl: rawToken && base ? `${base}/sc/${rawToken}` : "",
     };
     const resultado = await sendAndLogEmail({
@@ -212,7 +230,7 @@ export async function requestInfoAction(
 
   const solicitud = await prisma.coverageRequest.findFirst({
     where: { id, workspaceId: workspace.id },
-    include: { client: { select: { email: true, businessName: true } } },
+    include: { client: { select: { email: true, businessName: true, firstName: true, lastName: true } } },
   });
   if (!solicitud) return { error: "No encontramos esa solicitud.", ok: null };
 
@@ -281,7 +299,7 @@ export async function requestInfoAction(
         context: contexto,
         publicCode: solicitud.publicCode,
         eventTitle: solicitud.eventTitle,
-        contactName: solicitud.client.businessName ?? "Hola",
+        contactName: contactGreetingName(solicitud.client),
         trackingUrl: rawToken && base ? `${base}/sc/${rawToken}` : "",
         infoRequested: texto,
       }),

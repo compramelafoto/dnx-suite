@@ -52,20 +52,41 @@ export async function saveCoverageRequest(input: {
 
     try {
       return await prisma.$transaction(async (tx) => {
+        // El formulario pide una sola línea (`contactName`) porque es lo que una persona
+        // escribe de una vez; el padrón guarda nombre y apellido por separado porque es como
+        // los tiene el resto del sistema. Se parte por el primer espacio: todo lo que sigue es
+        // apellido, así "María José Pérez" no pierde el segundo nombre.
+        //
+        // No se pasa `phone` ni `docNumber`: este es el único llamador de `findOrCreateClient`
+        // abierto a internet, y emparejar por un dato que el circuito no verifica (a diferencia
+        // del correo, al que sí le manda el enlace) dejaría que un tercero que conozca el
+        // teléfono o el CUIT de un cliente del workspace dirija correos de la institución hacia
+        // alguien que no pidió nada.
+        const espacio = input.parsed.contactName.indexOf(" ");
+        const firstName = espacio === -1 ? input.parsed.contactName : input.parsed.contactName.slice(0, espacio);
+        const lastName = espacio === -1 ? null : input.parsed.contactName.slice(espacio + 1).trim() || null;
+
         const cliente = await findOrCreateClient(tx, {
           workspaceId: input.workspaceId,
           email: input.parsed.contactEmail,
-          phone: input.parsed.contactPhone,
-          docNumber: input.parsed.orgTaxId,
+          firstName,
+          lastName,
           businessName: input.parsed.orgName,
         });
 
+        // Por `createdAt`, no por `publicCode`: el código es texto, y el orden de texto no es
+        // el orden numérico. Con cinco cifras "9999" ordena después de "10000" (una cadena más
+        // corta que empieza con "9" es "mayor" que una más larga que empieza con "1"), así que
+        // ordenar por el código calcularía siempre el mismo siguiente número pasado el pedido
+        // 9.999 y los tres reintentos de más abajo chocarían siempre contra el mismo índice
+        // único. Los correlativos se asignan en orden, así que la fila más nueva —por fecha de
+        // creación, no por cómo ordena su texto— es siempre la de número más alto.
         const ultimo = await tx.coverageRequest.findFirst({
           where: {
             workspaceId: input.workspaceId,
             publicCode: { startsWith: `SC-${ahora.getFullYear()}-` },
           },
-          orderBy: { publicCode: "desc" },
+          orderBy: { createdAt: "desc" },
           select: { publicCode: true },
         });
 
@@ -74,6 +95,11 @@ export async function saveCoverageRequest(input: {
             workspaceId: input.workspaceId,
             clientId: cliente.id,
             publicCode: nextPublicCode(ultimo?.publicCode ?? null, ahora.getFullYear()),
+            // El teléfono y el CUIT que la organización escribió no se pierden por angostar el
+            // emparejamiento de arriba: quedan acá, en la solicitud misma, en vez de en el
+            // padrón de clientes.
+            contactPhone: input.parsed.contactPhone,
+            orgTaxId: input.parsed.orgTaxId,
             tokenHash: hashTrackingToken(rawToken),
             tokenExpiresAt: trackingExpiryFrom(input.settings.trackingLinkTtlDays, ahora),
             eventTitle: input.parsed.eventTitle,

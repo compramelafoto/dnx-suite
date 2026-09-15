@@ -66,6 +66,18 @@ describe("buildRequestReceivedEmail", () => {
     expect(m.text).toContain("Ver cómo va tu pedido");
     expect(m.text).toContain(base.trackingUrl);
   });
+
+  it("el saludo nunca repite la palabra «Hola»", () => {
+    // `compose` siempre antepone "Hola" al nombre que le llega (ver más arriba, `saludo`). Si
+    // quien llama —`actions.ts`, cuando la solicitud no tiene ni nombre de contacto ni razón
+    // social— usara "Hola" como valor por omisión en vez de "Equipo", el correo saldría
+    // literalmente "Hola Hola,". Se prueba con el valor de omisión real ("Equipo") para que
+    // este caso se rompa si alguien vuelve a usar "Hola" como remplazo del nombre.
+    const m = buildRequestReceivedEmail({ ...base, contactName: "Equipo" });
+    expect(m.text).not.toContain("Hola Hola");
+    expect(m.html).not.toContain("Hola Hola");
+    expect(m.text).toContain("Hola Equipo,");
+  });
 });
 
 describe("buildInfoRequestedEmail", () => {

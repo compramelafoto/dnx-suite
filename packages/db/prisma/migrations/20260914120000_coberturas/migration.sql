@@ -46,6 +46,8 @@ CREATE TABLE "CoverageRequest" (
     "venueKind" TEXT,
     "onSiteContactName" TEXT,
     "onSitePhone" TEXT,
+    "contactPhone" TEXT,
+    "orgTaxId" TEXT,
     "mediaKinds" TEXT NOT NULL DEFAULT 'FOTO',
     "coverageKind" TEXT,
     "purpose" TEXT,
@@ -125,6 +127,7 @@ CREATE TABLE "CoverageRole" (
 -- CreateTable
 CREATE TABLE "CoverageCall" (
     "id" TEXT NOT NULL,
+    "workspaceId" TEXT NOT NULL,
     "coverageId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "publicSummary" TEXT,
@@ -287,6 +290,9 @@ CREATE UNIQUE INDEX "CoverageCall_coverageId_key" ON "CoverageCall"("coverageId"
 CREATE INDEX "CoverageCall_status_idx" ON "CoverageCall"("status");
 
 -- CreateIndex
+CREATE INDEX "CoverageCall_workspaceId_status_idx" ON "CoverageCall"("workspaceId", "status");
+
+-- CreateIndex
 CREATE INDEX "CoverageApplication_callId_status_idx" ON "CoverageApplication"("callId", "status");
 
 -- CreateIndex
@@ -341,6 +347,9 @@ ALTER TABLE "Coverage" ADD CONSTRAINT "Coverage_requestId_fkey" FOREIGN KEY ("re
 ALTER TABLE "CoverageRole" ADD CONSTRAINT "CoverageRole_coverageId_fkey" FOREIGN KEY ("coverageId") REFERENCES "Coverage"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "CoverageCall" ADD CONSTRAINT "CoverageCall_workspaceId_fkey" FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "CoverageCall" ADD CONSTRAINT "CoverageCall_coverageId_fkey" FOREIGN KEY ("coverageId") REFERENCES "Coverage"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -360,6 +369,9 @@ ALTER TABLE "CoverageAssignment" ADD CONSTRAINT "CoverageAssignment_roleId_fkey"
 
 -- AddForeignKey
 ALTER TABLE "CoverageAssignment" ADD CONSTRAINT "CoverageAssignment_memberId_fkey" FOREIGN KEY ("memberId") REFERENCES "Member"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "CoverageAssignment" ADD CONSTRAINT "CoverageAssignment_replacedAssignmentId_fkey" FOREIGN KEY ("replacedAssignmentId") REFERENCES "CoverageAssignment"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "CoverageDeliverable" ADD CONSTRAINT "CoverageDeliverable_coverageId_fkey" FOREIGN KEY ("coverageId") REFERENCES "Coverage"("id") ON DELETE CASCADE ON UPDATE CASCADE;

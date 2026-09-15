@@ -139,6 +139,18 @@ export async function submitCoverageRequestAction(
   const base = appUrl();
   const trackingUrl = base ? `${base}/sc/${guardada.rawToken}` : "";
 
+  // Sin `appUrl()` el correo sale sin botón y el token crudo —que nunca se guarda, ver el
+  // comentario de `saveCoverageRequest`— se pierde para siempre: la organización queda con un
+  // código que no abre nada. Las otras dos degradaciones de este archivo (sin destinatario del
+  // aviso interno, sin `COVERAGE_ORIGIN_SALT`) ya avisan con un `console.warn`; a esta le
+  // faltaba.
+  if (!base) {
+    console.warn(
+      `Solicitud ${guardada.publicCode} guardada, pero no se pudo armar el enlace de ` +
+        "seguimiento porque falta NEXT_PUBLIC_APP_URL. Configurá esa variable.",
+    );
+  }
+
   // Los avisos salen después del hecho consumado y no pueden voltearlo: `sendAndLogEmail`
   // nunca lanza, y el resultado queda registrado para poder responder «¿le avisamos?».
   await sendAndLogEmail({

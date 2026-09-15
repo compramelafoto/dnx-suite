@@ -90,6 +90,7 @@ export default async function FichaSolicitudPage({
         id={solicitud.id}
         status={solicitud.status}
         puedeCoordinar={canCoordinateCoverages(role)}
+        infoRequested={solicitud.infoRequested}
       />
 
       <section className="fo-card space-y-3 p-5">
