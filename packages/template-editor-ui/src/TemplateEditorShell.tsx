@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  DEFAULT_TEMPLATE_V2_BASE_PATH,
   templateV2EditorPath,
 } from "./template-v2-base-path";
 import {
@@ -326,8 +325,8 @@ function RightSidebarSection({
 type TemplateEditorShellProps = {
   templateId: string;
   versionId: string;
-  /** Dónde vive el editor en esta app. Default: ComprameLaFoto. */
-  basePath?: string;
+  /** Dónde monta el editor la app que hospeda. Obligatorio: ver `TEMPLATE_V2_BASE_PATHS`. */
+  basePath: string;
   className?: string;
   /**
    * Paleta de la aplicación que hospeda el editor. Sin esto el editor se ve como otro
@@ -360,7 +359,7 @@ export function TemplateEditorShell({
   versionId,
   className,
   theme,
-  basePath = DEFAULT_TEMPLATE_V2_BASE_PATH,
+  basePath,
 }: TemplateEditorShellProps) {
   const router = useRouter();
   const [state, dispatch] = useReducer(templateV2EditorReducer, TEMPLATE_V2_EDITOR_INITIAL_STATE);
@@ -1427,7 +1426,11 @@ export function TemplateEditorShell({
 
         {versionsPanelOpen ? (
           <div className="border-b border-[color:var(--te-line-strong)] bg-[color:var(--te-chrome)] px-3 py-2">
-            <TemplateVersionList templateId={templateId} activeVersionId={versionId} />
+            <TemplateVersionList
+              templateId={templateId}
+              activeVersionId={versionId}
+              basePath={basePath}
+            />
           </div>
         ) : null}
 
