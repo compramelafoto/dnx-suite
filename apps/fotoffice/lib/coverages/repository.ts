@@ -207,6 +207,30 @@ export async function listCollaborators(input: { workspaceId: string }) {
   });
 }
 
+/**
+ * La ficha de una cobertura: sus roles (con sus asignaciones vivas, para calcular cupos con
+ * `lib/coverages/cupos.ts`), su convocatoria si ya la tiene, y los datos mínimos de la
+ * solicitud de la que salió, para el enlace de "volver". Devuelve `null` si esa cobertura es de
+ * otro workspace.
+ *
+ * Las asignaciones se traen ahora aunque esta etapa todavía no las genera (eso es de la tanda
+ * siguiente, que elige el equipo): sin este campo, esa tanda tendría que volver a tocar esta
+ * consulta para poder calcular lugares libres.
+ */
+export async function loadCoverage(input: { workspaceId: string; coverageId: string }) {
+  return prisma.coverage.findFirst({
+    where: { id: input.coverageId, workspaceId: input.workspaceId },
+    include: {
+      request: { select: { id: true, publicCode: true, eventTitle: true, status: true } },
+      roles: {
+        orderBy: { createdAt: "asc" },
+        include: { assignments: { select: { id: true, status: true } } },
+      },
+      call: true,
+    },
+  });
+}
+
 /** El perfil de colaborador de un socio puntual. `null` si nunca se creó o es de otro workspace. */
 export async function loadCollaboratorProfile(input: { workspaceId: string; memberId: string }) {
   return prisma.coverageCollaboratorProfile.findFirst({
