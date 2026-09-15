@@ -101,7 +101,12 @@ export async function AlbumDelEvento({
       )}
 
       <p className="mt-16 text-center text-sm" style={{ opacity: 0.62 }}>
-        <Link href={volver.href} className="underline underline-offset-4">
+        {/* Relleno para llegar a los 44 píxeles de alto: es un enlace suelto, no uno
+            adentro de una oración. */}
+        <Link
+          href={volver.href}
+          className="inline-flex min-h-[44px] items-center px-3 py-3 underline underline-offset-4"
+        >
           {volver.texto}
         </Link>
       </p>

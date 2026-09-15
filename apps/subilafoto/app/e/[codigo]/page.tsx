@@ -180,7 +180,12 @@ export default async function PuertaDelInvitado({ params }: Props) {
           {evento.guestsCanSeeAlbum ? (
             <Link
               href={`/e/${codigo.toUpperCase()}/album`}
-              className="mt-6 text-sm underline underline-offset-4"
+              /*
+                `py-3` no es aire: un enlace suelto de 14 píxeles mide veinte de alto y
+                hay que acertarle con el pulgar, parado, en un salón oscuro. Con el
+                relleno llega a los 44 que pide la guía de accesibilidad.
+              */
+              className="mt-4 inline-flex min-h-[44px] items-center px-2 py-3 text-sm underline underline-offset-4"
               style={{ color: tema.texto, opacity: 0.78 }}
             >
               Ver las fotos del evento
