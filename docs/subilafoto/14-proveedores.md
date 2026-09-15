@@ -129,6 +129,18 @@ el número es lo que más vale. Ahora, si no hay teléfono, se usa el WhatsApp.
 
 Todos los datos de prueba se borraron. La base volvió a tener las mismas filas que antes.
 
+## Dónde se los ve
+
+| Pantalla | Quién la abre |
+|---|---|
+| Álbum del evento | **Todos los invitados**, por las dos puertas |
+| Panel del cliente | Quien contrató |
+| Panel del vendedor | El fotógrafo |
+
+En el álbum van **abajo de las fotos**, no arriba: el que lo abre viene a ver las fotos.
+Con el sitio enlazado y el Instagram al lado, que es lo que se les prometió cuando
+completaron la ficha.
+
 ## Lo que falta
 
 - El panel de administración para revisar, corregir y **fusionar** duplicados. Hoy
