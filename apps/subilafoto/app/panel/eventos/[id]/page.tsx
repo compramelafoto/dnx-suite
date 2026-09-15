@@ -92,6 +92,7 @@ export default async function DetalleEvento({ params }: Props) {
           { href: `/panel/eventos/${id}/moderacion`, texto: "Moderación" },
           { href: `/panel/eventos/${id}/plantilla`, texto: "Plantilla" },
           { href: `/panel/eventos/${id}/qr`, texto: "QR y materiales" },
+          { href: `/panel/eventos/${id}/proveedores`, texto: "Proveedores" },
         ].map((enlace) => (
           <Link
             key={enlace.href}
