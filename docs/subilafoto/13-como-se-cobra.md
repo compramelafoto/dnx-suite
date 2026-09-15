@@ -118,3 +118,49 @@ perder la reanudación: bajando de R2, si se corta se retoma.
 Cada quince minutos, **un evento por invocación**. Un casamiento puede tardar
 minutos y la función tiene un tope de cinco; intentar dos seguidos deja el
 segundo cortado. Para la promesa de las 24 horas sobra por mucho.
+
+## Los correos posteriores al evento (2026-09-15)
+
+Cinco: al día siguiente del cierre y a los 3, 7, 15 y 30 días. Hacen dos cosas a
+la vez — contarle al cliente que su álbum está listo y **venderle la descarga si
+compró sin ella**, que es lo que el titular pidió el 15/9.
+
+### El duplicado se evita en la base, no mirando antes
+
+`SubilafotoEmailSent` tiene `@@unique([eventId, aviso])` y **la fila se crea antes
+de enviar**. Si dos ejecuciones del worker llegan juntas, la segunda choca contra
+la restricción y se va.
+
+Consultar un registro antes de enviar no alcanza: entre la consulta y el envío
+entra la otra ejecución. Es el mismo patrón que la moderación y las órdenes.
+
+Si el envío falla, la fila queda con el error anotado. **Es preferible perder un
+aviso a mandarlo dos veces**: quien recibe cinco correos iguales deja de abrir
+los que importan.
+
+### Uno por vuelta, y los viejos se saltean
+
+Si el cron estuvo caído un día, el aviso sale igual — sigue sirviendo. Si estuvo
+caído una semana, el del día 1 **no se manda**: ya no dice nada útil el día 7, y
+mandar los atrasados de golpe serían tres correos en un minuto.
+
+### A quien ya tiene la descarga se le escribe otra cosa
+
+No se le ofrece comprar lo que ya compró. Hay un test que lo verifica en los cinco
+avisos: insistir es la forma más rápida de que marque el correo como spam.
+
+### Sin nuestra marca
+
+El texto firma con el vendedor. Para el cliente el servicio es de quien se lo
+vendió, y que apareciera Subí la Foto rompería la marca blanca. Hay un test que
+verifica que nuestro nombre no aparezca en ninguno de los cinco.
+
+### Sale en seco hasta que se habilite
+
+Usa el runtime controlado de `@repo/communications`, que no manda nada de verdad
+mientras no esté configurado y habilitado. Los avisos quedan registrados como
+`DRY_RUN` con el motivo. Eso es lo que evita escribirle a gente real antes de
+tiempo.
+
+Para encenderlo hacen falta `RESEND_API_KEY` y la configuración de remitente del
+runtime. Mientras no estén, todo queda anotado y nada sale.

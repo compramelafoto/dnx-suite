@@ -17423,6 +17423,7 @@ model SubilafotoEvent {
   links         SubilafotoAccessLink[]
   vendors       SubilafotoEventVendor[]
   packages      SubilafotoPackage[]
+  emailsSent    SubilafotoEmailSent[]
   consents      SubilafotoConsent[]
   audits        SubilafotoAudit[]
 
@@ -17641,6 +17642,28 @@ model SubilafotoPackage {
 }
 
 /// Qué aceptó cada quién y cuándo. Es prueba, no configuración.
+/// Qué aviso se le mandó a qué evento.
+///
+/// La unicidad de `(eventId, aviso)` es lo que impide que un reintento del worker mande el
+/// mismo correo dos veces. Mirar un registro antes de enviar no alcanza: entre la consulta
+/// y el envío entra otra ejecución.
+model SubilafotoEmailSent {
+  id         String   @id @default(cuid())
+  eventId    String
+  /// `dia-1`, `dia-3`, `dia-7`, `dia-15`, `dia-30`.
+  aviso      String
+  to         String
+  status     String   @default("QUEUED")
+  providerId String?
+  error      String?
+  createdAt  DateTime @default(now())
+
+  event SubilafotoEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, aviso])
+  @@index([createdAt])
+}
+
 model SubilafotoConsent {
   id              String                @id @default(cuid())
   eventId         String
