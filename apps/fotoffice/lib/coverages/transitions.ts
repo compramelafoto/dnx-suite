@@ -1,7 +1,23 @@
 import {
+  APPLICATION_LIVE_STATUSES,
+  ASSIGNMENT_LIVE_STATUSES,
+  CALL_LIVE_STATUSES,
+  COVERAGE_LIVE_STATUSES,
   REQUEST_LIVE_STATUSES,
+  applicationStatusLabel,
+  assignmentStatusLabel,
+  callStatusLabel,
+  coverageStatusLabel,
+  isApplicationStatus,
+  isAssignmentStatus,
+  isCallStatus,
+  isCoverageStatus,
   isRequestStatus,
   requestStatusLabel,
+  type ApplicationStatus,
+  type AssignmentStatus,
+  type CallStatus,
+  type CoverageStatus,
   type RequestStatus,
 } from "./states";
 
@@ -66,6 +82,215 @@ export function assertRequestTransition(input: {
   }
   if (transitionRequiresReason(input.to) && !input.reason?.trim()) {
     return { ok: false, error: "Escribí el motivo: se le comunica a la organización." };
+  }
+  return { ok: true };
+}
+
+/**
+ * Qué transición de cobertura es válida.
+ *
+ * `SIN_EQUIPO` sale de `BUSCANDO_EQUIPO` cuando la convocatoria vence sin completar los roles;
+ * no tiene salida porque la convocatoria es 1:1 con la cobertura y ya está vencida —retomar la
+ * búsqueda no es "reabrir esta", es una cobertura nueva.
+ *
+ * `EQUIPO_CONFIRMADO` vuelve a `BUSCANDO_EQUIPO` cuando alguien ya asignado rechaza: sin ese
+ * camino de vuelta, un rechazo deja la cobertura con estado "equipo confirmado" mintiendo sobre
+ * un equipo que ya no está completo.
+ */
+const TRANSICIONES_COBERTURA: Record<CoverageStatus, readonly CoverageStatus[]> = {
+  PLANIFICADA: ["BUSCANDO_EQUIPO"],
+  BUSCANDO_EQUIPO: ["EQUIPO_CONFIRMADO", "SIN_EQUIPO"],
+  EQUIPO_CONFIRMADO: ["BUSCANDO_EQUIPO", "REALIZADA"],
+  REALIZADA: ["ENTREGADA"],
+  ENTREGADA: ["CERRADA"],
+  // Terminales.
+  CERRADA: [],
+  SIN_EQUIPO: [],
+  CANCELADA: [],
+};
+
+export function canTransitionCoverage(from: string, to: string): boolean {
+  if (!isCoverageStatus(from) || !isCoverageStatus(to)) return false;
+  if (from === to) return false;
+  if (to === "CANCELADA") return COVERAGE_LIVE_STATUSES.includes(from);
+  return TRANSICIONES_COBERTURA[from].includes(to);
+}
+
+/** Cancelar una cobertura exige motivo: es la actividad solidaria completa la que se cae. */
+export function coverageTransitionRequiresReason(to: string): boolean {
+  return to === "CANCELADA";
+}
+
+export function assertCoverageTransition(input: {
+  from: string;
+  to: string;
+  reason?: string | null;
+}): TransitionCheck {
+  if (!canTransitionCoverage(input.from, input.to)) {
+    return {
+      ok: false,
+      error: `No se puede pasar de «${coverageStatusLabel(input.from)}» a «${coverageStatusLabel(input.to)}».`,
+    };
+  }
+  if (coverageTransitionRequiresReason(input.to) && !input.reason?.trim()) {
+    return { ok: false, error: "Escribí el motivo: queda en el historial de la cobertura." };
+  }
+  return { ok: true };
+}
+
+/**
+ * Qué transición de convocatoria es válida.
+ *
+ * `COMPLETA` vuelve a `PUBLICADA` cuando alguien ya seleccionado rechaza la asignación: el rol
+ * vuelve a tener una vacante libre y la convocatoria tiene que volver a mostrarse como abierta,
+ * o nadie se entera de que hace falta cubrir ese lugar de nuevo.
+ */
+const TRANSICIONES_CONVOCATORIA: Record<CallStatus, readonly CallStatus[]> = {
+  BORRADOR: ["PUBLICADA"],
+  PUBLICADA: ["COMPLETA", "VENCIDA"],
+  COMPLETA: ["PUBLICADA", "CERRADA"],
+  // Terminales.
+  CERRADA: [],
+  VENCIDA: [],
+  CANCELADA: [],
+};
+
+export function canTransitionCall(from: string, to: string): boolean {
+  if (!isCallStatus(from) || !isCallStatus(to)) return false;
+  if (from === to) return false;
+  if (to === "CANCELADA") return CALL_LIVE_STATUSES.includes(from);
+  return TRANSICIONES_CONVOCATORIA[from].includes(to);
+}
+
+/** Cancelar una convocatoria exige motivo: deja de buscarse gente y hay que poder explicar por qué. */
+export function callTransitionRequiresReason(to: string): boolean {
+  return to === "CANCELADA";
+}
+
+export function assertCallTransition(input: {
+  from: string;
+  to: string;
+  reason?: string | null;
+}): TransitionCheck {
+  if (!canTransitionCall(input.from, input.to)) {
+    return {
+      ok: false,
+      error: `No se puede pasar de «${callStatusLabel(input.from)}» a «${callStatusLabel(input.to)}».`,
+    };
+  }
+  if (callTransitionRequiresReason(input.to) && !input.reason?.trim()) {
+    return { ok: false, error: "Escribí el motivo: queda en el historial de la convocatoria." };
+  }
+  return { ok: true };
+}
+
+/**
+ * Qué transición de postulación es válida.
+ *
+ * `EN_REVISION` y `PRESELECCIONADA` son pasos opcionales de revisión, no obligatorios: el
+ * coordinador puede seleccionar directamente desde `RECIBIDA` si el volumen de postulaciones no
+ * amerita una revisión formal. Por eso `SELECCIONADA`, `NO_SELECCIONADA`, `RETIRADA` y
+ * `VENCIDA` —las cuatro resoluciones posibles— se alcanzan desde cualquier estado vivo, en vez
+ * de listarlas una por una en cada fila.
+ *
+ * Ninguna transición de postulación exige motivo: rechazar a alguien de un voluntariado
+ * ("en esta oportunidad el equipo ya está completo") no es un reproche que haya que justificar
+ * por escrito, y retirarse es una decisión de la propia persona.
+ */
+const TRANSICIONES_POSTULACION: Record<ApplicationStatus, readonly ApplicationStatus[]> = {
+  RECIBIDA: ["EN_REVISION"],
+  EN_REVISION: ["PRESELECCIONADA"],
+  // Terminales (más allá de las resoluciones, que se resuelven aparte).
+  PRESELECCIONADA: [],
+  SELECCIONADA: [],
+  NO_SELECCIONADA: [],
+  RETIRADA: [],
+  VENCIDA: [],
+};
+
+/** Las cuatro salidas posibles desde cualquier estado vivo de la postulación. */
+const RESOLUCIONES_POSTULACION: readonly ApplicationStatus[] = [
+  "SELECCIONADA",
+  "NO_SELECCIONADA",
+  "RETIRADA",
+  "VENCIDA",
+];
+
+export function canTransitionApplication(from: string, to: string): boolean {
+  if (!isApplicationStatus(from) || !isApplicationStatus(to)) return false;
+  if (from === to) return false;
+  if (RESOLUCIONES_POSTULACION.includes(to)) return APPLICATION_LIVE_STATUSES.includes(from);
+  return TRANSICIONES_POSTULACION[from].includes(to);
+}
+
+export function assertApplicationTransition(input: {
+  from: string;
+  to: string;
+  reason?: string | null;
+}): TransitionCheck {
+  if (!canTransitionApplication(input.from, input.to)) {
+    return {
+      ok: false,
+      error: `No se puede pasar de «${applicationStatusLabel(input.from)}» a «${applicationStatusLabel(input.to)}».`,
+    };
+  }
+  return { ok: true };
+}
+
+/**
+ * Qué transición de asignación es válida.
+ *
+ * `INVITADA` admite pasar directo a `CONFIRMADA` además de por `ACEPTADA`: en esta etapa la
+ * persona invitada responde una sola vez ("confirmo" o "no puedo"), sin un paso separado de
+ * aceptar y otro de confirmar. `ACEPTADA` queda disponible para cuando la modalidad del
+ * workspace sí distinga ambos pasos, sin tener que volver a tocar este archivo.
+ *
+ * `CANCELADA` y `REEMPLAZADA` se alcanzan desde cualquier estado vivo: un coordinador puede
+ * necesitar dar de baja o reemplazar a alguien en cualquier momento antes de que la cobertura
+ * ocurra. `AUSENTE` en cambio solo tiene sentido después de confirmar: si nunca confirmó, no
+ * "faltó", directamente no estaba.
+ */
+const TRANSICIONES_ASIGNACION: Record<AssignmentStatus, readonly AssignmentStatus[]> = {
+  PROPUESTA: ["INVITADA"],
+  INVITADA: ["ACEPTADA", "CONFIRMADA", "RECHAZADA"],
+  ACEPTADA: ["CONFIRMADA", "RECHAZADA"],
+  CONFIRMADA: ["CUMPLIDA", "AUSENTE"],
+  // Terminales (más allá de las resoluciones, que se resuelven aparte).
+  CUMPLIDA: [],
+  RECHAZADA: [],
+  CANCELADA: [],
+  REEMPLAZADA: [],
+  AUSENTE: [],
+};
+
+/** Las dos salidas que un coordinador puede aplicar desde cualquier estado vivo. */
+const RESOLUCIONES_ASIGNACION: readonly AssignmentStatus[] = ["CANCELADA", "REEMPLAZADA"];
+
+export function canTransitionAssignment(from: string, to: string): boolean {
+  if (!isAssignmentStatus(from) || !isAssignmentStatus(to)) return false;
+  if (from === to) return false;
+  if (RESOLUCIONES_ASIGNACION.includes(to)) return ASSIGNMENT_LIVE_STATUSES.includes(from);
+  return TRANSICIONES_ASIGNACION[from].includes(to);
+}
+
+/** Cancelar una asignación y marcar ausente exigen motivo; el resto, no. */
+export function assignmentTransitionRequiresReason(to: string): boolean {
+  return to === "CANCELADA" || to === "AUSENTE";
+}
+
+export function assertAssignmentTransition(input: {
+  from: string;
+  to: string;
+  reason?: string | null;
+}): TransitionCheck {
+  if (!canTransitionAssignment(input.from, input.to)) {
+    return {
+      ok: false,
+      error: `No se puede pasar de «${assignmentStatusLabel(input.from)}» a «${assignmentStatusLabel(input.to)}».`,
+    };
+  }
+  if (assignmentTransitionRequiresReason(input.to) && !input.reason?.trim()) {
+    return { ok: false, error: "Escribí el motivo: queda en el historial de la asignación." };
   }
   return { ok: true };
 }
