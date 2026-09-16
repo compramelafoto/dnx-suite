@@ -17892,6 +17892,15 @@ model CoverageSettings {
   publicFormEnabled Boolean @default(false)
   publicFormIntro   String?
 
+  /// Qué campos del formulario público no se preguntan y cuáles son obligatorios. Claves del
+  /// catálogo de `apps/fotoffice/lib/coverages/request-fields.ts`. Lo que no está en ninguna de
+  /// las dos listas es opcional, y los cinco campos fijos (orgName, contactEmail, eventTitle,
+  /// startsAt, endsAt) las ignoran: sin ellos no hay solicitud ni cobertura que generar.
+  /// `contactName` viene en `requestFormRequired` por omisión porque hoy ya es obligatorio: así
+  /// ninguna institución ve cambiar su formulario sin haber configurado nada.
+  requestFormHidden   String[] @default([])
+  requestFormRequired String[] @default(["contactName"])
+
   /// Versión del texto de consentimientos vigente. Se copia en cada consentimiento firmado.
   consentTextVersion  String   @default("v1")
   /// Días de vida del enlace de seguimiento.
