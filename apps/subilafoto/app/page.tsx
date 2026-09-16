@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Cabecera } from "./components/cabecera";
 import { FranjaFotos } from "./components/franja-fotos";
+import { PieLegal } from "./components/pie-legal";
 import { estiloBotonDnx } from "@/lib/boton-dnx";
 
 /** Lo que pasa la noche del evento, en orden. */
@@ -283,31 +284,7 @@ export default function Home() {
         </div>
       </section>
 
-      <footer
-        className="sobre-claro px-6 pb-16"
-        style={{ color: "var(--slf-tinta-suave)" }}
-      >
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-6 gap-y-3 text-sm">
-          <span>Subí la Foto es parte de DNX Suite.</span>
-          <Link href="/terminos" className="underline underline-offset-4">
-            Términos y condiciones
-          </Link>
-          <Link href="/privacidad" className="underline underline-offset-4">
-            Política de privacidad
-          </Link>
-          <Link href="/arrepentimiento" className="underline underline-offset-4">
-            Botón de arrepentimiento
-          </Link>
-          <a
-            href="https://autogestion.produccion.gob.ar/consumidores"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline underline-offset-4"
-          >
-            Libro de Quejas Online
-          </a>
-        </div>
-      </footer>
+      <PieLegal />
     </main>
   );
 }

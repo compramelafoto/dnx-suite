@@ -96,10 +96,27 @@ empujan hacia abajo lo demás sin agregar nada.
 |---|---|
 | Revisión legal de estos textos, de `/terminos` y de `/privacidad` | Abogado |
 | Que la solicitud avise por correo a quien la hizo y al titular | Espera a que estén los correos |
-| Datos de la empresa —razón social, CUIT, domicilio— en el pie | Titular |
 
-Ese último punto también lo pide la norma y no lo puedo completar yo: son los datos
-fiscales reales de la empresa.
+## Quién vende, en el pie de todas las páginas
+
+Cargado el 2026-09-16. Lo piden la Resolución 424/2020 y el artículo 4 de la Ley 24.240:
+el consumidor tiene que poder saber **con quién contrató** sin buscarlo.
+
+| | |
+|---|---|
+| Responsable | Daniel Andrés Cuart |
+| CUIT | 20-31973378-8 |
+| Domicilio | San José 1672, Local 5, Funes (CP 2132), Santa Fe |
+
+Dice **"Responsable"** y no "Razón social" porque el CUIT empieza con 20: es una persona
+física, no una sociedad.
+
+El dígito verificador se comprobó antes de escribirlo. Un CUIT mal tipeado en un pie legal
+es peor que no ponerlo: parece cumplimiento y no lo es.
+
+El pie vive en un solo componente —`PieLegal`— y lo usan la portada, las dos páginas
+legales y la del arrepentimiento. Repetirlo en cada pantalla garantizaba que alguna quedara
+con los datos viejos.
 
 ```sql
 SELECT receipt, email, reference, status, "createdAt"

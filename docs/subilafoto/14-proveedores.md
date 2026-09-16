@@ -141,10 +141,30 @@ En el álbum van **abajo de las fotos**, no arriba: el que lo abre viene a ver l
 Con el sitio enlazado y el Instagram al lado, que es lo que se les prometió cuando
 completaron la ficha.
 
+## Enlaces por rubro (2026-09-16)
+
+El capítulo 14.2 pide poder generar un enlace por categoría además del general. Mandarle
+al salón uno que ya diga "salón" le ahorra un paso y, sobre todo, **evita que el catering
+se anote como fotografía** por elegir mal en una lista de treinta.
+
+El rubro viaja en la **etiqueta del enlace**, no en una columna nueva: es un dato del
+enlace y `SubilafotoAccessLink` ya tenía dónde ponerlo.
+
+Tres detalles:
+
+- **Si el enlace trae rubro, el servidor usa ese y no lo que llega del formulario.** No es
+  comodidad: el formulario de un enlace por rubro no muestra el selector, así que confiar
+  en lo que llega dejaría entrar cualquier cosa escrita a mano.
+- **Uno por rubro y por evento.** Generar el mismo dos veces deja dos enlaces vivos y
+  después nadie sabe cuál repartió.
+- **Un rubro que se saque de la lista no rompe los enlaces ya repartidos**: se comportan
+  como el general y el proveedor elige.
+
+El general sigue existiendo y es el que conviene para un grupo de WhatsApp. El de rubro
+sirve cuando se le escribe a alguien en particular.
+
 ## Lo que falta
 
 - El panel de administración para revisar, corregir y **fusionar** duplicados. Hoy
   quedan anotados en `notes` de la empresa; leerlos es a mano.
-- Enlaces por categoría. El documento maestro los pide (14.2, punto 2); hoy hay uno
-  general y el proveedor elige su categoría en el formulario.
 - El logo del proveedor. `DnxPartnerAsset` existe y la ficha no lo pide todavía.
