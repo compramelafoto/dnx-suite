@@ -42,6 +42,8 @@ export async function mirarLaSalud(): Promise<Salud> {
     eventosSinCerrar,
     fotosUltimaHora,
     activos,
+    arrepentimientosVencidos,
+    arrepentimientosPendientes,
   ] = await Promise.all([
     prisma.subilafotoCronRun.findMany(),
     prisma.subilafotoMedia.count({
@@ -76,6 +78,10 @@ export async function mirarLaSalud(): Promise<Salud> {
         _count: { select: { media: true } },
       },
     }),
+    prisma.subilafotoRetractionRequest.count({
+      where: { status: "RECEIVED", createdAt: { lt: new Date(ahora.getTime() - 24 * 60 * 60_000) } },
+    }),
+    prisma.subilafotoRetractionRequest.count({ where: { status: "RECEIVED" } }),
   ]);
 
   const porNombre = new Map(corridas.map((c) => [c.nombre, c]));
@@ -109,6 +115,9 @@ export async function mirarLaSalud(): Promise<Salud> {
       correosFallados,
       pagosSinEvento,
       eventosSinCerrar,
+      arrepentimientosVencidos,
+      // Los vencidos ya se cuentan aparte: acá van los que todavía están en plazo.
+      arrepentimientosPendientes: arrepentimientosPendientes - arrepentimientosVencidos,
     }),
     ahora,
     fotosUltimaHora,
