@@ -82,6 +82,10 @@ export default async function SolicitarCoberturaPage({
             institutionName={nombre}
             intro={settings.publicFormIntro}
             consents={consentItems}
+            fields={{
+              hidden: settings.requestFormHidden,
+              required: settings.requestFormRequired,
+            }}
           />
         ) : (
           <section className="fo-card space-y-2 p-6">

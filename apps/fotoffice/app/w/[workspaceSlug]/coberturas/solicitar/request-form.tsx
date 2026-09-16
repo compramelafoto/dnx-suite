@@ -3,6 +3,10 @@
 import { useActionState } from "react";
 import type { ConsentKind } from "@/lib/coverages/consents";
 import {
+  visibleRequestSections,
+  type RequestFormFieldConfig,
+} from "@/lib/coverages/request-fields";
+import {
   submitCoverageRequestAction,
   type CoverageRequestFormState,
 } from "@/app/actions/coverage-request";
@@ -38,14 +42,21 @@ export function CoverageRequestForm({
   institutionName,
   intro,
   consents,
+  fields,
 }: {
   workspaceSlug: string;
   institutionName: string;
   intro: string | null;
   consents: ConsentItem[];
+  fields: RequestFormFieldConfig;
 }) {
   const accion = submitCoverageRequestAction.bind(null, workspaceSlug);
   const [state, formAction, pending] = useActionState(accion, inicial);
+  // `lib/coverages/request-fields` sí se puede importar acá —es un módulo puro, sin `node:crypto`
+  // ni Prisma— así que la pantalla resuelve qué dibujar con la misma regla que usa la acción
+  // para validar. Si las dos leyeran listas distintas, el formulario pediría una cosa y el
+  // servidor exigiría otra.
+  const secciones = visibleRequestSections(fields);
 
   if (state.ok) {
     return (
@@ -68,40 +79,21 @@ export function CoverageRequestForm({
         <p className="text-sm leading-relaxed text-[var(--fo-muted)]">{intro}</p>
       ) : null}
 
-      <fieldset className="fo-card space-y-4 p-5">
-        <legend className="px-1 text-sm font-semibold">Quiénes son</legend>
-        <Campo name="orgName" label="Nombre de la organización" required />
-        <Campo name="orgKind" label="Qué tipo de organización es" />
-        <Campo name="orgTaxId" label="CUIT, si tienen" />
-        <Campo name="orgWebsite" label="Sitio o redes" />
-        <Campo name="contactName" label="Con quién hablamos" required />
-        <Campo name="contactRole" label="Qué rol tiene" />
-        <Campo name="contactEmail" label="Correo" type="email" required />
-        <Campo name="contactPhone" label="Teléfono o WhatsApp" />
-      </fieldset>
-
-      <fieldset className="fo-card space-y-4 p-5">
-        <legend className="px-1 text-sm font-semibold">Qué actividad es</legend>
-        <Campo name="eventTitle" label="Cómo se llama" required />
-        <Campo name="eventDescription" label="Contanos de qué se trata" textarea />
-        <Campo name="startsAt" label="Cuándo empieza" type="datetime-local" required />
-        <Campo name="endsAt" label="Cuándo termina" type="datetime-local" required />
-        <Campo name="addressLine" label="Dirección" />
-        <Campo name="city" label="Localidad" />
-        <Campo name="expectedAttendees" label="Cuánta gente esperan" type="number" />
-        <Campo name="onSiteContactName" label="Quién va a estar ese día" />
-        <Campo name="onSitePhone" label="Su teléfono" />
-      </fieldset>
-
-      <fieldset className="fo-card space-y-4 p-5">
-        <legend className="px-1 text-sm font-semibold">Qué necesitan</legend>
-        <Campo name="purpose" label="Para qué van a usar las fotos" textarea />
-        <Campo name="keyMoments" label="Qué momentos no se pueden perder" textarea />
-        <Campo name="requestedPhotographers" label="Cuántos fotógrafos creen que hacen falta" type="number" />
-        <Campo name="expectedDeliveryAt" label="Para cuándo las necesitan" type="date" />
-        <Campo name="documentationLinks" label="Enlaces que nos ayuden a conocerlos" textarea />
-        <Campo name="notes" label="Algo más que quieran contarnos" textarea />
-      </fieldset>
+      {secciones.map((seccion) => (
+        <fieldset key={seccion.key} className="fo-card space-y-4 p-5">
+          <legend className="px-1 text-sm font-semibold">{seccion.legend}</legend>
+          {seccion.fields.map((campo) => (
+            <Campo
+              key={campo.key}
+              name={campo.key}
+              label={campo.label}
+              type={campo.input}
+              required={campo.state === "OBLIGATORIO"}
+              textarea={campo.input === "textarea"}
+            />
+          ))}
+        </fieldset>
+      ))}
 
       <fieldset className="fo-card space-y-4 p-5">
         <legend className="px-1 text-sm font-semibold">Permisos</legend>

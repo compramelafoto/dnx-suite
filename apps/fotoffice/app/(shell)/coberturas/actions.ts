@@ -18,6 +18,7 @@ import {
 import { recordEvent } from "@/lib/coverages/events";
 import { planGenerarCobertura } from "@/lib/coverages/generar-cobertura";
 import { loadRequest, loadSettings } from "@/lib/coverages/repository";
+import { parseRequestFieldStates } from "@/lib/coverages/request-fields";
 import { acotarEntero, normalizarAssignmentMode } from "@/lib/coverages/settings";
 import { planStatusChange } from "@/lib/coverages/status-change-plan";
 import {
@@ -359,6 +360,13 @@ export async function saveCoverageSettingsAction(
       .map((s) => s.trim())
       .filter(Boolean);
 
+  // Los estados de los 23 campos del formulario público llegan como un control por campo
+  // (`campo_<clave>`). `parseRequestFieldStates` los convierte en las dos listas y descarta
+  // solo los cinco campos fijos, que no se configuran.
+  const crudo: Record<string, string> = {};
+  for (const [k, v] of formData.entries()) if (typeof v === "string") crudo[k] = v;
+  const campos = parseRequestFieldStates(crudo);
+
   const datos = {
     moduleLabel: texto("moduleLabel"),
     termRequest: texto("termRequest"),
@@ -373,6 +381,8 @@ export async function saveCoverageSettingsAction(
     recommendedCollaborators: entero("recommendedCollaborators", 1, 20, 2),
     publicFormEnabled: formData.get("publicFormEnabled") === "on",
     publicFormIntro: texto("publicFormIntro"),
+    requestFormHidden: campos.hidden,
+    requestFormRequired: campos.required,
     notifyEmails: lista("notifyEmails"),
     zones: lista("zones"),
     specialties: lista("specialties"),
