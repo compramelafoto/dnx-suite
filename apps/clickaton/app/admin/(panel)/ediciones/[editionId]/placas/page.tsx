@@ -104,6 +104,11 @@ export default async function EditionCardTemplatesPage({ params, searchParams }:
 
   const { assignments, templates, health } = loaded.data;
 
+  // Cuántas hay listas para bajar. Sin este número, el botón parece roto cuando no hay ninguna.
+  const generadas = await prisma.clickatonParticipantCard.count({
+    where: { editionId, status: "READY", assetId: { not: null } },
+  });
+
   return (
     <div className="min-w-0 space-y-10">
       <AdminPageHeader
@@ -111,6 +116,28 @@ export default async function EditionCardTemplatesPage({ params, searchParams }:
         description="Elegí qué plantilla usa cada placa de esta edición. Sin plantilla elegida se usa el diseño oficial de Clickatón."
         breadcrumbs={breadcrumbs}
       />
+
+      <Card variant="outlined" className="space-y-3 p-5">
+        <div className="space-y-1">
+          <h2 className="font-semibold text-ck-text">Descargar todas</h2>
+          <p className="text-sm text-ck-text-secondary">
+            {generadas === 0
+              ? "Todavía no hay placas generadas en esta edición."
+              : `Hay ${generadas} placa${generadas === 1 ? "" : "s"} lista${
+                  generadas === 1 ? "" : "s"
+                } para descargar en un solo archivo.`}
+          </p>
+        </div>
+        {generadas > 0 ? (
+          <Button
+            href={`/api/admin/ediciones/${editionId}/placas/descargar`}
+            variant="primary"
+            className="min-h-11 w-full sm:w-auto"
+          >
+            Descargar las {generadas} placas
+          </Button>
+        ) : null}
+      </Card>
 
       {flash.error ? (
         <Card variant="outlined" className="border-red-500/40 p-4 text-sm text-red-200">
