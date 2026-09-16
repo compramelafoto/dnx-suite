@@ -20,6 +20,10 @@ export type Conteos = {
   pagosSinEvento: number;
   /** Eventos cuya ventana venció y siguen abiertos. */
   eventosSinCerrar: number;
+  /** Solicitudes de arrepentimiento sin resolver pasadas las 24 horas de la norma. */
+  arrepentimientosVencidos: number;
+  /** Sin resolver, todavía en plazo. */
+  arrepentimientosPendientes: number;
 };
 
 export type Gravedad = "grave" | "aviso";
@@ -48,6 +52,27 @@ export function alertasDeLosDatos(c: Conteos): Alerta[] {
       titulo: `${c.pagosSinEvento} ${c.pagosSinEvento === 1 ? "pago acreditado" : "pagos acreditados"} sin evento creado`,
       queHacer:
         "La plata entró y el evento no se creó. Buscá el motivo en los registros con «no se pudo crear el evento» y creá el evento a mano desde el panel.",
+    });
+  }
+
+  /*
+    Segundo, la obligación legal. La Resolución 424/2020 da 24 horas para contestar una
+    solicitud de arrepentimiento: pasado ese plazo no es una demora, es un incumplimiento.
+  */
+  if (c.arrepentimientosVencidos > 0) {
+    alertas.push({
+      clave: "arrepentimientos-vencidos",
+      gravedad: "grave",
+      titulo: `${c.arrepentimientosVencidos} ${c.arrepentimientosVencidos === 1 ? "solicitud de arrepentimiento pasó" : "solicitudes de arrepentimiento pasaron"} las 24 horas`,
+      queHacer:
+        "La norma da 24 horas para contestar. Resolvelas en /panel/arrepentimientos: la pantalla te muestra las compras que podrían ser.",
+    });
+  } else if (c.arrepentimientosPendientes > 0) {
+    alertas.push({
+      clave: "arrepentimientos-pendientes",
+      gravedad: "aviso",
+      titulo: `${c.arrepentimientosPendientes} ${c.arrepentimientosPendientes === 1 ? "solicitud de arrepentimiento sin resolver" : "solicitudes de arrepentimiento sin resolver"}`,
+      queHacer: "Todavía en plazo. Se resuelven en /panel/arrepentimientos.",
     });
   }
 

@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
+import { urlDelLogo } from "@/lib/logo-url";
 import { CATEGORIAS } from "@/lib/proveedores/categorias";
 import { FormularioProveedor } from "./formulario";
 
@@ -37,13 +38,14 @@ export default async function FichaDeProveedor({ params }: Props) {
 
   const vencido = enlace.expiresAt ? enlace.expiresAt <= new Date() : false;
   const vendedor = enlace.event.sellerProfile;
+  const logo = await urlDelLogo(vendedor.logoUrl);
 
   return (
     <main className="sobre-claro mx-auto max-w-xl px-6 py-14">
       {/* La marca es la del vendedor, no la nuestra: el proveedor lo conoce a él. */}
-      {vendedor.logoUrl ? (
+      {logo ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={vendedor.logoUrl} alt={vendedor.displayName} className="h-12 w-auto" />
+        <img src={logo} alt={vendedor.displayName} className="h-12 w-auto" />
       ) : (
         <p className="text-sm font-extrabold" style={{ color: "var(--slf-violeta)" }}>
           {vendedor.displayName}

@@ -1,14 +1,17 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { requireCoveragesReviewer } from "@/lib/coverages/access";
 import { listEvents } from "@/lib/coverages/events";
+import { datetimeLocalValue, sugerirCobertura, sugerirRoles } from "@/lib/coverages/generar-cobertura";
 import { fechaHoraArgentina } from "@/lib/coverages/format";
 import { recomendarRefuerzo } from "@/lib/coverages/reinforcement";
 import { loadRequest, loadSettings } from "@/lib/coverages/repository";
-import { coverageEventLabel, requestStatusLabel } from "@/lib/coverages/states";
+import { coverageEventLabel, coverageStatusLabel, requestStatusLabel } from "@/lib/coverages/states";
 import { canCoordinateCoverages } from "@/lib/coverages/access-policy";
 import { CONSENT_LABELS, type ConsentKind } from "@/lib/coverages/consents";
 import { EvaluacionPanel } from "./evaluacion-panel";
+import { GenerarCoberturaPanel } from "./generar-cobertura-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -99,6 +102,49 @@ export default async function FichaSolicitudPage({
         puedeCoordinar={canCoordinateCoverages(role)}
         infoRequested={solicitud.infoRequested}
       />
+
+      <section className="fo-card space-y-3 p-5">
+        <h2 className="text-base font-semibold">Coberturas</h2>
+        {solicitud.coverages.length === 0 ? (
+          <p className="text-sm text-[var(--fo-muted)]">
+            Todavía no se generó ninguna cobertura para este pedido.
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {solicitud.coverages.map((c) => (
+              <li key={c.id}>
+                <Link href={`/coberturas/c/${c.id}`} className="fo-card block space-y-1 p-3">
+                  <p className="font-medium">{c.title}</p>
+                  <p className="text-sm text-[var(--fo-muted)]">
+                    {fechaHoraArgentina(c.startsAt)} a {fechaHoraArgentina(c.endsAt)}
+                    {" · "}
+                    {coverageStatusLabel(c.status)}
+                  </p>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/*
+        Se genera desde APROBADA y la solicitud no cambia de estado al hacerlo (ver
+        `planGenerarCobertura`): por eso el bloque sigue disponible aunque ya haya coberturas —
+        una jornada de dos turnos son dos coberturas de la misma solicitud.
+      */}
+      {solicitud.status === "APROBADA" && canCoordinateCoverages(role) ? (
+        <GenerarCoberturaPanel
+          requestId={solicitud.id}
+          sugerido={{
+            title: sugerirCobertura(solicitud).title,
+            startsAt: datetimeLocalValue(solicitud.startsAt),
+            endsAt: datetimeLocalValue(solicitud.endsAt),
+            addressLine: solicitud.addressLine ?? "",
+            city: solicitud.city ?? "",
+          }}
+          rolesSugeridos={sugerirRoles(solicitud, settings)}
+        />
+      ) : null}
 
       <section className="fo-card space-y-3 p-5">
         <h2 className="text-base font-semibold">Historial</h2>

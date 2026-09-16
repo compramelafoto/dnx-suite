@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
 import { appUrl } from "@/lib/app-url";
 import { COVERAGE_EMAIL_KEYS } from "@/lib/communications/constants";
@@ -15,7 +16,8 @@ import {
   contactGreetingName,
 } from "@/lib/coverages/emails";
 import { recordEvent } from "@/lib/coverages/events";
-import { loadSettings } from "@/lib/coverages/repository";
+import { planGenerarCobertura } from "@/lib/coverages/generar-cobertura";
+import { loadRequest, loadSettings } from "@/lib/coverages/repository";
 import { acotarEntero, normalizarAssignmentMode } from "@/lib/coverages/settings";
 import { planStatusChange } from "@/lib/coverages/status-change-plan";
 import {
@@ -143,6 +145,7 @@ export async function changeRequestStatusAction(
       };
     }
 
+    // aislamiento: por `solicitud`, leída arriba con `workspaceId` en su where.
     await tx.coverageRequest.update({
       where: { id: solicitud.id },
       data: {
@@ -251,6 +254,7 @@ export async function requestInfoAction(
         tokenExpiresAt: trackingExpiryFrom(settings.trackingLinkTtlDays),
       };
     }
+    // aislamiento: por `solicitud`, leída arriba con `workspaceId` en su where.
     await tx.coverageRequest.update({
       where: { id: solicitud.id },
       data: {
@@ -384,4 +388,84 @@ export async function saveCoverageSettingsAction(
   revalidatePath("/coberturas/configuracion");
   revalidatePath("/coberturas");
   return { error: null, ok: "Guardado." };
+}
+
+export type GenerarCoberturaState = { error: string | null; ok: string | null };
+
+/**
+ * De una solicitud aprobada, generar una cobertura con sus roles.
+ *
+ * `requireCoveragesCoordinator()` de nuevo acá: el botón para generar una cobertura ya está
+ * escondido en la pantalla para quien solo revisa (ver el cuidado del plan sobre esconder
+ * botones), pero eso no reemplaza el control del servidor.
+ *
+ * Los roles llegan como dos listas paralelas (`roleName[]`, `roleVacancies[]`) en vez de un
+ * único campo por fila: el formulario permite agregar y quitar filas del lado del cliente, y
+ * `FormData.getAll` devuelve cada clave en el orden en que aparece en el documento, así que
+ * emparejar por índice alcanza sin inventar una convención de nombres por fila.
+ */
+export async function crearCoberturaAction(
+  _prev: GenerarCoberturaState | undefined,
+  formData: FormData,
+): Promise<GenerarCoberturaState> {
+  const { user, workspace } = await requireCoveragesCoordinator();
+
+  const requestId = formData.get("requestId")?.toString() ?? "";
+  const title = formData.get("title")?.toString()?.trim();
+  if (!title) return { error: "Ponele un título a la cobertura.", ok: null };
+
+  const startsAt = new Date(formData.get("startsAt")?.toString() ?? "");
+  const endsAt = new Date(formData.get("endsAt")?.toString() ?? "");
+  if (Number.isNaN(startsAt.getTime())) return { error: "Falta cuándo empieza.", ok: null };
+  if (Number.isNaN(endsAt.getTime())) return { error: "Falta cuándo termina.", ok: null };
+  if (endsAt.getTime() <= startsAt.getTime()) {
+    return { error: "Termina antes de empezar. Revisá los horarios.", ok: null };
+  }
+
+  const addressLine = formData.get("addressLine")?.toString()?.trim() || null;
+  const city = formData.get("city")?.toString()?.trim() || null;
+  const instructions = formData.get("instructions")?.toString()?.trim() || null;
+
+  const roleNames = formData.getAll("roleName").map((v) => v.toString());
+  const roleVacancies = formData.getAll("roleVacancies").map((v) => v.toString());
+  const roles = roleNames
+    .map((name, i) => ({ name: name.trim(), vacancies: Math.trunc(Number(roleVacancies[i])) }))
+    .filter((r) => r.name.length > 0);
+
+  const solicitud = await loadRequest({ workspaceId: workspace.id, id: requestId });
+
+  const plan = planGenerarCobertura({ solicitud, workspaceId: workspace.id, roles });
+  if (!plan.ok) return { error: plan.error, ok: null };
+  if (!solicitud) return { error: "No encontramos esa solicitud.", ok: null };
+
+  const cobertura = await prisma.$transaction(async (tx) => {
+    const creada = await tx.coverage.create({
+      data: {
+        workspaceId: workspace.id,
+        requestId: solicitud.id,
+        title,
+        startsAt,
+        endsAt,
+        addressLine,
+        city,
+        instructions,
+        status: "PLANIFICADA",
+        roles: { create: roles.map((r) => ({ name: r.name, vacancies: r.vacancies })) },
+      },
+      select: { id: true },
+    });
+    await recordEvent(tx, {
+      workspaceId: workspace.id,
+      entityType: "COVERAGE",
+      entityId: creada.id,
+      type: "CREADA",
+      toStatus: "PLANIFICADA",
+      actorUserId: user.id,
+      actorLabel: user.name ?? user.email,
+    });
+    return creada;
+  });
+
+  revalidatePath(`/coberturas/${solicitud.id}`);
+  redirect(`/coberturas/c/${cobertura.id}`);
 }

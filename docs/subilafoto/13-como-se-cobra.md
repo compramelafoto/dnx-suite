@@ -357,13 +357,30 @@ hace que la decisión sea fácil: con descarga o sin descarga **cobra lo mismo**
 
 Descubrir la comisión con la primera venta es la peor forma de enterarse.
 
-### El logo, por ahora, es una dirección
+### El logo se sube, y también se puede pegar
 
-Se pega una URL `https`. No `http` —rompe el candado en la única pantalla donde el cliente
-está por pagar— y no `javascript:`, que ahí adentro es un agujero.
+El archivo va **derecho al bucket** con una dirección firmada, el mismo camino que las
+fotos de los invitados. Lo que viaja al formulario es la clave, en un campo oculto: subir
+un logo y no guardar la ficha no cambia nada.
 
-Falta la subida de archivo. La maquinaria de subir a R2 ya existe para las fotos de los
-invitados; es reusarla.
+El campo guarda **dos cosas distintas**: una clave de nuestro bucket si lo subió, o una
+dirección `https` si la pegó. `urlDelLogo` distingue y sólo firma las claves. La
+comprobación de que algo es una clave nuestra es estricta a propósito —al principio de la
+cadena, sin barras dobles—: sin eso, guardar `https://x.com/logos/y.png` nos haría firmar
+una clave que no existe.
+
+Vive **fuera de `eventos/`**, porque no es de ningún evento: es del vendedor y no lo
+alcanza el borrado a los 30 días.
+
+Dos megas y sólo PNG, JPG, WEBP o SVG. **HEIC no**, aunque sí se acepte en las fotos de los
+invitados: esas las convertimos al moderar, y un logo se sirve como llegó. Un HEIC no lo
+muestra ningún navegador.
+
+El SVG se acepta porque muchos logos lo son, y se muestra siempre dentro de un `<img>`,
+donde no ejecuta nada. Además se sirve desde el dominio del bucket y no del nuestro.
+
+La vista previa se arma con el archivo local en cuanto se elige, sin esperar a que termine
+de subir.
 
 ## El panel era una pantalla que decía hola
 

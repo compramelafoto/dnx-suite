@@ -46,13 +46,56 @@ dos casos.
 Se deriva del identificador de la solicitud, no es al azar: **un reintento da el mismo
 número** en vez de generar una constancia nueva para el mismo pedido.
 
+## Resolverlas: `/panel/arrepentimientos`
+
+Sólo para usuarios administradores: son solicitudes de toda la plataforma, no de un
+vendedor.
+
+### Ordenadas por lo que falta para vencer, no por fecha
+
+La norma da **24 horas para contestar**. Lo que importa no es cuál llegó primero sino cuál
+se está por vencer, así que la lista se ordena por eso y cada una dice "Quedan 8 horas" o
+"Vencida hace 3 horas" en vez de una fecha.
+
+Las horas se redondean **hacia abajo**: decir "quedan 3" cuando quedan 3 y monedas es
+preferible a que alguien crea que tiene una hora más de la que tiene.
+
+### Busca la compra sola
+
+Ese era el único trabajo real de resolver una solicitud, y se hacía abriendo la base. Quien
+escribe no tiene el identificador de la orden: tiene su correo y, con suerte, el código del
+evento anotado en algún lado.
+
+La pantalla busca por correo, por código de evento y por número de orden, y muestra las
+candidatas **diciendo por qué apareció cada una**. Sin eso, una coincidencia por código con
+otro correo parece un error del buscador en vez de un dato para mirar con atención.
+
+Son candidatas, no una respuesta: dos personas comparten un correo y los códigos se
+escriben mal.
+
+### Hay que escribir qué se hizo
+
+No alcanza con apretar un botón. Dentro de seis meses lo que hace falta saber es **qué se
+resolvió**, no que alguien lo marcó. Queda registrado con el correo de quien lo hizo.
+
+Y la condición `status: RECEIVED` va en el `where` del `updateMany`: si dos personas la
+resuelven a la vez, la segunda cambia cero filas en vez de pisar lo que escribió la
+primera. Lo que se pisaría es el registro de una obligación legal.
+
+### El panel de salud avisa
+
+Una solicitud sin resolver aparece como aviso; pasadas las 24 horas, como **grave**.
+Pasado ese plazo no es una demora, es un incumplimiento.
+
+Con vencidas, no se avisa además de las que están en plazo: dos alertas del mismo tema
+empujan hacia abajo lo demás sin agregar nada.
+
 ## Lo que falta
 
 | Falta | Quién |
 |---|---|
 | Revisión legal de estos textos, de `/terminos` y de `/privacidad` | Abogado |
 | Que la solicitud avise por correo a quien la hizo y al titular | Espera a que estén los correos |
-| Pantalla para resolver las solicitudes | Hoy se miran en la base |
 | Datos de la empresa —razón social, CUIT, domicilio— en el pie | Titular |
 
 Ese último punto también lo pide la norma y no lo puedo completar yo: son los datos

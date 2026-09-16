@@ -266,6 +266,14 @@ const COBERTURAS: SubmoduleItem[] = [
     activeMatch: "rest",
   },
   {
+    href: "/coberturas/colaboradores",
+    label: "Colaboradores",
+    icon: "UserCheck",
+    description: "Quiénes del padrón están habilitados para anotarse a una convocatoria.",
+    requiresManage: true,
+    activeMatch: "under",
+  },
+  {
     href: "/coberturas/configuracion",
     label: "Configuración",
     icon: "Settings",

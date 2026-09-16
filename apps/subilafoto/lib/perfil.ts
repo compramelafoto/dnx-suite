@@ -1,3 +1,5 @@
+import { esClaveDeLogo } from "./logo";
+
 /**
  * La ficha de venta del fotógrafo.
  *
@@ -111,7 +113,10 @@ export function revisarPerfil(entrada: EntradaDePerfil): Revision {
     en la única pantalla donde el cliente está por pagar.
   */
   const logoUrl = entrada.logoUrl.trim();
-  if (logoUrl && !/^https:\/\/[^\s]+$/i.test(logoUrl)) {
+  // Dos formas válidas: una clave de nuestro bucket —si lo subió— o una dirección `https`
+  // —si la pegó—. Cualquier otra cosa se rechaza.
+  const logoValido = !logoUrl || esClaveDeLogo(logoUrl) || /^https:\/\/[^\s]+$/i.test(logoUrl);
+  if (!logoValido) {
     return { ok: false, error: "El logo tiene que ser una dirección que empiece con https." };
   }
 

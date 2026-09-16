@@ -48,6 +48,8 @@ export async function submitCoverageRequestAction(
   _prev: CoverageRequestFormState | undefined,
   formData: FormData,
 ): Promise<CoverageRequestFormState> {
+  // aislamiento: es la consulta que RESUELVE de qué workspace hablamos, a partir del slug
+  // público de la URL. No puede filtrar por un workspace que todavía no se conoce.
   const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
     where: { publicSlug: workspaceSlug },
     select: { workspaceId: true, contactEmail: true },
