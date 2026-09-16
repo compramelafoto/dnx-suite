@@ -5,6 +5,7 @@ import { requireOwnWorkspace } from "@/lib/entrada/require-own-workspace";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { resolveEnabledNavModules } from "@/lib/modules/nav";
 import { submodulesFor } from "@/lib/modules/submodules";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { canManageMembers } from "@/lib/members/role-policy";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
@@ -13,14 +14,15 @@ export default async function WorkspaceHomePage() {
   const user = await requireAuth();
   const ensured = await requireOwnWorkspace(user);
 
-  const [branding, profile, enabledModuleKeys] = await Promise.all([
+  const [branding, profile, enabledModuleKeys, vocabulary] = await Promise.all([
     prisma.fotofficeWorkspaceBranding.findUnique({
       where: { workspaceId: ensured.workspaceId },
     }),
     prisma.fotofficePhotographerProfile.findUnique({ where: { userId: user.id } }),
     getEnabledModuleKeysForWorkspace(ensured.workspaceId),
+    loadPersonVocabulary(ensured.workspaceId),
   ]);
-  const modules = resolveEnabledNavModules(enabledModuleKeys);
+  const modules = resolveEnabledNavModules(enabledModuleKeys, vocabulary);
 
   // Las tarjetas listan las pantallas de cada módulo. Sin esto, desde el inicio no había forma
   // de enterarse de que existían: la tarjeta decía "Socios" y nada más.
@@ -81,10 +83,11 @@ export default async function WorkspaceHomePage() {
           <div className="grid sm:grid-cols-2 gap-4">
             {modules.map((m) => {
               // El permiso es por módulo: el de Socios no habilita nada en otro.
-              const pantallas = submodulesFor(m.key, {
-                canManage:
-                  m.key === MEMBERS_MODULE_KEY ? puedeAdministrarSocios : true,
-              });
+              const pantallas = submodulesFor(
+                m.key,
+                { canManage: m.key === MEMBERS_MODULE_KEY ? puedeAdministrarSocios : true },
+                vocabulary,
+              );
               return (
                 <div
                   key={m.key}

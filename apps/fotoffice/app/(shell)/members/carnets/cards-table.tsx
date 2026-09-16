@@ -8,6 +8,7 @@ import {
 } from "@/app/actions/card-fulfillment";
 import { commonTransitions, transitionActionLabel } from "@/lib/carnet/board-actions";
 import { stateLabel, type FulfillmentCapability, type FulfillmentState } from "@/lib/carnet/fulfillment";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
 /**
  * El tablero de carnets.
@@ -95,9 +96,11 @@ function Avatar({ url, nombre }: { url: string | null; nombre: string }) {
 export function CardsTable({
   rows,
   capabilities,
+  vocabulary,
 }: {
   rows: CardRowView[];
   capabilities: FulfillmentCapability[];
+  vocabulary: PersonVocabulary;
 }) {
   const [seleccion, setSeleccion] = useState<Set<string>>(new Set());
   const [abierta, setAbierta] = useState<string | null>(null);
@@ -267,7 +270,7 @@ export function CardsTable({
                   className="size-4 accent-[var(--fo-accent)]"
                 />
               </th>
-              <th className="py-2.5 pr-3 font-medium">Socio</th>
+              <th className="py-2.5 pr-3 font-medium">{vocabulary.Singular}</th>
               <th className="hidden py-2.5 pr-3 font-medium md:table-cell">Carnet</th>
               <th className="py-2.5 pr-3 font-medium">Estado</th>
               <th className="hidden py-2.5 pr-3 font-medium lg:table-cell">Último movimiento</th>
@@ -287,6 +290,7 @@ export function CardsTable({
                   abierta={abiertaEsta}
                   principal={principal}
                   pendiente={pendiente}
+                  vocabulary={vocabulary}
                   onToggle={() => alternar(row.id)}
                   onExpand={() => setAbierta(abiertaEsta ? null : row.id)}
                   onRun={correrUno}
@@ -306,6 +310,7 @@ function RowGroup({
   abierta,
   principal,
   pendiente,
+  vocabulary,
   onToggle,
   onExpand,
   onRun,
@@ -315,6 +320,7 @@ function RowGroup({
   abierta: boolean;
   principal: FulfillmentState | null;
   pendiente: boolean;
+  vocabulary: PersonVocabulary;
   onToggle: () => void;
   onExpand: () => void;
   onRun: (cardId: string, destino: FulfillmentState, nota: string) => void;
@@ -380,7 +386,7 @@ function RowGroup({
           {row.noticeError ? (
             <span
               className="ml-1.5 text-xs text-[var(--fo-danger)]"
-              title="El paso se dio igual; lo que no salió fue el aviso al socio."
+              title={`El paso se dio igual; lo que no salió fue el aviso al ${vocabulary.singular}.`}
             >
               aviso sin enviar
             </span>

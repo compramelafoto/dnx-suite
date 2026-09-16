@@ -12,6 +12,7 @@ import { formatMinorArs } from "@/lib/membership/money";
 import { recommendationBenefitPhrase } from "@/lib/membership/recommendation-labels";
 import { describeSeniority } from "@/lib/portal/identity";
 import { pendingPrintedCard } from "@/lib/carnet/pending-print";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { resolvePortalMenu } from "@/lib/portal/menu";
 import { PortalSections } from "@/components/portal/portal-sections";
@@ -46,6 +47,7 @@ export default async function PortalPage() {
   const institution = branding?.commercialName?.trim() || context.workspace.name;
   const cuenta = await loadMemberBalance(context.member.id);
   const antiguedad = describeSeniority(context.member.joinedAt, new Date());
+  const v = await loadPersonVocabulary(context.workspace.id);
 
   // Un pendiente que el socio no ve es un pendiente que no existe: la subida de la foto vive
   // en la pantalla del carnet y nadie llegaba sola hasta ahí.
@@ -107,7 +109,7 @@ export default async function PortalPage() {
             <div className="rounded-lg border border-[var(--fo-border)] px-4 py-3">
               <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                 <p className="text-sm font-medium">
-                  Socio N° <span className="tabular-nums">{context.member.memberNumber}</span>
+                  {v.Singular} N° <span className="tabular-nums">{context.member.memberNumber}</span>
                 </p>
                 {context.member.categoryName ? (
                   <p className="text-xs text-[var(--fo-muted)]">{context.member.categoryName}</p>
@@ -134,12 +136,14 @@ export default async function PortalPage() {
             }
           >
             <p className="text-sm font-medium">
-              {impresa.pedida && impresa.faltaFoto ? "Te falta subir tu foto" : "Tu carnet de socio"}
+              {impresa.pedida && impresa.faltaFoto
+                ? "Te falta subir tu foto"
+                : `Tu carnet de ${v.singular}`}
             </p>
             <p className="text-xs text-[var(--fo-muted)]">
               {impresa.pedida && impresa.faltaFoto
                 ? "Ya pagaste tu credencial impresa. Sin tu foto no la podemos emitir."
-                : "Mostralo para que verifiquen tu condición de socio."}
+                : `Mostralo para que verifiquen tu condición de ${v.singular}.`}
             </p>
           </Link>
 
@@ -221,7 +225,7 @@ export default async function PortalPage() {
 
         {/* Todo lo que el portal ofrece, incluido lo que todavía se está construyendo. */}
         <div className="mt-6">
-          <PortalSections items={secciones} />
+          <PortalSections items={secciones} vocabulary={v} />
         </div>
 
         {perfilVacio ? (
@@ -251,8 +255,7 @@ export default async function PortalPage() {
               action={createOwnBusinessAction}
               className="text-xs leading-relaxed text-[var(--fo-muted)]"
             >
-              ¿Tenés tu propio estudio? Podés usar FotoOffice para administrar tu negocio
-              fotográfico, aparte de tu ficha de socio.{" "}
+              {`¿Tenés tu propio estudio? Podés usar FotoOffice para administrar tu negocio fotográfico, aparte de tu ficha de ${v.singular}.`}{" "}
               <button
                 type="submit"
                 className="underline underline-offset-2 hover:text-[var(--fo-text)]"

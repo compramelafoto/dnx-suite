@@ -12,6 +12,7 @@ import { buildWeekGrid } from "@/lib/bookings/week-grid";
 import { listSpaces, getBookingSettings } from "@/lib/bookings/repository";
 import { loadPortalOffer } from "@/lib/bookings/portal";
 import { canCancelByCustomer } from "@/lib/bookings/lifecycle";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { ReservarForm } from "./reservar-form";
 import { cancelPortalBookingAction } from "./actions";
 
@@ -45,6 +46,7 @@ export default async function PortalReservasPage({
   }
 
   const params = await searchParams;
+  const v = await loadPersonVocabulary(context.workspace.id);
   const espacios = await listSpaces(context.workspace.id);
   const elegido = params.espacio
     ? (espacios.find((e) => e.id === params.espacio) ?? espacios[0] ?? null)
@@ -182,6 +184,7 @@ export default async function PortalReservasPage({
               spaceId={elegido.id}
               spaceName={elegido.name}
               description={elegido.description}
+              vocabulary={v}
               memberHourlyPriceMinor={elegido.memberHourlyPriceMinor}
               freeHours={oferta.freeHours}
               grid={grid}

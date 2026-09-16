@@ -16,3 +16,8 @@ Tanda 7 (Tarea 10): complete — e22d61ad, 455bd052. 2834 pasan; lib/coverages 3
 Bug real encontrado y arreglado: una invitación directa publicaba sola la convocatoria en BORRADOR (sin publishedAt, sin puedePublicarse, sin correo).
 Pendiente para la tanda de arreglos finales: (a) el catch de las dos acciones de armar equipo traduce cualquier error a "ya está en el equipo" — distinguir P2002; (b) listActiveCollaboratorEmails no mira el estado del socio en el padrón: alguien de baja sigue recibiendo avisos.
 Ruling: el cron de vencimiento y las pantallas de cierre (VENCIDA, REALIZADA, ENTREGADA, CERRADA, CANCELADA) son 1c, no 1b. El plazo funciona igual porque puedePostularse mira la fecha.
+
+Tanda 8 (arreglos de la revisión final): complete — b3cbfde4, cf2db3fd, 19360f8d, bc3a4905, 3e4b8667.
+Duda 1 del implementador resuelta por mí en f0c45364: participaDeCoberturas (perfil encendido Y socio vigente), aplicada al desplegable y al guarda de la invitación directa. El portal ya lo tenía resuelto aguas arriba.
+Dudas 2 y 3 aceptadas como están: el tope de 200 destinatarios y el reconocimiento por asunto+fecha en SentEmailLog necesitan cron repartido y una columna nueva — las dos son 1c.
+Etapa 1b terminada: 2855 tests pasan, la única falla es la ajena de template-v2. Rama subida, sin PR.

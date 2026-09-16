@@ -8,6 +8,8 @@ import { parseRaffleForm } from "@/lib/raffles/raffle-form";
 import { parsePrizeForm } from "@/lib/raffles/prize-form";
 import { announceRaffle } from "@/lib/raffles/announce";
 import { sealRaffle } from "@/lib/raffles/seal";
+import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { resolveRaffle } from "@/lib/raffles/resolve";
 import { recordRaffleEvent } from "@/lib/raffles/events";
 import { canCancel, canEditPrizes } from "@/lib/raffles/lifecycle";
@@ -173,7 +175,12 @@ export async function sealRaffleAction(formData: FormData): Promise<void> {
     actorUserId: user.id,
     actorLabel: etiquetaActor(user),
   });
-  if (!r.ok) conError(detalle(raffleId), r.error);
+  if (!r.ok) {
+    // El motivo viene de una función pura del ciclo de vida: sale con los marcadores sin
+    // resolver y acá sí se sabe en qué institución estamos.
+    const vocabulary = await loadPersonVocabulary(workspace.id);
+    conError(detalle(raffleId), aplicarVocabulario(r.error, vocabulary));
+  }
 
   revalidatePath(detalle(raffleId));
   redirect(`${detalle(raffleId)}?ok=sellado`);

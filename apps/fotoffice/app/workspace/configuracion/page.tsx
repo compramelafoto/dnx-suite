@@ -10,6 +10,7 @@ import { TestEmailPanel } from "@/components/communications/test-email-panel";
 import { toEmailSignatureData } from "@/lib/communications/workspace-signature";
 import { getWorkspaceCollectionStatus } from "@/lib/payments/connect/status";
 import { collectionCopy } from "@/lib/payments/connect/messages";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 
 export default async function WorkspaceSettingsPage() {
   const user = await requireAuth();
@@ -33,6 +34,9 @@ export default async function WorkspaceSettingsPage() {
   // Estado de cobros, para que el acceso diga si hace falta hacer algo.
   const cobros = await getWorkspaceCollectionStatus(ensured.workspaceId);
   const cobrosCopy = collectionCopy(cobros.status);
+  // El acceso a Palabras muestra la que rige hoy: sin eso, entrar es la única forma de saber
+  // si alguien ya la cambió.
+  const vocabulario = await loadPersonVocabulary(ensured.workspaceId);
 
   return (
     <div className="space-y-8 max-w-xl">
@@ -53,6 +57,23 @@ export default async function WorkspaceSettingsPage() {
             }
           >
             {cobrosCopy.title}
+          </span>
+        </span>
+        <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
+      </Link>
+
+      {/*
+        Acceso a las palabras de la institución. Va acá y no adentro del módulo: la palabra se
+        usa en el menú, en el portal y en varios módulos a la vez, así que es del workspace.
+      */}
+      <Link
+        href="/workspace/configuracion/palabras"
+        className="fo-card flex items-center justify-between gap-4 p-4 transition hover:border-[var(--fo-accent,#1d4ed8)]"
+      >
+        <span className="space-y-0.5">
+          <span className="block text-sm font-semibold">Las palabras de tu institución</span>
+          <span className="block text-xs text-[var(--fo-muted)]">
+            Hoy a la gente de tu padrón le decís {vocabulario.plural}.
           </span>
         </span>
         <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>

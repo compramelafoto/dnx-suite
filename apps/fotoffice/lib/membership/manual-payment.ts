@@ -10,6 +10,8 @@ import { completeApplicationIfPaid } from "./complete-application";
 import { resolveDepositTarget } from "@/lib/cash/auto-deposit";
 import { recordCashMovement } from "@/lib/cash/record-movement";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
+import { mensajeDePadron } from "@/lib/members/mensajes";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 
 /** Medios que la Secretaría puede registrar a mano. Mercado Pago entra solo, por webhook. */
@@ -60,7 +62,10 @@ export async function registerManualPayment(input: {
     where: { id: input.memberId, workspaceId: input.workspaceId },
     select: { id: true, memberNumber: true },
   });
-  if (!socio) return { ok: false, error: "Ese socio no pertenece a esta institución." };
+  if (!socio) {
+    const vocabulary = await loadPersonVocabulary(input.workspaceId);
+    return { ok: false, error: mensajeDePadron("noPerteneceAEstaInstitucion", vocabulary) };
+  }
 
   const resultado = await prisma.$transaction(async (tx) => {
     // La deuda se lee dentro de la transacción: entre que se abrió el formulario y se confirmó

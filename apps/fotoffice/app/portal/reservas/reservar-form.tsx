@@ -5,6 +5,7 @@ import { formatMinorArs } from "@/lib/membership/money";
 import { minuteOfDayToLabel } from "@/lib/bookings/time";
 import { selectRange, type WeekGrid } from "@/lib/bookings/week-grid";
 import type { FreeHoursBalance } from "@/lib/bookings/free-hours";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import { createPortalBookingAction } from "./actions";
 
 type ExtraVista = {
@@ -36,6 +37,7 @@ export function ReservarForm({
   semanaAnterior,
   semanaSiguiente,
   tituloSemana,
+  vocabulary,
 }: {
   spaceId: string;
   spaceName: string;
@@ -47,6 +49,7 @@ export function ReservarForm({
   semanaAnterior: string | null;
   semanaSiguiente: string;
   tituloSemana: string;
+  vocabulary: PersonVocabulary;
 }) {
   const [primero, setPrimero] = useState<string | null>(null);
   const [segundo, setSegundo] = useState<string | null>(null);
@@ -335,7 +338,7 @@ export function ReservarForm({
           </p>
           {bonificados > 0 ? (
             <p className="text-sm text-[var(--fo-success)]">
-              {horas(bonificados)} bonificadas por ser socio — sin cargo
+              {`${horas(bonificados)} bonificadas por ser ${vocabulary.singular} — sin cargo`}
             </p>
           ) : null}
           {cobrados > 0 ? (
