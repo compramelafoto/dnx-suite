@@ -2,6 +2,7 @@ import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
+import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 
 /**
  * El menú del socio, en un solo lugar.
@@ -64,7 +65,8 @@ export type PortalIconName =
   | "ticket"
   | "school"
   | "institution"
-  | "share";
+  | "share"
+  | "camera";
 
 /** El mapa del §5 del documento de navegación, con su orden. */
 export const PORTAL_MENU: PortalMenuItem[] = [
@@ -120,6 +122,15 @@ export const PORTAL_MENU: PortalMenuItem[] = [
     description: "Reservar el salón, el estudio o el coworking.",
     icon: "calendar",
     requiresModule: "bookings",
+    built: true,
+  },
+  {
+    order: 65,
+    label: "Coberturas",
+    href: "/portal/coberturas",
+    description: "Las convocatorias abiertas y a qué te anotaste como voluntario.",
+    icon: "camera",
+    requiresModule: COVERAGES_MODULE_KEY,
     built: true,
   },
   {
