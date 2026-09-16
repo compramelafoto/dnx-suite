@@ -162,7 +162,7 @@ plataforma se vende— sí tiene que verse como SubiLaFoto y no como otra cosa.
 **Cuándo se paga:** después del lanzamiento, y junto con el buscador ⌘K del menú DNX, que
 toca los mismos cinco formatos de menú. Hacer las dos cosas por separado es pagar dos veces.
 
-### D2. Los textos legales están escritos y sin revisar — RESUELTA A MEDIAS
+### D2. Los textos legales están escritos y sin revisar — RESUELTA
 
 `/privacidad` y `/terminos` existen desde el 2026-09-13. El texto vive en
 `apps/subilafoto/lib/legal/contenido.ts` y **está atado a lo que la plataforma
@@ -175,8 +175,13 @@ de moderación o dónde se guardan los archivos, hay que cambiar el texto **el
 mismo día**: un texto legal que describe otro producto es peor que no tener
 ninguno.
 
-**Falta que los apruebe un asesor legal.** El titular lo va a hacer. Lo que hay
-es un borrador informado, no un documento validado.
+**Aprobados sin cambios el 2026-09-16**, según confirmó el titular. Dejaron de
+ser un borrador informado.
+
+La versión guardada en los consentimientos subió a `2026-09-16` por el renombre
+de la marca dentro de los textos: el fondo no cambió pero el texto sí, y un
+consentimiento tiene que poder mostrar exactamente lo que la persona aceptó. Al
+16/9 no había ninguno registrado, así que no costó nada.
 
 ### D2b. Dos obligaciones de comercio electrónico que todavía no están
 

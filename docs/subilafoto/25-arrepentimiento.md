@@ -1,6 +1,6 @@
 # Botón de arrepentimiento y Libro de Quejas
 
-*Implementado el 2026-09-15. **Los textos están pendientes de revisión legal.***
+*Implementado el 2026-09-15. Textos revisados y aprobados sin cambios el 2026-09-16.*
 
 ## Qué exige la norma
 
@@ -94,7 +94,6 @@ empujan hacia abajo lo demás sin agregar nada.
 
 | Falta | Quién |
 |---|---|
-| Revisión legal de estos textos, de `/terminos` y de `/privacidad` | Abogado |
 | Que la solicitud avise por correo a quien la hizo y al titular | Espera a que estén los correos |
 
 ## Quién vende, en el pie de todas las páginas
