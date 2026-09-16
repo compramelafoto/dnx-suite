@@ -10,6 +10,8 @@ import { getWorkspaceCollectionStatus } from "@/lib/payments/connect/status";
 import { formatFeeBpsAsPercent } from "@/lib/platform-fee/fee";
 import { getPlatformFeeBpsByModule } from "@/lib/platform-fee/store";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
+import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 
 export const dynamic = "force-dynamic";
 
@@ -29,10 +31,11 @@ export default async function CobrosPage({
   if (!workspace) redirect("/workspace");
 
   const params = await searchParams;
-  const [collection, canManage, feeByModule] = await Promise.all([
+  const [collection, canManage, feeByModule, vocabulary] = await Promise.all([
     getWorkspaceCollectionStatus(workspace.id),
     canManageWorkspaceCollection(user.id, workspace.id),
     getPlatformFeeBpsByModule(workspace.id, [MEMBERS_MODULE_KEY]),
+    loadPersonVocabulary(workspace.id),
   ]);
 
   const copy = collectionCopy(collection.status, collection.mode);
@@ -51,7 +54,10 @@ export default async function CobrosPage({
     <div className="space-y-8">
       <PageHeader
         title="Cobros"
-        description="Vinculá tu cuenta de MercadoPago para cobrar cuotas de tus socios."
+        description={aplicarVocabulario(
+          "Vinculá tu cuenta de MercadoPago para cobrar cuotas de tus {personas}.",
+          vocabulary,
+        )}
       />
 
       {params.ok === "conectado" ? (
@@ -69,7 +75,9 @@ export default async function CobrosPage({
       <section className="fo-card space-y-4 p-5">
         <div className="space-y-1">
           <h2 className={`text-base font-semibold ${toneClass}`}>{copy.title}</h2>
-          <p className="text-sm text-[var(--fo-muted)] leading-relaxed">{copy.body}</p>
+          <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
+            {aplicarVocabulario(copy.body, vocabulary)}
+          </p>
         </div>
 
         {collection.accountLabel ? (

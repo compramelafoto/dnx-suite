@@ -14,6 +14,7 @@ import { stateLabel, type FulfillmentState } from "@/lib/carnet/fulfillment";
 import { isPdfDownloadEvent } from "@/lib/carnet/print-log";
 import { canViewCards, resolveCardCapabilities } from "@/lib/carnet/operators";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
+import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
 import { CardsTable, type CardRowView, type TimelineEntry } from "./cards-table";
 import { IssueButton } from "./issue-button";
 
@@ -124,7 +125,7 @@ export default async function CarnetsPage({
           <Link
             key={g.id}
             href={`/members/carnets?grupo=${g.id}`}
-            title={g.description}
+            title={aplicarVocabulario(g.description, v)}
             className={`fo-btn text-xs ${params.grupo === g.id ? "fo-btn-primary" : ""}`}
           >
             {g.label}

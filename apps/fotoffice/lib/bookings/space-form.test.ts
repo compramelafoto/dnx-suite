@@ -93,7 +93,8 @@ describe("el formulario de un espacio", () => {
   it("un precio ilegible se rechaza y dice cuál", () => {
     const r = parseSpaceForm(form({ ...completo, memberHourlyPriceArs: "tres mil" }));
     expect(r.ok).toBe(false);
-    expect(!r.ok && r.error).toContain("socios");
+    // Con marcador: la palabra la pone la acción, que conoce el workspace.
+    expect(!r.ok && r.error).toContain("{personas}");
   });
 
   it("una duración mínima que no cae en la grilla se rechaza", () => {

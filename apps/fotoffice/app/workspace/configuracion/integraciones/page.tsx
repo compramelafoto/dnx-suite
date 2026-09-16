@@ -9,6 +9,8 @@ import { listIntegrations } from "@/lib/integrations/registry";
 import { listIntegrationSummaries } from "@/lib/integrations/store";
 import { integrationErrorMessage, integrationOkMessage } from "@/lib/integrations/messages";
 import { readIntegrationsGoogleCredentials } from "@/lib/integrations/credentials";
+import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { DisconnectButton } from "./disconnect-button";
 
 export const dynamic = "force-dynamic";
@@ -32,9 +34,10 @@ export default async function IntegracionesPage({
   if (!workspace) redirect("/workspace");
 
   const params = await searchParams;
-  const [role, conectadas] = await Promise.all([
+  const [role, conectadas, vocabulary] = await Promise.all([
     resolveWorkspaceRole(user.id, workspace.id),
     listIntegrationSummaries(workspace.id),
+    loadPersonVocabulary(workspace.id),
   ]);
   if (!canManageWorkspaceSettings(role)) redirect("/workspace/configuracion");
 
@@ -78,9 +81,13 @@ export default async function IntegracionesPage({
       <div className="space-y-4">
         {disponibles.map((integration) => {
           const conectada = porClave.get(integration.key);
+          // Los catálogos son globales y dejan los marcadores sin resolver a propósito: acá
+          // sí se sabe en qué institución estamos. Sin esto, el módulo del padrón aparecería
+          // literalmente como "{Personas}".
           const modulos = integration.requiredByModules
             .map((key) => getModuleDefinition(key)?.label)
-            .filter((label): label is string => Boolean(label));
+            .filter((label): label is string => Boolean(label))
+            .map((label) => aplicarVocabulario(label, vocabulary));
 
           return (
             <section key={integration.key} className="fo-card space-y-4 p-5">
@@ -88,7 +95,7 @@ export default async function IntegracionesPage({
                 <div className="space-y-1 min-w-0">
                   <h2 className="text-base font-semibold">{integration.label}</h2>
                   <p className="text-sm text-[var(--fo-muted)] leading-relaxed max-w-2xl">
-                    {integration.description}
+                    {aplicarVocabulario(integration.description, vocabulary)}
                   </p>
                   {modulos.length > 0 ? (
                     <p className="text-xs text-[var(--fo-muted-soft)]">

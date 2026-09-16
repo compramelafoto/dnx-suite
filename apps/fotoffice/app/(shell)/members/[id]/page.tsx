@@ -354,7 +354,7 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
               <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
                 Historial
               </h2>
-              <MemberAuditLog entries={audits} />
+              <MemberAuditLog entries={audits} vocabulary={v} />
             </section>
           ) : null}
         </div>

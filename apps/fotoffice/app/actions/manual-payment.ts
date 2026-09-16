@@ -8,6 +8,9 @@ import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { FEE_SINCE_PERIOD } from "@/lib/platform-fee/debt";
 import { MANUAL_METHODS, registerManualPayment, type ManualMethod } from "@/lib/membership/manual-payment";
 import { parseArsToMinor } from "@/lib/membership/money";
+import { mensajeDePadron } from "@/lib/members/mensajes";
+import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 
 export type ManualPaymentState = {
   error: string | null;
@@ -33,8 +36,9 @@ export async function registerManualPaymentAction(
     return { error: "Solo quien administra los cobros puede registrar un pago.", ok: null };
   }
 
+  const vocabulary = await loadPersonVocabulary(workspace.id);
   const memberId = String(formData.get("memberId") ?? "").trim();
-  if (!memberId) return { error: "Elegí a qué socio corresponde el pago.", ok: null };
+  if (!memberId) return { error: mensajeDePadron("elegiUno", vocabulary), ok: null };
 
   // El parser compartido (lib/membership/money.ts) acepta más de dos decimales y los
   // redondea al centavo en vez de rechazarlos —es el mismo comportamiento que ya tenía
@@ -78,7 +82,12 @@ export async function registerManualPaymentAction(
 
   const partes = [`Pago de ${money(amountMinor)} registrado.`];
   if (r.unappliedMinor > 0) {
-    partes.push(`Quedaron ${money(r.unappliedMinor)} a favor del socio, sin cuota a la que imputar.`);
+    partes.push(
+      aplicarVocabulario(
+        `Quedaron ${money(r.unappliedMinor)} a favor del {persona}, sin cuota a la que imputar.`,
+        vocabulary,
+      ),
+    );
   }
   if (r.accruedFeeMinor > 0) {
     partes.push(

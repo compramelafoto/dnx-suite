@@ -294,6 +294,7 @@ export default async function CuotasPage({
           memberNumber={context.member.memberNumber}
           whatsapp={contacto.whatsapp}
           contactEmail={contacto.contactEmail}
+          vocabulary={v}
         />
       </main>
     </div>

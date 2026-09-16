@@ -1,3 +1,5 @@
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
+import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
 import { MEMBER_STATUS_LABELS, isMemberStatus } from "./status-labels";
 
 /** Nunca mostrar el enum técnico al usuario — mismo criterio que MEMBER_STATUS_LABELS. */
@@ -16,9 +18,15 @@ export const MEMBER_AUDIT_SOURCE_LABELS: Record<string, string> = {
   SYSTEM: "Automático",
 };
 
-/** Nombres legibles de los campos auditados, para no mostrar identificadores del schema. */
+/**
+ * Nombres legibles de los campos auditados, para no mostrar identificadores del schema.
+ *
+ * Los que nombran a la gente del padrón llevan el marcador sin resolver (`{persona}`): este
+ * mapa es global y no sabe en qué institución está parado quien mira. `memberFieldLabel` lo
+ * resuelve con el vocabulario que le pasa la pantalla.
+ */
 export const MEMBER_FIELD_LABELS: Record<string, string> = {
-  memberNumber: "Número de socio",
+  memberNumber: "Número de {persona}",
   categoryId: "Categoría",
   firstName: "Nombre",
   lastName: "Apellido",
@@ -57,6 +65,9 @@ export function formatAuditValue(field: string, value: unknown): string {
   return String(value);
 }
 
-export function memberFieldLabel(field: string): string {
-  return MEMBER_FIELD_LABELS[field] ?? field;
+export function memberFieldLabel(field: string, vocabulary: PersonVocabulary): string {
+  const etiqueta = MEMBER_FIELD_LABELS[field];
+  // Un campo sin etiqueta se muestra con su nombre técnico: es feo y se nota, que es mejor
+  // que inventarle un nombre castellano que no coincida con nada.
+  return etiqueta ? aplicarVocabulario(etiqueta, vocabulary) : field;
 }

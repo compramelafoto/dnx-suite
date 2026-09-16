@@ -174,7 +174,7 @@ const SORTEOS: SubmoduleItem[] = [
     href: "/sorteos",
     label: "Sorteos",
     icon: "Ticket",
-    description: "Los sorteos entre socios al día, con premios de las marcas aliadas.",
+    description: "Los sorteos entre {personas} al día, con premios de las marcas aliadas.",
     requiresManage: false,
     activeMatch: "rest",
   },

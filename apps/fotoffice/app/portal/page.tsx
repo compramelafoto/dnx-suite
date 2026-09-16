@@ -225,7 +225,7 @@ export default async function PortalPage() {
 
         {/* Todo lo que el portal ofrece, incluido lo que todavía se está construyendo. */}
         <div className="mt-6">
-          <PortalSections items={secciones} />
+          <PortalSections items={secciones} vocabulary={v} />
         </div>
 
         {perfilVacio ? (

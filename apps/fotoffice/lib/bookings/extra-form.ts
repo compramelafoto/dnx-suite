@@ -30,11 +30,11 @@ export function parseExtraForm(formData: FormData): ExtraFormResult {
 
   const memberPriceMinor = parseArsToMinor(String(formData.get("memberPriceArs") ?? ""));
   if (memberPriceMinor === null) {
-    return { ok: false, error: "El precio para socios no se entiende." };
+    return { ok: false, error: "El precio para {personas} no se entiende." };
   }
   const nonMemberPriceMinor = parseArsToMinor(String(formData.get("nonMemberPriceArs") ?? ""));
   if (nonMemberPriceMinor === null) {
-    return { ok: false, error: "El precio para no socios no se entiende." };
+    return { ok: false, error: "El precio para no {personas} no se entiende." };
   }
 
   const spaceIds = formData

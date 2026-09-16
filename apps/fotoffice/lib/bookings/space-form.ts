@@ -54,13 +54,13 @@ export function parseSpaceForm(formData: FormData): SpaceFormResult {
 
   const memberHourlyPriceMinor = parseArsToMinor(String(formData.get("memberHourlyPriceArs") ?? ""));
   if (memberHourlyPriceMinor === null) {
-    return { ok: false, error: "El precio por hora para socios no se entiende." };
+    return { ok: false, error: "El precio por hora para {personas} no se entiende." };
   }
   const nonMemberHourlyPriceMinor = parseArsToMinor(
     String(formData.get("nonMemberHourlyPriceArs") ?? ""),
   );
   if (nonMemberHourlyPriceMinor === null) {
-    return { ok: false, error: "El precio por hora para no socios no se entiende." };
+    return { ok: false, error: "El precio por hora para no {personas} no se entiende." };
   }
 
   const slotMinutes = entero(formData.get("slotMinutes") as string | null, 60);

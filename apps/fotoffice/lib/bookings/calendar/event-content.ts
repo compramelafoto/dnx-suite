@@ -1,4 +1,6 @@
 import { normalizeWhatsappNumber } from "@/lib/contact/whatsapp";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
+import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
 
 /**
  * El texto del evento que va a Google Calendar.
@@ -68,10 +70,14 @@ function lineasDeTelefono(data: CalendarEventData): string[] {
     : [`Teléfono: ${crudo}`];
 }
 
-export function buildEventDescription(data: CalendarEventData): string {
+export function buildEventDescription(
+  data: CalendarEventData,
+  vocabulary: PersonVocabulary,
+): string {
+  // El evento lo lee la Secretaría en SU calendario: tiene que hablar como habla ella.
   const quien = data.memberNumber
-    ? `Socio N° ${data.memberNumber} · ${data.contactName}`
-    : `No socio · ${data.contactName}`;
+    ? aplicarVocabulario(`{Persona} N° ${data.memberNumber} · ${data.contactName}`, vocabulary)
+    : aplicarVocabulario(`No {persona} · ${data.contactName}`, vocabulary);
 
   const lineas: string[] = [quien, ...lineasDeTelefono(data)];
   if (data.contactEmail.trim()) lineas.push(`Email: ${data.contactEmail.trim()}`);

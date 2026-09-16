@@ -81,7 +81,7 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     key: BOOKINGS_MODULE_KEY,
     label: "Reservas",
     description:
-      "Reserva de salón, estudio, coworking u otros espacios: horarios, tarifas para socios y no socios, extras y agenda.",
+      "Reserva de salón, estudio, coworking u otros espacios: horarios, tarifas para {personas} y no {personas}, extras y agenda.",
     category: "GENERAL",
     order: 60,
     route: "/reservas",
@@ -112,7 +112,7 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
   {
     key: "communications",
     label: "Comunicación",
-    description: "Envío de comunicaciones/email a clientes o socios del workspace.",
+    description: "Envío de comunicaciones/email a clientes o {personas} del workspace.",
     category: "GENERAL",
     order: 40,
     status: "PLANNED",
@@ -129,7 +129,7 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     key: CLIENTS_MODULE_KEY,
     label: "Clientes",
     description:
-      "Padrón de clientes del negocio: ficha, contacto, datos fiscales y enlace opcional al socio.",
+      "Padrón de clientes del negocio: ficha, contacto, datos fiscales y enlace opcional al {persona}.",
     category: "GENERAL",
     order: 70,
     route: "/clientes",
