@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
 import { urlDelLogo } from "@/lib/logo-url";
-import { CATEGORIAS } from "@/lib/proveedores/categorias";
+import { CATEGORIAS, categoriaDelEnlace, nombreDeCategoria } from "@/lib/proveedores/categorias";
 import { FormularioProveedor } from "./formulario";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +22,7 @@ export default async function FichaDeProveedor({ params }: Props) {
     where: { token },
     select: {
       kind: true,
+      label: true,
       revokedAt: true,
       expiresAt: true,
       event: {
@@ -37,6 +38,8 @@ export default async function FichaDeProveedor({ params }: Props) {
   if (!enlace || enlace.kind !== "VENDOR" || enlace.revokedAt) notFound();
 
   const vencido = enlace.expiresAt ? enlace.expiresAt <= new Date() : false;
+  // Un enlace de rubro ya sabe a qué se dedica quien lo abre: no se le pregunta.
+  const categoria = categoriaDelEnlace(enlace.label);
   const vendedor = enlace.event.sellerProfile;
   const logo = await urlDelLogo(vendedor.logoUrl);
 
@@ -55,8 +58,14 @@ export default async function FichaDeProveedor({ params }: Props) {
       <h1 className="mt-6 text-3xl font-extrabold leading-tight">Sumá tu empresa</h1>
       <p className="mt-3" style={{ color: "var(--slf-tinta-suave)" }}>
         Trabajaste en <strong>{enlace.event.name}</strong>
-        {enlace.event.venueName ? ` en ${enlace.event.venueName}` : ""}. Dejanos tus datos y
-        aparecés en el registro de proveedores del evento.
+        {enlace.event.venueName ? ` en ${enlace.event.venueName}` : ""}
+        {categoria ? (
+          <>
+            {" "}
+            como <strong>{nombreDeCategoria(categoria)}</strong>
+          </>
+        ) : null}
+        . Dejanos tus datos y aparecés en el registro de proveedores del evento.
       </p>
 
       {vencido ? (
@@ -67,7 +76,7 @@ export default async function FichaDeProveedor({ params }: Props) {
           Este enlace venció. Pedile uno nuevo a {vendedor.displayName}.
         </div>
       ) : (
-        <FormularioProveedor token={token} categorias={CATEGORIAS} />
+        <FormularioProveedor token={token} categorias={CATEGORIAS} categoriaFija={categoria} />
       )}
     </main>
   );
