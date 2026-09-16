@@ -22,6 +22,7 @@ import { canVoidBenefit } from "@/lib/membership/recommendation";
 import { decimalArsToMinor, formatMinorArs } from "@/lib/membership/money";
 import { chargePeriodLabel } from "@/lib/membership/charge-labels";
 import { RecommendationVoidForm } from "@/components/members/recommendation-void-form";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 
 function initials(firstName: string, lastName: string): string {
   return `${firstName[0] ?? ""}${lastName[0] ?? ""}`.toUpperCase() || "?";
@@ -37,6 +38,7 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
   const { id } = await params;
   const member = await getMember(workspace.id, id);
   if (!member) notFound();
+  const v = await loadPersonVocabulary(workspace.id);
 
   // Solo se consulta si el rol puede verlo: STAFF ni siquiera dispara la query.
   const audits = canManage ? await listMemberAudits(workspace.id, member.id) : [];
@@ -94,7 +96,7 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
     <div className="space-y-10">
       <PageHeader
         title={`${member.lastName}, ${member.firstName}`}
-        description={`Socio N° ${member.memberNumber}`}
+        description={`${v.Singular} N° ${member.memberNumber}`}
         actions={
           <>
             <Link href="/members" className="fo-btn fo-btn-secondary text-sm">
@@ -187,7 +189,7 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
                 <dt className="text-[var(--fo-muted)]">Estado</dt>
                 <dd>
                   {canManage ? (
-                    <MemberStatusChanger memberId={member.id} status={member.status} />
+                    <MemberStatusChanger memberId={member.id} status={member.status} vocabulary={v} />
                   ) : (
                     <span className="text-[var(--fo-text)] font-medium">
                       {MEMBER_STATUS_LABELS[member.status]}
@@ -209,6 +211,7 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
                 linkedUserEmail={linkedUser?.email ?? null}
                 isLinked={member.userId !== null}
                 invitations={invitations}
+                vocabulary={v}
               />
             ) : (
               <p className="text-sm text-[var(--fo-text)]">
@@ -239,13 +242,13 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
                   Pagos
                 </h2>
                 <p className="text-xs text-[var(--fo-muted)]">
-                  Es la misma lista que ve el socio en su portal. Sólo pagos acreditados.
+                  {`Es la misma lista que ve el ${v.singular} en su portal. Sólo pagos acreditados.`}
                 </p>
               </div>
               {cuenta ? <CreditCallout creditMinor={cuenta.creditMinor} tone="panel" /> : null}
               <PaymentHistoryList
                 entries={pagos}
-                emptyText="Este socio no tiene pagos acreditados."
+                emptyText={`Este ${v.singular} no tiene pagos acreditados.`}
               />
             </section>
           ) : null}
@@ -351,7 +354,7 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
               <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
                 Historial
               </h2>
-              <MemberAuditLog entries={audits} />
+              <MemberAuditLog entries={audits} vocabulary={v} />
             </section>
           ) : null}
         </div>

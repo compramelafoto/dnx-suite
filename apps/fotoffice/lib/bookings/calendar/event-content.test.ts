@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { personVocabulary } from "@/lib/vocabulario/personas";
 import {
   buildEventDescription,
   buildEventSummary,
   type CalendarEventData,
 } from "./event-content";
+
+const socios = personVocabulary(null);
 
 const base: CalendarEventData = {
   spaceName: "Coworking",
@@ -29,25 +32,25 @@ describe("título del evento", () => {
 
 describe("descripción del evento", () => {
   it("dice quién reservó y su condición", () => {
-    expect(buildEventDescription(socio)).toContain("Socio N° 556 · Daniel Andrés Cuart");
-    expect(buildEventDescription(base)).toContain("No socio · Daniel Andrés Cuart");
+    expect(buildEventDescription(socio, socios)).toContain("Socio N° 556 · Daniel Andrés Cuart");
+    expect(buildEventDescription(base, socios)).toContain("No socio · Daniel Andrés Cuart");
   });
 
   it("arma el enlace de WhatsApp cuando el número trae código de país", () => {
-    const texto = buildEventDescription({ ...socio, contactPhone: "+54 9 341 681 1201" });
+    const texto = buildEventDescription({ ...socio, contactPhone: "+54 9 341 681 1201" }, socios);
     expect(texto).toContain("WhatsApp: +54 9 341 681 1201");
     expect(texto).toContain("https://wa.me/5493416811201");
   });
 
   it("un número sin código de país se muestra, pero SIN enlace", () => {
     // Completar el país a ojo abriría el chat de un desconocido.
-    const texto = buildEventDescription({ ...socio, contactPhone: "3416811201" });
+    const texto = buildEventDescription({ ...socio, contactPhone: "3416811201" }, socios);
     expect(texto).toContain("Teléfono: 3416811201");
     expect(texto).not.toContain("wa.me");
   });
 
   it("usa el teléfono del padrón cuando la reserva no dejó uno", () => {
-    const texto = buildEventDescription({ ...socio, memberPhone: "+54 9 341 681 1201" });
+    const texto = buildEventDescription({ ...socio, memberPhone: "+54 9 341 681 1201" }, socios);
     expect(texto).toContain("https://wa.me/5493416811201");
   });
 
@@ -56,13 +59,13 @@ describe("descripción del evento", () => {
       ...socio,
       contactPhone: "+54 9 341 111 1111",
       memberPhone: "+54 9 341 222 2222",
-    });
+    }, socios);
     expect(texto).toContain("+54 9 341 111 1111");
     expect(texto).not.toContain("222 2222");
   });
 
   it("sin ningún teléfono no escribe la línea en vez de decir que falta", () => {
-    const texto = buildEventDescription(socio);
+    const texto = buildEventDescription(socio, socios);
     expect(texto).not.toContain("WhatsApp");
     expect(texto).not.toContain("Teléfono");
   });
@@ -74,7 +77,7 @@ describe("descripción del evento", () => {
         { name: "Pack de 2 flashes", units: 1, amountArs: "12000.00", status: "CONFIRMED" },
         { name: "Modelo", units: 2, amountArs: "30000.00", status: "PENDING_CONFIRMATION" },
       ],
-    });
+    }, socios);
     expect(texto).toContain("· Pack de 2 flashes — $12.000");
     expect(texto).toContain("· Modelo ×2 — $30.000 (a confirmar)");
   });
@@ -83,12 +86,12 @@ describe("descripción del evento", () => {
     const texto = buildEventDescription({
       ...socio,
       extras: [{ name: "Máquina de humo", units: 1, amountArs: "5000.00", status: "REMOVED" }],
-    });
+    }, socios);
     expect(texto).not.toContain("Máquina de humo");
     expect(texto).not.toContain("Extras");
   });
 
   it("avisa que el evento no se edita desde Google", () => {
-    expect(buildEventDescription(base)).toContain("se maneja desde FotoOffice");
+    expect(buildEventDescription(base, socios)).toContain("se maneja desde FotoOffice");
   });
 });

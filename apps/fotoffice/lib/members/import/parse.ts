@@ -3,6 +3,9 @@ import { memberSchema, type MemberFormValues } from "@/lib/members/schema";
 import { MEMBER_STATUS_LABELS, type MemberStatus } from "@/lib/members/status-labels";
 import { MEMBER_IMPORT_MAX_ROWS, MEMBER_IMPORT_REQUIRED_COLUMNS } from "./columns";
 import { documentDedupKey, normalizeDocument } from "@/lib/members/documents";
+import { mensajeDePadron } from "@/lib/members/mensajes";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
+import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
 
 export type ImportRowStatus = "VALID" | "WARNING" | "ERROR";
 
@@ -86,6 +89,12 @@ export function parseAndValidateMemberImport(params: {
    * contra la base, pero los duplicados DENTRO del archivo se siguen detectando igual.
    */
   existingEmails?: Set<string>;
+  /**
+   * Cómo llama esta institución a la gente de su padrón. Obligatorio y sin valor por
+   * omisión: el llamador sabe en qué workspace está, y un opcional sería la puerta para que
+   * una importación de voluntarios devuelva errores que hablan de socios.
+   */
+  vocabulary: PersonVocabulary;
 }): ImportParseOutcome {
   const parsed = Papa.parse<Record<string, string>>(params.rawCsv, {
     header: true,
@@ -226,10 +235,10 @@ export function parseAndValidateMemberImport(params: {
 
     // Duplicados contra la base real (categoría/documento/número ya existentes).
     if (memberNumber && params.existingMemberNumbers.has(memberNumber)) {
-      errors.push("Ya existe un socio con ese número en este workspace.");
+      errors.push(mensajeDePadron("numeroRepetido", params.vocabulary));
     }
     if (docKey && params.existingDocuments.has(docKey)) {
-      errors.push("Ya existe un socio con ese documento en este workspace.");
+      errors.push(mensajeDePadron("documentoRepetido", params.vocabulary));
     }
 
     // Formato del documento. Es entrada nueva, así que se valida siempre (a diferencia de la
@@ -242,9 +251,7 @@ export function parseAndValidateMemberImport(params: {
     // todo el lote), nunca una consulta por fila. No se revela NINGÚN dato del socio
     // existente: solo que ese email ya está tomado.
     if (emailKey && params.existingEmails?.has(emailKey)) {
-      errors.push(
-        "Ese email ya está registrado en otro socio de este workspace. Usá otro email o dejá esta fila sin email.",
-      );
+      errors.push(mensajeDePadron("emailTomadoPorOtro", params.vocabulary));
     }
 
     // Advertencias: campos opcionales vacíos, nunca bloquean.
@@ -271,7 +278,7 @@ export function parseAndValidateMemberImport(params: {
   // Segunda pasada: marcar duplicados DENTRO del archivo (necesita haber visto todas las filas).
   for (const row of rows) {
     if (row.memberNumber && (seenMemberNumbers.get(row.memberNumber)?.length ?? 0) > 1) {
-      row.errors.push("Número de socio duplicado en el archivo.");
+      row.errors.push(mensajeDePadron("numeroDuplicadoEnElArchivo", params.vocabulary));
       row.resolved = undefined;
     }
     const docKey = docKeyByRow.get(row.rowNumber);
@@ -289,7 +296,10 @@ export function parseAndValidateMemberImport(params: {
       if (rowsWithSameEmail.length > 1) {
         const others = rowsWithSameEmail.filter((n) => n !== row.rowNumber);
         row.errors.push(
-          `Ese email está repetido en el archivo (también en ${others.length === 1 ? "la fila" : "las filas"} ${others.join(", ")}). Cada socio necesita un email distinto, o dejá sin email a los demás.`,
+          aplicarVocabulario(
+            `Ese email está repetido en el archivo (también en ${others.length === 1 ? "la fila" : "las filas"} ${others.join(", ")}). Cada {persona} necesita un email distinto, o dejá sin email a los demás.`,
+            params.vocabulary,
+          ),
         );
         row.resolved = undefined;
       }

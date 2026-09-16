@@ -57,7 +57,9 @@ describe("el formulario de un extra", () => {
   it("un precio ilegible se rechaza y dice cuál", () => {
     const r = parseExtraForm(form({ ...completo, nonMemberPriceArs: "dos mil" }));
     expect(r.ok).toBe(false);
-    expect(!r.ok && r.error).toContain("no socios");
+    // El mensaje sale con el marcador sin resolver: este parser es puro y no sabe en qué
+    // institución está parado. La acción, que sí lo sabe, pone la palabra.
+    expect(!r.ok && r.error).toContain("no {personas}");
   });
 
   it("un modo de cobro desconocido cae en por reserva, no rompe", () => {

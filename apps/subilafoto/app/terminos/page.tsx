@@ -3,7 +3,7 @@ import { PaginaLegal } from "../components/pagina-legal";
 import { SECCIONES_TERMINOS } from "@/lib/legal/contenido";
 
 export const metadata: Metadata = {
-  title: "Términos y condiciones | Subí la Foto",
+  title: "Términos y condiciones | SubiLaFoto",
   description:
     "Las reglas del servicio: qué se puede subir, cómo se revisa, cuánto dura un evento y qué cuesta.",
 };

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { type ResolvedPortalItem } from "@/lib/portal/menu";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import { PortalNav, PortalTabs } from "./portal-nav";
 
 /**
@@ -19,11 +20,13 @@ export function PortalShell({
   items,
   member,
   institution,
+  vocabulary,
   children,
 }: {
   items: ResolvedPortalItem[];
   member: { fullName: string; memberNumber: string; category: string | null; photoUrl: string | null };
   institution: { name: string; logoUrl: string | null };
+  vocabulary: PersonVocabulary;
   children: ReactNode;
 }) {
   return (
@@ -38,7 +41,7 @@ export function PortalShell({
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold leading-tight">{member.fullName}</p>
             <p className="truncate text-xs text-[var(--fo-muted)]">
-              Socio N° <span className="tabular-nums">{member.memberNumber}</span>
+              {vocabulary.Singular} N° <span className="tabular-nums">{member.memberNumber}</span>
               {member.category ? ` · ${member.category}` : ""}
             </p>
           </div>

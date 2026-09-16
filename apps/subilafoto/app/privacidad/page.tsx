@@ -3,9 +3,9 @@ import { PaginaLegal } from "../components/pagina-legal";
 import { SECCIONES_PRIVACIDAD } from "@/lib/legal/contenido";
 
 export const metadata: Metadata = {
-  title: "Política de privacidad | Subí la Foto",
+  title: "Política de privacidad | SubiLaFoto",
   description:
-    "Qué datos trata Subí la Foto, para qué los usa, con quién los comparte y cuánto los guarda.",
+    "Qué datos trata SubiLaFoto, para qué los usa, con quién los comparte y cuánto los guarda.",
 };
 
 export default function Privacidad() {

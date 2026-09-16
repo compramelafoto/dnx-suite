@@ -18,12 +18,12 @@ usuarios**. Verificado el 2026-09-11 contra Neon:
 Un fotógrafo registrado en CompraMeLaFoto **no existe** en la base de Fotoffice. Compartir
 el código de login no comparte las cuentas.
 
-Por eso "Subí la Foto usa el login compartido" todavía no está resuelto del todo: falta
+Por eso "SubiLaFoto usa el login compartido" todavía no está resuelto del todo: falta
 decir **en qué base vive**. Es la decisión bloqueante número uno del documento 07.
 
 ## Las 19 tablas nuevas son la parte fácil
 
-Al contrario de lo que suele pasar con este schema, agregar Subí la Foto es de **bajo
+Al contrario de lo que suele pasar con este schema, agregar SubiLaFoto es de **bajo
 riesgo** para las otras aplicaciones:
 
 - Son **tablas nuevas**. Ninguna app existente las conoce, así que no puede romperse por
@@ -40,7 +40,7 @@ riesgo** para las otras aplicaciones:
 
 1. Generar la migración en local contra una rama Neon de prueba, nunca contra producción.
 2. Correr `pnpm --filter @repo/db db:drift` para ver qué falta en cada base.
-3. Aplicar el SQL en la base donde vive Subí la Foto.
+3. Aplicar el SQL en la base donde vive SubiLaFoto.
 4. Aplicar **sólo el `ALTER TYPE` del enum** en las demás bases que tengan `SuiteApp`.
 5. Registrar la migración en `_prisma_migrations` de cada base, copiando el checksum de una
    base donde ya esté aplicada y verificándolo con `shasum -a 256` contra el archivo local.
@@ -86,7 +86,7 @@ Estas no se automatizan y son las que evitan el papelón el día del evento:
 - Rama `main` a producción; cada rama de trabajo con su preview.
 - Variables nuevas: credenciales de Rekognition (o reutilizar las de CLF), bucket R2
   propio, secreto del webhook de Mercado Pago, secreto de firma de las cookies de invitado.
-- **Bucket R2 propio para Subí la Foto**, no compartido con CLF. Las políticas de retención
+- **Bucket R2 propio para SubiLaFoto**, no compartido con CLF. Las políticas de retención
   son distintas: acá se borra a los 30 días, y un borrado masivo apuntando al bucket
   equivocado es irreversible.
 
@@ -269,14 +269,14 @@ pena hacerla antes del lanzamiento y no después del primer evento real.
 `SubilafotoSellerProfile`: `mpUserId`, `mpCredential`, `mpConnectedAt` y
 `mpTokenExpiresAt`.
 
-### Corrección al registro: las tablas de Subí la Foto viven en UNA base
+### Corrección al registro: las tablas de SubiLaFoto viven en UNA base
 
 El documento 05 decía que la migración de la Etapa 1 se aplicó "en las 5 bases".
 **No es así, y está bien que no lo sea.** Verificado el 13/9: la rama
 `development` de Neon —FOTOFFICE y FotoRank— no tiene `SubilafotoSellerProfile`
-ni figura ninguna migración de Subí la Foto en su `_prisma_migrations`.
+ni figura ninguna migración de SubiLaFoto en su `_prisma_migrations`.
 
-Las tablas de Subí la Foto sólo existen en la rama `production`, que es la única
+Las tablas de SubiLaFoto sólo existen en la rama `production`, que es la única
 base que esta aplicación usa. La advertencia de aplicar a las cinco vale para
 campos en tablas que **otras** aplicaciones escriben; estas no las toca nadie más.
 
@@ -287,7 +287,7 @@ en su `_prisma_migrations` con el checksum del archivo.
 
 `User` ya tiene `mpAccessToken` y `mpRefreshToken`, y sería tentador usarlos.
 **Rompería CompraMeLaFoto.** Los tokens de Mercado Pago son por aplicación: el de
-Subí la Foto no sirve para cobrar desde CLF, y pisarlo dejaría a CLF sin poder
+SubiLaFoto no sirve para cobrar desde CLF, y pisarlo dejaría a CLF sin poder
 cobrar sin que nadie se entere hasta el primer cobro fallido.
 
 ### El token va cifrado

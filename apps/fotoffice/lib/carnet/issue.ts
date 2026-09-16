@@ -4,6 +4,8 @@ import { addMonthsUtc, CARNET_VALIDITY_MONTHS } from "./template";
 import { nextCardSequence } from "./sequence";
 import { formatCardNumber, generateCardToken, hashCardToken } from "./token";
 import { sealCardToken } from "./token-vault";
+import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 
 /**
  * Emisión de carnets.
@@ -46,7 +48,10 @@ export async function issueDigitalCard(input: {
     where: { id: input.memberId, workspaceId: input.workspaceId },
     select: { id: true, status: true, avatarUrl: true },
   });
-  if (!socio) return { ok: false, error: "No encontramos al socio." };
+  if (!socio) {
+    const vocabulary = await loadPersonVocabulary(input.workspaceId);
+    return { ok: false, error: aplicarVocabulario("No encontramos al {persona}.", vocabulary) };
+  }
   if (socio.status !== "ACTIVE") {
     return { ok: true, card: null, created: false, reason: "el socio no está activo" };
   }

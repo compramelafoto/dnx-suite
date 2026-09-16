@@ -9,7 +9,7 @@ coinciden, así que se conservan los dos hasta saber cuál es el bueno.
 
 ## Marca
 
-- **Nombre visible:** Subí la Foto — siempre con tilde en "Subí"
+- **Nombre visible:** SubiLaFoto — siempre con tilde en "Subí"
 - **Promesa:** Todas las miradas de tu evento, en un solo lugar
 - **Llamado a la acción:** Escaneá. Subí. Compartí.
 - **Personalidad:** cercana, dinámica, confiable, tecnológica y festiva
@@ -66,7 +66,7 @@ y en el flujo del invitado, que se usa con poca luz y a veces con una copa en la
 | Favicon y avatar | — | `subilafoto-icon-*.png` y `subilafoto-avatar-1080.png` |
 
 La marca **no** se tematiza con las plantillas del evento. Las plantillas cambian el aspecto
-del evento; Subí la Foto se mantiene reconocible en los bordes.
+del evento; SubiLaFoto se mantiene reconocible en los bordes.
 
 ## Reglas del manual que afectan al código
 
@@ -94,9 +94,9 @@ antes de producir los materiales impresos con el QR del evento.
 Los logos ya están copiados en `apps/subilafoto/public/brand/`, que es de donde los toma la
 aplicación. `docs/subilafoto/marca/` es el archivo maestro; no se sirve al público.
 
-## El design system: Subí la Foto ya tiene el suyo
+## El design system: SubiLaFoto ya tiene el suyo
 
-**Agregado el 2026-09-12.** Hasta ese día Subí la Foto no estaba registrada en
+**Agregado el 2026-09-12.** Hasta ese día SubiLaFoto no estaba registrada en
 `@repo/design-system`, el paquete que comparten las otras plataformas. Los
 botones se dibujaban a mano con clases de Tailwind, y por eso el de la portada
 era una píldora amarilla: se veía bien, pero era de otra familia que el resto de
@@ -127,13 +127,13 @@ tokens del paquete: si alguien cambia el radio del botón de DNX, el test avisa.
 
 **Por qué es una función de estilo y no el componente `Button`:** el `Button` de
 `@repo/design-system` es un componente de cliente y necesita su proveedor de
-tema. La portada de Subí la Foto se sirve estática y no carga nada de
+tema. La portada de SubiLaFoto se sirve estática y no carga nada de
 JavaScript; meter un proveedor para un solo botón sería pagar caro. En el panel,
 que ya es dinámico, corresponde usar el `Button` de verdad.
 
 **Un detalle encontrado al medir:** el tamaño mediano del `Button` compartido da
 **42,75 px de alto** y el mínimo cómodo para tocar con el dedo es 44. No se tocó
-el paquete —lo usan cinco aplicaciones— pero el botón de Subí la Foto fija el
+el paquete —lo usan cinco aplicaciones— pero el botón de SubiLaFoto fija el
 piso en 44, porque se toca en un salón, de noche y con el celular en una mano.
 Conviene revisarlo en el paquete alguna vez.
 
@@ -145,3 +145,22 @@ fondo: claro → tinta casi negra. El amarillo es claro, así que da `#050505`.
 Se respeta esa regla en lugar del púrpura de la marca para que un botón de la
 portada y uno del panel no queden con dos tintas distintas. La diferencia entre
 `#050505` y `#200638` a ese tamaño no se percibe; la inconsistencia sí.
+
+## Cómo se escribe el nombre (2026-09-16)
+
+**SubiLaFoto.** Una sola palabra, sin espacios, sin tilde, con las tres iniciales en
+mayúscula. Antes se escribía "Subí la Foto" y se cambió el 16 de septiembre.
+
+Se reemplazó en las 46 pantallas, textos legales, correos y documentos donde aparecía.
+
+Dos cosas que **no** cambiaron, y no es un olvido:
+
+- **El eslogan.** *"Escaneá el QR, subí la foto y compartila con todo el evento."* Ahí
+  "subí la foto" es lo que hace el invitado, no la marca.
+- **Todo lo técnico**: el dominio `subilafoto.com`, el nombre del paquete, las variables
+  de entorno, las tablas `Subilafoto*` y el bucket. Renombrar eso no cambia nada que alguien
+  vea y rompe todo lo que ya está cargado.
+
+El test que verifica que los correos **no lleven nuestra marca** ahora busca las dos
+grafías, y antes de mirar les saca las direcciones: el enlace al panel vive en nuestro
+dominio y no hay forma de evitarlo. Lo que no puede aparecer es el nombre.

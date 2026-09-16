@@ -80,7 +80,7 @@ export const INTEGRATION_REGISTRY: readonly IntegrationDefinition[] = [
     key: "google-contacts",
     provider: "GOOGLE",
     label: "Google Contacts",
-    description: "Agenda a cada socio nuevo en los contactos de la institución.",
+    description: "Agenda a cada {persona} nuevo en los contactos de la institución.",
     scopes: ["https://www.googleapis.com/auth/contacts"],
     requiredByModules: ["members"],
     status: "PLANNED",

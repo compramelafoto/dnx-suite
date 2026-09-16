@@ -6,6 +6,8 @@ import { WorkspaceModuleToggle } from "@/components/workspace-module-toggle";
 import { DeleteWorkspaceDialog } from "@/components/delete-workspace-dialog";
 import { isMissingCoursesSalesSchemaError } from "@/lib/courses-sales/prisma-errors";
 import { listModules } from "@/lib/modules/registry";
+import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
+import { personVocabulary } from "@/lib/vocabulario/personas";
 import { getPlatformFeeBpsByModule } from "@/lib/platform-fee/store";
 import { WorkspaceModuleFeeField } from "@/components/platform-fee/module-fee-field";
 
@@ -21,7 +23,15 @@ export default async function SuperAdminWorkspaceDetailPage({
   });
   if (!workspace) notFound();
 
-  const availableModules = listModules({ status: "AVAILABLE" });
+  // Este panel administra módulos DESDE afuera de todo workspace: usa el vocabulario por
+  // omisión (socio, socios) para que los marcadores de MODULE_REGISTRY no lleguen sin
+  // resolver a la pantalla.
+  const vocabularioPorOmision = personVocabulary(null);
+  const availableModules = listModules({ status: "AVAILABLE" }).map((m) => ({
+    ...m,
+    label: aplicarVocabulario(m.label, vocabularioPorOmision),
+    description: aplicarVocabulario(m.description, vocabularioPorOmision),
+  }));
   // Comisión vigente de cada módulo: sin fila propia devuelve el 5% por defecto.
   const feeByModule = await getPlatformFeeBpsByModule(
     id,

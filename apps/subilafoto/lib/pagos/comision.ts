@@ -8,7 +8,7 @@ import { allocateByBasisPoints } from "@repo/payments/edition-checkout";
  * Escribir la cuenta a mano funcionaría hasta el primer redondeo que no cierre, y eso
  * se descubre en la rendición del mes con alguien reclamando.
  *
- * Lo único propio de Subí la Foto es cuánto: el 15%.
+ * Lo único propio de SubiLaFoto es cuánto: el 15%.
  */
 
 /** 1500 puntos básicos = 15,00 %. En puntos básicos para no arrastrar decimales. */

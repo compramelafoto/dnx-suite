@@ -2,7 +2,7 @@ import "server-only";
 import { S3Client } from "@aws-sdk/client-s3";
 
 /**
- * Cliente del bucket de Subí la Foto (Cloudflare R2, hablado por S3).
+ * Cliente del bucket de SubiLaFoto (Cloudflare R2, hablado por S3).
  *
  * El bucket es propio y tiene borrado automático a los 30 días. No se comparte con
  * CompraMeLaFoto: las políticas de retención son distintas y un borrado masivo apuntando

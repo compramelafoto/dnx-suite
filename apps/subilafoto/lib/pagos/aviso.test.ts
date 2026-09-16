@@ -35,7 +35,7 @@ describe("qué hacer con un aviso de Mercado Pago", () => {
 
   test("un aviso de otro producto de la suite se ignora", () => {
     // La cuenta de Mercado Pago es la misma para toda la suite. Sin esta
-    // comprobación, un pago de Clickatón podría tocar una orden de Subí la Foto
+    // comprobación, un pago de Clickatón podría tocar una orden de SubiLaFoto
     // que por casualidad tenga ese identificador.
     for (const ajena of [
       "clickaton-registration-cmtzuj5rr0001jq046f51k9st",

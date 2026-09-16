@@ -3,6 +3,8 @@ import { prisma } from "@repo/db";
 import { PageHeader } from "@/components/page-header";
 import { CreateWorkspaceForm } from "@/components/super-admin-forms";
 import { listModules } from "@/lib/modules/registry";
+import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
+import { personVocabulary } from "@/lib/vocabulario/personas";
 
 export default async function SuperAdminWorkspacesPage({
   searchParams,
@@ -12,7 +14,14 @@ export default async function SuperAdminWorkspacesPage({
   const sp = await searchParams;
   const q = sp.q?.trim() || undefined;
   const moduleFilter = sp.module?.trim() || undefined;
-  const availableModules = listModules({ status: "AVAILABLE" });
+  // Este panel no está parado en ningún workspace: usa el vocabulario por omisión (socio,
+  // socios) para que los marcadores de MODULE_REGISTRY no lleguen sin resolver a la pantalla.
+  const vocabularioPorOmision = personVocabulary(null);
+  const availableModules = listModules({ status: "AVAILABLE" }).map((m) => ({
+    ...m,
+    label: aplicarVocabulario(m.label, vocabularioPorOmision),
+    description: aplicarVocabulario(m.description, vocabularioPorOmision),
+  }));
 
   const workspaces = await prisma.workspace.findMany({
     where: q

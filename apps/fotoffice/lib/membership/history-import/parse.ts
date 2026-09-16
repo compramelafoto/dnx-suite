@@ -1,4 +1,6 @@
 import Papa from "papaparse";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
+import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
 import { periodoLegible } from "../charge-labels";
 import { isHistoricalMethod, type HistoricalMethod } from "../payment-method";
 import { parseAmountToMinor } from "./amount";
@@ -95,6 +97,11 @@ export function parseAndValidatePaymentImport(params: {
   membersByNumber: Map<string, { id: string; fullName: string }>;
   /** Claves de pagos históricos ya importados. Ver `paymentDedupKey`. */
   existingDedupKeys: ReadonlySet<string>;
+  /**
+   * Cómo llama esta institución a la gente de su padrón. Obligatorio y sin valor por
+   * omisión: quien importa sabe en qué workspace está.
+   */
+  vocabulary: PersonVocabulary;
 }): PaymentImportOutcome {
   const parsed = Papa.parse<Record<string, string>>(params.rawCsv, {
     header: true,
@@ -147,10 +154,13 @@ export function parseAndValidatePaymentImport(params: {
     // El socio tiene que existir. Es la regla central de esta importación.
     const socio = memberNumber ? params.membersByNumber.get(memberNumber) : undefined;
     if (!memberNumber) {
-      errors.push("Falta el número de socio.");
+      errors.push(aplicarVocabulario("Falta el número de {persona}.", params.vocabulary));
     } else if (!socio) {
       errors.push(
-        `No hay ningún socio N° ${memberNumber} en esta institución. Esta importación no da de alta socios: revisá el número o cargalo primero en el padrón.`,
+        aplicarVocabulario(
+          `No hay ningún {persona} N° ${memberNumber} en esta institución. Esta importación no da de alta {personas}: revisá el número o cargalo primero en el padrón.`,
+          params.vocabulary,
+        ),
       );
     }
 
@@ -195,7 +205,10 @@ export function parseAndValidatePaymentImport(params: {
 
       if (ordinal > 1) {
         warnings.push(
-          "En el archivo hay otro pago de este socio por el mismo importe y el mismo día. Se importan los dos; si es el mismo cobro repetido, sacá una de las filas.",
+          aplicarVocabulario(
+            "En el archivo hay otro pago de este {persona} por el mismo importe y el mismo día. Se importan los dos; si es el mismo cobro repetido, sacá una de las filas.",
+            params.vocabulary,
+          ),
         );
       }
       if (params.existingDedupKeys.has(dedupKey)) {

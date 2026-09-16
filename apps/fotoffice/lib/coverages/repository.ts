@@ -461,6 +461,84 @@ export async function upsertCollaboratorProfile(input: {
 }
 
 /**
+ * Enciende o apaga el perfil de colaborador de muchos socios de una sola vez.
+ *
+ * **Toca `active` y nada más.** No reutiliza `upsertCollaboratorProfile` justamente por eso: esa
+ * recibe el formulario entero, y una tanda que le pasara un formulario vacío les borraría a
+ * todos las zonas, la ciudad, el transporte, el equipo, las especialidades, el radio y las
+ * notas que alguien cargó a mano. Acá el resto de los campos ni se nombran; los que se crean
+ * nacen con los valores por omisión del modelo.
+ *
+ * **Apagar no es borrar.** Quitar a alguien deja la fila con `active: false` y sus datos
+ * intactos, para que volver a habilitarlo no signifique cargarlo todo de nuevo.
+ *
+ * **Dos escrituras, no una por persona.** Un `updateMany` para los que ya tienen fila y un
+ * `createMany` para los que no, en vez de ochenta y pico de idas a la base.
+ *
+ * Los identificadores vienen del navegador, así que adentro de la misma transacción se comprueba
+ * cuáles son socios de ESTE workspace y los demás se descartan sin escribirse. El `updateMany`
+ * lleva además el `workspaceId` en su propio `where`: si alguna vez se llamara sin planificar,
+ * sigue sin poder tocar la fila de otra institución.
+ *
+ * Devuelve lo que efectivamente se escribió y cuántos identificadores se descartaron por ajenos,
+ * para que el resumen hable de lo que pasó y no de lo que se pensaba hacer.
+ */
+export async function setCollaboratorProfilesActive(input: {
+  workspaceId: string;
+  /** Socios que ya tienen fila de perfil: se les cambia `active`. */
+  actualizar: readonly string[];
+  /** Socios sin fila: se les crea una con ese `active`. */
+  crear: readonly string[];
+  active: boolean;
+}): Promise<{ actualizados: number; creados: number; ajenos: number }> {
+  const pedidos = [...new Set([...input.actualizar, ...input.crear])];
+  if (pedidos.length === 0) return { actualizados: 0, creados: 0, ajenos: 0 };
+
+  return prisma.$transaction(async (tx) => {
+    const propios = new Set(
+      (
+        await tx.member.findMany({
+          where: { workspaceId: input.workspaceId, id: { in: pedidos } },
+          select: { id: true },
+        })
+      ).map((s) => s.id),
+    );
+
+    const aActualizar = input.actualizar.filter((id) => propios.has(id));
+    const aCrear = input.crear.filter((id) => propios.has(id));
+    const ajenos = pedidos.length - propios.size;
+
+    const actualizados =
+      aActualizar.length === 0
+        ? 0
+        : (
+            await tx.coverageCollaboratorProfile.updateMany({
+              where: { workspaceId: input.workspaceId, memberId: { in: aActualizar } },
+              data: { active: input.active },
+            })
+          ).count;
+
+    const creados =
+      aCrear.length === 0
+        ? 0
+        : (
+            await tx.coverageCollaboratorProfile.createMany({
+              data: aCrear.map((memberId) => ({
+                workspaceId: input.workspaceId,
+                memberId,
+                active: input.active,
+              })),
+              // Si alguien le creó el perfil a esa persona entre la lectura y la escritura, su
+              // fila manda: la tanda no la pisa.
+              skipDuplicates: true,
+            })
+          ).count;
+
+    return { actualizados, creados, ajenos };
+  });
+}
+
+/**
  * Las convocatorias publicadas de este workspace, para el portal del voluntario.
  *
  * Solo `PUBLICADA`: una convocatoria en borrador, cerrada, vencida o cancelada no tiene nada

@@ -68,7 +68,13 @@ export type PortalIconName =
   | "share"
   | "camera";
 
-/** El mapa del §5 del documento de navegación, con su orden. */
+/**
+ * El mapa del §5 del documento de navegación, con su orden.
+ *
+ * Las etiquetas y descripciones llevan los marcadores de vocabulario sin resolver
+ * (`{persona}`): este catálogo es global y no sabe en qué institución está parado quien mira.
+ * `PortalSections`, que sí lo sabe, los resuelve al mostrarlos.
+ */
 export const PORTAL_MENU: PortalMenuItem[] = [
   {
     order: 10,
@@ -83,7 +89,7 @@ export const PORTAL_MENU: PortalMenuItem[] = [
     order: 20,
     label: "Mi carnet",
     href: "/portal/carnet",
-    description: "Tu credencial con el código que verifica que sos socio.",
+    description: "Tu credencial con el código que verifica que sos {persona}.",
     icon: "card",
     built: true,
     primary: true,

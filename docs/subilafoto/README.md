@@ -1,4 +1,4 @@
-# Subí la Foto
+# SubiLaFoto
 
 Aplicación de DNX Suite para eventos: los invitados escanean un QR, suben fotos sin instalar
 nada, la IA las modera y las aprobadas aparecen en la pantalla del salón y en el álbum digital.
@@ -26,7 +26,7 @@ nada, la IA las modera y las aprobadas aparecen en la pantalla del salón y en e
 
 ## Decisiones tomadas el 2026-09-11
 
-1. **Schema Prisma compartido.** Subí la Foto usa `packages/db` como el resto de la suite.
+1. **Schema Prisma compartido.** SubiLaFoto usa `packages/db` como el resto de la suite.
    Login, DNX Partners, DNX Payments y los módulos compartidos se reutilizan sin duplicar.
 2. **Vive en la base de CompraMeLaFoto** (`divine-hall-10689679`, rama `production`), donde
    ya hay 797 fotógrafos y 272 con Mercado Pago conectado.

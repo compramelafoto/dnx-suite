@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { saveDuesSettingsAction, saveFeeValueAction } from "@/app/actions/dues-settings";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
 function Estado({ ok, error }: { ok: string | null; error: string | null }) {
   if (error) {
@@ -17,6 +18,7 @@ function Estado({ ok, error }: { ok: string | null; error: string | null }) {
 
 export function DuesSettingsForm({
   defaults,
+  vocabulary,
 }: {
   defaults: {
     generationDay: number;
@@ -27,6 +29,7 @@ export function DuesSettingsForm({
     recommendationEnabled: boolean;
     recommendationBenefitPercent: number;
   };
+  vocabulary: PersonVocabulary;
 }) {
   const [ok, setOk] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -83,7 +86,7 @@ export function DuesSettingsForm({
             type="checkbox"
             defaultChecked={defaults.recommendationEnabled}
           />
-          <span>Los socios pueden recomendar colegas desde su portal</span>
+          <span>{`Los ${vocabulary.plural} pueden recomendar colegas desde su portal`}</span>
         </label>
         <label className="space-y-1 text-xs sm:max-w-xs">
           <span className="text-[var(--fo-muted-soft)]">Cuota que se bonifica (%)</span>

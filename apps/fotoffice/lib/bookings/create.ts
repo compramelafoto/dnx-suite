@@ -6,6 +6,8 @@ import { ACTIVE_BOOKING_STATUSES, type BookingStatus } from "./constants";
 import { checkRange, rejectionMessage } from "./availability";
 import { blockingSpaceIds } from "./conflicts";
 import { quoteBooking, type CustomerType, type Quote } from "./pricing";
+import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { getBookingSettings, getSpace, listCompatibilities, listSpaces } from "./repository";
 import { BOOKINGS_TIME_ZONE, addMinutes, type Interval } from "./time";
 
@@ -111,7 +113,11 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
   if (!espacio) return { ok: false, error: "Ese espacio no existe." };
   if (!espacio.active) return { ok: false, error: "Ese espacio no está disponible." };
   if (input.customerType === "NON_MEMBER" && !espacio.allowsNonMembers) {
-    return { ok: false, error: "Este espacio se alquila solo a socios." };
+    const vocabulary = await loadPersonVocabulary(input.workspaceId);
+    return {
+      ok: false,
+      error: aplicarVocabulario("Este espacio se alquila solo a {personas}.", vocabulary),
+    };
   }
 
   const bloquean = blockingSpaceIds(

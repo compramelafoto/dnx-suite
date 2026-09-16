@@ -5,7 +5,7 @@ repositorio el 2026-09-11, no supuesta.
 
 ## Resumen en una frase
 
-Subí la Foto es una app más de DNX Suite (`apps/subilafoto`), sobre el schema Prisma
+SubiLaFoto es una app más de DNX Suite (`apps/subilafoto`), sobre el schema Prisma
 compartido, que reutiliza el login, los pagos y el ZIP de CompraMeLaFoto, la base de
 empresas de DNX Partners y el motor de notificaciones. Lo único verdaderamente nuevo es
 **la pantalla en vivo**.
@@ -43,7 +43,7 @@ La alternativa ya está en producción y hace exactamente lo que el negocio nece
 
 - El fotógrafo conecta su cuenta de Mercado Pago por OAuth (una vez).
 - El cliente paga **en la cuenta del fotógrafo**.
-- Subí la Foto retiene su comisión con `marketplace_fee`, configurable, sin tocar el dinero.
+- SubiLaFoto retiene su comisión con `marketplace_fee`, configurable, sin tocar el dinero.
 - El webhook confirma el pago de forma idempotente y recién ahí se crea el evento.
 
 **El adicional de descarga se cobra aparte**, en una orden propia contra la cuenta de DNX,
@@ -76,7 +76,7 @@ pantalla**: portada, colores, tipografías, transiciones, placa de cierre.
 
 <!-- Reutilizar TemplateV2 acá sería forzar la herramienta equivocada. -->
 
-Propuesta: plantillas de Subí la Foto como **datos**, no como motor. Un registro
+Propuesta: plantillas de SubiLaFoto como **datos**, no como motor. Un registro
 `SlfTemplate` con un JSON de tokens visuales (paleta, tipografías, fondo, estilo de
 transición, ornamentos) que el front renderiza con CSS. Diez plantillas bien hechas al
 lanzamiento. Es una tarde de trabajo por plantilla, no un motor nuevo.

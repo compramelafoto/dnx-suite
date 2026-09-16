@@ -1,5 +1,7 @@
 import { z } from "zod";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import { normalizeDocument } from "./documents";
+import { mensajeDePadron } from "./mensajes";
 
 /**
  * `categoryId` es obligatorio a nivel de UI/producto (todo socio nuevo se
@@ -102,21 +104,27 @@ export function memberValuesToRepositoryInput(d: MemberFormValues) {
   };
 }
 
-/** Nunca exponer el error crudo de Prisma al usuario. */
-export function friendlyMemberError(e: unknown): string {
+/**
+ * Nunca exponer el error crudo de Prisma al usuario.
+ *
+ * `vocabulary` es obligatorio y no tiene valor por omisión a propósito: quien llama sabe en
+ * qué workspace está parado, y un parámetro opcional sería una invitación a olvidarlo y
+ * dejar la palabra "socio" escrita en una institución que no la usa.
+ */
+export function friendlyMemberError(e: unknown, vocabulary: PersonVocabulary): string {
   const err = e as { code?: string; meta?: { target?: string[] | string } } | undefined;
   if (err?.code === "P2002") {
     const target = err.meta?.target;
     const t = (Array.isArray(target) ? target.join(",") : String(target ?? "")).toLowerCase();
-    if (t.includes("membernumber")) return "Ya existe un socio con ese número en este workspace.";
+    if (t.includes("membernumber")) return mensajeDePadron("numeroRepetido", vocabulary);
     if (t.includes("documenttype") || t.includes("documentnumber")) {
-      return "Ya existe un socio con ese documento en este workspace.";
+      return mensajeDePadron("documentoRepetido", vocabulary);
     }
-    if (t.includes("email")) return "Ya existe un socio con ese email en este workspace.";
-    if (t.includes("userid")) return "Esa cuenta ya está vinculada a otro socio de este workspace.";
-    return "Ya existe un socio con esos datos en este workspace.";
+    if (t.includes("email")) return mensajeDePadron("emailRepetido", vocabulary);
+    if (t.includes("userid")) return mensajeDePadron("cuentaTomada", vocabulary);
+    return mensajeDePadron("datosRepetidos", vocabulary);
   }
-  return "No se pudo guardar el socio.";
+  return mensajeDePadron("noSePudoGuardar", vocabulary);
 }
 
 export function friendlyMemberCategoryError(e: unknown): string {

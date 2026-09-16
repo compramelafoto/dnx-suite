@@ -6,7 +6,7 @@ export type { MpConnectConfig };
 /**
  * Lee la configuración de la aplicación de MercadoPago.
  *
- * **Es la aplicación única de la suite**, no una de Subí la Foto: `SUBILAFOTO_MP_CLIENT_ID`
+ * **Es la aplicación única de la suite**, no una de SubiLaFoto: `SUBILAFOTO_MP_CLIENT_ID`
  * y `SUBILAFOTO_MP_CLIENT_SECRET` llevan los valores de la app "DNX Suite". Lo único
  * propio del producto es la URL de retorno, que sí se puede declarar una por producto en
  * el panel de MercadoPago —a diferencia de la de notificación, que es una sola para todo—.

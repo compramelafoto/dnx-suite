@@ -6,7 +6,7 @@ Responde a los capítulos 31 y 36.
 
 Cuatro frenaban la Etapa 1. **Tres quedaron resueltas el 2026-09-11**; falta la cuarta.
 
-### 1. ¿En qué base vive Subí la Foto? — RESUELTA
+### 1. ¿En qué base vive SubiLaFoto? — RESUELTA
 
 **Rama `production` de CompraMeLaFoto (`divine-hall-10689679` / `br-autumn-rain-ad18wq7y`).**
 Los 272 fotógrafos con Mercado Pago ya conectado pueden vender desde el día uno.
@@ -85,7 +85,7 @@ Lo que sí decide son dos hechos:
    `@aws-sdk/client-rekognition ^3.985.0` está instalado y con credenciales vivas en
    CompraMeLaFoto. Cambia la operación, no la integración.
 
-Google Cloud **sí se usa** en Subí la Foto: es el cliente OAuth del inicio de sesión,
+Google Cloud **sí se usa** en SubiLaFoto: es el cliente OAuth del inicio de sesión,
 compartido con el resto de la suite. Son dos servicios distintos del mismo proveedor y sólo
 uno estaba disponible.
 
@@ -113,7 +113,7 @@ justamente para permitir el cambio.
 
 Estas no las puede tomar el código y ninguna puede faltar el 10 de octubre:
 
-- **Términos y condiciones y política de privacidad** de Subí la Foto. Hay fotos de
+- **Términos y condiciones y política de privacidad** de SubiLaFoto. Hay fotos de
   invitados que no firmaron nada con nadie.
 - **Menores.** Un cumpleaños de quince está lleno de chicos de catorce años subiendo fotos
   de otros chicos de catorce años. Hay que decidir qué se pide y qué se guarda.
@@ -151,18 +151,18 @@ Cosas que sabemos que están mal y decidimos no arreglar todavía, con el motivo
 **Asumida por el titular el 2026-09-11:** «el panel no es igual o parecido al resto de las
 plataformas… pero bueno, dejalo como una deuda».
 
-El panel de Subí la Foto se construyó con los tokens de su propio manual de marca
+El panel de SubiLaFoto se construyó con los tokens de su propio manual de marca
 (`--slf-*`, Montserrat y Cormorant), mientras CompraMeLaFoto, FOTOFFICE y FotoRank comparten
 otra estética de panel. Un fotógrafo que use dos plataformas ve dos productos distintos.
 
 **Por qué se deja:** unificar el panel es rehacer la navegación, no cambiar colores, y no
 entra antes del 10/10. Además la parte que ve el invitado —que es la que decide si la
-plataforma se vende— sí tiene que verse como Subí la Foto y no como otra cosa.
+plataforma se vende— sí tiene que verse como SubiLaFoto y no como otra cosa.
 
 **Cuándo se paga:** después del lanzamiento, y junto con el buscador ⌘K del menú DNX, que
 toca los mismos cinco formatos de menú. Hacer las dos cosas por separado es pagar dos veces.
 
-### D2. Los textos legales están escritos y sin revisar — RESUELTA A MEDIAS
+### D2. Los textos legales están escritos y sin revisar — RESUELTA
 
 `/privacidad` y `/terminos` existen desde el 2026-09-13. El texto vive en
 `apps/subilafoto/lib/legal/contenido.ts` y **está atado a lo que la plataforma
@@ -175,8 +175,13 @@ de moderación o dónde se guardan los archivos, hay que cambiar el texto **el
 mismo día**: un texto legal que describe otro producto es peor que no tener
 ninguno.
 
-**Falta que los apruebe un asesor legal.** El titular lo va a hacer. Lo que hay
-es un borrador informado, no un documento validado.
+**Aprobados sin cambios el 2026-09-16**, según confirmó el titular. Dejaron de
+ser un borrador informado.
+
+La versión guardada en los consentimientos subió a `2026-09-16` por el renombre
+de la marca dentro de los textos: el fondo no cambió pero el texto sí, y un
+consentimiento tiene que poder mostrar exactamente lo que la persona aceptó. Al
+16/9 no había ninguno registrado, así que no costó nada.
 
 ### D2b. Dos obligaciones de comercio electrónico que todavía no están
 

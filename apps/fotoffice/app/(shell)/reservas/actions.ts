@@ -7,6 +7,8 @@ import { minorToDecimalString } from "@/lib/membership/money";
 import { sanitizeError } from "@/lib/payments/connect/log";
 import { parseSpaceForm } from "@/lib/bookings/space-form";
 import { parseExtraForm } from "@/lib/bookings/extra-form";
+import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { getGoogleAccessToken } from "@/lib/integrations/access-token";
 import { GOOGLE_CALENDAR_INTEGRATION_KEY } from "@/lib/integrations/registry";
 import { createCalendarClient, isCalendarPermissionError } from "@/lib/bookings/calendar/client";
@@ -35,7 +37,12 @@ export async function saveSpaceAction(formData: FormData): Promise<void> {
   const destinoError = spaceId ? `${ESPACIOS}/${spaceId}` : `${ESPACIOS}/nuevo`;
 
   const parsed = parseSpaceForm(formData);
-  if (!parsed.ok) redirect(`${destinoError}?error=${encodeURIComponent(parsed.error)}`);
+  if (!parsed.ok) {
+    // El parser es puro y devuelve marcadores; la palabra la pone esta institución.
+    const vocabulary = await loadPersonVocabulary(workspace.id);
+    const mensaje = aplicarVocabulario(parsed.error, vocabulary);
+    redirect(`${destinoError}?error=${encodeURIComponent(mensaje)}`);
+  }
   const v = parsed.values;
 
   // Se verifica la pertenencia antes de escribir: `where` de un update tiene que ser
@@ -283,7 +290,11 @@ export async function saveExtraAction(formData: FormData): Promise<void> {
   const extraId = String(formData.get("extraId") ?? "").trim() || null;
 
   const parsed = parseExtraForm(formData);
-  if (!parsed.ok) redirect(`${EXTRAS}?error=${encodeURIComponent(parsed.error)}`);
+  if (!parsed.ok) {
+    const vocabulary = await loadPersonVocabulary(workspace.id);
+    const mensaje = aplicarVocabulario(parsed.error, vocabulary);
+    redirect(`${EXTRAS}?error=${encodeURIComponent(mensaje)}`);
+  }
   const v = parsed.values;
 
   if (extraId) {

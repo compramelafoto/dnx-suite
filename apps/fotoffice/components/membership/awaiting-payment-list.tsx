@@ -3,6 +3,7 @@ import type { AwaitingPaymentItem } from "@/lib/membership/inbox";
 import { formatMinorArs } from "@/lib/membership/money";
 import { fechaLegible } from "@/lib/membership/charge-labels";
 import { APPLICATION_REMINDER_DAYS, applicationDeadlineStage } from "@/lib/membership/application-lifecycle";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
 /**
  * Quiénes fueron aprobados y todavía no pagaron su ingreso.
@@ -14,7 +15,13 @@ import { APPLICATION_REMINDER_DAYS, applicationDeadlineStage } from "@/lib/membe
  *
  * «Sin cuenta» no es un detalle técnico: quien no activó su acceso no tiene por dónde pagar.
  */
-export function AwaitingPaymentList({ items }: { items: AwaitingPaymentItem[] }) {
+export function AwaitingPaymentList({
+  items,
+  vocabulary,
+}: {
+  items: AwaitingPaymentItem[];
+  vocabulary: PersonVocabulary;
+}) {
   if (items.length === 0) return null;
   const ahora = new Date();
 
@@ -23,8 +30,7 @@ export function AwaitingPaymentList({ items }: { items: AwaitingPaymentItem[] })
       <div className="space-y-1">
         <h2 className="text-sm font-semibold">Aprobadas, esperando el pago</h2>
         <p className="text-xs text-[var(--fo-muted)]">
-          El ingreso se cierra solo cuando se acredita el pago. Si no llega dentro del plazo, el
-          alta queda sin efecto y el socio se da de baja automáticamente.
+          {`El ingreso se cierra solo cuando se acredita el pago. Si no llega dentro del plazo, el alta queda sin efecto y el ${vocabulary.singular} se da de baja automáticamente.`}
         </p>
       </div>
 

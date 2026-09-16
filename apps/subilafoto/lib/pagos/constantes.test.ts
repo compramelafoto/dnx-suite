@@ -15,7 +15,7 @@ describe("la referencia del vendedor en la capa financiera", () => {
 
   test("una referencia de otro producto no se lee como propia", () => {
     // `organizationRef` es único en toda la suite. Sin el prefijo, un vendedor de
-    // Subí la Foto podría chocar con un workspace de FotoOffice con el mismo id.
+    // SubiLaFoto podría chocar con un workspace de FotoOffice con el mismo id.
     expect(perfilDesdeReferencia("fotoffice-workspace:123")).toBeNull();
     expect(perfilDesdeReferencia("lab:123")).toBeNull();
     expect(perfilDesdeReferencia("")).toBeNull();
@@ -38,6 +38,6 @@ describe("qué capacidades se le dan a la cuenta conectada", () => {
 
   test("se identifica con su propia clave de producto", () => {
     expect(SUBILAFOTO_PRODUCTO.key).toBe("subilafoto");
-    expect(SUBILAFOTO_PRODUCTO.nombre).toBe("Subí la Foto");
+    expect(SUBILAFOTO_PRODUCTO.nombre).toBe("SubiLaFoto");
   });
 });

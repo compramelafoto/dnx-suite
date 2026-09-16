@@ -1,5 +1,11 @@
 import { describe, expect, test } from "vitest";
-import { CATEGORIAS, esCategoriaValida, nombreDeCategoria } from "./categorias";
+import {
+  CATEGORIAS,
+  categoriaDelEnlace,
+  esCategoriaValida,
+  etiquetaDeCategoria,
+  nombreDeCategoria,
+} from "./categorias";
 
 describe("las categorías de proveedor", () => {
   test("no hay dos con la misma clave", () => {
@@ -28,5 +34,25 @@ describe("las categorías de proveedor", () => {
     expect(nombreDeCategoria("dj")).toBe("DJ");
     // Una clave vieja que ya no está en la lista se muestra tal cual, no vacía.
     expect(nombreDeCategoria("kioscos")).toBe("kioscos");
+  });
+});
+
+describe("el enlace por categoría", () => {
+  test("una etiqueta que es una categoría se reconoce", () => {
+    expect(categoriaDelEnlace("categoria:salon")).toBe("salon");
+  });
+
+  test("el enlace general no tiene categoría", () => {
+    expect(categoriaDelEnlace("Proveedores del evento")).toBeNull();
+    expect(categoriaDelEnlace(null)).toBeNull();
+  });
+
+  test("una categoría que ya no existe se trata como enlace general", () => {
+    // Si mañana se saca una categoría, los enlaces viejos siguen sirviendo.
+    expect(categoriaDelEnlace("categoria:kioscos")).toBeNull();
+  });
+
+  test("la etiqueta se arma con la misma función que la lee", () => {
+    expect(categoriaDelEnlace(etiquetaDeCategoria("dj"))).toBe("dj");
   });
 });
