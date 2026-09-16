@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import type { CoverageBrand } from "@/lib/coverages/branding";
 import type { ConsentKind } from "@/lib/coverages/consents";
 import {
   visibleRequestSections,
@@ -43,12 +44,14 @@ export function CoverageRequestForm({
   intro,
   consents,
   fields,
+  brand,
 }: {
   workspaceSlug: string;
   institutionName: string;
   intro: string | null;
   consents: ConsentItem[];
   fields: RequestFormFieldConfig;
+  brand: CoverageBrand | null;
 }) {
   const accion = submitCoverageRequestAction.bind(null, workspaceSlug);
   const [state, formAction, pending] = useActionState(accion, inicial);
@@ -74,7 +77,13 @@ export function CoverageRequestForm({
   }
 
   return (
-    <form action={formAction} className="space-y-8">
+    // `accentColor` pinta las tildes de los permisos con el color de la institución. Es una
+    // propiedad del navegador: si el color no sirviera, la tilde vuelve sola a la del sistema.
+    <form
+      action={formAction}
+      className="space-y-8"
+      style={brand ? { accentColor: brand.accent } : undefined}
+    >
       {intro ? (
         <p className="text-sm leading-relaxed text-[var(--fo-muted)]">{intro}</p>
       ) : null}
@@ -127,7 +136,18 @@ export function CoverageRequestForm({
         </p>
       ) : null}
 
-      <button type="submit" className="fo-btn min-h-12 w-full" disabled={pending}>
+      {/*
+        Con la marca cargada, el botón va con el color de la institución y el texto que se lee
+        encima —blanco o negro, lo decide la luminancia y no una suposición—. Sin marca,
+        `fo-btn-primary` deja el botón como el resto del sistema. `.fo-btn` a secas no pinta
+        ningún fondo, así que sin la variante el botón venía transparente.
+      */}
+      <button
+        type="submit"
+        className="fo-btn fo-btn-primary min-h-12 w-full"
+        disabled={pending}
+        style={brand ? { background: brand.primary, color: brand.onPrimary } : undefined}
+      >
         {pending ? "Enviando…" : "Enviar el pedido"}
       </button>
     </form>
