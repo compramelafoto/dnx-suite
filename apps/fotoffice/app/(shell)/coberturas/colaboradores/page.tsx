@@ -7,6 +7,7 @@ import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { MEMBER_STATUS_LABELS } from "@/lib/members/status-labels";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { ColaboradorRow } from "./colaborador-row";
+import { SeleccionarTodosCasilla, TandaColaboradoresBarra } from "./tanda-form";
 
 export const dynamic = "force-dynamic";
 
@@ -62,31 +63,43 @@ async function ListaDeSocios({ workspaceId }: { workspaceId: string }) {
   }
 
   return (
-    <div className="overflow-x-auto rounded-[var(--fo-radius)] border border-[var(--fo-border)]">
-      <table className="w-full text-sm text-left min-w-[720px]">
-        <thead className="bg-[var(--fo-bg-elevated)] text-[var(--fo-muted)]">
-          <tr>
-            <th className="px-4 py-3 font-semibold">Socio</th>
-            <th className="px-4 py-3 font-semibold">Estado</th>
-            <th className="px-4 py-3 font-semibold w-24">Colaborador</th>
-            <th className="px-4 py-3 font-semibold">Ciudad</th>
-            <th className="px-4 py-3 font-semibold">Zonas</th>
-            <th className="px-4 py-3 font-semibold w-16" />
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-[var(--fo-border)] bg-[var(--fo-surface)]">
-          {socios.map((s) => (
-            <ColaboradorRow
-              key={s.id}
-              memberId={s.id}
-              nombre={`${s.lastName}, ${s.firstName}`}
-              memberNumber={s.memberNumber}
-              memberStatusLabel={MEMBER_STATUS_LABELS[s.status]}
-              perfil={s.coverageProfile}
-            />
-          ))}
-        </tbody>
-      </table>
+    <div className="space-y-4">
+      {/*
+        La barra va antes de la tabla, no adentro: sus casillas viven en las filas y se asocian a
+        ella con el atributo `form=` (ver `tanda-form.tsx`). Encender el perfil de a ochenta y
+        pico es lo primero que necesita una institución que acaba de importar su padrón.
+      */}
+      <TandaColaboradoresBarra />
+
+      <div className="overflow-x-auto rounded-[var(--fo-radius)] border border-[var(--fo-border)]">
+        <table className="w-full text-sm text-left min-w-[760px]">
+          <thead className="bg-[var(--fo-bg-elevated)] text-[var(--fo-muted)]">
+            <tr>
+              <th className="px-4 py-3 font-semibold w-12">
+                <SeleccionarTodosCasilla />
+              </th>
+              <th className="px-4 py-3 font-semibold">Socio</th>
+              <th className="px-4 py-3 font-semibold">Estado</th>
+              <th className="px-4 py-3 font-semibold w-24">Colaborador</th>
+              <th className="px-4 py-3 font-semibold">Ciudad</th>
+              <th className="px-4 py-3 font-semibold">Zonas</th>
+              <th className="px-4 py-3 font-semibold w-16" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[var(--fo-border)] bg-[var(--fo-surface)]">
+            {socios.map((s) => (
+              <ColaboradorRow
+                key={s.id}
+                memberId={s.id}
+                nombre={`${s.lastName}, ${s.firstName}`}
+                memberNumber={s.memberNumber}
+                memberStatusLabel={MEMBER_STATUS_LABELS[s.status]}
+                perfil={s.coverageProfile}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

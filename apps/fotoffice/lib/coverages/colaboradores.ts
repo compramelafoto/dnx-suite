@@ -156,5 +156,18 @@ export function participaDeCoberturas(input: {
   estadoEnElPadron: string | null | undefined;
   perfil: { active: boolean } | null | undefined;
 }): boolean {
-  return input.estadoEnElPadron === "ACTIVE" && perfilHabilitado(input.perfil);
+  return vigenteEnElPadron(input.estadoEnElPadron) && perfilHabilitado(input.perfil);
+}
+
+/**
+ * La mitad de `participaDeCoberturas` que mira el padrón: si esta persona sigue siendo de la
+ * casa, sin importar su perfil de colaborador.
+ *
+ * Existe por separado porque hay un lugar donde las dos mitades no se pueden preguntar juntas:
+ * la habilitación en tanda tiene que poder decir *por qué* salteó a alguien —"no está activo en
+ * el padrón", y no "no tiene el perfil"— y para eso necesita las dos respuestas por separado. La
+ * regla sigue viviendo en un solo lugar: `participaDeCoberturas` la usa, no la repite.
+ */
+export function vigenteEnElPadron(estadoEnElPadron: string | null | undefined): boolean {
+  return estadoEnElPadron === "ACTIVE";
 }
