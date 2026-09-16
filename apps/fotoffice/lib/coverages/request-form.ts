@@ -16,8 +16,12 @@
 
 import {
   DEFAULT_REQUEST_FORM_CONFIG,
+  formatChoiceValue,
   REQUEST_FIELDS,
+  requestFieldOptions,
+  requestFieldOtherInputName,
   resolveRequestFieldStates,
+  type RequestFieldDef,
   type RequestFormFieldConfig,
 } from "./request-fields";
 
@@ -45,7 +49,14 @@ export type ParsedRequest = {
   city: string | null;
   activityKind: string | null;
   expectedAttendees: number | null;
+  /**
+   * Los tres campos de elección. Se guardan con el valor del catálogo —nunca con lo que
+   * escribió el navegador— y, cuando la respuesta es "Otros", con el texto libre detrás:
+   * `OTROS: con carpa`. La forma está explicada en `formatChoiceValue`.
+   */
   venueKind: string | null;
+  otherCoverage: string | null;
+  showcaseScope: string | null;
   onSiteContactName: string | null;
   onSitePhone: string | null;
   mediaKinds: string;
@@ -96,6 +107,31 @@ function fecha(v: string | undefined): Date | null {
  * un agujero abierto por un formulario público. Lo que no pasa el filtro se descarta en
  * silencio: es documentación de apoyo, no vale frenar un pedido por un enlace mal pegado.
  */
+/**
+ * Una respuesta de un campo de elección, validada contra la lista de opciones.
+ *
+ * **Lo que no está en la lista se rechaza; nunca se guarda crudo.** Los botones del formulario
+ * son una comodidad para quien completa, no el control: el `FormData` lo arma el navegador y
+ * puede decir cualquier cosa. Sin esta comprobación, la columna se llenaría de valores que
+ * ninguna pantalla sabe leer y ningún recuento sabe contar.
+ *
+ * El texto libre de "Otros" sí viaja como lo escribió la persona —es su aclaración— pero sólo
+ * detrás de una opción válida y recortado a un renglón (ver `formatChoiceValue`).
+ */
+function eleccion(
+  field: RequestFieldDef,
+  raw: string | undefined,
+  otroRaw: string | undefined,
+): { ok: true; value: string | null } | { ok: false; error: string } {
+  const elegido = raw?.trim();
+  if (!elegido) return { ok: true, value: null };
+  const permitidas = requestFieldOptions(field).map((o) => o.value);
+  if (!permitidas.includes(elegido)) {
+    return { ok: false, error: `Elegí una de las respuestas de «${field.label}».` };
+  }
+  return { ok: true, value: formatChoiceValue(elegido, otroRaw ?? null) };
+}
+
 function enlaces(v: string | undefined): string[] {
   if (!v) return [];
   return v
@@ -156,6 +192,21 @@ export function parseCoverageRequest(
   const expectedDeliveryAt = fecha(crudo("expectedDeliveryAt"));
   const documentationLinks = enlaces(crudo("documentationLinks"));
 
+  // Los campos de elección, todos juntos y con la misma regla: la del catálogo. Un campo de
+  // elección oculto no llega a `eleccion` —`crudo` ya lo descartó— así que tampoco se valida ni
+  // se guarda, igual que cualquier otro campo apagado.
+  const elecciones: Record<string, string | null> = {};
+  for (const campo of REQUEST_FIELDS) {
+    if (campo.input !== "choice") continue;
+    const r = eleccion(
+      campo,
+      crudo(campo.key),
+      crudo(campo.key) === undefined ? undefined : form[requestFieldOtherInputName(campo.key)],
+    );
+    if (!r.ok) return { ok: false, error: r.error };
+    elecciones[campo.key] = r.value;
+  }
+
   const data: ParsedRequest = {
     orgName,
     orgKind: texto(crudo("orgKind")),
@@ -174,7 +225,9 @@ export function parseCoverageRequest(
     city: texto(crudo("city")),
     activityKind: texto(form.activityKind),
     expectedAttendees: asistentes.value,
-    venueKind: texto(form.venueKind),
+    venueKind: elecciones.venueKind ?? null,
+    otherCoverage: elecciones.otherCoverage ?? null,
+    showcaseScope: elecciones.showcaseScope ?? null,
     onSiteContactName: texto(crudo("onSiteContactName")),
     onSitePhone: texto(crudo("onSitePhone")),
     mediaKinds: texto(form.mediaKinds) ?? "FOTO",
