@@ -7,6 +7,7 @@ import {
   validatePaymentImportAction,
   type PaymentImportValidationState,
 } from "@/app/actions/payments-import";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
 type Step = 1 | 2 | 3;
 
@@ -27,9 +28,11 @@ const STEP_LABELS: Record<Step, string> = {
 export function PaymentImportWizard({
   prompt,
   csvHeaderExample,
+  vocabulary,
 }: {
   prompt: string;
   csvHeaderExample: string;
+  vocabulary: PersonVocabulary;
 }) {
   const router = useRouter();
   const [step, setStep] = useState<Step>(1);
@@ -86,7 +89,7 @@ export function PaymentImportWizard({
           </p>
         ) : null}
         <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
-          Ya se ven en la ficha de cada socio y en su portal. Ninguna deuda cambió.
+          {`Ya se ven en la ficha de cada ${vocabulary.singular} y en su portal. Ninguna deuda cambió.`}
         </p>
         <button className="fo-btn fo-btn-primary" onClick={() => router.push("/members/cuotas")}>
           Volver a Cuotas
@@ -128,9 +131,9 @@ export function PaymentImportWizard({
           <div className="space-y-2 rounded-lg border border-[var(--fo-border)] bg-[var(--fo-bg)] px-4 py-3 text-sm leading-relaxed text-[var(--fo-text)]">
             <p className="font-semibold">Qué hace y qué no hace esta importación</p>
             <ul className="list-disc space-y-1 pl-5 text-[var(--fo-muted)]">
-              <li>Deja registrados los pagos para que el socio los vea en su portal.</li>
+              <li>{`Deja registrados los pagos para que el ${vocabulary.singular} los vea en su portal.`}</li>
               <li>
-                <strong>No da de alta socios.</strong> Si una fila trae un número que no está en
+                <strong>{`No da de alta ${vocabulary.plural}.`}</strong> Si una fila trae un número que no está en
                 el padrón, esa fila se rechaza.
               </li>
               <li>
@@ -141,8 +144,7 @@ export function PaymentImportWizard({
           </div>
 
           <p className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-            Revisá qué información compartís con herramientas externas antes de pegar datos de
-            tus socios.
+            {`Revisá qué información compartís con herramientas externas antes de pegar datos de tus ${vocabulary.plural}.`}
           </p>
 
           <div className="space-y-2">
@@ -182,7 +184,7 @@ export function PaymentImportWizard({
         <div className="fo-card max-w-3xl space-y-4">
           <h2 className="text-lg font-semibold text-[var(--fo-text)]">Pegá acá el CSV</h2>
           <p className="text-sm leading-relaxed text-[var(--fo-muted)]">
-            Una fila por pago, no por socio. Si un socio pagó doce veces, son doce filas.
+            {`Una fila por pago, no por ${vocabulary.singular}. Si un ${vocabulary.singular} pagó doce veces, son doce filas.`}
           </p>
           <textarea
             value={csvText}
@@ -243,7 +245,7 @@ export function PaymentImportWizard({
               <thead className="sticky top-0 bg-[var(--fo-bg)] text-[var(--fo-muted-soft)]">
                 <tr>
                   <th className="px-2 py-2 font-medium">Fila</th>
-                  <th className="px-2 py-2 font-medium">Socio</th>
+                  <th className="px-2 py-2 font-medium">{vocabulary.Singular}</th>
                   <th className="px-2 py-2 font-medium">Fecha</th>
                   <th className="px-2 py-2 font-medium">Importe</th>
                   <th className="px-2 py-2 font-medium">Observaciones</th>

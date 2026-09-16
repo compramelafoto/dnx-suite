@@ -29,6 +29,7 @@ import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
 /**
  * Menú principal.
@@ -72,9 +73,13 @@ function under(href: string) {
  * La lista vive en `lib/modules/submodules.ts` y la comparte con el inicio del workspace: es
  * lo que evita que una pantalla nueva aparezca en un lado y en el otro no.
  */
-function itemsDeModulo(moduleKey: string, canManage: boolean): Item[] {
+function itemsDeModulo(
+  moduleKey: string,
+  canManage: boolean,
+  vocabulary: PersonVocabulary,
+): Item[] {
   const reclamadas = claimedPrefixes(moduleKey);
-  return submodulesFor(moduleKey, { canManage }).map((sub: SubmoduleItem) => ({
+  return submodulesFor(moduleKey, { canManage }, vocabulary).map((sub: SubmoduleItem) => ({
     href: sub.href,
     label: sub.label,
     icon: ICONOS[sub.icon] ?? LayoutDashboard,
@@ -150,6 +155,7 @@ export function ShellNav({
   canManageMembers,
   canManageWorkspaceSettings,
   platformAdmin,
+  vocabulary,
 }: {
   coursesEnabled: boolean;
   evaluacionesEnabled: boolean;
@@ -161,32 +167,33 @@ export function ShellNav({
   canManageMembers: boolean;
   canManageWorkspaceSettings: boolean;
   platformAdmin: boolean;
+  vocabulary: PersonVocabulary;
 }) {
   const path = usePathname() ?? "";
   const { closeDrawer } = useShellNav();
 
   const socios: Item[] = membersEnabled
-    ? itemsDeModulo(MEMBERS_MODULE_KEY, canManageMembers)
+    ? itemsDeModulo(MEMBERS_MODULE_KEY, canManageMembers, vocabulary)
     : [];
 
   const reservas: Item[] = bookingsEnabled
-    ? itemsDeModulo(BOOKINGS_MODULE_KEY, canManageWorkspaceSettings)
+    ? itemsDeModulo(BOOKINGS_MODULE_KEY, canManageWorkspaceSettings, vocabulary)
     : [];
 
   // Sorteos vive en el grupo Socios: es una de las cosas que la institución le da al socio
   // al día, y separarlo en su propia sección lo dejaría suelto al lado de Cuotas.
   const sorteos: Item[] = rafflesEnabled
-    ? itemsDeModulo(RAFFLES_MODULE_KEY, canManageWorkspaceSettings)
+    ? itemsDeModulo(RAFFLES_MODULE_KEY, canManageWorkspaceSettings, vocabulary)
     : [];
 
   // Grupo propio y no dentro de Socios: coberturas se le pide a cualquier institución con
   // actividad fotográfica, no sólo a las que tienen padrón de socios.
   const coberturas: Item[] = coveragesEnabled
-    ? itemsDeModulo(COVERAGES_MODULE_KEY, canManageWorkspaceSettings)
+    ? itemsDeModulo(COVERAGES_MODULE_KEY, canManageWorkspaceSettings, vocabulary)
     : [];
 
   const cursos: Item[] = coursesEnabled
-    ? itemsDeModulo(COURSES_SALES_MODULE_KEY, true)
+    ? itemsDeModulo(COURSES_SALES_MODULE_KEY, true, vocabulary)
     : [];
 
   // Evaluaciones evalúa actividades de los cursos: es del mismo dominio, no un módulo suelto.
@@ -282,7 +289,7 @@ export function ShellNav({
           { href: "/dashboard", label: "Inicio", icon: LayoutDashboard, isActive: exact("/dashboard") },
         ]}
       />
-      <Section title="Socios" items={socios} path={path} onNavigate={closeDrawer} />
+      <Section title={vocabulary.Plural} items={socios} path={path} onNavigate={closeDrawer} />
       <Section title="Sorteos" items={sorteos} path={path} onNavigate={closeDrawer} />
       <Section title="Coberturas" items={coberturas} path={path} onNavigate={closeDrawer} />
       <Section title="Cursos" items={cursosItems} path={path} onNavigate={closeDrawer} />

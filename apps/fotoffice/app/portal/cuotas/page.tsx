@@ -19,6 +19,7 @@ import { PayButton } from "./pay-button";
 import { loadAdvanceOffer } from "@/lib/membership/advance-store";
 import { AdvanceForm } from "./advance-form";
 import { loadAppliedBenefits } from "@/lib/membership/recommendation-store";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 
 export const dynamic = "force-dynamic";
 
@@ -67,6 +68,7 @@ export default async function CuotasPage({
     loadAdvanceOffer(context.member.id),
     loadAppliedBenefits(context.member.id),
   ]);
+  const v = await loadPersonVocabulary(context.workspace.id);
 
   const alDia = cuenta.charges.length === 0;
 
@@ -103,7 +105,7 @@ export default async function CuotasPage({
           </Link>
           <h1 className="text-xl font-semibold tracking-tight">Tus cuotas</h1>
           <p className="text-sm text-[var(--fo-muted)]">
-            Socio N° {context.member.memberNumber} · {context.workspace.name}
+            {v.Singular} N° {context.member.memberNumber} · {context.workspace.name}
           </p>
         </div>
 
@@ -292,6 +294,7 @@ export default async function CuotasPage({
           memberNumber={context.member.memberNumber}
           whatsapp={contacto.whatsapp}
           contactEmail={contacto.contactEmail}
+          vocabulary={v}
         />
       </main>
     </div>

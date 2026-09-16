@@ -59,6 +59,15 @@ describe("quién participa", () => {
     expect(r.reason).toMatch(/no está activa/i);
   });
 
+  it("el motivo sale con el marcador sin resolver: la palabra la pone cada institución", () => {
+    // Esta función es pura y no sabe en qué institución está parada. Escribir "socio" acá
+    // dejaría a Foto Positiva leyendo la palabra de la SFPR; quien muestra el motivo lo pasa
+    // por `aplicarVocabulario`.
+    const r = isEligible(socio({ status: "SUSPENDED" }), CIERRE);
+    expect(r.reason).toContain("{persona}");
+    expect(r.reason).not.toMatch(/socio/i);
+  });
+
   it("el socio dado de baja no participa", () => {
     expect(isEligible(socio({ status: "INACTIVE" }), CIERRE).eligible).toBe(false);
   });

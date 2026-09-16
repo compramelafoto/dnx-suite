@@ -81,7 +81,7 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     key: BOOKINGS_MODULE_KEY,
     label: "Reservas",
     description:
-      "Reserva de salón, estudio, coworking u otros espacios: horarios, tarifas para socios y no socios, extras y agenda.",
+      "Reserva de salón, estudio, coworking u otros espacios: horarios, tarifas para {personas} y no {personas}, extras y agenda.",
     category: "GENERAL",
     order: 60,
     route: "/reservas",
@@ -112,7 +112,7 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
   {
     key: "communications",
     label: "Comunicación",
-    description: "Envío de comunicaciones/email a clientes o socios del workspace.",
+    description: "Envío de comunicaciones/email a clientes o {personas} del workspace.",
     category: "GENERAL",
     order: 40,
     status: "PLANNED",
@@ -129,7 +129,7 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     key: CLIENTS_MODULE_KEY,
     label: "Clientes",
     description:
-      "Padrón de clientes del negocio: ficha, contacto, datos fiscales y enlace opcional al socio.",
+      "Padrón de clientes del negocio: ficha, contacto, datos fiscales y enlace opcional al {persona}.",
     category: "GENERAL",
     order: 70,
     route: "/clientes",
@@ -137,8 +137,8 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
   },
   {
     key: MEMBERS_MODULE_KEY,
-    label: "Socios",
-    description: "Padrón de socios de una institución: alta, edición, categorías y estado.",
+    label: "{Personas}",
+    description: "Padrón de {personas} de una institución: alta, edición, categorías y estado.",
     category: "INSTITUTIONAL",
     order: 100,
     route: "/members",
@@ -148,7 +148,7 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     key: MEMBERSHIP_DUES_MODULE_KEY,
     label: "Cuotas societarias",
     description:
-      "Cuotas periódicas de los socios: generación mensual, cobro por Mercado Pago, pagos a mano e historial.",
+      "Cuotas periódicas de los {personas}: generación mensual, cobro por Mercado Pago, pagos a mano e historial.",
     category: "INSTITUTIONAL",
     order: 110,
     route: "/members/cuotas",
@@ -158,7 +158,7 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     key: RAFFLES_MODULE_KEY,
     label: "Sorteos",
     description:
-      "Sorteos entre socios al día, con premios donados por marcas aliadas y un resultado que cualquiera puede comprobar.",
+      "Sorteos entre {personas} al día, con premios donados por marcas aliadas y un resultado que cualquiera puede comprobar.",
     category: "INSTITUTIONAL",
     order: 115,
     route: "/sorteos",

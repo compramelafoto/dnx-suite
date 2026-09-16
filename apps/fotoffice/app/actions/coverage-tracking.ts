@@ -30,6 +30,7 @@ export async function answerInfoRequestAction(
   }
 
   await prisma.$transaction(async (tx) => {
+    // aislamiento: por `solicitud`, que sale del token — la credencial que identifica esa fila.
     await tx.coverageRequest.update({
       where: { id: solicitud.id },
       data: { status: "EN_EVALUACION", infoRequested: null },

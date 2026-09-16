@@ -7,6 +7,7 @@ import { resolveFotofficeUserKind } from "@/lib/portal/user-kind";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { resolvePortalMenu } from "@/lib/portal/menu";
 import { getDuesSettings } from "@/lib/membership/settings";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { PortalShell } from "@/components/portal/portal-shell";
 
 /**
@@ -31,7 +32,7 @@ export default async function PortalLayout({ children }: { children: ReactNode }
     redirect(kind === "TEAM" ? "/workspace" : "/login");
   }
 
-  const [branding, foto, enabledModuleKeys, duesSettings] = await Promise.all([
+  const [branding, foto, enabledModuleKeys, duesSettings, vocabulary] = await Promise.all([
     prisma.fotofficeWorkspaceBranding.findUnique({
       where: { workspaceId: context.workspace.id },
       select: { commercialName: true, logoUrl: true },
@@ -42,6 +43,7 @@ export default async function PortalLayout({ children }: { children: ReactNode }
     }),
     getEnabledModuleKeysForWorkspace(context.workspace.id),
     getDuesSettings(context.workspace.id),
+    loadPersonVocabulary(context.workspace.id),
   ]);
 
   return (
@@ -49,6 +51,7 @@ export default async function PortalLayout({ children }: { children: ReactNode }
       items={resolvePortalMenu(enabledModuleKeys, {
         recommendationsEnabled: duesSettings.recommendationEnabled,
       })}
+      vocabulary={vocabulary}
       institution={{
         name: branding?.commercialName?.trim() || context.workspace.name,
         logoUrl: branding?.logoUrl ?? null,

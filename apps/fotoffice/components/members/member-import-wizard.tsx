@@ -7,6 +7,7 @@ import {
   validateMemberImportAction,
   type MemberImportValidationState,
 } from "@/app/actions/members-import";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
 type Step = 1 | 2 | 3;
 
@@ -21,11 +22,13 @@ export function MemberImportWizard({
   csvHeaderExample,
   hasCategories,
   workspaceName,
+  vocabulary,
 }: {
   prompt: string;
   csvHeaderExample: string;
   hasCategories: boolean;
   workspaceName: string;
+  vocabulary: PersonVocabulary;
 }) {
   const router = useRouter();
   const [step, setStep] = useState<Step>(1);
@@ -84,8 +87,10 @@ export function MemberImportWizard({
   if (importedCount !== null) {
     return (
       <div className="fo-card space-y-4 text-center py-12">
+        {/* Reformulado: "importado/s" concordaba en masculino con la palabra configurada;
+            "se importaron" es un verbo, invariante en género. */}
         <p className="text-lg font-semibold text-[var(--fo-text)]">
-          {importedCount} {importedCount === 1 ? "socio importado" : "socios importados"} correctamente.
+          {`Se ${importedCount === 1 ? "importó" : "importaron"} correctamente ${importedCount} ${importedCount === 1 ? vocabulary.singular : vocabulary.plural}.`}
         </p>
         <button className="fo-btn fo-btn-primary" onClick={() => router.push("/members")}>
           Ver padrón
@@ -127,14 +132,12 @@ export function MemberImportWizard({
 
           {!hasCategories ? (
             <p className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-              Todavía no creaste ninguna categoría de socios. Creá al menos una antes de importar —
-              cada fila del CSV necesita una categoría existente.
+              {`Todavía no creaste ninguna categoría de ${vocabulary.plural}. Creá al menos una antes de importar — cada fila del CSV necesita una categoría existente.`}
             </p>
           ) : null}
 
           <p className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-            Revisá qué información compartís con herramientas externas antes de pegar datos
-            personales de tus socios.
+            {`Revisá qué información compartís con herramientas externas antes de pegar datos personales de tus ${vocabulary.plural}.`}
           </p>
 
           <div className="space-y-2">
@@ -227,13 +230,11 @@ export function MemberImportWizard({
             </div>
             {summary.errorCount > 0 ? (
               <p className="text-sm text-[var(--fo-danger)] pt-2">
-                Encontramos {summary.errorCount} {summary.errorCount === 1 ? "problema" : "problemas"} que
-                tenés que corregir antes de importar. No se va a crear ningún socio hasta que el
-                archivo esté sin errores.
+                {`Encontramos ${summary.errorCount} ${summary.errorCount === 1 ? "problema" : "problemas"} que tenés que corregir antes de importar. No se va a crear ningún ${vocabulary.singular} hasta que el archivo esté sin errores.`}
               </p>
             ) : (
               <p className="text-sm text-[var(--fo-success)] pt-2">
-                Sin errores. Se van a crear {summary.validCount} socios en {workspaceName}.
+                {`Sin errores. Se van a crear ${summary.validCount} ${summary.validCount === 1 ? vocabulary.singular : vocabulary.plural} en ${workspaceName}.`}
               </p>
             )}
           </div>
@@ -243,7 +244,7 @@ export function MemberImportWizard({
               <thead className="bg-[var(--fo-bg-elevated)] text-[var(--fo-muted)]">
                 <tr>
                   <th className="px-4 py-3 font-semibold">Fila</th>
-                  <th className="px-4 py-3 font-semibold">N° socio</th>
+                  <th className="px-4 py-3 font-semibold">{`N° ${vocabulary.singular}`}</th>
                   <th className="px-4 py-3 font-semibold">Nombre</th>
                   <th className="px-4 py-3 font-semibold">Categoría</th>
                   <th className="px-4 py-3 font-semibold">Estado</th>
@@ -289,7 +290,9 @@ export function MemberImportWizard({
               disabled={!canConfirm || isPending}
               onClick={handleConfirmImport}
             >
-              {isPending ? "Importando…" : `Importar ${summary.validCount} socios`}
+              {isPending
+                ? "Importando…"
+                : `Importar ${summary.validCount} ${summary.validCount === 1 ? vocabulary.singular : vocabulary.plural}`}
             </button>
           </div>
         </div>

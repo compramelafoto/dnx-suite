@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { personVocabulary } from "@/lib/vocabulario/personas";
 import { parseAndValidateMemberImport } from "./parse";
 
 const CATEGORY_ID = "cat_socio_activo";
@@ -10,6 +11,7 @@ function baseParams(overrides: Partial<Parameters<typeof parseAndValidateMemberI
     categoriesByName,
     existingMemberNumbers: new Set<string>(),
     existingDocuments: new Set<string>(),
+    vocabulary: personVocabulary(null),
     ...overrides,
   };
 }

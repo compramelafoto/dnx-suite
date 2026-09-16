@@ -9,6 +9,7 @@ import { decimalArsToMinor, formatMinorArs } from "@/lib/membership/money";
 import { chargePeriodLabel } from "@/lib/membership/charge-labels";
 import { recommendationBenefitPhrase } from "@/lib/membership/recommendation-labels";
 import { appUrl } from "@/lib/app-url";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { RecommendationLinkCard } from "@/components/portal/recommendation-link-card";
 
 export const dynamic = "force-dynamic";
@@ -65,6 +66,7 @@ export default async function RecomendadosPage() {
     base && branding?.publicSlug ? `${base}/w/${branding.publicSlug}/asociarse?rec=${code}` : null;
 
   const beneficio = recommendationBenefitPhrase(settings.recommendationBenefitPercent);
+  const v = await loadPersonVocabulary(context.workspace.id);
 
   return (
     <div className="min-h-screen bg-[var(--fo-bg)] text-[var(--fo-text)]">
@@ -106,7 +108,7 @@ export default async function RecomendadosPage() {
                     {r.firstName} {r.lastName}
                   </p>
                   <p className="text-xs text-[var(--fo-muted-soft)] tabular-nums">
-                    Socio N° {r.memberNumber} · {fechaCorta(r.joinedAt)}
+                    {v.Singular} N° {r.memberNumber} · {fechaCorta(r.joinedAt)}
                   </p>
                 </li>
               ))}

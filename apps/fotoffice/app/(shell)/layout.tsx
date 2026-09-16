@@ -14,6 +14,8 @@ import { canManageMembers } from "@/lib/members/role-policy";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { isFotofficePlatformAdmin } from "@/lib/platform-admin";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
+import { personVocabulary } from "@/lib/vocabulario/personas";
 import { ShellSidebar } from "@/components/shell/shell-sidebar";
 import { ShellFrame } from "@/components/shell/shell-frame";
 import { ShellHeader } from "@/components/shell/shell-header";
@@ -45,6 +47,10 @@ export default async function ShellLayout({ children }: { children: React.ReactN
   const canManageMembersFlag = canManageMembers(activeRole);
   const canManageWorkspaceSettingsFlag = canManageWorkspaceSettings(activeRole);
   const platformAdmin = await isFotofficePlatformAdmin(user.id);
+  // Sin workspace activo (recién invitado, todavía sin `ensure`) no hay fila que leer: el
+  // vocabulario por omisión es lo correcto, ya que tampoco hay ningún módulo habilitado.
+  const vocabulary =
+    workspace !== null ? await loadPersonVocabulary(workspace.id) : personVocabulary(null);
 
   // Se lee acá, en el servidor, para que el menú ya salga oculto en el primer pintado:
   // decidirlo en el navegador lo mostraría y lo escondería en cada carga de página.
@@ -67,6 +73,7 @@ export default async function ShellLayout({ children }: { children: React.ReactN
           canManageMembers={canManageMembersFlag}
           canManageWorkspaceSettings={canManageWorkspaceSettingsFlag}
           platformAdmin={platformAdmin}
+          vocabulary={vocabulary}
         />
       }
       header={

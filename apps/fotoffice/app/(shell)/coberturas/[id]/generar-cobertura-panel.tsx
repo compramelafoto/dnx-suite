@@ -1,0 +1,141 @@
+"use client";
+
+import { useActionState, useState } from "react";
+import { crearCoberturaAction, type GenerarCoberturaState } from "../actions";
+
+const inicial: GenerarCoberturaState = { error: null, ok: null };
+
+type RolForm = { name: string; vacancies: number };
+
+/**
+ * El bloque para generar una cobertura desde una solicitud aprobada.
+ *
+ * Los valores por omisión (`sugerido`, `rolesSugeridos`) los calcula el servidor con
+ * `sugerirCobertura` y `sugerirRoles` (ver `lib/coverages/generar-cobertura.ts`) y llegan como
+ * props: es la misma lista que se guarda si la coordinación no toca nada. Acá solo se permite
+ * agregar y quitar filas de rol antes de mandar el formulario — la validación real, incluido el
+ * permiso, vuelve a pasar en `crearCoberturaAction` en el servidor.
+ */
+export function GenerarCoberturaPanel({
+  requestId,
+  sugerido,
+  rolesSugeridos,
+}: {
+  requestId: string;
+  sugerido: { title: string; startsAt: string; endsAt: string; addressLine: string; city: string };
+  rolesSugeridos: RolForm[];
+}) {
+  const [state, crear, creando] = useActionState(crearCoberturaAction, inicial);
+  const [roles, setRoles] = useState<RolForm[]>(
+    rolesSugeridos.length > 0 ? rolesSugeridos : [{ name: "", vacancies: 1 }],
+  );
+
+  function actualizarRol(i: number, cambios: Partial<RolForm>) {
+    setRoles((actual) => actual.map((r, j) => (j === i ? { ...r, ...cambios } : r)));
+  }
+
+  return (
+    <section className="fo-card space-y-4 p-5">
+      <div className="space-y-1">
+        <h2 className="text-base font-semibold">Generar una cobertura</h2>
+        <p className="text-sm text-[var(--fo-muted)]">
+          La solicitud sigue aprobada: podés generar más de una si hace falta más de una jornada.
+        </p>
+      </div>
+
+      {state.error ? (
+        <p role="alert" className="text-sm text-[var(--fo-danger)]">
+          {state.error}
+        </p>
+      ) : null}
+
+      <form action={crear} className="space-y-4">
+        <input type="hidden" name="requestId" value={requestId} />
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="fo-field-stack sm:col-span-2">
+            <span className="fo-label">Título</span>
+            <input name="title" defaultValue={sugerido.title} required className="fo-input" />
+          </label>
+          <label className="fo-field-stack">
+            <span className="fo-label">Empieza</span>
+            <input
+              type="datetime-local"
+              name="startsAt"
+              defaultValue={sugerido.startsAt}
+              required
+              className="fo-input"
+            />
+          </label>
+          <label className="fo-field-stack">
+            <span className="fo-label">Termina</span>
+            <input
+              type="datetime-local"
+              name="endsAt"
+              defaultValue={sugerido.endsAt}
+              required
+              className="fo-input"
+            />
+          </label>
+          <label className="fo-field-stack">
+            <span className="fo-label">Dirección</span>
+            <input name="addressLine" defaultValue={sugerido.addressLine} className="fo-input" />
+          </label>
+          <label className="fo-field-stack">
+            <span className="fo-label">Ciudad</span>
+            <input name="city" defaultValue={sugerido.city} className="fo-input" />
+          </label>
+          <label className="fo-field-stack sm:col-span-2">
+            <span className="fo-label">Instrucciones</span>
+            <textarea name="instructions" rows={2} className="fo-input" />
+          </label>
+        </div>
+
+        <div className="space-y-2">
+          <span className="fo-label">Roles y vacantes</span>
+          <div className="space-y-2">
+            {roles.map((r, i) => (
+              <div key={i} className="flex gap-2">
+                <input
+                  name="roleName"
+                  value={r.name}
+                  onChange={(e) => actualizarRol(i, { name: e.target.value })}
+                  placeholder="Nombre del rol"
+                  required
+                  className="fo-input flex-1"
+                />
+                <input
+                  type="number"
+                  name="roleVacancies"
+                  min={1}
+                  value={r.vacancies}
+                  onChange={(e) => actualizarRol(i, { vacancies: Number(e.target.value) })}
+                  className="fo-input w-24"
+                />
+                <button
+                  type="button"
+                  onClick={() => setRoles((actual) => actual.filter((_, j) => j !== i))}
+                  disabled={roles.length <= 1}
+                  className="fo-btn fo-btn-secondary"
+                >
+                  Quitar
+                </button>
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => setRoles((actual) => [...actual, { name: "", vacancies: 1 }])}
+            className="fo-btn fo-btn-secondary text-sm"
+          >
+            Agregar otro rol
+          </button>
+        </div>
+
+        <button type="submit" className="fo-btn min-h-11" disabled={creando}>
+          {creando ? "Generando…" : "Generar cobertura"}
+        </button>
+      </form>
+    </section>
+  );
+}

@@ -92,4 +92,12 @@ export const COVERAGE_EMAIL_KEYS = {
   INFO_REQUESTED: "fotoffice.coverages.request-info-requested",
   APPROVED: "fotoffice.coverages.request-approved",
   REJECTED: "fotoffice.coverages.request-rejected",
+  /** Se publicó una convocatoria. Sale a cada colaborador activo, por separado. */
+  CALL_PUBLISHED: "fotoffice.coverages.call-published",
+  /** Alguien quedó seleccionado o se lo invitó directo. Sale a esa persona. */
+  ASSIGNMENT_INVITED: "fotoffice.coverages.assignment-invited",
+  /** Alguien confirmó su lugar. Sale a la coordinación. */
+  ASSIGNMENT_CONFIRMED: "fotoffice.coverages.assignment-confirmed",
+  /** Se completaron todos los roles. Sale a la organización solicitante. */
+  TEAM_COMPLETE: "fotoffice.coverages.team-complete",
 } as const;

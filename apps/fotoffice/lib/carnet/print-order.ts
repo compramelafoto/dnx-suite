@@ -10,6 +10,8 @@ import { formatCardNumber, generateCardToken, hashCardToken } from "./token";
 import { sealCardToken } from "./token-vault";
 import { notifyCardEvent } from "./notify";
 import { reusablePrintOrderCharge } from "./reusable-charge";
+import { mensajeDePadron } from "@/lib/members/mensajes";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { applyCreditForMember } from "@/lib/membership/apply-credit-store";
 
 /**
@@ -92,9 +94,10 @@ export async function requestPrintedCard(input: {
     where: { id: input.memberId, workspaceId: input.workspaceId },
     select: { id: true, status: true, categoryId: true, avatarUrl: true },
   });
-  if (!socio) return { ok: false, error: "No encontramos tu ficha de socio." };
+  const vocabulary = await loadPersonVocabulary(input.workspaceId);
+  if (!socio) return { ok: false, error: mensajeDePadron("fichaNoEncontrada", vocabulary) };
   if (socio.status !== "ACTIVE") {
-    return { ok: false, error: "Tu condición de socio no está activa." };
+    return { ok: false, error: mensajeDePadron("condicionNoActiva", vocabulary) };
   }
   if (!socio.avatarUrl) {
     // La foto es variable obligatoria del carnet: sin ella la emisión fallaría más adelante,

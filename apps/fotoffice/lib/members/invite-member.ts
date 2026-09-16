@@ -16,6 +16,9 @@ import { loadWorkspaceEmailContext } from "@/lib/communications/load-workspace-s
 import { sendTransactionalEmail } from "@/lib/communications/send-email";
 import { loadDuesCallout } from "@/lib/membership/dues-callout";
 import type { AuthUser } from "@/lib/auth";
+import { mensajeDePadron } from "./mensajes";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 
 /**
  * Emite la invitación de UN socio y la manda por email.
@@ -73,22 +76,22 @@ export type InvitationBodyBuilder = (context: {
   signature: RenderedEmailSignature | null;
 }) => { subject: string; html: string; text: string };
 
-function friendlyLinkError(e: unknown): string {
+function friendlyLinkError(e: unknown, vocabulary: PersonVocabulary): string {
   if (e instanceof MemberConcurrencyError) {
-    return "Otra persona modificó este socio mientras tanto. Recargá la ficha e intentá de nuevo.";
+    return mensajeDePadron("modificadoMientrasTanto", vocabulary);
   }
   if (e instanceof MemberLinkError) {
     switch (e.reason) {
       case "ALREADY_LINKED":
-        return "Este socio ya tiene una cuenta vinculada.";
+        return mensajeDePadron("yaVinculado", vocabulary);
       case "USER_TAKEN":
-        return "Esa cuenta ya está vinculada a otro socio de este workspace.";
+        return mensajeDePadron("cuentaTomada", vocabulary);
       case "INVITATION_INVALID":
         return "La invitación ya no es válida.";
       case "MEMBER_NOT_ACTIVE":
-        return "Solo se puede invitar a un socio activo.";
+        return mensajeDePadron("soloSePuedeInvitarActivo", vocabulary);
       default:
-        return "Socio no encontrado.";
+        return mensajeDePadron("noEncontrado", vocabulary);
     }
   }
   return "No se pudo completar la operación.";
@@ -100,22 +103,22 @@ export async function inviteOneMember(
   memberId: string,
   options: { buildBody?: InvitationBodyBuilder } = {},
 ): Promise<InviteOutcome> {
+  // Una tanda de 25 pide el vocabulario una sola vez: `loadPersonVocabulary` está envuelto
+  // en `cache` de React y devuelve lo mismo durante todo el pedido.
+  const vocabulary = await loadPersonVocabulary(workspace.id);
   const member = await getMember(workspace.id, memberId);
-  if (!member) return { error: "Socio no encontrado." };
-  if (member.userId !== null) return { error: "Este socio ya tiene una cuenta vinculada." };
+  if (!member) return { error: mensajeDePadron("noEncontrado", vocabulary) };
+  if (member.userId !== null) return { error: mensajeDePadron("yaVinculado", vocabulary) };
 
   // El email del socio manda. Si no tiene, el administrador debe cargarle uno propio primero:
   // FotoOffice nunca inventa una dirección ni le agrega sufijos.
   const email = member.email?.trim().toLowerCase();
   if (!email) {
-    return {
-      error:
-        "Este socio no tiene email. Cargale un email propio en su ficha, o vinculá una cuenta existente.",
-    };
+    return { error: mensajeDePadron("sinEmail", vocabulary) };
   }
 
   if (!canMemberUseInvitations(member.status)) {
-    return { error: "Solo se puede invitar a un socio activo." };
+    return { error: mensajeDePadron("soloSePuedeInvitarActivo", vocabulary) };
   }
 
   // El enlace se resuelve ANTES de crear nada: si falta `APP_URL`, la invitación no llegaría
@@ -144,7 +147,7 @@ export async function inviteOneMember(
       source: sistema ? "SYSTEM" : "MANUAL",
     });
   } catch (e) {
-    return { error: friendlyLinkError(e) };
+    return { error: friendlyLinkError(e, vocabulary) };
   }
 
   // El envío ocurre DESPUÉS del commit. Si falla, la invitación queda creada pero marcada

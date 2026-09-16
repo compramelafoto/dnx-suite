@@ -26,7 +26,7 @@ export function collectionCopy(
     case "CONNECTED":
       return {
         title: "Cobros conectados",
-        body: "Tu cuenta de MercadoPago está vinculada. Los pagos de tus socios entran directo a tu cuenta y la comisión de la plataforma se descuenta en la misma operación.",
+        body: "Tu cuenta de MercadoPago está vinculada. Los pagos de tus {personas} entran directo a tu cuenta y la comisión de la plataforma se descuenta en la misma operación.",
         actionLabel: "Reconectar",
         tone: "ok",
       };

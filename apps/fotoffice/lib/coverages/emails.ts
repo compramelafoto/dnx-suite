@@ -1,3 +1,4 @@
+import { SINGLE_EMAIL_RE } from "@/lib/communications/constants";
 import type { WorkspaceEmailContext } from "@/lib/communications/load-workspace-signature";
 
 /**
@@ -207,5 +208,209 @@ export function buildCoordinatorAlertEmail(input: {
     ],
     cta: { label: "Abrir en el panel", url: input.panelUrl },
     signature: null,
+  });
+}
+
+
+/* ------------------------------------------------------------------------------------------
+ * Los correos de armar el equipo (etapa 1b).
+ *
+ * Mismo armado que los de la solicitud: `compose` pone el saludo, el botón y la firma, y estas
+ * funciones solo deciden QUÉ se dice. Los textos son de voluntariado —"te invitamos a
+ * participar", "gracias por confirmar", "ya tenemos el equipo"— y van firmados por la
+ * organización, no por FotoOffice: quien los recibe le presta su sábado a una institución con
+ * nombre, no a un sistema.
+ * ---------------------------------------------------------------------------------------- */
+
+/**
+ * Normaliza una lista de direcciones escritas a mano.
+ *
+ * Descarta las vacías, las que no parecen una dirección y las repetidas sin distinguir
+ * mayúsculas. El filtro por `SINGLE_EMAIL_RE` no es cosmético: `Member.email` y los avisos de la
+ * configuración son campos de texto libre donde alguien puede haber escrito "ana@x.com,
+ * juan@y.com" en una sola línea, y mandar a esa cadena metería a dos personas en el mismo
+ * correo — que es exactamente lo que este módulo no hace.
+ */
+function normalizarDestinatarios(valores: readonly (string | null | undefined)[]): string[] {
+  const vistos = new Set<string>();
+  const salida: string[] = [];
+  for (const valor of valores) {
+    const email = valor?.trim();
+    if (!email || !SINGLE_EMAIL_RE.test(email)) continue;
+    const clave = email.toLowerCase();
+    if (vistos.has(clave)) continue;
+    vistos.add(clave);
+    salida.push(email);
+  }
+  return salida;
+}
+
+/**
+ * A quiénes les llega el aviso de una convocatoria nueva.
+ *
+ * Devuelve una LISTA de direcciones, una por persona, y quien la use manda un correo por cada
+ * una. **Nunca en copia.** No es una preferencia de estilo: la dirección de correo de un
+ * voluntario es un dato personal suyo, y ponerla a la vista de los otros cuarenta colaboradores
+ * de la institución la reparte sin que nadie se lo haya autorizado.
+ */
+export function destinatariosDeColaboradores(
+  colaboradores: readonly { email: string | null }[],
+): string[] {
+  return normalizarDestinatarios(colaboradores.map((c) => c.email));
+}
+
+/**
+ * A quién le llegan los avisos internos: los correos de la configuración del módulo y, si no hay
+ * ninguno cargado, el de contacto de la institución.
+ *
+ * Mismo criterio que ya usa el aviso de solicitud nueva en `app/actions/coverage-request.ts`: sin
+ * nadie configurado, el aviso no sale para nadie y quien llama lo registra, porque una
+ * confirmación que nadie mira es peor que una que falló — nadie la va a reclamar.
+ */
+export function destinatariosDeCoordinacion(input: {
+  notifyEmails: readonly string[];
+  contactEmail: string | null;
+}): string[] {
+  const configurados = normalizarDestinatarios(input.notifyEmails);
+  return configurados.length > 0 ? configurados : normalizarDestinatarios([input.contactEmail]);
+}
+
+/**
+ * Se publicó una convocatoria: "hace falta gente para esto".
+ *
+ * Va a cada colaborador activo por separado (ver `destinatariosDeColaboradores`). No lleva
+ * cuántos lugares quedan: entre que sale el correo y que la persona lo abre, ese número ya
+ * cambió, y un aviso que miente sobre lo único concreto que dice deja de leerse.
+ */
+export function buildCallPublishedEmail(input: {
+  context: WorkspaceEmailContext;
+  /** Nombre de pila de quien recibe, si lo tenemos. */
+  greetingName: string | null;
+  callTitle: string;
+  coverageTitle: string;
+  fechaLabel: string;
+  city: string | null;
+  publicSummary: string | null;
+  callUrl: string;
+}): EmailBody {
+  return compose({
+    subject: `Buscamos gente para «${input.callTitle}» — ${input.context.organizationName}`,
+    greetingName: input.greetingName,
+    paragraphs: [
+      `Se abrió una convocatoria para «${input.coverageTitle}».`,
+      `Cuándo: ${input.fechaLabel}${input.city ? ` · Dónde: ${input.city}` : ""}`,
+      ...(input.publicSummary ? [input.publicSummary] : []),
+      "Si podés dar una mano, entrá y anotate al rol que te venga bien. Si esta vez no llegás, no pasa nada.",
+    ],
+    cta: { label: "Ver la convocatoria y anotarme", url: input.callUrl },
+    notes: [
+      `Recibís este correo porque figurás como colaborador activo de ${input.context.organizationName}.`,
+    ],
+    signature: input.context.signature,
+  });
+}
+
+/**
+ * Quedó seleccionada, o la invitamos directo: en los dos casos, lo que sigue es su respuesta.
+ *
+ * El enlace va directo a `/portal/coberturas/asignacion/{id}` a propósito: esta persona abre el
+ * correo en el teléfono y tiene que poder contestar en dos toques, sin buscar nada.
+ *
+ * **Los datos reservados del día no viajan acá.** El teléfono de emergencia y el contacto del
+ * lugar se ven en esa pantalla, con la sesión iniciada; un correo se reenvía, se queda en la
+ * casilla de por vida y a veces lo lee alguien más.
+ */
+export function buildAssignmentInvitedEmail(input: {
+  context: WorkspaceEmailContext;
+  greetingName: string | null;
+  coverageTitle: string;
+  roleName: string;
+  fechaLabel: string;
+  city: string | null;
+  assignmentUrl: string;
+  /** Hasta cuándo esperamos la respuesta, ya formateado. `null` si no hay plazo. */
+  respondByLabel: string | null;
+}): EmailBody {
+  return compose({
+    subject: `Te invitamos a participar en «${input.coverageTitle}»`,
+    greetingName: input.greetingName,
+    paragraphs: [
+      `Te queremos sumar al equipo de «${input.coverageTitle}» como ${input.roleName}.`,
+      `Cuándo: ${input.fechaLabel}${input.city ? ` · Dónde: ${input.city}` : ""}`,
+      "Entrá y contestanos si podés o no. Ahí vas a ver todos los detalles del día, incluidos los datos de contacto.",
+      "Si no podés, avisanos igual: nos deja a tiempo de buscar a otra persona.",
+    ],
+    cta: { label: "Confirmar o avisar que no puedo", url: input.assignmentUrl },
+    notes: input.respondByLabel
+      ? [`Nos vendría bien tu respuesta antes del ${input.respondByLabel}.`]
+      : [],
+    signature: input.context.signature,
+  });
+}
+
+/**
+ * Alguien confirmó su lugar. Aviso interno, para la coordinación.
+ *
+ * Sin firma, como el de solicitud nueva: es una conversación entre quienes ya trabajan en la
+ * institución, no una comunicación hacia afuera.
+ *
+ * El nombre de quien confirmó va en el cuerpo y no en el asunto: `SentEmailLog` guarda el asunto
+ * y el destinatario de cada envío (no el cuerpo), y ese registro es para saber si un aviso salió,
+ * no para dejar anotado quién participa de cada actividad.
+ */
+export function buildAssignmentConfirmedEmail(input: {
+  coverageTitle: string;
+  personName: string;
+  roleName: string;
+  fechaLabel: string;
+  equipoCompleto: boolean;
+  panelUrl: string;
+}): EmailBody {
+  return compose({
+    subject: `Confirmaron un lugar en «${input.coverageTitle}»`,
+    paragraphs: [
+      `${input.personName} confirmó que va como ${input.roleName}.`,
+      `${input.coverageTitle} — ${input.fechaLabel}`,
+      input.equipoCompleto
+        ? "Con esta confirmación el equipo quedó completo."
+        : "Todavía faltan lugares por cubrir.",
+    ],
+    cta: { label: "Abrir en el panel", url: input.panelUrl },
+    signature: null,
+  });
+}
+
+/**
+ * El equipo está armado: se lo contamos a la organización que pidió la cobertura.
+ *
+ * Sale cuando la cobertura llega a `EQUIPO_CONFIRMADO` —todas las asignaciones aceptadas—, no
+ * cuando la convocatoria se pone `COMPLETA`. Es la diferencia entre "el equipo existe" y
+ * "dejamos de buscar": avisar en el segundo momento sería prometer un equipo que todavía no
+ * contestó.
+ *
+ * **No lleva los nombres de quienes van.** La organización se entera de que va a tener
+ * cobertura; quiénes son las personas es asunto del día de la actividad y del panel de la 1c, no
+ * de un correo que puede terminar reenviado a cualquier parte.
+ */
+export function buildTeamCompleteEmail(input: {
+  context: WorkspaceEmailContext;
+  publicCode: string;
+  eventTitle: string;
+  contactName: string;
+  fechaLabel: string;
+  city: string | null;
+  trackingUrl: string;
+}): EmailBody {
+  return compose({
+    subject: `Ya tenemos el equipo para tu pedido ${input.publicCode}`,
+    greetingName: input.contactName,
+    paragraphs: [
+      `Buenas noticias: ya tenemos el equipo para «${input.eventTitle}».`,
+      `Nos vemos el ${input.fechaLabel}${input.city ? `, en ${input.city}` : ""}.`,
+      "Si algo cambia de acá al día de la actividad, te avisamos.",
+    ],
+    cta: { label: "Ver cómo va tu pedido", url: input.trackingUrl },
+    notes: ["Guardá este correo: ese enlace es tuyo y no lo tiene nadie más."],
+    signature: input.context.signature,
   });
 }

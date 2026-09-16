@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { raffleFindManyMock, memberMock } = vi.hoisted(() => ({
+const { raffleFindManyMock, memberMock, vocabularyMock } = vi.hoisted(() => ({
   raffleFindManyMock: vi.fn(),
   memberMock: vi.fn(),
+  vocabularyMock: vi.fn(),
 }));
 
 vi.mock("@repo/db", () => ({
@@ -10,8 +11,11 @@ vi.mock("@repo/db", () => ({
   Prisma: {},
 }));
 vi.mock("./repository", () => ({ loadMemberForRaffle: memberMock }));
+// Cómo llama esta institución a la gente de su padrón: el portal lo usa para los motivos.
+vi.mock("@/lib/vocabulario/load", () => ({ loadPersonVocabulary: vocabularyMock }));
 
 const { loadPortalRaffles } = await import("./portal");
+const { personVocabulary } = await import("@/lib/vocabulario/personas");
 
 const AHORA = new Date("2026-09-25T12:00:00Z");
 const CIERRE = new Date("2026-09-29T23:00:00Z");
@@ -60,6 +64,7 @@ const socioEnDeuda = {
 beforeEach(() => {
   raffleFindManyMock.mockReset().mockResolvedValue([sorteo()]);
   memberMock.mockReset().mockResolvedValue(socioAlDia);
+  vocabularyMock.mockReset().mockResolvedValue(personVocabulary(null));
 });
 
 const cargar = (now = AHORA) =>
@@ -77,6 +82,18 @@ describe("la situación del socio antes de sellar", () => {
     expect(current?.myStatus.participating).toBe(false);
     expect(current?.myStatus.reason).toContain("agosto de 2026");
     expect(current?.myStatus.reason).not.toContain("2026-08");
+  });
+
+  it("en una institución de voluntarios, el motivo habla de voluntarios", async () => {
+    // La cadena completa: `isEligible` devuelve el marcador y el portal lo resuelve con las
+    // palabras del workspace. Nada de lo que ve el voluntario dice "socio".
+    vocabularyMock.mockResolvedValue(
+      personVocabulary({ singular: "voluntario/a", plural: "voluntarios/as" }),
+    );
+    memberMock.mockResolvedValue({ ...socioAlDia, status: "SUSPENDED" });
+    const { current } = await cargar();
+    expect(current?.myStatus.reason).toBe("Tu ficha de voluntario/a no está activa.");
+    expect(current?.myStatus.reason).not.toContain("{");
   });
 
   it("todavía se puede cambiar: no está congelado", async () => {

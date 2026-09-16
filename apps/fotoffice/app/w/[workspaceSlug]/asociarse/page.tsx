@@ -5,6 +5,7 @@ import { getWorkspaceCollectionStatus } from "@/lib/payments/connect/status";
 import { getActiveFeeValue, getDuesSettings } from "@/lib/membership/settings";
 import { normalizeRecommendationCode } from "@/lib/membership/recommendation-code";
 import { resolveRecommender } from "@/lib/membership/recommendation-link";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +35,7 @@ export default async function AsociarsePage({ params, searchParams }: Props) {
   });
   if (!branding) notFound();
 
-  const [cobros, settings, valorCuota, workspace] = await Promise.all([
+  const [cobros, settings, valorCuota, workspace, v] = await Promise.all([
     getWorkspaceCollectionStatus(branding.workspaceId),
     getDuesSettings(branding.workspaceId),
     getActiveFeeValue(branding.workspaceId, null, new Date()),
@@ -42,6 +43,7 @@ export default async function AsociarsePage({ params, searchParams }: Props) {
       where: { id: branding.workspaceId },
       select: { name: true },
     }),
+    loadPersonVocabulary(branding.workspaceId),
   ]);
 
   /*
@@ -104,6 +106,7 @@ export default async function AsociarsePage({ params, searchParams }: Props) {
             recommendation={
               recomendante && code ? { code, displayName: recomendante.displayName } : null
             }
+            vocabulary={v}
           />
         ) : (
           <section className="fo-card space-y-2 p-6">

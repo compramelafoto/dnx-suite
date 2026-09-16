@@ -7,6 +7,7 @@ import { BOOKINGS_TIME_ZONE, addMinutes } from "../time";
 import { createCalendarClient, type CalendarClient } from "./client";
 import { cancelBookingForDeletedEvent } from "../lifecycle";
 import { buildEventDescription, buildEventSummary } from "./event-content";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { decideForEvent, isSyncTokenExpired } from "./sync-decisions";
 
 /**
@@ -83,6 +84,9 @@ export async function pushPendingEvents(
     take: 100,
   });
 
+  // Una sola vez para toda la tanda: el vocabulario es del workspace, no de cada reserva.
+  const vocabulary = await loadPersonVocabulary(workspaceId);
+
   let creados = 0;
   for (const r of pendientes) {
     try {
@@ -105,7 +109,7 @@ export async function pushPendingEvents(
         calendarId: r.space.googleCalendarId as string,
         bookingId: r.id,
         summary: buildEventSummary(contenido),
-        description: buildEventDescription(contenido),
+        description: buildEventDescription(contenido, vocabulary),
         startAt: r.startAt,
         endAt: r.endAt,
         timeZone: BOOKINGS_TIME_ZONE,

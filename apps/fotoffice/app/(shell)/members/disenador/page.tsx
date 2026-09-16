@@ -6,6 +6,7 @@ import { CreateTemplateV2Button, TEMPLATE_V2_BASE_PATHS } from "@repo/template-e
 import { CreateCarnetTemplate } from "@/components/members/create-carnet-template";
 import { PageHeader } from "@/components/page-header";
 import { requireActiveWorkspace } from "@/lib/workspace";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 // El import registra el runtime del editor: base, sesión y almacenamiento de esta app.
 import "@/lib/template-v2/server";
 
@@ -51,6 +52,8 @@ export default async function PlantillasPage() {
   // administra el día a día.
   if (!canDesignTemplates(membership?.role)) redirect("/workspace");
 
+  const v = await loadPersonVocabulary(workspace.id);
+
   // Las tablas del editor todavía no existen en todas las bases: hay una migración vieja que
   // las salteó a propósito. Sin esta tolerancia, la pantalla rompería con un error de Prisma en
   // vez de explicar qué falta. Mismo criterio que `withClickatonDb`.
@@ -79,7 +82,7 @@ export default async function PlantillasPage() {
     <div className="space-y-8">
       <PageHeader
         title="Plantillas"
-        description="El diseño de las piezas de la institución: el carnet de socio y lo que venga después."
+        description={`El diseño de las piezas de la institución: el carnet de ${v.singular} y lo que venga después.`}
         actions={<CreateTemplateV2Button basePath={TEMPLATE_V2_BASE_PATHS.fotoffice} />}
       />
 

@@ -7,6 +7,7 @@ import {
   type MemberFormState,
 } from "@/app/actions/members";
 import { MEMBER_STATUS_OPTIONS } from "@/lib/members/status-labels";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
 const initial: MemberFormState = { error: null };
 
@@ -50,9 +51,11 @@ type MemberInitial = {
 export function MemberForm({
   member,
   categories,
+  vocabulary,
 }: {
   member?: MemberInitial;
   categories: { id: string; name: string }[];
+  vocabulary: PersonVocabulary;
 }) {
   const [state, action, pending] = useActionState(
     member ? updateMemberAction : createMemberAction,
@@ -236,7 +239,7 @@ export function MemberForm({
         <div className="grid gap-6 sm:grid-cols-2">
           <div className="fo-field-stack">
             <label className="fo-label" htmlFor="memberNumber">
-              Número de socio
+              {`Número de ${vocabulary.singular}`}
             </label>
             <input
               id="memberNumber"
@@ -255,7 +258,7 @@ export function MemberForm({
             </label>
             {categories.length === 0 ? (
               <p className="fo-helper">
-                Todavía no hay categorías activas. Creá una antes de cargar socios.
+                {`Todavía no hay categorías activas. Creá una antes de cargar ${vocabulary.plural}.`}
               </p>
             ) : (
               <select
@@ -353,7 +356,7 @@ export function MemberForm({
 
       <div className="fo-form-actions">
         <button type="submit" className="fo-btn fo-btn-primary" disabled={pending}>
-          {pending ? "Guardando…" : member ? "Guardar cambios" : "Crear socio"}
+          {pending ? "Guardando…" : member ? "Guardar cambios" : `Crear ${vocabulary.singular}`}
         </button>
       </div>
     </form>
