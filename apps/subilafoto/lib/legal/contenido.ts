@@ -16,6 +16,22 @@ export const ULTIMA_ACTUALIZACION = "13 de septiembre de 2026";
 /** A dónde escribe alguien que quiere ejercer sus derechos o pedir que bajemos una foto. */
 export const EMAIL_LEGAL = "dnxfotografia@gmail.com";
 
+/**
+ * Quién vende.
+ *
+ * No es un dato de contacto más: la Resolución 424/2020 y el artículo 4 de la Ley 24.240
+ * exigen que el consumidor pueda saber **con quién contrató** sin tener que buscarlo. Por
+ * eso va en el pie de todas las páginas y no en una sección de "quiénes somos".
+ *
+ * El CUIT empieza con 20, así que es una persona física: el responsable es Daniel Andrés
+ * Cuart, no una sociedad. Por eso dice "Responsable" y no "Razón social".
+ */
+export const RESPONSABLE = {
+  nombre: "Daniel Andrés Cuart",
+  cuit: "20-31973378-8",
+  domicilio: "San José 1672, Local 5, Funes (CP 2132), Santa Fe, Argentina",
+} as const;
+
 /** Se guarda en cada consentimiento aceptado. Cambiala cuando cambie el texto. */
 export const VERSION_DE_TERMINOS = "2026-09-13";
 
