@@ -16,6 +16,7 @@ import { hasClickatonCardConsent } from "@/lib/participant-cards";
 import { evaluateClickatonCardEligibility } from "@/lib/participant-cards";
 import { canExposeParticipantCardsActions } from "@/lib/participant-cards/participant-card-runtime-config";
 import { isParticipantCardsPublicUiEnabled } from "@/lib/participant-cards/participant-card-feature-flags";
+import { isSistemaViejoDePlacasActivo } from "@/lib/welcome-card/sistema-viejo";
 import { decideParticipantCardsSections } from "@/lib/participant-cards/participant-card-section-visibility";
 import { CLICKATON_LOGIN_PATH } from "@/lib/auth/return-path";
 import { participantLivePath } from "@/lib/participant-live/routes";
@@ -101,6 +102,7 @@ export default async function RegistrationCredentialPage({ params }: Props) {
     paid,
     v2Available: canExposeParticipantCardsActions(),
     publicUiEnabled: isParticipantCardsPublicUiEnabled(),
+    legacyEnabled: isSistemaViejoDePlacasActivo(),
   });
 
   const temporal = await getEditionTemporalState(registration.editionId);
