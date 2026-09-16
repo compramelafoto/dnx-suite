@@ -30,6 +30,12 @@ export type CoverageSettingsShape = {
   publicFormEnabled: boolean;
   publicFormIntro: string | null;
   /**
+   * Lo que se lee al pie del formulario, antes del botón, y otra vez en la pantalla de "listo,
+   * lo recibimos". Es el lugar del agradecimiento y de lo que conviene decir después de haber
+   * pedido veinte datos, cuando quien completa ya hizo su parte.
+   */
+  publicFormOutro: string | null;
+  /**
    * Qué campos del formulario público no se preguntan y cuáles son obligatorios.
    *
    * Dos listas de claves del catálogo de `./request-fields.ts`. Lo que no está en ninguna es
@@ -64,6 +70,7 @@ export const DEFAULT_COVERAGE_SETTINGS: CoverageSettingsShape = {
   zones: [],
   publicFormEnabled: false,
   publicFormIntro: null,
+  publicFormOutro: null,
   // Los mismos valores que el `DEFAULT` de las dos columnas en la base: una institución sin
   // fila en `CoverageSettings` y una que nunca tocó la configuración tienen que ver el mismo
   // formulario. Por qué `contactName` empieza obligatorio está explicado en `request-fields.ts`.
