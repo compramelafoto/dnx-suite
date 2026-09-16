@@ -6,7 +6,7 @@ import { SUBILAFOTO_PRODUCT_KEY } from "./constantes";
  *
  * Lleva prefijo de producto porque es la convención que Mercado Pago validó para toda la
  * suite: `<producto>-<entidad>-<idOpaco>`. Sin el prefijo, un aviso de pago no se puede
- * atribuir a Subí la Foto.
+ * atribuir a SubiLaFoto.
  *
  * El constructor del paquete rechaza referencias con datos personales, pero **sus guardas
  * pierden fuerza una vez puesto el prefijo**: "Ana Gonzalez" deja de parecer un nombre
@@ -28,7 +28,7 @@ export function referenciaDeOrden(ordenId: string): string {
   return buildOpaqueExternalReference(SUBILAFOTO_PRODUCT_KEY, "orden", id);
 }
 
-/** Devuelve el id de la orden si la referencia es de Subí la Foto, o `null`. */
+/** Devuelve el id de la orden si la referencia es de SubiLaFoto, o `null`. */
 export function ordenDesdeReferencia(referencia: string | null | undefined): string | null {
   if (!referencia) return null;
   const prefijo = `${SUBILAFOTO_PRODUCT_KEY}-orden-`;

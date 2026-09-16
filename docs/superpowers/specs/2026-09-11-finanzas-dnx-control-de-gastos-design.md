@@ -157,7 +157,7 @@ previo**: nunca reemplaza un número bueno por un cero.
 Todas las tablas viven en `packages/db/prisma/schema.prisma` y se aplican **solo** a la
 rama `production` de `compramelafoto`.
 
-`platformKey` es **String**, no enum: las plataformas van a crecer (Subí la Foto) y un
+`platformKey` es **String**, no enum: las plataformas van a crecer (SubiLaFoto) y un
 enum nuevo obliga a tocar las cinco bases. El catálogo de claves válidas vive en
 `@repo/finance-control`.
 

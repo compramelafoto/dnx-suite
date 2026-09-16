@@ -15,7 +15,7 @@ venda por internet en Argentina a tener:
 El derecho de fondo es el **artículo 34 de la Ley 24.240**: diez días corridos para
 revocar, sin tener que explicar por qué y sin costo.
 
-No lo tenía ninguna plataforma de la suite. Ahora lo tiene Subí la Foto.
+No lo tenía ninguna plataforma de la suite. Ahora lo tiene SubiLaFoto.
 
 ## Dónde están los enlaces
 

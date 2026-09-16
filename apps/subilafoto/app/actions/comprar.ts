@@ -96,8 +96,8 @@ export async function comprarEvento(formData: FormData): Promise<void> {
       amountMinor: venta.totalCents,
       currency: "ARS",
       description: conDescarga
-        ? `Subí la Foto — ${perfil.displayName} (con descarga)`
-        : `Subí la Foto — ${perfil.displayName}`,
+        ? `SubiLaFoto — ${perfil.displayName} (con descarga)`
+        : `SubiLaFoto — ${perfil.displayName}`,
       externalReference: referenciaDeOrden(orden.id),
       // Si Mercado Pago recibe dos veces el mismo pedido, devuelve la misma
       // preferencia en vez de crear dos. Pasa con un doble clic.

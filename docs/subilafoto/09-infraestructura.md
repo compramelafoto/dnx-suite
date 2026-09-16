@@ -122,20 +122,20 @@ migración.
 
 ## Autenticación: unificada con el resto de DNX Suite
 
-**Decisión del titular, 2026-09-11:** el inicio de sesión de Subí la Foto usa **el mismo
+**Decisión del titular, 2026-09-11:** el inicio de sesión de SubiLaFoto usa **el mismo
 cliente OAuth de Google que el resto de la suite**. No se crea un proyecto nuevo en Google
 Cloud.
 
 Esto revierte lo que estaba escrito antes acá, que proponía un proyecto propio para que la
-pantalla de permisos mostrara "Subí la Foto" y no "ComprameLaFoto". Se acepta ese costo
+pantalla de permisos mostrara "SubiLaFoto" y no "ComprameLaFoto". Se acepta ese costo
 —el usuario ve el nombre del proyecto compartido al entrar— a cambio de que la identidad
 sea una sola en toda la suite. Es coherente con la decisión de compartir la base: un
-fotógrafo es la misma persona en CompraMeLaFoto y en Subí la Foto, y debería entrar igual.
+fotógrafo es la misma persona en CompraMeLaFoto y en SubiLaFoto, y debería entrar igual.
 
 Lo que hay que hacer, y no genera credenciales nuevas:
 
 1. En Google Cloud, en el cliente OAuth que ya usa la suite, **agregar las URIs de
-   redirección** de Subí la Foto: `https://subilafoto.com/api/auth/google/callback` y
+   redirección** de SubiLaFoto: `https://subilafoto.com/api/auth/google/callback` y
    `https://www.subilafoto.com/api/auth/google/callback` (confirmar la ruta exacta contra
    `packages/auth/src/google-oauth.ts` al implementar el login).
 2. En el proyecto `subilafoto-dnxsuite` de Vercel, cargar `GOOGLE_CLIENT_ID` y
@@ -154,9 +154,9 @@ mejor. Queda escrito para que nadie la vuelva a escribir.
 
 | Lo que hice | Lo que corresponde |
 |---|---|
-| Decir que había que crear una aplicación de Mercado Pago para Subí la Foto | **Una sola app "DNX Suite"** para toda la suite, decidido el 2026-09-03. Cada app nueva pide su propia homologación, que es el trámite que ya frenó a FOTOFFICE |
+| Decir que había que crear una aplicación de Mercado Pago para SubiLaFoto | **Una sola app "DNX Suite"** para toda la suite, decidido el 2026-09-03. Cada app nueva pide su propia homologación, que es el trámite que ya frenó a FOTOFFICE |
 | Un `/api/pagos/aviso` propio como URL de notificación | **Acá me pasé de corrección y lo verifiqué después.** El límite de una sola URL es del flujo de **Orders / split 1:N**, que se configura en el panel. En **Checkout Pro la `notification_url` viaja en cada preferencia**, así que cada producto sí puede tener la suya — es como lo hace CompraMeLaFoto hoy y como está diseñado el adaptador del paquete |
-| `external_reference` = el id de la orden, pelado | La convención es `<producto>-<entidad>-<idOpaco>`, y ya existe `buildOpaqueExternalReference()`. **Ojo con sus guardas anti-PII: pierden fuerza con el prefijo puesto.** "Ana Gonzalez" deja de parecer un nombre cuando la cadena es `subilafoto-orden-Ana Gonzalez`; del segmento del id sólo se revisa que no tenga arroba. Subí la Foto valida aparte que el id sea opaco |
+| `external_reference` = el id de la orden, pelado | La convención es `<producto>-<entidad>-<idOpaco>`, y ya existe `buildOpaqueExternalReference()`. **Ojo con sus guardas anti-PII: pierden fuerza con el prefijo puesto.** "Ana Gonzalez" deja de parecer un nombre cuando la cadena es `subilafoto-orden-Ana Gonzalez`; del segmento del id sólo se revisa que no tenga arroba. SubiLaFoto valida aparte que el id sea opaco |
 | Un `preferencia.ts` propio con `marketplace_fee` | Ya existe `createMercadoPagoCheckoutProLiveAdapter` en `@repo/payments`, con su `marketplace-fee.test.ts` |
 | Un `estado-oauth.ts` firmado a mano | Existe la tabla compartida `DnxMercadoPagoOAuthState`, con PKCE, vencimiento y un solo uso |
 | Cuatro columnas de credenciales en `SubilafotoSellerProfile` | El vault persiste en `DnxFinancialIdentity` + `DnxPaymentAccount`. No van columnas por app |
@@ -179,7 +179,7 @@ Variables que van a hacer falta, con la convención correcta:
 la suite.
 
 **No hay que crear ninguna aplicación en Mercado Pago.** Sí hay que declarar la
-URL de retorno de Subí la Foto en la lista de la app centralizada: eso sí admite
+URL de retorno de SubiLaFoto en la lista de la app centralizada: eso sí admite
 varias, a diferencia de la de notificación.
 
 ## La compra, de punta a punta (2026-09-14)

@@ -73,7 +73,7 @@ export default function Home() {
       >
         <Image
           src="/brand/subilafoto-logo-vertical-negativo.png"
-          alt="Subí la Foto"
+          alt="SubiLaFoto"
           width={320}
           height={400}
           priority
@@ -239,7 +239,7 @@ export default function Home() {
               >
                 Tu cliente ve tu logo y el nombre de tu empresa. En la pantalla
                 del salón, en el álbum digital y en los carteles impresos de las
-                mesas. Subí la Foto no aparece en ningún lado: para tu cliente,
+                mesas. SubiLaFoto no aparece en ningún lado: para tu cliente,
                 el servicio es tuyo.
               </p>
             </div>
@@ -271,7 +271,7 @@ export default function Home() {
       <section className="sobre-claro px-6 py-20 sm:py-24">
         <div className="mx-auto max-w-5xl">
           <p className="max-w-[52ch] text-lg leading-relaxed">
-            Estamos terminando de construirla. Subí la Foto abre en{" "}
+            Estamos terminando de construirla. SubiLaFoto abre en{" "}
             <strong className="font-extrabold" style={{ color: "var(--slf-violeta)" }}>
               octubre de 2026
             </strong>

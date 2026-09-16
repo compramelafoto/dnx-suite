@@ -3,7 +3,7 @@ import { DIAS_PARA_ARREPENTIRSE } from "@/lib/legal/arrepentimiento";
 import { PieLegal } from "@/app/components/pie-legal";
 import { FormularioArrepentimiento } from "./formulario";
 
-export const metadata = { title: "Botón de arrepentimiento — Subí la Foto" };
+export const metadata = { title: "Botón de arrepentimiento — SubiLaFoto" };
 
 /**
  * Botón de arrepentimiento (Resolución 424/2020).
@@ -23,7 +23,7 @@ export default function Arrepentimiento() {
           className="text-sm font-extrabold"
           style={{ color: "var(--slf-violeta)" }}
         >
-          ← Subí la Foto
+          ← SubiLaFoto
         </Link>
 
         <h1 className="mt-5 text-3xl font-extrabold tracking-[-0.02em]">

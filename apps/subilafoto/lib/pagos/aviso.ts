@@ -7,7 +7,7 @@ import { ordenDesdeReferencia } from "./referencia";
  * evento se crea o no.
  *
  * La referencia se valida contra el prefijo de producto: un aviso de otro producto de la
- * suite no tiene que tocar una orden de Subí la Foto que por casualidad tenga ese id.
+ * suite no tiene que tocar una orden de SubiLaFoto que por casualidad tenga ese id.
  */
 
 export type PagoDeMercadoPago = {
@@ -25,7 +25,7 @@ export type Decision =
 
 export function decidirDesdeElPago(pago: PagoDeMercadoPago): Decision {
   const ordenId = ordenDesdeReferencia(pago.external_reference);
-  if (!ordenId) return { accion: "IGNORAR", motivo: "la referencia no es de Subí la Foto" };
+  if (!ordenId) return { accion: "IGNORAR", motivo: "la referencia no es de SubiLaFoto" };
 
   // Siempre texto: la base lo guarda así y la restricción de unicidad es lo único que
   // impide que un aviso repetido cree dos eventos.

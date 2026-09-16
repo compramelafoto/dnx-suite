@@ -34,7 +34,7 @@ export function PaginaLegal({
             className="text-sm font-extrabold"
             style={{ color: "var(--slf-violeta)" }}
           >
-            Subí la Foto
+            SubiLaFoto
           </Link>
 
           <h1 className="mt-6 text-[clamp(1.75rem,5vw,2.5rem)] font-extrabold leading-[1.1] tracking-[-0.02em]">
