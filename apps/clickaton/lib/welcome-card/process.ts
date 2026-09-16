@@ -1,3 +1,4 @@
+import { isSistemaViejoDePlacasActivo } from "./sistema-viejo";
 import { CLICKATON_WELCOME_STORY_V1, hashRenderInputs, renderComposition } from "@repo/media-composition";
 import { prisma } from "@/lib/admin/db";
 import { getWelcomeCardStorage, shouldInlineMediaInDb } from "./storage";
@@ -119,6 +120,10 @@ async function fail(card: { id: string; attemptCount: number }, reason: string) 
 }
 
 export async function processDueWelcomeCards(limit = 25) {
+  // Apagado el generador viejo, el cron sigue corriendo pero no genera nada nuevo.
+  if (!isSistemaViejoDePlacasActivo()) {
+    return { processed: 0, apagado: true as const };
+  }
   const events = await prisma.clickatonIntegrationOutboxEvent.findMany({
     where: { eventType: "CLICKATON_WELCOME_CARD_PENDING", status: { in: ["PENDING", "FAILED"] }, availableAt: { lte: new Date() } },
     select: { aggregateId: true },
