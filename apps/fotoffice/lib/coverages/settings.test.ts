@@ -62,6 +62,16 @@ describe("DEFAULT_COVERAGE_SETTINGS", () => {
     expect(DEFAULT_COVERAGE_SETTINGS.notifyEmails).toEqual([]);
   });
 
+  it("el formulario público arranca con los 23 campos y sólo lo de hoy como obligatorio", () => {
+    // Las dos listas son la configuración de qué se le pregunta a la ONG. Vacía la de ocultos:
+    // ninguna institución ve desaparecer un campo por una actualización. `contactName` en la de
+    // obligatorios porque HOY lo es (lo exige `parseCoverageRequest` desde el primer día) y
+    // porque con ese nombre se arma la ficha del padrón. Los cinco campos fijos no hacen falta
+    // acá: los exige el catálogo, no la configuración.
+    expect(DEFAULT_COVERAGE_SETTINGS.requestFormHidden).toEqual([]);
+    expect(DEFAULT_COVERAGE_SETTINGS.requestFormRequired).toEqual(["contactName"]);
+  });
+
   it("consentTextVersion es v1 y trackingLinkTtlDays es 120", () => {
     // consentTextVersion es un selector para la versión del consentimiento.
     // trackingLinkTtlDays es cuántos días viven los links de seguimiento.

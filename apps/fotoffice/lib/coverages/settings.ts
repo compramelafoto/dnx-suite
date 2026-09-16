@@ -8,6 +8,11 @@
  * Tipo estructural y no el modelo de Prisma: así lo pueden importar los tests y los
  * componentes cliente sin arrastrar el cliente de base de datos al navegador.
  */
+import {
+  DEFAULT_REQUEST_FORM_HIDDEN,
+  DEFAULT_REQUEST_FORM_REQUIRED,
+} from "./request-fields";
+
 export type CoverageSettingsShape = {
   moduleLabel: string | null;
   termRequest: string | null;
@@ -24,6 +29,14 @@ export type CoverageSettingsShape = {
   zones: string[];
   publicFormEnabled: boolean;
   publicFormIntro: string | null;
+  /**
+   * Qué campos del formulario público no se preguntan y cuáles son obligatorios.
+   *
+   * Dos listas de claves del catálogo de `./request-fields.ts`. Lo que no está en ninguna es
+   * opcional, y los cinco campos fijos ignoran las dos. La regla vive allá, no acá.
+   */
+  requestFormHidden: string[];
+  requestFormRequired: string[];
   consentTextVersion: string;
   trackingLinkTtlDays: number;
   notifyEmails: string[];
@@ -51,6 +64,11 @@ export const DEFAULT_COVERAGE_SETTINGS: CoverageSettingsShape = {
   zones: [],
   publicFormEnabled: false,
   publicFormIntro: null,
+  // Los mismos valores que el `DEFAULT` de las dos columnas en la base: una institución sin
+  // fila en `CoverageSettings` y una que nunca tocó la configuración tienen que ver el mismo
+  // formulario. Por qué `contactName` empieza obligatorio está explicado en `request-fields.ts`.
+  requestFormHidden: [...DEFAULT_REQUEST_FORM_HIDDEN],
+  requestFormRequired: [...DEFAULT_REQUEST_FORM_REQUIRED],
   consentTextVersion: "v1",
   trackingLinkTtlDays: 120,
   notifyEmails: [],

@@ -116,3 +116,106 @@ describe("parseCoverageRequest", () => {
     if (r.ok) expect(r.data.documentationLinks).toEqual(["https://ok.org"]);
   });
 });
+
+/**
+ * La validación sale de la configuración del workspace.
+ *
+ * Es el punto que sostiene todo lo demás: si la obligatoriedad viviera escrita acá, apagar un
+ * campo en la pantalla de configuración sería puro maquillaje y el servidor seguiría exigiendo
+ * lo mismo.
+ */
+describe("parseCoverageRequest con la configuración del workspace", () => {
+  it("sin configuración se comporta igual que hoy", () => {
+    // `contactName` es obligatorio desde el primer día. Que las listas por omisión lo digan es
+    // lo que garantiza que ninguna institución vea cambiar su formulario sin haberlo tocado.
+    expect(parseCoverageRequest(base({ contactName: "" })).ok).toBe(false);
+    expect(parseCoverageRequest(base({ city: "" })).ok).toBe(true);
+  });
+
+  it("un campo puesto como obligatorio se exige, y lo dice con la etiqueta que la persona vio", () => {
+    const r = parseCoverageRequest(base({ contactPhone: "" }), {
+      hidden: [],
+      required: ["contactPhone"],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toContain("Teléfono o WhatsApp");
+  });
+
+  it("el mismo campo, si no es obligatorio, puede faltar", () => {
+    expect(parseCoverageRequest(base({ contactPhone: "" }), { hidden: [], required: [] }).ok).toBe(
+      true,
+    );
+  });
+
+  it("un campo oculto se descarta aunque llegue: esconderlo no era el control", () => {
+    // Una pestaña vieja, un formulario copiado o un `curl` pueden mandar lo que quieran.
+    const r = parseCoverageRequest(base({ city: "Rosario", orgTaxId: "30-12345678-9" }), {
+      hidden: ["city", "orgTaxId"],
+      required: [],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.data.city).toBe(null);
+      expect(r.data.orgTaxId).toBe(null);
+    }
+  });
+
+  it("un campo oculto con un valor inválido no frena el envío", () => {
+    // Si no se mira, no se valida: rechazar por un dato que la institución decidió no pedir
+    // dejaría a la ONG con un error que no puede arreglar, porque el campo ni se ve.
+    const r = parseCoverageRequest(base({ expectedAttendees: "muchísimos" }), {
+      hidden: ["expectedAttendees"],
+      required: [],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.data.expectedAttendees).toBe(null);
+  });
+
+  it("oculto gana sobre obligatorio: no se exige lo que no se muestra", () => {
+    const r = parseCoverageRequest(base({ contactPhone: "" }), {
+      hidden: ["contactPhone"],
+      required: ["contactPhone"],
+    });
+    expect(r.ok).toBe(true);
+  });
+
+  it("un campo fijo no se puede esconder ni dejar de exigir", () => {
+    const r = parseCoverageRequest(base({ orgName: "" }), {
+      hidden: ["orgName", "contactEmail", "startsAt"],
+      required: [],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toContain("organización");
+
+    const conFecha = parseCoverageRequest(base(), {
+      hidden: ["startsAt", "endsAt"],
+      required: [],
+    });
+    expect(conFecha.ok).toBe(true);
+    if (conFecha.ok) expect(conFecha.data.durationMinutes).toBe(270);
+  });
+
+  it("una fecha obligatoria e ilegible cuenta como campo sin completar", () => {
+    const r = parseCoverageRequest(base({ expectedDeliveryAt: "el mes que viene" }), {
+      hidden: [],
+      required: ["expectedDeliveryAt"],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toContain("Para cuándo las necesitan");
+  });
+
+  it("enlaces obligatorios que no son http lo dicen con claridad", () => {
+    const r = parseCoverageRequest(base({ documentationLinks: "instagram.com/ong" }), {
+      hidden: [],
+      required: ["documentationLinks"],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toContain("http");
+  });
+
+  it("sin nombre de contacto la solicitud sigue siendo válida si la institución no lo pide", () => {
+    const r = parseCoverageRequest(base({ contactName: "" }), { hidden: ["contactName"], required: [] });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.data.contactName).toBe("");
+  });
+});
