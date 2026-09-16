@@ -212,6 +212,31 @@ export type ProcessDueParticipantCardsResult = {
  * Red de seguridad: recorre inscripciones confirmadas con foto que todavía no
  * tienen las dos placas en estado READY y las genera.
  */
+/**
+ * A quién sale a buscar el barrido.
+ *
+ * Mira **cada tipo de placa por separado**. Antes pedía inscripciones sin ninguna placa lista, y
+ * con dos placas por persona eso dejaba afuera a quien ya tenía una: su segunda placa no se
+ * volvía a intentar nunca. Se vio en producción con 76 pendientes y el cron sin tomar ninguna.
+ */
+export function filtroDeInscripcionesPendientes(
+  cardTypes: readonly ClickatonParticipantCardType[]
+) {
+  return {
+    status: "CONFIRMED" as const,
+    profilePhotoAssetId: { not: null },
+    imageUsageConsent: true,
+    OR: cardTypes.map((cardType) => ({
+      participantCards: {
+        none: {
+          status: "READY" as const,
+          cardType: (cardType === "member" ? "MEMBER" : "WELCOME") as "WELCOME" | "MEMBER",
+        },
+      },
+    })),
+  };
+}
+
 export async function processDueParticipantCards(
   limit = 25
 ): Promise<ProcessDueParticipantCardsResult> {
@@ -222,14 +247,7 @@ export async function processDueParticipantCards(
   const safeLimit = Math.max(1, Math.min(100, Math.trunc(limit) || 25));
 
   const candidates = await prisma.clickatonRegistration.findMany({
-    where: {
-      status: "CONFIRMED",
-      profilePhotoAssetId: { not: null },
-      imageUsageConsent: true,
-      participantCards: {
-        none: { status: "READY" },
-      },
-    },
+    where: filtroDeInscripcionesPendientes(AUTO_GENERATED_CARD_TYPES),
     orderBy: { updatedAt: "asc" },
     take: safeLimit,
     select: { id: true },
