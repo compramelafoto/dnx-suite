@@ -8,7 +8,42 @@ const TRANQUILO: Conteos = {
   correosFallados: 0,
   pagosSinEvento: 0,
   eventosSinCerrar: 0,
+  arrepentimientosVencidos: 0,
+  arrepentimientosPendientes: 0,
 };
+
+describe("las solicitudes de arrepentimiento", () => {
+  test("una vencida es grave: pasadas las 24 horas es un incumplimiento", () => {
+    const r = alertasDeLosDatos({ ...TRANQUILO, arrepentimientosVencidos: 1 });
+    expect(r[0]!.clave).toBe("arrepentimientos-vencidos");
+    expect(r[0]!.gravedad).toBe("grave");
+  });
+
+  test("una en plazo avisa, no alarma", () => {
+    const r = alertasDeLosDatos({ ...TRANQUILO, arrepentimientosPendientes: 2 });
+    expect(r[0]!.clave).toBe("arrepentimientos-pendientes");
+    expect(r[0]!.gravedad).toBe("aviso");
+  });
+
+  test("con vencidas, no se avisa además de las que están en plazo", () => {
+    // Dos alertas del mismo tema empujan hacia abajo lo demás sin agregar nada.
+    const r = alertasDeLosDatos({
+      ...TRANQUILO,
+      arrepentimientosVencidos: 1,
+      arrepentimientosPendientes: 3,
+    });
+    expect(r.filter((a) => a.clave.startsWith("arrepentimientos"))).toHaveLength(1);
+  });
+
+  test("la plata sigue yendo primero", () => {
+    const r = alertasDeLosDatos({
+      ...TRANQUILO,
+      arrepentimientosVencidos: 5,
+      pagosSinEvento: 1,
+    });
+    expect(r[0]!.clave).toBe("pagos-sin-evento");
+  });
+});
 
 describe("qué merece que alguien mire", () => {
   test("una noche tranquila no dice nada", () => {
