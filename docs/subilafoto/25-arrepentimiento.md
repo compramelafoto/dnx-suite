@@ -82,6 +82,35 @@ Y la condición `status: RECEIVED` va en el `where` del `updateMany`: si dos per
 resuelven a la vez, la segunda cambia cero filas en vez de pisar lo que escribió la
 primera. Lo que se pisaría es el registro de una obligación legal.
 
+### La constancia también va por correo
+
+Mostrarla en pantalla es la mitad: si la persona cierra la pestaña, pierde el número. El
+correo es lo que le queda.
+
+Salen dos: uno a quien pidió, con la constancia en el **asunto** —que es lo que va a buscar
+en su bandeja dentro de un mes— y otro al titular, con todo lo necesario para encontrar la
+compra.
+
+**Acá sí firmamos nosotros**, al revés que los avisos posteriores al evento. Aquellos son
+del fotógrafo; el arrepentimiento es contra la plataforma, y quien lo pide tiene que saber
+con quién está hablando.
+
+El correo a quien pide **no dice que ya está cancelado**: recibir la solicitud no es
+resolverla, y hay un test que lo fija.
+
+Los dos salen **después de responder**, con `after()`. Quien mira la pantalla ya tiene su
+número: hacerlo esperar a que Resend conteste sería cobrarle la latencia de un correo que
+no necesita ver salir. Y si fallan, la solicitud ya está guardada — perder el correo es
+molesto, perder el pedido sería negarle un derecho a alguien por un problema de
+infraestructura.
+
+Queda registrado si salió (`noticeSentAt`) y, si no, por qué (`noticeError`). El panel lo
+muestra: una constancia que no salió por correo es algo que conviene mandar a mano.
+
+> **Mientras `SUBILAFOTO_CORREOS_EN_VIVO` esté en `false`, no sale ninguno** y queda
+> anotado el motivo. La constancia se sigue mostrando en pantalla y la solicitud se guarda
+> igual.
+
 ### El panel de salud avisa
 
 Una solicitud sin resolver aparece como aviso; pasadas las 24 horas, como **grave**.

@@ -17651,21 +17651,25 @@ model SubilafotoPackage {
 /// Latido de cada tarea automática. Una fila por cron, actualizada en el lugar.
 /// Solicitud de arrepentimiento (Res. 424/2020 y art. 34 de la Ley 24.240).
 model SubilafotoRetractionRequest {
-  id         String    @id @default(cuid())
+  id           String    @id @default(cuid())
   /// Lo que escribió la persona para identificar su compra: código de evento o número.
-  reference  String
-  email      String
-  reason     String?
+  reference    String
+  email        String
+  reason       String?
   /// El número que se le mostró. Se deriva del id, así que un reintento no da otro.
-  receipt    String    @unique
-  status     String    @default("RECEIVED")
+  receipt      String    @unique
+  status       String    @default("RECEIVED")
   /// Se completa cuando alguien encuentra la orden y resuelve.
-  orderId    String?
-  resolvedAt DateTime?
-  resolution String?
-  ipHash     String?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  orderId      String?
+  resolvedAt   DateTime?
+  resolution   String?
+  /// Cuándo salió la constancia por correo. Nulo mientras no haya salido.
+  noticeSentAt DateTime?
+  /// Por qué no salió, si falló. La solicitud vale igual: la constancia se mostró en pantalla.
+  noticeError  String?
+  ipHash       String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@index([status, createdAt])
   @@index([email])

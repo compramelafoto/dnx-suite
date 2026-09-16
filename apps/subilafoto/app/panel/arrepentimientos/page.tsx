@@ -67,6 +67,8 @@ export default async function Arrepentimientos() {
       resolvedAt: true,
       orderId: true,
       createdAt: true,
+      noticeSentAt: true,
+      noticeError: true,
     },
   });
 
@@ -137,6 +139,21 @@ export default async function Arrepentimientos() {
                     <dd>{FECHA.format(s.createdAt)}</dd>
                   </div>
                 </dl>
+
+                {/*
+                  Si la constancia no salió por correo, se ve acá. La norma pide darla, y
+                  la pantalla sola no alcanza si la persona cerró la pestaña.
+                */}
+                {s.noticeSentAt ? null : (
+                  <p
+                    className="mt-4 rounded-xl px-4 py-3 text-sm"
+                    style={{ background: COLOR.apura.fondo, color: COLOR.apura.texto }}
+                  >
+                    La constancia <strong>no salió por correo</strong>.
+                    {s.noticeError ? ` ${s.noticeError}` : ""} Quien la pidió la vio en
+                    pantalla, pero conviene mandársela.
+                  </p>
+                )}
 
                 {s.reason ? (
                   <p
