@@ -154,6 +154,57 @@ export async function GET(req: Request) {
     resultado.mercadopago = { ok: false, error: e instanceof Error ? e.name : "desconocido" };
   }
 
+  /*
+    Resend: si la clave sirve y si el dominio está verificado.
+
+    Sin dominio verificado **todo envío devuelve 403**, con las claves perfectas. Es la
+    clase de cosa que se descubre el día que se encienden los correos, o peor, cuando un
+    cliente avisa que no le llegó nada.
+
+    Una clave de sólo envío no puede listar dominios y devuelve `restricted_api_key`. Eso
+    no es una falla: es la respuesta esperada de una clave bien acotada, y de paso prueba
+    que la clave es válida.
+  */
+  try {
+    const clave = process.env.RESEND_API_KEY?.trim();
+    if (!clave) {
+      resultado.correo = { ok: false, error: "Falta RESEND_API_KEY." };
+    } else {
+      const respuesta = await fetch("https://api.resend.com/domains", {
+        headers: { Authorization: `Bearer ${clave}` },
+        signal: AbortSignal.timeout(8_000),
+      });
+      const cuerpo = (await respuesta.json()) as {
+        name?: string;
+        data?: { name?: string; status?: string }[];
+      };
+
+      if (respuesta.ok) {
+        const dominios = (cuerpo.data ?? []).map((d) => `${d.name}: ${d.status}`);
+        const nuestro = (cuerpo.data ?? []).find((d) => d.name === "subilafoto.com");
+        resultado.correo = {
+          ok: nuestro?.status === "verified",
+          claveValida: true,
+          dominios,
+          nota:
+            nuestro?.status === "verified"
+              ? "subilafoto.com verificado."
+              : "subilafoto.com todavía NO está verificado: cualquier envío va a dar 403.",
+        };
+      } else if (cuerpo.name === "restricted_api_key") {
+        resultado.correo = {
+          ok: true,
+          claveValida: true,
+          nota: "La clave es válida y de sólo envío, así que no puede listar dominios. El estado del dominio hay que mirarlo en el panel de Resend.",
+        };
+      } else {
+        resultado.correo = { ok: false, estado: respuesta.status, error: cuerpo.name ?? null };
+      }
+    }
+  } catch (e) {
+    resultado.correo = { ok: false, error: e instanceof Error ? e.name : "desconocido" };
+  }
+
   // Sólo el host de la base, nunca usuario ni contraseña: alcanza para saber
   // si la app está hablando con la base que creemos.
   let hostBase: string | null = null;
