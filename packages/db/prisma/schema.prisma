@@ -17891,6 +17891,10 @@ model CoverageSettings {
   /// Si el formulario público está abierto.
   publicFormEnabled Boolean @default(false)
   publicFormIntro   String?
+  /// Lo que se lee al pie del formulario, antes del botón, y otra vez en la pantalla de
+  /// "listo, lo recibimos": el agradecimiento y lo que conviene decir cuando quien completa
+  /// ya hizo su parte. Nulo = no se muestra nada.
+  publicFormOutro   String?
 
   /// Qué campos del formulario público no se preguntan y cuáles son obligatorios. Claves del
   /// catálogo de `apps/fotoffice/lib/coverages/request-fields.ts`. Lo que no está en ninguna de
@@ -17939,7 +17943,10 @@ model CoverageRequest {
   city              String?
   activityKind      String?
   expectedAttendees Int?
-  /// INTERIOR | EXTERIOR | AMBOS
+  /// INTERIOR | EXTERIOR | AMBOS | OTROS. Cuando la respuesta es "Otros", el texto libre va
+  /// detrás del valor: `OTROS: con carpa` (ver `formatChoiceValue` en
+  /// `apps/fotoffice/lib/coverages/request-fields.ts`). Lo que no está en el catálogo se
+  /// rechaza en el servidor y nunca llega a esta columna.
   venueKind         String?
   onSiteContactName String?
   onSitePhone       String?
@@ -17959,6 +17966,15 @@ model CoverageRequest {
   purpose                String?
   keyMoments             String?
   requestedPhotographers Int?
+  /// SIN_OTRA_COBERTURA | NO_LO_SE | HAY_OTRA_COBERTURA | OTROS. Si ya hay otro fotógrafo o
+  /// equipo de video cubriendo la actividad. Es un criterio de priorización: una organización
+  /// que ya tiene cobertura puede esperar a que se resuelvan las que no tienen ninguna.
+  otherCoverage          String?
+  /// TODO | CON_RESTRICCIONES | SIN_PERSONAS | NADA | OTROS. Hasta dónde autorizan a difundir
+  /// material del evento. Cuando esta pregunta se hace, el consentimiento USO_INSTITUCIONAL no
+  /// se tilda: se deduce de acá (ver `deriveShowcaseConsent`) y se guarda igual, con su texto y
+  /// su versión. Nulo en las solicitudes anteriores a la pregunta.
+  showcaseScope          String?
   equipmentNotes         String?
   needsLighting          Boolean   @default(false)
   expectedDeliveryAt     DateTime?

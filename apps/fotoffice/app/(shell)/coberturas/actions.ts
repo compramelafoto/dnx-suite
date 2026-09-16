@@ -381,6 +381,7 @@ export async function saveCoverageSettingsAction(
     recommendedCollaborators: entero("recommendedCollaborators", 1, 20, 2),
     publicFormEnabled: formData.get("publicFormEnabled") === "on",
     publicFormIntro: texto("publicFormIntro"),
+    publicFormOutro: texto("publicFormOutro"),
     requestFormHidden: campos.hidden,
     requestFormRequired: campos.required,
     notifyEmails: lista("notifyEmails"),

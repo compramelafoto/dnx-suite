@@ -64,6 +64,16 @@ export function SettingsForm({ settings }: { settings: CoverageSettingsShape }) 
           decisión, no algo que pasó al encender el módulo.
         </p>
         <Lista name="publicFormIntro" label="Qué leen antes de completarlo" valor={settings.publicFormIntro ?? ""} />
+        {/*
+          El cierre se ve dos veces: al pie del formulario y en la pantalla de "listo, lo
+          recibimos". Es el único momento en que quien completó ya hizo su parte y está
+          dispuesto a leer.
+        */}
+        <Lista
+          name="publicFormOutro"
+          label="Qué leen al terminar (al pie del formulario y cuando el pedido se envió)"
+          valor={settings.publicFormOutro ?? ""}
+        />
         <Lista name="notifyEmails" label="A quién avisarle cuando entra un pedido (uno por línea)" valor={settings.notifyEmails.join("\n")} />
       </fieldset>
 
@@ -125,6 +135,20 @@ function CamposDelFormulario({ settings }: { settings: CoverageSettingsShape }) 
               >
                 <div className="min-w-0">
                   <p className="text-sm font-medium">{campo.label}</p>
+                  {/*
+                    La ayuda que va a leer quien complete el formulario, también acá: quien
+                    configura decide si apaga un campo, y para eso tiene que ver la pregunta
+                    entera —no sólo su título— tal como la lee la organización que la responde.
+                  */}
+                  {campo.hint ? (
+                    <p className="text-xs leading-relaxed text-[var(--fo-muted)]">{campo.hint}</p>
+                  ) : null}
+                  {campo.options ? (
+                    <p className="text-xs leading-relaxed text-[var(--fo-muted)]">
+                      Respuestas: {campo.options.map((o) => o.label).join(" · ")}
+                      {campo.allowsOther ? " · Otros" : ""}
+                    </p>
+                  ) : null}
                   {campo.fixed ? (
                     <p className="text-xs leading-relaxed text-[var(--fo-muted)]">
                       Siempre se pregunta. {campo.fixedReason}

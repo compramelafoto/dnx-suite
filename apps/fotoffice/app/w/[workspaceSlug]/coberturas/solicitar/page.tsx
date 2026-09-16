@@ -3,9 +3,11 @@ import { prisma } from "@repo/db";
 import {
   CONSENT_KINDS,
   CONSENT_LABELS,
+  DERIVED_SHOWCASE_CONSENT,
   REQUIRED_CONSENTS,
   consentTexts,
 } from "@/lib/coverages/consents";
+import { isRequestFieldVisible } from "@/lib/coverages/request-fields";
 import { resolveCoverageBrand } from "@/lib/coverages/branding";
 import { loadSettings } from "@/lib/coverages/repository";
 import { terminologyFor } from "@/lib/coverages/terminology";
@@ -63,7 +65,20 @@ export default async function SolicitarCoberturaPage({
   // Se arma acá, en el servidor, y no en el componente cliente: `lib/coverages/consents` usa
   // `node:crypto` a nivel de módulo, y ese módulo no se puede empaquetar para el navegador
   // (ver el comentario en `request-form.tsx`). El cliente recibe sólo estos datos ya resueltos.
-  const consentItems = CONSENT_KINDS.map((kind) => ({
+  //
+  // El permiso de difusión se saca de la lista cuando la institución pregunta por el alcance
+  // (`showcaseScope`): son la misma pregunta, una con un tilde y la otra con cuatro niveles, y
+  // preguntar las dos es preguntar dos veces lo mismo — con el agravante de que las respuestas
+  // pueden contradecirse. El permiso se deduce de la respuesta y se guarda igual, con su texto
+  // y su versión (ver `deriveShowcaseConsent`). Con el campo oculto, el tilde vuelve.
+  const campos = {
+    hidden: settings.requestFormHidden,
+    required: settings.requestFormRequired,
+  };
+  const difusionSeDeduce = isRequestFieldVisible("showcaseScope", campos);
+  const consentItems = CONSENT_KINDS.filter(
+    (kind) => !(difusionSeDeduce && kind === DERIVED_SHOWCASE_CONSENT),
+  ).map((kind) => ({
     kind,
     label: CONSENT_LABELS[kind],
     text: texts[kind],
@@ -112,11 +127,9 @@ export default async function SolicitarCoberturaPage({
             workspaceSlug={workspaceSlug}
             institutionName={nombre}
             intro={settings.publicFormIntro}
+            outro={settings.publicFormOutro}
             consents={consentItems}
-            fields={{
-              hidden: settings.requestFormHidden,
-              required: settings.requestFormRequired,
-            }}
+            fields={campos}
             brand={marca}
           />
         ) : (

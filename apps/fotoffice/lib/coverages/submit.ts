@@ -128,6 +128,8 @@ export async function saveCoverageRequest(input: {
             purpose: input.parsed.purpose,
             keyMoments: input.parsed.keyMoments,
             requestedPhotographers: input.parsed.requestedPhotographers,
+            otherCoverage: input.parsed.otherCoverage,
+            showcaseScope: input.parsed.showcaseScope,
             equipmentNotes: input.parsed.equipmentNotes,
             needsLighting: input.parsed.needsLighting,
             expectedDeliveryAt: input.parsed.expectedDeliveryAt,

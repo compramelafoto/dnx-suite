@@ -36,6 +36,7 @@ export async function loadSettings(workspaceId: string): Promise<CoverageSetting
     zones: fila.zones,
     publicFormEnabled: fila.publicFormEnabled,
     publicFormIntro: fila.publicFormIntro,
+    publicFormOutro: fila.publicFormOutro,
     requestFormHidden: fila.requestFormHidden,
     requestFormRequired: fila.requestFormRequired,
     consentTextVersion: fila.consentTextVersion,
