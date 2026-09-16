@@ -12,7 +12,7 @@ export const metadata = { title: "Botón de arrepentimiento — SubiLaFoto" };
  * una constancia de la solicitud. El derecho de fondo es el artículo 34 de la Ley 24.240:
  * diez días corridos para revocar, sin explicar por qué y sin costo.
  *
- * **Los textos están pendientes de revisión legal.**
+ * Textos revisados y aprobados sin cambios (2026-09-16).
  */
 export default function Arrepentimiento() {
   return (

@@ -11,7 +11,7 @@
  * otro producto es peor que no tener ninguno.
  */
 
-export const ULTIMA_ACTUALIZACION = "13 de septiembre de 2026";
+export const ULTIMA_ACTUALIZACION = "16 de septiembre de 2026";
 
 /** A dónde escribe alguien que quiere ejercer sus derechos o pedir que bajemos una foto. */
 export const EMAIL_LEGAL = "dnxfotografia@gmail.com";
@@ -32,8 +32,20 @@ export const RESPONSABLE = {
   domicilio: "San José 1672, Local 5, Funes (CP 2132), Santa Fe, Argentina",
 } as const;
 
-/** Se guarda en cada consentimiento aceptado. Cambiala cuando cambie el texto. */
-export const VERSION_DE_TERMINOS = "2026-09-13";
+/**
+ * Se guarda en cada consentimiento aceptado. Cambiala cuando cambie el texto.
+ *
+ * Subió a `2026-09-16` por el renombre de la marca dentro de los textos. El fondo no
+ * cambió, pero el texto guardado sí, y un consentimiento tiene que poder mostrar
+ * exactamente lo que la persona aceptó.
+ *
+ * No costó nada hacerlo: al 16/9 no había ningún consentimiento registrado. Si los
+ * hubiera, subir la versión obliga a todos a volver a aceptar — por eso se sube cuando el
+ * texto cambia y no cuando a uno le parece.
+ *
+ * **Revisados y aprobados sin cambios**, según confirmó el titular el 2026-09-16.
+ */
+export const VERSION_DE_TERMINOS = "2026-09-16";
 
 export type SeccionLegal = {
   titulo: string;
