@@ -102,6 +102,58 @@ export async function GET(req: Request) {
     };
   }
 
+  /*
+    A qué cuenta de Mercado Pago apunta el token.
+
+    Es el error más caro y el más silencioso: con las credenciales de un usuario de prueba
+    todo "funciona" —el checkout abre, el pago se aprueba— y el dinero no existe. No se
+    descubre hasta que alguien pregunta dónde está la plata de un evento real.
+
+    Se pregunta a la API en vez de mirar el prefijo del token, porque un `APP_USR-` también
+    lo tiene un usuario de prueba. Nunca se devuelve el token.
+  */
+  try {
+    const token = process.env.SUBILAFOTO_MP_ACCESS_TOKEN?.trim();
+    if (!token) {
+      resultado.mercadopago = { ok: false, error: "Falta SUBILAFOTO_MP_ACCESS_TOKEN." };
+    } else {
+      const inicio = Date.now();
+      const respuesta = await fetch("https://api.mercadopago.com/users/me", {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(8_000),
+      });
+
+      if (!respuesta.ok) {
+        resultado.mercadopago = { ok: false, estado: respuesta.status, ms: Date.now() - inicio };
+      } else {
+        const cuenta = (await respuesta.json()) as {
+          id?: number;
+          nickname?: string;
+          email?: string;
+          site_id?: string;
+        };
+        // La marca de usuario de prueba es el nick y el correo, no el prefijo del token.
+        const esDePrueba =
+          Boolean(cuenta.nickname?.startsWith("TESTUSER")) ||
+          Boolean(cuenta.email?.includes("@testuser.com"));
+
+        resultado.mercadopago = {
+          ok: !esDePrueba,
+          esDePrueba,
+          cuentaId: cuenta.id ?? null,
+          nickname: cuenta.nickname ?? null,
+          pais: cuenta.site_id ?? null,
+          ms: Date.now() - inicio,
+          nota: esDePrueba
+            ? "ATENCIÓN: son credenciales de un usuario de prueba. Los cobros no son reales."
+            : "Cuenta productiva.",
+        };
+      }
+    }
+  } catch (e) {
+    resultado.mercadopago = { ok: false, error: e instanceof Error ? e.name : "desconocido" };
+  }
+
   // Sólo el host de la base, nunca usuario ni contraseña: alcanza para saber
   // si la app está hablando con la base que creemos.
   let hostBase: string | null = null;
