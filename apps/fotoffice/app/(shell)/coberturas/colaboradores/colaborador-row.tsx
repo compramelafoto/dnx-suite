@@ -10,6 +10,7 @@ import {
   TRANSPORT_OPTIONS,
 } from "@/lib/coverages/colaboradores";
 import { saveCollaboratorProfileAction, type CollaboratorProfileState } from "./actions";
+import { TANDA_FORM_ID } from "./tanda-form";
 
 const inicial: CollaboratorProfileState = { error: null, ok: null };
 
@@ -56,6 +57,25 @@ export function ColaboradorRow({
     <>
       <tr className="hover:bg-[var(--fo-surface-hover)]/60">
         <td className="px-4 py-3">
+          {/*
+            La casilla se asocia al formulario de la barra con `form=`, y no por estar adentro de
+            él: un `<form>` que envolviera la tabla dejaría el formulario de edición de esta misma
+            fila anidado adentro de otro, y el navegador lo descarta. Ver `TANDA_FORM_ID`.
+
+            Nadie queda sin casilla, ni siquiera quien está de baja en el padrón: a esa persona no
+            se la puede habilitar, pero sí quitar, que es justo lo que a veces hay que hacer. Por
+            qué no se la habilitó lo dice el resumen de la tanda.
+          */}
+          <input
+            type="checkbox"
+            name="memberIds"
+            value={memberId}
+            form={TANDA_FORM_ID}
+            aria-label={`Seleccionar a ${nombre}`}
+            className="size-5 accent-[var(--fo-accent)]"
+          />
+        </td>
+        <td className="px-4 py-3">
           <p className="font-medium text-[var(--fo-text)]">{nombre}</p>
           <p className="text-xs text-[var(--fo-muted)] font-mono">{memberNumber}</p>
         </td>
@@ -88,7 +108,7 @@ export function ColaboradorRow({
 
       {abierto ? (
         <tr>
-          <td colSpan={6} className="px-4 py-4 bg-[var(--fo-bg-elevated)]">
+          <td colSpan={7} className="px-4 py-4 bg-[var(--fo-bg-elevated)]">
             <form action={action} className="space-y-4">
               <input type="hidden" name="memberId" value={memberId} />
 
