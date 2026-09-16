@@ -1,5 +1,5 @@
 /**
- * Los textos legales de Subí la Foto.
+ * Los textos legales de SubiLaFoto.
  *
  * Viven acá y no dentro de las pantallas porque se revisan por su contenido, no
  * por su maquetado, y porque los lee más de una página. Cada sección es un
@@ -51,7 +51,7 @@ export const SECCIONES_PRIVACIDAD: readonly SeccionLegal[] = [
   {
     titulo: "Quién trata tus datos",
     parrafos: [
-      "Subí la Foto es una plataforma de DNX Suite. Un profesional —un fotógrafo, un DJ, un salón, una productora— la contrata y se la vende a quien organiza el evento. Por eso, en la pantalla y en el álbum vas a ver la marca de ese profesional y no la nuestra.",
+      "SubiLaFoto es una plataforma de DNX Suite. Un profesional —un fotógrafo, un DJ, un salón, una productora— la contrata y se la vende a quien organiza el evento. Por eso, en la pantalla y en el álbum vas a ver la marca de ese profesional y no la nuestra.",
       "Quien organiza el evento decide qué evento es, quién entra, qué se proyecta y quién recibe el álbum: es el responsable de esos datos. Nosotros los tratamos por encargo suyo y no los usamos para ningún fin propio.",
       `Si querés ejercer alguno de tus derechos, escribinos a ${EMAIL_LEGAL}. Si el pedido le corresponde a quien organizó el evento, te ponemos en contacto.`,
     ],
@@ -139,7 +139,7 @@ export const SECCIONES_PRIVACIDAD: readonly SeccionLegal[] = [
 
 export const SECCIONES_TERMINOS: readonly SeccionLegal[] = [
   {
-    titulo: "Qué es Subí la Foto",
+    titulo: "Qué es SubiLaFoto",
     parrafos: [
       "Un servicio para que los invitados de un evento suban sus fotos desde el celular, sin instalar nada y sin crearse una cuenta, y para que esas fotos aparezcan en la pantalla del salón y en un álbum digital.",
       "Lo contrata un profesional —fotógrafo, DJ, salón, productora, organizador— y se lo vende a su cliente con su propia marca.",

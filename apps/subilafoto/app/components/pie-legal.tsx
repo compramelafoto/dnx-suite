@@ -36,7 +36,7 @@ export function PieLegal({ claro = false }: { claro?: boolean }) {
         </div>
 
         <p className="mt-6 leading-relaxed">
-          Subí la Foto es parte de DNX Suite. Responsable: {RESPONSABLE.nombre} · CUIT{" "}
+          SubiLaFoto es parte de DNX Suite. Responsable: {RESPONSABLE.nombre} · CUIT{" "}
           {RESPONSABLE.cuit} · {RESPONSABLE.domicilio} ·{" "}
           <a href={`mailto:${EMAIL_LEGAL}`} className="underline underline-offset-4">
             {EMAIL_LEGAL}

@@ -80,7 +80,7 @@ estar logueado: hace falta `globalRole` `SUPER_ADMIN` o `PLATFORM_SUPPORT`.
 > UPDATE "User" SET "globalRole" = 'SUPER_ADMIN' WHERE email = '<tu mail>';
 > ```
 >
-> Ojo: ese rol es de **toda la suite**, no sólo de Subí la Foto. Da acceso a los paneles
+> Ojo: ese rol es de **toda la suite**, no sólo de SubiLaFoto. Da acceso a los paneles
 > de administración de las otras plataformas. Por eso no lo puse yo.
 
 ## Y por si no hay nadie con ese rol

@@ -1,7 +1,7 @@
 /**
  * El tema visual de un evento (capítulo 8).
  *
- * Las plantillas de Subí la Foto son **datos**, no un motor: un puñado de colores y una
+ * Las plantillas de SubiLaFoto son **datos**, no un motor: un puñado de colores y una
  * tipografía que el front aplica con CSS. Elegir plantilla es cambiar estos valores.
  *
  * Todo lo que sale de acá termina en un atributo `style`, así que nada entra sin validar:
@@ -16,7 +16,7 @@ export type Tema = {
   tipografia: string;
 };
 
-/** Sin plantilla elegida, el evento se ve con la identidad de Subí la Foto. */
+/** Sin plantilla elegida, el evento se ve con la identidad de SubiLaFoto. */
 export const TEMA_BASE: Tema = {
   fondo: "#200638",
   texto: "#FFFFFF",

@@ -2,7 +2,7 @@
 
 *Paso a paso para el titular. Escrito el 2026-09-15. Son unos 20 minutos.*
 
-Cuatro credenciales y dos acciones en consolas externas. Con esto, Subí la Foto pasa de
+Cuatro credenciales y dos acciones en consolas externas. Con esto, SubiLaFoto pasa de
 "todo el código está" a "se puede vender".
 
 ---
@@ -24,7 +24,7 @@ Lo intenté. Tres caminos, los tres cerrados:
    ```
 
    La cuenta real es `dnxfotografia@gmail.com`, `providerUserId 97484805`. Copiarlas habría
-   dejado a Subí la Foto cobrando en un sandbox: las compras "funcionarían" y el dinero no
+   dejado a SubiLaFoto cobrando en un sandbox: las compras "funcionarían" y el dinero no
    existiría. **Es el tipo de error que se descubre el día del evento.**
 3. **La clave de Resend de CLF.** Es de envío solamente: no deja ni listar los dominios,
    así que tampoco pude verificar si `subilafoto.com` está habilitado.
