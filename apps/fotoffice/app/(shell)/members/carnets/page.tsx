@@ -13,6 +13,7 @@ import {
 import { stateLabel, type FulfillmentState } from "@/lib/carnet/fulfillment";
 import { isPdfDownloadEvent } from "@/lib/carnet/print-log";
 import { canViewCards, resolveCardCapabilities } from "@/lib/carnet/operators";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { CardsTable, type CardRowView, type TimelineEntry } from "./cards-table";
 import { IssueButton } from "./issue-button";
 
@@ -65,7 +66,10 @@ export default async function CarnetsPage({
   const params = await searchParams;
   const grupo = params.grupo ? groupStates(params.grupo) : null;
 
-  const board = await loadCardBoard(workspace.id, grupo ? { states: grupo } : {});
+  const [board, v] = await Promise.all([
+    loadCardBoard(workspace.id, grupo ? { states: grupo } : {}),
+    loadPersonVocabulary(workspace.id),
+  ]);
   const ahora = new Date();
 
   const rows: CardRowView[] = board.rows.map((c) => ({
@@ -136,7 +140,7 @@ export default async function CarnetsPage({
             : "Todavía no se pidió ninguna tarjeta impresa."}
         </p>
       ) : (
-        <CardsTable rows={rows} capabilities={[...capabilities]} />
+        <CardsTable rows={rows} capabilities={[...capabilities]} vocabulary={v} />
       )}
     </div>
   );

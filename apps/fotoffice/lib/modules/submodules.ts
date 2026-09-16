@@ -5,6 +5,8 @@ import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
+import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
 /**
  * Las pantallas de cada módulo, en un solo lugar.
@@ -43,7 +45,7 @@ const SOCIOS: SubmoduleItem[] = [
     href: "/members",
     label: "Padrón",
     icon: "Users",
-    description: "Todos los socios, su estado y su ficha.",
+    description: "Todos los {personas}, su estado y su ficha.",
     requiresManage: false,
     activeMatch: "rest",
   },
@@ -298,14 +300,25 @@ const POR_MODULO: Record<string, SubmoduleItem[]> = {
  *
  * Devuelve vacío para un módulo de una sola pantalla o desconocido, y quien llama decide qué
  * hacer con eso — no se inventa una lista.
+ *
+ * `vocabulary` resuelve los marcadores ({persona}, {personas}, etc.) del bloque `SOCIOS`, que
+ * este catálogo deja sin resolver a propósito por ser global. Un workspace real pasa
+ * `loadPersonVocabulary(id)`; una pantalla sin workspace pasa `personVocabulary(null)`.
  */
 export function submodulesFor(
   moduleKey: string,
   opts: { canManage: boolean },
+  vocabulary: PersonVocabulary,
 ): SubmoduleItem[] {
   const items = POR_MODULO[moduleKey];
   if (!items) return [];
-  return items.filter((i) => !i.requiresManage || opts.canManage);
+  return items
+    .filter((i) => !i.requiresManage || opts.canManage)
+    .map((i) => ({
+      ...i,
+      label: aplicarVocabulario(i.label, vocabulary),
+      description: aplicarVocabulario(i.description, vocabulary),
+    }));
 }
 
 /** Las rutas que reclama una entrada propia. Sirve para resolver `activeMatch: "rest"`. */

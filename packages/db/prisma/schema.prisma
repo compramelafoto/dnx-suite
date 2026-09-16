@@ -7102,6 +7102,7 @@ model Workspace {
   coverageCalls               CoverageCall[]
   coverageCollaborators       CoverageCollaboratorProfile[]
   coverageEvents              CoverageEvent[]
+  vocabulary                  WorkspaceVocabulary?
 }
 
 model WorkspaceFeatureModule {
@@ -18259,4 +18260,31 @@ model CoverageEvent {
 
   @@index([workspaceId, entityType, entityId, createdAt])
   @@index([workspaceId, createdAt])
+}
+
+/// Cómo se llama la gente del padrón en este workspace.
+///
+/// El módulo de Socios se escribió para la SFPR, que tiene socios de verdad, y la palabra
+/// quedó escrita en 48 archivos. Foto Positiva tiene voluntarios; una agencia, colaboradores;
+/// una escuela, alumnos. Sin esto, FotoOffice le habla a toda institución en el idioma de otra.
+///
+/// Tabla propia y no dos columnas en `FotofficeWorkspaceBranding`, a propósito: el esquema lo
+/// comparten cinco bases que se migran a mano, y agregar una columna a una tabla existente
+/// puede romper las escrituras de las otras aplicaciones. Una tabla nueva no rompe nada.
+///
+/// Guarda dos formas y no cuatro: las mayúsculas se derivan en `lib/vocabulario/personas.ts`.
+/// Pedir "socio", "socios", "Socio" y "Socios" es pedir que una de las cuatro quede mal.
+model WorkspaceVocabulary {
+  id          String @id @default(cuid())
+  workspaceId String @unique
+
+  /// "voluntario/a", "colaborador", "alumno". Vacío = "socio".
+  personSingular String?
+  /// "voluntarios/as", "colaboradores", "alumnos". Vacío = "socios".
+  personPlural   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
