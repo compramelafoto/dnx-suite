@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { EstadoCoberturaChip, EstadoSolicitudChip } from "@/components/coberturas/estado-chip";
+import { LugarConfirmado } from "@/components/coberturas/lugar-confirmado";
 import { requireCoveragesReviewer } from "@/lib/coverages/access";
 import { listEvents } from "@/lib/coverages/events";
 import { datetimeLocalValue, sugerirCobertura, sugerirRoles } from "@/lib/coverages/generar-cobertura";
@@ -135,6 +136,10 @@ export default async function FichaSolicitudPage({
             endsAt: datetimeLocalValue(solicitud.endsAt),
             addressLine: solicitud.addressLine ?? "",
             city: solicitud.city ?? "",
+            // El punto viaja con la dirección: si se copiara una sin el otro, la cobertura
+            // quedaría con la parte ambigua del dato y sin la que saca la duda.
+            latitude: sugerirCobertura(solicitud).latitude,
+            longitude: sugerirCobertura(solicitud).longitude,
           }}
           rolesSugeridos={sugerirRoles(solicitud, settings)}
         />
@@ -147,10 +152,24 @@ export default async function FichaSolicitudPage({
             label="Cuándo"
             valor={`${fechaHoraArgentina(solicitud.startsAt)} a ${fechaHoraArgentina(solicitud.endsAt)}`}
           />
-          <Dato
-            label="Dónde"
-            valor={[solicitud.addressLine, solicitud.city].filter(Boolean).join(", ") || "—"}
-          />
+          {/*
+            El lugar ya no es una línea de texto: es la dirección, el punto que confirmó la
+            organización y un enlace que lo abre en la aplicación de mapas. Una dirección bien
+            escrita igual es ambigua —un predio puede tener tres accesos— y esto es lo que
+            después mira quien va a cubrir.
+          */}
+          <div className="sm:col-span-2">
+            <dt className="text-xs uppercase tracking-wide text-[var(--fo-muted-soft)]">Dónde</dt>
+            <dd>
+              <LugarConfirmado
+                direccion={
+                  [solicitud.addressLine, solicitud.city].filter(Boolean).join(", ") || "—"
+                }
+                latitude={solicitud.latitude}
+                longitude={solicitud.longitude}
+              />
+            </dd>
+          </div>
           {/*
             Las tres respuestas de elección, leídas con la etiqueta que vio quien contestó y no
             con el valor que guarda la base: "Confirmo que NO habrá otros fotógrafos" es una

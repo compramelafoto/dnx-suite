@@ -15,6 +15,15 @@ export type CoberturaSugerida = {
   endsAt: Date;
   addressLine: string | null;
   city: string | null;
+  /**
+   * El punto viaja con la dirección.
+   *
+   * Si se copiara la dirección pero no el punto, la cobertura quedaría con la parte ambigua del
+   * dato y sin la parte que saca la duda — que es exactamente al revés de para qué se pidió el
+   * pin. La coordinación puede corregirlo en la cobertura sin tocar lo que pidió la organización.
+   */
+  latitude: number | null;
+  longitude: number | null;
 };
 
 /**
@@ -31,6 +40,8 @@ export function sugerirCobertura(solicitud: {
   endsAt: Date;
   addressLine: string | null;
   city: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
 }): CoberturaSugerida {
   return {
     title: solicitud.eventTitle,
@@ -38,6 +49,8 @@ export function sugerirCobertura(solicitud: {
     endsAt: solicitud.endsAt,
     addressLine: solicitud.addressLine,
     city: solicitud.city,
+    latitude: solicitud.latitude ?? null,
+    longitude: solicitud.longitude ?? null,
   };
 }
 

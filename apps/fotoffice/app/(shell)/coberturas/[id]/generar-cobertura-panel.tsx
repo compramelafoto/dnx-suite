@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useId, useState } from "react";
+import { coordenadasLegibles, enlaceDeMapa } from "@/lib/geocode/lugar";
 import { crearCoberturaAction, type GenerarCoberturaState } from "../actions";
 
 const inicial: GenerarCoberturaState = { error: null, ok: null };
@@ -27,7 +28,16 @@ export function GenerarCoberturaPanel({
   yaHayCoberturas,
 }: {
   requestId: string;
-  sugerido: { title: string; startsAt: string; endsAt: string; addressLine: string; city: string };
+  sugerido: {
+    title: string;
+    startsAt: string;
+    endsAt: string;
+    addressLine: string;
+    city: string;
+    /** El punto que marcó la organización en el formulario. `null` si no marcó ninguno. */
+    latitude: number | null;
+    longitude: number | null;
+  };
   rolesSugeridos: RolForm[];
   /** Cambia el texto, no la regla: generar la segunda cobertura de un pedido es lo mismo. */
   yaHayCoberturas?: boolean;
@@ -100,6 +110,9 @@ export function GenerarCoberturaPanel({
             <span className="fo-label">Ciudad</span>
             <input name="city" defaultValue={sugerido.city} className="fo-input" />
           </label>
+          <div className="sm:col-span-2">
+            <PuntoDelLugar latitude={sugerido.latitude} longitude={sugerido.longitude} />
+          </div>
           <label className="fo-field-stack sm:col-span-2">
             <span className="fo-label">Instrucciones</span>
             <span className="fo-helper">
@@ -186,5 +199,72 @@ export function GenerarCoberturaPanel({
         </div>
       </form>
     </section>
+  );
+}
+
+/**
+ * El punto que marcó la organización, y que viaja con la cobertura.
+ *
+ * No es un campo editable: acá se decide si el punto se copia o no. Corregirlo con un mapa sería
+ * otra pantalla —la coordinación no estuvo en el lugar; la organización sí—. Lo que sí puede
+ * hacer quien coordina es **descartarlo**, para el caso en que el pin haya quedado
+ * evidentemente mal y sea peor tenerlo que no tenerlo.
+ *
+ * Los dos campos ocultos son lo único que viaja. La acción los revalida con la misma función del
+ * DNX GEO ENGINE que el formulario público: un oculto es tan editable como cualquier otro campo.
+ */
+function PuntoDelLugar({
+  latitude,
+  longitude,
+}: {
+  latitude: number | null;
+  longitude: number | null;
+}) {
+  const [conservar, setConservar] = useState(true);
+  const hayPunto = latitude != null && longitude != null;
+
+  if (!hayPunto) {
+    return (
+      <p className="fo-helper">
+        La organización no marcó ningún punto en el mapa. Quien vaya llega con la dirección
+        escrita.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-2 rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] bg-[var(--fo-surface-muted)] p-3">
+      {conservar ? (
+        <>
+          <input type="hidden" name="latitude" value={String(latitude)} />
+          <input type="hidden" name="longitude" value={String(longitude)} />
+        </>
+      ) : null}
+      <p className="text-sm leading-relaxed">
+        <span className="font-medium">
+          {conservar ? "El punto del mapa viaja con la cobertura." : "El punto quedó descartado."}
+        </span>{" "}
+        <span className="text-[var(--fo-muted)] tabular-nums">
+          {coordenadasLegibles(latitude, longitude)}
+        </span>
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <a
+          href={enlaceDeMapa(latitude, longitude)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="fo-btn fo-btn-secondary min-h-11 text-sm"
+        >
+          Ver dónde cae
+        </a>
+        <button
+          type="button"
+          onClick={() => setConservar((c) => !c)}
+          className="fo-btn fo-btn-ghost min-h-11 text-sm"
+        >
+          {conservar ? "Descartar el punto" : "Volver a usarlo"}
+        </button>
+      </div>
+    </div>
   );
 }

@@ -8,7 +8,7 @@ import {
 } from "./generar-cobertura";
 
 describe("sugerirCobertura", () => {
-  it("copia título, fechas, dirección y ciudad de la solicitud", () => {
+  it("copia título, fechas, dirección, ciudad y el punto del mapa", () => {
     const startsAt = new Date("2026-10-03T14:00:00.000Z");
     const endsAt = new Date("2026-10-03T18:00:00.000Z");
     const sugerido = sugerirCobertura({
@@ -17,6 +17,8 @@ describe("sugerirCobertura", () => {
       endsAt,
       addressLine: "Av. Siempre Viva 742",
       city: "Springfield",
+      latitude: -32.9468,
+      longitude: -60.6393,
     });
     expect(sugerido).toEqual({
       title: "Colecta de invierno",
@@ -24,7 +26,25 @@ describe("sugerirCobertura", () => {
       endsAt,
       addressLine: "Av. Siempre Viva 742",
       city: "Springfield",
+      // El punto viaja con la dirección: copiar una sin el otro dejaría la cobertura con la
+      // parte ambigua del dato y sin la que saca la duda.
+      latitude: -32.9468,
+      longitude: -60.6393,
     });
+  });
+
+  it("una solicitud sin punto sugiere una cobertura sin punto, no una a medias", () => {
+    const startsAt = new Date("2026-10-03T14:00:00.000Z");
+    const endsAt = new Date("2026-10-03T18:00:00.000Z");
+    expect(
+      sugerirCobertura({
+        eventTitle: "Colecta de invierno",
+        startsAt,
+        endsAt,
+        addressLine: "Al lado de la plaza",
+        city: "Villa Elisa",
+      }),
+    ).toMatchObject({ latitude: null, longitude: null });
   });
 });
 
