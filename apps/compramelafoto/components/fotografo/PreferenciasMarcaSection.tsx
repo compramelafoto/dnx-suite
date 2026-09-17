@@ -6,6 +6,7 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { cn } from "@/lib/utils";
+import PerfilQrCard from "@/components/fotografo/PerfilQrCard";
 
 export type PreferenciasMarcaSectionProps = {
   loading: boolean;
@@ -448,6 +449,9 @@ export default function PreferenciasMarcaSection({
           </div>
         </div>
       </Card>
+
+      {/* El QR de la página pública: sirve para tarjetas, vidriera y redes. */}
+      <PerfilQrCard handler={handlerSlug} isPublicPageEnabled={isPublicPageEnabled} />
 
       {/* Bloque 3 — Preferencias generales de la página pública */}
       {isPublicPageEnabled && (
