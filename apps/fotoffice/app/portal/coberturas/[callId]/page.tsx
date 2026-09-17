@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { LugarConfirmado } from "@/components/coberturas/lugar-confirmado";
 import { requireAuth } from "@/lib/auth";
 import { loadPortalContext } from "@/lib/portal/access";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
@@ -107,10 +108,20 @@ export default async function PortalCoberturaDetallePage({
           label="Cuándo"
           valor={`${fechaHoraArgentina(call.coverage.startsAt)} a ${horaArgentina(call.coverage.endsAt)}`}
         />
-        <Dato
-          label="Dónde"
-          valor={[call.coverage.addressLine, call.coverage.city].filter(Boolean).join(", ") || "—"}
-        />
+        {/*
+          Acá el punto no es un adorno: quien lee esta pantalla está decidiendo si se anota, y
+          "Ricchieri 426" no dice lo mismo que abrir el mapa y ver que le queda a diez cuadras.
+        */}
+        <div className="text-sm">
+          <span className="text-[var(--fo-muted)]">Dónde: </span>
+          <LugarConfirmado
+            direccion={
+              [call.coverage.addressLine, call.coverage.city].filter(Boolean).join(", ") || "—"
+            }
+            latitude={call.coverage.latitude}
+            longitude={call.coverage.longitude}
+          />
+        </div>
         {call.coverage.instructions ? (
           <Dato label="Instrucciones" valor={call.coverage.instructions} />
         ) : null}

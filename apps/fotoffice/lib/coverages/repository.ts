@@ -434,6 +434,10 @@ export async function loadMyAssignment(input: {
           endsAt: true,
           addressLine: true,
           city: true,
+          // El punto del mapa, para que quien fue invitado pueda abrir "cómo llegar" desde su
+          // pantalla en vez de copiar una dirección a mano al teléfono.
+          latitude: true,
+          longitude: true,
           instructions: true,
           call: { select: { id: true, publicSummary: true, privateBriefing: true } },
         },
@@ -674,6 +678,11 @@ export async function loadCallForPortal(input: { workspaceId: string; callId: st
           endsAt: true,
           addressLine: true,
           city: true,
+          // La dirección de una convocatoria se muestra siempre (ver el comentario de
+          // `CoverageCall.privateBriefing` en el esquema), así que el punto que la acompaña
+          // también: es lo que decide si alguien se puede anotar o le queda lejos.
+          latitude: true,
+          longitude: true,
           instructions: true,
           roles: {
             orderBy: { createdAt: "asc" },

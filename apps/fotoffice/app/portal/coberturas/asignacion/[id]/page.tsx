@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { LugarConfirmado } from "@/components/coberturas/lugar-confirmado";
 import { requireAuth } from "@/lib/auth";
 import { loadPortalContext } from "@/lib/portal/access";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
@@ -80,10 +81,18 @@ export default async function PortalInvitacionPage({
           label="Cuándo"
           valor={`${fechaHoraArgentina(coverage.startsAt)} a ${horaArgentina(coverage.endsAt)}`}
         />
-        <Dato
-          label="Dónde"
-          valor={[coverage.addressLine, coverage.city].filter(Boolean).join(", ") || "—"}
-        />
+        {/*
+          La pantalla de quien ya fue invitado: es la que abre el día del evento, camino al
+          lugar. El "Cómo llegar" que trae `LugarConfirmado` es justamente eso.
+        */}
+        <div className="text-sm">
+          <span className="text-[var(--fo-muted)]">Dónde: </span>
+          <LugarConfirmado
+            direccion={[coverage.addressLine, coverage.city].filter(Boolean).join(", ") || "—"}
+            latitude={coverage.latitude}
+            longitude={coverage.longitude}
+          />
+        </div>
         {role.requirements ? <Dato label="Qué hace falta" valor={role.requirements} /> : null}
         {coverage.instructions ? (
           <Dato label="Instrucciones" valor={coverage.instructions} />

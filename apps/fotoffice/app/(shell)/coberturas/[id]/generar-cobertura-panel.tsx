@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useId, useState } from "react";
+import { coordenadasLegibles, enlaceDeMapa } from "@/lib/geocode/lugar";
 import { crearCoberturaAction, type GenerarCoberturaState } from "../actions";
 
 const inicial: GenerarCoberturaState = { error: null, ok: null };
@@ -24,11 +26,27 @@ export function GenerarCoberturaPanel({
   requestId,
   sugerido,
   rolesSugeridos,
+  rolesConfigurados,
   yaHayCoberturas,
 }: {
   requestId: string;
-  sugerido: { title: string; startsAt: string; endsAt: string; addressLine: string; city: string };
+  sugerido: {
+    title: string;
+    startsAt: string;
+    endsAt: string;
+    addressLine: string;
+    city: string;
+    /** El punto que marcó la organización en el formulario. `null` si no marcó ninguno. */
+    latitude: number | null;
+    longitude: number | null;
+  };
   rolesSugeridos: RolForm[];
+  /**
+   * Los roles que la institución escribió en la configuración del módulo ("Roles que suelen
+   * necesitar, uno por línea"). Se ofrecen para elegir; el campo sigue aceptando texto libre.
+   * Vacío = no se ofrece ninguno, que es como funcionaba hasta ahora.
+   */
+  rolesConfigurados: string[];
   /** Cambia el texto, no la regla: generar la segunda cobertura de un pedido es lo mismo. */
   yaHayCoberturas?: boolean;
 }) {
@@ -100,6 +118,9 @@ export function GenerarCoberturaPanel({
             <span className="fo-label">Ciudad</span>
             <input name="city" defaultValue={sugerido.city} className="fo-input" />
           </label>
+          <div className="sm:col-span-2">
+            <PuntoDelLugar latitude={sugerido.latitude} longitude={sugerido.longitude} />
+          </div>
           <label className="fo-field-stack sm:col-span-2">
             <span className="fo-label">Instrucciones</span>
             <span className="fo-helper">
@@ -117,7 +138,40 @@ export function GenerarCoberturaPanel({
               Cuántas personas hacen falta y para qué. Son los lugares a los que después se anota
               o se invita a alguien.
             </p>
+            {/*
+              Decir que la lista existe y de dónde sale. Sin esto, el campo parece texto libre a
+              secas y cada cobertura termina con el rol escrito distinto —"Video", "video",
+              "Videógrafo"— hasta que ningún recuento coincide con ninguno.
+            */}
+            {rolesConfigurados.length > 0 ? (
+              <p className="fo-helper">
+                Elegí de los roles que configuró la organización ({rolesConfigurados.join(", ")}) o
+                escribí uno nuevo.
+              </p>
+            ) : (
+              <p className="fo-helper">
+                Si querés elegirlos de una lista en vez de escribirlos, cargalos en{" "}
+                <Link href="/coberturas/configuracion" className="underline">
+                  la configuración del módulo
+                </Link>
+                .
+              </p>
+            )}
           </div>
+
+          {/*
+            Un `datalist` y no un `select`: la lista sugiere, no encierra. Una cobertura puede
+            necesitar un rol que la organización no tenía previsto —"drone", "backstage"— y
+            obligar a pasar por la configuración para escribirlo sería frenar el trabajo por una
+            lista. El `input` sigue siendo el mismo campo de texto de siempre.
+          */}
+          {rolesConfigurados.length > 0 ? (
+            <datalist id={`${idBase}-roles`}>
+              {rolesConfigurados.map((nombre) => (
+                <option key={nombre} value={nombre} />
+              ))}
+            </datalist>
+          ) : null}
 
           <ul className="space-y-2">
             {roles.map((r, i) => (
@@ -129,9 +183,14 @@ export function GenerarCoberturaPanel({
                   <input
                     id={`${idBase}-rol-${i}`}
                     name="roleName"
+                    list={rolesConfigurados.length > 0 ? `${idBase}-roles` : undefined}
                     value={r.name}
                     onChange={(e) => actualizarRol(i, { name: e.target.value })}
-                    placeholder="Fotografía, video, drone…"
+                    placeholder={
+                      rolesConfigurados.length > 0
+                        ? `${rolesConfigurados[0]}, u otro…`
+                        : "Fotografía, video, drone…"
+                    }
                     required
                     className="fo-input"
                   />
@@ -164,7 +223,22 @@ export function GenerarCoberturaPanel({
 
           <button
             type="button"
-            onClick={() => setRoles((actual) => [...actual, { name: "", vacancies: 1 }])}
+            onClick={() =>
+              setRoles((actual) => [
+                ...actual,
+                // Con la lista configurada, la fila nueva nace con el primer rol que todavía no
+                // se usó. Es la respuesta a "¿se pueden agregar fotógrafos, editores,
+                // videógrafos?": sí, y con un toque en vez de escribiéndolo. Agotada la lista
+                // —o sin lista— nace vacía, como hasta ahora.
+                {
+                  name:
+                    rolesConfigurados.find(
+                      (n) => !actual.some((r) => r.name.trim().toLowerCase() === n.toLowerCase()),
+                    ) ?? "",
+                  vacancies: 1,
+                },
+              ])
+            }
             className="fo-btn fo-btn-secondary min-h-11 text-sm"
           >
             Agregar otro rol
@@ -186,5 +260,72 @@ export function GenerarCoberturaPanel({
         </div>
       </form>
     </section>
+  );
+}
+
+/**
+ * El punto que marcó la organización, y que viaja con la cobertura.
+ *
+ * No es un campo editable: acá se decide si el punto se copia o no. Corregirlo con un mapa sería
+ * otra pantalla —la coordinación no estuvo en el lugar; la organización sí—. Lo que sí puede
+ * hacer quien coordina es **descartarlo**, para el caso en que el pin haya quedado
+ * evidentemente mal y sea peor tenerlo que no tenerlo.
+ *
+ * Los dos campos ocultos son lo único que viaja. La acción los revalida con la misma función del
+ * DNX GEO ENGINE que el formulario público: un oculto es tan editable como cualquier otro campo.
+ */
+function PuntoDelLugar({
+  latitude,
+  longitude,
+}: {
+  latitude: number | null;
+  longitude: number | null;
+}) {
+  const [conservar, setConservar] = useState(true);
+  const hayPunto = latitude != null && longitude != null;
+
+  if (!hayPunto) {
+    return (
+      <p className="fo-helper">
+        La organización no marcó ningún punto en el mapa. Quien vaya llega con la dirección
+        escrita.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-2 rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] bg-[var(--fo-surface-muted)] p-3">
+      {conservar ? (
+        <>
+          <input type="hidden" name="latitude" value={String(latitude)} />
+          <input type="hidden" name="longitude" value={String(longitude)} />
+        </>
+      ) : null}
+      <p className="text-sm leading-relaxed">
+        <span className="font-medium">
+          {conservar ? "El punto del mapa viaja con la cobertura." : "El punto quedó descartado."}
+        </span>{" "}
+        <span className="text-[var(--fo-muted)] tabular-nums">
+          {coordenadasLegibles(latitude, longitude)}
+        </span>
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <a
+          href={enlaceDeMapa(latitude, longitude)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="fo-btn fo-btn-secondary min-h-11 text-sm"
+        >
+          Ver dónde cae
+        </a>
+        <button
+          type="button"
+          onClick={() => setConservar((c) => !c)}
+          className="fo-btn fo-btn-ghost min-h-11 text-sm"
+        >
+          {conservar ? "Descartar el punto" : "Volver a usarlo"}
+        </button>
+      </div>
+    </div>
   );
 }

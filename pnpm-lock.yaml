@@ -589,6 +589,9 @@ importers:
       '@repo/design-studio':
         specifier: workspace:*
         version: link:../../packages/design-studio
+      '@repo/geo':
+        specifier: workspace:*
+        version: link:../../packages/geo
       '@repo/partners':
         specifier: workspace:*
         version: link:../../packages/partners
@@ -610,6 +613,9 @@ importers:
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3
+      leaflet:
+        specifier: ^1.9.4
+        version: 1.9.4
       lucide-react:
         specifier: ^0.544.0
         version: 0.544.0(react@19.2.4)
@@ -628,6 +634,9 @@ importers:
       react-dom:
         specifier: 19.2.4
         version: 19.2.4(react@19.2.4)
+      react-leaflet:
+        specifier: ^5.0.0
+        version: 5.0.0(leaflet@1.9.4)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       zod:
         specifier: ^3.25.76
         version: 3.25.76
@@ -638,6 +647,9 @@ importers:
       '@types/bcryptjs':
         specifier: ^2.4.6
         version: 2.4.6
+      '@types/leaflet':
+        specifier: ^1.9.21
+        version: 1.9.21
       '@types/node':
         specifier: ^20
         version: 20.19.37

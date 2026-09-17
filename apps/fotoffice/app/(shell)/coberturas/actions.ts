@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
+import { encodeGeohash, validateCoordinates } from "@repo/geo";
 import { appUrl } from "@/lib/app-url";
 import { COVERAGE_EMAIL_KEYS } from "@/lib/communications/constants";
 import { loadWorkspaceEmailContext } from "@/lib/communications/load-workspace-signature";
@@ -444,6 +445,30 @@ export async function crearCoberturaAction(
   const city = formData.get("city")?.toString()?.trim() || null;
   const instructions = formData.get("instructions")?.toString()?.trim() || null;
 
+  /*
+    El punto que marcó la organización viaja con la dirección (ver `sugerirCobertura`). Se
+    revalida acá igual que en el formulario público, con la misma función del DNX GEO ENGINE: el
+    panel lo manda en dos campos ocultos, y un campo oculto es tan editable como cualquier otro.
+
+    Un punto que no pase la validación deja la cobertura sin punto, no la frena: es un dato
+    opcional, y la dirección escrita sigue estando. El geohash se calcula acá y no se recibe,
+    para que nunca pueda dejar de corresponder a las coordenadas que lo acompañan.
+  */
+  const puntoCrudo = validateCoordinates(
+    formData.get("latitude")?.toString() ?? null,
+    formData.get("longitude")?.toString() ?? null,
+  );
+  const punto = puntoCrudo.ok
+    ? {
+        latitude: puntoCrudo.coordinates.latitude,
+        longitude: puntoCrudo.coordinates.longitude,
+        geohash: encodeGeohash(
+          puntoCrudo.coordinates.latitude,
+          puntoCrudo.coordinates.longitude,
+        ),
+      }
+    : { latitude: null, longitude: null, geohash: null };
+
   const roleNames = formData.getAll("roleName").map((v) => v.toString());
   const roleVacancies = formData.getAll("roleVacancies").map((v) => v.toString());
   const roles = roleNames
@@ -466,6 +491,9 @@ export async function crearCoberturaAction(
         endsAt,
         addressLine,
         city,
+        latitude: punto.latitude,
+        longitude: punto.longitude,
+        geohash: punto.geohash,
         instructions,
         status: "PLANIFICADA",
         roles: { create: roles.map((r) => ({ name: r.name, vacancies: r.vacancies })) },
