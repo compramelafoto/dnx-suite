@@ -123,6 +123,15 @@ export default function AlbumInstructivosPanel({
               Cartel A5
             </Button>
           </a>
+          <a
+            href={`/api/dashboard/albums/${albumId}/instructivo/tarjetas`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Button type="button" variant="secondary" size="md">
+              Hoja de tarjetas A4
+            </Button>
+          </a>
         </div>
       </Card>
     </div>
