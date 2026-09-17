@@ -183,7 +183,7 @@ de la marca dentro de los textos: el fondo no cambió pero el texto sí, y un
 consentimiento tiene que poder mostrar exactamente lo que la persona aceptó. Al
 16/9 no había ninguno registrado, así que no costó nada.
 
-### D2b. Dos obligaciones de comercio electrónico que todavía no están
+### D2b. Dos obligaciones de comercio electrónico — RESUELTAS
 
 Aparecieron al redactar los términos y **hay que resolverlas antes de vender el
 primer evento**, no antes del lanzamiento técnico:
@@ -196,15 +196,28 @@ primer evento**, no antes del lanzamiento técnico:
   visible al formulario de la Ventanilla Única Federal de Defensa del
   Consumidor. Tampoco está.
 
-Las dos son enlaces en la portada, no desarrollo. Pero las controla Defensa del
-Consumidor y su ausencia es sancionable.
+**Resueltas el 2026-09-15.** El botón de arrepentimiento no era sólo un enlace: la
+norma pide un formulario directo y una constancia, así que hay tabla, pantalla,
+número de constancia y correo. El Libro de Quejas sí es un enlace, y está en la
+cabecera y en el pie.
 
-### D3. `/api/diagnostico` está abierto en producción
+Se sumaron además los datos del responsable —nombre, CUIT y domicilio— que pide
+el artículo 4 de la Ley 24.240 y tampoco estaban.
 
-Ruta temporal que informa si la base, R2 y Rekognition responden. No expone credenciales
-—sólo el hostname de la base y tiempos de respuesta— pero **hay que borrarla antes del
-lanzamiento**. Existe porque sin ella el `P2021` de las dos filas de `DATABASE_URL` habría
-costado mucho más que media hora.
+### D3. `/api/diagnostico` estaba abierto en producción — RESUELTA, pero no como decía
+
+Ruta que informa si la base, R2, Rekognition, Mercado Pago y Resend responden.
+
+**Estaba abierta a cualquiera**, y era peor de lo que este documento decía: publicaba el
+host de la base y el nombre del bucket, y **cada visita escribía y borraba un archivo en R2
+y llamaba a Rekognition** — un endpoint que cualquiera podía poner en un bucle y que se
+factura.
+
+La decisión original era borrarla antes del lanzamiento. **Se cerró con la llave de
+servicio en vez de borrarla**, y creció: hoy es lo que dice a qué cuenta de Mercado Pago
+apunta el token —el error más caro y más silencioso que puede tener esto— y si la clave de
+Resend sirve. Borrarla sería perder el diagnóstico que más falta va a hacer el 10 de
+octubre a las dos de la mañana.
 
 ## Lo que dejo dicho por escrito
 

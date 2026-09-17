@@ -121,9 +121,8 @@ empujan hacia abajo lo demás sin agregar nada.
 
 ## Lo que falta
 
-| Falta | Quién |
-|---|---|
-| Que la solicitud avise por correo a quien la hizo y al titular | Espera a que estén los correos |
+Nada. La constancia sale por correo desde el 2026-09-17 y el envío se verificó contra
+producción.
 
 ## Quién vende, en el pie de todas las páginas
 

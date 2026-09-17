@@ -160,7 +160,5 @@ sufre al mismo tiempo.
 Está anotado y no bloquea:
 
 - El panel del profesional no tiene la estética del resto de la suite.
-- Enlaces de proveedor **por categoría** (hoy hay uno general).
 - Panel de administración para fusionar empresas duplicadas.
-- Que los invitados vean los proveedores en el álbum, no sólo el cliente.
 - Partes 2 y 3 de la prueba de moderación con fotos reales de eventos.

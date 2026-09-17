@@ -93,12 +93,11 @@ Nada de esto es de la Etapa 2, pero conviene tenerlo junto:
 - **Parte 2 de la prueba de moderación**: veinte fotos reales en los tres
   perfiles, para medir cuántas buenas retiene por error. Procedimiento en el
   documento 06. Es lo más importante que queda.
-- **Aprobación legal** de `/terminos` y `/privacidad`.
-- **Botón de arrepentimiento** y **Libro de Quejas Online** (Resolución
-  424/2020). Son dos enlaces, pero los controla Defensa del Consumidor.
-- Borrar `/api/diagnostico`.
-- Toda la Etapa 3: Mercado Pago, adicional de descarga, ZIP, emails, panel del
-  cliente y proveedores.
+- ~~**Aprobación legal**~~ — hecha el 2026-09-16, sin cambios en los textos.
+- ~~**Botón de arrepentimiento** y **Libro de Quejas Online**~~ — hechos el 2026-09-15.
+- ~~Borrar `/api/diagnostico`~~ — se cerró con llave en vez de borrarse, y creció:
+  hoy verifica también Mercado Pago y Resend. Ver la deuda D3.
+- ~~Toda la Etapa 3~~ — completa y en `main`.
 
 ## Etapa 2 — Núcleo en vivo: 21 al 27 de septiembre
 
