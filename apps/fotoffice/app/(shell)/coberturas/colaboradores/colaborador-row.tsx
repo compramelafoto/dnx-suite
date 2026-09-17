@@ -239,7 +239,7 @@ export function ColaboradorRow({
               ) : null}
               {state.ok ? <p className="text-sm text-[var(--fo-muted)]">{state.ok}</p> : null}
 
-              <button type="submit" className="fo-btn min-h-11" disabled={guardando}>
+              <button type="submit" className="fo-btn fo-btn-primary min-h-11" disabled={guardando}>
                 {guardando ? "Guardando…" : "Guardar"}
               </button>
             </form>

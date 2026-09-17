@@ -104,7 +104,7 @@ export default async function CarnetsPage({
 
       {capabilities.includes("ADMINISTRAR") ? (
         <div className="flex flex-wrap items-start gap-3">
-          <Link href="/members/carnets/permisos" className="fo-btn text-xs inline-flex">
+          <Link href="/members/carnets/permisos" className="fo-btn fo-btn-secondary text-xs inline-flex">
             Permisos de carnets
           </Link>
           <IssueButton />
@@ -114,7 +114,7 @@ export default async function CarnetsPage({
       <nav className="flex flex-wrap gap-1.5">
         <Link
           href="/members/carnets"
-          className={`fo-btn text-xs ${!grupo ? "fo-btn-primary" : ""}`}
+          className={`fo-btn text-xs ${!grupo ? "fo-btn-primary" : "fo-btn-secondary"}`}
         >
           Todos
           <span className="ml-1.5 tabular-nums opacity-70">
@@ -126,7 +126,7 @@ export default async function CarnetsPage({
             key={g.id}
             href={`/members/carnets?grupo=${g.id}`}
             title={aplicarVocabulario(g.description, v)}
-            className={`fo-btn text-xs ${params.grupo === g.id ? "fo-btn-primary" : ""}`}
+            className={`fo-btn text-xs ${params.grupo === g.id ? "fo-btn-primary" : "fo-btn-secondary"}`}
           >
             {g.label}
             <span className="ml-1.5 tabular-nums opacity-70">{totalPorGrupo(g.states)}</span>

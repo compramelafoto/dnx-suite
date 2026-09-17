@@ -108,7 +108,7 @@ export function ConvocatoriaPanel({
         <form action={crear} className="space-y-4">
           <input type="hidden" name="coverageId" value={coverageId} />
           <CamposConvocatoria />
-          <button type="submit" className="fo-btn min-h-11" disabled={creando}>
+          <button type="submit" className="fo-btn fo-btn-primary min-h-11" disabled={creando}>
             {creando ? "Creando…" : "Crear convocatoria (borrador)"}
           </button>
         </form>
@@ -212,7 +212,7 @@ export function ConvocatoriaPanel({
               <input type="hidden" name="callId" value={call.id} />
               <button
                 type="submit"
-                className="fo-btn min-h-11"
+                className="fo-btn fo-btn-primary min-h-11"
                 disabled={publicando || !publicable.ok}
               >
                 {publicando ? "Publicando…" : "Publicar convocatoria"}
