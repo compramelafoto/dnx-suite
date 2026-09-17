@@ -23,6 +23,7 @@ import EmailConfirmationHint, {
   EMAIL_EMPTY_PLACEHOLDER_COPY,
 } from "@/components/checkout/EmailConfirmationHint";
 import { getCheckoutEmailValidationError } from "@/lib/email-validation";
+import { packSavingsArs } from "@/lib/preventa-canjeable/pack-savings";
 
 type PackBenefitLine = { line: string };
 
@@ -31,6 +32,8 @@ type Pack = {
   name: string;
   description: string | null;
   coverImageUrl?: string | null;
+  /** Pack destacado del álbum: lleva el cartel "Recomendado". */
+  isRecommended?: boolean;
   price: number;
   validFrom: string | null;
   validUntil: string | null;
@@ -408,6 +411,18 @@ export default function PreventaPage({ testClientPreview = false }: PreventaPage
     formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
+  /** Desde el selector del encabezado: lleva a la tarjeta del pack y la resalta. */
+  const scrollToPack = (packId: number) => {
+    setHighlightPackId(packId);
+    document.getElementById(`preventa-pack-${packId}`)?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
+    window.setTimeout(() => {
+      setHighlightPackId((current) => (current === packId ? null : current));
+    }, 4500);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#fafafa] flex items-center justify-center p-6">
@@ -495,6 +510,15 @@ export default function PreventaPage({ testClientPreview = false }: PreventaPage
         ? `$${packs[0].price.toLocaleString("es-AR")}`
         : `Desde $${minPrice.toLocaleString("es-AR")}`;
 
+  /** "Ahorrás $X" sólo cuando el combo se puede armar con packs sueltos más caros. */
+  const savingsByPackId = new Map<number, number>();
+  for (const pack of packs) {
+    const ahorro = packSavingsArs(pack, packs);
+    if (ahorro != null) savingsByPackId.set(pack.id, ahorro);
+  }
+  /** Con un solo pack no hay nada que elegir; con varios, el padre tiene que verlos a todos. */
+  const showPackChooser = packs.length > 1 && totalItems === 0;
+
   const purchaseDeadlineLine = redemptionSelected
     ? `Tenés tiempo para usar lo comprado hasta el ${redemptionSelected}.`
     : redemptionCommon
@@ -550,17 +574,64 @@ export default function PreventaPage({ testClientPreview = false }: PreventaPage
         <section className="w-full min-w-0 max-w-6xl mx-auto rounded-2xl bg-white border border-[#e5e7eb] p-5 sm:p-8 lg:p-10 shadow-md">
           <div className="flex w-full min-w-0 flex-col items-stretch gap-5 sm:gap-6 text-center">
             <p className="w-full text-pretty text-[#4b5563] text-sm sm:text-base leading-relaxed">
-              Reservá tu pack ahora y elegí tus fotos cuando estén listas.
+              {packs.length > 1
+                ? `Hay ${packs.length} opciones para elegir. Reservá la tuya ahora y elegí tus fotos cuando estén listas.`
+                : "Reservá tu pack ahora y elegí tus fotos cuando estén listas."}
             </p>
-            <div className="w-full">
-              <p className="text-xs text-[#9ca3af] uppercase tracking-wide mb-2">Precio</p>
-              <p className="text-3xl sm:text-4xl lg:text-5xl font-bold text-[#1a1a1a] tabular-nums tracking-tight break-words">
-                {heroPriceLabel}
-              </p>
-              {totalItems > 1 && (
-                <p className="text-sm text-[#6b7280] mt-2">{totalItems} unidades</p>
-              )}
-            </div>
+            {showPackChooser ? (
+              <div className="w-full">
+                <p className="text-xs text-[#9ca3af] uppercase tracking-wide mb-2 text-center">
+                  Elegí tu opción
+                </p>
+                <ul className="m-0 flex list-none flex-col gap-2 p-0 text-left">
+                  {packs.map((pack) => {
+                    const ahorro = savingsByPackId.get(pack.id);
+                    return (
+                      <li key={pack.id} className="min-w-0">
+                        <button
+                          type="button"
+                          onClick={() => scrollToPack(pack.id)}
+                          className={`flex w-full min-w-0 items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
+                            pack.isRecommended
+                              ? "border-[#c27b3d] bg-[#fffbf7] hover:bg-[#fef7f3]"
+                              : "border-[#e5e7eb] bg-white hover:bg-[#fafafa]"
+                          }`}
+                        >
+                          <span className="flex min-w-0 flex-col gap-0.5">
+                            {pack.isRecommended ? (
+                              <span className="text-[11px] font-bold uppercase tracking-wide text-[#c27b3d]">
+                                Recomendado
+                              </span>
+                            ) : null}
+                            <span className="line-clamp-2 text-sm font-semibold text-[#1a1a1a] sm:text-base">
+                              {pack.name}
+                            </span>
+                            {ahorro != null ? (
+                              <span className="text-xs font-medium text-[#c27b3d]">
+                                Ahorrás ${ahorro.toLocaleString("es-AR")}
+                              </span>
+                            ) : null}
+                          </span>
+                          <span className="shrink-0 text-base font-bold tabular-nums text-[#1a1a1a] sm:text-lg">
+                            ${pack.price.toLocaleString("es-AR")}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ) : (
+              <div className="w-full">
+                <p className="text-xs text-[#9ca3af] uppercase tracking-wide mb-2">Precio</p>
+                <p className="text-3xl sm:text-4xl lg:text-5xl font-bold text-[#1a1a1a] tabular-nums tracking-tight break-words">
+                  {heroPriceLabel}
+                </p>
+                {totalItems > 1 && (
+                  <p className="text-sm text-[#6b7280] mt-2">{totalItems} unidades</p>
+                )}
+              </div>
+            )}
             {buyUntil ? (
               <p className="w-full text-sm sm:text-base font-medium text-[#374151] text-pretty">
                 Podés comprar hasta el <span className="text-[#c27b3d]">{buyUntil}</span>
@@ -601,7 +672,9 @@ export default function PreventaPage({ testClientPreview = false }: PreventaPage
           )}
 
           <div className={`min-w-0 ${packGridClassName(packs.length)}`}>
-            {packs.map((pack) => (
+            {packs.map((pack) => {
+              const ahorro = savingsByPackId.get(pack.id);
+              return (
               <div
                 key={pack.id}
                 id={`preventa-pack-${pack.id}`}
@@ -611,8 +684,13 @@ export default function PreventaPage({ testClientPreview = false }: PreventaPage
                     : ""
                 }`}
               >
-                <Card className="overflow-hidden border-[#e5e7eb] rounded-2xl p-0 h-full flex flex-col shadow-md hover:shadow-lg transition-shadow duration-200">
-                  <div className="relative w-full aspect-square bg-gradient-to-br from-[#fef7f3] to-[#f3f4f6] border-b border-[#f0f0f0]">
+                <Card
+                  className={`overflow-hidden rounded-2xl p-0 h-full flex flex-col shadow-md hover:shadow-lg transition-shadow duration-200 ${
+                    pack.isRecommended ? "border-2 border-[#c27b3d]" : "border-[#e5e7eb]"
+                  }`}
+                >
+                  {/* En el celular la foto va baja: si ocupa una pantalla entera, el resto de los packs no existe. */}
+                  <div className="relative w-full h-36 sm:h-auto sm:aspect-square bg-gradient-to-br from-[#fef7f3] to-[#f3f4f6] border-b border-[#f0f0f0]">
                     {pack.coverImageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
@@ -628,12 +706,22 @@ export default function PreventaPage({ testClientPreview = false }: PreventaPage
                   </div>
                   <div className="flex flex-1 flex-col p-5 sm:p-6 gap-4 min-h-0">
                     <div className="space-y-2">
+                      {pack.isRecommended ? (
+                        <span className="inline-flex items-center rounded-full bg-[#c27b3d] px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
+                          Recomendado
+                        </span>
+                      ) : null}
                       <h3 className="text-lg sm:text-xl font-bold text-[#1a1a1a] leading-snug">
                         {pack.name}
                       </h3>
                       <p className="text-2xl sm:text-3xl font-bold text-[#c27b3d] tabular-nums tracking-tight">
                         ${pack.price.toLocaleString("es-AR")}
                       </p>
+                      {ahorro != null ? (
+                        <p className="inline-flex items-center rounded-lg bg-[#fef7f3] px-2.5 py-1 text-xs font-semibold text-[#c27b3d]">
+                          Ahorrás ${ahorro.toLocaleString("es-AR")} contra comprarlos por separado
+                        </p>
+                      ) : null}
                     </div>
                     <div className="flex items-center justify-center gap-3 sm:gap-4 py-1">
                       <button
@@ -681,7 +769,8 @@ export default function PreventaPage({ testClientPreview = false }: PreventaPage
                   </div>
                 </Card>
               </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* 4 — Cómo funciona */}

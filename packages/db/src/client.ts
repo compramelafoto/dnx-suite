@@ -14,9 +14,16 @@ function createPrismaClient() {
   });
 }
 
-/** Epoch del schema generado — cambia cuando aparecen/desaparecen modelos. */
+/**
+ * Epoch del schema generado — cambia cuando aparecen/desaparecen modelos.
+ *
+ * `Prisma.dmmf` no existe cuando este módulo cae en un bundle de navegador (pasa
+ * en `next dev` si un componente de cliente arrastra una cadena de imports que
+ * termina en este archivo). Leerlo sin red tumbaba la página entera con
+ * "Cannot read properties of undefined (reading 'datamodel')".
+ */
 function prismaSchemaEpoch(): string {
-  return Prisma.dmmf.datamodel.models.map((m) => m.name).join("|");
+  return (Prisma.dmmf?.datamodel?.models ?? []).map((m) => m.name).join("|");
 }
 
 function clientHasModel(client: PrismaClient, modelName: string): boolean {
