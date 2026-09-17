@@ -77,7 +77,7 @@ export default async function PuertaInstitucionPage({
 
             <div className="flex flex-col gap-2 sm:flex-row">
               <form action="/api/auth/logout" method="post" className="sm:flex-1">
-                <button type="submit" className="fo-btn w-full min-h-11">
+                <button type="submit" className="fo-btn fo-btn-primary w-full min-h-11">
                   Salir y entrar con otro correo
                 </button>
               </form>

@@ -13,26 +13,33 @@ export function ResponderForm({ token }: { token: string }) {
   const [state, formAction, pending] = useActionState(accion, inicial);
 
   if (state.ok) {
-    return <p className="text-sm text-[var(--fo-muted)]">{state.ok}</p>;
+    return (
+      <p
+        role="status"
+        className="fo-alert-success rounded-[var(--fo-radius-sm)] p-3 text-sm leading-relaxed"
+      >
+        {state.ok}
+      </p>
+    );
   }
 
   return (
     <form action={formAction} className="space-y-3">
-      <label className="block space-y-1">
-        <span className="text-sm font-medium">Tu respuesta</span>
-        <textarea
-          name="respuesta"
-          rows={4}
-          required
-          className="w-full rounded-lg border border-[var(--fo-border)] bg-[var(--fo-bg)] px-3 py-2 text-base"
-        />
+      <label className="fo-field-stack">
+        <span className="fo-label">Tu respuesta</span>
+        {/* `text-base` y no `text-sm`: en un teléfono, un campo con letra chica hace que el
+            navegador acerque la pantalla al tocarlo y quien contesta pierde de vista la pregunta. */}
+        <textarea name="respuesta" rows={4} required className="fo-input text-base" />
       </label>
       {state.error ? (
-        <p role="alert" className="text-sm text-[var(--fo-danger)]">
+        <p
+          role="alert"
+          className="fo-alert-error rounded-[var(--fo-radius-sm)] p-3 text-sm leading-relaxed text-[var(--fo-danger)]"
+        >
           {state.error}
         </p>
       ) : null}
-      <button type="submit" className="fo-btn min-h-11" disabled={pending}>
+      <button type="submit" className="fo-btn fo-btn-primary min-h-11 w-full sm:w-auto" disabled={pending}>
         {pending ? "Enviando…" : "Enviar respuesta"}
       </button>
     </form>

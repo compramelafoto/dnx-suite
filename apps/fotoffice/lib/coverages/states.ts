@@ -55,6 +55,95 @@ export const REQUEST_LIVE_STATUSES: readonly RequestStatus[] = [
   "APROBADA",
 ];
 
+export type RequestStep = {
+  /** Dónde está el pedido, en una frase. */
+  donde: string;
+  /** Qué falta que pase para que avance. */
+  queSigue: string;
+};
+
+/**
+ * Dónde está un pedido y qué sigue.
+ *
+ * El panel de evaluación muestra acciones distintas según el estado —empezar a evaluarla, tomar
+ * el pedido, esperar una respuesta— y no decía en cuál de los tres estaba. Quien coordina veía
+ * aparecer y desaparecer botones sin saber por qué, que es la forma más rápida de no encontrar
+ * el que busca.
+ *
+ * Está escrito para quien coordina, que es quien lee esta pantalla: la organización lee el
+ * estado en su enlace de seguimiento, con las palabras de `REQUEST_STATUS_LABELS`.
+ */
+export const REQUEST_STATUS_STEPS: Record<RequestStatus, RequestStep> = {
+  RECIBIDA: {
+    donde: "Recién llegó y todavía no la miró nadie.",
+    queSigue: "Abrirla para evaluarla: así queda claro que alguien se hizo cargo.",
+  },
+  EN_EVALUACION: {
+    donde: "Está en evaluación.",
+    queSigue: "Decidir si la tomamos. Si falta un dato para decidir, se lo pedimos.",
+  },
+  REQUIERE_INFO: {
+    donde: "Les pedimos un dato y estamos esperando la respuesta.",
+    queSigue: "Cuando respondan por su enlace, el pedido vuelve solo a evaluación.",
+  },
+  APROBADA: {
+    donde: "La tomamos.",
+    queSigue: "Generar la cobertura, acá abajo: es el trabajo concreto que se va a cubrir.",
+  },
+  RECHAZADA: {
+    donde: "No la pudimos tomar y la organización ya lo sabe.",
+    queSigue: "Nada: un rechazo no se reabre. Si insisten con datos nuevos, es un pedido nuevo.",
+  },
+  CANCELADA_SOLICITANTE: {
+    donde: "La canceló quien la pidió.",
+    queSigue: "Nada.",
+  },
+  CANCELADA_ORGANIZACION: {
+    donde: "La cancelamos nosotros.",
+    queSigue: "Nada.",
+  },
+  CERRADA: {
+    donde: "El pedido está cerrado: lo que tenía que pasar ya pasó.",
+    queSigue: "Nada.",
+  },
+};
+
+export function requestStatusStep(status: string): RequestStep | null {
+  return isRequestStatus(status) ? REQUEST_STATUS_STEPS[status] : null;
+}
+
+/**
+ * Lo que se lee cuando un cambio de estado salió bien.
+ *
+ * Un «Listo.» igual para los cinco destinos no dice qué pasó, y sobre todo no dice si la
+ * organización se enteró — que es la pregunta que se hace quien acaba de apretar. Por eso la
+ * frase depende del destino, y la parte del aviso sólo aparece si el correo efectivamente salió:
+ * un pedido sin correo cargado no le avisa a nadie, y prometerlo haría que la coordinación se
+ * quede esperando una respuesta que nunca pidió.
+ */
+export function requestStatusDoneMessage(to: string, opciones?: { avisada?: boolean }): string {
+  const avisada = opciones?.avisada ?? false;
+  switch (to) {
+    case "EN_EVALUACION":
+      return "Quedó abierta para evaluar. La organización no recibe ningún aviso por esto.";
+    case "APROBADA":
+      return avisada
+        ? "La tomamos y ya le avisamos a la organización. Ahora generá la cobertura, acá abajo."
+        : "La tomamos. Ahora generá la cobertura, acá abajo.";
+    case "RECHAZADA":
+      return avisada
+        ? "Quedó rechazada y le avisamos a la organización con el motivo que escribiste."
+        : "Quedó rechazada.";
+    case "CERRADA":
+      return "Quedó cerrada.";
+    case "CANCELADA_SOLICITANTE":
+    case "CANCELADA_ORGANIZACION":
+      return "Quedó cancelada.";
+    default:
+      return "Listo.";
+  }
+}
+
 /**
  * Cómo se lee cada tipo de evento del historial.
  *

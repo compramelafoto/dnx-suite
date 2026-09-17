@@ -79,7 +79,9 @@ export function ColaboradorRow({
           <p className="font-medium text-[var(--fo-text)]">{nombre}</p>
           <p className="text-xs text-[var(--fo-muted)] font-mono">{memberNumber}</p>
         </td>
-        <td className="px-4 py-3 text-[var(--fo-muted)]">{memberStatusLabel}</td>
+        <td className="hidden px-4 py-3 text-[var(--fo-muted)] lg:table-cell">
+          {memberStatusLabel}
+        </td>
         <td className="px-4 py-3">
           <span
             className={
@@ -91,15 +93,18 @@ export function ColaboradorRow({
             {perfil?.active ? "Sí" : "No"}
           </span>
         </td>
-        <td className="px-4 py-3 text-[var(--fo-muted)]">{perfil?.homeCity ?? "—"}</td>
-        <td className="px-4 py-3 text-[var(--fo-muted)]">
+        <td className="hidden px-4 py-3 text-[var(--fo-muted)] md:table-cell">
+          {perfil?.homeCity ?? "—"}
+        </td>
+        <td className="hidden px-4 py-3 text-[var(--fo-muted)] lg:table-cell">
           {zonas.length > 0 ? zonas.join(", ") : "—"}
         </td>
         <td className="px-4 py-3 text-right">
           <button
             type="button"
             onClick={() => setAbierto((v) => !v)}
-            className="text-[var(--fo-accent)] font-medium hover:underline"
+            aria-expanded={abierto}
+            className="fo-btn fo-btn-ghost min-h-9 px-3 text-sm"
           >
             {abierto ? "Cerrar" : "Editar"}
           </button>
@@ -108,7 +113,7 @@ export function ColaboradorRow({
 
       {abierto ? (
         <tr>
-          <td colSpan={7} className="px-4 py-4 bg-[var(--fo-bg-elevated)]">
+          <td colSpan={7} className="bg-[var(--fo-bg-elevated)] px-4 py-4">
             <form action={action} className="space-y-4">
               <input type="hidden" name="memberId" value={memberId} />
 
@@ -119,7 +124,7 @@ export function ColaboradorRow({
                   defaultChecked={perfil?.active ?? false}
                   className="size-5 accent-[var(--fo-accent)]"
                 />
-                Colaborador activo: ve convocatorias y se puede postular
+                Colabora en coberturas: ve las convocatorias y se puede anotar
               </label>
 
               <div className="grid gap-4 sm:grid-cols-2">
@@ -233,15 +238,38 @@ export function ColaboradorRow({
               </label>
 
               {state.error ? (
-                <p role="alert" className="text-sm text-[var(--fo-danger)]">
+                <p
+                  role="alert"
+                  className="fo-alert-error rounded-[var(--fo-radius-sm)] p-3 text-sm leading-relaxed text-[var(--fo-danger)]"
+                >
                   {state.error}
                 </p>
               ) : null}
-              {state.ok ? <p className="text-sm text-[var(--fo-muted)]">{state.ok}</p> : null}
+              {state.ok ? (
+                <p
+                  role="status"
+                  className="fo-alert-success rounded-[var(--fo-radius-sm)] p-3 text-sm leading-relaxed"
+                >
+                  {state.ok}
+                </p>
+              ) : null}
 
-              <button type="submit" className="fo-btn min-h-11" disabled={guardando}>
-                {guardando ? "Guardando…" : "Guardar"}
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="submit"
+                  className="fo-btn fo-btn-primary min-h-11"
+                  disabled={guardando}
+                >
+                  {guardando ? "Guardando…" : "Guardar este perfil"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAbierto(false)}
+                  className="fo-btn fo-btn-ghost min-h-11 text-sm"
+                >
+                  Cerrar sin guardar
+                </button>
+              </div>
             </form>
           </td>
         </tr>

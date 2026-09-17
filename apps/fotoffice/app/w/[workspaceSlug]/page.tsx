@@ -56,7 +56,7 @@ export default async function PublicGeneralLeadPage({ params }: Props) {
             <Link href={`/w/${workspaceSlug}/asociarse`} className="fo-btn fo-btn-secondary text-sm">
               Asociarme
             </Link>
-            <Link href="/login" className="fo-btn text-sm">
+            <Link href="/login" className="fo-btn fo-btn-secondary text-sm">
               Iniciar sesión
             </Link>
           </nav>

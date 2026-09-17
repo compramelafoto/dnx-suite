@@ -117,7 +117,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
             )}
             {profiles.length > 1 ? (
               <form action={switchProfileAction}>
-                <button type="submit" className="fo-btn text-sm min-h-10">
+                <button type="submit" className="fo-btn fo-btn-secondary text-sm min-h-10">
                   Cambiar de perfil
                 </button>
               </form>
