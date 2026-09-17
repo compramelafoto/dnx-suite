@@ -567,9 +567,43 @@ Lo que se aplicó hoy sobre el panel de institución (S1), y solo sobre módulos
 | "Sitio web" pasó a la sección **Presencia pública**, con su encabezado | P5 — colgaba de Socios y parecía parte del padrón |
 | **Evaluaciones** pasó a la sección Cursos | P4 — evalúa actividades de cursos |
 | Formularios y Leads pasaron a la sección **Captación**, dentro del menú | Estaban escritos aparte, debajo del menú, con otro estilo |
+| **Captación pasó a ser un módulo** (`service-leads`), apagado por omisión | Estaba escrita a mano y le aparecía a todo el mundo, usara o no la función |
 | El subtítulo del logo muestra **el nombre de la institución** | Decía "Venta de cursos" en instituciones con el módulo de cursos apagado |
 | El menú **se oculta** y el contenido pasa a pantalla completa | P10 — pedido explícito |
 | Cajón lateral en el teléfono | El menú empujaba el contenido hacia abajo en cada pantalla |
 
 Nada de lo marcado ⬜ se agregó al menú. Las claves de módulo planificadas ya estaban
 reservadas en el catálogo desde antes y siguen sin ofrecerse como opción.
+
+## Captación de presupuestos, ahora sí es un módulo
+
+*2026-09-17.*
+
+Los dos enlaces —Formularios y Leads— estaban **escritos a mano** en `shell-nav.tsx`, sin
+llave de módulo. La deuda estaba anotada en ese mismo archivo desde que se agregaron:
+*"no tiene llave de módulo, así que no se puede apagar por organización"*. El efecto era
+que la sección le aparecía a **todas** las instituciones, usaran o no la función.
+
+Ahora es `service-leads` y se comporta como los demás: apagado por omisión, encendible por
+workspace.
+
+### Lo que había detrás
+
+Las pantallas eran reales desde abril de 2026 —formularios públicos por tipo de evento,
+enlace para compartir y bandeja de consultas—. Al 2026-09-17 había **2 formularios y 1
+consulta, todos de "DNX Estudio"**, el workspace propio. Ninguna institución lo usaba.
+
+### Por qué aparece en la portada
+
+Registrarlo como `AVAILABLE` obliga a contarlo en la portada, y está bien que obligue: el
+test lo dice mejor que yo — *"si un módulo se enciende y nadie lo cuenta ahí, existe para el
+sistema y no para el que lo tendría que contratar"*.
+
+La portada ya lo describía sin nombrarlo: el cuadro de **Presupuestos**, en construcción,
+decía que *"hoy la consulta te llega con todos los datos del evento; el precio todavía lo
+ponés vos por afuera"*. Esa primera mitad es justamente este módulo. Ahora Captación es un
+cuadro propio y Presupuestos quedó descrito por lo que le falta: ponerle precio y mandarlo.
+
+Correr la numeración de los cuadros obligó a mover también las referencias de los tipos de
+organización, que apuntan a los cuadros **por número**. Hay un test que lo verifica y fue el
+que avisó.

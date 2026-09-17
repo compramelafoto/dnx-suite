@@ -3,6 +3,7 @@ import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
+import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
@@ -162,6 +163,18 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
       "Historial de cada cambio",
     ],
   },
+  {
+    key: SERVICE_LEADS_MODULE_KEY,
+    cuadro: "11",
+    nombre: "Captación de presupuestos",
+    resuelve:
+      "Un formulario público por tipo de evento —casamiento, quince, lo que arme— que compartís por donde quieras. La consulta entra con todos los datos que pediste y queda en una bandeja, con su historial, en vez de perderse entre mensajes de WhatsApp. El precio todavía lo ponés vos por afuera.",
+    pantallas: [
+      "Formularios por tipo de evento",
+      "Enlace para compartir",
+      "Bandeja de consultas",
+    ],
+  },
 ];
 
 /** Lo que está siempre, se encienda lo que se encienda. No son módulos con interruptor. */
@@ -230,38 +243,38 @@ export const EN_CONSTRUCCION: {
   icono: string;
 }[] = [
   {
-    cuadro: "11",
+    cuadro: "12",
     icono: "presupuestos",
     nombre: "Presupuestos",
     resuelve:
-      "Armar el presupuesto con tus precios, mandárselo al cliente y seguir si lo aceptó. Hoy la consulta te llega con todos los datos del evento; el precio todavía lo ponés vos por afuera.",
+      "Armar el presupuesto con tus precios, mandárselo al cliente y seguir si lo aceptó. La consulta ya te llega con todos los datos del evento —eso es Captación—; falta ponerle precio y mandarlo desde acá.",
   },
   {
-    cuadro: "12",
+    cuadro: "13",
     icono: "comunicacion",
     nombre: "Comunicación",
     resuelve: "Mandar un mensaje a todos los socios o a un grupo, desde adentro.",
   },
   {
-    cuadro: "13",
+    cuadro: "14",
     icono: "eventos",
     nombre: "Eventos",
     resuelve: "Salidas, charlas y encuentros con inscripción y lista de asistencia.",
   },
   {
-    cuadro: "14",
+    cuadro: "15",
     icono: "gobierno",
     nombre: "Gobierno institucional",
     resuelve: "Actas, votaciones y resoluciones de la comisión directiva.",
   },
   {
-    cuadro: "15",
+    cuadro: "16",
     icono: "muestras",
     nombre: "Muestras",
     resuelve: "Las muestras de la institución, con sus obras y sus autores.",
   },
   {
-    cuadro: "16",
+    cuadro: "17",
     icono: "transparencia",
     nombre: "Transparencia",
     resuelve: "Publicar el balance y la rendición para que el socio vea en qué se usó su cuota.",
