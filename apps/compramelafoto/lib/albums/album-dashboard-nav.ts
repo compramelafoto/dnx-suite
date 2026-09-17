@@ -58,7 +58,8 @@ export type AlbumPublicationPanelId =
   | "compartir"
   | "visibilidad"
   | "proteccion"
-  | "portada";
+  | "portada"
+  | "instructivos";
 
 export const ALBUM_PUBLICATION_DEFAULT_PANEL: AlbumPublicationPanelId = "compartir";
 
@@ -212,6 +213,12 @@ export function buildAlbumWorkspaceNavAreas(opts: {
           navKey: "publicacion-portada",
           label: "Portada",
           publicationPanel: "portada",
+        },
+        {
+          id: "publicacion",
+          navKey: "publicacion-instructivos",
+          label: "Instructivos",
+          publicationPanel: "instructivos",
         },
       ],
     },

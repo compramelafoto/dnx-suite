@@ -8,7 +8,7 @@
     "start": "next start --port 3002",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test:instructivos": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.test.json --test lib/instructivos/album-instructivo-profile.test.ts lib/instructivos/album-instructivo-steps.test.ts lib/instructivos/instructivo-qr.test.ts lib/instructivos/instructivo-pdf.test.ts",
+    "test:instructivos": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.test.json --test lib/instructivos/album-instructivo-profile.test.ts lib/instructivos/album-instructivo-steps.test.ts lib/instructivos/instructivo-qr.test.ts lib/instructivos/instructivo-pdf.test.ts lib/albums/album-dashboard-nav.instructivos.test.ts lib/instructivos/cartel-qr-pdf.test.ts",
     "test:analysis": "../../services/dnx-mcp/node_modules/.bin/vitest run --config vitest.analysis.config.ts",
     "test:social": "../../services/dnx-mcp/node_modules/.bin/vitest run --config vitest.social.config.ts",
     "test:theme-scale": "../../packages/payments/node_modules/.bin/tsx --test styles/design-system/theme-scale.test.ts",
