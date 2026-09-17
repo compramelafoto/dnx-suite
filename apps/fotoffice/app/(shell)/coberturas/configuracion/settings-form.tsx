@@ -26,6 +26,10 @@ export function SettingsForm({ settings }: { settings: CoverageSettingsShape }) 
     <form action={action} className="space-y-6">
       <fieldset className="fo-card space-y-4 p-5">
         <legend className="px-1 text-sm font-semibold">Cómo se llaman las cosas acá</legend>
+        <p className="fo-helper">
+          Las palabras que ve tu gente en todo el módulo. Si las dejás vacías se usan las de
+          siempre.
+        </p>
         <Texto name="moduleLabel" label="Nombre del módulo" valor={settings.moduleLabel} placeholder="Solicitudes y Coberturas" />
         <Texto name="termRequest" label="Cómo le dicen a un pedido" valor={settings.termRequest} placeholder="Solicitud" />
         <Texto name="termCollaborator" label="Cómo le dicen a quien hace el trabajo" valor={settings.termCollaborator} placeholder="Colaborador/a" />
@@ -35,12 +39,16 @@ export function SettingsForm({ settings }: { settings: CoverageSettingsShape }) 
 
       <fieldset className="fo-card space-y-4 p-5">
         <legend className="px-1 text-sm font-semibold">Cómo se arma el equipo</legend>
-        <label className="block space-y-1">
-          <span className="text-sm font-medium">Modalidad</span>
+        <p className="fo-helper">
+          Quién decide y cuándo conviene sumar gente. Cambiar esto no toca las coberturas que ya
+          están en curso.
+        </p>
+        <label className="fo-field-stack">
+          <span className="fo-label">Modalidad</span>
           <select
             name="assignmentMode"
             defaultValue={settings.assignmentMode}
-            className="w-full min-h-11 rounded-lg border border-[var(--fo-border)] bg-[var(--fo-bg)] px-3 text-sm"
+            className="fo-input"
           >
             {ASSIGNMENT_MODES.map((m) => (
               <option key={m} value={m}>
@@ -81,19 +89,47 @@ export function SettingsForm({ settings }: { settings: CoverageSettingsShape }) 
 
       <fieldset className="fo-card space-y-4 p-5">
         <legend className="px-1 text-sm font-semibold">Vocabularios propios</legend>
+        <p className="fo-helper">
+          Las listas que después aparecen para elegir: al filtrar a quién se le muestra una
+          convocatoria, y al proponer los roles de una cobertura nueva.
+        </p>
         <Lista name="zones" label="Zonas donde trabajan (una por línea)" valor={settings.zones.join("\n")} />
         <Lista name="specialties" label="Especialidades (una por línea)" valor={settings.specialties.join("\n")} />
         <Lista name="roleTemplates" label="Roles que suelen necesitar (uno por línea)" valor={settings.roleTemplates.join("\n")} />
       </fieldset>
 
       {state.error ? (
-        <p role="alert" className="text-sm text-[var(--fo-danger)]">{state.error}</p>
+        <p
+          role="alert"
+          className="fo-alert-error rounded-[var(--fo-radius-sm)] p-3 text-sm leading-relaxed text-[var(--fo-danger)]"
+        >
+          {state.error}
+        </p>
       ) : null}
-      {state.ok ? <p className="text-sm text-[var(--fo-muted)]">{state.ok}</p> : null}
+      {state.ok ? (
+        <p
+          role="status"
+          className="fo-alert-success rounded-[var(--fo-radius-sm)] p-3 text-sm leading-relaxed"
+        >
+          {state.ok}
+        </p>
+      ) : null}
 
-      <button type="submit" className="fo-btn fo-btn-primary min-h-11" disabled={guardando}>
-        {guardando ? "Guardando…" : "Guardar"}
-      </button>
+      {/*
+        Un solo botón para las cinco secciones: se guarda todo junto, y el formulario es uno solo.
+        Decirlo evita que alguien cambie una sección, baje, no encuentre "guardar" ahí mismo, y se
+        vaya creyendo que no se podía.
+      */}
+      <div className="fo-card flex flex-wrap items-center gap-3 !p-4">
+        <button
+          type="submit"
+          className="fo-btn fo-btn-primary min-h-11 w-full text-base sm:w-auto"
+          disabled={guardando}
+        >
+          {guardando ? "Guardando…" : "Guardar la configuración"}
+        </button>
+        <p className="fo-helper">Guarda las cinco secciones de esta pantalla, no sólo la última.</p>
+      </div>
     </form>
   );
 }
@@ -187,23 +223,27 @@ function CamposDelFormulario({ settings }: { settings: CoverageSettingsShape }) 
   );
 }
 
-const CLASES =
-  "w-full min-h-11 rounded-lg border border-[var(--fo-border)] bg-[var(--fo-bg)] px-3 py-2 text-sm";
+/*
+ * Los cuatro campos de esta pantalla usan `fo-input`, `fo-label` y `fo-field-stack` como el resto
+ * del panel. Antes tenían su propia constante de clases —un borde más claro, otro fondo, sin
+ * foco— y la pantalla se veía de otra aplicación: los mismos campos que en Socios o en Reservas,
+ * dibujados distinto.
+ */
 
 function Texto({ name, label, valor, placeholder }: { name: string; label: string; valor: string | null; placeholder: string }) {
   return (
-    <label className="block space-y-1">
-      <span className="text-sm font-medium">{label}</span>
-      <input name={name} defaultValue={valor ?? ""} placeholder={placeholder} className={CLASES} />
+    <label className="fo-field-stack">
+      <span className="fo-label">{label}</span>
+      <input name={name} defaultValue={valor ?? ""} placeholder={placeholder} className="fo-input" />
     </label>
   );
 }
 
 function Numero({ name, label, valor, min, max }: { name: string; label: string; valor: number; min: number; max: number }) {
   return (
-    <label className="block space-y-1">
-      <span className="text-sm font-medium">{label}</span>
-      <input type="number" name={name} defaultValue={valor} min={min} max={max} className={CLASES} />
+    <label className="fo-field-stack">
+      <span className="fo-label">{label}</span>
+      <input type="number" name={name} defaultValue={valor} min={min} max={max} className="fo-input" />
     </label>
   );
 }
@@ -211,7 +251,12 @@ function Numero({ name, label, valor, min, max }: { name: string; label: string;
 function Tilde({ name, label, valor }: { name: string; label: string; valor: boolean }) {
   return (
     <label className="flex gap-3 text-sm leading-relaxed">
-      <input type="checkbox" name={name} defaultChecked={valor} className="mt-1 size-5 shrink-0" />
+      <input
+        type="checkbox"
+        name={name}
+        defaultChecked={valor}
+        className="mt-0.5 size-5 shrink-0 accent-[var(--fo-accent)]"
+      />
       <span>{label}</span>
     </label>
   );
@@ -219,9 +264,9 @@ function Tilde({ name, label, valor }: { name: string; label: string; valor: boo
 
 function Lista({ name, label, valor }: { name: string; label: string; valor: string }) {
   return (
-    <label className="block space-y-1">
-      <span className="text-sm font-medium">{label}</span>
-      <textarea name={name} rows={3} defaultValue={valor} className={CLASES} />
+    <label className="fo-field-stack">
+      <span className="fo-label">{label}</span>
+      <textarea name={name} rows={3} defaultValue={valor} className="fo-input" />
     </label>
   );
 }

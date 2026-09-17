@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { EstadoConvocatoriaChip } from "@/components/coberturas/estado-chip";
 import type { EstadoDeRol } from "@/lib/coverages/cupos";
 import {
   puedeCrearseConvocatoria,
@@ -51,6 +52,11 @@ type CallProps = {
  * `EvaluacionPanel`— y las tres acciones (`crearConvocatoriaAction`, `editarConvocatoriaAction`,
  * `publicarConvocatoriaAction`) vuelven a pedir `requireCoveragesCoordinator()` en el servidor:
  * esto es cortesía, no el control.
+ *
+ * **Publicar es el botón grande; guardar el borrador, el chico.** Son dos cosas de peso muy
+ * distinto: guardar no lo ve nadie, publicar le escribe a todos los colaboradores de la
+ * institución. Cuando los dos se veían igual, el que manda cincuenta correos quedaba a un clic de
+ * distracción del que no manda ninguno.
  */
 export function ConvocatoriaPanel({
   coverageId,
@@ -82,8 +88,8 @@ export function ConvocatoriaPanel({
     if (!creable.ok) {
       return (
         <section className="fo-card space-y-2 p-5">
-          <h2 className="text-base font-semibold">Convocatoria</h2>
-          <p className="text-sm text-[var(--fo-muted)]">{creable.error}</p>
+          <h2 className="text-base font-semibold">La convocatoria</h2>
+          <p className="text-sm leading-relaxed text-[var(--fo-muted)]">{creable.error}</p>
         </section>
       );
     }
@@ -91,25 +97,31 @@ export function ConvocatoriaPanel({
     if (!puedeCoordinar) {
       return (
         <section className="fo-card space-y-2 p-5">
-          <h2 className="text-base font-semibold">Convocatoria</h2>
+          <h2 className="text-base font-semibold">La convocatoria</h2>
           <p className="text-sm text-[var(--fo-muted)]">Todavía no se creó la convocatoria.</p>
         </section>
       );
     }
 
     return (
-      <section className="fo-card space-y-4 p-5">
-        <h2 className="text-base font-semibold">Crear la convocatoria</h2>
-        {crearState.error ? (
-          <p role="alert" className="text-sm text-[var(--fo-danger)]">
-            {crearState.error}
+      <section className="fo-card space-y-5 p-5">
+        <div className="space-y-1">
+          <h2 className="text-base font-semibold">La convocatoria</h2>
+          <p className="fo-helper">
+            Es el aviso con el que se busca gente para esta cobertura. Se crea como borrador: no
+            la ve nadie hasta que la publiques.
           </p>
-        ) : null}
-        <form action={crear} className="space-y-4">
+        </div>
+        <Aviso state={crearState} />
+        <form action={crear} className="space-y-5">
           <input type="hidden" name="coverageId" value={coverageId} />
           <CamposConvocatoria />
-          <button type="submit" className="fo-btn fo-btn-primary min-h-11" disabled={creando}>
-            {creando ? "Creando…" : "Crear convocatoria (borrador)"}
+          <button
+            type="submit"
+            className="fo-btn fo-btn-primary min-h-12 w-full text-base sm:w-auto"
+            disabled={creando}
+          >
+            {creando ? "Creando…" : "Crear el borrador"}
           </button>
         </form>
       </section>
@@ -123,56 +135,54 @@ export function ConvocatoriaPanel({
   const publicable = puedePublicarse({ title: call.title }, roles);
 
   return (
-    <section className="fo-card space-y-4 p-5">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-base font-semibold">Convocatoria</h2>
-        <span className="text-sm text-[var(--fo-muted)]">{call.statusLabel}</span>
+    <section className="fo-card space-y-5 p-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-base font-semibold">La convocatoria</h2>
+        <EstadoConvocatoriaChip status={call.status} />
       </div>
 
       {!editable ? (
-        <div className="space-y-2 text-sm">
-          <Dato label="Título" valor={call.title} />
-          <Dato label="Qué se cuenta" valor={call.publicSummary ?? "—"} />
-          <Dato label="Solo para quien queda asignado" valor={call.privateBriefing ?? "—"} />
-          <Dato label="Cierre de postulaciones" valor={call.applicationsCloseAtDisplay ?? "Sin plazo"} />
-          <Dato label="Urgencia" valor={URGENCIA_LABELS[call.urgency] ?? call.urgency} />
-          <Dato label="A quién se le muestra" valor={VISIBILIDAD_LABELS[call.visibility] ?? call.visibility} />
-          {call.visibility !== "TODOS" && call.visibilityValues.length > 0 ? (
-            <Dato label="Zonas o especialidades" valor={call.visibilityValues.join(", ")} />
-          ) : null}
-          {call.publishedAtDisplay ? <Dato label="Publicada" valor={call.publishedAtDisplay} /> : null}
+        <div className="space-y-4">
+          <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+            <Dato label="Título" valor={call.title} ancho />
+            <Dato label="Qué se cuenta" valor={call.publicSummary ?? "—"} ancho />
+            <Dato label="Solo para quien queda asignado" valor={call.privateBriefing ?? "—"} ancho />
+            <Dato
+              label="Cierre de postulaciones"
+              valor={call.applicationsCloseAtDisplay ?? "Sin plazo"}
+            />
+            <Dato label="Urgencia" valor={URGENCIA_LABELS[call.urgency] ?? call.urgency} />
+            <Dato
+              label="A quién se le muestra"
+              valor={VISIBILIDAD_LABELS[call.visibility] ?? call.visibility}
+            />
+            {call.visibility !== "TODOS" && call.visibilityValues.length > 0 ? (
+              <Dato label="Zonas o especialidades" valor={call.visibilityValues.join(", ")} />
+            ) : null}
+            {call.publishedAtDisplay ? (
+              <Dato label="Publicada" valor={call.publishedAtDisplay} />
+            ) : null}
+          </dl>
 
           {/* El aviso de la publicación se sigue viendo acá después de publicar: cuando la
               convocatoria pasa a PUBLICADA el formulario de arriba desaparece, y con él
               desaparecía el único renglón que decía que algunos correos no habían salido. */}
-          {publicarState.warn ? (
-            <p className="text-sm text-[var(--fo-warning,#b45309)]">{publicarState.warn}</p>
-          ) : null}
+          <Aviso state={publicarState} />
 
           {call.status === "PUBLICADA" && puedeCoordinar ? (
             <div className="space-y-2 border-t border-[var(--fo-border)] pt-4">
-              {reenviarState.error ? (
-                <p role="alert" className="text-sm text-[var(--fo-danger)]">
-                  {reenviarState.error}
-                </p>
-              ) : null}
-              {reenviarState.ok ? (
-                <p className="text-sm text-[var(--fo-muted)]">{reenviarState.ok}</p>
-              ) : null}
-              {reenviarState.warn ? (
-                <p className="text-sm text-[var(--fo-warning,#b45309)]">{reenviarState.warn}</p>
-              ) : null}
+              <Aviso state={reenviarState} />
               <form action={reenviar}>
                 <input type="hidden" name="callId" value={call.id} />
                 <button
                   type="submit"
-                  className="fo-btn fo-btn-secondary min-h-11"
+                  className="fo-btn fo-btn-secondary min-h-11 text-sm"
                   disabled={reenviando}
                 >
                   {reenviando ? "Reenviando…" : "Reenviar el aviso a quienes no lo recibieron"}
                 </button>
               </form>
-              <p className="text-xs text-[var(--fo-muted)]">
+              <p className="fo-helper">
                 Le escribe solo a quien todavía no lo recibió. Se puede apretar las veces que haga
                 falta: a nadie le llega dos veces.
               </p>
@@ -181,43 +191,40 @@ export function ConvocatoriaPanel({
         </div>
       ) : (
         <>
-          {editarState.error ? (
-            <p role="alert" className="text-sm text-[var(--fo-danger)]">
-              {editarState.error}
-            </p>
-          ) : null}
-          {editarState.ok ? <p className="text-sm text-[var(--fo-muted)]">{editarState.ok}</p> : null}
-          <form action={editar} className="space-y-4">
+          <Aviso state={editarState} />
+          <form action={editar} className="space-y-5">
             <input type="hidden" name="callId" value={call.id} />
             <CamposConvocatoria valores={call} />
-            <button type="submit" className="fo-btn fo-btn-secondary min-h-11" disabled={editando}>
-              {editando ? "Guardando…" : "Guardar cambios"}
+            <button
+              type="submit"
+              className="fo-btn fo-btn-secondary min-h-11 text-sm"
+              disabled={editando}
+            >
+              {editando ? "Guardando…" : "Guardar el borrador"}
             </button>
           </form>
 
           <div className="space-y-2 border-t border-[var(--fo-border)] pt-4">
-            {publicarState.error ? (
-              <p role="alert" className="text-sm text-[var(--fo-danger)]">
-                {publicarState.error}
-              </p>
-            ) : null}
-            {/* Publicada, pero algún aviso a los colaboradores no salió: ni verde ni rojo. */}
-            {publicarState.warn ? (
-              <p className="text-sm text-[var(--fo-warning,#b45309)]">{publicarState.warn}</p>
-            ) : null}
+            <Aviso state={publicarState} />
             {!publicable.ok ? (
-              <p className="text-sm text-[var(--fo-muted)]">{publicable.error}</p>
+              <p className="fo-alert-warning rounded-[var(--fo-radius-sm)] p-3 text-sm leading-relaxed">
+                Todavía no se puede publicar: {publicable.error}
+              </p>
             ) : null}
             <form action={publicar}>
               <input type="hidden" name="callId" value={call.id} />
               <button
                 type="submit"
-                className="fo-btn fo-btn-primary min-h-11"
+                className="fo-btn fo-btn-primary min-h-12 w-full text-base sm:w-auto"
                 disabled={publicando || !publicable.ok}
               >
-                {publicando ? "Publicando…" : "Publicar convocatoria"}
+                {publicando ? "Publicando…" : "Publicar la convocatoria"}
               </button>
             </form>
+            <p className="fo-helper">
+              Al publicarla le llega un aviso por correo a los colaboradores que la puedan ver, y
+              desde ese momento se pueden anotar. Después ya no se edita.
+            </p>
           </div>
         </>
       )}
@@ -245,27 +252,34 @@ function CamposConvocatoria({
         <input name="title" defaultValue={valores?.title ?? ""} required className="fo-input" />
       </label>
       <label className="fo-field-stack sm:col-span-2">
-        <span className="fo-label">Qué se cuenta (lo ve cualquier colaborador)</span>
+        <span className="fo-label">Qué se cuenta</span>
+        <span className="fo-helper">
+          Lo ve cualquier colaborador que reciba la convocatoria, se anote o no. Con esto decide
+          si puede y si quiere.
+        </span>
         <textarea
           name="publicSummary"
-          rows={2}
+          rows={3}
           defaultValue={valores?.publicSummary ?? ""}
           className="fo-input"
         />
       </label>
       <label className="fo-field-stack sm:col-span-2">
-        <span className="fo-label">
-          Solo para quien queda asignado (teléfono de emergencia, contacto del día)
+        <span className="fo-label">Solo para quien queda asignado</span>
+        <span className="fo-helper">
+          El teléfono de emergencia, el contacto del día, y qué autorizó la organización a
+          difundir. Nadie más lo lee.
         </span>
         <textarea
           name="privateBriefing"
-          rows={2}
+          rows={3}
           defaultValue={valores?.privateBriefing ?? ""}
           className="fo-input"
         />
       </label>
       <label className="fo-field-stack">
         <span className="fo-label">Cierre de postulaciones</span>
+        <span className="fo-helper">Opcional. Sin fecha, queda abierta.</span>
         <input
           type="datetime-local"
           name="applicationsCloseAt"
@@ -298,7 +312,8 @@ function CamposConvocatoria({
         </select>
       </label>
       <label className="fo-field-stack">
-        <span className="fo-label">Zonas o especialidades (una por línea, si aplica)</span>
+        <span className="fo-label">Zonas o especialidades</span>
+        <span className="fo-helper">Una por línea. Sólo se usa si arriba elegiste una de las dos.</span>
         <textarea
           name="visibilityValues"
           rows={2}
@@ -310,11 +325,49 @@ function CamposConvocatoria({
   );
 }
 
-function Dato({ label, valor }: { label: string; valor: string }) {
+function Dato({ label, valor, ancho }: { label: string; valor: string; ancho?: boolean }) {
   return (
-    <p>
-      <span className="text-[var(--fo-muted)]">{label}: </span>
-      {valor}
-    </p>
+    <div className={ancho ? "sm:col-span-2" : undefined}>
+      <dt className="text-xs uppercase tracking-wide text-[var(--fo-muted-soft)]">{label}</dt>
+      <dd className="text-sm leading-relaxed">{valor}</dd>
+    </div>
   );
+}
+
+/**
+ * El resultado de una acción: el error primero, después lo que salió a medias, y al final lo que
+ * salió bien. Es el mismo criterio del panel de solicitudes y del panel del equipo.
+ */
+function Aviso({ state }: { state: ConvocatoriaState }) {
+  if (state.error) {
+    return (
+      <p
+        role="alert"
+        className="fo-alert-error rounded-[var(--fo-radius-sm)] p-3 text-sm leading-relaxed text-[var(--fo-danger)]"
+      >
+        {state.error}
+      </p>
+    );
+  }
+  if (state.warn) {
+    return (
+      <p
+        role="alert"
+        className="fo-alert-warning rounded-[var(--fo-radius-sm)] p-3 text-sm leading-relaxed"
+      >
+        {state.warn}
+      </p>
+    );
+  }
+  if (state.ok) {
+    return (
+      <p
+        role="status"
+        className="fo-alert-success rounded-[var(--fo-radius-sm)] p-3 text-sm leading-relaxed"
+      >
+        {state.ok}
+      </p>
+    );
+  }
+  return null;
 }

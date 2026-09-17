@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useId, useState } from "react";
 import {
   invitarDirectoAction,
   seleccionarPostulacionAction,
@@ -48,19 +48,39 @@ export type ColaboradorProps = { id: string; nombre: string };
  * cortesía, no el control. Lo mismo con los lugares libres: la pantalla deja de ofrecer el
  * botón cuando el rol se llenó, pero quien decide de verdad es el recuento que la acción hace
  * adentro de su transacción.
+ *
+ * **Cuánto falta se lee arriba, de una.** Con tres roles abiertos había que sumar tres renglones
+ * mentalmente para saber si el equipo estaba completo, que es la única pregunta que se hace quien
+ * entra a esta pantalla.
  */
 export function EquipoPanel({
   roles,
   colaboradores,
   puedeCoordinar,
+  lugaresTotales,
+  lugaresCubiertos,
 }: {
   roles: RolProps[];
   colaboradores: ColaboradorProps[];
   puedeCoordinar: boolean;
+  lugaresTotales: number;
+  lugaresCubiertos: number;
 }) {
+  const completo = lugaresTotales > 0 && lugaresCubiertos >= lugaresTotales;
+
   return (
     <section className="space-y-4">
-      <h2 className="text-base font-semibold">El equipo</h2>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-base font-semibold">El equipo</h2>
+        {lugaresTotales > 0 ? (
+          <p className={`text-sm ${completo ? "text-[var(--fo-success)]" : "text-[var(--fo-muted)]"}`}>
+            {completo
+              ? "El equipo está completo."
+              : `${lugaresCubiertos} de ${lugaresTotales} lugares cubiertos`}
+          </p>
+        ) : null}
+      </div>
+
       {roles.length === 0 ? (
         <p className="fo-card p-5 text-sm text-[var(--fo-muted)]">
           Esta cobertura no tiene roles cargados, así que todavía no hay equipo que armar.
@@ -89,19 +109,27 @@ function RolCard({
   puedeCoordinar: boolean;
 }) {
   const [state, invitar, invitando] = useActionState(invitarDirectoAction, inicial);
+  const [abriendoInvitacion, setAbriendoInvitacion] = useState(false);
+  const idBase = useId();
+
+  const lleno = rol.libres === 0;
+  const pendientes = rol.postulaciones.filter((p) => p.pendiente).length;
 
   return (
     <article className="fo-card space-y-4 p-5">
       <header className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="font-medium">{rol.nombre}</h3>
-        <span className="text-sm text-[var(--fo-muted)]">
-          {rol.asignaciones.length} de {rol.vacancies} ·{" "}
-          {rol.libres === 1 ? "1 lugar libre" : `${rol.libres} lugares libres`}
+        <span className={`text-sm ${lleno ? "text-[var(--fo-success)]" : "text-[var(--fo-muted)]"}`}>
+          {lleno
+            ? `Completo: ${rol.vacancies} de ${rol.vacancies}`
+            : `${rol.asignaciones.length} de ${rol.vacancies} · ${
+                rol.libres === 1 ? "queda 1 lugar" : `quedan ${rol.libres} lugares`
+              }`}
         </span>
       </header>
 
       <div className="space-y-2">
-        <h4 className="text-sm font-medium">Quién quedó</h4>
+        <h4 className="text-sm font-semibold">Quién quedó</h4>
         {rol.asignaciones.length === 0 ? (
           <p className="text-sm text-[var(--fo-muted)]">Todavía nadie.</p>
         ) : (
@@ -119,7 +147,14 @@ function RolCard({
       </div>
 
       <div className="space-y-3 border-t border-[var(--fo-border)] pt-4">
-        <h4 className="text-sm font-medium">Quién se anotó</h4>
+        <h4 className="text-sm font-semibold">
+          Quién se anotó
+          {pendientes > 0 ? (
+            <span className="ml-2 font-normal text-[var(--fo-muted)]">
+              {pendientes === 1 ? "1 esperando respuesta" : `${pendientes} esperando respuesta`}
+            </span>
+          ) : null}
+        </h4>
         {rol.postulaciones.length === 0 ? (
           <p className="text-sm text-[var(--fo-muted)]">Todavía no se anotó nadie a este rol.</p>
         ) : (
@@ -138,7 +173,7 @@ function RolCard({
 
       {puedeCoordinar ? (
         <div className="space-y-2 border-t border-[var(--fo-border)] pt-4">
-          <h4 className="text-sm font-medium">Invitar a alguien directamente</h4>
+          <Aviso state={state} />
           {/* `colaboradores` llega ya sin quienes están en el equipo de ESTA cobertura: la
               exclusión es por cobertura y no por rol (`@@unique([coverageId, memberId])` en el
               modelo), así que la resuelve la página una vez y no cada tarjeta por su cuenta. */}
@@ -147,12 +182,36 @@ function RolCard({
               No queda ningún colaborador activo libre: o ya están todos en esta cobertura, o
               todavía no se marcó a nadie como colaborador.
             </p>
+          ) : lleno ? (
+            <p className="text-sm text-[var(--fo-muted)]">
+              Este rol ya tiene a toda su gente. Para sumar a alguien más, primero agregale una
+              vacante.
+            </p>
+          ) : !abriendoInvitacion ? (
+            // Detrás de un botón y no siempre abierto: con tres roles, tres formularios de
+            // invitación desplegados eran la mitad de la pantalla, y lo habitual es que la gente
+            // salga de la convocatoria, no de una invitación a dedo.
+            <button
+              type="button"
+              onClick={() => setAbriendoInvitacion(true)}
+              className="fo-btn fo-btn-secondary min-h-11 text-sm"
+            >
+              Invitar a alguien directamente
+            </button>
           ) : (
             <form action={invitar} className="space-y-3">
               <input type="hidden" name="roleId" value={rol.id} />
-              <label className="fo-field-stack">
-                <span className="fo-label">A quién</span>
-                <select name="memberId" defaultValue="" className="fo-input" disabled={invitando}>
+              <div className="fo-field-stack">
+                <label className="fo-label" htmlFor={`${idBase}-quien`}>
+                  A quién
+                </label>
+                <select
+                  id={`${idBase}-quien`}
+                  name="memberId"
+                  defaultValue=""
+                  className="fo-input"
+                  disabled={invitando}
+                >
                   <option value="">Elegí a alguien…</option>
                   {colaboradores.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -160,25 +219,40 @@ function RolCard({
                     </option>
                   ))}
                 </select>
-              </label>
-              <label className="fo-field-stack">
-                <span className="fo-label">Por qué la elegimos (opcional, queda en el historial)</span>
-                <textarea name="criteria" rows={2} className="fo-input" disabled={invitando} />
-              </label>
-              <Aviso state={state} />
-              <button
-                type="submit"
-                className="fo-btn fo-btn-secondary min-h-11"
-                disabled={invitando || rol.libres === 0}
-              >
-                {invitando ? "Invitando…" : "Te invitamos a participar"}
-              </button>
-              {rol.libres === 0 ? (
-                <p className="text-sm text-[var(--fo-muted)]">
-                  Este rol ya tiene a toda su gente. Para sumar a alguien más, primero agregale
-                  una vacante.
-                </p>
-              ) : null}
+              </div>
+              <div className="fo-field-stack">
+                <label className="fo-label" htmlFor={`${idBase}-criterio`}>
+                  Por qué la elegimos
+                </label>
+                <p className="fo-helper">Opcional. Queda en el historial, no se la mandamos.</p>
+                <textarea
+                  id={`${idBase}-criterio`}
+                  name="criteria"
+                  rows={2}
+                  className="fo-input"
+                  disabled={invitando}
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="submit"
+                  className="fo-btn fo-btn-primary min-h-11 text-sm"
+                  disabled={invitando}
+                >
+                  {invitando ? "Invitando…" : "Mandar la invitación"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAbriendoInvitacion(false)}
+                  className="fo-btn fo-btn-ghost min-h-11 text-sm"
+                >
+                  Mejor no
+                </button>
+              </div>
+              <p className="fo-helper">
+                Le llega un aviso y decide si puede. Hasta que conteste, el lugar sigue reservado
+                para esa persona.
+              </p>
             </form>
           )}
         </div>
@@ -208,7 +282,7 @@ function PostulacionItem({
   const [state, seleccionar, seleccionando] = useActionState(seleccionarPostulacionAction, inicial);
 
   return (
-    <li className="space-y-2 rounded-md border border-[var(--fo-border)] p-3">
+    <li className="space-y-2 rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] p-3">
       <p className="text-sm">
         <span className="font-medium">{postulacion.nombre}</span>{" "}
         <span className="text-[var(--fo-muted)]">
@@ -216,21 +290,26 @@ function PostulacionItem({
         </span>
       </p>
       {postulacion.mensaje ? (
-        <p className="text-sm text-[var(--fo-muted)]">«{postulacion.mensaje}»</p>
+        <p className="text-sm leading-relaxed text-[var(--fo-muted)]">«{postulacion.mensaje}»</p>
       ) : null}
 
       <Aviso state={state} />
 
       {puedeCoordinar && postulacion.pendiente && !state.ok ? (
-        <form action={seleccionar}>
+        <form action={seleccionar} className="space-y-1">
           <input type="hidden" name="applicationId" value={postulacion.id} />
           <button
             type="submit"
             className="fo-btn fo-btn-primary min-h-11 text-sm"
             disabled={seleccionando || !hayLugar}
           >
-            {seleccionando ? "Invitando…" : "Sumar al equipo"}
+            {seleccionando ? "Sumando…" : "Sumar al equipo"}
           </button>
+          <p className="fo-helper">
+            {hayLugar
+              ? "Le avisamos que quedó y ocupa uno de los lugares del rol."
+              : "Este rol ya está completo."}
+          </p>
         </form>
       ) : null}
     </li>
@@ -249,14 +328,33 @@ function PostulacionItem({
 function Aviso({ state }: { state: EquipoState }) {
   if (state.error) {
     return (
-      <p role="alert" className="text-sm text-[var(--fo-danger)]">
+      <p
+        role="alert"
+        className="fo-alert-error rounded-[var(--fo-radius-sm)] p-3 text-sm leading-relaxed text-[var(--fo-danger)]"
+      >
         {state.error}
       </p>
     );
   }
   if (state.warn) {
-    return <p className="text-sm text-[var(--fo-warning,#b45309)]">{state.warn}</p>;
+    return (
+      <p
+        role="alert"
+        className="fo-alert-warning rounded-[var(--fo-radius-sm)] p-3 text-sm leading-relaxed"
+      >
+        {state.warn}
+      </p>
+    );
   }
-  if (state.ok) return <p className="text-sm text-[var(--fo-muted)]">{state.ok}</p>;
+  if (state.ok) {
+    return (
+      <p
+        role="status"
+        className="fo-alert-success rounded-[var(--fo-radius-sm)] p-3 text-sm leading-relaxed"
+      >
+        {state.ok}
+      </p>
+    );
+  }
   return null;
 }

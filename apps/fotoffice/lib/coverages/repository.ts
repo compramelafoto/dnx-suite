@@ -227,7 +227,23 @@ export async function loadCoverage(input: { workspaceId: string; coverageId: str
   return prisma.coverage.findFirst({
     where: { id: input.coverageId, workspaceId: input.workspaceId },
     include: {
-      request: { select: { id: true, publicCode: true, eventTitle: true, status: true } },
+      /**
+       * `showcaseScope` y `otherCoverage` viajan con la cobertura porque los necesita quien la
+       * va a cubrir, no sólo quien evaluó el pedido: lo que la organización autorizó a difundir
+       * decide qué se puede publicar después, y saberlo recién al leer la ficha de la solicitud
+       * —otra pantalla, otro clic— es saberlo tarde. Es el mismo `findFirst` de siempre, con dos
+       * campos más en su `select`: no agrega una consulta ni cambia a qué filas alcanza.
+       */
+      request: {
+        select: {
+          id: true,
+          publicCode: true,
+          eventTitle: true,
+          status: true,
+          showcaseScope: true,
+          otherCoverage: true,
+        },
+      },
       roles: {
         orderBy: { createdAt: "asc" },
         include: {
