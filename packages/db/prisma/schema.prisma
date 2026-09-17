@@ -5516,6 +5516,8 @@ model PackDefinition {
   /// Si está definido, al pagar la preventa se copia a PackPurchaseEntitlement.expiresAt
   redemptionDeadlineAt         DateTime?
   displayOrder                 Int                    @default(0)
+  /// Marca el pack destacado del álbum en el catálogo público ("Recomendado"). Como mucho uno por álbum: encender uno apaga los demás.
+  isRecommended                Boolean                @default(false)
   /// Precio base del fotógrafo (ARS enteros). El cliente paga este monto + fee de plataforma (mismo criterio que el checkout del álbum). Nombre histórico: priceClientArs.
   priceClientArs               Int                    @default(0)
   currency                     String                 @default("ARS")

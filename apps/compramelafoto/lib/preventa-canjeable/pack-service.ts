@@ -96,6 +96,7 @@ export type PublicCatalogPackRow = {
   name: string;
   description: string | null;
   priceClientArs: number;
+  isRecommended: boolean;
   validFrom: Date | null;
   validUntil: Date | null;
   redemptionDeadlineAt: Date | null;
@@ -132,6 +133,7 @@ export async function listActivePacksForPublicCatalog(
       name: true,
       description: true,
       priceClientArs: true,
+      isRecommended: true,
       validFrom: true,
       validUntil: true,
       redemptionDeadlineAt: true,
@@ -317,6 +319,7 @@ export type CreatePackDefinitionInput = {
   priceClientArs: number;
   isActive?: boolean;
   displayOrder?: number;
+  isRecommended?: boolean;
   availabilityPhase?: PackAvailabilityPhase | null;
   albumMode?: AlbumMode | null;
   validFrom?: Date | null;
@@ -347,6 +350,7 @@ export async function createPackDefinition(
       priceClientArs: Math.max(0, Math.round(input.priceClientArs)),
       isActive,
       displayOrder: input.displayOrder ?? 0,
+      isRecommended: input.isRecommended ?? false,
       availabilityPhase,
       validFrom: input.validFrom ?? null,
       validUntil: input.validUntil ?? null,
@@ -363,6 +367,7 @@ export type UpdatePackDefinitionInput = Partial<{
   priceClientArs: number;
   isActive: boolean;
   displayOrder: number;
+  isRecommended: boolean;
   availabilityPhase: PackAvailabilityPhase;
   validFrom: Date | null;
   validUntil: Date | null;
@@ -380,9 +385,17 @@ export async function updatePackDefinition(
   if (data.isActive === true) {
     await assertPackHasBenefitsForActivation(packId);
   }
+  // "Recomendado" es uno solo por álbum: encender uno apaga a los demás.
+  if (data.isRecommended === true) {
+    await prisma.packDefinition.updateMany({
+      where: { albumId, isRecommended: true, id: { not: packId } },
+      data: { isRecommended: false },
+    });
+  }
   return prisma.packDefinition.update({
     where: { id: packId },
     data: {
+      ...(data.isRecommended !== undefined ? { isRecommended: data.isRecommended } : {}),
       ...(data.name !== undefined ? { name: data.name } : {}),
       ...(data.description !== undefined ? { description: data.description } : {}),
       ...(data.priceClientArs !== undefined
