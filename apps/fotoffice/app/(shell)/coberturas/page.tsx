@@ -8,8 +8,13 @@ import {
   inboxFilterByKey,
   isInboxFilter,
   type InboxFilterGroup,
+  type InboxFilterKey,
 } from "@/lib/coverages/inbox-filters";
-import { listRequests, loadSettings } from "@/lib/coverages/repository";
+import {
+  countRequestsByFilter,
+  listRequests,
+  loadSettings,
+} from "@/lib/coverages/repository";
 import { terminologyFor } from "@/lib/coverages/terminology";
 
 export const dynamic = "force-dynamic";
@@ -34,9 +39,13 @@ export default async function CoberturasPage({
   const { filtro } = await searchParams;
   const activo = isInboxFilter(filtro) ? filtro : "nuevas";
 
-  const [settings, solicitudes] = await Promise.all([
+  // Un solo `now` para la lista y para los contadores: dos pestañas dependen de la fecha, y
+  // tomar la hora por separado podría dejar un pedido contado en una y listado en otra.
+  const ahora = new Date();
+  const [settings, solicitudes, cuentas] = await Promise.all([
     loadSettings(workspace.id),
-    listRequests({ workspaceId: workspace.id, filter: activo }),
+    listRequests({ workspaceId: workspace.id, filter: activo, now: ahora }),
+    countRequestsByFilter({ workspaceId: workspace.id, now: ahora }),
   ]);
   const t = terminologyFor(settings);
   const pestania = inboxFilterByKey(activo);
@@ -46,8 +55,13 @@ export default async function CoberturasPage({
       <PageHeader title={t.module} description={`Los pedidos que recibe ${workspace.name}.`} />
 
       <nav className="space-y-3" aria-label="Filtros">
-        <Grupo grupo="pendientes" titulo="Lo que hay que atender" activo={activo} />
-        <Grupo grupo="archivo" titulo="Archivo" activo={activo} />
+        <Grupo
+          grupo="pendientes"
+          titulo="Lo que hay que atender"
+          activo={activo}
+          cuentas={cuentas}
+        />
+        <Grupo grupo="archivo" titulo="Archivo" activo={activo} cuentas={cuentas} />
       </nav>
 
       {solicitudes.length === 0 ? (
@@ -104,27 +118,51 @@ function Grupo({
   grupo,
   titulo,
   activo,
+  cuentas,
 }: {
   grupo: InboxFilterGroup;
   titulo: string;
   activo: string;
+  cuentas: Record<InboxFilterKey, number>;
 }) {
   return (
     <div className="space-y-1.5">
       <p className="text-xs uppercase tracking-wide text-[var(--fo-muted-soft)]">{titulo}</p>
       <div className="flex flex-wrap gap-1.5">
-        {INBOX_FILTERS.filter((f) => f.grupo === grupo).map((f) => (
-          <Link
-            key={f.key}
-            href={`/coberturas?filtro=${f.key}`}
-            aria-current={f.key === activo ? "page" : undefined}
-            className={`fo-btn text-sm min-h-10 ${
-              f.key === activo ? "fo-btn-primary" : "fo-btn-secondary"
-            }`}
-          >
-            {f.label}
-          </Link>
-        ))}
+        {INBOX_FILTERS.filter((f) => f.grupo === grupo).map((f) => {
+          const cuantos = cuentas[f.key];
+          const esActiva = f.key === activo;
+          return (
+            <Link
+              key={f.key}
+              href={`/coberturas?filtro=${f.key}`}
+              aria-current={esActiva ? "page" : undefined}
+              // El número va en el nombre accesible y no sólo a la vista: para quien navega
+              // con lector de pantalla, «Nuevas» y «Nuevas, 3 pedidos» no son lo mismo.
+              aria-label={`${f.label}, ${cuantos} ${cuantos === 1 ? "pedido" : "pedidos"}`}
+              className={`fo-btn text-sm min-h-10 ${
+                esActiva ? "fo-btn-primary" : "fo-btn-secondary"
+              } ${cuantos === 0 && !esActiva ? "opacity-60" : ""}`}
+            >
+              <span aria-hidden="true">{f.label}</span>
+              {/*
+                El número se muestra siempre, incluso en cero. Esconderlo obligaría a abrir la
+                pestaña para saber que está vacía, que es justo lo que esto vino a evitar; una
+                pestaña en cero se apaga un poco, pero sigue diciendo cuántos hay.
+              */}
+              <span
+                aria-hidden="true"
+                className={`rounded-full px-1.5 text-xs tabular-nums ${
+                  esActiva
+                    ? "bg-white/25"
+                    : "bg-[var(--fo-surface-muted)] text-[var(--fo-muted)]"
+                }`}
+              >
+                {cuantos}
+              </span>
+            </Link>
+          );
+        })}
       </div>
     </div>
   );

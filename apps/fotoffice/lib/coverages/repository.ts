@@ -3,7 +3,7 @@ import { prisma } from "@repo/db";
 import type { ParsedCollaboratorProfile } from "./colaboradores";
 import { CALL_NOTICE_MAX_RECIPIENTS } from "./constants";
 import { DEFAULT_COVERAGE_SETTINGS, type CoverageSettingsShape } from "./settings";
-import { whereForFilter } from "./inbox-filters";
+import { INBOX_FILTERS, whereForFilter, type InboxFilterKey } from "./inbox-filters";
 import { PUBLIC_FORM_WINDOW_MINUTES } from "./rate-limit";
 import { REQUEST_LIVE_STATUSES } from "./states";
 import { hashTrackingToken } from "./tracking-token";
@@ -70,6 +70,43 @@ export async function listRequests(input: {
     orderBy: [{ startsAt: "asc" }, { createdAt: "desc" }],
     take: 200,
   });
+}
+
+/**
+ * Cuántos pedidos hay en cada pestaña de la bandeja.
+ *
+ * Existe porque sin esto la bandeja miente por omisión: una institución con sesenta y pico de
+ * pedidos cerrados y uno vivo entra, cae en «Nuevas» —que está vacía— y no tiene forma de
+ * saber que el único que importa está dos pestañas más allá. El número es lo que evita abrir
+ * las siete para encontrarlo.
+ *
+ * Se cuenta con **el mismo `whereForFilter` que arma la lista** (ver `inbox-filters.ts`). Si
+ * cada uno armara su propio criterio, el número dejaría de corresponderse con lo que se ve y
+ * nadie se enteraría hasta contar a mano.
+ *
+ * Un solo `now` para las siete: dos de las pestañas dependen de la fecha, y tomar la hora
+ * dentro de cada cuenta abriría la puerta a que un pedido caiga en «urgentes» y no en
+ * «próximas» por unos milisegundos de diferencia entre dos consultas.
+ *
+ * Las siete van en un `$transaction`, que Prisma manda en una sola ida a la base.
+ */
+export async function countRequestsByFilter(input: {
+  workspaceId: string;
+  now?: Date;
+}): Promise<Record<InboxFilterKey, number>> {
+  const ahora = input.now ?? new Date();
+
+  const cuentas = await prisma.$transaction(
+    INBOX_FILTERS.map((f) =>
+      prisma.coverageRequest.count({
+        where: { workspaceId: input.workspaceId, ...whereForFilter(f.key, ahora) },
+      }),
+    ),
+  );
+
+  return Object.fromEntries(
+    INBOX_FILTERS.map((f, i) => [f.key, cuentas[i] ?? 0]),
+  ) as Record<InboxFilterKey, number>;
 }
 
 /** La ficha completa. Devuelve `null` si esa solicitud es de otro workspace. */
