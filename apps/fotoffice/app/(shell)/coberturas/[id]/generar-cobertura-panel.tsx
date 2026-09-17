@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useId, useState } from "react";
 import { coordenadasLegibles, enlaceDeMapa } from "@/lib/geocode/lugar";
 import { crearCoberturaAction, type GenerarCoberturaState } from "../actions";
@@ -25,6 +26,7 @@ export function GenerarCoberturaPanel({
   requestId,
   sugerido,
   rolesSugeridos,
+  rolesConfigurados,
   yaHayCoberturas,
 }: {
   requestId: string;
@@ -39,6 +41,12 @@ export function GenerarCoberturaPanel({
     longitude: number | null;
   };
   rolesSugeridos: RolForm[];
+  /**
+   * Los roles que la institución escribió en la configuración del módulo ("Roles que suelen
+   * necesitar, uno por línea"). Se ofrecen para elegir; el campo sigue aceptando texto libre.
+   * Vacío = no se ofrece ninguno, que es como funcionaba hasta ahora.
+   */
+  rolesConfigurados: string[];
   /** Cambia el texto, no la regla: generar la segunda cobertura de un pedido es lo mismo. */
   yaHayCoberturas?: boolean;
 }) {
@@ -130,7 +138,40 @@ export function GenerarCoberturaPanel({
               Cuántas personas hacen falta y para qué. Son los lugares a los que después se anota
               o se invita a alguien.
             </p>
+            {/*
+              Decir que la lista existe y de dónde sale. Sin esto, el campo parece texto libre a
+              secas y cada cobertura termina con el rol escrito distinto —"Video", "video",
+              "Videógrafo"— hasta que ningún recuento coincide con ninguno.
+            */}
+            {rolesConfigurados.length > 0 ? (
+              <p className="fo-helper">
+                Elegí de los roles que configuró la organización ({rolesConfigurados.join(", ")}) o
+                escribí uno nuevo.
+              </p>
+            ) : (
+              <p className="fo-helper">
+                Si querés elegirlos de una lista en vez de escribirlos, cargalos en{" "}
+                <Link href="/coberturas/configuracion" className="underline">
+                  la configuración del módulo
+                </Link>
+                .
+              </p>
+            )}
           </div>
+
+          {/*
+            Un `datalist` y no un `select`: la lista sugiere, no encierra. Una cobertura puede
+            necesitar un rol que la organización no tenía previsto —"drone", "backstage"— y
+            obligar a pasar por la configuración para escribirlo sería frenar el trabajo por una
+            lista. El `input` sigue siendo el mismo campo de texto de siempre.
+          */}
+          {rolesConfigurados.length > 0 ? (
+            <datalist id={`${idBase}-roles`}>
+              {rolesConfigurados.map((nombre) => (
+                <option key={nombre} value={nombre} />
+              ))}
+            </datalist>
+          ) : null}
 
           <ul className="space-y-2">
             {roles.map((r, i) => (
@@ -142,9 +183,14 @@ export function GenerarCoberturaPanel({
                   <input
                     id={`${idBase}-rol-${i}`}
                     name="roleName"
+                    list={rolesConfigurados.length > 0 ? `${idBase}-roles` : undefined}
                     value={r.name}
                     onChange={(e) => actualizarRol(i, { name: e.target.value })}
-                    placeholder="Fotografía, video, drone…"
+                    placeholder={
+                      rolesConfigurados.length > 0
+                        ? `${rolesConfigurados[0]}, u otro…`
+                        : "Fotografía, video, drone…"
+                    }
                     required
                     className="fo-input"
                   />
@@ -177,7 +223,22 @@ export function GenerarCoberturaPanel({
 
           <button
             type="button"
-            onClick={() => setRoles((actual) => [...actual, { name: "", vacancies: 1 }])}
+            onClick={() =>
+              setRoles((actual) => [
+                ...actual,
+                // Con la lista configurada, la fila nueva nace con el primer rol que todavía no
+                // se usó. Es la respuesta a "¿se pueden agregar fotógrafos, editores,
+                // videógrafos?": sí, y con un toque en vez de escribiéndolo. Agotada la lista
+                // —o sin lista— nace vacía, como hasta ahora.
+                {
+                  name:
+                    rolesConfigurados.find(
+                      (n) => !actual.some((r) => r.name.trim().toLowerCase() === n.toLowerCase()),
+                    ) ?? "",
+                  vacancies: 1,
+                },
+              ])
+            }
             className="fo-btn fo-btn-secondary min-h-11 text-sm"
           >
             Agregar otro rol

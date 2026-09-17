@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -17,6 +17,25 @@ import "leaflet/dist/leaflet.css";
  * Sólo en el navegador: Leaflet toca `window` al cargarse. Quien lo use tiene que importarlo con
  * `next/dynamic` y `ssr: false` (ver `ubicacion-del-evento.tsx`).
  */
+
+/**
+ * Dónde busca Leaflet los tres archivos del marcador.
+ *
+ * Leaflet deduce esa ruta a partir de dónde cree que está su hoja de estilos, y con un
+ * empaquetador esa deducción falla: sin esto el pin no se ve. Los archivos están en
+ * `public/leaflet/`.
+ *
+ * Se hace al importar el módulo y no dentro de un efecto porque este archivo sólo se carga en el
+ * navegador —quien lo usa lo trae con `next/dynamic` y `ssr: false`— así que no hay ningún
+ * renderizado en el servidor del que protegerse, y un efecto que sólo llama a `setState` para
+ * decir "ya estoy" es un renderizado de más por cada mapa que se abre.
+ */
+delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconUrl: "/leaflet/marker-icon.png",
+  iconRetinaUrl: "/leaflet/marker-icon-2x.png",
+  shadowUrl: "/leaflet/marker-shadow.png",
+});
 
 /** Buenos Aires. Es dónde mirar cuando todavía no hay ningún punto. */
 const CENTRO_POR_OMISION: [number, number] = [-34.6037, -58.3816];
@@ -77,21 +96,6 @@ export default function MapaDelLugar({
   onMover,
   alto = "220px",
 }: MapaDelLugarProps) {
-  const [listo, setListo] = useState(false);
-
-  useEffect(() => {
-    // Leaflet arma la ruta de sus iconos a partir de dónde cree que está su CSS, y con un
-    // empaquetador esa deducción falla: sin esto el pin no se ve. Los tres archivos viven en
-    // `public/leaflet/`.
-    delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl;
-    L.Icon.Default.mergeOptions({
-      iconUrl: "/leaflet/marker-icon.png",
-      iconRetinaUrl: "/leaflet/marker-icon-2x.png",
-      shadowUrl: "/leaflet/marker-shadow.png",
-    });
-    setListo(true);
-  }, []);
-
   const arrastrar = useCallback(
     (e: L.LeafletEvent) => {
       if (!editable || !onMover) return;
@@ -103,17 +107,6 @@ export default function MapaDelLugar({
 
   const hayPunto = latitude != null && longitude != null;
   const centro: [number, number] = hayPunto ? [latitude, longitude] : CENTRO_POR_OMISION;
-
-  if (!listo) {
-    return (
-      <div
-        className="flex items-center justify-center rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] bg-[var(--fo-surface-muted)] text-sm text-[var(--fo-muted)]"
-        style={{ height: alto }}
-      >
-        Cargando el mapa…
-      </div>
-    );
-  }
 
   return (
     // `z-0` no es decorativo: los paneles de Leaflet traen su propio `z-index` alto y sin esto

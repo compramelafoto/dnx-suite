@@ -5,7 +5,12 @@ import { EstadoCoberturaChip, EstadoSolicitudChip } from "@/components/cobertura
 import { LugarConfirmado } from "@/components/coberturas/lugar-confirmado";
 import { requireCoveragesReviewer } from "@/lib/coverages/access";
 import { listEvents } from "@/lib/coverages/events";
-import { datetimeLocalValue, sugerirCobertura, sugerirRoles } from "@/lib/coverages/generar-cobertura";
+import {
+  datetimeLocalValue,
+  rolesConfigurados,
+  sugerirCobertura,
+  sugerirRoles,
+} from "@/lib/coverages/generar-cobertura";
 import { fechaHoraArgentina } from "@/lib/coverages/format";
 import { recomendarRefuerzo } from "@/lib/coverages/reinforcement";
 import { choiceOptionValue, choiceValueLabel, requestFieldByKey } from "@/lib/coverages/request-fields";
@@ -142,6 +147,9 @@ export default async function FichaSolicitudPage({
             longitude: sugerirCobertura(solicitud).longitude,
           }}
           rolesSugeridos={sugerirRoles(solicitud, settings)}
+          // La lista que la institución cargó en la configuración del módulo. Hasta ahora se
+          // guardaba y no la leía ninguna pantalla.
+          rolesConfigurados={rolesConfigurados(settings)}
         />
       ) : null}
 

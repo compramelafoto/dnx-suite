@@ -86,6 +86,21 @@ export function normalizeGeocodeQuery(raw: string | null | undefined): string | 
 export type PlaceDto = Omit<NormalizedPlace, "raw">;
 
 export function toPlaceDto(place: NormalizedPlace): PlaceDto {
-  const { raw: _descartado, ...resto } = place;
-  return resto;
+  // Campo por campo y no `{ raw, ...resto }`: así, si `NormalizedPlace` gana un campo pesado en
+  // el paquete compartido, no se cuela solo hasta el navegador sin que nadie lo decida.
+  return {
+    latitude: place.latitude,
+    longitude: place.longitude,
+    displayName: place.displayName,
+    countryCode: place.countryCode,
+    countryName: place.countryName,
+    province: place.province,
+    city: place.city,
+    address: place.address,
+    postalCode: place.postalCode,
+    locationName: place.locationName,
+    placeId: place.placeId,
+    precision: place.precision,
+    provider: place.provider,
+  };
 }
