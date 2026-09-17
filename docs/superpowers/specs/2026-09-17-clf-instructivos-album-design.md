@@ -1,7 +1,26 @@
 # Instructivos del álbum — CompraMeLaFoto
 
 Fecha: 2026-09-17
-Estado: diseño aprobado, pendiente de plan de implementación
+Estado: etapas 1 y 2 implementadas y verificadas. La tarjeta se entrega con diseño
+propio; su edición en el Designer queda pendiente (ver "Lo que quedó pendiente").
+
+## Lo que quedó pendiente
+
+**La tarjeta no es editable en el Designer todavía.** Se entrega con un diseño propio,
+generado con `pdf-lib` como el resto de las piezas automáticas: ocho por hoja A4, con el
+QR del álbum, el logo y la marca del fotógrafo.
+
+Falta conectarla al editor visual. El camino está identificado y es
+`editorADocumento` → `emitDesign({ formats: ["PDF"] })` → componer la hoja con
+`PDFDocument.embedPdf`, pero exige resolver el contrato de variables y el
+`ResourceResolver` del motor de render, que es la parte más profunda del trabajo. Se
+separó a propósito para no desplegar una pantalla de edición cuyo resultado todavía no
+se refleja en el PDF que el fotógrafo imprime.
+
+**No hizo falta ninguna migración.** El plan preveía un campo nuevo
+`User.instructivoCardTemplateId` para recordar la plantilla del fotógrafo — y con él,
+cinco migraciones a mano sobre las bases Neon. Al no integrar el Designer en esta etapa,
+ese campo no existe y el despliegue no toca el esquema.
 
 ## El problema
 
