@@ -53,11 +53,26 @@ de prueba el checkout abre, el pago se aprueba y el dinero no existe.
 listar dominios ni tocar nada más. El costo es que el estado del dominio hay que mirarlo en
 el panel.
 
+### El dominio está verificado, y se comprobó mandando un correo de verdad
+
+*2026-09-17.* Con los correos ya encendidos, se mandó una constancia de arrepentimiento a
+`delivered@resend.dev` —la dirección de descarte de Resend, que no es una persona— desde el
+formulario público.
+
+```
+receipt: AR-VAWFSH · noticeSentAt: 2026-09-17T16:22:46Z · noticeError: null
+```
+
+**Salió.** Si el dominio no estuviera verificado, Resend habría devuelto 403 y el motivo
+estaría en `noticeError`. Con eso queda probada la cadena entera: formulario → base →
+constancia → `after()` → Resend → entregado.
+
+La solicitud de prueba se borró.
+
 ## Lo que todavía no se puede dar por hecho
 
 | Qué | Cómo se comprueba |
 |---|---|
-| `subilafoto.com` verificado en Resend | En el panel de Resend. Sin eso, todo envío da 403 |
 | La URL de retorno bien escrita en Mercado Pago | Sólo haciendo el OAuth completo. Una barra de más falla con un error opaco |
 
 Y dos que no son variables:
