@@ -156,6 +156,7 @@ export async function POST(
       description,
       priceClientArs: priceRaw,
       isActive,
+      isRecommended: body?.isRecommended === true,
       displayOrder,
       availabilityPhase: phaseResult.phase,
       albumMode: album.mode,
