@@ -82,7 +82,7 @@ export function TestEmailPanel() {
               </button>
               <button
                 type="button"
-                className="fo-btn fo-btn-primary"
+                className="fo-btn fo-btn-secondary"
                 onClick={() => setConfirming(false)}
                 disabled={pending}
               >

@@ -134,6 +134,7 @@ export async function GET(
         name: p.name,
         description: p.description,
         coverImageUrl: p.coverImageUrl ?? null,
+        isRecommended: p.isRecommended === true,
         price: pricing.clientPriceArs,
         basePriceArs: pricing.basePriceArs,
         marketplaceFeePercent: pricing.marketplaceFeePercent,

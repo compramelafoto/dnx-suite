@@ -138,7 +138,7 @@ describe("parseCoverageRequest con la configuración del workspace", () => {
       required: ["contactPhone"],
     });
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error).toContain("Teléfono o WhatsApp");
+    if (!r.ok) expect(r.error).toContain("WhatsApp o teléfono");
   });
 
   it("el mismo campo, si no es obligatorio, puede faltar", () => {
@@ -217,5 +217,92 @@ describe("parseCoverageRequest con la configuración del workspace", () => {
     const r = parseCoverageRequest(base({ contactName: "" }), { hidden: ["contactName"], required: [] });
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.data.contactName).toBe("");
+  });
+});
+
+/**
+ * Los campos de elección.
+ *
+ * Los botones del formulario son una comodidad para quien completa; el control es este. El
+ * `FormData` lo arma el navegador y puede decir cualquier cosa, así que lo que no está en la
+ * lista de opciones del catálogo se rechaza en vez de guardarse crudo.
+ */
+describe("parseCoverageRequest con campos de elección", () => {
+  it("una respuesta del catálogo se guarda", () => {
+    const r = parseCoverageRequest(base({ venueKind: "INTERIOR" }));
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.data.venueKind).toBe("INTERIOR");
+  });
+
+  it("una respuesta que no está en la lista se rechaza: no se guarda cruda", () => {
+    const r = parseCoverageRequest(base({ venueKind: "<script>alert(1)</script>" }));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toContain("lugar cerrado");
+  });
+
+  it("no elegir nada es válido cuando el campo no es obligatorio", () => {
+    const r = parseCoverageRequest(base());
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.data.venueKind).toBe(null);
+      expect(r.data.otherCoverage).toBe(null);
+      expect(r.data.showcaseScope).toBe(null);
+    }
+  });
+
+  it("«Otros» guarda la opción con el texto libre detrás", () => {
+    const r = parseCoverageRequest(
+      base({ venueKind: "OTROS", venueKind__otro: "patio con media sombra" }),
+    );
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.data.venueKind).toBe("OTROS: patio con media sombra");
+  });
+
+  it("el texto libre sin una opción válida adelante no entra por su cuenta", () => {
+    const r = parseCoverageRequest(base({ venueKind__otro: "patio con media sombra" }));
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.data.venueKind).toBe(null);
+  });
+
+  it("un campo de elección oculto se descarta aunque llegue, con texto libre y todo", () => {
+    const r = parseCoverageRequest(
+      base({ showcaseScope: "TODO", showcaseScope__otro: "lo que quieran" }),
+      { hidden: ["showcaseScope"], required: [] },
+    );
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.data.showcaseScope).toBe(null);
+  });
+
+  it("un campo de elección oculto con un valor inventado tampoco frena el envío", () => {
+    // Si se descarta antes de mirarlo, no hay nada que validar: la institución decidió no
+    // preguntarlo y nadie tiene por qué quedarse sin mandar el pedido por eso.
+    const r = parseCoverageRequest(base({ venueKind: "cualquier cosa" }), {
+      hidden: ["venueKind"],
+      required: [],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.data.venueKind).toBe(null);
+  });
+
+  it("obligatorio y sin elegir, lo dice con la pregunta que la persona leyó", () => {
+    const r = parseCoverageRequest(base(), { hidden: [], required: ["otherCoverage"] });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toContain("otro fotógrafo");
+  });
+
+  it("las tres preguntas nuevas se guardan juntas", () => {
+    const r = parseCoverageRequest(
+      base({
+        venueKind: "AMBOS",
+        otherCoverage: "HAY_OTRA_COBERTURA",
+        showcaseScope: "SIN_PERSONAS",
+      }),
+    );
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.data.venueKind).toBe("AMBOS");
+      expect(r.data.otherCoverage).toBe("HAY_OTRA_COBERTURA");
+      expect(r.data.showcaseScope).toBe("SIN_PERSONAS");
+    }
   });
 });

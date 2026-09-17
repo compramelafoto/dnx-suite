@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
+import { EstadoCoberturaChip } from "@/components/coberturas/estado-chip";
 import { requireCoveragesReviewer } from "@/lib/coverages/access";
 import { canCoordinateCoverages } from "@/lib/coverages/access-policy";
 import { lugaresLibres, type EstadoDeRol } from "@/lib/coverages/cupos";
@@ -9,6 +10,7 @@ import { listEvents } from "@/lib/coverages/events";
 import { datetimeLocalValue } from "@/lib/coverages/generar-cobertura";
 import { fechaArgentina, fechaHoraArgentina } from "@/lib/coverages/format";
 import { listActiveCollaborators, loadCoverage } from "@/lib/coverages/repository";
+import { choiceValueLabel, requestFieldByKey } from "@/lib/coverages/request-fields";
 import {
   APPLICATION_LIVE_STATUSES,
   ASSIGNMENT_LIVE_STATUSES,
@@ -126,52 +128,64 @@ export default async function FichaCoberturaPage({
       }
     : null;
 
+  // Sólo se nombra si hay algo que decir: "confirmo que no habrá otros" no es una advertencia.
+  const otraCobertura =
+    cobertura.request.otherCoverage &&
+    !cobertura.request.otherCoverage.startsWith("SIN_OTRA_COBERTURA")
+      ? eleccionLegible("otherCoverage", cobertura.request.otherCoverage)
+      : null;
+
   return (
     <div className="space-y-6">
       <PageHeader
         title={cobertura.title}
-        description={`${cobertura.request.publicCode} · ${coverageStatusLabel(cobertura.status)}`}
+        description={`${cobertura.request.eventTitle} · ${cobertura.request.publicCode}`}
         actions={
           <Link
             href={`/coberturas/${cobertura.request.id}`}
             className="fo-btn fo-btn-secondary text-sm"
           >
-            Ver la solicitud
+            Ver el pedido
           </Link>
         }
       />
 
-      <section className="fo-card space-y-3 p-5">
-        <h2 className="text-base font-semibold">La cobertura</h2>
-        <Dato
-          label="Cuándo"
-          valor={`${fechaHoraArgentina(cobertura.startsAt)} a ${fechaHoraArgentina(cobertura.endsAt)}`}
-        />
-        <Dato
-          label="Dónde"
-          valor={[cobertura.addressLine, cobertura.city].filter(Boolean).join(", ") || "—"}
-        />
-        <Dato label="Instrucciones" valor={cobertura.instructions ?? "—"} />
-      </section>
+      <div className="flex flex-wrap items-center gap-2">
+        <EstadoCoberturaChip status={cobertura.status} />
+      </div>
 
-      <section className="fo-card space-y-3 p-5">
-        <h2 className="text-base font-semibold">Roles</h2>
-        {cobertura.roles.length === 0 ? (
-          <p className="text-sm text-[var(--fo-muted)]">Esta cobertura no tiene roles cargados.</p>
-        ) : (
-          <ul className="space-y-1 text-sm">
-            {cobertura.roles.map((r, i) => (
-              <li key={r.id}>
-                <span className="font-medium">{r.name}</span>{" "}
-                <span className="text-[var(--fo-muted)]">
-                  — {estadosDeRol[i].asignadasVivas} de {r.vacancies}
-                  {" "}
-                  ({lugaresLibres(estadosDeRol[i])} {lugaresLibres(estadosDeRol[i]) === 1 ? "lugar libre" : "lugares libres"})
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
+      <section className="fo-card space-y-4 p-5">
+        <h2 className="text-base font-semibold">La cobertura</h2>
+        <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+          <Dato
+            label="Cuándo"
+            valor={`${fechaHoraArgentina(cobertura.startsAt)} a ${fechaHoraArgentina(cobertura.endsAt)}`}
+          />
+          <Dato
+            label="Dónde"
+            valor={[cobertura.addressLine, cobertura.city].filter(Boolean).join(", ") || "—"}
+          />
+          <Dato label="Instrucciones" valor={cobertura.instructions ?? "—"} ancho />
+        </dl>
+
+        {/*
+          Lo que la organización autorizó a difundir viaja con la cobertura y no se queda en la
+          ficha del pedido: es la regla que va a tener que respetar quien saque las fotos, y
+          quien coordina la copia acá abajo, en el texto que sólo ve el equipo asignado.
+        */}
+        <div className="space-y-1 rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] bg-[var(--fo-surface-muted)] p-3">
+          <p className="text-xs uppercase tracking-wide text-[var(--fo-muted-soft)]">
+            Qué autorizaron a difundir
+          </p>
+          <p className="text-sm leading-relaxed">
+            {eleccionLegible("showcaseScope", cobertura.request.showcaseScope)}
+          </p>
+          {otraCobertura ? (
+            <p className="text-sm leading-relaxed text-[var(--fo-warning)]">
+              Otra cobertura: {otraCobertura}
+            </p>
+          ) : null}
+        </div>
       </section>
 
       <ConvocatoriaPanel
@@ -186,6 +200,8 @@ export default async function FichaCoberturaPage({
         roles={rolesDelEquipo}
         colaboradores={colaboradores}
         puedeCoordinar={puedeCoordinar}
+        lugaresTotales={estadosDeRol.reduce((t, e) => t + e.vacancies, 0)}
+        lugaresCubiertos={estadosDeRol.reduce((t, e) => t + e.asignadasVivas, 0)}
       />
 
       <section className="fo-card space-y-3 p-5">
@@ -203,13 +219,20 @@ export default async function FichaCoberturaPage({
   );
 }
 
-function Dato({ label, valor }: { label: string; valor: string }) {
+function Dato({ label, valor, ancho }: { label: string; valor: string; ancho?: boolean }) {
   return (
-    <p className="text-sm">
-      <span className="text-[var(--fo-muted)]">{label}: </span>
-      {valor}
-    </p>
+    <div className={ancho ? "sm:col-span-2" : undefined}>
+      <dt className="text-xs uppercase tracking-wide text-[var(--fo-muted-soft)]">{label}</dt>
+      <dd className="text-sm leading-relaxed">{valor}</dd>
+    </div>
   );
+}
+
+/** Una respuesta de elección, con la etiqueta que vio quien contestó. Guión si no se preguntó. */
+function eleccionLegible(key: string, guardado: string | null): string {
+  const campo = requestFieldByKey(key);
+  if (!campo) return "—";
+  return choiceValueLabel(campo, guardado) ?? "—";
 }
 
 function Historial({

@@ -209,8 +209,12 @@ export function CardsTable({
                   correrLote(destino);
                 }}
                 className={`fo-btn text-xs disabled:opacity-60 ${
-                  destino === "ANULADO" ? "fo-btn-danger-outline" : ""
-                } ${destinoLote === destino ? "fo-btn-primary" : ""}`}
+                  destinoLote === destino
+                    ? "fo-btn-primary"
+                    : destino === "ANULADO"
+                      ? "fo-btn-danger-outline"
+                      : "fo-btn-secondary"
+                }`}
               >
                 {transitionActionLabel(destino)}
               </button>
@@ -502,7 +506,7 @@ function RowGroup({
                     disabled={pendiente}
                     onClick={() => pedir(estado)}
                     className={`fo-btn text-xs disabled:opacity-60 ${
-                      estado === "ANULADO" ? "fo-btn-danger-outline" : ""
+                      estado === "ANULADO" ? "fo-btn-danger-outline" : "fo-btn-secondary"
                     }`}
                   >
                     {transitionActionLabel(estado)}

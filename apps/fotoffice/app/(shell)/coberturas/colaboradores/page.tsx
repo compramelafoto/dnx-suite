@@ -33,7 +33,7 @@ export default async function ColaboradoresPage() {
     <div className="space-y-6">
       <PageHeader
         title="Colaboradores"
-        description="Quiénes del padrón están habilitados para ver convocatorias y anotarse."
+        description="Quiénes del padrón pueden ver las convocatorias y anotarse. Habilitar a alguien no le avisa nada: le abre el portal."
       />
 
       {!sociosEncendido ? (
@@ -71,18 +71,31 @@ async function ListaDeSocios({ workspaceId }: { workspaceId: string }) {
       */}
       <TandaColaboradoresBarra />
 
+      <p className="text-xs text-[var(--fo-muted)]">
+        {socios.length === 1 ? "1 persona en el padrón" : `${socios.length} personas en el padrón`}
+        {" · "}
+        {socios.filter((s) => s.coverageProfile?.active).length} habilitadas para coberturas
+      </p>
+
+      {/*
+        En un teléfono la tabla entraba a la fuerza: siete columnas y un ancho mínimo de 760
+        píxeles, así que había que arrastrarla de costado para llegar al «Editar». Las tres
+        columnas de consulta —estado en el padrón, ciudad y zonas— se esconden en pantalla chica;
+        las cuatro que hacen falta para trabajar —elegir, quién es, si colabora y editar— entran
+        sin desplazar nada. Lo escondido sigue estando en el formulario de cada fila.
+      */}
       <div className="overflow-x-auto rounded-[var(--fo-radius)] border border-[var(--fo-border)]">
-        <table className="w-full text-sm text-left min-w-[760px]">
+        <table className="w-full text-sm text-left">
           <thead className="bg-[var(--fo-bg-elevated)] text-[var(--fo-muted)]">
             <tr>
               <th className="px-4 py-3 font-semibold w-12">
                 <SeleccionarTodosCasilla />
               </th>
               <th className="px-4 py-3 font-semibold">Socio</th>
-              <th className="px-4 py-3 font-semibold">Estado</th>
-              <th className="px-4 py-3 font-semibold w-24">Colaborador</th>
-              <th className="px-4 py-3 font-semibold">Ciudad</th>
-              <th className="px-4 py-3 font-semibold">Zonas</th>
+              <th className="hidden px-4 py-3 font-semibold lg:table-cell">Estado</th>
+              <th className="px-4 py-3 font-semibold w-24">Colabora</th>
+              <th className="hidden px-4 py-3 font-semibold md:table-cell">Ciudad</th>
+              <th className="hidden px-4 py-3 font-semibold lg:table-cell">Zonas</th>
               <th className="px-4 py-3 font-semibold w-16" />
             </tr>
           </thead>

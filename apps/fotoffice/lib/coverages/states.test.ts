@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   APPLICATION_STATUSES,
+  REQUEST_STATUSES,
   applicationStatusLabel,
   applicationStatusPortalLabel,
+  requestStatusDoneMessage,
+  requestStatusStep,
 } from "./states";
 
 /**
@@ -41,5 +44,58 @@ describe("applicationStatusPortalLabel", () => {
 
   it("un estado inventado se muestra tal cual, sin romper la pantalla", () => {
     expect(applicationStatusPortalLabel("EN_VUELO")).toBe("EN_VUELO");
+  });
+});
+
+/**
+ * Dónde está el pedido y qué sigue.
+ *
+ * El panel de evaluación muestra acciones distintas según el estado y no decía en cuál estaba.
+ * Que ningún estado se quede sin explicación no se puede verificar mirando la pantalla: hay ocho,
+ * y los cuatro últimos casi nunca se ven.
+ */
+describe("requestStatusStep", () => {
+  it("los ocho estados dicen dónde está el pedido y qué sigue", () => {
+    for (const estado of REQUEST_STATUSES) {
+      const paso = requestStatusStep(estado);
+      expect(paso, estado).not.toBeNull();
+      expect(paso!.donde.trim().length, estado).toBeGreaterThan(0);
+      expect(paso!.queSigue.trim().length, estado).toBeGreaterThan(0);
+    }
+  });
+
+  it("un estado inventado no rompe la pantalla: no hay paso que mostrar", () => {
+    expect(requestStatusStep("EN_VUELO")).toBeNull();
+  });
+});
+
+describe("requestStatusDoneMessage", () => {
+  it("no promete un aviso que no salió", () => {
+    // Un pedido sin correo cargado no le avisa a nadie. Decir que sí deja a la coordinación
+    // esperando una respuesta que la organización nunca supo que tenía que dar.
+    expect(requestStatusDoneMessage("APROBADA", { avisada: false })).not.toContain("avisamos");
+    expect(requestStatusDoneMessage("RECHAZADA", { avisada: false })).not.toContain("avisamos");
+    expect(requestStatusDoneMessage("APROBADA")).not.toContain("avisamos");
+  });
+
+  it("cuando el correo salió, lo dice", () => {
+    expect(requestStatusDoneMessage("APROBADA", { avisada: true })).toContain("avisamos");
+    expect(requestStatusDoneMessage("RECHAZADA", { avisada: true })).toContain("avisamos");
+  });
+
+  it("empezar a evaluar no le manda nada a nadie, y lo aclara", () => {
+    // Es la duda de quien aprieta ese botón por primera vez: ¿ya se enteraron?
+    expect(requestStatusDoneMessage("EN_EVALUACION", { avisada: true })).toContain("no recibe");
+  });
+
+  it("cada destino dice algo distinto: un «Listo.» para todos no informa nada", () => {
+    const mensajes = ["EN_EVALUACION", "APROBADA", "RECHAZADA", "CERRADA"].map((d) =>
+      requestStatusDoneMessage(d, { avisada: true }),
+    );
+    expect(new Set(mensajes).size).toBe(mensajes.length);
+  });
+
+  it("un destino inesperado no deja la pantalla muda", () => {
+    expect(requestStatusDoneMessage("EN_VUELO").trim().length).toBeGreaterThan(0);
   });
 });

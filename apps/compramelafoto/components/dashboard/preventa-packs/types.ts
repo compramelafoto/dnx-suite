@@ -26,6 +26,8 @@ export type PackRow = {
   validUntil: string | null;
   redemptionDeadlineAt: string | null;
   displayOrder: number;
+  /** Pack destacado del catálogo público ("Recomendado"). Uno solo por álbum. */
+  isRecommended?: boolean;
   /** Precio base del fotógrafo (ARS), tal como se guarda en BD. */
   priceClientArs: number;
   /** Precio final al cliente (base + fee), solo en respuesta GET listado. */

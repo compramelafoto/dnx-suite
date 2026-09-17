@@ -20,6 +20,7 @@ import { planGenerarCobertura } from "@/lib/coverages/generar-cobertura";
 import { loadRequest, loadSettings } from "@/lib/coverages/repository";
 import { parseRequestFieldStates } from "@/lib/coverages/request-fields";
 import { acotarEntero, normalizarAssignmentMode } from "@/lib/coverages/settings";
+import { requestStatusDoneMessage } from "@/lib/coverages/states";
 import { planStatusChange } from "@/lib/coverages/status-change-plan";
 import {
   generateTrackingToken,
@@ -202,7 +203,13 @@ export async function changeRequestStatusAction(
 
   revalidatePath("/coberturas");
   revalidatePath(`/coberturas/${solicitud.id}`);
-  return { error: null, ok: "Listo.", warn };
+  // Qué pasó, y si la organización se enteró: «avisada» sólo es cierto cuando había a quién
+  // escribirle y el correo salió. Ver `requestStatusDoneMessage`.
+  return {
+    error: null,
+    ok: requestStatusDoneMessage(plan.to, { avisada: Boolean(destino) && warn === null }),
+    warn,
+  };
 }
 
 /** Pedirle un dato a la organización. Lo ve en su enlace y puede responder desde ahí. */
@@ -330,7 +337,7 @@ export async function addNoteAction(
   });
 
   revalidatePath(`/coberturas/${existe.id}`);
-  return { error: null, ok: "Anotado." };
+  return { error: null, ok: "Quedó anotado en el historial. La organización no la ve." };
 }
 
 /**
@@ -381,6 +388,7 @@ export async function saveCoverageSettingsAction(
     recommendedCollaborators: entero("recommendedCollaborators", 1, 20, 2),
     publicFormEnabled: formData.get("publicFormEnabled") === "on",
     publicFormIntro: texto("publicFormIntro"),
+    publicFormOutro: texto("publicFormOutro"),
     requestFormHidden: campos.hidden,
     requestFormRequired: campos.required,
     notifyEmails: lista("notifyEmails"),

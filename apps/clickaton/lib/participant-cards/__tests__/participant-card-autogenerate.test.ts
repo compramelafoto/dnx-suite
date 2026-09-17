@@ -5,6 +5,7 @@ import {
   AUTO_GENERATED_CARD_TYPES,
   autoGenerateParticipantCardsForRegistration,
   enqueueParticipantCardsAfterPaid,
+  filtroDeInscripcionesPendientes,
   isParticipantCardAutoGenerationEnabled,
   processDueParticipantCards,
 } from "../participant-card-autogenerate";
@@ -149,5 +150,32 @@ describe("la placa que se dispara al confirmarse el pago", () => {
         }
       )
     );
+  });
+});
+
+/**
+ * A quién sale a buscar el barrido del cron.
+ *
+ * Buscaba inscripciones **sin ninguna placa lista**. Con dos placas por persona, a quien ya le
+ * había salido la de bienvenida nunca se le volvía a intentar la de "Soy parte": quedaba fuera
+ * del barrido para siempre. Se vio en producción con 76 placas pendientes y el cron sin tomar
+ * ninguna.
+ */
+describe("a quién busca el barrido", () => {
+  it("mira cada tipo de placa por separado", () => {
+    const filtro = filtroDeInscripcionesPendientes(["welcome", "member"]);
+
+    assert.deepEqual(filtro.OR, [
+      { participantCards: { none: { status: "READY", cardType: "WELCOME" } } },
+      { participantCards: { none: { status: "READY", cardType: "MEMBER" } } },
+    ]);
+  });
+
+  it("sólo toma inscripciones confirmadas, con foto y con consentimiento", () => {
+    const filtro = filtroDeInscripcionesPendientes(["welcome"]);
+
+    assert.equal(filtro.status, "CONFIRMED");
+    assert.deepEqual(filtro.profilePhotoAssetId, { not: null });
+    assert.equal(filtro.imageUsageConsent, true);
   });
 });

@@ -100,7 +100,7 @@ export default async function BienvenidaPage() {
           </p>
 
           <form action={createOwnBusinessAction}>
-            <button type="submit" className="fo-btn fo-btn-primary w-full sm:w-auto min-h-11">
+            <button type="submit" className="fo-btn fo-btn-secondary w-full sm:w-auto min-h-11">
               Crear mi espacio de trabajo
             </button>
           </form>

@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { choiceOptionValue } from "./request-fields";
 
 /**
  * Los permisos que se piden en el formulario público.
@@ -99,6 +100,41 @@ export function hashConsentText(text: string): string {
   return createHash("sha256").update(text).digest("hex");
 }
 
+/** El permiso que se deduce del campo `showcaseScope` en vez de preguntarse como tilde. */
+export const DERIVED_SHOWCASE_CONSENT: ConsentKind = "USO_INSTITUCIONAL";
+
+/**
+ * A qué permiso equivale cada respuesta de "¿nos autorizan a compartir material del evento?".
+ *
+ * `USO_INSTITUCIONAL` y esa pregunta son lo mismo dicho dos veces: una con un tilde, la otra
+ * con cuatro niveles. Cuando la institución pregunta por el alcance, el tilde no se muestra y el
+ * permiso sale de acá. **El registro legal no cambia**: se sigue guardando una fila de
+ * consentimiento con su texto, su versión y su hash, como cuando se tildaba a mano.
+ *
+ * Otorgado en tres de las cuatro respuestas. "Con restricciones" y "sin personas" son un sí con
+ * condiciones —la organización autoriza a difundir y aclara hasta dónde— y esas condiciones
+ * viven en el campo, a la vista de quien prepara la publicación. Sólo "que no suban ninguna
+ * foto" es un no.
+ *
+ * Todo lo demás —"Otros", una respuesta en blanco, un valor que ya no está en el catálogo— es
+ * **no otorgado**. Un permiso que hay que interpretar de un texto libre no es un permiso: si
+ * hace falta leerlo, que lo lea una persona y lo resuelva con la organización.
+ */
+const DIFUSION_EQUIVALE_A: Record<string, boolean> = {
+  TODO: true,
+  CON_RESTRICCIONES: true,
+  SIN_PERSONAS: true,
+  NADA: false,
+};
+
+export function deriveShowcaseConsent(scope: string | null | undefined): boolean {
+  // `scope` puede venir guardado como `OTROS: con tal condición`: la equivalencia se resuelve
+  // sobre el valor del catálogo, nunca sobre el texto libre.
+  const valor = choiceOptionValue(scope);
+  if (!valor) return false;
+  return DIFUSION_EQUIVALE_A[valor] ?? false;
+}
+
 export type ParsedConsent = {
   kind: ConsentKind;
   granted: boolean;
@@ -120,6 +156,15 @@ export type ConsentParseResult =
 export function parseConsents(
   form: Record<string, string>,
   version: string,
+  /**
+   * El permiso de difusión, cuando en vez de tildarse se dedujo de `showcaseScope`.
+   *
+   * `undefined` —lo normal— significa que el campo de alcance está oculto y el tilde se
+   * pregunta como siempre. Un booleano significa que el tilde no se mostró y este es el
+   * permiso que corresponde a lo que la organización respondió: lo que haya llegado en
+   * `consent_USO_INSTITUCIONAL` se ignora, porque nadie lo vio.
+   */
+  difusionDerivada?: boolean,
 ): ConsentParseResult {
   // `servida` es la versión de la que salió `texts` de verdad —puede no ser la pedida, si la
   // pedida no existe—. Cada fila guarda esa, nunca el parámetro `version`: así `textVersion` y
@@ -128,7 +173,10 @@ export function parseConsents(
   const data: ParsedConsent[] = [];
 
   for (const kind of CONSENT_KINDS) {
-    const granted = form[`consent_${kind}`] === "on";
+    const granted =
+      kind === DERIVED_SHOWCASE_CONSENT && difusionDerivada !== undefined
+        ? difusionDerivada
+        : form[`consent_${kind}`] === "on";
     if (!granted && REQUIRED_CONSENTS.includes(kind)) {
       return { ok: false, error: `Falta confirmar: ${CONSENT_LABELS[kind]}.` };
     }
