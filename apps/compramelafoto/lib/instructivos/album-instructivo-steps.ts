@@ -57,7 +57,12 @@ function pasoEncontrar(p: AlbumInstructivoProfile): InstructivoStep {
     );
   }
   if (p.busqueda.includes("navegar")) {
-    detalle.push("O mirá la galería completa y elegí a mano.");
+    // "O mirá..." sólo tiene sentido si antes hubo otra opción.
+    detalle.push(
+      detalle.length > 0
+        ? "O mirá la galería completa y elegí a mano."
+        : "Mirá la galería completa y elegí las tuyas."
+    );
   }
 
   const paso: InstructivoStep = { titulo: "Encontrá tus fotos", detalle };
@@ -162,11 +167,38 @@ function pasoAvisoProcesando(): InstructivoStep {
   };
 }
 
+/**
+ * Un álbum todavía sin ninguna foto no está "procesando": está vacío. Decirle al cliente
+ * que espere el análisis sería describirle algo que no está pasando.
+ */
+function pasoAvisoSinFotos(): InstructivoStep {
+  return {
+    titulo: "Todavía no hay fotos publicadas",
+    detalle: [
+      "Las fotos se suben después del evento.",
+      "Guardá este enlace: cuando estén disponibles vas a poder verlas acá mismo.",
+    ],
+  };
+}
+
 export function buildInstructivoSteps(p: AlbumInstructivoProfile): InstructivoStep[] {
   const pasos: InstructivoStep[] = [];
-  if (!p.listo) pasos.push(pasoAvisoProcesando());
+  const sinFotos = p.momento === "simple";
+
+  if (sinFotos) {
+    pasos.push(pasoAvisoSinFotos());
+  } else if (!p.listo) {
+    pasos.push(pasoAvisoProcesando());
+  }
 
   pasos.push(pasoEntrar(p));
+
+  // Sin fotos no hay nada que buscar: explicar el reconocimiento facial acá sería
+  // describir una pantalla que el cliente no va a encontrar.
+  if (sinFotos) {
+    pasos.push(pasoElegirProducto(p), pasoPagar(p), pasoRecibir(p));
+    return pasos;
+  }
 
   if (p.momento === "preventa") {
     pasos.push(

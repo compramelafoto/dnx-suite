@@ -7,6 +7,21 @@
 import { prisma } from "@/lib/prisma";
 import { getAlbumReadiness } from "@/lib/analysis/album-analysis-readiness";
 import { countPublicReadyVideos } from "@/lib/videos/public-ready-videos";
+import { getR2PublicUrl, urlToR2Key } from "@/lib/r2-client";
+
+/**
+ * Mismo criterio que la galería pública (`app/a/[id]/page.tsx`): el logo puede estar
+ * guardado como URL absoluta o como clave de R2, y una URL de localhost no sirve fuera
+ * de la máquina del desarrollador.
+ */
+function normalizarLogo(logoUrl: string | null | undefined): string | null {
+  if (!logoUrl) return null;
+  if (logoUrl.startsWith("http://") || logoUrl.startsWith("https://")) {
+    if (!logoUrl.includes("localhost") && !logoUrl.includes("127.0.0.1")) return logoUrl;
+    return getR2PublicUrl(urlToR2Key(logoUrl));
+  }
+  return getR2PublicUrl(logoUrl.replace(/^\//, ""));
+}
 import {
   resolveAlbumInstructivoProfile,
   type AlbumInstructivoProfile,
@@ -120,7 +135,7 @@ export async function loadAlbumInstructivo(
     },
     fotografo: {
       nombre: album.user?.name ?? null,
-      logoUrl: album.user?.logoUrl ?? null,
+      logoUrl: normalizarLogo(album.user?.logoUrl),
       primaryColor: album.user?.primaryColor ?? null,
       handler: album.user?.handler ?? null,
     },

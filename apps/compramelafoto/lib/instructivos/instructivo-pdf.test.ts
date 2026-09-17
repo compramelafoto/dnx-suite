@@ -70,6 +70,15 @@ describe("buildInstructivoPdf", () => {
     assert.ok(pdf.byteLength > 1000);
   });
 
+  it("un logo que no se puede bajar no deja al cliente sin instructivo", async () => {
+    const p = perfil();
+    const pdf = await generar({
+      ...p,
+      fotografo: { ...p.fotografo, logoUrl: "https://no-existe.invalid/logo.png" },
+    });
+    assert.equal(Buffer.from(pdf.subarray(0, 5)).toString("latin1"), "%PDF-");
+  });
+
   it("un color de marca inválido no rompe nada", async () => {
     const p = perfil();
     const pdf = await generar({ ...p, fotografo: { ...p.fotografo, color: "no-es-un-color" } });

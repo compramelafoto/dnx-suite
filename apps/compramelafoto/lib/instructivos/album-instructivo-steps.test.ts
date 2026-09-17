@@ -110,6 +110,36 @@ describe("buildInstructivoSteps", () => {
     assert.ok(JSON.stringify(pasos).toLowerCase().includes("retir"));
   });
 
+  it("si mirar la galería es el único método, la línea no arranca con 'O'", () => {
+    const pasos = buildInstructivoSteps(perfil({ busqueda: ["navegar"] }));
+    const encontrar = pasos.find((s) => s.titulo === "Encontrá tus fotos");
+    assert.ok(encontrar);
+    assert.ok(!encontrar.detalle[0].startsWith("O "), encontrar.detalle[0]);
+  });
+
+  it("con varios métodos, mirar la galería queda como alternativa", () => {
+    const pasos = buildInstructivoSteps(perfil({ busqueda: ["cara", "navegar"] }));
+    const encontrar = pasos.find((s) => s.titulo === "Encontrá tus fotos");
+    assert.ok(encontrar?.detalle.some((d) => d.startsWith("O ")));
+  });
+
+  it("un álbum sin fotos avisa que todavía no hay nada publicado", () => {
+    const pasos = buildInstructivoSteps(perfil({ momento: "simple", listo: false }));
+    assert.equal(pasos[0].titulo, "Todavía no hay fotos publicadas");
+  });
+
+  it("un álbum con fotos en proceso avisa que se están procesando", () => {
+    const pasos = buildInstructivoSteps(perfil({ momento: "postventa", listo: false }));
+    assert.equal(pasos[0].titulo, "Las fotos se están procesando");
+  });
+
+  it("un álbum sin fotos no explica cómo buscarlas", () => {
+    const pasos = buildInstructivoSteps(
+      perfil({ momento: "simple", listo: false, busqueda: ["navegar"] })
+    );
+    assert.ok(!pasos.some((s) => s.titulo === "Encontrá tus fotos"));
+  });
+
   it("todos los pasos tienen título y al menos una línea de detalle", () => {
     for (const momento of ["simple", "postventa", "preventa"] as const) {
       for (const paso of buildInstructivoSteps(perfil({ momento }))) {

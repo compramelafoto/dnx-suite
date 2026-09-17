@@ -128,11 +128,13 @@ export function resolveAlbumInstructivoProfile(
       video: senales.videosPublicados > 0,
       digitalIncluidoConImpreso: album.includeDigitalWithPrint,
     },
+    // Retiro, envío y laboratorio son formas de entregar papel. Si el álbum no vende
+    // impresas, hablar de "retirar tus fotos" describe algo que no va a pasar.
     entrega: {
       descarga: album.enableDigitalPhotos,
-      retiro: album.pickupBy != null,
-      envio: album.deliveryType != null && album.pickupBy == null,
-      laboratorio: senales.laboratorio,
+      retiro: album.enablePrintedPhotos && album.pickupBy != null,
+      envio: album.enablePrintedPhotos && album.deliveryType != null && album.pickupBy == null,
+      laboratorio: album.enablePrintedPhotos ? senales.laboratorio : null,
     },
     vencimiento: album.expiresAt,
     listo: senales.listo,

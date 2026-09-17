@@ -99,6 +99,29 @@ describe("resolveAlbumInstructivoProfile", () => {
     assert.equal(p.album.url, "https://compramelafoto.com/a/maraton-2026");
   });
 
+  it("no habla de retiro si el álbum no vende fotos impresas", () => {
+    const input = baseInput();
+    input.album.enablePrintedPhotos = false;
+    input.album.pickupBy = "PHOTOGRAPHER";
+    const p = resolveAlbumInstructivoProfile(input);
+    assert.equal(p.entrega.retiro, false);
+    assert.equal(p.entrega.envio, false);
+  });
+
+  it("el retiro aparece cuando sí vende impresas", () => {
+    const input = baseInput();
+    input.album.enablePrintedPhotos = true;
+    input.album.pickupBy = "PHOTOGRAPHER";
+    assert.equal(resolveAlbumInstructivoProfile(input).entrega.retiro, true);
+  });
+
+  it("tampoco nombra el laboratorio si no vende impresas", () => {
+    const input = baseInput();
+    input.album.enablePrintedPhotos = false;
+    input.senales.laboratorio = "Laboratorio Norte";
+    assert.equal(resolveAlbumInstructivoProfile(input).entrega.laboratorio, null);
+  });
+
   it("propaga el estado de análisis sin inventarlo", () => {
     const input = baseInput();
     input.senales.listo = false;
