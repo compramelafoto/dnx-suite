@@ -226,7 +226,7 @@ function PostulacionItem({
           <input type="hidden" name="applicationId" value={postulacion.id} />
           <button
             type="submit"
-            className="fo-btn min-h-11 text-sm"
+            className="fo-btn fo-btn-primary min-h-11 text-sm"
             disabled={seleccionando || !hayLugar}
           >
             {seleccionando ? "Invitando…" : "Sumar al equipo"}

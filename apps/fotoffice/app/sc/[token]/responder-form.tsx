@@ -32,7 +32,7 @@ export function ResponderForm({ token }: { token: string }) {
           {state.error}
         </p>
       ) : null}
-      <button type="submit" className="fo-btn min-h-11" disabled={pending}>
+      <button type="submit" className="fo-btn fo-btn-primary min-h-11" disabled={pending}>
         {pending ? "Enviando…" : "Enviar respuesta"}
       </button>
     </form>

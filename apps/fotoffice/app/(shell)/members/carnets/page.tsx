@@ -104,7 +104,7 @@ export default async function CarnetsPage({
 
       {capabilities.includes("ADMINISTRAR") ? (
         <div className="flex flex-wrap items-start gap-3">
-          <Link href="/members/carnets/permisos" className="fo-btn text-xs inline-flex">
+          <Link href="/members/carnets/permisos" className="fo-btn fo-btn-secondary text-xs inline-flex">
             Permisos de carnets
           </Link>
           <IssueButton />

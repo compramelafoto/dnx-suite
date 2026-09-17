@@ -215,7 +215,7 @@ export default async function PortalPage() {
             </form>
             {profiles.length > 1 ? (
               <form action={switchProfileAction}>
-                <button type="submit" className="fo-btn text-sm">
+                <button type="submit" className="fo-btn fo-btn-secondary text-sm">
                   Cambiar de perfil
                 </button>
               </form>

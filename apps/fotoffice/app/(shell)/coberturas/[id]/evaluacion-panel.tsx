@@ -58,7 +58,7 @@ export function EvaluacionPanel({
         <form action={cambiarEstado}>
           <input type="hidden" name="id" value={id} />
           <input type="hidden" name="to" value="EN_EVALUACION" />
-          <button type="submit" className="fo-btn min-h-11" disabled={cambiando}>
+          <button type="submit" className="fo-btn fo-btn-primary min-h-11" disabled={cambiando}>
             Empezar a evaluarla
           </button>
         </form>
@@ -98,7 +98,7 @@ export function EvaluacionPanel({
           <form action={cambiarEstado} className="sm:flex-1">
             <input type="hidden" name="id" value={id} />
             <input type="hidden" name="to" value="APROBADA" />
-            <button type="submit" className="fo-btn min-h-11 w-full" disabled={cambiando}>
+            <button type="submit" className="fo-btn fo-btn-primary min-h-11 w-full" disabled={cambiando}>
               Tomar el pedido
             </button>
           </form>

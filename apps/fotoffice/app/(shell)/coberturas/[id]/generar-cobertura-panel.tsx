@@ -132,7 +132,7 @@ export function GenerarCoberturaPanel({
           </button>
         </div>
 
-        <button type="submit" className="fo-btn min-h-11" disabled={creando}>
+        <button type="submit" className="fo-btn fo-btn-primary min-h-11" disabled={creando}>
           {creando ? "Generando…" : "Generar cobertura"}
         </button>
       </form>

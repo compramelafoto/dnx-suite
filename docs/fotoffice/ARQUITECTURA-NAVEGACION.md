@@ -607,3 +607,50 @@ cuadro propio y Presupuestos quedó descrito por lo que le falta: ponerle precio
 Correr la numeración de los cuadros obligó a mover también las referencias de los tipos de
 organización, que apuntan a los cuadros **por número**. Hay un test que lo verifica y fue el
 que avisó.
+
+## Los botones sin color
+
+*2026-09-17. Lo encontró el titular mirando una pantalla: un "Guardar" que se veía como
+texto suelto.*
+
+`.fo-btn` define **sólo la geometría** —alto, relleno, radio, tipografía—. El color, el
+fondo y el borde los pone la variante: `fo-btn-primary`, `-secondary`, `-ghost`,
+`-danger`, `-danger-outline`.
+
+Un `className="fo-btn"` a secas se dibuja como **texto pelado sobre el fondo de la
+página**. Parece una etiqueta, no un botón, y quien lo mira no sabe que puede hacer clic.
+
+Había **19**, repartidos por toda la aplicación, incluyendo acciones principales:
+*Guardar*, *Crear mi espacio de trabajo*, *Publicar*, *Invitar*, *Emitir*.
+
+### Cómo se repartieron
+
+**Primario (azul)** para la acción principal de cada pantalla. **Secundario** sólo en tres
+casos, donde el botón acompaña a otro:
+
+| Dónde | Por qué secundario |
+|---|---|
+| "Cambiar de perfil" en el portal y en el encabezado del workspace | Es una utilidad del encabezado, no la acción de la pantalla |
+| "Permisos de carnets" | Va al lado de *Emitir carnet*, que es la acción principal |
+
+Y una que sí quedó primaria aunque no lo parezca: **"Iniciar sesión"** en la portada de un
+workspace, porque su vecina *"Asociarme"* ya era secundaria y así ninguna de las dos
+quedaba sin jerarquía.
+
+### Hay un test
+
+`lib/ui/botones.test.ts` recorre `app/` y `components/` y falla si aparece un `fo-btn` sin
+variante. No se arregla solo, pero avisa.
+
+## FotoOffice no usa `@repo/design-system`
+
+Al revisar lo anterior salió algo más grande: **la aplicación no importa el paquete de
+diseño ni una sola vez**. Tiene su propio sistema en `globals.css` con las clases `fo-*`.
+
+El paquete sí tiene un tema `themeFotoffice` con el acento azul `#0ea5e9` —el mismo que
+usan las variables `--fo-*`—, pero está definido y no consumido: las dos definiciones del
+color conviven y nada garantiza que sigan iguales.
+
+No es un error que haya que arreglar hoy: son 315 usos de `fo-btn` y migrarlos es un
+trabajo en sí mismo, sin beneficio visible mientras los colores coincidan. Queda anotado
+porque **el día que cambie el azul en un lado y no en el otro, nadie va a saber por qué**.

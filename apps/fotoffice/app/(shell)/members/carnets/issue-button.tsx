@@ -33,7 +33,7 @@ export function IssueButton() {
             );
           })
         }
-        className="fo-btn text-xs disabled:opacity-60"
+        className="fo-btn fo-btn-primary text-xs disabled:opacity-60"
       >
         {pendiente ? "Emitiendo…" : "Emitir carnets digitales que falten"}
       </button>
