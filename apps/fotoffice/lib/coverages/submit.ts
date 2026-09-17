@@ -118,6 +118,12 @@ export async function saveCoverageRequest(input: {
             endsAt: input.parsed.endsAt,
             addressLine: input.parsed.addressLine,
             city: input.parsed.city,
+            // El punto que confirmó la organización en el mapa, si lo confirmó. Los tres van o
+            // no van juntos: `parseCoverageRequest` no devuelve un geohash sin coordenadas ni
+            // coordenadas a medias.
+            latitude: input.parsed.latitude,
+            longitude: input.parsed.longitude,
+            geohash: input.parsed.geohash,
             activityKind: input.parsed.activityKind,
             expectedAttendees: input.parsed.expectedAttendees,
             venueKind: input.parsed.venueKind,

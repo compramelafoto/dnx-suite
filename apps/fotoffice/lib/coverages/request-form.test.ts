@@ -306,3 +306,66 @@ describe("parseCoverageRequest con campos de elección", () => {
     }
   });
 });
+
+/**
+ * El punto del mapa.
+ *
+ * Lo que importa verificar acá no es que las coordenadas se guarden —eso es una línea— sino las
+ * tres reglas que hacen que este campo no pueda frenar un pedido: es opcional, lo inválido se
+ * descarta en silencio, y con la dirección apagada no se guarda aunque llegue.
+ */
+describe("la georreferencia de la dirección", () => {
+  it("un punto válido se guarda con su geohash", () => {
+    const r = parseCoverageRequest(
+      base({ addressLine: "Ricchieri 426", latitude: "-32.9468", longitude: "-60.6393" }),
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.data.latitude).toBeCloseTo(-32.9468, 4);
+    expect(r.data.longitude).toBeCloseTo(-60.6393, 4);
+    // Precisión 7 es la que usa `@repo/geo` por omisión. No se verifica el valor exacto del
+    // geohash: eso ya lo prueba el paquete. Sí que exista y tenga el largo esperado.
+    expect(r.data.geohash).toHaveLength(7);
+  });
+
+  it("sin punto el pedido se manda igual: la dirección alcanza", () => {
+    const r = parseCoverageRequest(base({ addressLine: "Al lado de la plaza, en Villa Elisa" }));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.data.addressLine).toBe("Al lado de la plaza, en Villa Elisa");
+    expect(r.data.latitude).toBeNull();
+    expect(r.data.longitude).toBeNull();
+    expect(r.data.geohash).toBeNull();
+  });
+
+  it("un punto imposible se descarta sin frenar el envío", () => {
+    for (const malo of [
+      { latitude: "99", longitude: "-60" },
+      { latitude: "-32.9", longitude: "500" },
+      { latitude: "ahí nomás", longitude: "-60" },
+      // 0,0 casi nunca es el golfo de Guinea: es un campo vacío que se volvió cero.
+      { latitude: "0", longitude: "0" },
+      // Media coordenada no es una coordenada.
+      { latitude: "-32.9468", longitude: "" },
+    ]) {
+      const r = parseCoverageRequest(base({ addressLine: "Ricchieri 426", ...malo }));
+      expect(r.ok).toBe(true);
+      if (!r.ok) continue;
+      expect(r.data.latitude).toBeNull();
+      expect(r.data.longitude).toBeNull();
+      expect(r.data.geohash).toBeNull();
+    }
+  });
+
+  it("con la dirección oculta no se guarda el punto, aunque llegue en el formulario", () => {
+    const r = parseCoverageRequest(
+      base({ addressLine: "Ricchieri 426", latitude: "-32.9468", longitude: "-60.6393" }),
+      { hidden: ["addressLine"], required: [] },
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.data.addressLine).toBeNull();
+    expect(r.data.latitude).toBeNull();
+    expect(r.data.geohash).toBeNull();
+  });
+});
