@@ -278,6 +278,53 @@ export async function persistParticipantCardMediaAsset(input: {
   const db = input.prisma ?? defaultPrisma;
   const inline = input.storageBackend === "KEY_ONLY" || shouldInlineMediaInDb();
   const contentHash = createHash("sha256").update(input.png).digest("hex");
+  const storageBackend = inline ? "INLINE_DB" : input.storageBackend;
+
+  /*
+   * La ubicación del archivo se calcula con una huella de los datos que componen la placa: los
+   * mismos datos dan siempre la misma ubicación. Eso evita duplicados, pero significa que
+   * **regenerar** una placa sin cambios cae sobre el archivo anterior.
+   *
+   * Pasó al regenerar las placas de producción para que tomaran un arreglo de dibujo: el render
+   * salía perfecto y moría al registrarlo, con "Unique constraint failed". Si ya hay un registro
+   * en esa ubicación se reutiliza y se le actualizan los datos, en vez de crear uno que choca.
+   */
+  const existente = await db.dnxMediaAsset.findFirst({
+    where: { storageBackend, storageKey: input.storageKey },
+    select: { id: true },
+  });
+
+  const metadata = inline
+    ? {
+        inlineBase64: input.png.toString("base64"),
+        inlineStorage: "db_metadata",
+        cardType: input.cardType,
+        templateKey: input.templateKey,
+        templateVersion: input.templateVersion,
+        renderHashPrefix: input.renderHashPrefix,
+      }
+    : {
+        cardType: input.cardType,
+        templateKey: input.templateKey,
+        templateVersion: input.templateVersion,
+        renderHashPrefix: input.renderHashPrefix,
+      };
+
+  if (existente) {
+    await db.dnxMediaAsset.update({
+      where: { id: existente.id },
+      data: {
+        ownerId: input.cardRecordId,
+        bytes: input.png.length,
+        contentHash,
+        width: input.width,
+        height: input.height,
+        publicUrl: input.publicUrl,
+        metadata,
+      },
+    });
+    return existente.id;
+  }
 
   const asset = await db.dnxMediaAsset.create({
     data: {
@@ -287,7 +334,7 @@ export async function persistParticipantCardMediaAsset(input: {
       editionId: input.editionId,
       registrationId: input.registrationId,
       kind: "PARTICIPANT_CARD_PNG",
-      storageBackend: inline ? "INLINE_DB" : input.storageBackend,
+      storageBackend,
       storageKey: input.storageKey,
       publicUrl: input.publicUrl,
       mimeType: "image/png",
@@ -295,25 +342,7 @@ export async function persistParticipantCardMediaAsset(input: {
       height: input.height,
       bytes: input.png.length,
       contentHash,
-      ...(inline
-        ? {
-            metadata: {
-              inlineBase64: input.png.toString("base64"),
-              inlineStorage: "db_metadata",
-              cardType: input.cardType,
-              templateKey: input.templateKey,
-              templateVersion: input.templateVersion,
-              renderHashPrefix: input.renderHashPrefix,
-            },
-          }
-        : {
-            metadata: {
-              cardType: input.cardType,
-              templateKey: input.templateKey,
-              templateVersion: input.templateVersion,
-              renderHashPrefix: input.renderHashPrefix,
-            },
-          }),
+      metadata,
     },
   });
 
