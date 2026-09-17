@@ -13,6 +13,7 @@ export function ShellSidebar({
   rafflesEnabled,
   coveragesEnabled,
   websiteEnabled,
+  serviceLeadsEnabled,
   canManageMembers,
   canManageWorkspaceSettings,
   platformAdmin,
@@ -31,6 +32,7 @@ export function ShellSidebar({
   rafflesEnabled: boolean;
   coveragesEnabled: boolean;
   websiteEnabled: boolean;
+  serviceLeadsEnabled: boolean;
   canManageMembers: boolean;
   canManageWorkspaceSettings: boolean;
   platformAdmin: boolean;
@@ -63,6 +65,7 @@ export function ShellSidebar({
         rafflesEnabled={rafflesEnabled}
         coveragesEnabled={coveragesEnabled}
         websiteEnabled={websiteEnabled}
+        serviceLeadsEnabled={serviceLeadsEnabled}
         canManageMembers={canManageMembers}
         canManageWorkspaceSettings={canManageWorkspaceSettings}
         platformAdmin={platformAdmin}

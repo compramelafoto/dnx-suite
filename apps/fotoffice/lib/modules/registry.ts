@@ -8,6 +8,7 @@ import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
+import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 
 /**
  * Catálogo central de módulos de FotoOffice.
@@ -66,6 +67,16 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     category: "GENERAL",
     order: 20,
     route: "/evaluaciones",
+    status: "AVAILABLE",
+  },
+  {
+    key: SERVICE_LEADS_MODULE_KEY,
+    label: "Captación de presupuestos",
+    description:
+      "Formularios públicos para pedir presupuesto y la bandeja donde llegan esas consultas.",
+    category: "GENERAL",
+    order: 24,
+    route: "/dashboard/service-leads",
     status: "AVAILABLE",
   },
   {

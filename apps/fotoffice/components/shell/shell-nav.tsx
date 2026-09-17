@@ -152,6 +152,7 @@ export function ShellNav({
   rafflesEnabled,
   coveragesEnabled,
   websiteEnabled,
+  serviceLeadsEnabled,
   canManageMembers,
   canManageWorkspaceSettings,
   platformAdmin,
@@ -164,6 +165,7 @@ export function ShellNav({
   rafflesEnabled: boolean;
   coveragesEnabled: boolean;
   websiteEnabled: boolean;
+  serviceLeadsEnabled: boolean;
   canManageMembers: boolean;
   canManageWorkspaceSettings: boolean;
   platformAdmin: boolean;
@@ -223,23 +225,29 @@ export function ShellNav({
       : []),
   ];
 
-  // Formularios compartibles para juntar contactos. Vivían escritos aparte, debajo del menú y
-  // con otro estilo: se veían como un apéndice y no como un módulo más.
-  // Deuda registrada: no tiene llave de módulo, así que no se puede apagar por organización.
-  const captacion: Item[] = [
-    {
-      href: "/dashboard/service-leads/forms",
-      label: "Formularios",
-      icon: FileText,
-      isActive: under("/dashboard/service-leads/forms"),
-    },
-    {
-      href: "/dashboard/service-leads",
-      label: "Leads",
-      icon: Inbox,
-      isActive: exact("/dashboard/service-leads"),
-    },
-  ];
+  /*
+    Formularios públicos para pedir presupuesto y la bandeja donde llegan esas consultas.
+
+    Estaban escritos a mano acá, sin llave de módulo, así que **le aparecían a todo el
+    mundo** usara o no la función —la deuda estaba anotada en este mismo lugar desde que se
+    agregaron—. Ahora es un módulo como los demás y arranca apagado.
+  */
+  const captacion: Item[] = serviceLeadsEnabled
+    ? [
+        {
+          href: "/dashboard/service-leads/forms",
+          label: "Formularios",
+          icon: FileText,
+          isActive: under("/dashboard/service-leads/forms"),
+        },
+        {
+          href: "/dashboard/service-leads",
+          label: "Leads",
+          icon: Inbox,
+          isActive: exact("/dashboard/service-leads"),
+        },
+      ]
+    : [];
 
   // Presencia pública: hoy un solo ítem, y aun así con encabezado propio. Es donde aterrizan
   // el blog, los portfolios y las redes cuando existan.

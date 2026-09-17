@@ -10,6 +10,7 @@ import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
+import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { canManageMembers } from "@/lib/members/role-policy";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
@@ -41,6 +42,7 @@ export default async function ShellLayout({ children }: { children: React.ReactN
   const rafflesOn = enabledModuleKeys.has(RAFFLES_MODULE_KEY);
   const coveragesOn = enabledModuleKeys.has(COVERAGES_MODULE_KEY);
   const websiteOn = enabledModuleKeys.has(WEBSITE_MODULE_KEY);
+  const serviceLeadsOn = enabledModuleKeys.has(SERVICE_LEADS_MODULE_KEY);
   // Un solo rol resuelto alimenta los dos flags del menú: si se resolvieran por caminos
   // distintos, volvería a poder pasar que uno ofrezca lo que el otro niega.
   const activeRole = workspace !== null ? await resolveWorkspaceRole(user.id, workspace.id) : null;
@@ -70,6 +72,7 @@ export default async function ShellLayout({ children }: { children: React.ReactN
           rafflesEnabled={rafflesOn}
           coveragesEnabled={coveragesOn}
           websiteEnabled={websiteOn}
+          serviceLeadsEnabled={serviceLeadsOn}
           canManageMembers={canManageMembersFlag}
           canManageWorkspaceSettings={canManageWorkspaceSettingsFlag}
           platformAdmin={platformAdmin}
