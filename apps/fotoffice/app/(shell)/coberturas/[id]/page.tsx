@@ -6,6 +6,7 @@ import { listEvents } from "@/lib/coverages/events";
 import { datetimeLocalValue, sugerirCobertura, sugerirRoles } from "@/lib/coverages/generar-cobertura";
 import { fechaHoraArgentina } from "@/lib/coverages/format";
 import { recomendarRefuerzo } from "@/lib/coverages/reinforcement";
+import { choiceValueLabel, requestFieldByKey } from "@/lib/coverages/request-fields";
 import { loadRequest, loadSettings } from "@/lib/coverages/repository";
 import { coverageEventLabel, coverageStatusLabel, requestStatusLabel } from "@/lib/coverages/states";
 import { canCoordinateCoverages } from "@/lib/coverages/access-policy";
@@ -65,6 +66,21 @@ export default async function FichaSolicitudPage({
         <Dato label="Dónde" valor={[solicitud.addressLine, solicitud.city].filter(Boolean).join(", ") || "—"} />
         <Dato label="Qué esperan" valor={solicitud.purpose ?? "—"} />
         <Dato label="Momentos importantes" valor={solicitud.keyMoments ?? "—"} />
+        {/*
+          Las tres respuestas de elección, leídas con la etiqueta que vio quien contestó y no
+          con el valor que guarda la base: "Confirmo que NO habrá otros fotógrafos" es una
+          respuesta; "SIN_OTRA_COBERTURA" es un identificador.
+
+          Si ya hay otra cobertura, es lo primero que mira quien prioriza; hasta acá había que
+          abrir la base para enterarse. Las solicitudes anteriores a estas preguntas no las
+          tienen, y ahí muestran un guión: no se preguntó.
+        */}
+        <Dato label="Lugar" valor={eleccionLegible("venueKind", solicitud.venueKind)} />
+        <Dato label="Otra cobertura" valor={eleccionLegible("otherCoverage", solicitud.otherCoverage)} />
+        <Dato
+          label="Nos autorizan a difundir"
+          valor={eleccionLegible("showcaseScope", solicitud.showcaseScope)}
+        />
       </section>
 
       <section className="fo-card space-y-3 p-5">
@@ -169,6 +185,18 @@ export default async function FichaSolicitudPage({
       </section>
     </div>
   );
+}
+
+/**
+ * Cómo se lee una respuesta de elección guardada.
+ *
+ * El guión no es un adorno: distingue "no se preguntó" de una respuesta vacía, que en este
+ * módulo no existe —o se eligió una opción, o el campo estaba oculto—.
+ */
+function eleccionLegible(key: string, guardado: string | null): string {
+  const campo = requestFieldByKey(key);
+  if (!campo) return "—";
+  return choiceValueLabel(campo, guardado) ?? "—";
 }
 
 function Dato({ label, valor }: { label: string; valor: string }) {

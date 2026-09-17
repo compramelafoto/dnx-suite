@@ -17651,21 +17651,25 @@ model SubilafotoPackage {
 /// Latido de cada tarea automática. Una fila por cron, actualizada en el lugar.
 /// Solicitud de arrepentimiento (Res. 424/2020 y art. 34 de la Ley 24.240).
 model SubilafotoRetractionRequest {
-  id         String    @id @default(cuid())
+  id           String    @id @default(cuid())
   /// Lo que escribió la persona para identificar su compra: código de evento o número.
-  reference  String
-  email      String
-  reason     String?
+  reference    String
+  email        String
+  reason       String?
   /// El número que se le mostró. Se deriva del id, así que un reintento no da otro.
-  receipt    String    @unique
-  status     String    @default("RECEIVED")
+  receipt      String    @unique
+  status       String    @default("RECEIVED")
   /// Se completa cuando alguien encuentra la orden y resuelve.
-  orderId    String?
-  resolvedAt DateTime?
-  resolution String?
-  ipHash     String?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  orderId      String?
+  resolvedAt   DateTime?
+  resolution   String?
+  /// Cuándo salió la constancia por correo. Nulo mientras no haya salido.
+  noticeSentAt DateTime?
+  /// Por qué no salió, si falló. La solicitud vale igual: la constancia se mostró en pantalla.
+  noticeError  String?
+  ipHash       String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@index([status, createdAt])
   @@index([email])
@@ -17887,6 +17891,19 @@ model CoverageSettings {
   /// Si el formulario público está abierto.
   publicFormEnabled Boolean @default(false)
   publicFormIntro   String?
+  /// Lo que se lee al pie del formulario, antes del botón, y otra vez en la pantalla de
+  /// "listo, lo recibimos": el agradecimiento y lo que conviene decir cuando quien completa
+  /// ya hizo su parte. Nulo = no se muestra nada.
+  publicFormOutro   String?
+
+  /// Qué campos del formulario público no se preguntan y cuáles son obligatorios. Claves del
+  /// catálogo de `apps/fotoffice/lib/coverages/request-fields.ts`. Lo que no está en ninguna de
+  /// las dos listas es opcional, y los cinco campos fijos (orgName, contactEmail, eventTitle,
+  /// startsAt, endsAt) las ignoran: sin ellos no hay solicitud ni cobertura que generar.
+  /// `contactName` viene en `requestFormRequired` por omisión porque hoy ya es obligatorio: así
+  /// ninguna institución ve cambiar su formulario sin haber configurado nada.
+  requestFormHidden   String[] @default([])
+  requestFormRequired String[] @default(["contactName"])
 
   /// Versión del texto de consentimientos vigente. Se copia en cada consentimiento firmado.
   consentTextVersion  String   @default("v1")
@@ -17926,7 +17943,10 @@ model CoverageRequest {
   city              String?
   activityKind      String?
   expectedAttendees Int?
-  /// INTERIOR | EXTERIOR | AMBOS
+  /// INTERIOR | EXTERIOR | AMBOS | OTROS. Cuando la respuesta es "Otros", el texto libre va
+  /// detrás del valor: `OTROS: con carpa` (ver `formatChoiceValue` en
+  /// `apps/fotoffice/lib/coverages/request-fields.ts`). Lo que no está en el catálogo se
+  /// rechaza en el servidor y nunca llega a esta columna.
   venueKind         String?
   onSiteContactName String?
   onSitePhone       String?
@@ -17946,6 +17966,15 @@ model CoverageRequest {
   purpose                String?
   keyMoments             String?
   requestedPhotographers Int?
+  /// SIN_OTRA_COBERTURA | NO_LO_SE | HAY_OTRA_COBERTURA | OTROS. Si ya hay otro fotógrafo o
+  /// equipo de video cubriendo la actividad. Es un criterio de priorización: una organización
+  /// que ya tiene cobertura puede esperar a que se resuelvan las que no tienen ninguna.
+  otherCoverage          String?
+  /// TODO | CON_RESTRICCIONES | SIN_PERSONAS | NADA | OTROS. Hasta dónde autorizan a difundir
+  /// material del evento. Cuando esta pregunta se hace, el consentimiento USO_INSTITUCIONAL no
+  /// se tilda: se deduce de acá (ver `deriveShowcaseConsent`) y se guarda igual, con su texto y
+  /// su versión. Nulo en las solicitudes anteriores a la pregunta.
+  showcaseScope          String?
   equipmentNotes         String?
   needsLighting          Boolean   @default(false)
   expectedDeliveryAt     DateTime?

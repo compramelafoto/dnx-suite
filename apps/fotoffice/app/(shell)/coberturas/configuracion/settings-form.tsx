@@ -1,6 +1,12 @@
 "use client";
 
 import { useActionState } from "react";
+import {
+  allRequestSections,
+  REQUEST_FIELD_STATES,
+  REQUEST_FIELD_STATE_LABELS,
+  requestFieldStateInputName,
+} from "@/lib/coverages/request-fields";
 import { ASSIGNMENT_MODES, ASSIGNMENT_MODE_LABELS, type CoverageSettingsShape } from "@/lib/coverages/settings";
 import { saveCoverageSettingsAction, type PanelState } from "../actions";
 
@@ -58,8 +64,20 @@ export function SettingsForm({ settings }: { settings: CoverageSettingsShape }) 
           decisión, no algo que pasó al encender el módulo.
         </p>
         <Lista name="publicFormIntro" label="Qué leen antes de completarlo" valor={settings.publicFormIntro ?? ""} />
+        {/*
+          El cierre se ve dos veces: al pie del formulario y en la pantalla de "listo, lo
+          recibimos". Es el único momento en que quien completó ya hizo su parte y está
+          dispuesto a leer.
+        */}
+        <Lista
+          name="publicFormOutro"
+          label="Qué leen al terminar (al pie del formulario y cuando el pedido se envió)"
+          valor={settings.publicFormOutro ?? ""}
+        />
         <Lista name="notifyEmails" label="A quién avisarle cuando entra un pedido (uno por línea)" valor={settings.notifyEmails.join("\n")} />
       </fieldset>
+
+      <CamposDelFormulario settings={settings} />
 
       <fieldset className="fo-card space-y-4 p-5">
         <legend className="px-1 text-sm font-semibold">Vocabularios propios</legend>
@@ -77,6 +95,95 @@ export function SettingsForm({ settings }: { settings: CoverageSettingsShape }) 
         {guardando ? "Guardando…" : "Guardar"}
       </button>
     </form>
+  );
+}
+
+/**
+ * Qué se le pregunta a quien pide una cobertura.
+ *
+ * Un renglón por campo, agrupados **por las mismas secciones que ve la ONG**: quien configura
+ * tiene que poder leer esta pantalla como si fuera el formulario, o va a apagar cosas sin saber
+ * dónde estaban.
+ *
+ * Los cinco campos fijos se muestran igual, bloqueados y con el motivo a la vista. Esconderlos
+ * sería más prolijo y peor: quien configura se preguntaría por qué el formulario pide un correo
+ * que él no configuró, y no encontraría la respuesta en ningún lado.
+ */
+function CamposDelFormulario({ settings }: { settings: CoverageSettingsShape }) {
+  const secciones = allRequestSections({
+    hidden: settings.requestFormHidden,
+    required: settings.requestFormRequired,
+  });
+
+  return (
+    <fieldset className="fo-card space-y-5 p-5">
+      <legend className="px-1 text-sm font-semibold">Qué le preguntamos a quien pide</legend>
+      <p className="text-xs leading-relaxed text-[var(--fo-muted)]">
+        Lo que apagás no aparece en el formulario y no se guarda, aunque alguien lo mande. Una
+        sección que queda sin ningún campo tampoco se muestra. Cuanto más corto, más gente lo
+        termina.
+      </p>
+
+      {secciones.map((seccion) => (
+        <div key={seccion.key} className="space-y-2">
+          <p className="text-sm font-semibold">{seccion.legend}</p>
+          <div className="divide-y divide-[var(--fo-border-muted)] rounded-lg border border-[var(--fo-border)]">
+            {seccion.fields.map((campo) => (
+              <div
+                key={campo.key}
+                className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">{campo.label}</p>
+                  {/*
+                    La ayuda que va a leer quien complete el formulario, también acá: quien
+                    configura decide si apaga un campo, y para eso tiene que ver la pregunta
+                    entera —no sólo su título— tal como la lee la organización que la responde.
+                  */}
+                  {campo.hint ? (
+                    <p className="text-xs leading-relaxed text-[var(--fo-muted)]">{campo.hint}</p>
+                  ) : null}
+                  {campo.options ? (
+                    <p className="text-xs leading-relaxed text-[var(--fo-muted)]">
+                      Respuestas: {campo.options.map((o) => o.label).join(" · ")}
+                      {campo.allowsOther ? " · Otros" : ""}
+                    </p>
+                  ) : null}
+                  {campo.fixed ? (
+                    <p className="text-xs leading-relaxed text-[var(--fo-muted)]">
+                      Siempre se pregunta. {campo.fixedReason}
+                    </p>
+                  ) : null}
+                </div>
+                {campo.fixed ? (
+                  <span className="shrink-0 self-start rounded-full bg-[var(--fo-surface-muted)] px-3 py-1 text-xs font-medium text-[var(--fo-muted)] sm:self-auto">
+                    Fijo
+                  </span>
+                ) : (
+                  <div className="flex shrink-0 flex-wrap gap-1">
+                    {REQUEST_FIELD_STATES.map((estado) => (
+                      <label
+                        key={estado}
+                        className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--fo-border)] px-2.5 py-1 text-xs has-[:checked]:border-[var(--fo-accent)] has-[:checked]:bg-[var(--fo-accent-soft)]"
+                      >
+                        <input
+                          type="radio"
+                          name={requestFieldStateInputName(campo.key)}
+                          value={estado}
+                          defaultChecked={campo.state === estado}
+                          className="size-3.5"
+                        />
+                        <span>{REQUEST_FIELD_STATE_LABELS[estado]}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </fieldset>
   );
 }
 

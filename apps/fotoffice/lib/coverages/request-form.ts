@@ -4,15 +4,37 @@
  * Todo se valida en el servidor. El `required` del HTML es una comodidad para quien completa,
  * no un control: el navegador puede mandar lo que quiera.
  *
+ * **Qué se exige y qué se ignora sale de la configuración del workspace**, no de una lista
+ * escrita acá: la misma configuración que dibuja el formulario (`./request-fields.ts`) decide
+ * qué campos son obligatorios y cuáles ni se miran. Esconder un campo en la pantalla no es el
+ * control: un campo oculto que igual llega en el `FormData` se descarta acá, así que nunca se
+ * guarda un dato que la institución decidió no pedir.
+ *
  * Función pura, sin Prisma: así el caso que importa —qué pasa con una fecha dada vuelta o un
  * enlace `javascript:`— se prueba sin levantar nada.
  */
+
+import {
+  DEFAULT_REQUEST_FORM_CONFIG,
+  formatChoiceValue,
+  REQUEST_FIELDS,
+  requestFieldOptions,
+  requestFieldOtherInputName,
+  resolveRequestFieldStates,
+  type RequestFieldDef,
+  type RequestFormFieldConfig,
+} from "./request-fields";
 
 export type ParsedRequest = {
   orgName: string;
   orgKind: string | null;
   orgTaxId: string | null;
   orgWebsite: string | null;
+  /**
+   * Cadena vacía si la institución no pregunta con quién hablar. No es `null` para no obligar a
+   * cada consumidor a tratar el caso: los que lo necesitan (el saludo del correo, la ficha del
+   * padrón) ya tienen a qué caer, que es el nombre de la organización.
+   */
   contactName: string;
   contactRole: string | null;
   contactEmail: string;
@@ -27,7 +49,14 @@ export type ParsedRequest = {
   city: string | null;
   activityKind: string | null;
   expectedAttendees: number | null;
+  /**
+   * Los tres campos de elección. Se guardan con el valor del catálogo —nunca con lo que
+   * escribió el navegador— y, cuando la respuesta es "Otros", con el texto libre detrás:
+   * `OTROS: con carpa`. La forma está explicada en `formatChoiceValue`.
+   */
   venueKind: string | null;
+  otherCoverage: string | null;
+  showcaseScope: string | null;
   onSiteContactName: string | null;
   onSitePhone: string | null;
   mediaKinds: string;
@@ -78,6 +107,31 @@ function fecha(v: string | undefined): Date | null {
  * un agujero abierto por un formulario público. Lo que no pasa el filtro se descarta en
  * silencio: es documentación de apoyo, no vale frenar un pedido por un enlace mal pegado.
  */
+/**
+ * Una respuesta de un campo de elección, validada contra la lista de opciones.
+ *
+ * **Lo que no está en la lista se rechaza; nunca se guarda crudo.** Los botones del formulario
+ * son una comodidad para quien completa, no el control: el `FormData` lo arma el navegador y
+ * puede decir cualquier cosa. Sin esta comprobación, la columna se llenaría de valores que
+ * ninguna pantalla sabe leer y ningún recuento sabe contar.
+ *
+ * El texto libre de "Otros" sí viaja como lo escribió la persona —es su aclaración— pero sólo
+ * detrás de una opción válida y recortado a un renglón (ver `formatChoiceValue`).
+ */
+function eleccion(
+  field: RequestFieldDef,
+  raw: string | undefined,
+  otroRaw: string | undefined,
+): { ok: true; value: string | null } | { ok: false; error: string } {
+  const elegido = raw?.trim();
+  if (!elegido) return { ok: true, value: null };
+  const permitidas = requestFieldOptions(field).map((o) => o.value);
+  if (!permitidas.includes(elegido)) {
+    return { ok: false, error: `Elegí una de las respuestas de «${field.label}».` };
+  }
+  return { ok: true, value: formatChoiceValue(elegido, otroRaw ?? null) };
+}
+
 function enlaces(v: string | undefined): string[] {
   if (!v) return [];
   return v
@@ -87,74 +141,144 @@ function enlaces(v: string | undefined): string[] {
     .filter((s) => /^https?:\/\//i.test(s));
 }
 
-export function parseCoverageRequest(form: Record<string, string>): RequestParseResult {
-  const orgName = texto(form.orgName);
+export function parseCoverageRequest(
+  form: Record<string, string>,
+  config: RequestFormFieldConfig = DEFAULT_REQUEST_FORM_CONFIG,
+): RequestParseResult {
+  const estados = resolveRequestFieldStates(config);
+
+  /**
+   * Lo que llegó para un campo, o nada si la institución no lo pregunta.
+   *
+   * Acá se cumple el cuidado que da sentido a todo esto: un campo oculto que igual viene en el
+   * `FormData` —una pestaña vieja, un `curl`, un formulario copiado— se descarta antes de
+   * mirarlo, así que no se valida ni se guarda. Las claves que no están en el catálogo (las que
+   * sólo carga la coordinación desde el panel, como `mediaKinds`) pasan derecho: no son
+   * configurables porque el formulario público nunca las preguntó.
+   */
+  const crudo = (clave: string): string | undefined =>
+    estados[clave] === "OCULTO" ? undefined : form[clave];
+
+  const orgName = texto(crudo("orgName"));
   if (!orgName) return { ok: false, error: "Escribí el nombre de la organización." };
 
-  const contactName = texto(form.contactName);
-  if (!contactName) return { ok: false, error: "Escribí el nombre de quien podemos contactar." };
-
-  const contactEmail = texto(form.contactEmail)?.toLowerCase() ?? null;
+  const contactEmail = texto(crudo("contactEmail"))?.toLowerCase() ?? null;
   if (!contactEmail) return { ok: false, error: "Escribí un correo de contacto." };
   if (!EMAIL_RE.test(contactEmail)) {
     return { ok: false, error: "Ese correo no parece válido. Revisalo, por ahí quedó un error." };
   }
 
-  const eventTitle = texto(form.eventTitle);
+  const eventTitle = texto(crudo("eventTitle"));
   if (!eventTitle) return { ok: false, error: "Contanos cómo se llama la actividad." };
 
-  const startsAt = fecha(form.startsAt);
-  const endsAt = fecha(form.endsAt);
+  const startsAt = fecha(crudo("startsAt"));
+  const endsAt = fecha(crudo("endsAt"));
   if (!startsAt) return { ok: false, error: "Falta cuándo empieza la actividad." };
   if (!endsAt) return { ok: false, error: "Falta cuándo termina la actividad." };
   if (endsAt.getTime() <= startsAt.getTime()) {
     return { ok: false, error: "La actividad termina antes de empezar. Revisá los horarios." };
   }
 
-  const fotografos = entero(form.requestedPhotographers);
+  const fotografos = entero(crudo("requestedPhotographers"));
   if (!fotografos.ok) {
     return { ok: false, error: "La cantidad de fotógrafos tiene que ser un número mayor a cero." };
   }
 
-  const asistentes = entero(form.expectedAttendees);
+  const asistentes = entero(crudo("expectedAttendees"));
   if (!asistentes.ok) {
     return { ok: false, error: "La cantidad de asistentes tiene que ser un número." };
   }
 
-  return {
-    ok: true,
-    data: {
-      orgName,
-      orgKind: texto(form.orgKind),
-      orgTaxId: texto(form.orgTaxId),
-      orgWebsite: texto(form.orgWebsite),
-      contactName,
-      contactRole: texto(form.contactRole),
-      contactEmail,
-      contactPhone: texto(form.contactPhone),
-      eventTitle,
-      eventDescription: texto(form.eventDescription),
-      startsAt,
-      endsAt,
-      durationMinutes: Math.round((endsAt.getTime() - startsAt.getTime()) / 60000),
-      addressLine: texto(form.addressLine),
-      city: texto(form.city),
-      activityKind: texto(form.activityKind),
-      expectedAttendees: asistentes.value,
-      venueKind: texto(form.venueKind),
-      onSiteContactName: texto(form.onSiteContactName),
-      onSitePhone: texto(form.onSitePhone),
-      mediaKinds: texto(form.mediaKinds) ?? "FOTO",
-      coverageKind: texto(form.coverageKind),
-      purpose: texto(form.purpose),
-      keyMoments: texto(form.keyMoments),
-      requestedPhotographers: fotografos.value,
-      equipmentNotes: texto(form.equipmentNotes),
-      needsLighting: form.needsLighting === "on",
-      expectedDeliveryAt: fecha(form.expectedDeliveryAt),
-      deliveryChannel: texto(form.deliveryChannel),
-      notes: texto(form.notes),
-      documentationLinks: enlaces(form.documentationLinks),
-    },
+  const expectedDeliveryAt = fecha(crudo("expectedDeliveryAt"));
+  const documentationLinks = enlaces(crudo("documentationLinks"));
+
+  // Los campos de elección, todos juntos y con la misma regla: la del catálogo. Un campo de
+  // elección oculto no llega a `eleccion` —`crudo` ya lo descartó— así que tampoco se valida ni
+  // se guarda, igual que cualquier otro campo apagado.
+  const elecciones: Record<string, string | null> = {};
+  for (const campo of REQUEST_FIELDS) {
+    if (campo.input !== "choice") continue;
+    const r = eleccion(
+      campo,
+      crudo(campo.key),
+      crudo(campo.key) === undefined ? undefined : form[requestFieldOtherInputName(campo.key)],
+    );
+    if (!r.ok) return { ok: false, error: r.error };
+    elecciones[campo.key] = r.value;
+  }
+
+  const data: ParsedRequest = {
+    orgName,
+    orgKind: texto(crudo("orgKind")),
+    orgTaxId: texto(crudo("orgTaxId")),
+    orgWebsite: texto(crudo("orgWebsite")),
+    contactName: texto(crudo("contactName")) ?? "",
+    contactRole: texto(crudo("contactRole")),
+    contactEmail,
+    contactPhone: texto(crudo("contactPhone")),
+    eventTitle,
+    eventDescription: texto(crudo("eventDescription")),
+    startsAt,
+    endsAt,
+    durationMinutes: Math.round((endsAt.getTime() - startsAt.getTime()) / 60000),
+    addressLine: texto(crudo("addressLine")),
+    city: texto(crudo("city")),
+    activityKind: texto(form.activityKind),
+    expectedAttendees: asistentes.value,
+    venueKind: elecciones.venueKind ?? null,
+    otherCoverage: elecciones.otherCoverage ?? null,
+    showcaseScope: elecciones.showcaseScope ?? null,
+    onSiteContactName: texto(crudo("onSiteContactName")),
+    onSitePhone: texto(crudo("onSitePhone")),
+    mediaKinds: texto(form.mediaKinds) ?? "FOTO",
+    coverageKind: texto(form.coverageKind),
+    purpose: texto(crudo("purpose")),
+    keyMoments: texto(crudo("keyMoments")),
+    requestedPhotographers: fotografos.value,
+    equipmentNotes: texto(form.equipmentNotes),
+    needsLighting: form.needsLighting === "on",
+    expectedDeliveryAt,
+    deliveryChannel: texto(form.deliveryChannel),
+    notes: texto(crudo("notes")),
+    documentationLinks,
   };
+
+  const faltante = campoObligatorioSinCompletar(data, estados, form);
+  if (faltante) return { ok: false, error: faltante };
+
+  return { ok: true, data };
+}
+
+/**
+ * El primer campo obligatorio que quedó sin completar, dicho con la etiqueta que la persona vio.
+ *
+ * Los cinco fijos ya se validaron arriba, con su mensaje propio: son condiciones del sistema y
+ * merecen una explicación mejor que "falta completar". Este recorrido cubre a los otros
+ * dieciocho, que son obligatorios sólo porque esta institución lo decidió.
+ *
+ * Se mira el valor **ya resuelto**, no el texto crudo: así una fecha ilegible o un enlace que no
+ * pasó el filtro cuentan como campo sin completar en vez de guardarse en silencio como vacío.
+ */
+function campoObligatorioSinCompletar(
+  data: ParsedRequest,
+  estados: Record<string, string>,
+  form: Record<string, string>,
+): string | null {
+  const valores = data as unknown as Record<string, unknown>;
+  for (const campo of REQUEST_FIELDS) {
+    if (campo.fixed || estados[campo.key] !== "OBLIGATORIO") continue;
+    const valor = valores[campo.key];
+    const vacio =
+      valor === null ||
+      valor === undefined ||
+      valor === "" ||
+      (Array.isArray(valor) && valor.length === 0);
+    if (!vacio) continue;
+    // Escribieron algo y no quedó nada: el problema no es que falte, es que no sirve.
+    if (campo.key === "documentationLinks" && (form.documentationLinks ?? "").trim()) {
+      return "Los enlaces tienen que empezar con http:// o https://.";
+    }
+    return `Falta completar «${campo.label}».`;
+  }
+  return null;
 }

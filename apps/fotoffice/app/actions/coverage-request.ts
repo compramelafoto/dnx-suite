@@ -6,13 +6,14 @@ import { appUrl } from "@/lib/app-url";
 import { COVERAGE_EMAIL_KEYS } from "@/lib/communications/constants";
 import { loadWorkspaceEmailContext } from "@/lib/communications/load-workspace-signature";
 import { sendAndLogEmail } from "@/lib/communications/send-and-log";
-import { parseConsents } from "@/lib/coverages/consents";
+import { deriveShowcaseConsent, parseConsents } from "@/lib/coverages/consents";
 import {
   buildCoordinatorAlertEmail,
   buildRequestReceivedEmail,
 } from "@/lib/coverages/emails";
 import { fechaArgentina } from "@/lib/coverages/format";
 import { hashOrigen } from "@/lib/coverages/rate-limit";
+import { isRequestFieldVisible } from "@/lib/coverages/request-fields";
 import { parseCoverageRequest } from "@/lib/coverages/request-form";
 import {
   countRecentSubmissions,
@@ -73,12 +74,33 @@ export async function submitCoverageRequestAction(
     return { error: "Las solicitudes no están abiertas en este momento.", ok: null };
   }
 
-  const parsed = parseCoverageRequest(readForm(formData));
-  if (!parsed.ok) return { error: parsed.error, ok: null };
-
+  // La configuración se lee ANTES de parsear: qué campos se exigen y cuáles se ignoran sale de
+  // ella. Es el control que hace que esconder un campo signifique algo — la pantalla puede no
+  // dibujarlo, pero lo que decide si ese dato se guarda o se descarta se resuelve acá, en el
+  // servidor, con la configuración vigente en este momento y no con la que tenía la pestaña
+  // desde la que se envió.
   const settings = await loadSettings(branding.workspaceId);
 
-  const consents = parseConsents(readForm(formData), settings.consentTextVersion);
+  const campos = {
+    hidden: settings.requestFormHidden,
+    required: settings.requestFormRequired,
+  };
+  const parsed = parseCoverageRequest(readForm(formData), campos);
+  if (!parsed.ok) return { error: parsed.error, ok: null };
+
+  // Cuando la institución pregunta por el alcance de difusión, el tilde de USO_INSTITUCIONAL no
+  // se mostró: el permiso se deduce de la respuesta, no de lo que haya llegado en el
+  // `FormData`. La decisión se toma acá, con la configuración vigente en el servidor, y no con
+  // lo que la pestaña haya dibujado — que es el mismo criterio con el que se descartan los
+  // campos ocultos. El registro legal no cambia: `parseConsents` guarda igual la fila con su
+  // texto, su versión y su hash.
+  const consents = parseConsents(
+    readForm(formData),
+    settings.consentTextVersion,
+    isRequestFieldVisible("showcaseScope", campos)
+      ? deriveShowcaseConsent(parsed.data.showcaseScope)
+      : undefined,
+  );
   if (!consents.ok) return { error: consents.error, ok: null };
 
   // La sal sale del entorno (`COVERAGE_ORIGIN_SALT`). Si no está configurada, se usa el
@@ -162,7 +184,9 @@ export async function submitCoverageRequestAction(
       context: contexto,
       publicCode: guardada.publicCode,
       eventTitle: parsed.data.eventTitle,
-      contactName: parsed.data.contactName,
+      // Vacío cuando la institución no pregunta con quién habla: el correo saluda entonces a la
+      // organización, que es el único nombre que tenemos. Nunca queda un "Hola," pelado.
+      contactName: parsed.data.contactName || parsed.data.orgName,
       trackingUrl,
     }),
   });
