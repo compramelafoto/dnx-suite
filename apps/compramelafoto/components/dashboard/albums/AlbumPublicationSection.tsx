@@ -5,6 +5,7 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import AlbumSharePanel from "@/components/dashboard/albums/AlbumSharePanel";
 import AlbumCoverManager from "@/components/dashboard/albums/AlbumCoverManager";
+import AlbumInstructivosPanel from "@/components/dashboard/albums/AlbumInstructivosPanel";
 import { AlbumTestModeDashboardAlert } from "@/components/album/AlbumTestModeNotice";
 import type { AlbumNextStepsMode } from "@/components/dashboard/albums/AlbumNextSteps";
 import type { AlbumPublicationPanelId } from "@/lib/albums/album-dashboard-nav";
@@ -340,6 +341,14 @@ export default function AlbumPublicationSection({
             />
           </div>
         </Card>
+      ) : null}
+
+      {activePanel === "instructivos" ? (
+        <AlbumInstructivosPanel
+          albumId={albumId}
+          publicSlug={publicSlug}
+          disabled={!canShareWithClients}
+        />
       ) : null}
     </div>
   );
