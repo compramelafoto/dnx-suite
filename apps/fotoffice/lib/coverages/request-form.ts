@@ -14,6 +14,7 @@
  * enlace `javascript:`— se prueba sin levantar nada.
  */
 
+import { encodeGeohash, validateCoordinates } from "@repo/geo";
 import {
   DEFAULT_REQUEST_FORM_CONFIG,
   formatChoiceValue,
@@ -47,6 +48,21 @@ export type ParsedRequest = {
   durationMinutes: number;
   addressLine: string | null;
   city: string | null;
+  /**
+   * El punto que la organización confirmó en el mapa, si lo confirmó.
+   *
+   * **Siempre puede faltar, y el pedido se manda igual.** Una dirección bien escrita ya alcanza
+   * para tomar el pedido; el punto es lo que después saca la duda de por dónde se entra. Si
+   * Nominatim no encuentra el lugar —pasa en pueblos chicos— o la persona no quiso abrir el
+   * mapa, acá queda `null` y no pasa nada.
+   *
+   * `geohash` no llega del formulario: se calcula acá con `@repo/geo` a partir del punto. Que lo
+   * mande el navegador sería dejar que un dato derivado llegue de afuera, donde puede no
+   * corresponder a las coordenadas que lo acompañan.
+   */
+  latitude: number | null;
+  longitude: number | null;
+  geohash: string | null;
   activityKind: string | null;
   expectedAttendees: number | null;
   /**
@@ -132,6 +148,34 @@ function eleccion(
   return { ok: true, value: formatChoiceValue(elegido, otroRaw ?? null) };
 }
 
+/**
+ * El punto del mapa, validado por el DNX GEO ENGINE.
+ *
+ * `validateCoordinates` es la misma función que usan InfoSpot y el proxy de geocodificación:
+ * números finitos, en rango, y nada de `0,0` —que casi nunca es un lugar en el golfo de Guinea y
+ * casi siempre es un campo vacío que se convirtió en cero por el camino—.
+ *
+ * **Lo que no pasa la validación se descarta en silencio, sin frenar el envío.** Es el mismo
+ * criterio que los enlaces de documentación: el punto es un agregado, y perder una cobertura
+ * porque un `hidden` llegó raro sería cambiar un dato opcional por el pedido entero.
+ *
+ * El geohash sale de acá y no del formulario: es un dato derivado, y calcularlo en el servidor
+ * garantiza que siempre corresponda a las coordenadas que lo acompañan.
+ */
+function punto(
+  latRaw: string | undefined,
+  lonRaw: string | undefined,
+): { latitude: number | null; longitude: number | null; geohash: string | null } {
+  const vacio = { latitude: null, longitude: null, geohash: null };
+  if (!latRaw?.trim() || !lonRaw?.trim()) return vacio;
+
+  const v = validateCoordinates(latRaw, lonRaw);
+  if (!v.ok) return vacio;
+
+  const { latitude, longitude } = v.coordinates;
+  return { latitude, longitude, geohash: encodeGeohash(latitude, longitude) };
+}
+
 function enlaces(v: string | undefined): string[] {
   if (!v) return [];
   return v
@@ -192,6 +236,20 @@ export function parseCoverageRequest(
   const expectedDeliveryAt = fecha(crudo("expectedDeliveryAt"));
   const documentationLinks = enlaces(crudo("documentationLinks"));
 
+  /**
+   * El punto es del campo de dirección, no un campo aparte.
+   *
+   * El catálogo no lo tiene como una pregunta propia —nadie escribe una latitud— así que su
+   * estado es el de `addressLine`: con la dirección oculta no se dibuja el mapa, y por lo tanto
+   * tampoco se guarda un punto que la institución decidió no preguntar. Es el mismo cuidado que
+   * hace `crudo` con cualquier otro campo apagado, escrito a mano porque `latitude` y
+   * `longitude` no son claves del catálogo.
+   */
+  const lugar =
+    estados.addressLine === "OCULTO"
+      ? { latitude: null, longitude: null, geohash: null }
+      : punto(form.latitude, form.longitude);
+
   // Los campos de elección, todos juntos y con la misma regla: la del catálogo. Un campo de
   // elección oculto no llega a `eleccion` —`crudo` ya lo descartó— así que tampoco se valida ni
   // se guarda, igual que cualquier otro campo apagado.
@@ -223,6 +281,9 @@ export function parseCoverageRequest(
     durationMinutes: Math.round((endsAt.getTime() - startsAt.getTime()) / 60000),
     addressLine: texto(crudo("addressLine")),
     city: texto(crudo("city")),
+    latitude: lugar.latitude,
+    longitude: lugar.longitude,
+    geohash: lugar.geohash,
     activityKind: texto(form.activityKind),
     expectedAttendees: asistentes.value,
     venueKind: elecciones.venueKind ?? null,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState, type CSSProperties } from "react";
+import { UbicacionDelEvento } from "@/components/coberturas/ubicacion-del-evento";
 import type { CoverageBrand } from "@/lib/coverages/branding";
 import type { ConsentKind } from "@/lib/coverages/consents";
 import {
@@ -248,6 +249,28 @@ const CLASES_CONTROL =
 function Campo({ campo }: { campo: ResolvedRequestField }) {
   const obligatorio = campo.state === "OBLIGATORIO";
   if (campo.input === "choice") return <CampoEleccion campo={campo} required={obligatorio} />;
+  /*
+    La dirección es el único campo del catálogo que no es sólo texto: además de escribirse, se
+    puede marcar en un mapa. El control vive en `components/coberturas/ubicacion-del-evento.tsx`
+    y manda el mismo `name` que mandaba el `input` de antes, más `latitude` y `longitude`.
+
+    Se reconoce por la clave y no por un tipo nuevo en el catálogo a propósito: el `input` del
+    catálogo describe la forma del control, y los otros dos consumidores del catálogo —el
+    servidor que valida y la pantalla de configuración— siguen tratando la dirección como el
+    texto que es. Si el campo está oculto, esta rama ni se alcanza (`visibleRequestSections` ya
+    lo sacó) y el servidor descarta cualquier punto que igual llegue.
+  */
+  if (campo.key === "addressLine") {
+    return (
+      <UbicacionDelEvento
+        name={campo.key}
+        label={campo.label}
+        hint={campo.hint}
+        required={obligatorio}
+        clasesControl={CLASES_CONTROL}
+      />
+    );
+  }
   return (
     <label className="block space-y-1.5">
       <span className="text-sm font-medium">

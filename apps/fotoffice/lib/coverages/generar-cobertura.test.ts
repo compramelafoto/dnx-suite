@@ -3,12 +3,13 @@ import { DEFAULT_COVERAGE_SETTINGS, type CoverageSettingsShape } from "./setting
 import {
   datetimeLocalValue,
   planGenerarCobertura,
+  rolesConfigurados,
   sugerirCobertura,
   sugerirRoles,
 } from "./generar-cobertura";
 
 describe("sugerirCobertura", () => {
-  it("copia título, fechas, dirección y ciudad de la solicitud", () => {
+  it("copia título, fechas, dirección, ciudad y el punto del mapa", () => {
     const startsAt = new Date("2026-10-03T14:00:00.000Z");
     const endsAt = new Date("2026-10-03T18:00:00.000Z");
     const sugerido = sugerirCobertura({
@@ -17,6 +18,8 @@ describe("sugerirCobertura", () => {
       endsAt,
       addressLine: "Av. Siempre Viva 742",
       city: "Springfield",
+      latitude: -32.9468,
+      longitude: -60.6393,
     });
     expect(sugerido).toEqual({
       title: "Colecta de invierno",
@@ -24,7 +27,25 @@ describe("sugerirCobertura", () => {
       endsAt,
       addressLine: "Av. Siempre Viva 742",
       city: "Springfield",
+      // El punto viaja con la dirección: copiar una sin el otro dejaría la cobertura con la
+      // parte ambigua del dato y sin la que saca la duda.
+      latitude: -32.9468,
+      longitude: -60.6393,
     });
+  });
+
+  it("una solicitud sin punto sugiere una cobertura sin punto, no una a medias", () => {
+    const startsAt = new Date("2026-10-03T14:00:00.000Z");
+    const endsAt = new Date("2026-10-03T18:00:00.000Z");
+    expect(
+      sugerirCobertura({
+        eventTitle: "Colecta de invierno",
+        startsAt,
+        endsAt,
+        addressLine: "Al lado de la plaza",
+        city: "Villa Elisa",
+      }),
+    ).toMatchObject({ latitude: null, longitude: null });
   });
 });
 
@@ -98,6 +119,71 @@ describe("sugerirRoles", () => {
       settings,
     );
     expect(roles).toEqual([{ name: "Fotógrafo principal", vacancies: 1 }]);
+  });
+});
+
+/**
+ * La lista de roles que cada institución configura.
+ *
+ * Existía desde el primer día en la configuración del módulo —"Roles que suelen necesitar, uno
+ * por línea"— y no la leía ninguna pantalla: se guardaba en `CoverageSettings.roleTemplates` y
+ * ahí moría. Estos casos son la barrera para que no vuelva a pasar.
+ */
+describe("sugerirRoles con la lista de la institución cargada", () => {
+  const conLista = (roleTemplates: string[]): CoverageSettingsShape => ({
+    ...DEFAULT_COVERAGE_SETTINGS,
+    roleTemplates,
+  });
+
+  const corta = {
+    requestedPhotographers: 1,
+    startsAt: new Date("2026-10-03T10:00:00.000Z"),
+    endsAt: new Date("2026-10-03T11:00:00.000Z"),
+  };
+
+  it("usa el vocabulario de la organización en vez de las dos constantes", () => {
+    expect(sugerirRoles(corta, conLista(["Fotografía", "Video", "Edición"]))).toEqual([
+      { name: "Fotografía", vacancies: 1 },
+    ]);
+  });
+
+  it("dos fotógrafos pedidos son dos vacantes del mismo rol, no «Fotografía» y «Video»", () => {
+    // El orden de la lista dice qué necesita más la institución, no qué es el principal y qué
+    // el segundo: proponer "Video" porque está segundo sería contestar otra cosa de la que
+    // pidió la organización. Los roles distintos los agrega quien coordina.
+    expect(
+      sugerirRoles({ ...corta, requestedPhotographers: 2 }, conLista(["Fotografía", "Video"])),
+    ).toEqual([{ name: "Fotografía", vacancies: 2 }]);
+  });
+
+  it("con una jornada larga suma la vacante del refuerzo, con el número configurado", () => {
+    const larga = {
+      requestedPhotographers: 1,
+      startsAt: new Date("2026-10-03T10:00:00.000Z"),
+      endsAt: new Date("2026-10-03T14:30:00.000Z"), // 4 h 30, supera el umbral
+    };
+    expect(sugerirRoles(larga, conLista(["Cobertura de prensa"]))).toEqual([
+      { name: "Cobertura de prensa", vacancies: 2 },
+    ]);
+    expect(
+      sugerirRoles(larga, { ...conLista(["Cobertura de prensa"]), recommendedCollaborators: 3 }),
+    ).toEqual([{ name: "Cobertura de prensa", vacancies: 3 }]);
+  });
+
+  it("una lista con espacios, repetidos y líneas vacías se limpia sola", () => {
+    expect(rolesConfigurados(conLista(["  Video  ", "", "video", "Edición", "   "]))).toEqual([
+      "Video",
+      "Edición",
+    ]);
+  });
+
+  it("con la lista vacía no cambia nada de lo que ya hacía", () => {
+    expect(sugerirRoles(corta, conLista([]))).toEqual([
+      { name: "Fotógrafo principal", vacancies: 1 },
+    ]);
+    expect(sugerirRoles(corta, conLista(["   ", ""]))).toEqual([
+      { name: "Fotógrafo principal", vacancies: 1 },
+    ]);
   });
 });
 

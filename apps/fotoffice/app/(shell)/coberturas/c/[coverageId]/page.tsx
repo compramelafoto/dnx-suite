@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { EstadoCoberturaChip } from "@/components/coberturas/estado-chip";
+import { LugarConfirmado } from "@/components/coberturas/lugar-confirmado";
 import { requireCoveragesReviewer } from "@/lib/coverages/access";
 import { canCoordinateCoverages } from "@/lib/coverages/access-policy";
 import { lugaresLibres, type EstadoDeRol } from "@/lib/coverages/cupos";
@@ -161,10 +162,22 @@ export default async function FichaCoberturaPage({
             label="Cuándo"
             valor={`${fechaHoraArgentina(cobertura.startsAt)} a ${fechaHoraArgentina(cobertura.endsAt)}`}
           />
-          <Dato
-            label="Dónde"
-            valor={[cobertura.addressLine, cobertura.city].filter(Boolean).join(", ") || "—"}
-          />
+          {/*
+            El lugar con su punto y el enlace para llegar. Es la pantalla que mira quien va a
+            cubrir, así que acá el "Cómo llegar" no es una comodidad: es el dato.
+          */}
+          <div className="sm:col-span-2">
+            <dt className="text-xs uppercase tracking-wide text-[var(--fo-muted-soft)]">Dónde</dt>
+            <dd>
+              <LugarConfirmado
+                direccion={
+                  [cobertura.addressLine, cobertura.city].filter(Boolean).join(", ") || "—"
+                }
+                latitude={cobertura.latitude}
+                longitude={cobertura.longitude}
+              />
+            </dd>
+          </div>
           <Dato label="Instrucciones" valor={cobertura.instructions ?? "—"} ancho />
         </dl>
 

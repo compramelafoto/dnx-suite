@@ -17943,6 +17943,17 @@ model CoverageRequest {
   endsAt            DateTime
   addressLine       String?
   city              String?
+  /// El punto que la organización confirmó en el mapa del formulario público. Opcional y
+  /// siempre opcional: si Nominatim no encuentra el lugar —pasa en pueblos chicos— el pedido se
+  /// manda igual con la dirección escrita a mano. La dirección es el dato; el punto, la
+  /// precisión. Se valida con `validateCoordinates` de `@repo/geo` (rango, finitos, y el 0,0
+  /// que casi siempre es un campo vacío disfrazado de coordenada).
+  latitude          Float?
+  longitude         Float?
+  /// Geohash de `@repo/geo` (precisión 7 ≈ 150 m). Se guarda además de lat/lon porque es lo que
+  /// hace barata la búsqueda por cercanía: un prefijo de texto con índice, en vez de calcular la
+  /// distancia a cada fila. Se recalcula cada vez que cambia el punto; nunca se escribe solo.
+  geohash           String?
   activityKind      String?
   expectedAttendees Int?
   /// INTERIOR | EXTERIOR | AMBOS | OTROS. Cuando la respuesta es "Otros", el texto libre va
@@ -18013,6 +18024,7 @@ model CoverageRequest {
   @@index([workspaceId, status])
   @@index([workspaceId, startsAt])
   @@index([workspaceId, createdAt])
+  @@index([geohash])
   @@index([clientId])
   @@index([tokenExpiresAt])
 }
@@ -18056,6 +18068,12 @@ model Coverage {
   endsAt       DateTime
   addressLine  String?
   city         String?
+  /// El mismo punto de la solicitud, copiado al generar la cobertura. Viaja con la dirección y
+  /// no se deduce por join: la coordinación puede corregirlo acá sin tocar lo que pidió la
+  /// organización, igual que ya puede corregir la dirección y el horario.
+  latitude     Float?
+  longitude    Float?
+  geohash      String?
   instructions String?
 
   /// PLANIFICADA | BUSCANDO_EQUIPO | EQUIPO_CONFIRMADO | REALIZADA | ENTREGADA | CERRADA |
@@ -18075,6 +18093,7 @@ model Coverage {
   @@index([workspaceId, status])
   @@index([workspaceId, startsAt])
   @@index([requestId])
+  @@index([geohash])
 }
 
 /// Un rol con sus cupos dentro de una cobertura. No se asume que todo trabajo necesita un

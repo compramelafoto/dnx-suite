@@ -61,6 +61,11 @@ const solicitud = {
   endsAt: fin,
   addressLine: "San Martín 1234",
   city: "Rosario",
+  // El punto que la organización confirmó en el mapa del formulario público. Está en el caso de
+  // demostración porque lo que hay que verificar es que viaje con la dirección hasta la
+  // cobertura: llegar a "San Martín 1234" es llegar a la cuadra, no a la puerta.
+  latitude: -32.9468,
+  longitude: -60.6393,
   requestedPhotographers: 1,
 };
 
@@ -71,13 +76,17 @@ function rol(estado: Partial<EstadoDeRol> = {}): EstadoDeRol {
 
 describe("de la solicitud aprobada a la cobertura con sus roles", () => {
   it("la cobertura se precarga con lo que la organización ya escribió", () => {
-    // Nadie vuelve a tipear el título, las fechas ni el lugar de una actividad ya aprobada.
+    // Nadie vuelve a tipear el título, las fechas ni el lugar de una actividad ya aprobada. El
+    // punto del mapa viaja con la dirección: sin él, la cobertura se queda con la parte
+    // ambigua del dato y sin la que le dice a quien va por dónde se entra.
     expect(sugerirCobertura(solicitud)).toEqual({
       title: "Jornada solidaria para familias",
       startsAt: inicio,
       endsAt: fin,
       addressLine: "San Martín 1234",
       city: "Rosario",
+      latitude: -32.9468,
+      longitude: -60.6393,
     });
   });
 

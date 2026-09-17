@@ -15,6 +15,15 @@ export type CoberturaSugerida = {
   endsAt: Date;
   addressLine: string | null;
   city: string | null;
+  /**
+   * El punto viaja con la dirección.
+   *
+   * Si se copiara la dirección pero no el punto, la cobertura quedaría con la parte ambigua del
+   * dato y sin la parte que saca la duda — que es exactamente al revés de para qué se pidió el
+   * pin. La coordinación puede corregirlo en la cobertura sin tocar lo que pidió la organización.
+   */
+  latitude: number | null;
+  longitude: number | null;
 };
 
 /**
@@ -31,6 +40,8 @@ export function sugerirCobertura(solicitud: {
   endsAt: Date;
   addressLine: string | null;
   city: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
 }): CoberturaSugerida {
   return {
     title: solicitud.eventTitle,
@@ -38,6 +49,8 @@ export function sugerirCobertura(solicitud: {
     endsAt: solicitud.endsAt,
     addressLine: solicitud.addressLine,
     city: solicitud.city,
+    latitude: solicitud.latitude ?? null,
+    longitude: solicitud.longitude ?? null,
   };
 }
 
@@ -50,14 +63,45 @@ const FOTOGRAFO_PRINCIPAL = "Fotógrafo principal";
 const SEGUNDO_FOTOGRAFO = "Segundo fotógrafo";
 
 /**
+ * Los roles que la institución escribió en su configuración, limpios.
+ *
+ * `CoverageSettings.roleTemplates` se carga como un texto con un rol por línea, así que llega
+ * con espacios y con líneas vacías de más. Se limpian acá y no al guardar porque la lista
+ * también puede editarse a mano en la base.
+ */
+export function rolesConfigurados(settings: CoverageSettingsShape): string[] {
+  const vistos = new Set<string>();
+  const salida: string[] = [];
+  for (const crudo of settings.roleTemplates) {
+    const nombre = crudo.trim();
+    if (!nombre || vistos.has(nombre.toLowerCase())) continue;
+    vistos.add(nombre.toLowerCase());
+    salida.push(nombre);
+  }
+  return salida;
+}
+
+/**
  * Qué roles proponer, a partir de cuántos fotógrafos pidió la organización y de si la duración
  * amerita refuerzo aunque haya pedido uno solo.
  *
- * Dos fotógrafos pedidos son dos roles, no un rol con dos vacantes: "Fotógrafo principal" y
- * "Segundo fotógrafo" son responsabilidades distintas dentro de la cobertura (ver el vocabulario
- * de la etapa en el plan), aunque después cada uno tenga una sola vacante. Si se piden tres o
- * más, el excedente se acumula en "Segundo fotógrafo" en vez de inventar un tercer nombre de rol
- * que nadie pidió.
+ * **Con la lista de la institución cargada, los nombres salen de ahí.** La configuración del
+ * módulo tiene "Roles que suelen necesitar (uno por línea)" desde el primer día y hasta ahora no
+ * la leía nadie: se guardaba y ninguna pantalla la usaba. Ahora es el vocabulario de la
+ * organización —una pide "Fotografía", otra "Cobertura de prensa"— y esta función deja de
+ * imponer las dos constantes de más abajo.
+ *
+ * **Con la lista cargada se propone UN rol con las vacantes que hagan falta, no dos roles.** El
+ * orden de esa lista dice qué necesita más la institución, no qué es "el principal" y qué "el
+ * segundo": con `["Fotografía", "Video"]` y dos fotógrafos pedidos, proponer "Fotografía" y
+ * "Video" sería contestar otra cosa de la que pidió la organización. Los roles distintos los
+ * agrega quien coordina, eligiéndolos de la misma lista en el panel.
+ *
+ * **Con la lista vacía no cambia nada.** Dos fotógrafos pedidos son dos roles, no un rol con dos
+ * vacantes: "Fotógrafo principal" y "Segundo fotógrafo" son responsabilidades distintas dentro
+ * de la cobertura, aunque después cada uno tenga una sola vacante. Si se piden tres o más, el
+ * excedente se acumula en "Segundo fotógrafo" en vez de inventar un tercer nombre que nadie
+ * pidió.
  */
 export function sugerirRoles(
   solicitud: { requestedPhotographers: number | null; startsAt: Date; endsAt: Date },
@@ -65,20 +109,29 @@ export function sugerirRoles(
 ): RolSugerido[] {
   const pedidos = solicitud.requestedPhotographers ?? 1;
 
-  if (pedidos >= 2) {
-    return [
-      { name: FOTOGRAFO_PRINCIPAL, vacancies: 1 },
-      { name: SEGUNDO_FOTOGRAFO, vacancies: Math.max(1, pedidos - 1) },
-    ];
-  }
-
   // Pidieron uno solo: igual se propone el refuerzo si la duración supera el umbral del
   // workspace. `recomendarRefuerzo` es la misma función que ya usa la ficha de la solicitud
   // para el aviso — acá no se repite el umbral, se reutiliza la regla.
   const durationMinutes = Math.round(
     (solicitud.endsAt.getTime() - solicitud.startsAt.getTime()) / 60000,
   );
-  const refuerzo = recomendarRefuerzo({ durationMinutes, assigned: pedidos, settings });
+  const refuerzo =
+    pedidos >= 2 ? null : recomendarRefuerzo({ durationMinutes, assigned: pedidos, settings });
+
+  const configurados = rolesConfigurados(settings);
+  if (configurados.length > 0) {
+    // Cuántas personas, en total. Con refuerzo se usa el número que configuró la institución
+    // (`recommendedCollaborators`, 2 por omisión) en vez de un 2 escrito acá.
+    const total = Math.max(pedidos, refuerzo?.recommended ?? pedidos, 1);
+    return [{ name: configurados[0]!, vacancies: total }];
+  }
+
+  if (pedidos >= 2) {
+    return [
+      { name: FOTOGRAFO_PRINCIPAL, vacancies: 1 },
+      { name: SEGUNDO_FOTOGRAFO, vacancies: Math.max(1, pedidos - 1) },
+    ];
+  }
 
   return refuerzo
     ? [
