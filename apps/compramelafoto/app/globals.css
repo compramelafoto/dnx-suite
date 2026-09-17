@@ -150,6 +150,61 @@
 }
 
 @layer utilities {
+  /* --- Grillas de los paneles con menú lateral -------------------------------
+   *
+   * Los breakpoints de Tailwind (`md:`, `lg:`, ...) miden el ancho de la
+   * VENTANA, no el espacio que queda al lado del menú lateral del panel
+   * (288px). Por eso, entre ~1024 y ~1300px, un `lg:grid-cols-4` pedía cuatro
+   * columnas dentro de un hueco donde sólo entraban dos: los importes se
+   * partían y se metían debajo de los iconos.
+   *
+   * Estas clases miden el ancho REAL del contenedor:
+   *   - nunca ponen más de N columnas (se ve igual que el diseño original
+   *     cuando hay lugar),
+   *   - nunca hacen una columna más angosta que el mínimo (cuando no hay
+   *     lugar, bajan de columnas en vez de apretar el contenido).
+   *
+   * Uso: `className="grid dnx-grid-4 gap-4"` (el `gap` sigue siendo de
+   * Tailwind; el `1rem`/`2rem`... de la fórmula es sólo una reserva y no
+   * necesita coincidir con él).
+   */
+  .dnx-grid-2 {
+    grid-template-columns: repeat(
+      auto-fit,
+      minmax(max(var(--dnx-grid-min, 17rem), (100% - 1rem) / 2), 1fr)
+    );
+  }
+  .dnx-grid-3 {
+    grid-template-columns: repeat(
+      auto-fit,
+      minmax(max(var(--dnx-grid-min, 15rem), (100% - 2rem) / 3), 1fr)
+    );
+  }
+  .dnx-grid-4 {
+    grid-template-columns: repeat(
+      auto-fit,
+      minmax(max(var(--dnx-grid-min, 14rem), (100% - 3rem) / 4), 1fr)
+    );
+  }
+  .dnx-grid-5 {
+    grid-template-columns: repeat(
+      auto-fit,
+      minmax(max(var(--dnx-grid-min, 11rem), (100% - 4rem) / 5), 1fr)
+    );
+  }
+  .dnx-grid-6 {
+    grid-template-columns: repeat(
+      auto-fit,
+      minmax(max(var(--dnx-grid-min, 9rem), (100% - 5rem) / 6), 1fr)
+    );
+  }
+
+  /* Para tiras de datos chicos que ya entraban de a dos en un celular. */
+  .dnx-grid-compacta {
+    --dnx-grid-min: 10rem;
+  }
+
+
   .container-custom {
     box-sizing: border-box;
     max-width: 1240px;

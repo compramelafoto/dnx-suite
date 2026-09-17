@@ -168,7 +168,7 @@ export function SchoolAlbumsTab(p: SchoolAlbumsTabProps) {
                               y reportes. Usar solo si se cargó mal originalmente.
                             </p>
                           ) : null}
-                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                          <div className="grid dnx-grid-2 gap-3">
                             <div>
                               <label className="mb-1 block text-xs font-medium text-gray-600">
                                 Nombre del álbum
@@ -273,7 +273,7 @@ export function SchoolAlbumsTab(p: SchoolAlbumsTabProps) {
                                 />
                                 Activar comisión para ventas desde link de escuela
                               </label>
-                              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                              <div className="grid dnx-grid-2 gap-3">
                                 <div>
                                   <label className="mb-1 block text-xs font-medium text-gray-600">
                                     Porcentaje (%)
@@ -506,7 +506,7 @@ export function SchoolAlbumsTab(p: SchoolAlbumsTabProps) {
                               compras existentes.
                             </p>
                           ) : null}
-                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                          <div className="grid dnx-grid-2 gap-3">
                             <div>
                               <label className="mb-1 block text-xs font-medium text-gray-600">Nombre</label>
                               <Input

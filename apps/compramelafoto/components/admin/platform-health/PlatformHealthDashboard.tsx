@@ -169,7 +169,7 @@ export default function PlatformHealthDashboard() {
               title="🧹 Limpieza Automática"
               subtitle={`Modo destructivo: ${data.cleanup.config.destructiveDelete ? "activo" : "desactivado"} · dry-run: ${data.cleanup.config.dryRun ? "sí" : "no"}`}
             />
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            <div className="grid dnx-grid-4 dnx-grid-compacta gap-3">
               <MetricCard
                 label="Pendientes"
                 value={albums.PENDING ?? 0}
@@ -268,7 +268,7 @@ export default function PlatformHealthDashboard() {
                 </Link>
               }
             />
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            <div className="grid dnx-grid-5 dnx-grid-compacta gap-3">
               <MetricCard label="Pendientes" value={data.exif.pending} tone="warn" icon="⏳" />
               <MetricCard
                 label="Analizadas"
@@ -315,7 +315,7 @@ export default function PlatformHealthDashboard() {
           {/* Equipos */}
           <section className="space-y-4">
             <SectionHeader title="🎥 Equipos Fotográficos" />
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            <div className="grid dnx-grid-5 dnx-grid-compacta gap-3">
               <MetricCard
                 label="Fotos analizadas"
                 value={data.equipment.photosAnalyzed}
@@ -331,7 +331,7 @@ export default function PlatformHealthDashboard() {
                 tone="neutral"
               />
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="grid dnx-grid-2 gap-4">
               <TopList title="Top 10 cámaras" items={data.equipment.topCameras} />
               <TopList title="Top 10 lentes" items={data.equipment.topLenses} />
             </div>
@@ -355,7 +355,7 @@ export default function PlatformHealthDashboard() {
                 Heartbeat: {formatDateTime(data.ftp.lastHeartbeatAt)}
               </span>
             </Card>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            <div className="grid dnx-grid-4 dnx-grid-compacta gap-3">
               <MetricCard
                 label="Conexiones activas"
                 value={data.ftp.enabledConnections}
@@ -374,7 +374,7 @@ export default function PlatformHealthDashboard() {
           {/* ZIP */}
           <section className="space-y-4">
             <SectionHeader id="zip" title="📦 ZIP" />
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid dnx-grid-4 dnx-grid-compacta gap-3">
               <MetricCard label="Pendientes" value={data.zip.byStatus.PENDING ?? 0} tone="warn" />
               <MetricCard
                 label="Procesando"
@@ -406,7 +406,7 @@ export default function PlatformHealthDashboard() {
                 </Link>
               }
             />
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid dnx-grid-4 dnx-grid-compacta gap-3">
               <MetricCard label="OCR completados" value={data.ai.ocrCompleted} tone="ok" />
               <MetricCard label="OCR pendientes" value={data.ai.ocrPending} tone="warn" />
               <MetricCard label="OCR fallidos" value={data.ai.ocrFailed} tone="danger" />
@@ -444,7 +444,7 @@ export default function PlatformHealthDashboard() {
                 </Link>
               }
             />
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid dnx-grid-4 dnx-grid-compacta gap-3">
               <MetricCard
                 label="Fotos totales (hist.)"
                 value={data.storage.photosTotalHistorical}
@@ -480,7 +480,7 @@ export default function PlatformHealthDashboard() {
           {/* Gráficos */}
           <section className="space-y-4">
             <SectionHeader title="📊 Tendencias (30 días)" />
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="grid dnx-grid-3 gap-4">
               <MiniBarChart
                 title="Álbumes limpiados / día"
                 series={data.charts.albumsCleanedPerDay}

@@ -324,7 +324,7 @@ export default function AdminEscuelasPage() {
       {activeSection === "escuelas" ? (
         <>
           <Card className="p-4 md:p-5 space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            <div className="grid dnx-grid-3 gap-3">
               <Input
                 placeholder="Buscar por colegio, fotógrafo, álbum, localidad o email"
                 value={search}
@@ -380,7 +380,7 @@ export default function AdminEscuelasPage() {
               </select>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid dnx-grid-3 gap-3">
               <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3">
                 <p className="text-xs uppercase tracking-wide text-gray-500">Escuelas listadas</p>
                 <p className="text-xl font-semibold text-gray-900">{schools.length}</p>
@@ -540,7 +540,7 @@ export default function AdminEscuelasPage() {
       ) : (
         <>
           <Card className="p-4 md:p-5 space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+            <div className="grid dnx-grid-4 gap-3">
               <Input
                 placeholder="Buscar por escuela, contacto, ciudad, email o WhatsApp"
                 value={leadSearch}
@@ -575,7 +575,7 @@ export default function AdminEscuelasPage() {
               </Button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <div className="grid dnx-grid-4 gap-3">
               <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3">
                 <p className="text-xs uppercase tracking-wide text-gray-500">Total</p>
                 <p className="text-xl font-semibold text-gray-900">{leadsSummary.total}</p>
@@ -775,7 +775,7 @@ export default function AdminEscuelasPage() {
                 <h2 className="text-xl font-semibold text-[#111827]">
                   Solicitud #{selectedLead.id} - {selectedLead.schoolName}
                 </h2>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2 text-sm text-[#374151]">
+                <div className="mt-4 grid gap-3 dnx-grid-2 text-sm text-[#374151]">
                   <p><span className="font-semibold">Ciudad:</span> {selectedLead.city}</p>
                   <p><span className="font-semibold">Contacto:</span> {selectedLead.contactName}</p>
                   <p><span className="font-semibold">Cargo:</span> {selectedLead.contactRole || "—"}</p>

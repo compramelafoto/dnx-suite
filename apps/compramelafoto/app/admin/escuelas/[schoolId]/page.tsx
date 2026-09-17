@@ -1462,7 +1462,7 @@ export default function AdminEscuelaDetallePage() {
                     <h4 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-700">
                       Resumen
                     </h4>
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                    <div className="grid dnx-grid-3 gap-3">
                       <div>
                         <p className="text-xs text-gray-500">Estado de pago</p>
                         <p className="text-sm text-gray-900">{selectedOrderDetail.order.paymentStatus}</p>
@@ -1504,7 +1504,7 @@ export default function AdminEscuelaDetallePage() {
                     <h4 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-700">
                       Cliente
                     </h4>
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                    <div className="grid dnx-grid-3 gap-3">
                       <div>
                         <p className="text-xs text-gray-500">Nombre</p>
                         <p className="text-sm text-gray-900">{selectedOrderDetail.client.name || "—"}</p>
@@ -1524,7 +1524,7 @@ export default function AdminEscuelaDetallePage() {
                     <h4 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-700">
                       Alumno
                     </h4>
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                    <div className="grid dnx-grid-4 gap-3">
                       <div>
                         <p className="text-xs text-gray-500">Nombre</p>
                         <p className="text-sm text-gray-900">{selectedOrderDetail.student.fullName}</p>
@@ -1569,7 +1569,7 @@ export default function AdminEscuelaDetallePage() {
                     <h4 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-700">
                       Álbum / Escuela
                     </h4>
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                    <div className="grid dnx-grid-4 gap-3">
                       <div>
                         <p className="text-xs text-gray-500">Escuela</p>
                         <p className="text-sm text-gray-900">{selectedOrderDetail.school.name || "—"}</p>
@@ -1609,7 +1609,7 @@ export default function AdminEscuelaDetallePage() {
                       ) : (
                         selectedOrderDetail.items.map((item) => (
                           <div key={item.id} className="rounded-lg border border-gray-200 p-3">
-                            <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
+                            <div className="grid dnx-grid-5 gap-2">
                               <div>
                                 <p className="text-xs text-gray-500">Item</p>
                                 <p className="text-sm text-gray-900">#{item.id}</p>
@@ -1679,7 +1679,7 @@ export default function AdminEscuelaDetallePage() {
                       {selectedOrderDetail.selection.selectedPhotosCount}
                     </p>
                     {selectedOrderDetail.selection.selectedPhotos.length > 0 ? (
-                      <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
+                      <div className="mt-3 grid dnx-grid-2 gap-2">
                         {selectedOrderDetail.selection.selectedPhotos.map((photo) => (
                           <div
                             key={photo.selectionPhotoId}

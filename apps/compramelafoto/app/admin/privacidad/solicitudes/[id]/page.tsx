@@ -80,7 +80,7 @@ export default function AdminPrivacyRequestDetailPage() {
       <div className="rounded-xl border border-gray-200 bg-white p-6 space-y-6">
         <div>
           <h2 className="text-sm font-medium text-gray-500 uppercase mb-2">Datos del solicitante</h2>
-          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+          <dl className="grid dnx-grid-2 gap-3 text-sm">
             <div><dt className="text-gray-500">Nombre</dt><dd className="font-medium">{request.fullName}</dd></div>
             <div><dt className="text-gray-500">Email</dt><dd className="font-medium">{request.email}</dd></div>
             <div><dt className="text-gray-500">Teléfono</dt><dd className="font-medium">{request.phone || "-"}</dd></div>
