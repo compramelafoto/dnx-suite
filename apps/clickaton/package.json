@@ -89,6 +89,7 @@
     "test:registration-window": "tsx --test data/public-marathons/registration-window.test.ts",
     "test:admin-datetime": "tsx --test lib/admin/datetime-input.test.ts",
     "test:accreditation-scan-ui": "tsx --test lib/accreditation/ui/scan-guidance.test.ts",
+    "test:accreditation-switch": "tsx --test lib/accreditation/ui/accreditation-switch.test.ts",
     "test:pack-offer-policy": "tsx --test lib/packs/pack-offer-policy.test.ts",
     "test:demo-schedule": "tsx --test scripts/lib/demo-schedule.test.ts",
     "seed:clickaton-blog-taxonomy": "tsx scripts/seed-clickaton-blog-taxonomy.ts",

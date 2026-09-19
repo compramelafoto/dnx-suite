@@ -1,13 +1,17 @@
 import { notFound } from "next/navigation";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { AdminTechnicalInfo } from "@/components/admin/AdminTechnicalInfo";
+import { ConfirmSubmitButton } from "@/components/admin/ConfirmSubmitButton";
+import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { adminRoutes } from "@/config/admin/navigation";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
+import { presentarInterruptorDeAcreditacion } from "@/lib/accreditation/ui/accreditation-switch";
 import { prisma } from "@/lib/admin/db";
 import {
   registerDeviceAction,
+  toggleAccreditationAction,
   syncOfflineAction,
 } from "@/lib/accreditation/actions";
 import {
@@ -31,6 +35,12 @@ export default async function EditionAccreditationPage({ params }: Props) {
     id: user.id,
     email: user.email,
     globalRole: user.globalRole,
+  });
+
+  const interruptor = presentarInterruptorDeAcreditacion({
+    habilitado: dash.window.enabled,
+    ingresosRegistrados: dash.totals.checkedIn,
+    ventanaAbierta: dash.window.canCheckIn === true,
   });
 
   return (
@@ -75,18 +85,49 @@ export default async function EditionAccreditationPage({ params }: Props) {
       </div>
 
       <Card variant="outlined" className="space-y-3 p-5 text-sm">
-        <p>
-          Ventana de acreditación:{" "}
-          <strong>
-            {dash.window.canCheckIn == null
-              ? "Horario a confirmar"
-              : dash.window.canCheckIn
-                ? "Abierta"
-                : "Cerrada"}
-          </strong>
-          {" · "}Módulo:{" "}
-          <strong>{dash.window.enabled ? "Habilitado" : "Deshabilitado"}</strong>
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0 space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant={interruptor.tono}>{interruptor.estado}</Badge>
+              <span className="text-ck-text-secondary">
+                Horario de acreditación:{" "}
+                <strong>
+                  {dash.window.canCheckIn == null
+                    ? "a confirmar"
+                    : dash.window.canCheckIn
+                      ? "abierto"
+                      : "cerrado"}
+                </strong>
+              </span>
+            </div>
+            <p className="text-ck-text-muted">{interruptor.explicacion}</p>
+          </div>
+
+          <form action={toggleAccreditationAction.bind(null, editionId)}>
+            <input
+              type="hidden"
+              name="enabled"
+              value={interruptor.accion === "ENCENDER" ? "true" : "false"}
+            />
+            {interruptor.pideConfirmacion && interruptor.textoDeConfirmacion ? (
+              <ConfirmSubmitButton
+                confirmMessage={interruptor.textoDeConfirmacion}
+                variant="outline"
+                size="sm"
+              >
+                {interruptor.etiquetaDelBoton}
+              </ConfirmSubmitButton>
+            ) : (
+              <Button
+                type="submit"
+                variant={interruptor.accion === "ENCENDER" ? "primary" : "outline"}
+                size="sm"
+              >
+                {interruptor.etiquetaDelBoton}
+              </Button>
+            )}
+          </form>
+        </div>
         <p className="text-ck-text-secondary">
           El código QR se utiliza durante la acreditación para identificar al participante.
         </p>

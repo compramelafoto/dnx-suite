@@ -872,6 +872,49 @@ export async function getAccreditationDashboard(editionId: string, actor: Actor)
   };
 }
 
+/**
+ * Enciende o apaga el módulo de acreditación de una edición.
+ *
+ * Hasta acá no había forma de hacerlo desde el panel: la configuración nacía
+ * apagada y nadie la cambiaba, así que el escáner rechazaba todas las
+ * credenciales el día del evento. Queda auditado quién lo movió y cuándo.
+ */
+export async function setAccreditationEnabled(input: {
+  editionId: string;
+  enabled: boolean;
+  actor: Actor;
+}): Promise<{ enabled: boolean }> {
+  await requireCap(input.actor, input.editionId, CAPABILITY_MANAGE_DEVICES);
+
+  const previo = await prisma.clickatonEditionAccreditationConfig.findUnique({
+    where: { editionId: input.editionId },
+    select: { accreditationEnabled: true },
+  });
+
+  const config = await prisma.clickatonEditionAccreditationConfig.upsert({
+    where: { editionId: input.editionId },
+    create: {
+      editionId: input.editionId,
+      accreditationEnabled: input.enabled,
+      identityMode: "VISUAL",
+      geofenceMode: "OFF",
+      allowOfflineEvents: true,
+    },
+    update: { accreditationEnabled: input.enabled },
+    select: { accreditationEnabled: true },
+  });
+
+  await writeAudit({
+    editionId: input.editionId,
+    action: input.enabled ? "ACCREDITATION_ENABLED" : "ACCREDITATION_DISABLED",
+    actorUserId: input.actor.id,
+    previousValue: { accreditationEnabled: previo?.accreditationEnabled ?? false },
+    nextValue: { accreditationEnabled: config.accreditationEnabled },
+  });
+
+  return { enabled: config.accreditationEnabled };
+}
+
 export async function ensureAccreditationConfig(editionId: string) {
   return prisma.clickatonEditionAccreditationConfig.upsert({
     where: { editionId },
