@@ -1,6 +1,6 @@
 name: Chequeos
 
-# Chequea tipos y corre las pruebas de CompraMeLaFoto antes de mergear.
+# Chequea tipos y corre las pruebas de CompraMeLaFoto y Clickatón antes de mergear.
 #
 # Por qué existe: el chequeo de tipos lo hacía `next build` en la máquina de
 # Vercel, y ahí se quedaba sin memoria y mataba el deploy — la app tiene 250
@@ -51,6 +51,17 @@ jobs:
         run: pnpm --filter compramelafoto typecheck
         env:
           NODE_OPTIONS: --max-old-space-size=8192
+
+      # Clickatón está en la misma situación: su build en Vercel también se
+      # quedaba sin memoria en el paso de tipos, así que se apagó allá
+      # (`typescript.ignoreBuildErrors` en su next.config.ts) y se chequea acá.
+      - name: Chequear tipos de Clickatón
+        run: pnpm --filter clickaton check-types
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+
+      - name: Pruebas del Ensayo de edición
+        run: pnpm --filter clickaton selfcheck:edition-rehearsal
 
       - name: Pruebas del paquete de finanzas
         run: pnpm --filter @repo/finance-control test
