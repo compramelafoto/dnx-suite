@@ -4,10 +4,17 @@ import { useState, useTransition } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { chequearEdicionAction, type RespuestaChequeo } from "@/lib/edition-rehearsal/actions";
+import {
+  chequearEdicionAction,
+  ensayarEnSecoAction,
+  type RespuestaChequeo,
+} from "@/lib/edition-rehearsal/actions";
+import type { ModoDeEnsayo } from "@/lib/edition-rehearsal/application/dry-run-steps";
+import type { ResultadoEnsayoEnSeco } from "@/lib/edition-rehearsal/application/run-dry-rehearsal";
 import {
   agruparPorRubro,
   enlaceDeHallazgo,
+  presentarEstadoDePaso,
   presentarRubro,
   presentarSeveridad,
   resumirHallazgos,
@@ -27,15 +34,46 @@ function formatearMomento(iso: string, timezone: string): string {
   }).format(new Date(iso));
 }
 
+/** Pasa un instante a lo que espera un `<input type="datetime-local">`, en hora de la edición. */
+function aCampoDeFecha(fecha: Date, timezone: string): string {
+  const partes = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(fecha);
+  const valor = (tipo: string) => partes.find((p) => p.type === tipo)?.value ?? "00";
+  return `${valor("year")}-${valor("month")}-${valor("day")}T${valor("hour")}:${valor("minute")}`;
+}
+
 export function RehearsalClient({ editionId, editionName, timezone }: Props) {
   const [chequeo, setChequeo] = useState<RespuestaChequeo | null>(null);
   const [revisando, empezarRevision] = useTransition();
+
+  const [modo, setModo] = useState<ModoDeEnsayo>("RECORRIDO");
+  const [momento, setMomento] = useState<string>(() => aCampoDeFecha(new Date(), timezone));
+  const [ensayo, setEnsayo] = useState<ResultadoEnsayoEnSeco | null>(null);
+  const [ensayando, empezarEnsayo] = useTransition();
 
   function revisar() {
     empezarRevision(async () => {
       setChequeo(await chequearEdicionAction(editionId));
     });
   }
+
+  function ensayar(modoElegido: ModoDeEnsayo, momentoElegido?: string) {
+    const valor = momentoElegido ?? momento;
+    setModo(modoElegido);
+    empezarEnsayo(async () => {
+      const iso = valor ? new Date(valor).toISOString() : null;
+      setEnsayo(await ensayarEnSecoAction(editionId, iso, modoElegido));
+    });
+  }
+
+  const atajos = ensayo?.ok === true ? ensayo.atajos : [];
 
   const resumen =
     chequeo?.ok === true ? resumirHallazgos(chequeo.hallazgos) : null;
@@ -117,6 +155,132 @@ export function RehearsalClient({ editionId, editionName, timezone }: Props) {
           <p className="text-sm text-ck-text-muted">
             Todavía no revisaste nada. Apretá &laquo;Revisar todo&raquo; para empezar.
           </p>
+        ) : null}
+      </Card>
+
+      <Card variant="outlined" className="space-y-4 p-5">
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold text-ck-text">Ensayo del participante</h2>
+          <p className="text-sm text-ck-text-muted">
+            Recorre los diez pasos que hace una persona, desde que mira la página hasta que
+            su foto queda revisada. Usa las mismas reglas que el sitio de verdad, pero no
+            crea ninguna inscripción ni modifica nada.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="primary"
+            loading={ensayando && modo === "RECORRIDO"}
+            onClick={() => ensayar("RECORRIDO")}
+          >
+            Ensayar el recorrido completo
+          </Button>
+          <span className="text-xs text-ck-text-muted">
+            Cada paso se evalúa en el momento en que de verdad ocurriría.
+          </span>
+        </div>
+
+        <div className="space-y-3 rounded-[var(--ck-radius-sm)] border border-ck-border p-4">
+          <div className="space-y-1">
+            <h3 className="text-sm font-medium text-ck-text">O pararse en un momento</h3>
+            <p className="text-xs text-ck-text-muted">
+              Elegí una fecha y hora y mirá qué le pasa a alguien que entra exactamente en
+              ese instante. La hora es la de la edición ({timezone}) y sólo existe dentro de
+              esta simulación: nadie más en el sitio ve nada distinto.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="datetime-local"
+              value={momento}
+              onChange={(e) => setMomento(e.target.value)}
+              aria-label="Fecha y hora a simular"
+              className="rounded-[var(--ck-radius-sm)] border border-ck-border bg-ck-surface-strong px-3 py-2 text-sm text-ck-text"
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              loading={ensayando && modo === "INSTANTE"}
+              onClick={() => ensayar("INSTANTE")}
+            >
+              Ver qué pasa a esa hora
+            </Button>
+          </div>
+
+          {atajos.length > 0 ? (
+            <div className="space-y-2">
+              <p className="text-xs uppercase tracking-[0.1em] text-ck-text-muted">
+                Momentos de esta edición
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {atajos
+                  .filter((a) => a.momentoIso !== null)
+                  .map((a) => (
+                    <Button
+                      key={a.id}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      title={a.porQue}
+                      onClick={() => {
+                        const valor = aCampoDeFecha(new Date(a.momentoIso as string), timezone);
+                        setMomento(valor);
+                        ensayar("INSTANTE", valor);
+                      }}
+                    >
+                      {a.etiqueta}
+                    </Button>
+                  ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        {ensayo?.ok === false ? (
+          <p className="text-sm text-[var(--ck-danger)]">{ensayo.mensaje}</p>
+        ) : null}
+
+        {ensayo?.ok === true ? (
+          <div className="space-y-4">
+            <div className="rounded-[var(--ck-radius-sm)] border border-ck-border bg-ck-surface-strong p-4">
+              <p className="text-sm font-medium text-ck-text">{ensayo.resultado.veredicto}</p>
+              <p className="mt-1 text-xs text-ck-text-muted">
+                {modo === "RECORRIDO"
+                  ? "Recorrido completo: cada paso en su momento natural."
+                  : `Parado en el ${formatearMomento(ensayo.resultado.momentoSimulado, timezone)} (hora de la edición).`}
+              </p>
+            </div>
+
+            <ol className="space-y-2">
+              {ensayo.resultado.pasos.map((p) => {
+                const estado = presentarEstadoDePaso(p.estado);
+                return (
+                  <li
+                    key={p.numero}
+                    className="rounded-[var(--ck-radius-sm)] border border-ck-border p-3"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="ck-label text-ck-text-muted">Paso {p.numero}</span>
+                      <Badge variant={estado.variante}>{estado.etiqueta}</Badge>
+                      <span className="text-sm font-medium text-ck-text">{p.nombre}</span>
+                    </div>
+                    <p className="mt-2 text-sm text-ck-text-secondary">
+                      Lo que vería: {p.queVeria}
+                    </p>
+                    <p className="mt-1 text-sm text-ck-text-muted">{p.detalle}</p>
+                    {p.comoArreglar ? (
+                      <p className="mt-1 text-sm text-ck-text-muted">
+                        Qué hacer: {p.comoArreglar}
+                      </p>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
         ) : null}
       </Card>
     </div>

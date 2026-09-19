@@ -71,7 +71,7 @@ test("una edición gratuita no necesita fase de precio", () => {
   const hallazgos = revisarEdicion(
     edicionSana({
       fasesDePrecio: [],
-      entradas: [{ id: "t1", nombre: "Gratuita", precio: 0, agotada: false, cupo: 300 }],
+      entradas: [{ id: "t1", codigo: "FREE", nombre: "Gratuita", precio: 0, agotada: false, cupo: 300 }],
     }),
     AHORA,
   );
@@ -88,7 +88,7 @@ test("sin entradas cargadas no se puede inscribir nadie", () => {
 test("todas las entradas agotadas avisan pero no bloquean", () => {
   const hallazgos = revisarEdicion(
     edicionSana({
-      entradas: [{ id: "t1", nombre: "General", precio: 1_500_000, agotada: true, cupo: 300 }],
+      entradas: [{ id: "t1", codigo: "GEN", nombre: "General", precio: 1_500_000, agotada: true, cupo: 300 }],
     }),
     AHORA,
   );
@@ -102,6 +102,7 @@ test("la captura que cierra después de la subida es bloqueante", () => {
         {
           id: "c1",
           estado: "READY",
+          liberadaEl: null,
           capturaAbreEl: new Date("2026-10-10T19:00:00.000Z"),
           capturaCierraEl: new Date("2026-10-10T23:00:00.000Z"),
           subidaAbreEl: new Date("2026-10-10T19:00:00.000Z"),
@@ -123,6 +124,7 @@ test("consignas sin ventana de captura avisan", () => {
         {
           id: "c1",
           estado: "READY",
+          liberadaEl: null,
           capturaAbreEl: null,
           capturaCierraEl: null,
           subidaAbreEl: null,
@@ -170,7 +172,7 @@ test("Mercado Pago desconectado con edición gratuita no molesta", () => {
   const hallazgos = revisarEdicion(
     edicionSana({
       mercadoPagoConectado: false,
-      entradas: [{ id: "t1", nombre: "Gratuita", precio: 0, agotada: false, cupo: 300 }],
+      entradas: [{ id: "t1", codigo: "FREE", nombre: "Gratuita", precio: 0, agotada: false, cupo: 300 }],
     }),
     AHORA,
   );

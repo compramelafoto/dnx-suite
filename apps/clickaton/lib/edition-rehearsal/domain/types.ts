@@ -35,12 +35,15 @@ export type Hallazgo = {
 export type FaseDePrecio = {
   id: string;
   nombre: string;
+  /** Importe en la unidad que guarda la base (centavos). */
+  monto: number;
   comienzaEl: Date | null;
   terminaEl: Date | null;
 };
 
 export type EntradaDeEdicion = {
   id: string;
+  codigo: string;
   nombre: string;
   /** En la unidad que guarda la base (centavos). Cero = gratuita. */
   precio: number;
@@ -54,6 +57,8 @@ export type EstadoDeConsigna = "DRAFT" | "READY" | "RELEASED" | "CLOSED" | "CANC
 export type ConsignaDeEdicion = {
   id: string;
   estado: EstadoDeConsigna;
+  /** Marca de la liberación real. Si existe, manda sobre cualquier fecha planificada. */
+  liberadaEl: Date | null;
   capturaAbreEl: Date | null;
   capturaCierraEl: Date | null;
   subidaAbreEl: Date | null;
@@ -73,7 +78,11 @@ export type FotoDeEdicion = {
   slug: string;
   nombre: string;
   publicada: boolean;
+  /** Estado de la edición tal como lo guarda la base (DRAFT, REGISTRATION_OPEN…). */
+  estado: string;
   inscripcionHabilitada: boolean;
+  moneda: string;
+  prefijoDeCodigo: string | null;
   zonaHoraria: string;
   comienzaEl: Date | null;
   terminaEl: Date | null;

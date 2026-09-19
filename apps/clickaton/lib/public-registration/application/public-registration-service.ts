@@ -284,12 +284,24 @@ export function createPublicRegistrationService(deps: {
    * en un momento distinto del actual. Nunca llega desde el navegador.
    */
   clock?: EditionClock | null;
+  /**
+   * Alta idempotente de la entrada Pack 4 al armar el contexto. Escribe en la
+   * base, así que el ensayo en seco la reemplaza por una función que no hace
+   * nada: mirar una edición nunca debería modificarla.
+   */
+  ensurePackTicket?: ((editionId: string) => Promise<unknown>) | null;
 }) {
   const { repo } = deps;
   const rateLimit = deps.rateLimit ?? null;
   const confirmFree = deps.confirmFree ?? null;
   const promotions = deps.promotions ?? null;
   const clock = deps.clock ?? systemClock();
+  const ensurePackTicket =
+    deps.ensurePackTicket ??
+    (async (editionId: string) => {
+      const { ensureMarathonPackTicket } = await import("@/lib/packs/ensure-pack-ticket");
+      return ensureMarathonPackTicket(editionId);
+    });
   const expireUseCase = createExpirePendingRegistrationsUseCase({ repo });
   const eligibilityUseCase = createCheckoutEligibilityUseCase({ repo });
 
@@ -377,8 +389,7 @@ export function createPublicRegistrationService(deps: {
       }
       const venues = await repo.listActiveVenues(edition.id);
       try {
-        const { ensureMarathonPackTicket } = await import("@/lib/packs/ensure-pack-ticket");
-        await ensureMarathonPackTicket(edition.id);
+        await ensurePackTicket(edition.id);
       } catch (error) {
         console.error("[clickaton] ensureMarathonPackTicket failed:", error);
       }

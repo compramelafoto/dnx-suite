@@ -20,7 +20,10 @@ export function edicionSana(over: Partial<FotoDeEdicion> = {}): FotoDeEdicion {
     slug: "clickaton-de-prueba",
     nombre: "Clickatón de prueba",
     publicada: true,
+    estado: "REGISTRATION_OPEN",
     inscripcionHabilitada: true,
+    moneda: "ARS",
+    prefijoDeCodigo: "PRB26",
     zonaHoraria: "America/Argentina/Buenos_Aires",
     comienzaEl: COMIENZA,
     terminaEl: TERMINA,
@@ -30,12 +33,13 @@ export function edicionSana(over: Partial<FotoDeEdicion> = {}): FotoDeEdicion {
       {
         id: "f1",
         nombre: "General",
+        monto: 1_500_000,
         comienzaEl: INSCRIPCION_ABRE,
         terminaEl: INSCRIPCION_CIERRA,
       },
     ],
     entradas: [
-      { id: "t1", nombre: "General", precio: 1_500_000, agotada: false, cupo: 300 },
+      { id: "t1", codigo: "GEN", nombre: "General", precio: 1_500_000, agotada: false, cupo: 300 },
     ],
     tieneCronogramaActivo: true,
     eventos: [
@@ -46,6 +50,7 @@ export function edicionSana(over: Partial<FotoDeEdicion> = {}): FotoDeEdicion {
       {
         id: "c1",
         estado: "READY",
+        liberadaEl: null,
         capturaAbreEl: COMIENZA,
         capturaCierraEl: new Date("2026-10-10T22:00:00.000Z"),
         subidaAbreEl: COMIENZA,
@@ -77,6 +82,7 @@ export function edicionConFaseDePrecioVencida(): FotoDeEdicion {
       {
         id: "f1",
         nombre: "Anticipada",
+        monto: 1_200_000,
         comienzaEl: INSCRIPCION_ABRE,
         terminaEl: new Date("2026-09-25T23:59:00.000Z"),
       },

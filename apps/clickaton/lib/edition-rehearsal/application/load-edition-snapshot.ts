@@ -77,6 +77,9 @@ export async function cargarFotoDeEdicion(editionId: string): Promise<FotoDeEdic
       slug: true,
       name: true,
       isPublished: true,
+      status: true,
+      currency: true,
+      visibleCodePrefix: true,
       registrationEnabled: true,
       timezone: true,
       startAt: true,
@@ -85,13 +88,14 @@ export async function cargarFotoDeEdicion(editionId: string): Promise<FotoDeEdic
       registrationCloseAt: true,
       pricePhases: {
         where: { isActive: true },
-        select: { id: true, name: true, startsAt: true, endsAt: true },
+        select: { id: true, name: true, amount: true, startsAt: true, endsAt: true },
         orderBy: { startsAt: "asc" },
       },
       ticketTypes: {
         where: { isActive: true },
         select: {
           id: true,
+          code: true,
           name: true,
           priceAmount: true,
           capacity: true,
@@ -103,6 +107,7 @@ export async function cargarFotoDeEdicion(editionId: string): Promise<FotoDeEdic
         select: {
           id: true,
           status: true,
+          releasedAt: true,
           captureStartsAt: true,
           captureEndsAt: true,
           uploadStartsAt: true,
@@ -147,6 +152,7 @@ export async function cargarFotoDeEdicion(editionId: string): Promise<FotoDeEdic
   const consignas: ConsignaDeEdicion[] = edicion.prompts.map((p) => ({
     id: p.id,
     estado: estadoDeConsigna(p.status),
+    liberadaEl: p.releasedAt,
     capturaAbreEl: p.captureStartsAt ?? config?.captureWindowStartsAt ?? null,
     capturaCierraEl: p.captureEndsAt ?? config?.captureWindowEndsAt ?? null,
     subidaAbreEl: p.uploadStartsAt ?? config?.uploadWindowStartsAt ?? null,
@@ -162,7 +168,10 @@ export async function cargarFotoDeEdicion(editionId: string): Promise<FotoDeEdic
     slug: edicion.slug,
     nombre: edicion.name,
     publicada: edicion.isPublished,
+    estado: edicion.status,
     inscripcionHabilitada: edicion.registrationEnabled,
+    moneda: edicion.currency,
+    prefijoDeCodigo: edicion.visibleCodePrefix,
     zonaHoraria: edicion.timezone ?? "America/Argentina/Buenos_Aires",
     comienzaEl: edicion.startAt,
     terminaEl: edicion.endAt,
@@ -171,11 +180,13 @@ export async function cargarFotoDeEdicion(editionId: string): Promise<FotoDeEdic
     fasesDePrecio: edicion.pricePhases.map((f) => ({
       id: f.id,
       nombre: f.name,
+      monto: f.amount,
       comienzaEl: f.startsAt,
       terminaEl: f.endsAt,
     })),
     entradas: edicion.ticketTypes.map((t) => ({
       id: t.id,
+      codigo: t.code,
       nombre: t.name,
       precio: t.priceAmount,
       cupo: t.capacity,
