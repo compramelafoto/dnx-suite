@@ -394,7 +394,9 @@ export async function processPromptUpload(input: {
       );
     }
 
-    const exif = await extractPhotoExif(input.buffer);
+    const exif = await extractPhotoExif(input.buffer, {
+      timeZone: ctx.registration.edition.timezone ?? "America/Argentina/Cordoba",
+    });
     let width = 0;
     let height = 0;
     let decodable = false;
@@ -504,14 +506,23 @@ export async function processPromptUpload(input: {
       },
     });
 
-    const nextStatus =
-      validation === "FAIL" ? "REJECTED" : "PENDING_CONFIRMATION";
+    /**
+     * Ninguna entrega se rechaza sola por la lectura técnica.
+     *
+     * El reloj de la cámara, un EXIF borrado al editar o una foto exportada
+     * pueden dar una lectura fuera de ventana sin que la persona haya hecho
+     * nada mal, y durante la maratón no hay a quién reclamarle. La foto entra
+     * siempre y queda marcada para revisión: decide la organización, no el
+     * lector de metadatos.
+     */
+    const validationResult = validation === "FAIL" ? "MANUAL_REVIEW" : validation;
+    const nextStatus = "PENDING_CONFIRMATION";
 
     const updated = await prisma.clickatonPhotoSubmission.update({
       where: { id: submission.id },
       data: {
         status: nextStatus,
-        validationResult: validation,
+        validationResult,
         sha256: hash,
         originalStorageKey: original.key,
         previewStorageKey: previewKey,
@@ -535,8 +546,8 @@ export async function processPromptUpload(input: {
           duplicate,
           privateOriginal: true,
         },
-        failureCode: validation === "FAIL" ? captureEval.reason : null,
-        failureMessage: validation === "FAIL" ? "Validación técnica fallida." : null,
+        failureCode: null,
+        failureMessage: null,
       },
     });
 
@@ -618,11 +629,19 @@ export async function confirmPromptSubmission(input: {
   if (!submission || submission.userId !== input.userId) {
     throw new PhotoUploadError("NOT_FOUND", "Envío no encontrado.", 404);
   }
-  if (submission.status !== "PENDING_CONFIRMATION" && submission.status !== "READY_FOR_REVIEW") {
+  /**
+   * Se admite confirmar también lo que quedó marcado como rechazado por la
+   * lectura técnica: la foto está subida y la revisión la resuelve después la
+   * organización. Solo se frena lo que todavía no terminó de subir.
+   */
+  const confirmables = [
+    "PENDING_CONFIRMATION",
+    "READY_FOR_REVIEW",
+    "REJECTED",
+    "CONFIRMED",
+  ];
+  if (!confirmables.includes(submission.status)) {
     throw new PhotoUploadError("NOT_CONFIRMABLE", "El envío no está listo para confirmar.", 409);
-  }
-  if (submission.validationResult === "FAIL") {
-    throw new PhotoUploadError("VALIDATION_FAILED", "No se puede confirmar un envío rechazado.", 409);
   }
   if (!submission.fotorankEntryId) {
     throw new PhotoUploadError("ENTRY_MISSING", "Falta vínculo FotoRank.", 409);
@@ -642,7 +661,7 @@ export async function confirmPromptSubmission(input: {
   });
 
   const tech =
-    submission.validationResult === "MANUAL_REVIEW"
+    submission.validationResult === "MANUAL_REVIEW" || submission.validationResult === "FAIL"
       ? "REQUIRES_REVIEW"
       : submission.validationResult === "WARNING"
         ? "APPROVED_WITH_WARNINGS"
