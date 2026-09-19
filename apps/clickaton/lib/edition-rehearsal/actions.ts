@@ -4,11 +4,13 @@ import { requireClickatonAdmin } from "@/lib/admin/auth";
 import { prisma } from "@/lib/admin/db";
 import type { ModoDeEnsayo } from "./application/dry-run-steps";
 import { correrEnsayoEnSeco, type ResultadoEnsayoEnSeco } from "./application/run-dry-rehearsal";
+import { descartarEdicionDeEnsayo } from "./application/discard-edition";
 import { correrChequeoDeEdicion } from "./application/run-edition-check";
 import {
   correrEnsayoCompleto,
   type ResultadoEnsayoCompleto,
 } from "./application/run-full-rehearsal";
+import { PALABRA_DE_CONFIRMACION, confirmacionValida } from "./domain/confirmacion";
 import type { Hallazgo } from "./domain/types";
 
 export type RespuestaChequeo =
@@ -70,14 +72,18 @@ export async function ensayarEnSecoAction(
 
 /**
  * Ensayo completo: crea una copia descartable, escribe de verdad sobre ella y
- * la borra al terminar.
+ * la deja en pie para poder recorrerla.
  *
- * Pide escribir el nombre exacto de la edición antes de arrancar. La edición
- * real nunca se toca: todo lo que se escribe cuelga de la copia.
+ * Pide escribir una palabra fija antes de arrancar. Antes pedía el nombre
+ * exacto de la edición, pero los nombres reales traen espacios dobles y
+ * símbolos que no se ven en pantalla: nadie lograba escribirlos.
+ *
+ * La edición real nunca se toca: todo lo que se escribe cuelga de la copia.
  */
 export async function ensayarCompletoAction(
   editionId: string,
-  nombreEscrito: string,
+  confirmacion: string,
+  dejarEnPie = false,
 ): Promise<ResultadoEnsayoCompleto> {
   const user = await requireClickatonAdmin({
     returnTo: `/admin/ediciones/${editionId}/ensayo`,
@@ -86,18 +92,36 @@ export async function ensayarCompletoAction(
   const id = editionId.trim();
   if (!id) return { ok: false, mensaje: "Falta el identificador de la edición." };
 
-  const edicion = await prisma.clickatonEdition.findUnique({
-    where: { id },
-    select: { name: true },
-  });
-  if (!edicion) return { ok: false, mensaje: "No encontramos esa edición." };
-
-  if (nombreEscrito.trim() !== edicion.name.trim()) {
+  if (!confirmacionValida(confirmacion)) {
     return {
       ok: false,
-      mensaje: `Para confirmar, escribí el nombre exacto de la edición: ${edicion.name}`,
+      mensaje: `Para confirmar, escribí «${PALABRA_DE_CONFIRMACION}» en el casillero.`,
     };
   }
 
-  return correrEnsayoCompleto({ editionId: id, operadorUserId: user.id });
+  const edicion = await prisma.clickatonEdition.findUnique({
+    where: { id },
+    select: { id: true },
+  });
+  if (!edicion) return { ok: false, mensaje: "No encontramos esa edición." };
+
+  return correrEnsayoCompleto({ editionId: id, operadorUserId: user.id, dejarEnPie });
+}
+
+/**
+ * Borra una copia de ensayo que quedó en pie.
+ *
+ * El guardián del borrado se niega a tocar nada que no esté marcado como copia
+ * descartable, así que no hay forma de que esto alcance una edición real.
+ */
+export async function descartarCopiaDeEnsayoAction(
+  editionId: string,
+  copiaId: string,
+): Promise<{ ok: true; borrado: Record<string, number> } | { ok: false; mensaje: string }> {
+  await requireClickatonAdmin({ returnTo: `/admin/ediciones/${editionId}/ensayo` });
+
+  const id = copiaId.trim();
+  if (!id) return { ok: false, mensaje: "Falta el identificador de la copia." };
+
+  return descartarEdicionDeEnsayo(id);
 }

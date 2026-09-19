@@ -116,6 +116,8 @@
     "test:edition-rehearsal-checks": "tsx --test lib/edition-rehearsal/domain/checks.test.ts",
     "test:edition-rehearsal-ux": "tsx --test lib/edition-rehearsal/ui/rehearsal-presentation.test.ts",
     "test:edition-rehearsal-presets": "tsx --test lib/edition-rehearsal/domain/timeline-presets.test.ts",
+    "test:edition-rehearsal-pantallas": "tsx --test lib/edition-rehearsal/domain/pantallas.test.ts lib/edition-rehearsal/domain/confirmacion.test.ts",
+    "test:participant-live-acceso": "tsx --test lib/participant-live/acceso.test.ts",
     "selfcheck:edition-rehearsal": "tsx scripts/edition-rehearsal.selfcheck.ts",
     "test:edition-rehearsal-discard": "tsx --test lib/edition-rehearsal/application/discard-guard.test.ts"
   },

@@ -27,9 +27,14 @@ export type ResultadoEnsayoCompleto =
       resultado: ResultadoEnsayo;
       copiaId: string;
       copiaNombre: string;
+      copiaSlug: string;
+      /** Inscripción ficticia creada, para poder abrir sus pantallas. */
+      registrationId: string | null;
       creado: Record<string, number>;
       borrado: Record<string, number> | null;
       avisoDeLimpieza: string | null;
+      /** `true` cuando la copia quedó en pie para poder recorrerla. */
+      copiaEnPie: boolean;
     }
   | { ok: false; mensaje: string; copiaId?: string };
 
@@ -300,6 +305,14 @@ export async function correrEnsayoCompleto(input: {
   operadorUserId: number;
   momento?: Date | null;
   modo?: ModoDeEnsayo;
+  /**
+   * Dejar la copia en pie al terminar, en vez de borrarla.
+   *
+   * Es lo que permite abrir las pantallas del participante ficticio y tocar los
+   * botones. La copia queda marcada como descartable y con un botón para
+   * borrarla cuando se termine de mirar.
+   */
+  dejarEnPie?: boolean;
 }): Promise<ResultadoEnsayoCompleto> {
   const modo = input.modo ?? "RECORRIDO";
   const clock: EditionClock = input.momento ? fixedClock(input.momento) : systemClock();
@@ -311,6 +324,7 @@ export async function correrEnsayoCompleto(input: {
   let pasos: ResultadoPaso[] = [];
   let borrado: Record<string, number> | null = null;
   let avisoDeLimpieza: string | null = null;
+  let registrationId: string | null = null;
 
   try {
     const fotoDeLaCopia = await cargarFotoDeEdicion(clon.copiaId);
@@ -332,6 +346,7 @@ export async function correrEnsayoCompleto(input: {
       pasos = [...inscripcion.pasos, ...cortados];
     } else {
       creado["inscripciones"] = 1;
+      registrationId = inscripcion.registrationId;
       const confirmacion = await confirmarYAcreditar({
         registrationId: inscripcion.registrationId,
         copiaSlug: clon.copiaSlug,
@@ -354,11 +369,13 @@ export async function correrEnsayoCompleto(input: {
       ];
     }
   } finally {
-    const limpieza = await descartarEdicionDeEnsayo(clon.copiaId);
-    if (limpieza.ok) {
-      borrado = limpieza.borrado;
-    } else {
-      avisoDeLimpieza = limpieza.mensaje;
+    if (!input.dejarEnPie) {
+      const limpieza = await descartarEdicionDeEnsayo(clon.copiaId);
+      if (limpieza.ok) {
+        borrado = limpieza.borrado;
+      } else {
+        avisoDeLimpieza = limpieza.mensaje;
+      }
     }
   }
 
@@ -373,9 +390,12 @@ export async function correrEnsayoCompleto(input: {
     resultado: { momentoSimulado: clock.now().toISOString(), pasos, veredicto },
     copiaId: clon.copiaId,
     copiaNombre: clon.copiaNombre,
+    copiaSlug: clon.copiaSlug,
+    registrationId,
     creado,
     borrado,
     avisoDeLimpieza,
+    copiaEnPie: input.dejarEnPie === true,
   };
 }
 
