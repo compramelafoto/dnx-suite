@@ -75,25 +75,39 @@ test("la copia crea el workspace y la ficha en una sola transacción", async () 
   assert.equal(datosFicha!.id, "j1");
 });
 
-test("ninguna ruta de Clickatón autentica contra la tabla espejo", async () => {
-  // La copia no es una puerta de entrada. Si alguien más adelante intenta
-  // usarla para iniciar sesión, esta prueba se lo dice.
+test("nadie toca la tabla espejo con el cliente local de Clickatón", async () => {
+  // La copia no es una puerta de entrada. Lo que se prohíbe no es nombrar la
+  // tabla — `lib/jury-directory` la consulta legítimamente en el padrón maestro,
+  // con un cliente inyectado — sino alcanzarla con el Prisma local de
+  // Clickatón, que es el único que ve la copia.
   const { execFileSync } = await import("node:child_process");
-  let salida = "";
-  try {
-    salida = execFileSync("grep", ["-rn", "fotorankJudgeAccount", "app", "lib"], {
-      encoding: "utf8",
-    });
-  } catch {
-    // grep sale con 1 cuando no encuentra nada: es el caso bueno.
-    salida = "";
+  const { readFileSync } = await import("node:fs");
+
+  function grep(patron: string): string[] {
+    try {
+      return execFileSync("grep", ["-rl", patron, "app", "lib"], { encoding: "utf8" })
+        .split("\n")
+        .filter(Boolean);
+    } catch {
+      // grep sale con 1 cuando no encuentra nada: es el caso bueno.
+      return [];
+    }
   }
-  const sospechosas = salida
-    .split("\n")
-    .filter((l) => l.trim() && !l.includes("lib/jury-mirror/"));
+
+  const tocanLaTabla = grep("fotorankJudgeAccount").filter(
+    (f) => !f.includes("lib/jury-mirror/"),
+  );
+  const conClienteLocal = tocanLaTabla.filter((archivo) => {
+    const contenido = readFileSync(archivo, "utf8");
+    return (
+      contenido.includes('from "@/lib/admin/db"') ||
+      contenido.includes('from "@repo/db"')
+    );
+  });
+
   assert.deepEqual(
-    sospechosas,
+    conClienteLocal,
     [],
-    `Sólo lib/jury-mirror puede tocar fotorankJudgeAccount en Clickatón:\n${sospechosas.join("\n")}`,
+    `Estos archivos alcanzan fotorankJudgeAccount con el Prisma local de Clickatón:\n${conClienteLocal.join("\n")}`,
   );
 });
