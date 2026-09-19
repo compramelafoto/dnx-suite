@@ -10,6 +10,7 @@ import {
   resolveHighestActivePricePhase,
 } from "@/lib/pricing/domain/resolve-price-phase";
 import { assertInstagramHandle } from "@repo/media-composition";
+import { systemClock, type EditionClock } from "@/lib/timeline/clock";
 import { sendParticipantFunnelEmail } from "@/lib/registration/notifications/participant-email";
 import {
   signRegistrationAccessToken,
@@ -85,18 +86,20 @@ function fingerprint(input: {
     .digest("hex");
 }
 
-function registrationWindowOf(edition: {
-  isPublished: boolean;
-  registrationEnabled: boolean;
-  status: string;
-  registrationOpenAt: Date | null;
-  registrationCloseAt: Date | null;
-}): PublicRegistrationContextDto["registrationWindow"] {
+function registrationWindowOf(
+  edition: {
+    isPublished: boolean;
+    registrationEnabled: boolean;
+    status: string;
+    registrationOpenAt: Date | null;
+    registrationCloseAt: Date | null;
+  },
+  now: number,
+): PublicRegistrationContextDto["registrationWindow"] {
   if (!edition.isPublished || !edition.registrationEnabled) return "unavailable";
   if (edition.status === "CANCELLED" || edition.status === "COMPLETED" || edition.status === "DRAFT") {
     return "unavailable";
   }
-  const now = Date.now();
   if (edition.registrationOpenAt && edition.registrationOpenAt.getTime() > now) {
     return "not_open";
   }
@@ -275,11 +278,30 @@ export function createPublicRegistrationService(deps: {
   /** Prisma-backed in production; omit in in-memory selfchecks. */
   confirmFree?: ConfirmFreeRegistrationFn | null;
   promotions?: PromotionsPort | null;
+  /**
+   * Reloj de la edición. Por defecto la hora real.
+   * El ensayo de edición lo inyecta para preguntar qué vería un participante
+   * en un momento distinto del actual. Nunca llega desde el navegador.
+   */
+  clock?: EditionClock | null;
+  /**
+   * Alta idempotente de la entrada Pack 4 al armar el contexto. Escribe en la
+   * base, así que el ensayo en seco la reemplaza por una función que no hace
+   * nada: mirar una edición nunca debería modificarla.
+   */
+  ensurePackTicket?: ((editionId: string) => Promise<unknown>) | null;
 }) {
   const { repo } = deps;
   const rateLimit = deps.rateLimit ?? null;
   const confirmFree = deps.confirmFree ?? null;
   const promotions = deps.promotions ?? null;
+  const clock = deps.clock ?? systemClock();
+  const ensurePackTicket =
+    deps.ensurePackTicket ??
+    (async (editionId: string) => {
+      const { ensureMarathonPackTicket } = await import("@/lib/packs/ensure-pack-ticket");
+      return ensureMarathonPackTicket(editionId);
+    });
   const expireUseCase = createExpirePendingRegistrationsUseCase({ repo });
   const eligibilityUseCase = createCheckoutEligibilityUseCase({ repo });
 
@@ -294,7 +316,7 @@ export function createPublicRegistrationService(deps: {
           reason: "edition_unavailable",
         };
       }
-      const window = registrationWindowOf(edition);
+      const window = registrationWindowOf(edition, clock.now().getTime());
       if (window === "unavailable") {
         return {
           available: false,
@@ -358,7 +380,7 @@ export function createPublicRegistrationService(deps: {
           "Esta edición no está disponible para inscripción.",
         );
       }
-      const window = registrationWindowOf(edition);
+      const window = registrationWindowOf(edition, clock.now().getTime());
       if (window === "unavailable") {
         throw new PublicRegistrationError(
           "EDITION_NOT_AVAILABLE",
@@ -367,8 +389,7 @@ export function createPublicRegistrationService(deps: {
       }
       const venues = await repo.listActiveVenues(edition.id);
       try {
-        const { ensureMarathonPackTicket } = await import("@/lib/packs/ensure-pack-ticket");
-        await ensureMarathonPackTicket(edition.id);
+        await ensurePackTicket(edition.id);
       } catch (error) {
         console.error("[clickaton] ensureMarathonPackTicket failed:", error);
       }
@@ -382,7 +403,7 @@ export function createPublicRegistrationService(deps: {
       ];
 
       const phases = await repo.listPricePhases(edition.id);
-      const resolvedPhase = resolveCurrentPricePhase(phases, new Date());
+      const resolvedPhase = resolveCurrentPricePhase(phases, clock.now());
       const highestPhase = resolveHighestActivePricePhase(phases);
       let phaseItems =
         resolvedPhase != null
@@ -392,7 +413,7 @@ export function createPublicRegistrationService(deps: {
       let shirtBenefitEnded = false;
       if (phaseItems.length > 0) {
         const claims = await repo.countPhaseBenefitClaims(phaseItems.map((i) => i.id));
-        const now = new Date();
+        const now = clock.now();
         const hadMerch = phaseItems.some((i) => i.isIncluded && i.fulfillmentRequired);
         const { available, omitted } = filterPhaseItemsByFirstNQuota(phaseItems, {
           confirmedByItemId: claims.confirmedByItemId,
@@ -554,7 +575,7 @@ export function createPublicRegistrationService(deps: {
       validateParticipant(input.participant);
 
       const edition = await repo.getEditionBySlug(input.editionSlug);
-      if (!edition || registrationWindowOf(edition) !== "open") {
+      if (!edition || registrationWindowOf(edition, clock.now().getTime()) !== "open") {
         throw new PublicRegistrationError(
           "EDITION_NOT_AVAILABLE",
           "La edición no admite nuevas inscripciones en este momento.",
@@ -602,7 +623,7 @@ export function createPublicRegistrationService(deps: {
         }
       }
 
-      const now = new Date();
+      const now = clock.now();
       const { isMarathonPackTicketCode } = await import("@/lib/packs/marathon-pack");
       const isPack = isMarathonPackTicketCode(ticket.code) || Boolean(ticket.isMarathonPack);
       const usePassCredit = Boolean(input.usePassCredit);
@@ -1008,7 +1029,7 @@ export function createPublicRegistrationService(deps: {
       const venueName =
         venues.find((v) => v.id === registration.venueId)?.name ?? null;
       const ticket = await repo.getTicketDetail(registration.ticketTypeId);
-      const now = new Date();
+      const now = clock.now();
       const stale = isStalePendingHold({
         status: registration.status,
         holdExpiresAt: registration.holdExpiresAt,
@@ -1030,6 +1051,11 @@ export function createPublicRegistrationService(deps: {
         (registration.status === "PENDING_PAYMENT" || registration.status === "DRAFT");
 
       // Token de acceso: al menos 5 min tras apertura; no extender artificialmente reservas vencidas.
+      //
+      // A propósito con la hora real y no con `clock`: el vencimiento de un token
+      // firmado se mide contra el tiempo del mundo. Con el reloj simulado, un
+      // ensayo parado en el pasado emitiría un token ya vencido y uno parado en el
+      // futuro, un token con vida artificialmente larga.
       const holdMs = registration.holdExpiresAt?.getTime();
       const tokenExpMs =
         holdMs && holdMs > Date.now()
