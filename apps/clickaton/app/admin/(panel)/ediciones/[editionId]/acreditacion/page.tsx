@@ -145,6 +145,11 @@ export default async function EditionAccreditationPage({ params }: Props) {
 
       <Card variant="outlined" className="space-y-4 p-5">
         <h2 className="font-semibold">Dispositivos</h2>
+        <p className="text-sm text-ck-text-secondary">
+          Registrá cada celular o tablet que va a escanear en la puerta. Después, en la pantalla
+          de escaneo, el operador elige cuál está usando y cada acreditación queda atada a ese
+          aparato.
+        </p>
         <form action={registerDeviceAction.bind(null, editionId)} className="flex flex-wrap gap-3">
           <input
             name="name"
@@ -171,11 +176,31 @@ export default async function EditionAccreditationPage({ params }: Props) {
             <li className="text-ck-text-muted">Sin dispositivos registrados.</li>
           ) : null}
         </ul>
-        <form action={syncOfflineAction.bind(null, editionId)}>
-          <Button type="submit" size="sm" variant="outline">
-            Sincronizar cola offline
-          </Button>
-        </form>
+        <div className="space-y-2 border-t border-ck-border pt-4">
+          <h3 className="text-sm font-semibold">Acreditaciones tomadas sin conexión</h3>
+          {dash.offline.allowed ? (
+            <p className="text-sm text-ck-text-secondary">
+              Esperando sincronizar: <strong>{dash.offline.pending}</strong> · ya acreditadas:{" "}
+              <strong>{dash.offline.synced}</strong> · con conflicto:{" "}
+              <strong>{dash.offline.conflicts}</strong> · rechazadas:{" "}
+              <strong>{dash.offline.rejected}</strong>
+            </p>
+          ) : (
+            <p className="text-sm text-amber-300">
+              El modo sin conexión está apagado para esta edición: si se cae la red en la sede,
+              los escaneos se pierden.
+            </p>
+          )}
+          <p className="text-xs text-ck-text-muted">
+            Cada celular sincroniza solo al recuperar la señal. Este botón fuerza el intento
+            desde el servidor, por si quedó algo trabado.
+          </p>
+          <form action={syncOfflineAction.bind(null, editionId)}>
+            <Button type="submit" size="sm" variant="outline">
+              Sincronizar cola offline
+            </Button>
+          </form>
+        </div>
       </Card>
 
       <Card variant="outlined" className="space-y-3 p-5">

@@ -7,6 +7,9 @@ import { presentAdminFulfillmentStatus } from "@/lib/admin-registration/ui/admin
 import { presentAccreditationEligibilityReason } from "@/lib/social-communications/ui/social-communications-status-presentation";
 import { avisarEscaneo, avisoParaTono } from "@/lib/accreditation/ui/scan-feedback";
 import { describirBloqueoDeAcreditacion } from "@/lib/accreditation/ui/scan-guidance";
+import { esFalloDeConexion } from "@/lib/accreditation/ui/offline-queue";
+import { useColaOffline } from "./useColaOffline";
+import { ColaOfflinePanel } from "./ColaOfflinePanel";
 
 type ScanResult = {
   tone?: "GREEN" | "YELLOW" | "RED" | "BLUE";
@@ -59,7 +62,16 @@ const toneLabel: Record<string, string> = {
   BLUE: "Ya acreditado",
 };
 
-type Props = { editionId: string };
+export type AparatoDeSede = { id: string; name: string };
+
+type Props = { editionId: string; devices?: AparatoDeSede[] };
+
+/** Etiqueta corta para reconocer el escaneo en la lista de pendientes. */
+function etiquetaDeEscaneo(input: { qr?: string; shortCode?: string }): string {
+  if (input.shortCode) return `Nº ${input.shortCode}`;
+  if (input.qr) return `QR …${input.qr.slice(-6)}`;
+  return "Escaneo sin conexión";
+}
 
 type BarcodeDetectorLike = {
   detect: (source: ImageBitmapSource) => Promise<Array<{ rawValue: string }>>;
@@ -67,8 +79,9 @@ type BarcodeDetectorLike = {
 
 type BarcodeDetectorCtor = new (options: { formats: string[] }) => BarcodeDetectorLike;
 
-export function AccreditationScanner({ editionId }: Props) {
+export function AccreditationScanner({ editionId, devices = [] }: Props) {
   const inputId = useId();
+  const aparatoId = useId();
   const [pending, startTransition] = useTransition();
   const [manual, setManual] = useState("");
   const [result, setResult] = useState<ScanResult | null>(null);
@@ -77,16 +90,58 @@ export function AccreditationScanner({ editionId }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const lastScanRef = useRef<string>("");
+  const cola = useColaOffline(editionId);
+  const { guardarEscaneo } = cola;
+
+  /**
+   * Guarda el escaneo en el celular y avisa por pantalla y por sonido.
+   *
+   * Es lo que separa un corte de wifi de una acreditación perdida: el operador
+   * no puede ver acá si la persona pagó, eso se resuelve al sincronizar.
+   */
+  const guardarSinConexion = useCallback(
+    (payload: { qr?: string; shortCode?: string; registrationId?: string; nombre?: string }) => {
+      const agregada = guardarEscaneo({
+        qr: payload.qr,
+        shortCode: payload.shortCode,
+        registrationIdHint: payload.registrationId,
+        etiqueta: payload.nombre ?? etiquetaDeEscaneo(payload),
+      });
+      avisarEscaneo("warning");
+      setResult(null);
+      setMessage(
+        agregada
+          ? "Sin conexión: guardado en este celular. Se acredita solo cuando vuelva la señal."
+          : "Ese escaneo ya estaba guardado esperando conexión.",
+      );
+    },
+    [guardarEscaneo],
+  );
 
   const runScan = useCallback(
     async (payload: { qr?: string; shortCode?: string }) => {
+      // Sin señal ni lo intentamos: en la puerta, esperar el timeout es la fila
+      // parada. El escaneo se guarda y se resuelve después.
+      if (!cola.enLinea) {
+        guardarSinConexion(payload);
+        return;
+      }
       setMessage("Validando…");
-      const res = await fetch(`/api/admin/editions/${editionId}/accreditation/scan`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const json = (await res.json()) as ScanResult;
+      let res: Response;
+      try {
+        res = await fetch(`/api/admin/editions/${editionId}/accreditation/scan`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      } catch (error) {
+        if (esFalloDeConexion(error)) {
+          guardarSinConexion(payload);
+          return;
+        }
+        throw error;
+      }
+      const json = (await res.json().catch(() => ({}))) as ScanResult;
       if (!res.ok) {
         avisarEscaneo("error");
         setResult({ tone: "RED", reason: json.error ?? "ERROR", message: json.message });
@@ -97,22 +152,47 @@ export function AccreditationScanner({ editionId }: Props) {
       setResult(json);
       setMessage(toneLabel[json.tone ?? ""] ?? json.reason ?? null);
     },
-    [editionId],
+    [editionId, cola.enLinea, guardarSinConexion],
   );
 
   const confirmCheckIn = useCallback(async () => {
-    if (!result?.participant?.registrationId) return;
+    const participante = result?.participant;
+    if (!participante?.registrationId) return;
+    const nombre = `${participante.firstName} ${participante.lastName}`.trim();
+
+    if (!cola.enLinea) {
+      guardarSinConexion({ registrationId: participante.registrationId, nombre });
+      return;
+    }
+
     setMessage("Confirmando check-in…");
-    const res = await fetch(`/api/admin/editions/${editionId}/accreditation/check-in`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        registrationId: result.participant.registrationId,
-        requestId: crypto.randomUUID(),
-        identityStatus: "VERIFIED",
-      }),
-    });
-    const json = (await res.json()) as { result?: ScanResult; duplicate?: boolean; error?: string; message?: string };
+    let res: Response;
+    try {
+      res = await fetch(`/api/admin/editions/${editionId}/accreditation/check-in`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          registrationId: participante.registrationId,
+          requestId: crypto.randomUUID(),
+          identityStatus: "VERIFIED",
+          deviceId: cola.aparatoId ?? undefined,
+        }),
+      });
+    } catch (error) {
+      // La caída justo al confirmar es el peor caso: la persona ya está en la
+      // puerta y verificada. Se guarda con la inscripción ya resuelta.
+      if (esFalloDeConexion(error)) {
+        guardarSinConexion({ registrationId: participante.registrationId, nombre });
+        return;
+      }
+      throw error;
+    }
+    const json = (await res.json().catch(() => ({}))) as {
+      result?: ScanResult;
+      duplicate?: boolean;
+      error?: string;
+      message?: string;
+    };
     if (!res.ok) {
       avisarEscaneo("error");
       setMessage(json.message ?? json.error ?? "No se pudo acreditar");
@@ -121,21 +201,38 @@ export function AccreditationScanner({ editionId }: Props) {
     avisarEscaneo(json.duplicate ? "warning" : "ok");
     if (json.result) setResult(json.result);
     setMessage(json.duplicate ? "Ya estaba acreditado (idempotente)." : "Acreditado correctamente.");
-  }, [editionId, result?.participant?.registrationId]);
+  }, [editionId, result?.participant, cola.enLinea, cola.aparatoId, guardarSinConexion]);
 
   const deliverItem = useCallback(
     async (itemId: string) => {
       if (!result?.participant?.registrationId) return;
       setMessage("Registrando entrega…");
-      const res = await fetch(`/api/admin/editions/${editionId}/accreditation/kit-deliver`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          registrationId: result.participant.registrationId,
-          itemId,
-        }),
-      });
-      const json = (await res.json()) as ScanResult & { error?: string; message?: string };
+      let res: Response;
+      try {
+        res = await fetch(`/api/admin/editions/${editionId}/accreditation/kit-deliver`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            registrationId: result.participant.registrationId,
+            itemId,
+          }),
+        });
+      } catch (error) {
+        // La entrega del kit no tiene respaldo sin conexión: el servidor sólo
+        // sabe reponer acreditaciones. Se dice en claro en vez de fingir.
+        if (esFalloDeConexion(error)) {
+          avisarEscaneo("error");
+          setMessage(
+            "Sin conexión no se puede registrar la entrega del kit. Entregalo y cargalo cuando vuelva la señal.",
+          );
+          return;
+        }
+        throw error;
+      }
+      const json = (await res.json().catch(() => ({}))) as ScanResult & {
+        error?: string;
+        message?: string;
+      };
       if (!res.ok) {
         setMessage(json.message ?? json.error ?? "No se pudo entregar");
         return;
@@ -145,6 +242,13 @@ export function AccreditationScanner({ editionId }: Props) {
     },
     [editionId, result?.participant?.registrationId],
   );
+
+  // La cámara no debe reiniciarse porque cambió la conexión o el aparato
+  // elegido: se lee siempre la última versión del escaneo desde el ref.
+  const runScanRef = useRef(runScan);
+  useEffect(() => {
+    runScanRef.current = runScan;
+  }, [runScan]);
 
   useEffect(() => {
     if (!cameraOn) {
@@ -174,18 +278,20 @@ export function AccreditationScanner({ editionId }: Props) {
         if (!Detector || !videoRef.current) return;
         const detector = new Detector({ formats: ["qr_code"] });
         const tick = async () => {
-          if (!cameraOn || !videoRef.current) return;
+          // `cancelled` y no `cameraOn`: el valor del closure queda viejo y el
+          // bucle seguía girando para siempre después de cerrar la cámara.
+          if (cancelled || !videoRef.current) return;
           try {
             const codes = await detector.detect(videoRef.current);
             const value = codes[0]?.rawValue?.trim();
             if (value && value !== lastScanRef.current) {
               lastScanRef.current = value;
-              await runScan({ qr: value });
+              await runScanRef.current({ qr: value });
             }
           } catch {
             /* ignore frame errors */
           }
-          if (cameraOn) requestAnimationFrame(() => void tick());
+          if (!cancelled) requestAnimationFrame(() => void tick());
         };
         requestAnimationFrame(() => void tick());
       } catch {
@@ -197,10 +303,44 @@ export function AccreditationScanner({ editionId }: Props) {
       cancelled = true;
       streamRef.current?.getTracks().forEach((t) => t.stop());
     };
-  }, [cameraOn, runScan]);
+  }, [cameraOn]);
 
   return (
     <div className="space-y-6">
+      <ColaOfflinePanel
+        entradas={cola.entradas}
+        sinResolver={cola.sinResolver}
+        enLinea={cola.enLinea}
+        sincronizando={cola.sincronizando}
+        mensaje={cola.mensaje}
+        onSincronizar={() => void cola.sincronizar()}
+        onQuitar={cola.quitar}
+        onLimpiar={cola.limpiarSincronizadas}
+      />
+
+      {devices.length > 0 ? (
+        <label className="block text-sm" htmlFor={aparatoId}>
+          Aparato de la sede
+          <select
+            id={aparatoId}
+            value={cola.aparatoId ?? ""}
+            onChange={(e) => cola.elegirAparato(e.target.value || null)}
+            className="mt-1 w-full rounded border border-ck-border bg-transparent px-3 py-3 text-base"
+          >
+            <option value="">Sin identificar</option>
+            {devices.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </select>
+          <span className="mt-1 block text-xs text-ck-text-muted">
+            Queda registrado con qué aparato se acreditó a cada persona. Se recuerda en este
+            celular.
+          </span>
+        </label>
+      ) : null}
+
       <div className="flex flex-wrap gap-3">
         <Button
           type="button"
