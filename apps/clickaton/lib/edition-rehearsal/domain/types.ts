@@ -84,9 +84,17 @@ export type FotoDeEdicion = {
   tieneCronogramaActivo: boolean;
   eventos: EventoDeCronograma[];
   consignas: ConsignaDeEdicion[];
+  /**
+   * Cada módulo tiene dos cosas distintas: que exista su configuración y que
+   * el interruptor esté encendido. En la base los tres interruptores nacen
+   * apagados, así que hay que mirarlos por separado.
+   */
+  hayConfiguracionDeAcreditacion: boolean;
   acreditacionHabilitada: boolean;
   hayConfiguracionDeSubida: boolean;
+  subidaHabilitada: boolean;
   hayConfiguracionDeAdmision: boolean;
+  admisionHabilitada: boolean;
   mercadoPagoConectado: boolean;
 };
 

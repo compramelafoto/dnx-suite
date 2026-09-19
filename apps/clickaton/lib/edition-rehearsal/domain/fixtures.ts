@@ -52,9 +52,12 @@ export function edicionSana(over: Partial<FotoDeEdicion> = {}): FotoDeEdicion {
         subidaCierraEl: TERMINA,
       },
     ],
+    hayConfiguracionDeAcreditacion: true,
     acreditacionHabilitada: true,
     hayConfiguracionDeSubida: true,
+    subidaHabilitada: true,
     hayConfiguracionDeAdmision: true,
+    admisionHabilitada: true,
     mercadoPagoConectado: true,
     ...over,
   };

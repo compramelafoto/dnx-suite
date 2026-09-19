@@ -187,6 +187,41 @@ test("acreditación apagada avisa", () => {
   assert.equal(buscar(hallazgos, "acreditacion-apagada")?.severidad, "ATENCION");
 });
 
+test("la subida apagada es bloqueante aunque la configuración exista", () => {
+  const hallazgos = revisarEdicion(
+    edicionSana({ hayConfiguracionDeSubida: true, subidaHabilitada: false }),
+    AHORA,
+  );
+  const hallazgo = buscar(hallazgos, "subida-apagada");
+  assert.ok(hallazgo, "falta el control del interruptor de subida");
+  assert.equal(hallazgo.severidad, "BLOQUEANTE");
+  assert.match(hallazgo.detalle, /no pueden? (subir|cargar)/i);
+});
+
+test("la subida encendida no se queja", () => {
+  const hallazgos = revisarEdicion(edicionSana(), AHORA);
+  assert.equal(buscar(hallazgos, "subida-apagada")?.severidad, "BIEN");
+});
+
+test("la admisión apagada avisa sin bloquear", () => {
+  const hallazgos = revisarEdicion(edicionSana({ admisionHabilitada: false }), AHORA);
+  assert.equal(buscar(hallazgos, "admision-apagada")?.severidad, "ATENCION");
+});
+
+test("consignas en borrador y subida apagada se reportan como dos problemas distintos", () => {
+  const hallazgos = revisarEdicion(
+    edicionConConsignasEnBorrador2({ subidaHabilitada: false }),
+    AHORA,
+  );
+  const bloqueantes = hallazgos.filter((h) => h.severidad === "BLOQUEANTE").map((h) => h.id);
+  assert.ok(bloqueantes.includes("consignas-en-borrador"));
+  assert.ok(bloqueantes.includes("subida-apagada"));
+});
+
+function edicionConConsignasEnBorrador2(over: Parameters<typeof edicionSana>[0] = {}) {
+  return { ...edicionConConsignasEnBorrador(), ...over };
+}
+
 test("la ventana de inscripción ya cerrada avisa cuando la maratón no pasó", () => {
   const hallazgos = revisarEdicion(
     edicionSana({ inscripcionCierraEl: new Date("2026-09-10T23:59:00.000Z") }),

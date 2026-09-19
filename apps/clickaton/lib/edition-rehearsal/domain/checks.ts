@@ -438,7 +438,7 @@ function revisarConsignas(foto: FotoDeEdicion): Hallazgo[] {
 
 function revisarAcreditacion(foto: FotoDeEdicion): Hallazgo[] {
   return [
-    foto.acreditacionHabilitada
+    foto.hayConfiguracionDeAcreditacion && foto.acreditacionHabilitada
       ? hallazgo({
           id: "acreditacion-apagada",
           rubro: "ACREDITACION",
@@ -460,7 +460,9 @@ function revisarAcreditacion(foto: FotoDeEdicion): Hallazgo[] {
 }
 
 function revisarSubida(foto: FotoDeEdicion): Hallazgo[] {
-  return [
+  const salida: Hallazgo[] = [];
+
+  salida.push(
     foto.hayConfiguracionDeSubida
       ? hallazgo({
           id: "sin-configuracion-de-subida",
@@ -479,11 +481,37 @@ function revisarSubida(foto: FotoDeEdicion): Hallazgo[] {
           comoArreglar: "Configurá la subida de fotos de la edición.",
           enlace: "consignas",
         }),
-  ];
+  );
+
+  // Tener la configuración no alcanza: el interruptor nace apagado.
+  salida.push(
+    foto.subidaHabilitada
+      ? hallazgo({
+          id: "subida-apagada",
+          rubro: "SUBIDA",
+          severidad: "BIEN",
+          titulo: "La subida de fotos está encendida",
+          detalle: "Los participantes van a poder cargar sus fotos.",
+        })
+      : hallazgo({
+          id: "subida-apagada",
+          rubro: "SUBIDA",
+          severidad: "BLOQUEANTE",
+          titulo: "La subida de fotos está apagada",
+          detalle:
+            "La configuración existe pero el interruptor está en cero: los participantes no pueden cargar ninguna foto, por más que las consignas estén liberadas y la hora sea la correcta.",
+          comoArreglar: "Encendé la subida de fotos de la edición.",
+          enlace: "consignas",
+        }),
+  );
+
+  return salida;
 }
 
 function revisarAdmision(foto: FotoDeEdicion): Hallazgo[] {
-  return [
+  const salida: Hallazgo[] = [];
+
+  salida.push(
     foto.hayConfiguracionDeAdmision
       ? hallazgo({
           id: "sin-configuracion-de-admision",
@@ -502,7 +530,30 @@ function revisarAdmision(foto: FotoDeEdicion): Hallazgo[] {
           comoArreglar: "Configurá la admisión técnica de la edición.",
           enlace: "admision",
         }),
-  ];
+  );
+
+  salida.push(
+    foto.admisionHabilitada
+      ? hallazgo({
+          id: "admision-apagada",
+          rubro: "ADMISION",
+          severidad: "BIEN",
+          titulo: "La admisión técnica está encendida",
+          detalle: "Cada foto que entre se va a revisar sola.",
+        })
+      : hallazgo({
+          id: "admision-apagada",
+          rubro: "ADMISION",
+          severidad: "ATENCION",
+          titulo: "La admisión técnica está apagada",
+          detalle:
+            "Las fotos entran igual, pero ninguna se revisa automáticamente: la hora de captura y el GPS quedan sin controlar hasta que alguien los mire a mano.",
+          comoArreglar: "Encendé la admisión técnica de la edición.",
+          enlace: "admision",
+        }),
+  );
+
+  return salida;
 }
 
 /** Revisa una edición entera y devuelve un hallazgo por control. */
