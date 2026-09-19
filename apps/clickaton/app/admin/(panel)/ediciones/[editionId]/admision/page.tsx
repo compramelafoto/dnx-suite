@@ -32,6 +32,7 @@ import {
   presentAdmissionStatus,
   presentBatchStatus,
 } from "@/lib/technical-admission/ui/admission-status-presentation";
+import { buildJuryPreviewPath } from "@/lib/jury-media/signed-link";
 import { formatSubmissionDateTime } from "@/lib/photo-upload/ui/submission-status-presentation";
 import {
   CONFLICT_OF_INTEREST_COPY,
@@ -74,6 +75,27 @@ export default async function EditionAdmissionPage({ params }: Props) {
       fotorankEntryId: true,
     },
   });
+
+  // Vista previa de cada obra: decidir sin ver la fotografía no es decidir.
+  // El enlace se firma acá, en el servidor, y vence en 30 minutos.
+  const entryIds = recent
+    .map((d) => d.fotorankEntryId)
+    .filter((id): id is string => Boolean(id));
+  const previewAssets = entryIds.length
+    ? await prisma.fotorankContestEntryAsset.findMany({
+        where: { entryId: { in: entryIds }, isActive: true, kind: "JURY_PREVIEW" },
+        select: { id: true, entryId: true },
+      })
+    : [];
+  const previewPathByEntryId = new Map<string, string>();
+  const previewExpiresAt = new Date(Date.now() + 30 * 60 * 1000);
+  for (const asset of previewAssets) {
+    if (!asset.entryId || previewPathByEntryId.has(asset.entryId)) continue;
+    previewPathByEntryId.set(
+      asset.entryId,
+      buildJuryPreviewPath({ assetId: asset.id, expiresAt: previewExpiresAt }),
+    );
+  }
 
   const batchStatus = presentBatchStatus(dash.batch?.status);
   const kpiCards: Array<{ label: string; value: number; help: string }> = [
@@ -387,17 +409,35 @@ export default async function EditionAdmissionPage({ params }: Props) {
                 ? presentAdmissionReasonCode(primaryReasonCode)
                 : null;
 
+              const previewPath = d.fotorankEntryId
+                ? (previewPathByEntryId.get(d.fotorankEntryId) ?? null)
+                : null;
+
               return (
                 <li
                   key={d.id}
                   className="space-y-3 rounded-[var(--ck-radius-card)] border border-ck-border px-4 py-4"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <p className="text-sm font-semibold text-ck-text">{admission.label}</p>
-                      <p className="text-xs text-ck-text-muted">
-                        Evaluada: {formatSubmissionDateTime(d.evaluatedAt)}
-                      </p>
+                    <div className="flex items-start gap-3">
+                      {previewPath ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={previewPath}
+                          alt="Vista previa de la obra evaluada"
+                          className="h-20 w-20 shrink-0 rounded-[var(--ck-radius-sm)] border border-ck-border object-cover"
+                        />
+                      ) : (
+                        <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-[var(--ck-radius-sm)] border border-dashed border-ck-border px-2 text-center text-xs text-ck-text-muted">
+                          Sin vista previa
+                        </span>
+                      )}
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold text-ck-text">{admission.label}</p>
+                        <p className="text-xs text-ck-text-muted">
+                          Evaluada: {formatSubmissionDateTime(d.evaluatedAt)}
+                        </p>
+                      </div>
                     </div>
                     <Badge variant={admissionToneToBadgeVariant(admission.tone)}>
                       {admission.label}
