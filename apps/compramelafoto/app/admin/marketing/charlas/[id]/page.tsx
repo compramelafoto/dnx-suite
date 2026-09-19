@@ -268,7 +268,7 @@ export default function AdminTalkDetailPage() {
       <Tabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab}>
         {activeTab === "summary" && (
           <div className="space-y-6">
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 dnx-grid-4">
               <div className="rounded-xl border border-gray-200 bg-white p-4">
                 <p className="text-xs text-gray-500">Inscriptos</p>
                 <p className="text-xl font-semibold">{metrics.total}</p>
@@ -448,7 +448,7 @@ export default function AdminTalkDetailPage() {
 
         {activeTab === "settings" && (
           <div className="rounded-xl border border-gray-200 bg-white p-6 space-y-4 text-sm text-gray-600">
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 dnx-grid-2">
               <div>
                 <label className="text-xs font-medium text-gray-500">Título</label>
                 <input

@@ -184,7 +184,7 @@ export default function AdminEventsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm text-gray-600">
+              <div className="grid dnx-grid-3 gap-3 text-sm text-gray-600">
                 <div>
                   <p className="text-xs uppercase tracking-wide text-gray-400">Organizador</p>
                   <p className="text-gray-800">{event.creator?.name || event.creator?.email || "—"}</p>
