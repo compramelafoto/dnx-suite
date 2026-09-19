@@ -1447,7 +1447,18 @@ export async function saveJudgeVote(input: {
   }
   const assignment = gate.assignment;
 
-  const entry = await prisma.fotorankContestEntry.findUnique({
+  // Un cliente mezclado escribiría el voto en la base equivocada y nadie se
+  // enteraría hasta buscar los resultados. Se resuelve una sola vez, acá.
+  const db = gate.platform === "clickaton" ? getClickatonJuryPrisma() : prisma;
+  if (!db) {
+    return {
+      ok: false,
+      error:
+        "No podemos guardar tu voto en este momento porque no llegamos a las obras de Clickatón. Volvé a intentar en un rato.",
+    };
+  }
+
+  const entry = await db.fotorankContestEntry.findUnique({
     where: { id: input.entryId },
     select: {
       id: true,
@@ -1473,7 +1484,7 @@ export async function saveJudgeVote(input: {
     return { ok: false, error: "Esta obra no está confirmada o no está disponible para evaluación." };
   }
 
-  let existing = await prisma.fotorankJudgeVote.findUnique({
+  let existing = await db.fotorankJudgeVote.findUnique({
     where: {
       assignmentId_entryId: {
         assignmentId: input.assignmentId,
@@ -1502,7 +1513,7 @@ export async function saveJudgeVote(input: {
 
   if (!existing) {
     try {
-      await prisma.fotorankJudgeVote.create({
+      await db.fotorankJudgeVote.create({
         data: {
           assignmentId: input.assignmentId,
           entryId: input.entryId,
@@ -1519,7 +1530,7 @@ export async function saveJudgeVote(input: {
       const isUnique =
         e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
       if (!isUnique) throw e;
-      existing = await prisma.fotorankJudgeVote.findUnique({
+      existing = await db.fotorankJudgeVote.findUnique({
         where: {
           assignmentId_entryId: {
             assignmentId: input.assignmentId,
@@ -1547,7 +1558,7 @@ export async function saveJudgeVote(input: {
       version: existing.version,
     };
 
-    const updated = await prisma.fotorankJudgeVote.update({
+    const updated = await db.fotorankJudgeVote.update({
       where: { id: existing.id },
       data: {
         valueNumeric: voteData.valueNumeric,
@@ -1560,7 +1571,7 @@ export async function saveJudgeVote(input: {
       },
     });
 
-    await prisma.fotorankJudgeVoteHistory.create({
+    await db.fotorankJudgeVoteHistory.create({
       data: {
         voteId: existing.id,
         assignmentId: input.assignmentId,
@@ -1580,7 +1591,7 @@ export async function saveJudgeVote(input: {
     });
   }
 
-  await prisma.fotorankJudgeAuditEvent.create({
+  await db.fotorankJudgeAuditEvent.create({
     data: {
       organizationId: assignment.organizationId,
       contestId: assignment.contestId,
