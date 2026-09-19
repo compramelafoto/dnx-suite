@@ -3,6 +3,7 @@ import "server-only";
 import { prisma } from "@repo/db";
 import { getEditionPromptGate } from "@/lib/timeline/prisma-timeline";
 import { systemClock, type EditionClock } from "@/lib/timeline/clock";
+import { puedeVerLaPantallaDelParticipante } from "./acceso";
 
 /**
  * Estado mínimo de la pantalla única del participante ("ya estás participando").
@@ -16,6 +17,12 @@ import { systemClock, type EditionClock } from "@/lib/timeline/clock";
 export type ParticipantLiveActor = {
   id: number;
   email: string;
+  /**
+   * Administrador de Clickatón. Sólo le sirve para mirar la pantalla del
+   * participante ficticio de un ensayo; sobre inscripciones reales no cambia
+   * nada.
+   */
+  esAdmin?: boolean;
 };
 
 export type ParticipantLiveState = {
@@ -62,7 +69,7 @@ export async function loadParticipantLiveState(input: {
       status: true,
       paymentStatus: true,
       editionId: true,
-      edition: { select: { slug: true, name: true, timezone: true } },
+      edition: { select: { slug: true, name: true, timezone: true, isOpsFixture: true } },
       credential: { select: { publicCode: true } },
       checkIns: {
         where: { reversedAt: null },
@@ -75,9 +82,18 @@ export async function loadParticipantLiveState(input: {
 
   if (!registration) return { ok: false, reason: "NOT_FOUND" };
 
-  const owns =
-    registration.userId === input.actor.id ||
-    registration.email.toLowerCase() === input.actor.email.toLowerCase();
+  const owns = puedeVerLaPantallaDelParticipante(
+    {
+      actorId: input.actor.id,
+      actorEmail: input.actor.email,
+      esAdmin: input.actor.esAdmin === true,
+    },
+    {
+      userId: registration.userId,
+      email: registration.email,
+      edicionEsCopiaDeEnsayo: registration.edition.isOpsFixture === true,
+    },
+  );
   if (!owns) return { ok: false, reason: "NOT_FOUND" };
 
   const active =

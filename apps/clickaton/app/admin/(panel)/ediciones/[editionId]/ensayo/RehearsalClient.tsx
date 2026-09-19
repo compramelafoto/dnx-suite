@@ -6,11 +6,17 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import {
   chequearEdicionAction,
+  descartarCopiaDeEnsayoAction,
   ensayarCompletoAction,
   ensayarEnSecoAction,
   type RespuestaChequeo,
 } from "@/lib/edition-rehearsal/actions";
 import type { ModoDeEnsayo } from "@/lib/edition-rehearsal/application/dry-run-steps";
+import {
+  PALABRA_DE_CONFIRMACION,
+  confirmacionValida,
+} from "@/lib/edition-rehearsal/domain/confirmacion";
+import { pantallaDelPaso } from "@/lib/edition-rehearsal/domain/pantallas";
 import type { ResultadoEnsayoEnSeco } from "@/lib/edition-rehearsal/application/run-dry-rehearsal";
 import type { ResultadoEnsayoCompleto } from "@/lib/edition-rehearsal/application/run-full-rehearsal";
 import {
@@ -25,6 +31,7 @@ import {
 type Props = {
   editionId: string;
   editionName: string;
+  editionSlug: string;
   timezone: string;
 };
 
@@ -51,7 +58,32 @@ function aCampoDeFecha(fecha: Date, timezone: string): string {
   return `${valor("year")}-${valor("month")}-${valor("day")}T${valor("hour")}:${valor("minute")}`;
 }
 
-export function RehearsalClient({ editionId, editionName, timezone }: Props) {
+/** Botón de borrado con confirmación, para no perder la copia de un clic al azar. */
+function ConfirmSubmitButtonLike({
+  onConfirm,
+  cargando,
+}: {
+  onConfirm: () => void;
+  cargando: boolean;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      loading={cargando}
+      onClick={() => {
+        if (window.confirm("Se borra la copia de ensayo y todo lo que se creó adentro. ¿Seguro?")) {
+          onConfirm();
+        }
+      }}
+    >
+      Borrar la copia de ensayo
+    </Button>
+  );
+}
+
+export function RehearsalClient({ editionId, editionName, editionSlug, timezone }: Props) {
   const [chequeo, setChequeo] = useState<RespuestaChequeo | null>(null);
   const [revisando, empezarRevision] = useTransition();
 
@@ -78,10 +110,28 @@ export function RehearsalClient({ editionId, editionName, timezone }: Props) {
   const [confirmacion, setConfirmacion] = useState("");
   const [completo, setCompleto] = useState<ResultadoEnsayoCompleto | null>(null);
   const [ensayandoCompleto, empezarEnsayoCompleto] = useTransition();
+  const [dejarEnPie, setDejarEnPie] = useState(false);
+  const [limpieza, setLimpieza] = useState<string | null>(null);
+  const [borrando, empezarBorrado] = useTransition();
 
-  function ensayarCompleto() {
+  function ensayarCompleto(enPie: boolean) {
+    setDejarEnPie(enPie);
+    setLimpieza(null);
     empezarEnsayoCompleto(async () => {
-      setCompleto(await ensayarCompletoAction(editionId, confirmacion));
+      setCompleto(await ensayarCompletoAction(editionId, confirmacion, enPie));
+    });
+  }
+
+  function borrarLaCopia(copiaId: string) {
+    empezarBorrado(async () => {
+      const r = await descartarCopiaDeEnsayoAction(editionId, copiaId);
+      if (r.ok) {
+        const total = Object.values(r.borrado).reduce((a, b) => a + b, 0);
+        setLimpieza(`Copia borrada: ${total} registros eliminados.`);
+        setCompleto(null);
+      } else {
+        setLimpieza(r.mensaje);
+      }
     });
   }
 
@@ -288,10 +338,37 @@ export function RehearsalClient({ editionId, editionName, timezone }: Props) {
                         Qué hacer: {p.comoArreglar}
                       </p>
                     ) : null}
+                    {(() => {
+                      const pantalla = pantallaDelPaso(p.numero, {
+                        editionId,
+                        editionSlug,
+                      });
+                      if (!pantalla) return null;
+                      return (
+                        <div className="mt-2 space-y-1">
+                          <Button
+                            href={pantalla.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            variant="outline"
+                            size="sm"
+                          >
+                            {pantalla.etiqueta} ↗
+                          </Button>
+                          <p className="text-xs text-ck-text-muted">{pantalla.queProbar}</p>
+                        </div>
+                      );
+                    })()}
                   </li>
                 );
               })}
             </ol>
+
+            <p className="text-xs text-ck-text-muted">
+              Las pantallas del participante (su credencial, la pantalla en vivo, la subida
+              de fotos) necesitan una inscripción. Corré el ensayo completo de abajo
+              dejando la copia en pie y vas a poder abrirlas y tocarlas.
+            </p>
           </div>
         ) : null}
       </Card>
@@ -302,12 +379,17 @@ export function RehearsalClient({ editionId, editionName, timezone }: Props) {
           <p className="text-sm text-ck-text-muted">
             Igual que el ensayo de arriba, pero escribiendo de verdad: crea una copia
             descartable de {editionName}, inscribe un participante ficticio, lo confirma, le
-            emite la credencial y le registra el ingreso. Al terminar borra la copia entera.
+            emite la credencial y le registra el ingreso.
           </p>
           <p className="text-sm text-ck-text-muted">
             La edición real no se toca en ningún momento. En la copia las entradas valen cero,
             así que no pasa por Mercado Pago ni mueve un peso, y la foto no se sube al
             depósito de archivos: eso se verifica en el ensayo en seco.
+          </p>
+          <p className="text-sm text-ck-text-muted">
+            Si dejás la copia en pie, después podés abrir las pantallas del participante
+            ficticio y tocar los botones vos mismo. Queda un botón para borrarla cuando
+            termines de mirar.
           </p>
         </div>
 
@@ -316,7 +398,7 @@ export function RehearsalClient({ editionId, editionName, timezone }: Props) {
             htmlFor="confirmacion-ensayo"
             className="block text-sm font-medium text-ck-text"
           >
-            Para confirmar, escribí el nombre de la edición: {editionName}
+            Para confirmar, escribí {PALABRA_DE_CONFIRMACION} en el casillero
           </label>
           <div className="flex flex-wrap items-center gap-2">
             <input
@@ -324,17 +406,27 @@ export function RehearsalClient({ editionId, editionName, timezone }: Props) {
               type="text"
               value={confirmacion}
               onChange={(e) => setConfirmacion(e.target.value)}
-              placeholder={editionName}
-              className="min-w-[16rem] rounded-[var(--ck-radius-sm)] border border-ck-border bg-ck-surface-strong px-3 py-2 text-sm text-ck-text"
+              placeholder={PALABRA_DE_CONFIRMACION}
+              autoComplete="off"
+              className="w-40 rounded-[var(--ck-radius-sm)] border border-ck-border bg-ck-surface-strong px-3 py-2 text-sm text-ck-text"
             />
             <Button
               type="button"
               variant="secondary"
-              loading={ensayandoCompleto}
-              disabled={confirmacion.trim() !== editionName.trim()}
-              onClick={ensayarCompleto}
+              loading={ensayandoCompleto && !dejarEnPie}
+              disabled={!confirmacionValida(confirmacion)}
+              onClick={() => ensayarCompleto(false)}
             >
-              Correr el ensayo completo
+              Correr y borrar la copia
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              loading={ensayandoCompleto && dejarEnPie}
+              disabled={!confirmacionValida(confirmacion)}
+              onClick={() => ensayarCompleto(true)}
+            >
+              Correr y dejarla para recorrer
             </Button>
           </div>
         </div>
@@ -374,10 +466,53 @@ export function RehearsalClient({ editionId, editionName, timezone }: Props) {
                         Qué hacer: {p.comoArreglar}
                       </p>
                     ) : null}
+                    {(() => {
+                      const pantalla = pantallaDelPaso(p.numero, {
+                        editionId: completo.copiaId,
+                        editionSlug: completo.copiaSlug,
+                        registrationId: completo.copiaEnPie ? completo.registrationId : null,
+                      });
+                      if (!pantalla) return null;
+                      return (
+                        <div className="mt-2 space-y-1">
+                          <Button
+                            href={pantalla.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            variant="outline"
+                            size="sm"
+                          >
+                            {pantalla.etiqueta} ↗
+                          </Button>
+                          <p className="text-xs text-ck-text-muted">{pantalla.queProbar}</p>
+                        </div>
+                      );
+                    })()}
                   </li>
                 );
               })}
             </ol>
+
+            {completo.copiaEnPie ? (
+              <div className="space-y-3 rounded-[var(--ck-radius-sm)] border border-[var(--ck-warning)]/50 bg-[var(--ck-warning-soft)] p-4">
+                <p className="text-sm font-medium text-ck-text">
+                  La copia quedó en pie para que la recorras.
+                </p>
+                <p className="text-sm text-ck-text-secondary">
+                  Abrí las pantallas de arriba en otra pestaña y tocá lo que quieras: es una
+                  edición de prueba, nada de lo que hagas ahí toca la edición real. Cuando
+                  termines, borrala.
+                </p>
+                <ConfirmSubmitButtonLike
+                  onConfirm={() => borrarLaCopia(completo.copiaId)}
+                  cargando={borrando}
+                />
+              </div>
+            ) : null}
+
+            {limpieza ? (
+              <p className="text-sm text-ck-text-secondary">{limpieza}</p>
+            ) : null}
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-[var(--ck-radius-sm)] border border-ck-border p-3">

@@ -6,7 +6,7 @@ import {
   ParticipantLiveScreen,
   type LivePromptView,
 } from "@/components/account/ParticipantLiveScreen";
-import { getClickatonAuthUser } from "@/lib/admin/auth";
+import { getClickatonAuthUser, hasClickatonAdminAccess } from "@/lib/admin/auth";
 import { CLICKATON_LOGIN_PATH } from "@/lib/auth/return-path";
 import { participantCredentialPath, participantLivePath } from "@/lib/participant-live/routes";
 import { loadParticipantLiveState } from "@/lib/participant-live/service";
@@ -34,7 +34,9 @@ export default async function ParticipantLivePage({ params }: Props) {
   const clock = systemClock();
   const result = await loadParticipantLiveState({
     registrationId,
-    actor: { id: user.id, email: user.email },
+    // Un admin puede mirar la pantalla del participante ficticio de un ensayo.
+    // Sobre inscripciones reales el permiso no cambia nada.
+    actor: { id: user.id, email: user.email, esAdmin: hasClickatonAdminAccess(user) },
     clock,
   });
   if (!result.ok) notFound();

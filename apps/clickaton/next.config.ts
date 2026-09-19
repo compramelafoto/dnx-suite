@@ -51,6 +51,18 @@ const nextConfig: NextConfig = {
     "@repo/db",
     "mupdf",
   ],
+  // El chequeo de tipos NO corre acá: `tsc` sobre esta app necesita más memoria
+  // de la que tiene la máquina de Vercel y el build muere con SIGKILL por OOM,
+  // aunque el código compile bien. Apagarlo no afloja el control, lo mueve: el
+  // workflow `.github/workflows/chequeos.yml` corre `check-types` de Clickatón
+  // en cada pull request contra main, así un error de tipos frena el merge en
+  // vez de frenar el despliegue.
+  //
+  // Si alguna vez se saca ese paso del workflow, hay que volver a prender esto
+  // o nadie estaría chequeando los tipos de Clickatón en ningún lado.
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   outputFileTracingRoot: monorepoRoot,
   outputFileTracingIncludes: {
     "/**": [

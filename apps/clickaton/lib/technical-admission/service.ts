@@ -69,6 +69,31 @@ async function writeAudit(input: {
   });
 }
 
+/**
+ * Enciende o apaga la admisión técnica de una edición.
+ *
+ * Igual que pasaba con la acreditación, la configuración nacía apagada y
+ * ninguna pantalla la encendía. Con la admisión apagada las fotos se suben
+ * igual, pero ninguna se revisa sola y ninguna llega al jurado, que sólo ve las
+ * obras admitidas y congeladas.
+ */
+export async function setAdmissionEnabled(input: {
+  editionId: string;
+  enabled: boolean;
+  actor: Actor;
+}): Promise<{ enabled: boolean }> {
+  await requireCap(input.actor, input.editionId, CAPABILITY_CLOSE_BATCH);
+
+  await ensureAdmissionConfig(input.editionId);
+  const config = await prisma.clickatonEditionAdmissionConfig.update({
+    where: { editionId: input.editionId },
+    data: { admissionEnabled: input.enabled },
+    select: { admissionEnabled: true },
+  });
+
+  return { enabled: config.admissionEnabled };
+}
+
 export async function ensureAdmissionConfig(editionId: string) {
   return prisma.clickatonEditionAdmissionConfig.upsert({
     where: { editionId },

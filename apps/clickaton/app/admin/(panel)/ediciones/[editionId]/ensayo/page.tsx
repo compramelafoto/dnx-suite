@@ -19,7 +19,7 @@ export default async function EditionRehearsalPage({ params }: Props) {
 
   const edition = await prisma.clickatonEdition.findUnique({
     where: { id: editionId },
-    select: { id: true, name: true, timezone: true },
+    select: { id: true, name: true, slug: true, timezone: true },
   });
   if (!edition) notFound();
 
@@ -38,6 +38,7 @@ export default async function EditionRehearsalPage({ params }: Props) {
       <RehearsalClient
         editionId={edition.id}
         editionName={edition.name}
+        editionSlug={edition.slug}
         timezone={edition.timezone ?? "America/Argentina/Buenos_Aires"}
       />
     </div>
