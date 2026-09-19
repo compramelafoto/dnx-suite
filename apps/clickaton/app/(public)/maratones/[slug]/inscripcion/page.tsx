@@ -89,7 +89,7 @@ export default async function PublicRegistrationPage({ params }: PageProps) {
           <h1 className="ck-display-md">Inscripción no disponible</h1>
           <p role="status" className="text-ck-text-secondary">
             {context.registrationWindow === "not_open"
-              ? "Las inscripciones todavía no estánieron."
+              ? "Las inscripciones todavía no están abiertas."
               : context.registrationWindow === "closed"
                 ? "El período de inscripción finalizó."
                 : "No hay entradas vendibles en este momento."}
