@@ -169,6 +169,21 @@ reportan con texto explícito sobre la consecuencia, no sólo con un estado.
 
 ## 6. El ensayo del participante
 
+### 6.0 Dos modos, porque un instante no alcanza
+
+Durante la implementación quedó claro que **en un único instante es imposible que los
+diez pasos den verde**: cuando la inscripción está abierta todavía no hay consignas, y
+cuando hay consignas la inscripción ya cerró. Un participante real atraviesa varios
+momentos. Por eso el ensayo tiene dos modos:
+
+- **Recorrido** (por defecto): cada paso se evalúa en el momento en que de verdad
+  ocurriría —la venta cerca del cierre de inscripción, la acreditación antes del inicio,
+  las consignas al minuto de abrir, la subida en plena captura—. Responde *¿funciona
+  todo el recorrido?*.
+- **Instante**: todos los pasos se evalúan en el momento elegido. Responde *¿qué le pasa
+  a alguien que entra a esta hora?*. Acá no hay corte en cascada: quien ya se inscribió
+  hace semanas se acredita y sube fotos igual aunque la inscripción esté cerrada.
+
 ### 6.1 El reloj
 
 Un selector de fecha y hora que arranca en la hora actual de la zona de la edición, con
@@ -215,6 +230,24 @@ credencial emitida, check-in registrado), y al terminar borra la copia entera.
 
 Muestra un resumen de qué creó y qué borró. Si el borrado falla, lo dice fuerte y deja
 el identificador de la copia a la vista para borrarla a mano.
+
+### 6.5 Tres cosas que el ensayo completo no prueba, a propósito
+
+1. **El cobro.** En la copia las entradas valen cero, así que el recorrido no pasa por
+   Mercado Pago ni mueve un peso. Que el precio y la fase vigente estén bien lo
+   verifican el chequeo y el ensayo en seco, que sí miran el importe.
+2. **La subida del archivo a R2.** El ensayo no sube una foto real al depósito: dejaría
+   basura fuera de la base, donde el borrado de la copia no llega. Las reglas de la
+   ventana de subida y de la admisión técnica sí se ejercitan.
+3. **El envío del correo.** Se arma con `dryRunBuildOnly` y se muestra, pero no sale.
+
+### 6.6 Un hallazgo del camino: mirar no puede modificar
+
+Al implementarlo apareció que armar el contexto público de inscripción llamaba a
+`ensureMarathonPackTicket`, que **crea o actualiza la entrada Pack 4 en la base**. Un
+ensayo «en seco» sobre una edición real la habría modificado. Ese paso pasó a ser
+inyectable (`ensurePackTicket` en las dependencias del servicio, con el comportamiento
+de siempre por defecto) y el ensayo lo desactiva.
 
 ## 7. Seguridad
 
