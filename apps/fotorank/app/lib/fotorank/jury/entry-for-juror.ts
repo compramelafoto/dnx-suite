@@ -30,23 +30,40 @@ export type JurorVote = {
   isFavorite: boolean | null;
   selectedRank: number | null;
   version: number;
+  /** Del propio jurado, no del autor: se devuelve para que pueda releerlo y corregirlo. */
+  comment: string | null;
+  criteriaScoresJson: unknown;
 };
 
 export type JurorEntry = {
   id: string;
-  anonymousCode: number | null;
+  anonymousCode: string | null;
   previewUrl: string | null;
   technicalSummaryStatus: string | null;
   warningCount: number;
   currentVote: JurorVote | null;
 };
 
+/**
+ * Fila cruda de la base. Se declara con lo mínimo que se necesita leer: las
+ * consultas traen más columnas, y eso está bien — lo que importa es que de acá
+ * no salga nada que no esté en `JurorEntry`.
+ */
 export type RawJuryEntry = {
   id: string;
-  entryNumber: number | null;
+  entryNumber: string | null;
   technicalSummaryStatus: string | null;
   assets: Array<{ id: string }>;
-  votes: Array<JurorVote>;
+  votes: Array<{
+    id: string;
+    valueNumeric: number | null;
+    valueBoolean: boolean | null;
+    isFavorite: boolean | null;
+    selectedRank: number | null;
+    version: number;
+    comment: string | null;
+    criteriaScoresJson: unknown;
+  }>;
   checks: Array<{ status: string }>;
 };
 
@@ -88,6 +105,17 @@ export function serializeEntryForJuror(input: {
     warningCount: input.entry.checks.filter(
       (c) => c.status === "WARNING" || c.status === "REQUIRES_REVIEW",
     ).length,
-    currentVote: input.entry.votes[0] ?? null,
+    currentVote: input.entry.votes[0]
+      ? {
+          id: input.entry.votes[0].id,
+          valueNumeric: input.entry.votes[0].valueNumeric,
+          valueBoolean: input.entry.votes[0].valueBoolean,
+          isFavorite: input.entry.votes[0].isFavorite,
+          selectedRank: input.entry.votes[0].selectedRank,
+          version: input.entry.votes[0].version,
+          comment: input.entry.votes[0].comment,
+          criteriaScoresJson: input.entry.votes[0].criteriaScoresJson,
+        }
+      : null,
   };
 }

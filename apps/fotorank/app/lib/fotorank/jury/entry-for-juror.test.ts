@@ -10,7 +10,7 @@ import { CAMPOS_PROHIBIDOS, serializeEntryForJuror } from "./entry-for-juror";
 
 const CRUDA = {
   id: "e1",
-  entryNumber: 7,
+  entryNumber: "7",
   technicalSummaryStatus: "APPROVED",
   authorUserId: 42,
   clickatonParticipantNumber: "CK-0123",
@@ -27,7 +27,7 @@ const BASE = "https://maratonfotografica.com";
 
 test("expone el código anónimo y no el autor", () => {
   const out = serializeEntryForJuror({ entry: CRUDA, clickatonBaseUrl: BASE });
-  assert.equal(out.anonymousCode, 7);
+  assert.equal(out.anonymousCode, "7");
   const claves = Object.keys(out);
   for (const prohibido of CAMPOS_PROHIBIDOS) {
     assert.ok(!claves.includes(prohibido), `se filtró "${prohibido}"`);

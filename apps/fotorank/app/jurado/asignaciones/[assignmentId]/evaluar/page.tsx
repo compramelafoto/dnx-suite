@@ -13,8 +13,9 @@ export default async function JudgeEvaluationPage({ params }: { params: Promise<
   const { assignmentId } = await params;
   const judge = await requireJudgeAuth();
 
-  const assignment = await loadJudgeAssignmentScoped(assignmentId, judge.id);
-  if (!assignment) return notFound();
+  const loaded = await loadJudgeAssignmentScoped(assignmentId, judge.id);
+  if (!loaded) return notFound();
+  const assignment = loaded.row;
 
   const eligibility = eligibilityForLoadedAssignment(assignment, judge, new Date());
 
@@ -59,7 +60,7 @@ export default async function JudgeEvaluationPage({ params }: { params: Promise<
           assignmentId={assignmentId}
           methodType={assignment.methodType}
           methodConfig={assignment.methodConfigJson}
-          entries={(entriesResult.data ?? []) as any[]}
+          entries={entriesResult.data ?? []}
         />
       </div>
     </div>

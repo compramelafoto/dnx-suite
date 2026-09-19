@@ -8,21 +8,13 @@ import {
   type JudgeEvaluationVoteFormState,
 } from "../../../../actions/judges";
 import { parseCriteriaBasedMethodConfig } from "../../../../lib/fotorank/judges/criteriaBased";
+import type { JurorEntry } from "../../../../lib/fotorank/jury/entry-for-juror";
 
-type Entry = {
-  id: string;
-  imageUrl: string;
-  title?: string | null;
-  description?: string | null;
-  currentVote?: {
-    valueNumeric?: number | null;
-    valueBoolean?: boolean | null;
-    isFavorite?: boolean | null;
-    selectedRank?: number | null;
-    comment?: string | null;
-    criteriaScoresJson?: unknown;
-  } | null;
-};
+/**
+ * La obra llega ya filtrada por `serializeEntryForJuror`: sin autor, sin
+ * título y sin descripción. Este componente no debe pedir ningún campo más.
+ */
+type Entry = JurorEntry;
 
 interface EvaluationClientProps {
   assignmentId: string;
@@ -276,14 +268,25 @@ export function EvaluationClient({ assignmentId, methodType, methodConfig, entri
       </Card>
       <Card>
         <div className="space-y-4">
-          <img
-            src={entry.imageUrl}
-            alt={entry.title ?? "Foto en evaluación"}
-            className="w-full max-h-[520px] rounded-lg border border-zinc-700 object-contain"
-          />
+          {entry.previewUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={entry.previewUrl}
+              alt={`Obra ${entry.anonymousCode ?? "sin número"} en evaluación`}
+              className="w-full max-h-[520px] rounded-lg border border-zinc-700 object-contain"
+            />
+          ) : (
+            <div className="flex h-64 items-center justify-center rounded-lg border border-zinc-700 px-6 text-center text-sm text-fr-muted">
+              Esta obra todavía no tiene una vista previa lista para evaluar.
+            </div>
+          )}
           <div>
-            <h2 className="text-lg font-semibold text-fr-primary">{entry.title ?? "Sin título"}</h2>
-            <p className="text-sm text-fr-muted">{entry.description ?? "Sin descripción"}</p>
+            <h2 className="text-lg font-semibold text-fr-primary">
+              Obra {entry.anonymousCode ?? "sin número"}
+            </h2>
+            <p className="text-sm text-fr-muted">
+              Evaluación anónima: no mostramos quién tomó la fotografía.
+            </p>
           </div>
 
           <EvaluationEntryVoteForm

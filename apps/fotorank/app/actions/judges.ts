@@ -2,6 +2,7 @@
 
 import { createHash, randomBytes } from "node:crypto";
 import { Prisma, prisma } from "@repo/db";
+import { getClickatonJuryPrisma } from "@repo/db/clickaton-jury-client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAuth } from "../lib/auth";
@@ -19,6 +20,10 @@ import {
   eligibilityForLoadedAssignment,
   gateJudgeEvaluationForJudge,
 } from "../lib/fotorank/judgeEvaluationGate";
+import {
+  serializeEntryForJuror,
+  type JurorEntry,
+} from "../lib/fotorank/jury/entry-for-juror";
 import { rawVoteInputFromFormData, validateVotePayloadForMethod } from "../lib/fotorank/judgeVotePayload";
 import {
   filterFotorankEntriesEvaluableForJudging,
@@ -1290,7 +1295,10 @@ export async function listJudgeAssignmentsForCurrentJudge(): Promise<JudgeAction
           evaluationStartsAt: a.evaluationStartsAt,
           evaluationEndsAt: a.evaluationEndsAt,
           extendedEndsAt: a.extendedEndsAt,
-          contest: { status: a.contest.status },
+          contest: {
+            status: a.contest.status,
+            distributionChannel: a.contest.distributionChannel,
+          },
         },
         judge,
         now,
@@ -1315,7 +1323,16 @@ export async function listJudgeAssignmentsForCurrentJudge(): Promise<JudgeAction
   };
 }
 
-export async function listEntriesForAssignment(assignmentId: string): Promise<JudgeActionResult<Array<Record<string, unknown>>>> {
+/**
+ * Obras que el jurado tiene que evaluar en una asignación.
+ *
+ * Las de un concurso de Clickatón viven en la base de Clickatón: se leen con el
+ * cliente cruzado. Lo que se devuelve lo decide `serializeEntryForJuror`, único
+ * lugar autorizado a elegir qué ve el jurado.
+ */
+export async function listEntriesForAssignment(
+  assignmentId: string,
+): Promise<JudgeActionResult<JurorEntry[]>> {
   const judge = await requireJudgeAuth();
 
   const gate = await gateJudgeEvaluationForJudge(assignmentId, judge, new Date());
@@ -1324,7 +1341,21 @@ export async function listEntriesForAssignment(assignmentId: string): Promise<Ju
   }
   const assignment = gate.assignment;
 
-  const entriesRaw = await prisma.fotorankContestEntry.findMany({
+  const platform = gate.platform;
+  const db = platform === "clickaton" ? getClickatonJuryPrisma() : prisma;
+  if (!db) {
+    return {
+      ok: false,
+      error:
+        "No podemos acceder a las obras de Clickatón en este momento. Volvé a intentar en un rato.",
+    };
+  }
+  const clickatonBaseUrl =
+    platform === "clickaton"
+      ? (process.env.CLICKATON_PUBLIC_BASE_URL?.trim() || "https://maratonfotografica.com")
+      : null;
+
+  const entriesRaw = await db.fotorankContestEntry.findMany({
     where: {
       contestId: assignment.contestId,
       categoryId: assignment.categoryId,
@@ -1349,25 +1380,7 @@ export async function listEntriesForAssignment(assignmentId: string): Promise<Ju
 
   return {
     ok: true,
-    data: entries.map((entry) => ({
-      id: entry.id,
-      anonymousCode: entry.entryNumber,
-      // P0-07: no imageUrl pública ni title/description identificatorios
-      hasJuryPreview: entry.assets.length > 0,
-      technicalSummaryStatus: entry.technicalSummaryStatus,
-      warningCount: entry.checks.filter((c) => c.status === "WARNING" || c.status === "REQUIRES_REVIEW").length,
-      evaluationMessage: "Evaluación aún no habilitada (rúbricas pendientes).",
-      currentVote: entry.votes[0]
-        ? {
-            id: entry.votes[0].id,
-            valueNumeric: entry.votes[0].valueNumeric,
-            valueBoolean: entry.votes[0].valueBoolean,
-            isFavorite: entry.votes[0].isFavorite,
-            selectedRank: entry.votes[0].selectedRank,
-            version: entry.votes[0].version,
-          }
-        : null,
-    })),
+    data: entries.map((entry) => serializeEntryForJuror({ entry, clickatonBaseUrl })),
   };
 }
 
