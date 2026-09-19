@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { prisma } from "@/lib/admin/db";
+import { Prisma, prisma } from "@/lib/admin/db";
 import { hasEditionCapability } from "@/lib/timeline/permissions";
 import { getEditionTemporalState } from "@/lib/timeline/prisma-timeline";
 import { hashQrPlaintext } from "@/lib/registration/security/qr-token";
@@ -239,13 +239,17 @@ export async function resolveByQrToken(input: {
 }
 
 /** Código corto = tokenPrefix (8 chars) + número visible opcional — rate-limit en route. */
-export async function resolveByShortCode(input: {
-  editionId: string;
-  shortCode: string;
-  actor: Actor;
-}) {
-  await requireCap(input.actor, input.editionId, CAPABILITY_VIEW_ACCREDITATION);
-  const code = input.shortCode.trim();
+/**
+ * Traduce un código escrito a mano (número de participante, código público o
+ * prefijo del QR) a la inscripción. Vive aparte porque la sincronización de la
+ * cola sin conexión necesita la misma búsqueda: cuando la cámara no anda, el
+ * operador tipea el número y ese escaneo también tiene que poder guardarse.
+ */
+async function buscarInscripcionPorCodigoCorto(
+  editionId: string,
+  shortCode: string,
+): Promise<string | null> {
+  const code = shortCode.trim();
   if (code.length < 6) {
     throw new AccreditationError("SHORT_CODE_TOO_SHORT", "Código demasiado corto.", 400);
   }
@@ -253,7 +257,7 @@ export async function resolveByShortCode(input: {
   // Prefer visibleCode exacto
   const byNumber = await prisma.clickatonRegistration.findFirst({
     where: {
-      editionId: input.editionId,
+      editionId,
       OR: [
         { visibleCode: { equals: code, mode: "insensitive" } },
         { credential: { publicCode: { equals: code, mode: "insensitive" } } },
@@ -261,20 +265,33 @@ export async function resolveByShortCode(input: {
     },
     select: { id: true },
   });
-  if (byNumber) return buildScanResult(byNumber.id, input.actor);
+  if (byNumber) return byNumber.id;
 
   const byPrefix = await prisma.clickatonQrToken.findFirst({
     where: {
       tokenPrefix: code.slice(0, 8),
       status: "ACTIVE",
-      credential: { registration: { editionId: input.editionId }, status: "ACTIVE" },
+      credential: { registration: { editionId }, status: "ACTIVE" },
     },
     include: { credential: { select: { registrationId: true } } },
   });
-  if (!byPrefix) {
+  return byPrefix?.credential.registrationId ?? null;
+}
+
+export async function resolveByShortCode(input: {
+  editionId: string;
+  shortCode: string;
+  actor: Actor;
+}) {
+  await requireCap(input.actor, input.editionId, CAPABILITY_VIEW_ACCREDITATION);
+  const registrationId = await buscarInscripcionPorCodigoCorto(
+    input.editionId,
+    input.shortCode,
+  );
+  if (!registrationId) {
     return { tone: "RED" as const, reason: "NOT_FOUND", canCheckIn: false };
   }
-  return buildScanResult(byPrefix.credential.registrationId, input.actor);
+  return buildScanResult(registrationId, input.actor);
 }
 
 export async function searchParticipants(input: {
@@ -663,6 +680,7 @@ export async function enqueueOfflineEvent(input: {
   clientOccurredAt: Date;
   qrPlaintext?: string | null;
   registrationIdHint?: string | null;
+  shortCode?: string | null;
   payload?: unknown;
 }) {
   const config = await prisma.clickatonEditionAccreditationConfig.findUnique({
@@ -672,24 +690,102 @@ export async function enqueueOfflineEvent(input: {
     throw new AccreditationError("OFFLINE_DISABLED", "Offline no permitido.", 403);
   }
 
+  const shortCode = input.shortCode?.trim() || null;
+  // Sin forma de saber a quién acreditar el evento es basura: mejor rechazarlo
+  // acá que dejarlo esperando una sincronización que nunca va a resolverlo.
+  if (!input.qrPlaintext && !input.registrationIdHint && !shortCode) {
+    throw new AccreditationError(
+      "MISSING_IDENTIFIER",
+      "El evento sin conexión necesita QR, número de participante o inscripción.",
+      400,
+    );
+  }
+
   const existing = await prisma.clickatonAccreditationOfflineEvent.findUnique({
     where: { idempotencyKey: input.idempotencyKey },
   });
   if (existing) return existing;
 
+  // Un aparato de otra edición (o inventado) no puede quedar atado al evento:
+  // rompería la clave foránea y con ella el respaldo entero.
+  let deviceId = input.deviceId ?? null;
+  if (deviceId) {
+    const device = await prisma.clickatonAccreditationDevice.findFirst({
+      where: { id: deviceId, editionId: input.editionId },
+      select: { id: true },
+    });
+    if (!device) deviceId = null;
+  }
+
+  const payloadBase =
+    typeof input.payload === "object" && input.payload !== null
+      ? (input.payload as Prisma.InputJsonObject)
+      : ({} as Prisma.InputJsonObject);
+  const payload: Prisma.InputJsonObject = shortCode
+    ? { ...payloadBase, shortCode }
+    : payloadBase;
+
   return prisma.clickatonAccreditationOfflineEvent.create({
     data: {
       editionId: input.editionId,
-      deviceId: input.deviceId ?? null,
+      deviceId,
       idempotencyKey: input.idempotencyKey,
       action: input.action,
       clientOccurredAt: input.clientOccurredAt,
       qrTokenHashHint: input.qrPlaintext ? hashQrPlaintext(input.qrPlaintext) : null,
       registrationIdHint: input.registrationIdHint ?? null,
-      payload: (input.payload as object) ?? undefined,
+      payload: Object.keys(payload).length > 0 ? payload : undefined,
       syncStatus: "PENDING",
     },
   });
+}
+
+/**
+ * Averigua a qué inscripción corresponde un evento guardado sin conexión.
+ *
+ * Nunca lanza por "no lo encontré": devuelve el motivo para que el evento quede
+ * marcado como rechazado y visible en el panel, en vez de reintentarse para
+ * siempre.
+ */
+async function resolverInscripcionDeEventoOffline(
+  editionId: string,
+  ev: {
+    registrationIdHint: string | null;
+    qrTokenHashHint: string | null;
+    payload: unknown;
+  },
+): Promise<{ registrationId: string | null; motivo: string }> {
+  if (ev.registrationIdHint) {
+    return { registrationId: ev.registrationIdHint, motivo: "" };
+  }
+
+  if (ev.qrTokenHashHint) {
+    const token = await prisma.clickatonQrToken.findUnique({
+      where: { tokenHash: ev.qrTokenHashHint },
+      include: { credential: { select: { registrationId: true } } },
+    });
+    return token
+      ? { registrationId: token.credential.registrationId, motivo: "" }
+      : { registrationId: null, motivo: "QR_INVALID" };
+  }
+
+  const shortCode =
+    typeof ev.payload === "object" && ev.payload !== null
+      ? (ev.payload as { shortCode?: unknown }).shortCode
+      : null;
+  if (typeof shortCode === "string" && shortCode.trim().length > 0) {
+    try {
+      const registrationId = await buscarInscripcionPorCodigoCorto(editionId, shortCode);
+      return registrationId
+        ? { registrationId, motivo: "" }
+        : { registrationId: null, motivo: "SHORT_CODE_NOT_FOUND" };
+    } catch (error) {
+      const motivo = error instanceof AccreditationError ? error.code : "SHORT_CODE_INVALID";
+      return { registrationId: null, motivo };
+    }
+  }
+
+  return { registrationId: null, motivo: "MISSING_IDENTIFIER" };
 }
 
 export async function syncOfflineEvents(input: {
@@ -707,55 +803,46 @@ export async function syncOfflineEvents(input: {
   const results: Array<{ id: string; syncStatus: string; reason?: string }> = [];
   for (const ev of pending) {
     try {
-      if (ev.action === "CHECKIN" && ev.registrationIdHint) {
-        await performCheckIn({
-          editionId: input.editionId,
-          registrationId: ev.registrationIdHint,
-          actor: input.actor,
-          source: "OFFLINE_SYNC",
-          requestId: ev.idempotencyKey,
-          deviceId: ev.deviceId,
-          onlineMode: false,
-        });
-        await prisma.clickatonAccreditationOfflineEvent.update({
-          where: { id: ev.id },
-          data: { syncStatus: "SYNCED", syncedAt: new Date() },
-        });
-        results.push({ id: ev.id, syncStatus: "SYNCED" });
-      } else if (ev.action === "CHECKIN" && ev.qrTokenHashHint) {
-        const token = await prisma.clickatonQrToken.findUnique({
-          where: { tokenHash: ev.qrTokenHashHint },
-          include: { credential: { select: { registrationId: true } } },
-        });
-        if (!token) {
-          await prisma.clickatonAccreditationOfflineEvent.update({
-            where: { id: ev.id },
-            data: { syncStatus: "REJECTED", conflictReason: "QR_INVALID", syncedAt: new Date() },
-          });
-          results.push({ id: ev.id, syncStatus: "REJECTED", reason: "QR_INVALID" });
-          continue;
-        }
-        await performCheckIn({
-          editionId: input.editionId,
-          registrationId: token.credential.registrationId,
-          actor: input.actor,
-          source: "OFFLINE_SYNC",
-          requestId: ev.idempotencyKey,
-          deviceId: ev.deviceId,
-          onlineMode: false,
-        });
-        await prisma.clickatonAccreditationOfflineEvent.update({
-          where: { id: ev.id },
-          data: { syncStatus: "SYNCED", syncedAt: new Date() },
-        });
-        results.push({ id: ev.id, syncStatus: "SYNCED" });
-      } else {
+      if (ev.action !== "CHECKIN") {
         await prisma.clickatonAccreditationOfflineEvent.update({
           where: { id: ev.id },
           data: { syncStatus: "REJECTED", conflictReason: "UNSUPPORTED_ACTION", syncedAt: new Date() },
         });
         results.push({ id: ev.id, syncStatus: "REJECTED", reason: "UNSUPPORTED_ACTION" });
+        continue;
       }
+
+      // El evento puede identificar al participante de tres formas, según cómo
+      // lo tomó el operador: ya resuelto (se cayó al confirmar), por QR, o por
+      // el número tipeado a mano cuando la cámara no anda.
+      const resolucion = await resolverInscripcionDeEventoOffline(input.editionId, ev);
+      if (!resolucion.registrationId) {
+        await prisma.clickatonAccreditationOfflineEvent.update({
+          where: { id: ev.id },
+          data: {
+            syncStatus: "REJECTED",
+            conflictReason: resolucion.motivo,
+            syncedAt: new Date(),
+          },
+        });
+        results.push({ id: ev.id, syncStatus: "REJECTED", reason: resolucion.motivo });
+        continue;
+      }
+
+      await performCheckIn({
+        editionId: input.editionId,
+        registrationId: resolucion.registrationId,
+        actor: input.actor,
+        source: "OFFLINE_SYNC",
+        requestId: ev.idempotencyKey,
+        deviceId: ev.deviceId,
+        onlineMode: false,
+      });
+      await prisma.clickatonAccreditationOfflineEvent.update({
+        where: { id: ev.id },
+        data: { syncStatus: "SYNCED", syncedAt: new Date() },
+      });
+      results.push({ id: ev.id, syncStatus: "SYNCED" });
     } catch (error) {
       const reason = error instanceof AccreditationError ? error.code : "CONFLICT";
       await prisma.clickatonAccreditationOfflineEvent.update({
@@ -804,6 +891,16 @@ export async function getAccreditationDashboard(editionId: string, actor: Actor)
       take: 20,
     }),
   ]);
+
+  // Estado de la cola sin conexión. Sin esto el panel mostraba un botón de
+  // sincronizar que no decía si había algo que sincronizar ni cómo terminó.
+  const offlineRows = await prisma.clickatonAccreditationOfflineEvent.groupBy({
+    by: ["syncStatus"],
+    where: { editionId },
+    _count: { _all: true },
+  });
+  const contarOffline = (estado: string) =>
+    offlineRows.find((r) => r.syncStatus === estado)?._count._all ?? 0;
 
   const shirtPending = await prisma.clickatonRegistrationItem.count({
     where: {
@@ -869,6 +966,13 @@ export async function getAccreditationDashboard(editionId: string, actor: Actor)
       lastSeenAt: d.lastSeenAt?.toISOString() ?? null,
       lastSyncAt: d.lastSyncAt?.toISOString() ?? null,
     })),
+    offline: {
+      allowed: config?.allowOfflineEvents ?? true,
+      pending: contarOffline("PENDING"),
+      synced: contarOffline("SYNCED"),
+      conflicts: contarOffline("CONFLICT"),
+      rejected: contarOffline("REJECTED"),
+    },
   };
 }
 
