@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { FinalizarEntrega, type ResumenConsigna } from "@/components/account/FinalizarEntrega";
 import { ParticipantLiveRefresher } from "@/components/account/ParticipantLiveRefresher";
 import { PromptPhotoUpload } from "@/components/account/PromptPhotoUpload";
 import { PromptsCountdown } from "@/components/account/PromptsCountdown";
@@ -63,6 +64,12 @@ export type ParticipantLiveScreenProps = {
   /** La entrega sigue abierta: se puede anotar, marcar y subir. */
   entregaAbierta: boolean;
   credentialHref: string;
+  /** Enlace de WhatsApp con el mensaje ya escrito. `null` = sin soporte cargado. */
+  ayudaHref: string | null;
+  /** El participante ya declaró que terminó de subir. */
+  submissionFinalizedAt: string | null;
+  /** Fotos efectivamente entregadas, contadas en el servidor. */
+  fotosEnviadas: number;
 };
 
 const CHIPS: Record<
@@ -193,6 +200,24 @@ export function ParticipantLiveScreen(props: ParticipantLiveScreenProps) {
     [notas, props.prompts],
   );
 
+  const resumen: ResumenConsigna[] = useMemo(
+    () =>
+      consignas.map((c) => {
+        const entregada = estaEnviada(c.estado);
+        return {
+          sequence: c.vista.sequence,
+          title: c.vista.title,
+          entregada,
+          etiqueta: entregada
+            ? "Entregada"
+            : estaSinConfirmar(c.estado)
+              ? "Sin guardar"
+              : "Sin entregar",
+        };
+      }),
+    [consignas],
+  );
+
   const enviadas = consignas.filter((c) => estaEnviada(c.estado)).length;
   const resueltas = consignas.filter((c) => estaResuelta(c.estado)).length;
   const sinConfirmar = consignas.filter((c) => estaSinConfirmar(c.estado)).length;
@@ -248,7 +273,7 @@ export function ParticipantLiveScreen(props: ParticipantLiveScreenProps) {
           <AvisoRelojCamara />
         </Card>
 
-        <PieDeAcciones credentialHref={props.credentialHref} />
+        <PieDeAcciones credentialHref={props.credentialHref} ayudaHref={props.ayudaHref} />
       </div>
     );
   }
@@ -361,7 +386,22 @@ export function ParticipantLiveScreen(props: ParticipantLiveScreenProps) {
         </p>
       ) : null}
 
-      <PieDeAcciones credentialHref={props.credentialHref} className="mt-8" />
+      <FinalizarEntrega
+        registrationId={props.registrationId}
+        finalizadaEn={props.submissionFinalizedAt}
+        fotosEnviadas={props.fotosEnviadas}
+        totalConsignas={props.prompts.length}
+        entregaAbierta={props.entregaAbierta}
+        resumen={resumen}
+        timezone={props.timezone}
+        nombre={nombre}
+      />
+
+      <PieDeAcciones
+        credentialHref={props.credentialHref}
+        ayudaHref={props.ayudaHref}
+        className="mt-8"
+      />
     </div>
   );
 }
@@ -379,11 +419,17 @@ function AvisoRelojCamara({ className = "" }: { className?: string }) {
 
 function PieDeAcciones({
   credentialHref,
+  ayudaHref,
   className = "",
 }: {
   credentialHref: string;
+  /** WhatsApp de soporte. Sin número cargado cae al formulario de contacto. */
+  ayudaHref?: string | null;
   className?: string;
 }) {
+  // En medio de una maratón, "pedir ayuda" tiene que abrir una conversación,
+  // no un formulario. Si la edición no cargó WhatsApp, queda el de siempre.
+  const destino = ayudaHref ?? "/contacto";
   return (
     <div
       className={`flex flex-col gap-3 border-t border-ck-border pt-6 sm:flex-row ${className}`}
@@ -391,7 +437,12 @@ function PieDeAcciones({
       <Button href={credentialHref} variant="secondary" className="min-h-11 w-full sm:w-auto">
         Ver mi credencial y QR
       </Button>
-      <Button href="/contacto" variant="outline" className="min-h-11 w-full sm:w-auto">
+      <Button
+        href={destino}
+        variant="outline"
+        className="min-h-11 w-full sm:w-auto"
+        {...(ayudaHref ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+      >
         Pedir ayuda
       </Button>
     </div>
