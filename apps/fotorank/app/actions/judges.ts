@@ -21,6 +21,10 @@ import {
   gateJudgeEvaluationForJudge,
 } from "../lib/fotorank/judgeEvaluationGate";
 import {
+  platformForContest,
+  platformLabel,
+} from "../lib/fotorank/jury/assignment-source";
+import {
   serializeEntryForJuror,
   type JurorEntry,
 } from "../lib/fotorank/jury/entry-for-juror";
@@ -1264,23 +1268,57 @@ export async function judgeLogoutAction(): Promise<void> {
   await destroyCurrentJudgeSession();
 }
 
-export async function listJudgeAssignmentsForCurrentJudge(): Promise<JudgeActionResult<Array<Record<string, unknown>>>> {
+/**
+ * Todas las asignaciones del jurado, de las dos plataformas, en una sola lista.
+ *
+ * Si la base de Clickatón no responde se devuelven igual las propias y se avisa
+ * con `clickatonUnavailable`: una caída no puede parecerse a "no tenés trabajo
+ * asignado".
+ */
+export async function listJudgeAssignmentsForCurrentJudge(): Promise<
+  JudgeActionResult<{
+    assignments: Array<Record<string, unknown>>;
+    clickatonUnavailable: boolean;
+  }>
+> {
   const judge = await requireJudgeAuth();
   const now = new Date();
 
-  const assignments = await prisma.fotorankJudgeAssignment.findMany({
+  const includeShape = {
+    contest: true,
+    category: true,
+    votes: true,
+  } as const;
+
+  const own = await prisma.fotorankJudgeAssignment.findMany({
     where: { judgeAccountId: judge.id },
-    include: {
-      contest: true,
-      category: true,
-      votes: true,
-    },
+    include: includeShape,
     orderBy: { updatedAt: "desc" },
   });
 
+  let external: typeof own = [];
+  let clickatonUnavailable = false;
+  const clickatonPrisma = getClickatonJuryPrisma();
+  if (clickatonPrisma) {
+    try {
+      external = (await clickatonPrisma.fotorankJudgeAssignment.findMany({
+        where: { judgeAccountId: judge.id },
+        include: includeShape,
+        orderBy: { updatedAt: "desc" },
+      })) as typeof own;
+    } catch {
+      clickatonUnavailable = true;
+    }
+  }
+
+  const assignments = [...own, ...external].sort(
+    (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime(),
+  );
+
   return {
     ok: true,
-    data: assignments.map((a) => {
+    data: {
+      assignments: assignments.map((a) => {
       const eligibility = eligibilityForLoadedAssignment(
         {
           id: a.id,
@@ -1303,11 +1341,16 @@ export async function listJudgeAssignmentsForCurrentJudge(): Promise<JudgeAction
         judge,
         now,
       );
+      const platform = platformForContest({
+        distributionChannel: a.contest.distributionChannel,
+      });
       return {
         id: a.id,
         contestId: a.contestId,
         contestTitle: a.contest.title,
         categoryName: a.category.name,
+        platform,
+        platformLabel: platformLabel(platform),
         assignmentStatus: a.assignmentStatus,
         assignmentType: a.assignmentType,
         methodType: a.methodType,
@@ -1320,6 +1363,8 @@ export async function listJudgeAssignmentsForCurrentJudge(): Promise<JudgeAction
         evaluationBlockMessage: eligibility.allowed ? null : eligibility.message,
       };
     }),
+      clickatonUnavailable,
+    },
   };
 }
 

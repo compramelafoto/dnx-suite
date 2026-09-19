@@ -38,7 +38,15 @@ export default async function JudgePanelPage() {
           <Card><p className="text-red-300 text-sm">{assignments.error}</p></Card>
         ) : (
           <div className="grid gap-4">
-            {(assignments.data ?? []).map((a: any) => (
+            {assignments.data?.clickatonUnavailable ? (
+              <Card>
+                <p className="text-sm text-amber-300" role="status">
+                  No pudimos traer tus asignaciones de Clickatón en este momento.
+                  Volvé a entrar en un rato; las demás se muestran igual.
+                </p>
+              </Card>
+            ) : null}
+            {(assignments.data?.assignments ?? []).map((a: any) => (
               <Card key={a.id}>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
@@ -51,6 +59,7 @@ export default async function JudgePanelPage() {
                     ) : null}
                   </div>
                   <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
+                    <Badge variant="default">{a.platformLabel}</Badge>
                     <Badge variant="neutral">{a.assignmentStatus}</Badge>
                     <Link href={`/jurado/concursos/${a.contestId}`}>
                       <Button size="sm" variant="outline" className="w-full sm:w-auto">
