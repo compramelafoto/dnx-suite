@@ -1,6 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/admin/db";
+import { Prisma, prisma } from "@/lib/admin/db";
 import { hasEditionCapability } from "@/lib/timeline/permissions";
 import { getEditionTemporalState } from "@/lib/timeline/prisma-timeline";
 import { hashQrPlaintext } from "@/lib/registration/security/qr-token";
