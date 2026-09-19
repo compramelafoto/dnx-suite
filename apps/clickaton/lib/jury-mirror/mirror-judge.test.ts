@@ -38,16 +38,21 @@ test("el centinela dice en texto que no es una cuenta", () => {
 test("la copia crea el workspace y la ficha en una sola transacción", async () => {
   const llamadas: string[] = [];
   let datosFicha: Record<string, unknown> | null = null;
+  type UpsertArgs = {
+    where: { id: string };
+    create: Record<string, unknown>;
+    update: Record<string, unknown>;
+  };
   const tx = {
     workspace: {
-      upsert: async (args: any) => {
+      upsert: async (args: UpsertArgs) => {
         llamadas.push("workspace");
         assert.equal(args.where.id, JURY_WORKSPACE_ID);
         return {};
       },
     },
     fotorankJudgeAccount: {
-      upsert: async (args: any) => {
+      upsert: async (args: UpsertArgs) => {
         llamadas.push("judge");
         datosFicha = args.create;
         return {};
