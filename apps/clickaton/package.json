@@ -87,6 +87,7 @@
     "registrations:expire-holds": "tsx scripts/expire-registration-holds.ts",
     "test:content": "tsx --test lib/content/*.test.ts",
     "test:jury-media": "tsx --test lib/jury-media/*.test.ts",
+    "test:jury-mirror": "tsx --test lib/jury-mirror/*.test.ts",
     "test:public-marathons-visibility": "tsx --test data/public-marathons/unlisted-visibility.test.ts",
     "test:registration-window": "tsx --test data/public-marathons/registration-window.test.ts",
     "test:admin-datetime": "tsx --test lib/admin/datetime-input.test.ts",
