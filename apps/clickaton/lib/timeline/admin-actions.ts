@@ -194,6 +194,8 @@ export async function upsertPromptAction(editionId: string, formData: FormData) 
     title: String(formData.get("title") ?? "").trim() || null,
     instructions: String(formData.get("instructions") ?? "").trim() || null,
     status: (String(formData.get("status") ?? "DRAFT") as "DRAFT" | "READY" | "LOCKED") || "DRAFT",
+    // Sorpresa extra: sólo el valor explícito "false" saca la consigna del puntaje.
+    countsForScoring: String(formData.get("countsForScoring") ?? "true") !== "false",
     createdByUserId: user.id,
   };
   if (id) {

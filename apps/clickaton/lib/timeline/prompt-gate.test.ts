@@ -49,6 +49,7 @@ function consigna(over: Partial<PromptRecord> = {}): PromptRecord {
     status: "LOCKED",
     releasedAt: null,
     contentVersion: 1,
+    countsForScoring: true,
     ...over,
   };
 }

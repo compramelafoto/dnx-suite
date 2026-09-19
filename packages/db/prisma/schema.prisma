@@ -12378,6 +12378,9 @@ model ClickatonPrompt {
   allowReplacement             Boolean                    @default(true)
   replacementDeadline          DateTime?
   required                     Boolean                    @default(false)
+  /// `false` = consigna fuera de puntaje (p. ej. la sorpresa extra): se entrega y se
+  /// preselecciona, pero no entra en la calificación ni en el ranking de la edición.
+  countsForScoring             Boolean                    @default(true)
   captureClockToleranceMinutes Int?
   gpsMode                      ClickatonPromptGpsMode     @default(OPTIONAL)
   deviceCategoryHint           String?
