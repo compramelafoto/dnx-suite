@@ -11,7 +11,7 @@ import {
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { presignPutUrl } from "./presign";
 
 export type PrivateStoredObject = {
   key: string;
@@ -200,25 +200,14 @@ export class R2PrivateEntryStorage implements PrivateEntryStorage {
   }): Promise<DirectUploadTicket> {
     const key = buildInboxKey(input);
     const expiresInSeconds = 900; // 15 minutos: alcanza para una foto con mala señal.
-    // El cliente y el firmador llegan con dos copias distintas de `@smithy/types`
-    // en el árbol de pnpm, y TypeScript las trata como tipos ajenos. En ejecución
-    // es el mismo objeto: el firmador sólo le lee credenciales y región. El
-    // puente va acá, acotado a esta llamada, y no en un override global que
-    // cambiaría la resolución de dependencias de todo el monorepo.
-    const firmante = getSignedUrl as unknown as (
-      client: unknown,
-      command: unknown,
-      options: { expiresIn: number },
-    ) => Promise<string>;
-    const url = await firmante(
-      this.client,
-      new PutObjectCommand({
-        Bucket: this.config.bucket,
-        Key: key,
-        ContentType: input.contentType,
-      }),
-      { expiresIn: expiresInSeconds },
-    );
+    const url = presignPutUrl({
+      endpoint: this.config.endpoint,
+      bucket: this.config.bucket,
+      key,
+      accessKeyId: this.config.accessKeyId,
+      secretAccessKey: this.config.secretAccessKey,
+      expiresInSeconds,
+    });
     return { url, key, expiresInSeconds };
   }
 
