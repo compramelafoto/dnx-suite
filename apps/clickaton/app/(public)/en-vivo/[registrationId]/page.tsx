@@ -77,6 +77,7 @@ export default async function ParticipantLivePage({ params }: Props) {
       captureEndsAt: true,
       uploadStartsAt: true,
       uploadEndsAt: true,
+      countsForScoring: true,
     },
   });
 
@@ -127,6 +128,7 @@ export default async function ParticipantLivePage({ params }: Props) {
         uploadEndsAt: windows?.uploadEndsAt?.toISOString() ?? null,
         uploadWindowOpen:
           uploadsEnabled && windows != null && isWithinUploadWindow(windows, clock),
+        countsForScoring: row?.countsForScoring ?? true,
         submissionStatus: submission?.status ?? null,
         validationResult: submission?.validationResult ?? null,
         tecnica: submission

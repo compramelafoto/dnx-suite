@@ -263,6 +263,7 @@ export async function listPromptPublicDtos(
           status: "LOCKED",
           releasedAt: null,
           contentVersion: 1,
+          countsForScoring: true,
         },
         { clock, gate: { ...gate, isOpen: false } },
       ),

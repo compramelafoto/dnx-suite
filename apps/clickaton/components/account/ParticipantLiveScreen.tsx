@@ -38,6 +38,8 @@ export type LivePromptView = {
   uploadEndsAt: string | null;
   /** La ventana de entrega está abierta para esta consigna. */
   uploadWindowOpen: boolean;
+  /** `false` = sorpresa extra: se entrega, pero no puntúa para el concurso. */
+  countsForScoring: boolean;
   submissionStatus?: string | null;
   validationResult?: string | null;
   tecnica?: {
@@ -435,6 +437,9 @@ function TarjetaConsigna({
           <h3 className="ck-heading-sm break-words">{vista.title}</h3>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant={chip.variant}>{chip.label}</Badge>
+            {vista.countsForScoring ? null : (
+              <Badge variant="warning">Sorpresa extra · no puntúa</Badge>
+            )}
             {resumenNota ? (
               <span className="min-w-0 flex-1 truncate text-xs text-ck-text-muted">
                 ✎ {resumenNota}

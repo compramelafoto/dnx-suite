@@ -46,6 +46,8 @@ export type PromptRecord = {
   status: string;
   releasedAt: Date | null;
   contentVersion: number;
+  /** `false` = sorpresa extra: se entrega, pero no puntúa para el concurso. */
+  countsForScoring: boolean;
 };
 
 /** DTO seguro — nunca incluye título/instrucciones/assets. */
@@ -66,6 +68,8 @@ export type ReleasedPromptPublicDto = {
   captureEndsAt: string | null;
   uploadEndsAt: string | null;
   assets: Array<{ kind: string; assetId: string }>;
+  /** `false` = sorpresa extra: el participante debe ver que esta consigna no puntúa. */
+  countsForScoring: boolean;
   serverNow: string;
 };
 
