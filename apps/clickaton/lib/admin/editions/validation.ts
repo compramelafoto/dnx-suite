@@ -80,10 +80,12 @@ export function validateEditionFormInput(
     errors.status = "Estado inválido.";
   }
 
-  const startAt = parseDateTimeInput(input.startAt);
-  const endAt = parseDateTimeInput(input.endAt);
-  const registrationOpenAt = parseDateTimeInput(input.registrationOpenAt);
-  const registrationCloseAt = parseDateTimeInput(input.registrationCloseAt);
+  // Las fechas del formulario son hora local de la edición, no del servidor.
+  const editionTimeZone = input.timezone.trim();
+  const startAt = parseDateTimeInput(input.startAt, editionTimeZone);
+  const endAt = parseDateTimeInput(input.endAt, editionTimeZone);
+  const registrationOpenAt = parseDateTimeInput(input.registrationOpenAt, editionTimeZone);
+  const registrationCloseAt = parseDateTimeInput(input.registrationCloseAt, editionTimeZone);
 
   if (input.startAt.trim() && !startAt) errors.startAt = "Fecha de inicio inválida.";
   if (input.endAt.trim() && !endAt) errors.endAt = "Fecha de fin inválida.";
