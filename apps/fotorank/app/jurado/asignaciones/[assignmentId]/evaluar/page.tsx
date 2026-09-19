@@ -6,6 +6,7 @@ import {
   eligibilityForLoadedAssignment,
   loadJudgeAssignmentScoped,
 } from "../../../../lib/fotorank/judgeEvaluationGate";
+import { platformLabel } from "../../../../lib/fotorank/jury/assignment-source";
 import { EvaluationClient } from "./EvaluationClient";
 import { Card, Button } from "@repo/design-system";
 
@@ -16,6 +17,7 @@ export default async function JudgeEvaluationPage({ params }: { params: Promise<
   const loaded = await loadJudgeAssignmentScoped(assignmentId, judge.id);
   if (!loaded) return notFound();
   const assignment = loaded.row;
+  const plataforma = platformLabel(loaded.platform);
 
   const eligibility = eligibilityForLoadedAssignment(assignment, judge, new Date());
 
@@ -55,7 +57,12 @@ export default async function JudgeEvaluationPage({ params }: { params: Promise<
   return (
     <div className="min-h-screen bg-fr-bg p-8">
       <div className="mx-auto max-w-5xl space-y-6">
-        <h1 className="text-2xl font-semibold text-fr-primary">Evaluación de fotografías</h1>
+        <div>
+          <h1 className="text-2xl font-semibold text-fr-primary">
+            {assignment.contest.title}
+          </h1>
+          <p className="text-sm text-fr-muted">{plataforma} · Evaluación de fotografías</p>
+        </div>
         <EvaluationClient
           assignmentId={assignmentId}
           methodType={assignment.methodType}

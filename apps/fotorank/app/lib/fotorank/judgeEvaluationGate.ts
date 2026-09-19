@@ -22,7 +22,7 @@ export type JudgeAssignmentEvaluationRow = {
   evaluationStartsAt: Date | null;
   evaluationEndsAt: Date | null;
   extendedEndsAt: Date | null;
-  contest: { status: string; distributionChannel: string | null };
+  contest: { status: string; distributionChannel: string | null; title: string };
 };
 
 const ASSIGNMENT_SELECT = {
@@ -38,7 +38,7 @@ const ASSIGNMENT_SELECT = {
   evaluationStartsAt: true,
   evaluationEndsAt: true,
   extendedEndsAt: true,
-  contest: { select: { status: true, distributionChannel: true } },
+  contest: { select: { status: true, distributionChannel: true, title: true } },
 } as const;
 
 /**

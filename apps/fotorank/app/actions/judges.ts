@@ -1336,6 +1336,7 @@ export async function listJudgeAssignmentsForCurrentJudge(): Promise<
           contest: {
             status: a.contest.status,
             distributionChannel: a.contest.distributionChannel,
+            title: a.contest.title,
           },
         },
         judge,
