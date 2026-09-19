@@ -11,7 +11,11 @@ const clickatonCsp = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' https://sdk.mercadopago.com https://www.mercadopago.com https://www.mercadopago.com.ar https://http2.mlstatic.com https://vercel.live",
   "script-src-elem 'self' 'unsafe-inline' https://sdk.mercadopago.com https://www.mercadopago.com https://www.mercadopago.com.ar https://http2.mlstatic.com https://vercel.live",
-  "connect-src 'self' https://api.mercadopago.com https://api.mercadolibre.com https://www.mercadopago.com https://www.mercadopago.com.ar https://events.mercadopago.com https://sdk.mercadopago.com https://http2.mlstatic.com https://vercel.live wss://vercel.live",
+  // El bucket va acá porque la foto de una consigna se sube directo desde el
+  // navegador: la plataforma corta en 4,5 MB el cuerpo de cualquier petición al
+  // servidor, y una foto de cámara pesa más. Sin este permiso, el navegador
+  // bloquea el envío antes de hacerlo y la entrega falla sin llegar a la red.
+  "connect-src 'self' https://*.r2.cloudflarestorage.com https://api.mercadopago.com https://api.mercadolibre.com https://www.mercadopago.com https://www.mercadopago.com.ar https://events.mercadopago.com https://sdk.mercadopago.com https://http2.mlstatic.com https://vercel.live wss://vercel.live",
   "frame-src https://www.mercadopago.com https://www.mercadopago.com.ar https://sdk.mercadopago.com https://http2.mlstatic.com https://vercel.live",
   "img-src 'self' data: blob: https:",
   "style-src 'self' 'unsafe-inline' https:",
