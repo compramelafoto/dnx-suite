@@ -52,10 +52,14 @@ export function presignPutUrl(input: {
 }): string {
   const { amzDate, dateStamp } = amzDates(input.now ?? new Date());
   const url = new URL(input.endpoint);
-  // Estilo virtual-host: el bucket viaja en el nombre del servidor, igual que
-  // lo arma el SDK oficial y que ya usa FotoRank contra este mismo proveedor.
-  const host = `${input.bucket}.${url.host}`;
-  const canonicalUri = `/${encodeKey(input.key)}`;
+  // Estilo path: el bucket va en la ruta, no en el nombre del servidor.
+  //
+  // El SDK de Amazon arma la variante virtual-host (`bucket.cuenta.r2...`) y
+  // copiarla parecía lo prudente. No lo era: contra R2 esa dirección devuelve
+  // 503 y la subida del navegador muere ahí, sin que el servidor se entere.
+  // Verificado en producción el 2026-09-19, con la maratón en curso.
+  const host = url.host;
+  const canonicalUri = `${url.pathname.replace(/\/$/, "")}/${input.bucket}/${encodeKey(input.key)}`;
 
   const scope = `${dateStamp}/${REGION}/${SERVICE}/aws4_request`;
 
@@ -100,5 +104,5 @@ export function presignPutUrl(input: {
     .update(stringToSign, "utf8")
     .digest("hex");
 
-  return `${url.protocol}//${host}${canonicalUri}?${query.toString()}&X-Amz-Signature=${signature}`;
+  return `${url.origin}${canonicalUri}?${query.toString()}&X-Amz-Signature=${signature}`;
 }

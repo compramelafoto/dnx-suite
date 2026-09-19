@@ -3,14 +3,18 @@ import test from "node:test";
 import { amzDates, presignPutUrl } from "./presign";
 
 /**
- * La URL de referencia se generó comparando contra `@aws-sdk/s3-request-presigner`
- * con credenciales de juguete y el reloj congelado: con los mismos datos, aquella
- * implementación y ésta producen la misma firma, carácter por carácter. Ese
- * paquete no quedó como dependencia —reordena el lockfile del monorepo y rompe
- * el chequeo de tipos de CompraMeLaFoto—, así que la equivalencia se conserva
- * acá, fijada.
+ * El algoritmo se verificó contra `@aws-sdk/s3-request-presigner`: con los mismos
+ * datos y el reloj congelado, ambas implementaciones firman idéntico. Ese paquete
+ * no quedó como dependencia —reordena el lockfile del monorepo y rompe el chequeo
+ * de tipos de CompraMeLaFoto—, así que el resultado se conserva acá, fijado.
  *
- * Si este valor cambia, la firma dejó de ser la que el proveedor acepta.
+ * La forma de la dirección NO se copió del SDK, y ésa es la parte que costó cara:
+ * el SDK arma `bucket.cuenta.r2.cloudflarestorage.com` (virtual-host) y **R2
+ * responde 503 a esa dirección**. Se descubrió en producción, con la maratón
+ * corriendo y nadie pudiendo entregar. La que R2 acepta es la de abajo, con el
+ * bucket en la ruta.
+ *
+ * Si este valor cambia, la subida del navegador deja de funcionar.
  */
 const ENTRADA = {
   endpoint: "https://cuentademo.r2.cloudflarestorage.com",
@@ -23,7 +27,7 @@ const ENTRADA = {
 };
 
 const ESPERADA =
-  "https://clickaton-media.cuentademo.r2.cloudflarestorage.com/clickaton/private/entries/ed-1/inbox/reg-1/abc-def.jpg" +
+  "https://cuentademo.r2.cloudflarestorage.com/clickaton-media/clickaton/private/entries/ed-1/inbox/reg-1/abc-def.jpg" +
   "?X-Amz-Algorithm=AWS4-HMAC-SHA256" +
   "&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD" +
   "&X-Amz-Credential=AKIAIOSFODNN7EXAMPLE%2F20260919%2Fauto%2Fs3%2Faws4_request" +
@@ -31,23 +35,25 @@ const ESPERADA =
   "&X-Amz-Expires=900" +
   "&X-Amz-SignedHeaders=host" +
   "&x-id=PutObject" +
-  "&X-Amz-Signature=a48ae547c917579e3d472675b4327236f125b3f8e4ad82d78da0ea7c851b0559";
+  "&X-Amz-Signature=d6d6a1a61973c86c896a63f2b847f912933bf5bd53e269e9b70994e4b83c6c31";
 
-test("firma igual que el SDK oficial para la misma petición", () => {
+test("la URL firmada es la que R2 acepta", () => {
   assert.equal(presignPutUrl(ENTRADA), ESPERADA);
 });
 
-test("el bucket viaja en el nombre del servidor, no en la ruta", () => {
+test("el bucket va en la ruta, no en el nombre del servidor", () => {
   const url = new URL(presignPutUrl(ENTRADA));
-  assert.equal(url.host, "clickaton-media.cuentademo.r2.cloudflarestorage.com");
-  assert.equal(url.pathname, `/${ENTRADA.key}`);
+  assert.equal(url.host, "cuentademo.r2.cloudflarestorage.com");
+  assert.equal(url.pathname, `/clickaton-media/${ENTRADA.key}`);
+  // La variante virtual-host es la que devuelve 503: que no vuelva por descuido.
+  assert.ok(!url.host.startsWith("clickaton-media."));
 });
 
 test("las barras de la ruta no se escapan; los caracteres raros sí", () => {
   const url = new URL(
     presignPutUrl({ ...ENTRADA, key: "clickaton/private/entries/ed 1/foto #2.jpg" }),
   );
-  assert.equal(url.pathname, "/clickaton/private/entries/ed%201/foto%20%232.jpg");
+  assert.equal(url.pathname, "/clickaton-media/clickaton/private/entries/ed%201/foto%20%232.jpg");
 });
 
 test("cambiar un solo dato cambia la firma", () => {
