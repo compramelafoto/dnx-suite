@@ -108,3 +108,37 @@ test("la ruta lleva el asset, el vencimiento y la firma", () => {
   assert.equal(qs.get("exp"), String(VENCE.getTime()));
   assert.ok((qs.get("sig") ?? "").length > 20);
 });
+
+/**
+ * Vector fijo compartido con FotoRank.
+ *
+ * La firma se calcula en dos aplicaciones distintas. Si una cambia el propósito,
+ * el orden de los campos o la codificación, las pruebas de cada lado seguirían
+ * pasando por separado y el jurado no vería una sola foto. Este valor tiene que
+ * ser idéntico al de apps/fotorank/app/lib/fotorank/jury/entry-for-juror.test.ts.
+ */
+const FIRMA_ESPERADA = "QzkxP6BNKog1A6q1CC11qRChUpcuL17XSit2A1B5e-A";
+
+test("la firma coincide con la que emite FotoRank", () => {
+  const sig = signJuryPreviewLink({
+    assetId: "asset-compat",
+    expiresAt: new Date(1758312000000),
+    secret: SECRET,
+  });
+  assert.equal(
+    sig,
+    FIRMA_ESPERADA,
+    "La firma de Clickatón dejó de coincidir con la que emite FotoRank",
+  );
+});
+
+test("acepta una firma emitida por FotoRank", () => {
+  const r = verifyJuryPreviewLink({
+    assetId: "asset-compat",
+    exp: "1758312000000",
+    sig: FIRMA_ESPERADA,
+    now: new Date(1758312000000 - 1000),
+    secret: SECRET,
+  });
+  assert.deepEqual(r, { ok: true });
+});
