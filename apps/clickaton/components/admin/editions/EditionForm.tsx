@@ -183,6 +183,22 @@ export function EditionForm({
           ) : null}
         </AdminFormFullWidth>
 
+        <AdminFormSection title="Soporte al participante">
+          <Field
+            id="supportWhatsappPhone"
+            label="WhatsApp de soporte técnico y asistencia"
+            hint="El botón “Pedir ayuda” del participante abre este WhatsApp con el mensaje ya escrito. Vacío = queda el formulario de contacto."
+          >
+            <Input
+              name="supportWhatsappPhone"
+              value={values.supportWhatsappPhone}
+              onChange={(e) => updateField("supportWhatsappPhone", e.target.value)}
+              placeholder="3413748324"
+              inputMode="tel"
+            />
+          </Field>
+        </AdminFormSection>
+
         <AdminFormSection title="Ubicación">
           <Field id="location" label="Ubicación">
             <Input

@@ -177,6 +177,7 @@ export function validateEditionFormInput(
       registrationOpenAt,
       registrationCloseAt,
       defaultCapacity: capacity === "invalid" ? null : capacity,
+      supportWhatsappPhone: input.supportWhatsappPhone.trim() || null,
       location: input.location.trim() || null,
       city: input.city.trim() || null,
       provinceOrState: input.provinceOrState.trim() || null,
@@ -203,6 +204,7 @@ export type EditionValidatedData = {
   registrationOpenAt: Date | null;
   registrationCloseAt: Date | null;
   defaultCapacity: number | null;
+  supportWhatsappPhone: string | null;
   location: string | null;
   city: string | null;
   provinceOrState: string | null;
@@ -230,6 +232,7 @@ export function editionFormInputFromFormData(formData: FormData): ClickatonEditi
     registrationOpenAt: formData.get("registrationOpenAt")?.toString() ?? "",
     registrationCloseAt: formData.get("registrationCloseAt")?.toString() ?? "",
     defaultCapacity: formData.get("defaultCapacity")?.toString() ?? "",
+    supportWhatsappPhone: formData.get("supportWhatsappPhone")?.toString() ?? "",
     location: formData.get("location")?.toString() ?? "",
     city: formData.get("city")?.toString() ?? "",
     provinceOrState: formData.get("provinceOrState")?.toString() ?? "",

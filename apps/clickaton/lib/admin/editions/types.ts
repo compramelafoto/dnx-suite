@@ -27,6 +27,7 @@ export type ClickatonEditionRecord = {
   registrationOpenAt: Date | null;
   registrationCloseAt: Date | null;
   defaultCapacity: number | null;
+  supportWhatsappPhone: string | null;
   location: string | null;
   city: string | null;
   provinceOrState: string | null;
@@ -65,6 +66,7 @@ export type ClickatonEditionFormInput = {
   registrationOpenAt: string;
   registrationCloseAt: string;
   defaultCapacity: string;
+  supportWhatsappPhone: string;
   location: string;
   city: string;
   provinceOrState: string;
@@ -105,6 +107,7 @@ export function emptyEditionFormInput(): ClickatonEditionFormInput {
     registrationOpenAt: "",
     registrationCloseAt: "",
     defaultCapacity: "",
+    supportWhatsappPhone: "",
     location: "",
     city: "",
     provinceOrState: "",
@@ -136,6 +139,7 @@ export function editionToFormInput(edition: ClickatonEditionRecord): ClickatonEd
       edition.defaultCapacity === null || edition.defaultCapacity === undefined
         ? ""
         : String(edition.defaultCapacity),
+    supportWhatsappPhone: edition.supportWhatsappPhone ?? "",
     location: edition.location ?? "",
     city: edition.city ?? "",
     provinceOrState: edition.provinceOrState ?? "",

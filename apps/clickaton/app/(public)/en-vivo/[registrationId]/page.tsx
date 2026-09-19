@@ -10,6 +10,7 @@ import { getClickatonAuthUser, hasClickatonAdminAccess } from "@/lib/admin/auth"
 import { CLICKATON_LOGIN_PATH } from "@/lib/auth/return-path";
 import { participantCredentialPath, participantLivePath } from "@/lib/participant-live/routes";
 import { loadParticipantLiveState } from "@/lib/participant-live/service";
+import { construirEnlaceDeAyuda } from "@/lib/participant-support/support-link";
 import { isWithinUploadWindow, resolveEffectiveWindows } from "@/lib/photo-upload/windows";
 import { systemClock } from "@/lib/timeline/clock";
 import { listPromptPublicDtos } from "@/lib/timeline/prisma-timeline";
@@ -147,8 +148,20 @@ export default async function ParticipantLivePage({ params }: Props) {
   const entregaAbierta =
     uploadsEnabled && ventanaMuestra != null && isWithinUploadWindow(ventanaMuestra, clock);
 
+  // "Pedir ayuda" abre WhatsApp con el mensaje ya escrito: en medio de la
+  // maratón nadie se pone a explicar quién es desde cero.
+  const ayudaHref = construirEnlaceDeAyuda({
+    telefono: live.supportWhatsappPhone,
+    nombreEdicion: live.editionName,
+    nombreParticipante: live.firstName,
+    numeroParticipante: live.participantNumber,
+  });
+
   return (
     <ParticipantLiveScreen
+      ayudaHref={ayudaHref}
+      submissionFinalizedAt={live.submissionFinalizedAt}
+      fotosEnviadas={live.fotosEnviadas}
       registrationId={live.registrationId}
       editionName={live.editionName}
       timezone={live.timezone}
