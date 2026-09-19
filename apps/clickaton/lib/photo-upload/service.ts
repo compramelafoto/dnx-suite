@@ -9,7 +9,7 @@ import {
 } from "./fotorank-entry";
 import { sha256Buffer, type DuplicateMatch } from "./hash";
 import { detectImageMime, isAllowedMime } from "./mime";
-import { getPrivateEntryStorage } from "./storage";
+import { getPrivateEntryStorage, isInboxKey } from "./storage";
 import {
   evaluateCaptureDate,
   evaluateGps,
@@ -233,6 +233,99 @@ export async function requestPromptUpload(input: {
     },
     serverNow: ctx.clock.now().toISOString(),
   };
+}
+
+/**
+ * Permiso para depositar la foto en el buzón del bucket, sin pasar por el servidor.
+ *
+ * Aplica los mismos controles de puerta que el envío clásico —inscripción,
+ * consigna liberada, ventana de entrega abierta— y sólo después firma. El
+ * archivo todavía no existe, así que el peso, el EXIF y el formato real se
+ * revisan al procesarlo: esto no reemplaza ninguna validación, sólo evita
+ * firmar para alguien que no podría entregar igual.
+ */
+export async function requestDirectUploadTicket(input: {
+  registrationId: string;
+  promptId: string;
+  userId: number;
+  fileName: string;
+  declaredMime: string;
+  clock?: EditionClock;
+}) {
+  const ctx = await loadEligibleContext(input);
+
+  const allowed = asStringArray(ctx.config.allowedMimeTypes);
+  if (input.declaredMime && !isAllowedMime(input.declaredMime, allowed)) {
+    throw new PhotoUploadError("MIME_NOT_ALLOWED", "Formato de archivo no admitido.", 415);
+  }
+
+  const storage = getPrivateEntryStorage();
+  if (!storage.presignInbox) return null;
+
+  const extension = input.fileName.split(".").pop() ?? "jpg";
+  return storage.presignInbox({
+    editionId: ctx.registration.editionId,
+    registrationId: input.registrationId,
+    extension,
+    contentType: input.declaredMime || "application/octet-stream",
+  });
+}
+
+/**
+ * Procesa una foto ya depositada en el buzón.
+ *
+ * El servidor la baja del bucket —adentro, sin el tope de 4,5 MB que la
+ * plataforma impone al cuerpo de una petición— y de ahí en adelante es
+ * exactamente el mismo camino que el envío clásico: las mismas validaciones,
+ * el mismo guardado, el mismo resultado.
+ */
+export async function processPromptUploadFromInbox(input: {
+  registrationId: string;
+  promptId: string;
+  userId: number;
+  inboxKey: string;
+  originalFileName: string;
+  declaredMime?: string;
+  isReplace?: boolean;
+  clock?: EditionClock;
+}) {
+  const ctx = await loadEligibleContext(input);
+
+  if (!isInboxKey(input.inboxKey, {
+    editionId: ctx.registration.editionId,
+    registrationId: input.registrationId,
+  })) {
+    throw new PhotoUploadError("INVALID_UPLOAD_KEY", "Referencia de subida inválida.", 400);
+  }
+
+  const storage = getPrivateEntryStorage();
+  let buffer: Buffer;
+  try {
+    buffer = await storage.get(input.inboxKey);
+  } catch {
+    throw new PhotoUploadError(
+      "UPLOAD_NOT_FOUND",
+      "No encontramos la foto que se subió. Probá de nuevo.",
+      404,
+    );
+  }
+
+  try {
+    return await processPromptUpload({
+      registrationId: input.registrationId,
+      promptId: input.promptId,
+      userId: input.userId,
+      buffer,
+      originalFileName: input.originalFileName,
+      declaredMime: input.declaredMime,
+      isReplace: input.isReplace,
+      clock: input.clock,
+    });
+  } finally {
+    // El original queda guardado por `processPromptUpload` en su propia key:
+    // el buzón es de paso y se vacía aunque la validación haya rechazado.
+    void storage.remove?.(input.inboxKey).catch(() => {});
+  }
 }
 
 export async function processPromptUpload(input: {

@@ -23,6 +23,9 @@ importers:
       '@aws-sdk/client-s3':
         specifier: ^3.1016.0
         version: 3.1079.0
+      '@aws-sdk/s3-request-presigner':
+        specifier: ^3.1016.0
+        version: 3.1079.0
       '@mercadopago/sdk-react':
         specifier: 1.0.7
         version: 1.0.7(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -8568,8 +8571,8 @@ snapshots:
       '@aws-sdk/core': 3.974.27
       '@aws-sdk/signature-v4-multi-region': 3.996.38
       '@aws-sdk/types': 3.973.15
-      '@smithy/core': 3.29.1
-      '@smithy/types': 4.15.1
+      '@smithy/core': 3.34.1
+      '@smithy/types': 4.18.0
       tslib: 2.8.1
 
   '@aws-sdk/signature-v4-multi-region@3.996.38':
