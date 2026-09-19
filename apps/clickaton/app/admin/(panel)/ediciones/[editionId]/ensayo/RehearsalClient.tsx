@@ -6,11 +6,13 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import {
   chequearEdicionAction,
+  ensayarCompletoAction,
   ensayarEnSecoAction,
   type RespuestaChequeo,
 } from "@/lib/edition-rehearsal/actions";
 import type { ModoDeEnsayo } from "@/lib/edition-rehearsal/application/dry-run-steps";
 import type { ResultadoEnsayoEnSeco } from "@/lib/edition-rehearsal/application/run-dry-rehearsal";
+import type { ResultadoEnsayoCompleto } from "@/lib/edition-rehearsal/application/run-full-rehearsal";
 import {
   agruparPorRubro,
   enlaceDeHallazgo,
@@ -70,6 +72,16 @@ export function RehearsalClient({ editionId, editionName, timezone }: Props) {
     empezarEnsayo(async () => {
       const iso = valor ? new Date(valor).toISOString() : null;
       setEnsayo(await ensayarEnSecoAction(editionId, iso, modoElegido));
+    });
+  }
+
+  const [confirmacion, setConfirmacion] = useState("");
+  const [completo, setCompleto] = useState<ResultadoEnsayoCompleto | null>(null);
+  const [ensayandoCompleto, empezarEnsayoCompleto] = useTransition();
+
+  function ensayarCompleto() {
+    empezarEnsayoCompleto(async () => {
+      setCompleto(await ensayarCompletoAction(editionId, confirmacion));
     });
   }
 
@@ -280,6 +292,125 @@ export function RehearsalClient({ editionId, editionName, timezone }: Props) {
                 );
               })}
             </ol>
+          </div>
+        ) : null}
+      </Card>
+
+      <Card variant="outlined" className="space-y-4 p-5">
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold text-ck-text">Ensayo completo</h2>
+          <p className="text-sm text-ck-text-muted">
+            Igual que el ensayo de arriba, pero escribiendo de verdad: crea una copia
+            descartable de {editionName}, inscribe un participante ficticio, lo confirma, le
+            emite la credencial y le registra el ingreso. Al terminar borra la copia entera.
+          </p>
+          <p className="text-sm text-ck-text-muted">
+            La edición real no se toca en ningún momento. En la copia las entradas valen cero,
+            así que no pasa por Mercado Pago ni mueve un peso, y la foto no se sube al
+            depósito de archivos: eso se verifica en el ensayo en seco.
+          </p>
+        </div>
+
+        <div className="space-y-2 rounded-[var(--ck-radius-sm)] border border-[var(--ck-warning)]/50 bg-[var(--ck-warning-soft)] p-4">
+          <label
+            htmlFor="confirmacion-ensayo"
+            className="block text-sm font-medium text-ck-text"
+          >
+            Para confirmar, escribí el nombre de la edición: {editionName}
+          </label>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              id="confirmacion-ensayo"
+              type="text"
+              value={confirmacion}
+              onChange={(e) => setConfirmacion(e.target.value)}
+              placeholder={editionName}
+              className="min-w-[16rem] rounded-[var(--ck-radius-sm)] border border-ck-border bg-ck-surface-strong px-3 py-2 text-sm text-ck-text"
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              loading={ensayandoCompleto}
+              disabled={confirmacion.trim() !== editionName.trim()}
+              onClick={ensayarCompleto}
+            >
+              Correr el ensayo completo
+            </Button>
+          </div>
+        </div>
+
+        {completo?.ok === false ? (
+          <p className="text-sm text-[var(--ck-danger)]">{completo.mensaje}</p>
+        ) : null}
+
+        {completo?.ok === true ? (
+          <div className="space-y-4">
+            <div className="rounded-[var(--ck-radius-sm)] border border-ck-border bg-ck-surface-strong p-4">
+              <p className="text-sm font-medium text-ck-text">{completo.resultado.veredicto}</p>
+              <p className="mt-1 text-xs text-ck-text-muted">
+                Copia usada: {completo.copiaNombre}
+              </p>
+            </div>
+
+            <ol className="space-y-2">
+              {completo.resultado.pasos.map((p) => {
+                const estado = presentarEstadoDePaso(p.estado);
+                return (
+                  <li
+                    key={p.numero}
+                    className="rounded-[var(--ck-radius-sm)] border border-ck-border p-3"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="ck-label text-ck-text-muted">Paso {p.numero}</span>
+                      <Badge variant={estado.variante}>{estado.etiqueta}</Badge>
+                      <span className="text-sm font-medium text-ck-text">{p.nombre}</span>
+                    </div>
+                    <p className="mt-2 text-sm text-ck-text-secondary">
+                      Lo que vería: {p.queVeria}
+                    </p>
+                    <p className="mt-1 text-sm text-ck-text-muted">{p.detalle}</p>
+                    {p.comoArreglar ? (
+                      <p className="mt-1 text-sm text-ck-text-muted">
+                        Qué hacer: {p.comoArreglar}
+                      </p>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ol>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-[var(--ck-radius-sm)] border border-ck-border p-3">
+                <h3 className="text-xs uppercase tracking-[0.1em] text-ck-text-muted">
+                  Lo que se creó
+                </h3>
+                <ul className="mt-2 space-y-1 text-sm text-ck-text-secondary">
+                  {Object.entries(completo.creado).map(([que, cuantos]) => (
+                    <li key={que}>
+                      {cuantos} {que}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="rounded-[var(--ck-radius-sm)] border border-ck-border p-3">
+                <h3 className="text-xs uppercase tracking-[0.1em] text-ck-text-muted">
+                  Lo que se borró
+                </h3>
+                {completo.borrado ? (
+                  <ul className="mt-2 space-y-1 text-sm text-ck-text-secondary">
+                    {Object.entries(completo.borrado).map(([que, cuantos]) => (
+                      <li key={que}>
+                        {cuantos} {que}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-2 text-sm text-[var(--ck-danger)]">
+                    {completo.avisoDeLimpieza}
+                  </p>
+                )}
+              </div>
+            </div>
           </div>
         ) : null}
       </Card>

@@ -1,9 +1,14 @@
 "use server";
 
 import { requireClickatonAdmin } from "@/lib/admin/auth";
+import { prisma } from "@/lib/admin/db";
 import type { ModoDeEnsayo } from "./application/dry-run-steps";
 import { correrEnsayoEnSeco, type ResultadoEnsayoEnSeco } from "./application/run-dry-rehearsal";
 import { correrChequeoDeEdicion } from "./application/run-edition-check";
+import {
+  correrEnsayoCompleto,
+  type ResultadoEnsayoCompleto,
+} from "./application/run-full-rehearsal";
 import type { Hallazgo } from "./domain/types";
 
 export type RespuestaChequeo =
@@ -61,4 +66,38 @@ export async function ensayarEnSecoAction(
   }
 
   return correrEnsayoEnSeco({ editionId: id, momento, modo });
+}
+
+/**
+ * Ensayo completo: crea una copia descartable, escribe de verdad sobre ella y
+ * la borra al terminar.
+ *
+ * Pide escribir el nombre exacto de la edición antes de arrancar. La edición
+ * real nunca se toca: todo lo que se escribe cuelga de la copia.
+ */
+export async function ensayarCompletoAction(
+  editionId: string,
+  nombreEscrito: string,
+): Promise<ResultadoEnsayoCompleto> {
+  const user = await requireClickatonAdmin({
+    returnTo: `/admin/ediciones/${editionId}/ensayo`,
+  });
+
+  const id = editionId.trim();
+  if (!id) return { ok: false, mensaje: "Falta el identificador de la edición." };
+
+  const edicion = await prisma.clickatonEdition.findUnique({
+    where: { id },
+    select: { name: true },
+  });
+  if (!edicion) return { ok: false, mensaje: "No encontramos esa edición." };
+
+  if (nombreEscrito.trim() !== edicion.name.trim()) {
+    return {
+      ok: false,
+      mensaje: `Para confirmar, escribí el nombre exacto de la edición: ${edicion.name}`,
+    };
+  }
+
+  return correrEnsayoCompleto({ editionId: id, operadorUserId: user.id });
 }

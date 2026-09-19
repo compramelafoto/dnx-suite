@@ -115,7 +115,8 @@
     "test:edition-rehearsal-checks": "tsx --test lib/edition-rehearsal/domain/checks.test.ts",
     "test:edition-rehearsal-ux": "tsx --test lib/edition-rehearsal/ui/rehearsal-presentation.test.ts",
     "test:edition-rehearsal-presets": "tsx --test lib/edition-rehearsal/domain/timeline-presets.test.ts",
-    "selfcheck:edition-rehearsal": "tsx scripts/edition-rehearsal.selfcheck.ts"
+    "selfcheck:edition-rehearsal": "tsx scripts/edition-rehearsal.selfcheck.ts",
+    "test:edition-rehearsal-discard": "tsx --test lib/edition-rehearsal/application/discard-guard.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1016.0",
