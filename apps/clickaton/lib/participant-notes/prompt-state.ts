@@ -38,3 +38,22 @@ export function estaResuelta(estado: EstadoConsigna): boolean {
 export function estaEnviada(estado: EstadoConsigna): boolean {
   return estado === "ENVIADA";
 }
+
+/**
+ * El estado que vale para el contador y el resumen de "Terminar".
+ *
+ * La pantalla se arma con la foto que trajo el servidor al abrirla. Quien sube
+ * sus consignas de corrido entrega muchas fotos sin recargar nunca, y esas
+ * entregas no están en esa foto: si no se las tiene en cuenta, el resumen del
+ * último paso muestra "Sin entregar" lo que la persona acaba de entregar.
+ *
+ * Lo recién entregado manda, hasta que el servidor conteste con datos nuevos.
+ */
+export function estadoVigenteDeConsigna(input: {
+  promptId: string | null;
+  estadoDelServidor?: string | null;
+  entregadasAhora: Record<string, string>;
+}): string | null | undefined {
+  const reciente = input.promptId ? input.entregadasAhora[input.promptId] : undefined;
+  return reciente ?? input.estadoDelServidor;
+}

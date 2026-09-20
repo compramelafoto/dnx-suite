@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { CAMERA_CLOCK_WARNING_ES } from "@/config/editions/argentina-2026";
 import { publicUploadError } from "@/lib/public-ux/public-errors";
@@ -20,6 +21,11 @@ import { subirConProgreso } from "@/lib/participant-notes/upload-progress";
  * Si la confirmación automática falla (se cortó la señal justo ahí), la foto
  * queda subida pero sin competir. Ese estado se señala en ámbar con un botón
  * para reintentar: es preferible mostrarlo que dejarlo pasar en silencio.
+ *
+ * Cada cambio de estado se avisa hacia arriba (`onEstado`) y se pide de nuevo
+ * la pantalla al servidor. Sin eso el contador de arriba —"7 de 11 enviadas"—
+ * se queda con el número que tenía cuando se abrió la página, y la persona ve
+ * su foto entregada en la tarjeta pero no en el resumen.
  */
 
 export type DatosTecnicos = {
@@ -39,6 +45,8 @@ type Props = {
   validationResult?: string | null;
   tecnica?: DatosTecnicos | null;
   showClockWarning?: boolean;
+  /** Avisa el estado nuevo de esta consigna para que el resumen lo tome ya. */
+  onEstado?: (promptId: string, estado: string) => void;
 };
 
 export function PromptPhotoUpload({
@@ -52,12 +60,27 @@ export function PromptPhotoUpload({
   validationResult,
   tecnica,
   showClockWarning = true,
+  onEstado,
 }: Props) {
+  const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
-  const [status, setStatus] = useState(submissionStatus ?? null);
+  const [estadoLocal, setEstadoLocal] = useState<string | null>(null);
   const [datos, setDatos] = useState<DatosTecnicos | null>(tecnica ?? null);
   const [progreso, setProgreso] = useState<number | null>(null);
   const [trabajando, setTrabajando] = useState(false);
+
+  /** Mientras el servidor no responda, manda lo que acaba de pasar acá. */
+  const status = estadoLocal ?? submissionStatus ?? null;
+
+  // El servidor ya trae el estado nuevo: deja de pisarlo con el de acá.
+  useEffect(() => {
+    setEstadoLocal(null);
+  }, [submissionStatus]);
+
+  function aplicarEstado(nuevo: string) {
+    setEstadoLocal(nuevo);
+    onEstado?.(promptId, nuevo);
+  }
 
   const estado = resolverEstadoConsigna({ submissionStatus: status });
 
@@ -78,8 +101,10 @@ export function PromptPhotoUpload({
         setMessage(`${err.title}. ${err.description}`);
         return false;
       }
-      setStatus(json.status ?? "CONFIRMED");
+      aplicarEstado(json.status ?? "CONFIRMED");
       setMessage("Foto entregada. Ya compite.");
+      // Que el resumen de arriba se entere sin tener que recargar a mano.
+      router.refresh();
       return true;
     } catch {
       setMessage("Se cortó la conexión antes de guardar la entrega. Probá de nuevo.");
@@ -110,7 +135,7 @@ export function PromptPhotoUpload({
     }
 
     setProgreso(100);
-    setStatus((res.json.status as string) ?? "PENDING_CONFIRMATION");
+    aplicarEstado((res.json.status as string) ?? "PENDING_CONFIRMATION");
 
     const checklist = res.json.checklist as
       | { width?: number; height?: number; captureDate?: string | null; camera?: string | null }
