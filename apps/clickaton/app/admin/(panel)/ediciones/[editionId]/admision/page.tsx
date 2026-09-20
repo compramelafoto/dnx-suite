@@ -14,6 +14,7 @@ import {
   closeBatchAction,
   ensureDraftBatchAction,
   evaluatePendingBulkAction,
+  toggleAdmissionAction,
   freezeBatchAction,
   reopenBatchAction,
 } from "@/lib/technical-admission/actions";
@@ -196,6 +197,31 @@ export default async function EditionAdmissionPage({ params }: Props) {
                 {presentAccreditationPolicy(dash.config.accreditationRequiredForAdmission)}
               </strong>
             </p>
+            <p className="text-sm text-ck-text-muted">
+              {dash.config.admissionEnabled
+                ? "Cada foto que entra se revisa sola: hora de captura, GPS y duplicados."
+                : "Con la admisión apagada las fotos se suben igual, pero ninguna se revisa sola y el jurado no va a tener obras para mirar: sólo ve las que pasaron por acá."}
+            </p>
+            <form action={toggleAdmissionAction.bind(null, editionId)}>
+              <input
+                type="hidden"
+                name="enabled"
+                value={dash.config.admissionEnabled ? "false" : "true"}
+              />
+              {dash.config.admissionEnabled ? (
+                <ConfirmSubmitButton
+                  confirmMessage="Si apagás la admisión técnica, las fotos que entren dejan de revisarse solas. ¿Seguro?"
+                  variant="outline"
+                  size="sm"
+                >
+                  Apagar la admisión técnica
+                </ConfirmSubmitButton>
+              ) : (
+                <Button type="submit" variant="primary" size="sm">
+                  Encender la admisión técnica
+                </Button>
+              )}
+            </form>
           </div>
           <Badge variant={admissionToneToBadgeVariant(batchStatus.tone)}>
             {batchStatus.label}

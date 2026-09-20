@@ -5,13 +5,26 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
-import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
+import { presignPutUrl } from "./presign";
 
 export type PrivateStoredObject = {
   key: string;
   bytes: number;
   contentHash: string;
   contentType: string;
+};
+
+/** Permiso temporal para que el navegador deposite el archivo sin pasar por el servidor. */
+export type DirectUploadTicket = {
+  url: string;
+  key: string;
+  expiresInSeconds: number;
 };
 
 export interface PrivateEntryStorage {
@@ -24,6 +37,19 @@ export interface PrivateEntryStorage {
     contentType: string;
   }): Promise<PrivateStoredObject>;
   get(key: string): Promise<Buffer>;
+  /**
+   * URL firmada para subir directo al bucket.
+   *
+   * `null` cuando el almacenamiento no lo soporta (disco local, memoria): el
+   * llamador cae al envío por el servidor, que sigue funcionando.
+   */
+  presignInbox?(input: {
+    editionId: string;
+    registrationId: string;
+    extension: string;
+    contentType: string;
+  }): Promise<DirectUploadTicket | null>;
+  remove?(key: string): Promise<void>;
   isPrivate: boolean;
 }
 
@@ -40,8 +66,30 @@ function buildKey(input: {
   return `clickaton/private/entries/${input.editionId}/${input.submissionId}/${input.kind}/${randomUUID()}.${safeExt(input.extension)}`;
 }
 
+/**
+ * Buzón de entrada: dónde deposita el navegador antes de que el servidor valide.
+ *
+ * Vive bajo el mismo prefijo privado que el resto, así que nunca es público, y
+ * lleva la inscripción en la ruta para que una persona no pueda pedir permiso
+ * para escribir en el espacio de otra.
+ */
+function buildInboxKey(input: {
+  editionId: string;
+  registrationId: string;
+  extension: string;
+}) {
+  return `clickaton/private/entries/${input.editionId}/inbox/${input.registrationId}/${randomUUID()}.${safeExt(input.extension)}`;
+}
+
 function assertPrivateKey(key: string) {
   if (!key.startsWith("clickaton/private/entries/")) throw new Error("INVALID_PRIVATE_KEY");
+}
+
+/** El buzón es lo único que acepta una key traída por el cliente. */
+export function isInboxKey(key: string, input: { editionId: string; registrationId: string }) {
+  return key.startsWith(
+    `clickaton/private/entries/${input.editionId}/inbox/${input.registrationId}/`,
+  );
 }
 
 export class LocalPrivateEntryStorage implements PrivateEntryStorage {
@@ -142,6 +190,32 @@ export class R2PrivateEntryStorage implements PrivateEntryStorage {
     const bytes = await response.Body?.transformToByteArray();
     if (!bytes) throw new Error("MEDIA_NOT_FOUND");
     return Buffer.from(bytes);
+  }
+
+  async presignInbox(input: {
+    editionId: string;
+    registrationId: string;
+    extension: string;
+    contentType: string;
+  }): Promise<DirectUploadTicket> {
+    const key = buildInboxKey(input);
+    const expiresInSeconds = 900; // 15 minutos: alcanza para una foto con mala señal.
+    const url = presignPutUrl({
+      endpoint: this.config.endpoint,
+      bucket: this.config.bucket,
+      key,
+      accessKeyId: this.config.accessKeyId,
+      secretAccessKey: this.config.secretAccessKey,
+      expiresInSeconds,
+    });
+    return { url, key, expiresInSeconds };
+  }
+
+  async remove(key: string): Promise<void> {
+    assertPrivateKey(key);
+    await this.client.send(
+      new DeleteObjectCommand({ Bucket: this.config.bucket, Key: key }),
+    );
   }
 }
 

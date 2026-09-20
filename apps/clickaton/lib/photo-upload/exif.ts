@@ -2,6 +2,7 @@
  * Extracción EXIF no bloqueante (misma política que FotoRank).
  */
 import exifr from "exifr";
+import { interpretExifClock, parseExifOffset } from "./exif-clock";
 
 export type PhotoExifResult = {
   cameraMake: string | null;
@@ -37,7 +38,16 @@ function parseDate(v: unknown): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-export async function extractPhotoExif(buffer: Uint8Array | Buffer): Promise<PhotoExifResult> {
+/**
+ * La hora del EXIF es hora local de cámara sin zona: se la reubica en la zona
+ * horaria de la edición (ver `exif-clock.ts`). Sin eso, en Argentina toda
+ * captura queda tres horas antes de su momento real.
+ */
+export async function extractPhotoExif(
+  buffer: Uint8Array | Buffer,
+  options?: { timeZone?: string },
+): Promise<PhotoExifResult> {
+  const timeZone = options?.timeZone || "America/Argentina/Cordoba";
   try {
     const parsed = (await exifr.parse(buffer, {
       tiff: true,
@@ -55,18 +65,31 @@ export async function extractPhotoExif(buffer: Uint8Array | Buffer): Promise<Pho
       return empty("NOT_AVAILABLE");
     }
 
-    const captureDate =
-      parseDate(parsed.DateTimeOriginal) ??
-      parseDate(parsed.CreateDate) ??
-      parseDate(parsed.DateCreated) ??
-      null;
+    const exifOffsetMinutes =
+      parseExifOffset(parsed.OffsetTimeOriginal) ??
+      parseExifOffset(parsed.OffsetTimeDigitized) ??
+      parseExifOffset(parsed.OffsetTime);
+
+    const captureDate = interpretExifClock({
+      exifDate:
+        parseDate(parsed.DateTimeOriginal) ??
+        parseDate(parsed.CreateDate) ??
+        parseDate(parsed.DateCreated) ??
+        null,
+      timeZone,
+      exifOffsetMinutes,
+    });
     // ModifyDate / file mtime NO se usan como captura.
     const fields = {
       cameraMake: pickString(parsed.Make),
       cameraModel: pickString(parsed.Model),
       lensModel: pickString(parsed.LensModel, parsed.Lens),
       captureDate,
-      digitizedDate: parseDate(parsed.CreateDate) ?? parseDate(parsed.DateTimeDigitized),
+      digitizedDate: interpretExifClock({
+        exifDate: parseDate(parsed.CreateDate) ?? parseDate(parsed.DateTimeDigitized),
+        timeZone,
+        exifOffsetMinutes,
+      }),
       software: pickString(parsed.Software),
       iso: pickString(parsed.ISO, parsed.ISOSpeedRatings),
       aperture: pickString(parsed.FNumber, parsed.ApertureValue),

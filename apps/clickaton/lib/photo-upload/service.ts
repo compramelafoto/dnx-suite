@@ -9,7 +9,7 @@ import {
 } from "./fotorank-entry";
 import { sha256Buffer, type DuplicateMatch } from "./hash";
 import { detectImageMime, isAllowedMime } from "./mime";
-import { getPrivateEntryStorage } from "./storage";
+import { getPrivateEntryStorage, isInboxKey } from "./storage";
 import {
   evaluateCaptureDate,
   evaluateGps,
@@ -235,6 +235,99 @@ export async function requestPromptUpload(input: {
   };
 }
 
+/**
+ * Permiso para depositar la foto en el buzón del bucket, sin pasar por el servidor.
+ *
+ * Aplica los mismos controles de puerta que el envío clásico —inscripción,
+ * consigna liberada, ventana de entrega abierta— y sólo después firma. El
+ * archivo todavía no existe, así que el peso, el EXIF y el formato real se
+ * revisan al procesarlo: esto no reemplaza ninguna validación, sólo evita
+ * firmar para alguien que no podría entregar igual.
+ */
+export async function requestDirectUploadTicket(input: {
+  registrationId: string;
+  promptId: string;
+  userId: number;
+  fileName: string;
+  declaredMime: string;
+  clock?: EditionClock;
+}) {
+  const ctx = await loadEligibleContext(input);
+
+  const allowed = asStringArray(ctx.config.allowedMimeTypes);
+  if (input.declaredMime && !isAllowedMime(input.declaredMime, allowed)) {
+    throw new PhotoUploadError("MIME_NOT_ALLOWED", "Formato de archivo no admitido.", 415);
+  }
+
+  const storage = getPrivateEntryStorage();
+  if (!storage.presignInbox) return null;
+
+  const extension = input.fileName.split(".").pop() ?? "jpg";
+  return storage.presignInbox({
+    editionId: ctx.registration.editionId,
+    registrationId: input.registrationId,
+    extension,
+    contentType: input.declaredMime || "application/octet-stream",
+  });
+}
+
+/**
+ * Procesa una foto ya depositada en el buzón.
+ *
+ * El servidor la baja del bucket —adentro, sin el tope de 4,5 MB que la
+ * plataforma impone al cuerpo de una petición— y de ahí en adelante es
+ * exactamente el mismo camino que el envío clásico: las mismas validaciones,
+ * el mismo guardado, el mismo resultado.
+ */
+export async function processPromptUploadFromInbox(input: {
+  registrationId: string;
+  promptId: string;
+  userId: number;
+  inboxKey: string;
+  originalFileName: string;
+  declaredMime?: string;
+  isReplace?: boolean;
+  clock?: EditionClock;
+}) {
+  const ctx = await loadEligibleContext(input);
+
+  if (!isInboxKey(input.inboxKey, {
+    editionId: ctx.registration.editionId,
+    registrationId: input.registrationId,
+  })) {
+    throw new PhotoUploadError("INVALID_UPLOAD_KEY", "Referencia de subida inválida.", 400);
+  }
+
+  const storage = getPrivateEntryStorage();
+  let buffer: Buffer;
+  try {
+    buffer = await storage.get(input.inboxKey);
+  } catch {
+    throw new PhotoUploadError(
+      "UPLOAD_NOT_FOUND",
+      "No encontramos la foto que se subió. Probá de nuevo.",
+      404,
+    );
+  }
+
+  try {
+    return await processPromptUpload({
+      registrationId: input.registrationId,
+      promptId: input.promptId,
+      userId: input.userId,
+      buffer,
+      originalFileName: input.originalFileName,
+      declaredMime: input.declaredMime,
+      isReplace: input.isReplace,
+      clock: input.clock,
+    });
+  } finally {
+    // El original queda guardado por `processPromptUpload` en su propia key:
+    // el buzón es de paso y se vacía aunque la validación haya rechazado.
+    void storage.remove?.(input.inboxKey).catch(() => {});
+  }
+}
+
 export async function processPromptUpload(input: {
   registrationId: string;
   promptId: string;
@@ -301,7 +394,9 @@ export async function processPromptUpload(input: {
       );
     }
 
-    const exif = await extractPhotoExif(input.buffer);
+    const exif = await extractPhotoExif(input.buffer, {
+      timeZone: ctx.registration.edition.timezone ?? "America/Argentina/Cordoba",
+    });
     let width = 0;
     let height = 0;
     let decodable = false;
@@ -411,14 +506,23 @@ export async function processPromptUpload(input: {
       },
     });
 
-    const nextStatus =
-      validation === "FAIL" ? "REJECTED" : "PENDING_CONFIRMATION";
+    /**
+     * Ninguna entrega se rechaza sola por la lectura técnica.
+     *
+     * El reloj de la cámara, un EXIF borrado al editar o una foto exportada
+     * pueden dar una lectura fuera de ventana sin que la persona haya hecho
+     * nada mal, y durante la maratón no hay a quién reclamarle. La foto entra
+     * siempre y queda marcada para revisión: decide la organización, no el
+     * lector de metadatos.
+     */
+    const validationResult = validation === "FAIL" ? "MANUAL_REVIEW" : validation;
+    const nextStatus = "PENDING_CONFIRMATION";
 
     const updated = await prisma.clickatonPhotoSubmission.update({
       where: { id: submission.id },
       data: {
         status: nextStatus,
-        validationResult: validation,
+        validationResult,
         sha256: hash,
         originalStorageKey: original.key,
         previewStorageKey: previewKey,
@@ -442,8 +546,8 @@ export async function processPromptUpload(input: {
           duplicate,
           privateOriginal: true,
         },
-        failureCode: validation === "FAIL" ? captureEval.reason : null,
-        failureMessage: validation === "FAIL" ? "Validación técnica fallida." : null,
+        failureCode: null,
+        failureMessage: null,
       },
     });
 
@@ -525,11 +629,19 @@ export async function confirmPromptSubmission(input: {
   if (!submission || submission.userId !== input.userId) {
     throw new PhotoUploadError("NOT_FOUND", "Envío no encontrado.", 404);
   }
-  if (submission.status !== "PENDING_CONFIRMATION" && submission.status !== "READY_FOR_REVIEW") {
+  /**
+   * Se admite confirmar también lo que quedó marcado como rechazado por la
+   * lectura técnica: la foto está subida y la revisión la resuelve después la
+   * organización. Solo se frena lo que todavía no terminó de subir.
+   */
+  const confirmables = [
+    "PENDING_CONFIRMATION",
+    "READY_FOR_REVIEW",
+    "REJECTED",
+    "CONFIRMED",
+  ];
+  if (!confirmables.includes(submission.status)) {
     throw new PhotoUploadError("NOT_CONFIRMABLE", "El envío no está listo para confirmar.", 409);
-  }
-  if (submission.validationResult === "FAIL") {
-    throw new PhotoUploadError("VALIDATION_FAILED", "No se puede confirmar un envío rechazado.", 409);
   }
   if (!submission.fotorankEntryId) {
     throw new PhotoUploadError("ENTRY_MISSING", "Falta vínculo FotoRank.", 409);
@@ -549,7 +661,7 @@ export async function confirmPromptSubmission(input: {
   });
 
   const tech =
-    submission.validationResult === "MANUAL_REVIEW"
+    submission.validationResult === "MANUAL_REVIEW" || submission.validationResult === "FAIL"
       ? "REQUIRES_REVIEW"
       : submission.validationResult === "WARNING"
         ? "APPROVED_WITH_WARNINGS"

@@ -163,10 +163,16 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
     });
   }, [context.tickets, venueId]);
 
+  // Sin plan elegido el CTA del panel de resumen —en celular, la barra fija del
+  // pie— nace apagado, y la gente lo lee como "la inscripción está cerrada".
+  // Con una sola opción se marca sola; con varias marcamos la inscripción simple,
+  // que es la que compra casi todo el mundo. El Pack queda a un toque.
   useEffect(() => {
+    if (ticketTypeId) return;
     const open = ticketsForVenue.filter((t) => t.salesStatus === "open" && !t.isSoldOut);
-    if (!ticketTypeId && open.length === 1) {
-      setTicketTypeId(open[0]!.id);
+    const preferred = open.find((t) => !t.isMarathonPack) ?? open[0];
+    if (preferred) {
+      setTicketTypeId(preferred.id);
     }
   }, [ticketsForVenue, ticketTypeId]);
 

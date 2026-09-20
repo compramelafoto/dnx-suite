@@ -18,6 +18,14 @@ export default async function AccreditationScanPage({ params }: Props) {
   });
   if (!edition) notFound();
 
+  // Los aparatos habilitados, para que el operador diga cuál está usando y cada
+  // acreditación quede atada a un celular concreto.
+  const devices = await prisma.clickatonAccreditationDevice.findMany({
+    where: { editionId, status: "ACTIVE" },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+
   return (
     <div className="mx-auto max-w-xl space-y-6">
       <AdminPageHeader
@@ -40,7 +48,7 @@ export default async function AccreditationScanPage({ params }: Props) {
         }
       />
       <Card variant="outlined" className="p-5">
-        <AccreditationScanner editionId={editionId} />
+        <AccreditationScanner editionId={editionId} devices={devices} />
       </Card>
     </div>
   );

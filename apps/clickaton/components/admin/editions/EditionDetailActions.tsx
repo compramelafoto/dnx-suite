@@ -20,6 +20,7 @@ const MODULES = [
   { key: "admision", label: "Admisión" },
   { key: "acreditacion", label: "Acreditación" },
   { key: "placas", label: "Placas" },
+  { key: "ensayo", label: "Ensayo" },
 ] as const;
 
 /**

@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { buildAvailability } from "@/lib/admin-catalog/domain/availability";
 import type { PricePhaseRecord } from "@/lib/pricing/domain/types";
+import { systemClock, type EditionClock } from "@/lib/timeline/clock";
 import type { CreateDraftRegistrationCommand } from "@/lib/registration/domain/commands";
 import {
   createInMemoryClickatonStore,
@@ -122,6 +123,7 @@ function kitKindOf(products: PublicTicketProductDto[]): PublicCatalogTicket["kit
 function toTicketDto(
   store: InMemoryPublicStore,
   row: InMemoryPublicTicketRow,
+  now: Date,
 ): PublicCatalogTicket {
   const confirmed = [...store.domain.registrations.values()].filter(
     (r) => r.ticketTypeId === row.id && r.status === "CONFIRMED",
@@ -141,6 +143,7 @@ function toTicketDto(
     salesStartAt: row.salesStartAt,
     salesEndAt: row.salesEndAt,
     isActive: row.isActive,
+    now,
   });
   const products = row.products.map((p) => ({
     ...p,
@@ -202,7 +205,10 @@ async function withCapacityLock<T>(
 
 export function createInMemoryPublicRegistrationRepository(
   store: InMemoryPublicStore,
+  options: { clock?: EditionClock | null } = {},
 ): PublicRegistrationRepository {
+  /** Por defecto la hora real. El ensayo de edición inyecta un reloj fijo. */
+  const clock = options.clock ?? systemClock();
   const domainRegs = createInMemoryRegistrationRepository(store.domain);
 
   return {
@@ -217,7 +223,7 @@ export function createInMemoryPublicRegistrationRepository(
     async listSellableTickets(editionId) {
       return [...store.tickets.values()]
         .filter((t) => t.editionId === editionId && t.isActive)
-        .map((t) => toTicketDto(store, t));
+        .map((t) => toTicketDto(store, t, clock.now()));
     },
 
     async listPricePhases(editionId) {
@@ -275,7 +281,7 @@ export function createInMemoryPublicRegistrationRepository(
 
     async getTicketDetail(ticketTypeId) {
       const row = store.tickets.get(ticketTypeId);
-      return row ? toTicketDto(store, row) : null;
+      return row ? toTicketDto(store, row, clock.now()) : null;
     },
 
     async countConfirmedAndActiveHolds(ticketTypeId) {

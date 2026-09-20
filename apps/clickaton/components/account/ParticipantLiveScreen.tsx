@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { FinalizarEntrega, type ResumenConsigna } from "@/components/account/FinalizarEntrega";
 import { ParticipantLiveRefresher } from "@/components/account/ParticipantLiveRefresher";
 import { PromptPhotoUpload } from "@/components/account/PromptPhotoUpload";
 import { PromptsCountdown } from "@/components/account/PromptsCountdown";
@@ -14,6 +15,7 @@ import {
   estaEnviada,
   estaResuelta,
   estaSinConfirmar,
+  estadoVigenteDeConsigna,
   resolverEstadoConsigna,
   type EstadoConsigna,
 } from "@/lib/participant-notes/prompt-state";
@@ -38,6 +40,8 @@ export type LivePromptView = {
   uploadEndsAt: string | null;
   /** La ventana de entrega está abierta para esta consigna. */
   uploadWindowOpen: boolean;
+  /** `false` = sorpresa extra: se entrega, pero no puntúa para el concurso. */
+  countsForScoring: boolean;
   submissionStatus?: string | null;
   validationResult?: string | null;
   tecnica?: {
@@ -61,6 +65,12 @@ export type ParticipantLiveScreenProps = {
   /** La entrega sigue abierta: se puede anotar, marcar y subir. */
   entregaAbierta: boolean;
   credentialHref: string;
+  /** Enlace de WhatsApp con el mensaje ya escrito. `null` = sin soporte cargado. */
+  ayudaHref: string | null;
+  /** El participante ya declaró que terminó de subir. */
+  submissionFinalizedAt: string | null;
+  /** Fotos efectivamente entregadas, contadas en el servidor. */
+  fotosEnviadas: number;
 };
 
 const CHIPS: Record<
@@ -176,19 +186,57 @@ export function ParticipantLiveScreen(props: ParticipantLiveScreenProps) {
   );
   const nombre = props.firstName.trim();
 
+  /**
+   * Lo que se entregó en esta misma visita, antes de que el servidor lo cuente.
+   *
+   * `props.prompts` es la foto del momento en que se abrió la pantalla. Sin
+   * esto, alguien que sube sus once fotos de corrido las ve entregadas en cada
+   * tarjeta pero el contador de arriba y el resumen de "Terminar" siguen
+   * mostrando el número viejo, y parece que no se hubieran guardado.
+   */
+  const [entregadasAhora, setEntregadasAhora] = useState<Record<string, string>>({});
+
+  // El servidor respondió con datos nuevos: los suyos mandan.
+  useEffect(() => {
+    setEntregadasAhora({});
+  }, [props.prompts]);
+
   const consignas = useMemo(
     () =>
       props.prompts.map((p) => {
         const nota = p.promptId ? notas[p.promptId] : undefined;
         const solved = nota?.solved ?? false;
+        const submissionStatus = estadoVigenteDeConsigna({
+          promptId: p.promptId,
+          estadoDelServidor: p.submissionStatus,
+          entregadasAhora,
+        });
         return {
           vista: p,
           body: nota?.body ?? "",
           solved,
-          estado: resolverEstadoConsigna({ submissionStatus: p.submissionStatus, solved }),
+          estado: resolverEstadoConsigna({ submissionStatus, solved }),
         };
       }),
-    [notas, props.prompts],
+    [entregadasAhora, notas, props.prompts],
+  );
+
+  const resumen: ResumenConsigna[] = useMemo(
+    () =>
+      consignas.map((c) => {
+        const entregada = estaEnviada(c.estado);
+        return {
+          sequence: c.vista.sequence,
+          title: c.vista.title,
+          entregada,
+          etiqueta: entregada
+            ? "Entregada"
+            : estaSinConfirmar(c.estado)
+              ? "Sin guardar"
+              : "Sin entregar",
+        };
+      }),
+    [consignas],
   );
 
   const enviadas = consignas.filter((c) => estaEnviada(c.estado)).length;
@@ -246,7 +294,7 @@ export function ParticipantLiveScreen(props: ParticipantLiveScreenProps) {
           <AvisoRelojCamara />
         </Card>
 
-        <PieDeAcciones credentialHref={props.credentialHref} />
+        <PieDeAcciones credentialHref={props.credentialHref} ayudaHref={props.ayudaHref} />
       </div>
     );
   }
@@ -346,6 +394,9 @@ export function ParticipantLiveScreen(props: ParticipantLiveScreenProps) {
                 onChange={(cambio) =>
                   c.vista.promptId ? escribir(c.vista.promptId, cambio) : undefined
                 }
+                onEstado={(promptId, nuevo) =>
+                  setEntregadasAhora((previo) => ({ ...previo, [promptId]: nuevo }))
+                }
               />
             </li>
           ))}
@@ -359,7 +410,22 @@ export function ParticipantLiveScreen(props: ParticipantLiveScreenProps) {
         </p>
       ) : null}
 
-      <PieDeAcciones credentialHref={props.credentialHref} className="mt-8" />
+      <FinalizarEntrega
+        registrationId={props.registrationId}
+        finalizadaEn={props.submissionFinalizedAt}
+        fotosEnviadas={props.fotosEnviadas}
+        totalConsignas={props.prompts.length}
+        entregaAbierta={props.entregaAbierta}
+        resumen={resumen}
+        timezone={props.timezone}
+        nombre={nombre}
+      />
+
+      <PieDeAcciones
+        credentialHref={props.credentialHref}
+        ayudaHref={props.ayudaHref}
+        className="mt-8"
+      />
     </div>
   );
 }
@@ -377,11 +443,17 @@ function AvisoRelojCamara({ className = "" }: { className?: string }) {
 
 function PieDeAcciones({
   credentialHref,
+  ayudaHref,
   className = "",
 }: {
   credentialHref: string;
+  /** WhatsApp de soporte. Sin número cargado cae al formulario de contacto. */
+  ayudaHref?: string | null;
   className?: string;
 }) {
+  // En medio de una maratón, "pedir ayuda" tiene que abrir una conversación,
+  // no un formulario. Si la edición no cargó WhatsApp, queda el de siempre.
+  const destino = ayudaHref ?? "/contacto";
   return (
     <div
       className={`flex flex-col gap-3 border-t border-ck-border pt-6 sm:flex-row ${className}`}
@@ -389,7 +461,12 @@ function PieDeAcciones({
       <Button href={credentialHref} variant="secondary" className="min-h-11 w-full sm:w-auto">
         Ver mi credencial y QR
       </Button>
-      <Button href="/contacto" variant="outline" className="min-h-11 w-full sm:w-auto">
+      <Button
+        href={destino}
+        variant="outline"
+        className="min-h-11 w-full sm:w-auto"
+        {...(ayudaHref ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+      >
         Pedir ayuda
       </Button>
     </div>
@@ -406,6 +483,7 @@ function TarjetaConsigna({
   entregaAbierta,
   estadoGuardado,
   onChange,
+  onEstado,
 }: {
   vista: LivePromptView;
   estado: EstadoConsigna;
@@ -416,6 +494,7 @@ function TarjetaConsigna({
   entregaAbierta: boolean;
   estadoGuardado: string;
   onChange: (cambio: { body?: string; solved?: boolean }) => void;
+  onEstado: (promptId: string, estado: string) => void;
 }) {
   const chip = CHIPS[estado];
   const resumenNota = body.split("\n")[0]?.trim() ?? "";
@@ -435,6 +514,9 @@ function TarjetaConsigna({
           <h3 className="ck-heading-sm break-words">{vista.title}</h3>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant={chip.variant}>{chip.label}</Badge>
+            {vista.countsForScoring ? null : (
+              <Badge variant="warning">Sorpresa extra · no puntúa</Badge>
+            )}
             {resumenNota ? (
               <span className="min-w-0 flex-1 truncate text-xs text-ck-text-muted">
                 ✎ {resumenNota}
@@ -494,6 +576,7 @@ function TarjetaConsigna({
           }
           submissionStatus={vista.submissionStatus}
           validationResult={vista.validationResult}
+          onEstado={onEstado}
           tecnica={vista.tecnica ?? null}
           showClockWarning={false}
         />

@@ -16,6 +16,7 @@ const editionSelect = {
   registrationOpenAt: true,
   registrationCloseAt: true,
   defaultCapacity: true,
+  supportWhatsappPhone: true,
   location: true,
   city: true,
   provinceOrState: true,
@@ -50,6 +51,7 @@ function mapEdition(row: {
   registrationOpenAt: Date | null;
   registrationCloseAt: Date | null;
   defaultCapacity: number | null;
+  supportWhatsappPhone: string | null;
   location: string | null;
   city: string | null;
   provinceOrState: string | null;

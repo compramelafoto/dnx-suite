@@ -13,6 +13,11 @@ import {
   isWithinUploadWindow,
   resolveEffectiveWindows,
 } from "../lib/photo-upload/windows";
+import {
+  interpretExifClock,
+  offsetMinutesForZone,
+  parseExifOffset,
+} from "../lib/photo-upload/exif-clock";
 import { assertSocialCaptionSafeForTimeline } from "../lib/timeline/social-guard";
 
 let checks = 0;
@@ -80,6 +85,73 @@ ok(
     timezone: "America/Argentina/Cordoba",
   }).result === "MANUAL_REVIEW",
   "13 EXIF ausente → MANUAL_REVIEW",
+);
+
+// 13b–13h reloj del EXIF: hora local de cámara, no UTC (AR2026)
+const ZONA = "America/Argentina/Cordoba";
+
+ok(
+  offsetMinutesForZone(new Date("2026-09-19T19:00:00.000Z"), ZONA) === -180,
+  "13b Córdoba está a UTC−3",
+);
+
+/**
+ * La foto de la maratón: el reloj de la cámara marcó 16:25 del 19/9 y `exifr`
+ * la entrega como 16:25 UTC. El instante real es 19:25 UTC.
+ */
+const capturaReal = interpretExifClock({
+  exifDate: new Date("2026-09-19T16:25:20.000Z"),
+  timeZone: ZONA,
+});
+ok(
+  capturaReal?.toISOString() === "2026-09-19T19:25:20.000Z",
+  "13c la hora del EXIF se reubica en la zona de la edición",
+);
+
+ok(
+  interpretExifClock({
+    exifDate: new Date("2026-09-19T16:25:20.000Z"),
+    timeZone: ZONA,
+    exifOffsetMinutes: parseExifOffset("-03:00"),
+  })?.toISOString() === "2026-09-19T19:25:20.000Z",
+  "13d si la cámara declara su desfasaje, manda el del EXIF",
+);
+
+ok(parseExifOffset("+05:30") === 330, "13e desfasaje con dos puntos");
+ok(parseExifOffset("+0530") === 330, "13f desfasaje sin dos puntos");
+ok(parseExifOffset("Z") === 0, "13g Z es UTC");
+ok(parseExifOffset("cualquier cosa") === null, "13h texto inválido no inventa desfasaje");
+ok(interpretExifClock({ exifDate: null, timeZone: ZONA }) === null, "13i sin EXIF no inventa fecha");
+
+/**
+ * La captura corregida cae dentro de la ventana real de la consigna, que era
+ * justo lo que fallaba: leída como UTC daba −155 minutos y se rechazaba.
+ */
+const ventanaAr = resolveEffectiveWindows({
+  status: "RELEASED",
+  releasedAt: new Date("2026-09-19T19:00:00.000Z"),
+  captureStartsAt: new Date("2026-09-19T16:00:00.000Z"),
+  captureEndsAt: new Date("2026-09-19T20:00:00.000Z"),
+  uploadStartsAt: null,
+  uploadEndsAt: new Date("2026-09-20T01:00:00.000Z"),
+});
+ok(
+  evaluateCaptureDate({
+    captureDate: capturaReal,
+    windows: ventanaAr,
+    toleranceMinutes: 5,
+    timezone: ZONA,
+  }).result === "PASS",
+  "13j la captura de las 16:25 de Argentina entra en la ventana",
+);
+ok(
+  evaluateCaptureDate({
+    captureDate: new Date("2026-09-19T16:25:20.000Z"),
+    windows: ventanaAr,
+    toleranceMinutes: 5,
+    timezone: ZONA,
+  }).reason === "CAPTURE_OUTSIDE_WINDOW_EXTREME",
+  "13k sin corregir, la misma foto quedaba fuera (el defecto del 19/9)",
 );
 
 ok(evaluateGps({ mode: "OPTIONAL", latitude: null, longitude: null }).status === "ABSENT_ALLOWED", "17 GPS ausente permitido");

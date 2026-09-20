@@ -1,5 +1,6 @@
 import { Prisma, prisma } from "@/lib/admin/db";
 import { buildAvailability } from "@/lib/admin-catalog/domain/availability";
+import { systemClock, type EditionClock } from "@/lib/timeline/clock";
 import { releaseClickatonPromotionRedemption } from "@/lib/promotions/prisma-promotions-adapter";
 import type { ClickatonRegistrationRecord } from "@/lib/registration/domain/types";
 import { countsAsActiveRegistration, EXPIRATION_TARGET, isExpireCandidate } from "../domain/expiration-rules";
@@ -133,7 +134,7 @@ async function mapTicket(row: {
       isActive: boolean;
     } | null;
   }>;
-}): Promise<PublicCatalogTicket> {
+}, now: Date): Promise<PublicCatalogTicket> {
   const usage = await countUsage(row.id);
   const avail = buildAvailability({
     ticketTypeId: row.id,
@@ -144,6 +145,7 @@ async function mapTicket(row: {
     salesStartAt: row.salesStartAt,
     salesEndAt: row.salesEndAt,
     isActive: row.isActive,
+    now,
   });
 
   const assetIds = new Set<string>();
@@ -352,7 +354,11 @@ function mapRecord(row: {
   };
 }
 
-export function createPrismaPublicRegistrationRepository(): PublicRegistrationRepository {
+export function createPrismaPublicRegistrationRepository(
+  options: { clock?: EditionClock | null } = {},
+): PublicRegistrationRepository {
+  /** Por defecto la hora real. El ensayo de edición inyecta un reloj fijo. */
+  const clock = options.clock ?? systemClock();
   return {
     async getEditionBySlug(slug) {
       const row = await prisma.clickatonEdition.findUnique({ where: { slug } });
@@ -472,7 +478,7 @@ export function createPrismaPublicRegistrationRepository(): PublicRegistrationRe
         include: ticketInclude,
         orderBy: { priceAmount: "asc" },
       });
-      return Promise.all(rows.map((r) => mapTicket(r)));
+      return Promise.all(rows.map((r) => mapTicket(r, clock.now())));
     },
 
     async getTicketDetail(ticketTypeId) {
@@ -480,7 +486,7 @@ export function createPrismaPublicRegistrationRepository(): PublicRegistrationRe
         where: { id: ticketTypeId },
         include: ticketInclude,
       });
-      return row ? mapTicket(row) : null;
+      return row ? mapTicket(row, clock.now()) : null;
     },
 
     async countConfirmedAndActiveHolds(ticketTypeId) {

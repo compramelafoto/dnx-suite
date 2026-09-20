@@ -11,7 +11,11 @@ const clickatonCsp = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' https://sdk.mercadopago.com https://www.mercadopago.com https://www.mercadopago.com.ar https://http2.mlstatic.com https://vercel.live",
   "script-src-elem 'self' 'unsafe-inline' https://sdk.mercadopago.com https://www.mercadopago.com https://www.mercadopago.com.ar https://http2.mlstatic.com https://vercel.live",
-  "connect-src 'self' https://api.mercadopago.com https://api.mercadolibre.com https://www.mercadopago.com https://www.mercadopago.com.ar https://events.mercadopago.com https://sdk.mercadopago.com https://http2.mlstatic.com https://vercel.live wss://vercel.live",
+  // El bucket va acá porque la foto de una consigna se sube directo desde el
+  // navegador: la plataforma corta en 4,5 MB el cuerpo de cualquier petición al
+  // servidor, y una foto de cámara pesa más. Sin este permiso, el navegador
+  // bloquea el envío antes de hacerlo y la entrega falla sin llegar a la red.
+  "connect-src 'self' https://*.r2.cloudflarestorage.com https://api.mercadopago.com https://api.mercadolibre.com https://www.mercadopago.com https://www.mercadopago.com.ar https://events.mercadopago.com https://sdk.mercadopago.com https://http2.mlstatic.com https://vercel.live wss://vercel.live",
   "frame-src https://www.mercadopago.com https://www.mercadopago.com.ar https://sdk.mercadopago.com https://http2.mlstatic.com https://vercel.live",
   "img-src 'self' data: blob: https:",
   "style-src 'self' 'unsafe-inline' https:",
@@ -51,6 +55,18 @@ const nextConfig: NextConfig = {
     "@repo/db",
     "mupdf",
   ],
+  // El chequeo de tipos NO corre acá: `tsc` sobre esta app necesita más memoria
+  // de la que tiene la máquina de Vercel y el build muere con SIGKILL por OOM,
+  // aunque el código compile bien. Apagarlo no afloja el control, lo mueve: el
+  // workflow `.github/workflows/chequeos.yml` corre `check-types` de Clickatón
+  // en cada pull request contra main, así un error de tipos frena el merge en
+  // vez de frenar el despliegue.
+  //
+  // Si alguna vez se saca ese paso del workflow, hay que volver a prender esto
+  // o nadie estaría chequeando los tipos de Clickatón en ningún lado.
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   outputFileTracingRoot: monorepoRoot,
   outputFileTracingIncludes: {
     "/**": [

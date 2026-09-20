@@ -80,10 +80,12 @@ export function validateEditionFormInput(
     errors.status = "Estado inválido.";
   }
 
-  const startAt = parseDateTimeInput(input.startAt);
-  const endAt = parseDateTimeInput(input.endAt);
-  const registrationOpenAt = parseDateTimeInput(input.registrationOpenAt);
-  const registrationCloseAt = parseDateTimeInput(input.registrationCloseAt);
+  // Las fechas del formulario son hora local de la edición, no del servidor.
+  const editionTimeZone = input.timezone.trim();
+  const startAt = parseDateTimeInput(input.startAt, editionTimeZone);
+  const endAt = parseDateTimeInput(input.endAt, editionTimeZone);
+  const registrationOpenAt = parseDateTimeInput(input.registrationOpenAt, editionTimeZone);
+  const registrationCloseAt = parseDateTimeInput(input.registrationCloseAt, editionTimeZone);
 
   if (input.startAt.trim() && !startAt) errors.startAt = "Fecha de inicio inválida.";
   if (input.endAt.trim() && !endAt) errors.endAt = "Fecha de fin inválida.";
@@ -175,6 +177,7 @@ export function validateEditionFormInput(
       registrationOpenAt,
       registrationCloseAt,
       defaultCapacity: capacity === "invalid" ? null : capacity,
+      supportWhatsappPhone: input.supportWhatsappPhone.trim() || null,
       location: input.location.trim() || null,
       city: input.city.trim() || null,
       provinceOrState: input.provinceOrState.trim() || null,
@@ -201,6 +204,7 @@ export type EditionValidatedData = {
   registrationOpenAt: Date | null;
   registrationCloseAt: Date | null;
   defaultCapacity: number | null;
+  supportWhatsappPhone: string | null;
   location: string | null;
   city: string | null;
   provinceOrState: string | null;
@@ -228,6 +232,7 @@ export function editionFormInputFromFormData(formData: FormData): ClickatonEditi
     registrationOpenAt: formData.get("registrationOpenAt")?.toString() ?? "",
     registrationCloseAt: formData.get("registrationCloseAt")?.toString() ?? "",
     defaultCapacity: formData.get("defaultCapacity")?.toString() ?? "",
+    supportWhatsappPhone: formData.get("supportWhatsappPhone")?.toString() ?? "",
     location: formData.get("location")?.toString() ?? "",
     city: formData.get("city")?.toString() ?? "",
     provinceOrState: formData.get("provinceOrState")?.toString() ?? "",
