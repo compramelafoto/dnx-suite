@@ -1,5 +1,4 @@
 import { describe, expect, test } from "vitest";
-// @ts-expect-error — el parser es un .mjs compartido, fuera del árbol de tipos de la app.
 import { leerEtapas, porcentaje, resumir, sinExplicar } from "../../../../scripts/avance-parser.mjs";
 
 const DOC = `
