@@ -54,12 +54,14 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
   const nombre = `${paquete!.event.code}-parte-${paquete!.partIndex}-de-${paquete!.partCount}.zip`;
 
   /*
-    La firma dura poco: es para este clic, no para compartir. Quien tenga el enlace de
-    descarga puede pedir otra cuando quiera, y ahí se vuelve a revisar el vencimiento.
-  */
-  const url = await enlaceParaMirar(veredicto.clave, DURACION.panel);
+    El nombre del archivo va **dentro** de lo que se firma.
 
-  return NextResponse.redirect(
-    `${url}&response-content-disposition=${encodeURIComponent(`attachment; filename="${nombre}"`)}`,
-  );
+    Antes se firmaba la dirección y después se le pegaba `&response-content-disposition`.
+    SigV4 cubre los parámetros de la consulta, así que agregar uno después rompe la firma:
+    R2 devolvía `SignatureDoesNotMatch` y **ninguna descarga funcionó nunca**. Sólo se ve
+    cuando alguien hace clic de verdad; ningún test lo alcanza.
+  */
+  const url = await enlaceParaMirar(veredicto.clave, DURACION.descarga, nombre);
+
+  return NextResponse.redirect(url);
 }
