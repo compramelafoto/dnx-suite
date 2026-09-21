@@ -10,8 +10,15 @@
 import { createHash } from "node:crypto";
 
 import { getPrivateContestStorageProvider } from "../storage/provider";
+import {
+  buildJudgeAvatarKey,
+  parseJudgeAvatarKey,
+  isJudgeAvatarKey,
+  type JudgeAvatarExtension,
+} from "./judgeAvatar";
 
-export type JudgeAvatarExtension = "jpg" | "png" | "webp";
+export type { JudgeAvatarExtension };
+export { buildJudgeAvatarKey, parseJudgeAvatarKey, isJudgeAvatarKey };
 
 export const JUDGE_AVATAR_MAX_BYTES = 2 * 1024 * 1024;
 
@@ -27,8 +34,6 @@ const EXT_TO_MIME: Record<JudgeAvatarExtension, string> = {
   webp: "image/webp",
 };
 
-const KEY_RE = /^fotorank\/judges\/([A-Za-z0-9_-]+)\/avatar\/([a-f0-9]+)\.(jpg|png|webp)$/;
-
 export function extensionForJudgeAvatarMime(mime: string): JudgeAvatarExtension | null {
   return MIME_TO_EXT[mime.trim().toLowerCase()] ?? null;
 }
@@ -39,22 +44,6 @@ export function contentTypeForJudgeAvatarExtension(ext: JudgeAvatarExtension): s
 
 export function hashJudgeAvatarContent(body: Uint8Array): string {
   return createHash("sha256").update(body).digest("hex").slice(0, 32);
-}
-
-export function buildJudgeAvatarKey(
-  judgeAccountId: string,
-  hash: string,
-  ext: JudgeAvatarExtension,
-): string {
-  return `fotorank/judges/${judgeAccountId}/avatar/${hash}.${ext}`;
-}
-
-export function parseJudgeAvatarKey(
-  key: string,
-): { judgeAccountId: string; hash: string; ext: string } | null {
-  const m = KEY_RE.exec(key);
-  if (!m) return null;
-  return { judgeAccountId: m[1]!, hash: m[2]!, ext: m[3]! };
 }
 
 export async function saveJudgeAvatar(input: {

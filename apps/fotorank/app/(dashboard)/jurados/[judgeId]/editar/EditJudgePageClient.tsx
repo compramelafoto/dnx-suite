@@ -12,6 +12,7 @@ interface EditJudgePageClientProps {
     lastName: string;
     phone?: string;
     avatarUrl?: string;
+    avatarPreviewSrc?: string | null;
     shortBio?: string;
     city?: string;
     country?: string;

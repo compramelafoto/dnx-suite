@@ -1,7 +1,7 @@
 /**
  * Única forma de armar el src de la foto de un jurado. No duplicar en pantallas.
  */
-import { parseJudgeAvatarKey } from "./judgeAssetStorage";
+import { parseJudgeAvatarKey } from "./judgeAvatar";
 
 export function judgeAvatarSrc(profile: { id: string; avatarUrl: string | null }): string | null {
   const raw = profile.avatarUrl?.trim();

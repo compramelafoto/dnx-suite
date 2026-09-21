@@ -1,5 +1,6 @@
 import { prisma } from "@repo/db";
 import type { FotorankJudgeCompensationMode, FotorankJudgePricingMode } from "@repo/db";
+import { judgeAvatarSrc } from "./judgeAvatarSrc";
 
 export type DirectoryJudgeCardDto = {
   judgeAccountId: string;
@@ -181,7 +182,7 @@ export async function listProfessionalDirectoryJudges(
       judgeAccountId: r.judgeAccount.id,
       displayName,
       headline: r.professionalHeadline,
-      avatarUrl: r.avatarUrl,
+      avatarUrl: judgeAvatarSrc({ id: r.id, avatarUrl: r.avatarUrl }),
       specialties: parseStringArrayJson(r.specialtiesJson).slice(0, 6),
       compensationMode: r.compensationMode,
       pricingSummary,
@@ -257,7 +258,7 @@ export async function getOrganizerViewJudgeDetail(judgeAccountId: string): Promi
     displayName,
     headline: r.professionalHeadline,
     shortBio: r.shortBio,
-    avatarUrl: r.avatarUrl,
+    avatarUrl: judgeAvatarSrc({ id: r.id, avatarUrl: r.avatarUrl }),
     specialties: parseStringArrayJson(r.specialtiesJson),
     experienceYears: r.experienceYears,
     languages: parseStringArrayJson(r.languagesJson),

@@ -36,10 +36,6 @@ import {
 import { validateMethodConfig } from "../lib/fotorank/judges/contracts";
 import { DEFAULT_CRITERIA_BASED_METHOD_CONFIG } from "../lib/fotorank/judges/criteriaBased";
 import {
-  extensionForJudgeAvatarMime,
-  isManagedJudgeAvatarPublicUrl,
-  JUDGE_AVATAR_ALLOWED_MIME,
-  JUDGE_AVATAR_MAX_BYTES,
   normalizeJudgeInstagram,
   normalizeJudgeWebsite,
   normalizeStoredJudgeAvatarRef,
@@ -50,11 +46,12 @@ import {
   parseAndValidateJudgeBioDocument,
   parseAndValidateJudgeOtherLinks,
 } from "../lib/fotorank/judges/judgeBioRich";
-import { getJudgeAvatarStorage } from "../lib/fotorank/judges/judgeAvatarStorage";
 import {
   buildJudgeInvitationRegistrationUrl,
   logInvitationBaseUrlMisconfigurationIfNeeded,
 } from "../lib/fotorank/judges/invitationLinks";
+import { judgeAvatarSrc } from "../lib/fotorank/judges/judgeAvatarSrc";
+import { saveJudgeAvatar, deleteJudgeAvatarByKey } from "../lib/fotorank/judges/judgeAssetStorage";
 
 export type JudgeMethodType =
   | "SCORE_1_5"
@@ -123,29 +120,27 @@ async function requireOrganizationScope(): Promise<OrganizationScope> {
 }
 
 
-export async function uploadJudgeAvatarImage(formData: FormData): Promise<JudgeActionResult<{ url: string }>> {
+export async function uploadJudgeAvatarImage(
+  formData: FormData,
+): Promise<JudgeActionResult<{ key: string }>> {
   const scope = await requireOrganizationScope();
   if (!scope.ok) return { ok: false, error: scope.error };
+
+  // La clave lleva la cuenta del jurado. En el alta todavía no existe, así que
+  // el formulario manda un identificador temporal y la clave se rearma al
+  // guardar el perfil.
+  const judgeAccountId = String(formData.get("judgeAccountId") ?? "").trim() || `nuevo-${randomBytes(8).toString("hex")}`;
 
   const file = formData.get("file");
   if (!file || typeof file !== "object" || !("arrayBuffer" in file)) {
     return { ok: false, error: "No se recibió ningún archivo." };
   }
   const f = file as File;
-  const mime = f.type || "";
-  if (!JUDGE_AVATAR_ALLOWED_MIME.has(mime)) {
-    return { ok: false, error: "Formato no permitido. Usá JPEG, PNG o WebP." };
-  }
-  const buf = Buffer.from(await f.arrayBuffer());
-  if (buf.length > JUDGE_AVATAR_MAX_BYTES) {
-    return { ok: false, error: "El archivo supera el tamaño máximo (2 MB)." };
-  }
-  const ext = extensionForJudgeAvatarMime(mime);
-  if (!ext) return { ok: false, error: "Tipo de imagen no soportado." };
+  const body = new Uint8Array(await f.arrayBuffer());
 
-  const storage = getJudgeAvatarStorage();
-  const { publicUrl } = await storage.save(buf, ext as "jpg" | "png" | "webp");
-  return { ok: true, data: { url: publicUrl } };
+  const saved = await saveJudgeAvatar({ judgeAccountId, body, mime: f.type || "" });
+  if (!saved.ok) return { ok: false, error: saved.error };
+  return { ok: true, data: { key: saved.key } };
 }
 
 
@@ -276,7 +271,7 @@ export async function listJudgeRosterForContest(contestId: string): Promise<Judg
           email: m.judgeAccount.email,
           firstName: p.firstName,
           lastName: p.lastName,
-          avatarUrl: p.avatarUrl,
+          avatarUrl: judgeAvatarSrc({ id: p.id, avatarUrl: p.avatarUrl }),
           specialities: Array.isArray(p.specialtiesJson) ? (p.specialtiesJson as string[]) : [],
           city: p.city,
           country: p.country,
@@ -521,12 +516,10 @@ export async function updateJudgeProfileByAdmin(judgeId: string, input: {
     },
   });
 
-  if (
-    previousAvatarUrl &&
-    previousAvatarUrl !== avatarRef &&
-    isManagedJudgeAvatarPublicUrl(previousAvatarUrl)
-  ) {
-    await getJudgeAvatarStorage().deleteIfManagedPublicUrl(previousAvatarUrl);
+  if (previousAvatarUrl && previousAvatarUrl !== avatarRef) {
+    // deleteJudgeAvatarByKey ignora lo que no sea una clave del bucket, así que
+    // una URL externa cargada a mano no se toca.
+    await deleteJudgeAvatarByKey(previousAvatarUrl);
   }
 
   await prisma.fotorankJudgeAuditEvent.create({
@@ -1708,7 +1701,7 @@ export async function getJudgePublicProfile(publicSlug: string): Promise<JudgeAc
       id: profile.id,
       firstName: profile.firstName,
       lastName: profile.lastName,
-      avatarUrl: profile.avatarUrl,
+      avatarUrl: judgeAvatarSrc({ id: profile.id, avatarUrl: profile.avatarUrl }),
       shortBio: profile.shortBio,
       fullBioRichJson: profile.fullBioRichJson,
       city: profile.city,
@@ -1761,7 +1754,7 @@ export async function listPublicJudgesForContestBySlug(contestSlug: string): Pro
     data: [...byJudge.values()].map((v) => ({
       firstName: v.profile.firstName,
       lastName: v.profile.lastName,
-      avatarUrl: v.profile.avatarUrl,
+      avatarUrl: judgeAvatarSrc({ id: v.profile.id, avatarUrl: v.profile.avatarUrl }),
       publicSlug: v.profile.publicSlug,
       shortBio: v.profile.shortBio,
       categories: [...new Set(v.categories)],
