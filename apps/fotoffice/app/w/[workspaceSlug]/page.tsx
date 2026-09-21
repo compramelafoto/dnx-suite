@@ -21,7 +21,9 @@ export default async function PublicWorkspaceHomePage({ params }: Props) {
 
   if (site.hasPublishedSite) {
     return (
-      <WebsitePageRenderer blocks={site.homeBlocks} colors={site.colors} designPresets={site.designPresets} />
+      <main>
+        <WebsitePageRenderer blocks={site.homeBlocks} colors={site.colors} designPresets={site.designPresets} />
+      </main>
     );
   }
 
