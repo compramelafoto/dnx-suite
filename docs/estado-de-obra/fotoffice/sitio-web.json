@@ -3,20 +3,26 @@
   "plataforma": "FOTOFFICE",
   "spec": "apps/fotoffice/docs/superpowers/specs/2026-09-20-sitio-publico-website-design.md",
   "enUso": "parcial",
-  "usoNota": "1 sitio armado y publicado (SFPR, 28/08) con 10 versiones guardadas, y ningún visitante puede verlo: no existe la ruta pública que sirva lo publicado. Diseño del sitio público aprobado el 20/09, sin implementar: suma 6 criterios que hasta ahora no se medían",
+  "usoNota": "1 sitio armado y publicado (SFPR, 28/08) con 10 versiones guardadas, que desde el 21/09 el visitante por fin ve: /w/sfpr sirve la version publicada, con encabezado, menu y pie, y las paginas de modulos viven adentro del sitio. Falta que el sitio tenga mas de una pagina, las secciones nuevas, las plantillas y el SEO",
   "etapas": [
     {
       "nombre": "Armar el sitio",
       "criterios": [
         {
           "que": "Se elige una plantilla y el sitio arranca con su aspecto y sus secciones",
-          "implementado": { "commit": "b0e74559", "fecha": "2026-08-20" },
+          "implementado": {
+            "commit": "b0e74559",
+            "fecha": "2026-08-20"
+          },
           "probado": null,
           "bloqueado": "La base no guarda qué plantilla se eligió: falta aplicarla con sesión iniciada"
         },
         {
           "que": "Se agregan, reordenan, duplican, ocultan y borran secciones, viendo el resultado en vivo",
-          "implementado": { "commit": "b0e74559", "fecha": "2026-08-20" },
+          "implementado": {
+            "commit": "b0e74559",
+            "fecha": "2026-08-20"
+          },
           "probado": {
             "fecha": "2026-09-20",
             "evidencia": "El sitio de la SFPR tiene su portada armada y 10 versiones guardadas entre el 18 y el 28/08: el editor se usó de verdad"
@@ -24,13 +30,19 @@
         },
         {
           "que": "Se sube una imagen al banner y el carrusel queda funcionando",
-          "implementado": { "commit": "b0e74559", "fecha": "2026-08-20" },
+          "implementado": {
+            "commit": "b0e74559",
+            "fecha": "2026-08-20"
+          },
           "probado": null,
           "bloqueado": "Falta subir una imagen con sesión iniciada y mirar el carrusel"
         },
         {
           "que": "Se ajustan los colores, el logo y el favicon de la institución",
-          "implementado": { "commit": "b0e74559", "fecha": "2026-08-20" },
+          "implementado": {
+            "commit": "b0e74559",
+            "fecha": "2026-08-20"
+          },
           "probado": null,
           "bloqueado": "El guardado automático de esos campos corre sin control de concurrencia: dos sesiones se pisan en silencio"
         },
@@ -48,9 +60,12 @@
         },
         {
           "que": "El sitio tiene su pie de página con el contacto y las redes de la institución",
-          "implementado": null,
+          "implementado": {
+            "pr": 206,
+            "fecha": "2026-09-21"
+          },
           "probado": null,
-          "bloqueado": "No existe el pie de página en ninguna forma, ni como sección ni como opción de diseño. Diseñado el 20/09 (etapa 1): tres variantes, alimentadas por los datos que ya están cargados en el branding"
+          "bloqueado": "El pie existe y se ve en todas las páginas del sitio, con el nombre de la institución, el año y los enlaces legales. Pero eso es la variante «simple», la única que alguien eligió: las dos que muestran contacto y redes («columnas» y «completo») recién quedaron elegibles en el panel de Diseño el 21/09 y nadie las usó todavía. Falta que una institución elija una y publique"
         },
         {
           "que": "Las secciones que traen datos de otros módulos (socios, actividad, comunicación) se pueden usar",
@@ -65,13 +80,19 @@
       "criterios": [
         {
           "que": "Se ve la vista previa del borrador antes de publicar, y se entiende que todavía no es lo publicado",
-          "implementado": { "commit": "f8e5beb1", "fecha": "2026-08-18" },
+          "implementado": {
+            "commit": "f8e5beb1",
+            "fecha": "2026-08-18"
+          },
           "probado": null,
           "bloqueado": "Falta abrirla con sesión iniciada"
         },
         {
           "que": "Se publica el sitio y queda una versión inmutable con su número, su fecha y quién la publicó",
-          "implementado": { "commit": "b0e74559", "fecha": "2026-08-20" },
+          "implementado": {
+            "commit": "b0e74559",
+            "fecha": "2026-08-20"
+          },
           "probado": {
             "fecha": "2026-09-20",
             "evidencia": "10 versiones del sitio de la SFPR y fecha de publicación del 28/08 apuntando a la versión vigente"
@@ -79,31 +100,54 @@
         },
         {
           "que": "Un visitante entra a la dirección de la institución y ve el sitio publicado",
-          "implementado": null,
-          "probado": null,
-          "bloqueado": "No existe el sitio público: ninguna ruta lee la versión publicada. Publicar hoy no cambia nada para el visitante. Diseñado el 20/09 (etapas 1 y 2): es el corazón de la obra"
+          "implementado": {
+            "pr": 206,
+            "fecha": "2026-09-21"
+          },
+          "probado": {
+            "fecha": "2026-09-21",
+            "evidencia": "La portada de /w/sfpr sirve la versión publicada el 28/08 con sus secciones. Hasta ahora esa dirección mostraba el formulario de presupuesto y lo publicado no lo veía nadie. Verificado en el navegador contra la base de producción, con captura"
+          }
         },
         {
           "que": "El menú del sitio se puede usar desde un celular",
-          "implementado": null,
-          "probado": null,
-          "bloqueado": "El encabezado no tiene menú desplegable: en pantalla chica los ítems se amontonan. Diseñado el 20/09 (etapa 1)"
+          "implementado": {
+            "pr": 206,
+            "fecha": "2026-09-21"
+          },
+          "probado": {
+            "fecha": "2026-09-21",
+            "evidencia": "Menú desplegable verificado a ancho de teléfono sobre /w/sfpr. Se resuelve con un <details> nativo: el encabezado no arrastra JavaScript salvo el propio menú"
+          }
         },
         {
           "que": "Las páginas de cursos, reservas y asociarse se ven adentro del sitio, con su mismo encabezado y su menú",
-          "implementado": null,
-          "probado": null,
-          "bloqueado": "Son páginas sueltas, cada una con su propia cabecera y sin forma de navegar de una a otra. Diseñado el 20/09 (etapa 5)"
+          "implementado": {
+            "pr": 206,
+            "fecha": "2026-09-21"
+          },
+          "probado": {
+            "fecha": "2026-09-21",
+            "evidencia": "/w/sfpr/reservas y /w/sfpr/asociarse se ven con un solo encabezado y con el pie del sitio; antes cada una traía su propia cabecera. También se podaron las cinco subrutas del detalle de un curso y de un espacio"
+          }
         },
         {
           "que": "El menú muestra sólo los módulos que la institución tiene habilitados",
-          "implementado": null,
-          "probado": null,
-          "bloqueado": "No hay menú de páginas: la navegación son anclas de la portada, derivadas de los títulos de las secciones. Diseñado el 20/09 (etapa 4)"
+          "implementado": {
+            "pr": 206,
+            "fecha": "2026-09-21"
+          },
+          "probado": {
+            "fecha": "2026-09-21",
+            "evidencia": "El menú de la SFPR muestra Inicio, Reservas y Asociarse, y no muestra Cursos, que esa institución no tiene habilitado. /w/sfpr/cursos devuelve 404: antes se entraba igual con la dirección exacta"
+          }
         },
         {
           "que": "Se carga el título y la descripción para los buscadores",
-          "implementado": { "commit": "b0e74559", "fecha": "2026-08-20" },
+          "implementado": {
+            "commit": "b0e74559",
+            "fecha": "2026-08-20"
+          },
           "probado": null,
           "bloqueado": "El sitio de la SFPR no tiene título ni descripción cargados, ni navegación configurada"
         },
