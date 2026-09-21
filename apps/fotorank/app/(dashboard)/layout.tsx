@@ -7,6 +7,8 @@ import {
   resolveOrganizationsForDashboardUser,
   userIsFotorankSuperAdmin,
 } from "../lib/fotorank/access/super-admin";
+import { contarJuradosPendientes } from "../actions/judgeDirectoryReview";
+import { tieneCuentaDeJurado } from "../lib/fotorank/access/judge-panel-access";
 import { FOTORANK_ACTIVE_ORG_COOKIE } from "../lib/fotorank/dashboard-org-context";
 import { getContestOrganizationProfileById } from "../lib/fotorank/organizationProfile";
 import { bootstrapFotorankProfile } from "../lib/fotorank/profile";
@@ -81,6 +83,9 @@ export default async function DashboardLayoutWrapper({
     : null;
 
   const suiteWorkspaces = await getWorkspaceOptionsForUser(user.id);
+  const esJurado = await tieneCuentaDeJurado(user.email);
+  // Devuelve 0 a quien no es super admin: la guardia vive en la acción.
+  const juradosPorRevisar = await contarJuradosPendientes();
   const actAsOrgName =
     isSuperAdmin && actAsOrganizationId
       ? organizations.find((o) => o.id === actAsOrganizationId)?.name ?? null
@@ -96,6 +101,8 @@ export default async function DashboardLayoutWrapper({
       activeSuiteWorkspaceId={user.currentWorkspaceId}
       userDisplayName={user.name ?? ""}
       userEmail={user.email}
+      esJurado={esJurado}
+      juradosPorRevisar={juradosPorRevisar}
     >
       {userIsFotorankSuperAdmin(user) && actAsOrgName ? (
         <SuperAdminActAsBanner organizationName={actAsOrgName} />

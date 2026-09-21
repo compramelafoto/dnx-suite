@@ -92,6 +92,29 @@ export default async function SuperAdminPage() {
         ) : null}
       </header>
 
+      {juradosPendientes > 0 ? (
+        /*
+         * Una cola con gente esperando no es una estadística: es trabajo
+         * pendiente, y como recuadro gris entre otros cinco no se veía.
+         * Cuando la cola se vacía, este aviso desaparece solo.
+         */
+        <Link
+          href="/super-admin/jurados"
+          className="block rounded-xl border border-gold/40 bg-gold/5 px-6 py-5 transition-colors hover:border-gold/70"
+          data-testid="super-admin-jurados-pendientes"
+        >
+          <p className="text-base font-semibold text-fr-primary">
+            {juradosPendientes === 1
+              ? "Hay 1 fotógrafo esperando que revises su ficha"
+              : `Hay ${juradosPendientes} fotógrafos esperando que revises su ficha`}
+          </p>
+          <p className="mt-1 text-sm text-fr-muted">
+            Se postularon al directorio de jurados y ya confirmaron su correo. Hasta que las
+            apruebes, sus fichas no aparecen en ningún lado.
+          </p>
+        </Link>
+      ) : null}
+
       <section className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4" data-testid="super-admin-kpis">
         {[
           ["Organizaciones", organizations.length],

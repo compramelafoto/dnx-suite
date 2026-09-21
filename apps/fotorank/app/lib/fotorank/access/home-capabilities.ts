@@ -28,6 +28,7 @@
 import { randomUUID } from "node:crypto";
 import { cache } from "react";
 import { Prisma, prisma } from "@repo/db";
+import { cuentaDeJuradoAbreElPanel } from "./judge-panel-entry";
 
 export type HomeCapabilityKind =
   | "participant"
@@ -243,9 +244,7 @@ export function buildHomeCapabilities(
   let hasJuryAccount = false;
   if (settled.judgeAccount.status === "fulfilled") {
     const judgeAccount = settled.judgeAccount.value;
-    const juryActive =
-      Boolean(judgeAccount) &&
-      (judgeAccount!.accountStatus === "ACTIVE" || judgeAccount!.accountStatus === "INVITED");
+    const juryActive = cuentaDeJuradoAbreElPanel(judgeAccount?.accountStatus);
     hasJuryAccount = juryActive;
     if (juryActive && judgeAccount) {
       const byContest = new Map<string, HomeJuryContestSummary>();

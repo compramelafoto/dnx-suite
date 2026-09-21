@@ -1,5 +1,10 @@
 import Link from "next/link";
 import { requireAuth } from "../lib/auth";
+import { tieneCuentaDeJurado } from "../lib/fotorank/access/judge-panel-access";
+import {
+  PANEL_DE_JURADO_ETIQUETA,
+  PANEL_DE_JURADO_HREF,
+} from "../lib/fotorank/access/judge-panel-entry";
 
 /**
  * Área de participante: solo exige sesión User.
@@ -8,6 +13,7 @@ import { requireAuth } from "../lib/auth";
  */
 export default async function ParticipantLayout({ children }: { children: React.ReactNode }) {
   const user = await requireAuth();
+  const esJurado = await tieneCuentaDeJurado(user.email);
 
   return (
     <div className="min-h-screen bg-fr-bg text-fr-primary">
@@ -24,6 +30,11 @@ export default async function ParticipantLayout({ children }: { children: React.
             <Link href="/participaciones" className="text-gold hover:text-gold-hover">
               Mis participaciones
             </Link>
+            {esJurado ? (
+              <Link href={PANEL_DE_JURADO_HREF} className="hover:text-gold">
+                {PANEL_DE_JURADO_ETIQUETA}
+              </Link>
+            ) : null}
           </div>
         </div>
       </header>
