@@ -8,7 +8,7 @@ import {
 import { PostulacionForm } from "./PostulacionForm";
 
 export const metadata: Metadata = {
-  title: "Postularte como jurado — FotoRank",
+  title: "Postulate como jurado — FotoRank",
   description:
     "Presentá tu ficha para que los organizadores de concursos de FotoRank puedan convocarte como jurado.",
 };
@@ -66,7 +66,7 @@ export default function PostulacionDeJuradoPage() {
         <div className="lg:grid lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:gap-16 xl:gap-24">
           <aside className="lg:self-start">
             <h1 className="text-3xl font-semibold leading-tight tracking-tight text-[var(--foreground)] lg:text-4xl">
-              Postularte como jurado
+              Postulate como jurado
             </h1>
 
             <p className="mt-4 max-w-prose leading-relaxed text-[var(--foreground-muted)]">
