@@ -95,3 +95,4 @@ ruta de la foto devuelve 404 —no 500— para un jurado que no existe.
 | F.8 | La foto en el formulario de postulación | ✅ | ✅ | El campo está en producción: "Tu foto", con el aviso de que se achica sola |
 | F.9 | El portfolio en la página pública y el directorio | ✅ | 🟡 | Verificado con datos de prueba: galería, tira de tres y orden por ficha completa |
 | F.10 | El cobro por foto calificada | 🚫 | 🚫 | **Bloqueado por Mercado Pago**: el split sigue en sandbox. Diseñado en el spec del 21/09 |
+| F.11 | El anuncio del cobro al jurado | ✅ | 🟡 | Aviso de que va a poder cobrar por la plataforma, en la postulación y en "Modalidad económica". Se borra cuando F.10 se encienda |

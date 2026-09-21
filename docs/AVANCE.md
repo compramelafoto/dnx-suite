@@ -9,7 +9,7 @@ alguien miró. El número que vale es el de producción: ver
 | Proyecto | Tareas | Código | Producción | |
 |---|---|---|---|---|
 | **subilafoto** | 46 |  93% |  61% | `██████····` |
-| **fotorank** | 36 | 100% |  68% | `███████···` |
+| **fotorank** | 37 | 100% |  68% | `███████···` |
 
 ## subilafoto
 
@@ -31,7 +31,7 @@ alguien miró. El número que vale es el de producción: ver
 | FotoRank jurados — Etapa C: el perfil completo | 2 | 100% |  75% | C.1 |
 | FotoRank jurados — Etapa D: los jurados en el concurso | 1 | 100% |  50% | D.1 |
 | FotoRank jurados — Etapa E: la UX de jurados y usuarios | 7 | 100% |  50% | E.1, E.2, E.3, E.4, E.5, E.6, E.7 |
-| FotoRank jurados — Etapa F: portfolio y galería | 10 | 100% |  72% | F.2, F.5, F.6, F.7, F.9 |
+| FotoRank jurados — Etapa F: portfolio y galería | 11 | 100% |  70% | F.2, F.5, F.6, F.7, F.9, F.11 |
 
 ## Sin medir
 
