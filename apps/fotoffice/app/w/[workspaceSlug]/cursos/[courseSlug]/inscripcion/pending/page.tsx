@@ -55,28 +55,39 @@ export default async function CourseEnrollmentPendingPage({
           <p>
             Curso: <span className="text-[var(--fo-text)] font-medium">{enrollment.course.title}</span>
           </p>
-          <p>
-            Edición:{" "}
-            <span className="text-[var(--fo-text)] font-medium">
-              {enrollment.courseInstance.title ?? "Edición presencial"}
-            </span>
-          </p>
-          <p>
-            Fecha y hora:{" "}
-            <span className="text-[var(--fo-text)] font-medium">
-              {new Intl.DateTimeFormat("es-AR", {
-                dateStyle: "long",
-                timeStyle: "short",
-              }).format(enrollment.courseInstance.startDateTime)}
-            </span>
-          </p>
-          <p>
-            Ubicación:{" "}
-            <span className="text-[var(--fo-text)] font-medium">
-              {enrollment.courseInstance.locationName}
-              {enrollment.courseInstance.locationAddress ? ` · ${enrollment.courseInstance.locationAddress}` : ""}
-            </span>
-          </p>
+          {/* Un curso grabado no tiene edición: no hay fecha ni lugar que mostrar. */}
+          {enrollment.courseInstance ? (
+            <>
+              <p>
+                Edición:{" "}
+                <span className="text-[var(--fo-text)] font-medium">
+                  {enrollment.courseInstance.title ?? "Edición presencial"}
+                </span>
+              </p>
+              <p>
+                Fecha y hora:{" "}
+                <span className="text-[var(--fo-text)] font-medium">
+                  {new Intl.DateTimeFormat("es-AR", {
+                    dateStyle: "long",
+                    timeStyle: "short",
+                  }).format(enrollment.courseInstance.startDateTime)}
+                </span>
+              </p>
+              <p>
+                Ubicación:{" "}
+                <span className="text-[var(--fo-text)] font-medium">
+                  {enrollment.courseInstance.locationName}
+                  {enrollment.courseInstance.locationAddress
+                    ? ` · ${enrollment.courseInstance.locationAddress}`
+                    : ""}
+                </span>
+              </p>
+            </>
+          ) : (
+            <p>
+              Modalidad: <span className="text-[var(--fo-text)] font-medium">Curso grabado</span>
+            </p>
+          )}
           <p>
             Monto:{" "}
             <span className="text-[var(--fo-text)] font-medium">
