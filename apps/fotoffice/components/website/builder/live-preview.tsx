@@ -36,7 +36,6 @@ export function LivePreview({
     id: item.id,
     label: item.label,
     href: item.anchor ? `#${item.anchor}` : "#",
-    current: false,
     children: [],
   }));
   const themeVars = {
