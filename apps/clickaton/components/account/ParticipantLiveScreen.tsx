@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -15,6 +15,7 @@ import {
   estaEnviada,
   estaResuelta,
   estaSinConfirmar,
+  estadoVigenteDeConsigna,
   resolverEstadoConsigna,
   type EstadoConsigna,
 } from "@/lib/participant-notes/prompt-state";
@@ -185,19 +186,39 @@ export function ParticipantLiveScreen(props: ParticipantLiveScreenProps) {
   );
   const nombre = props.firstName.trim();
 
+  /**
+   * Lo que se entregó en esta misma visita, antes de que el servidor lo cuente.
+   *
+   * `props.prompts` es la foto del momento en que se abrió la pantalla. Sin
+   * esto, alguien que sube sus once fotos de corrido las ve entregadas en cada
+   * tarjeta pero el contador de arriba y el resumen de "Terminar" siguen
+   * mostrando el número viejo, y parece que no se hubieran guardado.
+   */
+  const [entregadasAhora, setEntregadasAhora] = useState<Record<string, string>>({});
+
+  // El servidor respondió con datos nuevos: los suyos mandan.
+  useEffect(() => {
+    setEntregadasAhora({});
+  }, [props.prompts]);
+
   const consignas = useMemo(
     () =>
       props.prompts.map((p) => {
         const nota = p.promptId ? notas[p.promptId] : undefined;
         const solved = nota?.solved ?? false;
+        const submissionStatus = estadoVigenteDeConsigna({
+          promptId: p.promptId,
+          estadoDelServidor: p.submissionStatus,
+          entregadasAhora,
+        });
         return {
           vista: p,
           body: nota?.body ?? "",
           solved,
-          estado: resolverEstadoConsigna({ submissionStatus: p.submissionStatus, solved }),
+          estado: resolverEstadoConsigna({ submissionStatus, solved }),
         };
       }),
-    [notas, props.prompts],
+    [entregadasAhora, notas, props.prompts],
   );
 
   const resumen: ResumenConsigna[] = useMemo(
@@ -373,6 +394,9 @@ export function ParticipantLiveScreen(props: ParticipantLiveScreenProps) {
                 onChange={(cambio) =>
                   c.vista.promptId ? escribir(c.vista.promptId, cambio) : undefined
                 }
+                onEstado={(promptId, nuevo) =>
+                  setEntregadasAhora((previo) => ({ ...previo, [promptId]: nuevo }))
+                }
               />
             </li>
           ))}
@@ -459,6 +483,7 @@ function TarjetaConsigna({
   entregaAbierta,
   estadoGuardado,
   onChange,
+  onEstado,
 }: {
   vista: LivePromptView;
   estado: EstadoConsigna;
@@ -469,6 +494,7 @@ function TarjetaConsigna({
   entregaAbierta: boolean;
   estadoGuardado: string;
   onChange: (cambio: { body?: string; solved?: boolean }) => void;
+  onEstado: (promptId: string, estado: string) => void;
 }) {
   const chip = CHIPS[estado];
   const resumenNota = body.split("\n")[0]?.trim() ?? "";
@@ -550,6 +576,7 @@ function TarjetaConsigna({
           }
           submissionStatus={vista.submissionStatus}
           validationResult={vista.validationResult}
+          onEstado={onEstado}
           tecnica={vista.tecnica ?? null}
           showClockWarning={false}
         />
