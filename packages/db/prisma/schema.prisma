@@ -12211,6 +12211,14 @@ model ClickatonRegistration {
   socialPublicationConsent           Boolean                              @default(false)
   consentAcceptedAt                  DateTime?
   consentVersion                     String?
+  /// Centro de Transmisión — consentimientos de ubicación (versión propia,
+  /// separada de las Bases). Null = no consintió.
+  locationConsentAt                  DateTime?
+  locationPublicConsentAt            DateTime?
+  interviewConsentAt                 DateTime?
+  locationConsentVersion             String?
+  /// Declaración de mayoría de edad incrustada en la casilla del mapa público.
+  locationConsentDeclaredAdult       Boolean                              @default(false)
   /// Bases versionadas (10F.0) — separado de consent social.
   termsVersion                       String?
   termsAcceptedAt                    DateTime?
