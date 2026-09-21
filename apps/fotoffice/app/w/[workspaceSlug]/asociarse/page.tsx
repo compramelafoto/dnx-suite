@@ -6,6 +6,8 @@ import { getActiveFeeValue, getDuesSettings } from "@/lib/membership/settings";
 import { normalizeRecommendationCode } from "@/lib/membership/recommendation-code";
 import { resolveRecommender } from "@/lib/membership/recommendation-link";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
+import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
+import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +36,10 @@ export default async function AsociarsePage({ params, searchParams }: Props) {
     select: { workspaceId: true, commercialName: true, logoUrl: true },
   });
   if (!branding) notFound();
+
+  // Sin el módulo habilitado esta página no existe — antes se entraba igual con la dirección
+  // exacta. Mismo criterio que /reservas.
+  if (!(await isModuleEnabledForWorkspace(branding.workspaceId, MEMBERS_MODULE_KEY))) notFound();
 
   const [cobros, settings, valorCuota, workspace, v] = await Promise.all([
     getWorkspaceCollectionStatus(branding.workspaceId),
@@ -70,54 +76,37 @@ export default async function AsociarsePage({ params, searchParams }: Props) {
   const abierto = cobros.canCharge && Boolean(valorCuota);
 
   return (
-    <div className="min-h-screen bg-[var(--fo-bg)] text-[var(--fo-text)]">
-      <main className="mx-auto max-w-2xl px-4 py-12 space-y-8">
-        <header className="flex items-start justify-between gap-6">
-          <div className="space-y-2">
-            <h1 className="text-2xl font-semibold tracking-tight">
-              Asociarse a {institutionName}
-            </h1>
-            <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
-              Completá tus datos y la Secretaría va a revisar tu solicitud. Te escribimos por
-              email en cuanto haya respuesta, sea cual sea.
-            </p>
-          </div>
-          {/*
-            El logo confirma que la persona está en el lugar correcto. Va acá y no en el
-            encabezado del texto porque el enlace se reparte por WhatsApp y redes, y quien
-            llega no necesariamente sabe qué es FotoOffice.
-          */}
-          {branding.logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element -- el logo vive en R2
-            <img
-              src={branding.logoUrl}
-              alt={`Logo de ${institutionName}`}
-              className="h-16 w-16 shrink-0 rounded-lg object-contain sm:h-20 sm:w-20"
-            />
-          ) : null}
-        </header>
+    <main className="mx-auto max-w-2xl px-4 py-12 space-y-8">
+      <div className="space-y-2">
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Asociarse a {institutionName}
+        </h1>
+        <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
+          Completá tus datos y la Secretaría va a revisar tu solicitud. Te escribimos por
+          email en cuanto haya respuesta, sea cual sea.
+        </p>
+      </div>
 
-        {abierto ? (
-          <MembershipApplicationForm
-            workspaceSlug={workspaceSlug}
-            institutionName={institutionName}
-            monthlyAmountLabel={valorCuota ? `$${ars.format(Number(valorCuota.amountArs))}` : null}
-            initialDuesCount={settings.initialDuesCount}
-            recommendation={
-              recomendante && code ? { code, displayName: recomendante.displayName } : null
-            }
-            vocabulary={v}
-          />
-        ) : (
-          <section className="fo-card space-y-2 p-6">
-            <h2 className="text-base font-semibold">Las inscripciones no están abiertas</h2>
-            <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
-              {institutionName} todavía no habilitó la asociación en línea. Escribinos y te
-              contamos cómo asociarte.
-            </p>
-          </section>
-        )}
-      </main>
-    </div>
+      {abierto ? (
+        <MembershipApplicationForm
+          workspaceSlug={workspaceSlug}
+          institutionName={institutionName}
+          monthlyAmountLabel={valorCuota ? `$${ars.format(Number(valorCuota.amountArs))}` : null}
+          initialDuesCount={settings.initialDuesCount}
+          recommendation={
+            recomendante && code ? { code, displayName: recomendante.displayName } : null
+          }
+          vocabulary={v}
+        />
+      ) : (
+        <section className="fo-card space-y-2 p-6">
+          <h2 className="text-base font-semibold">Las inscripciones no están abiertas</h2>
+          <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
+            {institutionName} todavía no habilitó la asociación en línea. Escribinos y te
+            contamos cómo asociarte.
+          </p>
+        </section>
+      )}
+    </main>
   );
 }
