@@ -63,6 +63,10 @@ test("un orden desordenado o con empates se normaliza", () => {
 });
 
 test("una imagen nueva va al final", () => {
-  assert.equal(ordenParaNueva(tres()), 3);
-  assert.equal(ordenParaNueva([]), 0);
+  assert.equal(ordenParaNueva(3), 3);
+  assert.equal(ordenParaNueva(0), 0);
+});
+
+test("una cantidad imposible no produce un orden negativo", () => {
+  assert.equal(ordenParaNueva(-1), 0);
 });

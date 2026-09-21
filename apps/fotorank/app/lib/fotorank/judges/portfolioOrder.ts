@@ -42,6 +42,10 @@ export function ordenTrasBorrar(
   return renumerar(ordenadas(imagenes).filter((img) => img.id !== idBorrado));
 }
 
-export function ordenParaNueva(imagenes: ImagenOrdenable[]): number {
-  return imagenes.length;
+/**
+ * Una imagen nueva va al final. Recibe la cantidad que ya hay, no el arreglo:
+ * quien la llama tiene un `count()` de la base, no las filas.
+ */
+export function ordenParaNueva(cuantasHay: number): number {
+  return Math.max(0, cuantasHay);
 }
