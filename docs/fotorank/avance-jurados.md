@@ -65,10 +65,10 @@ falta el despliegue, la migración en las cinco bases y que un jurado real se po
 
 | # | Tarea | Código | Producción | Nota |
 |---|---|---|---|---|
-| E.1 | Módulo que traduce cada estado al castellano | ⬜ | ⬜ | |
-| E.2 | Fechas en lenguaje humano | ⬜ | ⬜ | |
-| E.3 | Una sola tarjeta de jurado para todas las pantallas | ⬜ | ⬜ | |
-| E.4 | Las cinco pantallas del organizador | ⬜ | ⬜ | |
-| E.5 | Directorio, auditoría y portal del jurado | ⬜ | ⬜ | |
-| E.6 | Super Admin: la cola y la sección de usuarios | ⬜ | ⬜ | Depende de B.7 |
-| E.7 | Prueba que impide que vuelva a colarse un enum | ⬜ | ⬜ | |
+| E.1 | Módulo que traduce cada estado al castellano | ✅ | 🟡 | 6 pruebas. Reutiliza StatusTone y PresentedStatus, que ya existían |
+| E.2 | Fechas en lenguaje humano | ✅ | 🟡 | 8 pruebas. Verificado en vivo: "Entró el mes pasado", "Todavía no entró" |
+| E.3 | Una sola tarjeta de jurado para todas las pantallas | ✅ | 🟡 | Reutiliza StatusBadge y EmptyState del propio FotoRank |
+| E.4 | Las pantallas del organizador | ✅ | 🟡 | Lista verificada en vivo con 7 jurados y con la pantalla vacía |
+| E.5 | Directorio, auditoría y portal del jurado | ✅ | 🟡 | Las dos estadísticas que nadie escribía salen de la pantalla y de los datos |
+| E.6 | Super Admin: la cola y la sección de usuarios | ✅ | 🟡 | Se fueron los nombres de funciones internas. Las otras cuatro secciones no se tocaron |
+| E.7 | Prueba que impide que vuelva a colarse un enum | ✅ | 🟡 | Verificada introduciendo un caso malo a propósito: lo detecta con archivo y línea |
