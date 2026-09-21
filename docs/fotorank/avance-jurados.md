@@ -80,3 +80,18 @@ ruta de la foto devuelve 404 —no 500— para un jurado que no existe.
 | E.5 | Directorio, auditoría y portal del jurado | ✅ | 🟡 | Las dos estadísticas que nadie escribía salen de la pantalla y de los datos |
 | E.6 | Super Admin: la cola y la sección de usuarios | ✅ | 🟡 | Se fueron los nombres de funciones internas. Las otras cuatro secciones no se tocaron |
 | E.7 | Prueba que impide que vuelva a colarse un enum | ✅ | 🟡 | Verificada introduciendo un caso malo a propósito: lo detecta con archivo y línea |
+
+<!-- avance: FotoRank jurados — Etapa F: portfolio y galería -->
+
+| # | Tarea | Código | Producción | Nota |
+|---|---|---|---|---|
+| F.1 | Claves y guardado de las imágenes | ✅ | ✅ | 7 pruebas. Mismo mecanismo que la foto de perfil |
+| F.2 | El orden sin huecos ni empates | ✅ | 🟡 | 9 pruebas. Desplegado; nadie reordenó nada real todavía |
+| F.3 | Migración de la tabla | ✅ | ✅ | **Aplicada en las 5 bases el 21/09**, con los 5 controles en verde en cada una |
+| F.4 | Ruta que sirve las imágenes | ✅ | ✅ | En producción devuelve 404 para una imagen inexistente. Hash equivocado → 404 |
+| F.5 | Subir, titular, ordenar y borrar | ✅ | 🟡 | Desplegado. Falta que un jurado real suba su primera foto |
+| F.6 | Achicar las fotos en el navegador | ✅ | 🟡 | 8 pruebas. Desplegado; sin foto real que achicar todavía |
+| F.7 | La sección de portfolio en el perfil | ✅ | 🟡 | Desplegado. `/jurado/perfil` pide sesión, como corresponde |
+| F.8 | La foto en el formulario de postulación | ✅ | ✅ | El campo está en producción: "Tu foto", con el aviso de que se achica sola |
+| F.9 | El portfolio en la página pública y el directorio | ✅ | 🟡 | Verificado con datos de prueba: galería, tira de tres y orden por ficha completa |
+| F.10 | El cobro por foto calificada | 🚫 | 🚫 | **Bloqueado por Mercado Pago**: el split sigue en sandbox. Diseñado en el spec del 21/09 |
