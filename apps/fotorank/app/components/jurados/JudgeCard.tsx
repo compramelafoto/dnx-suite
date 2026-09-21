@@ -87,7 +87,10 @@ export function JudgeCard({
 
       {ultimaActividad !== undefined ? (
         <p className="mt-3 text-xs text-fr-muted" title={fechaExacta(ultimaActividad)}>
-          {etiquetaDeActividad} {tiempoRelativo(ultimaActividad)}
+          {/* Sin fecha, la etiqueta sobra: "Entró sin actividad" no se dice. */}
+          {ultimaActividad
+            ? `${etiquetaDeActividad} ${tiempoRelativo(ultimaActividad)}`
+            : "Todavía no entró"}
         </p>
       ) : null}
 

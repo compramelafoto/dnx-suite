@@ -29,7 +29,7 @@ const CARPETAS = [
  * bien —el componente que lo recibe lo traduce—, `<td>{x.status}</td>` no.
  */
 const SOSPECHOSO =
-  /(?<![=])\{\s*(?:String\()?[A-Za-z_$][\w$]*\.(?:status|accountStatus|invitationStatus|assignmentStatus|membershipStatus|directoryReviewStatus|assignmentType|signupSource)\)?\s*\}/;
+  /(?<![=])\{\s*(?:String\()?[A-Za-z_$][\w$]*\.(?:status|accountStatus|invitationStatus|assignmentStatus|membershipStatus|directoryReviewStatus|assignmentType|signupSource|methodType)\)?\s*\}/;
 
 /** Fechas crudas: toISOString() y toLocaleString() sin pasar por tiempoRelativo. */
 const FECHA_CRUDA = /(?<![=])\{[^}]*\.(?:toISOString|toLocaleString)\(\)[^}]*\}/;

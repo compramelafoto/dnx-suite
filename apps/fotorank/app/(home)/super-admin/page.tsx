@@ -12,6 +12,7 @@ import {
 } from "../../lib/fotorank/access/super-admin";
 import { routes } from "../../lib/routes";
 import { contarJuradosPendientes } from "../../actions/judgeDirectoryReview";
+import { fechaExacta, tiempoRelativo } from "../../lib/fotorank/judges/ui/tiempoRelativo";
 
 /**
  * Panel Super Admin — acceso global sin membresía por concurso.
@@ -24,6 +25,12 @@ export default async function SuperAdminPage() {
 
   const actAsOrgId = await getActAsOrganizationId();
   const juradosPendientes = await contarJuradosPendientes();
+  const superAdmins = await prisma.user.findMany({
+    where: { globalRole: "SUPER_ADMIN" },
+    select: { id: true, name: true, email: true, lastLoginAt: true },
+    orderBy: { email: "asc" },
+    take: 20,
+  });
 
   const [organizations, contests, usersCount, registrationsCount, entriesCount, recentAudit] =
     await Promise.all([
@@ -176,13 +183,41 @@ export default async function SuperAdminPage() {
       </section>
 
       <section id="usuarios" className="space-y-6 scroll-mt-8">
-        <h2 className="text-2xl font-semibold tracking-tight">Usuarios</h2>
+        <div>
+          <h2 className="text-2xl font-semibold tracking-tight">Usuarios</h2>
+          <p className="mt-1 text-sm text-fr-muted">
+            {usersCount === 1 ? "1 cuenta" : `${usersCount} cuentas`} en toda la suite DNX.
+          </p>
+        </div>
+
         <div className="fr-recuadro border border-fr-border bg-fr-card">
-          <p className="text-sm leading-relaxed text-fr-muted">
-            Cuentas DNX totales:{" "}
-            <span className="font-semibold text-fr-primary">{usersCount}</span>. El rol global se
-            gestiona con <code className="text-gold">grantGlobalRole</code> /{" "}
-            <code className="text-gold">ensureGlobalSuperAdmin</code> (@repo/auth).
+          <h3 className="text-sm font-semibold text-fr-primary">
+            Quiénes administran la plataforma
+          </h3>
+          {superAdmins.length === 0 ? (
+            <p className="mt-3 text-sm text-fr-muted">
+              Nadie tiene acceso de administración. Es raro: si estás viendo esta pantalla,
+              deberías figurar acá.
+            </p>
+          ) : (
+            <ul className="mt-3 space-y-2">
+              {superAdmins.map((u) => (
+                <li key={u.id} className="flex flex-wrap items-baseline justify-between gap-2">
+                  <span className="text-sm text-fr-primary">
+                    {u.name?.trim() || u.email}
+                    {u.name?.trim() ? (
+                      <span className="ml-2 text-xs text-fr-muted">{u.email}</span>
+                    ) : null}
+                  </span>
+                  <span className="text-xs text-fr-muted" title={fechaExacta(u.lastLoginAt)}>
+                    Entró {tiempoRelativo(u.lastLoginAt)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-4 text-xs text-fr-muted">
+            El acceso de administración se otorga desde la base, no desde esta pantalla.
           </p>
         </div>
       </section>

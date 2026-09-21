@@ -248,6 +248,55 @@ const REVISION: Record<string, PresentedStatus> = {
   },
 };
 
+const METODO: Record<string, PresentedStatus> = {
+  SCORE_1_5: {
+    label: "Puntaje del 1 al 5",
+    description: "Cada obra recibe una nota entre 1 y 5.",
+    tone: "neutral",
+    nextAction: null,
+  },
+  SCORE_1_10: {
+    label: "Puntaje del 1 al 10",
+    description: "Cada obra recibe una nota entre 1 y 10.",
+    tone: "neutral",
+    nextAction: null,
+  },
+  SCORE_0_100: {
+    label: "Puntaje del 0 al 100",
+    description: "Cada obra recibe una nota entre 0 y 100.",
+    tone: "neutral",
+    nextAction: null,
+  },
+  YES_NO: {
+    label: "Pasa o no pasa",
+    description: "De cada obra sólo se decide si sigue adelante.",
+    tone: "neutral",
+    nextAction: null,
+  },
+  FAVORITES_SELECTION: {
+    label: "Elegir favoritas",
+    description: "Se marcan las obras preferidas, sin ponerles nota.",
+    tone: "neutral",
+    nextAction: null,
+  },
+  SELECTION_WITH_QUOTA: {
+    label: "Elegir con cupo",
+    description: "Se eligen las obras preferidas, hasta una cantidad fijada.",
+    tone: "neutral",
+    nextAction: null,
+  },
+  CRITERIA_BASED: {
+    label: "Por criterios",
+    description: "Cada obra se puntúa criterio por criterio, según la rúbrica.",
+    tone: "neutral",
+    nextAction: null,
+  },
+};
+
+export function presentJudgeMethodType(v: string): PresentedStatus {
+  return buscar(METODO, v);
+}
+
 export function presentJudgeAccountStatus(v: string): PresentedStatus {
   return buscar(CUENTA, v);
 }

@@ -3,7 +3,10 @@ import { Card, Button, Badge } from "@repo/design-system";
 import { listJudgeAssignmentsForCurrentJudge, judgeLogoutAction } from "../../actions/judges";
 import { requireJudgeAuth } from "../../lib/judge-auth";
 import { StatusBadge } from "../../components/public-ui";
-import { presentJudgeAssignmentStatus } from "../../lib/fotorank/judges/ui/judgeStatus";
+import {
+  presentJudgeAssignmentStatus,
+  presentJudgeMethodType,
+} from "../../lib/fotorank/judges/ui/judgeStatus";
 
 export default async function JudgePanelPage() {
   const judge = await requireJudgeAuth();
@@ -68,7 +71,12 @@ export default async function JudgePanelPage() {
                   <div>
                     <h2 className="text-lg font-semibold text-fr-primary">{a.contestTitle}</h2>
                     <p className="text-sm text-fr-muted">Categoría: {a.categoryName}</p>
-                    <p className="text-xs text-fr-muted-soft">Método: {a.methodType}</p>
+                    <p
+                      className="text-xs text-fr-muted-soft"
+                      title={presentJudgeMethodType(String(a.methodType)).description}
+                    >
+                      Cómo se evalúa: {presentJudgeMethodType(String(a.methodType)).label}
+                    </p>
                     <p className="text-xs text-fr-muted-soft">Votos cargados: {a.votesCount}</p>
                     {!a.evaluationAllowed && a.evaluationBlockMessage ? (
                       <p className="mt-2 text-xs text-amber-200/90">{a.evaluationBlockMessage}</p>

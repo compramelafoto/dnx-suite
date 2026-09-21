@@ -16,6 +16,7 @@ import {
   presentJudgeMembershipStatus,
   presentJudgeAssignmentType,
   presentJudgeReviewStatus,
+  presentJudgeMethodType,
 } from "./judgeStatus";
 
 const CASOS = {
@@ -29,6 +30,10 @@ const CASOS = {
   presentJudgeMembershipStatus: ["ACTIVE", "INVITED", "DISABLED"],
   presentJudgeAssignmentType: ["PRIMARY", "BACKUP"],
   presentJudgeReviewStatus: ["PENDING", "APPROVED", "REJECTED"],
+  presentJudgeMethodType: [
+    "SCORE_1_5", "SCORE_1_10", "SCORE_0_100", "YES_NO",
+    "FAVORITES_SELECTION", "SELECTION_WITH_QUOTA", "CRITERIA_BASED",
+  ],
 } as const;
 
 const FUNCIONES = {
@@ -39,6 +44,7 @@ const FUNCIONES = {
   presentJudgeMembershipStatus,
   presentJudgeAssignmentType,
   presentJudgeReviewStatus,
+  presentJudgeMethodType,
 };
 
 test("cada valor de cada enum tiene un texto en castellano", () => {
@@ -95,6 +101,8 @@ test("los textos concretos que se acordaron", () => {
   assert.equal(presentJudgeAssignmentType("PRIMARY").label, "Titular");
   assert.equal(presentJudgeAssignmentType("BACKUP").label, "Suplente");
   assert.equal(presentJudgeReviewStatus("PENDING").label, "En revisión");
+  assert.equal(presentJudgeMethodType("SCORE_1_10").label, "Puntaje del 1 al 10");
+  assert.equal(presentJudgeMethodType("YES_NO").label, "Pasa o no pasa");
 });
 
 test("usa los mismos tonos que el resto de la aplicación", () => {
