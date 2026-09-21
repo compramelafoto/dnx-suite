@@ -9,6 +9,7 @@ export type PublicContestJudgeCard = {
   lastName: string;
   avatarUrl: string | null;
   publicSlug: string;
+  professionalHeadline: string | null;
   shortBio: string | null;
   categories: string[];
 };
@@ -85,6 +86,7 @@ export async function getPublicContestLandingBySlug(slug: string): Promise<Publi
     firstName: v.profile.firstName,
     lastName: v.profile.lastName,
     avatarUrl: judgeAvatarSrc({ id: v.profile.id, avatarUrl: v.profile.avatarUrl }),
+    professionalHeadline: v.profile.professionalHeadline,
     publicSlug: v.profile.publicSlug,
     shortBio: v.profile.shortBio,
     categories: [...new Set(v.categories)],

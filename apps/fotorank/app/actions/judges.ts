@@ -1763,6 +1763,7 @@ export async function listPublicJudgesForContestBySlug(contestSlug: string): Pro
       lastName: v.profile.lastName,
       avatarUrl: judgeAvatarSrc({ id: v.profile.id, avatarUrl: v.profile.avatarUrl }),
       publicSlug: v.profile.publicSlug,
+      professionalHeadline: v.profile.professionalHeadline,
       shortBio: v.profile.shortBio,
       categories: [...new Set(v.categories)],
     })),
