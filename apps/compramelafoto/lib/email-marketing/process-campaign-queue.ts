@@ -9,6 +9,10 @@ import { renderTemplate } from "./render-template";
 
 const RATE_LIMIT_PER_RUN = parseInt(process.env.EMAIL_CAMPAIGN_RATE_LIMIT ?? "15", 10); // emails por ejecución
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://compramelafoto.com";
+/** 8 envíos por segundo: deja margen bajo el tope de 10/s de Resend. */
+const PAUSA_ENTRE_ENVIOS_MS = 125;
+
+const esperar = (ms: number) => new Promise((listo) => setTimeout(listo, ms));
 
 export async function processCampaignEmailQueue() {
   const apiKey = process.env.RESEND_API_KEY;
@@ -107,6 +111,11 @@ export async function processCampaignEmailQueue() {
       });
       errors.push(`${send.toEmail}: ${msg}`);
     }
+
+    // Resend acepta 10 envíos por segundo. Sin esta pausa la tanda sale de
+    // golpe y el proveedor rechaza el sobrante con "Too many requests", que
+    // se registra como envío fallido aunque el correo esté perfecto.
+    await esperar(PAUSA_ENTRE_ENVIOS_MS);
   }
 
   await markCampaignSentIfComplete(pending.map((s) => s.campaignId));
@@ -114,15 +123,24 @@ export async function processCampaignEmailQueue() {
   return { processed: pending.length, errors };
 }
 
+/**
+ * Cierra la campaña cuando ya no queda nada en cola.
+ *
+ * Exige al menos un envío exitoso: si fallaron todos —una API key sin permiso
+ * sobre el dominio, por ejemplo— marcarla como SENT diría que salió cuando no
+ * salió nada, y además el cron dejaría de tomarla, porque sólo procesa las que
+ * están en SENDING. Dejarla abierta permite corregir la causa y reencolar.
+ */
 async function markCampaignSentIfComplete(campaignIds: number[]) {
   const unique = [...new Set(campaignIds)];
   for (const cid of unique) {
-    const [queued, sending] = await Promise.all([
+    const [queued, enviados, sending] = await Promise.all([
       prisma.emailSend.count({ where: { campaignId: cid, status: "QUEUED" } }),
+      prisma.emailSend.count({ where: { campaignId: cid, status: "SENT" } }),
       prisma.emailCampaign.findUnique({ where: { id: cid }, select: { status: true } }),
     ]);
 
-    if (queued === 0 && sending?.status === "SENDING") {
+    if (queued === 0 && enviados > 0 && sending?.status === "SENDING") {
       await prisma.emailCampaign.update({
         where: { id: cid },
         data: { status: "SENT" },
