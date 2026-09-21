@@ -26,6 +26,7 @@ export default async function JudgePublicProfilePage({ params }: { params: Promi
     instagram: string | null;
     otherLinksJson: unknown;
     assignments: Array<{ contestId: string; contestTitle: string; categoryName: string; assignmentType: string }>;
+    portfolio: Array<{ id: string; src: string; title: string | null }>;
   };
 
   const bioDoc = safeJudgeBioForPublicRender(data.fullBioRichJson);
@@ -104,6 +105,30 @@ export default async function JudgePublicProfilePage({ params }: { params: Promi
             <div className="mt-4">
               <JudgeBioRenderer doc={bioDoc} />
             </div>
+          </Card>
+        ) : null}
+
+        {data.portfolio.length > 0 ? (
+          <Card>
+            <h2 className="text-xl font-semibold text-fr-primary">Su trabajo</h2>
+            <ul className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {data.portfolio.map((img) => (
+                <li key={img.id}>
+                  <figure>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={img.src}
+                      alt={img.title ?? ""}
+                      loading="lazy"
+                      className="aspect-[4/3] w-full rounded border border-zinc-700 object-cover"
+                    />
+                    {img.title ? (
+                      <figcaption className="mt-2 text-xs text-fr-muted">{img.title}</figcaption>
+                    ) : null}
+                  </figure>
+                </li>
+              ))}
+            </ul>
           </Card>
         ) : null}
 

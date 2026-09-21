@@ -1,6 +1,8 @@
 import { prisma } from "@repo/db";
 import type { FotorankJudgeCompensationMode, FotorankJudgePricingMode } from "@repo/db";
 import { judgeAvatarSrc } from "./judgeAvatarSrc";
+import { portfolioImageSrc } from "./portfolioSrc";
+import { puntajeDeFicha } from "./fichaCompleta";
 
 export type DirectoryJudgeCardDto = {
   judgeAccountId: string;
@@ -16,6 +18,8 @@ export type DirectoryJudgeCardDto = {
   country: string | null;
   region: string | null;
   languages: string[];
+  /** Las tres primeras de su portfolio, para la tira de la tarjeta. */
+  portfolio: Array<{ id: string; src: string; title: string | null }>;
 };
 
 export type DirectoryListFilters = {
@@ -158,13 +162,40 @@ export async function listProfessionalDirectoryJudges(
     },
     include: {
       judgeAccount: { select: { id: true } },
+      // Las tres primeras alcanzan para la tira de la tarjeta. Traer las doce
+      // de trescientos jurados sería traer 3.600 filas para mostrar 900.
+      portfolioImages: { orderBy: { sortOrder: "asc" }, take: 3 },
+      _count: { select: { portfolioImages: true } },
     },
     orderBy: [{ updatedAt: "desc" }],
     take: 300,
   });
 
   const filtered = rows.filter((r) => matchesFilters(r, filters));
-  const slice = filtered.slice(skip, skip + take);
+
+  // Primero los que tienen la ficha más completa: una ficha vacía no le sirve
+  // a quien busca. A igual puntaje, la más reciente.
+  const ordenados = [...filtered].sort((a, b) => {
+    const pa = puntajeDeFicha({
+      tieneFoto: !!a.avatarUrl,
+      cantidadDePortfolio: a._count.portfolioImages,
+      titular: a.professionalHeadline,
+      bio: a.shortBio,
+      aniosDeExperiencia: a.experienceYears,
+      especialidades: parseStringArrayJson(a.specialtiesJson),
+    });
+    const pb = puntajeDeFicha({
+      tieneFoto: !!b.avatarUrl,
+      cantidadDePortfolio: b._count.portfolioImages,
+      titular: b.professionalHeadline,
+      bio: b.shortBio,
+      aniosDeExperiencia: b.experienceYears,
+      especialidades: parseStringArrayJson(b.specialtiesJson),
+    });
+    return pb - pa || b.updatedAt.getTime() - a.updatedAt.getTime();
+  });
+
+  const slice = ordenados.slice(skip, skip + take);
   const countMap = await completedAssignmentsCountByJudgeIds(slice.map((r) => r.judgeAccount.id));
   const items: DirectoryJudgeCardDto[] = slice.map((r) => {
     const displayName =
@@ -192,6 +223,9 @@ export async function listProfessionalDirectoryJudges(
       country: r.showLocationPublicly ? r.country : null,
       region: r.showLocationPublicly ? r.region : null,
       languages: parseStringArrayJson(r.languagesJson),
+      portfolio: r.portfolioImages
+        .map((img) => ({ id: img.id, src: portfolioImageSrc(img), title: img.title }))
+        .filter((img): img is { id: string; src: string; title: string | null } => img.src !== null),
     };
   });
 
@@ -224,6 +258,8 @@ export type OrganizerJudgeDetailDto = {
   isVerifiedByPlatform: boolean;
   completedAssignments: number;
   publicSlug: string;
+  /** Su portfolio completo, en el orden que eligió. */
+  portfolio: Array<{ id: string; src: string; title: string | null }>;
 };
 
 export async function getOrganizerViewJudgeDetail(judgeAccountId: string): Promise<OrganizerJudgeDetailDto | null> {
@@ -235,6 +271,7 @@ export async function getOrganizerViewJudgeDetail(judgeAccountId: string): Promi
     },
     include: {
       judgeAccount: { select: { id: true } },
+      portfolioImages: { orderBy: { sortOrder: "asc" } },
     },
   });
   if (!r) return null;
@@ -277,5 +314,8 @@ export async function getOrganizerViewJudgeDetail(judgeAccountId: string): Promi
     isVerifiedByPlatform: r.isVerifiedByPlatform,
     completedAssignments: countMap.get(r.judgeAccount.id) ?? 0,
     publicSlug: r.publicSlug,
+    portfolio: r.portfolioImages
+      .map((img) => ({ id: img.id, src: portfolioImageSrc(img), title: img.title }))
+      .filter((img): img is { id: string; src: string; title: string | null } => img.src !== null),
   };
 }
