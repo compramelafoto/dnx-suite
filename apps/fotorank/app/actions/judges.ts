@@ -53,6 +53,7 @@ import {
 import { judgeAvatarSrc } from "../lib/fotorank/judges/judgeAvatarSrc";
 import { resultadoDeAceptarInvitacion } from "../lib/fotorank/judges/inviteAcceptance";
 import { buildPublicSlug } from "../lib/fotorank/judges/publicSlug";
+import { recortarPerfilParaElPublico } from "../lib/fotorank/judges/publicProfileVisibility";
 import { saveJudgeAvatar, deleteJudgeAvatarByKey } from "../lib/fotorank/judges/judgeAssetStorage";
 
 export type JudgeMethodType =
@@ -1690,6 +1691,20 @@ export async function getJudgePublicProfile(publicSlug: string): Promise<JudgeAc
 
   if (!profile) return { ok: false, error: "Perfil no encontrado." };
 
+  // Se recorta acá: un dato que el jurado apagó no sale de la capa de datos,
+  // así ninguna pantalla lo muestra por descuido.
+  const visible = recortarPerfilParaElPublico({
+    website: profile.website,
+    instagram: profile.instagram,
+    otherLinksJson: profile.otherLinksJson,
+    city: profile.city,
+    country: profile.country,
+    phone: profile.phone,
+    showWebsitePublicly: profile.showWebsitePublicly,
+    showInstagramPublicly: profile.showInstagramPublicly,
+    showLocationPublicly: profile.showLocationPublicly,
+  });
+
   return {
     ok: true,
     data: {
@@ -1697,13 +1712,10 @@ export async function getJudgePublicProfile(publicSlug: string): Promise<JudgeAc
       firstName: profile.firstName,
       lastName: profile.lastName,
       avatarUrl: judgeAvatarSrc({ id: profile.id, avatarUrl: profile.avatarUrl }),
+      professionalHeadline: profile.professionalHeadline,
       shortBio: profile.shortBio,
       fullBioRichJson: profile.fullBioRichJson,
-      city: profile.city,
-      country: profile.country,
-      website: profile.website,
-      instagram: profile.instagram,
-      otherLinksJson: profile.otherLinksJson,
+      ...visible,
       assignments: profile.judgeAccount.assignments.map((a) => ({
         contestId: a.contestId,
         contestTitle: a.contest.title,

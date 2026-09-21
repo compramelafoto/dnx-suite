@@ -8,6 +8,8 @@ import {
   type FotorankJudgePricingMode,
 } from "@repo/db";
 import { requireJudgeAuth } from "../lib/judge-auth";
+import { normalizarInstagram, normalizarUrl } from "../lib/fotorank/judges/publicSignupForm";
+import { otrosLinksATexto, parsearOtrosLinks } from "../lib/fotorank/judges/otherLinks";
 import { deleteJudgeAvatarByKey, saveJudgeAvatar } from "../lib/fotorank/judges/judgeAssetStorage";
 import { judgeAvatarSrc } from "../lib/fotorank/judges/judgeAvatarSrc";
 
@@ -40,6 +42,7 @@ export async function judgeGetProfessionalProfileForEditAction(): Promise<
         ? (profile.specialtiesJson as string[]).join(", ")
         : "",
       languagesText: Array.isArray(profile.languagesJson) ? (profile.languagesJson as string[]).join(", ") : "",
+      otherLinksText: otrosLinksATexto(profile.otherLinksJson),
     },
   };
 }
@@ -55,6 +58,10 @@ export async function judgeUpdateProfessionalProfileAction(input: {
   city?: string | null;
   country?: string | null;
   portfolioUrl?: string | null;
+  website?: string | null;
+  instagram?: string | null;
+  otherLinksText?: string;
+  phone?: string | null;
   isAvailableForJuryWork?: boolean;
   availabilityNotes?: string | null;
   availableRemote?: boolean;
@@ -102,7 +109,12 @@ export async function judgeUpdateProfessionalProfileAction(input: {
       region: input.region?.trim() || null,
       city: input.city?.trim() || null,
       country: input.country?.trim() || null,
-      portfolioUrl: input.portfolioUrl?.trim() || null,
+      portfolioUrl: input.portfolioUrl ? normalizarUrl(input.portfolioUrl) : null,
+      website: input.website ? normalizarUrl(input.website) : null,
+      instagram: input.instagram ? normalizarInstagram(input.instagram) : null,
+      otherLinksJson: parsearOtrosLinks(input.otherLinksText ?? ""),
+      // El teléfono no sale nunca al público: lo ven sólo los organizadores.
+      phone: input.phone?.trim() || null,
       isAvailableForJuryWork: input.isAvailableForJuryWork ?? true,
       availabilityNotes: input.availabilityNotes?.trim() || null,
       availableRemote: input.availableRemote ?? true,

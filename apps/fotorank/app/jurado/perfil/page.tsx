@@ -4,6 +4,7 @@ import { JuradoPerfilProfesionalForm } from "./JuradoPerfilProfesionalForm";
 import { FotoDePerfil } from "./FotoDePerfil";
 import { EstadoDeMiFicha } from "./EstadoDeMiFicha";
 import { judgeAvatarSrc } from "../../lib/fotorank/judges/judgeAvatarSrc";
+import { otrosLinksATexto } from "../../lib/fotorank/judges/otherLinks";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -71,6 +72,10 @@ export default async function JuradoPerfilProfesionalPage() {
             city: profile.city,
             country: profile.country,
             portfolioUrl: profile.portfolioUrl,
+            website: profile.website,
+            instagram: profile.instagram,
+            otherLinksText: otrosLinksATexto(profile.otherLinksJson),
+            phone: profile.phone,
             isAvailableForJuryWork: profile.isAvailableForJuryWork,
             availabilityNotes: profile.availabilityNotes,
             availableRemote: profile.availableRemote,

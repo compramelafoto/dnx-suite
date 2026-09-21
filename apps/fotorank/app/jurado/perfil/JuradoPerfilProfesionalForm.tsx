@@ -15,6 +15,10 @@ type Initial = {
   city: string | null;
   country: string | null;
   portfolioUrl: string | null;
+  website: string | null;
+  instagram: string | null;
+  otherLinksText: string;
+  phone: string | null;
   isAvailableForJuryWork: boolean;
   availabilityNotes: string | null;
   availableRemote: boolean;
@@ -127,11 +131,53 @@ export function JuradoPerfilProfesionalForm({ initial }: { initial: Initial }) {
           <Field label="Región / provincia" value={f.region ?? ""} onChange={(v) => setF((s) => ({ ...s, region: v || null }))} />
           <Field label="Ciudad" value={f.city ?? ""} onChange={(v) => setF((s) => ({ ...s, city: v || null }))} />
         </div>
-        <Field
-          label="Portfolio (URL)"
-          value={f.portfolioUrl ?? ""}
-          onChange={(v) => setF((s) => ({ ...s, portfolioUrl: v || null }))}
-        />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field
+            label="Portfolio (URL)"
+            value={f.portfolioUrl ?? ""}
+            onChange={(v) => setF((s) => ({ ...s, portfolioUrl: v || null }))}
+          />
+          <Field
+            label="Sitio web"
+            value={f.website ?? ""}
+            onChange={(v) => setF((s) => ({ ...s, website: v || null }))}
+          />
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field
+            label="Instagram"
+            value={f.instagram ?? ""}
+            onChange={(v) => setF((s) => ({ ...s, instagram: v || null }))}
+          />
+          <div className="space-y-2">
+            <Field
+              label="Teléfono"
+              value={f.phone ?? ""}
+              onChange={(v) => setF((s) => ({ ...s, phone: v || null }))}
+            />
+            <p className="text-xs text-fr-muted">
+              No se muestra en tu página pública: lo ven sólo los organizadores.
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-semibold text-fr-primary" htmlFor="otros-links">
+            Otros links
+          </label>
+          <textarea
+            id="otros-links"
+            rows={4}
+            value={f.otherLinksText}
+            onChange={(e) => setF((s) => ({ ...s, otherLinksText: e.target.value }))}
+            placeholder={"Behance | behance.net/tuusuario\nFlickr | flickr.com/tuusuario"}
+            className="w-full rounded border border-fr-border bg-fr-bg px-3 py-2 text-sm text-fr-primary"
+          />
+          <p className="text-xs text-fr-muted">
+            Uno por línea, con el nombre antes de la barra. Hasta diez.
+          </p>
+        </div>
       </section>
 
       <section className="fr-recuadro space-y-6 rounded-xl border border-fr-border bg-fr-card">
