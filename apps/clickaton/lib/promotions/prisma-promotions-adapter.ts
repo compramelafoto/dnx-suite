@@ -2,12 +2,15 @@ import {
   buildRedeemCommand,
   normalizePromotionCode,
   previewPromotion,
+  readEligibilityRule,
   type PreviewPromotionResult,
+  type PromotionEligibilityResolution,
   type PromotionQuote,
   type PromotionRecord,
   type RedeemPromotionCommand,
 } from "@repo/promotions";
 import { prisma } from "@repo/db";
+import { buildEligibilityWhere, type EligibilityIdentity } from "./eligibility-where";
 
 export const CLICKATON_PROMOTION_PLATFORM = "CLICKATON" as const;
 
@@ -70,6 +73,27 @@ async function usageCounters(promotionId: string, userId: number | null | undefi
   return { totalActiveRedemptions, userActiveRedemptions };
 }
 
+/**
+ * Resuelve la condición del cupón contra las inscripciones de ediciones anteriores.
+ * Devuelve null cuando el cupón no tiene condición (el motor no la va a mirar).
+ */
+async function resolveEligibility(
+  promotion: PromotionRecord,
+  identity: EligibilityIdentity,
+): Promise<PromotionEligibilityResolution | null> {
+  const rule = readEligibilityRule(promotion.metadata);
+  if (!rule) return null;
+
+  const where = buildEligibilityWhere(rule, identity);
+  if (!where) return { isEligible: false };
+
+  const found = await prisma.clickatonRegistration.findFirst({
+    where,
+    select: { id: true },
+  });
+  return { isEligible: found != null };
+}
+
 export async function findPromotionByCode(
   rawCode: string,
   platform = CLICKATON_PROMOTION_PLATFORM,
@@ -87,6 +111,7 @@ export async function previewClickatonPromotion(input: {
   currency: string;
   editionId: string;
   userId?: number | null;
+  email?: string | null;
   now?: Date;
 }): Promise<PreviewPromotionResult> {
   const promotion = await findPromotionByCode(input.code);
@@ -98,6 +123,10 @@ export async function previewClickatonPromotion(input: {
     };
   }
   const usage = await usageCounters(promotion.id, input.userId);
+  const eligibility = await resolveEligibility(promotion, {
+    email: input.email ?? null,
+    userId: input.userId ?? null,
+  });
   return previewPromotion({
     promotion,
     usage,
@@ -106,6 +135,7 @@ export async function previewClickatonPromotion(input: {
     platform: CLICKATON_PROMOTION_PLATFORM,
     editionId: input.editionId,
     userId: input.userId,
+    eligibility,
     now: input.now,
   });
 }
@@ -141,6 +171,8 @@ export async function reserveClickatonPromotion(input: {
   currency: string;
   editionId: string;
   userId: number | null;
+  /** Email normalizado del participante. Necesario para cupones con condición. */
+  email?: string | null;
   /** Puede ser null hasta crear la inscripción; se usa orderId = idempotencyKey del request. */
   registrationId?: string | null;
   orderId: string;
@@ -199,6 +231,10 @@ export async function reserveClickatonPromotion(input: {
     return { ok: false, code: "CODE_NOT_FOUND", message: "Código promocional no válido." };
   }
   const usage = await usageCounters(promotion.id, input.userId);
+  const eligibility = await resolveEligibility(promotion, {
+    email: input.email ?? null,
+    userId: input.userId ?? null,
+  });
   const built = buildRedeemCommand({
     promotion,
     usage,
@@ -207,6 +243,7 @@ export async function reserveClickatonPromotion(input: {
     platform: CLICKATON_PROMOTION_PLATFORM,
     editionId: input.editionId,
     userId: input.userId,
+    eligibility,
     orderId: input.orderId,
     registrationId: input.registrationId ?? null,
     idempotencyKey: input.idempotencyKey,
