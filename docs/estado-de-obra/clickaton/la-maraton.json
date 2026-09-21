@@ -1,0 +1,149 @@
+{
+  "proyecto": "La maratón: inscripción, jornada y revelado",
+  "plataforma": "Clickatón",
+  "enUso": "si",
+  "usoNota": "1ª edición con 37 inscripciones confirmadas, 33 acreditados y 283 fotos subidas",
+  "etapas": [
+    {
+      "nombre": "Inscribirse y pagar",
+      "criterios": [
+        {
+          "que": "Alguien reserva su lugar y completa la inscripción",
+          "implementado": { "fecha": "2026-09-19" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "57 reservas de cupo y 57 inscripciones; 37 confirmadas, 16 canceladas y 4 devueltas"
+          }
+        },
+        {
+          "que": "Un pago por Mercado Pago confirma la inscripción sola",
+          "implementado": { "fecha": "2026-09-16" },
+          "probado": null,
+          "bloqueado": "Falta MERCADOPAGO_WEBHOOK_SECRET: Clickatón rechaza los avisos y una inscripción paga se canceló sola"
+        },
+        {
+          "que": "Se puede activar un pago en efectivo desde el panel",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "No hay botón: son 5 escrituras a mano"
+        },
+        {
+          "que": "Una reserva vencida se puede reactivar sin cobrar de nuevo",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "El enlace de pago muere con la reserva; «Reactivar» deja la inscripción sin cobro requerido"
+        }
+      ]
+    },
+    {
+      "nombre": "Acreditación el día del evento",
+      "criterios": [
+        {
+          "que": "La acreditación se puede encender por edición",
+          "implementado": { "pr": 193, "fecha": "2026-09-19" },
+          "probado": {
+            "fecha": "2026-09-19",
+            "evidencia": "El módulo nacía apagado sin pantalla que lo encendiera; botón en producción"
+          }
+        },
+        {
+          "que": "Se acredita gente en la puerta",
+          "implementado": { "fecha": "2026-09-19" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "33 acreditaciones registradas"
+          }
+        },
+        {
+          "que": "La acreditación funciona sin conexión y se sincroniza después",
+          "implementado": { "pr": 193, "fecha": "2026-09-19" },
+          "probado": null,
+          "bloqueado": "0 eventos sin conexión registrados: la cola nunca se ejercitó"
+        },
+        {
+          "que": "Se entregan los kits y queda registro",
+          "implementado": { "fecha": "2026-09-19" },
+          "probado": null,
+          "bloqueado": "0 kits entregados"
+        }
+      ]
+    },
+    {
+      "nombre": "Las consignas y la subida de fotos",
+      "criterios": [
+        {
+          "que": "Las consignas se liberan cuando corresponde",
+          "implementado": { "fecha": "2026-09-19" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "25 consignas cargadas; el cron no libera las que quedan en DRAFT, por diseño"
+          }
+        },
+        {
+          "que": "Un participante sube su foto desde el celular, sin tope de 4,5 MB",
+          "implementado": { "pr": 195, "fecha": "2026-09-19" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "283 fotos subidas, todas en CONFIRMED; la subida va directa al bucket"
+          }
+        },
+        {
+          "que": "La organización puede ver las fotos subidas",
+          "implementado": { "fecha": "2026-09-19" },
+          "probado": {
+            "fecha": "2026-09-19",
+            "evidencia": "Se guardaban en R2 y ninguna pantalla las leía: la admisión aprobaba a ciegas. Corregido."
+          }
+        },
+        {
+          "que": "El ensayo permite simular la jornada con el reloj movible",
+          "implementado": { "fecha": "2026-09-19" },
+          "probado": {
+            "fecha": "2026-09-19",
+            "evidencia": "Edición [ENSAYO] creada en producción, en DRAFT, como copia descartable"
+          }
+        }
+      ]
+    },
+    {
+      "nombre": "El revelado: admisión y jurado",
+      "criterios": [
+        {
+          "que": "La admisión técnica decide qué fotos entran",
+          "implementado": { "fecha": "2026-09-19" },
+          "probado": null,
+          "bloqueado": "Sólo 2 decisiones sobre 283 fotos: el recorrido no se ejercitó"
+        },
+        {
+          "que": "Un jurado evalúa las fotos admitidas",
+          "implementado": { "fecha": "2026-09-19" },
+          "probado": null,
+          "bloqueado": "0 jurados cargados"
+        },
+        {
+          "que": "Hay votación del público y se publican resultados",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "0 rondas de votación creadas"
+        }
+      ]
+    },
+    {
+      "nombre": "Que los avisos lleguen",
+      "criterios": [
+        {
+          "que": "Quien olvida su contraseña la puede recuperar",
+          "implementado": { "fecha": "2026-09-19" },
+          "probado": null,
+          "bloqueado": "Falta DMARC en maratonfotografica.com: Gmail no recibe, Hotmail sí"
+        },
+        {
+          "que": "La base de producción está al día con las migraciones",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "El deploy nunca corre migrate deploy; se ponen al día a mano y vuelve a atrasarse"
+        }
+      ]
+    }
+  ]
+}

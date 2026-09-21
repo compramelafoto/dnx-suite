@@ -1,0 +1,158 @@
+{
+  "proyecto": "Solicitudes y Coberturas",
+  "plataforma": "FOTOFFICE",
+  "spec": "docs/superpowers/plans/2026-09-15-coberturas-etapa-1b.md",
+  "enUso": "parcial",
+  "usoNota": "El formulario público recibe pedidos reales; el ciclo de punta a punta nunca se completó",
+  "etapas": [
+    {
+      "nombre": "1a — Pedir una cobertura y evaluarla",
+      "criterios": [
+        {
+          "que": "Una organización pide una cobertura desde el formulario público y recibe el correo con su enlace de seguimiento",
+          "implementado": { "pr": 112, "fecha": "2026-09-15" },
+          "probado": {
+            "fecha": "2026-09-17",
+            "evidencia": "SC-2026-0001 en producción; SentEmailLog: request-received y request-alert, las dos SENT"
+          }
+        },
+        {
+          "que": "La organización abre su enlace privado y ve el estado de su pedido, sin ver notas internas ni otros pedidos",
+          "implementado": { "pr": 112, "fecha": "2026-09-15" },
+          "probado": null,
+          "bloqueado": "El enlace sólo viaja en el correo — hay que abrirlo desde la casilla de la ONG"
+        },
+        {
+          "que": "La coordinación evalúa el pedido, pide un dato que falta y la organización lo contesta desde su enlace",
+          "implementado": { "pr": 112, "fecha": "2026-09-15" },
+          "probado": null,
+          "bloqueado": "Falta la sesión de fotopositivos@gmail.com"
+        },
+        {
+          "que": "La coordinación aprueba o rechaza, y la organización se entera por correo",
+          "implementado": { "pr": 112, "fecha": "2026-09-15" },
+          "probado": null,
+          "bloqueado": "Falta la sesión de fotopositivos@gmail.com"
+        }
+      ]
+    },
+    {
+      "nombre": "1b — Armar el equipo",
+      "criterios": [
+        {
+          "que": "De un pedido aprobado nace la cobertura con sus roles y cupos",
+          "implementado": { "pr": 154, "fecha": "2026-09-16" },
+          "probado": null,
+          "bloqueado": "Falta la sesión de fotopositivos@gmail.com"
+        },
+        {
+          "que": "Se publica una convocatoria y les llega el aviso a los colaboradores activos, uno por persona",
+          "implementado": { "pr": 154, "fecha": "2026-09-16" },
+          "probado": null,
+          "bloqueado": "Requiere una cobertura generada primero"
+        },
+        {
+          "que": "Un voluntario ve la convocatoria en el portal con fecha, lugar y lugares libres, y se anota",
+          "implementado": { "pr": 154, "fecha": "2026-09-16" },
+          "probado": null,
+          "bloqueado": "Sólo 2 de los 84 voluntarios tienen cuenta creada"
+        },
+        {
+          "que": "La coordinación arma el equipo eligiendo entre quienes se anotaron, o invitando a alguien directo",
+          "implementado": { "pr": 154, "fecha": "2026-09-16" },
+          "probado": null,
+          "bloqueado": "Falta la sesión de fotopositivos@gmail.com"
+        },
+        {
+          "que": "La persona confirma o avisa que no puede, y un rechazo libera la vacante",
+          "implementado": { "pr": 154, "fecha": "2026-09-16" },
+          "probado": null,
+          "bloqueado": "Requiere una invitación enviada primero"
+        },
+        {
+          "que": "Cuando todas aceptan, la organización recibe el aviso de que ya tiene equipo",
+          "implementado": { "pr": 154, "fecha": "2026-09-16" },
+          "probado": null,
+          "bloqueado": "Es el último eslabón del ciclo"
+        }
+      ]
+    },
+    {
+      "nombre": "Puesta a punto para Foto Positiva",
+      "criterios": [
+        {
+          "que": "El módulo está encendido y la base tiene sus once tablas",
+          "implementado": { "pr": 112, "fecha": "2026-09-15" },
+          "probado": {
+            "fecha": "2026-09-16",
+            "evidencia": "WorkspaceFeatureModule coverages=true para cmu2rzd2j0000l204varnie5k; migración registrada con checksum db8a01de…"
+          }
+        },
+        {
+          "que": "El sistema dice «voluntarios» y no «socios»",
+          "implementado": { "pr": 158, "fecha": "2026-09-16" },
+          "probado": null,
+          "bloqueado": "Falta configurarlo en Configuración → Palabras"
+        },
+        {
+          "que": "El formulario público pregunta lo mismo que el formulario de Google que usan hace años",
+          "implementado": { "pr": 172, "fecha": "2026-09-17" },
+          "probado": {
+            "fecha": "2026-09-17",
+            "evidencia": "Recorrido completo en producción: 4 etapas, encabezado y cierre propios, y el permiso de difusión de 4 niveles derivó el consentimiento USO_INSTITUCIONAL"
+          }
+        },
+        {
+          "que": "La dirección de la actividad queda georreferenciada, sin confusiones para quien va a cubrir",
+          "implementado": { "pr": 179, "fecha": "2026-09-17" },
+          "probado": null,
+          "bloqueado": "Falta cargar un pedido con el pin puesto y mirarlo desde la ficha"
+        },
+        {
+          "que": "Los voluntarios del padrón están habilitados para ver convocatorias",
+          "implementado": { "pr": 159, "fecha": "2026-09-16" },
+          "probado": null,
+          "bloqueado": "84 socios cargados, 0 con perfil de colaborador encendido"
+        },
+        {
+          "que": "Los voluntarios pueden entrar al portal",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "82 de los 84 no tienen cuenta: hace falta la invitación por tandas del módulo Socios"
+        }
+      ]
+    },
+    {
+      "nombre": "Que el panel se entienda",
+      "criterios": [
+        {
+          "que": "Ningún botón se dibuja sin color, y se ve dónde se acepta un pedido",
+          "implementado": { "pr": 176, "fecha": "2026-09-17" },
+          "probado": null,
+          "bloqueado": "Falta mirarlo con sesión iniciada"
+        },
+        {
+          "que": "Cada pestaña de la bandeja dice cuántos pedidos tiene",
+          "implementado": { "pr": 181, "fecha": "2026-09-17" },
+          "probado": null,
+          "bloqueado": "Falta mirarlo con sesión iniciada"
+        },
+        {
+          "que": "Un pedido que espera información no queda trabado sin salida",
+          "implementado": null,
+          "probado": null
+        },
+        {
+          "que": "Una solicitud aprobada se puede cerrar o cancelar desde el panel",
+          "implementado": null,
+          "probado": null
+        },
+        {
+          "que": "Si el correo del enlace falla, la coordinación puede reenviarlo",
+          "implementado": null,
+          "probado": null
+        }
+      ]
+    }
+  ]
+}

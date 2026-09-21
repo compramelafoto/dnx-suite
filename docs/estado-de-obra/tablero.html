@@ -1,0 +1,155 @@
+<title>Estado de obra — DNX Suite</title>
+<style>
+  :root{--fondo:#f7f8fa;--tarjeta:#fff;--texto:#101828;--suave:#667085;--borde:#e4e7ec;
+        --ok:#12b76a;--medio:#f79009;--bajo:#d0d5dd;--acento:#155eef;--rojo:#d92d20}
+  @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+        --fondo:#0d1117;--tarjeta:#161b22;--texto:#e6edf3;--suave:#8b949e;--borde:#30363d;
+        --bajo:#30363d;--acento:#4d8bff;--rojo:#ff6b6b}}
+  :root[data-theme="dark"]{--fondo:#0d1117;--tarjeta:#161b22;--texto:#e6edf3;--suave:#8b949e;
+        --borde:#30363d;--bajo:#30363d;--acento:#4d8bff;--rojo:#ff6b6b}
+  body{background:var(--fondo);color:var(--texto);margin:0;padding:20px 14px 48px;
+       font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+  main{max-width:860px;margin:0 auto}
+  h1{font-size:1.45rem;margin:0 0 2px;letter-spacing:-.01em}
+  .sub{color:var(--suave);font-size:.8rem;margin:0}
+  .global{background:var(--tarjeta);border:1px solid var(--borde);border-radius:14px;
+          padding:18px;margin:16px 0 18px}
+  .num{font-size:2.6rem;font-weight:700;line-height:1;letter-spacing:-.03em}
+  .leyenda{color:var(--suave);font-size:.78rem;margin:10px 0 0}
+  nav{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:14px;
+      scrollbar-width:none}
+  nav::-webkit-scrollbar{display:none}
+  .solapa{flex:none;display:flex;align-items:center;gap:7px;min-height:44px;padding:0 14px;
+          border-radius:99px;border:1px solid var(--borde);background:var(--tarjeta);
+          color:var(--texto);font:inherit;font-size:.85rem;font-weight:600;cursor:pointer}
+  .solapa .pct{color:var(--suave);font-weight:500;font-size:.78rem}
+  .solapa.activa{background:var(--acento);border-color:var(--acento);color:#fff}
+  .solapa.activa .pct{color:rgba(255,255,255,.75)}
+  .panel{display:none}.panel.activo{display:block}
+  .resumen-plat{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+  .resumen-plat b{font-size:1.3rem;min-width:3.2rem}
+  .resumen-plat .barra{flex:1;margin:0}
+  section{background:var(--tarjeta);border:1px solid var(--borde);border-radius:14px;
+          padding:16px;margin-bottom:14px}
+  section.sin-auditar{border-style:dashed}
+  .cab{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+  h2{font-size:1.02rem;margin:0}
+  h3{font-size:.88rem;margin:0;font-weight:600}
+  .gris{color:var(--suave);font-weight:500;font-size:.8rem}
+  .nota{color:var(--suave);font-size:.84rem;margin:6px 0 0}
+  .uso{font-size:.78rem;margin:5px 0 0;font-weight:600}
+  .uso-si{color:var(--ok)}
+  .uso-parcial{color:var(--medio)}
+  .uso-no{color:var(--rojo)}
+  .barra{background:var(--borde);border-radius:99px;height:7px;overflow:hidden;margin:8px 0}
+  .barra span{display:block;height:100%;border-radius:99px}
+  .etapa{margin-top:16px;padding-top:13px;border-top:1px solid var(--borde)}
+  ul{list-style:none;padding:0;margin:9px 0 0}
+  li{display:flex;gap:9px;align-items:flex-start;padding:5px 0;font-size:.86rem}
+  .marca{flex:none;width:1.1em;font-weight:700}
+  .marca.ok{color:var(--ok)}.marca.medio{color:var(--medio)}.marca.bajo{color:var(--suave)}
+  .falta{color:var(--medio);font-size:.79rem}
+  .evidencia{color:var(--suave);font-size:.79rem}
+  footer{color:var(--suave);font-size:.78rem;margin-top:26px;text-align:center}
+</style>
+<main>
+  <h1>Estado de obra</h1>
+  <p class="sub">DNX Suite · generado el 20/09/2026</p>
+
+  <div class="global">
+    <div class="num">49%</div>
+    <div class="barra"><span style="width:49%;background:var(--bajo)"></span></div>
+    <p class="leyenda">
+      Un criterio llega al 100% sólo si está implementado <b>y</b> probado en producción.<br>
+      ✓ probado · ◐ implementado, sin probar · ○ sin implementar
+    </p>
+  </div>
+
+  <nav><button class="solapa activa" data-p="fotoffice">
+        FOTOFFICE<span class="pct">48%</span>
+      </button><button class="solapa" data-p="compramelafoto">
+        CompraMeLaFoto<span class="pct">38%</span>
+      </button><button class="solapa" data-p="clickaton">
+        Clickatón<span class="pct">59%</span>
+      </button><button class="solapa" data-p="fotorank">
+        FotoRank<span class="pct">33%</span>
+      </button><button class="solapa" data-p="subilafoto">
+        SubiLaFoto<span class="pct">—</span>
+      </button><button class="solapa" data-p="infospot">
+        InfoSpot<span class="pct">—</span>
+      </button><button class="solapa" data-p="transversal">
+        Transversal<span class="pct">25%</span>
+      </button></nav>
+  <div class="panel activo" id="p-fotoffice"><div class="resumen-plat"><b>48%</b><div class="barra"><span style="width:48%;background:var(--bajo)"></span></div><span class="sub">33 criterios</span></div><section>
+    <div class="cab"><h2>Puerta de entrada e instituciones</h2><b>75%</b></div>
+    <p class="uso uso-si">en uso — Toda cuenta que inicia sesión pasa por acá</p>
+    <div class="barra"><span style="width:75%;background:var(--medio)"></span></div>
+    <div class="etapa"><div class="cab"><h3>Que iniciar sesión no fabrique instituciones</h3><b>67%</b></div><div class="barra"><span style="width:67%;background:var(--medio)"></span></div><ul><li><span class="marca ok">✓</span><span>Iniciar sesión nunca crea un workspace: sólo se crea cuando alguien lo pide expresamente<br><span class="evidencia">Se detectaron 4 fotógrafos de la SFPR con workspace fantasma; tras el arreglo no aparecieron nuevos</span></span></li><li><span class="marca medio">◐</span><span>Cada institución tiene su propia dirección de ingreso y ahí se inicia sesión sobre esa institución<br><span class="falta">bloqueado: Falta recorrerla con una cuenta que pertenezca a dos instituciones</span></span></li><li><span class="marca medio">◐</span><span>Quien entra sin pertenecer a ninguna institución ve una bienvenida y no una pantalla rota<br><span class="falta">bloqueado: Requiere una cuenta nueva sin institución</span></span></li></ul></div><div class="etapa"><div class="cab"><h3>Limpieza de lo que ya se había creado mal</h3><b>100%</b></div><div class="barra"><span style="width:100%;background:var(--ok)"></span></div><ul><li><span class="marca ok">✓</span><span>Los workspaces fantasma existentes quedaron resueltos, con respaldo previo<br><span class="evidencia">Barrido de las 57 tablas con workspaceId antes de borrar; el de Emeveph se conservó a propósito</span></span></li></ul></div>
+  </section><section>
+    <div class="cab"><h2>Solicitudes y Coberturas</h2><b>48%</b></div>
+    <p class="uso uso-parcial">uso parcial — El formulario público recibe pedidos reales; el ciclo de punta a punta nunca se completó</p>
+    <div class="barra"><span style="width:48%;background:var(--bajo)"></span></div>
+    <div class="etapa"><div class="cab"><h3>1a — Pedir una cobertura y evaluarla</h3><b>63%</b></div><div class="barra"><span style="width:63%;background:var(--medio)"></span></div><ul><li><span class="marca ok">✓</span><span>Una organización pide una cobertura desde el formulario público y recibe el correo con su enlace de seguimiento<br><span class="evidencia">SC-2026-0001 en producción; SentEmailLog: request-received y request-alert, las dos SENT</span></span></li><li><span class="marca medio">◐</span><span>La organización abre su enlace privado y ve el estado de su pedido, sin ver notas internas ni otros pedidos<br><span class="falta">bloqueado: El enlace sólo viaja en el correo — hay que abrirlo desde la casilla de la ONG</span></span></li><li><span class="marca medio">◐</span><span>La coordinación evalúa el pedido, pide un dato que falta y la organización lo contesta desde su enlace<br><span class="falta">bloqueado: Falta la sesión de fotopositivos@gmail.com</span></span></li><li><span class="marca medio">◐</span><span>La coordinación aprueba o rechaza, y la organización se entera por correo<br><span class="falta">bloqueado: Falta la sesión de fotopositivos@gmail.com</span></span></li></ul></div><div class="etapa"><div class="cab"><h3>1b — Armar el equipo</h3><b>50%</b></div><div class="barra"><span style="width:50%;background:var(--medio)"></span></div><ul><li><span class="marca medio">◐</span><span>De un pedido aprobado nace la cobertura con sus roles y cupos<br><span class="falta">bloqueado: Falta la sesión de fotopositivos@gmail.com</span></span></li><li><span class="marca medio">◐</span><span>Se publica una convocatoria y les llega el aviso a los colaboradores activos, uno por persona<br><span class="falta">bloqueado: Requiere una cobertura generada primero</span></span></li><li><span class="marca medio">◐</span><span>Un voluntario ve la convocatoria en el portal con fecha, lugar y lugares libres, y se anota<br><span class="falta">bloqueado: Sólo 2 de los 84 voluntarios tienen cuenta creada</span></span></li><li><span class="marca medio">◐</span><span>La coordinación arma el equipo eligiendo entre quienes se anotaron, o invitando a alguien directo<br><span class="falta">bloqueado: Falta la sesión de fotopositivos@gmail.com</span></span></li><li><span class="marca medio">◐</span><span>La persona confirma o avisa que no puede, y un rechazo libera la vacante<br><span class="falta">bloqueado: Requiere una invitación enviada primero</span></span></li><li><span class="marca medio">◐</span><span>Cuando todas aceptan, la organización recibe el aviso de que ya tiene equipo<br><span class="falta">bloqueado: Es el último eslabón del ciclo</span></span></li></ul></div><div class="etapa"><div class="cab"><h3>Puesta a punto para Foto Positiva</h3><b>58%</b></div><div class="barra"><span style="width:58%;background:var(--medio)"></span></div><ul><li><span class="marca ok">✓</span><span>El módulo está encendido y la base tiene sus once tablas<br><span class="evidencia">WorkspaceFeatureModule coverages=true para cmu2rzd2j0000l204varnie5k; migración registrada con checksum db8a01de…</span></span></li><li><span class="marca medio">◐</span><span>El sistema dice «voluntarios» y no «socios»<br><span class="falta">bloqueado: Falta configurarlo en Configuración → Palabras</span></span></li><li><span class="marca ok">✓</span><span>El formulario público pregunta lo mismo que el formulario de Google que usan hace años<br><span class="evidencia">Recorrido completo en producción: 4 etapas, encabezado y cierre propios, y el permiso de difusión de 4 niveles derivó el consentimiento USO_INSTITUCIONAL</span></span></li><li><span class="marca medio">◐</span><span>La dirección de la actividad queda georreferenciada, sin confusiones para quien va a cubrir<br><span class="falta">bloqueado: Falta cargar un pedido con el pin puesto y mirarlo desde la ficha</span></span></li><li><span class="marca medio">◐</span><span>Los voluntarios del padrón están habilitados para ver convocatorias<br><span class="falta">bloqueado: 84 socios cargados, 0 con perfil de colaborador encendido</span></span></li><li><span class="marca bajo">○</span><span>Los voluntarios pueden entrar al portal<br><span class="falta">bloqueado: 82 de los 84 no tienen cuenta: hace falta la invitación por tandas del módulo Socios</span></span></li></ul></div><div class="etapa"><div class="cab"><h3>Que el panel se entienda</h3><b>20%</b></div><div class="barra"><span style="width:20%;background:var(--bajo)"></span></div><ul><li><span class="marca medio">◐</span><span>Ningún botón se dibuja sin color, y se ve dónde se acepta un pedido<br><span class="falta">bloqueado: Falta mirarlo con sesión iniciada</span></span></li><li><span class="marca medio">◐</span><span>Cada pestaña de la bandeja dice cuántos pedidos tiene<br><span class="falta">bloqueado: Falta mirarlo con sesión iniciada</span></span></li><li><span class="marca bajo">○</span><span>Un pedido que espera información no queda trabado sin salida<br><span class="falta">falta implementarlo</span></span></li><li><span class="marca bajo">○</span><span>Una solicitud aprobada se puede cerrar o cancelar desde el panel<br><span class="falta">falta implementarlo</span></span></li><li><span class="marca bajo">○</span><span>Si el correo del enlace falla, la coordinación puede reenviarlo<br><span class="falta">falta implementarlo</span></span></li></ul></div>
+  </section><section>
+    <div class="cab"><h2>Sorteos verificables</h2><b>25%</b></div>
+    <p class="uso uso-no">nadie lo usa todavía — Construido y en verde en su rama; nunca llegó a producción</p>
+    <div class="barra"><span style="width:25%;background:var(--bajo)"></span></div>
+    <div class="etapa"><div class="cab"><h3>El sorteo y su verificación</h3><b>25%</b></div><div class="barra"><span style="width:25%;background:var(--bajo)"></span></div><ul><li><span class="marca medio">◐</span><span>Una institución hace un sorteo y cualquiera puede verificar que no se manipuló<br><span class="falta">bloqueado: La rama feat/fotoffice-sorteos nunca se mergeó</span></span></li><li><span class="marca medio">◐</span><span>La migración está aplicada en las bases<br><span class="falta">bloqueado: Falta aplicarla en las 5 bases</span></span></li><li><span class="marca bajo">○</span><span>El módulo se puede encender por institución<br><span class="falta">bloqueado: No existe el interruptor</span></span></li><li><span class="marca bajo">○</span><span>Las bases legales del sorteo están resueltas<br><span class="falta">bloqueado: Punto legal sin definir</span></span></li></ul></div>
+  </section><section>
+    <div class="cab"><h2>Terminología por institución</h2><b>50%</b></div>
+    <p class="uso uso-no">nadie lo usa todavía — Nadie configuró sus palabras todavía: la tabla tiene cero filas</p>
+    <div class="barra"><span style="width:50%;background:var(--medio)"></span></div>
+    <div class="etapa"><div class="cab"><h3>Que cada institución elija cómo llamar a su gente</h3><b>50%</b></div><div class="barra"><span style="width:50%;background:var(--medio)"></span></div><ul><li><span class="marca medio">◐</span><span>Un dueño configura el singular y el plural desde Configuración → Palabras y ve cómo va a quedar antes de guardar<br><span class="falta">bloqueado: Nadie abrió esa pantalla todavía</span></span></li><li><span class="marca medio">◐</span><span>La palabra elegida aparece en el menú, el padrón, el portal y los mensajes de error<br><span class="falta">bloqueado: Depende de configurarla primero</span></span></li><li><span class="marca ok">✓</span><span>Una institución que no configura nada sigue viendo exactamente lo de siempre<br><span class="evidencia">La tabla WorkspaceVocabulary quedó con cero filas tras la migración y la SFPR siguió diciendo «socios»</span></span></li><li><span class="marca bajo">○</span><span>El género acompaña a la palabra elegida<br><span class="falta">bloqueado: Decidido no resolverlo: las frases se reformularon para no depender del género</span></span></li></ul></div>
+  </section></div><div class="panel" id="p-compramelafoto"><div class="resumen-plat"><b>38%</b><div class="barra"><span style="width:38%;background:var(--bajo)"></span></div><span class="sub">4 criterios</span></div><section>
+    <div class="cab"><h2>Venta de videos</h2><b>50%</b></div>
+    <p class="uso uso-si">en uso — Encendida en producción y verificada de punta a punta el 2026-09-15</p>
+    <div class="barra"><span style="width:50%;background:var(--medio)"></span></div>
+    <div class="etapa"><div class="cab"><h3>Comprar y descargar un video</h3><b>50%</b></div><div class="barra"><span style="width:50%;background:var(--medio)"></span></div><ul><li><span class="marca ok">✓</span><span>Un cliente compra un video y lo descarga<br><span class="evidencia">Recorrido completo en producción; se corrigieron el 206 del CDN y el correo de pedidos de sólo video</span></span></li><li><span class="marca bajo">○</span><span>El reparto llega a quien corresponde cuando el evento tiene organizador<br><span class="falta">bloqueado: Falta implementar el reparto con organizador</span></span></li></ul></div>
+  </section><section>
+    <div class="cab"><h2>Venta escolar</h2><b>25%</b></div>
+    <p class="uso uso-no">nadie lo usa todavía — 0 diseños creados en producción desde que existe</p>
+    <div class="barra"><span style="width:25%;background:var(--bajo)"></span></div>
+    <div class="etapa"><div class="cab"><h3>Que una escuela pueda comprar</h3><b>25%</b></div><div class="barra"><span style="width:25%;background:var(--bajo)"></span></div><ul><li><span class="marca medio">◐</span><span>Un fotógrafo arma el diseño escolar y lo publica<br><span class="falta">bloqueado: 4 roturas confirmadas el 2026-09-04; hay banco de pruebas armado</span></span></li><li><span class="marca bajo">○</span><span>Una familia compra desde el álbum escolar y recibe su pedido<br><span class="falta">bloqueado: El recorrido nunca se completó</span></span></li></ul></div>
+  </section></div><div class="panel" id="p-clickaton"><div class="resumen-plat"><b>59%</b><div class="barra"><span style="width:59%;background:var(--medio)"></span></div><span class="sub">17 criterios</span></div><section>
+    <div class="cab"><h2>La maratón: inscripción, jornada y revelado</h2><b>59%</b></div>
+    <p class="uso uso-si">en uso — 1ª edición con 37 inscripciones confirmadas, 33 acreditados y 283 fotos subidas</p>
+    <div class="barra"><span style="width:59%;background:var(--medio)"></span></div>
+    <div class="etapa"><div class="cab"><h3>Inscribirse y pagar</h3><b>38%</b></div><div class="barra"><span style="width:38%;background:var(--bajo)"></span></div><ul><li><span class="marca ok">✓</span><span>Alguien reserva su lugar y completa la inscripción<br><span class="evidencia">57 reservas de cupo y 57 inscripciones; 37 confirmadas, 16 canceladas y 4 devueltas</span></span></li><li><span class="marca medio">◐</span><span>Un pago por Mercado Pago confirma la inscripción sola<br><span class="falta">bloqueado: Falta MERCADOPAGO_WEBHOOK_SECRET: Clickatón rechaza los avisos y una inscripción paga se canceló sola</span></span></li><li><span class="marca bajo">○</span><span>Se puede activar un pago en efectivo desde el panel<br><span class="falta">bloqueado: No hay botón: son 5 escrituras a mano</span></span></li><li><span class="marca bajo">○</span><span>Una reserva vencida se puede reactivar sin cobrar de nuevo<br><span class="falta">bloqueado: El enlace de pago muere con la reserva; «Reactivar» deja la inscripción sin cobro requerido</span></span></li></ul></div><div class="etapa"><div class="cab"><h3>Acreditación el día del evento</h3><b>75%</b></div><div class="barra"><span style="width:75%;background:var(--medio)"></span></div><ul><li><span class="marca ok">✓</span><span>La acreditación se puede encender por edición<br><span class="evidencia">El módulo nacía apagado sin pantalla que lo encendiera; botón en producción</span></span></li><li><span class="marca ok">✓</span><span>Se acredita gente en la puerta<br><span class="evidencia">33 acreditaciones registradas</span></span></li><li><span class="marca medio">◐</span><span>La acreditación funciona sin conexión y se sincroniza después<br><span class="falta">bloqueado: 0 eventos sin conexión registrados: la cola nunca se ejercitó</span></span></li><li><span class="marca medio">◐</span><span>Se entregan los kits y queda registro<br><span class="falta">bloqueado: 0 kits entregados</span></span></li></ul></div><div class="etapa"><div class="cab"><h3>Las consignas y la subida de fotos</h3><b>100%</b></div><div class="barra"><span style="width:100%;background:var(--ok)"></span></div><ul><li><span class="marca ok">✓</span><span>Las consignas se liberan cuando corresponde<br><span class="evidencia">25 consignas cargadas; el cron no libera las que quedan en DRAFT, por diseño</span></span></li><li><span class="marca ok">✓</span><span>Un participante sube su foto desde el celular, sin tope de 4,5 MB<br><span class="evidencia">283 fotos subidas, todas en CONFIRMED; la subida va directa al bucket</span></span></li><li><span class="marca ok">✓</span><span>La organización puede ver las fotos subidas<br><span class="evidencia">Se guardaban en R2 y ninguna pantalla las leía: la admisión aprobaba a ciegas. Corregido.</span></span></li><li><span class="marca ok">✓</span><span>El ensayo permite simular la jornada con el reloj movible<br><span class="evidencia">Edición [ENSAYO] creada en producción, en DRAFT, como copia descartable</span></span></li></ul></div><div class="etapa"><div class="cab"><h3>El revelado: admisión y jurado</h3><b>33%</b></div><div class="barra"><span style="width:33%;background:var(--bajo)"></span></div><ul><li><span class="marca medio">◐</span><span>La admisión técnica decide qué fotos entran<br><span class="falta">bloqueado: Sólo 2 decisiones sobre 283 fotos: el recorrido no se ejercitó</span></span></li><li><span class="marca medio">◐</span><span>Un jurado evalúa las fotos admitidas<br><span class="falta">bloqueado: 0 jurados cargados</span></span></li><li><span class="marca bajo">○</span><span>Hay votación del público y se publican resultados<br><span class="falta">bloqueado: 0 rondas de votación creadas</span></span></li></ul></div><div class="etapa"><div class="cab"><h3>Que los avisos lleguen</h3><b>25%</b></div><div class="barra"><span style="width:25%;background:var(--bajo)"></span></div><ul><li><span class="marca medio">◐</span><span>Quien olvida su contraseña la puede recuperar<br><span class="falta">bloqueado: Falta DMARC en maratonfotografica.com: Gmail no recibe, Hotmail sí</span></span></li><li><span class="marca bajo">○</span><span>La base de producción está al día con las migraciones<br><span class="falta">bloqueado: El deploy nunca corre migrate deploy; se ponen al día a mano y vuelve a atrasarse</span></span></li></ul></div>
+  </section></div><div class="panel" id="p-fotorank"><div class="resumen-plat"><b>33%</b><div class="barra"><span style="width:33%;background:var(--bajo)"></span></div><span class="sub">3 criterios</span></div><section>
+    <div class="cab"><h2>Bolsa y contratación de jurados</h2><b>33%</b></div>
+    <p class="uso uso-no">nadie lo usa todavía — 0 jurados cargados en producción</p>
+    <div class="barra"><span style="width:33%;background:var(--bajo)"></span></div>
+    <div class="etapa"><div class="cab"><h3>Jurado único para las dos plataformas</h3><b>33%</b></div><div class="barra"><span style="width:33%;background:var(--bajo)"></span></div><ul><li><span class="marca medio">◐</span><span>Un jurado se registra una vez y sirve para Clickatón y para FotoRank<br><span class="falta">bloqueado: Sin desplegar y faltan 4 variables de entorno</span></span></li><li><span class="marca medio">◐</span><span>El portal de jurado muestra la foto a evaluar<br><span class="falta">bloqueado: Sin desplegar</span></span></li><li><span class="marca bajo">○</span><span>Hay al menos un jurado evaluando de verdad en una convocatoria<br><span class="falta">bloqueado: 0 jurados en producción</span></span></li></ul></div>
+  </section></div><div class="panel" id="p-subilafoto"><p class="sub">Sin criterios cargados todavía.</p><section class="sin-auditar">
+      <div class="cab"><h2>SubiLaFoto — lanzamiento</h2><b class="gris">sin auditar</b></div>
+      <p class="nota">Etapas 3 y 4 en main y las 12 variables cargadas al 2026-09-16; falta el dominio en Resend y probarlo en aparatos reales. Fecha de lanzamiento: 10/10. Pendiente de escribir sus criterios.</p>
+    </section></div><div class="panel" id="p-infospot"><p class="sub">Sin criterios cargados todavía.</p><section class="sin-auditar">
+      <div class="cab"><h2>InfoSpot</h2><b class="gris">sin auditar</b></div>
+      <p class="nota">Sin criterios escritos. Según la comparativa 2026 no genera ingresos y sólo cuesta cómputo; vale auditarlo antes de invertirle más tiempo.</p>
+    </section></div><div class="panel" id="p-transversal"><div class="resumen-plat"><b>25%</b><div class="barra"><span style="width:25%;background:var(--bajo)"></span></div><span class="sub">2 criterios</span></div><section>
+    <div class="cab"><h2>Mercado Pago — reparto 1:N</h2><b>25%</b></div>
+    <p class="uso uso-no">nadie lo usa todavía — El código está en main desde el 2026-09-05 y no cobró nunca</p>
+    <div class="barra"><span style="width:25%;background:var(--bajo)"></span></div>
+    <div class="etapa"><div class="cab"><h3>Cobrar y repartir entre varias partes</h3><b>25%</b></div><div class="barra"><span style="width:25%;background:var(--bajo)"></span></div><ul><li><span class="marca medio">◐</span><span>Un pago se reparte entre las partes que corresponde<br><span class="falta">bloqueado: Falta cargar la notification URL en el panel de Mercado Pago</span></span></li><li><span class="marca bajo">○</span><span>La homologación de Mercado Pago está aprobada<br><span class="falta">bloqueado: Faltan las 4 evidencias que pide Mercado Pago</span></span></li></ul></div>
+  </section></div>
+
+  <footer>Generado desde <code>docs/estado-de-obra/</code> con <code>pnpm estado</code>.<br>No se edita a mano.</footer>
+</main>
+<script>
+  const solapas = document.querySelectorAll(".solapa");
+  for (const s of solapas) {
+    s.addEventListener("click", () => {
+      for (const otra of solapas) otra.classList.remove("activa");
+      for (const panel of document.querySelectorAll(".panel")) panel.classList.remove("activo");
+      s.classList.add("activa");
+      document.getElementById("p-" + s.dataset.p)?.classList.add("activo");
+      // La solapa elegida sobrevive a recargar la página. Es un gusto por visor, no un dato
+      // compartido: por eso va en el navegador y no en ningún lado más.
+      try { localStorage.setItem("estado-de-obra:solapa", s.dataset.p); } catch {}
+    });
+  }
+  try {
+    const guardada = localStorage.getItem("estado-de-obra:solapa");
+    if (guardada) document.querySelector('.solapa[data-p="' + guardada + '"]')?.click();
+  } catch {}
+</script>
