@@ -52,6 +52,7 @@ import {
 } from "../lib/fotorank/judges/invitationLinks";
 import { judgeAvatarSrc } from "../lib/fotorank/judges/judgeAvatarSrc";
 import { resultadoDeAceptarInvitacion } from "../lib/fotorank/judges/inviteAcceptance";
+import { buildPublicSlug } from "../lib/fotorank/judges/publicSlug";
 import { saveJudgeAvatar, deleteJudgeAvatarByKey } from "../lib/fotorank/judges/judgeAssetStorage";
 
 export type JudgeMethodType =
@@ -67,14 +68,7 @@ export type JudgeActionResult<T = undefined> =
   | { ok: true; data?: T }
   | { ok: false; error: string };
 
-function buildPublicSlug(firstName: string, lastName: string) {
-  return `${firstName}-${lastName}`
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "") || `jurado-${randomBytes(4).toString("hex")}`;
-}
+
 
 type OrganizationScope =
   | { ok: false; error: string }
