@@ -46,6 +46,20 @@ export default async function JudgePanelPage() {
                 </p>
               </Card>
             ) : null}
+            {(assignments.data?.assignments ?? []).length === 0 ? (
+              <Card>
+                <p className="text-sm text-fr-muted">
+                  Todavía no te asignaron ninguna categoría. Escribile al organizador del concurso.
+                </p>
+                <p className="mt-2 text-xs text-fr-muted-soft">
+                  Mientras tanto podés completar tu{" "}
+                  <Link href="/jurado/perfil" className="underline underline-offset-2">
+                    perfil profesional
+                  </Link>
+                  .
+                </p>
+              </Card>
+            ) : null}
             {(assignments.data?.assignments ?? []).map((a: any) => (
               <Card key={a.id}>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

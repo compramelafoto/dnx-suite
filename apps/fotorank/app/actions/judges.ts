@@ -51,6 +51,7 @@ import {
   logInvitationBaseUrlMisconfigurationIfNeeded,
 } from "../lib/fotorank/judges/invitationLinks";
 import { judgeAvatarSrc } from "../lib/fotorank/judges/judgeAvatarSrc";
+import { resultadoDeAceptarInvitacion } from "../lib/fotorank/judges/inviteAcceptance";
 import { saveJudgeAvatar, deleteJudgeAvatarByKey } from "../lib/fotorank/judges/judgeAssetStorage";
 
 export type JudgeMethodType =
@@ -1179,30 +1180,30 @@ export async function registerJudgeFromInvitation(input: {
   });
 
   const pendingAssignmentsCount = await prisma.fotorankJudgeAssignment.count({ where: assignmentWhere });
-  if (pendingAssignmentsCount === 0) {
-    return {
-      ok: false,
-      error:
-        invitationCategoryId !== null
-          ? "No hay una asignación pendiente (ASSIGNED o INVITATION_SENT) para esta categoría, concurso y tu cuenta. Pedí al administrador que revise la invitación o la asignación."
-          : "No hay asignaciones pendientes (ASSIGNED o INVITATION_SENT) para este concurso y tu cuenta. Pedí al administrador que revise la invitación o las asignaciones.",
-    };
-  }
+  const resultado = resultadoDeAceptarInvitacion({ pendingAssignmentsCount });
 
-  await prisma.$transaction([
-    prisma.fotorankJudgeInvitation.update({
-      where: { id: invitation.id },
-      data: {
-        invitationStatus: "ACCEPTED",
-        acceptedAt: new Date(),
-        judgeAccountId: judgeId,
-      },
-    }),
-    prisma.fotorankJudgeAssignment.updateMany({
-      where: assignmentWhere,
-      data: { assignmentStatus: "ACCEPTED" },
-    }),
-  ]);
+  // La invitación se acepta siempre. Que el organizador todavía no haya creado
+  // la asignación es cosa suya, no motivo para dejar al jurado afuera.
+  const aceptarInvitacion = prisma.fotorankJudgeInvitation.update({
+    where: { id: invitation.id },
+    data: {
+      invitationStatus: "ACCEPTED" as const,
+      acceptedAt: new Date(),
+      judgeAccountId: judgeId,
+    },
+  });
+
+  if (resultado.aceptaAsignaciones) {
+    await prisma.$transaction([
+      aceptarInvitacion,
+      prisma.fotorankJudgeAssignment.updateMany({
+        where: assignmentWhere,
+        data: { assignmentStatus: "ACCEPTED" },
+      }),
+    ]);
+  } else {
+    await prisma.$transaction([aceptarInvitacion]);
+  }
 
   await createJudgeSessionForJudge(judgeId);
   redirect("/jurado/panel");
