@@ -94,7 +94,7 @@ export const FOOTER_PRESETS = [
   { id: "columns", label: "Columnas", description: "Menú, contacto y redes en columnas." },
   {
     id: "full",
-    label: "Completo",
+    label: "Completo (publica la nota que usás en tus emails)",
     description:
       "Lo anterior, más el logo y la nota institucional del pie de los emails (razón social, CUIT, personería). Atención: esa nota queda visible para cualquiera en el sitio público.",
   },
