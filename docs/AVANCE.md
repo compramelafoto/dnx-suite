@@ -1,6 +1,6 @@
 # Avance de la suite
 
-*Generado por `scripts/avance.mjs` el 2026-09-20. No editar a mano.*
+*Generado por `scripts/avance.mjs` el 2026-09-21. No editar a mano.*
 
 **Código** es lo escrito y mergeado. **Producción** es lo que corrió de verdad y
 alguien miró. El número que vale es el de producción: ver
@@ -8,7 +8,19 @@ alguien miró. El número que vale es el de producción: ver
 
 | Proyecto | Tareas | Código | Producción | |
 |---|---|---|---|---|
+| **fotorank** | 26 |  31% |   2% | `··········` |
 | **subilafoto** | 46 |  93% |  61% | `██████····` |
+
+## fotorank
+
+| Etapa | Tareas | Código | Producción | Qué falta |
+|---|---|---|---|---|
+| FotoRank jurados — Paso 0: el padrón único | 4 |  75% |  25% | 0.3, 0.4 |
+| FotoRank jurados — Etapa A: cimientos | 5 | 100% |   0% | A.1, A.2, A.3, A.4, A.5 |
+| FotoRank jurados — Etapa B: el alta por cuenta propia | 7 |   0% |   0% | B.1, B.2, B.3, B.4, B.5, B.6, B.7 |
+| FotoRank jurados — Etapa C: el perfil completo | 2 |   0% |   0% | C.1, C.2 |
+| FotoRank jurados — Etapa D: los jurados en el concurso | 1 |   0% |   0% | D.1 |
+| FotoRank jurados — Etapa E: la UX de jurados y usuarios | 7 |   0% |   0% | E.1, E.2, E.3, E.4, E.5, E.6, E.7 |
 
 ## subilafoto
 
@@ -32,7 +44,6 @@ Agregar una tabla con la marca `<!-- avance: … -->` los hace aparecer arriba.
 - `compramelafoto`
 - `dnx-payments`
 - `fotoffice`
-- `fotorank`
 - `geo`
 - `infospot`
 - `infrastructure`
@@ -44,4 +55,19 @@ Agregar una tabla con la marca `<!-- avance: … -->` los hace aparecer arriba.
 - `social-publisher`
 - `superpowers`
 - `template-engine`
+
+## Tareas sin explicar
+
+Una tarea incompleta sin nota es una tarea que nadie va a poder retomar.
+
+- fotorank → FotoRank jurados — Etapa B: el alta por cuenta propia / B.1
+- fotorank → FotoRank jurados — Etapa B: el alta por cuenta propia / B.2
+- fotorank → FotoRank jurados — Etapa B: el alta por cuenta propia / B.5
+- fotorank → FotoRank jurados — Etapa B: el alta por cuenta propia / B.7
+- fotorank → FotoRank jurados — Etapa E: la UX de jurados y usuarios / E.1
+- fotorank → FotoRank jurados — Etapa E: la UX de jurados y usuarios / E.2
+- fotorank → FotoRank jurados — Etapa E: la UX de jurados y usuarios / E.3
+- fotorank → FotoRank jurados — Etapa E: la UX de jurados y usuarios / E.4
+- fotorank → FotoRank jurados — Etapa E: la UX de jurados y usuarios / E.5
+- fotorank → FotoRank jurados — Etapa E: la UX de jurados y usuarios / E.7
 

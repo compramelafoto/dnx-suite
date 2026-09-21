@@ -10,6 +10,19 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-20-fotorank-altas-de-jurados-y-ux-design.md`
 
+**Avance de obra:** `docs/fotorank/avance-jurados.md`. Al cerrar cada tarea se marca ahí y
+se corre `node scripts/avance.mjs --escribir`.
+
+**Lo que NO se construye porque ya existe** (auditado el 2026-09-20 sobre toda la suite):
+
+| Pieza | Dónde está | Qué se hace |
+|---|---|---|
+| Token de verificación de correo | `EmailVerificationToken` + `TokenPurpose.VERIFY_EMAIL`, schema compartido | Se reutiliza; no necesita migración |
+| Hash del token | `apps/compramelafoto/lib/token-hash.ts` (sha256, 3 líneas) | Se replica en FotoRank: no justifica un paquete |
+| Sección de jurados en el concurso | `ContestPublicLanding.tsx:455`, con ancla y menú | Sólo se mejora (Task 14), no se rehace |
+| Almacenamiento privado local/R2 | `app/lib/fotorank/storage/provider.ts` | Ya reutilizado en la etapa A |
+| Outbox de correo | `app/lib/fotorank/notifications/outbox.ts` | Se le suman dos tipos |
+
 **Worktree:** `/Users/danielcuart/Desktop/PROGRAMACIONES/dnx-jurado-unico`, rama `feat/jurado-unico-dos-plataformas` (o una rama hija).
 
 ## Global Constraints
@@ -1465,13 +1478,17 @@ enum FotorankJudgeSignupSource {
 }
 ```
 
-En `model FotorankJudgeAccount`, después de `lastLoginAt`:
+En `model FotorankJudgeAccount`, después de `lastLoginAt`, **una sola columna**:
 
 ```prisma
   emailVerifiedAt              DateTime?
-  emailVerificationTokenHash   String?
-  emailVerificationExpiresAt   DateTime?
 ```
+
+**El token de verificación NO se guarda acá.** El schema compartido ya tiene
+`EmailVerificationToken` (email + `purpose` + `token` con hash + `expiresAt` + `usedAt`) y
+el enum `TokenPurpose` con `VERIFY_EMAIL`. Lo usa CLF desde hace meses
+(`apps/compramelafoto/app/api/auth/verify-email/route.ts`). Se reutiliza tal cual: ya está
+en las cinco bases, así que esa parte no necesita migración.
 
 En `model FotorankJudgeProfile`, después de `isVerifiedByPlatform`:
 
@@ -1506,10 +1523,9 @@ Crear `packages/db/prisma/migrations/20260920120000_fotorank_judge_public_signup
 CREATE TYPE "FotorankJudgeDirectoryReviewStatus" AS ENUM ('PENDING', 'APPROVED', 'REJECTED');
 CREATE TYPE "FotorankJudgeSignupSource" AS ENUM ('ORGANIZER_CREATED', 'ORGANIZER_INVITATION', 'PUBLIC_SIGNUP');
 
+-- El token vive en EmailVerificationToken, que ya existe en las 5 bases.
 ALTER TABLE "FotorankJudgeAccount"
-  ADD COLUMN "emailVerifiedAt" TIMESTAMP(3),
-  ADD COLUMN "emailVerificationTokenHash" TEXT,
-  ADD COLUMN "emailVerificationExpiresAt" TIMESTAMP(3);
+  ADD COLUMN "emailVerifiedAt" TIMESTAMP(3);
 
 ALTER TABLE "FotorankJudgeProfile"
   ADD COLUMN "signupSource" "FotorankJudgeSignupSource" NOT NULL DEFAULT 'ORGANIZER_CREATED',
