@@ -110,6 +110,39 @@ export async function createPromotionFormAction(
     errors.perUserUsageLimit = "Límite por usuario inválido.";
   }
 
+  // Condición de elegibilidad (opcional). Se guarda en metadata: no hay columna.
+  const eligibilityKind = (formData.get("eligibilityKind")?.toString() ?? "").trim();
+  const eligibilityEditionId = (
+    formData.get("eligibilityEditionId")?.toString() ?? ""
+  ).trim();
+  const eligibilityRequireCheckIn =
+    formData.get("eligibilityRequireCheckIn") === "on" ||
+    formData.get("eligibilityRequireCheckIn") === "true";
+
+  let metadata:
+    | {
+        eligibility: {
+          kind: "PARTICIPATED_IN_EDITION";
+          editionIds: string[];
+          requireCheckIn: boolean;
+        };
+      }
+    | undefined;
+  if (eligibilityKind === "PARTICIPATED_IN_EDITION") {
+    if (!eligibilityEditionId) {
+      errors.eligibilityEditionId =
+        "Elegí la edición en la que tienen que haber participado.";
+    } else {
+      metadata = {
+        eligibility: {
+          kind: "PARTICIPATED_IN_EDITION",
+          editionIds: [eligibilityEditionId],
+          requireCheckIn: eligibilityRequireCheckIn,
+        },
+      };
+    }
+  }
+
   if (Object.keys(errors).length || !startsAt || !endsAt) {
     throw new Error(Object.values(errors)[0] ?? "Datos inválidos.");
   }
@@ -131,6 +164,7 @@ export async function createPromotionFormAction(
         isActive,
         platform: CLICKATON_PROMOTION_PLATFORM,
         editionId,
+        ...(metadata ? { metadata } : {}),
       },
     });
   });

@@ -1,3 +1,4 @@
+import { readEligibilityRule } from "@repo/promotions";
 import { AdminMigrationNotice } from "@/components/admin/AdminMigrationNotice";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { AdminTechnicalInfo } from "@/components/admin/AdminTechnicalInfo";
@@ -100,6 +101,14 @@ export default async function AdminPromotionsPage() {
               const editionLabel = promo.editionId
                 ? (editionNameById.get(promo.editionId) ?? "Edición específica")
                 : "Todas las ediciones Clickatón";
+              const eligibilityRule = readEligibilityRule(
+                promo.metadata as Record<string, unknown> | null,
+              );
+              const conditionLabel = eligibilityRule
+                ? `${eligibilityRule.requireCheckIn ? "Acreditados" : "Inscriptos"} en ${eligibilityRule.editionIds
+                    .map((id) => editionNameById.get(id) ?? "otra edición")
+                    .join(", ")}`
+                : "Abierto a cualquiera";
 
               return (
                 <li
@@ -149,6 +158,12 @@ export default async function AdminPromotionsPage() {
                             Edición
                           </dt>
                           <dd>{editionLabel}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs uppercase tracking-wide text-ck-text-muted">
+                            Quién puede usarlo
+                          </dt>
+                          <dd>{conditionLabel}</dd>
                         </div>
                       </dl>
                     </div>
@@ -287,6 +302,36 @@ export default async function AdminPromotionsPage() {
               ))}
             </Select>
           </Field>
+          <Field
+            id="eligibilityKind"
+            label="¿Quién puede usarlo?"
+            hint="Restringe el cupón a participantes de una edición anterior"
+          >
+            <Select name="eligibilityKind" defaultValue="" className="min-h-11">
+              <option value="">Cualquiera</option>
+              <option value="PARTICIPATED_IN_EDITION">
+                Sólo quienes participaron de…
+              </option>
+            </Select>
+          </Field>
+          <Field id="eligibilityEditionId" label="…de esta edición">
+            <Select name="eligibilityEditionId" defaultValue="" className="min-h-11">
+              <option value="">—</option>
+              {editionOptions.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <label className="flex min-h-11 items-center gap-2 text-sm text-ck-text md:col-span-2">
+            <input
+              type="checkbox"
+              name="eligibilityRequireCheckIn"
+              className="size-4 rounded border-ck-border"
+            />
+            Sólo quienes además se acreditaron el día del evento
+          </label>
           <label className="flex min-h-11 items-center gap-2 text-sm text-ck-text md:col-span-2">
             <input
               type="checkbox"
