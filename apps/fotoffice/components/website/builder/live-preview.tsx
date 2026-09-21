@@ -5,6 +5,7 @@ import type { WebsiteBlock } from "@/lib/website/blocks";
 import type { WebsiteColors } from "@/lib/website/branding-defaults";
 import { websiteDesignCssVars, type WebsiteDesignPresets } from "@/lib/website/design-presets";
 import { deriveHomeNavItems } from "@/lib/website/navigation";
+import type { SiteNavItem } from "@/lib/website/site-nav";
 import { WebsitePageRenderer } from "@/components/website/render/website-page-renderer";
 import { WebsiteHeaderView } from "@/components/website/render/website-header-view";
 import { DEVICE_WIDTHS, type DeviceWidth } from "./device-toggle";
@@ -31,7 +32,13 @@ export function LivePreview({
   workspaceName: string;
   device: DeviceWidth;
 }) {
-  const navItems = deriveHomeNavItems(blocks);
+  const navItems: SiteNavItem[] = deriveHomeNavItems(blocks).map((item) => ({
+    id: item.id,
+    label: item.label,
+    href: item.anchor ? `#${item.anchor}` : "#",
+    current: false,
+    children: [],
+  }));
   const themeVars = {
     "--wsite-primary": colors.primaryColor,
     "--wsite-secondary": colors.secondaryColor,
@@ -47,7 +54,7 @@ export function LivePreview({
         className="relative w-full overflow-hidden rounded-xl border border-[var(--fo-border)] bg-white shadow-sm transition-[max-width] duration-200"
         style={{ maxWidth: DEVICE_WIDTHS[device], ...themeVars }}
       >
-        <WebsiteHeaderView logoUrl={logoUrl} workspaceName={workspaceName} navItems={navItems} designPresets={designPresets} />
+        <WebsiteHeaderView logoUrl={logoUrl} workspaceName={workspaceName} navItems={navItems} designPresets={designPresets} homeHref="#" />
         <WebsitePageRenderer blocks={blocks} colors={colors} designPresets={designPresets} />
       </div>
     </div>
