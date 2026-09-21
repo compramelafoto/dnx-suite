@@ -7,8 +7,9 @@
  * el rojo-verde saturado de vidriera.
  *
  * Todo esto es ornamento: va detrás del contenido, no recibe clics y el lector
- * de pantalla no lo anuncia. Las opacidades están puestas bajo para que el
- * precio y el botón de reservar no pierdan contraste.
+ * de pantalla no lo anuncia. Las ramas se recuestan contra los bordes, donde el
+ * contenido deja aire, así que pueden ser bien visibles sin pisar el precio ni
+ * el botón de reservar, que siempre van encima y sobre fondo propio.
  */
 
 const VERDE = "#7d8f6b";
@@ -16,11 +17,18 @@ const ROJO = "#b5342c";
 const AMARILLO = "#f4b740";
 
 /** Ramita de muérdago: tres hojas y un racimo de bayas. */
-function Muerdago({ className }: { className: string }) {
+function Muerdago({
+  className,
+  style,
+}: {
+  className: string;
+  style?: React.CSSProperties;
+}) {
   return (
     <svg
       viewBox="0 0 120 100"
       className={className}
+      style={style}
       fill="none"
       aria-hidden
       focusable="false"
@@ -96,11 +104,31 @@ function TexturaNavidena() {
         width="100%"
         height="100%"
         fill="url(#ck-navidad-textura)"
-        opacity="0.05"
+        opacity="0.22"
       />
     </svg>
   );
 }
+
+/**
+ * Ramas repartidas a lo largo de la página.
+ *
+ * La página de inscripción mide varios miles de píxeles: poner adorno sólo en
+ * las dos puntas deja todo el medio pelado. Cada rama se ancla a un porcentaje
+ * del alto y se recuesta contra un borde, que es donde el contenido deja aire.
+ *
+ * Nada asoma con desplazamiento negativo: el contenedor recorta, y una rama
+ * puesta afuera se recorta hasta desaparecer.
+ */
+const RAMAS = [
+  { top: "1%", lado: "izq", ancho: "w-40 md:w-64", giro: "rotate-[-14deg]", opacidad: "opacity-90" },
+  { top: "9%", lado: "der", ancho: "w-36 md:w-56", giro: "rotate-[12deg]", opacidad: "opacity-80" },
+  { top: "26%", lado: "izq", ancho: "w-32 md:w-52", giro: "rotate-[165deg]", opacidad: "opacity-75" },
+  { top: "41%", lado: "der", ancho: "w-40 md:w-60", giro: "rotate-[-8deg]", opacidad: "opacity-85" },
+  { top: "58%", lado: "izq", ancho: "w-36 md:w-56", giro: "rotate-[18deg]", opacidad: "opacity-75" },
+  { top: "74%", lado: "der", ancho: "w-32 md:w-52", giro: "rotate-[190deg]", opacidad: "opacity-80" },
+  { top: "89%", lado: "izq", ancho: "w-40 md:w-60", giro: "rotate-[-20deg]", opacidad: "opacity-85" },
+] as const;
 
 /**
  * Envuelve el contenido de la página. El decorado se pinta detrás; los hijos
@@ -114,10 +142,24 @@ export function DecoradoNavidad({ children }: { children: React.ReactNode }) {
         aria-hidden
       >
         <TexturaNavidena />
-        <Muerdago className="absolute -left-8 -top-6 w-36 rotate-[-12deg] opacity-30 md:w-52" />
-        <Muerdago className="absolute -right-10 -top-2 w-32 -scale-x-100 rotate-[10deg] opacity-25 md:w-44" />
-        <Muerdago className="absolute -left-10 bottom-24 hidden w-40 rotate-[160deg] opacity-[0.18] lg:block" />
-        <Muerdago className="absolute -right-8 bottom-10 hidden w-36 -scale-x-100 rotate-[190deg] opacity-[0.15] lg:block" />
+        {RAMAS.map((rama, i) => (
+          <Muerdago
+            key={`${rama.top}-${rama.lado}`}
+            className={[
+              "absolute",
+              rama.lado === "izq" ? "left-0" : "right-0",
+              rama.lado === "der" ? "-scale-x-100" : "",
+              rama.ancho,
+              rama.giro,
+              rama.opacidad,
+              // A partir de la tercera, sólo en pantallas con margen de sobra.
+              i >= 2 ? "hidden md:block" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            style={{ top: rama.top }}
+          />
+        ))}
       </div>
       {children}
     </div>

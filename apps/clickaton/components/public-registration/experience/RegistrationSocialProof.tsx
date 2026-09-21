@@ -25,7 +25,7 @@ export function RegistrationSocialProof({ participantCount }: Props) {
       <h2 id="registration-social-title" className="mt-3 text-lg font-semibold tracking-tight md:text-xl">
         {hasCount
           ? `Más de ${participantCount.toLocaleString("es-AR")} fotógrafos participaron en nuestras ediciones.`
-          : "La comunidad de fotógrafos más grande de tu ciudad."}
+          : "Conformemos juntos la comunidad de fotógrafos más grande de tu ciudad."}
       </h2>
       {!hasCount ? (
         <p className="mt-2 text-sm text-ck-text-secondary">

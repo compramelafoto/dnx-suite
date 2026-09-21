@@ -9,6 +9,11 @@ type Props = {
    * títulos peleando en la misma zona.
    */
   coverImageUrl?: string | null;
+  /**
+   * Nota breve de la edición, para lo que la fecha sola no dice: por qué ese
+   * día, qué esperar. Va junto al título, donde alguien decide si sigue leyendo.
+   */
+  nota?: string | null;
 };
 
 const HERO_IMAGE = "/images/hero-city-photographer.jpg";
@@ -36,11 +41,20 @@ function ChipsRapidos() {
   );
 }
 
+function Nota({ texto }: { texto: string }) {
+  return (
+    <p className="max-w-[60ch] border-l-2 border-ck-yellow/60 pl-4 text-[15px] leading-relaxed text-neutral-300">
+      {texto}
+    </p>
+  );
+}
+
 export function RegistrationExperienceHero({
   editionName,
   cityHint,
   dateHint,
   coverImageUrl,
+  nota,
 }: Props) {
   const subtitulo =
     [cityHint, dateHint].filter(Boolean).join(" · ") || "Experiencia fotográfica";
@@ -69,6 +83,7 @@ export function RegistrationExperienceHero({
             </h2>
             <p className="text-base text-neutral-200 md:text-lg">{subtitulo}</p>
           </div>
+          {nota ? <Nota texto={nota} /> : null}
           <ChipsRapidos />
         </div>
       </section>
@@ -99,6 +114,7 @@ export function RegistrationExperienceHero({
           </h2>
           <p className="text-base text-neutral-200 md:text-lg">{subtitulo}</p>
         </div>
+        {nota ? <Nota texto={nota} /> : null}
         <ChipsRapidos />
       </div>
     </section>
