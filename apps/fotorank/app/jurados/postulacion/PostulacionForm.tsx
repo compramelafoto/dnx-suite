@@ -7,7 +7,10 @@ import {
   type EstadoDelFormulario,
 } from "../../actions/judgePublicSignup";
 import { BIO_MINIMA, PASSWORD_MINIMA } from "../../lib/fotorank/judges/publicSignupForm";
-import { EXTERNAL_PAYMENT_DISCLAIMER } from "../../lib/fotorank/judges/legalCopy";
+import {
+  COBRO_POR_LA_PLATAFORMA_PROXIMAMENTE,
+  EXTERNAL_PAYMENT_DISCLAIMER,
+} from "../../lib/fotorank/judges/legalCopy";
 import { achicarImagen } from "../../lib/fotorank/judges/ui/achicarImagen";
 
 const INICIAL: EstadoDelFormulario = { error: null };
@@ -329,9 +332,15 @@ export function PostulacionForm() {
           ) : null}
         </div>
 
-        <p className="max-w-prose text-xs leading-relaxed text-[var(--foreground-muted)]">
-          {EXTERNAL_PAYMENT_DISCLAIMER}
-        </p>
+        <div className="max-w-prose space-y-3">
+          <p className="border-l-2 border-[var(--primary)] pl-4 text-sm leading-relaxed text-[var(--foreground-muted)]">
+            {COBRO_POR_LA_PLATAFORMA_PROXIMAMENTE}
+          </p>
+          <p className="text-xs leading-relaxed text-[var(--foreground-muted)]">
+            <span className="text-[var(--foreground)]">Mientras tanto:</span>{" "}
+            {EXTERNAL_PAYMENT_DISCLAIMER}
+          </p>
+        </div>
 
         <div className="pt-2">
           <button
