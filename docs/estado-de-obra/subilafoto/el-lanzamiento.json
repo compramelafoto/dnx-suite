@@ -1,0 +1,223 @@
+{
+  "proyecto": "La noche del evento: subir, moderar, proyectar y cobrar",
+  "plataforma": "SubiLaFoto",
+  "spec": "docs/subilafoto/00-documento-maestro.md",
+  "enUso": "no",
+  "usoNota": "A 20 días del lanzamiento del 10/10 la base de producción tiene 0 perfiles de venta, 0 eventos, 0 fotos, 0 órdenes y 0 correos; lo único vivo son los cinco cron (1495 corridas de cierre y de moderación al 21/09)",
+  "etapas": [
+    {
+      "nombre": "La plataforma en pie",
+      "criterios": [
+        {
+          "que": "El sitio abre en subilafoto.com y muestra la portada",
+          "implementado": { "fecha": "2026-09-15" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "https://www.subilafoto.com devuelve 200 con <title>SubiLaFoto</title>; subilafoto.com y www.subilafoto.com verificados en el proyecto Vercel subilafoto-dnxsuite"
+          }
+        },
+        {
+          "que": "Las tablas de SubiLaFoto están en la base de producción",
+          "implementado": { "fecha": "2026-09-11" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "18 tablas Subilafoto* en el proyecto Neon compramelafoto, rama production (br-autumn-rain-ad18wq7y). El documento de avance habla de 19: son 18"
+          }
+        },
+        {
+          "que": "Las cinco tareas automáticas corren solas y sin error",
+          "implementado": { "fecha": "2026-09-16" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "SubilafotoCronRun: cierre 1495 corridas, moderación 1495, paquetes 499, avisos 125, purga 6; lastError nulo en las cinco y última corrida el 21/09 a las 01:35"
+          }
+        },
+        {
+          "que": "Alguien puede mirar el panel de salud de la plataforma",
+          "implementado": { "fecha": "2026-09-16" },
+          "probado": null,
+          "bloqueado": "/panel/salud exige globalRole SUPER_ADMIN o PLATFORM_SUPPORT y en la base de producción no hay ningún usuario con esos roles: la pantalla los redirige a todos"
+        },
+        {
+          "que": "Las doce variables de producción están cargadas",
+          "implementado": { "fecha": "2026-09-16" },
+          "probado": null,
+          "bloqueado": "Se comprueban sólo con /api/salud, que pide CRON_SECRET y devuelve 401 desde afuera. De las doce quedan confirmadas DATABASE_URL y CRON_SECRET, porque los cinco cron escriben en la base sin error; de MP, R2, AWS y Resend no hay evidencia"
+        }
+      ]
+    },
+    {
+      "nombre": "El profesional se da de alta y arma su ficha",
+      "criterios": [
+        {
+          "que": "Un fotógrafo inicia sesión y completa su ficha de venta con precio",
+          "implementado": { "fecha": "2026-09-15" },
+          "probado": null,
+          "bloqueado": "0 filas en SubilafotoSellerProfile: ningún profesional se dio de alta en producción, ni nosotros"
+        },
+        {
+          "que": "Su enlace permanente subilafoto.com/v/[slug] muestra la ficha y deja pedir un evento",
+          "implementado": { "fecha": "2026-09-15" },
+          "probado": null,
+          "bloqueado": "No hay ninguna ficha que visitar: 0 perfiles de venta"
+        },
+        {
+          "que": "El fotógrafo conecta su cuenta de Mercado Pago por OAuth",
+          "implementado": { "fecha": "2026-09-16" },
+          "probado": null,
+          "bloqueado": "Nadie conectó nunca una cuenta. Es lo único que confirma que la URL de retorno https://subilafoto.com/api/pagos/conectar/retorno quedó declarada byte a byte en el panel de Mercado Pago"
+        }
+      ]
+    },
+    {
+      "nombre": "El evento y la puerta del invitado",
+      "criterios": [
+        {
+          "que": "El profesional crea un evento con su ventana de 12 horas y su QR",
+          "implementado": { "fecha": "2026-09-15" },
+          "probado": null,
+          "bloqueado": "0 filas en SubilafotoEvent y 0 en SubilafotoAccessLink"
+        },
+        {
+          "que": "Un invitado escanea el QR, acepta el consentimiento y sube sus fotos desde el celular",
+          "implementado": { "fecha": "2026-09-16" },
+          "probado": null,
+          "bloqueado": "0 invitados, 0 consentimientos y 0 fotos en producción. La prueba de carga de 100 fotos que figura en el documento de avance no dejó rastro en esta base"
+        },
+        {
+          "que": "Las seis plantillas cambian la puerta del invitado y la pantalla del salón",
+          "implementado": { "fecha": "2026-09-15" },
+          "probado": null,
+          "bloqueado": "Las seis viven en el código (PLANTILLAS, en lib/plantillas.ts) y nunca se aplicaron a un evento real: 0 eventos. Tampoco se vieron en un televisor"
+        },
+        {
+          "que": "Los materiales impresos con el QR se imprimen y el QR escanea desde el papel",
+          "implementado": { "fecha": "2026-09-15" },
+          "probado": null,
+          "bloqueado": "El QR se valida al generarlo, dentro del proceso; nunca se imprimió en papel ni se escaneó desde un centro de mesa"
+        }
+      ]
+    },
+    {
+      "nombre": "Que no se publique lo que no corresponde",
+      "criterios": [
+        {
+          "que": "Cada foto pasa por la moderación antes de aparecer en la galería",
+          "implementado": { "fecha": "2026-09-16" },
+          "probado": null,
+          "bloqueado": "0 filas en SubilafotoModerationDecision. El cron de moderación corrió 1495 veces y su último resultado es revisadas 0, decididas 0"
+        },
+        {
+          "que": "Un falso positivo se aprueba a mano y queda auditado",
+          "implementado": { "fecha": "2026-09-16" },
+          "probado": null,
+          "bloqueado": "0 filas en SubilafotoAudit: nadie aprobó nunca nada en producción"
+        },
+        {
+          "que": "Si el servicio de moderación se cae, no se publica ninguna foto",
+          "implementado": { "fecha": "2026-09-16" },
+          "probado": null,
+          "bloqueado": "Exige romper a propósito la credencial de AWS en Vercel, y Vercel no devuelve los valores cargados para poder restaurarla después"
+        }
+      ]
+    },
+    {
+      "nombre": "La pantalla del salón",
+      "criterios": [
+        {
+          "que": "La pantalla proyecta las fotos aprobadas y se actualiza sola, sin repetir ni perder",
+          "implementado": { "fecha": "2026-09-15" },
+          "probado": null,
+          "bloqueado": "0 filas en SubilafotoScreen y 0 fotos. Nunca se proyectó en un televisor ni en un proyector"
+        },
+        {
+          "que": "El profesional oculta una foto en vivo desde el control remoto",
+          "implementado": { "fecha": "2026-09-15" },
+          "probado": null,
+          "bloqueado": "Nunca se ocultó una foto: no hay ninguna en producción"
+        }
+      ]
+    },
+    {
+      "nombre": "Cobrar y entregar",
+      "criterios": [
+        {
+          "que": "Un cliente compra el adicional de descarga y el pago vuelve solo",
+          "implementado": { "fecha": "2026-09-16" },
+          "probado": null,
+          "bloqueado": "0 filas en SubilafotoOrder: ninguna compra real y el webhook nunca recibió un aviso de Mercado Pago"
+        },
+        {
+          "que": "El ZIP se arma solo y el enlace firmado descarga el archivo",
+          "implementado": { "pr": 201, "fecha": "2026-09-20" },
+          "probado": null,
+          "bloqueado": "0 filas en SubilafotoPackage: el cron de paquetes corrió 499 veces y armó 0. La firma del enlace se corrigió recién el 20/09 (PR 201) y todavía no se ejercitó"
+        },
+        {
+          "que": "El cliente ve su compra y sus fotos en su panel",
+          "implementado": { "fecha": "2026-09-16" },
+          "probado": null,
+          "bloqueado": "Depende de una orden pagada de verdad, y no hay ninguna"
+        }
+      ]
+    },
+    {
+      "nombre": "Los avisos, la retención y lo legal",
+      "criterios": [
+        {
+          "que": "Los cinco avisos posteriores al evento le llegan al cliente",
+          "implementado": { "fecha": "2026-09-16" },
+          "probado": null,
+          "bloqueado": "0 filas en SubilafotoEmailSent: en producción no se intentó ni un envío, ni siquiera en seco, y la fila se crea antes de mandar. El cron de avisos corrió 125 veces con revisados 0"
+        },
+        {
+          "que": "Los correos salen desde un dominio que Gmail acepta",
+          "implementado": { "fecha": "2026-09-16" },
+          "probado": null,
+          "bloqueado": "El DKIM (resend._domainkey.subilafoto.com) y el SPF/MX de send.subilafoto.com ya están en el DNS, así que el dominio de Resend está armado. Lo que falta es DMARC: _dmarc.subilafoto.com no existe, y es exactamente lo que dejó a Clickatón sin llegar a Gmail"
+        },
+        {
+          "que": "A los 30 días las fotos se borran de R2 y queda constancia",
+          "implementado": { "fecha": "2026-09-16" },
+          "probado": null,
+          "bloqueado": "El cron de purga lleva 6 corridas con borrados 0 y SubilafotoAudit está vacía: no hay constancia de ningún borrado en producción"
+        },
+        {
+          "que": "Un comprador ejerce el arrepentimiento y recibe su constancia por correo",
+          "implementado": { "pr": 169, "fecha": "2026-09-16" },
+          "probado": null,
+          "bloqueado": "0 filas en SubilafotoRetractionRequest y 0 correos enviados"
+        },
+        {
+          "que": "Un proveedor se suma al evento sin duplicar su empresa",
+          "implementado": { "fecha": "2026-09-16" },
+          "probado": null,
+          "bloqueado": "0 filas en SubilafotoEventVendor: ningún proveedor se cargó en producción"
+        }
+      ]
+    },
+    {
+      "nombre": "El ensayo y el lanzamiento del 10/10",
+      "criterios": [
+        {
+          "que": "El ensayo general se hace con el guion escrito y sale bien",
+          "implementado": { "fecha": "2026-09-16" },
+          "probado": null,
+          "bloqueado": "El guion está escrito (docs/subilafoto/22-ensayo-y-lanzamiento.md); el ensayo es el 8 de octubre"
+        },
+        {
+          "que": "Se probó en aparatos reales: iPhone, Android, un televisor y un proyector",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "No se simula: hace falta el hardware. Es lo último que queda del recorrido de aceptación"
+        },
+        {
+          "que": "La carga aguanta con mala conexión: modo avión a mitad de subida",
+          "implementado": { "fecha": "2026-09-16" },
+          "probado": null,
+          "bloqueado": "Los reintentos están escritos y probados con buena conexión; el corte de red en un celular real no se hizo"
+        }
+      ]
+    }
+  ]
+}
