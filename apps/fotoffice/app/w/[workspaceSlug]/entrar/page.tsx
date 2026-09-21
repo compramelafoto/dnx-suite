@@ -61,8 +61,8 @@ export default async function PuertaInstitucionPage({
       pensando que la institución no lo tiene registrado.
     */
     return (
-      <div className="min-h-screen bg-[var(--fo-bg)] text-[var(--fo-text)]">
-        <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4 py-12">
+      <div className="bg-[var(--fo-bg)] text-[var(--fo-text)]">
+        <main className="mx-auto flex max-w-md flex-col justify-center px-4 py-12">
           <section className="fo-card space-y-5 p-6">
             <div className="space-y-2">
               <h1 className="text-xl font-semibold tracking-tight">

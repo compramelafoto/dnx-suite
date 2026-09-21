@@ -91,7 +91,7 @@ export default async function SolicitarCoberturaPage({
   const marca = resolveCoverageBrand(branding);
 
   return (
-    <div className="min-h-screen bg-[var(--fo-bg)] text-[var(--fo-text)]">
+    <div className="bg-[var(--fo-bg)] text-[var(--fo-text)]">
       {/*
         Una franja con el color de la institución, y nada más arriba: sin imagen de portada.
         Mucha gente abre este enlace con datos móviles, y una foto de dos megas antes del

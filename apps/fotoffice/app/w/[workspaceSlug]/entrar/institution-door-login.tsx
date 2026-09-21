@@ -30,7 +30,7 @@ export function InstitutionDoorLogin({
   const [state, formAction, pending] = useActionState(fotofficeLoginAction, initial);
 
   return (
-    <main className="flex min-h-screen w-full flex-col items-center justify-center gap-6 bg-[var(--fo-bg)] px-4 py-12">
+    <main className="flex w-full flex-col items-center justify-center gap-6 bg-[var(--fo-bg)] px-4 py-12">
       <header className="flex flex-col items-center gap-3 text-center">
         {logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
