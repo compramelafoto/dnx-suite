@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calcularNuevoOrden } from "./course-lessons";
+import { calcularNuevoOrden } from "@/lib/presential-courses/lesson-order";
 
 describe("reordenar clases", () => {
   it("mover la tercera al primer lugar renumera sin huecos ni repetidos", () => {

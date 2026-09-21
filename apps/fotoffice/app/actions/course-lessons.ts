@@ -6,6 +6,7 @@ import { z } from "zod";
 import { requireCoursesSalesContext } from "@/lib/workspace";
 import { createDirectUpload, getVideoStatus } from "@/lib/courses-video/stream";
 import { logCourseEvent } from "@/lib/presential-courses/log";
+import { calcularNuevoOrden } from "@/lib/presential-courses/lesson-order";
 
 /**
  * Las clases de un curso grabado.
@@ -22,29 +23,6 @@ const claseSchema = z.object({
 });
 
 export type CourseLessonActionState = { error: string | null; ok?: boolean };
-
-/**
- * Dónde queda cada clase después de mover una. PURA.
- *
- * Devuelve **la lista completa renumerada de 0 a n-1**, no sólo la que se movió: es la única
- * forma de garantizar que no queden dos clases con el mismo número ni huecos en la
- * secuencia. Un destino fuera de rango se acomoda al extremo más cercano en vez de fallar —
- * quien arrastra con el mouse no tiene por qué acertar el índice.
- */
-export function calcularNuevoOrden(
-  idsActuales: string[],
-  idMovido: string,
-  destino: number,
-): Array<{ id: string; sortOrder: number }> {
-  const sinEl = idsActuales.filter((id) => id !== idMovido);
-  if (sinEl.length === idsActuales.length) {
-    // La clase no estaba en la lista: no se mueve nada, pero se renumera igual.
-    return idsActuales.map((id, i) => ({ id, sortOrder: i }));
-  }
-  const posicion = Math.max(0, Math.min(destino, sinEl.length));
-  sinEl.splice(posicion, 0, idMovido);
-  return sinEl.map((id, i) => ({ id, sortOrder: i }));
-}
 
 async function asegurarCursoDelWorkspace(workspaceId: string, courseId: string) {
   const curso = await prisma.course.findFirst({
