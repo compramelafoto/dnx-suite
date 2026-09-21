@@ -48,6 +48,10 @@ type AppliedPromoQuote = Extract<PreviewPromotionActionResult, { ok: true }>["qu
 type Props = {
   context: PublicRegistrationContextDto;
   idempotencyKey: string;
+  /** Portada propia de la edición; si falta, el hero usa la imagen genérica. */
+  coverImageUrl?: string | null;
+  /** Nota breve junto al título, para lo que la fecha sola no explica. */
+  nota?: string | null;
 };
 
 type Step = "venue" | "ticket" | "participant" | "review";
@@ -65,7 +69,12 @@ function stableIdempotencyKey(editionSlug: string, seed: string): string {
   }
 }
 
-export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
+export function PublicRegistrationWizard({
+  context,
+  idempotencyKey,
+  coverImageUrl,
+  nota,
+}: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const idemRef = useRef(idempotencyKey);
@@ -417,6 +426,13 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
       setPromoError("Ingresá un código válido.");
       return;
     }
+    // Los cupones con condición se validan contra la persona, así que sin email
+    // no tiene sentido preguntarle al servidor.
+    const emailForPromo = email.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailForPromo)) {
+      setPromoError("Completá tu email para validar este código.");
+      return;
+    }
     setPromoPending(true);
     setPromoError(null);
     try {
@@ -424,6 +440,7 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
         editionSlug: context.edition.slug,
         ticketTypeId: selectedTicket.id,
         promoCode: code,
+        email: emailForPromo,
       });
       if (!result.ok) {
         setAppliedPromo(null);
@@ -711,6 +728,8 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
                 editionName={context.edition.name}
                 cityHint={cityHint}
                 dateHint={dateHint}
+                coverImageUrl={coverImageUrl}
+                nota={nota}
               />
             ) : null}
             {persona === "new" ? <RegistrationLiveBenefits cityHint={cityHint} /> : null}

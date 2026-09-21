@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Card } from "@repo/design-system";
+import { PageContainer, PublicShell } from "../../../components/public-ui";
 import { getJudgePublicProfile } from "../../../actions/judges";
 import { JudgeBioRenderer } from "../../../components/judges/JudgeBioRenderer";
 import {
@@ -26,6 +27,7 @@ export default async function JudgePublicProfilePage({ params }: { params: Promi
     instagram: string | null;
     otherLinksJson: unknown;
     assignments: Array<{ contestId: string; contestTitle: string; categoryName: string; assignmentType: string }>;
+    portfolio: Array<{ id: string; src: string; title: string | null }>;
   };
 
   const bioDoc = safeJudgeBioForPublicRender(data.fullBioRichJson);
@@ -34,8 +36,9 @@ export default async function JudgePublicProfilePage({ params }: { params: Promi
   const igHref = instagramProfileHref(data.instagram);
 
   return (
-    <div className="min-h-screen bg-fr-bg p-8">
-      <div className="mx-auto max-w-3xl space-y-6">
+    <PublicShell header={{ variant: "contest", panelHref: "/jurado/panel" }}>
+      <section className="fr-public-section">
+        <PageContainer className="max-w-3xl space-y-6">
         <Card>
           <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
             <div className="shrink-0">
@@ -107,6 +110,30 @@ export default async function JudgePublicProfilePage({ params }: { params: Promi
           </Card>
         ) : null}
 
+        {data.portfolio.length > 0 ? (
+          <Card>
+            <h2 className="text-xl font-semibold text-fr-primary">Su trabajo</h2>
+            <ul className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {data.portfolio.map((img) => (
+                <li key={img.id}>
+                  <figure>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={img.src}
+                      alt={img.title ?? ""}
+                      loading="lazy"
+                      className="aspect-[4/3] w-full rounded border border-zinc-700 object-cover"
+                    />
+                    {img.title ? (
+                      <figcaption className="mt-2 text-xs text-fr-muted">{img.title}</figcaption>
+                    ) : null}
+                  </figure>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        ) : null}
+
         <Card>
           <h2 className="text-xl font-semibold text-fr-primary">Participaciones</h2>
           <ul className="mt-3 space-y-2 text-sm text-fr-muted">
@@ -120,11 +147,12 @@ export default async function JudgePublicProfilePage({ params }: { params: Promi
         </Card>
 
         <p className="text-center text-xs text-fr-muted-soft">
-          <Link href="/" className="underline underline-offset-2 hover:text-fr-muted">
-            Volver al inicio
+          <Link href="/jurados/postulacion" className="underline underline-offset-2 hover:text-fr-muted">
+            ¿Sos fotógrafo? Postulate como jurado
           </Link>
         </p>
-      </div>
-    </div>
+        </PageContainer>
+      </section>
+    </PublicShell>
   );
 }

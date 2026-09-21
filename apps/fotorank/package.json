@@ -103,7 +103,12 @@
     "test:judges-section-layout": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/judgesSectionLayout.test.ts",
     "test:judge-status-ui": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/ui/judgeStatus.test.ts",
     "test:judge-tiempo-relativo": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/ui/tiempoRelativo.test.ts",
-    "test:judge-sin-enums": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/ui/sinEnumsEnPantalla.test.ts"
+    "test:judge-sin-enums": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/ui/sinEnumsEnPantalla.test.ts",
+    "test:judge-portfolio-keys": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/portfolioKeys.test.ts",
+    "test:judge-portfolio-order": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/portfolioOrder.test.ts",
+    "test:judge-portfolio-src": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/portfolioSrc.test.ts",
+    "test:judge-achicar-imagen": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/ui/achicarImagen.test.ts",
+    "test:judge-ficha-completa": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/fichaCompleta.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.972.0",

@@ -9658,10 +9658,34 @@ model FotorankJudgeProfile {
   createdAt                       DateTime                           @default(now())
   updatedAt                       DateTime                           @updatedAt
   judgeAccount                    FotorankJudgeAccount               @relation(fields: [judgeAccountId], references: [id], onDelete: Cascade)
+  portfolioImages                 FotorankJudgePortfolioImage[]
 
   @@index([isPublic])
   @@index([isListedInProfessionalDirectory])
   @@index([directoryReviewStatus])
+}
+
+/// Las fotos que el jurado sube para mostrar su trabajo. Tope de 12, controlado
+/// en el servidor. Los archivos viven en el bucket privado: borrar la fila NO
+/// borra el objeto, hay que hacerlo explícitamente.
+model FotorankJudgePortfolioImage {
+  id             String   @id @default(cuid())
+  judgeProfileId String
+  storageKey     String
+  /// Va en la URL pública: si cambia la imagen, cambia la ruta.
+  contentHash    String
+  contentType    String
+  sizeBytes      Int
+  width          Int?
+  height         Int?
+  title          String?
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  judgeProfile FotorankJudgeProfile @relation(fields: [judgeProfileId], references: [id], onDelete: Cascade)
+
+  @@index([judgeProfileId, sortOrder])
 }
 
 model FotorankJudgeOrganizationMembership {

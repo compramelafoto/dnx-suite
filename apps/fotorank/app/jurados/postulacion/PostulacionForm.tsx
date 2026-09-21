@@ -1,7 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
-import { useMemo } from "react";
+import { useActionState, useMemo, useState } from "react";
 
 import {
   postularseComoJuradoAction,
@@ -9,20 +8,79 @@ import {
 } from "../../actions/judgePublicSignup";
 import { BIO_MINIMA, PASSWORD_MINIMA } from "../../lib/fotorank/judges/publicSignupForm";
 import {
-  DIRECTORIO_ES_DE_TODA_LA_PLATAFORMA,
+  COBRO_POR_LA_PLATAFORMA_PROXIMAMENTE,
   EXTERNAL_PAYMENT_DISCLAIMER,
-  QUE_PASA_DESPUES_DE_POSTULARSE,
 } from "../../lib/fotorank/judges/legalCopy";
+import { achicarImagen } from "../../lib/fotorank/judges/ui/achicarImagen";
 
 const INICIAL: EstadoDelFormulario = { error: null };
 
-const campo =
-  "w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-fr-primary placeholder:text-fr-muted-soft focus:border-fr-primary focus:outline-none";
-
-function Error({ texto }: { texto?: string }) {
-  if (!texto) return null;
-  return <p className="mt-1 text-xs text-red-300">{texto}</p>;
+/**
+ * Un campo ocupa su fila en el teléfono y comparte la fila en el escritorio.
+ * La densidad cambia con el dispositivo; no es la misma columna estirada.
+ */
+function Campo({
+  id,
+  etiqueta,
+  ayuda,
+  error,
+  opcional,
+  children,
+}: {
+  id: string;
+  etiqueta: string;
+  ayuda?: string;
+  error?: string;
+  opcional?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-2">
+      <label htmlFor={id} className="block text-sm font-medium text-[var(--foreground)]">
+        {etiqueta}
+        {opcional ? (
+          <span className="ml-1.5 font-normal text-[var(--foreground-muted)]">opcional</span>
+        ) : null}
+      </label>
+      {children}
+      {ayuda && !error ? (
+        <p className="text-xs leading-relaxed text-[var(--foreground-muted)]">{ayuda}</p>
+      ) : null}
+      {error ? (
+        <p className="text-xs leading-relaxed text-[var(--danger)]" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
 }
+
+function Seccion({
+  titulo,
+  descripcion,
+  children,
+}: {
+  titulo: string;
+  descripcion?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="border-t border-[var(--border)] pt-10 first:border-t-0 first:pt-0">
+      <div className="mb-6">
+        <h2 className="text-xl font-semibold text-[var(--foreground)]">{titulo}</h2>
+        {descripcion ? (
+          <p className="mt-1.5 max-w-prose text-sm leading-relaxed text-[var(--foreground-muted)]">
+            {descripcion}
+          </p>
+        ) : null}
+      </div>
+      <div className="space-y-6">{children}</div>
+    </section>
+  );
+}
+
+const ENTRADA =
+  "w-full rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2.5 text-[15px] text-[var(--foreground)] transition-colors placeholder:text-[var(--foreground-muted)]/60 hover:border-[var(--foreground-muted)]/40 focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring)]/30";
 
 export function PostulacionForm() {
   const [estado, enviar, pendiente] = useActionState(postularseComoJuradoAction, INICIAL);
@@ -32,8 +90,26 @@ export function PostulacionForm() {
   // tarda menos de tres segundos.
   const cargadoEn = useMemo(() => String(Date.now()), []);
 
+  const [vistaPrevia, setVistaPrevia] = useState<string | null>(null);
+
+  const elegirFoto = async (archivo: File | undefined) => {
+    if (!archivo) {
+      setVistaPrevia(null);
+      return;
+    }
+    const achicada = await achicarImagen(archivo);
+    setVistaPrevia(URL.createObjectURL(achicada.archivo));
+
+    const input = document.getElementById("foto") as HTMLInputElement | null;
+    if (input) {
+      const lista = new DataTransfer();
+      lista.items.add(achicada.archivo);
+      input.files = lista.files;
+    }
+  };
+
   return (
-    <form action={enviar} className="space-y-8">
+    <form action={enviar} className="space-y-10">
       <input type="hidden" name="cargadoEn" value={cargadoEn} />
 
       {/* Campo trampa: invisible para las personas, tentador para un robot.
@@ -43,174 +119,239 @@ export function PostulacionForm() {
         <input id="sitioWeb2" name="sitioWeb2" type="text" tabIndex={-1} autoComplete="off" />
       </div>
 
-      <section className="rounded border border-zinc-700 bg-zinc-900/40 p-4">
-        <p className="text-sm text-fr-muted">{DIRECTORIO_ES_DE_TODA_LA_PLATAFORMA}</p>
-        <p className="mt-2 text-sm text-fr-muted">{QUE_PASA_DESPUES_DE_POSTULARSE}</p>
-      </section>
-
       {estado.error ? (
-        <p role="alert" className="rounded border border-red-900 bg-red-950/40 px-3 py-2 text-sm text-red-300">
+        <p
+          role="alert"
+          className="rounded-[var(--radius-sm)] border border-[var(--danger)]/40 bg-[var(--danger)]/10 px-4 py-3 text-sm text-[var(--danger)]"
+        >
           {estado.error}
         </p>
       ) : null}
 
-      <fieldset className="space-y-4">
-        <legend className="text-lg font-semibold text-fr-primary">Quién sos</legend>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="firstName" className="mb-1 block text-sm text-fr-muted">Nombre</label>
-            <input id="firstName" name="firstName" required className={campo} autoComplete="given-name" />
-            <Error texto={errores.firstName} />
-          </div>
-          <div>
-            <label htmlFor="lastName" className="mb-1 block text-sm text-fr-muted">Apellido</label>
-            <input id="lastName" name="lastName" required className={campo} autoComplete="family-name" />
-            <Error texto={errores.lastName} />
-          </div>
+      <Seccion titulo="Quién sos">
+        <div className="grid gap-6 sm:grid-cols-2">
+          <Campo id="firstName" etiqueta="Nombre" error={errores.firstName}>
+            <input id="firstName" name="firstName" required className={ENTRADA} autoComplete="given-name" />
+          </Campo>
+          <Campo id="lastName" etiqueta="Apellido" error={errores.lastName}>
+            <input id="lastName" name="lastName" required className={ENTRADA} autoComplete="family-name" />
+          </Campo>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="email" className="mb-1 block text-sm text-fr-muted">Correo</label>
-            <input id="email" name="email" type="email" required className={campo} autoComplete="email" />
-            <Error texto={errores.email} />
-          </div>
-          <div>
-            <label htmlFor="password" className="mb-1 block text-sm text-fr-muted">
-              Contraseña <span className="text-fr-muted-soft">({PASSWORD_MINIMA} caracteres o más)</span>
-            </label>
-            <input id="password" name="password" type="password" required minLength={PASSWORD_MINIMA} className={campo} autoComplete="new-password" />
-            <Error texto={errores.password} />
-          </div>
+        <div className="grid gap-6 sm:grid-cols-2">
+          <Campo id="email" etiqueta="Correo" error={errores.email}>
+            <input id="email" name="email" type="email" required className={ENTRADA} autoComplete="email" />
+          </Campo>
+          <Campo
+            id="password"
+            etiqueta="Contraseña"
+            ayuda={`Al menos ${PASSWORD_MINIMA} caracteres.`}
+            error={errores.password}
+          >
+            <input
+              id="password"
+              name="password"
+              type="password"
+              required
+              minLength={PASSWORD_MINIMA}
+              className={ENTRADA}
+              autoComplete="new-password"
+            />
+          </Campo>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div>
-            <label htmlFor="city" className="mb-1 block text-sm text-fr-muted">Ciudad</label>
-            <input id="city" name="city" required className={campo} />
-            <Error texto={errores.city} />
-          </div>
-          <div>
-            <label htmlFor="country" className="mb-1 block text-sm text-fr-muted">País</label>
-            <input id="country" name="country" required className={campo} />
-            <Error texto={errores.country} />
-          </div>
-          <div>
-            <label htmlFor="phone" className="mb-1 block text-sm text-fr-muted">
-              Teléfono <span className="text-fr-muted-soft">(opcional)</span>
-            </label>
-            <input id="phone" name="phone" className={campo} autoComplete="tel" />
-            <p className="mt-1 text-xs text-fr-muted-soft">No se muestra en público.</p>
-          </div>
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <Campo id="city" etiqueta="Ciudad" error={errores.city}>
+            <input id="city" name="city" required className={ENTRADA} autoComplete="address-level2" />
+          </Campo>
+          <Campo id="country" etiqueta="País" error={errores.country}>
+            <input id="country" name="country" required className={ENTRADA} autoComplete="country-name" />
+          </Campo>
+          <Campo id="phone" etiqueta="Teléfono" opcional ayuda="No se muestra en público.">
+            <input id="phone" name="phone" className={ENTRADA} autoComplete="tel" />
+          </Campo>
         </div>
-      </fieldset>
 
-      <fieldset className="space-y-4">
-        <legend className="text-lg font-semibold text-fr-primary">Tu trabajo</legend>
+        <Campo
+          id="foto"
+          etiqueta="Tu foto"
+          opcional
+          ayuda="Una ficha con cara se convoca mucho más. La achicamos sola antes de subirla."
+        >
+          <div className="flex items-center gap-4">
+            {vistaPrevia ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={vistaPrevia}
+                alt="Tu foto"
+                className="h-20 w-20 shrink-0 rounded-full border border-[var(--border)] object-cover"
+              />
+            ) : (
+              <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full border border-dashed border-[var(--border)] text-xs text-[var(--foreground-muted)]">
+                sin foto
+              </div>
+            )}
+            <input
+              id="foto"
+              name="foto"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(e) => void elegirFoto(e.target.files?.[0])}
+              className="min-w-0 flex-1 text-xs text-[var(--foreground-muted)] file:mr-3 file:rounded-[var(--radius-sm)] file:border-0 file:bg-[var(--secondary)] file:px-3 file:py-2 file:text-xs file:text-[var(--foreground)] hover:file:bg-[var(--surface-secondary)]"
+            />
+          </div>
+        </Campo>
+      </Seccion>
 
-        <div>
-          <label htmlFor="professionalHeadline" className="mb-1 block text-sm text-fr-muted">
-            En una línea, a qué te dedicás
-          </label>
+      <Seccion
+        titulo="Tu trabajo"
+        descripcion="Esto es lo que lee un organizador cuando busca jurado para su concurso."
+      >
+        <Campo
+          id="professionalHeadline"
+          etiqueta="En una línea, a qué te dedicás"
+          error={errores.professionalHeadline}
+        >
           <input
             id="professionalHeadline"
             name="professionalHeadline"
             required
-            className={campo}
+            className={ENTRADA}
             placeholder="Fotógrafa documental y docente"
           />
-          <Error texto={errores.professionalHeadline} />
+        </Campo>
+
+        <Campo
+          id="shortBio"
+          etiqueta="Contanos de vos"
+          ayuda={`Al menos ${BIO_MINIMA} caracteres. Dónde trabajaste, qué concursos jurados, qué mirás en una foto.`}
+          error={errores.shortBio}
+        >
+          <textarea
+            id="shortBio"
+            name="shortBio"
+            required
+            rows={5}
+            minLength={BIO_MINIMA}
+            className={`${ENTRADA} resize-y leading-relaxed`}
+          />
+        </Campo>
+
+        <div className="grid gap-6 sm:grid-cols-2">
+          <Campo
+            id="specialtiesText"
+            etiqueta="Especialidades"
+            ayuda="Separadas por coma."
+            error={errores.specialtiesText}
+          >
+            <input
+              id="specialtiesText"
+              name="specialtiesText"
+              required
+              className={ENTRADA}
+              placeholder="retrato, documental"
+            />
+          </Campo>
+          <Campo
+            id="experienceYears"
+            etiqueta="Años de experiencia"
+            error={errores.experienceYears}
+          >
+            <input
+              id="experienceYears"
+              name="experienceYears"
+              type="number"
+              min={0}
+              max={80}
+              required
+              className={ENTRADA}
+            />
+          </Campo>
         </div>
 
-        <div>
-          <label htmlFor="shortBio" className="mb-1 block text-sm text-fr-muted">
-            Contanos de vos <span className="text-fr-muted-soft">({BIO_MINIMA} caracteres o más)</span>
+        <div className="grid gap-6 sm:grid-cols-2">
+          <Campo id="languagesText" etiqueta="Idiomas" opcional>
+            <input id="languagesText" name="languagesText" className={ENTRADA} placeholder="español, inglés" />
+          </Campo>
+          <Campo id="region" etiqueta="Región" opcional>
+            <input id="region" name="region" className={ENTRADA} placeholder="Litoral" />
+          </Campo>
+        </div>
+      </Seccion>
+
+      <Seccion titulo="Dónde verte" descripcion="Todo opcional, pero ayuda a que te encuentren.">
+        <div className="grid gap-6 sm:grid-cols-3">
+          <Campo id="website" etiqueta="Sitio web" opcional>
+            <input id="website" name="website" className={ENTRADA} placeholder="tusitio.com" />
+          </Campo>
+          <Campo id="instagram" etiqueta="Instagram" opcional>
+            <input id="instagram" name="instagram" className={ENTRADA} placeholder="@tuusuario" />
+          </Campo>
+          <Campo id="portfolioUrl" etiqueta="Portfolio" opcional>
+            <input id="portfolioUrl" name="portfolioUrl" className={ENTRADA} />
+          </Campo>
+        </div>
+      </Seccion>
+
+      <Seccion titulo="Para terminar">
+        <div className="space-y-4">
+          <label className="flex cursor-pointer items-start gap-3 text-sm leading-relaxed text-[var(--foreground-muted)]">
+            <input
+              type="checkbox"
+              name="wantsDirectoryListing"
+              defaultChecked
+              className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--primary)]"
+            />
+            <span>Quiero aparecer en el directorio para que los organizadores puedan convocarme.</span>
           </label>
-          <textarea id="shortBio" name="shortBio" required rows={5} minLength={BIO_MINIMA} className={campo} />
-          <Error texto={errores.shortBio} />
+
+          <label className="flex cursor-pointer items-start gap-3 text-sm leading-relaxed text-[var(--foreground-muted)]">
+            <input
+              type="checkbox"
+              name="aceptaTerminos"
+              required
+              className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--primary)]"
+            />
+            <span>Acepto los términos de FotoRank.</span>
+          </label>
+          {errores.aceptaTerminos ? (
+            <p className="text-xs text-[var(--danger)]">{errores.aceptaTerminos}</p>
+          ) : null}
+
+          <label className="flex cursor-pointer items-start gap-3 text-sm leading-relaxed text-[var(--foreground-muted)]">
+            <input
+              type="checkbox"
+              name="aceptaDatos"
+              required
+              className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--primary)]"
+            />
+            <span>Acepto que FotoRank trate mis datos para este fin.</span>
+          </label>
+          {errores.aceptaDatos ? (
+            <p className="text-xs text-[var(--danger)]">{errores.aceptaDatos}</p>
+          ) : null}
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="specialtiesText" className="mb-1 block text-sm text-fr-muted">
-              Especialidades <span className="text-fr-muted-soft">(separadas por coma)</span>
-            </label>
-            <input id="specialtiesText" name="specialtiesText" required className={campo} placeholder="retrato, documental" />
-            <Error texto={errores.specialtiesText} />
-          </div>
-          <div>
-            <label htmlFor="experienceYears" className="mb-1 block text-sm text-fr-muted">
-              Años de experiencia
-            </label>
-            <input id="experienceYears" name="experienceYears" type="number" min={0} max={80} required className={campo} />
-            <Error texto={errores.experienceYears} />
-          </div>
+        <div className="max-w-prose space-y-3">
+          <p className="border-l-2 border-[var(--primary)] pl-4 text-sm leading-relaxed text-[var(--foreground-muted)]">
+            {COBRO_POR_LA_PLATAFORMA_PROXIMAMENTE}
+          </p>
+          <p className="text-xs leading-relaxed text-[var(--foreground-muted)]">
+            <span className="text-[var(--foreground)]">Mientras tanto:</span>{" "}
+            {EXTERNAL_PAYMENT_DISCLAIMER}
+          </p>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="languagesText" className="mb-1 block text-sm text-fr-muted">
-              Idiomas <span className="text-fr-muted-soft">(opcional)</span>
-            </label>
-            <input id="languagesText" name="languagesText" className={campo} placeholder="español, inglés" />
-          </div>
-          <div>
-            <label htmlFor="region" className="mb-1 block text-sm text-fr-muted">
-              Región <span className="text-fr-muted-soft">(opcional)</span>
-            </label>
-            <input id="region" name="region" className={campo} placeholder="Litoral" />
-          </div>
+        <div className="pt-2">
+          <button
+            type="submit"
+            disabled={pendiente}
+            className="w-full rounded-[var(--radius-sm)] bg-[var(--primary)] px-6 py-3 text-[15px] font-semibold text-[var(--primary-foreground)] transition-colors hover:bg-[var(--primary-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring)] focus:ring-offset-2 focus:ring-offset-[var(--background)] disabled:opacity-60 sm:w-auto sm:min-w-56"
+          >
+            {pendiente ? "Enviando…" : "Postularme como jurado"}
+          </button>
         </div>
-
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div>
-            <label htmlFor="website" className="mb-1 block text-sm text-fr-muted">
-              Sitio web <span className="text-fr-muted-soft">(opcional)</span>
-            </label>
-            <input id="website" name="website" className={campo} placeholder="tusitio.com" />
-          </div>
-          <div>
-            <label htmlFor="instagram" className="mb-1 block text-sm text-fr-muted">
-              Instagram <span className="text-fr-muted-soft">(opcional)</span>
-            </label>
-            <input id="instagram" name="instagram" className={campo} placeholder="@tuusuario" />
-          </div>
-          <div>
-            <label htmlFor="portfolioUrl" className="mb-1 block text-sm text-fr-muted">
-              Portfolio <span className="text-fr-muted-soft">(opcional)</span>
-            </label>
-            <input id="portfolioUrl" name="portfolioUrl" className={campo} />
-          </div>
-        </div>
-      </fieldset>
-
-      <fieldset className="space-y-3">
-        <legend className="text-lg font-semibold text-fr-primary">Para terminar</legend>
-
-        <label className="flex items-start gap-3 text-sm text-fr-muted">
-          <input type="checkbox" name="wantsDirectoryListing" className="mt-1" defaultChecked />
-          <span>Quiero aparecer en el directorio para que los organizadores puedan convocarme.</span>
-        </label>
-
-        <label className="flex items-start gap-3 text-sm text-fr-muted">
-          <input type="checkbox" name="aceptaTerminos" className="mt-1" required />
-          <span>Acepto los términos de FotoRank.</span>
-        </label>
-        <Error texto={errores.aceptaTerminos} />
-
-        <label className="flex items-start gap-3 text-sm text-fr-muted">
-          <input type="checkbox" name="aceptaDatos" className="mt-1" required />
-          <span>Acepto que FotoRank trate mis datos para este fin.</span>
-        </label>
-        <Error texto={errores.aceptaDatos} />
-
-        <p className="pt-2 text-xs text-fr-muted-soft">{EXTERNAL_PAYMENT_DISCLAIMER}</p>
-      </fieldset>
-
-      <button type="submit" disabled={pendiente} className="fr-btn fr-btn-primary">
-        {pendiente ? "Enviando…" : "Postularme como jurado"}
-      </button>
+      </Seccion>
     </form>
   );
 }

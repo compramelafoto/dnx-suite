@@ -16,6 +16,14 @@ import {
   isJudgeAvatarKey,
   type JudgeAvatarExtension,
 } from "./judgeAvatar";
+import {
+  buildPortfolioKey,
+  contentTypeForPortfolioExtension,
+  extensionForPortfolioMime,
+  parsePortfolioKey,
+  PORTFOLIO_MAX_BYTES,
+  type PortfolioExtension,
+} from "./portfolioKeys";
 
 export type { JudgeAvatarExtension };
 export { buildJudgeAvatarKey, parseJudgeAvatarKey, isJudgeAvatarKey };
@@ -67,6 +75,36 @@ export async function saveJudgeAvatar(input: {
 
 export async function deleteJudgeAvatarByKey(key: string): Promise<void> {
   if (!parseJudgeAvatarKey(key)) return;
+  const storage = getPrivateContestStorageProvider();
+  await storage.deleteObject(key);
+}
+
+export async function savePortfolioImage(input: {
+  judgeAccountId: string;
+  body: Uint8Array;
+  mime: string;
+}): Promise<
+  | { ok: true; key: string; hash: string; ext: PortfolioExtension; sizeBytes: number }
+  | { ok: false; error: string }
+> {
+  const ext = extensionForPortfolioMime(input.mime);
+  if (!ext) return { ok: false, error: "Formato no permitido. Usá JPEG, PNG o WebP." };
+  if (input.body.length === 0) return { ok: false, error: "El archivo está vacío." };
+  if (input.body.length > PORTFOLIO_MAX_BYTES) {
+    return { ok: false, error: "La imagen supera los 4 MB incluso después de achicarla." };
+  }
+
+  const hash = hashJudgeAvatarContent(input.body);
+  const key = buildPortfolioKey(input.judgeAccountId, hash, ext);
+  const storage = getPrivateContestStorageProvider();
+  await storage.putObject(key, input.body, contentTypeForPortfolioExtension(ext));
+  return { ok: true, key, hash, ext, sizeBytes: input.body.length };
+}
+
+export async function deletePortfolioImageByKey(key: string): Promise<void> {
+  // Una clave que no es de portfolio no se borra: no vaya a ser que llegue acá
+  // la de un avatar o la de una obra de concurso.
+  if (!parsePortfolioKey(key)) return;
   const storage = getPrivateContestStorageProvider();
   await storage.deleteObject(key);
 }

@@ -49,29 +49,27 @@ export default async function CourseEnrollmentFailurePage({
           : "Pendiente";
 
   return (
-    <div className="min-h-screen bg-[var(--fo-bg)] text-[var(--fo-text)]">
-      <main className="max-w-3xl mx-auto px-4 md:px-8 py-12 md:py-16">
-        <section className="fo-card space-y-4">
-          <h1 className="text-2xl font-semibold">Tu pago no pudo confirmarse</h1>
-          <p className="text-sm text-[var(--fo-muted)]">
-            Estado actual: <strong className="text-[var(--fo-text)]">{statusLabel}</strong>.
-          </p>
-          <p className="text-sm text-[var(--fo-muted)]">
-            Si el problema continúa, comunicate con el docente.
-          </p>
-          {canRetry ? (
-            <CourseEnrollmentPaymentButton
-              enrollmentId={enrollment.id}
-              workspaceSlug={workspaceSlug}
-              courseSlug={courseSlug}
-              label="Intentar pagar nuevamente"
-            />
-          ) : null}
-          <Link href={`/w/${workspaceSlug}/cursos/${courseSlug}`} className="fo-btn fo-btn-secondary text-sm w-fit">
-            Volver al curso
-          </Link>
-        </section>
-      </main>
-    </div>
+    <main className="max-w-3xl mx-auto px-4 md:px-8 py-12 md:py-16">
+      <section className="fo-card space-y-4">
+        <h1 className="text-2xl font-semibold">Tu pago no pudo confirmarse</h1>
+        <p className="text-sm text-[var(--fo-muted)]">
+          Estado actual: <strong className="text-[var(--fo-text)]">{statusLabel}</strong>.
+        </p>
+        <p className="text-sm text-[var(--fo-muted)]">
+          Si el problema continúa, comunicate con el docente.
+        </p>
+        {canRetry ? (
+          <CourseEnrollmentPaymentButton
+            enrollmentId={enrollment.id}
+            workspaceSlug={workspaceSlug}
+            courseSlug={courseSlug}
+            label="Intentar pagar nuevamente"
+          />
+        ) : null}
+        <Link href={`/w/${workspaceSlug}/cursos/${courseSlug}`} className="fo-btn fo-btn-secondary text-sm w-fit">
+          Volver al curso
+        </Link>
+      </section>
+    </main>
   );
 }

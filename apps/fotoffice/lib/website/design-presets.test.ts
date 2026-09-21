@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_DESIGN_PRESETS, parseWebsiteDesignPresets, websiteDesignCssVars } from "./design-presets";
+import {
+  DEFAULT_DESIGN_PRESETS,
+  getFooterPreset,
+  parseWebsiteDesignPresets,
+  type FooterPresetId,
+  websiteDesignCssVars,
+} from "./design-presets";
 
 describe("parseWebsiteDesignPresets", () => {
   it("null/undefined/no-objeto cae a DEFAULT_DESIGN_PRESETS completo", () => {
@@ -33,6 +39,7 @@ describe("parseWebsiteDesignPresets", () => {
       typographyPreset: "editorial",
       buttonPreset: "pill",
       animationPreset: "dynamic",
+      footerPreset: "simple",
     };
     expect(parseWebsiteDesignPresets(full)).toEqual(full);
   });
@@ -44,5 +51,27 @@ describe("websiteDesignCssVars", () => {
     expect(vars["--wsite-logo-size"]).toBe("40px");
     expect(vars["--wsite-button-radius"]).toBe("0.5rem");
     expect(typeof vars["--wsite-heading-font"]).toBe("string");
+  });
+});
+
+describe("footerPreset", () => {
+  it("un objeto vacío cae al pie 'simple'", () => {
+    expect(parseWebsiteDesignPresets({}).footerPreset).toBe("simple");
+  });
+
+  it("un footerPreset inválido cae al default en vez de romper", () => {
+    expect(parseWebsiteDesignPresets({ footerPreset: "neon" }).footerPreset).toBe("simple");
+  });
+
+  it("un footerPreset válido se conserva", () => {
+    expect(parseWebsiteDesignPresets({ footerPreset: "columns" }).footerPreset).toBe("columns");
+  });
+
+  it("getFooterPreset devuelve la definición pedida", () => {
+    expect(getFooterPreset("full").id).toBe("full");
+  });
+
+  it("getFooterPreset cae a la primera definición si el id no existe", () => {
+    expect(getFooterPreset("no-existe" as FooterPresetId).id).toBe("simple");
   });
 });

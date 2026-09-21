@@ -16,7 +16,7 @@ export default async function CourseEnrollmentPendingPage({
 
   const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
     where: { publicSlug: workspaceSlug },
-    select: { workspaceId: true, commercialName: true },
+    select: { workspaceId: true },
   });
   if (!branding) notFound();
 
@@ -45,77 +45,75 @@ export default async function CourseEnrollmentPendingPage({
   if (!enrollment) notFound();
 
   return (
-    <div className="min-h-screen bg-[var(--fo-bg)] text-[var(--fo-text)]">
-      <main className="max-w-3xl mx-auto px-4 md:px-8 py-12 md:py-16">
-        <section className="fo-card space-y-5">
-          <h1 className="text-2xl font-semibold">Recibimos tu inscripción. Falta confirmar el pago.</h1>
-          <p className="text-sm text-[var(--fo-muted)]">
-            Guardamos tus datos en estado pendiente. Ya podés continuar al checkout para completar el pago.
+    <main className="max-w-3xl mx-auto px-4 md:px-8 py-12 md:py-16">
+      <section className="fo-card space-y-5">
+        <h1 className="text-2xl font-semibold">Recibimos tu inscripción. Falta confirmar el pago.</h1>
+        <p className="text-sm text-[var(--fo-muted)]">
+          Guardamos tus datos en estado pendiente. Ya podés continuar al checkout para completar el pago.
+        </p>
+        <div className="rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] p-4 space-y-2 text-sm">
+          <p>
+            Curso: <span className="text-[var(--fo-text)] font-medium">{enrollment.course.title}</span>
           </p>
-          <div className="rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] p-4 space-y-2 text-sm">
-            <p>
-              Curso: <span className="text-[var(--fo-text)] font-medium">{enrollment.course.title}</span>
-            </p>
-            {/* Un curso grabado no tiene edición: no hay fecha ni lugar que mostrar. */}
-            {enrollment.courseInstance ? (
-              <>
-                <p>
-                  Edición:{" "}
-                  <span className="text-[var(--fo-text)] font-medium">
-                    {enrollment.courseInstance.title ?? "Edición presencial"}
-                  </span>
-                </p>
-                <p>
-                  Fecha y hora:{" "}
-                  <span className="text-[var(--fo-text)] font-medium">
-                    {new Intl.DateTimeFormat("es-AR", {
-                      dateStyle: "long",
-                      timeStyle: "short",
-                    }).format(enrollment.courseInstance.startDateTime)}
-                  </span>
-                </p>
-                <p>
-                  Ubicación:{" "}
-                  <span className="text-[var(--fo-text)] font-medium">
-                    {enrollment.courseInstance.locationName}
-                    {enrollment.courseInstance.locationAddress
-                      ? ` · ${enrollment.courseInstance.locationAddress}`
-                      : ""}
-                  </span>
-                </p>
-              </>
-            ) : (
+          {/* Un curso grabado no tiene edición: no hay fecha ni lugar que mostrar. */}
+          {enrollment.courseInstance ? (
+            <>
               <p>
-                Modalidad: <span className="text-[var(--fo-text)] font-medium">Curso grabado</span>
+                Edición:{" "}
+                <span className="text-[var(--fo-text)] font-medium">
+                  {enrollment.courseInstance.title ?? "Edición presencial"}
+                </span>
               </p>
-            )}
-            <p>
-              Monto:{" "}
-              <span className="text-[var(--fo-text)] font-medium">
-                {new Intl.NumberFormat("es-AR", {
-                  style: "currency",
-                  currency: "ARS",
-                  maximumFractionDigits: 0,
-                }).format(Number(enrollment.amountArs.toString()))}
-              </span>
-            </p>
-          </div>
-          {enrollment.paymentStatus === "APPROVED" ? (
-            <p className="text-sm text-[var(--fo-muted)]">
-              Tu pago ya fue aprobado. Podés ingresar a la página de confirmación para ver los datos actualizados.
-            </p>
+              <p>
+                Fecha y hora:{" "}
+                <span className="text-[var(--fo-text)] font-medium">
+                  {new Intl.DateTimeFormat("es-AR", {
+                    dateStyle: "long",
+                    timeStyle: "short",
+                  }).format(enrollment.courseInstance.startDateTime)}
+                </span>
+              </p>
+              <p>
+                Ubicación:{" "}
+                <span className="text-[var(--fo-text)] font-medium">
+                  {enrollment.courseInstance.locationName}
+                  {enrollment.courseInstance.locationAddress
+                    ? ` · ${enrollment.courseInstance.locationAddress}`
+                    : ""}
+                </span>
+              </p>
+            </>
           ) : (
-            <CourseEnrollmentPaymentButton
-              enrollmentId={enrollment.id}
-              workspaceSlug={workspaceSlug}
-              courseSlug={courseSlug}
-            />
+            <p>
+              Modalidad: <span className="text-[var(--fo-text)] font-medium">Curso grabado</span>
+            </p>
           )}
-          <Link href={`/w/${workspaceSlug}/cursos/${courseSlug}`} className="fo-btn fo-btn-secondary text-sm w-fit">
-            Volver al curso
-          </Link>
-        </section>
-      </main>
-    </div>
+          <p>
+            Monto:{" "}
+            <span className="text-[var(--fo-text)] font-medium">
+              {new Intl.NumberFormat("es-AR", {
+                style: "currency",
+                currency: "ARS",
+                maximumFractionDigits: 0,
+              }).format(Number(enrollment.amountArs.toString()))}
+            </span>
+          </p>
+        </div>
+        {enrollment.paymentStatus === "APPROVED" ? (
+          <p className="text-sm text-[var(--fo-muted)]">
+            Tu pago ya fue aprobado. Podés ingresar a la página de confirmación para ver los datos actualizados.
+          </p>
+        ) : (
+          <CourseEnrollmentPaymentButton
+            enrollmentId={enrollment.id}
+            workspaceSlug={workspaceSlug}
+            courseSlug={courseSlug}
+          />
+        )}
+        <Link href={`/w/${workspaceSlug}/cursos/${courseSlug}`} className="fo-btn fo-btn-secondary text-sm w-fit">
+          Volver al curso
+        </Link>
+      </section>
+    </main>
   );
 }

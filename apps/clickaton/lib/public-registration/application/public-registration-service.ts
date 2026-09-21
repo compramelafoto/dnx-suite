@@ -245,6 +245,8 @@ export type PromotionsPort = {
     currency: string;
     editionId: string;
     userId: number | null;
+    /** Email normalizado. Necesario para cupones con condición de elegibilidad. */
+    email?: string | null;
     registrationId?: string | null;
     orderId: string;
     idempotencyKey: string;
@@ -712,6 +714,7 @@ export function createPublicRegistrationService(deps: {
           currency: ticket.currency,
           editionId: edition.id,
           userId,
+          email,
           orderId: promoIdempotencyKey,
           idempotencyKey: promoIdempotencyKey,
           now,

@@ -5,6 +5,7 @@ import { loadWebsiteCmsContext } from "@/lib/website/page-context";
 import { resolveWebsiteColors } from "@/lib/website/branding-defaults";
 import { websiteDesignCssVars } from "@/lib/website/design-presets";
 import { deriveHomeNavItems } from "@/lib/website/navigation";
+import type { SiteNavItem } from "@/lib/website/site-nav";
 import { WebsitePageRenderer } from "@/components/website/render/website-page-renderer";
 import { WebsiteHeaderView } from "@/components/website/render/website-header-view";
 
@@ -24,7 +25,13 @@ export default async function WebsitePreviewPage() {
   });
   const colors = resolveWebsiteColors(branding);
   const blocks = sections.pages.home ?? [];
-  const navItems = deriveHomeNavItems(blocks);
+  const navItems: SiteNavItem[] = deriveHomeNavItems(blocks).map((item) => ({
+    id: item.id,
+    label: item.label,
+    href: item.anchor ? `#${item.anchor}` : "#",
+    current: false,
+    children: [],
+  }));
   const themeVars = {
     "--wsite-primary": colors.primaryColor,
     "--wsite-secondary": colors.secondaryColor,
@@ -48,6 +55,7 @@ export default async function WebsitePreviewPage() {
           workspaceName={branding?.commercialName ?? workspace.name}
           navItems={navItems}
           designPresets={designPresets}
+          homeHref="#"
         />
         <WebsitePageRenderer blocks={blocks} colors={colors} designPresets={designPresets} />
       </div>
