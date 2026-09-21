@@ -36,7 +36,7 @@
 
 | Archivo | Responsabilidad |
 |---|---|
-| `lib/website/design-presets.ts` *(modificar)* | Sumar `footerPreset` al juego de presets y su variable CSS |
+| `lib/website/design-presets.ts` *(modificar)* | Sumar `footerPreset` al juego de presets. Sin variable CSS: el pie elige su forma en el componente, igual que el encabezado con `headerPreset` |
 | `lib/website/site-nav.ts` *(crear)* | Puro: armar el menú público a partir de páginas y módulos habilitados |
 | `lib/website/site-nav.test.ts` *(crear)* | Tests del anterior |
 | `lib/website/public-modules.ts` *(crear)* | Puro: qué módulos tienen página pública, con su ruta y su etiqueta |
