@@ -228,7 +228,7 @@ export default function AdminUserConfigPage() {
       </div>
 
       {/* Cuenta y estado */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+      <div className="grid dnx-grid-2 gap-4 mb-4">
         <Section title="Cuenta y estado">
           <Field label="ID" value={data.id} />
           <Field label="Email" value={data.email} />
@@ -326,7 +326,7 @@ export default function AdminUserConfigPage() {
       <AdminReferralAttributionSection referredUserId={data.id} referredEmail={data.email} />
 
       {/* Empresa y redes (si aplica) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+      <div className="grid dnx-grid-2 gap-4 mb-4">
         <Section title="Empresa / datos fiscales">
           <Field label="Razón social" value={data.companyName} />
           <Field label="Titular" value={data.companyOwner} />
@@ -343,7 +343,7 @@ export default function AdminUserConfigPage() {
       </div>
 
       {/* Logo y colores */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+      <div className="grid dnx-grid-2 gap-4 mb-4">
         <Section title="Marca (logo y colores)">
           {data.logoUrl ? (
             <div className="py-2">
@@ -436,7 +436,7 @@ export default function AdminUserConfigPage() {
       {/* Datos del laboratorio (si es usuario de lab) */}
       {hasLab && data.lab && (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div className="grid dnx-grid-2 gap-4 mb-4">
             <Section title="Laboratorio — Datos generales">
               <Field label="ID Lab" value={data.lab.id} />
               <Field label="Nombre" value={data.lab.name} />

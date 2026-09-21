@@ -244,7 +244,7 @@ export default function AdminConfigPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid dnx-grid-3 gap-4">
           <div className="md:col-span-3">
             <label className="block text-sm font-medium text-gray-700 mb-2">Buscar álbum por título</label>
             <Input

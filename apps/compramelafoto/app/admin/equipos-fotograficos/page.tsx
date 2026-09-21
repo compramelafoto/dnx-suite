@@ -386,7 +386,7 @@ export default function AdminEquiposFotograficosPage() {
 
       <div>
         <h2 className="text-sm font-semibold text-gray-900 m-0 mb-3">Estado del escaneo EXIF</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        <div className="grid dnx-grid-4 dnx-grid-compacta gap-3">
           <SummaryCard
             label="Fotos pendientes de análisis"
             value={summary?.photos.pending ?? 0}
@@ -423,7 +423,7 @@ export default function AdminEquiposFotograficosPage() {
 
       <div>
         <h2 className="text-sm font-semibold text-gray-900 m-0 mb-3">Equipos detectados</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        <div className="grid dnx-grid-4 dnx-grid-compacta gap-3">
           <SummaryCard label="Cámaras únicas (bodies)" value={summary?.gear.uniqueBodies ?? 0} tone="info" />
           <SummaryCard label="Lentes únicos" value={summary?.gear.uniqueLenses ?? 0} tone="info" />
           <SummaryCard

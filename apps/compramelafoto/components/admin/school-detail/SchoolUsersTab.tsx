@@ -58,7 +58,7 @@ export function SchoolUsersTab(p: SchoolUsersTabProps) {
         <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{p.organizersError}</p>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 dnx-grid-2">
         <Card className="rounded-2xl border border-[#ebe8e4] p-6 shadow-sm">
           <div className="flex items-start gap-3">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#fdf8f3] text-[#c27b3d] ring-1 ring-[#e8dcc8]">
@@ -87,7 +87,7 @@ export function SchoolUsersTab(p: SchoolUsersTabProps) {
                   {p.createOrganizerError}
                 </p>
               ) : null}
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-4 dnx-grid-2">
                 <label className="block space-y-1.5">
                   <span className="text-xs font-medium uppercase tracking-wide text-[#6b7280]">Nombre</span>
                   <Input

@@ -43,7 +43,7 @@ export default function ClfMpSplit1nHomologationPage() {
           Superficie aislada. No modifica Checkout Pro / marketplace_fee. No
           crea ventas, descargas ni emails comerciales.
         </p>
-        <dl className="grid w-full grid-cols-2 gap-4 text-xs text-neutral-700 sm:grid-cols-4">
+        <dl className="grid w-full dnx-grid-4 dnx-grid-compacta gap-4 text-xs text-neutral-700">
           <div className="min-w-0">
             <dt className="font-semibold">Environment</dt>
             <dd>SANDBOX</dd>

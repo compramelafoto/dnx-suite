@@ -172,7 +172,7 @@ export default function AdminAntifraudePage() {
       {tab === "audit" && (
         <Card className="p-4">
           <h2 className="text-lg font-semibold mb-4">OrderAuditLog</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+          <div className="grid dnx-grid-3 gap-3 mb-4">
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Tipo evento</label>
               <Input

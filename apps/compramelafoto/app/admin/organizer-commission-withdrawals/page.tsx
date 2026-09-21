@@ -527,7 +527,7 @@ export default function AdminOrganizerCommissionWithdrawalsPage() {
       <OrganizerCommissionFinancialCommandCenter data={dashboard} loading={dashboardLoading} />
 
       <Card className="p-4 sm:p-5 border border-gray-200 shadow-sm ds-card">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 min-w-0 items-end">
+      <div className="grid dnx-grid-4 gap-4 min-w-0 items-end">
         <div className="min-w-0 w-full">
           <label htmlFor="admin-ocw-status" className="block text-sm font-medium text-gray-700 mb-1">
             Estado
@@ -638,7 +638,7 @@ export default function AdminOrganizerCommissionWithdrawalsPage() {
       </Card>
 
       {summary ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid dnx-grid-4 dnx-grid-compacta gap-3">
           <Card className="p-4 border border-gray-200 ds-card">
             <p className="text-xs text-gray-500 m-0">Solicitudes (filtro actual)</p>
             <p className="text-xl font-semibold text-amber-900 m-0 mt-1">{summary.totalRequested}</p>
@@ -807,7 +807,7 @@ export default function AdminOrganizerCommissionWithdrawalsPage() {
             <>
               <div className="ds-card rounded-xl border border-slate-200 bg-slate-50/60 p-4 sm:p-5 space-y-3">
                 <h3 className="text-base font-semibold text-gray-900 m-0">Resumen financiero del organizador</h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 text-sm">
+                <div className="grid dnx-grid-4 dnx-grid-compacta gap-3 text-sm">
                   <div className="min-w-0">
                     <p className="text-xs text-gray-500 m-0">Total generado</p>
                     <p className="font-semibold text-gray-900 m-0 tabular-nums break-words">
@@ -867,7 +867,7 @@ export default function AdminOrganizerCommissionWithdrawalsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm ds-content-container">
+              <div className="grid dnx-grid-2 gap-3 text-sm ds-content-container">
                 <p className="m-0 ds-readable-text">
                   <span className="text-gray-500">Organizador:</span> {detail.request.organizerName} (
                   {detail.request.organizerEmail})
@@ -912,7 +912,7 @@ export default function AdminOrganizerCommissionWithdrawalsPage() {
                   ) : null}
                 </div>
                 {detail.request.payoutAliasSnapshot ? (
-                  <dl className="m-0 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  <dl className="m-0 grid dnx-grid-2 gap-3 text-sm">
                     <div>
                       <dt className="text-gray-500 m-0">Titular</dt>
                       <dd className="font-medium text-gray-900 m-0 mt-0.5">

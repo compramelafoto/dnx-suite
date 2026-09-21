@@ -131,7 +131,7 @@ export function SchoolInstitutionTab({
 
   return (
     <div className="space-y-8">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 dnx-grid-4">
         <Card className="rounded-2xl border border-[#ebe8e4] p-5 shadow-sm">
           <div className="flex items-start gap-3">
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#fdf8f3] text-[#c27b3d] ring-1 ring-[#e8dcc8]">
@@ -178,7 +178,7 @@ export function SchoolInstitutionTab({
         </Card>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-3">
+      <div className="grid gap-6 dnx-grid-3">
         <Card className="rounded-2xl border border-[#ebe8e4] p-6 shadow-sm xl:col-span-2">
           <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
             <div className="flex items-start gap-3">
@@ -225,7 +225,7 @@ export function SchoolInstitutionTab({
           </div>
 
           {!isEditingSchool ? (
-            <dl className="grid gap-5 sm:grid-cols-2">
+            <dl className="grid gap-5 dnx-grid-2">
               <div>
                 <dt className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-[#6b7280]">
                   <Hash className="h-3.5 w-3.5" aria-hidden />
@@ -269,7 +269,7 @@ export function SchoolInstitutionTab({
               {schoolSaveError ? (
                 <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{schoolSaveError}</p>
               ) : null}
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-4 dnx-grid-2">
                 <label className="space-y-1.5">
                   <span className="text-xs font-medium text-[#6b7280]">Nombre *</span>
                   <Input
@@ -287,7 +287,7 @@ export function SchoolInstitutionTab({
                   />
                 </label>
               </div>
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-4 dnx-grid-2">
                 <label className="space-y-1.5">
                   <span className="text-xs font-medium text-[#6b7280]">Email contacto</span>
                   <Input
@@ -318,7 +318,7 @@ export function SchoolInstitutionTab({
                   onChange={(e) => setSchoolForm((prev) => (prev ? { ...prev, address: e.target.value } : prev))}
                 />
               </label>
-              <div className="grid gap-4 sm:grid-cols-3">
+              <div className="grid gap-4 dnx-grid-3">
                 <label className="space-y-1.5">
                   <span className="text-xs font-medium text-[#6b7280]">Ciudad</span>
                   <Input
@@ -457,7 +457,7 @@ export function SchoolInstitutionTab({
         </div>
 
         {!isEditingSchoolOwner ? (
-          <dl className="grid gap-3 text-sm text-[#374151] sm:grid-cols-2">
+          <dl className="grid gap-3 text-sm text-[#374151] dnx-grid-2">
             <div>
               <dt className="text-xs uppercase text-[#6b7280]">Nombre</dt>
               <dd className="mt-1 font-medium text-[#111827]">{detail.school.owner.name || "Sin nombre"}</dd>
