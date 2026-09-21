@@ -42,6 +42,7 @@ import { marathonPath } from "@/config/navigation";
 import { CLICKATON_TERMS_VERSION } from "@/config/editions/argentina-2026";
 import { resolveShirtBenefitUiStatus } from "@/lib/catalog/domain/first-n-benefit";
 import { formatMarathonDateRange } from "@/lib/datetime";
+import { LocationConsentCheckboxes } from "@/components/participant/LocationConsentCheckboxes";
 
 type AppliedPromoQuote = Extract<PreviewPromotionActionResult, { ok: true }>["quote"];
 
@@ -147,6 +148,9 @@ export function PublicRegistrationWizard({
   const [city, setCity] = useState("");
   const [province, setProvince] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
+  const [locationConsent, setLocationConsent] = useState(false);
+  const [locationPublicConsent, setLocationPublicConsent] = useState(false);
+  const [interviewConsent, setInterviewConsent] = useState(false);
   const [instagramHandle, setInstagramHandle] = useState("");
   const [profilePhotoAssetId, setProfilePhotoAssetId] = useState("");
   const [profilePhotoFileName, setProfilePhotoFileName] = useState("");
@@ -506,6 +510,16 @@ export function PublicRegistrationWizard({
       fd.set("identifiablePersonsConsent", "true");
       fd.set("promotionalLicenseConsent", "true");
     }
+    // Consentimientos de ubicación: opt-in propio y separado de las bases,
+    // por eso van fuera del if de arriba.
+    if (locationConsent) fd.set("locationConsent", "true");
+    if (locationPublicConsent) {
+      fd.set("locationPublicConsent", "true");
+      // La declaración de mayoría de edad viaja con el mapa público porque
+      // su texto (locationConsentCopy.publicMap) ya la incluye.
+      fd.set("locationDeclaredAdult", "true");
+    }
+    if (interviewConsent) fd.set("interviewConsent", "true");
     fd.set("instagramHandle", instagramHandle);
     fd.set("profilePhotoAssetId", profilePhotoAssetId);
     fd.set("consentVersion", "2026-08-social-v1");
@@ -934,6 +948,24 @@ export function PublicRegistrationWizard({
                   {fieldErrors.acceptTerms}
                 </p>
               ) : null}
+            </div>
+            <div className="space-y-3 rounded-[var(--ck-radius-card)] border border-ck-border bg-ck-surface/60 p-4">
+              <p className="text-sm font-semibold">Tu recorrido y la transmisión en vivo</p>
+              <p className="text-sm text-ck-text-secondary">
+                Son opcionales y no afectan tu inscripción.
+              </p>
+              <LocationConsentCheckboxes
+                values={{
+                  personal: locationConsent,
+                  publicMap: locationPublicConsent,
+                  interview: interviewConsent,
+                }}
+                onChange={(next) => {
+                  setLocationConsent(next.personal);
+                  setLocationPublicConsent(next.publicMap);
+                  setInterviewConsent(next.interview);
+                }}
+              />
             </div>
             {promoFieldProps ? (
               <div className="rounded-[var(--ck-radius-card)] border border-ck-border bg-ck-surface/60 p-4 lg:hidden">
