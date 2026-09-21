@@ -64,68 +64,66 @@ export default async function PublicSpaceBookingPage({ params, searchParams }: P
 
 
   return (
-    <div className="min-h-screen bg-[var(--fo-bg)] text-[var(--fo-text)]">
-      <main className="mx-auto max-w-3xl space-y-6 px-4 py-12 md:px-8 md:py-16">
-        <header className="space-y-2">
-          <Link
-            href={`/w/${workspaceSlug}/reservas`}
-            className="text-sm text-[var(--fo-muted)] underline underline-offset-4"
-          >
-            Volver a los espacios
-          </Link>
-          <h1 className="text-2xl font-semibold tracking-tight">{oferta.space.name}</h1>
-          <p className="text-sm text-[var(--fo-muted)]">
-            {formatMinorArs(oferta.space.nonMemberHourlyPriceMinor)} por hora ·{" "}
-            {branding.commercialName}
-          </p>
-        </header>
-
-        {query.error ? (
-          <p className="fo-card p-4 text-sm text-[var(--fo-danger)]" role="alert">
-            {query.error}
-          </p>
-        ) : null}
-        {query.enviada ? (
-          <p className="fo-card p-4 text-sm text-[var(--fo-success)]">
-            Tu pedido quedó enviado. La institución tiene que confirmar lo que pediste antes de
-            cobrarte.
-          </p>
-        ) : null}
-        {query.ok || query.pago === "ok" ? (
-          <p className="fo-card p-4 text-sm text-[var(--fo-success)]">
-            Listo, tu reserva quedó hecha.
-          </p>
-        ) : null}
-        {query.pago === "error" ? (
-          <p className="fo-card p-4 text-sm text-[var(--fo-danger)]">
-            El pago no se pudo completar. Tu horario sigue reservado un rato más.
-          </p>
-        ) : null}
-
-        <PublicBookingForm
-          workspaceSlug={workspaceSlug}
-          spaceId={spaceId}
-          hourlyPriceMinor={oferta.space.nonMemberHourlyPriceMinor}
-          defaultEmail={user.email ?? ""}
-          grid={grid}
-          tituloSemana={`Semana del ${diasDeLaSemana[0].label} al ${diasDeLaSemana[6].label}`}
-          semanaAnterior={hayAnterior ? shiftWeeks(referencia, -1).toISOString() : null}
-          semanaSiguiente={shiftWeeks(referencia, 1).toISOString()}
-          extras={oferta.extras.map((o) => ({
-            id: o.extra.id,
-            name: o.extra.name,
-            available: o.available,
-            requiresConfirmation: o.extra.requiresConfirmation,
-            precioLabel: `${formatMinorArs(o.amountMinor)}${o.extra.priceMode === "PER_HOUR" ? " (por hora)" : ""}`,
-          }))}
-        />
-
-        <p className="text-xs leading-relaxed text-[var(--fo-muted-soft)]">
-          El horario queda reservado cuando se acredita el pago. Si sos socio de{" "}
-          {branding.commercialName}, entrá a tu portal: el precio es menor y tenés horas
-          bonificadas.
+    <main className="mx-auto max-w-3xl space-y-6 px-4 py-12 md:px-8 md:py-16">
+      <header className="space-y-2">
+        <Link
+          href={`/w/${workspaceSlug}/reservas`}
+          className="text-sm text-[var(--fo-muted)] underline underline-offset-4"
+        >
+          Volver a los espacios
+        </Link>
+        <h1 className="text-2xl font-semibold tracking-tight">{oferta.space.name}</h1>
+        <p className="text-sm text-[var(--fo-muted)]">
+          {formatMinorArs(oferta.space.nonMemberHourlyPriceMinor)} por hora ·{" "}
+          {branding.commercialName}
         </p>
-      </main>
-    </div>
+      </header>
+
+      {query.error ? (
+        <p className="fo-card p-4 text-sm text-[var(--fo-danger)]" role="alert">
+          {query.error}
+        </p>
+      ) : null}
+      {query.enviada ? (
+        <p className="fo-card p-4 text-sm text-[var(--fo-success)]">
+          Tu pedido quedó enviado. La institución tiene que confirmar lo que pediste antes de
+          cobrarte.
+        </p>
+      ) : null}
+      {query.ok || query.pago === "ok" ? (
+        <p className="fo-card p-4 text-sm text-[var(--fo-success)]">
+          Listo, tu reserva quedó hecha.
+        </p>
+      ) : null}
+      {query.pago === "error" ? (
+        <p className="fo-card p-4 text-sm text-[var(--fo-danger)]">
+          El pago no se pudo completar. Tu horario sigue reservado un rato más.
+        </p>
+      ) : null}
+
+      <PublicBookingForm
+        workspaceSlug={workspaceSlug}
+        spaceId={spaceId}
+        hourlyPriceMinor={oferta.space.nonMemberHourlyPriceMinor}
+        defaultEmail={user.email ?? ""}
+        grid={grid}
+        tituloSemana={`Semana del ${diasDeLaSemana[0].label} al ${diasDeLaSemana[6].label}`}
+        semanaAnterior={hayAnterior ? shiftWeeks(referencia, -1).toISOString() : null}
+        semanaSiguiente={shiftWeeks(referencia, 1).toISOString()}
+        extras={oferta.extras.map((o) => ({
+          id: o.extra.id,
+          name: o.extra.name,
+          available: o.available,
+          requiresConfirmation: o.extra.requiresConfirmation,
+          precioLabel: `${formatMinorArs(o.amountMinor)}${o.extra.priceMode === "PER_HOUR" ? " (por hora)" : ""}`,
+        }))}
+      />
+
+      <p className="text-xs leading-relaxed text-[var(--fo-muted-soft)]">
+        El horario queda reservado cuando se acredita el pago. Si sos socio de{" "}
+        {branding.commercialName}, entrá a tu portal: el precio es menor y tenés horas
+        bonificadas.
+      </p>
+    </main>
   );
 }

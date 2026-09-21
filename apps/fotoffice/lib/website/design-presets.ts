@@ -87,19 +87,38 @@ export const ANIMATION_PRESETS = [
 ] as const;
 export type AnimationPresetId = (typeof ANIMATION_PRESETS)[number]["id"];
 
+/** Variantes del pie del sitio. `simple` es el default: es el único que se ve bien sin ningún
+ * dato de contacto cargado, y un workspace recién creado no tiene ninguno. */
+export const FOOTER_PRESETS = [
+  { id: "simple", label: "Simple", description: "Nombre, año y enlaces legales." },
+  { id: "columns", label: "Columnas", description: "Menú, contacto y redes en columnas." },
+  {
+    id: "full",
+    label: "Completo (publica la nota que usás en tus emails)",
+    description:
+      "Lo anterior, más el logo y la nota institucional del pie de los emails (razón social, CUIT, personería). Atención: esa nota queda visible para cualquiera en el sitio público.",
+  },
+] as const;
+export type FooterPresetId = (typeof FOOTER_PRESETS)[number]["id"];
+
 const HEADER_IDS = HEADER_PRESETS.map((p) => p.id) as [HeaderPresetId, ...HeaderPresetId[]];
 const BUTTON_IDS = BUTTON_PRESETS.map((p) => p.id) as [ButtonPresetId, ...ButtonPresetId[]];
 const TYPOGRAPHY_IDS = TYPOGRAPHY_PRESETS.map((p) => p.id) as [TypographyPresetId, ...TypographyPresetId[]];
 const ANIMATION_IDS = ANIMATION_PRESETS.map((p) => p.id) as [AnimationPresetId, ...AnimationPresetId[]];
+const FOOTER_IDS = FOOTER_PRESETS.map((p) => p.id) as [FooterPresetId, ...FooterPresetId[]];
 
 export const DEFAULT_DESIGN_PRESETS: WebsiteDesignPresets = {
   headerPreset: "logo-left",
-  showLoginButton: false,
+  // La portada en producción (antes de este armazón) siempre mostró "Iniciar sesión": el default
+  // preserva ese comportamiento para que ninguna institución pierda su único enlace visible al
+  // panel al fusionar. Quien no lo quiera lo apaga desde Diseño global.
+  showLoginButton: true,
   loginButtonLabel: "Iniciar sesión",
   logoSizePx: 40,
   typographyPreset: "modern",
   buttonPreset: "rounded",
   animationPreset: "none",
+  footerPreset: "simple",
 };
 
 /** NULL/ausente en la DB debe equivaler exactamente a estos defaults — por eso cada campo usa
@@ -113,6 +132,7 @@ export const websiteDesignPresetsSchema = z.object({
   typographyPreset: z.enum(TYPOGRAPHY_IDS).catch(DEFAULT_DESIGN_PRESETS.typographyPreset),
   buttonPreset: z.enum(BUTTON_IDS).catch(DEFAULT_DESIGN_PRESETS.buttonPreset),
   animationPreset: z.enum(ANIMATION_IDS).catch(DEFAULT_DESIGN_PRESETS.animationPreset),
+  footerPreset: z.enum(FOOTER_IDS).catch(DEFAULT_DESIGN_PRESETS.footerPreset),
 });
 
 export type WebsiteDesignPresets = {
@@ -123,6 +143,7 @@ export type WebsiteDesignPresets = {
   typographyPreset: TypographyPresetId;
   buttonPreset: ButtonPresetId;
   animationPreset: AnimationPresetId;
+  footerPreset: FooterPresetId;
 };
 
 /** Tolerante: `null`, `{}`, JSON corrupto o de un schema viejo — todos caen a defaults campo
@@ -141,6 +162,9 @@ export function getButtonPreset(id: ButtonPresetId) {
 }
 export function getTypographyPreset(id: TypographyPresetId) {
   return TYPOGRAPHY_PRESETS.find((p) => p.id === id) ?? TYPOGRAPHY_PRESETS[1];
+}
+export function getFooterPreset(id: FooterPresetId) {
+  return FOOTER_PRESETS.find((p) => p.id === id) ?? FOOTER_PRESETS[0];
 }
 
 /** CSS custom properties derivadas de los presets — el único lugar donde preset→CSS se traduce.
