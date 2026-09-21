@@ -1,0 +1,31 @@
+{
+  "proyecto": "Ventas (mostrador, catálogo y stock)",
+  "plataforma": "FOTOFFICE",
+  "enUso": "no",
+  "usoNota": "El interruptor está encendido en DNX Estudio pero el código no está en main: el PR 156 sigue abierto",
+  "etapas": [
+    {
+      "nombre": "El mostrador",
+      "criterios": [
+        {
+          "que": "El módulo figura en el catálogo de módulos, como el resto",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "La clave «sales» está encendida en la base para DNX Estudio y no existe en lib/modules/registry.ts: se encendió el interruptor antes de que llegara el código"
+        },
+        {
+          "que": "Se registra una venta en el mostrador y queda su comprobante",
+          "implementado": { "pr": 156, "fecha": "2026-09-15" },
+          "probado": null,
+          "bloqueado": "El PR 156 sigue abierto"
+        },
+        {
+          "que": "El catálogo de productos y el stock se mantienen solos con cada venta",
+          "implementado": { "pr": 156, "fecha": "2026-09-15" },
+          "probado": null,
+          "bloqueado": "El PR 156 sigue abierto"
+        }
+      ]
+    }
+  ]
+}

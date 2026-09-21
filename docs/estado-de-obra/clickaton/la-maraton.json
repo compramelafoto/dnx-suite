@@ -135,7 +135,7 @@
           "que": "Quien olvida su contraseña la puede recuperar",
           "implementado": { "fecha": "2026-09-19" },
           "probado": null,
-          "bloqueado": "Falta DMARC en maratonfotografica.com: Gmail no recibe, Hotmail sí"
+          "bloqueado": "Gmail no recibe y Hotmail sí, con causa sin identificar: el DMARC de maratonfotografica.com existe (v=DMARC1; p=none, verificado por DNS el 2026-09-20), así que la explicación que se había anotado no era la correcta"
         },
         {
           "que": "La base de producción está al día con las migraciones",
