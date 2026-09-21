@@ -2,6 +2,7 @@ import { requireJudgeAuth } from "../../lib/judge-auth";
 import { prisma } from "@repo/db";
 import { JuradoPerfilProfesionalForm } from "./JuradoPerfilProfesionalForm";
 import { FotoDePerfil } from "./FotoDePerfil";
+import { EstadoDeMiFicha } from "./EstadoDeMiFicha";
 import { judgeAvatarSrc } from "../../lib/fotorank/judges/judgeAvatarSrc";
 import Link from "next/link";
 
@@ -45,6 +46,14 @@ export default async function JuradoPerfilProfesionalPage() {
           </Link>
         </div>
 
+        <EstadoDeMiFicha
+          estado={profile.directoryReviewStatus}
+          motivo={profile.directoryReviewNotes}
+          correoConfirmado={!!judge.emailVerifiedAt}
+          publicSlug={profile.publicSlug}
+          estaPublicada={profile.isPublic}
+        />
+
         <FotoDePerfil
           srcInicial={judgeAvatarSrc({ id: profile.id, avatarUrl: profile.avatarUrl })}
           iniciales={`${profile.firstName.charAt(0)}${profile.lastName.charAt(0)}`.toUpperCase()}
@@ -73,7 +82,8 @@ export default async function JuradoPerfilProfesionalPage() {
             priceCurrency: profile.priceCurrency,
             priceNotes: profile.priceNotes,
             priceUnit: profile.priceUnit,
-            isListedInProfessionalDirectory: profile.isListedInProfessionalDirectory,
+            // La casilla refleja lo que PIDIÓ, no lo que está publicado.
+            isListedInProfessionalDirectory: profile.wantsDirectoryListing,
             showPricingPublicly: profile.showPricingPublicly,
             showLocationPublicly: profile.showLocationPublicly,
             showWebsitePublicly: profile.showWebsitePublicly,

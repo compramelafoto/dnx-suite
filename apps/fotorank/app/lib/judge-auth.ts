@@ -17,6 +17,8 @@ export type JudgeAuthUser = {
   id: string;
   email: string;
   accountStatus: string;
+  /** Null hasta que confirma el correo. Sin esto su ficha no entra a revisión. */
+  emailVerifiedAt: Date | null;
   profile: {
     firstName: string;
     lastName: string;
@@ -64,6 +66,7 @@ export async function getJudgeAuthUser(): Promise<JudgeAuthUser | null> {
     id: judge.id,
     email: judge.email,
     accountStatus: judge.accountStatus,
+    emailVerifiedAt: judge.emailVerifiedAt,
     profile: judge.profile,
   };
 }

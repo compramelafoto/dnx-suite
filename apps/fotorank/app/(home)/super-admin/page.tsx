@@ -11,6 +11,7 @@ import {
   userIsFotorankSuperAdmin,
 } from "../../lib/fotorank/access/super-admin";
 import { routes } from "../../lib/routes";
+import { contarJuradosPendientes } from "../../actions/judgeDirectoryReview";
 
 /**
  * Panel Super Admin — acceso global sin membresía por concurso.
@@ -22,6 +23,7 @@ export default async function SuperAdminPage() {
   }
 
   const actAsOrgId = await getActAsOrganizationId();
+  const juradosPendientes = await contarJuradosPendientes();
 
   const [organizations, contests, usersCount, registrationsCount, entriesCount, recentAudit] =
     await Promise.all([
@@ -88,14 +90,24 @@ export default async function SuperAdminPage() {
           ["Organizaciones", organizations.length],
           ["Concursos", contests.length],
           ["Usuarios", usersCount],
+          ["Jurados por revisar", juradosPendientes, "/super-admin/jurados"],
           ["Inscripciones", registrationsCount],
           ["Fotografías (entries)", entriesCount],
-        ].map(([label, value]) => (
-          <div key={String(label)} className="fr-recuadro border border-fr-border bg-fr-card">
-            <p className="text-xs uppercase tracking-wide text-fr-muted">{label}</p>
-            <p className="mt-4 text-3xl font-semibold text-gold">{value}</p>
-          </div>
-        ))}
+        ].map(([label, value, href]) => {
+          const recuadro = (
+            <div className="fr-recuadro h-full border border-fr-border bg-fr-card">
+              <p className="text-xs uppercase tracking-wide text-fr-muted">{label}</p>
+              <p className="mt-4 text-3xl font-semibold text-gold">{value}</p>
+            </div>
+          );
+          return href ? (
+            <Link key={String(label)} href={String(href)} className="block transition-opacity hover:opacity-80">
+              {recuadro}
+            </Link>
+          ) : (
+            <div key={String(label)}>{recuadro}</div>
+          );
+        })}
       </section>
 
       <section id="organizaciones" className="space-y-6 scroll-mt-8">

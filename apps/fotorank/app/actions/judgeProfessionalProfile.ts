@@ -114,7 +114,9 @@ export async function judgeUpdateProfessionalProfileAction(input: {
       priceCurrency: input.priceCurrency?.trim() || null,
       priceNotes: input.priceNotes?.trim() || null,
       priceUnit: pu,
-      isListedInProfessionalDirectory: input.isListedInProfessionalDirectory ?? false,
+      // Lo que el jurado PIDE. Lo que está publicado lo escribe la aprobación de
+      // DNX: el directorio es común a toda la plataforma y nadie se publica solo.
+      wantsDirectoryListing: input.isListedInProfessionalDirectory ?? false,
       showPricingPublicly: input.showPricingPublicly ?? false,
       showLocationPublicly: input.showLocationPublicly ?? true,
       showWebsitePublicly: input.showWebsitePublicly ?? true,
