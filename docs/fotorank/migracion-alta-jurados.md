@@ -126,3 +126,59 @@ DROP TYPE "FotorankJudgeSignupSource";
 
 `organizationId` **no se vuelve obligatorio**: para entonces puede haber hechos de
 plataforma auditados sin organización, y volver atrás los borraría.
+
+---
+
+# La segunda migración: el portfolio
+
+*Migración `20260921120000_fotorank_judge_portfolio`. Aplicada el 2026-09-21.*
+
+## Qué agrega
+
+Una sola tabla, `FotorankJudgePortfolioImage`, con su índice por
+`(judgeProfileId, sortOrder)` y una clave foránea con borrado en cascada hacia
+`FotorankJudgeProfile`.
+
+**No toca ninguna tabla existente.** Es la migración más segura posible: sólo crea.
+
+## Dónde se aplicó
+
+Las mismas cinco bases, el 2026-09-21, con los cinco controles en verde en cada una:
+
+| Base | Proyecto Neon | Rama | Estado |
+|---|---|---|---|
+| FotoRank y FOTOFFICE | `divine-hall-10689679` | `development` | ✅ |
+| CompraMeLaFoto | `divine-hall-10689679` | `production` | ✅ |
+| Clickatón | `bitter-math-56019731` | por defecto | ✅ |
+| InfoSpot | `wandering-pine-79918137` | por defecto | ✅ |
+| DNX Suite staging | `fragrant-union-80829821` | por defecto | ✅ |
+
+Checksum registrado en `_prisma_migrations`:
+`9310082941d7e57dcb8c6fb74ef99908bbe17688ab6c92a8e2de96946636f478` (1303 bytes).
+
+## Controles de cierre
+
+En cada base, estos cinco tienen que dar 1, 12, 1, 1 y 1:
+
+```sql
+SELECT 'tabla', COUNT(*)::text FROM information_schema.tables
+ WHERE table_name = 'FotorankJudgePortfolioImage'
+UNION ALL SELECT 'columnas', COUNT(*)::text FROM information_schema.columns
+ WHERE table_name = 'FotorankJudgePortfolioImage'
+UNION ALL SELECT 'indice', COUNT(*)::text FROM pg_indexes
+ WHERE indexname = 'FotorankJudgePortfolioImage_judgeProfileId_sortOrder_idx'
+UNION ALL SELECT 'cascada', COUNT(*)::text FROM information_schema.referential_constraints
+ WHERE constraint_name = 'FotorankJudgePortfolioImage_judgeProfileId_fkey' AND delete_rule = 'CASCADE'
+UNION ALL SELECT 'registrada', COUNT(*)::text FROM _prisma_migrations
+ WHERE migration_name = '20260921120000_fotorank_judge_portfolio';
+```
+
+## Si algo sale mal
+
+```sql
+DROP TABLE "FotorankJudgePortfolioImage";
+```
+
+**Ojo:** eso borra las filas, pero **no borra los archivos del bucket de R2**. Antes
+de tirar la tabla, guardá las `storageKey` o van a quedar objetos huérfanos
+pagando espacio para siempre.
