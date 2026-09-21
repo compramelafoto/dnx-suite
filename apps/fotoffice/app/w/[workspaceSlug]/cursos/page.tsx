@@ -11,7 +11,7 @@ export default async function PublicWorkspaceCoursesPage({ params }: Props) {
   const { workspaceSlug } = await params;
   const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
     where: { publicSlug: workspaceSlug },
-    select: { workspaceId: true, commercialName: true },
+    select: { workspaceId: true },
   });
   if (!branding) notFound();
 

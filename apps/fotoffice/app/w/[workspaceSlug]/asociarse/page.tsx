@@ -33,7 +33,7 @@ export default async function AsociarsePage({ params, searchParams }: Props) {
 
   const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
     where: { publicSlug: workspaceSlug },
-    select: { workspaceId: true, commercialName: true, logoUrl: true },
+    select: { workspaceId: true, commercialName: true },
   });
   if (!branding) notFound();
 

@@ -28,7 +28,7 @@ export default async function PublicBookingsPage({ params, searchParams }: Props
 
   const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
     where: { publicSlug: workspaceSlug },
-    select: { workspaceId: true, commercialName: true },
+    select: { workspaceId: true },
   });
   if (!branding) notFound();
 
