@@ -19,20 +19,27 @@ export const textareaBase = `${inputBase} min-h-[7.5rem] resize-y py-4 align-top
 export const inputAuth =
   "block w-full min-h-[3.25rem] rounded-xl border border-[#333333] bg-[#0a0a0a] px-5 py-[1.125rem] text-center text-base leading-relaxed text-fr-primary placeholder:text-center placeholder:text-fr-muted-soft transition-colors hover:border-[#404040] focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/25 md:min-h-[3.5rem] md:py-5";
 
-/** Wizard / SaaS: más alto, bordes suaves, glow sutil al focus */
+/**
+ * Wizard / SaaS: más alto, bordes suaves, glow sutil al focus.
+ *
+ * Usa el dorado de marca, no el `amber` de Tailwind: hasta el 2026-09-21 los formularios del
+ * asistente se iluminaban de un dorado distinto al del resto del producto, y bastaba pasar de
+ * una pantalla a otra para notarlo.
+ */
 export const inputWizard =
-  "block w-full min-h-[46px] rounded-xl border border-zinc-700 bg-[#050505] px-4 py-3 text-sm text-white outline-none transition placeholder:text-zinc-500 placeholder:opacity-90 hover:border-zinc-600 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 disabled:opacity-50";
+  "block w-full min-h-[46px] rounded-xl border border-[#333333] bg-[#050505] px-4 py-3 text-sm text-fr-primary outline-none transition placeholder:text-fr-muted-soft placeholder:opacity-90 hover:border-[#404040] focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/20 disabled:opacity-50";
 
 /** Textarea wizard: mismo estilo que inputWizard pero min-h mayor */
 export const textareaWizard =
-  "block w-full min-h-[128px] rounded-xl border border-zinc-700 bg-[#050505] px-4 py-3 text-sm text-white outline-none transition placeholder:text-zinc-500 hover:border-zinc-600 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 resize-y";
+  "block w-full min-h-[128px] rounded-xl border border-[#333333] bg-[#050505] px-4 py-3 text-sm text-fr-primary outline-none transition placeholder:text-fr-muted-soft hover:border-[#404040] focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/20 resize-y";
 
 /** Chevron más visible (acento dorado suave) + misma altura táctil que inputBase */
 export const selectBase =
   "block w-full min-h-[3.25rem] cursor-pointer appearance-none rounded-lg border border-[#262626] bg-[#0a0a0a] bg-no-repeat bg-[length:1.25rem] bg-[right_0.75rem_center] px-5 py-[0.875rem] pr-11 text-base leading-relaxed text-fr-primary transition-[border-color,box-shadow,background-color] duration-200 hover:border-[#333333] hover:bg-[#0d0d0d] focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/20 disabled:cursor-not-allowed disabled:opacity-55 [background-image:url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2024%2024%22%20stroke%3D%22%23c8a86b%22%3E%3Cpath%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%222%22%20d%3D%22M19%209l-7%207-7-7%22%2F%3E%3C%2Fsvg%3E')]";
 
+/** Mismo ancho que el resto de los campos: antes venía al 67% y corrido a la derecha. */
 export const selectWizard =
-  "block w-[67%] ml-[12%] max-w-full min-h-[3.5rem] cursor-pointer appearance-none rounded-xl border border-[#383838] bg-[#0e0e0e] bg-[length:1.125rem] bg-[position:right_1rem_center] bg-no-repeat px-4 py-4 pr-12 text-base font-medium leading-relaxed text-fr-primary shadow-[0_1px_3px_rgba(0,0,0,0.5)] transition-all duration-200 hover:border-gold/40 hover:shadow-[0_0_0_1px_rgba(212,175,55,0.08)] focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/35 [background-image:url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2024%2024%22%20stroke%3D%22%23c9a227%22%20stroke-width%3D%222.25%22%3E%3Cpath%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20d%3D%22M6%209l6%206%206-6%22%2F%3E%3C%2Fsvg%3E')]";
+  "block w-full min-h-[3.5rem] cursor-pointer appearance-none rounded-xl border border-[#383838] bg-[#0e0e0e] bg-[length:1.125rem] bg-[position:right_1rem_center] bg-no-repeat px-4 py-4 pr-12 text-base font-medium leading-relaxed text-fr-primary shadow-[0_1px_3px_rgba(0,0,0,0.5)] transition-all duration-200 hover:border-gold/40 hover:shadow-[0_0_0_1px_rgba(212,175,55,0.08)] focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/35 [background-image:url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2024%2024%22%20stroke%3D%22%23c9a227%22%20stroke-width%3D%222.25%22%3E%3Cpath%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20d%3D%22M6%209l6%206%206-6%22%2F%3E%3C%2Fsvg%3E')]";
 
 /* -------------------------------------------------------------------------- */
 /* Tipografía semántica — usar también en pantallas sueltas (.fr-form-*)      */
@@ -40,7 +47,7 @@ export const selectWizard =
 
 export const labelBase = "text-base font-semibold leading-snug tracking-tight text-fr-primary";
 export const labelWizard =
-  "text-sm font-medium leading-snug text-white sm:text-base";
+  "text-sm font-medium leading-snug text-fr-primary sm:text-base";
 
 /** Ayuda persistente bajo el control (restricciones, formato, ejemplos) */
 export const helperTextClass = "fr-form-helper-text";

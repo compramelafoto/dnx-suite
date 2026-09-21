@@ -108,12 +108,11 @@ export function Step4Categories({ data, updateData, fieldErrors = {} }: Step4Cat
 
               <FormField
                 id={`cat-slug-${i}`}
-                label="Slug"
+                label="Nombre corto"
                 required
                 variant="wizard"
                 error={fieldErrors[`categorySlug-${i}`]}
-                microcopy="Identificador corto en URL o filtros internos."
-                hint="Minúsculas y guiones. Se genera desde el nombre."
+                microcopy="Se arma solo con el nombre de la categoría. Es lo que aparece en el enlace."
               >
                 <input
                   id={`cat-slug-${i}`}

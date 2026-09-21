@@ -25,19 +25,17 @@ export function Step1GeneralData({
   return (
     <div className="space-y-6 md:space-y-8">
       <WizardSection
-        icon={<span className="text-gold">»</span>}
         title="Datos principales"
-        description=""
+        description="Con esto alcanza para publicar. El resto se puede completar después."
       >
-        <div className="grid gap-4">
+        <div className="grid gap-6">
           <FormField
             id="title"
-            label="Título"
+            label="Nombre del concurso"
             required
             variant="wizard"
             error={fieldErrors.title}
-            microcopy=""
-            hint=""
+            microcopy="Corto y claro: es lo primero que se ve en el listado público."
           >
             <input
               id="title"
@@ -54,12 +52,11 @@ export function Step1GeneralData({
 
           <FormField
             id="slug"
-            label="Slug (identificador único)"
+            label="Dirección web del concurso"
             required
             variant="wizard"
             error={fieldErrors.slug}
-            microcopy="Se usará en la URL pública del concurso"
-            hint=""
+            microcopy="Se arma solo con el nombre. Cambiala sólo si hace falta: una vez publicado, el enlace viejo deja de funcionar."
           >
             <input
               id="slug"
@@ -80,9 +77,8 @@ export function Step1GeneralData({
       </WizardSection>
 
       <WizardSection
-        icon={<span className="text-gold">»</span>}
         title="Descripción"
-        description=""
+        description="Lo que el fotógrafo lee antes de decidir si participa."
       >
         <FormField
           id="shortDescription"
@@ -90,7 +86,7 @@ export function Step1GeneralData({
           required
           variant="wizard"
           error={fieldErrors.shortDescription}
-          microcopy=""
+          microcopy="Una o dos líneas. Aparece en el listado, debajo del nombre."
         >
           <textarea
             id="shortDescription"
@@ -108,7 +104,7 @@ export function Step1GeneralData({
           id="fullDescription"
           label="Descripción completa"
           variant="wizard"
-          microcopy="Formato recomendado 1920x1080 px · JPG, PNG o WebP · Máx. 2 MB"
+          microcopy="Opcional. Bases, premios y condiciones. Se puede escribir o pegar después."
         >
           <textarea
             id="fullDescription"
@@ -122,9 +118,8 @@ export function Step1GeneralData({
       </WizardSection>
 
       <WizardSection
-        icon={<span className="text-gold">»</span>}
         title="Portada"
-        description=""
+        description="La imagen que acompaña al concurso. Recomendado 1920×1080 px · JPG, PNG o WebP · hasta 2 MB."
       >
         <WizardUploadBox
           previewUrl={data.coverImageUrl || null}
