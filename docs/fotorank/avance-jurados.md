@@ -23,8 +23,8 @@ falta el despliegue, la migración en las cinco bases y que un jurado real se po
 |---|---|---|---|---|
 | 0.1 | Poner la rama al día con `origin/main` | ✅ | 🚫 | Sin conflictos; recupera los 8 commits de la maratón del 19/9 |
 | 0.2 | Verificar las 45 pruebas de jurado | ✅ | 🚫 | 5+8+17+6+9 en verde, más 43 chequeos de subida de fotos |
-| 0.3 | Abrir el PR a `main` | ✅ | 🟡 | PR #202, 8 verificaciones en verde y sin conflictos. **Falta fusionarlo** |
-| 0.4 | Cargar las 4 variables del jurado compartido | ⬜ | ⬜ | Sin ellas el código falla suave: FotoRank anda igual, sólo con sus concursos |
+| 0.3 | Fusionar el padrón único a `main` | ✅ | ✅ | PR #202 fusionado el 21/09 con 8 verificaciones en verde |
+| 0.4 | Cargar las 4 variables del jurado compartido | 🚫 | ⬜ | Verificado el 21/09: ninguna está en Vercel. Sin ellas el código falla suave y FotoRank anda igual, sólo con sus concursos. Es configuración, no código |
 
 <!-- avance: FotoRank jurados — Etapa A: cimientos -->
 
