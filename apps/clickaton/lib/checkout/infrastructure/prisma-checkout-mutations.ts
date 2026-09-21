@@ -122,6 +122,28 @@ export function createPrismaCheckoutMutations(): CheckoutRegistrationMutations {
       return ed?.visibleCodePrefix?.trim() || "CK";
     },
 
+    async getCapacitySnapshot(registrationId) {
+      const reg = await prisma.clickatonRegistration.findUnique({
+        where: { id: registrationId },
+        select: { venueId: true },
+      });
+      if (!reg?.venueId) return { capacity: null, confirmed: 0 };
+      const [venue, confirmed] = await Promise.all([
+        prisma.clickatonVenue.findUnique({
+          where: { id: reg.venueId },
+          select: { capacity: true },
+        }),
+        prisma.clickatonRegistration.count({
+          where: {
+            venueId: reg.venueId,
+            status: "CONFIRMED",
+            id: { not: registrationId },
+          },
+        }),
+      ]);
+      return { capacity: venue?.capacity ?? null, confirmed };
+    },
+
     async attachPaymentRefs(input) {
       const row = await prisma.clickatonRegistration.update({
         where: { id: input.registrationId },
