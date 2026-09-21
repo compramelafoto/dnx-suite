@@ -1,13 +1,13 @@
 "use client";
 
-import { useActionState } from "react";
-import { useMemo } from "react";
+import { useActionState, useMemo, useState } from "react";
 
 import {
   postularseComoJuradoAction,
   type EstadoDelFormulario,
 } from "../../actions/judgePublicSignup";
 import { BIO_MINIMA, PASSWORD_MINIMA } from "../../lib/fotorank/judges/publicSignupForm";
+import { achicarImagen } from "../../lib/fotorank/judges/ui/achicarImagen";
 import {
   DIRECTORIO_ES_DE_TODA_LA_PLATAFORMA,
   EXTERNAL_PAYMENT_DISCLAIMER,
@@ -31,6 +31,29 @@ export function PostulacionForm() {
   // Se manda la hora de carga para medir cuánto tardó en llenarse: un robot
   // tarda menos de tres segundos.
   const cargadoEn = useMemo(() => String(Date.now()), []);
+
+  const [vistaPrevia, setVistaPrevia] = useState<string | null>(null);
+
+  /**
+   * Achica la foto elegida y la deja en el input, para que viaje con el
+   * formulario. Sin esto, una foto de cámara de 20 MB choca contra el tope de
+   * 4,5 MB de una acción de servidor.
+   */
+  const elegirFoto = async (archivo: File | undefined) => {
+    if (!archivo) {
+      setVistaPrevia(null);
+      return;
+    }
+    const achicada = await achicarImagen(archivo);
+    setVistaPrevia(URL.createObjectURL(achicada.archivo));
+
+    const input = document.getElementById("foto") as HTMLInputElement | null;
+    if (input) {
+      const lista = new DataTransfer();
+      lista.items.add(achicada.archivo);
+      input.files = lista.files;
+    }
+  };
 
   return (
     <form action={enviar} className="space-y-8">
@@ -103,6 +126,37 @@ export function PostulacionForm() {
             <input id="phone" name="phone" className={campo} autoComplete="tel" />
             <p className="mt-1 text-xs text-fr-muted-soft">No se muestra en público.</p>
           </div>
+        </div>
+
+        <div>
+          <label htmlFor="foto" className="mb-1 block text-sm text-fr-muted">
+            Tu foto <span className="text-fr-muted-soft">(opcional)</span>
+          </label>
+          <div className="flex items-center gap-4">
+            {vistaPrevia ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={vistaPrevia}
+                alt="Tu foto"
+                className="h-20 w-20 shrink-0 rounded-full border border-zinc-700 object-cover"
+              />
+            ) : (
+              <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full border border-dashed border-zinc-600 text-xs text-fr-muted-soft">
+                sin foto
+              </div>
+            )}
+            <input
+              id="foto"
+              name="foto"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(e) => void elegirFoto(e.target.files?.[0])}
+              className="text-xs text-fr-muted file:mr-3 file:rounded file:border-0 file:bg-zinc-800 file:px-3 file:py-1.5 file:text-xs file:text-fr-primary"
+            />
+          </div>
+          <p className="mt-1 text-xs text-fr-muted-soft">
+            Una ficha con cara se convoca mucho más. La achicamos sola antes de subirla.
+          </p>
         </div>
       </fieldset>
 
