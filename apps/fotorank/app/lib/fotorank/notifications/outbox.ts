@@ -15,7 +15,9 @@ export type TransactionalEmailKind =
   | "JURY_SCORING_OPEN"
   | "JURY_SCORING_CLOSING_SOON"
   | "JURY_ASSIGNMENT_NEW"
-  | "JURY_SESSION_CLOSED";
+  | "JURY_SESSION_CLOSED"
+  | "JUDGE_SIGNUP_VERIFY_EMAIL"
+  | "JUDGE_DIRECTORY_REVIEWED";
 
 export type OutboxMessage = {
   kind: TransactionalEmailKind;
@@ -189,5 +191,13 @@ export const TRANSACTIONAL_EMAIL_TEMPLATES: Record<
   JURY_SESSION_CLOSED: {
     subject: "Sesión de evaluación cerrada — {{contestTitle}}",
     requiredVars: ["contestTitle"],
+  },
+  JUDGE_SIGNUP_VERIFY_EMAIL: {
+    subject: "Confirmá tu correo para completar tu ficha de jurado",
+    requiredVars: ["firstName", "verifyUrl"],
+  },
+  JUDGE_DIRECTORY_REVIEWED: {
+    subject: "Novedades sobre tu ficha de jurado en FotoRank",
+    requiredVars: ["firstName", "resultado"],
   },
 };
