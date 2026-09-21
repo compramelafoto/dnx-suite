@@ -96,3 +96,14 @@ ruta de la foto devuelve 404 —no 500— para un jurado que no existe.
 | F.9 | El portfolio en la página pública y el directorio | ✅ | 🟡 | Verificado con datos de prueba: galería, tira de tres y orden por ficha completa |
 | F.10 | El cobro por foto calificada | 🚫 | 🚫 | **Bloqueado por Mercado Pago**: el split sigue en sandbox. Diseñado en el spec del 21/09 |
 | F.11 | El anuncio del cobro al jurado | ✅ | 🟡 | Aviso de que va a poder cobrar por la plataforma, en la postulación y en "Modalidad económica". Se borra cuando F.10 se encienda |
+
+<!-- avance: FotoRank jurados — Etapa G: jurado y participante a la vez -->
+
+| # | Tarea | Código | Producción | Nota |
+|---|---|---|---|---|
+| G.1 | "Panel de jurado" en el menú lateral | ✅ | ⬜ | En el panel de organizador y en el de participante, para quien además es jurado. Rótulo unificado con el del hub |
+| G.2 | La cola de revisión, visible | ✅ | ⬜ | Atajo con el número en el menú y aviso destacado en `/super-admin`. Antes se llegaba por un recuadro entre cinco estadísticas |
+| G.3 | Guardia en `contarJuradosPendientes` | ✅ | ⬜ | Era una server action sin permiso: devolvía el número a cualquiera |
+| G.4 | Nadie juzga la categoría donde compite | ✅ | ⬜ | En las dos compuertas y en las dos bases. 18 pruebas, verificadas rompiendo la regla a propósito |
+| G.5 | Avisar al organizador al asignar | ⬜ | ⬜ | Hoy la asignación se crea igual y el jurado la ve bloqueada recién al entrar |
+| G.6 | Aviso por correo de una postulación nueva | ⬜ | ⬜ | Sin esto, enterarse sigue dependiendo de entrar a mirar |

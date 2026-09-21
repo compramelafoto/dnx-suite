@@ -8,18 +8,8 @@ alguien miró. El número que vale es el de producción: ver
 
 | Proyecto | Tareas | Código | Producción | |
 |---|---|---|---|---|
+| **fotorank** | 43 |  95% |  57% | `██████····` |
 | **subilafoto** | 46 |  93% |  61% | `██████····` |
-| **fotorank** | 37 | 100% |  68% | `███████···` |
-
-## subilafoto
-
-| Etapa | Tareas | Código | Producción | Qué falta |
-|---|---|---|---|---|
-| SubiLaFoto — Etapa 1: base funcional | 9 | 100% |  89% | 1.3, 1.7 |
-| SubiLaFoto — Etapa 2: núcleo en vivo | 13 | 100% |  62% | 2.1, 2.5, 2.6, 2.7, 2.10, 2.11, 2.13 |
-| SubiLaFoto — Etapa 3: comercial y proveedores | 10 | 100% |  40% | 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.10 |
-| SubiLaFoto — Etapa 4: estabilización | 8 |  75% |  57% | 4.4, 4.6, 4.7, 4.8 |
-| SubiLaFoto — Etapa 5: ensayo y lanzamiento | 6 |  83% |  60% | 5.2, 5.6 |
 
 ## fotorank
 
@@ -32,6 +22,17 @@ alguien miró. El número que vale es el de producción: ver
 | FotoRank jurados — Etapa D: los jurados en el concurso | 1 | 100% |  50% | D.1 |
 | FotoRank jurados — Etapa E: la UX de jurados y usuarios | 7 | 100% |  50% | E.1, E.2, E.3, E.4, E.5, E.6, E.7 |
 | FotoRank jurados — Etapa F: portfolio y galería | 11 | 100% |  70% | F.2, F.5, F.6, F.7, F.9, F.11 |
+| FotoRank jurados — Etapa G: jurado y participante a la vez | 6 |  67% |   0% | G.1, G.2, G.3, G.4, G.5, G.6 |
+
+## subilafoto
+
+| Etapa | Tareas | Código | Producción | Qué falta |
+|---|---|---|---|---|
+| SubiLaFoto — Etapa 1: base funcional | 9 | 100% |  89% | 1.3, 1.7 |
+| SubiLaFoto — Etapa 2: núcleo en vivo | 13 | 100% |  62% | 2.1, 2.5, 2.6, 2.7, 2.10, 2.11, 2.13 |
+| SubiLaFoto — Etapa 3: comercial y proveedores | 10 | 100% |  40% | 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.10 |
+| SubiLaFoto — Etapa 4: estabilización | 8 |  75% |  57% | 4.4, 4.6, 4.7, 4.8 |
+| SubiLaFoto — Etapa 5: ensayo y lanzamiento | 6 |  83% |  60% | 5.2, 5.6 |
 
 ## Sin medir
 
