@@ -52,14 +52,14 @@ falta el despliegue, la migración en las cinco bases y que un jurado real se po
 
 | # | Tarea | Código | Producción | Nota |
 |---|---|---|---|---|
-| C.1 | El jurado carga sus URL, su Instagram y su teléfono | ⬜ | ⬜ | Hoy sólo puede el organizador |
-| C.2 | La página pública respeta los interruptores de privacidad | ⬜ | ⬜ | Hoy los ignora: el directorio sí los respeta |
+| C.1 | El jurado carga sus URL, su Instagram y su teléfono | ✅ | 🟡 | 7 pruebas de los otros links. Los campos se ven y guardan en local |
+| C.2 | La página pública respeta los interruptores de privacidad | ✅ | 🟡 | 6 pruebas. Verificado en vivo: al apagar la web y la ubicación, desaparecen |
 
 <!-- avance: FotoRank jurados — Etapa D: los jurados en el concurso -->
 
 | # | Tarea | Código | Producción | Nota |
 |---|---|---|---|---|
-| D.1 | Retrato, titular y carrusel con más de seis | ⬜ | ⬜ | La sección ya existe desde antes; esto la mejora |
+| D.1 | Retrato, titular y carrusel con más de seis | ✅ | 🟡 | 3 pruebas. Verificado en vivo con 1 jurado (grilla) y con 7 (carrusel con scroll real) |
 
 <!-- avance: FotoRank jurados — Etapa E: la UX de jurados y usuarios -->
 
