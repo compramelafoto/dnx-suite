@@ -26,6 +26,16 @@ export const dynamic = "force-dynamic";
  */
 const EDICIONES_DECORADAS_NAVIDAD = new Set(["clickaton-navidad-2026"]);
 
+/**
+ * Nota al pie del título, para lo que la fecha sola no explica. La del 26 de
+ * diciembre sale al cruce de la objeción obvia —cae entre fiestas— en lugar de
+ * esperar que cada uno la resuelva solo y se vaya.
+ */
+const NOTAS_POR_EDICION: Record<string, string> = {
+  "clickaton-navidad-2026":
+    "Sabemos que el 26 algunos van a estar todavía con la copa en la mano y otros de viaje por el fin de semana largo. Pero, ¿qué mejor regalo que salir a registrar esos momentos y maratonear con Clickatón?",
+};
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
   const marathon = await getPublicMarathonBySlug(slug);
@@ -133,6 +143,7 @@ export default async function PublicRegistrationPage({ params }: PageProps) {
             context={context}
             idempotencyKey={idempotencyKey}
             coverImageUrl={marathon?.coverImage ?? null}
+            nota={NOTAS_POR_EDICION[slug] ?? null}
           />
         </Envoltorio>
       </Container>
