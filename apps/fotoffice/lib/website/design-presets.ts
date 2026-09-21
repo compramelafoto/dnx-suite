@@ -104,7 +104,10 @@ const FOOTER_IDS = FOOTER_PRESETS.map((p) => p.id) as [FooterPresetId, ...Footer
 
 export const DEFAULT_DESIGN_PRESETS: WebsiteDesignPresets = {
   headerPreset: "logo-left",
-  showLoginButton: false,
+  // La portada en producción (antes de este armazón) siempre mostró "Iniciar sesión": el default
+  // preserva ese comportamiento para que ninguna institución pierda su único enlace visible al
+  // panel al fusionar. Quien no lo quiera lo apaga desde Diseño global.
+  showLoginButton: true,
   loginButtonLabel: "Iniciar sesión",
   logoSizePx: 40,
   typographyPreset: "modern",
