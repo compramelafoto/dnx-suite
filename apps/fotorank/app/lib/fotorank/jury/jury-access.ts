@@ -1,4 +1,9 @@
 import { prisma } from "@repo/db";
+import {
+  asignacionesQuePuedeJuzgar,
+  categoriasDondeCompiteElJurado,
+  MENSAJE_COMPITE_EN_TODAS,
+} from "./competir-y-juzgar";
 import { JuryError } from "./errors";
 
 const ACTIVE_ASSIGNMENT = ["ACCEPTED", "IN_PROGRESS", "COMPLETED", "EXTENDED", "ASSIGNED"] as const;
@@ -32,7 +37,7 @@ export async function assertJudgeContestAccess(input: {
     throw new JuryError("FORBIDDEN", "El concurso no está habilitado para el jurado.", 403);
   }
 
-  const assignments = await prisma.fotorankJudgeAssignment.findMany({
+  const asignadas = await prisma.fotorankJudgeAssignment.findMany({
     where: {
       contestId: input.contestId,
       judgeAccountId: input.judgeAccountId,
@@ -42,13 +47,36 @@ export async function assertJudgeContestAccess(input: {
       category: { select: { id: true, name: true, slug: true } },
     },
   });
-  if (assignments.length === 0) {
+  if (asignadas.length === 0) {
     throw new JuryError("NOT_ASSIGNED", "No tenés asignación en este concurso.", 403);
+  }
+
+  /*
+   * Nadie juzga la categoría donde compite.
+   *
+   * El filtro va acá, y no en cada pantalla, porque todo lo que el jurado
+   * puede hacer —ver la cola, abrir una obra, votar, evaluar en cualquiera de
+   * los dos motores— pasa por esta función y filtra por el `categoryIds` que
+   * devuelve. Sacar la categoría de acá la saca de todas partes a la vez.
+   */
+  const enConflicto = await categoriasDondeCompiteElJurado({
+    judgeAccountId: input.judgeAccountId,
+    contestId: input.contestId,
+  });
+  const assignments = asignacionesQuePuedeJuzgar(asignadas, enConflicto);
+
+  if (assignments.length === 0) {
+    // Tiene asignación pero no puede usar ninguna: decirle "no tenés
+    // asignación" sería mentirle sobre la causa.
+    throw new JuryError("COMPITE_EN_LA_CATEGORIA", MENSAJE_COMPITE_EN_TODAS, 403);
   }
 
   if (input.categoryId) {
     const hit = assignments.find((a) => a.categoryId === input.categoryId);
     if (!hit) {
+      if (enConflicto.has(input.categoryId)) {
+        throw new JuryError("COMPITE_EN_LA_CATEGORIA", MENSAJE_COMPITE_EN_TODAS, 403);
+      }
       throw new JuryError("CATEGORY_NOT_ASSIGNED", "No estás asignado a esta categoría.", 403);
     }
   }

@@ -7,6 +7,11 @@ import { prisma } from "@repo/db";
 import { getClickatonJuryPrisma } from "@repo/db/clickaton-jury-client";
 import { getJudgeEvaluationEligibility } from "./judgeEvaluationEligibility";
 import { platformForContest, type JuryPlatform } from "./jury/assignment-source";
+import {
+  categoriasDondeCompiteElJurado,
+  MENSAJE_COMPITE_EN_TODAS,
+  type ClienteParaConflicto,
+} from "./jury/competir-y-juzgar";
 
 /** Fila mínima de asignación + concurso para gate y persistencia de voto. */
 export type JudgeAssignmentEvaluationRow = {
@@ -120,5 +125,31 @@ export async function gateJudgeEvaluationForJudge(
   if (!eligibility.allowed) {
     return { ok: false, error: eligibility.message };
   }
+
+  /*
+   * Nadie juzga la categoría donde compite.
+   *
+   * La regla se repite acá y en `assertJudgeContestAccess` porque son dos
+   * compuertas independientes: aquélla la usan los servicios de jurado, y ésta
+   * las server actions y la pantalla de evaluación. Una sola no alcanza.
+   *
+   * La base es la del concurso: para una maratón de Clickatón, las obras están
+   * en la base de Clickatón.
+   */
+  const db =
+    loaded.platform === "clickaton"
+      ? (getClickatonJuryPrisma() as unknown as ClienteParaConflicto | null)
+      : (prisma as unknown as ClienteParaConflicto);
+  if (db) {
+    const enConflicto = await categoriasDondeCompiteElJurado({
+      judgeAccountId: viewer.id,
+      contestId: loaded.row.contestId,
+      cliente: db,
+    });
+    if (enConflicto.has(loaded.row.categoryId)) {
+      return { ok: false, error: MENSAJE_COMPITE_EN_TODAS };
+    }
+  }
+
   return { ok: true, assignment: loaded.row, platform: loaded.platform };
 }

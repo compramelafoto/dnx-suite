@@ -28,6 +28,11 @@ import {
   serializeEntryForJuror,
   type JurorEntry,
 } from "../lib/fotorank/jury/entry-for-juror";
+import {
+  categoriasDondeCompiteElJurado,
+  MENSAJE_COMPITE_EN_TODAS,
+  type ClienteParaConflicto,
+} from "../lib/fotorank/jury/competir-y-juzgar";
 import { rawVoteInputFromFormData, validateVotePayloadForMethod } from "../lib/fotorank/judgeVotePayload";
 import {
   filterFotorankEntriesEvaluableForJudging,
@@ -1334,6 +1339,42 @@ export async function listJudgeAssignmentsForCurrentJudge(): Promise<
     (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime(),
   );
 
+  /*
+   * Nadie juzga la categoría donde compite.
+   *
+   * Las dos compuertas ya lo impiden; esto es para que el panel no ofrezca lo
+   * que después va a rechazar. Se consulta una vez por concurso y no una por
+   * asignación: un jurado con seis categorías del mismo concurso haría seis
+   * veces la misma pregunta.
+   */
+  const conflictosPorConcurso = new Map<string, Set<string>>();
+  const concursosVistos = new Set<string>();
+  for (const a of assignments) {
+    const esExterna = external.some((e) => e.id === a.id);
+    const clave = `${esExterna ? "ck" : "fr"}:${a.contestId}`;
+    if (concursosVistos.has(clave)) continue;
+    concursosVistos.add(clave);
+
+    const db = esExterna
+      ? (clickatonPrisma as unknown as ClienteParaConflicto | null)
+      : (prisma as unknown as ClienteParaConflicto);
+    if (!db) continue;
+
+    try {
+      conflictosPorConcurso.set(
+        clave,
+        await categoriasDondeCompiteElJurado({
+          judgeAccountId: judge.id,
+          contestId: a.contestId,
+          cliente: db,
+        }),
+      );
+    } catch {
+      // El panel se sigue mostrando: quien intente entrar igual choca con las
+      // compuertas, que sí fallan cerrado.
+    }
+  }
+
   return {
     ok: true,
     data: {
@@ -1364,6 +1405,9 @@ export async function listJudgeAssignmentsForCurrentJudge(): Promise<
       const platform = platformForContest({
         distributionChannel: a.contest.distributionChannel,
       });
+      const claveConcurso = `${external.some((e) => e.id === a.id) ? "ck" : "fr"}:${a.contestId}`;
+      const compiteAca =
+        conflictosPorConcurso.get(claveConcurso)?.has(a.categoryId) ?? false;
       return {
         id: a.id,
         contestId: a.contestId,
@@ -1378,9 +1422,17 @@ export async function listJudgeAssignmentsForCurrentJudge(): Promise<
         evaluationEndsAt: a.extendedEndsAt ?? a.evaluationEndsAt,
         votesCount: a.votes.length,
         contestStatus: a.contest.status,
-        evaluationAllowed: eligibility.allowed,
-        evaluationBlockCode: eligibility.allowed ? null : eligibility.code,
-        evaluationBlockMessage: eligibility.allowed ? null : eligibility.message,
+        evaluationAllowed: eligibility.allowed && !compiteAca,
+        evaluationBlockCode: compiteAca
+          ? "COMPITE_EN_LA_CATEGORIA"
+          : eligibility.allowed
+            ? null
+            : eligibility.code,
+        evaluationBlockMessage: compiteAca
+          ? MENSAJE_COMPITE_EN_TODAS
+          : eligibility.allowed
+            ? null
+            : eligibility.message,
       };
     }),
       clickatonUnavailable,
