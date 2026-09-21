@@ -9,9 +9,8 @@ import { WebsiteHeaderNavClient } from "./website-header-nav-client";
  * Server Component: el logo, el botón de login y el marco del `<header>` se dibujan acá, sin
  * JavaScript. Lo único que cruza al navegador es el menú (`WebsiteHeaderNavClient`, en
  * `website-header-nav-client.tsx`) — porque necesita saber en qué página está el visitante para
- * marcarla, y esa ruta no llega de forma confiable a un Server Component en este entorno (ver el
- * comentario ahí y en `app/w/[workspaceSlug]/layout.tsx`). El resto del header — y el pie
- * entero, que no usa `current` para nada — siguen sin ningún JS.
+ * marcarla, y `buildSiteNav` corre en el servidor sin esa información (ver el comentario ahí).
+ * El resto del header — y el pie entero — siguen sin ningún JS.
  *
  * El botón "Iniciar sesión" apunta siempre a `/login` — nunca a una URL que el usuario escriba:
  * evita convertirlo sin querer en un vector de phishing.

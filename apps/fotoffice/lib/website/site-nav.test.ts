@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
-import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { createEmptyBlock, updateHeroSlide, type HeroBlock, type WebsiteBlock } from "./blocks";
-import { buildSiteNav } from "./site-nav";
+import { buildSiteNav, isPathCurrent } from "./site-nav";
 
 function heroConTitulo(titulo: string): WebsiteBlock {
   const hero = createEmptyBlock("HERO", 0) as HeroBlock;
@@ -13,7 +12,6 @@ const base = {
   workspaceSlug: "mi-estudio",
   homeBlocks: [] as WebsiteBlock[],
   enabledModuleKeys: new Set<string>(),
-  currentPath: "/w/mi-estudio",
   hasPublishedSite: true,
 };
 
@@ -21,7 +19,7 @@ describe("buildSiteNav", () => {
   it("sin módulos ni secciones, el menú es sólo Inicio", () => {
     const nav = buildSiteNav(base);
     expect(nav).toHaveLength(1);
-    expect(nav[0]).toMatchObject({ id: "home", label: "Inicio", href: "/w/mi-estudio", current: true });
+    expect(nav[0]).toMatchObject({ id: "home", label: "Inicio", href: "/w/mi-estudio" });
     expect(nav[0].children).toEqual([]);
   });
 
@@ -53,32 +51,23 @@ describe("buildSiteNav", () => {
     const nav = buildSiteNav({ ...base, enabledModuleKeys: new Set([BOOKINGS_MODULE_KEY]) });
     expect(nav.map((i) => i.label)).not.toContain("Cursos");
   });
+});
 
+// `buildSiteNav` no marca ningún ítem como actual — corre en el servidor y no conoce la ruta
+// del visitante (ver el comentario en `website-header-nav-client.tsx`). Quien de verdad marca
+// es `WebsiteHeaderNavClient`, con `usePathname()` y esta misma función. Estas pruebas verifican
+// la regla directamente sobre `isPathCurrent`, la función que corre de verdad.
+describe("isPathCurrent", () => {
   it("marca como actual la página de módulo en la que estás, y desmarca Inicio", () => {
-    const nav = buildSiteNav({
-      ...base,
-      enabledModuleKeys: new Set([COURSES_SALES_MODULE_KEY]),
-      currentPath: "/w/mi-estudio/cursos",
-    });
-    expect(nav[0].current).toBe(false);
-    expect(nav[1]).toMatchObject({ label: "Cursos", current: true });
+    expect(isPathCurrent("/w/mi-estudio/cursos", "/w/mi-estudio/cursos", { exact: false })).toBe(true);
+    expect(isPathCurrent("/w/mi-estudio/cursos", "/w/mi-estudio", { exact: true })).toBe(false);
   });
 
   it("una ruta más profunda marca igual a su página de módulo", () => {
-    const nav = buildSiteNav({
-      ...base,
-      enabledModuleKeys: new Set([COURSES_SALES_MODULE_KEY]),
-      currentPath: "/w/mi-estudio/cursos/taller-de-retrato",
-    });
-    expect(nav[1].current).toBe(true);
+    expect(isPathCurrent("/w/mi-estudio/cursos/taller-de-retrato", "/w/mi-estudio/cursos", { exact: false })).toBe(true);
   });
 
   it("una barra final no cambia qué ítem está marcado", () => {
-    const nav = buildSiteNav({
-      ...base,
-      enabledModuleKeys: new Set([COURSES_SALES_MODULE_KEY]),
-      currentPath: "/w/mi-estudio/cursos/",
-    });
-    expect(nav[1].current).toBe(true);
+    expect(isPathCurrent("/w/mi-estudio/cursos/", "/w/mi-estudio/cursos", { exact: false })).toBe(true);
   });
 });

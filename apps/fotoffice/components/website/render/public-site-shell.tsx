@@ -17,25 +17,21 @@ import { WebsiteFooterView } from "./website-footer-view";
  * `WebsiteHeaderView` y `WebsiteFooterView` siguen siendo Server Components enteros — ninguno de
  * los dos se envuelve en un límite de cliente acá. El pie no necesita saber la ruta actual (sólo
  * pinta `label`/`href`). El header sí, pero resuelve eso por dentro con un componente de cliente
- * chiquito acotado sólo al menú (`WebsiteHeaderNavClient`) — ver el comentario en
- * `website-header-view.tsx`. `currentPath` se le sigue pasando a `buildSiteNav` como mejor
- * esfuerzo para el primer render en el servidor; quien corrige la marca de verdad es ese
- * componente de cliente, con la ruta real del navegador.
+ * chiquito acotado sólo al menú (`WebsiteHeaderNavClient`), con `usePathname()` — ver el
+ * comentario en `website-header-view.tsx`. `buildSiteNav` no conoce la ruta actual: sólo arma
+ * la lista de ítems, sin marcar ninguno.
  */
 export function PublicSiteShell({
   site,
-  currentPath,
   children,
 }: {
   site: PublicSite;
-  currentPath: string;
   children: ReactNode;
 }) {
   const navItems = buildSiteNav({
     workspaceSlug: site.workspaceSlug,
     homeBlocks: site.homeBlocks,
     enabledModuleKeys: site.enabledModuleKeys,
-    currentPath,
     hasPublishedSite: site.hasPublishedSite,
   });
 

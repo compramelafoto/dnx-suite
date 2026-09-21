@@ -7,8 +7,11 @@ import { publicModulePagesFor } from "./public-modules";
  * una entrada por módulo habilitado con página pública.
  *
  * Es una función pura a propósito: el layout le pasa lo que ya resolvió (secciones publicadas,
- * módulos habilitados, ruta actual) y acá no se consulta nada. Así se puede probar entera sin
- * base de datos ni request, que es lo único que los tests de esta app saben hacer.
+ * módulos habilitados) y acá no se consulta nada. Así se puede probar entera sin base de datos
+ * ni request, que es lo único que los tests de esta app saben hacer.
+ *
+ * No calcula cuál ítem es "el actual": eso lo resuelve `WebsiteHeaderNavClient` en el navegador,
+ * con `usePathname()` (ver el comentario ahí y `isPathCurrent` más abajo).
  *
  * `navJson` — el menú corregido a mano por el dueño — todavía no se lee: es la etapa 2. Cuando
  * llegue, se aplica ENCIMA de lo que devuelve esta función, nunca en lugar de.
@@ -17,8 +20,6 @@ export type SiteNavItem = {
   id: string;
   label: string;
   href: string;
-  /** La página que el visitante está mirando. Un padre lo hereda de sus hijos. */
-  current: boolean;
   children: SiteNavItem[];
 };
 
@@ -34,9 +35,8 @@ function normalizar(path: string): string {
  * todas); el resto por prefijo, así una ruta más profunda —el detalle de un curso— sigue
  * marcando a la página de su módulo.
  *
- * Exportada porque no es sólo de acá: `buildSiteNav` la usa para el primer render en el
- * servidor, y el componente de cliente que corrige la marca con la ruta real del navegador
- * (`usePathname`, en `website-header-nav-client.tsx`) la reusa — la regla vive en un solo lugar.
+ * Exportada porque la usa `WebsiteHeaderNavClient` (`website-header-nav-client.tsx`), el único
+ * lugar que sabe la ruta real del navegador (`usePathname`) — acá no se calcula nada con ella.
  */
 export function isPathCurrent(pathname: string, href: string, options: { exact: boolean }): boolean {
   const actual = normalizar(pathname);
@@ -48,7 +48,6 @@ export function buildSiteNav(input: {
   workspaceSlug: string;
   homeBlocks: WebsiteBlock[];
   enabledModuleKeys: ReadonlySet<string>;
-  currentPath: string;
   /** Sin versión publicada no hay secciones que anclar: Inicio va sin submenú. */
   hasPublishedSite: boolean;
 }): SiteNavItem[] {
@@ -63,7 +62,6 @@ export function buildSiteNav(input: {
           id: item.id,
           label: item.label,
           href: `${base}#${item.anchor}`,
-          current: false,
           children: [],
         }))
     : [];
@@ -72,14 +70,12 @@ export function buildSiteNav(input: {
     id: "home",
     label: "Inicio",
     href: base,
-    current: isPathCurrent(input.currentPath, base, { exact: true }),
     children: secciones,
   };
 
   const paginasDeModulo: SiteNavItem[] = publicModulePagesFor(input.enabledModuleKeys).map((pagina) => {
     const href = `${base}/${pagina.segment}`;
-    const esActual = isPathCurrent(input.currentPath, href, { exact: false });
-    return { id: pagina.moduleKey, label: pagina.label, href, current: esActual, children: [] };
+    return { id: pagina.moduleKey, label: pagina.label, href, children: [] };
   });
 
   return [inicio, ...paginasDeModulo];

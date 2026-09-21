@@ -10,10 +10,10 @@ import { isPathCurrent, type SiteNavItem } from "@/lib/website/site-nav";
  * login y el marco del `<header>`, y le pasa `children` a esto para que quede posicionado entre
  * el menú de escritorio y el de celular, sin que ese botón tenga que pasar por el cliente.
  *
- * La única razón de que esto exista es saber en qué página está el visitante: `usePathname` es
- * confiable acá (a diferencia de la cabecera `x-invoke-path`, que no llega en este entorno — ver
- * `app/w/[workspaceSlug]/layout.tsx`). La regla de qué cuenta como "actual" no se reescribe: se
- * importa de `isPathCurrent`, la misma que usa `buildSiteNav` en el servidor.
+ * La única razón de que esto exista es saber en qué página está el visitante: `buildSiteNav`
+ * corre en el servidor y no conoce la ruta, así que quien marca el ítem actual es este
+ * componente, con `usePathname()`. La regla de qué cuenta como "actual" vive en un solo lugar:
+ * se importa de `isPathCurrent`, en `site-nav.ts`.
  */
 export function WebsiteHeaderNavClient({
   navItems,
