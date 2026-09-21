@@ -3,13 +3,48 @@
 **Fecha:** 2026-09-20
 **Módulo:** `website` (`WEBSITE_MODULE_KEY`)
 **Estado:** diseño aprobado, sin implementar
-**Obra:** 1 de 3 (esta) → 2: bloques dinámicos de módulos → 3: blog / redactor
+**Obra:** 1 de 3 (esta) → 2: secciones dinámicas de módulos → 3: blog / redactor
+
+---
+
+## Vocabulario
+
+Hay tres interruptores distintos en juego y es fácil confundirlos al activar o desactivar
+cosas. Se separan con tres pares de palabras que no se solapan:
+
+| Qué es | Cómo se llama | Estados | Verbo | Dónde se toca |
+|---|---|---|---|---|
+| Función del workspace | **Módulo** | Habilitado / No habilitado | habilitar | Administración de módulos |
+| Página del sitio | **Página** | En el menú / No listada | listar | Sitio web → Páginas |
+| Parte de una página | **Sección** | Visible / Oculta | mostrar | Sitio web → Editor |
+
+Un módulo se **habilita**, una página se **lista**, una sección se **muestra**. Nunca al revés.
+
+**Esto ya es casi la convención vigente**: la pantalla del editor dice "Agregar sección",
+"Ocultar sección", "Duplicar sección", y el panel de módulos dice "Habilitado / No
+habilitado". Sólo queda un texto fuera de línea, en la portada del módulo —
+*"Construí y publicá la Home de tu sitio público con bloques visuales"*— que hay que corregir.
+
+**En el código se sigue llamando `block`** (`WebsiteBlock`, `WEBSITE_BLOCK_DEFINITIONS`,
+`WEBSITE_BLOCK_REGISTRY`, `block-contract.ts`). No se renombra: es un cambio mecánico y masivo
+que no arregla nada y ensucia el historial. La regla es **sección de cara al usuario, `block`
+de cara al código**, y este documento usa "sección" salvo cuando nombra un identificador real.
+
+### Qué significa "No listada"
+
+Una página no listada **no aparece en el menú ni en el `sitemap.xml`, pero sigue abriéndose
+por su dirección directa**. Sirve para una página de campaña que se comparte por WhatsApp sin
+colgarla del menú.
+
+Si preferís que una página no listada devuelva 404, es un cambio de una línea — pero entonces
+hace falta otro estado para "existe pero no la muestro en el menú", y volvemos a tener tres
+palabras para dos ideas.
 
 ---
 
 ## 1. Por qué
 
-El módulo Website tiene un constructor visual completo: editor de bloques, vista previa en
+El módulo Website tiene un constructor visual completo: editor de secciones, vista previa en
 vivo, panel de diseño, SEO, navegación, historial y publicación por versiones congeladas.
 Nada de eso hay que rehacerlo.
 
@@ -31,21 +66,22 @@ Son páginas huérfanas, no un sitio. Esta obra las convierte en uno.
 ### Entra
 
 1. Armazón público único (encabezado, menú, pie) para todas las páginas de `/w/[slug]`.
-2. Sitio de varias páginas: el dueño crea, nombra, ordena y oculta páginas.
+2. Sitio de varias páginas: el dueño crea, nombra, ordena y quita del menú páginas.
 3. Las páginas de módulos integradas al sitio, apareciendo y desapareciendo según el
    módulo esté habilitado en el workspace.
 4. Pie de página (hoy no existe en ninguna forma).
-5. Diez bloques nuevos, en dos tandas.
+5. Diez secciones nuevas, en dos tandas.
 6. Diez plantillas, con paleta, pie y páginas semilla propias.
 7. Lo que hace que sea un sitio real: SEO por página, Open Graph, `sitemap.xml`,
    `robots.txt`, favicon, 404 propio, datos estructurados, celular.
+8. Vocabulario unificado de cara al usuario: módulo / página / sección (ver Vocabulario).
 
 ### No entra
 
 - Dominio propio del workspace.
 - Quitar el `/w/` de la dirección (`fotoffice.com/{slug}`).
 - Blog y redactor — obra 3.
-- Bloques de módulo dentro de la portada (ej. franja "Próximos cursos" en el Inicio) —
+- Secciones de módulo dentro de la portada (ej. franja "Próximos cursos" en el Inicio) —
   obra 2, vía `lib/website/block-contract.ts`.
 - Varios idiomas.
 - Estadísticas de visitas.
@@ -54,7 +90,7 @@ Son páginas huérfanas, no un sitio. Esta obra las convierte en uno.
 ### Precisión sobre "cada módulo con su parte visible"
 
 En esta obra los módulos entran al sitio **como páginas**: con el mismo aspecto que el resto
-del sitio, dentro del menú, apareciendo según estén habilitados. Los módulos **como bloques
+del sitio, dentro del menú, apareciendo según estén habilitados. Los módulos **como secciones
 dentro de la portada** son la obra 2 y dependen de que ésta exista primero. Son cosas
 distintas y conviene no confundirlas.
 
@@ -134,9 +170,9 @@ Regla explícita, porque acá es fácil romper lo que hoy funciona:
 
 | Situación | `/w/[slug]` | `/w/[slug]/cursos` y demás módulos |
 |---|---|---|
-| Módulo website **encendido** y versión publicada | Sitio armado | Armazón completo |
-| Módulo website **encendido**, sin publicar nunca | Landing de presupuesto actual | Armazón mínimo |
-| Módulo website **apagado** | Landing de presupuesto actual | Armazón mínimo |
+| Módulo Sitio web **habilitado** y versión publicada | Sitio armado | Armazón completo |
+| Módulo Sitio web **habilitado**, sin publicar nunca | Landing de presupuesto actual | Armazón mínimo |
+| Módulo Sitio web **no habilitado** | Landing de presupuesto actual | Armazón mínimo |
 
 El **armazón mínimo** es logo, nombre del workspace y un pie simple con los datos de contacto.
 
@@ -165,9 +201,9 @@ metadata:
 `meta` contiene: `title`, `slug`, `visible`, `order`, `seoTitle`, `seoDescription`,
 `ogImageUrl`, `isHome`.
 
-**Compatibilidad hacia atrás:** si `pages[key]` es una lista pelada de bloques (la forma
+**Compatibilidad hacia atrás:** si `pages[key]` es una lista pelada de secciones (la forma
 actual), `parseWebsiteSections` la envuelve al leerla, derivando `meta` por defecto. El parseo
-tolerante que ya existe hace esto natural: un bloque inválido se descarta sin tumbar la página,
+tolerante que ya existe hace esto natural: una sección inválida se descarta sin tumbar la página,
 y una página con forma vieja se migra en memoria sin tocar la base.
 
 **Consecuencia deliberada: cero migraciones de Prisma para las páginas.** Esto importa acá más
@@ -183,9 +219,9 @@ por separado.
 ### Pantalla "Páginas" en el panel
 
 Nueva pestaña junto a Editor / Diseño / Navegación / SEO / Historial / Preview. Permite:
-crear, renombrar, cambiar la dirección, ocultar, reordenar, duplicar y borrar.
+crear, renombrar, cambiar la dirección, quitar del menú, reordenar, duplicar y borrar.
 
-El editor de bloques actual pasa a trabajar sobre la página seleccionada. El contexto
+El editor de secciones actual pasa a trabajar sobre la página seleccionada. El contexto
 compartido (`loadWebsiteCmsContext`) se extiende con la página activa.
 
 **Reglas:**
@@ -194,6 +230,8 @@ compartido (`loadWebsiteCmsContext`) se extiende con la página activa.
 - Cambiar la dirección de una página publicada avisa que los enlaces viejos dejan de andar.
   No se implementa redirección automática en esta obra.
 - Borrar una página pide confirmación y dice cuántas secciones se pierden.
+- Una página **no listada** sale del menú y del `sitemap.xml`, pero sigue abriéndose por su
+  dirección directa (ver Vocabulario).
 - Un límite de 20 páginas por sitio, para que `sectionsJson` no crezca sin control.
 
 ---
@@ -205,43 +243,45 @@ convertidos en anclas. Con varias páginas eso ya no alcanza.
 
 **Regla nueva: el menú se arma solo, pero se puede corregir.**
 
-Por defecto: una entrada por página visible (en su orden) más una por cada módulo habilitado
+Por defecto: una entrada por página listada (en su orden) más una por cada módulo habilitado
 con página pública. Dentro del Inicio se siguen ofreciendo las anclas de sus secciones, como
 submenú.
 
-El dueño puede: renombrar, ocultar, reordenar, agrupar en submenús y agregar enlaces externos.
+El dueño puede: renombrar, quitar del menú, reordenar, agrupar en submenús y agregar enlaces
+externos.
 Se guarda en `navJson` — campo que **ya existe en la base y hoy está sin usar**.
 
 **El menú derivado es el que manda cuando `navJson` está vacío.** Si el dueño nunca tocó el
-menú, agregar una página o encender un módulo lo actualiza solo. Una vez que lo editó a mano,
-las páginas nuevas se agregan al final y los módulos apagados desaparecen, pero no se
+menú, agregar una página o habilitar un módulo lo actualiza solo. Una vez que lo editó a mano,
+las páginas nuevas se agregan al final y los módulos no habilitados desaparecen, pero no se
 reordena nada de lo que él decidió.
 
-### Encendido y apagado por módulo
+### Módulos habilitados y el menú
 
 Acá se habla del módulo **propio de cada página** (Cursos, Reservas, Socios), no del módulo
 Sitio web — son dos interruptores distintos y no hay que confundirlos:
 
-- Cursos apagado → "Cursos" desaparece del menú **y** `/w/[slug]/cursos` devuelve 404.
-- Cursos encendido → aparece solo, sin que nadie toque el menú.
-- **Sitio web** apagado → no afecta a ninguna página de módulo: sólo cambia el armazón de
-  completo a mínimo, según la tabla de la sección 4.
+- Cursos no habilitado → "Cursos" sale del menú **y** `/w/[slug]/cursos` devuelve 404.
+  Ojo: esto NO es lo mismo que una página no listada, que sí se abre por su dirección.
+- Cursos habilitado → aparece solo, sin que nadie toque el menú.
+- **Sitio web** no habilitado → no afecta a ninguna página de módulo: sólo cambia el armazón
+  de completo a mínimo, según la tabla de la sección 4.
 
 Esto se resuelve en un solo lugar (el layout público, que ya consulta los módulos
 habilitados), no repartido por cada página.
 
 ---
 
-## 7. Bloques nuevos
+## 7. Secciones nuevas
 
-Hoy hay cinco, todos en la categoría `BASICAS`: `HERO`, `TEXT`, `IMAGE`, `CTA`, `SPACER`. Con
+Hoy hay cinco, todas en la categoría `BASICAS`: `HERO`, `TEXT`, `IMAGE`, `CTA`, `SPACER`. Con
 ese vocabulario todas las plantillas terminan siendo la misma página con otra tipografía.
 
-Se suman diez, en dos tandas. Todos `source: "static"` — los dinámicos son la obra 2.
+Se suman diez, en dos tandas. Todas `source: "static"` — las dinámicas son la obra 2.
 
 ### Primera tanda
 
-| Bloque | Qué hace |
+| Sección | Qué hace |
 |---|---|
 | `GALLERY` | Grilla de imágenes con visor ampliado. Columnas y proporción por preset. |
 | `SERVICES` | Tarjetas: imagen o ícono, título, texto, precio opcional, botón. |
@@ -252,7 +292,7 @@ Se suman diez, en dos tandas. Todos `source: "static"` — los dinámicos son la
 
 ### Segunda tanda
 
-| Bloque | Qué hace |
+| Sección | Qué hace |
 |---|---|
 | `VIDEO` | YouTube o Vimeo embebido. Sólo se acepta la dirección, nunca HTML pegado. |
 | `MAP` | Mapa embebido sin clave de API. |
@@ -262,9 +302,9 @@ Se suman diez, en dos tandas. Todos `source: "static"` — los dinámicos son la
 ### Reglas que se mantienen
 
 - Presets cerrados, **nunca CSS libre** — el criterio que ya está escrito y es correcto.
-- Cada bloque se agrega en un solo lugar: `WEBSITE_BLOCK_DEFINITIONS` (metadata) +
+- Cada sección se agrega en un solo lugar: `WEBSITE_BLOCK_DEFINITIONS` (metadata) +
   `WEBSITE_BLOCK_REGISTRY` (vista e inspector). No hay `switch` repartido por tres archivos.
-- Schema de zod por bloque, dentro de la unión discriminada. Un bloque con tipo desconocido se
+- Schema de zod por sección, dentro de la unión discriminada. Una sección con tipo desconocido se
   descarta sin romper la página.
 - `previewLabel` nunca lleva texto de administración: alimenta también el menú.
 
@@ -292,7 +332,7 @@ Cada plantilla trae su `footerPreset`.
 
 ### 8.3 Páginas semilla
 
-Hoy `seedSections()` devuelve bloques de una sola página. Pasa a `seedPages()`, que devuelve
+Hoy `seedSections()` devuelve secciones de una sola página. Pasa a `seedPages()`, que devuelve
 un sitio completo: Inicio + Nosotros + Servicios + Contacto, ya armados.
 
 ### Las diez
@@ -345,8 +385,8 @@ páginas: cambiar de plantilla no borra páginas creadas.
 | Romper `/w/[slug]/cursos` y las demás landings que hoy funcionan | El armazón nunca exige módulo website ni sesión. Test por cada combinación de la tabla de la sección 4 |
 | Un sitio guardado con la forma vieja deja de cargar | `parseWebsiteSections` envuelve la forma vieja. Test con el JSON exacto que hay hoy en producción |
 | Una página del dueño tapa la de un módulo | Lista de reservados derivada del registro de módulos + test que la verifica contra el filesystem |
-| `sectionsJson` crece sin control | Límite de 20 páginas y de bloques por página |
-| Filtrar datos privados al público | Los bloques de esta obra son todos estáticos: su contenido vive en `config`, no consultan otros módulos. El contrato de `block-contract.ts` recién aplica en la obra 2 |
+| `sectionsJson` crece sin control | Límite de 20 páginas y de secciones por página |
+| Filtrar datos privados al público | Las secciones de esta obra son todas estáticas: su contenido vive en `config`, no consultan otros módulos. El contrato de `block-contract.ts` recién aplica en la obra 2 |
 | El menú editado a mano se pisa al agregar una página | Las páginas nuevas se agregan al final; nunca se reordena lo que el dueño decidió |
 
 ---
@@ -357,8 +397,9 @@ páginas: cambiar de plantilla no borra páginas creadas.
 
 - Resolución de página por dirección, incluida la página de Inicio.
 - Choque con nombres reservados, y que la lista cubra las páginas de módulos reales.
-- Menú derivado: orden, páginas ocultas, submenús, `navJson` vacío vs. editado.
-- Módulo apagado: fuera del menú y 404 en su ruta.
+- Menú derivado: orden, páginas no listadas, submenús, `navJson` vacío vs. editado.
+- Módulo no habilitado: fuera del menú y 404 en su ruta.
+- Página no listada: fuera del menú y del sitemap, pero abriéndose por su dirección.
 - Las cuatro combinaciones de la tabla "cuando no hay sitio".
 - Lectura de `sectionsJson` con la forma vieja.
 - Plantillas: sembrar en sitio vacío vs. aplicar sobre sitio con contenido.
@@ -378,8 +419,10 @@ sin haberlo visto andar.
 3. Páginas: forma nueva de `sectionsJson` con lectura de la vieja, más la pantalla del panel.
 4. Menú: derivado + editable, con encendido y apagado por módulo.
 5. Integrar las páginas de módulos al armazón.
-6. Bloques, primera tanda.
-7. Bloques, segunda tanda.
+6. Secciones, primera tanda.
+7. Secciones, segunda tanda.
 8. Plantillas: paleta, pie y páginas semilla.
 9. Las diez plantillas.
 10. SEO, sitemap, robots, 404, datos estructurados y verificación final en el navegador.
+11. Vocabulario: corregir el texto de la portada del módulo que todavía dice "bloques
+    visuales", y un test que verifique que ningún texto visible del módulo use "bloque".
