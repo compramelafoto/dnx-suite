@@ -127,6 +127,30 @@ export default async function DirectorioJuradoDetallePage({ params }: Props) {
             </p>
           </div>
         </div>
+
+        {detail.portfolio.length > 0 ? (
+          <div className="mt-8">
+            <h2 className="text-lg font-semibold text-fr-primary">Su trabajo</h2>
+            <ul className="mt-4 grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {detail.portfolio.map((img) => (
+                <li key={img.id}>
+                  <figure>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={img.src}
+                      alt={img.title ?? ""}
+                      loading="lazy"
+                      className="aspect-[4/3] w-full rounded border border-fr-border object-cover"
+                    />
+                    {img.title ? (
+                      <figcaption className="mt-1 text-xs text-fr-muted">{img.title}</figcaption>
+                    ) : null}
+                  </figure>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </div>
 
       <OrganizerJudgeDetailInvite judgeAccountId={detail.judgeAccountId} contests={contests} />

@@ -312,6 +312,24 @@ export function DirectorioJuradosClient({ initialItems, totalApprox, initialFilt
                   ) : null}
                 </div>
               </div>
+
+              {/* La tira de su trabajo. Un jurado sin portfolio se ve como
+                  antes, sin marcos vacíos. */}
+              {j.portfolio.length > 0 ? (
+                <ul className="mt-4 grid grid-cols-3 gap-1">
+                  {j.portfolio.map((img) => (
+                    <li key={img.id}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={img.src}
+                        alt=""
+                        loading="lazy"
+                        className="aspect-square w-full rounded object-cover"
+                      />
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
               {j.specialties.length > 0 ? (
                 <div className="mt-4 flex flex-wrap gap-2">
                   {j.specialties.slice(0, 4).map((s) => (

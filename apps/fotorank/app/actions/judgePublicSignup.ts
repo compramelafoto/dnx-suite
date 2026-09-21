@@ -22,6 +22,7 @@ import {
   hashDeToken,
   revisarToken,
 } from "../lib/fotorank/judges/judgeEmailVerification";
+import { saveJudgeAvatar } from "../lib/fotorank/judges/judgeAssetStorage";
 import { buildPublicSlugUnico } from "../lib/fotorank/judges/publicSlug";
 import {
   normalizarInstagram,
@@ -210,6 +211,29 @@ export async function postularseComoJuradoAction(
     },
     select: { id: true },
   });
+
+  // La foto va después de crear la cuenta, porque la clave del archivo lleva
+  // el judgeAccountId. Si falla, el alta NO se cae: perder una cuenta entera
+  // por una imagen sería peor que la imagen.
+  const foto = fd.get("foto");
+  if (foto && typeof foto === "object" && "arrayBuffer" in foto && (foto as File).size > 0) {
+    try {
+      const f = foto as File;
+      const guardada = await saveJudgeAvatar({
+        judgeAccountId: cuenta.id,
+        body: new Uint8Array(await f.arrayBuffer()),
+        mime: f.type || "",
+      });
+      if (guardada.ok) {
+        await prisma.fotorankJudgeProfile.update({
+          where: { judgeAccountId: cuenta.id },
+          data: { avatarUrl: guardada.key },
+        });
+      }
+    } catch (err) {
+      console.warn("[postulacion de jurado] la foto no se pudo guardar", err);
+    }
+  }
 
   await prisma.emailVerificationToken.create({
     data: {

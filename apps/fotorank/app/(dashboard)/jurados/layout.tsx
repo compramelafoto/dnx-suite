@@ -1,6 +1,7 @@
 import { requireAuth } from "../../lib/auth";
 import { getUserOrganizations } from "../../lib/fotorank/organizations";
 import { resolveActiveOrganizationForUser } from "../../lib/fotorank/dashboard-org-context";
+import { userIsFotorankSuperAdmin } from "../../lib/fotorank/access/super-admin";
 import { JuradosOrganizationSwitcher } from "../../components/jurados/JuradosOrganizationSwitcher";
 import { ContextOrgChip } from "../../components/dashboard-patterns";
 
@@ -15,7 +16,12 @@ export default async function JuradosLayout({ children }: { children: React.Reac
   // quedó resuelta. Un Super Admin no es miembro de ninguna pero las ve todas,
   // así que sin esto la pantalla decía "no tenés organizaciones" arriba de una
   // lista de jurados de una organización.
-  const sinOrganizacion = orgs.length === 0 && !resolved.ok;
+  //
+  // Y a un Super Admin que todavía no eligió cuál mirar tampoco le corresponde:
+  // no le falta una organización, le falta elegirla, y eso ya se lo dice la
+  // pantalla.
+  const esSuperAdmin = userIsFotorankSuperAdmin(user);
+  const sinOrganizacion = orgs.length === 0 && !resolved.ok && !esSuperAdmin;
 
   return (
     <div className="space-y-8">

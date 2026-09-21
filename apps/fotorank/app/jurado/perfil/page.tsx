@@ -4,6 +4,8 @@ import { JuradoPerfilProfesionalForm } from "./JuradoPerfilProfesionalForm";
 import { FotoDePerfil } from "./FotoDePerfil";
 import { EstadoDeMiFicha } from "./EstadoDeMiFicha";
 import { judgeAvatarSrc } from "../../lib/fotorank/judges/judgeAvatarSrc";
+import { portfolioImageSrc } from "../../lib/fotorank/judges/portfolioSrc";
+import { PortfolioDelJurado } from "./PortfolioDelJurado";
 import { otrosLinksATexto } from "../../lib/fotorank/judges/otherLinks";
 import Link from "next/link";
 
@@ -24,6 +26,16 @@ export default async function JuradoPerfilProfesionalPage() {
       </div>
     );
   }
+
+  const imagenes = await prisma.fotorankJudgePortfolioImage.findMany({
+    where: { judgeProfileId: profile.id },
+    orderBy: { sortOrder: "asc" },
+    select: { id: true, storageKey: true, contentHash: true, title: true },
+  });
+  const imagenesDePortfolio = imagenes
+    .map((img) => ({ id: img.id, src: portfolioImageSrc(img), title: img.title }))
+    // Una imagen cuya clave no se puede interpretar no se muestra rota.
+    .filter((img): img is { id: string; src: string; title: string | null } => img.src !== null);
 
   const specialtiesText = Array.isArray(profile.specialtiesJson)
     ? (profile.specialtiesJson as string[]).join(", ")
@@ -59,6 +71,8 @@ export default async function JuradoPerfilProfesionalPage() {
           srcInicial={judgeAvatarSrc({ id: profile.id, avatarUrl: profile.avatarUrl })}
           iniciales={`${profile.firstName.charAt(0)}${profile.lastName.charAt(0)}`.toUpperCase()}
         />
+
+        <PortfolioDelJurado iniciales={imagenesDePortfolio} />
 
         <JuradoPerfilProfesionalForm
           initial={{

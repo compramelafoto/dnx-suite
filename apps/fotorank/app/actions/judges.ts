@@ -54,6 +54,7 @@ import { judgeAvatarSrc } from "../lib/fotorank/judges/judgeAvatarSrc";
 import { resultadoDeAceptarInvitacion } from "../lib/fotorank/judges/inviteAcceptance";
 import { buildPublicSlug } from "../lib/fotorank/judges/publicSlug";
 import { recortarPerfilParaElPublico } from "../lib/fotorank/judges/publicProfileVisibility";
+import { portfolioImageSrc } from "../lib/fotorank/judges/portfolioSrc";
 import { saveJudgeAvatar, deleteJudgeAvatarByKey } from "../lib/fotorank/judges/judgeAssetStorage";
 
 export type JudgeMethodType =
@@ -1715,6 +1716,7 @@ export async function getJudgePublicProfile(publicSlug: string): Promise<JudgeAc
           },
         },
       },
+      portfolioImages: { orderBy: { sortOrder: "asc" } },
     },
   });
 
@@ -1751,6 +1753,10 @@ export async function getJudgePublicProfile(publicSlug: string): Promise<JudgeAc
         categoryName: a.category.name,
         assignmentType: a.assignmentType,
       })),
+      portfolio: profile.portfolioImages
+        .map((img) => ({ id: img.id, src: portfolioImageSrc(img), title: img.title }))
+        // Una imagen cuya clave no se puede interpretar no se muestra rota.
+        .filter((img): img is { id: string; src: string; title: string | null } => img.src !== null),
     },
   };
 }
