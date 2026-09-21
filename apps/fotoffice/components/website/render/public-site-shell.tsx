@@ -2,7 +2,8 @@ import type { CSSProperties, ReactNode } from "react";
 import { websiteDesignCssVars } from "@/lib/website/design-presets";
 import { buildSiteNav } from "@/lib/website/site-nav";
 import type { PublicSite } from "@/lib/website/public-site";
-import { PublicSiteNavCurrentClient } from "./site-nav-current-client";
+import { WebsiteHeaderView } from "./website-header-view";
+import { WebsiteFooterView } from "./website-footer-view";
 
 /**
  * El armazón que envuelve TODAS las páginas de `/w/[slug]` — la portada del sitio y las
@@ -13,11 +14,13 @@ import { PublicSiteNavCurrentClient } from "./site-nav-current-client";
  * Por eso el `<main>` no fuerza fondo ni color: cada página sigue pintándose como sabe, y lo
  * que se unifica es el marco.
  *
- * El menú se arma acá, en el servidor (`buildSiteNav`), con `currentPath` como mejor esfuerzo
- * inicial — hoy nunca se marca bien, porque la cabecera de la que depende no llega (ver el
- * comentario en `PublicSiteNavCurrentClient`). Quien corrige de verdad qué ítem es el actual es
- * ese componente de cliente: recibe el menú ya armado y sólo le corrige la marca con la ruta real
- * del navegador.
+ * `WebsiteHeaderView` y `WebsiteFooterView` siguen siendo Server Components enteros — ninguno de
+ * los dos se envuelve en un límite de cliente acá. El pie no necesita saber la ruta actual (sólo
+ * pinta `label`/`href`). El header sí, pero resuelve eso por dentro con un componente de cliente
+ * chiquito acotado sólo al menú (`WebsiteHeaderNavClient`) — ver el comentario en
+ * `website-header-view.tsx`. `currentPath` se le sigue pasando a `buildSiteNav` como mejor
+ * esfuerzo para el primer render en el servidor; quien corrige la marca de verdad es ese
+ * componente de cliente, con la ruta real del navegador.
  */
 export function PublicSiteShell({
   site,
@@ -47,23 +50,21 @@ export function PublicSiteShell({
 
   return (
     <div style={{ ...themeVars, minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-      <PublicSiteNavCurrentClient
+      <WebsiteHeaderView
+        logoUrl={site.logoUrl}
+        workspaceName={site.commercialName}
         navItems={navItems}
-        header={{
-          logoUrl: site.logoUrl,
-          workspaceName: site.commercialName,
-          designPresets: site.designPresets,
-          homeHref: `/w/${site.workspaceSlug}`,
-        }}
-        footer={{
-          commercialName: site.commercialName,
-          logoUrl: site.logoUrl,
-          contact: site.contact,
-          designPresets: site.designPresets,
-        }}
-      >
-        <main style={{ flex: 1 }}>{children}</main>
-      </PublicSiteNavCurrentClient>
+        designPresets={site.designPresets}
+        homeHref={`/w/${site.workspaceSlug}`}
+      />
+      <main style={{ flex: 1 }}>{children}</main>
+      <WebsiteFooterView
+        commercialName={site.commercialName}
+        logoUrl={site.logoUrl}
+        contact={site.contact}
+        navItems={navItems}
+        designPresets={site.designPresets}
+      />
     </div>
   );
 }

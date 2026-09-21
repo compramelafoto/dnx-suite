@@ -28,6 +28,22 @@ function normalizar(path: string): string {
   return limpio === "" ? "/" : limpio;
 }
 
+/**
+ * La regla de coincidencia entre una ruta y el href de un ítem del menú: "Inicio" compara por
+ * igualdad exacta (si no, cualquier ruta del sitio lo marcaría a él también, por ser prefijo de
+ * todas); el resto por prefijo, así una ruta más profunda —el detalle de un curso— sigue
+ * marcando a la página de su módulo.
+ *
+ * Exportada porque no es sólo de acá: `buildSiteNav` la usa para el primer render en el
+ * servidor, y el componente de cliente que corrige la marca con la ruta real del navegador
+ * (`usePathname`, en `website-header-nav-client.tsx`) la reusa — la regla vive en un solo lugar.
+ */
+export function isPathCurrent(pathname: string, href: string, options: { exact: boolean }): boolean {
+  const actual = normalizar(pathname);
+  const objetivo = normalizar(href);
+  return options.exact ? actual === objetivo : actual === objetivo || actual.startsWith(`${objetivo}/`);
+}
+
 export function buildSiteNav(input: {
   workspaceSlug: string;
   homeBlocks: WebsiteBlock[];
@@ -37,7 +53,6 @@ export function buildSiteNav(input: {
   hasPublishedSite: boolean;
 }): SiteNavItem[] {
   const base = `/w/${input.workspaceSlug}`;
-  const actual = normalizar(input.currentPath);
 
   // Las anclas de la portada sólo tienen sentido estando en la portada: desde otra página,
   // `#seccion` no llevaría a ningún lado. Por eso el href lleva siempre la ruta completa.
@@ -57,14 +72,13 @@ export function buildSiteNav(input: {
     id: "home",
     label: "Inicio",
     href: base,
-    current: actual === normalizar(base),
+    current: isPathCurrent(input.currentPath, base, { exact: true }),
     children: secciones,
   };
 
   const paginasDeModulo: SiteNavItem[] = publicModulePagesFor(input.enabledModuleKeys).map((pagina) => {
     const href = `${base}/${pagina.segment}`;
-    // Una ruta más profunda (el detalle de un curso) marca igual a su página de módulo.
-    const esActual = actual === normalizar(href) || actual.startsWith(`${normalizar(href)}/`);
+    const esActual = isPathCurrent(input.currentPath, href, { exact: false });
     return { id: pagina.moduleKey, label: pagina.label, href, current: esActual, children: [] };
   });
 
