@@ -2,6 +2,7 @@
 
 import { createHash, randomBytes } from "node:crypto";
 import { Prisma, prisma } from "@repo/db";
+import { getClickatonJuryPrisma } from "@repo/db/clickaton-jury-client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAuth } from "../lib/auth";
@@ -19,6 +20,14 @@ import {
   eligibilityForLoadedAssignment,
   gateJudgeEvaluationForJudge,
 } from "../lib/fotorank/judgeEvaluationGate";
+import {
+  platformForContest,
+  platformLabel,
+} from "../lib/fotorank/jury/assignment-source";
+import {
+  serializeEntryForJuror,
+  type JurorEntry,
+} from "../lib/fotorank/jury/entry-for-juror";
 import { rawVoteInputFromFormData, validateVotePayloadForMethod } from "../lib/fotorank/judgeVotePayload";
 import {
   filterFotorankEntriesEvaluableForJudging,
@@ -1259,23 +1268,57 @@ export async function judgeLogoutAction(): Promise<void> {
   await destroyCurrentJudgeSession();
 }
 
-export async function listJudgeAssignmentsForCurrentJudge(): Promise<JudgeActionResult<Array<Record<string, unknown>>>> {
+/**
+ * Todas las asignaciones del jurado, de las dos plataformas, en una sola lista.
+ *
+ * Si la base de Clickatón no responde se devuelven igual las propias y se avisa
+ * con `clickatonUnavailable`: una caída no puede parecerse a "no tenés trabajo
+ * asignado".
+ */
+export async function listJudgeAssignmentsForCurrentJudge(): Promise<
+  JudgeActionResult<{
+    assignments: Array<Record<string, unknown>>;
+    clickatonUnavailable: boolean;
+  }>
+> {
   const judge = await requireJudgeAuth();
   const now = new Date();
 
-  const assignments = await prisma.fotorankJudgeAssignment.findMany({
+  const includeShape = {
+    contest: true,
+    category: true,
+    votes: true,
+  } as const;
+
+  const own = await prisma.fotorankJudgeAssignment.findMany({
     where: { judgeAccountId: judge.id },
-    include: {
-      contest: true,
-      category: true,
-      votes: true,
-    },
+    include: includeShape,
     orderBy: { updatedAt: "desc" },
   });
 
+  let external: typeof own = [];
+  let clickatonUnavailable = false;
+  const clickatonPrisma = getClickatonJuryPrisma();
+  if (clickatonPrisma) {
+    try {
+      external = (await clickatonPrisma.fotorankJudgeAssignment.findMany({
+        where: { judgeAccountId: judge.id },
+        include: includeShape,
+        orderBy: { updatedAt: "desc" },
+      })) as typeof own;
+    } catch {
+      clickatonUnavailable = true;
+    }
+  }
+
+  const assignments = [...own, ...external].sort(
+    (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime(),
+  );
+
   return {
     ok: true,
-    data: assignments.map((a) => {
+    data: {
+      assignments: assignments.map((a) => {
       const eligibility = eligibilityForLoadedAssignment(
         {
           id: a.id,
@@ -1290,16 +1333,25 @@ export async function listJudgeAssignmentsForCurrentJudge(): Promise<JudgeAction
           evaluationStartsAt: a.evaluationStartsAt,
           evaluationEndsAt: a.evaluationEndsAt,
           extendedEndsAt: a.extendedEndsAt,
-          contest: { status: a.contest.status },
+          contest: {
+            status: a.contest.status,
+            distributionChannel: a.contest.distributionChannel,
+            title: a.contest.title,
+          },
         },
         judge,
         now,
       );
+      const platform = platformForContest({
+        distributionChannel: a.contest.distributionChannel,
+      });
       return {
         id: a.id,
         contestId: a.contestId,
         contestTitle: a.contest.title,
         categoryName: a.category.name,
+        platform,
+        platformLabel: platformLabel(platform),
         assignmentStatus: a.assignmentStatus,
         assignmentType: a.assignmentType,
         methodType: a.methodType,
@@ -1312,10 +1364,21 @@ export async function listJudgeAssignmentsForCurrentJudge(): Promise<JudgeAction
         evaluationBlockMessage: eligibility.allowed ? null : eligibility.message,
       };
     }),
+      clickatonUnavailable,
+    },
   };
 }
 
-export async function listEntriesForAssignment(assignmentId: string): Promise<JudgeActionResult<Array<Record<string, unknown>>>> {
+/**
+ * Obras que el jurado tiene que evaluar en una asignación.
+ *
+ * Las de un concurso de Clickatón viven en la base de Clickatón: se leen con el
+ * cliente cruzado. Lo que se devuelve lo decide `serializeEntryForJuror`, único
+ * lugar autorizado a elegir qué ve el jurado.
+ */
+export async function listEntriesForAssignment(
+  assignmentId: string,
+): Promise<JudgeActionResult<JurorEntry[]>> {
   const judge = await requireJudgeAuth();
 
   const gate = await gateJudgeEvaluationForJudge(assignmentId, judge, new Date());
@@ -1324,7 +1387,21 @@ export async function listEntriesForAssignment(assignmentId: string): Promise<Ju
   }
   const assignment = gate.assignment;
 
-  const entriesRaw = await prisma.fotorankContestEntry.findMany({
+  const platform = gate.platform;
+  const db = platform === "clickaton" ? getClickatonJuryPrisma() : prisma;
+  if (!db) {
+    return {
+      ok: false,
+      error:
+        "No podemos acceder a las obras de Clickatón en este momento. Volvé a intentar en un rato.",
+    };
+  }
+  const clickatonBaseUrl =
+    platform === "clickaton"
+      ? (process.env.CLICKATON_PUBLIC_BASE_URL?.trim() || "https://maratonfotografica.com")
+      : null;
+
+  const entriesRaw = await db.fotorankContestEntry.findMany({
     where: {
       contestId: assignment.contestId,
       categoryId: assignment.categoryId,
@@ -1349,25 +1426,7 @@ export async function listEntriesForAssignment(assignmentId: string): Promise<Ju
 
   return {
     ok: true,
-    data: entries.map((entry) => ({
-      id: entry.id,
-      anonymousCode: entry.entryNumber,
-      // P0-07: no imageUrl pública ni title/description identificatorios
-      hasJuryPreview: entry.assets.length > 0,
-      technicalSummaryStatus: entry.technicalSummaryStatus,
-      warningCount: entry.checks.filter((c) => c.status === "WARNING" || c.status === "REQUIRES_REVIEW").length,
-      evaluationMessage: "Evaluación aún no habilitada (rúbricas pendientes).",
-      currentVote: entry.votes[0]
-        ? {
-            id: entry.votes[0].id,
-            valueNumeric: entry.votes[0].valueNumeric,
-            valueBoolean: entry.votes[0].valueBoolean,
-            isFavorite: entry.votes[0].isFavorite,
-            selectedRank: entry.votes[0].selectedRank,
-            version: entry.votes[0].version,
-          }
-        : null,
-    })),
+    data: entries.map((entry) => serializeEntryForJuror({ entry, clickatonBaseUrl })),
   };
 }
 
@@ -1389,7 +1448,18 @@ export async function saveJudgeVote(input: {
   }
   const assignment = gate.assignment;
 
-  const entry = await prisma.fotorankContestEntry.findUnique({
+  // Un cliente mezclado escribiría el voto en la base equivocada y nadie se
+  // enteraría hasta buscar los resultados. Se resuelve una sola vez, acá.
+  const db = gate.platform === "clickaton" ? getClickatonJuryPrisma() : prisma;
+  if (!db) {
+    return {
+      ok: false,
+      error:
+        "No podemos guardar tu voto en este momento porque no llegamos a las obras de Clickatón. Volvé a intentar en un rato.",
+    };
+  }
+
+  const entry = await db.fotorankContestEntry.findUnique({
     where: { id: input.entryId },
     select: {
       id: true,
@@ -1415,7 +1485,7 @@ export async function saveJudgeVote(input: {
     return { ok: false, error: "Esta obra no está confirmada o no está disponible para evaluación." };
   }
 
-  let existing = await prisma.fotorankJudgeVote.findUnique({
+  let existing = await db.fotorankJudgeVote.findUnique({
     where: {
       assignmentId_entryId: {
         assignmentId: input.assignmentId,
@@ -1444,7 +1514,7 @@ export async function saveJudgeVote(input: {
 
   if (!existing) {
     try {
-      await prisma.fotorankJudgeVote.create({
+      await db.fotorankJudgeVote.create({
         data: {
           assignmentId: input.assignmentId,
           entryId: input.entryId,
@@ -1461,7 +1531,7 @@ export async function saveJudgeVote(input: {
       const isUnique =
         e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
       if (!isUnique) throw e;
-      existing = await prisma.fotorankJudgeVote.findUnique({
+      existing = await db.fotorankJudgeVote.findUnique({
         where: {
           assignmentId_entryId: {
             assignmentId: input.assignmentId,
@@ -1489,7 +1559,7 @@ export async function saveJudgeVote(input: {
       version: existing.version,
     };
 
-    const updated = await prisma.fotorankJudgeVote.update({
+    const updated = await db.fotorankJudgeVote.update({
       where: { id: existing.id },
       data: {
         valueNumeric: voteData.valueNumeric,
@@ -1502,7 +1572,7 @@ export async function saveJudgeVote(input: {
       },
     });
 
-    await prisma.fotorankJudgeVoteHistory.create({
+    await db.fotorankJudgeVoteHistory.create({
       data: {
         voteId: existing.id,
         assignmentId: input.assignmentId,
@@ -1522,7 +1592,7 @@ export async function saveJudgeVote(input: {
     });
   }
 
-  await prisma.fotorankJudgeAuditEvent.create({
+  await db.fotorankJudgeAuditEvent.create({
     data: {
       organizationId: assignment.organizationId,
       contestId: assignment.contestId,
