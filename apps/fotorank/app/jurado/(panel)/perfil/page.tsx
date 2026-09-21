@@ -1,10 +1,10 @@
-import { requireJudgeAuth } from "../../lib/judge-auth";
+import { requireJudgeAuth } from "../../../lib/judge-auth";
 import { prisma } from "@repo/db";
 import { JuradoPerfilProfesionalForm } from "./JuradoPerfilProfesionalForm";
 import { FotoDePerfil } from "./FotoDePerfil";
 import { EstadoDeMiFicha } from "./EstadoDeMiFicha";
-import { judgeAvatarSrc } from "../../lib/fotorank/judges/judgeAvatarSrc";
-import { otrosLinksATexto } from "../../lib/fotorank/judges/otherLinks";
+import { judgeAvatarSrc } from "../../../lib/fotorank/judges/judgeAvatarSrc";
+import { otrosLinksATexto } from "../../../lib/fotorank/judges/otherLinks";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";

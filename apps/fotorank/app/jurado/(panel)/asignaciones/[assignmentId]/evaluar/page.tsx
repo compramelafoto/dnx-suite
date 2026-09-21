@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { listEntriesForAssignment } from "../../../../actions/judges";
-import { requireJudgeAuth } from "../../../../lib/judge-auth";
+import { listEntriesForAssignment } from "../../../../../actions/judges";
+import { requireJudgeAuth } from "../../../../../lib/judge-auth";
 import {
   eligibilityForLoadedAssignment,
   loadJudgeAssignmentScoped,
-} from "../../../../lib/fotorank/judgeEvaluationGate";
-import { platformLabel } from "../../../../lib/fotorank/jury/assignment-source";
+} from "../../../../../lib/fotorank/judgeEvaluationGate";
+import { platformLabel } from "../../../../../lib/fotorank/jury/assignment-source";
 import { EvaluationClient } from "./EvaluationClient";
 import { Card, Button } from "@repo/design-system";
 

@@ -6,9 +6,9 @@ import { Button, Card, FormField, radius, spacing, useResolvedTheme } from "@rep
 import {
   judgeEvaluationVoteAction,
   type JudgeEvaluationVoteFormState,
-} from "../../../../actions/judges";
-import { parseCriteriaBasedMethodConfig } from "../../../../lib/fotorank/judges/criteriaBased";
-import type { JurorEntry } from "../../../../lib/fotorank/jury/entry-for-juror";
+} from "../../../../../actions/judges";
+import { parseCriteriaBasedMethodConfig } from "../../../../../lib/fotorank/judges/criteriaBased";
+import type { JurorEntry } from "../../../../../lib/fotorank/jury/entry-for-juror";
 
 /**
  * La obra llega ya filtrada por `serializeEntryForJuror`: sin autor, sin

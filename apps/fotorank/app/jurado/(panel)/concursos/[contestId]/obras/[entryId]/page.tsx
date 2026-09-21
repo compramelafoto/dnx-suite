@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { requireJudgeAuth } from "../../../../../lib/judge-auth";
-import { JuryError, getAnonymousEntryDetailForJuror } from "../../../../../lib/fotorank/jury";
+import { requireJudgeAuth } from "../../../../../../lib/judge-auth";
+import { JuryError, getAnonymousEntryDetailForJuror } from "../../../../../../lib/fotorank/jury";
 import { JuryConflictForm } from "./JuryConflictForm";
 import { JuryEvaluationForm } from "./JuryEvaluationForm";
 

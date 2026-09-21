@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 
-import { reenviarVerificacionAction } from "../../actions/judgePublicSignup";
+import { reenviarVerificacionAction } from "../../../actions/judgePublicSignup";
 
 export function ReenviarVerificacion() {
   const [mensaje, setMensaje] = useState<string | null>(null);

@@ -6,10 +6,10 @@ import {
   judgeAcceptDirectoryInvitationAction,
   judgeRejectDirectoryInvitationAction,
   judgeArchiveDirectoryInvitationAction,
-} from "../../actions/judgeProfessionalDirectory";
-import { EXTERNAL_PAYMENT_DISCLAIMER } from "../../lib/fotorank/judges/legalCopy";
-import { StatusBadge } from "../../components/public-ui";
-import { presentJudgeDirectoryInviteStatus } from "../../lib/fotorank/judges/ui/judgeStatus";
+} from "../../../actions/judgeProfessionalDirectory";
+import { EXTERNAL_PAYMENT_DISCLAIMER } from "../../../lib/fotorank/judges/legalCopy";
+import { StatusBadge } from "../../../components/public-ui";
+import { presentJudgeDirectoryInviteStatus } from "../../../lib/fotorank/judges/ui/judgeStatus";
 
 type Row = {
   id: string;

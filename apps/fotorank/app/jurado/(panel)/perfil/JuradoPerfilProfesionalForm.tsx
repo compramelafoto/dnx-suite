@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { judgeUpdateProfessionalProfileAction } from "../../actions/judgeProfessionalProfile";
-import { DIRECTORY_PRIVACY_NOTE, EXTERNAL_PAYMENT_DISCLAIMER } from "../../lib/fotorank/judges/legalCopy";
+import { judgeUpdateProfessionalProfileAction } from "../../../actions/judgeProfessionalProfile";
+import { DIRECTORY_PRIVACY_NOTE, EXTERNAL_PAYMENT_DISCLAIMER } from "../../../lib/fotorank/judges/legalCopy";
 
 type Initial = {
   displayNameOverride: string | null;

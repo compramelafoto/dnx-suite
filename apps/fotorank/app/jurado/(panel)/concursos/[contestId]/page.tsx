@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { requireJudgeAuth } from "../../../lib/judge-auth";
+import { requireJudgeAuth } from "../../../../lib/judge-auth";
 import {
   JuryError,
   hasAcceptedJuryTerms,
   listAnonymousEntriesForJuror,
-} from "../../../lib/fotorank/jury";
+} from "../../../../lib/fotorank/jury";
 import { JuryTermsGate } from "./JuryTermsGate";
 
 type Props = { params: Promise<{ contestId: string }> };

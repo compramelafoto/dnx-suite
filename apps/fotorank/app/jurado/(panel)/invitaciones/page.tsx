@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { requireJudgeAuth } from "../../lib/judge-auth";
-import { expireStaleDirectoryInvitationsNow } from "../../lib/fotorank/judges/directoryInvitationService";
+import { requireJudgeAuth } from "../../../lib/judge-auth";
+import { expireStaleDirectoryInvitationsNow } from "../../../lib/fotorank/judges/directoryInvitationService";
 import { prisma } from "@repo/db";
 import { JudgeDirectoryInvitationsClient } from "./JudgeDirectoryInvitationsClient";
 
