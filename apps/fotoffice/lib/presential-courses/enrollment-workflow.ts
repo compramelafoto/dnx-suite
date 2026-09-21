@@ -54,17 +54,22 @@ export async function approveCourseEnrollment(args: {
     return { ok: false, reason: "enrollment_not_pending" as const };
   }
 
-  const approvedCounts = await getApprovedEnrollmentCountsByInstanceIds([enrollment.courseInstanceId]);
-  const approvedCount = approvedCounts.get(enrollment.courseInstanceId) ?? 0;
-  const availableSpots = computeAvailableSpots(enrollment.courseInstance.capacity, approvedCount);
-  if (availableSpots <= 0) {
-    logCourseEvent("payment_approved_conflict_no_spots", {
-      enrollmentId: enrollment.id,
-      workspaceId: enrollment.workspaceId,
-      courseId: enrollment.courseId,
-      courseInstanceId: enrollment.courseInstanceId,
-    });
-    return { ok: false, reason: "no_spots_available" as const };
+  // El cupo existe sólo cuando hay edición. Un curso grabado no tiene ediciones ni cupo: se
+  // vende tantas veces como quiera el fotógrafo.
+  const instancia = enrollment.courseInstance;
+  if (instancia) {
+    const approvedCounts = await getApprovedEnrollmentCountsByInstanceIds([instancia.id]);
+    const approvedCount = approvedCounts.get(instancia.id) ?? 0;
+    const availableSpots = computeAvailableSpots(instancia.capacity, approvedCount);
+    if (availableSpots <= 0) {
+      logCourseEvent("payment_approved_conflict_no_spots", {
+        enrollmentId: enrollment.id,
+        workspaceId: enrollment.workspaceId,
+        courseId: enrollment.courseId,
+        courseInstanceId: instancia.id,
+      });
+      return { ok: false, reason: "no_spots_available" as const };
+    }
   }
 
   const amount =
@@ -107,7 +112,7 @@ export async function approveCourseEnrollment(args: {
     courseId: enrollment.courseId,
     courseTitle: enrollment.course.title,
     courseInstanceId: enrollment.courseInstanceId,
-    courseInstanceTitle: enrollment.courseInstance.title,
+    courseInstanceTitle: instancia?.title ?? null,
     amountArs: decimalToNumber(amount),
     paidAt: new Date().toISOString(),
   };
@@ -163,6 +168,19 @@ export async function approveCourseEnrollment(args: {
     courseId: enrollment.courseId,
   });
 
+  // El correo de confirmación cuenta cuándo y dónde es el curso: sin edición no tiene qué
+  // decir. El aviso del curso grabado es otro —lleva el acceso al aula, no una dirección— y
+  // se escribe en la etapa del alumno. Hasta entonces, se aprueba sin mandar nada y queda
+  // registrado, que es mejor que mandar un correo con fechas inventadas.
+  if (!instancia) {
+    logCourseEvent("aprobada_sin_aviso_por_ser_grabado", {
+      enrollmentId: enrollment.id,
+      workspaceId: enrollment.workspaceId,
+      courseId: enrollment.courseId,
+    });
+    return { ok: true, alreadyApproved: false as const };
+  }
+
   // Firma institucional del workspace. Si el branding no está cargado, el email sale sin
   // firma en vez de fallar: confirmar una inscripción no puede depender de esto.
   const signature = await loadWorkspaceSignature(enrollment.workspaceId);
@@ -173,11 +191,11 @@ export async function approveCourseEnrollment(args: {
       to: enrollment.email,
       studentName: enrollment.name,
       courseTitle: enrollment.course.title,
-      instanceLabel: enrollment.courseInstance.title ?? "Edición presencial",
-      startDateTime: enrollment.courseInstance.startDateTime,
-      endDateTime: enrollment.courseInstance.endDateTime,
-      locationName: enrollment.courseInstance.locationName,
-      locationAddress: enrollment.courseInstance.locationAddress,
+      instanceLabel: instancia.title ?? "Edición presencial",
+      startDateTime: instancia.startDateTime,
+      endDateTime: instancia.endDateTime,
+      locationName: instancia.locationName,
+      locationAddress: instancia.locationAddress,
       classroomLink: enrollment.course.classroomLink,
       classroomCode: enrollment.course.classroomCode,
       classroomInstructions: enrollment.course.classroomInstructions,
