@@ -140,7 +140,27 @@ export async function uploadJudgeAvatarImage(
 }
 
 
-export async function listJudgesForOrg(): Promise<JudgeActionResult<Array<Record<string, unknown>>>> {
+/** Una fila de la lista de jurados de la organización. */
+export type JudgeListRow = {
+  membershipId: string;
+  judgeId: string;
+  email: string;
+  accountStatus: string;
+  membershipStatus: string;
+  lastLoginAt: Date | null;
+  profile: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    professionalHeadline: string | null;
+    avatarUrl: string | null;
+  } | null;
+  assignmentsCount: number;
+  activeContests: string[];
+  categories: string[];
+};
+
+export async function listJudgesForOrg(): Promise<JudgeActionResult<JudgeListRow[]>> {
   const scope = await requireOrganizationScope();
   if (!scope.ok) return { ok: false, error: scope.error };
 
@@ -205,12 +225,21 @@ export async function listJudgesForOrg(): Promise<JudgeActionResult<Array<Record
       accountStatus: m.judgeAccount.accountStatus,
       membershipStatus: m.membershipStatus,
       lastLoginAt: m.judgeAccount.lastLoginAt,
-      profile: m.judgeAccount.profile,
+      profile: m.judgeAccount.profile
+        ? {
+            id: m.judgeAccount.profile.id,
+            firstName: m.judgeAccount.profile.firstName,
+            lastName: m.judgeAccount.profile.lastName,
+            professionalHeadline: m.judgeAccount.profile.professionalHeadline,
+            avatarUrl: m.judgeAccount.profile.avatarUrl,
+          }
+        : null,
       assignmentsCount: m.judgeAccount.assignments.length,
       activeContests: [...new Set(m.judgeAccount.assignments.map((a) => a.contest.title))],
       categories: m.judgeAccount.assignments.map((a) =>
-        categoryNameById.get(a.categoryId) ??
-          `(categoría ausente · assignment ${a.id} · categoryId ${a.categoryId})`,
+        // Una categoría huérfana ya se avisó por consola arriba. En pantalla
+        // no se muestran identificadores: no le dicen nada a quien la lee.
+        categoryNameById.get(a.categoryId) ?? "categoría eliminada",
       ),
     })),
   };

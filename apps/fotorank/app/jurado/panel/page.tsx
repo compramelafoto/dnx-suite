@@ -2,6 +2,8 @@ import Link from "next/link";
 import { Card, Button, Badge } from "@repo/design-system";
 import { listJudgeAssignmentsForCurrentJudge, judgeLogoutAction } from "../../actions/judges";
 import { requireJudgeAuth } from "../../lib/judge-auth";
+import { StatusBadge } from "../../components/public-ui";
+import { presentJudgeAssignmentStatus } from "../../lib/fotorank/judges/ui/judgeStatus";
 
 export default async function JudgePanelPage() {
   const judge = await requireJudgeAuth();
@@ -74,7 +76,9 @@ export default async function JudgePanelPage() {
                   </div>
                   <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
                     <Badge variant="default">{a.platformLabel}</Badge>
-                    <Badge variant="neutral">{a.assignmentStatus}</Badge>
+                    <span title={presentJudgeAssignmentStatus(String(a.assignmentStatus)).description}>
+                      <StatusBadge {...presentJudgeAssignmentStatus(String(a.assignmentStatus))} />
+                    </span>
                     <Link href={`/jurado/concursos/${a.contestId}`}>
                       <Button size="sm" variant="outline" className="w-full sm:w-auto">
                         Ver obras anónimas

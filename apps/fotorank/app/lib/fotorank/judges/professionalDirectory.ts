@@ -223,8 +223,6 @@ export type OrganizerJudgeDetailDto = {
   pricingSummary: string | null;
   isVerifiedByPlatform: boolean;
   completedAssignments: number;
-  responseRate: number | null;
-  avgResponseTimeHours: number | null;
   publicSlug: string;
 };
 
@@ -278,8 +276,6 @@ export async function getOrganizerViewJudgeDetail(judgeAccountId: string): Promi
     pricingSummary,
     isVerifiedByPlatform: r.isVerifiedByPlatform,
     completedAssignments: countMap.get(r.judgeAccount.id) ?? 0,
-    responseRate: r.responseRate,
-    avgResponseTimeHours: r.avgResponseTimeHours,
     publicSlug: r.publicSlug,
   };
 }

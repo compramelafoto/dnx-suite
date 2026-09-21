@@ -7,6 +7,12 @@ import { RegistrationError, assertOrganizerCanAccessContest } from "../../../../
 import { getContestOperationalMetrics } from "../../../../../lib/fotorank/metrics/contest-metrics";
 import { ScoringSessionPanel } from "./ScoringSessionPanel";
 import { ConflictReassignPanel } from "./ConflictReassignPanel";
+import { StatusBadge } from "../../../../../components/public-ui";
+import {
+  presentJudgeAssignmentStatus,
+  presentJudgeInvitationStatus,
+} from "../../../../../lib/fotorank/judges/ui/judgeStatus";
+import { fechaExacta, tiempoRelativo } from "../../../../../lib/fotorank/judges/ui/tiempoRelativo";
 export const dynamic = "force-dynamic";
 
 type Props = {
@@ -222,7 +228,11 @@ export default async function ContestJuradoOpsPage({ params, searchParams }: Pro
                     : a.judgeAccount.email}
                 </td>
                 <td className="px-3 py-3">{a.category.name}</td>
-                <td className="px-3 py-3">{a.assignmentStatus}</td>
+                <td className="px-3 py-3">
+                  <span title={presentJudgeAssignmentStatus(a.assignmentStatus).description}>
+                    <StatusBadge {...presentJudgeAssignmentStatus(a.assignmentStatus)} />
+                  </span>
+                </td>
                 <td className="px-3 py-3">{catCount.get(a.categoryId) ?? 0}</td>
               </tr>
             ))}
@@ -251,8 +261,17 @@ export default async function ContestJuradoOpsPage({ params, searchParams }: Pro
             {invitations.map((inv) => (
               <tr key={inv.id} className="border-b border-fr-border/50">
                 <td className="px-3 py-3">{inv.email}</td>
-                <td className="px-3 py-3">{inv.invitationStatus}</td>
-                <td className="px-3 py-3 text-xs text-fr-muted">{inv.expiresAt.toISOString()}</td>
+                <td className="px-3 py-3">
+                  <span title={presentJudgeInvitationStatus(inv.invitationStatus).description}>
+                    <StatusBadge {...presentJudgeInvitationStatus(inv.invitationStatus)} />
+                  </span>
+                </td>
+                <td
+                  className="px-3 py-3 text-xs text-fr-muted"
+                  title={fechaExacta(inv.expiresAt)}
+                >
+                  {tiempoRelativo(inv.expiresAt)}
+                </td>
               </tr>
             ))}
             {invitations.length === 0 ? (
