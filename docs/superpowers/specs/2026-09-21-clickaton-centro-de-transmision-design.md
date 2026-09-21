@@ -33,6 +33,10 @@ No es una herramienta sino ocho piezas que se sueltan de a una. Cada etapa es ú
 | Incentivo para el GPS | El resumen personal al cierre ("Tu Clickatón") |
 | Respaldo sin GPS | La ciudad declarada en la inscripción, mostrada como zona, nunca como punto |
 | Nombre de las capas de OBS | **"gráficas al aire"** — en Clickatón "placa" ya significa el carnet del participante |
+| Ventana de subida | **Abierta durante toda la jornada.** Sin esto el mapa y los termómetros no tendrían nada que mostrar en vivo |
+| Acceso del equipo de streaming | **Nominal, por email.** La organización invita a cada persona por su dirección; no hay clave compartida |
+| Fotos del concurso al aire | **No salen al aire durante el evento**, porque se evalúan en anonimato. Al aire sólo va la **foto de perfil** que el participante subió al inscribirse |
+| Kilómetros | Se miden **en todas las ediciones** como información. Si se premian o se mencionan se decide después, edición por edición |
 
 ---
 
@@ -182,25 +186,39 @@ firstPointAt?, lastPointAt?, distinctZones, lastLatitude?, lastLongitude?,
 computedAt
 ```
 
-**`ClickatonEditionBroadcastConfig`** — el interruptor del módulo, **apagado por defecto**.
+**`ClickatonEditionBroadcastConfig`** — el interruptor del módulo, **apagado por defecto**. `contestPhotosOnAir` sólo puede encenderse con una fecha posterior al cierre de la evaluación (§9.1).
 
 ```
 editionId @unique, enabled (default false), goalPhotos?, showNamesOnAir (default false),
-lastPhotosOnAir (default false), airApprovalRequired (default true),
+contestPhotosOnAir (default false), contestPhotosOnAirFrom?,
 mapRefreshSeconds (default 10), createdAt, updatedAt
 ```
 
-**`ClickatonBroadcastAccess`** — el acceso del equipo externo.
+**`ClickatonBroadcastMember`** — cada persona del equipo de transmisión, invitada por su email.
 
 ```
-id, editionId, label, tokenHash, scopes (Json), expiresAt, revokedAt?,
-createdByUserId, lastUsedAt?, createdAt
+id, editionId, email, emailNormalized, displayName?, role (PRODUCER | OPERATOR | HOST),
+invitedByUserId, invitedAt, acceptedAt?, confidentialityAcceptedAt?,
+expiresAt, revokedAt?, lastSeenAt?, createdAt, updatedAt
+@@unique([editionId, emailNormalized])
 ```
+
+Entra con un **enlace mágico al email**, sin contraseña. Todo lo que hace queda atado a su nombre, no a un acceso anónimo compartido.
+
+**`ClickatonBroadcastOverlayToken`** — el token que se pega en la dirección de cada gráfica de OBS.
+
+```
+id, editionId, label, tokenHash, expiresAt, revokedAt?, createdByUserId,
+lastUsedAt?, createdAt
+```
+
+Es **de sólo lectura y sin datos personales**: sirve para que la gráfica lea el estado público del evento. Aunque se filtre, no expone ningún contacto. Va separado del acceso nominal porque OBS no sabe iniciar sesión.
 
 **`ClickatonBroadcastAudit`** — quién vio qué.
 
 ```
-id, accessId, editionId, action (VIEW_CONTACT | REVEAL_PHONE | SEND_WHATSAPP | AIR_CUE | ...),
+id, editionId, memberId?, overlayTokenId?,
+action (VIEW_CONTACT | REVEAL_PHONE | SEND_WHATSAPP | SEND_EMAIL | AIR_CUE | ...),
 registrationId?, requestIp?, createdAt
 ```
 
@@ -208,7 +226,7 @@ registrationId?, requestIp?, createdAt
 
 ```
 id, editionId, kind (PARTICIPANT_CARD | PHOTO_FINISH | RANKING | CUSTOM_TEXT),
-payload (Json), activeFrom, activeUntil?, createdByAccessId, createdAt
+payload (Json), activeFrom, activeUntil?, createdByMemberId, createdAt
 ```
 
 **`ClickatonBroadcastMoment`** — las noticias detectadas solas.
@@ -223,7 +241,7 @@ detectedAt, acknowledgedAt?, dismissedAt?
 
 ```
 id, editionId, registrationId, status (SUGGESTED | SCHEDULED | ON_AIR | DONE | DISCARDED),
-scheduledAt?, notes?, updatedByAccessId?, createdAt, updatedAt
+scheduledAt?, notes?, updatedByMemberId?, createdAt, updatedAt
 ```
 
 **`ClickatonReadinessCheck`** — la prueba técnica previa.
@@ -336,17 +354,25 @@ Incluye el respaldo por ciudad y el botón "estoy acá".
 - **Comparativa con la 1ª edición**: "a esta hora el año pasado había 40 fotos, hoy 95".
 - **Alertas y momentos** detectados solos, con aviso sonoro.
 - **Clima** de la ciudad.
-- Acceso por token con vencimiento el 13/12, revocable, y registro de auditoría.
+- **Alta de los miembros del equipo por email** desde el panel de la organización, con vencimiento el 13/12, revocables de a uno y con registro de auditoría por persona.
 
-**Listo cuando:** un operador con el enlace de invitado ve el mapa, encuentra un participante, lo contacta por WhatsApp sin ver el teléfono y lo agenda; y todo eso queda registrado.
+**Listo cuando:** una persona invitada por su email entra con el enlace mágico, ve el mapa, encuentra un participante, lo contacta por WhatsApp sin ver el teléfono y lo agenda; todo eso queda registrado a su nombre; y al revocarla pierde el acceso en el acto.
 
 ### Etapa 4 — Gráficas al aire y kit de OBS · **noviembre**
 
 Las ocho gráficas de §3.1, el disparador desde el panel, y el archivo de colección de escenas.
 
-Incluye el freno de moderación: ninguna foto sale al aire sin que alguien apriete "aprobada para aire".
+La única imagen de personas que sale al aire es la **foto de perfil** del participante, la que él mismo subió al inscribirse. Ninguna gráfica muestra fotos del concurso mientras la evaluación esté abierta (§9.1).
 
 **Listo cuando:** se importa la colección de escenas en un OBS limpio, se ve el termómetro subir en vivo, y el operador saca al aire la ficha de un participante desde el panel sin tocar OBS.
+
+### Etapa 4b — Galería anónima de cierre · **después del cierre de la evaluación**
+
+Una gráfica y una pantalla más, que se habilitan recién cuando la evaluación terminó: las fotos del concurso **sin nombre de autor**, para que la transmisión de la premiación pueda mostrarlas.
+
+Vive detrás de `contestPhotosOnAir`, que no se puede encender antes de la fecha de cierre de la evaluación. Es una llave con fecha, no un botón de criterio.
+
+**Listo cuando:** antes del cierre la galería devuelve vacío aunque se fuerce el interruptor; después del cierre muestra las fotos sin ningún dato del autor.
 
 ### Etapa 5 — Segunda pantalla pública · **fines de noviembre, recortable**
 
@@ -366,7 +392,9 @@ El resumen personal: mapa del recorrido, kilómetros, horas, primera y última f
 
 Esta es la contraprestación del permiso de ubicación. Es la única etapa que puede terminarse después del evento: la promesa se hace en octubre, la entrega es la semana siguiente.
 
-Insignias iniciales: madrugador, maratonista (más recorrido), explorador (más zonas distintas), relámpago (las seis en menos tiempo), andariego (premio nuevo de la edición).
+Insignias iniciales: madrugador, maratonista (más recorrido), explorador (más zonas distintas), relámpago (las seis en menos tiempo), andariego (el que más se movió).
+
+Las insignias son **información, no premio**. El recorrido se va a medir en todas las ediciones; si en alguna se menciona al aire o se premia, es una decisión de esa edición y no cambia nada del sistema.
 
 ### Etapa 7 — Mapa de calor y cierre · **enero**
 
@@ -381,11 +409,23 @@ Un botón "necesito ayuda" en la pantalla del participante, que llega a **la org
 ## 9. Privacidad y seguridad
 
 - El módulo **nace apagado** (`enabled = false`). Encenderlo son dos cosas: el interruptor en la base y la configuración de la edición. Esto ya nos mordió antes en Clickatón.
-- El acceso del equipo de streaming es un **token de invitado con vencimiento**, con permisos acotados, revocable de un clic, y **no** una cuenta de administrador.
+- El acceso al panel es **nominal**: la organización invita a cada persona del equipo de transmisión por su email y esa persona entra con un enlace mágico. No hay clave compartida, cada acción queda a nombre de alguien, y se revoca de a una persona. **No** es una cuenta de administrador.
+- El token que va en la dirección de las gráficas de OBS es **de sólo lectura y sin datos personales**, precisamente porque una dirección pegada en OBS se copia, se comparte y se filtra.
 - El teléfono y el email **no se muestran en pantalla**. El operador dispara un WhatsApp o un mail con el mensaje ya escrito; el dato no se ve ni se copia. Cada vez que se contacta a alguien queda registrado quién fue y cuándo.
 - Se firma un **acuerdo de confidencialidad** con el equipo de streaming antes de entregarle el acceso.
 - Al aire, los nombres de los participantes sólo aparecen si aceptaron la casilla 2.
 - **Ningún menor aparece en el mapa público ni al aire con su ubicación.**
+
+### 9.1 Anonimato de la evaluación
+
+Las fotos del concurso se evalúan sin saber quién las tomó. La transmisión no puede romper eso.
+
+- **Durante el evento no sale al aire ninguna foto del concurso.** Ni en el mapa, ni en el zócalo, ni en la ficha del entrevistado.
+- La única imagen de una persona que sale al aire es su **foto de perfil**, la que subió al inscribirse.
+- El mapa muestra **dónde está cada participante**, nunca "acá tomó tal foto". Un punto no se vincula públicamente con un envío concreto.
+- Tampoco se muestra al aire el detalle de qué consigna resolvió cada uno; sí los números agregados ("38 fotos en la consigna 3").
+- Recién **cerrada la evaluación** se habilita la galería anónima (etapa 4b), con las fotos sin autor.
+- El interruptor `contestPhotosOnAir` exige una fecha posterior al cierre de la evaluación. No alcanza con que alguien lo prenda.
 - Cualquier participante puede revocar y pedir el borrado de sus puntos desde su propia pantalla.
 
 ---
@@ -394,7 +434,8 @@ Un botón "necesito ayuda" en la pantalla del participante, que llega a **la org
 
 | Riesgo | Impacto | Qué hacemos |
 |---|---|---|
-| La ventana de subida se abre recién al final del día | El mapa y el termómetro están vacíos toda la jornada y el streaming no tiene nada que mostrar | **Hay que decidir explícitamente que la subida esté abierta durante el evento.** Sin esto, media herramienta no sirve |
+| Que alguien cierre la ventana de subida por error | El mapa y el termómetro quedan vacíos toda la jornada | **Decidido: abierta toda la jornada.** El panel avisa en rojo si la ventana de subida está cerrada mientras el evento corre |
+| Una foto del concurso se filtra al aire antes de la evaluación | Se rompe el anonimato del jurado | Las gráficas ni siquiera reciben esas fotos del servidor hasta que cierra la evaluación (§9.1) |
 | Pocos activan el geoetiquetado | Mapa pobre | Etapa 1 con foto de prueba, recordatorio por mail, y medición previa de cuántos están listos |
 | El GPS de las fotos es opcional en la configuración actual | Fotos sin coordenadas | Mantenerlo opcional para no rechazar envíos, pero pedirlo con insistencia en "Preparate" |
 | Internet del lugar inestable | El panel se cae en vivo | Consulta corta y repetida, con último estado conocido en pantalla y aviso de "datos de hace X minutos" |
@@ -404,9 +445,14 @@ Un botón "necesito ayuda" en la pantalla del participante, que llega a **la org
 
 ---
 
-## 11. Lo que hay que confirmar con la organización
+## 11. Respondido por la organización
 
-1. **¿La ventana de subida va a estar abierta durante el evento?** Es la decisión que más condiciona todo lo demás.
-2. ¿Quiénes son las personas concretas del equipo de streaming que van a tener acceso, y quién firma la confidencialidad?
-3. ¿El premio "andariego" entra en las bases de esta edición?
-4. ¿La transmisión va a mostrar fotos de los participantes al aire? Si sí, quién modera y desde dónde.
+1. **La ventana de subida está abierta durante toda la jornada.** Es la decisión que sostiene el mapa, el termómetro y el radar de historias en vivo.
+2. **Los accesos los asigna la organización, persona por persona, con su email.** De ahí el acceso nominal de §6.2 y §9.
+3. **El recorrido se mide siempre, en todas las ediciones, como información.** Premiarlo o mencionarlo al aire se decide edición por edición; el sistema no cambia.
+4. **Durante el evento no salen al aire fotos del concurso**, por el anonimato de la evaluación. Al aire va la foto de perfil de la inscripción. Cerrada la evaluación, la transmisión puede mostrar las fotos **sin autor** (etapa 4b).
+
+### Todavía abierto
+
+- Quién firma el acuerdo de confidencialidad por el equipo de transmisión, y en qué momento se le entregan los accesos.
+- La fecha exacta del cierre de la evaluación, que es la llave de la etapa 4b.
