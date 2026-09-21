@@ -1,0 +1,153 @@
+{
+  "proyecto": "Reservas de espacios",
+  "plataforma": "FOTOFFICE",
+  "spec": "apps/fotoffice/docs/superpowers/plans/2026-09-08-reservas-el-socio-reserva-y-paga.md",
+  "enUso": "no",
+  "usoNota": "3 espacios cargados en la SFPR y 4 reservas en toda su historia, las 4 canceladas y las 4 en $0: nunca se confirmó ni se cobró una",
+  "etapas": [
+    {
+      "nombre": "Preparar los espacios",
+      "criterios": [
+        {
+          "que": "El dueño carga un espacio con sus horarios, sus tarifas de socio y no socio y con qué otros espacios conviven",
+          "implementado": { "commit": "19d67c2b", "fecha": "2026-09-08" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "3 espacios activos en la SFPR — Estudio de fotografía, Salón de eventos y Coworking — con 6, 4 y 10 franjas horarias cargadas"
+          }
+        },
+        {
+          "que": "Cargar los horarios es elegir horas en una grilla, no escribir texto",
+          "implementado": { "commit": "314b9281", "fecha": "2026-09-09" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "Las 20 franjas de los 3 espacios están cargadas con la grilla, posteriores al cambio del 09/09"
+          }
+        },
+        {
+          "que": "La institución fija su plazo de bloqueo y su ventana de cancelación, y cierra por feriado",
+          "implementado": { "commit": "04629567", "fecha": "2026-09-08" },
+          "probado": null,
+          "bloqueado": "0 filas de configuración de reservas y 0 cierres cargados: corre todo con los valores por defecto"
+        },
+        {
+          "que": "La institución carga sus extras vendibles sobre un inventario real de equipos",
+          "implementado": { "commit": "4a762ff5", "fecha": "2026-09-08" },
+          "probado": null,
+          "bloqueado": "0 extras cargados en producción"
+        }
+      ]
+    },
+    {
+      "nombre": "Reservar y pagar",
+      "criterios": [
+        {
+          "que": "Un socio ve los huecos reales del espacio y reserva su horario desde el portal",
+          "implementado": { "commit": "87b86c1e", "fecha": "2026-09-08" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "4 reservas creadas el 8 y el 10/09: 3 de socios y 1 de un no socio, sobre Estudio y Coworking"
+          }
+        },
+        {
+          "que": "Dos personas no pueden quedarse con el mismo horario del mismo espacio",
+          "implementado": { "commit": "ae0d5349", "fecha": "2026-09-08" },
+          "probado": null,
+          "bloqueado": "Hace falta un choque real: no hay dos reservas vivas sobre el mismo espacio"
+        },
+        {
+          "que": "El precio de la reserva se calcula y se puede explicar línea por línea, con las horas bonificadas del mes del socio",
+          "implementado": { "commit": "34e4d828", "fecha": "2026-09-08" },
+          "probado": null,
+          "bloqueado": "Las 4 reservas quedaron en $0: nunca se calculó un precio de verdad. La carga manual del mostrador no aplica las horas bonificadas"
+        },
+        {
+          "que": "El socio paga por Mercado Pago y la reserva queda confirmada sola",
+          "implementado": { "commit": "e37a9adf", "fecha": "2026-09-08" },
+          "probado": null,
+          "bloqueado": "0 reservas confirmadas y 0 pagos de reserva acreditados en producción"
+        },
+        {
+          "que": "Un no socio reserva y paga desde la página pública, a tarifa plena",
+          "implementado": { "commit": "35cd34f2", "fecha": "2026-09-08" },
+          "probado": null,
+          "bloqueado": "La única reserva de un no socio se canceló sin pagar"
+        },
+        {
+          "que": "La Secretaría confirma a mano una transferencia y la reserva queda confirmada y depositada en Caja",
+          "implementado": { "commit": "935b946e", "fecha": "2026-09-08" },
+          "probado": null,
+          "bloqueado": "0 reservas confirmadas y 0 movimientos en Caja"
+        },
+        {
+          "que": "El socio y la institución pueden cancelar una reserva, cada uno desde su pantalla",
+          "implementado": { "commit": "d1332e03", "fecha": "2026-09-08" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "De las 4 canceladas, 2 dicen «Cancelada por el socio» y 2 «Cancelada por la institución»: los dos caminos se ejercitaron"
+          }
+        },
+        {
+          "que": "Un bloqueo impago vence solo y libera el horario",
+          "implementado": { "commit": "72827aa6", "fecha": "2026-09-08" },
+          "probado": null,
+          "bloqueado": "Ninguna de las 4 reservas venció: las cancelaron a mano antes"
+        }
+      ]
+    },
+    {
+      "nombre": "Lo que hay que coordinar",
+      "criterios": [
+        {
+          "que": "Una reserva del Salón se aprueba, y los extras que no se consiguieron bajan del total",
+          "implementado": { "commit": "72827aa6", "fecha": "2026-09-08" },
+          "probado": null,
+          "bloqueado": "0 reservas en el Salón de eventos, el único espacio que pide aprobación"
+        },
+        {
+          "que": "Después de aprobar, a quien reservó le llega el enlace de pago con el total definitivo",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "La pantalla lo promete y el servidor no lo hace: la reserva queda en HOLD, no sale ningún correo y el portal no tiene botón de pagar. El bloqueo vence solo"
+        },
+        {
+          "que": "Quien reserva recibe un aviso de su reserva, de su aprobación o de su cancelación",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Reservas no manda un solo correo: no toca el envío de correo del monorepo"
+        }
+      ]
+    },
+    {
+      "nombre": "Que la agenda no se pise con la de la institución",
+      "criterios": [
+        {
+          "que": "Cada espacio tiene su calendario de Google y la institución lo elige o lo crea desde la pantalla del espacio",
+          "implementado": { "commit": "92edda7c", "fecha": "2026-09-10" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "Integración google-calendar ACTIVE en la SFPR desde el 10/09 y los 3 espacios con su calendario asignado"
+          }
+        },
+        {
+          "que": "Las reservas confirmadas se espejan en el calendario y lo que se carga en Google bloquea el horario",
+          "implementado": { "commit": "17f3cfc0", "fecha": "2026-09-08" },
+          "probado": null,
+          "bloqueado": "El cron corre (última lectura del calendario el 20/09 a las 22:40), pero trajo 0 bloqueos y nunca hubo una reserva confirmada que empujar"
+        },
+        {
+          "que": "Borrar el evento en Google cancela la reserva",
+          "implementado": { "commit": "52f139ee", "fecha": "2026-09-10" },
+          "probado": null,
+          "bloqueado": "Requiere una reserva confirmada con su evento creado"
+        },
+        {
+          "que": "Un evento movido en Google reprograma la reserva",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "El espejo sólo crea bloqueos y cancela ante un borrado: mover no reprograma nada"
+        }
+      ]
+    }
+  ]
+}
