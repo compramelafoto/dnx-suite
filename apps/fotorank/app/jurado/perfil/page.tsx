@@ -1,6 +1,10 @@
 import { requireJudgeAuth } from "../../lib/judge-auth";
 import { prisma } from "@repo/db";
 import { JuradoPerfilProfesionalForm } from "./JuradoPerfilProfesionalForm";
+import { FotoDePerfil } from "./FotoDePerfil";
+import { EstadoDeMiFicha } from "./EstadoDeMiFicha";
+import { judgeAvatarSrc } from "../../lib/fotorank/judges/judgeAvatarSrc";
+import { otrosLinksATexto } from "../../lib/fotorank/judges/otherLinks";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -43,6 +47,19 @@ export default async function JuradoPerfilProfesionalPage() {
           </Link>
         </div>
 
+        <EstadoDeMiFicha
+          estado={profile.directoryReviewStatus}
+          motivo={profile.directoryReviewNotes}
+          correoConfirmado={!!judge.emailVerifiedAt}
+          publicSlug={profile.publicSlug}
+          estaPublicada={profile.isPublic}
+        />
+
+        <FotoDePerfil
+          srcInicial={judgeAvatarSrc({ id: profile.id, avatarUrl: profile.avatarUrl })}
+          iniciales={`${profile.firstName.charAt(0)}${profile.lastName.charAt(0)}`.toUpperCase()}
+        />
+
         <JuradoPerfilProfesionalForm
           initial={{
             displayNameOverride: profile.displayNameOverride,
@@ -55,6 +72,10 @@ export default async function JuradoPerfilProfesionalPage() {
             city: profile.city,
             country: profile.country,
             portfolioUrl: profile.portfolioUrl,
+            website: profile.website,
+            instagram: profile.instagram,
+            otherLinksText: otrosLinksATexto(profile.otherLinksJson),
+            phone: profile.phone,
             isAvailableForJuryWork: profile.isAvailableForJuryWork,
             availabilityNotes: profile.availabilityNotes,
             availableRemote: profile.availableRemote,
@@ -66,7 +87,8 @@ export default async function JuradoPerfilProfesionalPage() {
             priceCurrency: profile.priceCurrency,
             priceNotes: profile.priceNotes,
             priceUnit: profile.priceUnit,
-            isListedInProfessionalDirectory: profile.isListedInProfessionalDirectory,
+            // La casilla refleja lo que PIDIÓ, no lo que está publicado.
+            isListedInProfessionalDirectory: profile.wantsDirectoryListing,
             showPricingPublicly: profile.showPricingPublicly,
             showLocationPublicly: profile.showLocationPublicly,
             showWebsitePublicly: profile.showWebsitePublicly,

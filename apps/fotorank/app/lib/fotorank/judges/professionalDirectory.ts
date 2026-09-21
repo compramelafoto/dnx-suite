@@ -1,5 +1,6 @@
 import { prisma } from "@repo/db";
 import type { FotorankJudgeCompensationMode, FotorankJudgePricingMode } from "@repo/db";
+import { judgeAvatarSrc } from "./judgeAvatarSrc";
 
 export type DirectoryJudgeCardDto = {
   judgeAccountId: string;
@@ -181,7 +182,7 @@ export async function listProfessionalDirectoryJudges(
       judgeAccountId: r.judgeAccount.id,
       displayName,
       headline: r.professionalHeadline,
-      avatarUrl: r.avatarUrl,
+      avatarUrl: judgeAvatarSrc({ id: r.id, avatarUrl: r.avatarUrl }),
       specialties: parseStringArrayJson(r.specialtiesJson).slice(0, 6),
       compensationMode: r.compensationMode,
       pricingSummary,
@@ -222,8 +223,6 @@ export type OrganizerJudgeDetailDto = {
   pricingSummary: string | null;
   isVerifiedByPlatform: boolean;
   completedAssignments: number;
-  responseRate: number | null;
-  avgResponseTimeHours: number | null;
   publicSlug: string;
 };
 
@@ -257,7 +256,7 @@ export async function getOrganizerViewJudgeDetail(judgeAccountId: string): Promi
     displayName,
     headline: r.professionalHeadline,
     shortBio: r.shortBio,
-    avatarUrl: r.avatarUrl,
+    avatarUrl: judgeAvatarSrc({ id: r.id, avatarUrl: r.avatarUrl }),
     specialties: parseStringArrayJson(r.specialtiesJson),
     experienceYears: r.experienceYears,
     languages: parseStringArrayJson(r.languagesJson),
@@ -277,8 +276,6 @@ export async function getOrganizerViewJudgeDetail(judgeAccountId: string): Promi
     pricingSummary,
     isVerifiedByPlatform: r.isVerifiedByPlatform,
     completedAssignments: countMap.get(r.judgeAccount.id) ?? 0,
-    responseRate: r.responseRate,
-    avgResponseTimeHours: r.avgResponseTimeHours,
     publicSlug: r.publicSlug,
   };
 }

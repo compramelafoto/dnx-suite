@@ -89,7 +89,21 @@
     "test:participant-upload:api-result": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/participant-upload/api-result.selfcheck.ts",
     "validate:santa-fe-visual-assets": "node ./scripts/validate-santa-fe-visual-assets.mjs",
     "build:card-logo": "tsx scripts/build-card-logo.ts",
-    "selfcheck:sponsor-card": "tsx scripts/sponsor-thankyou-card.selfcheck.ts"
+    "selfcheck:sponsor-card": "tsx scripts/sponsor-thankyou-card.selfcheck.ts",
+    "test:judge-assets": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/judgeAssetStorage.test.ts",
+    "test:judge-avatar-src": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/judgeAvatarSrc.test.ts",
+    "test:judge-invite-acceptance": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/inviteAcceptance.test.ts",
+    "test:judge-directory-review": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/directoryReview.test.ts",
+    "test:judge-public-signup": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/publicSignupForm.test.ts",
+    "test:judge-email-verification": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/judgeEmailVerification.test.ts",
+    "test:judge-emails": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/notifications/judgeEmails.test.ts",
+    "test:judge-signup-rate-limit": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/signupRateLimit.test.ts",
+    "test:judge-public-visibility": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/publicProfileVisibility.test.ts",
+    "test:judge-other-links": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/otherLinks.test.ts",
+    "test:judges-section-layout": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/judgesSectionLayout.test.ts",
+    "test:judge-status-ui": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/ui/judgeStatus.test.ts",
+    "test:judge-tiempo-relativo": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/ui/tiempoRelativo.test.ts",
+    "test:judge-sin-enums": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/ui/sinEnumsEnPantalla.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.972.0",

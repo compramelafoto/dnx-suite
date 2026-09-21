@@ -8,6 +8,8 @@ import {
   judgeArchiveDirectoryInvitationAction,
 } from "../../actions/judgeProfessionalDirectory";
 import { EXTERNAL_PAYMENT_DISCLAIMER } from "../../lib/fotorank/judges/legalCopy";
+import { StatusBadge } from "../../components/public-ui";
+import { presentJudgeDirectoryInviteStatus } from "../../lib/fotorank/judges/ui/judgeStatus";
 
 type Row = {
   id: string;
@@ -53,7 +55,9 @@ export function JudgeDirectoryInvitationsClient({ initial }: { initial: Row[] })
           <li key={r.id} className="fr-recuadro rounded-xl border border-fr-border bg-fr-card">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="min-w-0 space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-gold">{r.status}</p>
+                <span title={presentJudgeDirectoryInviteStatus(r.status).description}>
+                  <StatusBadge {...presentJudgeDirectoryInviteStatus(r.status)} />
+                </span>
                 <h2 className="font-sans text-lg font-semibold text-fr-primary">{r.contestTitle}</h2>
                 <p className="text-sm text-fr-muted">{r.orgName}</p>
                 <p className="mt-3 text-sm leading-relaxed text-fr-primary">{r.message}</p>

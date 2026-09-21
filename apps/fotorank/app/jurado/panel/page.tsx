@@ -2,6 +2,11 @@ import Link from "next/link";
 import { Card, Button, Badge } from "@repo/design-system";
 import { listJudgeAssignmentsForCurrentJudge, judgeLogoutAction } from "../../actions/judges";
 import { requireJudgeAuth } from "../../lib/judge-auth";
+import { StatusBadge } from "../../components/public-ui";
+import {
+  presentJudgeAssignmentStatus,
+  presentJudgeMethodType,
+} from "../../lib/fotorank/judges/ui/judgeStatus";
 
 export default async function JudgePanelPage() {
   const judge = await requireJudgeAuth();
@@ -46,13 +51,32 @@ export default async function JudgePanelPage() {
                 </p>
               </Card>
             ) : null}
+            {(assignments.data?.assignments ?? []).length === 0 ? (
+              <Card>
+                <p className="text-sm text-fr-muted">
+                  Todavía no te asignaron ninguna categoría. Escribile al organizador del concurso.
+                </p>
+                <p className="mt-2 text-xs text-fr-muted-soft">
+                  Mientras tanto podés completar tu{" "}
+                  <Link href="/jurado/perfil" className="underline underline-offset-2">
+                    perfil profesional
+                  </Link>
+                  .
+                </p>
+              </Card>
+            ) : null}
             {(assignments.data?.assignments ?? []).map((a: any) => (
               <Card key={a.id}>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <h2 className="text-lg font-semibold text-fr-primary">{a.contestTitle}</h2>
                     <p className="text-sm text-fr-muted">Categoría: {a.categoryName}</p>
-                    <p className="text-xs text-fr-muted-soft">Método: {a.methodType}</p>
+                    <p
+                      className="text-xs text-fr-muted-soft"
+                      title={presentJudgeMethodType(String(a.methodType)).description}
+                    >
+                      Cómo se evalúa: {presentJudgeMethodType(String(a.methodType)).label}
+                    </p>
                     <p className="text-xs text-fr-muted-soft">Votos cargados: {a.votesCount}</p>
                     {!a.evaluationAllowed && a.evaluationBlockMessage ? (
                       <p className="mt-2 text-xs text-amber-200/90">{a.evaluationBlockMessage}</p>
@@ -60,7 +84,9 @@ export default async function JudgePanelPage() {
                   </div>
                   <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
                     <Badge variant="default">{a.platformLabel}</Badge>
-                    <Badge variant="neutral">{a.assignmentStatus}</Badge>
+                    <span title={presentJudgeAssignmentStatus(String(a.assignmentStatus)).description}>
+                      <StatusBadge {...presentJudgeAssignmentStatus(String(a.assignmentStatus))} />
+                    </span>
                     <Link href={`/jurado/concursos/${a.contestId}`}>
                       <Button size="sm" variant="outline" className="w-full sm:w-auto">
                         Ver obras anónimas

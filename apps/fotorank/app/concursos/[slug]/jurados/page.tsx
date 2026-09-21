@@ -8,6 +8,7 @@ type PublicJudgeCard = {
   lastName: string;
   avatarUrl: string | null;
   publicSlug: string;
+  professionalHeadline: string | null;
   shortBio: string | null;
   categories: string[];
 };
@@ -32,17 +33,21 @@ export default async function ContestPublicJudgesPage({ params }: { params: Prom
                     <img
                       src={j.avatarUrl}
                       alt={`${j.firstName} ${j.lastName}`}
-                      className="h-16 w-16 shrink-0 rounded-full border border-zinc-700 object-cover"
+                      className="h-20 w-20 shrink-0 rounded-full border border-zinc-700 object-cover"
                     />
                   ) : (
-                    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-dashed border-zinc-600 text-xs text-fr-muted">
-                      —
+                    <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full border border-dashed border-zinc-600 text-sm font-semibold text-fr-muted">
+                      {j.firstName[0]}
+                      {j.lastName[0]}
                     </div>
                   )}
                   <div className="min-w-0">
                     <h2 className="text-lg font-semibold text-fr-primary">
                       {j.firstName} {j.lastName}
                     </h2>
+                    {j.professionalHeadline ? (
+                      <p className="text-sm font-medium text-gold">{j.professionalHeadline}</p>
+                    ) : null}
                     {j.shortBio ? (
                       <p className="line-clamp-3 text-sm text-fr-muted">{j.shortBio}</p>
                     ) : (

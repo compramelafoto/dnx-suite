@@ -109,20 +109,15 @@ export default async function DirectorioJuradoDetallePage({ params }: Props) {
               </div>
               <div>
                 <dt className="text-fr-muted">Concursos completados</dt>
-                <dd className="text-fr-primary">{detail.completedAssignments}</dd>
+                <dd className="text-fr-primary">
+                  {detail.completedAssignments > 0
+                    ? detail.completedAssignments
+                    : "sin participaciones registradas todavía"}
+                </dd>
               </div>
-              {detail.responseRate != null ? (
-                <div>
-                  <dt className="text-fr-muted">Tasa de respuesta</dt>
-                  <dd className="text-fr-primary">{Math.round(detail.responseRate)}%</dd>
-                </div>
-              ) : null}
-              {detail.avgResponseTimeHours != null ? (
-                <div>
-                  <dt className="text-fr-muted">Tiempo medio de respuesta</dt>
-                  <dd className="text-fr-primary">{detail.avgResponseTimeHours.toFixed(1)} h</dd>
-                </div>
-              ) : null}
+              {/* La tasa de respuesta y el tiempo medio se mostraban desde un campo
+                  que ningún código escribe nunca: eran siempre un número inventado.
+                  Vuelven cuando se calculen en vivo desde las propuestas reales. */}
             </dl>
             <p className="text-xs text-fr-muted">
               Perfil público (participantes):{" "}

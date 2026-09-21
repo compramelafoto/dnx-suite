@@ -17,6 +17,7 @@ import {
   type PublicEventSerializeSource,
 } from "./serializers";
 import { assertCanSerializeForPublicDetail, assertCanSerializeForPublicList } from "./visibility";
+import { judgeAvatarSrc } from "../../fotorank/judges/judgeAvatarSrc";
 
 const PUBLIC_STATUSES = ["PUBLISHED", "ACTIVE"] as const;
 
@@ -25,6 +26,7 @@ type JudgeAssignmentLike = {
   category: { name: string } | null;
   judgeAccount: {
     profile: {
+      id: string;
       isPublic: boolean;
       publicSlug: string;
       firstName: string;
@@ -120,7 +122,7 @@ function toSerializeSource(
       byJudge.set(assignment.judgeAccountId, {
         firstName: profile.firstName,
         lastName: profile.lastName,
-        avatarUrl: profile.avatarUrl,
+        avatarUrl: judgeAvatarSrc({ id: profile.id, avatarUrl: profile.avatarUrl }),
         publicSlug: profile.publicSlug,
         shortBio: profile.shortBio,
         categories: [catName],
@@ -314,6 +316,7 @@ export async function listPublicEventsV1(
             include: {
               profile: {
                 select: {
+                  id: true,
                   isPublic: true,
                   publicSlug: true,
                   firstName: true,

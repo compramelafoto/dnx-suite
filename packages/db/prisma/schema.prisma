@@ -9523,6 +9523,8 @@ model FotorankJudgeAccount {
   passwordHash                 String
   accountStatus                FotorankJudgeAccountStatus            @default(INVITED)
   lastLoginAt                  DateTime?
+  /// El token vive en EmailVerificationToken (purpose VERIFY_EMAIL), como en el resto de la suite.
+  emailVerifiedAt              DateTime?
   createdAt                    DateTime                              @default(now())
   updatedAt                    DateTime                              @updatedAt
   diplomasIssued               FotorankDiplomaIssued[]
@@ -9545,8 +9547,8 @@ model FotorankJudgeAccount {
 }
 
 model FotorankJudgeProfile {
-  id                              String                        @id @default(cuid())
-  judgeAccountId                  String                        @unique
+  id                              String                             @id @default(cuid())
+  judgeAccountId                  String                             @unique
   firstName                       String
   lastName                        String
   phone                           String?
@@ -9558,8 +9560,8 @@ model FotorankJudgeProfile {
   website                         String?
   instagram                       String?
   otherLinksJson                  Json?
-  publicSlug                      String                        @unique
-  isPublic                        Boolean                       @default(true)
+  publicSlug                      String                             @unique
+  isPublic                        Boolean                            @default(true)
   /// Nombre para mostrar en directorio (opcional; si null se usa firstName + lastName).
   displayNameOverride             String?
   professionalHeadline            String?
@@ -9568,35 +9570,44 @@ model FotorankJudgeProfile {
   languagesJson                   Json?
   region                          String?
   portfolioUrl                    String?
-  isAvailableForJuryWork          Boolean                       @default(true)
+  isAvailableForJuryWork          Boolean                            @default(true)
   availabilityNotes               String?
-  availableRemote                 Boolean                       @default(true)
-  availableInPerson               Boolean                       @default(false)
+  availableRemote                 Boolean                            @default(true)
+  availableInPerson               Boolean                            @default(false)
   preferredContestScopes          String?
-  compensationMode                FotorankJudgeCompensationMode @default(VOLUNTEER)
-  pricingMode                     FotorankJudgePricingMode      @default(NOT_SHOWN)
+  compensationMode                FotorankJudgeCompensationMode      @default(VOLUNTEER)
+  pricingMode                     FotorankJudgePricingMode           @default(NOT_SHOWN)
   priceAmount                     Float?
   priceCurrency                   String?
   priceNotes                      String?
   priceUnit                       FotorankJudgePriceUnit?
   /// Opt-in al directorio profesional (organizadores solo ven perfiles con este flag).
-  isListedInProfessionalDirectory Boolean                       @default(false)
-  showPricingPublicly             Boolean                       @default(false)
-  showLocationPublicly            Boolean                       @default(true)
-  showWebsitePublicly             Boolean                       @default(true)
-  showInstagramPublicly           Boolean                       @default(true)
-  isVerifiedByPlatform            Boolean                       @default(false)
-  completedJuryAssignmentsCount   Int                           @default(0)
+  isListedInProfessionalDirectory Boolean                            @default(false)
+  showPricingPublicly             Boolean                            @default(false)
+  showLocationPublicly            Boolean                            @default(true)
+  showWebsitePublicly             Boolean                            @default(true)
+  showInstagramPublicly           Boolean                            @default(true)
+  isVerifiedByPlatform            Boolean                            @default(false)
+  /// De dónde salió el alta. Un alta pública nace PENDING; una del organizador, APPROVED.
+  signupSource                    FotorankJudgeSignupSource          @default(ORGANIZER_CREATED)
+  directoryReviewStatus           FotorankJudgeDirectoryReviewStatus @default(PENDING)
+  directoryReviewedAt             DateTime?
+  directoryReviewedByUserId       Int?
+  directoryReviewNotes            String?
+  /// Lo que el jurado PIDE. Lo que está publicado lo escribe la aprobación.
+  wantsDirectoryListing           Boolean                            @default(false)
+  completedJuryAssignmentsCount   Int                                @default(0)
   responseRate                    Float?
   avgResponseTimeHours            Float?
   completionScore                 Float?
   lastActiveAt                    DateTime?
-  createdAt                       DateTime                      @default(now())
-  updatedAt                       DateTime                      @updatedAt
-  judgeAccount                    FotorankJudgeAccount          @relation(fields: [judgeAccountId], references: [id], onDelete: Cascade)
+  createdAt                       DateTime                           @default(now())
+  updatedAt                       DateTime                           @updatedAt
+  judgeAccount                    FotorankJudgeAccount               @relation(fields: [judgeAccountId], references: [id], onDelete: Cascade)
 
   @@index([isPublic])
   @@index([isListedInProfessionalDirectory])
+  @@index([directoryReviewStatus])
 }
 
 model FotorankJudgeOrganizationMembership {
@@ -9859,7 +9870,8 @@ model FotorankJudgeVoteHistory {
 
 model FotorankJudgeAuditEvent {
   id             String                 @id @default(cuid())
-  organizationId String
+  /// Nulo para los hechos de plataforma: un alta pública no pertenece a ninguna organización.
+  organizationId String?
   contestId      String?
   actorType      FotorankJudgeActorType
   actorUserId    Int?
@@ -9872,7 +9884,7 @@ model FotorankJudgeAuditEvent {
   actorJudge     FotorankJudgeAccount?  @relation("FrAuditActorJudge", fields: [actorJudgeId], references: [id])
   actorUser      User?                  @relation("FrJudgeAuditActorUser", fields: [actorUserId], references: [id])
   contest        FotorankContest?       @relation(fields: [contestId], references: [id])
-  organization   ContestOrganization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization   ContestOrganization?   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, createdAt])
   @@index([contestId])
@@ -10378,6 +10390,18 @@ enum FotorankJudgePriceUnit {
   PER_CATEGORY
   PER_HOUR
   CUSTOM
+}
+
+enum FotorankJudgeDirectoryReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum FotorankJudgeSignupSource {
+  ORGANIZER_CREATED
+  ORGANIZER_INVITATION
+  PUBLIC_SIGNUP
 }
 
 enum FotorankJudgeDirectoryInviteStatus {

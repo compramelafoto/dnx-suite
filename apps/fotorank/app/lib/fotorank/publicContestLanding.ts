@@ -1,5 +1,6 @@
 import { prisma, type FotorankContestStatus } from "@repo/db";
 import { mapOrganizationToProfileDTO, type ContestOrganizationProfileDTO } from "./organizationProfile";
+import { judgeAvatarSrc } from "./judges/judgeAvatarSrc";
 
 const PUBLIC_STATUSES = ["PUBLISHED", "ACTIVE"] as const;
 
@@ -8,6 +9,7 @@ export type PublicContestJudgeCard = {
   lastName: string;
   avatarUrl: string | null;
   publicSlug: string;
+  professionalHeadline: string | null;
   shortBio: string | null;
   categories: string[];
 };
@@ -83,7 +85,8 @@ export async function getPublicContestLandingBySlug(slug: string): Promise<Publi
   const judges: PublicContestJudgeCard[] = [...byJudge.values()].map((v) => ({
     firstName: v.profile.firstName,
     lastName: v.profile.lastName,
-    avatarUrl: v.profile.avatarUrl,
+    avatarUrl: judgeAvatarSrc({ id: v.profile.id, avatarUrl: v.profile.avatarUrl }),
+    professionalHeadline: v.profile.professionalHeadline,
     publicSlug: v.profile.publicSlug,
     shortBio: v.profile.shortBio,
     categories: [...new Set(v.categories)],

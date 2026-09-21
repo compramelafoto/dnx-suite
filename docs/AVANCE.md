@@ -1,6 +1,6 @@
 # Avance de la suite
 
-*Generado por `scripts/avance.mjs` el 2026-09-20. No editar a mano.*
+*Generado por `scripts/avance.mjs` el 2026-09-21. No editar a mano.*
 
 **Código** es lo escrito y mergeado. **Producción** es lo que corrió de verdad y
 alguien miró. El número que vale es el de producción: ver
@@ -8,7 +8,19 @@ alguien miró. El número que vale es el de producción: ver
 
 | Proyecto | Tareas | Código | Producción | |
 |---|---|---|---|---|
+| **fotorank** | 26 | 100% |  40% | `████······` |
 | **subilafoto** | 46 |  93% |  61% | `██████····` |
+
+## fotorank
+
+| Etapa | Tareas | Código | Producción | Qué falta |
+|---|---|---|---|---|
+| FotoRank jurados — Paso 0: el padrón único | 4 | 100% |  50% | 0.4 |
+| FotoRank jurados — Etapa A: cimientos | 5 | 100% |   0% | A.1, A.2, A.3, A.4, A.5 |
+| FotoRank jurados — Etapa B: el alta por cuenta propia | 7 | 100% |  50% | B.1, B.2, B.3, B.5, B.6, B.7 |
+| FotoRank jurados — Etapa C: el perfil completo | 2 | 100% |  50% | C.1, C.2 |
+| FotoRank jurados — Etapa D: los jurados en el concurso | 1 | 100% |  50% | D.1 |
+| FotoRank jurados — Etapa E: la UX de jurados y usuarios | 7 | 100% |  50% | E.1, E.2, E.3, E.4, E.5, E.6, E.7 |
 
 ## subilafoto
 
@@ -32,7 +44,6 @@ Agregar una tabla con la marca `<!-- avance: … -->` los hace aparecer arriba.
 - `compramelafoto`
 - `dnx-payments`
 - `fotoffice`
-- `fotorank`
 - `geo`
 - `infospot`
 - `infrastructure`

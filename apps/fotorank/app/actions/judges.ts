@@ -36,10 +36,6 @@ import {
 import { validateMethodConfig } from "../lib/fotorank/judges/contracts";
 import { DEFAULT_CRITERIA_BASED_METHOD_CONFIG } from "../lib/fotorank/judges/criteriaBased";
 import {
-  extensionForJudgeAvatarMime,
-  isManagedJudgeAvatarPublicUrl,
-  JUDGE_AVATAR_ALLOWED_MIME,
-  JUDGE_AVATAR_MAX_BYTES,
   normalizeJudgeInstagram,
   normalizeJudgeWebsite,
   normalizeStoredJudgeAvatarRef,
@@ -50,11 +46,15 @@ import {
   parseAndValidateJudgeBioDocument,
   parseAndValidateJudgeOtherLinks,
 } from "../lib/fotorank/judges/judgeBioRich";
-import { getJudgeAvatarStorage } from "../lib/fotorank/judges/judgeAvatarStorage";
 import {
   buildJudgeInvitationRegistrationUrl,
   logInvitationBaseUrlMisconfigurationIfNeeded,
 } from "../lib/fotorank/judges/invitationLinks";
+import { judgeAvatarSrc } from "../lib/fotorank/judges/judgeAvatarSrc";
+import { resultadoDeAceptarInvitacion } from "../lib/fotorank/judges/inviteAcceptance";
+import { buildPublicSlug } from "../lib/fotorank/judges/publicSlug";
+import { recortarPerfilParaElPublico } from "../lib/fotorank/judges/publicProfileVisibility";
+import { saveJudgeAvatar, deleteJudgeAvatarByKey } from "../lib/fotorank/judges/judgeAssetStorage";
 
 export type JudgeMethodType =
   | "SCORE_1_5"
@@ -69,14 +69,7 @@ export type JudgeActionResult<T = undefined> =
   | { ok: true; data?: T }
   | { ok: false; error: string };
 
-function buildPublicSlug(firstName: string, lastName: string) {
-  return `${firstName}-${lastName}`
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "") || `jurado-${randomBytes(4).toString("hex")}`;
-}
+
 
 type OrganizationScope =
   | { ok: false; error: string }
@@ -123,33 +116,51 @@ async function requireOrganizationScope(): Promise<OrganizationScope> {
 }
 
 
-export async function uploadJudgeAvatarImage(formData: FormData): Promise<JudgeActionResult<{ url: string }>> {
+export async function uploadJudgeAvatarImage(
+  formData: FormData,
+): Promise<JudgeActionResult<{ key: string }>> {
   const scope = await requireOrganizationScope();
   if (!scope.ok) return { ok: false, error: scope.error };
+
+  // La clave lleva la cuenta del jurado. En el alta todavía no existe, así que
+  // el formulario manda un identificador temporal y la clave se rearma al
+  // guardar el perfil.
+  const judgeAccountId = String(formData.get("judgeAccountId") ?? "").trim() || `nuevo-${randomBytes(8).toString("hex")}`;
 
   const file = formData.get("file");
   if (!file || typeof file !== "object" || !("arrayBuffer" in file)) {
     return { ok: false, error: "No se recibió ningún archivo." };
   }
   const f = file as File;
-  const mime = f.type || "";
-  if (!JUDGE_AVATAR_ALLOWED_MIME.has(mime)) {
-    return { ok: false, error: "Formato no permitido. Usá JPEG, PNG o WebP." };
-  }
-  const buf = Buffer.from(await f.arrayBuffer());
-  if (buf.length > JUDGE_AVATAR_MAX_BYTES) {
-    return { ok: false, error: "El archivo supera el tamaño máximo (2 MB)." };
-  }
-  const ext = extensionForJudgeAvatarMime(mime);
-  if (!ext) return { ok: false, error: "Tipo de imagen no soportado." };
+  const body = new Uint8Array(await f.arrayBuffer());
 
-  const storage = getJudgeAvatarStorage();
-  const { publicUrl } = await storage.save(buf, ext as "jpg" | "png" | "webp");
-  return { ok: true, data: { url: publicUrl } };
+  const saved = await saveJudgeAvatar({ judgeAccountId, body, mime: f.type || "" });
+  if (!saved.ok) return { ok: false, error: saved.error };
+  return { ok: true, data: { key: saved.key } };
 }
 
 
-export async function listJudgesForOrg(): Promise<JudgeActionResult<Array<Record<string, unknown>>>> {
+/** Una fila de la lista de jurados de la organización. */
+export type JudgeListRow = {
+  membershipId: string;
+  judgeId: string;
+  email: string;
+  accountStatus: string;
+  membershipStatus: string;
+  lastLoginAt: Date | null;
+  profile: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    professionalHeadline: string | null;
+    avatarUrl: string | null;
+  } | null;
+  assignmentsCount: number;
+  activeContests: string[];
+  categories: string[];
+};
+
+export async function listJudgesForOrg(): Promise<JudgeActionResult<JudgeListRow[]>> {
   const scope = await requireOrganizationScope();
   if (!scope.ok) return { ok: false, error: scope.error };
 
@@ -214,12 +225,21 @@ export async function listJudgesForOrg(): Promise<JudgeActionResult<Array<Record
       accountStatus: m.judgeAccount.accountStatus,
       membershipStatus: m.membershipStatus,
       lastLoginAt: m.judgeAccount.lastLoginAt,
-      profile: m.judgeAccount.profile,
+      profile: m.judgeAccount.profile
+        ? {
+            id: m.judgeAccount.profile.id,
+            firstName: m.judgeAccount.profile.firstName,
+            lastName: m.judgeAccount.profile.lastName,
+            professionalHeadline: m.judgeAccount.profile.professionalHeadline,
+            avatarUrl: m.judgeAccount.profile.avatarUrl,
+          }
+        : null,
       assignmentsCount: m.judgeAccount.assignments.length,
       activeContests: [...new Set(m.judgeAccount.assignments.map((a) => a.contest.title))],
       categories: m.judgeAccount.assignments.map((a) =>
-        categoryNameById.get(a.categoryId) ??
-          `(categoría ausente · assignment ${a.id} · categoryId ${a.categoryId})`,
+        // Una categoría huérfana ya se avisó por consola arriba. En pantalla
+        // no se muestran identificadores: no le dicen nada a quien la lee.
+        categoryNameById.get(a.categoryId) ?? "categoría eliminada",
       ),
     })),
   };
@@ -276,7 +296,7 @@ export async function listJudgeRosterForContest(contestId: string): Promise<Judg
           email: m.judgeAccount.email,
           firstName: p.firstName,
           lastName: p.lastName,
-          avatarUrl: p.avatarUrl,
+          avatarUrl: judgeAvatarSrc({ id: p.id, avatarUrl: p.avatarUrl }),
           specialities: Array.isArray(p.specialtiesJson) ? (p.specialtiesJson as string[]) : [],
           city: p.city,
           country: p.country,
@@ -521,12 +541,10 @@ export async function updateJudgeProfileByAdmin(judgeId: string, input: {
     },
   });
 
-  if (
-    previousAvatarUrl &&
-    previousAvatarUrl !== avatarRef &&
-    isManagedJudgeAvatarPublicUrl(previousAvatarUrl)
-  ) {
-    await getJudgeAvatarStorage().deleteIfManagedPublicUrl(previousAvatarUrl);
+  if (previousAvatarUrl && previousAvatarUrl !== avatarRef) {
+    // deleteJudgeAvatarByKey ignora lo que no sea una clave del bucket, así que
+    // una URL externa cargada a mano no se toca.
+    await deleteJudgeAvatarByKey(previousAvatarUrl);
   }
 
   await prisma.fotorankJudgeAuditEvent.create({
@@ -1186,30 +1204,30 @@ export async function registerJudgeFromInvitation(input: {
   });
 
   const pendingAssignmentsCount = await prisma.fotorankJudgeAssignment.count({ where: assignmentWhere });
-  if (pendingAssignmentsCount === 0) {
-    return {
-      ok: false,
-      error:
-        invitationCategoryId !== null
-          ? "No hay una asignación pendiente (ASSIGNED o INVITATION_SENT) para esta categoría, concurso y tu cuenta. Pedí al administrador que revise la invitación o la asignación."
-          : "No hay asignaciones pendientes (ASSIGNED o INVITATION_SENT) para este concurso y tu cuenta. Pedí al administrador que revise la invitación o las asignaciones.",
-    };
-  }
+  const resultado = resultadoDeAceptarInvitacion({ pendingAssignmentsCount });
 
-  await prisma.$transaction([
-    prisma.fotorankJudgeInvitation.update({
-      where: { id: invitation.id },
-      data: {
-        invitationStatus: "ACCEPTED",
-        acceptedAt: new Date(),
-        judgeAccountId: judgeId,
-      },
-    }),
-    prisma.fotorankJudgeAssignment.updateMany({
-      where: assignmentWhere,
-      data: { assignmentStatus: "ACCEPTED" },
-    }),
-  ]);
+  // La invitación se acepta siempre. Que el organizador todavía no haya creado
+  // la asignación es cosa suya, no motivo para dejar al jurado afuera.
+  const aceptarInvitacion = prisma.fotorankJudgeInvitation.update({
+    where: { id: invitation.id },
+    data: {
+      invitationStatus: "ACCEPTED" as const,
+      acceptedAt: new Date(),
+      judgeAccountId: judgeId,
+    },
+  });
+
+  if (resultado.aceptaAsignaciones) {
+    await prisma.$transaction([
+      aceptarInvitacion,
+      prisma.fotorankJudgeAssignment.updateMany({
+        where: assignmentWhere,
+        data: { assignmentStatus: "ACCEPTED" },
+      }),
+    ]);
+  } else {
+    await prisma.$transaction([aceptarInvitacion]);
+  }
 
   await createJudgeSessionForJudge(judgeId);
   redirect("/jurado/panel");
@@ -1702,20 +1720,31 @@ export async function getJudgePublicProfile(publicSlug: string): Promise<JudgeAc
 
   if (!profile) return { ok: false, error: "Perfil no encontrado." };
 
+  // Se recorta acá: un dato que el jurado apagó no sale de la capa de datos,
+  // así ninguna pantalla lo muestra por descuido.
+  const visible = recortarPerfilParaElPublico({
+    website: profile.website,
+    instagram: profile.instagram,
+    otherLinksJson: profile.otherLinksJson,
+    city: profile.city,
+    country: profile.country,
+    phone: profile.phone,
+    showWebsitePublicly: profile.showWebsitePublicly,
+    showInstagramPublicly: profile.showInstagramPublicly,
+    showLocationPublicly: profile.showLocationPublicly,
+  });
+
   return {
     ok: true,
     data: {
       id: profile.id,
       firstName: profile.firstName,
       lastName: profile.lastName,
-      avatarUrl: profile.avatarUrl,
+      avatarUrl: judgeAvatarSrc({ id: profile.id, avatarUrl: profile.avatarUrl }),
+      professionalHeadline: profile.professionalHeadline,
       shortBio: profile.shortBio,
       fullBioRichJson: profile.fullBioRichJson,
-      city: profile.city,
-      country: profile.country,
-      website: profile.website,
-      instagram: profile.instagram,
-      otherLinksJson: profile.otherLinksJson,
+      ...visible,
       assignments: profile.judgeAccount.assignments.map((a) => ({
         contestId: a.contestId,
         contestTitle: a.contest.title,
@@ -1761,8 +1790,9 @@ export async function listPublicJudgesForContestBySlug(contestSlug: string): Pro
     data: [...byJudge.values()].map((v) => ({
       firstName: v.profile.firstName,
       lastName: v.profile.lastName,
-      avatarUrl: v.profile.avatarUrl,
+      avatarUrl: judgeAvatarSrc({ id: v.profile.id, avatarUrl: v.profile.avatarUrl }),
       publicSlug: v.profile.publicSlug,
+      professionalHeadline: v.profile.professionalHeadline,
       shortBio: v.profile.shortBio,
       categories: [...new Set(v.categories)],
     })),
