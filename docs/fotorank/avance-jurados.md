@@ -1,6 +1,6 @@
 # FotoRank — Altas de jurados: avance de obra
 
-*Última revisión: 2026-09-20.*
+*Última revisión: 2026-09-21.*
 
 Mide el plan `docs/superpowers/plans/2026-09-20-fotorank-altas-de-jurados.md` y
 `docs/superpowers/plans/2026-09-20-fotorank-ux-jurados-y-usuarios.md`, sobre el spec
@@ -9,9 +9,13 @@ Mide el plan `docs/superpowers/plans/2026-09-20-fotorank-altas-de-jurados.md` y
 Formato: [la convención](../00-convencion-de-avance.md). **Código** es escrito, probado y
 mergeado. **Producción** es que corrió de verdad contra la base real y alguien lo miró.
 
-**Nada de esto está en producción todavía.** En la base hay 0 cuentas de jurado, así que
-ninguna pantalla nueva se puede verificar mirando datos reales: las pruebas son la única
-red hasta que se cargue el primer jurado.
+**Nada de esto está desplegado todavía.** En la base de producción hay 0 cuentas de jurado.
+
+El 2026-09-21 el circuito de la etapa B se probó **de punta a punta en local contra una
+rama Neon copia de producción**: postulación → correo verificado → cola de revisión →
+rechazo con motivo → aprobación → página pública. Quedó todo bien, pero es una rama copia
+y código sin desplegar: por eso esas filas están en 🟡 y no en ✅. Para pasarlas a ✅ hace
+falta el despliegue, la migración en las cinco bases y que un jurado real se postule.
 
 <!-- avance: FotoRank jurados — Paso 0: el padrón único -->
 
@@ -36,13 +40,13 @@ red hasta que se cargue el primer jurado.
 
 | # | Tarea | Código | Producción | Nota |
 |---|---|---|---|---|
-| B.1 | Máquina de estados de la revisión | ⬜ | ⬜ | |
-| B.2 | Validación del formulario público | ⬜ | ⬜ | |
-| B.3 | Verificación del correo | ⬜ | ⬜ | Reutiliza `EmailVerificationToken`, que ya está en las 5 bases |
-| B.4 | Migración: estado de revisión y origen del alta | ⬜ | ⬜ | Hay que aplicarla a mano en las 5 bases Neon |
-| B.5 | Los dos correos nuevos | ⬜ | ⬜ | |
-| B.6 | La página `/jurados/postulacion` y su acción | ⬜ | ⬜ | Con tope por IP, campo trampa y tiempo mínimo |
-| B.7 | La cola de revisión en Super Admin | ⬜ | ⬜ | |
+| B.1 | Máquina de estados de la revisión | ✅ | 🟡 | 8 pruebas. El circuito entero corrió en vivo, pero contra una rama copia, no la base real |
+| B.2 | Validación del formulario público | ✅ | 🟡 | 11 pruebas. El formulario se llenó y se envió de verdad en local |
+| B.3 | Verificación del correo | ✅ | 🟡 | 10 pruebas. Verificado en vivo, incluido que el enlace no sirve dos veces |
+| B.4 | Migración: estado de revisión y origen del alta | ✅ | 🟡 | Aplicada y verificada en una rama descartable. **Falta aplicarla en las 5 bases** |
+| B.5 | Los dos correos nuevos | ✅ | ⬜ | Se encolan, pero **ningún correo salió**: falta la clave de Resend |
+| B.6 | La página `/jurados/postulacion` y su acción | ✅ | 🟡 | Un alta real quedó escrita: entra, no se publica sola, pidió el directorio sin estar listada |
+| B.7 | La cola de revisión en Super Admin | ✅ | 🟡 | Rechazo con motivo y aprobación probados en vivo; la página pública aparece al aprobar |
 
 <!-- avance: FotoRank jurados — Etapa C: el perfil completo -->
 
