@@ -773,6 +773,17 @@ export function PublicRegistrationWizard({
             {persona === "pack_holder" ? <RegistrationHowItWorks /> : null}
             {persona !== "pack_holder" ? <RegistrationCompare /> : null}
             <RegistrationIncludes shirtBenefitStatus={shirtBenefitStatus} />
+            {context.edition.giftVouchersEnabled ? (
+              <p className="text-center text-sm text-ck-text-secondary">
+                ¿Es para regalar?{" "}
+                <a
+                  href={`/maratones/${context.edition.slug}/regalar`}
+                  className="text-ck-yellow underline underline-offset-4"
+                >
+                  Comprale el lugar a un amigo
+                </a>
+              </p>
+            ) : null}
             <RegistrationWhatYouCanWin />
             <RegistrationWhatHappensNext />
             <RegistrationSocialProof />

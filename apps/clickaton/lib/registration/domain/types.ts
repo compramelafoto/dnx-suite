@@ -13,7 +13,9 @@ export type ClickatonRegistrationStatus =
   | "DISQUALIFIED"
   | "TRANSFERRED_TO_NEXT_EDITION"
   | "EXPIRED"
-  | "REFUND_REQUESTED";
+  | "REFUND_REQUESTED"
+  /** Regalo pagado, esperando que quien lo recibe lo active. */
+  | "GIFT_AWAITING_REDEMPTION";
 
 export type ClickatonPaymentStatus =
   | "NOT_REQUIRED"

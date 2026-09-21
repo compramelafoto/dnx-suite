@@ -17,6 +17,7 @@ export function registrationStatusLabel(status: ClickatonRegistrationStatus): st
     TRANSFERRED_TO_NEXT_EDITION: "Trasladada a próxima edición",
     EXPIRED: "Expirada",
     REFUND_REQUESTED: "Reembolso solicitado",
+    GIFT_AWAITING_REDEMPTION: "Regalo sin activar",
   };
   return map[status] ?? status;
 }

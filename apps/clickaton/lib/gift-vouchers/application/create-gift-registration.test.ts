@@ -4,11 +4,13 @@ import { createInMemoryGiftVoucherRepository } from "../infrastructure/in-memory
 import {
   createGiftRegistrationUseCase,
   type CreateGiftRegistrationInput,
+  type GiftEditionView,
+  type GiftTicketView,
 } from "./create-gift-registration";
 
 const NOW = new Date("2026-10-01T12:00:00.000Z");
 
-const edition = {
+const edition: GiftEditionView = {
   id: "ed_1",
   slug: "clickaton-2026",
   giftVouchersEnabled: true,
@@ -18,7 +20,7 @@ const edition = {
   isPublished: true,
 };
 
-const ticket = {
+const ticket: GiftTicketView = {
   id: "tt_1",
   editionId: "ed_1",
   venueId: null,
@@ -26,13 +28,13 @@ const ticket = {
   currency: "ARS",
   holdMinutes: 20,
   isSoldOut: false,
-  salesStatus: "open" as const,
+  salesStatus: "open",
 };
 
 function setup(
   overrides: {
-    edition?: Partial<typeof edition>;
-    ticket?: Partial<typeof ticket>;
+    edition?: Partial<GiftEditionView>;
+    ticket?: Partial<GiftTicketView>;
   } = {},
 ) {
   const vouchers = createInMemoryGiftVoucherRepository();

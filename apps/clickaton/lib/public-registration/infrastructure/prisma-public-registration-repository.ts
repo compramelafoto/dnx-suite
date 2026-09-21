@@ -514,6 +514,7 @@ export function createPrismaPublicRegistrationRepository(
           countsAsActiveRegistration({
             status: mapped.status,
             holdExpiresAt: mapped.holdExpiresAt,
+            isGift: mapped.isGift,
             now,
           })
         ) {
@@ -543,6 +544,7 @@ export function createPrismaPublicRegistrationRepository(
           countsAsActiveRegistration({
             status: mapped.status,
             holdExpiresAt: mapped.holdExpiresAt,
+            isGift: mapped.isGift,
             now,
           })
         ) {
@@ -1261,7 +1263,7 @@ export function createPrismaPublicRegistrationRepository(
               email: input.cmd.participant.email,
               status: { notIn: ["CANCELLED", "REFUNDED", "DISQUALIFIED"] },
             },
-            select: { id: true, status: true, holdExpiresAt: true },
+            select: { id: true, status: true, holdExpiresAt: true, isGift: true },
             take: 10,
           });
           if (
@@ -1269,6 +1271,7 @@ export function createPrismaPublicRegistrationRepository(
               countsAsActiveRegistration({
                 status: d.status,
                 holdExpiresAt: d.holdExpiresAt,
+                isGift: d.isGift,
                 now: nowTx,
               }),
             )
