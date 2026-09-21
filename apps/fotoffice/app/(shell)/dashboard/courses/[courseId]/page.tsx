@@ -11,6 +11,10 @@ import {
   getCourseForEdit,
   getCourseInstancesWithAvailability,
 } from "@/app/actions/presential-courses";
+import { prisma } from "@repo/db";
+import { CourseLessonsSection } from "@/components/presential-courses/course-lessons-section";
+import { explicarConfiguracionFaltante, readStreamConfig } from "@/lib/courses-video/config";
+import { esGrabado } from "@/lib/presential-courses/delivery-mode";
 
 export default async function DashboardCourseDetailPage({
   params,
@@ -25,7 +29,26 @@ export default async function DashboardCourseDetailPage({
     notFound();
   }
   if (!course) notFound();
-  const instances = await getCourseInstancesWithAvailability(course.id);
+
+  // Un curso grabado no tiene ediciones: tiene clases. Se consulta una cosa o la otra.
+  const grabado = esGrabado(course.deliveryMode);
+  const instances = grabado ? [] : await getCourseInstancesWithAvailability(course.id);
+  const clases = grabado
+    ? await prisma.courseLesson.findMany({
+        where: { courseId: course.id },
+        orderBy: { sortOrder: "asc" },
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          sortOrder: true,
+          durationSeconds: true,
+          videoStatus: true,
+          isPreview: true,
+        },
+      })
+    : [];
+  const configVideo = readStreamConfig();
 
   return (
     <div className="space-y-10">
@@ -52,6 +75,10 @@ export default async function DashboardCourseDetailPage({
           instructorName: course.instructorName,
           level: course.level,
           status: course.status,
+          deliveryMode: course.deliveryMode,
+          priceArs: course.priceArs?.toString() ?? null,
+          accessMonths: course.accessMonths,
+          completionPercent: course.completionPercent,
           faqJson: course.faqJson,
           classroomLink: course.classroomLink,
           classroomCode: course.classroomCode,
@@ -59,6 +86,15 @@ export default async function DashboardCourseDetailPage({
         }}
       />
 
+      {grabado ? (
+        <CourseLessonsSection
+          courseId={course.id}
+          clases={clases}
+          faltaConfigurarVideo={
+            configVideo.ok ? null : explicarConfiguracionFaltante(configVideo.missing)
+          }
+        />
+      ) : (
       <section className="fo-card space-y-6">
         <h2 className="text-lg font-semibold">Ediciones</h2>
         <CourseInstanceForm
@@ -107,6 +143,7 @@ export default async function DashboardCourseDetailPage({
           </ul>
         )}
       </section>
+      )}
     </div>
   );
 }
