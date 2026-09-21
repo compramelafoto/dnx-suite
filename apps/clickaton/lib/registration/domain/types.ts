@@ -124,6 +124,12 @@ export type ClickatonRegistrationRecord = {
   paymentProvider?: string | null;
   paymentExternalReference?: string | null;
   paymentIdempotencyKey?: string | null;
+  /** Centro de Transmisión — consentimientos de ubicación. */
+  locationConsentAt?: Date | null;
+  locationPublicConsentAt?: Date | null;
+  interviewConsentAt?: Date | null;
+  locationConsentVersion?: string | null;
+  locationConsentDeclaredAdult?: boolean;
 };
 
 /** Representación de emisión: el plaintext solo vive en memoria en el momento de emitir. */
