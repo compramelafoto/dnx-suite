@@ -1,8 +1,9 @@
 {
   "proyecto": "Sitio web",
   "plataforma": "FOTOFFICE",
+  "spec": "apps/fotoffice/docs/superpowers/specs/2026-09-20-sitio-publico-website-design.md",
   "enUso": "parcial",
-  "usoNota": "1 sitio armado y publicado (SFPR, 28/08) con 10 versiones guardadas, y ningún visitante puede verlo: no existe la ruta pública que sirva lo publicado",
+  "usoNota": "1 sitio armado y publicado (SFPR, 28/08) con 10 versiones guardadas, y ningún visitante puede verlo: no existe la ruta pública que sirva lo publicado. Diseño del sitio público aprobado el 20/09, sin implementar: suma 6 criterios que hasta ahora no se medían",
   "etapas": [
     {
       "nombre": "Armar el sitio",
@@ -37,13 +38,25 @@
           "que": "El sitio tiene más de una página",
           "implementado": null,
           "probado": null,
-          "bloqueado": "Hay una sola página fija: «Agregar página» está deshabilitado"
+          "bloqueado": "Hay una sola página fija: «Agregar página» está deshabilitado. Diseñado el 20/09 (etapa 3 del spec): las páginas se guardan extendiendo sectionsJson, sin migración"
+        },
+        {
+          "que": "Se elige entre varias plantillas y cada una da un sitio visiblemente distinto",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Hay 3 plantillas y las tres usan las mismas 5 secciones básicas y los colores del branding: cambian la tipografía y poco más. Diseñado el 20/09 (etapas 8 y 9): 10 plantillas con paleta, pie y páginas semilla propias"
+        },
+        {
+          "que": "El sitio tiene su pie de página con el contacto y las redes de la institución",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "No existe el pie de página en ninguna forma, ni como sección ni como opción de diseño. Diseñado el 20/09 (etapa 1): tres variantes, alimentadas por los datos que ya están cargados en el branding"
         },
         {
           "que": "Las secciones que traen datos de otros módulos (socios, actividad, comunicación) se pueden usar",
           "implementado": null,
           "probado": null,
-          "bloqueado": "De las 6 categorías de bloques sólo la básica tiene contenido: los bloques dinámicos no existen"
+          "bloqueado": "De las 6 categorías de secciones sólo la básica tiene contenido: las secciones dinámicas no existen. Queda fuera del spec del 20/09, que es la obra 1 de 3: ésta es la obra 2"
         }
       ]
     },
@@ -68,7 +81,25 @@
           "que": "Un visitante entra a la dirección de la institución y ve el sitio publicado",
           "implementado": null,
           "probado": null,
-          "bloqueado": "No existe el sitio público: ninguna ruta lee la versión publicada. Publicar hoy no cambia nada para el visitante"
+          "bloqueado": "No existe el sitio público: ninguna ruta lee la versión publicada. Publicar hoy no cambia nada para el visitante. Diseñado el 20/09 (etapas 1 y 2): es el corazón de la obra"
+        },
+        {
+          "que": "El menú del sitio se puede usar desde un celular",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "El encabezado no tiene menú desplegable: en pantalla chica los ítems se amontonan. Diseñado el 20/09 (etapa 1)"
+        },
+        {
+          "que": "Las páginas de cursos, reservas y asociarse se ven adentro del sitio, con su mismo encabezado y su menú",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Son páginas sueltas, cada una con su propia cabecera y sin forma de navegar de una a otra. Diseñado el 20/09 (etapa 5)"
+        },
+        {
+          "que": "El menú muestra sólo los módulos que la institución tiene habilitados",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "No hay menú de páginas: la navegación son anclas de la portada, derivadas de los títulos de las secciones. Diseñado el 20/09 (etapa 4)"
         },
         {
           "que": "Se carga el título y la descripción para los buscadores",
@@ -77,10 +108,16 @@
           "bloqueado": "El sitio de la SFPR no tiene título ni descripción cargados, ni navegación configurada"
         },
         {
+          "que": "El sitio se ve bien al compartirlo por WhatsApp y los buscadores lo encuentran",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "No hay Open Graph, ni sitemap.xml, ni robots.txt. Sin ruta pública no hay nada que indexar. Diseñado el 20/09 (etapa 10)"
+        },
+        {
           "que": "Se restaura una versión anterior desde el historial",
           "implementado": null,
           "probado": null,
-          "bloqueado": "El historial es sólo lectura: no hay botón de restaurar"
+          "bloqueado": "El historial es sólo lectura: no hay botón de restaurar. Queda fuera del spec del 20/09"
         }
       ]
     }
