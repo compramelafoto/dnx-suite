@@ -50,6 +50,8 @@ type Props = {
   idempotencyKey: string;
   /** Portada propia de la edición; si falta, el hero usa la imagen genérica. */
   coverImageUrl?: string | null;
+  /** Nota breve junto al título, para lo que la fecha sola no explica. */
+  nota?: string | null;
 };
 
 type Step = "venue" | "ticket" | "participant" | "review";
@@ -71,6 +73,7 @@ export function PublicRegistrationWizard({
   context,
   idempotencyKey,
   coverImageUrl,
+  nota,
 }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -726,6 +729,7 @@ export function PublicRegistrationWizard({
                 cityHint={cityHint}
                 dateHint={dateHint}
                 coverImageUrl={coverImageUrl}
+                nota={nota}
               />
             ) : null}
             {persona === "new" ? <RegistrationLiveBenefits cityHint={cityHint} /> : null}
