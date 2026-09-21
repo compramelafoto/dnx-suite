@@ -5,6 +5,7 @@ import { SelectField, TextField, ToggleField } from "@/components/website/inspec
 import {
   ANIMATION_PRESETS,
   BUTTON_PRESETS,
+  FOOTER_PRESETS,
   HEADER_PRESETS,
   TYPOGRAPHY_PRESETS,
   type WebsiteDesignPresets,
@@ -148,6 +149,16 @@ export function DesignPanel({
             value={presets.animationPreset}
             onChange={(v) => onPresetsChange({ ...presets, animationPreset: v as WebsiteDesignPresets["animationPreset"] })}
             options={ANIMATION_PRESETS.map((p) => ({ value: p.id, label: p.label }))}
+          />
+        </section>
+
+        <section className="space-y-3">
+          <p className="text-xs font-semibold text-[var(--fo-text)]">Pie</p>
+          <SelectField
+            label="Estilo"
+            value={presets.footerPreset}
+            onChange={(v) => onPresetsChange({ ...presets, footerPreset: v as WebsiteDesignPresets["footerPreset"] })}
+            options={FOOTER_PRESETS.map((p) => ({ value: p.id, label: p.label }))}
           />
         </section>
       </fieldset>

@@ -92,7 +92,12 @@ export type AnimationPresetId = (typeof ANIMATION_PRESETS)[number]["id"];
 export const FOOTER_PRESETS = [
   { id: "simple", label: "Simple", description: "Nombre, año y enlaces legales." },
   { id: "columns", label: "Columnas", description: "Menú, contacto y redes en columnas." },
-  { id: "full", label: "Completo", description: "Lo anterior, más el logo y la nota legal." },
+  {
+    id: "full",
+    label: "Completo",
+    description:
+      "Lo anterior, más el logo y la nota institucional del pie de los emails (razón social, CUIT, personería). Atención: esa nota queda visible para cualquiera en el sitio público.",
+  },
 ] as const;
 export type FooterPresetId = (typeof FOOTER_PRESETS)[number]["id"];
 
