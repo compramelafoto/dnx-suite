@@ -48,6 +48,8 @@ type AppliedPromoQuote = Extract<PreviewPromotionActionResult, { ok: true }>["qu
 type Props = {
   context: PublicRegistrationContextDto;
   idempotencyKey: string;
+  /** Portada propia de la edición; si falta, el hero usa la imagen genérica. */
+  coverImageUrl?: string | null;
 };
 
 type Step = "venue" | "ticket" | "participant" | "review";
@@ -65,7 +67,11 @@ function stableIdempotencyKey(editionSlug: string, seed: string): string {
   }
 }
 
-export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
+export function PublicRegistrationWizard({
+  context,
+  idempotencyKey,
+  coverImageUrl,
+}: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const idemRef = useRef(idempotencyKey);
@@ -719,6 +725,7 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
                 editionName={context.edition.name}
                 cityHint={cityHint}
                 dateHint={dateHint}
+                coverImageUrl={coverImageUrl}
               />
             ) : null}
             {persona === "new" ? <RegistrationLiveBenefits cityHint={cityHint} /> : null}
