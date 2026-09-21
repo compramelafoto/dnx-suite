@@ -1,0 +1,82 @@
+{
+  "proyecto": "Cursos presenciales",
+  "plataforma": "FOTOFFICE",
+  "enUso": "no",
+  "usoNota": "1 curso cargado en DNX Estudio y 0 interesados, 0 inscripciones y 0 cobros en toda su historia; además el curso vive en la mitad del módulo que no tiene página pública",
+  "etapas": [
+    {
+      "nombre": "Cargar el curso y su equipo",
+      "criterios": [
+        {
+          "que": "Se carga un curso con su programa, sus precios y su página de venta",
+          "implementado": { "commit": "f1cd35c2", "fecha": "2026-04-25" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "1 curso publicado en DNX Estudio, «Workflow profesional en Lightroom», con 2 secciones de programa"
+          }
+        },
+        {
+          "que": "Se dan de alta los docentes que dictan los cursos",
+          "implementado": { "commit": "f1cd35c2", "fecha": "2026-04-25" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "1 docente cargado en DNX Estudio"
+          }
+        },
+        {
+          "que": "El curso tiene sus ediciones, cada una con fecha, lugar, precio y cupo",
+          "implementado": { "commit": "f1cd35c2", "fecha": "2026-04-25" },
+          "probado": null,
+          "bloqueado": "0 cursos y 0 ediciones en el modelo que la pantalla pública lee: el único curso cargado es del otro modelo"
+        },
+        {
+          "que": "Quien tiene el módulo encendido llega a las pantallas de cursos desde el menú",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Sólo la configuración está en el menú: al alta de cursos, docentes e interesados se llega tipeando la dirección"
+        }
+      ]
+    },
+    {
+      "nombre": "Que alguien se inscriba y pague",
+      "criterios": [
+        {
+          "que": "Un interesado ve el curso publicado en la página pública de la institución y elige su edición",
+          "implementado": { "commit": "f1cd35c2", "fecha": "2026-04-25" },
+          "probado": null,
+          "bloqueado": "La página pública lee el modelo de cursos presenciales, que está vacío; el curso cargado no se publica en ninguna ruta"
+        },
+        {
+          "que": "Se inscribe, paga por Mercado Pago y la inscripción queda aprobada sola",
+          "implementado": { "commit": "f1cd35c2", "fecha": "2026-04-25" },
+          "probado": null,
+          "bloqueado": "0 inscripciones en producción"
+        },
+        {
+          "que": "El alumno recibe el correo de inscripción confirmada con su acceso al aula",
+          "implementado": { "commit": "f1cd35c2", "fecha": "2026-04-25" },
+          "probado": null,
+          "bloqueado": "Ningún correo de cursos figura en el registro de envíos de FOTOFFICE"
+        },
+        {
+          "que": "La comisión de la plataforma se calcula y queda anotada al aprobarse el pago",
+          "implementado": { "commit": "f1cd35c2", "fecha": "2026-04-25" },
+          "probado": null,
+          "bloqueado": "Requiere una inscripción pagada; además sigue usándose el porcentaje viejo como respaldo"
+        },
+        {
+          "que": "Una consulta por un curso llega a la bandeja de interesados",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "El formulario de consulta no está montado en ninguna página: la bandeja no puede recibir nada y tiene 0 interesados"
+        },
+        {
+          "que": "Una inscripción se cancela o se devuelve",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "No existe cancelación ni devolución, ni borrado de un curso o de una edición"
+        }
+      ]
+    }
+  ]
+}

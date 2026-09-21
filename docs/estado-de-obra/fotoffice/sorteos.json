@@ -1,0 +1,38 @@
+{
+  "proyecto": "Sorteos verificables",
+  "plataforma": "FOTOFFICE",
+  "spec": "apps/fotoffice/docs/superpowers/specs/2026-09-07-sorteos-design.md",
+  "enUso": "no",
+  "usoNota": "Construido y en verde en su rama; nunca llegó a producción",
+  "etapas": [
+    {
+      "nombre": "El sorteo y su verificación",
+      "criterios": [
+        {
+          "que": "Una institución hace un sorteo y cualquiera puede verificar que no se manipuló",
+          "implementado": { "fecha": "2026-09-08" },
+          "probado": null,
+          "bloqueado": "La rama feat/fotoffice-sorteos nunca se mergeó"
+        },
+        {
+          "que": "La migración está aplicada en las bases",
+          "implementado": { "fecha": "2026-09-08" },
+          "probado": null,
+          "bloqueado": "Falta aplicarla en las 5 bases"
+        },
+        {
+          "que": "El módulo se puede encender por institución",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "No existe el interruptor"
+        },
+        {
+          "que": "Las bases legales del sorteo están resueltas",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Punto legal sin definir"
+        }
+      ]
+    }
+  ]
+}

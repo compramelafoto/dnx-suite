@@ -1,0 +1,80 @@
+{
+  "proyecto": "Clientes",
+  "plataforma": "FOTOFFICE",
+  "spec": "apps/fotoffice/docs/superpowers/plans/2026-09-13-caja-y-clientes.md",
+  "enUso": "parcial",
+  "usoNota": "23 fichas, todas de Foto Positiva y todas creadas solas por el histórico de coberturas — y ahí el módulo está apagado; la SFPR, que lo tiene encendido, tiene 0",
+  "etapas": [
+    {
+      "nombre": "El padrón de clientes",
+      "criterios": [
+        {
+          "que": "Se da de alta un cliente, persona o empresa, con su número propio y sus datos fiscales",
+          "implementado": { "commit": "8aa4c65f", "fecha": "2026-09-13" },
+          "probado": null,
+          "bloqueado": "Ninguna de las 23 fichas nació en /clientes/nuevo: las creó el alta automática del histórico"
+        },
+        {
+          "que": "El padrón se busca por nombre, razón social, documento, correo o teléfono",
+          "implementado": { "commit": "8aa4c65f", "fecha": "2026-09-13" },
+          "probado": null,
+          "bloqueado": "Las 23 fichas están en Foto Positiva, donde el módulo está apagado: nadie pudo abrir la pantalla todavía"
+        },
+        {
+          "que": "La ficha se edita y se pasa a inactiva, sin borrar historia",
+          "implementado": { "commit": "8aa4c65f", "fecha": "2026-09-13" },
+          "probado": null,
+          "bloqueado": "Falta editar una ficha con sesión iniciada"
+        },
+        {
+          "que": "El padrón se baja a una planilla",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "No hay exportación ni paginación en el listado"
+        }
+      ]
+    },
+    {
+      "nombre": "Que el cliente no se duplique",
+      "criterios": [
+        {
+          "que": "Quien paga una reserva o pide una cobertura queda con su ficha sin que nadie la cargue, y no se duplica",
+          "implementado": { "commit": "559156d9", "fecha": "2026-09-13" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "23 fichas creadas por el histórico de coberturas de Foto Positiva el 16 y 17/09, con 23 correos distintos: cero duplicados"
+          }
+        },
+        {
+          "que": "Dos fichas que son la misma persona se pueden fusionar",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Existe el comparador que usa el alta automática, pero no hay ninguna pantalla para fusionar"
+        }
+      ]
+    },
+    {
+      "nombre": "La ficha sirve para algo",
+      "criterios": [
+        {
+          "que": "La ficha del cliente muestra sus movimientos de Caja",
+          "implementado": { "commit": "f1aa66e6", "fecha": "2026-09-13" },
+          "probado": null,
+          "bloqueado": "Caja no tiene ni un movimiento, y en Foto Positiva el módulo está apagado: la sección no se dibuja"
+        },
+        {
+          "que": "La ficha se enlaza con el socio del padrón y avisa si ese socio ya está enlazado",
+          "implementado": { "commit": "8aa4c65f", "fecha": "2026-09-13" },
+          "probado": null,
+          "bloqueado": "0 fichas enlazadas a un socio"
+        },
+        {
+          "que": "La ficha muestra las reservas del cliente, no sólo sus movimientos de caja",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Nunca se construyó, aunque Reservas ya crea fichas de cliente"
+        }
+      ]
+    }
+  ]
+}

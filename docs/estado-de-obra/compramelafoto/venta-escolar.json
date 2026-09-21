@@ -1,0 +1,25 @@
+{
+  "proyecto": "Venta escolar",
+  "plataforma": "CompraMeLaFoto",
+  "enUso": "no",
+  "usoNota": "0 diseños creados en producción desde que existe",
+  "etapas": [
+    {
+      "nombre": "Que una escuela pueda comprar",
+      "criterios": [
+        {
+          "que": "Un fotógrafo arma el diseño escolar y lo publica",
+          "implementado": { "fecha": "2026-09-04" },
+          "probado": null,
+          "bloqueado": "4 roturas confirmadas el 2026-09-04; hay banco de pruebas armado"
+        },
+        {
+          "que": "Una familia compra desde el álbum escolar y recibe su pedido",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "El recorrido nunca se completó"
+        }
+      ]
+    }
+  ]
+}

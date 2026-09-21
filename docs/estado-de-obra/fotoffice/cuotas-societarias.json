@@ -1,0 +1,180 @@
+{
+  "proyecto": "Cuotas societarias",
+  "plataforma": "FOTOFFICE",
+  "spec": "apps/fotoffice/docs/superpowers/specs/2026-09-06-cuenta-del-socio-conciliacion-y-saldo-a-favor-design.md",
+  "enUso": "si",
+  "usoNota": "Encendido sólo en la SFPR: 198 cargos generados, 18 pagos cobrados por la plataforma de 13 socios distintos y 231 pagos históricos importados",
+  "etapas": [
+    {
+      "nombre": "Configurar cuánto se cobra",
+      "criterios": [
+        {
+          "que": "La institución fija el valor de cada categoría, con su vigencia y el acta que lo aprobó",
+          "implementado": { "commit": "c9b722d8", "fecha": "2026-08-26" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "6 valores de cuota cargados en la SFPR, uno por categoría, y la configuración del módulo con su día de generación y de vencimiento"
+          }
+        },
+        {
+          "que": "Sin un valor vigente el módulo no deja cobrar y lo dice en pantalla",
+          "implementado": { "commit": "2cfbc901", "fecha": "2026-09-06" },
+          "probado": null,
+          "bloqueado": "La única institución con cuotas ya tiene sus 6 valores cargados: falta verlo en una institución sin configurar"
+        }
+      ]
+    },
+    {
+      "nombre": "Generar las cuotas del mes",
+      "criterios": [
+        {
+          "que": "Las cuotas del mes se generan solas el día que la institución eligió, sin duplicar a nadie",
+          "implementado": { "commit": "59ccf582", "fecha": "2026-08-26" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "102 cuotas del período 2026-09 creadas el 01/09 en una sola corrida, una por socio"
+          }
+        },
+        {
+          "que": "La deuda que venía del sistema anterior queda etiquetada aparte y no se confunde con la cuota del mes",
+          "implementado": { "commit": "63fe46ec", "fecha": "2026-09-05" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "80 cargos con período APERTURA, separados de las 108 cuotas mensuales"
+          }
+        },
+        {
+          "que": "Reactivar a un socio le devuelve la cuota del mes en curso",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "La generación mira el estado del día 1: quien se reactiva después queda sin cuota hasta el mes siguiente"
+        }
+      ]
+    },
+    {
+      "nombre": "Que el socio pague",
+      "criterios": [
+        {
+          "que": "El socio elige cuántas cuotas paga y las paga por Mercado Pago desde el portal",
+          "implementado": { "commit": "2606dbd4", "fecha": "2026-08-26" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "12 pagos por Mercado Pago acreditados entre el 28/08 y el 13/09; 18 pagos por la plataforma, de 13 socios distintos"
+          }
+        },
+        {
+          "que": "El pago se acredita solo con el aviso de Mercado Pago y se imputa de la cuota más vieja a la más nueva",
+          "implementado": { "commit": "e3f2b4ab", "fecha": "2026-08-26" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "25 imputaciones registradas; 16 de las 108 cuotas mensuales quedaron saldadas"
+          }
+        },
+        {
+          "que": "La conciliación horaria rescata el pago que quedó colgado y marca el abandonado",
+          "implementado": { "commit": "629d603b", "fecha": "2026-08-26" },
+          "probado": null,
+          "bloqueado": "Quedan 5 pagos por Mercado Pago en PENDIENTE sin fecha de acreditación: no se puede afirmar que la conciliación los resolvió"
+        },
+        {
+          "que": "La Secretaría registra un cobro hecho en la sede, en efectivo o por transferencia",
+          "implementado": { "commit": "be853b4c", "fecha": "2026-08-27" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "1 pago por transferencia registrado a mano el 31/08 y acreditado"
+          }
+        },
+        {
+          "que": "El socio adelanta meses eligiendo meses, no importes",
+          "implementado": { "commit": "736a9f2d", "fecha": "2026-09-06" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "2 socios adelantaron 10, 11 y 12/2026 el 10/09: 6 cargos creados y saldados en el acto"
+          }
+        },
+        {
+          "que": "Lo que sobra de un pago queda como saldo a favor y se descuenta de la cuota siguiente",
+          "implementado": { "commit": "bc9e979e", "fecha": "2026-09-06" },
+          "probado": null,
+          "bloqueado": "Falta encontrar un pago con excedente: ninguno de los 18 dejó saldo a favor visible"
+        },
+        {
+          "que": "El socio recibe un aviso cuando su cuota se genera, está por vencer o venció",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "No existe ningún correo de cobranza ni comprobante de pago acreditado: es el hueco más grande del módulo"
+        }
+      ]
+    },
+    {
+      "nombre": "El alta de un socio nuevo",
+      "criterios": [
+        {
+          "que": "Alguien se asocia desde el formulario público y la Secretaría recibe el pedido",
+          "implementado": { "commit": "3bd20e5d", "fecha": "2026-08-25" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "3 solicitudes de alta recibidas entre el 27 y el 29/08"
+          }
+        },
+        {
+          "que": "La Secretaría aprueba el pedido y a la persona le llega un solo correo con la aprobación y su acceso",
+          "implementado": { "commit": "5c101784", "fecha": "2026-08-25" },
+          "probado": null,
+          "bloqueado": "Las 3 solicitudes están resueltas pero el correo de aprobación no figura en el registro de envíos"
+        },
+        {
+          "que": "Al pagar la primera cuota el alta se cierra sola, se emite el carnet y sale la bienvenida",
+          "implementado": { "commit": "9ca0f248", "fecha": "2026-09-07" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "1 solicitud COMPLETADA y el correo de bienvenida enviado el 20/09; 9 cargos de ingreso generados, 6 saldados"
+          }
+        },
+        {
+          "que": "La solicitud que no se paga en 30 días se recuerda y después se vence sola",
+          "implementado": { "commit": "9ca0f248", "fecha": "2026-09-07" },
+          "probado": null,
+          "bloqueado": "Salió 1 recordatorio el 20/09, pero las 2 solicitudes APROBADA_IMPAGA todavía no vencieron: falta ver el cierre"
+        },
+        {
+          "que": "El acceso se le puede reenviar a la persona desde la bandeja de solicitudes",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Hay que ir a la ficha del socio: la bandeja no lo ofrece"
+        }
+      ]
+    },
+    {
+      "nombre": "Recomendados e historial",
+      "criterios": [
+        {
+          "que": "La institución decide si hay recomendaciones y cuánto bonifican",
+          "implementado": { "commit": "f043549d", "fecha": "2026-09-07" },
+          "probado": null,
+          "bloqueado": "Nadie abrió Cuotas → Configuración para encenderlo"
+        },
+        {
+          "que": "Un socio comparte su enlace, el recomendado se asocia y al pagar le bonifica la cuota al recomendante",
+          "implementado": { "commit": "740759b8", "fecha": "2026-09-07" },
+          "probado": null,
+          "bloqueado": "0 bonificaciones por recomendación en producción"
+        },
+        {
+          "que": "Se importa el registro de cobros anterior al sistema, sin dar de alta a nadie ni tocar las deudas",
+          "implementado": { "commit": "9aec8655", "fecha": "2026-09-06" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "231 pagos históricos importados (10/2025 a 08/2026), informativos y sin imputación"
+          }
+        },
+        {
+          "que": "La Secretaría ve quién debe, qué entró en el mes y quién está vencido",
+          "implementado": { "commit": "15e3afc2", "fecha": "2026-08-26" },
+          "probado": null,
+          "bloqueado": "Falta mirar la pantalla de cobranza con sesión iniciada y comparar contra los 198 cargos"
+        }
+      ]
+    }
+  ]
+}

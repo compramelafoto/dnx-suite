@@ -1,0 +1,179 @@
+{
+  "proyecto": "Socios / {Personas}",
+  "plataforma": "FOTOFFICE",
+  "spec": "apps/fotoffice/docs/superpowers/plans/2026-09-06-cuenta-del-socio.md",
+  "enUso": "si",
+  "usoNota": "271 socios en dos instituciones (159 en la SFPR, 112 en Foto Positiva), 135 invitaciones enviadas y 22 con cuenta creada: es el módulo más usado de FOTOFFICE",
+  "etapas": [
+    {
+      "nombre": "El padrón",
+      "criterios": [
+        {
+          "que": "Una institución sube su padrón entero desde una planilla, lo revisa y lo confirma",
+          "implementado": { "commit": "69286285", "fecha": "2026-08-16" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "271 socios cargados en dos instituciones y 164 altas registradas como importación entre el 27/08 y el 15/09"
+          }
+        },
+        {
+          "que": "Se carga un socio nuevo a mano, con su categoría y su número",
+          "implementado": { "commit": "c26dc63f", "fecha": "2026-08-16" },
+          "probado": null,
+          "bloqueado": "La auditoría no registra ni un alta manual: los 164 registros de alta son importaciones"
+        },
+        {
+          "que": "La institución crea y ordena sus categorías de socio, y desactiva las que no usa",
+          "implementado": { "commit": "c26dc63f", "fecha": "2026-08-16" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "6 categorías cargadas en producción; sin una categoría activa la pantalla de alta no deja seguir"
+          }
+        },
+        {
+          "que": "Se edita una ficha o se cambia el estado de un socio, y queda registrado quién lo hizo y cuándo",
+          "implementado": { "commit": "5f35f339", "fecha": "2026-08-20" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "628 registros de auditoría, con 108 ediciones y 46 cambios de estado con autor y fecha"
+          }
+        },
+        {
+          "que": "El padrón se baja a una planilla, entero o con el filtro puesto",
+          "implementado": { "commit": "d9bab322", "fecha": "2026-08-21" },
+          "probado": null,
+          "bloqueado": "Una descarga no deja rastro en la base: falta bajarla con sesión iniciada y mirar el archivo"
+        },
+        {
+          "que": "Se adjunta la documentación del socio a su ficha",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Sólo existe la foto del socio: no hay carga de documentos"
+        }
+      ]
+    },
+    {
+      "nombre": "Que el socio entre a su portal",
+      "criterios": [
+        {
+          "que": "El socio recibe su invitación por correo, pone su contraseña y entra al portal",
+          "implementado": { "commit": "4b386afb", "fecha": "2026-08-22" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "135 invitaciones, 119 envíos registrados y 20 aceptadas; 22 socios con cuenta"
+          }
+        },
+        {
+          "que": "Se invita a los socios de a tandas sin que el proveedor rechace los envíos",
+          "implementado": { "commit": "63fe46ec", "fecha": "2026-09-05" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "119 envíos y 9 reenvíos registrados en la auditoría; 6 fallas, todas concentradas el 07/09"
+          }
+        },
+        {
+          "que": "La ficha se vincula a una cuenta que ya existía, con confirmación explícita, y se puede desvincular",
+          "implementado": { "commit": "e16f97da", "fecha": "2026-08-21" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "22 vinculaciones registradas en la auditoría del padrón"
+          }
+        },
+        {
+          "que": "La invitación queda en el registro de correos enviados de la plataforma",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Se manda sin clave de plantilla: las 135 invitaciones no figuran en SentEmailLog, sólo en la auditoría del socio"
+        },
+        {
+          "que": "Los 112 socios de Foto Positiva pueden entrar al portal",
+          "implementado": { "commit": "63fe46ec", "fecha": "2026-09-05" },
+          "probado": null,
+          "bloqueado": "Sólo 2 de los 112 tienen cuenta: falta la invitación por tandas de esa institución"
+        }
+      ]
+    },
+    {
+      "nombre": "El carnet digital",
+      "criterios": [
+        {
+          "que": "Una corrida emite el carnet digital de todos los socios que corresponde, sin repetir a nadie",
+          "implementado": { "commit": "341d3ad0", "fecha": "2026-08-26" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "111 carnets digitales emitidos en la SFPR entre el 27/08 y el 10/09, ninguno revocado"
+          }
+        },
+        {
+          "que": "El socio abre su carnet en el portal y ve su QR, y se le avisa si le falta la foto",
+          "implementado": { "commit": "090a8d71", "fecha": "2026-08-26" },
+          "probado": null,
+          "bloqueado": "Sólo 20 de los 159 socios de la SFPR tienen cuenta para abrir el portal"
+        },
+        {
+          "que": "Un tercero escanea el QR y ve si esa persona es socia y está habilitada, sin enterarse de su deuda",
+          "implementado": { "commit": "a08113e1", "fecha": "2026-08-26" },
+          "probado": null,
+          "bloqueado": "No hay registro de verificaciones: no se puede saber si alguien escaneó un carnet alguna vez"
+        },
+        {
+          "que": "El carnet vencido se renueva solo mientras el socio esté al día",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "La emisión sólo corre apretando el botón: no hay cron, aunque el correo de bienvenida promete que se renueva solo"
+        },
+        {
+          "que": "Se emite el carnet de un solo socio desde su ficha",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Sólo existe la corrida masiva"
+        }
+      ]
+    },
+    {
+      "nombre": "El carnet impreso",
+      "criterios": [
+        {
+          "que": "El socio pide su credencial impresa y le queda el cargo a pagar",
+          "implementado": { "commit": "e432e04c", "fecha": "2026-08-28" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "3 pedidos de carnet impreso en la SFPR y 1 cargo de tarjeta (período TARJETA-2026-09) cobrado y saldado"
+          }
+        },
+        {
+          "que": "El pedido pagado entra a la cola de producción, y el que no se paga o se arrepiente se anula liberando el cargo",
+          "implementado": { "commit": "583980be", "fecha": "2026-09-07" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "De los 3 pedidos: 2 pasaron a EN_COLA (uno volvió atrás) y 2 quedaron ANULADOS, con su historia de estados registrada"
+          }
+        },
+        {
+          "que": "La imprenta baja el PDF con sangrado y queda registro de quién lo bajó",
+          "implementado": { "commit": "9992938a", "fecha": "2026-08-26" },
+          "probado": null,
+          "bloqueado": "0 operadores con permiso de producir o entregar: nadie puede bajar el PDF todavía"
+        },
+        {
+          "que": "El carnet impreso se produce, se entrega y el socio recibe el aviso de cada paso",
+          "implementado": { "commit": "8e0382ba", "fecha": "2026-08-26" },
+          "probado": null,
+          "bloqueado": "0 carnets impresos y entregados: el único pedido vivo sigue en cola. De los avisos salió 1, y sin clave de plantilla"
+        },
+        {
+          "que": "El carnet se imprime con la plantilla que la institución diseñó",
+          "implementado": { "commit": "459d6bdd", "fecha": "2026-08-28" },
+          "probado": null,
+          "bloqueado": "0 plantillas de carnet creadas; además la plantilla no afecta al carnet digital, que es una pantalla fija"
+        },
+        {
+          "que": "La institución le da permiso de producir o de entregar a un impresor externo",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "El permiso sólo se puede dar a alguien que ya es miembro del workspace"
+        }
+      ]
+    }
+  ]
+}

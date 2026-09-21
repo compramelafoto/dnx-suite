@@ -1,0 +1,43 @@
+{
+  "proyecto": "Evaluaciones",
+  "plataforma": "FOTOFFICE",
+  "enUso": "no",
+  "usoNota": "Encendido en DNX Estudio y con 0 grupos, 0 actividades y 0 resultados: hoy es un esqueleto que figura como módulo disponible",
+  "etapas": [
+    {
+      "nombre": "Evaluar a un grupo",
+      "criterios": [
+        {
+          "que": "Se crea el grupo o curso que se va a evaluar",
+          "implementado": { "commit": "39860e5e", "fecha": "2026-04-29" },
+          "probado": null,
+          "bloqueado": "0 grupos creados en producción, con el módulo encendido desde abril"
+        },
+        {
+          "que": "Se cargan los alumnos de ese grupo",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "No existe la pantalla: el detalle del grupo dice «próximo paso: cargar alumnos»"
+        },
+        {
+          "que": "Se crea una actividad con sus criterios de evaluación",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "No hay forma de crear una actividad; la pantalla de actividad dice «en construcción»"
+        },
+        {
+          "que": "El docente corrige a todo el grupo en una sola pantalla",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "La pantalla existe como componentes huérfanos con 5 alumnos y 3 criterios inventados: ninguna página los usa"
+        },
+        {
+          "que": "El alumno ve su evaluación",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "No hay resultados ni pantalla del alumno: 0 resultados en producción"
+        }
+      ]
+    }
+  ]
+}

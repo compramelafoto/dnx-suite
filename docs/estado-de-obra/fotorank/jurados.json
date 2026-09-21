@@ -1,0 +1,32 @@
+{
+  "proyecto": "Bolsa y contratación de jurados",
+  "plataforma": "FotoRank",
+  "spec": "docs/superpowers/specs/2026-09-19-fotorank-bolsa-de-jurados-design.md",
+  "enUso": "no",
+  "usoNota": "0 jurados cargados en producción",
+  "etapas": [
+    {
+      "nombre": "Jurado único para las dos plataformas",
+      "criterios": [
+        {
+          "que": "Un jurado se registra una vez y sirve para Clickatón y para FotoRank",
+          "implementado": { "fecha": "2026-09-19" },
+          "probado": null,
+          "bloqueado": "Sin desplegar y faltan 4 variables de entorno"
+        },
+        {
+          "que": "El portal de jurado muestra la foto a evaluar",
+          "implementado": { "fecha": "2026-09-19" },
+          "probado": null,
+          "bloqueado": "Sin desplegar"
+        },
+        {
+          "que": "Hay al menos un jurado evaluando de verdad en una convocatoria",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "0 jurados en producción"
+        }
+      ]
+    }
+  ]
+}
