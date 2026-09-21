@@ -174,6 +174,13 @@ export async function redeemGiftVoucherAction(
       acceptTerms: formBool(formData, "acceptTerms"),
       idempotencyKey: formString(formData, "idempotencyKey"),
     });
+
+    // El aviso nunca frena el canje: la inscripción ya quedó confirmada.
+    const { notifyGiftRedeemed } = await import(
+      "../notifications/notify-gift-lifecycle"
+    );
+    await notifyGiftRedeemed(result.registrationId);
+
     return giftSuccess(result);
   } catch (error) {
     return giftFailure(error);

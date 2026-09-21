@@ -214,13 +214,22 @@ export function createApplyPaymentEventUseCase(deps: {
             const { createPrismaGiftVoucherRepository } = await import(
               "@/lib/gift-vouchers/infrastructure/prisma-gift-voucher-repository"
             );
-            await issueGiftVoucherOnPayment({
+            const issued = await issueGiftVoucherOnPayment({
               vouchers: createPrismaGiftVoucherRepository(),
             }).execute({
               registrationId: registration.id,
               editionRegistrationCloseAt: redeemableUntil,
               paidAt: new Date(),
             });
+
+            // Sólo en la primera acreditación: un aviso repetido de Mercado
+            // Pago no tiene que volver a mandarle el voucher a nadie.
+            if (issued.issued) {
+              const { notifyGiftPurchased } = await import(
+                "@/lib/gift-vouchers/notifications/notify-gift-lifecycle"
+              );
+              await notifyGiftPurchased(registration.id);
+            }
           } catch (err) {
             // El pago ya quedó acreditado: el voucher se puede emitir a mano.
             log?.({
