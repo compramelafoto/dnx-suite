@@ -1,14 +1,14 @@
 import Link from "next/link";
 
 /**
- * El 404 de lo público de un workspace. Next lo dibuja DENTRO del layout de este segmento, así
- * que hereda el encabezado, el pie y los colores del sitio sin hacer nada.
+ * El 404 de lo público de un workspace — para rutas que existen dentro de la ruta del sitio.
+ * Next lo dibuja DENTRO del layout de este segmento, así que hereda el encabezado, el pie y
+ * los colores del sitio sin hacer nada.
  *
- * No recibe `params`, así que no puede armar un enlace a `/w/<slug>`: por eso usa Link a `/`,
- * que es el home global de la plataforma.
+ * No recibe `params`, así que no puede armar un enlace a `/w/<slug>`: por eso usa Link a `/`.
  *
- * Ojo: cuando el layout mismo hace notFound() (slug inexistente) no hay sitio que heredar y
- * esta pantalla se ve con los colores por defecto. Es correcto: ese workspace no existe.
+ * Ojo: cuando el layout mismo hace notFound() (slug inexistente), este componente NUNCA se
+ * dibuja — Next usa en su lugar el `app/not-found.tsx` raíz. Es correcto: el workspace no existe.
  */
 export default function PublicWorkspaceNotFound() {
   return (
