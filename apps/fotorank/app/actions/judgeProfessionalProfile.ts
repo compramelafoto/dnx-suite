@@ -8,6 +8,8 @@ import {
   type FotorankJudgePricingMode,
 } from "@repo/db";
 import { requireJudgeAuth } from "../lib/judge-auth";
+import { deleteJudgeAvatarByKey, saveJudgeAvatar } from "../lib/fotorank/judges/judgeAssetStorage";
+import { judgeAvatarSrc } from "../lib/fotorank/judges/judgeAvatarSrc";
 
 export type ProfileActionResult<T = undefined> = { ok: true; data?: T } | { ok: false; error: string };
 
@@ -127,5 +129,66 @@ export async function judgeUpdateProfessionalProfileAction(input: {
   if (pub?.publicSlug) revalidatePath(`/jurados/publico/${pub.publicSlug}`);
   revalidatePath("/jurado/perfil");
   revalidatePath("/jurados/directorio");
+  return { ok: true };
+}
+
+export async function judgeUploadOwnAvatarAction(
+  formData: FormData,
+): Promise<ProfileActionResult<{ src: string }>> {
+  const judge = await requireJudgeAuth();
+
+  const file = formData.get("file");
+  if (!file || typeof file !== "object" || !("arrayBuffer" in file)) {
+    return { ok: false, error: "No se recibió ningún archivo." };
+  }
+  const f = file as File;
+  const body = new Uint8Array(await f.arrayBuffer());
+
+  const saved = await saveJudgeAvatar({ judgeAccountId: judge.id, body, mime: f.type || "" });
+  if (!saved.ok) return { ok: false, error: saved.error };
+
+  const anterior = await prisma.fotorankJudgeProfile.findUnique({
+    where: { judgeAccountId: judge.id },
+    select: { id: true, avatarUrl: true, publicSlug: true },
+  });
+  if (!anterior) return { ok: false, error: "No se encontró tu perfil. Contactá soporte." };
+
+  await prisma.fotorankJudgeProfile.update({
+    where: { judgeAccountId: judge.id },
+    data: { avatarUrl: saved.key },
+  });
+
+  // La anterior se borra DESPUÉS de guardar la nueva: si el borrado falla, el
+  // perfil ya tiene foto igual.
+  if (anterior.avatarUrl && anterior.avatarUrl !== saved.key) {
+    await deleteJudgeAvatarByKey(anterior.avatarUrl);
+  }
+
+  revalidatePath("/jurado/perfil");
+  if (anterior.publicSlug) revalidatePath(`/jurados/publico/${anterior.publicSlug}`);
+  revalidatePath("/jurados/directorio");
+
+  return { ok: true, data: { src: judgeAvatarSrc({ id: anterior.id, avatarUrl: saved.key }) ?? "" } };
+}
+
+export async function judgeRemoveOwnAvatarAction(): Promise<ProfileActionResult> {
+  const judge = await requireJudgeAuth();
+
+  const actual = await prisma.fotorankJudgeProfile.findUnique({
+    where: { judgeAccountId: judge.id },
+    select: { avatarUrl: true, publicSlug: true },
+  });
+  if (!actual) return { ok: false, error: "No se encontró tu perfil. Contactá soporte." };
+
+  await prisma.fotorankJudgeProfile.update({
+    where: { judgeAccountId: judge.id },
+    data: { avatarUrl: null },
+  });
+  if (actual.avatarUrl) await deleteJudgeAvatarByKey(actual.avatarUrl);
+
+  revalidatePath("/jurado/perfil");
+  if (actual.publicSlug) revalidatePath(`/jurados/publico/${actual.publicSlug}`);
+  revalidatePath("/jurados/directorio");
+
   return { ok: true };
 }

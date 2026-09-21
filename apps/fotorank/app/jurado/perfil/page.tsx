@@ -1,6 +1,8 @@
 import { requireJudgeAuth } from "../../lib/judge-auth";
 import { prisma } from "@repo/db";
 import { JuradoPerfilProfesionalForm } from "./JuradoPerfilProfesionalForm";
+import { FotoDePerfil } from "./FotoDePerfil";
+import { judgeAvatarSrc } from "../../lib/fotorank/judges/judgeAvatarSrc";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -42,6 +44,11 @@ export default async function JuradoPerfilProfesionalPage() {
             Volver al panel
           </Link>
         </div>
+
+        <FotoDePerfil
+          srcInicial={judgeAvatarSrc({ id: profile.id, avatarUrl: profile.avatarUrl })}
+          iniciales={`${profile.firstName.charAt(0)}${profile.lastName.charAt(0)}`.toUpperCase()}
+        />
 
         <JuradoPerfilProfesionalForm
           initial={{
