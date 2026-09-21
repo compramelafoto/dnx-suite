@@ -5,6 +5,13 @@ import { issueRegistrationQrToken } from "@/lib/registration/security/qr-token";
 import type { CheckoutRegistrationMutations } from "../domain/checkout-registration-port";
 import { CheckoutError } from "../domain/errors";
 
+/**
+ * Una edición sin fecha de cierre deja el regalo sin plazo. El hold igual
+ * necesita una fecha, así que se usa una lejana: el cupo queda tomado hasta
+ * que alguien lo active o lo anule a mano.
+ */
+const GIFT_HOLD_FAR_FUTURE = new Date("2099-12-31T23:59:59.000Z");
+
 function formatVisibleCode(prefix: string, seq: number, width = 5): string {
   const safe = prefix.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 8) || "CK";
   return `${safe}-${String(seq).padStart(width, "0")}`;
@@ -18,6 +25,7 @@ function mapRecord(row: {
   ticketTypeId: string;
   status: string;
   paymentStatus: string;
+  isGift?: boolean;
   visibleCode: string | null;
   sequenceNumber: number | null;
   firstName: string;
@@ -66,6 +74,7 @@ function mapRecord(row: {
     ticketTypeId: row.ticketTypeId,
     status: row.status as import("@/lib/registration/domain/types").ClickatonRegistrationStatus,
     paymentStatus: row.paymentStatus as import("@/lib/registration/domain/types").ClickatonPaymentStatus,
+    isGift: row.isGift ?? false,
     visibleCode: row.visibleCode,
     sequenceNumber: row.sequenceNumber,
     participant: {
@@ -145,6 +154,90 @@ export function createPrismaCheckoutMutations(): CheckoutRegistrationMutations {
         include: { items: true },
       });
       return mapRecord(row);
+    },
+
+    async getEditionRegistrationCloseAt(editionId) {
+      const ed = await prisma.clickatonEdition.findUnique({
+        where: { id: editionId },
+        select: { registrationCloseAt: true },
+      });
+      return ed?.registrationCloseAt ?? null;
+    },
+
+    async confirmGiftPaid(input) {
+      // El regalo NO se confirma ni recibe número visible: espera el canje.
+      // Tampoco emite credencial ni QR, y no vincula identidad: todavía no se
+      // sabe quién va a participar.
+      return prisma.$transaction(async (tx) => {
+        const existing = await tx.clickatonRegistration.findUnique({
+          where: { id: input.registrationId },
+          include: { items: true },
+        });
+        if (!existing) throw new CheckoutError("NOT_FOUND", "Inscripción no encontrada.");
+        if (
+          existing.status === "GIFT_AWAITING_REDEMPTION" &&
+          existing.paymentStatus === "APPROVED"
+        ) {
+          return mapRecord(existing);
+        }
+        if (existing.paymentOrderId && existing.paymentOrderId !== input.paymentOrderId) {
+          throw new CheckoutError(
+            "PAYMENT_CONFLICT",
+            "La orden no corresponde a esta inscripción.",
+          );
+        }
+
+        const updated = await tx.clickatonRegistration.update({
+          where: { id: input.registrationId },
+          data: {
+            status: "GIFT_AWAITING_REDEMPTION",
+            paymentStatus: "APPROVED",
+            paymentOrderId: input.paymentOrderId,
+            // El cupo queda tomado hasta que cierre la inscripción.
+            holdExpiresAt: input.redeemableUntil,
+          },
+          include: { items: true },
+        });
+
+        // El hold sigue ACTIVE a propósito: así las consultas de
+        // disponibilidad lo cuentan como cupo ocupado sin cambio alguno.
+        await tx.clickatonCapacityHold.updateMany({
+          where: { registrationId: input.registrationId, status: "ACTIVE" },
+          data: { expiresAt: input.redeemableUntil ?? GIFT_HOLD_FAR_FUTURE },
+        });
+
+        await tx.clickatonRegistrationStatusHistory.create({
+          data: {
+            registrationId: input.registrationId,
+            previousStatus: existing.status,
+            newStatus: "GIFT_AWAITING_REDEMPTION",
+            previousPaymentStatus: existing.paymentStatus,
+            newPaymentStatus: "APPROVED",
+            source: input.source,
+            reason: "gift_paid_awaiting_redemption",
+          },
+        });
+        await tx.clickatonRegistrationAudit.create({
+          data: {
+            registrationId: input.registrationId,
+            action: "GIFT_PAYMENT_APPROVED",
+            source: input.source,
+            metadata: {
+              paymentOrderId: input.paymentOrderId,
+              requestId: input.requestId,
+            },
+          },
+        });
+
+        return mapRecord(updated);
+      }).then(async (record) => {
+        try {
+          await confirmClickatonPromotionRedemption(input.registrationId);
+        } catch {
+          // best-effort: el pago del regalo ya quedó acreditado
+        }
+        return record;
+      });
     },
 
     async confirmPaid(input) {

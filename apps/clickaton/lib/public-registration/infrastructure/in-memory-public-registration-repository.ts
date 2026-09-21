@@ -422,6 +422,130 @@ export function createInMemoryPublicRegistrationRepository(
       };
     },
 
+    async completeGiftRegistration(cmd) {
+      const existing = store.domain.registrations.get(cmd.registrationId);
+      if (!existing) {
+        throw new PublicRegistrationError(
+          "NOT_FOUND",
+          "No encontramos la inscripción de este regalo.",
+        );
+      }
+      if (existing.status === "CONFIRMED") {
+        return { id: existing.id, visibleCode: existing.visibleCode ?? null };
+      }
+      if (existing.status !== "GIFT_AWAITING_REDEMPTION") {
+        throw new PublicRegistrationError(
+          "EDITION_NOT_AVAILABLE",
+          "Este regalo no está disponible para activar.",
+        );
+      }
+
+      existing.participant = {
+        ...existing.participant,
+        firstName: cmd.participant.firstName.trim(),
+        lastName: cmd.participant.lastName.trim(),
+        email: cmd.participant.email,
+        phone: cmd.participant.phone?.trim() || null,
+        documentNumber: normalizeDocument(cmd.participant.documentNumber) || null,
+        acceptedTermsAt: cmd.acceptedAt,
+        acceptedImageAt: cmd.acceptedAt,
+      };
+      if (cmd.venueId) existing.venueId = cmd.venueId;
+      store.domain.registrations.set(existing.id, existing);
+
+      const confirmed = await domainRegs.confirm({
+        registrationId: cmd.registrationId,
+        paymentStatus: existing.paymentStatus,
+        assignVisibleCode: !existing.visibleCode,
+        editionPrefix: cmd.editionPrefix ?? "CK",
+        source: "public_gift_redeem",
+        requestId: cmd.idempotencyKey,
+      });
+
+      for (const [id, hold] of store.domain.capacityHolds) {
+        if (hold.registrationId === cmd.registrationId && hold.status === "ACTIVE") {
+          hold.status = "CONSUMED";
+          hold.consumedAt = cmd.acceptedAt;
+          store.domain.capacityHolds.set(id, hold);
+        }
+      }
+
+      return { id: confirmed.id, visibleCode: confirmed.visibleCode ?? null };
+    },
+
+    async createReservedGiftRegistration(cmd) {
+      return withCapacityLock(store, cmd.ticketTypeId, async () => {
+        let confirmed = 0;
+        let activeHolds = 0;
+        for (const r of store.domain.registrations.values()) {
+          if (r.ticketTypeId === cmd.ticketTypeId && r.status === "CONFIRMED") {
+            confirmed += 1;
+          }
+        }
+        for (const h of store.domain.capacityHolds.values()) {
+          if (
+            h.ticketTypeId === cmd.ticketTypeId &&
+            h.status === "ACTIVE" &&
+            h.expiresAt.getTime() > Date.now()
+          ) {
+            activeHolds += 1;
+          }
+        }
+        const ticket = store.tickets.get(cmd.ticketTypeId);
+        if (ticket?.capacity != null && confirmed + activeHolds >= ticket.capacity) {
+          throw new PublicRegistrationError(
+            "CAPACITY_EXCEEDED",
+            "No quedan cupos disponibles para esta entrada.",
+          );
+        }
+
+        // Sin items ni stock holds: el talle lo elige quien recibe el regalo.
+        const draft = await domainRegs.createDraft({
+          editionId: cmd.editionId,
+          userId: null,
+          ticket: { ticketTypeId: cmd.ticketTypeId, venueId: cmd.venueId },
+          participant: {
+            firstName: cmd.contact.firstName,
+            lastName: cmd.contact.lastName,
+            email: cmd.contact.email,
+            phone: cmd.contact.phone,
+            country: "AR",
+            acceptedTermsAt: cmd.acceptedTermsAt,
+          },
+          currency: cmd.currency,
+          subtotalAmount: cmd.subtotalAmount,
+          discountAmount: cmd.discountAmount,
+          totalAmount: cmd.totalAmount,
+          pricePhaseId: cmd.pricePhaseId,
+          pricePhaseNameSnapshot: cmd.pricePhaseNameSnapshot,
+          pricePhaseAmountSnapshot: cmd.pricePhaseAmountSnapshot,
+          promotionId: cmd.promotionId,
+          promotionCodeSnapshot: cmd.promotionCodeSnapshot,
+          termsVersion: cmd.termsVersion,
+          termsAcceptedAt: cmd.acceptedTermsAt,
+          holdMinutes: cmd.holdMinutes,
+          items: [],
+        });
+
+        await domainRegs.createCapacityHold({
+          registrationId: draft.id,
+          editionId: cmd.editionId,
+          venueId: cmd.venueId,
+          ticketTypeId: cmd.ticketTypeId,
+          expiresAt: cmd.holdExpiresAt,
+        });
+
+        const stored = store.domain.registrations.get(draft.id);
+        if (stored) {
+          stored.isGift = true;
+          stored.paymentIdempotencyKey = cmd.idempotencyKey;
+          store.domain.registrations.set(stored.id, stored);
+        }
+
+        return { id: draft.id };
+      });
+    },
+
     async createReservedRegistration(input) {
       return withCapacityLock(store, input.cmd.ticket.ticketTypeId, async () => {
         let confirmed = 0;

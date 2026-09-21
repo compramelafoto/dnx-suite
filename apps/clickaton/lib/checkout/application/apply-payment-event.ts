@@ -85,9 +85,12 @@ export function createApplyPaymentEventUseCase(deps: {
         };
       }
 
-      // Evento duplicado: orden ya en estado terminal aprobado
+      // Evento duplicado: orden ya en estado terminal aprobado.
+      // Para un regalo el estado terminal del pago es GIFT_AWAITING_REDEMPTION,
+      // no CONFIRMED: la inscripción se confirma recién cuando se activa.
       if (
-        registration.status === "CONFIRMED" &&
+        (registration.status === "CONFIRMED" ||
+          registration.status === "GIFT_AWAITING_REDEMPTION") &&
         registration.paymentStatus === "APPROVED" &&
         order.status === "APPROVED"
       ) {
@@ -185,6 +188,69 @@ export function createApplyPaymentEventUseCase(deps: {
             paymentIdempotencyKey: registration.paymentIdempotencyKey ?? order.idempotencyKey,
             paymentStatus: "PROCESSING",
           });
+        }
+
+        // Regalo: no se confirma como participante. Se emite el voucher y el
+        // cupo sigue reservado hasta que quien lo recibe lo active.
+        // No corresponde número visible, ni credencial, ni QR, ni sincronizar
+        // con FotoRank: todavía no se sabe quién va a participar.
+        if (registration.isGift) {
+          const redeemableUntil =
+            await deps.registrationPort.getEditionRegistrationCloseAt(
+              registration.editionId,
+            );
+          const giftConfirmed = await deps.registrationPort.confirmGiftPaid({
+            registrationId: registration.id,
+            paymentOrderId: order.id,
+            source: "dnx_payments_webhook",
+            requestId: event.eventId,
+            redeemableUntil,
+          });
+
+          try {
+            const { issueGiftVoucherOnPayment } = await import(
+              "@/lib/gift-vouchers/application/issue-gift-voucher"
+            );
+            const { createPrismaGiftVoucherRepository } = await import(
+              "@/lib/gift-vouchers/infrastructure/prisma-gift-voucher-repository"
+            );
+            await issueGiftVoucherOnPayment({
+              vouchers: createPrismaGiftVoucherRepository(),
+            }).execute({
+              registrationId: registration.id,
+              editionRegistrationCloseAt: redeemableUntil,
+              paidAt: new Date(),
+            });
+          } catch (err) {
+            // El pago ya quedó acreditado: el voucher se puede emitir a mano.
+            log?.({
+              event: "conflict",
+              registrationId: giftConfirmed.id,
+              orderId: order.id,
+              meta: {
+                code: "GIFT_VOUCHER_ISSUE_SOFT_FAIL",
+                reason: err instanceof Error ? err.message.slice(0, 80) : "unknown",
+              },
+            });
+          }
+
+          log?.({
+            event: "registration_confirmed",
+            registrationId: giftConfirmed.id,
+            orderId: order.id,
+            meta: { gift: true },
+          });
+
+          return {
+            applied: true,
+            duplicate: false,
+            conflict: false,
+            registrationId: giftConfirmed.id,
+            registrationStatus: giftConfirmed.status,
+            paymentStatus: giftConfirmed.paymentStatus,
+            holdsAction: "none",
+            orderStatus: order.status,
+          };
         }
 
         const confirmed = await deps.registrationPort.confirmPaid({

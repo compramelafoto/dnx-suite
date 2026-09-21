@@ -19,6 +19,68 @@ export type PublicCatalogTicket = PublicTicketDto & {
   editionId: string;
 };
 
+/**
+ * Reserva "a designar" de un regalo: se guardan los datos de quien compra
+ * como contacto, y el cupo queda tomado. Quien recibe el regalo completa sus
+ * propios datos al activarlo.
+ */
+export type CreateReservedGiftRegistrationCommand = {
+  idempotencyKey: string;
+  holdExpiresAt: Date;
+  holdMinutes: number;
+  isGift: true;
+  editionId: string;
+  ticketTypeId: string;
+  venueId: string | null;
+  contact: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string | null;
+  };
+  currency: string;
+  subtotalAmount: number;
+  discountAmount: number;
+  totalAmount: number;
+  promotionId: string | null;
+  promotionCodeSnapshot: string | null;
+  pricePhaseId: string | null;
+  pricePhaseNameSnapshot: string | null;
+  pricePhaseAmountSnapshot: number | null;
+  acceptedTermsAt: Date;
+  termsVersion: string;
+};
+
+/**
+ * Canje del regalo: la inscripción "a designar" se completa con los datos de
+ * quien lo recibe y pasa a CONFIRMED, emitiendo número visible, credencial y
+ * QR como cualquier confirmación.
+ */
+export type CompleteGiftRegistrationCommand = {
+  registrationId: string;
+  editionId: string;
+  editionPrefix: string | null;
+  venueId: string | null;
+  variantChoices: Array<{ productId: string; productVariantId: string }>;
+  participant: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone?: string;
+    documentNumber?: string;
+    city?: string;
+    province?: string;
+    country?: string;
+    birthDate?: string;
+    emergencyContactName?: string;
+    emergencyContactPhone?: string;
+  };
+  profilePhotoAssetId: string;
+  instagramHandle: string;
+  acceptedAt: Date;
+  idempotencyKey: string;
+};
+
 export type IdempotencyRecord = {
   key: string;
   fingerprint: string;
@@ -90,6 +152,18 @@ export interface PublicRegistrationRepository {
     fingerprint: string;
     holdExpiresAt: Date;
   }): Promise<ClickatonRegistrationRecord>;
+  /**
+   * Reserva de regalo: toma cupo sin items ni stock (el talle se elige al
+   * activar) y sin bloquear por email duplicado — quien regala puede además
+   * estar inscripto, y puede regalar más de una vez.
+   */
+  createReservedGiftRegistration(
+    cmd: CreateReservedGiftRegistrationCommand,
+  ): Promise<{ id: string }>;
+  /** Canje del regalo: completa la inscripción y la confirma. Idempotente. */
+  completeGiftRegistration(
+    cmd: CompleteGiftRegistrationCommand,
+  ): Promise<{ id: string; visibleCode: string | null }>;
   getRegistration(id: string): Promise<ClickatonRegistrationRecord | null>;
   /** Holds ACTIVE + variant reservedStock para eligibility. */
   getHoldSnapshot(registrationId: string): Promise<{

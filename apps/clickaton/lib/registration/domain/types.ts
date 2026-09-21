@@ -110,6 +110,8 @@ export type ClickatonRegistrationRecord = {
   ticketTypeId: string;
   status: ClickatonRegistrationStatus;
   paymentStatus: ClickatonPaymentStatus;
+  /** true si nació como regalo: el contacto es quien compra, no quien participa. */
+  isGift?: boolean;
   visibleCode?: string | null;
   sequenceNumber?: number | null;
   participant: ParticipantSnapshot;
