@@ -40,24 +40,71 @@ perfiles que quedaron PENDING ............. 0
 índice de la cola creado .................. 1
 ```
 
+## Dónde hay que aplicarla
+
+Verificado el 2026-09-21, una por una:
+
+| Base | Proyecto Neon | Rama | Perfiles | Estado |
+|---|---|---|---|---|
+| FotoRank y FOTOFFICE | `divine-hall-10689679` | `development` (`br-old-rain-adwthzng`) | 0 | falta |
+| CompraMeLaFoto | `divine-hall-10689679` | `production` (`br-autumn-rain-ad18wq7y`) | 0 | falta |
+| Clickatón | `bitter-math-56019731` | por defecto | 0 | falta |
+| InfoSpot | `wandering-pine-79918137` | por defecto | 0 | falta |
+| DNX Suite staging | `fragrant-union-80829821` | por defecto | 0 | falta |
+
+**`compramelafoto-staging` (`cold-silence-10115969`) no tiene la tabla**, así que no entra:
+nunca recibió el schema de FotoRank.
+
+**Las cinco tienen 0 perfiles.** Eso significa que el `UPDATE` de la migración no va a
+tocar ninguna fila: es puro agregar columnas. Es el mejor momento posible para aplicarla.
+
 ## El procedimiento
 
-Para cada una de las cinco bases:
+Para cada una de las cinco bases, en este orden:
 
-1. Contar lo que hay antes, para saber si la actualización toca algo:
-   ```sql
-   SELECT COUNT(*) FROM "FotorankJudgeProfile";
-   ```
-2. Aplicar el contenido de
-   `packages/db/prisma/migrations/20260920120000_fotorank_judge_public_signup/migration.sql`.
-3. Verificar que no quedó nada pendiente:
-   ```sql
-   SELECT "directoryReviewStatus", COUNT(*) FROM "FotorankJudgeProfile" GROUP BY 1;
-   ```
-   Tiene que devolver sólo `APPROVED`, o ninguna fila.
-4. Registrar la migración en `_prisma_migrations` con el checksum de una base sana, según
-   el procedimiento ya documentado en el repositorio. **Aplicar el SQL sin registrarlo deja
-   `_prisma_migrations` desincronizada** y el próximo que mire va a creer que falta.
+**Paso 1 — Mirar antes de escribir.**
+```sql
+SELECT COUNT(*) AS perfiles FROM "FotorankJudgeProfile";
+SELECT COUNT(*) AS ya_migrada FROM information_schema.columns
+ WHERE table_name = 'FotorankJudgeProfile' AND column_name = 'directoryReviewStatus';
+```
+Si `ya_migrada` da 1, esa base ya está: pasar a la siguiente.
+
+**Paso 2 — Aplicar las siete sentencias**, en una transacción, desde
+`packages/db/prisma/migrations/20260920120000_fotorank_judge_public_signup/migration.sql`.
+
+**Paso 3 — Verificar que quedó bien.**
+```sql
+SELECT 'columnas nuevas', COUNT(*)::text FROM information_schema.columns
+ WHERE table_name = 'FotorankJudgeProfile'
+   AND column_name IN ('signupSource','directoryReviewStatus','directoryReviewedAt',
+                       'directoryReviewedByUserId','directoryReviewNotes','wantsDirectoryListing')
+UNION ALL SELECT 'emailVerifiedAt', COUNT(*)::text FROM information_schema.columns
+ WHERE table_name = 'FotorankJudgeAccount' AND column_name = 'emailVerifiedAt'
+UNION ALL SELECT 'auditoria acepta nulo', is_nullable FROM information_schema.columns
+ WHERE table_name = 'FotorankJudgeAuditEvent' AND column_name = 'organizationId'
+UNION ALL SELECT 'perfiles pendientes', COUNT(*)::text FROM "FotorankJudgeProfile"
+ WHERE "directoryReviewStatus" = 'PENDING';
+```
+Tiene que dar: **6**, **1**, **YES**, **0**.
+
+**Paso 4 — Registrarla en `_prisma_migrations`.** Sin esto, el próximo que mire va a creer
+que falta, y un `migrate deploy` intentaría aplicarla de nuevo.
+
+```sql
+INSERT INTO _prisma_migrations
+  (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count)
+VALUES
+  (gen_random_uuid()::text,
+   '0b61f310ea3483e51614e4806d70922b7c1b6302272e82af2d2796415c573ce5',
+   NOW(), '20260920120000_fotorank_judge_public_signup', NULL, NULL, NOW(), 1);
+```
+
+Ese checksum es el sha256 del archivo `migration.sql` de este repositorio (1693 bytes).
+**Si el archivo se edita, el checksum cambia** y hay que recalcularlo con:
+```bash
+shasum -a 256 packages/db/prisma/migrations/20260920120000_fotorank_judge_public_signup/migration.sql
+```
 
 ## Si algo sale mal
 
