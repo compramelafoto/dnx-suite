@@ -474,12 +474,60 @@
     -8px 0;
 }
 
+/**
+ * Menú de cuenta: desplegable en escritorio, hoja inferior en móvil.
+ */
+@keyframes ck-menu-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes ck-menu-sheet {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes ck-menu-veil {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.ck-menu-pop {
+  animation: ck-menu-pop var(--ck-duration-fast) var(--ck-easing-standard) both;
+  transform-origin: top right;
+}
+
+.ck-menu-sheet {
+  animation: ck-menu-sheet var(--ck-duration-base) var(--ck-easing-emphasized) both;
+}
+
+.ck-menu-veil {
+  animation: ck-menu-veil var(--ck-duration-fast) var(--ck-easing-standard) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ck-frame-pulse,
   .ck-frame-scan,
   .ck-motion-shutter,
   .ck-fade-up,
-  .ck-marquee__track {
+  .ck-marquee__track,
+  .ck-menu-pop,
+  .ck-menu-sheet,
+  .ck-menu-veil {
     animation: none;
   }
 
