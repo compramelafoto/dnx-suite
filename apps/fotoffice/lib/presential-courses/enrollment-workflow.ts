@@ -8,6 +8,32 @@ function decimalToNumber(value: Prisma.Decimal) {
   return Number(value.toString());
 }
 
+/**
+ * Reparte el monto efectivamente acreditado con el porcentaje que la inscripción ya tenía
+ * congelado desde que se abrió el pago.
+ *
+ * **No resuelve la comisión, la aplica.** Hasta el 2026-09-21 la aprobación volvía a
+ * buscarla en `coursesFeePercent` —un campo deprecado, con 10% por defecto— mientras que al
+ * inscribirse se había calculado con `WorkspaceModuleFee`, que por defecto es 5%. El número
+ * cambiaba después de cobrado.
+ *
+ * El neto se obtiene restando, nunca multiplicando por el complemento: redondear dos veces
+ * deja sumas que no cierran contra el total, y eso es plata que aparece o desaparece.
+ */
+export function recalcularReparto(input: {
+  montoCobrado: Prisma.Decimal;
+  feePercentCongelado: Prisma.Decimal;
+}): { fee: Prisma.Decimal; net: Prisma.Decimal } {
+  const fee = input.montoCobrado
+    .mul(input.feePercentCongelado)
+    .div(100)
+    .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+  return {
+    fee,
+    net: input.montoCobrado.minus(fee).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP),
+  };
+}
+
 export async function approveCourseEnrollment(args: {
   enrollmentId: string;
   paymentRef?: string | null;
@@ -41,17 +67,14 @@ export async function approveCourseEnrollment(args: {
     return { ok: false, reason: "no_spots_available" as const };
   }
 
-  const settings = await prisma.courseSalesWorkspaceSettings.findUnique({
-    where: { workspaceId: enrollment.workspaceId },
-    select: { coursesFeePercent: true },
-  });
-  const percent = settings?.coursesFeePercent ?? new Prisma.Decimal(10);
   const amount =
     args.amountArs != null
       ? new Prisma.Decimal(args.amountArs.toFixed(2))
       : enrollment.amountArs;
-  const fee = amount.mul(percent).div(100).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
-  const net = amount.minus(fee).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+  const { fee, net } = recalcularReparto({
+    montoCobrado: amount,
+    feePercentCongelado: enrollment.platformFeePercent,
+  });
 
   const updateResult = await prisma.courseEnrollment.updateMany({
     where: {
@@ -63,7 +86,7 @@ export async function approveCourseEnrollment(args: {
       paymentProvider: "MERCADO_PAGO",
       paymentRef: args.paymentRef ?? enrollment.paymentRef,
       amountArs: amount,
-      platformFeePercent: percent,
+      // `platformFeePercent` no se toca: quedó congelado al abrir el pago.
       platformFeeArs: fee,
       netAmountArs: net,
     },

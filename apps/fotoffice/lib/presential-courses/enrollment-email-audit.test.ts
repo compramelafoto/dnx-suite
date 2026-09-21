@@ -114,6 +114,8 @@ function enrollment() {
     name: "Juan",
     whatsapp: "+5493410000000",
     amountArs: new Prisma.Decimal("10000.00"),
+    // Congelado al abrir el pago con la comisión del módulo (5% por defecto).
+    platformFeePercent: new Prisma.Decimal("5.00"),
     paymentRef: null,
     workspace: { id: "ws-sfpr", name: "Club SFPR" },
     course: {
@@ -181,12 +183,20 @@ describe("aprobación con envío exitoso", () => {
     expect(message.text.split("marca-de-firma").length - 1).toBe(1);
   });
 
-  it("conserva las reglas de comisión: 10% sobre 10000", async () => {
+  it("retiene el porcentaje congelado (5%) y no el deprecado (10%)", async () => {
+    // El mock de `courseSalesWorkspaceSettings` sigue devolviendo 10%: si alguien vuelve a
+    // leer ese campo, la comisión da 1000 y este test falla. Esa es toda su razón de ser.
     await approveCourseEnrollment({ enrollmentId: "enr-1" });
     const data = enrollmentUpdateManyMock.mock.calls[0]?.[0]?.data;
     expect(data.paymentStatus).toBe("APPROVED");
-    expect(data.platformFeeArs.toString()).toBe("1000");
-    expect(data.netAmountArs.toString()).toBe("9000");
+    expect(data.platformFeeArs.toString()).toBe("500");
+    expect(data.netAmountArs.toString()).toBe("9500");
+  });
+
+  it("no vuelve a escribir el porcentaje: el que vale es el del checkout", async () => {
+    await approveCourseEnrollment({ enrollmentId: "enr-1" });
+    const data = enrollmentUpdateManyMock.mock.calls[0]?.[0]?.data;
+    expect(data.platformFeePercent).toBeUndefined();
   });
 
   it("solo aprueba lo que sigue PENDING", async () => {
