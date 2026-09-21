@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { PageContainer, PublicShell } from "../../components/public-ui";
 import { PostulacionForm } from "./PostulacionForm";
 
 export const metadata: Metadata = {
@@ -10,18 +11,22 @@ export const metadata: Metadata = {
 
 export default function PostulacionDeJuradoPage() {
   return (
-    <div className="min-h-screen bg-fr-bg px-4 py-10 text-fr-primary md:px-8">
-      <div className="mx-auto max-w-3xl space-y-8">
-        <header className="space-y-3">
-          <h1 className="font-sans text-3xl font-semibold tracking-tight">Postularte como jurado</h1>
-          <p className="text-sm text-fr-muted">
-            Contanos quién sos y qué hacés. Si aprobamos tu ficha, los organizadores de concursos
-            van a poder encontrarte y proponerte que integres su jurado.
-          </p>
-        </header>
+    <PublicShell header={{ variant: "contest", panelHref: "/jurado/panel" }}>
+      <section className="fr-public-section">
+        <PageContainer className="max-w-3xl">
+          <header className="space-y-3">
+            <h1 className="fr-public-title text-3xl md:text-4xl">Postularte como jurado</h1>
+            <p className="fr-public-body">
+              Contanos quién sos y qué hacés. Si aprobamos tu ficha, los organizadores de
+              concursos van a poder encontrarte y proponerte que integres su jurado.
+            </p>
+          </header>
 
-        <PostulacionForm />
-      </div>
-    </div>
+          <div className="fr-public-stack-content">
+            <PostulacionForm />
+          </div>
+        </PageContainer>
+      </section>
+    </PublicShell>
   );
 }

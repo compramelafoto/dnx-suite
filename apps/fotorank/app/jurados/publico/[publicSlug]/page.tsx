@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Card } from "@repo/design-system";
+import { PageContainer, PublicShell } from "../../../components/public-ui";
 import { getJudgePublicProfile } from "../../../actions/judges";
 import { JudgeBioRenderer } from "../../../components/judges/JudgeBioRenderer";
 import {
@@ -35,8 +36,9 @@ export default async function JudgePublicProfilePage({ params }: { params: Promi
   const igHref = instagramProfileHref(data.instagram);
 
   return (
-    <div className="min-h-screen bg-fr-bg p-8">
-      <div className="mx-auto max-w-3xl space-y-6">
+    <PublicShell header={{ variant: "contest", panelHref: "/jurado/panel" }}>
+      <section className="fr-public-section">
+        <PageContainer className="max-w-3xl space-y-6">
         <Card>
           <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
             <div className="shrink-0">
@@ -145,11 +147,12 @@ export default async function JudgePublicProfilePage({ params }: { params: Promi
         </Card>
 
         <p className="text-center text-xs text-fr-muted-soft">
-          <Link href="/" className="underline underline-offset-2 hover:text-fr-muted">
-            Volver al inicio
+          <Link href="/jurados/postulacion" className="underline underline-offset-2 hover:text-fr-muted">
+            ¿Sos fotógrafo? Postulate como jurado
           </Link>
         </p>
-      </div>
-    </div>
+        </PageContainer>
+      </section>
+    </PublicShell>
   );
 }
