@@ -57,7 +57,7 @@ export function PublicSiteShell({
         designPresets={site.designPresets}
         homeHref={`/w/${site.workspaceSlug}`}
       />
-      <main style={{ flex: 1 }}>{children}</main>
+      <div style={{ flex: 1 }}>{children}</div>
       <WebsiteFooterView
         commercialName={site.commercialName}
         logoUrl={site.logoUrl}
