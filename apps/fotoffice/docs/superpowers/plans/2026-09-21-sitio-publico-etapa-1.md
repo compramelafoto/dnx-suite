@@ -844,7 +844,11 @@ export function WebsiteFooterView({
   const anio = new Date().getFullYear();
 
   const lugar = [contact.city, contact.province].filter(Boolean).join(", ");
-  const tieneContacto = Boolean(contact.email || contact.phone || contact.whatsapp || lugar);
+  // Sólo lo que se dibuja DENTRO de la columna de contacto cuenta acá. `lugar` va en la primera
+  // columna, así que incluirlo dibujaría una columna vacía; omitir `instagram` escondería un
+  // dato que la institución sí cargó.
+  const whatsappDigitos = (contact.whatsapp ?? "").replace(/[^0-9]/g, "");
+  const tieneContacto = Boolean(contact.email || contact.phone || whatsappDigitos || contact.instagram);
 
   return (
     <footer
@@ -891,9 +895,9 @@ export function WebsiteFooterView({
                     {contact.phone}
                   </a>
                 ) : null}
-                {contact.whatsapp ? (
+                {whatsappDigitos ? (
                   <a
-                    href={`https://wa.me/${contact.whatsapp.replace(/[^0-9]/g, "")}`}
+                    href={`https://wa.me/${whatsappDigitos}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="block opacity-80 hover:opacity-100"
