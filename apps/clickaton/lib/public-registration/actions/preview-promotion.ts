@@ -24,6 +24,7 @@ export async function previewPublicPromotionAction(input: {
   editionSlug: string;
   ticketTypeId: string;
   promoCode: string;
+  email?: string;
 }): Promise<PreviewPromotionActionResult> {
   try {
     const svc = getPublicRegistrationService();
@@ -56,11 +57,23 @@ export async function previewPublicPromotionAction(input: {
       }
     }
 
+    // La identidad se resuelve por email, igual que al confirmar la inscripción:
+    // sin esto la pantalla decía "código aplicado" sobre códigos que el backend
+    // iba a rechazar.
+    const email = input.email?.trim().toLowerCase() || null;
+    let userId: number | null = null;
+    if (email) {
+      const identity = await repo.resolveIdentityCandidate(email);
+      userId = identity.userId;
+    }
+
     const preview = await previewClickatonPromotion({
       code: input.promoCode,
       originalAmount,
       currency: ticket.currency,
       editionId: edition.id,
+      email,
+      userId,
     });
     if (!preview.ok) {
       return { ok: false, message: preview.message };

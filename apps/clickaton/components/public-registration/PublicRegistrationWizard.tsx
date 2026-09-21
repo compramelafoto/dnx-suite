@@ -417,6 +417,13 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
       setPromoError("Ingresá un código válido.");
       return;
     }
+    // Los cupones con condición se validan contra la persona, así que sin email
+    // no tiene sentido preguntarle al servidor.
+    const emailForPromo = email.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailForPromo)) {
+      setPromoError("Completá tu email para validar este código.");
+      return;
+    }
     setPromoPending(true);
     setPromoError(null);
     try {
@@ -424,6 +431,7 @@ export function PublicRegistrationWizard({ context, idempotencyKey }: Props) {
         editionSlug: context.edition.slug,
         ticketTypeId: selectedTicket.id,
         promoCode: code,
+        email: emailForPromo,
       });
       if (!result.ok) {
         setAppliedPromo(null);
