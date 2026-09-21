@@ -46,11 +46,15 @@ Verificado el 2026-09-21, una por una:
 
 | Base | Proyecto Neon | Rama | Perfiles | Estado |
 |---|---|---|---|---|
-| FotoRank y FOTOFFICE | `divine-hall-10689679` | `development` (`br-old-rain-adwthzng`) | 0 | falta |
-| CompraMeLaFoto | `divine-hall-10689679` | `production` (`br-autumn-rain-ad18wq7y`) | 0 | falta |
-| Clickatón | `bitter-math-56019731` | por defecto | 0 | falta |
-| InfoSpot | `wandering-pine-79918137` | por defecto | 0 | falta |
-| DNX Suite staging | `fragrant-union-80829821` | por defecto | 0 | falta |
+| FotoRank y FOTOFFICE | `divine-hall-10689679` | `development` (`br-old-rain-adwthzng`) | 0 | ✅ aplicada 21/09 |
+| CompraMeLaFoto | `divine-hall-10689679` | `production` (`br-autumn-rain-ad18wq7y`) | 0 | ✅ aplicada 21/09 |
+| Clickatón | `bitter-math-56019731` | por defecto | 0 | ✅ aplicada 21/09 |
+| InfoSpot | `wandering-pine-79918137` | por defecto | 0 | ✅ aplicada 21/09 |
+| DNX Suite staging | `fragrant-union-80829821` | por defecto | 0 | ✅ aplicada 21/09 |
+
+**Las cinco quedaron aplicadas y registradas el 2026-09-21.** En cada una se verificaron
+los cinco controles del paso 3 y dieron lo esperado. Ninguna fila de datos se tocó: los 822
+usuarios de CompraMeLaFoto y los 271 socios de FOTOFFICE siguen igual.
 
 **`compramelafoto-staging` (`cold-silence-10115969`) no tiene la tabla**, así que no entra:
 nunca recibió el schema de FotoRank.

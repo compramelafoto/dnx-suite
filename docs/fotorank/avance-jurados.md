@@ -43,7 +43,7 @@ falta el despliegue, la migración en las cinco bases y que un jurado real se po
 | B.1 | Máquina de estados de la revisión | ✅ | 🟡 | 8 pruebas. El circuito entero corrió en vivo, pero contra una rama copia, no la base real |
 | B.2 | Validación del formulario público | ✅ | 🟡 | 11 pruebas. El formulario se llenó y se envió de verdad en local |
 | B.3 | Verificación del correo | ✅ | 🟡 | 10 pruebas. Verificado en vivo, incluido que el enlace no sirve dos veces |
-| B.4 | Migración: estado de revisión y origen del alta | ✅ | 🟡 | Aplicada y verificada en una rama descartable. **Falta aplicarla en las 5 bases** |
+| B.4 | Migración: estado de revisión y origen del alta | ✅ | ✅ | **Aplicada en las 5 bases el 21/09** y registrada en `_prisma_migrations`. Los 5 controles dieron lo esperado en cada una |
 | B.5 | Los dos correos nuevos | ✅ | ⬜ | Se encolan, pero **ningún correo salió**: falta la clave de Resend |
 | B.6 | La página `/jurados/postulacion` y su acción | ✅ | 🟡 | Un alta real quedó escrita: entra, no se publica sola, pidió el directorio sin estar listada |
 | B.7 | La cola de revisión en Super Admin | ✅ | 🟡 | Rechazo con motivo y aprobación probados en vivo; la página pública aparece al aprobar |
