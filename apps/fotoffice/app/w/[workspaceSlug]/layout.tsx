@@ -23,9 +23,9 @@ export default async function PublicWorkspaceLayout({ children, params }: Props)
   if (!site) notFound();
 
   // El menú necesita saber en qué página estás. Un layout no recibe la ruta, y estas cabeceras
-  // NO llegan en este entorno (Next 16.2.1 no las agrega acá) — se comprobó en el navegador: el
-  // ítem actual nunca se marcaba. Se dejan como mejor esfuerzo por si algún día existen, pero la
-  // marca correcta la resuelve `PublicSiteNavCurrentClient` con `usePathname()`, en el cliente.
+  // NO llegan en este entorno (Next 16.2.1 no las agrega acá) — se comprobó en el navegador.
+  // Se dejan como mejor esfuerzo por si algún día existen, pero quien resuelve la página actual
+  // es `WebsiteHeaderNavClient` con `usePathname()` en el cliente (ver `website-header-nav-client.tsx`).
   const h = await headers();
   const currentPath = h.get("x-invoke-path") ?? h.get("x-pathname") ?? `/w/${workspaceSlug}`;
 
