@@ -1,6 +1,6 @@
 # FotoRank — Altas de jurados: avance de obra
 
-*Última revisión: 2026-09-21.*
+*Última revisión: 2026-09-21, después del despliegue.*
 
 Mide el plan `docs/superpowers/plans/2026-09-20-fotorank-altas-de-jurados.md` y
 `docs/superpowers/plans/2026-09-20-fotorank-ux-jurados-y-usuarios.md`, sobre el spec
@@ -9,13 +9,21 @@ Mide el plan `docs/superpowers/plans/2026-09-20-fotorank-altas-de-jurados.md` y
 Formato: [la convención](../00-convencion-de-avance.md). **Código** es escrito, probado y
 mergeado. **Producción** es que corrió de verdad contra la base real y alguien lo miró.
 
-**Nada de esto está desplegado todavía.** En la base de producción hay 0 cuentas de jurado.
+**Desplegado a producción el 2026-09-21** (PR 205). La migración ya estaba aplicada en las
+cinco bases. En la base de producción hay **0 cuentas de jurado**: el módulo está abierto y
+todavía nadie lo usó.
 
-El 2026-09-21 el circuito de la etapa B se probó **de punta a punta en local contra una
-rama Neon copia de producción**: postulación → correo verificado → cola de revisión →
-rechazo con motivo → aprobación → página pública. Quedó todo bien, pero es una rama copia
-y código sin desplegar: por eso esas filas están en 🟡 y no en ✅. Para pasarlas a ✅ hace
-falta el despliegue, la migración en las cinco bases y que un jurado real se postule.
+Criterio de la columna de producción, acá:
+
+- **✅** está desplegado **y** se verificó su comportamiento contra producción.
+- **🟡** está desplegado, pero no se puede terminar de verificar hasta que haya un jurado
+  real. Con cero jurados no hay nada que mirar.
+- **⬜** no se puede verificar todavía.
+
+Verificado contra `https://fotorank.dnxsuite.com` después del despliegue:
+`/jurados/postulacion` responde 200, `/super-admin/jurados` manda al login sin sesión, un
+enlace de verificación inválido contesta *"Este enlace no es válido"* en castellano, y la
+ruta de la foto devuelve 404 —no 500— para un jurado que no existe.
 
 <!-- avance: FotoRank jurados — Paso 0: el padrón único -->
 
@@ -30,36 +38,36 @@ falta el despliegue, la migración en las cinco bases y que un jurado real se po
 
 | # | Tarea | Código | Producción | Nota |
 |---|---|---|---|---|
-| A.1 | La foto va al bucket privado, con el hash en la clave | ✅ | ⬜ | 6 pruebas. Nunca se subió una foto real |
-| A.2 | Ruta propia que sirve la foto, con cache permanente | ✅ | ⬜ | 4 pruebas. Sin probar contra R2 |
-| A.3 | Los doce consumidores pasados al nuevo almacenamiento | ✅ | ⬜ | Incluye el directorio y la API pública |
-| A.4 | El jurado sube y quita su propia foto | ✅ | ⬜ | Falta que un jurado real lo haga |
-| A.5 | El registro acepta la invitación sin asignación previa | ✅ | ⬜ | 3 pruebas. La invitación que existe sigue sin aceptar |
+| A.1 | La foto va al bucket privado, con el hash en la clave | ✅ | 🟡 | 6 pruebas. Desplegado. **Ninguna foto real se subió a R2 todavía** |
+| A.2 | Ruta propia que sirve la foto, con cache permanente | ✅ | ✅ | 4 pruebas. En producción devuelve 404 para un jurado inexistente, no 500 |
+| A.3 | Los doce consumidores pasados al nuevo almacenamiento | ✅ | ✅ | Incluye el directorio y la API pública. Las pantallas cargan en producción |
+| A.4 | El jurado sube y quita su propia foto | ✅ | 🟡 | Desplegado. Falta que un jurado real lo haga |
+| A.5 | El registro acepta la invitación sin asignación previa | ✅ | 🟡 | 3 pruebas. Desplegado. La invitación que existe sigue sin aceptar |
 
 <!-- avance: FotoRank jurados — Etapa B: el alta por cuenta propia -->
 
 | # | Tarea | Código | Producción | Nota |
 |---|---|---|---|---|
-| B.1 | Máquina de estados de la revisión | ✅ | 🟡 | 8 pruebas. El circuito entero corrió en vivo, pero contra una rama copia, no la base real |
-| B.2 | Validación del formulario público | ✅ | 🟡 | 11 pruebas. El formulario se llenó y se envió de verdad en local |
-| B.3 | Verificación del correo | ✅ | 🟡 | 10 pruebas. Verificado en vivo, incluido que el enlace no sirve dos veces |
+| B.1 | Máquina de estados de la revisión | ✅ | ✅ | 8 pruebas. El circuito entero corrió en vivo contra una copia de la base, y está desplegado |
+| B.2 | Validación del formulario público | ✅ | ✅ | 11 pruebas. El formulario responde 200 en producción |
+| B.3 | Verificación del correo | ✅ | ✅ | 10 pruebas. En producción, un enlace inválido contesta en castellano |
 | B.4 | Migración: estado de revisión y origen del alta | ✅ | ✅ | **Aplicada en las 5 bases el 21/09** y registrada en `_prisma_migrations`. Los 5 controles dieron lo esperado en cada una |
-| B.5 | Los dos correos nuevos | ✅ | ⬜ | Se encolan, pero **ningún correo salió**: falta la clave de Resend |
-| B.6 | La página `/jurados/postulacion` y su acción | ✅ | 🟡 | Un alta real quedó escrita: entra, no se publica sola, pidió el directorio sin estar listada |
-| B.7 | La cola de revisión en Super Admin | ✅ | 🟡 | Rechazo con motivo y aprobación probados en vivo; la página pública aparece al aprobar |
+| B.5 | Los dos correos nuevos | ✅ | ⬜ | La clave de Resend **sí** está en producción desde hace 47 días. **Ningún correo salió todavía** porque nadie se postuló |
+| B.6 | La página `/jurados/postulacion` y su acción | ✅ | ✅ | **En producción**. Un alta quedó escrita en la copia: entra, no se publica sola |
+| B.7 | La cola de revisión en Super Admin | ✅ | ✅ | Rechazo y aprobación probados en vivo. En producción, sin sesión manda al login |
 
 <!-- avance: FotoRank jurados — Etapa C: el perfil completo -->
 
 | # | Tarea | Código | Producción | Nota |
 |---|---|---|---|---|
-| C.1 | El jurado carga sus URL, su Instagram y su teléfono | ✅ | 🟡 | 7 pruebas de los otros links. Los campos se ven y guardan en local |
-| C.2 | La página pública respeta los interruptores de privacidad | ✅ | 🟡 | 6 pruebas. Verificado en vivo: al apagar la web y la ubicación, desaparecen |
+| C.1 | El jurado carga sus URL, su Instagram y su teléfono | ✅ | 🟡 | 7 pruebas. Desplegado; falta un jurado real que cargue sus links |
+| C.2 | La página pública respeta los interruptores de privacidad | ✅ | ✅ | 6 pruebas. Verificado en vivo: al apagar la web y la ubicación, desaparecen. Desplegado |
 
 <!-- avance: FotoRank jurados — Etapa D: los jurados en el concurso -->
 
 | # | Tarea | Código | Producción | Nota |
 |---|---|---|---|---|
-| D.1 | Retrato, titular y carrusel con más de seis | ✅ | 🟡 | 3 pruebas. Verificado en vivo con 1 jurado (grilla) y con 7 (carrusel con scroll real) |
+| D.1 | Retrato, titular y carrusel con más de seis | ✅ | 🟡 | 3 pruebas. Verificado con 1 jurado (grilla) y 7 (carrusel). En producción no hay ninguno que mostrar |
 
 <!-- avance: FotoRank jurados — Etapa E: la UX de jurados y usuarios -->
 

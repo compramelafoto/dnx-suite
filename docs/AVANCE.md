@@ -8,19 +8,8 @@ alguien miró. El número que vale es el de producción: ver
 
 | Proyecto | Tareas | Código | Producción | |
 |---|---|---|---|---|
-| **fotorank** | 26 | 100% |  40% | `████······` |
 | **subilafoto** | 46 |  93% |  61% | `██████····` |
-
-## fotorank
-
-| Etapa | Tareas | Código | Producción | Qué falta |
-|---|---|---|---|---|
-| FotoRank jurados — Paso 0: el padrón único | 4 | 100% |  50% | 0.4 |
-| FotoRank jurados — Etapa A: cimientos | 5 | 100% |   0% | A.1, A.2, A.3, A.4, A.5 |
-| FotoRank jurados — Etapa B: el alta por cuenta propia | 7 | 100% |  50% | B.1, B.2, B.3, B.5, B.6, B.7 |
-| FotoRank jurados — Etapa C: el perfil completo | 2 | 100% |  50% | C.1, C.2 |
-| FotoRank jurados — Etapa D: los jurados en el concurso | 1 | 100% |  50% | D.1 |
-| FotoRank jurados — Etapa E: la UX de jurados y usuarios | 7 | 100% |  50% | E.1, E.2, E.3, E.4, E.5, E.6, E.7 |
+| **fotorank** | 26 | 100% |  67% | `███████···` |
 
 ## subilafoto
 
@@ -31,6 +20,17 @@ alguien miró. El número que vale es el de producción: ver
 | SubiLaFoto — Etapa 3: comercial y proveedores | 10 | 100% |  40% | 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.10 |
 | SubiLaFoto — Etapa 4: estabilización | 8 |  75% |  57% | 4.4, 4.6, 4.7, 4.8 |
 | SubiLaFoto — Etapa 5: ensayo y lanzamiento | 6 |  83% |  60% | 5.2, 5.6 |
+
+## fotorank
+
+| Etapa | Tareas | Código | Producción | Qué falta |
+|---|---|---|---|---|
+| FotoRank jurados — Paso 0: el padrón único | 4 | 100% |  50% | 0.4 |
+| FotoRank jurados — Etapa A: cimientos | 5 | 100% |  70% | A.1, A.4, A.5 |
+| FotoRank jurados — Etapa B: el alta por cuenta propia | 7 | 100% |  86% | B.5 |
+| FotoRank jurados — Etapa C: el perfil completo | 2 | 100% |  75% | C.1 |
+| FotoRank jurados — Etapa D: los jurados en el concurso | 1 | 100% |  50% | D.1 |
+| FotoRank jurados — Etapa E: la UX de jurados y usuarios | 7 | 100% |  50% | E.1, E.2, E.3, E.4, E.5, E.6, E.7 |
 
 ## Sin medir
 
@@ -43,6 +43,7 @@ Agregar una tabla con la marca `<!-- avance: … -->` los hace aparecer arriba.
 - `clickaton`
 - `compramelafoto`
 - `dnx-payments`
+- `estado-de-obra`
 - `fotoffice`
 - `geo`
 - `infospot`
