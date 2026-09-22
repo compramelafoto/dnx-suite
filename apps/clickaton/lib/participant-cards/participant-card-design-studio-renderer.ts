@@ -259,32 +259,22 @@ function leerVariableDeTemplateData(
   return buscarPorNombreDePropiedad(templateData, claveCorta);
 }
 
-/** Bloque de entrada tal como lo entrega el editor o el documento resuelto. Sin defaults. */
-export type QrContractSourceBlock = {
-  id: string;
-  type: string;
-  name?: string | null;
-  pageIndex?: number;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  rotation?: number;
-  zIndex?: number;
-  opacity?: number;
-  locked?: boolean;
-  visible?: boolean;
-  configJson: unknown;
-};
+/**
+ * Bloque de entrada tal como lo entrega el editor o el documento resuelto — el mismo
+ * `BloqueDelEditor` (derivado de `editorADocumento`, no copiado), salvo que los campos con
+ * default propio (`name`, `pageIndex`, `rotation`, `zIndex`, `opacity`, `locked`, `visible`)
+ * quedan opcionales: si el puente algún día cambia esa forma, este tipo se entera solo.
+ */
+export type QrContractSourceBlock = Pick<
+  BloqueDelEditor,
+  "id" | "type" | "x" | "y" | "width" | "height" | "configJson"
+> &
+  Partial<
+    Omit<BloqueDelEditor, "id" | "type" | "x" | "y" | "width" | "height" | "configJson">
+  >;
 
-export type QrContractCanvas = {
-  width: number;
-  height: number;
-  background?: string | null;
-  dpi?: number | null;
-  bleedMm?: number | null;
-  safeAreaMm?: number | null;
-};
+/** El mismo lienzo que espera `editorADocumento`, derivado en vez de copiado. */
+export type QrContractCanvas = Parameters<typeof editorADocumento>[0]["canvas"];
 
 export type EmitDesignEntry = {
   document: DesignDocument;

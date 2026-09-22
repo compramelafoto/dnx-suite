@@ -8,6 +8,7 @@ import {
   renderDiplomaPreview,
   type DiplomaRenderPngInput,
 } from "@/lib/diplomas/diploma-service";
+import { templateV2ToCardPreset } from "@/lib/participant-cards/participant-card-template-source";
 
 const deps = (over: Record<string, unknown> = {}) => ({
   checkAccess: () => {},
@@ -503,5 +504,123 @@ describe("renderDiplomaPreview", () => {
       })
     );
     assert.equal(dataVisto !== null && dataVisto["diploma.code"], "MUESTRA");
+  });
+});
+
+/**
+ * El cableado que agrega Task 10: `defaultRenderPng` (dentro de este archivo) →
+ * `resolveParticipantCardRenderProvider().render({document, templateData})` →
+ * `DesignStudioRenderProvider.render` → `renderResolvedDocumentWithDesignStudio`.
+ *
+ * Ningún otro test de este archivo lo ejercita: todos fijan `renderPng` a un doble, así que
+ * `defaultRenderPng` nunca corre. Sin este describe, revertir cualquiera de esas tres líneas de
+ * cableado —volver a `provider.render({ document })` sin `templateData`, o perder el segundo
+ * argumento de `renderResolvedDocumentWithDesignStudio`— no rompería ningún test del proyecto.
+ *
+ * No usa el `deps()` de arriba a propósito: ese helper fija `renderPng`, que es justo lo que hay
+ * que dejar sin fijar para que `resolveDeps` caiga en el `defaultRenderPng` real.
+ */
+describe("renderDiplomaPreview: el trayecto real de dibujo (sin doble de renderPng)", () => {
+  const registration = {
+    id: "reg_1",
+    editionId: "ed_1",
+    firstName: "Ana",
+    lastName: "Pérez",
+    email: "ana@example.test",
+    visibleCode: "CK1-0042",
+    profilePhotoAssetId: null,
+    checkIns: [{ checkedInAt: new Date("2026-09-19T19:30:00Z"), reversedAt: null }],
+    edition: { name: "1ª Edición", slug: "dia-del-fotografo-2026" },
+  };
+
+  /** Preset mínimo de diploma con un solo bloque QR de variable. */
+  function presetConQr(variableKey: string) {
+    return templateV2ToCardPreset(
+      {
+        templateId: "tpl_qr",
+        templateName: "Diploma con QR",
+        versionId: "v1",
+        versionNumber: 1,
+        revision: 1,
+        payload: {
+          canvas: { width: 1754, height: 1240 },
+          blocks: [
+            {
+              id: "qr1",
+              type: "QR",
+              name: "QR de verificación",
+              pageIndex: 0,
+              layout: { x: 1400, y: 900, width: 250, height: 250 },
+              configJson: { mode: "VARIABLE", variableKey, errorCorrection: "M" },
+            },
+          ],
+          variableBindings: [],
+        },
+      },
+      "diploma"
+    );
+  }
+
+  function realRenderDeps(over: Record<string, unknown> = {}) {
+    return {
+      checkAccess: () => {},
+      loadRegistration: async () => registration,
+      resolvePhoto: async () => null,
+      // renderPng deliberadamente ausente: sin fijarlo, resolveDeps cae en defaultRenderPng.
+      ...over,
+    };
+  }
+
+  it("dibuja un PNG real cuando el QR apunta a una variable con valor", async () => {
+    const out = await renderDiplomaPreview(
+      { registrationId: "reg_1", actor: { kind: "admin" } },
+      realRenderDeps({
+        resolveTemplate: async () => ({
+          ok: true as const,
+          preset: presetConQr("diploma.verificationUrl"),
+          source: {
+            templateId: "t1",
+            templateName: "Con QR",
+            versionId: "v1",
+            versionNumber: 1,
+            revision: 1,
+          },
+          usesParticipantPhoto: false,
+        }),
+      })
+    );
+
+    assert.equal(out.ok, true, out.ok === false ? out.issues.join(" · ") : "");
+    assert.equal(out.ok === true && Buffer.isBuffer(out.png), true);
+    // Firma PNG: si el motor no llegó a dibujar nada, ni la cabecera está.
+    const firma = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    assert.ok(out.ok === true && out.png.subarray(0, 8).equals(firma));
+  });
+
+  it("sin ese dato, el motor rechaza el QR en vez de imprimir uno sin destino", async () => {
+    const out = await renderDiplomaPreview(
+      { registrationId: "reg_1", actor: { kind: "admin" } },
+      realRenderDeps({
+        resolveTemplate: async () => ({
+          ok: true as const,
+          // Ninguna variable con este nombre existe en los datos del diploma.
+          preset: presetConQr("variable.que.no.existe"),
+          source: {
+            templateId: "t1",
+            templateName: "Con QR",
+            versionId: "v1",
+            versionNumber: 1,
+            revision: 1,
+          },
+          usesParticipantPhoto: false,
+        }),
+      })
+    );
+
+    assert.equal(out.ok, false);
+    assert.ok(
+      out.ok === false && out.issues.some((i) => i.includes("quedaría vacío")),
+      out.ok === false ? out.issues.join(" · ") : ""
+    );
   });
 });
