@@ -91,6 +91,7 @@
     "test:content": "tsx --test lib/content/*.test.ts",
     "test:jury-media": "tsx --test lib/jury-media/*.test.ts",
     "test:jury-mirror": "tsx --test lib/jury-mirror/*.test.ts",
+    "test:jury-assignment": "tsx --test lib/jury-assignment/*.test.ts",
     "test:jury-directory": "tsx --test lib/jury-directory/*.test.ts",
     "test:public-marathons-visibility": "tsx --test data/public-marathons/unlisted-visibility.test.ts",
     "test:registration-window": "tsx --test data/public-marathons/registration-window.test.ts",
@@ -124,13 +125,19 @@
     "test:partner-logos": "tsx --test lib/admin/partners/partner-logo-storage.test.ts lib/content/public-media-keys.test.ts",
     "test:prompt-scoring": "tsx --test lib/timeline/prompt-scoring.test.ts",
     "test:registration-clock": "tsx --test lib/public-registration/application/registration-clock.test.ts",
+    "test:location-consent": "tsx --test lib/broadcast-consent/domain/location-consent.test.ts",
+    "test:location-consent-funnel": "tsx --test lib/public-registration/application/location-consent-funnel.test.ts",
+    "test:readiness": "tsx --test lib/readiness/domain/readiness.test.ts lib/readiness/content/readiness-copy.test.ts",
+    "test:exif-clock-timezone": "TZ=America/Argentina/Cordoba tsx --test lib/photo-upload/exif-clock-timezone.test.ts",
+    "test:access-token-readiness": "tsx --test lib/public-registration/domain/access-token-readiness.test.ts",
     "test:edition-rehearsal-checks": "tsx --test lib/edition-rehearsal/domain/checks.test.ts",
     "test:edition-rehearsal-ux": "tsx --test lib/edition-rehearsal/ui/rehearsal-presentation.test.ts",
     "test:edition-rehearsal-presets": "tsx --test lib/edition-rehearsal/domain/timeline-presets.test.ts",
     "test:edition-rehearsal-pantallas": "tsx --test lib/edition-rehearsal/domain/pantallas.test.ts lib/edition-rehearsal/domain/confirmacion.test.ts",
     "test:participant-live-acceso": "tsx --test lib/participant-live/acceso.test.ts",
     "selfcheck:edition-rehearsal": "tsx scripts/edition-rehearsal.selfcheck.ts",
-    "test:edition-rehearsal-discard": "tsx --test lib/edition-rehearsal/application/discard-guard.test.ts"
+    "test:edition-rehearsal-discard": "tsx --test lib/edition-rehearsal/application/discard-guard.test.ts",
+    "test:testimonials": "tsx --test lib/testimonials/domain/*.test.ts lib/testimonials/application/*.test.ts lib/testimonials/public/*.test.ts lib/testimonials/ui/*.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1016.0",

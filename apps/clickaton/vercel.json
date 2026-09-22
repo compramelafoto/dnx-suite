@@ -44,6 +44,10 @@
       "schedule": "45 4 * * *"
     },
     {
+      "path": "/api/cron/testimonial-invites",
+      "schedule": "0 15 * * *"
+    },
+    {
       "path": "/api/cron/carry-over-gift-vouchers",
       "schedule": "0 5 * * *"
     }

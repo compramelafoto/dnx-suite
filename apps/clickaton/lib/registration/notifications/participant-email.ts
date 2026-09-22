@@ -1,4 +1,10 @@
 import { sendIdentityEmail, type IdentityEmailResult } from "@repo/auth";
+import { signRegistrationAccessToken } from "@/lib/public-registration/domain/access-token";
+import {
+  READINESS_TOKEN_TTL_MS,
+  readinessCopy,
+  readinessPath,
+} from "@/lib/readiness/content/readiness-copy";
 import {
   POST_PAYMENT_ACCREDITATION,
   POST_PAYMENT_CAPTURE_WARNING,
@@ -97,6 +103,15 @@ export async function sendParticipantFunnelEmail(input: {
   const activateUrl = input.accessToken
     ? `${baseUrl()}/maratones/${input.editionSlug}/inscripcion/activar/${input.registrationId}?t=${encodeURIComponent(input.accessToken)}`
     : accountUrl;
+  // Token propio, con propósito "readiness" y su propio vencimiento: no
+  // reutiliza el del resumen, así un enlace filtrado de uno no abre el otro.
+  const readinessToken = signRegistrationAccessToken({
+    registrationId: input.registrationId,
+    editionSlug: input.editionSlug,
+    expiresAtMs: Date.now() + READINESS_TOKEN_TTL_MS,
+    purpose: "readiness",
+  });
+  const readinessUrl = `${baseUrl()}${readinessPath(input.editionSlug, input.registrationId, readinessToken)}`;
   const termsUrl = `${baseUrl()}/legal/terminos`;
   const support =
     "Soporte Clickatón: escribinos desde Contacto en maratonfotografica.com o respondé este email.";
@@ -161,6 +176,9 @@ export async function sendParticipantFunnelEmail(input: {
         ...POST_PAYMENT_SCHEDULE.map((row) => `${row.time} ${row.label}`),
         POST_PAYMENT_CAPTURE_WARNING,
         ``,
+        readinessCopy.emailParagraph,
+        `Revisar mi teléfono: ${readinessUrl}`,
+        ``,
         `Ver mi QR / credencial: ${credentialUrl}`,
         `Activar / ir a Mi cuenta: ${activateUrl}`,
         `Bases y Condiciones: ${termsUrl}`,
@@ -181,6 +199,7 @@ export async function sendParticipantFunnelEmail(input: {
         accountUrl,
         termsUrl,
         summaryUrl,
+        readinessUrl,
         support,
       });
       break;
@@ -233,6 +252,7 @@ function buildConfirmedHtml(input: {
   accountUrl: string;
   termsUrl: string;
   summaryUrl: string;
+  readinessUrl: string;
   support: string;
 }): string {
   const ig = input.instagramHandle
@@ -275,6 +295,7 @@ function buildConfirmedHtml(input: {
           ${POST_PAYMENT_SCHEDULE.map((row) => `<p style="margin:0 0 4px;color:#333;">${escapeHtml(row.time)} · ${escapeHtml(row.label)}</p>`).join("")}
           <p style="margin:8px 0 0;color:#111;font-size:13px;"><strong>${escapeHtml(POST_PAYMENT_CAPTURE_WARNING)}</strong></p>
         </div>
+        <p style="margin:0 0 16px;color:#333;">${escapeHtml(readinessCopy.emailParagraph)} <a href="${input.readinessUrl}" style="color:${input.brand};font-weight:700;">Revisar mi teléfono</a></p>
         <p style="margin:0 0 16px;">
           ${btn(input.credentialUrl, "Ver mi QR de acreditación", true)}
           ${btn(input.activateUrl, "Creá tu cuenta para ver el QR")}

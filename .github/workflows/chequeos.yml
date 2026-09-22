@@ -63,6 +63,28 @@ jobs:
       - name: Pruebas del Ensayo de edición
         run: pnpm --filter clickaton selfcheck:edition-rehearsal
 
+      # Codifican "un menor nunca entra al mapa público" y el resto de las
+      # reglas de los consentimientos de ubicación del Centro de Transmisión.
+      - name: Pruebas de los consentimientos de ubicación
+        run: pnpm --filter clickaton test:location-consent
+
+      - name: Pruebas del funnel de consentimientos de ubicación
+        run: pnpm --filter clickaton test:location-consent-funnel
+
+      - name: Prueba técnica previa
+        run: pnpm --filter clickaton test:readiness
+
+      # Corre con TZ=America/Argentina/Cordoba (lo fija el propio script). Es
+      # el único lugar donde se ve la doble corrección de zona horaria: en el
+      # navegador del participante, `exifr` revive la fecha del EXIF en la
+      # zona del teléfono, no en UTC como en el servidor.
+      - name: Reloj del EXIF leído desde un teléfono argentino
+        run: pnpm --filter clickaton test:exif-clock-timezone
+
+      # Que un token de resumen no abra la prueba técnica, y viceversa.
+      - name: Pruebas del token de la prueba técnica
+        run: pnpm --filter clickaton test:access-token-readiness
+
       - name: Pruebas del paquete de finanzas
         run: pnpm --filter @repo/finance-control test
 
