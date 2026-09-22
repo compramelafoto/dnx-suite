@@ -66,13 +66,28 @@ test("justo en el borde de la tolerancia todavía está listo", () => {
   assert.equal(v.result, "READY");
 });
 
-test("una foto vertical válida no falla por tamaño", () => {
+test("una foto vertical válida con lado corto entre los mínimos está lista", () => {
+  // El lado corto (700) queda entre los dos mínimos (600 y 800).
+  // Acá se ve si los lados se ordenan (correcto) o se comparan eje por eje (ingenuo).
+  // Implementación correcta: ordena [2000, 700] y [800, 600], compara 2000>800 y 700>600 → READY
+  // Implementación ingenua: compara 700<800 → TOO_SMALL (equivocado)
   const v = evaluateReadiness({
-    measurements: { ...OK, width: 3024, height: 4032 },
+    measurements: { ...OK, width: 700, height: 2000 },
     limits: LIMITES,
     serverNowMs: AHORA,
   });
-  assert.equal(v.result, "READY", "el lado largo va contra el mínimo mayor");
+  assert.equal(v.result, "READY");
+});
+
+test("una foto vertical demasiado chica por el lado corto falla", () => {
+  // El lado corto (500) está por debajo del mínimo menor (600).
+  // Ambas implementaciones rechazan esto, pero el caso anterior sólo uno lo rechaza.
+  const v = evaluateReadiness({
+    measurements: { ...OK, width: 500, height: 2000 },
+    limits: LIMITES,
+    serverNowMs: AHORA,
+  });
+  assert.equal(v.result, "TOO_SMALL");
 });
 
 test("una foto chica de verdad da TOO_SMALL", () => {
