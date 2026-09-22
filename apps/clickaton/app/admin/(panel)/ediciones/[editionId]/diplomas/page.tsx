@@ -7,7 +7,7 @@ import { requireClickatonAdmin } from "@/lib/admin/auth";
 import { prisma, withClickatonDb } from "@/lib/admin/db";
 import { getEditionById } from "@/lib/admin/editions/queries";
 import { DIPLOMA_CANDIDATE_QUERY, selectDiplomaCandidates } from "@/lib/diplomas/diploma-eligibility";
-import { previewDiplomaEmailBatch } from "@/lib/diplomas/diploma-email";
+import { DIPLOMA_EMAIL_OUTBOX_EVENT_TYPE, previewDiplomaEmailBatch } from "@/lib/diplomas/diploma-email";
 import { resolveDiplomaTemplate } from "@/lib/diplomas/diploma-template";
 import { DIPLOMA_ERROR_MESSAGES } from "@/lib/diplomas/diploma-types";
 import { deriveDiplomaRowState } from "@/lib/diplomas/ui/diploma-row-presentation";
@@ -38,7 +38,7 @@ export default async function EditionDiplomasPage({ params }: Props) {
   // más reciente: puede no estar aplicada todavía en esta base. Igual que
   // Placas, si falla se avisa en vez de tirar un 500.
   const loaded = await withClickatonDb(async () => {
-    const [registrationRows, cardRows, issueRows] = await Promise.all([
+    const [registrationRows, cardRows, issueRows, deadEmailEvents] = await Promise.all([
       // Misma consulta que usa el encolado real (`diploma-batch.ts`): sin
       // filtrar por estado de inscripción, para que lo que se ve acá sea
       // exactamente lo que "Generar los diplomas" va a encolar.
@@ -54,15 +54,18 @@ export default async function EditionDiplomasPage({ params }: Props) {
       // existe una fila acá una vez que el diploma se emitió (`emitido`).
       prisma.clickatonDiplomaIssue.findMany({
         where: { editionId, revokedAt: null },
-        select: {
-          id: true,
-          registrationId: true,
-          emailStatus: true,
-          registration: { select: { email: true } },
-        },
+        select: { id: true, registrationId: true, emailStatus: true },
+      }),
+      // El emisor (arriba) se queda en emailStatus "QUEUED" para siempre si
+      // el evento del buzón de salida agotó sus reintentos automáticos —
+      // "QUEUED" no lo dice: hay que consultar el evento aparte para
+      // distinguir "se está por mandar" de "nunca se va a mandar solo".
+      prisma.clickatonIntegrationOutboxEvent.findMany({
+        where: { editionId, eventType: DIPLOMA_EMAIL_OUTBOX_EVENT_TYPE, status: "DEAD" },
+        select: { aggregateId: true },
       }),
     ]);
-    return { registrationRows, cardRows, issueRows };
+    return { registrationRows, cardRows, issueRows, deadEmailEvents };
   });
 
   if (!loaded.ok) {
@@ -74,27 +77,42 @@ export default async function EditionDiplomasPage({ params }: Props) {
     );
   }
 
-  const { registrationRows, cardRows, issueRows } = loaded.data;
+  const { registrationRows, cardRows, issueRows, deadEmailEvents } = loaded.data;
   const candidates = selectDiplomaCandidates(registrationRows);
   const cardByRegistration = new Map(cardRows.map((c) => [c.registrationId, c]));
   const issueByRegistration = new Map(issueRows.map((i) => [i.registrationId, i]));
+  // `aggregateId` del evento es el `diplomaId` (ver `diploma-email.ts`).
+  const deadEmailDiplomaIds = new Set(deadEmailEvents.map((e) => e.aggregateId));
 
-  const rows: DiplomaPanelRow[] = candidates
-    .map((c) => {
-      const card = cardByRegistration.get(c.registrationId) ?? null;
-      const issue = issueByRegistration.get(c.registrationId) ?? null;
-      return {
-        registrationId: c.registrationId,
-        fullName: c.fullName,
-        visibleCode: c.visibleCode,
-        accreditedAtIso: c.accreditedAt.toISOString(),
-        state: deriveDiplomaRowState(card),
-        errorCode: card?.errorCode ?? null,
-        diplomaId: issue?.id ?? null,
-        emailStatus: issue?.emailStatus ?? null,
-      };
-    })
-    .sort((a, b) => a.accreditedAtIso.localeCompare(b.accreditedAtIso));
+  const rows: DiplomaPanelRow[] = [];
+  // Misma fuente que las filas de la tabla, no una consulta aparte: si la
+  // cuenta de la confirmación saliera de `issueRows` directo (como en la
+  // ronda anterior), podía incluir un diploma cuya inscripción ya no está
+  // acreditada (se revirtió el check-in después de emitirlo) — esa fila no
+  // aparece en `candidates`/`rows`, pero seguía contando en el diálogo. El
+  // número que ve la persona tiene que ser exactamente el de lo que ve en
+  // pantalla.
+  const emailPreviewInput: { email: string; emailStatus: string }[] = [];
+
+  for (const c of candidates) {
+    const card = cardByRegistration.get(c.registrationId) ?? null;
+    const issue = issueByRegistration.get(c.registrationId) ?? null;
+    rows.push({
+      registrationId: c.registrationId,
+      fullName: c.fullName,
+      visibleCode: c.visibleCode,
+      accreditedAtIso: c.accreditedAt.toISOString(),
+      state: deriveDiplomaRowState(card),
+      errorCode: card?.errorCode ?? null,
+      diplomaId: issue?.id ?? null,
+      emailStatus: issue?.emailStatus ?? null,
+      emailDead: issue ? deadEmailDiplomaIds.has(issue.id) : false,
+    });
+    if (issue) {
+      emailPreviewInput.push({ email: c.email, emailStatus: issue.emailStatus });
+    }
+  }
+  rows.sort((a, b) => a.accreditedAtIso.localeCompare(b.accreditedAtIso));
 
   const emitidos = rows.filter((r) => r.state === "emitido").length;
   const enProceso = rows.filter((r) => r.state === "en_proceso").length;
@@ -106,10 +124,8 @@ export default async function EditionDiplomasPage({ params }: Props) {
 
   // Cuenta previa para el diálogo de confirmación de "Enviar por correo" —
   // misma clasificación que después aplica `enqueueEditionDiplomaEmails`,
-  // pero de sólo lectura (ver `previewDiplomaEmailBatch`).
-  const emailPreview = previewDiplomaEmailBatch(
-    issueRows.map((i) => ({ email: i.registration.email ?? "", emailStatus: i.emailStatus }))
-  );
+  // pero de sólo lectura y sobre el mismo universo que `rows` (ver arriba).
+  const emailPreview = previewDiplomaEmailBatch(emailPreviewInput);
 
   return (
     <div className="min-w-0 space-y-8">

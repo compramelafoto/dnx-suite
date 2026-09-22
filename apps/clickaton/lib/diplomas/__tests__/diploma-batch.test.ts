@@ -220,8 +220,14 @@ describe("decidirCierreDeIntento", () => {
 });
 
 describe("processDueDiplomaEmails", () => {
+  // `wait` va inyectado como no-op en todos estos: sin esto, cada test paga
+  // de verdad los 600ms de espaciado (`DIPLOMA_EMAIL_SEND_PACING_MS`) por
+  // cada fila después de la primera.
+  const NO_WAIT = async () => {};
+
   it("manda los pendientes y cuenta los rebotes sin cortar el lote", async () => {
     const out = await processDueDiplomaEmails(25, {
+      wait: NO_WAIT,
       loadPending: async () => [
         { eventId: "ev1", diplomaId: "d1", attempt: 1 },
         { eventId: "ev2", diplomaId: "d2", attempt: 1 },
@@ -239,6 +245,7 @@ describe("processDueDiplomaEmails", () => {
   it("no procesa más que el límite pedido", async () => {
     let pedidos = 0;
     await processDueDiplomaEmails(1, {
+      wait: NO_WAIT,
       loadPending: async (limit: number) => {
         pedidos = limit;
         return [];
@@ -251,6 +258,7 @@ describe("processDueDiplomaEmails", () => {
   it("una excepción cruda de processOne no corta el resto del lote", async () => {
     const procesados: string[] = [];
     const out = await processDueDiplomaEmails(25, {
+      wait: NO_WAIT,
       loadPending: async () => [
         { eventId: "ev1", diplomaId: "d1", attempt: 1 },
         { eventId: "ev2", diplomaId: "d2", attempt: 1 },
@@ -268,6 +276,7 @@ describe("processDueDiplomaEmails", () => {
 
   it("sin dirección, sin diploma vigente, o ya resuelto: no cuenta como fallo", async () => {
     const out = await processDueDiplomaEmails(25, {
+      wait: NO_WAIT,
       loadPending: async () => [
         { eventId: "ev1", diplomaId: "d1", attempt: 1 },
         { eventId: "ev2", diplomaId: "d2", attempt: 1 },
@@ -286,6 +295,7 @@ describe("processDueDiplomaEmails", () => {
 
   it("una falla recuperable (falta config) se cuenta como fallo, pero queda disponible para reintentar", async () => {
     const out = await processDueDiplomaEmails(25, {
+      wait: NO_WAIT,
       loadPending: async () => [{ eventId: "ev1", diplomaId: "d1", attempt: 1 }],
       processOne: async () => ({
         ok: false as const,
@@ -295,6 +305,36 @@ describe("processDueDiplomaEmails", () => {
     });
     assert.equal(out.failed, 1);
     assert.equal(out.sent, 0);
+  });
+
+  it("espacía cada envío del siguiente, para no pisar el límite de tasa de Resend", async () => {
+    const esperas: number[] = [];
+    await processDueDiplomaEmails(25, {
+      wait: async (ms: number) => {
+        esperas.push(ms);
+      },
+      loadPending: async () => [
+        { eventId: "ev1", diplomaId: "d1", attempt: 1 },
+        { eventId: "ev2", diplomaId: "d2", attempt: 1 },
+        { eventId: "ev3", diplomaId: "d3", attempt: 1 },
+      ],
+      processOne: async () => ({ ok: true as const, status: "SENT" as const }),
+    });
+    // 3 filas → 2 pausas (nunca antes de la primera).
+    assert.equal(esperas.length, 2);
+    assert.ok(esperas.every((ms) => ms > 0));
+  });
+
+  it("con una sola fila no espera nada (no hay next al cual pisarle el límite)", async () => {
+    let esperas = 0;
+    await processDueDiplomaEmails(25, {
+      wait: async () => {
+        esperas += 1;
+      },
+      loadPending: async () => [{ eventId: "ev1", diplomaId: "d1", attempt: 1 }],
+      processOne: async () => ({ ok: true as const, status: "SENT" as const }),
+    });
+    assert.equal(esperas, 0);
   });
 });
 
@@ -326,6 +366,33 @@ describe("decidirReintentoDeCorreo", () => {
     const decision = decidirReintentoDeCorreo(DIPLOMA_EMAIL_RETRY_MAX_ATTEMPTS - 1);
     assert.equal(decision.status, "FAILED");
   });
+
+  it("respeta el Retry-After de Resend como piso: nunca espera menos de lo pedido", () => {
+    const sinPiso = decidirReintentoDeCorreo(0);
+    const conPisoAlto = decidirReintentoDeCorreo(0, 10 * 60_000); // 10 minutos, mucho más que el backoff del intento 0.
+    assert.equal(sinPiso.status, "FAILED");
+    assert.equal(conPisoAlto.status, "FAILED");
+    if (sinPiso.status === "FAILED" && conPisoAlto.status === "FAILED") {
+      assert.ok(conPisoAlto.availableAt.getTime() > sinPiso.availableAt.getTime());
+    }
+  });
+
+  it("un Retry-After menor al backoff propio no acorta la espera", () => {
+    const conPisoBajo = decidirReintentoDeCorreo(5, 1); // 1ms: mucho menos que el backoff del intento 5.
+    const sinPiso = decidirReintentoDeCorreo(5);
+    assert.equal(conPisoBajo.status, "FAILED");
+    assert.equal(sinPiso.status, "FAILED");
+    if (conPisoBajo.status === "FAILED" && sinPiso.status === "FAILED") {
+      // Con margen: ambas fechas están calculadas a partir de Date.now() en
+      // instantes ligeramente distintos, así que se compara con tolerancia.
+      assert.ok(Math.abs(conPisoBajo.availableAt.getTime() - sinPiso.availableAt.getTime()) < 1000);
+    }
+  });
+
+  it("al tope, DEAD gana aunque venga con Retry-After", () => {
+    const decision = decidirReintentoDeCorreo(DIPLOMA_EMAIL_RETRY_MAX_ATTEMPTS, 5000);
+    assert.deepEqual(decision, { status: "DEAD" });
+  });
 });
 
 describe("processDiplomaEmailEvent (el despachador)", () => {
@@ -348,7 +415,7 @@ describe("processDiplomaEmailEvent (el despachador)", () => {
       markBounced: [] as Array<[string, string]>,
       markNoEmail: [] as string[],
       closeEvent: [] as Array<[string, string | null | undefined]>,
-      retryEventLater: [] as Array<[string, number, string]>,
+      retryEventLater: [] as Array<[string, number, string, number | undefined]>,
     };
     const deps = {
       loadDiploma: async () => baseDiploma,
@@ -368,8 +435,8 @@ describe("processDiplomaEmailEvent (el despachador)", () => {
       closeEvent: async (eventId: string, lastError?: string | null) => {
         calls.closeEvent.push([eventId, lastError]);
       },
-      retryEventLater: async (eventId: string, attempt: number, reason: string) => {
-        calls.retryEventLater.push([eventId, attempt, reason]);
+      retryEventLater: async (eventId: string, attempt: number, reason: string, retryAfterMs?: number) => {
+        calls.retryEventLater.push([eventId, attempt, reason, retryAfterMs]);
       },
       ...overrides,
     };
@@ -412,7 +479,7 @@ describe("processDiplomaEmailEvent (el despachador)", () => {
     const outcome = await processDiplomaEmailEvent({ eventId: "ev1", diplomaId: "d1", attempt: 3 }, deps);
     assert.equal(outcome.ok, false);
     assert.equal(outcome.status, "RETRY");
-    assert.deepEqual(calls.retryEventLater, [["ev1", 3, "fetch failed"]]);
+    assert.deepEqual(calls.retryEventLater, [["ev1", 3, "fetch failed", undefined]]);
     assert.equal(calls.markBounced.length, 0);
     assert.equal(calls.closeEvent.length, 0);
   });
@@ -432,7 +499,7 @@ describe("processDiplomaEmailEvent (el despachador)", () => {
     });
     const outcome = await processDiplomaEmailEvent({ eventId: "ev1", diplomaId: "d1", attempt: 1 }, deps);
     assert.equal(outcome.status, "RETRY");
-    assert.deepEqual(calls.retryEventLater, [["ev1", 1, "RESEND_API_KEY no configurada"]]);
+    assert.deepEqual(calls.retryEventLater, [["ev1", 1, "RESEND_API_KEY no configurada", undefined]]);
     assert.equal(calls.closeEvent.length, 0);
   });
 
@@ -444,6 +511,52 @@ describe("processDiplomaEmailEvent (el despachador)", () => {
     assert.equal(outcome.status, "RETRY");
     assert.equal(calls.sendEmailInputs.length, 0, "no debería llegar a mandar nada");
     assert.equal(calls.retryEventLater.length, 1);
+    assert.ok(
+      outcome.status === "RETRY" && outcome.reason.includes("todavía no tiene una pieza"),
+      "sin storageKey el motivo tiene que decir que falta la pieza, no que la key no matchea"
+    );
+  });
+
+  it("con storageKey pero fuera de la lista blanca, el motivo guardado incluye la key real (no un genérico 'no hay imagen')", async () => {
+    const keyDeOtroPrefijo = "clickaton-staging/participant-cards/edition-ed1/registration-r1/diploma/v1/hash.png";
+    const { deps, calls } = makeDeps({
+      loadDiploma: async () => ({ ...baseDiploma, cardStorageKey: keyDeOtroPrefijo }),
+    });
+    const outcome = await processDiplomaEmailEvent({ eventId: "ev1", diplomaId: "d1", attempt: 1 }, deps);
+    assert.equal(outcome.status, "RETRY");
+    assert.ok(
+      outcome.status === "RETRY" && outcome.reason.includes(keyDeOtroPrefijo),
+      "el motivo tiene que incluir la storageKey real para poder diagnosticar un prefijo distinto"
+    );
+    assert.equal(calls.retryEventLater.length, 1);
+  });
+
+  it("un 429 (límite de tasa) se reintenta, respetando el Retry-After si vino", async () => {
+    const { deps, calls } = makeDeps({
+      sendEmail: async () => ({
+        sent: false,
+        skipped: false,
+        reason: "Resend HTTP 429: too many requests",
+        retryAfterMs: 2000,
+      }),
+    });
+    const outcome = await processDiplomaEmailEvent({ eventId: "ev1", diplomaId: "d1", attempt: 1 }, deps);
+    assert.equal(outcome.status, "RETRY", "un 429 nunca es BOUNCED");
+    assert.deepEqual(calls.retryEventLater, [
+      ["ev1", 1, "Resend HTTP 429: too many requests", 2000],
+    ]);
+    assert.equal(calls.markBounced.length, 0);
+  });
+
+  it("un 408 o un 425 tampoco son rechazos definitivos", async () => {
+    for (const status of [408, 425]) {
+      const { deps, calls } = makeDeps({
+        sendEmail: async () => ({ sent: false, skipped: false, reason: `Resend HTTP ${status}: x` }),
+      });
+      const outcome = await processDiplomaEmailEvent({ eventId: "ev1", diplomaId: "d1", attempt: 1 }, deps);
+      assert.equal(outcome.status, "RETRY", `${status} debería reintentarse, no rebotar`);
+      assert.equal(calls.markBounced.length, 0);
+    }
   });
 
   it("un diploma revocado no manda nada y cierra el evento", async () => {

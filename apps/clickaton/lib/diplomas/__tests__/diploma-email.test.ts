@@ -108,6 +108,18 @@ describe("classifyDiplomaEmailSendFailure", () => {
     assert.equal(classifyDiplomaEmailSendFailure("ETIMEDOUT"), "TRANSIENT");
     assert.equal(classifyDiplomaEmailSendFailure(undefined), "TRANSIENT");
   });
+
+  it("429 (límite de tasa) es transitorio, no un rechazo definitivo", () => {
+    assert.equal(
+      classifyDiplomaEmailSendFailure("Resend HTTP 429: too many requests"),
+      "TRANSIENT"
+    );
+  });
+
+  it("408 (timeout) y 425 (too early) también son transitorios", () => {
+    assert.equal(classifyDiplomaEmailSendFailure("Resend HTTP 408: request timeout"), "TRANSIENT");
+    assert.equal(classifyDiplomaEmailSendFailure("Resend HTTP 425: too early"), "TRANSIENT");
+  });
 });
 
 describe("resolveDiplomaEmailRecipient", () => {

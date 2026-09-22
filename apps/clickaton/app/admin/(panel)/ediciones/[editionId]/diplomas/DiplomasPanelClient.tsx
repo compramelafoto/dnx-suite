@@ -29,6 +29,8 @@ export type DiplomaPanelRow = {
   diplomaId: string | null;
   /** `ClickatonDiplomaIssue.emailStatus`. `null` = mismo caso que `diplomaId` nulo. */
   emailStatus: string | null;
+  /** `true` si el evento del buzón de salida agotó sus reintentos automáticos (quedó "DEAD"). */
+  emailDead: boolean;
 };
 
 type Props = {
@@ -226,15 +228,21 @@ export function DiplomasPanelClient({
       key: "email",
       header: "Correo",
       cell: (row) => {
-        const presentation = presentDiplomaEmailState(row.emailStatus);
+        const presentation = presentDiplomaEmailState(row.emailStatus, row.emailDead);
         // Sin diploma emitido todavía no hay nada que mandar: la columna
         // queda vacía en vez de mostrar un estado que no existe.
         if (!presentation) return <span className="text-xs text-ck-text-muted">—</span>;
         const isRetryingThisRow = retryEmailPending && retryingEmailId === row.diplomaId;
+        // Reintentar aplica a los dos casos sin salida propia: un rebote
+        // real (BOUNCED) y un evento que agotó sus reintentos automáticos
+        // (QUEUED + emailDead). `requeueDiplomaEmail` ya soporta los dos.
+        const canRetryEmail =
+          row.diplomaId !== null &&
+          (row.emailStatus === "BOUNCED" || (row.emailStatus === "QUEUED" && row.emailDead));
         return (
           <div className="max-w-xs space-y-1.5">
             <Badge variant={presentation.tone}>{presentation.label}</Badge>
-            {row.emailStatus === "BOUNCED" && row.diplomaId ? (
+            {canRetryEmail ? (
               <button
                 type="button"
                 className="block text-xs text-ck-yellow underline-offset-2 hover:underline disabled:opacity-50"

@@ -103,4 +103,21 @@ describe("cómo se muestra el estado del correo del diploma", () => {
     assert.ok(p && p.label.length > 0);
     assert.equal(p?.tone, "neutral");
   });
+
+  it("QUEUED normal (sin dead) sigue diciendo 'En cola'", () => {
+    const p = presentDiplomaEmailState("QUEUED", false);
+    assert.equal(p?.label, "En cola");
+    assert.equal(p?.tone, "warning");
+  });
+
+  it("QUEUED + dead deja de decir 'En cola': el evento agotó sus reintentos y no se va a mandar solo", () => {
+    const p = presentDiplomaEmailState("QUEUED", true);
+    assert.notEqual(p?.label, "En cola");
+    assert.equal(p?.tone, "danger");
+  });
+
+  it("dead sólo importa si el estado es QUEUED: un SENT o BOUNCED no lo pisa", () => {
+    assert.equal(presentDiplomaEmailState("SENT", true)?.label, "Enviado");
+    assert.equal(presentDiplomaEmailState("BOUNCED", true)?.label, "No se pudo enviar");
+  });
 });

@@ -106,11 +106,25 @@ function isKnownDiplomaEmailRowState(value: string): value is DiplomaEmailRowSta
  * `null` cuando el diploma todavía no se emitió (no hay `ClickatonDiplomaIssue`
  * para esa fila): en ese caso la columna de correo no se muestra — no hay
  * nada que enviar todavía.
+ *
+ * `dead` es la pieza que no viene de `emailStatus`: cuando el evento del
+ * buzón de salida agota sus reintentos automáticos
+ * (`DIPLOMA_EMAIL_RETRY_MAX_ATTEMPTS` en `diploma-batch.ts`) pasa a
+ * `"DEAD"`, pero el diploma se queda con `emailStatus: "QUEUED"` para
+ * siempre — nadie lo mueve de ahí. Sin este parámetro, la fila diría "En
+ * cola" igual que una que sale en cinco minutos, y no habría forma de
+ * distinguir "se está por mandar" de "nunca se va a mandar solo". Quien
+ * llama (la página del panel) tiene que consultar el evento aparte y pasar
+ * esto — ver `app/admin/(panel)/ediciones/[editionId]/diplomas/page.tsx`.
  */
 export function presentDiplomaEmailState(
-  emailStatus: string | null
+  emailStatus: string | null,
+  dead = false
 ): DiplomaEmailRowPresentation | null {
   if (!emailStatus) return null;
+  if (emailStatus === "QUEUED" && dead) {
+    return { label: "No se pudo enviar (agotó los reintentos)", tone: "danger" };
+  }
   if (isKnownDiplomaEmailRowState(emailStatus)) return EMAIL_STATE_PRESENTATION[emailStatus];
   return { label: "Estado de envío desconocido", tone: "neutral" };
 }

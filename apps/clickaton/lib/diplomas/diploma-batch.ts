@@ -463,6 +463,17 @@ const DIPLOMA_EMAIL_BATCH_LIMIT_DEFAULT = 25;
  * deploy, lo que sea) y el próximo ciclo lo vuelve a tomar. Un envío HTTP a
  * Resend nunca debería tardar minutos; 15 sobra de sobra sin arriesgar
  * reclamar un evento que en realidad sigue en curso.
+ *
+ * Ojo con la ventana que esto deja abierta, a propósito: si el corte ocurre
+ * justo DESPUÉS de que Resend aceptó el envío pero ANTES de que
+ * `markSent`/`closeEvent` lleguen a escribir, el evento queda `PROCESSING`
+ * con el correo ya afuera. Cuando venza el TTL, el próximo ciclo lo va a
+ * reclamar y mandar de nuevo — un segundo correo para la misma persona. Es
+ * el precio de "al menos una vez" en vez de "como máximo una vez" (la
+ * alternativa sería arriesgar perder correos para siempre ante cualquier
+ * corte), y es la decisión correcta acá: un diploma repetido en la bandeja
+ * de entrada es mucho menos grave que uno que nunca llega. No hay
+ * deduplicación del lado del destinatario para esto.
  */
 const DIPLOMA_EMAIL_LOCK_TTL_MS = 15 * 60_000;
 
@@ -475,9 +486,18 @@ const DIPLOMA_EMAIL_LOCK_TTL_MS = 15 * 60_000;
  */
 export const DIPLOMA_EMAIL_RETRY_MAX_ATTEMPTS = 8;
 
-/** Mismo backoff creciente que `lib/welcome-card/process.ts:118` (tope de una hora). */
-function diplomaEmailRetryAt(attempt: number): Date {
-  return new Date(Date.now() + Math.min(60 * 60_000, 30_000 * 2 ** Math.min(attempt, 7)));
+/**
+ * Mismo backoff creciente que `lib/welcome-card/process.ts:118` (tope de una
+ * hora), con un piso: si Resend mandó un `Retry-After` explícito (típico de
+ * un 429 de límite de tasa), nunca se espera menos que eso — el backoff
+ * propio puede alargar la espera, pero no acortar la que pidió el
+ * proveedor.
+ */
+function diplomaEmailRetryAt(attempt: number, retryAfterMs?: number): Date {
+  const backoffMs = Math.min(60 * 60_000, 30_000 * 2 ** Math.min(attempt, 7));
+  const delayMs =
+    retryAfterMs !== undefined ? Math.max(backoffMs, retryAfterMs) : backoffMs;
+  return new Date(Date.now() + delayMs);
 }
 
 export type DiplomaEmailRetryDecision =
@@ -491,9 +511,12 @@ export type DiplomaEmailRetryDecision =
  * está separada de `defaultIssue` más arriba: para poder probar el umbral y
  * el backoff sin tocar Prisma.
  */
-export function decidirReintentoDeCorreo(attempt: number): DiplomaEmailRetryDecision {
+export function decidirReintentoDeCorreo(
+  attempt: number,
+  retryAfterMs?: number
+): DiplomaEmailRetryDecision {
   if (attempt >= DIPLOMA_EMAIL_RETRY_MAX_ATTEMPTS) return { status: "DEAD" };
-  return { status: "FAILED", availableAt: diplomaEmailRetryAt(attempt) };
+  return { status: "FAILED", availableAt: diplomaEmailRetryAt(attempt, retryAfterMs) };
 }
 
 export type DiplomaEmailPendingRow = {
@@ -574,10 +597,16 @@ async function defaultCloseEvent(eventId: string, lastError: string | null = nul
  * Reintenta más tarde con backoff creciente — o, si `attempt` ya llegó al
  * tope, cierra el evento como `"DEAD"` (no `"FAILED"`: `"FAILED"` sigue
  * siendo tomado por `defaultLoadPendingDiplomaEmails`, `"DEAD"` no).
+ * `retryAfterMs`, si Resend lo mandó (un 429), pone un piso a la espera.
  */
-async function defaultRetryEventLater(eventId: string, attempt: number, reason: string): Promise<void> {
+async function defaultRetryEventLater(
+  eventId: string,
+  attempt: number,
+  reason: string,
+  retryAfterMs?: number
+): Promise<void> {
   const lastError = reason.slice(0, 300);
-  const decision = decidirReintentoDeCorreo(attempt);
+  const decision = decidirReintentoDeCorreo(attempt, retryAfterMs);
   await prisma.clickatonIntegrationOutboxEvent.update({
     where: { id: eventId },
     data:
@@ -680,7 +709,12 @@ export type DiplomaEmailDispatchDeps = {
   markBounced?: (diplomaId: string, reason: string) => Promise<void>;
   markNoEmail?: (diplomaId: string) => Promise<void>;
   closeEvent?: (eventId: string, lastError?: string | null) => Promise<void>;
-  retryEventLater?: (eventId: string, attempt: number, reason: string) => Promise<void>;
+  retryEventLater?: (
+    eventId: string,
+    attempt: number,
+    reason: string,
+    retryAfterMs?: number
+  ) => Promise<void>;
 };
 
 /**
@@ -737,7 +771,19 @@ export async function processDiplomaEmailEvent(
 
   const diplomaImageUrl = resolveDiplomaImageUrl(diploma.cardStorageKey);
   if (!diplomaImageUrl) {
-    const reason = "DIPLOMA_IMAGE_URL_UNAVAILABLE";
+    // Dos causas bien distintas detrás del mismo "no hay URL", y conviene
+    // que el motivo guardado (`lastError` del evento) diga cuál: si no hay
+    // `storageKey` todavía, el diploma sencillamente no terminó de
+    // generarse (se va a resolver solo apenas eso pase). Si SÍ hay
+    // `storageKey` pero no matchea la lista blanca —el caso real: un
+    // prefijo de key distinto al de producción, por ejemplo
+    // `CLICKATON_PARTICIPANT_CARDS_KEY_PREFIX` en un ambiente de prueba—,
+    // eso no se va a arreglar solo reintentando: sin este detalle, el
+    // evento reintenta 8 veces y muere en `DEAD` sin que quede registrado
+    // por qué.
+    const reason = diploma.cardStorageKey
+      ? `DIPLOMA_IMAGE_URL_UNAVAILABLE: la storageKey no matchea la lista blanca de /api/media (${diploma.cardStorageKey})`
+      : "DIPLOMA_IMAGE_URL_UNAVAILABLE: el diploma todavía no tiene una pieza (storageKey) asociada";
     await retryEventLater(row.eventId, row.attempt, reason);
     return { ok: false, status: "RETRY", reason };
   }
@@ -776,9 +822,10 @@ export async function processDiplomaEmailEvent(
     return { ok: false, status: "BOUNCED", reason };
   }
 
-  // Transitorio (timeout, DNS, un 5xx de Resend): un hipo de red no puede
-  // dejar a alguien sin su diploma para siempre. Se reintenta.
-  await retryEventLater(row.eventId, row.attempt, reason);
+  // Transitorio (timeout, DNS, un 5xx de Resend, o un 429 de límite de
+  // tasa): un hipo de red no puede dejar a alguien sin su diploma para
+  // siempre. Se reintenta, respetando el `Retry-After` de Resend si vino.
+  await retryEventLater(row.eventId, row.attempt, reason, result.retryAfterMs);
   return { ok: false, status: "RETRY", reason };
 }
 
@@ -789,23 +836,43 @@ async function defaultProcessDiplomaEmail(
 }
 
 /**
- * Procesa hasta `limit` correos de diploma pendientes, uno por uno. Un fallo
- * —incluida una excepción cruda— se cuenta y no corta el resto del lote,
- * igual criterio que `processDueDiplomas`.
+ * Pausa entre un envío y el siguiente dentro de la misma tanda. Resend
+ * limita por defecto a 2 pedidos por segundo (500ms de piso): sin ninguna
+ * pausa, una tanda de hasta 25 correos seguidos —en una edición de 29
+ * diplomas, el caso normal, no el raro— pisa ese límite y varios terminan en
+ * 429. `classifyDiplomaEmailSendFailure` ya evita que un 429 se trate como
+ * rebote definitivo, pero es mejor no generarlos de entrada. 600ms deja
+ * margen sobre el piso de 500ms.
+ */
+const DIPLOMA_EMAIL_SEND_PACING_MS = 600;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Procesa hasta `limit` correos de diploma pendientes, uno por uno, con una
+ * pausa entre cada uno (`DIPLOMA_EMAIL_SEND_PACING_MS`) para no pisar el
+ * límite de tasa de Resend. Un fallo —incluida una excepción cruda— se
+ * cuenta y no corta el resto del lote, igual criterio que `processDueDiplomas`.
  */
 export async function processDueDiplomaEmails(
   limit = DIPLOMA_EMAIL_BATCH_LIMIT_DEFAULT,
-  deps: ProcessDueDiplomaEmailsDeps = {}
+  deps: ProcessDueDiplomaEmailsDeps & { wait?: (ms: number) => Promise<void> } = {}
 ): Promise<ProcessDueDiplomaEmailsResult> {
   const loadPending = deps.loadPending ?? defaultLoadPendingDiplomaEmails;
   const processOne = deps.processOne ?? defaultProcessDiplomaEmail;
+  const wait = deps.wait ?? sleep;
 
   const pending = await loadPending(sanitizeBatchLimit(limit));
 
   let sent = 0;
   let failed = 0;
 
-  for (const row of pending) {
+  for (let i = 0; i < pending.length; i += 1) {
+    const row = pending[i];
+    if (!row) continue;
+    if (i > 0) await wait(DIPLOMA_EMAIL_SEND_PACING_MS);
     try {
       const outcome = await processOne(row);
       if (outcome.ok) {

@@ -205,26 +205,42 @@ export function resolveDiplomaImageUrl(storageKey: string | null | undefined): s
 export type DiplomaEmailSendFailureKind = "REJECTED" | "TRANSIENT";
 
 /**
+ * HTTP 4xx que Resend puede devolver sin que sea un rechazo del envío en
+ * sí: 408 (se le acabó el tiempo a la conexión), 425 (Too Early, un detalle
+ * del handshake TLS) y, sobre todo, **429 (demasiados pedidos)** — el límite
+ * de tasa. Un 429 significa "probá nuevamente en un rato", no "esta
+ * dirección o este contenido están mal"; tratarlo como rechazo definitivo es
+ * la misma falla que esta clasificación vino a eliminar, entrando por otra
+ * puerta. `processDiplomaEmailEvent` además espacía los envíos para no pisar
+ * el límite de Resend en primer lugar (ver `DIPLOMA_EMAIL_SEND_PACING_MS`
+ * en `diploma-batch.ts`), pero esto queda como red de contención igual.
+ */
+const RETRYABLE_HTTP_STATUS = new Set([408, 425, 429]);
+
+/**
  * `sendIdentityEmail` (`packages/auth/src/email.ts`) nunca tira excepción:
  * ante cualquier problema devuelve `{sent:false, skipped, reason}`, y ese
  * `reason` es el mismo campo tanto si Resend contestó "no" (HTTP 4xx: la
  * dirección no existe, el payload está mal armado — nada que un reintento
  * vaya a arreglar) como si nunca llegó a contestar nada (timeout, DNS
- * caído, un 5xx suyo — exactamente lo que un reintento sí puede arreglar).
- * Tratar los dos casos igual (como hacía la primera versión de esto) deja a
- * alguien sin su diploma para siempre por un simple hipo de red.
+ * caído, un 5xx suyo, o un 429 de límite de tasa — exactamente lo que un
+ * reintento sí puede arreglar). Tratar los dos casos igual (como hacía la
+ * primera versión de esto) deja a alguien sin su diploma para siempre por un
+ * simple hipo de red — o, peor, por un simple pico de tráfico propio (ver
+ * `RETRYABLE_HTTP_STATUS`).
  *
  * Esta función separa los dos casos mirando el único dato que los
  * distingue: si `reason` trae un código HTTP explícito de Resend, y ese
- * código es 4xx, es un rechazo real (`"REJECTED"`); cualquier otra cosa
- * —5xx, o ninguna respuesta de Resend en absoluto— es transitoria
- * (`"TRANSIENT"`) y se reintenta.
+ * código es 4xx pero NO está en `RETRYABLE_HTTP_STATUS`, es un rechazo real
+ * (`"REJECTED"`); cualquier otra cosa —5xx, 408/425/429, o ninguna
+ * respuesta de Resend en absoluto— es transitoria (`"TRANSIENT"`) y se
+ * reintenta.
  */
 export function classifyDiplomaEmailSendFailure(reason: string | undefined): DiplomaEmailSendFailureKind {
   const match = reason?.match(/Resend HTTP (\d{3})/);
   if (match) {
     const status = Number(match[1]);
-    if (status >= 400 && status < 500) return "REJECTED";
+    if (status >= 400 && status < 500 && !RETRYABLE_HTTP_STATUS.has(status)) return "REJECTED";
   }
   return "TRANSIENT";
 }
@@ -310,6 +326,13 @@ async function queueDiplomaEmailEvent(diplomaId: string, editionId: string): Pro
         availableAt: now,
         lockedAt: null,
         lastError: null,
+        // Si esto revive un evento que ya había gastado intentos (un
+        // reintento manual sobre uno "DEAD", el caso más común), el
+        // contador tiene que volver a cero. Sin este reseteo, el evento
+        // revivido llega al tope de `DIPLOMA_EMAIL_RETRY_MAX_ATTEMPTS` con
+        // un solo intento disponible y muere de nuevo al primer tropiezo
+        // — el reintento manual quedaría, en la práctica, inútil.
+        attempts: 0,
       },
     }),
     prisma.clickatonDiplomaIssue.update({
