@@ -1471,6 +1471,12 @@ export function createPrismaPublicRegistrationRepository(
               socialPublicationConsent: input.cmd.socialPublicationConsent ?? false,
               consentAcceptedAt: input.cmd.consentAcceptedAt ?? null,
               consentVersion: input.cmd.consentVersion ?? null,
+              locationConsentAt: input.cmd.locationConsentAt ?? null,
+              locationPublicConsentAt: input.cmd.locationPublicConsentAt ?? null,
+              interviewConsentAt: input.cmd.interviewConsentAt ?? null,
+              locationConsentVersion: input.cmd.locationConsentVersion ?? null,
+              locationConsentDeclaredAdult:
+                input.cmd.locationConsentDeclaredAdult ?? false,
               termsVersion: input.cmd.termsVersion ?? null,
               termsAcceptedAt: input.cmd.termsAcceptedAt ?? null,
               promotionalLicenseAcceptedAt: input.cmd.promotionalLicenseAcceptedAt ?? null,

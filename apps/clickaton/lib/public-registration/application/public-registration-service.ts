@@ -10,6 +10,7 @@ import {
   resolveHighestActivePricePhase,
 } from "@/lib/pricing/domain/resolve-price-phase";
 import { assertInstagramHandle } from "@repo/media-composition";
+import { resolveLocationConsent } from "@/lib/broadcast-consent/domain/location-consent";
 import { systemClock, type EditionClock } from "@/lib/timeline/clock";
 import { sendParticipantFunnelEmail } from "@/lib/registration/notifications/participant-email";
 import {
@@ -627,6 +628,28 @@ export function createPublicRegistrationService(deps: {
       }
 
       const now = clock.now();
+
+      // Centro de Transmisión: opt-in explícito, nunca derivado de acceptTerms.
+      const locationConsent = resolveLocationConsent({
+        choices: {
+          personal: input.locationConsent === true,
+          publicMap: input.locationPublicConsent === true,
+          interview: input.interviewConsent === true,
+          declaredAdult: input.locationDeclaredAdult === true,
+        },
+        birthDate: input.participant.birthDate
+          ? new Date(input.participant.birthDate)
+          : null,
+        eventDate: edition.startAt ?? now,
+        now,
+        // El formulario público de inscripción todavía no recolecta los
+        // datos del adulto responsable (no hay campo para eso en
+        // `PublicParticipantInput`), así que un menor que se inscribe por
+        // esta vía siempre cae en "sin autorización": el dominio no le
+        // otorga ninguna de las tres casillas. Es el default seguro hasta
+        // que exista esa recolección; no se inventa acá.
+      });
+
       const { isMarathonPackTicketCode } = await import("@/lib/packs/marathon-pack");
       const isPack = isMarathonPackTicketCode(ticket.code) || Boolean(ticket.isMarathonPack);
       const usePassCredit = Boolean(input.usePassCredit);
@@ -880,6 +903,13 @@ export function createPublicRegistrationService(deps: {
           socialPublicationConsent,
           consentAcceptedAt: now,
           consentVersion: input.consentVersion ?? "2026-08-social-v1",
+          locationConsentAt: locationConsent.locationConsentAt,
+          locationPublicConsentAt: locationConsent.locationPublicConsentAt,
+          interviewConsentAt: locationConsent.interviewConsentAt,
+          locationConsentVersion: locationConsent.locationConsentVersion,
+          // Viene del dominio (pegajosa), no del pedido crudo: ver
+          // `resolveLocationConsent`.
+          locationConsentDeclaredAdult: locationConsent.locationConsentDeclaredAdult,
           termsVersion: input.termsVersion ?? "CLICKATON_TERMS_2026_09_19_v2",
           termsAcceptedAt: now,
           promotionalLicenseAcceptedAt: promotionalLicenseConsent ? now : null,

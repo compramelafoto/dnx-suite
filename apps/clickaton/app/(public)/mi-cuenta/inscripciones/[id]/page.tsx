@@ -11,6 +11,7 @@ import {
   type ParticipantCardUiState,
 } from "@/components/account/ParticipantCardsSection";
 import { PublicStatusCard } from "@/components/account/PublicStatusCard";
+import { LocationConsentPanel } from "@/components/participant/LocationConsentPanel";
 import { getClickatonAuthUser } from "@/lib/admin/auth";
 import { hasClickatonCardConsent } from "@/lib/participant-cards";
 import { evaluateClickatonCardEligibility } from "@/lib/participant-cards";
@@ -279,6 +280,13 @@ export default async function RegistrationCredentialPage({ params }: Props) {
           </div>
         </dl>
       </Card>
+
+      <LocationConsentPanel
+        registrationId={registration.id}
+        locationConsentAt={registration.locationConsentAt}
+        locationPublicConsentAt={registration.locationPublicConsentAt}
+        interviewConsentAt={registration.interviewConsentAt}
+      />
 
       {cardSections.v2
         ? (() => {

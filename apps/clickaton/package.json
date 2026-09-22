@@ -124,6 +124,8 @@
     "test:partner-logos": "tsx --test lib/admin/partners/partner-logo-storage.test.ts lib/content/public-media-keys.test.ts",
     "test:prompt-scoring": "tsx --test lib/timeline/prompt-scoring.test.ts",
     "test:registration-clock": "tsx --test lib/public-registration/application/registration-clock.test.ts",
+    "test:location-consent": "tsx --test lib/broadcast-consent/domain/location-consent.test.ts",
+    "test:location-consent-funnel": "tsx --test lib/public-registration/application/location-consent-funnel.test.ts",
     "test:edition-rehearsal-checks": "tsx --test lib/edition-rehearsal/domain/checks.test.ts",
     "test:edition-rehearsal-ux": "tsx --test lib/edition-rehearsal/ui/rehearsal-presentation.test.ts",
     "test:edition-rehearsal-presets": "tsx --test lib/edition-rehearsal/domain/timeline-presets.test.ts",

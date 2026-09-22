@@ -176,6 +176,11 @@ export type CreatePublicRegistrationInput = {
   identifiablePersonsConsent?: boolean;
   promotionalLicenseConsent?: boolean;
   consentVersion?: string;
+  /** Centro de Transmisión — las tres casillas del formulario. */
+  locationConsent?: boolean;
+  locationPublicConsent?: boolean;
+  interviewConsent?: boolean;
+  locationDeclaredAdult?: boolean;
   termsVersion?: string;
   idempotencyKey: string;
   /** Código promocional opcional (normalizado en backend). */

@@ -63,6 +63,14 @@ jobs:
       - name: Pruebas del Ensayo de edición
         run: pnpm --filter clickaton selfcheck:edition-rehearsal
 
+      # Codifican "un menor nunca entra al mapa público" y el resto de las
+      # reglas de los consentimientos de ubicación del Centro de Transmisión.
+      - name: Pruebas de los consentimientos de ubicación
+        run: pnpm --filter clickaton test:location-consent
+
+      - name: Pruebas del funnel de consentimientos de ubicación
+        run: pnpm --filter clickaton test:location-consent-funnel
+
       - name: Pruebas del paquete de finanzas
         run: pnpm --filter @repo/finance-control test
 
