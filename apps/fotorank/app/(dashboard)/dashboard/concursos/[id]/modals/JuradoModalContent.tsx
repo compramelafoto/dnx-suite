@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import { mensajeDeAsignacion } from "../../../../../lib/fotorank/judges/mensajeDeAsignacion";
 import {
   createJudgeAssignmentsBatch,
   listJudgeInvitationsForContest,
@@ -221,7 +222,13 @@ export function JuradoModalContent({ contest, onSuccess, onCancel, readOnly, res
         setError(res.error);
         return;
       }
-      setOkMsg(`Asignaciones creadas: ${res.data?.created ?? 0}.`);
+      setOkMsg(
+        mensajeDeAsignacion({
+          created: res.data?.created ?? 0,
+          skippedExisting: res.data?.skippedExisting ?? 0,
+          skippedCompite: res.data?.skippedCompite ?? 0,
+        }),
+      );
       refreshData();
     });
   };

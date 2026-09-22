@@ -89,6 +89,17 @@ export const MENSAJE_COMPITE_EN_TODAS =
   "Tenés obras compitiendo en las categorías que te asignaron, así que no podés calificarlas. Si creés que es un error, hablá con el organizador del concurso.";
 
 /**
+ * Lo mismo, contado al organizador que está por asignar.
+ *
+ * Es otro texto y no el mismo porque el lector es otro: al jurado hay que
+ * decirle qué le pasa a él, y al organizador, por qué esa asignación no le
+ * serviría de nada.
+ */
+export function mensajeParaElOrganizador(nombreDeLaCategoria: string): string {
+  return `Esta persona tiene obra compitiendo en ${nombreDeLaCategoria}, así que no puede calificar esa categoría. Asignala a otra, o esperá a que retire su obra.`;
+}
+
+/**
  * Lo mínimo que esta regla necesita de un cliente de base.
  *
  * Se declara así, y no como el tipo de Prisma, porque la consulta corre contra

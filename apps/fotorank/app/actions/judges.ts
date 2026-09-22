@@ -30,6 +30,7 @@ import {
 } from "../lib/fotorank/jury/entry-for-juror";
 import {
   categoriasDondeCompiteElJurado,
+  mensajeParaElOrganizador,
   MENSAJE_COMPITE_EN_TODAS,
   type ClienteParaConflicto,
 } from "../lib/fotorank/jury/competir-y-juzgar";
@@ -634,10 +635,25 @@ export async function createJudgeAssignment(input: {
 
   const category = await prisma.fotorankContestCategory.findFirst({
     where: { id: categoryId, contestId: contest.id, status: "ACTIVE" },
-    select: { id: true },
+    select: { id: true, name: true },
   });
   if (!category) {
     return { ok: false, error: "La categoría no está activa o no pertenece al concurso seleccionado." };
+  }
+
+  /*
+   * Nadie juzga la categoría donde compite.
+   *
+   * Se frena acá y no después porque la asignación no serviría de nada: las
+   * compuertas se la bloquearían al jurado al entrar, y el organizador se
+   * enteraría recién cuando alguien reclame.
+   */
+  const enConflicto = await categoriasDondeCompiteElJurado({
+    judgeAccountId: input.judgeAccountId,
+    contestId,
+  });
+  if (enConflicto.has(categoryId)) {
+    return { ok: false, error: mensajeParaElOrganizador(category.name) };
   }
 
   const assignment = await prisma.fotorankJudgeAssignment.create({
@@ -696,10 +712,21 @@ export type CreateJudgeAssignmentsBatchInput = {
 /**
  * Crea una fila `FotorankJudgeAssignment` por categoría (misma config). Omite duplicados
  * (mismo jurado + concurso + categoría ya existente). Auditoría: un evento por asignación creada.
+ *
+ * También omite las categorías donde el jurado compite: asignarlas crearía
+ * filas que las compuertas le van a bloquear igual. Se cuentan aparte de los
+ * duplicados porque el motivo es otro y el organizador tiene que saberlo.
  */
 export async function createJudgeAssignmentsBatch(
   input: CreateJudgeAssignmentsBatchInput,
-): Promise<JudgeActionResult<{ created: number; skippedExisting: number }>> {
+): Promise<
+  JudgeActionResult<{
+    created: number;
+    skippedExisting: number;
+    /** Categorías salteadas porque el jurado compite en ellas. */
+    skippedCompite: number;
+  }>
+> {
   const scope = await requireOrganizationScope();
   if (!scope.ok) return { ok: false, error: scope.error };
 
@@ -778,15 +805,23 @@ export async function createJudgeAssignmentsBatch(
     select: { categoryId: true },
   });
   const existingSet = new Set(existing.map((e) => e.categoryId));
-  const toCreate = categoryIdsToAssign.filter((id) => !existingSet.has(id));
-  const skippedExisting = categoryIdsToAssign.length - toCreate.length;
+  const sinRepetir = categoryIdsToAssign.filter((id) => !existingSet.has(id));
+  const skippedExisting = categoryIdsToAssign.length - sinRepetir.length;
+
+  // Nadie juzga la categoría donde compite: esas se saltean como los duplicados.
+  const enConflicto = await categoriasDondeCompiteElJurado({
+    judgeAccountId,
+    contestId: contest.id,
+  });
+  const toCreate = sinRepetir.filter((id) => !enConflicto.has(id));
+  const skippedCompite = sinRepetir.length - toCreate.length;
 
   if (toCreate.length === 0) {
     revalidatePath("/jurados/asignaciones");
     revalidatePath(routes.dashboard.concursos.detalle(contestId));
     return {
       ok: true,
-      data: { created: 0, skippedExisting },
+      data: { created: 0, skippedExisting, skippedCompite },
     };
   }
 
@@ -832,7 +867,7 @@ export async function createJudgeAssignmentsBatch(
   revalidatePath(routes.dashboard.concursos.detalle(contestId));
   return {
     ok: true,
-    data: { created: toCreate.length, skippedExisting },
+    data: { created: toCreate.length, skippedExisting, skippedCompite },
   };
 }
 
