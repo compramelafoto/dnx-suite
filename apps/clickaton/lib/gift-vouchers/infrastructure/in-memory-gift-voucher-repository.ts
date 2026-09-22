@@ -99,6 +99,18 @@ export function createInMemoryGiftVoucherRepository(): GiftVoucherRepository {
       });
     },
 
+    async listCarryOverCandidates(limit) {
+      const now = Date.now();
+      return [...byId.values()]
+        .filter(
+          (r) =>
+            r.status === "ACTIVE" &&
+            r.redeemableUntil != null &&
+            r.redeemableUntil.getTime() < now,
+        )
+        .slice(0, limit);
+    },
+
     async reissueCode({ voucherId, newCode }) {
       const current = get(voucherId);
       return save({ ...current, code: newCode, reissueCount: current.reissueCount + 1 });

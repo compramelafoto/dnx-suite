@@ -34,4 +34,9 @@ export interface GiftVoucherRepository {
   }): Promise<GiftVoucherRecord>;
   /** Invalida el código anterior y guarda el nuevo. */
   reissueCode(input: { voucherId: string; newCode: string }): Promise<GiftVoucherRecord>;
+  /**
+   * Regalos pagados cuyo plazo ya venció, para trasladarlos a la edición
+   * siguiente. El filtro fino lo hace el dominio: acá sólo se acota el lote.
+   */
+  listCarryOverCandidates(limit: number): Promise<GiftVoucherRecord[]>;
 }

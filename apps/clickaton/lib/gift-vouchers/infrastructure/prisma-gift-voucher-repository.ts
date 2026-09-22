@@ -99,6 +99,18 @@ export function createPrismaGiftVoucherRepository(): GiftVoucherRepository {
       return reload(voucherId);
     },
 
+    async listCarryOverCandidates(limit) {
+      const rows = await prisma.clickatonGiftVoucher.findMany({
+        where: {
+          status: "ACTIVE",
+          redeemableUntil: { not: null, lt: new Date() },
+        },
+        orderBy: { redeemableUntil: "asc" },
+        take: limit,
+      });
+      return rows.map(toRecord);
+    },
+
     async reissueCode({ voucherId, newCode }) {
       const row = await prisma.clickatonGiftVoucher.update({
         where: { id: voucherId },

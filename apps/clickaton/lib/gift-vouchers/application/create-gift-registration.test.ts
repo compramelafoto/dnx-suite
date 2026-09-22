@@ -240,6 +240,11 @@ describe("alta de regalo", () => {
     await assert.rejects(() => use.execute(input()), /Pack/i);
   });
 
+  it("rechaza una entrada sin cargo: quedaría trabada esperando un pago que no existe", async () => {
+    const { use } = setup({ ticket: { priceAmount: 0 } });
+    await assert.rejects(() => use.execute(input()), /sin cargo/i);
+  });
+
   it("recorta la dedicatoria a 500 caracteres", async () => {
     const { use, vouchers } = setup();
     await use.execute(input({ giftMessage: "x".repeat(900) }));

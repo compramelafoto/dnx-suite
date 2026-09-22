@@ -171,6 +171,14 @@ export function createGiftRegistrationUseCase(deps: CreateGiftRegistrationDeps) 
           "La venta de esta entrada no está abierta.",
         );
       }
+      // Un regalo sin precio no tiene pago que acreditar, así que el voucher
+      // nunca se emitiría y quedaría trabado en "esperando pago" para siempre.
+      if (ticket.priceAmount <= 0) {
+        throw new GiftRegistrationError(
+          "TICKET_NOT_AVAILABLE",
+          "Esta entrada es sin cargo: no hace falta regalarla, tu amigo se puede inscribir solo.",
+        );
+      }
       // El Pack le da 4 créditos a quien lo compra, atados a su identidad.
       // Regalarlo es otro problema: queda para una etapa siguiente.
       if (isMarathonPackTicketCode(ticket.code)) {
