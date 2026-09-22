@@ -696,6 +696,80 @@ export function createPrismaPublicRegistrationRepository(
       };
     },
 
+    async releaseGiftRegistration(input) {
+      await prisma.$transaction(async (tx) => {
+        const row = await tx.clickatonRegistration.findUnique({
+          where: { id: input.registrationId },
+          include: { capacityHold: true, stockHolds: true },
+        });
+        if (!row) return;
+        // Un regalo activado ya es la inscripción de otra persona.
+        if (row.status === "CONFIRMED" || row.status === "CANCELLED") return;
+
+        if (row.capacityHold?.status === "ACTIVE") {
+          await tx.clickatonCapacityHold.update({
+            where: { id: row.capacityHold.id },
+            data: { status: "RELEASED", releasedAt: input.now },
+          });
+        }
+
+        for (const hold of row.stockHolds) {
+          if (hold.status !== "ACTIVE") continue;
+          await tx.clickatonStockHold.update({
+            where: { id: hold.id },
+            data: { status: "RELEASED", releasedAt: input.now },
+          });
+          const variant = await tx.clickatonProductVariant.update({
+            where: { id: hold.productVariantId },
+            data: { reservedStock: { decrement: hold.quantity } },
+          });
+          const releaseKey = `reg:${input.registrationId}:var:${hold.productVariantId}:gift-release`;
+          const existingRelease = await tx.clickatonInventoryMovement.findUnique({
+            where: { idempotencyKey: releaseKey },
+          });
+          if (!existingRelease) {
+            await tx.clickatonInventoryMovement.create({
+              data: {
+                productId: variant.productId,
+                variantId: hold.productVariantId,
+                movementType: "REGISTRATION_RELEASED",
+                quantity: hold.quantity,
+                sourceType: "REGISTRATION",
+                sourceId: input.registrationId,
+                reason: "Regalo anulado",
+                idempotencyKey: releaseKey,
+              },
+            });
+          }
+        }
+
+        await tx.clickatonRegistration.update({
+          where: { id: input.registrationId },
+          data: { status: "CANCELLED", cancelledAt: input.now },
+        });
+
+        await tx.clickatonRegistrationStatusHistory.create({
+          data: {
+            registrationId: input.registrationId,
+            previousStatus: row.status,
+            newStatus: "CANCELLED",
+            previousPaymentStatus: row.paymentStatus,
+            newPaymentStatus: row.paymentStatus,
+            source: "admin_gift_cancel",
+            reason: input.reason,
+          },
+        });
+        await tx.clickatonRegistrationAudit.create({
+          data: {
+            registrationId: input.registrationId,
+            action: "GIFT_CANCELLED",
+            source: "admin",
+            metadata: { reason: input.reason },
+          },
+        });
+      });
+    },
+
     async completeGiftRegistration(cmd) {
       const { assertInstagramHandle } = await import("@repo/media-composition");
       let instagram;

@@ -164,6 +164,15 @@ export interface PublicRegistrationRepository {
   completeGiftRegistration(
     cmd: CompleteGiftRegistrationCommand,
   ): Promise<{ id: string; visibleCode: string | null }>;
+  /**
+   * Anulación de un regalo: cancela su inscripción y devuelve el cupo a la
+   * venta. No toca un regalo ya activado — de eso se ocupa el caso de uso.
+   */
+  releaseGiftRegistration(input: {
+    registrationId: string;
+    now: Date;
+    reason: string;
+  }): Promise<void>;
   getRegistration(id: string): Promise<ClickatonRegistrationRecord | null>;
   /** Holds ACTIVE + variant reservedStock para eligibility. */
   getHoldSnapshot(registrationId: string): Promise<{

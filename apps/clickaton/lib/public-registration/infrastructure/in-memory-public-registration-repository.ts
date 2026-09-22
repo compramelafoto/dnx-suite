@@ -422,6 +422,23 @@ export function createInMemoryPublicRegistrationRepository(
       };
     },
 
+    async releaseGiftRegistration(input) {
+      const reg = store.domain.registrations.get(input.registrationId);
+      if (!reg) return;
+      if (reg.status === "CONFIRMED" || reg.status === "CANCELLED") return;
+
+      for (const [id, hold] of store.domain.capacityHolds) {
+        if (hold.registrationId === input.registrationId && hold.status === "ACTIVE") {
+          hold.status = "RELEASED";
+          hold.releasedAt = input.now;
+          store.domain.capacityHolds.set(id, hold);
+        }
+      }
+      reg.status = "CANCELLED";
+      reg.cancelledAt = input.now;
+      store.domain.registrations.set(reg.id, reg);
+    },
+
     async completeGiftRegistration(cmd) {
       const existing = store.domain.registrations.get(cmd.registrationId);
       if (!existing) {
