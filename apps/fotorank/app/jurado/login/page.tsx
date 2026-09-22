@@ -15,6 +15,12 @@ export default function JudgeLoginPage() {
           <span className="hidden text-fr-border sm:inline" aria-hidden>
             ·
           </span>
+          <Link href="/jurado/recuperar" className="transition-colors hover:text-gold">
+            Olvidé mi contraseña
+          </Link>
+          <span className="hidden text-fr-border sm:inline" aria-hidden>
+            ·
+          </span>
           <Link href="/login" className="transition-colors hover:text-gold">
             Soy organizador
           </Link>
