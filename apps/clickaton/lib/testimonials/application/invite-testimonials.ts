@@ -10,6 +10,7 @@ import "server-only";
  */
 import { prisma } from "@repo/db";
 import { sendTestimonialInviteEmail } from "../notifications/testimonial-invite-email";
+import { canInviteEdition } from "./invite-selection";
 import type { ClickatonTestimonialAuthorRole } from "../domain/types";
 
 export type InviteOutcome = {
@@ -93,7 +94,10 @@ export async function inviteTestimonials(options: {
     },
   });
 
-  if (!edition || !edition.testimonialsEnabled || edition.isOpsFixture) {
+  if (
+    !edition ||
+    !canInviteEdition(edition, { single: Boolean(options.onlyRegistrationId) })
+  ) {
     return { created: 0, sent: 0, skipped: 0, failed: 0 };
   }
 

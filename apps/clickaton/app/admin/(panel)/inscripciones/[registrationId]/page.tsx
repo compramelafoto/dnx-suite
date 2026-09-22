@@ -58,6 +58,7 @@ import {
 } from "@/lib/welcome-card/admin-actions";
 import { adminResendConfirmationEmailAction } from "@/lib/registration/notifications/admin-resend-confirmation-action";
 import { classifyResendStatus } from "@/lib/registration/notifications/resend-delivery-status";
+import { inviteOneRegistrationAction } from "@/lib/testimonials/admin/invite-action";
 
 type Props = {
   params: Promise<{ registrationId: string }>;
@@ -809,15 +810,26 @@ export default async function AdminRegistrationDetailPage({ params, searchParams
             </p>
           </div>
           {reg.status === "CONFIRMED" ? (
-            <form action={adminResendConfirmationEmailAction.bind(null, reg.id)}>
-              <ConfirmSubmitButton
-                confirmMessage={`${SOCIAL_SENSITIVE_CONFIRM.resendEmail}\n\nDestinatario: ${latestEmail?.to ?? reg.email}`}
-                variant="secondary"
-                className="min-h-11 w-full sm:w-auto"
-              >
-                Reenviar correo
-              </ConfirmSubmitButton>
-            </form>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <form action={adminResendConfirmationEmailAction.bind(null, reg.id)}>
+                <ConfirmSubmitButton
+                  confirmMessage={`${SOCIAL_SENSITIVE_CONFIRM.resendEmail}\n\nDestinatario: ${latestEmail?.to ?? reg.email}`}
+                  variant="secondary"
+                  className="min-h-11 w-full sm:w-auto"
+                >
+                  Reenviar correo
+                </ConfirmSubmitButton>
+              </form>
+              <form action={inviteOneRegistrationAction.bind(null, reg.id)}>
+                <ConfirmSubmitButton
+                  confirmMessage={`¿Invitar a esta persona a dejar su testimonio? Se le manda un correo con el enlace a la encuesta.\n\nDestinatario: ${reg.email}\n\nSi ya la invitaron antes, no se manda de nuevo.`}
+                  variant="outline"
+                  className="min-h-11 w-full sm:w-auto"
+                >
+                  Invitar a testimoniar
+                </ConfirmSubmitButton>
+              </form>
+            </div>
           ) : null}
         </div>
         <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

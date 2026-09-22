@@ -4,6 +4,7 @@ import {
   selectEditionsReadyForInvites,
   testimonialInviteIdempotencyKey,
   type InvitableEdition,
+  canInviteEdition,
 } from "./invite-selection";
 
 const AHORA = new Date("2026-09-22T12:00:00.000Z");
@@ -89,4 +90,24 @@ test("la clave de idempotencia es estable por invitación", () => {
     testimonialInviteIdempotencyKey("inv1"),
     "inv1:CLICKATON_TESTIMONIAL_INVITE:v1",
   );
+});
+
+// --- quién puede disparar el envío de una edición ---
+
+test("una edición apagada no invita, ni masivo ni individual", () => {
+  const apagada = { testimonialsEnabled: false, isOpsFixture: false };
+  assert.equal(canInviteEdition(apagada, { single: false }), false);
+  assert.equal(canInviteEdition(apagada, { single: true }), false);
+});
+
+test("una edición normal encendida invita de las dos formas", () => {
+  const normal = { testimonialsEnabled: true, isOpsFixture: false };
+  assert.equal(canInviteEdition(normal, { single: false }), true);
+  assert.equal(canInviteEdition(normal, { single: true }), true);
+});
+
+test("una edición de prueba no manda masivo pero sí a una persona elegida", () => {
+  const prueba = { testimonialsEnabled: true, isOpsFixture: true };
+  assert.equal(canInviteEdition(prueba, { single: false }), false);
+  assert.equal(canInviteEdition(prueba, { single: true }), true);
 });

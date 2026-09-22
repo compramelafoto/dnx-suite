@@ -1,5 +1,6 @@
 "use server";
 
+import { prisma } from "@repo/db";
 import { revalidatePath } from "next/cache";
 import { adminRoutes } from "@/config/admin/navigation";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
@@ -36,4 +37,30 @@ export async function inviteTestimonialsAction(
   if (outcome.failed > 0) partes.push(`${outcome.failed} fallaron`);
 
   return { ok: outcome.failed === 0, message: partes.join(" · ") };
+}
+
+/**
+ * Invitar a testimoniar a UNA inscripción, desde su ficha.
+ *
+ * Es el camino para probar el circuito sin escribirle a toda la edición, y el
+ * único que funciona en una edición de prueba.
+ */
+export async function inviteOneRegistrationAction(
+  registrationId: string,
+): Promise<void> {
+  await requireClickatonAdmin();
+
+  const registration = await prisma.clickatonRegistration.findUnique({
+    where: { id: registrationId },
+    select: { editionId: true },
+  });
+  if (!registration) return;
+
+  await inviteTestimonials({
+    editionId: registration.editionId,
+    onlyRegistrationId: registrationId,
+  });
+
+  revalidatePath(`${adminRoutes.registrations}/${registrationId}`);
+  revalidatePath(adminRoutes.testimonials);
 }
