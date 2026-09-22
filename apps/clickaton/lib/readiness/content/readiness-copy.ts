@@ -78,4 +78,55 @@ export const readinessCopy = {
       whatToDo: "Probá de nuevo con otra foto, sacada directamente con la cámara.",
     },
   } satisfies Record<ReadinessResult, ReadinessResultCopy>,
+
+  /** Textos del componente que mide la foto (`ReadinessCheckCard`). */
+  check: {
+    takePhotoButtonLabel: "Sacar la foto ahora",
+    measuring: "Midiendo tu foto…",
+    retry: "Probar de nuevo",
+    lastCheckLabel: "Resultado de tu última prueba",
+    readError:
+      "No pudimos leer esa foto. Probá de nuevo, sacándola directamente con la cámara.",
+    /** `submitReadinessCheckAction`: faltó algún campo del `FormData`. */
+    missingDataMessage: "Faltan datos para completar el chequeo.",
+    /** `submitReadinessCheckAction`: el token no es de propósito "readiness", o venció. */
+    invalidTokenMessage: "El enlace no es válido o venció.",
+    /** `submitReadinessCheckAction`: la inscripción no existe o no es de esa edición. */
+    registrationNotFoundMessage: "No encontramos esa inscripción.",
+  },
+
+  /** Textos del pedido de permiso de ubicación (`LocationPermissionCard`). */
+  locationPermission: {
+    title: "Permiso de ubicación del navegador",
+    needsConsentFirst:
+      "Antes de pedir este permiso hace falta que autorices el uso de tu ubicación.",
+    goToAccountLabel: "Ir a Mi cuenta",
+    askButtonLabel: "Dar permiso de ubicación",
+    asking: "Pidiendo el permiso…",
+    granted:
+      "Listo: el navegador ya tiene permiso para ubicar tu recorrido en este teléfono.",
+    denied:
+      "No diste el permiso. Podés habilitarlo más adelante desde los ajustes del sitio en tu navegador: es opcional y tu inscripción no depende de esto.",
+  },
+
+  /** El enlace venció (meses de anticipación: el mail llega mucho antes del evento). */
+  expiredLink: {
+    title: "Este enlace venció",
+    whatToDo:
+      "Los enlaces para probar el teléfono tienen un plazo. Podés pedir uno nuevo desde Mi cuenta, dentro del detalle de tu inscripción.",
+    goToAccountLabel: "Ir a Mi cuenta",
+    backToEditionLabel: "Volver a la maratón",
+  },
 };
+
+/**
+ * El mensaje del reloj desfasado es dinámico (`clockDeltaMinutes` de
+ * `ReadinessVerdict`, tarea 1): no puede vivir como texto fijo en
+ * `results.CLOCK_OFF`. Se arma acá, en una sola frase, para anteponerla al
+ * texto genérico en vez de mostrar dos mensajes sueltos.
+ */
+export function clockDeltaLeadIn(deltaMinutes: number): string {
+  const minutos = Math.abs(Math.round(deltaMinutes));
+  const direccion = deltaMinutes < 0 ? "atrasado" : "adelantado";
+  return `Va ${minutos} ${minutos === 1 ? "minuto" : "minutos"} ${direccion}.`;
+}
