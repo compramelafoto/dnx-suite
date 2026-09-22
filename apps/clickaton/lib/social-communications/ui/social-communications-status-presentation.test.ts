@@ -138,9 +138,14 @@ describe("social communications UI source contracts", () => {
       join(ROOT, "components/account/WelcomeCardShareCard.tsx"),
       "utf8",
     );
-    assert.match(card, /\/api\/public\/registrations\/\$\{registrationId\}\/welcome-card/);
+    // La ruta se arma en `welcomeCardMediaUrl`, que es el proxy autenticado: la
+    // placa lleva cara y nombre, así que no puede servirse por el proxy público.
+    assert.match(card, /welcomeCardMediaUrl/);
     assert.doesNotMatch(card, /r2\.|amazonaws|X-Amz-Signature/);
     assert.match(card, /aspect-\[9\/16\]/);
+
+    const helper = readFileSync(join(ROOT, "lib/welcome-card/media-url.ts"), "utf8");
+    assert.match(helper, /\/api\/public\/registrations\/\$\{encodeURIComponent\(registrationId\)\}\/welcome-card/);
   });
 
   it("does not modify social publisher worker logic", () => {

@@ -3,7 +3,9 @@
 import { createHash, randomBytes } from "node:crypto";
 import { Prisma, prisma } from "@repo/db";
 import { getClickatonJuryPrisma } from "@repo/db/clickaton-jury-client";
+import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
+import { landingSignOutAction } from "./landing-session";
 import { redirect } from "next/navigation";
 import { requireAuth } from "../lib/auth";
 import {
@@ -28,6 +30,12 @@ import {
   serializeEntryForJuror,
   type JurorEntry,
 } from "../lib/fotorank/jury/entry-for-juror";
+import {
+  categoriasDondeCompiteElJurado,
+  mensajeParaElOrganizador,
+  MENSAJE_COMPITE_EN_TODAS,
+  type ClienteParaConflicto,
+} from "../lib/fotorank/jury/competir-y-juzgar";
 import { rawVoteInputFromFormData, validateVotePayloadForMethod } from "../lib/fotorank/judgeVotePayload";
 import {
   filterFotorankEntriesEvaluableForJudging,
@@ -629,10 +637,25 @@ export async function createJudgeAssignment(input: {
 
   const category = await prisma.fotorankContestCategory.findFirst({
     where: { id: categoryId, contestId: contest.id, status: "ACTIVE" },
-    select: { id: true },
+    select: { id: true, name: true },
   });
   if (!category) {
     return { ok: false, error: "La categoría no está activa o no pertenece al concurso seleccionado." };
+  }
+
+  /*
+   * Nadie juzga la categoría donde compite.
+   *
+   * Se frena acá y no después porque la asignación no serviría de nada: las
+   * compuertas se la bloquearían al jurado al entrar, y el organizador se
+   * enteraría recién cuando alguien reclame.
+   */
+  const enConflicto = await categoriasDondeCompiteElJurado({
+    judgeAccountId: input.judgeAccountId,
+    contestId,
+  });
+  if (enConflicto.has(categoryId)) {
+    return { ok: false, error: mensajeParaElOrganizador(category.name) };
   }
 
   const assignment = await prisma.fotorankJudgeAssignment.create({
@@ -691,10 +714,21 @@ export type CreateJudgeAssignmentsBatchInput = {
 /**
  * Crea una fila `FotorankJudgeAssignment` por categoría (misma config). Omite duplicados
  * (mismo jurado + concurso + categoría ya existente). Auditoría: un evento por asignación creada.
+ *
+ * También omite las categorías donde el jurado compite: asignarlas crearía
+ * filas que las compuertas le van a bloquear igual. Se cuentan aparte de los
+ * duplicados porque el motivo es otro y el organizador tiene que saberlo.
  */
 export async function createJudgeAssignmentsBatch(
   input: CreateJudgeAssignmentsBatchInput,
-): Promise<JudgeActionResult<{ created: number; skippedExisting: number }>> {
+): Promise<
+  JudgeActionResult<{
+    created: number;
+    skippedExisting: number;
+    /** Categorías salteadas porque el jurado compite en ellas. */
+    skippedCompite: number;
+  }>
+> {
   const scope = await requireOrganizationScope();
   if (!scope.ok) return { ok: false, error: scope.error };
 
@@ -773,15 +807,23 @@ export async function createJudgeAssignmentsBatch(
     select: { categoryId: true },
   });
   const existingSet = new Set(existing.map((e) => e.categoryId));
-  const toCreate = categoryIdsToAssign.filter((id) => !existingSet.has(id));
-  const skippedExisting = categoryIdsToAssign.length - toCreate.length;
+  const sinRepetir = categoryIdsToAssign.filter((id) => !existingSet.has(id));
+  const skippedExisting = categoryIdsToAssign.length - sinRepetir.length;
+
+  // Nadie juzga la categoría donde compite: esas se saltean como los duplicados.
+  const enConflicto = await categoriasDondeCompiteElJurado({
+    judgeAccountId,
+    contestId: contest.id,
+  });
+  const toCreate = sinRepetir.filter((id) => !enConflicto.has(id));
+  const skippedCompite = sinRepetir.length - toCreate.length;
 
   if (toCreate.length === 0) {
     revalidatePath("/jurados/asignaciones");
     revalidatePath(routes.dashboard.concursos.detalle(contestId));
     return {
       ok: true,
-      data: { created: 0, skippedExisting },
+      data: { created: 0, skippedExisting, skippedCompite },
     };
   }
 
@@ -827,7 +869,7 @@ export async function createJudgeAssignmentsBatch(
   revalidatePath(routes.dashboard.concursos.detalle(contestId));
   return {
     ok: true,
-    data: { created: toCreate.length, skippedExisting },
+    data: { created: toCreate.length, skippedExisting, skippedCompite },
   };
 }
 
@@ -1283,8 +1325,23 @@ export async function judgeLoginAction(
   redirect("/jurado/panel");
 }
 
+/**
+ * Salir del panel de jurado.
+ *
+ * Quien entró por el puente no tiene sesión de jurado propia: la suya es la
+ * del sitio. Si sólo se borrara la de jurado, apretar "Cerrar sesión" no
+ * haría nada visible y seguiría adentro. Por eso, cuando no hay sesión
+ * propia que cerrar, se cierra la del sitio, que es la única que tiene.
+ */
 export async function judgeLogoutAction(): Promise<void> {
+  const cookieStore = await cookies();
+  const teniaSesionPropia = Boolean(cookieStore.get("dnx_judge_session")?.value);
+
   await destroyCurrentJudgeSession();
+
+  if (!teniaSesionPropia) {
+    await landingSignOutAction();
+  }
 }
 
 /**
@@ -1334,6 +1391,42 @@ export async function listJudgeAssignmentsForCurrentJudge(): Promise<
     (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime(),
   );
 
+  /*
+   * Nadie juzga la categoría donde compite.
+   *
+   * Las dos compuertas ya lo impiden; esto es para que el panel no ofrezca lo
+   * que después va a rechazar. Se consulta una vez por concurso y no una por
+   * asignación: un jurado con seis categorías del mismo concurso haría seis
+   * veces la misma pregunta.
+   */
+  const conflictosPorConcurso = new Map<string, Set<string>>();
+  const concursosVistos = new Set<string>();
+  for (const a of assignments) {
+    const esExterna = external.some((e) => e.id === a.id);
+    const clave = `${esExterna ? "ck" : "fr"}:${a.contestId}`;
+    if (concursosVistos.has(clave)) continue;
+    concursosVistos.add(clave);
+
+    const db = esExterna
+      ? (clickatonPrisma as unknown as ClienteParaConflicto | null)
+      : (prisma as unknown as ClienteParaConflicto);
+    if (!db) continue;
+
+    try {
+      conflictosPorConcurso.set(
+        clave,
+        await categoriasDondeCompiteElJurado({
+          judgeAccountId: judge.id,
+          contestId: a.contestId,
+          cliente: db,
+        }),
+      );
+    } catch {
+      // El panel se sigue mostrando: quien intente entrar igual choca con las
+      // compuertas, que sí fallan cerrado.
+    }
+  }
+
   return {
     ok: true,
     data: {
@@ -1364,6 +1457,9 @@ export async function listJudgeAssignmentsForCurrentJudge(): Promise<
       const platform = platformForContest({
         distributionChannel: a.contest.distributionChannel,
       });
+      const claveConcurso = `${external.some((e) => e.id === a.id) ? "ck" : "fr"}:${a.contestId}`;
+      const compiteAca =
+        conflictosPorConcurso.get(claveConcurso)?.has(a.categoryId) ?? false;
       return {
         id: a.id,
         contestId: a.contestId,
@@ -1378,9 +1474,17 @@ export async function listJudgeAssignmentsForCurrentJudge(): Promise<
         evaluationEndsAt: a.extendedEndsAt ?? a.evaluationEndsAt,
         votesCount: a.votes.length,
         contestStatus: a.contest.status,
-        evaluationAllowed: eligibility.allowed,
-        evaluationBlockCode: eligibility.allowed ? null : eligibility.code,
-        evaluationBlockMessage: eligibility.allowed ? null : eligibility.message,
+        evaluationAllowed: eligibility.allowed && !compiteAca,
+        evaluationBlockCode: compiteAca
+          ? "COMPITE_EN_LA_CATEGORIA"
+          : eligibility.allowed
+            ? null
+            : eligibility.code,
+        evaluationBlockMessage: compiteAca
+          ? MENSAJE_COMPITE_EN_TODAS
+          : eligibility.allowed
+            ? null
+            : eligibility.message,
       };
     }),
       clickatonUnavailable,

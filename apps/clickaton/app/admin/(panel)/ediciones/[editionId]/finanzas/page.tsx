@@ -26,6 +26,7 @@ import {
 } from "@/lib/admin/edition-finance/ui/finance-status-presentation";
 import { getEditionById } from "@/lib/admin/editions/queries";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
+import { fechaHoraAr } from "@/lib/fecha-ar";
 
 type Props = {
   params: Promise<{ editionId: string }>;
@@ -493,7 +494,7 @@ export default async function EditionFinancePage({ params, searchParams }: Props
             {data.audits.map((a) => (
               <li key={a.id} className="border-b border-ck-border/60 py-2">
                 <span className="text-ck-text-muted">
-                  {a.createdAt.toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" })}
+                  {fechaHoraAr(a.createdAt)}
                 </span>
                 {" · "}
                 {a.action}

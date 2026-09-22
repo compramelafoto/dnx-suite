@@ -15,6 +15,7 @@ import { prisma } from "@repo/db";
 
 import { hashPassword } from "../lib/security/password";
 import { createJudgeSessionForJudge, requireJudgeAuth } from "../lib/judge-auth";
+import { avisarFichaPendienteDeRevision } from "../lib/fotorank/judges/avisoDeFichaPendiente";
 import { enqueueTransactionalEmail } from "../lib/fotorank/notifications/outbox";
 import { estadoInicialParaAlta } from "../lib/fotorank/judges/directoryReview";
 import {
@@ -212,6 +213,38 @@ export async function postularseComoJuradoAction(
     select: { id: true },
   });
 
+  /*
+   * La cuenta del sitio se crea junto con la de jurado.
+   *
+   * Si no, el jurado nace con una sola contraseña —la de jurado— y al entrar
+   * a FotoRank le piden otra que no tiene. Con las dos creadas de una y la
+   * misma clave, no hay dos accesos que recordar: ver `puenteDeSesion.ts`.
+   *
+   * Si el correo ya está tomado en el sitio, no se toca nada. Esa cuenta es
+   * de alguien —quizá de la misma persona, con otra contraseña— y pisarla
+   * sería peor que el problema que se quiere resolver.
+   *
+   * Que falle no puede voltear el alta: la persona ya tiene su cuenta de
+   * jurado y puede entrar por `/jurado/login`.
+   */
+  try {
+    const yaEnElSitio = await prisma.user.findUnique({
+      where: { email: datos.email },
+      select: { id: true },
+    });
+    if (!yaEnElSitio) {
+      await prisma.user.create({
+        data: {
+          email: datos.email,
+          password: hashPassword(datos.password),
+          name: `${datos.firstName.trim()} ${datos.lastName.trim()}`.trim(),
+        },
+      });
+    }
+  } catch (err) {
+    console.warn("[postulacion de jurado] no se pudo crear la cuenta del sitio", err);
+  }
+
   // La foto va después de crear la cuenta, porque la clave del archivo lleva
   // el judgeAccountId. Si falla, el alta NO se cae: perder una cuenta entera
   // por una imagen sería peor que la imagen.
@@ -301,7 +334,42 @@ export async function verificarEmailDeJuradoAction(
       where: { email: fila!.email },
       data: { emailVerifiedAt: ahora },
     }),
+    /*
+     * La misma confirmación vale para la cuenta del sitio.
+     *
+     * Es el mismo buzón: quien abrió el enlace demostró que lo controla, y
+     * pedirle confirmar dos veces la misma dirección sería pedirle dos veces
+     * lo mismo. Con esto el puente queda abierto y no necesita una segunda
+     * contraseña nunca más.
+     *
+     * Sólo si estaba sin confirmar: no se pisa una confirmación anterior.
+     */
+    prisma.user.updateMany({
+      where: { email: fila!.email, emailVerifiedAt: null },
+      data: { emailVerifiedAt: ahora },
+    }),
   ]);
+
+  /*
+   * Recién ahora la ficha entra a revisión, así que recién ahora se avisa.
+   *
+   * Va fuera de la transacción a propósito: un correo que no sale no puede
+   * deshacer una verificación que sí ocurrió.
+   */
+  const cuentaVerificada = await prisma.fotorankJudgeAccount.findUnique({
+    where: { email: fila!.email },
+    select: { profile: { select: { firstName: true, lastName: true } } },
+  });
+  const nombre =
+    [cuentaVerificada?.profile?.firstName, cuentaVerificada?.profile?.lastName]
+      .filter(Boolean)
+      .join(" ")
+      .trim() || fila!.email;
+  await avisarFichaPendienteDeRevision({
+    email: fila!.email,
+    nombre,
+    baseUrl: baseUrl(),
+  });
 
   return {
     ok: true,

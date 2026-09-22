@@ -507,6 +507,7 @@ export function createPublicRegistrationService(deps: {
           endAt: edition.endAt,
           timezone: edition.timezone,
           currency: edition.currency,
+          giftVouchersEnabled: edition.giftVouchersEnabled ?? false,
         },
         venues,
         tickets,

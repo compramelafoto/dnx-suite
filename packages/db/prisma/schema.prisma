@@ -6916,6 +6916,10 @@ enum EmailQueueStatus {
 enum TokenPurpose {
   VERIFY_EMAIL
   CREATE_ACCOUNT
+  /// Recuperar la contraseña de un jurado de FotoRank, que no tiene `User`
+  /// y por eso no puede usar `PasswordResetToken`. Es un propósito propio
+  /// para que un enlace de confirmar correo no sirva para cambiar la clave.
+  PASSWORD_RESET
 }
 
 enum ZipJobType {
@@ -8720,14 +8724,66 @@ model Course {
   classroomCode         String?
   classroomInstructions String?
   status                CourseStatus       @default(DRAFT)
+  /// Cómo se dicta. De esto depende qué le cuelga: ediciones con fecha y lugar, o clases
+  /// grabadas. Nace en PRESENCIAL para que ningún curso existente cambie de comportamiento.
+  deliveryMode          CourseDeliveryMode @default(PRESENCIAL)
+  /// Precio del curso grabado, que no tiene ediciones donde guardarlo. Null en los demás.
+  priceArs              Decimal?           @db.Decimal(12, 2)
+  /// Meses de acceso desde la compra, sólo para grabados. Vitalicio suena generoso hasta que
+  /// el video sigue costando almacenamiento cinco años después.
+  accessMonths          Int                @default(12)
+  /// Porcentaje de clases vistas que da el curso por terminado y emite el certificado.
+  completionPercent     Int                @default(80)
   createdAt             DateTime           @default(now())
   updatedAt             DateTime           @updatedAt
   workspace             Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   instances             CourseInstance[]
+  lessons               CourseLesson[]
   enrollments           CourseEnrollment[]
 
   @@unique([workspaceId, slug])
   @@index([workspaceId, status])
+}
+
+/// Una clase de un curso grabado.
+///
+/// El video **no vive acá**: `videoUid` apunta a Cloudflare Stream, que lo sirve troceado y
+/// sólo con un permiso firmado por alumno. En la base queda el identificador y nada más.
+model CourseLesson {
+  id              String                   @id @default(cuid())
+  courseId        String
+  title           String
+  description     String?
+  sortOrder       Int                      @default(0)
+  /// La informa el proveedor cuando termina de procesar. Null mientras tanto.
+  durationSeconds Int?
+  videoProvider   String                   @default("cloudflare_stream")
+  videoUid        String?                  @unique
+  videoStatus     CourseLessonVideoStatus  @default(PENDING)
+  thumbnailUrl    String?
+  /// Clase de muestra: se ve sin pagar. Es la mejor herramienta de venta de un curso grabado.
+  isPreview       Boolean                  @default(false)
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+  course          Course                   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  attachments     CourseLessonAttachment[]
+
+  @@index([courseId, sortOrder])
+}
+
+/// Material de una clase: PDF, presets, fotos de ejemplo. Descargable a propósito — acá la
+/// protección no tiene sentido, y el alumno lo necesita para practicar.
+model CourseLessonAttachment {
+  id         String       @id @default(cuid())
+  lessonId   String
+  fileName   String
+  /// Clave en R2, el mismo bucket que ya usa FotoOffice.
+  storageKey String
+  sizeBytes  Int?
+  createdAt  DateTime     @default(now())
+  lesson     CourseLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@index([lessonId])
 }
 
 model CourseInstance {
@@ -8753,7 +8809,9 @@ model CourseEnrollment {
   id                     String                        @id @default(cuid())
   workspaceId            String
   courseId               String
-  courseInstanceId       String
+  /// Null en un curso grabado: no tiene ediciones. La regla vive en la aplicación
+  /// (lib/presential-courses/delivery-mode.ts), con test.
+  courseInstanceId       String?
   name                   String
   email                  String
   whatsapp               String
@@ -8773,7 +8831,7 @@ model CourseEnrollment {
   updatedAt              DateTime                      @updatedAt
   workspace              Workspace                     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   course                 Course                        @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  courseInstance         CourseInstance                @relation(fields: [courseInstanceId], references: [id], onDelete: Cascade)
+  courseInstance         CourseInstance?               @relation(fields: [courseInstanceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, paymentStatus])
   @@index([courseId, paymentStatus])
@@ -10479,6 +10537,20 @@ enum TeacherApplicationStatus {
   REJECTED
 }
 
+enum CourseDeliveryMode {
+  PRESENCIAL
+  LIVE
+  RECORDED
+}
+
+enum CourseLessonVideoStatus {
+  PENDING
+  UPLOADING
+  PROCESSING
+  READY
+  ERROR
+}
+
 enum CourseStatus {
   DRAFT
   PUBLISHED
@@ -11630,6 +11702,8 @@ enum ClickatonRegistrationStatus {
   /// Segunda oportunidad no usada → expirada (sin tercera edición).
   EXPIRED
   REFUND_REQUESTED
+  /// Regalo pagado, esperando que quien lo recibe lo active.
+  GIFT_AWAITING_REDEMPTION
 }
 
 /// Estado de cobro desacoplado (mirror / puente hacia DNX Payments).
@@ -11802,6 +11876,11 @@ model ClickatonEdition {
   photographerRoyalties      ClickatonPhotographerRoyaltyLedger[]
   homeBanners                ClickatonHomeBanner[]
   readinessChecks            ClickatonReadinessCheck[]
+  giftVouchers               ClickatonGiftVoucher[]
+  giftVouchersCarriedOver    ClickatonGiftVoucher[]                @relation("GiftVoucherCarriedOverEdition")
+
+  /// Habilita la compra de regalos en esta edición. Nace apagado.
+  giftVouchersEnabled Boolean @default(false)
 
   /// Edición ops/fixture: nunca comercial. Cleanup solo permitido si true.
   isOpsFixture Boolean @default(false)
@@ -12238,6 +12317,8 @@ model ClickatonRegistration {
   /// cierre por horario: distingue a quien cerró de quien sigue subiendo.
   submissionFinalizedAt              DateTime?
   minorLegalFieldsStatus             String?
+  /// true si esta inscripción nació como regalo de otra persona.
+  isGift                             Boolean                              @default(false)
   /// Traslado inscripción individual (máx. 1).
   transferredFromRegistrationId      String?
   transferredToRegistrationId        String?
@@ -12275,6 +12356,7 @@ model ClickatonRegistration {
   photoSubmissions                   ClickatonPhotoSubmission[]
   promptNotes                        ClickatonPromptNote[]
   readinessChecks                    ClickatonReadinessCheck[]
+  giftVoucher                        ClickatonGiftVoucher?
 
   @@unique([editionId, visibleCode])
   @@unique([editionId, sequenceNumber])
@@ -18431,4 +18513,64 @@ model WorkspaceVocabulary {
   updatedAt DateTime @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
+// CLICKATÓN — regalo de inscripción (voucher)
+// ---------------------------------------------------------------------------
+
+enum ClickatonGiftVoucherStatus {
+  PENDING_PAYMENT
+  ACTIVE
+  REDEEMED
+  CARRIED_OVER
+  CANCELLED
+  REFUNDED
+}
+
+/// Regalo de una inscripción de Clickatón. 1:1 con la inscripción "a designar"
+/// que el comprador paga y que quien lo recibe completa al activarlo.
+model ClickatonGiftVoucher {
+  id             String                     @id @default(cuid())
+  /// Código humano único: REGALO-XXXX-XXXX.
+  code           String                     @unique
+  status         ClickatonGiftVoucherStatus @default(PENDING_PAYMENT)
+  editionId      String
+  /// Inscripción "a designar" que el voucher representa (1:1).
+  registrationId String                     @unique
+
+  buyerUserId    Int?
+  buyerFirstName String
+  buyerLastName  String
+  buyerEmail     String
+  buyerPhone     String?
+
+  recipientName  String?
+  recipientEmail String?
+  /// Dedicatoria libre (texto plano, máx. 500).
+  giftMessage    String?
+
+  paidAt                 DateTime?
+  /// Cierre de inscripción de la edición comprada.
+  redeemableUntil        DateTime?
+  redeemedAt             DateTime?
+  cancelledAt            DateTime?
+  carriedOverToEditionId String?
+  carriedOverAt          DateTime?
+
+  reissueCount         Int       @default(0)
+  recipientEmailSentAt DateTime?
+  recipientEmailCount  Int       @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  edition              ClickatonEdition      @relation(fields: [editionId], references: [id], onDelete: Restrict)
+  registration         ClickatonRegistration @relation(fields: [registrationId], references: [id], onDelete: Restrict)
+  carriedOverToEdition ClickatonEdition?     @relation("GiftVoucherCarriedOverEdition", fields: [carriedOverToEditionId], references: [id], onDelete: SetNull)
+
+  @@index([editionId, status])
+  @@index([buyerEmail])
+  @@index([recipientEmail])
+  @@index([status, redeemableUntil])
 }

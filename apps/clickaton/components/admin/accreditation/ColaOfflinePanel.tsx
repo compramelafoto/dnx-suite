@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/Button";
 import type { EntradaOffline, EstadoEntrada } from "@/lib/accreditation/ui/offline-queue";
+import { horaAr } from "@/lib/fecha-ar";
 
 /** Cómo se ve cada estado en la lista de pendientes. */
 const ESTADO: Record<EstadoEntrada, { texto: string; clase: string }> = {
@@ -25,6 +26,7 @@ function explicarMotivo(motivo: string | null): string | null {
     MISSING_IDENTIFIER: "El escaneo quedó sin datos para identificar a la persona.",
     PAYMENT_PENDING: "La inscripción figura impaga.",
     NOT_CONFIRMED: "La inscripción no está confirmada.",
+    GIFT_NOT_REDEEMED: "Es un regalo que todavía nadie activó.",
     CREDENTIAL_MISSING: "No tiene credencial activa.",
     WINDOW_CLOSED: "Quedó fuera del horario de acreditación.",
     ACCREDITATION_DISABLED: "El módulo de acreditación estaba apagado.",
@@ -35,8 +37,7 @@ function explicarMotivo(motivo: string | null): string | null {
 }
 
 function hora(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+  return horaAr(iso);
 }
 
 type Props = {

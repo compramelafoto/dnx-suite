@@ -42,6 +42,10 @@
     {
       "path": "/api/cron/purge-proposals",
       "schedule": "45 4 * * *"
+    },
+    {
+      "path": "/api/cron/carry-over-gift-vouchers",
+      "schedule": "0 5 * * *"
     }
   ]
 }

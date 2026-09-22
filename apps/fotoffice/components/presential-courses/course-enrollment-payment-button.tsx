@@ -31,17 +31,15 @@ export function CourseEnrollmentPaymentButton({
       });
       const json = (await response.json().catch(() => ({}))) as {
         error?: string;
-        initPoint?: string | null;
-        sandboxInitPoint?: string | null;
+        checkoutUrl?: string | null;
       };
       if (!response.ok) {
         throw new Error(json.error || "No se pudo iniciar el checkout.");
       }
-      const redirectUrl = json.initPoint || json.sandboxInitPoint;
-      if (!redirectUrl) {
+      if (!json.checkoutUrl) {
         throw new Error("Mercado Pago no devolvió URL de checkout.");
       }
-      window.location.href = redirectUrl;
+      window.location.href = json.checkoutUrl;
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo iniciar el pago.");
       setPending(false);

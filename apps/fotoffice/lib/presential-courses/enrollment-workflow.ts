@@ -8,6 +8,32 @@ function decimalToNumber(value: Prisma.Decimal) {
   return Number(value.toString());
 }
 
+/**
+ * Reparte el monto efectivamente acreditado con el porcentaje que la inscripción ya tenía
+ * congelado desde que se abrió el pago.
+ *
+ * **No resuelve la comisión, la aplica.** Hasta el 2026-09-21 la aprobación volvía a
+ * buscarla en `coursesFeePercent` —un campo deprecado, con 10% por defecto— mientras que al
+ * inscribirse se había calculado con `WorkspaceModuleFee`, que por defecto es 5%. El número
+ * cambiaba después de cobrado.
+ *
+ * El neto se obtiene restando, nunca multiplicando por el complemento: redondear dos veces
+ * deja sumas que no cierran contra el total, y eso es plata que aparece o desaparece.
+ */
+export function recalcularReparto(input: {
+  montoCobrado: Prisma.Decimal;
+  feePercentCongelado: Prisma.Decimal;
+}): { fee: Prisma.Decimal; net: Prisma.Decimal } {
+  const fee = input.montoCobrado
+    .mul(input.feePercentCongelado)
+    .div(100)
+    .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+  return {
+    fee,
+    net: input.montoCobrado.minus(fee).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP),
+  };
+}
+
 export async function approveCourseEnrollment(args: {
   enrollmentId: string;
   paymentRef?: string | null;
@@ -28,30 +54,32 @@ export async function approveCourseEnrollment(args: {
     return { ok: false, reason: "enrollment_not_pending" as const };
   }
 
-  const approvedCounts = await getApprovedEnrollmentCountsByInstanceIds([enrollment.courseInstanceId]);
-  const approvedCount = approvedCounts.get(enrollment.courseInstanceId) ?? 0;
-  const availableSpots = computeAvailableSpots(enrollment.courseInstance.capacity, approvedCount);
-  if (availableSpots <= 0) {
-    logCourseEvent("payment_approved_conflict_no_spots", {
-      enrollmentId: enrollment.id,
-      workspaceId: enrollment.workspaceId,
-      courseId: enrollment.courseId,
-      courseInstanceId: enrollment.courseInstanceId,
-    });
-    return { ok: false, reason: "no_spots_available" as const };
+  // El cupo existe sólo cuando hay edición. Un curso grabado no tiene ediciones ni cupo: se
+  // vende tantas veces como quiera el fotógrafo.
+  const instancia = enrollment.courseInstance;
+  if (instancia) {
+    const approvedCounts = await getApprovedEnrollmentCountsByInstanceIds([instancia.id]);
+    const approvedCount = approvedCounts.get(instancia.id) ?? 0;
+    const availableSpots = computeAvailableSpots(instancia.capacity, approvedCount);
+    if (availableSpots <= 0) {
+      logCourseEvent("payment_approved_conflict_no_spots", {
+        enrollmentId: enrollment.id,
+        workspaceId: enrollment.workspaceId,
+        courseId: enrollment.courseId,
+        courseInstanceId: instancia.id,
+      });
+      return { ok: false, reason: "no_spots_available" as const };
+    }
   }
 
-  const settings = await prisma.courseSalesWorkspaceSettings.findUnique({
-    where: { workspaceId: enrollment.workspaceId },
-    select: { coursesFeePercent: true },
-  });
-  const percent = settings?.coursesFeePercent ?? new Prisma.Decimal(10);
   const amount =
     args.amountArs != null
       ? new Prisma.Decimal(args.amountArs.toFixed(2))
       : enrollment.amountArs;
-  const fee = amount.mul(percent).div(100).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
-  const net = amount.minus(fee).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+  const { fee, net } = recalcularReparto({
+    montoCobrado: amount,
+    feePercentCongelado: enrollment.platformFeePercent,
+  });
 
   const updateResult = await prisma.courseEnrollment.updateMany({
     where: {
@@ -63,7 +91,7 @@ export async function approveCourseEnrollment(args: {
       paymentProvider: "MERCADO_PAGO",
       paymentRef: args.paymentRef ?? enrollment.paymentRef,
       amountArs: amount,
-      platformFeePercent: percent,
+      // `platformFeePercent` no se toca: quedó congelado al abrir el pago.
       platformFeeArs: fee,
       netAmountArs: net,
     },
@@ -84,7 +112,7 @@ export async function approveCourseEnrollment(args: {
     courseId: enrollment.courseId,
     courseTitle: enrollment.course.title,
     courseInstanceId: enrollment.courseInstanceId,
-    courseInstanceTitle: enrollment.courseInstance.title,
+    courseInstanceTitle: instancia?.title ?? null,
     amountArs: decimalToNumber(amount),
     paidAt: new Date().toISOString(),
   };
@@ -140,6 +168,19 @@ export async function approveCourseEnrollment(args: {
     courseId: enrollment.courseId,
   });
 
+  // El correo de confirmación cuenta cuándo y dónde es el curso: sin edición no tiene qué
+  // decir. El aviso del curso grabado es otro —lleva el acceso al aula, no una dirección— y
+  // se escribe en la etapa del alumno. Hasta entonces, se aprueba sin mandar nada y queda
+  // registrado, que es mejor que mandar un correo con fechas inventadas.
+  if (!instancia) {
+    logCourseEvent("aprobada_sin_aviso_por_ser_grabado", {
+      enrollmentId: enrollment.id,
+      workspaceId: enrollment.workspaceId,
+      courseId: enrollment.courseId,
+    });
+    return { ok: true, alreadyApproved: false as const };
+  }
+
   // Firma institucional del workspace. Si el branding no está cargado, el email sale sin
   // firma en vez de fallar: confirmar una inscripción no puede depender de esto.
   const signature = await loadWorkspaceSignature(enrollment.workspaceId);
@@ -150,11 +191,11 @@ export async function approveCourseEnrollment(args: {
       to: enrollment.email,
       studentName: enrollment.name,
       courseTitle: enrollment.course.title,
-      instanceLabel: enrollment.courseInstance.title ?? "Edición presencial",
-      startDateTime: enrollment.courseInstance.startDateTime,
-      endDateTime: enrollment.courseInstance.endDateTime,
-      locationName: enrollment.courseInstance.locationName,
-      locationAddress: enrollment.courseInstance.locationAddress,
+      instanceLabel: instancia.title ?? "Edición presencial",
+      startDateTime: instancia.startDateTime,
+      endDateTime: instancia.endDateTime,
+      locationName: instancia.locationName,
+      locationAddress: instancia.locationAddress,
       classroomLink: enrollment.course.classroomLink,
       classroomCode: enrollment.course.classroomCode,
       classroomInstructions: enrollment.course.classroomInstructions,

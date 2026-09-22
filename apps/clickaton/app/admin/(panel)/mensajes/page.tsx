@@ -11,12 +11,10 @@ import {
   listContactMessages,
   type ContactMessageListItem,
 } from "@/lib/contact/queries";
+import { fechaHoraAr } from "@/lib/fecha-ar";
 
 function formatDate(value: Date) {
-  return new Intl.DateTimeFormat("es-AR", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(value);
+  return fechaHoraAr(value);
 }
 
 export default async function AdminMessagesPage() {

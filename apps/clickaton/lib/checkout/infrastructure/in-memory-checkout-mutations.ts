@@ -17,6 +17,20 @@ export function createInMemoryCheckoutMutations(
       return ed?.visibleCodePrefix?.trim() || "CK";
     },
 
+    async getCapacitySnapshot(registrationId) {
+      const reg = store.domain.registrations.get(registrationId);
+      const venueId = reg?.venueId ?? null;
+      if (!venueId) return { capacity: null, confirmed: 0 };
+      const venue = store.venues?.get(venueId) as { capacity?: number | null } | undefined;
+      let confirmed = 0;
+      for (const r of store.domain.registrations.values()) {
+        if (r.id !== registrationId && r.venueId === venueId && r.status === "CONFIRMED") {
+          confirmed += 1;
+        }
+      }
+      return { capacity: venue?.capacity ?? null, confirmed };
+    },
+
     async attachPaymentRefs(input) {
       const r = store.domain.registrations.get(input.registrationId);
       if (!r) throw new CheckoutError("NOT_FOUND", "Inscripción no encontrada.");
@@ -36,6 +50,49 @@ export function createInMemoryCheckoutMutations(
         },
       });
       return structuredClone(r);
+    },
+
+    async getEditionRegistrationCloseAt(editionId) {
+      return store.editions.get(editionId)?.registrationCloseAt ?? null;
+    },
+
+    async confirmGiftPaid(input) {
+      const existing = store.domain.registrations.get(input.registrationId);
+      if (!existing) throw new CheckoutError("NOT_FOUND", "Inscripción no encontrada.");
+      if (
+        existing.status === "GIFT_AWAITING_REDEMPTION" &&
+        existing.paymentStatus === "APPROVED"
+      ) {
+        return structuredClone(existing);
+      }
+      if (existing.paymentOrderId && existing.paymentOrderId !== input.paymentOrderId) {
+        throw new CheckoutError(
+          "PAYMENT_CONFLICT",
+          "La orden no corresponde a esta inscripción.",
+        );
+      }
+
+      existing.status = "GIFT_AWAITING_REDEMPTION";
+      existing.paymentStatus = "APPROVED";
+      existing.paymentOrderId = input.paymentOrderId;
+      existing.holdExpiresAt = input.redeemableUntil;
+      store.domain.registrations.set(existing.id, existing);
+
+      // El hold sigue ACTIVE: el cupo queda tomado hasta el cierre.
+      for (const [id, hold] of store.domain.capacityHolds) {
+        if (hold.registrationId === input.registrationId && hold.status === "ACTIVE") {
+          hold.expiresAt = input.redeemableUntil ?? new Date("2099-12-31T23:59:59.000Z");
+          store.domain.capacityHolds.set(id, hold);
+        }
+      }
+
+      store.domain.audits.push({
+        registrationId: existing.id,
+        action: "GIFT_PAYMENT_APPROVED",
+        source: input.source,
+        metadata: { paymentOrderId: input.paymentOrderId, requestId: input.requestId },
+      });
+      return structuredClone(existing);
     },
 
     async confirmPaid(input) {

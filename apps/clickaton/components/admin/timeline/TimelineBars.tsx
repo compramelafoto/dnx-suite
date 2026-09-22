@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { Card } from "@/components/ui/Card";
+import { formatearHoraDePared } from "@/lib/fecha-ar";
 import { updateTimelineRangeAction } from "@/lib/timeline/admin-actions";
 
 /**
@@ -12,6 +13,14 @@ import { updateTimelineRangeAction } from "@/lib/timeline/admin-actions";
  *
  * Solo edita cronogramas en borrador. Sobre uno activo la vista es de lectura,
  * igual que el resto del panel.
+ *
+ * Las fechas que entran y salen de acá son **hora de pared de la edición**
+ * (`AAAA-MM-DDTHH:mm`, sin zona), no instantes: la página las arma con
+ * `toDateTimeLocalValue` y el servidor las vuelve a leer con
+ * `parseDateTimeInput`, las dos con la zona de la edición. Adentro se las trata
+ * con el reloj del navegador nada más que para hacer cuentas de milímetros y
+ * minutos; como entran y salen con el mismo criterio, lo que se ve es siempre
+ * la hora argentina, se mire desde donde se mire.
  */
 
 export type TramoUI = {
@@ -44,15 +53,23 @@ type Arrastre = {
   vista: { inicio: number; fin: number };
 };
 
+/**
+ * Hora de pared → milisegundos de un marco ficticio en UTC.
+ *
+ * Las cuentas de la barra (minutos por píxel, medianoches, redondeos) necesitan
+ * números. Se hacen sobre UTC a propósito: es el único huso sin saltos, así que
+ * la barra se dibuja igual se mire desde donde se mire, y el texto que entra y
+ * sale sigue siendo hora de pared de la edición.
+ */
 function ms(v: string | null): number {
   if (!v) return 0;
-  const t = new Date(v).getTime();
+  const t = Date.parse(`${v.slice(0, 16)}:00.000Z`);
   return Number.isNaN(t) ? 0 : t;
 }
 
 function medianoche(t: number): number {
   const d = new Date(t);
-  d.setHours(0, 0, 0, 0);
+  d.setUTCHours(0, 0, 0, 0);
   return d.getTime();
 }
 
@@ -60,28 +77,20 @@ function redondear(t: number): number {
   return Math.round(t / PASO_MS) * PASO_MS;
 }
 
-/** ISO local, sin pasar por UTC: si no, el horario se corre. */
+/** Del marco ficticio de vuelta a hora de pared, que es lo que se guarda. */
 function aIso(t: number): string {
   const d = new Date(t);
   const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}T${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
 }
 
 function fechaCorta(t: number): string {
-  return new Date(t).toLocaleDateString("es-AR", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  });
+  return formatearHoraDePared(t, { weekday: "short", day: "numeric", month: "short" });
 }
 
 function hora(v: string | null): string {
   if (!v) return "—";
-  return new Date(v).toLocaleTimeString("es-AR", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
+  return formatearHoraDePared(v, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 }
 
 export function TimelineBars({

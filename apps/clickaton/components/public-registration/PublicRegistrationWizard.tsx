@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { RegistrationCompare } from "@/components/public-registration/experience/RegistrationCompare";
 import { RegistrationExperienceHero } from "@/components/public-registration/experience/RegistrationExperienceHero";
+import { RegistrationGiftCta } from "@/components/public-registration/experience/RegistrationGiftCta";
 import { RegistrationFaq } from "@/components/public-registration/experience/RegistrationFaq";
 import { RegistrationHowItWorks } from "@/components/public-registration/experience/RegistrationHowItWorks";
 import { RegistrationIncludes } from "@/components/public-registration/experience/RegistrationIncludes";
@@ -784,6 +785,9 @@ export function PublicRegistrationWizard({
                 }}
               />
             )}
+            {context.edition.giftVouchersEnabled ? (
+              <RegistrationGiftCta editionSlug={context.edition.slug} />
+            ) : null}
             {persona === "pack_holder" ? <RegistrationHowItWorks /> : null}
             {persona !== "pack_holder" ? <RegistrationCompare /> : null}
             <RegistrationIncludes shirtBenefitStatus={shirtBenefitStatus} />

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-// @ts-expect-error — el script es JavaScript puro a propósito: no puede depender de nada.
+// El script es JavaScript puro a propósito: no puede depender de nada. TypeScript igual lo
+// resuelve, así que no lleva `@ts-expect-error`: esa directiva sin uso rompía el chequeo de
+// tipos del build —el tsconfig incluye los tests— y con él, el despliegue.
 import { valorDeCriterio, porcentaje, queFalta } from "../../../../scripts/estado-de-obra.mjs";
 
 /**

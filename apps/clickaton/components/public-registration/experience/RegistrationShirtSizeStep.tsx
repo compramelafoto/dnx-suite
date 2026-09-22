@@ -16,6 +16,8 @@ type Props = {
   sizeChartUrl?: string | null;
   sizeChartDescription?: string | null;
   sizeChartInstructions?: string | null;
+  /** Al activar un regalo no hay pago: el cierre de la frase cambia. */
+  confirmationHint?: string;
 };
 
 export function RegistrationShirtSizeStep({
@@ -27,6 +29,7 @@ export function RegistrationShirtSizeStep({
   sizeChartUrl,
   sizeChartDescription,
   sizeChartInstructions,
+  confirmationHint = "Elegí tu talle para confirmar el beneficio al completar el pago.",
 }: Props) {
   const [guideOpen, setGuideOpen] = useState(false);
   const guideAvailable = Boolean(sizeChartUrl || sizeChartDescription);
@@ -43,8 +46,7 @@ export function RegistrationShirtSizeStep({
       </h2>
       <p className="mt-3 text-sm leading-relaxed text-ck-text-secondary md:text-base">
         Te corresponde remera oficial de regalo
-        {productName ? ` (${productName})` : ""}. Elegí tu talle para confirmar el
-        beneficio al completar el pago.
+        {productName ? ` (${productName})` : ""}. {confirmationHint}
       </p>
 
       <fieldset className="mt-8">

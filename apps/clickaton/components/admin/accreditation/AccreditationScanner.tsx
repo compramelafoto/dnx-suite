@@ -10,6 +10,7 @@ import { describirBloqueoDeAcreditacion } from "@/lib/accreditation/ui/scan-guid
 import { esFalloDeConexion } from "@/lib/accreditation/ui/offline-queue";
 import { useColaOffline } from "./useColaOffline";
 import { ColaOfflinePanel } from "./ColaOfflinePanel";
+import { fechaHoraAr } from "@/lib/fecha-ar";
 
 type ScanResult = {
   tone?: "GREEN" | "YELLOW" | "RED" | "BLUE";
@@ -448,7 +449,7 @@ export function AccreditationScanner({ editionId, devices = [] }: Props) {
 
           {result.checkIn ? (
             <p className="text-sm">
-              Acreditado el {new Date(result.checkIn.checkedInAt).toLocaleString("es-AR")}
+              Acreditado el {fechaHoraAr(result.checkIn.checkedInAt)}
               {result.checkIn.operatorName ? ` por ${result.checkIn.operatorName}` : ""}.
               Identidad:{" "}
               {result.checkIn.identityStatus === "VERIFIED"

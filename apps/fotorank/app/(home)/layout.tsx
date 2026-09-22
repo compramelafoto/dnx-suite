@@ -1,6 +1,12 @@
 import Link from "next/link";
 import { requireAuth } from "../lib/auth";
 import { resolveHomeCapabilities } from "../lib/fotorank/access/home-capabilities";
+import {
+  PANEL_DE_JURADO_ETIQUETA,
+  PANEL_DE_JURADO_HREF,
+} from "../lib/fotorank/access/judge-panel-entry";
+import { COLA_DE_REVISION_HREF } from "../components/dashboard/sidebarConAtajos";
+import { contarJuradosPendientes } from "../actions/judgeDirectoryReview";
 import { landingSignOutAction } from "../actions/landing-session";
 
 /**
@@ -25,10 +31,22 @@ export default async function HomeShellLayout({ children }: { children: React.Re
     nav.push({ href: "/dashboard", label: "Organizaciones" });
   }
   if (caps.hasJuryAccount) {
-    nav.push({ href: "/jurado/panel", label: "Tareas de jurado" });
+    nav.push({ href: PANEL_DE_JURADO_HREF, label: PANEL_DE_JURADO_ETIQUETA });
   }
   if (caps.isSuperAdmin) {
     nav.push({ href: "/super-admin", label: "Super Administración" });
+
+    // La cola de revisión no tenía entrada propia: se llegaba a ella por un
+    // recuadro perdido entre cinco estadísticas. Mientras haya fichas
+    // esperando, el atajo va acá con el número; cuando la cola se vacía,
+    // desaparece.
+    const porRevisar = await contarJuradosPendientes();
+    if (porRevisar > 0) {
+      nav.push({
+        href: COLA_DE_REVISION_HREF,
+        label: `Jurados por revisar (${porRevisar})`,
+      });
+    }
   }
 
   return (

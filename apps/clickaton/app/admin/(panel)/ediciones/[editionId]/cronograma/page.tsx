@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/Card";
 import { adminRoutes } from "@/config/admin/navigation";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
 import { prisma } from "@/lib/admin/db";
+import { toDateTimeLocalValue } from "@/lib/admin/datetime-input";
 import {
   activateTimelineAction,
   ensureDraftTimelineAction,
@@ -16,6 +17,7 @@ import {
   shiftFutureEventsAction,
   updateTimelineEventAction,
 } from "@/lib/timeline/admin-actions";
+import { ZONA_ARGENTINA } from "@/lib/fecha-ar";
 import { getEditionTemporalState } from "@/lib/timeline/prisma-timeline";
 import { construirTramos, validarTramo } from "@/lib/timeline/ui/timeline-bars";
 import {
@@ -39,7 +41,7 @@ export default async function EditionTimelineAdminPage({ params }: Props) {
   });
   if (!edition) notFound();
 
-  const timezone = edition.timezone ?? "America/Argentina/Buenos_Aires";
+  const timezone = edition.timezone ?? ZONA_ARGENTINA;
 
   const timelines = await prisma.clickatonEditionTimeline.findMany({
     where: { editionId },
@@ -66,11 +68,14 @@ export default async function EditionTimelineAdminPage({ params }: Props) {
     resultados: "var(--ck-brand-blue)",
   };
 
-  /** ISO local: mandar UTC al navegador correría el horario. */
+  /**
+   * Hora de pared de la edición para las barras.
+   *
+   * Esto corría con el reloj del runtime, que en Vercel es UTC: el cronograma
+   * se dibujaba 3 horas más tarde de lo que pasaba de verdad.
+   */
   function aIsoLocal(d: Date | null): string | null {
-    if (!d) return null;
-    const p = (n: number) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+    return toDateTimeLocalValue(d, timezone) || null;
   }
 
   function aTramosUi(eventos: Array<{ id: string; eventType: string; startsAt: Date | null }>) {

@@ -2,7 +2,11 @@
 
 import { useState, useTransition } from "react";
 import { judgeUpdateProfessionalProfileAction } from "../../actions/judgeProfessionalProfile";
-import { DIRECTORY_PRIVACY_NOTE, EXTERNAL_PAYMENT_DISCLAIMER } from "../../lib/fotorank/judges/legalCopy";
+import {
+  COBRO_POR_LA_PLATAFORMA_PROXIMAMENTE,
+  DIRECTORY_PRIVACY_NOTE,
+  EXTERNAL_PAYMENT_DISCLAIMER,
+} from "../../lib/fotorank/judges/legalCopy";
 
 type Initial = {
   displayNameOverride: string | null;
@@ -210,7 +214,12 @@ export function JuradoPerfilProfesionalForm({ initial }: { initial: Initial }) {
 
       <section className="fr-recuadro space-y-6 rounded-xl border border-fr-border bg-fr-card">
         <h2 className="font-sans text-lg font-semibold text-fr-primary">Modalidad económica</h2>
-        <p className="text-xs leading-relaxed text-fr-muted">{EXTERNAL_PAYMENT_DISCLAIMER}</p>
+        <p className="border-l-2 border-gold pl-4 text-sm leading-relaxed text-fr-muted">
+          {COBRO_POR_LA_PLATAFORMA_PROXIMAMENTE}
+        </p>
+        <p className="text-xs leading-relaxed text-fr-muted">
+          <span className="text-fr-primary">Mientras tanto:</span> {EXTERNAL_PAYMENT_DISCLAIMER}
+        </p>
         <div className="space-y-2">
           <label className="text-sm font-semibold text-fr-primary">Compensación</label>
           <select

@@ -35,6 +35,7 @@ function mapEdition(row: {
   timezone: string | null;
   currency: string;
   visibleCodePrefix: string | null;
+  giftVouchersEnabled: boolean;
 }): PublicCatalogEdition {
   return {
     id: row.id,
@@ -51,6 +52,7 @@ function mapEdition(row: {
     timezone: row.timezone,
     currency: row.currency,
     visibleCodePrefix: row.visibleCodePrefix,
+    giftVouchersEnabled: row.giftVouchersEnabled,
   };
 }
 
@@ -266,6 +268,7 @@ function mapRecord(row: {
   ticketTypeId: string;
   status: ClickatonRegistrationRecord["status"];
   paymentStatus: ClickatonRegistrationRecord["paymentStatus"];
+  isGift?: boolean;
   visibleCode: string | null;
   sequenceNumber: number | null;
   firstName: string;
@@ -319,6 +322,7 @@ function mapRecord(row: {
     ticketTypeId: row.ticketTypeId,
     status: row.status,
     paymentStatus: row.paymentStatus,
+    isGift: row.isGift ?? false,
     visibleCode: row.visibleCode,
     sequenceNumber: row.sequenceNumber,
     participant: {
@@ -510,6 +514,7 @@ export function createPrismaPublicRegistrationRepository(
           countsAsActiveRegistration({
             status: mapped.status,
             holdExpiresAt: mapped.holdExpiresAt,
+            isGift: mapped.isGift,
             now,
           })
         ) {
@@ -539,6 +544,7 @@ export function createPrismaPublicRegistrationRepository(
           countsAsActiveRegistration({
             status: mapped.status,
             holdExpiresAt: mapped.holdExpiresAt,
+            isGift: mapped.isGift,
             now,
           })
         ) {
@@ -688,6 +694,538 @@ export function createPrismaPublicRegistrationRepository(
         confirmedByProductId,
         heldByProductId,
       };
+    },
+
+    async releaseGiftRegistration(input) {
+      await prisma.$transaction(async (tx) => {
+        const row = await tx.clickatonRegistration.findUnique({
+          where: { id: input.registrationId },
+          include: { capacityHold: true, stockHolds: true },
+        });
+        if (!row) return;
+        // Un regalo activado ya es la inscripción de otra persona.
+        if (row.status === "CONFIRMED" || row.status === "CANCELLED") return;
+
+        if (row.capacityHold?.status === "ACTIVE") {
+          await tx.clickatonCapacityHold.update({
+            where: { id: row.capacityHold.id },
+            data: { status: "RELEASED", releasedAt: input.now },
+          });
+        }
+
+        for (const hold of row.stockHolds) {
+          if (hold.status !== "ACTIVE") continue;
+          await tx.clickatonStockHold.update({
+            where: { id: hold.id },
+            data: { status: "RELEASED", releasedAt: input.now },
+          });
+          const variant = await tx.clickatonProductVariant.update({
+            where: { id: hold.productVariantId },
+            data: { reservedStock: { decrement: hold.quantity } },
+          });
+          const releaseKey = `reg:${input.registrationId}:var:${hold.productVariantId}:gift-release`;
+          const existingRelease = await tx.clickatonInventoryMovement.findUnique({
+            where: { idempotencyKey: releaseKey },
+          });
+          if (!existingRelease) {
+            await tx.clickatonInventoryMovement.create({
+              data: {
+                productId: variant.productId,
+                variantId: hold.productVariantId,
+                movementType: "REGISTRATION_RELEASED",
+                quantity: hold.quantity,
+                sourceType: "REGISTRATION",
+                sourceId: input.registrationId,
+                reason: "Regalo anulado",
+                idempotencyKey: releaseKey,
+              },
+            });
+          }
+        }
+
+        await tx.clickatonRegistration.update({
+          where: { id: input.registrationId },
+          data: { status: "CANCELLED", cancelledAt: input.now },
+        });
+
+        await tx.clickatonRegistrationStatusHistory.create({
+          data: {
+            registrationId: input.registrationId,
+            previousStatus: row.status,
+            newStatus: "CANCELLED",
+            previousPaymentStatus: row.paymentStatus,
+            newPaymentStatus: row.paymentStatus,
+            source: "admin_gift_cancel",
+            reason: input.reason,
+          },
+        });
+        await tx.clickatonRegistrationAudit.create({
+          data: {
+            registrationId: input.registrationId,
+            action: "GIFT_CANCELLED",
+            source: "admin",
+            metadata: { reason: input.reason },
+          },
+        });
+      });
+    },
+
+    async completeGiftRegistration(cmd) {
+      const { assertInstagramHandle } = await import("@repo/media-composition");
+      let instagram;
+      try {
+        instagram = assertInstagramHandle(cmd.instagramHandle);
+      } catch {
+        throw new PublicRegistrationError(
+          "INVALID_VARIANT",
+          "Ingresá un usuario de Instagram válido.",
+        );
+      }
+
+      return prisma.$transaction(
+        async (tx) => {
+          const existing = await tx.clickatonRegistration.findUnique({
+            where: { id: cmd.registrationId },
+            include: { items: true },
+          });
+          if (!existing) {
+            throw new PublicRegistrationError(
+              "NOT_FOUND",
+              "No encontramos la inscripción de este regalo.",
+            );
+          }
+          // Idempotencia: si ya se activó, devolvemos lo que hay.
+          if (existing.status === "CONFIRMED") {
+            return { id: existing.id, visibleCode: existing.visibleCode };
+          }
+          if (existing.status !== "GIFT_AWAITING_REDEMPTION") {
+            throw new PublicRegistrationError(
+              "EDITION_NOT_AVAILABLE",
+              "Este regalo no está disponible para activar.",
+            );
+          }
+
+          // Sede: sólo si la entrada no la trae fija.
+          let venueId = existing.venueId;
+          if (!venueId && cmd.venueId) {
+            const venue = await tx.clickatonVenue.findFirst({
+              where: { id: cmd.venueId, editionId: cmd.editionId, isActive: true },
+              select: { id: true },
+            });
+            if (!venue) {
+              throw new PublicRegistrationError(
+                "VENUE_NOT_AVAILABLE",
+                "La sede seleccionada no está disponible.",
+              );
+            }
+            venueId = venue.id;
+          }
+
+          // Talle: se elige recién ahora, contra el stock de este momento.
+          for (const choice of cmd.variantChoices) {
+            const variant = await tx.clickatonProductVariant.findUnique({
+              where: { id: choice.productVariantId },
+            });
+            if (!variant || !variant.isActive) {
+              throw new PublicRegistrationError(
+                "INVALID_VARIANT",
+                "El talle elegido no está disponible.",
+              );
+            }
+            if (variant.stock - variant.reservedStock < 1) {
+              throw new PublicRegistrationError(
+                "PRODUCT_OUT_OF_STOCK",
+                "Se agotó el talle elegido. Probá con otro.",
+              );
+            }
+          }
+
+          const asset = await tx.dnxMediaAsset.findUnique({
+            where: { id: cmd.profilePhotoAssetId },
+            select: { ownerId: true, platform: true },
+          });
+          if (!asset || asset.platform !== "CLICKATON") {
+            throw new PublicRegistrationError(
+              "INVALID_VARIANT",
+              "La foto de perfil no es válida.",
+            );
+          }
+
+          let visibleCode = existing.visibleCode;
+          let sequenceNumber = existing.sequenceNumber;
+          if (!visibleCode) {
+            const seq = await tx.clickatonEditionSequence.upsert({
+              where: { editionId: existing.editionId },
+              create: { editionId: existing.editionId, lastValue: 1 },
+              update: { lastValue: { increment: 1 } },
+            });
+            sequenceNumber = seq.lastValue;
+            const prefix =
+              (cmd.editionPrefix ?? "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 8) || "CK";
+            visibleCode = `${prefix}-${String(sequenceNumber).padStart(5, "0")}`;
+          }
+
+          const confirmedAt = cmd.acceptedAt;
+          const updated = await tx.clickatonRegistration.update({
+            where: { id: cmd.registrationId },
+            data: {
+              status: "CONFIRMED",
+              confirmedAt,
+              visibleCode,
+              sequenceNumber,
+              venueId,
+              // El contacto pasa a ser quien participa, no quien regaló.
+              firstName: cmd.participant.firstName.trim(),
+              lastName: cmd.participant.lastName.trim(),
+              email: cmd.participant.email,
+              phone: cmd.participant.phone?.trim() || null,
+              documentNumber: normalizeDocument(cmd.participant.documentNumber) || null,
+              city: cmd.participant.city?.trim() || null,
+              province: cmd.participant.province?.trim() || null,
+              country: (cmd.participant.country?.trim() || "AR").slice(0, 2).toUpperCase(),
+              birthDate: cmd.participant.birthDate
+                ? new Date(cmd.participant.birthDate)
+                : null,
+              emergencyContactName: cmd.participant.emergencyContactName?.trim() || null,
+              emergencyContactPhone: cmd.participant.emergencyContactPhone?.trim() || null,
+              instagramHandle: instagram.handle,
+              instagramHandleNormalized: instagram.normalized,
+              instagramUrl: instagram.url,
+              profilePhotoAssetId: cmd.profilePhotoAssetId,
+              profilePhotoSource: "USER_UPLOAD",
+              profilePhotoStatus: "READY",
+              // Quien recibe el regalo acepta las bases por su cuenta.
+              acceptedTermsAt: confirmedAt,
+              acceptedImageAt: confirmedAt,
+              termsAcceptedAt: confirmedAt,
+              imageUsageConsent: true,
+              socialPublicationConsent: true,
+              consentAcceptedAt: confirmedAt,
+              promotionalLicenseAcceptedAt: confirmedAt,
+              identifiablePersonsDeclaredAt: confirmedAt,
+            },
+          });
+
+          await tx.dnxMediaAsset.updateMany({
+            where: { ownerId: asset.ownerId, platform: "CLICKATON" },
+            data: {
+              ownerType: "REGISTRATION",
+              ownerId: updated.id,
+              registrationId: updated.id,
+              editionId: updated.editionId,
+            },
+          });
+
+          // Los ítems del kit se crean recién ahora: el talle lo eligió quien
+          // recibe el regalo, no quien lo compró.
+          if (existing.items.length === 0) {
+            const ticketItems = await tx.clickatonTicketTypeItem.findMany({
+              where: { ticketTypeId: existing.ticketTypeId },
+              include: { product: true, productVariant: true },
+            });
+            // La remera de la edición sale de la FASE DE PRECIO, no del
+            // ticket base. Sin esto, quien activa el regalo elige su talle y
+            // el talle se pierde: nadie sabe qué remera entregarle.
+            const phaseItems = existing.pricePhaseId
+              ? await tx.clickatonPricePhaseItem.findMany({
+                  where: { pricePhaseId: existing.pricePhaseId, isIncluded: true },
+                  include: { product: true },
+                })
+              : [];
+            const chosenByProduct = new Map(
+              cmd.variantChoices.map((c) => [c.productId, c.productVariantId]),
+            );
+
+            for (const item of phaseItems) {
+              const variantId = chosenByProduct.get(item.productId) ?? null;
+              const variant = variantId
+                ? await tx.clickatonProductVariant.findUnique({ where: { id: variantId } })
+                : null;
+
+              await tx.clickatonRegistrationItem.create({
+                data: {
+                  registrationId: updated.id,
+                  pricePhaseItemId: item.id,
+                  sourceType: "PRICE_PHASE",
+                  productId: item.productId,
+                  productVariantId: variantId,
+                  nameSnapshot: item.displayTitle ?? item.product.name,
+                  productNameSnapshot: item.product.name,
+                  productDescriptionSnapshot: item.product.description,
+                  variantNameSnapshot: variant?.name ?? null,
+                  skuSnapshot: variant?.sku ?? null,
+                  quantity: item.quantity,
+                  unitPriceAmount: 0,
+                  totalPriceAmount: 0,
+                  currency: updated.currency,
+                  isIncluded: true,
+                  fulfillmentStatus: "PENDING",
+                },
+              });
+
+              if (variantId) {
+                await tx.clickatonProductVariant.update({
+                  where: { id: variantId },
+                  data: { reservedStock: { increment: item.quantity } },
+                });
+                await tx.clickatonStockHold.create({
+                  data: {
+                    registrationId: updated.id,
+                    productVariantId: variantId,
+                    quantity: item.quantity,
+                    status: "CONSUMED",
+                    expiresAt: confirmedAt,
+                    consumedAt: confirmedAt,
+                  },
+                });
+                const phaseMoveKey = `reg:${updated.id}:var:${variantId}:gift:phase`;
+                const existingPhaseMove = await tx.clickatonInventoryMovement.findUnique({
+                  where: { idempotencyKey: phaseMoveKey },
+                });
+                if (!existingPhaseMove) {
+                  await tx.clickatonInventoryMovement.create({
+                    data: {
+                      productId: item.productId,
+                      variantId,
+                      movementType: "REGISTRATION_HOLD",
+                      quantity: item.quantity,
+                      sourceType: "REGISTRATION",
+                      sourceId: updated.id,
+                      reason: "Beneficio de fase asignado al activar un regalo",
+                      idempotencyKey: phaseMoveKey,
+                    },
+                  });
+                }
+              }
+            }
+
+            for (const item of ticketItems) {
+              const variantId =
+                item.productVariantId ?? chosenByProduct.get(item.productId) ?? null;
+              const variant = variantId
+                ? await tx.clickatonProductVariant.findUnique({ where: { id: variantId } })
+                : null;
+
+              await tx.clickatonRegistrationItem.create({
+                data: {
+                  registrationId: updated.id,
+                  ticketTypeItemId: item.id,
+                  sourceType: "TICKET_BASE",
+                  productId: item.productId,
+                  productVariantId: variantId,
+                  nameSnapshot: item.product.name,
+                  productNameSnapshot: item.product.name,
+                  productDescriptionSnapshot: item.product.description,
+                  variantNameSnapshot: variant?.name ?? null,
+                  skuSnapshot: variant?.sku ?? null,
+                  quantity: item.quantity,
+                  unitPriceAmount: 0,
+                  totalPriceAmount: 0,
+                  currency: updated.currency,
+                  isIncluded: true,
+                  fulfillmentStatus: "PENDING",
+                },
+              });
+
+              if (variantId) {
+                await tx.clickatonProductVariant.update({
+                  where: { id: variantId },
+                  data: { reservedStock: { increment: item.quantity } },
+                });
+                await tx.clickatonStockHold.create({
+                  data: {
+                    registrationId: updated.id,
+                    productVariantId: variantId,
+                    quantity: item.quantity,
+                    status: "CONSUMED",
+                    expiresAt: confirmedAt,
+                    consumedAt: confirmedAt,
+                  },
+                });
+                const moveKey = `reg:${updated.id}:var:${variantId}:gift`;
+                const existingMove = await tx.clickatonInventoryMovement.findUnique({
+                  where: { idempotencyKey: moveKey },
+                });
+                if (!existingMove) {
+                  await tx.clickatonInventoryMovement.create({
+                    data: {
+                      productId: item.productId,
+                      variantId,
+                      movementType: "REGISTRATION_HOLD",
+                      quantity: item.quantity,
+                      sourceType: "REGISTRATION",
+                      sourceId: updated.id,
+                      reason: "Kit asignado al activar un regalo",
+                      idempotencyKey: moveKey,
+                    },
+                  });
+                }
+              }
+            }
+          }
+
+          // Credencial y QR: se emiten al activar, no al pagar, porque recién
+          // ahora se sabe quién va a participar.
+          let credential = await tx.clickatonParticipantCredential.findUnique({
+            where: { registrationId: updated.id },
+          });
+          if (!credential) {
+            credential = await tx.clickatonParticipantCredential.create({
+              data: {
+                registrationId: updated.id,
+                status: "ACTIVE",
+                publicCode: visibleCode ?? `CK-${updated.id.slice(0, 10).toUpperCase()}`,
+              },
+            });
+          }
+          const activeQr = await tx.clickatonQrToken.findFirst({
+            where: { credentialId: credential.id, status: "ACTIVE", revokedAt: null },
+          });
+          if (!activeQr) {
+            const { issueRegistrationQrToken } = await import(
+              "@/lib/registration/security/qr-token"
+            );
+            const issued = issueRegistrationQrToken({
+              registrationId: updated.id,
+              credentialId: credential.id,
+            });
+            await tx.clickatonQrToken.create({
+              data: {
+                credentialId: credential.id,
+                tokenHash: issued.tokenHash,
+                tokenPrefix: issued.tokenPrefix,
+                status: "ACTIVE",
+              },
+            });
+          }
+
+          // El cupo estaba reservado desde el pago: ahora se consume.
+          await tx.clickatonCapacityHold.updateMany({
+            where: { registrationId: cmd.registrationId, status: "ACTIVE" },
+            data: { status: "CONSUMED", consumedAt: confirmedAt },
+          });
+
+          await tx.clickatonRegistrationStatusHistory.create({
+            data: {
+              registrationId: cmd.registrationId,
+              previousStatus: existing.status,
+              newStatus: "CONFIRMED",
+              previousPaymentStatus: existing.paymentStatus,
+              newPaymentStatus: existing.paymentStatus,
+              source: "public_gift_redeem",
+              reason: "gift_redeemed",
+            },
+          });
+          await tx.clickatonRegistrationAudit.create({
+            data: {
+              registrationId: cmd.registrationId,
+              action: "GIFT_REDEEMED",
+              source: "public",
+              metadata: { idempotencyKey: cmd.idempotencyKey },
+            },
+          });
+
+          return { id: updated.id, visibleCode: updated.visibleCode };
+        },
+        { timeout: 30_000, maxWait: 10_000 },
+      );
+    },
+
+    async createReservedGiftRegistration(cmd) {
+      return prisma.$transaction(async (tx) => {
+        const ticket = await tx.clickatonTicketType.findUnique({
+          where: { id: cmd.ticketTypeId },
+        });
+        if (!ticket) {
+          throw new PublicRegistrationError(
+            "TICKET_NOT_AVAILABLE",
+            "La entrada seleccionada no está disponible.",
+          );
+        }
+        if (ticket.capacity != null) {
+          const [confirmed, activeHolds] = await Promise.all([
+            tx.clickatonRegistration.count({
+              where: { ticketTypeId: ticket.id, status: "CONFIRMED" },
+            }),
+            tx.clickatonCapacityHold.count({
+              where: {
+                ticketTypeId: ticket.id,
+                status: "ACTIVE",
+                expiresAt: { gt: new Date() },
+              },
+            }),
+          ]);
+          if (confirmed + activeHolds >= ticket.capacity) {
+            throw new PublicRegistrationError(
+              "CAPACITY_EXCEEDED",
+              "No quedan cupos disponibles para esta entrada.",
+            );
+          }
+        }
+
+        // Sin items ni stock holds: el talle lo elige quien recibe el regalo.
+        // Sin chequeo de email duplicado: el contacto es quien compra, que
+        // puede estar inscripto y puede regalar más de una vez.
+        const created = await tx.clickatonRegistration.create({
+          data: {
+            editionId: cmd.editionId,
+            venueId: cmd.venueId,
+            ticketTypeId: cmd.ticketTypeId,
+            isGift: true,
+            status: "DRAFT",
+            paymentStatus: "PENDING",
+            firstName: cmd.contact.firstName,
+            lastName: cmd.contact.lastName,
+            email: cmd.contact.email,
+            phone: cmd.contact.phone,
+            currency: cmd.currency,
+            subtotalAmount: cmd.subtotalAmount,
+            discountAmount: cmd.discountAmount,
+            totalAmount: cmd.totalAmount,
+            promotionId: cmd.promotionId,
+            promotionCodeSnapshot: cmd.promotionCodeSnapshot,
+            pricePhaseId: cmd.pricePhaseId,
+            pricePhaseNameSnapshot: cmd.pricePhaseNameSnapshot,
+            pricePhaseAmountSnapshot: cmd.pricePhaseAmountSnapshot,
+            acceptedTermsAt: cmd.acceptedTermsAt,
+            termsAcceptedAt: cmd.acceptedTermsAt,
+            termsVersion: cmd.termsVersion,
+            holdExpiresAt: cmd.holdExpiresAt,
+            paymentIdempotencyKey: cmd.idempotencyKey,
+            capacityHold: {
+              create: {
+                editionId: cmd.editionId,
+                venueId: cmd.venueId,
+                ticketTypeId: cmd.ticketTypeId,
+                status: "ACTIVE",
+                expiresAt: cmd.holdExpiresAt,
+              },
+            },
+            statusHistory: {
+              create: {
+                previousStatus: null,
+                newStatus: "DRAFT",
+                previousPaymentStatus: null,
+                newPaymentStatus: "PENDING",
+                source: "public_gift_registration",
+                reason: "Reserva de regalo creada",
+              },
+            },
+            audits: {
+              create: [
+                {
+                  action: "PUBLIC_GIFT_REGISTRATION_CREATED",
+                  source: "public",
+                  metadata: { idempotencyKey: cmd.idempotencyKey },
+                },
+              ],
+            },
+          },
+          select: { id: true },
+        });
+
+        return created;
+      });
     },
 
     async createReservedRegistration(input) {
@@ -871,7 +1409,7 @@ export function createPrismaPublicRegistrationRepository(
               email: input.cmd.participant.email,
               status: { notIn: ["CANCELLED", "REFUNDED", "DISQUALIFIED"] },
             },
-            select: { id: true, status: true, holdExpiresAt: true },
+            select: { id: true, status: true, holdExpiresAt: true, isGift: true },
             take: 10,
           });
           if (
@@ -879,6 +1417,7 @@ export function createPrismaPublicRegistrationRepository(
               countsAsActiveRegistration({
                 status: d.status,
                 holdExpiresAt: d.holdExpiresAt,
+                isGift: d.isGift,
                 now: nowTx,
               }),
             )

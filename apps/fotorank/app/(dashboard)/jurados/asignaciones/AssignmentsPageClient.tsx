@@ -7,6 +7,7 @@ import {
   createJudgeAssignmentsBatch,
   type JudgeMethodType,
 } from "../../../actions/judges";
+import { mensajeDeAsignacion } from "../../../lib/fotorank/judges/mensajeDeAsignacion";
 
 interface AssignmentsPageClientProps {
   judges: Array<{ id: string; label: string }>;
@@ -84,18 +85,8 @@ export function AssignmentsPageClient({ judges, contests }: AssignmentsPageClien
       setError(result.error);
       return;
     }
-    const { created = 0, skippedExisting = 0 } = result.data ?? {};
-    if (created === 0 && skippedExisting > 0) {
-      setOk(
-        `No se crearon asignaciones nuevas: las ${skippedExisting} categorías elegidas ya tenían asignación para este jurado y concurso.`,
-      );
-    } else if (skippedExisting > 0) {
-      setOk(
-        `Se crearon ${created} asignación${created === 1 ? "" : "es"}. Se omitieron ${skippedExisting} por duplicado (jurado + concurso + categoría).`,
-      );
-    } else {
-      setOk(`Se crearon ${created} asignación${created === 1 ? "" : "es"}.`);
-    }
+    const { created = 0, skippedExisting = 0, skippedCompite = 0 } = result.data ?? {};
+    setOk(mensajeDeAsignacion({ created, skippedExisting, skippedCompite }));
   }
 
   return (

@@ -8,6 +8,10 @@ import {
   presentAdminOperationalSummary,
   presentAdminPaymentStatus,
 } from "@/lib/admin-registration/ui/admin-status-presentation";
+import {
+  esFilaDeRegaloSinActivar,
+  presentAdminParticipantIdentity,
+} from "@/lib/admin-registration/ui/gift-row-presentation";
 import { formatArDateTime } from "@/lib/admin-registration/ui/status-labels";
 
 type Props = {
@@ -23,14 +27,17 @@ export function RegistrationListMobileCard({ row }: Props) {
   });
   const payment = presentAdminPaymentStatus(row.paymentStatus);
   const kit = presentAdminFulfillmentStatus(row.itemFulfillmentStatus);
+  const identity = presentAdminParticipantIdentity(row);
+  const esRegaloSinActivar = esFilaDeRegaloSinActivar(row);
   const href = `${adminRoutes.registrations}/${row.id}`;
 
   return (
-    <article className="space-y-3" aria-label={`Inscripción de ${row.firstName} ${row.lastName}`}>
+    <article className="space-y-3" aria-label={`Inscripción de ${identity.displayName}`}>
       <div className="space-y-1">
-        <h3 className="text-base font-semibold text-ck-text">
-          {row.firstName} {row.lastName}
-        </h3>
+        <h3 className="text-base font-semibold text-ck-text">{identity.displayName}</h3>
+        {identity.note ? (
+          <p className="text-sm font-medium text-ck-text-secondary">{identity.note}</p>
+        ) : null}
         <p className="break-all text-sm text-ck-text-secondary">{row.email}</p>
         {row.instagramHandle ? (
           <p className="text-sm text-ck-text-muted">@{row.instagramHandle.replace(/^@/, "")}</p>
@@ -40,7 +47,7 @@ export function RegistrationListMobileCard({ row }: Props) {
       <div className="flex flex-wrap gap-2">
         <Badge variant={adminToneToBadgeVariant(summary.tone)}>{summary.label}</Badge>
         <Badge variant={adminToneToBadgeVariant(payment.tone)}>{payment.label}</Badge>
-        {row.itemFulfillmentStatus ? (
+        {row.itemFulfillmentStatus && !esRegaloSinActivar ? (
           <Badge variant={adminToneToBadgeVariant(kit.tone)}>{kit.label}</Badge>
         ) : null}
       </div>
@@ -63,8 +70,8 @@ export function RegistrationListMobileCard({ row }: Props) {
 
       <p className="text-xs text-ck-text-muted">
         {row.visibleCode ? `N.º ${row.visibleCode} · ` : ""}
-        Inscripta {formatArDateTime(row.createdAt)}
-        {row.shirtSizeLabel ? ` · Talle ${row.shirtSizeLabel}` : ""}
+        {esRegaloSinActivar ? "Comprada" : "Inscripta"} {formatArDateTime(row.createdAt)}
+        {row.shirtSizeLabel && !esRegaloSinActivar ? ` · Talle ${row.shirtSizeLabel}` : ""}
       </p>
 
       <Button href={href} variant="primary" className="min-h-11 w-full">

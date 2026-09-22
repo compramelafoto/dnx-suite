@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { formatearEnAr, horaAr } from "@/lib/fecha-ar";
 
 /**
  * Cuenta regresiva hasta la apertura conjunta de consignas.
@@ -68,17 +69,11 @@ export function PromptsCountdown({ opensAtIso, serverNowIso, promptCount, timezo
 
   const { days, hours, minutes, seconds } = splitRemaining(remaining);
   const fechaApertura = new Date(opensAtIso);
-  const horaLocal = `${fechaApertura.toLocaleDateString("es-AR", {
-    timeZone: timezone,
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  })} a las ${fechaApertura.toLocaleTimeString("es-AR", {
-    timeZone: timezone,
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  })} h`;
+  const horaLocal = `${formatearEnAr(
+    fechaApertura,
+    { weekday: "long", day: "numeric", month: "long" },
+    timezone,
+  )} a las ${horaAr(fechaApertura, timezone)} h`;
 
   const bloques: Array<{ label: string; value: string }> = [
     ...(days > 0 ? [{ label: days === 1 ? "día" : "días", value: String(days) }] : []),

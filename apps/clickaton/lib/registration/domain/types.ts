@@ -13,7 +13,9 @@ export type ClickatonRegistrationStatus =
   | "DISQUALIFIED"
   | "TRANSFERRED_TO_NEXT_EDITION"
   | "EXPIRED"
-  | "REFUND_REQUESTED";
+  | "REFUND_REQUESTED"
+  /** Regalo pagado, esperando que quien lo recibe lo active. */
+  | "GIFT_AWAITING_REDEMPTION";
 
 export type ClickatonPaymentStatus =
   | "NOT_REQUIRED"
@@ -110,6 +112,8 @@ export type ClickatonRegistrationRecord = {
   ticketTypeId: string;
   status: ClickatonRegistrationStatus;
   paymentStatus: ClickatonPaymentStatus;
+  /** true si nació como regalo: el contacto es quien compra, no quien participa. */
+  isGift?: boolean;
   visibleCode?: string | null;
   sequenceNumber?: number | null;
   participant: ParticipantSnapshot;

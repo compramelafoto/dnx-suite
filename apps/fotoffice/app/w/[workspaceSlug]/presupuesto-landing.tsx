@@ -3,7 +3,12 @@ import { PublicDynamicServiceLeadForm } from "./public-dynamic-service-lead-form
 type ServiceLeadFormData = {
   id: string;
   slug: string;
-  title: string;
+  /**
+   * En la base el título es opcional (`ServiceLeadForm.title` es `String?`). Acá estaba
+   * declarado obligatorio y eso tumbó el chequeo de tipos del build: producción quedó sin
+   * poder desplegarse. El componente ya resuelve la ausencia con un título por defecto.
+   */
+  title: string | null;
   description: string | null;
   configJson: unknown;
 };

@@ -96,6 +96,8 @@
     "test:judge-directory-review": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/directoryReview.test.ts",
     "test:judge-public-signup": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/publicSignupForm.test.ts",
     "test:judge-email-verification": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/judgeEmailVerification.test.ts",
+    "test:judge-password-reset": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/judgePasswordReset.test.ts",
+    "test:judge-puente-sesion": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/puenteDeSesion.test.ts",
     "test:judge-emails": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/notifications/judgeEmails.test.ts",
     "test:judge-signup-rate-limit": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/signupRateLimit.test.ts",
     "test:judge-public-visibility": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/publicProfileVisibility.test.ts",
@@ -108,7 +110,11 @@
     "test:judge-portfolio-order": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/portfolioOrder.test.ts",
     "test:judge-portfolio-src": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/portfolioSrc.test.ts",
     "test:judge-achicar-imagen": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/ui/achicarImagen.test.ts",
-    "test:judge-ficha-completa": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/fichaCompleta.test.ts"
+    "test:judge-ficha-completa": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/fichaCompleta.test.ts",
+    "test:judge-panel-entry": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/access/judge-panel-entry.test.ts",
+    "test:sidebar-atajos": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/components/dashboard/sidebarConAtajos.test.ts",
+    "test:competir-y-juzgar": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/jury/competir-y-juzgar.test.ts",
+    "test:mensaje-de-asignacion": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/mensajeDeAsignacion.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.972.0",

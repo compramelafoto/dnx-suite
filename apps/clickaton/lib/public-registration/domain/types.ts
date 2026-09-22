@@ -17,6 +17,8 @@ export type PublicEditionDto = {
   endAt: Date | null;
   timezone: string | null;
   currency?: string;
+  /** Habilita la compra de regalos en esta edición. Nace apagado. */
+  giftVouchersEnabled?: boolean;
 };
 
 export type PublicVenueDto = {

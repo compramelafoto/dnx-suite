@@ -85,6 +85,13 @@ const REGISTRATION_PUBLIC: Record<
     description: "Pediste la devolución. El equipo la está revisando.",
     isFinal: false,
   },
+  GIFT_AWAITING_REDEMPTION: {
+    description:
+      "Este lugar está pago y guardado, esperando que quien lo recibe active el regalo.",
+    nextAction:
+      "Pasale el link del regalo para que cargue sus datos y elija sede y talle.",
+    isFinal: false,
+  },
 };
 
 const PAYMENT_PUBLIC: Record<ClickatonPaymentStatus, PublicStatusPresentation> = {
