@@ -44,11 +44,12 @@ export function getClickatonParticipantCardPreset(
 }
 
 export function normalizeParticipantCardType(
-  raw: ClickatonParticipantCardType | "WELCOME" | "MEMBER" | string
+  raw: ClickatonParticipantCardType | "WELCOME" | "MEMBER" | "DIPLOMA" | string
 ): ClickatonParticipantCardType {
   const v = String(raw).trim().toLowerCase();
   if (v === "welcome" || v === "bienvenida") return "welcome";
   if (v === "member" || v === "soy-parte" || v === "miembro") return "member";
+  if (v === "diploma") return "diploma";
   throw new Error(`Tipo de placa desconocido: ${raw}`);
 }
 

@@ -78,7 +78,10 @@ export type ParticipantCardRecord = {
   id: string;
   registrationId: string;
   editionId: string;
-  cardType: "WELCOME" | "MEMBER";
+  // La fila en base ya puede traer "DIPLOMA" (el enum lo admite desde la
+  // migración de diplomas); este repositorio todavía no lee/escribe esa
+  // variante, sólo necesita poder representarla al mapear filas de Prisma.
+  cardType: "WELCOME" | "MEMBER" | "DIPLOMA";
   templateKey: string;
   templateVersion: number;
   rendererVersion: string;
@@ -172,7 +175,7 @@ export class InMemoryParticipantCardRepository implements ParticipantCardReposit
 
   private uniqueKey(input: {
     registrationId: string;
-    cardType: "WELCOME" | "MEMBER";
+    cardType: "WELCOME" | "MEMBER" | "DIPLOMA";
     renderHash: string;
   }): string {
     return `${input.registrationId}:${input.cardType}:${input.renderHash}`;
@@ -347,7 +350,7 @@ function mapPrismaRecord(row: {
   id: string;
   registrationId: string;
   editionId: string;
-  cardType: "WELCOME" | "MEMBER";
+  cardType: "WELCOME" | "MEMBER" | "DIPLOMA";
   templateKey: string;
   templateVersion: number;
   rendererVersion: string;
