@@ -36,14 +36,15 @@ const BASE_BLOCK_TYPES = [
 ] as const;
 
 /**
- * El diploma además admite bloques QR en la plantilla. El motor todavía no
- * sabe dibujarlos: con el motor de render de producción la generación se
- * rompe, y con el motor alternativo de Chromium el bloque desaparece del
- * lienzo sin ningún aviso. Eso se resuelve en una tarea posterior (el dibujo
- * del QR); acá sólo se lo acepta como tipo de bloque válido para que una
- * plantilla de diploma con un QR no se rechace entera por ese motivo. Las
- * placas de bienvenida y "Soy parte" no lo admiten: para ellas sigue siendo
- * un bloque no soportado, igual que antes.
+ * El diploma además admite bloques QR en la plantilla, y el motor de
+ * producción (design-studio) ya los dibuja: el puente le pasa el valor de la
+ * variable del QR y el código sale apuntando al enlace de verificación.
+ *
+ * Las placas de bienvenida y "Soy parte" no lo admiten a propósito: para
+ * ellas un QR sigue siendo un bloque no soportado, igual que antes. Aceptarlo
+ * también ahí convertiría una plantilla que hoy se rechaza (y cae al diseño
+ * oficial) en una placa fallida, y un participante que tenía su placa se
+ * quedaría sin ella.
  */
 const DIPLOMA_EXTRA_BLOCK_TYPES = ["QR"] as const;
 
@@ -262,7 +263,15 @@ async function defaultLoadAssignment(input: {
   editionId: string;
   cardType: ClickatonParticipantCardType;
 }) {
-  // El diploma no tiene asignación de plantilla personalizada: siempre falla el fallback.
+  /*
+   * El diploma SÍ tiene plantilla personalizada asignada por edición, pero no
+   * se resuelve por acá: la resuelve `resolveDiplomaTemplate`
+   * (`lib/diplomas/diploma-template.ts`), que es el único camino sin respaldo
+   * al diseño oficial. Este resolvedor existe para welcome/member, que ante
+   * cualquier duda vuelven al preset; devolver la asignación del diploma acá
+   * lo metería en ese camino y terminaría emitiendo un diploma genérico, que
+   * es exactamente lo que el diseño prohíbe.
+   */
   if (input.cardType === "diploma") {
     return null;
   }

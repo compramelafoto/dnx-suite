@@ -44,3 +44,19 @@ export function isPublicMediaKey(key: string): boolean {
   if (!key || key.includes("..")) return false;
   return PUBLIC_MEDIA_KEY_PATTERN.test(key);
 }
+
+/** Sólo la rama del diploma dentro de la allowlist de arriba. */
+const DIPLOMA_MEDIA_KEY_PATTERN =
+  /^clickaton\/participant-cards\/edition-[a-z0-9_-]+\/registration-[a-z0-9_-]+\/diploma\/v[0-9]+\/[a-z0-9_-]+\.png$/i;
+
+/**
+ * La imagen del diploma es pública para que se vea dentro del correo, pero no
+ * para que quede indexada: lleva nombre y apellido de una persona impresos.
+ * Se responde con `X-Robots-Tag: noindex`, igual que la ruta equivalente del
+ * jurado (`app/api/jurado/media/[assetId]/route.ts`). Las otras claves
+ * públicas (marketing, blog, logos de sponsors) sí están para encontrarse.
+ */
+export function shouldNoIndexMediaKey(key: string): boolean {
+  if (!key || key.includes("..")) return false;
+  return DIPLOMA_MEDIA_KEY_PATTERN.test(key);
+}

@@ -55,6 +55,10 @@ apps/fotorank/public/uploads/diplomas/*
 # (ver lib/images/upload.ts). Son datos subidos por el usuario, nunca código.
 apps/fotoffice/public/uploads/
 
+# Clickatón: almacenamiento local de piezas de participante cuando no hay R2
+# (lo usa el backend de archivos y lo deja escrito algún test del diploma).
+apps/clickaton/public/uploads/
+
 # Playwright
 playwright-report/
 test-results/

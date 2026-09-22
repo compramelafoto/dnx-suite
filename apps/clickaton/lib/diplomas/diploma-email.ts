@@ -466,9 +466,9 @@ async function defaultLoadDiplomaForRequeue(
  * cosas en una sola llamada segura de invocar sobre cualquier diploma.
  *
  * Rechaza reintentar uno que ya está `"SENT"` (evita un reenvío accidental
- * a alguien que ya lo recibió). No hay, todavía, un botón en el panel que
- * llame a esto — ver `diploma-actions.ts` / `DiplomasPanelClient.tsx` para
- * la fila "No se pudo enviar" con su acción "Reintentar".
+ * a alguien que ya lo recibió). El botón del panel que llama a esto es el
+ * "Reintentar" de la columna Correo — ver `retryDiplomaEmailAction` en
+ * `diploma-actions.ts` y la columna en `DiplomasPanelClient.tsx`.
  */
 export async function requeueDiplomaEmail(
   diplomaId: string,

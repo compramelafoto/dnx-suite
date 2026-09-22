@@ -38,15 +38,37 @@ CREATE INDEX IF NOT EXISTS "ClickatonDiplomaIssue_editionId_emailStatus_idx"
 CREATE INDEX IF NOT EXISTS "ClickatonDiplomaIssue_cardId_idx"
   ON "ClickatonDiplomaIssue" ("cardId");
 
-ALTER TABLE "ClickatonDiplomaIssue"
-  ADD CONSTRAINT "ClickatonDiplomaIssue_registrationId_fkey"
-  FOREIGN KEY ("registrationId") REFERENCES "ClickatonRegistration"("id")
-  ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "ClickatonDiplomaIssue"
-  ADD CONSTRAINT "ClickatonDiplomaIssue_editionId_fkey"
-  FOREIGN KEY ("editionId") REFERENCES "ClickatonEdition"("id")
-  ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "ClickatonDiplomaIssue"
-  ADD CONSTRAINT "ClickatonDiplomaIssue_cardId_fkey"
-  FOREIGN KEY ("cardId") REFERENCES "ClickatonParticipantCard"("id")
-  ON DELETE SET NULL ON UPDATE CASCADE;
+-- Las claves foráneas, repetibles como todo el resto del archivo.
+-- PostgreSQL no tiene `ADD CONSTRAINT IF NOT EXISTS`, así que se pregunta
+-- primero: sin esto, una aplicación que se corta a la mitad y se reintenta
+-- muere acá con "constraint already exists" y deja la migración sin terminar.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'ClickatonDiplomaIssue_registrationId_fkey'
+  ) THEN
+    ALTER TABLE "ClickatonDiplomaIssue"
+      ADD CONSTRAINT "ClickatonDiplomaIssue_registrationId_fkey"
+      FOREIGN KEY ("registrationId") REFERENCES "ClickatonRegistration"("id")
+      ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'ClickatonDiplomaIssue_editionId_fkey'
+  ) THEN
+    ALTER TABLE "ClickatonDiplomaIssue"
+      ADD CONSTRAINT "ClickatonDiplomaIssue_editionId_fkey"
+      FOREIGN KEY ("editionId") REFERENCES "ClickatonEdition"("id")
+      ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'ClickatonDiplomaIssue_cardId_fkey'
+  ) THEN
+    ALTER TABLE "ClickatonDiplomaIssue"
+      ADD CONSTRAINT "ClickatonDiplomaIssue_cardId_fkey"
+      FOREIGN KEY ("cardId") REFERENCES "ClickatonParticipantCard"("id")
+      ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END
+$$;
