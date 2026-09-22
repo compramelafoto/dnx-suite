@@ -61,6 +61,7 @@
     "test:clickaton-participant-cards:concurrency": "tsx --test lib/participant-cards/__tests__/participant-card-concurrency.test.ts",
     "test:clickaton-participant-cards:render-cache": "tsx --test lib/participant-cards/__tests__/participant-card-render-cache.test.ts",
     "test:clickaton-participant-cards:render": "tsx --test lib/participant-cards/__tests__/participant-card-render.test.ts",
+    "test:clickaton-diplomas": "tsx --test lib/diplomas/__tests__/*.test.ts",
     "test:finance-ux": "tsx --test lib/admin/edition-finance/ui/finance-status-presentation.test.ts",
     "test:timeline-ux": "tsx --test lib/timeline/ui/timeline-status-presentation.test.ts",
     "test:timeline-prompt-gate": "tsx --test lib/timeline/prompt-gate.test.ts lib/timeline/scheduled-release.test.ts",
