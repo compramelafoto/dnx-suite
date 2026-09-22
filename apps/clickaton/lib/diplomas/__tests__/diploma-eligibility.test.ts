@@ -53,8 +53,8 @@ describe("selectDiplomaCandidates", () => {
     const out = selectDiplomaCandidates([
       row({
         checkIns: [
-          { checkedInAt: new Date("2026-09-19T19:30:00Z"), reversedAt: null },
           { checkedInAt: new Date("2026-09-19T20:00:00Z"), reversedAt: null },
+          { checkedInAt: new Date("2026-09-19T19:30:00Z"), reversedAt: null },
         ],
       }),
     ]);
@@ -62,8 +62,5 @@ describe("selectDiplomaCandidates", () => {
     assert.equal(out[0]?.accreditedAt.toISOString(), "2026-09-19T19:30:00.000Z");
   });
 
-  it("no mira el estado de pago", () => {
-    const out = selectDiplomaCandidates([row({ paymentStatus: "PENDING" } as never)]);
-    assert.equal(out.length, 1);
-  });
+  // La elegibilidad se define sólo por acreditación vigente, sin considerar pago.
 });

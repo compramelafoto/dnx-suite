@@ -9,9 +9,14 @@ export type DiplomaCandidateRow = {
   checkIns: Array<{ checkedInAt: Date; reversedAt: Date | null }>;
 };
 
-/** Acreditado = al menos un check-in que nadie revirtió. */
+/** Un check-in está vigente si no fue revertido. */
+function isCheckInVigent(checkIn: { reversedAt: Date | null }): boolean {
+  return checkIn.reversedAt === null;
+}
+
+/** Acreditado = al menos un check-in vigente. */
 export function isAccredited(checkIns: Array<{ reversedAt: Date | null }>): boolean {
-  return checkIns.some((c) => c.reversedAt === null);
+  return checkIns.some(isCheckInVigent);
 }
 
 /**
@@ -22,7 +27,7 @@ export function selectDiplomaCandidates(rows: DiplomaCandidateRow[]): DiplomaCan
   const candidates: DiplomaCandidate[] = [];
   for (const row of rows) {
     const vigentes = row.checkIns
-      .filter((c) => c.reversedAt === null)
+      .filter(isCheckInVigent)
       .sort((a, b) => a.checkedInAt.getTime() - b.checkedInAt.getTime());
     const primero = vigentes[0];
     if (!primero) continue;
