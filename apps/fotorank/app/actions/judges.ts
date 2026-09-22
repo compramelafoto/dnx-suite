@@ -3,7 +3,9 @@
 import { createHash, randomBytes } from "node:crypto";
 import { Prisma, prisma } from "@repo/db";
 import { getClickatonJuryPrisma } from "@repo/db/clickaton-jury-client";
+import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
+import { landingSignOutAction } from "./landing-session";
 import { redirect } from "next/navigation";
 import { requireAuth } from "../lib/auth";
 import {
@@ -1323,8 +1325,23 @@ export async function judgeLoginAction(
   redirect("/jurado/panel");
 }
 
+/**
+ * Salir del panel de jurado.
+ *
+ * Quien entró por el puente no tiene sesión de jurado propia: la suya es la
+ * del sitio. Si sólo se borrara la de jurado, apretar "Cerrar sesión" no
+ * haría nada visible y seguiría adentro. Por eso, cuando no hay sesión
+ * propia que cerrar, se cierra la del sitio, que es la única que tiene.
+ */
 export async function judgeLogoutAction(): Promise<void> {
+  const cookieStore = await cookies();
+  const teniaSesionPropia = Boolean(cookieStore.get("dnx_judge_session")?.value);
+
   await destroyCurrentJudgeSession();
+
+  if (!teniaSesionPropia) {
+    await landingSignOutAction();
+  }
 }
 
 /**
