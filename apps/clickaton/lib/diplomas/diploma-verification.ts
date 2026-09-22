@@ -11,8 +11,14 @@
  * Nunca expone datos de contacto (email, teléfono, documento, código de
  * inscripción interno): sólo lo necesario para confirmar de quién es el
  * diploma y que la emisión es genuina.
+ *
+ * En este proyecto el despliegue NO corre las migraciones Prisma (se
+ * aplican a mano, con retraso): es esperable que esta página quede
+ * publicada antes de que exista la tabla `ClickatonDiplomaIssue`. Durante
+ * esa ventana, la tabla ausente se trata igual que un token inexistente
+ * (`NOT_FOUND`) en vez de reventar como error genérico.
  */
-import { prisma } from "@/lib/admin/db";
+import { isMissingTableError, prisma } from "@/lib/admin/db";
 import { CLICKATON_DEFAULT_TIMEZONE, formatDateShort } from "@repo/template-engine";
 
 export type DiplomaVerificationView =
@@ -68,6 +74,19 @@ function buildParticipantName(registration: { firstName: string; lastName: strin
     .join(" ");
 }
 
+/**
+ * Normaliza el `token` del segmento de ruta `[token]` antes de resolverlo.
+ * Next.js ya entrega ese segmento decodificado: no hay que (ni conviene)
+ * volver a pasarlo por `decodeURIComponent`. Un token real nunca lleva `%`,
+ * pero si alguien escribe basura a mano en la barra de direcciones (por
+ * ejemplo `abc%zzdef`), un segundo decodificado tira `URIError` y la
+ * persona ve la pantalla de error genérica en vez de "no encontramos este
+ * diploma".
+ */
+export function normalizeRouteToken(raw: string | undefined | null): string {
+  return typeof raw === "string" ? raw.trim() : "";
+}
+
 const DEFAULT_DEPS: DiplomaVerificationDeps = { loadIssue: defaultLoadIssue };
 
 export async function resolveDiplomaVerification(
@@ -77,7 +96,22 @@ export async function resolveDiplomaVerification(
   const trimmed = token?.trim();
   if (!trimmed) return { state: "NOT_FOUND" };
 
-  const issue = await deps.loadIssue(trimmed);
+  let issue: DiplomaVerificationIssue | null;
+  try {
+    issue = await deps.loadIssue(trimmed);
+  } catch (error) {
+    if (isMissingTableError(error)) {
+      // Migración pendiente de aplicar: tratarlo como "no encontrado", no
+      // como un error genérico. Se distingue en los registros del servidor.
+      console.error(
+        "[clickaton] diploma-verification: tabla de diplomas ausente (migración pendiente)",
+        error
+      );
+      issue = null;
+    } else {
+      throw error;
+    }
+  }
   if (!issue) return { state: "NOT_FOUND" };
 
   const participantName = buildParticipantName(issue.registration);

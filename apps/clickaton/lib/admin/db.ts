@@ -7,7 +7,7 @@ export type ClickatonDbResult<T> =
   | { ok: true; data: T }
   | { ok: false; reason: ClickatonDbUnavailableReason; message: string };
 
-function isMissingTableError(error: unknown): boolean {
+export function isMissingTableError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
   const code = "code" in error ? String((error as { code?: unknown }).code) : "";
   // Solo tablas/columnas ausentes — no matchear nombres de modelo en errores genéricos de Prisma.

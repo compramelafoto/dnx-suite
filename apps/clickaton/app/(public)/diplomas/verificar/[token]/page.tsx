@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { routes } from "@/config/navigation";
-import { resolveDiplomaVerification } from "@/lib/diplomas/diploma-verification";
+import { normalizeRouteToken, resolveDiplomaVerification } from "@/lib/diplomas/diploma-verification";
 import { buildPageMetadata } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +28,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function DiplomaVerifyPage({ params }: PageProps) {
   const { token: raw } = await params;
-  const token = raw ? decodeURIComponent(raw) : "";
+  const token = normalizeRouteToken(raw);
   const result = await resolveDiplomaVerification(token);
 
   return (
