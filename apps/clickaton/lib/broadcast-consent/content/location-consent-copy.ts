@@ -14,6 +14,13 @@ export const locationConsentCopy = {
     "Quiero que la Clickatón use la ubicación de mis fotos para armarme mi recorrido y mis estadísticas personales.",
   publicMap:
     "Soy mayor de 18 años y acepto que mi nombre y mi posición aparezcan en el mapa del evento y en la transmisión en vivo.",
+  /**
+   * Ayuda de interfaz (no legal), para cuando esta casilla está deshabilitada
+   * porque falta marcar la primera. Vive acá, y no en el componente, porque
+   * `LocationConsentCheckboxes` la usan dos pantallas y el texto no puede
+   * divergir entre ellas.
+   */
+  publicMapDisabledHint: "Para activar esto, primero marcá la casilla de arriba.",
   interview:
     "Acepto que el equipo de transmisión me contacte por teléfono o WhatsApp durante el evento para una entrevista.",
   revokeNote:

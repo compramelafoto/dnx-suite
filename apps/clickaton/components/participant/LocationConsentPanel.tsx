@@ -44,6 +44,7 @@ export function LocationConsentPanel({
     interview: interviewConsentAt !== null,
   });
   const [message, setMessage] = useState<string | null>(null);
+  const [messageIsError, setMessageIsError] = useState(false);
   const [pending, startTransition] = useTransition();
 
   function guardar() {
@@ -70,14 +71,16 @@ export function LocationConsentPanel({
             ? (result.message ?? "Guardado.")
             : (result.message ?? "No se pudo guardar."),
         );
+        setMessageIsError(!result.ok);
       } catch {
         setMessage("No se pudo guardar. Probá de nuevo.");
+        setMessageIsError(true);
       }
     });
   }
 
   return (
-    <Card variant="outlined" className="space-y-4 p-6">
+    <Card variant="outlined" className="space-y-4">
       <h2 className="font-semibold">Tu recorrido y la transmisión en vivo</h2>
 
       <LocationConsentCheckboxes values={values} onChange={setValues} />
@@ -92,7 +95,13 @@ export function LocationConsentPanel({
           {pending ? "Guardando…" : "Guardar"}
         </button>
         {message ? (
-          <span className="text-sm text-ck-text-muted">{message}</span>
+          <span
+            role="status"
+            aria-live="polite"
+            className={`text-sm ${messageIsError ? "text-ck-danger" : "text-ck-success"}`}
+          >
+            {message}
+          </span>
         ) : null}
       </div>
     </Card>

@@ -65,8 +65,15 @@ export function LocationConsentCheckboxes({ values, onChange }: LocationConsentC
           onChange={(e) => onChange({ ...values, publicMap: e.target.checked })}
           className="mt-1 size-5 shrink-0"
         />
-        <span className={values.personal ? undefined : "opacity-50"}>
-          {locationConsentCopy.publicMap}
+        <span className="flex flex-col gap-1">
+          <span className={values.personal ? undefined : "opacity-50"}>
+            {locationConsentCopy.publicMap}
+          </span>
+          {!values.personal ? (
+            <span className="text-xs text-ck-text-muted">
+              {locationConsentCopy.publicMapDisabledHint}
+            </span>
+          ) : null}
         </span>
       </label>
 
