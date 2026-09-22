@@ -65,7 +65,7 @@ function VoiceCard({
       <figcaption className="mt-[var(--ck-stack-content-to-actions)] flex items-center gap-3">
         <Avatar testimonial={testimonial} />
         <span className="flex flex-col">
-          <span className="ck-body text-ck-text">{testimonial.authorName}</span>
+          <span className="ck-body-md text-ck-text">{testimonial.authorName}</span>
           <span className="ck-caption text-ck-text-muted">{meta}</span>
         </span>
       </figcaption>
