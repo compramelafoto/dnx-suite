@@ -105,7 +105,11 @@ test("una foto recién sacada, con GPS y tamaño suficiente, está lista", () =>
   });
   assert.equal(v.result, "READY");
   assert.deepEqual(v.problems, []);
-  assert.equal(v.clockDeltaMinutes, 1);
+  assert.equal(
+    v.clockDeltaMinutes,
+    -1,
+    "la foto se sacó un minuto ANTES que el reloj del servidor: negativo",
+  );
 });
 
 test("sin coordenadas el veredicto es NO_GPS", () => {
@@ -597,9 +601,17 @@ export const READINESS_TOKEN_TTL_MS = 120 * 24 * 60 * 60 * 1000;
 
 En `apps/clickaton/lib/registration/notifications/participant-email.ts`, junto a donde ya se arman `summaryUrl` y el enlace de activación (alrededor de la línea 98), agregar el de la prueba técnica firmando un token **con propósito `"readiness"` y su propio vencimiento**, no reutilizando el del resumen.
 
-En el cuerpo del mail de confirmación —y sólo en ése, no en los de reserva vencida ni en los de pago pendiente— agregar un párrafo corto con el enlace, en la misma forma que usan los párrafos vecinos (versión texto y versión HTML). El texto sale de `readinessCopy` (tarea 4); si esa tarea todavía no corrió, dejá el párrafo escrito con las mismas palabras que va a tener y reemplazalo por la constante al final.
+En el cuerpo del mail de confirmación —y sólo en ése, no en los de reserva vencida ni en los de pago pendiente— agregar un párrafo corto con el enlace, en la misma forma que usan los párrafos vecinos (versión texto y versión HTML).
 
-Que diga, en sustancia: que antes del evento conviene revisar que el teléfono guarde la ubicación en las fotos, que lleva un minuto, y que de eso depende su resumen personal al final de la jornada.
+**El texto no se escribe acá suelto.** Agregalo en el paso 5, junto a `readinessPath`, como una constante exportada más:
+
+```ts
+/** El párrafo que va en el mail de confirmación. La tarea 4 completa el resto. */
+export const readinessEmailParagraph =
+  "Antes de la Clickatón conviene que revises una cosa: que tu teléfono guarde el lugar donde sacás cada foto. Te lleva un minuto y de eso depende el resumen de tu recorrido al final de la jornada.";
+```
+
+La tarea 4 lo va a mover dentro del objeto `readinessCopy` junto con el resto del texto; definirlo acá evita escribirlo dos veces y que las dos versiones digan cosas distintas.
 
 - [ ] **Step 7: Verificar tipos y correr todo lo que toca**
 
@@ -640,7 +652,7 @@ Completar `readiness-copy.ts` con un objeto `readinessCopy` que incluya, además
 
 - `title`, `intro` (por qué conviene hacerlo, en una o dos oraciones, apoyándose en el resumen personal del final),
 - `takePhotoNow`: la instrucción de sacar una foto **en el momento**, explicando que con una foto vieja el chequeo del reloj no dice nada,
-- `emailParagraph`: el texto del mail (el mismo que la tarea 3 dejó escrito a mano; reemplazalo por esta constante),
+- `emailParagraph`: el texto del mail — mové acá la constante `readinessEmailParagraph` que creó la tarea 3 y actualizá el import del mail,
 - `results`: un registro con una entrada por cada valor de `ReadinessResult`, cada una con `title` y `whatToDo`.
 
 Los seis resultados y lo que tiene que transmitir cada uno:
