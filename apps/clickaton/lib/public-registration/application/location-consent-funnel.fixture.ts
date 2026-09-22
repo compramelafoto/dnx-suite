@@ -80,6 +80,9 @@ export async function inscribir(
     interviewConsent?: boolean;
     locationDeclaredAdult?: boolean;
   },
+  /** Sólo para probar el camino de un menor: el formulario público todavía
+   * no recolecta datos del adulto responsable. */
+  participantOverrides?: { birthDate?: string },
 ) {
   const result = await esc.service.createRegistration({
     editionSlug: esc.editionSlug,
@@ -93,6 +96,7 @@ export async function inscribir(
       city: "Santa Fe",
       province: "Santa Fe",
       country: "AR",
+      birthDate: participantOverrides?.birthDate,
     },
     acceptTerms: true,
     acceptPrivacy: true,

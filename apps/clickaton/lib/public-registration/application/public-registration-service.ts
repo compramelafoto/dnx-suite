@@ -641,6 +641,12 @@ export function createPublicRegistrationService(deps: {
           : null,
         eventDate: edition.startAt ?? now,
         now,
+        // El formulario público de inscripción todavía no recolecta los
+        // datos del adulto responsable (no hay campo para eso en
+        // `PublicParticipantInput`), así que un menor que se inscribe por
+        // esta vía siempre cae en "sin autorización": el dominio no le
+        // otorga ninguna de las tres casillas. Es el default seguro hasta
+        // que exista esa recolección; no se inventa acá.
       });
 
       const { isMarathonPackTicketCode } = await import("@/lib/packs/marathon-pack");
@@ -900,7 +906,9 @@ export function createPublicRegistrationService(deps: {
           locationPublicConsentAt: locationConsent.locationPublicConsentAt,
           interviewConsentAt: locationConsent.interviewConsentAt,
           locationConsentVersion: locationConsent.locationConsentVersion,
-          locationConsentDeclaredAdult: input.locationDeclaredAdult === true,
+          // Viene del dominio (pegajosa), no del pedido crudo: ver
+          // `resolveLocationConsent`.
+          locationConsentDeclaredAdult: locationConsent.locationConsentDeclaredAdult,
           termsVersion: input.termsVersion ?? "CLICKATON_TERMS_2026_09_19_v2",
           termsAcceptedAt: now,
           promotionalLicenseAcceptedAt: promotionalLicenseConsent ? now : null,

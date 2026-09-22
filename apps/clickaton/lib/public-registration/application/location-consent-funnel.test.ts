@@ -40,3 +40,21 @@ test("el mapa público no se guarda si no se declaró mayoría de edad", async (
   assert.notEqual(reg.locationConsentAt, null);
   assert.equal(reg.locationPublicConsentAt, null);
 });
+
+test("un menor que se inscribe por el formulario público no obtiene ninguna casilla: el formulario todavía no recolecta la autorización del adulto responsable", async () => {
+  const esc = crearEscenario();
+  const reg = await inscribir(
+    esc,
+    {
+      locationConsent: true,
+      locationPublicConsent: true,
+      interviewConsent: true,
+      locationDeclaredAdult: true,
+    },
+    { birthDate: "2015-01-01" },
+  );
+  assert.equal(reg.locationConsentAt, null);
+  assert.equal(reg.locationPublicConsentAt, null);
+  assert.equal(reg.interviewConsentAt, null);
+  assert.equal(reg.locationConsentVersion, null);
+});
