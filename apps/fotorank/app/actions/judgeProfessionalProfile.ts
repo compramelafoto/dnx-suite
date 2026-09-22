@@ -12,6 +12,10 @@ import { normalizarInstagram, normalizarUrl } from "../lib/fotorank/judges/publi
 import { otrosLinksATexto, parsearOtrosLinks } from "../lib/fotorank/judges/otherLinks";
 import { deleteJudgeAvatarByKey, saveJudgeAvatar } from "../lib/fotorank/judges/judgeAssetStorage";
 import { judgeAvatarSrc } from "../lib/fotorank/judges/judgeAvatarSrc";
+import {
+  listadoSegunLoQuePide,
+  type EstadoDeRevision,
+} from "../lib/fotorank/judges/directoryReview";
 
 export type ProfileActionResult<T = undefined> = { ok: true; data?: T } | { ok: false; error: string };
 
@@ -97,6 +101,23 @@ export async function judgeUpdateProfessionalProfileAction(input: {
   const specialtiesJson = parseList(input.specialtiesText ?? "");
   const languagesJson = parseList(input.languagesText ?? "");
 
+  /*
+   * Una ficha ya aprobada entra y sale del directorio cuando su dueño lo pide.
+   *
+   * Antes el pedido quedaba anotado y nada lo escuchaba: `wantsDirectoryListing`
+   * sólo se convertía en publicación durante la revisión. Quien pedía aparecer
+   * después de que lo aprobaran quedaba pidiendo para siempre.
+   */
+  const revision = await prisma.fotorankJudgeProfile.findUnique({
+    where: { judgeAccountId: judge.id },
+    select: { directoryReviewStatus: true },
+  });
+  const quiereEstarEnElDirectorio = input.isListedInProfessionalDirectory ?? false;
+  const quedaListado = listadoSegunLoQuePide({
+    estado: (revision?.directoryReviewStatus ?? "PENDING") as EstadoDeRevision,
+    quiereEstarEnElDirectorio,
+  });
+
   await prisma.fotorankJudgeProfile.update({
     where: { judgeAccountId: judge.id },
     data: {
@@ -126,9 +147,11 @@ export async function judgeUpdateProfessionalProfileAction(input: {
       priceCurrency: input.priceCurrency?.trim() || null,
       priceNotes: input.priceNotes?.trim() || null,
       priceUnit: pu,
-      // Lo que el jurado PIDE. Lo que está publicado lo escribe la aprobación de
-      // DNX: el directorio es común a toda la plataforma y nadie se publica solo.
-      wantsDirectoryListing: input.isListedInProfessionalDirectory ?? false,
+      // Lo que el jurado PIDE. Sin aprobación no publica nada: el directorio es
+      // común a toda la plataforma y nadie se publica solo.
+      wantsDirectoryListing: quiereEstarEnElDirectorio,
+      // Lo que efectivamente se ve. Con la ficha ya aprobada, sigue al pedido.
+      isListedInProfessionalDirectory: quedaListado,
       showPricingPublicly: input.showPricingPublicly ?? false,
       showLocationPublicly: input.showLocationPublicly ?? true,
       showWebsitePublicly: input.showWebsitePublicly ?? true,
