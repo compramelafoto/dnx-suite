@@ -206,7 +206,7 @@ export default async function PortalPage() {
 
           <div className="flex flex-wrap gap-2">
             <Link href="/portal/perfil" className="fo-btn fo-btn-secondary text-sm">
-              Mi perfil profesional
+              Mis datos y mi perfil
             </Link>
             <form action="/api/auth/logout" method="post">
               <button type="submit" className="fo-btn fo-btn-secondary text-sm">

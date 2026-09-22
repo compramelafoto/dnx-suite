@@ -108,7 +108,7 @@ export const PORTAL_MENU: PortalMenuItem[] = [
     order: 40,
     label: "Mi perfil",
     href: "/portal/perfil",
-    description: "Tu foto, a qué te dedicás y dónde se ve tu trabajo.",
+    description: "Tus datos, tus fotos y a qué te dedicás.",
     icon: "user",
     built: true,
     primary: true,
