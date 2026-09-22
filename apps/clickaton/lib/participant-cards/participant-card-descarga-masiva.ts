@@ -10,6 +10,7 @@ import type { ClickatonParticipantCardType } from "./participant-card-types";
 const NOMBRE_DE_PLACA: Record<ClickatonParticipantCardType, string> = {
   welcome: "bienvenida",
   member: "soy-parte",
+  diploma: "diploma",
 };
 
 /**

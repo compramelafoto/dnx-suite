@@ -25,7 +25,7 @@ import {
 } from "./participant-card-presets";
 import type { ClickatonParticipantCardType } from "./participant-card-types";
 
-const DB_CARD_TYPE = { welcome: "WELCOME", member: "MEMBER" } as const;
+const DB_CARD_TYPE = { welcome: "WELCOME", member: "MEMBER", diploma: "DIPLOMA" } as const;
 
 /** Bloques que el motor sabe renderizar. */
 const SUPPORTED_BLOCK_TYPES = [
@@ -211,11 +211,17 @@ async function defaultLoadAssignment(input: {
   editionId: string;
   cardType: ClickatonParticipantCardType;
 }) {
+  // El diploma no tiene asignación de plantilla personalizada: siempre falla el fallback.
+  if (input.cardType === "diploma") {
+    return null;
+  }
+  // Solo welcome y member usan plantillas asignadas.
+  const dbCardType = input.cardType === "welcome" ? "WELCOME" : "MEMBER";
   const row = await prisma.clickatonCardTemplateAssignment.findUnique({
     where: {
       editionId_cardType: {
         editionId: input.editionId,
-        cardType: DB_CARD_TYPE[input.cardType],
+        cardType: dbCardType,
       },
     },
     select: { templateId: true, versionId: true, enabled: true },
