@@ -35,6 +35,8 @@ const SUPPORTED_BLOCK_TYPES = [
   "VARIABLE_TEXT",
   "IMAGE",
   "SHAPE",
+  // El dibujo del QR llega después; hasta entonces se renderiza como recuadro vacío.
+  "QR",
 ] as const;
 
 type SupportedBlockType = (typeof SUPPORTED_BLOCK_TYPES)[number];
@@ -172,9 +174,32 @@ function toEnginePayload(payload: TemplateV2LegacyPayload): LegacyTemplateV2Payl
   };
 }
 
+/** Qué anuncia `meta.purpose` del preset según el tipo de pieza. */
+const CARD_TYPE_PURPOSE: Record<ClickatonParticipantCardType, string> = {
+  welcome: "participant_welcome",
+  member: "participant_member",
+  diploma: "participant_diploma",
+};
+
+/**
+ * Los datos mínimos que necesita `templateV2ToCardPreset`. Es más chico que
+ * `TemplateV2LoadResult` a propósito: el diploma resuelve su propia
+ * asignación (sin fallback) y no siempre tiene un `updatedAt` de la base a
+ * mano al armar el preset en los tests.
+ */
+export type TemplateV2ToCardPresetSource = {
+  templateId: string;
+  templateName: string;
+  versionId: string;
+  versionNumber: number;
+  revision: number;
+  updatedAt?: Date;
+  payload: TemplateV2LegacyPayload;
+};
+
 /** Envuelve el payload de la base en la forma de preset que espera el pipeline. */
 export function templateV2ToCardPreset(
-  loaded: TemplateV2LoadResult,
+  loaded: TemplateV2ToCardPresetSource,
   cardType: ClickatonParticipantCardType
 ): ClickatonCardPreset {
   return {
@@ -186,10 +211,9 @@ export function templateV2ToCardPreset(
       templateKey: `TEMPLATE_V2_${cardType.toUpperCase()}`,
       templateVersion: loaded.versionNumber,
       format: "instagram_story",
-      purpose:
-        cardType === "welcome" ? "participant_welcome" : "participant_member",
+      purpose: CARD_TYPE_PURPOSE[cardType],
       status: "published",
-      createdAt: loaded.updatedAt.toISOString().slice(0, 10),
+      createdAt: (loaded.updatedAt ?? new Date()).toISOString().slice(0, 10),
       official: true,
     },
     payload: toEnginePayload(loaded.payload),
