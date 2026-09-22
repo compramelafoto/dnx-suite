@@ -25,24 +25,43 @@ import {
 } from "./participant-card-presets";
 import type { ClickatonParticipantCardType } from "./participant-card-types";
 
-const DB_CARD_TYPE = { welcome: "WELCOME", member: "MEMBER", diploma: "DIPLOMA" } as const;
-
-/** Bloques que el motor sabe renderizar. */
-const SUPPORTED_BLOCK_TYPES = [
+/** Bloques que las tres piezas saben renderizar. */
+const BASE_BLOCK_TYPES = [
   "BACKGROUND",
   "PHOTO",
   "TEXT",
   "VARIABLE_TEXT",
   "IMAGE",
   "SHAPE",
-  // El dibujo del QR llega después; hasta entonces se renderiza como recuadro vacío.
-  "QR",
 ] as const;
 
-type SupportedBlockType = (typeof SUPPORTED_BLOCK_TYPES)[number];
+/**
+ * El diploma además admite bloques QR en la plantilla. El motor todavía no
+ * sabe dibujarlos: con el motor de render de producción la generación se
+ * rompe, y con el motor alternativo de Chromium el bloque desaparece del
+ * lienzo sin ningún aviso. Eso se resuelve en una tarea posterior (el dibujo
+ * del QR); acá sólo se lo acepta como tipo de bloque válido para que una
+ * plantilla de diploma con un QR no se rechace entera por ese motivo. Las
+ * placas de bienvenida y "Soy parte" no lo admiten: para ellas sigue siendo
+ * un bloque no soportado, igual que antes.
+ */
+const DIPLOMA_EXTRA_BLOCK_TYPES = ["QR"] as const;
 
-function isSupportedBlockType(type: string): type is SupportedBlockType {
-  return (SUPPORTED_BLOCK_TYPES as readonly string[]).includes(type);
+type SupportedBlockType =
+  | (typeof BASE_BLOCK_TYPES)[number]
+  | (typeof DIPLOMA_EXTRA_BLOCK_TYPES)[number];
+
+function supportedBlockTypesFor(cardType: ClickatonParticipantCardType): ReadonlySet<string> {
+  return cardType === "diploma"
+    ? new Set<string>([...BASE_BLOCK_TYPES, ...DIPLOMA_EXTRA_BLOCK_TYPES])
+    : new Set<string>(BASE_BLOCK_TYPES);
+}
+
+function isSupportedBlockType(
+  type: string,
+  cardType: ClickatonParticipantCardType
+): type is SupportedBlockType {
+  return supportedBlockTypesFor(cardType).has(type);
 }
 
 export type ParticipantCardTemplateOrigin = "preset" | "template_v2";
@@ -76,9 +95,12 @@ export type ParticipantCardTemplateIssue = {
  * Verifica que la plantilla se pueda renderizar con los datos de Clickatón.
  * No mira `meta.product`: lo que importa es que sus variables existan en el
  * vocabulario de Clickatón, que es lo que realmente se va a resolver.
+ * `cardType` importa porque los bloques soportados no son los mismos para
+ * las tres piezas (ver `DIPLOMA_EXTRA_BLOCK_TYPES`).
  */
 export function validateClickatonCardTemplate(
-  payload: TemplateV2LegacyPayload
+  payload: TemplateV2LegacyPayload,
+  cardType: ClickatonParticipantCardType
 ): ParticipantCardTemplateIssue[] {
   const issues: ParticipantCardTemplateIssue[] = [];
 
@@ -97,7 +119,7 @@ export function validateClickatonCardTemplate(
   }
 
   for (const block of payload.blocks) {
-    if (!isSupportedBlockType(block.type)) {
+    if (!isSupportedBlockType(block.type, cardType)) {
       issues.push({
         code: "UNSUPPORTED_BLOCK",
         message: `Bloque no soportado: ${block.type}`,
@@ -141,13 +163,18 @@ export function validateClickatonCardTemplate(
 /**
  * Convierte el payload de la base al tipo estricto del motor.
  * Sólo debe llamarse tras `validateClickatonCardTemplate`, que garantiza que
- * todos los tipos de bloque son soportados.
+ * todos los tipos de bloque son soportados — con el mismo `cardType`, para
+ * no descartar acá un bloque (como el QR del diploma) que la validación sí
+ * dejó pasar.
  */
-function toEnginePayload(payload: TemplateV2LegacyPayload): LegacyTemplateV2Payload {
+function toEnginePayload(
+  payload: TemplateV2LegacyPayload,
+  cardType: ClickatonParticipantCardType
+): LegacyTemplateV2Payload {
   return {
     canvas: payload.canvas,
     blocks: payload.blocks.flatMap((block) => {
-      if (!isSupportedBlockType(block.type)) return [];
+      if (!isSupportedBlockType(block.type, cardType)) return [];
       return [
         {
           id: block.id,
@@ -216,7 +243,7 @@ export function templateV2ToCardPreset(
       createdAt: (loaded.updatedAt ?? new Date()).toISOString().slice(0, 10),
       official: true,
     },
-    payload: toEnginePayload(loaded.payload),
+    payload: toEnginePayload(loaded.payload, cardType),
   };
 }
 
@@ -330,7 +357,7 @@ export async function resolveParticipantCardTemplate(
     };
   }
 
-  const issues = validateClickatonCardTemplate(loaded.payload);
+  const issues = validateClickatonCardTemplate(loaded.payload, input.cardType);
   if (issues.length > 0) {
     return {
       ...fallback(),

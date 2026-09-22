@@ -43,6 +43,22 @@ describe("resolveDiplomaTemplate", () => {
     assert.equal(out.ok === false && out.code, "DIPLOMA_TEMPLATE_MISSING");
   });
 
+  it("falla explicando el motivo si la lectura de la asignación explota", async () => {
+    const out = await resolveDiplomaTemplate(
+      { editionId: "ed_1" },
+      {
+        loadAssignment: async () => {
+          throw new Error("la columna DIPLOMA todavía no existe en esta base");
+        },
+        loadTemplate: async () => null,
+      }
+    );
+    assert.equal(out.ok === false && out.code, "DIPLOMA_TEMPLATE_UNAVAILABLE");
+    assert.ok(
+      out.ok === false && out.issues.some((i) => i.includes("DIPLOMA todavía no existe"))
+    );
+  });
+
   it("falla si la plantilla ya no existe", async () => {
     const out = await resolveDiplomaTemplate(
       { editionId: "ed_1" },
@@ -108,6 +124,36 @@ describe("resolveDiplomaTemplate", () => {
           template: { id: "t1", name: "Con foto" },
           version: { id: "v1", versionNumber: 1, revision: 1 },
           payload: conFoto,
+        }),
+      }
+    );
+    assert.equal(out.ok === true && out.usesParticipantPhoto, true);
+  });
+
+  it("detecta la foto también cuando llega por variableBindings, no por config del bloque", async () => {
+    const conFotoPorBinding: TemplateV2LegacyPayload = {
+      ...payloadValido,
+      blocks: [
+        ...payloadValido.blocks,
+        {
+          id: "b3",
+          type: "PHOTO",
+          layout: { x: 200, y: 200, width: 300, height: 300 },
+          configJson: {},
+        },
+      ],
+      variableBindings: [
+        { blockId: "b3", targetPath: "src", variableKey: "participant.photoUrl" },
+      ],
+    };
+    const out = await resolveDiplomaTemplate(
+      { editionId: "ed_1" },
+      {
+        loadAssignment: async () => ({ templateId: "t1", versionId: null, enabled: true }),
+        loadTemplate: async () => ({
+          template: { id: "t1", name: "Con foto por binding" },
+          version: { id: "v1", versionNumber: 1, revision: 1 },
+          payload: conFotoPorBinding,
         }),
       }
     );

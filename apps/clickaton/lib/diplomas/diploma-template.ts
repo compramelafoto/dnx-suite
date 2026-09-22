@@ -73,12 +73,24 @@ function variableKeysOf(configJson: Record<string, unknown>): string[] {
   return keys;
 }
 
-/** La plantilla usa la foto del participante si algún bloque de imagen la referencia. */
+/**
+ * La plantilla usa la foto del participante si algún bloque de imagen la
+ * referencia directamente, o si la trae por `variableBindings` (mismo lugar
+ * que mira `validateClickatonCardTemplate` para conocer las variables en
+ * uso). Sin este segundo chequeo, una plantilla que ata la foto por binding
+ * se informaría como "no usa la foto" y el diploma saldría con el hueco
+ * gris del bloque sin llenar.
+ */
 function usesParticipantPhoto(payload: TemplateV2LegacyPayload): boolean {
   for (const block of payload.blocks) {
     if (!PHOTO_BLOCK_TYPES.has(block.type)) continue;
     const configJson = (block.configJson ?? {}) as Record<string, unknown>;
     if (variableKeysOf(configJson).some((key) => PHOTO_VARIABLE_PATHS.has(key))) {
+      return true;
+    }
+  }
+  for (const binding of payload.variableBindings ?? []) {
+    if (binding.variableKey && PHOTO_VARIABLE_PATHS.has(binding.variableKey)) {
       return true;
     }
   }
@@ -135,7 +147,16 @@ export async function resolveDiplomaTemplate(
   const loadAssignment = deps.loadAssignment ?? defaultLoadAssignment;
   const loadTemplate = deps.loadTemplate ?? defaultLoadTemplate;
 
-  const assignment = await loadAssignment({ editionId: input.editionId });
+  let assignment: DiplomaTemplateAssignment | null;
+  try {
+    assignment = await loadAssignment({ editionId: input.editionId });
+  } catch (err) {
+    return {
+      ok: false,
+      code: "DIPLOMA_TEMPLATE_UNAVAILABLE",
+      issues: [err instanceof Error ? err.message : "error desconocido"],
+    };
+  }
   if (!assignment || !assignment.enabled) {
     return { ok: false, code: "DIPLOMA_TEMPLATE_MISSING", issues: [] };
   }
@@ -157,7 +178,7 @@ export async function resolveDiplomaTemplate(
     return { ok: false, code: "DIPLOMA_TEMPLATE_UNAVAILABLE", issues: [] };
   }
 
-  const issues = validateClickatonCardTemplate(loaded.payload);
+  const issues = validateClickatonCardTemplate(loaded.payload, "diploma");
   if (issues.length > 0) {
     return {
       ok: false,

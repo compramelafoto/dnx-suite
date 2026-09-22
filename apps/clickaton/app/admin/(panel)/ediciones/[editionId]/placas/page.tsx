@@ -18,6 +18,7 @@ import {
   toggleCardTemplateFormAction,
 } from "@/lib/admin/editions/card-template-mutations";
 import { getEditionById } from "@/lib/admin/editions/queries";
+import { normalizeParticipantCardType } from "@/lib/participant-cards/participant-card-presets";
 import { validateClickatonCardTemplate } from "@/lib/participant-cards/participant-card-template-source";
 
 type Props = {
@@ -79,7 +80,10 @@ export default async function EditionCardTemplatesPage({ params, searchParams }:
           cardType: a.cardType,
           name: template.templateName,
           version: template.versionNumber,
-          problems: validateClickatonCardTemplate(template.payload).map((i) => i.message),
+          problems: validateClickatonCardTemplate(
+            template.payload,
+            normalizeParticipantCardType(a.cardType)
+          ).map((i) => i.message),
         };
       })
     );

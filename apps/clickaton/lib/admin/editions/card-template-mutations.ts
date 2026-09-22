@@ -73,7 +73,10 @@ export async function assignCardTemplateFormAction(formData: FormData): Promise<
     );
   }
 
-  const issues = validateClickatonCardTemplate(loaded.data.payload);
+  const issues = validateClickatonCardTemplate(
+    loaded.data.payload,
+    cardType === CARD_TYPES.welcome ? "welcome" : "member"
+  );
   if (issues.length > 0) {
     redirect(
       cardTemplatesPath(
