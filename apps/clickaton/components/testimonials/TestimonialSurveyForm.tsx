@@ -18,6 +18,7 @@ import {
   NPS_MAX,
   NPS_QUESTION,
   QUOTE_MAX_LENGTH,
+  QUOTE_QUESTION,
   SURVEY_ASPECTS,
   WOULD_RETURN_OPTIONS,
   type SurveyAspectField,
@@ -216,8 +217,8 @@ export function TestimonialSurveyForm({
 
         <Field
           id="publicQuote"
-          label={`¿Qué querés decirnos sobre Clickatón? (${editionName})`}
-          hint={`Esto es lo único que podría publicarse, y sólo si nos autorizás abajo. Hasta ${QUOTE_MAX_LENGTH} caracteres.`}
+          label={QUOTE_QUESTION}
+          hint={`Sobre ${editionName}. Esto es lo único que podría publicarse, y sólo si nos autorizás abajo. Hasta ${QUOTE_MAX_LENGTH} caracteres.`}
         >
           <Textarea
             name="publicQuote"

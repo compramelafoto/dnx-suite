@@ -64,7 +64,7 @@ export async function sendTestimonialInviteEmail(
     `Terminó ${input.editionName} y queremos saber qué te pareció.`,
     "Son dos minutos: unas notas, y dos espacios para escribir.",
     "",
-    "Uno es para lo que quieras decirnos, que podríamos publicar (sólo si nos autorizás).",
+    "Uno es para lo que quieras decirnos —o un mensajito al equipo—, que podríamos publicar (sólo si nos autorizás).",
     "El otro es para criticar sin filtro: eso no se publica nunca, lo lee sólo el equipo.",
     "",
     `Contanos acá: ${href}`,
@@ -78,9 +78,9 @@ export async function sendTestimonialInviteEmail(
   <p>${escapeHtml(saludo)}</p>
   <p>Terminó <strong>${escapeHtml(input.editionName)}</strong> y queremos saber qué te pareció.
   Son dos minutos: unas notas, y dos espacios para escribir.</p>
-  <p>Uno es para lo que quieras decirnos, que <strong>podríamos publicar</strong> — sólo si nos
-  autorizás. El otro es para criticar sin filtro: <strong>eso no se publica nunca</strong>, lo lee
-  sólo el equipo.</p>
+  <p>Uno es para lo que quieras decirnos, o un mensajito al equipo, y <strong>podríamos
+  publicarlo</strong> — sólo si nos autorizás. El otro es para criticar sin filtro:
+  <strong>eso no se publica nunca</strong>, lo lee sólo el equipo.</p>
   <p style="margin:28px 0;">
     <a href="${href}" style="display:inline-block;padding:12px 20px;border-radius:999px;background:${BRAND};color:#111;font-weight:700;text-decoration:none;">Contanos cómo te fue</a>
   </p>

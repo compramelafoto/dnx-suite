@@ -65,6 +65,16 @@ export const SURVEY_ASPECTS: readonly SurveyAspect[] = [
 export const NPS_QUESTION =
   "¿Qué tan probable es que le recomiendes Clickatón a otro fotógrafo?";
 
+/**
+ * La pregunta del texto publicable.
+ *
+ * La segunda frase no es relleno: abre la puerta al mensaje corto y afectuoso
+ * —"gracias, chicos"— que es lo que mejor funciona en redes. Sin ella, mucha
+ * gente contesta como si fuera un informe.
+ */
+export const QUOTE_QUESTION =
+  "¿Qué querés decirnos sobre Clickatón? También podés dejarle un mensajito al equipo.";
+
 export const NPS_MIN = 0;
 export const NPS_MAX = 10;
 export const ASPECT_MIN = 1;
