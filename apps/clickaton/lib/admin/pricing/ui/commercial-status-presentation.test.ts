@@ -158,19 +158,32 @@ describe("commercial UI source contracts", () => {
     assert.match(page, /Código que utilizará el participante/);
     assert.match(page, /presentPromotionDiscount/);
     assert.match(page, /ConfirmSubmitButton/);
-    assert.doesNotMatch(page, /@repo\/promotions/);
     assert.doesNotMatch(page, /% OFF/);
+    // Lo que no puede aparecer son los identificadores técnicos, no el paquete
+    // que los traduce: `readEligibilityRule` existe justamente para convertir la
+    // condición del cupón en "Acreditados en <edición>".
+    assert.match(page, /Acreditados|Inscriptos/);
+    assert.doesNotMatch(page, />\s*(PERCENTAGE|FIXED_AMOUNT|FIXED|ACTIVE|INACTIVE)\s*</);
   });
 
-  it("wizard shows struck next price when next is higher", () => {
+  it("wizard shows struck price when the phase is cheaper than the highest", () => {
+    // El wizard decide el precio comparativo y delega el dibujo: la cuenta vive
+    // en `registration-compare-at.ts` y el tachado en `RegistrationPromoPrice`.
     const wizard = readFileSync(
       join(ROOT, "components/public-registration/PublicRegistrationWizard.tsx"),
       "utf8",
     );
-    assert.match(wizard, /nextPricePhase/);
+    assert.match(wizard, /resolveRegistrationCompareAt/);
     assert.match(wizard, /highestPricePhase/);
-    assert.match(wizard, /line-through/);
-    assert.match(wizard, /Precio promocional de esta fase/);
+    assert.match(wizard, /compareAtMinor/);
+
+    const precio = readFileSync(
+      join(ROOT, "components/public-registration/experience/RegistrationPromoPrice.tsx"),
+      "utf8",
+    );
+    assert.match(precio, /line-through/);
+    assert.match(precio, /Antes/);
+    assert.match(precio, /Ahora/);
   });
 
   it("does not modify price resolution logic", () => {
