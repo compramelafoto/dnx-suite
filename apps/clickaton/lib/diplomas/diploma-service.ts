@@ -40,6 +40,7 @@ import { resolveClickatonPublicOrigin } from "@/lib/site/public-origin";
 import { isAccredited } from "./diploma-eligibility";
 import { resolveDiplomaTemplate } from "./diploma-template";
 import { buildDiplomaCode, generateVerificationToken } from "./diploma-code";
+import { A4_LANDSCAPE_PT, buildDiplomaPdf } from "./diploma-pdf";
 import type { DiplomaErrorCode } from "./diploma-types";
 import { buildParticipantCardStorageKey } from "../participant-cards/participant-card-r2-keys";
 import { resolveParticipantCardRenderProvider } from "../participant-cards/participant-card-render-provider";
@@ -151,6 +152,33 @@ export type DiplomaUpsertCardInput = {
   renderHash: string;
 };
 
+export type DiplomaSavePdfInput = {
+  storageKey: string;
+  pdf: Buffer;
+  templateKey: string;
+  templateVersion: number;
+};
+
+export type DiplomaSavePdfResult = {
+  storageKey: string;
+  publicUrl: string | null;
+};
+
+export type DiplomaPersistPdfAssetInput = {
+  cardId: string;
+  editionId: string;
+  registrationId: string;
+  storageKey: string;
+  publicUrl: string | null;
+  pdf: Buffer;
+};
+
+export type DiplomaAttachPdfInput = {
+  cardId: string;
+  pdfAssetId: string;
+  pdfStorageKey: string;
+};
+
 export type DiplomaResolvePhotoInput = { profilePhotoAssetId: string };
 
 export type DiplomaServiceDeps = {
@@ -168,6 +196,15 @@ export type DiplomaServiceDeps = {
     input: DiplomaSaveToStorageInput
   ) => Promise<DiplomaSaveToStorageResult>;
   upsertCard?: (input: DiplomaUpsertCardInput) => Promise<{ id: string }>;
+  /**
+   * PDF imprimible del diploma. Mejor esfuerzo: `issueDiploma` nunca deja
+   * que un fallo acá (de `buildPdf`, `savePdfToStorage` o `persistPdfAsset`)
+   * tire abajo una emisión — ver `attachDiplomaPdfBestEffort`.
+   */
+  buildPdf?: (png: Buffer) => Promise<Buffer>;
+  savePdfToStorage?: (input: DiplomaSavePdfInput) => Promise<DiplomaSavePdfResult>;
+  persistPdfAsset?: (input: DiplomaPersistPdfAssetInput) => Promise<string>;
+  attachPdfToCard?: (input: DiplomaAttachPdfInput) => Promise<void>;
   findExistingIssue?: (input: {
     registrationId: string;
   }) => Promise<DiplomaIssueExisting | null>;
@@ -393,6 +430,88 @@ async function defaultUpsertCard(
   }
 }
 
+async function defaultBuildPdf(png: Buffer): Promise<Buffer> {
+  return buildDiplomaPdf(png);
+}
+
+async function defaultSavePdfToStorage(
+  input: DiplomaSavePdfInput
+): Promise<DiplomaSavePdfResult> {
+  const store = createParticipantCardAssetStore();
+  const renderHashPrefix = input.storageKey.split("/").pop()?.split(".")[0] ?? "";
+  const stored = await store.putAtKey(input.storageKey, input.pdf, {
+    cardType: "diploma-pdf",
+    templateKey: input.templateKey,
+    templateVersion: input.templateVersion,
+    renderHashPrefix,
+    // El diploma en sí ya guarda sus medidas de píxel en la fila del PNG:
+    // acá lo único que describe al archivo es el tamaño de hoja fijo.
+    width: Math.round(A4_LANDSCAPE_PT[0]),
+    height: Math.round(A4_LANDSCAPE_PT[1]),
+    mimeType: "application/pdf",
+    generatedAt: new Date().toISOString(),
+  });
+  return { storageKey: stored.key, publicUrl: stored.publicUrl };
+}
+
+/**
+ * Registra el PDF como `DnxMediaAsset` (kind `PARTICIPANT_CARD_PDF`).
+ *
+ * Mismo criterio anti-duplicado que `persistParticipantCardMediaAsset`
+ * (welcome/member): la ubicación sale de la misma `renderHash` que el PNG,
+ * así que regenerar el mismo diseño cae sobre el mismo registro (se
+ * actualiza) en vez de chocar contra la unicidad de storage.
+ */
+async function defaultPersistPdfAsset(
+  input: DiplomaPersistPdfAssetInput
+): Promise<string> {
+  const store = createParticipantCardAssetStore();
+  const contentHash = createHash("sha256").update(input.pdf).digest("hex");
+
+  const existente = await prisma.dnxMediaAsset.findFirst({
+    where: { storageBackend: store.backend, storageKey: input.storageKey },
+    select: { id: true },
+  });
+
+  if (existente) {
+    await prisma.dnxMediaAsset.update({
+      where: { id: existente.id },
+      data: {
+        ownerId: input.cardId,
+        bytes: input.pdf.length,
+        contentHash,
+        publicUrl: input.publicUrl,
+      },
+    });
+    return existente.id;
+  }
+
+  const created = await prisma.dnxMediaAsset.create({
+    data: {
+      platform: "CLICKATON",
+      ownerType: "PARTICIPANT_CARD",
+      ownerId: input.cardId,
+      editionId: input.editionId,
+      registrationId: input.registrationId,
+      kind: "PARTICIPANT_CARD_PDF",
+      storageBackend: store.backend,
+      storageKey: input.storageKey,
+      publicUrl: input.publicUrl,
+      mimeType: "application/pdf",
+      bytes: input.pdf.length,
+      contentHash,
+    },
+  });
+  return created.id;
+}
+
+async function defaultAttachPdfToCard(input: DiplomaAttachPdfInput): Promise<void> {
+  await prisma.clickatonParticipantCard.update({
+    where: { id: input.cardId },
+    data: { pdfAssetId: input.pdfAssetId, pdfStorageKey: input.pdfStorageKey },
+  });
+}
+
 async function defaultFindExistingIssue(input: {
   registrationId: string;
 }): Promise<DiplomaIssueExisting | null> {
@@ -450,6 +569,10 @@ function resolveDeps(deps: DiplomaServiceDeps) {
     renderPng: deps.renderPng ?? defaultRenderPng,
     saveToStorage: deps.saveToStorage ?? defaultSaveToStorage,
     upsertCard: deps.upsertCard ?? defaultUpsertCard,
+    buildPdf: deps.buildPdf ?? defaultBuildPdf,
+    savePdfToStorage: deps.savePdfToStorage ?? defaultSavePdfToStorage,
+    persistPdfAsset: deps.persistPdfAsset ?? defaultPersistPdfAsset,
+    attachPdfToCard: deps.attachPdfToCard ?? defaultAttachPdfToCard,
     findExistingIssue: deps.findExistingIssue ?? defaultFindExistingIssue,
     createIssue: deps.createIssue ?? defaultCreateIssue,
     updateIssue: deps.updateIssue ?? defaultUpdateIssue,
@@ -553,12 +676,79 @@ function computeDiplomaRenderHash(input: {
 }
 
 /**
+ * PDF imprimible del diploma: se intenta DESPUÉS de que el PNG ya está
+ * guardado y la pieza (`ClickatonParticipantCard`) y el emisor
+ * (`ClickatonDiplomaIssue`) ya se persistieron. Es decir, en el momento en
+ * que se llama a esto la emisión ya es un éxito.
+ *
+ * Por eso es "mejor esfuerzo" y traga cualquier error: el diploma en imagen
+ * es lo que no puede faltar, y un problema armando o guardando el PDF (acá
+ * o en `pdf-lib`, en storage, o al escribir la base) no puede convertir una
+ * emisión que ya terminó bien en un `DIPLOMA_ISSUE_FAILED`. No hay reintento
+ * a mitad de camino: si falla, la pieza queda con `pdfAssetId`/
+ * `pdfStorageKey` en `null`, como si no se hubiese intentado, y el próximo
+ * `issueDiploma` para esa inscripción (reintentar, o el flujo de "rehacer")
+ * lo vuelve a probar con la misma storage key (misma `renderHash` que el
+ * PNG), así que no hay riesgo de duplicar archivos.
+ */
+async function attachDiplomaPdfBestEffort(
+  deps: ReturnType<typeof resolveDeps>,
+  input: {
+    cardId: string;
+    editionId: string;
+    registrationId: string;
+    png: Buffer;
+    templateKey: string;
+    templateVersion: number;
+    renderHash: string;
+  }
+): Promise<void> {
+  try {
+    const pdf = await deps.buildPdf(input.png);
+    const pdfStorageKey = buildParticipantCardStorageKey({
+      editionId: input.editionId,
+      registrationId: input.registrationId,
+      cardType: "diploma",
+      templateVersion: input.templateVersion,
+      renderHash: input.renderHash,
+      extension: "pdf",
+    });
+    const saved = await deps.savePdfToStorage({
+      storageKey: pdfStorageKey,
+      pdf,
+      templateKey: input.templateKey,
+      templateVersion: input.templateVersion,
+    });
+    const pdfAssetId = await deps.persistPdfAsset({
+      cardId: input.cardId,
+      editionId: input.editionId,
+      registrationId: input.registrationId,
+      storageKey: saved.storageKey,
+      publicUrl: saved.publicUrl,
+      pdf,
+    });
+    await deps.attachPdfToCard({
+      cardId: input.cardId,
+      pdfAssetId,
+      pdfStorageKey: saved.storageKey,
+    });
+  } catch {
+    // Intencional — ver comentario de la función. El diploma en imagen ya
+    // está guardado; no hay nada más que hacer acá salvo no propagar.
+  }
+}
+
+/**
  * Emite el diploma de una inscripción acreditada.
  *
  * Orden estricto (ver comentario del módulo): autorización → acreditación →
  * plantilla → foto → render → storage → persistencia. Ante el primer
  * problema, no se llama ni a `renderPng` ni a nada posterior, y el resultado
  * siempre es `{ ok: false, code, issues }` — nunca una excepción cruda.
+ *
+ * El PDF (`attachDiplomaPdfBestEffort`) corre al final de cada camino de
+ * éxito, después de que el PNG y la persistencia ya cerraron: nunca antes,
+ * para no arriesgar la parte que no puede faltar.
  */
 export async function issueDiploma(
   input: { registrationId: string; actor: ParticipantCardActor },
@@ -672,6 +862,15 @@ export async function issueDiploma(
       renderHash,
     };
 
+    const pdfInputBase = {
+      editionId: registration.editionId,
+      registrationId: registration.id,
+      png: rendered.png,
+      templateKey: template.source.templateId,
+      templateVersion: template.source.versionNumber,
+      renderHash,
+    };
+
     if (existing) {
       const card = await deps.upsertCard(upsertCardInput);
       await deps.updateIssue({
@@ -679,6 +878,7 @@ export async function issueDiploma(
         cardId: card.id,
         editionId: registration.editionId,
       });
+      await attachDiplomaPdfBestEffort(deps, { ...pdfInputBase, cardId: card.id });
       return {
         ok: true,
         diplomaId: existing.id,
@@ -700,6 +900,7 @@ export async function issueDiploma(
         verificationToken,
         issuedAt,
       });
+      await attachDiplomaPdfBestEffort(deps, { ...pdfInputBase, cardId: card.id });
       return {
         ok: true,
         diplomaId: created.id,
@@ -717,6 +918,7 @@ export async function issueDiploma(
       const raced = await deps.findExistingIssue({ registrationId: registration.id });
       if (!raced || raced.revokedAt !== null) throw err;
       const cardId = raced.cardId ?? (await deps.upsertCard(upsertCardInput)).id;
+      await attachDiplomaPdfBestEffort(deps, { ...pdfInputBase, cardId });
       return {
         ok: true,
         diplomaId: raced.id,

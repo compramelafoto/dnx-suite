@@ -9,6 +9,7 @@ import {
   type DiplomaRenderPngInput,
 } from "@/lib/diplomas/diploma-service";
 import { templateV2ToCardPreset } from "@/lib/participant-cards/participant-card-template-source";
+import { PNG_1754x1240_FIXTURE } from "@/lib/diplomas/__tests__/fixtures";
 
 const deps = (over: Record<string, unknown> = {}) => ({
   checkAccess: () => {},
@@ -372,6 +373,80 @@ describe("issueDiploma", () => {
       out.ok === true && out.verificationToken,
       "token-del-ganador-de-la-carrera"
     );
+  });
+
+  describe("PDF del diploma", () => {
+    it("un fallo generando o guardando el PDF no rompe la emisión (el PNG ya quedó bien)", async () => {
+      const out = await issueDiploma(
+        { registrationId: "reg_1", actor: { kind: "admin" } },
+        deps({
+          // El PNG que "renderPng" devuelve en los tests no es un PNG de
+          // verdad (es sólo `Buffer.from("png")`): buildPdf va a fallar al
+          // decodificarlo. Eso no puede tirar abajo la emisión.
+          attachPdfToCard: () => {
+            throw new Error("no debería llegar acá si buildPdf ya explotó");
+          },
+        })
+      );
+      assert.equal(out.ok, true);
+    });
+
+    it("con un PNG real, arma el PDF y lo deja pegado a la pieza", async () => {
+      let attachCalls = 0;
+      let attachedCardId = "";
+      let attachedPdfAssetId = "";
+      let attachedPdfStorageKey = "";
+      const out = await issueDiploma(
+        { registrationId: "reg_1", actor: { kind: "admin" } },
+        deps({
+          renderPng: async () => ({
+            png: PNG_1754x1240_FIXTURE,
+            width: 1754,
+            height: 1240,
+            durationMs: 10,
+          }),
+          savePdfToStorage: async (input: { storageKey: string }) => ({
+            storageKey: input.storageKey,
+            publicUrl: null,
+          }),
+          persistPdfAsset: async () => "pdf_asset_1",
+          attachPdfToCard: async (input: {
+            cardId: string;
+            pdfAssetId: string;
+            pdfStorageKey: string;
+          }) => {
+            attachCalls += 1;
+            attachedCardId = input.cardId;
+            attachedPdfAssetId = input.pdfAssetId;
+            attachedPdfStorageKey = input.pdfStorageKey;
+          },
+        })
+      );
+      assert.equal(out.ok, true);
+      assert.equal(out.ok === true && out.cardId, "card_1");
+      assert.equal(attachCalls, 1);
+      assert.equal(attachedCardId, "card_1");
+      assert.equal(attachedPdfAssetId, "pdf_asset_1");
+      assert.ok(attachedPdfStorageKey.endsWith(".pdf"));
+    });
+
+    it("si falla guardando el PDF (storage caído), la emisión igual queda ok", async () => {
+      const out = await issueDiploma(
+        { registrationId: "reg_1", actor: { kind: "admin" } },
+        deps({
+          renderPng: async () => ({
+            png: PNG_1754x1240_FIXTURE,
+            width: 1754,
+            height: 1240,
+            durationMs: 10,
+          }),
+          savePdfToStorage: async () => {
+            throw new Error("R2 no disponible");
+          },
+        })
+      );
+      assert.equal(out.ok, true);
+    });
   });
 });
 
