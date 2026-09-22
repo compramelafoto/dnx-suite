@@ -77,9 +77,11 @@ export function evaluateReadiness(input: {
 
   // El lado largo va contra el mínimo mayor: una foto vertical válida no
   // puede fallar por comparar su ancho contra el mínimo de ancho.
-  const lados = [m.width, m.height].sort((a, b) => b - a);
-  const minimos = [limits.minWidth, limits.minHeight].sort((a, b) => b - a);
-  if (lados[0] < minimos[0] || lados[1] < minimos[1]) {
+  const ladoLargo = Math.max(m.width, m.height);
+  const ladoCorto = Math.min(m.width, m.height);
+  const minimoMayor = Math.max(limits.minWidth, limits.minHeight);
+  const minimoMenor = Math.min(limits.minWidth, limits.minHeight);
+  if (ladoLargo < minimoMayor || ladoCorto < minimoMenor) {
     problems.push("TOO_SMALL");
   }
 
