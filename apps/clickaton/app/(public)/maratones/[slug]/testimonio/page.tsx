@@ -11,12 +11,13 @@ import {
   type TestimonialSurveyDefaults,
 } from "@/components/testimonials/TestimonialSurveyForm";
 import { routes } from "@/config/navigation";
-import { getClickatonAuthUser } from "@/lib/admin/auth";
+import { getClickatonAuthUser, hasClickatonAdminAccess } from "@/lib/admin/auth";
 import { CLICKATON_LOGIN_PATH } from "@/lib/auth/return-path";
 import {
   ELIGIBILITY_DENIAL_COPY,
   resolveEligibility,
 } from "@/lib/testimonials/domain/eligibility";
+import { resolveSurveyAccess } from "@/lib/testimonials/domain/survey-access";
 import { SURVEY_ASPECT_FIELDS } from "@/lib/testimonials/domain/survey-definition";
 import { loadEligibilityFacts } from "@/lib/testimonials/infrastructure/prisma-eligibility";
 import { testimonialRepository } from "@/lib/testimonials/infrastructure/prisma-testimonial-repository";
@@ -56,8 +57,7 @@ export default async function TestimonialSurveyPage({ params }: PageProps) {
     },
   });
 
-  // Sin edición, o con el módulo apagado, la página no existe.
-  if (!edition || !edition.testimonialsEnabled) notFound();
+  if (!edition) notFound();
 
   const pathname = `/maratones/${edition.slug}/testimonio`;
   const user = await getClickatonAuthUser();
@@ -73,6 +73,14 @@ export default async function TestimonialSurveyPage({ params }: PageProps) {
     fotorankContestId: edition.fotorankContestId,
   });
   const eligibility = resolveEligibility(facts);
+  const access = resolveSurveyAccess({
+    moduleEnabled: edition.testimonialsEnabled,
+    eligibility,
+    isAdmin: hasClickatonAdminAccess(user),
+  });
+
+  // Con la encuesta apagada y sin ser admin, la página no existe.
+  if (access.mode === "closed") notFound();
 
   const breadcrumb = (
     <SimpleBreadcrumb
@@ -85,7 +93,7 @@ export default async function TestimonialSurveyPage({ params }: PageProps) {
     />
   );
 
-  if (!eligibility.eligible) {
+  if (access.mode === "denied") {
     return (
       <>
         {breadcrumb}
@@ -97,7 +105,7 @@ export default async function TestimonialSurveyPage({ params }: PageProps) {
             />
             <Card className="mt-[var(--ck-stack-subtitle-to-content)]">
               <p className="ck-body-md text-ck-text-secondary">
-                {ELIGIBILITY_DENIAL_COPY[eligibility.reason]}
+                {ELIGIBILITY_DENIAL_COPY[access.reason]}
               </p>
             </Card>
           </Container>
@@ -106,7 +114,15 @@ export default async function TestimonialSurveyPage({ params }: PageProps) {
     );
   }
 
-  const existing = await testimonialRepository.findAnswer(edition.id, user.id);
+  const isPreview = access.mode === "preview";
+  const author = access.mode === "answer" ? access.author : null;
+
+  // En vista previa no se consulta ninguna respuesta: no hay autor del que
+  // traer nada, y el formulario arranca en blanco como lo vería un recién
+  // llegado.
+  const existing = author
+    ? await testimonialRepository.findAnswer(edition.id, user.id)
+    : null;
 
   const defaults: TestimonialSurveyDefaults = {
     npsScore: existing?.response.npsScore ?? null,
@@ -115,7 +131,7 @@ export default async function TestimonialSurveyPage({ params }: PageProps) {
     improvementNotes: existing?.response.improvementNotes ?? "",
     publicQuote: existing?.testimonial?.quote ?? "",
     authorLinkUrl:
-      existing?.testimonial?.authorLinkUrl ?? eligibility.suggestedLinkUrl ?? "",
+      existing?.testimonial?.authorLinkUrl ?? author?.suggestedLinkUrl ?? "",
     publicationConsent: existing?.testimonial?.publicationConsent ?? false,
   };
 
@@ -126,18 +142,29 @@ export default async function TestimonialSurveyPage({ params }: PageProps) {
         <Container className="max-w-2xl">
           <SectionHeader
             eyebrow={edition.name}
-            title="Contanos cómo te fue"
-            description="Dos minutos. Nos sirve para mejorar la próxima y, si nos autorizás, para que otros lean lo que viviste."
+            title={isPreview ? "Así se ve la encuesta" : "Contanos cómo te fue"}
+            description={
+              isPreview
+                ? "Estás mirando el formulario como administrador."
+                : "Dos minutos. Nos sirve para mejorar la próxima y, si nos autorizás, para que otros lean lo que viviste."
+            }
           />
           <div className="mt-[var(--ck-stack-subtitle-to-content)]">
             <TestimonialSurveyForm
               editionSlug={edition.slug}
               editionName={edition.name}
-              authorName={eligibility.authorName}
-              authorRoleLabel={authorRoleLabel(eligibility.role)}
-              hasPhoto={eligibility.authorPhotoAssetId !== null}
+              authorName={author?.authorName ?? user.name?.trim() ?? user.email}
+              authorRoleLabel={
+                author ? authorRoleLabel(author.role) : "Participante (ejemplo)"
+              }
+              hasPhoto={author?.authorPhotoAssetId != null}
               defaults={defaults}
               alreadyAnswered={existing !== null}
+              preview={
+                isPreview && access.mode === "preview"
+                  ? { moduleEnabled: access.moduleEnabled }
+                  : null
+              }
             />
           </div>
         </Container>
