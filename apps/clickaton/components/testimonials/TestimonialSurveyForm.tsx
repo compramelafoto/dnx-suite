@@ -23,6 +23,10 @@ import {
   WOULD_RETURN_OPTIONS,
   type SurveyAspectField,
 } from "@/lib/testimonials/domain/survey-definition";
+import {
+  SURVEY_PREVIEW_MODULE_OFF_NOTICE,
+  SURVEY_PREVIEW_NOTICE,
+} from "@/lib/testimonials/domain/survey-access";
 import { toInitials } from "@/lib/testimonials/public/voices-presentation";
 
 export type TestimonialSurveyDefaults = {
@@ -43,6 +47,8 @@ type Props = {
   hasPhoto: boolean;
   defaults: TestimonialSurveyDefaults;
   alreadyAnswered: boolean;
+  /** Vista previa de administrador: se mira, no se guarda. */
+  preview: { moduleEnabled: boolean } | null;
 };
 
 const initialState: TestimonialFormState = { ok: false };
@@ -155,6 +161,7 @@ export function TestimonialSurveyForm({
   hasPhoto,
   defaults,
   alreadyAnswered,
+  preview,
 }: Props) {
   const [state, formAction, pending] = useActionState(
     submitTestimonialSurveyAction,
@@ -174,6 +181,17 @@ export function TestimonialSurveyForm({
   return (
     <form action={formAction} className="grid gap-10" noValidate>
       <input type="hidden" name="editionSlug" value={editionSlug} />
+
+      {preview ? (
+        <div className="space-y-2 rounded-[var(--ck-radius-card)] border-2 border-ck-yellow bg-ck-surface p-4">
+          <p className="ck-label text-ck-text">{SURVEY_PREVIEW_NOTICE}</p>
+          {!preview.moduleEnabled ? (
+            <p className="ck-caption text-ck-text-secondary">
+              {SURVEY_PREVIEW_MODULE_OFF_NOTICE}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       {alreadyAnswered ? (
         <p className="ck-body-md rounded-[var(--ck-radius-card)] border border-ck-border bg-ck-surface p-4 text-ck-text-secondary">
@@ -343,9 +361,21 @@ export function TestimonialSurveyForm({
       ) : null}
 
       <div>
-        <Button type="submit" disabled={pending}>
-          {pending ? "Enviando…" : "Enviar mi respuesta"}
-        </Button>
+        {preview ? (
+          <>
+            <Button type="button" disabled>
+              No se guarda (vista previa)
+            </Button>
+            <p className="ck-caption mt-2 text-ck-text-muted">
+              Para responder de verdad hace falta una inscripción confirmada en
+              esta edición.
+            </p>
+          </>
+        ) : (
+          <Button type="submit" disabled={pending}>
+            {pending ? "Enviando…" : "Enviar mi respuesta"}
+          </Button>
+        )}
       </div>
     </form>
   );
