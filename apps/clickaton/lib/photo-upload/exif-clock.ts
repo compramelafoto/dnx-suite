@@ -85,3 +85,29 @@ export function interpretExifClock(input: {
       offsetMinutesForZone(primera, input.timeZone) * 60_000,
   );
 }
+
+/**
+ * Lleva a "números como UTC" una fecha que `exifr` revivió en el NAVEGADOR.
+ *
+ * Todo lo de arriba parte de una premisa: que `exifDate` trae los números del
+ * reloj de la cámara puestos en UTC. Eso es cierto en el servidor **sólo
+ * porque el proceso de Vercel corre con `TZ=UTC`**. En el teléfono del
+ * participante no: `exifr` revive la fecha con `new Date(año, mes-1, día)` +
+ * `setHours(...)`, que la construye en la zona horaria del aparato. En un
+ * teléfono argentino (UTC−3) esa fecha ya es el instante real, así que
+ * `interpretExifClock` le vuelve a restar el desfasaje y le marca tres horas
+ * de más a todo el mundo: `CLOCK_OFF` para el 100% de los participantes que
+ * tienen el teléfono bien configurado.
+ *
+ * Por eso esta función vive acá, al lado de la explicación, y no suelta en la
+ * pantalla que la usa: quien lea `interpretExifClock` tiene que encontrarse
+ * con el problema y no "arreglarlo" de nuevo dentro de seis meses.
+ *
+ * En un runtime que ya está en UTC (el servidor) `getTimezoneOffset()` da 0 y
+ * esto no toca nada, así que la corrección termina siendo la misma en los dos
+ * lados.
+ */
+export function normalizeExifDateToUtcNumbers(exifDate: Date | null): Date | null {
+  if (!exifDate || Number.isNaN(exifDate.getTime())) return null;
+  return new Date(exifDate.getTime() - exifDate.getTimezoneOffset() * 60_000);
+}

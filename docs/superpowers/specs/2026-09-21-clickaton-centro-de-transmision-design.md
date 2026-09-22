@@ -252,6 +252,8 @@ imageWidth?, imageHeight?, result (READY | NO_GPS | CLOCK_OFF | TOO_SMALL | FAIL
 detail (Json)
 ```
 
+**La foto de prueba nunca sale del teléfono.** El EXIF lo lee el navegador y al servidor sólo llega el veredicto; acá se guarda eso. Ver §8, etapa 1.
+
 **`ClickatonHelpRequest`** — el botón de ayuda.
 
 ```
@@ -327,11 +329,21 @@ Además: una pantalla donde el ya inscripto puede dar o revocar esos permisos de
 Pantalla previa al evento, enlazada desde el mail de confirmación:
 
 1. Explica en dos pasos cómo encender el geoetiquetado de la cámara, con instrucciones distintas para iPhone y Android.
-2. Pide subir **una foto de prueba**.
+2. Pide **sacar una foto en el momento** y elegirla.
 3. Responde en el acto: si trae ubicación, si la hora del teléfono está bien, si el tamaño alcanza.
 4. Pide el permiso de ubicación del navegador, con el argumento del resumen personal.
 
-Reutiliza la cañería de subida y lectura de EXIF que ya existe, con una marca de "prueba" para que no cuente como envío.
+**La foto no se sube.** El EXIF lo lee el navegador con la misma biblioteca que ya usa el servidor (`exifr`), y al servidor viaja sólo el veredicto: si trae coordenadas, a qué hora se tomó y qué tamaño tiene. Tres razones:
+
+- **Privacidad**: subirla guardaría una foto cualquiera del participante, con la ubicación de su casa adentro.
+- **El tope real de subida de Clickatón son 4,5 MB**, y una foto de celular moderno lo pasa.
+- Es instantáneo.
+
+Se pide una foto **sacada en el momento** porque el chequeo del reloj compara la hora de captura contra la hora del servidor: con una foto vieja esa diferencia no dice nada.
+
+No se reutiliza la cañería de envíos del concurso: está atada a consignas, huellas de duplicados y miniaturas, y usarla exigiría fabricar envíos falsos.
+
+**Sobre la confianza:** el veredicto lo manda el navegador y se podría falsear. No importa: acá no hay adversario, el participante quiere saber la verdad sobre su propio teléfono y nada depende de este chequeo.
 
 **Listo cuando:** un participante sube una foto de prueba y recibe un diagnóstico correcto; la organización ve cuántos inscriptos ya están listos.
 
