@@ -799,7 +799,9 @@ git commit -m "feat(clickaton): la plantilla del diploma es obligatoria, sin dis
 - Create: `apps/clickaton/lib/diplomas/__tests__/diploma-code.test.ts`
 
 **Interfaces:**
-- Produces: `buildDiplomaCode(input: { editionSequence: number; visibleCode: string | null; registrationId: string }): string` y `generateVerificationToken(): string`.
+- Produces: `buildDiplomaCode(input: { visibleCode: string | null; registrationId: string; editionSlug: string }): string` y `generateVerificationToken(): string`.
+
+> **Corrección sobre el diseño original:** el plan pedía un "número de edición" que **no existe** en la base (`ClickatonEdition` no tiene ese campo y `ClickatonEditionSequence.lastValue` es el contador de inscripciones). El código del diploma se arma con el código visible de la inscripción, que ya lleva el prefijo de su edición.
 
 - [ ] **Step 1: Escribir los tests que fallan**
 
@@ -811,18 +813,28 @@ import { buildDiplomaCode, generateVerificationToken } from "@/lib/diplomas/dipl
 describe("buildDiplomaCode", () => {
   it("usa el código visible del participante cuando existe", () => {
     assert.equal(
-      buildDiplomaCode({ editionSequence: 1, visibleCode: "CK1-0042", registrationId: "reg_x" }),
-      "DIP-1-CK1-0042"
+      buildDiplomaCode({
+        visibleCode: "CK1-0042",
+        registrationId: "reg_x",
+        editionSlug: "dia-del-fotografo-2026",
+      }),
+      "DIP-CK1-0042"
     );
   });
 
-  it("cae al final del id de inscripción si no hay código visible", () => {
+  it("cae al slug de la edición y al final del id si no hay código visible", () => {
     const code = buildDiplomaCode({
-      editionSequence: 2,
       visibleCode: null,
       registrationId: "cms78cthj0000xpc4841bihf4",
+      editionSlug: "dia-del-fotografo-2026",
     });
-    assert.match(code, /^DIP-2-[A-Z0-9]{6}$/);
+    assert.match(code, /^DIP-DIADELF-[A-Z0-9]{6}$/);
+  });
+
+  it("no depende de un número de edición inexistente", () => {
+    const a = buildDiplomaCode({ visibleCode: "CK1-0001", registrationId: "r1", editionSlug: "a" });
+    const b = buildDiplomaCode({ visibleCode: "CK2-0001", registrationId: "r2", editionSlug: "b" });
+    assert.notEqual(a, b);
   });
 });
 
@@ -852,16 +864,22 @@ Expected: FAIL — módulo inexistente.
 ```typescript
 import { randomBytes } from "node:crypto";
 
-/** Código legible del diploma. Estable: se calcula una vez y se guarda. */
+/**
+ * Código legible del diploma. Estable: se calcula una vez y se guarda.
+ * El código visible de la inscripción ya lleva el prefijo de su edición
+ * (`CK1-0042`), así que alcanza para identificar de qué maratón salió.
+ */
 export function buildDiplomaCode(input: {
-  editionSequence: number;
   visibleCode: string | null;
   registrationId: string;
+  editionSlug: string;
 }): string {
   const visible = input.visibleCode?.trim();
-  if (visible) return `DIP-${input.editionSequence}-${visible}`;
+  if (visible) return `DIP-${visible}`;
+  const tag =
+    input.editionSlug.replace(/[^a-zA-Z0-9]/g, "").slice(0, 7).toUpperCase() || "EDICION";
   const tail = input.registrationId.slice(-6).toUpperCase().replace(/[^A-Z0-9]/g, "0");
-  return `DIP-${input.editionSequence}-${tail}`;
+  return `DIP-${tag}-${tail}`;
 }
 
 /** Token de verificación: aleatorio, no derivable del número de inscripción. */
@@ -918,7 +936,7 @@ const deps = (over: Record<string, unknown> = {}) => ({
     visibleCode: "CK1-0042",
     profilePhotoAssetId: null,
     checkIns: [{ checkedInAt: new Date("2026-09-19T19:30:00Z"), reversedAt: null }],
-    edition: { name: "1ª Edición", sequence: 1 },
+    edition: { name: "1ª Edición", slug: "dia-del-fotografo-2026" },
   }),
   resolveTemplate: async () => ({
     ok: true as const,
@@ -945,7 +963,7 @@ describe("issueDiploma", () => {
   it("emite el diploma de un acreditado", async () => {
     const out = await issueDiploma({ registrationId: "reg_1", actor: { kind: "admin" } }, deps());
     assert.equal(out.ok, true);
-    assert.equal(out.ok === true && out.diplomaCode, "DIP-1-CK1-0042");
+    assert.equal(out.ok === true && out.diplomaCode, "DIP-CK1-0042");
     assert.ok(out.ok === true && out.verificationToken.length >= 24);
   });
 
@@ -962,7 +980,7 @@ describe("issueDiploma", () => {
           visibleCode: "CK1-0042",
           profilePhotoAssetId: null,
           checkIns: [],
-          edition: { name: "1ª Edición", sequence: 1 },
+          edition: { name: "1ª Edición", slug: "dia-del-fotografo-2026" },
         }),
       })
     );
@@ -1016,7 +1034,7 @@ describe("issueDiploma", () => {
       deps({
         findExistingIssue: async () => ({
           id: "dip_previo",
-          diplomaCode: "DIP-1-CK1-0042",
+          diplomaCode: "DIP-CK1-0042",
           verificationToken: "token-viejo-que-no-cambia-xx",
           revokedAt: null,
         }),
@@ -1421,6 +1439,8 @@ El tipo de bloque `QR` está declarado en `packages/template-engine/src/schema/b
 - Create: `packages/template-engine-renderer/src/qr-materializer.ts`
 - Create: `packages/template-engine-renderer/src/qr-materializer.test.ts`
 - Modify: `packages/template-engine-renderer/src/preview-renderer.ts:57-62`
+- Modify: `apps/clickaton/lib/participant-cards/participant-card-render-provider.ts` (materializar antes de enviar al provider)
+- Modify: `apps/clickaton/lib/participant-cards/__tests__/participant-card-remote-render.test.ts`
 - Modify: `packages/template-engine-renderer/package.json` (dependencia `"qrcode": "^1.5.4"`, la misma versión que usan las apps)
 
 **Interfaces:**
@@ -1527,6 +1547,34 @@ En `preview-renderer.ts`, antes de `buildTemplatePreviewHtml`:
   });
 ```
 
+**Y además, del lado de Clickatón** — esto es lo que hace que el QR funcione en producción: en `apps/clickaton/lib/participant-cards/participant-card-render-provider.ts`, materializar los QR **antes** de elegir provider, para que el documento que viaja al servicio de render remoto ya lleve la imagen:
+
+```typescript
+import { materializeQrBlocks } from "@repo/template-engine-renderer";
+
+// en el punto donde hoy se llama a provider.render({ document }):
+const document = await materializeQrBlocks(input.document);
+const rendered = await provider.render({ document });
+```
+
+Motivo: en producción el dibujo ocurre en un servicio remoto y el documento
+viaja serializado (`buildRemoteTemplateRenderBody`). Si el QR se materializara
+sólo dentro del paquete, dependería de qué versión esté desplegada allá.
+Materializar antes lo vuelve independiente del provider. Es idempotente: un
+bloque ya convertido en `IMAGE` no vuelve a entrar.
+
+Agregar un test en `apps/clickaton/lib/participant-cards/__tests__/participant-card-remote-render.test.ts`:
+
+```typescript
+it("el documento que viaja al render remoto ya trae el QR como imagen", async () => {
+  const enviado = await capturarDocumentoEnviado({
+    blocks: [{ id: "q1", type: "QR", layout: {}, config: { value: "https://x.test/v/abc" } }],
+  });
+  assert.ok(!enviado.blocks.some((b) => b.type === "QR"));
+  assert.match(String(enviado.blocks[0].config.src), /^data:image\/png;base64,/);
+});
+```
+
 Agregar el test al script `test` del paquete:
 
 ```json
@@ -1600,7 +1648,7 @@ Al final de `CLICKATON_TEMPLATE_VARIABLE_DEFINITIONS`:
     path: "diploma.code",
     label: "Diploma - Código",
     valueType: "text",
-    example: "DIP-1-CK1-0042",
+    example: "DIP-CK1-0042",
     aliases: ["codigodiploma"],
     formatters: ["none"],
     usableIn: ["TEXT"],
@@ -1773,7 +1821,7 @@ import { describe, it } from "node:test";
 import { resolveDiplomaVerification } from "@/lib/diplomas/diploma-verification";
 
 const issue = {
-  diplomaCode: "DIP-1-CK1-0042",
+  diplomaCode: "DIP-CK1-0042",
   issuedAt: new Date("2026-09-22T12:00:00Z"),
   revokedAt: null as Date | null,
   registration: { firstName: "Ana", lastName: "Pérez" },
