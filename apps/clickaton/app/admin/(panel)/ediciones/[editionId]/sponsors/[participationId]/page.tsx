@@ -42,6 +42,7 @@ import { listEditionPrizeBundles } from "@/lib/admin/edition-partners/service";
 import { getEditionById } from "@/lib/admin/editions/queries";
 import { getClickatonPartnersService, toPartnerActor } from "@/lib/admin/partners/runtime";
 import { prisma } from "@repo/db";
+import { fechaHoraAr } from "@/lib/fecha-ar";
 
 type Props = {
   params: Promise<{ editionId: string; participationId: string }>;
@@ -585,7 +586,7 @@ export default async function EditionParticipationDetailPage({
                 <li key={a.id}>
                   <Badge variant="neutral">{a.action}</Badge>{" "}
                   <span className="text-ck-text-muted">
-                    {a.createdAt.toLocaleString("es-AR")}
+                    {fechaHoraAr(a.createdAt)}
                   </span>
                   {a.summary ? ` — ${a.summary}` : ""}
                 </li>

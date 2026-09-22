@@ -89,7 +89,9 @@ describe("timeline UI source contracts", () => {
     );
     assert.match(page, /Consignas de la edición/);
     assert.match(page, /Guardar cambios/);
-    assert.match(page, /Publicar ahora/);
+    // El botón publica TODAS las consignas de la edición, no una: se renombró
+    // cuando las consignas pasaron a una sola pantalla.
+    assert.match(page, /Publicar todas ahora/);
     assert.match(page, /En preparación/);
     assert.match(page, /AdminTechnicalInfo/);
     assert.doesNotMatch(page, />DRAFT</);

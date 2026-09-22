@@ -6916,6 +6916,10 @@ enum EmailQueueStatus {
 enum TokenPurpose {
   VERIFY_EMAIL
   CREATE_ACCOUNT
+  /// Recuperar la contraseña de un jurado de FotoRank, que no tiene `User`
+  /// y por eso no puede usar `PasswordResetToken`. Es un propósito propio
+  /// para que un enlace de confirmar correo no sirva para cambiar la clave.
+  PASSWORD_RESET
 }
 
 enum ZipJobType {

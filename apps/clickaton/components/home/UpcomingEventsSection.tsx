@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/Card";
 import { listPublicMarathons } from "@/data/public-marathons/service";
 import { homeContent } from "@/content/home";
 import { marathonPath, marathonRegistrationPath } from "@/config/navigation";
+import { formatearEnAr } from "@/lib/fecha-ar";
 
 /**
  * Agenda home: muestra ediciones publicadas (Prisma/piloto) o empty state honesto.
@@ -56,11 +57,11 @@ export async function UpcomingEventsSection() {
                     {edition.shortDescription}
                   </p>
                   <p className="mt-3 text-sm text-ck-text-muted">
-                    {new Date(edition.startAt).toLocaleDateString("es-AR", {
-                      day: "numeric",
-                      month: "long",
-                      year: "numeric",
-                    })}
+                    {formatearEnAr(
+                      edition.startAt,
+                      { day: "numeric", month: "long", year: "numeric" },
+                      edition.timezone,
+                    )}
                     {" · "}
                     {edition.registration?.displayPrice?.formatted ?? "Ver entrada"}
                   </p>
