@@ -25,6 +25,12 @@ interface LocationConsentPanelProps {
  * El texto legal y la regla de cascada ("desmarcar la primera apaga la
  * segunda") viven en `LocationConsentCheckboxes`, no acá: este panel sólo
  * aporta el estado, el botón de guardar y el mensaje de resultado.
+ *
+ * Después de guardar, las casillas se sincronizan con lo que la acción
+ * dice que quedó en la base (`result.values`), no con lo que el
+ * participante tildó: el dominio puede denegar en silencio (un menor nunca
+ * queda con el mapa público activo, aunque lo haya pedido), y esta pantalla
+ * no puede mostrar otorgado un permiso que en realidad no se otorgó.
  */
 export function LocationConsentPanel({
   registrationId,
@@ -53,10 +59,20 @@ export function LocationConsentPanel({
     if (values.interview) fd.set("interviewConsent", "true");
 
     startTransition(async () => {
-      const result = await updateLocationConsentAction(fd);
-      setMessage(
-        result.ok ? "Guardado." : (result.message ?? "No se pudo guardar."),
-      );
+      try {
+        const result = await updateLocationConsentAction(fd);
+        // La pantalla refleja lo que efectivamente quedó guardado, no lo
+        // que se tildó: el dominio puede denegar en silencio (por ejemplo,
+        // el mapa público si sos menor), y acá no se reimplementa esa regla.
+        if (result.ok && result.values) setValues(result.values);
+        setMessage(
+          result.ok
+            ? (result.message ?? "Guardado.")
+            : (result.message ?? "No se pudo guardar."),
+        );
+      } catch {
+        setMessage("No se pudo guardar. Probá de nuevo.");
+      }
     });
   }
 

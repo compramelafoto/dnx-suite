@@ -9,6 +9,26 @@ import { getClickatonAuthUser } from "@/lib/admin/auth";
 import { resolveLocationConsent } from "../domain/location-consent";
 
 /**
+ * El estado real de las tres casillas, tal como quedó en la base después de
+ * aplicar `resolveLocationConsent`. El panel de Mi cuenta lo usa para
+ * reflejar en pantalla lo que efectivamente se guardó, no lo que el
+ * participante tildó: el dominio puede denegar en silencio (un menor nunca
+ * queda con el mapa público activo, aunque lo haya pedido).
+ */
+export type LocationConsentActionValues = {
+  personal: boolean;
+  publicMap: boolean;
+  interview: boolean;
+};
+
+export type UpdateLocationConsentResult = {
+  ok: boolean;
+  message?: string;
+  /** Sólo presente cuando `ok` es true: el estado que quedó guardado. */
+  values?: LocationConsentActionValues;
+};
+
+/**
  * Da o revoca los consentimientos de ubicación de una inscripción propia,
  * desde Mi cuenta. Pensada para recuperar a quienes se inscribieron antes de
  * que estas casillas existieran.
@@ -25,7 +45,7 @@ import { resolveLocationConsent } from "../domain/location-consent";
  */
 export async function updateLocationConsentAction(
   formData: FormData,
-): Promise<{ ok: boolean; message?: string }> {
+): Promise<UpdateLocationConsentResult> {
   const registrationId = String(formData.get("registrationId") ?? "");
   if (!registrationId) {
     return { ok: false, message: "Falta la inscripción." };
@@ -58,14 +78,16 @@ export async function updateLocationConsentAction(
     return { ok: false, message: "No podés modificar esta inscripción." };
   }
 
+  const requested = {
+    personal: formData.get("locationConsent") === "true",
+    publicMap: formData.get("locationPublicConsent") === "true",
+    interview: formData.get("interviewConsent") === "true",
+    declaredAdult: formData.get("locationDeclaredAdult") === "true",
+  };
+
   const now = new Date();
   const fields = resolveLocationConsent({
-    choices: {
-      personal: formData.get("locationConsent") === "true",
-      publicMap: formData.get("locationPublicConsent") === "true",
-      interview: formData.get("interviewConsent") === "true",
-      declaredAdult: formData.get("locationDeclaredAdult") === "true",
-    },
+    choices: requested,
     birthDate: actual.birthDate,
     eventDate: actual.edition?.startAt ?? now,
     now,
@@ -81,11 +103,30 @@ export async function updateLocationConsentAction(
     where: { id: registrationId },
     data: {
       ...fields,
-      locationConsentDeclaredAdult:
-        formData.get("locationDeclaredAdult") === "true",
+      locationConsentDeclaredAdult: requested.declaredAdult,
     },
   });
 
   revalidatePath(`/mi-cuenta/inscripciones/${registrationId}`);
-  return { ok: true };
+
+  // Lo que efectivamente quedó guardado, no lo que se pidió: el dominio
+  // puede denegar en silencio (por ejemplo, el mapa público si sos menor).
+  const values: LocationConsentActionValues = {
+    personal: fields.locationConsentAt !== null,
+    publicMap: fields.locationPublicConsentAt !== null,
+    interview: fields.interviewConsentAt !== null,
+  };
+
+  // El único permiso que el dominio puede denegar aunque se lo pida es el
+  // mapa público (exige mayoría de edad y no ser menor). Si eso pasó, que el
+  // mensaje lo diga en vez de un "Guardado." que tape la diferencia.
+  const publicMapDenied = requested.publicMap && !values.publicMap;
+
+  return {
+    ok: true,
+    values,
+    message: publicMapDenied
+      ? "Guardado. El mapa público no quedó activo: hace falta declarar mayoría de edad y no figurar como menor."
+      : undefined,
+  };
 }
