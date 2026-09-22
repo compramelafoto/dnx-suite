@@ -50,15 +50,17 @@ El sistema le entrega al operador tres cosas:
 
 Una dirección por gráfica, con un token firmado en la propia dirección (OBS no sabe iniciar sesión):
 
+El dominio canónico de Clickatón es **`maratonfotografica.com`**. Los dominios `clickaton.*` existen pero redirigen al canónico, así que no sirven para las gráficas: una redirección permanente en una fuente de navegador de OBS es una capa que no carga.
+
 ```
-https://clickaton.ar/aire/termometro?t=<token>
-https://clickaton.ar/aire/mapa?t=<token>
-https://clickaton.ar/aire/zocalo?t=<token>
-https://clickaton.ar/aire/entrevistado?t=<token>
-https://clickaton.ar/aire/regresiva?t=<token>
-https://clickaton.ar/aire/ranking?t=<token>
-https://clickaton.ar/aire/llegada?t=<token>
-https://clickaton.ar/aire/sponsors?t=<token>
+https://maratonfotografica.com/aire/termometro?t=<token>
+https://maratonfotografica.com/aire/mapa?t=<token>
+https://maratonfotografica.com/aire/zocalo?t=<token>
+https://maratonfotografica.com/aire/entrevistado?t=<token>
+https://maratonfotografica.com/aire/regresiva?t=<token>
+https://maratonfotografica.com/aire/ranking?t=<token>
+https://maratonfotografica.com/aire/llegada?t=<token>
+https://maratonfotografica.com/aire/sponsors?t=<token>
 ```
 
 Requisitos de cada gráfica:
