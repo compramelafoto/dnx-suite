@@ -24,8 +24,17 @@
  * sigue en curso, no hace nada más.
  */
 import { createHash } from "node:crypto";
+import { sendIdentityEmail } from "@repo/auth";
 import { prisma } from "@/lib/admin/db";
+import { isClickatonProductionAudience } from "@/lib/site/public-origin";
 import { DIPLOMA_CANDIDATE_QUERY, selectDiplomaCandidates } from "./diploma-eligibility";
+import {
+  DIPLOMA_EMAIL_OUTBOX_EVENT_TYPE,
+  buildDiplomaEmail,
+  resolveDiplomaAccountUrl,
+  resolveDiplomaEmailRecipient,
+  resolveDiplomaImageUrl,
+} from "./diploma-email";
 import { issueDiploma, type IssueDiplomaResult } from "./diploma-service";
 import type { DiplomaErrorCode } from "./diploma-types";
 
@@ -430,4 +439,225 @@ export async function processDueDiplomas(
   }
 
   return { scanned: pending.length, issued, failed };
+}
+
+// ---------------------------------------------------------------------------
+// Correo del diploma — procesa lo que `enqueueEditionDiplomaEmails` dejó en
+// el buzón de salida (`ClickatonIntegrationOutboxEvent`, ver diploma-email.ts).
+// ---------------------------------------------------------------------------
+
+const DIPLOMA_EMAIL_BATCH_LIMIT_DEFAULT = 25;
+
+export type DiplomaEmailPendingRow = { eventId: string; diplomaId: string };
+
+export type ProcessDiplomaEmailOutcome =
+  | { ok: true; status: "SENT" }
+  | { ok: false; status: "SKIPPED_NO_EMAIL" | "SKIPPED_REVOKED" | "SKIPPED_ALREADY_RESOLVED" }
+  /** Falla que puede resolverse sola (falta config, o falta la pieza todavía): el evento queda disponible para el próximo ciclo. */
+  | { ok: false; status: "RETRY"; reason: string }
+  /** Se intentó mandar y el proveedor lo rechazó: terminal, no se reintenta solo. */
+  | { ok: false; status: "BOUNCED"; reason: string };
+
+export type ProcessDueDiplomaEmailsDeps = {
+  loadPending?: (limit: number) => Promise<DiplomaEmailPendingRow[]>;
+  processOne?: (row: DiplomaEmailPendingRow) => Promise<ProcessDiplomaEmailOutcome>;
+};
+
+export type ProcessDueDiplomaEmailsResult = {
+  scanned: number;
+  sent: number;
+  failed: number;
+};
+
+/**
+ * Reclama hasta `limit` eventos `PENDING`/`FAILED` del tipo del correo del
+ * diploma, con el mismo patrón de reserva condicionada que `defaultLoadPending`
+ * (arriba): cada evento se marca `PROCESSING` con su propio `updateMany`, que
+ * vuelve a exigir el estado libre en el momento de escribir. Si dos ciclos de
+ * cron se solapan, el segundo pierde la fila que ya tomó el primero.
+ */
+async function defaultLoadPendingDiplomaEmails(limit: number): Promise<DiplomaEmailPendingRow[]> {
+  const events = await prisma.clickatonIntegrationOutboxEvent.findMany({
+    where: {
+      eventType: DIPLOMA_EMAIL_OUTBOX_EVENT_TYPE,
+      status: { in: ["PENDING", "FAILED"] },
+      availableAt: { lte: new Date() },
+    },
+    orderBy: { availableAt: "asc" },
+    take: limit,
+    select: { id: true, aggregateId: true },
+  });
+
+  if (events.length === 0) return [];
+
+  const claims = await Promise.all(
+    events.map(async (event) => {
+      const { count } = await prisma.clickatonIntegrationOutboxEvent.updateMany({
+        where: { id: event.id, status: { in: ["PENDING", "FAILED"] } },
+        data: { status: "PROCESSING", lockedAt: new Date(), attempts: { increment: 1 } },
+      });
+      return count === 1 ? { eventId: event.id, diplomaId: event.aggregateId } : null;
+    })
+  );
+
+  return claims.filter((c): c is DiplomaEmailPendingRow => c !== null);
+}
+
+async function closeEvent(eventId: string, lastError: string | null = null): Promise<void> {
+  await prisma.clickatonIntegrationOutboxEvent.update({
+    where: { id: eventId },
+    data: { status: "PROCESSED", processedAt: new Date(), lastError },
+  });
+}
+
+async function retryEventLater(eventId: string, reason: string): Promise<void> {
+  await prisma.clickatonIntegrationOutboxEvent.update({
+    where: { id: eventId },
+    data: { status: "FAILED", lastError: reason.slice(0, 300) },
+  });
+}
+
+/**
+ * Procesa un evento reclamado: arma el correo con `buildDiplomaEmail` y lo
+ * manda con `sendIdentityEmail`. Anota `emailStatus: "SENT"` con la fecha, o
+ * `"BOUNCED"` con el error — tal como pide el brief. Una falla que no es del
+ * envío en sí (todavía no hay `storageKey` para armar la imagen, o falta
+ * `R2_PUBLIC_URL`) no se cuenta como rebote: deja el evento disponible para
+ * el próximo ciclo en vez de mentir que el correo fue rechazado.
+ */
+async function defaultProcessDiplomaEmail(
+  row: DiplomaEmailPendingRow
+): Promise<ProcessDiplomaEmailOutcome> {
+  const diploma = await prisma.clickatonDiplomaIssue.findUnique({
+    where: { id: row.diplomaId },
+    select: {
+      id: true,
+      emailStatus: true,
+      revokedAt: true,
+      registrationId: true,
+      registration: { select: { firstName: true, lastName: true, email: true } },
+      edition: { select: { name: true } },
+      card: { select: { storageKey: true } },
+    },
+  });
+
+  if (!diploma) {
+    await closeEvent(row.eventId, "DIPLOMA_NOT_FOUND");
+    return { ok: false, status: "SKIPPED_ALREADY_RESOLVED" };
+  }
+
+  // Diploma revocado después de encolarse: no se manda un correo por algo
+  // que ya no es válido. El emisor no vuelve a "NOT_SENT" —revocar no es
+  // este módulo— así que si alguna vez se reemite, el flujo de reemisión es
+  // quien decide si corresponde un nuevo envío.
+  if (diploma.revokedAt) {
+    await closeEvent(row.eventId, "DIPLOMA_REVOKED");
+    return { ok: false, status: "SKIPPED_REVOKED" };
+  }
+
+  // Ya se resolvió por otro intento (otro ciclo de cron ganó la carrera):
+  // no se manda dos veces.
+  if (diploma.emailStatus !== "QUEUED") {
+    await closeEvent(row.eventId);
+    return { ok: false, status: "SKIPPED_ALREADY_RESOLVED" };
+  }
+
+  const email = diploma.registration.email?.trim();
+  if (!email) {
+    await prisma.$transaction([
+      prisma.clickatonDiplomaIssue.update({
+        where: { id: diploma.id },
+        data: { emailStatus: "NO_EMAIL" },
+      }),
+    ]);
+    await closeEvent(row.eventId, "NO_EMAIL");
+    return { ok: false, status: "SKIPPED_NO_EMAIL" };
+  }
+
+  const diplomaImageUrl = resolveDiplomaImageUrl(diploma.card?.storageKey ?? null);
+  if (!diplomaImageUrl) {
+    const reason = "DIPLOMA_IMAGE_URL_UNAVAILABLE";
+    await retryEventLater(row.eventId, reason);
+    return { ok: false, status: "RETRY", reason };
+  }
+
+  const participantName = [diploma.registration.firstName, diploma.registration.lastName]
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .join(" ");
+  const accountUrl = resolveDiplomaAccountUrl(diploma.registrationId);
+  const built = buildDiplomaEmail({
+    participantName,
+    editionName: diploma.edition.name,
+    accountUrl,
+    diplomaImageUrl,
+  });
+  const recipient = resolveDiplomaEmailRecipient(email);
+  const subject = isClickatonProductionAudience() ? built.subject : `[TEST] ${built.subject}`;
+
+  const result = await sendIdentityEmail({
+    to: recipient,
+    subject,
+    text: built.text,
+    html: built.html,
+    templateKey: "clickaton_diploma_email",
+  });
+
+  if (result.sent) {
+    await prisma.clickatonDiplomaIssue.update({
+      where: { id: diploma.id },
+      data: { emailStatus: "SENT", emailSentAt: new Date(), emailLastError: null },
+    });
+    await closeEvent(row.eventId);
+    return { ok: true, status: "SENT" };
+  }
+
+  if (result.skipped) {
+    // No es un rechazo del proveedor — típicamente falta `RESEND_API_KEY`
+    // en este ambiente. No es un rebote: se deja para reintentar.
+    const reason = result.reason ?? "EMAIL_SEND_SKIPPED";
+    await retryEventLater(row.eventId, reason);
+    return { ok: false, status: "RETRY", reason };
+  }
+
+  const reason = (result.reason ?? "EMAIL_SEND_FAILED").slice(0, 300);
+  await prisma.clickatonDiplomaIssue.update({
+    where: { id: diploma.id },
+    data: { emailStatus: "BOUNCED", emailLastError: reason },
+  });
+  await closeEvent(row.eventId, reason);
+  return { ok: false, status: "BOUNCED", reason };
+}
+
+/**
+ * Procesa hasta `limit` correos de diploma pendientes, uno por uno. Un fallo
+ * —incluida una excepción cruda— se cuenta y no corta el resto del lote,
+ * igual criterio que `processDueDiplomas`.
+ */
+export async function processDueDiplomaEmails(
+  limit = DIPLOMA_EMAIL_BATCH_LIMIT_DEFAULT,
+  deps: ProcessDueDiplomaEmailsDeps = {}
+): Promise<ProcessDueDiplomaEmailsResult> {
+  const loadPending = deps.loadPending ?? defaultLoadPendingDiplomaEmails;
+  const processOne = deps.processOne ?? defaultProcessDiplomaEmail;
+
+  const pending = await loadPending(sanitizeBatchLimit(limit));
+
+  let sent = 0;
+  let failed = 0;
+
+  for (const row of pending) {
+    try {
+      const outcome = await processOne(row);
+      if (outcome.ok) {
+        sent += 1;
+      } else if (outcome.status !== "SKIPPED_NO_EMAIL" && outcome.status !== "SKIPPED_REVOKED" && outcome.status !== "SKIPPED_ALREADY_RESOLVED") {
+        failed += 1;
+      }
+    } catch {
+      failed += 1;
+    }
+  }
+
+  return { scanned: pending.length, sent, failed };
 }

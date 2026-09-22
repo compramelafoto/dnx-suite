@@ -6,6 +6,7 @@ import {
   decidirCierreDeIntento,
   enqueueDiplomaQueueRow,
   enqueueEditionDiplomas,
+  processDueDiplomaEmails,
   processDueDiplomas,
 } from "@/lib/diplomas/diploma-batch";
 
@@ -212,5 +213,84 @@ describe("decidirCierreDeIntento", () => {
     const despues = decidirCierreDeIntento(DIPLOMA_QUEUE_MAX_ATTEMPTS - 1, "DIPLOMA_PHOTO_REQUIRED");
     assert.equal(antes.errorCode, "DIPLOMA_PHOTO_REQUIRED");
     assert.equal(despues.errorCode, "DIPLOMA_PHOTO_REQUIRED");
+  });
+});
+
+describe("processDueDiplomaEmails", () => {
+  it("manda los pendientes y cuenta los rebotes sin cortar el lote", async () => {
+    const out = await processDueDiplomaEmails(25, {
+      loadPending: async () => [
+        { eventId: "ev1", diplomaId: "d1" },
+        { eventId: "ev2", diplomaId: "d2" },
+      ],
+      processOne: async ({ diplomaId }) =>
+        diplomaId === "d1"
+          ? { ok: true as const, status: "SENT" as const }
+          : { ok: false as const, status: "BOUNCED" as const, reason: "Resend HTTP 422" },
+    });
+    assert.equal(out.scanned, 2);
+    assert.equal(out.sent, 1);
+    assert.equal(out.failed, 1);
+  });
+
+  it("no procesa más que el límite pedido", async () => {
+    let pedidos = 0;
+    await processDueDiplomaEmails(1, {
+      loadPending: async (limit: number) => {
+        pedidos = limit;
+        return [];
+      },
+      processOne: async () => ({ ok: true as const, status: "SENT" as const }),
+    });
+    assert.equal(pedidos, 1);
+  });
+
+  it("una excepción cruda de processOne no corta el resto del lote", async () => {
+    const procesados: string[] = [];
+    const out = await processDueDiplomaEmails(25, {
+      loadPending: async () => [
+        { eventId: "ev1", diplomaId: "d1" },
+        { eventId: "ev2", diplomaId: "d2" },
+      ],
+      processOne: async ({ diplomaId }) => {
+        procesados.push(diplomaId);
+        if (diplomaId === "d1") throw new Error("boom");
+        return { ok: true as const, status: "SENT" as const };
+      },
+    });
+    assert.deepEqual(procesados, ["d1", "d2"]);
+    assert.equal(out.sent, 1);
+    assert.equal(out.failed, 1);
+  });
+
+  it("sin dirección, sin diploma vigente, o ya resuelto: no cuenta como fallo", async () => {
+    const out = await processDueDiplomaEmails(25, {
+      loadPending: async () => [
+        { eventId: "ev1", diplomaId: "d1" },
+        { eventId: "ev2", diplomaId: "d2" },
+        { eventId: "ev3", diplomaId: "d3" },
+      ],
+      processOne: async ({ diplomaId }) => {
+        if (diplomaId === "d1") return { ok: false as const, status: "SKIPPED_NO_EMAIL" as const };
+        if (diplomaId === "d2") return { ok: false as const, status: "SKIPPED_REVOKED" as const };
+        return { ok: false as const, status: "SKIPPED_ALREADY_RESOLVED" as const };
+      },
+    });
+    assert.equal(out.scanned, 3);
+    assert.equal(out.sent, 0);
+    assert.equal(out.failed, 0);
+  });
+
+  it("una falla recuperable (falta config) se cuenta como fallo, pero queda disponible para reintentar", async () => {
+    const out = await processDueDiplomaEmails(25, {
+      loadPending: async () => [{ eventId: "ev1", diplomaId: "d1" }],
+      processOne: async () => ({
+        ok: false as const,
+        status: "RETRY" as const,
+        reason: "DIPLOMA_IMAGE_URL_UNAVAILABLE",
+      }),
+    });
+    assert.equal(out.failed, 1);
+    assert.equal(out.sent, 0);
   });
 });
