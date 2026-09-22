@@ -62,8 +62,9 @@ export type DiplomaQueueCardStatus = "GENERATING" | "READY" | "FAILED" | "STALE"
 
 /**
  * De la pieza de cola de un acreditado (si existe) al estado de fila.
- * `STALE`/`DELETED` no los produce el flujo de diplomas hoy, pero si algún
- * día aparecen se tratan como "en proceso" en vez de reventar la pantalla.
+ * `STALE`/`DELETED` no mandan nunca el estado de la fila (ver
+ * `elegirPiezaDeLaFila`), pero si llegara una suelta se trata como "en
+ * proceso" en vez de reventar la pantalla.
  */
 export function deriveDiplomaRowState(
   card: { status: DiplomaQueueCardStatus } | null
@@ -72,6 +73,39 @@ export function deriveDiplomaRowState(
   if (card.status === "READY") return "emitido";
   if (card.status === "FAILED") return "fallido";
   return "en_proceso";
+}
+
+/**
+ * Cuál de las piezas de una misma inscripción manda en el estado de la fila.
+ *
+ * Una inscripción puede tener varias: la emitida (`READY`) más la que dejó
+ * un "Rehacer" en curso (`GENERATING`), más las anteriores que quedaron
+ * `STALE`. Sin un orden explícito, la pantalla mostraba la que viniera
+ * última de la base —es decir, cualquiera— y una regeneración en curso podía
+ * verse como "Emitido" o al revés.
+ *
+ * Orden: lo que está pasando ahora primero (`GENERATING`), después lo que
+ * falló y hay que mirar (`FAILED`), después lo que está listo (`READY`), y
+ * al final lo que ya no se usa.
+ */
+const ORDEN_DE_PIEZA: Record<DiplomaQueueCardStatus, number> = {
+  GENERATING: 0,
+  FAILED: 1,
+  READY: 2,
+  STALE: 3,
+  DELETED: 4,
+};
+
+export function elegirPiezaDeLaFila<T extends { status: DiplomaQueueCardStatus }>(
+  cards: readonly T[]
+): T | null {
+  let elegida: T | null = null;
+  for (const card of cards) {
+    if (!elegida || ORDEN_DE_PIEZA[card.status] < ORDEN_DE_PIEZA[elegida.status]) {
+      elegida = card;
+    }
+  }
+  return elegida;
 }
 
 // ---------------------------------------------------------------------------

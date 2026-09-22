@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/Card";
 import {
   generateEditionDiplomasAction,
   regenerateDiplomaAction,
+  regenerateDiplomasAction,
   retryDiplomaEmailAction,
   sendEditionDiplomaEmailsAction,
 } from "@/lib/admin/editions/diploma-actions";
@@ -49,8 +50,25 @@ type Props = {
 function downloadUrl(editionId: string, ids?: string[]): string {
   // Misma ruta que baja el ZIP de todas las piezas listas de la edición, filtrada acá
   // por cardType=diploma (y por ids cuando hay selección).
+  //
+  // `ids` ausente es "todos"; `ids` presente pero vacío es "ninguno" y se manda
+  // igual, vacío. Son dos cosas distintas y la ruta las distingue: si acá se
+  // tratara una selección vacía como "sin filtro", un error de cálculo del
+  // llamador bajaría los 29 diplomas en vez de no bajar nada.
   const base = `/api/admin/ediciones/${editionId}/placas/descargar?cardType=diploma`;
-  return ids && ids.length > 0 ? `${base}&ids=${ids.join(",")}` : base;
+  return ids ? `${base}&ids=${ids.join(",")}` : base;
+}
+
+/** Ruta admin que sirve el diploma ya emitido de una inscripción (PNG, o PDF con `format=pdf`). */
+function diplomaFileUrl(
+  registrationId: string,
+  opciones: { formato?: "pdf"; descargar?: boolean } = {},
+): string {
+  const params = new URLSearchParams();
+  if (opciones.formato === "pdf") params.set("format", "pdf");
+  if (opciones.descargar) params.set("disposition", "attachment");
+  const query = params.toString();
+  return `/api/admin/registrations/${registrationId}/cards/diploma${query ? `?${query}` : ""}`;
 }
 
 export function DiplomasPanelClient({
@@ -71,6 +89,12 @@ export function DiplomasPanelClient({
   const [retryPending, startRetry] = useTransition();
   const [retryError, setRetryError] = useState<string | null>(null);
 
+  const [rehaciendoId, setRehaciendoId] = useState<string | null>(null);
+  const [rehacerPending, startRehacer] = useTransition();
+  const [rehacerResult, setRehacerResult] = useState<{ ok: boolean; message: string } | null>(
+    null,
+  );
+
   const [sendEmailsPending, startSendEmails] = useTransition();
   const [sendEmailsResult, setSendEmailsResult] = useState<{ ok: boolean; message: string } | null>(
     null,
@@ -79,7 +103,13 @@ export function DiplomasPanelClient({
   const [retryEmailPending, startRetryEmail] = useTransition();
   const [retryEmailError, setRetryEmailError] = useState<string | null>(null);
 
-  const emitidas = useMemo(() => rows.filter((r) => r.state === "emitido"), [rows]);
+  /*
+   * Los que tienen un diploma vigente, que es lo que se puede ver, bajar,
+   * rehacer o mandar. Se mira `diplomaId` y no el estado de la fila: un
+   * diploma que se está rehaciendo muestra "Generando…" pero su archivo
+   * anterior sigue estando y se puede bajar igual.
+   */
+  const emitidas = useMemo(() => rows.filter((r) => r.diplomaId !== null), [rows]);
   const seleccionables = useMemo(
     () => new Set(emitidas.map((r) => r.registrationId)),
     [emitidas],
@@ -121,6 +151,40 @@ export function DiplomasPanelClient({
     startRetry(async () => {
       const result = await regenerateDiplomaAction(editionId, registrationId);
       if (!result.ok) setRetryError(result.message);
+      router.refresh();
+    });
+  }
+
+  /**
+   * "Rehacer" de una fila ya emitida. Se confirma aunque sea uno solo: el
+   * archivo que esa persona ya tiene se reemplaza. Lo que NO cambia es el
+   * código ni el enlace de verificación, y el texto lo dice.
+   */
+  function handleRehacerUno(row: DiplomaPanelRow) {
+    if (!templateName || rehacerPending || retryPending) return;
+    const confirmText = `Se va a rehacer el diploma de ${row.fullName} con la plantilla actual. El código y el enlace de verificación no cambian. ¿Confirmás?`;
+    if (!window.confirm(confirmText)) return;
+    setRehacerResult(null);
+    setRehaciendoId(row.registrationId);
+    startRehacer(async () => {
+      const result = await regenerateDiplomasAction(editionId, [row.registrationId]);
+      setRehacerResult(result);
+      router.refresh();
+    });
+  }
+
+  function handleRehacerSeleccionados() {
+    if (!templateName || rehacerPending || selected.size === 0) return;
+    const cuantos = selected.size;
+    const confirmText = `Se ${cuantos === 1 ? "va" : "van"} a rehacer ${cuantos} diploma${
+      cuantos === 1 ? "" : "s"
+    } con la plantilla actual. Los archivos anteriores se reemplazan; el código y el enlace de verificación no cambian. ¿Confirmás?`;
+    if (!window.confirm(confirmText)) return;
+    setRehacerResult(null);
+    setRehaciendoId(null);
+    startRehacer(async () => {
+      const result = await regenerateDiplomasAction(editionId, Array.from(selected));
+      setRehacerResult(result);
       router.refresh();
     });
   }
@@ -225,6 +289,50 @@ export function DiplomasPanelClient({
       },
     },
     {
+      key: "acciones",
+      header: "Diploma",
+      cell: (row) => {
+        // Sin emisión vigente no hay archivo que mostrar ni que rehacer: la
+        // fila fallida ya tiene su propio "Reintentar" en la columna de estado.
+        if (row.diplomaId === null) {
+          return <span className="text-xs text-ck-text-muted">—</span>;
+        }
+        const rehaciendoEsta = rehacerPending && rehaciendoId === row.registrationId;
+        return (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+            <a
+              href={diplomaFileUrl(row.registrationId)}
+              target="_blank"
+              rel="noreferrer"
+              className="text-ck-yellow underline-offset-2 hover:underline"
+            >
+              Ver
+            </a>
+            <a
+              href={diplomaFileUrl(row.registrationId, { descargar: true })}
+              className="text-ck-yellow underline-offset-2 hover:underline"
+            >
+              PNG
+            </a>
+            <a
+              href={diplomaFileUrl(row.registrationId, { formato: "pdf", descargar: true })}
+              className="text-ck-yellow underline-offset-2 hover:underline"
+            >
+              PDF
+            </a>
+            <button
+              type="button"
+              className="text-ck-yellow underline-offset-2 hover:underline disabled:opacity-50"
+              disabled={!templateName || rehacerPending}
+              onClick={() => handleRehacerUno(row)}
+            >
+              {rehaciendoEsta ? "Reencolando…" : "Rehacer"}
+            </button>
+          </div>
+        );
+      },
+    },
+    {
       key: "email",
       header: "Correo",
       cell: (row) => {
@@ -300,6 +408,18 @@ export function DiplomasPanelClient({
 
           <Button
             type="button"
+            variant="outline"
+            size="sm"
+            disabled={!templateName || selected.size === 0 || rehacerPending}
+            onClick={handleRehacerSeleccionados}
+          >
+            {rehacerPending && rehaciendoId === null
+              ? "Reencolando…"
+              : `Rehacer seleccionados${selected.size > 0 ? ` (${selected.size})` : ""}`}
+          </Button>
+
+          <Button
+            type="button"
             variant="secondary"
             size="sm"
             disabled={emitidas.length === 0 || sendEmailsPending}
@@ -328,6 +448,16 @@ export function DiplomasPanelClient({
         {retryError ? (
           <p className="text-sm text-red-200" role="alert">
             {retryError}
+          </p>
+        ) : null}
+        {rehacerResult ? (
+          <p
+            className={
+              rehacerResult.ok ? "text-sm text-ck-text-secondary" : "text-sm text-red-200"
+            }
+            role="status"
+          >
+            {rehacerResult.message}
           </p>
         ) : null}
         {sendEmailsResult ? (

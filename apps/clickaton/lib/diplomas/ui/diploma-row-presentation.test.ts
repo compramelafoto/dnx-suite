@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import { DIPLOMA_ERROR_MESSAGES, type DiplomaErrorCode } from "../diploma-types";
 import {
   deriveDiplomaRowState,
+  elegirPiezaDeLaFila,
   presentDiplomaEmailState,
   presentDiplomaFailureReason,
   presentDiplomaRowState,
@@ -119,5 +120,55 @@ describe("cómo se muestra el estado del correo del diploma", () => {
   it("dead sólo importa si el estado es QUEUED: un SENT o BOUNCED no lo pisa", () => {
     assert.equal(presentDiplomaEmailState("SENT", true)?.label, "Enviado");
     assert.equal(presentDiplomaEmailState("BOUNCED", true)?.label, "No se pudo enviar");
+  });
+});
+
+/**
+ * Una inscripción puede tener varias piezas a la vez: la emitida y la que
+ * dejó un "Rehacer" en curso. Sin un orden explícito, la pantalla mostraba
+ * la que la base devolviera última.
+ */
+describe("elegirPiezaDeLaFila", () => {
+  it("sin piezas devuelve null (nadie generó nada todavía)", () => {
+    assert.equal(elegirPiezaDeLaFila([]), null);
+  });
+
+  it("un rehacer en curso manda sobre el diploma ya emitido", () => {
+    const elegida = elegirPiezaDeLaFila([
+      { status: "READY" as const, id: "vieja" },
+      { status: "GENERATING" as const, id: "rehacer" },
+    ]);
+    assert.equal(elegida?.id, "rehacer");
+    assert.equal(deriveDiplomaRowState(elegida), "en_proceso");
+  });
+
+  it("no depende del orden en que vengan de la base", () => {
+    const elegida = elegirPiezaDeLaFila([
+      { status: "GENERATING" as const, id: "rehacer" },
+      { status: "READY" as const, id: "vieja" },
+    ]);
+    assert.equal(elegida?.id, "rehacer");
+  });
+
+  it("un fallo manda sobre una pieza lista (hay que mirarlo)", () => {
+    const elegida = elegirPiezaDeLaFila([
+      { status: "READY" as const, id: "lista" },
+      { status: "FAILED" as const, id: "fallida" },
+    ]);
+    assert.equal(deriveDiplomaRowState(elegida), "fallido");
+  });
+
+  it("las piezas viejas (STALE) nunca deciden el estado", () => {
+    const elegida = elegirPiezaDeLaFila([
+      { status: "STALE" as const, id: "vieja" },
+      { status: "READY" as const, id: "vigente" },
+    ]);
+    assert.equal(elegida?.id, "vigente");
+    assert.equal(deriveDiplomaRowState(elegida), "emitido");
+  });
+
+  it("si sólo hay piezas viejas, no se miente diciendo 'Emitido'", () => {
+    const elegida = elegirPiezaDeLaFila([{ status: "STALE" as const, id: "vieja" }]);
+    assert.equal(deriveDiplomaRowState(elegida), "en_proceso");
   });
 });

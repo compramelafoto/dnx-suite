@@ -86,6 +86,76 @@ export async function regenerateDiplomaAction(
 }
 
 /**
+ * Rehace varios diplomas de una vez — el botón "Rehacer seleccionados".
+ *
+ * Es la misma operación que `regenerateDiplomaAction` repetida: reencola a
+ * cada uno para que el proceso automático lo vuelva a dibujar. Rehacer NO
+ * emite un diploma distinto: `issueDiploma` conserva el código, el token y la
+ * fecha de emisión (`reused: true`), así que un QR ya impreso o ya enviado
+ * por correo sigue funcionando después de corregir el diseño.
+ *
+ * Las inscripciones se filtran contra la edición en UNA consulta, no una por
+ * una: con 29 diplomas seleccionados serían 29 viajes a la base.
+ */
+export async function regenerateDiplomasAction(
+  editionId: string,
+  registrationIds: string[],
+): Promise<DiplomaActionState> {
+  await requireClickatonAdmin();
+
+  const pedidos = Array.from(new Set(registrationIds.filter((id) => id.trim().length > 0)));
+  if (pedidos.length === 0) {
+    return { ok: false, message: "No elegiste ningún diploma para rehacer." };
+  }
+
+  // Sin plantilla resoluble no se rehace nada: encolarlos igual los dejaría
+  // agotar los cinco reintentos y quedar fallidos, tapando en la pantalla el
+  // diploma que esas personas todavía tienen.
+  const template = await resolveDiplomaTemplate({ editionId });
+  if (!template.ok) {
+    return { ok: false, message: DIPLOMA_ERROR_MESSAGES[template.code] };
+  }
+
+  const deLaEdicion = await prisma.clickatonRegistration.findMany({
+    where: { id: { in: pedidos }, editionId },
+    select: { id: true },
+  });
+  const validos = deLaEdicion.map((r) => r.id);
+  if (validos.length === 0) {
+    return { ok: false, message: "No encontramos esas inscripciones en esta edición." };
+  }
+
+  let encolados = 0;
+  for (const registrationId of validos) {
+    const queued = await enqueueDiplomaQueueRow({ registrationId, editionId });
+    if (queued) encolados += 1;
+  }
+  revalidatePath(diplomasPath(editionId));
+
+  const ajenos = pedidos.length - validos.length;
+  const aviso =
+    ajenos > 0
+      ? ` ${ajenos} no ${ajenos === 1 ? "pertenecía" : "pertenecían"} a esta edición y no se ${
+          ajenos === 1 ? "tocó" : "tocaron"
+        }.`
+      : "";
+
+  if (encolados === 0) {
+    return {
+      ok: true,
+      message: `Esos diplomas ya se están generando: no hacía falta reencolarlos.${aviso}`,
+    };
+  }
+
+  return {
+    ok: true,
+    message: `Se reencolaron ${encolados} diploma${
+      encolados === 1 ? "" : "s"
+    }. El proceso automático los rehace en los próximos minutos; el código y el enlace de verificación no cambian.${aviso}`,
+  };
+}
+
+/**
  * Encola el correo del diploma para toda la edición: sólo a quienes tienen
  * diploma vigente y dirección de correo (ver `enqueueEditionDiplomaEmails`).
  * No manda nada acá — nunca dentro de una petición web. El envío real lo
@@ -141,6 +211,17 @@ export async function retryDiplomaEmailAction(
   diplomaId: string,
 ): Promise<DiplomaActionState> {
   await requireClickatonAdmin();
+
+  // El diploma tiene que ser de esta edición, igual que en
+  // `regenerateDiplomaAction`: sin este chequeo, un `diplomaId` de otra
+  // edición se reencolaba igual desde la pantalla de ésta.
+  const diploma = await prisma.clickatonDiplomaIssue.findUnique({
+    where: { id: diplomaId },
+    select: { id: true, editionId: true },
+  });
+  if (!diploma || diploma.editionId !== editionId) {
+    return { ok: false, message: "No encontramos ese diploma en esta edición." };
+  }
 
   const result = await requeueDiplomaEmail(diplomaId);
   revalidatePath(diplomasPath(editionId));

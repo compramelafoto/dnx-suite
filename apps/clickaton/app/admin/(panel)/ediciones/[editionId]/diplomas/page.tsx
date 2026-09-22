@@ -10,7 +10,10 @@ import { DIPLOMA_CANDIDATE_QUERY, selectDiplomaCandidates } from "@/lib/diplomas
 import { DIPLOMA_EMAIL_OUTBOX_EVENT_TYPE, previewDiplomaEmailBatch } from "@/lib/diplomas/diploma-email";
 import { resolveDiplomaTemplate } from "@/lib/diplomas/diploma-template";
 import { DIPLOMA_ERROR_MESSAGES } from "@/lib/diplomas/diploma-types";
-import { deriveDiplomaRowState } from "@/lib/diplomas/ui/diploma-row-presentation";
+import {
+  deriveDiplomaRowState,
+  elegirPiezaDeLaFila,
+} from "@/lib/diplomas/ui/diploma-row-presentation";
 import { DiplomasPanelClient, type DiplomaPanelRow } from "./DiplomasPanelClient";
 
 type Props = { params: Promise<{ editionId: string }> };
@@ -79,7 +82,16 @@ export default async function EditionDiplomasPage({ params }: Props) {
 
   const { registrationRows, cardRows, issueRows, deadEmailEvents } = loaded.data;
   const candidates = selectDiplomaCandidates(registrationRows);
-  const cardByRegistration = new Map(cardRows.map((c) => [c.registrationId, c]));
+  // Una inscripción puede tener varias piezas a la vez (la emitida más la
+  // que dejó un "Rehacer" en curso, más las viejas en STALE): se agrupan y
+  // `elegirPiezaDeLaFila` decide cuál manda. Antes se quedaba con la última
+  // que devolviera la base, que es decir cualquiera.
+  const cardsByRegistration = new Map<string, typeof cardRows>();
+  for (const card of cardRows) {
+    const lista = cardsByRegistration.get(card.registrationId) ?? [];
+    lista.push(card);
+    cardsByRegistration.set(card.registrationId, lista);
+  }
   const issueByRegistration = new Map(issueRows.map((i) => [i.registrationId, i]));
   // `aggregateId` del evento es el `diplomaId` (ver `diploma-email.ts`).
   const deadEmailDiplomaIds = new Set(deadEmailEvents.map((e) => e.aggregateId));
@@ -95,7 +107,7 @@ export default async function EditionDiplomasPage({ params }: Props) {
   const emailPreviewInput: { email: string; emailStatus: string }[] = [];
 
   for (const c of candidates) {
-    const card = cardByRegistration.get(c.registrationId) ?? null;
+    const card = elegirPiezaDeLaFila(cardsByRegistration.get(c.registrationId) ?? []);
     const issue = issueByRegistration.get(c.registrationId) ?? null;
     rows.push({
       registrationId: c.registrationId,

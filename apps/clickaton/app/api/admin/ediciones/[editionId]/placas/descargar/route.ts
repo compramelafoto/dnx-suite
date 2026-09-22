@@ -89,9 +89,28 @@ export async function GET(req: Request, { params }: Params) {
     { cardType, registrationIds },
   );
 
+  /*
+   * Dos 404 distintos, porque el admin los lee y decide cosas distintas con cada uno:
+   * "la edición no tiene nada generado todavía" (hay que generar) vs. "lo que elegiste
+   * no está disponible" (la selección o el tipo no dieron resultados). Antes los dos
+   * decían lo primero.
+   */
   if (placas.length === 0) {
+    const pieza = cardType === "diploma" ? "diplomas generados" : "placas generadas";
+    if (placasListas.length === 0) {
+      return Response.json(
+        { ok: false, error: `Todavía no hay ${pieza} en esta edición.` },
+        { status: 404 },
+      );
+    }
+    const porSeleccion = registrationIds !== undefined;
     return Response.json(
-      { ok: false, error: "Todavía no hay placas generadas en esta edición." },
+      {
+        ok: false,
+        error: porSeleccion
+          ? "Ninguno de los participantes elegidos tiene esa pieza lista para descargar."
+          : `Todavía no hay ${pieza} en esta edición.`,
+      },
       { status: 404 },
     );
   }
