@@ -11,6 +11,7 @@ import "server-only";
 import { prisma } from "@repo/db";
 import { sendTestimonialInviteEmail } from "../notifications/testimonial-invite-email";
 import { canInviteEdition } from "./invite-selection";
+import { keepWhoAttended } from "./attendance";
 import type { ClickatonTestimonialAuthorRole } from "../domain/types";
 
 export type InviteOutcome = {
@@ -29,6 +30,8 @@ type Recipient = {
   registrationId: string | null;
   venueId: string | null;
   userId: number | null;
+  /** Se acreditó en el evento. Las sedes cuentan siempre como presentes. */
+  attended: boolean;
 };
 
 function normalizeEmail(value: string | null | undefined): string | null {
@@ -40,7 +43,13 @@ async function collectRecipients(editionId: string): Promise<Recipient[]> {
   const [registrations, venues] = await Promise.all([
     prisma.clickatonRegistration.findMany({
       where: { editionId, status: "CONFIRMED", isOpsTest: false },
-      select: { id: true, email: true, firstName: true, userId: true },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        userId: true,
+        _count: { select: { checkIns: true } },
+      },
     }),
     prisma.clickatonVenue.findMany({
       where: { editionId, isActive: true, contactEmail: { not: null } },
@@ -48,20 +57,30 @@ async function collectRecipients(editionId: string): Promise<Recipient[]> {
     }),
   ]);
 
-  const byEmail = new Map<string, Recipient>();
+  // El filtro de asistencia se aplica SÓLO a las inscripciones. Si entraran
+  // las sedes, que siempre cuentan como presentes, una edición sin
+  // acreditación dejaría afuera a todos los participantes y quedarían sólo
+  // las sedes invitadas.
+  const participants: Recipient[] = [];
 
   for (const registration of registrations) {
     const email = normalizeEmail(registration.email);
     if (!email) continue;
-    // El participante gana si el mismo correo aparece también como sede.
-    byEmail.set(email, {
+    participants.push({
       email,
       firstName: registration.firstName,
       authorRole: "PARTICIPANT",
       registrationId: registration.id,
       venueId: null,
       userId: registration.userId,
+      attended: registration._count.checkIns > 0,
     });
+  }
+
+  const byEmail = new Map<string, Recipient>();
+  // El participante gana si el mismo correo aparece también como sede.
+  for (const participant of keepWhoAttended(participants)) {
+    byEmail.set(participant.email, participant);
   }
 
   for (const venue of venues) {
@@ -74,6 +93,8 @@ async function collectRecipients(editionId: string): Promise<Recipient[]> {
       registrationId: null,
       venueId: venue.id,
       userId: null,
+      // La sede fue el lugar: no se acredita a sí misma.
+      attended: true,
     });
   }
 
