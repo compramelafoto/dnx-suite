@@ -71,6 +71,9 @@ jobs:
       - name: Pruebas del funnel de consentimientos de ubicación
         run: pnpm --filter clickaton test:location-consent-funnel
 
+      - name: Prueba técnica previa
+        run: pnpm --filter clickaton test:readiness
+
       - name: Pruebas del paquete de finanzas
         run: pnpm --filter @repo/finance-control test
 
