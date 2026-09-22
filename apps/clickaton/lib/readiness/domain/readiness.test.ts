@@ -66,28 +66,75 @@ test("justo en el borde de la tolerancia todavía está listo", () => {
   assert.equal(v.result, "READY");
 });
 
-test("una foto vertical válida con lado corto entre los mínimos está lista", () => {
-  // El lado corto (700) queda entre los dos mínimos (600 y 800).
-  // Acá se ve si los lados se ordenan (correcto) o se comparan eje por eje (ingenuo).
-  // Implementación correcta: ordena [2000, 700] y [800, 600], compara 2000>800 y 700>600 → READY
-  // Implementación ingenua: compara 700<800 → TOO_SMALL (equivocado)
+// Los dos casos que siguen son el par que discrimina la regla. La cañería
+// real del concurso (`lib/photo-upload/service.ts`) compara EJE POR EJE:
+// `width < minWidth || height < minHeight`. Con mínimos de 800×600, la misma
+// cantidad de píxeles da distinto según cómo esté parada la foto, y eso es a
+// propósito: esta pantalla sirve para predecir el veredicto del 12/12.
+//
+// Si alguien "arregla" el dominio ordenando los lados (comparar el lado largo
+// contra 800 y el corto contra 600), el primero de los dos empieza a dar
+// READY y falla. El segundo lo acompaña: descarta que 700×2000 falle por una
+// razón genérica — por ejemplo, que cualquier lado de 700 esté prohibido.
+test("700×2000 es demasiado angosta: el ancho no llega al mínimo de ancho", () => {
   const v = evaluateReadiness({
     measurements: { ...OK, width: 700, height: 2000 },
     limits: LIMITES,
     serverNowMs: AHORA,
   });
-  assert.equal(v.result, "READY");
+  assert.equal(
+    v.result,
+    "TOO_SMALL",
+    "700 < minWidth 800: el día del evento esta foto se rechaza, así que acá no puede decir READY. Una regla que ordene los lados diría READY y mentiría.",
+  );
 });
 
-test("una foto vertical demasiado chica por el lado corto falla", () => {
-  // El lado corto (500) está por debajo del mínimo menor (600).
-  // Ambas implementaciones rechazan esto, pero el caso anterior sólo uno lo rechaza.
+test("la misma foto acostada, 2000×700, sí está lista", () => {
   const v = evaluateReadiness({
-    measurements: { ...OK, width: 500, height: 2000 },
+    measurements: { ...OK, width: 2000, height: 700 },
     limits: LIMITES,
     serverNowMs: AHORA,
   });
-  assert.equal(v.result, "TOO_SMALL");
+  assert.equal(
+    v.result,
+    "READY",
+    "2000 ≥ 800 y 700 ≥ 600: con los mismos píxeles que el caso anterior el veredicto cambia, porque la regla mira cada eje contra SU mínimo",
+  );
+});
+
+test("justo en el mínimo de cada eje todavía está lista", () => {
+  const v = evaluateReadiness({
+    measurements: { ...OK, width: 800, height: 600 },
+    limits: LIMITES,
+    serverNowMs: AHORA,
+  });
+  assert.equal(
+    v.result,
+    "READY",
+    "la cañería rechaza con `<`, no con `<=`: el mínimo exacto entra. Si alguien cambia el operador, este caso falla.",
+  );
+});
+
+test("un píxel menos de ancho que el mínimo ya no entra", () => {
+  const v = evaluateReadiness({
+    measurements: { ...OK, width: 799, height: 600 },
+    limits: LIMITES,
+    serverNowMs: AHORA,
+  });
+  assert.equal(v.result, "TOO_SMALL", "799 < 800: el borde de abajo del ancho");
+});
+
+test("un píxel menos de alto que el mínimo tampoco", () => {
+  const v = evaluateReadiness({
+    measurements: { ...OK, width: 800, height: 599 },
+    limits: LIMITES,
+    serverNowMs: AHORA,
+  });
+  assert.equal(
+    v.result,
+    "TOO_SMALL",
+    "599 < 600: el alto se compara contra minHeight, no contra el mínimo menor de los dos",
+  );
 });
 
 test("una foto chica de verdad da TOO_SMALL", () => {

@@ -75,13 +75,16 @@ export function evaluateReadiness(input: {
     }
   }
 
-  // El lado largo va contra el mínimo mayor: una foto vertical válida no
-  // puede fallar por comparar su ancho contra el mínimo de ancho.
-  const ladoLargo = Math.max(m.width, m.height);
-  const ladoCorto = Math.min(m.width, m.height);
-  const minimoMayor = Math.max(limits.minWidth, limits.minHeight);
-  const minimoMenor = Math.min(limits.minWidth, limits.minHeight);
-  if (ladoLargo < minimoMayor || ladoCorto < minimoMenor) {
+  // Eje por eje, exactamente como la cañería real del concurso: en
+  // `lib/photo-upload/service.ts` el rechazo es
+  // `width < ctx.config.minWidth || height < ctx.config.minHeight`.
+  //
+  // Toda la utilidad de esta pantalla es predecir el veredicto del 12/12. Una
+  // regla propia — por ejemplo ordenar los lados y compararlos contra los
+  // mínimos ordenados — le diría "listo" a una foto de 700×2000 que el día
+  // del evento se rechaza. Si algún día la cañería pasa a ser indiferente a
+  // la orientación, se cambia allá primero y acá después.
+  if (m.width < limits.minWidth || m.height < limits.minHeight) {
     problems.push("TOO_SMALL");
   }
 
