@@ -4,6 +4,8 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
 import { Prisma, prisma } from "@/lib/admin/db";
+import { parseDateTimeInput } from "@/lib/admin/datetime-input";
+import { ZONA_ARGENTINA } from "@/lib/fecha-ar";
 import { logSocialRequest } from "./prisma-store";
 
 function revalidate(requestId?: string) {
@@ -38,13 +40,16 @@ export async function rejectSocialPublishAction(requestId: string, formData: For
 
 export async function scheduleSocialPublishAction(requestId: string, formData: FormData) {
   const actor = await requireClickatonAdmin();
-  const scheduleAt = new Date(String(formData.get("scheduleAt") ?? ""));
-  if (Number.isNaN(scheduleAt.getTime())) throw new Error("Fecha de publicación inválida.");
+  // El campo no lleva zona: es hora de pared de la zona elegida (Argentina por
+  // defecto). Leerla con el huso del runtime programaba la publicación 3 horas antes.
+  const timezone = String(formData.get("timezone") ?? "") || ZONA_ARGENTINA;
+  const scheduleAt = parseDateTimeInput(String(formData.get("scheduleAt") ?? ""), timezone);
+  if (!scheduleAt) throw new Error("Fecha de publicación inválida.");
   const request = await prisma.dnxSocialPublishRequest.findUniqueOrThrow({ where: { id: requestId } });
   const approved = ["APPROVED", "SCHEDULED"].includes(request.status);
   await prisma.dnxSocialPublishRequest.update({
     where: { id: requestId },
-    data: { scheduleAt, timezone: String(formData.get("timezone") ?? "America/Argentina/Buenos_Aires"), status: approved ? "SCHEDULED" : request.status },
+    data: { scheduleAt, timezone, status: approved ? "SCHEDULED" : request.status },
   });
   await logSocialRequest(requestId, "SCHEDULED", actor.id, { scheduleAt: scheduleAt.toISOString() });
   revalidate(requestId);

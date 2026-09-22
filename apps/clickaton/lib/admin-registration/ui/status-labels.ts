@@ -4,6 +4,7 @@ import type {
   ClickatonRegistrationStatus,
 } from "@/lib/registration/domain/types";
 import { formatArsDisplay } from "@/lib/admin-catalog/domain/money";
+import { fechaHoraAr } from "@/lib/fecha-ar";
 
 export function registrationStatusLabel(status: ClickatonRegistrationStatus): string {
   const map: Record<ClickatonRegistrationStatus, string> = {
@@ -67,11 +68,7 @@ export function displayRegistrationAmount(minor: number, currency = "ARS"): stri
 }
 
 export function formatArDateTime(date: Date | null | undefined): string {
-  if (!date) return "—";
-  return new Intl.DateTimeFormat("es-AR", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(date);
+  return fechaHoraAr(date);
 }
 
 /** Máscara parcial de documento para listados. */

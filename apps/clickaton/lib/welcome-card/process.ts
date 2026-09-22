@@ -4,6 +4,7 @@ import { prisma } from "@/lib/admin/db";
 import { getWelcomeCardStorage, shouldInlineMediaInDb } from "./storage";
 import { resolveMediaBody } from "./resolve-media-body";
 import { updateWelcomePublishAssets } from "@/lib/social-publisher/enqueue-welcome-publish";
+import { fechaAr } from "@/lib/fecha-ar";
 
 const retryAt = (attempt: number) => new Date(Date.now() + Math.min(60 * 60_000, 30_000 * 2 ** Math.min(attempt, 7)));
 
@@ -34,7 +35,7 @@ export async function processWelcomeCardById(cardId: string, storage = getWelcom
         participantNumber: registration.visibleCode ?? "Participante Clickatón",
         city: registration.city ?? "", province: registration.province ?? "",
         editionName: registration.edition.name,
-        editionDate: registration.edition.startAt?.toLocaleDateString("es-AR") ?? "",
+        editionDate: fechaAr(registration.edition.startAt, registration.edition.timezone, ""),
       },
       assets: { photo: await resolveMediaBody(photo.storageKey) },
       crop: {

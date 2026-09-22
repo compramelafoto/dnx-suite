@@ -1,3 +1,5 @@
+import { parseDateTimeInput } from "@/lib/admin/datetime-input";
+
 import { normalizeCatalogCode, normalizeSku } from "../domain/codes";
 import { CatalogValidationError } from "../domain/errors";
 import {
@@ -33,12 +35,17 @@ function optionalString(value: unknown, field: string, maxLen: number): string |
   return t || null;
 }
 
+/**
+ * Las fechas de venta llegan de un `<input type="datetime-local">`, que no lleva
+ * zona: son hora de pared argentina. Interpretarlas con el huso del runtime
+ * grababa la apertura y el cierre de venta 3 horas antes de lo cargado.
+ */
 function parseDate(value: unknown, field: string): Date | null {
   if (value === null || value === undefined || value === "") return null;
   if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
   if (typeof value === "string") {
-    const d = new Date(value);
-    if (Number.isNaN(d.getTime())) {
+    const d = parseDateTimeInput(value);
+    if (!d) {
       throw new CatalogValidationError({ [field]: "Fecha inválida." });
     }
     return d;

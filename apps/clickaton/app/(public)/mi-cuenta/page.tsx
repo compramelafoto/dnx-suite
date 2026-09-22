@@ -18,6 +18,7 @@ import {
   presentPaymentStatus,
   publicToneToBadgeVariant,
 } from "@/lib/public-ux/status-presentation";
+import { fechaHoraLargaAr } from "@/lib/fecha-ar";
 
 export const dynamic = "force-dynamic";
 
@@ -113,11 +114,7 @@ export default async function MiCuentaPage() {
               );
               const payment = presentPaymentStatus(reg.paymentStatus);
               const eventDate = reg.edition.startAt
-                ? new Date(reg.edition.startAt).toLocaleString("es-AR", {
-                    dateStyle: "long",
-                    timeStyle: "short",
-                    timeZone: reg.edition.timezone ?? "America/Argentina/Cordoba",
-                  })
+                ? fechaHoraLargaAr(reg.edition.startAt, reg.edition.timezone)
                 : null;
               return (
                 <li key={reg.id}>

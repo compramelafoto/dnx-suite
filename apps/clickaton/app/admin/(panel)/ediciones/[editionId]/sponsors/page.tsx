@@ -19,6 +19,7 @@ import {
 } from "@/lib/admin/edition-partners/service";
 import { getEditionById } from "@/lib/admin/editions/queries";
 import { toPartnerActor } from "@/lib/admin/partners/runtime";
+import { fechaAr } from "@/lib/fecha-ar";
 
 type Props = {
   params: Promise<{ editionId: string }>;
@@ -27,8 +28,8 @@ type Props = {
 
 function formatRange(startsAt: Date | null, endsAt: Date | null) {
   if (!startsAt && !endsAt) return "Sin vigencia";
-  const a = startsAt ? startsAt.toLocaleDateString("es-AR") : "—";
-  const b = endsAt ? endsAt.toLocaleDateString("es-AR") : "—";
+  const a = fechaAr(startsAt);
+  const b = fechaAr(endsAt);
   return `${a} → ${b}`;
 }
 

@@ -6,6 +6,8 @@ import type {
   TicketTypeItemRecord,
   TicketTypeRecord,
 } from "../domain/types";
+import { toDateTimeLocalValue } from "@/lib/admin/datetime-input";
+import { fechaHoraAr, ZONA_ARGENTINA } from "@/lib/fecha-ar";
 import { LOW_STOCK_THRESHOLD } from "./money-ui";
 
 export type TicketKitKind = "entrada" | "entrada_producto" | "kit";
@@ -171,17 +173,19 @@ export function commercialStatuses(input: {
   return [...new Set(labels)];
 }
 
-/** datetime-local value from Date (local wall clock). */
-export function toDatetimeLocalValue(date: Date | null | undefined): string {
-  if (!date) return "";
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+/**
+ * Valor para `<input type="datetime-local">`, en hora de pared argentina.
+ *
+ * Antes usaba el reloj del runtime: en Vercel (UTC) el formulario mostraba la
+ * venta abriendo 3 horas más tarde de lo que abría de verdad.
+ */
+export function toDatetimeLocalValue(
+  date: Date | null | undefined,
+  timeZone: string = ZONA_ARGENTINA,
+): string {
+  return toDateTimeLocalValue(date, timeZone);
 }
 
 export function formatArDateTime(date: Date | null | undefined): string {
-  if (!date) return "—";
-  return new Intl.DateTimeFormat("es-AR", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(date);
+  return fechaHoraAr(date);
 }

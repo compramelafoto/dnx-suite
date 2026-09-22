@@ -1,3 +1,4 @@
+import { formatearEnAr } from "@/lib/fecha-ar";
 /**
  * Qué hacer cuando el escaneo salió bien pero no se puede acreditar.
  *
@@ -18,24 +19,16 @@ export type BloqueoAcreditacion = {
 
 function hora(iso: string | null | undefined, timezone: string | null | undefined): string | null {
   if (!iso) return null;
-  const fecha = new Date(iso);
-  if (Number.isNaN(fecha.getTime())) return null;
-  try {
-    return new Intl.DateTimeFormat("es-AR", {
-      hour: "2-digit",
-      minute: "2-digit",
-      day: "2-digit",
-      month: "2-digit",
-      timeZone: timezone ?? undefined,
-    }).format(fecha);
-  } catch {
-    return new Intl.DateTimeFormat("es-AR", {
-      hour: "2-digit",
-      minute: "2-digit",
-      day: "2-digit",
-      month: "2-digit",
-    }).format(fecha);
-  }
+  // Una zona mal escrita caía en el reloj del runtime, que en Vercel es UTC:
+  // el operador leía un horario de acreditación 3 horas más tarde. Ahora cae en
+  // hora argentina.
+  const texto = formatearEnAr(
+    iso,
+    { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit", hourCycle: "h23" },
+    timezone,
+    "",
+  );
+  return texto || null;
 }
 
 export function describirBloqueoDeAcreditacion(input: BloqueoAcreditacion): string {
