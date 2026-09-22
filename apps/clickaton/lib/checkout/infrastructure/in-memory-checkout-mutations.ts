@@ -17,6 +17,20 @@ export function createInMemoryCheckoutMutations(
       return ed?.visibleCodePrefix?.trim() || "CK";
     },
 
+    async getCapacitySnapshot(registrationId) {
+      const reg = store.domain.registrations.get(registrationId);
+      const venueId = reg?.venueId ?? null;
+      if (!venueId) return { capacity: null, confirmed: 0 };
+      const venue = store.venues?.get(venueId) as { capacity?: number | null } | undefined;
+      let confirmed = 0;
+      for (const r of store.domain.registrations.values()) {
+        if (r.id !== registrationId && r.venueId === venueId && r.status === "CONFIRMED") {
+          confirmed += 1;
+        }
+      }
+      return { capacity: venue?.capacity ?? null, confirmed };
+    },
+
     async attachPaymentRefs(input) {
       const r = store.domain.registrations.get(input.registrationId);
       if (!r) throw new CheckoutError("NOT_FOUND", "Inscripción no encontrada.");

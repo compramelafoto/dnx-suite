@@ -62,6 +62,15 @@ export interface CheckoutRegistrationPort {
     capacityHoldActive: boolean;
     stockHoldsActive: number;
   }>;
+  /**
+   * Cupo del venue de la inscripción. `capacity: null` significa sin tope.
+   * Lo usa el rescate de pagos para decidir si puede confirmar un pago
+   * aprobado cuya reserva ya venció, sin sobrevender.
+   */
+  getCapacitySnapshot(registrationId: string): Promise<{
+    capacity: number | null;
+    confirmed: number;
+  }>;
 }
 
 export type CheckoutRegistrationPortDeps = {
@@ -78,6 +87,10 @@ export type CheckoutRegistrationMutations = {
     input: ReleaseForPaymentTerminalInput,
   ): Promise<ClickatonRegistrationRecord>;
   getEditionPrefix(editionId: string): Promise<string>;
+  getCapacitySnapshot(registrationId: string): Promise<{
+    capacity: number | null;
+    confirmed: number;
+  }>;
 };
 
 export function createCheckoutRegistrationPort(
@@ -94,5 +107,6 @@ export function createCheckoutRegistrationPort(
     expireRegistration: (input) =>
       publicRepo.expireRegistration({ ...input, dryRun: false }),
     getHoldSnapshot: (id) => publicRepo.getHoldSnapshot(id),
+    getCapacitySnapshot: (id) => mutations.getCapacitySnapshot(id),
   };
 }

@@ -7,6 +7,7 @@ import { createApplyPaymentEventUseCase } from "./apply-payment-event";
 import { createRegistrationCheckoutUseCase } from "./create-registration-checkout";
 import { createGetRegistrationPaymentStatusUseCase } from "./get-registration-payment-status";
 import { createReconcileRegistrationPaymentUseCase } from "./reconcile-registration-payment";
+import { createRescueRegistrationPaymentUseCase } from "./rescue-registration-payment";
 
 export function createCheckoutService(deps: {
   publicRepo: PublicRegistrationRepository;
@@ -38,6 +39,20 @@ export function createCheckoutService(deps: {
   const reconcile = createReconcileRegistrationPaymentUseCase({
     payments: deps.payments,
     registrationPort,
+  });
+  const rescue = createRescueRegistrationPaymentUseCase({
+    payments: deps.payments,
+    registrationPort,
+    ...(deps.log
+      ? {
+          log: (entry: { event: string; registrationId: string; meta?: unknown }) =>
+            deps.log?.({
+              event: "conflict",
+              registrationId: entry.registrationId,
+              meta: { code: entry.event, ...(entry.meta as object | undefined) },
+            }),
+        }
+      : {}),
   });
 
   const defaultBase =
@@ -157,6 +172,15 @@ export function createCheckoutService(deps: {
     getPaymentOrder: (orderId: string) => deps.payments.getOrder(orderId),
     reconcileRegistration: (registrationId: string) =>
       reconcile.execute({ registrationId }),
+    /**
+     * Red de seguridad: le pregunta al proveedor y confirma si el pago está
+     * aprobado, aunque la reserva ya haya vencido. Ver rescue-registration-payment.
+     */
+    rescueRegistrationPayment: (input: {
+      registrationId: string;
+      editionSlug?: string;
+      source?: string;
+    }) => rescue.execute(input),
   };
 }
 
