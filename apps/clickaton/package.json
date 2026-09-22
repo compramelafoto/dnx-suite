@@ -136,7 +136,8 @@
     "test:edition-rehearsal-pantallas": "tsx --test lib/edition-rehearsal/domain/pantallas.test.ts lib/edition-rehearsal/domain/confirmacion.test.ts",
     "test:participant-live-acceso": "tsx --test lib/participant-live/acceso.test.ts",
     "selfcheck:edition-rehearsal": "tsx scripts/edition-rehearsal.selfcheck.ts",
-    "test:edition-rehearsal-discard": "tsx --test lib/edition-rehearsal/application/discard-guard.test.ts"
+    "test:edition-rehearsal-discard": "tsx --test lib/edition-rehearsal/application/discard-guard.test.ts",
+    "test:testimonials": "tsx --test lib/testimonials/domain/*.test.ts lib/testimonials/application/*.test.ts lib/testimonials/public/*.test.ts lib/testimonials/ui/*.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1016.0",
