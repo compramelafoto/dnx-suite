@@ -737,3 +737,95 @@ export async function issueDiploma(
     };
   }
 }
+
+export type DiplomaPreviewResult =
+  | { ok: true; png: Buffer; width: number; height: number }
+  | { ok: false; code: DiplomaErrorCode; issues: string[] };
+
+/**
+ * Vista previa del diploma de una inscripción: el mismo camino que
+ * `issueDiploma` hasta el render inclusive (autorización → acreditación →
+ * plantilla → foto → render), pero nunca persiste nada — ni la pieza
+ * (`ClickatonParticipantCard`) ni el emisor (`ClickatonDiplomaIssue`). No
+ * llama a `saveToStorage`, `upsertCard`, `findExistingIssue`, `createIssue`
+ * ni `updateIssue`.
+ *
+ * El código y el token de muestra son fijos y nunca se guardan: es lo que
+ * permite mirar el diseño real antes de largar el lote sin gastar un código
+ * de verdad ni dejar una fila fantasma en la base.
+ */
+export async function renderDiplomaPreview(
+  input: { registrationId: string; actor: ParticipantCardActor },
+  depsArg: DiplomaServiceDeps = {}
+): Promise<DiplomaPreviewResult> {
+  const deps = resolveDeps(depsArg);
+
+  try {
+    try {
+      deps.checkAccess(input.actor);
+    } catch (err) {
+      throw new DiplomaServiceError("DIPLOMA_FORBIDDEN", [
+        err instanceof Error ? err.message : String(err),
+      ]);
+    }
+
+    const registration = await deps.loadRegistration(input.registrationId);
+    if (!registration) {
+      return { ok: false, code: "DIPLOMA_REGISTRATION_NOT_FOUND", issues: [] };
+    }
+
+    if (!isAccredited(registration.checkIns)) {
+      return { ok: false, code: "DIPLOMA_NOT_ACCREDITED", issues: [] };
+    }
+
+    const template = await deps.resolveTemplate({ editionId: registration.editionId });
+    if (!template.ok) {
+      return { ok: false, code: template.code, issues: template.issues };
+    }
+
+    let photoDataUrl: string | null = null;
+    if (template.usesParticipantPhoto) {
+      if (!registration.profilePhotoAssetId) {
+        return { ok: false, code: "DIPLOMA_PHOTO_REQUIRED", issues: [] };
+      }
+      try {
+        photoDataUrl = await deps.resolvePhoto({
+          profilePhotoAssetId: registration.profilePhotoAssetId,
+        });
+      } catch (err) {
+        throw new DiplomaServiceError("DIPLOMA_PHOTO_UNREADABLE", [
+          err instanceof Error ? err.message : String(err),
+        ]);
+      }
+    }
+
+    const timezone = registration.edition.timezone?.trim() || "America/Argentina/Cordoba";
+    const now = deps.now();
+    const accreditedAt = earliestAccreditedAt(registration.checkIns, now);
+
+    const templateData = buildDiplomaTemplateData({
+      registration,
+      photoDataUrl,
+      // Muestra: nunca se persiste, así que un código o token real acá
+      // sería un desperdicio (y podría confundirse con uno de verdad si se
+      // llegara a filtrar fuera de la vista previa).
+      diplomaCode: "MUESTRA",
+      verificationToken: "vista-previa",
+      accreditedAt,
+      issuedAt: now,
+      timezone,
+    });
+
+    const rendered = await deps.renderPng({ preset: template.preset, templateData });
+    return { ok: true, png: rendered.png, width: rendered.width, height: rendered.height };
+  } catch (err) {
+    if (err instanceof DiplomaServiceError) {
+      return { ok: false, code: err.code, issues: err.issues };
+    }
+    return {
+      ok: false,
+      code: "DIPLOMA_ISSUE_FAILED",
+      issues: [err instanceof Error ? err.message : String(err)],
+    };
+  }
+}

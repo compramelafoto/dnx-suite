@@ -1,0 +1,75 @@
+/**
+ * Cómo se muestra, en el panel, el estado de un acreditado frente a su
+ * diploma. Función pura: no toca la base.
+ *
+ * El dato de origen es la pieza de cola (`ClickatonParticipantCard` con
+ * `cardType: "DIPLOMA"`), no `ClickatonDiplomaIssue`: el emisor sólo existe
+ * cuando el diploma ya se emitió con éxito, así que es la pieza la que sabe
+ * si alguien quedó a mitad de camino (`GENERATING`) o se quedó sin diploma
+ * después de agotar los reintentos (`FAILED`). Ver Ruling 11 del ledger de
+ * la tarea: sin esto, el dueño de la maratón no tiene forma de saber quién
+ * se quedó sin diploma ni por qué.
+ */
+import { DIPLOMA_ERROR_MESSAGES, type DiplomaErrorCode } from "../diploma-types";
+
+export type DiplomaRowState = "no_generado" | "en_proceso" | "fallido" | "emitido";
+
+export type DiplomaRowTone = "neutral" | "warning" | "danger" | "success";
+
+export type DiplomaRowPresentation = {
+  label: string;
+  tone: DiplomaRowTone;
+  /** Sólo para `fallido`: motivo en castellano, listo para mostrar. `null` en el resto. */
+  reason: string | null;
+};
+
+const KNOWN_ERROR_CODES = new Set<string>(Object.keys(DIPLOMA_ERROR_MESSAGES));
+
+function isKnownDiplomaErrorCode(code: string): code is DiplomaErrorCode {
+  return KNOWN_ERROR_CODES.has(code);
+}
+
+const FALLBACK_REASON =
+  "No pudimos generar este diploma y no identificamos bien el motivo. Probá generarlo de nuevo; si sigue pasando, avisá al equipo técnico.";
+
+/** Motivo en castellano para una fila fallida. Nunca inventa texto para un motivo ya conocido. */
+export function presentDiplomaFailureReason(errorCode: string | null): string {
+  if (errorCode && isKnownDiplomaErrorCode(errorCode)) {
+    return DIPLOMA_ERROR_MESSAGES[errorCode];
+  }
+  return FALLBACK_REASON;
+}
+
+const BASE_PRESENTATION: Record<DiplomaRowState, Omit<DiplomaRowPresentation, "reason">> = {
+  no_generado: { label: "Sin generar", tone: "neutral" },
+  en_proceso: { label: "Generando…", tone: "warning" },
+  fallido: { label: "No se pudo generar", tone: "danger" },
+  emitido: { label: "Emitido", tone: "success" },
+};
+
+/** Etiqueta, tono y (si corresponde) motivo del estado de un acreditado frente a su diploma. */
+export function presentDiplomaRowState(
+  state: DiplomaRowState,
+  errorCode: string | null
+): DiplomaRowPresentation {
+  const base = BASE_PRESENTATION[state];
+  if (state !== "fallido") return { ...base, reason: null };
+  return { ...base, reason: presentDiplomaFailureReason(errorCode) };
+}
+
+/** Estados posibles de la pieza en cola, tal como los deja `diploma-batch.ts`. */
+export type DiplomaQueueCardStatus = "GENERATING" | "READY" | "FAILED" | "STALE" | "DELETED";
+
+/**
+ * De la pieza de cola de un acreditado (si existe) al estado de fila.
+ * `STALE`/`DELETED` no los produce el flujo de diplomas hoy, pero si algún
+ * día aparecen se tratan como "en proceso" en vez de reventar la pantalla.
+ */
+export function deriveDiplomaRowState(
+  card: { status: DiplomaQueueCardStatus } | null
+): DiplomaRowState {
+  if (!card) return "no_generado";
+  if (card.status === "READY") return "emitido";
+  if (card.status === "FAILED") return "fallido";
+  return "en_proceso";
+}

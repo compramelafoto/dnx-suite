@@ -5,6 +5,7 @@ import {
   DiplomaServiceError,
   DiplomaUniqueViolationError,
   issueDiploma,
+  renderDiplomaPreview,
   type DiplomaRenderPngInput,
 } from "@/lib/diplomas/diploma-service";
 
@@ -370,5 +371,137 @@ describe("issueDiploma", () => {
       out.ok === true && out.verificationToken,
       "token-del-ganador-de-la-carrera"
     );
+  });
+});
+
+describe("renderDiplomaPreview", () => {
+  it("devuelve el PNG sin persistir nada", async () => {
+    let upsertCalls = 0;
+    let createCalls = 0;
+    let updateCalls = 0;
+    let findCalls = 0;
+    let saveCalls = 0;
+    const out = await renderDiplomaPreview(
+      { registrationId: "reg_1", actor: { kind: "admin" } },
+      deps({
+        upsertCard: async () => {
+          upsertCalls += 1;
+          return { id: "card_x" };
+        },
+        createIssue: async (data: Record<string, unknown>) => {
+          createCalls += 1;
+          return { id: "dip_x", ...data };
+        },
+        updateIssue: async (data: Record<string, unknown>) => {
+          updateCalls += 1;
+          return { id: "dip_x", ...data };
+        },
+        findExistingIssue: async () => {
+          findCalls += 1;
+          return null;
+        },
+        saveToStorage: async () => {
+          saveCalls += 1;
+          return { storageKey: "k1", publicUrl: null };
+        },
+      })
+    );
+    assert.equal(out.ok, true);
+    assert.equal(out.ok === true && Buffer.isBuffer(out.png), true);
+    assert.equal(out.ok === true && out.width, 1754);
+    assert.equal(out.ok === true && out.height, 1240);
+    // Ni la pieza ni el emisor se tocan: ninguna de estas funciones se llama.
+    assert.equal(upsertCalls, 0);
+    assert.equal(createCalls, 0);
+    assert.equal(updateCalls, 0);
+    assert.equal(findCalls, 0);
+    assert.equal(saveCalls, 0);
+  });
+
+  it("no dibuja si el participante no está acreditado", async () => {
+    let dibujos = 0;
+    const out = await renderDiplomaPreview(
+      { registrationId: "reg_1", actor: { kind: "admin" } },
+      deps({
+        loadRegistration: async () => ({
+          id: "reg_1",
+          editionId: "ed_1",
+          firstName: "Ana",
+          lastName: "Pérez",
+          email: "ana@example.test",
+          visibleCode: "CK1-0042",
+          profilePhotoAssetId: null,
+          checkIns: [],
+          edition: { name: "1ª Edición", slug: "dia-del-fotografo-2026" },
+        }),
+        renderPng: async (input: DiplomaRenderPngInput) => {
+          dibujos += 1;
+          return { png: Buffer.from("x"), width: 1, height: 1, durationMs: 1 };
+        },
+      })
+    );
+    assert.equal(out.ok === false && out.code, "DIPLOMA_NOT_ACCREDITED");
+    assert.equal(dibujos, 0);
+  });
+
+  it("no dibuja sin plantilla asignada", async () => {
+    const out = await renderDiplomaPreview(
+      { registrationId: "reg_1", actor: { kind: "admin" } },
+      deps({
+        resolveTemplate: async () => ({
+          ok: false as const,
+          code: "DIPLOMA_TEMPLATE_MISSING" as const,
+          issues: [],
+        }),
+      })
+    );
+    assert.equal(out.ok === false && out.code, "DIPLOMA_TEMPLATE_MISSING");
+  });
+
+  it("exige foto si la plantilla la usa", async () => {
+    const out = await renderDiplomaPreview(
+      { registrationId: "reg_1", actor: { kind: "admin" } },
+      deps({
+        resolveTemplate: async () => ({
+          ok: true as const,
+          preset: { id: "tpl", width: 1754, height: 1240 },
+          source: {
+            templateId: "t1",
+            templateName: "Con foto",
+            versionId: "v1",
+            versionNumber: 1,
+            revision: 1,
+          },
+          usesParticipantPhoto: true,
+        }),
+      })
+    );
+    assert.equal(out.ok === false && out.code, "DIPLOMA_PHOTO_REQUIRED");
+  });
+
+  it("respeta la autorización del actor", async () => {
+    const out = await renderDiplomaPreview(
+      { registrationId: "reg_1", actor: { kind: "admin" } },
+      deps({
+        checkAccess: () => {
+          throw new Error("no autorizado");
+        },
+      })
+    );
+    assert.equal(out.ok === false && out.code, "DIPLOMA_FORBIDDEN");
+  });
+
+  it("usa código y token de muestra, nunca uno real", async () => {
+    let dataVisto: Record<string, unknown> | null = null;
+    await renderDiplomaPreview(
+      { registrationId: "reg_1", actor: { kind: "admin" } },
+      deps({
+        renderPng: async (input: DiplomaRenderPngInput) => {
+          dataVisto = input.templateData;
+          return { png: Buffer.from("x"), width: 1, height: 1, durationMs: 1 };
+        },
+      })
+    );
+    assert.equal(dataVisto !== null && dataVisto["diploma.code"], "MUESTRA");
   });
 });

@@ -39,6 +39,13 @@ const CARDS = [
     title: "Soy parte",
     description: "Placa de pertenencia que el participante puede compartir.",
   },
+  {
+    key: "diploma" as const,
+    dbType: "DIPLOMA" as const,
+    title: "Diploma de participación",
+    description:
+      "Se genera a pedido, para los que se acreditaron. Sin plantilla asignada no se emite ninguno.",
+  },
 ];
 
 export default async function EditionCardTemplatesPage({ params, searchParams }: Props) {
