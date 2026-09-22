@@ -317,7 +317,7 @@ async function defaultRenderPng(
   const preset = input.preset as ClickatonCardPreset;
   const document = resolveDiplomaDocument({ preset, templateData: input.templateData });
   const provider = resolveParticipantCardRenderProvider();
-  return provider.render({ document });
+  return provider.render({ document, templateData: input.templateData });
 }
 
 async function defaultSaveToStorage(
