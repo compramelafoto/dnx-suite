@@ -5,6 +5,7 @@ import { adminRoutes } from "@/config/admin/navigation";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
 import { prisma } from "@/lib/admin/db";
 import { enqueueDiplomaQueueRow, enqueueEditionDiplomas } from "@/lib/diplomas/diploma-batch";
+import { enqueueEditionDiplomaEmails, requeueDiplomaEmail } from "@/lib/diplomas/diploma-email";
 import { resolveDiplomaTemplate } from "@/lib/diplomas/diploma-template";
 import { DIPLOMA_ERROR_MESSAGES } from "@/lib/diplomas/diploma-types";
 
@@ -81,5 +82,80 @@ export async function regenerateDiplomaAction(
   return {
     ok: true,
     message: "Diploma reencolado. El proceso automático lo genera en los próximos minutos.",
+  };
+}
+
+/**
+ * Encola el correo del diploma para toda la edición: sólo a quienes tienen
+ * diploma vigente y dirección de correo (ver `enqueueEditionDiplomaEmails`).
+ * No manda nada acá — nunca dentro de una petición web. El envío real lo
+ * hace el proceso automático (`processDueDiplomaEmails`), de a tandas, desde
+ * el cron — mismo criterio que `generateEditionDiplomasAction` arriba.
+ *
+ * Server action en vez de ruta API: es como el resto de los botones de este
+ * panel (ver `generateEditionDiplomasAction`/`regenerateDiplomaAction`), y
+ * evita sumar una tercera convención de URL de API admin (esta app ya tiene
+ * `/api/admin/ediciones/` en español y `/api/admin/editions/` en inglés
+ * conviviendo por razones históricas; no hacía falta un tercer camino para
+ * esto).
+ */
+export async function sendEditionDiplomaEmailsAction(
+  editionId: string,
+): Promise<DiplomaActionState> {
+  await requireClickatonAdmin();
+
+  const result = await enqueueEditionDiplomaEmails(editionId);
+  revalidatePath(diplomasPath(editionId));
+
+  const sinDireccion =
+    result.withoutEmail > 0
+      ? ` ${result.withoutEmail} participante${result.withoutEmail === 1 ? "" : "s"} sigue${
+          result.withoutEmail === 1 ? "" : "n"
+        } sin dirección de correo y no recibe nada.`
+      : "";
+
+  if (result.queued === 0) {
+    return {
+      ok: true,
+      message: `No había ningún correo pendiente de mandar.${sinDireccion}`,
+    };
+  }
+
+  return {
+    ok: true,
+    message: `Se encolaron ${result.queued} correo${
+      result.queued === 1 ? "" : "s"
+    }. El proceso automático los va mandando en los próximos minutos.${sinDireccion}`,
+  };
+}
+
+/**
+ * Reintenta el correo de un diploma puntual — la fila "Reintentar" cuando el
+ * envío rebotó. Sirve también para revivir un evento que agotó sus
+ * reintentos automáticos y quedó `"DEAD"` en el buzón de salida (ver
+ * `requeueDiplomaEmail` en `diploma-email.ts` para el porqué hace falta esto
+ * y no alcanza con tocar sólo `emailStatus`).
+ */
+export async function retryDiplomaEmailAction(
+  editionId: string,
+  diplomaId: string,
+): Promise<DiplomaActionState> {
+  await requireClickatonAdmin();
+
+  const result = await requeueDiplomaEmail(diplomaId);
+  revalidatePath(diplomasPath(editionId));
+
+  if (!result.ok) {
+    return {
+      ok: false,
+      message:
+        result.reason === "ALREADY_SENT"
+          ? "Ese correo ya se había mandado: no se reenvía."
+          : "No encontramos ese diploma.",
+    };
+  }
+  return {
+    ok: true,
+    message: "Correo reencolado. El proceso automático lo manda en los próximos minutos.",
   };
 }

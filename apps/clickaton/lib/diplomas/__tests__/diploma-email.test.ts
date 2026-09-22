@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import {
   buildDiplomaEmail,
+  classifyDiplomaEmailSendFailure,
   enqueueEditionDiplomaEmails,
+  previewDiplomaEmailBatch,
+  requeueDiplomaEmail,
   resolveDiplomaEmailRecipient,
   resolveDiplomaImageUrl,
 } from "@/lib/diplomas/diploma-email";
@@ -56,30 +59,54 @@ describe("buildDiplomaEmail", () => {
 });
 
 describe("resolveDiplomaImageUrl", () => {
-  const originalEnv = process.env.R2_PUBLIC_URL;
-
-  afterEach(() => {
-    if (originalEnv === undefined) delete process.env.R2_PUBLIC_URL;
-    else process.env.R2_PUBLIC_URL = originalEnv;
+  it("arma la URL pública vía /api/media para una key de diploma real", () => {
+    const key =
+      "clickaton/participant-cards/edition-ed1/registration-reg1/diploma/v1/abc123.png";
+    const url = resolveDiplomaImageUrl(key);
+    assert.equal(url, `https://maratonfotografica.com/api/media/${key}`);
   });
 
-  it("arma la URL pública a partir de la storageKey", () => {
-    process.env.R2_PUBLIC_URL = "https://cdn.example.com/";
+  it("nunca arma una URL para una key fuera de la lista blanca (welcome, member, o el pdf del diploma)", () => {
     assert.equal(
-      resolveDiplomaImageUrl("clickaton/participant-cards/edition-1/registration-1/diploma/v1/hash.png"),
-      "https://cdn.example.com/clickaton/participant-cards/edition-1/registration-1/diploma/v1/hash.png"
+      resolveDiplomaImageUrl(
+        "clickaton/participant-cards/edition-ed1/registration-reg1/welcome/v1/abc123.png"
+      ),
+      null
     );
+    assert.equal(
+      resolveDiplomaImageUrl(
+        "clickaton/participant-cards/edition-ed1/registration-reg1/diploma/v1/abc123.pdf"
+      ),
+      null
+    );
+    assert.equal(resolveDiplomaImageUrl("clickaton/private/algo.png"), null);
   });
 
-  it("sin R2_PUBLIC_URL no hay URL pública posible", () => {
-    delete process.env.R2_PUBLIC_URL;
-    assert.equal(resolveDiplomaImageUrl("clickaton/participant-cards/x.png"), null);
-  });
-
-  it("sin storageKey tampoco hay URL", () => {
-    process.env.R2_PUBLIC_URL = "https://cdn.example.com";
+  it("sin storageKey no hay URL", () => {
     assert.equal(resolveDiplomaImageUrl(null), null);
     assert.equal(resolveDiplomaImageUrl(undefined), null);
+    assert.equal(resolveDiplomaImageUrl(""), null);
+  });
+});
+
+describe("classifyDiplomaEmailSendFailure", () => {
+  it("un rechazo explícito de Resend (4xx) es REJECTED", () => {
+    assert.equal(
+      classifyDiplomaEmailSendFailure("Resend HTTP 422: dirección inválida"),
+      "REJECTED"
+    );
+    assert.equal(classifyDiplomaEmailSendFailure("Resend HTTP 400: bad request"), "REJECTED");
+  });
+
+  it("un 5xx de Resend es transitorio, no un rechazo", () => {
+    assert.equal(classifyDiplomaEmailSendFailure("Resend HTTP 500: internal error"), "TRANSIENT");
+    assert.equal(classifyDiplomaEmailSendFailure("Resend HTTP 503: unavailable"), "TRANSIENT");
+  });
+
+  it("un fallo de red, sin respuesta de Resend, es transitorio", () => {
+    assert.equal(classifyDiplomaEmailSendFailure("fetch failed"), "TRANSIENT");
+    assert.equal(classifyDiplomaEmailSendFailure("ETIMEDOUT"), "TRANSIENT");
+    assert.equal(classifyDiplomaEmailSendFailure(undefined), "TRANSIENT");
   });
 });
 
@@ -182,5 +209,84 @@ describe("enqueueEditionDiplomaEmails", () => {
     assert.deepEqual(encolados, ["d2"]);
     assert.equal(out.queued, 1);
     assert.equal(out.withoutEmail, 1);
+  });
+
+  it("un diploma ya enviado no pierde su estado aunque después le vacíen el email", async () => {
+    const marcados: string[] = [];
+    const out = await enqueueEditionDiplomaEmails("ed_1", {
+      loadIssued: async () => [
+        // Se mandó, y en algún momento posterior la inscripción se quedó sin email.
+        { id: "d1", registrationId: "r1", email: "", emailStatus: "SENT" },
+      ],
+      enqueue: async () => {},
+      markNoEmail: async (id: string) => {
+        marcados.push(id);
+      },
+    });
+    assert.deepEqual(marcados, [], "no debería tocar un diploma que no está NOT_SENT");
+    assert.equal(out.withoutEmail, 0);
+    assert.equal(out.alreadySent, 1);
+  });
+});
+
+describe("previewDiplomaEmailBatch", () => {
+  it("cuenta lo mismo que después va a encolar/marcar enqueueEditionDiplomaEmails", () => {
+    const rows = [
+      { email: "ana@example.test", emailStatus: "NOT_SENT" },
+      { email: "", emailStatus: "NOT_SENT" },
+      { email: "beto@example.test", emailStatus: "SENT" },
+      { email: "", emailStatus: "BOUNCED" },
+    ];
+    assert.deepEqual(previewDiplomaEmailBatch(rows), { pending: 1, withoutEmail: 1 });
+  });
+
+  it("no cuenta nada sobre una lista vacía", () => {
+    assert.deepEqual(previewDiplomaEmailBatch([]), { pending: 0, withoutEmail: 0 });
+  });
+});
+
+describe("requeueDiplomaEmail", () => {
+  it("reencola un diploma rebotado", async () => {
+    const requeued: Array<[string, string]> = [];
+    const out = await requeueDiplomaEmail("d1", {
+      loadDiploma: async () => ({ id: "d1", editionId: "ed_1", emailStatus: "BOUNCED" }),
+      requeue: async (diplomaId, editionId) => {
+        requeued.push([diplomaId, editionId]);
+      },
+    });
+    assert.deepEqual(out, { ok: true });
+    assert.deepEqual(requeued, [["d1", "ed_1"]]);
+  });
+
+  it("reencola un evento que quedó DEAD (agotó los reintentos automáticos)", async () => {
+    const requeued: string[] = [];
+    const out = await requeueDiplomaEmail("d1", {
+      loadDiploma: async () => ({ id: "d1", editionId: "ed_1", emailStatus: "QUEUED" }),
+      requeue: async (diplomaId) => {
+        requeued.push(diplomaId);
+      },
+    });
+    assert.equal(out.ok, true);
+    assert.deepEqual(requeued, ["d1"]);
+  });
+
+  it("no reenvía uno que ya se mandó", async () => {
+    const requeued: string[] = [];
+    const out = await requeueDiplomaEmail("d1", {
+      loadDiploma: async () => ({ id: "d1", editionId: "ed_1", emailStatus: "SENT" }),
+      requeue: async (diplomaId) => {
+        requeued.push(diplomaId);
+      },
+    });
+    assert.deepEqual(out, { ok: false, reason: "ALREADY_SENT" });
+    assert.deepEqual(requeued, []);
+  });
+
+  it("un diploma inexistente no revienta", async () => {
+    const out = await requeueDiplomaEmail("no_existe", {
+      loadDiploma: async () => null,
+      requeue: async () => {},
+    });
+    assert.deepEqual(out, { ok: false, reason: "DIPLOMA_NOT_FOUND" });
   });
 });

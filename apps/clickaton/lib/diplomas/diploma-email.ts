@@ -5,7 +5,7 @@
  * encolar de generar:
  *
  * 1. `enqueueEditionDiplomaEmails` — dispara el botón del panel. Sólo lee y
- *    marca: crea (o reusa) un `ClickatonIntegrationOutboxEvent` por diploma
+ *    marca: crea (o revive) un `ClickatonIntegrationOutboxEvent` por diploma
  *    con `idempotencyKey: diploma_email:<diplomaId>` y deja el emisor en
  *    `emailStatus: "QUEUED"`. Nunca manda nada acá — eso lo hace
  *    `processDueDiplomaEmails` (en `diploma-batch.ts`), de a tandas, desde
@@ -19,7 +19,8 @@
  * El mecanismo de "dos clics no reenvían" es el mismo `emailStatus` de la
  * fila de emisión (Task 2): sólo se encola lo que está en `"NOT_SENT"`;
  * todo lo demás (`QUEUED`, `SENT`, `BOUNCED`, `NO_EMAIL`) se cuenta como
- * "ya resuelto" y no se vuelve a tocar acá.
+ * "ya resuelto" y no se vuelve a tocar. `requeueDiplomaEmail` es el único
+ * camino para volver a intentar un rebote (ver más abajo).
  *
  * Formato y resolución de destinatario calcados de
  * `lib/registration/notifications/participant-email.ts`
@@ -33,6 +34,7 @@
  * `post-payment-public-copy.ts` y en `lib/site/public-origin.ts`).
  */
 import { Prisma, prisma } from "@/lib/admin/db";
+import { isPublicMediaKey } from "@/lib/content/public-media-keys";
 import {
   PRODUCTION_SITE_ORIGIN,
   isClickatonProductionAudience,
@@ -168,21 +170,63 @@ export function resolveDiplomaAccountUrl(registrationId: string): string {
 }
 
 /**
- * URL pública de la imagen del diploma, a partir de la `storageKey` de la
- * pieza (`ClickatonParticipantCard.storageKey`). El namespace
- * `clickaton/participant-cards/...` NO está en la allowlist del proxy
- * `/api/media` (ver `lib/content/public-media-keys.ts`: ese proxy es sólo
- * para material de marca) — la única forma de que un cliente de correo,
- * sin sesión, pueda cargar esta imagen es apuntar directo al dominio
- * público del bucket. Sin `R2_PUBLIC_URL` configurada no hay forma de
- * construir esa URL: se devuelve `null` y quien llama decide qué hacer
- * (no manda un correo con la imagen rota).
+ * URL pública de la imagen del diploma, servida por el proxy
+ * `/api/media/<key>` (ver `lib/content/public-media-keys.ts`).
+ *
+ * **Por qué no `R2_PUBLIC_URL`** (lo que hacía la primera versión de esto):
+ * esa variable, si se configura, hace público el **bucket entero** — ahí
+ * conviven las credenciales con QR, las fotos de perfil de todos los
+ * participantes, `clickaton/private/` y los contratos de sponsors. No hay
+ * forma de "publicar sólo el diploma" con esa variable: la apaga toda la
+ * lista blanca de `/api/media`, que existe justamente para decidir qué se
+ * ve y qué no. Por eso el chequeo automático de variables
+ * (`api/cron/r2-production-smoke`) la excluye a propósito de lo que
+ * verifica: nadie la tiene que encender de casualidad.
+ *
+ * `isPublicMediaKey` es un cinturón de seguridad, no el mecanismo en sí: la
+ * única `storageKey` que debería llegar acá es la de una pieza
+ * `cardType: DIPLOMA` (`ClickatonParticipantCard.storageKey`), que
+ * `PUBLIC_MEDIA_KEY_PATTERN` ya acepta. Si por lo que sea llega otra cosa
+ * (una key de `welcome`/`member`, o el `.pdf`), se devuelve `null` en vez de
+ * armar una URL que el proxy va a rechazar con 404 igual — mejor no mandar
+ * el correo con la imagen rota que confiar ciegamente en el storageKey.
  */
 export function resolveDiplomaImageUrl(storageKey: string | null | undefined): string | null {
   if (!storageKey) return null;
-  const base = process.env.R2_PUBLIC_URL?.trim().replace(/\/$/, "");
-  if (!base) return null;
-  return `${base}/${storageKey}`;
+  if (!isPublicMediaKey(storageKey)) return null;
+  return `${diplomaBaseUrl()}/api/media/${storageKey}`;
+}
+
+// ---------------------------------------------------------------------------
+// Clasificación de una falla de envío — ni todo lo que no se mandó es un
+// rebote, ni todo lo que no se mandó merece reintentarse solo para siempre.
+// ---------------------------------------------------------------------------
+
+export type DiplomaEmailSendFailureKind = "REJECTED" | "TRANSIENT";
+
+/**
+ * `sendIdentityEmail` (`packages/auth/src/email.ts`) nunca tira excepción:
+ * ante cualquier problema devuelve `{sent:false, skipped, reason}`, y ese
+ * `reason` es el mismo campo tanto si Resend contestó "no" (HTTP 4xx: la
+ * dirección no existe, el payload está mal armado — nada que un reintento
+ * vaya a arreglar) como si nunca llegó a contestar nada (timeout, DNS
+ * caído, un 5xx suyo — exactamente lo que un reintento sí puede arreglar).
+ * Tratar los dos casos igual (como hacía la primera versión de esto) deja a
+ * alguien sin su diploma para siempre por un simple hipo de red.
+ *
+ * Esta función separa los dos casos mirando el único dato que los
+ * distingue: si `reason` trae un código HTTP explícito de Resend, y ese
+ * código es 4xx, es un rechazo real (`"REJECTED"`); cualquier otra cosa
+ * —5xx, o ninguna respuesta de Resend en absoluto— es transitoria
+ * (`"TRANSIENT"`) y se reintenta.
+ */
+export function classifyDiplomaEmailSendFailure(reason: string | undefined): DiplomaEmailSendFailureKind {
+  const match = reason?.match(/Resend HTTP (\d{3})/);
+  if (match) {
+    const status = Number(match[1]);
+    if (status >= 400 && status < 500) return "REJECTED";
+  }
+  return "TRANSIENT";
 }
 
 // ---------------------------------------------------------------------------
@@ -202,6 +246,14 @@ export type EnqueueEditionDiplomaEmailsDeps = {
   markNoEmail?: (diplomaId: string) => Promise<void>;
 };
 
+/**
+ * `alreadySent` es un cajón único para cuatro estados distintos (`QUEUED`,
+ * `SENT`, `BOUNCED`, y "sin dirección, ya marcado antes"): sirve para saber
+ * cuántas filas no se tocaron en esta pasada, pero **no** es "cuántos ya
+ * recibieron el correo" — no usar este número para decirle eso al usuario.
+ * El estado real de cada uno vive en `ClickatonDiplomaIssue.emailStatus`
+ * (ver `presentDiplomaEmailState` para mostrarlo fila por fila).
+ */
 export type EnqueueEditionDiplomaEmailsResult = {
   queued: number;
   withoutEmail: number;
@@ -226,34 +278,50 @@ async function defaultLoadIssued(editionId: string): Promise<DiplomaEmailCandida
   }));
 }
 
+/**
+ * Deja el evento del buzón de salida listo para tomarse (`"PENDING"`,
+ * disponible ahora) y el emisor en `"QUEUED"`. Es la MISMA operación tanto
+ * para el primer encolado como para un reintento manual
+ * (`requeueDiplomaEmail`): el `idempotencyKey` es fijo por diploma
+ * (`diploma_email:<diplomaId>`), así que un evento que ya se procesó (
+ * `"PROCESSED"`, `"DEAD"`, o trabado en `"FAILED"`) se revive en vez de
+ * quedar huérfano. Sin este `update` explícito, `upsert` no tocaría un
+ * evento existente y un reintento manual no haría nada — ese fue,
+ * justamente, el bug que `requeueDiplomaEmail` vino a resolver.
+ */
+async function queueDiplomaEmailEvent(diplomaId: string, editionId: string): Promise<void> {
+  const idempotencyKey = idempotencyKeyFor(diplomaId);
+  const now = new Date();
+  await prisma.$transaction([
+    prisma.clickatonIntegrationOutboxEvent.upsert({
+      where: { idempotencyKey },
+      create: {
+        editionId,
+        eventType: DIPLOMA_EMAIL_OUTBOX_EVENT_TYPE,
+        aggregateType: "ClickatonDiplomaIssue",
+        aggregateId: diplomaId,
+        payload: { diplomaId } as Prisma.InputJsonValue,
+        status: "PENDING",
+        availableAt: now,
+        idempotencyKey,
+      },
+      update: {
+        status: "PENDING",
+        availableAt: now,
+        lockedAt: null,
+        lastError: null,
+      },
+    }),
+    prisma.clickatonDiplomaIssue.update({
+      where: { id: diplomaId },
+      data: { emailStatus: "QUEUED" },
+    }),
+  ]);
+}
+
 /** `enqueue` por defecto necesita `editionId`, que sólo conoce quien lo arma. */
 function buildDefaultEnqueue(editionId: string): (diplomaId: string) => Promise<void> {
-  return async (diplomaId: string) => {
-    const idempotencyKey = idempotencyKeyFor(diplomaId);
-    await prisma.$transaction([
-      prisma.clickatonIntegrationOutboxEvent.upsert({
-        where: { idempotencyKey },
-        create: {
-          editionId,
-          eventType: DIPLOMA_EMAIL_OUTBOX_EVENT_TYPE,
-          aggregateType: "ClickatonDiplomaIssue",
-          aggregateId: diplomaId,
-          payload: { diplomaId } as Prisma.InputJsonValue,
-          status: "PENDING",
-          availableAt: new Date(),
-          idempotencyKey,
-        },
-        // Doble clic / dos ciclos de cron pisándose: el evento ya existe,
-        // no hay nada que actualizar en él (su estado lo mueve el
-        // procesador, no este encolado).
-        update: {},
-      }),
-      prisma.clickatonDiplomaIssue.update({
-        where: { id: diplomaId },
-        data: { emailStatus: "QUEUED" },
-      }),
-    ]);
-  };
+  return (diplomaId: string) => queueDiplomaEmailEvent(diplomaId, editionId);
 }
 
 async function defaultMarkNoEmail(diplomaId: string): Promise<void> {
@@ -265,11 +333,15 @@ async function defaultMarkNoEmail(diplomaId: string): Promise<void> {
 
 /**
  * Encola el correo de los diplomas vigentes de una edición: sólo los que
- * tienen dirección de correo y todavía no se encolaron (`"NOT_SENT"`). Los
- * que no tienen dirección quedan marcados `"NO_EMAIL"` y no frenan a los
- * demás; los que ya están `"QUEUED"`, `"SENT"`, `"BOUNCED"` o `"NO_EMAIL"`
- * se cuentan como `alreadySent` y no se tocan — eso es lo que hace que
- * apretar el botón dos veces no reenvíe nada.
+ * tienen dirección de correo y todavía están `"NOT_SENT"` (nunca se
+ * intentaron). Los que no tienen dirección **y siguen `"NOT_SENT"`** quedan
+ * marcados `"NO_EMAIL"`; los que ya tienen cualquier otro estado
+ * (`"QUEUED"`, `"SENT"`, `"BOUNCED"`, o `"NO_EMAIL"` de una pasada anterior)
+ * no se tocan — ni para encolar de nuevo, ni para sobreescribir su estado
+ * si en el medio le vaciaron el email a la inscripción. Eso es lo que hace
+ * que (a) apretar el botón dos veces no reenvíe nada, y (b) un diploma que
+ * ya se mandó no "olvide" que se mandó porque después alguien tocó el
+ * email de la inscripción.
  */
 export async function enqueueEditionDiplomaEmails(
   editionId: string,
@@ -286,19 +358,106 @@ export async function enqueueEditionDiplomaEmails(
   let alreadySent = 0;
 
   for (const row of rows) {
+    const isFresh = row.emailStatus === "NOT_SENT";
     const email = row.email?.trim();
+
     if (!email) {
-      withoutEmail += 1;
-      await markNoEmail(row.id);
+      if (isFresh) {
+        withoutEmail += 1;
+        await markNoEmail(row.id);
+      } else {
+        alreadySent += 1;
+      }
       continue;
     }
-    if (row.emailStatus !== "NOT_SENT") {
+
+    if (!isFresh) {
       alreadySent += 1;
       continue;
     }
+
     await enqueue(row.id);
     queued += 1;
   }
 
   return { queued, withoutEmail, alreadySent };
+}
+
+/**
+ * Cuenta previa, de sólo lectura, para el diálogo de confirmación del botón
+ * ("se van a mandar N correos, M se quedan sin dirección"). Misma
+ * clasificación que el loop de `enqueueEditionDiplomaEmails`, pero sin
+ * escribir nada — se usa para mostrar el número ANTES de que la persona
+ * confirme, no después.
+ */
+export function previewDiplomaEmailBatch(
+  rows: Pick<DiplomaEmailCandidate, "email" | "emailStatus">[]
+): { pending: number; withoutEmail: number } {
+  let pending = 0;
+  let withoutEmail = 0;
+  for (const row of rows) {
+    if (row.emailStatus !== "NOT_SENT") continue;
+    if (row.email?.trim()) pending += 1;
+    else withoutEmail += 1;
+  }
+  return { pending, withoutEmail };
+}
+
+// ---------------------------------------------------------------------------
+// requeueDiplomaEmail — el camino de reintento manual (IMPORTANTE 6).
+// ---------------------------------------------------------------------------
+
+export type RequeueDiplomaEmailResult =
+  | { ok: true }
+  | { ok: false; reason: "DIPLOMA_NOT_FOUND" | "ALREADY_SENT" };
+
+export type RequeueDiplomaEmailDeps = {
+  loadDiploma?: (
+    diplomaId: string
+  ) => Promise<{ id: string; editionId: string; emailStatus: string } | null>;
+  requeue?: (diplomaId: string, editionId: string) => Promise<void>;
+};
+
+async function defaultLoadDiplomaForRequeue(
+  diplomaId: string
+): Promise<{ id: string; editionId: string; emailStatus: string } | null> {
+  return prisma.clickatonDiplomaIssue.findUnique({
+    where: { id: diplomaId },
+    select: { id: true, editionId: true, emailStatus: true },
+  });
+}
+
+/**
+ * Reintento manual de un correo de diploma: sirve tanto para un rebote real
+ * (`"BOUNCED"`) como para un evento que agotó sus reintentos automáticos y
+ * quedó `"DEAD"` en el buzón de salida (ver `processDueDiplomaEmails`).
+ *
+ * Por qué hacía falta esto y no alcanzaba con "poné `emailStatus` de nuevo
+ * en `NOT_SENT` y llamá a `enqueueEditionDiplomaEmails`": el evento del
+ * buzón de salida usa un `idempotencyKey` fijo por diploma
+ * (`diploma_email:<diplomaId>`). Un evento ya `"PROCESSED"` (o `"DEAD"`)
+ * nunca lo vuelve a levantar `processDueDiplomaEmails`, sin importar en qué
+ * quede `emailStatus` — `enqueueEditionDiplomaEmails` sólo decide SI hay que
+ * reintentar; quien de verdad revive el evento es `queueDiplomaEmailEvent`
+ * (mismo helper que usa el encolado normal). Esta función junta las dos
+ * cosas en una sola llamada segura de invocar sobre cualquier diploma.
+ *
+ * Rechaza reintentar uno que ya está `"SENT"` (evita un reenvío accidental
+ * a alguien que ya lo recibió). No hay, todavía, un botón en el panel que
+ * llame a esto — ver `diploma-actions.ts` / `DiplomasPanelClient.tsx` para
+ * la fila "No se pudo enviar" con su acción "Reintentar".
+ */
+export async function requeueDiplomaEmail(
+  diplomaId: string,
+  deps: RequeueDiplomaEmailDeps = {}
+): Promise<RequeueDiplomaEmailResult> {
+  const loadDiploma = deps.loadDiploma ?? defaultLoadDiplomaForRequeue;
+  const requeue = deps.requeue ?? queueDiplomaEmailEvent;
+
+  const diploma = await loadDiploma(diplomaId);
+  if (!diploma) return { ok: false, reason: "DIPLOMA_NOT_FOUND" };
+  if (diploma.emailStatus === "SENT") return { ok: false, reason: "ALREADY_SENT" };
+
+  await requeue(diploma.id, diploma.editionId);
+  return { ok: true };
 }

@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS "ClickatonDiplomaIssue" (
   "emailStatus" TEXT NOT NULL DEFAULT 'NOT_SENT',
   "emailSentAt" TIMESTAMP(3),
   "emailLastError" TEXT,
+  "emailProviderMessageId" TEXT,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMP(3) NOT NULL,
   CONSTRAINT "ClickatonDiplomaIssue_pkey" PRIMARY KEY ("id")

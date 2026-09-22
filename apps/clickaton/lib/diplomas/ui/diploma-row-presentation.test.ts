@@ -3,8 +3,10 @@ import { describe, it } from "node:test";
 import { DIPLOMA_ERROR_MESSAGES, type DiplomaErrorCode } from "../diploma-types";
 import {
   deriveDiplomaRowState,
+  presentDiplomaEmailState,
   presentDiplomaFailureReason,
   presentDiplomaRowState,
+  type DiplomaEmailRowState,
   type DiplomaRowState,
 } from "./diploma-row-presentation";
 
@@ -68,5 +70,37 @@ describe("derivar el estado de fila desde la pieza de cola", () => {
   it("un estado que el flujo de diplomas no produce hoy no revienta la pantalla", () => {
     assert.equal(deriveDiplomaRowState({ status: "STALE" }), "en_proceso");
     assert.equal(deriveDiplomaRowState({ status: "DELETED" }), "en_proceso");
+  });
+});
+
+describe("cómo se muestra el estado del correo del diploma", () => {
+  const TODOS_EMAIL: DiplomaEmailRowState[] = ["NOT_SENT", "QUEUED", "SENT", "BOUNCED", "NO_EMAIL"];
+
+  it("sin diploma emitido todavía, no hay nada que mostrar", () => {
+    assert.equal(presentDiplomaEmailState(null), null);
+  });
+
+  it("todos los estados conocidos tienen etiqueta", () => {
+    for (const state of TODOS_EMAIL) {
+      const p = presentDiplomaEmailState(state);
+      assert.ok(p && p.label.length > 0, `${state} sin etiqueta`);
+    }
+  });
+
+  it("dice 'enviado', no 'recibido': ese estado sólo confirma que se le entregó a Resend", () => {
+    const p = presentDiplomaEmailState("SENT");
+    assert.equal(p?.label, "Enviado");
+    assert.ok(!p?.label.toLowerCase().includes("recibi"));
+  });
+
+  it("un rebote es tono de peligro; enviado es de éxito", () => {
+    assert.equal(presentDiplomaEmailState("BOUNCED")?.tone, "danger");
+    assert.equal(presentDiplomaEmailState("SENT")?.tone, "success");
+  });
+
+  it("un estado que el modelo (String libre) no produce hoy no revienta la pantalla", () => {
+    const p = presentDiplomaEmailState("ALGO_QUE_NO_EXISTE");
+    assert.ok(p && p.label.length > 0);
+    assert.equal(p?.tone, "neutral");
   });
 });

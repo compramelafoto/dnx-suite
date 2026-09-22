@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildPartnerLogoKey } from "../admin/partners/partner-logo-storage";
+import { buildParticipantCardStorageKey } from "../participant-cards/participant-card-r2-keys";
 import { buildBlogObjectKey } from "./blog-storage";
 import { isPublicMediaKey } from "./public-media-keys";
 
@@ -58,6 +59,53 @@ test("el proxy no expone namespaces privados ni traversal", () => {
     "clickaton/partners/cmsip1dg0001jits3b6l7y9n5/private/2026-08-10/abc.png",
     "clickaton/blog/hero/2026-08-04/../../../private/abc.jpg",
     "compramelafoto/blog/hero/2026-08-04/abc.jpg",
+  ];
+  for (const key of rejected) {
+    assert.equal(isPublicMediaKey(key), false, `debería rechazar ${key}`);
+  }
+});
+
+test("el proxy sirve la imagen del diploma ya emitido (para el correo)", () => {
+  const key = buildParticipantCardStorageKey({
+    editionId: "cmed_edition_1",
+    registrationId: "cmreg_registration_1",
+    cardType: "DIPLOMA",
+    templateVersion: 1,
+    renderHash: "a1b2c3d4e5f6",
+  });
+  assert.ok(isPublicMediaKey(key), `debería aceptar ${key}`);
+  assert.equal(
+    key,
+    "clickaton/participant-cards/edition-cmed_edition_1/registration-cmreg_registration_1/diploma/v1/a1b2c3d4e5f6.png"
+  );
+});
+
+test("el proxy NO sirve el resto de participant-cards: ni welcome/member, ni el PDF del diploma", () => {
+  const rejected = [
+    // welcome y member siguen privados — sólo el diploma se hizo público.
+    buildParticipantCardStorageKey({
+      editionId: "ed1",
+      registrationId: "reg1",
+      cardType: "WELCOME",
+      templateVersion: 1,
+      renderHash: "hash1",
+    }),
+    buildParticipantCardStorageKey({
+      editionId: "ed1",
+      registrationId: "reg1",
+      cardType: "MEMBER",
+      templateVersion: 1,
+      renderHash: "hash1",
+    }),
+    // el PDF del diploma sigue sirviéndose autenticado desde Mi cuenta.
+    buildParticipantCardStorageKey({
+      editionId: "ed1",
+      registrationId: "reg1",
+      cardType: "DIPLOMA",
+      templateVersion: 1,
+      renderHash: "hash1",
+      extension: "pdf",
+    }),
   ];
   for (const key of rejected) {
     assert.equal(isPublicMediaKey(key), false, `debería rechazar ${key}`);

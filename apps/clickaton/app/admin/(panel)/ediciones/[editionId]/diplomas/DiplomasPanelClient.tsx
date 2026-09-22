@@ -9,8 +9,11 @@ import { Card } from "@/components/ui/Card";
 import {
   generateEditionDiplomasAction,
   regenerateDiplomaAction,
+  retryDiplomaEmailAction,
+  sendEditionDiplomaEmailsAction,
 } from "@/lib/admin/editions/diploma-actions";
 import {
+  presentDiplomaEmailState,
   presentDiplomaRowState,
   type DiplomaRowState,
 } from "@/lib/diplomas/ui/diploma-row-presentation";
@@ -22,6 +25,10 @@ export type DiplomaPanelRow = {
   accreditedAtIso: string;
   state: DiplomaRowState;
   errorCode: string | null;
+  /** `id` de `ClickatonDiplomaIssue`. `null` mientras el diploma no se emitió: todavía no hay nada que mandar. */
+  diplomaId: string | null;
+  /** `ClickatonDiplomaIssue.emailStatus`. `null` = mismo caso que `diplomaId` nulo. */
+  emailStatus: string | null;
 };
 
 type Props = {
@@ -30,6 +37,10 @@ type Props = {
   templateName: string | null;
   /** Cuántos se encolarían ahora mismo si se aprieta "Generar los diplomas". */
   pendingCount: number;
+  /** Cuántos correos se encolarían ahora mismo si se aprieta "Enviar por correo". */
+  pendingEmailCount: number;
+  /** Cuántos de los que tienen diploma vigente no tienen dirección de correo. */
+  withoutEmailCount: number;
   rows: DiplomaPanelRow[];
 };
 
@@ -40,7 +51,14 @@ function downloadUrl(editionId: string, ids?: string[]): string {
   return ids && ids.length > 0 ? `${base}&ids=${ids.join(",")}` : base;
 }
 
-export function DiplomasPanelClient({ editionId, templateName, pendingCount, rows }: Props) {
+export function DiplomasPanelClient({
+  editionId,
+  templateName,
+  pendingCount,
+  pendingEmailCount,
+  withoutEmailCount,
+  rows,
+}: Props) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [generatePending, startGenerate] = useTransition();
@@ -50,6 +68,14 @@ export function DiplomasPanelClient({ editionId, templateName, pendingCount, row
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [retryPending, startRetry] = useTransition();
   const [retryError, setRetryError] = useState<string | null>(null);
+
+  const [sendEmailsPending, startSendEmails] = useTransition();
+  const [sendEmailsResult, setSendEmailsResult] = useState<{ ok: boolean; message: string } | null>(
+    null,
+  );
+  const [retryingEmailId, setRetryingEmailId] = useState<string | null>(null);
+  const [retryEmailPending, startRetryEmail] = useTransition();
+  const [retryEmailError, setRetryEmailError] = useState<string | null>(null);
 
   const emitidas = useMemo(() => rows.filter((r) => r.state === "emitido"), [rows]);
   const seleccionables = useMemo(
@@ -93,6 +119,44 @@ export function DiplomasPanelClient({ editionId, templateName, pendingCount, row
     startRetry(async () => {
       const result = await regenerateDiplomaAction(editionId, registrationId);
       if (!result.ok) setRetryError(result.message);
+      router.refresh();
+    });
+  }
+
+  function handleSendEmails() {
+    if (sendEmailsPending) return;
+    const confirmText =
+      pendingEmailCount === 0
+        ? withoutEmailCount > 0
+          ? `No hay ningún correo pendiente de mandar ahora mismo. ${withoutEmailCount} participante${
+              withoutEmailCount === 1 ? "" : "s"
+            } no tiene${withoutEmailCount === 1 ? "" : "n"} dirección de correo y no va${
+              withoutEmailCount === 1 ? "" : "n"
+            } a recibir nada. ¿Igual querés disparar el proceso?`
+          : "No hay ningún correo pendiente de mandar en este momento. ¿Igual querés disparar el proceso?"
+        : `Se van a mandar ${pendingEmailCount} correo${pendingEmailCount === 1 ? "" : "s"} con el diploma.${
+            withoutEmailCount > 0
+              ? ` ${withoutEmailCount} participante${withoutEmailCount === 1 ? "" : "s"} no tiene${
+                  withoutEmailCount === 1 ? "" : "n"
+                } dirección de correo y no va${withoutEmailCount === 1 ? "" : "n"} a recibir nada.`
+              : ""
+          } ¿Confirmás?`;
+    if (!window.confirm(confirmText)) return;
+    setSendEmailsResult(null);
+    startSendEmails(async () => {
+      const result = await sendEditionDiplomaEmailsAction(editionId);
+      setSendEmailsResult(result);
+      router.refresh();
+    });
+  }
+
+  function handleRetryEmail(diplomaId: string) {
+    if (retryEmailPending) return;
+    setRetryEmailError(null);
+    setRetryingEmailId(diplomaId);
+    startRetryEmail(async () => {
+      const result = await retryDiplomaEmailAction(editionId, diplomaId);
+      if (!result.ok) setRetryEmailError(result.message);
       router.refresh();
     });
   }
@@ -158,6 +222,32 @@ export function DiplomasPanelClient({ editionId, templateName, pendingCount, row
         );
       },
     },
+    {
+      key: "email",
+      header: "Correo",
+      cell: (row) => {
+        const presentation = presentDiplomaEmailState(row.emailStatus);
+        // Sin diploma emitido todavía no hay nada que mandar: la columna
+        // queda vacía en vez de mostrar un estado que no existe.
+        if (!presentation) return <span className="text-xs text-ck-text-muted">—</span>;
+        const isRetryingThisRow = retryEmailPending && retryingEmailId === row.diplomaId;
+        return (
+          <div className="max-w-xs space-y-1.5">
+            <Badge variant={presentation.tone}>{presentation.label}</Badge>
+            {row.emailStatus === "BOUNCED" && row.diplomaId ? (
+              <button
+                type="button"
+                className="block text-xs text-ck-yellow underline-offset-2 hover:underline disabled:opacity-50"
+                disabled={isRetryingThisRow}
+                onClick={() => handleRetryEmail(row.diplomaId as string)}
+              >
+                {isRetryingThisRow ? "Reencolando…" : "Reintentar"}
+              </button>
+            ) : null}
+          </div>
+        );
+      },
+    },
   ];
 
   return (
@@ -199,6 +289,16 @@ export function DiplomasPanelClient({ editionId, templateName, pendingCount, row
               Descargar todos ({emitidas.length})
             </Button>
           ) : null}
+
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={emitidas.length === 0 || sendEmailsPending}
+            onClick={handleSendEmails}
+          >
+            {sendEmailsPending ? "Encolando…" : "Enviar por correo"}
+          </Button>
         </div>
 
         {!templateName ? (
@@ -220,6 +320,21 @@ export function DiplomasPanelClient({ editionId, templateName, pendingCount, row
         {retryError ? (
           <p className="text-sm text-red-200" role="alert">
             {retryError}
+          </p>
+        ) : null}
+        {sendEmailsResult ? (
+          <p
+            className={
+              sendEmailsResult.ok ? "text-sm text-ck-text-secondary" : "text-sm text-red-200"
+            }
+            role="status"
+          >
+            {sendEmailsResult.message}
+          </p>
+        ) : null}
+        {retryEmailError ? (
+          <p className="text-sm text-red-200" role="alert">
+            {retryEmailError}
           </p>
         ) : null}
       </Card>

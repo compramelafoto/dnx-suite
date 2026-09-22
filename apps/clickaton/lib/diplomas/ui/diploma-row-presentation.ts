@@ -73,3 +73,44 @@ export function deriveDiplomaRowState(
   if (card.status === "FAILED") return "fallido";
   return "en_proceso";
 }
+
+// ---------------------------------------------------------------------------
+// Estado del correo del diploma (Task 14) — mismos valores que
+// `ClickatonDiplomaIssue.emailStatus` (un `String` libre en el modelo, no un
+// enum de Prisma: por eso hay un estado "desconocido" de respaldo acá).
+// ---------------------------------------------------------------------------
+
+export type DiplomaEmailRowState = "NOT_SENT" | "QUEUED" | "SENT" | "BOUNCED" | "NO_EMAIL";
+
+export type DiplomaEmailRowPresentation = { label: string; tone: DiplomaRowTone };
+
+/**
+ * Ojo con el texto: "enviado" (se lo entregamos a Resend), no "recibido"
+ * (eso nadie lo sabe hoy — los rebotes reales llegan por un webhook que
+ * está apagado, ver `resend-delivery-status.ts`). Decir "recibido" acá
+ * sería prometer algo que este estado no confirma.
+ */
+const EMAIL_STATE_PRESENTATION: Record<DiplomaEmailRowState, DiplomaEmailRowPresentation> = {
+  NOT_SENT: { label: "Sin enviar", tone: "neutral" },
+  QUEUED: { label: "En cola", tone: "warning" },
+  SENT: { label: "Enviado", tone: "success" },
+  BOUNCED: { label: "No se pudo enviar", tone: "danger" },
+  NO_EMAIL: { label: "Sin dirección de correo", tone: "neutral" },
+};
+
+function isKnownDiplomaEmailRowState(value: string): value is DiplomaEmailRowState {
+  return value in EMAIL_STATE_PRESENTATION;
+}
+
+/**
+ * `null` cuando el diploma todavía no se emitió (no hay `ClickatonDiplomaIssue`
+ * para esa fila): en ese caso la columna de correo no se muestra — no hay
+ * nada que enviar todavía.
+ */
+export function presentDiplomaEmailState(
+  emailStatus: string | null
+): DiplomaEmailRowPresentation | null {
+  if (!emailStatus) return null;
+  if (isKnownDiplomaEmailRowState(emailStatus)) return EMAIL_STATE_PRESENTATION[emailStatus];
+  return { label: "Estado de envío desconocido", tone: "neutral" };
+}

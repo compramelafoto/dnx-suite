@@ -7,6 +7,7 @@ import { requireClickatonAdmin } from "@/lib/admin/auth";
 import { prisma, withClickatonDb } from "@/lib/admin/db";
 import { getEditionById } from "@/lib/admin/editions/queries";
 import { DIPLOMA_CANDIDATE_QUERY, selectDiplomaCandidates } from "@/lib/diplomas/diploma-eligibility";
+import { previewDiplomaEmailBatch } from "@/lib/diplomas/diploma-email";
 import { resolveDiplomaTemplate } from "@/lib/diplomas/diploma-template";
 import { DIPLOMA_ERROR_MESSAGES } from "@/lib/diplomas/diploma-types";
 import { deriveDiplomaRowState } from "@/lib/diplomas/ui/diploma-row-presentation";
@@ -37,7 +38,7 @@ export default async function EditionDiplomasPage({ params }: Props) {
   // más reciente: puede no estar aplicada todavía en esta base. Igual que
   // Placas, si falla se avisa en vez de tirar un 500.
   const loaded = await withClickatonDb(async () => {
-    const [registrationRows, cardRows] = await Promise.all([
+    const [registrationRows, cardRows, issueRows] = await Promise.all([
       // Misma consulta que usa el encolado real (`diploma-batch.ts`): sin
       // filtrar por estado de inscripción, para que lo que se ve acá sea
       // exactamente lo que "Generar los diplomas" va a encolar.
@@ -49,8 +50,19 @@ export default async function EditionDiplomasPage({ params }: Props) {
         where: { editionId, cardType: "DIPLOMA" },
         select: { registrationId: true, status: true, errorCode: true, attemptCount: true },
       }),
+      // Misma tabla (`ClickatonDiplomaIssue`) que resuelve el correo: sólo
+      // existe una fila acá una vez que el diploma se emitió (`emitido`).
+      prisma.clickatonDiplomaIssue.findMany({
+        where: { editionId, revokedAt: null },
+        select: {
+          id: true,
+          registrationId: true,
+          emailStatus: true,
+          registration: { select: { email: true } },
+        },
+      }),
     ]);
-    return { registrationRows, cardRows };
+    return { registrationRows, cardRows, issueRows };
   });
 
   if (!loaded.ok) {
@@ -62,13 +74,15 @@ export default async function EditionDiplomasPage({ params }: Props) {
     );
   }
 
-  const { registrationRows, cardRows } = loaded.data;
+  const { registrationRows, cardRows, issueRows } = loaded.data;
   const candidates = selectDiplomaCandidates(registrationRows);
   const cardByRegistration = new Map(cardRows.map((c) => [c.registrationId, c]));
+  const issueByRegistration = new Map(issueRows.map((i) => [i.registrationId, i]));
 
   const rows: DiplomaPanelRow[] = candidates
     .map((c) => {
       const card = cardByRegistration.get(c.registrationId) ?? null;
+      const issue = issueByRegistration.get(c.registrationId) ?? null;
       return {
         registrationId: c.registrationId,
         fullName: c.fullName,
@@ -76,6 +90,8 @@ export default async function EditionDiplomasPage({ params }: Props) {
         accreditedAtIso: c.accreditedAt.toISOString(),
         state: deriveDiplomaRowState(card),
         errorCode: card?.errorCode ?? null,
+        diplomaId: issue?.id ?? null,
+        emailStatus: issue?.emailStatus ?? null,
       };
     })
     .sort((a, b) => a.accreditedAtIso.localeCompare(b.accreditedAtIso));
@@ -87,6 +103,13 @@ export default async function EditionDiplomasPage({ params }: Props) {
   // pieza todavía) más los que agotaron sus reintentos y hay que revivir.
   // Los que ya están en curso no se tocan (ver `enqueueDiplomaQueueRow`).
   const porGenerar = rows.length - emitidos - enProceso;
+
+  // Cuenta previa para el diálogo de confirmación de "Enviar por correo" —
+  // misma clasificación que después aplica `enqueueEditionDiplomaEmails`,
+  // pero de sólo lectura (ver `previewDiplomaEmailBatch`).
+  const emailPreview = previewDiplomaEmailBatch(
+    issueRows.map((i) => ({ email: i.registration.email ?? "", emailStatus: i.emailStatus }))
+  );
 
   return (
     <div className="min-w-0 space-y-8">
@@ -121,6 +144,8 @@ export default async function EditionDiplomasPage({ params }: Props) {
         editionId={editionId}
         templateName={template.ok ? template.source.templateName : null}
         pendingCount={porGenerar}
+        pendingEmailCount={emailPreview.pending}
+        withoutEmailCount={emailPreview.withoutEmail}
         rows={rows}
       />
     </div>

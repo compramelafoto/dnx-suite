@@ -13083,6 +13083,9 @@ model ClickatonDiplomaIssue {
   emailStatus       String    @default("NOT_SENT")
   emailSentAt       DateTime?
   emailLastError    String?
+  /// Id del mensaje que devuelve el proveedor al aceptar el envío (Resend). Sin esto no hay
+  /// forma de correlacionar un rebote real (webhook, hoy apagado) con este diploma.
+  emailProviderMessageId String?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
