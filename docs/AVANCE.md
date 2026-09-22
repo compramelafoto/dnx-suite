@@ -1,6 +1,6 @@
 # Avance de la suite
 
-*Generado por `scripts/avance.mjs` el 2026-09-21. No editar a mano.*
+*Generado por `scripts/avance.mjs` el 2026-09-22. No editar a mano.*
 
 **Código** es lo escrito y mergeado. **Producción** es lo que corrió de verdad y
 alguien miró. El número que vale es el de producción: ver
@@ -8,7 +8,7 @@ alguien miró. El número que vale es el de producción: ver
 
 | Proyecto | Tareas | Código | Producción | |
 |---|---|---|---|---|
-| **fotorank** | 43 |  95% |  57% | `██████····` |
+| **fotorank** | 43 | 100% |  57% | `██████····` |
 | **subilafoto** | 46 |  93% |  61% | `██████····` |
 
 ## fotorank
@@ -22,7 +22,7 @@ alguien miró. El número que vale es el de producción: ver
 | FotoRank jurados — Etapa D: los jurados en el concurso | 1 | 100% |  50% | D.1 |
 | FotoRank jurados — Etapa E: la UX de jurados y usuarios | 7 | 100% |  50% | E.1, E.2, E.3, E.4, E.5, E.6, E.7 |
 | FotoRank jurados — Etapa F: portfolio y galería | 11 | 100% |  70% | F.2, F.5, F.6, F.7, F.9, F.11 |
-| FotoRank jurados — Etapa G: jurado y participante a la vez | 6 |  67% |   0% | G.1, G.2, G.3, G.4, G.5, G.6 |
+| FotoRank jurados — Etapa G: jurado y participante a la vez | 6 | 100% |   0% | G.1, G.2, G.3, G.4, G.5, G.6 |
 
 ## subilafoto
 

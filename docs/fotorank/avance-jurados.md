@@ -105,5 +105,5 @@ ruta de la foto devuelve 404 —no 500— para un jurado que no existe.
 | G.2 | La cola de revisión, visible | ✅ | ⬜ | Atajo con el número en el menú y aviso destacado en `/super-admin`. Antes se llegaba por un recuadro entre cinco estadísticas |
 | G.3 | Guardia en `contarJuradosPendientes` | ✅ | ⬜ | Era una server action sin permiso: devolvía el número a cualquiera |
 | G.4 | Nadie juzga la categoría donde compite | ✅ | ⬜ | En las dos compuertas y en las dos bases. 18 pruebas, verificadas rompiendo la regla a propósito |
-| G.5 | Avisar al organizador al asignar | ⬜ | ⬜ | Hoy la asignación se crea igual y el jurado la ve bloqueada recién al entrar |
-| G.6 | Aviso por correo de una postulación nueva | ⬜ | ⬜ | Sin esto, enterarse sigue dependiendo de entrar a mirar |
+| G.5 | Avisar al organizador al asignar | ✅ | ⬜ | La individual no se crea y explica por qué; la masiva saltea y lo informa. 8 pruebas del mensaje |
+| G.6 | Aviso por correo de una postulación nueva | ✅ | ⬜ | A los super admins, al confirmarse el correo. Sin desplegar: nunca se envió uno real |
