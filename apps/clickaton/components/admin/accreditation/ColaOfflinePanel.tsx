@@ -26,6 +26,7 @@ function explicarMotivo(motivo: string | null): string | null {
     MISSING_IDENTIFIER: "El escaneo quedó sin datos para identificar a la persona.",
     PAYMENT_PENDING: "La inscripción figura impaga.",
     NOT_CONFIRMED: "La inscripción no está confirmada.",
+    GIFT_NOT_REDEEMED: "Es un regalo que todavía nadie activó.",
     CREDENTIAL_MISSING: "No tiene credencial activa.",
     WINDOW_CLOSED: "Quedó fuera del horario de acreditación.",
     ACCREDITATION_DISABLED: "El módulo de acreditación estaba apagado.",

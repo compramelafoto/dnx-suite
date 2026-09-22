@@ -19,6 +19,7 @@ import type {
   ClickatonParticipantCardType,
   ParticipantCardActor,
 } from "./participant-card-types";
+import { tieneParticipanteDefinido } from "@/lib/registration/domain/participante-definido";
 
 export const AUTO_GENERATED_CARD_TYPES: ClickatonParticipantCardType[] = [
   "welcome",
@@ -111,7 +112,7 @@ export async function autoGenerateParticipantCardsForRegistration(input: {
   // Un REGALO pagado y sin activar todavía tiene los datos de quien lo compró:
   // sin esta guarda, la placa sale con el nombre del que regaló y nadie se
   // entera hasta que el participante la ve con el nombre de otro.
-  if (registration.status !== "CONFIRMED") {
+  if (!tieneParticipanteDefinido(registration)) {
     return skippedResult(input.registrationId, cardTypes, "NOT_ELIGIBLE");
   }
 
