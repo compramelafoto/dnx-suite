@@ -60,10 +60,18 @@ export default async function GiftReadyPage({ params, searchParams }: PageProps)
       editionSlug: slug,
       expiresAtMs: Date.now() + ACCESS_TOKEN_MINUTES * 60_000,
     });
+    // `toLocaleString("es-AR")` devuelve las 23:41 como "11:41:55", sin AM/PM:
+    // alguien lo lee a las 23:45 y cree que su reserva ya venció. `h23` lo
+    // deja inequívoco.
     const expiresLabel = voucher.registration.holdExpiresAt
-      ? voucher.registration.holdExpiresAt.toLocaleString("es-AR", {
+      ? new Intl.DateTimeFormat("es-AR", {
           timeZone: "America/Argentina/Cordoba",
-        })
+          day: "2-digit",
+          month: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          hourCycle: "h23",
+        }).format(voucher.registration.holdExpiresAt) + " h"
       : "";
 
     return (

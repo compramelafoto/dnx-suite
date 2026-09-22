@@ -441,6 +441,56 @@ export function createApplyPaymentEventUseCase(deps: {
         requestId: event.eventId,
       });
 
+      // Devolvieron la plata de un regalo: el código tiene que dejar de
+      // servir y el cupo volver a la venta. Sin esto, el pago se devuelve y
+      // quien lo recibe igual activa una inscripción que ya nadie pagó.
+      if (registration.isGift && nextPay === "REFUNDED") {
+        try {
+          const { voidGiftVoucherOnRefund } = await import(
+            "@/lib/gift-vouchers/application/void-gift-on-refund"
+          );
+          const { createPrismaGiftVoucherRepository } = await import(
+            "@/lib/gift-vouchers/infrastructure/prisma-gift-voucher-repository"
+          );
+          const { createPrismaPublicRegistrationRepository } = await import(
+            "@/lib/public-registration/infrastructure/prisma-public-registration-repository"
+          );
+          const publicRepo = createPrismaPublicRegistrationRepository();
+          const voided = await voidGiftVoucherOnRefund({
+            vouchers: createPrismaGiftVoucherRepository(),
+            clock: { now: () => new Date() },
+            registrations: {
+              async releaseGiftRegistration(registrationId) {
+                await publicRepo.releaseGiftRegistration({
+                  registrationId,
+                  now: new Date(),
+                  reason: "gift_refunded",
+                });
+              },
+            },
+          }).execute({ registrationId: registration.id });
+
+          log?.({
+            event: "holds_released",
+            registrationId: registration.id,
+            orderId: order.id,
+            meta: { via: "gift_refund", voided: voided.voided },
+          });
+        } catch (err) {
+          // El reembolso ya quedó asentado: el voucher se anula a mano desde
+          // el panel de Regalos si esto falla.
+          log?.({
+            event: "conflict",
+            registrationId: registration.id,
+            orderId: order.id,
+            meta: {
+              code: "GIFT_REFUND_VOID_SOFT_FAIL",
+              reason: err instanceof Error ? err.message.slice(0, 80) : "unknown",
+            },
+          });
+        }
+      }
+
       return {
         applied: true,
         duplicate: false,

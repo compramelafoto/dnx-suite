@@ -105,6 +105,16 @@ export async function autoGenerateParticipantCardsForRegistration(input: {
     return skippedResult(input.registrationId, cardTypes, "REGISTRATION_NOT_FOUND");
   }
 
+  // La placa lleva el nombre, la ciudad y la foto de quien participa, así que
+  // sólo se puede dibujar cuando la inscripción ya tiene a esa persona.
+  //
+  // Un REGALO pagado y sin activar todavía tiene los datos de quien lo compró:
+  // sin esta guarda, la placa sale con el nombre del que regaló y nadie se
+  // entera hasta que el participante la ve con el nombre de otro.
+  if (registration.status !== "CONFIRMED") {
+    return skippedResult(input.registrationId, cardTypes, "NOT_ELIGIBLE");
+  }
+
   const actor = buildSystemActorFor(registration);
   if (!actor) {
     return skippedResult(input.registrationId, cardTypes, "NO_ACTOR_IDENTITY");

@@ -10,8 +10,12 @@ import type { CheckoutRegistrationPort } from "../domain/checkout-registration-p
 import type { CheckoutRedirectDto, CreatePaymentOrderInput } from "../domain/types";
 import type { DnxPaymentsClient } from "../infrastructure/dnx-payments-client";
 
-function buildCheckoutDescription(code: string): string {
-  const base = `Inscripción Clickatón — ${code}`;
+function buildCheckoutDescription(code: string, isGift = false): string {
+  // Quien regala ve este texto en el resumen de su tarjeta. Sin la palabra
+  // "regalo" parece que se inscribió él, y a los 40 días no se acuerda.
+  const base = isGift
+    ? `Regalo de inscripción Clickatón — ${code}`
+    : `Inscripción Clickatón — ${code}`;
   // Checkout Pro TEST adapter requires "TEST" in the preference title (sandbox safety).
   const mode = resolveClickatonPaymentsProviderMode(
     process.env.CLICKATON_DNX_PAYMENTS_PROVIDER ?? "manual",
@@ -254,6 +258,7 @@ export function createRegistrationCheckoutUseCase(deps: {
         currency: "ARS",
         description: buildCheckoutDescription(
           eligible.publicCode ?? registration.id.slice(0, 8),
+          registration.isGift ?? false,
         ),
         payer: {
           email: registration.participant.email,
