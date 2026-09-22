@@ -123,6 +123,7 @@
     "test:location-consent": "tsx --test lib/broadcast-consent/domain/location-consent.test.ts",
     "test:location-consent-funnel": "tsx --test lib/public-registration/application/location-consent-funnel.test.ts",
     "test:readiness": "tsx --test lib/readiness/domain/readiness.test.ts",
+    "test:access-token-readiness": "tsx --test lib/public-registration/domain/access-token-readiness.test.ts",
     "test:edition-rehearsal-checks": "tsx --test lib/edition-rehearsal/domain/checks.test.ts",
     "test:edition-rehearsal-ux": "tsx --test lib/edition-rehearsal/ui/rehearsal-presentation.test.ts",
     "test:edition-rehearsal-presets": "tsx --test lib/edition-rehearsal/domain/timeline-presets.test.ts",

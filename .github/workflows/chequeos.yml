@@ -74,6 +74,10 @@ jobs:
       - name: Prueba técnica previa
         run: pnpm --filter clickaton test:readiness
 
+      # Que un token de resumen no abra la prueba técnica, y viceversa.
+      - name: Pruebas del token de la prueba técnica
+        run: pnpm --filter clickaton test:access-token-readiness
+
       - name: Pruebas del paquete de finanzas
         run: pnpm --filter @repo/finance-control test
 
