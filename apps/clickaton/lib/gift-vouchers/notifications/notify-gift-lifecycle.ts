@@ -1,5 +1,6 @@
 import { prisma } from "@repo/db";
 import { sendGiftEmail } from "./gift-email";
+import { fechaAr } from "@/lib/fecha-ar";
 
 /**
  * Avisos del regalo. Nunca revierten el pago ni el canje: si el correo falla,
@@ -8,12 +9,7 @@ import { sendGiftEmail } from "./gift-email";
 
 function formatEditionDate(value: Date | null): string | null {
   if (!value) return null;
-  return value.toLocaleDateString("es-AR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    timeZone: "America/Argentina/Cordoba",
-  });
+  return fechaAr(value);
 }
 
 /** Pago acreditado: le avisamos a quien regala y, si dejó email, al amigo. */

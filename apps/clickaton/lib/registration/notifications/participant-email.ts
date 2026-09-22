@@ -12,6 +12,7 @@ import {
   isClickatonProductionAudience,
   resolveClickatonPublicOrigin,
 } from "@/lib/site/public-origin";
+import { fechaAr } from "@/lib/fecha-ar";
 
 export type ParticipantEmailKind =
   | "reservation_created"
@@ -58,12 +59,7 @@ function subjectLine(body: string): string {
 }
 
 function formatEditionDate(value: Date): string {
-  return value.toLocaleDateString("es-AR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    timeZone: "America/Argentina/Cordoba",
-  });
+  return fechaAr(value);
 }
 
 export type ParticipantFunnelEmailBuilt = IdentityEmailResult & {

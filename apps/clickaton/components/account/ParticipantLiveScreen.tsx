@@ -19,6 +19,7 @@ import {
   resolverEstadoConsigna,
   type EstadoConsigna,
 } from "@/lib/participant-notes/prompt-state";
+import { formatearEnAr, horaAr } from "@/lib/fecha-ar";
 
 /**
  * Pantalla única del participante durante el evento.
@@ -85,22 +86,12 @@ const CHIPS: Record<
 };
 
 function formatHora(value: string | null, timezone: string): string {
-  if (!value) return "a confirmar";
-  return new Date(value).toLocaleTimeString("es-AR", {
-    timeZone: timezone,
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
+  return horaAr(value, timezone, "a confirmar");
 }
 
 function formatFechaHora(value: string | null, timezone: string): string {
   if (!value) return "a confirmar";
-  const fecha = new Date(value).toLocaleDateString("es-AR", {
-    timeZone: timezone,
-    day: "2-digit",
-    month: "2-digit",
-  });
+  const fecha = formatearEnAr(value, { day: "2-digit", month: "2-digit" }, timezone);
   return `${fecha} a las ${formatHora(value, timezone)}`;
 }
 

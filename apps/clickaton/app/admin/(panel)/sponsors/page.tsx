@@ -9,6 +9,7 @@ import { adminRoutes } from "@/config/admin/navigation";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
 import { withClickatonDb } from "@/lib/admin/db";
 import { getClickatonPartnersService, toPartnerActor } from "@/lib/admin/partners/runtime";
+import { fechaAr } from "@/lib/fecha-ar";
 
 export default async function AdminSponsorsPage({
   searchParams,
@@ -102,7 +103,7 @@ export default async function AdminSponsorsPage({
                   <td className="px-4 py-3">{p.activeParticipationsCount}</td>
                   <td className="px-4 py-3">{p.activeBenefitsCount}</td>
                   <td className="px-4 py-3 text-ck-text-muted">
-                    {p.updatedAt.toLocaleDateString("es-AR")}
+                    {fechaAr(p.updatedAt)}
                   </td>
                   <td className="px-4 py-3">
                     <Link
