@@ -11801,6 +11801,7 @@ model ClickatonEdition {
   socialVotingRounds         ClickatonSocialVotingRound[]
   photographerRoyalties      ClickatonPhotographerRoyaltyLedger[]
   homeBanners                ClickatonHomeBanner[]
+  readinessChecks            ClickatonReadinessCheck[]
 
   /// Edición ops/fixture: nunca comercial. Cleanup solo permitido si true.
   isOpsFixture Boolean @default(false)
@@ -12273,6 +12274,7 @@ model ClickatonRegistration {
   mediaAssets                        DnxMediaAsset[]
   photoSubmissions                   ClickatonPhotoSubmission[]
   promptNotes                        ClickatonPromptNote[]
+  readinessChecks                    ClickatonReadinessCheck[]
 
   @@unique([editionId, visibleCode])
   @@unique([editionId, sequenceNumber])
@@ -12662,6 +12664,32 @@ model ClickatonPhotoSubmissionAudit {
 
   @@index([submissionId, createdAt])
   @@index([action])
+}
+
+/// Prueba técnica previa al evento: el participante comprueba desde su
+/// teléfono si sus fotos guardan la ubicación y si el reloj está bien.
+/// La foto NUNCA se sube: acá sólo se guarda el veredicto.
+model ClickatonReadinessCheck {
+  id                String                @id @default(cuid())
+  editionId         String
+  registrationId    String
+  checkedAt         DateTime              @default(now())
+  hasGps            Boolean
+  /// Positivo = el teléfono va adelantado respecto del servidor.
+  clockDeltaMinutes Int?
+  imageWidth        Int?
+  imageHeight       Int?
+  /// READY | NO_GPS | CLOCK_OFF | TOO_SMALL | NO_CAPTURE_DATE | FAILED
+  result            String
+  /// Todos los problemas encontrados, no sólo el principal.
+  detail            Json?
+  createdAt         DateTime              @default(now())
+
+  edition      ClickatonEdition      @relation(fields: [editionId], references: [id], onDelete: Cascade)
+  registration ClickatonRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+
+  @@index([editionId, result])
+  @@index([registrationId, checkedAt])
 }
 
 /// Configuración de admisión técnica por edición (deshabilitada por defecto).
