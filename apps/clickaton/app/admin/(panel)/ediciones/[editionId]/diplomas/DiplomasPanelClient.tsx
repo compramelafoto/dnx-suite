@@ -34,9 +34,8 @@ type Props = {
 };
 
 function downloadUrl(editionId: string, ids?: string[]): string {
-  // La ruta ya existe (baja placas welcome/member en ZIP); el filtro por
-  // cardType/ids todavía no se implementó del otro lado — queda preparado
-  // para la tarea siguiente.
+  // Misma ruta que baja el ZIP de todas las piezas listas de la edición, filtrada acá
+  // por cardType=diploma (y por ids cuando hay selección).
   const base = `/api/admin/ediciones/${editionId}/placas/descargar?cardType=diploma`;
   return ids && ids.length > 0 ? `${base}&ids=${ids.join(",")}` : base;
 }

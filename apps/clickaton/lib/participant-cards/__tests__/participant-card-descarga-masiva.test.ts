@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  filtrarPiezasParaDescarga,
   nombreDeArchivoDePlaca,
   nombresSinRepetir,
 } from "../participant-card-descarga-masiva";
@@ -64,5 +65,41 @@ describe("nombres repetidos", () => {
   it("deja en paz los que no se repiten", () => {
     const nombres = nombresSinRepetir(["a.png", "b.png"]);
     assert.deepEqual(nombres, ["a.png", "b.png"]);
+  });
+});
+
+/**
+ * Qué piezas entran en la descarga en ZIP según el filtro que llega por la URL.
+ *
+ * Sin filtros tiene que comportarse exactamente como la descarga de siempre: todo. Con
+ * filtros, sólo lo pedido — y una selección vacía es "ninguna", no "todas".
+ */
+describe("filtrarPiezasParaDescarga", () => {
+  const piezas = [
+    { registrationId: "r1", cardType: "welcome" as const },
+    { registrationId: "r1", cardType: "diploma" as const },
+    { registrationId: "r2", cardType: "diploma" as const },
+  ];
+
+  it("sin filtros devuelve todo, como hasta ahora", () => {
+    assert.equal(filtrarPiezasParaDescarga(piezas, {}).length, 3);
+  });
+
+  it("filtra por tipo de pieza", () => {
+    const out = filtrarPiezasParaDescarga(piezas, { cardType: "diploma" });
+    assert.equal(out.length, 2);
+    assert.ok(out.every((p) => p.cardType === "diploma"));
+  });
+
+  it("filtra por las inscripciones elegidas", () => {
+    const out = filtrarPiezasParaDescarga(piezas, {
+      cardType: "diploma",
+      registrationIds: ["r2"],
+    });
+    assert.deepEqual(out.map((p) => p.registrationId), ["r2"]);
+  });
+
+  it("una lista de inscripciones vacía no significa 'todas'", () => {
+    assert.equal(filtrarPiezasParaDescarga(piezas, { registrationIds: [] }).length, 0);
   });
 });
