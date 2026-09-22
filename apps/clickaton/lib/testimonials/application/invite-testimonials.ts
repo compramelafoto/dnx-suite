@@ -18,6 +18,8 @@ export type InviteOutcome = {
   sent: number;
   skipped: number;
   failed: number;
+  /** Quedaron para la corrida siguiente por el tope de envíos. */
+  remaining: number;
 };
 
 type Recipient = {
@@ -78,10 +80,22 @@ async function collectRecipients(editionId: string): Promise<Recipient[]> {
   return [...byEmail.values()];
 }
 
+/**
+ * Tope de envíos por corrida.
+ *
+ * Cada correo es una ida y vuelta a Resend dentro de una función con límite de
+ * tiempo. Sin tope, una edición con muchos inscriptos corta a la mitad y no se
+ * sabe dónde quedó. Con tope, la corrida siguiente sigue donde dejó: la clave
+ * única por edición y correo hace que nadie reciba dos veces.
+ */
+export const INVITES_PER_RUN = 40;
+
 export async function inviteTestimonials(options: {
   editionId: string;
   /** Para invitar a una sola inscripción desde su ficha. */
   onlyRegistrationId?: string;
+  /** Cuántos mandar como mucho en esta corrida. */
+  limit?: number;
 }): Promise<InviteOutcome> {
   const edition = await prisma.clickatonEdition.findUnique({
     where: { id: options.editionId },
@@ -98,7 +112,7 @@ export async function inviteTestimonials(options: {
     !edition ||
     !canInviteEdition(edition, { single: Boolean(options.onlyRegistrationId) })
   ) {
-    return { created: 0, sent: 0, skipped: 0, failed: 0 };
+    return { created: 0, sent: 0, skipped: 0, failed: 0, remaining: 0 };
   }
 
   const all = await collectRecipients(edition.id);
@@ -106,9 +120,22 @@ export async function inviteTestimonials(options: {
     ? all.filter((r) => r.registrationId === options.onlyRegistrationId)
     : all;
 
-  const outcome: InviteOutcome = { created: 0, sent: 0, skipped: 0, failed: 0 };
+  const outcome: InviteOutcome = {
+    created: 0,
+    sent: 0,
+    skipped: 0,
+    failed: 0,
+    remaining: 0,
+  };
+  const limit = Math.max(1, options.limit ?? INVITES_PER_RUN);
+  let attempted = 0;
 
   for (const recipient of recipients) {
+    // Lo ya invitado no gasta cupo: el tope cuenta envíos, no vueltas del bucle.
+    if (attempted >= limit) {
+      outcome.remaining += 1;
+      continue;
+    }
     // La clave única [editionId, email] es la que evita el doble envío, no una
     // comprobación previa que podría correr dos veces a la vez.
     const existing = await prisma.clickatonTestimonialInvite.findUnique({
@@ -139,6 +166,7 @@ export async function inviteTestimonials(options: {
       }));
 
     if (!existing) outcome.created += 1;
+    attempted += 1;
 
     try {
       const delivery = await sendTestimonialInviteEmail({

@@ -35,6 +35,9 @@ export async function inviteTestimonialsAction(
   const partes = [`${outcome.sent} enviados`];
   if (outcome.skipped > 0) partes.push(`${outcome.skipped} ya invitados`);
   if (outcome.failed > 0) partes.push(`${outcome.failed} fallaron`);
+  if (outcome.remaining > 0) {
+    partes.push(`${outcome.remaining} quedan para la próxima hora`);
+  }
 
   return { ok: outcome.failed === 0, message: partes.join(" · ") };
 }
