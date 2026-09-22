@@ -130,6 +130,15 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
+      // clickaton.com.ar es un dominio alternativo: todo se redirige al canónico
+      // (maratonfotografica.com). Sin esto, la sesión y los links de pago quedan
+      // partidos entre dos dominios, porque NEXT_PUBLIC_APP_URL apunta al canónico.
+      ...["clickaton.com.ar", "www.clickaton.com.ar"].map((host) => ({
+        source: "/:path*",
+        has: [{ type: "host" as const, value: host }],
+        destination: "https://maratonfotografica.com/:path*",
+        permanent: true,
+      })),
       {
         source: "/organizar-sede",
         destination: "/organizar",
