@@ -13,6 +13,7 @@ import {
   formatDateDayMonthUppercase,
   formatDateLongUppercase,
   formatDateShort,
+  formatDateWithTime,
   formatParticipantNumber,
   CLICKATON_DEFAULT_TIMEZONE,
 } from "./index";
@@ -119,6 +120,15 @@ describe("clickaton plugin", () => {
       CLICKATON_DEFAULT_TIMEZONE
     );
     assert.equal(edge, "18/09/2026");
+  });
+
+  it("formatDateWithTime: 19:30 UTC = 16:30 Córdoba (trampa de zona horaria)", () => {
+    // 2026-09-19T19:30:00Z es 16:30 en Córdoba (UTC-3)
+    const result = formatDateWithTime(
+      new Date("2026-09-19T19:30:00.000Z"),
+      CLICKATON_DEFAULT_TIMEZONE
+    );
+    assert.equal(result, "19/09/2026, 16:30");
   });
 
   it("example data ficticia y sin school keys", () => {

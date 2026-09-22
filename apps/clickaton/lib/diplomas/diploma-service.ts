@@ -30,6 +30,7 @@ import {
   clickatonTemplateVariablesPlugin,
   createTemplateVariableRegistry,
   formatDateShort,
+  formatDateWithTime,
   fromLegacyTemplateV2,
   parseTemplateDocument,
   resolveTemplateDocument,
@@ -511,7 +512,7 @@ function buildDiplomaTemplateData(input: {
     diploma: {
       code: input.diplomaCode,
       issuedAtFormatted: formatDateShort(input.issuedAt, input.timezone),
-      accreditedAtFormatted: formatDateShort(input.accreditedAt, input.timezone),
+      accreditedAtFormatted: formatDateWithTime(input.accreditedAt, input.timezone),
       verificationUrl: buildDiplomaVerificationUrl(input.verificationToken),
     },
   };
