@@ -15,6 +15,7 @@ import { prisma } from "@repo/db";
 
 import { hashPassword } from "../lib/security/password";
 import { createJudgeSessionForJudge, requireJudgeAuth } from "../lib/judge-auth";
+import { avisarFichaPendienteDeRevision } from "../lib/fotorank/judges/avisoDeFichaPendiente";
 import { enqueueTransactionalEmail } from "../lib/fotorank/notifications/outbox";
 import { estadoInicialParaAlta } from "../lib/fotorank/judges/directoryReview";
 import {
@@ -302,6 +303,27 @@ export async function verificarEmailDeJuradoAction(
       data: { emailVerifiedAt: ahora },
     }),
   ]);
+
+  /*
+   * Recién ahora la ficha entra a revisión, así que recién ahora se avisa.
+   *
+   * Va fuera de la transacción a propósito: un correo que no sale no puede
+   * deshacer una verificación que sí ocurrió.
+   */
+  const cuentaVerificada = await prisma.fotorankJudgeAccount.findUnique({
+    where: { email: fila!.email },
+    select: { profile: { select: { firstName: true, lastName: true } } },
+  });
+  const nombre =
+    [cuentaVerificada?.profile?.firstName, cuentaVerificada?.profile?.lastName]
+      .filter(Boolean)
+      .join(" ")
+      .trim() || fila!.email;
+  await avisarFichaPendienteDeRevision({
+    email: fila!.email,
+    nombre,
+    baseUrl: baseUrl(),
+  });
 
   return {
     ok: true,

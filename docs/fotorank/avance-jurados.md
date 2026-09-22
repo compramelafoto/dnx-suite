@@ -96,3 +96,16 @@ ruta de la foto devuelve 404 —no 500— para un jurado que no existe.
 | F.9 | El portfolio en la página pública y el directorio | ✅ | 🟡 | Verificado con datos de prueba: galería, tira de tres y orden por ficha completa |
 | F.10 | El cobro por foto calificada | 🚫 | 🚫 | **Bloqueado por Mercado Pago**: el split sigue en sandbox. Diseñado en el spec del 21/09 |
 | F.11 | El anuncio del cobro al jurado | ✅ | 🟡 | Aviso de que va a poder cobrar por la plataforma, en la postulación y en "Modalidad económica". Se borra cuando F.10 se encienda |
+
+<!-- avance: FotoRank jurados — Etapa G: jurado y participante a la vez -->
+
+| # | Tarea | Código | Producción | Nota |
+|---|---|---|---|---|
+| G.1 | "Panel de jurado" en el menú lateral | ✅ | ⬜ | En el panel de organizador y en el de participante. **Para marcarlo hace falta** entrar con una cuenta que sea las dos cosas y ver la entrada |
+| G.2 | La cola de revisión, visible | ✅ | ⬜ | Atajo con el número y aviso en `/super-admin`. **Para marcarlo hace falta** entrar con `cuart.daniel@gmail.com` y ver "Jurados por revisar (2)" |
+| G.3 | Guardia en `contarJuradosPendientes` | ✅ | ⬜ | Era una server action sin permiso: devolvía el número a cualquiera. **Para marcarlo hace falta** que un usuario común no vea el atajo |
+| G.4 | Nadie juzga la categoría donde compite | ✅ | ⬜ | En las dos compuertas y en las dos bases. 18 pruebas, verificadas rompiendo la regla a propósito. **No se puede ejercer todavía**: no hay ningún jurado asignado a un concurso en producción |
+| G.5 | Avisar al organizador al asignar | ✅ | ⬜ | La individual no se crea y explica por qué; la masiva saltea y lo informa. 8 pruebas. **Para marcarlo hace falta** intentar asignar a alguien que compita |
+| G.6 | Aviso por correo de una postulación nueva | ✅ | ⬜ | A los super admins, al confirmarse el correo. **Nunca salió uno real**: se confirma con la próxima postulación |
+| G.7 | Resolver las dos fichas que esperan | 🚫 | ⬜ | Daniel Caurt y Maria Belen Saldaña, con el correo confirmado desde el 21/09. No es código: se aprueban en `/super-admin/jurados` |
+| G.8 | `dnxfotografia@gmail.com` no es super admin | 🚫 | ⬜ | Figura como usuario común, así que con esa cuenta la cola no se ve. Decidir si se le da el permiso o se administra con la otra |

@@ -12,6 +12,8 @@ export type JuryErrorCode =
   | "PREVIEW_MISSING"
   | "ORIGINAL_FORBIDDEN"
   | "CONFLICT_EXISTS"
+  /** Compite en esa categoría: no la puede juzgar. No se declara, se deduce. */
+  | "COMPITE_EN_LA_CATEGORIA"
   | "CONFLICT_BLOCKS_SUBMIT"
   | "INVALID_INPUT"
   | "SESSION_CLOSED"

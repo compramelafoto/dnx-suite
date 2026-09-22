@@ -17,7 +17,8 @@ export type TransactionalEmailKind =
   | "JURY_ASSIGNMENT_NEW"
   | "JURY_SESSION_CLOSED"
   | "JUDGE_SIGNUP_VERIFY_EMAIL"
-  | "JUDGE_DIRECTORY_REVIEWED";
+  | "JUDGE_DIRECTORY_REVIEWED"
+  | "JUDGE_SIGNUP_PENDING_REVIEW";
 
 export type OutboxMessage = {
   kind: TransactionalEmailKind;
@@ -199,5 +200,13 @@ export const TRANSACTIONAL_EMAIL_TEMPLATES: Record<
   JUDGE_DIRECTORY_REVIEWED: {
     subject: "Novedades sobre tu ficha de jurado en FotoRank",
     requiredVars: ["firstName", "resultado"],
+  },
+  /**
+   * Va a quien revisa, no al postulante. Sin este aviso, enterarse de una
+   * ficha nueva depende de que alguien entre a mirar la cola.
+   */
+  JUDGE_SIGNUP_PENDING_REVIEW: {
+    subject: "Una ficha de jurado espera revisión — {{nombre}}",
+    requiredVars: ["nombre", "colaUrl"],
   },
 };

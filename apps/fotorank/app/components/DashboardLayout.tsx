@@ -19,6 +19,7 @@ import {
 import type { ContestOrganizationProfileDTO } from "../lib/fotorank/organizationProfile";
 import { Header } from "./Header";
 import { SidebarOrgIdentityHeader } from "./dashboard/SidebarOrgIdentityHeader";
+import { sidebarConAtajos } from "./dashboard/sidebarConAtajos";
 import type { WorkspaceOption } from "../lib/workspace-options";
 
 interface DashboardLayoutProps {
@@ -31,6 +32,10 @@ interface DashboardLayoutProps {
   activeSuiteWorkspaceId: string | null;
   userDisplayName: string;
   userEmail: string;
+  /** La persona además tiene cuenta de jurado: se le ofrece el atajo a su panel. */
+  esJurado: boolean;
+  /** Fichas de jurado esperando revisión. 0 para quien no puede revisarlas. */
+  juradosPorRevisar: number;
 }
 
 const SIDEBAR_SECTIONS: SidebarSectionConfig[] = [
@@ -41,6 +46,7 @@ const SIDEBAR_SECTIONS: SidebarSectionConfig[] = [
       { label: "Participaciones", href: "/participaciones", icon: "gallery" },
     ],
   },
+  // Los atajos personales se insertan acá cuando corresponde: ver sidebarConAtajos.
   {
     title: "Concursos",
     items: [
@@ -89,6 +95,8 @@ export function DashboardLayout({
   activeSuiteWorkspaceId,
   userDisplayName,
   userEmail,
+  esJurado,
+  juradosPorRevisar,
 }: DashboardLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -114,8 +122,12 @@ export function DashboardLayout({
 
   const userRoles = useMemo(() => ["admin"], []);
   const sidebarSections = useMemo(
-    () => filterSidebarByRoles(SIDEBAR_SECTIONS, userRoles),
-    [userRoles],
+    () =>
+      sidebarConAtajos(filterSidebarByRoles(SIDEBAR_SECTIONS, userRoles), {
+        esJurado,
+        juradosPorRevisar,
+      }),
+    [userRoles, esJurado, juradosPorRevisar],
   );
 
   return (

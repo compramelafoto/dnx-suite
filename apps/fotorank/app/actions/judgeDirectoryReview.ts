@@ -199,8 +199,21 @@ export async function suspenderCuentaDeJuradoAction(
   return { ok: true };
 }
 
-/** Cuántas fichas esperan revisión: el contador de Super Admin. */
+/**
+ * Cuántas fichas esperan revisión: el contador de Super Admin.
+ *
+ * Exige el permiso como las demás acciones de este archivo. Es sólo un número,
+ * pero es una server action: sin la guardia, cualquiera que conozca su nombre
+ * puede preguntar cuánta gente está esperando. Quien no tiene permiso recibe
+ * cero, que es lo que ve en pantalla de todos modos.
+ *
+ * Sólo cuenta a quienes confirmaron el correo: sin ese paso la ficha todavía
+ * no entró a revisión y contarla mostraría trabajo que no se puede hacer.
+ */
 export async function contarJuradosPendientes(): Promise<number> {
+  const permiso = await exigirSuperAdmin();
+  if (!permiso.ok) return 0;
+
   return prisma.fotorankJudgeProfile.count({
     where: {
       directoryReviewStatus: "PENDING",
