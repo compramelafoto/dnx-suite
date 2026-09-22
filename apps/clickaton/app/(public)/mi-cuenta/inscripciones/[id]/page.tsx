@@ -14,6 +14,7 @@ import { PublicStatusCard } from "@/components/account/PublicStatusCard";
 import { getClickatonAuthUser } from "@/lib/admin/auth";
 import { hasClickatonCardConsent } from "@/lib/participant-cards";
 import { evaluateClickatonCardEligibility } from "@/lib/participant-cards";
+import { getReadyClickatonDiplomaCard } from "@/lib/participant-cards";
 import { canExposeParticipantCardsActions } from "@/lib/participant-cards/participant-card-runtime-config";
 import { isParticipantCardsPublicUiEnabled } from "@/lib/participant-cards/participant-card-feature-flags";
 import { isSistemaViejoDePlacasActivo } from "@/lib/welcome-card/sistema-viejo";
@@ -187,6 +188,29 @@ export default async function RegistrationCredentialPage({ params }: Props) {
   const placeLabel = registration.venue
     ? `${registration.venue.name} · ${registration.venue.city}`
     : registration.edition.location ?? "A confirmar";
+
+  // El diploma lo emite el admin aparte (no se genera acá): si todavía no
+  // existe, esta pantalla simplemente no muestra la sección, sin botón roto
+  // ni hueco. `getReadyClickatonDiplomaCard` reaplica la misma autorización
+  // de dueño/admin que el resto de las piezas del participante.
+  const diplomaCard = await getReadyClickatonDiplomaCard({
+    registrationId: registration.id,
+    actor: {
+      kind: "participant",
+      userId: user.id,
+      email: user.email,
+      globalRole: user.globalRole,
+    },
+  }).catch(() => null);
+  const diplomaGeneratedAtLabel = diplomaCard?.generatedAt
+    ? new Date(diplomaCard.generatedAt).toLocaleDateString("es-AR", {
+        dateStyle: "long",
+        timeZone: registration.edition.timezone ?? "America/Argentina/Cordoba",
+      })
+    : null;
+  const hasDiplomaPdf = Boolean(
+    diplomaCard?.pdfAssetId || diplomaCard?.pdfStorageKey
+  );
 
   return (
     <div className="mx-auto max-w-2xl space-y-8 px-4 py-12 print:py-4">
@@ -363,6 +387,42 @@ export default async function RegistrationCredentialPage({ params }: Props) {
           city={registration.city}
           categoryLabel={registration.ticketType?.name ?? null}
         />
+      ) : null}
+
+      {diplomaCard ? (
+        <Card
+          id="diploma"
+          variant="outlined"
+          className="space-y-4 border-ck-yellow/40 p-6"
+        >
+          <header className="space-y-2">
+            <p className="ck-label text-ck-yellow">Diploma de participación</p>
+            <h2 className="font-semibold text-ck-text">Tu diploma Clickatón</h2>
+            <p className="text-sm leading-relaxed text-ck-text-secondary">
+              Se emitió para {registration.edition.name}
+              {diplomaGeneratedAtLabel ? `, el ${diplomaGeneratedAtLabel}` : ""}.
+              Descargá la imagen para compartir o el PDF listo para imprimir.
+            </p>
+          </header>
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            <Button
+              href={`/api/account/registrations/${registration.id}/cards/diploma`}
+              variant="primary"
+              className="min-h-11 w-full sm:w-auto"
+            >
+              Descargar imagen
+            </Button>
+            {hasDiplomaPdf ? (
+              <Button
+                href={`/api/account/registrations/${registration.id}/cards/diploma?format=pdf`}
+                variant="secondary"
+                className="min-h-11 w-full sm:w-auto"
+              >
+                Descargar PDF para imprimir
+              </Button>
+            ) : null}
+          </div>
+        </Card>
       ) : null}
 
       <Card variant="outlined" className="space-y-4 p-6">

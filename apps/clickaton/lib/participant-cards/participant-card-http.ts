@@ -1,14 +1,21 @@
 import { NextResponse } from "next/server";
 import {
+  buildParticipantCardFilename,
+  cardNotFound,
+  cardRenderUnavailable,
+  createParticipantCardAssetStore,
   ClickatonCardError,
   forceRegenerateClickatonParticipantCard,
   getClickatonParticipantCardStatus,
   getOrGenerateClickatonParticipantCard,
+  getReadyClickatonDiplomaCard,
+  loadClickatonParticipantCardAssetBytes,
   type ClickatonParticipantCardType,
   type GetOrGenerateClickatonParticipantCardResult,
   type ParticipantCardActor,
   type ParticipantCardDisposition,
   type ParticipantCardMode,
+  type ParticipantCardRegistrationSnapshot,
 } from "@/lib/participant-cards";
 import {
   isAdminCardsV2Enabled,
@@ -22,7 +29,23 @@ export function parseParticipantCardTypeParam(
   const v = raw.trim().toLowerCase();
   if (v === "welcome" || v === "bienvenida") return "welcome";
   if (v === "member" || v === "soy-parte" || v === "miembro") return "member";
+  if (v === "diploma") return "diploma";
   return null;
+}
+
+export type ParticipantCardFormat = "png" | "pdf";
+
+/**
+ * El PDF es exclusivo del diploma: pedirlo (`?format=pdf`) para welcome o
+ * member no rompe ni inventa un PDF, simplemente se ignora y se sigue
+ * sirviendo la imagen de siempre.
+ */
+export function resolveCardFormat(input: {
+  cardType: ClickatonParticipantCardType;
+  format: string | null;
+}): ParticipantCardFormat {
+  if (input.cardType !== "diploma") return "png";
+  return input.format?.trim().toLowerCase() === "pdf" ? "pdf" : "png";
 }
 
 export function parseDisposition(
@@ -225,6 +248,28 @@ export async function runParticipantCardHttp(args: {
     );
   }
 
+  // El diploma no pasa por el pipeline de generación de welcome/member (no
+  // tiene preset de respaldo, no usa V2, no cachea por render-hash): ya lo
+  // emitió el admin (Tarea 12) y esta ruta sólo sirve lo que ya está
+  // guardado, imagen o PDF.
+  if (cardType === "diploma") {
+    const diplomaUrl = new URL(args.req.url);
+    const format = resolveCardFormat({
+      cardType,
+      format: diplomaUrl.searchParams.get("format"),
+    });
+    const disposition = parseDisposition(
+      diplomaUrl.searchParams,
+      args.defaultDisposition
+    );
+    return runDiplomaCardHttp({
+      registrationId: args.registrationId,
+      actor: args.actor,
+      format,
+      disposition,
+    });
+  }
+
   const needsV2 =
     args.actor.kind === "admin"
       ? isAdminCardsV2Enabled()
@@ -286,6 +331,102 @@ export async function runParticipantCardHttp(args: {
     }
 
     return pngResponse(result, disposition);
+  } catch (err) {
+    return cardErrorResponse(err);
+  }
+}
+
+function diplomaFilename(
+  registration: ParticipantCardRegistrationSnapshot,
+  format: ParticipantCardFormat
+): string {
+  const pngFilename = buildParticipantCardFilename("diploma", registration);
+  return format === "pdf" ? pngFilename.replace(/\.png$/, ".pdf") : pngFilename;
+}
+
+function diplomaBinaryResponse(input: {
+  bytes: Buffer;
+  format: ParticipantCardFormat;
+  filename: string;
+  disposition: ParticipantCardDisposition;
+  registrationId: string;
+}): Response {
+  const disp =
+    input.disposition === "inline"
+      ? `inline; filename="${input.filename}"`
+      : `attachment; filename="${input.filename}"`;
+  const bytes = Buffer.from(input.bytes);
+  return new Response(bytes, {
+    status: 200,
+    headers: {
+      "Cache-Control": "private, no-store",
+      "Content-Type": input.format === "pdf" ? "application/pdf" : "image/png",
+      "Content-Length": String(bytes.byteLength),
+      "Content-Disposition": disp,
+      "X-Clickaton-Card-Type": "diploma",
+      "X-Clickaton-Registration-Id": input.registrationId,
+    },
+  });
+}
+
+/**
+ * Sirve el diploma ya emitido: nunca genera nada acá (ver
+ * `getReadyClickatonDiplomaCard`). Si no hay pieza READY, 404 igual que el
+ * resto de las piezas del participante (no revela existencia). Si piden PDF
+ * y todavía no se adjuntó (el intento es "mejor esfuerzo" al emitir, ver
+ * `diploma-service.ts`), 503 explícito en vez de inventar un PDF o
+ * devolver la imagen en su lugar.
+ */
+async function runDiplomaCardHttp(args: {
+  registrationId: string;
+  actor: ParticipantCardActor;
+  format: ParticipantCardFormat;
+  disposition: ParticipantCardDisposition;
+}): Promise<Response> {
+  try {
+    const card = await getReadyClickatonDiplomaCard({
+      registrationId: args.registrationId,
+      actor: args.actor,
+    });
+    if (!card) {
+      throw cardNotFound("Diploma no disponible");
+    }
+
+    const store = createParticipantCardAssetStore();
+
+    if (args.format === "pdf") {
+      if (!card.pdfAssetId && !card.pdfStorageKey) {
+        throw cardRenderUnavailable(
+          "El PDF del diploma todavía no está disponible. Probá descargando la imagen."
+        );
+      }
+      const pdf = await loadClickatonParticipantCardAssetBytes(
+        { assetId: card.pdfAssetId, storageKey: card.pdfStorageKey },
+        store
+      );
+      return diplomaBinaryResponse({
+        bytes: pdf,
+        format: "pdf",
+        filename: diplomaFilename(card.registration, "pdf"),
+        disposition: args.disposition,
+        registrationId: args.registrationId,
+      });
+    }
+
+    if (!card.assetId && !card.storageKey) {
+      throw cardNotFound("Diploma no disponible");
+    }
+    const png = await loadClickatonParticipantCardAssetBytes(
+      { assetId: card.assetId, storageKey: card.storageKey },
+      store
+    );
+    return diplomaBinaryResponse({
+      bytes: png,
+      format: "png",
+      filename: diplomaFilename(card.registration, "png"),
+      disposition: args.disposition,
+      registrationId: args.registrationId,
+    });
   } catch (err) {
     return cardErrorResponse(err);
   }

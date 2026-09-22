@@ -1297,6 +1297,104 @@ export async function getClickatonParticipantCardStatus(
   };
 }
 
+export type ReadyClickatonDiplomaCardRow = {
+  id: string;
+  registrationId: string;
+  editionId: string;
+  assetId: string | null;
+  storageKey: string | null;
+  pdfAssetId: string | null;
+  pdfStorageKey: string | null;
+  generatedAt: Date | null;
+};
+
+export type ReadyClickatonDiplomaCard = ReadyClickatonDiplomaCardRow & {
+  registration: ParticipantCardRegistrationSnapshot & { editionId: string };
+};
+
+export type GetReadyClickatonDiplomaCardDeps = {
+  loadRegistration?: (
+    registrationId: string
+  ) => Promise<(ParticipantCardRegistrationSnapshot & { editionId: string }) | null>;
+  findReadyDiplomaCard?: (
+    registrationId: string
+  ) => Promise<ReadyClickatonDiplomaCardRow | null>;
+};
+
+async function defaultFindReadyDiplomaCard(
+  registrationId: string
+): Promise<ReadyClickatonDiplomaCardRow | null> {
+  const row = await defaultPrisma.clickatonParticipantCard.findFirst({
+    where: { registrationId, cardType: "DIPLOMA", status: "READY" },
+    orderBy: { updatedAt: "desc" },
+    select: {
+      id: true,
+      registrationId: true,
+      editionId: true,
+      assetId: true,
+      storageKey: true,
+      pdfAssetId: true,
+      pdfStorageKey: true,
+      generatedAt: true,
+    },
+  });
+  return row ?? null;
+}
+
+/**
+ * Lee (sin generar) el diploma ya emitido de una inscripción. El diploma lo
+ * emite el admin con su propio servicio (`lib/diplomas/diploma-service.ts`,
+ * Tarea 12): esa pieza no pasa por `getOrGenerateClickatonParticipantCard`
+ * porque el diploma no tiene preset de respaldo (ver
+ * `getClickatonParticipantCardPreset` en `participant-card-presets.ts`).
+ * Acá sólo se busca la pieza READY más reciente, cruda, para que la ruta
+ * HTTP sirva el PNG (`assetId`/`storageKey`) o el PDF
+ * (`pdfAssetId`/`pdfStorageKey`) que ya están guardados.
+ *
+ * Misma autorización que el resto de las piezas del participante: dueño
+ * (por `userId` o email) o admin; para un participante ajeno, 404 — no
+ * revela si el diploma existe.
+ */
+export async function getReadyClickatonDiplomaCard(
+  input: { registrationId: string; actor: ParticipantCardActor },
+  depsArg?: GetReadyClickatonDiplomaCardDeps
+): Promise<ReadyClickatonDiplomaCard | null> {
+  const loadRegistration = depsArg?.loadRegistration ?? defaultLoadRegistration;
+  const findReadyDiplomaCard =
+    depsArg?.findReadyDiplomaCard ?? defaultFindReadyDiplomaCard;
+
+  const registration = await loadRegistration(input.registrationId);
+  if (!registration) throw cardNotFound();
+  requireParticipantCardReadAccess(registration, input.actor);
+
+  const row = await findReadyDiplomaCard(registration.id);
+  if (!row) return null;
+  return { ...row, registration };
+}
+
+/**
+ * Bytes de una pieza ya guardada, PNG o PDF da igual: primero por
+ * `storageKey` en el backend de storage activo (mismo camino que
+ * `loadPngForRecord`); si falla o no hay `storageKey`, cae al `assetId`
+ * como respaldo.
+ */
+export async function loadClickatonParticipantCardAssetBytes(
+  input: { assetId: string | null; storageKey: string | null },
+  store: ParticipantCardAssetStore
+): Promise<Buffer> {
+  if (input.storageKey) {
+    try {
+      return await store.get(input.storageKey);
+    } catch {
+      /* cae al asset de respaldo */
+    }
+  }
+  if (input.assetId) {
+    return loadParticipantCardPngFromAsset(input.assetId);
+  }
+  throw new Error("PARTICIPANT_CARD_BYTES_MISSING");
+}
+
 export type CleanupStaleCardsResult = {
   dryRun: boolean;
   deletedRecords: number;
