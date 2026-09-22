@@ -122,7 +122,8 @@ describe("getReadyClickatonDiplomaCard", () => {
       {
         loadRegistration: async (id) =>
           id === "reg_test_001" ? mockParticipantCardRegistration() : null,
-        findReadyDiplomaCard: async () => diplomaRow(),
+        findCurrentDiplomaCardId: async () => "card_diploma_001",
+        findReadyDiplomaCardById: async () => diplomaRow(),
       }
     );
     assert.ok(card);
@@ -137,7 +138,8 @@ describe("getReadyClickatonDiplomaCard", () => {
         {
           loadRegistration: async (id) =>
             id === "reg_test_001" ? mockParticipantCardRegistration() : null,
-          findReadyDiplomaCard: async () => diplomaRow(),
+          findCurrentDiplomaCardId: async () => "card_diploma_001",
+          findReadyDiplomaCardById: async () => diplomaRow(),
         }
       ),
       (err: unknown) => {
@@ -154,10 +156,53 @@ describe("getReadyClickatonDiplomaCard", () => {
       {
         loadRegistration: async (id) =>
           id === "reg_test_001" ? mockParticipantCardRegistration() : null,
-        findReadyDiplomaCard: async () => null,
+        findCurrentDiplomaCardId: async () => null,
+        findReadyDiplomaCardById: async () => {
+          throw new Error("no debería buscar la pieza sin un emisor vigente");
+        },
       }
     );
     assert.equal(card, null);
+  });
+
+  it("un diploma revocado no se puede descargar aunque su pieza siga READY", async () => {
+    // `findCurrentDiplomaCardId` modela el `WHERE revokedAt IS NULL` de
+    // `defaultFindCurrentDiplomaCardId`: si el único emisor de la
+    // inscripción está revocado, no hay ningún cardId vigente, así que acá
+    // devuelve null — igual que la base real haría con ese where.
+    const card = await getReadyClickatonDiplomaCard(
+      { registrationId: "reg_test_001", actor: participantActor },
+      {
+        loadRegistration: async (id) =>
+          id === "reg_test_001" ? mockParticipantCardRegistration() : null,
+        findCurrentDiplomaCardId: async () => null,
+        findReadyDiplomaCardById: async () => diplomaRow(),
+      }
+    );
+    assert.equal(card, null);
+  });
+
+  it("re-emitido: sólo se sirve la pieza del emisor vigente, no cualquier pieza READY vieja", async () => {
+    // Reemisión: la inscripción tiene dos piezas READY (la vieja, del
+    // emisor revocado, y la nueva, del emisor vigente). El lookup tiene que
+    // pedir puntualmente la pieza del cardId vigente, nunca "la más
+    // reciente que esté READY" a secas.
+    let requestedCardId: string | null = null;
+    const card = await getReadyClickatonDiplomaCard(
+      { registrationId: "reg_test_001", actor: participantActor },
+      {
+        loadRegistration: async (id) =>
+          id === "reg_test_001" ? mockParticipantCardRegistration() : null,
+        findCurrentDiplomaCardId: async () => "card_diploma_002_vigente",
+        findReadyDiplomaCardById: async (input) => {
+          requestedCardId = input.cardId;
+          if (input.cardId !== "card_diploma_002_vigente") return null;
+          return diplomaRow({ id: "card_diploma_002_vigente" });
+        },
+      }
+    );
+    assert.equal(requestedCardId, "card_diploma_002_vigente");
+    assert.equal(card?.id, "card_diploma_002_vigente");
   });
 });
 

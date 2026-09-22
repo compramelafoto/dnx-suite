@@ -1316,17 +1316,42 @@ export type GetReadyClickatonDiplomaCardDeps = {
   loadRegistration?: (
     registrationId: string
   ) => Promise<(ParticipantCardRegistrationSnapshot & { editionId: string }) | null>;
-  findReadyDiplomaCard?: (
-    registrationId: string
-  ) => Promise<ReadyClickatonDiplomaCardRow | null>;
+  /**
+   * El diploma "vigente" de una inscripción es el de su emisor sin revocar
+   * (`ClickatonDiplomaIssue.revokedAt IS NULL`) — mismo criterio que ya usa
+   * `defaultFindExistingIssue` en `diploma-service.ts`. Devuelve el
+   * `cardId` de ese emisor, o `null` si no hay ninguno vigente (nunca se
+   * emitió, o el único emisor está revocado).
+   */
+  findCurrentDiplomaCardId?: (registrationId: string) => Promise<string | null>;
+  /** Pieza READY de tipo diploma, ya resuelta al `cardId` del emisor vigente. */
+  findReadyDiplomaCardById?: (input: {
+    cardId: string;
+    registrationId: string;
+  }) => Promise<ReadyClickatonDiplomaCardRow | null>;
 };
 
-async function defaultFindReadyDiplomaCard(
+async function defaultFindCurrentDiplomaCardId(
   registrationId: string
-): Promise<ReadyClickatonDiplomaCardRow | null> {
+): Promise<string | null> {
+  const issue = await defaultPrisma.clickatonDiplomaIssue.findFirst({
+    where: { registrationId, revokedAt: null },
+    select: { cardId: true },
+  });
+  return issue?.cardId ?? null;
+}
+
+async function defaultFindReadyDiplomaCardById(input: {
+  cardId: string;
+  registrationId: string;
+}): Promise<ReadyClickatonDiplomaCardRow | null> {
   const row = await defaultPrisma.clickatonParticipantCard.findFirst({
-    where: { registrationId, cardType: "DIPLOMA", status: "READY" },
-    orderBy: { updatedAt: "desc" },
+    where: {
+      id: input.cardId,
+      registrationId: input.registrationId,
+      cardType: "DIPLOMA",
+      status: "READY",
+    },
     select: {
       id: true,
       registrationId: true,
@@ -1347,8 +1372,11 @@ async function defaultFindReadyDiplomaCard(
  * Tarea 12): esa pieza no pasa por `getOrGenerateClickatonParticipantCard`
  * porque el diploma no tiene preset de respaldo (ver
  * `getClickatonParticipantCardPreset` en `participant-card-presets.ts`).
- * Acá sólo se busca la pieza READY más reciente, cruda, para que la ruta
- * HTTP sirva el PNG (`assetId`/`storageKey`) o el PDF
+ * Acá se busca primero el emisor vigente (sin revocar) y, sólo si hay uno,
+ * la pieza READY que le corresponde — un diploma revocado no se puede
+ * descargar aunque su pieza siga READY en la base (misma regla que ya
+ * respeta la página pública de verificación). Se devuelve cruda, para que
+ * la ruta HTTP sirva el PNG (`assetId`/`storageKey`) o el PDF
  * (`pdfAssetId`/`pdfStorageKey`) que ya están guardados.
  *
  * Misma autorización que el resto de las piezas del participante: dueño
@@ -1360,14 +1388,22 @@ export async function getReadyClickatonDiplomaCard(
   depsArg?: GetReadyClickatonDiplomaCardDeps
 ): Promise<ReadyClickatonDiplomaCard | null> {
   const loadRegistration = depsArg?.loadRegistration ?? defaultLoadRegistration;
-  const findReadyDiplomaCard =
-    depsArg?.findReadyDiplomaCard ?? defaultFindReadyDiplomaCard;
+  const findCurrentDiplomaCardId =
+    depsArg?.findCurrentDiplomaCardId ?? defaultFindCurrentDiplomaCardId;
+  const findReadyDiplomaCardById =
+    depsArg?.findReadyDiplomaCardById ?? defaultFindReadyDiplomaCardById;
 
   const registration = await loadRegistration(input.registrationId);
   if (!registration) throw cardNotFound();
   requireParticipantCardReadAccess(registration, input.actor);
 
-  const row = await findReadyDiplomaCard(registration.id);
+  const cardId = await findCurrentDiplomaCardId(registration.id);
+  if (!cardId) return null;
+
+  const row = await findReadyDiplomaCardById({
+    cardId,
+    registrationId: registration.id,
+  });
   if (!row) return null;
   return { ...row, registration };
 }

@@ -201,7 +201,14 @@ export default async function RegistrationCredentialPage({ params }: Props) {
       email: user.email,
       globalRole: user.globalRole,
     },
-  }).catch(() => null);
+  }).catch((err: unknown) => {
+    console.error(
+      "[clickaton] mi-cuenta: no se pudo leer el diploma de la inscripción",
+      registration.id,
+      err
+    );
+    return null;
+  });
   const diplomaGeneratedAtLabel = diplomaCard?.generatedAt
     ? new Date(diplomaCard.generatedAt).toLocaleDateString("es-AR", {
         dateStyle: "long",
@@ -400,13 +407,16 @@ export default async function RegistrationCredentialPage({ params }: Props) {
             <h2 className="font-semibold text-ck-text">Tu diploma Clickatón</h2>
             <p className="text-sm leading-relaxed text-ck-text-secondary">
               Se emitió para {registration.edition.name}
-              {diplomaGeneratedAtLabel ? `, el ${diplomaGeneratedAtLabel}` : ""}.
-              Descargá la imagen para compartir o el PDF listo para imprimir.
+              {diplomaGeneratedAtLabel ? `, el ${diplomaGeneratedAtLabel}` : ""}.{" "}
+              {hasDiplomaPdf
+                ? "Descargá la imagen para compartir o el PDF listo para imprimir."
+                : "Descargá la imagen para compartir. La versión para imprimir (PDF) todavía no está lista; volvé a entrar más tarde."}
             </p>
           </header>
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <Button
               href={`/api/account/registrations/${registration.id}/cards/diploma`}
+              prefetch={false}
               variant="primary"
               className="min-h-11 w-full sm:w-auto"
             >
@@ -415,6 +425,7 @@ export default async function RegistrationCredentialPage({ params }: Props) {
             {hasDiplomaPdf ? (
               <Button
                 href={`/api/account/registrations/${registration.id}/cards/diploma?format=pdf`}
+                prefetch={false}
                 variant="secondary"
                 className="min-h-11 w-full sm:w-auto"
               >
