@@ -8,22 +8,16 @@ import {
   renderDiplomaPreview,
   type DiplomaRenderPngInput,
 } from "@/lib/diplomas/diploma-service";
+import { DIPLOMA_ERROR_MESSAGES } from "@/lib/diplomas/diploma-types";
 import { templateV2ToCardPreset } from "@/lib/participant-cards/participant-card-template-source";
-import { PNG_1754x1240_FIXTURE } from "@/lib/diplomas/__tests__/fixtures";
+import {
+  PNG_1754x1240_FIXTURE,
+  inscripcionAcreditada,
+} from "@/lib/diplomas/__tests__/fixtures";
 
 const deps = (over: Record<string, unknown> = {}) => ({
   checkAccess: () => {},
-  loadRegistration: async () => ({
-    id: "reg_1",
-    editionId: "ed_1",
-    firstName: "Ana",
-    lastName: "Pérez",
-    email: "ana@example.test",
-    visibleCode: "CK1-0042",
-    profilePhotoAssetId: null,
-    checkIns: [{ checkedInAt: new Date("2026-09-19T19:30:00Z"), reversedAt: null }],
-    edition: { name: "1ª Edición", slug: "dia-del-fotografo-2026" },
-  }),
+  loadRegistration: async () => inscripcionAcreditada(),
   resolveTemplate: async () => ({
     ok: true as const,
     preset: { id: "tpl", width: 1754, height: 1240 },
@@ -38,8 +32,16 @@ const deps = (over: Record<string, unknown> = {}) => ({
   }),
   resolvePhoto: async () => null,
   renderPng: async () => ({ png: Buffer.from("png"), width: 1754, height: 1240, durationMs: 10 }),
-  saveToStorage: async () => ({ storageKey: "k1", publicUrl: null }),
+  saveToStorage: async () => ({
+    storageKey: "k1",
+    publicUrl: null,
+    bytes: 3,
+    contentHash: "hash-del-png",
+  }),
   upsertCard: async () => ({ id: "card_1" }),
+  persistPngAsset: async () => "asset_png_1",
+  attachPngToCard: async () => {},
+  markOtherCardsStale: async () => {},
   findExistingIssue: async () => null,
   createIssue: async (data: Record<string, unknown>) => ({ id: "dip_1", ...data }),
   updateIssue: async (data: Record<string, unknown>) => ({ id: "dip_1", ...data }),
@@ -50,7 +52,7 @@ describe("issueDiploma", () => {
   it("emite el diploma de un acreditado", async () => {
     const out = await issueDiploma({ registrationId: "reg_1", actor: { kind: "admin" } }, deps());
     assert.equal(out.ok, true);
-    assert.equal(out.ok === true && out.diplomaCode, "DIP-CK1-0042");
+    assert.match(out.ok === true ? out.diplomaCode : "", /^DIP-[A-Z0-9]{6}-CK1-0042$/);
     assert.ok(out.ok === true && out.verificationToken.length >= 24);
   });
 
@@ -58,17 +60,7 @@ describe("issueDiploma", () => {
     const out = await issueDiploma(
       { registrationId: "reg_1", actor: { kind: "admin" } },
       deps({
-        loadRegistration: async () => ({
-          id: "reg_1",
-          editionId: "ed_1",
-          firstName: "Ana",
-          lastName: "Pérez",
-          email: "ana@example.test",
-          visibleCode: "CK1-0042",
-          profilePhotoAssetId: null,
-          checkIns: [],
-          edition: { name: "1ª Edición", slug: "dia-del-fotografo-2026" },
-        }),
+        loadRegistration: async () => inscripcionAcreditada({ checkIns: [] }),
       })
     );
     assert.equal(out.ok === false && out.code, "DIPLOMA_NOT_ACCREDITED");
@@ -81,17 +73,7 @@ describe("issueDiploma", () => {
     const out = await issueDiploma(
       { registrationId: "reg_1", actor: { kind: "admin" } },
       deps({
-        loadRegistration: async () => ({
-          id: "reg_1",
-          editionId: "ed_1",
-          firstName: "Ana",
-          lastName: "Pérez",
-          email: "ana@example.test",
-          visibleCode: "CK1-0042",
-          profilePhotoAssetId: null,
-          checkIns: [],
-          edition: { name: "1ª Edición", slug: "dia-del-fotografo-2026" },
-        }),
+        loadRegistration: async () => inscripcionAcreditada({ checkIns: [] }),
         resolveTemplate: async () => ({
           ok: false as const,
           code: "DIPLOMA_TEMPLATE_MISSING" as const,
@@ -147,17 +129,7 @@ describe("issueDiploma", () => {
     const out = await issueDiploma(
       { registrationId: "reg_1", actor: { kind: "admin" } },
       deps({
-        loadRegistration: async () => ({
-          id: "reg_1",
-          editionId: "ed_1",
-          firstName: "Ana",
-          lastName: "Pérez",
-          email: "ana@example.test",
-          visibleCode: "CK1-0042",
-          profilePhotoAssetId: "photo_1",
-          checkIns: [{ checkedInAt: new Date("2026-09-19T19:30:00Z"), reversedAt: null }],
-          edition: { name: "1ª Edición", slug: "dia-del-fotografo-2026" },
-        }),
+        loadRegistration: async () => inscripcionAcreditada({ profilePhotoAssetId: "photo_1" }),
         resolveTemplate: async () => ({
           ok: true as const,
           preset: { id: "tpl", width: 1754, height: 1240 },
@@ -180,17 +152,7 @@ describe("issueDiploma", () => {
     const out = await issueDiploma(
       { registrationId: "reg_1", actor: { kind: "admin" } },
       deps({
-        loadRegistration: async () => ({
-          id: "reg_1",
-          editionId: "ed_1",
-          firstName: "Ana",
-          lastName: "Pérez",
-          email: "ana@example.test",
-          visibleCode: "CK1-0042",
-          profilePhotoAssetId: "photo_1",
-          checkIns: [{ checkedInAt: new Date("2026-09-19T19:30:00Z"), reversedAt: null }],
-          edition: { name: "1ª Edición", slug: "dia-del-fotografo-2026" },
-        }),
+        loadRegistration: async () => inscripcionAcreditada({ profilePhotoAssetId: "photo_1" }),
         resolveTemplate: async () => ({
           ok: true as const,
           preset: { id: "tpl", width: 1754, height: 1240 },
@@ -335,7 +297,7 @@ describe("issueDiploma", () => {
     );
     assert.equal(out.ok, true);
     assert.equal(out.ok === true && out.reused, false);
-    assert.equal(out.ok === true && out.diplomaCode, "DIP-CK1-0042");
+    assert.match(out.ok === true ? out.diplomaCode : "", /^DIP-[A-Z0-9]{6}-CK1-0042$/);
     assert.notEqual(
       out.ok === true && out.verificationToken,
       "token-revocado-no-se-usa-mas-xx"
@@ -499,17 +461,7 @@ describe("renderDiplomaPreview", () => {
     const out = await renderDiplomaPreview(
       { registrationId: "reg_1", actor: { kind: "admin" } },
       deps({
-        loadRegistration: async () => ({
-          id: "reg_1",
-          editionId: "ed_1",
-          firstName: "Ana",
-          lastName: "Pérez",
-          email: "ana@example.test",
-          visibleCode: "CK1-0042",
-          profilePhotoAssetId: null,
-          checkIns: [],
-          edition: { name: "1ª Edición", slug: "dia-del-fotografo-2026" },
-        }),
+        loadRegistration: async () => inscripcionAcreditada({ checkIns: [] }),
         renderPng: async () => {
           dibujos += 1;
           return { png: Buffer.from("x"), width: 1, height: 1, durationMs: 1 };
@@ -596,17 +548,7 @@ describe("renderDiplomaPreview", () => {
  * que dejar sin fijar para que `resolveDeps` caiga en el `defaultRenderPng` real.
  */
 describe("renderDiplomaPreview: el trayecto real de dibujo (sin doble de renderPng)", () => {
-  const registration = {
-    id: "reg_1",
-    editionId: "ed_1",
-    firstName: "Ana",
-    lastName: "Pérez",
-    email: "ana@example.test",
-    visibleCode: "CK1-0042",
-    profilePhotoAssetId: null,
-    checkIns: [{ checkedInAt: new Date("2026-09-19T19:30:00Z"), reversedAt: null }],
-    edition: { name: "1ª Edición", slug: "dia-del-fotografo-2026" },
-  };
+  const registration = inscripcionAcreditada();
 
   /** Preset mínimo de diploma con un solo bloque QR de variable. */
   function presetConQr(variableKey: string) {
@@ -697,5 +639,309 @@ describe("renderDiplomaPreview: el trayecto real de dibujo (sin doble de renderP
       out.ok === false && out.issues.some((i) => i.includes("quedaría vacío")),
       out.ok === false ? out.issues.join(" · ") : ""
     );
+  });
+});
+
+/**
+ * Lo que el diploma le pasa al motor de dibujo.
+ *
+ * El armado propio que tenía antes entregaba 13 variables contra las ~40 del
+ * camino de las placas, pero el diseñador visual ofrece las 58 del catálogo
+ * para cualquier plantilla y la validación sólo mira que existan en el
+ * catálogo. Resultado: la fecha del evento (obligatoria) no dejaba emitir
+ * NINGÚN diploma y el resto salía en blanco sin aviso.
+ */
+describe("issueDiploma: las variables de las placas llegan al diploma", () => {
+  async function datosVistosPorElRender(): Promise<Record<string, unknown>> {
+    let vistos: Record<string, unknown> = {};
+    const out = await issueDiploma(
+      { registrationId: "reg_1", actor: { kind: "admin" } },
+      deps({
+        renderPng: async (input: DiplomaRenderPngInput) => {
+          vistos = input.templateData;
+          return { png: Buffer.from("png"), width: 1754, height: 1240, durationMs: 1 };
+        },
+      })
+    );
+    assert.equal(out.ok, true, out.ok === false ? out.issues.join(" · ") : "");
+    return vistos;
+  }
+
+  it("entrega la fecha del evento, que es el dato más esperable de un diploma", async () => {
+    const data = await datosVistosPorElRender();
+    assert.equal(data["edition.eventDate"], "2026-09-19");
+    assert.ok(String(data["edition.eventDateFormatted"] ?? "").length > 0);
+  });
+
+  it("entrega número de participante, ciudad, sede, categoría e Instagram", async () => {
+    const data = await datosVistosPorElRender();
+    assert.equal(data["participant.number"], 42);
+    assert.equal(data["participant.numberFormatted"], "0042");
+    assert.equal(data["participant.city"], "Córdoba");
+    assert.equal(data["edition.venue"], "Paseo del Buen Pastor");
+    assert.equal(data["participant.category"], "General");
+    assert.equal(data["participant.instagram"], "ana");
+  });
+
+  it("entrega la marca (logo y colores), que una placa ya tenía", async () => {
+    const data = await datosVistosPorElRender();
+    assert.ok(String(data["branding.logo"] ?? "").startsWith("data:"));
+    assert.equal(data["branding.primaryColor"], "#FFE600");
+  });
+
+  it("sigue entregando las cuatro variables propias del diploma", async () => {
+    const data = await datosVistosPorElRender();
+    assert.match(String(data["diploma.code"]), /^DIP-/);
+    assert.ok(String(data["diploma.issuedAtFormatted"] ?? "").length > 0);
+    assert.ok(String(data["diploma.accreditedAtFormatted"] ?? "").length > 0);
+    assert.match(String(data["diploma.verificationUrl"]), /\/diplomas\/verificar\//);
+  });
+
+  it("edition.id vale lo mismo que en las placas (el slug), no el id interno", async () => {
+    const data = await datosVistosPorElRender();
+    assert.equal(data["edition.id"], "dia-del-fotografo-2026");
+  });
+});
+
+/**
+ * La prueba de fondo del punto anterior: sin doble de `renderPng`, con el
+ * motor real. Antes del arreglo, una plantilla con la fecha del evento
+ * terminaba en `DIPLOMA_TEMPLATE_INVALID` ("dato obligatorio ausente") y el
+ * lote la reintentaba cinco veces hasta dejarla fallida.
+ */
+describe("issueDiploma con el motor real: una plantilla con variables de placa emite", () => {
+  function presetConVariable(variableKey: string) {
+    return templateV2ToCardPreset(
+      {
+        templateId: "tpl_fecha",
+        templateName: "Diploma con fecha",
+        versionId: "v1",
+        versionNumber: 1,
+        revision: 1,
+        payload: {
+          canvas: { width: 1754, height: 1240 },
+          blocks: [
+            {
+              id: "txt1",
+              type: "VARIABLE_TEXT",
+              name: "Fecha del evento",
+              pageIndex: 0,
+              layout: { x: 100, y: 100, width: 900, height: 120 },
+              configJson: { variableKey, fontSize: 48, color: "#000000" },
+            },
+          ],
+          variableBindings: [],
+        },
+      },
+      "diploma"
+    );
+  }
+
+  /** El `deps()` de arriba sin `renderPng`: así `resolveDeps` cae en el dibujo real. */
+  function depsConMotorReal(variableKey: string) {
+    const base = deps() as Record<string, unknown>;
+    delete base.renderPng;
+    return {
+      ...base,
+      resolveTemplate: async () => ({
+        ok: true as const,
+        preset: presetConVariable(variableKey),
+        source: {
+          templateId: "tpl_fecha",
+          templateName: "Diploma con fecha",
+          versionId: "v1",
+          versionNumber: 1,
+          revision: 1,
+        },
+        usesParticipantPhoto: false,
+      }),
+    };
+  }
+
+  it("emite con edition.eventDate, que el catálogo declara obligatoria", async () => {
+    const out = await issueDiploma(
+      { registrationId: "reg_1", actor: { kind: "admin" } },
+      depsConMotorReal("edition.eventDate")
+    );
+    assert.equal(out.ok, true, out.ok === false ? out.issues.join(" · ") : "");
+  });
+
+  it("emite con participant.numberFormatted, que el armado viejo no proveía", async () => {
+    const out = await issueDiploma(
+      { registrationId: "reg_1", actor: { kind: "admin" } },
+      depsConMotorReal("participant.numberFormatted")
+    );
+    assert.equal(out.ok, true, out.ok === false ? out.issues.join(" · ") : "");
+  });
+});
+
+/**
+ * El PNG del diploma tiene que dar de alta su `DnxMediaAsset` igual que las
+ * placas: la ruta del ZIP filtra por `assetId: { not: null }`, así que sin
+ * eso los dos botones de descarga del panel devuelven 404 siempre.
+ */
+describe("issueDiploma: la imagen queda registrada como asset", () => {
+  it("da de alta el asset del PNG y lo engancha a la pieza", async () => {
+    let assetDe: string | null = null;
+    let enganchado: { cardId: string; assetId: string } | null = null;
+    const out = await issueDiploma(
+      { registrationId: "reg_1", actor: { kind: "admin" } },
+      deps({
+        upsertCard: async () => ({ id: "card_42" }),
+        persistPngAsset: async (input: { cardId: string }) => {
+          assetDe = input.cardId;
+          return "asset_del_png";
+        },
+        attachPngToCard: async (input: { cardId: string; assetId: string }) => {
+          enganchado = input;
+        },
+      })
+    );
+    assert.equal(out.ok, true);
+    assert.equal(assetDe, "card_42");
+    assert.deepEqual(enganchado, { cardId: "card_42", assetId: "asset_del_png" });
+  });
+
+  it("la fila de la pieza guarda tamaño y huella del archivo", async () => {
+    const vistos: Record<string, unknown>[] = [];
+    await issueDiploma(
+      { registrationId: "reg_1", actor: { kind: "admin" } },
+      deps({
+        saveToStorage: async () => ({
+          storageKey: "k1",
+          publicUrl: null,
+          bytes: 12345,
+          contentHash: "abc123",
+        }),
+        upsertCard: async (input: Record<string, unknown>) => {
+          vistos.push(input);
+          return { id: "card_1" };
+        },
+      })
+    );
+    assert.equal(vistos[0]?.byteSize, 12345);
+    assert.equal(vistos[0]?.contentHash, "abc123");
+  });
+
+  it("al rehacer, la pieza anterior queda STALE para que el ZIP no la baje dos veces", async () => {
+    let marcado: { registrationId: string; exceptCardId: string } | null = null;
+    const out = await issueDiploma(
+      { registrationId: "reg_1", actor: { kind: "admin" } },
+      deps({
+        findExistingIssue: async () => ({
+          id: "dip_previo",
+          diplomaCode: "DIP-AAAAAA-CK1-0042",
+          verificationToken: "token-viejo-que-no-cambia-xx",
+          issuedAt: new Date("2026-08-01T12:00:00Z"),
+          cardId: "card_viejo",
+          revokedAt: null,
+        }),
+        upsertCard: async () => ({ id: "card_nuevo" }),
+        markOtherCardsStale: async (input: {
+          registrationId: string;
+          exceptCardId: string;
+        }) => {
+          marcado = input;
+        },
+      })
+    );
+    assert.equal(out.ok, true);
+    assert.deepEqual(marcado, { registrationId: "reg_1", exceptCardId: "card_nuevo" });
+  });
+
+  it("si el alta del asset falla, la emisión falla (no se traga como el PDF)", async () => {
+    let emisiones = 0;
+    const out = await issueDiploma(
+      { registrationId: "reg_1", actor: { kind: "admin" } },
+      deps({
+        persistPngAsset: async () => {
+          throw new Error("base caída");
+        },
+        createIssue: async (data: Record<string, unknown>) => {
+          emisiones += 1;
+          return { id: "dip_1", ...data };
+        },
+      })
+    );
+    assert.equal(out.ok, false);
+    assert.equal(out.ok === false && out.code, "DIPLOMA_ISSUE_FAILED");
+    assert.equal(emisiones, 0, "no se quema el código ni el token si el asset no quedó");
+  });
+});
+
+/**
+ * La imagen del diploma se sirve públicamente (para que se vea dentro del
+ * correo) y viaja adjunta: si la plantilla usa la foto, hace falta el
+ * consentimiento de imagen, con el mismo criterio que las placas.
+ */
+describe("issueDiploma: consentimiento de imagen", () => {
+  const plantillaConFoto = {
+    ok: true as const,
+    preset: { id: "tpl", width: 1754, height: 1240 },
+    source: {
+      templateId: "t1",
+      templateName: "Con foto",
+      versionId: "v1",
+      versionNumber: 1,
+      revision: 1,
+    },
+    usesParticipantPhoto: true,
+  };
+
+  /** Ningún proxy de consentimiento presente (ver `hasClickatonCardConsent`). */
+  const sinConsentimiento = {
+    profilePhotoAssetId: "photo_1",
+    imageUsageConsent: false,
+    acceptedImageAt: null,
+    acceptedTermsAt: null,
+    termsAcceptedAt: null,
+  };
+
+  it("sin consentimiento no se emite, y no se dibuja nada", async () => {
+    let dibujos = 0;
+    const out = await issueDiploma(
+      { registrationId: "reg_1", actor: { kind: "admin" } },
+      deps({
+        loadRegistration: async () => inscripcionAcreditada(sinConsentimiento),
+        resolveTemplate: async () => plantillaConFoto,
+        renderPng: async () => {
+          dibujos += 1;
+          return { png: Buffer.from("x"), width: 1, height: 1, durationMs: 1 };
+        },
+      })
+    );
+    assert.equal(out.ok === false && out.code, "DIPLOMA_PHOTO_CONSENT_MISSING");
+    assert.equal(dibujos, 0);
+  });
+
+  it("el motivo se explica en castellano", () => {
+    assert.match(
+      DIPLOMA_ERROR_MESSAGES.DIPLOMA_PHOTO_CONSENT_MISSING,
+      /consentimiento de imagen/i
+    );
+  });
+
+  it("con consentimiento (aunque sea por las bases aceptadas) sí se emite", async () => {
+    const out = await issueDiploma(
+      { registrationId: "reg_1", actor: { kind: "admin" } },
+      deps({
+        loadRegistration: async () =>
+          inscripcionAcreditada({
+            ...sinConsentimiento,
+            termsAcceptedAt: new Date("2026-09-01T10:00:00Z"),
+          }),
+        resolveTemplate: async () => plantillaConFoto,
+        resolvePhoto: async () => "data:image/png;base64,Zm90bw==",
+      })
+    );
+    assert.equal(out.ok, true, out.ok === false ? out.issues.join(" · ") : "");
+  });
+
+  it("si la plantilla NO usa la foto, el consentimiento no bloquea nada", async () => {
+    const out = await issueDiploma(
+      { registrationId: "reg_1", actor: { kind: "admin" } },
+      deps({ loadRegistration: async () => inscripcionAcreditada(sinConsentimiento) })
+    );
+    assert.equal(out.ok, true);
   });
 });

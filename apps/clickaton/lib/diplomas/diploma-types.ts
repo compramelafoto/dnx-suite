@@ -5,6 +5,7 @@ export type DiplomaErrorCode =
   | "DIPLOMA_TEMPLATE_UNAVAILABLE"
   | "DIPLOMA_NOT_ACCREDITED"
   | "DIPLOMA_PHOTO_REQUIRED"
+  | "DIPLOMA_PHOTO_CONSENT_MISSING"
   | "DIPLOMA_PHOTO_UNREADABLE"
   | "DIPLOMA_REGISTRATION_NOT_FOUND"
   | "DIPLOMA_FORBIDDEN"
@@ -21,6 +22,8 @@ export const DIPLOMA_ERROR_MESSAGES: Record<DiplomaErrorCode, string> = {
     "Este participante no tiene acreditación vigente en la edición.",
   DIPLOMA_PHOTO_REQUIRED:
     "La plantilla usa la foto del participante y esta inscripción no tiene foto.",
+  DIPLOMA_PHOTO_CONSENT_MISSING:
+    "La plantilla usa la foto del participante y esta persona no dio su consentimiento de imagen. El diploma no se emite: sacá la foto de la plantilla o pedile el consentimiento.",
   DIPLOMA_PHOTO_UNREADABLE:
     "No pudimos leer la foto del participante. Probá de nuevo en un rato.",
   DIPLOMA_REGISTRATION_NOT_FOUND:

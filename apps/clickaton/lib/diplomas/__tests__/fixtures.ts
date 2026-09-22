@@ -8,6 +8,7 @@
  * `pdf-lib` pueda decodificarlo con `embedPng`.
  */
 import { deflateSync } from "node:zlib";
+import type { DiplomaRegistrationSnapshot } from "@/lib/diplomas/diploma-service";
 
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 
@@ -55,3 +56,54 @@ function buildMinimalPng(width: number, height: number): Buffer {
 }
 
 export const PNG_1754x1240_FIXTURE = buildMinimalPng(1754, 1240);
+
+/**
+ * Inscripción acreditada, con TODOS los campos que el diploma le pide a la
+ * base — los mismos que cargan las placas (`PARTICIPANT_CARD_REGISTRATION_SELECT`)
+ * más los check-ins. Es un fixture compartido y no un literal por test a
+ * propósito: la lista de campos crece con las variables de plantilla, y siete
+ * copias sueltas se desincronizan.
+ */
+export function inscripcionAcreditada(
+  over: Partial<DiplomaRegistrationSnapshot> = {}
+): DiplomaRegistrationSnapshot {
+  return {
+    id: "reg_1",
+    editionId: "ed_1",
+    userId: 7,
+    email: "ana@example.test",
+    firstName: "Ana",
+    lastName: "Pérez",
+    city: "Córdoba",
+    province: "Córdoba",
+    country: "AR",
+    instagramHandle: "@ana",
+    instagramHandleNormalized: "ana",
+    profilePhotoAssetId: null,
+    profilePhotoStatus: null,
+    visibleCode: "CK1-0042",
+    sequenceNumber: 42,
+    status: "CONFIRMED",
+    paymentStatus: "APPROVED",
+    imageUsageConsent: true,
+    socialPublicationConsent: true,
+    consentAcceptedAt: new Date("2026-09-01T10:00:00Z"),
+    acceptedImageAt: new Date("2026-09-01T10:00:00Z"),
+    acceptedTermsAt: new Date("2026-09-01T10:00:00Z"),
+    termsAcceptedAt: new Date("2026-09-01T10:00:00Z"),
+    termsVersion: "2026-09",
+    ticketType: { name: "General" },
+    checkIns: [{ checkedInAt: new Date("2026-09-19T19:30:00Z"), reversedAt: null }],
+    edition: {
+      name: "1ª Edición",
+      slug: "dia-del-fotografo-2026",
+      city: "Córdoba",
+      startAt: new Date("2026-09-19T12:00:00Z"),
+      location: "Paseo del Buen Pastor",
+      timezone: "America/Argentina/Cordoba",
+      coverImageUrl: null,
+    },
+    venue: { name: "Paseo del Buen Pastor", city: "Córdoba" },
+    ...over,
+  };
+}

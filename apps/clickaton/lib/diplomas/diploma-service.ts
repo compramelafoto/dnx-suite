@@ -6,12 +6,15 @@
  * 1. Carga la inscripción (con check-ins y edición).
  * 2. Acreditación vigente (no mira el pago).
  * 3. Plantilla del diploma (Task 4) — si no resuelve, listo, no se renderiza.
- * 4. Foto del participante, sólo si la plantilla la usa.
+ * 4. Foto del participante, sólo si la plantilla la usa — y sólo con su
+ *    consentimiento de imagen, igual que las placas.
  * 5. Código, token y fecha de emisión: si ya hay un diploma vigente para la
  *    inscripción, se reusan los tres (`reused: true`); si no, se generan
  *    (Task 5) y la fecha de emisión es la de hoy. Un diploma revocado NO
  *    cuenta como vigente: se emite uno nuevo, con código y token propios.
- * 6. Render, guardado en storage y persistencia de la pieza y del emisor.
+ * 6. Render, guardado en storage, alta del `DnxMediaAsset` de la imagen (sin
+ *    eso el diploma no entra a ninguna descarga en ZIP) y persistencia de la
+ *    pieza y del emisor.
  *
  * Cualquier falla —conocida o no— termina en `{ ok: false, code, issues }`,
  * nunca en una excepción cruda: `DiplomaServiceError` lleva el código de la
@@ -27,6 +30,7 @@
 import { createHash } from "node:crypto";
 import { prisma } from "@/lib/admin/db";
 import {
+  CLICKATON_DEFAULT_TIMEZONE,
   clickatonTemplateVariablesPlugin,
   createTemplateVariableRegistry,
   formatDateShort,
@@ -44,7 +48,14 @@ import { A4_LANDSCAPE_PT, buildDiplomaPdf } from "./diploma-pdf";
 import type { DiplomaErrorCode } from "./diploma-types";
 import { buildParticipantCardStorageKey } from "../participant-cards/participant-card-r2-keys";
 import { resolveParticipantCardRenderProvider } from "../participant-cards/participant-card-render-provider";
-import { createParticipantCardAssetStore } from "../participant-cards/participant-card-asset-store";
+import {
+  createParticipantCardAssetStore,
+  persistParticipantCardMediaAsset,
+} from "../participant-cards/participant-card-asset-store";
+import { buildClickatonParticipantTemplateData } from "../participant-cards/participant-card-data";
+import { hasClickatonCardConsent } from "../participant-cards/participant-card-consent";
+import { renderHashPrefix } from "../participant-cards/participant-card-hash";
+import { PARTICIPANT_CARD_REGISTRATION_SELECT } from "../participant-cards/participant-card-persistence";
 import { resolveParticipantPhotoDataUrl } from "../participant-cards/participant-card-photo";
 import { requireParticipantCardAdminAccess } from "../participant-cards/participant-card-authorization";
 import { CLICKATON_CARD_RENDERER_VERSION } from "../participant-cards/participant-card-renderer-version";
@@ -52,18 +63,28 @@ import {
   instantiatePresetPayload,
   type ClickatonCardPreset,
 } from "../participant-cards/participant-card-presets";
-import type { ParticipantCardActor } from "../participant-cards/participant-card-types";
+import type {
+  ParticipantCardActor,
+  ParticipantCardRegistrationSnapshot,
+} from "../participant-cards/participant-card-types";
 
-export type DiplomaRegistrationSnapshot = {
-  id: string;
+/**
+ * La inscripción, tal como la ve el diploma: EXACTAMENTE la misma foto que
+ * usan las placas de bienvenida y "Soy parte" (`ParticipantCardRegistrationSnapshot`)
+ * más el `editionId` y los check-ins que el diploma necesita para la
+ * acreditación.
+ *
+ * Es deliberado que sea la misma y no una reducida: el diseñador visual
+ * ofrece las 58 variables del catálogo para CUALQUIER plantilla y la
+ * validación sólo comprueba que la variable exista en el catálogo, no que el
+ * camino del diploma la provea. Con una foto más chica, una plantilla que
+ * usara la fecha del evento no emitía ningún diploma y el resto de las
+ * variables (número de participante, ciudad, sede, marca, categoría,
+ * Instagram) salían impresas en blanco y sin aviso.
+ */
+export type DiplomaRegistrationSnapshot = ParticipantCardRegistrationSnapshot & {
   editionId: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  visibleCode: string | null;
-  profilePhotoAssetId: string | null;
   checkIns: Array<{ checkedInAt: Date; reversedAt: Date | null }>;
-  edition: { name: string; slug: string; timezone?: string | null };
 };
 
 /**
@@ -139,6 +160,10 @@ export type DiplomaSaveToStorageInput = {
 export type DiplomaSaveToStorageResult = {
   storageKey: string;
   publicUrl: string | null;
+  /** Tamaño del archivo subido: va a la fila de la pieza (`byteSize`). */
+  bytes: number;
+  /** Huella del contenido subido: va a la fila de la pieza (`contentHash`). */
+  contentHash: string;
 };
 
 export type DiplomaUpsertCardInput = {
@@ -150,6 +175,42 @@ export type DiplomaUpsertCardInput = {
   templateKey: string;
   templateVersion: number;
   renderHash: string;
+  byteSize: number;
+  contentHash: string;
+};
+
+/**
+ * Alta del `DnxMediaAsset` del PNG del diploma, el mismo registro que dan de
+ * alta las placas al guardar su imagen.
+ *
+ * No es un detalle contable: la descarga masiva
+ * (`app/api/admin/ediciones/[editionId]/placas/descargar/route.ts`) filtra
+ * por `assetId: { not: null }`, así que una pieza sin su asset registrado
+ * NUNCA entra al ZIP. Mientras el diploma no lo daba de alta, los dos
+ * botones de descarga del panel devolvían 404 siempre.
+ */
+export type DiplomaPersistPngAssetInput = {
+  cardId: string;
+  editionId: string;
+  registrationId: string;
+  storageKey: string;
+  publicUrl: string | null;
+  png: Buffer;
+  width: number;
+  height: number;
+  templateKey: string;
+  templateVersion: number;
+  renderHash: string;
+};
+
+export type DiplomaAttachPngInput = {
+  cardId: string;
+  assetId: string;
+};
+
+export type DiplomaMarkOtherCardsStaleInput = {
+  registrationId: string;
+  exceptCardId: string;
 };
 
 export type DiplomaSavePdfInput = {
@@ -197,6 +258,20 @@ export type DiplomaServiceDeps = {
   ) => Promise<DiplomaSaveToStorageResult>;
   upsertCard?: (input: DiplomaUpsertCardInput) => Promise<{ id: string }>;
   /**
+   * Alta del `DnxMediaAsset` del PNG y su enganche a la pieza. NO es "mejor
+   * esfuerzo" como el PDF: sin el asset registrado, el diploma no entra a
+   * ninguna descarga en ZIP. Si falla, la emisión falla y se reintenta.
+   */
+  persistPngAsset?: (input: DiplomaPersistPngAssetInput) => Promise<string>;
+  attachPngToCard?: (input: DiplomaAttachPngInput) => Promise<void>;
+  /**
+   * Deja `STALE` a las piezas de diploma anteriores de esa inscripción, igual
+   * que hacen las placas (`markOtherReadyAsStale`). Sin esto, rehacer un
+   * diploma con otra plantilla deja DOS filas `READY` y la descarga en ZIP
+   * baja el diploma de esa persona dos veces.
+   */
+  markOtherCardsStale?: (input: DiplomaMarkOtherCardsStaleInput) => Promise<void>;
+  /**
    * PDF imprimible del diploma. Mejor esfuerzo: `issueDiploma` nunca deja
    * que un fallo acá (de `buildPdf`, `savePdfToStorage` o `persistPdfAsset`)
    * tire abajo una emisión — ver `attachDiplomaPdfBestEffort`.
@@ -222,6 +297,13 @@ export type IssueDiplomaResult =
       cardId: string;
       storageKey: string;
       reused: boolean;
+      /**
+       * `true` si el PDF imprimible quedó adjunto a la pieza. El PDF es
+       * "mejor esfuerzo" (nunca tira abajo una emisión), así que sin esta
+       * marca un PDF que falla sistemáticamente en producción no dejaba
+       * ninguna señal: el resultado decía `ok: true` igual.
+       */
+      pdfAttached: boolean;
     }
   | { ok: false; code: DiplomaErrorCode; issues: string[] };
 
@@ -261,20 +343,20 @@ function isPrismaUniqueViolation(err: unknown): boolean {
   );
 }
 
+/**
+ * Los mismos campos que carga el camino de las placas
+ * (`PARTICIPANT_CARD_REGISTRATION_SELECT`) más los check-ins de la
+ * acreditación. Se reusa la lista compartida a propósito: si el diploma
+ * tuviera la suya, cualquier variable nueva de plantilla quedaría en blanco
+ * sólo en el diploma y nadie se enteraría hasta verlo impreso.
+ */
 const REGISTRATION_SELECT = {
-  id: true,
-  editionId: true,
-  firstName: true,
-  lastName: true,
-  email: true,
-  visibleCode: true,
-  profilePhotoAssetId: true,
+  ...PARTICIPANT_CARD_REGISTRATION_SELECT,
   checkIns: {
     where: { reversedAt: null },
     select: { checkedInAt: true, reversedAt: true },
     orderBy: { checkedInAt: "asc" },
   },
-  edition: { select: { name: true, slug: true, timezone: true } },
 } as const;
 
 async function defaultLoadRegistration(
@@ -373,7 +455,12 @@ async function defaultSaveToStorage(
     mimeType: "image/png",
     generatedAt: new Date().toISOString(),
   });
-  return { storageKey: stored.key, publicUrl: stored.publicUrl };
+  return {
+    storageKey: stored.key,
+    publicUrl: stored.publicUrl,
+    bytes: stored.bytes,
+    contentHash: stored.contentHash,
+  };
 }
 
 async function defaultUpsertCard(
@@ -397,6 +484,8 @@ async function defaultUpsertCard(
         storageKey: input.storageKey,
         width: input.width,
         height: input.height,
+        byteSize: input.byteSize,
+        contentHash: input.contentHash,
         generatedAt: now,
         updatedAt: now,
       },
@@ -418,6 +507,8 @@ async function defaultUpsertCard(
         storageKey: input.storageKey,
         width: input.width,
         height: input.height,
+        byteSize: input.byteSize,
+        contentHash: input.contentHash,
         mimeType: "image/png",
         startedAt: now,
         generatedAt: now,
@@ -428,6 +519,56 @@ async function defaultUpsertCard(
     if (isPrismaUniqueViolation(err)) throw new DiplomaUniqueViolationError();
     throw err;
   }
+}
+
+/**
+ * Da de alta (o actualiza) el `DnxMediaAsset` del PNG reusando la MISMA
+ * función que las placas (`persistParticipantCardMediaAsset`): mismo criterio
+ * anti-duplicado por `storageKey`, mismo `kind` (`PARTICIPANT_CARD_PNG`),
+ * misma forma de guardar el contenido en línea cuando el backend es
+ * `KEY_ONLY`. No se duplica la lógica acá.
+ */
+async function defaultPersistPngAsset(
+  input: DiplomaPersistPngAssetInput
+): Promise<string> {
+  const store = createParticipantCardAssetStore();
+  return persistParticipantCardMediaAsset({
+    cardRecordId: input.cardId,
+    registrationId: input.registrationId,
+    editionId: input.editionId,
+    storageKey: input.storageKey,
+    publicUrl: input.publicUrl,
+    png: input.png,
+    width: input.width,
+    height: input.height,
+    storageBackend: store.backend,
+    templateKey: input.templateKey,
+    templateVersion: input.templateVersion,
+    cardType: "diploma",
+    renderHashPrefix: renderHashPrefix(input.renderHash),
+  });
+}
+
+async function defaultAttachPngToCard(input: DiplomaAttachPngInput): Promise<void> {
+  await prisma.clickatonParticipantCard.update({
+    where: { id: input.cardId },
+    data: { assetId: input.assetId },
+  });
+}
+
+async function defaultMarkOtherCardsStale(
+  input: DiplomaMarkOtherCardsStaleInput
+): Promise<void> {
+  const now = new Date();
+  await prisma.clickatonParticipantCard.updateMany({
+    where: {
+      registrationId: input.registrationId,
+      cardType: "DIPLOMA",
+      status: "READY",
+      id: { not: input.exceptCardId },
+    },
+    data: { status: "STALE", updatedAt: now },
+  });
 }
 
 async function defaultBuildPdf(png: Buffer): Promise<Buffer> {
@@ -569,6 +710,9 @@ function resolveDeps(deps: DiplomaServiceDeps) {
     renderPng: deps.renderPng ?? defaultRenderPng,
     saveToStorage: deps.saveToStorage ?? defaultSaveToStorage,
     upsertCard: deps.upsertCard ?? defaultUpsertCard,
+    persistPngAsset: deps.persistPngAsset ?? defaultPersistPngAsset,
+    attachPngToCard: deps.attachPngToCard ?? defaultAttachPngToCard,
+    markOtherCardsStale: deps.markOtherCardsStale ?? defaultMarkOtherCardsStale,
     buildPdf: deps.buildPdf ?? defaultBuildPdf,
     savePdfToStorage: deps.savePdfToStorage ?? defaultSavePdfToStorage,
     persistPdfAsset: deps.persistPdfAsset ?? defaultPersistPdfAsset,
@@ -597,10 +741,24 @@ function buildDiplomaVerificationUrl(verificationToken: string): string {
 }
 
 /**
- * Datos que ve el render. Incluye ya las cuatro variables del diploma
- * (`diploma.code`, `diploma.issuedAtFormatted`, `diploma.accreditedAtFormatted`,
- * `diploma.verificationUrl`) aunque el catálogo del motor todavía no las declare
- * (eso es la Task 11): el shape queda listo para cuando se enchufen.
+ * Datos que ve el render.
+ *
+ * Es el MISMO armado que usan las placas de bienvenida y "Soy parte"
+ * (`buildClickatonParticipantTemplateData`) con el bloque `diploma.*`
+ * superpuesto encima. No hay una segunda implementación: el diseñador visual
+ * ofrece las 58 variables del catálogo para cualquier plantilla y la
+ * validación sólo comprueba que existan en el catálogo, no que este camino
+ * las provea — con un armado propio y más chico, una plantilla que usara
+ * `edition.eventDate` (obligatoria, y el dato más esperable de un diploma de
+ * participación) no emitía NINGÚN diploma, y las opcionales salían impresas
+ * en blanco sin ningún aviso.
+ *
+ * `edition.id` queda con el valor que ya le da el armado compartido (el slug
+ * de la edición, que es lo que muestra el ejemplo del catálogo): antes las
+ * dos funciones no concordaban — el diploma ponía el identificador interno y
+ * las placas el slug — y la misma variable imprimía cosas distintas según la
+ * pieza. Se unifica sin tocar lo que ven las placas, que no pueden cambiar
+ * de comportamiento.
  */
 function buildDiplomaTemplateData(input: {
   registration: DiplomaRegistrationSnapshot;
@@ -611,49 +769,29 @@ function buildDiplomaTemplateData(input: {
   issuedAt: Date;
   timezone: string;
 }): Record<string, unknown> {
-  const { registration } = input;
-  const fullName = [registration.firstName, registration.lastName]
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .join(" ");
+  const base = buildClickatonParticipantTemplateData({
+    registration: input.registration,
+    photoDataUrl: input.photoDataUrl ?? "",
+  });
 
-  const nested: Record<string, unknown> = {
-    participant: {
-      id: registration.id,
-      fullName,
-      firstName: registration.firstName.trim(),
-      lastName: registration.lastName.trim(),
-      displayName: fullName.toUpperCase(),
-      photo: input.photoDataUrl ?? "",
-      photoUrl: input.photoDataUrl ?? "",
-    },
-    edition: {
-      id: registration.editionId,
-      name: registration.edition.name,
-      slug: registration.edition.slug,
-    },
-    diploma: {
-      code: input.diplomaCode,
-      issuedAtFormatted: formatDateShort(input.issuedAt, input.timezone),
-      accreditedAtFormatted: formatDateWithTime(input.accreditedAt, input.timezone),
-      verificationUrl: buildDiplomaVerificationUrl(input.verificationToken),
-    },
+  const diploma = {
+    code: input.diplomaCode,
+    issuedAtFormatted: formatDateShort(input.issuedAt, input.timezone),
+    accreditedAtFormatted: formatDateWithTime(input.accreditedAt, input.timezone),
+    verificationUrl: buildDiplomaVerificationUrl(input.verificationToken),
   };
 
-  const flat: Record<string, unknown> = {};
-  const walk = (obj: Record<string, unknown>, prefix: string) => {
-    for (const [k, v] of Object.entries(obj)) {
-      const path = prefix ? `${prefix}.${k}` : k;
-      if (v && typeof v === "object" && !Array.isArray(v)) {
-        walk(v as Record<string, unknown>, path);
-      } else {
-        flat[path] = v;
-      }
-    }
+  // El armado compartido devuelve las variables dos veces: anidadas y
+  // aplanadas por camino (`edition.name`). Las del diploma se agregan de las
+  // dos formas para que el motor las resuelva igual que a las demás.
+  return {
+    ...base,
+    diploma,
+    "diploma.code": diploma.code,
+    "diploma.issuedAtFormatted": diploma.issuedAtFormatted,
+    "diploma.accreditedAtFormatted": diploma.accreditedAtFormatted,
+    "diploma.verificationUrl": diploma.verificationUrl,
   };
-  walk(nested, "");
-
-  return { ...nested, ...flat };
 }
 
 function computeDiplomaRenderHash(input: {
@@ -673,6 +811,118 @@ function computeDiplomaRenderHash(input: {
     rendererVersion: CLICKATON_CARD_RENDERER_VERSION,
   });
   return createHash("sha256").update(payload).digest("hex");
+}
+
+/**
+ * Guarda la pieza del diploma (`ClickatonParticipantCard`) con su imagen ya
+ * registrada como `DnxMediaAsset`, igual que hacen las placas.
+ *
+ * Tres escrituras en orden: la fila de la pieza (que es la que da el id que
+ * el asset necesita como dueño), el alta del asset, y el enganche del
+ * `assetId` en la fila. A diferencia del PDF, acá NADA es "mejor esfuerzo":
+ * un fallo se propaga y la emisión se reintenta más tarde, porque una pieza
+ * sin `assetId` no entra a ninguna descarga en ZIP —la ruta filtra por
+ * `assetId: { not: null }`— y el respaldo por identificador de archivo del
+ * lector del participante tampoco tendría a qué caer.
+ */
+async function persistDiplomaCardWithAsset(
+  deps: ReturnType<typeof resolveDeps>,
+  input: {
+    upsertCardInput: DiplomaUpsertCardInput;
+    png: Buffer;
+    width: number;
+    height: number;
+    publicUrl: string | null;
+    editionId: string;
+    registrationId: string;
+    templateKey: string;
+    templateVersion: number;
+    renderHash: string;
+  }
+): Promise<{ id: string }> {
+  const card = await deps.upsertCard(input.upsertCardInput);
+  const assetId = await deps.persistPngAsset({
+    cardId: card.id,
+    editionId: input.editionId,
+    registrationId: input.registrationId,
+    storageKey: input.upsertCardInput.storageKey,
+    publicUrl: input.publicUrl,
+    png: input.png,
+    width: input.width,
+    height: input.height,
+    templateKey: input.templateKey,
+    templateVersion: input.templateVersion,
+    renderHash: input.renderHash,
+  });
+  await deps.attachPngToCard({ cardId: card.id, assetId });
+  return card;
+}
+
+/**
+ * Foto del participante, sólo si la plantilla la usa.
+ *
+ * Dos condiciones, no una: que la inscripción TENGA foto y que la persona
+ * haya dado su consentimiento de imagen. El consentimiento se evalúa con el
+ * mismo criterio que las placas (`hasClickatonCardConsent`), no con uno
+ * propio. Hacía falta acá porque el PNG del diploma se sirve públicamente
+ * (para que se vea dentro del correo) y viaja adjunto: sin este chequeo, la
+ * cara de alguien que nunca dio permiso terminaba publicada.
+ *
+ * Sin consentimiento NO se emite ese diploma —y se dice por qué—, pero no se
+ * corta el lote: el resto de los acreditados sigue.
+ */
+async function resolveDiplomaPhoto(
+  deps: ReturnType<typeof resolveDeps>,
+  registration: DiplomaRegistrationSnapshot,
+  usesParticipantPhoto: boolean
+): Promise<
+  | { ok: true; photoDataUrl: string | null }
+  | { ok: false; code: DiplomaErrorCode }
+> {
+  if (!usesParticipantPhoto) return { ok: true, photoDataUrl: null };
+
+  if (!registration.profilePhotoAssetId) {
+    return { ok: false, code: "DIPLOMA_PHOTO_REQUIRED" };
+  }
+  if (!hasClickatonCardConsent(registration)) {
+    return { ok: false, code: "DIPLOMA_PHOTO_CONSENT_MISSING" };
+  }
+
+  try {
+    const photoDataUrl = await deps.resolvePhoto({
+      profilePhotoAssetId: registration.profilePhotoAssetId,
+    });
+    return { ok: true, photoDataUrl };
+  } catch (err) {
+    throw new DiplomaServiceError("DIPLOMA_PHOTO_UNREADABLE", [
+      err instanceof Error ? err.message : String(err),
+    ]);
+  }
+}
+
+/**
+ * Deja `STALE` a las piezas de diploma anteriores de la inscripción, una vez
+ * que el emisor (`ClickatonDiplomaIssue`) ya apunta a la nueva. El orden
+ * importa: si se hiciera antes, habría un instante en que el emisor apunta a
+ * una pieza que ya no está `READY` y el participante vería su diploma como
+ * inexistente.
+ *
+ * Mejor esfuerzo: el diploma ya está emitido y entregable. Si esto falla,
+ * lo único que queda es una pieza vieja de más, que como mucho hace que esa
+ * persona aparezca dos veces en la descarga en ZIP hasta el próximo rehacer.
+ */
+async function markOtherDiplomaCardsStaleBestEffort(
+  deps: ReturnType<typeof resolveDeps>,
+  input: { registrationId: string; exceptCardId: string }
+): Promise<void> {
+  try {
+    await deps.markOtherCardsStale(input);
+  } catch (err) {
+    console.error("[clickaton-diplomas] no se pudieron marcar las piezas viejas", {
+      registrationId: input.registrationId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 }
 
 /**
@@ -702,7 +952,7 @@ async function attachDiplomaPdfBestEffort(
     templateVersion: number;
     renderHash: string;
   }
-): Promise<void> {
+): Promise<boolean> {
   try {
     const pdf = await deps.buildPdf(input.png);
     const pdfStorageKey = buildParticipantCardStorageKey({
@@ -732,9 +982,18 @@ async function attachDiplomaPdfBestEffort(
       pdfAssetId,
       pdfStorageKey: saved.storageKey,
     });
-  } catch {
-    // Intencional — ver comentario de la función. El diploma en imagen ya
-    // está guardado; no hay nada más que hacer acá salvo no propagar.
+    return true;
+  } catch (err) {
+    // No se propaga —ver comentario de la función—, pero sí se deja rastro:
+    // el motivo en el registro del servidor y la marca `pdfAttached: false`
+    // en el resultado, que es lo que permite enterarse de que el PDF falla
+    // sin tener que mirar la base fila por fila.
+    console.error("[clickaton-diplomas] no se pudo adjuntar el PDF", {
+      cardId: input.cardId,
+      registrationId: input.registrationId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return false;
   }
 }
 
@@ -779,21 +1038,9 @@ export async function issueDiploma(
       return { ok: false, code: template.code, issues: template.issues };
     }
 
-    let photoDataUrl: string | null = null;
-    if (template.usesParticipantPhoto) {
-      if (!registration.profilePhotoAssetId) {
-        return { ok: false, code: "DIPLOMA_PHOTO_REQUIRED", issues: [] };
-      }
-      try {
-        photoDataUrl = await deps.resolvePhoto({
-          profilePhotoAssetId: registration.profilePhotoAssetId,
-        });
-      } catch (err) {
-        throw new DiplomaServiceError("DIPLOMA_PHOTO_UNREADABLE", [
-          err instanceof Error ? err.message : String(err),
-        ]);
-      }
-    }
+    const foto = await resolveDiplomaPhoto(deps, registration, template.usesParticipantPhoto);
+    if (!foto.ok) return { ok: false, code: foto.code, issues: [] };
+    const photoDataUrl = foto.photoDataUrl;
 
     const foundExisting = await deps.findExistingIssue({ registrationId: registration.id });
     // Un diploma revocado no se reusa, aunque la consulta por defecto ya lo
@@ -805,7 +1052,7 @@ export async function issueDiploma(
       buildDiplomaCode({
         visibleCode: registration.visibleCode,
         registrationId: registration.id,
-        editionSlug: registration.edition.slug,
+        editionId: registration.editionId,
       });
     const verificationToken = existing?.verificationToken ?? generateVerificationToken();
     // La fecha de emisión se fija una sola vez, igual que el código y el
@@ -813,7 +1060,7 @@ export async function issueDiploma(
     // una fecha y la página de verificación diga otra.
     const issuedAt = existing?.issuedAt ?? deps.now();
 
-    const timezone = registration.edition.timezone?.trim() || "America/Argentina/Cordoba";
+    const timezone = registration.edition.timezone?.trim() || CLICKATON_DEFAULT_TIMEZONE;
     const accreditedAt = earliestAccreditedAt(registration.checkIns, issuedAt);
 
     const templateData = buildDiplomaTemplateData({
@@ -860,7 +1107,24 @@ export async function issueDiploma(
       templateKey: template.source.templateId,
       templateVersion: template.source.versionNumber,
       renderHash,
+      byteSize: saved.bytes,
+      contentHash: saved.contentHash,
     };
+
+    /** La pieza del PNG, con su `DnxMediaAsset` ya dado de alta y enganchado. */
+    const guardarPieza = () =>
+      persistDiplomaCardWithAsset(deps, {
+        upsertCardInput,
+        png: rendered.png,
+        width: rendered.width,
+        height: rendered.height,
+        publicUrl: saved.publicUrl,
+        editionId: registration.editionId,
+        registrationId: registration.id,
+        templateKey: template.source.templateId,
+        templateVersion: template.source.versionNumber,
+        renderHash,
+      });
 
     const pdfInputBase = {
       editionId: registration.editionId,
@@ -872,15 +1136,23 @@ export async function issueDiploma(
     };
 
     if (existing) {
-      const card = await deps.upsertCard(upsertCardInput);
+      const card = await guardarPieza();
       await deps.updateIssue({
         id: existing.id,
         cardId: card.id,
         editionId: registration.editionId,
       });
-      await attachDiplomaPdfBestEffort(deps, { ...pdfInputBase, cardId: card.id });
+      await markOtherDiplomaCardsStaleBestEffort(deps, {
+        registrationId: registration.id,
+        exceptCardId: card.id,
+      });
+      const pdfAttached = await attachDiplomaPdfBestEffort(deps, {
+        ...pdfInputBase,
+        cardId: card.id,
+      });
       return {
         ok: true,
+        pdfAttached,
         diplomaId: existing.id,
         diplomaCode,
         verificationToken,
@@ -891,7 +1163,7 @@ export async function issueDiploma(
     }
 
     try {
-      const card = await deps.upsertCard(upsertCardInput);
+      const card = await guardarPieza();
       const created = await deps.createIssue({
         registrationId: registration.id,
         editionId: registration.editionId,
@@ -900,9 +1172,17 @@ export async function issueDiploma(
         verificationToken,
         issuedAt,
       });
-      await attachDiplomaPdfBestEffort(deps, { ...pdfInputBase, cardId: card.id });
+      await markOtherDiplomaCardsStaleBestEffort(deps, {
+        registrationId: registration.id,
+        exceptCardId: card.id,
+      });
+      const pdfAttached = await attachDiplomaPdfBestEffort(deps, {
+        ...pdfInputBase,
+        cardId: card.id,
+      });
       return {
         ok: true,
+        pdfAttached,
         diplomaId: created.id,
         diplomaCode,
         verificationToken,
@@ -917,10 +1197,18 @@ export async function issueDiploma(
       // ganó la carrera, en vez de romper con el error crudo de la base.
       const raced = await deps.findExistingIssue({ registrationId: registration.id });
       if (!raced || raced.revokedAt !== null) throw err;
-      const cardId = raced.cardId ?? (await deps.upsertCard(upsertCardInput)).id;
-      await attachDiplomaPdfBestEffort(deps, { ...pdfInputBase, cardId });
+      const cardId = raced.cardId ?? (await guardarPieza()).id;
+      await markOtherDiplomaCardsStaleBestEffort(deps, {
+        registrationId: registration.id,
+        exceptCardId: cardId,
+      });
+      const pdfAttached = await attachDiplomaPdfBestEffort(deps, {
+        ...pdfInputBase,
+        cardId,
+      });
       return {
         ok: true,
+        pdfAttached,
         diplomaId: raced.id,
         diplomaCode: raced.diplomaCode,
         verificationToken: raced.verificationToken,
@@ -986,23 +1274,11 @@ export async function renderDiplomaPreview(
       return { ok: false, code: template.code, issues: template.issues };
     }
 
-    let photoDataUrl: string | null = null;
-    if (template.usesParticipantPhoto) {
-      if (!registration.profilePhotoAssetId) {
-        return { ok: false, code: "DIPLOMA_PHOTO_REQUIRED", issues: [] };
-      }
-      try {
-        photoDataUrl = await deps.resolvePhoto({
-          profilePhotoAssetId: registration.profilePhotoAssetId,
-        });
-      } catch (err) {
-        throw new DiplomaServiceError("DIPLOMA_PHOTO_UNREADABLE", [
-          err instanceof Error ? err.message : String(err),
-        ]);
-      }
-    }
+    const foto = await resolveDiplomaPhoto(deps, registration, template.usesParticipantPhoto);
+    if (!foto.ok) return { ok: false, code: foto.code, issues: [] };
+    const photoDataUrl = foto.photoDataUrl;
 
-    const timezone = registration.edition.timezone?.trim() || "America/Argentina/Cordoba";
+    const timezone = registration.edition.timezone?.trim() || CLICKATON_DEFAULT_TIMEZONE;
     const now = deps.now();
     const accreditedAt = earliestAccreditedAt(registration.checkIns, now);
 

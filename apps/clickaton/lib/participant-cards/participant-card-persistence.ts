@@ -531,7 +531,14 @@ export type ParticipantCardPersistenceDeps = {
   persistAsset?: typeof persistParticipantCardMediaAsset;
 };
 
-const REGISTRATION_SELECT = {
+/**
+ * Campos de la inscripción que necesita `buildClickatonParticipantTemplateData`
+ * para completar las ~40 variables de plantilla (más los del consentimiento y
+ * la elegibilidad). Se exporta para que el diploma cargue exactamente lo mismo
+ * que las placas: dos listas separadas se desincronizan y el diploma termina
+ * imprimiendo variables en blanco.
+ */
+export const PARTICIPANT_CARD_REGISTRATION_SELECT = {
   id: true,
   editionId: true,
   userId: true,
@@ -570,6 +577,8 @@ const REGISTRATION_SELECT = {
   },
   venue: { select: { name: true, city: true } },
 } as const;
+
+const REGISTRATION_SELECT = PARTICIPANT_CARD_REGISTRATION_SELECT;
 
 async function defaultLoadRegistration(registrationId: string) {
   return defaultPrisma.clickatonRegistration.findUnique({
