@@ -29,6 +29,9 @@ export function instantiatePresetPayload(
 export function getClickatonParticipantCardPreset(
   cardType: ClickatonParticipantCardType
 ): ClickatonCardPreset {
+  if (cardType === "diploma") {
+    throw new Error("NO_PRESET_FOR_DIPLOMA");
+  }
   const key =
     cardType === "welcome"
       ? "CLICKATON_WELCOME_STORY_V1"
