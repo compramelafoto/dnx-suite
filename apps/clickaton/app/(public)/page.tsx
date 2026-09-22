@@ -7,17 +7,20 @@ import { Hero } from "@/components/home/Hero";
 import { HomeSpotlightBanner } from "@/components/home/HomeSpotlightBanner";
 import { LearningSection } from "@/components/home/LearningSection";
 import { ManifestoBlock } from "@/components/home/ManifestoBlock";
+import { ParticipantVoices } from "@/components/home/ParticipantVoices";
 import { PartnershipSection } from "@/components/home/PartnershipSection";
 import { UpcomingEventsSection } from "@/components/home/UpcomingEventsSection";
 import { VenueProgramSection } from "@/components/home/VenueProgramSection";
 import { WhatIsClickaton } from "@/components/home/WhatIsClickaton";
 import { listPublicMarathons } from "@/data/public-marathons/service";
 import { buildHomeSpotlightSlides } from "@/lib/home/build-spotlight-slides";
+import { listPublishedTestimonials } from "@/lib/testimonials/public/list-published";
 
 export default async function HomePage() {
   // Fallos de DB/fuente no se disfrazan como agenda vacía: van al error boundary.
   const editions = await listPublicMarathons();
   const spotlight = await buildHomeSpotlightSlides(editions);
+  const testimonials = await listPublishedTestimonials({ limit: 6 });
 
   return (
     <>
@@ -31,6 +34,7 @@ export default async function HomePage() {
       <UpcomingEventsSection />
       <LearningSection />
       <Community />
+      <ParticipantVoices testimonials={testimonials} />
       <VenueProgramSection />
       <PartnershipSection />
       <ManifestoBlock />

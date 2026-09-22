@@ -11878,9 +11878,18 @@ model ClickatonEdition {
   readinessChecks            ClickatonReadinessCheck[]
   giftVouchers               ClickatonGiftVoucher[]
   giftVouchersCarriedOver    ClickatonGiftVoucher[]                @relation("GiftVoucherCarriedOverEdition")
+  surveyResponses            ClickatonSurveyResponse[]
+  testimonials               ClickatonTestimonial[]
+  testimonialInvites         ClickatonTestimonialInvite[]
 
   /// Habilita la compra de regalos en esta edición. Nace apagado.
   giftVouchersEnabled Boolean @default(false)
+
+  /// Encuesta de satisfacción y testimonios públicos. Nace apagado.
+  testimonialsEnabled Boolean @default(false)
+
+  /// Días después de `endAt` en que sale la invitación a testimoniar.
+  testimonialInviteDelayDays Int @default(2)
 
   /// Edición ops/fixture: nunca comercial. Cleanup solo permitido si true.
   isOpsFixture Boolean @default(false)
@@ -18573,4 +18582,128 @@ model ClickatonGiftVoucher {
   @@index([buyerEmail])
   @@index([recipientEmail])
   @@index([status, redeemableUntil])
+}
+
+// ---------------------------------------------------------------------------
+// Testimonios y relación de calidad (Clickatón)
+//
+// La encuesta y el testimonio viven en tablas separadas a propósito: la crítica
+// constructiva está en `ClickatonSurveyResponse`, que no tiene ninguna ruta
+// pública de lectura, y el texto publicable está en `ClickatonTestimonial`.
+// Un `select` equivocado no puede filtrar la crítica al sitio público.
+// ---------------------------------------------------------------------------
+
+/// Desde qué lugar habla quien responde.
+enum ClickatonTestimonialAuthorRole {
+  PARTICIPANT
+  JUROR
+  VENUE
+}
+
+/// Moderación del testimonio. Nace PENDING: nada se publica solo.
+enum ClickatonTestimonialStatus {
+  PENDING
+  PUBLISHED
+  REJECTED
+}
+
+enum ClickatonSurveyWouldReturn {
+  YES
+  MAYBE
+  NO
+}
+
+enum ClickatonTestimonialInviteStatus {
+  PENDING
+  SENT
+  FAILED
+  RESPONDED
+}
+
+/// Encuesta de satisfacción. PRIVADA: ninguna ruta pública la consulta.
+model ClickatonSurveyResponse {
+  id             String                         @id @default(cuid())
+  editionId      String
+  userId         Int
+  authorRole     ClickatonTestimonialAuthorRole
+  /// Origen de la identidad (soft refs; sólo una está poblada).
+  registrationId String?
+  venueId        String?
+  /// 0..10 — "¿Qué tan probable es que lo recomiendes?"
+  npsScore       Int
+  /// 1..5 cada una; null = "No aplica" y no promedia.
+  scoreOrganization  Int?
+  scorePrompts       Int?
+  scoreVenue         Int?
+  scoreKit           Int?
+  scoreAccreditation Int?
+  scoreCommunication Int?
+  scoreValueForMoney Int?
+  wouldReturn        ClickatonSurveyWouldReturn?
+  /// Crítica constructiva. NUNCA se publica ni se copia al testimonio.
+  improvementNotes   String?
+  submittedAt        DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+  auditIp            String?
+  auditUserAgent     String?
+  edition            ClickatonEdition           @relation(fields: [editionId], references: [id], onDelete: Restrict)
+  testimonial        ClickatonTestimonial?
+
+  @@unique([editionId, userId])
+  @@index([editionId, authorRole])
+  @@index([editionId, npsScore])
+}
+
+/// El texto publicable y la identidad congelada de quien lo escribió.
+model ClickatonTestimonial {
+  id                 String                         @id @default(cuid())
+  surveyResponseId   String                         @unique
+  editionId          String
+  userId             Int
+  authorRole         ClickatonTestimonialAuthorRole
+  /// Lo que escribió el autor (≤400). El admin no lo reescribe.
+  quote              String
+  /// El recorte que sale en el sitio (≤240). Lo elige el admin.
+  highlightedExcerpt String?
+  status             ClickatonTestimonialStatus     @default(PENDING)
+  publicationConsent Boolean                        @default(false)
+  consentAcceptedAt  DateTime?
+  /// Foto de la identidad al responder: cambiar el perfil no reescribe lo publicado.
+  authorName         String
+  authorPhotoAssetId String?
+  authorLinkUrl      String?
+  displayOrder       Int                            @default(0)
+  isFeatured         Boolean                        @default(false)
+  publishedAt        DateTime?
+  moderatedByUserId  Int?
+  moderationNotes    String?
+  createdAt          DateTime                       @default(now())
+  updatedAt          DateTime                       @updatedAt
+  surveyResponse     ClickatonSurveyResponse        @relation(fields: [surveyResponseId], references: [id], onDelete: Cascade)
+  edition            ClickatonEdition               @relation(fields: [editionId], references: [id], onDelete: Restrict)
+
+  @@index([editionId, status])
+  @@index([status, displayOrder])
+}
+
+/// A quién se invitó a testimoniar. Hace medible la tasa de respuesta.
+model ClickatonTestimonialInvite {
+  id             String                           @id @default(cuid())
+  editionId      String
+  authorRole     ClickatonTestimonialAuthorRole
+  email          String
+  userId         Int?
+  registrationId String?
+  venueId        String?
+  status         ClickatonTestimonialInviteStatus @default(PENDING)
+  sentAt         DateTime?
+  respondedAt    DateTime?
+  emailQueueId   Int?
+  idempotencyKey String                           @unique
+  createdAt      DateTime                         @default(now())
+  updatedAt      DateTime                         @updatedAt
+  edition        ClickatonEdition                 @relation(fields: [editionId], references: [id], onDelete: Restrict)
+
+  @@unique([editionId, email])
+  @@index([editionId, status])
 }

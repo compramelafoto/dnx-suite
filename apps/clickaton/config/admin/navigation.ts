@@ -20,6 +20,8 @@ export const adminRoutes = {
   /** CMS del blog público (`@repo/content`, platform = clickaton). */
   contents: "/admin/contenidos",
   messages: "/admin/mensajes",
+  /** Encuesta de satisfacción y moderación de testimonios públicos. */
+  testimonials: "/admin/testimonios",
   settings: "/admin/configuracion",
   financeOwner: "/admin/finanzas/cuenta-owner",
   /** Partner / recipient self-connect (Mi cuenta de cobro). */
@@ -114,6 +116,12 @@ export const adminNavigation: readonly AdminNavItem[] = [
     section: "main",
   },
   { label: "Mensajes", href: adminRoutes.messages, icon: "messages", section: "main" },
+  {
+    label: "Testimonios y calidad",
+    href: adminRoutes.testimonials,
+    icon: "messages",
+    section: "main",
+  },
   { label: "Configuración", href: adminRoutes.settings, icon: "settings", section: "system" },
   {
     /** Partner self-connect — no confundir con admin de % en la edición. */

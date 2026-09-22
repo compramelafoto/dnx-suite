@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { SimpleBreadcrumb } from "@/components/content/SimpleBreadcrumb";
+import { ParticipantVoices } from "@/components/home/ParticipantVoices";
 import { ClickatonEventPartnerWelcome } from "@/components/marathon/ClickatonEventPartnerWelcome";
 import { MarathonDetailView } from "@/components/marathon/MarathonDetailView";
 import { routes } from "@/config/navigation";
@@ -16,6 +17,7 @@ import {
 } from "@/lib/public/partners-event-welcome";
 import { getPublicRegistrationOfferAction } from "@/lib/public-registration/actions/public-registration";
 import { buildPageMetadata } from "@/lib/seo";
+import { listPublishedTestimonials } from "@/lib/testimonials/public/list-published";
 import { getPublicTimelineBySlug } from "@/lib/timeline/public-api";
 
 type PageProps = {
@@ -73,16 +75,18 @@ export default async function MarathonDetailPage({ params }: PageProps) {
     !visibility.cancelled &&
     !visibility.isDemo;
 
-  const [capabilities, offerResult, timeline, welcomeAd] = await Promise.all([
-    getPublicMarathonCapabilities(marathon.id),
-    getPublicRegistrationOfferAction(slug),
-    getPublicTimelineBySlug(slug),
-    loadClickatonEventWelcomeAd({
-      editionId: marathon.id,
-      pathname,
-      publicLandingAllowed,
-    }),
-  ]);
+  const [capabilities, offerResult, timeline, welcomeAd, testimonials] =
+    await Promise.all([
+      getPublicMarathonCapabilities(marathon.id),
+      getPublicRegistrationOfferAction(slug),
+      getPublicTimelineBySlug(slug),
+      loadClickatonEventWelcomeAd({
+        editionId: marathon.id,
+        pathname,
+        publicLandingAllowed,
+      }),
+      listPublishedTestimonials({ editionId: marathon.id, limit: 6 }),
+    ]);
   const offer = offerResult.ok ? offerResult.data : null;
   const welcomePayload = welcomeAd ? toClickatonEventWelcomePublicPayload(welcomeAd) : null;
 
@@ -102,6 +106,12 @@ export default async function MarathonDetailPage({ params }: PageProps) {
         nativeRegistrationLabel={offer?.available ? offer.label : null}
         timelineMilestones={timeline?.milestones ?? null}
         timelineServerNow={timeline?.serverNow ?? null}
+      />
+      <ParticipantVoices
+        testimonials={testimonials}
+        showEditionName={false}
+        eyebrow="En sus palabras"
+        title="Lo que dijeron quienes participaron"
       />
       <ClickatonEventPartnerWelcome ad={welcomePayload} />
     </>
