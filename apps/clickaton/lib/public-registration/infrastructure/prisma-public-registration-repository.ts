@@ -768,6 +768,16 @@ export function createPrismaPublicRegistrationRepository(
           },
         });
       });
+
+      // Si el regalo se compró con un código de descuento, ese uso vuelve a
+      // estar disponible. Sin esto, anular un regalo le quema el cupón a quien
+      // lo había usado. Best-effort, igual que al vencer una reserva: la
+      // anulación ya quedó firme.
+      try {
+        await releaseClickatonPromotionRedemption(input.registrationId);
+      } catch {
+        // No bloquear la anulación por el cupón.
+      }
     },
 
     async completeGiftRegistration(cmd) {
