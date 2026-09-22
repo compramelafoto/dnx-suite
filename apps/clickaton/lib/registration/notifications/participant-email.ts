@@ -2,7 +2,7 @@ import { sendIdentityEmail, type IdentityEmailResult } from "@repo/auth";
 import { signRegistrationAccessToken } from "@/lib/public-registration/domain/access-token";
 import {
   READINESS_TOKEN_TTL_MS,
-  readinessEmailParagraph,
+  readinessCopy,
   readinessPath,
 } from "@/lib/readiness/content/readiness-copy";
 import {
@@ -180,7 +180,7 @@ export async function sendParticipantFunnelEmail(input: {
         ...POST_PAYMENT_SCHEDULE.map((row) => `${row.time} ${row.label}`),
         POST_PAYMENT_CAPTURE_WARNING,
         ``,
-        readinessEmailParagraph,
+        readinessCopy.emailParagraph,
         `Revisar mi teléfono: ${readinessUrl}`,
         ``,
         `Ver mi QR / credencial: ${credentialUrl}`,
@@ -299,7 +299,7 @@ function buildConfirmedHtml(input: {
           ${POST_PAYMENT_SCHEDULE.map((row) => `<p style="margin:0 0 4px;color:#333;">${escapeHtml(row.time)} · ${escapeHtml(row.label)}</p>`).join("")}
           <p style="margin:8px 0 0;color:#111;font-size:13px;"><strong>${escapeHtml(POST_PAYMENT_CAPTURE_WARNING)}</strong></p>
         </div>
-        <p style="margin:0 0 16px;color:#333;">${escapeHtml(readinessEmailParagraph)} <a href="${input.readinessUrl}" style="color:${input.brand};font-weight:700;">Revisar mi teléfono</a></p>
+        <p style="margin:0 0 16px;color:#333;">${escapeHtml(readinessCopy.emailParagraph)} <a href="${input.readinessUrl}" style="color:${input.brand};font-weight:700;">Revisar mi teléfono</a></p>
         <p style="margin:0 0 16px;">
           ${btn(input.credentialUrl, "Ver mi QR de acreditación", true)}
           ${btn(input.activateUrl, "Creá tu cuenta para ver el QR")}
