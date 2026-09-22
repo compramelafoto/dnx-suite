@@ -31,16 +31,32 @@ describe("buildDiplomaCode", () => {
 });
 
 describe("generateVerificationToken", () => {
-  it("es largo, aleatorio y seguro para una URL", () => {
-    const a = generateVerificationToken();
-    const b = generateVerificationToken();
-    assert.notEqual(a, b);
-    assert.ok(a.length >= 24);
-    assert.match(a, /^[A-Za-z0-9_-]+$/);
-  });
+  it("es aleatorio, no derivable de los datos del participante", () => {
+    // La función no recibe datos del participante: eso garantiza
+    // que no puede depender de ellos.
+    const tokens = Array.from({ length: 50 }, () => generateVerificationToken());
 
-  it("no contiene el número de inscripción", () => {
-    const token = generateVerificationToken();
-    assert.ok(!token.includes("0042"));
+    // Ningún token se repite
+    const unique = new Set(tokens);
+    assert.equal(unique.size, 50, "todos los tokens deben ser distintos");
+
+    // Todos tienen longitud esperada
+    tokens.forEach((token) => {
+      assert.equal(token.length, 32, "cada token debe tener 32 caracteres (24 bytes en base64url)");
+    });
+
+    // Todos contienen solo caracteres seguros para URL
+    const urlSafeRegex = /^[A-Za-z0-9_-]{32}$/;
+    tokens.forEach((token) => {
+      assert.match(token, urlSafeRegex, "debe ser seguro para URL");
+    });
+
+    // Ninguno contiene fragmentos predecibles de datos de participante
+    // (probamos con "0042" como ejemplo de código visible)
+    tokens.forEach((token) => {
+      assert.ok(!token.includes("0042"), "no debe contener el código visible");
+      // Probamos también que no contiene fragmentos de un id conocido
+      assert.ok(!token.includes("cms78"), "no debe contener fragmentos del id");
+    });
   });
 });

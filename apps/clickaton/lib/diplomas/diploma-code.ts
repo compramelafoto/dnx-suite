@@ -14,7 +14,11 @@ export function buildDiplomaCode(input: {
   if (visible) return `DIP-${visible}`;
   const tag =
     input.editionSlug.replace(/[^a-zA-Z0-9]/g, "").slice(0, 7).toUpperCase() || "EDICION";
-  const tail = input.registrationId.slice(-6).toUpperCase().replace(/[^A-Z0-9]/g, "0");
+  const tail = input.registrationId
+    .slice(-6)
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "0")
+    .padEnd(6, "0");
   return `DIP-${tag}-${tail}`;
 }
 
