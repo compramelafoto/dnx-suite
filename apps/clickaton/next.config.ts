@@ -6,11 +6,19 @@ const appDir = path.dirname(fileURLToPath(import.meta.url));
 
 const monorepoRoot = path.join(appDir, "../..");
 
+/**
+ * React en modo desarrollo evalúa cadenas como JavaScript para rearmar las
+ * pilas de llamadas. Sin este permiso el navegador corta esa evaluación y la
+ * página NO hidrata: los formularios se dibujan pero ningún botón responde,
+ * sin un solo error a la vista. Nunca se agrega en producción.
+ */
+const devUnsafeEval = process.env.NODE_ENV === "production" ? "" : " 'unsafe-eval'";
+
 /** CSP for Card Payment Brick / MercadoPago.js — official origins only (no wildcards). */
 const clickatonCsp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://sdk.mercadopago.com https://www.mercadopago.com https://www.mercadopago.com.ar https://http2.mlstatic.com https://vercel.live",
-  "script-src-elem 'self' 'unsafe-inline' https://sdk.mercadopago.com https://www.mercadopago.com https://www.mercadopago.com.ar https://http2.mlstatic.com https://vercel.live",
+  `script-src 'self' 'unsafe-inline'${devUnsafeEval} https://sdk.mercadopago.com https://www.mercadopago.com https://www.mercadopago.com.ar https://http2.mlstatic.com https://vercel.live`,
+  `script-src-elem 'self' 'unsafe-inline'${devUnsafeEval} https://sdk.mercadopago.com https://www.mercadopago.com https://www.mercadopago.com.ar https://http2.mlstatic.com https://vercel.live`,
   // El bucket va acá porque la foto de una consigna se sube directo desde el
   // navegador: la plataforma corta en 4,5 MB el cuerpo de cualquier petición al
   // servidor, y una foto de cámara pesa más. Sin este permiso, el navegador

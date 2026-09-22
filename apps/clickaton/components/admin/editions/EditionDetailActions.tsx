@@ -17,6 +17,7 @@ const MODULES = [
   { key: "cronograma", label: "Cronograma" },
   { key: "consignas", label: "Consignas" },
   { key: "envios", label: "Envíos" },
+  { key: "regalos", label: "Regalos" },
   { key: "admision", label: "Admisión" },
   { key: "acreditacion", label: "Acreditación" },
   { key: "placas", label: "Placas" },

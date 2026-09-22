@@ -11698,6 +11698,8 @@ enum ClickatonRegistrationStatus {
   /// Segunda oportunidad no usada → expirada (sin tercera edición).
   EXPIRED
   REFUND_REQUESTED
+  /// Regalo pagado, esperando que quien lo recibe lo active.
+  GIFT_AWAITING_REDEMPTION
 }
 
 /// Estado de cobro desacoplado (mirror / puente hacia DNX Payments).
@@ -11869,6 +11871,11 @@ model ClickatonEdition {
   socialVotingRounds         ClickatonSocialVotingRound[]
   photographerRoyalties      ClickatonPhotographerRoyaltyLedger[]
   homeBanners                ClickatonHomeBanner[]
+  giftVouchers               ClickatonGiftVoucher[]
+  giftVouchersCarriedOver    ClickatonGiftVoucher[]                @relation("GiftVoucherCarriedOverEdition")
+
+  /// Habilita la compra de regalos en esta edición. Nace apagado.
+  giftVouchersEnabled Boolean @default(false)
 
   /// Edición ops/fixture: nunca comercial. Cleanup solo permitido si true.
   isOpsFixture Boolean @default(false)
@@ -12297,6 +12304,8 @@ model ClickatonRegistration {
   /// cierre por horario: distingue a quien cerró de quien sigue subiendo.
   submissionFinalizedAt              DateTime?
   minorLegalFieldsStatus             String?
+  /// true si esta inscripción nació como regalo de otra persona.
+  isGift                             Boolean                              @default(false)
   /// Traslado inscripción individual (máx. 1).
   transferredFromRegistrationId      String?
   transferredToRegistrationId        String?
@@ -12333,6 +12342,7 @@ model ClickatonRegistration {
   mediaAssets                        DnxMediaAsset[]
   photoSubmissions                   ClickatonPhotoSubmission[]
   promptNotes                        ClickatonPromptNote[]
+  giftVoucher                        ClickatonGiftVoucher?
 
   @@unique([editionId, visibleCode])
   @@unique([editionId, sequenceNumber])
@@ -18463,4 +18473,64 @@ model WorkspaceVocabulary {
   updatedAt DateTime @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
+// CLICKATÓN — regalo de inscripción (voucher)
+// ---------------------------------------------------------------------------
+
+enum ClickatonGiftVoucherStatus {
+  PENDING_PAYMENT
+  ACTIVE
+  REDEEMED
+  CARRIED_OVER
+  CANCELLED
+  REFUNDED
+}
+
+/// Regalo de una inscripción de Clickatón. 1:1 con la inscripción "a designar"
+/// que el comprador paga y que quien lo recibe completa al activarlo.
+model ClickatonGiftVoucher {
+  id             String                     @id @default(cuid())
+  /// Código humano único: REGALO-XXXX-XXXX.
+  code           String                     @unique
+  status         ClickatonGiftVoucherStatus @default(PENDING_PAYMENT)
+  editionId      String
+  /// Inscripción "a designar" que el voucher representa (1:1).
+  registrationId String                     @unique
+
+  buyerUserId    Int?
+  buyerFirstName String
+  buyerLastName  String
+  buyerEmail     String
+  buyerPhone     String?
+
+  recipientName  String?
+  recipientEmail String?
+  /// Dedicatoria libre (texto plano, máx. 500).
+  giftMessage    String?
+
+  paidAt                 DateTime?
+  /// Cierre de inscripción de la edición comprada.
+  redeemableUntil        DateTime?
+  redeemedAt             DateTime?
+  cancelledAt            DateTime?
+  carriedOverToEditionId String?
+  carriedOverAt          DateTime?
+
+  reissueCount         Int       @default(0)
+  recipientEmailSentAt DateTime?
+  recipientEmailCount  Int       @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  edition              ClickatonEdition      @relation(fields: [editionId], references: [id], onDelete: Restrict)
+  registration         ClickatonRegistration @relation(fields: [registrationId], references: [id], onDelete: Restrict)
+  carriedOverToEdition ClickatonEdition?     @relation("GiftVoucherCarriedOverEdition", fields: [carriedOverToEditionId], references: [id], onDelete: SetNull)
+
+  @@index([editionId, status])
+  @@index([buyerEmail])
+  @@index([recipientEmail])
+  @@index([status, redeemableUntil])
 }
