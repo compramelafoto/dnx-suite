@@ -19,6 +19,7 @@ const MODULES = [
   { key: "envios", label: "Envíos" },
   { key: "regalos", label: "Regalos" },
   { key: "admision", label: "Admisión" },
+  { key: "jurados", label: "Jurados" },
   { key: "acreditacion", label: "Acreditación" },
   { key: "placas", label: "Placas" },
   { key: "ensayo", label: "Ensayo" },
