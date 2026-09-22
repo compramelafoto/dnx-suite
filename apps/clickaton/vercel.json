@@ -45,7 +45,7 @@
     },
     {
       "path": "/api/cron/testimonial-invites",
-      "schedule": "0 15 * * *"
+      "schedule": "0 * * * *"
     },
     {
       "path": "/api/cron/carry-over-gift-vouchers",
