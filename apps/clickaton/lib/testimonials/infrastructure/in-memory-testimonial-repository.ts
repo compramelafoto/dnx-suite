@@ -9,7 +9,7 @@ import type {
   SurveyResponseRecord,
   TestimonialRecord,
   TestimonialRepository,
-} from "../domain/repository.ts";
+} from "../domain/repository";
 
 export class InMemoryTestimonialRepository implements TestimonialRepository {
   readonly responses = new Map<string, SurveyResponseRecord>();

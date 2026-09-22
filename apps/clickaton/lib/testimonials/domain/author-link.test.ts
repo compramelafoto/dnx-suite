@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { normalizeAuthorLink } from "./author-link.ts";
+import { normalizeAuthorLink } from "./author-link";
 
 test("un usuario de Instagram se convierte en URL", () => {
   assert.equal(normalizeAuthorLink("@fulano"), "https://instagram.com/fulano");

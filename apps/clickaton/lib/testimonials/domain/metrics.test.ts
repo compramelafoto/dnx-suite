@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { averageAspect, calculateNps, wouldReturnRate } from "./metrics.ts";
+import { averageAspect, calculateNps, wouldReturnRate } from "./metrics";
 
 test("NPS: promotores menos detractores sobre el total", () => {
   const r = calculateNps([10, 9, 8, 7, 6, 0]);

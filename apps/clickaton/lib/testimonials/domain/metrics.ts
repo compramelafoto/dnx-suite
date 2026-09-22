@@ -1,7 +1,7 @@
 /**
  * Los números de la encuesta. Funciones puras: entran valores, sale el cálculo.
  */
-import { ASPECT_MAX, ASPECT_MIN, NPS_MAX, NPS_MIN } from "./survey-definition.ts";
+import { ASPECT_MAX, ASPECT_MIN, NPS_MAX, NPS_MIN } from "./survey-definition";
 
 export type NpsBreakdown = {
   total: number;

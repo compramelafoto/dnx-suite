@@ -4,7 +4,7 @@
  * El admin elige el fragmento; esta función arma el valor sugerido y es la
  * misma que usa la lectura pública cuando no hay fragmento elegido.
  */
-import { EXCERPT_MAX_LENGTH } from "./survey-definition.ts";
+import { EXCERPT_MAX_LENGTH } from "./survey-definition";
 
 const ELLIPSIS = "…";
 

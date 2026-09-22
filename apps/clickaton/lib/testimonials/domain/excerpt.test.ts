@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildExcerpt } from "./excerpt.ts";
+import { buildExcerpt } from "./excerpt";
 
 test("una cita corta se usa entera", () => {
   assert.equal(

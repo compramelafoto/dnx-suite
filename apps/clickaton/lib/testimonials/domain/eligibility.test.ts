@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { type EligibilityFacts, resolveEligibility } from "./eligibility.ts";
+import { type EligibilityFacts, resolveEligibility } from "./eligibility";
 
 const sinNada: EligibilityFacts = {
   confirmedRegistration: null,

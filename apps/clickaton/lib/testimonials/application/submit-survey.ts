@@ -7,10 +7,10 @@
  * 2. El nombre, la foto y el rol salen de la elegibilidad ya resuelta contra
  *    la base, nunca de lo que venga en el formulario.
  */
-import { normalizeAuthorLink } from "../domain/author-link.ts";
-import { buildExcerpt } from "../domain/excerpt.ts";
-import type { EligibleAuthor } from "../domain/eligibility.ts";
-import type { SurveyScores, TestimonialRepository } from "../domain/repository.ts";
+import { normalizeAuthorLink } from "../domain/author-link";
+import { buildExcerpt } from "../domain/excerpt";
+import type { EligibleAuthor } from "../domain/eligibility";
+import type { SurveyScores, TestimonialRepository } from "../domain/repository";
 import {
   ASPECT_MAX,
   ASPECT_MIN,
@@ -20,7 +20,7 @@ import {
   QUOTE_MAX_LENGTH,
   SURVEY_ASPECT_FIELDS,
   type WouldReturnValue,
-} from "../domain/survey-definition.ts";
+} from "../domain/survey-definition";
 
 export type SubmitSurveyInput = {
   editionId: string;

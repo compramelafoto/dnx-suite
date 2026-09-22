@@ -5,8 +5,8 @@
 import type {
   ClickatonTestimonialAuthorRole,
   ClickatonTestimonialStatus,
-} from "@repo/db";
-import type { SurveyAspectField, WouldReturnValue } from "./survey-definition.ts";
+} from "./types";
+import type { SurveyAspectField, WouldReturnValue } from "./survey-definition";
 
 export type SurveyScores = Record<SurveyAspectField, number | null>;
 

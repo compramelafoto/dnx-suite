@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { InMemoryTestimonialRepository } from "../infrastructure/in-memory-testimonial-repository.ts";
-import { submitSurvey, type SubmitSurveyInput } from "./submit-survey.ts";
+import { InMemoryTestimonialRepository } from "../infrastructure/in-memory-testimonial-repository";
+import { submitSurvey, type SubmitSurveyInput } from "./submit-survey";
 
 const autor = {
   eligible: true as const,

@@ -5,7 +5,7 @@
  * (la inscripción, la sede o el padrón de jurados). Lo único que escribe el
  * autor es su texto y, opcionalmente, un enlace propio.
  */
-import type { ClickatonTestimonialAuthorRole } from "@repo/db";
+import type { ClickatonTestimonialAuthorRole } from "./types";
 
 export type EligibilityFacts = {
   confirmedRegistration: {
