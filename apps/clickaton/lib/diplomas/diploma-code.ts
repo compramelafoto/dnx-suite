@@ -1,4 +1,17 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
+
+/**
+ * Seis caracteres estables derivados del id completo: mismo id, mismo resultado.
+ * Evita colisiones y el largo del id deja de importar.
+ */
+function huellaDeInscripcion(registrationId: string): string {
+  return createHash("sha256")
+    .update(registrationId)
+    .digest("base64url")
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .slice(0, 6)
+    .toUpperCase();
+}
 
 /**
  * Código legible del diploma. Estable: se calcula una vez y se guarda.
@@ -14,11 +27,7 @@ export function buildDiplomaCode(input: {
   if (visible) return `DIP-${visible}`;
   const tag =
     input.editionSlug.replace(/[^a-zA-Z0-9]/g, "").slice(0, 7).toUpperCase() || "EDICION";
-  const tail = input.registrationId
-    .slice(-6)
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "0")
-    .padEnd(6, "0");
+  const tail = huellaDeInscripcion(input.registrationId);
   return `DIP-${tag}-${tail}`;
 }
 

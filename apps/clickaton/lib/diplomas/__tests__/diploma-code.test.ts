@@ -28,6 +28,36 @@ describe("buildDiplomaCode", () => {
     const b = buildDiplomaCode({ visibleCode: "CK2-0001", registrationId: "r2", editionSlug: "b" });
     assert.notEqual(a, b);
   });
+
+  it("dos ids cortos distintos dan códigos distintos", () => {
+    const a = buildDiplomaCode({
+      visibleCode: null,
+      registrationId: "a",
+      editionSlug: "test",
+    });
+    const b = buildDiplomaCode({
+      visibleCode: null,
+      registrationId: "a0000",
+      editionSlug: "test",
+    });
+    assert.notEqual(a, b);
+  });
+
+  it("el mismo id llamado dos veces da el mismo código", () => {
+    const input = { visibleCode: null, registrationId: "abc123xyz", editionSlug: "test" };
+    const a = buildDiplomaCode(input);
+    const b = buildDiplomaCode(input);
+    assert.equal(a, b);
+  });
+
+  it("el formato sigue cumpliendo el patrón esperado", () => {
+    const code = buildDiplomaCode({
+      visibleCode: null,
+      registrationId: "cms78cthj0000xpc4841bihf4",
+      editionSlug: "dia-del-fotografo-2026",
+    });
+    assert.match(code, /^DIP-[A-Z0-9]{1,7}-[A-Z0-9]{6}$/);
+  });
 });
 
 describe("generateVerificationToken", () => {
