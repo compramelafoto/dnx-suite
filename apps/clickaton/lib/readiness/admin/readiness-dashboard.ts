@@ -1,14 +1,24 @@
 import { prisma, withClickatonDb, type ClickatonDbResult } from "@/lib/admin/db";
 import type { ReadinessResult } from "@/lib/readiness/domain/readiness";
 
-/** Todos los resultados salvo READY, en el mismo orden que declara el dominio. */
-const NOT_READY_RESULTS: Exclude<ReadinessResult, "READY">[] = [
-  "NO_GPS",
-  "CLOCK_OFF",
-  "TOO_SMALL",
-  "NO_CAPTURE_DATE",
-  "FAILED",
-];
+/**
+ * Todos los resultados salvo READY, en el mismo orden que declara el dominio.
+ *
+ * Es un objeto y no un array a propósito: el `satisfies` obliga a que estén
+ * TODOS. Con un array literal, agregar mañana un valor nuevo a
+ * `ReadinessResult` compilaría igual, esa fila desaparecería del desglose sin
+ * que TypeScript dijera nada y los tres números — listos, con problemas, sin
+ * probar — dejarían de sumar el total.
+ */
+const NOT_READY_RESULTS = {
+  NO_GPS: true,
+  CLOCK_OFF: true,
+  TOO_SMALL: true,
+  NO_CAPTURE_DATE: true,
+  FAILED: true,
+} satisfies Record<Exclude<ReadinessResult, "READY">, true>;
+
+const NOT_READY_ORDER = Object.keys(NOT_READY_RESULTS) as (keyof typeof NOT_READY_RESULTS)[];
 
 export type ReadinessBreakdownItem = {
   result: Exclude<ReadinessResult, "READY">;
@@ -88,7 +98,7 @@ export async function getEditionReadinessDashboard(
       }
     }
 
-    const notReady = NOT_READY_RESULTS.map((result) => ({
+    const notReady = NOT_READY_ORDER.map((result) => ({
       result,
       count: notReadyCounts.get(result) ?? 0,
     }));
