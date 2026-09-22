@@ -1460,171 +1460,150 @@ git commit -m "feat(clickaton): filtrar la descarga en ZIP por tipo de pieza y s
 
 # FASE 2 — PDF, QR y verificación
 
-### Task 10: El motor aprende a dibujar el bloque QR
+### Task 10: El QR, en el motor que dibuja de verdad
 
-El tipo de bloque `QR` está declarado en `packages/template-engine/src/schema/blocks.ts:15` y el plugin de FotoRank ya lo usa, pero `html-builder.ts` lo ignora (cae en `default: return ""`). Se resuelve materializando los QR a imagen **antes** de construir el HTML, para que el constructor siga siendo sincrónico.
+> **Corrección sobre el plan original, que partía de un supuesto equivocado.** El plan decía que el motor no sabía dibujar QR y mandaba agregarlo al constructor de HTML de `@repo/template-engine-renderer` (Chromium/Playwright). Dos cosas resultaron falsas:
+>
+> 1. **Ese no es el motor de producción.** `resolveParticipantCardRenderProvider()` usa por defecto `design-studio`, que corre dentro de Vercel sin navegador; los proveedores con Chromium existen pero no pueden ser el valor por defecto, porque en el servidor de producción no hay Chromium.
+> 2. **`design-studio` ya dibuja QR completo**: `packages/design-studio/src/render/pdf.ts`, `render/svg.ts`, `validation/qr.ts` y `layout/plan.ts` lo soportan, y el puente `editorADocumento` ya traduce un bloque `QR` del editor visual a un bloque `qrcode` con su `variableKey`.
+>
+> Lo que falta es un eslabón chico: el renderer de Clickatón llama a `emitDesign` con `contract: { variables: [] }, values: {}` porque las variables de texto ya vienen resueltas dentro del documento — pero **un QR no lleva su valor adentro**, lo pide por `variableKey`. Por eso hoy un bloque QR hace fallar el render con "El bloque QR ... usa la variable ..., que el contrato no declara". Y el puente ya devuelve `variablesSinteticas` (con el valor de los QR de dirección fija) que el renderer **ignora**.
+>
+> Esta tarea es entonces: pasarle al motor las variables que el QR necesita. No se toca `@repo/template-engine-renderer`: el `materializeQrBlocks` que pedía el plan original queda descartado (YAGNI — sería para un motor que producción no usa).
 
 **Files:**
-- Create: `packages/template-engine-renderer/src/qr-materializer.ts`
-- Create: `packages/template-engine-renderer/src/qr-materializer.test.ts`
-- Modify: `packages/template-engine-renderer/src/preview-renderer.ts:57-62`
-- Modify: `apps/clickaton/lib/participant-cards/participant-card-render-provider.ts` (materializar antes de enviar al provider)
-- Modify: `apps/clickaton/lib/participant-cards/__tests__/participant-card-remote-render.test.ts`
-- Modify: `packages/template-engine-renderer/package.json` (dependencia `"qrcode": "^1.5.4"`, la misma versión que usan las apps)
+- Modify: `apps/clickaton/lib/participant-cards/participant-card-design-studio-renderer.ts` (el llamado a `emitDesign`)
+- Test: `apps/clickaton/lib/participant-cards/__tests__/participant-card-design-studio-qr.test.ts` (nuevo)
 
 **Interfaces:**
-- Produces: `materializeQrBlocks(document: ResolvedTemplateDocument): Promise<ResolvedTemplateDocument>` — reemplaza cada bloque `QR` por uno `IMAGE` cuyo `config.src` es un `data:image/png;base64,` (formato ya permitido por `asset-resolver.ts:7`).
+- Consumes: `editorADocumento` de `@repo/template-editor-core`, que devuelve `{ document, variablesSinteticas, avisos }`.
+- Produces: `construirEntradaDeEmitDesign(input): { document, contract, values }` — el documento que se manda a `emitDesign` viaja con `contract.variables` y `values` completos para todos los bloques `qrcode`, de modo que un diploma con QR se dibuja en vez de fallar.
 
 - [ ] **Step 1: Escribir los tests que fallan**
 
 ```typescript
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { materializeQrBlocks } from "./qr-materializer";
+import { construirEntradaDeEmitDesign } from "@/lib/participant-cards/participant-card-design-studio-renderer";
 
-const doc = (blocks: unknown[]) =>
-  ({ width: 1754, height: 1240, blocks }) as never;
+const bloqueQrVariable = {
+  id: "qr1",
+  type: "QR",
+  x: 100, y: 100, width: 200, height: 200,
+  configJson: { mode: "VARIABLE", variableKey: "verificationUrl", errorCorrection: "M" },
+};
 
-describe("materializeQrBlocks", () => {
-  it("convierte un bloque QR en una imagen con data URI", async () => {
-    const out = await materializeQrBlocks(
-      doc([
+describe("las variables que el QR necesita llegan al motor", () => {
+  it("declara la variable del QR en el contrato y le pasa el valor", () => {
+    const entrada = construirEntradaDeEmitDesign({
+      blocks: [bloqueQrVariable],
+      canvas: { width: 1754, height: 1240 },
+      templateData: { diploma: { verificationUrl: "https://maratonfotografica.com/diplomas/verificar/abc123" } },
+    });
+
+    assert.ok(
+      entrada.contract.variables.some((v) => v.key === "verificationUrl"),
+      "el contrato tiene que declarar la variable del QR"
+    );
+    assert.equal(
+      entrada.values.verificationUrl,
+      "https://maratonfotografica.com/diplomas/verificar/abc123"
+    );
+  });
+
+  it("no pierde las variables sintéticas de un QR de dirección fija", () => {
+    const entrada = construirEntradaDeEmitDesign({
+      blocks: [
         {
-          id: "q1",
+          id: "qr2",
           type: "QR",
-          layout: { x: 0, y: 0, width: 200, height: 200 },
-          config: { value: "https://maratonfotografica.com/diplomas/verificar/abc" },
+          x: 0, y: 0, width: 100, height: 100,
+          configJson: { mode: "FIXED", value: "https://maratonfotografica.com" },
         },
-      ])
-    );
-    assert.equal(out.blocks[0]?.type, "IMAGE");
-    assert.match(
-      String((out.blocks[0]?.config as { src: string }).src),
-      /^data:image\/png;base64,/
-    );
+      ],
+      canvas: { width: 1754, height: 1240 },
+      templateData: {},
+    });
+
+    const claves = entrada.contract.variables.map((v) => v.key);
+    assert.equal(claves.length, 1);
+    assert.equal(entrada.values[claves[0]!], "https://maratonfotografica.com");
   });
 
-  it("deja los demás bloques intactos", async () => {
-    const out = await materializeQrBlocks(
-      doc([{ id: "t1", type: "TEXT", layout: {}, config: { content: "hola" } }])
-    );
-    assert.equal(out.blocks[0]?.type, "TEXT");
-  });
-
-  it("descarta el QR sin valor en vez de romper el render", async () => {
-    const out = await materializeQrBlocks(
-      doc([{ id: "q1", type: "QR", layout: {}, config: { value: "" } }])
-    );
-    assert.equal(out.blocks.length, 0);
+  it("una pieza sin ningún QR sigue yendo con contrato vacío", () => {
+    const entrada = construirEntradaDeEmitDesign({
+      blocks: [{ id: "t1", type: "TEXT", x: 0, y: 0, width: 100, height: 20, configJson: { content: "hola" } }],
+      canvas: { width: 1080, height: 1920 },
+      templateData: {},
+    });
+    assert.deepEqual(entrada.contract.variables, []);
+    assert.deepEqual(entrada.values, {});
   });
 });
 ```
 
 - [ ] **Step 2: Correr y ver que falla**
 
-Run: `pnpm --filter @repo/template-engine-renderer exec tsx --test src/qr-materializer.test.ts`
-Expected: FAIL.
+Run: `pnpm --filter clickaton test:clickaton-participant-cards`
+Expected: FAIL — `construirEntradaDeEmitDesign` no existe: hoy la construcción del contrato está incrustada en la llamada a `emitDesign`.
 
 - [ ] **Step 3: Implementar**
 
+Extraer de `renderClickatonParticipantCardConDesignStudio` una función exportada y pura que arme la entrada de `emitDesign`, y hacer que complete el contrato:
+
 ```typescript
-import QRCode from "qrcode";
-import type { ResolvedTemplateDocument } from "@repo/template-engine";
+export function construirEntradaDeEmitDesign(input: {
+  blocks: readonly EditorBlock[];
+  canvas: { width: number; height: number };
+  templateData: Record<string, unknown>;
+}): {
+  document: DesignStudioDocument;
+  contract: { variables: Array<{ key: string; label: string }> };
+  values: Record<string, string>;
+} {
+  const puente = editorADocumento({ /* como hoy */ });
 
-/**
- * Convierte los bloques QR en imágenes antes de armar el HTML.
- * El constructor de HTML es sincrónico y generar un QR no lo es, así que la
- * conversión ocurre acá. Un QR sin valor se descarta: vale más un diploma sin
- * QR que un render caído.
- */
-export async function materializeQrBlocks(
-  document: ResolvedTemplateDocument
-): Promise<ResolvedTemplateDocument> {
-  if (!document.blocks.some((b) => b.type === "QR")) return document;
+  const variables: Array<{ key: string; label: string }> = [];
+  const values: Record<string, string> = {};
 
-  const blocks: ResolvedTemplateDocument["blocks"] = [];
-  for (const block of document.blocks) {
-    if (block.type !== "QR") {
-      blocks.push(block);
-      continue;
-    }
-    const cfg = (block.config ?? {}) as Record<string, unknown>;
-    const value = typeof cfg.value === "string" ? cfg.value.trim() : "";
-    if (!value) continue;
-    const png = await QRCode.toBuffer(value, {
-      type: "png",
-      margin: 1,
-      width: 600,
-      errorCorrectionLevel: "M",
-    });
-    blocks.push({
-      ...block,
-      type: "IMAGE",
-      config: { ...cfg, src: `data:image/png;base64,${png.toString("base64")}`, fit: "contain" },
-    } as (typeof blocks)[number]);
+  // Un QR de dirección fija ya trae su valor: el puente lo devuelve como variable sintética.
+  for (const sintetica of puente.variablesSinteticas) {
+    variables.push({ key: sintetica.key, label: sintetica.label });
+    values[sintetica.key] = sintetica.value;
   }
-  return { ...document, blocks };
+
+  // Un QR variable pide su valor por clave. El texto no: ya viene resuelto en el documento.
+  for (const bloque of puente.document.blocks) {
+    if (bloque.type !== "qrcode") continue;
+    if (values[bloque.variableKey] !== undefined) continue;
+    const valor = leerVariableDeTemplateData(input.templateData, bloque.variableKey);
+    variables.push({ key: bloque.variableKey, label: bloque.variableKey });
+    values[bloque.variableKey] = valor ?? "";
+  }
+
+  return { document: puente.document, contract: { variables }, values };
 }
 ```
 
-En `preview-renderer.ts`, antes de `buildTemplatePreviewHtml`:
+`leerVariableDeTemplateData` resuelve la clave del bloque contra los datos de la pieza, aceptando tanto la clave corta (`verificationUrl`) como la ruta completa (`diploma.verificationUrl`), porque en el diseñador puede haberse elegido cualquiera de las dos.
 
-```typescript
-  const withQr = await materializeQrBlocks(document);
-  const built = buildTemplatePreviewHtml(withQr, {
-    pageIndex: options?.pageIndex ?? 0,
-  });
-```
+Un QR cuya variable no tenga valor queda con cadena vacía y `emitDesign` lo informa como error del plan de impresión — que es lo correcto: un diploma con un QR que no lleva a ninguna parte es peor que un diploma que no se emitió.
 
-**Y además, del lado de Clickatón** — esto es lo que hace que el QR funcione en producción: en `apps/clickaton/lib/participant-cards/participant-card-render-provider.ts`, materializar los QR **antes** de elegir provider, para que el documento que viaja al servicio de render remoto ya lleve la imagen:
+- [ ] **Step 4: Correr los tests**
 
-```typescript
-import { materializeQrBlocks } from "@repo/template-engine-renderer";
+Run: `pnpm --filter clickaton test:clickaton-participant-cards && pnpm --filter clickaton test:clickaton-diplomas`
+Expected: PASS. Las placas sin QR no cambian: mismo contrato vacío que hoy.
 
-// en el punto donde hoy se llama a provider.render({ document }):
-const document = await materializeQrBlocks(input.document);
-const rendered = await provider.render({ document });
-```
+- [ ] **Step 5: Verificar tipos**
 
-Motivo: en producción el dibujo ocurre en un servicio remoto y el documento
-viaja serializado (`buildRemoteTemplateRenderBody`). Si el QR se materializara
-sólo dentro del paquete, dependería de qué versión esté desplegada allá.
-Materializar antes lo vuelve independiente del provider. Es idempotente: un
-bloque ya convertido en `IMAGE` no vuelve a entrar.
-
-Agregar un test en `apps/clickaton/lib/participant-cards/__tests__/participant-card-remote-render.test.ts`:
-
-```typescript
-it("el documento que viaja al render remoto ya trae el QR como imagen", async () => {
-  const enviado = await capturarDocumentoEnviado({
-    blocks: [{ id: "q1", type: "QR", layout: {}, config: { value: "https://x.test/v/abc" } }],
-  });
-  assert.ok(!enviado.blocks.some((b) => b.type === "QR"));
-  assert.match(String(enviado.blocks[0].config.src), /^data:image\/png;base64,/);
-});
-```
-
-Agregar el test al script `test` del paquete:
-
-```json
-    "test": "tsx --test src/render-limits.test.ts src/html-builder.test.ts src/remote-image.test.ts src/sponsor-card.test.ts src/qr-materializer.test.ts",
-```
-
-- [ ] **Step 4: Correr los tests del paquete y de las apps que lo usan**
-
-Run: `pnpm --filter @repo/template-engine-renderer test && pnpm --filter clickaton test:clickaton-participant-cards`
-Expected: PASS. Las placas no cambian: sin bloques QR, `materializeQrBlocks` devuelve el mismo documento.
-
-- [ ] **Step 5: Verificar que el lockfile no se movió de más**
-
-Run: `git diff --stat pnpm-lock.yaml`
-Expected: sólo la entrada de `@repo/template-engine-renderer`; `qrcode@1.5.4` ya estaba en el árbol.
+Run desde `apps/clickaton`: `NODE_OPTIONS="--max-old-space-size=8192" pnpm exec tsc --noEmit -p tsconfig.json`
+Expected: sin errores.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add packages/template-engine-renderer pnpm-lock.yaml
-git commit -m "feat(template-engine): dibujar el bloque QR materializandolo a imagen"
+git add apps/clickaton
+git commit -m "feat(clickaton): el QR del diploma recibe su valor en el motor de dibujo"
 ```
 
 ---
