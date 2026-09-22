@@ -35,7 +35,6 @@
 | `diploma-service.ts` | Emitir un diploma: render, R2, fila de emisión. |
 | `diploma-batch.ts` | Encolar el lote de una edición y procesar los pendientes. |
 | `diploma-pdf.ts` | Envolver el PNG en un PDF A4 horizontal. |
-| `diploma-zip.ts` | Armar el ZIP leyendo de R2. |
 | `diploma-email.ts` | Encolar y registrar el correo. |
 | `diploma-verification.ts` | Datos de la página pública de verificación. |
 | `index.ts` | Exportaciones públicas del módulo. |
@@ -1366,65 +1365,95 @@ git commit -m "feat(clickaton): pantalla de diplomas en la edicion"
 
 ---
 
-### Task 9: Descarga en ZIP
+### Task 9: Descarga en ZIP (reusando la que ya existe)
+
+> **Corrección sobre el plan original:** el plan mandaba crear `diploma-zip.ts` y una ruta nueva. No hace falta: `app/api/admin/ediciones/[editionId]/placas/descargar/route.ts` **ya baja en ZIP todas las piezas listas de una edición**, en streaming con `archiver`, con nombres sin repetir (`nombreDeArchivoDePlaca` y `nombresSinRepetir` en `lib/participant-cards/participant-card-descarga-masiva.ts`, que desde la Task 1 ya conoce el diploma) y con la autorización resuelta. Esta tarea sólo le agrega el filtro por tipo de pieza y por selección, y la enlaza desde la pantalla de diplomas. Duplicar ese camino sería mantener dos.
 
 **Files:**
-- Create: `apps/clickaton/lib/diplomas/diploma-zip.ts`
-- Create: `apps/clickaton/lib/diplomas/__tests__/diploma-zip.test.ts`
-- Create: `apps/clickaton/app/api/admin/editions/[editionId]/diplomas/zip/route.ts`
+- Modify: `apps/clickaton/app/api/admin/ediciones/[editionId]/placas/descargar/route.ts`
+- Modify: `apps/clickaton/lib/participant-cards/__tests__/participant-card-descarga-masiva.test.ts`
+- Modify: `apps/clickaton/app/admin/(panel)/ediciones/[editionId]/diplomas/DiplomasPanelClient.tsx` (enlaces de descarga)
 
 **Interfaces:**
-- Produces: `buildDiplomaZipEntries(rows): Array<{ filename: string; storageKey: string }>` y la ruta `GET .../diplomas/zip?ids=a,b,c` (sin `ids`, todos los de la edición).
+- Produces: `GET .../placas/descargar?cardType=diploma` (sólo diplomas) y `&ids=reg_1,reg_2` (sólo esas inscripciones). Sin parámetros se comporta exactamente como hoy: todas las piezas listas de la edición.
+- Produces: `filtrarPiezasParaDescarga(piezas, { cardType, registrationIds })` en `participant-card-descarga-masiva.ts`.
 
-- [ ] **Step 1: Escribir el test que falla**
+- [ ] **Step 1: Escribir los tests que fallan**
+
+En `participant-card-descarga-masiva.test.ts`:
 
 ```typescript
-import assert from "node:assert/strict";
-import { describe, it } from "node:test";
-import { buildDiplomaZipEntries } from "@/lib/diplomas/diploma-zip";
+import { filtrarPiezasParaDescarga } from "@/lib/participant-cards/participant-card-descarga-masiva";
 
-describe("buildDiplomaZipEntries", () => {
-  it("nombra los archivos con número y nombre del participante", () => {
-    const out = buildDiplomaZipEntries([
-      { visibleCode: "CK1-0042", fullName: "Ana Pérez", storageKey: "k1" },
-    ]);
-    assert.equal(out[0]?.filename, "CK1-0042-ana-perez.png");
+const piezas = [
+  { registrationId: "r1", cardType: "welcome" as const },
+  { registrationId: "r1", cardType: "diploma" as const },
+  { registrationId: "r2", cardType: "diploma" as const },
+];
+
+describe("filtrarPiezasParaDescarga", () => {
+  it("sin filtros devuelve todo, como hasta ahora", () => {
+    assert.equal(filtrarPiezasParaDescarga(piezas, {}).length, 3);
   });
 
-  it("no repite nombres de archivo", () => {
-    const out = buildDiplomaZipEntries([
-      { visibleCode: null, fullName: "Ana Pérez", storageKey: "k1" },
-      { visibleCode: null, fullName: "Ana Pérez", storageKey: "k2" },
-    ]);
-    assert.notEqual(out[0]?.filename, out[1]?.filename);
+  it("filtra por tipo de pieza", () => {
+    const out = filtrarPiezasParaDescarga(piezas, { cardType: "diploma" });
+    assert.equal(out.length, 2);
+    assert.ok(out.every((p) => p.cardType === "diploma"));
+  });
+
+  it("filtra por las inscripciones elegidas", () => {
+    const out = filtrarPiezasParaDescarga(piezas, {
+      cardType: "diploma",
+      registrationIds: ["r2"],
+    });
+    assert.deepEqual(out.map((p) => p.registrationId), ["r2"]);
+  });
+
+  it("una lista de inscripciones vacía no significa 'todas'", () => {
+    assert.equal(filtrarPiezasParaDescarga(piezas, { registrationIds: [] }).length, 0);
   });
 });
 ```
 
 - [ ] **Step 2: Correr y ver que falla**
 
-Run: `pnpm --filter clickaton test:clickaton-diplomas`
-Expected: FAIL.
+Run: `pnpm --filter clickaton test:clickaton-participant-cards`
+Expected: FAIL — `filtrarPiezasParaDescarga` no existe.
 
 - [ ] **Step 3: Implementar**
 
-`buildDiplomaZipEntries` normaliza el nombre (sin tildes, minúsculas, guiones) y desambigua repetidos con un sufijo `-2`, `-3`. La ruta arma el ZIP leyendo cada objeto de R2 y escribiéndolo al stream de respuesta, sin juntar todo en memoria.
+```typescript
+export function filtrarPiezasParaDescarga<T extends { registrationId: string; cardType: ClickatonParticipantCardType }>(
+  piezas: readonly T[],
+  filtros: { cardType?: ClickatonParticipantCardType; registrationIds?: readonly string[] }
+): T[] {
+  const elegidas = filtros.registrationIds ? new Set(filtros.registrationIds) : null;
+  return piezas.filter((p) => {
+    if (filtros.cardType && p.cardType !== filtros.cardType) return false;
+    if (elegidas && !elegidas.has(p.registrationId)) return false;
+    return true;
+  });
+}
+```
+
+En la ruta, leer `cardType` e `ids` de la query (`ids` separados por coma), validar `cardType` con `normalizeParticipantCardType` y aplicar el filtro sobre las piezas ya cargadas. El nombre del archivo comprimido pasa a decir de qué se trata: `diplomas-<slug de la edición>.zip` cuando se filtra por diploma, y el actual cuando no.
 
 - [ ] **Step 4: Correr los tests**
 
-Run: `pnpm --filter clickaton test:clickaton-diplomas`
-Expected: PASS.
+Run: `pnpm --filter clickaton test:clickaton-participant-cards`
+Expected: PASS, incluidos los que ya existían para esta ruta.
 
 - [ ] **Step 5: Probar la descarga real**
 
-Con la app en `dev` y al menos un diploma generado, bajar el ZIP desde la pantalla y abrirlo.
-Expected: contiene los PNG con nombres legibles.
+Con la app en `dev` y al menos un diploma generado, bajar el ZIP desde la pantalla de diplomas y abrirlo.
+Expected: trae sólo diplomas, con nombres legibles, y la descarga de placas de siempre sigue funcionando igual.
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add apps/clickaton
-git commit -m "feat(clickaton): descarga de diplomas en ZIP"
+git commit -m "feat(clickaton): filtrar la descarga en ZIP por tipo de pieza y seleccion"
 ```
 
 ---
