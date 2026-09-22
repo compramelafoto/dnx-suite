@@ -52,6 +52,8 @@ export function describirBloqueoDeAcreditacion(input: BloqueoAcreditacion): stri
       return "El pago todavía no figura acreditado. Verificá el cobro antes de dejar entrar, o registrá una excepción si la organización lo autoriza.";
     case "NOT_CONFIRMED":
       return "La inscripción no está confirmada. Revisala en el panel de inscripciones antes de acreditar.";
+    case "GIFT_NOT_REDEEMED":
+      return "Este lugar se compró como regalo y todavía nadie lo activó: el nombre que figura es el de quien lo regaló, no el de quien participa. La persona tiene que activar su invitación antes de acreditarse.";
     case "CREDENTIAL_MISSING":
       return "Esta inscripción no tiene credencial activa. Regenerá el QR desde el panel de inscripciones.";
     case "REGISTRATION_INACTIVE":

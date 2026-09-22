@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  ESTADOS_SIN_PARTICIPANTE,
   motivoSinParticipante,
   tieneParticipanteDefinido,
 } from "./participante-definido";
@@ -54,6 +55,18 @@ describe("¿hay participante en esta inscripción?", () => {
       }),
       false,
     );
+  });
+
+  it("la lista que usan las consultas dice lo mismo que la función", () => {
+    // Si alguien agrega un estado a la lista y se olvida de la función (o al
+    // revés), los totales de la base y la pantalla dejan de coincidir.
+    for (const status of ESTADOS_SIN_PARTICIPANTE) {
+      assert.equal(
+        tieneParticipanteDefinido({ status, paymentStatus: "APPROVED" }),
+        false,
+        status,
+      );
+    }
   });
 
   it("distingue el motivo: un regalo sin activar no es 'sin pagar'", () => {

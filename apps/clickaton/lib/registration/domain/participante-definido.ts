@@ -29,6 +29,15 @@ export function tieneParticipanteDefinido(registration: {
 }
 
 /**
+ * Los estados que ocupan un lugar pagado pero todavía no tienen participante.
+ *
+ * Existe para las consultas a la base, que no pueden llamar a la función de
+ * arriba: `status: { notIn: [...ESTADOS_SIN_PARTICIPANTE] }`. Un test obliga a
+ * que las dos digan lo mismo.
+ */
+export const ESTADOS_SIN_PARTICIPANTE = ["GIFT_AWAITING_REDEMPTION"] as const;
+
+/**
  * Motivo legible cuando no hay participante todavía, para los registros
  * internos que hoy dicen "NOT_PAID" y confunden: el regalo SÍ está pago.
  */

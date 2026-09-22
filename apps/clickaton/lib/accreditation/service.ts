@@ -3,6 +3,7 @@ import { Prisma, prisma } from "@/lib/admin/db";
 import { hasEditionCapability } from "@/lib/timeline/permissions";
 import { getEditionTemporalState } from "@/lib/timeline/prisma-timeline";
 import { hashQrPlaintext } from "@/lib/registration/security/qr-token";
+import { ESTADOS_SIN_PARTICIPANTE } from "@/lib/registration/domain/participante-definido";
 import { AccreditationError } from "./errors";
 import {
   evaluateAccreditationEligibility,
@@ -868,7 +869,11 @@ export async function syncOfflineEvents(input: {
 export async function getAccreditationDashboard(editionId: string, actor: Actor) {
   await requireCap(actor, editionId, CAPABILITY_VIEW_ACCREDITATION);
   const [total, paid, checkedIn, kitDelivered, config, temporal, devices] = await Promise.all([
-    prisma.clickatonRegistration.count({ where: { editionId, status: { not: "DRAFT" } } }),
+    // Un regalo comprado y sin activar está pago, pero todavía no es nadie:
+    // contarlo acá haría que el panel de sede espere a una persona de más.
+    prisma.clickatonRegistration.count({
+      where: { editionId, status: { notIn: ["DRAFT", ...ESTADOS_SIN_PARTICIPANTE] } },
+    }),
     prisma.clickatonRegistration.count({
       where: {
         editionId,
@@ -1036,7 +1041,7 @@ export async function ensureAccreditationConfig(editionId: string) {
 export async function exportAccreditationCsv(editionId: string, actor: Actor): Promise<string> {
   await requireCap(actor, editionId, CAPABILITY_VIEW_ACCREDITATION);
   const rows = await prisma.clickatonRegistration.findMany({
-    where: { editionId, status: { not: "DRAFT" } },
+    where: { editionId, status: { notIn: ["DRAFT", ...ESTADOS_SIN_PARTICIPANTE] } },
     include: {
       checkIns: { where: { reversedAt: null }, take: 1, orderBy: { checkedInAt: "desc" } },
       items: { where: { isIncluded: true }, take: 5 },
