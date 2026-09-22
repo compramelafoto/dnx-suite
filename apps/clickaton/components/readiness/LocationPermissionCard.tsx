@@ -7,7 +7,12 @@ import { Card } from "@/components/ui/Card";
 import { routes } from "@/config/navigation";
 import { readinessCopy } from "@/lib/readiness/content/readiness-copy";
 
-type PermisoEstado = "sin-pedir" | "pidiendo" | "concedido" | "rechazado";
+type PermisoEstado =
+  | "sin-pedir"
+  | "pidiendo"
+  | "concedido"
+  | "rechazado"
+  | "no-disponible";
 
 type Props = {
   registrationId: string;
@@ -49,6 +54,15 @@ export function LocationPermissionCard({ registrationId, locationConsentAt }: Pr
   }, [consentimientoDado]);
 
   function pedirPermiso() {
+    // Sin este chequeo, un navegador sin geolocalización — o el sitio abierto
+    // por HTTP, donde los navegadores la esconden — tira acá mismo y el
+    // estado queda trabado para siempre en "pidiendo el permiso…", sin botón
+    // ni explicación.
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setEstado("no-disponible");
+      return;
+    }
+
     setEstado("pidiendo");
     navigator.geolocation.getCurrentPosition(
       () => {
@@ -103,6 +117,12 @@ export function LocationPermissionCard({ registrationId, locationConsentAt }: Pr
           {estado === "rechazado" ? (
             <p role="status" aria-live="polite" className="text-sm text-ck-text-secondary">
               {readinessCopy.locationPermission.denied}
+            </p>
+          ) : null}
+
+          {estado === "no-disponible" ? (
+            <p role="status" aria-live="polite" className="text-sm text-ck-text-secondary">
+              {readinessCopy.locationPermission.unsupported}
             </p>
           ) : null}
         </>
