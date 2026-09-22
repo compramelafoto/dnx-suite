@@ -2,13 +2,21 @@
  * Emisor del diploma de participación.
  *
  * Orquesta, en orden, y corta ante el primer problema sin dibujar nada:
+ * 0. Autorización del actor (sólo admin).
  * 1. Carga la inscripción (con check-ins y edición).
  * 2. Acreditación vigente (no mira el pago).
  * 3. Plantilla del diploma (Task 4) — si no resuelve, listo, no se renderiza.
  * 4. Foto del participante, sólo si la plantilla la usa.
- * 5. Código y token: si ya hay un diploma vigente para la inscripción, se
- *    reusan (`reused: true`); si no, se generan (Task 5).
+ * 5. Código, token y fecha de emisión: si ya hay un diploma vigente para la
+ *    inscripción, se reusan los tres (`reused: true`); si no, se generan
+ *    (Task 5) y la fecha de emisión es la de hoy. Un diploma revocado NO
+ *    cuenta como vigente: se emite uno nuevo, con código y token propios.
  * 6. Render, guardado en storage y persistencia de la pieza y del emisor.
+ *
+ * Cualquier falla —conocida o no— termina en `{ ok: false, code, issues }`,
+ * nunca en una excepción cruda: `DiplomaServiceError` lleva el código de la
+ * lista conocida (`DiplomaErrorCode`); cualquier otra excepción cae en
+ * `DIPLOMA_ISSUE_FAILED`.
  *
  * No reutiliza `generateClickatonParticipantCard` / `getOrGenerateClickatonParticipantCard`:
  * el diploma resuelve su propia plantilla (sin preset de respaldo) y no tiene el
@@ -18,19 +26,30 @@
  */
 import { createHash } from "node:crypto";
 import { prisma } from "@/lib/admin/db";
-import { formatDateShort } from "@repo/template-engine";
+import {
+  clickatonTemplateVariablesPlugin,
+  createTemplateVariableRegistry,
+  formatDateShort,
+  fromLegacyTemplateV2,
+  parseTemplateDocument,
+  resolveTemplateDocument,
+  type ResolvedTemplateDocument,
+} from "@repo/template-engine";
 import { resolveClickatonPublicOrigin } from "@/lib/site/public-origin";
 import { isAccredited } from "./diploma-eligibility";
 import { resolveDiplomaTemplate } from "./diploma-template";
 import { buildDiplomaCode, generateVerificationToken } from "./diploma-code";
 import type { DiplomaErrorCode } from "./diploma-types";
 import { buildParticipantCardStorageKey } from "../participant-cards/participant-card-r2-keys";
-import { resolveClickatonParticipantCardDocument } from "../participant-cards/participant-card-renderer";
 import { resolveParticipantCardRenderProvider } from "../participant-cards/participant-card-render-provider";
 import { createParticipantCardAssetStore } from "../participant-cards/participant-card-asset-store";
 import { resolveParticipantPhotoDataUrl } from "../participant-cards/participant-card-photo";
+import { requireParticipantCardAdminAccess } from "../participant-cards/participant-card-authorization";
 import { CLICKATON_CARD_RENDERER_VERSION } from "../participant-cards/participant-card-renderer-version";
-import type { ClickatonCardPreset } from "../participant-cards/participant-card-presets";
+import {
+  instantiatePresetPayload,
+  type ClickatonCardPreset,
+} from "../participant-cards/participant-card-presets";
 import type { ParticipantCardActor } from "../participant-cards/participant-card-types";
 
 export type DiplomaRegistrationSnapshot = {
@@ -70,6 +89,9 @@ export type DiplomaIssueExisting = {
   id: string;
   diplomaCode: string;
   verificationToken: string;
+  /** Fecha de emisión original: se conserva siempre que se reusa el diploma. */
+  issuedAt: Date;
+  cardId: string | null;
   revokedAt: Date | null;
 };
 
@@ -128,13 +150,18 @@ export type DiplomaUpsertCardInput = {
   renderHash: string;
 };
 
+export type DiplomaResolvePhotoInput = { profilePhotoAssetId: string };
+
 export type DiplomaServiceDeps = {
+  /** Sólo admin puede emitir diplomas. Default: la autorización real de placas. */
+  checkAccess?: (actor: ParticipantCardActor) => void;
   loadRegistration?: (
     registrationId: string
   ) => Promise<DiplomaRegistrationSnapshot | null>;
   resolveTemplate?: (input: {
     editionId: string;
   }) => Promise<DiplomaTemplateResolution>;
+  resolvePhoto?: (input: DiplomaResolvePhotoInput) => Promise<string | null>;
   renderPng?: (input: DiplomaRenderPngInput) => Promise<DiplomaRenderPngResult>;
   saveToStorage?: (
     input: DiplomaSaveToStorageInput
@@ -159,6 +186,42 @@ export type IssueDiplomaResult =
       reused: boolean;
     }
   | { ok: false; code: DiplomaErrorCode; issues: string[] };
+
+/** Cualquier motivo de falla conocido, con el código de `DiplomaErrorCode` que le corresponde. */
+export class DiplomaServiceError extends Error {
+  readonly code: DiplomaErrorCode;
+  readonly issues: string[];
+
+  constructor(code: DiplomaErrorCode, issues: string[] = [], message?: string) {
+    super(message ?? code);
+    this.name = "DiplomaServiceError";
+    this.code = code;
+    this.issues = issues;
+  }
+}
+
+/**
+ * Dos pedidos de emisión a la vez (doble clic) chocan contra la unicidad de
+ * la base (código, token, o el índice parcial "un vigente por inscripción").
+ * `issueDiploma` la atrapa y devuelve el diploma que ganó la carrera en vez
+ * de reventar con el error crudo de Prisma.
+ */
+export class DiplomaUniqueViolationError extends Error {
+  readonly code = "P2002" as const;
+  constructor() {
+    super("Diploma unique constraint violation");
+    this.name = "DiplomaUniqueViolationError";
+  }
+}
+
+function isPrismaUniqueViolation(err: unknown): boolean {
+  return Boolean(
+    err &&
+      typeof err === "object" &&
+      "code" in err &&
+      (err as { code: unknown }).code === "P2002"
+  );
+}
 
 const REGISTRATION_SELECT = {
   id: true,
@@ -186,15 +249,73 @@ async function defaultLoadRegistration(
   return row ?? null;
 }
 
+async function defaultResolvePhoto(
+  input: DiplomaResolvePhotoInput
+): Promise<string | null> {
+  return resolveParticipantPhotoDataUrl(input.profilePhotoAssetId);
+}
+
+/**
+ * Resolución de documento propia del diploma (no la de
+ * `resolveClickatonParticipantCardDocument`, compartida con welcome/member):
+ * acá una variable sin resolver corta la emisión en vez de quedar como
+ * advertencia y salir impresa tal cual (`{{diploma.code}}`) en el PNG.
+ */
+function resolveDiplomaDocument(input: {
+  preset: ClickatonCardPreset;
+  templateData: Record<string, unknown>;
+}): ResolvedTemplateDocument {
+  const legacyPayload = instantiatePresetPayload(input.preset);
+  const bridged = fromLegacyTemplateV2(legacyPayload, {
+    id: input.preset.presetId,
+    name: input.preset.name,
+  });
+
+  const parsed = parseTemplateDocument(bridged.document);
+  if (!parsed.ok) {
+    throw new DiplomaServiceError("DIPLOMA_TEMPLATE_INVALID", [
+      parsed.error,
+      ...(parsed.issues ?? []),
+    ]);
+  }
+
+  const registry = createTemplateVariableRegistry({
+    plugins: [clickatonTemplateVariablesPlugin],
+  });
+
+  const resolved = resolveTemplateDocument({
+    template: parsed.data,
+    data: input.templateData,
+    registry,
+  });
+
+  if (resolved.errors.length > 0) {
+    throw new DiplomaServiceError(
+      "DIPLOMA_TEMPLATE_INVALID",
+      resolved.errors.map((e) => e.message)
+    );
+  }
+
+  // Para welcome/member una variable desconocida es sólo una advertencia: el
+  // motor deja `{{...}}` literal en el PNG y sigue. Para un diploma eso es
+  // peor que no emitirlo (código y token quedarían quemados con un archivo
+  // ilegible), así que acá corta.
+  const sinResolver = resolved.warnings.filter((w) => w.code === "unknown_variable");
+  if (sinResolver.length > 0) {
+    throw new DiplomaServiceError(
+      "DIPLOMA_TEMPLATE_INVALID",
+      sinResolver.map((w) => w.message)
+    );
+  }
+
+  return resolved.document;
+}
+
 async function defaultRenderPng(
   input: DiplomaRenderPngInput
 ): Promise<DiplomaRenderPngResult> {
   const preset = input.preset as ClickatonCardPreset;
-  const { document } = resolveClickatonParticipantCardDocument({
-    cardType: "diploma",
-    templateData: input.templateData,
-    preset,
-  });
+  const document = resolveDiplomaDocument({ preset, templateData: input.templateData });
   const provider = resolveParticipantCardRenderProvider();
   return provider.render({ document });
 }
@@ -221,7 +342,7 @@ async function defaultUpsertCard(
   input: DiplomaUpsertCardInput
 ): Promise<{ id: string }> {
   const now = new Date();
-  const existing = await prisma.clickatonParticipantCard.findFirst({
+  const existingRow = await prisma.clickatonParticipantCard.findFirst({
     where: {
       registrationId: input.registrationId,
       cardType: "DIPLOMA",
@@ -230,9 +351,9 @@ async function defaultUpsertCard(
     select: { id: true },
   });
 
-  if (existing) {
+  if (existingRow) {
     await prisma.clickatonParticipantCard.update({
-      where: { id: existing.id },
+      where: { id: existingRow.id },
       data: {
         status: "READY",
         storageKey: input.storageKey,
@@ -242,28 +363,33 @@ async function defaultUpsertCard(
         updatedAt: now,
       },
     });
-    return { id: existing.id };
+    return { id: existingRow.id };
   }
 
-  const created = await prisma.clickatonParticipantCard.create({
-    data: {
-      registrationId: input.registrationId,
-      editionId: input.editionId,
-      cardType: "DIPLOMA",
-      templateKey: input.templateKey,
-      templateVersion: input.templateVersion,
-      rendererVersion: CLICKATON_CARD_RENDERER_VERSION,
-      renderHash: input.renderHash,
-      status: "READY",
-      storageKey: input.storageKey,
-      width: input.width,
-      height: input.height,
-      mimeType: "image/png",
-      startedAt: now,
-      generatedAt: now,
-    },
-  });
-  return { id: created.id };
+  try {
+    const created = await prisma.clickatonParticipantCard.create({
+      data: {
+        registrationId: input.registrationId,
+        editionId: input.editionId,
+        cardType: "DIPLOMA",
+        templateKey: input.templateKey,
+        templateVersion: input.templateVersion,
+        rendererVersion: CLICKATON_CARD_RENDERER_VERSION,
+        renderHash: input.renderHash,
+        status: "READY",
+        storageKey: input.storageKey,
+        width: input.width,
+        height: input.height,
+        mimeType: "image/png",
+        startedAt: now,
+        generatedAt: now,
+      },
+    });
+    return { id: created.id };
+  } catch (err) {
+    if (isPrismaUniqueViolation(err)) throw new DiplomaUniqueViolationError();
+    throw err;
+  }
 }
 
 async function defaultFindExistingIssue(input: {
@@ -271,7 +397,14 @@ async function defaultFindExistingIssue(input: {
 }): Promise<DiplomaIssueExisting | null> {
   const row = await prisma.clickatonDiplomaIssue.findFirst({
     where: { registrationId: input.registrationId, revokedAt: null },
-    select: { id: true, diplomaCode: true, verificationToken: true, revokedAt: true },
+    select: {
+      id: true,
+      diplomaCode: true,
+      verificationToken: true,
+      issuedAt: true,
+      cardId: true,
+      revokedAt: true,
+    },
   });
   return row ?? null;
 }
@@ -279,17 +412,22 @@ async function defaultFindExistingIssue(input: {
 async function defaultCreateIssue(
   data: DiplomaCreateIssueInput
 ): Promise<DiplomaIssueWriteResult> {
-  const created = await prisma.clickatonDiplomaIssue.create({
-    data: {
-      registrationId: data.registrationId,
-      editionId: data.editionId,
-      cardId: data.cardId,
-      diplomaCode: data.diplomaCode,
-      verificationToken: data.verificationToken,
-      issuedAt: data.issuedAt,
-    },
-  });
-  return created;
+  try {
+    const created = await prisma.clickatonDiplomaIssue.create({
+      data: {
+        registrationId: data.registrationId,
+        editionId: data.editionId,
+        cardId: data.cardId,
+        diplomaCode: data.diplomaCode,
+        verificationToken: data.verificationToken,
+        issuedAt: data.issuedAt,
+      },
+    });
+    return created;
+  } catch (err) {
+    if (isPrismaUniqueViolation(err)) throw new DiplomaUniqueViolationError();
+    throw err;
+  }
 }
 
 async function defaultUpdateIssue(
@@ -304,8 +442,10 @@ async function defaultUpdateIssue(
 
 function resolveDeps(deps: DiplomaServiceDeps) {
   return {
+    checkAccess: deps.checkAccess ?? requireParticipantCardAdminAccess,
     loadRegistration: deps.loadRegistration ?? defaultLoadRegistration,
     resolveTemplate: deps.resolveTemplate ?? resolveDiplomaTemplate,
+    resolvePhoto: deps.resolvePhoto ?? defaultResolvePhoto,
     renderPng: deps.renderPng ?? defaultRenderPng,
     saveToStorage: deps.saveToStorage ?? defaultSaveToStorage,
     upsertCard: deps.upsertCard ?? defaultUpsertCard,
@@ -364,7 +504,7 @@ function buildDiplomaTemplateData(input: {
       photoUrl: input.photoDataUrl ?? "",
     },
     edition: {
-      id: registration.edition.slug,
+      id: registration.editionId,
       name: registration.edition.name,
       slug: registration.edition.slug,
     },
@@ -404,6 +544,9 @@ function computeDiplomaRenderHash(input: {
     versionId: input.source.versionId,
     versionNumber: input.source.versionNumber,
     revision: input.source.revision,
+    // Un cambio de motor de render puede cambiar el PNG para el mismo
+    // input: sin esto, la pieza cacheada queda sirviendo un dibujo viejo.
+    rendererVersion: CLICKATON_CARD_RENDERER_VERSION,
   });
   return createHash("sha256").update(payload).digest("hex");
 }
@@ -411,9 +554,10 @@ function computeDiplomaRenderHash(input: {
 /**
  * Emite el diploma de una inscripción acreditada.
  *
- * Orden estricto (ver comentario del módulo): acreditación → plantilla → foto
- * → render → storage → persistencia. Ante el primer `ok: false`, no se llama
- * ni a `renderPng` ni a nada posterior.
+ * Orden estricto (ver comentario del módulo): autorización → acreditación →
+ * plantilla → foto → render → storage → persistencia. Ante el primer
+ * problema, no se llama ni a `renderPng` ni a nada posterior, y el resultado
+ * siempre es `{ ok: false, code, issues }` — nunca una excepción cruda.
  */
 export async function issueDiploma(
   input: { registrationId: string; actor: ParticipantCardActor },
@@ -421,122 +565,175 @@ export async function issueDiploma(
 ): Promise<IssueDiplomaResult> {
   const deps = resolveDeps(depsArg);
 
-  const registration = await deps.loadRegistration(input.registrationId);
-  if (!registration) {
-    throw new Error(`DIPLOMA_REGISTRATION_NOT_FOUND: ${input.registrationId}`);
-  }
+  try {
+    try {
+      deps.checkAccess(input.actor);
+    } catch (err) {
+      throw new DiplomaServiceError("DIPLOMA_FORBIDDEN", [
+        err instanceof Error ? err.message : String(err),
+      ]);
+    }
 
-  if (!isAccredited(registration.checkIns)) {
-    return { ok: false, code: "DIPLOMA_NOT_ACCREDITED", issues: [] };
-  }
+    const registration = await deps.loadRegistration(input.registrationId);
+    if (!registration) {
+      return { ok: false, code: "DIPLOMA_REGISTRATION_NOT_FOUND", issues: [] };
+    }
 
-  const template = await deps.resolveTemplate({ editionId: registration.editionId });
-  if (!template.ok) {
-    return { ok: false, code: template.code, issues: template.issues };
-  }
+    if (!isAccredited(registration.checkIns)) {
+      return { ok: false, code: "DIPLOMA_NOT_ACCREDITED", issues: [] };
+    }
 
-  if (template.usesParticipantPhoto && !registration.profilePhotoAssetId) {
-    return { ok: false, code: "DIPLOMA_PHOTO_REQUIRED", issues: [] };
-  }
+    const template = await deps.resolveTemplate({ editionId: registration.editionId });
+    if (!template.ok) {
+      return { ok: false, code: template.code, issues: template.issues };
+    }
 
-  const existing = await deps.findExistingIssue({ registrationId: registration.id });
+    let photoDataUrl: string | null = null;
+    if (template.usesParticipantPhoto) {
+      if (!registration.profilePhotoAssetId) {
+        return { ok: false, code: "DIPLOMA_PHOTO_REQUIRED", issues: [] };
+      }
+      try {
+        photoDataUrl = await deps.resolvePhoto({
+          profilePhotoAssetId: registration.profilePhotoAssetId,
+        });
+      } catch (err) {
+        throw new DiplomaServiceError("DIPLOMA_PHOTO_UNREADABLE", [
+          err instanceof Error ? err.message : String(err),
+        ]);
+      }
+    }
 
-  const diplomaCode =
-    existing?.diplomaCode ??
-    buildDiplomaCode({
-      visibleCode: registration.visibleCode,
-      registrationId: registration.id,
-      editionSlug: registration.edition.slug,
-    });
-  const verificationToken = existing?.verificationToken ?? generateVerificationToken();
+    const foundExisting = await deps.findExistingIssue({ registrationId: registration.id });
+    // Un diploma revocado no se reusa, aunque la consulta por defecto ya lo
+    // filtre: se verifica acá explícitamente y se emite uno nuevo.
+    const existing = foundExisting && foundExisting.revokedAt === null ? foundExisting : null;
 
-  const issuedAt = deps.now();
-  const timezone = registration.edition.timezone?.trim() || "America/Argentina/Cordoba";
-  const accreditedAt = earliestAccreditedAt(registration.checkIns, issuedAt);
+    const diplomaCode =
+      existing?.diplomaCode ??
+      buildDiplomaCode({
+        visibleCode: registration.visibleCode,
+        registrationId: registration.id,
+        editionSlug: registration.edition.slug,
+      });
+    const verificationToken = existing?.verificationToken ?? generateVerificationToken();
+    // La fecha de emisión se fija una sola vez, igual que el código y el
+    // token: rehacer el diseño no puede hacer que el diploma impreso diga
+    // una fecha y la página de verificación diga otra.
+    const issuedAt = existing?.issuedAt ?? deps.now();
 
-  const photoDataUrl = template.usesParticipantPhoto
-    ? await resolveParticipantPhotoDataUrl(registration.profilePhotoAssetId)
-    : null;
+    const timezone = registration.edition.timezone?.trim() || "America/Argentina/Cordoba";
+    const accreditedAt = earliestAccreditedAt(registration.checkIns, issuedAt);
 
-  const templateData = buildDiplomaTemplateData({
-    registration,
-    photoDataUrl,
-    diplomaCode,
-    verificationToken,
-    accreditedAt,
-    issuedAt,
-    timezone,
-  });
-
-  const rendered = await deps.renderPng({ preset: template.preset, templateData });
-
-  const renderHash = computeDiplomaRenderHash({
-    registrationId: registration.id,
-    diplomaCode,
-    source: template.source,
-  });
-
-  const storageKey = buildParticipantCardStorageKey({
-    editionId: registration.editionId,
-    registrationId: registration.id,
-    cardType: "diploma",
-    templateVersion: template.source.versionNumber,
-    renderHash,
-  });
-
-  const saved = await deps.saveToStorage({
-    storageKey,
-    png: rendered.png,
-    width: rendered.width,
-    height: rendered.height,
-    templateKey: template.source.templateId,
-    templateVersion: template.source.versionNumber,
-  });
-
-  const card = await deps.upsertCard({
-    registrationId: registration.id,
-    editionId: registration.editionId,
-    storageKey: saved.storageKey,
-    width: rendered.width,
-    height: rendered.height,
-    templateKey: template.source.templateId,
-    templateVersion: template.source.versionNumber,
-    renderHash,
-  });
-
-  if (existing) {
-    await deps.updateIssue({
-      id: existing.id,
-      cardId: card.id,
-      editionId: registration.editionId,
-    });
-    return {
-      ok: true,
-      diplomaId: existing.id,
+    const templateData = buildDiplomaTemplateData({
+      registration,
+      photoDataUrl,
       diplomaCode,
       verificationToken,
-      cardId: card.id,
+      accreditedAt,
+      issuedAt,
+      timezone,
+    });
+
+    const rendered = await deps.renderPng({ preset: template.preset, templateData });
+
+    const renderHash = computeDiplomaRenderHash({
+      registrationId: registration.id,
+      diplomaCode,
+      source: template.source,
+    });
+
+    const storageKey = buildParticipantCardStorageKey({
+      editionId: registration.editionId,
+      registrationId: registration.id,
+      cardType: "diploma",
+      templateVersion: template.source.versionNumber,
+      renderHash,
+    });
+
+    const saved = await deps.saveToStorage({
+      storageKey,
+      png: rendered.png,
+      width: rendered.width,
+      height: rendered.height,
+      templateKey: template.source.templateId,
+      templateVersion: template.source.versionNumber,
+    });
+
+    const upsertCardInput: DiplomaUpsertCardInput = {
+      registrationId: registration.id,
+      editionId: registration.editionId,
       storageKey: saved.storageKey,
-      reused: true,
+      width: rendered.width,
+      height: rendered.height,
+      templateKey: template.source.templateId,
+      templateVersion: template.source.versionNumber,
+      renderHash,
+    };
+
+    if (existing) {
+      const card = await deps.upsertCard(upsertCardInput);
+      await deps.updateIssue({
+        id: existing.id,
+        cardId: card.id,
+        editionId: registration.editionId,
+      });
+      return {
+        ok: true,
+        diplomaId: existing.id,
+        diplomaCode,
+        verificationToken,
+        cardId: card.id,
+        storageKey: saved.storageKey,
+        reused: true,
+      };
+    }
+
+    try {
+      const card = await deps.upsertCard(upsertCardInput);
+      const created = await deps.createIssue({
+        registrationId: registration.id,
+        editionId: registration.editionId,
+        cardId: card.id,
+        diplomaCode,
+        verificationToken,
+        issuedAt,
+      });
+      return {
+        ok: true,
+        diplomaId: created.id,
+        diplomaCode,
+        verificationToken,
+        cardId: card.id,
+        storageKey: saved.storageKey,
+        reused: false,
+      };
+    } catch (err) {
+      if (!(err instanceof DiplomaUniqueViolationError)) throw err;
+      // Doble clic / dos pedidos a la vez: alguien más ya lo emitió mientras
+      // este proceso dibujaba. Se lee de nuevo y se devuelve el diploma que
+      // ganó la carrera, en vez de romper con el error crudo de la base.
+      const raced = await deps.findExistingIssue({ registrationId: registration.id });
+      if (!raced || raced.revokedAt !== null) throw err;
+      const cardId = raced.cardId ?? (await deps.upsertCard(upsertCardInput)).id;
+      return {
+        ok: true,
+        diplomaId: raced.id,
+        diplomaCode: raced.diplomaCode,
+        verificationToken: raced.verificationToken,
+        cardId,
+        storageKey: saved.storageKey,
+        reused: true,
+      };
+    }
+  } catch (err) {
+    if (err instanceof DiplomaServiceError) {
+      return { ok: false, code: err.code, issues: err.issues };
+    }
+    return {
+      ok: false,
+      code: "DIPLOMA_ISSUE_FAILED",
+      issues: [err instanceof Error ? err.message : String(err)],
     };
   }
-
-  const created = await deps.createIssue({
-    registrationId: registration.id,
-    editionId: registration.editionId,
-    cardId: card.id,
-    diplomaCode,
-    verificationToken,
-    issuedAt,
-  });
-
-  return {
-    ok: true,
-    diplomaId: created.id,
-    diplomaCode,
-    verificationToken,
-    cardId: card.id,
-    storageKey: saved.storageKey,
-    reused: false,
-  };
 }
