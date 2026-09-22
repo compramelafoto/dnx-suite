@@ -2,7 +2,7 @@
   "proyecto": "Cursos presenciales",
   "plataforma": "FOTOFFICE",
   "enUso": "no",
-  "usoNota": "1 curso cargado en DNX Estudio y 0 interesados, 0 inscripciones y 0 cobros en toda su historia; además el curso vive en la mitad del módulo que no tiene página pública",
+  "usoNota": "1 curso cargado en DNX Estudio y 0 interesados, 0 inscripciones y 0 cobros en toda su historia; además el curso vive en la mitad del módulo que no tiene página pública. El 21/09 se arregló el cobro y se abrió la puerta a los cursos grabados, pero nada de eso se ejercitó todavía",
   "etapas": [
     {
       "nombre": "Cargar el curso y su equipo",
@@ -34,6 +34,12 @@
           "implementado": null,
           "probado": null,
           "bloqueado": "Sólo la configuración está en el menú: al alta de cursos, docentes e interesados se llega tipeando la dirección"
+        },
+        {
+          "que": "Se carga un curso grabado y el alumno mira sus clases en video",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Del PR 213 entró sólo el modelo de datos y la inscripción sin edición, con la migración 20260921120000_cursos_grabados aplicada a mano el 21/09 en las cinco bases. Faltan el cliente de Cloudflare Stream, las acciones del panel y la pantalla de clases: son las tareas 5 a 7 del plan"
         }
       ]
     },
@@ -48,21 +54,21 @@
         },
         {
           "que": "Se inscribe, paga por Mercado Pago y la inscripción queda aprobada sola",
-          "implementado": { "commit": "f1cd35c2", "fecha": "2026-04-25" },
+          "implementado": { "pr": 213, "fecha": "2026-09-21" },
           "probado": null,
-          "bloqueado": "0 inscripciones en producción"
+          "bloqueado": "El cobro dejó de pedir dos variables que nunca existieron y pasó al camino de Reservas, con la cuenta conectada de la institución; pero siguen 0 inscripciones en producción, así que nunca se cobró un peso"
         },
         {
           "que": "El alumno recibe el correo de inscripción confirmada con su acceso al aula",
           "implementado": { "commit": "f1cd35c2", "fecha": "2026-04-25" },
           "probado": null,
-          "bloqueado": "Ningún correo de cursos figura en el registro de envíos de FOTOFFICE"
+          "bloqueado": "Ningún correo de cursos figura en el registro de envíos de FOTOFFICE. Además un curso grabado se aprueba sin aviso: su correo todavía no se escribió"
         },
         {
           "que": "La comisión de la plataforma se calcula y queda anotada al aprobarse el pago",
-          "implementado": { "commit": "f1cd35c2", "fecha": "2026-04-25" },
+          "implementado": { "pr": 213, "fecha": "2026-09-21" },
           "probado": null,
-          "bloqueado": "Requiere una inscripción pagada; además sigue usándose el porcentaje viejo como respaldo"
+          "bloqueado": "La comisión ahora se congela al abrir el pago y se retiene en la misma operación, en vez de recalcularse con el porcentaje deprecado al aprobar. Falta una inscripción pagada que lo demuestre"
         },
         {
           "que": "Una consulta por un curso llega a la bandeja de interesados",
