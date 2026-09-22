@@ -142,4 +142,21 @@ describe("clickaton plugin", () => {
     const reg = createTemplateVariableRegistry([clickatonTemplateVariablesPlugin]);
     assert.equal(reg.getVariableDefinition("student.fullName"), undefined);
   });
+
+  describe("variables de diploma", () => {
+    it("expone las cuatro variables del diploma", () => {
+      const paths = new Set(CLICKATON_TEMPLATE_VARIABLE_DEFINITIONS.map((d) => d.path));
+      assert.ok(paths.has("diploma.code"));
+      assert.ok(paths.has("diploma.issuedAtFormatted"));
+      assert.ok(paths.has("diploma.accreditedAtFormatted"));
+      assert.ok(paths.has("diploma.verificationUrl"));
+    });
+
+    it("la URL de verificación es de tipo QR", () => {
+      const def = CLICKATON_TEMPLATE_VARIABLE_DEFINITIONS.find(
+        (d) => d.path === "diploma.verificationUrl"
+      );
+      assert.equal(def?.valueType, "qrUrl");
+    });
+  });
 });
