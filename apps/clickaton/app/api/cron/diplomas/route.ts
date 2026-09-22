@@ -34,5 +34,8 @@ export async function GET(request: Request) {
   const emailResult = await processDueDiplomaEmails(
     Number.isFinite(emailLimit) ? emailLimit : 25
   );
+  // `unavailable` (migración de diplomas sin aplicar) no es un fallo del cron:
+  // se responde 200 con el aviso. Antes esto reventaba con 500 cada cinco
+  // minutos hasta que alguien aplicara el SQL.
   return NextResponse.json({ ok: true, ...result, email: emailResult });
 }

@@ -7,6 +7,16 @@ export type ClickatonDbResult<T> =
   | { ok: true; data: T }
   | { ok: false; reason: ClickatonDbUnavailableReason; message: string };
 
+/**
+ * Valor de enum que el código ya usa pero la base todavía no tiene: es lo que
+ * pasa al filtrar por un tipo nuevo (`cardType: "DIPLOMA"`) contra una base
+ * donde el `ALTER TYPE ... ADD VALUE` no se aplicó. Postgres lo devuelve como
+ * `22P02` ("invalid_text_representation"), que NO alcanza por sí solo para
+ * decidir: el mismo código sale también, por ejemplo, al intentar convertir
+ * un texto cualquiera a número. Por eso se exige además el texto del mensaje.
+ */
+const ENUM_VALUE_MISSING = /invalid input value for enum/i;
+
 export function isMissingTableError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
   const code = "code" in error ? String((error as { code?: unknown }).code) : "";
@@ -16,6 +26,9 @@ export function isMissingTableError(error: unknown): boolean {
     "message" in error && typeof (error as { message?: unknown }).message === "string"
       ? (error as { message: string }).message
       : "";
+  // Prisma a veces propaga el error crudo de Postgres sin código propio, así
+  // que se mira el mensaje tanto con `22P02` como sin él.
+  if (ENUM_VALUE_MISSING.test(message)) return true;
   return /(?:table|relation|column).*(?:does not exist|don't exist)|does not exist in the current database/i.test(
     message,
   );

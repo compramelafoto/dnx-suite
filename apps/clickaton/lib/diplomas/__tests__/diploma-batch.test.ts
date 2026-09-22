@@ -9,6 +9,7 @@ import {
   enqueueDiplomaQueueRow,
   enqueueEditionDiplomas,
   processDiplomaEmailEvent,
+  DIPLOMA_MIGRATION_PENDING_MESSAGE,
   processDueDiplomaEmails,
   processDueDiplomas,
 } from "@/lib/diplomas/diploma-batch";
@@ -57,7 +58,7 @@ describe("processDueDiplomas", () => {
       loadPending: async () => [{ registrationId: "reg_1" }, { registrationId: "reg_2" }],
       issue: async ({ registrationId }: { registrationId: string }) =>
         registrationId === "reg_1"
-          ? { ok: true as const, diplomaId: "d1", diplomaCode: "c", verificationToken: "t", cardId: "c1", storageKey: "k", reused: false }
+          ? { ok: true as const, diplomaId: "d1", diplomaCode: "c", verificationToken: "t", cardId: "c1", storageKey: "k", reused: false, pdfAttached: true }
           : { ok: false as const, code: "DIPLOMA_TEMPLATE_INVALID" as const, issues: ["x"] },
     });
     assert.equal(out.issued, 1);
@@ -96,6 +97,7 @@ describe("processDueDiplomas", () => {
           cardId: "c",
           storageKey: "k",
           reused: false,
+          pdfAttached: true,
         };
       },
     });
@@ -593,5 +595,81 @@ describe("processDiplomaEmailEvent (el despachador)", () => {
     const outcome = await processDiplomaEmailEvent({ eventId: "ev1", diplomaId: "no_existe", attempt: 1 }, deps);
     assert.deepEqual(outcome, { ok: false, status: "SKIPPED_ALREADY_RESOLVED" });
     assert.equal(calls.closeEvent.length, 1);
+  });
+});
+
+/**
+ * Mientras el SQL de diplomas no esté aplicado, las dos consultas de carga
+ * fallan de entrada: la tabla nueva no existe y el valor de enum `DIPLOMA`
+ * tampoco. Eso devolvía 500 en cada vuelta del cron (cada cinco minutos).
+ */
+describe("los procesos automáticos degradan si la migración no está aplicada", () => {
+  function errorDePostgres(code: string, message: string): Error & { code: string } {
+    const err = new Error(message) as Error & { code: string };
+    err.code = code;
+    return err;
+  }
+
+  const tablaAusente = () =>
+    errorDePostgres("P2021", 'The table `ClickatonDiplomaIssue` does not exist in the current database.');
+
+  /** Lo que devuelve Postgres al filtrar por un valor de enum que la base no tiene. */
+  const enumAusente = () =>
+    errorDePostgres(
+      "22P02",
+      'invalid input value for enum "ClickatonParticipantCardType": "DIPLOMA"'
+    );
+
+  it("el lote de diplomas avisa en vez de reventar (tabla ausente)", async () => {
+    const out = await processDueDiplomas(25, {
+      loadPending: async () => {
+        throw tablaAusente();
+      },
+    });
+    assert.deepEqual(
+      { scanned: out.scanned, issued: out.issued, failed: out.failed },
+      { scanned: 0, issued: 0, failed: 0 }
+    );
+    assert.equal(out.unavailable, DIPLOMA_MIGRATION_PENDING_MESSAGE);
+  });
+
+  it("el lote de diplomas avisa también con el valor de enum ausente (22P02)", async () => {
+    const out = await processDueDiplomas(25, {
+      loadPending: async () => {
+        throw enumAusente();
+      },
+    });
+    assert.equal(out.unavailable, DIPLOMA_MIGRATION_PENDING_MESSAGE);
+  });
+
+  it("el lote de correos avisa igual", async () => {
+    const out = await processDueDiplomaEmails(25, {
+      loadPending: async () => {
+        throw enumAusente();
+      },
+    });
+    assert.deepEqual(
+      { scanned: out.scanned, sent: out.sent, failed: out.failed },
+      { scanned: 0, sent: 0, failed: 0 }
+    );
+    assert.equal(out.unavailable, DIPLOMA_MIGRATION_PENDING_MESSAGE);
+  });
+
+  it("un fallo de base que NO es la migración sigue propagando", async () => {
+    await assert.rejects(
+      processDueDiplomas(25, {
+        loadPending: async () => {
+          throw new Error("connection terminated unexpectedly");
+        },
+      }),
+      /connection terminated/
+    );
+  });
+
+  it("en marcha normal no aparece ningún aviso", async () => {
+    const out = await processDueDiplomas(25, {
+      loadPending: async () => [],
+    });
+    assert.equal(out.unavailable, undefined);
   });
 });

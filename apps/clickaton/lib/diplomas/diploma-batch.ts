@@ -25,7 +25,7 @@
  */
 import { createHash } from "node:crypto";
 import { sendIdentityEmail, type IdentityEmailResult } from "@repo/auth";
-import { Prisma, prisma } from "@/lib/admin/db";
+import { Prisma, isMissingTableError, prisma } from "@/lib/admin/db";
 import { isClickatonProductionAudience } from "@/lib/site/public-origin";
 import { DIPLOMA_CANDIDATE_QUERY, selectDiplomaCandidates } from "./diploma-eligibility";
 import {
@@ -70,6 +70,29 @@ const DIPLOMA_BATCH_LIMIT_MAX = 100;
 
 function sanitizeBatchLimit(limit: number): number {
   return Math.max(1, Math.min(DIPLOMA_BATCH_LIMIT_MAX, Math.trunc(limit) || DIPLOMA_BATCH_LIMIT_DEFAULT));
+}
+
+/**
+ * Mensaje único para los dos procesos automáticos cuando la base todavía no
+ * tiene la migración de diplomas aplicada.
+ */
+export const DIPLOMA_MIGRATION_PENDING_MESSAGE =
+  "La base todavía no tiene la migración de diplomas aplicada (tabla, columna o valor de enum ausente). El proceso automático no hace nada hasta que se aplique.";
+
+/**
+ * Carga la cola tolerando el único fallo esperable antes de aplicar el SQL.
+ * Cualquier otro error de base se propaga: un corte real tiene que verse.
+ */
+async function cargarColaTolerandoMigracion<T>(
+  cargar: () => Promise<T[]>
+): Promise<{ ok: true; filas: T[] } | { ok: false; message: string }> {
+  try {
+    return { ok: true, filas: await cargar() };
+  } catch (err) {
+    if (!isMissingTableError(err)) throw err;
+    console.error("[clickaton-diplomas] migración pendiente:", err);
+    return { ok: false, message: DIPLOMA_MIGRATION_PENDING_MESSAGE };
+  }
 }
 
 function isPrismaUniqueViolation(err: unknown): boolean {
@@ -284,6 +307,13 @@ export type ProcessDueDiplomasResult = {
   scanned: number;
   issued: number;
   failed: number;
+  /**
+   * Presente sólo cuando el proceso no pudo ni mirar la cola porque la base
+   * todavía no tiene la migración de diplomas (tabla, columna o valor de
+   * enum ausente). Es un aviso, no un fallo: el cron corre cada 5 minutos y
+   * sin esto devolvía 500 en cada vuelta hasta que alguien aplicara el SQL.
+   */
+  unavailable?: string;
 };
 
 /**
@@ -419,7 +449,13 @@ export async function processDueDiplomas(
   const loadPending = deps.loadPending ?? defaultLoadPending;
   const issue = deps.issue ?? defaultIssue;
 
-  const pending = await loadPending(sanitizeBatchLimit(limit));
+  const cargada = await cargarColaTolerandoMigracion(() =>
+    loadPending(sanitizeBatchLimit(limit))
+  );
+  if (!cargada.ok) {
+    return { scanned: 0, issued: 0, failed: 0, unavailable: cargada.message };
+  }
+  const pending = cargada.filas;
 
   let issued = 0;
   let failed = 0;
@@ -543,7 +579,10 @@ export type ProcessDueDiplomaEmailsResult = {
   scanned: number;
   sent: number;
   failed: number;
+  /** Igual que en `ProcessDueDiplomasResult`: la migración todavía no está aplicada. */
+  unavailable?: string;
 };
+
 
 /**
  * Reclama hasta `limit` eventos: los `PENDING`/`FAILED` de siempre, MÁS
@@ -864,7 +903,13 @@ export async function processDueDiplomaEmails(
   const processOne = deps.processOne ?? defaultProcessDiplomaEmail;
   const wait = deps.wait ?? sleep;
 
-  const pending = await loadPending(sanitizeBatchLimit(limit));
+  const cargada = await cargarColaTolerandoMigracion(() =>
+    loadPending(sanitizeBatchLimit(limit))
+  );
+  if (!cargada.ok) {
+    return { scanned: 0, sent: 0, failed: 0, unavailable: cargada.message };
+  }
+  const pending = cargada.filas;
 
   let sent = 0;
   let failed = 0;
