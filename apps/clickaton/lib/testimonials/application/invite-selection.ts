@@ -36,3 +36,20 @@ export function selectEditionsReadyForInvites<T extends InvitableEdition>(
     return now.getTime() >= readyAt;
   });
 }
+
+/**
+ * Si una edición puede disparar invitaciones, y por qué camino.
+ *
+ * Una edición de prueba nunca manda el envío masivo — sus inscripciones pueden
+ * tener correos de personas reales. Invitar a UNA inscripción elegida a mano sí
+ * se permite: es un admin apuntando a alguien concreto, que es justamente cómo
+ * se prueba el circuito sin escribirle a nadie más.
+ */
+export function canInviteEdition(
+  edition: { testimonialsEnabled: boolean; isOpsFixture: boolean },
+  options: { single: boolean },
+): boolean {
+  if (!edition.testimonialsEnabled) return false;
+  if (edition.isOpsFixture && !options.single) return false;
+  return true;
+}
