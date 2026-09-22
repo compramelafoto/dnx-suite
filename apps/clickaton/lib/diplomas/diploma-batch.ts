@@ -18,7 +18,7 @@
  * `rendererVersion` son un placeholder fijo y su `renderHash` es determinístico
  * por inscripción: eso es lo que evita que un doble clic en "encolar" (o dos
  * ciclos de cron pisándose) cree una segunda fila para la misma persona — la
- * base la rechaza con P2002 y acá se la ignora en silencio.
+ * base la rechaza con P2002 y `enqueueDiplomaQueueRow` se la traga en silencio.
  */
 import { createHash } from "node:crypto";
 import { prisma } from "@/lib/admin/db";
@@ -35,16 +35,41 @@ const DIPLOMA_QUEUE_TEMPLATE_VERSION = 0;
 const DIPLOMA_QUEUE_RENDERER_VERSION = "PENDING";
 
 /**
- * El cron ya se autorizó a nivel de ruta (`CRON_SECRET` / `x-vercel-cron`):
- * no hay sesión de admin detrás. `issueDiploma` sólo admite admins, así que
- * acá se arma un actor de sistema con acceso de admin en vez de tocar la
- * autorización del servicio para un caso que no es de un usuario real.
+ * Tope de reintentos por pieza. Una edición con la plantilla rota no puede
+ * monopolizar la tanda para siempre: `defaultLoadPending` ordena por
+ * antigüedad, así que si sus filas son las más viejas y superan `limit`, las
+ * de otras ediciones nunca se tomarían. Pasado el tope, `defaultIssue` marca
+ * la fila `FAILED` (deja de aparecer en `GENERATING`) en vez de liberar el
+ * lock otra vez.
  */
-const DIPLOMA_BATCH_ACTOR: ParticipantCardActor = {
-  kind: "admin",
-  email: "cron-diplomas@clickaton.internal",
-  globalRole: "SUPER_ADMIN",
-};
+const DIPLOMA_QUEUE_MAX_ATTEMPTS = 5;
+
+const DIPLOMA_BATCH_LIMIT_DEFAULT = 25;
+const DIPLOMA_BATCH_LIMIT_MAX = 100;
+
+function sanitizeBatchLimit(limit: number): number {
+  return Math.max(1, Math.min(DIPLOMA_BATCH_LIMIT_MAX, Math.trunc(limit) || DIPLOMA_BATCH_LIMIT_DEFAULT));
+}
+
+/**
+ * Actor de marcador para el camino del cron: no representa ninguna sesión
+ * real, y a propósito no lleva `globalRole`. La puerta de este camino es la
+ * autorización de la RUTA (`CRON_SECRET` / `x-vercel-cron`, ver
+ * `app/api/cron/diplomas/route.ts`), nunca un rol fabricado — por eso
+ * `defaultIssue` no deja correr el `checkAccess` real de `issueDiploma`
+ * (que exige un admin de verdad, `requireParticipantCardAdminAccess`): le
+ * pasa un `checkAccess` explícito que no hace nada, dejándolo dicho en el
+ * código en vez de mentir con un `globalRole: "SUPER_ADMIN"` que ningún
+ * proceso automático de Clickatón usa. Mismo criterio que
+ * `participant-card-autogenerate.ts`: nunca amplía permisos inventando algo
+ * que no existe.
+ */
+const DIPLOMA_BATCH_ACTOR: ParticipantCardActor = { kind: "admin" };
+
+/** No-op a propósito: ver el comentario de `DIPLOMA_BATCH_ACTOR`. */
+function allowDiplomaBatchIssue(): void {
+  // La autorización de este camino ya ocurrió en la ruta del cron.
+}
 
 function isPrismaUniqueViolation(err: unknown): boolean {
   return Boolean(
@@ -56,8 +81,66 @@ function isPrismaUniqueViolation(err: unknown): boolean {
 }
 
 /** Hash determinístico por inscripción: misma inscripción, misma fila encolada. */
-function buildDiplomaQueueRenderHash(registrationId: string): string {
+export function buildDiplomaQueueRenderHash(registrationId: string): string {
   return createHash("sha256").update(`diploma-queue:${registrationId}`).digest("hex");
+}
+
+export type EnqueueDiplomaQueueRowDeps = {
+  create?: (data: {
+    registrationId: string;
+    editionId: string;
+    cardType: "DIPLOMA";
+    templateKey: string;
+    templateVersion: number;
+    rendererVersion: string;
+    renderHash: string;
+    status: "GENERATING";
+  }) => Promise<unknown>;
+};
+
+async function defaultCreateQueueRow(data: {
+  registrationId: string;
+  editionId: string;
+  cardType: "DIPLOMA";
+  templateKey: string;
+  templateVersion: number;
+  rendererVersion: string;
+  renderHash: string;
+  status: "GENERATING";
+}): Promise<unknown> {
+  return prisma.clickatonParticipantCard.create({ data });
+}
+
+/**
+ * Crea la fila `GENERATING` de una inscripción. Devuelve `true` si la creó,
+ * `false` si ya existía (P2002 por el `renderHash` determinístico) — esto es
+ * lo que de verdad frena el duplicado, no el chequeo previo contra
+ * `loadIssuedRegistrationIds` (ese sólo filtra a quien ya tiene el diploma
+ * terminado, no a quien ya está encolado).
+ */
+export async function enqueueDiplomaQueueRow(
+  input: { registrationId: string; editionId: string },
+  deps: EnqueueDiplomaQueueRowDeps = {}
+): Promise<boolean> {
+  const create = deps.create ?? defaultCreateQueueRow;
+  try {
+    await create({
+      registrationId: input.registrationId,
+      editionId: input.editionId,
+      cardType: "DIPLOMA",
+      templateKey: DIPLOMA_QUEUE_TEMPLATE_KEY,
+      templateVersion: DIPLOMA_QUEUE_TEMPLATE_VERSION,
+      rendererVersion: DIPLOMA_QUEUE_RENDERER_VERSION,
+      renderHash: buildDiplomaQueueRenderHash(input.registrationId),
+      status: "GENERATING",
+    });
+    return true;
+  } catch (err) {
+    // Ya había una fila encolada (o emitida y no borrada a tiempo) para esta
+    // inscripción: no es un error, es exactamente lo que "no duplicar" pide.
+    if (isPrismaUniqueViolation(err)) return false;
+    throw err;
+  }
 }
 
 export type EnqueueDiplomaCandidate = {
@@ -69,32 +152,35 @@ export type EnqueueDiplomaCandidate = {
 export type EnqueueEditionDiplomasDeps = {
   loadCandidates?: (editionId: string) => Promise<EnqueueDiplomaCandidate[]>;
   loadIssuedRegistrationIds?: (editionId: string) => Promise<Set<string>>;
-  enqueue?: (registrationId: string) => Promise<void>;
+  /**
+   * `true`/nada (`undefined`) = se encoló. `false` = ya había una fila para
+   * esa inscripción y no se creó nada (ver `enqueueDiplomaQueueRow`).
+   */
+  enqueue?: (registrationId: string) => Promise<boolean | void>;
 };
 
 export type EnqueueEditionDiplomasResult = {
   queued: number;
   alreadyIssued: number;
-  /**
-   * `loadCandidates` ya devuelve sólo acreditados (Task 3 filtra por
-   * check-in vigente antes de que este módulo vea la lista), así que acá no
-   * hay forma de contar "no elegibles" sin otra consulta aparte. Se deja en
-   * 0: el campo queda para no cambiarle la forma a quien consuma este
-   * resultado el día que haga falta.
-   */
   notEligible: number;
 };
 
-async function defaultLoadCandidates(editionId: string): Promise<EnqueueDiplomaCandidate[]> {
+async function defaultLoadCandidatesWithEligibility(
+  editionId: string
+): Promise<{ candidates: EnqueueDiplomaCandidate[]; notEligible: number }> {
   const rows = await prisma.clickatonRegistration.findMany({
     where: { editionId },
     ...DIPLOMA_CANDIDATE_QUERY,
   });
-  return selectDiplomaCandidates(rows).map((c) => ({
+  const candidates = selectDiplomaCandidates(rows).map((c) => ({
     registrationId: c.registrationId,
     fullName: c.fullName,
     accreditedAt: c.accreditedAt,
   }));
+  // La consulta ya trajo todas las inscripciones de la edición y
+  // `selectDiplomaCandidates` descartó a quien no está acreditado: la resta
+  // es gratis, no hace falta otra consulta.
+  return { candidates, notEligible: rows.length - candidates.length };
 }
 
 async function defaultLoadIssuedRegistrationIds(editionId: string): Promise<Set<string>> {
@@ -106,28 +192,8 @@ async function defaultLoadIssuedRegistrationIds(editionId: string): Promise<Set<
 }
 
 /** `enqueue` por defecto necesita `editionId`, que sólo conoce quien lo arma. */
-function buildDefaultEnqueue(editionId: string): (registrationId: string) => Promise<void> {
-  return async (registrationId: string) => {
-    try {
-      await prisma.clickatonParticipantCard.create({
-        data: {
-          registrationId,
-          editionId,
-          cardType: "DIPLOMA",
-          templateKey: DIPLOMA_QUEUE_TEMPLATE_KEY,
-          templateVersion: DIPLOMA_QUEUE_TEMPLATE_VERSION,
-          rendererVersion: DIPLOMA_QUEUE_RENDERER_VERSION,
-          renderHash: buildDiplomaQueueRenderHash(registrationId),
-          status: "GENERATING",
-        },
-      });
-    } catch (err) {
-      // Ya había una fila encolada (o emitida y no borrada a tiempo) para esta
-      // inscripción: no es un error, es exactamente lo que "no duplicar" pide.
-      if (isPrismaUniqueViolation(err)) return;
-      throw err;
-    }
-  };
+function buildDefaultEnqueue(editionId: string): (registrationId: string) => Promise<boolean> {
+  return (registrationId: string) => enqueueDiplomaQueueRow({ registrationId, editionId });
 }
 
 /**
@@ -139,13 +205,18 @@ export async function enqueueEditionDiplomas(
   editionId: string,
   deps: EnqueueEditionDiplomasDeps = {}
 ): Promise<EnqueueEditionDiplomasResult> {
-  const loadCandidates = deps.loadCandidates ?? defaultLoadCandidates;
   const loadIssuedRegistrationIds =
     deps.loadIssuedRegistrationIds ?? defaultLoadIssuedRegistrationIds;
   const enqueue = deps.enqueue ?? buildDefaultEnqueue(editionId);
 
-  const [candidates, issuedIds] = await Promise.all([
-    loadCandidates(editionId),
+  // `notEligible` sólo se puede calcular gratis cuando se usa la consulta
+  // real (trae todas las inscripciones, no sólo las elegibles). Con un
+  // `loadCandidates` inyectado —los tests, o cualquier otro consumidor que
+  // ya filtró por su cuenta— no hay de dónde sacarlo, y queda en 0.
+  const [{ candidates, notEligible }, issuedIds] = await Promise.all([
+    deps.loadCandidates
+      ? deps.loadCandidates(editionId).then((candidates) => ({ candidates, notEligible: 0 }))
+      : defaultLoadCandidatesWithEligibility(editionId),
     loadIssuedRegistrationIds(editionId),
   ]);
 
@@ -157,11 +228,11 @@ export async function enqueueEditionDiplomas(
       alreadyIssued += 1;
       continue;
     }
-    await enqueue(candidate.registrationId);
-    queued += 1;
+    const created = await enqueue(candidate.registrationId);
+    if (created !== false) queued += 1;
   }
 
-  return { queued, alreadyIssued, notEligible: 0 };
+  return { queued, alreadyIssued, notEligible };
 }
 
 export type DiplomaPendingRow = { registrationId: string };
@@ -179,12 +250,19 @@ export type ProcessDueDiplomasResult = {
 
 /**
  * Toma hasta `limit` piezas `GENERATING` de tipo `DIPLOMA` con el lock
- * vencido y se lo reserva (nuevo `lockExpiresAt`) para que otro ciclo de
- * cron superpuesto no la vuelva a tomar mientras ésta la procesa.
+ * vencido. La reserva es condicionada: cada fila se reclama con su propio
+ * `updateMany`, cuyo `WHERE` vuelve a exigir el lock libre en el momento de
+ * escribir (no sólo en el momento de leer). Con tandas de hasta cinco
+ * minutos cada cinco minutos el solape entre ciclos de cron es esperable, no
+ * hipotético: si dos ciclos leen la misma fila, sólo el que escribe primero
+ * se la queda — el segundo pierde esa fila (su `updateMany` no matchea nada,
+ * `count === 0`) y sigue con las demás.
  */
 async function defaultLoadPending(limit: number): Promise<DiplomaPendingRow[]> {
   const now = new Date();
-  const rows = await prisma.clickatonParticipantCard.findMany({
+  const lockExpiresAt = new Date(now.getTime() + DIPLOMA_QUEUE_LOCK_TTL_MS);
+
+  const candidates = await prisma.clickatonParticipantCard.findMany({
     where: {
       cardType: "DIPLOMA",
       status: "GENERATING",
@@ -195,21 +273,29 @@ async function defaultLoadPending(limit: number): Promise<DiplomaPendingRow[]> {
     select: { id: true, registrationId: true },
   });
 
-  if (rows.length === 0) return [];
+  if (candidates.length === 0) return [];
 
-  await prisma.clickatonParticipantCard.updateMany({
-    where: { id: { in: rows.map((r) => r.id) } },
-    data: { lockExpiresAt: new Date(now.getTime() + DIPLOMA_QUEUE_LOCK_TTL_MS) },
-  });
+  const claims = await Promise.all(
+    candidates.map(async (c) => {
+      const { count } = await prisma.clickatonParticipantCard.updateMany({
+        where: {
+          id: c.id,
+          OR: [{ lockExpiresAt: null }, { lockExpiresAt: { lte: now } }],
+        },
+        data: { lockExpiresAt },
+      });
+      return count === 1 ? { registrationId: c.registrationId } : null;
+    })
+  );
 
-  return rows.map((r) => ({ registrationId: r.registrationId }));
+  return claims.filter((c): c is DiplomaPendingRow => c !== null);
 }
 
 async function defaultIssue(input: { registrationId: string }): Promise<IssueDiplomaResult> {
-  const result = await issueDiploma({
-    registrationId: input.registrationId,
-    actor: DIPLOMA_BATCH_ACTOR,
-  });
+  const result = await issueDiploma(
+    { registrationId: input.registrationId, actor: DIPLOMA_BATCH_ACTOR },
+    { checkAccess: allowDiplomaBatchIssue }
+  );
 
   if (result.ok) {
     // `issueDiploma` ya guardó la pieza real (con su propio renderHash) vía
@@ -218,12 +304,36 @@ async function defaultIssue(input: { registrationId: string }): Promise<IssueDip
     await prisma.clickatonParticipantCard.deleteMany({
       where: { registrationId: input.registrationId, cardType: "DIPLOMA", status: "GENERATING" },
     });
-  } else {
-    // No corta el lote (ver módulo): se libera el lock para que el próximo
-    // ciclo reintente, igual que welcome/member con un render fallido.
-    await prisma.clickatonParticipantCard.updateMany({
-      where: { registrationId: input.registrationId, cardType: "DIPLOMA", status: "GENERATING" },
-      data: { lockExpiresAt: null, attemptCount: { increment: 1 }, errorCode: result.code },
+    return result;
+  }
+
+  // No corta el lote (ver módulo). Si todavía quedan reintentos, se libera
+  // el lock para que el próximo ciclo reintente, igual que welcome/member
+  // con un render fallido. Si ya se agotaron, la fila pasa a `FAILED` y deja
+  // de aparecer en `GENERATING`: una plantilla rota no puede monopolizar la
+  // tanda para siempre a costa de otras ediciones.
+  const row = await prisma.clickatonParticipantCard.findFirst({
+    where: { registrationId: input.registrationId, cardType: "DIPLOMA", status: "GENERATING" },
+    select: { id: true, attemptCount: true },
+  });
+  if (row) {
+    const nextAttempt = row.attemptCount + 1;
+    const outOfRetries = nextAttempt >= DIPLOMA_QUEUE_MAX_ATTEMPTS;
+    await prisma.clickatonParticipantCard.update({
+      where: { id: row.id },
+      data: outOfRetries
+        ? {
+            status: "FAILED",
+            failedAt: new Date(),
+            attemptCount: nextAttempt,
+            errorCode: result.code,
+            lockExpiresAt: null,
+          }
+        : {
+            attemptCount: nextAttempt,
+            errorCode: result.code,
+            lockExpiresAt: null,
+          },
     });
   }
 
@@ -231,26 +341,33 @@ async function defaultIssue(input: { registrationId: string }): Promise<IssueDip
 }
 
 /**
- * Procesa hasta `limit` diplomas pendientes, uno por uno. Un fallo se cuenta
- * y no corta el resto del lote (ver constraints de la Task 7).
+ * Procesa hasta `limit` diplomas pendientes, uno por uno. Un fallo —incluida
+ * una excepción cruda de `issue`, no sólo un `{ok:false}`— se cuenta y no
+ * corta el resto del lote.
  */
 export async function processDueDiplomas(
-  limit = 25,
+  limit = DIPLOMA_BATCH_LIMIT_DEFAULT,
   deps: ProcessDueDiplomasDeps = {}
 ): Promise<ProcessDueDiplomasResult> {
   const loadPending = deps.loadPending ?? defaultLoadPending;
   const issue = deps.issue ?? defaultIssue;
 
-  const pending = await loadPending(limit);
+  const pending = await loadPending(sanitizeBatchLimit(limit));
 
   let issued = 0;
   let failed = 0;
 
   for (const row of pending) {
-    const result = await issue({ registrationId: row.registrationId });
-    if (result.ok) {
-      issued += 1;
-    } else {
+    try {
+      const result = await issue({ registrationId: row.registrationId });
+      if (result.ok) {
+        issued += 1;
+      } else {
+        failed += 1;
+      }
+    } catch {
+      // Un fallo — de `issueDiploma` o de la actualización de la pieza en
+      // `defaultIssue` — nunca corta el lote: se cuenta y se sigue.
       failed += 1;
     }
   }
