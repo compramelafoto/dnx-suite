@@ -74,14 +74,20 @@ export type ParticipantCardDbStatus =
 
 export type ParticipantCardCacheStatus = "HIT" | "MISS" | "REGENERATED";
 
+/**
+ * Valor real de `cardType` en la base (enum `ClickatonParticipantCardType`
+ * de Prisma). El diploma ya existe en el enum desde la migración de
+ * diplomas; este repositorio todavía no lo lee ni lo escribe, pero cualquier
+ * traducción tipo-a-base tiene que poder representarlo para no mentir sobre
+ * a qué pieza se refiere.
+ */
+export type DbCardType = "WELCOME" | "MEMBER" | "DIPLOMA";
+
 export type ParticipantCardRecord = {
   id: string;
   registrationId: string;
   editionId: string;
-  // La fila en base ya puede traer "DIPLOMA" (el enum lo admite desde la
-  // migración de diplomas); este repositorio todavía no lee/escribe esa
-  // variante, sólo necesita poder representarla al mapear filas de Prisma.
-  cardType: "WELCOME" | "MEMBER" | "DIPLOMA";
+  cardType: DbCardType;
   templateKey: string;
   templateVersion: number;
   rendererVersion: string;
@@ -117,21 +123,21 @@ export class ParticipantCardUniqueViolationError extends Error {
 export interface ParticipantCardRepository {
   findByRegistrationCardTypeHash(input: {
     registrationId: string;
-    cardType: "WELCOME" | "MEMBER";
+    cardType: DbCardType;
     renderHash: string;
   }): Promise<ParticipantCardRecord | null>;
   findReadyByHash(input: {
     registrationId: string;
-    cardType: "WELCOME" | "MEMBER";
+    cardType: DbCardType;
     renderHash: string;
   }): Promise<ParticipantCardRecord | null>;
   findLatestForRegistrationCardType(input: {
     registrationId: string;
-    cardType: "WELCOME" | "MEMBER";
+    cardType: DbCardType;
   }): Promise<ParticipantCardRecord | null>;
   listByRegistrationCardType(input: {
     registrationId: string;
-    cardType: "WELCOME" | "MEMBER";
+    cardType: DbCardType;
   }): Promise<ParticipantCardRecord[]>;
   createGenerating(input: Omit<
     ParticipantCardRecord,
@@ -143,21 +149,23 @@ export interface ParticipantCardRepository {
   ): Promise<ParticipantCardRecord>;
   markOtherReadyAsStale(input: {
     registrationId: string;
-    cardType: "WELCOME" | "MEMBER";
+    cardType: DbCardType;
     exceptId: string;
     now: Date;
   }): Promise<number>;
   markAllReadyAsStale(input: {
     registrationId: string;
-    cardType: "WELCOME" | "MEMBER";
+    cardType: DbCardType;
     now: Date;
   }): Promise<number>;
   listForCleanup(): Promise<ParticipantCardRecord[]>;
   deleteRecord(id: string): Promise<void>;
 }
 
-function toDbCardType(cardType: ClickatonParticipantCardType): "WELCOME" | "MEMBER" {
-  return cardType === "member" ? "MEMBER" : "WELCOME";
+export function toDbCardType(cardType: ClickatonParticipantCardType): DbCardType {
+  if (cardType === "member") return "MEMBER";
+  if (cardType === "diploma") return "DIPLOMA";
+  return "WELCOME";
 }
 
 function cloneRecord(r: ParticipantCardRecord): ParticipantCardRecord {
@@ -175,7 +183,7 @@ export class InMemoryParticipantCardRepository implements ParticipantCardReposit
 
   private uniqueKey(input: {
     registrationId: string;
-    cardType: "WELCOME" | "MEMBER" | "DIPLOMA";
+    cardType: DbCardType;
     renderHash: string;
   }): string {
     return `${input.registrationId}:${input.cardType}:${input.renderHash}`;
@@ -183,7 +191,7 @@ export class InMemoryParticipantCardRepository implements ParticipantCardReposit
 
   async findByRegistrationCardTypeHash(input: {
     registrationId: string;
-    cardType: "WELCOME" | "MEMBER";
+    cardType: DbCardType;
     renderHash: string;
   }): Promise<ParticipantCardRecord | null> {
     const id = this.uniqueIndex.get(this.uniqueKey(input));
@@ -195,7 +203,7 @@ export class InMemoryParticipantCardRepository implements ParticipantCardReposit
 
   async findReadyByHash(input: {
     registrationId: string;
-    cardType: "WELCOME" | "MEMBER";
+    cardType: DbCardType;
     renderHash: string;
   }): Promise<ParticipantCardRecord | null> {
     const row = await this.findByRegistrationCardTypeHash(input);
@@ -204,7 +212,7 @@ export class InMemoryParticipantCardRepository implements ParticipantCardReposit
 
   async findLatestForRegistrationCardType(input: {
     registrationId: string;
-    cardType: "WELCOME" | "MEMBER";
+    cardType: DbCardType;
   }): Promise<ParticipantCardRecord | null> {
     const rows = [...this.records.values()]
       .filter(
@@ -219,7 +227,7 @@ export class InMemoryParticipantCardRepository implements ParticipantCardReposit
 
   async listByRegistrationCardType(input: {
     registrationId: string;
-    cardType: "WELCOME" | "MEMBER";
+    cardType: DbCardType;
   }): Promise<ParticipantCardRecord[]> {
     return [...this.records.values()]
       .filter(
@@ -287,7 +295,7 @@ export class InMemoryParticipantCardRepository implements ParticipantCardReposit
 
   async markOtherReadyAsStale(input: {
     registrationId: string;
-    cardType: "WELCOME" | "MEMBER";
+    cardType: DbCardType;
     exceptId: string;
     now: Date;
   }): Promise<number> {
@@ -309,7 +317,7 @@ export class InMemoryParticipantCardRepository implements ParticipantCardReposit
 
   async markAllReadyAsStale(input: {
     registrationId: string;
-    cardType: "WELCOME" | "MEMBER";
+    cardType: DbCardType;
     now: Date;
   }): Promise<number> {
     let count = 0;
@@ -350,7 +358,7 @@ function mapPrismaRecord(row: {
   id: string;
   registrationId: string;
   editionId: string;
-  cardType: "WELCOME" | "MEMBER" | "DIPLOMA";
+  cardType: DbCardType;
   templateKey: string;
   templateVersion: number;
   rendererVersion: string;
@@ -650,7 +658,7 @@ async function sleep(ms: number): Promise<void> {
 async function waitForReadyOrGenerating(input: {
   repository: ParticipantCardRepository;
   registrationId: string;
-  cardType: "WELCOME" | "MEMBER";
+  cardType: DbCardType;
   renderHash: string;
   now: () => Date;
 }): Promise<ParticipantCardRecord | null> {
@@ -688,7 +696,7 @@ async function prepareGenerationContext(
   preset: ReturnType<typeof getClickatonParticipantCardPreset>;
   templateOrigin: "preset" | "template_v2";
   renderHash: string;
-  dbCardType: "WELCOME" | "MEMBER";
+  dbCardType: DbCardType;
   photoContentHash: string | null;
   photoAssetId: string | null;
 }> {
@@ -1251,7 +1259,7 @@ export async function forceRegenerateClickatonParticipantCard(
 export async function getClickatonParticipantCardStatus(
   input: {
     registrationId: string;
-    cardType: ClickatonParticipantCardType | "WELCOME" | "MEMBER";
+    cardType: ClickatonParticipantCardType | "WELCOME" | "MEMBER" | "DIPLOMA";
     actor: ParticipantCardActor;
   },
   depsArg?: ParticipantCardPersistenceDeps

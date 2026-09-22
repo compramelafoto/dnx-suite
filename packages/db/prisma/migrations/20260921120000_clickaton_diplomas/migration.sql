@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS "ClickatonDiplomaIssue" (
   "emailSentAt" TIMESTAMP(3),
   "emailLastError" TEXT,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
   CONSTRAINT "ClickatonDiplomaIssue_pkey" PRIMARY KEY ("id")
 );
 
@@ -32,7 +32,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS "ClickatonDiplomaIssue_diplomaCode_key"
 -- Un solo diploma vigente por inscripción; los revocados quedan como historia.
 CREATE UNIQUE INDEX IF NOT EXISTS "ClickatonDiplomaIssue_registration_active_key"
   ON "ClickatonDiplomaIssue" ("registrationId") WHERE "revokedAt" IS NULL;
-CREATE INDEX IF NOT EXISTS "ClickatonDiplomaIssue_edition_idx"
+CREATE INDEX IF NOT EXISTS "ClickatonDiplomaIssue_editionId_emailStatus_idx"
   ON "ClickatonDiplomaIssue" ("editionId", "emailStatus");
 CREATE INDEX IF NOT EXISTS "ClickatonDiplomaIssue_cardId_idx"
   ON "ClickatonDiplomaIssue" ("cardId");
