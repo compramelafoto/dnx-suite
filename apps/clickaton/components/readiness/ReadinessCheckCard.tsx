@@ -5,9 +5,13 @@ import { useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/lib/cn";
-import { interpretExifClock, parseExifOffset } from "@/lib/photo-upload/exif-clock";
+import {
+  interpretExifClock,
+  normalizeExifDateToUtcNumbers,
+  parseExifOffset,
+} from "@/lib/photo-upload/exif-clock";
 import { submitReadinessCheckAction } from "@/lib/readiness/actions/submit-readiness-check";
-import { clockDeltaLeadIn, readinessCopy } from "@/lib/readiness/content/readiness-copy";
+import { clockOffMessage, readinessCopy } from "@/lib/readiness/content/readiness-copy";
 import type { ReadinessResult } from "@/lib/readiness/domain/readiness";
 
 import { CameraGpsInstructions } from "./CameraGpsInstructions";
@@ -77,6 +81,12 @@ export function ReadinessCheckCard({
     setErrorMessage(null);
     setWasLastCheck(false);
 
+    // Los dos pasos van en try/catch separados a propósito. Leer la foto y
+    // hablar con el servidor fallan por razones distintas, y esta pantalla no
+    // produce otra cosa que un diagnóstico: si un corte de red se anuncia
+    // como "no pudimos leer esa foto", el participante sale a cambiar la
+    // cámara de su teléfono por un problema que no tiene.
+    let fd: FormData;
     try {
       // Diferido a propósito: `exifr` no viaja en el paquete inicial de la
       // página, sólo se carga cuando el participante realmente eligió una foto.
@@ -93,20 +103,25 @@ export function ReadinessCheckCard({
       const hasGps =
         typeof tags?.latitude === "number" && typeof tags?.longitude === "number";
 
-      // La hora del EXIF viene con los números del reloj puestos en UTC (ver
-      // `lib/photo-upload/exif-clock.ts`, que es exactamente lo que se usa
-      // acá): hay que reubicarla en la zona horaria de la edición, o el
-      // chequeo del reloj le va a marcar tres horas de diferencia a todo el
-      // mundo en Argentina.
+      // Dos correcciones encadenadas, y las dos hacen falta:
+      //
+      // 1. `normalizeExifDateToUtcNumbers` deshace la zona horaria del
+      //    TELÉFONO, que `exifr` mete al revivir la fecha en el navegador.
+      //    Sin esto, `interpretExifClock` — escrita para el servidor, donde
+      //    el proceso corre en UTC — corrige dos veces y le marca tres horas
+      //    de más a todo participante argentino.
+      // 2. `interpretExifClock` reubica esos números en la zona de la
+      //    edición, o en el desfasaje que venga en el propio EXIF.
       const exifOffsetMinutes =
         parseExifOffset(tags?.OffsetTimeOriginal) ??
         parseExifOffset(tags?.OffsetTimeDigitized) ??
         parseExifOffset(tags?.OffsetTime);
       const captureDate = interpretExifClock({
-        exifDate:
+        exifDate: normalizeExifDateToUtcNumbers(
           parseFecha(tags?.DateTimeOriginal) ??
-          parseFecha(tags?.CreateDate) ??
-          parseFecha(tags?.DateCreated),
+            parseFecha(tags?.CreateDate) ??
+            parseFecha(tags?.DateCreated),
+        ),
         timeZone: editionTimeZone,
         exifOffsetMinutes,
       });
@@ -123,7 +138,7 @@ export function ReadinessCheckCard({
 
       // Sólo estos cuatro datos viajan al servidor. La foto nunca sale del
       // navegador: ni bytes, ni miniatura, ni el propio `File`.
-      const fd = new FormData();
+      fd = new FormData();
       fd.set("registrationId", registrationId);
       fd.set("editionSlug", editionSlug);
       fd.set("token", accessToken);
@@ -131,20 +146,30 @@ export function ReadinessCheckCard({
       if (captureDate) fd.set("captureAtMs", String(captureDate.getTime()));
       fd.set("width", String(width ?? NaN));
       fd.set("height", String(height ?? NaN));
+    } catch {
+      setEstado("error");
+      setErrorMessage(readinessCopy.check.readError);
+      return;
+    } finally {
+      if (inputRef.current) inputRef.current.value = "";
+    }
 
+    try {
       const response = await submitReadinessCheckAction(fd);
       if (!response.ok) {
         setEstado("error");
         setErrorMessage(response.message);
         return;
       }
-      setVerdict({ result: response.verdict.result, clockDeltaMinutes: response.verdict.clockDeltaMinutes });
+      setVerdict({
+        result: response.verdict.result,
+        clockDeltaMinutes: response.verdict.clockDeltaMinutes,
+      });
       setEstado("result");
     } catch {
+      // La foto se leyó bien: lo que falló fue el viaje al servidor.
       setEstado("error");
-      setErrorMessage(readinessCopy.check.readError);
-    } finally {
-      if (inputRef.current) inputRef.current.value = "";
+      setErrorMessage(readinessCopy.check.submitError);
     }
   }
 
@@ -167,7 +192,6 @@ export function ReadinessCheckCard({
         ref={inputRef}
         type="file"
         accept="image/*"
-        capture="environment"
         className="sr-only"
         aria-describedby={statusId}
         onChange={(event) => {
@@ -176,7 +200,13 @@ export function ReadinessCheckCard({
         }}
       />
 
-      {estado !== "measuring" ? (
+      {/*
+        Este botón desaparece cuando hay un resultado en pantalla: ahí el que
+        manda es el "Probar de nuevo" de la caja del resultado, que hace
+        exactamente lo mismo. Dos botones iguales obligan a elegir entre cosas
+        que no se diferencian.
+      */}
+      {estado === "idle" || estado === "error" ? (
         <Button type="button" onClick={() => inputRef.current?.click()}>
           {readinessCopy.check.takePhotoButtonLabel}
         </Button>
@@ -217,17 +247,15 @@ export function ReadinessCheckCard({
           </p>
           <p className="text-sm leading-relaxed text-ck-text-secondary">
             {verdict.result === "CLOCK_OFF" && verdict.clockDeltaMinutes !== null
-              ? `${clockDeltaLeadIn(verdict.clockDeltaMinutes)} ${resultCopy.whatToDo}`
+              ? clockOffMessage(verdict.clockDeltaMinutes)
               : resultCopy.whatToDo}
           </p>
 
           {verdict.result === "NO_GPS" ? <CameraGpsInstructions /> : null}
 
-          {!esExito ? (
-            <Button type="button" variant="secondary" size="sm" onClick={reintentar}>
-              {readinessCopy.check.retry}
-            </Button>
-          ) : null}
+          <Button type="button" variant="secondary" size="sm" onClick={reintentar}>
+            {readinessCopy.check.retry}
+          </Button>
         </div>
       ) : null}
     </Card>

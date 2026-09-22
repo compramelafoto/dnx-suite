@@ -41,7 +41,7 @@ export const readinessCopy = {
     "Al final de la jornada armamos tu Clickatón: el mapa de tu recorrido, tus kilómetros y tus fotos. Para armarlo necesitamos que cada foto tenga bien puestos el lugar y la hora en que la sacaste. Este chequeo tarda un minuto y te dice si tu teléfono ya está listo.",
 
   takePhotoNow:
-    "Sacá la foto ahora mismo, no elijas una vieja de tu galería. El chequeo del reloj compara el momento en que se sacó la foto contra la hora real: con una foto de otro día no vamos a poder decirte nada.",
+    "Sacá una foto en el momento y después elegila: tu teléfono te va a ofrecer sacar una nueva o elegir alguna que ya tengas. No uses una vieja de tu galería. El chequeo del reloj compara el momento en que se sacó la foto contra la hora real: con una foto de otro día no vamos a poder decirte nada.",
 
   /** El párrafo que va en el mail de confirmación. */
   emailParagraph:
@@ -59,9 +59,9 @@ export const readinessCopy = {
         "Hay que encender el geoetiquetado — que tu teléfono guarde en cada foto el lugar donde la sacaste — y volver a probar. Mirá las instrucciones de tu sistema acá abajo.",
     },
     CLOCK_OFF: {
-      title: "El reloj no está en hora",
+      title: "La hora de la foto no coincide con la hora real",
       whatToDo:
-        "El reloj de tu teléfono no coincide con la hora real. Activá la hora automática en los ajustes de fecha y hora: el día de la Clickatón, la hora de cada foto decide si vale o no.",
+        "Puede ser que la foto no sea de recién: sacá una nueva ahora mismo y volvé a probar. Si con una foto recién sacada sigue dando lo mismo, entonces es el reloj de tu teléfono: activá la hora automática en los ajustes de fecha y hora.",
     },
     TOO_SMALL: {
       title: "La foto es más chica de lo que acepta el concurso",
@@ -81,7 +81,14 @@ export const readinessCopy = {
 
   /** Textos del componente que mide la foto (`ReadinessCheckCard`). */
   check: {
-    takePhotoButtonLabel: "Sacar la foto ahora",
+    /**
+     * Abre el selector de archivos del teléfono, que ofrece sacar una foto
+     * nueva o elegir una del carrete. No se usa `capture` en el input: eso
+     * hace que la saque el navegador por su propio camino, que en iOS no
+     * escribe el GPS en el EXIF — y entonces esta pantalla le diría "tus
+     * fotos salen sin ubicación" a todo iPhone bien configurado.
+     */
+    takePhotoButtonLabel: "Sacar la foto y elegirla",
     measuring: "Midiendo tu foto…",
     retry: "Probar de nuevo",
     lastCheckLabel: "Resultado de tu última prueba",
@@ -93,6 +100,20 @@ export const readinessCopy = {
     invalidTokenMessage: "El enlace no es válido o venció.",
     /** `submitReadinessCheckAction`: la inscripción no existe o no es de esa edición. */
     registrationNotFoundMessage: "No encontramos esa inscripción.",
+    /**
+     * `submitReadinessCheckAction`: la base no respondió (típicamente porque
+     * falta aplicar la migración de esta etapa). No es un problema de la foto
+     * ni del teléfono, así que no puede decir "no pudimos leer esa foto".
+     */
+    unavailableMessage:
+      "El chequeo no está disponible en este momento. No es un problema de tu teléfono: probá de nuevo en un rato.",
+    /**
+     * Falló el viaje al servidor, no la lectura de la foto. En una pantalla
+     * cuyo único producto es un diagnóstico, dar el diagnóstico equivocado
+     * manda a arreglar algo que no está roto.
+     */
+    submitError:
+      "No pudimos enviar el chequeo. Revisá tu conexión y probá de nuevo; la foto se leyó bien.",
   },
 
   /** Textos del pedido de permiso de ubicación (`LocationPermissionCard`). */
@@ -107,6 +128,20 @@ export const readinessCopy = {
       "Listo: el navegador ya tiene permiso para ubicar tu recorrido en este teléfono.",
     denied:
       "No diste el permiso. Podés habilitarlo más adelante desde los ajustes del sitio en tu navegador: es opcional y tu inscripción no depende de esto.",
+    /** El navegador no ofrece geolocalización (sin soporte, o el sitio abierto por HTTP). */
+    unsupported:
+      "Este navegador no puede darnos la ubicación. Probá abrir esta página desde otro navegador del teléfono: es opcional y tu inscripción no depende de esto.",
+  },
+
+  /**
+   * La base no respondió al abrir la pantalla (falta aplicar alguna de las dos
+   * migraciones de esta etapa). Decirle "este enlace venció" sería mentirle:
+   * el enlace está bien, lo que falta es de este lado.
+   */
+  unavailable: {
+    title: "No pudimos abrir el chequeo",
+    whatToDo:
+      "Algo falló de nuestro lado al preparar esta pantalla; no tiene que ver con tu teléfono ni con tu inscripción. Probá de nuevo en un rato.",
   },
 
   /** El enlace venció (meses de anticipación: el mail llega mucho antes del evento). */
@@ -120,13 +155,31 @@ export const readinessCopy = {
 };
 
 /**
- * El mensaje del reloj desfasado es dinámico (`clockDeltaMinutes` de
- * `ReadinessVerdict`, tarea 1): no puede vivir como texto fijo en
- * `results.CLOCK_OFF`. Se arma acá, en una sola frase, para anteponerla al
- * texto genérico en vez de mostrar dos mensajes sueltos.
+ * Hasta acá, un desfasaje se explica mucho mejor por "la foto no es de
+ * recién" que por un reloj mal puesto: la tolerancia del concurso son 5
+ * minutos, así que una foto sacada hace ocho ya da CLOCK_OFF sin que el
+ * teléfono tenga nada malo.
  */
-export function clockDeltaLeadIn(deltaMinutes: number): string {
+export const CLOCK_OFF_PROBABLE_FOTO_VIEJA_MAX_MINUTOS = 60;
+
+/**
+ * El mensaje del reloj desfasado es dinámico (`clockDeltaMinutes` de
+ * `ReadinessVerdict`): no puede vivir como texto fijo en `results.CLOCK_OFF`.
+ *
+ * Nombra siempre las dos posibilidades, y en este orden: primero que la foto
+ * quizás no sea de recién, después que podría ser el reloj. Recién con
+ * desfasajes grandes — más de una hora, que ninguna foto "de hace un rato"
+ * justifica — apunta derecho al reloj. Acusar al reloj por ocho minutos manda
+ * a cambiar un ajuste que estaba bien.
+ */
+export function clockOffMessage(deltaMinutes: number): string {
   const minutos = Math.abs(Math.round(deltaMinutes));
-  const direccion = deltaMinutes < 0 ? "atrasado" : "adelantado";
-  return `Va ${minutos} ${minutos === 1 ? "minuto" : "minutos"} ${direccion}.`;
+  const direccion = deltaMinutes < 0 ? "atrasada" : "adelantada";
+  const cuanto = `La hora que trae la foto está ${minutos} ${minutos === 1 ? "minuto" : "minutos"} ${direccion} respecto de la hora real.`;
+
+  if (minutos <= CLOCK_OFF_PROBABLE_FOTO_VIEJA_MAX_MINUTOS) {
+    return `${cuanto} Lo más probable es que la foto no sea de recién: sacá una ahora mismo y volvé a probar. Si con una foto recién sacada sigue dando lo mismo, entonces sí es el reloj de tu teléfono: activá la hora automática en los ajustes de fecha y hora.`;
+  }
+
+  return `${cuanto} Es demasiado para una foto de hace un rato: el reloj de tu teléfono no está en hora. Activá la hora automática en los ajustes de fecha y hora y volvé a probar.`;
 }
