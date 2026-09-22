@@ -1,7 +1,6 @@
 "use server";
 
-import { prisma } from "@repo/db";
-
+import { prisma, withClickatonDb } from "@/lib/admin/db";
 import { verifyRegistrationAccessToken } from "@/lib/public-registration/domain/access-token";
 import { readinessCopy } from "@/lib/readiness/content/readiness-copy";
 import { evaluateReadiness, type ReadinessVerdict } from "@/lib/readiness/domain/readiness";
@@ -73,24 +72,36 @@ export async function submitReadinessCheckAction(
     return { ok: false, message: readinessCopy.check.invalidTokenMessage };
   }
 
-  const registration = await prisma.clickatonRegistration.findUnique({
-    where: { id: registrationId },
-    select: {
-      editionId: true,
-      edition: {
-        select: {
-          slug: true,
-          uploadConfig: {
-            select: {
-              captureClockToleranceMinutes: true,
-              minWidth: true,
-              minHeight: true,
+  // Las dos migraciones de esta etapa todavía no están aplicadas en ninguna
+  // base, y el mail ya reparte este enlace: sin `withClickatonDb`, un P2021
+  // (tabla ausente) o un P2022 (columna ausente) se escapa hasta el catch del
+  // componente, que lo anuncia como "no pudimos leer esa foto" — un
+  // diagnóstico falso sobre el teléfono del participante.
+  const consulta = await withClickatonDb(() =>
+    prisma.clickatonRegistration.findUnique({
+      where: { id: registrationId },
+      select: {
+        editionId: true,
+        edition: {
+          select: {
+            slug: true,
+            uploadConfig: {
+              select: {
+                captureClockToleranceMinutes: true,
+                minWidth: true,
+                minHeight: true,
+              },
             },
           },
         },
       },
-    },
-  });
+    }),
+  );
+  if (!consulta.ok) {
+    return { ok: false, message: readinessCopy.check.unavailableMessage };
+  }
+
+  const registration = consulta.data;
   if (!registration || registration.edition.slug !== editionSlug) {
     return { ok: false, message: readinessCopy.check.registrationNotFoundMessage };
   }
@@ -110,18 +121,23 @@ export async function submitReadinessCheckAction(
 
   // Nunca se crea/reemplaza `ClickatonPhotoSubmission`: esto es sólo un
   // chequeo, no un envío de concurso.
-  await prisma.clickatonReadinessCheck.create({
-    data: {
-      editionId: registration.editionId,
-      registrationId,
-      hasGps,
-      clockDeltaMinutes: verdict.clockDeltaMinutes,
-      imageWidth: Number.isFinite(width) ? Math.round(width) : null,
-      imageHeight: Number.isFinite(height) ? Math.round(height) : null,
-      result: verdict.result,
-      detail: { problems: verdict.problems },
-    },
-  });
+  const guardado = await withClickatonDb(() =>
+    prisma.clickatonReadinessCheck.create({
+      data: {
+        editionId: registration.editionId,
+        registrationId,
+        hasGps,
+        clockDeltaMinutes: verdict.clockDeltaMinutes,
+        imageWidth: Number.isFinite(width) ? Math.round(width) : null,
+        imageHeight: Number.isFinite(height) ? Math.round(height) : null,
+        result: verdict.result,
+        detail: { problems: verdict.problems },
+      },
+    }),
+  );
+  if (!guardado.ok) {
+    return { ok: false, message: readinessCopy.check.unavailableMessage };
+  }
 
   return { ok: true, verdict };
 }

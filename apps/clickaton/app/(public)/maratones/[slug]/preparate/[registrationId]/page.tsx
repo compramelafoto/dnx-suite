@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
 
-import { prisma } from "@repo/db";
-
 import { SimpleBreadcrumb } from "@/components/content/SimpleBreadcrumb";
 import { Container } from "@/components/layout/Container";
 import { Section } from "@/components/layout/Section";
@@ -10,6 +8,7 @@ import { LocationPermissionCard } from "@/components/readiness/LocationPermissio
 import { ReadinessCheckCard } from "@/components/readiness/ReadinessCheckCard";
 import { Button } from "@/components/ui/Button";
 import { marathonPath, routes } from "@/config/navigation";
+import { prisma, withClickatonDb } from "@/lib/admin/db";
 import { verifyRegistrationAccessToken } from "@/lib/public-registration/domain/access-token";
 import { readinessCopy } from "@/lib/readiness/content/readiness-copy";
 import type { ReadinessResult } from "@/lib/readiness/domain/readiness";
@@ -33,18 +32,28 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 /**
+ * La pantalla de "acá no hay chequeo", con las dos salidas de siempre.
+ *
  * El enlace llega por mail meses antes del evento (`READINESS_TOKEN_TTL_MS`),
- * así que cuando vence no corresponde un 404 pelado: hay que explicar que
- * venció y ofrecer una salida real.
+ * así que cuando vence no corresponde un 404 pelado: hay que explicar qué
+ * pasó y ofrecer una salida real. El motivo lo pone quien la usa, porque no
+ * es lo mismo "venció tu enlace" que "la base no respondió": lo segundo no
+ * es culpa del participante y decirle que venció sería mentirle.
  */
-function EnlaceVencido({ slug }: { slug: string }) {
+function SinChequeo({
+  slug,
+  title,
+  whatToDo,
+}: {
+  slug: string;
+  title: string;
+  whatToDo: string;
+}) {
   return (
     <Section>
       <Container className="space-y-6 py-12">
-        <h1 className="ck-display-md">{readinessCopy.expiredLink.title}</h1>
-        <p className="max-w-2xl text-ck-text-secondary leading-relaxed">
-          {readinessCopy.expiredLink.whatToDo}
-        </p>
+        <h1 className="ck-display-md">{title}</h1>
+        <p className="max-w-2xl text-ck-text-secondary leading-relaxed">{whatToDo}</p>
         <div className="flex flex-wrap gap-3">
           <Button href={routes.account} variant="primary" className="min-h-11">
             {readinessCopy.expiredLink.goToAccountLabel}
@@ -73,32 +82,67 @@ export default async function ReadinessCheckPage({ params, searchParams }: Props
   });
 
   if (!verification.ok || !accessToken) {
-    return <EnlaceVencido slug={slug} />;
+    return (
+      <SinChequeo
+        slug={slug}
+        title={readinessCopy.expiredLink.title}
+        whatToDo={readinessCopy.expiredLink.whatToDo}
+      />
+    );
   }
 
-  const registration = await prisma.clickatonRegistration.findUnique({
-    where: { id: registrationId },
-    select: {
-      locationConsentAt: true,
-      edition: {
-        select: {
-          slug: true,
-          name: true,
-          timezone: true,
+  // Ninguna de las dos migraciones de esta etapa está aplicada todavía, y el
+  // mail ya reparte este enlace desde el primer despliegue. Sin este
+  // envoltorio, `clickatonReadinessCheck` ausente (P2021) o
+  // `locationConsentAt` ausente (P2022) revientan la página entera en la cara
+  // del participante. `withClickatonDb` ya sabe reconocer las dos cosas.
+  const datos = await withClickatonDb(async () => {
+    const registration = await prisma.clickatonRegistration.findUnique({
+      where: { id: registrationId },
+      select: {
+        locationConsentAt: true,
+        edition: {
+          select: {
+            slug: true,
+            name: true,
+            timezone: true,
+          },
         },
       },
-    },
+    });
+
+    if (!registration || registration.edition.slug !== slug) return null;
+
+    const lastCheck = await prisma.clickatonReadinessCheck.findFirst({
+      where: { registrationId },
+      orderBy: { checkedAt: "desc" },
+      select: { result: true, clockDeltaMinutes: true },
+    });
+
+    return { registration, lastCheck };
   });
 
-  if (!registration || registration.edition.slug !== slug) {
-    return <EnlaceVencido slug={slug} />;
+  if (!datos.ok) {
+    return (
+      <SinChequeo
+        slug={slug}
+        title={readinessCopy.unavailable.title}
+        whatToDo={readinessCopy.unavailable.whatToDo}
+      />
+    );
   }
 
-  const lastCheck = await prisma.clickatonReadinessCheck.findFirst({
-    where: { registrationId },
-    orderBy: { checkedAt: "desc" },
-    select: { result: true, clockDeltaMinutes: true },
-  });
+  if (!datos.data) {
+    return (
+      <SinChequeo
+        slug={slug}
+        title={readinessCopy.expiredLink.title}
+        whatToDo={readinessCopy.expiredLink.whatToDo}
+      />
+    );
+  }
+
+  const { registration, lastCheck } = datos.data;
 
   return (
     <Section>
