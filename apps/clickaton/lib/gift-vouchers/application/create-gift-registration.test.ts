@@ -5,6 +5,7 @@ import {
   createGiftRegistrationUseCase,
   type CreateGiftRegistrationInput,
   type GiftEditionView,
+  type GiftPricePhaseView,
   type GiftTicketView,
 } from "./create-gift-registration";
 
@@ -24,6 +25,7 @@ const ticket: GiftTicketView = {
   id: "tt_1",
   editionId: "ed_1",
   venueId: null,
+  code: "GENERAL",
   priceAmount: 5_000_000,
   currency: "ARS",
   holdMinutes: 20,
@@ -31,10 +33,13 @@ const ticket: GiftTicketView = {
   salesStatus: "open",
 };
 
+const fases: GiftPricePhaseView[] = [];
+
 function setup(
   overrides: {
     edition?: Partial<GiftEditionView>;
     ticket?: Partial<GiftTicketView>;
+    pricePhases?: GiftPricePhaseView[];
   } = {},
 ) {
   const vouchers = createInMemoryGiftVoucherRepository();
@@ -49,6 +54,9 @@ function setup(
       },
       async getTicketDetail() {
         return { ...ticket, ...overrides.ticket };
+      },
+      async listPricePhases() {
+        return overrides.pricePhases ?? fases;
       },
       async createReservedRegistration(cmd) {
         created.push(cmd);
@@ -190,6 +198,46 @@ describe("alta de regalo", () => {
   it("rechaza sin token de idempotencia", async () => {
     const { use } = setup();
     await assert.rejects(() => use.execute(input({ idempotencyKey: "corto" })), /idempotencia/i);
+  });
+
+  it("cobra el precio de la fase vigente, no el precio base de la entrada", async () => {
+    // Probado en la web real: la pantalla mostraba el precio de la fase y el
+    // backend cobraba el del ticket. Desde el 6/10 la fase sube a $35.000 y
+    // se habrían cobrado $30.000.
+    const { use, created } = setup({
+      pricePhases: [
+        {
+          id: "fase_1",
+          name: "Primera etapa",
+          amount: 3_500_000,
+          startsAt: new Date("2026-09-01T00:00:00.000Z"),
+          endsAt: new Date("2026-11-09T00:00:00.000Z"),
+          isActive: true,
+          priority: 0,
+          capacity: null,
+          currency: "ARS",
+        },
+      ],
+    });
+    const result = await use.execute(input());
+
+    assert.equal(result.totalAmount, 3_500_000);
+    const cmd = created[0] as Record<string, unknown>;
+    assert.equal(cmd.totalAmount, 3_500_000);
+    assert.equal(cmd.pricePhaseId, "fase_1");
+    assert.equal(cmd.pricePhaseNameSnapshot, "Primera etapa");
+  });
+
+  it("sin fases vigentes cae al precio de la entrada", async () => {
+    const { use } = setup({ pricePhases: [] });
+    const result = await use.execute(input());
+    assert.equal(result.totalAmount, 5_000_000);
+  });
+
+  it("rechaza el Pack de 4 maratones: no se regala en esta etapa", async () => {
+    // El Pack le da 4 créditos a quien lo compra. Regalarlo es otra cosa.
+    const { use } = setup({ ticket: { code: "PACK_4", priceAmount: 10_000_000 } });
+    await assert.rejects(() => use.execute(input()), /Pack/i);
   });
 
   it("recorta la dedicatoria a 500 caracteres", async () => {

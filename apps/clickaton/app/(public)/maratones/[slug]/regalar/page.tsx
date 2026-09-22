@@ -39,7 +39,9 @@ export default async function GiftPurchasePage({ params }: PageProps) {
   // El módulo nace apagado por edición: si no está encendido, la ruta no existe.
   if (!context.edition.giftVouchersEnabled) notFound();
 
-  const sellable = context.tickets.filter((t) => !t.isSoldOut && t.salesStatus === "open");
+  const sellable = context.tickets.filter(
+    (t) => !t.isSoldOut && t.salesStatus === "open" && !t.isMarathonPack,
+  );
   if (context.registrationWindow !== "open" || sellable.length === 0) {
     return (
       <Section>

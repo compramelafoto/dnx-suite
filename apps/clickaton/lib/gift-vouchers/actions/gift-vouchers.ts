@@ -22,6 +22,7 @@ export type GiftVoucherPublicDto = {
   editionSlug: string;
   editionName: string;
   editionStartAt: string | null;
+  ticketTypeId: string;
   ticketName: string;
   venueName: string | null;
   canRedeem: boolean;
@@ -102,6 +103,7 @@ export async function getGiftVoucherPublicAction(
         },
         registration: {
           select: {
+            ticketTypeId: true,
             ticketType: { select: { name: true } },
             venue: { select: { name: true } },
           },
@@ -129,6 +131,7 @@ export async function getGiftVoucherPublicAction(
       editionSlug: voucher.edition.slug,
       editionName: voucher.edition.name,
       editionStartAt: voucher.edition.startAt?.toISOString() ?? null,
+      ticketTypeId: voucher.registration.ticketTypeId,
       ticketName: voucher.registration.ticketType.name,
       venueName: voucher.registration.venue?.name ?? null,
       canRedeem: eligibility.ok,

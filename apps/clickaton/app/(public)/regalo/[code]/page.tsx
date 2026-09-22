@@ -102,6 +102,7 @@ export default async function GiftRedeemPage({ params }: PageProps) {
           code={voucher.code}
           context={contextResult.data}
           editionSlug={voucher.editionSlug}
+          ticketTypeId={voucher.ticketTypeId}
           idempotencyKey={idempotencyKey}
           marathonHref={marathonPath(voucher.editionSlug)}
         />

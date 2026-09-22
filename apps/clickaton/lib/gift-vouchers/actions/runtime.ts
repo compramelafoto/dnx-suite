@@ -45,12 +45,27 @@ export function getGiftVoucherRuntime(): GiftVoucherRuntime {
             id: ticket.id,
             editionId: ticket.editionId,
             venueId: ticket.venueId,
+            code: ticket.code,
             priceAmount: ticket.priceAmount,
             currency: ticket.currency,
             holdMinutes: ticket.holdMinutes,
             isSoldOut: ticket.isSoldOut,
             salesStatus: ticket.salesStatus,
           };
+        },
+        async listPricePhases(editionId) {
+          const phases = await publicRepo.listPricePhases(editionId);
+          return phases.map((p) => ({
+            id: p.id,
+            name: p.name,
+            amount: p.amount,
+            startsAt: p.startsAt,
+            endsAt: p.endsAt,
+            isActive: p.isActive,
+            priority: p.priority,
+            capacity: p.capacity,
+            currency: p.currency,
+          }));
         },
         createReservedRegistration(cmd) {
           return publicRepo.createReservedGiftRegistration(

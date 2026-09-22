@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { createGiftRegistrationAction } from "@/lib/gift-vouchers/actions/gift-vouchers";
@@ -22,8 +22,12 @@ export function GiftPurchaseForm(props: {
   idempotencyKey: string;
 }) {
   const router = useRouter();
+  // El Pack de 4 maratones no se regala: le da créditos a quien lo compra.
   const sellableTickets = useMemo(
-    () => props.context.tickets.filter((t) => !t.isSoldOut && t.salesStatus === "open"),
+    () =>
+      props.context.tickets.filter(
+        (t) => !t.isSoldOut && t.salesStatus === "open" && !t.isMarathonPack,
+      ),
     [props.context.tickets],
   );
 
@@ -31,12 +35,15 @@ export function GiftPurchaseForm(props: {
   const [giftMessage, setGiftMessage] = useState("");
   const [state, formAction, pending] = useActionState(createGiftRegistrationAction, undefined);
 
-  if (state?.ok && state.data) {
-    // La compra quedó reservada: seguimos al pago como cualquier inscripción.
-    router.push(
-      `/maratones/${props.editionSlug}/inscripcion/pago?registrationId=${state.data.registrationId}&regalo=${state.data.voucherCode}`,
-    );
-  }
+  // La redirección va en un efecto: hacerla durante el render deja a React
+  // actualizando el Router mientras dibuja este componente.
+  useEffect(() => {
+    if (state?.ok && state.data) {
+      router.push(
+        `/maratones/${props.editionSlug}/regalar/listo?code=${encodeURIComponent(state.data.voucherCode)}`,
+      );
+    }
+  }, [state, router, props.editionSlug]);
 
   const currentPhase = props.context.currentPricePhase;
   const selected = sellableTickets.find((t) => t.id === ticketTypeId);

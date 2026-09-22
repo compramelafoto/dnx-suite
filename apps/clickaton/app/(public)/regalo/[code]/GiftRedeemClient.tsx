@@ -15,6 +15,8 @@ export function GiftRedeemClient(props: {
   code: string;
   context: PublicRegistrationContextDto;
   editionSlug: string;
+  /** Entrada que compró quien regaló: de ahí salen los productos del kit. */
+  ticketTypeId: string;
   idempotencyKey: string;
   marathonHref: string;
 }) {
@@ -44,12 +46,15 @@ export function GiftRedeemClient(props: {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // El regalo ya tiene su entrada elegida: los productos salen de ahí.
+  // Los productos salen de LA entrada que compró quien regaló, no de la
+  // primera del catálogo: si hay más de una, son kits distintos.
   const shirtProducts = useMemo(() => {
-    const ticket = props.context.tickets[0];
+    const ticket =
+      props.context.tickets.find((t) => t.id === props.ticketTypeId) ??
+      props.context.tickets[0];
     if (!ticket) return [];
     return ticket.products.filter((p) => p.requiresVariantChoice);
-  }, [props.context.tickets]);
+  }, [props.context.tickets, props.ticketTypeId]);
 
   async function uploadPhoto(file: File | null) {
     if (!file) return;
@@ -129,7 +134,14 @@ export function GiftRedeemClient(props: {
         setError(result.message ?? "No pudimos activar tu regalo.");
         return;
       }
-      router.push(`${props.marathonHref}/inscripcion/activar/${result.data.registrationId}`);
+      router.push(`/regalo/${props.code}/listo?inscripcion=${result.data.registrationId}`);
+    } catch (err) {
+      // Sin esto, un fallo de red deja el botón mudo y la persona no sabe
+      // si su regalo se activó o no.
+      console.error("[clickaton] activar regalo falló:", err);
+      setError(
+        "No pudimos activar tu regalo. Revisá tu conexión y probá de nuevo; tu regalo sigue guardado.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -185,6 +197,7 @@ export function GiftRedeemClient(props: {
             sizeChartUrl={p.sizeChartUrl}
             sizeChartDescription={p.sizeChartDescription}
             sizeChartInstructions={p.sizeChartInstructions}
+            confirmationHint="Elegí tu talle para confirmar el beneficio al activar tu lugar."
           />
         );
       })}

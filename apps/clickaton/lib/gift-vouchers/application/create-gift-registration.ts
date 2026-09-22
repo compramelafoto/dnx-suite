@@ -1,3 +1,5 @@
+import { isMarathonPackTicketCode } from "@/lib/packs/marathon-pack";
+import { resolveCurrentPricePhase } from "@/lib/pricing/domain/resolve-price-phase";
 import { generateGiftVoucherCode } from "../domain/code";
 import type { GiftVoucherRepository } from "../domain/repository";
 
@@ -59,11 +61,26 @@ export type GiftTicketView = {
   id: string;
   editionId: string;
   venueId: string | null;
+  /** Código del catálogo: PACK_4 no se puede regalar en esta etapa. */
+  code: string;
   priceAmount: number;
   currency: string;
   holdMinutes: number;
   isSoldOut: boolean;
   salesStatus: "open" | "not_started" | "ended" | "inactive";
+};
+
+export type GiftPricePhaseView = {
+  id: string;
+  name: string;
+  amount: number;
+  startsAt: Date;
+  endsAt: Date;
+  isActive: boolean;
+  priority: number;
+  /** Cupo propio de la fase; null = sin límite. */
+  capacity: number | null;
+  currency: string;
 };
 
 export type CreateGiftRegistrationDeps = {
@@ -72,6 +89,7 @@ export type CreateGiftRegistrationDeps = {
   registrations: {
     getEditionBySlug(slug: string): Promise<GiftEditionView | null>;
     getTicketDetail(ticketTypeId: string): Promise<GiftTicketView | null>;
+    listPricePhases(editionId: string): Promise<GiftPricePhaseView[]>;
     createReservedRegistration(cmd: Record<string, unknown>): Promise<{ id: string }>;
   };
   generateCode?: () => string;
@@ -153,6 +171,30 @@ export function createGiftRegistrationUseCase(deps: CreateGiftRegistrationDeps) 
           "La venta de esta entrada no está abierta.",
         );
       }
+      // El Pack le da 4 créditos a quien lo compra, atados a su identidad.
+      // Regalarlo es otro problema: queda para una etapa siguiente.
+      if (isMarathonPackTicketCode(ticket.code)) {
+        throw new GiftRegistrationError(
+          "TICKET_NOT_AVAILABLE",
+          "El Pack de 4 maratones no se puede regalar. Elegí la inscripción general.",
+        );
+      }
+
+      // El precio lo manda la fase vigente, igual que en la inscripción
+      // normal. Si se tomara el precio base de la entrada, la pantalla
+      // mostraría un importe y se cobraría otro en cuanto cambie la fase.
+      const phases = await deps.registrations.listPricePhases(edition.id);
+      const resolvedPhase = resolveCurrentPricePhase(
+        phases.map((p) => ({ ...p, editionId: edition.id, description: null })),
+        now,
+      );
+      const hasActivePhases = phases.some((p) => p.isActive);
+      if (ticket.priceAmount > 0 && hasActivePhases && !resolvedPhase) {
+        throw new GiftRegistrationError(
+          "EDITION_NOT_AVAILABLE",
+          "No hay una fase de precio vigente para esta edición.",
+        );
+      }
 
       const firstName = requireName(input.buyer.firstName, "tu nombre");
       const lastName = requireName(input.buyer.lastName, "tu apellido");
@@ -171,7 +213,14 @@ export function createGiftRegistrationUseCase(deps: CreateGiftRegistrationDeps) 
       const holdMinutes =
         ticket.holdMinutes > 0 ? ticket.holdMinutes : DEFAULT_HOLD_MINUTES;
       const holdExpiresAt = new Date(now.getTime() + holdMinutes * 60_000);
-      const totalAmount = ticket.priceAmount;
+
+      const totalAmount =
+        resolvedPhase && ticket.priceAmount > 0
+          ? resolvedPhase.phase.amount
+          : ticket.priceAmount;
+      const pricePhaseId = resolvedPhase?.phase.id ?? null;
+      const pricePhaseNameSnapshot = resolvedPhase?.phase.name ?? null;
+      const pricePhaseAmountSnapshot = resolvedPhase?.phase.amount ?? null;
 
       const registration = await deps.registrations.createReservedRegistration({
         idempotencyKey,
@@ -193,9 +242,9 @@ export function createGiftRegistrationUseCase(deps: CreateGiftRegistrationDeps) 
         totalAmount,
         promotionId: null,
         promotionCodeSnapshot: null,
-        pricePhaseId: null,
-        pricePhaseNameSnapshot: null,
-        pricePhaseAmountSnapshot: null,
+        pricePhaseId,
+        pricePhaseNameSnapshot,
+        pricePhaseAmountSnapshot,
         acceptedTermsAt: now,
         termsVersion: TERMS_VERSION,
       });

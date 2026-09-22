@@ -849,9 +849,81 @@ export function createPrismaPublicRegistrationRepository(
               where: { ticketTypeId: existing.ticketTypeId },
               include: { product: true, productVariant: true },
             });
+            // La remera de la edición sale de la FASE DE PRECIO, no del
+            // ticket base. Sin esto, quien activa el regalo elige su talle y
+            // el talle se pierde: nadie sabe qué remera entregarle.
+            const phaseItems = existing.pricePhaseId
+              ? await tx.clickatonPricePhaseItem.findMany({
+                  where: { pricePhaseId: existing.pricePhaseId, isIncluded: true },
+                  include: { product: true },
+                })
+              : [];
             const chosenByProduct = new Map(
               cmd.variantChoices.map((c) => [c.productId, c.productVariantId]),
             );
+
+            for (const item of phaseItems) {
+              const variantId = chosenByProduct.get(item.productId) ?? null;
+              const variant = variantId
+                ? await tx.clickatonProductVariant.findUnique({ where: { id: variantId } })
+                : null;
+
+              await tx.clickatonRegistrationItem.create({
+                data: {
+                  registrationId: updated.id,
+                  pricePhaseItemId: item.id,
+                  sourceType: "PRICE_PHASE",
+                  productId: item.productId,
+                  productVariantId: variantId,
+                  nameSnapshot: item.displayTitle ?? item.product.name,
+                  productNameSnapshot: item.product.name,
+                  productDescriptionSnapshot: item.product.description,
+                  variantNameSnapshot: variant?.name ?? null,
+                  skuSnapshot: variant?.sku ?? null,
+                  quantity: item.quantity,
+                  unitPriceAmount: 0,
+                  totalPriceAmount: 0,
+                  currency: updated.currency,
+                  isIncluded: true,
+                  fulfillmentStatus: "PENDING",
+                },
+              });
+
+              if (variantId) {
+                await tx.clickatonProductVariant.update({
+                  where: { id: variantId },
+                  data: { reservedStock: { increment: item.quantity } },
+                });
+                await tx.clickatonStockHold.create({
+                  data: {
+                    registrationId: updated.id,
+                    productVariantId: variantId,
+                    quantity: item.quantity,
+                    status: "CONSUMED",
+                    expiresAt: confirmedAt,
+                    consumedAt: confirmedAt,
+                  },
+                });
+                const phaseMoveKey = `reg:${updated.id}:var:${variantId}:gift:phase`;
+                const existingPhaseMove = await tx.clickatonInventoryMovement.findUnique({
+                  where: { idempotencyKey: phaseMoveKey },
+                });
+                if (!existingPhaseMove) {
+                  await tx.clickatonInventoryMovement.create({
+                    data: {
+                      productId: item.productId,
+                      variantId,
+                      movementType: "REGISTRATION_HOLD",
+                      quantity: item.quantity,
+                      sourceType: "REGISTRATION",
+                      sourceId: updated.id,
+                      reason: "Beneficio de fase asignado al activar un regalo",
+                      idempotencyKey: phaseMoveKey,
+                    },
+                  });
+                }
+              }
+            }
 
             for (const item of ticketItems) {
               const variantId =
