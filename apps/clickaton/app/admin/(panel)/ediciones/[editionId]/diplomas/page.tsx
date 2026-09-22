@@ -94,7 +94,7 @@ export default async function EditionDiplomasPage({ params }: Props) {
         title="Diplomas de participación"
         description={`${rows.length} acreditado${rows.length === 1 ? "" : "s"} · ${emitidos} diploma${
           emitidos === 1 ? "" : "s"
-        } emitido${emitidos === 1 ? "" : "s"}.`}
+        } emitido${emitidos === 1 ? "" : "s"} · ${fallidos} fallido${fallidos === 1 ? "" : "s"}.`}
         breadcrumbs={breadcrumbs}
       />
 

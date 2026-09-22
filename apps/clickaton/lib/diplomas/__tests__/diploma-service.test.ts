@@ -434,7 +434,7 @@ describe("renderDiplomaPreview", () => {
           checkIns: [],
           edition: { name: "1ª Edición", slug: "dia-del-fotografo-2026" },
         }),
-        renderPng: async (input: DiplomaRenderPngInput) => {
+        renderPng: async () => {
           dibujos += 1;
           return { png: Buffer.from("x"), width: 1, height: 1, durationMs: 1 };
         },
