@@ -34,6 +34,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS "ClickatonDiplomaIssue_registration_active_key
   ON "ClickatonDiplomaIssue" ("registrationId") WHERE "revokedAt" IS NULL;
 CREATE INDEX IF NOT EXISTS "ClickatonDiplomaIssue_edition_idx"
   ON "ClickatonDiplomaIssue" ("editionId", "emailStatus");
+CREATE INDEX IF NOT EXISTS "ClickatonDiplomaIssue_cardId_idx"
+  ON "ClickatonDiplomaIssue" ("cardId");
 
 ALTER TABLE "ClickatonDiplomaIssue"
   ADD CONSTRAINT "ClickatonDiplomaIssue_registrationId_fkey"
@@ -43,3 +45,7 @@ ALTER TABLE "ClickatonDiplomaIssue"
   ADD CONSTRAINT "ClickatonDiplomaIssue_editionId_fkey"
   FOREIGN KEY ("editionId") REFERENCES "ClickatonEdition"("id")
   ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ClickatonDiplomaIssue"
+  ADD CONSTRAINT "ClickatonDiplomaIssue_cardId_fkey"
+  FOREIGN KEY ("cardId") REFERENCES "ClickatonParticipantCard"("id")
+  ON DELETE SET NULL ON UPDATE CASCADE;

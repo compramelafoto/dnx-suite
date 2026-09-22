@@ -13091,6 +13091,7 @@ model ClickatonDiplomaIssue {
   edition      ClickatonEdition          @relation(fields: [editionId], references: [id], onDelete: Restrict)
 
   @@index([editionId, emailStatus])
+  @@index([cardId])
 }
 
 /// Plantilla Template V2 asignada a las placas de una edición.
