@@ -17,17 +17,26 @@
  * `issueDiploma` recién al procesarla— así que sus `templateKey`/`templateVersion`/
  * `rendererVersion` son un placeholder fijo y su `renderHash` es determinístico
  * por inscripción: eso es lo que evita que un doble clic en "encolar" (o dos
- * ciclos de cron pisándose) cree una segunda fila para la misma persona — la
- * base la rechaza con P2002 y `enqueueDiplomaQueueRow` se la traga en silencio.
+ * ciclos de cron pisándose) cree una segunda fila para la misma persona. La
+ * base rechaza la segunda con P2002 y `enqueueDiplomaQueueRow` decide qué
+ * hacer con eso: si la fila que ya estaba es una que fracasó todas sus
+ * veces, la revive (si no, ese diploma queda sin dueño para siempre); si
+ * sigue en curso, no hace nada más.
  */
 import { createHash } from "node:crypto";
 import { prisma } from "@/lib/admin/db";
 import { DIPLOMA_CANDIDATE_QUERY, selectDiplomaCandidates } from "./diploma-eligibility";
 import { issueDiploma, type IssueDiplomaResult } from "./diploma-service";
-import type { ParticipantCardActor } from "../participant-cards/participant-card-types";
+import type { DiplomaErrorCode } from "./diploma-types";
 
-/** Lock de la pieza encolada, igual TTL que welcome/member. */
-const DIPLOMA_QUEUE_LOCK_TTL_MS = 120_000;
+/**
+ * Lock de la pieza encolada. Tiene que vivir más que `maxDuration` de la
+ * ruta del cron (300s, ver `app/api/cron/diplomas/route.ts`): si el lock
+ * expirase antes de que termine una tanda larga, la vuelta siguiente podría
+ * volver a tomar una fila que todavía se está dibujando. No duplicaría el
+ * diploma (`issueDiploma` es idempotente) pero desperdiciaría el trabajo.
+ */
+const DIPLOMA_QUEUE_LOCK_TTL_MS = 360_000;
 
 /** Placeholder de la fila encolada: todavía no se resolvió ninguna plantilla real. */
 const DIPLOMA_QUEUE_TEMPLATE_KEY = "PENDING";
@@ -35,40 +44,22 @@ const DIPLOMA_QUEUE_TEMPLATE_VERSION = 0;
 const DIPLOMA_QUEUE_RENDERER_VERSION = "PENDING";
 
 /**
- * Tope de reintentos por pieza. Una edición con la plantilla rota no puede
- * monopolizar la tanda para siempre: `defaultLoadPending` ordena por
- * antigüedad, así que si sus filas son las más viejas y superan `limit`, las
- * de otras ediciones nunca se tomarían. Pasado el tope, `defaultIssue` marca
- * la fila `FAILED` (deja de aparecer en `GENERATING`) en vez de liberar el
- * lock otra vez.
+ * Tope de reintentos **por ronda de encolado**, no de por vida: cada llamada
+ * a `enqueueEditionDiplomas` que revive una fila fallida (ver
+ * `enqueueDiplomaQueueRow`) le reinicia el contador a cero. Una edición con
+ * la plantilla rota no puede monopolizar la tanda para siempre —
+ * `defaultLoadPending` ordena por antigüedad, así que si sus filas son las
+ * más viejas y superan `limit`, las de otras ediciones nunca se tomarían—,
+ * pero tampoco puede dejar a alguien sin diploma de forma permanente sólo
+ * porque la plantilla estuvo rota un rato.
  */
-const DIPLOMA_QUEUE_MAX_ATTEMPTS = 5;
+export const DIPLOMA_QUEUE_MAX_ATTEMPTS = 5;
 
 const DIPLOMA_BATCH_LIMIT_DEFAULT = 25;
 const DIPLOMA_BATCH_LIMIT_MAX = 100;
 
 function sanitizeBatchLimit(limit: number): number {
   return Math.max(1, Math.min(DIPLOMA_BATCH_LIMIT_MAX, Math.trunc(limit) || DIPLOMA_BATCH_LIMIT_DEFAULT));
-}
-
-/**
- * Actor de marcador para el camino del cron: no representa ninguna sesión
- * real, y a propósito no lleva `globalRole`. La puerta de este camino es la
- * autorización de la RUTA (`CRON_SECRET` / `x-vercel-cron`, ver
- * `app/api/cron/diplomas/route.ts`), nunca un rol fabricado — por eso
- * `defaultIssue` no deja correr el `checkAccess` real de `issueDiploma`
- * (que exige un admin de verdad, `requireParticipantCardAdminAccess`): le
- * pasa un `checkAccess` explícito que no hace nada, dejándolo dicho en el
- * código en vez de mentir con un `globalRole: "SUPER_ADMIN"` que ningún
- * proceso automático de Clickatón usa. Mismo criterio que
- * `participant-card-autogenerate.ts`: nunca amplía permisos inventando algo
- * que no existe.
- */
-const DIPLOMA_BATCH_ACTOR: ParticipantCardActor = { kind: "admin" };
-
-/** No-op a propósito: ver el comentario de `DIPLOMA_BATCH_ACTOR`. */
-function allowDiplomaBatchIssue(): void {
-  // La autorización de este camino ya ocurrió en la ruta del cron.
 }
 
 function isPrismaUniqueViolation(err: unknown): boolean {
@@ -96,6 +87,13 @@ export type EnqueueDiplomaQueueRowDeps = {
     renderHash: string;
     status: "GENERATING";
   }) => Promise<unknown>;
+  /**
+   * Ante P2002, revive la fila si (y sólo si) está `FAILED`: la vuelve a
+   * `GENERATING` con el contador de intentos en cero. Devuelve `true` si
+   * revivió algo, `false` si la fila que ya estaba sigue en curso (no hay
+   * nada para revivir ni para duplicar).
+   */
+  reviveFailed?: (input: { registrationId: string; editionId: string }) => Promise<boolean>;
 };
 
 async function defaultCreateQueueRow(data: {
@@ -111,18 +109,49 @@ async function defaultCreateQueueRow(data: {
   return prisma.clickatonParticipantCard.create({ data });
 }
 
+async function defaultReviveFailedQueueRow(input: {
+  registrationId: string;
+  editionId: string;
+}): Promise<boolean> {
+  // Mismo patrón que `participant-card-persistence.ts` con STALE/FAILED: no
+  // se crea una fila nueva, se revive la que ya existe (contador de
+  // intentos a cero, motivo y fecha de fallo limpios). El `where` exige
+  // `status: FAILED`: si la fila existente sigue `GENERATING`, esto no
+  // matchea nada y `count` da 0 — correcto, ahí no hay nada que revivir.
+  const updated = await prisma.clickatonParticipantCard.updateMany({
+    where: {
+      registrationId: input.registrationId,
+      editionId: input.editionId,
+      cardType: "DIPLOMA",
+      renderHash: buildDiplomaQueueRenderHash(input.registrationId),
+      status: "FAILED",
+    },
+    data: {
+      status: "GENERATING",
+      attemptCount: 0,
+      errorCode: null,
+      failedAt: null,
+      lockExpiresAt: null,
+      startedAt: new Date(),
+    },
+  });
+  return updated.count === 1;
+}
+
 /**
- * Crea la fila `GENERATING` de una inscripción. Devuelve `true` si la creó,
- * `false` si ya existía (P2002 por el `renderHash` determinístico) — esto es
- * lo que de verdad frena el duplicado, no el chequeo previo contra
- * `loadIssuedRegistrationIds` (ese sólo filtra a quien ya tiene el diploma
- * terminado, no a quien ya está encolado).
+ * Crea la fila `GENERATING` de una inscripción. Devuelve `true` si creó una
+ * fila nueva o revivió una que había fracasado, `false` si ya había una en
+ * curso y no hizo falta tocar nada — esto es lo que de verdad frena el
+ * duplicado, no el chequeo previo contra `loadIssuedRegistrationIds` (ese
+ * sólo filtra a quien ya tiene el diploma terminado, no a quien ya está
+ * encolado).
  */
 export async function enqueueDiplomaQueueRow(
   input: { registrationId: string; editionId: string },
   deps: EnqueueDiplomaQueueRowDeps = {}
 ): Promise<boolean> {
   const create = deps.create ?? defaultCreateQueueRow;
+  const reviveFailed = deps.reviveFailed ?? defaultReviveFailedQueueRow;
   try {
     await create({
       registrationId: input.registrationId,
@@ -136,10 +165,12 @@ export async function enqueueDiplomaQueueRow(
     });
     return true;
   } catch (err) {
-    // Ya había una fila encolada (o emitida y no borrada a tiempo) para esta
-    // inscripción: no es un error, es exactamente lo que "no duplicar" pide.
-    if (isPrismaUniqueViolation(err)) return false;
-    throw err;
+    if (!isPrismaUniqueViolation(err)) throw err;
+    // Ya había una fila para esta inscripción. Si fracasó todas sus veces,
+    // revivirla (si no, ese diploma queda sin dueño para siempre apenas se
+    // arregla lo que la hacía fallar). Si sigue en curso, no hay nada para
+    // hacer — no es un duplicado, es la misma fila haciendo su trabajo.
+    return reviveFailed(input);
   }
 }
 
@@ -152,11 +183,8 @@ export type EnqueueDiplomaCandidate = {
 export type EnqueueEditionDiplomasDeps = {
   loadCandidates?: (editionId: string) => Promise<EnqueueDiplomaCandidate[]>;
   loadIssuedRegistrationIds?: (editionId: string) => Promise<Set<string>>;
-  /**
-   * `true`/nada (`undefined`) = se encoló. `false` = ya había una fila para
-   * esa inscripción y no se creó nada (ver `enqueueDiplomaQueueRow`).
-   */
-  enqueue?: (registrationId: string) => Promise<boolean | void>;
+  /** `true` = se encoló (nueva o revivida). `false` = ya había una en curso. */
+  enqueue?: (registrationId: string) => Promise<boolean>;
 };
 
 export type EnqueueEditionDiplomasResult = {
@@ -198,8 +226,8 @@ function buildDefaultEnqueue(editionId: string): (registrationId: string) => Pro
 
 /**
  * Encola los diplomas pendientes de una edición. No renderiza nada: sólo
- * decide quién falta y crea su fila `GENERATING`. El procesamiento real lo
- * hace `processDueDiplomas`, de a tandas, desde el cron.
+ * decide quién falta y crea (o revive) su fila `GENERATING`. El
+ * procesamiento real lo hace `processDueDiplomas`, de a tandas, desde el cron.
  */
 export async function enqueueEditionDiplomas(
   editionId: string,
@@ -229,7 +257,7 @@ export async function enqueueEditionDiplomas(
       continue;
     }
     const created = await enqueue(candidate.registrationId);
-    if (created !== false) queued += 1;
+    if (created) queued += 1;
   }
 
   return { queued, alreadyIssued, notEligible };
@@ -252,11 +280,11 @@ export type ProcessDueDiplomasResult = {
  * Toma hasta `limit` piezas `GENERATING` de tipo `DIPLOMA` con el lock
  * vencido. La reserva es condicionada: cada fila se reclama con su propio
  * `updateMany`, cuyo `WHERE` vuelve a exigir el lock libre en el momento de
- * escribir (no sólo en el momento de leer). Con tandas de hasta cinco
- * minutos cada cinco minutos el solape entre ciclos de cron es esperable, no
- * hipotético: si dos ciclos leen la misma fila, sólo el que escribe primero
- * se la queda — el segundo pierde esa fila (su `updateMany` no matchea nada,
- * `count === 0`) y sigue con las demás.
+ * escribir (no sólo en el momento de leer). Con tandas de hasta 300s (ver
+ * `maxDuration` de la ruta) el solape entre ciclos de cron de cinco minutos
+ * es esperable, no hipotético: si dos ciclos leen la misma fila, sólo el que
+ * escribe primero se la queda — el segundo pierde esa fila (su `updateMany`
+ * no matchea nada, `count === 0`) y sigue con las demás.
  */
 async function defaultLoadPending(limit: number): Promise<DiplomaPendingRow[]> {
   const now = new Date();
@@ -291,10 +319,43 @@ async function defaultLoadPending(limit: number): Promise<DiplomaPendingRow[]> {
   return claims.filter((c): c is DiplomaPendingRow => c !== null);
 }
 
+export type DiplomaAttemptClosure =
+  | { status: "GENERATING"; attemptCount: number; errorCode: DiplomaErrorCode }
+  | { status: "FAILED"; attemptCount: number; errorCode: DiplomaErrorCode };
+
+/**
+ * Decisión pura ante un fallo de `issueDiploma`: cuántos intentos lleva la
+ * pieza y qué motivo tuvo, nada más — ni fecha ni acceso a la base. Antes
+ * del tope, sigue disponible para el próximo ciclo (`GENERATING`); al
+ * llegar, se cierra (`FAILED`) y deja de tomarse hasta que alguien la
+ * reviva (ver `enqueueDiplomaQueueRow`). El motivo (`errorCode`) siempre se
+ * conserva: es lo que explica, en el panel, por qué esa persona no tiene
+ * diploma todavía.
+ */
+export function decidirCierreDeIntento(
+  attemptCount: number,
+  errorCode: DiplomaErrorCode
+): DiplomaAttemptClosure {
+  const nextAttemptCount = attemptCount + 1;
+  if (nextAttemptCount >= DIPLOMA_QUEUE_MAX_ATTEMPTS) {
+    return { status: "FAILED", attemptCount: nextAttemptCount, errorCode };
+  }
+  return { status: "GENERATING", attemptCount: nextAttemptCount, errorCode };
+}
+
 async function defaultIssue(input: { registrationId: string }): Promise<IssueDiplomaResult> {
   const result = await issueDiploma(
-    { registrationId: input.registrationId, actor: DIPLOMA_BATCH_ACTOR },
-    { checkAccess: allowDiplomaBatchIssue }
+    { registrationId: input.registrationId, actor: { kind: "admin" } },
+    {
+      // No-op a propósito: `issueDiploma` sólo admite un admin de sesión
+      // real (`requireParticipantCardAdminAccess`), pero este camino no
+      // tiene sesión — ya se autorizó a nivel de RUTA (`CRON_SECRET` /
+      // `x-vercel-cron`, ver `app/api/cron/diplomas/route.ts`). Se declara
+      // acá, en la misma pantalla que el actor de marcador, en vez de
+      // fabricar un rol (`globalRole: "SUPER_ADMIN"`) que nadie tiene: no
+      // copiar este atajo fuera de este proceso automático.
+      checkAccess: () => {},
+    }
   );
 
   if (result.ok) {
@@ -307,33 +368,29 @@ async function defaultIssue(input: { registrationId: string }): Promise<IssueDip
     return result;
   }
 
-  // No corta el lote (ver módulo). Si todavía quedan reintentos, se libera
-  // el lock para que el próximo ciclo reintente, igual que welcome/member
-  // con un render fallido. Si ya se agotaron, la fila pasa a `FAILED` y deja
-  // de aparecer en `GENERATING`: una plantilla rota no puede monopolizar la
-  // tanda para siempre a costa de otras ediciones.
+  // No corta el lote (ver módulo).
   const row = await prisma.clickatonParticipantCard.findFirst({
     where: { registrationId: input.registrationId, cardType: "DIPLOMA", status: "GENERATING" },
     select: { id: true, attemptCount: true },
   });
   if (row) {
-    const nextAttempt = row.attemptCount + 1;
-    const outOfRetries = nextAttempt >= DIPLOMA_QUEUE_MAX_ATTEMPTS;
+    const decision = decidirCierreDeIntento(row.attemptCount, result.code);
     await prisma.clickatonParticipantCard.update({
       where: { id: row.id },
-      data: outOfRetries
-        ? {
-            status: "FAILED",
-            failedAt: new Date(),
-            attemptCount: nextAttempt,
-            errorCode: result.code,
-            lockExpiresAt: null,
-          }
-        : {
-            attemptCount: nextAttempt,
-            errorCode: result.code,
-            lockExpiresAt: null,
-          },
+      data:
+        decision.status === "FAILED"
+          ? {
+              status: "FAILED",
+              failedAt: new Date(),
+              attemptCount: decision.attemptCount,
+              errorCode: decision.errorCode,
+              lockExpiresAt: null,
+            }
+          : {
+              attemptCount: decision.attemptCount,
+              errorCode: decision.errorCode,
+              lockExpiresAt: null,
+            },
     });
   }
 

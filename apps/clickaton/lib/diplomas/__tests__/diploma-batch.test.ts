@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  DIPLOMA_QUEUE_MAX_ATTEMPTS,
   buildDiplomaQueueRenderHash,
+  decidirCierreDeIntento,
   enqueueDiplomaQueueRow,
   enqueueEditionDiplomas,
   processDueDiplomas,
@@ -18,6 +20,7 @@ describe("enqueueEditionDiplomas", () => {
       loadIssuedRegistrationIds: async () => new Set(["reg_2"]),
       enqueue: async (id: string) => {
         encolados.push(id);
+        return true;
       },
     });
     assert.deepEqual(encolados, ["reg_1"]);
@@ -34,6 +37,7 @@ describe("enqueueEditionDiplomas", () => {
       loadIssuedRegistrationIds: async () => new Set(encolados),
       enqueue: async (id: string) => {
         encolados.push(id);
+        return true;
       },
     };
     await enqueueEditionDiplomas("ed_1", deps);
@@ -118,7 +122,7 @@ describe("buildDiplomaQueueRenderHash", () => {
 });
 
 describe("enqueueDiplomaQueueRow", () => {
-  it("la segunda vez para la misma inscripción choca contra la unicidad y no crea nada", async () => {
+  it("si la fila que ya estaba sigue en curso, no revive nada ni duplica", async () => {
     const creadas: Array<{ renderHash: string }> = [];
     const create = async (data: { renderHash: string }) => {
       if (creadas.some((c) => c.renderHash === data.renderHash)) {
@@ -127,19 +131,40 @@ describe("enqueueDiplomaQueueRow", () => {
       creadas.push({ renderHash: data.renderHash });
       return { id: "card_1" };
     };
+    // La fila existente sigue GENERATING (no fracasó): no hay nada para revivir.
+    const reviveFailed = async () => false;
 
     const primera = await enqueueDiplomaQueueRow(
       { registrationId: "reg_1", editionId: "ed_1" },
-      { create }
+      { create, reviveFailed }
     );
     const segunda = await enqueueDiplomaQueueRow(
       { registrationId: "reg_1", editionId: "ed_1" },
-      { create }
+      { create, reviveFailed }
     );
 
     assert.equal(primera, true);
     assert.equal(segunda, false);
     assert.equal(creadas.length, 1);
+  });
+
+  it("si la fila que ya estaba fracasó todas sus veces, la revive en vez de perder el diploma para siempre", async () => {
+    const create = async () => {
+      throw { code: "P2002" };
+    };
+    let revividaCon: { registrationId: string; editionId: string } | null = null;
+    const reviveFailed = async (input: { registrationId: string; editionId: string }) => {
+      revividaCon = input;
+      return true;
+    };
+
+    const result = await enqueueDiplomaQueueRow(
+      { registrationId: "reg_1", editionId: "ed_1" },
+      { create, reviveFailed }
+    );
+
+    assert.equal(result, true);
+    assert.deepEqual(revividaCon, { registrationId: "reg_1", editionId: "ed_1" });
   });
 
   it("dos inscripciones distintas sí generan dos filas", async () => {
@@ -166,5 +191,26 @@ describe("enqueueDiplomaQueueRow", () => {
       () => enqueueDiplomaQueueRow({ registrationId: "reg_1", editionId: "ed_1" }, { create }),
       /boom/
     );
+  });
+});
+
+describe("decidirCierreDeIntento", () => {
+  it("antes del tope, vuelve a quedar disponible para el próximo ciclo", () => {
+    const decision = decidirCierreDeIntento(0, "DIPLOMA_TEMPLATE_INVALID");
+    assert.equal(decision.status, "GENERATING");
+    assert.equal(decision.attemptCount, 1);
+  });
+
+  it("al llegar al tope, queda fallida", () => {
+    const decision = decidirCierreDeIntento(DIPLOMA_QUEUE_MAX_ATTEMPTS - 1, "DIPLOMA_TEMPLATE_INVALID");
+    assert.equal(decision.status, "FAILED");
+    assert.equal(decision.attemptCount, DIPLOMA_QUEUE_MAX_ATTEMPTS);
+  });
+
+  it("el motivo se conserva, antes y después del tope", () => {
+    const antes = decidirCierreDeIntento(0, "DIPLOMA_PHOTO_REQUIRED");
+    const despues = decidirCierreDeIntento(DIPLOMA_QUEUE_MAX_ATTEMPTS - 1, "DIPLOMA_PHOTO_REQUIRED");
+    assert.equal(antes.errorCode, "DIPLOMA_PHOTO_REQUIRED");
+    assert.equal(despues.errorCode, "DIPLOMA_PHOTO_REQUIRED");
   });
 });
