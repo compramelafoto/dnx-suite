@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { RegistrationCompare } from "@/components/public-registration/experience/RegistrationCompare";
 import { RegistrationExperienceHero } from "@/components/public-registration/experience/RegistrationExperienceHero";
+import { RegistrationGiftCta } from "@/components/public-registration/experience/RegistrationGiftCta";
 import { RegistrationFaq } from "@/components/public-registration/experience/RegistrationFaq";
 import { RegistrationHowItWorks } from "@/components/public-registration/experience/RegistrationHowItWorks";
 import { RegistrationIncludes } from "@/components/public-registration/experience/RegistrationIncludes";
@@ -770,20 +771,12 @@ export function PublicRegistrationWizard({
                 }}
               />
             )}
+            {context.edition.giftVouchersEnabled ? (
+              <RegistrationGiftCta editionSlug={context.edition.slug} />
+            ) : null}
             {persona === "pack_holder" ? <RegistrationHowItWorks /> : null}
             {persona !== "pack_holder" ? <RegistrationCompare /> : null}
             <RegistrationIncludes shirtBenefitStatus={shirtBenefitStatus} />
-            {context.edition.giftVouchersEnabled ? (
-              <p className="text-center text-sm text-ck-text-secondary">
-                ¿Es para regalar?{" "}
-                <a
-                  href={`/maratones/${context.edition.slug}/regalar`}
-                  className="text-ck-yellow underline underline-offset-4"
-                >
-                  Comprale el lugar a un amigo
-                </a>
-              </p>
-            ) : null}
             <RegistrationWhatYouCanWin />
             <RegistrationWhatHappensNext />
             <RegistrationSocialProof />
