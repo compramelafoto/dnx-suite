@@ -8,16 +8,26 @@ export type CriteriaBasedParsed = {
   scale: { min: number; max: number; step: number };
 };
 
-/** Config por defecto al crear asignaciones sin methodConfig explícito (misma escala para todos los criterios). */
+/**
+ * Los cuatro criterios, del 1 al 5 y todos con el mismo peso.
+ *
+ * El primero es la interpretación de la consigna, y va primero a propósito:
+ * en una maratón la consigna es la pregunta, y una foto impecable que no la
+ * responde no debería ganar. Antes ese lugar lo ocupaba "Impacto", que premia
+ * la foto que más pega sin mirar si contesta algo.
+ *
+ * Pesan igual para que ninguna dimensión defina sola el resultado: una obra
+ * técnicamente perfecta y vacía empata con una honesta y bien pensada.
+ */
 export const DEFAULT_CRITERIA_BASED_METHOD_CONFIG = {
   type: "CRITERIA_BASED" as const,
   equalWeight: true as const,
   scale: { min: 1, max: 5, step: 1 },
   criteria: [
+    { key: "prompt_interpretation", label: "Interpretación de la consigna" },
     { key: "technique", label: "Técnica" },
-    { key: "creativity", label: "Creatividad" },
     { key: "composition", label: "Composición" },
-    { key: "impact", label: "Impacto" },
+    { key: "creativity", label: "Creatividad / Originalidad" },
   ],
 };
 
