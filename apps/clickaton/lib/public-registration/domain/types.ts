@@ -120,6 +120,17 @@ export type PublicPassCreditsDto = {
   expiresAt: string | null;
 };
 
+/**
+ * Beneficio por colegas traídos, para mostrarlo antes de pagar.
+ * Presentación: el descuento real se recalcula y se reserva en el servidor al
+ * crear la inscripción.
+ */
+export type PublicReferralBenefitDto = {
+  colegas: number;
+  /** Porcentaje que le corresponde por esos colegas. */
+  descuento: number;
+};
+
 export type PublicRegistrationContextDto = {
   edition: PublicEditionDto;
   venues: PublicVenueDto[];
@@ -139,6 +150,8 @@ export type PublicRegistrationContextDto = {
   registrationWindow: "open" | "not_open" | "closed" | "unavailable";
   /** Créditos de Pack 4 disponibles (si el email/sesión tiene pass activo). */
   passCredits: PublicPassCreditsDto | null;
+  /** Beneficio por colegas traídos (si el email corresponde a un referidor). */
+  referralBenefit: PublicReferralBenefitDto | null;
   legal: {
     termsPath: string;
     privacyPath: string;

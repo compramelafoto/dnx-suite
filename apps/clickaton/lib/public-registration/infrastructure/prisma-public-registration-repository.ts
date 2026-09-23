@@ -2,6 +2,7 @@ import { Prisma, prisma } from "@/lib/admin/db";
 import { buildAvailability } from "@/lib/admin-catalog/domain/availability";
 import { systemClock, type EditionClock } from "@/lib/timeline/clock";
 import { releaseClickatonPromotionRedemption } from "@/lib/promotions/prisma-promotions-adapter";
+import { liberarReferidosDeInscripcionVencida } from "@/lib/referrals/application/liberar-reserva-de-inscripcion";
 import type { ClickatonRegistrationRecord } from "@/lib/registration/domain/types";
 import { countsAsActiveRegistration, EXPIRATION_TARGET, isExpireCandidate } from "../domain/expiration-rules";
 import { PublicRegistrationError } from "../domain/errors";
@@ -777,6 +778,12 @@ export function createPrismaPublicRegistrationRepository(
         await releaseClickatonPromotionRedemption(input.registrationId);
       } catch {
         // No bloquear la anulación por el cupón.
+      }
+      // Lo mismo con los colegas traídos: anular no se los puede quedar.
+      try {
+        await liberarReferidosDeInscripcionVencida(input.registrationId);
+      } catch {
+        // No bloquear la anulación por el programa de referidos.
       }
     },
 
@@ -1801,6 +1808,11 @@ export function createPrismaPublicRegistrationRepository(
         if (result.outcome === "expired" && !dryRun) {
           try {
             await releaseClickatonPromotionRedemption(registrationId);
+          } catch {
+            // best-effort: no bloquear expiración de hold
+          }
+          try {
+            await liberarReferidosDeInscripcionVencida(registrationId);
           } catch {
             // best-effort: no bloquear expiración de hold
           }

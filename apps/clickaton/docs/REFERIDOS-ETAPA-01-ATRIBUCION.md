@@ -1,7 +1,7 @@
-# REFERIDOS — ETAPA 01 — Atribución
+# REFERIDOS — Atribución (etapa 01) y canje (etapa 02)
 
 **Fecha:** 2026-09-23
-**Alcance:** diseño + implementación de la atribución (quién trajo a quién). El canje del beneficio queda para la Etapa 02.
+**Alcance:** diseño e implementación del programa completo: quién trajo a quién (etapa 01) y el descuento que eso genera (etapa 02).
 **App:** Clickatón (`apps/clickaton`)
 **Base:** Neon `bitter-math-56019731` (clickaton-production), rama default.
 
@@ -87,13 +87,16 @@ segundo circuito se construye después, sobre el mismo motor.
 
 ---
 
-## 2. Qué construye esta etapa
+## 2. Qué construye cada etapa
 
-Sólo la **atribución**: el link, la captura, el conteo, el antifraude y la pantalla donde la persona
-ve a quién trajo. **El descuento todavía no se aplica en el checkout** — eso es la Etapa 02.
+**Etapa 01 — atribución:** el link, la captura, el conteo, el antifraude y la pantalla donde la
+persona ve a quién trajo.
 
-Se puede desplegar así: el contador empieza a correr y a acumular mérito real desde el día uno,
-mientras el canje se termina. Nada de lo que se cuenta ahora se pierde.
+**Etapa 02 — canje:** el descuento aplicado en el checkout, la comparación contra el cupón y el
+consumo de los colegas usados (sección 4).
+
+Están separadas porque la 01 se puede desplegar sola: el contador empieza a correr y a acumular
+mérito real desde el día uno, aunque el canje llegue después. Nada de lo que se cuenta se pierde.
 
 ---
 
@@ -153,7 +156,8 @@ intento registrado y se puede reprocesar.
 
 ### 3.5 Modelo de datos
 
-Tres tablas nuevas, propias de Clickatón:
+Cuatro tablas nuevas, propias de Clickatón (la cuarta, `ClickatonReferralClaim`, se describe en
+3.3):
 
 **`ClickatonReferralCode`** — un código por usuario.
 `id`, `userId` (único), `code` (único), `isActive`, `createdAt`, `updatedAt`.
@@ -163,7 +167,7 @@ Tres tablas nuevas, propias de Clickatón:
 `referralCodeId`, `registrationId`, `editionId`, `status`, `earnedAt`, `revokedAt`, `revokedReason`,
 `consumedAt`, `consumedRegistrationId`, `createdAt`, `updatedAt`.
 
-`status`: `EARNED` | `CONSUMED` | `REVOKED`.
+`status`: `EARNED` | `RESERVED` | `CONSUMED` | `REVOKED` (ver sección 4 por `RESERVED`).
 
 **`ClickatonReferralAttributionAttempt`** — todo intento, incluido el que no prosperó.
 `id`, `code`, `referredUserId?`, `referredEmail?`, `referrerUserId?`, `registrationId?`, `outcome`,
@@ -187,19 +191,55 @@ partir de la próxima edición**, para no prometer un canje que todavía no exis
 
 ### 3.7 Migración
 
-SQL a mano y `prisma migrate resolve`, como el resto de Clickatón. Son tres tablas nuevas: no tocan
-ninguna lectura existente, así que aplicar el SQL antes del deploy es seguro y aplicarlo después sólo
-rompe lo nuevo.
+SQL a mano y registro en `_prisma_migrations` con el `sha256` del archivo, como el resto de
+Clickatón. Son cuatro tablas y un enum nuevos: **no tocan ninguna columna ni lectura existente**,
+así que aplicar el SQL antes del deploy es seguro y aplicarlo después sólo rompe lo nuevo.
+
+**Aplicado el 2026-09-23** en `bitter-math-56019731`: `20260923140000_clickaton_referidos`
+(estructura) y `20260923160000_clickaton_referidos_reserva` (el estado `RESERVED`).
 
 ---
 
-## 4. Fuera de alcance (Etapa 02)
+## 4. Etapa 02 — el canje (construida)
 
-- Aplicar el descuento en el checkout y la comparación contra el cupón.
-- Consumir las atribuciones al canjear.
-- Mostrar el beneficio en el wizard de inscripción.
+El descuento se aplica de verdad. El beneficio sigue **el mismo ciclo que el cupón** —
+reservar al inscribir, confirmar al pagar, liberar si vence — en lugar de descontar al
+final, y por una razón concreta: si dos pestañas abiertas vieran los mismos 5 colegas
+disponibles, **las dos entrarían gratis**. Con reserva, la segunda ve cero y paga el
+precio entero.
+
+De ahí sale el estado **`RESERVED`** (migración `20260923160000_clickaton_referidos_reserva`).
+La reserva toma las atribuciones más viejas primero, con `FOR UPDATE SKIP LOCKED`, para que
+dos inscripciones simultáneas del mismo usuario no puedan llevarse la misma.
+
+**El baile de la referencia.** Al calcular el precio la inscripción todavía no existe — el
+descuento va en sus montos —, así que la reserva nace atada a la clave de idempotencia
+(`clickaton:ref:<key>`) y después se mueve al id real. Es exactamente lo que ya hace el
+cupón. Si ese traspaso falla, la reserva queda colgada de la clave: por eso la liberación
+busca **por los dos caminos**, y los colegas siempre vuelven.
+
+**Cuando el cupón pierde.** Para comparar hay que reservar el cupón primero. Si el
+beneficio resulta mayor, ese cupón se libera con `releaseClickatonPromotionByIdempotencyKey`
+en vez de quedar quemado por una comparación que no ganó.
+
+Los cuatro enganches, los mismos del cupón:
+
+| Momento | Qué pasa |
+|---|---|
+| Al inscribirse | Reserva de las atribuciones que el escalón justifica |
+| Pago aprobado | `RESERVED` → `CONSUMED` |
+| Hold vencido / regalo anulado | `RESERVED` → `EARNED` |
+| Pago caído o reembolsado | `RESERVED` → `EARNED`, y además se revoca la atribución que esa inscripción le había dado a **quien la trajo** |
+
+Esos dos últimos son cosas distintas y conviven en el mismo lugar: una inscripción que se
+cae deja de contar como colega traído **y** devuelve los colegas que ella misma había
+tomado.
+
+## 5. Fuera de alcance
+
 - El correo que avisa «trajiste un colega».
-- El circuito de aliados.
+- El circuito de aliados (escuelas y tiendas).
+- Un panel de administración del programa.
 
 ---
 

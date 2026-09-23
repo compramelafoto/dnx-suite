@@ -246,15 +246,46 @@ export function PublicRegistrationWizard({
     };
   }, [selectedTicket, usePassCredit, context.currentPricePhase]);
 
+  /**
+   * Beneficio por colegas traídos. NO se suma al cupón: se muestra el mayor de
+   * los dos, igual que decide el servidor al crear la inscripción.
+   */
+  const referralPreview = useMemo(() => {
+    const benefit = context.referralBenefit;
+    if (!benefit || benefit.descuento <= 0) return null;
+    if (!baseCharge || baseCharge.amount <= 0 || usePassCredit) return null;
+
+    const descuento = Math.round((baseCharge.amount * benefit.descuento) / 100);
+    const descuentoCupon = appliedPromo
+      ? baseCharge.amount - appliedPromo.finalAmount
+      : 0;
+
+    return {
+      colegas: benefit.colegas,
+      porcentaje: benefit.descuento,
+      finalAmount: baseCharge.amount - descuento,
+      // Empate → gana el cupón, y así los colegas quedan para la próxima.
+      gana: descuento > descuentoCupon,
+    };
+  }, [context.referralBenefit, baseCharge, appliedPromo, usePassCredit]);
+
   const displayCharge = useMemo(() => {
     if (!baseCharge) return null;
-    if (!appliedPromo || usePassCredit) return baseCharge;
+    if (usePassCredit) return baseCharge;
+    if (referralPreview?.gana) {
+      return {
+        amount: referralPreview.finalAmount,
+        currency: baseCharge.currency,
+        label: `Traés ${referralPreview.colegas} ${referralPreview.colegas === 1 ? "colega" : "colegas"}`,
+      };
+    }
+    if (!appliedPromo) return baseCharge;
     return {
       amount: appliedPromo.finalAmount,
       currency: appliedPromo.currency || baseCharge.currency,
       label: appliedPromo.name || baseCharge.label,
     };
-  }, [baseCharge, appliedPromo, usePassCredit]);
+  }, [baseCharge, appliedPromo, usePassCredit, referralPreview]);
 
   const canUsePromo = Boolean(
     selectedTicket && !usePassCredit && baseCharge && baseCharge.amount > 0,
@@ -1047,6 +1078,31 @@ export function PublicRegistrationWizard({
                 </dd>
               </div>
             </dl>
+            {referralPreview ? (
+              <div className="rounded-[var(--ck-radius-card)] border border-ck-yellow/40 bg-ck-surface-strong p-4">
+                <p className="text-sm font-semibold text-ck-text">
+                  Trajiste {referralPreview.colegas}{" "}
+                  {referralPreview.colegas === 1 ? "colega" : "colegas"} a Clickatón
+                </p>
+                <p className="mt-1 text-sm leading-relaxed text-ck-text-secondary">
+                  {referralPreview.gana ? (
+                    <>
+                      Te corresponde un{" "}
+                      <strong className="text-ck-yellow">
+                        {referralPreview.porcentaje}% de descuento
+                      </strong>{" "}
+                      y ya está aplicado.
+                    </>
+                  ) : (
+                    <>
+                      Tu código de descuento te conviene más que tu{" "}
+                      {referralPreview.porcentaje}% por referidos, así que usamos el
+                      código. Tus colegas quedan guardados para la próxima edición.
+                    </>
+                  )}
+                </p>
+              </div>
+            ) : null}
             {promoFieldProps ? (
               <div className="rounded-[var(--ck-radius-card)] border border-ck-border bg-ck-surface/60 p-4 lg:hidden">
                 <RegistrationPromoCodeField id="promoCodeReview" {...promoFieldProps} />

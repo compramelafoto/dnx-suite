@@ -32,10 +32,19 @@ async function revocarReferidoSiElPagoSeCayo(
     const { prismaReferralRepository } = await import(
       "@/lib/referrals/infrastructure/prisma-referral-repository"
     );
+    // Dos cosas distintas: esta inscripción dejó de contar como colega traído
+    // para QUIEN la trajo…
     await revocarAtribucionPorPago(prismaReferralRepository, {
       registrationId,
       reason: `payment_${paymentStatus.toLowerCase()}`,
     });
+
+    // …y los colegas que ELLA había reservado para su propio descuento vuelven
+    // a estar disponibles, porque ese descuento nunca se cobró.
+    const { liberarReferidosDeInscripcionVencida } = await import(
+      "@/lib/referrals/application/liberar-reserva-de-inscripcion"
+    );
+    await liberarReferidosDeInscripcionVencida(registrationId);
   } catch (error) {
     console.error("[clickaton] revocarReferidoSiElPagoSeCayo falló:", error);
   }
@@ -565,6 +574,22 @@ export function createPrismaCheckoutMutations(): CheckoutRegistrationMutations {
             // soft-fail: el pago ya quedó CONFIRMADO y el intento queda
             // registrado para reprocesar.
             console.error("[clickaton] atribuirReferidoDeInscripcion failed:", refErr);
+          }
+
+          // Si esta inscripción usó el beneficio, los colegas reservados pasan
+          // a consumidos: el descuento se cobró de verdad.
+          try {
+            const [{ confirmarCanje }, { prismaReferralRepository }] = await Promise.all([
+              import("@/lib/referrals/application/canjear-beneficio"),
+              import("@/lib/referrals/infrastructure/prisma-referral-repository"),
+            ]);
+            await confirmarCanje(prismaReferralRepository, {
+              registrationId: input.registrationId,
+            });
+          } catch (canjeErr) {
+            // soft-fail: quedan RESERVED, que ya es "no disponibles". Nadie
+            // puede volver a usarlos.
+            console.error("[clickaton] confirmarCanje failed:", canjeErr);
           }
 
           return { ...record, userId: linked.userId };

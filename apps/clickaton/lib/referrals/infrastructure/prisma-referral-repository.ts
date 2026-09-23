@@ -60,6 +60,16 @@ export const prismaReferralRepository: ReferralRepository = {
     return row?.email ?? null;
   },
 
+  async findUserIdByEmail(email) {
+    const limpio = email.trim();
+    if (!limpio) return null;
+    const row = await prisma.user.findFirst({
+      where: { email: { equals: limpio, mode: "insensitive" } },
+      select: { id: true },
+    });
+    return row?.id ?? null;
+  },
+
   async tieneInscripcionConfirmada(userId) {
     const count = await prisma.clickatonRegistration.count({
       where: { userId, status: "CONFIRMED" },
@@ -103,6 +113,54 @@ export const prismaReferralRepository: ReferralRepository = {
     return prisma.clickatonReferralAttribution.count({
       where: { referrerUserId, status: "EARNED" },
     });
+  },
+
+  async reservarAtribuciones({ referrerUserId, cantidad, ref }) {
+    if (cantidad <= 0) return 0;
+
+    return prisma.$transaction(async (tx) => {
+      // FOR UPDATE SKIP LOCKED: dos inscripciones simultáneas del mismo usuario
+      // no pueden llevarse la misma atribución. La que llega segunda ve menos
+      // colegas disponibles, que es exactamente lo que debe pasar.
+      const elegibles = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id" FROM "ClickatonReferralAttribution"
+        WHERE "referrerUserId" = ${referrerUserId} AND "status" = 'EARNED'
+        ORDER BY "earnedAt" ASC
+        LIMIT ${cantidad}
+        FOR UPDATE SKIP LOCKED
+      `;
+      if (elegibles.length === 0) return 0;
+
+      const { count } = await tx.clickatonReferralAttribution.updateMany({
+        where: { id: { in: elegibles.map((row) => row.id) }, status: "EARNED" },
+        data: { status: "RESERVED", consumedRegistrationId: ref },
+      });
+      return count;
+    });
+  },
+
+  async adjuntarReserva({ ref, registrationId }) {
+    const { count } = await prisma.clickatonReferralAttribution.updateMany({
+      where: { consumedRegistrationId: ref, status: "RESERVED" },
+      data: { consumedRegistrationId: registrationId },
+    });
+    return count;
+  },
+
+  async confirmarAtribucionesReservadas(registrationId) {
+    const { count } = await prisma.clickatonReferralAttribution.updateMany({
+      where: { consumedRegistrationId: registrationId, status: "RESERVED" },
+      data: { status: "CONSUMED", consumedAt: new Date() },
+    });
+    return count;
+  },
+
+  async liberarAtribucionesReservadas(registrationId) {
+    const { count } = await prisma.clickatonReferralAttribution.updateMany({
+      where: { consumedRegistrationId: registrationId, status: "RESERVED" },
+      data: { status: "EARNED", consumedRegistrationId: null },
+    });
+    return count;
   },
 
   async recordAttempt(input) {

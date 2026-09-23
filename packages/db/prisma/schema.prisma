@@ -13802,7 +13802,11 @@ model ClickatonContactMessage {
 enum ClickatonReferralAttributionStatus {
   /// Colega traído y pagado: cuenta para la escalera.
   EARNED
-  /// Ya se canjeó en una inscripción con descuento.
+  /// Tomado por una inscripción que todavía no se pagó. Sin este estado, dos
+  /// inscripciones simultáneas usarían los mismos colegas y las dos entrarían
+  /// con descuento.
+  RESERVED
+  /// Ya se canjeó en una inscripción con descuento pagada.
   CONSUMED
   /// El pago del referido se cayó (reembolso, contracargo, cancelación).
   REVOKED
