@@ -44,7 +44,7 @@ export const QUE_HACE_CADA_METODO: Record<MetodoDeCalificacion, string> = {
   SELECTION_WITH_QUOTA:
     "El jurado elige una cantidad fija de obras y deja el resto afuera. Es el que mejor funciona cuando hay cientos.",
   CRITERIA_BASED:
-    "El jurado puntúa por separado técnica, creatividad, composición e impacto, del 1 al 5, y el sistema promedia. Los cuatro pesan igual.",
+    "El jurado puntúa por separado interpretación de la consigna, técnica, composición y creatividad, del 1 al 5, y el sistema promedia. Los cuatro pesan igual.",
 };
 
 export function esMetodoValido(valor: string): valor is MetodoDeCalificacion {
