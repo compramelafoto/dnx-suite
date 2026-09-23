@@ -6,6 +6,12 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "subilafoto", "dev"],
       "port": 3012
+    },
+    {
+      "name": "clickaton",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "clickaton", "dev"],
+      "port": 3005
     }
   ]
 }

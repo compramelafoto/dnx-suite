@@ -20,7 +20,7 @@ export default async function HomePage() {
   // Fallos de DB/fuente no se disfrazan como agenda vacía: van al error boundary.
   const editions = await listPublicMarathons();
   const spotlight = await buildHomeSpotlightSlides(editions);
-  const testimonials = await listPublishedTestimonials({ limit: 6 });
+  const testimonials = await listPublishedTestimonials({ limit: 24 });
 
   return (
     <>
