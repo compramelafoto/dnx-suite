@@ -129,6 +129,14 @@ export async function createPublicRegistrationAction(
 
   try {
     const data = await getPublicRegistrationService().createRegistration(input);
+
+    // La cookie del link de invitación sólo existe acá: confirmPaid corre
+    // después en el webhook, sin navegador.
+    const { registrarClaimDeReferido } = await import(
+      "@/lib/referrals/application/registrar-claim"
+    );
+    await registrarClaimDeReferido(data.registrationId);
+
     return pubSuccess(data, "Inscripción reservada.");
   } catch (error) {
     return pubFailure<PublicRegistrationSummaryDto>(error, values);
