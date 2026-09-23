@@ -3,6 +3,7 @@ import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { AdminTechnicalInfo } from "@/components/admin/AdminTechnicalInfo";
 import { ConfirmSubmitButton } from "@/components/admin/ConfirmSubmitButton";
 import { JuryHandoffCard } from "@/components/admin/jury/JuryHandoffCard";
+import { PasosDelLote } from "@/components/admin/admission/PasosDelLote";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -22,6 +23,12 @@ import {
   ensureAdmissionConfig,
   getAdmissionDashboard,
 } from "@/lib/technical-admission/service";
+import {
+  pasosDelLote,
+  resumenDeLaSituacion,
+  type EstadoDelLote,
+  type SituacionDelLote,
+} from "@/lib/technical-admission/pasos-del-lote";
 import {
   HUMAN_DECISION_HELP,
   TECHNICAL_VALIDATION_DISCLAIMER,
@@ -98,6 +105,27 @@ export default async function EditionAdmissionPage({ params }: Props) {
   }
 
   const batchStatus = presentBatchStatus(dash.batch?.status);
+
+  /*
+   * Cuántas fotos revisa cada pasada.
+   *
+   * El mismo número va al formulario y al texto que dice cuántas veces hay que
+   * apretar: si fueran dos constantes, un día dirían cosas distintas.
+   */
+  const POR_TANDA = 100;
+
+  const situacionDelLote: SituacionDelLote = {
+    estadoDelLote: (dash.batch?.status ?? null) as EstadoDelLote | null,
+    sinEvaluar: Math.max(
+      0,
+      dash.totals.confirmed -
+        (dash.totals.admitted + dash.totals.pendingReview + dash.totals.rejected + dash.totals.excluded),
+    ),
+    requierenRevision: dash.totals.pendingReview,
+    admitidas: dash.totals.admitted,
+    porTanda: POR_TANDA,
+  };
+  const pasos = pasosDelLote(situacionDelLote);
   const kpiCards: Array<{ label: string; value: number; help: string }> = [
     {
       label: "Entregas",
@@ -297,78 +325,94 @@ export default async function EditionAdmissionPage({ params }: Props) {
         />
       </Card>
 
-      <Card variant="outlined" className="space-y-4 p-5">
-        <h2 className="font-semibold text-ck-text">Acciones del lote</h2>
-        <p className="text-sm leading-relaxed text-ck-text-muted">
-          Estas acciones afectan el circuito técnico. No abren puntuaciones ni resultados en vivo.
-        </p>
-        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-          <form action={ensureDraftBatchAction.bind(null, editionId)} className="w-full sm:w-auto">
-            <Button type="submit" variant="secondary" size="sm" className="min-h-11 w-full sm:w-auto">
-              Crear o abrir lote en preparación
-            </Button>
-          </form>
-          <form action={evaluatePendingBulkAction.bind(null, editionId)} className="w-full sm:w-auto">
-            <input type="hidden" name="requestId" value={crypto.randomUUID()} />
-            <input type="hidden" name="limit" value="100" />
+      <PasosDelLote
+        pasos={pasos}
+        resumen={resumenDeLaSituacion(situacionDelLote)}
+        acciones={{
+          1: (
+            <form action={ensureDraftBatchAction.bind(null, editionId)}>
+              <Button type="submit" variant="secondary" size="sm" className="min-h-11">
+                Abrir el lote
+              </Button>
+            </form>
+          ),
+          2: (
+            <form action={evaluatePendingBulkAction.bind(null, editionId)}>
+              <input type="hidden" name="requestId" value={crypto.randomUUID()} />
+              <input type="hidden" name="limit" value={String(POR_TANDA)} />
+              <ConfirmSubmitButton
+                variant="primary"
+                size="sm"
+                className="min-h-11"
+                confirmMessage="¿Revisar las fotos contra las reglas? No es una decisión del jurado: las que no cumplan quedan con su motivo, y las dudosas esperan que las mires vos."
+              >
+                Revisar las fotos
+              </ConfirmSubmitButton>
+            </form>
+          ),
+          3: dash.batch ? (
+            <form action={closeBatchAction.bind(null, editionId)}>
+              <input type="hidden" name="batchId" value={dash.batch.id} />
+              <ConfirmSubmitButton
+                variant="secondary"
+                size="sm"
+                className="min-h-11"
+                confirmMessage="¿Cerrar el lote? No van a entrar más fotos a esta tanda."
+              >
+                Cerrar el lote
+              </ConfirmSubmitButton>
+            </form>
+          ) : null,
+          4: dash.batch ? (
+            <form action={freezeBatchAction.bind(null, editionId)}>
+              <input type="hidden" name="batchId" value={dash.batch.id} />
+              <ConfirmSubmitButton
+                variant="primary"
+                size="sm"
+                className="min-h-11"
+                confirmMessage="¿Congelar para el jurado? Las obras quedan anónimas y listas para evaluar. A partir de acá el jurado las ve."
+              >
+                Congelar para el jurado
+              </ConfirmSubmitButton>
+            </form>
+          ) : null,
+        }}
+      />
+
+      {/*
+        Reabrir queda aparte de los pasos a propósito: no es parte del camino,
+        es dar marcha atrás. Mezclarla con los cuatro la haría parecer un paso
+        más, y pedir el motivo dejaría de leerse como lo que es.
+      */}
+      {dash.batch ? (
+        <Card variant="outlined" className="space-y-3 p-5">
+          <p className="text-sm font-semibold text-ck-text">Volver atrás</p>
+          <p className="text-sm leading-relaxed text-ck-text-secondary">
+            Reabrir el lote deshace el cierre. No se puede si ya está congelado para el jurado.
+          </p>
+          <form
+            action={reopenBatchAction.bind(null, editionId)}
+            className="flex w-full flex-col gap-3 sm:flex-row"
+          >
+            <input type="hidden" name="batchId" value={dash.batch.id} />
+            <input
+              name="reason"
+              placeholder="Por qué lo reabrís"
+              className="min-h-11 flex-1 rounded-[var(--ck-radius-sm)] border border-ck-border bg-transparent px-3 text-sm sm:max-w-sm"
+              required
+              aria-label="Motivo de reapertura del lote"
+            />
             <ConfirmSubmitButton
-              variant="primary"
+              variant="outline"
               size="sm"
               className="min-h-11 w-full sm:w-auto"
-              confirmMessage="¿Evaluar y aceptar técnicamente las entregas elegibles? Esto no es una decisión del jurado. Las obras que no cumplan quedarán con su motivo correspondiente."
+              confirmMessage="¿Reabrir el lote? Escribí el motivo antes de confirmar."
             >
-              Evaluar y aceptar técnicamente las elegibles
+              Reabrir el lote
             </ConfirmSubmitButton>
           </form>
-          {dash.batch ? (
-            <>
-              <form action={closeBatchAction.bind(null, editionId)} className="w-full sm:w-auto">
-                <input type="hidden" name="batchId" value={dash.batch.id} />
-                <ConfirmSubmitButton
-                  variant="secondary"
-                  size="sm"
-                  className="min-h-11 w-full sm:w-auto"
-                  confirmMessage="¿Cerrar este lote? Dejará de admitir nuevas evaluaciones automáticas de este ciclo."
-                >
-                  Cerrar lote
-                </ConfirmSubmitButton>
-              </form>
-              <form action={freezeBatchAction.bind(null, editionId)} className="w-full sm:w-auto">
-                <input type="hidden" name="batchId" value={dash.batch.id} />
-                <ConfirmSubmitButton
-                  variant="primary"
-                  size="sm"
-                  className="min-h-11 w-full sm:w-auto"
-                  confirmMessage="¿Congelar el lote para el jurado? Las obras admitidas quedarán listas para el circuito de evaluación. Esta acción no abre puntuaciones desde aquí."
-                >
-                  Congelar para el jurado
-                </ConfirmSubmitButton>
-              </form>
-              <form
-                action={reopenBatchAction.bind(null, editionId)}
-                className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row"
-              >
-                <input type="hidden" name="batchId" value={dash.batch.id} />
-                <input
-                  name="reason"
-                  placeholder="Motivo de reapertura"
-                  className="min-h-11 flex-1 rounded-[var(--ck-radius-sm)] border border-ck-border bg-transparent px-3 text-sm"
-                  required
-                  aria-label="Motivo de reapertura del lote"
-                />
-                <ConfirmSubmitButton
-                  variant="outline"
-                  size="sm"
-                  className="min-h-11 w-full sm:w-auto"
-                  confirmMessage="¿Reabrir el lote? Solo aplica si no está congelado para jurado. Indica el motivo antes de confirmar."
-                >
-                  Reabrir lote
-                </ConfirmSubmitButton>
-              </form>
-            </>
-          ) : null}
-        </div>
-      </Card>
+        </Card>
+      ) : null}
 
       <Card variant="outlined" className="space-y-3 p-5 text-sm">
         <p className="font-semibold text-ck-text">{CONFLICT_OF_INTEREST_COPY.title}</p>
