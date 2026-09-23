@@ -4,6 +4,8 @@ import { AdminTechnicalInfo } from "@/components/admin/AdminTechnicalInfo";
 import { ConfirmSubmitButton } from "@/components/admin/ConfirmSubmitButton";
 import { JuryHandoffCard } from "@/components/admin/jury/JuryHandoffCard";
 import { PasosDelLote } from "@/components/admin/admission/PasosDelLote";
+import { ColaDeRevision } from "@/components/admin/admission/ColaDeRevision";
+import { MiniaturaDeEnvio } from "@/components/admin/admission/MiniaturaDeEnvio";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -22,7 +24,9 @@ import {
 import {
   ensureAdmissionConfig,
   getAdmissionDashboard,
+  listarPendientesDeRevision,
 } from "@/lib/technical-admission/service";
+import { senalDeDecision } from "@/lib/technical-admission/por-que-espera";
 import {
   pasosDelLote,
   resumenDeLaSituacion,
@@ -39,7 +43,6 @@ import {
   presentAdmissionStatus,
   presentBatchStatus,
 } from "@/lib/technical-admission/ui/admission-status-presentation";
-import { buildJuryPreviewPath } from "@/lib/jury-media/signed-link";
 import { formatSubmissionDateTime } from "@/lib/photo-upload/ui/submission-status-presentation";
 import {
   CONFLICT_OF_INTEREST_COPY,
@@ -47,6 +50,20 @@ import {
 } from "@/lib/jury-results/ui/jury-results-status-presentation";
 
 type Props = { params: Promise<{ editionId: string }> };
+
+/**
+ * El tilde y la cruz de cada fila.
+ *
+ * La etiqueta sola obliga a leer para saber si la foto entró o quedó afuera;
+ * el símbolo se ve de un vistazo. Va con `aria-hidden` porque la etiqueta de
+ * al lado ya dice lo mismo con palabras.
+ */
+const SENAL = {
+  ADMITIDA: { simbolo: "✓", clase: "text-base text-ck-success" },
+  RECHAZADA: { simbolo: "✗", clase: "text-base text-ck-danger" },
+  ESPERA: { simbolo: "⏳", clase: "text-base text-ck-warning" },
+  FUERA_DE_JUEGO: { simbolo: "—", clase: "text-base text-ck-text-muted" },
+} as const;
 
 export default async function EditionAdmissionPage({ params }: Props) {
   const user = await requireClickatonAdmin();
@@ -83,26 +100,19 @@ export default async function EditionAdmissionPage({ params }: Props) {
     },
   });
 
-  // Vista previa de cada obra: decidir sin ver la fotografía no es decidir.
-  // El enlace se firma acá, en el servidor, y vence en 30 minutos.
-  const entryIds = recent
-    .map((d) => d.fotorankEntryId)
-    .filter((id): id is string => Boolean(id));
-  const previewAssets = entryIds.length
-    ? await prisma.fotorankContestEntryAsset.findMany({
-        where: { entryId: { in: entryIds }, isActive: true, kind: "JURY_PREVIEW" },
-        select: { id: true, entryId: true },
-      })
-    : [];
-  const previewPathByEntryId = new Map<string, string>();
-  const previewExpiresAt = new Date(Date.now() + 30 * 60 * 1000);
-  for (const asset of previewAssets) {
-    if (!asset.entryId || previewPathByEntryId.has(asset.entryId)) continue;
-    previewPathByEntryId.set(
-      asset.entryId,
-      buildJuryPreviewPath({ assetId: asset.id, expiresAt: previewExpiresAt }),
-    );
-  }
+  /*
+   * Vista previa de cada obra: decidir sin ver la fotografía no es decidir.
+   *
+   * Antes se buscaba un asset `JURY_PREVIEW` de FotoRank, que en Clickatón no
+   * existe: la copia liviana vive en el bucket privado de la maratón, no en
+   * FotoRank. Por eso todas las filas decían "Sin vista previa". Los bytes
+   * salen de la ruta del panel, que pide sesión de administración.
+   */
+  const pendientes = await listarPendientesDeRevision({
+    editionId,
+    actor: { id: user.id, email: user.email, globalRole: user.globalRole },
+    limite: 25,
+  });
 
   const batchStatus = presentBatchStatus(dash.batch?.status);
 
@@ -425,6 +435,12 @@ export default async function EditionAdmissionPage({ params }: Props) {
         </p>
       </Card>
 
+      <ColaDeRevision
+        editionId={editionId}
+        filas={pendientes}
+        totalPendientes={dash.totals.pendingReview}
+      />
+
       <Card variant="outlined" className="space-y-4 p-5">
         <div>
           <h2 className="font-semibold text-ck-text">Decisiones recientes</h2>
@@ -449,9 +465,7 @@ export default async function EditionAdmissionPage({ params }: Props) {
                 ? presentAdmissionReasonCode(primaryReasonCode)
                 : null;
 
-              const previewPath = d.fotorankEntryId
-                ? (previewPathByEntryId.get(d.fotorankEntryId) ?? null)
-                : null;
+              const senal = senalDeDecision(d.status);
 
               return (
                 <li
@@ -460,20 +474,19 @@ export default async function EditionAdmissionPage({ params }: Props) {
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="flex items-start gap-3">
-                      {previewPath ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={previewPath}
-                          alt="Vista previa de la obra evaluada"
-                          className="h-20 w-20 shrink-0 rounded-[var(--ck-radius-sm)] border border-ck-border object-cover"
-                        />
-                      ) : (
-                        <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-[var(--ck-radius-sm)] border border-dashed border-ck-border px-2 text-center text-xs text-ck-text-muted">
-                          Sin vista previa
-                        </span>
-                      )}
+                      <MiniaturaDeEnvio
+                        submissionId={d.submissionId}
+                        alt="Vista previa de la obra evaluada"
+                        className="h-20 w-20 shrink-0 object-cover"
+                        abreEnPestana
+                      />
                       <div className="space-y-1">
-                        <p className="text-sm font-semibold text-ck-text">{admission.label}</p>
+                        <p className="flex items-center gap-2 text-sm font-semibold text-ck-text">
+                          <span aria-hidden="true" className={SENAL[senal].clase}>
+                            {SENAL[senal].simbolo}
+                          </span>
+                          {admission.label}
+                        </p>
                         <p className="text-xs text-ck-text-muted">
                           Evaluada: {formatSubmissionDateTime(d.evaluatedAt)}
                         </p>
