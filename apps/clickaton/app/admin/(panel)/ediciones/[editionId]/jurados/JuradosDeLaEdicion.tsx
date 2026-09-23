@@ -11,6 +11,13 @@ import {
   type ResultadoDeLaPantalla,
 } from "@/lib/jury-assignment/actions";
 import type { JuradoDelPadron } from "@/lib/jury-assignment/assign-judge";
+import {
+  CUPO_POR_OMISION,
+  METODOS_DE_CALIFICACION,
+  METODO_POR_OMISION,
+  QUE_HACE_CADA_METODO,
+  type MetodoDeCalificacion,
+} from "@/lib/jury-assignment/metodos";
 
 type Asignada = {
   id: string;
@@ -34,6 +41,7 @@ function nombreVisible(j: JuradoDelPadron): string {
 
 export function JuradosDeLaEdicion({ editionId, disponibles, categorias, asignadas }: Props) {
   const [aviso, setAviso] = useState<ResultadoDeLaPantalla | null>(null);
+  const [metodo, setMetodo] = useState<MetodoDeCalificacion>(METODO_POR_OMISION);
   const [trabajando, iniciar] = useTransition();
 
   const yaAsignados = new Set(asignadas.map((a) => a.judgeAccountId));
@@ -165,6 +173,45 @@ export function JuradosDeLaEdicion({ editionId, disponibles, categorias, asignad
                 </div>
               )}
             </fieldset>
+
+            <div className="space-y-2">
+              <label htmlFor="methodType" className="text-sm font-medium text-ck-text">
+                Cómo califica
+              </label>
+              <select
+                id="methodType"
+                name="methodType"
+                value={metodo}
+                onChange={(e) => setMetodo(e.target.value as MetodoDeCalificacion)}
+                className="w-full rounded-[var(--ck-radius-sm)] border border-ck-border bg-ck-surface px-3 py-2 text-sm text-ck-text"
+              >
+                {METODOS_DE_CALIFICACION.map((m) => (
+                  <option key={m.valor} value={m.valor}>
+                    {m.etiqueta}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs leading-relaxed text-ck-text-muted">
+                {QUE_HACE_CADA_METODO[metodo]}
+              </p>
+            </div>
+
+            {/* El cupo sólo aparece cuando significa algo. */}
+            {metodo === "SELECTION_WITH_QUOTA" ? (
+              <div className="space-y-2">
+                <label htmlFor="quota" className="text-sm font-medium text-ck-text">
+                  Cuántas obras elige cada jurado
+                </label>
+                <input
+                  id="quota"
+                  name="quota"
+                  type="number"
+                  min={1}
+                  defaultValue={CUPO_POR_OMISION}
+                  className="w-full rounded-[var(--ck-radius-sm)] border border-ck-border bg-ck-surface px-3 py-2 text-sm text-ck-text sm:max-w-[12rem]"
+                />
+              </div>
+            ) : null}
 
             {/*
               Dicho al asignar y no después: la regla se aplica sola en el portal,

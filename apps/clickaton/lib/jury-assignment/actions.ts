@@ -14,6 +14,11 @@ import {
   sePuedeQuitar,
 } from "./assign-judge";
 import {
+  configDelMetodo,
+  esMetodoValido,
+  METODO_POR_OMISION,
+} from "./metodos";
+import {
   asignarJuradoAMaraton,
   type MaratonPrisma,
   type PadronPrisma,
@@ -69,6 +74,21 @@ export async function asignarJuradoAction(
   const judgeAccountId = String(formData.get("judgeAccountId") ?? "").trim();
   const categoryIds = formData.getAll("categoryIds").map(String).filter(Boolean);
 
+  /*
+   * El método se valida contra la lista conocida.
+   *
+   * Llega de un formulario, y un valor inventado haría fallar la escritura
+   * contra el tipo de la base con un error que nadie entendería. Ante algo
+   * raro, se usa el de siempre.
+   */
+  const metodoPedido = String(formData.get("methodType") ?? "");
+  const methodType = esMetodoValido(metodoPedido) ? metodoPedido : METODO_POR_OMISION;
+  const cupoPedido = Number(formData.get("quota"));
+  const methodConfigJson = configDelMetodo(
+    methodType,
+    Number.isFinite(cupoPedido) ? cupoPedido : null,
+  );
+
   // La organización sale del concurso, no del formulario: si viniera de afuera,
   // se podrían colgar asignaciones de una organización ajena.
   const contest = await prisma.fotorankContest.findUnique({
@@ -87,7 +107,8 @@ export async function asignarJuradoAction(
     contestId: edicion.fotorankContestId,
     categoryIds,
     createdByUserId: user.id,
-    methodType: "SCORE_1_10",
+    methodType,
+    methodConfigJson,
   });
 
   if (!r.ok) {
