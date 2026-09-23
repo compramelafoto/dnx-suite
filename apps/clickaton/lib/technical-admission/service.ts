@@ -4,6 +4,7 @@ import { hasEditionCapability } from "@/lib/timeline/permissions";
 import { getEditionTemporalState } from "@/lib/timeline/prisma-timeline";
 import { resolveEffectiveWindows } from "@/lib/photo-upload/windows";
 import { buildAnonymousJuryCode } from "./anonymity";
+import { proximaTanda } from "./proxima-tanda";
 import { revisarSubidaEnTermino } from "./subida-en-termino";
 import { AdmissionError } from "./errors";
 import {
@@ -874,10 +875,33 @@ export async function evaluatePendingBulk(input: {
     actor: input.actor,
   });
 
-  const submissions = await prisma.clickatonPhotoSubmission.findMany({
+  /*
+   * Se revisan las que todavía no tienen decisión.
+   *
+   * Antes esto tomaba siempre las primeras de la edición, sin mirar si ya se
+   * habían revisado: apretar el botón una segunda vez volvía sobre las mismas
+   * y nunca llegaba a las siguientes. En la 1ª edición quedaron **2923
+   * decisiones sobre 100 fotos** y 170 sin tocar, por más que se apretara.
+   *
+   * Para volver a revisar algo ya decidido está la revisión manual, que es
+   * donde corresponde: una segunda pasada automática sobre lo mismo no agrega
+   * nada y esconde lo que falta.
+   */
+  const yaDecididas = await prisma.clickatonTechnicalAdmissionDecision.findMany({
+    where: { editionId: input.editionId },
+    distinct: ["submissionId"],
+    select: { submissionId: true },
+  });
+
+  const candidatas = await prisma.clickatonPhotoSubmission.findMany({
     where: { editionId: input.editionId, status: "CONFIRMED" },
-    take: input.limit ?? 100,
     orderBy: { confirmedAt: "asc" },
+  });
+
+  const submissions = proximaTanda({
+    envios: candidatas,
+    yaDecididos: new Set(yaDecididas.map((d) => d.submissionId)),
+    porTanda: input.limit ?? 100,
   });
 
   let processed = 0;
@@ -970,6 +994,15 @@ export async function getAdmissionDashboard(editionId: string, actor: Actor) {
     byStatus[d.status] = (byStatus[d.status] ?? 0) + 1;
   }
 
+  /*
+   * Cuántas ya tienen decisión, contadas directamente.
+   *
+   * Restar los estados uno por uno deja afuera a los que nadie enumeró
+   * —reemplazadas, retiradas— y el número de "sin revisar" sale mal sin que se
+   * note. `decisions` ya viene con una fila por envío.
+   */
+  const conDecision = decisions.length;
+
   return {
     config,
     window: {
@@ -980,6 +1013,8 @@ export async function getAdmissionDashboard(editionId: string, actor: Actor) {
     totals: {
       submissions: total,
       confirmed,
+      conDecision,
+      sinRevisar: Math.max(0, confirmed - conDecision),
       withoutEntry,
       eligible: byStatus.ELIGIBLE ?? 0,
       admitted: (byStatus.ADMITTED ?? 0) + (byStatus.FROZEN_FOR_JURY ?? 0),

@@ -116,11 +116,7 @@ export default async function EditionAdmissionPage({ params }: Props) {
 
   const situacionDelLote: SituacionDelLote = {
     estadoDelLote: (dash.batch?.status ?? null) as EstadoDelLote | null,
-    sinEvaluar: Math.max(
-      0,
-      dash.totals.confirmed -
-        (dash.totals.admitted + dash.totals.pendingReview + dash.totals.rejected + dash.totals.excluded),
-    ),
+    sinEvaluar: dash.totals.sinRevisar,
     requierenRevision: dash.totals.pendingReview,
     admitidas: dash.totals.admitted,
     porTanda: POR_TANDA,
