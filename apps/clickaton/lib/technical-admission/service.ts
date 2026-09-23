@@ -5,6 +5,7 @@ import { getEditionTemporalState } from "@/lib/timeline/prisma-timeline";
 import { resolveEffectiveWindows } from "@/lib/photo-upload/windows";
 import { buildAnonymousJuryCode } from "./anonymity";
 import { proximaTanda } from "./proxima-tanda";
+import { puedeAdmitirse } from "./puede-admitirse";
 import { revisarSubidaEnTermino } from "./subida-en-termino";
 import { AdmissionError } from "./errors";
 import {
@@ -329,6 +330,8 @@ export async function admitSubmission(input: {
   actor: Actor;
   batchId?: string | null;
   reason?: string | null;
+  /** Viene de una persona que miró la obra y decidió admitirla. */
+  resolviendoRevisionManual?: boolean;
 }) {
   await requireCap(input.actor, input.editionId, CAPABILITY_ADMIT_ENTRIES);
   const { decision, decisionId } = await evaluateSubmission({
@@ -337,17 +340,17 @@ export async function admitSubmission(input: {
     actor: input.actor,
     reason: input.reason,
   });
-  if (!decision.eligible && decision.status !== "PENDING_MANUAL_REVIEW") {
+  const permiso = puedeAdmitirse({
+    status: decision.status,
+    eligible: decision.eligible,
+    resolviendoRevisionManual: input.resolviendoRevisionManual,
+  });
+  if (!permiso.ok) {
     throw new AdmissionError(
-      "NOT_ELIGIBLE",
-      "La obra no es elegible para admisión automática.",
-      409,
-    );
-  }
-  if (decision.status === "PENDING_MANUAL_REVIEW") {
-    throw new AdmissionError(
-      "MANUAL_REVIEW_REQUIRED",
-      "Resolvé la revisión manual antes de admitir.",
+      permiso.error,
+      permiso.error === "MANUAL_REVIEW_REQUIRED"
+        ? "Resolvé la revisión manual antes de admitir."
+        : "La obra no es elegible para admisión automática.",
       409,
     );
   }
@@ -495,6 +498,7 @@ export async function resolveManualReview(input: {
       submissionId: input.submissionId,
       actor: input.actor,
       reason: input.notes || "manual-admit",
+      resolviendoRevisionManual: true,
     });
   }
   if (input.decision === "REJECT") {
