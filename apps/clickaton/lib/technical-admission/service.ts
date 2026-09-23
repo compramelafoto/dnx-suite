@@ -1146,4 +1146,75 @@ export async function listFrozenJuryRoster(input: {
   return { batch, entries: snapshots };
 }
 
+/**
+ * Las fotografías que esperan una decisión humana, con lo necesario para
+ * tomarla: la imagen, quién la mandó, para qué consigna y qué leyó el control
+ * técnico. Sin esto la pantalla mostraba un código de motivo y nada más.
+ */
+export async function listarPendientesDeRevision(input: {
+  editionId: string;
+  actor: Actor;
+  limite?: number;
+}) {
+  await requireCap(input.actor, input.editionId, CAPABILITY_VIEW_ADMISSION);
+
+  const ultimas = await prisma.clickatonTechnicalAdmissionDecision.findMany({
+    where: { editionId: input.editionId },
+    distinct: ["submissionId"],
+    orderBy: { evaluatedAt: "desc" },
+    select: {
+      id: true,
+      submissionId: true,
+      status: true,
+      manualReviewReasons: true,
+      warningReasons: true,
+      evaluatedAt: true,
+    },
+  });
+
+  const pendientes = ultimas
+    .filter((d) => d.status === "PENDING_MANUAL_REVIEW")
+    .slice(0, input.limite ?? 50);
+  if (pendientes.length === 0) return [];
+
+  const envios = await prisma.clickatonPhotoSubmission.findMany({
+    where: { id: { in: pendientes.map((d) => d.submissionId) } },
+    select: {
+      id: true,
+      createdAt: true,
+      captureDateInterpreted: true,
+      previewStorageKey: true,
+      originalStorageKey: true,
+      technicalSummaryJson: true,
+      registration: { select: { visibleCode: true } },
+      prompt: { select: { sequence: true, title: true, titleSnapshot: true } },
+    },
+  });
+  const porId = new Map(envios.map((e) => [e.id, e]));
+
+  return pendientes.flatMap((d) => {
+    const envio = porId.get(d.submissionId);
+    if (!envio) return [];
+    const resumen = (envio.technicalSummaryJson ?? {}) as {
+      captureEval?: { reason?: string | null };
+    };
+    return [
+      {
+        decisionId: d.id,
+        submissionId: d.submissionId,
+        evaluatedAt: d.evaluatedAt,
+        manualReviewReasons: d.manualReviewReasons,
+        warningReasons: d.warningReasons,
+        participante: envio.registration?.visibleCode ?? null,
+        consignaNumero: envio.prompt?.sequence ?? null,
+        consignaTitulo: envio.prompt?.titleSnapshot ?? envio.prompt?.title ?? null,
+        subidaEn: envio.createdAt,
+        capturaEn: envio.captureDateInterpreted,
+        razonDeCaptura: resumen.captureEval?.reason ?? null,
+        tieneArchivo: Boolean(envio.previewStorageKey ?? envio.originalStorageKey),
+      },
+    ];
+  });
+}
+
 export type { ReasonCode, AdmissionStatus };

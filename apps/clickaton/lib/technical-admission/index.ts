@@ -18,4 +18,5 @@ export {
   getAdmissionDashboard,
   exportAdmissionCsv,
   listFrozenJuryRoster,
+  listarPendientesDeRevision,
 } from "./service";
