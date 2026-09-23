@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getClickatonJuryPrisma } from "@repo/db/clickaton-jury-client";
 import { getJuryDirectoryPrisma } from "@repo/db/jury-directory-client";
 
 import { adminRoutes } from "@/config/admin/navigation";
@@ -23,17 +22,22 @@ import {
 export type ResultadoDeLaPantalla = { ok: boolean; mensaje: string };
 
 /**
- * La base de la maratón.
+ * Las dos puntas de una asignación.
  *
- * Es la propia de Clickatón, pero se usa el cliente con escritura acotada al
- * circuito de jurado en vez del cliente de administración: así la conexión que
- * el portal de FotoRank necesita y la que usa esta pantalla son la misma, y si
- * falta configurarla se nota acá y no cuando un jurado intenta votar.
+ * El padrón está afuera y necesita su propia conexión. La maratón, en cambio,
+ * es la base de esta misma app: se escribe con el cliente de siempre.
+ *
+ * Al principio esto usaba el cliente cruzado `getClickatonJuryPrisma`, que es
+ * el que usa FotoRank para llegar hasta acá. Era un error: obligaba a
+ * configurar en Clickatón una variable que apunta a sí mismo, y sin ella la
+ * pantalla decía "falta configurar la conexión" estando la base al alcance de
+ * la mano. Ese cliente es para el camino de ida —FotoRank hacia Clickatón—, no
+ * para que Clickatón se hable a sí mismo.
  */
-function conexiones(): { padron: PadronPrisma | null; maraton: MaratonPrisma | null } {
+function conexiones(): { padron: PadronPrisma | null; maraton: MaratonPrisma } {
   return {
     padron: getJuryDirectoryPrisma() as unknown as PadronPrisma | null,
-    maraton: getClickatonJuryPrisma() as unknown as MaratonPrisma | null,
+    maraton: prisma as unknown as MaratonPrisma,
   };
 }
 
@@ -61,7 +65,6 @@ export async function asignarJuradoAction(
 
   const { padron, maraton } = conexiones();
   if (!padron) return { ok: false, mensaje: SIN_CONEXION_AL_PADRON };
-  if (!maraton) return { ok: false, mensaje: SIN_CONEXION_A_CLICKATON };
 
   const judgeAccountId = String(formData.get("judgeAccountId") ?? "").trim();
   const categoryIds = formData.getAll("categoryIds").map(String).filter(Boolean);
@@ -116,7 +119,6 @@ export async function quitarAsignacionAction(
   await requireClickatonAdmin();
 
   const { maraton } = conexiones();
-  if (!maraton) return { ok: false, mensaje: SIN_CONEXION_A_CLICKATON };
 
   const assignmentId = String(formData.get("assignmentId") ?? "").trim();
   if (!assignmentId) return { ok: false, mensaje: "Falta indicar la asignación." };

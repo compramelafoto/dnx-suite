@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import { getClickatonJuryPrisma } from "@repo/db/clickaton-jury-client";
 import { getJuryDirectoryPrisma } from "@repo/db/jury-directory-client";
 
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
@@ -7,10 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { adminRoutes } from "@/config/admin/navigation";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
 import { prisma } from "@/lib/admin/db";
-import {
-  SIN_CONEXION_AL_PADRON,
-  SIN_CONEXION_A_CLICKATON,
-} from "@/lib/jury-assignment/assign-judge";
+import { SIN_CONEXION_AL_PADRON } from "@/lib/jury-assignment/assign-judge";
 import { listarJuradosAsignables, type PadronPrisma } from "@/lib/jury-assignment/service";
 
 import { JuradosDeLaEdicion } from "./JuradosDeLaEdicion";
@@ -66,23 +62,25 @@ export default async function JuradosDeLaEdicionPage({
     );
   }
 
+  /*
+   * Sólo el padrón necesita conexión propia: vive en la base de FotoRank. Las
+   * asignaciones son de esta misma base y se leen con el cliente de siempre.
+   */
   const padron = getJuryDirectoryPrisma() as unknown as PadronPrisma | null;
-  const maraton = getClickatonJuryPrisma();
 
   /*
-   * Los dos avisos van primero y son explícitos.
-   *
-   * Sin ellos, una lista vacía se lee como "no hay jurados" y nadie se enteraría
-   * de que lo que falta es configurar la conexión entre las dos plataformas.
+   * El aviso va primero y es explícito: sin él, una lista vacía se lee como
+   * "no hay jurados" y nadie se enteraría de que lo que falta es configurar la
+   * conexión entre las dos plataformas.
    */
-  if (!padron || !maraton) {
+  if (!padron) {
     return (
       <div className="space-y-6">
         {encabezado}
         <Card variant="outlined" className="space-y-3 p-6">
           <p className="text-sm font-semibold text-ck-text">No se puede asignar jurados</p>
           <p className="text-sm leading-relaxed text-ck-text-secondary">
-            {!padron ? SIN_CONEXION_AL_PADRON : SIN_CONEXION_A_CLICKATON}
+            {SIN_CONEXION_AL_PADRON}
           </p>
         </Card>
       </div>
@@ -96,7 +94,7 @@ export default async function JuradosDeLaEdicionPage({
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
-    maraton.fotorankJudgeAssignment.findMany({
+    prisma.fotorankJudgeAssignment.findMany({
       where: { contestId: edicion.fotorankContestId },
       select: {
         id: true,
