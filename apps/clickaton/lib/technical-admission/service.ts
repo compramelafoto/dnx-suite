@@ -2,9 +2,9 @@ import { createHash, randomBytes } from "node:crypto";
 import { prisma } from "@/lib/admin/db";
 import { hasEditionCapability } from "@/lib/timeline/permissions";
 import { getEditionTemporalState } from "@/lib/timeline/prisma-timeline";
-import { isWithinUploadWindow, resolveEffectiveWindows } from "@/lib/photo-upload/windows";
-import { systemClock } from "@/lib/timeline/clock";
+import { resolveEffectiveWindows } from "@/lib/photo-upload/windows";
 import { buildAnonymousJuryCode } from "./anonymity";
+import { revisarSubidaEnTermino } from "./subida-en-termino";
 import { AdmissionError } from "./errors";
 import {
   CAPABILITY_ADMIT_ENTRIES,
@@ -167,7 +167,6 @@ export async function evaluateSubmission(input: {
   }
 
   const temporal = await getEditionTemporalState(input.editionId);
-  const clock = systemClock();
   const windows = resolveEffectiveWindows({
     status: submission.prompt.status,
     releasedAt: submission.prompt.releasedAt,
@@ -176,7 +175,26 @@ export async function evaluateSubmission(input: {
     uploadStartsAt: submission.prompt.uploadStartsAt,
     uploadEndsAt: submission.prompt.uploadEndsAt,
   });
-  const uploadOk = isWithinUploadWindow(windows, clock);
+
+  /*
+   * Se pregunta por el hecho, no por el momento en que se mira.
+   *
+   * Antes esto miraba el reloj del servidor, o sea preguntaba "¿estamos
+   * ahora dentro de la ventana?". Como la revisión se hace cuando la maratón
+   * terminó, la respuesta era siempre que no, y 100 fotos entregadas a tiempo
+   * quedaron rechazadas por llegar tarde.
+   *
+   * La ventana se toma de la que quedó guardada en el envío cuando la foto
+   * entró; si esa faltara, se usa la del prompt. Así la decisión es la misma
+   * hoy que dentro de un año, y mover el cronograma después no reescribe la
+   * historia.
+   */
+  const ventana = revisarSubidaEnTermino({
+    subidaEn: submission.createdAt,
+    ventanaDesde: submission.uploadWindowStartsAt ?? windows.uploadStartsAt ?? null,
+    ventanaHasta: submission.uploadWindowEndsAt ?? windows.uploadEndsAt ?? null,
+  });
+  const uploadOk = ventana.enTermino;
 
   let entryStatus: string | null = null;
   if (submission.fotorankEntryId) {

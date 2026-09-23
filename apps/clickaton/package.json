@@ -92,6 +92,7 @@
     "test:jury-media": "tsx --test lib/jury-media/*.test.ts",
     "test:jury-mirror": "tsx --test lib/jury-mirror/*.test.ts",
     "test:jury-assignment": "tsx --test lib/jury-assignment/*.test.ts",
+    "test:subida-en-termino": "tsx --test lib/technical-admission/subida-en-termino.test.ts",
     "test:jury-directory": "tsx --test lib/jury-directory/*.test.ts",
     "test:public-marathons-visibility": "tsx --test data/public-marathons/unlisted-visibility.test.ts",
     "test:registration-window": "tsx --test data/public-marathons/registration-window.test.ts",
