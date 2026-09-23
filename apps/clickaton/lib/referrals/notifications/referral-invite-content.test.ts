@@ -28,16 +28,25 @@ test("a quien todavía no invitó a nadie no se le habla de sus amigos", () => {
   const c = buildReferralInviteContent(BASE);
   assert.ok(!c.text.includes("Ya se sumaron"));
   assert.ok(!c.text.includes("Ya se sumó"));
-  assert.equal(c.subject, "Tu link para invitar amigos a Clickatón");
+  assert.equal(
+    c.subject,
+    "Invitá a tus amigos a Clickatón y vení gratis a la próxima",
+  );
 });
 
 test("a quien ya invitó se le dice cómo va, en singular y en plural", () => {
   const uno = buildReferralInviteContent({ ...BASE, colegas: 1 });
   assert.ok(uno.text.includes("Ya se sumó 1 amigo"));
-  assert.equal(uno.subject, "Tu link de Clickatón (y cómo vas)");
 
   const varios = buildReferralInviteContent({ ...BASE, colegas: 3 });
   assert.ok(varios.text.includes("Ya se sumaron 3 amigos"));
+});
+
+test("el asunto de quien ya arrancó muestra su progreso", () => {
+  // Abrir un correo que dice "ya vas 3 de 5" es más tentador que uno que
+  // repite la propuesta desde cero.
+  const c = buildReferralInviteContent({ ...BASE, colegas: 3 });
+  assert.equal(c.subject, "Ya vas 3 de 5 para tu próxima Clickatón gratis");
 });
 
 test("la escalera completa aparece en el correo", () => {
@@ -75,6 +84,31 @@ test("un nombre con caracteres raros no rompe el HTML", () => {
   const c = buildReferralInviteContent({ ...BASE, firstName: '<script>"Ana"' });
   assert.ok(!c.html.includes("<script>"));
   assert.ok(c.html.includes("&lt;script&gt;"));
+});
+
+test("el logo apunta a una URL absoluta: un email no resuelve rutas relativas", () => {
+  const c = buildReferralInviteContent(BASE);
+  assert.ok(
+    c.html.includes("https://maratonfotografica.com/brand/logo-horizontal-web.png"),
+  );
+  assert.ok(c.html.includes('alt="Clickatón'), "el logo necesita texto alternativo");
+});
+
+test("la escalera marca hasta dónde llegó cada uno", () => {
+  // Ver los escalones que ya alcanzó, encendidos, es la mitad del incentivo.
+  const sinNadie = buildReferralInviteContent(BASE);
+  const conTres = buildReferralInviteContent({ ...BASE, colegas: 3 });
+
+  const encendidos = (html: string) => (html.match(/border:2px solid #F9B114/g) ?? []).length;
+  assert.equal(encendidos(sinNadie.html), 0);
+  assert.equal(encendidos(conTres.html), 3);
+});
+
+test("el maquetado usa tablas, no flexbox: Gmail y Outlook no entienden el resto", () => {
+  const c = buildReferralInviteContent(BASE);
+  assert.ok(c.html.includes('role="presentation"'));
+  assert.ok(!c.html.includes("display:flex"));
+  assert.ok(!c.html.includes("display:grid"));
 });
 
 test("un baseUrl con barra al final no produce una doble barra", () => {
