@@ -1,12 +1,15 @@
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { InviteTestimonialsButton } from "@/components/admin/testimonials/InviteTestimonialsButton";
+import { SurveyShareLinks } from "@/components/admin/testimonials/SurveyShareLinks";
 import { TestimonialModuleSettingsForm } from "@/components/admin/testimonials/TestimonialModuleSettingsForm";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { adminRoutes } from "@/config/admin/navigation";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
+import { resolveClickatonPublicOrigin } from "@/lib/site/public-origin";
 import { loadTestimonialDashboard } from "@/lib/testimonials/admin/load-dashboard";
+import { surveyUrl } from "@/lib/testimonials/public/survey-share";
 import { npsToneLabel } from "@/lib/testimonials/ui/testimonial-status-presentation";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +37,7 @@ function Metric({
 export default async function AdminTestimonialsPage() {
   await requireClickatonAdmin();
   const dashboard = await loadTestimonialDashboard();
+  const publicOrigin = resolveClickatonPublicOrigin();
 
   return (
     <div className="space-y-8">
@@ -64,13 +68,20 @@ export default async function AdminTestimonialsPage() {
           </p>
         </div>
         {dashboard.allEditions.map((edition) => (
-          <TestimonialModuleSettingsForm
-            key={edition.id}
-            editionId={edition.id}
-            editionName={edition.name}
-            enabled={edition.testimonialsEnabled}
-            delayDays={edition.testimonialInviteDelayDays}
-          />
+          <div key={edition.id} className="space-y-3">
+            <TestimonialModuleSettingsForm
+              editionId={edition.id}
+              editionName={edition.name}
+              enabled={edition.testimonialsEnabled}
+              delayDays={edition.testimonialInviteDelayDays}
+            />
+            {edition.testimonialsEnabled ? (
+              <SurveyShareLinks
+                editionName={edition.name}
+                url={surveyUrl(publicOrigin, edition.slug)}
+              />
+            ) : null}
+          </div>
         ))}
       </Card>
 
@@ -99,8 +110,10 @@ export default async function AdminTestimonialsPage() {
       ) : (
         <Card>
           <p className="text-sm text-ck-text-secondary">
-            Ninguna edición tiene la encuesta encendida. Se activa en la ficha de
-            la edición, con «Encuesta y testimonios».
+            Ninguna edición tiene la encuesta encendida. Se activa acá arriba,
+            en «Encuesta por edición». Tené en cuenta que si el plazo de esa
+            edición ya venció, encenderla manda las invitaciones dentro de la
+            hora.
           </p>
         </Card>
       )}
