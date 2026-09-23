@@ -20,6 +20,76 @@ import { IconFrame } from "@/components/ui/IconFrame";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
+import { ParticipantVoices } from "@/components/home/ParticipantVoices";
+import type { PublishedTestimonial } from "@/lib/testimonials/public/list-published";
+
+/**
+ * Testimonios de muestra para ver el carrusel sin depender de la base.
+ * Los textos son inventados y de distinto largo a propósito: lo que hay que
+ * mirar es cómo se comportan las tarjetas cuando uno es corto y otro ocupa los
+ * 400 caracteres.
+ */
+const TESTIMONIOS_DE_MUESTRA: PublishedTestimonial[] = [
+  {
+    id: "ds-1",
+    excerpt:
+      "Fue muchísimo más de lo que esperaba. Salí a caminar la ciudad con la cabeza en otra cosa y volví con fotos que no sabía que podía hacer. La consigna de la tarde me rompió la cabeza: estuve una hora dando vueltas a la misma esquina hasta que entendí qué me estaban pidiendo. Gracias por armar algo así, de verdad.",
+    authorName: "Ana Pérez",
+    authorRole: "PARTICIPANT",
+    editionName: "Clickatón - Primavera 2026",
+    photoUrl: null,
+    linkUrl: "https://instagram.com/ejemplo",
+  },
+  {
+    id: "ds-2",
+    excerpt: "Impecable la organización. Vuelvo el año que viene sin dudarlo.",
+    authorName: "Bruno Gómez",
+    authorRole: "PARTICIPANT",
+    editionName: "Clickatón - Primavera 2026",
+    photoUrl: null,
+    linkUrl: null,
+  },
+  {
+    id: "ds-3",
+    excerpt:
+      "Recibirlos en la sede fue un placer. Llegaron puntuales, dejaron todo impecable y se notaba que la estaban pasando bien. Ojalá se repita.",
+    authorName: "Espacio Cultural Norte",
+    authorRole: "VENUE",
+    editionName: "Clickatón - Primavera 2026",
+    photoUrl: null,
+    linkUrl: null,
+  },
+  {
+    id: "ds-4",
+    excerpt:
+      "Juzgar esta edición me dejó pensando. El nivel estaba parejo y hubo tres obras que me costó muchísimo ordenar. Se nota cuando la gente se toma en serio la consigna.",
+    authorName: "Carla Ruiz",
+    authorRole: "JUROR",
+    editionName: "Clickatón - Primavera 2026",
+    photoUrl: null,
+    linkUrl: "https://ejemplo.com",
+  },
+  {
+    id: "ds-5",
+    excerpt:
+      "El kit me pareció lo mejor. Chiquito pero bien pensado, no había nada de relleno.",
+    authorName: "Diego Lamas",
+    authorRole: "PARTICIPANT",
+    editionName: "Clickatón - Primavera 2026",
+    photoUrl: null,
+    linkUrl: null,
+  },
+  {
+    id: "ds-6",
+    excerpt:
+      "Me anoté sola y terminé el día con cuatro personas nuevas con las que sigo hablando. Eso no lo esperaba y fue lo que más me llevé.",
+    authorName: "Elena Sosa",
+    authorRole: "PARTICIPANT",
+    editionName: "Clickatón - Primavera 2026",
+    photoUrl: null,
+    linkUrl: null,
+  },
+];
 
 export const metadata: Metadata = {
   title: "Design System V2 (interno)",
@@ -401,6 +471,8 @@ export default function DesignSystemPage() {
           </CatalogBlock>
         </Container>
       </Section>
+
+      <ParticipantVoices testimonials={TESTIMONIOS_DE_MUESTRA} />
 
       <Section tone="muted" grain>
         <Container>
