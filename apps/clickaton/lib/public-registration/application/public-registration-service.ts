@@ -374,7 +374,11 @@ export function createPublicRegistrationService(deps: {
 
     async getContext(
       slug: string,
-      opts?: { participantEmail?: string | null },
+      opts?: {
+        participantEmail?: string | null;
+        /** Usuario de la sesión. Nunca derivado del email tipeado. */
+        sessionUserId?: number | null;
+      },
     ): Promise<PublicRegistrationContextDto> {
       const edition = await repo.getEditionBySlug(slug);
       if (!edition || !edition.isPublished || !edition.registrationEnabled) {
@@ -492,22 +496,25 @@ export function createPublicRegistrationService(deps: {
         }
       }
 
-      // Beneficio por colegas traídos. Sólo presentación: el descuento real se
-      // recalcula y se reserva al crear la inscripción.
+      // Beneficio por colegas traídos.
+      //
+      // Se resuelve por la SESIÓN, nunca por el email tipeado: con el email de
+      // otro, cualquiera podría ver —y gastar— los colegas que esa persona
+      // trajo. Sólo presentación; el descuento real se recalcula y se reserva
+      // al crear la inscripción, también contra la sesión.
       let referralBenefit: PublicRegistrationContextDto["referralBenefit"] = null;
-      if (emailHint) {
+      if (opts?.sessionUserId != null) {
         try {
           const [{ prismaReferralRepository }, { descuentoPorColegas }] =
             await Promise.all([
               import("@/lib/referrals/infrastructure/prisma-referral-repository"),
               import("@/lib/referrals/domain/escalera"),
             ]);
-          const userId = await prismaReferralRepository.findUserIdByEmail(emailHint);
-          if (userId != null) {
-            const colegas = await prismaReferralRepository.contarColegasTraidos(userId);
-            if (colegas > 0) {
-              referralBenefit = { colegas, descuento: descuentoPorColegas(colegas) };
-            }
+          const colegas = await prismaReferralRepository.contarColegasTraidos(
+            opts.sessionUserId,
+          );
+          if (colegas > 0) {
+            referralBenefit = { colegas, descuento: descuentoPorColegas(colegas) };
           }
         } catch (error) {
           console.error("[clickaton] referralBenefit lookup failed:", error);
@@ -784,8 +791,13 @@ export function createPublicRegistrationService(deps: {
       // Beneficio por referidos. NO se suma al cupón: se aplica el mayor de
       // los dos, y en empate gana el cupón para que los colegas traídos queden
       // guardados para la próxima.
+      //
+      // `sessionUserId`, no `userId`: éste último sale del email tipeado, y
+      // con el email de un referidor cualquiera podría gastarle los colegas
+      // que trajo. El beneficio es de quien tiene la sesión iniciada.
       let referralRef: string | null = null;
-      if (montoDeLista > 0 && userId != null && !usePassCredit) {
+      const referidorUserId = input.sessionUserId ?? null;
+      if (montoDeLista > 0 && referidorUserId != null && !usePassCredit) {
         try {
           const [{ reservarBeneficio }, { prismaReferralRepository }] = await Promise.all([
             import("@/lib/referrals/application/canjear-beneficio"),
@@ -794,7 +806,7 @@ export function createPublicRegistrationService(deps: {
 
           const ref = `clickaton:ref:${input.idempotencyKey}`;
           const eleccion = await reservarBeneficio(prismaReferralRepository, {
-            userId,
+            userId: referidorUserId,
             montoOriginal: montoDeLista,
             cupon: promotionId ? { descuento: discountAmount } : null,
             ref,

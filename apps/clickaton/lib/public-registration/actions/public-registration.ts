@@ -9,6 +9,23 @@ import type {
 import { formBool, formString, pubFailure, pubSuccess, type PublicRegistrationActionState } from "./action-result";
 import { getPublicRegistrationService } from "./runtime";
 
+/**
+ * Usuario de la sesión, o null si se inscribe como invitado.
+ *
+ * Es lo único que autoriza el beneficio por referidos: el email del formulario
+ * no sirve, porque cualquiera puede escribir el de otro.
+ */
+async function resolverUsuarioDeSesion(): Promise<number | null> {
+  try {
+    const { getClickatonAuthUser } = await import("@/lib/admin/auth");
+    const user = await getClickatonAuthUser();
+    return user?.id ?? null;
+  } catch {
+    // Sin sesión se sigue igual: la inscripción como invitado no se rompe.
+    return null;
+  }
+}
+
 export async function getPublicRegistrationOfferAction(
   slug: string,
 ): Promise<PublicRegistrationActionState<PublicRegistrationOffer>> {
@@ -24,7 +41,9 @@ export async function getPublicRegistrationContextAction(
   slug: string,
 ): Promise<PublicRegistrationActionState<PublicRegistrationContextDto>> {
   try {
-    const data = await getPublicRegistrationService().getContext(slug);
+    const data = await getPublicRegistrationService().getContext(slug, {
+      sessionUserId: await resolverUsuarioDeSesion(),
+    });
     return pubSuccess(data);
   } catch (error) {
     return pubFailure<PublicRegistrationContextDto>(error);
@@ -115,6 +134,9 @@ export async function createPublicRegistrationAction(
     promoCode: formString(formData, "promoCode") || null,
     usePassCredit: formBool(formData, "usePassCredit"),
     passEntitlementId: formString(formData, "passEntitlementId") || null,
+    // Del servidor, nunca del formulario: es lo que autoriza el beneficio por
+    // referidos.
+    sessionUserId: await resolverUsuarioDeSesion(),
   };
 
   const values: Record<string, string> = {

@@ -84,10 +84,10 @@ export function ReferralSection({ programa }: Props) {
         </ul>
 
         <p className="text-xs leading-relaxed text-ck-text-muted">
-          Un colega cuenta cuando su pago queda aprobado. Lo que acumulás no vence, y si en
-          tu inscripción te conviene más un código de descuento, se usa ese y tus colegas
-          quedan guardados para la próxima. El descuento se aplica a partir de la próxima
-          edición.
+          Un colega cuenta cuando su pago queda aprobado. Lo que acumulás no vence, y tu
+          descuento se aplica solo al inscribirte. Si en esa inscripción te conviene más un
+          código de descuento, usamos el código y tus colegas quedan guardados para la
+          próxima.
         </p>
       </Card>
     </section>

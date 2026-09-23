@@ -201,6 +201,13 @@ export type CreatePublicRegistrationInput = {
   /** Canjear 1 crédito del Pack 4 (inscripción sin cargo). */
   usePassCredit?: boolean;
   passEntitlementId?: string | null;
+  /**
+   * Usuario de la sesión iniciada, resuelto en el servidor.
+   *
+   * Nunca se deriva del email del formulario: el beneficio por referidos es de
+   * quien inició sesión, no de quien escribe un email ajeno.
+   */
+  sessionUserId?: number | null;
 };
 
 export type PublicRegistrationSummaryDto = {

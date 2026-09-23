@@ -642,6 +642,12 @@ export function PublicRegistrationWizard({
     if (selectedTicket.isMarathonPack) {
       return { compareAt: null, savings: null };
     }
+    if (referralPreview?.gana) {
+      return {
+        compareAt: context.highestPricePhase?.amount ?? baseCharge?.amount ?? null,
+        savings: null,
+      };
+    }
     return resolveRegistrationCompareAt({
       currentAmount: context.currentPricePhase?.amount,
       highestAmount: context.highestPricePhase?.amount,
@@ -650,9 +656,27 @@ export function PublicRegistrationWizard({
     usePassCredit,
     selectedTicket,
     appliedPromo,
+    referralPreview,
+    baseCharge,
     context.currentPricePhase?.amount,
     context.highestPricePhase?.amount,
   ]);
+
+  /**
+   * Ahorro real contra el precio que se muestra.
+   *
+   * El ahorro de la fase ("antes $45.000, ahora $30.000") se queda corto en
+   * cuanto hay un cupón o un beneficio por referidos encima: el precio bajaba
+   * y el cartel seguía anunciando el ahorro viejo.
+   */
+  const stickySavings = useMemo(() => {
+    const compareAt = entryPromo.compareAt;
+    const final = displayCharge?.amount;
+    if (compareAt == null || final == null || compareAt <= final) {
+      return entryPromo.savings;
+    }
+    return compareAt - final;
+  }, [entryPromo.compareAt, entryPromo.savings, displayCharge?.amount]);
 
   const promoFieldProps = canUsePromo
     ? {
@@ -1168,7 +1192,7 @@ export function PublicRegistrationWizard({
           productLabel={stickyProductLabel}
           priceMinor={displayCharge?.amount ?? null}
           compareAtMinor={entryPromo.compareAt}
-          savingsMinor={entryPromo.savings}
+          savingsMinor={stickySavings}
           usingCredit={usePassCredit}
           includes={stickyIncludes}
           nextStepLabel={stickyNextStep}
