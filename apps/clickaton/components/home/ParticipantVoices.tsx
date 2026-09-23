@@ -127,7 +127,9 @@ export function ParticipantVoices({
           description="Testimonios de quienes estuvieron ahí, publicados con su autorización."
           titleId="voces-title"
         />
-        <ul className="mt-[var(--ck-stack-subtitle-to-content)] grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {/* Dos columnas como máximo: el testimonio sale completo y en tres
+            columnas se lee apretado. */}
+        <ul className="mt-[var(--ck-stack-subtitle-to-content)] grid gap-4 sm:gap-6 md:grid-cols-2">
           {testimonials.map((testimonial) => (
             <li key={testimonial.id} className="h-full">
               <VoiceCard

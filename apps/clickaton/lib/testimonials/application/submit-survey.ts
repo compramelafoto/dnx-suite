@@ -8,7 +8,6 @@
  *    la base, nunca de lo que venga en el formulario.
  */
 import { normalizeAuthorLink } from "../domain/author-link";
-import { buildExcerpt } from "../domain/excerpt";
 import type { EligibleAuthor } from "../domain/eligibility";
 import type { SurveyScores, TestimonialRepository } from "../domain/repository";
 import {
@@ -123,7 +122,9 @@ export async function submitSurvey(
       userId: input.userId,
       authorRole: input.eligibility.role,
       quote,
-      highlightedExcerpt: buildExcerpt(quote),
+      // Sin recorte: se publica el testimonio completo. Acortarlo es una
+      // decisión del admin, no algo que pase solo al guardar.
+      highlightedExcerpt: null,
       publicationConsent: true,
       authorName: input.eligibility.authorName,
       authorPhotoAssetId: input.eligibility.authorPhotoAssetId,

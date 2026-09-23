@@ -8,8 +8,13 @@ import { EXCERPT_MAX_LENGTH } from "./survey-definition";
 
 const ELLIPSIS = "…";
 
+/** Espacios y saltos repetidos a un solo espacio. No pierde nada del texto. */
+export function normalizeWhitespace(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
 export function buildExcerpt(quote: string, max = EXCERPT_MAX_LENGTH): string {
-  const normalized = quote.replace(/\s+/g, " ").trim();
+  const normalized = normalizeWhitespace(quote);
   if (normalized.length === 0) return "";
   if (normalized.length <= max) return normalized;
 
