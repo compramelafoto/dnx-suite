@@ -9,14 +9,14 @@ export function ReferralSection({ programa }: Props) {
   return (
     <section className="space-y-4" aria-labelledby="mis-referidos-title">
       <h2 id="mis-referidos-title" className="ck-heading-md">
-        Traé a tus colegas
+        Invitá a tus amigos a Clickatón
       </h2>
 
       <Card variant="outlined" className="space-y-5 p-6">
         <div className="space-y-2">
           <p className="text-sm leading-relaxed text-ck-text-secondary">
-            Cada colega que traigas te descuenta tu próxima Clickatón.{" "}
-            <strong className="text-ck-text">Con 5, entrás gratis.</strong> El que viene
+            Cada amigo que se suma por tu link te descuenta tu próxima Clickatón.{" "}
+            <strong className="text-ck-text">Con 5, entrás gratis.</strong> Y el que viene
             por tu link entra con 10% de descuento.
           </p>
         </div>
@@ -33,10 +33,10 @@ export function ReferralSection({ programa }: Props) {
           <div className="flex items-baseline justify-between gap-3">
             <p className="text-sm text-ck-text-secondary">
               {programa.colegas === 0
-                ? "Todavía no trajiste a nadie."
+                ? "Todavía no se sumó nadie."
                 : programa.colegas === 1
-                  ? "Trajiste 1 colega."
-                  : `Trajiste ${programa.colegas} colegas.`}
+                  ? "Ya se sumó 1 amigo."
+                  : `Ya se sumaron ${programa.colegas} amigos.`}
             </p>
             <p className="font-[family-name:var(--font-ck-display)] text-2xl text-ck-yellow">
               {programa.descuentoActual}%
@@ -49,7 +49,7 @@ export function ReferralSection({ programa }: Props) {
             aria-valuenow={programa.colegas}
             aria-valuemin={0}
             aria-valuemax={5}
-            aria-label="Colegas traídos"
+            aria-label="Amigos que se sumaron"
           >
             <div
               className="h-full rounded-full bg-ck-yellow transition-[width]"
@@ -60,7 +60,7 @@ export function ReferralSection({ programa }: Props) {
           <p className="text-sm text-ck-text-muted">
             {programa.llegoAlTope
               ? "Llegaste al tope: tu próxima Clickatón es gratis."
-              : `Te falta ${programa.faltanParaElSiguiente === 1 ? "1 colega" : `${programa.faltanParaElSiguiente} colegas`} para llegar al ${programa.siguienteDescuento}%.`}
+              : `Te falta ${programa.faltanParaElSiguiente === 1 ? "1 amigo" : `${programa.faltanParaElSiguiente} amigos`} para llegar al ${programa.siguienteDescuento}%.`}
           </p>
         </div>
 
@@ -84,10 +84,10 @@ export function ReferralSection({ programa }: Props) {
         </ul>
 
         <p className="text-xs leading-relaxed text-ck-text-muted">
-          Un colega cuenta cuando su pago queda aprobado. Lo que acumulás no vence, y tu
-          descuento se aplica solo al inscribirte. Si en esa inscripción te conviene más un
-          código de descuento, usamos el código y tus colegas quedan guardados para la
-          próxima.
+          Un amigo cuenta cuando su pago queda aprobado. Lo que acumulás no vence nunca, y
+          tu descuento se aplica solo al inscribirte, con tu sesión iniciada. Si en esa
+          inscripción te conviene más un código de descuento, usamos el código y tus amigos
+          quedan guardados para la próxima.
         </p>
       </Card>
     </section>

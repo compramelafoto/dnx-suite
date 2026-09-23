@@ -247,8 +247,12 @@ export function PublicRegistrationWizard({
   }, [selectedTicket, usePassCredit, context.currentPricePhase]);
 
   /**
-   * Beneficio por colegas traídos. NO se suma al cupón: se muestra el mayor de
-   * los dos, igual que decide el servidor al crear la inscripción.
+   * Beneficio por amigos invitados que ya se sumaron. NO se suma al cupón: se
+   * muestra el mayor de los dos, igual que decide el servidor al crear la
+   * inscripción.
+   *
+   * En el código el contador se llama `colegas` por razones históricas; de
+   * cara al participante son "amigos".
    */
   const referralPreview = useMemo(() => {
     const benefit = context.referralBenefit;
@@ -276,7 +280,10 @@ export function PublicRegistrationWizard({
       return {
         amount: referralPreview.finalAmount,
         currency: baseCharge.currency,
-        label: `Traés ${referralPreview.colegas} ${referralPreview.colegas === 1 ? "colega" : "colegas"}`,
+        label:
+          referralPreview.colegas === 1
+            ? "Invitaste a 1 amigo"
+            : `Invitaste a ${referralPreview.colegas} amigos`,
       };
     }
     if (!appliedPromo) return baseCharge;
@@ -1105,8 +1112,9 @@ export function PublicRegistrationWizard({
             {referralPreview ? (
               <div className="rounded-[var(--ck-radius-card)] border border-ck-yellow/40 bg-ck-surface-strong p-4">
                 <p className="text-sm font-semibold text-ck-text">
-                  Trajiste {referralPreview.colegas}{" "}
-                  {referralPreview.colegas === 1 ? "colega" : "colegas"} a Clickatón
+                  {referralPreview.colegas === 1
+                    ? "Invitaste a 1 amigo que ya se sumó"
+                    : `Invitaste a ${referralPreview.colegas} amigos que ya se sumaron`}
                 </p>
                 <p className="mt-1 text-sm leading-relaxed text-ck-text-secondary">
                   {referralPreview.gana ? (
@@ -1120,8 +1128,8 @@ export function PublicRegistrationWizard({
                   ) : (
                     <>
                       Tu código de descuento te conviene más que tu{" "}
-                      {referralPreview.porcentaje}% por referidos, así que usamos el
-                      código. Tus colegas quedan guardados para la próxima edición.
+                      {referralPreview.porcentaje}% por invitar amigos, así que usamos el
+                      código. Tus amigos quedan guardados para la próxima edición.
                     </>
                   )}
                 </p>

@@ -7,7 +7,7 @@
 export function buildReferralShareMessage(input: { link: string }): string {
   return [
     "Te invito a la Clickatón: una maratón fotográfica de un día, con consignas, jurado y premios.",
-    "Con este link entrás con 10% de descuento en tu inscripción.",
+    "Entrando por este link tenés 10% de descuento en tu inscripción.",
     "",
     // El enlace va último a propósito: WhatsApp previsualiza el último que encuentra.
     input.link,

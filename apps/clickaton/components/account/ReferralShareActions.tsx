@@ -37,7 +37,7 @@ export function ReferralShareActions({ link }: Props) {
         variant="outline"
         onClick={() => copy(buildReferralShareMessage({ link }), "message")}
       >
-        {copied === "message" ? "¡Copiado!" : "Copiar mensaje armado"}
+        {copied === "message" ? "¡Copiado!" : "Copiar invitación armada"}
       </Button>
 
       <Button
