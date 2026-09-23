@@ -325,6 +325,9 @@ model User {
   subilafotoSellerProfiles            SubilafotoSellerProfile[]
   subilafotoCollaborations            SubilafotoCollaborator[]
   coverageEvents                      CoverageEvent[]
+  clickatonReferralCode               ClickatonReferralCode?
+  clickatonReferralsMade              ClickatonReferralAttribution[]     @relation("ClickatonReferralReferrer")
+  clickatonReferralReceived           ClickatonReferralAttribution?      @relation("ClickatonReferralReferred")
 }
 
 /// Perfil financiero de ¿Cuánto Cobro? (wizard bloque A), 1:1 con User.
@@ -13781,6 +13784,120 @@ model ClickatonContactMessage {
   @@index([isRead, createdAt])
   @@index([reason])
   @@index([source])
+}
+
+// ---------------------------------------------------------------------------
+// CLICKATÓN REFERIDOS (Etapa 01) — atribución "quién trajo a quién"
+//
+// El premio es volver, no cobrar: NO se reutiliza el programa de comisiones de
+// CompraMeLaFoto (`ReferralCode` / `ReferralEarning` / `ReferralPayoutRequest`),
+// que paga dinero y vive en otra app.
+//
+// El contador de colegas traídos NO es una columna: es
+// `count(atribuciones con status = EARNED)`. Al canjear, esas N pasan a
+// CONSUMED. Así hay auditoría completa, no hay saldo mutable que reconciliar,
+// y "lo que no se usó se conserva" sale solo.
+// ---------------------------------------------------------------------------
+
+enum ClickatonReferralAttributionStatus {
+  /// Colega traído y pagado: cuenta para la escalera.
+  EARNED
+  /// Tomado por una inscripción que todavía no se pagó. Sin este estado, dos
+  /// inscripciones simultáneas usarían los mismos colegas y las dos entrarían
+  /// con descuento.
+  RESERVED
+  /// Ya se canjeó en una inscripción con descuento pagada.
+  CONSUMED
+  /// El pago del referido se cayó (reembolso, contracargo, cancelación).
+  REVOKED
+}
+
+/// Código del link de invitación (`/i/<code>`). Uno por usuario, creado
+/// on-demand la primera vez que entra a su panel.
+model ClickatonReferralCode {
+  id        String   @id @default(cuid())
+  userId    Int      @unique
+  code      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User                           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attributions ClickatonReferralAttribution[]
+
+  @@index([code])
+}
+
+/// Puente entre la inscripción y la confirmación del pago.
+///
+/// La cookie `ck_ref` existe cuando la persona se inscribe, pero `confirmPaid`
+/// corre en el webhook, sin navegador. Acá queda anotado el código con el que
+/// llegó, para leerlo cuando el pago se aprueba.
+///
+/// Es una tabla propia y no una columna en `ClickatonRegistration` a propósito:
+/// una columna nueva sin aplicar rompe TODA lectura del modelo, no sólo lo
+/// nuevo. Así, si el SQL no llegó, sólo falla el programa de referidos.
+model ClickatonReferralClaim {
+  id             String   @id @default(cuid())
+  registrationId String   @unique
+  code           String
+  createdAt      DateTime @default(now())
+
+  @@index([code])
+}
+
+/// Quién trajo a quién. `referredUserId` es único: cada persona cuenta una
+/// sola vez en su vida, aunque después se inscriba a diez ediciones.
+model ClickatonReferralAttribution {
+  id             String                             @id @default(cuid())
+  referrerUserId Int
+  referredUserId Int                                @unique
+  /// Snapshot del email con el que se inscribió el referido.
+  referredEmail  String
+  referralCodeId String
+  /// Inscripción del referido que generó la atribución.
+  registrationId String                             @unique
+  editionId      String
+  status         ClickatonReferralAttributionStatus @default(EARNED)
+  earnedAt       DateTime                           @default(now())
+  revokedAt      DateTime?
+  revokedReason  String?
+  consumedAt     DateTime?
+  /// Inscripción del REFERIDOR donde se usó el beneficio (Etapa 02).
+  consumedRegistrationId String?
+  createdAt      DateTime                           @default(now())
+  updatedAt      DateTime                           @updatedAt
+
+  referrer     User                  @relation("ClickatonReferralReferrer", fields: [referrerUserId], references: [id], onDelete: Cascade)
+  referred     User                  @relation("ClickatonReferralReferred", fields: [referredUserId], references: [id], onDelete: Cascade)
+  referralCode ClickatonReferralCode @relation(fields: [referralCodeId], references: [id], onDelete: Restrict)
+
+  @@index([referrerUserId, status])
+  @@index([referralCodeId])
+  @@index([editionId])
+  @@index([consumedRegistrationId])
+}
+
+/// Todo intento de atribución, incluido el que NO prosperó. En CompraMeLaFoto
+/// estos casos se descartaban en silencio y fue imposible auditarlos o
+/// recuperarlos.
+model ClickatonReferralAttributionAttempt {
+  id             String   @id @default(cuid())
+  code           String
+  referrerUserId Int?
+  referredUserId Int?
+  referredEmail  String?
+  registrationId String?
+  /// CREATED | CODE_NOT_FOUND | CODE_INACTIVE | SELF_REFERRAL | SAME_EMAIL |
+  /// ALREADY_ATTRIBUTED | REFERRER_NOT_ELIGIBLE | ERROR
+  outcome        String
+  detail         String?
+  createdAt      DateTime @default(now())
+
+  @@index([outcome, createdAt])
+  @@index([code])
+  @@index([registrationId])
+  @@index([createdAt])
 }
 
 // ---------------------------------------------------------------------------

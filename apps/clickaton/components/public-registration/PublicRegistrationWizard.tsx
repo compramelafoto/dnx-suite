@@ -246,15 +246,46 @@ export function PublicRegistrationWizard({
     };
   }, [selectedTicket, usePassCredit, context.currentPricePhase]);
 
+  /**
+   * Beneficio por colegas traídos. NO se suma al cupón: se muestra el mayor de
+   * los dos, igual que decide el servidor al crear la inscripción.
+   */
+  const referralPreview = useMemo(() => {
+    const benefit = context.referralBenefit;
+    if (!benefit || benefit.descuento <= 0) return null;
+    if (!baseCharge || baseCharge.amount <= 0 || usePassCredit) return null;
+
+    const descuento = Math.round((baseCharge.amount * benefit.descuento) / 100);
+    const descuentoCupon = appliedPromo
+      ? baseCharge.amount - appliedPromo.finalAmount
+      : 0;
+
+    return {
+      colegas: benefit.colegas,
+      porcentaje: benefit.descuento,
+      finalAmount: baseCharge.amount - descuento,
+      // Empate → gana el cupón, y así los colegas quedan para la próxima.
+      gana: descuento > descuentoCupon,
+    };
+  }, [context.referralBenefit, baseCharge, appliedPromo, usePassCredit]);
+
   const displayCharge = useMemo(() => {
     if (!baseCharge) return null;
-    if (!appliedPromo || usePassCredit) return baseCharge;
+    if (usePassCredit) return baseCharge;
+    if (referralPreview?.gana) {
+      return {
+        amount: referralPreview.finalAmount,
+        currency: baseCharge.currency,
+        label: `Traés ${referralPreview.colegas} ${referralPreview.colegas === 1 ? "colega" : "colegas"}`,
+      };
+    }
+    if (!appliedPromo) return baseCharge;
     return {
       amount: appliedPromo.finalAmount,
       currency: appliedPromo.currency || baseCharge.currency,
       label: appliedPromo.name || baseCharge.label,
     };
-  }, [baseCharge, appliedPromo, usePassCredit]);
+  }, [baseCharge, appliedPromo, usePassCredit, referralPreview]);
 
   const canUsePromo = Boolean(
     selectedTicket && !usePassCredit && baseCharge && baseCharge.amount > 0,
@@ -611,6 +642,12 @@ export function PublicRegistrationWizard({
     if (selectedTicket.isMarathonPack) {
       return { compareAt: null, savings: null };
     }
+    if (referralPreview?.gana) {
+      return {
+        compareAt: context.highestPricePhase?.amount ?? baseCharge?.amount ?? null,
+        savings: null,
+      };
+    }
     return resolveRegistrationCompareAt({
       currentAmount: context.currentPricePhase?.amount,
       highestAmount: context.highestPricePhase?.amount,
@@ -619,9 +656,27 @@ export function PublicRegistrationWizard({
     usePassCredit,
     selectedTicket,
     appliedPromo,
+    referralPreview,
+    baseCharge,
     context.currentPricePhase?.amount,
     context.highestPricePhase?.amount,
   ]);
+
+  /**
+   * Ahorro real contra el precio que se muestra.
+   *
+   * El ahorro de la fase ("antes $45.000, ahora $30.000") se queda corto en
+   * cuanto hay un cupón o un beneficio por referidos encima: el precio bajaba
+   * y el cartel seguía anunciando el ahorro viejo.
+   */
+  const stickySavings = useMemo(() => {
+    const compareAt = entryPromo.compareAt;
+    const final = displayCharge?.amount;
+    if (compareAt == null || final == null || compareAt <= final) {
+      return entryPromo.savings;
+    }
+    return compareAt - final;
+  }, [entryPromo.compareAt, entryPromo.savings, displayCharge?.amount]);
 
   const promoFieldProps = canUsePromo
     ? {
@@ -1047,6 +1102,31 @@ export function PublicRegistrationWizard({
                 </dd>
               </div>
             </dl>
+            {referralPreview ? (
+              <div className="rounded-[var(--ck-radius-card)] border border-ck-yellow/40 bg-ck-surface-strong p-4">
+                <p className="text-sm font-semibold text-ck-text">
+                  Trajiste {referralPreview.colegas}{" "}
+                  {referralPreview.colegas === 1 ? "colega" : "colegas"} a Clickatón
+                </p>
+                <p className="mt-1 text-sm leading-relaxed text-ck-text-secondary">
+                  {referralPreview.gana ? (
+                    <>
+                      Te corresponde un{" "}
+                      <strong className="text-ck-yellow">
+                        {referralPreview.porcentaje}% de descuento
+                      </strong>{" "}
+                      y ya está aplicado.
+                    </>
+                  ) : (
+                    <>
+                      Tu código de descuento te conviene más que tu{" "}
+                      {referralPreview.porcentaje}% por referidos, así que usamos el
+                      código. Tus colegas quedan guardados para la próxima edición.
+                    </>
+                  )}
+                </p>
+              </div>
+            ) : null}
             {promoFieldProps ? (
               <div className="rounded-[var(--ck-radius-card)] border border-ck-border bg-ck-surface/60 p-4 lg:hidden">
                 <RegistrationPromoCodeField id="promoCodeReview" {...promoFieldProps} />
@@ -1112,7 +1192,7 @@ export function PublicRegistrationWizard({
           productLabel={stickyProductLabel}
           priceMinor={displayCharge?.amount ?? null}
           compareAtMinor={entryPromo.compareAt}
-          savingsMinor={entryPromo.savings}
+          savingsMinor={stickySavings}
           usingCredit={usePassCredit}
           includes={stickyIncludes}
           nextStepLabel={stickyNextStep}

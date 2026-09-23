@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
+import { ReferralSection } from "@/components/account/ReferralSection";
 import { adminRoutes } from "@/config/admin/navigation";
 import { logoutClickatonAction } from "@/app/(public)/login/actions";
 import {
@@ -21,6 +22,35 @@ import {
 import { fechaHoraLargaAr } from "@/lib/fecha-ar";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Best-effort: si el programa de referidos falla, `mi-cuenta` sigue mostrando
+ * las inscripciones. Nadie se queda sin ver su acreditación por esto.
+ */
+async function cargarProgramaDeReferidos(userId: number) {
+  try {
+    const [{ obtenerOCrearCodigoDeReferido, prismaReferralRepository }, { presentarProgramaDeReferidos }, { resolveClickatonPublicOrigin }] =
+      await Promise.all([
+        import("@/lib/referrals/infrastructure/prisma-referral-repository"),
+        import("@/lib/referrals/ui/referral-presentation"),
+        import("@/lib/site/public-origin"),
+      ]);
+
+    const [codigo, colegas] = await Promise.all([
+      obtenerOCrearCodigoDeReferido(userId),
+      prismaReferralRepository.contarColegasTraidos(userId),
+    ]);
+
+    return presentarProgramaDeReferidos({
+      code: codigo.code,
+      colegas,
+      baseUrl: resolveClickatonPublicOrigin(),
+    });
+  } catch (error) {
+    console.error("[clickaton] cargarProgramaDeReferidos falló:", error);
+    return null;
+  }
+}
 
 export default async function MiCuentaPage() {
   const user = await getClickatonAuthUser();
@@ -45,6 +75,11 @@ export default async function MiCuentaPage() {
     orderBy: { createdAt: "desc" },
     take: 20,
   });
+
+  // El programa premia a quien vivió la experiencia: sin una inscripción
+  // confirmada no hay link que mostrar.
+  const participo = registrations.some((reg) => reg.status === "CONFIRMED");
+  const programaDeReferidos = participo ? await cargarProgramaDeReferidos(user.id) : null;
 
   return (
     <div className="mx-auto max-w-2xl space-y-8 px-4 py-16 md:py-20">
@@ -87,6 +122,10 @@ export default async function MiCuentaPage() {
           </form>
         </div>
       </Card>
+
+      {programaDeReferidos ? (
+        <ReferralSection programa={programaDeReferidos} />
+      ) : null}
 
       <section className="space-y-4" aria-labelledby="mis-inscripciones-title">
         <h2 id="mis-inscripciones-title" className="ck-heading-md">

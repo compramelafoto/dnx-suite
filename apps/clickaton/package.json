@@ -104,6 +104,7 @@
     "test:accreditation-offline": "tsx --test lib/accreditation/ui/offline-queue.test.ts",
     "test:pack-offer-policy": "tsx --test lib/packs/pack-offer-policy.test.ts",
     "test:gift-vouchers": "tsx --test lib/gift-vouchers/domain/*.test.ts lib/gift-vouchers/application/*.test.ts lib/gift-vouchers/infrastructure/*.test.ts lib/gift-vouchers/notifications/*.test.ts lib/gift-vouchers/ui/*.test.ts",
+    "test:referrals": "tsx --test lib/referrals/domain/*.test.ts lib/referrals/application/*.test.ts lib/referrals/ui/*.test.ts",
     "test:promotions-eligibility": "tsx --test lib/promotions/eligibility-where.test.ts",
     "test:demo-schedule": "tsx --test scripts/lib/demo-schedule.test.ts",
     "seed:clickaton-blog-taxonomy": "tsx scripts/seed-clickaton-blog-taxonomy.ts",
