@@ -1,4 +1,5 @@
 import { prisma } from "@repo/db";
+import { leTocaLaConsigna } from "./repartoPorConsigna";
 import { getContestEntryStorage } from "../storage/provider";
 import { assertJudgeContestAccess, assertJuryEntryAccess } from "./jury-access";
 import { sortEntriesForJuror } from "./jury-order";
@@ -83,6 +84,9 @@ export async function listAnonymousEntriesForJuror(input: {
 
     for (const snap of snapshots) {
       if (conflictSet.has(snap.entryId)) continue;
+      // El reparto por consigna: si al jurado le tocaron algunas, el resto
+      // no aparece en su cola.
+      if (!leTocaLaConsigna(access.promptIds, snap.promptExternalId)) continue;
       const previewAsset =
         snap.entry.assets.find((a) => a.kind === "JURY_PREVIEW") ??
         snap.entry.assets.find((a) => a.kind === "THUMBNAIL") ??
@@ -138,6 +142,7 @@ export async function listAnonymousEntriesForJuror(input: {
     });
     for (const row of rows) {
       if (conflictSet.has(row.id)) continue;
+      if (!leTocaLaConsigna(access.promptIds, row.externalPromptId)) continue;
       if (row.sourcePlatform === "CLICKATON") continue; // sin batch FROZEN no listar Clickatón
       const preview =
         row.assets.find((a) => a.kind === "JURY_PREVIEW") ??

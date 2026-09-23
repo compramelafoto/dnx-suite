@@ -5,6 +5,7 @@ import {
   MENSAJE_COMPITE_EN_TODAS,
 } from "./competir-y-juzgar";
 import { JuryError } from "./errors";
+import { consignasDelJurado, leTocaLaConsigna } from "./repartoPorConsigna";
 
 const ACTIVE_ASSIGNMENT = ["ACCEPTED", "IN_PROGRESS", "COMPLETED", "EXTENDED", "ASSIGNED"] as const;
 
@@ -81,7 +82,20 @@ export async function assertJudgeContestAccess(input: {
     }
   }
 
-  return { contest, assignments, categoryIds: assignments.map((a) => a.categoryId) };
+  /*
+   * Qué consignas le tocan. Sale de las mismas asignaciones, así que el
+   * reparto viaja por la misma compuerta que la categoría y nadie tiene que
+   * acordarse de aplicarlo en cada pantalla. `null` = todas, que es el caso
+   * de siempre cuando el organizador no repartió.
+   */
+  const promptIds = consignasDelJurado(assignments);
+
+  return {
+    contest,
+    assignments,
+    categoryIds: assignments.map((a) => a.categoryId),
+    promptIds,
+  };
 }
 
 export async function assertJuryEntryAccess(input: {
@@ -112,6 +126,13 @@ export async function assertJuryEntryAccess(input: {
   if (!entry) throw new JuryError("ENTRY_NOT_FOUND", "Obra no encontrada.", 404);
   if (!access.categoryIds.includes(entry.categoryId)) {
     throw new JuryError("CATEGORY_NOT_ASSIGNED", "No estás asignado a la categoría de esta obra.", 403);
+  }
+  if (!leTocaLaConsigna(access.promptIds, entry.externalPromptId)) {
+    throw new JuryError(
+      "CATEGORY_NOT_ASSIGNED",
+      "Esta consigna le tocó a otro jurado.",
+      403,
+    );
   }
   if (entry.status !== "CONFIRMED" || entry.withdrawnAt) {
     throw new JuryError("ENTRY_NOT_CONFIRMABLE", "La obra no está disponible para evaluación.", 403);
