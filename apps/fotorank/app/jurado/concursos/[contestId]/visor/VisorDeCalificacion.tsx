@@ -11,12 +11,14 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { AyudaDelVisor } from "./AyudaDelVisor";
 import {
   enviarCalificacionesAction,
   guardarNotaAction,
   latidoDelVisorAction,
 } from "../../../../actions/juryVisor";
 import {
+  FILTROS_DEL_VISOR,
   estadoDeLaObra,
   laSiguiente,
   obrasVisibles,
@@ -37,13 +39,6 @@ const FONDOS: Array<{ id: Fondo; nombre: string; muestra: string }> = [
   { id: "oscuro", nombre: "Fondo oscuro", muestra: "#111111" },
   { id: "gris", nombre: "Fondo gris", muestra: "#767676" },
   { id: "claro", nombre: "Fondo claro", muestra: "#eceae6" },
-];
-
-const FILTROS: Array<{ id: FiltroDelVisor; nombre: string }> = [
-  { id: "TODAS", nombre: "Todas" },
-  { id: "SIN_CALIFICAR", nombre: "Sin calificar" },
-  { id: "CALIFICADA", nombre: "Calificadas" },
-  { id: "SIN_TERMINAR", nombre: "Sin terminar" },
 ];
 
 /** Cada cuánto late, mientras haya pantalla a la vista y actividad. */
@@ -72,6 +67,7 @@ export function VisorDeCalificacion({
   const [criterioActivo, setCriterioActivo] = useState(0);
   const [fondo, setFondo] = useState<Fondo>("gris");
   const [inmersivo, setInmersivo] = useState(false);
+  const [ayuda, setAyuda] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const [ritmo, setRitmo] = useState<{ segundosActivos: number; calificadas: number } | null>(null);
   const [enviando, setEnviando] = useState(false);
@@ -79,10 +75,37 @@ export function VisorDeCalificacion({
   const huboInteraccion = useRef(false);
   const contenedor = useRef<HTMLDivElement | null>(null);
 
-  const visibles = useMemo(
-    () => obrasVisibles(obras, clavesDeCriterio, { consigna, filtro }),
-    [obras, clavesDeCriterio, consigna, filtro],
+  /*
+   * La lista se congela mientras el jurado trabaja una consigna.
+   *
+   * Si se recalculara con cada nota, al completar la cuarta la foto saldría del
+   * filtro y desaparecería de abajo de las manos, mandando el visor a otro
+   * lado. Se rearma sólo al cambiar de consigna o de filtro, que es cuando el
+   * jurado pidió otra cosa.
+   */
+  const [idsVisibles, setIdsVisibles] = useState<string[]>(() =>
+    obrasVisibles(cola.obras, clavesDeCriterio, {
+      consigna: cola.consignas[0]?.numero ?? null,
+      filtro: "TODAS",
+    }).map((o) => o.entryId),
   );
+
+  const visibles = useMemo(() => {
+    const porId = new Map(obras.map((o) => [o.entryId, o]));
+    return idsVisibles.flatMap((id) => {
+      const o = porId.get(id);
+      return o ? [o] : [];
+    });
+  }, [obras, idsVisibles]);
+
+  function rearmarLista(nuevaConsigna: number | null, nuevoFiltro: FiltroDelVisor) {
+    const lista = obrasVisibles(obras, clavesDeCriterio, {
+      consigna: nuevaConsigna,
+      filtro: nuevoFiltro,
+    });
+    setIdsVisibles(lista.map((o) => o.entryId));
+    return lista;
+  }
   const actual = useMemo(
     () => visibles.find((o) => o.entryId === entryIdActual) ?? visibles[0] ?? null,
     [visibles, entryIdActual],
@@ -204,6 +227,14 @@ export function VisorDeCalificacion({
       const destino = e.target as HTMLElement | null;
       if (destino && (destino.tagName === "TEXTAREA" || destino.tagName === "INPUT")) return;
 
+      if (e.key === "?" || e.key === "h" || e.key === "H") {
+        e.preventDefault();
+        setAyuda((v) => !v);
+        return;
+      }
+      // Con la ayuda abierta el teclado es de la ayuda: nadie califica sin ver la foto.
+      if (ayuda) return;
+
       if (e.key === "Tab") {
         e.preventDefault();
         moverCriterio(e.shiftKey ? -1 : 1);
@@ -237,7 +268,7 @@ export function VisorDeCalificacion({
 
     window.addEventListener("keydown", alPresionar);
     return () => window.removeEventListener("keydown", alPresionar);
-  }, [moverCriterio, moverFoto, ponerNota]);
+  }, [ayuda, moverCriterio, moverFoto, ponerNota]);
 
   /* ---------- enviar ---------- */
 
@@ -336,8 +367,8 @@ export function VisorDeCalificacion({
               type="button"
               onClick={() => {
                 setConsigna(c.numero);
-                const primera = obras.find((o) => o.consignaNumero === c.numero);
-                if (primera) setEntryIdActual(primera.entryId);
+                const lista = rearmarLista(c.numero, filtro);
+                if (lista[0]) setEntryIdActual(lista[0].entryId);
                 setCriterioActivo(0);
               }}
               className="flex min-h-10 items-center gap-2 whitespace-nowrap px-4 text-[13px]"
@@ -380,12 +411,19 @@ export function VisorDeCalificacion({
         </p>
 
         <div className="flex gap-px" style={{ background: colores.linea, border: `1px solid ${colores.linea}` }} role="group" aria-label="Qué fotos mostrar">
-          {FILTROS.map((f) => (
+          {FILTROS_DEL_VISOR.map((f) => (
             <button
               key={f.id}
               type="button"
               aria-pressed={filtro === f.id}
-              onClick={() => setFiltro(f.id)}
+              onClick={() => {
+                setFiltro(f.id);
+                const lista = rearmarLista(consigna, f.id);
+                if (lista.length > 0 && !lista.some((o) => o.entryId === entryIdActual)) {
+                  setEntryIdActual(lista[0]!.entryId);
+                  setCriterioActivo(0);
+                }
+              }}
               className="min-h-9 px-3 text-xs font-medium"
               style={{
                 background: filtro === f.id ? colores.tinta : colores.panel,
@@ -424,6 +462,16 @@ export function VisorDeCalificacion({
           style={{ background: "#e0a061", color: "#1b1917" }}
         >
           {enviando ? "Enviando…" : "Enviar calificaciones"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setAyuda(true)}
+          className="min-h-9 px-3 text-xs font-medium"
+          style={{ border: `1px solid ${colores.linea}`, color: colores.suave }}
+          title="Cómo se usa el visor (tecla H)"
+        >
+          Ayuda
         </button>
 
         <a href="/jurado/panel" className="min-h-9 px-3 text-xs" style={{ color: colores.suave }}>
@@ -530,6 +578,7 @@ export function VisorDeCalificacion({
           <span>Tab calificar</span>
           <span>{criterios[0] ? `${criterios[0].min}-9 · 0 = 10` : ""}</span>
           <span>F pantalla completa</span>
+          <span>H ayuda</span>
           <span>
             {resumen.calificadas} de {resumen.total} listas
             {resumen.sinTerminar > 0 ? ` · ${resumen.sinTerminar} sin terminar` : ""}
@@ -540,6 +589,8 @@ export function VisorDeCalificacion({
           ) : null}
         </p>
       </div>
+
+      {ayuda ? <AyudaDelVisor colores={colores} onCerrar={() => setAyuda(false)} /> : null}
     </div>
   );
 }
