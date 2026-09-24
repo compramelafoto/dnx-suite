@@ -20,6 +20,7 @@
     "test:jury-reparto": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/jury/repartoPorConsigna.test.ts",
     "test:jury-recomendados": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/jury/juradosRecomendados.test.ts",
     "test:jury-ritmo": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/jury/ritmoDelJurado.test.ts",
+    "test:jury-camino": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/jury/caminoDeEvaluacion.test.ts",
     "test:jury-entry": "CLICKATON_JURY_MEDIA_SECRET=secreto-de-prueba-largo-1234 pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/jury/entry-for-juror.test.ts",
     "test:access:home-capabilities-failclosed": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/access/home-capabilities.failclosed.selfcheck.ts",
     "ops:grant-super-admin": "pnpm --filter @repo/db exec tsx prisma/scripts/ops-grant-fotorank-super-admin.ts",
