@@ -5,9 +5,50 @@ import {
   MENSAJE_COMPITE_EN_TODAS,
 } from "./competir-y-juzgar";
 import { JuryError } from "./errors";
-import { consignasDelJurado, leTocaLaConsigna } from "./repartoPorConsigna";
+import { consignasDeLaVacante, leTocaLaConsigna } from "./repartoPorConsigna";
 
 const ACTIVE_ASSIGNMENT = ["ACCEPTED", "IN_PROGRESS", "COMPLETED", "EXTENDED", "ASSIGNED"] as const;
+
+/**
+ * Las consignas de una vacante, resueltas contra la base.
+ *
+ * Devuelve `null` —todas— cuando no hay vacantes declaradas o cuando esta
+ * persona todavía no está sentada en ninguna. El reparto empieza a valer recién
+ * cuando el organizador dice cuántos jurados van a ser.
+ */
+async function consignasSegunLaVacante(input: {
+  contestId: string;
+  seatNumber: number | null;
+}): Promise<Set<string> | null> {
+  if (input.seatNumber == null) return null;
+
+  const sesion = await prisma.fotorankJuryScoringSession.findFirst({
+    where: { contestId: input.contestId },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, plannedSeats: true, minimumEvaluationsPerEntry: true },
+  });
+  if (!sesion?.plannedSeats) return null;
+
+  const [consignas, excepciones] = await Promise.all([
+    prisma.clickatonPrompt.findMany({
+      where: { status: { in: ["RELEASED", "CLOSED"] } },
+      orderBy: { sequence: "asc" },
+      select: { id: true },
+    }),
+    prisma.fotorankJurySeatPromptOverride.findMany({
+      where: { scoringSessionId: sesion.id },
+      select: { seatNumber: true, promptExternalId: true },
+    }),
+  ]);
+
+  return consignasDeLaVacante({
+    consignas: consignas.map((c) => c.id),
+    vacantes: sesion.plannedSeats,
+    miradasPorObra: sesion.minimumEvaluationsPerEntry,
+    seatNumber: input.seatNumber,
+    excepciones,
+  });
+}
 
 export async function assertJudgeContestAccess(input: {
   judgeAccountId: string;
@@ -83,12 +124,22 @@ export async function assertJudgeContestAccess(input: {
   }
 
   /*
-   * Qué consignas le tocan. Sale de las mismas asignaciones, así que el
-   * reparto viaja por la misma compuerta que la categoría y nadie tiene que
-   * acordarse de aplicarlo en cada pantalla. `null` = todas, que es el caso
-   * de siempre cuando el organizador no repartió.
+   * Qué consignas le tocan.
+   *
+   * Salen de la **vacante** que ocupa, no de la lista de asignados: el reparto
+   * se calcula sobre vacantes numeradas para que sumar un jurado la semana que
+   * viene no le mueva el lote a nadie. Va acá, en la misma compuerta que
+   * resuelve la categoría, así ninguna pantalla tiene que acordarse de
+   * aplicarlo.
+   *
+   * `null` = todas, que es el caso mientras el organizador no declare vacantes.
+   * Que la ausencia de reparto abra todo y no cierre todo es a propósito: un
+   * error acá no puede dejar a un jurado mirando una pantalla vacía.
    */
-  const promptIds = consignasDelJurado(assignments);
+  const promptIds = await consignasSegunLaVacante({
+    contestId: input.contestId,
+    seatNumber: assignments.find((a) => a.seatNumber != null)?.seatNumber ?? null,
+  });
 
   return {
     contest,

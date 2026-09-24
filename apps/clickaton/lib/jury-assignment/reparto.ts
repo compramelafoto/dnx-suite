@@ -1,4 +1,17 @@
 /**
+ * Espejo de `apps/fotorank/app/lib/fotorank/jury/repartoPorConsigna.ts`.
+ *
+ * Clickatón no importa de FotoRank a propósito —evita arrastrar Prisma y acoplar
+ * los builds, como ya está anotado en `data/public-marathons/fotorank-v1-types.ts`—,
+ * así que esta copia tiene que quedar **idéntica** a la original. Si cambia una,
+ * cambia la otra: un reparto distinto de cada lado le mostraría al jurado obras
+ * que el organizador no le asignó, y nadie se enteraría hasta buscar los votos.
+ *
+ * Las pruebas de `reparto.test.ts` son las mismas de allá, por la misma razón:
+ * son las que avisan si las dos copias se separaron.
+ *
+ * ---
+ *
  * Cómo se reparten las consignas entre los jurados.
  *
  * Con 270 obras y cinco jurados, pedirle a cada uno que califique las 270 por
@@ -59,16 +72,6 @@ export function cargaDelReparto(input: {
     fotosPorJurado,
     notasPorJurado: fotosPorJurado * criterios,
   };
-}
-
-/** Si una obra de esa consigna entra en la cola de ese jurado. */
-export function leTocaLaConsigna(
-  consignas: Set<string> | null,
-  promptExternalId: string | null,
-): boolean {
-  if (consignas === null) return true;
-  if (!promptExternalId) return false;
-  return consignas.has(promptExternalId);
 }
 
 export type Excepcion = { seatNumber: number; promptExternalId: string };
