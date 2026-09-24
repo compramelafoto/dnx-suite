@@ -277,7 +277,52 @@ final, y la alerta de fotos sin terminar.
 Una foto sin terminar **no cuenta** para el resultado: entran sólo las enviadas. Por eso
 el aviso aparece dos veces — al cerrar la tanda y al enviar todo.
 
-## B.6 Los tres fondos
+## B.6 Cuánto le falta a cada uno
+
+El visor mide cuánto tarda de verdad el jurado y le dice cuánto le queda. La tabla ya
+existe sin usar: `FotorankJuryActivityHeartbeat`, con `activeSecondsAccumulated` y
+`idleThresholdSeconds` en 75.
+
+```
+tiempo activo ÷ fotos calificadas = segundos por foto
+segundos por foto × fotos que faltan = lo que le queda
+```
+
+**Tiempo de pantalla activa, no reloj de pared.** El latido se detiene con dos señales
+distintas, y hacen falta las dos:
+
+| Señal | Qué corta |
+|---|---|
+| `document.hidden` (Page Visibility) | Minimizó la ventana o se fue a otra solapa |
+| Sin teclado ni mouse por 75 segundos | Dejó el visor a la vista y se levantó |
+
+Sin la primera, cualquiera que deje la pestaña abierta toda la noche aparece trabajando
+ocho horas. Sin la segunda, alcanza con dejar el visor en primer plano. El umbral de 75
+segundos es el que ya trae el modelo.
+
+**Nada se muestra hasta tener diez fotos calificadas.** Con tres, la media miente: las
+primeras siempre son lentas porque la persona está entendiendo la escala. Antes de ese
+mínimo el visor no arriesga ninguna estimación.
+
+**En palabras y redondeado hacia arriba**: *"te queda alrededor de una hora y media"*,
+nunca *"87 minutos"* — una estimación al minuto se lee como una promesa.
+
+**Quién ve qué:**
+
+| | Ve |
+|---|---|
+| Cada jurado | Su propia estimación, y sólo la suya |
+| El organizador | El promedio del equipo y cuántas obras faltan |
+| Nadie | El rendimiento individual de un jurado comparado con otro |
+
+Esa separación es deliberada: el dato existe para que alguien sepa cuánto le falta, no
+para medir a gente que muchas veces trabaja gratis.
+
+**Y cierra el problema del tope.** La media guardada entre ediciones convierte el tope de
+fotos por jurado —hoy un número elegido a ojo— en una decisión sobre el calendario: *"en
+la 1ª edición un jurado tardó 18 segundos por foto; con 500 fotos son 2 h 30"*.
+
+## B.7 Los tres fondos
 
 **Gris neutro por omisión**, con oscuro y claro disponibles. La preferencia se recuerda
 en el navegador de cada jurado.
