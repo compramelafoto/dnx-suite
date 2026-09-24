@@ -37,9 +37,14 @@ export async function enviarInvitacionesAction(
     return { ok: false, message: "Alcance no válido." };
   }
 
+  const esPrueba = alcance === "prueba";
+
   const r = await enviarInvitacionesDeReferido({
     campania,
-    soloEmail: alcance === "prueba" ? soloEmail : null,
+    soloEmail: esPrueba ? soloEmail : null,
+    // En una prueba se escribe a la dirección que el admin puso, haya
+    // participado o no: es para mirar el correo, no para premiar a nadie.
+    incluirNoParticipantes: esPrueba || formData.get("incluirNoParticipantes") === "on",
   });
 
   revalidatePath(adminRoutes.referrals);
@@ -47,10 +52,9 @@ export async function enviarInvitacionesAction(
   if (r.destinatarios === 0) {
     return {
       ok: false,
-      message:
-        alcance === "prueba"
-          ? `${soloEmail} no figura con una inscripción confirmada, así que no le corresponde el programa.`
-          : "No hay nadie con inscripción confirmada.",
+      message: esPrueba
+        ? `No hay ninguna cuenta con la dirección ${soloEmail}.`
+        : "No hay a quién escribirle.",
     };
   }
 

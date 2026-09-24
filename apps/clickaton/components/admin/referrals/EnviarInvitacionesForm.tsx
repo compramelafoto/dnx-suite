@@ -13,18 +13,27 @@ import {
 const initialState: EnvioState = { ok: false };
 
 type Props = {
-  /** Cuántos recibirían el correo si se manda a todos. */
+  /** Con inscripción confirmada. */
   destinatarios: number;
+  /** Todas las cuentas, hayan participado o no. */
+  destinatariosConNoParticipantes: number;
   /** Sugerencia de nombre de campaña, con el mes actual. */
   campaniaSugerida: string;
 };
 
-export function EnviarInvitacionesForm({ destinatarios, campaniaSugerida }: Props) {
+export function EnviarInvitacionesForm({
+  destinatarios,
+  destinatariosConNoParticipantes,
+  campaniaSugerida,
+}: Props) {
   const [state, action, pending] = useActionState(
     enviarInvitacionesAction,
     initialState,
   );
   const [confirmado, setConfirmado] = useState(false);
+  const [incluirTodos, setIncluirTodos] = useState(false);
+
+  const total = incluirTodos ? destinatariosConNoParticipantes : destinatarios;
 
   return (
     <form action={action} className="space-y-5">
@@ -65,10 +74,28 @@ export function EnviarInvitacionesForm({ destinatarios, campaniaSugerida }: Prop
         <p className="text-sm font-semibold text-ck-text">
           Después, a toda la comunidad
         </p>
+        <label className="flex items-start gap-2 text-sm text-ck-text-secondary">
+          <input
+            type="checkbox"
+            name="incluirNoParticipantes"
+            className="mt-1"
+            checked={incluirTodos}
+            onChange={(e) => setIncluirTodos(e.target.checked)}
+            disabled={pending}
+          />
+          <span>
+            Escribirle también a quien tiene cuenta pero nunca participó
+            <span className="block text-xs text-ck-text-muted">
+              Invitar está abierto a todos; escribirle a alguien que nunca vino es otra
+              decisión. Suma {destinatariosConNoParticipantes - destinatarios} personas.
+            </span>
+          </span>
+        </label>
+
         <p className="text-sm text-ck-text-secondary">
           Le va a llegar a{" "}
           <strong className="text-ck-text">
-            {destinatarios} {destinatarios === 1 ? "persona" : "personas"}
+            {total} {total === 1 ? "persona" : "personas"}
           </strong>
           . Un correo enviado no se puede deshacer.
         </p>
@@ -87,9 +114,9 @@ export function EnviarInvitacionesForm({ destinatarios, campaniaSugerida }: Prop
           name="alcance"
           value="todos"
           variant="primary"
-          disabled={pending || !confirmado || destinatarios === 0}
+          disabled={pending || !confirmado || total === 0}
         >
-          {pending ? "Enviando…" : `Enviar a los ${destinatarios}`}
+          {pending ? "Enviando…" : `Enviar a ${total}`}
         </Button>
       </div>
 

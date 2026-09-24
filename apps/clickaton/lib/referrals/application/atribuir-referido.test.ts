@@ -77,10 +77,15 @@ test("nadie se refiere a sí mismo, ni con otra cuenta y el mismo email", async 
   assert.equal(await repo.contarColegasTraidos(JUAN), 0);
 });
 
-test("quien nunca participó no puede referir", async () => {
+test("quien nunca participó también puede invitar", async () => {
+  // El invitado tiene que pagar para contar, así que abrirlo a todos no
+  // regala nada: quien trae cinco personas que pagan se ganó su Clickatón,
+  // haya venido antes o no.
   const { repo } = escenario({ confirmados: [] });
   const r = await atribuirReferido(repo, ENTRADA);
-  assert.equal(r.outcome, "REFERRER_NOT_ELIGIBLE");
+
+  assert.equal(r.outcome, "CREATED");
+  assert.equal(await repo.contarColegasTraidos(JUAN), 1);
 });
 
 test("cada persona cuenta una sola vez en su vida", async () => {

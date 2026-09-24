@@ -45,11 +45,8 @@ export async function atribuirReferido(
   const codigo = await repo.findCodeByCode(code);
   const referidorUserId = codigo?.userId ?? null;
 
-  const [referidorEmail, referidorConfirmado, atribucionPrevia] = await Promise.all([
+  const [referidorEmail, atribucionPrevia] = await Promise.all([
     referidorUserId != null ? repo.findUserEmail(referidorUserId) : Promise.resolve(null),
-    referidorUserId != null
-      ? repo.tieneInscripcionConfirmada(referidorUserId)
-      : Promise.resolve(false),
     input.referredUserId != null
       ? repo.findAttributionByReferredUserId(input.referredUserId)
       : Promise.resolve(null),
@@ -59,7 +56,6 @@ export async function atribuirReferido(
     codigoEncontrado: Boolean(codigo),
     codigoActivo: codigo?.isActive ?? false,
     referidorUserId,
-    referidorEsParticipanteConfirmado: referidorConfirmado,
     referidorEmail,
     referidoUserId: input.referredUserId,
     referidoEmail: input.referredEmail,

@@ -7,7 +7,6 @@ const BASE = {
   codigoEncontrado: true,
   codigoActivo: true,
   referidorUserId: 10,
-  referidorEsParticipanteConfirmado: true,
   referidoUserId: 20,
   referidoEmail: "ana@ejemplo.com",
   referidorEmail: "juan@ejemplo.com",
@@ -49,9 +48,11 @@ test("cada persona cuenta una sola vez en su vida", () => {
   assert.deepEqual(r, { ok: false, outcome: "ALREADY_ATTRIBUTED" });
 });
 
-test("sólo refiere quien ya vivió una Clickatón", () => {
-  const r = evaluarAtribucion({ ...BASE, referidorEsParticipanteConfirmado: false });
-  assert.deepEqual(r, { ok: false, outcome: "REFERRER_NOT_ELIGIBLE" });
+test("no hace falta haber participado para invitar", () => {
+  // El invitado tiene que pagar para contar, así que nadie se fabrica un
+  // beneficio: quien trae cinco personas que pagan se gana su Clickatón,
+  // haya venido antes o no.
+  assert.deepEqual(evaluarAtribucion(BASE), { ok: true, outcome: "CREATED" });
 });
 
 test("sin usuario del referido no se puede atribuir", () => {
@@ -59,13 +60,9 @@ test("sin usuario del referido no se puede atribuir", () => {
   assert.deepEqual(r, { ok: false, outcome: "ERROR" });
 });
 
-test("la autorreferencia se detecta antes que la elegibilidad", () => {
+test("la autorreferencia se detecta antes que cualquier otra cosa", () => {
   // El motivo registrado debe ser el más específico, para que la auditoría
   // distinga un intento de fraude de un código simplemente inválido.
-  const r = evaluarAtribucion({
-    ...BASE,
-    referidoUserId: 10,
-    referidorEsParticipanteConfirmado: false,
-  });
+  const r = evaluarAtribucion({ ...BASE, referidoUserId: 10, referidoEmail: null });
   assert.equal(r.outcome, "SELF_REFERRAL");
 });

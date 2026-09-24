@@ -13,6 +13,10 @@ export type AtribucionOutcome =
   | "SELF_REFERRAL"
   | "SAME_EMAIL"
   | "ALREADY_ATTRIBUTED"
+  /**
+   * Ya no se usa: cualquiera con cuenta puede invitar. Se conserva para poder
+   * leer los intentos que quedaron registrados con este motivo.
+   */
   | "REFERRER_NOT_ELIGIBLE"
   | "ERROR";
 
@@ -24,8 +28,6 @@ export type EntradaAtribucion = {
   codigoEncontrado: boolean;
   codigoActivo: boolean;
   referidorUserId: number | null;
-  /** Sólo refiere quien tenga una inscripción CONFIRMED. */
-  referidorEsParticipanteConfirmado: boolean;
   referidorEmail: string | null;
   referidoUserId: number | null;
   referidoEmail: string | null;
@@ -61,9 +63,9 @@ export function evaluarAtribucion(input: EntradaAtribucion): EvaluacionAtribucio
     return { ok: false, outcome: "ALREADY_ATTRIBUTED" };
   }
 
-  if (!input.referidorEsParticipanteConfirmado) {
-    return { ok: false, outcome: "REFERRER_NOT_ELIGIBLE" };
-  }
+  // No hace falta haber participado para invitar. El invitado tiene que PAGAR
+  // para contar, así que nadie puede fabricarse un beneficio: quien trae cinco
+  // personas que pagan se gana su Clickatón, haya venido antes o no.
 
   if (input.referidoUserId == null) {
     return { ok: false, outcome: "ERROR" };
