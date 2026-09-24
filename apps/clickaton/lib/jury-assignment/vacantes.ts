@@ -134,6 +134,7 @@ export function repartirLoteHuerfano(input: {
   }
   return nuevas;
 }
+<<<<<<< HEAD
 
 /**
  * Cuántas evaluaciones tiene que juntar cada obra.
@@ -148,3 +149,5 @@ export function minimoDeEvaluacionesPorObra(cantidadDeJurados: number): number {
   if (!Number.isFinite(cantidadDeJurados) || cantidadDeJurados < 1) return 1;
   return Math.min(3, Math.floor(cantidadDeJurados));
 }
+=======
+>>>>>>> origin/main
