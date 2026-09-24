@@ -9796,6 +9796,8 @@ model FotorankJudgeAssignment {
   votes                         FotorankJudgeVote[]
   admissionBatchId              String?
   promptExternalId              String?
+  /// Qué vacante de jurado ocupa. Nulo = asignación sin reparto.
+  seatNumber                    Int?
   admissionBatch                FotorankAdmissionBatch?       @relation(fields: [admissionBatchId], references: [id], onDelete: SetNull)
   juryEvaluations               FotorankJuryEvaluation[]
 
@@ -14524,6 +14526,9 @@ model FotorankJuryScoringSession {
   submittedEvaluationsCount  Int                              @default(0)
   incompleteEntriesCount     Int                              @default(0)
   assignmentSeed             String?
+  /// Cuántas vacantes de jurado abre esta sesión. Nulo = todavía no se declaró,
+  /// no se aplica reparto y cada jurado ve todas las obras de sus categorías.
+  plannedSeats               Int?
   openedByUserId             Int?
   closedByUserId             Int?
   openedAt                   DateTime?
@@ -14538,6 +14543,7 @@ model FotorankJuryScoringSession {
   evaluations                   FotorankJuryEvaluation[]
   aggregates                    FotorankJuryPreliminaryAggregate[]
   resultBatches                 FotorankResultBatch[]
+  seatOverrides                 FotorankJurySeatPromptOverride[]
   /// ETAPA 16A — recomendación de carga (no bloqueante); default 500 fotos evaluadas/jurado.
   recommendedMaxEntriesPerJudge Int                                @default(500)
   /// ETAPA 16A — Clickatón exige enteros; otros concursos pueden habilitar decimales.
@@ -14553,6 +14559,26 @@ model FotorankJuryScoringSession {
   @@index([admissionBatchId, status])
   @@index([contestId, status])
   @@index([rubricId])
+}
+
+/// Excepción al reparto por vacantes.
+///
+/// El reparto se calcula, no se guarda. Esta tabla es lo único que se escribe, y
+/// sólo cuando el organizador redistribuye a mano el lote de una vacante que
+/// nunca se llenó: queda dicho qué consigna pasó a quién, por qué y quién lo hizo.
+model FotorankJurySeatPromptOverride {
+  id               String   @id @default(cuid())
+  scoringSessionId String
+  seatNumber       Int
+  promptExternalId String
+  motivo           String
+  createdByUserId  Int?
+  createdAt        DateTime @default(now())
+
+  scoringSession FotorankJuryScoringSession @relation(fields: [scoringSessionId], references: [id], onDelete: Cascade)
+
+  @@unique([scoringSessionId, seatNumber, promptExternalId], map: "FotorankJurySeatPromptOverride_unico")
+  @@index([scoringSessionId], map: "FotorankJurySeatPromptOverride_sesion")
 }
 
 model FotorankMinorAuthorization {
