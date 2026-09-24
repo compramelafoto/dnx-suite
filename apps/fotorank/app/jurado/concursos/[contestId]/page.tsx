@@ -62,7 +62,20 @@ export default async function JuryContestEntriesPage({ params }: Props) {
             Debés aceptar los términos de jurado antes de ver u evaluar obras.
           </p>
         ) : (
-          <ul className="grid gap-8 md:grid-cols-2" data-testid="jury-entries-list">
+          <>
+            <div className="fr-recuadro border border-fr-border bg-fr-card">
+              <p className="text-sm text-fr-muted">
+                Para calificar, el visor muestra una consigna por vez, la fotografía a pantalla
+                completa y los criterios con el teclado.
+              </p>
+              <Link
+                href={`/jurado/concursos/${contestId}/visor`}
+                className="fr-btn fr-btn-primary mt-4 inline-flex min-h-11 px-5 py-3 text-sm"
+              >
+                Abrir el visor
+              </Link>
+            </div>
+            <ul className="grid gap-8 md:grid-cols-2" data-testid="jury-entries-list">
             {data.entries.map((e) => (
               <li key={e.entryId} className="fr-recuadro border border-fr-border bg-fr-card space-y-4">
                 {e.previewUrl ? (
@@ -94,7 +107,8 @@ export default async function JuryContestEntriesPage({ params }: Props) {
             {data.entries.length === 0 ? (
               <li className="text-fr-muted">No hay obras confirmadas disponibles en tus categorías.</li>
             ) : null}
-          </ul>
+            </ul>
+          </>
         )}
       </div>
     </div>
