@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getClickatonJuryPrisma } from "@repo/db/clickaton-jury-client";
 import { prisma } from "@repo/db";
 import { Card, Button, Badge } from "@repo/design-system";
 import { listJudgeAssignmentsForCurrentJudge, judgeLogoutAction } from "../../actions/judges";
@@ -9,6 +10,20 @@ import {
   presentJudgeAssignmentStatus,
   presentJudgeMethodType,
 } from "../../lib/fotorank/judges/ui/judgeStatus";
+
+/** Lo que esta pantalla necesita de cada asignación, venga de la base que venga. */
+type AsignacionDelPanel = {
+  id: string;
+  contestId: string;
+  contestTitle: string;
+  categoryName: string;
+  assignmentStatus: string;
+  methodType: string;
+  platformLabel: string;
+  evaluationAllowed: boolean;
+  evaluationBlockMessage?: string | null;
+  votesCount?: number;
+};
 
 export default async function JudgePanelPage() {
   const judge = await requireJudgeAuth();
@@ -29,13 +44,36 @@ export default async function JudgePanelPage() {
         .filter(Boolean),
     ),
   ];
-  const congelados = contestIds.length
-    ? await prisma.fotorankAdmissionBatch.findMany({
-        where: { contestId: { in: contestIds }, status: "FROZEN" },
-        select: { contestId: true },
-      })
-    : [];
-  const conLoteCongelado = new Set(congelados.map((b) => b.contestId));
+  const cruzado = getClickatonJuryPrisma();
+  const conLoteCongelado = new Set<string>();
+
+  if (contestIds.length) {
+    /*
+     * Se pregunta en las dos bases.
+     *
+     * El lote de una maratón está del lado de Clickatón: preguntando sólo en
+     * casa la respuesta era siempre "no hay lote congelado", y el botón seguía
+     * llevando al motor viejo, que muestra todas las obras de la categoría y
+     * pide un puntaje único.
+     */
+    const propios = await prisma.fotorankAdmissionBatch.findMany({
+      where: { contestId: { in: contestIds }, status: "FROZEN" },
+      select: { contestId: true },
+    });
+    for (const b of propios) conLoteCongelado.add(b.contestId);
+
+    if (cruzado) {
+      try {
+        const ajenos = await cruzado.fotorankAdmissionBatch.findMany({
+          where: { contestId: { in: contestIds }, status: "FROZEN" },
+          select: { contestId: true },
+        });
+        for (const b of ajenos) conLoteCongelado.add(b.contestId);
+      } catch {
+        // Sin Clickatón al alcance, el panel sigue mostrando lo propio.
+      }
+    }
+  }
 
   return (
     <div className="min-h-screen bg-fr-bg p-8">
@@ -90,7 +128,11 @@ export default async function JudgePanelPage() {
                 </p>
               </Card>
             ) : null}
-            {(assignments.data?.assignments ?? []).map((a: any) => (
+            {(assignments.data?.assignments ?? []).map((cruda) => {
+              // `listJudgeAssignmentsForCurrentJudge` devuelve filas sueltas de
+              // dos bases distintas, así que el tipo ancho se estrecha acá.
+              const a = cruda as AsignacionDelPanel;
+              return (
               <Card key={a.id}>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
@@ -132,7 +174,8 @@ export default async function JudgePanelPage() {
                   </div>
                 </div>
               </Card>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { getClickatonJuryPrisma } from "@repo/db/clickaton-jury-client";
 import { prisma } from "@repo/db";
 import { listEntriesForAssignment } from "../../../../actions/judges";
 import { requireJudgeAuth } from "../../../../lib/judge-auth";
@@ -30,10 +31,14 @@ export default async function JudgeEvaluationPage({ params }: { params: Promise<
    * La guarda va en la pantalla y no sólo en el botón del panel: un enlace
    * guardado en favoritos la dejaría entrar igual.
    */
-  const loteCongelado = await prisma.fotorankAdmissionBatch.findFirst({
-    where: { contestId: assignment.contestId, status: "FROZEN" },
-    select: { id: true },
-  });
+  const dondeBuscar =
+    loaded.platform === "clickaton" ? getClickatonJuryPrisma() : prisma;
+  const loteCongelado = dondeBuscar
+    ? await dondeBuscar.fotorankAdmissionBatch.findFirst({
+        where: { contestId: assignment.contestId, status: "FROZEN" },
+        select: { id: true },
+      })
+    : null;
   if (loteCongelado) {
     redirect(`/jurado/concursos/${assignment.contestId}/visor`);
   }
