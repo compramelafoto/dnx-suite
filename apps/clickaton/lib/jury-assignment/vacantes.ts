@@ -134,3 +134,18 @@ export function repartirLoteHuerfano(input: {
   }
   return nuevas;
 }
+
+/**
+ * Cuántas evaluaciones tiene que juntar cada obra.
+ *
+ * Tres, porque el desempate ordena por mediana y por dispersión: con dos notas
+ * no hay mediana que diga nada ni con qué comparar a un jurado que se va de
+ * tono. Si el equipo es más chico, la miran todos.
+ *
+ * Espejo de `minimoDeEvaluacionesPorObra()` de FotoRank.
+ */
+export function minimoDeEvaluacionesPorObra(cantidadDeJurados: number): number {
+  if (!Number.isFinite(cantidadDeJurados) || cantidadDeJurados < 1) return 1;
+  return Math.min(3, Math.floor(cantidadDeJurados));
+}
+

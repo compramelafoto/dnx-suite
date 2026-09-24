@@ -97,6 +97,7 @@
     "test:proxima-tanda": "tsx --test lib/technical-admission/proxima-tanda.test.ts",
     "test:por-que-espera": "tsx --test lib/technical-admission/por-que-espera.test.ts",
     "test:vacantes": "tsx --test lib/jury-assignment/vacantes.test.ts",
+    "test:anonimato": "tsx --test lib/technical-admission/anonymity.test.ts",
     "test:reparto": "tsx --test lib/jury-assignment/reparto.test.ts",
     "test:puede-admitirse": "tsx --test lib/technical-admission/puede-admitirse.test.ts",
     "test:jury-directory": "tsx --test lib/jury-directory/*.test.ts",
