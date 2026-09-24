@@ -6,6 +6,8 @@ import {
   hasAcceptedJuryTerms,
   listAnonymousEntriesForJuror,
 } from "../../../lib/fotorank/jury";
+import { baseDelConcurso } from "../../../lib/fotorank/jury/baseDelConcurso";
+import { textoDeTerminos } from "../../../lib/fotorank/jury/terminosDelJurado";
 import { JuryTermsGate } from "./JuryTermsGate";
 
 type Props = { params: Promise<{ contestId: string }> };
@@ -32,6 +34,7 @@ export default async function JuryContestEntriesPage({ params }: Props) {
     judgeAccountId: judge.id,
     contestId,
   });
+  const { esDeClickaton } = await baseDelConcurso(contestId);
 
   return (
     <div className="min-h-screen bg-fr-bg px-4 py-10 md:px-8">
@@ -55,7 +58,11 @@ export default async function JuryContestEntriesPage({ params }: Props) {
           </Link>
         </div>
 
-        <JuryTermsGate contestId={contestId} initiallyAccepted={termsAccepted} />
+        <JuryTermsGate
+          contestId={contestId}
+          initiallyAccepted={termsAccepted}
+          texto={textoDeTerminos(esDeClickaton)}
+        />
 
         {!termsAccepted ? (
           <p className="text-sm text-amber-200" data-testid="jury-entries-blocked-terms">
