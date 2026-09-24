@@ -3,38 +3,43 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
-type Props = { contestId: string; initiallyAccepted: boolean };
+import type { TextoDeTerminos } from "../../../lib/fotorank/jury/terminosDelJurado";
+
+type Props = {
+  contestId: string;
+  initiallyAccepted: boolean;
+  texto: TextoDeTerminos;
+};
 
 /**
- * Gate de términos de jurado (staging).
- * BORRADOR — LEGAL REVIEW REQUIRED — NO PUBLICAR
+ * Lo que el jurado acepta antes de ver la primera obra.
+ *
+ * El texto viene de afuera porque no es el mismo para todos los concursos: a
+ * una jurado real de Clickatón le aparecía el borrador de Santa Fe, con sus
+ * marcas de "NO PUBLICAR" y "no constituye aceptación legal definitiva". Un
+ * texto que se declara no válido no sirve para pedir un compromiso.
  */
-export function JuryTermsGate({ contestId, initiallyAccepted }: Props) {
+export function JuryTermsGate({ contestId, initiallyAccepted, texto }: Props) {
   const router = useRouter();
   const [accepted, setAccepted] = useState(initiallyAccepted);
   const [checked, setChecked] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  if (accepted) {
-    return (
-      <p className="text-sm text-emerald-300" data-testid="jury-terms-accepted">
-        Términos de jurado aceptados (versión staging).
-      </p>
-    );
-  }
+  if (accepted) return null;
 
   return (
     <section
       className="fr-recuadro space-y-6 border border-amber-500/40 bg-amber-500/10"
       data-testid="jury-terms-gate"
     >
-      <h2 className="text-lg font-semibold text-fr-primary">Términos de jurado (borrador)</h2>
-      <p className="text-sm text-fr-muted leading-relaxed">
-        BORRADOR — LEGAL REVIEW REQUIRED — NO PUBLICAR. Al continuar declarás confidencialidad,
-        imparcialidad, obligación de declarar conflictos, prohibición de compartir obras o
-        capturas no autorizadas, respeto del anonimato y aceptación de la rúbrica y auditoría.
-      </p>
+      <h2 className="text-lg font-semibold text-fr-primary">{texto.titulo}</h2>
+      <p className="max-w-2xl text-sm leading-relaxed text-fr-muted">{texto.cuerpo}</p>
+
+      {texto.advertencia ? (
+        <p className="text-xs uppercase tracking-wide text-amber-300">{texto.advertencia}</p>
+      ) : null}
+
       <label className="flex items-start gap-4 text-sm text-fr-muted">
         <input
           type="checkbox"
@@ -43,8 +48,9 @@ export function JuryTermsGate({ contestId, initiallyAccepted }: Props) {
           onChange={(e) => setChecked(e.target.checked)}
           data-testid="jury-terms-check"
         />
-        <span>Acepto los términos de jurado de staging (no constituye aceptación legal definitiva).</span>
+        <span>{texto.casilla}</span>
       </label>
+
       <button
         type="button"
         className="fr-btn fr-btn-primary min-h-11 px-5"
@@ -68,8 +74,9 @@ export function JuryTermsGate({ contestId, initiallyAccepted }: Props) {
           })
         }
       >
-        Aceptar términos
+        {pending ? "Un momento…" : texto.boton}
       </button>
+
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
     </section>
   );
