@@ -15,7 +15,7 @@ test("con lote congelado va al camino de la rúbrica", () => {
     contestId: "ck-contest",
     assignmentId: "asig-1",
   });
-  assert.equal(camino.href, "/jurado/concursos/ck-contest");
+  assert.equal(camino.href, "/jurado/concursos/ck-contest/visor");
 });
 
 test("sin lote congelado sigue el camino de siempre", () => {

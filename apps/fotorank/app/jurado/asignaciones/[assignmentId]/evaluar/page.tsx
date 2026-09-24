@@ -35,7 +35,7 @@ export default async function JudgeEvaluationPage({ params }: { params: Promise<
     select: { id: true },
   });
   if (loteCongelado) {
-    redirect(`/jurado/concursos/${assignment.contestId}`);
+    redirect(`/jurado/concursos/${assignment.contestId}/visor`);
   }
 
   const eligibility = eligibilityForLoadedAssignment(assignment, judge, new Date());

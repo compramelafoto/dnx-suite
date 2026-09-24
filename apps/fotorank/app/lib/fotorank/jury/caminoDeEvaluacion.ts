@@ -34,7 +34,7 @@ export function caminoDeEvaluacion(input: {
 }): CaminoDeEvaluacion {
   if (input.hayLoteCongelado) {
     return {
-      href: `/jurado/concursos/${input.contestId}`,
+      href: `/jurado/concursos/${input.contestId}/visor`,
       etiqueta: "Calificar obras",
       respetaElReparto: true,
     };
