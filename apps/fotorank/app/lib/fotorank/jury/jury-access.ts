@@ -1,4 +1,4 @@
-import { prisma } from "@repo/db";
+import { baseDelConcurso, type ClienteDeJurado } from "./baseDelConcurso";
 import {
   asignacionesQuePuedeJuzgar,
   categoriasDondeCompiteElJurado,
@@ -17,12 +17,13 @@ const ACTIVE_ASSIGNMENT = ["ACCEPTED", "IN_PROGRESS", "COMPLETED", "EXTENDED", "
  * cuando el organizador dice cuántos jurados van a ser.
  */
 async function consignasSegunLaVacante(input: {
+  db: ClienteDeJurado;
   contestId: string;
   seatNumber: number | null;
 }): Promise<Set<string> | null> {
   if (input.seatNumber == null) return null;
 
-  const sesion = await prisma.fotorankJuryScoringSession.findFirst({
+  const sesion = await input.db.fotorankJuryScoringSession.findFirst({
     where: { contestId: input.contestId },
     orderBy: { createdAt: "desc" },
     select: {
@@ -43,7 +44,7 @@ async function consignasSegunLaVacante(input: {
    * suyas. Se descubrió probando la cola antes de que entrara nadie.
    */
   const [consignas, excepciones] = await Promise.all([
-    prisma.clickatonPrompt.findMany({
+    input.db.clickatonPrompt.findMany({
       where: {
         status: { in: ["RELEASED", "CLOSED"] },
         ...(sesion.admissionBatch?.editionId
@@ -53,7 +54,7 @@ async function consignasSegunLaVacante(input: {
       orderBy: { sequence: "asc" },
       select: { id: true },
     }),
-    prisma.fotorankJurySeatPromptOverride.findMany({
+    input.db.fotorankJurySeatPromptOverride.findMany({
       where: { scoringSessionId: sesion.id },
       select: { seatNumber: true, promptExternalId: true },
     }),
@@ -73,7 +74,9 @@ export async function assertJudgeContestAccess(input: {
   contestId: string;
   categoryId?: string;
 }) {
-  const judge = await prisma.fotorankJudgeAccount.findUnique({
+  const { db, esDeClickaton } = await baseDelConcurso(input.contestId);
+
+  const judge = await db.fotorankJudgeAccount.findUnique({
     where: { id: input.judgeAccountId },
     select: { id: true, accountStatus: true },
   });
@@ -81,7 +84,7 @@ export async function assertJudgeContestAccess(input: {
     throw new JuryError("FORBIDDEN", "Cuenta de jurado no activa.", 403);
   }
 
-  const contest = await prisma.fotorankContest.findUnique({
+  const contest = await db.fotorankContest.findUnique({
     where: { id: input.contestId },
     select: {
       id: true,
@@ -97,7 +100,7 @@ export async function assertJudgeContestAccess(input: {
     throw new JuryError("FORBIDDEN", "El concurso no está habilitado para el jurado.", 403);
   }
 
-  const asignadas = await prisma.fotorankJudgeAssignment.findMany({
+  const asignadas = await db.fotorankJudgeAssignment.findMany({
     where: {
       contestId: input.contestId,
       judgeAccountId: input.judgeAccountId,
@@ -155,6 +158,7 @@ export async function assertJudgeContestAccess(input: {
    * error acá no puede dejar a un jurado mirando una pantalla vacía.
    */
   const promptIds = await consignasSegunLaVacante({
+    db,
     contestId: input.contestId,
     seatNumber: assignments.find((a) => a.seatNumber != null)?.seatNumber ?? null,
   });
@@ -164,6 +168,9 @@ export async function assertJudgeContestAccess(input: {
     assignments,
     categoryIds: assignments.map((a) => a.categoryId),
     promptIds,
+    /** La base donde vive este concurso: la usan todas las pantallas del jurado. */
+    db,
+    esDeClickaton,
   };
 }
 
@@ -177,7 +184,7 @@ export async function assertJuryEntryAccess(input: {
     contestId: input.contestId,
   });
 
-  const entry = await prisma.fotorankContestEntry.findFirst({
+  const entry = await access.db.fotorankContestEntry.findFirst({
     where: { id: input.entryId, contestId: input.contestId },
     include: {
       category: { select: { id: true, name: true, slug: true } },
@@ -223,7 +230,7 @@ export async function assertJuryEntryAccess(input: {
     );
   }
 
-  const snapshot = await prisma.fotorankJuryEntrySnapshot.findFirst({
+  const snapshot = await access.db.fotorankJuryEntrySnapshot.findFirst({
     where: {
       entryId: entry.id,
       contestId: input.contestId,
@@ -239,7 +246,7 @@ export async function assertJuryEntryAccess(input: {
     entry.assets.find((a) => a.kind === "JURY_PREVIEW") ??
     entry.assets.find((a) => a.kind === "THUMBNAIL") ??
     (snapshot?.juryAssetId
-      ? await prisma.fotorankContestEntryAsset.findUnique({ where: { id: snapshot.juryAssetId } })
+      ? await access.db.fotorankContestEntryAsset.findUnique({ where: { id: snapshot.juryAssetId } })
       : null);
   if (!juryPreview) {
     throw new JuryError("PREVIEW_MISSING", "No hay preview de jurado disponible.", 404);

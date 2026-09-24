@@ -22,7 +22,10 @@ export async function listAnonymousEntriesForJuror(input: {
     contestId: input.contestId,
   });
 
-  const conflicts = await prisma.fotorankJudgeEntryConflict.findMany({
+  // La base del concurso: una maratón guarda todo esto del lado de Clickatón.
+  const db = access.db;
+
+  const conflicts = await db.fotorankJudgeEntryConflict.findMany({
     where: {
       contestId: input.contestId,
       judgeAccountId: input.judgeAccountId,
@@ -33,7 +36,7 @@ export async function listAnonymousEntriesForJuror(input: {
   const conflictSet = new Set(conflicts.map((c) => c.entryId));
 
   // Preferir roster congelado (Etapa 13/14). Fallback nativo FR sin admisión.
-  const frozenBatch = await prisma.fotorankAdmissionBatch.findFirst({
+  const frozenBatch = await db.fotorankAdmissionBatch.findFirst({
     where: { contestId: input.contestId, status: "FROZEN" },
     orderBy: { frozenAt: "desc" },
   });
@@ -42,7 +45,7 @@ export async function listAnonymousEntriesForJuror(input: {
   const mapped: JuryEntryListItem[] = [];
 
   if (frozenBatch) {
-    const snapshots = await prisma.fotorankJuryEntrySnapshot.findMany({
+    const snapshots = await db.fotorankJuryEntrySnapshot.findMany({
       where: {
         admissionBatchId: frozenBatch.id,
         categoryId: { in: access.categoryIds },
@@ -65,14 +68,14 @@ export async function listAnonymousEntriesForJuror(input: {
       ...new Set(snapshots.map((s) => s.promptExternalId).filter(Boolean) as string[]),
     ];
     const prompts = promptIds.length
-      ? await prisma.clickatonPrompt.findMany({
+      ? await db.clickatonPrompt.findMany({
           where: { id: { in: promptIds }, status: { in: ["RELEASED", "CLOSED"] } },
           select: { id: true, sequence: true, title: true },
         })
       : [];
     const promptById = new Map(prompts.map((p) => [p.id, p]));
 
-    const evals = await prisma.fotorankJuryEvaluation.findMany({
+    const evals = await db.fotorankJuryEvaluation.findMany({
       where: {
         jurorId: input.judgeAccountId,
         admissionBatchId: frozenBatch.id,
@@ -91,7 +94,7 @@ export async function listAnonymousEntriesForJuror(input: {
         snap.entry.assets.find((a) => a.kind === "JURY_PREVIEW") ??
         snap.entry.assets.find((a) => a.kind === "THUMBNAIL") ??
         (snap.juryAssetId
-          ? await prisma.fotorankContestEntryAsset.findUnique({ where: { id: snap.juryAssetId } })
+          ? await db.fotorankContestEntryAsset.findUnique({ where: { id: snap.juryAssetId } })
           : null);
       if (!previewAsset) continue;
       const prompt = snap.promptExternalId ? promptById.get(snap.promptExternalId) : null;
@@ -123,7 +126,7 @@ export async function listAnonymousEntriesForJuror(input: {
       });
     }
   } else {
-    const rows = await prisma.fotorankContestEntry.findMany({
+    const rows = await db.fotorankContestEntry.findMany({
       where: {
         contestId: input.contestId,
         categoryId: { in: access.categoryIds },
@@ -188,7 +191,9 @@ export async function getAnonymousEntryDetailForJuror(input: {
   contestId: string;
   entryId: string;
 }): Promise<JuryEntryDetail> {
-  const { contest, entry, juryPreview, snapshot } = await assertJuryEntryAccess(input);
+  const acceso = await assertJuryEntryAccess(input);
+  const { contest, entry, juryPreview, snapshot } = acceso;
+  const db = acceso.db;
   const conflict = entry.judgeConflicts[0];
   if (conflict) {
     throw new JuryError("FORBIDDEN", "Declaraste conflicto sobre esta obra.", 403);
@@ -207,7 +212,7 @@ export async function getAnonymousEntryDetailForJuror(input: {
 
   const prompt =
     snapshot?.promptExternalId || entry.externalPromptId
-      ? await prisma.clickatonPrompt.findFirst({
+      ? await db.clickatonPrompt.findFirst({
           where: {
             id: snapshot?.promptExternalId ?? entry.externalPromptId!,
             status: { in: ["RELEASED", "CLOSED"] },
@@ -216,7 +221,7 @@ export async function getAnonymousEntryDetailForJuror(input: {
         })
       : null;
 
-  const session = await prisma.fotorankJuryScoringSession.findFirst({
+  const session = await db.fotorankJuryScoringSession.findFirst({
     where: { contestId: input.contestId, status: "OPEN", scoringEnabled: true },
     include: {
       rubric: { include: { criteria: { orderBy: { sortOrder: "asc" } } } },
@@ -225,7 +230,7 @@ export async function getAnonymousEntryDetailForJuror(input: {
   });
 
   const evaluation = snapshot
-    ? await prisma.fotorankJuryEvaluation.findFirst({
+    ? await db.fotorankJuryEvaluation.findFirst({
         where: {
           jurorId: input.judgeAccountId,
           juryEntrySnapshotId: snapshot.id,
@@ -322,7 +327,9 @@ export async function getJuryPreviewAccess(input: {
   contestId: string;
   entryId: string;
 }): Promise<{ previewUrl: string; expiresInSeconds: number; kind: "JURY_PREVIEW"; anonymousCode: string }> {
-  const { entry, juryPreview } = await assertJuryEntryAccess(input);
+  const acceso = await assertJuryEntryAccess(input);
+  const { entry, juryPreview } = acceso;
+  const db = acceso.db;
   if (entry.judgeConflicts[0]) {
     throw new JuryError("FORBIDDEN", "Declaraste conflicto sobre esta obra.", 403);
   }
@@ -333,10 +340,10 @@ export async function getJuryPreviewAccess(input: {
   const storage = getContestEntryStorage();
   const previewUrl = await storage.getSignedUrl(juryPreview.storageKey, "read", PREVIEW_TTL_SEC);
 
-  await prisma.fotorankJudgeAuditEvent.create({
+  await db.fotorankJudgeAuditEvent.create({
     data: {
       organizationId: (
-        await prisma.fotorankContest.findUniqueOrThrow({
+        await db.fotorankContest.findUniqueOrThrow({
           where: { id: input.contestId },
           select: { organizationId: true },
         })
@@ -373,9 +380,9 @@ export async function declareJuryConflict(input: {
     | "OTHER";
   notes?: string;
 }) {
-  await assertJuryEntryAccess(input);
+  const { db } = await assertJuryEntryAccess(input);
 
-  const existing = await prisma.fotorankJudgeEntryConflict.findUnique({
+  const existing = await db.fotorankJudgeEntryConflict.findUnique({
     where: {
       entryId_judgeAccountId: {
         entryId: input.entryId,
@@ -387,7 +394,7 @@ export async function declareJuryConflict(input: {
     throw new JuryError("CONFLICT_EXISTS", "Ya declaraste conflicto sobre esta obra.", 409);
   }
 
-  const row = await prisma.fotorankJudgeEntryConflict.upsert({
+  const row = await db.fotorankJudgeEntryConflict.upsert({
     where: {
       entryId_judgeAccountId: {
         entryId: input.entryId,

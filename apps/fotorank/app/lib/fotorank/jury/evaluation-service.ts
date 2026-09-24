@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
-import { prisma } from "@repo/db";
 import { JuryError } from "./errors";
 import { assertJudgeContestAccess } from "./jury-access";
+import { baseDelConcurso, type ClienteDeJurado } from "./baseDelConcurso";
 import {
   computeWeightedScore,
   JURY_SCORING_ENGINE_VERSION,
@@ -14,6 +14,7 @@ function newId() {
 }
 
 async function writeAudit(input: {
+  db: ClienteDeJurado;
   organizationId: string;
   contestId: string;
   actorJudgeId?: string | null;
@@ -23,7 +24,7 @@ async function writeAudit(input: {
   entityId: string;
   payload?: unknown;
 }) {
-  await prisma.fotorankJudgeAuditEvent.create({
+  await input.db.fotorankJudgeAuditEvent.create({
     data: {
       organizationId: input.organizationId,
       contestId: input.contestId,
@@ -38,8 +39,8 @@ async function writeAudit(input: {
   });
 }
 
-async function loadOpenSession(contestId: string) {
-  return prisma.fotorankJuryScoringSession.findFirst({
+async function loadOpenSession(db: ClienteDeJurado, contestId: string) {
+  return db.fotorankJuryScoringSession.findFirst({
     where: {
       contestId,
       status: "OPEN",
@@ -73,8 +74,12 @@ export async function upsertJuryEvaluation(input: {
     contestId: input.contestId,
   });
 
+  // Las evaluaciones se escriben donde están las obras: para una maratón, en la
+  // base de Clickatón. La compuerta ya resolvió cuál es.
+  const db = access.db;
+
   if (input.idempotencyKey) {
-    const byKey = await prisma.fotorankJuryEvaluation.findUnique({
+    const byKey = await db.fotorankJuryEvaluation.findUnique({
       where: { idempotencyKey: input.idempotencyKey },
       include: { criterionScores: true },
     });
@@ -83,7 +88,7 @@ export async function upsertJuryEvaluation(input: {
     }
   }
 
-  const session = await loadOpenSession(input.contestId);
+  const session = await loadOpenSession(access.db, input.contestId);
   if (!session) {
     throw new JuryError("SESSION_CLOSED", "No hay sesión de jurado OPEN habilitada.", 403);
   }
@@ -113,7 +118,7 @@ export async function upsertJuryEvaluation(input: {
     throw new JuryError("WINDOW_CLOSED", "La ventana de evaluación está cerrada.", 403);
   }
 
-  const snapshot = await prisma.fotorankJuryEntrySnapshot.findFirst({
+  const snapshot = await db.fotorankJuryEntrySnapshot.findFirst({
     where: {
       id: input.snapshotId,
       contestId: input.contestId,
@@ -132,7 +137,7 @@ export async function upsertJuryEvaluation(input: {
     throw new JuryError("NOT_ASSIGNED", "Sin asignación para esta categoría.", 403);
   }
 
-  const conflict = await prisma.fotorankJudgeEntryConflict.findFirst({
+  const conflict = await db.fotorankJudgeEntryConflict.findFirst({
     where: {
       entryId: snapshot.entryId,
       judgeAccountId: input.judgeAccountId,
@@ -162,7 +167,7 @@ export async function upsertJuryEvaluation(input: {
     throw new JuryError(computed.code as import("./errors").JuryErrorCode, computed.error, 400);
   }
 
-  const existing = await prisma.fotorankJuryEvaluation.findUnique({
+  const existing = await db.fotorankJuryEvaluation.findUnique({
     where: {
       assignmentId_juryEntrySnapshotId: {
         assignmentId: assignment.id,
@@ -195,7 +200,7 @@ export async function upsertJuryEvaluation(input: {
   const normalizedScore = computed.ok ? computed.normalizedScore : existing?.normalizedScore ?? null;
 
   const evaluation = existing
-    ? await prisma.fotorankJuryEvaluation.update({
+    ? await db.fotorankJuryEvaluation.update({
         where: { id: existing.id },
         data: {
           status,
@@ -213,7 +218,7 @@ export async function upsertJuryEvaluation(input: {
           criteriaSnapshot: criteria,
         },
       })
-    : await prisma.fotorankJuryEvaluation.create({
+    : await db.fotorankJuryEvaluation.create({
         data: {
           id: newId(),
           contestId: input.contestId,
@@ -240,7 +245,7 @@ export async function upsertJuryEvaluation(input: {
       });
 
   if (computed.ok) {
-    await prisma.fotorankJuryCriterionScore.deleteMany({
+    await db.fotorankJuryCriterionScore.deleteMany({
       where: { evaluationId: evaluation.id },
     });
     const criterionByKey = new Map(session.rubric.criteria.map((c) => [c.key, c]));
@@ -248,7 +253,7 @@ export async function upsertJuryEvaluation(input: {
       const crit = criterionByKey.get(line.key);
       if (!crit) continue;
       const comment = input.scores.find((s) => s.key === line.key)?.comment ?? null;
-      await prisma.fotorankJuryCriterionScore.create({
+      await db.fotorankJuryCriterionScore.create({
         data: {
           id: newId(),
           evaluationId: evaluation.id,
@@ -264,11 +269,12 @@ export async function upsertJuryEvaluation(input: {
     }
   }
 
-  const contest = await prisma.fotorankContest.findUniqueOrThrow({
+  const contest = await db.fotorankContest.findUniqueOrThrow({
     where: { id: input.contestId },
     select: { organizationId: true },
   });
   await writeAudit({
+    db,
     organizationId: contest.organizationId,
     contestId: input.contestId,
     actorJudgeId: input.judgeAccountId,
@@ -284,7 +290,7 @@ export async function upsertJuryEvaluation(input: {
     },
   });
 
-  const full = await prisma.fotorankJuryEvaluation.findUniqueOrThrow({
+  const full = await db.fotorankJuryEvaluation.findUniqueOrThrow({
     where: { id: evaluation.id },
     include: { criterionScores: true },
   });
@@ -300,12 +306,13 @@ export async function voidJuryEvaluation(input: {
   if (!input.reason.trim()) {
     throw new JuryError("REASON_REQUIRED", "Motivo obligatorio.", 400);
   }
-  const evaluation = await prisma.fotorankJuryEvaluation.findFirst({
+  const { db } = await baseDelConcurso(input.contestId);
+  const evaluation = await db.fotorankJuryEvaluation.findFirst({
     where: { id: input.evaluationId, contestId: input.contestId },
   });
   if (!evaluation) throw new JuryError("NOT_FOUND", "Evaluación no encontrada.", 404);
 
-  const updated = await prisma.fotorankJuryEvaluation.update({
+  const updated = await db.fotorankJuryEvaluation.update({
     where: { id: evaluation.id },
     data: {
       status: "VOIDED",
@@ -315,11 +322,12 @@ export async function voidJuryEvaluation(input: {
     },
   });
 
-  const contest = await prisma.fotorankContest.findUniqueOrThrow({
+  const contest = await db.fotorankContest.findUniqueOrThrow({
     where: { id: input.contestId },
     select: { organizationId: true },
   });
   await writeAudit({
+    db,
     organizationId: contest.organizationId,
     contestId: input.contestId,
     actorUserId: input.actorUserId,
@@ -354,11 +362,15 @@ export async function abstainJuryEvaluation(input: {
     judgeAccountId: input.judgeAccountId,
     contestId: input.contestId,
   });
-  const session = await loadOpenSession(input.contestId);
+
+  // Las evaluaciones se escriben donde están las obras: para una maratón, en la
+  // base de Clickatón. La compuerta ya resolvió cuál es.
+  const db = access.db;
+  const session = await loadOpenSession(access.db, input.contestId);
   if (!session) {
     throw new JuryError("SESSION_CLOSED", "No hay sesión OPEN.", 403);
   }
-  const snapshot = await prisma.fotorankJuryEntrySnapshot.findFirst({
+  const snapshot = await db.fotorankJuryEntrySnapshot.findFirst({
     where: {
       id: input.snapshotId,
       contestId: input.contestId,
@@ -372,7 +384,7 @@ export async function abstainJuryEvaluation(input: {
   const assignment = access.assignments.find((a) => a.categoryId === snapshot.categoryId);
   if (!assignment) throw new JuryError("NOT_ASSIGNED", "Sin asignación.", 403);
 
-  const existing = await prisma.fotorankJuryEvaluation.findUnique({
+  const existing = await db.fotorankJuryEvaluation.findUnique({
     where: {
       assignmentId_juryEntrySnapshotId: {
         assignmentId: assignment.id,
@@ -389,7 +401,7 @@ export async function abstainJuryEvaluation(input: {
   }
 
   const evaluation = existing
-    ? await prisma.fotorankJuryEvaluation.update({
+    ? await db.fotorankJuryEvaluation.update({
         where: { id: existing.id },
         data: {
           status: "VOIDED",
@@ -399,7 +411,7 @@ export async function abstainJuryEvaluation(input: {
           normalizedScore: null,
         },
       })
-    : await prisma.fotorankJuryEvaluation.create({
+    : await db.fotorankJuryEvaluation.create({
         data: {
           id: newId(),
           contestId: input.contestId,
@@ -418,11 +430,12 @@ export async function abstainJuryEvaluation(input: {
         },
       });
 
-  const contestRow = await prisma.fotorankContest.findUniqueOrThrow({
+  const contestRow = await db.fotorankContest.findUniqueOrThrow({
     where: { id: input.contestId },
     select: { organizationId: true },
   });
   await writeAudit({
+    db,
     organizationId: contestRow.organizationId,
     contestId: input.contestId,
     actorJudgeId: input.judgeAccountId,

@@ -7,8 +7,6 @@
  * mueve con las flechas y el Tab—, así que si los datos llegaran de a uno cada
  * pulsación sería una espera.
  */
-import { prisma } from "@repo/db";
-
 import { getContestEntryStorage } from "../storage/provider";
 import { assertJudgeContestAccess } from "./jury-access";
 import { sortEntriesForJuror } from "./jury-order";
@@ -50,13 +48,22 @@ export async function colaParaElVisor(input: {
     contestId: input.contestId,
   });
 
-  const lote = await prisma.fotorankAdmissionBatch.findFirst({
+  /*
+   * La base del concurso, no la de casa.
+   *
+   * Una maratón tiene su lote, sus obras y sus evaluaciones en la base de
+   * Clickatón. La compuerta ya resolvió cuál es; acá se usa esa misma, porque
+   * preguntar de nuevo podría dar otra respuesta.
+   */
+  const db = access.db;
+
+  const lote = await db.fotorankAdmissionBatch.findFirst({
     where: { contestId: input.contestId, status: "FROZEN" },
     orderBy: { frozenAt: "desc" },
     select: { id: true },
   });
 
-  const sesion = await prisma.fotorankJuryScoringSession.findFirst({
+  const sesion = await db.fotorankJuryScoringSession.findFirst({
     where: { contestId: input.contestId, status: "OPEN", scoringEnabled: true },
     orderBy: { openedAt: "desc" },
     include: { rubric: { include: { criteria: { orderBy: { sortOrder: "asc" } } } } },
@@ -87,7 +94,7 @@ export async function colaParaElVisor(input: {
     };
   }
 
-  const conflictos = await prisma.fotorankJudgeEntryConflict.findMany({
+  const conflictos = await db.fotorankJudgeEntryConflict.findMany({
     where: {
       contestId: input.contestId,
       judgeAccountId: input.judgeAccountId,
@@ -97,7 +104,7 @@ export async function colaParaElVisor(input: {
   });
   const enConflicto = new Set(conflictos.map((c) => c.entryId));
 
-  const snapshots = await prisma.fotorankJuryEntrySnapshot.findMany({
+  const snapshots = await db.fotorankJuryEntrySnapshot.findMany({
     where: { admissionBatchId: lote.id, categoryId: { in: access.categoryIds } },
     include: {
       entry: {
@@ -113,14 +120,14 @@ export async function colaParaElVisor(input: {
     ...new Set(snapshots.map((s) => s.promptExternalId).filter(Boolean) as string[]),
   ];
   const prompts = promptIds.length
-    ? await prisma.clickatonPrompt.findMany({
+    ? await db.clickatonPrompt.findMany({
         where: { id: { in: promptIds }, status: { in: ["RELEASED", "CLOSED"] } },
         select: { id: true, sequence: true, title: true },
       })
     : [];
   const promptPorId = new Map(prompts.map((p) => [p.id, p]));
 
-  const evaluaciones = await prisma.fotorankJuryEvaluation.findMany({
+  const evaluaciones = await db.fotorankJuryEvaluation.findMany({
     where: {
       jurorId: input.judgeAccountId,
       admissionBatchId: lote.id,
@@ -141,7 +148,7 @@ export async function colaParaElVisor(input: {
       snap.entry.assets.find((a) => a.kind === "JURY_PREVIEW") ??
       snap.entry.assets.find((a) => a.kind === "THUMBNAIL") ??
       (snap.juryAssetId
-        ? await prisma.fotorankContestEntryAsset.findUnique({ where: { id: snap.juryAssetId } })
+        ? await db.fotorankContestEntryAsset.findUnique({ where: { id: snap.juryAssetId } })
         : null);
     if (!asset) continue;
 
