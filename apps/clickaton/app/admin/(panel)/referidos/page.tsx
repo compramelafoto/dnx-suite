@@ -31,9 +31,17 @@ function campaniaSugerida(): string {
 export default async function AdminReferidosPage() {
   await requireClickatonAdmin();
 
-  const [destinatarios, codigos, ganados, consumidos, revocados, intentosFallidos] =
-    await Promise.all([
+  const [
+    destinatarios,
+    destinatariosTodos,
+    codigos,
+    ganados,
+    consumidos,
+    revocados,
+    intentosFallidos,
+  ] = await Promise.all([
       listarDestinatariosDeInvitacion(),
+      listarDestinatariosDeInvitacion({ incluirNoParticipantes: true }),
       prisma.clickatonReferralCode.count(),
       prisma.clickatonReferralAttribution.count({ where: { status: "EARNED" } }),
       prisma.clickatonReferralAttribution.count({ where: { status: "CONSUMED" } }),
@@ -55,8 +63,8 @@ export default async function AdminReferidosPage() {
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Metric
           label="Pueden invitar"
-          value={String(destinatarios.length)}
-          hint="Con inscripción confirmada"
+          value={String(destinatariosTodos.length)}
+          hint={`${destinatarios.length} ya participaron`}
         />
         <Metric
           label="Links generados"
@@ -80,6 +88,7 @@ export default async function AdminReferidosPage() {
         <Card variant="outlined" className="p-6">
           <EnviarInvitacionesForm
             destinatarios={destinatarios.length}
+            destinatariosConNoParticipantes={destinatariosTodos.length}
             campaniaSugerida={campaniaSugerida()}
           />
         </Card>

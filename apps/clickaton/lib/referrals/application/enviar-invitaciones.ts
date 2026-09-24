@@ -27,17 +27,25 @@ export type EnvioInvitacionesInput = {
   campania: string;
   /** Sólo a esta dirección. Para probar antes del envío real. */
   soloEmail?: string | null;
+  /**
+   * Incluir a quien tiene cuenta pero nunca participó. Invitar está abierto a
+   * todos, pero escribirle a alguien que nunca vino es otra decisión: se
+   * elige por envío.
+   */
+  incluirNoParticipantes?: boolean;
 };
 
 /** A quién le tocaría, sin mandar nada. */
 export async function listarDestinatariosDeInvitacion(input?: {
   soloEmail?: string | null;
+  incluirNoParticipantes?: boolean;
 }): Promise<Array<{ id: number; email: string; name: string | null }>> {
   const soloEmail = input?.soloEmail?.trim();
   return prisma.user.findMany({
     where: {
-      // Sólo quien vivió una Clickatón: el programa premia haber participado.
-      clickatonRegistrations: { some: { status: "CONFIRMED" } },
+      ...(input?.incluirNoParticipantes
+        ? {}
+        : { clickatonRegistrations: { some: { status: "CONFIRMED" } } }),
       ...(soloEmail ? { email: { equals: soloEmail, mode: "insensitive" } } : {}),
     },
     select: { id: true, email: true, name: true },
@@ -50,6 +58,7 @@ export async function enviarInvitacionesDeReferido(
 ): Promise<EnvioInvitacionesResultado> {
   const destinatarios = await listarDestinatariosDeInvitacion({
     soloEmail: input.soloEmail,
+    incluirNoParticipantes: input.incluirNoParticipantes,
   });
 
   let enviados = 0;

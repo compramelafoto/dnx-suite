@@ -3,9 +3,15 @@ import type { ProgramaDeReferidosView } from "@/lib/referrals/ui/referral-presen
 
 import { ReferralShareActions } from "./ReferralShareActions";
 
-type Props = { programa: ProgramaDeReferidosView };
+type Props = {
+  programa: ProgramaDeReferidosView;
+  /** Quien todavía no vino no tiene una "próxima": tiene la primera. */
+  yaParticipo: boolean;
+};
 
-export function ReferralSection({ programa }: Props) {
+export function ReferralSection({ programa, yaParticipo }: Props) {
+  const cual = yaParticipo ? "tu próxima Clickatón" : "tu Clickatón";
+
   return (
     <section className="space-y-4" aria-labelledby="mis-referidos-title">
       <h2 id="mis-referidos-title" className="ck-heading-md">
@@ -15,10 +21,16 @@ export function ReferralSection({ programa }: Props) {
       <Card variant="outlined" className="space-y-5 p-6">
         <div className="space-y-2">
           <p className="text-sm leading-relaxed text-ck-text-secondary">
-            Cada amigo que se suma por tu link te descuenta tu próxima Clickatón.{" "}
+            Cada amigo que se suma por tu link te descuenta {cual}.{" "}
             <strong className="text-ck-text">Con 5, entrás gratis.</strong> Y el que viene
             por tu link entra con 10% de descuento.
           </p>
+          {!yaParticipo ? (
+            <p className="text-sm leading-relaxed text-ck-text-muted">
+              No hace falta que hayas participado: invitá a cinco amigos y tu primera
+              Clickatón te sale gratis.
+            </p>
+          ) : null}
         </div>
 
         <div className="space-y-2 rounded-[var(--ck-radius-card)] border border-ck-border bg-ck-surface p-3">
@@ -59,7 +71,7 @@ export function ReferralSection({ programa }: Props) {
 
           <p className="text-sm text-ck-text-muted">
             {programa.llegoAlTope
-              ? "Llegaste al tope: tu próxima Clickatón es gratis."
+              ? `Llegaste al tope: ${cual} es gratis.`
               : `Te falta ${programa.faltanParaElSiguiente === 1 ? "1 amigo" : `${programa.faltanParaElSiguiente} amigos`} para llegar al ${programa.siguienteDescuento}%.`}
           </p>
         </div>

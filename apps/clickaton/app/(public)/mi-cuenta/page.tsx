@@ -76,10 +76,10 @@ export default async function MiCuentaPage() {
     take: 20,
   });
 
-  // El programa premia a quien vivió la experiencia: sin una inscripción
-  // confirmada no hay link que mostrar.
-  const participo = registrations.some((reg) => reg.status === "CONFIRMED");
-  const programaDeReferidos = participo ? await cargarProgramaDeReferidos(user.id) : null;
+  // Cualquiera con cuenta puede invitar, haya participado o no: el invitado
+  // tiene que pagar para contar, así que nadie se fabrica un beneficio.
+  const programaDeReferidos = await cargarProgramaDeReferidos(user.id);
+  const yaParticipo = registrations.some((reg) => reg.status === "CONFIRMED");
 
   return (
     <div className="mx-auto max-w-2xl space-y-8 px-4 py-16 md:py-20">
@@ -124,7 +124,7 @@ export default async function MiCuentaPage() {
       </Card>
 
       {programaDeReferidos ? (
-        <ReferralSection programa={programaDeReferidos} />
+        <ReferralSection programa={programaDeReferidos} yaParticipo={yaParticipo} />
       ) : null}
 
       <section className="space-y-4" aria-labelledby="mis-inscripciones-title">
