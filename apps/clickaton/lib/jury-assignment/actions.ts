@@ -23,7 +23,12 @@ import {
   type MaratonPrisma,
   type PadronPrisma,
 } from "./service";
-import { armarVacantes, repartirLoteHuerfano, sePuedeCambiarLaCantidad } from "./vacantes";
+import {
+  armarVacantes,
+  minimoDeEvaluacionesPorObra,
+  repartirLoteHuerfano,
+  sePuedeCambiarLaCantidad,
+} from "./vacantes";
 
 export type ResultadoDeLaPantalla = { ok: boolean; mensaje: string };
 
@@ -216,14 +221,30 @@ export async function declararVacantesAction(
   const permiso = sePuedeCambiarLaCantidad({ evaluacionesEnviadas: enviadas });
   if (!permiso.ok) return { ok: false, mensaje: permiso.motivo! };
 
+  const n = Math.floor(cuantos);
+
+  /*
+   * Cuántas miradas junta cada obra sale de cuántos jurados va a haber, no de
+   * cuántos hay hoy. Se fijaba al crear la sesión —cuando muchas veces hay uno
+   * o dos— y quedaba en dos para siempre, aunque después el equipo creciera a
+   * cinco: obras decididas por dos notas y sin nada con qué desempatar.
+   */
   await prisma.fotorankJuryScoringSession.update({
     where: { id: sesion.id },
-    data: { plannedSeats: Math.floor(cuantos) },
+    data: {
+      plannedSeats: n,
+      minimumEvaluationsPerEntry: minimoDeEvaluacionesPorObra(n),
+    },
   });
 
   refrescar(editionId);
-  const n = Math.floor(cuantos);
-  return { ok: true, mensaje: `Quedaron ${n} vacante${n === 1 ? "" : "s"} de jurado.` };
+  const miradas = minimoDeEvaluacionesPorObra(n);
+  return {
+    ok: true,
+    mensaje:
+      `Quedaron ${n} vacante${n === 1 ? "" : "s"} de jurado. ` +
+      `Cada obra la van a mirar ${miradas}.`,
+  };
 }
 
 export async function ajustarTopeDeCargaAction(

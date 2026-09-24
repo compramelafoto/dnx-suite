@@ -25,13 +25,31 @@ async function consignasSegunLaVacante(input: {
   const sesion = await prisma.fotorankJuryScoringSession.findFirst({
     where: { contestId: input.contestId },
     orderBy: { createdAt: "desc" },
-    select: { id: true, plannedSeats: true, minimumEvaluationsPerEntry: true },
+    select: {
+      id: true,
+      plannedSeats: true,
+      minimumEvaluationsPerEntry: true,
+      admissionBatch: { select: { editionId: true } },
+    },
   });
   if (!sesion?.plannedSeats) return null;
 
+  /*
+   * Las consignas de ESTA edición, no todas las liberadas.
+   *
+   * Sin el filtro entraban también las de las otras ediciones —25 en vez de
+   * 11— y el reparto salía distinto del que muestra la pantalla del
+   * organizador: el jurado veía consignas que no le tocaban y no veía las
+   * suyas. Se descubrió probando la cola antes de que entrara nadie.
+   */
   const [consignas, excepciones] = await Promise.all([
     prisma.clickatonPrompt.findMany({
-      where: { status: { in: ["RELEASED", "CLOSED"] } },
+      where: {
+        status: { in: ["RELEASED", "CLOSED"] },
+        ...(sesion.admissionBatch?.editionId
+          ? { editionId: sesion.admissionBatch.editionId }
+          : {}),
+      },
       orderBy: { sequence: "asc" },
       select: { id: true },
     }),
