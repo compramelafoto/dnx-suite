@@ -22,6 +22,8 @@ export const adminRoutes = {
   messages: "/admin/mensajes",
   /** Encuesta de satisfacción y moderación de testimonios públicos. */
   testimonials: "/admin/testimonios",
+  /** Programa "invitá a tus amigos": quién trajo a quién, y el envío del link. */
+  referrals: "/admin/referidos",
   settings: "/admin/configuracion",
   financeOwner: "/admin/finanzas/cuenta-owner",
   /** Partner / recipient self-connect (Mi cuenta de cobro). */
@@ -120,6 +122,12 @@ export const adminNavigation: readonly AdminNavItem[] = [
     label: "Testimonios y calidad",
     href: adminRoutes.testimonials,
     icon: "messages",
+    section: "main",
+  },
+  {
+    label: "Invitá a tus amigos",
+    href: adminRoutes.referrals,
+    icon: "promotions",
     section: "main",
   },
   { label: "Configuración", href: adminRoutes.settings, icon: "settings", section: "system" },
