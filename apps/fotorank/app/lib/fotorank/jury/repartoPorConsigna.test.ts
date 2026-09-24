@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   cargaDelReparto,
+  consignasDeLaVacante,
   consignasDelJurado,
   leTocaLaConsigna,
   repartoPorConsigna,
@@ -125,4 +126,80 @@ test("una asignación mixta cuenta como reparto", () => {
 
 test("sin asignaciones ve todo y no explota", () => {
   assert.equal(consignasDelJurado([]), null);
+});
+
+test("la vacante 1 recibe su tanda de consignas", () => {
+  const suyas = consignasDeLaVacante({
+    consignas: ONCE,
+    vacantes: 5,
+    miradasPorObra: 3,
+    seatNumber: 1,
+  });
+  assert.equal(suyas.size, 7);
+  assert.ok(suyas.has("consigna-1"));
+});
+
+test("entre las cinco vacantes se cubren todas las consignas tres veces", () => {
+  const cuenta = new Map<string, number>();
+  for (let s = 1; s <= 5; s++) {
+    for (const c of consignasDeLaVacante({
+      consignas: ONCE,
+      vacantes: 5,
+      miradasPorObra: 3,
+      seatNumber: s,
+    })) {
+      cuenta.set(c, (cuenta.get(c) ?? 0) + 1);
+    }
+  }
+  assert.equal(cuenta.size, 11);
+  for (const [consigna, veces] of cuenta) {
+    assert.equal(veces, 3, `${consigna} la miran ${veces} jurados`);
+  }
+});
+
+/**
+ * La excepción se escribe cuando el organizador redistribuye el lote de una
+ * vacante que nunca se llenó. Suma, no reemplaza: la vacante original sigue
+ * teniendo esa consigna, aunque no haya nadie sentado ahí.
+ */
+test("una excepción agrega una consigna a otra vacante", () => {
+  const suyas = consignasDeLaVacante({
+    consignas: ONCE,
+    vacantes: 5,
+    miradasPorObra: 3,
+    seatNumber: 2,
+    excepciones: [{ seatNumber: 2, promptExternalId: "consigna-9" }],
+  });
+  assert.ok(suyas.has("consigna-9"));
+});
+
+test("una excepción de otra vacante no se cuela", () => {
+  const suyas = consignasDeLaVacante({
+    consignas: ONCE,
+    vacantes: 5,
+    miradasPorObra: 3,
+    seatNumber: 2,
+    excepciones: [{ seatNumber: 4, promptExternalId: "consigna-9" }],
+  });
+  assert.equal(suyas.has("consigna-9"), false);
+});
+
+test("una vacante fuera de rango no recibe nada", () => {
+  for (const seatNumber of [0, 6, -1]) {
+    assert.equal(
+      consignasDeLaVacante({ consignas: ONCE, vacantes: 5, miradasPorObra: 3, seatNumber }).size,
+      0,
+      `vacante ${seatNumber}`,
+    );
+  }
+});
+
+test("sin vacantes declaradas no hay reparto que aplicar", () => {
+  const suyas = consignasDeLaVacante({
+    consignas: ONCE,
+    vacantes: 0,
+    miradasPorObra: 3,
+    seatNumber: 1,
+  });
+  assert.equal(suyas.size, 0);
 });

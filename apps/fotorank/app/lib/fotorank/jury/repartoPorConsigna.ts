@@ -87,3 +87,39 @@ export function leTocaLaConsigna(
   if (!promptExternalId) return false;
   return consignas.has(promptExternalId);
 }
+
+export type Excepcion = { seatNumber: number; promptExternalId: string };
+
+/**
+ * Qué consignas le tocan a una vacante.
+ *
+ * El reparto no se guarda: se calcula acá cada vez, con la misma rotación
+ * determinista. Guardarlo crearía un estado que algún día no coincide con el
+ * cálculo. Lo único que se persiste son las excepciones, y sólo existen cuando
+ * alguien redistribuyó a mano el lote de una vacante que quedó vacía.
+ */
+export function consignasDeLaVacante(input: {
+  consignas: string[];
+  vacantes: number;
+  miradasPorObra: number;
+  seatNumber: number;
+  excepciones?: Excepcion[];
+}): Set<string> {
+  const suyas = new Set<string>();
+  if (input.seatNumber < 1 || input.seatNumber > input.vacantes) return suyas;
+
+  const numeros = Array.from({ length: Math.floor(input.vacantes) }, (_, i) => String(i + 1));
+  const pares = repartoPorConsigna({
+    consignas: input.consignas,
+    jurados: numeros,
+    miradasPorObra: input.miradasPorObra,
+  });
+
+  for (const par of pares) {
+    if (par.juradoId === String(input.seatNumber)) suyas.add(par.consignaId);
+  }
+  for (const e of input.excepciones ?? []) {
+    if (e.seatNumber === input.seatNumber) suyas.add(e.promptExternalId);
+  }
+  return suyas;
+}
