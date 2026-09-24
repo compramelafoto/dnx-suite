@@ -52,6 +52,7 @@ async function main() {
   const primera = cola.obras[0];
   if (primera) {
     console.log(`\n  primera: ${primera.codigo} · consigna ${primera.consignaNumero} · notas ${JSON.stringify(primera.notas)}`);
+    console.log(`  de dónde sale la foto: ${primera.previewUrl ?? "NO HAY"}`);
   }
 }
 

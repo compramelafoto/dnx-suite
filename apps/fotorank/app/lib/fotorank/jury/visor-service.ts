@@ -8,6 +8,7 @@
  * pulsación sería una espera.
  */
 import { getContestEntryStorage } from "../storage/provider";
+import { signedPreviewUrl } from "./entry-for-juror";
 import { assertJudgeContestAccess } from "./jury-access";
 import { sortEntriesForJuror } from "./jury-order";
 import { leTocaLaConsigna } from "./repartoPorConsigna";
@@ -138,6 +139,10 @@ export async function colaParaElVisor(input: {
   const evaluacionPorSnapshot = new Map(evaluaciones.map((e) => [e.juryEntrySnapshotId, e]));
 
   const storage = getContestEntryStorage();
+  const esDeClickaton = access.esDeClickaton;
+  const baseDeClickaton =
+    process.env.CLICKATON_PUBLIC_BASE_URL?.trim() || "https://maratonfotografica.com";
+  const ahora = new Date();
   const obras: ObraEnElVisor[] = [];
 
   for (const snap of snapshots) {
@@ -152,9 +157,19 @@ export async function colaParaElVisor(input: {
         : null);
     if (!asset) continue;
 
+    /*
+     * De dónde sale la foto.
+     *
+     * Las obras de una maratón viven en el bucket privado de Clickatón y
+     * FotoRank no tiene sus llaves: firma un enlace con el secreto compartido y
+     * el navegador del jurado le pide la imagen a Clickatón. Pedírsela al
+     * almacenamiento propio devolvía una imagen rota.
+     */
     let previewUrl: string | null = null;
     try {
-      previewUrl = await storage.getSignedUrl(asset.storageKey, "read", PREVIEW_TTL_SEC);
+      previewUrl = esDeClickaton
+        ? signedPreviewUrl(asset.id, baseDeClickaton, ahora)
+        : await storage.getSignedUrl(asset.storageKey, "read", PREVIEW_TTL_SEC);
     } catch {
       previewUrl = null;
     }
