@@ -21,13 +21,22 @@ export type ObraEnElVisor = {
 
 export type EstadoDeObra = "SIN_CALIFICAR" | "SIN_TERMINAR" | "CALIFICADA";
 
-export const ESTADOS_DE_OBRA: EstadoDeObra[] = [
-  "SIN_CALIFICAR",
-  "SIN_TERMINAR",
-  "CALIFICADA",
-];
+export type FiltroDelVisor = "TODAS" | "ME_FALTAN" | "TERMINADAS" | "A_MEDIAS";
 
-export type FiltroDelVisor = "TODAS" | EstadoDeObra;
+/**
+ * Los filtros preguntan "¿me falta algo?", no "¿toqué algo?".
+ *
+ * Con un filtro de "sin calificar", la primera nota sacaba la foto de la lista
+ * y el visor saltaba a la siguiente: quedaba una foto a medio calificar
+ * escondida detrás del filtro, y el jurado ni se enteraba. Una foto se va de
+ * "me faltan" recién cuando tiene **todos** los criterios puestos.
+ */
+export const FILTROS_DEL_VISOR: Array<{ id: FiltroDelVisor; nombre: string }> = [
+  { id: "TODAS", nombre: "Todas" },
+  { id: "ME_FALTAN", nombre: "Me faltan" },
+  { id: "TERMINADAS", nombre: "Terminadas" },
+  { id: "A_MEDIAS", nombre: "A medias" },
+];
 
 /**
  * Una obra está calificada cuando tiene **todos** los criterios puestos.
@@ -89,7 +98,11 @@ export function obrasVisibles(
   return obras.filter((o) => {
     if (vista.consigna !== null && o.consignaNumero !== vista.consigna) return false;
     if (vista.filtro === "TODAS") return true;
-    return estadoDeLaObra(o, criterios) === vista.filtro;
+
+    const estado = estadoDeLaObra(o, criterios);
+    if (vista.filtro === "ME_FALTAN") return estado !== "CALIFICADA";
+    if (vista.filtro === "TERMINADAS") return estado === "CALIFICADA";
+    return estado === "SIN_TERMINAR";
   });
 }
 

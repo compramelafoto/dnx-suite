@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  ESTADOS_DE_OBRA,
+  FILTROS_DEL_VISOR,
   estadoDeLaObra,
   laSiguiente,
   obrasVisibles,
@@ -97,16 +97,6 @@ test("el filtro de todas muestra todo, de la consigna elegida", () => {
   assert.equal(v.length, 3);
 });
 
-test("sin calificar deja sólo las que no tienen nada", () => {
-  const v = obrasVisibles(COLA, CRITERIOS, { consigna: 3, filtro: "SIN_CALIFICAR" });
-  assert.deepEqual(v.map((o) => o.entryId), ["3"]);
-});
-
-test("sin terminar deja las que quedaron a medias", () => {
-  const v = obrasVisibles(COLA, CRITERIOS, { consigna: 3, filtro: "SIN_TERMINAR" });
-  assert.deepEqual(v.map((o) => o.entryId), ["2"]);
-});
-
 /** Las 27 de "Sombras" y después las 27 de "Color": comparar iguales con iguales. */
 test("el visor trabaja una consigna por vez", () => {
   const v = obrasVisibles(COLA, CRITERIOS, { consigna: 4, filtro: "TODAS" });
@@ -119,7 +109,42 @@ test("sin consigna elegida muestra todas las del filtro", () => {
 });
 
 test("los cuatro filtros existen", () => {
-  assert.deepEqual(ESTADOS_DE_OBRA, ["SIN_CALIFICAR", "SIN_TERMINAR", "CALIFICADA"]);
+  assert.deepEqual(
+    FILTROS_DEL_VISOR.map((f) => f.id),
+    ["TODAS", "ME_FALTAN", "TERMINADAS", "A_MEDIAS"],
+  );
+});
+
+/**
+ * El defecto que encontró el dueño calificando: con "sin calificar" puesto, la
+ * primera nota sacaba la foto de la lista y el visor saltaba a la siguiente,
+ * dejando una foto a medio calificar escondida detrás del filtro.
+ *
+ * El filtro de trabajo ahora pregunta "¿me falta algo?" y no "¿toqué algo?":
+ * una foto con una nota de cuatro me sigue faltando.
+ */
+test("una foto recién empezada sigue en el filtro de las que faltan", () => {
+  const aMedias = obra("9", 3, { prompt_fit: 8 });
+  const visibles = obrasVisibles([aMedias], CRITERIOS, {
+    consigna: 3,
+    filtro: "ME_FALTAN",
+  });
+  assert.deepEqual(visibles.map((o) => o.entryId), ["9"]);
+});
+
+test("las que faltan incluyen las vacías y las empezadas, no las terminadas", () => {
+  const visibles = obrasVisibles(COLA, CRITERIOS, { consigna: 3, filtro: "ME_FALTAN" });
+  assert.deepEqual(visibles.map((o) => o.entryId), ["2", "3"]);
+});
+
+test("terminadas deja sólo las completas", () => {
+  const visibles = obrasVisibles(COLA, CRITERIOS, { consigna: 3, filtro: "TERMINADAS" });
+  assert.deepEqual(visibles.map((o) => o.entryId), ["1"]);
+});
+
+test("a medias deja sólo las que quedaron por la mitad", () => {
+  const visibles = obrasVisibles(COLA, CRITERIOS, { consigna: 3, filtro: "A_MEDIAS" });
+  assert.deepEqual(visibles.map((o) => o.entryId), ["2"]);
 });
 
 /* ---------- moverse ---------- */
