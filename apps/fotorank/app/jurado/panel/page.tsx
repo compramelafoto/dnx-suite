@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { prisma } from "@repo/db";
 import { Card, Button, Badge } from "@repo/design-system";
 import { listJudgeAssignmentsForCurrentJudge, judgeLogoutAction } from "../../actions/judges";
 import { requireJudgeAuth } from "../../lib/judge-auth";
+import { caminoDeEvaluacion } from "../../lib/fotorank/jury/caminoDeEvaluacion";
 import { StatusBadge } from "../../components/public-ui";
 import {
   presentJudgeAssignmentStatus,
@@ -11,6 +13,29 @@ import {
 export default async function JudgePanelPage() {
   const judge = await requireJudgeAuth();
   const assignments = await listJudgeAssignmentsForCurrentJudge();
+
+  /*
+   * Qué concursos tienen su lote congelado.
+   *
+   * Decide por dónde califica cada jurado: con lote congelado sólo sirve el
+   * panel de obras, que respeta el reparto por vacante y usa los criterios de
+   * la rúbrica. El otro camino mostraba las obras de toda la categoría y pedía
+   * un puntaje único.
+   */
+  const contestIds = [
+    ...new Set(
+      (assignments.ok ? (assignments.data?.assignments ?? []) : [])
+        .map((a) => String((a as { contestId?: unknown }).contestId ?? ""))
+        .filter(Boolean),
+    ),
+  ];
+  const congelados = contestIds.length
+    ? await prisma.fotorankAdmissionBatch.findMany({
+        where: { contestId: { in: contestIds }, status: "FROZEN" },
+        select: { contestId: true },
+      })
+    : [];
+  const conLoteCongelado = new Set(congelados.map((b) => b.contestId));
 
   return (
     <div className="min-h-screen bg-fr-bg p-8">
@@ -87,14 +112,17 @@ export default async function JudgePanelPage() {
                     <span title={presentJudgeAssignmentStatus(String(a.assignmentStatus)).description}>
                       <StatusBadge {...presentJudgeAssignmentStatus(String(a.assignmentStatus))} />
                     </span>
-                    <Link href={`/jurado/concursos/${a.contestId}`}>
-                      <Button size="sm" variant="outline" className="w-full sm:w-auto">
-                        Ver obras anónimas
-                      </Button>
-                    </Link>
                     {a.evaluationAllowed ? (
-                      <Link href={`/jurado/asignaciones/${a.id}/evaluar`}>
-                        <Button size="sm" className="w-full sm:w-auto">Evaluar</Button>
+                      <Link
+                        href={
+                          caminoDeEvaluacion({
+                            hayLoteCongelado: conLoteCongelado.has(String(a.contestId)),
+                            contestId: String(a.contestId),
+                            assignmentId: String(a.id),
+                          }).href
+                        }
+                      >
+                        <Button size="sm" className="w-full sm:w-auto">Calificar obras</Button>
                       </Link>
                     ) : (
                       <Button size="sm" variant="outline" disabled className="w-full sm:w-auto cursor-not-allowed opacity-60">
