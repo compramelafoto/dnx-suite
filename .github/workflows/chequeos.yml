@@ -110,6 +110,12 @@ jobs:
       - name: Pruebas de la cola de pendientes del jurado
         run: pnpm --filter fotorank test:jury-pendientes
 
+      # Lo que un jurado lee cuando se abre el juzgamiento: que diga cuantas
+      # obras le tocan, que lleve el enlace escrito por si el boton no anda, y
+      # que no se le escape ninguna palabra del sistema.
+      - name: Pruebas de los correos al jurado
+        run: pnpm --filter fotorank test:jury-correos
+
       - name: Pruebas del reparto de obras entre jurados
         run: pnpm --filter fotorank test:jury-reparto
 
