@@ -93,6 +93,15 @@ const USA_LA_TARJETA = `(max-width: 767px), ${TELEFONO_ACOSTADO}`;
 /** Cuánto se lleva la columna de criterios cuando el teléfono está acostado. */
 const ANCHO_DE_LA_COLUMNA = 200;
 
+/**
+ * Cuánto se queda la nota a la vista antes de pasar al criterio siguiente.
+ *
+ * En pantalla completa el criterio se ve de a uno: si al apretar el número la
+ * tarjeta cambiara en el acto, nunca se vería qué se puso y habría que confiar.
+ * Cuatro décimas alcanzan para leer el número y no llegan a aburrir.
+ */
+const DEMORA_PARA_VER_LA_NOTA = 400;
+
 /** Cada cuánto late, mientras haya pantalla a la vista y actividad. */
 const LATIDO_SEGUNDOS = 30;
 
@@ -188,6 +197,20 @@ export function VisorDeCalificacion({
   const [acostado, setAcostado] = useState(false);
   /** Pantalla angosta o baja: los criterios van en tarjeta, no en grilla. */
   const [enTarjeta, setEnTarjeta] = useState(false);
+  /* La nota que se acaba de poner, mientras se la muestra antes de pasar. */
+  const [notaReciennPuesta, setNotaReciennPuesta] = useState<{
+    indice: number;
+    valor: number;
+  } | null>(null);
+  const esperaParaPasar = useRef<number | undefined>(undefined);
+  /*
+   * Pasar de foto, alcanzable desde arriba.
+   *
+   * `moverFoto` se define más abajo porque necesita la lista ya armada, y
+   * `ponerNota` lo precisa para saltar de obra cuando termina el último
+   * criterio. La referencia evita tener que reordenar medio componente.
+   */
+  const moverFotoRef = useRef<(paso: 1 | -1) => void>(() => {});
   const contenedor = useRef<HTMLDivElement | null>(null);
 
   /*
@@ -510,7 +533,11 @@ export function VisorDeCalificacion({
    * anterior. Tocar el 7 del primero cambiaba la nota del segundo.
    */
   const ponerNota = useCallback(
-    (valor: number, indice: number, { avanzar = true } = {}) => {
+    (
+      valor: number,
+      indice: number,
+      { avanzar = true, demorar = false } = {},
+    ) => {
       if (!actual || !sePuedeTocar) return;
       const criterio = criterios[indice];
       if (!criterio) return;
@@ -523,9 +550,27 @@ export function VisorDeCalificacion({
       // Al poner una nota el foco avanza solo: una foto son cuatro teclas.
       // Al sacarla no, porque quien la saca se quedó mirando ese criterio.
       const seSaco = !(criterio.key in nuevas);
-      if (avanzar && !seSaco && indice < criterios.length - 1) {
-        setCriterioActivo(indice + 1);
+      if (!avanzar || seSaco) return;
+
+      const proximo = indice + 1;
+      const pasar = () => {
+        if (proximo < criterios.length) setCriterioActivo(proximo);
+        else moverFotoRef.current(1);
+      };
+
+      // En pantalla completa se espera un momento para que se vea el número
+      // recién puesto. Si mientras tanto se aprieta otra tecla, ese paso se
+      // cancela: manda lo último que hizo la persona, no el reloj.
+      window.clearTimeout(esperaParaPasar.current);
+      if (!demorar) {
+        if (proximo < criterios.length) setCriterioActivo(proximo);
+        return;
       }
+      setNotaReciennPuesta({ indice, valor });
+      esperaParaPasar.current = window.setTimeout(() => {
+        setNotaReciennPuesta(null);
+        pasar();
+      }, DEMORA_PARA_VER_LA_NOTA);
     },
     [actual, criterios, sePuedeTocar, cambiarNotas],
   );
@@ -620,6 +665,12 @@ export function VisorDeCalificacion({
     [criterioActivo, criterios.length, moverFoto],
   );
 
+  useEffect(() => {
+    moverFotoRef.current = moverFoto;
+  }, [moverFoto]);
+
+  useEffect(() => () => window.clearTimeout(esperaParaPasar.current), []);
+
   /* ---------- el teclado ---------- */
 
   useEffect(() => {
@@ -690,7 +741,12 @@ export function VisorDeCalificacion({
       }
       if (/^[0-9]$/.test(e.key)) {
         e.preventDefault();
-        ponerNota(e.key === "0" ? 10 : Number(e.key), criterioActivo);
+        // En pantalla completa el criterio se ve de a uno, así que la nota se
+        // muestra un momento antes de pasar al siguiente. Con la franja
+        // abajo se ven los cuatro juntos y esa espera sólo demoraría.
+        ponerNota(e.key === "0" ? 10 : Number(e.key), criterioActivo, {
+          demorar: inmersivo,
+        });
       }
     }
 
@@ -698,6 +754,7 @@ export function VisorDeCalificacion({
     return () => window.removeEventListener("keydown", alPresionar);
   }, [
     ayuda,
+    inmersivo,
     criterioActivo,
     borrarNota,
     borrarLaObra,
@@ -1184,8 +1241,115 @@ export function VisorDeCalificacion({
                 mixBlendMode: "difference",
               }}
             >
-              {actual?.codigo} · F o Esc para volver
+              {actual?.codigo} · F para volver
             </p>
+          ) : null}
+
+          {/*
+           * En pantalla completa, el criterio de a uno en la esquina.
+           *
+           * Antes el modo inmersivo servía sólo para mirar: escondía los
+           * criterios y había que salir para puntuar. Así se califica sin
+           * perder de vista la obra, que es de lo que se trata.
+           */}
+          {inmersivo && criterios.length > 0 && !actual?.enviada ? (
+            <div
+              className="absolute bottom-4 right-4 w-[19rem] max-w-[calc(100%-2rem)] p-3"
+              style={{
+                background: "rgba(0,0,0,0.55)",
+                backdropFilter: "blur(10px)",
+                border: "1px solid rgba(255,255,255,0.14)",
+                color: "#f5f3f0",
+              }}
+            >
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-[11px] font-mono opacity-60">
+                  {criterioActivo + 1} de {criterios.length}
+                </span>
+                <span
+                  className="font-mono text-2xl font-semibold tabular-nums transition-all duration-200"
+                  style={{
+                    color: "#e0a061",
+                    // Al poner la nota, el número da un saltito: es lo que
+                    // avisa que quedó tomada antes de que la tarjeta cambie.
+                    transform:
+                      notaReciennPuesta?.indice === criterioActivo
+                        ? "scale(1.25)"
+                        : "scale(1)",
+                  }}
+                >
+                  {typeof actual?.notas[
+                    criterios[criterioActivo]?.key ?? ""
+                  ] === "number"
+                    ? actual?.notas[criterios[criterioActivo]?.key ?? ""]
+                    : "–"}
+                </span>
+              </div>
+
+              <p className="mt-0.5 text-sm font-semibold leading-tight">
+                {criterios[criterioActivo]?.nombre}
+              </p>
+
+              <div className="mt-2 flex gap-1">
+                {Array.from(
+                  {
+                    length:
+                      (criterios[criterioActivo]?.max ?? 10) -
+                      (criterios[criterioActivo]?.min ?? 1) +
+                      1,
+                  },
+                  (_, k) => (criterios[criterioActivo]?.min ?? 1) + k,
+                ).map((valor) => {
+                  const puesta =
+                    actual?.notas[criterios[criterioActivo]?.key ?? ""] ===
+                    valor;
+                  return (
+                    <button
+                      key={valor}
+                      type="button"
+                      aria-label={`${valor} en ${criterios[criterioActivo]?.nombre}`}
+                      onClick={() =>
+                        ponerNota(valor, criterioActivo, { demorar: true })
+                      }
+                      className="h-8 min-w-0 flex-1 font-mono text-[11px] font-medium transition-colors"
+                      style={
+                        puesta
+                          ? {
+                              background: "#e0a061",
+                              color: "#1b1917",
+                              border: "1px solid #e0a061",
+                            }
+                          : {
+                              background: "rgba(255,255,255,0.08)",
+                              border: "1px solid rgba(255,255,255,0.14)",
+                              color: "#f5f3f0",
+                            }
+                      }
+                    >
+                      {valor}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Cuántos criterios lleva puestos esta obra. */}
+              <div className="mt-2 flex gap-1" aria-hidden="true">
+                {criterios.map((c, i) => (
+                  <span
+                    key={c.key}
+                    className="h-0.5 flex-1 transition-all duration-300"
+                    style={{
+                      background:
+                        typeof actual?.notas[c.key] === "number"
+                          ? "#e0a061"
+                          : i === criterioActivo
+                            ? "rgba(255,255,255,0.75)"
+                            : "rgba(255,255,255,0.2)",
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
           ) : null}
 
           {/* En el teléfono el código de la obra se lee sobre la propia obra. */}
