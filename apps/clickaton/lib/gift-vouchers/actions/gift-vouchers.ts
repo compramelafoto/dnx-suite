@@ -1,5 +1,6 @@
 "use server";
 
+import { after } from "next/server";
 import { prisma } from "@repo/db";
 import { normalizeGiftVoucherCode } from "../domain/code";
 import { evaluateGiftRedeemEligibility, type GiftVoucherStatus } from "../domain/status";
@@ -196,6 +197,16 @@ export async function redeemGiftVoucherAction(
       "../notifications/notify-gift-lifecycle"
     );
     await notifyGiftRedeemed(result.registrationId);
+
+    // Ubicar la ciudad en el mapa de Personas, sin demorar el canje.
+    after(async () => {
+      const { asegurarLocalidad } = await import("@/lib/localities/service");
+      await asegurarLocalidad({
+        ciudad: formString(formData, "city"),
+        provincia: formString(formData, "province"),
+        pais: formString(formData, "country") || "AR",
+      });
+    });
 
     return giftSuccess(result);
   } catch (error) {

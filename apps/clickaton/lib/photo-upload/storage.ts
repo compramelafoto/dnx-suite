@@ -11,7 +11,7 @@ import {
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
-import { presignPutUrl } from "./presign";
+import { presignGetUrl, presignPutUrl } from "./presign";
 
 export type PrivateStoredObject = {
   key: string;
@@ -50,6 +50,11 @@ export interface PrivateEntryStorage {
     contentType: string;
   }): Promise<DirectUploadTicket | null>;
   remove?(key: string): Promise<void>;
+  /**
+   * URL temporal para descargar directo del bucket. `null`/ausente cuando el
+   * almacenamiento no lo soporta: el llamador sirve los bytes él mismo.
+   */
+  presignDownload?(key: string, fileName: string): string | null;
   isPrivate: boolean;
 }
 
@@ -209,6 +214,19 @@ export class R2PrivateEntryStorage implements PrivateEntryStorage {
       expiresInSeconds,
     });
     return { url, key, expiresInSeconds };
+  }
+
+  presignDownload(key: string, fileName: string): string {
+    assertPrivateKey(key);
+    return presignGetUrl({
+      endpoint: this.config.endpoint,
+      bucket: this.config.bucket,
+      key,
+      accessKeyId: this.config.accessKeyId,
+      secretAccessKey: this.config.secretAccessKey,
+      expiresInSeconds: 300,
+      downloadFileName: fileName,
+    });
   }
 
   async remove(key: string): Promise<void> {

@@ -85,6 +85,12 @@ jobs:
       - name: Pruebas del token de la prueba técnica
         run: pnpm --filter clickaton test:access-token-readiness
 
+      # Personas y Resultados: el ranking parcial por consigna, la clave de
+      # localidad, el armado de una fila por persona y la firma de descarga.
+      # La firma de subida está fijada acá: si cambia, nadie puede entregar.
+      - name: Pruebas de Personas y Resultados
+        run: pnpm --filter clickaton test:personas
+
       # El visor donde el jurado califica. Estas pruebas existían desde que se
       # construyó, registradas en package.json, y no las corría nadie: se
       # escribieron, pasaron una vez en la máquina de quien las escribió y
