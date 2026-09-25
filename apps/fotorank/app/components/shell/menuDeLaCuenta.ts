@@ -89,12 +89,13 @@ const HERRAMIENTAS_DE_CONCURSOS: ShellSection[] = [
   {
     title: SECCION.jurados,
     items: [
+      // El circuito en orden: buscar, invitar, ver quién aceptó, repartir.
+      // Las invitaciones por correo y el historial se abren desde "Mis jurados":
+      // eran dos entradas más para tareas ocasionales.
+      { label: "Buscar jurados", href: "/jurados/directorio", icon: "search" },
+      { label: "Invitaciones", href: "/jurados/directorio/invitaciones", icon: "send" },
       { label: "Mis jurados", href: "/jurados", icon: "user" },
-      { label: "Buscar en el directorio", href: "/jurados/directorio", icon: "search" },
-      { label: "Invitaciones enviadas", href: "/jurados/invitaciones", icon: "email" },
-      { label: "Invitaciones del directorio", href: "/jurados/directorio/invitaciones", icon: "send" },
       { label: "Asignaciones", href: "/jurados/asignaciones", icon: "plus" },
-      { label: "Historial de cambios", href: "/jurados/auditoria", icon: "clock" },
     ],
   },
   {
