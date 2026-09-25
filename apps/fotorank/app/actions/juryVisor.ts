@@ -27,6 +27,14 @@ export async function guardarNotaAction(input: {
   contestId: string;
   snapshotId: string;
   notas: Array<{ key: string; score: number }>;
+  /**
+   * El comentario privado de la obra, opcional.
+   *
+   * Sin mandarlo (`undefined`) queda el que hubiera; mandando texto vacío se
+   * borra. La lista de notas puede venir vacía: eso borra las que había, que
+   * es lo que pasa cuando el jurado deja una obra en blanco para volver.
+   */
+  comentario?: string | null;
 }): Promise<ResultadoDelVisor> {
   const judge = await requireJudgeAuth();
 
@@ -36,12 +44,17 @@ export async function guardarNotaAction(input: {
       contestId: input.contestId,
       snapshotId: input.snapshotId,
       scores: input.notas,
+      privateComment: input.comentario,
       submit: false,
     });
     return { ok: true };
   } catch (error) {
-    if (error instanceof JuryError) return { ok: false, mensaje: error.message };
-    return { ok: false, mensaje: "No pudimos guardar la nota. Probá de nuevo." };
+    if (error instanceof JuryError)
+      return { ok: false, mensaje: error.message };
+    return {
+      ok: false,
+      mensaje: "No pudimos guardar la nota. Probá de nuevo.",
+    };
   }
 }
 
@@ -54,7 +67,10 @@ export async function guardarNotaAction(input: {
  */
 export async function enviarCalificacionesAction(input: {
   contestId: string;
-  obras: Array<{ snapshotId: string; notas: Array<{ key: string; score: number }> }>;
+  obras: Array<{
+    snapshotId: string;
+    notas: Array<{ key: string; score: number }>;
+  }>;
 }): Promise<ResultadoDelVisor & { enviadas: number; fallaron: number }> {
   const judge = await requireJudgeAuth();
 
@@ -74,7 +90,8 @@ export async function enviarCalificacionesAction(input: {
       enviadas += 1;
     } catch (error) {
       fallaron += 1;
-      if (!primerError && error instanceof JuryError) primerError = error.message;
+      if (!primerError && error instanceof JuryError)
+        primerError = error.message;
     }
   }
 

@@ -22,6 +22,7 @@
     "test:jury-ritmo": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/jury/ritmoDelJurado.test.ts",
     "test:jury-camino": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/jury/caminoDeEvaluacion.test.ts",
     "test:jury-visor": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/jury/colaDelVisor.test.ts",
+    "test:jury-notas": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/jury/notasDeLaObra.test.ts",
     "test:jury-base": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/jury/baseDelConcurso.test.ts",
     "test:jury-entry": "CLICKATON_JURY_MEDIA_SECRET=secreto-de-prueba-largo-1234 pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/jury/entry-for-juror.test.ts",
     "test:access:home-capabilities-failclosed": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/access/home-capabilities.failclosed.selfcheck.ts",
