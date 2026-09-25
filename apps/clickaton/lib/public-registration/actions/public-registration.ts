@@ -1,5 +1,7 @@
 "use server";
 
+import { after } from "next/server";
+
 import type {
   CreatePublicRegistrationInput,
   PublicRegistrationContextDto,
@@ -158,6 +160,16 @@ export async function createPublicRegistrationAction(
       "@/lib/referrals/application/registrar-claim"
     );
     await registrarClaimDeReferido(data.registrationId);
+
+    // Ubicar la ciudad en el mapa de Personas, sin demorar a quien se inscribe.
+    after(async () => {
+      const { asegurarLocalidad } = await import("@/lib/localities/service");
+      await asegurarLocalidad({
+        ciudad: input.participant.city,
+        provincia: input.participant.province,
+        pais: input.participant.country,
+      });
+    });
 
     return pubSuccess(data, "Inscripción reservada.");
   } catch (error) {

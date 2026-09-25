@@ -20,6 +20,7 @@ const MODULES = [
   { key: "regalos", label: "Regalos" },
   { key: "admision", label: "Admisión" },
   { key: "jurados", label: "Jurados" },
+  { key: "resultados", label: "Resultados" },
   { key: "acreditacion", label: "Acreditación" },
   { key: "placas", label: "Placas" },
   { key: "ensayo", label: "Ensayo" },

@@ -13856,6 +13856,38 @@ model ClickatonOutreachContact {
   @@index([optedOutAt])
 }
 
+/// Una localidad escrita por participantes, normalizada y ubicada en el mapa.
+///
+/// La inscripción guarda la ciudad como texto libre ("ROSARIO", "rosario",
+/// "Rosario (Santa Fe - CP 2000)"). Esta tabla junta todas las variantes bajo
+/// una `clave` normalizada y le pone coordenadas. La inscripción no cambia: se
+/// une por la clave, calculada con `claveDeLocalidad()`.
+///
+/// Tabla aparte a propósito: una columna nueva en ClickatonRegistration rompe
+/// toda lectura de inscripciones en cualquier base donde falte la migración.
+model ClickatonLocality {
+  id         String    @id @default(cuid())
+  /// ciudad|provincia normalizadas (minúsculas, sin tildes ni código postal).
+  clave      String    @unique
+  /// Nombre canónico para mostrar.
+  ciudad     String
+  provincia  String?
+  pais       String    @default("AR")
+  lat        Float?
+  lng        Float?
+  /// GEOREF (API oficial de localidades) | MANUAL (corregida en el panel)
+  origen     String
+  /// RESUELTA | DUDOSA | NO_ENCONTRADA
+  estado     String
+  /// Opciones que devolvió el geocodificador cuando no hubo una sola.
+  candidatos Json?
+  revisadaAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([estado])
+}
+
 /// Puente entre la inscripción y la confirmación del pago.
 ///
 /// La cookie `ck_ref` existe cuando la persona se inscribe, pero `confirmPaid`
