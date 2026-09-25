@@ -88,11 +88,12 @@ function pasos(
         "cualquiera hasta que envíes.",
     },
     {
-      titulo: "Se guarda solo",
+      titulo: "Se guarda solo, aunque se corte internet",
       texto:
-        "Cada calificación queda guardada apenas la ponés. Podés cerrar la pestaña y volver " +
-        "otro día: " +
-        "no se pierde nada.",
+        "Cada calificación se guarda en tu propio aparato apenas la ponés, y de ahí viaja a " +
+        "la organización. Si te quedás sin señal, queda esperando y se manda sola cuando " +
+        "volvés a tener: abajo vas a leer cuántas obras están en esa situación. Podés cerrar " +
+        "la pestaña y volver otro día sin perder nada.",
     },
     {
       titulo: "Guardar no es enviar",

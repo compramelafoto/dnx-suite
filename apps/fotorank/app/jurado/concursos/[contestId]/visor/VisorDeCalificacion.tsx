@@ -29,6 +29,18 @@ import {
   type ObraEnElVisor,
 } from "../../../../lib/fotorank/jury/colaDelVisor";
 import {
+  aplicarPendientes,
+  claveDeLaCola,
+  confirmar,
+  cuantasEsperan,
+  encolar,
+  estaPendiente,
+  fallo,
+  leerCola,
+  siguiente,
+  type Pendiente,
+} from "../../../../lib/fotorank/jury/colaDePendientes";
+import {
   esGestoHorizontal,
   haciaDondePasar,
 } from "../../../../lib/fotorank/jury/gestoLateral";
@@ -109,6 +121,24 @@ export function VisorDeCalificacion({
   const [comentando, setComentando] = useState(false);
   /* Cómo estaba cada obra antes de cada cambio, para poder volver con ⌘Z. */
   const [pasosAtras, setPasosAtras] = useState<PasoAtras[]>([]);
+  /*
+   * Lo calificado que todavía no llegó a la base.
+   *
+   * Antes una calificación existía sólo en la memoria del navegador hasta que
+   * el servidor la confirmaba: si el envío fallaba aparecía un aviso y nada
+   * más, y cerrar la pestaña la perdía. Ahora se escribe primero en el
+   * aparato, después se manda, y recién al confirmarse se saca de acá.
+   */
+  const [pendientes, setPendientes] = useState<Pendiente[]>([]);
+  const mandando = useRef(false);
+  /*
+   * La cola, leída en el momento.
+   *
+   * `encolar` necesita la cola de ahora mismo, y el estado de React puede ser
+   * el de hace un instante: calificar rápido dos criterios seguidos dejaría el
+   * segundo pisando al primero con una cola vieja.
+   */
+  const pendientesRef = useRef<Pendiente[]>([]);
   const [aviso, setAviso] = useState<string | null>(null);
   const [ritmo, setRitmo] = useState<{
     segundosActivos: number;
@@ -223,6 +253,111 @@ export function VisorDeCalificacion({
     }
   }
 
+  /* ---------- la cola de pendientes ---------- */
+
+  const clave = claveDeLaCola(contestId);
+
+  /** Guarda la cola en el aparato. Sin almacenamiento el visor sigue andando. */
+  const guardarCola = useCallback(
+    (cola: Pendiente[]) => {
+      pendientesRef.current = cola;
+      setPendientes(cola);
+      try {
+        if (cola.length === 0) window.localStorage.removeItem(clave);
+        else window.localStorage.setItem(clave, JSON.stringify(cola));
+      } catch {
+        /* Sin lugar para guardar, el envío en el momento sigue funcionando. */
+      }
+    },
+    [clave],
+  );
+
+  /*
+   * Al entrar, lo que quedó sin mandar vuelve a la pantalla y a la cola.
+   *
+   * El servidor manda lo último que le llegó, que es justamente lo viejo: lo
+   * que quedó en el aparato es más nuevo. Si no se pisara, el jurado vería
+   * desaparecer su último trabajo sin explicación.
+   */
+  useEffect(() => {
+    let guardado: string | null = null;
+    try {
+      guardado = window.localStorage.getItem(clave);
+    } catch {
+      return;
+    }
+    const cola = leerCola(guardado);
+    if (cola.length === 0) return;
+    pendientesRef.current = cola;
+    setPendientes(cola);
+    setObras((previas) => aplicarPendientes(previas, cola));
+    setAviso(
+      `Recuperamos ${cola.length} ${cola.length === 1 ? "obra" : "obras"} que habían quedado sin guardar.`,
+    );
+  }, [clave]);
+
+  /*
+   * El reintento: de a una, sin pisarse, mientras quede algo.
+   *
+   * Se dispara al volver la conexión, cada tanto, y después de cada envío que
+   * sale bien: así una racha de pendientes se vacía sola sin esperar el reloj.
+   */
+  const mandarLoQueFalta = useCallback(() => {
+    if (mandando.current) return;
+    setPendientes((cola) => {
+      const p = siguiente(cola);
+      if (!p) return cola;
+      mandando.current = true;
+      void guardarNotaAction({
+        contestId,
+        snapshotId: p.snapshotId,
+        notas: Object.entries(p.notas).map(([key, score]) => ({ key, score })),
+        comentario: p.comentario,
+      })
+        .then((r) => {
+          setPendientes((actual) => {
+            const proxima = r.ok
+              ? confirmar(actual, p.snapshotId)
+              : fallo(actual, p.snapshotId);
+            pendientesRef.current = proxima;
+            try {
+              if (proxima.length === 0) window.localStorage.removeItem(clave);
+              else window.localStorage.setItem(clave, JSON.stringify(proxima));
+            } catch {
+              /* Ver arriba. */
+            }
+            return proxima;
+          });
+          if (r.ok) setAviso(null);
+        })
+        .catch(() => {
+          setPendientes((actual) => {
+            const proxima = fallo(actual, p.snapshotId);
+            pendientesRef.current = proxima;
+            return proxima;
+          });
+        })
+        .finally(() => {
+          mandando.current = false;
+        });
+      return cola;
+    });
+  }, [contestId, clave]);
+
+  useEffect(() => {
+    if (pendientes.length === 0) return;
+    // Un reintento enseguida --para encadenar la cola-- y otro cada 15
+    // segundos, que es lo que tarda una conexión mala en volver.
+    const pronto = window.setTimeout(mandarLoQueFalta, 400);
+    const reloj = window.setInterval(mandarLoQueFalta, 15000);
+    window.addEventListener("online", mandarLoQueFalta);
+    return () => {
+      window.clearTimeout(pronto);
+      window.clearInterval(reloj);
+      window.removeEventListener("online", mandarLoQueFalta);
+    };
+  }, [pendientes.length, mandarLoQueFalta]);
+
   /* ---------- acostado o parado ---------- */
 
   useEffect(() => {
@@ -319,19 +454,25 @@ export function VisorDeCalificacion({
         ),
       );
       if (!obra.snapshotId) return;
-      void guardarNotaAction({
-        contestId,
-        snapshotId: obra.snapshotId,
-        notas: Object.entries(nuevas).map(([key, score]) => ({ key, score })),
-      }).then((r) => {
-        // El aviso también se limpia al salir bien: antes el primer error se
-        // quedaba pegado en pantalla el resto de la sesión.
-        setAviso(
-          r.ok ? null : (r.mensaje ?? "No pudimos guardar. Probá de nuevo."),
-        );
-      });
+      /*
+       * Primero al aparato, después a la base.
+       *
+       * Escribirlo acá antes de mandarlo es lo que hace que no se pierda: si
+       * el envío falla, si se corta la señal o si se cierra la pestaña, la
+       * calificación sigue estando y se manda sola cuando se puede.
+       */
+      guardarCola(
+        encolar(pendientesRef.current, {
+          snapshotId: obra.snapshotId,
+          entryId: obra.entryId,
+          notas: nuevas,
+          comentario: obra.comentario || undefined,
+          momento: Date.now(),
+          intentos: 0,
+        }),
+      );
     },
-    [contestId],
+    [guardarCola],
   );
 
   const sePuedeTocar = Boolean(
@@ -383,21 +524,18 @@ export function VisorDeCalificacion({
         ),
       );
       if (!obra.snapshotId) return;
-      void guardarNotaAction({
-        contestId,
-        snapshotId: obra.snapshotId,
-        notas: Object.entries(obra.notas).map(([key, score]) => ({
-          key,
-          score,
-        })),
-        comentario: texto,
-      }).then((r) => {
-        setAviso(
-          r.ok ? null : (r.mensaje ?? "No pudimos guardar el comentario."),
-        );
-      });
+      guardarCola(
+        encolar(pendientesRef.current, {
+          snapshotId: obra.snapshotId,
+          entryId: obra.entryId,
+          notas: obra.notas,
+          comentario: texto,
+          momento: Date.now(),
+          intentos: 0,
+        }),
+      );
     },
-    [contestId],
+    [guardarCola],
   );
 
   /** Deja un criterio sin nota, sin mover el foco. */
@@ -586,6 +724,18 @@ export function VisorDeCalificacion({
         previas.map((o) =>
           enviadas.has(o.entryId) ? { ...o, enviada: true } : o,
         ),
+      );
+      /*
+       * Lo enviado sale de la cola.
+       *
+       * El envío manda las calificaciones completas y cierra la evaluación.
+       * Si quedaran en la cola, el reintento las mandaría de nuevo y el
+       * servidor las rechazaría por estar ya cerradas: se quedarían ahí para
+       * siempre, y el cartel diría "sin confirmar" sobre trabajo ya entregado.
+       */
+      const yaEstan = new Set(terminadas.map((o) => o.snapshotId));
+      guardarCola(
+        pendientesRef.current.filter((x) => !yaEstan.has(x.snapshotId)),
       );
     }
   }
@@ -1027,6 +1177,7 @@ export function VisorDeCalificacion({
               }}
             >
               {visibles.indexOf(actual) + 1}/{visibles.length} · {actual.codigo}
+              {estaPendiente(pendientes, actual.entryId) ? " ·" : ""}
             </p>
           ) : null}
 
@@ -1085,6 +1236,26 @@ export function VisorDeCalificacion({
                 Listo
               </button>
             </div>
+          ) : null}
+
+          {/*
+           * Lo que falta confirmar, dicho sin alarmar.
+           *
+           * No es un error: la calificación está guardada en el teléfono y se
+           * manda sola. Lo que no puede pasar es que el jurado se vaya creyendo
+           * que llegó todo cuando todavía falta.
+           */}
+          {cuantasEsperan(pendientes) > 0 ? (
+            <p
+              className="absolute bottom-3 left-3 px-2.5 py-1 text-[11px]"
+              style={{ background: colores.chip, color: colores.tinta }}
+              role="status"
+            >
+              {cuantasEsperan(pendientes) === 1
+                ? "1 obra sin confirmar"
+                : `${cuantasEsperan(pendientes)} obras sin confirmar`}
+              <span style={{ color: colores.suave }}> · se manda sola</span>
+            </p>
           ) : null}
 
           {aviso ? (
