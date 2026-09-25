@@ -78,6 +78,18 @@ const FONDOS: Array<{ id: Fondo; nombre: string; muestra: string }> = [
  */
 const TELEFONO_ACOSTADO = "(orientation: landscape) and (max-height: 520px)";
 
+/**
+ * Quién ve la tarjeta de criterios en vez de la grilla de escritorio.
+ *
+ * No alcanza con el ancho. Un iPhone acostado mide 844 píxeles, y el corte de
+ * "escritorio" está en 768: con `md:hidden` a secas, rotar el teléfono traía
+ * la grilla de cuatro columnas y dejaba la fotografía del tamaño de una
+ * estampilla. Justo lo contrario de para qué se rota.
+ *
+ * Así que son dos condiciones: pantalla angosta **o** pantalla baja.
+ */
+const USA_LA_TARJETA = `(max-width: 767px), ${TELEFONO_ACOSTADO}`;
+
 /** Cuánto se lleva la columna de criterios cuando el teléfono está acostado. */
 const ANCHO_DE_LA_COLUMNA = 200;
 
@@ -174,6 +186,8 @@ export function VisorDeCalificacion({
    * de cuatro veces el área.
    */
   const [acostado, setAcostado] = useState(false);
+  /** Pantalla angosta o baja: los criterios van en tarjeta, no en grilla. */
+  const [enTarjeta, setEnTarjeta] = useState(false);
   const contenedor = useRef<HTMLDivElement | null>(null);
 
   /*
@@ -362,11 +376,19 @@ export function VisorDeCalificacion({
 
   useEffect(() => {
     if (typeof window.matchMedia !== "function") return;
-    const consulta = window.matchMedia(TELEFONO_ACOSTADO);
-    const mirar = () => setAcostado(consulta.matches);
+    const bajo = window.matchMedia(TELEFONO_ACOSTADO);
+    const tarjeta = window.matchMedia(USA_LA_TARJETA);
+    const mirar = () => {
+      setAcostado(bajo.matches);
+      setEnTarjeta(tarjeta.matches);
+    };
     mirar();
-    consulta.addEventListener("change", mirar);
-    return () => consulta.removeEventListener("change", mirar);
+    bajo.addEventListener("change", mirar);
+    tarjeta.addEventListener("change", mirar);
+    return () => {
+      bajo.removeEventListener("change", mirar);
+      tarjeta.removeEventListener("change", mirar);
+    };
   }, []);
 
   /* ---------- cuánto ocupa la tarjeta de criterios ---------- */
@@ -757,7 +779,7 @@ export function VisorDeCalificacion({
 
   /** Se muestran los criterios del teléfono: hay qué calificar y hay lugar. */
   const muestraCriterios =
-    !inmersivo && criterios.length > 0 && !actual?.enviada;
+    !inmersivo && enTarjeta && criterios.length > 0 && !actual?.enviada;
 
   const colores = {
     oscuro: {
@@ -1184,7 +1206,7 @@ export function VisorDeCalificacion({
           {muestraCriterios && !acostado ? (
             <div
               ref={tarjetaDeCriterios}
-              className="absolute inset-x-0 bottom-0 md:hidden"
+              className="absolute inset-x-0 bottom-0"
             >
               {tarjetaDeLosCriterios}
             </div>
@@ -1270,10 +1292,7 @@ export function VisorDeCalificacion({
         </div>
 
         {muestraCriterios && acostado ? (
-          <div
-            className="shrink-0 md:hidden"
-            style={{ width: ANCHO_DE_LA_COLUMNA }}
-          >
+          <div className="shrink-0" style={{ width: ANCHO_DE_LA_COLUMNA }}>
             {tarjetaDeLosCriterios}
           </div>
         ) : null}
@@ -1281,8 +1300,8 @@ export function VisorDeCalificacion({
 
       {/* Criterios, en la computadora */}
       <div
-        hidden={inmersivo}
-        className="hidden md:block"
+        hidden={inmersivo || enTarjeta}
+        className=""
         style={{
           background: colores.panel,
           borderTop: `1px solid ${colores.linea}`,
@@ -1295,7 +1314,7 @@ export function VisorDeCalificacion({
             Esta obra ya fue enviada y no se puede cambiar.
           </p>
         ) : (
-          <div className="hidden gap-2 md:grid md:grid-cols-4 md:gap-3">
+          <div className="grid gap-2 md:grid-cols-4 md:gap-3">
             {criterios.map((c, i) => {
               const puesta = actual?.notas[c.key];
               const activo = i === criterioActivo;
