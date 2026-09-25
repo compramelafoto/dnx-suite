@@ -37,11 +37,17 @@ function cuantas(n: number): string {
   return EN_LETRAS[n] ?? String(n);
 }
 
+/**
+ * Los pasos, con la variante del teléfono donde cambia.
+ *
+ * `enElTelefono` existe sólo para lo que se hace distinto con el dedo. Donde
+ * falta, el texto es el mismo en los dos lados.
+ */
 function pasos(
   criterios: number,
   maxima: number,
   minima: number,
-): Array<{ titulo: string; texto: string }> {
+): Array<{ titulo: string; texto: string; enElTelefono?: string }> {
   const varios = criterios !== 1;
   const forma = formaDeLaNota({ min: minima, max: maxima });
   return [
@@ -53,43 +59,62 @@ function pasos(
     },
     {
       titulo: varios
-        ? `Cada foto lleva ${cuantas(criterios)} notas`
-        : "Cada foto lleva una nota",
+        ? `Cada foto lleva ${cuantas(criterios)} calificaciones`
+        : "Cada foto lleva una calificación",
       texto: varios
-        ? `Ponés ${cuantas(criterios)} notas del 1 al ${maxima}, una por criterio. Apretás el ` +
-          "número y el visor pasa solo al criterio siguiente."
+        ? `Ponés ${cuantas(criterios)} calificaciones del 1 al ${maxima}, una por criterio. ` +
+          "Apretás el número y el visor pasa solo al criterio siguiente."
         : forma === "SI_NO"
           ? "Marcás sí o no en cada foto: sí si merece seguir, no si no."
           : forma === "CAMPO"
-            ? `Escribís una nota del ${minima} al ${maxima}.`
-            : `Ponés una nota del ${minima} al ${maxima}.`,
+            ? `Escribís una calificación del ${minima} al ${maxima}.`
+            : `Ponés una calificación del ${minima} al ${maxima}.`,
+      enElTelefono: varios
+        ? `Ponés ${cuantas(criterios)} calificaciones del 1 al ${maxima}, una por criterio. ` +
+          "Tocás el número y el criterio se queda donde está: para pasar al siguiente " +
+          "deslizás con el dedo."
+        : forma === "SI_NO"
+          ? "Tocás Sí o No en cada foto."
+          : forma === "CAMPO"
+            ? `Escribís una calificación del ${minima} al ${maxima}.`
+            : `Tocás una calificación del ${minima} al ${maxima}.`,
     },
     {
       titulo: "Podés mirar antes de puntuar",
       texto:
         "Con las flechas ← y → recorrés las fotos sin calificar ninguna. Sirve para ver cómo " +
-        "viene la consigna antes de decidir la primera nota.",
+        "viene la consigna antes de decidir la primera calificación.",
+      enElTelefono:
+        "Deslizando sobre la fotografía pasás de obra sin calificar ninguna. Sirve para ver " +
+        "cómo viene la consigna antes de decidir la primera calificación.",
     },
     {
       titulo: "Equivocarse no cuesta nada",
       texto:
-        "Escape borra la nota donde estás parado. Suprimir deja la foto entera en blanco. " +
-        "⌘Z deshace lo último que hiciste, aunque haya sido en otra foto. Y podés cambiar " +
-        "cualquier nota hasta que envíes.",
+        "Escape borra la calificación donde estás parado. Suprimir deja la foto entera en " +
+        "blanco. ⌘Z deshace lo último que hiciste, aunque haya sido en otra foto. Y podés " +
+        "cambiar cualquier calificación hasta que envíes.",
+      enElTelefono:
+        "Tocá de nuevo el número que elegiste y esa calificación se borra. Y podés cambiar " +
+        "cualquiera hasta que envíes.",
     },
     {
-      titulo: "Se guarda solo",
+      titulo: "Se guarda solo, aunque se corte internet",
       texto:
-        "Cada nota queda guardada apenas la ponés. Podés cerrar la pestaña y volver otro día: " +
-        "no se pierde nada.",
+        "Cada calificación se guarda en tu propio aparato apenas la ponés, y de ahí viaja a " +
+        "la organización. Si te quedás sin señal, queda esperando y se manda sola cuando " +
+        "volvés a tener: abajo vas a leer cuántas obras están en esa situación. Podés cerrar " +
+        "la pestaña y volver otro día sin perder nada.",
     },
     {
       titulo: "Guardar no es enviar",
       texto: varios
         ? "Cuando termines, el botón Enviar cierra tu trabajo. Las fotos a las que les falte " +
-          "alguna nota no se envían y no cuentan para el resultado. El visor te avisa cuántas " +
+          "alguna calificación no se envían y no cuentan para el resultado. El visor te avisa " +
+          "cuántas " +
           "quedaron así antes de mandar nada."
-        : "Cuando termines, el botón Enviar cierra tu trabajo. Las fotos sin nota no se envían " +
+        : "Cuando termines, el botón Enviar cierra tu trabajo. Las fotos sin calificación no " +
+          "se envían " +
           "y no cuentan para el resultado.",
     },
     {
@@ -117,11 +142,10 @@ function teclas(maxima: number, minima: number): Array<{ tecla: string; hace: st
           { tecla: "N o 0", hace: "No la elijo" },
         ]
       : forma === "CAMPO"
-        ? [{ tecla: "Números seguidos", hace: `Escribir la nota: 7 y 5 es 75 (del ${minima} al ${maxima})` }]
+        ? [{ tecla: "Números seguidos", hace: `Escribir la calificación: 7 y 5 es 75 (del ${minima} al ${maxima})` }]
         : [
-            { tecla: `${minima} … ${Math.min(9, maxima)}`, hace: "Poner esa nota" },
-            ...(maxima === 10 ? [{ tecla: "0", hace: "Poner un 10" }] : []),
-          ];
+            { tecla: maxima === 10 ? `${minima} … 9 · 0` : `${minima} … ${Math.min(9, maxima)}`, hace: "Poner esa calificación" },
+                      ];
   return [
     ...deLaNota,
     { tecla: "Tab", hace: "Criterio siguiente. En el último, pasa de foto" },
@@ -131,8 +155,8 @@ function teclas(maxima: number, minima: number): Array<{ tecla: string; hace: st
     },
     { tecla: "→", hace: "Foto siguiente, sin calificar" },
     { tecla: "←", hace: "Foto anterior, sin calificar" },
-    { tecla: "Esc", hace: "Borrar la nota del criterio donde estás" },
-    { tecla: "Supr", hace: "Borrar todas las notas de esta foto" },
+    { tecla: "Esc", hace: "Borrar la calificación del criterio donde estás" },
+    { tecla: "Supr", hace: "Borrar todas las calificaciones de esta foto" },
     { tecla: "⌘Z", hace: "Deshacer lo último. En Windows, Ctrl+Z" },
     { tecla: "F", hace: "Ver la foto sola, en toda la pantalla" },
     { tecla: "H", hace: "Abrir y cerrar esta ayuda" },
@@ -141,12 +165,16 @@ function teclas(maxima: number, minima: number): Array<{ tecla: string; hace: st
 
 const FILTROS: Array<{ nombre: string; texto: string }> = [
   { nombre: "Todas", texto: "Las que te tocaron en esta consigna." },
-  { nombre: "Me faltan", texto: "Las que todavía no tienen todas las notas." },
+  {
+    nombre: "Me faltan",
+    texto: "Las que todavía no tienen todas las calificaciones.",
+  },
   { nombre: "Completas", texto: "Las que ya tienen todas." },
   {
     nombre: "Empezadas",
     texto:
-      "Las que tienen alguna nota y alguna faltando. Conviene revisarlas antes de enviar, " +
+      "Las que tienen alguna calificación y alguna faltando. Conviene revisarlas antes de " +
+      "enviar, " +
       "porque así no cuentan.",
   },
 ];
@@ -203,7 +231,12 @@ export function AyudaDelVisor({
           <div>
             <h2 className="text-xl font-semibold">Cómo se usa</h2>
             <p className="mt-1.5 text-sm" style={{ color: colores.suave }}>
-              Se maneja con el teclado. En el teléfono, deslizando con el dedo.
+              <span className="hidden sm:inline">
+                Se maneja con el teclado.
+              </span>
+              <span className="sm:hidden">
+                Se maneja deslizando con el dedo.
+              </span>
             </p>
           </div>
           <button
@@ -232,18 +265,26 @@ export function AyudaDelVisor({
               <div>
                 <p className="text-sm font-semibold">{p.titulo}</p>
                 <p
-                  className="mt-1 text-sm leading-relaxed"
+                  className={`mt-1 text-sm leading-relaxed ${p.enElTelefono ? "hidden sm:block" : ""}`}
                   style={{ color: colores.suave }}
                 >
                   {p.texto}
                 </p>
+                {p.enElTelefono ? (
+                  <p
+                    className="mt-1 text-sm leading-relaxed sm:hidden"
+                    style={{ color: colores.suave }}
+                  >
+                    {p.enElTelefono}
+                  </p>
+                ) : null}
               </div>
             </li>
           ))}
         </ol>
 
-        <h3 className="mt-8 text-sm font-semibold">Teclas</h3>
-        <table className="mt-2 w-full text-left text-sm">
+        <h3 className="mt-8 hidden text-sm font-semibold sm:block">Teclas</h3>
+        <table className="mt-2 hidden w-full text-left text-sm sm:table">
           <tbody>
             {TECLAS.map((t) => (
               <tr
@@ -272,15 +313,32 @@ export function AyudaDelVisor({
           </tbody>
         </table>
 
-        <h3 className="mt-8 text-sm font-semibold">En el teléfono</h3>
-        <p
-          className="mt-2 text-sm leading-relaxed"
-          style={{ color: colores.suave }}
-        >
-          Los criterios aparecen de a uno, sobre la foto. Deslizá hacia la
-          izquierda para pasar al siguiente; después del último, el visor te
-          lleva a la foto que sigue. Deslizá hacia la derecha para volver.
-        </p>
+        <h3 className="mt-8 text-sm font-semibold">Con el dedo</h3>
+        <ul className="mt-2 grid gap-1.5 text-sm leading-relaxed">
+          <li>
+            <b>Sobre la fotografía</b>
+            <span style={{ color: colores.suave }}>
+              {" "}
+              — deslizá para pasar a la obra siguiente, o a la anterior.
+            </span>
+          </li>
+          <li>
+            <b>Sobre los criterios</b>
+            <span style={{ color: colores.suave }}>
+              {" "}
+              — deslizá para pasar al criterio siguiente. Después del último
+              seguís en la obra que viene, con el primero.
+            </span>
+          </li>
+          <li>
+            <b>Tocando un número</b>
+            <span style={{ color: colores.suave }}>
+              {" "}
+              — queda puesto y el criterio no se mueve. Tocá el mismo de nuevo
+              para borrarlo.
+            </span>
+          </li>
+        </ul>
 
         <h3 className="mt-8 text-sm font-semibold">Los filtros</h3>
         <p

@@ -2,9 +2,14 @@ import { prisma } from "@repo/db";
 
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { EnviarInvitacionesForm } from "@/components/admin/referrals/EnviarInvitacionesForm";
+import { EnviarOutreachForm } from "@/components/admin/referrals/EnviarOutreachForm";
 import { Card } from "@/components/ui/Card";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
 import { listarDestinatariosDeInvitacion } from "@/lib/referrals/application/enviar-invitaciones";
+import {
+  contarPendientesDeOutreach,
+  TANDA_MAXIMA,
+} from "@/lib/referrals/application/enviar-outreach";
 import { ESCALERA_REFERIDOS } from "@/lib/referrals/domain/escalera";
 
 export const dynamic = "force-dynamic";
@@ -53,6 +58,12 @@ export default async function AdminReferidosPage() {
 
   const traidos = ganados + consumidos;
 
+  const campaniaOutreach = `presentacion-${campaniaSugerida().split("-").slice(1).join("-")}`;
+  const [outreachTotal, outreachPendientes] = await Promise.all([
+    prisma.clickatonOutreachContact.count({ where: { optedOutAt: null } }),
+    contarPendientesDeOutreach(campaniaOutreach),
+  ]);
+
   return (
     <div className="space-y-8">
       <AdminPageHeader
@@ -90,6 +101,23 @@ export default async function AdminReferidosPage() {
             destinatarios={destinatarios.length}
             destinatariosConNoParticipantes={destinatariosTodos.length}
             campaniaSugerida={campaniaSugerida()}
+          />
+        </Card>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="ck-heading-md">Contarles a los fotógrafos de las otras plataformas</h2>
+        <Card variant="outlined" className="space-y-4 p-6">
+          <p className="text-sm leading-relaxed text-ck-text-secondary">
+            Fotógrafos de CompraMeLaFoto que <strong className="text-ck-text">no tienen
+            cuenta en Clickatón</strong>. Reciben un correo distinto: no les pide copiar un
+            link que todavía no existe, los invita a crearse la cuenta.
+          </p>
+          <EnviarOutreachForm
+            pendientes={outreachPendientes}
+            total={outreachTotal}
+            tandaMaxima={TANDA_MAXIMA}
+            campaniaSugerida={campaniaOutreach}
           />
         </Card>
       </section>

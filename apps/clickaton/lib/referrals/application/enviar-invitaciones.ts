@@ -13,6 +13,7 @@ import "server-only";
  */
 import { prisma } from "@repo/db";
 
+import { esCuentaTecnica } from "../domain/cuenta-tecnica";
 import { obtenerOCrearCodigoDeReferido } from "../infrastructure/prisma-referral-repository";
 import { sendReferralInviteEmail } from "../notifications/referral-invite-email";
 
@@ -41,7 +42,7 @@ export async function listarDestinatariosDeInvitacion(input?: {
   incluirNoParticipantes?: boolean;
 }): Promise<Array<{ id: number; email: string; name: string | null }>> {
   const soloEmail = input?.soloEmail?.trim();
-  return prisma.user.findMany({
+  const filas = await prisma.user.findMany({
     where: {
       ...(input?.incluirNoParticipantes
         ? {}
@@ -51,6 +52,11 @@ export async function listarDestinatariosDeInvitacion(input?: {
     select: { id: true, email: true, name: true },
     orderBy: { id: "asc" },
   });
+
+  // Una prueba dirigida a una casilla técnica sí se manda: puede ser a
+  // propósito. El envío masivo nunca las incluye.
+  if (soloEmail) return filas;
+  return filas.filter((u) => !esCuentaTecnica(u.email));
 }
 
 export async function enviarInvitacionesDeReferido(

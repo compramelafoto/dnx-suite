@@ -16,6 +16,11 @@ import { useRef, useState } from "react";
 import { BotoneraDeNota } from "./BotoneraDeNota";
 import { textoDeLaNota } from "../../../../lib/fotorank/jury/formaDeLaNota";
 
+import {
+  esGestoHorizontal,
+  haciaDondePasar,
+} from "../../../../lib/fotorank/jury/gestoLateral";
+
 type Criterio = { key: string; nombre: string; min: number; max: number };
 
 type Colores = {
@@ -27,17 +32,12 @@ type Colores = {
   chip: string;
 };
 
-/** Cuánto hay que arrastrar para que cuente como un paso, en píxeles. */
-const ARRASTRE_MINIMO = 56;
-
-/** Un tirón corto pero rápido también cuenta: píxeles por milisegundo. */
-const VELOCIDAD_MINIMA = 0.45;
-
 export function CriteriosEnElTelefono({
   criterios,
   indice,
   notas,
   colores,
+  acostado,
   sePuedeTocar,
   onElegirNota,
   onMover,
@@ -47,6 +47,8 @@ export function CriteriosEnElTelefono({
   indice: number;
   notas: Record<string, number>;
   colores: Colores;
+  /** El teléfono está acostado: la tarjeta va en columna, a un costado. */
+  acostado: boolean;
   sePuedeTocar: boolean;
   onElegirNota: (valor: number, indice: number) => void;
   onMover: (paso: 1 | -1) => void;
@@ -60,23 +62,31 @@ export function CriteriosEnElTelefono({
     suyo: boolean;
   } | null>(null);
 
+  /*
+   * El gesto no sube a la fotografía.
+   *
+   * Sobre la foto el mismo arrastre cambia de obra. Si dejáramos que el toque
+   * burbujee, deslizar sobre los criterios pasaría de criterio **y** de foto a
+   * la vez.
+   */
   function alEmpezar(e: React.TouchEvent) {
+    e.stopPropagation();
     const t = e.touches[0];
     if (!t) return;
     gesto.current = { x: t.clientX, y: t.clientY, t: Date.now(), suyo: false };
   }
 
   function alMover(e: React.TouchEvent) {
+    e.stopPropagation();
     const g = gesto.current;
     const t = e.touches[0];
     if (!g || !t) return;
     const dx = t.clientX - g.x;
     const dy = t.clientY - g.y;
-    // Hasta que no se sepa si el gesto es horizontal no se roba nada: un
-    // movimiento vertical tiene que poder seguir siendo del teléfono.
     if (!g.suyo) {
-      if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
-      if (Math.abs(dy) > Math.abs(dx)) {
+      const horizontal = esGestoHorizontal(dx, dy);
+      if (horizontal === null) return;
+      if (!horizontal) {
         gesto.current = null;
         return;
       }
@@ -85,7 +95,8 @@ export function CriteriosEnElTelefono({
     setArrastre(dx);
   }
 
-  function alSoltar() {
+  function alSoltar(e: React.TouchEvent) {
+    e.stopPropagation();
     const g = gesto.current;
     gesto.current = null;
     if (!g?.suyo) {
@@ -93,12 +104,10 @@ export function CriteriosEnElTelefono({
       return;
     }
     const recorrido = arrastre;
-    const velocidad = Math.abs(recorrido) / Math.max(1, Date.now() - g.t);
+    const milisegundos = Date.now() - g.t;
     setArrastre(0);
-    if (Math.abs(recorrido) < ARRASTRE_MINIMO && velocidad < VELOCIDAD_MINIMA)
-      return;
-    // Arrastrar hacia la izquierda trae lo que viene, como pasar una hoja.
-    onMover(recorrido < 0 ? 1 : -1);
+    const paso = haciaDondePasar({ dx: recorrido, milisegundos });
+    if (paso) onMover(paso);
   }
 
   const arrastrando = arrastre !== 0;
@@ -106,10 +115,12 @@ export function CriteriosEnElTelefono({
 
   return (
     <div
-      className="pointer-events-auto select-none overflow-hidden md:hidden"
+      className={`pointer-events-auto flex select-none overflow-hidden md:hidden ${
+        acostado ? "h-full flex-col" : "flex-col"
+      }`}
       style={{
         background: colores.panel,
-        borderTop: `1px solid ${colores.linea}`,
+        [acostado ? "borderLeft" : "borderTop"]: `1px solid ${colores.linea}`,
         touchAction: "pan-y",
       }}
       onTouchStart={alEmpezar}
@@ -118,7 +129,7 @@ export function CriteriosEnElTelefono({
       onTouchCancel={alSoltar}
     >
       <div
-        className="flex"
+        className={`flex ${acostado ? "min-h-0 flex-1" : ""}`}
         style={{
           transform: `translate3d(${corrimiento}, 0, 0)`,
           // Mientras el dedo está apoyado la tarjeta sigue la mano sin retardo;
@@ -131,7 +142,10 @@ export function CriteriosEnElTelefono({
         {criterios.map((c, i) => {
           const puesta = notas[c.key];
           return (
-            <div key={c.key} className="w-full shrink-0 px-4 pb-3 pt-2.5">
+            <div
+              key={c.key}
+              className={`w-full shrink-0 ${acostado ? "flex flex-col px-3 py-2" : "px-4 pb-3 pt-2.5"}`}
+            >
               <div className="flex items-baseline justify-between gap-3">
                 <span className="text-sm font-semibold">{c.nombre}</span>
                 <span
@@ -144,7 +158,7 @@ export function CriteriosEnElTelefono({
                   {typeof puesta === "number" ? textoDeLaNota(c, puesta) : "–"}
                 </span>
               </div>
-              <div className="mt-2">
+              <div className={acostado ? "mt-2 flex min-h-0 flex-1" : "mt-2"}>
                 <BotoneraDeNota
                   criterio={c}
                   puesta={puesta}
@@ -152,6 +166,7 @@ export function CriteriosEnElTelefono({
                   onElegir={(valor) => onElegirNota(valor, i)}
                   colores={colores}
                   alto="h-11"
+                  acostado={acostado}
                 />
               </div>
             </div>
@@ -161,7 +176,7 @@ export function CriteriosEnElTelefono({
 
       {/* En qué criterio está, y cuántos faltan para pasar de foto. */}
       <div
-        className="flex items-center justify-center gap-1.5 pb-2"
+        className={`flex shrink-0 items-center justify-center gap-1.5 ${acostado ? "pb-1.5" : "pb-2"}`}
         aria-hidden="true"
       >
         {criterios.map((c, i) => (

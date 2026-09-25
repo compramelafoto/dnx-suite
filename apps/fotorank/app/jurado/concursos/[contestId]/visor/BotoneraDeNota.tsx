@@ -22,6 +22,7 @@ export function BotoneraDeNota({
   onElegir,
   colores,
   alto = "h-8",
+  acostado = false,
 }: {
   criterio: Criterio;
   puesta: number | undefined;
@@ -29,6 +30,8 @@ export function BotoneraDeNota({
   onElegir: (valor: number) => void;
   colores: Colores;
   alto?: string;
+  /** Teléfono acostado: los botones van en dos columnas y ocupan el alto. */
+  acostado?: boolean;
 }) {
   const forma = formaDeLaNota(criterio);
   const suelto = {
@@ -57,7 +60,7 @@ export function BotoneraDeNota({
 
   return (
     <div
-      className="flex gap-0.5"
+      className={acostado ? "grid min-h-0 flex-1 grid-cols-2 gap-1" : "flex gap-0.5"}
       role="radiogroup"
       aria-label={
         forma === "SI_NO" ? `${criterio.nombre}, sí o no` : `${criterio.nombre}, del ${criterio.min} al ${criterio.max}`
@@ -72,7 +75,9 @@ export function BotoneraDeNota({
           aria-label={`${textoDeLaNota(criterio, valor)} en ${criterio.nombre}`}
           disabled={!habilitado}
           onClick={() => onElegir(valor)}
-          className={`${alto} min-w-0 flex-1 font-mono text-[12px] font-medium`}
+          className={`min-w-0 font-mono text-[12px] font-medium ${
+            acostado ? "h-full min-h-9" : `${alto} flex-1`
+          }`}
           style={puesta === valor ? ELEGIDO : suelto}
         >
           {textoDeLaNota(criterio, valor)}
