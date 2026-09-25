@@ -115,7 +115,7 @@ export function CriteriosEnElTelefono({
 
   return (
     <div
-      className={`pointer-events-auto flex select-none overflow-hidden md:hidden ${
+      className={`pointer-events-auto flex select-none overflow-hidden ${
         acostado ? "h-full flex-col" : "flex-col"
       }`}
       style={{
