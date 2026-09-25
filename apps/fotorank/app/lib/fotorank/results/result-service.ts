@@ -229,6 +229,27 @@ export async function generateResultBatch(input: {
     input.scoringSessionId,
   );
 
+  /*
+   * Un ranking finalizado no se regenera: es la fuente de los premios y los
+   * diplomas. Hasta el 2026-09-25 generar de nuevo creaba otro lote y
+   * finalizarlo dejaba dos resultados "finales" de la misma evaluación.
+   */
+  const yaFinal = await db.fotorankResultBatch.findFirst({
+    where: {
+      contestId: input.contestId,
+      scoringSessionId: session.id,
+      status: { in: ["FINALIZED", "PUBLISHED"] },
+    },
+    select: { id: true },
+  });
+  if (yaFinal) {
+    throw new ResultError(
+      "BATCH_IMMUTABLE",
+      "El ranking de esta evaluación ya está finalizado; para cambiarlo hay que revisarlo, no regenerarlo.",
+      409,
+    );
+  }
+
   const priorityKey = ruleSet.priorityCriterionKey;
   const evalInputs = evaluations.map((e) => {
     const priority =

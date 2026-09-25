@@ -109,7 +109,14 @@ export default async function ConexionConClickatonPage() {
               <tbody>
                 {estado.enVivo.maratones.map((m) => (
                   <tr key={m.contestId} className="border-t border-fr-border">
-                    <td className="py-3 pr-4 font-medium text-fr-primary">{m.titulo}</td>
+                    <td className="py-3 pr-4 font-medium text-fr-primary">
+                      <Link
+                        href={`/super-admin/clickaton/${m.contestId}`}
+                        className="hover:text-gold"
+                      >
+                        {m.titulo} →
+                      </Link>
+                    </td>
                     <td className="py-3 pr-4">{m.obrasCongeladas}</td>
                     <td className="py-3 pr-4">{m.jurados}</td>
                     <td className="py-3 pr-4">{m.evaluacionesEnviadas}</td>
@@ -173,6 +180,13 @@ export default async function ConexionConClickatonPage() {
             <p className="font-semibold text-fr-primary">4. Calificar — FotoRank</p>
             <p className="mt-1 text-fr-muted">
               Cada jurado entra con su cuenta a FotoRank → Como jurado → Concursos a calificar.
+            </p>
+          </li>
+          <li className="fr-recuadro border border-fr-border bg-fr-card">
+            <p className="font-semibold text-fr-primary">5. Cerrar y sacar el ranking — FotoRank</p>
+            <p className="mt-1 text-fr-muted">
+              Tocá la maratón en la tabla de arriba: ahí ves el avance de cada jurado, cerrás la
+              evaluación, generás el ranking por consigna y lo finalizás.
             </p>
           </li>
         </ol>
