@@ -21,7 +21,9 @@ Base funcional completa para jurados con auth separada, asignaciones por categor
 4. **Panel jurado y evaluación**
    - Login jurado: `/jurado/login`.
    - Panel: `/jurado/panel`.
-   - Evaluación una-a-una: `/jurado/asignaciones/[assignmentId]/evaluar`.
+   - Calificación: `/jurado/concursos/[contestId]` (términos) y `/jurado/concursos/[contestId]/visor`,
+     con la rúbrica del concurso. El método viejo por asignación (puntaje único) se quitó el
+     2026-09-24; su dirección redirige al concurso.
 
 5. **Historial y auditoría**
    - Eventos append-only en `FotorankJudgeAuditEvent`.

@@ -9,6 +9,8 @@ export const adminRoutes = {
   venues: "/admin/sedes",
   catalog: "/admin/catalogo",
   registrations: "/admin/inscripciones",
+  /** Una fila por persona: todas sus inscripciones, fotos, notas y ciudad. */
+  people: "/admin/personas",
   promotions: "/admin/promociones",
   social: "/admin/social",
   sponsors: "/admin/sponsors",
@@ -81,6 +83,7 @@ export const adminNavigation: readonly AdminNavItem[] = [
     icon: "registrations",
     section: "main",
   },
+  { label: "Personas", href: adminRoutes.people, icon: "registrations", section: "main" },
   {
     label: "Códigos promocionales",
     href: adminRoutes.promotions,

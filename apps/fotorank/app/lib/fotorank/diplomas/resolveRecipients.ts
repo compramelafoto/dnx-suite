@@ -1,5 +1,4 @@
 import { prisma } from "@repo/db";
-import { getFotorankCategoryJudgeResults } from "../judgeResultsForCategory";
 import type {
   DiplomaIssuanceMode,
   PlanRow,
@@ -531,65 +530,81 @@ export async function resolveDiplomaPlanRows(params: {
   }
 
   if (mode === "FINALISTS" || mode === "WINNERS") {
-    const n = mode === "WINNERS" ? 1 : Math.max(1, topN);
-    const categories = await prisma.fotorankContestCategory.findMany({
+    /*
+     * Ganadores y finalistas salen del resultado finalizado del jurado.
+     *
+     * Hasta el 2026-09-25 se calculaban con los votos del método viejo
+     * (`FotorankJudgeVote`, puntaje único por categoría), que ya no escribe
+     * nadie: con el método de criterios el lote salía vacío. Ahora se lee el
+     * último lote de resultados FINALIZADO o PUBLICADO, que ya respeta el
+     * ámbito (categoría o consigna), los empates resueltos y las exclusiones.
+     */
+    const lote = await prisma.fotorankResultBatch.findFirst({
+      where: { contestId, status: { in: ["FINALIZED", "PUBLISHED"] } },
+      orderBy: { finalizedAt: "desc" },
+      include: {
+        entries: {
+          where: { resultStatus: { not: "DISQUALIFIED" }, coverageStatus: "COMPLETE" },
+          include: { juryEntrySnapshot: { select: { entryId: true } } },
+        },
+      },
+    });
+    if (!lote) {
+      globalWarnings.push(
+        "Todavía no hay resultados finalizados: cerrá el juzgamiento y finalizá el ranking antes de emitir diplomas a ganadores o finalistas.",
+      );
+      return summarizePlan([], globalWarnings);
+    }
+
+    const categorias = await prisma.fotorankContestCategory.findMany({
       where: { contestId },
       select: { id: true, name: true },
     });
-    if (categories.length === 0) {
-      globalWarnings.push("El concurso no tiene categorías.");
-      return summarizePlan([], globalWarnings);
-    }
+    const nombreDeCategoria = new Map(categorias.map((c) => [c.id, c.name]));
+    const PREMIO: Record<string, string> = {
+      FIRST_PLACE: "1.er premio",
+      SECOND_PLACE: "2.º premio",
+      THIRD_PLACE: "3.er premio",
+      HONORABLE_MENTION: "Mención de honor",
+    };
+    const n = Math.max(1, topN);
+
     const picked = new Map<string, PlanRow>();
-    for (const cat of categories) {
-      const res = await getFotorankCategoryJudgeResults({ contestId, categoryId: cat.id });
-      if (!res.ok) {
-        globalWarnings.push(
-          `Categoría «${cat.name}»: no se pudo calcular ranking (${res.code === "AMBIGUOUS_METHOD" ? "métodos de evaluación mezclados" : "sin datos"}).`
-        );
-        continue;
-      }
-      if (res.variant === "NO_ASSIGNMENTS") {
-        globalWarnings.push(
-          `Categoría «${cat.name}»: sin asignaciones de jurado; no hay finalistas calculados.`
-        );
-        continue;
-      }
-      const slice = res.ranked.slice(0, n);
-      for (const r of slice) {
-        const e = entries.find((x) => x.id === r.entryId);
-        const name =
-          e?.title?.trim() ||
-          r.title?.trim() ||
-          e?.author?.name?.trim() ||
-          e?.author?.email ||
-          `Obra ${r.entryId.slice(-6)}`;
-        const rt: FotorankDiplomaRecipientType = mode === "WINNERS" ? "ENTRY" : "ENTRY";
-        const prize =
-          mode === "WINNERS"
-            ? stamp || `Ganador — ${cat.name}`
-            : stamp || `Finalista — ${cat.name}`;
-        picked.set(r.entryId, {
-          key: `entry:${r.entryId}`,
-          recipientType: rt,
-          recipientName: name,
-          recipientUserId: e?.authorUserId ?? null,
-          entryId: r.entryId,
-          judgeAccountId: null,
-          contestCategoryId: cat.id,
-          prizeLabel: prize,
-          entryTitle: e?.title?.trim() || r.title?.trim() || null,
-          errors: [],
-          warnings:
-            mode === "FINALISTS"
-              ? [`Puesto ${r.rankPosition} en «${cat.name}» (según votación).`]
-              : [`Ganador por ranking en «${cat.name}».`],
-        });
-      }
+    for (const r of lote.entries) {
+      if (categoryId && r.categoryId !== categoryId) continue;
+      const puesto = r.finalPosition ?? r.preliminaryPosition;
+      const esPremiado = r.awardType != null && r.awardType in PREMIO;
+      const entra = mode === "WINNERS" ? esPremiado : puesto != null && puesto <= n;
+      if (!entra) continue;
+
+      const entryId = r.juryEntrySnapshot.entryId;
+      const e = entries.find((x) => x.id === entryId);
+      const cat = nombreDeCategoria.get(r.categoryId) ?? "la categoría";
+      const ambito = r.promptExternalId ? `${cat}, consigna ${r.promptExternalId}` : cat;
+      const nombre =
+        e?.author?.name?.trim() || e?.author?.email || e?.title?.trim() || r.anonymousCode;
+      const premio =
+        stamp ||
+        (mode === "WINNERS"
+          ? `${PREMIO[r.awardType!]} — ${cat}`
+          : `Finalista — ${cat}`);
+      picked.set(entryId, {
+        key: `entry:${entryId}`,
+        recipientType: "ENTRY",
+        recipientName: nombre,
+        recipientUserId: e?.authorUserId ?? null,
+        entryId,
+        judgeAccountId: null,
+        contestCategoryId: r.categoryId,
+        prizeLabel: premio,
+        entryTitle: e?.title?.trim() || null,
+        errors: e ? [] : ["La obra no está en este concurso."],
+        warnings: [`Puesto ${puesto ?? "—"} en ${ambito} (${r.anonymousCode}).`],
+      });
     }
     const rows = [...picked.values()];
-    if (rows.length === 0 && globalWarnings.length === 0) {
-      globalWarnings.push("No se pudo armar el lote: revisá categorías y jurado.");
+    if (rows.length === 0) {
+      globalWarnings.push("El resultado finalizado no tiene obras que cumplan el criterio elegido.");
     }
     return summarizePlan(rows, globalWarnings);
   }

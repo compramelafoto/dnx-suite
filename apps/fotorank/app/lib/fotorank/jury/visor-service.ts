@@ -7,6 +7,7 @@
  * mueve con las flechas y el Tab—, así que si los datos llegaran de a uno cada
  * pulsación sería una espera.
  */
+import { cupoDeLaSesion } from "./tiposDeCalificacion";
 import { getContestEntryStorage } from "../storage/provider";
 import { signedPreviewUrl } from "./entry-for-juror";
 import { assertJudgeContestAccess } from "./jury-access";
@@ -42,7 +43,13 @@ export type ConsignaDelVisor = {
 export type ColaDelVisor = {
   contestTitle: string;
   judgingEndsAt: string | null;
-  rubrica: { id: string; nombre: string; criterios: CriterioDelVisor[] } | null;
+  rubrica: {
+    id: string;
+    nombre: string;
+    criterios: CriterioDelVisor[];
+    /** Elegir con cupo: cuántas fotos puede elegir cada jurado por consigna. */
+    cupo: number | null;
+  } | null;
   consignas: ConsignaDelVisor[];
   obras: ObraEnElVisor[];
   /** Sin sesión abierta se puede mirar, no calificar. */
@@ -92,6 +99,7 @@ export async function colaParaElVisor(input: {
           min: c.minScore,
           max: c.maxScore,
         })),
+        cupo: sesion.rubric.scoringMode === "APPROVAL" ? cupoDeLaSesion(sesion.metadata) : null,
       }
     : null;
 

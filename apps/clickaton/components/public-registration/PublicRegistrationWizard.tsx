@@ -148,6 +148,7 @@ export function PublicRegistrationWizard({
   const [documentNumber, setDocumentNumber] = useState("");
   const [city, setCity] = useState("");
   const [province, setProvince] = useState("");
+  const [birthDate, setBirthDate] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [locationConsent, setLocationConsent] = useState(false);
   const [locationPublicConsent, setLocationPublicConsent] = useState(false);
@@ -410,6 +411,12 @@ export function PublicRegistrationWizard({
       }
       if (!acceptTerms) errs.acceptTerms = "Obligatorio.";
       if (!instagramHandle.trim()) errs.instagramHandle = "Instagram requerido.";
+      {
+        const anio = Number(birthDate.slice(0, 4));
+        const hoy = new Date().getFullYear();
+        if (!birthDate) errs.birthDate = "Fecha de nacimiento requerida.";
+        else if (!(anio >= hoy - 110 && anio <= hoy - 5)) errs.birthDate = "Revisá la fecha de nacimiento.";
+      }
       if (!profilePhotoAssetId) errs.profilePhotoAssetId = "Subí una foto de perfil.";
       if (selectedTicket) {
         for (const p of selectedTicket.products) {
@@ -540,6 +547,7 @@ export function PublicRegistrationWizard({
     fd.set("city", city);
     fd.set("province", province);
     fd.set("country", "AR");
+    if (birthDate) fd.set("birthDate", birthDate);
     if (acceptTerms) {
       fd.set("acceptTerms", "true");
       fd.set("acceptPrivacy", "true");
@@ -940,6 +948,14 @@ export function PublicRegistrationWizard({
                 label="Provincia"
                 value={province}
                 onChange={setProvince}
+              />
+              <Field
+                id="birthDate"
+                label="Fecha de nacimiento *"
+                type="date"
+                value={birthDate}
+                onChange={setBirthDate}
+                error={fieldErrors.birthDate}
               />
             </div>
             <div className="block text-sm">
