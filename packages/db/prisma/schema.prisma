@@ -11602,6 +11602,8 @@ enum DnxMediaAssetKind {
   WELCOME_CARD_WEBP
   /// Placa Template Engine V2 (Welcome/Member) — participant-cards.
   PARTICIPANT_CARD_PNG
+  /// PDF de placa Template Engine V2 (Diploma) — participant-cards.
+  PARTICIPANT_CARD_PDF
   LOGO
   /// Imagen de catálogo (producto / cuadro de talles / galería).
   PRODUCT_IMAGE
@@ -11662,6 +11664,7 @@ enum DnxWelcomeCardStatus {
 enum ClickatonParticipantCardType {
   WELCOME
   MEMBER
+  DIPLOMA
 }
 
 /// Estado de generación/caché de placa Template Engine.
@@ -11858,6 +11861,7 @@ model ClickatonEdition {
   integrationOutbox          ClickatonIntegrationOutboxEvent[]
   welcomeCards               DnxWelcomeCard[]
   participantCards           ClickatonParticipantCard[]
+  diplomaIssues              ClickatonDiplomaIssue[]
   cardTemplates              ClickatonCardTemplateAssignment[]
   mediaAssets                DnxMediaAsset[]
   timelines                  ClickatonEditionTimeline[]
@@ -12366,6 +12370,7 @@ model ClickatonRegistration {
   fotoRankSyncs                      ClickatonFotoRankSync[]
   welcomeCards                       DnxWelcomeCard[]
   participantCards                   ClickatonParticipantCard[]
+  diplomaIssues                      ClickatonDiplomaIssue[]
   mediaAssets                        DnxMediaAsset[]
   photoSubmissions                   ClickatonPhotoSubmission[]
   promptNotes                        ClickatonPromptNote[]
@@ -13079,6 +13084,9 @@ model ClickatonParticipantCard {
   /// Soft ref a DnxMediaAsset (kind PARTICIPANT_CARD_PNG).
   assetId           String?
   storageKey        String?
+  /// Soft ref a DnxMediaAsset (kind PARTICIPANT_CARD_PDF). Sólo diploma.
+  pdfAssetId        String?
+  pdfStorageKey     String?
   width             Int?
   height            Int?
   mimeType          String                         @default("image/png")
@@ -13096,8 +13104,9 @@ model ClickatonParticipantCard {
   createdAt         DateTime                       @default(now())
   updatedAt         DateTime                       @updatedAt
 
-  registration ClickatonRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
-  edition      ClickatonEdition      @relation(fields: [editionId], references: [id], onDelete: Restrict)
+  registration  ClickatonRegistration   @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  edition       ClickatonEdition        @relation(fields: [editionId], references: [id], onDelete: Restrict)
+  diplomaIssues ClickatonDiplomaIssue[]
 
   @@unique([registrationId, cardType, renderHash])
   @@index([registrationId, cardType, status])
@@ -13105,6 +13114,37 @@ model ClickatonParticipantCard {
   @@index([status, lockExpiresAt])
   @@index([renderHash])
   @@index([assetId])
+}
+
+/// Diploma de participación emitido. Código y token estables por inscripción.
+/// Un solo diploma vigente por inscripción (WHERE "revokedAt" IS NULL); ese índice
+/// único parcial no se puede expresar en Prisma y vive sólo en migration.sql — no
+/// borrarlo pensando que falta.
+model ClickatonDiplomaIssue {
+  id                String    @id @default(cuid())
+  cardId            String?
+  registrationId    String
+  editionId         String
+  diplomaCode       String    @unique
+  verificationToken String    @unique
+  issuedAt          DateTime  @default(now())
+  revokedAt         DateTime?
+  revokedReason     String?
+  emailStatus       String    @default("NOT_SENT")
+  emailSentAt       DateTime?
+  emailLastError    String?
+  /// Id del mensaje que devuelve el proveedor al aceptar el envío (Resend). Sin esto no hay
+  /// forma de correlacionar un rebote real (webhook, hoy apagado) con este diploma.
+  emailProviderMessageId String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  card         ClickatonParticipantCard? @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  registration ClickatonRegistration     @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  edition      ClickatonEdition          @relation(fields: [editionId], references: [id], onDelete: Restrict)
+
+  @@index([editionId, emailStatus])
+  @@index([cardId])
 }
 
 /// Plantilla Template V2 asignada a las placas de una edición.

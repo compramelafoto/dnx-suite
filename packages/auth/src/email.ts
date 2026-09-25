@@ -8,6 +8,13 @@ export type IdentityEmailResult = {
   skipped: boolean;
   reason?: string;
   messageId?: string;
+  /**
+   * Milisegundos que Resend pidió esperar antes de reintentar (header
+   * `Retry-After`, típico en un 429 de límite de tasa). Sólo presente en un
+   * fallo HTTP con ese header; quien llama decide qué hacer con esto — acá
+   * sólo se lo expone, sin esperar nada.
+   */
+  retryAfterMs?: number;
 };
 
 export type IdentityEmailPayload = {
@@ -56,10 +63,19 @@ export async function sendIdentityEmail(
 
     if (!res.ok) {
       const body = await res.text().catch(() => "");
+      const retryAfterHeader = res.headers.get("retry-after");
+      // `Retry-After` es en segundos (RFC 9110, formato entero — Resend no
+      // usa la forma de fecha HTTP). Un valor que no parsea a número finito
+      // se ignora en vez de convertirse en un `NaN` silencioso.
+      const retryAfterSeconds = retryAfterHeader ? Number(retryAfterHeader) : NaN;
+      const retryAfterMs = Number.isFinite(retryAfterSeconds)
+        ? Math.max(0, retryAfterSeconds) * 1000
+        : undefined;
       return {
         sent: false,
         skipped: false,
         reason: `Resend HTTP ${res.status}${body ? `: ${body.slice(0, 120)}` : ""}`,
+        retryAfterMs,
       };
     }
 

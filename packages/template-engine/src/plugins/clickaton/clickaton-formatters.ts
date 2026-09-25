@@ -8,6 +8,7 @@ export {
   formatDateLong,
   formatDateLongUppercase,
   formatDateShort,
+  formatDateWithTime,
   formatParticipantNumber,
   toZonedCalendarParts,
 } from "../../variables/date-format";

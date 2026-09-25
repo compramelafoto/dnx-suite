@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildPartnerLogoKey } from "../admin/partners/partner-logo-storage";
+import { buildParticipantCardStorageKey } from "../participant-cards/participant-card-r2-keys";
 import { buildBlogObjectKey } from "./blog-storage";
-import { isPublicMediaKey } from "./public-media-keys";
+import { isPublicMediaKey, shouldNoIndexMediaKey } from "./public-media-keys";
 
 test("el proxy público sirve las imágenes del blog", () => {
   assert.ok(isPublicMediaKey("clickaton/blog/hero/2026-08-04/abc-123.jpg"));
@@ -61,5 +62,73 @@ test("el proxy no expone namespaces privados ni traversal", () => {
   ];
   for (const key of rejected) {
     assert.equal(isPublicMediaKey(key), false, `debería rechazar ${key}`);
+  }
+});
+
+test("el proxy sirve la imagen del diploma ya emitido (para el correo)", () => {
+  const key = buildParticipantCardStorageKey({
+    editionId: "cmed_edition_1",
+    registrationId: "cmreg_registration_1",
+    cardType: "DIPLOMA",
+    templateVersion: 1,
+    renderHash: "a1b2c3d4e5f6",
+  });
+  assert.ok(isPublicMediaKey(key), `debería aceptar ${key}`);
+  assert.equal(
+    key,
+    "clickaton/participant-cards/edition-cmed_edition_1/registration-cmreg_registration_1/diploma/v1/a1b2c3d4e5f6.png"
+  );
+});
+
+test("el proxy NO sirve el resto de participant-cards: ni welcome/member, ni el PDF del diploma", () => {
+  const rejected = [
+    // welcome y member siguen privados — sólo el diploma se hizo público.
+    buildParticipantCardStorageKey({
+      editionId: "ed1",
+      registrationId: "reg1",
+      cardType: "WELCOME",
+      templateVersion: 1,
+      renderHash: "hash1",
+    }),
+    buildParticipantCardStorageKey({
+      editionId: "ed1",
+      registrationId: "reg1",
+      cardType: "MEMBER",
+      templateVersion: 1,
+      renderHash: "hash1",
+    }),
+    // el PDF del diploma sigue sirviéndose autenticado desde Mi cuenta.
+    buildParticipantCardStorageKey({
+      editionId: "ed1",
+      registrationId: "reg1",
+      cardType: "DIPLOMA",
+      templateVersion: 1,
+      renderHash: "hash1",
+      extension: "pdf",
+    }),
+  ];
+  for (const key of rejected) {
+    assert.equal(isPublicMediaKey(key), false, `debería rechazar ${key}`);
+  }
+});
+
+test("la imagen del diploma se sirve con noindex: es pública para el correo, no para Google", () => {
+  assert.equal(
+    shouldNoIndexMediaKey(
+      "clickaton/participant-cards/edition-cmed_edition_1/registration-cmreg_registration_1/diploma/v1/a1b2c3d4e5f6.png"
+    ),
+    true
+  );
+});
+
+test("el resto del material público sí se puede indexar", () => {
+  const indexables = [
+    "clickaton/editions/2026-09-19/portada.jpg",
+    "clickaton/blog/hero/2026-09-19/nota.webp",
+    "clickaton/partners/logos/2026-08-01/sponsor.png",
+  ];
+  for (const key of indexables) {
+    assert.equal(shouldNoIndexMediaKey(key), false, `no debería marcar ${key}`);
+    assert.equal(isPublicMediaKey(key), true, `debería servir ${key}`);
   }
 });

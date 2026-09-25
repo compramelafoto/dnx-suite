@@ -8,17 +8,25 @@ import { requireClickatonAdmin } from "@/lib/admin/auth";
 import { prisma, withClickatonDb } from "@/lib/admin/db";
 import { validateClickatonCardTemplate } from "@/lib/participant-cards/participant-card-template-source";
 
-const CARD_TYPES = { welcome: "WELCOME", member: "MEMBER" } as const;
+const CARD_TYPES = { welcome: "WELCOME", member: "MEMBER", diploma: "DIPLOMA" } as const;
+
+/** El validador usa el tipo en minúscula (`ClickatonParticipantCardType`), no el de la base. */
+const VALIDATION_TYPE_BY_DB_TYPE = {
+  WELCOME: "welcome",
+  MEMBER: "member",
+  DIPLOMA: "diploma",
+} as const;
 
 function cardTemplatesPath(editionId: string, query?: string): string {
   const base = `${adminRoutes.editions}/${editionId}/placas`;
   return query ? `${base}?${query}` : base;
 }
 
-function parseCardType(raw: string): "WELCOME" | "MEMBER" | null {
+function parseCardType(raw: string): "WELCOME" | "MEMBER" | "DIPLOMA" | null {
   const value = raw.trim().toLowerCase();
   if (value === "welcome") return CARD_TYPES.welcome;
   if (value === "member") return CARD_TYPES.member;
+  if (value === "diploma") return CARD_TYPES.diploma;
   return null;
 }
 
@@ -73,7 +81,10 @@ export async function assignCardTemplateFormAction(formData: FormData): Promise<
     );
   }
 
-  const issues = validateClickatonCardTemplate(loaded.data.payload);
+  const issues = validateClickatonCardTemplate(
+    loaded.data.payload,
+    VALIDATION_TYPE_BY_DB_TYPE[cardType]
+  );
   if (issues.length > 0) {
     redirect(
       cardTemplatesPath(

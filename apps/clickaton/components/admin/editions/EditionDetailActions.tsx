@@ -23,6 +23,7 @@ const MODULES = [
   { key: "resultados", label: "Resultados" },
   { key: "acreditacion", label: "Acreditación" },
   { key: "placas", label: "Placas" },
+  { key: "diplomas", label: "Diplomas" },
   { key: "ensayo", label: "Ensayo" },
 ] as const;
 
