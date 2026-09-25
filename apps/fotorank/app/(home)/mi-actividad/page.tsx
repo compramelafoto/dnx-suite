@@ -24,13 +24,12 @@ export default async function MiActividadPage() {
   return (
     <div className="space-y-10" data-testid="mi-actividad-hub">
       <header className="space-y-4">
-        <p className="fr-eyebrow text-gold">Mi actividad</p>
+        <p className="fr-eyebrow text-gold">Fotógrafo</p>
         <h1 className="font-sans text-3xl font-semibold tracking-tight md:text-4xl">
           Hola{user.name?.trim() ? `, ${user.name.trim().split(/\s+/)[0]}` : ""}
         </h1>
         <p className="max-w-2xl text-base leading-relaxed text-fr-muted">
-          Tu cuenta unifica participaciones, organizaciones y tareas. Abrí el bloque que
-          necesites — sin elegir un “modo de ingreso”.
+          Tus inscripciones y las fotos que enviaste a cada concurso.
         </p>
       </header>
 
@@ -54,12 +53,11 @@ export default async function MiActividadPage() {
         </section>
       ) : null}
 
-      {caps.kinds.length === 0 && !caps.degraded ? (
+      {!caps.hasParticipations && !caps.degraded ? (
         <section className="fr-recuadro max-w-xl border border-fr-border bg-fr-card" data-testid="mi-actividad-empty">
-          <h2 className="text-xl font-semibold tracking-tight">Todavía no tenés actividad</h2>
+          <h2 className="text-xl font-semibold tracking-tight">Todavía no participaste de ningún concurso</h2>
           <p className="mt-4 text-sm leading-relaxed text-fr-muted">
-            Podés explorar concursos públicos e inscribirte, o esperar una invitación como
-            organizador o jurado.
+            Buscá un concurso abierto e inscribite desde su página.
           </p>
           <Link href="/" className="fr-btn fr-btn-primary mt-8 inline-flex w-fit px-6 py-3">
             Explorar concursos
@@ -95,77 +93,40 @@ export default async function MiActividadPage() {
         </section>
       ) : null}
 
-      {caps.hasOrganizations ? (
-        <section className="space-y-6" data-testid="section-organizaciones">
-          <div className="space-y-2">
-            <h2 className="text-2xl font-semibold tracking-tight">Organizaciones</h2>
-            <p className="text-sm text-fr-muted">Mis concursos y panel organizador.</p>
+      {/*
+       * Organizaciones y tareas de jurado ya no se muestran acá: cada una tiene
+       * su rol en el selector de arriba de la barra. Esta página es la del
+       * fotógrafo; antes mezclaba las tres cosas y se llamaba "Hub personal".
+       */}
+      {caps.hasOrganizations || caps.hasJuryAccount ? (
+        <section className="space-y-4" data-testid="otros-roles">
+          <h2 className="text-lg font-semibold tracking-tight">Tus otros roles</h2>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {caps.hasJuryAccount ? (
+              <Link
+                href="/jurado/panel"
+                className="fr-recuadro border border-fr-border bg-fr-card transition-colors hover:border-gold/40"
+              >
+                <span className="font-semibold text-fr-primary">Jurado</span>
+                <span className="mt-1 block text-sm text-fr-muted">
+                  {caps.juryContests.length === 1
+                    ? "1 concurso para calificar"
+                    : `${caps.juryContests.length} concursos para calificar`}
+                </span>
+              </Link>
+            ) : null}
+            {caps.hasOrganizations ? (
+              <Link
+                href="/dashboard"
+                className="fr-recuadro border border-fr-border bg-fr-card transition-colors hover:border-gold/40"
+              >
+                <span className="font-semibold text-fr-primary">Organizador</span>
+                <span className="mt-1 block text-sm text-fr-muted">
+                  {caps.organizations.map((o) => o.name).join(", ")}
+                </span>
+              </Link>
+            ) : null}
           </div>
-          <ul className="grid gap-8 md:grid-cols-2">
-            {caps.organizations.map((org) => (
-              <li key={org.id} className="fr-recuadro border border-fr-border bg-fr-card">
-                <h3 className="text-lg font-semibold">{org.name}</h3>
-                <p className="mt-4 text-sm text-fr-muted">/{org.slug}</p>
-              </li>
-            ))}
-          </ul>
-          {caps.organizerContests.length > 0 ? (
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold tracking-tight">Mis concursos</h3>
-              <ul className="space-y-4">
-                {caps.organizerContests.slice(0, 12).map((c) => (
-                  <li key={c.id}>
-                    <Link
-                      href={routes.dashboard.concursos.detalle(c.id)}
-                      className="flex items-center justify-between rounded-lg border border-fr-border bg-fr-card px-6 py-4 transition-colors hover:border-gold/40"
-                    >
-                      <span className="font-medium text-fr-primary">{c.title}</span>
-                      <span className="text-xs text-fr-muted">{c.status}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-          <Link href="/dashboard" className="text-sm font-medium text-gold hover:text-gold-hover">
-            Ir al Dashboard Organizador →
-          </Link>
-        </section>
-      ) : null}
-
-      {caps.hasJuryAccount ? (
-        <section className="space-y-6" data-testid="section-jurado">
-          <div className="space-y-2">
-            <h2 className="text-2xl font-semibold tracking-tight">Tareas de jurado</h2>
-            <p className="text-sm text-fr-muted">
-              Los concursos donde te toca calificar.
-            </p>
-          </div>
-          {caps.juryContests.length === 0 ? (
-            <div className="fr-recuadro border border-fr-border bg-fr-card">
-              <p className="text-sm text-fr-muted">Tenés cuenta de jurado sin asignaciones activas.</p>
-            </div>
-          ) : (
-            <ul className="space-y-4">
-              {caps.juryContests.map((c) => (
-                <li key={c.contestId}>
-                  <Link
-                    href={`/jurado/concursos/${c.contestId}`}
-                    className="flex items-center justify-between rounded-lg border border-fr-border bg-fr-card px-6 py-4 transition-colors hover:border-gold/40"
-                  >
-                    <span className="font-medium">{c.title}</span>
-                    <span className="text-xs text-gold">Evaluar</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-          <Link
-            href="/jurado/panel"
-            className="text-sm font-medium text-gold hover:text-gold-hover"
-          >
-            Abrir panel de jurado →
-          </Link>
         </section>
       ) : null}
     </div>

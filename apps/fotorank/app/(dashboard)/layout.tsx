@@ -83,7 +83,7 @@ export default async function DashboardLayoutWrapper({
     : null;
 
   const suiteWorkspaces = await getWorkspaceOptionsForUser(user.id);
-  const sections = menuDeLaCuenta(await perfilesDeLaCuenta(user));
+  const menu = menuDeLaCuenta(await perfilesDeLaCuenta(user));
   const actAsOrgName =
     isSuperAdmin && actAsOrganizationId
       ? organizations.find((o) => o.id === actAsOrganizationId)?.name ?? null
@@ -91,7 +91,7 @@ export default async function DashboardLayoutWrapper({
 
   return (
     <DashboardLayout
-      sections={sections}
+      menu={menu}
       organizations={organizations}
       currentOrganizationId={currentOrganizationId}
       organizationProfile={organizationProfile}

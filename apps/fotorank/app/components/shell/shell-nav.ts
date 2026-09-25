@@ -52,6 +52,9 @@ export function menuLinksFromSections(
   const links = sections.flatMap((section) =>
     section.items.map((item) => ({ href: item.href, label: item.label })),
   );
+  // Si el menú ya lleva al sitio público (el fotógrafo tiene "Explorar
+  // concursos"), la salida no se repite.
+  if (links.some((l) => l.href === SALIDA_AL_SITIO.href)) return links;
   return [...links, SALIDA_AL_SITIO];
 }
 

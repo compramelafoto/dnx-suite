@@ -18,9 +18,11 @@ import {
 import { landingSignOutAction } from "../../actions/landing-session";
 import { Header } from "../Header";
 import { menuLinksFromSections, type ShellSection } from "./shell-nav";
+import { rolActivo, type MenuDeLaCuenta } from "./menuDeLaCuenta";
+import { RotuloSuperAdmin, SelectorDeRol } from "./SelectorDeRol";
 
 /**
- * El armazón del panel, uno solo para las cuatro áreas.
+ * El armazón del panel, uno solo para toda la cuenta.
  *
  * Hasta el 2026-09-21 cada área resolvía su propio marco: el organizador tenía barra
  * lateral, el participante un encabezado con dos enlaces de texto, el jurado nada —cada una
@@ -47,8 +49,12 @@ const SidebarLink: SidebarLinkComponent = ({ href, className, style, children, o
 
 export interface FotorankShellProps {
   children: React.ReactNode;
-  /** El menú de esta área. La barra lateral y el menú del encabezado salen de acá. */
-  sections: ShellSection[];
+  /**
+   * El menú de la cuenta: los roles para elegir (fotógrafo, jurado,
+   * organizador) o el menú fijo del super admin. La barra lateral y el menú
+   * del encabezado salen de acá.
+   */
+  menu: MenuDeLaCuenta;
   /** Encabezado propio de la barra: hoy sólo el organizador tiene uno (su organización). */
   identity?: React.ReactNode;
   userDisplayName: string;
@@ -57,8 +63,6 @@ export interface FotorankShellProps {
   settingsHref?: string;
   /** Roles de quien mira, para esconder lo que no le corresponde. */
   roles?: string[];
-  /** A dónde vuelve el logo del encabezado. Cada área tiene su casa. */
-  homeHref?: string;
   /**
    * Cómo se cierra la sesión de esta área. El jurado tiene su propia sesión, con su propia
    * acción: si no se pudiera cambiar, el botón de salir lo dejaría adentro.
@@ -68,13 +72,12 @@ export interface FotorankShellProps {
 
 export function FotorankShell({
   children,
-  sections,
+  menu,
   identity,
   userDisplayName,
   userEmail,
   settingsHref,
   roles,
-  homeHref = "/",
   logoutAction = landingSignOutAction,
 }: FotorankShellProps) {
   const pathname = usePathname();
@@ -105,6 +108,17 @@ export function FotorankShell({
       void logoutAction();
     });
   }, [logoutAction]);
+
+  // El rol lo decide la pantalla: ver `rolDeLaRuta`.
+  const activo = useMemo(
+    () => (menu.tipo === "roles" ? rolActivo(menu.roles, pathname) : null),
+    [menu, pathname],
+  );
+  const sections = useMemo<ShellSection[]>(
+    () => (menu.tipo === "roles" ? (activo?.sections ?? []) : menu.sections),
+    [menu, activo],
+  );
+  const homeHref = menu.tipo === "roles" ? (activo?.inicio ?? "/") : "/super-admin";
 
   const rolesEfectivos = useMemo(() => roles ?? ["admin"], [roles]);
   const visibles = useMemo(
@@ -142,6 +156,15 @@ export function FotorankShell({
         sidebar={
           <div className="h-full min-h-0">
             <Sidebar>
+              {menu.tipo === "roles" ? (
+                <SelectorDeRol
+                  roles={menu.roles}
+                  activo={activo?.rol ?? null}
+                  onNavigate={closeMobileSidebar}
+                />
+              ) : (
+                <RotuloSuperAdmin />
+              )}
               {identity}
               <SidebarBody>
                 <SidebarNavFromConfig

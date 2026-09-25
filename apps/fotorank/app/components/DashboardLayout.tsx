@@ -1,7 +1,7 @@
 "use client";
 
 import { FotorankShell } from "./shell/FotorankShell";
-import type { ShellSection } from "./shell/shell-nav";
+import type { MenuDeLaCuenta } from "./shell/menuDeLaCuenta";
 import { SidebarOrgIdentityHeader } from "./dashboard/SidebarOrgIdentityHeader";
 import type { ContestOrganizationProfileDTO } from "../lib/fotorank/organizationProfile";
 import type { WorkspaceOption } from "../lib/workspace-options";
@@ -9,7 +9,7 @@ import type { WorkspaceOption } from "../lib/workspace-options";
 interface DashboardLayoutProps {
   children: React.ReactNode;
   /** El menú de la cuenta: el mismo que ve la persona en cualquier otra área. */
-  sections: ShellSection[];
+  menu: MenuDeLaCuenta;
   organizations: { id: string; name: string; slug: string }[];
   currentOrganizationId: string | null;
   organizationProfile: ContestOrganizationProfileDTO | null;
@@ -30,7 +30,7 @@ interface DashboardLayoutProps {
  */
 export function DashboardLayout({
   children,
-  sections,
+  menu,
   organizations,
   currentOrganizationId,
   organizationProfile,
@@ -43,7 +43,7 @@ export function DashboardLayout({
 }: DashboardLayoutProps) {
   return (
     <FotorankShell
-      sections={sections}
+      menu={menu}
       identity={
         <SidebarOrgIdentityHeader
           organizationProfile={organizationProfile}
@@ -58,7 +58,6 @@ export function DashboardLayout({
       userDisplayName={userDisplayName}
       userEmail={userEmail}
       settingsHref="/dashboard/settings"
-      homeHref={esSuperAdmin ? "/super-admin" : "/mi-actividad"}
     >
       {children}
     </FotorankShell>

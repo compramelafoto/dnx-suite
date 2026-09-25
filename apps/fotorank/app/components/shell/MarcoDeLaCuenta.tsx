@@ -4,11 +4,11 @@ import { FotorankShell } from "./FotorankShell";
 import { menuDeLaCuenta } from "./menuDeLaCuenta";
 
 /**
- * El marco de las áreas que no tienen contexto propio: el hub personal, el
- * participante, el super admin y el jurado que entró con la cuenta del sitio.
+ * El marco de las pantallas del fotógrafo, del jurado que entró con la cuenta
+ * del sitio y del super admin.
  *
- * Todas muestran el mismo menú —el de la cuenta— para que moverse entre ellas
- * no cambie la barra lateral. El organizador usa el mismo menú a través de
+ * Recibe los roles de la persona y el marco elige el menú según la pantalla
+ * (ver `rolDeLaRuta`). El organizador usa lo mismo a través de
  * `DashboardLayout`, que además pone arriba la organización activa.
  */
 export async function MarcoDeLaCuenta({
@@ -25,15 +25,10 @@ export async function MarcoDeLaCuenta({
   children: React.ReactNode;
 }) {
   const perfiles = await perfilesDeLaCuenta(user);
-  const sections = menuDeLaCuenta({ ...perfiles, esJurado: perfiles.esJurado || esJurado });
+  const menu = menuDeLaCuenta({ ...perfiles, esJurado: perfiles.esJurado || esJurado });
 
   return (
-    <FotorankShell
-      sections={sections}
-      userDisplayName={user.name?.trim() ?? ""}
-      userEmail={user.email}
-      homeHref={perfiles.esSuperAdmin ? "/super-admin" : "/mi-actividad"}
-    >
+    <FotorankShell menu={menu} userDisplayName={user.name?.trim() ?? ""} userEmail={user.email}>
       {children}
     </FotorankShell>
   );

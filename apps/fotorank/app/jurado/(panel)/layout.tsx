@@ -41,11 +41,10 @@ export default async function JudgePanelLayout({ children }: { children: React.R
 
   return (
     <FotorankShell
-      sections={menuDelJuradoSinCuenta()}
+      menu={menuDelJuradoSinCuenta()}
       userDisplayName={nombre}
       userEmail={judge.email}
       settingsHref="/jurado/perfil"
-      homeHref="/jurado/panel"
     >
       {children}
     </FotorankShell>
