@@ -104,6 +104,12 @@ jobs:
       - name: Pruebas del gesto lateral en el teléfono
         run: pnpm --filter fotorank test:jury-gesto
 
+      # Lo calificado que todavia no llego a la base: que no se pierda al
+      # cortarse la señal ni al cerrar la pestaña, y que lo guardado en el
+      # aparato pise a lo que trae el servidor, que es lo viejo.
+      - name: Pruebas de la cola de pendientes del jurado
+        run: pnpm --filter fotorank test:jury-pendientes
+
       - name: Pruebas del reparto de obras entre jurados
         run: pnpm --filter fotorank test:jury-reparto
 
