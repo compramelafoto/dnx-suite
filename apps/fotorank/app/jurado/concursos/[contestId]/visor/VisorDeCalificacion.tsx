@@ -408,13 +408,12 @@ export function VisorDeCalificacion({
     >
       {/* Consignas */}
       <div
-        className="flex gap-px overflow-x-auto transition-opacity"
+        className="flex gap-px overflow-x-auto"
+        hidden={inmersivo}
         style={{
           background: colores.linea,
           borderBottom: `1px solid ${colores.linea}`,
           paddingTop: "env(safe-area-inset-top, 0px)",
-          opacity: inmersivo ? 0 : 1,
-          pointerEvents: inmersivo ? "none" : "auto",
         }}
       >
         {cola.consignas.map((c) => {
@@ -454,12 +453,11 @@ export function VisorDeCalificacion({
 
       {/* Barra */}
       <div
-        className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2 transition-opacity"
+        className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2"
+        hidden={inmersivo}
         style={{
           background: colores.panel,
           borderBottom: `1px solid ${colores.linea}`,
-          opacity: inmersivo ? 0 : 1,
-          pointerEvents: inmersivo ? "none" : "auto",
         }}
       >
         <p className="mr-auto font-mono text-xs tabular-nums">
@@ -570,21 +568,42 @@ export function VisorDeCalificacion({
       </div>
 
       {/* La fotografía */}
-      <div className="relative grid min-h-0 flex-1 place-items-center p-2">
+      <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
         {actual?.previewUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={actual.previewUrl}
             alt={`Obra ${actual.codigo}`}
-            className="h-full w-full object-contain"
+            /*
+             * La foto va absoluta y pegada a los cuatro bordes del hueco.
+             *
+             * Centrada y con `h-full` a secas no funcionaba: una imagen es un
+             * elemento reemplazado, y un alto en porcentaje contra una caja sin
+             * alto definido no resuelve. La foto terminaba dimensionada sólo por
+             * el ancho --1424 x 949 en un hueco de 635-- y se veía recortada.
+             *
+             * Absoluta, el alto resuelve contra una caja que sí tiene medida, y
+             * `object-contain` la agranda hasta que toca un borde y deja franjas
+             * del color del fondo en el otro. Entera siempre, sin deformar.
+             */
+            className="absolute inset-0 h-full w-full object-contain"
           />
         ) : (
-          <p style={{ color: colores.suave }}>
+          <p className="grid h-full place-items-center px-4 text-center" style={{ color: colores.suave }}>
             {actual
               ? "No pudimos mostrar esta fotografía."
               : "No queda ninguna con este filtro."}
           </p>
         )}
+
+        {inmersivo ? (
+          <p
+            className="pointer-events-none absolute bottom-3 left-4 font-mono text-[11px]"
+            style={{ color: colores.tinta, opacity: 0.55, mixBlendMode: "difference" }}
+          >
+            {actual?.codigo} · F o Esc para volver
+          </p>
+        ) : null}
 
         {aviso ? (
           <p
@@ -599,14 +618,12 @@ export function VisorDeCalificacion({
 
       {/* Criterios */}
       <div
-        className="transition-opacity"
+        hidden={inmersivo}
         style={{
           background: colores.panel,
           borderTop: `1px solid ${colores.linea}`,
           padding: "10px 14px",
           paddingBottom: "calc(10px + env(safe-area-inset-bottom, 0px))",
-          opacity: inmersivo ? 0 : 1,
-          pointerEvents: inmersivo ? "none" : "auto",
         }}
       >
         {actual?.enviada ? (
