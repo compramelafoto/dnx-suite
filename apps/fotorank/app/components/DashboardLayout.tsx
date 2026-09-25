@@ -1,29 +1,15 @@
 "use client";
 
-import { useMemo, useState, useCallback, useTransition } from "react";
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { landingSignOutAction } from "../actions/landing-session";
-import {
-  AppLayout,
-  Sidebar,
-  SidebarBody,
-  SidebarFooter,
-  SidebarNavFromConfig,
-  filterSidebarByRoles,
-  type SidebarSectionConfig,
-  type SidebarLinkComponent,
-  DesignSystemProvider,
-  themeFotorank,
-} from "@repo/design-system";
-import type { ContestOrganizationProfileDTO } from "../lib/fotorank/organizationProfile";
-import { Header } from "./Header";
+import { FotorankShell } from "./shell/FotorankShell";
+import type { ShellSection } from "./shell/shell-nav";
 import { SidebarOrgIdentityHeader } from "./dashboard/SidebarOrgIdentityHeader";
-import { sidebarConAtajos } from "./dashboard/sidebarConAtajos";
+import type { ContestOrganizationProfileDTO } from "../lib/fotorank/organizationProfile";
 import type { WorkspaceOption } from "../lib/workspace-options";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
+  /** El menú de la cuenta: el mismo que ve la persona en cualquier otra área. */
+  sections: ShellSection[];
   organizations: { id: string; name: string; slug: string }[];
   currentOrganizationId: string | null;
   organizationProfile: ContestOrganizationProfileDTO | null;
@@ -32,61 +18,18 @@ interface DashboardLayoutProps {
   activeSuiteWorkspaceId: string | null;
   userDisplayName: string;
   userEmail: string;
-  /** La persona además tiene cuenta de jurado: se le ofrece el atajo a su panel. */
-  esJurado: boolean;
-  /** Fichas de jurado esperando revisión. 0 para quien no puede revisarlas. */
-  juradosPorRevisar: number;
 }
 
-const SIDEBAR_SECTIONS: SidebarSectionConfig[] = [
-  {
-    title: "Mi actividad",
-    items: [
-      { label: "Hub personal", href: "/mi-actividad", icon: "dashboard" },
-      { label: "Participaciones", href: "/participaciones", icon: "gallery" },
-    ],
-  },
-  // Los atajos personales se insertan acá cuando corresponde: ver sidebarConAtajos.
-  {
-    title: "Concursos",
-    items: [
-      { label: "Dashboard", href: "/dashboard", icon: "dashboard" },
-      { label: "Concursos", href: "/concursos", icon: "camera" },
-      { label: "Categorías", href: "/categorias", icon: "album" },
-    ],
-  },
-  {
-    title: "Gestión",
-    items: [
-      { label: "Jurados", href: "/jurados", icon: "user", roles: ["admin", "manager"] },
-      { label: "Directorio jurados", href: "/jurados/directorio", icon: "search", roles: ["admin", "manager"] },
-      { label: "Invitaciones", href: "/jurados/invitaciones", icon: "email", roles: ["admin", "manager"] },
-      {
-        label: "Invit. directorio",
-        href: "/jurados/directorio/invitaciones",
-        icon: "email",
-        roles: ["admin", "manager"],
-      },
-      { label: "Asignaciones", href: "/jurados/asignaciones", icon: "plus", roles: ["admin", "manager"] },
-      { label: "Auditoría", href: "/jurados/auditoria", icon: "search", roles: ["admin", "manager"] },
-      { label: "Ranking", href: "/ranking", icon: "sort" },
-      { label: "Diplomas", href: "/diplomas", icon: "invoice" },
-    ],
-  },
-  {
-    title: "Configuración",
-    items: [{ label: "Institucional", href: "/dashboard/settings", icon: "settings" }],
-  },
-];
-
-const SidebarLink: SidebarLinkComponent = ({ href, className, style, children, onClick, ...rest }) => (
-  <Link href={href} className={className} style={style} onClick={onClick} {...rest}>
-    {children}
-  </Link>
-);
-
+/**
+ * El panel del organizador.
+ *
+ * El marco y el menú son los de toda la cuenta (`FotorankShell` y
+ * `menuDeLaCuenta`). Lo único propio del organizador es la organización activa,
+ * arriba de la barra: es el contexto de todas estas pantallas.
+ */
 export function DashboardLayout({
   children,
+  sections,
   organizations,
   currentOrganizationId,
   organizationProfile,
@@ -95,94 +38,26 @@ export function DashboardLayout({
   activeSuiteWorkspaceId,
   userDisplayName,
   userEmail,
-  esJurado,
-  juradosPorRevisar,
 }: DashboardLayoutProps) {
-  const pathname = usePathname();
-  const router = useRouter();
-  const [isLogoutPending, startLogoutTransition] = useTransition();
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [desktopSidebarExpanded, setDesktopSidebarExpanded] = useState(true);
-
-  const openMobileSidebar = useCallback(() => setMobileSidebarOpen(true), []);
-  const closeMobileSidebar = useCallback(() => setMobileSidebarOpen(false), []);
-  const openDesktopSidebar = useCallback(() => setDesktopSidebarExpanded(true), []);
-  const closeDesktopSidebar = useCallback(() => setDesktopSidebarExpanded(false), []);
-
-  const handleSidebarSettings = useCallback(() => {
-    closeMobileSidebar();
-    router.push("/dashboard/settings");
-  }, [closeMobileSidebar, router]);
-
-  const handleSidebarLogout = useCallback(() => {
-    startLogoutTransition(() => {
-      void landingSignOutAction();
-    });
-  }, []);
-
-  const userRoles = useMemo(() => ["admin"], []);
-  const sidebarSections = useMemo(
-    () =>
-      sidebarConAtajos(filterSidebarByRoles(SIDEBAR_SECTIONS, userRoles), {
-        esJurado,
-        juradosPorRevisar,
-      }),
-    [userRoles, esJurado, juradosPorRevisar],
-  );
-
   return (
-    <DesignSystemProvider theme={themeFotorank.brand} mode="dark">
-      <AppLayout
-        header={
-          <Header
-            mobileSidebarOpen={mobileSidebarOpen}
-            desktopSidebarExpanded={desktopSidebarExpanded}
-            onMobileSidebarOpen={openMobileSidebar}
-            onMobileSidebarClose={closeMobileSidebar}
-            onDesktopSidebarOpen={openDesktopSidebar}
-            onDesktopSidebarClose={closeDesktopSidebar}
-          />
-        }
-        mobileSidebarOpen={mobileSidebarOpen}
-        onMobileSidebarClose={closeMobileSidebar}
-        desktopSidebarExpanded={desktopSidebarExpanded}
-        sidebarViewportTop="6.5rem"
-        sidebar={
-          <div className="h-full min-h-0">
-            <Sidebar>
-              <SidebarOrgIdentityHeader
-                organizationProfile={organizationProfile}
-                organizations={organizations}
-                currentOrganizationId={currentOrganizationId}
-                activeOrgError={activeOrgError}
-                suiteWorkspaces={suiteWorkspaces}
-                activeSuiteWorkspaceId={activeSuiteWorkspaceId}
-              />
-
-              <SidebarBody>
-                <SidebarNavFromConfig
-                  sections={sidebarSections}
-                  activePath={pathname}
-                  LinkComponent={SidebarLink}
-                  onNavigate={closeMobileSidebar}
-                />
-              </SidebarBody>
-
-              <SidebarFooter
-                userName={userDisplayName}
-                userEmail={userEmail}
-                onSettings={handleSidebarSettings}
-                onLogout={handleSidebarLogout}
-                logoutLabel={isLogoutPending ? "Cerrando sesión…" : "Cerrar sesión"}
-              />
-            </Sidebar>
-          </div>
-        }
-      >
-        <main style={{ minWidth: 0 }}>
-          <div className="fr-dashboard-main flex-1">{children}</div>
-        </main>
-      </AppLayout>
-    </DesignSystemProvider>
+    <FotorankShell
+      sections={sections}
+      identity={
+        <SidebarOrgIdentityHeader
+          organizationProfile={organizationProfile}
+          organizations={organizations}
+          currentOrganizationId={currentOrganizationId}
+          activeOrgError={activeOrgError}
+          suiteWorkspaces={suiteWorkspaces}
+          activeSuiteWorkspaceId={activeSuiteWorkspaceId}
+        />
+      }
+      userDisplayName={userDisplayName}
+      userEmail={userEmail}
+      settingsHref="/dashboard/settings"
+      homeHref="/mi-actividad"
+    >
+      {children}
+    </FotorankShell>
   );
 }

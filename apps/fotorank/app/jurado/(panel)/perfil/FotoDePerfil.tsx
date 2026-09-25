@@ -11,7 +11,7 @@ import { useRef, useState, useTransition } from "react";
 import {
   judgeRemoveOwnAvatarAction,
   judgeUploadOwnAvatarAction,
-} from "../../actions/judgeProfessionalProfile";
+} from "../../../actions/judgeProfessionalProfile";
 
 const TOPE_MB = 2;
 const FORMATOS = "image/jpeg,image/png,image/webp";

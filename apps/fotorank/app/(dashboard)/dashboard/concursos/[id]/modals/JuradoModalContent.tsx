@@ -48,15 +48,6 @@ const TAB_LABELS: Record<TabId, string> = {
   preview: "Vista previa",
 };
 
-const METHOD_OPTIONS: { id: JudgeMethodType; label: string }[] = [
-  { id: "SCORE_1_10", label: "Puntaje numérico (1 a 10)" },
-  { id: "SCORE_1_5", label: "Estrellas (1 a 5)" },
-  { id: "SCORE_0_100", label: "Ranking / score (0 a 100)" },
-  { id: "YES_NO", label: "Selección simple" },
-  { id: "SELECTION_WITH_QUOTA", label: "Selección + cupo" },
-  { id: "CRITERIA_BASED", label: "Selección + comentario (criterios)" },
-];
-
 const DEFAULT_CRITERIA = [
   { key: "tecnica", label: "Técnica", maxScore: 10, weight: 20 },
   { key: "composicion", label: "Composición", maxScore: 10, weight: 20 },
@@ -106,7 +97,9 @@ export function JuradoModalContent({ contest, onSuccess, onCancel, readOnly, res
   const [showInLanding, setShowInLanding] = useState<boolean>(rulesCfg.jurado?.showInLanding ?? false);
   const [hideUntil, setHideUntil] = useState<string>(safeDateInput(rulesCfg.jurado?.hideUntil));
   const [anonymousByDefault, setAnonymousByDefault] = useState<boolean>(rulesCfg.jurado?.anonymousByDefault ?? true);
-  const [methodType, setMethodType] = useState<JudgeMethodType>(rulesCfg.jurado?.methodType ?? "CRITERIA_BASED");
+  // Un solo método: los criterios del concurso. Los de puntaje único (1 a 10,
+  // estrellas, selección con cupo…) se quitaron el 2026-09-24.
+  const methodType: JudgeMethodType = "CRITERIA_BASED";
   const [criteria, setCriteria] = useState(rulesCfg.jurado?.criteriaPreset ?? DEFAULT_CRITERIA);
   const [visibilityByJudgeId, setVisibilityByJudgeId] = useState<Record<string, boolean>>(
     rulesCfg.jurado?.visibilityByJudgeId ?? {}
@@ -283,7 +276,7 @@ export function JuradoModalContent({ contest, onSuccess, onCancel, readOnly, res
         <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           <SummaryChip label="Jurados asignados" value={String(assignedRows.length)} />
           <SummaryChip label="Visibles en landing" value={String(visibleCount)} />
-          <SummaryChip label="Método de evaluación" value={METHOD_OPTIONS.find((m) => m.id === methodType)?.label ?? methodType} />
+          <SummaryChip label="Método de evaluación" value="Criterios del concurso" />
         </div>
         <div className="mt-4 grid gap-2">
           {checklist.map((item) => (
@@ -395,14 +388,6 @@ export function JuradoModalContent({ contest, onSuccess, onCancel, readOnly, res
 
       {tab === "evaluacion" ? (
         <div className="space-y-4">
-          <label className="space-y-1.5">
-            <span className="text-xs text-fr-muted">Método de evaluación del concurso</span>
-            <select className={inputBase} value={methodType} onChange={(e) => setMethodType(e.target.value as JudgeMethodType)} disabled={readOnly || pending}>
-              {METHOD_OPTIONS.map((m) => (
-                <option key={m.id} value={m.id}>{m.label}</option>
-              ))}
-            </select>
-          </label>
           <label className="inline-flex items-center gap-2 text-sm text-fr-muted">
             <input type="checkbox" checked={anonymousByDefault} onChange={(e) => setAnonymousByDefault(e.target.checked)} disabled={readOnly || pending} />
             Jura anónima por defecto

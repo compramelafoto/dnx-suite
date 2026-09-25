@@ -14,9 +14,9 @@ import {
   moverImagenDePortfolioAction,
   ponerTituloAImagenAction,
   subirImagenDePortfolioAction,
-} from "../../actions/judgePortfolio";
-import { PORTFOLIO_MAX_IMAGENES } from "../../lib/fotorank/judges/portfolioKeys";
-import { achicarImagen } from "../../lib/fotorank/judges/ui/achicarImagen";
+} from "../../../actions/judgePortfolio";
+import { PORTFOLIO_MAX_IMAGENES } from "../../../lib/fotorank/judges/portfolioKeys";
+import { achicarImagen } from "../../../lib/fotorank/judges/ui/achicarImagen";
 
 export type ImagenDePortfolio = {
   id: string;

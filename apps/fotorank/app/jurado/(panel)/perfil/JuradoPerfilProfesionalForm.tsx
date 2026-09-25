@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { judgeUpdateProfessionalProfileAction } from "../../actions/judgeProfessionalProfile";
+import { judgeUpdateProfessionalProfileAction } from "../../../actions/judgeProfessionalProfile";
 import {
   COBRO_POR_LA_PLATAFORMA_PROXIMAMENTE,
   DIRECTORY_PRIVACY_NOTE,
   EXTERNAL_PAYMENT_DISCLAIMER,
-} from "../../lib/fotorank/judges/legalCopy";
+} from "../../../lib/fotorank/judges/legalCopy";
 
 type Initial = {
   displayNameOverride: string | null;

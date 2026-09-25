@@ -1,6 +1,5 @@
-import Link from "next/link";
-import { requireJudgeAuth } from "../../lib/judge-auth";
-import { expireStaleDirectoryInvitationsNow } from "../../lib/fotorank/judges/directoryInvitationService";
+import { requireJudgeAuth } from "../../../lib/judge-auth";
+import { expireStaleDirectoryInvitationsNow } from "../../../lib/fotorank/judges/directoryInvitationService";
 import { prisma } from "@repo/db";
 import { JudgeDirectoryInvitationsClient } from "./JudgeDirectoryInvitationsClient";
 
@@ -32,16 +31,12 @@ export default async function JuradoInvitacionesPage() {
   }));
 
   return (
-    <div className="min-h-screen bg-fr-bg px-4 py-10 text-fr-primary md:px-8">
+    <div className="text-fr-primary">
       <div className="mx-auto max-w-3xl space-y-8">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="font-sans text-2xl font-semibold tracking-tight">Invitaciones recibidas</h1>
-            <p className="mt-2 text-sm text-fr-muted">Desde el directorio profesional de Fotorank.</p>
-          </div>
-          <Link href="/jurado/panel" className="fr-btn fr-btn-secondary text-sm self-start">
-            Panel
-          </Link>
+        <div>
+          <p className="fr-eyebrow text-gold">Como jurado</p>
+          <h1 className="mt-2 font-sans text-2xl font-semibold tracking-tight">Invitaciones recibidas</h1>
+          <p className="mt-2 text-sm text-fr-muted">Desde el directorio profesional de FotoRank.</p>
         </div>
         <JudgeDirectoryInvitationsClient initial={initial} />
       </div>

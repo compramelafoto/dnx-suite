@@ -410,8 +410,9 @@ export function resolvePostLoginPath(caps: HomeCapabilities): string {
       case "organizer":
         return "/dashboard";
       case "jury":
-        // Sesión jurado sigue siendo independiente; aterriza en login jurado con next.
-        return "/jurado/login?next=/jurado/panel";
+        // Directo al panel: entra con la sesión del sitio (ver `puenteDeSesion`).
+        // Si el puente no alcanza, el panel mismo lo manda al login de jurado.
+        return "/jurado/panel";
       case "superAdmin":
         return "/mi-actividad";
       default:

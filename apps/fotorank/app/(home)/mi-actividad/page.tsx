@@ -1,10 +1,6 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { requireAuth } from "../../lib/auth";
-import {
-  resolveHomeCapabilities,
-  resolvePostLoginPath,
-} from "../../lib/fotorank/access/home-capabilities";
+import { resolveHomeCapabilities } from "../../lib/fotorank/access/home-capabilities";
 import { routes } from "../../lib/routes";
 
 export default async function MiActividadPage() {
@@ -15,11 +11,11 @@ export default async function MiActividadPage() {
     globalRole: user.globalRole,
   });
 
-  // Una sola capacidad → ir directo al panel (salvo visita explícita multi / vacío).
-  if (caps.kinds.length === 1 && caps.kinds[0] !== "superAdmin") {
-    const dest = resolvePostLoginPath(caps);
-    if (dest !== "/mi-actividad") redirect(dest);
-  }
+  /*
+   * Esta página no redirige. Antes, con un solo perfil, mandaba a la persona a
+   * otro panel: apretar "Inicio" en el menú la sacaba de Inicio. A dónde entra
+   * cada uno después del login lo decide `resolvePostLoginPath`, una sola vez.
+   */
 
   return (
     <div className="space-y-10" data-testid="mi-actividad-hub">
@@ -138,7 +134,7 @@ export default async function MiActividadPage() {
           <div className="space-y-2">
             <h2 className="text-2xl font-semibold tracking-tight">Tareas de jurado</h2>
             <p className="text-sm text-fr-muted">
-              Solo concursos donde fuiste invitado. El panel de evaluación usa la sesión de jurado.
+              Los concursos donde te toca calificar.
             </p>
           </div>
           {caps.juryContests.length === 0 ? (

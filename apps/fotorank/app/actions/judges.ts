@@ -1,7 +1,7 @@
 "use server";
 
 import { createHash, randomBytes } from "node:crypto";
-import { Prisma, prisma } from "@repo/db";
+import { prisma } from "@repo/db";
 import { getClickatonJuryPrisma } from "@repo/db/clickaton-jury-client";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
@@ -18,29 +18,17 @@ import type { UserOrganization } from "../lib/fotorank/organizations";
 import { resolveActiveOrganizationForUser } from "../lib/fotorank/dashboard-org-context";
 import { hashPassword, verifyPassword } from "../lib/security/password";
 import { routes } from "../lib/routes";
-import {
-  eligibilityForLoadedAssignment,
-  gateJudgeEvaluationForJudge,
-} from "../lib/fotorank/judgeEvaluationGate";
+import { eligibilityForLoadedAssignment } from "../lib/fotorank/judgeEvaluationGate";
 import {
   platformForContest,
   platformLabel,
 } from "../lib/fotorank/jury/assignment-source";
-import {
-  serializeEntryForJuror,
-  type JurorEntry,
-} from "../lib/fotorank/jury/entry-for-juror";
 import {
   categoriasDondeCompiteElJurado,
   mensajeParaElOrganizador,
   MENSAJE_COMPITE_EN_TODAS,
   type ClienteParaConflicto,
 } from "../lib/fotorank/jury/competir-y-juzgar";
-import { rawVoteInputFromFormData, validateVotePayloadForMethod } from "../lib/fotorank/judgeVotePayload";
-import {
-  filterFotorankEntriesEvaluableForJudging,
-  isEvaluableFotorankContestEntry,
-} from "../lib/fotorank/fotorankContestEntryDomain";
 import { validateMethodConfig } from "../lib/fotorank/judges/contracts";
 import { DEFAULT_CRITERIA_BASED_METHOD_CONFIG } from "../lib/fotorank/judges/criteriaBased";
 import {
@@ -1490,286 +1478,6 @@ export async function listJudgeAssignmentsForCurrentJudge(): Promise<
       clickatonUnavailable,
     },
   };
-}
-
-/**
- * Obras que el jurado tiene que evaluar en una asignación.
- *
- * Las de un concurso de Clickatón viven en la base de Clickatón: se leen con el
- * cliente cruzado. Lo que se devuelve lo decide `serializeEntryForJuror`, único
- * lugar autorizado a elegir qué ve el jurado.
- */
-export async function listEntriesForAssignment(
-  assignmentId: string,
-): Promise<JudgeActionResult<JurorEntry[]>> {
-  const judge = await requireJudgeAuth();
-
-  const gate = await gateJudgeEvaluationForJudge(assignmentId, judge, new Date());
-  if (!gate.ok) {
-    return { ok: false, error: gate.error };
-  }
-  const assignment = gate.assignment;
-
-  const platform = gate.platform;
-  const db = platform === "clickaton" ? getClickatonJuryPrisma() : prisma;
-  if (!db) {
-    return {
-      ok: false,
-      error:
-        "No podemos acceder a las obras de Clickatón en este momento. Volvé a intentar en un rato.",
-    };
-  }
-  const clickatonBaseUrl =
-    platform === "clickaton"
-      ? (process.env.CLICKATON_PUBLIC_BASE_URL?.trim() || "https://maratonfotografica.com")
-      : null;
-
-  const entriesRaw = await db.fotorankContestEntry.findMany({
-    where: {
-      contestId: assignment.contestId,
-      categoryId: assignment.categoryId,
-      status: "CONFIRMED",
-      withdrawnAt: null,
-      entryNumber: { not: null },
-    },
-    include: {
-      votes: {
-        where: { assignmentId: assignment.id },
-      },
-      assets: {
-        where: { isActive: true, kind: "JURY_PREVIEW" },
-        take: 1,
-      },
-      checks: { select: { status: true } },
-    },
-    orderBy: { entryNumber: "asc" },
-  });
-
-  const entries = filterFotorankEntriesEvaluableForJudging(entriesRaw);
-
-  return {
-    ok: true,
-    data: entries.map((entry) => serializeEntryForJuror({ entry, clickatonBaseUrl })),
-  };
-}
-
-export async function saveJudgeVote(input: {
-  assignmentId: string;
-  entryId: string;
-  valueNumeric?: number | null;
-  valueBoolean?: boolean | null;
-  isFavorite?: boolean | null;
-  selectedRank?: number | null;
-  criteriaScoresJson?: unknown;
-  comment?: string | null;
-}): Promise<JudgeActionResult> {
-  const judge = await requireJudgeAuth();
-
-  const gate = await gateJudgeEvaluationForJudge(input.assignmentId, judge, new Date());
-  if (!gate.ok) {
-    return { ok: false, error: gate.error };
-  }
-  const assignment = gate.assignment;
-
-  // Un cliente mezclado escribiría el voto en la base equivocada y nadie se
-  // enteraría hasta buscar los resultados. Se resuelve una sola vez, acá.
-  const db = gate.platform === "clickaton" ? getClickatonJuryPrisma() : prisma;
-  if (!db) {
-    return {
-      ok: false,
-      error:
-        "No podemos guardar tu voto en este momento porque no llegamos a las obras de Clickatón. Volvé a intentar en un rato.",
-    };
-  }
-
-  const entry = await db.fotorankContestEntry.findUnique({
-    where: { id: input.entryId },
-    select: {
-      id: true,
-      contestId: true,
-      categoryId: true,
-      imageUrl: true,
-      status: true,
-      entryNumber: true,
-      withdrawnAt: true,
-    },
-  });
-  if (!entry) {
-    return { ok: false, error: "Obra no encontrada." };
-  }
-  if (entry.contestId !== assignment.contestId) {
-    return { ok: false, error: "La obra no pertenece al concurso asignado." };
-  }
-  if (entry.categoryId !== assignment.categoryId) {
-    return { ok: false, error: "La obra no pertenece a la categoría asignada." };
-  }
-
-  if (!isEvaluableFotorankContestEntry(entry)) {
-    return { ok: false, error: "Esta obra no está confirmada o no está disponible para evaluación." };
-  }
-
-  let existing = await db.fotorankJudgeVote.findUnique({
-    where: {
-      assignmentId_entryId: {
-        assignmentId: input.assignmentId,
-        entryId: input.entryId,
-      },
-    },
-  });
-
-  if (existing && !assignment.allowVoteEdit) {
-    return { ok: false, error: "Esta asignación no permite editar votos." };
-  }
-
-  const payloadCheck = validateVotePayloadForMethod(assignment.methodType, assignment.methodConfigJson, {
-    valueNumeric: input.valueNumeric,
-    valueBoolean: input.valueBoolean,
-    isFavorite: input.isFavorite,
-    selectedRank: input.selectedRank,
-    criteriaScoresJson: input.criteriaScoresJson,
-  });
-  if (!payloadCheck.ok) {
-    return { ok: false, error: payloadCheck.error };
-  }
-  const voteData = payloadCheck.data;
-
-  let createdNow = false;
-
-  if (!existing) {
-    try {
-      await db.fotorankJudgeVote.create({
-        data: {
-          assignmentId: input.assignmentId,
-          entryId: input.entryId,
-          valueNumeric: voteData.valueNumeric,
-          valueBoolean: voteData.valueBoolean,
-          isFavorite: voteData.isFavorite,
-          selectedRank: voteData.selectedRank,
-          criteriaScoresJson: voteData.criteriaScoresJson as never,
-          comment: input.comment?.trim() || null,
-        },
-      });
-      createdNow = true;
-    } catch (e) {
-      const isUnique =
-        e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
-      if (!isUnique) throw e;
-      existing = await db.fotorankJudgeVote.findUnique({
-        where: {
-          assignmentId_entryId: {
-            assignmentId: input.assignmentId,
-            entryId: input.entryId,
-          },
-        },
-      });
-      if (!existing) {
-        throw e instanceof Error ? e : new Error("Conflicto al guardar el voto; reintentá.");
-      }
-    }
-  }
-
-  if (!createdNow && existing) {
-    if (!assignment.allowVoteEdit) {
-      return { ok: false, error: "Esta asignación no permite editar votos." };
-    }
-    const prevPayload = {
-      valueNumeric: existing.valueNumeric,
-      valueBoolean: existing.valueBoolean,
-      isFavorite: existing.isFavorite,
-      selectedRank: existing.selectedRank,
-      criteriaScoresJson: existing.criteriaScoresJson,
-      comment: existing.comment,
-      version: existing.version,
-    };
-
-    const updated = await db.fotorankJudgeVote.update({
-      where: { id: existing.id },
-      data: {
-        valueNumeric: voteData.valueNumeric,
-        valueBoolean: voteData.valueBoolean,
-        isFavorite: voteData.isFavorite,
-        selectedRank: voteData.selectedRank,
-        criteriaScoresJson: voteData.criteriaScoresJson as never,
-        comment: input.comment?.trim() || null,
-        version: { increment: 1 },
-      },
-    });
-
-    await db.fotorankJudgeVoteHistory.create({
-      data: {
-        voteId: existing.id,
-        assignmentId: input.assignmentId,
-        entryId: input.entryId,
-        previousPayloadJson: prevPayload as never,
-        newPayloadJson: {
-          valueNumeric: updated.valueNumeric,
-          valueBoolean: updated.valueBoolean,
-          isFavorite: updated.isFavorite,
-          selectedRank: updated.selectedRank,
-          criteriaScoresJson: updated.criteriaScoresJson,
-          comment: updated.comment,
-          version: updated.version,
-        } as never,
-        changedByJudgeId: judge.id,
-      },
-    });
-  }
-
-  await db.fotorankJudgeAuditEvent.create({
-    data: {
-      organizationId: assignment.organizationId,
-      contestId: assignment.contestId,
-      actorType: "JUDGE",
-      actorJudgeId: judge.id,
-      eventType: "JUDGE_VOTE_SAVED",
-      entityType: "FotorankJudgeVote",
-      entityId: `${input.assignmentId}:${input.entryId}`,
-      payloadJson: { methodType: assignment.methodType },
-    },
-  });
-
-  revalidatePath("/jurado/panel");
-  revalidatePath(`/jurado/asignaciones/${input.assignmentId}/evaluar`);
-  revalidatePath(`/dashboard/concursos/${assignment.contestId}/resultados`);
-  return { ok: true };
-}
-
-/** Estado del formulario de voto (jurado / evaluación) vía `useFormState`. */
-export type JudgeEvaluationVoteFormState = { error: string | null; okMessage: string | null };
-
-/**
- * Server action ligada al `<form>` de evaluación: evita depender de onClick en cliente
- * (en E2E / algunos entornos el envío nativo + action es más fiable que handlers React).
- */
-export async function judgeEvaluationVoteAction(
-  _prev: JudgeEvaluationVoteFormState | undefined,
-  formData: FormData,
-): Promise<JudgeEvaluationVoteFormState> {
-  const assignmentId = String(formData.get("assignmentId") ?? "").trim();
-  const entryId = String(formData.get("entryId") ?? "").trim();
-  if (!assignmentId || !entryId) {
-    return { error: "Datos de envío incompletos.", okMessage: null };
-  }
-
-  const judge = await requireJudgeAuth();
-  const gate = await gateJudgeEvaluationForJudge(assignmentId, judge, new Date());
-  if (!gate.ok) {
-    return { error: gate.error, okMessage: null };
-  }
-
-  const raw = rawVoteInputFromFormData(formData, gate.assignment.methodType, gate.assignment.methodConfigJson);
-  const input = {
-    assignmentId,
-    entryId,
-    comment: String(formData.get("comment") ?? "").trim() || null,
-    ...raw,
-  };
-
-  const result = await saveJudgeVote(input);
-  if (!result.ok) {
-    return { error: result.error, okMessage: null };
-  }
-  return { error: null, okMessage: "Voto guardado" };
 }
 
 export async function listJudgeAuditEvents(filters?: { contestId?: string; judgeId?: string }): Promise<JudgeActionResult<Array<Record<string, unknown>>>> {

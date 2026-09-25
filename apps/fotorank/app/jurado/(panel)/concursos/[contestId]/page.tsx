@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { requireJudgeAuth } from "../../../lib/judge-auth";
+import { requireJudgeAuth } from "../../../../lib/judge-auth";
 import {
   JuryError,
   hasAcceptedJuryTerms,
   listAnonymousEntriesForJuror,
-} from "../../../lib/fotorank/jury";
-import { baseDelConcurso } from "../../../lib/fotorank/jury/baseDelConcurso";
-import { textoDeTerminos } from "../../../lib/fotorank/jury/terminosDelJurado";
+} from "../../../../lib/fotorank/jury";
+import { baseDelConcurso } from "../../../../lib/fotorank/jury/baseDelConcurso";
+import { textoDeTerminos } from "../../../../lib/fotorank/jury/terminosDelJurado";
 import { JuryTermsGate } from "./JuryTermsGate";
 
 type Props = { params: Promise<{ contestId: string }> };
@@ -38,9 +38,8 @@ export default async function JuryContestEntriesPage({ params }: Props) {
 
   /*
    * En una maratón esta pantalla ya no es un destino: es sólo donde se aceptan
-   * los términos la primera vez. El visor reemplazó a la grilla de miniaturas,
-   * y el "Ver detalle" de cada tarjeta lleva al motor viejo, que con el lote
-   * congelado redirige igual. Dejarla en el medio obligaba a un clic de más y,
+   * los términos la primera vez. El visor reemplazó a la grilla de miniaturas.
+   * Dejarla en el medio obligaba a un clic de más y,
    * si algo fallaba, a un callejón sin salida del que sólo se salía escribiendo
    * la dirección del visor a mano.
    */
@@ -49,7 +48,7 @@ export default async function JuryContestEntriesPage({ params }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-fr-bg px-4 py-10 md:px-8">
+    <div>
       <div className="mx-auto max-w-5xl space-y-10">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -66,7 +65,7 @@ export default async function JuryContestEntriesPage({ params }: Props) {
             ) : null}
           </div>
           <Link href="/jurado/panel" className="text-sm text-gold hover:text-gold-hover">
-            ← Volver al panel
+            ← Concursos a calificar
           </Link>
         </div>
 

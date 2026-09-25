@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
-import type { TextoDeTerminos } from "../../../lib/fotorank/jury/terminosDelJurado";
+import type { TextoDeTerminos } from "../../../../lib/fotorank/jury/terminosDelJurado";
 
 type Props = {
   contestId: string;

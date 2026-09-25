@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { requireJudgeAuth } from "../../../../../lib/judge-auth";
-import { JuryError, getAnonymousEntryDetailForJuror } from "../../../../../lib/fotorank/jury";
+import { requireJudgeAuth } from "../../../../../../lib/judge-auth";
+import { JuryError, getAnonymousEntryDetailForJuror } from "../../../../../../lib/fotorank/jury";
 import { JuryConflictForm } from "./JuryConflictForm";
 import { JuryEvaluationForm } from "./JuryEvaluationForm";
 
@@ -36,7 +36,7 @@ export default async function JuryEntryDetailPage({ params }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-fr-bg px-4 py-10 md:px-8">
+    <div>
       <div className="mx-auto max-w-3xl space-y-10">
         <div>
           <Link
