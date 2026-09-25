@@ -51,9 +51,6 @@ export default async function JuradosPage() {
           <Link href="/jurados/directorio">
             <Button>Buscar jurados</Button>
           </Link>
-          <Link href="/jurados/nuevo">
-            <Button variant="outline">Invitar por correo</Button>
-          </Link>
         </div>
       </div>
 
@@ -70,8 +67,11 @@ export default async function JuradosPage() {
           </li>
           <li>
             <span className="font-semibold text-gold">2.</span> Desde el directorio lo invitás a un
-            concurso y elegís las categorías. Si no está en el directorio, lo podés invitar por
-            correo.
+            concurso y elegís las categorías. Si alguien que querés todavía no está, pasale el{" "}
+            <Link href="/jurados/postulacion" className="text-gold hover:text-gold-hover">
+              enlace para postularse
+            </Link>
+            .
           </li>
           <li>
             <span className="font-semibold text-gold">3.</span> Cuando acepta, aparece en esta
@@ -97,9 +97,7 @@ export default async function JuradosPage() {
               <Link href="/jurados/directorio">
                 <Button>Ver el directorio</Button>
               </Link>
-              <Link href="/jurados/nuevo">
-                <Button variant="outline">Invitar por correo</Button>
-              </Link>
+
             </div>
           }
         />
@@ -149,10 +147,6 @@ export default async function JuradosPage() {
 
       <p className="text-xs text-fr-muted">
         También:{" "}
-        <Link href="/jurados/invitaciones" className="text-gold hover:text-gold-hover">
-          invitaciones enviadas por correo
-        </Link>{" "}
-        ·{" "}
         <Link href="/jurados/auditoria" className="text-gold hover:text-gold-hover">
           historial de cambios
         </Link>

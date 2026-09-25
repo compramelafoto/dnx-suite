@@ -1,10 +1,13 @@
-import { NewJudgePageClient } from "./NewJudgePageClient";
+import { redirect } from "next/navigation";
 
-export default function NewJudgePage() {
-  return (
-    <div className="space-y-6">
-      <h1 className="text-3xl font-semibold text-fr-primary">Nuevo jurado</h1>
-      <NewJudgePageClient />
-    </div>
-  );
+/**
+ * Antes: el organizador creaba la cuenta del jurado con correo y contraseña.
+ *
+ * Esas cuentas nacían fuera de la revisión —sin aprobar, pero con perfil
+ * público— y nunca podían entrar al directorio. Desde el 2026-09-25 hay un solo
+ * camino: el jurado se postula, FotoRank lo aprueba y el organizador lo invita
+ * desde el directorio. La dirección se conserva para enlaces guardados.
+ */
+export default function NuevoJuradoRedirige() {
+  redirect("/jurados/directorio");
 }

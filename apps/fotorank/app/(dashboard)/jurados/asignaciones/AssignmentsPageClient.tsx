@@ -74,7 +74,11 @@ export function AssignmentsPageClient({ judges, contests }: AssignmentsPageClien
       methodConfigJson: {},
       allowVoteEdit: fd.get("allowVoteEdit") === "on",
       commentsVisibleToParticipants: fd.get("commentsVisibleToParticipants") === "on",
-      sendInvitationNow: fd.get("sendInvitationNow") === "on",
+      // La casilla "Enviar invitación ahora" no mandaba nada y dejaba la
+      // asignación trabada: el jurado no podía entrar y no había pantalla para
+      // aceptarla. Se quitó el 2026-09-25; asignar a quien ya trabaja con la
+      // organización no necesita invitación.
+      sendInvitationNow: false,
     });
 
     setSaving(false);
@@ -201,9 +205,6 @@ export function AssignmentsPageClient({ judges, contests }: AssignmentsPageClien
         </label>
         <label style={checkboxRowStyle}>
           <input type="checkbox" name="commentsVisibleToParticipants" /> Comentarios visibles a participantes
-        </label>
-        <label style={checkboxRowStyle}>
-          <input type="checkbox" name="sendInvitationNow" /> Enviar invitación ahora
         </label>
       </FormSection>
       <Button type="submit" disabled={saving || !contestId || !selectedContest?.categories.length}>

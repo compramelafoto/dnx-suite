@@ -142,8 +142,8 @@ export default async function ContestJuradoOpsPage({ params, searchParams }: Pro
       ) : null}
 
       <div className="mb-8 flex flex-wrap gap-3">
-        <Link href="/jurados/invitaciones" className="fr-btn fr-btn-secondary min-h-11 px-5 text-sm">
-          Gestionar invitaciones
+        <Link href="/jurados/directorio" className="fr-btn fr-btn-secondary min-h-11 px-5 text-sm">
+          Buscar e invitar jurados
         </Link>
         <Link href="/jurados/asignaciones" className="fr-btn fr-btn-secondary min-h-11 px-5 text-sm">
           Asignaciones
