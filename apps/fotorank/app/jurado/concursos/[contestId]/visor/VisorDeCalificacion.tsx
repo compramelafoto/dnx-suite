@@ -57,6 +57,18 @@ const FONDOS: Array<{ id: Fondo; nombre: string; muestra: string }> = [
   { id: "claro", nombre: "Claro", muestra: "#eceae6" },
 ];
 
+/**
+ * Un teléfono acostado: ancho de sobra y alto escaso.
+ *
+ * No alcanza con mirar la orientación: una tablet o un portátil también están
+ * "apaisados" y ahí manda el diseño de escritorio. Lo que define este modo es
+ * que el alto sea chico, que es cuando una barra de más se nota.
+ */
+const TELEFONO_ACOSTADO = "(orientation: landscape) and (max-height: 520px)";
+
+/** Cuánto se lleva la columna de criterios cuando el teléfono está acostado. */
+const ANCHO_DE_LA_COLUMNA = 200;
+
 /** Cada cuánto late, mientras haya pantalla a la vista y actividad. */
 const LATIDO_SEGUNDOS = 30;
 
@@ -123,6 +135,15 @@ export function VisorDeCalificacion({
    */
   const [altoDeLaTarjeta, setAltoDeLaTarjeta] = useState(0);
   const tarjetaDeCriterios = useRef<HTMLDivElement | null>(null);
+  /*
+   * Con el teléfono acostado los criterios se van a un costado.
+   *
+   * Abajo taparían la obra, que es lo que se acaba de arreglar; y con barra,
+   * pestañas y tarjeta encimadas una foto apaisada quedaba en 228 x 152, más
+   * chica que en vertical. Al costado el alto le queda entero: 477 x 318, más
+   * de cuatro veces el área.
+   */
+  const [acostado, setAcostado] = useState(false);
   const contenedor = useRef<HTMLDivElement | null>(null);
 
   /*
@@ -147,6 +168,13 @@ export function VisorDeCalificacion({
       return o ? [o] : [];
     });
   }, [obras, idsVisibles]);
+
+  function elegirConsigna(numero: number) {
+    setConsigna(numero);
+    const lista = rearmarLista(numero, filtro);
+    if (lista[0]) setEntryIdActual(lista[0].entryId);
+    setCriterioActivo(0);
+  }
 
   function rearmarLista(
     nuevaConsigna: number | null,
@@ -195,6 +223,17 @@ export function VisorDeCalificacion({
     }
   }
 
+  /* ---------- acostado o parado ---------- */
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const consulta = window.matchMedia(TELEFONO_ACOSTADO);
+    const mirar = () => setAcostado(consulta.matches);
+    mirar();
+    consulta.addEventListener("change", mirar);
+    return () => consulta.removeEventListener("change", mirar);
+  }, []);
+
   /* ---------- cuánto ocupa la tarjeta de criterios ---------- */
 
   useEffect(() => {
@@ -206,7 +245,10 @@ export function VisorDeCalificacion({
     const medir = () => {
       // En la computadora la tarjeta está oculta y no ocupa nada: ahí el hueco
       // de la foto es toda la franja y no hay que descontarle nada.
-      setAltoDeLaTarjeta(caja.offsetParent === null ? 0 : caja.offsetHeight);
+      // Al costado no le saca alto a nada: lo que descuenta es ancho, y eso se
+      // resuelve en el propio acomodo de la pantalla.
+      const noOcupa = caja.offsetParent === null || acostado;
+      setAltoDeLaTarjeta(noOcupa ? 0 : caja.offsetHeight);
     };
     medir();
     if (typeof ResizeObserver === "undefined") {
@@ -220,7 +262,7 @@ export function VisorDeCalificacion({
       observador.disconnect();
       window.removeEventListener("resize", medir);
     };
-  }, [inmersivo, criterios.length, actual?.enviada]);
+  }, [inmersivo, criterios.length, actual?.enviada, acostado]);
 
   /* ---------- el latido ---------- */
 
@@ -295,8 +337,6 @@ export function VisorDeCalificacion({
   const sePuedeTocar = Boolean(
     actual && cola.sePuedeCalificar && !actual.enviada,
   );
-  /** Hay criterios que mostrar y esta obra admite que se los toque. */
-  const sePuedeCalificarEstaObra = criterios.length > 0 && !actual?.enviada;
 
   /**
    * Pone una nota en el criterio que se le indica.
@@ -565,6 +605,10 @@ export function VisorDeCalificacion({
     });
   })();
 
+  /** Se muestran los criterios del teléfono: hay qué calificar y hay lugar. */
+  const muestraCriterios =
+    !inmersivo && criterios.length > 0 && !actual?.enviada;
+
   const colores = {
     oscuro: {
       fondo: "#111111",
@@ -592,6 +636,32 @@ export function VisorDeCalificacion({
     },
   }[fondo];
 
+  /*
+   * La misma tarjeta se cuelga en dos lugares --abajo si el teléfono está
+   * parado, al costado si está acostado-- y sólo una está montada por vez.
+   */
+  const tarjetaDeLosCriterios = (
+    <CriteriosEnElTelefono
+      criterios={criterios}
+      indice={criterioActivo}
+      notas={actual?.notas ?? {}}
+      colores={colores}
+      acostado={acostado}
+      sePuedeTocar={sePuedeTocar}
+      /*
+       * En el teléfono el número no avanza de criterio.
+       *
+       * En la computadora avanzar solo es lo que hace que una foto sean cuatro
+       * teclas. Con el dedo es al revés: el pulgar ya está sobre la fila de
+       * números y que la tarjeta se corra sola mientras uno mira hace perder de
+       * vista qué acaba de puntuar. Acá avanza el gesto, que es deliberado.
+       */
+      onElegirNota={(valor, i) => ponerNota(valor, i, { avanzar: false })}
+      onMover={moverCriterio}
+      onIrACriterio={setCriterioActivo}
+    />
+  );
+
   if (cola.obras.length === 0) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-16 text-center">
@@ -612,10 +682,15 @@ export function VisorDeCalificacion({
       className="fixed inset-0 z-50 flex flex-col"
       style={{ background: colores.fondo, color: colores.tinta }}
     >
-      {/* Consignas */}
+      {/*
+       * Consignas. Con el teléfono acostado esta fila se esconde --44 píxeles
+       * pesan mucho cuando el alto total son 375-- y la consigna pasa a
+       * elegirse desde un menú de la barra. Esconder una navegación sin
+       * reemplazo sería peor que la foto más chica.
+       */}
       <div
         className="flex gap-px overflow-x-auto"
-        hidden={inmersivo}
+        hidden={inmersivo || acostado}
         style={{
           background: colores.linea,
           borderBottom: `1px solid ${colores.linea}`,
@@ -638,12 +713,7 @@ export function VisorDeCalificacion({
             <div key={c.numero} className="group relative shrink-0">
               <button
                 type="button"
-                onClick={() => {
-                  setConsigna(c.numero);
-                  const lista = rearmarLista(c.numero, filtro);
-                  if (lista[0]) setEntryIdActual(lista[0].entryId);
-                  setCriterioActivo(0);
-                }}
+                onClick={() => elegirConsigna(c.numero)}
                 className="flex min-h-11 w-full items-center gap-1.5 whitespace-nowrap px-3.5 text-sm sm:min-h-8 sm:px-3 sm:text-xs"
                 style={{
                   background: elegida ? colores.fondo : colores.panel,
@@ -709,6 +779,33 @@ export function VisorDeCalificacion({
             <span style={{ color: colores.suave }}>Sin fotos para mostrar</span>
           )}
         </p>
+
+        {acostado && cola.consignas.length > 0 ? (
+          <MenuFlotante
+            titulo="Consigna"
+            etiqueta={
+              <span className="max-w-[9rem] truncate">
+                {consigna !== null
+                  ? `${consigna} · ${cola.consignas.find((c) => c.numero === consigna)?.titulo ?? ""}`
+                  : "Consigna"}
+              </span>
+            }
+            opciones={cola.consignas.map((c) => {
+              const suyas = obras.filter((o) => o.consignaNumero === c.numero);
+              const listas = suyas.filter(
+                (o) => estadoDeLaObra(o, clavesDeCriterio) === "CALIFICADA",
+              ).length;
+              return {
+                id: String(c.numero),
+                nombre: `${c.numero} · ${c.titulo}`,
+                detalle: `${listas} de ${suyas.length} calificadas`,
+              };
+            })}
+            elegida={consigna !== null ? String(consigna) : ""}
+            colores={colores}
+            onElegir={(id) => elegirConsigna(Number(id))}
+          />
+        ) : null}
 
         <MenuFlotante
           titulo="Qué fotos mostrar"
@@ -810,205 +907,204 @@ export function VisorDeCalificacion({
         </a>
       </div>
 
-      {/* La fotografía */}
-      <div
-        className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
-        style={{ touchAction: "pan-y" }}
-        /*
-         * Deslizar sobre la obra pasa de obra.
-         *
-         * Sobre los criterios el mismo gesto pasa de criterio, y esa tarjeta
-         * no deja subir el toque. Así el dedo hace lo que uno mira: sobre la
-         * foto, fotos; sobre los criterios, criterios.
-         */
-        onTouchStart={(e) => {
-          const t = e.touches[0];
-          if (!t) return;
-          gestoEnLaFoto.current = {
-            x: t.clientX,
-            y: t.clientY,
-            t: Date.now(),
-            suyo: false,
-          };
-        }}
-        onTouchMove={(e) => {
-          const g = gestoEnLaFoto.current;
-          const t = e.touches[0];
-          if (!g || !t || g.suyo) return;
-          const horizontal = esGestoHorizontal(
-            t.clientX - g.x,
-            t.clientY - g.y,
-          );
-          if (horizontal === null) return;
-          if (!horizontal) {
+      {/*
+       * La fotografía, y al lado la columna de criterios cuando corresponde.
+       *
+       * La columna es hermana y no hija: adentro quedaba recortada por el
+       * `overflow-hidden` que evita que la obra se desborde.
+       */}
+      <div className="flex min-h-0 flex-1">
+        <div
+          className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
+          style={{ touchAction: "pan-y" }}
+          /*
+           * Deslizar sobre la obra pasa de obra.
+           *
+           * Sobre los criterios el mismo gesto pasa de criterio, y esa tarjeta
+           * no deja subir el toque. Así el dedo hace lo que uno mira: sobre la
+           * foto, fotos; sobre los criterios, criterios.
+           */
+          onTouchStart={(e) => {
+            const t = e.touches[0];
+            if (!t) return;
+            gestoEnLaFoto.current = {
+              x: t.clientX,
+              y: t.clientY,
+              t: Date.now(),
+              suyo: false,
+            };
+          }}
+          onTouchMove={(e) => {
+            const g = gestoEnLaFoto.current;
+            const t = e.touches[0];
+            if (!g || !t || g.suyo) return;
+            const horizontal = esGestoHorizontal(
+              t.clientX - g.x,
+              t.clientY - g.y,
+            );
+            if (horizontal === null) return;
+            if (!horizontal) {
+              gestoEnLaFoto.current = null;
+              return;
+            }
+            g.suyo = true;
+          }}
+          onTouchEnd={(e) => {
+            const g = gestoEnLaFoto.current;
             gestoEnLaFoto.current = null;
-            return;
-          }
-          g.suyo = true;
-        }}
-        onTouchEnd={(e) => {
-          const g = gestoEnLaFoto.current;
-          gestoEnLaFoto.current = null;
-          const t = e.changedTouches[0];
-          if (!g?.suyo || !t) return;
-          const paso = haciaDondePasar({
-            dx: t.clientX - g.x,
-            milisegundos: Date.now() - g.t,
-          });
-          if (paso) moverFoto(paso);
-        }}
-        onTouchCancel={() => {
-          gestoEnLaFoto.current = null;
-        }}
-      >
-        {actual?.previewUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={actual.previewUrl}
-            alt={`Obra ${actual.codigo}`}
-            /*
-             * La foto va absoluta y pegada a los cuatro bordes del hueco.
-             *
-             * Centrada y con `h-full` a secas no funcionaba: una imagen es un
-             * elemento reemplazado, y un alto en porcentaje contra una caja sin
-             * alto definido no resuelve. La foto terminaba dimensionada sólo por
-             * el ancho --1424 x 949 en un hueco de 635-- y se veía recortada.
-             *
-             * Absoluta, el alto resuelve contra una caja que sí tiene medida, y
-             * `object-contain` la agranda hasta que toca un borde y deja franjas
-             * del color del fondo en el otro. Entera siempre, sin deformar.
-             */
-            className="absolute inset-x-0 top-0 w-full object-contain"
-            /*
-             * El alto va explícito, nunca `auto` ni por `bottom`.
-             *
-             * Una imagen es un elemento reemplazado: con `top` y `bottom`
-             * puestos pero el alto en `auto` no se estira, toma su tamaño
-             * propio y se sale de la caja. Es el recorte que ya apareció una
-             * vez. Con una medida concreta, `object-contain` la acomoda entera.
-             */
-            style={{ height: `calc(100% - ${altoDeLaTarjeta}px)` }}
-          />
-        ) : (
-          <p
-            className="grid h-full place-items-center px-4 text-center"
-            style={{ color: colores.suave }}
-          >
-            {actual
-              ? "No pudimos mostrar esta fotografía."
-              : "No queda ninguna con este filtro."}
-          </p>
-        )}
-
-        {inmersivo ? (
-          <p
-            className="pointer-events-none absolute bottom-3 left-4 font-mono text-[11px]"
-            style={{
-              color: colores.tinta,
-              opacity: 0.55,
-              mixBlendMode: "difference",
-            }}
-          >
-            {actual?.codigo} · F o Esc para volver
-          </p>
-        ) : null}
-
-        {/* En el teléfono el código de la obra se lee sobre la propia obra. */}
-        {!inmersivo && actual ? (
-          <p
-            className="pointer-events-none absolute left-3 top-2 font-mono text-[11px] tabular-nums sm:hidden"
-            style={{
-              color: colores.tinta,
-              opacity: 0.75,
-              mixBlendMode: "difference",
-            }}
-          >
-            {visibles.indexOf(actual) + 1}/{visibles.length} · {actual.codigo}
-          </p>
-        ) : null}
-
-        {!inmersivo && sePuedeCalificarEstaObra ? (
-          <div
-            ref={tarjetaDeCriterios}
-            className="absolute inset-x-0 bottom-0 md:hidden"
-          >
-            <CriteriosEnElTelefono
-              criterios={criterios}
-              indice={criterioActivo}
-              notas={actual?.notas ?? {}}
-              colores={colores}
-              sePuedeTocar={sePuedeTocar}
+            const t = e.changedTouches[0];
+            if (!g?.suyo || !t) return;
+            const paso = haciaDondePasar({
+              dx: t.clientX - g.x,
+              milisegundos: Date.now() - g.t,
+            });
+            if (paso) moverFoto(paso);
+          }}
+          onTouchCancel={() => {
+            gestoEnLaFoto.current = null;
+          }}
+        >
+          {actual?.previewUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={actual.previewUrl}
+              alt={`Obra ${actual.codigo}`}
               /*
-               * En el teléfono el número no avanza de criterio.
+               * La foto va absoluta y pegada a los cuatro bordes del hueco.
                *
-               * En la computadora avanzar solo es lo que hace que una foto sean
-               * cuatro teclas. Con el dedo es al revés: el pulgar ya está sobre
-               * la fila de números y que la tarjeta se corra sola mientras uno
-               * mira hace perder de vista qué acaba de puntuar. Acá avanza el
-               * gesto, que es deliberado.
+               * Centrada y con `h-full` a secas no funcionaba: una imagen es un
+               * elemento reemplazado, y un alto en porcentaje contra una caja sin
+               * alto definido no resuelve. La foto terminaba dimensionada sólo por
+               * el ancho --1424 x 949 en un hueco de 635-- y se veía recortada.
+               *
+               * Absoluta, el alto resuelve contra una caja que sí tiene medida, y
+               * `object-contain` la agranda hasta que toca un borde y deja franjas
+               * del color del fondo en el otro. Entera siempre, sin deformar.
                */
-              onElegirNota={(valor, i) =>
-                ponerNota(valor, i, { avanzar: false })
-              }
-              onMover={moverCriterio}
-              onIrACriterio={setCriterioActivo}
+              className="absolute inset-x-0 top-0 w-full object-contain"
+              /*
+               * El alto va explícito, nunca `auto` ni por `bottom`.
+               *
+               * Una imagen es un elemento reemplazado: con `top` y `bottom`
+               * puestos pero el alto en `auto` no se estira, toma su tamaño
+               * propio y se sale de la caja. Es el recorte que ya apareció una
+               * vez. Con una medida concreta, `object-contain` la acomoda entera.
+               */
+              style={{ height: `calc(100% - ${altoDeLaTarjeta}px)` }}
             />
-          </div>
-        ) : null}
-
-        {comentando && actual ? (
-          <div
-            className="absolute bottom-3 right-3 w-[min(22rem,calc(100%-1.5rem))] p-3"
-            style={{
-              background: colores.panel,
-              border: `1px solid ${colores.linea}`,
-            }}
-          >
-            <label
-              className="block text-[11px] font-semibold"
-              htmlFor="comentario-de-la-obra"
-            >
-              Comentario sobre {actual.codigo}
-            </label>
-            <p className="mt-1 text-[10.5px]" style={{ color: colores.suave }}>
-              Opcional y privada. La lee la organización, nunca quien la
-              fotografió.
-            </p>
-            <textarea
-              id="comentario-de-la-obra"
-              defaultValue={actual.comentario}
-              key={actual.entryId}
-              rows={3}
-              maxLength={2000}
-              autoFocus
-              placeholder="Lo que quieras dejar anotado…"
-              onBlur={(e) => cambiarComentario(actual, e.target.value.trim())}
-              className="mt-2 w-full resize-none p-2 text-xs"
-              style={{
-                background: colores.fondo,
-                color: colores.tinta,
-                border: `1px solid ${colores.linea}`,
-              }}
-            />
-            <button
-              type="button"
-              onClick={() => setComentando(false)}
-              className="mt-1 min-h-8 px-2 text-[11px]"
+          ) : (
+            <p
+              className="grid h-full place-items-center px-4 text-center"
               style={{ color: colores.suave }}
             >
-              Listo
-            </button>
-          </div>
-        ) : null}
+              {actual
+                ? "No pudimos mostrar esta fotografía."
+                : "No queda ninguna con este filtro."}
+            </p>
+          )}
 
-        {aviso ? (
-          <p
-            className="absolute right-4 top-3 px-3 py-1.5 text-xs"
-            style={{ background: colores.chip, color: colores.tinta }}
-            role="status"
+          {inmersivo ? (
+            <p
+              className="pointer-events-none absolute bottom-3 left-4 font-mono text-[11px]"
+              style={{
+                color: colores.tinta,
+                opacity: 0.55,
+                mixBlendMode: "difference",
+              }}
+            >
+              {actual?.codigo} · F o Esc para volver
+            </p>
+          ) : null}
+
+          {/* En el teléfono el código de la obra se lee sobre la propia obra. */}
+          {!inmersivo && actual ? (
+            <p
+              className="pointer-events-none absolute left-3 top-2 font-mono text-[11px] tabular-nums sm:hidden"
+              style={{
+                color: colores.tinta,
+                opacity: 0.75,
+                mixBlendMode: "difference",
+              }}
+            >
+              {visibles.indexOf(actual) + 1}/{visibles.length} · {actual.codigo}
+            </p>
+          ) : null}
+
+          {muestraCriterios && !acostado ? (
+            <div
+              ref={tarjetaDeCriterios}
+              className="absolute inset-x-0 bottom-0 md:hidden"
+            >
+              {tarjetaDeLosCriterios}
+            </div>
+          ) : null}
+
+          {comentando && actual ? (
+            <div
+              className="absolute bottom-3 right-3 w-[min(22rem,calc(100%-1.5rem))] p-3"
+              style={{
+                background: colores.panel,
+                border: `1px solid ${colores.linea}`,
+              }}
+            >
+              <label
+                className="block text-[11px] font-semibold"
+                htmlFor="comentario-de-la-obra"
+              >
+                Comentario sobre {actual.codigo}
+              </label>
+              <p
+                className="mt-1 text-[10.5px]"
+                style={{ color: colores.suave }}
+              >
+                Opcional y privada. La lee la organización, nunca quien la
+                fotografió.
+              </p>
+              <textarea
+                id="comentario-de-la-obra"
+                defaultValue={actual.comentario}
+                key={actual.entryId}
+                rows={3}
+                maxLength={2000}
+                autoFocus
+                placeholder="Lo que quieras dejar anotado…"
+                onBlur={(e) => cambiarComentario(actual, e.target.value.trim())}
+                className="mt-2 w-full resize-none p-2 text-xs"
+                style={{
+                  background: colores.fondo,
+                  color: colores.tinta,
+                  border: `1px solid ${colores.linea}`,
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setComentando(false)}
+                className="mt-1 min-h-8 px-2 text-[11px]"
+                style={{ color: colores.suave }}
+              >
+                Listo
+              </button>
+            </div>
+          ) : null}
+
+          {aviso ? (
+            <p
+              className="absolute right-4 top-3 px-3 py-1.5 text-xs"
+              style={{ background: colores.chip, color: colores.tinta }}
+              role="status"
+            >
+              {aviso}
+            </p>
+          ) : null}
+        </div>
+
+        {muestraCriterios && acostado ? (
+          <div
+            className="shrink-0 md:hidden"
+            style={{ width: ANCHO_DE_LA_COLUMNA }}
           >
-            {aviso}
-          </p>
+            {tarjetaDeLosCriterios}
+          </div>
         ) : null}
       </div>
 

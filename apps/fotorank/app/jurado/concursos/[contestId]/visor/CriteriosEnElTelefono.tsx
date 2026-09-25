@@ -35,6 +35,7 @@ export function CriteriosEnElTelefono({
   indice,
   notas,
   colores,
+  acostado,
   sePuedeTocar,
   onElegirNota,
   onMover,
@@ -44,6 +45,8 @@ export function CriteriosEnElTelefono({
   indice: number;
   notas: Record<string, number>;
   colores: Colores;
+  /** El teléfono está acostado: la tarjeta va en columna, a un costado. */
+  acostado: boolean;
   sePuedeTocar: boolean;
   onElegirNota: (valor: number, indice: number) => void;
   onMover: (paso: 1 | -1) => void;
@@ -110,10 +113,12 @@ export function CriteriosEnElTelefono({
 
   return (
     <div
-      className="pointer-events-auto select-none overflow-hidden md:hidden"
+      className={`pointer-events-auto flex select-none overflow-hidden md:hidden ${
+        acostado ? "h-full flex-col" : "flex-col"
+      }`}
       style={{
         background: colores.panel,
-        borderTop: `1px solid ${colores.linea}`,
+        [acostado ? "borderLeft" : "borderTop"]: `1px solid ${colores.linea}`,
         touchAction: "pan-y",
       }}
       onTouchStart={alEmpezar}
@@ -122,7 +127,7 @@ export function CriteriosEnElTelefono({
       onTouchCancel={alSoltar}
     >
       <div
-        className="flex"
+        className={`flex ${acostado ? "min-h-0 flex-1" : ""}`}
         style={{
           transform: `translate3d(${corrimiento}, 0, 0)`,
           // Mientras el dedo está apoyado la tarjeta sigue la mano sin retardo;
@@ -135,7 +140,10 @@ export function CriteriosEnElTelefono({
         {criterios.map((c, i) => {
           const puesta = notas[c.key];
           return (
-            <div key={c.key} className="w-full shrink-0 px-4 pb-3 pt-2.5">
+            <div
+              key={c.key}
+              className={`w-full shrink-0 ${acostado ? "flex flex-col px-3 py-2" : "px-4 pb-3 pt-2.5"}`}
+            >
               <div className="flex items-baseline justify-between gap-3">
                 <span className="text-sm font-semibold">{c.nombre}</span>
                 <span
@@ -149,7 +157,11 @@ export function CriteriosEnElTelefono({
                 </span>
               </div>
               <div
-                className="mt-2 flex gap-1"
+                className={
+                  acostado
+                    ? "mt-2 grid min-h-0 flex-1 grid-cols-2 gap-1"
+                    : "mt-2 flex gap-1"
+                }
                 role="radiogroup"
                 aria-label={`${c.nombre}, del ${c.min} al ${c.max}`}
               >
@@ -165,7 +177,9 @@ export function CriteriosEnElTelefono({
                     aria-label={`${valor} en ${c.nombre}`}
                     disabled={!sePuedeTocar}
                     onClick={() => onElegirNota(valor, i)}
-                    className="h-11 min-w-0 flex-1 font-mono text-[13px] font-medium transition-colors"
+                    className={`min-w-0 font-mono text-[13px] font-medium transition-colors ${
+                      acostado ? "h-full min-h-9" : "h-11 flex-1"
+                    }`}
                     style={
                       puesta === valor
                         ? {
@@ -191,7 +205,7 @@ export function CriteriosEnElTelefono({
 
       {/* En qué criterio está, y cuántos faltan para pasar de foto. */}
       <div
-        className="flex items-center justify-center gap-1.5 pb-2"
+        className={`flex shrink-0 items-center justify-center gap-1.5 ${acostado ? "pb-1.5" : "pb-2"}`}
         aria-hidden="true"
       >
         {criterios.map((c, i) => (
