@@ -53,7 +53,7 @@ export async function guardarNotaAction(input: {
       return { ok: false, mensaje: error.message };
     return {
       ok: false,
-      mensaje: "No pudimos guardar la nota. Probá de nuevo.",
+      mensaje: "No pudimos guardar la calificación. Probá de nuevo.",
     };
   }
 }

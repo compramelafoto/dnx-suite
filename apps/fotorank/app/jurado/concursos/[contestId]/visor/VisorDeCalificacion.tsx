@@ -13,7 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AyudaDelVisor } from "./AyudaDelVisor";
 import { CriteriosEnElTelefono } from "./CriteriosEnElTelefono";
-import { IconoDeFiltro, MenuFlotante } from "./MenuFlotante";
+import { IconoDeComentario, IconoDeFiltro, MenuFlotante } from "./MenuFlotante";
 import {
   enviarCalificacionesAction,
   guardarNotaAction,
@@ -28,6 +28,10 @@ import {
   type FiltroDelVisor,
   type ObraEnElVisor,
 } from "../../../../lib/fotorank/jury/colaDelVisor";
+import {
+  esGestoHorizontal,
+  haciaDondePasar,
+} from "../../../../lib/fotorank/jury/gestoLateral";
 import {
   apilar,
   borrarTodo,
@@ -101,6 +105,24 @@ export function VisorDeCalificacion({
   const [enviando, setEnviando] = useState(false);
 
   const huboInteraccion = useRef(false);
+  /* El arrastre en curso sobre la fotografía, para pasar de obra con el dedo. */
+  const gestoEnLaFoto = useRef<{
+    x: number;
+    y: number;
+    t: number;
+    suyo: boolean;
+  } | null>(null);
+  /*
+   * Cuánto alto se lleva la tarjeta de criterios en el teléfono.
+   *
+   * La tarjeta flota sobre la obra, así que si el hueco de la foto llegara
+   * hasta abajo la obra quedaría escondida detrás. Se mide la tarjeta y ese
+   * alto se le descuenta al hueco: la fotografía entra entera **arriba** de la
+   * tarjeta. Se mide en vez de escribir un número porque el alto depende de la
+   * cantidad de criterios y del nombre de cada uno.
+   */
+  const [altoDeLaTarjeta, setAltoDeLaTarjeta] = useState(0);
+  const tarjetaDeCriterios = useRef<HTMLDivElement | null>(null);
   const contenedor = useRef<HTMLDivElement | null>(null);
 
   /*
@@ -172,6 +194,33 @@ export function VisorDeCalificacion({
       /* Da igual: es una comodidad, no un dato. */
     }
   }
+
+  /* ---------- cuánto ocupa la tarjeta de criterios ---------- */
+
+  useEffect(() => {
+    const caja = tarjetaDeCriterios.current;
+    if (!caja) {
+      setAltoDeLaTarjeta(0);
+      return;
+    }
+    const medir = () => {
+      // En la computadora la tarjeta está oculta y no ocupa nada: ahí el hueco
+      // de la foto es toda la franja y no hay que descontarle nada.
+      setAltoDeLaTarjeta(caja.offsetParent === null ? 0 : caja.offsetHeight);
+    };
+    medir();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", medir);
+      return () => window.removeEventListener("resize", medir);
+    }
+    const observador = new ResizeObserver(medir);
+    observador.observe(caja);
+    window.addEventListener("resize", medir);
+    return () => {
+      observador.disconnect();
+      window.removeEventListener("resize", medir);
+    };
+  }, [inmersivo, criterios.length, actual?.enviada]);
 
   /* ---------- el latido ---------- */
 
@@ -258,7 +307,7 @@ export function VisorDeCalificacion({
    * anterior. Tocar el 7 del primero cambiaba la nota del segundo.
    */
   const ponerNota = useCallback(
-    (valor: number, indice: number) => {
+    (valor: number, indice: number, { avanzar = true } = {}) => {
       if (!actual || !sePuedeTocar) return;
       const criterio = criterios[indice];
       if (!criterio) return;
@@ -271,8 +320,9 @@ export function VisorDeCalificacion({
       // Al poner una nota el foco avanza solo: una foto son cuatro teclas.
       // Al sacarla no, porque quien la saca se quedó mirando ese criterio.
       const seSaco = !(criterio.key in nuevas);
-      if (!seSaco && indice < criterios.length - 1)
+      if (avanzar && !seSaco && indice < criterios.length - 1) {
         setCriterioActivo(indice + 1);
+      }
     },
     [actual, criterios, sePuedeTocar, cambiarNotas],
   );
@@ -473,7 +523,7 @@ export function VisorDeCalificacion({
     if (
       resumen.sinTerminar > 0 &&
       !window.confirm(
-        `Quedan ${resumen.sinTerminar} obras con alguna nota puesta y alguna faltando. ` +
+        `Quedan ${resumen.sinTerminar} obras con alguna calificación puesta y alguna faltando. ` +
           `Esas no se envían y no cuentan para el resultado. ¿Enviar las ${terminadas.length} terminadas igual?`,
       )
     ) {
@@ -594,7 +644,7 @@ export function VisorDeCalificacion({
                   if (lista[0]) setEntryIdActual(lista[0].entryId);
                   setCriterioActivo(0);
                 }}
-                className="flex min-h-8 w-full items-center gap-1.5 whitespace-nowrap px-3 text-xs"
+                className="flex min-h-11 w-full items-center gap-1.5 whitespace-nowrap px-3.5 text-sm sm:min-h-8 sm:px-3 sm:text-xs"
                 style={{
                   background: elegida ? colores.fondo : colores.panel,
                   color: elegida ? colores.tinta : colores.suave,
@@ -603,7 +653,7 @@ export function VisorDeCalificacion({
                 }}
               >
                 {c.numero} · {c.titulo}
-                <span className="font-mono text-[10px] tabular-nums opacity-70">
+                <span className="font-mono text-[11px] tabular-nums opacity-70 sm:text-[10px]">
                   {listas === suyas.length
                     ? `✓${suyas.length}`
                     : `${listas}/${suyas.length}`}
@@ -648,7 +698,7 @@ export function VisorDeCalificacion({
           borderBottom: `1px solid ${colores.linea}`,
         }}
       >
-        <p className="mr-auto font-mono text-[11px] tabular-nums">
+        <p className="mr-auto hidden font-mono text-[11px] tabular-nums sm:block">
           {actual ? (
             <>
               {visibles.indexOf(actual) + 1}/{visibles.length}
@@ -664,7 +714,10 @@ export function VisorDeCalificacion({
           titulo="Qué fotos mostrar"
           icono={<IconoDeFiltro />}
           etiqueta={
-            FILTROS_DEL_VISOR.find((f) => f.id === filtro)?.nombre ?? "Todas"
+            <span className="hidden sm:inline">
+              {FILTROS_DEL_VISOR.find((f) => f.id === filtro)?.nombre ??
+                "Todas"}
+            </span>
           }
           opciones={FILTROS_DEL_VISOR.map((f) => ({
             id: f.id,
@@ -692,7 +745,7 @@ export function VisorDeCalificacion({
           etiqueta={
             <span
               aria-hidden="true"
-              className="h-3.5 w-3.5"
+              className="h-4 w-4 sm:h-3.5 sm:w-3.5"
               style={{
                 background: FONDOS.find((f) => f.id === fondo)?.muestra,
                 border: `1px solid ${colores.linea}`,
@@ -714,14 +767,17 @@ export function VisorDeCalificacion({
           onClick={() => setComentando((v) => !v)}
           disabled={!sePuedeTocar}
           aria-pressed={comentando}
-          className="min-h-8 px-2 text-xs font-medium disabled:opacity-40"
+          className="flex min-h-11 items-center gap-1.5 px-3 text-sm font-medium disabled:opacity-40 sm:min-h-8 sm:px-2 sm:text-xs"
           style={{
             border: `1px solid ${actual?.comentario ? "#e0a061" : colores.linea}`,
             color: actual?.comentario ? "#e0a061" : colores.tinta,
           }}
-          title="Dejar una nota sobre esta obra (opcional)"
+          title="Dejar un comentario sobre esta obra (opcional)"
         >
-          Comentario{actual?.comentario ? " ·" : ""}
+          <IconoDeComentario />
+          <span className="hidden sm:inline">
+            Comentario{actual?.comentario ? " ·" : ""}
+          </span>
         </button>
 
         <button
@@ -729,7 +785,7 @@ export function VisorDeCalificacion({
           onClick={() => setAyuda(true)}
           aria-label="Cómo se usa el visor"
           title="Cómo se usa (tecla H)"
-          className="grid h-8 w-8 place-items-center text-sm font-semibold"
+          className="grid h-11 w-11 place-items-center text-base font-semibold sm:h-8 sm:w-8 sm:text-sm"
           style={{ border: `1px solid ${colores.linea}`, color: colores.suave }}
         >
           ?
@@ -739,7 +795,7 @@ export function VisorDeCalificacion({
           type="button"
           onClick={() => void enviarTodo()}
           disabled={enviando || !cola.sePuedeCalificar}
-          className="min-h-8 px-3 text-xs font-semibold disabled:opacity-50"
+          className="min-h-11 px-3.5 text-sm font-semibold disabled:opacity-50 sm:min-h-8 sm:px-3 sm:text-xs"
           style={{ background: "#e0a061", color: "#1b1917" }}
         >
           {enviando ? "Enviando…" : "Enviar"}
@@ -747,7 +803,7 @@ export function VisorDeCalificacion({
 
         <a
           href="/jurado/panel"
-          className="grid min-h-8 place-items-center px-2 text-xs"
+          className="grid min-h-11 place-items-center px-2.5 text-sm sm:min-h-8 sm:px-2 sm:text-xs"
           style={{ color: colores.suave }}
         >
           Salir
@@ -755,7 +811,56 @@ export function VisorDeCalificacion({
       </div>
 
       {/* La fotografía */}
-      <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
+      <div
+        className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
+        style={{ touchAction: "pan-y" }}
+        /*
+         * Deslizar sobre la obra pasa de obra.
+         *
+         * Sobre los criterios el mismo gesto pasa de criterio, y esa tarjeta
+         * no deja subir el toque. Así el dedo hace lo que uno mira: sobre la
+         * foto, fotos; sobre los criterios, criterios.
+         */
+        onTouchStart={(e) => {
+          const t = e.touches[0];
+          if (!t) return;
+          gestoEnLaFoto.current = {
+            x: t.clientX,
+            y: t.clientY,
+            t: Date.now(),
+            suyo: false,
+          };
+        }}
+        onTouchMove={(e) => {
+          const g = gestoEnLaFoto.current;
+          const t = e.touches[0];
+          if (!g || !t || g.suyo) return;
+          const horizontal = esGestoHorizontal(
+            t.clientX - g.x,
+            t.clientY - g.y,
+          );
+          if (horizontal === null) return;
+          if (!horizontal) {
+            gestoEnLaFoto.current = null;
+            return;
+          }
+          g.suyo = true;
+        }}
+        onTouchEnd={(e) => {
+          const g = gestoEnLaFoto.current;
+          gestoEnLaFoto.current = null;
+          const t = e.changedTouches[0];
+          if (!g?.suyo || !t) return;
+          const paso = haciaDondePasar({
+            dx: t.clientX - g.x,
+            milisegundos: Date.now() - g.t,
+          });
+          if (paso) moverFoto(paso);
+        }}
+        onTouchCancel={() => {
+          gestoEnLaFoto.current = null;
+        }}
+      >
         {actual?.previewUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -773,7 +878,16 @@ export function VisorDeCalificacion({
              * `object-contain` la agranda hasta que toca un borde y deja franjas
              * del color del fondo en el otro. Entera siempre, sin deformar.
              */
-            className="absolute inset-0 h-full w-full object-contain"
+            className="absolute inset-x-0 top-0 w-full object-contain"
+            /*
+             * El alto va explícito, nunca `auto` ni por `bottom`.
+             *
+             * Una imagen es un elemento reemplazado: con `top` y `bottom`
+             * puestos pero el alto en `auto` no se estira, toma su tamaño
+             * propio y se sale de la caja. Es el recorte que ya apareció una
+             * vez. Con una medida concreta, `object-contain` la acomoda entera.
+             */
+            style={{ height: `calc(100% - ${altoDeLaTarjeta}px)` }}
           />
         ) : (
           <p
@@ -799,15 +913,43 @@ export function VisorDeCalificacion({
           </p>
         ) : null}
 
+        {/* En el teléfono el código de la obra se lee sobre la propia obra. */}
+        {!inmersivo && actual ? (
+          <p
+            className="pointer-events-none absolute left-3 top-2 font-mono text-[11px] tabular-nums sm:hidden"
+            style={{
+              color: colores.tinta,
+              opacity: 0.75,
+              mixBlendMode: "difference",
+            }}
+          >
+            {visibles.indexOf(actual) + 1}/{visibles.length} · {actual.codigo}
+          </p>
+        ) : null}
+
         {!inmersivo && sePuedeCalificarEstaObra ? (
-          <div className="absolute inset-x-0 bottom-0 md:hidden">
+          <div
+            ref={tarjetaDeCriterios}
+            className="absolute inset-x-0 bottom-0 md:hidden"
+          >
             <CriteriosEnElTelefono
               criterios={criterios}
               indice={criterioActivo}
               notas={actual?.notas ?? {}}
               colores={colores}
               sePuedeTocar={sePuedeTocar}
-              onElegirNota={ponerNota}
+              /*
+               * En el teléfono el número no avanza de criterio.
+               *
+               * En la computadora avanzar solo es lo que hace que una foto sean
+               * cuatro teclas. Con el dedo es al revés: el pulgar ya está sobre
+               * la fila de números y que la tarjeta se corra sola mientras uno
+               * mira hace perder de vista qué acaba de puntuar. Acá avanza el
+               * gesto, que es deliberado.
+               */
+              onElegirNota={(valor, i) =>
+                ponerNota(valor, i, { avanzar: false })
+              }
               onMover={moverCriterio}
               onIrACriterio={setCriterioActivo}
             />
@@ -826,7 +968,7 @@ export function VisorDeCalificacion({
               className="block text-[11px] font-semibold"
               htmlFor="comentario-de-la-obra"
             >
-              Nota sobre {actual.codigo}
+              Comentario sobre {actual.codigo}
             </label>
             <p className="mt-1 text-[10.5px]" style={{ color: colores.suave }}>
               Opcional y privada. La lee la organización, nunca quien la
@@ -963,10 +1105,12 @@ export function VisorDeCalificacion({
         >
           <span>← → mirar</span>
           <span>Tab calificar</span>
-          <span>{criterios[0] ? `${criterios[0].min}-9 · 0 = 10` : ""}</span>
+          <span>
+            {criterios[0] ? `${criterios[0].min} … ${criterios[0].max}` : ""}
+          </span>
           <span>F pantalla completa</span>
-          <span>Esc borra la nota</span>
-          <span>Supr borra las {criterios.length}</span>
+          <span>Esc borra la calificación</span>
+          <span>Supr borra las {criterios.length} calificaciones</span>
           <span>⌘Z deshace</span>
           <span>H ayuda</span>
           <span>

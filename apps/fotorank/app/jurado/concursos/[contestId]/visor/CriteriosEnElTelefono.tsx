@@ -14,6 +14,11 @@
  */
 import { useRef, useState } from "react";
 
+import {
+  esGestoHorizontal,
+  haciaDondePasar,
+} from "../../../../lib/fotorank/jury/gestoLateral";
+
 type Criterio = { key: string; nombre: string; min: number; max: number };
 
 type Colores = {
@@ -24,12 +29,6 @@ type Colores = {
   suave: string;
   chip: string;
 };
-
-/** Cuánto hay que arrastrar para que cuente como un paso, en píxeles. */
-const ARRASTRE_MINIMO = 56;
-
-/** Un tirón corto pero rápido también cuenta: píxeles por milisegundo. */
-const VELOCIDAD_MINIMA = 0.45;
 
 export function CriteriosEnElTelefono({
   criterios,
@@ -58,23 +57,31 @@ export function CriteriosEnElTelefono({
     suyo: boolean;
   } | null>(null);
 
+  /*
+   * El gesto no sube a la fotografía.
+   *
+   * Sobre la foto el mismo arrastre cambia de obra. Si dejáramos que el toque
+   * burbujee, deslizar sobre los criterios pasaría de criterio **y** de foto a
+   * la vez.
+   */
   function alEmpezar(e: React.TouchEvent) {
+    e.stopPropagation();
     const t = e.touches[0];
     if (!t) return;
     gesto.current = { x: t.clientX, y: t.clientY, t: Date.now(), suyo: false };
   }
 
   function alMover(e: React.TouchEvent) {
+    e.stopPropagation();
     const g = gesto.current;
     const t = e.touches[0];
     if (!g || !t) return;
     const dx = t.clientX - g.x;
     const dy = t.clientY - g.y;
-    // Hasta que no se sepa si el gesto es horizontal no se roba nada: un
-    // movimiento vertical tiene que poder seguir siendo del teléfono.
     if (!g.suyo) {
-      if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
-      if (Math.abs(dy) > Math.abs(dx)) {
+      const horizontal = esGestoHorizontal(dx, dy);
+      if (horizontal === null) return;
+      if (!horizontal) {
         gesto.current = null;
         return;
       }
@@ -83,7 +90,8 @@ export function CriteriosEnElTelefono({
     setArrastre(dx);
   }
 
-  function alSoltar() {
+  function alSoltar(e: React.TouchEvent) {
+    e.stopPropagation();
     const g = gesto.current;
     gesto.current = null;
     if (!g?.suyo) {
@@ -91,12 +99,10 @@ export function CriteriosEnElTelefono({
       return;
     }
     const recorrido = arrastre;
-    const velocidad = Math.abs(recorrido) / Math.max(1, Date.now() - g.t);
+    const milisegundos = Date.now() - g.t;
     setArrastre(0);
-    if (Math.abs(recorrido) < ARRASTRE_MINIMO && velocidad < VELOCIDAD_MINIMA)
-      return;
-    // Arrastrar hacia la izquierda trae lo que viene, como pasar una hoja.
-    onMover(recorrido < 0 ? 1 : -1);
+    const paso = haciaDondePasar({ dx: recorrido, milisegundos });
+    if (paso) onMover(paso);
   }
 
   const arrastrando = arrastre !== 0;

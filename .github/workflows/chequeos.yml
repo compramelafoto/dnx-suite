@@ -98,6 +98,12 @@ jobs:
       - name: Pruebas de las notas de la obra
         run: pnpm --filter fotorank test:jury-notas
 
+      # Cuándo un dedo arrastrado significa "pasá a lo siguiente". La misma
+      # regla la usan la fotografía y los criterios, y si difirieran uno de los
+      # dos se sentiría más pesado que el otro.
+      - name: Pruebas del gesto lateral en el teléfono
+        run: pnpm --filter fotorank test:jury-gesto
+
       - name: Pruebas del reparto de obras entre jurados
         run: pnpm --filter fotorank test:jury-reparto
 

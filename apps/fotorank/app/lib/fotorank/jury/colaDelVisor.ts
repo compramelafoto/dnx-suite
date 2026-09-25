@@ -56,17 +56,17 @@ export const FILTROS_DEL_VISOR: Array<{
   {
     id: "ME_FALTAN",
     nombre: "Me faltan",
-    detalle: "Sin todas las notas puestas, las haya tocado o no",
+    detalle: "Sin todas las calificaciones puestas, las haya tocado o no",
   },
   {
     id: "TERMINADAS",
     nombre: "Completas",
-    detalle: "Con todas las notas puestas",
+    detalle: "Con todas las calificaciones puestas",
   },
   {
     id: "A_MEDIAS",
     nombre: "Empezadas",
-    detalle: "Con alguna nota y alguna faltando: así no cuentan",
+    detalle: "Con alguna calificación y alguna faltando: así no cuentan",
   },
 ];
 
