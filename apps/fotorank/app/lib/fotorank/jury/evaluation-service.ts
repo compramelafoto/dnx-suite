@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { CLAVE_SELECCION, cupoDeLaSesion } from "./tiposDeCalificacion";
 import { JuryError } from "./errors";
 import { assertJudgeContestAccess } from "./jury-access";
 import { baseDelConcurso, type ClienteDeJurado } from "./baseDelConcurso";
@@ -221,6 +222,36 @@ export async function upsertJuryEvaluation(input: {
       computed.error,
       400,
     );
+  }
+
+  /*
+   * Elegir con cupo: cada jurado puede marcar "sí" hasta un máximo por
+   * categoría y consigna. Se controla acá y no sólo en el visor, porque el
+   * visor se puede saltear. Se cuenta al enviar: los borradores no ocupan cupo.
+   */
+  const cupo = cupoDeLaSesion(session.metadata);
+  const eligeEsta = input.scores.some((s) => s.key === CLAVE_SELECCION && s.score === 1);
+  if (input.submit && session.rubric.scoringMode === "APPROVAL" && cupo && eligeEsta) {
+    const yaElegidas = await db.fotorankJuryEvaluation.count({
+      where: {
+        scoringSessionId: session.id,
+        jurorId: input.judgeAccountId,
+        status: { in: ["SUBMITTED", "LOCKED"] },
+        juryEntrySnapshotId: { not: snapshot.id },
+        juryEntrySnapshot: {
+          categoryId: snapshot.categoryId,
+          promptExternalId: snapshot.promptExternalId,
+        },
+        criterionScores: { some: { criterionKeySnapshot: CLAVE_SELECCION, score: 1 } },
+      },
+    });
+    if (yaElegidas >= cupo) {
+      throw new JuryError(
+        "QUOTA_EXCEEDED",
+        `Ya enviaste ${cupo} fotos elegidas en esta consigna, que es el máximo. Marcá esta como no elegida.`,
+        409,
+      );
+    }
   }
 
   const existing = await db.fotorankJuryEvaluation.findUnique({

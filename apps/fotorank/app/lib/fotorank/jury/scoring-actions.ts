@@ -7,6 +7,7 @@ import { assertOrganizerCanAccessContest } from "../registration";
 import {
   activateRubric,
   closeScoringSession,
+  configurarTipoDeCalificacion,
   ensureDraftScoringSession,
   getCoverageReport,
   openScoringSession,
@@ -76,6 +77,36 @@ export async function closeScoringSessionAction(contestId: string, formData: For
     redirect(
       `/dashboard/concursos/${contestId}/jurado?closeError=${encodeURIComponent(closeError)}`,
     );
+  }
+  revalidatePath(`/dashboard/concursos/${contestId}/jurado`);
+}
+
+export async function configurarTipoDeCalificacionAction(contestId: string, formData: FormData) {
+  const user = await requireOrganizer(contestId);
+  const { JuryError } = await import("./errors");
+  const { redirect } = await import("next/navigation");
+  const { leerConfiguracion } = await import("./tiposDeCalificacion");
+  const config = leerConfiguracion({
+    tipo: String(formData.get("tipo") ?? ""),
+    escala: String(formData.get("escala") ?? ""),
+    cupo: String(formData.get("cupo") ?? ""),
+  });
+  let error: string | null = "error" in config ? config.error : null;
+  if (!("error" in config)) {
+    try {
+      await configurarTipoDeCalificacion({
+        contestId,
+        sessionId: String(formData.get("sessionId") ?? ""),
+        config,
+        actorUserId: user.id,
+      });
+    } catch (err) {
+      if (err instanceof JuryError) error = err.message;
+      else throw err;
+    }
+  }
+  if (error) {
+    redirect(`/dashboard/concursos/${contestId}/jurado?tipoError=${encodeURIComponent(error)}`);
   }
   revalidatePath(`/dashboard/concursos/${contestId}/jurado`);
 }

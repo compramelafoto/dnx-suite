@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { prisma } from "@repo/db";
+import { baseDelConcurso } from "../jury/baseDelConcurso";
 import { ResultError } from "./errors";
 import { enqueueResultNotificationIntent } from "./notification-intents";
 import { buildResultPublicationHash } from "./publication-hash";
@@ -28,12 +28,13 @@ async function writeAudit(input: {
   entityId: string;
   payload?: Record<string, unknown>;
 }) {
-  const contest = await prisma.fotorankContest.findUnique({
+  const { db } = await baseDelConcurso(input.contestId);
+  const contest = await db.fotorankContest.findUnique({
     where: { id: input.contestId },
     select: { organizationId: true },
   });
   if (!contest) return;
-  await prisma.fotorankJudgeAuditEvent.create({
+  await db.fotorankJudgeAuditEvent.create({
     data: {
       organizationId: contest.organizationId,
       contestId: input.contestId,
@@ -48,7 +49,8 @@ async function writeAudit(input: {
 }
 
 async function loadBatch(contestId: string, batchId: string) {
-  const batch = await prisma.fotorankResultBatch.findFirst({
+  const { db } = await baseDelConcurso(contestId);
+  const batch = await db.fotorankResultBatch.findFirst({
     where: { id: batchId, contestId },
     include: {
       entries: { orderBy: [{ categoryId: "asc" }, { preliminaryPosition: "asc" }] },
@@ -65,13 +67,14 @@ async function saveMeta(
   meta: ResultPublicationMeta,
   revision: { contestId: string; actorUserId: number; reason: string; before: unknown },
 ) {
-  const revCount = await prisma.fotorankResultRevision.count({ where: { resultBatchId: batchId } });
-  await prisma.$transaction([
-    prisma.fotorankResultBatch.update({
+  const { db } = await baseDelConcurso(revision.contestId);
+  const revCount = await db.fotorankResultRevision.count({ where: { resultBatchId: batchId } });
+  await db.$transaction([
+    db.fotorankResultBatch.update({
       where: { id: batchId },
       data: { metadata: meta as object },
     }),
-    prisma.fotorankResultRevision.create({
+    db.fotorankResultRevision.create({
       data: {
         id: newId(),
         resultBatchId: batchId,
@@ -189,6 +192,7 @@ export async function configureFinalists(input: {
   defaultTopN: number;
   topNByCategorySlug?: Record<string, number>;
 }) {
+  const { db } = await baseDelConcurso(input.contestId);
   const batch = await loadBatch(input.contestId, input.batchId);
   const before = parsePublicationMeta(batch.metadata);
   const meta = parsePublicationMeta(batch.metadata);
@@ -200,24 +204,27 @@ export async function configureFinalists(input: {
   };
 
   if (input.mode === "AUTO_TOP_N" || input.mode === "MIXED") {
-    const cats = await prisma.fotorankContestCategory.findMany({
+    const cats = await db.fotorankContestCategory.findMany({
       where: { contestId: input.contestId, status: "ACTIVE" },
       select: { id: true, slug: true },
     });
     const selections: NonNullable<ResultPublicationMeta["finalistSelections"]> = [];
     for (const cat of cats) {
       const n = input.topNByCategorySlug?.[cat.slug] ?? input.defaultTopN;
-      const ranked = batch.entries
-        .filter(
-          (e) =>
-            e.categoryId === cat.id &&
-            e.coverageStatus === "COMPLETE" &&
-            e.resultStatus !== "DISQUALIFIED" &&
-            e.resultStatus !== "TIED",
-        )
+      const deLaCategoria = batch.entries.filter(
+        (e) =>
+          e.categoryId === cat.id &&
+          e.coverageStatus === "COMPLETE" &&
+          e.resultStatus !== "DISQUALIFIED" &&
+          e.resultStatus !== "TIED",
+      );
+      // Top N de cada ámbito del ranking (en una maratón, de cada consigna).
+      const ambitos = [...new Set(deLaCategoria.map((e) => e.scopeKey))];
+      for (const ambito of ambitos) {
+      const ranked = deLaCategoria
+        .filter((e) => e.scopeKey === ambito)
         .sort((a, b) => (a.finalPosition ?? a.preliminaryPosition ?? 999) - (b.finalPosition ?? b.preliminaryPosition ?? 999));
-      // no saltar empates: si hay TIED en top, no auto-seleccionar más allá
-      for (let i = 0; i < ranked.length && selections.filter((s) => s.categoryId === cat.id).length < n; i++) {
+      for (let i = 0; i < ranked.length && i < n; i++) {
         const e = ranked[i]!;
         selections.push({
           juryEntrySnapshotId: e.juryEntrySnapshotId,
@@ -227,6 +234,7 @@ export async function configureFinalists(input: {
           actorUserId: input.actorUserId,
           at: new Date().toISOString(),
         });
+      }
       }
     }
     meta.finalistSelections = selections;
@@ -258,28 +266,34 @@ export async function deriveWinnersFromRanking(input: {
   const before = parsePublicationMeta(batch.metadata);
   const meta = parsePublicationMeta(batch.metadata);
   const winners: NonNullable<ResultPublicationMeta["winnerSelections"]> = [];
-  const byCat = new Map<string, typeof batch.entries>();
+  /*
+   * Por ámbito del ranking, no por categoría. En una maratón el ranking es por
+   * consigna: agrupando por categoría se tomaban los tres primeros de la
+   * categoría entera, mezclando "primeros puestos" de consignas distintas.
+   * El premio sale del puesto, así un empate compartido da dos premios iguales.
+   */
+  const porAmbito = new Map<string, typeof batch.entries>();
   for (const e of batch.entries) {
     if (e.resultStatus === "DISQUALIFIED" || e.coverageStatus !== "COMPLETE") continue;
-    const list = byCat.get(e.categoryId) ?? [];
+    const list = porAmbito.get(e.scopeKey) ?? [];
     list.push(e);
-    byCat.set(e.categoryId, list);
+    porAmbito.set(e.scopeKey, list);
   }
-  for (const [categoryId, list] of byCat) {
-    const sorted = [...list].sort(
-      (a, b) => (a.finalPosition ?? a.preliminaryPosition ?? 999) - (b.finalPosition ?? b.preliminaryPosition ?? 999),
-    );
-    sorted.slice(0, 3).forEach((e, i) => {
+  const PREMIO = { 1: "FIRST_PLACE", 2: "SECOND_PLACE", 3: "THIRD_PLACE" } as const;
+  for (const list of porAmbito.values()) {
+    for (const e of list) {
+      const puesto = e.finalPosition ?? e.preliminaryPosition;
+      if (puesto !== 1 && puesto !== 2 && puesto !== 3) continue;
       winners.push({
         juryEntrySnapshotId: e.juryEntrySnapshotId,
-        categoryId,
+        categoryId: e.categoryId,
         anonymousCode: e.anonymousCode,
-        awardType: i === 0 ? "FIRST_PLACE" : i === 1 ? "SECOND_PLACE" : "THIRD_PLACE",
+        awardType: PREMIO[puesto],
         source: "RANKING",
         actorUserId: input.actorUserId,
         at: new Date().toISOString(),
       });
-    });
+    }
   }
   meta.winnerSelections = winners;
   await saveMeta(batch.id, meta, {
@@ -474,6 +488,7 @@ export async function publishResultBatch(input: {
   idempotencyKey: string;
   stagingTest?: boolean;
 }) {
+  const { db } = await baseDelConcurso(input.contestId);
   const isStagingPhrase = input.confirmationPhrase.trim() === STAGING_TEST_PUBLICATION_PHRASE;
   const isOfficialPhrase = input.confirmationPhrase.trim() === SANTA_FE_PUBLISH_CONFIRM_PHRASE;
   if (!isStagingPhrase && !isOfficialPhrase) {
@@ -492,7 +507,7 @@ export async function publishResultBatch(input: {
     }
   }
 
-  const existing = await prisma.fotorankResultBatch.findFirst({
+  const existing = await db.fotorankResultBatch.findFirst({
     where: { contestId: input.contestId, idempotencyKey: input.idempotencyKey },
   });
   if (existing?.status === "PUBLISHED") {
@@ -533,7 +548,7 @@ export async function publishResultBatch(input: {
     scheduledAt: now,
   };
 
-  await prisma.fotorankResultBatch.update({
+  await db.fotorankResultBatch.update({
     where: { id: batch.id },
     data: {
       status: "PUBLISHED",
@@ -573,6 +588,7 @@ export async function revokeResultPublication(input: {
   actorUserId: number;
   reason: string;
 }) {
+  const { db } = await baseDelConcurso(input.contestId);
   if (!input.reason.trim()) {
     throw new ResultError("REASON_REQUIRED", "Motivo de revocación obligatorio.", 400);
   }
@@ -586,7 +602,7 @@ export async function revokeResultPublication(input: {
     revokedByUserId: input.actorUserId,
     revokeReason: input.reason.slice(0, 1000),
   };
-  await prisma.fotorankResultBatch.update({
+  await db.fotorankResultBatch.update({
     where: { id: batch.id },
     data: {
       status: "FINALIZED",
@@ -615,7 +631,8 @@ export async function listResultPublicationHistory(input: {
   contestId: string;
   batchId: string;
 }) {
-  return prisma.fotorankResultRevision.findMany({
+  const { db } = await baseDelConcurso(input.contestId);
+  return db.fotorankResultRevision.findMany({
     where: { resultBatchId: input.batchId, resultBatch: { contestId: input.contestId } },
     orderBy: { revisionNumber: "desc" },
     take: 50,

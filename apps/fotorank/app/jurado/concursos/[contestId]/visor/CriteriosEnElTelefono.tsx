@@ -13,6 +13,8 @@
  * lo decide `onMover`, que es el mismo camino del Tab en la computadora.
  */
 import { useRef, useState } from "react";
+import { BotoneraDeNota } from "./BotoneraDeNota";
+import { textoDeLaNota } from "../../../../lib/fotorank/jury/formaDeLaNota";
 
 import {
   esGestoHorizontal,
@@ -153,50 +155,19 @@ export function CriteriosEnElTelefono({
                       typeof puesta === "number" ? "#e0a061" : colores.suave,
                   }}
                 >
-                  {typeof puesta === "number" ? puesta : "–"}
+                  {typeof puesta === "number" ? textoDeLaNota(c, puesta) : "–"}
                 </span>
               </div>
-              <div
-                className={
-                  acostado
-                    ? "mt-2 grid min-h-0 flex-1 grid-cols-2 gap-1"
-                    : "mt-2 flex gap-1"
-                }
-                role="radiogroup"
-                aria-label={`${c.nombre}, del ${c.min} al ${c.max}`}
-              >
-                {Array.from(
-                  { length: c.max - c.min + 1 },
-                  (_, k) => c.min + k,
-                ).map((valor) => (
-                  <button
-                    key={valor}
-                    type="button"
-                    role="radio"
-                    aria-checked={puesta === valor}
-                    aria-label={`${valor} en ${c.nombre}`}
-                    disabled={!sePuedeTocar}
-                    onClick={() => onElegirNota(valor, i)}
-                    className={`min-w-0 font-mono text-[13px] font-medium transition-colors ${
-                      acostado ? "h-full min-h-9" : "h-11 flex-1"
-                    }`}
-                    style={
-                      puesta === valor
-                        ? {
-                            background: "#e0a061",
-                            border: "1px solid #e0a061",
-                            color: "#1b1917",
-                          }
-                        : {
-                            background: colores.chip,
-                            border: `1px solid ${colores.linea}`,
-                            color: colores.suave,
-                          }
-                    }
-                  >
-                    {valor}
-                  </button>
-                ))}
+              <div className={acostado ? "mt-2 flex min-h-0 flex-1" : "mt-2"}>
+                <BotoneraDeNota
+                  criterio={c}
+                  puesta={puesta}
+                  habilitado={sePuedeTocar}
+                  onElegir={(valor) => onElegirNota(valor, i)}
+                  colores={colores}
+                  alto="h-11"
+                  acostado={acostado}
+                />
               </div>
             </div>
           );

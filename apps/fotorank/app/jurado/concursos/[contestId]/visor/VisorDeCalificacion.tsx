@@ -12,6 +12,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AyudaDelVisor } from "./AyudaDelVisor";
+import { BotoneraDeNota } from "./BotoneraDeNota";
+import {
+  acumularDigito,
+  ayudaDeTeclas,
+  formaDeLaNota,
+  notaPorTecla,
+  textoDeLaNota,
+} from "../../../../lib/fotorank/jury/formaDeLaNota";
 import { CriteriosEnElTelefono } from "./CriteriosEnElTelefono";
 import { IconoDeComentario, IconoDeFiltro, MenuFlotante } from "./MenuFlotante";
 import {
@@ -189,6 +197,8 @@ export function VisorDeCalificacion({
   const [enviando, setEnviando] = useState(false);
 
   const huboInteraccion = useRef(false);
+  /** Lo tecleado seguido en una escala larga (0 a 100), y cuándo. */
+  const tecleo = useRef<{ texto: string; en: number }>({ texto: "", en: 0 });
   /* El arrastre en curso sobre la fotografía, para pasar de obra con el dedo. */
   const gestoEnLaFoto = useRef<{
     x: number;
@@ -635,6 +645,26 @@ export function VisorDeCalificacion({
       if (!criterio) return;
       if (valor < criterio.min || valor > criterio.max) return;
 
+      /*
+       * Elegir con cupo: no deja marcar un "sí" de más en la consigna. El
+       * servidor también lo controla al enviar; esto evita llegar hasta ahí.
+       */
+      const cupo = cola.rubrica?.cupo ?? null;
+      if (cupo && valor === 1 && actual.notas[criterio.key] !== 1) {
+        const elegidas = obras.filter(
+          (o) =>
+            o.entryId !== actual.entryId &&
+            o.consignaNumero === actual.consignaNumero &&
+            o.notas[criterio.key] === 1,
+        ).length;
+        if (elegidas >= cupo) {
+          setAviso(
+            `Ya elegiste ${cupo} fotos en esta consigna, que es el máximo. Para elegir esta, desmarcá otra.`,
+          );
+          return;
+        }
+      }
+
       setCriterioActivo(indice);
       const nuevas = ponerNotaEn(actual.notas, criterio.key, valor);
       cambiarNotas(actual, nuevas);
@@ -664,7 +694,7 @@ export function VisorDeCalificacion({
         pasar();
       }, DEMORA_PARA_VER_LA_NOTA);
     },
-    [actual, criterios, sePuedeTocar, cambiarNotas],
+    [actual, criterios, sePuedeTocar, cambiarNotas, cola.rubrica, obras],
   );
 
   /**
@@ -831,14 +861,26 @@ export function VisorDeCalificacion({
         borrarLaObra();
         return;
       }
-      if (/^[0-9]$/.test(e.key)) {
+      const criterio = criterios[criterioActivo];
+      if (!criterio) return;
+      if (formaDeLaNota(criterio) === "CAMPO") {
+        // Escalas largas: los dígitos seguidos forman el número (7 y 5 = 75).
+        if (/^[0-9]$/.test(e.key)) {
+          e.preventDefault();
+          const ahora = Date.now();
+          const previo = ahora - tecleo.current.en < 900 ? tecleo.current.texto : "";
+          const r = acumularDigito(criterio, previo, e.key);
+          tecleo.current = { texto: r.texto, en: ahora };
+          if (r.valor != null) ponerNota(r.valor, criterioActivo);
+        }
+        return;
+      }
+      const nota = notaPorTecla(criterio, e.key);
+      if (nota != null) {
         e.preventDefault();
         // En pantalla completa el criterio se ve de a uno, así que la nota se
-        // muestra un momento antes de pasar al siguiente. Con la franja
-        // abajo se ven los cuatro juntos y esa espera sólo demoraría.
-        ponerNota(e.key === "0" ? 10 : Number(e.key), criterioActivo, {
-          demorar: inmersivo,
-        });
+        // muestra un momento antes de pasar al siguiente.
+        ponerNota(nota, criterioActivo, { demorar: inmersivo });
       }
     }
 
@@ -854,6 +896,7 @@ export function VisorDeCalificacion({
     moverCriterio,
     moverFoto,
     ponerNota,
+    criterios,
   ]);
 
   /* ---------- enviar ---------- */
@@ -866,7 +909,7 @@ export function VisorDeCalificacion({
         o.snapshotId,
     );
     if (terminadas.length === 0) {
-      setAviso("Todavía no hay ninguna obra con los cuatro criterios puestos.");
+      setAviso("Todavía no hay ninguna obra con todas sus notas puestas.");
       return;
     }
     if (
@@ -1376,10 +1419,12 @@ export function VisorDeCalificacion({
                         : "scale(1)",
                   }}
                 >
-                  {typeof actual?.notas[
-                    criterios[criterioActivo]?.key ?? ""
-                  ] === "number"
-                    ? actual?.notas[criterios[criterioActivo]?.key ?? ""]
+                  {typeof actual?.notas[criterios[criterioActivo]?.key ?? ""] === "number" &&
+                  criterios[criterioActivo]
+                    ? textoDeLaNota(
+                        criterios[criterioActivo]!,
+                        actual!.notas[criterios[criterioActivo]!.key]!,
+                      )
                     : "–"}
                 </span>
               </div>
@@ -1388,47 +1433,21 @@ export function VisorDeCalificacion({
                 {criterios[criterioActivo]?.nombre}
               </p>
 
-              <div className="mt-2 flex gap-1">
-                {Array.from(
-                  {
-                    length:
-                      (criterios[criterioActivo]?.max ?? 10) -
-                      (criterios[criterioActivo]?.min ?? 1) +
-                      1,
-                  },
-                  (_, k) => (criterios[criterioActivo]?.min ?? 1) + k,
-                ).map((valor) => {
-                  const puesta =
-                    actual?.notas[criterios[criterioActivo]?.key ?? ""] ===
-                    valor;
-                  return (
-                    <button
-                      key={valor}
-                      type="button"
-                      aria-label={`${valor} en ${criterios[criterioActivo]?.nombre}`}
-                      onClick={() =>
-                        ponerNota(valor, criterioActivo, { demorar: true })
-                      }
-                      className="h-8 min-w-0 flex-1 font-mono text-[11px] font-medium transition-colors"
-                      style={
-                        puesta
-                          ? {
-                              background: "#e0a061",
-                              color: "#1b1917",
-                              border: "1px solid #e0a061",
-                            }
-                          : {
-                              background: "rgba(255,255,255,0.08)",
-                              border: "1px solid rgba(255,255,255,0.14)",
-                              color: "#f5f3f0",
-                            }
-                      }
-                    >
-                      {valor}
-                    </button>
-                  );
-                })}
-              </div>
+              {criterios[criterioActivo] ? (
+                <div className="mt-2">
+                  <BotoneraDeNota
+                    criterio={criterios[criterioActivo]!}
+                    puesta={actual?.notas[criterios[criterioActivo]!.key]}
+                    habilitado={sePuedeTocar}
+                    onElegir={(valor) => ponerNota(valor, criterioActivo, { demorar: true })}
+                    colores={{
+                      chip: "rgba(255,255,255,0.08)",
+                      linea: "rgba(255,255,255,0.14)",
+                      suave: "#f5f3f0",
+                    }}
+                  />
+                </div>
+              ) : null}
 
               {/* Cuántos criterios lleva puestos esta obra. */}
               <div className="mt-2 flex gap-1" aria-hidden="true">
@@ -1583,7 +1602,11 @@ export function VisorDeCalificacion({
             Esta obra ya fue enviada y no se puede cambiar.
           </p>
         ) : (
-          <div className="grid gap-2 md:grid-cols-4 md:gap-3">
+          <div
+            className={`grid gap-2 md:gap-3 ${
+              criterios.length === 1 ? "md:max-w-xl md:grid-cols-1" : "md:grid-cols-4"
+            }`}
+          >
             {criterios.map((c, i) => {
               const puesta = actual?.notas[c.key];
               const activo = i === criterioActivo;
@@ -1609,45 +1632,16 @@ export function VisorDeCalificacion({
                             : colores.suave,
                       }}
                     >
-                      {typeof puesta === "number" ? puesta : "–"}
+                      {typeof puesta === "number" ? textoDeLaNota(c, puesta) : "–"}
                     </span>
                   </div>
-                  <div
-                    className="flex gap-0.5"
-                    role="radiogroup"
-                    aria-label={`${c.nombre}, del ${c.min} al ${c.max}`}
-                  >
-                    {Array.from(
-                      { length: c.max - c.min + 1 },
-                      (_, k) => c.min + k,
-                    ).map((valor) => (
-                      <button
-                        key={valor}
-                        type="button"
-                        role="radio"
-                        aria-checked={puesta === valor}
-                        aria-label={`${valor} en ${c.nombre}`}
-                        onClick={() => ponerNota(valor, i)}
-                        className="h-8 min-w-0 flex-1 font-mono text-[11px] font-medium"
-                        style={
-                          puesta === valor
-                            ? {
-                                background: "#e0a061",
-                                border: "1px solid #e0a061",
-                                color: "#1b1917",
-                                fontWeight: 600,
-                              }
-                            : {
-                                background: colores.chip,
-                                border: `1px solid ${colores.linea}`,
-                                color: colores.suave,
-                              }
-                        }
-                      >
-                        {valor}
-                      </button>
-                    ))}
-                  </div>
+                  <BotoneraDeNota
+                    criterio={c}
+                    puesta={puesta}
+                    habilitado={sePuedeTocar}
+                    onElegir={(valor) => ponerNota(valor, i)}
+                    colores={colores}
+                  />
                 </div>
               );
             })}
@@ -1660,12 +1654,27 @@ export function VisorDeCalificacion({
         >
           <span>← → mirar</span>
           <span>Tab calificar</span>
-          <span>
-            {criterios[0] ? `${criterios[0].min} … ${criterios[0].max}` : ""}
-          </span>
+          <span>{criterios[0] ? ayudaDeTeclas(criterios[0]) : ""}</span>
+          {cola.rubrica?.cupo && actual ? (
+            <span>
+              elegidas{" "}
+              {
+                obras.filter(
+                  (o) =>
+                    o.consignaNumero === actual.consignaNumero &&
+                    o.notas[criterios[0]?.key ?? ""] === 1,
+                ).length
+              }{" "}
+              de {cola.rubrica.cupo} en esta consigna
+            </span>
+          ) : null}
           <span>F pantalla completa</span>
           <span>Esc borra la calificación</span>
-          <span>Supr borra las {criterios.length} calificaciones</span>
+          <span>
+            {criterios.length > 1
+              ? `Supr borra las ${criterios.length} calificaciones`
+              : "Supr borra la calificación"}
+          </span>
           <span>⌘Z deshace</span>
           <span>H ayuda</span>
           <span>
@@ -1688,6 +1697,7 @@ export function VisorDeCalificacion({
           colores={colores}
           cantidadDeCriterios={criterios.length}
           notaMaxima={criterios[0]?.max ?? 10}
+          notaMinima={criterios[0]?.min ?? 1}
           onCerrar={() => setAyuda(false)}
         />
       ) : null}

@@ -1,6 +1,6 @@
 /**
  * Reglas y parsing para el método de evaluación CRITERIA_BASED.
- * Usado en cliente (UI) y servidor (saveJudgeVote).
+ * Usado en cliente (UI) y servidor.
  */
 
 export type CriteriaBasedParsed = {
