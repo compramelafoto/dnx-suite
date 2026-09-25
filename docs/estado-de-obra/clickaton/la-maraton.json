@@ -2,7 +2,7 @@
   "proyecto": "La maratón: inscripción, jornada y revelado",
   "plataforma": "Clickatón",
   "enUso": "si",
-  "usoNota": "1ª edición con 37 inscripciones confirmadas, 33 acreditados y 283 fotos subidas",
+  "usoNota": "1ª edición corrida: 31 inscripciones confirmadas (16 canceladas y 4 devueltas), 33 acreditados y 278 fotos subidas. La 2ª edición (Navidad, 26/12) abrió la venta el 21/09 y ya tiene 8 inscripciones confirmadas, 7 de ellas con cupón",
   "etapas": [
     {
       "nombre": "Inscribirse y pagar",
@@ -11,15 +11,37 @@
           "que": "Alguien reserva su lugar y completa la inscripción",
           "implementado": { "fecha": "2026-09-19" },
           "probado": {
-            "fecha": "2026-09-20",
-            "evidencia": "57 reservas de cupo y 57 inscripciones; 37 confirmadas, 16 canceladas y 4 devueltas"
+            "fecha": "2026-09-21",
+            "evidencia": "51 inscripciones en la 1ª edición (31 confirmadas, 16 canceladas, 4 devueltas) y 10 en la 2ª el primer día de venta"
           }
         },
         {
           "que": "Un pago por Mercado Pago confirma la inscripción sola",
           "implementado": { "fecha": "2026-09-16" },
           "probado": null,
-          "bloqueado": "Falta MERCADOPAGO_WEBHOOK_SECRET: Clickatón rechaza los avisos y una inscripción paga se canceló sola"
+          "bloqueado": "Sigue faltando MERCADOPAGO_WEBHOOK_SECRET en Vercel producción: los avisos reales se rechazan por firma desde el 08/08 y lo único que confirma un pago es que la persona vuelva a la pantalla o que lo levante el rescate"
+        },
+        {
+          "que": "Un pago que el aviso no confirmó se rescata solo, aunque la reserva haya vencido",
+          "implementado": { "pr": 218, "fecha": "2026-09-21" },
+          "probado": {
+            "fecha": "2026-09-22",
+            "evidencia": "Caso real: la inscripción cmubim8v50003gm0byqvzjb4t se creó el 21/09 a las 17:24 UTC y su orden dnx_ord_3ba04d6e1fc64013 quedó pagada sin que nadie la confirmara; el lote de rescate le preguntó al proveedor y la pasó a APPROVED el 22/09 a las 01:30 UTC. Antes de este cambio esa inscripción se perdía"
+          }
+        },
+        {
+          "que": "Un cupón se puede restringir a quienes participaron de una edición anterior",
+          "implementado": { "pr": 203, "fecha": "2026-09-21" },
+          "probado": {
+            "fecha": "2026-09-21",
+            "evidencia": "VOLVI50 tiene la condición PARTICIPATED_IN_EDITION con acreditación exigida y lleva 3 canjes reales en la 2ª edición; la consulta contra producción devolvió 29 elegibles con acreditación exigida y 31 sin exigirla"
+          }
+        },
+        {
+          "que": "Un cupón vale sólo para la edición donde se creó",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Quedan 2 cupones activos con editionId nulo (FLORA y CONQUIENSUME50), que valen para todas las ediciones: eran 5 y se limpiaron 3 el 21/09. Es dato, no código: no hay nada que impida volver a crear uno así"
         },
         {
           "que": "Se puede activar un pago en efectivo desde el panel",
@@ -31,7 +53,44 @@
           "que": "Una reserva vencida se puede reactivar sin cobrar de nuevo",
           "implementado": null,
           "probado": null,
-          "bloqueado": "El enlace de pago muere con la reserva; «Reactivar» deja la inscripción sin cobro requerido"
+          "bloqueado": "El enlace de pago muere con la reserva y «Reactivar» deja la inscripción sin cobro requerido. El rescate del PR 218 tapa el caso de quien ya pagó, no el de quien todavía quiere pagar"
+        }
+      ]
+    },
+    {
+      "nombre": "Regalar una inscripción",
+      "criterios": [
+        {
+          "que": "La invitación a regalar se ve donde alguien decide, debajo de los precios",
+          "implementado": { "pr": 220, "fecha": "2026-09-21" },
+          "probado": {
+            "fecha": "2026-09-22",
+            "evidencia": "En maratonfotografica.com/maratones/clickaton-navidad-2026/inscripcion el botón «Comprale el lugar a un amigo» se pinta del violeta real de la marca (rgb(108, 83, 255)) y lleva a /regalar"
+          }
+        },
+        {
+          "que": "Alguien compra un lugar y recibe el código para regalarlo",
+          "implementado": { "pr": 219, "fecha": "2026-09-21" },
+          "probado": null,
+          "bloqueado": "El único regalo de producción (REGALO-SBEW-3QQC, creado el 22/09 a las 02:21 UTC) quedó en PENDING_PAYMENT: falta una compra real de punta a punta. El circuito completo sí se recorrió contra una copia de la base"
+        },
+        {
+          "que": "Quien recibe el regalo lo activa con su código y completa su inscripción sin pagar",
+          "implementado": { "pr": 219, "fecha": "2026-09-21" },
+          "probado": null,
+          "bloqueado": "Depende de que haya un regalo pagado: no hay ninguno"
+        },
+        {
+          "que": "El resumen de la tarjeta dice que fue un regalo y la hora de la reserva se lee bien",
+          "implementado": { "pr": 222, "fecha": "2026-09-21" },
+          "probado": null,
+          "bloqueado": "El texto del resumen sólo se ve en el resumen real de una tarjeta, y todavía no hubo una compra de regalo"
+        },
+        {
+          "que": "El regalo que nadie activa antes del cierre pasa a la edición siguiente",
+          "implementado": { "pr": 219, "fecha": "2026-09-21" },
+          "probado": null,
+          "bloqueado": "El cron existe y nunca tuvo un regalo vencido que trasladar"
         }
       ]
     },
@@ -58,7 +117,7 @@
           "que": "La acreditación funciona sin conexión y se sincroniza después",
           "implementado": { "pr": 193, "fecha": "2026-09-19" },
           "probado": null,
-          "bloqueado": "0 eventos sin conexión registrados: la cola nunca se ejercitó"
+          "bloqueado": "0 filas en ClickatonAccreditationOfflineEvent: la cola nunca se ejercitó"
         },
         {
           "que": "Se entregan los kits y queda registro",
@@ -83,8 +142,8 @@
           "que": "Un participante sube su foto desde el celular, sin tope de 4,5 MB",
           "implementado": { "pr": 195, "fecha": "2026-09-19" },
           "probado": {
-            "fecha": "2026-09-20",
-            "evidencia": "283 fotos subidas, todas en CONFIRMED; la subida va directa al bucket"
+            "fecha": "2026-09-21",
+            "evidencia": "278 fotos en ClickatonPhotoSubmission, todas en CONFIRMED; la subida va directa al bucket"
           }
         },
         {
@@ -112,13 +171,13 @@
           "que": "La admisión técnica decide qué fotos entran",
           "implementado": { "fecha": "2026-09-19" },
           "probado": null,
-          "bloqueado": "Sólo 2 decisiones sobre 283 fotos: el recorrido no se ejercitó"
+          "bloqueado": "Sólo 2 decisiones sobre las 278 fotos: el recorrido no se ejercitó"
         },
         {
           "que": "Un jurado evalúa las fotos admitidas",
           "implementado": { "fecha": "2026-09-19" },
           "probado": null,
-          "bloqueado": "0 jurados cargados"
+          "bloqueado": "0 cuentas de jurado en la base de Clickatón: el padrón único ya está fusionado pero la ficha espejo nunca se creó"
         },
         {
           "que": "Hay votación del público y se publican resultados",
@@ -141,7 +200,7 @@
           "que": "La base de producción está al día con las migraciones",
           "implementado": null,
           "probado": null,
-          "bloqueado": "El deploy nunca corre migrate deploy; se ponen al día a mano y vuelve a atrasarse"
+          "bloqueado": "El deploy nunca corre migrate deploy. El 21/09 hubo que aplicar cuatro a mano (los dos de jurados, cursos grabados y los regalos): la última, 20260921143000_clickaton_gift_vouchers, quedó registrada a las 01:46 UTC del 22/09. Vuelve a atrasarse con cada despliegue"
         }
       ]
     }

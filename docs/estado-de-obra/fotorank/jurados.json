@@ -2,29 +2,141 @@
   "proyecto": "Bolsa y contratación de jurados",
   "plataforma": "FotoRank",
   "spec": "docs/superpowers/specs/2026-09-19-fotorank-bolsa-de-jurados-design.md",
-  "enUso": "no",
-  "usoNota": "0 jurados cargados en producción",
+  "enUso": "parcial",
+  "usoNota": "Dos fotógrafos se postularon solos el 21/09, confirmaron su correo y quedaron aprobados esa misma noche; pero no hay ni una asignación ni una evaluación: nadie juzgó nada todavía",
   "etapas": [
     {
-      "nombre": "Jurado único para las dos plataformas",
+      "nombre": "El padrón único para las dos plataformas",
       "criterios": [
         {
           "que": "Un jurado se registra una vez y sirve para Clickatón y para FotoRank",
-          "implementado": { "fecha": "2026-09-19" },
+          "implementado": { "pr": 202, "fecha": "2026-09-20" },
           "probado": null,
-          "bloqueado": "Sin desplegar y faltan 4 variables de entorno"
+          "bloqueado": "En la base de Clickatón hay 0 cuentas y 0 fichas de jurado: las 2 cuentas viven sólo en la base de FotoRank y la conexión entre plataformas nunca se ejercitó"
         },
         {
-          "que": "El portal de jurado muestra la foto a evaluar",
-          "implementado": { "fecha": "2026-09-19" },
+          "que": "El portal de jurado muestra la foto a evaluar, con enlaces firmados que vencen",
+          "implementado": { "pr": 202, "fecha": "2026-09-20" },
           "probado": null,
-          "bloqueado": "Sin desplegar"
+          "bloqueado": "0 asignaciones y 0 evaluaciones en producción: no hay ninguna foto que mostrar"
+        },
+        {
+          "que": "Desde Clickatón se invita a un jurado contra el padrón único",
+          "implementado": { "pr": 202, "fecha": "2026-09-20" },
+          "probado": null,
+          "bloqueado": "0 invitaciones de directorio; sin las 4 variables de la conexión, FotoRank sigue viendo sólo sus propios concursos"
+        },
+        {
+          "que": "La migración del alta de jurados está aplicada en las bases",
+          "implementado": { "fecha": "2026-09-21" },
+          "probado": {
+            "fecha": "2026-09-21",
+            "evidencia": "20260920120000_fotorank_judge_public_signup y 20260921120000_fotorank_judge_portfolio registradas a mano en las cinco bases del schema compartido; en la base de FotoRank quedaron con finished_at del 21/09 a las 02:33 y 06:54 UTC"
+          }
+        }
+      ]
+    },
+    {
+      "nombre": "El alta por cuenta propia",
+      "criterios": [
+        {
+          "que": "Un fotógrafo se postula solo, sin que nadie lo invite",
+          "implementado": { "pr": 205, "fecha": "2026-09-21" },
+          "probado": {
+            "fecha": "2026-09-21",
+            "evidencia": "2 fichas en FotorankJudgeProfile creadas el 21/09 a las 18:06 y 18:19 UTC, las dos con signupSource PUBLIC_SIGNUP; antes había 0"
+          }
+        },
+        {
+          "que": "Confirma su correo desde el enlace que recibe",
+          "implementado": { "pr": 205, "fecha": "2026-09-21" },
+          "probado": {
+            "fecha": "2026-09-21",
+            "evidencia": "Las 2 cuentas tienen emailVerifiedAt cargado (18:09 y 18:30 UTC del 21/09), a los 3 y 11 minutos de postularse"
+          }
+        },
+        {
+          "que": "El jurado carga su foto, su web, su Instagram y su teléfono, y elige qué se ve en público",
+          "implementado": { "pr": 205, "fecha": "2026-09-21" },
+          "probado": {
+            "fecha": "2026-09-21",
+            "evidencia": "Las 2 fichas tienen retrato, Instagram y teléfono; una cargó además su web y la muestra, la otra dejó su web vacía y su Instagram visible. El teléfono no aparece en la página pública de ninguna de las dos"
+          }
+        },
+        {
+          "que": "La cola de fichas por revisar se ve, y alguien las aprueba",
+          "implementado": { "pr": 217, "fecha": "2026-09-21" },
+          "probado": {
+            "fecha": "2026-09-21",
+            "evidencia": "Las 2 fichas pasaron de PENDING a APPROVED el 22/09 a las 02:21 UTC (23:21 hora argentina del 21/09) y la cola quedó en 0 pendientes"
+          }
+        },
+        {
+          "que": "Las páginas públicas de jurado se ven dentro del sitio, con su cabecera y su pie",
+          "implementado": { "pr": 215, "fecha": "2026-09-21" },
+          "probado": {
+            "fecha": "2026-09-21",
+            "evidencia": "fotorank.dnxsuite.com/jurados/postulacion y /jurados/publico/daniel-caurt-81a5 responden con <header> y <footer> del sitio; el título ya dice «Postulate como jurado» y la ficha pública muestra nombre, ciudad, biografía, web e Instagram"
+          }
+        }
+      ]
+    },
+    {
+      "nombre": "El portfolio y la galería",
+      "criterios": [
+        {
+          "que": "Un jurado sube hasta doce fotos de su trabajo y las ordena",
+          "implementado": { "pr": 207, "fecha": "2026-09-21" },
+          "probado": null,
+          "bloqueado": "0 filas en FotorankJudgePortfolioImage: ninguno de los 2 jurados subió una sola foto"
+        },
+        {
+          "que": "El directorio muestra a cada jurado con su retrato y una tira de su trabajo",
+          "implementado": { "pr": 207, "fecha": "2026-09-21" },
+          "probado": null,
+          "bloqueado": "Sin fotos de portfolio la vidriera se ve igual que la lista de antes; además sólo 1 de las 2 fichas pidió aparecer en el directorio"
+        }
+      ]
+    },
+    {
+      "nombre": "Jurado y participante a la vez",
+      "criterios": [
+        {
+          "que": "Quien también participa llega a su panel de jurado desde el menú",
+          "implementado": { "pr": 217, "fecha": "2026-09-21" },
+          "probado": null,
+          "bloqueado": "Ninguno de los 2 jurados tiene además una participación cargada: el caso que el menú resuelve no existe todavía en producción"
+        },
+        {
+          "que": "Nadie califica la categoría donde compite",
+          "implementado": { "pr": 217, "fecha": "2026-09-21" },
+          "probado": null,
+          "bloqueado": "0 asignaciones y 0 evaluaciones: las dos compuertas están escritas y probadas con pruebas automáticas, pero nunca frenaron a nadie de verdad"
+        }
+      ]
+    },
+    {
+      "nombre": "Juzgar y cobrar",
+      "criterios": [
+        {
+          "que": "El jurado lee que el cobro por la plataforma está en camino",
+          "implementado": { "pr": 216, "fecha": "2026-09-21" },
+          "probado": {
+            "fecha": "2026-09-21",
+            "evidencia": "El anuncio se lee en producción, arriba del descargo de pagos externos, en fotorank.dnxsuite.com/jurados/postulacion"
+          }
         },
         {
           "que": "Hay al menos un jurado evaluando de verdad en una convocatoria",
           "implementado": null,
           "probado": null,
-          "bloqueado": "0 jurados en producción"
+          "bloqueado": "0 asignaciones y 0 evaluaciones en producción; los 2 jurados aprobados todavía no fueron convocados a ningún concurso"
+        },
+        {
+          "que": "El organizador le paga al jurado por la plataforma",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Diseñado y sin construir: el reparto de Mercado Pago sigue en sandbox (productionWritesAllowed: false, verificado el 21/09). El cartel provisorio hay que borrarlo el día que esto se encienda"
         }
       ]
     }
