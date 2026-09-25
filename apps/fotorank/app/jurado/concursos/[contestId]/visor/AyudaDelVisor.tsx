@@ -7,6 +7,7 @@
  * expliquen por qué el visor está bien pensado: necesita saber qué apretar,
  * qué pasa si se equivoca y cuándo termina. Eso, en ese orden, y nada más.
  */
+import { formaDeLaNota } from "../../../../lib/fotorank/jury/formaDeLaNota";
 import { useEffect } from "react";
 
 type Colores = {
@@ -39,8 +40,10 @@ function cuantas(n: number): string {
 function pasos(
   criterios: number,
   maxima: number,
+  minima: number,
 ): Array<{ titulo: string; texto: string }> {
   const varios = criterios !== 1;
+  const forma = formaDeLaNota({ min: minima, max: maxima });
   return [
     {
       titulo: "Calificás una consigna por vez",
@@ -55,7 +58,11 @@ function pasos(
       texto: varios
         ? `Ponés ${cuantas(criterios)} notas del 1 al ${maxima}, una por criterio. Apretás el ` +
           "número y el visor pasa solo al criterio siguiente."
-        : `Ponés una nota del 1 al ${maxima}.`,
+        : forma === "SI_NO"
+          ? "Marcás sí o no en cada foto: sí si merece seguir, no si no."
+          : forma === "CAMPO"
+            ? `Escribís una nota del ${minima} al ${maxima}.`
+            : `Ponés una nota del ${minima} al ${maxima}.`,
     },
     {
       titulo: "Podés mirar antes de puntuar",
@@ -101,10 +108,22 @@ function pasos(
   ];
 }
 
-function teclas(maxima: number): Array<{ tecla: string; hace: string }> {
+function teclas(maxima: number, minima: number): Array<{ tecla: string; hace: string }> {
+  const forma = formaDeLaNota({ min: minima, max: maxima });
+  const deLaNota =
+    forma === "SI_NO"
+      ? [
+          { tecla: "S o 1", hace: "Sí, la elijo" },
+          { tecla: "N o 0", hace: "No la elijo" },
+        ]
+      : forma === "CAMPO"
+        ? [{ tecla: "Números seguidos", hace: `Escribir la nota: 7 y 5 es 75 (del ${minima} al ${maxima})` }]
+        : [
+            { tecla: `${minima} … ${Math.min(9, maxima)}`, hace: "Poner esa nota" },
+            ...(maxima === 10 ? [{ tecla: "0", hace: "Poner un 10" }] : []),
+          ];
   return [
-    { tecla: `1 … ${Math.min(9, maxima)}`, hace: "Poner esa nota" },
-    ...(maxima === 10 ? [{ tecla: "0", hace: "Poner un 10" }] : []),
+    ...deLaNota,
     { tecla: "Tab", hace: "Criterio siguiente. En el último, pasa de foto" },
     {
       tecla: "⇧ Tab",
@@ -136,15 +155,17 @@ export function AyudaDelVisor({
   colores,
   cantidadDeCriterios,
   notaMaxima,
+  notaMinima = 1,
   onCerrar,
 }: {
   colores: Colores;
   cantidadDeCriterios: number;
   notaMaxima: number;
+  notaMinima?: number;
   onCerrar: () => void;
 }) {
-  const PASOS = pasos(cantidadDeCriterios, notaMaxima);
-  const TECLAS = teclas(notaMaxima);
+  const PASOS = pasos(cantidadDeCriterios, notaMaxima, notaMinima);
+  const TECLAS = teclas(notaMaxima, notaMinima);
 
   // Escape cierra la ayuda antes que cualquier otra cosa: es lo último que se
   // abrió, y acá no tiene que borrar ninguna nota.

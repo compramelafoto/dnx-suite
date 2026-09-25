@@ -13,6 +13,7 @@ import {
   ensureDraftResultRuleSet,
   finalizeResultBatch,
   generateResultBatch,
+  resolveTieManual,
 } from "../lib/fotorank/results/result-service";
 
 /**
@@ -117,6 +118,45 @@ export async function finalizarRankingAction(fd: FormData): Promise<void> {
       actorUserId: user.id,
       force: forzar,
       reason: razon || null,
+    });
+  } catch (err) {
+    aviso = motivo(err);
+  }
+  volver(contestId, aviso);
+}
+
+/**
+ * Desempatar a mano un empate que decide premios.
+ *
+ * Con "elegir con cupo" o "sí o no" los empates son frecuentes: con tres
+ * jurados, varias fotos quedan elegidas por dos de tres. El comité decide el
+ * orden; el motor asigna el premio según el puesto que queda.
+ */
+export async function desempatarAction(fd: FormData): Promise<void> {
+  const user = await exigirSuperAdmin();
+  const contestId = String(fd.get("contestId") ?? "");
+  const batchId = String(fd.get("batchId") ?? "");
+  const tieGroup = String(fd.get("tieGroup") ?? "");
+  const nota = String(fd.get("nota") ?? "").trim();
+  const ids = fd.getAll("snapshotId").map(String);
+  const puestos = fd.getAll("puesto").map((v) => Number(v));
+  if (nota.length < 5) volver(contestId, "Escribí el motivo del desempate (lo decidió el comité, etc.).");
+  if (new Set(puestos).size !== puestos.length || puestos.some((p) => !Number.isInteger(p))) {
+    volver(contestId, "Cada foto del empate tiene que tener un puesto distinto.");
+  }
+  const orden = ids
+    .map((id, i) => ({ id, puesto: puestos[i]! }))
+    .sort((a, b) => a.puesto - b.puesto)
+    .map((x) => x.id);
+  let aviso: string | undefined;
+  try {
+    await resolveTieManual({
+      contestId,
+      batchId,
+      tieGroup,
+      orderedSnapshotIds: orden,
+      actorUserId: user.id,
+      note: nota,
     });
   } catch (err) {
     aviso = motivo(err);

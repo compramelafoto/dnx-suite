@@ -13,6 +13,8 @@
  * lo decide `onMover`, que es el mismo camino del Tab en la computadora.
  */
 import { useRef, useState } from "react";
+import { BotoneraDeNota } from "./BotoneraDeNota";
+import { textoDeLaNota } from "../../../../lib/fotorank/jury/formaDeLaNota";
 
 type Criterio = { key: string; nombre: string; min: number; max: number };
 
@@ -139,44 +141,18 @@ export function CriteriosEnElTelefono({
                       typeof puesta === "number" ? "#e0a061" : colores.suave,
                   }}
                 >
-                  {typeof puesta === "number" ? puesta : "–"}
+                  {typeof puesta === "number" ? textoDeLaNota(c, puesta) : "–"}
                 </span>
               </div>
-              <div
-                className="mt-2 flex gap-1"
-                role="radiogroup"
-                aria-label={`${c.nombre}, del ${c.min} al ${c.max}`}
-              >
-                {Array.from(
-                  { length: c.max - c.min + 1 },
-                  (_, k) => c.min + k,
-                ).map((valor) => (
-                  <button
-                    key={valor}
-                    type="button"
-                    role="radio"
-                    aria-checked={puesta === valor}
-                    aria-label={`${valor} en ${c.nombre}`}
-                    disabled={!sePuedeTocar}
-                    onClick={() => onElegirNota(valor, i)}
-                    className="h-11 min-w-0 flex-1 font-mono text-[13px] font-medium transition-colors"
-                    style={
-                      puesta === valor
-                        ? {
-                            background: "#e0a061",
-                            border: "1px solid #e0a061",
-                            color: "#1b1917",
-                          }
-                        : {
-                            background: colores.chip,
-                            border: `1px solid ${colores.linea}`,
-                            color: colores.suave,
-                          }
-                    }
-                  >
-                    {valor}
-                  </button>
-                ))}
+              <div className="mt-2">
+                <BotoneraDeNota
+                  criterio={c}
+                  puesta={puesta}
+                  habilitado={sePuedeTocar}
+                  onElegir={(valor) => onElegirNota(valor, i)}
+                  colores={colores}
+                  alto="h-11"
+                />
               </div>
             </div>
           );

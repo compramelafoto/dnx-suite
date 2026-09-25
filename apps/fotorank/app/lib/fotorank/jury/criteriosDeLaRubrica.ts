@@ -103,3 +103,37 @@ export function minimoDeEvaluacionesPorObra(cantidadDeJurados: number): number {
   if (!Number.isFinite(cantidadDeJurados) || cantidadDeJurados < 1) return 1;
   return Math.min(CLICKATON_MIN_EVALUACIONES_POR_OBRA, Math.floor(cantidadDeJurados));
 }
+
+/**
+ * Los criterios que el organizador cargó en el concurso (pestaña Evaluación del
+ * jurado, guardados en `rulesData.jurado.criteriaPreset`).
+ *
+ * Hasta el 2026-09-25 esa pestaña guardaba los criterios y nadie los leía: la
+ * rúbrica de un concurso de FotoRank nacía vacía en producción. Ahora son la
+ * fuente del tipo "Criterios del concurso".
+ */
+export function criteriosDesdeLasReglas(rulesData: unknown): CriterioDeRubrica[] | null {
+  if (!rulesData || typeof rulesData !== "object") return null;
+  const jurado = (rulesData as Record<string, unknown>).jurado;
+  if (!jurado || typeof jurado !== "object") return null;
+  const preset = (jurado as Record<string, unknown>).criteriaPreset;
+  if (!Array.isArray(preset)) return null;
+  const criterios = preset
+    .filter(
+      (c): c is { key: string; label: string; maxScore?: number; weight?: number } =>
+        !!c && typeof c === "object" && typeof (c as { key?: unknown }).key === "string" &&
+        typeof (c as { label?: unknown }).label === "string",
+    )
+    .map((c, i) => ({
+      key: c.key,
+      name: c.label,
+      description: null,
+      weight: typeof c.weight === "number" && c.weight > 0 ? c.weight : 1,
+      minScore: 1,
+      maxScore: typeof c.maxScore === "number" && c.maxScore > 1 ? c.maxScore : 10,
+      step: 1,
+      required: true,
+      sortOrder: (i + 1) * 10,
+    }));
+  return criterios.length > 0 ? criterios : null;
+}

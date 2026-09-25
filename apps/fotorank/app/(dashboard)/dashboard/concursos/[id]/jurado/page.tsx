@@ -1,4 +1,9 @@
 import Link from "next/link";
+import {
+  cupoDeLaSesion,
+  etiquetaDelTipo,
+  tipoDeLaRubrica,
+} from "../../../../../lib/fotorank/jury/tiposDeCalificacion";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@repo/db";
 import { PageContainer } from "../../../../../components/PageContainer";
@@ -17,7 +22,7 @@ export const dynamic = "force-dynamic";
 
 type Props = {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ closeError?: string }>;
+  searchParams?: Promise<{ closeError?: string; tipoError?: string }>;
 };
 
 export default async function ContestJuradoOpsPage({ params, searchParams }: Props) {
@@ -55,7 +60,9 @@ export default async function ContestJuradoOpsPage({ params, searchParams }: Pro
     },
     orderBy: { createdAt: "desc" },
     include: {
-      rubric: { include: { criteria: { select: { id: true } } } },
+      rubric: {
+        include: { criteria: { select: { id: true, key: true, minScore: true, maxScore: true } } },
+      },
     },
   });
   const ruleSet = scoringSession
@@ -190,6 +197,18 @@ export default async function ContestJuradoOpsPage({ params, searchParams }: Pro
               }
             : null
         }
+        tipoActual={
+          scoringSession?.rubric && scoringSession.rubric.criteria.length > 0
+            ? etiquetaDelTipo(
+                tipoDeLaRubrica({
+                  modo: scoringSession.rubric.scoringMode,
+                  criterios: scoringSession.rubric.criteria,
+                  cupo: cupoDeLaSesion(scoringSession.metadata),
+                }),
+              )
+            : null
+        }
+        tipoError={sp.tipoError ?? null}
         resultBatchId={resultBatch?.id ?? null}
         ruleSetId={ruleSet?.id ?? null}
       />

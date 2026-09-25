@@ -8,6 +8,7 @@ import { baseDelConcurso } from "../../../../lib/fotorank/jury/baseDelConcurso";
 import { getCoverageReport } from "../../../../lib/fotorank/jury/scoring-session-service";
 import {
   cerrarEvaluacionAction,
+  desempatarAction,
   finalizarRankingAction,
   generarRankingAction,
 } from "../../../../actions/juzgamientoDeMaraton";
@@ -268,6 +269,57 @@ export default async function JuzgamientoDeMaratonPage({ params, searchParams }:
                     </div>
                   );
                 })
+              : null}
+
+            {lote && !finalizado
+              ? [...new Set(lote.entries.filter((e) => e.resultStatus === "TIED" && e.tieGroup).map((e) => e.tieGroup!))].map(
+                  (grupo) => {
+                    const empatadas = lote.entries.filter((e) => e.tieGroup === grupo);
+                    const desde = Math.min(...empatadas.map((e) => e.preliminaryPosition ?? 1));
+                    const c = consignaDe.get(empatadas[0]?.promptExternalId ?? "");
+                    return (
+                      <form
+                        key={grupo}
+                        action={desempatarAction}
+                        className="fr-recuadro space-y-3 border border-amber-500/40 bg-fr-card"
+                      >
+                        <input type="hidden" name="contestId" value={contestId} />
+                        <input type="hidden" name="batchId" value={lote.id} />
+                        <input type="hidden" name="tieGroup" value={grupo} />
+                        <p className="text-sm font-semibold text-fr-primary">
+                          Empate por el puesto {desde}
+                          {c ? ` en la consigna ${c.sequence}` : ""}: {empatadas.length} fotos con la misma nota
+                        </p>
+                        <ul className="space-y-2 text-sm">
+                          {empatadas.map((e, i) => (
+                            <li key={e.id} className="flex flex-wrap items-center gap-3">
+                              <input type="hidden" name="snapshotId" value={e.juryEntrySnapshotId} />
+                              <span className="font-mono">{e.anonymousCode}</span>
+                              <select
+                                name="puesto"
+                                defaultValue={desde + i}
+                                className="rounded-lg border border-fr-border bg-fr-bg px-2 py-1"
+                              >
+                                {empatadas.map((_, k) => (
+                                  <option key={k} value={desde + k}>
+                                    Puesto {desde + k}
+                                  </option>
+                                ))}
+                              </select>
+                            </li>
+                          ))}
+                        </ul>
+                        <input
+                          name="nota"
+                          required
+                          placeholder="Motivo (por ejemplo: decisión del comité de jurados)"
+                          className="w-full rounded-lg border border-fr-border bg-fr-bg px-3 py-2 text-sm"
+                        />
+                        <button type="submit" className="fr-btn fr-btn-secondary">Desempatar</button>
+                      </form>
+                    );
+                  },
+                )
               : null}
 
             {lote && !finalizado ? (

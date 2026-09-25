@@ -3,7 +3,16 @@ import { baseDelConcurso } from "./baseDelConcurso";
 import { JuryError } from "./errors";
 import { enqueueJuryNotificationIntent } from "./notification-intents";
 import { computePrivateAggregates } from "./scoring-engine";
-import { criteriosParaConcurso, minimoDeEvaluacionesPorObra } from "./criteriosDeLaRubrica";
+import {
+  criteriosDesdeLasReglas,
+  criteriosParaConcurso,
+  minimoDeEvaluacionesPorObra,
+} from "./criteriosDeLaRubrica";
+import {
+  etiquetaDelTipo,
+  rubricaParaTipo,
+  type ConfiguracionDeCalificacion,
+} from "./tiposDeCalificacion";
 
 function newId() {
   return `js${randomBytes(12).toString("hex")}`;
@@ -123,6 +132,96 @@ export async function ensureDraftRubric(input: {
     include: { criteria: true },
   });
   return rubric;
+}
+
+/**
+ * Elegir el tipo de calificación: rehace los criterios de la rúbrica en borrador.
+ *
+ * Sólo mientras la rúbrica no esté activa y nadie haya enviado una nota: cambiar
+ * el tipo con notas enviadas mezclaría escalas en el mismo ranking.
+ */
+export async function configurarTipoDeCalificacion(input: {
+  contestId: string;
+  sessionId: string;
+  config: ConfiguracionDeCalificacion;
+  actorUserId: number;
+}) {
+  const { db } = await baseDelConcurso(input.contestId);
+  const session = await db.fotorankJuryScoringSession.findFirst({
+    where: { id: input.sessionId, contestId: input.contestId },
+    include: { rubric: true },
+  });
+  if (!session) throw new JuryError("SESSION_NOT_FOUND", "Sesión no encontrada.", 404);
+  if (session.rubric.status !== "DRAFT") {
+    throw new JuryError(
+      "RUBRIC_IMMUTABLE",
+      "La rúbrica ya está activa: el tipo de calificación no se puede cambiar.",
+      409,
+    );
+  }
+  const enviadas = await db.fotorankJuryEvaluation.count({
+    where: { rubricId: session.rubricId, status: { in: ["SUBMITTED", "LOCKED"] } },
+  });
+  if (enviadas > 0) {
+    throw new JuryError("RUBRIC_IMMUTABLE", "Ya hay notas enviadas con esta rúbrica.", 409);
+  }
+
+  const contest = await db.fotorankContest.findUnique({
+    where: { id: input.contestId },
+    select: { slug: true, distributionChannel: true, rulesData: true },
+  });
+  const criteriosDelConcurso =
+    criteriosDesdeLasReglas(contest?.rulesData) ??
+    criteriosParaConcurso({
+      slug: contest?.slug ?? null,
+      distributionChannel: contest?.distributionChannel ?? null,
+      esProduccion: process.env.NODE_ENV === "production",
+    });
+  const rubrica = rubricaParaTipo(input.config, criteriosDelConcurso);
+  if (!rubrica) {
+    throw new JuryError(
+      "RUBRIC_EMPTY",
+      "El concurso no tiene criterios cargados. Cargalos en Jurado → Evaluación o elegí otro tipo.",
+      409,
+    );
+  }
+
+  const metadataPrevia =
+    session.metadata && typeof session.metadata === "object"
+      ? (session.metadata as Record<string, unknown>)
+      : {};
+  const { cupoDeSeleccion: _anterior, ...resto } = metadataPrevia;
+  void _anterior;
+
+  await db.$transaction([
+    db.fotorankJuryCriterion.deleteMany({ where: { rubricId: session.rubricId } }),
+    db.fotorankJuryRubric.update({
+      where: { id: session.rubricId },
+      data: {
+        scoringMode: rubrica.modo,
+        description: etiquetaDelTipo(input.config),
+        criteria: { create: rubrica.criterios.map((c) => ({ id: newId(), ...c })) },
+      },
+    }),
+    db.fotorankJuryScoringSession.update({
+      where: { id: session.id },
+      data: {
+        metadata: (input.config.tipo === "SELECCION_CON_CUPO"
+          ? { ...resto, cupoDeSeleccion: input.config.cupo }
+          : resto) as object,
+        scoreScaleMin: Math.min(...rubrica.criterios.map((c) => c.minScore)),
+        scoreScaleMax: Math.max(...rubrica.criterios.map((c) => c.maxScore)),
+      },
+    }),
+  ]);
+
+  await writeSessionAudit({
+    contestId: input.contestId,
+    actorUserId: input.actorUserId,
+    eventType: "JURY_SCORING_TYPE_CONFIGURED",
+    entityId: session.id,
+    payload: { tipo: input.config.tipo, etiqueta: etiquetaDelTipo(input.config) },
+  });
 }
 
 export async function activateRubric(input: {
