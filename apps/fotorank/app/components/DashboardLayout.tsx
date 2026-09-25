@@ -18,6 +18,7 @@ interface DashboardLayoutProps {
   activeSuiteWorkspaceId: string | null;
   userDisplayName: string;
   userEmail: string;
+  esSuperAdmin: boolean;
 }
 
 /**
@@ -38,6 +39,7 @@ export function DashboardLayout({
   activeSuiteWorkspaceId,
   userDisplayName,
   userEmail,
+  esSuperAdmin,
 }: DashboardLayoutProps) {
   return (
     <FotorankShell
@@ -50,12 +52,13 @@ export function DashboardLayout({
           activeOrgError={activeOrgError}
           suiteWorkspaces={suiteWorkspaces}
           activeSuiteWorkspaceId={activeSuiteWorkspaceId}
+          esSuperAdmin={esSuperAdmin}
         />
       }
       userDisplayName={userDisplayName}
       userEmail={userEmail}
       settingsHref="/dashboard/settings"
-      homeHref="/mi-actividad"
+      homeHref={esSuperAdmin ? "/super-admin" : "/mi-actividad"}
     >
       {children}
     </FotorankShell>

@@ -32,7 +32,7 @@ export async function MarcoDeLaCuenta({
       sections={sections}
       userDisplayName={user.name?.trim() ?? ""}
       userEmail={user.email}
-      homeHref="/mi-actividad"
+      homeHref={perfiles.esSuperAdmin ? "/super-admin" : "/mi-actividad"}
     >
       {children}
     </FotorankShell>

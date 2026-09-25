@@ -395,6 +395,12 @@ export async function resolveHomeCapabilities(
 export function resolvePostLoginPath(caps: HomeCapabilities): string {
   const { kinds, degraded } = caps;
 
+  // El super admin es sólo super admin: entra a administrar la plataforma, no
+  // al hub de fotógrafo, aunque también tenga inscripciones o cuenta de jurado.
+  if (caps.isSuperAdmin) {
+    return "/super-admin";
+  }
+
   if (degraded) {
     return "/mi-actividad";
   }

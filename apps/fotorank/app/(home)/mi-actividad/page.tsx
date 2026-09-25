@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { requireAuth } from "../../lib/auth";
 import { resolveHomeCapabilities } from "../../lib/fotorank/access/home-capabilities";
 import { routes } from "../../lib/routes";
@@ -11,8 +12,11 @@ export default async function MiActividadPage() {
     globalRole: user.globalRole,
   });
 
+  // El hub es del fotógrafo. El super admin tiene su propio inicio.
+  if (caps.isSuperAdmin) redirect("/super-admin");
+
   /*
-   * Esta página no redirige. Antes, con un solo perfil, mandaba a la persona a
+   * Fuera de eso, esta página no redirige. Antes, con un solo perfil, mandaba a la persona a
    * otro panel: apretar "Inicio" en el menú la sacaba de Inicio. A dónde entra
    * cada uno después del login lo decide `resolvePostLoginPath`, una sola vez.
    */
@@ -162,35 +166,6 @@ export default async function MiActividadPage() {
           >
             Abrir panel de jurado →
           </Link>
-        </section>
-      ) : null}
-
-      {caps.isSuperAdmin ? (
-        <section className="space-y-6" data-testid="section-super-admin">
-          <div className="space-y-2">
-            <h2 className="text-2xl font-semibold tracking-tight">Super Administración</h2>
-            <p className="text-sm text-fr-muted">
-              Organizaciones, concursos, usuarios y configuraciones globales.
-            </p>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {(
-              [
-                ["Organizaciones", "/super-admin#organizaciones"],
-                ["Concursos", "/super-admin#concursos"],
-                ["Usuarios", "/super-admin#usuarios"],
-                ["Configuraciones globales", "/super-admin#config"],
-              ] as const
-            ).map(([label, href]) => (
-              <Link
-                key={href}
-                href={href}
-                className="fr-recuadro border border-fr-border bg-fr-card transition-colors hover:border-gold/40"
-              >
-                <span className="font-semibold text-fr-primary">{label}</span>
-              </Link>
-            ))}
-          </div>
         </section>
       ) : null}
     </div>
