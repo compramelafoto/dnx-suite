@@ -47,6 +47,7 @@ const nextConfig: NextConfig = {
     "@repo/auth",
     "@repo/content",
     "@repo/content-ui",
+    "@repo/jury-ranking",
     "@repo/payments",
     "@repo/template-editor-core",
     "@repo/template-editor-ui",
