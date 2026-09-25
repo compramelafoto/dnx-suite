@@ -1,11 +1,11 @@
 "use client";
 
 /**
- * Cómo se usa el visor, para quien lo abre por primera vez.
+ * Cómo se usa el visor.
  *
- * Un jurado entra una vez cada varios meses y nadie le explicó nada: las
- * pistas de abajo alcanzan para recordar, no para aprender. Acá está lo mismo
- * en orden, con el porqué de cada cosa.
+ * Quien lee esto entró una vez hace meses, o es la primera. No necesita que le
+ * expliquen por qué el visor está bien pensado: necesita saber qué apretar,
+ * qué pasa si se equivoca y cuándo termina. Eso, en ese orden, y nada más.
  */
 import { useEffect } from "react";
 
@@ -18,10 +18,9 @@ type Colores = {
   chip: string;
 };
 
-/** En letras, que es como lo diría una persona. Más de diez no pasa nunca. */
 const EN_LETRAS = [
   "cero",
-  "un",
+  "una",
   "dos",
   "tres",
   "cuatro",
@@ -33,88 +32,105 @@ const EN_LETRAS = [
   "diez",
 ];
 
-function cuantos(n: number): string {
+function cuantas(n: number): string {
   return EN_LETRAS[n] ?? String(n);
 }
 
 function pasos(
-  cantidadDeCriterios: number,
-  notaMaxima: number,
+  criterios: number,
+  maxima: number,
 ): Array<{ titulo: string; texto: string }> {
+  const varios = criterios !== 1;
   return [
     {
-      titulo: "Una consigna por vez",
+      titulo: "Calificás una consigna por vez",
       texto:
-        "Arriba están las consignas que te tocaron. Calificás las de una y después pasás a " +
-        "la siguiente: comparar entre sí fotos que compiten entre sí es lo que hace que una " +
-        "nota signifique algo.",
+        "Arriba están las consignas que te tocaron. Terminás una y pasás a la siguiente. " +
+        "Las fotos vienen mezcladas y sin el nombre de quien las tomó.",
     },
     {
-      titulo: "Primero mirá, después puntuá",
-      texto:
-        "Con las flechas recorrés las fotos sin calificar ninguna. Sirve para hacerte una " +
-        "idea del nivel de la consigna antes de poner la primera nota.",
+      titulo: varios
+        ? `Cada foto lleva ${cuantas(criterios)} notas`
+        : "Cada foto lleva una nota",
+      texto: varios
+        ? `Ponés ${cuantas(criterios)} notas del 1 al ${maxima}, una por criterio. Apretás el ` +
+          "número y el visor pasa solo al criterio siguiente."
+        : `Ponés una nota del 1 al ${maxima}.`,
     },
     {
-      titulo:
-        cantidadDeCriterios === 1
-          ? "Una nota por foto"
-          : `${cuantos(cantidadDeCriterios).replace(/^./, (c) => c.toUpperCase())} notas por foto`,
+      titulo: "Podés mirar antes de puntuar",
       texto:
-        cantidadDeCriterios === 1
-          ? `Cada fotografía lleva una sola nota, del 1 al ${notaMaxima}.`
-          : `Cada fotografía se califica con ${cuantos(cantidadDeCriterios)} criterios, del 1 al ` +
-            `${notaMaxima}. Al elegir una nota el visor pasa solo al criterio siguiente, así que ` +
-            `una foto son ${cuantos(cantidadDeCriterios)} teclas.`,
+        "Con las flechas ← y → recorrés las fotos sin calificar ninguna. Sirve para ver cómo " +
+        "viene la consigna antes de decidir la primera nota.",
+    },
+    {
+      titulo: "Equivocarse no cuesta nada",
+      texto:
+        "Escape borra la nota donde estás parado. Suprimir deja la foto entera en blanco. " +
+        "⌘Z deshace lo último que hiciste, aunque haya sido en otra foto. Y podés cambiar " +
+        "cualquier nota hasta que envíes.",
     },
     {
       titulo: "Se guarda solo",
       texto:
-        "Cada nota queda guardada apenas la ponés y podés cambiarla cuando quieras. Si " +
-        "cerrás la pestaña no perdés nada.",
+        "Cada nota queda guardada apenas la ponés. Podés cerrar la pestaña y volver otro día: " +
+        "no se pierde nada.",
     },
     {
-      titulo: "Enviar es otra cosa",
+      titulo: "Guardar no es enviar",
+      texto: varios
+        ? "Cuando termines, el botón Enviar cierra tu trabajo. Las fotos a las que les falte " +
+          "alguna nota no se envían y no cuentan para el resultado. El visor te avisa cuántas " +
+          "quedaron así antes de mandar nada."
+        : "Cuando termines, el botón Enviar cierra tu trabajo. Las fotos sin nota no se envían " +
+          "y no cuentan para el resultado.",
+    },
+    {
+      titulo: "Si reconocés una foto, avisá",
       texto:
-        "Guardar no es enviar. Cuando termines, el botón Enviar calificaciones cierra tu " +
-        "trabajo. Las fotos que tengan alguna nota faltando no se envían y no cuentan: el " +
-        "visor te avisa cuántas quedaron así.",
+        "Las obras se muestran con un código y sin autor. Si aun así sabés de quién es alguna, " +
+        "escribile a la organización antes de calificarla.",
     },
     {
       titulo: "El fondo cambia lo que ves",
       texto:
         "Sobre negro una foto oscura parece más contrastada de lo que es; sobre blanco una " +
-        "foto clara se apaga. Por eso el gris viene elegido, y por eso conviene no andar " +
-        "cambiándolo en el medio de una consigna.",
-    },
-    {
-      titulo: "Nadie sabe de quién es cada foto",
-      texto:
-        "Las obras se muestran con un código y sin el nombre de quien las tomó. Si igual " +
-        "reconocés una, avisale a la organización antes de calificarla.",
+        "foto clara se apaga. Por eso viene el gris. Si lo cambiás, cambialo entre consignas " +
+        "y no en el medio de una.",
     },
   ];
 }
 
-function teclas(notaMaxima: number): Array<{ tecla: string; hace: string }> {
+function teclas(maxima: number): Array<{ tecla: string; hace: string }> {
   return [
-    { tecla: "→", hace: "Foto siguiente, sin calificar" },
-    { tecla: "←", hace: "Foto anterior, sin calificar" },
-    {
-      tecla: `1 … ${Math.min(9, notaMaxima)}`,
-      hace: "La nota del criterio en el que estás",
-    },
-    ...(notaMaxima === 10 ? [{ tecla: "0", hace: "Vale 10" }] : []),
-    { tecla: "Tab", hace: "Criterio siguiente; en el último, pasa de foto" },
+    { tecla: `1 … ${Math.min(9, maxima)}`, hace: "Poner esa nota" },
+    ...(maxima === 10 ? [{ tecla: "0", hace: "Poner un 10" }] : []),
+    { tecla: "Tab", hace: "Criterio siguiente. En el último, pasa de foto" },
     {
       tecla: "⇧ Tab",
-      hace: "Criterio anterior; en el primero, vuelve de foto",
+      hace: "Criterio anterior. En el primero, vuelve de foto",
     },
-    { tecla: "F", hace: "Pantalla completa: esconde todo menos la foto" },
+    { tecla: "→", hace: "Foto siguiente, sin calificar" },
+    { tecla: "←", hace: "Foto anterior, sin calificar" },
+    { tecla: "Esc", hace: "Borrar la nota del criterio donde estás" },
+    { tecla: "Supr", hace: "Borrar todas las notas de esta foto" },
+    { tecla: "⌘Z", hace: "Deshacer lo último. En Windows, Ctrl+Z" },
+    { tecla: "F", hace: "Ver la foto sola, en toda la pantalla" },
     { tecla: "H", hace: "Abrir y cerrar esta ayuda" },
-    { tecla: "Esc", hace: "Cerrar lo que esté abierto" },
   ];
 }
+
+const FILTROS: Array<{ nombre: string; texto: string }> = [
+  { nombre: "Todas", texto: "Las que te tocaron en esta consigna." },
+  { nombre: "Me faltan", texto: "Las que todavía no tienen todas las notas." },
+  { nombre: "Completas", texto: "Las que ya tienen todas." },
+  {
+    nombre: "Empezadas",
+    texto:
+      "Las que tienen alguna nota y alguna faltando. Conviene revisarlas antes de enviar, " +
+      "porque así no cuentan.",
+  },
+];
 
 export function AyudaDelVisor({
   colores,
@@ -129,7 +145,9 @@ export function AyudaDelVisor({
 }) {
   const PASOS = pasos(cantidadDeCriterios, notaMaxima);
   const TECLAS = teclas(notaMaxima);
-  // Escape cierra la ayuda antes que cualquier otra cosa: es lo último que se abrió.
+
+  // Escape cierra la ayuda antes que cualquier otra cosa: es lo último que se
+  // abrió, y acá no tiene que borrar ninguna nota.
   useEffect(() => {
     function alPresionar(e: KeyboardEvent) {
       if (e.key === "Escape") {
@@ -152,7 +170,7 @@ export function AyudaDelVisor({
       onClick={onCerrar}
     >
       <div
-        className="mx-auto my-8 w-[min(46rem,calc(100%-2rem))] p-6 sm:p-8"
+        className="mx-auto my-8 w-[min(44rem,calc(100%-2rem))] p-6 sm:p-8"
         style={{
           background: colores.panel,
           color: colores.tinta,
@@ -161,11 +179,16 @@ export function AyudaDelVisor({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4">
-          <h2 className="text-xl font-semibold">Cómo se usa</h2>
+          <div>
+            <h2 className="text-xl font-semibold">Cómo se usa</h2>
+            <p className="mt-1.5 text-sm" style={{ color: colores.suave }}>
+              Se maneja con el teclado. En el teléfono, deslizando con el dedo.
+            </p>
+          </div>
           <button
             type="button"
             onClick={onCerrar}
-            className="min-h-9 px-3 text-sm"
+            className="min-h-9 shrink-0 px-3 text-sm"
             style={{
               border: `1px solid ${colores.linea}`,
               color: colores.suave,
@@ -179,7 +202,7 @@ export function AyudaDelVisor({
           {PASOS.map((p, i) => (
             <li key={p.titulo} className="flex gap-3">
               <span
-                className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center font-mono text-xs"
+                className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center font-mono text-[10px]"
                 style={{ background: colores.chip, color: colores.suave }}
                 aria-hidden="true"
               >
@@ -198,17 +221,17 @@ export function AyudaDelVisor({
           ))}
         </ol>
 
-        <h3 className="mt-8 text-sm font-semibold">El teclado</h3>
-        <table className="mt-3 w-full text-left text-sm">
+        <h3 className="mt-8 text-sm font-semibold">Teclas</h3>
+        <table className="mt-2 w-full text-left text-sm">
           <tbody>
             {TECLAS.map((t) => (
               <tr
                 key={t.tecla}
                 style={{ borderTop: `1px solid ${colores.linea}` }}
               >
-                <td className="w-28 py-2 pr-4 align-top">
+                <td className="w-24 py-1.5 pr-4 align-top">
                   <kbd
-                    className="inline-block px-2 py-1 font-mono text-xs"
+                    className="inline-block px-1.5 py-0.5 font-mono text-[11px]"
                     style={{
                       background: colores.chip,
                       border: `1px solid ${colores.linea}`,
@@ -217,7 +240,10 @@ export function AyudaDelVisor({
                     {t.tecla}
                   </kbd>
                 </td>
-                <td className="py-2 align-top" style={{ color: colores.suave }}>
+                <td
+                  className="py-1.5 align-top"
+                  style={{ color: colores.suave }}
+                >
                   {t.hace}
                 </td>
               </tr>
@@ -225,17 +251,38 @@ export function AyudaDelVisor({
           </tbody>
         </table>
 
+        <h3 className="mt-8 text-sm font-semibold">En el teléfono</h3>
+        <p
+          className="mt-2 text-sm leading-relaxed"
+          style={{ color: colores.suave }}
+        >
+          Los criterios aparecen de a uno, sobre la foto. Deslizá hacia la
+          izquierda para pasar al siguiente; después del último, el visor te
+          lleva a la foto que sigue. Deslizá hacia la derecha para volver.
+        </p>
+
         <h3 className="mt-8 text-sm font-semibold">Los filtros</h3>
         <p
           className="mt-2 text-sm leading-relaxed"
           style={{ color: colores.suave }}
         >
-          <b style={{ color: colores.tinta }}>Me faltan</b> son las que todavía
-          no tienen todas las notas, hayas empezado o no.{" "}
-          <b style={{ color: colores.tinta }}>A medias</b> son las que empezaste
-          y dejaste por la mitad — esas son las que conviene revisar antes de
-          enviar, porque no cuentan. Cambiar de filtro rearma la lista; mientras
-          calificás, ninguna foto se te va de la pantalla sola.
+          El botón del embudo elige qué fotos ves.
+        </p>
+        <ul className="mt-2 grid gap-1.5">
+          {FILTROS.map((f) => (
+            <li key={f.nombre} className="text-sm leading-relaxed">
+              <b>{f.nombre}</b>
+              <span style={{ color: colores.suave }}> — {f.texto}</span>
+            </li>
+          ))}
+        </ul>
+        <p
+          className="mt-3 text-sm leading-relaxed"
+          style={{ color: colores.suave }}
+        >
+          Mientras calificás, la lista no se mueve: ninguna foto desaparece de
+          abajo de tus manos. Se rearma cuando vos cambiás de filtro o de
+          consigna.
         </p>
       </div>
     </div>

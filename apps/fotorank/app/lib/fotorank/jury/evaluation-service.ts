@@ -39,6 +39,24 @@ async function writeAudit(input: {
   });
 }
 
+/** Tope de un comentario, en caracteres. Es una nota al margen, no un ensayo. */
+const LARGO_MAXIMO_DEL_COMENTARIO = 2000;
+
+/**
+ * Qué guardar cuando llega un comentario.
+ *
+ * Sin mandar nada (`undefined`) se conserva el que había; mandando `null` o
+ * texto en blanco se borra; mandando texto se guarda recortado.
+ */
+function comentarioAGuardar(
+  loQueLlego: string | null | undefined,
+  loQueHabia: string | null,
+): string | null {
+  if (loQueLlego === undefined) return loQueHabia;
+  const limpio = (loQueLlego ?? "").trim();
+  return limpio === "" ? null : limpio.slice(0, LARGO_MAXIMO_DEL_COMENTARIO);
+}
+
 async function loadOpenSession(db: ClienteDeJurado, contestId: string) {
   return db.fotorankJuryScoringSession.findFirst({
     where: {
@@ -90,10 +108,18 @@ export async function upsertJuryEvaluation(input: {
 
   const session = await loadOpenSession(access.db, input.contestId);
   if (!session) {
-    throw new JuryError("SESSION_CLOSED", "No hay sesión de jurado OPEN habilitada.", 403);
+    throw new JuryError(
+      "SESSION_CLOSED",
+      "No hay sesión de jurado OPEN habilitada.",
+      403,
+    );
   }
   if (session.admissionBatch.status !== "FROZEN") {
-    throw new JuryError("BATCH_NOT_FROZEN", "El lote de admisión no está congelado.", 403);
+    throw new JuryError(
+      "BATCH_NOT_FROZEN",
+      "El lote de admisión no está congelado.",
+      403,
+    );
   }
 
   if (access.contest.slug === "santa-fe-en-foco" && input.submit) {
@@ -112,10 +138,18 @@ export async function upsertJuryEvaluation(input: {
 
   const now = new Date();
   if (session.opensAt && session.opensAt > now) {
-    throw new JuryError("WINDOW_CLOSED", "La ventana de evaluación aún no abrió.", 403);
+    throw new JuryError(
+      "WINDOW_CLOSED",
+      "La ventana de evaluación aún no abrió.",
+      403,
+    );
   }
   if (session.closesAt && session.closesAt < now) {
-    throw new JuryError("WINDOW_CLOSED", "La ventana de evaluación está cerrada.", 403);
+    throw new JuryError(
+      "WINDOW_CLOSED",
+      "La ventana de evaluación está cerrada.",
+      403,
+    );
   }
 
   const snapshot = await db.fotorankJuryEntrySnapshot.findFirst({
@@ -126,15 +160,29 @@ export async function upsertJuryEvaluation(input: {
     },
   });
   if (!snapshot) {
-    throw new JuryError("SNAPSHOT_NOT_FOUND", "Snapshot de obra no encontrado en el lote.", 404);
+    throw new JuryError(
+      "SNAPSHOT_NOT_FOUND",
+      "Snapshot de obra no encontrado en el lote.",
+      404,
+    );
   }
   if (!access.categoryIds.includes(snapshot.categoryId)) {
-    throw new JuryError("CATEGORY_NOT_ASSIGNED", "No estás asignado a esta categoría.", 403);
+    throw new JuryError(
+      "CATEGORY_NOT_ASSIGNED",
+      "No estás asignado a esta categoría.",
+      403,
+    );
   }
 
-  const assignment = access.assignments.find((a) => a.categoryId === snapshot.categoryId);
+  const assignment = access.assignments.find(
+    (a) => a.categoryId === snapshot.categoryId,
+  );
   if (!assignment) {
-    throw new JuryError("NOT_ASSIGNED", "Sin asignación para esta categoría.", 403);
+    throw new JuryError(
+      "NOT_ASSIGNED",
+      "Sin asignación para esta categoría.",
+      403,
+    );
   }
 
   const conflict = await db.fotorankJudgeEntryConflict.findFirst({
@@ -145,7 +193,11 @@ export async function upsertJuryEvaluation(input: {
     },
   });
   if (conflict && input.submit) {
-    throw new JuryError("CONFLICT_BLOCKS_SUBMIT", "Hay un conflicto activo; no podés enviar.", 409);
+    throw new JuryError(
+      "CONFLICT_BLOCKS_SUBMIT",
+      "Hay un conflicto activo; no podés enviar.",
+      409,
+    );
   }
 
   const criteria = session.rubric.criteria.map((c) => ({
@@ -164,7 +216,11 @@ export async function upsertJuryEvaluation(input: {
     requireAllRequired: Boolean(input.submit),
   });
   if (!computed.ok && input.submit) {
-    throw new JuryError(computed.code as import("./errors").JuryErrorCode, computed.error, 400);
+    throw new JuryError(
+      computed.code as import("./errors").JuryErrorCode,
+      computed.error,
+      400,
+    );
   }
 
   const existing = await db.fotorankJuryEvaluation.findUnique({
@@ -177,10 +233,18 @@ export async function upsertJuryEvaluation(input: {
   });
 
   if (existing?.status === "SUBMITTED" || existing?.status === "LOCKED") {
-    throw new JuryError("EVALUATION_LOCKED", "La evaluación ya fue enviada y está bloqueada.", 409);
+    throw new JuryError(
+      "EVALUATION_LOCKED",
+      "La evaluación ya fue enviada y está bloqueada.",
+      409,
+    );
   }
   if (existing?.status === "VOIDED") {
-    throw new JuryError("EVALUATION_VOIDED", "La evaluación fue invalidada.", 409);
+    throw new JuryError(
+      "EVALUATION_VOIDED",
+      "La evaluación fue invalidada.",
+      409,
+    );
   }
   if (
     existing &&
@@ -196,8 +260,12 @@ export async function upsertJuryEvaluation(input: {
 
   const nextVersion = (existing?.expectedVersion ?? 0) + 1;
   const status = input.submit ? "SUBMITTED" : "IN_PROGRESS";
-  const totalScore = computed.ok ? computed.totalScore : existing?.totalScore ?? null;
-  const normalizedScore = computed.ok ? computed.normalizedScore : existing?.normalizedScore ?? null;
+  const totalScore = computed.ok
+    ? computed.totalScore
+    : (existing?.totalScore ?? null);
+  const normalizedScore = computed.ok
+    ? computed.normalizedScore
+    : (existing?.normalizedScore ?? null);
 
   const evaluation = existing
     ? await db.fotorankJuryEvaluation.update({
@@ -206,9 +274,20 @@ export async function upsertJuryEvaluation(input: {
           status,
           totalScore,
           normalizedScore,
-          privateComment: input.privateComment?.slice(0, 2000) ?? existing.privateComment,
-          participantFeedback:
-            input.participantFeedback?.slice(0, 2000) ?? existing.participantFeedback,
+          /*
+           * `undefined` es "no me lo mandaron, dejalo como está"; `null` o
+           * vacío es "sacalo". Antes las tres cosas se confundían en una:
+           * `?.slice() ?? existing` devolvía el comentario viejo también
+           * cuando el jurado lo había borrado, y no había forma de vaciarlo.
+           */
+          privateComment: comentarioAGuardar(
+            input.privateComment,
+            existing.privateComment,
+          ),
+          participantFeedback: comentarioAGuardar(
+            input.participantFeedback,
+            existing.participantFeedback,
+          ),
           lastSavedAt: now,
           submittedAt: input.submit ? now : existing.submittedAt,
           expectedVersion: nextVersion,
@@ -232,8 +311,11 @@ export async function upsertJuryEvaluation(input: {
           status,
           totalScore,
           normalizedScore,
-          privateComment: input.privateComment?.slice(0, 2000) ?? null,
-          participantFeedback: input.participantFeedback?.slice(0, 2000) ?? null,
+          privateComment: comentarioAGuardar(input.privateComment, null),
+          participantFeedback: comentarioAGuardar(
+            input.participantFeedback,
+            null,
+          ),
           startedAt: now,
           lastSavedAt: now,
           submittedAt: input.submit ? now : null,
@@ -248,11 +330,14 @@ export async function upsertJuryEvaluation(input: {
     await db.fotorankJuryCriterionScore.deleteMany({
       where: { evaluationId: evaluation.id },
     });
-    const criterionByKey = new Map(session.rubric.criteria.map((c) => [c.key, c]));
+    const criterionByKey = new Map(
+      session.rubric.criteria.map((c) => [c.key, c]),
+    );
     for (const line of computed.lines) {
       const crit = criterionByKey.get(line.key);
       if (!crit) continue;
-      const comment = input.scores.find((s) => s.key === line.key)?.comment ?? null;
+      const comment =
+        input.scores.find((s) => s.key === line.key)?.comment ?? null;
       await db.fotorankJuryCriterionScore.create({
         data: {
           id: newId(),
@@ -278,7 +363,9 @@ export async function upsertJuryEvaluation(input: {
     organizationId: contest.organizationId,
     contestId: input.contestId,
     actorJudgeId: input.judgeAccountId,
-    eventType: input.submit ? "JURY_EVALUATION_SUBMITTED" : "JURY_EVALUATION_AUTOSAVE",
+    eventType: input.submit
+      ? "JURY_EVALUATION_SUBMITTED"
+      : "JURY_EVALUATION_AUTOSAVE",
     entityType: "FotorankJuryEvaluation",
     entityId: evaluation.id,
     payload: {
@@ -310,7 +397,8 @@ export async function voidJuryEvaluation(input: {
   const evaluation = await db.fotorankJuryEvaluation.findFirst({
     where: { id: input.evaluationId, contestId: input.contestId },
   });
-  if (!evaluation) throw new JuryError("NOT_FOUND", "Evaluación no encontrada.", 404);
+  if (!evaluation)
+    throw new JuryError("NOT_FOUND", "Evaluación no encontrada.", 404);
 
   const updated = await db.fotorankJuryEvaluation.update({
     where: { id: evaluation.id },
@@ -356,7 +444,11 @@ export async function abstainJuryEvaluation(input: {
     | "OTHER";
 }) {
   if (!input.reason.trim()) {
-    throw new JuryError("REASON_REQUIRED", "La abstención requiere motivo.", 400);
+    throw new JuryError(
+      "REASON_REQUIRED",
+      "La abstención requiere motivo.",
+      400,
+    );
   }
   const access = await assertJudgeContestAccess({
     judgeAccountId: input.judgeAccountId,
@@ -377,11 +469,14 @@ export async function abstainJuryEvaluation(input: {
       admissionBatchId: session.admissionBatchId,
     },
   });
-  if (!snapshot) throw new JuryError("SNAPSHOT_NOT_FOUND", "Snapshot no encontrado.", 404);
+  if (!snapshot)
+    throw new JuryError("SNAPSHOT_NOT_FOUND", "Snapshot no encontrado.", 404);
   if (!access.categoryIds.includes(snapshot.categoryId)) {
     throw new JuryError("CATEGORY_NOT_ASSIGNED", "Categoría no asignada.", 403);
   }
-  const assignment = access.assignments.find((a) => a.categoryId === snapshot.categoryId);
+  const assignment = access.assignments.find(
+    (a) => a.categoryId === snapshot.categoryId,
+  );
   if (!assignment) throw new JuryError("NOT_ASSIGNED", "Sin asignación.", 403);
 
   const existing = await db.fotorankJuryEvaluation.findUnique({
@@ -393,10 +488,21 @@ export async function abstainJuryEvaluation(input: {
     },
   });
   if (existing?.status === "SUBMITTED" || existing?.status === "LOCKED") {
-    throw new JuryError("EVALUATION_LOCKED", "Ya enviada; no se puede abstener.", 409);
+    throw new JuryError(
+      "EVALUATION_LOCKED",
+      "Ya enviada; no se puede abstener.",
+      409,
+    );
   }
-  const voidReason = `ABSTAIN:${input.reasonCode ?? "OTHER"}:${input.reason.trim()}`.slice(0, 500);
-  if (existing?.status === "VOIDED" && existing.voidReason?.startsWith("ABSTAIN:")) {
+  const voidReason =
+    `ABSTAIN:${input.reasonCode ?? "OTHER"}:${input.reason.trim()}`.slice(
+      0,
+      500,
+    );
+  if (
+    existing?.status === "VOIDED" &&
+    existing.voidReason?.startsWith("ABSTAIN:")
+  ) {
     return { evaluation: existing, idempotent: true as const };
   }
 

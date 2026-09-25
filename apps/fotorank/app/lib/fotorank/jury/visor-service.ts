@@ -28,6 +28,15 @@ export type CriterioDelVisor = {
 export type ConsignaDelVisor = {
   numero: number;
   titulo: string;
+  /**
+   * La consigna tal como la leyó quien fotografió.
+   *
+   * El jurado estaba calificando "adecuación a la consigna" viendo sólo el
+   * título. Sin el texto completo esa nota es una adivinanza: "Sombras" no
+   * dice que la sombra tenga que ser la protagonista y no el resto de la
+   * escena, que es lo que se le pidió al participante.
+   */
+  texto: string;
 };
 
 export type ColaDelVisor = {
@@ -67,7 +76,9 @@ export async function colaParaElVisor(input: {
   const sesion = await db.fotorankJuryScoringSession.findFirst({
     where: { contestId: input.contestId, status: "OPEN", scoringEnabled: true },
     orderBy: { openedAt: "desc" },
-    include: { rubric: { include: { criteria: { orderBy: { sortOrder: "asc" } } } } },
+    include: {
+      rubric: { include: { criteria: { orderBy: { sortOrder: "asc" } } } },
+    },
   });
 
   const rubrica = sesion?.rubric
@@ -106,24 +117,43 @@ export async function colaParaElVisor(input: {
   const enConflicto = new Set(conflictos.map((c) => c.entryId));
 
   const snapshots = await db.fotorankJuryEntrySnapshot.findMany({
-    where: { admissionBatchId: lote.id, categoryId: { in: access.categoryIds } },
+    where: {
+      admissionBatchId: lote.id,
+      categoryId: { in: access.categoryIds },
+    },
     include: {
       entry: {
         select: {
           id: true,
-          assets: { where: { isActive: true, kind: { in: ["JURY_PREVIEW", "THUMBNAIL"] } } },
+          assets: {
+            where: {
+              isActive: true,
+              kind: { in: ["JURY_PREVIEW", "THUMBNAIL"] },
+            },
+          },
         },
       },
     },
   });
 
   const promptIds = [
-    ...new Set(snapshots.map((s) => s.promptExternalId).filter(Boolean) as string[]),
+    ...new Set(
+      snapshots.map((s) => s.promptExternalId).filter(Boolean) as string[],
+    ),
   ];
   const prompts = promptIds.length
     ? await db.clickatonPrompt.findMany({
-        where: { id: { in: promptIds }, status: { in: ["RELEASED", "CLOSED"] } },
-        select: { id: true, sequence: true, title: true },
+        where: {
+          id: { in: promptIds },
+          status: { in: ["RELEASED", "CLOSED"] },
+        },
+        select: {
+          id: true,
+          sequence: true,
+          title: true,
+          instructions: true,
+          shortDescription: true,
+        },
       })
     : [];
   const promptPorId = new Map(prompts.map((p) => [p.id, p]));
@@ -136,12 +166,15 @@ export async function colaParaElVisor(input: {
     },
     include: { criterionScores: true },
   });
-  const evaluacionPorSnapshot = new Map(evaluaciones.map((e) => [e.juryEntrySnapshotId, e]));
+  const evaluacionPorSnapshot = new Map(
+    evaluaciones.map((e) => [e.juryEntrySnapshotId, e]),
+  );
 
   const storage = getContestEntryStorage();
   const esDeClickaton = access.esDeClickaton;
   const baseDeClickaton =
-    process.env.CLICKATON_PUBLIC_BASE_URL?.trim() || "https://maratonfotografica.com";
+    process.env.CLICKATON_PUBLIC_BASE_URL?.trim() ||
+    "https://maratonfotografica.com";
   const ahora = new Date();
   const obras: ObraEnElVisor[] = [];
 
@@ -153,7 +186,9 @@ export async function colaParaElVisor(input: {
       snap.entry.assets.find((a) => a.kind === "JURY_PREVIEW") ??
       snap.entry.assets.find((a) => a.kind === "THUMBNAIL") ??
       (snap.juryAssetId
-        ? await db.fotorankContestEntryAsset.findUnique({ where: { id: snap.juryAssetId } })
+        ? await db.fotorankContestEntryAsset.findUnique({
+            where: { id: snap.juryAssetId },
+          })
         : null);
     if (!asset) continue;
 
@@ -174,12 +209,17 @@ export async function colaParaElVisor(input: {
       previewUrl = null;
     }
 
-    const prompt = snap.promptExternalId ? promptPorId.get(snap.promptExternalId) : null;
+    const prompt = snap.promptExternalId
+      ? promptPorId.get(snap.promptExternalId)
+      : null;
+    const textoDeLaConsigna =
+      prompt?.instructions?.trim() || prompt?.shortDescription?.trim() || "";
     const evaluacion = evaluacionPorSnapshot.get(snap.id);
 
     const notas: Record<string, number> = {};
     for (const linea of evaluacion?.criterionScores ?? []) {
-      if (typeof linea.score === "number") notas[linea.criterionKeySnapshot] = linea.score;
+      if (typeof linea.score === "number")
+        notas[linea.criterionKeySnapshot] = linea.score;
     }
 
     obras.push({
@@ -188,9 +228,12 @@ export async function colaParaElVisor(input: {
       codigo: snap.anonymousCode,
       consignaNumero: prompt?.sequence ?? null,
       consignaTitulo: prompt?.title ?? null,
+      consignaTexto: textoDeLaConsigna,
       previewUrl,
       notas,
-      enviada: evaluacion?.status === "SUBMITTED" || evaluacion?.status === "LOCKED",
+      comentario: evaluacion?.privateComment ?? "",
+      enviada:
+        evaluacion?.status === "SUBMITTED" || evaluacion?.status === "LOCKED",
     });
   }
 
@@ -198,7 +241,11 @@ export async function colaParaElVisor(input: {
    * El orden dentro de cada consigna sigue barajado por el hash de siempre: que
    * no se pueda deducir quién subió qué, ni que el orden empuje la nota.
    */
-  const ordenadas = sortEntriesForJuror(obras, input.judgeAccountId, input.contestId);
+  const ordenadas = sortEntriesForJuror(
+    obras,
+    input.judgeAccountId,
+    input.contestId,
+  );
 
   const consignas: ConsignaDelVisor[] = [
     ...new Map(
@@ -206,7 +253,11 @@ export async function colaParaElVisor(input: {
         .filter((o) => o.consignaNumero !== null)
         .map((o) => [
           o.consignaNumero!,
-          { numero: o.consignaNumero!, titulo: o.consignaTitulo ?? `Consigna ${o.consignaNumero}` },
+          {
+            numero: o.consignaNumero!,
+            titulo: o.consignaTitulo ?? `Consigna ${o.consignaNumero}`,
+            texto: o.consignaTexto ?? "",
+          },
         ]),
     ).values(),
   ].sort((a, b) => a.numero - b.numero);
@@ -226,8 +277,11 @@ export async function colaParaElVisor(input: {
       consignaTitulo: o.consignaTitulo,
       previewUrl: o.previewUrl,
       notas: o.notas,
+      comentario: o.comentario,
       enviada: o.enviada,
     })),
-    sePuedeCalificar: Boolean(sesion && rubrica && rubrica.criterios.length > 0),
+    sePuedeCalificar: Boolean(
+      sesion && rubrica && rubrica.criterios.length > 0,
+    ),
   };
 }
