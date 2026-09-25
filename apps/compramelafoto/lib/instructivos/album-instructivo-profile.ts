@@ -36,7 +36,6 @@ export type AlbumInstructivoProfileInput = {
   };
   senales: {
     fotosCargadas: number;
-    rostrosDetectados: number;
     tokensNumericos: number;
     tokensDeTexto: number;
     packsPreventaActivos: number;
@@ -91,12 +90,15 @@ function resolveBusqueda(
   // método sería describirle una puerta que no existe.
   if (entrada === "selfie_obligatoria") return ["cara"];
 
-  const metodos: InstructivoBusqueda[] = [];
-  if (senales.rostrosDetectados > 0) metodos.push("cara");
+  // La búsqueda por selfie la ofrece toda galería, sin interruptor por álbum. No se espera
+  // a tener caras detectadas: el análisis facial corre atrasado respecto de la subida, y
+  // el cartel y el instructivo se imprimen justo después de subir, así que esperarlo los
+  // hacía callar la selfie en los álbumes recién cargados.
+  const metodos: InstructivoBusqueda[] = ["cara"];
   if (senales.tokensNumericos > 0) metodos.push("dorsal");
   if (senales.tokensDeTexto > 0) metodos.push("palabra");
   if (senales.fotosCargadas > 0) metodos.push("navegar");
-  return metodos.length > 0 ? metodos : ["navegar"];
+  return metodos;
 }
 
 function resolveMomento(

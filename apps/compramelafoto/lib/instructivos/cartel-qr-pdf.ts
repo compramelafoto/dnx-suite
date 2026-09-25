@@ -35,11 +35,10 @@ export function lineaDeAccion(p: AlbumInstructivoProfile): string {
   if (p.entrada === "selfie_obligatoria") {
     return "Escaneá el código y sacate una selfie para ver tus fotos";
   }
-  // La búsqueda por selfie existe en todo álbum abierto con fotos, aunque el análisis
-  // facial todavía no haya terminado: el cartel se imprime antes de que termine, y
-  // esperar a las caras detectadas lo hacía anunciar sólo el número.
+  // Nombra todos los métodos, no el primero: con uno solo, un álbum con dorsales
+  // parecía no tener búsqueda por selfie.
   const metodos: string[] = [];
-  if (p.momento === "postventa" || p.busqueda.includes("cara")) metodos.push("una selfie");
+  if (p.busqueda.includes("cara")) metodos.push("una selfie");
   if (p.busqueda.includes("dorsal")) metodos.push("tu número");
   if (p.busqueda.includes("palabra")) metodos.push("palabra clave");
   if (metodos.length === 0) return "Escaneá el código y mirá tus fotos";

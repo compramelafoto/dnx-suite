@@ -40,8 +40,8 @@ describe("lineaDeAccion", () => {
     assert.match(lineaDeAccion(perfil({ busqueda: ["dorsal", "navegar"] })), /número/i);
   });
 
-  it("nombra la selfie aunque el análisis facial no haya encontrado caras todavía", () => {
-    const linea = lineaDeAccion(perfil({ busqueda: ["dorsal", "palabra", "navegar"] }));
+  it("nombra todos los métodos de búsqueda, no sólo el primero", () => {
+    const linea = lineaDeAccion(perfil({ busqueda: ["cara", "dorsal", "palabra", "navegar"] }));
     assert.equal(
       linea,
       "Escaneá el código y buscá tus fotos con una selfie, tu número o palabra clave"
