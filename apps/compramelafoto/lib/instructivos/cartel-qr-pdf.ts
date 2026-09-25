@@ -35,13 +35,19 @@ export function lineaDeAccion(p: AlbumInstructivoProfile): string {
   if (p.entrada === "selfie_obligatoria") {
     return "Escaneá el código y sacate una selfie para ver tus fotos";
   }
-  if (p.busqueda.includes("cara")) {
-    return "Escaneá el código y encontrá tus fotos con una selfie";
-  }
-  if (p.busqueda.includes("dorsal")) {
-    return "Escaneá el código y buscá tus fotos por tu número";
-  }
-  return "Escaneá el código y mirá tus fotos";
+  // La búsqueda por selfie existe en todo álbum abierto con fotos, aunque el análisis
+  // facial todavía no haya terminado: el cartel se imprime antes de que termine, y
+  // esperar a las caras detectadas lo hacía anunciar sólo el número.
+  const metodos: string[] = [];
+  if (p.momento === "postventa" || p.busqueda.includes("cara")) metodos.push("una selfie");
+  if (p.busqueda.includes("dorsal")) metodos.push("tu número");
+  if (p.busqueda.includes("palabra")) metodos.push("palabra clave");
+  if (metodos.length === 0) return "Escaneá el código y mirá tus fotos";
+  const lista =
+    metodos.length === 1
+      ? metodos[0]
+      : `${metodos.slice(0, -1).join(", ")} o ${metodos[metodos.length - 1]}`;
+  return `Escaneá el código y buscá tus fotos con ${lista}`;
 }
 
 /** Encoge el texto hasta que entre en una sola línea. */
