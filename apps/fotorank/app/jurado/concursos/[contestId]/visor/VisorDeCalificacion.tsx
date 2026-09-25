@@ -18,6 +18,7 @@ import {
   enviarCalificacionesAction,
   guardarNotaAction,
   latidoDelVisorAction,
+  renovarFotosAction,
 } from "../../../../actions/juryVisor";
 import {
   FILTROS_DEL_VISOR,
@@ -90,8 +91,8 @@ const TELEFONO_ACOSTADO = "(orientation: landscape) and (max-height: 520px)";
  */
 const USA_LA_TARJETA = `(max-width: 767px), ${TELEFONO_ACOSTADO}`;
 
-/** Cuánto se lleva la columna de criterios cuando el teléfono está acostado. */
-const ANCHO_DE_LA_COLUMNA = 200;
+/** Cuánto mide la tarjeta de criterios que flota sobre la obra. */
+const ANCHO_DE_LA_TARJETA = 300;
 
 /**
  * Cuánto se queda la nota a la vista antes de pasar al criterio siguiente.
@@ -101,6 +102,26 @@ const ANCHO_DE_LA_COLUMNA = 200;
  * Cuatro décimas alcanzan para leer el número y no llegan a aburrir.
  */
 const DEMORA_PARA_VER_LA_NOTA = 400;
+
+/**
+ * Cuántas obras se van bajando por delante y por detrás de la que se mira.
+ *
+ * Pasar de foto tardaba casi un segundo porque recién ahí empezaba a bajarse.
+ * Con estas ya en el navegador, el cambio es instantáneo. Adelante más que
+ * atrás porque se avanza mucho más de lo que se vuelve, y una ventana chica
+ * porque bajar las 170 de una sería varios cientos de megas.
+ */
+const PRECARGA_ADELANTE = 6;
+const PRECARGA_ATRAS = 2;
+
+/**
+ * Cada cuánto se vuelven a firmar los enlaces de las fotografías.
+ *
+ * Vencen a los quince minutos y se firmaban una sola vez, al abrir. Calificar
+ * 170 obras lleva horas: pasado ese rato no cargaba ninguna. Se renuevan a los
+ * diez, con margen de sobra.
+ */
+const RENOVAR_FOTOS_CADA = 10 * 60 * 1000;
 
 /** Cada cuánto late, mientras haya pantalla a la vista y actividad. */
 const LATIDO_SEGUNDOS = 30;
@@ -187,14 +208,19 @@ export function VisorDeCalificacion({
   const [altoDeLaTarjeta, setAltoDeLaTarjeta] = useState(0);
   const tarjetaDeCriterios = useRef<HTMLDivElement | null>(null);
   /*
-   * Con el teléfono acostado los criterios se van a un costado.
+   * Con el teléfono acostado, la obra se queda con toda la pantalla.
    *
-   * Abajo taparían la obra, que es lo que se acaba de arreglar; y con barra,
-   * pestañas y tarjeta encimadas una foto apaisada quedaba en 228 x 152, más
-   * chica que en vertical. Al costado el alto le queda entero: 477 x 318, más
-   * de cuatro veces el área.
+   * La primera versión puso los criterios en una columna al costado. Medido,
+   * no alcanzaba: sacándole 200 de ancho a la obra el límite pasa a ser otra
+   * vez el alto, y una foto 3:2 queda en 477 x 318 --lo mismo que dejando la
+   * barra--. Sin nada alrededor entra en 562 x 375, un 39% más de área.
+   *
+   * Así que acostado funciona como la pantalla completa de la computadora: la
+   * obra sola, y los criterios en una tarjeta que flota sobre ella.
    */
   const [acostado, setAcostado] = useState(false);
+  /* Acostado los controles se esconden; un toque sobre la obra los trae. */
+  const [controlesALaVista, setControlesALaVista] = useState(false);
   /** Pantalla angosta o baja: los criterios van en tarjeta, no en grilla. */
   const [enTarjeta, setEnTarjeta] = useState(false);
   /* La nota que se acaba de poner, mientras se la muestra antes de pasar. */
@@ -404,6 +430,8 @@ export function VisorDeCalificacion({
     const mirar = () => {
       setAcostado(bajo.matches);
       setEnTarjeta(tarjeta.matches);
+      // Al enderezar el teléfono la barra vuelve sola: parado siempre está.
+      if (!bajo.matches) setControlesALaVista(false);
     };
     mirar();
     bajo.addEventListener("change", mirar);
@@ -443,6 +471,70 @@ export function VisorDeCalificacion({
       window.removeEventListener("resize", medir);
     };
   }, [inmersivo, criterios.length, actual?.enviada, acostado]);
+
+  /* ---------- que la foto ya esté cuando se la pide ---------- */
+
+  /*
+   * Las imágenes bajadas se guardan en un mapa.
+   *
+   * Sin conservar la referencia, el navegador puede soltar la imagen antes de
+   * que se la pida y la precarga no habría servido de nada.
+   */
+  const bajadas = useRef(new Map<string, HTMLImageElement>());
+
+  useEffect(() => {
+    if (!actual) return;
+    const pos = visibles.findIndex((o) => o.entryId === actual.entryId);
+    if (pos === -1) return;
+
+    const desde = Math.max(0, pos - PRECARGA_ATRAS);
+    const hasta = Math.min(visibles.length, pos + PRECARGA_ADELANTE + 1);
+    const cerca = visibles.slice(desde, hasta);
+    const quedan = new Set<string>();
+
+    for (const o of cerca) {
+      if (!o.previewUrl) continue;
+      quedan.add(o.previewUrl);
+      if (bajadas.current.has(o.previewUrl)) continue;
+      const img = new Image();
+      img.decoding = "async";
+      img.src = o.previewUrl;
+      bajadas.current.set(o.previewUrl, img);
+    }
+
+    // Lo que quedó lejos se suelta: la ventana se mueve, la memoria no crece.
+    for (const url of [...bajadas.current.keys()]) {
+      if (!quedan.has(url)) bajadas.current.delete(url);
+    }
+  }, [actual, visibles]);
+
+  const renovandoFotos = useRef(false);
+
+  const renovarFotos = useCallback(() => {
+    if (renovandoFotos.current) return;
+    renovandoFotos.current = true;
+    void renovarFotosAction({ contestId })
+      .then((frescas) => {
+        if (frescas.length === 0) return;
+        const porId = new Map(frescas.map((f) => [f.entryId, f.previewUrl]));
+        setObras((previas) =>
+          previas.map((o) =>
+            porId.has(o.entryId)
+              ? { ...o, previewUrl: porId.get(o.entryId) ?? null }
+              : o,
+          ),
+        );
+        bajadas.current.clear();
+      })
+      .finally(() => {
+        renovandoFotos.current = false;
+      });
+  }, [contestId]);
+
+  useEffect(() => {
+    const reloj = window.setInterval(renovarFotos, RENOVAR_FOTOS_CADA);
+    return () => window.clearInterval(reloj);
+  }, [renovarFotos]);
 
   /* ---------- el latido ---------- */
 
@@ -991,7 +1083,7 @@ export function VisorDeCalificacion({
       {/* Barra: una sola fila, todo del mismo alto y lo mínimo a la vista */}
       <div
         className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-3 py-1.5"
-        hidden={inmersivo}
+        hidden={inmersivo || (acostado && !controlesALaVista)}
         style={{
           background: colores.panel,
           borderBottom: `1px solid ${colores.linea}`,
@@ -1212,6 +1304,12 @@ export function VisorDeCalificacion({
                */
               className="absolute inset-x-0 top-0 w-full object-contain"
               /*
+               * Si una foto no carga, casi siempre es que su enlace venció. En
+               * vez de dejar el ícono de imagen rota, se vuelven a firmar todos
+               * en el momento.
+               */
+              onError={renovarFotos}
+              /*
                * El alto va explícito, nunca `auto` ni por `bottom`.
                *
                * Una imagen es un elemento reemplazado: con `top` y `bottom`
@@ -1367,10 +1465,23 @@ export function VisorDeCalificacion({
             </p>
           ) : null}
 
-          {muestraCriterios && !acostado ? (
+          {muestraCriterios ? (
             <div
               ref={tarjetaDeCriterios}
-              className="absolute inset-x-0 bottom-0"
+              className="absolute"
+              style={
+                acostado
+                  ? {
+                      // Acostado flota sobre la obra, en la esquina, como la
+                      // pantalla completa de la computadora.
+                      right: 12,
+                      bottom: 12,
+                      width: ANCHO_DE_LA_TARJETA,
+                      maxWidth: "calc(100% - 24px)",
+                      boxShadow: "0 12px 32px rgba(0,0,0,0.45)",
+                    }
+                  : { left: 0, right: 0, bottom: 0 }
+              }
             >
               {tarjetaDeLosCriterios}
             </div>
@@ -1454,12 +1565,6 @@ export function VisorDeCalificacion({
             </p>
           ) : null}
         </div>
-
-        {muestraCriterios && acostado ? (
-          <div className="shrink-0" style={{ width: ANCHO_DE_LA_COLUMNA }}>
-            {tarjetaDeLosCriterios}
-          </div>
-        ) : null}
       </div>
 
       {/* Criterios, en la computadora */}
