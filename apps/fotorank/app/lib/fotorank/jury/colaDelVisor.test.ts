@@ -10,9 +10,18 @@ import {
   type ObraEnElVisor,
 } from "./colaDelVisor";
 
-const CRITERIOS = ["prompt_fit", "composition_technique", "creativity_originality", "visual_impact"];
+const CRITERIOS = [
+  "prompt_fit",
+  "composition_technique",
+  "creativity_originality",
+  "visual_impact",
+];
 
-function obra(id: string, consigna: number, notas: Record<string, number> = {}): ObraEnElVisor {
+function obra(
+  id: string,
+  consigna: number,
+  notas: Record<string, number> = {},
+): ObraEnElVisor {
   return {
     entryId: id,
     snapshotId: `snap-${id}`,
@@ -21,6 +30,7 @@ function obra(id: string, consigna: number, notas: Record<string, number> = {}):
     consignaTitulo: `Consigna ${consigna}`,
     previewUrl: `/preview/${id}`,
     notas,
+    comentario: "",
     enviada: false,
   };
 }
@@ -75,7 +85,13 @@ test("el resumen cuenta las tres pilas", () => {
     ],
     CRITERIOS,
   );
-  assert.deepEqual(r, { total: 5, calificadas: 2, sinCalificar: 2, sinTerminar: 1, faltan: 3 });
+  assert.deepEqual(r, {
+    total: 5,
+    calificadas: 2,
+    sinCalificar: 2,
+    sinTerminar: 1,
+    faltan: 3,
+  });
 });
 
 test("una cola vacía no rompe el resumen", () => {
@@ -90,7 +106,12 @@ test("una cola vacía no rompe el resumen", () => {
 
 /* ---------- el filtro ---------- */
 
-const COLA = [completa("1", 3), obra("2", 3, { prompt_fit: 5 }), obra("3", 3), obra("4", 4)];
+const COLA = [
+  completa("1", 3),
+  obra("2", 3, { prompt_fit: 5 }),
+  obra("3", 3),
+  obra("4", 4),
+];
 
 test("el filtro de todas muestra todo, de la consigna elegida", () => {
   const v = obrasVisibles(COLA, CRITERIOS, { consigna: 3, filtro: "TODAS" });
@@ -100,7 +121,10 @@ test("el filtro de todas muestra todo, de la consigna elegida", () => {
 /** Las 27 de "Sombras" y después las 27 de "Color": comparar iguales con iguales. */
 test("el visor trabaja una consigna por vez", () => {
   const v = obrasVisibles(COLA, CRITERIOS, { consigna: 4, filtro: "TODAS" });
-  assert.deepEqual(v.map((o) => o.entryId), ["4"]);
+  assert.deepEqual(
+    v.map((o) => o.entryId),
+    ["4"],
+  );
 });
 
 test("sin consigna elegida muestra todas las del filtro", () => {
@@ -129,22 +153,43 @@ test("una foto recién empezada sigue en el filtro de las que faltan", () => {
     consigna: 3,
     filtro: "ME_FALTAN",
   });
-  assert.deepEqual(visibles.map((o) => o.entryId), ["9"]);
+  assert.deepEqual(
+    visibles.map((o) => o.entryId),
+    ["9"],
+  );
 });
 
 test("las que faltan incluyen las vacías y las empezadas, no las terminadas", () => {
-  const visibles = obrasVisibles(COLA, CRITERIOS, { consigna: 3, filtro: "ME_FALTAN" });
-  assert.deepEqual(visibles.map((o) => o.entryId), ["2", "3"]);
+  const visibles = obrasVisibles(COLA, CRITERIOS, {
+    consigna: 3,
+    filtro: "ME_FALTAN",
+  });
+  assert.deepEqual(
+    visibles.map((o) => o.entryId),
+    ["2", "3"],
+  );
 });
 
 test("terminadas deja sólo las completas", () => {
-  const visibles = obrasVisibles(COLA, CRITERIOS, { consigna: 3, filtro: "TERMINADAS" });
-  assert.deepEqual(visibles.map((o) => o.entryId), ["1"]);
+  const visibles = obrasVisibles(COLA, CRITERIOS, {
+    consigna: 3,
+    filtro: "TERMINADAS",
+  });
+  assert.deepEqual(
+    visibles.map((o) => o.entryId),
+    ["1"],
+  );
 });
 
 test("a medias deja sólo las que quedaron por la mitad", () => {
-  const visibles = obrasVisibles(COLA, CRITERIOS, { consigna: 3, filtro: "A_MEDIAS" });
-  assert.deepEqual(visibles.map((o) => o.entryId), ["2"]);
+  const visibles = obrasVisibles(COLA, CRITERIOS, {
+    consigna: 3,
+    filtro: "A_MEDIAS",
+  });
+  assert.deepEqual(
+    visibles.map((o) => o.entryId),
+    ["2"],
+  );
 });
 
 /* ---------- moverse ---------- */

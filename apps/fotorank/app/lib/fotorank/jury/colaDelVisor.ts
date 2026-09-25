@@ -12,9 +12,21 @@ export type ObraEnElVisor = {
   codigo: string;
   consignaNumero: number | null;
   consignaTitulo: string | null;
+  /**
+   * La consigna completa, sólo mientras se arma la cola.
+   *
+   * No viaja al navegador pegada a cada obra: son 170 copias del mismo
+   * párrafo. Al cliente va una vez, en la lista de consignas.
+   */
+  consignaTexto?: string;
   previewUrl: string | null;
   /** Lo que ya puso este jurado, por clave de criterio. */
   notas: Record<string, number>;
+  /**
+   * La nota al margen del jurado sobre esta obra. Opcional y privada: la lee
+   * la organización, nunca quien la fotografió.
+   */
+  comentario: string;
   /** Ya la envió: no se puede cambiar. */
   enviada: boolean;
 };
@@ -31,11 +43,31 @@ export type FiltroDelVisor = "TODAS" | "ME_FALTAN" | "TERMINADAS" | "A_MEDIAS";
  * escondida detrás del filtro, y el jurado ni se enteraba. Una foto se va de
  * "me faltan" recién cuando tiene **todos** los criterios puestos.
  */
-export const FILTROS_DEL_VISOR: Array<{ id: FiltroDelVisor; nombre: string }> = [
-  { id: "TODAS", nombre: "Todas" },
-  { id: "ME_FALTAN", nombre: "Me faltan" },
-  { id: "TERMINADAS", nombre: "Terminadas" },
-  { id: "A_MEDIAS", nombre: "A medias" },
+export const FILTROS_DEL_VISOR: Array<{
+  id: FiltroDelVisor;
+  nombre: string;
+  detalle: string;
+}> = [
+  {
+    id: "TODAS",
+    nombre: "Todas",
+    detalle: "Las que te tocaron en esta consigna",
+  },
+  {
+    id: "ME_FALTAN",
+    nombre: "Me faltan",
+    detalle: "Sin todas las notas puestas, las haya tocado o no",
+  },
+  {
+    id: "TERMINADAS",
+    nombre: "Completas",
+    detalle: "Con todas las notas puestas",
+  },
+  {
+    id: "A_MEDIAS",
+    nombre: "Empezadas",
+    detalle: "Con alguna nota y alguna faltando: así no cuentan",
+  },
 ];
 
 /**
@@ -44,9 +76,14 @@ export const FILTROS_DEL_VISOR: Array<{ id: FiltroDelVisor; nombre: string }> = 
  * "Sin terminar" no es un detalle: esas obras no cuentan para el resultado y el
  * jurado cree que las hizo. Por eso se cuentan aparte y se avisan dos veces.
  */
-export function estadoDeLaObra(obra: ObraEnElVisor, criterios: string[]): EstadoDeObra {
+export function estadoDeLaObra(
+  obra: ObraEnElVisor,
+  criterios: string[],
+): EstadoDeObra {
   if (criterios.length === 0) return "SIN_CALIFICAR";
-  const puestas = criterios.filter((k) => typeof obra.notas[k] === "number").length;
+  const puestas = criterios.filter(
+    (k) => typeof obra.notas[k] === "number",
+  ).length;
   if (puestas === 0) return "SIN_CALIFICAR";
   return puestas === criterios.length ? "CALIFICADA" : "SIN_TERMINAR";
 }
@@ -96,7 +133,8 @@ export function obrasVisibles(
   vista: { consigna: number | null; filtro: FiltroDelVisor },
 ): ObraEnElVisor[] {
   return obras.filter((o) => {
-    if (vista.consigna !== null && o.consignaNumero !== vista.consigna) return false;
+    if (vista.consigna !== null && o.consignaNumero !== vista.consigna)
+      return false;
     if (vista.filtro === "TODAS") return true;
 
     const estado = estadoDeLaObra(o, criterios);

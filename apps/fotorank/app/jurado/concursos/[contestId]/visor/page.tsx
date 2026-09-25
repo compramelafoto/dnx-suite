@@ -21,15 +21,22 @@ export default async function VisorPage({ params }: Props) {
   try {
     cola = await colaParaElVisor({ judgeAccountId: judge.id, contestId });
   } catch (err) {
-    if (err instanceof JuryError && err.code === "CONTEST_NOT_FOUND") notFound();
-    if (err instanceof JuryError && (err.code === "NOT_ASSIGNED" || err.code === "FORBIDDEN")) {
+    if (err instanceof JuryError && err.code === "CONTEST_NOT_FOUND")
+      notFound();
+    if (
+      err instanceof JuryError &&
+      (err.code === "NOT_ASSIGNED" || err.code === "FORBIDDEN")
+    ) {
       redirect("/jurado/panel");
     }
     throw err;
   }
 
   // Los términos se aceptan en la pantalla de obras, que es donde se explican.
-  const acepto = await hasAcceptedJuryTerms({ judgeAccountId: judge.id, contestId });
+  const acepto = await hasAcceptedJuryTerms({
+    judgeAccountId: judge.id,
+    contestId,
+  });
   if (!acepto) redirect(`/jurado/concursos/${contestId}`);
 
   return <VisorDeCalificacion contestId={contestId} cola={cola} />;
