@@ -99,8 +99,17 @@ const TELEFONO_ACOSTADO = "(orientation: landscape) and (max-height: 520px)";
  */
 const USA_LA_TARJETA = `(max-width: 767px), ${TELEFONO_ACOSTADO}`;
 
-/** Cuánto mide la tarjeta de criterios que flota sobre la obra. */
-const ANCHO_DE_LA_TARJETA = 300;
+/**
+ * Cuánto se lleva la franja de criterios con el teléfono acostado.
+ *
+ * Angosta a propósito. Con el teléfono acostado una obra apaisada está
+ * limitada por el **alto**, así que sacarle 72 de ancho no le quita ni un
+ * píxel: 562 x 375 con la franja y 562 x 375 sin ella. Sólo una panorámica
+ * muy extrema lo nota, y por eso son 72 y no 200.
+ *
+ * Flotando encima tapaba la obra, que es justo lo que se quería evitar.
+ */
+const ANCHO_DE_LA_FRANJA = 72;
 
 /**
  * Cuánto se queda la nota a la vista antes de pasar al criterio siguiente.
@@ -868,7 +877,8 @@ export function VisorDeCalificacion({
         if (/^[0-9]$/.test(e.key)) {
           e.preventDefault();
           const ahora = Date.now();
-          const previo = ahora - tecleo.current.en < 900 ? tecleo.current.texto : "";
+          const previo =
+            ahora - tecleo.current.en < 900 ? tecleo.current.texto : "";
           const r = acumularDigito(criterio, previo, e.key);
           tecleo.current = { texto: r.texto, en: ahora };
           if (r.valor != null) ponerNota(r.valor, criterioActivo);
@@ -1419,8 +1429,9 @@ export function VisorDeCalificacion({
                         : "scale(1)",
                   }}
                 >
-                  {typeof actual?.notas[criterios[criterioActivo]?.key ?? ""] === "number" &&
-                  criterios[criterioActivo]
+                  {typeof actual?.notas[
+                    criterios[criterioActivo]?.key ?? ""
+                  ] === "number" && criterios[criterioActivo]
                     ? textoDeLaNota(
                         criterios[criterioActivo]!,
                         actual!.notas[criterios[criterioActivo]!.key]!,
@@ -1439,7 +1450,9 @@ export function VisorDeCalificacion({
                     criterio={criterios[criterioActivo]!}
                     puesta={actual?.notas[criterios[criterioActivo]!.key]}
                     habilitado={sePuedeTocar}
-                    onElegir={(valor) => ponerNota(valor, criterioActivo, { demorar: true })}
+                    onElegir={(valor) =>
+                      ponerNota(valor, criterioActivo, { demorar: true })
+                    }
                     colores={{
                       chip: "rgba(255,255,255,0.08)",
                       linea: "rgba(255,255,255,0.14)",
@@ -1484,23 +1497,10 @@ export function VisorDeCalificacion({
             </p>
           ) : null}
 
-          {muestraCriterios ? (
+          {muestraCriterios && !acostado ? (
             <div
               ref={tarjetaDeCriterios}
-              className="absolute"
-              style={
-                acostado
-                  ? {
-                      // Acostado flota sobre la obra, en la esquina, como la
-                      // pantalla completa de la computadora.
-                      right: 12,
-                      bottom: 12,
-                      width: ANCHO_DE_LA_TARJETA,
-                      maxWidth: "calc(100% - 24px)",
-                      boxShadow: "0 12px 32px rgba(0,0,0,0.45)",
-                    }
-                  : { left: 0, right: 0, bottom: 0 }
-              }
+              className="absolute inset-x-0 bottom-0"
             >
               {tarjetaDeLosCriterios}
             </div>
@@ -1584,6 +1584,12 @@ export function VisorDeCalificacion({
             </p>
           ) : null}
         </div>
+
+        {muestraCriterios && acostado ? (
+          <div className="shrink-0" style={{ width: ANCHO_DE_LA_FRANJA }}>
+            {tarjetaDeLosCriterios}
+          </div>
+        ) : null}
       </div>
 
       {/* Criterios, en la computadora */}
@@ -1604,7 +1610,9 @@ export function VisorDeCalificacion({
         ) : (
           <div
             className={`grid gap-2 md:gap-3 ${
-              criterios.length === 1 ? "md:max-w-xl md:grid-cols-1" : "md:grid-cols-4"
+              criterios.length === 1
+                ? "md:max-w-xl md:grid-cols-1"
+                : "md:grid-cols-4"
             }`}
           >
             {criterios.map((c, i) => {
@@ -1632,7 +1640,9 @@ export function VisorDeCalificacion({
                             : colores.suave,
                       }}
                     >
-                      {typeof puesta === "number" ? textoDeLaNota(c, puesta) : "–"}
+                      {typeof puesta === "number"
+                        ? textoDeLaNota(c, puesta)
+                        : "–"}
                     </span>
                   </div>
                   <BotoneraDeNota

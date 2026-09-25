@@ -133,7 +133,10 @@ function pasos(
   ];
 }
 
-function teclas(maxima: number, minima: number): Array<{ tecla: string; hace: string }> {
+function teclas(
+  maxima: number,
+  minima: number,
+): Array<{ tecla: string; hace: string }> {
   const forma = formaDeLaNota({ min: minima, max: maxima });
   const deLaNota =
     forma === "SI_NO"
@@ -142,10 +145,21 @@ function teclas(maxima: number, minima: number): Array<{ tecla: string; hace: st
           { tecla: "N o 0", hace: "No la elijo" },
         ]
       : forma === "CAMPO"
-        ? [{ tecla: "Números seguidos", hace: `Escribir la calificación: 7 y 5 es 75 (del ${minima} al ${maxima})` }]
+        ? [
+            {
+              tecla: "Números seguidos",
+              hace: `Escribir la calificación: 7 y 5 es 75 (del ${minima} al ${maxima})`,
+            },
+          ]
         : [
-            { tecla: maxima === 10 ? `${minima} … 9 · 0` : `${minima} … ${Math.min(9, maxima)}`, hace: "Poner esa calificación" },
-                      ];
+            {
+              tecla:
+                maxima === 10
+                  ? `${minima} … 9 · 0`
+                  : `${minima} … ${Math.min(9, maxima)}`,
+              hace: "Poner esa calificación",
+            },
+          ];
   return [
     ...deLaNota,
     { tecla: "Tab", hace: "Criterio siguiente. En el último, pasa de foto" },

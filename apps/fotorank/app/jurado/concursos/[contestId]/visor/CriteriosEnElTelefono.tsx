@@ -146,19 +146,45 @@ export function CriteriosEnElTelefono({
               key={c.key}
               className={`w-full shrink-0 ${acostado ? "flex flex-col px-3 py-2" : "px-4 pb-3 pt-2.5"}`}
             >
-              <div className="flex items-baseline justify-between gap-3">
-                <span className="text-sm font-semibold">{c.nombre}</span>
-                <span
-                  className="font-mono text-lg font-semibold tabular-nums"
-                  style={{
-                    color:
-                      typeof puesta === "number" ? "#e0a061" : colores.suave,
-                  }}
-                >
-                  {typeof puesta === "number" ? textoDeLaNota(c, puesta) : "–"}
-                </span>
-              </div>
-              <div className={acostado ? "mt-2 flex min-h-0 flex-1" : "mt-2"}>
+              {/*
+               * Acostado la franja mide 72 píxeles y el nombre del criterio no
+               * entra escrito de frente. Va el número de criterio y la nota,
+               * que es lo mínimo para saber en cuál está uno y qué puso.
+               */}
+              {acostado ? (
+                <div className="flex items-center justify-between gap-1 px-0.5">
+                  <span className="font-mono text-[9px] opacity-60">
+                    {i + 1}/{criterios.length}
+                  </span>
+                  <span
+                    className="font-mono text-base font-semibold tabular-nums"
+                    style={{
+                      color:
+                        typeof puesta === "number" ? "#e0a061" : colores.suave,
+                    }}
+                  >
+                    {typeof puesta === "number"
+                      ? textoDeLaNota(c, puesta)
+                      : "–"}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-sm font-semibold">{c.nombre}</span>
+                  <span
+                    className="font-mono text-lg font-semibold tabular-nums"
+                    style={{
+                      color:
+                        typeof puesta === "number" ? "#e0a061" : colores.suave,
+                    }}
+                  >
+                    {typeof puesta === "number"
+                      ? textoDeLaNota(c, puesta)
+                      : "–"}
+                  </span>
+                </div>
+              )}
+              <div className={acostado ? "mt-1 flex min-h-0 flex-1" : "mt-2"}>
                 <BotoneraDeNota
                   criterio={c}
                   puesta={puesta}
