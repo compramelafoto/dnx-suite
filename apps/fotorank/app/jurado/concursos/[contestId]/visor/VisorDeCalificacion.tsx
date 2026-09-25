@@ -91,8 +91,17 @@ const TELEFONO_ACOSTADO = "(orientation: landscape) and (max-height: 520px)";
  */
 const USA_LA_TARJETA = `(max-width: 767px), ${TELEFONO_ACOSTADO}`;
 
-/** Cuánto mide la tarjeta de criterios que flota sobre la obra. */
-const ANCHO_DE_LA_TARJETA = 300;
+/**
+ * Cuánto se lleva la franja de criterios con el teléfono acostado.
+ *
+ * Angosta a propósito. Con el teléfono acostado una obra apaisada está
+ * limitada por el **alto**, así que sacarle 72 de ancho no le quita ni un
+ * píxel: 562 x 375 con la franja y 562 x 375 sin ella. Sólo una panorámica
+ * muy extrema lo nota, y por eso son 72 y no 200.
+ *
+ * Flotando encima tapaba la obra, que es justo lo que se quería evitar.
+ */
+const ANCHO_DE_LA_FRANJA = 72;
 
 /**
  * Cuánto se queda la nota a la vista antes de pasar al criterio siguiente.
@@ -1465,23 +1474,10 @@ export function VisorDeCalificacion({
             </p>
           ) : null}
 
-          {muestraCriterios ? (
+          {muestraCriterios && !acostado ? (
             <div
               ref={tarjetaDeCriterios}
-              className="absolute"
-              style={
-                acostado
-                  ? {
-                      // Acostado flota sobre la obra, en la esquina, como la
-                      // pantalla completa de la computadora.
-                      right: 12,
-                      bottom: 12,
-                      width: ANCHO_DE_LA_TARJETA,
-                      maxWidth: "calc(100% - 24px)",
-                      boxShadow: "0 12px 32px rgba(0,0,0,0.45)",
-                    }
-                  : { left: 0, right: 0, bottom: 0 }
-              }
+              className="absolute inset-x-0 bottom-0"
             >
               {tarjetaDeLosCriterios}
             </div>
@@ -1565,6 +1561,12 @@ export function VisorDeCalificacion({
             </p>
           ) : null}
         </div>
+
+        {muestraCriterios && acostado ? (
+          <div className="shrink-0" style={{ width: ANCHO_DE_LA_FRANJA }}>
+            {tarjetaDeLosCriterios}
+          </div>
+        ) : null}
       </div>
 
       {/* Criterios, en la computadora */}

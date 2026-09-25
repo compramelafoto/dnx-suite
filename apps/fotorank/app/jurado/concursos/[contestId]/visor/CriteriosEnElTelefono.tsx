@@ -113,9 +113,7 @@ export function CriteriosEnElTelefono({
 
   return (
     <div
-      className={`pointer-events-auto flex select-none overflow-hidden ${
-        acostado ? "h-full flex-col" : "flex-col"
-      }`}
+      className="pointer-events-auto flex h-full select-none flex-col overflow-hidden"
       style={{
         background: colores.panel,
         [acostado ? "borderLeft" : "borderTop"]: `1px solid ${colores.linea}`,
@@ -142,24 +140,47 @@ export function CriteriosEnElTelefono({
           return (
             <div
               key={c.key}
-              className={`w-full shrink-0 ${acostado ? "flex flex-col px-3 py-2" : "px-4 pb-3 pt-2.5"}`}
+              className={`w-full shrink-0 ${acostado ? "flex min-h-0 flex-1 flex-col px-1 py-1" : "px-4 pb-3 pt-2.5"}`}
             >
-              <div className="flex items-baseline justify-between gap-3">
-                <span className="text-sm font-semibold">{c.nombre}</span>
-                <span
-                  className="font-mono text-lg font-semibold tabular-nums"
-                  style={{
-                    color:
-                      typeof puesta === "number" ? "#e0a061" : colores.suave,
-                  }}
-                >
-                  {typeof puesta === "number" ? puesta : "–"}
-                </span>
-              </div>
+              {/*
+               * Acostado el nombre va escrito de costado, en una tira de 18
+               * píxeles: con la obra a pantalla casi completa no hay ancho
+               * para ponerlo de frente, y sin nombre el jurado no sabría qué
+               * está puntuando.
+               */}
+              {acostado ? (
+                <div className="flex items-center justify-between gap-1 px-0.5">
+                  <span className="font-mono text-[9px] opacity-60">
+                    {i + 1}/{criterios.length}
+                  </span>
+                  <span
+                    className="font-mono text-base font-semibold tabular-nums"
+                    style={{
+                      color:
+                        typeof puesta === "number" ? "#e0a061" : colores.suave,
+                    }}
+                  >
+                    {typeof puesta === "number" ? puesta : "–"}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-sm font-semibold">{c.nombre}</span>
+                  <span
+                    className="font-mono text-lg font-semibold tabular-nums"
+                    style={{
+                      color:
+                        typeof puesta === "number" ? "#e0a061" : colores.suave,
+                    }}
+                  >
+                    {typeof puesta === "number" ? puesta : "–"}
+                  </span>
+                </div>
+              )}
               <div
                 className={
                   acostado
-                    ? "mt-2 grid min-h-0 flex-1 grid-cols-2 gap-1"
+                    ? "mt-1 flex min-h-0 flex-1 flex-col gap-px"
                     : "mt-2 flex gap-1"
                 }
                 role="radiogroup"
@@ -177,8 +198,10 @@ export function CriteriosEnElTelefono({
                     aria-label={`${valor} en ${c.nombre}`}
                     disabled={!sePuedeTocar}
                     onClick={() => onElegirNota(valor, i)}
-                    className={`min-w-0 font-mono text-[13px] font-medium transition-colors ${
-                      acostado ? "h-full min-h-9" : "h-11 flex-1"
+                    className={`min-w-0 font-mono font-medium transition-colors ${
+                      acostado
+                        ? "min-h-0 flex-1 text-[11px]"
+                        : "h-11 flex-1 text-[13px]"
                     }`}
                     style={
                       puesta === valor
@@ -205,7 +228,7 @@ export function CriteriosEnElTelefono({
 
       {/* En qué criterio está, y cuántos faltan para pasar de foto. */}
       <div
-        className={`flex shrink-0 items-center justify-center gap-1.5 ${acostado ? "pb-1.5" : "pb-2"}`}
+        className={`flex shrink-0 items-center justify-center ${acostado ? "gap-1 pb-1" : "gap-1.5 pb-2"}`}
         aria-hidden="true"
       >
         {criterios.map((c, i) => (
