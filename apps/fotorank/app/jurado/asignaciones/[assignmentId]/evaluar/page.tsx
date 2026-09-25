@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { getClickatonJuryPrisma } from "@repo/db/clickaton-jury-client";
+import { prisma } from "@repo/db";
 import { listEntriesForAssignment } from "../../../../actions/judges";
 import { requireJudgeAuth } from "../../../../lib/judge-auth";
 import {
@@ -18,6 +20,28 @@ export default async function JudgeEvaluationPage({ params }: { params: Promise<
   if (!loaded) return notFound();
   const assignment = loaded.row;
   const plataforma = platformLabel(loaded.platform);
+
+  /*
+   * Con el lote congelado, esta pantalla no sirve y no puede quedar accesible.
+   *
+   * Filtra las obras por categoría, así que ignora el reparto por vacante y las
+   * muestra todas; y califica con un puntaje único en vez de los criterios de
+   * la rúbrica. Una jurado con 170 obras asignadas entró por acá y vio 270.
+   *
+   * La guarda va en la pantalla y no sólo en el botón del panel: un enlace
+   * guardado en favoritos la dejaría entrar igual.
+   */
+  const dondeBuscar =
+    loaded.platform === "clickaton" ? getClickatonJuryPrisma() : prisma;
+  const loteCongelado = dondeBuscar
+    ? await dondeBuscar.fotorankAdmissionBatch.findFirst({
+        where: { contestId: assignment.contestId, status: "FROZEN" },
+        select: { id: true },
+      })
+    : null;
+  if (loteCongelado) {
+    redirect(`/jurado/concursos/${assignment.contestId}/visor`);
+  }
 
   const eligibility = eligibilityForLoadedAssignment(assignment, judge, new Date());
 

@@ -1,16 +1,79 @@
 import Link from "next/link";
+import { getClickatonJuryPrisma } from "@repo/db/clickaton-jury-client";
+import { prisma } from "@repo/db";
 import { Card, Button, Badge } from "@repo/design-system";
 import { listJudgeAssignmentsForCurrentJudge, judgeLogoutAction } from "../../actions/judges";
 import { requireJudgeAuth } from "../../lib/judge-auth";
+import { caminoDeEvaluacion } from "../../lib/fotorank/jury/caminoDeEvaluacion";
 import { StatusBadge } from "../../components/public-ui";
 import {
   presentJudgeAssignmentStatus,
   presentJudgeMethodType,
 } from "../../lib/fotorank/judges/ui/judgeStatus";
 
+/** Lo que esta pantalla necesita de cada asignación, venga de la base que venga. */
+type AsignacionDelPanel = {
+  id: string;
+  contestId: string;
+  contestTitle: string;
+  categoryName: string;
+  assignmentStatus: string;
+  methodType: string;
+  platformLabel: string;
+  evaluationAllowed: boolean;
+  evaluationBlockMessage?: string | null;
+  votesCount?: number;
+};
+
 export default async function JudgePanelPage() {
   const judge = await requireJudgeAuth();
   const assignments = await listJudgeAssignmentsForCurrentJudge();
+
+  /*
+   * Qué concursos tienen su lote congelado.
+   *
+   * Decide por dónde califica cada jurado: con lote congelado sólo sirve el
+   * panel de obras, que respeta el reparto por vacante y usa los criterios de
+   * la rúbrica. El otro camino mostraba las obras de toda la categoría y pedía
+   * un puntaje único.
+   */
+  const contestIds = [
+    ...new Set(
+      (assignments.ok ? (assignments.data?.assignments ?? []) : [])
+        .map((a) => String((a as { contestId?: unknown }).contestId ?? ""))
+        .filter(Boolean),
+    ),
+  ];
+  const cruzado = getClickatonJuryPrisma();
+  const conLoteCongelado = new Set<string>();
+
+  if (contestIds.length) {
+    /*
+     * Se pregunta en las dos bases.
+     *
+     * El lote de una maratón está del lado de Clickatón: preguntando sólo en
+     * casa la respuesta era siempre "no hay lote congelado", y el botón seguía
+     * llevando al motor viejo, que muestra todas las obras de la categoría y
+     * pide un puntaje único.
+     */
+    const propios = await prisma.fotorankAdmissionBatch.findMany({
+      where: { contestId: { in: contestIds }, status: "FROZEN" },
+      select: { contestId: true },
+    });
+    for (const b of propios) conLoteCongelado.add(b.contestId);
+
+    if (cruzado) {
+      try {
+        const ajenos = await cruzado.fotorankAdmissionBatch.findMany({
+          where: { contestId: { in: contestIds }, status: "FROZEN" },
+          select: { contestId: true },
+        });
+        for (const b of ajenos) conLoteCongelado.add(b.contestId);
+      } catch {
+        // Sin Clickatón al alcance, el panel sigue mostrando lo propio.
+      }
+    }
+  }
 
   return (
     <div className="min-h-screen bg-fr-bg p-8">
@@ -65,7 +128,11 @@ export default async function JudgePanelPage() {
                 </p>
               </Card>
             ) : null}
-            {(assignments.data?.assignments ?? []).map((a: any) => (
+            {(assignments.data?.assignments ?? []).map((cruda) => {
+              // `listJudgeAssignmentsForCurrentJudge` devuelve filas sueltas de
+              // dos bases distintas, así que el tipo ancho se estrecha acá.
+              const a = cruda as AsignacionDelPanel;
+              return (
               <Card key={a.id}>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
@@ -87,14 +154,17 @@ export default async function JudgePanelPage() {
                     <span title={presentJudgeAssignmentStatus(String(a.assignmentStatus)).description}>
                       <StatusBadge {...presentJudgeAssignmentStatus(String(a.assignmentStatus))} />
                     </span>
-                    <Link href={`/jurado/concursos/${a.contestId}`}>
-                      <Button size="sm" variant="outline" className="w-full sm:w-auto">
-                        Ver obras anónimas
-                      </Button>
-                    </Link>
                     {a.evaluationAllowed ? (
-                      <Link href={`/jurado/asignaciones/${a.id}/evaluar`}>
-                        <Button size="sm" className="w-full sm:w-auto">Evaluar</Button>
+                      <Link
+                        href={
+                          caminoDeEvaluacion({
+                            hayLoteCongelado: conLoteCongelado.has(String(a.contestId)),
+                            contestId: String(a.contestId),
+                            assignmentId: String(a.id),
+                          }).href
+                        }
+                      >
+                        <Button size="sm" className="w-full sm:w-auto">Calificar obras</Button>
                       </Link>
                     ) : (
                       <Button size="sm" variant="outline" disabled className="w-full sm:w-auto cursor-not-allowed opacity-60">
@@ -104,7 +174,8 @@ export default async function JudgePanelPage() {
                   </div>
                 </div>
               </Card>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

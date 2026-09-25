@@ -3,7 +3,7 @@ import { prisma } from "@/lib/admin/db";
 import { hasEditionCapability } from "@/lib/timeline/permissions";
 import { getEditionTemporalState } from "@/lib/timeline/prisma-timeline";
 import { resolveEffectiveWindows } from "@/lib/photo-upload/windows";
-import { buildAnonymousJuryCode } from "./anonymity";
+import { buildAnonymousJuryCode, codigosAnonimosDelLote } from "./anonymity";
 import { proximaTanda } from "./proxima-tanda";
 import { puedeAdmitirse } from "./puede-admitirse";
 import { revisarSubidaEnTermino } from "./subida-en-termino";
@@ -660,6 +660,23 @@ export async function freezeAdmittedEntries(input: {
     },
   });
 
+  /*
+   * Los códigos anónimos se calculan de una, para todo el lote.
+   *
+   * Antes salía uno por obra de un hash recortado a 9000 valores: con 270 obras
+   * en una categoría chocaban casi seguro, y el congelamiento moría a mitad de
+   * camino con una violación de unicidad. Numerados de corrido no pueden chocar.
+   */
+  const codigos = codigosAnonimosDelLote({
+    contestId: batch.contestId,
+    batchId: batch.id,
+    entradas: admitted.map((e) => ({
+      entryId: e.id,
+      categoryId: e.categoryId,
+      categorySlug: e.category.slug,
+    })),
+  });
+
   let frozen = 0;
   for (const entry of admitted) {
     const asset = await ensureJuryAssetForEntry({
@@ -668,7 +685,7 @@ export async function freezeAdmittedEntries(input: {
       actor: input.actor,
     });
     const anonymousCode =
-      entry.anonymousJuryCode ??
+      codigos.get(entry.id) ??
       buildAnonymousJuryCode({
         contestId: entry.contestId,
         categoryId: entry.categoryId,

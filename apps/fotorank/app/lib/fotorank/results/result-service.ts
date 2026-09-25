@@ -1,4 +1,8 @@
 import { randomBytes } from "node:crypto";
+import {
+  CLICKATON_CRITERIO_PARA_DESEMPATAR,
+  CLICKATON_GANADORES_POR_CONSIGNA,
+} from "../jury/clickaton-2026-rubric";
 import { prisma } from "@repo/db";
 import { ResultError } from "./errors";
 import { enqueueResultNotificationIntent } from "./notification-intents";
@@ -63,12 +67,15 @@ export async function ensureDraftResultRuleSet(input: {
 
   const contest = await prisma.fotorankContest.findUnique({
     where: { id: input.contestId },
-    select: { slug: true },
+    select: { slug: true, distributionChannel: true },
   });
   const isSantaFe = contest?.slug === "santa-fe-en-foco";
-  const name = isSantaFe
-    ? "Santa Fe en Foco — ranking privado (borrador legal)"
-    : "Reglas de resultados";
+  const esDeClickaton = contest?.distributionChannel === "CLICKATON";
+  const name = esDeClickaton
+    ? "Clickatón — top 3 por consigna"
+    : isSantaFe
+      ? "Santa Fe en Foco — ranking privado (borrador legal)"
+      : "Reglas de resultados";
   const maxVersion = await prisma.fotorankResultRuleSet.aggregate({
     where: { contestId: input.contestId, name },
     _max: { version: true },
@@ -90,7 +97,17 @@ export async function ensureDraftResultRuleSet(input: {
       discardHighestScore: false,
       discardLowestScore: false,
       rankingEnabled: false,
-      priorityCriterionKey: isSantaFe ? "narrative_impact" : null,
+      /*
+       * Las bases de Clickatón dicen top 3 por consigna. El valor de fábrica
+       * es 1, así que sin esto una maratón coronaría una sola foto por
+       * consigna y el resto quedaría sin distinguir.
+       */
+      winnersPerScope: esDeClickaton ? CLICKATON_GANADORES_POR_CONSIGNA : 1,
+      priorityCriterionKey: esDeClickaton
+        ? CLICKATON_CRITERIO_PARA_DESEMPATAR
+        : isSantaFe
+          ? "narrative_impact"
+          : null,
       createdByUserId: input.actorUserId,
     },
   });

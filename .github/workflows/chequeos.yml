@@ -85,6 +85,37 @@ jobs:
       - name: Pruebas del token de la prueba técnica
         run: pnpm --filter clickaton test:access-token-readiness
 
+      # El visor donde el jurado califica. Estas pruebas existían desde que se
+      # construyó, registradas en package.json, y no las corría nadie: se
+      # escribieron, pasaron una vez en la máquina de quien las escribió y
+      # quedaron de adorno. Acá empiezan a proteger algo.
+      - name: Pruebas de la cola del visor del jurado
+        run: pnpm --filter fotorank test:jury-visor
+
+      # Poner, cambiar, sacar y deshacer notas. Codifican el defecto que
+      # apareció calificando: una nota cae en el criterio que se nombra, nunca
+      # en "el que estaba seleccionado".
+      - name: Pruebas de las notas de la obra
+        run: pnpm --filter fotorank test:jury-notas
+
+      # Cuándo un dedo arrastrado significa "pasá a lo siguiente". La misma
+      # regla la usan la fotografía y los criterios, y si difirieran uno de los
+      # dos se sentiría más pesado que el otro.
+      - name: Pruebas del gesto lateral en el teléfono
+        run: pnpm --filter fotorank test:jury-gesto
+
+      - name: Pruebas del reparto de obras entre jurados
+        run: pnpm --filter fotorank test:jury-reparto
+
+      - name: Pruebas del ritmo y el tiempo estimado del jurado
+        run: pnpm --filter fotorank test:jury-ritmo
+
+      - name: Pruebas del camino de evaluación
+        run: pnpm --filter fotorank test:jury-camino
+
+      - name: Pruebas de la base donde vive cada concurso
+        run: pnpm --filter fotorank test:jury-base
+
       - name: Pruebas del paquete de finanzas
         run: pnpm --filter @repo/finance-control test
 

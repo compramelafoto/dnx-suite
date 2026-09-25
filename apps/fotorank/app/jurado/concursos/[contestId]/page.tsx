@@ -6,6 +6,8 @@ import {
   hasAcceptedJuryTerms,
   listAnonymousEntriesForJuror,
 } from "../../../lib/fotorank/jury";
+import { baseDelConcurso } from "../../../lib/fotorank/jury/baseDelConcurso";
+import { textoDeTerminos } from "../../../lib/fotorank/jury/terminosDelJurado";
 import { JuryTermsGate } from "./JuryTermsGate";
 
 type Props = { params: Promise<{ contestId: string }> };
@@ -32,6 +34,19 @@ export default async function JuryContestEntriesPage({ params }: Props) {
     judgeAccountId: judge.id,
     contestId,
   });
+  const { esDeClickaton } = await baseDelConcurso(contestId);
+
+  /*
+   * En una maratón esta pantalla ya no es un destino: es sólo donde se aceptan
+   * los términos la primera vez. El visor reemplazó a la grilla de miniaturas,
+   * y el "Ver detalle" de cada tarjeta lleva al motor viejo, que con el lote
+   * congelado redirige igual. Dejarla en el medio obligaba a un clic de más y,
+   * si algo fallaba, a un callejón sin salida del que sólo se salía escribiendo
+   * la dirección del visor a mano.
+   */
+  if (termsAccepted && esDeClickaton) {
+    redirect(`/jurado/concursos/${contestId}/visor`);
+  }
 
   return (
     <div className="min-h-screen bg-fr-bg px-4 py-10 md:px-8">
@@ -55,14 +70,31 @@ export default async function JuryContestEntriesPage({ params }: Props) {
           </Link>
         </div>
 
-        <JuryTermsGate contestId={contestId} initiallyAccepted={termsAccepted} />
+        <JuryTermsGate
+          contestId={contestId}
+          initiallyAccepted={termsAccepted}
+          texto={textoDeTerminos(esDeClickaton)}
+        />
 
         {!termsAccepted ? (
           <p className="text-sm text-amber-200" data-testid="jury-entries-blocked-terms">
             Debés aceptar los términos de jurado antes de ver u evaluar obras.
           </p>
         ) : (
-          <ul className="grid gap-8 md:grid-cols-2" data-testid="jury-entries-list">
+          <>
+            <div className="fr-recuadro border border-fr-border bg-fr-card">
+              <p className="text-sm text-fr-muted">
+                Para calificar, el visor muestra una consigna por vez, la fotografía a pantalla
+                completa y los criterios con el teclado.
+              </p>
+              <Link
+                href={`/jurado/concursos/${contestId}/visor`}
+                className="fr-btn fr-btn-primary mt-4 inline-flex min-h-11 px-5 py-3 text-sm"
+              >
+                Abrir el visor
+              </Link>
+            </div>
+            <ul className="grid gap-8 md:grid-cols-2" data-testid="jury-entries-list">
             {data.entries.map((e) => (
               <li key={e.entryId} className="fr-recuadro border border-fr-border bg-fr-card space-y-4">
                 {e.previewUrl ? (
@@ -94,7 +126,8 @@ export default async function JuryContestEntriesPage({ params }: Props) {
             {data.entries.length === 0 ? (
               <li className="text-fr-muted">No hay obras confirmadas disponibles en tus categorías.</li>
             ) : null}
-          </ul>
+            </ul>
+          </>
         )}
       </div>
     </div>

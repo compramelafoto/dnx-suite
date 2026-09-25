@@ -28,7 +28,6 @@ function baseInput(): AlbumInstructivoProfileInput {
     fotografo: { nombre: "Estudio DNX", logoUrl: null, primaryColor: null, handler: "dnx" },
     senales: {
       fotosCargadas: 500,
-      rostrosDetectados: 320,
       tokensNumericos: 0,
       tokensDeTexto: 0,
       packsPreventaActivos: 0,
@@ -43,7 +42,7 @@ function baseInput(): AlbumInstructivoProfileInput {
 }
 
 describe("resolveAlbumInstructivoProfile", () => {
-  it("una galería abierta con rostros ofrece cara y navegar", () => {
+  it("una galería abierta ofrece cara y navegar", () => {
     const p = resolveAlbumInstructivoProfile(baseInput());
     assert.equal(p.entrada, "abierta");
     assert.deepEqual(p.busqueda, ["cara", "navegar"]);
@@ -82,10 +81,16 @@ describe("resolveAlbumInstructivoProfile", () => {
   it("sin fotos cargadas el álbum es simple", () => {
     const input = baseInput();
     input.senales.fotosCargadas = 0;
-    input.senales.rostrosDetectados = 0;
     const p = resolveAlbumInstructivoProfile(input);
     assert.equal(p.momento, "simple");
-    assert.deepEqual(p.busqueda, ["navegar"]);
+    assert.deepEqual(p.busqueda, ["cara"]);
+  });
+
+  it("ofrece la selfie sin esperar al análisis facial", () => {
+    const input = baseInput();
+    input.senales.tokensNumericos = 12;
+    const p = resolveAlbumInstructivoProfile(input);
+    assert.deepEqual(p.busqueda, ["cara", "dorsal", "navegar"]);
   });
 
   it("un álbum oculto o no listado se marca no_listada", () => {
