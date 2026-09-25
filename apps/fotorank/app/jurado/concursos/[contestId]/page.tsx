@@ -36,6 +36,18 @@ export default async function JuryContestEntriesPage({ params }: Props) {
   });
   const { esDeClickaton } = await baseDelConcurso(contestId);
 
+  /*
+   * En una maratón esta pantalla ya no es un destino: es sólo donde se aceptan
+   * los términos la primera vez. El visor reemplazó a la grilla de miniaturas,
+   * y el "Ver detalle" de cada tarjeta lleva al motor viejo, que con el lote
+   * congelado redirige igual. Dejarla en el medio obligaba a un clic de más y,
+   * si algo fallaba, a un callejón sin salida del que sólo se salía escribiendo
+   * la dirección del visor a mano.
+   */
+  if (termsAccepted && esDeClickaton) {
+    redirect(`/jurado/concursos/${contestId}/visor`);
+  }
+
   return (
     <div className="min-h-screen bg-fr-bg px-4 py-10 md:px-8">
       <div className="mx-auto max-w-5xl space-y-10">
