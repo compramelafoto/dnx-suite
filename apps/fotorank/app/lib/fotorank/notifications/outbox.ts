@@ -15,6 +15,7 @@ export type TransactionalEmailKind =
   | "JURY_INVITATION"
   | "JURY_INVITE_REMINDER"
   | "JURY_INVITATION_ANSWERED"
+  | "JURY_RECRUIT_INVITATION"
   | "JURY_SCORING_OPEN"
   | "JURY_SCORING_CLOSING_SOON"
   | "JURY_ASSIGNMENT_NEW"
@@ -179,6 +180,11 @@ export const TRANSACTIONAL_EMAIL_TEMPLATES: Record<
   JURY_INVITATION_ANSWERED: {
     subject: "{{nombre}} respondió tu invitación — {{contestTitle}}",
     requiredVars: ["nombre", "respuesta", "contestTitle"],
+  },
+  /** Convocatoria a sumarse al padrón de jurados, sin concurso de por medio. */
+  JURY_RECRUIT_INVITATION: {
+    subject: "Te invitamos a sumarte como jurado de FotoRank",
+    requiredVars: ["organizationName", "postulacionUrl"],
   },
   JURY_SCORING_OPEN: {
     subject: "Evaluación abierta — {{contestTitle}}",

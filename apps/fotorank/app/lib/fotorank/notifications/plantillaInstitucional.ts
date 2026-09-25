@@ -143,6 +143,20 @@ function contenido(kind: TransactionalEmailKind, d: Datos, base: string): Conten
           : { texto: "Buscar jurados", url: `${base}/jurados/directorio` },
       };
     }
+    case "JURY_RECRUIT_INVITATION":
+      return {
+        asunto: "Te invitamos a sumarte como jurado de FotoRank",
+        antetitulo: "Convocatoria a jurados",
+        titulo: "Queremos contar con tu mirada",
+        parrafos: [
+          saludo(d),
+          `<b>${t(d, "invitador")}</b>${t(d, "organizationName") && t(d, "organizationName") !== t(d, "invitador") ? ` (${t(d, "organizationName")})` : ""} te invita a sumarte al equipo de jurados de FotoRank, la plataforma de concursos de fotografía con jurado.`,
+          t(d, "mensaje") ? `<i>“${t(d, "mensaje")}”</i>` : "",
+          "Postularte lleva unos minutos: contás tu trayectoria, subís algunas fotos y confirmás tu correo. FotoRank revisa la ficha y, una vez aprobada, aparecés en la galería de jurados y los organizadores te pueden invitar a sus concursos.",
+        ].filter(Boolean),
+        boton: { texto: "Postularme como jurado", url: t(d, "postulacionUrl") || `${base}/jurados/postulacion` },
+        nota: `Podés conocer a los jurados actuales en ${base.replace(/^https?:\/\//, "")}/jurados/galeria. Si no te interesa, podés ignorar este correo.`,
+      };
     case "JURY_SCORING_OPEN":
       return {
         asunto: `Ya podés calificar — ${concurso}`,

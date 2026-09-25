@@ -3,7 +3,7 @@ import {
   CLICKATON_CRITERIO_PARA_DESEMPATAR,
   CLICKATON_GANADORES_POR_CONSIGNA,
 } from "../jury/clickaton-2026-rubric";
-import { prisma } from "@repo/db";
+import { baseDelConcurso } from "../jury/baseDelConcurso";
 import { ResultError } from "./errors";
 import { enqueueResultNotificationIntent } from "./notification-intents";
 import {
@@ -26,12 +26,13 @@ async function writeAudit(input: {
   entityId: string;
   payload?: Record<string, unknown>;
 }) {
-  const contest = await prisma.fotorankContest.findUnique({
+  const { db } = await baseDelConcurso(input.contestId);
+  const contest = await db.fotorankContest.findUnique({
     where: { id: input.contestId },
     select: { organizationId: true },
   });
   if (!contest) return;
-  await prisma.fotorankJudgeAuditEvent.create({
+  await db.fotorankJudgeAuditEvent.create({
     data: {
       organizationId: contest.organizationId,
       contestId: input.contestId,
@@ -50,12 +51,13 @@ export async function ensureDraftResultRuleSet(input: {
   scoringSessionId: string;
   actorUserId: number;
 }) {
-  const session = await prisma.fotorankJuryScoringSession.findFirst({
+  const { db } = await baseDelConcurso(input.contestId);
+  const session = await db.fotorankJuryScoringSession.findFirst({
     where: { id: input.scoringSessionId, contestId: input.contestId },
   });
   if (!session) throw new ResultError("SESSION_NOT_CLOSED", "Sesión no encontrada.", 404);
 
-  const existing = await prisma.fotorankResultRuleSet.findFirst({
+  const existing = await db.fotorankResultRuleSet.findFirst({
     where: {
       contestId: input.contestId,
       scoringSessionId: input.scoringSessionId,
@@ -65,7 +67,7 @@ export async function ensureDraftResultRuleSet(input: {
   });
   if (existing) return existing;
 
-  const contest = await prisma.fotorankContest.findUnique({
+  const contest = await db.fotorankContest.findUnique({
     where: { id: input.contestId },
     select: { slug: true, distributionChannel: true },
   });
@@ -76,13 +78,13 @@ export async function ensureDraftResultRuleSet(input: {
     : isSantaFe
       ? "Santa Fe en Foco — ranking privado (borrador legal)"
       : "Reglas de resultados";
-  const maxVersion = await prisma.fotorankResultRuleSet.aggregate({
+  const maxVersion = await db.fotorankResultRuleSet.aggregate({
     where: { contestId: input.contestId, name },
     _max: { version: true },
   });
   const version = (maxVersion._max.version ?? 0) + 1;
 
-  const created = await prisma.fotorankResultRuleSet.create({
+  const created = await db.fotorankResultRuleSet.create({
     data: {
       id: newId(),
       contestId: input.contestId,
@@ -127,12 +129,13 @@ export async function activateResultRuleSet(input: {
   ruleSetId: string;
   actorUserId: number;
 }) {
-  const ruleSet = await prisma.fotorankResultRuleSet.findFirst({
+  const { db } = await baseDelConcurso(input.contestId);
+  const ruleSet = await db.fotorankResultRuleSet.findFirst({
     where: { id: input.ruleSetId, contestId: input.contestId },
   });
   if (!ruleSet) throw new ResultError("RULESET_NOT_FOUND", "Ruleset no encontrado.", 404);
 
-  await prisma.fotorankResultRuleSet.updateMany({
+  await db.fotorankResultRuleSet.updateMany({
     where: {
       contestId: input.contestId,
       scoringSessionId: ruleSet.scoringSessionId,
@@ -142,7 +145,7 @@ export async function activateResultRuleSet(input: {
     data: { status: "SUPERSEDED" },
   });
 
-  const updated = await prisma.fotorankResultRuleSet.update({
+  const updated = await db.fotorankResultRuleSet.update({
     where: { id: ruleSet.id },
     data: {
       status: "ACTIVE",
@@ -162,7 +165,8 @@ export async function activateResultRuleSet(input: {
 }
 
 async function loadRankingInputs(contestId: string, scoringSessionId: string) {
-  const session = await prisma.fotorankJuryScoringSession.findFirst({
+  const { db } = await baseDelConcurso(contestId);
+  const session = await db.fotorankJuryScoringSession.findFirst({
     where: { id: scoringSessionId, contestId },
   });
   if (!session) throw new ResultError("SESSION_NOT_CLOSED", "Sesión no encontrada.", 404);
@@ -174,14 +178,14 @@ async function loadRankingInputs(contestId: string, scoringSessionId: string) {
     );
   }
 
-  const snapshots = await prisma.fotorankJuryEntrySnapshot.findMany({
+  const snapshots = await db.fotorankJuryEntrySnapshot.findMany({
     where: { admissionBatchId: session.admissionBatchId },
     include: {
       entry: { select: { status: true, admissionStatus: true } },
     },
   });
 
-  const evaluations = await prisma.fotorankJuryEvaluation.findMany({
+  const evaluations = await db.fotorankJuryEvaluation.findMany({
     where: {
       scoringSessionId: session.id,
       status: { in: ["SUBMITTED", "LOCKED", "IN_PROGRESS", "VOIDED"] },
@@ -203,15 +207,16 @@ export async function generateResultBatch(input: {
   idempotencyKey?: string | null;
   forceIncomplete?: boolean;
 }) {
+  const { db } = await baseDelConcurso(input.contestId);
   if (input.idempotencyKey) {
-    const replay = await prisma.fotorankResultBatch.findUnique({
+    const replay = await db.fotorankResultBatch.findUnique({
       where: { idempotencyKey: input.idempotencyKey },
       include: { entries: true },
     });
     if (replay) return { batch: replay, idempotent: true as const };
   }
 
-  const ruleSet = await prisma.fotorankResultRuleSet.findFirst({
+  const ruleSet = await db.fotorankResultRuleSet.findFirst({
     where: { id: input.ruleSetId, contestId: input.contestId },
   });
   if (!ruleSet) throw new ResultError("RULESET_NOT_FOUND", "Ruleset no encontrado.", 404);
@@ -278,7 +283,7 @@ export async function generateResultBatch(input: {
   else status = "READY_TO_FINALIZE";
 
   // Cancelar DRAFT/GENERATED previos no finalizados (regeneración)
-  await prisma.fotorankResultBatch.updateMany({
+  await db.fotorankResultBatch.updateMany({
     where: {
       contestId: input.contestId,
       scoringSessionId: session.id,
@@ -287,7 +292,7 @@ export async function generateResultBatch(input: {
     data: { status: "CANCELLED" },
   });
 
-  const batch = await prisma.fotorankResultBatch.create({
+  const batch = await db.fotorankResultBatch.create({
     data: {
       id: newId(),
       contestId: input.contestId,
@@ -356,7 +361,8 @@ export async function markResultBatchReviewed(input: {
   batchId: string;
   actorUserId: number;
 }) {
-  const batch = await prisma.fotorankResultBatch.findFirst({
+  const { db } = await baseDelConcurso(input.contestId);
+  const batch = await db.fotorankResultBatch.findFirst({
     where: { id: input.batchId, contestId: input.contestId },
     include: { entries: true },
   });
@@ -373,7 +379,7 @@ export async function markResultBatchReviewed(input: {
   const next =
     openTies === 0 && incomplete === 0 ? "READY_TO_FINALIZE" : "REVIEW_REQUIRED";
 
-  const updated = await prisma.fotorankResultBatch.update({
+  const updated = await db.fotorankResultBatch.update({
     where: { id: batch.id },
     data: {
       status: next,
@@ -398,7 +404,8 @@ export async function createTieBreakSessionDraft(input: {
   tieGroup: string;
   actorUserId: number;
 }) {
-  const batch = await prisma.fotorankResultBatch.findFirst({
+  const { db } = await baseDelConcurso(input.contestId);
+  const batch = await db.fotorankResultBatch.findFirst({
     where: { id: input.batchId, contestId: input.contestId },
   });
   if (!batch) throw new ResultError("BATCH_NOT_FOUND", "Batch no encontrado.", 404);
@@ -406,7 +413,7 @@ export async function createTieBreakSessionDraft(input: {
     throw new ResultError("BATCH_IMMUTABLE", "Batch inmutable.", 409);
   }
 
-  const session = await prisma.fotorankTieBreakSession.create({
+  const session = await db.fotorankTieBreakSession.create({
     data: {
       id: newId(),
       contestId: input.contestId,
@@ -436,17 +443,19 @@ export async function resolveTieManual(input: {
   actorUserId: number;
   note?: string | null;
 }) {
+  const { db } = await baseDelConcurso(input.contestId);
   if (!input.note?.trim()) {
     throw new ResultError("REASON_REQUIRED", "Motivo de desempate obligatorio.", 400);
   }
-  const batch = await prisma.fotorankResultBatch.findFirst({
+  const batch = await db.fotorankResultBatch.findFirst({
     where: { id: input.batchId, contestId: input.contestId },
-    include: { entries: true },
+    include: { entries: true, ruleSet: { select: { winnersPerScope: true } } },
   });
   if (!batch) throw new ResultError("BATCH_NOT_FOUND", "Batch no encontrado.", 404);
   if (batch.status === "FINALIZED" || batch.status === "PUBLISHED") {
     throw new ResultError("BATCH_IMMUTABLE", "Batch inmutable.", 409);
   }
+  const premios = batch.ruleSet?.winnersPerScope ?? 1;
 
   const tied = batch.entries
     .filter((e) => e.tieGroup === input.tieGroup)
@@ -457,13 +466,28 @@ export async function resolveTieManual(input: {
     const snapId = input.orderedSnapshotIds[i]!;
     const entry = tied.find((e) => e.juryEntrySnapshotId === snapId);
     if (!entry) continue;
-    await prisma.fotorankResultEntry.update({
+    /*
+     * El premio sale del puesto, no del orden dentro del empate. Hasta el
+     * 2026-09-25 el primero del desempate se llevaba siempre FIRST_PLACE y
+     * WINNER, aunque el empate fuera por el tercer puesto.
+     */
+    const puesto = basePos + i;
+    await db.fotorankResultEntry.update({
       where: { id: entry.id },
       data: {
-        finalPosition: basePos + i,
-        preliminaryPosition: basePos + i,
-        resultStatus: i === 0 ? "WINNER" : "RANKED",
-        awardType: i === 0 ? "FIRST_PLACE" : i === 1 ? "SECOND_PLACE" : i === 2 ? "THIRD_PLACE" : null,
+        finalPosition: puesto,
+        preliminaryPosition: puesto,
+        resultStatus: puesto === 1 ? "WINNER" : "RANKED",
+        awardType:
+          puesto === 1
+            ? "FIRST_PLACE"
+            : puesto === 2
+              ? "SECOND_PLACE"
+              : puesto === 3
+                ? "THIRD_PLACE"
+                : puesto <= premios
+                  ? "FINALIST"
+                  : null,
         juryDecisionNote: input.note.slice(0, 1000),
         tieGroup: null,
         flagsJson: [],
@@ -494,10 +518,11 @@ export async function excludeResultEntry(input: {
   reasonInternal: string;
   reasonPublic?: string | null;
 }) {
+  const { db } = await baseDelConcurso(input.contestId);
   if (!input.reasonInternal.trim()) {
     throw new ResultError("REASON_REQUIRED", "Motivo interno obligatorio.", 400);
   }
-  const entry = await prisma.fotorankResultEntry.findFirst({
+  const entry = await db.fotorankResultEntry.findFirst({
     where: { id: input.entryId, resultBatch: { contestId: input.contestId } },
     include: { resultBatch: true },
   });
@@ -507,7 +532,7 @@ export async function excludeResultEntry(input: {
   }
 
   const beforePos = entry.preliminaryPosition;
-  await prisma.fotorankResultExclusion.create({
+  await db.fotorankResultExclusion.create({
     data: {
       id: newId(),
       resultEntryId: entry.id,
@@ -516,7 +541,7 @@ export async function excludeResultEntry(input: {
       actorUserId: input.actorUserId,
     },
   });
-  await prisma.fotorankResultEntry.update({
+  await db.fotorankResultEntry.update({
     where: { id: entry.id },
     data: {
       resultStatus: "DISQUALIFIED",
@@ -527,7 +552,7 @@ export async function excludeResultEntry(input: {
   });
 
   // Reasignar posiciones en el mismo scope (obras por encima del descalificado no cambian)
-  const siblings = await prisma.fotorankResultEntry.findMany({
+  const siblings = await db.fotorankResultEntry.findMany({
     where: {
       resultBatchId: entry.resultBatchId,
       scopeKey: entry.scopeKey,
@@ -538,17 +563,17 @@ export async function excludeResultEntry(input: {
   });
   let pos = 1;
   for (const s of siblings) {
-    await prisma.fotorankResultEntry.update({
+    await db.fotorankResultEntry.update({
       where: { id: s.id },
       data: { preliminaryPosition: pos, finalPosition: pos },
     });
     pos += 1;
   }
 
-  const revCount = await prisma.fotorankResultRevision.count({
+  const revCount = await db.fotorankResultRevision.count({
     where: { resultBatchId: entry.resultBatchId },
   });
-  await prisma.fotorankResultRevision.create({
+  await db.fotorankResultRevision.create({
     data: {
       id: newId(),
       resultBatchId: entry.resultBatchId,
@@ -577,7 +602,8 @@ export async function finalizeResultBatch(input: {
   force?: boolean;
   reason?: string | null;
 }) {
-  const batch = await prisma.fotorankResultBatch.findFirst({
+  const { db } = await baseDelConcurso(input.contestId);
+  const batch = await db.fotorankResultBatch.findFirst({
     where: { id: input.batchId, contestId: input.contestId },
     include: {
       entries: true,
@@ -610,14 +636,14 @@ export async function finalizeResultBatch(input: {
   for (const e of batch.entries) {
     if (e.resultStatus === "DISQUALIFIED") continue;
     if (e.finalPosition == null && e.preliminaryPosition != null) {
-      await prisma.fotorankResultEntry.update({
+      await db.fotorankResultEntry.update({
         where: { id: e.id },
         data: { finalPosition: e.preliminaryPosition },
       });
     }
   }
 
-  const updated = await prisma.fotorankResultBatch.update({
+  const updated = await db.fotorankResultBatch.update({
     where: { id: batch.id },
     data: {
       status: "FINALIZED",
@@ -667,10 +693,11 @@ export async function resolveResultIdentity(input: {
   actorUserId: number;
   hasPermission: boolean;
 }) {
+  const { db } = await baseDelConcurso(input.contestId);
   if (!input.hasPermission) {
     throw new ResultError("IDENTITY_FORBIDDEN", "Sin permiso canResolveResultIdentity.", 403);
   }
-  const snap = await prisma.fotorankJuryEntrySnapshot.findFirst({
+  const snap = await db.fotorankJuryEntrySnapshot.findFirst({
     where: { contestId: input.contestId, anonymousCode: input.anonymousCode },
     include: {
       entry: {
@@ -706,7 +733,8 @@ export async function resolveResultIdentity(input: {
 }
 
 export async function exportBlindResultsCsv(contestId: string, batchId: string) {
-  const entries = await prisma.fotorankResultEntry.findMany({
+  const { db } = await baseDelConcurso(contestId);
+  const entries = await db.fotorankResultEntry.findMany({
     where: { resultBatchId: batchId, resultBatch: { contestId } },
     orderBy: [{ scopeKey: "asc" }, { preliminaryPosition: "asc" }],
   });
@@ -742,7 +770,8 @@ export async function exportAdminResultsCsv(
   batchId: string,
   resolveIdentity: boolean,
 ) {
-  const entries = await prisma.fotorankResultEntry.findMany({
+  const { db } = await baseDelConcurso(contestId);
+  const entries = await db.fotorankResultEntry.findMany({
     where: { resultBatchId: batchId, resultBatch: { contestId } },
     include: {
       juryEntrySnapshot: {

@@ -39,7 +39,7 @@
     "test:jury:selfcheck": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/jury/jury.selfcheck.ts",
     "test:jury:scoring": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/jury/scoring.selfcheck.ts",
     "test:jury:santa-fe": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/jury/santa-fe-jury.selfcheck.ts",
-    "test:results:ranking": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/results/ranking.selfcheck.ts",
+    "test:results:ranking": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/results/ranking.selfcheck.ts && pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/results/ranking-engine.test.ts",
     "test:results:santa-fe-source": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/results/santa-fe-ranking-source.selfcheck.ts",
     "test:results:publication": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/results/publication.selfcheck.ts",
     "ops:sfef-08:fixtures": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/scripts/ops-sfef-08-results-fixtures.ts",

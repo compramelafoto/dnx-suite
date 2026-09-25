@@ -3,7 +3,11 @@
  * No publica resultados ni decide ganadores LIVE.
  */
 
-export const RANKING_ENGINE_VERSION = "clickaton-ranking-v1";
+/*
+ * v2 (2026-09-25): la media recortada recorta de verdad, y sólo un empate que
+ * decide un premio exige desempate manual; los demás comparten el puesto.
+ */
+export const RANKING_ENGINE_VERSION = "clickaton-ranking-v2";
 
 export type AggregationMethod =
   | "WEIGHTED_AVERAGE"
@@ -110,12 +114,13 @@ export function aggregateScores(
     "aggregationMethod" | "discardHighestScore" | "discardLowestScore"
   >,
 ): { aggregate: number | null; normalized: number | null; median: number | null; dispersion: number | null } {
-  const norms = applyDiscards(
-    normalizedScores,
-    rules.discardHighestScore,
-    rules.discardLowestScore,
-  );
-  const totals = applyDiscards(totalScores, rules.discardHighestScore, rules.discardLowestScore);
+  // La media recortada descarta la nota más alta y la más baja (con 3 o más);
+  // hasta la v1 caía en el promedio común sin recortar nada.
+  const recortar = rules.aggregationMethod === "TRIMMED_MEAN";
+  const descartarAlta = rules.discardHighestScore || recortar;
+  const descartarBaja = rules.discardLowestScore || recortar;
+  const norms = applyDiscards(normalizedScores, descartarAlta, descartarBaja);
+  const totals = applyDiscards(totalScores, descartarAlta, descartarBaja);
   if (norms.length === 0) {
     return { aggregate: null, normalized: null, median: null, dispersion: null };
   }
@@ -309,20 +314,26 @@ export function computeRanking(input: {
       const tieSize = j - i;
       if (tieSize > 1) {
         const tieGroup = `${scopeKey}:tie:${position}`;
+        /*
+         * Un empate sólo frena el cierre si decide un premio. Hasta la v1
+         * cualquier empate —también en el puesto 57— pedía desempate manual y
+         * el lote no se podía finalizar. Fuera de los premios, y con la
+         * estrategia de empate compartido, las obras comparten el puesto.
+         */
+        const decidePremio = position <= (input.rules.winnersPerScope ?? 1);
+        const exigeDesempate =
+          input.rules.tieBreakStrategy !== "SHARED_TIE" &&
+          (decidePremio || input.rules.tieBreakStrategy === "MANUAL_ONLY");
         for (let k = i; k < j; k++) {
           const w = rankable[k]!;
           w.preliminaryPosition = position;
-          w.tieGroup = tieGroup;
-          w.resultStatus =
-            input.rules.tieBreakStrategy === "SHARED_TIE" ? "TIED" : "TIED";
-          w.flags.push(
-            input.rules.tieBreakStrategy === "MANUAL_ONLY" ||
-              compareForTieBreak(current, rankable[k]!, input.rules.tieBreakStrategy) === 0
-              ? "MANUAL_TIEBREAK_REQUIRED"
-              : "TIED",
-          );
-          if (!w.flags.includes("MANUAL_TIEBREAK_REQUIRED")) {
+          if (exigeDesempate) {
+            w.tieGroup = tieGroup;
+            w.resultStatus = "TIED";
             w.flags.push("MANUAL_TIEBREAK_REQUIRED");
+          } else {
+            w.resultStatus = "RANKED";
+            w.flags.push("SHARED_POSITION");
           }
         }
       } else {

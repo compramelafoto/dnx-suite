@@ -67,11 +67,11 @@ export default async function JuradosPage() {
           </li>
           <li>
             <span className="font-semibold text-gold">2.</span> Desde el directorio lo invitás a un
-            concurso y elegís las categorías. Si alguien que querés todavía no está, pasale el{" "}
-            <Link href="/jurados/postulacion" className="text-gold hover:text-gold-hover">
-              enlace para postularse
-            </Link>
-            .
+            concurso y elegís las categorías. Si alguien que querés todavía no está,{" "}
+            <Link href="/jurados/directorio#convocar" className="text-gold hover:text-gold-hover">
+              invitalo a sumarse
+            </Link>{" "}
+            y le llega un correo para postularse.
           </li>
           <li>
             <span className="font-semibold text-gold">3.</span> Cuando acepta, aparece en esta
