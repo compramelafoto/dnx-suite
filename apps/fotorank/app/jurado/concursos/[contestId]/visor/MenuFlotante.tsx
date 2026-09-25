@@ -81,7 +81,7 @@ export function MenuFlotante({
         aria-haspopup="menu"
         aria-expanded={abierto}
         title={titulo}
-        className="flex min-h-8 items-center gap-1.5 px-2 text-xs font-medium"
+        className="flex min-h-11 items-center gap-1.5 px-2.5 text-sm font-medium sm:min-h-8 sm:px-2 sm:text-xs"
         style={{ border: `1px solid ${colores.linea}`, color: colores.tinta }}
       >
         {icono}
@@ -95,7 +95,7 @@ export function MenuFlotante({
         <div
           role="menu"
           aria-label={titulo}
-          className="absolute right-0 z-20 mt-1 w-56 p-1"
+          className="absolute right-0 z-20 mt-1 w-64 p-1 sm:w-56"
           style={{
             background: colores.panel,
             border: `1px solid ${colores.linea}`,
@@ -114,7 +114,7 @@ export function MenuFlotante({
                   onElegir(o.id);
                   setAbierto(false);
                 }}
-                className="flex w-full items-start gap-2 px-2 py-1.5 text-left"
+                className="flex w-full items-start gap-2 px-2 py-2.5 text-left sm:py-1.5"
                 style={{ background: activa ? colores.chip : "transparent" }}
               >
                 {o.muestra ? (
@@ -157,6 +157,21 @@ export function MenuFlotante({
         </div>
       ) : null}
     </div>
+  );
+}
+
+/** Un globito de diálogo, para el comentario de la obra. */
+export function IconoDeComentario() {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      fill="currentColor"
+    >
+      <path d="M2.5 2h11a1.5 1.5 0 0 1 1.5 1.5v7A1.5 1.5 0 0 1 13.5 12H7.2l-3 2.4A.5.5 0 0 1 3.4 14v-2h-.9A1.5 1.5 0 0 1 1 10.5v-7A1.5 1.5 0 0 1 2.5 2Z" />
+    </svg>
   );
 }
 

@@ -13,7 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AyudaDelVisor } from "./AyudaDelVisor";
 import { CriteriosEnElTelefono } from "./CriteriosEnElTelefono";
-import { IconoDeFiltro, MenuFlotante } from "./MenuFlotante";
+import { IconoDeComentario, IconoDeFiltro, MenuFlotante } from "./MenuFlotante";
 import {
   enviarCalificacionesAction,
   guardarNotaAction,
@@ -644,7 +644,7 @@ export function VisorDeCalificacion({
                   if (lista[0]) setEntryIdActual(lista[0].entryId);
                   setCriterioActivo(0);
                 }}
-                className="flex min-h-8 w-full items-center gap-1.5 whitespace-nowrap px-3 text-xs"
+                className="flex min-h-11 w-full items-center gap-1.5 whitespace-nowrap px-3.5 text-sm sm:min-h-8 sm:px-3 sm:text-xs"
                 style={{
                   background: elegida ? colores.fondo : colores.panel,
                   color: elegida ? colores.tinta : colores.suave,
@@ -653,7 +653,7 @@ export function VisorDeCalificacion({
                 }}
               >
                 {c.numero} · {c.titulo}
-                <span className="font-mono text-[10px] tabular-nums opacity-70">
+                <span className="font-mono text-[11px] tabular-nums opacity-70 sm:text-[10px]">
                   {listas === suyas.length
                     ? `✓${suyas.length}`
                     : `${listas}/${suyas.length}`}
@@ -698,7 +698,7 @@ export function VisorDeCalificacion({
           borderBottom: `1px solid ${colores.linea}`,
         }}
       >
-        <p className="mr-auto font-mono text-[11px] tabular-nums">
+        <p className="mr-auto hidden font-mono text-[11px] tabular-nums sm:block">
           {actual ? (
             <>
               {visibles.indexOf(actual) + 1}/{visibles.length}
@@ -714,7 +714,10 @@ export function VisorDeCalificacion({
           titulo="Qué fotos mostrar"
           icono={<IconoDeFiltro />}
           etiqueta={
-            FILTROS_DEL_VISOR.find((f) => f.id === filtro)?.nombre ?? "Todas"
+            <span className="hidden sm:inline">
+              {FILTROS_DEL_VISOR.find((f) => f.id === filtro)?.nombre ??
+                "Todas"}
+            </span>
           }
           opciones={FILTROS_DEL_VISOR.map((f) => ({
             id: f.id,
@@ -742,7 +745,7 @@ export function VisorDeCalificacion({
           etiqueta={
             <span
               aria-hidden="true"
-              className="h-3.5 w-3.5"
+              className="h-4 w-4 sm:h-3.5 sm:w-3.5"
               style={{
                 background: FONDOS.find((f) => f.id === fondo)?.muestra,
                 border: `1px solid ${colores.linea}`,
@@ -764,14 +767,17 @@ export function VisorDeCalificacion({
           onClick={() => setComentando((v) => !v)}
           disabled={!sePuedeTocar}
           aria-pressed={comentando}
-          className="min-h-8 px-2 text-xs font-medium disabled:opacity-40"
+          className="flex min-h-11 items-center gap-1.5 px-3 text-sm font-medium disabled:opacity-40 sm:min-h-8 sm:px-2 sm:text-xs"
           style={{
             border: `1px solid ${actual?.comentario ? "#e0a061" : colores.linea}`,
             color: actual?.comentario ? "#e0a061" : colores.tinta,
           }}
           title="Dejar un comentario sobre esta obra (opcional)"
         >
-          Comentario{actual?.comentario ? " ·" : ""}
+          <IconoDeComentario />
+          <span className="hidden sm:inline">
+            Comentario{actual?.comentario ? " ·" : ""}
+          </span>
         </button>
 
         <button
@@ -779,7 +785,7 @@ export function VisorDeCalificacion({
           onClick={() => setAyuda(true)}
           aria-label="Cómo se usa el visor"
           title="Cómo se usa (tecla H)"
-          className="grid h-8 w-8 place-items-center text-sm font-semibold"
+          className="grid h-11 w-11 place-items-center text-base font-semibold sm:h-8 sm:w-8 sm:text-sm"
           style={{ border: `1px solid ${colores.linea}`, color: colores.suave }}
         >
           ?
@@ -789,7 +795,7 @@ export function VisorDeCalificacion({
           type="button"
           onClick={() => void enviarTodo()}
           disabled={enviando || !cola.sePuedeCalificar}
-          className="min-h-8 px-3 text-xs font-semibold disabled:opacity-50"
+          className="min-h-11 px-3.5 text-sm font-semibold disabled:opacity-50 sm:min-h-8 sm:px-3 sm:text-xs"
           style={{ background: "#e0a061", color: "#1b1917" }}
         >
           {enviando ? "Enviando…" : "Enviar"}
@@ -797,7 +803,7 @@ export function VisorDeCalificacion({
 
         <a
           href="/jurado/panel"
-          className="grid min-h-8 place-items-center px-2 text-xs"
+          className="grid min-h-11 place-items-center px-2.5 text-sm sm:min-h-8 sm:px-2 sm:text-xs"
           style={{ color: colores.suave }}
         >
           Salir
@@ -904,6 +910,20 @@ export function VisorDeCalificacion({
             }}
           >
             {actual?.codigo} · F o Esc para volver
+          </p>
+        ) : null}
+
+        {/* En el teléfono el código de la obra se lee sobre la propia obra. */}
+        {!inmersivo && actual ? (
+          <p
+            className="pointer-events-none absolute left-3 top-2 font-mono text-[11px] tabular-nums sm:hidden"
+            style={{
+              color: colores.tinta,
+              opacity: 0.75,
+              mixBlendMode: "difference",
+            }}
+          >
+            {visibles.indexOf(actual) + 1}/{visibles.length} · {actual.codigo}
           </p>
         ) : null}
 
