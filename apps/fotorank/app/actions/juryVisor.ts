@@ -12,6 +12,7 @@ import { prisma } from "@repo/db";
 import { requireJudgeAuth } from "../lib/judge-auth";
 import { JuryError } from "../lib/fotorank/jury/errors";
 import { upsertJuryEvaluation } from "../lib/fotorank/jury/evaluation-service";
+import { colaParaElVisor } from "../lib/fotorank/jury/visor-service";
 import { sumarAlLatido } from "../lib/fotorank/jury/ritmoDelJurado";
 
 export type ResultadoDelVisor = { ok: boolean; mensaje?: string };
@@ -113,6 +114,36 @@ export async function enviarCalificacionesAction(input: {
         ? `Se enviaron ${enviadas}. Quedaron ${fallaron} sin enviar.`
         : `Se enviaron ${enviadas} calificaciones.`,
   };
+}
+
+/**
+ * Renueva los enlaces de las fotografías.
+ *
+ * Los enlaces se firman con vencimiento --quince minutos para una maratón--
+ * y se firmaban todos una sola vez, al abrir el visor. Calificar 170 obras
+ * lleva horas: pasado ese rato, **ninguna** fotografía cargaba y el jurado se
+ * quedaba mirando el ícono de imagen rota sin entender por qué.
+ *
+ * Devuelve la cola entera con los enlaces nuevos. El visor se queda sólo con
+ * las direcciones: lo que el jurado ya calificó vive en su pantalla y en su
+ * cola de pendientes, y pisarlo con lo que tiene el servidor sería borrarle
+ * trabajo recién hecho.
+ */
+export async function renovarFotosAction(input: {
+  contestId: string;
+}): Promise<Array<{ entryId: string; previewUrl: string | null }>> {
+  const judge = await requireJudgeAuth();
+  try {
+    const cola = await colaParaElVisor({
+      judgeAccountId: judge.id,
+      contestId: input.contestId,
+    });
+    return cola.obras.map((o) => ({ entryId: o.entryId, previewUrl: o.previewUrl }));
+  } catch {
+    // Si falla, el visor se queda con los enlaces que tenía: puede que sigan
+    // sirviendo, y en el peor caso lo reintenta en la vuelta siguiente.
+    return [];
+  }
 }
 
 /**

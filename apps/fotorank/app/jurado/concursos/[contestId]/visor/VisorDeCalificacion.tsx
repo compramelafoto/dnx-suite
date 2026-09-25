@@ -18,6 +18,7 @@ import {
   enviarCalificacionesAction,
   guardarNotaAction,
   latidoDelVisorAction,
+  renovarFotosAction,
 } from "../../../../actions/juryVisor";
 import {
   FILTROS_DEL_VISOR,
@@ -78,8 +79,49 @@ const FONDOS: Array<{ id: Fondo; nombre: string; muestra: string }> = [
  */
 const TELEFONO_ACOSTADO = "(orientation: landscape) and (max-height: 520px)";
 
-/** Cuánto se lleva la columna de criterios cuando el teléfono está acostado. */
-const ANCHO_DE_LA_COLUMNA = 200;
+/**
+ * Quién ve la tarjeta de criterios en vez de la grilla de escritorio.
+ *
+ * No alcanza con el ancho. Un iPhone acostado mide 844 píxeles, y el corte de
+ * "escritorio" está en 768: con `md:hidden` a secas, rotar el teléfono traía
+ * la grilla de cuatro columnas y dejaba la fotografía del tamaño de una
+ * estampilla. Justo lo contrario de para qué se rota.
+ *
+ * Así que son dos condiciones: pantalla angosta **o** pantalla baja.
+ */
+const USA_LA_TARJETA = `(max-width: 767px), ${TELEFONO_ACOSTADO}`;
+
+/** Cuánto mide la tarjeta de criterios que flota sobre la obra. */
+const ANCHO_DE_LA_TARJETA = 300;
+
+/**
+ * Cuánto se queda la nota a la vista antes de pasar al criterio siguiente.
+ *
+ * En pantalla completa el criterio se ve de a uno: si al apretar el número la
+ * tarjeta cambiara en el acto, nunca se vería qué se puso y habría que confiar.
+ * Cuatro décimas alcanzan para leer el número y no llegan a aburrir.
+ */
+const DEMORA_PARA_VER_LA_NOTA = 400;
+
+/**
+ * Cuántas obras se van bajando por delante y por detrás de la que se mira.
+ *
+ * Pasar de foto tardaba casi un segundo porque recién ahí empezaba a bajarse.
+ * Con estas ya en el navegador, el cambio es instantáneo. Adelante más que
+ * atrás porque se avanza mucho más de lo que se vuelve, y una ventana chica
+ * porque bajar las 170 de una sería varios cientos de megas.
+ */
+const PRECARGA_ADELANTE = 6;
+const PRECARGA_ATRAS = 2;
+
+/**
+ * Cada cuánto se vuelven a firmar los enlaces de las fotografías.
+ *
+ * Vencen a los quince minutos y se firmaban una sola vez, al abrir. Calificar
+ * 170 obras lleva horas: pasado ese rato no cargaba ninguna. Se renuevan a los
+ * diez, con margen de sobra.
+ */
+const RENOVAR_FOTOS_CADA = 10 * 60 * 1000;
 
 /** Cada cuánto late, mientras haya pantalla a la vista y actividad. */
 const LATIDO_SEGUNDOS = 30;
@@ -166,14 +208,35 @@ export function VisorDeCalificacion({
   const [altoDeLaTarjeta, setAltoDeLaTarjeta] = useState(0);
   const tarjetaDeCriterios = useRef<HTMLDivElement | null>(null);
   /*
-   * Con el teléfono acostado los criterios se van a un costado.
+   * Con el teléfono acostado, la obra se queda con toda la pantalla.
    *
-   * Abajo taparían la obra, que es lo que se acaba de arreglar; y con barra,
-   * pestañas y tarjeta encimadas una foto apaisada quedaba en 228 x 152, más
-   * chica que en vertical. Al costado el alto le queda entero: 477 x 318, más
-   * de cuatro veces el área.
+   * La primera versión puso los criterios en una columna al costado. Medido,
+   * no alcanzaba: sacándole 200 de ancho a la obra el límite pasa a ser otra
+   * vez el alto, y una foto 3:2 queda en 477 x 318 --lo mismo que dejando la
+   * barra--. Sin nada alrededor entra en 562 x 375, un 39% más de área.
+   *
+   * Así que acostado funciona como la pantalla completa de la computadora: la
+   * obra sola, y los criterios en una tarjeta que flota sobre ella.
    */
   const [acostado, setAcostado] = useState(false);
+  /* Acostado los controles se esconden; un toque sobre la obra los trae. */
+  const [controlesALaVista, setControlesALaVista] = useState(false);
+  /** Pantalla angosta o baja: los criterios van en tarjeta, no en grilla. */
+  const [enTarjeta, setEnTarjeta] = useState(false);
+  /* La nota que se acaba de poner, mientras se la muestra antes de pasar. */
+  const [notaReciennPuesta, setNotaReciennPuesta] = useState<{
+    indice: number;
+    valor: number;
+  } | null>(null);
+  const esperaParaPasar = useRef<number | undefined>(undefined);
+  /*
+   * Pasar de foto, alcanzable desde arriba.
+   *
+   * `moverFoto` se define más abajo porque necesita la lista ya armada, y
+   * `ponerNota` lo precisa para saltar de obra cuando termina el último
+   * criterio. La referencia evita tener que reordenar medio componente.
+   */
+  const moverFotoRef = useRef<(paso: 1 | -1) => void>(() => {});
   const contenedor = useRef<HTMLDivElement | null>(null);
 
   /*
@@ -362,11 +425,21 @@ export function VisorDeCalificacion({
 
   useEffect(() => {
     if (typeof window.matchMedia !== "function") return;
-    const consulta = window.matchMedia(TELEFONO_ACOSTADO);
-    const mirar = () => setAcostado(consulta.matches);
+    const bajo = window.matchMedia(TELEFONO_ACOSTADO);
+    const tarjeta = window.matchMedia(USA_LA_TARJETA);
+    const mirar = () => {
+      setAcostado(bajo.matches);
+      setEnTarjeta(tarjeta.matches);
+      // Al enderezar el teléfono la barra vuelve sola: parado siempre está.
+      if (!bajo.matches) setControlesALaVista(false);
+    };
     mirar();
-    consulta.addEventListener("change", mirar);
-    return () => consulta.removeEventListener("change", mirar);
+    bajo.addEventListener("change", mirar);
+    tarjeta.addEventListener("change", mirar);
+    return () => {
+      bajo.removeEventListener("change", mirar);
+      tarjeta.removeEventListener("change", mirar);
+    };
   }, []);
 
   /* ---------- cuánto ocupa la tarjeta de criterios ---------- */
@@ -398,6 +471,70 @@ export function VisorDeCalificacion({
       window.removeEventListener("resize", medir);
     };
   }, [inmersivo, criterios.length, actual?.enviada, acostado]);
+
+  /* ---------- que la foto ya esté cuando se la pide ---------- */
+
+  /*
+   * Las imágenes bajadas se guardan en un mapa.
+   *
+   * Sin conservar la referencia, el navegador puede soltar la imagen antes de
+   * que se la pida y la precarga no habría servido de nada.
+   */
+  const bajadas = useRef(new Map<string, HTMLImageElement>());
+
+  useEffect(() => {
+    if (!actual) return;
+    const pos = visibles.findIndex((o) => o.entryId === actual.entryId);
+    if (pos === -1) return;
+
+    const desde = Math.max(0, pos - PRECARGA_ATRAS);
+    const hasta = Math.min(visibles.length, pos + PRECARGA_ADELANTE + 1);
+    const cerca = visibles.slice(desde, hasta);
+    const quedan = new Set<string>();
+
+    for (const o of cerca) {
+      if (!o.previewUrl) continue;
+      quedan.add(o.previewUrl);
+      if (bajadas.current.has(o.previewUrl)) continue;
+      const img = new Image();
+      img.decoding = "async";
+      img.src = o.previewUrl;
+      bajadas.current.set(o.previewUrl, img);
+    }
+
+    // Lo que quedó lejos se suelta: la ventana se mueve, la memoria no crece.
+    for (const url of [...bajadas.current.keys()]) {
+      if (!quedan.has(url)) bajadas.current.delete(url);
+    }
+  }, [actual, visibles]);
+
+  const renovandoFotos = useRef(false);
+
+  const renovarFotos = useCallback(() => {
+    if (renovandoFotos.current) return;
+    renovandoFotos.current = true;
+    void renovarFotosAction({ contestId })
+      .then((frescas) => {
+        if (frescas.length === 0) return;
+        const porId = new Map(frescas.map((f) => [f.entryId, f.previewUrl]));
+        setObras((previas) =>
+          previas.map((o) =>
+            porId.has(o.entryId)
+              ? { ...o, previewUrl: porId.get(o.entryId) ?? null }
+              : o,
+          ),
+        );
+        bajadas.current.clear();
+      })
+      .finally(() => {
+        renovandoFotos.current = false;
+      });
+  }, [contestId]);
+
+  useEffect(() => {
+    const reloj = window.setInterval(renovarFotos, RENOVAR_FOTOS_CADA);
+    return () => window.clearInterval(reloj);
+  }, [renovarFotos]);
 
   /* ---------- el latido ---------- */
 
@@ -488,7 +625,11 @@ export function VisorDeCalificacion({
    * anterior. Tocar el 7 del primero cambiaba la nota del segundo.
    */
   const ponerNota = useCallback(
-    (valor: number, indice: number, { avanzar = true } = {}) => {
+    (
+      valor: number,
+      indice: number,
+      { avanzar = true, demorar = false } = {},
+    ) => {
       if (!actual || !sePuedeTocar) return;
       const criterio = criterios[indice];
       if (!criterio) return;
@@ -501,9 +642,27 @@ export function VisorDeCalificacion({
       // Al poner una nota el foco avanza solo: una foto son cuatro teclas.
       // Al sacarla no, porque quien la saca se quedó mirando ese criterio.
       const seSaco = !(criterio.key in nuevas);
-      if (avanzar && !seSaco && indice < criterios.length - 1) {
-        setCriterioActivo(indice + 1);
+      if (!avanzar || seSaco) return;
+
+      const proximo = indice + 1;
+      const pasar = () => {
+        if (proximo < criterios.length) setCriterioActivo(proximo);
+        else moverFotoRef.current(1);
+      };
+
+      // En pantalla completa se espera un momento para que se vea el número
+      // recién puesto. Si mientras tanto se aprieta otra tecla, ese paso se
+      // cancela: manda lo último que hizo la persona, no el reloj.
+      window.clearTimeout(esperaParaPasar.current);
+      if (!demorar) {
+        if (proximo < criterios.length) setCriterioActivo(proximo);
+        return;
       }
+      setNotaReciennPuesta({ indice, valor });
+      esperaParaPasar.current = window.setTimeout(() => {
+        setNotaReciennPuesta(null);
+        pasar();
+      }, DEMORA_PARA_VER_LA_NOTA);
     },
     [actual, criterios, sePuedeTocar, cambiarNotas],
   );
@@ -598,6 +757,12 @@ export function VisorDeCalificacion({
     [criterioActivo, criterios.length, moverFoto],
   );
 
+  useEffect(() => {
+    moverFotoRef.current = moverFoto;
+  }, [moverFoto]);
+
+  useEffect(() => () => window.clearTimeout(esperaParaPasar.current), []);
+
   /* ---------- el teclado ---------- */
 
   useEffect(() => {
@@ -668,7 +833,12 @@ export function VisorDeCalificacion({
       }
       if (/^[0-9]$/.test(e.key)) {
         e.preventDefault();
-        ponerNota(e.key === "0" ? 10 : Number(e.key), criterioActivo);
+        // En pantalla completa el criterio se ve de a uno, así que la nota se
+        // muestra un momento antes de pasar al siguiente. Con la franja
+        // abajo se ven los cuatro juntos y esa espera sólo demoraría.
+        ponerNota(e.key === "0" ? 10 : Number(e.key), criterioActivo, {
+          demorar: inmersivo,
+        });
       }
     }
 
@@ -676,6 +846,7 @@ export function VisorDeCalificacion({
     return () => window.removeEventListener("keydown", alPresionar);
   }, [
     ayuda,
+    inmersivo,
     criterioActivo,
     borrarNota,
     borrarLaObra,
@@ -757,7 +928,7 @@ export function VisorDeCalificacion({
 
   /** Se muestran los criterios del teléfono: hay qué calificar y hay lugar. */
   const muestraCriterios =
-    !inmersivo && criterios.length > 0 && !actual?.enviada;
+    !inmersivo && enTarjeta && criterios.length > 0 && !actual?.enviada;
 
   const colores = {
     oscuro: {
@@ -912,7 +1083,7 @@ export function VisorDeCalificacion({
       {/* Barra: una sola fila, todo del mismo alto y lo mínimo a la vista */}
       <div
         className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-3 py-1.5"
-        hidden={inmersivo}
+        hidden={inmersivo || (acostado && !controlesALaVista)}
         style={{
           background: colores.panel,
           borderBottom: `1px solid ${colores.linea}`,
@@ -1133,6 +1304,12 @@ export function VisorDeCalificacion({
                */
               className="absolute inset-x-0 top-0 w-full object-contain"
               /*
+               * Si una foto no carga, casi siempre es que su enlace venció. En
+               * vez de dejar el ícono de imagen rota, se vuelven a firmar todos
+               * en el momento.
+               */
+              onError={renovarFotos}
+              /*
                * El alto va explícito, nunca `auto` ni por `bottom`.
                *
                * Una imagen es un elemento reemplazado: con `top` y `bottom`
@@ -1162,8 +1339,115 @@ export function VisorDeCalificacion({
                 mixBlendMode: "difference",
               }}
             >
-              {actual?.codigo} · F o Esc para volver
+              {actual?.codigo} · F para volver
             </p>
+          ) : null}
+
+          {/*
+           * En pantalla completa, el criterio de a uno en la esquina.
+           *
+           * Antes el modo inmersivo servía sólo para mirar: escondía los
+           * criterios y había que salir para puntuar. Así se califica sin
+           * perder de vista la obra, que es de lo que se trata.
+           */}
+          {inmersivo && criterios.length > 0 && !actual?.enviada ? (
+            <div
+              className="absolute bottom-4 right-4 w-[19rem] max-w-[calc(100%-2rem)] p-3"
+              style={{
+                background: "rgba(0,0,0,0.55)",
+                backdropFilter: "blur(10px)",
+                border: "1px solid rgba(255,255,255,0.14)",
+                color: "#f5f3f0",
+              }}
+            >
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-[11px] font-mono opacity-60">
+                  {criterioActivo + 1} de {criterios.length}
+                </span>
+                <span
+                  className="font-mono text-2xl font-semibold tabular-nums transition-all duration-200"
+                  style={{
+                    color: "#e0a061",
+                    // Al poner la nota, el número da un saltito: es lo que
+                    // avisa que quedó tomada antes de que la tarjeta cambie.
+                    transform:
+                      notaReciennPuesta?.indice === criterioActivo
+                        ? "scale(1.25)"
+                        : "scale(1)",
+                  }}
+                >
+                  {typeof actual?.notas[
+                    criterios[criterioActivo]?.key ?? ""
+                  ] === "number"
+                    ? actual?.notas[criterios[criterioActivo]?.key ?? ""]
+                    : "–"}
+                </span>
+              </div>
+
+              <p className="mt-0.5 text-sm font-semibold leading-tight">
+                {criterios[criterioActivo]?.nombre}
+              </p>
+
+              <div className="mt-2 flex gap-1">
+                {Array.from(
+                  {
+                    length:
+                      (criterios[criterioActivo]?.max ?? 10) -
+                      (criterios[criterioActivo]?.min ?? 1) +
+                      1,
+                  },
+                  (_, k) => (criterios[criterioActivo]?.min ?? 1) + k,
+                ).map((valor) => {
+                  const puesta =
+                    actual?.notas[criterios[criterioActivo]?.key ?? ""] ===
+                    valor;
+                  return (
+                    <button
+                      key={valor}
+                      type="button"
+                      aria-label={`${valor} en ${criterios[criterioActivo]?.nombre}`}
+                      onClick={() =>
+                        ponerNota(valor, criterioActivo, { demorar: true })
+                      }
+                      className="h-8 min-w-0 flex-1 font-mono text-[11px] font-medium transition-colors"
+                      style={
+                        puesta
+                          ? {
+                              background: "#e0a061",
+                              color: "#1b1917",
+                              border: "1px solid #e0a061",
+                            }
+                          : {
+                              background: "rgba(255,255,255,0.08)",
+                              border: "1px solid rgba(255,255,255,0.14)",
+                              color: "#f5f3f0",
+                            }
+                      }
+                    >
+                      {valor}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Cuántos criterios lleva puestos esta obra. */}
+              <div className="mt-2 flex gap-1" aria-hidden="true">
+                {criterios.map((c, i) => (
+                  <span
+                    key={c.key}
+                    className="h-0.5 flex-1 transition-all duration-300"
+                    style={{
+                      background:
+                        typeof actual?.notas[c.key] === "number"
+                          ? "#e0a061"
+                          : i === criterioActivo
+                            ? "rgba(255,255,255,0.75)"
+                            : "rgba(255,255,255,0.2)",
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
           ) : null}
 
           {/* En el teléfono el código de la obra se lee sobre la propia obra. */}
@@ -1181,10 +1465,23 @@ export function VisorDeCalificacion({
             </p>
           ) : null}
 
-          {muestraCriterios && !acostado ? (
+          {muestraCriterios ? (
             <div
               ref={tarjetaDeCriterios}
-              className="absolute inset-x-0 bottom-0 md:hidden"
+              className="absolute"
+              style={
+                acostado
+                  ? {
+                      // Acostado flota sobre la obra, en la esquina, como la
+                      // pantalla completa de la computadora.
+                      right: 12,
+                      bottom: 12,
+                      width: ANCHO_DE_LA_TARJETA,
+                      maxWidth: "calc(100% - 24px)",
+                      boxShadow: "0 12px 32px rgba(0,0,0,0.45)",
+                    }
+                  : { left: 0, right: 0, bottom: 0 }
+              }
             >
               {tarjetaDeLosCriterios}
             </div>
@@ -1268,21 +1565,12 @@ export function VisorDeCalificacion({
             </p>
           ) : null}
         </div>
-
-        {muestraCriterios && acostado ? (
-          <div
-            className="shrink-0 md:hidden"
-            style={{ width: ANCHO_DE_LA_COLUMNA }}
-          >
-            {tarjetaDeLosCriterios}
-          </div>
-        ) : null}
       </div>
 
       {/* Criterios, en la computadora */}
       <div
-        hidden={inmersivo}
-        className="hidden md:block"
+        hidden={inmersivo || enTarjeta}
+        className=""
         style={{
           background: colores.panel,
           borderTop: `1px solid ${colores.linea}`,
@@ -1295,7 +1583,7 @@ export function VisorDeCalificacion({
             Esta obra ya fue enviada y no se puede cambiar.
           </p>
         ) : (
-          <div className="hidden gap-2 md:grid md:grid-cols-4 md:gap-3">
+          <div className="grid gap-2 md:grid-cols-4 md:gap-3">
             {criterios.map((c, i) => {
               const puesta = actual?.notas[c.key];
               const activo = i === criterioActivo;
