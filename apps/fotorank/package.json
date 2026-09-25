@@ -105,7 +105,7 @@
     "test:judge-email-verification": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/judgeEmailVerification.test.ts",
     "test:judge-password-reset": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/judgePasswordReset.test.ts",
     "test:judge-puente-sesion": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/puenteDeSesion.test.ts",
-    "test:judge-emails": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/notifications/judgeEmails.test.ts",
+    "test:judge-emails": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/notifications/judgeEmails.test.ts ../../apps/fotorank/app/lib/fotorank/notifications/plantillaInstitucional.test.ts",
     "test:judge-signup-rate-limit": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/signupRateLimit.test.ts",
     "test:judge-public-visibility": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/publicProfileVisibility.test.ts",
     "test:judge-other-links": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/otherLinks.test.ts",
