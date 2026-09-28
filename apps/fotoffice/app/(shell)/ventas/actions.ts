@@ -20,6 +20,7 @@ import {
   ajustesSchema,
   conexionSchema,
   embudosElegidos,
+  mensajeConexionGuardada,
   minutosParaActualizar,
   primerError,
   puedeReanalizar,
@@ -119,9 +120,11 @@ export async function guardarConexionAction(
   const cred = { subdomain: parsed.data.subdomain, username: parsed.data.username, password };
 
   let embudos: string[];
+  let abiertas: number;
   try {
     const cliente = await crearClienteAlboom(cred);
     embudos = [...new Set((await cliente.embudos()).map((e) => e.trim()).filter(Boolean))];
+    abiertas = (await cliente.listarAbiertas()).length;
   } catch (error) {
     if (error instanceof AlboomLoginError) {
       return { error: "Alboom rechazó el usuario o la contraseña", ok: null };
@@ -140,13 +143,7 @@ export async function guardarConexionAction(
   revalidatePath("/ventas/configuracion");
   revalidarVentas();
 
-  return {
-    error: null,
-    ok:
-      embudos.length === 0
-        ? "Conexión guardada. Alboom no devolvió ningún embudo."
-        : `Conexión guardada. Encontramos ${embudos.length === 1 ? "1 embudo" : `${embudos.length} embudos`}: ${embudos.join(", ")}.`,
-  };
+  return { error: null, ok: mensajeConexionGuardada(embudos, abiertas) };
 }
 
 export async function desconectarAlboomAction(): Promise<PanelState> {

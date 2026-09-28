@@ -90,6 +90,20 @@ export function embudosElegidos(valores: FormDataEntryValue[]): string[] {
   return [...new Set(nombres)];
 }
 
+/**
+ * Lo que se muestra al guardar la conexión (criterio 1 del spec): la cantidad de oportunidades
+ * abiertas y los embudos que devolvió Alboom, para que se vea en el acto que lee lo que tiene que
+ * leer antes de elegir qué embudos incluir.
+ */
+export function mensajeConexionGuardada(embudos: string[], abiertas: number): string {
+  const cuantas = abiertas === 1 ? "Hay 1 oportunidad abierta." : `Hay ${abiertas} oportunidades abiertas.`;
+  const cuales =
+    embudos.length === 0
+      ? "Alboom no devolvió ningún embudo."
+      : `Encontramos ${embudos.length === 1 ? "1 embudo" : `${embudos.length} embudos`}: ${embudos.join(", ")}.`;
+  return `Conexión guardada. ${cuantas} ${cuales}`;
+}
+
 /** El primer mensaje de error de zod, que es el que se muestra. */
 export function primerError(error: z.ZodError): string {
   return error.issues[0]?.message ?? "Revisá los datos.";

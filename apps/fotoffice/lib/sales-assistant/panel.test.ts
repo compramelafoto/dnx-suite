@@ -5,6 +5,7 @@ import {
   ajustesSchema,
   conexionSchema,
   embudosElegidos,
+  mensajeConexionGuardada,
   minutosParaActualizar,
   puedeReanalizar,
   sugerenciaEditable,
@@ -101,5 +102,23 @@ describe("puedeReanalizar", () => {
 
   it("pasado el tope, sí", () => {
     expect(puedeReanalizar(new Date(ahora.getTime() - MIN_MINUTOS_ENTRE_REANALISIS * 60_000), ahora)).toBe(true);
+  });
+});
+
+describe("mensajeConexionGuardada", () => {
+  it("dice cuántas oportunidades abiertas hay y qué embudos encontró", () => {
+    expect(mensajeConexionGuardada(["Casamientos", "XV"], 104)).toBe(
+      "Conexión guardada. Hay 104 oportunidades abiertas. Encontramos 2 embudos: Casamientos, XV.",
+    );
+  });
+  it("usa el singular con una sola", () => {
+    expect(mensajeConexionGuardada(["Casamientos"], 1)).toBe(
+      "Conexión guardada. Hay 1 oportunidad abierta. Encontramos 1 embudo: Casamientos.",
+    );
+  });
+  it("avisa si Alboom no devolvió embudos", () => {
+    expect(mensajeConexionGuardada([], 0)).toBe(
+      "Conexión guardada. Hay 0 oportunidades abiertas. Alboom no devolvió ningún embudo.",
+    );
   });
 });
