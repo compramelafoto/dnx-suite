@@ -135,7 +135,7 @@ function clienteFalso(filas: AlboomLeadRow[], detalles: Record<string, () => Pro
 }
 
 const analizarOk = vi.fn(
-  async (): Promise<ResultadoAnalisis> => ({
+  async (_contexto: string): Promise<ResultadoAnalisis> => ({
     sugerencia: { accion: "ESCRIBIR", prioridad: "MEDIA", motivo: "m", mensaje: "hola", esperarDias: null },
     modelo: "test",
     inputTokens: 1,
@@ -287,9 +287,9 @@ describe("sincronizarWorkspace", () => {
         repo,
         iaDisponible: () => true,
         ahora: () => new Date(reloj),
-        analizar: async () => {
+        analizar: async (contexto) => {
           reloj += 20;
-          return analizarOk();
+          return analizarOk(contexto);
         },
       },
     });
@@ -450,7 +450,7 @@ describe("sincronizarWorkspace", () => {
     const { repo } = repoEnMemoria();
     const analizar = vi
       .fn(analizarOk)
-      .mockImplementationOnce(async () => ({ ...(await analizarOk()), fallo: true }));
+      .mockImplementationOnce(async (contexto) => ({ ...(await analizarOk(contexto)), fallo: true }));
     const deps = {
       leerCredencial: async () => CRED,
       crearCliente: async () => clienteFalso([filaAlboom({ id: "1" })]),
