@@ -73,12 +73,56 @@ export type SugerenciaPrevia = {
   mensaje: string | null;
 };
 
+export const DATO_OCULTO = "[dato oculto]";
+
+const escaparRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** Cualquier dirección de correo, no sólo la del cliente: puede venir la de un familiar. */
+const PATRON_EMAIL = /[\p{L}\p{N}._%+-]+@[\p{L}\p{N}.-]+\.[\p{L}]{2,}/gu;
+
+/**
+ * Una secuencia de 8 o más dígitos, con espacios, puntos, guiones o paréntesis entre medio: un
+ * teléfono se escriba como se escriba ("341 271-7813", "(0341) 15-555-1234", "+54 9 11…"). La
+ * barra no cuenta como separador, así las fechas ("22/09/2026") pasan; y un número precedido
+ * de "$" tampoco se toca: es un precio.
+ */
+const PATRON_TELEFONO = /(?<![\p{L}\p{N}$])\+?\d(?:[ \t().-]*\d){7,}/gu;
+
+/**
+ * Tapa los datos de contacto que se hayan colado en un texto libre (lo que escribió el cliente,
+ * los correos, la bitácora, los mensajes anteriores): el teléfono y el email de la oportunidad,
+ * cualquier otro teléfono o email, y el apellido (entero y cada palabra de 3 letras o más, sin
+ * importar mayúsculas). Dejar afuera los campos no alcanza: el cliente los escribe en el texto.
+ */
+function ocultarContacto(texto: string, op: OportunidadVenta): string {
+  let t = texto;
+  if (op.email) t = t.replace(new RegExp(escaparRegex(op.email), "giu"), DATO_OCULTO);
+  t = t.replace(PATRON_EMAIL, DATO_OCULTO);
+  if (op.telefono) {
+    t = t.split(op.telefono).join(DATO_OCULTO);
+    const soloDigitos = op.telefono.replace(/\D/g, "");
+    if (soloDigitos.length >= 6) t = t.split(soloDigitos).join(DATO_OCULTO);
+  }
+  t = t.replace(PATRON_TELEFONO, DATO_OCULTO);
+  const apellido = op.apellidoCliente?.trim();
+  // Un apellido de una sola letra ("B") no se busca: taparía cualquier "B" suelta del texto.
+  if (apellido && apellido.length >= 2) {
+    const partes = [apellido, ...apellido.split(/\s+/).filter((p) => p.length >= 3)];
+    for (const parte of partes) {
+      // Como palabra entera: "Paz" no puede comerse "Pazos" ni una letra suelta el texto.
+      t = t.replace(new RegExp(`(?<![\\p{L}\\p{N}])${escaparRegex(parte)}(?![\\p{L}\\p{N}])`, "giu"), DATO_OCULTO);
+    }
+  }
+  return t;
+}
+
 const fmt = (d: Date) =>
   new Intl.DateTimeFormat("es-AR", { timeZone: SALES_TIME_ZONE, day: "2-digit", month: "2-digit", year: "numeric" }).format(d);
 
 /**
  * El contexto de UNA oportunidad. Módulo PURO. Deja afuera, a propósito, el teléfono, el email
- * y el apellido: no hacen falta para decidir y no tienen por qué salir del sistema.
+ * y el apellido: no hacen falta para decidir y no tienen por qué salir del sistema. Todo texto
+ * libre que viene de la oportunidad pasa además por `ocultarContacto`.
  */
 export function armarContexto(input: {
   oportunidad: OportunidadVenta;
@@ -88,35 +132,36 @@ export function armarContexto(input: {
   hoy: Date;
 }): string {
   const { oportunidad: op, hoy } = input;
+  const o = (texto: string) => ocultarContacto(texto, op);
   const l: string[] = [];
   l.push(`Hoy es ${fmt(hoy)}.`);
   l.push("", "## Oportunidad");
-  l.push(`Cliente (nombre de pila): ${op.nombreCliente}`);
-  l.push(`Pedido: ${op.titulo}`);
+  l.push(`Cliente (nombre de pila): ${o(op.nombreCliente)}`);
+  l.push(`Pedido: ${o(op.titulo)}`);
   if (op.fechaEvento) l.push(`Fecha del evento: ${fmt(op.fechaEvento)} (faltan ${diasEntre(hoy, op.fechaEvento)} días)`);
   else l.push("Fecha del evento: no informada");
-  if (op.lugar || op.ciudad) l.push(`Lugar: ${[op.lugar, op.ciudad].filter(Boolean).join(", ")}`);
-  if (op.invitados) l.push(`Invitados: ${op.invitados}`);
-  if (op.origen) l.push(`Cómo llegó: ${op.origen}`);
+  if (op.lugar || op.ciudad) l.push(`Lugar: ${o([op.lugar, op.ciudad].filter(Boolean).join(", "))}`);
+  if (op.invitados) l.push(`Invitados: ${o(op.invitados)}`);
+  if (op.origen) l.push(`Cómo llegó: ${o(op.origen)}`);
   l.push(`Embudo: ${op.embudo} — etapa ${op.etapaOrden} de ${op.etapasTotal}: ${op.etapa}`);
   l.push(`Consulta recibida: ${fmt(op.creadaEn)} (hace ${diasEntre(op.creadaEn, hoy)} días)`);
   if (op.presupuestoEnviadoEn) l.push(`Presupuesto enviado: ${fmt(op.presupuestoEnviadoEn)} (hace ${diasEntre(op.presupuestoEnviadoEn, hoy)} días)`);
-  if (op.descripcionCliente) l.push(`Lo que escribió el cliente: "${op.descripcionCliente}"`);
+  if (op.descripcionCliente) l.push(`Lo que escribió el cliente: "${o(op.descripcionCliente)}"`);
 
   l.push("", "## Historial del CRM");
   if (op.movimientos.length === 0) l.push("(sin movimientos)");
-  for (const m of op.movimientos) l.push(`- ${fmt(m.fecha)} [${m.tipo}] ${m.texto}`);
+  for (const m of op.movimientos) l.push(`- ${fmt(m.fecha)} [${m.tipo}] ${o(m.texto)}`);
 
   l.push("", "## Lo que anotó el fotógrafo (WhatsApp)");
   if (input.seguimientos.length === 0) l.push("(nada anotado: no sabemos qué se habló por WhatsApp)");
   for (const s of input.seguimientos) {
     const que = s.tipo === "MENSAJE_ENVIADO" ? "Mensaje enviado" : s.resultado ? ETIQUETA_RESULTADO[s.resultado] : "Nota";
-    l.push(`- ${fmt(s.fecha)} ${que}${s.texto ? `: "${s.texto}"` : ""}`);
+    l.push(`- ${fmt(s.fecha)} ${que}${s.texto ? `: "${o(s.texto)}"` : ""}`);
   }
 
   if (input.sugerenciasPrevias.length > 0) {
     l.push("", "## Sugerencias anteriores");
-    for (const s of input.sugerenciasPrevias) l.push(`- ${fmt(s.fecha)} ${s.accion} (${s.estado})${s.mensaje ? `: "${s.mensaje}"` : ""}`);
+    for (const s of input.sugerenciasPrevias) l.push(`- ${fmt(s.fecha)} ${s.accion} (${s.estado})${s.mensaje ? `: "${o(s.mensaje)}"` : ""}`);
   }
 
   l.push("", "## Voz del fotógrafo");
