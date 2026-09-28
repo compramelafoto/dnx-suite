@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { ALBOOM_INTEGRATION_KEY } from "@/lib/sales-assistant/constants";
 import {
-  ALBOOM_CRM_INTEGRATION_KEY,
   GOOGLE_CALENDAR_INTEGRATION_KEY,
   findDuplicateIntegrationKeys,
   getIntegrationDefinition,
@@ -17,12 +17,12 @@ describe("catálogo de integraciones", () => {
   it("Google Calendar y Alboom CRM son las implementadas hoy", () => {
     expect(listAvailableIntegrationKeys()).toEqual([
       GOOGLE_CALENDAR_INTEGRATION_KEY,
-      ALBOOM_CRM_INTEGRATION_KEY,
+      ALBOOM_INTEGRATION_KEY,
     ]);
   });
 
   it("Alboom CRM no es OAuth: sin permisos que otorgar y la necesita el Asistente de ventas", () => {
-    const alboom = getIntegrationDefinition(ALBOOM_CRM_INTEGRATION_KEY);
+    const alboom = getIntegrationDefinition(ALBOOM_INTEGRATION_KEY);
     expect(alboom).toBeDefined();
     expect(alboom!.provider).toBe("ALBOOM");
     expect(alboom!.scopes).toEqual([]);

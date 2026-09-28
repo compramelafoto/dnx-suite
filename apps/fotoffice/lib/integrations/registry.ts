@@ -1,3 +1,5 @@
+import { ALBOOM_INTEGRATION_KEY } from "@/lib/sales-assistant/constants";
+
 /**
  * Catálogo central de integraciones con terceros.
  *
@@ -28,7 +30,6 @@ export type IntegrationDefinition = {
 };
 
 export const GOOGLE_CALENDAR_INTEGRATION_KEY = "google-calendar";
-export const ALBOOM_CRM_INTEGRATION_KEY = "alboom-crm";
 
 export const INTEGRATION_REGISTRY: readonly IntegrationDefinition[] = [
   {
@@ -55,7 +56,7 @@ export const INTEGRATION_REGISTRY: readonly IntegrationDefinition[] = [
     status: "AVAILABLE",
   },
   {
-    key: ALBOOM_CRM_INTEGRATION_KEY,
+    key: ALBOOM_INTEGRATION_KEY,
     provider: "ALBOOM",
     label: "Alboom CRM",
     description: "Lee tu embudo de ventas de Alboom para el Asistente de ventas.",
