@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { OportunidadVenta } from "./opportunity";
-import { necesitaAnalisis, type UltimaSugerencia } from "./needs-analysis";
+import { diasEntre, necesitaAnalisis, type UltimaSugerencia } from "./needs-analysis";
 
 const HOY = new Date("2026-09-28T10:00:00Z");
 function op(p: Partial<OportunidadVenta> = {}): OportunidadVenta {
@@ -67,5 +67,22 @@ describe("necesitaAnalisis", () => {
   });
   it("forzar gana a todo menos a cerrada", () => {
     expect(necesitaAnalisis({ ...base, forzar: true, oportunidad: op(), ultima: ultima() }).analizar).toBe(true);
+  });
+});
+
+describe("diasEntre", () => {
+  it("cuenta 0 días si ambas instantes caen el mismo día ART", () => {
+    // 2026-11-28T03:00:00Z = 00:00 ART 28/11
+    // 2026-11-29T02:00:00Z = 23:00 ART 28/11 (mismo día calendario en Argentina)
+    expect(diasEntre(new Date("2026-11-28T03:00:00Z"), new Date("2026-11-29T02:00:00Z"))).toBe(0);
+  });
+  it("cuenta 1 día cuando cruza medianoche ART", () => {
+    // 2026-11-28T03:00:00Z = 00:00 ART 28/11
+    // 2026-11-29T04:00:00Z = 01:00 ART 29/11 (día siguiente)
+    expect(diasEntre(new Date("2026-11-28T03:00:00Z"), new Date("2026-11-29T04:00:00Z"))).toBe(1);
+  });
+  it("maneja diferencias negativas correctamente", () => {
+    // hasta antes de desde → resultado negativo
+    expect(diasEntre(new Date("2026-11-29T04:00:00Z"), new Date("2026-11-28T03:00:00Z"))).toBe(-1);
   });
 });

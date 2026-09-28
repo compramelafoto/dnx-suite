@@ -1,4 +1,4 @@
-import { DEFAULT_WAIT_DAYS, UMBRALES_EVENTO_DIAS, type AccionVenta, type EstadoSugerencia } from "./constants";
+import { DEFAULT_WAIT_DAYS, SALES_TIME_ZONE, UMBRALES_EVENTO_DIAS, type AccionVenta, type EstadoSugerencia } from "./constants";
 import type { OportunidadVenta } from "./opportunity";
 
 /**
@@ -16,9 +16,32 @@ export type UltimaSugerencia = {
   oportunidadModificadaEn: Date;
 };
 
-const DIA_MS = 24 * 60 * 60 * 1000;
+/**
+ * Diferencia en días de calendario en la zona horaria de Argentina (UTC-3 fijo).
+ *
+ * No resta ms brutos: ambos instantes se convierten a su fecha de calendario en
+ * America/Argentina/Buenos_Aires, luego se restan. Esto evita que una acción a las 23:00 ART
+ * (02:00 UTC del día siguiente) misjudge si un evento "ya pasó" o qué día de espera es.
+ */
 export function diasEntre(desde: Date, hasta: Date): number {
-  return Math.floor((hasta.getTime() - desde.getTime()) / DIA_MS);
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: SALES_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+
+  const desdeStr = fmt.format(desde);
+  const hastaStr = fmt.format(hasta);
+
+  const [desdeY, desdeM, desdeD] = desdeStr.split("-").map(Number);
+  const [hastaY, hastaM, hastaD] = hastaStr.split("-").map(Number);
+
+  const desdeDate = new Date(desdeY, desdeM - 1, desdeD);
+  const hastaDate = new Date(hastaY, hastaM - 1, hastaD);
+
+  const DIA_MS = 24 * 60 * 60 * 1000;
+  return Math.floor((hastaDate.getTime() - desdeDate.getTime()) / DIA_MS);
 }
 
 export function necesitaAnalisis(input: {
