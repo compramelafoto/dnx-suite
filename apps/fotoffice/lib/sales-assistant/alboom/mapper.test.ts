@@ -55,6 +55,8 @@ describe("mapearOportunidad", () => {
   it("usa customer_phone si no hay celular, y null si no hay ninguno", () => {
     const row = { ...(lead as AlboomLeadRow), customer_cellular: "", customer_phone: "" };
     expect(mapearOportunidad(row, []).telefono).toBeNull();
+    const rowWithPhone = { ...(lead as AlboomLeadRow), customer_cellular: "", customer_phone: "1145550000" };
+    expect(mapearOportunidad(rowWithPhone, []).telefono).toBe("1145550000");
   });
   it("marca cerrada lo que no tiene status 421", () => {
     expect(mapearOportunidad({ ...(lead as AlboomLeadRow), status_id: "422" }, []).abierta).toBe(false);

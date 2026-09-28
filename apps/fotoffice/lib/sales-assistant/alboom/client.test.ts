@@ -58,6 +58,23 @@ describe("crearClienteAlboom", () => {
   it("rechaza subdominios con caracteres raros", async () => {
     await expect(crearClienteAlboom({ ...cred, subdomain: "evil.com/x" }, vi.fn() as unknown as typeof fetch)).rejects.toThrow();
   });
+
+  it("rechaza con AlboomApiError cuando fetch lanza error durante login", async () => {
+    const fetchFalso = vi.fn(async () => {
+      throw new Error("Network error");
+    });
+    await expect(crearClienteAlboom(cred, fetchFalso as unknown as typeof fetch)).rejects.not.toBeInstanceOf(AlboomLoginError);
+  });
+
+  it("rechaza con AlboomApiError cuando /leads/paginate devuelve 500", async () => {
+    const fetchFalso = vi.fn(async (url: string) => {
+      if (url.endsWith("/login")) return json({ status: "ok", token: "T", data: {} });
+      return json({}, 500);
+    });
+    const c = await crearClienteAlboom(cred, fetchFalso as unknown as typeof fetch);
+    const error = await c.listarAbiertas().catch((e) => e);
+    expect(error).toHaveProperty("status", 500);
+  });
 });
 
 describe("horaLocalAlboom", () => {
