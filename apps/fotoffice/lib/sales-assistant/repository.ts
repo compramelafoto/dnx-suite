@@ -10,7 +10,7 @@ import {
   type ResultadoSeguimiento,
   type TipoSeguimiento,
 } from "./constants";
-import { clasificarTarjeta, esperaResultado } from "./inbox";
+import { clasificarTarjeta, enEmbudosIncluidos, esperaResultado } from "./inbox";
 import type { Movimiento, OportunidadVenta } from "./opportunity";
 import type { SeguimientoParaContexto, SugerenciaPrevia } from "./prompt";
 import { ultimoSeguimientoQueCuenta, type UltimaSugerencia } from "./needs-analysis";
@@ -311,16 +311,18 @@ export type TarjetaBandeja = {
 };
 
 /**
- * La bandeja: oportunidades ABIERTAS (o archivadas, si el filtro es ARCHIVADAS) con su sugerencia
- * vigente, clasificadas y ordenadas. La clasificación es pura (`clasificarTarjeta`, en
- * `inbox.ts`); acá sólo se trae lo que hace falta y se filtra por el grupo pedido.
+ * La bandeja: oportunidades ABIERTAS (o archivadas, si el filtro es ARCHIVADAS) de los embudos
+ * marcados, con su sugerencia vigente, clasificadas y ordenadas. La clasificación es pura
+ * (`clasificarTarjeta`, en `inbox.ts`); acá sólo se trae lo que hace falta y se filtra por el
+ * grupo pedido. Los contadores de las pestañas salen de esta misma lista.
  */
 export async function bandeja(
   workspaceId: string,
   filtro: "HOY" | "ESPERANDO" | "PARA_CERRAR" | "ARCHIVADAS",
-  staleDays: number,
+  ajustes: Pick<AjustesVentas, "staleDays" | "pipelinesIncluded">,
   hoy: Date,
 ): Promise<TarjetaBandeja[]> {
+  const { staleDays } = ajustes;
   const filas = await prisma.fotofficeSalesOpportunity.findMany({
     where:
       filtro === "ARCHIVADAS"
@@ -339,6 +341,7 @@ export async function bandeja(
 
   const tarjetas: TarjetaBandeja[] = [];
   for (const fila of filas) {
+    if (!enEmbudosIncluidos(fila.pipelineName, ajustes.pipelinesIncluded)) continue;
     const sugerenciaFila = fila.suggestions[0] ?? null;
     const sugerencia = sugerenciaFila
       ? {

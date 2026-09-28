@@ -70,10 +70,10 @@ export default async function VentasPage({
   // una oportunidad podría contarse en una pestaña y listarse en otra.
   const ahora = new Date();
   const [hoy, esperando, paraCerrar, archivadas, lecturaBuena] = await Promise.all([
-    bandeja(workspace.id, "HOY", ajustes.staleDays, ahora),
-    bandeja(workspace.id, "ESPERANDO", ajustes.staleDays, ahora),
-    bandeja(workspace.id, "PARA_CERRAR", ajustes.staleDays, ahora),
-    bandeja(workspace.id, "ARCHIVADAS", ajustes.staleDays, ahora),
+    bandeja(workspace.id, "HOY", ajustes, ahora),
+    bandeja(workspace.id, "ESPERANDO", ajustes, ahora),
+    bandeja(workspace.id, "PARA_CERRAR", ajustes, ahora),
+    bandeja(workspace.id, "ARCHIVADAS", ajustes, ahora),
     ajustes.lastSyncStatus === "ERROR_ALBOOM" ? ultimaLecturaBuena(workspace.id) : Promise.resolve(null),
   ]);
   const porFiltro: Record<FiltroBandeja, typeof hoy> = {

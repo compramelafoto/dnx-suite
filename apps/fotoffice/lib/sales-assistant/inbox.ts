@@ -85,3 +85,14 @@ export function esperaResultado(
   }
   return { espera: true, sugerenciaId: envio.sugerenciaId };
 }
+
+/**
+ * Si una oportunidad guardada pertenece a un embudo marcado en Configuración. `sync` guarda sólo
+ * las de embudos marcados, pero las que se guardaron antes de desmarcar uno siguen en la base (y
+ * abiertas: `marcarNoVistasComoCerradas` recibe los ids de todos los embudos). Sin este filtro,
+ * un embudo desmarcado seguiría en la bandeja para siempre. Se compara recortado, como en `sync`.
+ */
+export function enEmbudosIncluidos(embudo: string, incluidos: readonly string[]): boolean {
+  const nombre = embudo.trim();
+  return incluidos.some((i) => i.trim() === nombre);
+}

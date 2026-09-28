@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clasificarTarjeta, esperaResultado } from "./inbox";
+import { clasificarTarjeta, enEmbudosIncluidos, esperaResultado } from "./inbox";
 import type { OportunidadVenta } from "./opportunity";
 
 const HOY = new Date("2026-09-28T15:00:00.000Z");
@@ -135,5 +135,16 @@ describe("esperaResultado", () => {
         f("MENSAJE_ENVIADO", "2026-09-25T10:00:00Z", "s2"),
       ]).espera,
     ).toBe(false);
+  });
+});
+
+describe("enEmbudosIncluidos", () => {
+  it("sólo entra un embudo marcado, comparando sin espacios de más", () => {
+    expect(enEmbudosIncluidos("Casamientos", ["Casamientos"])).toBe(true);
+    expect(enEmbudosIncluidos("  Casamientos ", [" Casamientos"])).toBe(true);
+    expect(enEmbudosIncluidos("Workshops", ["Casamientos"])).toBe(false);
+  });
+  it("sin embudos marcados no entra ninguno", () => {
+    expect(enEmbudosIncluidos("Casamientos", [])).toBe(false);
   });
 });
