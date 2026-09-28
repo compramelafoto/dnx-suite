@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { OportunidadVenta } from "./opportunity";
-import { diasEntre, necesitaAnalisis, type UltimaSugerencia } from "./needs-analysis";
+import { diasEntre, necesitaAnalisis, ultimoSeguimientoQueCuenta, type UltimaSugerencia } from "./needs-analysis";
 
 const HOY = new Date("2026-09-28T10:00:00Z");
 function op(p: Partial<OportunidadVenta> = {}): OportunidadVenta {
@@ -84,5 +84,29 @@ describe("diasEntre", () => {
   it("maneja diferencias negativas correctamente", () => {
     // hasta antes de desde → resultado negativo
     expect(diasEntre(new Date("2026-11-29T04:00:00Z"), new Date("2026-11-28T03:00:00Z"))).toBe(-1);
+  });
+});
+
+describe("ultimoSeguimientoQueCuenta", () => {
+  it("ignora los MENSAJE_ENVIADO: anotar un envío no es una novedad del cliente", () => {
+    expect(
+      ultimoSeguimientoQueCuenta([
+        { tipo: "RESULTADO", fecha: new Date("2026-09-20T10:00:00Z") },
+        { tipo: "MENSAJE_ENVIADO", fecha: new Date("2026-09-27T10:00:00Z") },
+      ]),
+    ).toEqual(new Date("2026-09-20T10:00:00Z"));
+  });
+  it("toma el más nuevo entre RESULTADO y NOTA, sin importar el orden", () => {
+    expect(
+      ultimoSeguimientoQueCuenta([
+        { tipo: "NOTA", fecha: new Date("2026-09-25T10:00:00Z") },
+        { tipo: "RESULTADO", fecha: new Date("2026-09-21T10:00:00Z") },
+      ]),
+    ).toEqual(new Date("2026-09-25T10:00:00Z"));
+  });
+  it("con sólo envíos da null, y un envío después del análisis no dispara uno nuevo", () => {
+    const soloEnvio = ultimoSeguimientoQueCuenta([{ tipo: "MENSAJE_ENVIADO", fecha: new Date("2026-09-27T20:00:00Z") }]);
+    expect(soloEnvio).toBeNull();
+    expect(necesitaAnalisis({ ...base, ultimoSeguimientoEn: soloEnvio, oportunidad: op(), ultima: ultima() }).analizar).toBe(false);
   });
 });

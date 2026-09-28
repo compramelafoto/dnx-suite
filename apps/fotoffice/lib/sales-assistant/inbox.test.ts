@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clasificarTarjeta } from "./inbox";
+import { clasificarTarjeta, esperaResultado } from "./inbox";
 import type { OportunidadVenta } from "./opportunity";
 
 const HOY = new Date("2026-09-28T15:00:00.000Z");
@@ -105,5 +105,35 @@ describe("clasificarTarjeta", () => {
     const r = clasificarTarjeta({ oportunidad: op(), staleDays: 120, hoy: HOY, sugerencia: null });
     expect(r.grupo).toBe("ESPERANDO");
     expect(r.prioridad).toBeNull();
+  });
+});
+
+describe("esperaResultado", () => {
+  const f = (tipo: "MENSAJE_ENVIADO" | "RESULTADO" | "NOTA", fecha: string, sugerenciaId: string | null = null) => ({
+    tipo,
+    fecha: new Date(fecha),
+    sugerenciaId,
+  });
+
+  it("sin envíos no espera nada", () => {
+    expect(esperaResultado([])).toEqual({ espera: false, sugerenciaId: null });
+    expect(esperaResultado([f("RESULTADO", "2026-09-20T10:00:00Z")])).toEqual({ espera: false, sugerenciaId: null });
+  });
+  it("espera cuando el último envío no tiene un resultado posterior, y dice de qué sugerencia", () => {
+    expect(
+      esperaResultado([
+        f("RESULTADO", "2026-09-20T10:00:00Z"),
+        f("MENSAJE_ENVIADO", "2026-09-25T10:00:00Z", "s2"),
+        f("NOTA", "2026-09-26T10:00:00Z"),
+      ]),
+    ).toEqual({ espera: true, sugerenciaId: "s2" });
+  });
+  it("deja de esperar cuando hay un resultado después del último envío", () => {
+    expect(
+      esperaResultado([
+        f("RESULTADO", "2026-09-27T10:00:00Z"),
+        f("MENSAJE_ENVIADO", "2026-09-25T10:00:00Z", "s2"),
+      ]).espera,
+    ).toBe(false);
   });
 });

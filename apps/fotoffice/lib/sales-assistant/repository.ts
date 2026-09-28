@@ -10,10 +10,10 @@ import {
   type ResultadoSeguimiento,
   type TipoSeguimiento,
 } from "./constants";
-import { clasificarTarjeta } from "./inbox";
+import { clasificarTarjeta, esperaResultado } from "./inbox";
 import type { Movimiento, OportunidadVenta } from "./opportunity";
 import type { SeguimientoParaContexto, SugerenciaPrevia } from "./prompt";
-import type { UltimaSugerencia } from "./needs-analysis";
+import { ultimoSeguimientoQueCuenta, type UltimaSugerencia } from "./needs-analysis";
 import type { ResultadoAnalisis } from "./analyzer";
 import { ordenarBandeja } from "./priority";
 
@@ -202,7 +202,10 @@ export async function contextoDeAnalisis(
       }
     : null;
 
-  const ultimoSeguimientoEn = fila.followUps[0]?.createdAt ?? null;
+  // Sólo RESULTADO y NOTA: anotar un envío no es una novedad que pida volver a analizar.
+  const ultimoSeguimientoEn = ultimoSeguimientoQueCuenta(
+    fila.followUps.map((f) => ({ tipo: f.kind as TipoSeguimiento, fecha: f.createdAt })),
+  );
 
   const seguimientos: SeguimientoParaContexto[] = [...fila.followUps]
     .reverse()
@@ -298,6 +301,10 @@ export type TarjetaBandeja = {
     creadaEn: Date;
   } | null;
   ultimoResultado: ResultadoSeguimiento | null;
+  /** Hay un WhatsApp enviado sin resultado anotado: la tarjeta ofrece "¿Qué contestó?". */
+  esperandoResultado: boolean;
+  /** La sugerencia de ese envío, para colgarle el resultado. */
+  sugerenciaEnviadaId: string | null;
   motivoCierre: string | null;
   accionHoy: boolean;
   prioridad: PrioridadVenta | null;
@@ -321,7 +328,12 @@ export async function bandeja(
         : { workspaceId, archivedAt: null, externalStatus: "ABIERTA" },
     include: {
       suggestions: { orderBy: { createdAt: "desc" }, take: 1 },
-      followUps: { where: { outcome: { not: null } }, orderBy: { createdAt: "desc" }, take: 1 },
+      // Los últimos envíos y resultados: de ahí salen la última respuesta y si falta anotar una.
+      followUps: {
+        where: { kind: { in: ["MENSAJE_ENVIADO", "RESULTADO"] } },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+      },
     },
   });
 
@@ -362,6 +374,11 @@ export async function bandeja(
       motivoCierre = clasificacion.motivoCierre;
     }
 
+    const pendiente = esperaResultado(
+      fila.followUps.map((f) => ({ tipo: f.kind as TipoSeguimiento, fecha: f.createdAt, sugerenciaId: f.suggestionId })),
+    );
+    const ultimoResultado = fila.followUps.find((f) => f.outcome !== null)?.outcome ?? null;
+
     tarjetas.push({
       oportunidadId: fila.id,
       nombre: fila.customerName,
@@ -371,7 +388,9 @@ export async function bandeja(
       telefono: fila.phone,
       externalId: fila.externalId,
       sugerencia,
-      ultimoResultado: (fila.followUps[0]?.outcome as ResultadoSeguimiento | null) ?? null,
+      ultimoResultado: ultimoResultado as ResultadoSeguimiento | null,
+      esperandoResultado: pendiente.espera,
+      sugerenciaEnviadaId: pendiente.sugerenciaId,
       motivoCierre,
       accionHoy,
       prioridad,
@@ -407,6 +426,7 @@ export async function detalleOportunidad(
     text: string | null;
     actorLabel: string;
     creadaEn: Date;
+    suggestionId: string | null;
   }[];
 } | null> {
   const fila = await prisma.fotofficeSalesOpportunity.findFirst({
@@ -440,6 +460,7 @@ export async function detalleOportunidad(
       text: f.text,
       actorLabel: f.actorLabel,
       creadaEn: f.createdAt,
+      suggestionId: f.suggestionId,
     })),
   };
 }

@@ -1,4 +1,11 @@
-import { DEFAULT_WAIT_DAYS, SALES_TIME_ZONE, UMBRALES_EVENTO_DIAS, type AccionVenta, type EstadoSugerencia } from "./constants";
+import {
+  DEFAULT_WAIT_DAYS,
+  SALES_TIME_ZONE,
+  UMBRALES_EVENTO_DIAS,
+  type AccionVenta,
+  type EstadoSugerencia,
+  type TipoSeguimiento,
+} from "./constants";
 import type { OportunidadVenta } from "./opportunity";
 
 /**
@@ -42,6 +49,21 @@ export function diasEntre(desde: Date, hasta: Date): number {
 
   const DIA_MS = 24 * 60 * 60 * 1000;
   return Math.floor((hastaDate.getTime() - desdeDate.getTime()) / DIA_MS);
+}
+
+/**
+ * El último seguimiento que es una NOVEDAD para el analizador: una respuesta del cliente
+ * (RESULTADO) o una nota del fotógrafo. Un MENSAJE_ENVIADO no cuenta: es el fotógrafo haciendo
+ * lo que la sugerencia pedía. Si contara, cada "Abrir WhatsApp" dispararía un análisis al día
+ * siguiente (una consulta a Claude por envío) y la regla de los días de espera no actuaría nunca.
+ */
+export function ultimoSeguimientoQueCuenta(seguimientos: Array<{ tipo: TipoSeguimiento; fecha: Date }>): Date | null {
+  let ultimo: Date | null = null;
+  for (const s of seguimientos) {
+    if (s.tipo === "MENSAJE_ENVIADO") continue;
+    if (!ultimo || s.fecha.getTime() > ultimo.getTime()) ultimo = s.fecha;
+  }
+  return ultimo;
 }
 
 export function necesitaAnalisis(input: {

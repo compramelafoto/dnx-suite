@@ -6,9 +6,7 @@ import {
   ACCIONES_CON_MENSAJE,
   ETIQUETA_ACCION,
   ETIQUETA_RESULTADO,
-  RESULTADOS,
   type PrioridadVenta,
-  type ResultadoSeguimiento,
 } from "@/lib/sales-assistant/constants";
 import { fechaVenta, textoEnDias, type FiltroBandeja } from "@/lib/sales-assistant/format";
 import { enlaceWhatsapp } from "@/lib/sales-assistant/phone";
@@ -18,10 +16,10 @@ import {
   descartarAction,
   marcarEnviadaAction,
   posponerAction,
-  registrarResultadoAction,
   type PanelState,
 } from "./actions";
 import { EstadoPanel } from "./estado-panel";
+import { ResultadoBotones } from "./resultado-botones";
 
 const inicial: PanelState = { error: null, ok: null };
 
@@ -36,7 +34,9 @@ const TONO_PRIORIDAD: Record<PrioridadVenta, string> = {
  *
  * **Nada se manda solo.** "Abrir WhatsApp" arma un enlace wa.me con el texto que quedó en el
  * cuadro (editado o no) y lo abre; el mensaje lo envía la persona desde su teléfono. Recién
- * después se anota como enviado, y aparecen los botones para contar qué contestó.
+ * después se anota como enviado, y aparecen los botones para contar qué contestó. Esos botones
+ * siguen ahí mientras el último envío no tenga resultado, aunque la corrida del día siguiente ya
+ * haya dejado otra sugerencia vigente (`tarjeta.esperandoResultado`).
  *
  * El enlace se arma acá y no en el servidor para que salga con el texto que está en pantalla en
  * ese momento, no con el que se guardó.
@@ -57,8 +57,10 @@ export function SuggestionCard({
   const s = tarjeta.sugerencia;
   const [texto, setTexto] = useState(s?.mensaje ?? "");
   const [enviada, setEnviada] = useState(s?.estado === "ENVIADA");
-  const [respuesta, setRespuesta] = useState("");
-  const [resultadoAnotado, setResultadoAnotado] = useState(false);
+  // El envío del que falta saber qué contestó: el que ya venía de la base, o el que se acaba de
+  // anotar desde esta tarjeta.
+  const [esperaRespuesta, setEsperaRespuesta] = useState(tarjeta.esperandoResultado);
+  const [sugerenciaEnviadaId, setSugerenciaEnviadaId] = useState(tarjeta.sugerenciaEnviadaId);
   const [state, setState] = useState<PanelState>(inicial);
   const [ocupado, startTransition] = useTransition();
 
@@ -80,13 +82,13 @@ export function SuggestionCard({
     const url = enlaceWhatsapp(tarjeta.telefono, texto);
     if (!url) return;
     window.open(url, "_blank", "noopener");
-    correr(() => marcarEnviadaAction(s.id, texto), () => setEnviada(true));
-  }
-
-  function anotarResultado(outcome: ResultadoSeguimiento) {
     correr(
-      () => registrarResultadoAction(tarjeta.oportunidadId, s?.id ?? null, outcome, respuesta),
-      () => setResultadoAnotado(true),
+      () => marcarEnviadaAction(s.id, texto),
+      () => {
+        setEnviada(true);
+        setEsperaRespuesta(true);
+        setSugerenciaEnviadaId(s.id);
+      },
     );
   }
 
@@ -161,32 +163,8 @@ export function SuggestionCard({
         )
       ) : null}
 
-      {enviada && !resultadoAnotado && !paraCerrar && !archivada ? (
-        <div className="space-y-3 rounded-lg border border-[var(--fo-border)] p-3">
-          <p className="text-sm font-medium">¿Qué contestó?</p>
-          <label className="fo-field-stack">
-            <span className="fo-label">¿Qué respondió? (opcional)</span>
-            <input
-              value={respuesta}
-              onChange={(e) => setRespuesta(e.target.value)}
-              maxLength={2000}
-              className="fo-input text-base sm:text-sm"
-            />
-          </label>
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-            {RESULTADOS.map((r) => (
-              <button
-                key={r}
-                type="button"
-                onClick={() => anotarResultado(r)}
-                disabled={ocupado}
-                className="fo-btn fo-btn-secondary min-h-11"
-              >
-                {ETIQUETA_RESULTADO[r]}
-              </button>
-            ))}
-          </div>
-        </div>
+      {esperaRespuesta && !paraCerrar && !archivada ? (
+        <ResultadoBotones opportunityId={tarjeta.oportunidadId} suggestionId={sugerenciaEnviadaId} />
       ) : null}
 
       <EstadoPanel state={state} />

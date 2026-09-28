@@ -10,10 +10,12 @@ import {
   type TipoSeguimiento,
 } from "@/lib/sales-assistant/constants";
 import { fechaHoraVenta, fechaVenta, textoEnDias } from "@/lib/sales-assistant/format";
+import { esperaResultado } from "@/lib/sales-assistant/inbox";
 import { diasEntre } from "@/lib/sales-assistant/needs-analysis";
 import type { Movimiento } from "@/lib/sales-assistant/opportunity";
 import { detalleOportunidad } from "@/lib/sales-assistant/repository";
 import { AccionesDetalle } from "../acciones-rapidas";
+import { ResultadoBotones } from "../resultado-botones";
 
 export const dynamic = "force-dynamic";
 /** "Volver a analizar" corre la sincronización dentro de la acción: mismo límite que la bandeja. */
@@ -58,6 +60,9 @@ export default async function DetalleVentaPage({ params }: { params: Promise<{ i
 
   const { oportunidad: op } = detalle;
   const ahora = new Date();
+  const pendiente = esperaResultado(
+    detalle.seguimientos.map((f) => ({ tipo: f.kind, fecha: f.creadaEn, sugerenciaId: f.suggestionId })),
+  );
 
   const linea: Evento[] = [
     ...op.movimientos.map((m, i) => ({
@@ -139,6 +144,9 @@ export default async function DetalleVentaPage({ params }: { params: Promise<{ i
 
       <section className="fo-card space-y-3 p-5">
         <h2 className="text-base font-semibold">Qué hacer</h2>
+        {pendiente.espera && !detalle.archivada ? (
+          <ResultadoBotones opportunityId={id} suggestionId={pendiente.sugerenciaId} />
+        ) : null}
         <AccionesDetalle opportunityId={id} archivada={detalle.archivada} />
       </section>
 

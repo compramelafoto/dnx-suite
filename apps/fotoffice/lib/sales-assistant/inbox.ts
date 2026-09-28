@@ -1,5 +1,11 @@
 import { esCandidataACerrar } from "./cleanup";
-import { ACCIONES_CON_MENSAJE, type AccionVenta, type EstadoSugerencia, type PrioridadVenta } from "./constants";
+import {
+  ACCIONES_CON_MENSAJE,
+  type AccionVenta,
+  type EstadoSugerencia,
+  type PrioridadVenta,
+  type TipoSeguimiento,
+} from "./constants";
 import type { OportunidadVenta } from "./opportunity";
 
 export type GrupoBandeja = "PARA_CERRAR" | "HOY" | "ESPERANDO";
@@ -53,4 +59,29 @@ export function clasificarTarjeta(input: {
   }
 
   return { grupo: "ESPERANDO", accionHoy: false, prioridad: sugerencia?.prioridad ?? null, motivoCierre: null };
+}
+
+/**
+ * Si hay un WhatsApp enviado del que todavía no se anotó qué contestó el cliente: el último
+ * MENSAJE_ENVIADO sin un RESULTADO posterior. Mientras sea así, la tarjeta y el detalle ofrecen
+ * los botones de resultado, sea cual sea la sugerencia vigente (el análisis del día siguiente
+ * puede haber creado otra, y eso no puede esconder la pregunta). Módulo PURO.
+ *
+ * `sugerenciaId` es la sugerencia de ese envío, para colgar el resultado de ella.
+ */
+export function esperaResultado(
+  seguimientos: Array<{ tipo: TipoSeguimiento; fecha: Date; sugerenciaId: string | null }>,
+): { espera: boolean; sugerenciaId: string | null } {
+  let envio: { fecha: Date; sugerenciaId: string | null } | null = null;
+  let ultimoResultado: Date | null = null;
+  for (const s of seguimientos) {
+    if (s.tipo === "MENSAJE_ENVIADO" && (!envio || s.fecha.getTime() > envio.fecha.getTime())) envio = s;
+    if (s.tipo === "RESULTADO" && (!ultimoResultado || s.fecha.getTime() > ultimoResultado.getTime())) {
+      ultimoResultado = s.fecha;
+    }
+  }
+  if (!envio || (ultimoResultado && ultimoResultado.getTime() > envio.fecha.getTime())) {
+    return { espera: false, sugerenciaId: null };
+  }
+  return { espera: true, sugerenciaId: envio.sugerenciaId };
 }
