@@ -7112,6 +7112,8 @@ model Workspace {
   coverageCollaborators       CoverageCollaboratorProfile[]
   coverageEvents              CoverageEvent[]
   vocabulary                  WorkspaceVocabulary?
+  salesSettings               FotofficeSalesSettings?
+  salesOpportunities          FotofficeSalesOpportunity[]
 }
 
 model WorkspaceFeatureModule {
@@ -18723,6 +18725,109 @@ model WorkspaceVocabulary {
   updatedAt DateTime @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+/// ─────────────────────────────────────────────────────────────────────────────
+/// ASISTENTE DE VENTAS
+/// Ver apps/fotoffice/docs/superpowers/specs/2026-09-28-asistente-de-ventas-design.md
+/// ─────────────────────────────────────────────────────────────────────────────
+
+model FotofficeSalesSettings {
+  id                String    @id @default(cuid())
+  workspaceId       String    @unique
+  workspace         Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  /// Nombres de embudo de Alboom incluidos. Vacío = ninguno elegido todavía.
+  pipelinesIncluded String[]  @default([])
+  signature         String?
+  voiceNotes        String?
+  waitDays          Int       @default(3)
+  staleDays         Int       @default(120)
+  lastSyncAt        DateTime?
+  /// OK | ERROR_LOGIN | ERROR_ALBOOM | PARCIAL
+  lastSyncStatus    String?
+  lastSyncMessage   String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model FotofficeSalesOpportunity {
+  id                 String    @id @default(cuid())
+  workspaceId        String
+  workspace          Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  /// ALBOOM
+  source             String
+  externalId         String
+  customerName       String
+  phone              String?
+  eventType          String?
+  eventDate          DateTime?
+  pipelineName       String
+  stageName          String
+  stageOrder         Int
+  quoteSentAt        DateTime?
+  externalCreatedAt  DateTime
+  externalModifiedAt DateTime
+  /// ABIERTA | CERRADA
+  externalStatus     String
+  /// La OportunidadVenta completa, serializada.
+  snapshot           Json
+  archivedAt         DateTime?
+  syncedAt           DateTime
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  suggestions FotofficeSalesSuggestion[]
+  followUps   FotofficeSalesFollowUp[]
+
+  @@unique([workspaceId, source, externalId])
+  @@index([workspaceId, externalStatus])
+}
+
+model FotofficeSalesSuggestion {
+  id            String                    @id @default(cuid())
+  workspaceId   String
+  opportunityId String
+  opportunity   FotofficeSalesOpportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  action        String
+  priority      String
+  reason        String
+  message       String?
+  editedMessage String?
+  waitUntil     DateTime?
+  /// `modificadaEn` de la oportunidad cuando se analizó: si Alboom la cambia después, se re-analiza.
+  opportunityModifiedAt DateTime
+  /// PENDIENTE | ENVIADA | POSPUESTA | DESCARTADA | REEMPLAZADA
+  status        String                    @default("PENDIENTE")
+  model         String?
+  inputTokens   Int?
+  outputTokens  Int?
+  createdAt     DateTime                  @default(now())
+  resolvedAt    DateTime?
+
+  followUps FotofficeSalesFollowUp[]
+
+  @@index([workspaceId, status])
+  @@index([opportunityId, createdAt])
+}
+
+model FotofficeSalesFollowUp {
+  id            String                    @id @default(cuid())
+  workspaceId   String
+  opportunityId String
+  opportunity   FotofficeSalesOpportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  suggestionId  String?
+  suggestion    FotofficeSalesSuggestion? @relation(fields: [suggestionId], references: [id], onDelete: SetNull)
+  /// MENSAJE_ENVIADO | RESULTADO | NOTA
+  kind          String
+  /// NO_CONTESTO | INTERESADO | PIDIO_DESCUENTO | LO_PIENSA | NO_VA
+  outcome       String?
+  text          String?
+  actorUserId   Int?
+  actorLabel    String
+  createdAt     DateTime                  @default(now())
+
+  @@index([opportunityId, createdAt])
+  @@index([workspaceId])
 }
 
 // ---------------------------------------------------------------------------
