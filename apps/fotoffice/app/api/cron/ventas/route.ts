@@ -5,7 +5,7 @@ import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { isAuthorizedCronRequest } from "@/lib/security/cron-auth";
 import { sanitizeError } from "@/lib/payments/connect/log";
 import { SALES_ASSISTANT_MODULE_KEY } from "@/lib/sales-assistant/constants";
-import { presupuestoPorWorkspace } from "@/lib/sales-assistant/budget";
+import { decidirWorkspace } from "@/lib/sales-assistant/budget";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -40,7 +40,6 @@ export async function POST(request: Request) {
   try {
     const inicio = Date.now();
     const PRESUPUESTO_TOTAL_MS = 270_000;
-    const MINIMO_PARA_INICIAR = 15_000;
 
     const workspaces = await workspacesConAlboomActivo();
     const resultados: ResumenWorkspace[] = [];
@@ -50,13 +49,15 @@ export async function POST(request: Request) {
       const restante = PRESUPUESTO_TOTAL_MS - transcurrido;
       const pendientes = workspaces.length - resultados.length;
 
-      const deadlineMs = presupuestoPorWorkspace(restante, pendientes);
+      const decision = decidirWorkspace(restante, pendientes);
 
-      // Omitir si no hay tiempo suficiente.
-      if (deadlineMs < MINIMO_PARA_INICIAR) {
+      // Omitir si no hay tiempo suficiente en el presupuesto total.
+      if (decision.omitir) {
         resultados.push({ workspaceId, estado: "OMITIDO", leidas: 0, analizadas: 0 });
         continue;
       }
+
+      const { deadlineMs } = decision;
 
       try {
         // Verificar que el módulo esté habilitado para este workspace.
