@@ -19,8 +19,8 @@ import { SuggestionCard } from "./suggestion-card";
 export const dynamic = "force-dynamic";
 /**
  * "Actualizar ahora" corre la sincronización entera dentro de la Server Action, que hereda el
- * límite de tiempo de esta página. La acción corta el análisis a los 120 s (`PLAZO_ANALISIS_MS`)
- * para dejar margen a la lectura de Alboom.
+ * límite de tiempo de esta página. La acción le da a la corrida entera (lectura de Alboom incluida)
+ * 180 s (`PLAZO_CORRIDA_MS`), con margen para el análisis que esté en curso al cumplirse.
  */
 export const maxDuration = 300;
 

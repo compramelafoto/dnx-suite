@@ -51,8 +51,12 @@ import { sincronizarWorkspace, type ResumenSync } from "@/lib/sales-assistant/sy
 
 export type PanelState = { error: string | null; ok: string | null; warn?: string | null };
 
-/** La corrida manual tiene que entrar en el `maxDuration = 300` de la página que la llama. */
-const PLAZO_ANALISIS_MS = 120_000;
+/**
+ * La corrida manual tiene que entrar en el `maxDuration = 300` de la página que la llama. El plazo
+ * cuenta desde que arranca `sincronizarWorkspace` (login y lectura de Alboom incluidos); el margen
+ * que queda hasta 300 s es para el análisis que ya estaba en curso cuando se cumplió.
+ */
+const PLAZO_CORRIDA_MS = 180_000;
 
 const NO_ENCONTRADA = "No encontramos esa oportunidad.";
 const YA_CAMBIO = "Esta sugerencia ya cambió; actualizá la página.";
@@ -227,7 +231,7 @@ export async function actualizarAhoraAction(): Promise<PanelState> {
 
   let resumen: ResumenSync;
   try {
-    resumen = await sincronizarWorkspace(workspace.id, { deadlineMs: PLAZO_ANALISIS_MS });
+    resumen = await sincronizarWorkspace(workspace.id, { deadlineMs: PLAZO_CORRIDA_MS });
   } catch (error) {
     registrarFallo("falló la sincronización manual", error);
     return { error: "No pudimos actualizar. Probá de nuevo en un rato.", ok: null };
@@ -250,9 +254,12 @@ export async function reanalizarAction(opportunityId: string): Promise<PanelStat
 
   let resumen: ResumenSync;
   try {
+    // Lee Alboom (para analizarla con lo último) pero analiza sólo ésta: las demás que también
+    // tocaría analizar esperan a la corrida diaria o a "Actualizar ahora".
     resumen = await sincronizarWorkspace(workspace.id, {
       forzarIds: [detalle.oportunidad.idExterno],
-      deadlineMs: PLAZO_ANALISIS_MS,
+      soloForzadas: true,
+      deadlineMs: PLAZO_CORRIDA_MS,
     });
   } catch (error) {
     registrarFallo("falló el reanálisis", error);

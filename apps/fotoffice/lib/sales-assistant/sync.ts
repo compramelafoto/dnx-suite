@@ -9,6 +9,7 @@ import { leerCredencialAlboom, marcarCredencialRechazada } from "./alboom/creden
 import { fechaAlboom, mapearOportunidad, movimientosDesde } from "./alboom/mapper";
 import type { AlboomLeadRow } from "./alboom/types";
 import { analizarOportunidad, iaDisponible } from "./analyzer";
+import { esCandidataACerrar } from "./cleanup";
 import { ANALISIS_EN_PARALELO, MAX_ANALISIS_POR_CORRIDA, type EstadoSync } from "./constants";
 import { necesitaAnalisis } from "./needs-analysis";
 import type { Movimiento, OportunidadVenta } from "./opportunity";
@@ -84,13 +85,51 @@ type OportunidadProcesada = {
 
 const SIN_MOVIMIENTOS: Movimiento[] = [];
 
+/**
+ * El orden de la cola de análisis: primero las pedidas a mano ("Volver a analizar"), después la
+ * más cercana al evento, y las sin fecha al final. Así, si el tope por corrida o el plazo cortan
+ * la cola, lo que queda para mañana es lo menos urgente, nunca lo que alguien acaba de pedir.
+ */
+function compararCola(a: { forzada: boolean; op: OportunidadVenta }, b: { forzada: boolean; op: OportunidadVenta }): number {
+  if (a.forzada !== b.forzada) return a.forzada ? -1 : 1;
+  const fa = a.op.fechaEvento?.getTime() ?? Number.POSITIVE_INFINITY;
+  const fb = b.op.fechaEvento?.getTime() ?? Number.POSITIVE_INFINITY;
+  if (fa === fb) return 0;
+  return fa < fb ? -1 : 1;
+}
+
+/**
+ * La fecha que se guarda como "la oportunidad estaba así cuando se analizó". Un análisis fallido
+ * se guarda con la fecha 0 (1970): `necesitaAnalisis` ve que Alboom "cambió después" y lo
+ * reintenta en la próxima corrida, en vez de dejar la sugerencia de error para siempre.
+ */
+function modificadaParaGuardar(op: OportunidadVenta, fallo: boolean): Date {
+  return fallo ? new Date(0) : op.modificadaEn;
+}
+
 export async function sincronizarWorkspace(
   workspaceId: string,
-  opciones?: { forzarIds?: string[]; deps?: Partial<DependenciasSync>; deadlineMs?: number },
+  opciones?: {
+    forzarIds?: string[];
+    /**
+     * Lee Alboom igual (para tener la oportunidad al día) pero analiza sólo las de `forzarIds`.
+     * Es lo que usa "Volver a analizar": pedir una no puede disparar el análisis de todas.
+     */
+    soloForzadas?: boolean;
+    deps?: Partial<DependenciasSync>;
+    /** Plazo para la corrida ENTERA, lectura de Alboom incluida, medido desde que se entra acá. */
+    deadlineMs?: number;
+  },
 ): Promise<ResumenSync> {
   const d: DependenciasSync = { ...depsReales(), ...opciones?.deps };
   const forzarIds = new Set(opciones?.forzarIds ?? []);
+  const soloForzadas = opciones?.soloForzadas ?? false;
   const deadlineMs = opciones?.deadlineMs ?? 240_000;
+  // Un solo instante para toda la corrida: el plazo se cuenta desde acá (el login y la lectura de
+  // Alboom también consumen la función de 300 s) y las fechas guardadas son todas la misma.
+  const ahora = d.ahora();
+  const inicio = ahora.getTime();
+  const sinTiempo = () => d.ahora().getTime() - inicio > deadlineMs;
 
   const vacio = (estado: EstadoSync, mensaje: string | null): ResumenSync => ({
     estado,
@@ -137,9 +176,9 @@ export async function sincronizarWorkspace(
   const pipelinesIncluidos = new Set(ajustes.pipelinesIncluded);
   const incluidas = filas.filter((fila) => pipelinesIncluidos.has((fila.pipeline_name ?? "").trim()));
 
-  const ahora = d.ahora();
   const procesadas: OportunidadProcesada[] = [];
   let fallidas = 0;
+  let sinLeer = 0;
 
   for (const fila of incluidas) {
     const idExterno = String(fila.id);
@@ -149,6 +188,17 @@ export async function sincronizarWorkspace(
     // detalle. Si la fecha no se pudo interpretar, se pide igual: es la opción segura.
     const necesitaDetalle =
       !existente || modificadaFila === null || modificadaFila.getTime() > existente.modificadaEn.getTime();
+
+    if (necesitaDetalle && sinTiempo()) {
+      // Se acabó el plazo leyendo detalles: no se pide ninguno más. La que ya estaba queda con su
+      // snapshot anterior SIN guardar (conserva su fecha vieja, así la próxima corrida ve que
+      // cambió y la vuelve a leer); la nueva, sin nada guardado todavía, espera a mañana.
+      sinLeer++;
+      if (existente) {
+        procesadas.push({ id: existente.id, idExterno, op: existente.snapshot, archivada: existente.archivada });
+      }
+      continue;
+    }
 
     let movimientos: Movimiento[];
     if (necesitaDetalle) {
@@ -173,11 +223,15 @@ export async function sincronizarWorkspace(
   // Se pasan TODOS los ids abiertos que devolvió Alboom, de cualquier embudo: si sólo mandara
   // los incluidos, una oportunidad de un embudo excluido (que nunca se guarda) quedaría marcada
   // CERRADA por error la primera vez que alguien la mire.
-  await d.repo.marcarNoVistasComoCerradas(
-    workspaceId,
-    filas.map((fila) => String(fila.id)),
-    ahora,
-  );
+  // Una lista vacía sin error no se toma como "se cerró todo": es mucho más probable una
+  // respuesta rara de Alboom que un embudo entero cerrado de un día para el otro.
+  if (filas.length > 0) {
+    await d.repo.marcarNoVistasComoCerradas(
+      workspaceId,
+      filas.map((fila) => String(fila.id)),
+      ahora,
+    );
+  }
 
   let analizadas = 0;
   let pendientes = 0;
@@ -185,30 +239,40 @@ export async function sincronizarWorkspace(
   if (d.iaDisponible()) {
     const candidatas: Array<{
       procesada: OportunidadProcesada;
+      op: OportunidadVenta;
+      forzada: boolean;
       contexto: Awaited<ReturnType<RepoSync["contextoDeAnalisis"]>>;
     }> = [];
     for (const procesada of procesadas) {
+      const forzada = forzarIds.has(procesada.idExterno);
+      if (soloForzadas && !forzada) continue;
+      // La limpieza inicial es por regla (spec §3.5): una oportunidad con el evento vencido o
+      // quieta hace meses va a «Para cerrar» sin gastar una consulta a Claude. Si alguien la
+      // pide a mano, se respeta.
+      if (!forzada && esCandidataACerrar({ oportunidad: procesada.op, staleDays: ajustes.staleDays, hoy: ahora }).cerrar) {
+        continue;
+      }
       const contexto = await d.repo.contextoDeAnalisis(workspaceId, procesada.id);
       const decision = necesitaAnalisis({
         oportunidad: procesada.op,
         ultima: contexto.ultima,
         ultimoSeguimientoEn: contexto.ultimoSeguimientoEn,
         archivada: procesada.archivada,
-        forzar: forzarIds.has(procesada.idExterno),
+        forzar: forzada,
         hoy: ahora,
         waitDays: ajustes.waitDays,
       });
-      if (decision.analizar) candidatas.push({ procesada, contexto });
+      if (decision.analizar) candidatas.push({ procesada, op: procesada.op, forzada, contexto });
     }
 
+    candidatas.sort(compararCola);
     const aProcesar = candidatas.slice(0, MAX_ANALISIS_POR_CORRIDA);
     pendientes = candidatas.length - aProcesar.length;
 
-    const inicio = d.ahora().getTime();
     let siguiente = 0;
     const trabajador = async (): Promise<void> => {
       while (siguiente < aProcesar.length) {
-        if (d.ahora().getTime() - inicio > deadlineMs) return;
+        if (sinTiempo()) return;
         const item = aProcesar[siguiente++]!;
         const contextoTexto = armarContexto({
           oportunidad: item.procesada.op,
@@ -218,7 +282,13 @@ export async function sincronizarWorkspace(
           hoy: ahora,
         });
         const resultado = await d.analizar(contextoTexto);
-        await d.repo.guardarSugerencia(workspaceId, item.procesada.id, resultado, item.procesada.op.modificadaEn, ahora);
+        await d.repo.guardarSugerencia(
+          workspaceId,
+          item.procesada.id,
+          resultado,
+          modificadaParaGuardar(item.procesada.op, resultado.fallo),
+          ahora,
+        );
         analizadas++;
         if (resultado.fallo) fallidas++;
       }
@@ -229,7 +299,7 @@ export async function sincronizarWorkspace(
     pendientes += aProcesar.length - analizadas;
   }
 
-  const estado: EstadoSync = pendientes > 0 || fallidas > 0 ? "PARCIAL" : "OK";
+  const estado: EstadoSync = pendientes > 0 || fallidas > 0 || sinLeer > 0 ? "PARCIAL" : "OK";
   const mensaje = `Leí ${incluidas.length} oportunidades y analicé ${analizadas}`;
   await d.repo.registrarSync(workspaceId, estado, mensaje);
 

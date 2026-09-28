@@ -4,7 +4,8 @@ import type { AlboomLeadRow } from "./alboom/types";
 import type { ResultadoAnalisis } from "./analyzer";
 import type { AjustesVentas } from "./repository";
 import type { RepoSync } from "./sync";
-import { sincronizarWorkspace } from "./sync";
+import { sincronizarWorkspace as sincronizarReal } from "./sync";
+import { MAX_ANALISIS_POR_CORRIDA } from "./constants";
 import type { OportunidadVenta } from "./opportunity";
 
 /**
@@ -15,6 +16,15 @@ import type { OportunidadVenta } from "./opportunity";
 
 const CRED: CredencialAlboom = { subdomain: "foto", username: "u", password: "p" };
 
+/**
+ * Un reloj fijo para todas las corridas: la limpieza inicial (`esCandidataACerrar`) mira la fecha
+ * del evento y los días sin movimiento, y con el reloj real estos fixtures "envejecerían" solos.
+ */
+const HOY = new Date("2026-09-28T13:00:00Z");
+
+const sincronizarWorkspace: typeof sincronizarReal = (workspaceId, opciones) =>
+  sincronizarReal(workspaceId, { ...opciones, deps: { ahora: () => HOY, ...opciones?.deps } });
+
 function filaAlboom(overrides: Partial<AlboomLeadRow> = {}): AlboomLeadRow {
   return {
     id: "1",
@@ -23,9 +33,9 @@ function filaAlboom(overrides: Partial<AlboomLeadRow> = {}): AlboomLeadRow {
     status_id: "421",
     pipeline_id: "1",
     stage_id: "1",
-    created: "2026-01-01 10:00",
-    modified: "2026-01-01 10:00",
-    event_date: "2026-06-01",
+    created: "2026-09-01 10:00",
+    modified: "2026-09-20 10:00",
+    event_date: "2027-06-01",
     place_event: null,
     city_event: null,
     guests: null,
@@ -266,7 +276,9 @@ describe("sincronizarWorkspace", () => {
   it("el deadline corta y deja pendientes > 0 con estado PARCIAL", async () => {
     const { repo } = repoEnMemoria();
     const filas = [filaAlboom({ id: "1" }), filaAlboom({ id: "2" }), filaAlboom({ id: "3" })];
-    let ahora = 0;
+    // El reloj no se mueve mientras se lee Alboom; cada análisis lo adelanta 20 ms. Con un plazo
+    // de 10 ms, entra el primer análisis y los demás quedan para la próxima corrida.
+    let reloj = HOY.getTime();
     const r = await sincronizarWorkspace("w1", {
       deadlineMs: 10,
       deps: {
@@ -274,14 +286,16 @@ describe("sincronizarWorkspace", () => {
         crearCliente: async () => clienteFalso(filas),
         repo,
         iaDisponible: () => true,
-        // Cada llamada a `ahora()` avanza el reloj: la primera lectura (antes del análisis) da 0,
-        // y ya la primera comprobación dentro del pool ve pasado el plazo.
-        ahora: () => new Date(ahora++ * 20),
-        analizar: analizarOk,
+        ahora: () => new Date(reloj),
+        analizar: async () => {
+          reloj += 20;
+          return analizarOk();
+        },
       },
     });
     expect(r.estado).toBe("PARCIAL");
-    expect(r.pendientes).toBeGreaterThan(0);
+    expect(r.analizadas).toBe(1);
+    expect(r.pendientes).toBe(2);
   });
 
   it("un detalle que falla no aborta la corrida y cuenta como PARCIAL", async () => {
@@ -310,5 +324,174 @@ describe("sincronizarWorkspace", () => {
     expect(r.estado).toBe("PARCIAL");
     expect(r.fallidas).toBe(1);
     expect(oportunidades.size).toBe(2);
+  });
+
+  it("la limpieza inicial no pasa por Claude: las vencidas o quietas no se analizan, salvo forzadas", async () => {
+    const { repo, oportunidades } = repoEnMemoria();
+    const filas = [
+      filaAlboom({ id: "1", name: "Viejo", event_date: "2018-05-01", modified: "2018-01-01 10:00" }),
+      filaAlboom({ id: "2", name: "Quieto", event_date: null, modified: "2026-01-01 10:00" }),
+      filaAlboom({ id: "3", name: "Vivo" }),
+    ];
+    const analizar = vi.fn(analizarOk);
+    const deps = {
+      leerCredencial: async () => CRED,
+      crearCliente: async () => clienteFalso(filas),
+      repo,
+      iaDisponible: () => true,
+      analizar,
+    };
+    const r = await sincronizarWorkspace("w1", { deps });
+    expect(r.leidas).toBe(3);
+    expect(r.analizadas).toBe(1);
+    expect(r.pendientes).toBe(0);
+    expect(analizar.mock.calls[0]![0]).toContain("Pedido: Vivo");
+    // Se guardan igual: la pestaña «Para cerrar» las arma por regla desde la base.
+    expect(oportunidades.size).toBe(3);
+
+    analizar.mockClear();
+    const forzada = await sincronizarWorkspace("w1", { forzarIds: ["1"], deps });
+    expect(forzada.analizadas).toBe(1);
+    expect(analizar.mock.calls[0]![0]).toContain("Pedido: Viejo");
+  });
+
+  it("la cola va con las forzadas primero y después por cercanía del evento (sin fecha al final)", async () => {
+    const { repo } = repoEnMemoria();
+    const filas = [
+      filaAlboom({ id: "1", name: "Junio", event_date: "2027-06-01" }),
+      filaAlboom({ id: "2", name: "SinFecha", event_date: null }),
+      filaAlboom({ id: "3", name: "Noviembre", event_date: "2026-11-01" }),
+      filaAlboom({ id: "4", name: "Forzada", event_date: "2027-12-01" }),
+    ];
+    const analizar = vi.fn(analizarOk);
+    await sincronizarWorkspace("w1", {
+      forzarIds: ["4"],
+      deps: {
+        leerCredencial: async () => CRED,
+        crearCliente: async () => clienteFalso(filas),
+        repo,
+        iaDisponible: () => true,
+        analizar,
+      },
+    });
+    const orden = analizar.mock.calls.map((c) => /Pedido: (\w+)/.exec(String(c[0]))![1]);
+    expect(orden).toEqual(["Forzada", "Noviembre", "Junio", "SinFecha"]);
+  });
+
+  it("una forzada no queda afuera del tope de análisis por corrida", async () => {
+    const { repo } = repoEnMemoria();
+    const filas = Array.from({ length: MAX_ANALISIS_POR_CORRIDA + 5 }, (_, i) =>
+      filaAlboom({ id: String(i + 1), name: `Op${i + 1}` }),
+    );
+    const ultima = String(filas.length);
+    const analizar = vi.fn(analizarOk);
+    const r = await sincronizarWorkspace("w1", {
+      forzarIds: [ultima],
+      deps: {
+        leerCredencial: async () => CRED,
+        crearCliente: async () => clienteFalso(filas),
+        repo,
+        iaDisponible: () => true,
+        analizar,
+      },
+    });
+    expect(r.analizadas).toBe(MAX_ANALISIS_POR_CORRIDA);
+    expect(r.pendientes).toBe(5);
+    expect(analizar.mock.calls.some((c) => String(c[0]).includes(`Pedido: Op${ultima}\n`))).toBe(true);
+  });
+
+  it("el plazo se mide desde el comienzo: si se agota leyendo detalles, deja de pedirlos y queda PARCIAL", async () => {
+    const { repo, oportunidades } = repoEnMemoria();
+    await sincronizarWorkspace("w1", {
+      deps: {
+        leerCredencial: async () => CRED,
+        crearCliente: async () => clienteFalso([filaAlboom({ id: "1" }), filaAlboom({ id: "2" })]),
+        repo,
+        iaDisponible: () => false,
+      },
+    });
+    const modificadaAntes = oportunidades.get("1")!.snapshot.modificadaEn;
+
+    // Segunda corrida: las dos cambiaron en Alboom y aparece una nueva, pero el reloj ya pasó el
+    // plazo antes de pedir el primer detalle.
+    const filas = [
+      filaAlboom({ id: "1", modified: "2026-09-25 10:00" }),
+      filaAlboom({ id: "2", modified: "2026-09-25 10:00" }),
+      filaAlboom({ id: "3" }),
+    ];
+    let detalles = 0;
+    const cliente: ClienteAlboom = {
+      ...clienteFalso(filas),
+      async detalle() {
+        detalles++;
+        return { activities: [], mails: [] };
+      },
+    };
+    let t = 0;
+    const r = await sincronizarWorkspace("w1", {
+      deadlineMs: 10,
+      deps: {
+        leerCredencial: async () => CRED,
+        crearCliente: async () => cliente,
+        repo,
+        iaDisponible: () => false,
+        ahora: () => new Date(HOY.getTime() + t++ * 20),
+      },
+    });
+    expect(detalles).toBe(0);
+    expect(r.estado).toBe("PARCIAL");
+    // La que ya estaba conserva su snapshot (y su fecha): la próxima corrida la vuelve a leer.
+    expect(oportunidades.get("1")!.snapshot.modificadaEn).toEqual(modificadaAntes);
+    // La nueva, sin detalle ni snapshot previo, espera a la próxima corrida.
+    expect(oportunidades.has("3")).toBe(false);
+  });
+
+  it("un análisis fallido se reintenta en la corrida siguiente", async () => {
+    const { repo } = repoEnMemoria();
+    const analizar = vi
+      .fn(analizarOk)
+      .mockImplementationOnce(async () => ({ ...(await analizarOk()), fallo: true }));
+    const deps = {
+      leerCredencial: async () => CRED,
+      crearCliente: async () => clienteFalso([filaAlboom({ id: "1" })]),
+      repo,
+      iaDisponible: () => true,
+      analizar,
+    };
+    const primera = await sincronizarWorkspace("w1", { deps });
+    expect(primera.fallidas).toBe(1);
+    const segunda = await sincronizarWorkspace("w1", { deps });
+    expect(segunda.analizadas).toBe(1);
+    expect(analizar).toHaveBeenCalledTimes(2);
+  });
+
+  it("soloForzadas lee Alboom pero analiza sólo las forzadas", async () => {
+    const { repo, oportunidades } = repoEnMemoria();
+    const filas = [filaAlboom({ id: "1", name: "Pedida" }), filaAlboom({ id: "2", name: "Otra" })];
+    const analizar = vi.fn(analizarOk);
+    const r = await sincronizarWorkspace("w1", {
+      forzarIds: ["1"],
+      soloForzadas: true,
+      deps: {
+        leerCredencial: async () => CRED,
+        crearCliente: async () => clienteFalso(filas),
+        repo,
+        iaDisponible: () => true,
+        analizar,
+      },
+    });
+    expect(oportunidades.size).toBe(2);
+    expect(r.analizadas).toBe(1);
+    expect(r.pendientes).toBe(0);
+    expect(analizar).toHaveBeenCalledTimes(1);
+    expect(analizar.mock.calls[0]![0]).toContain("Pedido: Pedida");
+  });
+
+  it("si Alboom devuelve una lista vacía sin error, no cierra nada", async () => {
+    const { repo, oportunidades } = repoEnMemoria();
+    const base = { leerCredencial: async () => CRED, repo, iaDisponible: () => false };
+    await sincronizarWorkspace("w1", { deps: { ...base, crearCliente: async () => clienteFalso([filaAlboom({ id: "1" })]) } });
+    await sincronizarWorkspace("w1", { deps: { ...base, crearCliente: async () => clienteFalso([]) } });
+    expect(oportunidades.get("1")!.snapshot.abierta).toBe(true);
   });
 });
