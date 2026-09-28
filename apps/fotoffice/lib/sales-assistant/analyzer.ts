@@ -43,9 +43,17 @@ let cliente: Anthropic | null = null;
 
 export const llamadaClaudeReal: LlamadaClaude = async ({ model, system, contexto }) => {
   cliente ??= new Anthropic();
-  const r = await cliente.messages.create({
+  // `fallbacks` (reintentar en otro modelo si el elegido rechaza por política) sólo está tipado
+  // en el cliente beta (client.beta.messages), no en el estable. La forma escalar "default" pide
+  // la cadena de fallback que el propio modelo tiene configurada del lado del servidor; requiere
+  // el beta header "server-side-fallback-2026-07-01" (confirmado en
+  // node_modules/@anthropic-ai/sdk/resources/beta/beta.d.ts, AnthropicBeta, y en
+  // node_modules/@anthropic-ai/sdk/lib/middleware.ts, que menciona esa combinación).
+  const r = await cliente.beta.messages.create({
     model,
     max_tokens: 4000,
+    betas: ["server-side-fallback-2026-07-01"],
+    fallbacks: "default",
     system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
     thinking: { type: "adaptive" },
     output_config: {
@@ -54,7 +62,9 @@ export const llamadaClaudeReal: LlamadaClaude = async ({ model, system, contexto
     },
     messages: [{ role: "user", content: contexto }],
   });
-  const texto = r.content.find((b): b is Anthropic.TextBlock => b.type === "text")?.text ?? null;
+  // La respuesta puede traer un bloque `fallback` intercalado cuando el servidor cambió de
+  // modelo a mitad de camino; a nosotros nos sigue sirviendo el primer bloque de texto.
+  const texto = r.content.find((b): b is Anthropic.Beta.BetaTextBlock => b.type === "text")?.text ?? null;
   return {
     texto,
     stopReason: r.stop_reason ?? null,
