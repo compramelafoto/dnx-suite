@@ -1,0 +1,11 @@
+{
+  "rows": [
+    {
+      "subject": "",
+      "message_type": "mail",
+      "to_mail": "alejandro@example.com",
+      "created": "2026-09-15 10:00:00",
+      "body": "Hola alejandro como estas? recibimos tu consulta pero tu numero de telefono esta mal escrito.&nbsp;<br>podrias escribirme?<br><br><div><span>Saludos,</span></div><img src=\"data:image/png;base64,AAAA\">"
+    }
+  ]
+}
