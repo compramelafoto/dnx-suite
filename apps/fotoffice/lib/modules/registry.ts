@@ -3,6 +3,7 @@ import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
+import { SALES_ASSISTANT_MODULE_KEY } from "@/lib/sales-assistant/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
@@ -106,6 +107,16 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     category: "GENERAL",
     order: 65,
     route: "/coberturas",
+    status: "AVAILABLE",
+  },
+  {
+    key: SALES_ASSISTANT_MODULE_KEY,
+    label: "Asistente de ventas",
+    description:
+      "Lee tu embudo de ventas, te dice qué hacer con cada oportunidad y te deja el mensaje de WhatsApp escrito.",
+    category: "GENERAL",
+    order: 67,
+    route: "/ventas",
     status: "AVAILABLE",
   },
 

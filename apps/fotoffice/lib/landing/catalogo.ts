@@ -8,6 +8,7 @@ import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
+import { SALES_ASSISTANT_MODULE_KEY } from "@/lib/sales-assistant/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 
 /**
@@ -173,6 +174,19 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
       "Formularios por tipo de evento",
       "Enlace para compartir",
       "Bandeja de consultas",
+    ],
+  },
+  {
+    key: SALES_ASSISTANT_MODULE_KEY,
+    cuadro: "18",
+    nombre: "Asistente de ventas",
+    resuelve:
+      "Lee tu embudo de ventas de Alboom y te dice, oportunidad por oportunidad, qué hacer hoy: a quién escribirle, a quién pedirle la seña, a quién dejar esperando. El mensaje de WhatsApp ya viene escrito; vos lo revisás y lo mandás.",
+    pantallas: [
+      "Panorama de oportunidades",
+      "Sugerencia y mensaje por oportunidad",
+      "Seguimiento de cada envío",
+      "Configuración de la conexión con Alboom",
     ],
   },
 ];
