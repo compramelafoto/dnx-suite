@@ -58,10 +58,19 @@ export async function crearClienteAlboom(
     } catch {
       throw new AlboomApiError("No se pudo conectar con Alboom");
     }
+    // Sólo un rechazo EXPLÍCITO de la credencial es AlboomLoginError (un 401, o un 2xx que dice
+    // `status: "error"`), porque ese error apaga la integración hasta que alguien la reconecte.
+    // Un 403 o un 429 (firewall, límite de pedidos) o cualquier otra respuesta rara son un
+    // problema de Alboom, no de la contraseña: AlboomApiError, y mañana se reintenta sola.
+    if (res.status === 401) throw new AlboomLoginError("Alboom rechazó el usuario");
+    if (!res.ok) throw new AlboomApiError(`Alboom respondió ${res.status} al iniciar sesión`, res.status);
     const data = (await res.json().catch(() => null)) as { status?: string; token?: string } | null;
-    if (!res.ok && res.status >= 500) throw new AlboomApiError("Alboom no responde", res.status);
-    if (data?.status !== "ok" || !data.token) throw new AlboomLoginError("Alboom rechazó el usuario");
-    token = data.token;
+    if (data?.status === "ok" && data.token) {
+      token = data.token;
+      return;
+    }
+    if (data?.status === "error") throw new AlboomLoginError("Alboom rechazó el usuario");
+    throw new AlboomApiError("Alboom respondió algo inesperado al iniciar sesión", res.status);
   }
 
   async function pedir<T>(ruta: string, init: { method: "GET" | "POST"; body?: unknown }, reintento = true): Promise<T> {

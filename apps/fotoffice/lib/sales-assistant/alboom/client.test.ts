@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { AlboomLoginError, crearClienteAlboom, horaLocalAlboom } from "./client";
+import { AlboomApiError, AlboomLoginError, crearClienteAlboom, horaLocalAlboom } from "./client";
 
 const cred = { subdomain: "dnxprueba", username: "a@b.com", password: "x" };
 const json = (body: unknown, status = 200) =>
@@ -25,6 +25,23 @@ describe("crearClienteAlboom", () => {
   it("rechaza con AlboomLoginError si status no es ok", async () => {
     const fetchFalso = vi.fn(async () => json({ status: "error", message: "invalid" }));
     await expect(crearClienteAlboom(cred, fetchFalso as unknown as typeof fetch)).rejects.toBeInstanceOf(AlboomLoginError);
+  });
+
+  it("un 401 en el login es credencial rechazada", async () => {
+    const fetchFalso = vi.fn(async () => json({ status: "error" }, 401));
+    await expect(crearClienteAlboom(cred, fetchFalso as unknown as typeof fetch)).rejects.toBeInstanceOf(AlboomLoginError);
+  });
+
+  it.each([403, 429, 404, 400])("un %i en el login es un problema de Alboom, no de la credencial", async (status) => {
+    const fetchFalso = vi.fn(async () => json({ status: "error", message: "blocked" }, status));
+    const error = await crearClienteAlboom(cred, fetchFalso as unknown as typeof fetch).catch((e) => e);
+    expect(error).toBeInstanceOf(AlboomApiError);
+    expect(error).not.toBeInstanceOf(AlboomLoginError);
+  });
+
+  it("un 200 que no es la respuesta de login (p. ej. una página HTML) es AlboomApiError", async () => {
+    const fetchFalso = vi.fn(async () => new Response("<html>firewall</html>", { status: 200 }));
+    await expect(crearClienteAlboom(cred, fetchFalso as unknown as typeof fetch)).rejects.toBeInstanceOf(AlboomApiError);
   });
 
   it("pagina hasta traer count filas", async () => {
