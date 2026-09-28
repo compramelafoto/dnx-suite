@@ -42,7 +42,9 @@ export default async function IntegracionesPage({
   if (!canManageWorkspaceSettings(role)) redirect("/workspace/configuracion");
 
   const porClave = new Map(conectadas.map((c) => [c.integrationKey, c]));
-  const disponibles = listIntegrations({ status: "AVAILABLE" });
+  // Esta pantalla sólo sabe conectar cuentas por OAuth de Google. Alboom (el Asistente de
+  // ventas) no es OAuth — usuario y contraseña — y tiene su propia pantalla de conexión.
+  const disponibles = listIntegrations({ status: "AVAILABLE" }).filter((i) => i.provider === "GOOGLE");
 
   const errorMessage = integrationErrorMessage(params.error ?? null);
   const okMessage = integrationOkMessage(params.ok ?? null);

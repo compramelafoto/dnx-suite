@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  ALBOOM_CRM_INTEGRATION_KEY,
   GOOGLE_CALENDAR_INTEGRATION_KEY,
   findDuplicateIntegrationKeys,
   getIntegrationDefinition,
@@ -13,8 +14,19 @@ describe("catálogo de integraciones", () => {
     expect(findDuplicateIntegrationKeys()).toEqual([]);
   });
 
-  it("Google Calendar es la única implementada hoy", () => {
-    expect(listAvailableIntegrationKeys()).toEqual([GOOGLE_CALENDAR_INTEGRATION_KEY]);
+  it("Google Calendar y Alboom CRM son las implementadas hoy", () => {
+    expect(listAvailableIntegrationKeys()).toEqual([
+      GOOGLE_CALENDAR_INTEGRATION_KEY,
+      ALBOOM_CRM_INTEGRATION_KEY,
+    ]);
+  });
+
+  it("Alboom CRM no es OAuth: sin permisos que otorgar y la necesita el Asistente de ventas", () => {
+    const alboom = getIntegrationDefinition(ALBOOM_CRM_INTEGRATION_KEY);
+    expect(alboom).toBeDefined();
+    expect(alboom!.provider).toBe("ALBOOM");
+    expect(alboom!.scopes).toEqual([]);
+    expect(alboom!.requiredByModules).toContain("sales-assistant");
   });
 
   it("Calendar pide permiso de eventos y la necesita el módulo de reservas", () => {
@@ -41,8 +53,9 @@ describe("catálogo de integraciones", () => {
     expect(integrationsRequiredByModule("members-inexistente")).toEqual([]);
   });
 
-  it("toda integración declara al menos un permiso", () => {
-    for (const integration of listIntegrations()) {
+  it("toda integración de Google declara al menos un permiso", () => {
+    // Alboom no es OAuth: queda afuera de esta regla a propósito (ver el test de arriba).
+    for (const integration of listIntegrations().filter((i) => i.provider === "GOOGLE")) {
       expect(integration.scopes.length).toBeGreaterThan(0);
     }
   });

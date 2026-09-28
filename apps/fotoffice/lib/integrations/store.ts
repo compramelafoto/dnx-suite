@@ -172,3 +172,50 @@ export async function deleteIntegration(
   });
   return refreshToken;
 }
+
+/**
+ * Integraciones que no son OAuth: guardan un secreto arbitrario (p. ej. usuario y contraseña de
+ * un CRM sin API pública). Mismo cofre, misma tabla, sin permisos otorgados.
+ */
+export async function saveSecretIntegration(input: {
+  workspaceId: string;
+  integrationKey: string;
+  provider: string;
+  accountEmail: string;
+  accountExternalId?: string | null;
+  secret: string;
+  connectedByUserId: number | null;
+}): Promise<void> {
+  const blob = encryptIntegrationSecret(input.secret, requireIntegrationsMasterKey());
+  const datos = {
+    provider: input.provider,
+    accountEmail: input.accountEmail,
+    accountExternalId: input.accountExternalId ?? null,
+    grantedScopes: [] as string[],
+    ciphertext: blob.ciphertext,
+    nonce: blob.nonce,
+    authTag: blob.authTag,
+    keyVersion: blob.keyVersion,
+    status: "ACTIVE",
+    connectedByUserId: input.connectedByUserId,
+    revokedAt: null,
+  };
+  await prisma.workspaceIntegration.upsert({
+    where: {
+      workspaceId_integrationKey: {
+        workspaceId: input.workspaceId,
+        integrationKey: input.integrationKey,
+      },
+    },
+    create: { workspaceId: input.workspaceId, integrationKey: input.integrationKey, ...datos },
+    update: { ...datos, connectedAt: new Date() },
+  });
+}
+
+/** El secreto en claro. Las mismas reglas que `readRefreshToken`. */
+export async function readIntegrationSecret(
+  workspaceId: string,
+  integrationKey: string,
+): Promise<string | null> {
+  return readRefreshToken(workspaceId, integrationKey);
+}

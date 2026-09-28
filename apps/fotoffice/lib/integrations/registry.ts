@@ -10,7 +10,7 @@
  * la documentación y las dependencias entre módulos sean legibles, nunca como botón.
  */
 
-export type IntegrationProvider = "GOOGLE";
+export type IntegrationProvider = "GOOGLE" | "ALBOOM";
 export type IntegrationStatus = "AVAILABLE" | "PLANNED";
 
 export type IntegrationDefinition = {
@@ -28,6 +28,7 @@ export type IntegrationDefinition = {
 };
 
 export const GOOGLE_CALENDAR_INTEGRATION_KEY = "google-calendar";
+export const ALBOOM_CRM_INTEGRATION_KEY = "alboom-crm";
 
 export const INTEGRATION_REGISTRY: readonly IntegrationDefinition[] = [
   {
@@ -51,6 +52,17 @@ export const INTEGRATION_REGISTRY: readonly IntegrationDefinition[] = [
       "https://www.googleapis.com/auth/calendar.app.created",
     ],
     requiredByModules: ["bookings"],
+    status: "AVAILABLE",
+  },
+  {
+    key: ALBOOM_CRM_INTEGRATION_KEY,
+    provider: "ALBOOM",
+    label: "Alboom CRM",
+    description: "Lee tu embudo de ventas de Alboom para el Asistente de ventas.",
+    // No es OAuth: la credencial es subdominio, usuario y contraseña, guardados en el mismo
+    // cofre. No hay permisos que otorgar, así que no hay scopes que declarar.
+    scopes: [],
+    requiredByModules: ["sales-assistant"],
     status: "AVAILABLE",
   },
 

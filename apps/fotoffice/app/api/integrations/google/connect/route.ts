@@ -39,7 +39,9 @@ export async function GET(req: Request) {
 
   const key = url.searchParams.get("integration")?.trim() ?? "";
   const definition = getIntegrationDefinition(key);
-  if (!definition || definition.status !== "AVAILABLE") {
+  // Esta ruta es específica de Google: una integración de otro proveedor (p. ej. Alboom,
+  // que no es OAuth) nunca debe llegar a pedirle permisos a Google.
+  if (!definition || definition.status !== "AVAILABLE" || definition.provider !== "GOOGLE") {
     return volverConError(origin, "integracion_desconocida");
   }
 
