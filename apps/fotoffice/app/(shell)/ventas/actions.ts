@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { sanitizeError } from "@/lib/payments/connect/log";
 import { requireSalesAssistantManager } from "@/lib/sales-assistant/access";
 import {
   AlboomApiError,
@@ -21,9 +22,12 @@ import {
   embudosElegidos,
   minutosParaActualizar,
   primerError,
+  puedeReanalizar,
+  sugerenciaEditable,
 } from "@/lib/sales-assistant/panel";
 import {
   archivar,
+  detalleOportunidad,
   guardarAjustes,
   leerAjustes,
   referenciaOportunidad,
@@ -51,6 +55,7 @@ export type PanelState = { error: string | null; ok: string | null; warn?: strin
 const PLAZO_ANALISIS_MS = 120_000;
 
 const NO_ENCONTRADA = "No encontramos esa oportunidad.";
+const YA_CAMBIO = "Esta sugerencia ya cambió; actualizá la página.";
 
 /** El nombre visible de quien actúa, igual que en Coberturas. */
 function etiquetaDe(user: { name: string | null; email: string }): string {
@@ -63,10 +68,9 @@ function revalidarVentas(opportunityId?: string) {
 }
 
 function registrarFallo(que: string, error: unknown) {
-  // Sólo el mensaje: ni la credencial ni el texto de los mensajes a clientes pasan por acá.
-  console.error(`[fotoffice][ventas] ${que}`, {
-    detalle: error instanceof Error ? error.message : "error desconocido",
-  });
+  // Saneado como pide el spec (§9): ni la credencial, ni la cookie de Alboom, ni el texto de los
+  // mensajes a clientes pueden terminar en un log.
+  console.error(`[fotoffice][ventas] ${que}`, { detalle: sanitizeError(error) });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -98,6 +102,14 @@ export async function guardarConexionAction(
   if (password === "") {
     const guardada = await leerCredencialAlboom(workspace.id);
     if (!guardada) return { error: "Falta la contraseña de Alboom.", ok: null };
+    // La guardada sólo vale para la MISMA cuenta: con otro usuario o subdominio sería probar la
+    // contraseña de una cuenta contra otra.
+    if (
+      guardada.subdomain.toLowerCase() !== parsed.data.subdomain ||
+      guardada.username.trim().toLowerCase() !== parsed.data.username.toLowerCase()
+    ) {
+      return { error: "Ingresá la contraseña de nuevo.", ok: null };
+    }
     password = guardada.password;
   }
   const cred = { subdomain: parsed.data.subdomain, username: parsed.data.username, password };
@@ -230,20 +242,23 @@ export async function reanalizarAction(opportunityId: string): Promise<PanelStat
   const id = z.string().min(1).max(64).safeParse(opportunityId);
   if (!id.success) return { error: NO_ENCONTRADA, ok: null };
 
-  const ref = await referenciaOportunidad(workspace.id, id.data);
-  if (!ref) return { error: NO_ENCONTRADA, ok: null };
+  const detalle = await detalleOportunidad(workspace.id, id.data);
+  if (!detalle) return { error: NO_ENCONTRADA, ok: null };
+  if (!puedeReanalizar(detalle.sugerencias[0]?.creadaEn ?? null, new Date())) {
+    return { error: "Ya se analizó recién; probá en un par de minutos.", ok: null };
+  }
 
   let resumen: ResumenSync;
   try {
     resumen = await sincronizarWorkspace(workspace.id, {
-      forzarIds: [ref.externalId],
+      forzarIds: [detalle.oportunidad.idExterno],
       deadlineMs: PLAZO_ANALISIS_MS,
     });
   } catch (error) {
     registrarFallo("falló el reanálisis", error);
     return { error: "No pudimos volver a analizarla. Probá de nuevo en un rato.", ok: null };
   }
-  revalidarVentas(ref.id);
+  revalidarVentas(id.data);
   return estadoDeCorrida(resumen);
 }
 
@@ -269,6 +284,7 @@ export async function marcarEnviadaAction(suggestionId: string, mensajeFinal: st
   const sugerencia = await referenciaSugerencia(workspace.id, parsed.data.suggestionId);
   if (!sugerencia) return { error: "No encontramos esa sugerencia.", ok: null };
   if (sugerencia.estado === "ENVIADA") return { error: null, ok: "Ya estaba anotado como enviado." };
+  if (!sugerenciaEditable(sugerencia.estado)) return { error: YA_CAMBIO, ok: null };
 
   const mensaje = parsed.data.mensaje;
   const cambio = mensaje !== (sugerencia.mensaje ?? "").trim();
@@ -348,6 +364,7 @@ export async function posponerAction(suggestionId: string, dias: number): Promis
 
   const sugerencia = await referenciaSugerencia(workspace.id, parsed.data.suggestionId);
   if (!sugerencia) return { error: "No encontramos esa sugerencia.", ok: null };
+  if (!sugerenciaEditable(sugerencia.estado)) return { error: YA_CAMBIO, ok: null };
 
   await resolverSugerencia(workspace.id, sugerencia.id, "POSPUESTA", { posponerDias: parsed.data.dias }, new Date());
   revalidarVentas(sugerencia.opportunityId);
@@ -364,6 +381,7 @@ export async function descartarAction(suggestionId: string): Promise<PanelState>
 
   const sugerencia = await referenciaSugerencia(workspace.id, id.data);
   if (!sugerencia) return { error: "No encontramos esa sugerencia.", ok: null };
+  if (!sugerenciaEditable(sugerencia.estado)) return { error: YA_CAMBIO, ok: null };
 
   await resolverSugerencia(workspace.id, sugerencia.id, "DESCARTADA", {}, new Date());
   revalidarVentas(sugerencia.opportunityId);

@@ -161,7 +161,7 @@ export function SuggestionCard({
         )
       ) : null}
 
-      {enviada && !resultadoAnotado && !paraCerrar ? (
+      {enviada && !resultadoAnotado && !paraCerrar && !archivada ? (
         <div className="space-y-3 rounded-lg border border-[var(--fo-border)] p-3">
           <p className="text-sm font-medium">¿Qué contestó?</p>
           <label className="fo-field-stack">

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MIN_MINUTOS_ENTRE_CORRIDAS } from "./constants";
+import { MIN_MINUTOS_ENTRE_CORRIDAS, type EstadoSugerencia } from "./constants";
 
 /**
  * Lo que las acciones de `/ventas` deciden sin tocar la base: cuánto falta para poder volver a
@@ -19,6 +19,31 @@ export function minutosParaActualizar(ultimaCorrida: Date | null, ahora: Date): 
   const pasaron = (ahora.getTime() - ultimaCorrida.getTime()) / 60_000;
   if (pasaron >= MIN_MINUTOS_ENTRE_CORRIDAS || pasaron < 0) return 0;
   return Math.ceil(MIN_MINUTOS_ENTRE_CORRIDAS - pasaron);
+}
+
+/**
+ * Si todavía se puede hacer algo con la sugerencia (mandarla, posponerla, descartarla).
+ *
+ * Es el mismo criterio de "vigente" que usa la tarjeta. Hace falta también en el servidor porque
+ * la pantalla puede estar vieja: una sugerencia ya REEMPLAZADA por la corrida de la mañana, o ya
+ * enviada desde otro teléfono, no se puede volver a resolver como si nada.
+ */
+export function sugerenciaEditable(estado: EstadoSugerencia): boolean {
+  return estado === "PENDIENTE" || estado === "POSPUESTA";
+}
+
+/** Cada cuánto se puede pedir "Volver a analizar" la misma oportunidad. */
+export const MIN_MINUTOS_ENTRE_REANALISIS = 2;
+
+/**
+ * Si ya se puede volver a analizar una oportunidad, mirando cuándo se creó su última sugerencia.
+ * Cada análisis es una lectura completa de Alboom y una consulta a Claude: dos toques seguidos
+ * no pueden ser dos análisis.
+ */
+export function puedeReanalizar(ultimaSugerenciaEn: Date | null, ahora: Date): boolean {
+  if (!ultimaSugerenciaEn) return true;
+  const pasaron = (ahora.getTime() - ultimaSugerenciaEn.getTime()) / 60_000;
+  return pasaron >= MIN_MINUTOS_ENTRE_REANALISIS || pasaron < 0;
 }
 
 const textoOpcional = (max: number) =>
