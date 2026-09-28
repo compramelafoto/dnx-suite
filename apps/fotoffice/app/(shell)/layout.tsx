@@ -9,6 +9,7 @@ import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
+import { SALES_ASSISTANT_MODULE_KEY } from "@/lib/sales-assistant/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { canManageMembers } from "@/lib/members/role-policy";
@@ -41,6 +42,7 @@ export default async function ShellLayout({ children }: { children: React.ReactN
   const bookingsOn = enabledModuleKeys.has(BOOKINGS_MODULE_KEY);
   const rafflesOn = enabledModuleKeys.has(RAFFLES_MODULE_KEY);
   const coveragesOn = enabledModuleKeys.has(COVERAGES_MODULE_KEY);
+  const salesAssistantOn = enabledModuleKeys.has(SALES_ASSISTANT_MODULE_KEY);
   const websiteOn = enabledModuleKeys.has(WEBSITE_MODULE_KEY);
   const serviceLeadsOn = enabledModuleKeys.has(SERVICE_LEADS_MODULE_KEY);
   // Un solo rol resuelto alimenta los dos flags del menú: si se resolvieran por caminos
@@ -71,6 +73,7 @@ export default async function ShellLayout({ children }: { children: React.ReactN
           bookingsEnabled={bookingsOn}
           rafflesEnabled={rafflesOn}
           coveragesEnabled={coveragesOn}
+          salesAssistantEnabled={salesAssistantOn}
           websiteEnabled={websiteOn}
           serviceLeadsEnabled={serviceLeadsOn}
           canManageMembers={canManageMembersFlag}

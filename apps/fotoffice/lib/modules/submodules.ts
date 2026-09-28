@@ -5,6 +5,7 @@ import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
+import { SALES_ASSISTANT_MODULE_KEY } from "@/lib/sales-assistant/constants";
 import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
@@ -285,6 +286,25 @@ const COBERTURAS: SubmoduleItem[] = [
   },
 ];
 
+const VENTAS: SubmoduleItem[] = [
+  {
+    href: "/ventas",
+    label: "Bandeja",
+    icon: "Inbox",
+    description: "Qué hacer hoy con cada oportunidad.",
+    requiresManage: true,
+    activeMatch: "rest",
+  },
+  {
+    href: "/ventas/configuracion",
+    label: "Configuración",
+    icon: "Settings",
+    description: "Conexión con el CRM, embudos y tu forma de escribir.",
+    requiresManage: true,
+    activeMatch: "under",
+  },
+];
+
 const POR_MODULO: Record<string, SubmoduleItem[]> = {
   [MEMBERS_MODULE_KEY]: SOCIOS,
   [COURSES_SALES_MODULE_KEY]: CURSOS,
@@ -293,6 +313,7 @@ const POR_MODULO: Record<string, SubmoduleItem[]> = {
   [CASH_MODULE_KEY]: CAJA,
   [CLIENTS_MODULE_KEY]: CLIENTES,
   [COVERAGES_MODULE_KEY]: COBERTURAS,
+  [SALES_ASSISTANT_MODULE_KEY]: VENTAS,
 };
 
 /**

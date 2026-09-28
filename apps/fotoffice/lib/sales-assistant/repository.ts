@@ -495,3 +495,43 @@ export async function archivar(workspaceId: string, opportunityId: string, archi
     data: { archivedAt: archivar ? new Date() : null },
   });
 }
+
+/**
+ * Lo mínimo de una oportunidad para actuar sobre ella desde una pantalla: confirma que es de este
+ * workspace y da el id de Alboom para volver a analizarla. Un `null` es "no existe para vos",
+ * sea porque no existe o porque es de otro workspace; la pantalla no distingue.
+ */
+export async function referenciaOportunidad(
+  workspaceId: string,
+  id: string,
+): Promise<{ id: string; externalId: string } | null> {
+  return prisma.fotofficeSalesOpportunity.findFirst({
+    where: { id, workspaceId },
+    select: { id: true, externalId: true },
+  });
+}
+
+/** Una sugerencia de este workspace, con lo que hace falta para marcarla como enviada. */
+export async function referenciaSugerencia(
+  workspaceId: string,
+  id: string,
+): Promise<{ id: string; opportunityId: string; mensaje: string | null; estado: EstadoSugerencia } | null> {
+  const fila = await prisma.fotofficeSalesSuggestion.findFirst({
+    where: { id, workspaceId },
+    select: { id: true, opportunityId: true, message: true, status: true },
+  });
+  if (!fila) return null;
+  return { id: fila.id, opportunityId: fila.opportunityId, mensaje: fila.message, estado: fila.status as EstadoSugerencia };
+}
+
+/**
+ * Cuándo se leyó Alboom bien por última vez. `lastSyncAt` no sirve para eso: se escribe también
+ * cuando la corrida falla. En cambio `syncedAt` sólo se toca al guardar lo que Alboom devolvió.
+ */
+export async function ultimaLecturaBuena(workspaceId: string): Promise<Date | null> {
+  const r = await prisma.fotofficeSalesOpportunity.aggregate({
+    where: { workspaceId },
+    _max: { syncedAt: true },
+  });
+  return r._max.syncedAt;
+}

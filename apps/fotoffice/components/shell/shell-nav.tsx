@@ -28,6 +28,7 @@ import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
+import { SALES_ASSISTANT_MODULE_KEY } from "@/lib/sales-assistant/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
@@ -151,6 +152,7 @@ export function ShellNav({
   bookingsEnabled,
   rafflesEnabled,
   coveragesEnabled,
+  salesAssistantEnabled,
   websiteEnabled,
   serviceLeadsEnabled,
   canManageMembers,
@@ -164,6 +166,7 @@ export function ShellNav({
   bookingsEnabled: boolean;
   rafflesEnabled: boolean;
   coveragesEnabled: boolean;
+  salesAssistantEnabled: boolean;
   websiteEnabled: boolean;
   serviceLeadsEnabled: boolean;
   canManageMembers: boolean;
@@ -192,6 +195,12 @@ export function ShellNav({
   // actividad fotográfica, no sólo a las que tienen padrón de socios.
   const coberturas: Item[] = coveragesEnabled
     ? itemsDeModulo(COVERAGES_MODULE_KEY, canManageWorkspaceSettings, vocabulary)
+    : [];
+
+  // Ventas usa el permiso de configuración del workspace: la bandeja muestra teléfonos de
+  // clientes y la configuración guarda la contraseña del CRM (ver `lib/sales-assistant/access.ts`).
+  const ventas: Item[] = salesAssistantEnabled
+    ? itemsDeModulo(SALES_ASSISTANT_MODULE_KEY, canManageWorkspaceSettings, vocabulary)
     : [];
 
   const cursos: Item[] = coursesEnabled
@@ -300,6 +309,7 @@ export function ShellNav({
       <Section title={vocabulary.Plural} items={socios} path={path} onNavigate={closeDrawer} />
       <Section title="Sorteos" items={sorteos} path={path} onNavigate={closeDrawer} />
       <Section title="Coberturas" items={coberturas} path={path} onNavigate={closeDrawer} />
+      <Section title="Ventas" items={ventas} path={path} onNavigate={closeDrawer} />
       <Section title="Cursos" items={cursosItems} path={path} onNavigate={closeDrawer} />
       <Section title="Reservas" items={reservas} path={path} onNavigate={closeDrawer} />
       <Section title="Captación" items={captacion} path={path} onNavigate={closeDrawer} />

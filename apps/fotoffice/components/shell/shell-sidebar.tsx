@@ -12,6 +12,7 @@ export function ShellSidebar({
   bookingsEnabled,
   rafflesEnabled,
   coveragesEnabled,
+  salesAssistantEnabled,
   websiteEnabled,
   serviceLeadsEnabled,
   canManageMembers,
@@ -31,6 +32,7 @@ export function ShellSidebar({
   bookingsEnabled: boolean;
   rafflesEnabled: boolean;
   coveragesEnabled: boolean;
+  salesAssistantEnabled: boolean;
   websiteEnabled: boolean;
   serviceLeadsEnabled: boolean;
   canManageMembers: boolean;
@@ -64,6 +66,7 @@ export function ShellSidebar({
         bookingsEnabled={bookingsEnabled}
         rafflesEnabled={rafflesEnabled}
         coveragesEnabled={coveragesEnabled}
+        salesAssistantEnabled={salesAssistantEnabled}
         websiteEnabled={websiteEnabled}
         serviceLeadsEnabled={serviceLeadsEnabled}
         canManageMembers={canManageMembers}
