@@ -11,6 +11,12 @@ const H = vi.hoisted(() => ({
   quitar: vi.fn(),
   buscar: vi.fn(),
   revalidate: vi.fn(),
+  pedirSubida: vi.fn(),
+  confirmarSubida: vi.fn(),
+  enlace: vi.fn(),
+  borrarAdj: vi.fn(),
+  restaurarAdj: vi.fn(),
+  r2ok: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -25,9 +31,19 @@ vi.mock("@/lib/ficha/notas", () => ({
   fijarNota: H.fijar,
 }));
 
+vi.mock("@/lib/ficha/adjuntos", () => ({
+  pedirSubida: H.pedirSubida,
+  confirmarSubida: H.confirmarSubida,
+  enlaceDeDescarga: H.enlace,
+  borrarAdjunto: H.borrarAdj,
+  restaurarAdjunto: H.restaurarAdj,
+  ERROR_SIN_PERMISO_RESTAURAR: "No tenés permiso para restaurar adjuntos.",
+}));
+vi.mock("@/lib/ficha/adjuntos-r2", () => ({ adjuntosR2Configurado: H.r2ok }));
 vi.mock("@/lib/ficha/etiquetas", () => ({ ponerEtiqueta: H.poner, quitarEtiqueta: H.quitar, buscarEtiquetas: H.buscar }));
 
-const { ponerEtiquetaAction, quitarEtiquetaAction, buscarEtiquetasAction, crearNotaAction, editarNotaAction, borrarNotaAction, fijarNotaAction } = await import("./ficha");
+const m = await import("./ficha");
+const { ponerEtiquetaAction, quitarEtiquetaAction, buscarEtiquetasAction, crearNotaAction, editarNotaAction, borrarNotaAction, fijarNotaAction } = m;
 
 const CTX = {
   workspaceId: "ws-1", workspaceSlug: "sfpr", userId: 1, userLabel: "Ana", role: "STAFF",
@@ -110,5 +126,72 @@ describe("acciones de etiquetas", () => {
     H.buscar.mockResolvedValue([{ id: "t", name: "VIP", color: "gris" }]);
     expect(await buscarEtiquetasAction(P, " vi ")).toHaveLength(1);
     expect(H.buscar).toHaveBeenCalledWith("ws-1", "vi", 10);
+  });
+});
+
+describe("acciones de adjuntos", () => {
+  const ARCHIVO = { nombre: "dni.pdf", tipo: "application/pdf", tamano: 100 };
+
+  beforeEach(() => {
+    H.r2ok.mockReturnValue(true);
+    H.pedirSubida.mockResolvedValue({ ok: true, id: "a1", url: "https://firmada" });
+    H.enlace.mockResolvedValue({ ok: true, url: "https://bajar" });
+    for (const f of [H.confirmarSubida, H.borrarAdj, H.restaurarAdj]) f.mockResolvedValue({ ok: true });
+  });
+
+  it("datos con forma inválida: ni siquiera mira la sesión", async () => {
+    expect(await m.pedirSubidaAction(P, { ...ARCHIVO, tamano: "100" as unknown as number })).toEqual({ ok: false, error: "Los datos no son válidos." });
+    expect(await m.pedirSubidaAction(P, null as unknown as typeof ARCHIVO)).toEqual({ ok: false, error: "Los datos no son válidos." });
+    expect(await m.enlaceDeDescargaAction(P, "")).toEqual({ ok: false, error: "Los datos no son válidos." });
+    expect(await m.confirmarSubidaAction({ tipo: "OTRO", id: "x" } as unknown as typeof P, "a1")).toEqual({ ok: false, error: "Los datos no son válidos." });
+    expect(H.ctx).not.toHaveBeenCalled();
+  });
+
+  it("sin contexto: no firma nada", async () => {
+    H.ctx.mockResolvedValue(null);
+    for (const r of [
+      await m.pedirSubidaAction(P, ARCHIVO),
+      await m.confirmarSubidaAction(P, "a1"),
+      await m.enlaceDeDescargaAction(P, "a1"),
+      await m.borrarAdjuntoAction(P, "a1"),
+      await m.restaurarAdjuntoAction(P, "a1"),
+    ]) expect(r).toEqual({ ok: false, error: "No tenés acceso a esta ficha." });
+    for (const f of [H.pedirSubida, H.confirmarSubida, H.enlace, H.borrarAdj, H.restaurarAdj]) expect(f).not.toHaveBeenCalled();
+  });
+
+  it("bucket sin configurar: aviso y nada más", async () => {
+    H.r2ok.mockReturnValue(false);
+    for (const r of [
+      await m.pedirSubidaAction(P, ARCHIVO),
+      await m.confirmarSubidaAction(P, "a1"),
+      await m.enlaceDeDescargaAction(P, "a1"),
+      await m.borrarAdjuntoAction(P, "a1"),
+      await m.restaurarAdjuntoAction(P, "a1"),
+    ]) expect(r).toEqual({ ok: false, error: "Los adjuntos todavía no están habilitados." });
+    expect(H.pedirSubida).not.toHaveBeenCalled();
+    expect(H.enlace).not.toHaveBeenCalled();
+  });
+
+  it("pedir subida devuelve id y url, con la persona del contexto", async () => {
+    expect(await m.pedirSubidaAction(P, ARCHIVO)).toEqual({ ok: true, id: "a1", url: "https://firmada" });
+    expect(H.pedirSubida).toHaveBeenCalledWith(CTX, CTX.persona, ARCHIVO);
+  });
+
+  it("descargar devuelve sólo la url", async () => {
+    expect(await m.enlaceDeDescargaAction(P, "a1")).toEqual({ ok: true, url: "https://bajar" });
+  });
+
+  it("confirmar y borrar revalidan la ficha", async () => {
+    await m.confirmarSubidaAction(P, "a1");
+    await m.borrarAdjuntoAction(P, "a1");
+    expect(H.revalidate).toHaveBeenCalledWith("/clientes/c1");
+  });
+
+  it("restaurar exige configurar antes de llamar", async () => {
+    expect(await m.restaurarAdjuntoAction(P, "a1")).toEqual({ ok: false, error: "No tenés permiso para restaurar adjuntos." });
+    expect(H.restaurarAdj).not.toHaveBeenCalled();
+    H.ctx.mockResolvedValue({ ...CTX, role: "WORKSPACE_ADMIN" });
+    expect(await m.restaurarAdjuntoAction(P, "a1")).toEqual({ ok: true });
+    expect(H.restaurarAdj).toHaveBeenCalledWith({ ...CTX, role: "WORKSPACE_ADMIN" }, "a1");
   });
 });

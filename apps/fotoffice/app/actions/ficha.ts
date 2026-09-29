@@ -6,11 +6,23 @@ import { asegurarCategorias } from "@/lib/ficha/categorias";
 import { borrarNota, crearNota, editarNota, fijarNota, type ResultadoNota } from "@/lib/ficha/notas";
 import { buscarEtiquetas, ponerEtiqueta, quitarEtiqueta } from "@/lib/ficha/etiquetas";
 import type { PersonaRef } from "@/lib/ficha/persona";
+import { puede } from "@/lib/access/policy";
+import {
+  borrarAdjunto,
+  confirmarSubida,
+  enlaceDeDescarga,
+  ERROR_SIN_PERMISO_RESTAURAR,
+  pedirSubida,
+  restaurarAdjunto,
+} from "@/lib/ficha/adjuntos";
+import { adjuntosR2Configurado } from "@/lib/ficha/adjuntos-r2";
 
 export type EstadoFicha = ResultadoNota;
 
-const SIN_ACCESO: EstadoFicha = { ok: false, error: "No tenés acceso a esta ficha." };
-const DATOS_INVALIDOS: EstadoFicha = { ok: false, error: "Los datos no son válidos." };
+type Falla = { ok: false; error: string };
+
+const SIN_ACCESO: Falla = { ok: false, error: "No tenés acceso a esta ficha." };
+const DATOS_INVALIDOS: Falla = { ok: false, error: "Los datos no son válidos." };
 
 function personaValida(p: unknown): p is PersonaPedida {
   if (!p || typeof p !== "object") return false;
@@ -111,4 +123,70 @@ export async function buscarEtiquetasAction(
   const ctx = await contextoDeFicha(persona);
   if (!ctx) return [];
   return buscarEtiquetas(ctx.workspaceId, t, 10);
+}
+
+// ---------------------------------------------------------------------------------------
+// Adjuntos privados. Orden fijo: forma de los datos → contexto de la ficha (sesión,
+// workspace, módulo, `operar`, persona del workspace) → bucket configurado → capacidad.
+// Ninguna respuesta lleva la clave del objeto: sólo el id y enlaces firmados que vencen.
+
+const ADJUNTOS_APAGADOS: Falla = { ok: false, error: "Los adjuntos todavía no están habilitados." };
+
+export type SubidaPedida = { ok: true; id: string; url: string } | { ok: false; error: string };
+export type EnlaceAdjunto = { ok: true; url: string } | { ok: false; error: string };
+
+export async function pedirSubidaAction(
+  persona: PersonaPedida,
+  archivo: { nombre: string; tipo: string; tamano: number },
+): Promise<SubidaPedida> {
+  if (!personaValida(persona) || !archivo || typeof archivo !== "object") return DATOS_INVALIDOS;
+  const { nombre, tipo, tamano } = archivo as Record<string, unknown>;
+  if (typeof nombre !== "string" || nombre.length > 1000) return DATOS_INVALIDOS;
+  if (typeof tipo !== "string" || tipo.length > 200) return DATOS_INVALIDOS;
+  if (typeof tamano !== "number" || !Number.isFinite(tamano)) return DATOS_INVALIDOS;
+  const ctx = await contextoDeFicha(persona);
+  if (!ctx) return SIN_ACCESO;
+  if (!adjuntosR2Configurado()) return ADJUNTOS_APAGADOS;
+  const r = await pedirSubida(ctx, ctx.persona, { nombre, tipo, tamano });
+  return r.ok ? { ok: true, id: r.id, url: r.url } : r;
+}
+
+export async function confirmarSubidaAction(persona: PersonaPedida, adjuntoId: string): Promise<EstadoFicha> {
+  if (!personaValida(persona) || !idValido(adjuntoId)) return DATOS_INVALIDOS;
+  const ctx = await contextoDeFicha(persona);
+  if (!ctx) return SIN_ACCESO;
+  if (!adjuntosR2Configurado()) return ADJUNTOS_APAGADOS;
+  const r = await confirmarSubida(ctx, adjuntoId);
+  if (r.ok) revalidarFicha(ctx.persona);
+  return r;
+}
+
+export async function enlaceDeDescargaAction(persona: PersonaPedida, adjuntoId: string): Promise<EnlaceAdjunto> {
+  if (!personaValida(persona) || !idValido(adjuntoId)) return DATOS_INVALIDOS;
+  const ctx = await contextoDeFicha(persona);
+  if (!ctx) return SIN_ACCESO;
+  if (!adjuntosR2Configurado()) return ADJUNTOS_APAGADOS;
+  const r = await enlaceDeDescarga(ctx, adjuntoId);
+  return r.ok ? { ok: true, url: r.url } : r;
+}
+
+export async function borrarAdjuntoAction(persona: PersonaPedida, adjuntoId: string): Promise<EstadoFicha> {
+  if (!personaValida(persona) || !idValido(adjuntoId)) return DATOS_INVALIDOS;
+  const ctx = await contextoDeFicha(persona);
+  if (!ctx) return SIN_ACCESO;
+  if (!adjuntosR2Configurado()) return ADJUNTOS_APAGADOS;
+  const r = await borrarAdjunto(ctx, adjuntoId);
+  if (r.ok) revalidarFicha(ctx.persona);
+  return r;
+}
+
+export async function restaurarAdjuntoAction(persona: PersonaPedida, adjuntoId: string): Promise<EstadoFicha> {
+  if (!personaValida(persona) || !idValido(adjuntoId)) return DATOS_INVALIDOS;
+  const ctx = await contextoDeFicha(persona);
+  if (!ctx) return SIN_ACCESO;
+  if (!adjuntosR2Configurado()) return ADJUNTOS_APAGADOS;
+  if (!puede(ctx.role, "configurar")) return { ok: false, error: ERROR_SIN_PERMISO_RESTAURAR };
+  const r = await restaurarAdjunto(ctx, adjuntoId);
+  if (r.ok) revalidarFicha(ctx.persona);
+  return r;
 }
