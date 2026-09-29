@@ -35,7 +35,8 @@ function Mensajes({ state }: { state: ModulosState | undefined }) {
 function FilaModulo({ m, nombres }: { m: ModuloVista; nombres: Record<string, string> }) {
   const [toggleState, toggle, toggling] = useActionState(toggleModuleAction, undefined);
   const [requestState, request, requesting] = useActionState(requestModuleAction, undefined);
-  const c = toggleState?.confirmar;
+  const [oculta, setOculta] = useState<ModulosState | undefined>(undefined);
+  const c = oculta === toggleState ? undefined : toggleState?.confirmar;
   const lista = (claves: string[]) => claves.map((k) => nombres[k] ?? k).join(", ");
 
   return (
@@ -86,6 +87,9 @@ function FilaModulo({ m, nombres }: { m: ModuloVista; nombres: Record<string, st
           </p>
           <button type="submit" name="confirmado" value="1" className="fo-btn fo-btn-primary" disabled={toggling}>
             Sí, continuar
+          </button>
+          <button type="button" className="fo-btn fo-btn-ghost" onClick={() => setOculta(toggleState)}>
+            Cancelar
           </button>
         </form>
       ) : null}

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TIPOS } from "@/lib/landing/tipos";
+import { alEncender } from "./dependencies";
 import { getModuleDefinition } from "./registry";
 import { ordenDeFamilias, paqueteSugerido } from "./suggested";
 
@@ -35,5 +36,21 @@ describe("ordenDeFamilias", () => {
   });
   it("siempre devuelve las seis familias", () => {
     expect(new Set(ordenDeFamilias(null)).size).toBe(6);
+  });
+});
+
+describe("paqueteSugerido y dependencias con comisión", () => {
+  it("escuela y sociedad no incluyen evaluaciones", () => {
+    expect(paqueteSugerido("escuela")).not.toContain("evaluaciones");
+    expect(paqueteSugerido("sociedad")).not.toContain("evaluaciones");
+  });
+
+  it("toda dependencia de cada clave del paquete está en el paquete", () => {
+    for (const t of TIPOS) {
+      const paquete = paqueteSugerido(t.id);
+      for (const k of paquete) {
+        for (const d of alEncender(k, new Set())) expect(paquete).toContain(d);
+      }
+    }
   });
 });

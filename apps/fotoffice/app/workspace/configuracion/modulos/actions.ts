@@ -90,6 +90,15 @@ export async function requestModuleAction(
   const def = getModuleDefinition(key);
   if (!def || def.status !== "AVAILABLE" || !def.platformFee) return { error: NO_EXISTE };
 
+  const encendidos = await getEnabledModuleKeysForWorkspace(workspaceId);
+  if (encendidos.has(key)) return { error: null, ok: "Ese módulo ya está activo." };
+  const desde = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const previo = await prisma.workspaceAdminEvent.findFirst({
+    where: { workspaceId, kind: "MODULE_REQUESTED", moduleKey: key, createdAt: { gte: desde } },
+    select: { id: true },
+  });
+  if (previo) return { error: null, ok: "Ya lo pediste; te avisamos cuando esté activo." };
+
   const ws = await prisma.workspace.findUnique({ where: { id: workspaceId }, select: { name: true } });
   const nombre = ws?.name ?? workspaceId;
   // Los destinatarios salen sólo de la configuración de la plataforma, nunca de un campo del formulario.
@@ -126,7 +135,15 @@ export async function chooseOrganizationTypeAction(
     const encendidos = await getEnabledModuleKeysForWorkspace(workspaceId);
     // Sólo enciende: nunca apaga nada de lo que ya estaba.
     for (const k of paqueteSugerido(tipo)) {
-      if (!encendidos.has(k)) await setModule(workspaceId, k, true, user.id);
+      if (encendidos.has(k)) continue;
+      // Defensa: nunca encender algo cuya dependencia cobra comisión o no está disponible.
+      const bloqueado = alEncender(k, encendidos).some((d) => {
+        const def = getModuleDefinition(d);
+        return !def || def.status !== "AVAILABLE" || def.platformFee;
+      });
+      if (bloqueado) continue;
+      await setModule(workspaceId, k, true, user.id);
+      encendidos.add(k);
     }
   }
   revalidatePath("/", "layout");

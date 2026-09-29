@@ -27,10 +27,20 @@ export function paqueteSugerido(tipoId: string): string[] {
   for (const clave of clavesDe(tipo)) {
     const m = getModuleDefinition(clave);
     if (!m || m.status !== "AVAILABLE" || m.platformFee) continue;
+    // Si alguna dependencia (transitiva) cobra comisión o no está disponible, se omite: sin ella
+    // el módulo quedaría encendido sin poder funcionar y esquivando el pedido de activación.
+    if (tieneDependenciaNoEncendible(clave)) continue;
     for (const dep of [...alEncender(clave, new Set(elegidos)), clave]) {
       const d = getModuleDefinition(dep);
       if (d && d.status === "AVAILABLE" && !d.platformFee && !elegidos.includes(dep)) elegidos.push(dep);
     }
   }
   return elegidos;
+}
+
+function tieneDependenciaNoEncendible(clave: string): boolean {
+  return alEncender(clave, new Set()).some((d) => {
+    const def = getModuleDefinition(d);
+    return !def || def.status !== "AVAILABLE" || !!def.platformFee;
+  });
 }

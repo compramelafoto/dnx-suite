@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const m = vi.hoisted(() => ({
   findUnique: vi.fn(),
   wsFindUnique: vi.fn(),
+  evFindFirst: vi.fn(),
   upsert: vi.fn(),
   enabled: vi.fn(),
   getType: vi.fn(),
@@ -16,6 +17,7 @@ vi.mock("@repo/db", () => ({
   prisma: {
     workspaceMembership: { findUnique: m.findUnique },
     workspace: { findUnique: m.wsFindUnique },
+    workspaceAdminEvent: { findFirst: m.evFindFirst },
     workspaceFeatureModule: { upsert: m.upsert },
   },
 }));
@@ -168,6 +170,23 @@ describe("requestModuleAction", () => {
     expect(m.record).toHaveBeenCalledWith(expect.objectContaining({ kind: "MODULE_REQUESTED", moduleKey: "membership-dues" }));
   });
 
+  it("si el módulo ya está activo no manda nada", async () => {
+    encendidos("membership-dues");
+    const r = await requestModuleAction(undefined, fd({ moduleKey: "membership-dues" }));
+    expect(r).toEqual({ error: null, ok: "Ese módulo ya está activo." });
+    expect(m.send).not.toHaveBeenCalled();
+    expect(m.record).not.toHaveBeenCalled();
+  });
+
+  it("no repite el pedido si hubo uno en las últimas 24 horas", async () => {
+    process.env.FOTOFFICE_PLATFORM_ADMIN_EMAILS = "a@x.test";
+    m.evFindFirst.mockResolvedValue({ id: "e1" });
+    const r = await requestModuleAction(undefined, fd({ moduleKey: "membership-dues" }));
+    expect(r).toEqual({ error: null, ok: "Ya lo pediste; te avisamos cuando esté activo." });
+    expect(m.send).not.toHaveBeenCalled();
+    expect(m.record).not.toHaveBeenCalled();
+  });
+
   it("sin destinatarios igual registra el pedido", async () => {
     const r = await requestModuleAction(undefined, fd({ moduleKey: "membership-dues" }));
     expect(r.ok).toBe("Listo, te avisamos cuando esté activo.");
@@ -186,6 +205,12 @@ describe("chooseOrganizationTypeAction", () => {
     const nuevos = paquete.slice(1);
     expect(m.upsert).toHaveBeenCalledTimes(nuevos.length);
     expect(m.record.mock.calls.filter(([e]) => e.kind === "MODULE_ON").map(([e]) => e.moduleKey)).toEqual(nuevos);
+  });
+
+  it("escuela no enciende evaluaciones (depende de un módulo con comisión)", async () => {
+    await chooseOrganizationTypeAction(undefined, fd({ tipo: "escuela", aplicarPaquete: "1" }));
+    const claves = m.upsert.mock.calls.map(([a]) => a.where.workspaceId_moduleKey.moduleKey);
+    expect(claves).not.toContain("evaluaciones");
   });
 
   it("devuelve el mensaje si el tipo no se puede guardar", async () => {
