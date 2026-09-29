@@ -251,8 +251,8 @@ export const SFEF_SPONSORS_HTML = `<header class="hero">
     <div class="hero-facts">
       <span>En premios<b>$4.800.000</b></span>
       <span>Categorías<b>Cuatro</b></span>
-      <span>Cierre de inscripción<b>30 de septiembre</b></span>
-      <span>Resultados<b>14 de octubre</b></span>
+      <span>Cierre de inscripción<b>31 de octubre</b></span>
+      <span>Premiación<b>10 de diciembre</b></span>
     </div>
   </div>
 </header>
@@ -596,9 +596,9 @@ export const SFEF_SPONSORS_HTML = `<header class="hero">
     <h3 style="margin-top:14px">Fechas</h3>
     <div class="facts">
       <div class="fact"><span class="k">Apertura</span><span class="v">1 de agosto de 2026</span></div>
-      <div class="fact"><span class="k">Cierre de inscripción</span><span class="v">30 de septiembre de 2026</span></div>
-      <div class="fact"><span class="k">Evaluación</span><span class="v">1 al 10 de octubre</span></div>
-      <div class="fact"><span class="k">Resultados</span><span class="v">14 de octubre de 2026</span></div>
+      <div class="fact"><span class="k">Cierre de inscripción</span><span class="v">31 de octubre de 2026</span></div>
+      <div class="fact"><span class="k">Evaluación</span><span class="v">Noviembre de 2026</span></div>
+      <div class="fact"><span class="k">Presentación de premios</span><span class="v">10 de diciembre de 2026</span></div>
     </div>
 
     <p style="margin-top:6px;color:var(--ink-2)">La participación es abierta a todo el país. La fotografía debe haber sido tomada dentro del territorio provincial y durante el período oficial del concurso.</p>
