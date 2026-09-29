@@ -9,4 +9,12 @@ describe("registro de listas", () => {
       "caja-movimientos": "cash",
     });
   });
+
+  it("cada lista declara su ruta", () => {
+    expect(Object.fromEntries(Object.entries(LISTAS).map(([k, v]) => [k, v.ruta]))).toEqual({
+      clientes: "/clientes",
+      socios: "/members",
+      "caja-movimientos": "/caja/movimientos",
+    });
+  });
 });
