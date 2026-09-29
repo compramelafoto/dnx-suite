@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { registrarActividad } from "./actividad";
 import { aplicarLote, prepararLote, resolverObjetivo } from "./lote";
 import type { AccionLote, ContextoListado, DefinicionListado } from "./tipos";
 
@@ -76,5 +77,21 @@ describe("prepararLote y aplicarLote", () => {
     const r = await aplicarLote(def, accion, ctx, { tipo: "ids", ids: ["x"] }, "c1", 0, "2026-09-30");
     expect(r).toEqual({ estado: "error", error: "No hay filas para modificar." });
     expect(aplicar).not.toHaveBeenCalled();
+  });
+});
+
+describe("registro de actividad del lote", () => {
+  it("guarda la consulta saneada, no el texto crudo del navegador", async () => {
+    vi.mocked(registrarActividad).mockClear();
+    const { def, accion } = armar(["a", "b"]);
+    const r = await aplicarLote(def, accion, ctx, { tipo: "todos", query: "q=ana&hack=%3D1&pagina=4&ver=zz" }, "c1", 2, "2026-09-30");
+    expect(r.estado).toBe("hecho");
+    expect(vi.mocked(registrarActividad).mock.calls[0][1]).toMatchObject({ kind: "BULK_ACTION", action: "categoria", query: "q=ana" });
+  });
+  it("con selección por ids la consulta queda vacía", async () => {
+    vi.mocked(registrarActividad).mockClear();
+    const { def, accion } = armar(["a"]);
+    await aplicarLote(def, accion, ctx, { tipo: "ids", ids: ["a"] }, "c1", 1, "2026-09-30");
+    expect(vi.mocked(registrarActividad).mock.calls[0][1]).toMatchObject({ query: "" });
   });
 });

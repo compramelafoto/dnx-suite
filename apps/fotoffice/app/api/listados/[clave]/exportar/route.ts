@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@repo/db";
 import { contextoDeListado, exigirCapacidad } from "@/lib/listado/acceso";
 import { definicionDe } from "@/lib/listado/registro";
-import { leerConsulta } from "@/lib/listado/consulta";
+import { consultaSaneada, leerConsulta } from "@/lib/listado/consulta";
 import { resolverConsulta } from "@/lib/listado/ejecutar";
 import { armarCsvExcel, nombreArchivoExport, TOPE_EXPORTACION } from "@/lib/listado/csv";
 import { registrarActividad } from "@/lib/listado/actividad";
@@ -34,7 +34,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ clav
   }
 
   const csv = armarCsvExcel(def.exportar.columnas, filas);
-  await registrarActividad(prisma, { ctx, listKey: clave, kind: "EXPORT", rowCount: filas.length, query: sp.toString() });
+  // Se registra lo que la lista entendió (nunca el texto crudo de la dirección) y, en una
+  // exportación por selección, los ids que de verdad salieron en el archivo.
+  await registrarActividad(prisma, {
+    ctx,
+    listKey: clave,
+    kind: "EXPORT",
+    rowCount: filas.length,
+    query: idsCrudos.length ? "" : consultaSaneada(def, sp),
+    detail: idsCrudos.length ? { ids: filas.map((f) => def.idDe(f)) } : undefined,
+  });
 
   return new NextResponse(csv, {
     headers: {

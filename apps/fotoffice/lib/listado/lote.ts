@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma, type Prisma } from "@repo/db";
 import { registrarActividad } from "./actividad";
-import { leerConsulta } from "./consulta";
+import { consultaSaneada, leerConsulta } from "./consulta";
 import { resolverConsulta } from "./ejecutar";
 import type { AccionLote, ContextoListado, DefinicionListado, ResultadoLote } from "./tipos";
 
@@ -105,7 +105,8 @@ export async function aplicarLote<F>(
     kind: "BULK_ACTION",
     action: accion.clave,
     rowCount: resultado.aplicados,
-    query: seleccion.tipo === "todos" ? seleccion.query : "",
+    // Lo que entendió la lista, no el texto que mandó el navegador.
+    query: seleccion.tipo === "todos" ? consultaSaneada(def, new URLSearchParams(seleccion.query)) : "",
     detail: {
       parametro,
       excluidos: p.excluidos,

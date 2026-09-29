@@ -110,6 +110,15 @@ export function escribirConsulta<F>(
   return out.toString();
 }
 
+/**
+ * La consulta tal como la entiende la lista: sólo parámetros declarados y válidos, sin página ni
+ * panel abierto. Es lo que se guarda en vistas y en el registro de actividad, nunca el texto crudo
+ * que mandó el navegador.
+ */
+export function consultaSaneada<F>(def: DefinicionListado<F>, params: URLSearchParams): string {
+  return escribirConsulta(def, leerConsulta(def, params).consulta, { pagina: 1, ver: null });
+}
+
 export function hayConsultaEnDireccion(params: URLSearchParams): boolean {
   for (const clave of params.keys()) if (!IGNORADOS.has(clave)) return true;
   return false;

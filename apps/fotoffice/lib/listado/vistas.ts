@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@repo/db";
 import { puede } from "@/lib/access/policy";
-import { escribirConsulta, leerConsulta } from "./consulta";
+import { consultaSaneada } from "./consulta";
 import type { ContextoListado, DefinicionListado } from "./tipos";
 
 export function puedeEditarVista(ctx: ContextoListado, v: { ownerUserId: number; shared: boolean }): boolean {
@@ -14,8 +14,7 @@ export function normalizarNombreVista(raw: string | null | undefined): string | 
 }
 
 export function sanearQuery<F>(def: DefinicionListado<F>, raw: string): string {
-  const { consulta } = leerConsulta(def, new URLSearchParams(raw));
-  return escribirConsulta(def, { ...consulta, pagina: 1, ver: null });
+  return consultaSaneada(def, new URLSearchParams(raw));
 }
 
 /**
