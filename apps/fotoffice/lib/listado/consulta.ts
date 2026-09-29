@@ -14,12 +14,12 @@ const IGNORADOS = new Set(["ok", "error", "forbidden", "module"]);
 
 export { esRangoValido } from "./periodos";
 
-export function consultaVacia(def: DefinicionListado<unknown>): ConsultaListado {
+export function consultaVacia<F>(def: DefinicionListado<F>): ConsultaListado {
   return { q: "", filtros: {}, orden: { ...def.ordenPorDefecto }, pagina: 1, filas: 25, ver: null };
 }
 
-export function leerConsulta(
-  def: DefinicionListado<unknown>,
+export function leerConsulta<F>(
+  def: DefinicionListado<F>,
   params: URLSearchParams,
 ): { consulta: ConsultaListado; descartados: string[] } {
   const consulta = consultaVacia(def);
@@ -82,8 +82,8 @@ export type CambiosConsulta = {
 };
 
 /** Devuelve la query string (sin "?"). Cambiar búsqueda, filtros, orden o filas vuelve a la página 1. */
-export function escribirConsulta(
-  def: DefinicionListado<unknown>,
+export function escribirConsulta<F>(
+  def: DefinicionListado<F>,
   consulta: ConsultaListado,
   cambios: CambiosConsulta = {},
 ): string {
