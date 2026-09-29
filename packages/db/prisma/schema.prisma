@@ -40,6 +40,8 @@ model User {
   role                                  Role                                   @default(PHOTOGRAPHER)
   globalRole                            GlobalRole                             @default(USER)
   name                                  String?
+  fotofficeListViews                    FotofficeListView[]                    @relation("FotofficeListViewOwner")
+  fotofficeListActivity                 FotofficeListActivity[]                @relation("FotofficeListActivityActor")
   createdAt                             DateTime                               @default(now())
   handler                               String?                                @unique
   isPublicPageEnabled                   Boolean                                @default(false)
@@ -7069,6 +7071,8 @@ model Workspace {
   courseSalesTeachers         CourseSalesTeacher[]
   courseSalesSettings         CourseSalesWorkspaceSettings?
   fotofficeBranding           FotofficeWorkspaceBranding?
+  fotofficeListViews          FotofficeListView[]
+  fotofficeListActivity       FotofficeListActivity[]
   fotofficeWebsite            FotofficeWorkspaceWebsite?
   fotorankJudgeAccounts       FotorankJudgeAccount[]
   memberships                 Membership[]
@@ -7170,6 +7174,51 @@ model FotofficeWorkspaceBranding {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
   workspace             Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+/// Filtros recordados (ULTIMA) y vistas guardadas (GUARDADA) de los listados de FOTOFFICE.
+model FotofficeListView {
+  id          String   @id @default(cuid())
+  workspaceId String
+  listKey     String
+  /// ULTIMA | GUARDADA
+  kind        String
+  /// Sólo en GUARDADA.
+  name        String?
+  /// Query string de la dirección, sin "?".
+  query       String   @default("")
+  ownerUserId Int
+  /// GUARDADA visible para todo el equipo del workspace.
+  shared      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  owner     User      @relation("FotofficeListViewOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, listKey, kind])
+  @@index([ownerUserId])
+}
+
+/// Registro de exportaciones y acciones en lote hechas desde un listado.
+model FotofficeListActivity {
+  id          String   @id @default(cuid())
+  workspaceId String
+  listKey     String
+  /// EXPORT | BULK_ACTION
+  kind        String
+  action      String?
+  actorUserId Int?
+  actorLabel  String
+  rowCount    Int
+  query       String   @default("")
+  detail      Json?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor     User?     @relation("FotofficeListActivityActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, listKey, createdAt])
 }
 
 /// Configuración del sitio público del módulo "website" (Sitio web). Los datos de identidad
