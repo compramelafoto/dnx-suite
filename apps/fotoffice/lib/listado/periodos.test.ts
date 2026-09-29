@@ -32,6 +32,8 @@ describe("resolverPeriodo (hoy = miércoles 2026-09-30)", () => {
     expect(iso(resolverPeriodo("esta-semana", "2026-10-04"))).toEqual(["2026-09-28T03:00:00.000Z", "2026-10-05T02:59:59.999Z"]));
   it("rango explícito, las dos puntas incluidas", () =>
     expect(iso(resolverPeriodo("2026-02-01..2026-02-28", hoy))).toEqual(["2026-02-01T03:00:00.000Z", "2026-03-01T02:59:59.999Z"]));
+  it("un día que no existe (31 de febrero) es inválido", () =>
+    expect(resolverPeriodo("2026-02-31..2026-03-01", hoy)).toBeNull());
   it("valor inválido", () => expect(resolverPeriodo("ayer", hoy)).toBeNull());
 });
 

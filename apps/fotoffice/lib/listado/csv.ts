@@ -5,13 +5,17 @@ import type { ColumnaExport } from "./tipos";
 export const TOPE_EXPORTACION = 20000;
 const ZONA = "America/Argentina/Buenos_Aires";
 
-/** Sólo el texto libre puede colarse como fórmula; los importes negativos ("-5,00") son números legítimos. */
-function celda(raw: string, esTexto = true): string {
-  const t = esTexto ? escapeFormulaInjection(raw) : raw;
+/** Un valor que llega como string puede colarse como fórmula; lo ya formateado (números, fechas: "-5,00") no. */
+function celda(raw: string, esString: boolean): string {
+  const t = esString ? escapeFormulaInjection(raw) : raw;
   return /[";\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
 }
 
-function formatear<F>(col: ColumnaExport<F>, v: string | number | Date | null): string {
+function formatear<F>(col: ColumnaExport<F>, v: string | number | Date | null): { texto: string; esString: boolean } {
+  return { texto: formatearTexto(col, v), esString: typeof v === "string" };
+}
+
+function formatearTexto<F>(col: ColumnaExport<F>, v: string | number | Date | null): string {
   if (v === null || v === undefined || v === "") return "";
   if (col.tipo === "importe" && typeof v === "number") {
     const signo = v < 0 ? "-" : "";
@@ -27,15 +31,15 @@ function formatear<F>(col: ColumnaExport<F>, v: string | number | Date | null): 
 }
 
 export function armarCsvExcel<F>(columnas: ColumnaExport<F>[], filas: F[]): string {
-  const lineas = [columnas.map((c) => celda(c.titulo)).join(";")];
-  for (const f of filas) lineas.push(columnas.map((c) => celda(formatear(c, c.valor(f)), c.tipo === "texto")).join(";"));
-  return `﻿${lineas.join("\r\n")}\r\n`;
+  const lineas = [columnas.map((c) => celda(c.titulo, true)).join(";")];
+  for (const f of filas) lineas.push(columnas.map((c) => { const r = formatear(c, c.valor(f)); return celda(r.texto, r.esString); }).join(";"));
+  return `\uFEFF${lineas.join("\r\n")}\r\n`;
 }
 
 export function nombreArchivoExport(workspaceName: string, clave: string, ahora: Date = new Date()): string {
   const slug = workspaceName
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");

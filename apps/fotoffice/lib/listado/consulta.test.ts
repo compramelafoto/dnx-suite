@@ -55,6 +55,7 @@ describe("leerConsulta", () => {
   it("acepta un rango de período y rechaza rangos invertidos o mal formados", () => {
     expect(leerConsulta(def, p("alta=2026-01-01..2026-03-31")).consulta.filtros.alta).toBe("2026-01-01..2026-03-31");
     expect(leerConsulta(def, p("alta=2026-03-31..2026-01-01")).consulta.filtros.alta).toBeUndefined();
+    expect(leerConsulta(def, p("alta=2026-02-31..2026-03-01")).consulta.filtros.alta).toBeUndefined();
     expect(leerConsulta(def, p("alta=2026-13-01..2026-14-01")).consulta.filtros.alta).toBeUndefined();
   });
 

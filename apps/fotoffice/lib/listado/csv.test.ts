@@ -12,13 +12,18 @@ const cols: ColumnaExport<F>[] = [
 describe("armarCsvExcel", () => {
   it("BOM, punto y coma, coma decimal y fecha argentina", () => {
     const csv = armarCsvExcel(cols, [{ n: "Pérez; Ana", m: 123456, f: new Date("2026-09-30T02:30:00Z") }]);
-    expect(csv.startsWith("﻿")).toBe(true);
-    expect(csv).toBe('﻿Nombre;Importe;Fecha\r\n"Pérez; Ana";1234,56;29/09/2026 23:30\r\n');
+    expect(csv.startsWith("\uFEFF")).toBe(true);
+    expect(csv).toBe('\uFEFFNombre;Importe;Fecha\r\n"Pérez; Ana";1234,56;29/09/2026 23:30\r\n');
   });
   it("neutraliza fórmulas y deja vacío lo nulo", () => {
     const csv = armarCsvExcel(cols, [{ n: "=HYPERLINK(1)", m: -500, f: null }]);
     expect(csv.split("\r\n")[1]).toBe("'=HYPERLINK(1);-5,00;");
   });
+});
+
+it("neutraliza un string en una columna que no es de texto", () => {
+  const c: ColumnaExport<{ v: string }>[] = [{ titulo: "N", tipo: "numero", valor: (x) => x.v }];
+  expect(armarCsvExcel(c, [{ v: "=1+1" }]).split("\r\n")[1]).toBe("'=1+1");
 });
 
 it("nombreArchivoExport usa la fecha de Buenos Aires", () => {

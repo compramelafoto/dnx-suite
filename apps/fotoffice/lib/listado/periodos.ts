@@ -15,7 +15,13 @@ const FECHA = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 export function esRangoValido(valor: string): boolean {
   const [desde, hasta, ...resto] = valor.split("..");
   if (resto.length || !desde || !hasta || !FECHA.test(desde) || !FECHA.test(hasta)) return false;
+  if (!existe(desde) || !existe(hasta)) return false;
   return desde <= hasta;
+}
+
+/** El regex deja pasar "2026-02-31"; acá se comprueba que el día exista de verdad. */
+function existe(dia: string): boolean {
+  return new Date(`${dia}T00:00:00Z`).toISOString().startsWith(dia);
 }
 
 export const ETIQUETAS_PERIODO: Record<AtajoPeriodo, string> = {
