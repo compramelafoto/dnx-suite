@@ -1,5 +1,5 @@
 import "server-only";
-import { prisma } from "@repo/db";
+import { prisma, type Prisma } from "@repo/db";
 import { decimalArsToMinor } from "./money";
 
 /**
@@ -41,6 +41,14 @@ export type DuesOverview = {
   pendingCount: number;
 };
 
+/**
+ * Qué cuenta como cuota impaga: saldo pendiente mayor a cero. Una sola definición para la
+ * pantalla de Cuotas y para el filtro "Con deuda" del padrón; si cambia, cambia en los dos.
+ */
+export function cargoImpagoWhere(workspaceId: string): Prisma.MembershipChargeWhereInput {
+  return { workspaceId, balanceArs: { gt: 0 } };
+}
+
 export async function loadDuesOverview(
   workspaceId: string,
   opciones: { now?: Date } = {},
@@ -50,7 +58,7 @@ export async function loadDuesOverview(
 
   const [cargos, pagos] = await Promise.all([
     prisma.membershipCharge.findMany({
-      where: { workspaceId, balanceArs: { gt: 0 } },
+      where: cargoImpagoWhere(workspaceId),
       select: {
         memberId: true,
         period: true,

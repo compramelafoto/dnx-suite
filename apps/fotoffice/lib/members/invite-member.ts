@@ -7,7 +7,7 @@ import {
   MemberLinkError,
 } from "@repo/db/fotoffice-members";
 import type { RenderedEmailSignature } from "@repo/communications/signature";
-import { auditActorFrom } from "./audit";
+import { auditActorFrom, type AuditActorUser } from "./audit";
 import { generateInvitationToken, hashInvitationToken } from "./invitation-tokens";
 import { buildInvitationUrl, canMemberUseInvitations, invitationExpiryFrom } from "./invitations";
 import { buildInvitationEmailBody } from "./invitation-email";
@@ -15,7 +15,6 @@ import { invitationExtrasFor } from "./invitation-extras";
 import { loadWorkspaceEmailContext } from "@/lib/communications/load-workspace-signature";
 import { sendTransactionalEmail } from "@/lib/communications/send-email";
 import { loadDuesCallout } from "@/lib/membership/dues-callout";
-import type { AuthUser } from "@/lib/auth";
 import { mensajeDePadron } from "./mensajes";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
@@ -55,7 +54,7 @@ export type InviteOutcome =
  * las seis de la mañana. Queda asentado como `SYSTEM` en el historial del socio, que es
  * exactamente la distinción que el registro necesita.
  */
-export type InviteActor = AuthUser | { kind: "SYSTEM"; label: string };
+export type InviteActor = AuditActorUser | { kind: "SYSTEM"; label: string };
 
 function esSistema(actor: InviteActor): actor is { kind: "SYSTEM"; label: string } {
   return "kind" in actor && actor.kind === "SYSTEM";

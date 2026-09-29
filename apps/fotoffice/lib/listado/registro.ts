@@ -14,7 +14,17 @@ type EntradaLista = {
 
 export const LISTAS: Record<string, EntradaLista> = {
   clientes: { moduleKey: "clients", ruta: "/clientes", cargar: async () => (await import("@/lib/clients/listado")).listadoClientes },
-  socios: { moduleKey: "members", ruta: "/members", cargar: async () => (await import("@/lib/members/listado")).listadoSocios },
+  socios: {
+    moduleKey: "members",
+    ruta: "/members",
+    cargar: async (ctx) => {
+      const [{ listadoSocios }, { loadPersonVocabulary }] = await Promise.all([
+        import("@/lib/members/listado"),
+        import("@/lib/vocabulario/load"),
+      ]);
+      return listadoSocios(await loadPersonVocabulary(ctx.workspaceId));
+    },
+  },
   "caja-movimientos": {
     moduleKey: "cash",
     ruta: "/caja/movimientos",
