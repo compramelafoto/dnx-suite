@@ -7195,6 +7195,12 @@ model FotofficeListView {
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   owner     User      @relation("FotofficeListViewOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  /// "Una sola ULTIMA por persona, lista y workspace" la impone el índice único parcial
+  /// `FotofficeListView_ultima_unica` (`("workspaceId", "listKey", "ownerUserId") WHERE
+  /// "kind" = 'ULTIMA'`), creado en la migración SQL 20261001120000_fotoffice_listado_estandar.
+  /// Prisma no sabe declarar índices parciales, así que no figura acá: un `migrate dev` lo
+  /// propondría borrar — no aceptes ese DROP. Tampoco lo agregues como @@unique normal: las
+  /// vistas GUARDADA necesitan varias filas por persona y lista. `guardarUltima` depende de él.
 
   @@index([workspaceId, listKey, kind])
   @@index([ownerUserId])
