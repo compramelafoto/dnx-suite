@@ -298,6 +298,8 @@ model User {
   fotorankRulesVersionsCreated          FotorankContestRulesVersion[]          @relation("FrRulesVersionAuthor")
   suiteMemberships                      Membership[]                           @relation("FrSuiteMembership")
   workspaceMembershipsUnified           WorkspaceMembership[]
+  workspaceInvitationsSent              WorkspaceInvitation[]                  @relation("WorkspaceInvitationInviter")
+  workspaceInvitationsAccepted          WorkspaceInvitation[]                  @relation("WorkspaceInvitationAcceptor")
   appAccessUnified                      WorkspaceAppAccess[]
   fotorankContestConfigurationVersions  FotorankContestConfigurationVersion[]
   fotorankContestRulesTemplates         FotorankContestRulesTemplate[]
@@ -7076,6 +7078,8 @@ model Workspace {
   students                    EvaluationStudent[]
   featureModules              WorkspaceFeatureModule[]
   workspaceMembershipsUnified WorkspaceMembership[]
+  workspaceInvitations        WorkspaceInvitation[]
+  adminEvents                 WorkspaceAdminEvent[]
   appAccessUnified            WorkspaceAppAccess[]
   institutionalMembers        Member[]
   memberCategories            MemberCategory[]
@@ -7150,6 +7154,8 @@ model FotofficeWorkspaceBranding {
   website               String?
   /// independent | studio | agency
   activityType          String?
+  /// Tipo de organización elegido en Configuración → Módulos (ids de lib/landing/tipos.ts). null = sin elegir.
+  organizationType      String?
   city                  String?
   province              String?
   country               String?
@@ -9019,6 +9025,52 @@ model Membership {
   @@index([workspaceId])
 }
 
+/// Invitación a sumarse al equipo de un workspace. Mismo patrón que MemberInvitation:
+/// el estado se deriva de las fechas; el token crudo nunca se guarda.
+model WorkspaceInvitation {
+  id               String        @id @default(cuid())
+  workspaceId      String
+  /// Normalizado en minúsculas. Aceptar exige el mismo email en la sesión.
+  email            String
+  role             WorkspaceRole
+  tokenHash        String        @unique
+  expiresAt        DateTime
+  acceptedAt       DateTime?
+  acceptedByUserId Int?
+  revokedAt        DateTime?
+  sentAt           DateTime?
+  sendFailedAt     DateTime?
+  invitedByUserId  Int?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  workspace        Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invitedBy        User?         @relation("WorkspaceInvitationInviter", fields: [invitedByUserId], references: [id], onDelete: SetNull)
+  acceptedBy       User?         @relation("WorkspaceInvitationAcceptor", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, email])
+  @@index([expiresAt])
+}
+
+/// Bitácora de cambios administrativos del workspace: equipo y módulos.
+model WorkspaceAdminEvent {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  /// null = sistema.
+  actorUserId  Int?
+  targetUserId Int?
+  targetEmail  String?
+  /// INVITED | INVITE_REVOKED | ACCEPTED | ROLE_CHANGED | REMOVED | MODULE_ON | MODULE_OFF | MODULE_REQUESTED | ORG_TYPE_SET
+  kind         String
+  fromRole     String?
+  toRole       String?
+  moduleKey    String?
+  detail       String?
+  createdAt    DateTime  @default(now())
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+}
+
 /// Vínculo canónico usuario-workspace para permisos de suite.
 model WorkspaceMembership {
   id          String        @id @default(cuid())
@@ -10090,6 +10142,7 @@ enum WorkspaceRole {
   WORKSPACE_OWNER
   WORKSPACE_ADMIN
   STAFF
+  COLLABORATOR
 }
 
 enum FotorankOrganizationRole {
