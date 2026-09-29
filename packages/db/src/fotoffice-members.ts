@@ -254,6 +254,11 @@ export function bulkCreateMembers(
     batchId: string;
     /** Fila del CSV que originó cada input, en el mismo orden. */
     sourceRows?: (number | null)[];
+    /**
+     * Trabajo extra por socio creado, DENTRO de la misma transacción (FotoOffice guarda ahí
+     * las observaciones del CSV como nota de la ficha). Si falla, se revierte el lote entero.
+     */
+    afterCreate?: (tx: Prisma.TransactionClient, member: Member) => Promise<void>;
   },
 ): Promise<Member[]> {
   // Modo callback (no el array): hace falta el id de cada socio recién creado para su
@@ -273,6 +278,7 @@ export function bulkCreateMembers(
           sourceRow: options.sourceRows?.[index] ?? null,
         }),
       });
+      if (options.afterCreate) await options.afterCreate(tx, member);
       created.push(member);
     }
     return created;
