@@ -3,6 +3,7 @@ import { prisma } from "@repo/db";
 import { requireAuth } from "@/lib/auth";
 import { requireOwnWorkspace } from "@/lib/entrada/require-own-workspace";
 import { normalizeFotofficeOrganizationType } from "@/lib/onboarding-constants";
+import { puede } from "@/lib/access/policy";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { WorkspaceSettingsForm } from "./settings-form";
 import { EmailSignaturePreview } from "@/components/communications/email-signature-preview";
@@ -78,6 +79,22 @@ export default async function WorkspaceSettingsPage() {
         </span>
         <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
       </Link>
+
+      {/* Sólo dueño o administrador: la acción del servidor vuelve a verificarlo. */}
+      {membership?.role && puede(membership.role, "gestionarEquipo") ? (
+        <Link
+          href="/workspace/configuracion/equipo"
+          className="fo-card flex items-center justify-between gap-4 p-4 transition hover:border-[var(--fo-accent,#1d4ed8)]"
+        >
+          <span className="space-y-0.5">
+            <span className="block text-sm font-semibold">Equipo</span>
+            <span className="block text-xs text-[var(--fo-muted)]">
+              Invitá a quien trabaja con vos y elegí su rol.
+            </span>
+          </span>
+          <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
+        </Link>
+      ) : null}
 
       <div className="space-y-3">
         <h1 className="text-2xl font-semibold tracking-tight text-[var(--fo-text)]">
