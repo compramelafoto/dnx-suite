@@ -190,3 +190,42 @@ describe("verifyMercadoPagoWebhookSignature — data.id en mayúsculas (tópico 
     if (!r.ok) assert.equal(r.reason, "signature_mismatch");
   });
 });
+
+describe("verifyMercadoPagoWebhookSignature — manifest sin `id:`", () => {
+  const secret = "s3cr3t-de-prueba";
+  const ts = "1790721444";
+  const requestId = "req-order-9";
+  const orderId = "ORDTST01M3QN1DKXZGMKRA4X48HBDS62";
+
+  it("acepta la firma que MP arma cuando no manda data.id en la URL", () => {
+    // MP construye el manifest con los parámetros de la query: sin `data.id`
+    // ahí, su firma no lleva el segmento `id:` aunque el cuerpo sí lo traiga.
+    const v1 = createHmac("sha256", secret)
+      .update(`request-id:${requestId};ts:${ts};`)
+      .digest("hex");
+    const r = verifyMercadoPagoWebhookSignature({
+      signatureHeader: `ts=${ts},v1=${v1}`,
+      requestIdHeader: requestId,
+      dataId: orderId,
+      queryDataId: null,
+      secret,
+    });
+    assert.equal(r.ok, true);
+    if (r.ok) assert.equal(r.dataIdVariant, "omitted");
+  });
+
+  it("prefiere el id de la query cuando MP sí lo manda ahí", () => {
+    const v1 = createHmac("sha256", secret)
+      .update(`id:${orderId};request-id:${requestId};ts:${ts};`)
+      .digest("hex");
+    const r = verifyMercadoPagoWebhookSignature({
+      signatureHeader: `ts=${ts},v1=${v1}`,
+      requestIdHeader: requestId,
+      dataId: orderId,
+      queryDataId: orderId,
+      secret,
+    });
+    assert.equal(r.ok, true);
+    if (r.ok) assert.equal(r.dataIdVariant, "query");
+  });
+});
