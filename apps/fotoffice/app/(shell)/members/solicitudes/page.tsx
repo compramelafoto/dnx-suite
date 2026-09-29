@@ -3,7 +3,7 @@ import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { ApplicationCard } from "@/components/membership/application-card";
 import { requireActiveWorkspace } from "@/lib/workspace";
-import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
+import { canOperateWorkspaceCollection } from "@/lib/payments/connect/authz";
 import { getWorkspaceCollectionStatus } from "@/lib/payments/connect/status";
 import { listAwaitingPayment, listPendingApplications } from "@/lib/membership/inbox";
 import { getActiveFeeValue } from "@/lib/membership/settings";
@@ -26,7 +26,7 @@ export default async function SolicitudesPage() {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) redirect("/workspace");
 
-  const puedeResolver = await canManageWorkspaceCollection(user.id, workspace.id);
+  const puedeResolver = await canOperateWorkspaceCollection(user.id, workspace.id);
   if (!puedeResolver) redirect("/members");
 
   const [items, esperandoPago, cobros, valorCuota, branding, v] = await Promise.all([

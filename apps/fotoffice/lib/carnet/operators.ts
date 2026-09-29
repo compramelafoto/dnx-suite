@@ -1,5 +1,5 @@
 import { prisma } from "@repo/db";
-import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
+import { puede } from "@/lib/access/policy";
 import type { FulfillmentCapability } from "./fulfillment";
 
 /**
@@ -28,9 +28,11 @@ export async function resolveCardCapabilities(
     }),
   ]);
 
-  const administra =
-    canManageWorkspaceSettings(membership?.role) || canManageWorkspaceSettings(legacy?.role);
-  if (administra) return ["PRODUCIR", "ENTREGAR", "ADMINISTRAR"];
+  const roles = [membership?.role, legacy?.role];
+  // Desde 0.1 Equipo opera los carnets (emitir, imprimir, entregar); otorgar permisos de
+  // carnets es configuración y queda para Dueño/Admin (`ADMINISTRAR`).
+  if (roles.some((r) => puede(r, "configurar"))) return ["PRODUCIR", "ENTREGAR", "ADMINISTRAR"];
+  if (roles.some((r) => puede(r, "operar"))) return ["PRODUCIR", "ENTREGAR"];
 
   const capacidades: FulfillmentCapability[] = [];
   if (grant?.canProduce) capacidades.push("PRODUCIR");

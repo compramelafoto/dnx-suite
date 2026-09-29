@@ -77,9 +77,10 @@ function itemsDeModulo(
   moduleKey: string,
   canManage: boolean,
   vocabulary: PersonVocabulary,
+  canConfigure: boolean = canManage,
 ): Item[] {
   const reclamadas = claimedPrefixes(moduleKey);
-  return submodulesFor(moduleKey, { canManage }, vocabulary).map((sub: SubmoduleItem) => ({
+  return submodulesFor(moduleKey, { canManage, canConfigure }, vocabulary).map((sub: SubmoduleItem) => ({
     href: sub.href,
     label: sub.label,
     icon: ICONOS[sub.icon] ?? LayoutDashboard,
@@ -175,7 +176,7 @@ export function ShellNav({
   const { closeDrawer } = useShellNav();
 
   const socios: Item[] = membersEnabled
-    ? itemsDeModulo(MEMBERS_MODULE_KEY, canManageMembers, vocabulary)
+    ? itemsDeModulo(MEMBERS_MODULE_KEY, canManageMembers, vocabulary, canManageWorkspaceSettings)
     : [];
 
   const reservas: Item[] = bookingsEnabled
@@ -190,8 +191,9 @@ export function ShellNav({
 
   // Grupo propio y no dentro de Socios: coberturas se le pide a cualquier institución con
   // actividad fotográfica, no sólo a las que tienen padrón de socios.
+  // `canManageMembers` es "operar" (Equipo incluido): Colaboradores es operación; Configuración, no.
   const coberturas: Item[] = coveragesEnabled
-    ? itemsDeModulo(COVERAGES_MODULE_KEY, canManageWorkspaceSettings, vocabulary)
+    ? itemsDeModulo(COVERAGES_MODULE_KEY, canManageMembers, vocabulary, canManageWorkspaceSettings)
     : [];
 
   const cursos: Item[] = coursesEnabled

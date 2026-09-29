@@ -37,6 +37,8 @@ export type SubmoduleItem = {
   description: string;
   /** Si hace falta permiso de administración del módulo para verla. */
   requiresManage: boolean;
+  /** Además de `requiresManage`: es configuración (sólo Dueño/Admin), no operación. */
+  requiresConfigure?: boolean;
   activeMatch: ActiveMatch;
 };
 
@@ -79,6 +81,7 @@ const SOCIOS: SubmoduleItem[] = [
     icon: "Palette",
     description: "Diseñá el carnet y las placas con tus propios datos variables.",
     requiresManage: true,
+    requiresConfigure: true,
     activeMatch: "under",
   },
   {
@@ -87,6 +90,7 @@ const SOCIOS: SubmoduleItem[] = [
     icon: "Tag",
     description: "Profesional, estudiante, honorario y las que definas.",
     requiresManage: true,
+    requiresConfigure: true,
     activeMatch: "under",
   },
   {
@@ -95,6 +99,7 @@ const SOCIOS: SubmoduleItem[] = [
     icon: "CalendarClock",
     description: "Cuánto vale la cuota y cuándo vence.",
     requiresManage: true,
+    requiresConfigure: true,
     activeMatch: "under",
   },
 ];
@@ -281,6 +286,7 @@ const COBERTURAS: SubmoduleItem[] = [
     icon: "Settings",
     description: "Las palabras, los plazos y quién decide en esta organización.",
     requiresManage: true,
+    requiresConfigure: true,
     activeMatch: "under",
   },
 ];
@@ -307,13 +313,14 @@ const POR_MODULO: Record<string, SubmoduleItem[]> = {
  */
 export function submodulesFor(
   moduleKey: string,
-  opts: { canManage: boolean },
+  opts: { canManage: boolean; canConfigure?: boolean },
   vocabulary: PersonVocabulary,
 ): SubmoduleItem[] {
   const items = POR_MODULO[moduleKey];
   if (!items) return [];
   return items
     .filter((i) => !i.requiresManage || opts.canManage)
+    .filter((i) => !i.requiresConfigure || (opts.canConfigure ?? opts.canManage))
     .map((i) => ({
       ...i,
       label: aplicarVocabulario(i.label, vocabulary),

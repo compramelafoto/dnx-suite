@@ -9,6 +9,8 @@ import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { canManageMembers } from "@/lib/members/role-policy";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
+import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
+import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 
 export default async function WorkspaceHomePage() {
   const user = await requireAuth();
@@ -26,9 +28,9 @@ export default async function WorkspaceHomePage() {
 
   // Las tarjetas listan las pantallas de cada módulo. Sin esto, desde el inicio no había forma
   // de enterarse de que existían: la tarjeta decía "Socios" y nada más.
-  const puedeAdministrarSocios = canManageMembers(
-    await resolveWorkspaceRole(user.id, ensured.workspaceId),
-  );
+  const rolActivo = await resolveWorkspaceRole(user.id, ensured.workspaceId);
+  const puedeAdministrarSocios = canManageMembers(rolActivo);
+  const puedeConfigurar = canManageWorkspaceSettings(rolActivo);
 
   const pending: string[] = [];
   if (!profile?.displayName) pending.push("Nombre visible");
@@ -85,7 +87,13 @@ export default async function WorkspaceHomePage() {
               // El permiso es por módulo: el de Socios no habilita nada en otro.
               const pantallas = submodulesFor(
                 m.key,
-                { canManage: m.key === MEMBERS_MODULE_KEY ? puedeAdministrarSocios : true },
+                {
+                  canManage:
+                    m.key === MEMBERS_MODULE_KEY || m.key === COVERAGES_MODULE_KEY
+                      ? puedeAdministrarSocios
+                      : true,
+                  canConfigure: puedeConfigurar,
+                },
                 vocabulary,
               );
               return (

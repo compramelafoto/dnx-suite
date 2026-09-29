@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireActiveWorkspace } from "@/lib/workspace";
-import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
+import { canOperateWorkspaceCollection } from "@/lib/payments/connect/authz";
 import { getPlatformFeeBps } from "@/lib/platform-fee/store";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { FEE_SINCE_PERIOD } from "@/lib/platform-fee/debt";
@@ -32,7 +32,7 @@ export async function registerManualPaymentAction(
 ): Promise<ManualPaymentState> {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) return { error: "No hay una institución activa.", ok: null };
-  if (!(await canManageWorkspaceCollection(user.id, workspace.id))) {
+  if (!(await canOperateWorkspaceCollection(user.id, workspace.id))) {
     return { error: "Solo quien administra los cobros puede registrar un pago.", ok: null };
   }
 

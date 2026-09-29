@@ -1,11 +1,15 @@
+import { puede } from "@/lib/access/policy";
+
 /**
- * Política de permisos del módulo Socios, en esta etapa:
- * OWNER/ADMIN → crear, editar, cambiar estado, administrar categorías.
- * STAFF → solo consultar padrón y ficha.
- * No hay roles granulares (SECRETARIO/TESORERO/PRESIDENTE) todavía — eso
- * viene después. `role` acepta tanto el enum nuevo (`WorkspaceRole`) como
- * el legacy (`MembershipRole`, fallback cuando no hay `WorkspaceMembership`).
+ * Operar socios: alta, edición, importación, invitaciones, cuotas, carnets, solicitudes,
+ * exportar. Desde 0.1 incluye a Equipo. Delega en `lib/access/policy` (capacidad `operar`).
+ * `role` acepta el enum nuevo (`WorkspaceRole`) y el legacy (`MembershipRole`).
  */
 export function canManageMembers(role: string | null | undefined): boolean {
-  return role === "WORKSPACE_OWNER" || role === "WORKSPACE_ADMIN" || role === "ADMIN";
+  return puede(role, "operar");
+}
+
+/** Configurar socios: categorías, valores de cuota, calendario, diseñador y permisos de carnets. Sólo Dueño/Admin. */
+export function canConfigureMembers(role: string | null | undefined): boolean {
+  return puede(role, "configurar");
 }

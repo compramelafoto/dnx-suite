@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/page-header";
 import { requireRafflesStaff } from "@/lib/raffles/access";
 import { listRaffles } from "@/lib/raffles/repository";
 import { fechaHora, raffleStatusLabel } from "@/lib/raffles/labels";
-import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
+import { puede } from "@/lib/access/policy";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +20,7 @@ export default async function SorteosPage({
   const { workspace, role } = await requireRafflesStaff();
   const params = await searchParams;
   const sorteos = await listRaffles(workspace.id);
-  const puedeAdministrar = canManageWorkspaceSettings(role);
+  const puedeAdministrar = puede(role, "operar");
 
   const ahora = new Date();
   // Los que ya cerraron el padrón y siguen sin sellar. No es decoración: es lo que evita que

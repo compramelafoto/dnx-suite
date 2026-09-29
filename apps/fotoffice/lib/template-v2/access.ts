@@ -1,3 +1,5 @@
+import { puede } from "@/lib/access/policy";
+
 /**
  * Quién puede diseñar las plantillas de la institución.
  *
@@ -16,5 +18,5 @@
  * predicados tienen que decir lo mismo.
  */
 export function canDesignTemplates(role: string | null | undefined): boolean {
-  return role === "WORKSPACE_OWNER" || role === "WORKSPACE_ADMIN" || role === "ADMIN";
+  return puede(role, "configurar");
 }

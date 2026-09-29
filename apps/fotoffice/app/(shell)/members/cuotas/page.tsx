@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { requireActiveWorkspace } from "@/lib/workspace";
-import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
+import { canManageWorkspaceCollection, canOperateWorkspaceCollection } from "@/lib/payments/connect/authz";
 import { getWorkspaceCollectionStatus } from "@/lib/payments/connect/status";
 import { loadDuesOverview } from "@/lib/membership/dues-overview";
 import { formatMinorArs } from "@/lib/membership/money";
@@ -47,8 +47,10 @@ export default async function CuotasPage() {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) redirect("/workspace");
 
-  const puedeVer = await canManageWorkspaceCollection(user.id, workspace.id);
+  const puedeVer = await canOperateWorkspaceCollection(user.id, workspace.id);
   if (!puedeVer) redirect("/members");
+  // Valores y calendario son configuración: Equipo opera las cuotas pero no ve ese acceso.
+  const puedeConfigurar = await canManageWorkspaceCollection(user.id, workspace.id);
 
   const [overview, cobros, v] = await Promise.all([
     loadDuesOverview(workspace.id),
@@ -71,9 +73,11 @@ export default async function CuotasPage() {
           {`Crea la cuota del mes para cada ${v.singular} con estado activo, según su categoría y su escala. Correrlo de nuevo no duplica nada.`}
         </p>
         <GenerateDuesButton defaultPeriod={periodOf(new Date())} />
-        <Link href="/members/cuotas/configuracion" className="text-xs text-[var(--fo-muted)] hover:underline">
-          Valores y calendario →
-        </Link>
+        {puedeConfigurar ? (
+          <Link href="/members/cuotas/configuracion" className="text-xs text-[var(--fo-muted)] hover:underline">
+            Valores y calendario →
+          </Link>
+        ) : null}
       </div>
 
       <div className="fo-card space-y-3 p-5">

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { canDesignTemplates } from "./access";
-import { canManageMembers } from "@/lib/members/role-policy";
+import { canConfigureMembers } from "@/lib/members/role-policy";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 
 describe("canDesignTemplates", () => {
@@ -29,10 +29,10 @@ describe("canDesignTemplates", () => {
     expect(canDesignTemplates("OWNER")).toBe(false);
   });
 
-  it("dice lo mismo que los otros dos permisos de gobierno", () => {
+  it("dice lo mismo que los otros dos permisos de configuración (0.1: Equipo no configura)", () => {
     for (const rol of ["WORKSPACE_OWNER", "WORKSPACE_ADMIN", "ADMIN", "STAFF", "", null]) {
       expect(canDesignTemplates(rol), `discrepa en "${rol}"`).toBe(canManageWorkspaceSettings(rol));
-      expect(canDesignTemplates(rol), `discrepa en "${rol}"`).toBe(canManageMembers(rol));
+      expect(canDesignTemplates(rol), `discrepa en "${rol}"`).toBe(canConfigureMembers(rol));
     }
   });
 });

@@ -53,8 +53,13 @@ describe("la puerta del módulo", () => {
     await expect(requireRafflesStaff()).resolves.toMatchObject({ workspace: ws, role: "STAFF" });
   });
 
-  it("STAFF no puede anunciar ni sortear: lo manda a la lista", async () => {
+  it("STAFF ahora SÍ puede anunciar y sortear (0.1: Equipo opera todo)", async () => {
     resolveRoleMock.mockResolvedValue("STAFF");
+    await expect(requireRafflesAdmin()).resolves.toMatchObject({ role: "STAFF" });
+  });
+
+  it("un Colaborador no puede anunciar ni sortear: lo manda a la lista", async () => {
+    resolveRoleMock.mockResolvedValue("COLLABORATOR");
     await expect(requireRafflesAdmin()).rejects.toThrow("REDIRECT:/sorteos");
   });
 

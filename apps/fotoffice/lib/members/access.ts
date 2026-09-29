@@ -4,13 +4,15 @@ import { resolveActiveWorkspace, type ActiveWorkspace } from "@/lib/workspace";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { MEMBERS_MODULE_KEY } from "./constants";
-import { canManageMembers } from "./role-policy";
+import { canConfigureMembers, canManageMembers } from "./role-policy";
 
 export type MembersContext = {
   user: AuthUser;
   workspace: ActiveWorkspace;
-  /** OWNER/ADMIN del workspace: puede crear/editar socios, cambiar estado y administrar categorías. STAFF solo consulta. */
+  /** Puede operar socios (Dueño, Admin y Equipo): crear/editar, cambiar estado, cuotas, carnets. */
   canManage: boolean;
+  /** Dueño/Admin: además puede configurar (categorías, valores, diseñador, permisos de carnets). */
+  canConfigure: boolean;
 };
 
 /**
@@ -28,13 +30,20 @@ export async function requireMembersContext(): Promise<MembersContext> {
   if (!enabled) redirect("/dashboard?module=off");
 
   const role = await resolveWorkspaceRole(user.id, workspace.id);
-  return { user, workspace, canManage: canManageMembers(role) };
+  return { user, workspace, canManage: canManageMembers(role), canConfigure: canConfigureMembers(role) };
 }
 
 /** Para rutas de alta/edición/categorías: exige además rol OWNER/ADMIN. STAFF queda afuera aunque entre por URL directa. */
 export async function requireMembersManageContext(): Promise<MembersContext> {
   const ctx = await requireMembersContext();
   if (!ctx.canManage) redirect("/members?forbidden=manage");
+  return ctx;
+}
+
+/** Para categorías y demás configuración de socios: sólo Dueño/Admin. Equipo queda afuera aunque entre por URL directa. */
+export async function requireMembersConfigureContext(): Promise<MembersContext> {
+  const ctx = await requireMembersContext();
+  if (!ctx.canConfigure) redirect("/members?forbidden=configurar");
   return ctx;
 }
 
@@ -57,8 +66,8 @@ export async function resolveMembersExportContext(): Promise<MembersContext | nu
   if (!enabled) return null;
 
   const role = await resolveWorkspaceRole(user.id, workspace.id);
-  // La exportación masiva se lleva datos personales de todo el padrón: solo OWNER/ADMIN.
+  // Desde 0.1 exportar es operar: Equipo incluido (Colaborador y sin rol siguen afuera).
   if (!canManageMembers(role)) return null;
 
-  return { user, workspace, canManage: true };
+  return { user, workspace, canManage: true, canConfigure: canConfigureMembers(role) };
 }
