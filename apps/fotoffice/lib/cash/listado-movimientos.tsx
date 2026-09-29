@@ -193,7 +193,8 @@ async function cambiarRubro(ctx: ContextoListado, ids: string[], parametro: stri
       } else r.fallidos.push({ id, error: "cambió mientras tanto" });
     }
     return r;
-  });
+    // Hasta el tope del lote en una sola transacción: el plazo por defecto (5 s) queda corto.
+  }, { timeout: 30_000 });
 }
 
 function Dato({ k, children }: { k: string; children: ReactNode }) {

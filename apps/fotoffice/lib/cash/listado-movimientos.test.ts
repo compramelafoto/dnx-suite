@@ -10,6 +10,7 @@ const H = vi.hoisted(() => ({
   cuentaFindFirst: vi.fn(),
   clienteFindMany: vi.fn(),
   clienteFindFirst: vi.fn(),
+  txOpciones: vi.fn(),
 }));
 
 vi.mock("@repo/db", () => {
@@ -22,7 +23,10 @@ vi.mock("@repo/db", () => {
     cashCategory: { findMany: (...a: unknown[]) => H.catFindMany(...a), findFirst: (...a: unknown[]) => H.catFindFirst(...a) },
     cashAccount: { findMany: (...a: unknown[]) => H.cuentaFindMany(...a), findFirst: (...a: unknown[]) => H.cuentaFindFirst(...a) },
     client: { findMany: (...a: unknown[]) => H.clienteFindMany(...a), findFirst: (...a: unknown[]) => H.clienteFindFirst(...a) },
-    $transaction: (fn: (tx: unknown) => unknown) => fn(prisma),
+    $transaction: (fn: (tx: unknown) => unknown, opciones?: unknown) => {
+      H.txOpciones(opciones);
+      return fn(prisma);
+    },
   };
   return { prisma };
 });
@@ -269,6 +273,8 @@ describe("cambiar rubro", () => {
     expect(r.detalle).toEqual([{ id: "a", antes: "r0", despues: "r1" }]);
     for (const call of H.movFindMany.mock.calls) expect(call[0].where.workspaceId).toBe("w1");
     expect(H.catFindFirst.mock.calls[0][0].where).toEqual({ id: "r1", workspaceId: "w1", isActive: true });
+    // El lote entero va en una transacción: con el plazo por defecto (5 s) no alcanza.
+    expect(H.txOpciones).toHaveBeenCalledWith({ timeout: 30_000 });
   });
 
   it("aplicar no toca nada si el rubro no es de este workspace o está inactivo", async () => {
