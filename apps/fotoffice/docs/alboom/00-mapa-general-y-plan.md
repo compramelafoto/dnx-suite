@@ -22,6 +22,7 @@
 | [07-alboom-proof.md](07-alboom-proof.md) | **Alboom Proof** (proof.alboompro.com): el modelo para la galería propia de FOTOFFICE |
 | [08-dnx-flux.md](08-dnx-flux.md) | DNX FLUX: copia de tarjetas, huellas, respaldo en R2, Aftershoot, publicación y Drive; propuesta de integración |
 | [09-configuracion-real-dnx.md](09-configuracion-real-dnx.md) | Configuración real de DNX Estudio leída de las pantallas de Ajustes (embudos, flujos, categorías, plan de cuentas…) |
+| [10-alboom-proof-cuenta-dnx.md](10-alboom-proof-cuenta-dnx.md) | La cuenta real de Proof de DNX: ~700 proyectos, 334 GB, categorías, presets y valores por defecto |
 
 - Los documentos citan números de línea de una copia formateada de `app.js` que quedó fuera del repo
   (es código de un tercero). Si hace falta re-verificar algo, se vuelve a descargar de
