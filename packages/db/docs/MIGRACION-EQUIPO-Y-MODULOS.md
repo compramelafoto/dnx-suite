@@ -23,7 +23,7 @@ Verificar el archivo antes de empezar:
 shasum -a 256 packages/db/prisma/migrations/20260930120000_fotoffice_equipo_y_modulos/migration.sql
 ```
 
-Si no da el checksum de la tabla, **parar**: el archivo cambió después de escribir este documento.
+Si no da el checksum de la tabla de arriba, **parar**: el archivo cambió después de escribir este documento.
 
 ## 2. En qué bases va
 
@@ -88,7 +88,7 @@ SELECT
   (SELECT count(*) FROM information_schema.tables
     WHERE table_schema='public' AND table_name IN ('WorkspaceInvitation','WorkspaceAdminEvent')) AS tablas,
   (SELECT count(*) FROM information_schema.columns
-    WHERE table_name='FotofficeWorkspaceBranding' AND column_name='organizationType') AS columna,
+    WHERE table_schema='public' AND table_name='FotofficeWorkspaceBranding' AND column_name='organizationType') AS columna,
   (SELECT count(*) FROM "_prisma_migrations"
     WHERE migration_name='20260930120000_fotoffice_equipo_y_modulos' AND finished_at IS NOT NULL) AS registrada;
 
@@ -109,3 +109,7 @@ COMMIT;
 ```
 
 El valor `COLLABORATOR` del enum **no se puede quitar** en Postgres; es inofensivo si nada lo usa.
+
+## 5. Quiénes ganan permisos
+
+Relevado por el controlador antes de publicar (ver PR).
