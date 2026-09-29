@@ -109,7 +109,10 @@ export async function observeOrdersWebhook(
       environment: env,
       result: "DENIED",
       errorCode: verified.reason,
-      metadata: { reason: verified.reason },
+      metadata: {
+        reason: verified.reason,
+        ...(verified.diagnostics ? { diagnostics: verified.diagnostics } : {}),
+      },
       createdAt: new Date().toISOString(),
     });
     return {

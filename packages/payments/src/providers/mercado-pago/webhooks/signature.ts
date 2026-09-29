@@ -80,6 +80,18 @@ export type VerifyMercadoPagoWebhookSignatureResult =
     }
   | {
       ok: false;
+      /**
+       * Pistas sanitizadas para poder diagnosticar un rechazo sin exponer el
+       * secreto: un `signature_mismatch` a secas no dice nada y obliga a
+       * adivinar. No incluye el secreto ni la firma completa.
+       */
+      diagnostics?: {
+        dataId: string | null;
+        requestIdPresent: boolean;
+        ts: string | null;
+        receivedV1Prefix: string | null;
+        expectedV1Prefixes: string[];
+      };
       reason:
         | "missing_secret"
         | "missing_signature"
@@ -148,5 +160,20 @@ export function verifyMercadoPagoWebhookSignature(
     }
   }
 
-  return { ok: false, reason: "signature_mismatch" };
+  return {
+    ok: false,
+    reason: "signature_mismatch",
+    diagnostics: {
+      dataId,
+      requestIdPresent: true,
+      ts,
+      receivedV1Prefix: v1.slice(0, 8),
+      expectedV1Prefixes: candidates.map((c) =>
+        createHmac("sha256", input.secret as string)
+          .update(`id:${c.id};request-id:${requestId};ts:${ts};`)
+          .digest("hex")
+          .slice(0, 8),
+      ),
+    },
+  };
 }
