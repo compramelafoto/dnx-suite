@@ -10,6 +10,8 @@ import { canManageMembers } from "@/lib/members/role-policy";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
+import { puede } from "@/lib/access/policy";
+import { getOrganizationType } from "@/lib/workspace-type";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 
 export default async function WorkspaceHomePage() {
@@ -31,6 +33,9 @@ export default async function WorkspaceHomePage() {
   const rolActivo = await resolveWorkspaceRole(user.id, ensured.workspaceId);
   const puedeAdministrarSocios = canManageMembers(rolActivo);
   const puedeConfigurar = canManageWorkspaceSettings(rolActivo);
+  // Sin tipo elegido no se puede ordenar el menú ni sugerir módulos: se lo pedimos a quien puede decidirlo.
+  const avisoDeTipo =
+    !!rolActivo && puede(rolActivo, "configurar") && (await getOrganizationType(ensured.workspaceId)) === null;
 
   const pending: string[] = [];
   if (!profile?.displayName) pending.push("Nombre visible");
@@ -43,6 +48,14 @@ export default async function WorkspaceHomePage() {
 
   return (
     <div className="space-y-10">
+      {avisoDeTipo ? (
+        <p className="fo-card p-4 text-sm" role="status">
+          Contanos qué tipo de organización son para ordenar el menú y sugerirte módulos.{" "}
+          <Link href="/workspace/configuracion/modulos" className="font-medium text-[var(--fo-accent,#1d4ed8)]">
+            Elegir →
+          </Link>
+        </p>
+      ) : null}
       <section className="space-y-4">
         <h1 className="text-3xl font-semibold tracking-tight text-[var(--fo-text)]">
           Hola, {display}
