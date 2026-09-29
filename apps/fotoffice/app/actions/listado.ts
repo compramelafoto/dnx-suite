@@ -5,6 +5,7 @@ import { contextoDeListado, exigirCapacidad } from "@/lib/listado/acceso";
 import { aplicarLote, prepararLote, type PreparacionLote, type ResultadoAplicar, type Seleccion } from "@/lib/listado/lote";
 import { hoyEnBuenosAires } from "@/lib/listado/periodos";
 import { definicionDe, LISTAS } from "@/lib/listado/registro";
+import type { Opcion } from "@/lib/listado/tipos";
 import { borrarVista, crearVista, normalizarNombreVista, renombrarVista, sanearQuery } from "@/lib/listado/vistas";
 
 type Estado = { error: string | null; ok?: boolean };
@@ -99,4 +100,21 @@ export async function aplicarLoteAction(
   const r = await aplicarLote(def, accion, ctx, entrada.seleccion, entrada.parametro, entrada.cantidadConfirmada, hoyEnBuenosAires());
   if (r.estado === "hecho") revalidatePath(LISTAS[entrada.clave].ruta);
   return r;
+}
+
+const MAX_SUGERENCIAS = 20;
+
+/** Sugerencias para un filtro de relación con buscador. Ante cualquier falta devuelve una lista vacía. */
+export async function buscarOpcionesRelacionAction(clave: string, filtro: string, texto: string): Promise<Opcion[]> {
+  if (typeof clave !== "string" || typeof filtro !== "string" || typeof texto !== "string") return [];
+  const ctx = await contextoDeListado(clave);
+  if (!ctx) return [];
+  const def = await definicionDe(clave, ctx);
+  if (!def?.buscarRelacion) return [];
+  const declarado = def.filtros.find((f) => f.clave === filtro);
+  if (!declarado || declarado.tipo !== "relacion" || !declarado.conBuscador) return [];
+  const buscado = texto.trim().slice(0, 100);
+  if (buscado.length < 2) return [];
+  const opciones = await def.buscarRelacion(ctx, filtro, buscado);
+  return opciones.slice(0, MAX_SUGERENCIAS).map((o) => ({ valor: o.valor, etiqueta: o.etiqueta }));
 }
