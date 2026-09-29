@@ -1,0 +1,239 @@
+import "server-only";
+import Link from "next/link";
+import { prisma, type Prisma } from "@repo/db";
+import { formatMoney } from "@/lib/format";
+import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
+import { CASH_MODULE_KEY } from "@/lib/cash/constants";
+import type { ConsultaResuelta, ContextoListado, DefinicionListado } from "@/lib/listado/tipos";
+import { CLIENT_KINDS, CLIENT_STATUSES, IVA_CONDITION_LABELS, type IvaCondition } from "./constants";
+import { clientDisplayName } from "./display";
+
+const SELECT_FILA = {
+  id: true,
+  clientNumber: true,
+  kind: true,
+  firstName: true,
+  lastName: true,
+  businessName: true,
+  docType: true,
+  docNumber: true,
+  ivaCondition: true,
+  email: true,
+  phone: true,
+  address: true,
+  city: true,
+  status: true,
+  createdAt: true,
+  member: { select: { memberNumber: true } },
+} satisfies Prisma.ClientSelect;
+
+export type FilaCliente = Prisma.ClientGetPayload<{ select: typeof SELECT_FILA }>;
+
+/** Los ids que llegan de una dirección se validan en forma antes de tocar la base. */
+const ID_VALIDO = /^[A-Za-z0-9_-]{1,64}$/;
+
+const ETIQUETA_TIPO: Record<string, string> = { PERSONA: "Persona", EMPRESA: "Empresa" };
+const ETIQUETA_ESTADO: Record<string, string> = { ACTIVO: "Activo", INACTIVO: "Inactivo" };
+
+const fechaAR = new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", year: "numeric" });
+const etiquetaIva = (v: string) => IVA_CONDITION_LABELS[v as IvaCondition] ?? v;
+
+/** Puro: lo que se le pide a Prisma. `workspaceId` va siempre, primero. */
+export function whereClientes(workspaceId: string, c: ConsultaResuelta): Prisma.ClientWhereInput {
+  const where: Prisma.ClientWhereInput = { workspaceId };
+  const q = c.q.trim();
+  if (q) {
+    const or: Prisma.ClientWhereInput[] = [
+      { firstName: { contains: q, mode: "insensitive" } },
+      { lastName: { contains: q, mode: "insensitive" } },
+      { businessName: { contains: q, mode: "insensitive" } },
+      { docNumber: { contains: q.replace(/[.\-\s]/g, "") } },
+      { email: { contains: q, mode: "insensitive" } },
+      { phone: { contains: q } },
+    ];
+    if (/^\d{1,9}$/.test(q)) or.push({ clientNumber: Number(q) });
+    where.OR = or;
+  }
+  if (c.filtros.tipo) where.kind = c.filtros.tipo;
+  if (c.filtros.estado) where.status = c.filtros.estado;
+  const alta = c.periodos.alta;
+  if (alta) where.createdAt = { gte: alta.desde, lte: alta.hasta };
+  if (c.filtros.movimientos === "si") where.movements = { some: {} };
+  else if (c.filtros.movimientos === "no") where.movements = { none: {} };
+  return where;
+}
+
+function ordenarPor(c: ConsultaResuelta): Prisma.ClientOrderByWithRelationInput[] {
+  const dir = c.orden.desc ? "desc" : "asc";
+  // `id` desempata para que la paginación no repita ni saltee filas.
+  switch (c.orden.campo) {
+    case "nombre":
+      return [{ lastName: dir }, { firstName: dir }, { businessName: dir }, { id: dir }];
+    case "alta":
+      return [{ createdAt: dir }, { id: dir }];
+    default:
+      return [{ clientNumber: dir }];
+  }
+}
+
+async function panelCliente(ctx: ContextoListado, id: string) {
+  if (!ID_VALIDO.test(id)) return null;
+  const c = await prisma.client.findFirst({
+    where: { id, workspaceId: ctx.workspaceId },
+    select: { ...SELECT_FILA, member: { select: { id: true, memberNumber: true } } },
+  });
+  if (!c) return null;
+  const conCaja = await isModuleEnabledForWorkspace(ctx.workspaceId, CASH_MODULE_KEY);
+  const movimientos = conCaja
+    ? await prisma.cashMovement.findMany({
+        where: { workspaceId: ctx.workspaceId, clientId: c.id },
+        orderBy: [{ occurredAt: "desc" }, { id: "desc" }],
+        take: 5,
+        select: { id: true, kind: true, amountArs: true, occurredAt: true, description: true },
+      })
+    : null;
+
+  const datos: [string, string | null][] = [
+    ["Tipo", ETIQUETA_TIPO[c.kind] ?? c.kind],
+    ["Documento", c.docNumber ? `${c.docType ?? ""} ${c.docNumber}`.trim() : null],
+    ["Condición IVA", etiquetaIva(c.ivaCondition)],
+    ["Correo", c.email],
+    ["Teléfono", c.phone],
+    ["Domicilio", [c.address, c.city].filter(Boolean).join(", ") || null],
+  ];
+
+  return (
+    <div className="space-y-4 text-sm">
+      <h3 className="text-base font-semibold text-[var(--fo-text)]">{clientDisplayName(c)}</h3>
+      <dl className="space-y-2">
+        {datos.map(([k, v]) => (
+          <div key={k} className="flex justify-between gap-4">
+            <dt className="text-[var(--fo-muted)]">{k}</dt>
+            <dd className="text-right text-[var(--fo-text)]">{v ?? "—"}</dd>
+          </div>
+        ))}
+        <div className="flex justify-between gap-4">
+          <dt className="text-[var(--fo-muted)]">Socio</dt>
+          <dd className="text-right">
+            {c.member ? (
+              <Link href={`/members/${c.member.id}`} className="font-medium text-[var(--fo-accent)] hover:underline">
+                Socio {c.member.memberNumber}
+              </Link>
+            ) : (
+              "—"
+            )}
+          </dd>
+        </div>
+      </dl>
+      {movimientos ? (
+        <div className="space-y-2">
+          <h4 className="font-semibold text-[var(--fo-text)]">Últimos movimientos de Caja</h4>
+          {movimientos.length === 0 ? (
+            <p className="text-[var(--fo-muted)]">Todavía no tiene movimientos.</p>
+          ) : (
+            <ul className="divide-y divide-[var(--fo-border)]">
+              {movimientos.map((m) => (
+                <li key={m.id} className="flex justify-between gap-3 py-2">
+                  <span className="min-w-0">
+                    <span className="block text-xs text-[var(--fo-muted)]">{fechaAR.format(m.occurredAt)}</span>
+                    <span className="block truncate">{m.description}</span>
+                  </span>
+                  <span className="shrink-0 font-medium tabular-nums">
+                    {m.kind === "EGRESO" ? "−" : "+"}
+                    {formatMoney(m.amountArs, "ARS")}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export const listadoClientes: DefinicionListado<FilaCliente> = {
+  clave: "clientes",
+  titulo: "Clientes",
+  sustantivo: { singular: "cliente", plural: "clientes" },
+  placeholderBusqueda: "Buscar por nombre, documento, correo o teléfono",
+  columnas: [
+    { clave: "numero", titulo: "N°", orden: "numero", celda: (f) => <span className="font-mono text-xs text-[var(--fo-muted)]">{f.clientNumber}</span> },
+    {
+      clave: "nombre",
+      titulo: "Nombre",
+      orden: "nombre",
+      celda: (f) => (
+        <Link href={`/clientes/${f.id}`} className="font-medium text-[var(--fo-text)] hover:underline">
+          {clientDisplayName(f)}
+        </Link>
+      ),
+    },
+    { clave: "documento", titulo: "Documento", celda: (f) => f.docNumber ?? "—" },
+    { clave: "correo", titulo: "Correo", secundaria: true, celda: (f) => f.email ?? "—" },
+    { clave: "telefono", titulo: "Teléfono", secundaria: true, celda: (f) => f.phone ?? "—" },
+    { clave: "socio", titulo: "Socio", celda: (f) => f.member?.memberNumber ?? "—" },
+    {
+      clave: "estado",
+      titulo: "Estado",
+      celda: (f) => (
+        <span className="rounded-full border border-[var(--fo-border)] px-2 py-0.5 text-xs text-[var(--fo-muted)]">
+          {ETIQUETA_ESTADO[f.status] ?? f.status}
+        </span>
+      ),
+    },
+    { clave: "alta", titulo: "Alta", orden: "alta", secundaria: true, celda: (f) => fechaAR.format(f.createdAt) },
+  ],
+  filtros: [
+    { tipo: "opcion", clave: "tipo", etiqueta: "Tipo", opciones: CLIENT_KINDS.map((v) => ({ valor: v, etiqueta: ETIQUETA_TIPO[v] })) },
+    { tipo: "opcion", clave: "estado", etiqueta: "Estado", opciones: CLIENT_STATUSES.map((v) => ({ valor: v, etiqueta: ETIQUETA_ESTADO[v] })) },
+    { tipo: "periodo", clave: "alta", etiqueta: "Alta" },
+    { tipo: "siNo", clave: "movimientos", etiqueta: "Movimientos", si: "Con movimientos", no: "Sin movimientos" },
+  ],
+  ordenes: ["numero", "nombre", "alta"],
+  ordenPorDefecto: { campo: "numero", desc: true },
+  idDe: (f) => f.id,
+  hrefFicha: (id) => `/clientes/${id}`,
+  contar: (ctx, c) => prisma.client.count({ where: whereClientes(ctx.workspaceId, c) }),
+  traer: (ctx, c, { skip, take }) =>
+    prisma.client.findMany({ where: whereClientes(ctx.workspaceId, c), select: SELECT_FILA, orderBy: ordenarPor(c), skip, take }),
+  traerIds: async (ctx, c, tope) => {
+    const filas = await prisma.client.findMany({
+      where: whereClientes(ctx.workspaceId, c),
+      select: { id: true },
+      orderBy: ordenarPor(c),
+      take: tope,
+    });
+    return filas.map((f) => f.id);
+  },
+  traerPorIds: async (ctx, ids) => {
+    const validos = ids.filter((id) => ID_VALIDO.test(id));
+    if (validos.length === 0) return [];
+    const filas = await prisma.client.findMany({
+      where: { workspaceId: ctx.workspaceId, id: { in: validos } },
+      select: SELECT_FILA,
+    });
+    const porId = new Map(filas.map((f) => [f.id, f]));
+    return validos.flatMap((id) => porId.get(id) ?? []);
+  },
+  acciones: [],
+  exportar: {
+    columnas: [
+      { titulo: "N°", tipo: "numero", valor: (f) => f.clientNumber },
+      { titulo: "Tipo", tipo: "texto", valor: (f) => ETIQUETA_TIPO[f.kind] ?? f.kind },
+      { titulo: "Nombre", tipo: "texto", valor: (f) => clientDisplayName(f) },
+      { titulo: "Razón social", tipo: "texto", valor: (f) => f.businessName },
+      { titulo: "Tipo de documento", tipo: "texto", valor: (f) => f.docType },
+      { titulo: "Documento", tipo: "texto", valor: (f) => f.docNumber },
+      { titulo: "Condición IVA", tipo: "texto", valor: (f) => etiquetaIva(f.ivaCondition) },
+      { titulo: "Correo", tipo: "texto", valor: (f) => f.email },
+      { titulo: "Teléfono", tipo: "texto", valor: (f) => f.phone },
+      { titulo: "Domicilio", tipo: "texto", valor: (f) => f.address },
+      { titulo: "Ciudad", tipo: "texto", valor: (f) => f.city },
+      { titulo: "Estado", tipo: "texto", valor: (f) => ETIQUETA_ESTADO[f.status] ?? f.status },
+      { titulo: "Socio N°", tipo: "texto", valor: (f) => f.member?.memberNumber ?? null },
+      { titulo: "Alta", tipo: "fechaHora", valor: (f) => f.createdAt },
+    ],
+  },
+  panel: panelCliente,
+};

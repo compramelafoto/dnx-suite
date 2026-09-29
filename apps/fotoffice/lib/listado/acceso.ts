@@ -7,6 +7,11 @@ import { puede, type Capacidad } from "@/lib/access/policy";
 import { LISTAS } from "./registro";
 import type { ContextoListado } from "./tipos";
 
+/** Cómo se nombra a la persona en el registro de actividad. Una sola regla para todas las páginas. */
+export function etiquetaDeUsuario(user: { id: number; name?: string | null; email?: string | null }): string {
+  return user.name ?? user.email ?? `Usuario ${user.id}`;
+}
+
 /**
  * Contexto para acciones y descargas de un listado. Devuelve null ante cualquier falta —sin
  * sesión, sin workspace, módulo apagado, rol sin `operar`— sin distinguir el motivo, y nunca
@@ -26,7 +31,7 @@ export async function contextoDeListado(clave: string): Promise<ContextoListado 
     workspaceId: workspace.id,
     workspaceName: workspace.name,
     userId: user.id,
-    userLabel: user.name ?? user.email ?? `Usuario ${user.id}`,
+    userLabel: etiquetaDeUsuario(user),
     role,
   };
 }
