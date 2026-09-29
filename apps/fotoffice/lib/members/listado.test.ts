@@ -142,7 +142,7 @@ describe("invitar al portal", () => {
     expect(r.fallidos).toEqual([{ id: "b", error: "no salió" }]);
     const [workspace, actor, id] = H.inviteOneMember.mock.calls[0];
     expect(workspace).toEqual({ id: "w1" });
-    expect(actor).toMatchObject({ id: 7 });
+    expect(actor).toEqual({ id: 7, name: "Ana", email: null });
     expect(id).toBe("a");
   });
 });
@@ -194,6 +194,37 @@ describe("cambiar categoría", () => {
       source: "MANUAL",
     });
     expect(H.categoryFindFirst.mock.calls[0][0].where).toEqual({ id: "c1", workspaceId: "w1", isActive: true });
+  });
+
+  it("un error inesperado en una fila no corta el lote: se cuenta como fallido y se sigue", async () => {
+    const consola = vi.spyOn(console, "error").mockImplementation(() => {});
+    H.categoryFindFirst.mockResolvedValue({ id: "c1" });
+    H.memberFindMany.mockResolvedValue([
+      { id: "a", categoryId: "c0" },
+      { id: "b", categoryId: "c0" },
+      { id: "c", categoryId: "c0" },
+    ]);
+    H.updateMember
+      .mockResolvedValueOnce({ id: "a" })
+      .mockRejectedValueOnce(new Error("db"))
+      .mockResolvedValueOnce({ id: "c" });
+    const r = await accion("categoria").aplicar(ctx, ["a", "b", "c"], "c1");
+    expect(r.aplicados).toBe(2);
+    expect(r.fallidos).toEqual([{ id: "b", error: "error inesperado" }]);
+    expect(r.detalle).toEqual([
+      { id: "a", antes: "c0", despues: "c1" },
+      { id: "c", antes: "c0", despues: "c1" },
+    ]);
+    expect(consola).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ memberId: "b" }));
+    consola.mockRestore();
+  });
+
+  it("el actor nunca queda con etiqueta vacía", async () => {
+    H.categoryFindFirst.mockResolvedValue({ id: "c1" });
+    H.memberFindMany.mockResolvedValue([{ id: "a", categoryId: null }]);
+    H.updateMember.mockResolvedValue({ id: "a" });
+    await accion("categoria").aplicar({ ...ctx, userLabel: "   " }, ["a"], "c1");
+    expect(H.updateMember.mock.calls[0][3].actor).toEqual({ userId: 7, label: "Usuario 7" });
   });
 
   it("aplicar no toca nada si la categoría no es de este workspace", async () => {

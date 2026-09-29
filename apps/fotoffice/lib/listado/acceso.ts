@@ -9,7 +9,7 @@ import type { ContextoListado } from "./tipos";
 
 /** Cómo se nombra a la persona en el registro de actividad. Una sola regla para todas las páginas. */
 export function etiquetaDeUsuario(user: { id: number; name?: string | null; email?: string | null }): string {
-  return user.name ?? user.email ?? `Usuario ${user.id}`;
+  return user.name?.trim() || user.email?.trim() || `Usuario ${user.id}`;
 }
 
 /**

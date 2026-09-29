@@ -117,9 +117,19 @@ function ordenarPor(c: ConsultaResuelta): Prisma.MemberOrderByWithRelationInput[
   }
 }
 
-/** Quien opera la tanda, con la misma forma que usa toda la auditoría del padrón. */
+/** Nunca una etiqueta vacía en el historial. */
+function etiquetaDelLote(ctx: ContextoListado): string {
+  return ctx.userLabel.trim() || `Usuario ${ctx.userId}`;
+}
+
+/** Actor de la auditoría, con la forma que devuelve `auditActorFrom`. */
+function actorDelLote(ctx: ContextoListado): ReturnType<typeof auditActorFrom> {
+  return { userId: ctx.userId, label: etiquetaDelLote(ctx) };
+}
+
+/** Quien invita: sin correo inventado; `auditActorFrom` toma el nombre. */
 function usuarioDelLote(ctx: ContextoListado): AuditActorUser {
-  return { id: ctx.userId, name: ctx.userLabel, email: ctx.userLabel };
+  return { id: ctx.userId, name: etiquetaDelLote(ctx), email: null };
 }
 
 async function categoriasActivas(ctx: ContextoListado): Promise<Opcion[]> {
@@ -147,7 +157,7 @@ async function cambiarCategoria(ctx: ContextoListado, ids: string[], parametro: 
     select: { id: true, categoryId: true },
   });
   const antes = new Map(anteriores.map((m) => [m.id, m.categoryId]));
-  const actor = auditActorFrom(usuarioDelLote(ctx));
+  const actor = actorDelLote(ctx);
   const r: ResultadoLote = { aplicados: 0, fallidos: [], detalle: [] };
   // De a uno: cada cambio con su transacción, su auditoría y su control de concurrencia. Quien
   // cambió mientras tanto queda afuera sin frenar al resto.
@@ -161,8 +171,14 @@ async function cambiarCategoria(ctx: ContextoListado, ids: string[], parametro: 
       r.aplicados += 1;
       r.detalle.push({ id, antes: antes.get(id) ?? null, despues: categoria.id });
     } catch (e) {
-      if (e instanceof MemberConcurrencyError) r.fallidos.push({ id, error: "se modificó mientras tanto" });
-      else throw e;
+      if (e instanceof MemberConcurrencyError) {
+        r.fallidos.push({ id, error: "se modificó mientras tanto" });
+        continue;
+      }
+      // Cada fila ya guardada quedó firme en su propia transacción: cortar acá dejaría un lote
+      // a medias sin registro. Se anota, se sigue y el lote se registra entero.
+      console.error("[listado socios] cambio de categoría falló", { memberId: id, error: e instanceof Error ? e.name : "desconocido" });
+      r.fallidos.push({ id, error: "error inesperado" });
     }
   }
   return r;

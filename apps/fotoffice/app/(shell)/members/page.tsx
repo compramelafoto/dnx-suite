@@ -11,6 +11,9 @@ import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { Users } from "lucide-react";
 
 export const dynamic = "force-dynamic";
+// Las acciones en lote (hasta 5.000 cambios de categoría, de a uno) corren como Server Actions
+// de esta página y heredan este tope.
+export const maxDuration = 300;
 
 export default async function MembersPage({
   searchParams,
