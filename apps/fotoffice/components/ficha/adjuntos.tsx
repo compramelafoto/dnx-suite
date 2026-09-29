@@ -8,6 +8,10 @@ import { fechaBA, fechaHoraBA, tamanoLegible } from "@/lib/ficha/formato";
 import { subirAdjunto } from "./subir-adjunto";
 import type { AdjuntoVista, PersonaFicha, Resultado } from "./tipos";
 
+/** Junto a los tipos MIME: algunos navegadores no conocen el de HEIC y sólo filtran por extensión. */
+const EXTENSIONES_PERMITIDAS = [".pdf", ".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif", ".doc", ".docx", ".xls", ".xlsx"];
+const ERROR_SUBIDA_FALLIDA = "No se pudo subir. Probá de nuevo.";
+
 type Subida = { clave: string; nombre: string; progreso: number; error: string | null };
 
 /**
@@ -47,9 +51,15 @@ export function Adjuntos({
       const clave = nuevas[i]!.clave;
       const actualizar = (cambio: Partial<Subida>) =>
         setSubidas((antes) => antes.map((s) => (s.clave === clave ? { ...s, ...cambio } : s)));
-      const r = await subirAdjunto(persona, archivo, (progreso) => actualizar({ progreso: Math.min(progreso, 99) }));
-      if (r.ok) setSubidas((antes) => antes.filter((s) => s.clave !== clave));
-      else actualizar({ error: r.error });
+      try {
+        const r = await subirAdjunto(persona, archivo, (progreso) => actualizar({ progreso: Math.min(progreso, 99) }));
+        if (r.ok) setSubidas((antes) => antes.filter((s) => s.clave !== clave));
+        else actualizar({ error: r.error });
+      } catch {
+        // Red caída o versión nueva publicada a mitad de camino: la fila queda como fallida
+        // (así "Elegir archivos" se libera) y se sigue con el próximo archivo.
+        actualizar({ error: ERROR_SUBIDA_FALLIDA });
+      }
     }
   }
 
@@ -101,7 +111,7 @@ export function Adjuntos({
             id={`${id}-archivos`}
             type="file"
             multiple
-            accept={TIPOS_PERMITIDOS.join(",")}
+            accept={[...TIPOS_PERMITIDOS, ...EXTENSIONES_PERMITIDAS].join(",")}
             className="sr-only"
             onChange={(e) => {
               void subir([...(e.target.files ?? [])]);

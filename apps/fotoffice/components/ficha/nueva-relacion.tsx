@@ -174,7 +174,18 @@ export function NuevaRelacion({
           <label className="fo-label" htmlFor={`${id}-libre`}>
             ¿Cómo se relacionan?
           </label>
-          <input id={`${id}-libre`} name="customLabel" className="fo-input" maxLength={40} required placeholder="Padrino, vecina…" />
+          <input
+            id={`${id}-libre`}
+            name="customLabel"
+            className="fo-input"
+            maxLength={40}
+            required
+            aria-describedby={`${id}-libre-ayuda`}
+            placeholder="Vecinos, compañeros de trabajo, socios de la agencia"
+          />
+          <p id={`${id}-libre-ayuda`} className="fo-helper">
+            Se lee igual desde las dos fichas.
+          </p>
         </div>
       ) : null}
 

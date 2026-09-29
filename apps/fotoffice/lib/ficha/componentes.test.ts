@@ -67,6 +67,26 @@ describe("componentes de la ficha", () => {
     expect(a).toMatch(/esConfigurador && borrados/);
   });
 
+  it("una subida que falla por excepción queda marcada y libera el botón; accept incluye extensiones", () => {
+    const a = componente("adjuntos.tsx");
+    expect(a).toMatch(/try \{\s*const r = await subirAdjunto\(/);
+    expect(a).toContain("} catch {");
+    expect(a).toContain('"No se pudo subir. Probá de nuevo."');
+    expect(a).toContain("actualizar({ error: ERROR_SUBIDA_FALLIDA })");
+    for (const ext of [".pdf", ".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif", ".doc", ".docx", ".xls", ".xlsx"]) {
+      expect(a).toContain(`"${ext}"`);
+    }
+    expect(a).toContain("[...TIPOS_PERMITIDOS, ...EXTENSIONES_PERMITIDAS]");
+  });
+
+  it("el vínculo libre se ofrece con ejemplos simétricos y avisa que se lee igual de los dos lados", () => {
+    const r = componente("nueva-relacion.tsx");
+    expect(r).toContain("Se lee igual desde las dos fichas.");
+    const placeholder = r.match(/placeholder="([^"]*)"\s*\/>\s*<p id=\{`\$\{id\}-libre-ayuda`\}/)?.[1];
+    expect(placeholder).toBe("Vecinos, compañeros de trabajo, socios de la agencia");
+    for (const direccional of ["Padrino", "Madrina", "vecina", "Tutor", "Jefe"]) expect(r).not.toContain(direccional);
+  });
+
   it("la línea de tiempo pide más con verMasAction y avisa si una fuente falló", () => {
     const l = componente("linea-de-tiempo.tsx");
     expect(l).toContain("verMasAction(");
