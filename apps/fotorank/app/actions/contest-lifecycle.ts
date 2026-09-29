@@ -12,7 +12,10 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 
 import { routes } from "../lib/routes";
-import { requireAdminContestScope } from "../lib/fotorank/upcoming/admin-access";
+import {
+  canOperateUpcomingFlow,
+  requireAdminContestScope,
+} from "../lib/fotorank/upcoming/admin-access";
 import { transitionContestPhase } from "../lib/fotorank/upcoming/service";
 import type { ContestLifecyclePhase } from "../lib/fotorank/upcoming/lifecycle";
 import type { GateReport } from "../lib/fotorank/upcoming/publication-gates";
@@ -30,6 +33,9 @@ export async function transitionContestPhaseAction(input: {
 }): Promise<TransitionActionResult> {
   const scope = await requireAdminContestScope(input.contestId);
   if (!scope.ok) return { ok: false, error: scope.error };
+  if (!canOperateUpcomingFlow(scope.scope.user)) {
+    return { ok: false, error: "Sólo un super admin puede cambiar la fase del concurso." };
+  }
 
   const h = await headers();
   const forwarded = h.get("x-forwarded-for");
