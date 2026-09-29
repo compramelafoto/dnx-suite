@@ -143,3 +143,50 @@ describe("verifyMercadoPagoWebhookSignature", () => {
     if (!result.ok) assert.equal(result.reason, "timestamp_out_of_tolerance");
   });
 });
+
+
+describe("verifyMercadoPagoWebhookSignature — data.id en mayúsculas (tópico order)", () => {
+  const secret = "s3cr3t-de-prueba";
+  const ts = "1700000000000";
+  const requestId = "req-order-1";
+  const orderId = "ORDTST01M2R3ABCD";
+
+  function firmar(dataId: string): string {
+    return createHmac("sha256", secret)
+      .update(`id:${dataId};request-id:${requestId};ts:${ts};`)
+      .digest("hex");
+  }
+
+  it("acepta la firma hecha con el id tal como llega", () => {
+    const r = verifyMercadoPagoWebhookSignature({
+      signatureHeader: `ts=${ts},v1=${firmar(orderId)}`,
+      requestIdHeader: requestId,
+      dataId: orderId,
+      secret,
+    });
+    assert.equal(r.ok, true);
+    if (r.ok) assert.equal(r.dataIdVariant, "as_received");
+  });
+
+  it("sigue aceptando la firma hecha con el id en minúsculas", () => {
+    const r = verifyMercadoPagoWebhookSignature({
+      signatureHeader: `ts=${ts},v1=${firmar(orderId.toLowerCase())}`,
+      requestIdHeader: requestId,
+      dataId: orderId,
+      secret,
+    });
+    assert.equal(r.ok, true);
+    if (r.ok) assert.equal(r.dataIdVariant, "lowercased");
+  });
+
+  it("rechaza una firma que no corresponde a ninguna de las dos", () => {
+    const r = verifyMercadoPagoWebhookSignature({
+      signatureHeader: `ts=${ts},v1=${"0".repeat(64)}`,
+      requestIdHeader: requestId,
+      dataId: orderId,
+      secret,
+    });
+    assert.equal(r.ok, false);
+    if (!r.ok) assert.equal(r.reason, "signature_mismatch");
+  });
+});
