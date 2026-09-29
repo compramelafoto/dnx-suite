@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BASE_DEL_SISTEMA, EN_CONSTRUCCION, MODULOS_DISPONIBLES } from "./catalogo";
-import { TIPOS, clavesDe } from "./tipos";
+import { TIPOS, clavesDe, tipoPorId } from "./tipos";
 
 const CLAVES_DEL_CATALOGO = new Set(
   [...MODULOS_DISPONIBLES, ...BASE_DEL_SISTEMA].map((m) => m.key),
@@ -12,6 +12,10 @@ const CUADROS_SIN_REVELAR = new Set(EN_CONSTRUCCION.map((m) => m.cuadro));
  * módulo que no existe, la primera impresión del sistema es una promesa incumplida.
  */
 describe("tipos de organización", () => {
+  it("incluye el tipo estudio", () => {
+    expect(tipoPorId("estudio")).toBeDefined();
+  });
+
   it("recomiendan solo módulos que están en el catálogo", () => {
     for (const tipo of TIPOS) {
       const inventadas = clavesDe(tipo).filter((k) => !CLAVES_DEL_CATALOGO.has(k));
