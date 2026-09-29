@@ -95,7 +95,7 @@ estrena en tres listas reales antes de que el CRM (etapa 1) la necesite.
 
 | Lista | Acción | Regla |
 |---|---|---|
-| Socios | Cambiar categoría | Pasa por la misma función que el cambio individual, con `MemberAudit` |
+| Socios | Cambiar categoría | Pasa por la misma función que el cambio individual, con `MemberAudit`: fila por fila con `updateMember`; el resultado informa aplicados y no aplicados |
 | Socios | Invitar al portal | La que ya existe (`inviteMembersBatchAction`) pasa a la pieza; ahora también con "todos los resultados" |
 | Caja / movimientos | Cambiar rubro | **Sólo movimientos cargados a mano** (`sourceModule = "manual"`) y no anulados: los que vienen de Cuotas, Reservas o Ventas se corrigen en su módulo (regla de `lib/cash/constants.ts`). La confirmación dice cuántos quedan afuera y por qué. Es el primer cambio que se permite sobre un movimiento: sólo toca la clasificación, nunca el importe, la cuenta ni la fecha |
 | Clientes | Exportar selección | Las etiquetas llegan con la ficha estándar (0.3) |
@@ -217,7 +217,7 @@ el código**, como en la 0.1.
 - Filtro inválido o viejo en la dirección o en una vista: se ignora y se avisa en una línea.
 - Página inexistente: se muestra la última.
 - La cantidad cambió entre confirmar y aplicar: no se aplica, se vuelve a preguntar.
-- Una acción falla a mitad: la transacción no deja nada a medias; el mensaje dice qué pasó.
+- Una acción de Socios falla en una fila: esa fila queda sin cambiar, las demás se aplican y el resultado lo detalla. En Caja, la transacción no deja nada a medias.
 - Exportación o lote por encima del tope: se avisa antes de hacer nada.
 - Una fila del lote que no se puede tocar (movimiento no manual o anulado): queda afuera y se cuenta en
   la confirmación.
