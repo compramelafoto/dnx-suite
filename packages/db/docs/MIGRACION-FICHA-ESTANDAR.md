@@ -46,15 +46,21 @@ Si no da el checksum de la tabla de arriba, **parar**: el archivo cambió despu�
 2. Esta rama se rebasa sobre `main` actualizado.
 3. Se crean los buckets privados y su CORS (sección 6).
 4. Se carga `R2_PRIVATE_BUCKET` en Vercel, en Production y en Preview.
-5. SQL en **staging** (`dnx-suite-staging`); probar con `next dev` apuntando a staging.
-6. SQL en **FOTOFFICE producción** (`compramelafoto` / `development`).
+5. SQL en **staging** (`dnx-suite-staging`) y **prueba de punta a punta con `next dev`
+   apuntando a staging**: subir un adjunto, confirmarlo, descargarlo, borrarlo y restaurarlo.
+   Es obligatoria: los tests automáticos usan R2 simulado y no detectan un token sin permisos
+   (sección 6, punto 5). Si algún paso falla con `AccessDenied`, no seguir.
+6. SQL en **FOTOFFICE producción** (`compramelafoto` / `development`), con la verificación
+   de conversión del paso 3 **inmediatamente después** de aplicarlo y antes del deploy.
 7. Recién entonces se fusiona el PR.
 
 **Aplicar el SQL y publicar el código lo más cerca posible en el tiempo.** El SQL convierte
 las Observaciones una sola vez. Si alguien edita una "Observaciones" con el formulario viejo
 entre que se aplica el SQL y que se publica el código, esa edición **no se convierte**: volver
 a correr el `INSERT` no actualiza las notas `obs_%` que ya existen (`DO NOTHING`). La
-verificación del paso 3 (conteos) se hace **después** del deploy.
+verificación de conversión (paso 3) se hace **justo después de aplicar el SQL, antes del
+deploy**; se puede repetir después del deploy, pero los conteos pueden dejar de coincidir
+porque la gente edita o borra notas.
 
 ## 3. En qué bases va
 
@@ -73,6 +79,18 @@ foráneas y la conversión). Si falta alguna, queda afuera.
 sólo alinea el schema con el historial de migraciones.
 
 ## 4. Procedimiento, base por base
+
+### Paso 0 — Comprobar el slug de DNX Estudio (sólo lectura)
+
+Las categorías iniciales dependen de que DNX Estudio se identifique como `dnx-estudio`. Si el
+slug es otro, arranca con "General" en lugar de las 13 categorías. Confirmarlo **antes** de
+aplicar:
+
+```sql
+SELECT "workspaceId", "publicSlug" FROM "FotofficeWorkspaceBranding" WHERE "publicSlug" = 'dnx-estudio';
+```
+
+Debe devolver exactamente una fila. Si no, **parar** y corregir el slug antes de seguir.
 
 ### Paso 1 — Comprobar que no está aplicada
 
@@ -102,7 +120,7 @@ WHERE NOT EXISTS (
 COMMIT;
 ```
 
-### Paso 3 — Verificar (después del deploy del código)
+### Paso 3 — Verificar (justo después del SQL, antes del deploy; repetible después)
 
 ```sql
 -- Las ocho tablas existen y responden (0 filas en las que no son de conversión)
@@ -181,7 +199,7 @@ Nada de esto lo hace el código ni el asistente.
    el de staging sólo el de staging/desarrollo local.
 3. **Variable `R2_PRIVATE_BUCKET`** en el proyecto Vercel de FOTOFFICE, en Production
    (`fotoffice-private-prod`) y en Preview (`fotoffice-private-staging`). También en
-   `.env.local` para `next dev`. Las credenciales de R2 son las mismas que ya usa la app.
+   `.env.local` para `next dev`. Las credenciales de R2 son las mismas que ya usa la app, pero ver el punto 5.
 4. **Comprobar el CORS con un preflight** (así se verificó `fotorank-private-prod`):
 
 ```bash
@@ -192,6 +210,12 @@ curl -si -X OPTIONS "https://<cuenta>.r2.cloudflarestorage.com/<bucket>/adjuntos
 ```
 
    Debe responder `204` con `Access-Control-Allow-Methods: PUT`.
+
+5. **Confirmar que el token de API de R2 existente tiene lectura y escritura sobre
+   `fotoffice-private-prod` y `fotoffice-private-staging`.** Los tokens de R2 pueden estar
+   limitados a buckets específicos: si el actual lo está, cada `PUT`, `HEAD` y `GET` falla con
+   `AccessDenied` aunque `adjuntosR2Configurado()` devuelva `true` (sólo mira que las variables
+   existan). Si está limitado, ampliar el token o crear uno nuevo y cargarlo en Vercel.
 
 ### Pendiente conocido (no bloquea)
 
