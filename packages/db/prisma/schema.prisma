@@ -11886,6 +11886,11 @@ model ClickatonEdition {
   surveyResponses            ClickatonSurveyResponse[]
   testimonials               ClickatonTestimonial[]
   testimonialInvites         ClickatonTestimonialInvite[]
+  /// Números reales de la edición: gastos, sobrante contado y comisiones de MP.
+  financeExpenses            ClickatonEditionExpense[]
+  leftoverItems              ClickatonEditionLeftoverItem[]
+  leftoverItemsReceived      ClickatonEditionLeftoverItem[]        @relation("LeftoverCarriedToEdition")
+  resultSettings             ClickatonEditionResultSettings?
 
   /// Habilita la compra de regalos en esta edición. Nace apagado.
   giftVouchersEnabled Boolean @default(false)
@@ -12766,10 +12771,10 @@ model ClickatonPhotoSubmissionAudit {
 /// teléfono si sus fotos guardan la ubicación y si el reloj está bien.
 /// La foto NUNCA se sube: acá sólo se guarda el veredicto.
 model ClickatonReadinessCheck {
-  id                String                @id @default(cuid())
+  id                String   @id @default(cuid())
   editionId         String
   registrationId    String
-  checkedAt         DateTime              @default(now())
+  checkedAt         DateTime @default(now())
   hasGps            Boolean
   /// Positivo = el teléfono va adelantado respecto del servidor.
   clockDeltaMinutes Int?
@@ -12779,7 +12784,7 @@ model ClickatonReadinessCheck {
   result            String
   /// Todos los problemas encontrados, no sólo el principal.
   detail            Json?
-  createdAt         DateTime              @default(now())
+  createdAt         DateTime @default(now())
 
   edition      ClickatonEdition      @relation(fields: [editionId], references: [id], onDelete: Cascade)
   registration ClickatonRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
@@ -13838,18 +13843,18 @@ model ClickatonReferralCode {
 /// deja además registro de a quién se le escribió y de quién pidió no recibir
 /// más, que es lo que hace responsable un envío a gente que no lo pidió.
 model ClickatonOutreachContact {
-  id        String    @id @default(cuid())
-  email     String    @unique
-  name      String?
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String?
   /// compramelafoto | fotoffice | fotorank
-  origen    String
+  origen       String
   /// Cuándo se le mandó el último correo, y de qué campaña.
   lastSentAt   DateTime?
   lastCampaign String?
   /// Pidió no recibir más. Nunca se le vuelve a escribir.
   optedOutAt   DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@index([origen])
   @@index([lastSentAt])
@@ -13909,24 +13914,24 @@ model ClickatonReferralClaim {
 /// Quién trajo a quién. `referredUserId` es único: cada persona cuenta una
 /// sola vez en su vida, aunque después se inscriba a diez ediciones.
 model ClickatonReferralAttribution {
-  id             String                             @id @default(cuid())
-  referrerUserId Int
-  referredUserId Int                                @unique
+  id                     String                             @id @default(cuid())
+  referrerUserId         Int
+  referredUserId         Int                                @unique
   /// Snapshot del email con el que se inscribió el referido.
-  referredEmail  String
-  referralCodeId String
+  referredEmail          String
+  referralCodeId         String
   /// Inscripción del referido que generó la atribución.
-  registrationId String                             @unique
-  editionId      String
-  status         ClickatonReferralAttributionStatus @default(EARNED)
-  earnedAt       DateTime                           @default(now())
-  revokedAt      DateTime?
-  revokedReason  String?
-  consumedAt     DateTime?
+  registrationId         String                             @unique
+  editionId              String
+  status                 ClickatonReferralAttributionStatus @default(EARNED)
+  earnedAt               DateTime                           @default(now())
+  revokedAt              DateTime?
+  revokedReason          String?
+  consumedAt             DateTime?
   /// Inscripción del REFERIDOR donde se usó el beneficio (Etapa 02).
   consumedRegistrationId String?
-  createdAt      DateTime                           @default(now())
-  updatedAt      DateTime                           @updatedAt
+  createdAt              DateTime                           @default(now())
+  updatedAt              DateTime                           @updatedAt
 
   referrer     User                  @relation("ClickatonReferralReferrer", fields: [referrerUserId], references: [id], onDelete: Cascade)
   referred     User                  @relation("ClickatonReferralReferred", fields: [referredUserId], references: [id], onDelete: Cascade)
@@ -18823,15 +18828,15 @@ enum ClickatonTestimonialInviteStatus {
 
 /// Encuesta de satisfacción. PRIVADA: ninguna ruta pública la consulta.
 model ClickatonSurveyResponse {
-  id             String                         @id @default(cuid())
-  editionId      String
-  userId         Int
-  authorRole     ClickatonTestimonialAuthorRole
+  id                 String                         @id @default(cuid())
+  editionId          String
+  userId             Int
+  authorRole         ClickatonTestimonialAuthorRole
   /// Origen de la identidad (soft refs; sólo una está poblada).
-  registrationId String?
-  venueId        String?
+  registrationId     String?
+  venueId            String?
   /// 0..10 — "¿Qué tan probable es que lo recomiendes?"
-  npsScore       Int
+  npsScore           Int
   /// 1..5 cada una; null = "No aplica" y no promedia.
   scoreOrganization  Int?
   scorePrompts       Int?
@@ -18843,11 +18848,11 @@ model ClickatonSurveyResponse {
   wouldReturn        ClickatonSurveyWouldReturn?
   /// Crítica constructiva. NUNCA se publica ni se copia al testimonio.
   improvementNotes   String?
-  submittedAt        DateTime                   @default(now())
-  updatedAt          DateTime                   @updatedAt
+  submittedAt        DateTime                       @default(now())
+  updatedAt          DateTime                       @updatedAt
   auditIp            String?
   auditUserAgent     String?
-  edition            ClickatonEdition           @relation(fields: [editionId], references: [id], onDelete: Restrict)
+  edition            ClickatonEdition               @relation(fields: [editionId], references: [id], onDelete: Restrict)
   testimonial        ClickatonTestimonial?
 
   @@unique([editionId, userId])
@@ -18907,4 +18912,78 @@ model ClickatonTestimonialInvite {
 
   @@unique([editionId, email])
   @@index([editionId, status])
+}
+
+// ---------------------------------------------------------------------------
+// Números reales por edición (Clickatón)
+//
+// Separa gastos, sobrante y comisiones de cada edición para ver, edición sobre
+// edición, si se salió para atrás o no. Los ingresos NO se cargan: salen de las
+// inscripciones pagas. Importes en centavos, como el resto de Clickatón.
+// ---------------------------------------------------------------------------
+
+/// Gasto de una edición. Editable: muchos se cargan aproximados y se ajustan.
+model ClickatonEditionExpense {
+  id              String    @id @default(cuid())
+  editionId       String
+  concept         String
+  description     String?
+  /// PUBLICIDAD | MERCHANDISING | LOGISTICA | PREMIOS | OTRO (texto libre tipado en app).
+  category        String    @default("OTRO")
+  amountMinor     Int
+  /// Quién lo pagó (Tammy, Dani, Rodri, la caja…). Texto libre.
+  paidBy          String?
+  spentAt         DateTime?
+  /// "Aprox, después ajusto": el número todavía no es definitivo.
+  isEstimate      Boolean   @default(false)
+  createdByUserId Int?
+  updatedByUserId Int?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  edition ClickatonEdition @relation(fields: [editionId], references: [id], onDelete: Restrict)
+
+  @@index([editionId, createdAt])
+}
+
+/// Lo que sobró al terminar la edición, contado a mano. No toca el stock del
+/// catálogo (que es un número de venta, no un inventario físico).
+model ClickatonEditionLeftoverItem {
+  id                 String    @id @default(cuid())
+  editionId          String
+  itemName           String
+  /// Talle, color u otro detalle.
+  detail             String?
+  quantity           Int
+  /// Lo que costó cada unidad; null = todavía sin costo cargado.
+  unitCostMinor      Int?
+  countedAt          DateTime?
+  notes              String?
+  /// Si pasa a otra edición, allá cuenta como mercadería recibida.
+  carriedToEditionId String?
+  createdByUserId    Int?
+  updatedByUserId    Int?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  edition          ClickatonEdition  @relation(fields: [editionId], references: [id], onDelete: Restrict)
+  carriedToEdition ClickatonEdition? @relation("LeftoverCarriedToEdition", fields: [carriedToEditionId], references: [id], onDelete: SetNull)
+
+  @@index([editionId])
+  @@index([carriedToEditionId])
+}
+
+/// Comisiones de Mercado Pago de la edición. Los porcentajes se guardan en
+/// puntos básicos (761 = 7,61 %). Si se carga el monto real, manda sobre el %.
+model ClickatonEditionResultSettings {
+  editionId          String   @id
+  mpProcessingFeeBps Int?
+  mpWithdrawalFeeBps Int?
+  mpFeesActualMinor  Int?
+  notes              String?
+  updatedByUserId    Int?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  edition ClickatonEdition @relation(fields: [editionId], references: [id], onDelete: Restrict)
 }
