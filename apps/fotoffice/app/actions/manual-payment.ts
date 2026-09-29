@@ -23,8 +23,8 @@ const money = (minor: number) =>
 /**
  * Registra un pago cobrado en mano.
  *
- * Lo puede hacer quien administra los cobros de la institución: hoy el dueño y los
- * administradores, mañana Tesorería o Secretaría con el mismo permiso.
+ * Lo puede hacer quien opera los cobros de la institución: dueño, administradores y Equipo
+ * (capacidad `operar`).
  */
 export async function registerManualPaymentAction(
   _prev: ManualPaymentState,
@@ -33,7 +33,7 @@ export async function registerManualPaymentAction(
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) return { error: "No hay una institución activa.", ok: null };
   if (!(await canOperateWorkspaceCollection(user.id, workspace.id))) {
-    return { error: "Solo quien administra los cobros puede registrar un pago.", ok: null };
+    return { error: "No tenés permiso para registrar un pago.", ok: null };
   }
 
   const vocabulary = await loadPersonVocabulary(workspace.id);

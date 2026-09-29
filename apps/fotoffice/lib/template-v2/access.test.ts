@@ -30,7 +30,7 @@ describe("canDesignTemplates", () => {
   });
 
   it("dice lo mismo que los otros dos permisos de configuración (0.1: Equipo no configura)", () => {
-    for (const rol of ["WORKSPACE_OWNER", "WORKSPACE_ADMIN", "ADMIN", "STAFF", "", null]) {
+    for (const rol of ["WORKSPACE_OWNER", "WORKSPACE_ADMIN", "ADMIN", "STAFF", "MEMBER", "COLLABORATOR", "", null]) {
       expect(canDesignTemplates(rol), `discrepa en "${rol}"`).toBe(canManageWorkspaceSettings(rol));
       expect(canDesignTemplates(rol), `discrepa en "${rol}"`).toBe(canConfigureMembers(rol));
     }

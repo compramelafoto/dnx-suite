@@ -91,7 +91,8 @@ export default async function WorkspaceHomePage() {
                   canManage:
                     m.key === MEMBERS_MODULE_KEY || m.key === COVERAGES_MODULE_KEY
                       ? puedeAdministrarSocios
-                      : true,
+                      : // Reservas, Caja y demás: sus pantallas "requiresManage" son de configuración.
+                        puedeConfigurar,
                   canConfigure: puedeConfigurar,
                 },
                 vocabulary,

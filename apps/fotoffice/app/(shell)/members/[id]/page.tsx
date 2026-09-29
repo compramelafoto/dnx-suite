@@ -40,9 +40,9 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
   if (!member) notFound();
   const v = await loadPersonVocabulary(workspace.id);
 
-  // Solo se consulta si el rol puede verlo: STAFF ni siquiera dispara la query.
+  // Solo se consulta si el rol opera socios: Colaborador no llega hasta acá (lo frena el contexto).
   const audits = canManage ? await listMemberAudits(workspace.id, member.id) : [];
-  // Solo OWNER/ADMIN gestiona accesos; STAFF ni siquiera dispara estas consultas.
+  // Quien opera socios (Dueño, Admin y Equipo) gestiona accesos.
   const invitations = canManage ? await listMemberInvitations(workspace.id, member.id) : [];
   const linkedUser =
     canManage && member.userId

@@ -155,6 +155,7 @@ export function ShellNav({
   websiteEnabled,
   serviceLeadsEnabled,
   canManageMembers,
+  canCoordinateCoverages,
   canManageWorkspaceSettings,
   platformAdmin,
   vocabulary,
@@ -168,6 +169,7 @@ export function ShellNav({
   websiteEnabled: boolean;
   serviceLeadsEnabled: boolean;
   canManageMembers: boolean;
+  canCoordinateCoverages: boolean;
   canManageWorkspaceSettings: boolean;
   platformAdmin: boolean;
   vocabulary: PersonVocabulary;
@@ -191,9 +193,8 @@ export function ShellNav({
 
   // Grupo propio y no dentro de Socios: coberturas se le pide a cualquier institución con
   // actividad fotográfica, no sólo a las que tienen padrón de socios.
-  // `canManageMembers` es "operar" (Equipo incluido): Colaboradores es operación; Configuración, no.
   const coberturas: Item[] = coveragesEnabled
-    ? itemsDeModulo(COVERAGES_MODULE_KEY, canManageMembers, vocabulary, canManageWorkspaceSettings)
+    ? itemsDeModulo(COVERAGES_MODULE_KEY, canCoordinateCoverages, vocabulary, canManageWorkspaceSettings)
     : [];
 
   const cursos: Item[] = coursesEnabled

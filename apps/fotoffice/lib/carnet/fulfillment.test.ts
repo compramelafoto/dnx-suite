@@ -88,16 +88,19 @@ describe("permisos", () => {
     expect(entregar.code).toBe("NO_PERMISSION");
   });
 
-  it("el impresor no puede anular un pedido pago", () => {
+  it("el impresor ahora SÍ puede anular un pedido (0.1: anular es operación)", () => {
     const r = checkTransition({
       from: "EN_COLA",
       to: "ANULADO",
       capabilities: ["PRODUCIR"],
       note: "salió mal",
     });
+    expect(r.ok).toBe(true);
+  });
+
+  it("sin ninguna capacidad no se anula nada", () => {
+    const r = checkTransition({ from: "EN_COLA", to: "ANULADO", capabilities: [], note: "x" });
     expect(r.ok).toBe(false);
-    if (r.ok) return;
-    expect(r.code).toBe("NO_PERMISSION");
   });
 
   it("quien administra puede todo", () => {

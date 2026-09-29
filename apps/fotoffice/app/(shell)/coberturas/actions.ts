@@ -8,7 +8,7 @@ import { appUrl } from "@/lib/app-url";
 import { COVERAGE_EMAIL_KEYS } from "@/lib/communications/constants";
 import { loadWorkspaceEmailContext } from "@/lib/communications/load-workspace-signature";
 import { sendAndLogEmail } from "@/lib/communications/send-and-log";
-import { requireCoveragesCoordinator, requireCoveragesReviewer } from "@/lib/coverages/access";
+import { requireCoveragesConfigurator, requireCoveragesCoordinator, requireCoveragesReviewer } from "@/lib/coverages/access";
 import { transitionNeedsCoordinator } from "@/lib/coverages/access-policy";
 import {
   buildInfoRequestedEmail,
@@ -354,7 +354,7 @@ export async function saveCoverageSettingsAction(
   _prev: PanelState | undefined,
   formData: FormData,
 ): Promise<PanelState> {
-  const { workspace } = await requireCoveragesCoordinator();
+  const { workspace } = await requireCoveragesConfigurator();
 
   const entero = (nombre: string, min: number, max: number, porOmision: number): number =>
     acotarEntero(formData.get(nombre)?.toString(), min, max, porOmision);

@@ -75,11 +75,25 @@ export function capabilityFor(to: FulfillmentState): FulfillmentCapability {
     case "ENTREGADO":
       return "ENTREGAR";
     case "ANULADO":
-      // Anular es deshacer un pedido pago: no lo puede hacer quien solo imprime.
+      // Anular es operación (0.1): lo hace quien opera los carnets. Ver `canPerform`.
       return "ADMINISTRAR";
     default:
       return "ADMINISTRAR";
   }
+}
+
+/**
+ * ¿Alcanzan estas capacidades para llegar a `to`? Anular lo puede quien produce, entrega o
+ * administra; `ADMINISTRAR` queda sólo para gestionar quién opera los carnets.
+ */
+export function canPerform(
+  capabilities: readonly FulfillmentCapability[],
+  to: FulfillmentState,
+): boolean {
+  if (to === "ANULADO") {
+    return capabilities.some((c) => c === "PRODUCIR" || c === "ENTREGAR" || c === "ADMINISTRAR");
+  }
+  return capabilities.includes(capabilityFor(to));
 }
 
 export type TransitionRequest = {
@@ -117,8 +131,7 @@ export function checkTransition(request: TransitionRequest): TransitionCheck {
     };
   }
 
-  const necesaria = capabilityFor(request.to);
-  if (!request.capabilities.includes(necesaria)) {
+  if (!canPerform(request.capabilities, request.to)) {
     return {
       ok: false,
       code: "NO_PERMISSION",

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { requireActiveWorkspace } from "@/lib/workspace";
+import { canOperateWorkspaceCollection } from "@/lib/payments/connect/authz";
 import { loadCardBoard, type CardBoardEvent } from "@/lib/carnet/board";
 import {
   canDownloadPdf,
@@ -63,6 +64,8 @@ export default async function CarnetsPage({
 
   const capabilities = await resolveCardCapabilities(user.id, workspace.id);
   if (!canViewCards(capabilities)) redirect("/members");
+  // Emitir es operación: lo mismo que exige la acción `issueDigitalCardsAction`.
+  const puedeEmitir = await canOperateWorkspaceCollection(user.id, workspace.id);
 
   const params = await searchParams;
   const grupo = params.grupo ? groupStates(params.grupo) : null;
@@ -102,12 +105,14 @@ export default async function CarnetsPage({
         description="En qué punto está cada carnet impreso y quién lo movió."
       />
 
-      {capabilities.includes("ADMINISTRAR") ? (
+      {puedeEmitir || capabilities.includes("ADMINISTRAR") ? (
         <div className="flex flex-wrap items-start gap-3">
-          <Link href="/members/carnets/permisos" className="fo-btn fo-btn-secondary text-xs inline-flex">
-            Permisos de carnets
-          </Link>
-          <IssueButton />
+          {capabilities.includes("ADMINISTRAR") ? (
+            <Link href="/members/carnets/permisos" className="fo-btn fo-btn-secondary text-xs inline-flex">
+              Permisos de carnets
+            </Link>
+          ) : null}
+          {puedeEmitir ? <IssueButton /> : null}
         </div>
       ) : null}
 

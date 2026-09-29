@@ -4,6 +4,7 @@ import { resolveActiveWorkspace, type ActiveWorkspace } from "@/lib/workspace";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { MEMBERS_MODULE_KEY } from "./constants";
+import { puede } from "@/lib/access/policy";
 import { canConfigureMembers, canManageMembers } from "./role-policy";
 
 export type MembersContext = {
@@ -30,10 +31,12 @@ export async function requireMembersContext(): Promise<MembersContext> {
   if (!enabled) redirect("/dashboard?module=off");
 
   const role = await resolveWorkspaceRole(user.id, workspace.id);
+  // Colaborador (y quien no tenga rol) no recibe nada de los módulos existentes.
+  if (!puede(role, "operar")) redirect("/dashboard");
   return { user, workspace, canManage: canManageMembers(role), canConfigure: canConfigureMembers(role) };
 }
 
-/** Para rutas de alta/edición/categorías: exige además rol OWNER/ADMIN. STAFF queda afuera aunque entre por URL directa. */
+/** Para rutas de alta/edición de socios: exige operar (Dueño, Admin o Equipo). Colaborador queda afuera aunque entre por URL directa. */
 export async function requireMembersManageContext(): Promise<MembersContext> {
   const ctx = await requireMembersContext();
   if (!ctx.canManage) redirect("/members?forbidden=manage");

@@ -28,7 +28,7 @@ async function contextoBase() {
 /** Ver los sorteos y entregar premios. Cualquiera del equipo. */
 export async function requireRafflesStaff() {
   const ctx = await contextoBase();
-  if (!ctx.role) redirect("/dashboard");
+  if (!puede(ctx.role, "operar")) redirect("/dashboard");
   return ctx;
 }
 

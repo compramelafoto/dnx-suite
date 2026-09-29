@@ -12,6 +12,7 @@ import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { canManageMembers } from "@/lib/members/role-policy";
+import { canCoordinateCoverages } from "@/lib/coverages/access-policy";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { isFotofficePlatformAdmin } from "@/lib/platform-admin";
@@ -74,6 +75,7 @@ export default async function ShellLayout({ children }: { children: React.ReactN
           websiteEnabled={websiteOn}
           serviceLeadsEnabled={serviceLeadsOn}
           canManageMembers={canManageMembersFlag}
+          canCoordinateCoverages={canCoordinateCoverages(activeRole)}
           canManageWorkspaceSettings={canManageWorkspaceSettingsFlag}
           platformAdmin={platformAdmin}
           vocabulary={vocabulary}
