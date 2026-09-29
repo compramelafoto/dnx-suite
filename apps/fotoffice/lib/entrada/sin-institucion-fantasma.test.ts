@@ -51,6 +51,9 @@ vi.mock("@/lib/portal/claim", () => ({ findClaimableMembership: async () => null
 vi.mock("@/lib/members/invitation-continuity-resolve", () => ({
   resolveInvitationContinuityPath: vi.fn(async () => null),
 }));
+vi.mock("@/lib/team/continuity", () => ({
+  resolveTeamInvitationContinuityPath: vi.fn(async () => null),
+}));
 
 vi.mock("@repo/db", () => ({
   prisma: {

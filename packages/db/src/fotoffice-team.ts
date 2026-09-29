@@ -84,13 +84,14 @@ export async function markTeamInvitationDelivery(id: string, sent: boolean): Pro
 
 export async function revokeTeamInvitation(workspaceId: string, id: string, actorUserId: number): Promise<void> {
   await prisma.$transaction(async (tx) => {
+    // `revokedAt: null` en las dos consultas: re-revocar no pisa la fecha ni duplica el evento.
     const inv = await tx.workspaceInvitation.findFirst({
-      where: { id, workspaceId, acceptedAt: null },
+      where: { id, workspaceId, acceptedAt: null, revokedAt: null },
       select: { email: true, role: true },
     });
     if (!inv) throw new TeamError("NOT_FOUND");
     await tx.workspaceInvitation.updateMany({
-      where: { id, workspaceId, acceptedAt: null },
+      where: { id, workspaceId, acceptedAt: null, revokedAt: null },
       data: { revokedAt: new Date() },
     });
     await tx.workspaceAdminEvent.create({
@@ -128,11 +129,25 @@ export async function acceptTeamInvitation(id: string, userId: number): Promise<
       where: { id },
       select: { workspaceId: true, role: true, email: true },
     });
-    await tx.workspaceMembership.upsert({
+    // Defensa en profundidad: la action ya comparó los correos, pero esta capa no acepta una
+    // invitación para otra cuenta aunque la llame alguien que se olvidó de hacerlo. Al lanzar,
+    // la transacción se deshace y la invitación sigue pendiente.
+    const accepting = await tx.user.findUnique({ where: { id: userId }, select: { email: true } });
+    if (!accepting || accepting.email.trim().toLowerCase() !== inv.email.trim().toLowerCase()) {
+      throw new TeamError("INVITATION_INVALID");
+    }
+    // Si ya era parte del equipo conserva su rol: una invitación no asciende ni degrada a nadie.
+    const existing = await tx.workspaceMembership.findUnique({
       where: { userId_workspaceId: { userId, workspaceId: inv.workspaceId } },
-      update: {},
-      create: { userId, workspaceId: inv.workspaceId, role: inv.role },
+      select: { role: true },
     });
+    if (!existing) {
+      await tx.workspaceMembership.upsert({
+        where: { userId_workspaceId: { userId, workspaceId: inv.workspaceId } },
+        update: {},
+        create: { userId, workspaceId: inv.workspaceId, role: inv.role },
+      });
+    }
     await tx.workspaceAppAccess.upsert({
       where: { userId_workspaceId_app: { userId, workspaceId: inv.workspaceId, app: "FOTOFFICE" } },
       update: { enabled: true },
@@ -146,7 +161,8 @@ export async function acceptTeamInvitation(id: string, userId: number): Promise<
         kind: "ACCEPTED",
         targetUserId: userId,
         targetEmail: inv.email,
-        toRole: inv.role,
+        toRole: existing ? existing.role : inv.role,
+        ...(existing ? { detail: "ya era miembro" } : {}),
       },
     });
     return { workspaceId: inv.workspaceId };
