@@ -47,7 +47,7 @@ export async function renombrarVistaAction(_prev: Estado, formData: FormData): P
   if (!ctx) return SIN_ACCESO;
   const nombre = normalizarNombreVista(texto(formData, "nombre"));
   if (!nombre) return { error: "Poné un nombre de hasta 60 caracteres." };
-  if (!(await renombrarVista(ctx, texto(formData, "id"), nombre))) return VISTA_AJENA;
+  if (!(await renombrarVista(ctx, clave, texto(formData, "id"), nombre))) return VISTA_AJENA;
   revalidarLista(clave);
   return { error: null, ok: true };
 }
@@ -56,7 +56,7 @@ export async function borrarVistaAction(_prev: Estado, formData: FormData): Prom
   const clave = texto(formData, "clave");
   const ctx = await contextoDeListado(clave);
   if (!ctx) return SIN_ACCESO;
-  if (!(await borrarVista(ctx, texto(formData, "id")))) return VISTA_AJENA;
+  if (!(await borrarVista(ctx, clave, texto(formData, "id")))) return VISTA_AJENA;
   revalidarLista(clave);
   return { error: null, ok: true };
 }
