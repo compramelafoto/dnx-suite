@@ -5,10 +5,22 @@ import { useRouter } from "next/navigation";
 import { Download, X } from "lucide-react";
 import { aplicarLoteAction, prepararLoteAction } from "@/app/actions/listado";
 import { useSeleccion, type AccionVisible } from "./seleccion";
-import { numero } from "./util";
+import { armarSeleccion, firmaSeleccion, numero, type SeleccionLote } from "./util";
 
 type Excluido = { id: string; motivo: string };
-type Confirmacion = { cantidad: number; mensaje: string; excluidos: Excluido[]; cambio: boolean };
+/**
+ * Lo que el servidor calculó, junto con la selección y el parámetro con que lo calculó: "Confirmar"
+ * manda exactamente eso, no lo que esté tildado en ese momento.
+ */
+type Confirmacion = {
+  cantidad: number;
+  mensaje: string;
+  excluidos: Excluido[];
+  cambio: boolean;
+  seleccion: SeleccionLote;
+  parametro: string | null;
+  firma: string;
+};
 type Final = { aplicados: number; fallidos: { id: string; error: string }[] };
 
 /** "12 quedan afuera: vienen de Cuotas", una línea por motivo. */
@@ -35,7 +47,9 @@ export function BarraDeSeleccion() {
 
   if (s.cantidad === 0 && !final) return null;
 
-  const seleccion = s.todos ? { tipo: "todos" as const, query: s.query } : { tipo: "ids" as const, ids: Array.from(s.ids) };
+  const seleccion = armarSeleccion(s.todos, s.ids, s.query);
+  // Si después de "Continuar" se tildó o destildó algo, lo calculado ya no vale: hay que recalcular.
+  const vigente = confirmacion && confirmacion.firma === firmaSeleccion(seleccion) ? confirmacion : null;
   const hrefExportar = s.todos
     ? `${s.rutaExportar}${s.query ? `?${s.query}` : ""}`
     : `${s.rutaExportar}?ids=${Array.from(s.ids).map(encodeURIComponent).join(",")}`;
@@ -56,30 +70,43 @@ export function BarraDeSeleccion() {
   function continuar() {
     if (!accion) return;
     setError(null);
+    const congelada = seleccion;
+    const param = accion.parametro ? parametro : null;
     startTransition(async () => {
-      const r = await prepararLoteAction({ clave: s.clave, accion: accion.clave, seleccion, parametro: accion.parametro ? parametro : null });
-      if ("ok" in r && r.ok) setConfirmacion({ cantidad: r.cantidad, mensaje: r.mensaje, excluidos: r.excluidos, cambio: false });
+      const r = await prepararLoteAction({ clave: s.clave, accion: accion.clave, seleccion: congelada, parametro: param });
+      if ("ok" in r && r.ok) {
+        setConfirmacion({
+          cantidad: r.cantidad,
+          mensaje: r.mensaje,
+          excluidos: r.excluidos,
+          cambio: false,
+          seleccion: congelada,
+          parametro: param,
+          firma: firmaSeleccion(congelada),
+        });
+      }
       else setError(r.error);
     });
   }
 
   function confirmar() {
-    if (!accion || !confirmacion) return;
+    if (!accion || !vigente) return;
+    const previa = vigente;
     setError(null);
     startTransition(async () => {
       const r = await aplicarLoteAction({
         clave: s.clave,
         accion: accion.clave,
-        seleccion,
-        parametro: accion.parametro ? parametro : null,
-        cantidadConfirmada: confirmacion.cantidad,
+        seleccion: previa.seleccion,
+        parametro: previa.parametro,
+        cantidadConfirmada: previa.cantidad,
       });
       if (!("estado" in r) || r.estado === "error") {
         setError(r.error);
         return;
       }
       if (r.estado === "reconfirmar") {
-        setConfirmacion({ cantidad: r.cantidad, mensaje: r.mensaje, excluidos: r.excluidos, cambio: true });
+        setConfirmacion({ ...previa, cantidad: r.cantidad, mensaje: r.mensaje, excluidos: r.excluidos, cambio: true });
         return;
       }
       cancelar();
@@ -148,8 +175,11 @@ export function BarraDeSeleccion() {
             </div>
           ) : null}
 
-          {accion && !confirmacion ? (
+          {accion && !vigente ? (
             <div className="flex flex-wrap items-end gap-2">
+              {confirmacion ? (
+                <p className="w-full text-sm text-[var(--fo-warning)]">Cambiaste la selección: tocá Continuar para recalcular.</p>
+              ) : null}
               {accion.parametro ? (
                 <label className="flex min-w-56 flex-col gap-1 text-sm">
                   <span className="fo-label">{accion.parametro.etiqueta}</span>
@@ -177,13 +207,13 @@ export function BarraDeSeleccion() {
             </div>
           ) : null}
 
-          {confirmacion ? (
+          {vigente ? (
             <div className="flex flex-col gap-2 text-sm" role="alert">
-              {confirmacion.cambio ? (
+              {vigente.cambio ? (
                 <p className="text-[var(--fo-warning)]">La cantidad cambió mientras tanto. Revisá y confirmá de nuevo.</p>
               ) : null}
-              <p className="text-[var(--fo-text)]">{confirmacion.mensaje}</p>
-              {resumirExcluidos(confirmacion.excluidos).map((l) => (
+              <p className="text-[var(--fo-text)]">{vigente.mensaje}</p>
+              {resumirExcluidos(vigente.excluidos).map((l) => (
                 <p key={l} className="fo-helper">
                   {l}
                 </p>
@@ -192,7 +222,7 @@ export function BarraDeSeleccion() {
                 <button
                   type="button"
                   className="fo-btn fo-btn-primary"
-                  disabled={pendiente || confirmacion.cantidad === 0}
+                  disabled={pendiente || vigente.cantidad === 0}
                   onClick={confirmar}
                 >
                   Confirmar

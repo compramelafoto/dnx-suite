@@ -17,7 +17,7 @@ import { Paginador } from "./paginador";
 import { PanelLateral } from "./panel-lateral";
 import { AvisoSeleccion, ProveedorSeleccion, type AccionVisible } from "./seleccion";
 import { Tabla } from "./tabla";
-import { hrefListado } from "./util";
+import { destinoConAvisos, hrefListado } from "./util";
 
 type Parametros = Record<string, string | string[] | undefined>;
 
@@ -85,13 +85,13 @@ export async function Listado<F>({
   if (idVista) {
     // Sólo vistas guardadas de esta lista y este workspace, propias o compartidas.
     const vista = vistas.find((v) => v.id === idVista);
-    if (vista) redirect(hrefListado(ruta, vista.query));
+    if (vista) redirect(destinoConAvisos(ruta, vista.query, sp));
   }
   if (sp.get("limpio") === "1") {
     await guardarUltima(ctx, def.clave, "");
   } else if (!hayConsultaEnDireccion(sp)) {
     const ultima = await leerUltima(ctx, def.clave);
-    if (ultima) redirect(`${ruta}?${ultima}`);
+    if (ultima) redirect(destinoConAvisos(ruta, ultima, sp));
   }
 
   const leida = leerConsulta(def, sp);
