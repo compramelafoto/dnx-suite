@@ -96,9 +96,10 @@ describe("definición", () => {
     for (const c of def.columnas) if (c.orden) expect(def.ordenes).toContain(c.orden);
   });
 
-  it("invitar conserva el tope de la tanda; cambiar categoría llega a 5.000", () => {
+  it("invitar conserva el tope de la tanda; cambiar categoría llega a 5.000; etiquetar, a 1.000", () => {
     expect(accion("invitar").maximo).toBe(INVITE_BATCH_MAX);
     expect(accion("categoria").maximo).toBe(5000);
+    expect(accion("etiqueta").maximo).toBe(1000);
     expect(accion("invitar").capacidad).toBe("operar");
     expect(accion("categoria").capacidad).toBe("operar");
   });

@@ -237,7 +237,7 @@ export const listadoClientes: DefinicionListado<FilaCliente> = {
       clave: "etiqueta",
       etiqueta: "Agregar o quitar etiqueta",
       capacidad: "operar",
-      maximo: 5000,
+      maximo: 1000,
       confirmacion: "Vas a aplicar el cambio de etiqueta ({parametro}) a {n} clientes.",
       parametro: { etiqueta: "Etiqueta", opciones: opcionesDeEtiquetaEnLote },
       elegibles: async (ctx, ids) => {

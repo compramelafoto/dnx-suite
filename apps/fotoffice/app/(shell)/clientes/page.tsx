@@ -7,6 +7,8 @@ import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import type { ContextoListado } from "@/lib/listado/tipos";
 
 export const dynamic = "force-dynamic";
+// Las acciones en lote (server actions) corren bajo la configuración de esta página.
+export const maxDuration = 300;
 
 export default async function ClientesPage({
   searchParams,

@@ -403,7 +403,7 @@ export function listadoSocios(v: PersonVocabulary): DefinicionListado<FilaSocio>
         clave: "etiqueta",
         etiqueta: "Agregar o quitar etiqueta",
         capacidad: "operar",
-        maximo: 5000,
+        maximo: 1000,
         confirmacion: aplicarVocabulario("Vas a aplicar el cambio de etiqueta ({parametro}) a {n} {personas}.", v),
         parametro: { etiqueta: "Etiqueta", opciones: opcionesDeEtiquetaEnLote },
         elegibles: async (ctx, ids) => {
