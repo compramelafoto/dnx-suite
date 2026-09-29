@@ -26,7 +26,7 @@ import {
   type PaginaLineaWire,
   type TipoEvento,
 } from "@/lib/ficha/linea-de-tiempo";
-import { PROVEEDORES_FICHA } from "@/lib/ficha/proveedores";
+import { proveedoresParaWorkspace } from "@/lib/ficha/proveedores";
 
 export type EstadoFicha = ResultadoNota;
 
@@ -282,7 +282,8 @@ export async function verMasAction(
   const ctx = await contextoDeFicha(persona);
   if (!ctx) return SIN_ACCESO;
   const pagina = await armarLinea({
-    proveedores: PROVEEDORES_FICHA,
+    // Las mismas fuentes que la primera página (según los módulos encendidos).
+    proveedores: await proveedoresParaWorkspace(ctx.workspaceId),
     ctx: { workspaceId: ctx.workspaceId, role: ctx.role },
     persona: ctx.persona,
     filtro,

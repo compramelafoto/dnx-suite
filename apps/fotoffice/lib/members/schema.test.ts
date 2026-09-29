@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { personVocabulary } from "@/lib/vocabulario/personas";
-import { friendlyMemberCategoryError, friendlyMemberError, memberSchema } from "./schema";
+import {
+  formToMemberPayload,
+  friendlyMemberCategoryError,
+  friendlyMemberError,
+  memberSchema,
+  memberValuesToRepositoryInput,
+} from "./schema";
 
 const socios = personVocabulary(null);
 const voluntarios = personVocabulary({ singular: "voluntario/a", plural: "voluntarios/as" });
@@ -78,5 +84,36 @@ describe("memberSchema — categoría obligatoria en el form (aunque el dato per
       joinedAt: "2026-01-01",
     });
     expect(result.success).toBe(true);
+  });
+});
+
+describe("observaciones — el formulario ya no lee ni escribe `notes` (la columna queda intacta)", () => {
+  function form(campos: Record<string, string>): FormData {
+    const fd = new FormData();
+    for (const [k, v] of Object.entries(campos)) fd.set(k, v);
+    return fd;
+  }
+  const minimo = {
+    memberNumber: "1",
+    categoryId: "cat-1",
+    firstName: "Ana",
+    lastName: "Pérez",
+    status: "ACTIVE",
+    joinedAt: "2026-01-01",
+  };
+
+  it("un `notes` en el formulario se ignora", () => {
+    const payload = formToMemberPayload(form({ ...minimo, notes: "algo" }));
+    expect("notes" in payload).toBe(false);
+  });
+
+  it("sin `notes`, el dato para la base no lo trae (no se pisa con null)", () => {
+    const parsed = memberSchema.parse(formToMemberPayload(form(minimo)));
+    expect("notes" in memberValuesToRepositoryInput(parsed)).toBe(false);
+  });
+
+  it("la importación por CSV que sí lo trae lo sigue guardando", () => {
+    const parsed = memberSchema.parse({ ...minimo, notes: "Vino por la muestra" });
+    expect(memberValuesToRepositoryInput(parsed).notes).toBe("Vino por la muestra");
   });
 });

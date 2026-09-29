@@ -47,12 +47,13 @@ vi.mock("@/lib/ficha/adjuntos", () => ({
 vi.mock("@/lib/ficha/adjuntos-r2", () => ({ adjuntosR2Configurado: H.r2ok }));
 vi.mock("@/lib/ficha/etiquetas", () => ({ ponerEtiqueta: H.poner, quitarEtiqueta: H.quitar, buscarEtiquetas: H.buscar }));
 
-const L = vi.hoisted(() => ({ notas: vi.fn(), caja: vi.fn() }));
+const L = vi.hoisted(() => ({ notas: vi.fn(), caja: vi.fn(), paraWorkspace: vi.fn() }));
+const PROVEEDORES_DE_PRUEBA = [
+  { clave: "notas", tipo: "notas", traer: L.notas },
+  { clave: "caja", tipo: "plata", capacidad: "verDinero", traer: L.caja },
+];
 vi.mock("@/lib/ficha/proveedores", () => ({
-  PROVEEDORES_FICHA: [
-    { clave: "notas", tipo: "notas", traer: L.notas },
-    { clave: "caja", tipo: "plata", capacidad: "verDinero", traer: L.caja },
-  ],
+  proveedoresParaWorkspace: L.paraWorkspace,
 }));
 
 const m = await import("./ficha");
@@ -271,6 +272,15 @@ describe("verMasAction", () => {
   beforeEach(() => {
     L.notas.mockReset().mockResolvedValue([NOTA]);
     L.caja.mockReset().mockResolvedValue([PLATA]);
+    L.paraWorkspace.mockReset().mockResolvedValue(PROVEEDORES_DE_PRUEBA);
+  });
+
+  it("lee sólo las fuentes de los módulos encendidos del workspace de la sesión", async () => {
+    L.paraWorkspace.mockResolvedValue(PROVEEDORES_DE_PRUEBA.filter((p) => p.clave !== "caja"));
+    const r = await m.verMasAction(P, null, null);
+    expect(L.paraWorkspace).toHaveBeenCalledWith("ws-1");
+    expect(r.ok && r.eventos.map((e) => e.id)).toEqual(["notas:n1"]);
+    expect(L.caja).not.toHaveBeenCalled();
   });
 
   it("forma inválida: rechaza sin mirar la sesión", async () => {

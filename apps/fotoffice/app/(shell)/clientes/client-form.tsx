@@ -24,7 +24,6 @@ type ClientRecord = {
   phone: string | null;
   address: string | null;
   city: string | null;
-  notes: string | null;
   status: string;
 };
 
@@ -41,8 +40,20 @@ const STATUS_LABELS: Record<string, string> = {
  * confunde más de lo que ahorra. La validación de verdad no se movió de
  * `lib/clients/client-form.ts`.
  */
-export function ClientForm({ client, error }: { client: ClientRecord | null; error?: string }) {
+export function ClientForm({
+  client,
+  error,
+  enColumna = false,
+}: {
+  client: ClientRecord | null;
+  error?: string;
+  /** Dentro de la columna lateral de la ficha: sin tarjetas propias y un campo por fila. */
+  enColumna?: boolean;
+}) {
   const [kind, setKind] = useState<ClientKind>((client?.kind as ClientKind) ?? "PERSONA");
+  const seccion = enColumna ? "space-y-4" : "fo-card space-y-4 p-5";
+  const grilla2 = enColumna ? "grid gap-4" : "grid gap-4 sm:grid-cols-2";
+  const grilla3 = enColumna ? "grid gap-4" : "grid gap-4 sm:grid-cols-3";
 
   return (
     <form action={saveClientAction} className="space-y-6">
@@ -54,7 +65,7 @@ export function ClientForm({ client, error }: { client: ClientRecord | null; err
         </p>
       ) : null}
 
-      <section className="fo-card space-y-4 p-5">
+      <section className={seccion}>
         <h2 className="text-base font-semibold">Identidad</h2>
         <div className="fo-field-stack">
           <label className="fo-label" htmlFor="kind">
@@ -89,7 +100,7 @@ export function ClientForm({ client, error }: { client: ClientRecord | null; err
             />
           </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className={grilla2}>
             <div className="fo-field-stack">
               <label className="fo-label" htmlFor="firstName">
                 Nombre
@@ -118,9 +129,9 @@ export function ClientForm({ client, error }: { client: ClientRecord | null; err
             Empresa a Persona, la razón social vieja no tiene que quedar pegada atrás. */}
       </section>
 
-      <section className="fo-card space-y-4 p-5">
+      <section className={seccion}>
         <h2 className="text-base font-semibold">Datos fiscales</h2>
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className={grilla3}>
           <div className="fo-field-stack">
             <label className="fo-label" htmlFor="docType">
               Tipo de documento
@@ -174,9 +185,9 @@ export function ClientForm({ client, error }: { client: ClientRecord | null; err
         </p>
       </section>
 
-      <section className="fo-card space-y-4 p-5">
+      <section className={seccion}>
         <h2 className="text-base font-semibold">Contacto</h2>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className={grilla2}>
           <div className="fo-field-stack">
             <label className="fo-label" htmlFor="email">
               Correo
@@ -225,21 +236,9 @@ export function ClientForm({ client, error }: { client: ClientRecord | null; err
         </div>
       </section>
 
-      <section className="fo-card space-y-4 p-5">
-        <h2 className="text-base font-semibold">Notas y estado</h2>
-        <div className="fo-field-stack">
-          <label className="fo-label" htmlFor="notes">
-            Notas internas
-          </label>
-          <textarea
-            id="notes"
-            name="notes"
-            rows={3}
-            className="fo-input"
-            defaultValue={client?.notes ?? ""}
-          />
-          <p className="fo-helper">Sólo la ve el equipo. El cliente nunca la lee.</p>
-        </div>
+      <section className={seccion}>
+        {/* Las notas internas viven en la ficha (notas con categoría), no en el formulario. */}
+        <h2 className="text-base font-semibold">Estado</h2>
         <div className="fo-field-stack sm:max-w-xs">
           <label className="fo-label" htmlFor="status">
             Estado

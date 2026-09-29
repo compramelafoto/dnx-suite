@@ -8,7 +8,7 @@ import { asegurarCategorias, listarCategorias } from "@/lib/ficha/categorias";
 import { etiquetasDePersona } from "@/lib/ficha/etiquetas";
 import { armarLinea, serializarPagina } from "@/lib/ficha/linea-de-tiempo";
 import { MAX_NOTAS_FIJADAS, listarNotas, puedeModificarNota } from "@/lib/ficha/notas";
-import { PROVEEDORES_FICHA } from "@/lib/ficha/proveedores";
+import { proveedoresParaWorkspace } from "@/lib/ficha/proveedores";
 import { relacionesDePersona } from "@/lib/ficha/relaciones";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { Adjuntos } from "./adjuntos";
@@ -63,13 +63,15 @@ export async function Ficha({
   await asegurarCategorias(ctx.workspaceId, ctx.workspaceSlug);
   const esConfigurador = puede(ctx.role, "configurar");
   const veDinero = puede(ctx.role, "verDinero");
+  // Sólo las fuentes de los módulos encendidos (Caja con `cash`; cuotas y carnets con `members`).
+  const proveedores = await proveedoresParaWorkspace(ctx.workspaceId);
 
   const [categorias, notas, pagina, etiquetas, relaciones, adjuntos, vocabulario] = await Promise.all([
     listarCategorias(ctx.workspaceId),
     // Las fijadas vienen primero; alcanza con unas pocas más que el máximo.
     listarNotas(ctx.workspaceId, ctx.persona, { take: MAX_NOTAS_FIJADAS + 5 }),
     armarLinea({
-      proveedores: PROVEEDORES_FICHA,
+      proveedores,
       ctx: { workspaceId: ctx.workspaceId, role: ctx.role },
       persona: ctx.persona,
       filtro: null,
