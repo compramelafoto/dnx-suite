@@ -95,6 +95,7 @@ export async function linkClientToMemberAction(formData: FormData): Promise<void
     }
   }
 
+  let socioAnterior = null as string | null;
   try {
     await prisma.$transaction(async (tx) => {
       const antes = await tx.client.findFirst({
@@ -102,6 +103,7 @@ export async function linkClientToMemberAction(formData: FormData): Promise<void
         select: { memberId: true },
       });
       if (!antes) throw new Error("Cliente inexistente");
+      socioAnterior = antes.memberId;
       await tx.client.update({ where: { id: clientId }, data: { memberId } });
 
       const dueno = { clientId };
@@ -137,5 +139,8 @@ export async function linkClientToMemberAction(formData: FormData): Promise<void
   }
 
   revalidatePath(`${LISTA}/${clientId}`);
+  // La ficha del socio muestra este vínculo: la nueva y la anterior cambian.
+  if (memberId) revalidatePath(`/members/${memberId}`);
+  if (socioAnterior && socioAnterior !== memberId) revalidatePath(`/members/${socioAnterior}`);
   redirect(`${LISTA}/${clientId}?ok=1`);
 }

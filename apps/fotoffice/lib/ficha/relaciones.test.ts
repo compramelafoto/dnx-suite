@@ -197,7 +197,7 @@ describe("crearRelacion", () => {
   });
   it("alta rápida sin nombre no crea nada", async () => {
     const r = await R.crearRelacion(CTX, YO, { otra: { nuevoCliente: { nombre: " ", telefono: "1" } }, clave: "amigo" });
-    expect(r.ok).toBe(false);
+    expect(r).toEqual({ ok: false, error: "Escribí el nombre de la persona nueva." });
     expect(H.alta).not.toHaveBeenCalled();
   });
 });

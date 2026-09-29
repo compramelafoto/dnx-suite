@@ -198,7 +198,15 @@ export async function crearRelacion(
   // Alta rápida: cliente nuevo + relación + eventos, todo en la misma transacción.
   if ("nuevoCliente" in datos.otra) {
     const nuevo = limpiarNuevoCliente(datos.otra.nuevoCliente);
-    if (!nuevo) return { ok: false, error: "Escribí el nombre y el teléfono de la persona nueva." };
+    if (!nuevo) {
+      const d = datos.otra.nuevoCliente as Record<string, unknown> | null;
+      const nombreOk = typeof d?.nombre === "string" && d.nombre.replace(/\s+/g, " ").trim().length >= 1
+        && d.nombre.replace(/\s+/g, " ").trim().length <= MAX_NOMBRE_ALTA_RAPIDA;
+      return {
+        ok: false,
+        error: nombreOk ? "El teléfono de la persona nueva no es válido." : "Escribí el nombre de la persona nueva.",
+      };
+    }
     const id = await crearClienteConNumero(
       ctx.workspaceId,
       { firstName: nuevo.nombre, phone: nuevo.telefono || null },
