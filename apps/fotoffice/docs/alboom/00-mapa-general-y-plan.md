@@ -177,15 +177,12 @@ de prueba. Mientras tanto se sigue trabajando en Alboom. Nada se escribe en Albo
 3. ~~Alcance de galerías~~: decidido, en FOTOFFICE, modelo Alboom Proof + DNX FLUX. Quedan las preguntas de §7.
 4. **Verificar en vivo** las ~90 dudas de los seis documentos antes de diseñar cada etapa.
 
-## 7. Galería FOTOFFICE: decisiones abiertas
+## 7. Galería FOTOFFICE: decisiones (29/09/2026)
 
-Del análisis de Alboom Proof (07) y DNX FLUX (08):
-
-1. ¿Drive sigue como entrega o lo reemplaza la galería?
-2. ¿La galería recibe sólo las fotos de 4 y 5 estrellas o todas?
-3. ¿Se publican los JPG de ~17 MB tal cual o una versión más liviana (y el original sólo para descarga)?
-4. ¿Las galerías ya publicadas en Proof se migran o conviven hasta que venzan?
-5. ¿La carpeta y la galería se atan al Trabajo o al Pedido?
-6. ¿El número de pedido de Alboom se conserva? (evita renombrar carpetas de DNX FLUX)
-7. ¿Hay computadoras Windows en uso real? (Aftershoot no está calibrado ahí)
-8. Venta de fotos extra dentro de la galería: se descarta por ahora ("no son para la venta"); confirmar.
+1. **Drive** se sigue usando por ahora como entrega, en paralelo.
+2. A la galería van **las fotos que el fotógrafo eligió para entrega** en Aftershoot (4, 5 estrellas o ambas: lo que se exportó a Entregas).
+3. **Dos versiones en R2**: una liviana para ver (~2000 px) y el original en alta para descargar con enlace firmado. Entregas en un prefijo/bucket separado de los crudos (los crudos mantienen su regla de 180 días; la retención de entregas se define aparte).
+4. Las galerías ya publicadas en Proof **se migran**, igual que los datos del CRM, recién cuando todo funcione perfecto.
+5. La galería se ata al **Trabajo** de fotografía, que pertenece a un **Pedido** (un pedido puede tener varios trabajos: foto, video, fotolibro).
+6. DNX FLUX **se usará en Windows**: hay que calibrar Aftershoot ahí.
+7. No se venden fotos desde la galería. La venta, cuando exista, es a través de **CompraMeLaFoto** como brazo de venta de FOTOFFICE.
