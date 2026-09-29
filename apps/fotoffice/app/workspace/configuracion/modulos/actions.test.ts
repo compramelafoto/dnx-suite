@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const m = vi.hoisted(() => ({
-  findUnique: vi.fn(),
+  role: vi.fn(),
   wsFindUnique: vi.fn(),
   evFindFirst: vi.fn(),
   upsert: vi.fn(),
@@ -15,17 +15,17 @@ const m = vi.hoisted(() => ({
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@repo/db", () => ({
   prisma: {
-    workspaceMembership: { findUnique: m.findUnique },
     workspace: { findUnique: m.wsFindUnique },
     workspaceAdminEvent: { findFirst: m.evFindFirst },
     workspaceFeatureModule: { upsert: m.upsert },
   },
 }));
-vi.mock("@/lib/auth", () => ({
-  requireAuth: vi.fn(async () => ({ id: 1, email: "owner@x.test", name: "Owner" })),
-}));
-vi.mock("@/lib/entrada/require-own-workspace", () => ({
-  requireOwnWorkspace: vi.fn(async () => ({ workspaceId: "ws1", created: false, onboardingCompleted: true })),
+vi.mock("@/lib/access/active-context", () => ({
+  requireActiveWorkspaceRole: vi.fn(async () => ({
+    user: { id: 1, email: "owner@x.test", name: "Owner" },
+    workspace: { id: "ws1", name: "Mi Sociedad" },
+    role: m.role(),
+  })),
 }));
 vi.mock("@repo/db/fotoffice-team", () => ({ recordAdminEvent: m.record }));
 vi.mock("@/lib/modules/gating", () => ({ getEnabledModuleKeysForWorkspace: m.enabled }));
@@ -59,7 +59,7 @@ function fd(o: Record<string, string>) {
   for (const [k, v] of Object.entries(o)) f.set(k, v);
   return f;
 }
-const rol = (r: string) => m.findUnique.mockResolvedValue({ role: r });
+const rol = (r: string) => m.role.mockReturnValue(r);
 const encendidos = (...k: string[]) => m.enabled.mockResolvedValue(new Set(k));
 
 beforeEach(() => {
@@ -187,11 +187,44 @@ describe("requestModuleAction", () => {
     expect(m.record).not.toHaveBeenCalled();
   });
 
-  it("sin destinatarios igual registra el pedido", async () => {
+  it("sin destinatarios igual registra el pedido y pide avisar por WhatsApp", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const r = await requestModuleAction(undefined, fd({ moduleKey: "membership-dues" }));
+    expect(r).toEqual({
+      error: null,
+      ok: "Pedido registrado. Avisale a FOTOFFICE por WhatsApp para que lo active.",
+    });
+    expect(m.send).not.toHaveBeenCalled();
+    expect(m.record).toHaveBeenCalledWith(expect.objectContaining({ kind: "MODULE_REQUESTED" }));
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+
+  it("si fallan todos los envíos igual registra el pedido y pide avisar por WhatsApp", async () => {
+    process.env.FOTOFFICE_PLATFORM_ADMIN_EMAILS = "a@x.test, b@x.test";
+    m.send.mockResolvedValue({ status: "INTERNAL_ERROR", detail: "caído" });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const r = await requestModuleAction(undefined, fd({ moduleKey: "membership-dues" }));
+    expect(r.ok).toBe("Pedido registrado. Avisale a FOTOFFICE por WhatsApp para que lo active.");
+    expect(m.send).toHaveBeenCalledTimes(2);
+    expect(m.record).toHaveBeenCalledWith(expect.objectContaining({ kind: "MODULE_REQUESTED" }));
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+
+  it("con que un envío salga alcanza para el mensaje normal", async () => {
+    process.env.FOTOFFICE_PLATFORM_ADMIN_EMAILS = "a@x.test, b@x.test";
+    m.send
+      .mockResolvedValueOnce({ status: "INTERNAL_ERROR", detail: "caído" })
+      .mockResolvedValueOnce({ status: "SENT", providerId: "p" });
     const r = await requestModuleAction(undefined, fd({ moduleKey: "membership-dues" }));
     expect(r.ok).toBe("Listo, te avisamos cuando esté activo.");
-    expect(m.send).not.toHaveBeenCalled();
-    expect(m.record).toHaveBeenCalled();
+  });
+
+  it("actúa sobre el workspace activo (el del menú)", async () => {
+    process.env.FOTOFFICE_PLATFORM_ADMIN_EMAILS = "a@x.test";
+    await requestModuleAction(undefined, fd({ moduleKey: "membership-dues" }));
+    expect(m.record).toHaveBeenCalledWith(expect.objectContaining({ workspaceId: "ws1" }));
   });
 });
 

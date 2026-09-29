@@ -1,10 +1,9 @@
 import { listTeam } from "@repo/db/fotoffice-team";
 import { prisma } from "@repo/db";
 import { PageHeader } from "@/components/page-header";
+import { requireActiveWorkspaceRole } from "@/lib/access/active-context";
 import { puede } from "@/lib/access/policy";
 import { etiquetaRol } from "@/lib/access/roles";
-import { requireAuth } from "@/lib/auth";
-import { requireOwnWorkspace } from "@/lib/entrada/require-own-workspace";
 import { invitationState } from "@/lib/members/invitations";
 import { getModuleDefinition } from "@/lib/modules/registry";
 import { tipoPorId } from "@/lib/landing/tipos";
@@ -12,6 +11,9 @@ import { rolesOfrecidos } from "@/lib/team/rules";
 import { EquipoClient, type EventoVista, type InvitacionVista, type MiembroVista } from "./equipo-client";
 
 export const dynamic = "force-dynamic";
+
+/** Las fechas se muestran en la hora de Argentina, no en la del servidor. */
+const ZONA = "America/Argentina/Buenos_Aires";
 
 type Miembros = { userId: number; name: string | null; email: string }[];
 type Evento = Awaited<ReturnType<typeof listTeam>>["events"][number];
@@ -53,18 +55,12 @@ function textoEvento(e: Evento, miembros: Miembros): string {
 }
 
 export default async function EquipoPage() {
-  const user = await requireAuth();
-  const ensured = await requireOwnWorkspace(user);
-  const membership = await prisma.workspaceMembership.findUnique({
-    where: { userId_workspaceId: { userId: user.id, workspaceId: ensured.workspaceId } },
-    select: { role: true },
-  });
-  const role = membership?.role ?? null;
+  const { user, workspace, role } = await requireActiveWorkspaceRole();
 
   if (!role || !puede(role, "gestionarEquipo")) {
     return (
       <div className="max-w-xl space-y-6">
-        <PageHeader title="Equipo" />
+        <PageHeader title={`Equipo de ${workspace.name}`} />
         <p className="text-sm text-[var(--fo-muted)]">
           Sólo el dueño o un administrador pueden ver y gestionar el equipo.
         </p>
@@ -72,7 +68,7 @@ export default async function EquipoPage() {
     );
   }
 
-  const team = await listTeam(ensured.workspaceId);
+  const team = await listTeam(workspace.id);
   const ofrecidos = rolesOfrecidos(role, getModuleDefinition("projects")?.status === "AVAILABLE");
   const esDueno = role === "WORKSPACE_OWNER";
 
@@ -101,7 +97,7 @@ export default async function EquipoPage() {
     email: m.email,
     role: m.role,
     roleLabel: etiquetaRol(m.role),
-    lastLogin: m.lastLoginAt ? m.lastLoginAt.toLocaleDateString("es-AR") : "Nunca",
+    lastLogin: m.lastLoginAt ? m.lastLoginAt.toLocaleDateString("es-AR", { timeZone: ZONA }) : "Nunca",
     esUnoMismo: m.userId === user.id,
   }));
   // Una anulada que ya fue reemplazada por otra más nueva al mismo correo es ruido.
@@ -116,13 +112,13 @@ export default async function EquipoPage() {
       email: i.email,
       roleLabel: etiquetaRol(i.role),
       estado: invitationState(i),
-      vence: i.expiresAt.toLocaleDateString("es-AR"),
+      vence: i.expiresAt.toLocaleDateString("es-AR", { timeZone: ZONA }),
       falloEnvio: !!i.sendFailedAt && !i.sentAt,
     }))
     .filter((i) => i.estado !== "ACCEPTED");
   const eventos: EventoVista[] = team.events.map((e) => ({
     id: e.id,
-    fecha: e.createdAt.toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" }),
+    fecha: e.createdAt.toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short", timeZone: ZONA }),
     actor: e.actorUserId == null ? "El sistema" : persona(e.actorUserId, null, personas),
     texto: textoEvento(e, personas),
   }));
@@ -130,7 +126,7 @@ export default async function EquipoPage() {
   return (
     <div className="max-w-3xl space-y-8">
       <PageHeader
-        title="Equipo"
+        title={`Equipo de ${workspace.name}`}
         description="Invitá a quien trabaja con vos y elegí qué rol tiene cada persona."
       />
       <EquipoClient

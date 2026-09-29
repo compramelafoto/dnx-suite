@@ -128,9 +128,9 @@ describe("acceptTeamInvitationAction", () => {
     expect(m.accept).not.toHaveBeenCalled();
   });
 
-  it("OK: acepta, borra la continuidad, activa el workspace invitado y va a /workspace", async () => {
+  it("OK: acepta, borra la continuidad, activa el workspace invitado y va a /dashboard", async () => {
     await expect(acceptTeamInvitationAction(undefined, acceptForm())).rejects.toThrow(
-      "NEXT_REDIRECT:/workspace",
+      "NEXT_REDIRECT:/dashboard",
     );
     expect(m.accept).toHaveBeenCalledWith("inv-1", 42);
     expect(m.clearContinuity).toHaveBeenCalled();
@@ -139,7 +139,7 @@ describe("acceptTeamInvitationAction", () => {
       "ws-9",
       expect.objectContaining({ httpOnly: true, sameSite: "lax", path: "/" }),
     );
-    expect(m.redirect).toHaveBeenCalledWith("/workspace");
+    expect(m.redirect).toHaveBeenCalledWith("/dashboard");
   });
 
   it("TeamError INVITATION_INVALID concurrente: no disponible, sin redirigir", async () => {

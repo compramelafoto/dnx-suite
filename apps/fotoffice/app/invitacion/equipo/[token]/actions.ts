@@ -64,7 +64,8 @@ export async function acceptTeamInvitationAction(
     secure: process.env.NODE_ENV === "production",
   });
 
-  redirect("/workspace");
+  // Al panel (shell), que sí lee la cookie; `/workspace` resuelve el workspace más antiguo.
+  redirect("/dashboard");
 }
 
 /**

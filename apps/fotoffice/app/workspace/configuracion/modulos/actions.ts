@@ -3,10 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
 import { recordAdminEvent } from "@repo/db/fotoffice-team";
+import { requireActiveWorkspaceRole } from "@/lib/access/active-context";
 import { puede } from "@/lib/access/policy";
-import { requireAuth } from "@/lib/auth";
 import { sendAndLogEmail } from "@/lib/communications/send-and-log";
-import { requireOwnWorkspace } from "@/lib/entrada/require-own-workspace";
 import { alApagar, alEncender } from "@/lib/modules/dependencies";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { getModuleDefinition } from "@/lib/modules/registry";
@@ -22,15 +21,13 @@ export type ModulosState = {
 const SIN_PERMISO = "No tenés permiso para cambiar los módulos.";
 const NO_EXISTE = "Ese módulo no existe o todavía no está disponible.";
 
-/** El workspace y el rol salen siempre de la sesión: nunca de un campo del formulario. */
+/**
+ * El workspace y el rol salen siempre de la sesión: nunca de un campo del formulario.
+ * Es el workspace activo, el mismo que muestra el menú.
+ */
 async function contexto() {
-  const user = await requireAuth();
-  const ws = await requireOwnWorkspace(user);
-  const m = await prisma.workspaceMembership.findUnique({
-    where: { userId_workspaceId: { userId: user.id, workspaceId: ws.workspaceId } },
-    select: { role: true },
-  });
-  return { user, workspaceId: ws.workspaceId, role: m?.role ?? null };
+  const { user, workspace, role } = await requireActiveWorkspaceRole();
+  return { user, workspaceId: workspace.id, role };
 }
 
 async function setModule(workspaceId: string, moduleKey: string, enabled: boolean, actorUserId: number) {
@@ -109,12 +106,25 @@ export async function requestModuleAction(
   const subject = `FOTOFFICE: ${nombre} pide activar ${def.label}`;
   const text = `${nombre} (workspace ${workspaceId}) pide activar el módulo ${def.label}.\nLo pidió: ${user.name ?? user.email} <${user.email}>.`;
   const html = `<p>${escapar(nombre)} (workspace ${escapar(workspaceId)}) pide activar el módulo <strong>${escapar(def.label)}</strong>.</p><p>Lo pidió: ${escapar(user.name ?? user.email)} &lt;${escapar(user.email)}&gt;.</p>`;
+  let enviados = 0;
   for (const to of destinos) {
-    await sendAndLogEmail({ to, templateKey: "fotoffice.module.request", body: { subject, html, text }, userId: user.id });
+    const r = await sendAndLogEmail({ to, templateKey: "fotoffice.module.request", body: { subject, html, text }, userId: user.id });
+    if (r.status === "SENT") enviados++;
   }
+  // El pedido queda registrado aunque el aviso no haya salido: FOTOFFICE lo ve en el historial.
   await recordAdminEvent({ workspaceId, actorUserId: user.id, kind: "MODULE_REQUESTED", moduleKey: key });
+  if (enviados === 0) {
+    console.warn("[fotoffice][modulos] pedido de activación sin aviso por correo", {
+      workspaceId,
+      moduleKey: key,
+      motivo: destinos.length === 0 ? "FOTOFFICE_PLATFORM_ADMIN_EMAILS vacío" : "fallaron todos los envíos",
+    });
+    return { error: null, ok: SIN_AVISO };
+  }
   return { error: null, ok: "Listo, te avisamos cuando esté activo." };
 }
+
+const SIN_AVISO = "Pedido registrado. Avisale a FOTOFFICE por WhatsApp para que lo active.";
 
 const escapar = (s: string) =>
   s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");

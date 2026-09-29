@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const m = vi.hoisted(() => ({
+  role: vi.fn(),
   findUnique: vi.fn(),
   count: vi.fn(),
   invFindFirst: vi.fn(),
@@ -17,11 +18,12 @@ vi.mock("@repo/db", () => ({
     workspaceInvitation: { findFirst: m.invFindFirst },
   },
 }));
-vi.mock("@/lib/auth", () => ({
-  requireAuth: vi.fn(async () => ({ id: 1, email: "owner@x.test", name: "Owner" })),
-}));
-vi.mock("@/lib/entrada/require-own-workspace", () => ({
-  requireOwnWorkspace: vi.fn(async () => ({ workspaceId: "ws1", created: false, onboardingCompleted: true })),
+vi.mock("@/lib/access/active-context", () => ({
+  requireActiveWorkspaceRole: vi.fn(async () => ({
+    user: { id: 1, email: "owner@x.test", name: "Owner" },
+    workspace: { id: "ws1", name: "Mi Estudio" },
+    role: m.role(),
+  })),
 }));
 class FakeTeamError extends Error {}
 vi.mock("@repo/db/fotoffice-team", () => ({
@@ -47,10 +49,10 @@ function fd(o: Record<string, string>) {
   return f;
 }
 
-/** Primera lectura = rol del actor; segunda = rol del objetivo. */
+/** El rol del actor sale del workspace activo; la lectura de la base es el rol del objetivo. */
 function roles(actor: string, objetivo?: string) {
+  m.role.mockReturnValue(actor);
   m.findUnique.mockReset();
-  m.findUnique.mockResolvedValueOnce({ role: actor });
   if (objetivo) m.findUnique.mockResolvedValueOnce({ role: objetivo });
 }
 

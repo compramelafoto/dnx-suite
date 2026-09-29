@@ -1,8 +1,6 @@
-import { prisma } from "@repo/db";
 import { PageHeader } from "@/components/page-header";
+import { requireActiveWorkspaceRole } from "@/lib/access/active-context";
 import { puede } from "@/lib/access/policy";
-import { requireAuth } from "@/lib/auth";
-import { requireOwnWorkspace } from "@/lib/entrada/require-own-workspace";
 import { TIPOS, tipoPorId } from "@/lib/landing/tipos";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { FAMILY_LABELS, getModuleDefinition, listModules } from "@/lib/modules/registry";
@@ -15,18 +13,12 @@ import { ModulosClient, type FamiliaVista, type TipoVista } from "./modulos-clie
 export const dynamic = "force-dynamic";
 
 export default async function ModulosPage() {
-  const user = await requireAuth();
-  const ensured = await requireOwnWorkspace(user);
-  const membership = await prisma.workspaceMembership.findUnique({
-    where: { userId_workspaceId: { userId: user.id, workspaceId: ensured.workspaceId } },
-    select: { role: true },
-  });
-  const role = membership?.role ?? null;
+  const { workspace, role } = await requireActiveWorkspaceRole();
 
   if (!role || !puede(role, "configurar")) {
     return (
       <div className="max-w-xl space-y-6">
-        <PageHeader title="Módulos" />
+        <PageHeader title={`Módulos de ${workspace.name}`} />
         <p className="text-sm text-[var(--fo-muted)]">
           Sólo el dueño o un administrador pueden cambiar los módulos.
         </p>
@@ -35,9 +27,9 @@ export default async function ModulosPage() {
   }
 
   const [tipoActual, encendidos, vocabulario] = await Promise.all([
-    getOrganizationType(ensured.workspaceId),
-    getEnabledModuleKeysForWorkspace(ensured.workspaceId),
-    loadPersonVocabulary(ensured.workspaceId),
+    getOrganizationType(workspace.id),
+    getEnabledModuleKeysForWorkspace(workspace.id),
+    loadPersonVocabulary(workspace.id),
   ]);
   const v = (t: string) => aplicarVocabulario(t, vocabulario);
   const tipo = tipoPorId(tipoActual);
@@ -70,7 +62,7 @@ export default async function ModulosPage() {
   return (
     <div className="max-w-3xl space-y-8">
       <PageHeader
-        title="Módulos"
+        title={`Módulos de ${workspace.name}`}
         description="Encendé o apagá lo que usa tu organización. Apagar un módulo no borra sus datos."
       />
       <ModulosClient tipos={tipos} tipoActual={tipoActual} familias={familias} nombres={nombres} />

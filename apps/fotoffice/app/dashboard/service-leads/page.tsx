@@ -1,7 +1,7 @@
 import { prisma } from "@repo/db";
 import { Inbox } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
-import { requireActiveWorkspace } from "@/lib/workspace";
+import { requireServiceLeadsStaff } from "@/lib/service-leads/access";
 
 const statusLabel: Record<string, string> = {
   NEW: "Nuevo",
@@ -13,7 +13,7 @@ const statusLabel: Record<string, string> = {
 };
 
 export default async function ServiceLeadsPage() {
-  const { user, workspace } = await requireActiveWorkspace();
+  const { user, workspace } = await requireServiceLeadsStaff();
   const currentWorkspaceId = workspace?.id ?? null;
 
   const leads = currentWorkspaceId

@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@repo/db";
 import { PageHeader } from "@/components/page-header";
-import { requireActiveWorkspace } from "@/lib/workspace";
+import { requireServiceLeadsStaff } from "@/lib/service-leads/access";
 import { updateServiceLeadForm } from "../actions";
 
 type Props = { params: Promise<{ formId: string }> };
@@ -25,7 +25,7 @@ function getNumber(value: unknown, fallback: number): number {
 }
 
 export default async function EditServiceLeadFormPage({ params }: Props) {
-  const { workspace } = await requireActiveWorkspace();
+  const { workspace } = await requireServiceLeadsStaff();
   const { formId } = await params;
 
   if (!workspace) {

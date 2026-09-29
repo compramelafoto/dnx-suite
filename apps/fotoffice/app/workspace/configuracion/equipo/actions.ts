@@ -3,9 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
 import { changeMemberRole, removeMember, revokeTeamInvitation, TeamError } from "@repo/db/fotoffice-team";
+import { requireActiveWorkspaceRole } from "@/lib/access/active-context";
 import { puede } from "@/lib/access/policy";
-import { requireAuth } from "@/lib/auth";
-import { requireOwnWorkspace } from "@/lib/entrada/require-own-workspace";
 import { getModuleDefinition } from "@/lib/modules/registry";
 import { inviteTeamMember } from "@/lib/team/invite";
 import { rolesOfrecidos, validarAccionSobreMiembro, type Accion } from "@/lib/team/rules";
@@ -15,15 +14,13 @@ export type EquipoState = { error: string | null; ok?: string; warn?: string };
 const RUTA = "/workspace/configuracion/equipo";
 const SIN_PERMISO = "No tenés permiso para gestionar el equipo.";
 
-/** El workspace y el rol salen siempre de la sesión: nunca de un campo del formulario. */
+/**
+ * El workspace y el rol salen siempre de la sesión: nunca de un campo del formulario.
+ * Es el workspace activo, el mismo que muestra el menú.
+ */
 async function contexto() {
-  const user = await requireAuth();
-  const ws = await requireOwnWorkspace(user);
-  const m = await prisma.workspaceMembership.findUnique({
-    where: { userId_workspaceId: { userId: user.id, workspaceId: ws.workspaceId } },
-    select: { role: true },
-  });
-  return { user, workspaceId: ws.workspaceId, role: m?.role ?? null };
+  const { user, workspace, role } = await requireActiveWorkspaceRole();
+  return { user, workspaceId: workspace.id, role };
 }
 
 const colaboradorDisponible = () => getModuleDefinition("projects")?.status === "AVAILABLE";

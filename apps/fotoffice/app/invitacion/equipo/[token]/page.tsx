@@ -79,6 +79,9 @@ export default async function TeamInvitationPage({ params }: { params: Promise<{
           Ya tengo cuenta
         </Link>
         <PrimeraVezForm token={rawToken} />
+        <p className="text-xs text-[var(--fo-muted)]">
+          Si abrís el correo en otro dispositivo, volvé a entrar a este mismo enlace para terminar.
+        </p>
       </Shell>
     );
   }
