@@ -28,6 +28,7 @@ export const adminRoutes = {
   referrals: "/admin/referidos",
   settings: "/admin/configuracion",
   financeOwner: "/admin/finanzas/cuenta-owner",
+  editionResults: "/admin/finanzas/ediciones",
   /** Partner / recipient self-connect (Mi cuenta de cobro). */
   financePartner: "/admin/finanzas/mi-cuenta",
   integrations: "/admin/integraciones",
@@ -118,6 +119,12 @@ export const adminNavigation: readonly AdminNavItem[] = [
     label: "Contenidos",
     href: adminRoutes.contents,
     icon: "contents",
+    section: "main",
+  },
+  {
+    label: "Números por edición",
+    href: adminRoutes.editionResults,
+    icon: "finance",
     section: "main",
   },
   { label: "Mensajes", href: adminRoutes.messages, icon: "messages", section: "main" },

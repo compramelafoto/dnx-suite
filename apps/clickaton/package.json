@@ -147,6 +147,7 @@
     "test:participant-live-acceso": "tsx --test lib/participant-live/acceso.test.ts",
     "selfcheck:edition-rehearsal": "tsx scripts/edition-rehearsal.selfcheck.ts",
     "test:edition-rehearsal-discard": "tsx --test lib/edition-rehearsal/application/discard-guard.test.ts",
+    "test:edition-result": "tsx --test lib/edition-result/domain/*.test.ts",
     "test:testimonials": "tsx --test lib/testimonials/domain/*.test.ts lib/testimonials/application/*.test.ts lib/testimonials/public/*.test.ts lib/testimonials/ui/*.test.ts"
   },
   "dependencies": {
