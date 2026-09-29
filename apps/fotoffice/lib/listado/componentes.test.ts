@@ -67,4 +67,17 @@ describe("componentes del listado", () => {
     expect(fuente("panel-lateral.tsx")).toMatch(/role="complementary"/);
     expect(fuente("panel-lateral.tsx")).toMatch(/\.focus\(/);
   });
+
+  it("la barra de selección atrapa una falla del servidor y la muestra, sin romper la página", () => {
+    const src = fuente("barra-de-seleccion.tsx");
+    for (const llamada of ["prepararLoteAction(", "aplicarLoteAction("]) {
+      const i = src.indexOf(`await ${llamada}`);
+      expect(i, llamada).toBeGreaterThan(-1);
+      const antes = src.slice(0, i);
+      const despues = src.slice(i);
+      expect(antes.lastIndexOf("try {"), llamada).toBeGreaterThan(antes.lastIndexOf("startTransition("));
+      expect(despues.indexOf("catch"), llamada).toBeLessThan(despues.indexOf("setError(ERROR_INESPERADO_LOTE)"));
+    }
+    expect(src).toContain('"No se pudo completar la acción. Probá de nuevo."');
+  });
 });

@@ -23,6 +23,9 @@ type Confirmacion = {
 };
 type Final = { aplicados: number; fallidos: { id: string; error: string }[] };
 
+/** Si la llamada al servidor falla (red, caída, error inesperado), se avisa acá y la lista sigue. */
+const ERROR_INESPERADO_LOTE = "No se pudo completar la acción. Probá de nuevo.";
+
 /** "12 quedan afuera: vienen de Cuotas", una línea por motivo. */
 function resumirExcluidos(excluidos: Excluido[]): string[] {
   const porMotivo = new Map<string, number>();
@@ -73,7 +76,13 @@ export function BarraDeSeleccion() {
     const congelada = seleccion;
     const param = accion.parametro ? parametro : null;
     startTransition(async () => {
-      const r = await prepararLoteAction({ clave: s.clave, accion: accion.clave, seleccion: congelada, parametro: param });
+      let r: Awaited<ReturnType<typeof prepararLoteAction>>;
+      try {
+        r = await prepararLoteAction({ clave: s.clave, accion: accion.clave, seleccion: congelada, parametro: param });
+      } catch {
+        setError(ERROR_INESPERADO_LOTE);
+        return;
+      }
       if ("ok" in r && r.ok) {
         setConfirmacion({
           cantidad: r.cantidad,
@@ -94,13 +103,19 @@ export function BarraDeSeleccion() {
     const previa = vigente;
     setError(null);
     startTransition(async () => {
-      const r = await aplicarLoteAction({
-        clave: s.clave,
-        accion: accion.clave,
-        seleccion: previa.seleccion,
-        parametro: previa.parametro,
-        cantidadConfirmada: previa.cantidad,
-      });
+      let r: Awaited<ReturnType<typeof aplicarLoteAction>>;
+      try {
+        r = await aplicarLoteAction({
+          clave: s.clave,
+          accion: accion.clave,
+          seleccion: previa.seleccion,
+          parametro: previa.parametro,
+          cantidadConfirmada: previa.cantidad,
+        });
+      } catch {
+        setError(ERROR_INESPERADO_LOTE);
+        return;
+      }
       if (!("estado" in r) || r.estado === "error") {
         setError(r.error);
         return;
