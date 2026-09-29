@@ -1,7 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const findMany = vi.fn();
-vi.mock("@repo/db", () => ({ prisma: { client: { findMany: (...a: unknown[]) => findMany(...a) } } }));
+const tagFindFirst = vi.fn();
+const tagFindMany = vi.fn();
+const poner = vi.fn();
+const quitar = vi.fn();
+vi.mock("@repo/db", () => ({
+  prisma: {
+    client: { findMany: (...a: unknown[]) => findMany(...a) },
+    fotofficeTag: { findFirst: (...a: unknown[]) => tagFindFirst(...a), findMany: (...a: unknown[]) => tagFindMany(...a) },
+  },
+}));
+vi.mock("@/lib/ficha/etiquetas", () => ({
+  ponerEtiqueta: (...a: unknown[]) => poner(...a),
+  quitarEtiqueta: (...a: unknown[]) => quitar(...a),
+  buscarEtiquetas: vi.fn(async () => []),
+}));
 vi.mock("@/lib/modules/gating", () => ({ isModuleEnabledForWorkspace: vi.fn(async () => false) }));
 
 import { listadoClientes, whereClientes } from "./listado";
@@ -63,5 +77,52 @@ describe("acceso a filas", () => {
     await listadoClientes.traer(ctx, base, { skip: 0, take: 25 });
     await listadoClientes.traerIds(ctx, base, 100);
     for (const call of findMany.mock.calls) expect(call[0].where.workspaceId).toBe("w1");
+  });
+});
+
+describe("etiquetas", () => {
+  const accion = listadoClientes.acciones.find((a) => a.clave === "etiqueta")!;
+  beforeEach(() => {
+    findMany.mockReset(); tagFindFirst.mockReset(); tagFindMany.mockReset(); poner.mockReset(); quitar.mockReset();
+  });
+
+  it("filtra por etiqueta", () => {
+    expect(whereClientes("w1", { ...base, filtros: { etiqueta: "t1" } }).fotofficeTags).toEqual({ some: { tagId: "t1" } });
+  });
+  it("el filtro es una relación con buscador y validarRelacion rechaza etiquetas de otro workspace", async () => {
+    expect(listadoClientes.filtros.find((f) => f.clave === "etiqueta")).toMatchObject({ tipo: "relacion", conBuscador: true });
+    tagFindFirst.mockResolvedValue(null);
+    expect(await listadoClientes.validarRelacion!(ctx, "etiqueta", "ajena")).toBeNull();
+    expect(tagFindFirst.mock.calls[0][0].where).toEqual({ id: "ajena", workspaceId: "w1" });
+    expect(await listadoClientes.validarRelacion!(ctx, "etiqueta", "no valido!")).toBeNull();
+  });
+  it("las opciones son + y - por cada etiqueta del workspace", async () => {
+    tagFindMany.mockResolvedValue([{ id: "t1", name: "VIP" }]);
+    expect(await accion.parametro!.opciones(ctx)).toEqual([
+      { valor: "+t1", etiqueta: "Agregar VIP" },
+      { valor: "-t1", etiqueta: "Quitar VIP" },
+    ]);
+    expect(tagFindMany.mock.calls[0][0].where).toEqual({ workspaceId: "w1" });
+  });
+  it("aplicar agrega y quita, y cuenta fallidos sin cortar el lote", async () => {
+    tagFindFirst.mockResolvedValue({ id: "t1" });
+    findMany.mockResolvedValue([{ id: "a", memberId: "m1" }, { id: "b", memberId: null }]);
+    poner.mockResolvedValueOnce({ ok: true }).mockResolvedValueOnce({ ok: false, error: "x" });
+    const r = await accion.aplicar(ctx, ["a", "b", "zz"], "+t1");
+    expect(r.aplicados).toBe(1);
+    expect(r.fallidos).toEqual([{ id: "b", error: "x" }, { id: "zz", error: "no encontrado" }]);
+    expect(poner.mock.calls[0][1]).toEqual({ clientId: "a", memberId: "m1" });
+    expect(poner.mock.calls[0][2]).toEqual({ tagId: "t1" });
+    quitar.mockResolvedValue({ ok: true });
+    await accion.aplicar(ctx, ["a"], "-t1");
+    expect(quitar.mock.calls[0][2]).toBe("t1");
+  });
+  it("aplicar no toca nada con una etiqueta ajena o un parámetro mal formado", async () => {
+    tagFindFirst.mockResolvedValue(null);
+    const r = await accion.aplicar(ctx, ["a"], "+ajena");
+    expect(r.aplicados).toBe(0);
+    expect(r.fallidos).toHaveLength(1);
+    expect((await accion.aplicar(ctx, ["a"], "t1")).aplicados).toBe(0);
+    expect(poner).not.toHaveBeenCalled();
   });
 });

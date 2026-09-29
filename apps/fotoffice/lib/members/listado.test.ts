@@ -7,6 +7,10 @@ const H = vi.hoisted(() => {
     categoryFindMany: vi.fn(),
     categoryFindFirst: vi.fn(),
     updateMember: vi.fn(),
+    tagFindFirst: vi.fn(),
+    tagFindMany: vi.fn(),
+    poner: vi.fn(),
+    quitar: vi.fn(),
     inviteOneMember: vi.fn(),
     MemberConcurrencyError,
   };
@@ -15,6 +19,7 @@ const H = vi.hoisted(() => {
 vi.mock("@repo/db", () => ({
   prisma: {
     member: { findMany: (...a: unknown[]) => H.memberFindMany(...a) },
+    fotofficeTag: { findFirst: (...a: unknown[]) => H.tagFindFirst(...a), findMany: (...a: unknown[]) => H.tagFindMany(...a) },
     memberCategory: {
       findMany: (...a: unknown[]) => H.categoryFindMany(...a),
       findFirst: (...a: unknown[]) => H.categoryFindFirst(...a),
@@ -24,6 +29,11 @@ vi.mock("@repo/db", () => ({
 vi.mock("@repo/db/fotoffice-members", () => ({
   updateMember: (...a: unknown[]) => H.updateMember(...a),
   MemberConcurrencyError: H.MemberConcurrencyError,
+}));
+vi.mock("@/lib/ficha/etiquetas", () => ({
+  ponerEtiqueta: (...a: unknown[]) => H.poner(...a),
+  quitarEtiqueta: (...a: unknown[]) => H.quitar(...a),
+  buscarEtiquetas: vi.fn(async () => []),
 }));
 vi.mock("@/lib/members/invite-member", () => ({ inviteOneMember: (...a: unknown[]) => H.inviteOneMember(...a) }));
 
@@ -233,5 +243,55 @@ describe("cambiar categoría", () => {
     expect(r.aplicados).toBe(0);
     expect(r.fallidos).toEqual([{ id: "a", error: "categoría no válida" }]);
     expect(H.updateMember).not.toHaveBeenCalled();
+  });
+});
+
+describe("etiquetas", () => {
+  const acc = () => accion("etiqueta");
+  const filtroEtiqueta = { OR: [{ fotofficeTags: { some: { tagId: "t1" } } }, { clientLink: { fotofficeTags: { some: { tagId: "t1" } } } }] };
+  beforeEach(() => {
+    H.memberFindMany.mockReset(); H.tagFindFirst.mockReset(); H.tagFindMany.mockReset(); H.poner.mockReset(); H.quitar.mockReset();
+  });
+
+  it("filtra por las etiquetas del socio o de su cliente vinculado", () => {
+    expect(whereSocios("w1", { ...base, filtros: { etiqueta: "t1" } }).AND).toEqual([filtroEtiqueta]);
+  });
+  it("la búsqueda y el acceso conviven con el filtro de etiqueta", () => {
+    const w = whereSocios("w1", { ...base, q: "ana", filtros: { etiqueta: "t1", acceso: "SIN_EMAIL" } });
+    expect(w.OR).toHaveLength(5);
+    expect(w.AND).toHaveLength(2);
+    expect(w.AND).toContainEqual(filtroEtiqueta);
+  });
+  it("el filtro es una relación con buscador y rechaza etiquetas de otro workspace", async () => {
+    expect(def.filtros.find((f) => f.clave === "etiqueta")).toMatchObject({ tipo: "relacion", conBuscador: true });
+    H.tagFindFirst.mockResolvedValue(null);
+    expect(await def.validarRelacion!(ctx, "etiqueta", "ajena")).toBeNull();
+    expect(H.tagFindFirst.mock.calls[0][0].where).toEqual({ id: "ajena", workspaceId: "w1" });
+  });
+  it("aplicar pone la etiqueta sobre el cliente vinculado y sobre el socio si no tiene cliente", async () => {
+    H.tagFindFirst.mockResolvedValue({ id: "t1" });
+    H.memberFindMany.mockResolvedValue([
+      { id: "a", clientLink: { id: "c1" } },
+      { id: "b", clientLink: null },
+    ]);
+    H.poner.mockResolvedValue({ ok: true });
+    const r = await acc().aplicar(ctx, ["a", "b"], "+t1");
+    expect(r.aplicados).toBe(2);
+    expect(H.poner.mock.calls[0][1]).toEqual({ clientId: "c1", memberId: "a" });
+    expect(H.poner.mock.calls[1][1]).toEqual({ clientId: null, memberId: "b" });
+  });
+  it("cuenta fallidos por fila sin abortar y no toca nada con una etiqueta ajena", async () => {
+    const consola = vi.spyOn(console, "error").mockImplementation(() => {});
+    H.tagFindFirst.mockResolvedValue({ id: "t1" });
+    H.memberFindMany.mockResolvedValue([{ id: "a", clientLink: null }, { id: "b", clientLink: null }]);
+    H.quitar.mockRejectedValueOnce(new Error("db")).mockResolvedValueOnce({ ok: true });
+    const r = await acc().aplicar(ctx, ["a", "b", "zz"], "-t1");
+    expect(r.aplicados).toBe(1);
+    expect(r.fallidos).toEqual([{ id: "a", error: "error inesperado" }, { id: "zz", error: "no encontrado" }]);
+    consola.mockRestore();
+    H.tagFindFirst.mockResolvedValue(null);
+    H.poner.mockReset();
+    expect((await acc().aplicar(ctx, ["a"], "+ajena")).aplicados).toBe(0);
+    expect(H.poner).not.toHaveBeenCalled();
   });
 });
