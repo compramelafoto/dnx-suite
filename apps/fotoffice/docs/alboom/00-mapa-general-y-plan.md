@@ -18,7 +18,10 @@
 | [03-contratos-proyectos-agenda.md](03-contratos-proyectos-agenda.md) | Contratos con firma, proyectos, flujos de trabajo, calendario/citas, Área de Clientes |
 | [04-finanzas-e-informes.md](04-finanzas-e-informes.md) | A cobrar, a pagar, bancos y cajas, conciliación, plan de cuentas, clases, informes |
 | [05-configuracion-y-transversales.md](05-configuracion-y-transversales.md) | Las 33 pantallas de Ajustes, planes, usuarios y permisos, plantillas, menú, widgets, listados |
-| [06-galerias-de-prueba-y-apps.md](06-galerias-de-prueba-y-apps.md) | Selección de fotos, aprobación de álbum y video, apps de galería |
+| [06-galerias-de-prueba-y-apps.md](06-galerias-de-prueba-y-apps.md) | Galerías de prueba del CRM — **descartadas como modelo** (sistema viejo); sólo referencia |
+| [07-alboom-proof.md](07-alboom-proof.md) | **Alboom Proof** (proof.alboompro.com): el modelo para la galería propia de FOTOFFICE |
+| [08-dnx-flux.md](08-dnx-flux.md) | DNX FLUX: copia de tarjetas, huellas, respaldo en R2, Aftershoot, publicación y Drive; propuesta de integración |
+| [09-configuracion-real-dnx.md](09-configuracion-real-dnx.md) | Configuración real de DNX Estudio leída de las pantallas de Ajustes (embudos, flujos, categorías, plan de cuentas…) |
 
 - Los documentos citan números de línea de una copia formateada de `app.js` que quedó fuera del repo
   (es código de un tercero). Si hace falta re-verificar algo, se vuelve a descargar de
@@ -74,15 +77,15 @@ con módulos que FOTOFFICE ya tiene (Clientes, Caja, Ventas de mostrador, Cobert
 | Embudos de venta | **Circuitos de venta** | — | Con el motor único de etapas |
 | Presupuestos | **Presupuestos** | Spec del 14/09 + `cuanto-cobro-core` | Sumar aceptación online (Alboom no la tiene) |
 | Presupuesto estándar | **Propuesta modelo** | — | Correo con adjuntos por categoría |
-| Pedidos | **Contrataciones** (alternativa: *Encargos*) | — | "Ventas" ya es el mostrador |
+| Pedidos | **Pedidos** (decidido 29/09) | — | Mismo nombre que en Alboom |
 | Pedido rápido | **Venta de mostrador** | Módulo `sales` (PR 156) | Ya existe: se unifica |
 | Productos y paquetes | **Catálogo** (servicios, productos, combos) | — | Con costos-plantilla y "qué crea al venderse" |
 | Contratos | **Contratos** | — | Firma online sin cuenta, con evidencia |
 | Proyectos | **Trabajos** | Spec E3 (sin diseñar); Coberturas como referencia | |
 | Flujos de trabajo | **Recorridos de trabajo** | — | Mismo motor de etapas |
-| Tareas de pedidos | **Checklist de la contratación** | — | Mismo motor de etapas |
+| Tareas de pedidos | **Checklist del pedido** | — | Mismo motor de etapas |
 | Calendario / Citas | **Agenda** | Reservas + sincronización Google Calendar | Capas: citas, trabajos, consultas, vencimientos, tareas, cumpleaños |
-| Galerías de prueba | **Selección de fotos** / **Aprobación de álbum** | CompraMeLaFoto (visor, marca de agua) | Reutilizar CLF; decidir alcance |
+| Galerías de prueba (CRM) y Alboom Proof | **Galería FOTOFFICE** (selección, entrega, aprobación de álbum) | Subida directa a R2 de FotoRank; DNX FLUX | **Decidido 29/09: va en FOTOFFICE** (no son para la venta). Modelo: Alboom Proof, no las pruebas del CRM |
 | Cuentas a cobrar | **Cobranzas** | `MembershipCharge` (sólo socios) | Nuevo, genérico para contactos |
 | Cuentas a pagar | **Pagos a proveedores** | — | |
 | Cuentas bancarias | **Caja y bancos** | Módulo `cash` (`CashAccount`) | Sumar conciliación |
@@ -126,11 +129,11 @@ Cada etapa se diseña, se prueba y se publica por separado; las tablas siempre a
 | 0 · Cimientos | Listado estándar, ficha estándar y línea de tiempo, motor de etapas, campos personalizados, numeración, plantillas, permisos por módulo con "sólo lo propio" | — |
 | 1 · Contactos y Consultas | Contactos ampliados, Consultas, Circuitos de venta (tablero kanban), formulario web, seguimiento, importación | 0 |
 | 2 · Catálogo y Presupuestos | Servicios, productos, combos, costos-plantilla; presupuestos con enlace y aceptación (spec del 14/09 + ¿Cuánto Cobro?) | 1 |
-| 3 · Contrataciones y Cobranzas | Contratación con plan de cuotas; cobranzas y pagos; Caja y bancos ampliada con rubros, unidades de negocio y conciliación; recibos | 2 |
-| 4 · Trabajos y Agenda | Trabajos con recorridos de etapas creados desde la contratación; agenda con capas y Google Calendar | 3 |
+| 3 · Pedidos y Cobranzas | Pedido con plan de cuotas; cobranzas y pagos; Caja y bancos ampliada con rubros, unidades de negocio y conciliación; recibos | 2 |
+| 4 · Trabajos y Agenda | Trabajos con recorridos de etapas creados desde el pedido; agenda con capas y Google Calendar | 3 |
 | 5 · Contratos | Plantillas con variables, firma online con evidencia | 3 |
 | 6 · Informes | Resultados, flujo de caja proyectado, ventas, embudo de consultas, IVA | 3 |
-| 7 · Portal y Selección de fotos | Portal del cliente; selección y aprobación reutilizando CompraMeLaFoto | 4, 5 |
+| 7 · Galería FOTOFFICE y DNX FLUX | Galería propia al estilo Alboom Proof (selección, entrega, aprobación de álbum); DNX FLUX publica por API con clave de dispositivo y sube directo a R2; material del trabajo con respaldo y verificación visibles; portal del cliente | 4, 5 |
 | 8 · Migración | Ensayo completo en base de prueba, verificación, migración definitiva y corte | 1–6 |
 
 El Asistente de ventas (rama `feat/fotoffice-asistente-ventas`) hoy lee Alboom; después de la migración
@@ -170,6 +173,19 @@ de prueba. Mientras tanto se sigue trabajando en Alboom. Nada se escribe en Albo
    - usar la integración del Asistente de ventas, que ya guarda la credencial de Alboom cifrada con
      autorización del 28/09, para un extractor que corra del lado del servidor;
    - habilitar el permiso correspondiente en la configuración de Claude Code.
-2. **Confirmar los nombres** de la tabla §2 (en especial *Contrataciones* vs *Encargos*).
-3. **Alcance de Selección de fotos**: si entra en FOTOFFICE o queda en CompraMeLaFoto.
+2. ~~Nombres~~: decidido *Pedidos*. Los demás nombres de §2 quedan como propuesta.
+3. ~~Alcance de galerías~~: decidido, en FOTOFFICE, modelo Alboom Proof + DNX FLUX. Quedan las preguntas de §7.
 4. **Verificar en vivo** las ~90 dudas de los seis documentos antes de diseñar cada etapa.
+
+## 7. Galería FOTOFFICE: decisiones abiertas
+
+Del análisis de Alboom Proof (07) y DNX FLUX (08):
+
+1. ¿Drive sigue como entrega o lo reemplaza la galería?
+2. ¿La galería recibe sólo las fotos de 4 y 5 estrellas o todas?
+3. ¿Se publican los JPG de ~17 MB tal cual o una versión más liviana (y el original sólo para descarga)?
+4. ¿Las galerías ya publicadas en Proof se migran o conviven hasta que venzan?
+5. ¿La carpeta y la galería se atan al Trabajo o al Pedido?
+6. ¿El número de pedido de Alboom se conserva? (evita renombrar carpetas de DNX FLUX)
+7. ¿Hay computadoras Windows en uso real? (Aftershoot no está calibrado ahí)
+8. Venta de fotos extra dentro de la galería: se descarta por ahora ("no son para la venta"); confirmar.
