@@ -1,11 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { contextoDeFicha, type PersonaPedida } from "@/lib/ficha/acceso";
+import { contextoDeBusquedaDePersonas, contextoDeFicha, type PersonaPedida } from "@/lib/ficha/acceso";
 import { asegurarCategorias } from "@/lib/ficha/categorias";
 import { borrarNota, crearNota, editarNota, fijarNota, type ResultadoNota } from "@/lib/ficha/notas";
 import { buscarEtiquetas, ponerEtiqueta, quitarEtiqueta } from "@/lib/ficha/etiquetas";
 import type { PersonaRef } from "@/lib/ficha/persona";
+import { borrarRelacion, buscarPersonas, crearRelacion, type PersonaEncontrada } from "@/lib/ficha/relaciones";
 import { puede } from "@/lib/access/policy";
 import {
   borrarAdjunto,
@@ -189,4 +190,66 @@ export async function restaurarAdjuntoAction(persona: PersonaPedida, adjuntoId: 
   const r = await restaurarAdjunto(ctx, adjuntoId);
   if (r.ok) revalidarFicha(ctx.persona);
   return r;
+}
+
+// ---------------------------------------------------------------------------------------
+// Personas relacionadas. La otra persona se resuelve siempre dentro del workspace de la
+// sesión (`crearRelacion` la vuelve a buscar): un id ajeno es "no encontramos a esa persona".
+
+export type OtraPedida = PersonaPedida | { nuevoCliente: { nombre: string; telefono: string } };
+
+export async function crearRelacionAction(
+  persona: PersonaPedida,
+  datos: { otra: OtraPedida; clave: string; customLabel?: string; nota?: string },
+): Promise<EstadoFicha> {
+  if (!personaValida(persona) || !datos || typeof datos !== "object") return DATOS_INVALIDOS;
+  const { otra, clave, customLabel, nota } = datos as Record<string, unknown>;
+  if (typeof clave !== "string" || clave.length > 40) return DATOS_INVALIDOS;
+  if (customLabel !== undefined && (typeof customLabel !== "string" || customLabel.length > 200)) return DATOS_INVALIDOS;
+  if (nota !== undefined && (typeof nota !== "string" || nota.length > 1000)) return DATOS_INVALIDOS;
+
+  let destino: PersonaRef | { nuevoCliente: { nombre: string; telefono: string } };
+  if (otra && typeof otra === "object" && "nuevoCliente" in otra) {
+    const n = (otra as { nuevoCliente: unknown }).nuevoCliente;
+    if (!n || typeof n !== "object") return DATOS_INVALIDOS;
+    const { nombre, telefono } = n as Record<string, unknown>;
+    if (typeof nombre !== "string" || nombre.length > 500) return DATOS_INVALIDOS;
+    if (typeof telefono !== "string" || telefono.length > 200) return DATOS_INVALIDOS;
+    destino = { nuevoCliente: { nombre, telefono } };
+  } else if (personaValida(otra)) {
+    destino = otra.tipo === "CLIENTE" ? { clientId: otra.id, memberId: null } : { clientId: null, memberId: otra.id };
+  } else {
+    return DATOS_INVALIDOS;
+  }
+
+  const ctx = await contextoDeFicha(persona);
+  if (!ctx) return SIN_ACCESO;
+  const r = await crearRelacion(ctx, ctx.persona, { otra: destino, clave, customLabel, nota });
+  if (r.ok) {
+    revalidarFicha(ctx.persona);
+    // La otra ficha también cambia: se ve el vínculo desde el otro lado.
+    if (!("nuevoCliente" in destino)) revalidarFicha(destino);
+    else revalidatePath("/clientes");
+  }
+  return r;
+}
+
+export async function borrarRelacionAction(persona: PersonaPedida, relacionId: string): Promise<EstadoFicha> {
+  if (!personaValida(persona) || !idValido(relacionId)) return DATOS_INVALIDOS;
+  const ctx = await contextoDeFicha(persona);
+  if (!ctx) return SIN_ACCESO;
+  const r = await borrarRelacion(ctx, ctx.persona, relacionId);
+  // Las fichas del otro extremo se pintan de nuevo al entrar (la ficha no se cachea entre visitas).
+  if (r.ok) revalidarFicha(ctx.persona);
+  return r;
+}
+
+/** Sugerencias para vincular: clientes y socios del workspace, hasta 10. Sin acceso, lista vacía. */
+export async function buscarPersonasAction(texto: string): Promise<PersonaEncontrada[]> {
+  if (typeof texto !== "string") return [];
+  const t = texto.trim().slice(0, 60);
+  if (t.length < 1) return [];
+  const ctx = await contextoDeBusquedaDePersonas();
+  if (!ctx) return [];
+  return buscarPersonas(ctx.workspaceId, t, { clientes: ctx.clientes, socios: ctx.socios, take: 10 });
 }

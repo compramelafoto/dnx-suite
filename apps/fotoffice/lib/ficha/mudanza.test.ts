@@ -85,4 +85,23 @@ describe("mudarPiezasDelSocioAlCliente", () => {
     expect(llamadas.find((l) => l.op === "deleteMany" && l.modelo === "relacion")!.args.where.id.in).toEqual(["r3", "r4"]);
     expect(r.relaciones).toBe(2);
   });
+
+  it("una relación que repite una existente en sentido inverso se borra", async () => {
+    const { tx, llamadas } = txFalso({
+      relaciones: [
+        rel("r1", { fromMemberId: "m1", toClientId: "c7", kind: "hijo" }), // c7→c1 ya existe al revés
+        rel("r2", { toMemberId: "m1", fromClientId: "c8", kind: "amigo" }), // c8→c1 ya existe al revés con otro tipo
+        rel("r3", { fromMemberId: "m1", toClientId: "c9" }), // A→B y luego B→A entre los del socio
+        rel("r4", { toMemberId: "m1", fromClientId: "c9" }),
+      ],
+      relacionesCliente: [
+        rel("x", { fromClientId: "c7", toClientId: "c1" }),
+        rel("y", { fromClientId: "c1", toClientId: "c8" }),
+      ],
+    });
+    const r = await mudarPiezasDelSocioAlCliente(tx, args);
+    expect(llamadas.filter((l) => l.modelo === "relacion" && l.op === "updateMany").map((u) => u.args.where.id)).toEqual(["r3"]);
+    expect(llamadas.find((l) => l.modelo === "relacion" && l.op === "deleteMany")!.args.where.id.in).toEqual(["r1", "r2", "r4"]);
+    expect(r.relaciones).toBe(1);
+  });
 });

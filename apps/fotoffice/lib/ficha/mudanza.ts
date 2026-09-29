@@ -15,7 +15,7 @@ function claveExtremo(e: Extremo): string {
  * - Notas, adjuntos y eventos: cambian de dueño.
  * - Etiquetas: se mueven las que el cliente no tiene; las repetidas se borran del socio.
  * - Relaciones: el extremo del socio pasa a ser el cliente; se borran las que quedarían
- *   apuntando a sí mismas o repetidas.
+ *   apuntando a sí mismas o repetidas (el mismo par de personas en cualquier sentido).
  */
 export async function mudarPiezasDelSocioAlCliente(
   tx: Prisma.TransactionClient,
@@ -51,15 +51,14 @@ export async function mudarPiezasDelSocioAlCliente(
   const delClienteRel = await tx.fotofficePersonRelation.findMany({
     where: { workspaceId, OR: [{ fromClientId: clientId }, { toClientId: clientId }] },
   });
-  const clave = (r: { from: Extremo; to: Extremo; kind: string; customLabel: string | null }) =>
-    `${claveExtremo(r.from)}|${claveExtremo(r.to)}|${r.kind}|${r.customLabel ?? ""}`;
+  // Repetida = el mismo par de personas en CUALQUIER sentido (A→B y B→A son lo mismo), sin
+  // mirar el tipo de vínculo: la ficha no admite dos vínculos entre las mismas dos personas.
+  const clave = (r: { from: Extremo; to: Extremo }) => [claveExtremo(r.from), claveExtremo(r.to)].sort().join("|");
   const vistas = new Set(
     delClienteRel.map((r) =>
       clave({
         from: { clientId: r.fromClientId, memberId: r.fromMemberId },
         to: { clientId: r.toClientId, memberId: r.toMemberId },
-        kind: r.kind,
-        customLabel: r.customLabel,
       }),
     ),
   );
@@ -71,7 +70,7 @@ export async function mudarPiezasDelSocioAlCliente(
     const haciaSocio = r.toMemberId === memberId;
     const from: Extremo = desdeSocio ? alCliente : { clientId: r.fromClientId, memberId: r.fromMemberId };
     const to: Extremo = haciaSocio ? alCliente : { clientId: r.toClientId, memberId: r.toMemberId };
-    const k = clave({ from, to, kind: r.kind, customLabel: r.customLabel });
+    const k = clave({ from, to });
     if (claveExtremo(from) === claveExtremo(to) || vistas.has(k)) {
       aBorrar.push(r.id);
       continue;

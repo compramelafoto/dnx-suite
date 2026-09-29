@@ -66,3 +66,23 @@ export async function contextoDeFicha(persona: PersonaPedida): Promise<ContextoF
     persona: ref,
   };
 }
+
+export type ContextoBusqueda = { workspaceId: string; clientes: boolean; socios: boolean };
+
+/**
+ * Guarda de la búsqueda de personas para vincular (sin persona de partida): sesión,
+ * workspace activo y rol con `operar`. Sólo se busca en los módulos encendidos. Devuelve
+ * null si no puede buscar en ninguno.
+ */
+export async function contextoDeBusquedaDePersonas(): Promise<ContextoBusqueda | null> {
+  const user = await getAuthUser();
+  if (!user) return null;
+  const workspace = await resolveActiveWorkspace(user.id);
+  if (!workspace) return null;
+  const role = await resolveWorkspaceRole(user.id, workspace.id);
+  if (!puede(role, "operar")) return null;
+  const clientes = await isModuleEnabledForWorkspace(workspace.id, CLIENTS_MODULE_KEY);
+  const socios = await isModuleEnabledForWorkspace(workspace.id, MEMBERS_MODULE_KEY);
+  if (!clientes && !socios) return null;
+  return { workspaceId: workspace.id, clientes, socios };
+}

@@ -17,12 +17,17 @@ const H = vi.hoisted(() => ({
   borrarAdj: vi.fn(),
   restaurarAdj: vi.fn(),
   r2ok: vi.fn(),
+  crearRel: vi.fn(),
+  borrarRel: vi.fn(),
+  buscarPers: vi.fn(),
+  ctxBusq: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: H.revalidate }));
 vi.mock("@repo/db", () => ({ prisma: {} }));
-vi.mock("@/lib/ficha/acceso", () => ({ contextoDeFicha: H.ctx }));
+vi.mock("@/lib/ficha/acceso", () => ({ contextoDeFicha: H.ctx, contextoDeBusquedaDePersonas: H.ctxBusq }));
+vi.mock("@/lib/ficha/relaciones", () => ({ crearRelacion: H.crearRel, borrarRelacion: H.borrarRel, buscarPersonas: H.buscarPers }));
 vi.mock("@/lib/ficha/categorias", () => ({ asegurarCategorias: H.asegurar }));
 vi.mock("@/lib/ficha/notas", () => ({
   crearNota: H.crear,
@@ -43,7 +48,7 @@ vi.mock("@/lib/ficha/adjuntos-r2", () => ({ adjuntosR2Configurado: H.r2ok }));
 vi.mock("@/lib/ficha/etiquetas", () => ({ ponerEtiqueta: H.poner, quitarEtiqueta: H.quitar, buscarEtiquetas: H.buscar }));
 
 const m = await import("./ficha");
-const { ponerEtiquetaAction, quitarEtiquetaAction, buscarEtiquetasAction, crearNotaAction, editarNotaAction, borrarNotaAction, fijarNotaAction } = m;
+const { crearRelacionAction, borrarRelacionAction, buscarPersonasAction, ponerEtiquetaAction, quitarEtiquetaAction, buscarEtiquetasAction, crearNotaAction, editarNotaAction, borrarNotaAction, fijarNotaAction } = m;
 
 const CTX = {
   workspaceId: "ws-1", workspaceSlug: "sfpr", userId: 1, userLabel: "Ana", role: "STAFF",
@@ -193,5 +198,54 @@ describe("acciones de adjuntos", () => {
     H.ctx.mockResolvedValue({ ...CTX, role: "WORKSPACE_ADMIN" });
     expect(await m.restaurarAdjuntoAction(P, "a1")).toEqual({ ok: true });
     expect(H.restaurarAdj).toHaveBeenCalledWith({ ...CTX, role: "WORKSPACE_ADMIN" }, "a1");
+  });
+});
+
+describe("personas relacionadas", () => {
+  const P = { tipo: "CLIENTE" as const, id: "c1" };
+  beforeEach(() => {
+    for (const f of [H.ctx, H.crearRel, H.borrarRel, H.buscarPers, H.ctxBusq, H.revalidate]) f.mockReset();
+  });
+  it("crear: forma inválida no llega a la guarda", async () => {
+    for (const d of [null, { otra: null, clave: "amigo" }, { otra: { tipo: "X", id: "a" }, clave: "amigo" }, { otra: P, clave: 3 },
+      { otra: { nuevoCliente: { nombre: 1, telefono: "" } }, clave: "amigo" }]) {
+      expect(await crearRelacionAction(P, d as any)).toEqual({ ok: false, error: "Los datos no son válidos." });
+    }
+    expect(H.ctx).not.toHaveBeenCalled();
+  });
+  it("crear: sin acceso no toca nada", async () => {
+    H.ctx.mockResolvedValue(null);
+    expect(await crearRelacionAction(P, { otra: { tipo: "SOCIO", id: "m2" }, clave: "amigo" })).toEqual({ ok: false, error: "No tenés acceso a esta ficha." });
+    expect(H.crearRel).not.toHaveBeenCalled();
+  });
+  it("crear: pasa la otra persona como referencia y revalida las dos fichas", async () => {
+    H.ctx.mockResolvedValue(CTX);
+    H.crearRel.mockResolvedValue({ ok: true });
+    expect(await crearRelacionAction(P, { otra: { tipo: "SOCIO", id: "m2" }, clave: "amigo" })).toEqual({ ok: true });
+    expect(H.crearRel.mock.calls[0][2]).toMatchObject({ otra: { clientId: null, memberId: "m2" }, clave: "amigo" });
+    expect(H.revalidate).toHaveBeenCalledWith("/members/m2");
+    expect(H.revalidate).toHaveBeenCalledWith("/clientes/c1");
+  });
+  it("crear: alta rápida", async () => {
+    H.ctx.mockResolvedValue(CTX);
+    H.crearRel.mockResolvedValue({ ok: true });
+    await crearRelacionAction(P, { otra: { nuevoCliente: { nombre: "Marta", telefono: "1" } }, clave: "hermano" });
+    expect(H.crearRel.mock.calls[0][2].otra).toEqual({ nuevoCliente: { nombre: "Marta", telefono: "1" } });
+  });
+  it("borrar", async () => {
+    expect(await borrarRelacionAction(P, "")).toEqual({ ok: false, error: "Los datos no son válidos." });
+    H.ctx.mockResolvedValue(CTX);
+    H.borrarRel.mockResolvedValue({ ok: true });
+    expect(await borrarRelacionAction(P, "r1")).toEqual({ ok: true });
+    expect(H.borrarRel.mock.calls[0][2]).toBe("r1");
+  });
+  it("buscar: sin acceso o sin texto devuelve lista vacía", async () => {
+    expect(await buscarPersonasAction(" ")).toEqual([]);
+    H.ctxBusq.mockResolvedValue(null);
+    expect(await buscarPersonasAction("ana")).toEqual([]);
+    H.ctxBusq.mockResolvedValue({ workspaceId: "ws-1", clientes: true, socios: false });
+    H.buscarPers.mockResolvedValue([{ tipo: "CLIENTE", id: "c2", nombre: "Ana", detalle: null }]);
+    expect(await buscarPersonasAction("ana")).toHaveLength(1);
+    expect(H.buscarPers).toHaveBeenCalledWith("ws-1", "ana", { clientes: true, socios: false, take: 10 });
   });
 });

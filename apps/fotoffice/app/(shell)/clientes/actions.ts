@@ -4,8 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma, Prisma } from "@repo/db";
 import { parseClientForm } from "@/lib/clients/client-form";
-import { nextClientNumber } from "@/lib/clients/client-number";
-import { lastClientNumber } from "@/lib/clients/repository";
+import { crearClienteConNumero } from "@/lib/clients/alta";
 import { requireClientsStaff } from "@/lib/clients/access";
 import { CAMPOS_AUDITADOS_CLIENTE } from "@/lib/clients/audit";
 import { diffCampos, registrarEventoPersona, type Actor } from "@/lib/ficha/eventos";
@@ -61,33 +60,7 @@ export async function saveClientAction(formData: FormData): Promise<void> {
     redirect(`${LISTA}/${clientId}?ok=1`);
   }
 
-  let creadoId: string | null = null;
-  for (let intento = 0; intento < 3 && creadoId === null; intento++) {
-    const clientNumber = nextClientNumber(await lastClientNumber(workspace.id));
-    try {
-      // Cada intento en su propia transacción: un choque de índice aborta la que lo sufre.
-      creadoId = await prisma.$transaction(async (tx) => {
-        const creado = await tx.client.create({
-          data: { ...v, workspaceId: workspace.id, clientNumber, createdByUserId: user.id },
-          select: { id: true },
-        });
-        await tx.clientAudit.create({
-          data: {
-            workspaceId: workspace.id,
-            clientId: creado.id,
-            action: "CREATED",
-            actorUserId: actor.userId,
-            actorLabel: actor.label,
-          },
-        });
-        return creado.id;
-      });
-    } catch (e) {
-      // P2002 = choque con un índice único. Sólo puede ser el número: lo demás no es único.
-      const choque = e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
-      if (!choque) throw e;
-    }
-  }
+  const creadoId = await crearClienteConNumero(workspace.id, v, actor);
 
   if (creadoId === null) {
     redirect(`${destinoError}?error=${encodeURIComponent("No se pudo asignar un número. Probá de nuevo.")}`);
