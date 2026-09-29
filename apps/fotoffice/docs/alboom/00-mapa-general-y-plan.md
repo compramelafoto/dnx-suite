@@ -81,10 +81,10 @@ con módulos que FOTOFFICE ya tiene (Clientes, Caja, Ventas de mostrador, Cobert
 | Pedido rápido | **Venta de mostrador** | Módulo `sales` (PR 156) | Ya existe: se unifica |
 | Productos y paquetes | **Catálogo** (servicios, productos, combos) | — | Con costos-plantilla y "qué crea al venderse" |
 | Contratos | **Contratos** | — | Firma online sin cuenta, con evidencia |
-| Proyectos | **Trabajos** | Spec E3 (sin diseñar); Coberturas como referencia | |
-| Flujos de trabajo | **Recorridos de trabajo** | — | Mismo motor de etapas |
+| Proyectos | **Proyectos** (decidido 29/09: no "Trabajos") | Spec E3 (sin diseñar); Coberturas como referencia | |
+| Flujos de trabajo | **Flujos de trabajo** | — | Mismo motor de etapas |
 | Tareas de pedidos | **Checklist del pedido** | — | Mismo motor de etapas |
-| Calendario / Citas | **Agenda** | Reservas + sincronización Google Calendar | Capas: citas, trabajos, consultas, vencimientos, tareas, cumpleaños |
+| Calendario / Citas | **Agenda** | Reservas + sincronización Google Calendar | Capas: citas, proyectos, consultas, vencimientos, tareas, cumpleaños |
 | Galerías de prueba (CRM) y Alboom Proof | **Galería FOTOFFICE** (selección, entrega, aprobación de álbum) | Subida directa a R2 de FotoRank; DNX FLUX | **Decidido 29/09: va en FOTOFFICE** (no son para la venta). Modelo: Alboom Proof, no las pruebas del CRM |
 | Cuentas a cobrar | **Cobranzas** | `MembershipCharge` (sólo socios) | Nuevo, genérico para contactos |
 | Cuentas a pagar | **Pagos a proveedores** | — | |
@@ -101,19 +101,19 @@ con módulos que FOTOFFICE ya tiene (Clientes, Caja, Ventas de mostrador, Cobert
 
 Detalle en la sección "Mejora propuesta" de cada documento. Las decisiones de fondo:
 
-1. **Motor único de etapas** (circuitos de venta, recorridos de trabajo, checklists): etapas con
+1. **Motor único de etapas** (circuitos de venta, flujos de trabajo, checklists): etapas con
    identificador propio —no posición, que en Alboom rompe todo al reordenar—, duración, tareas modelo,
    historial con tiempo en cada etapa.
 2. **Listado estándar reutilizable** (hoy FOTOFFICE arma cada tabla a mano): filtros en URL, búsqueda,
    paginación, orden, acciones masivas, CSV, impresión, vistas guardadas. Se construye una vez y lo usan
    todos los módulos.
-3. **Ficha estándar** con línea de tiempo única por contacto (consultas, presupuestos, contrataciones,
+3. **Ficha estándar** con línea de tiempo única por contacto (consultas, presupuestos, pedidos,
    cobros, mensajes y notas en un solo lugar), etiquetas, notas, adjuntos, relacionados.
 4. **Estados explícitos** donde Alboom los deduce: presupuesto (borrador/enviado/visto/aceptado/rechazado/
    vencido), contrato (enviado/visto/firmado/objetado), motivos de pérdida en catálogo aparte del estado.
 5. **Automatizaciones** configurables (disparador → condición → acción) en lugar de reglas fijas.
 6. **Plantillas** de correo y WhatsApp editables con las mismas variables para todos los canales.
-7. **Buscador global** (ya diseñado en DNX: ⌘K) sobre contactos, consultas, contrataciones y trabajos.
+7. **Buscador global** (ya diseñado en DNX: ⌘K) sobre contactos, consultas, pedidos y proyectos.
 8. **Argentina**: Mercado Pago con aviso automático de pago y comisión, transferencias con comprobante,
    factura ARCA; se descarta lo brasileño (boletos, PagSeguro).
 9. **Seguridad**: validar todo en el servidor (Alboom compara códigos de acceso en el navegador, borra
@@ -130,10 +130,10 @@ Cada etapa se diseña, se prueba y se publica por separado; las tablas siempre a
 | 1 · Contactos y Consultas | Contactos ampliados, Consultas, Circuitos de venta (tablero kanban), formulario web, seguimiento, importación | 0 |
 | 2 · Catálogo y Presupuestos | Servicios, productos, combos, costos-plantilla; presupuestos con enlace y aceptación (spec del 14/09 + ¿Cuánto Cobro?) | 1 |
 | 3 · Pedidos y Cobranzas | Pedido con plan de cuotas; cobranzas y pagos; Caja y bancos ampliada con rubros, unidades de negocio y conciliación; recibos | 2 |
-| 4 · Trabajos y Agenda | Trabajos con recorridos de etapas creados desde el pedido; agenda con capas y Google Calendar | 3 |
+| 4 · Proyectos y Agenda | Proyectos con flujos de etapas creados desde el pedido; agenda con capas y Google Calendar | 3 |
 | 5 · Contratos | Plantillas con variables, firma online con evidencia | 3 |
 | 6 · Informes | Resultados, flujo de caja proyectado, ventas, embudo de consultas, IVA | 3 |
-| 7 · Galería FOTOFFICE y DNX FLUX | Galería propia al estilo Alboom Proof (selección, entrega, aprobación de álbum); DNX FLUX publica por API con clave de dispositivo y sube directo a R2; material del trabajo con respaldo y verificación visibles; portal del cliente | 4, 5 |
+| 7 · Galería FOTOFFICE y DNX FLUX | Galería propia al estilo Alboom Proof (selección, entrega, aprobación de álbum); DNX FLUX publica por API con clave de dispositivo y sube directo a R2; material del proyecto con respaldo y verificación visibles; portal del cliente | 4, 5 |
 | 8 · Migración | Ensayo completo en base de prueba, verificación, migración definitiva y corte | 1–6 |
 
 El Asistente de ventas (rama `feat/fotoffice-asistente-ventas`) hoy lee Alboom; después de la migración
@@ -183,6 +183,6 @@ de prueba. Mientras tanto se sigue trabajando en Alboom. Nada se escribe en Albo
 2. A la galería van **las fotos que el fotógrafo eligió para entrega** en Aftershoot (4, 5 estrellas o ambas: lo que se exportó a Entregas).
 3. **Dos versiones en R2**: una liviana para ver (~2000 px) y el original en alta para descargar con enlace firmado. Entregas en un prefijo/bucket separado de los crudos (los crudos mantienen su regla de 180 días; la retención de entregas se define aparte).
 4. Las galerías ya publicadas en Proof **se migran**, igual que los datos del CRM, recién cuando todo funcione perfecto.
-5. La galería se ata al **Trabajo** de fotografía, que pertenece a un **Pedido** (un pedido puede tener varios trabajos: foto, video, fotolibro).
+5. La galería se ata al **Proyecto** de fotografía, que pertenece a un **Pedido** (un pedido puede tener varios proyectos: foto, video, fotolibro).
 6. DNX FLUX **se usará en Windows**: hay que calibrar Aftershoot ahí.
 7. No se venden fotos desde la galería. La venta, cuando exista, es a través de **CompraMeLaFoto** como brazo de venta de FOTOFFICE.

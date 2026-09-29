@@ -19,7 +19,7 @@
 7. En Proof arma: galería "Selección y Venta" con el nombre de la carpeta y un preset, cliente con **una clave igual para todos**, sube los JPG, ordena por fecha de captura, publica, copia los datos de acceso y (opcional) aprueba el email.
 8. **La lista de pedidos de la ventana sale del disco, no del CRM.** No existe hoy una lista de pedidos traída de Alboom.
 9. Riesgos principales: todo lo de Alboom y Aftershoot depende de **textos de pantalla**; Cloudflare obliga a iniciar sesión a mano; un único Chrome bloquea todo lo de Alboom mientras sube (hasta 6 h); la clave de clientes queda en texto plano en tres lugares.
-10. Propuesta: dejar en la computadora un **agente local** (copia, huellas, Aftershoot, subidas) y llevar a FOTOFFICE **el Trabajo, el cliente, la galería, el registro de ingestas y la verificación**, con un **token de dispositivo** y **URLs firmadas a R2** (patrón ya usado en FotoRank).
+10. Propuesta: dejar en la computadora un **agente local** (copia, huellas, Aftershoot, subidas) y llevar a FOTOFFICE **el Proyecto, el cliente, la galería, el registro de ingestas y la verificación**, con un **token de dispositivo** y **URLs firmadas a R2** (patrón ya usado en FotoRank).
 
 ---
 
@@ -239,7 +239,7 @@ No hay base de datos: todo son archivos dentro de la carpeta de cada pedido, má
 | **Publicación Proof** | `.dnxflux/proof.json` | ver 1.6 | `alboom.py · _subir_y_publicar()` |
 | **Registro** | `log.txt` | líneas con fecha | `registro.py` |
 | **Diagnósticos** | `.dnxflux/*.png|txt`, `diagnostico/` | capturas y texto de pantallas | `alboom.py`, `aftershoot.py` |
-| **Trabajo en curso** (memoria) | proceso Python | `id`, `situacion`, estaciones con detalle y fracción, líneas, pregunta, mouse, resumen | `web/trabajo.py · Trabajo` |
+| **Proyecto en curso** (memoria) | proceso Python | `id`, `situacion`, estaciones con detalle y fracción, líneas, pregunta, mouse, resumen | `web/trabajo.py · Trabajo` |
 
 "Lote" no existe como concepto: la unidad es la **tarjeta** (y dentro del copiado, bloques de 8 MB). Tampoco hay identificadores globales: el pedido se reconoce por **año + número** en el nombre de la carpeta. **Las entregas no tienen huella** (sólo cantidad, tamaño y fecha durante la espera); tampoco se guarda qué RAW originó cada JPG ni las estrellas.
 
@@ -303,40 +303,40 @@ No se deduce nada sobre descargas, marca de agua, favoritos, límites de selecci
 
 ### 5.1 Principio
 
-Lo que necesita **el disco, la tarjeta, la pantalla o Aftershoot** queda en la computadora; lo que es **del negocio** (Trabajo, Contratación, cliente, galería, acceso, historial, estado de respaldo) pasa a FOTOFFICE. DNX FLUX se transforma en el **Agente FOTOFFICE** (puede seguir siendo Python + ventana local) y deja de manejar Alboom por pantalla.
+Lo que necesita **el disco, la tarjeta, la pantalla o Aftershoot** queda en la computadora; lo que es **del negocio** (Proyecto, Pedido, cliente, galería, acceso, historial, estado de respaldo) pasa a FOTOFFICE. DNX FLUX se transforma en el **Agente FOTOFFICE** (puede seguir siendo Python + ventana local) y deja de manejar Alboom por pantalla.
 
 ### 5.2 Reparto de responsabilidades
 
 | Queda en la computadora (agente) | Pasa a FOTOFFICE (servidor) |
 |---|---|
-| Detectar tarjetas, copiar con `.partial` + SHA‑256, Mover verificado, reanudación por tarjeta | **Trabajo** y **Contratación** (reemplazan la lectura del CRM): cliente, email, teléfono, tipo, fecha, lugar, evento |
-| Estructura de carpetas en el disco (misma convención; el número pasa a ser el del Trabajo/Contratación) | Registro de **Ingestas**, **Tarjetas** y **Archivos** con su huella |
+| Detectar tarjetas, copiar con `.partial` + SHA‑256, Mover verificado, reanudación por tarjeta | **Proyecto** y **Pedido** (reemplazan la lectura del CRM): cliente, email, teléfono, tipo, fecha, lugar, evento |
+| Estructura de carpetas en el disco (misma convención; el número pasa a ser el del Proyecto/Pedido) | Registro de **Ingestas**, **Tarjetas** y **Archivos** con su huella |
 | Aftershoot automático (sigue siendo local; sin cambios) | **Galería propia** (reemplaza Proof): creación, cliente, acceso, orden, publicación, email |
 | Subida de crudos y entregas **directo a R2 con URL firmada** pedida al servidor | Emisión de URLs firmadas, verificación posterior (`HEAD`), derivados web / miniaturas / marca de agua |
-| Espera de exportación y lectura de "Exportar N Fotos" | Estado visible en la **ficha del Trabajo** y avisos |
+| Espera de exportación y lectura de "Exportar N Fotos" | Estado visible en la **ficha del Proyecto** y avisos |
 | Drive (opcional, mientras se use) con rclone | Vencimiento de crudos por **regla de ciclo de vida por prefijo** y fecha real por archivo |
 | `log.txt` y `estado.json` locales (siguen sirviendo sin internet) | Auditoría: quién ingirió, desde qué equipo, cuándo |
 
 ### 5.3 Autenticación del agente
 
-- **Token de dispositivo por workspace**, revocable, con alcance limitado (`ingesta:escribir`, `trabajos:leer`, `galerias:publicar`). Vinculación tipo "código en pantalla": el agente muestra un código, el fotógrafo lo confirma en FOTOFFICE → Configuración → Equipos conectados. Es el mismo patrón que el documento de ideas proponía para CLF ("tokens de acceso personal", `docs/ideas/publicar-en-compramelafoto.md`, Etapa 2).
+- **Token de dispositivo por workspace**, revocable, con alcance limitado (`ingesta:escribir`, `proyectos:leer`, `galerias:publicar`). Vinculación tipo "código en pantalla": el agente muestra un código, el fotógrafo lo confirma en FOTOFFICE → Configuración → Equipos conectados. Es el mismo patrón que el documento de ideas proponía para CLF ("tokens de acceso personal", `docs/ideas/publicar-en-compramelafoto.md`, Etapa 2).
 - El token vive en el Llavero (como hoy la contraseña de Alboom, `alboom.py · guardar_credenciales()`), nunca en `config.json`.
 - Sin credenciales de R2 en la máquina: el agente sólo recibe URLs firmadas de corta duración. Esto resuelve el problema de multi‑workspace del remote `r2` actual.
 
-### 5.4 Vincular cada ingesta con un Trabajo/Contratación
+### 5.4 Vincular cada ingesta con un Proyecto/Pedido
 
-1. En "Nuevo pedido", en lugar de escribir el número y raspar el CRM, el agente pide **`GET /api/agente/v1/trabajos?desde=…&hasta=…`** (misma ventana que hoy: año pasado a dos adelante, `web/servidor.py · pedidos_recientes()`) y muestra un buscador por número, cliente, fecha y tipo. Elegir uno trae cliente, email, teléfono, evento, fecha y lugar.
-2. El agente guarda en `estado.json` los identificadores **`workspaceId`, `trabajoId`, `contratacionId`, `ingestaId`**. Desde ahí el vínculo ya no depende del nombre de la carpeta; si el Trabajo cambia de nombre, la carpeta sigue enlazada.
-3. **Carpetas existentes**: al abrir la lista, las carpetas sin `trabajoId` se ofrecen para "Vincular con un Trabajo" (búsqueda por número, que hoy coincide con el de Alboom; conviene guardar el número de Alboom como referencia externa del Trabajo al migrar).
-4. Un Trabajo puede tener **varias ingestas** (varias tarjetas, días o fotógrafos); cada tarjeta es una **Tarjeta de ingesta**.
-5. "Sólo crear carpetas" pasa a ser "Preparar Trabajo en este equipo": crea la estructura local y avisa al servidor (y Drive si se mantiene).
+1. En "Nuevo pedido", en lugar de escribir el número y raspar el CRM, el agente pide **`GET /api/agente/v1/proyectos?desde=…&hasta=…`** (misma ventana que hoy: año pasado a dos adelante, `web/servidor.py · pedidos_recientes()`) y muestra un buscador por número, cliente, fecha y tipo. Elegir uno trae cliente, email, teléfono, evento, fecha y lugar.
+2. El agente guarda en `estado.json` los identificadores **`workspaceId`, `proyectoId`, `pedidoId`, `ingestaId`**. Desde ahí el vínculo ya no depende del nombre de la carpeta; si el Proyecto cambia de nombre, la carpeta sigue enlazada.
+3. **Carpetas existentes**: al abrir la lista, las carpetas sin `proyectoId` se ofrecen para "Vincular con un Proyecto" (búsqueda por número, que hoy coincide con el de Alboom; conviene guardar el número de Alboom como referencia externa del Proyecto al migrar).
+4. Un Proyecto puede tener **varias ingestas** (varias tarjetas, días o fotógrafos); cada tarjeta es una **Tarjeta de ingesta**.
+5. "Sólo crear carpetas" pasa a ser "Preparar Proyecto en este equipo": crea la estructura local y avisa al servidor (y Drive si se mantiene).
 
 **Modelo sugerido (servidor, todo con `workspaceId`):**
 
 | Modelo | Campos principales |
 |---|---|
 | `DispositivoIngesta` | nombre del equipo, sistema, versión del agente, token (hash), último contacto, revocado |
-| `Ingesta` | trabajoId, contratacionId?, dispositivoId, carpetaLocal (texto informativo), fases elegidas, estado por fase (copia, nube, seleccion, galeria, drive), fechas |
+| `Ingesta` | proyectoId, contratacionId?, dispositivoId, carpetaLocal (texto informativo), fases elegidas, estado por fase (copia, nube, seleccion, galeria, drive), fechas |
 | `IngestaTarjeta` | ingestaId, nombre ("Tarjeta 1", "Cámara Nikon"), modo (copiar/mover/en_sitio), encontrados, copiados, duplicados, renombrados, bytes, borrados del origen |
 | `ArchivoCrudo` | tarjetaId, rutaEnTarjeta, nombreFinal, bytes, **sha256**, fechaCaptura?, claveR2, subidoEn, **venceEn**, verificadoEn |
 | `ArchivoEntrega` | ingestaId, nombre, bytes, **sha256**, estrellas?, crudoOrigen? (si se puede leer del XMP/EXIF), claveR2, galeriaFotoId |
@@ -346,8 +346,8 @@ Lo que necesita **el disco, la tarjeta, la pantalla o Aftershoot** queda en la c
 
 Patrón ya probado en el monorepo: FotoRank firma un `PUT` a R2 con `@aws-sdk/s3-request-presigner` (`apps/fotorank/app/lib/fotorank/storage/r2-private-storage.ts · createUploadIntent()`) y confirma con `headObject` (`apps/fotorank/app/lib/fotorank/entries/entry-service.ts`, uso de `storage.headObject` al confirmar). Flujo propuesto:
 
-1. **Manifiesto primero:** `POST /api/agente/v1/ingestas/{id}/archivos` con la lista `{rutaEnTarjeta, nombreFinal, bytes, sha256}` que el agente ya tiene en `tarjeta-N.jsonl`. El servidor responde **cuáles faltan** (deduplicación por `sha256` dentro del Trabajo): reemplaza a `rclone copy --immutable` y evita resubir al agregar tarjetas.
-2. **Pedir URLs:** `POST …/subidas` por lotes de, por ejemplo, 50 archivos → URLs `PUT` válidas pocos minutos, con clave `ws/{workspaceId}/trabajos/{trabajoId}/crudos/{tarjeta}/{nombre}` o `…/entregas/{nombre}`. Firmar incluyendo tamaño y, si R2 lo admite en URLs firmadas, la suma SHA‑256 para que R2 rechace un archivo alterado (a verificar).
+1. **Manifiesto primero:** `POST /api/agente/v1/ingestas/{id}/archivos` con la lista `{rutaEnTarjeta, nombreFinal, bytes, sha256}` que el agente ya tiene en `tarjeta-N.jsonl`. El servidor responde **cuáles faltan** (deduplicación por `sha256` dentro del Proyecto): reemplaza a `rclone copy --immutable` y evita resubir al agregar tarjetas.
+2. **Pedir URLs:** `POST …/subidas` por lotes de, por ejemplo, 50 archivos → URLs `PUT` válidas pocos minutos, con clave `ws/{workspaceId}/proyectos/{proyectoId}/crudos/{tarjeta}/{nombre}` o `…/entregas/{nombre}`. Firmar incluyendo tamaño y, si R2 lo admite en URLs firmadas, la suma SHA‑256 para que R2 rechace un archivo alterado (a verificar).
 3. **Subir** desde el agente con reintentos por archivo y reanudación (hoy rclone lo hace solo); para RAW grandes, `PUT` simple alcanza (hasta 5 GB); multiparte sólo si se quisiera paralelizar un archivo.
 4. **Confirmar:** `POST …/subidas/completar` → el servidor hace `HEAD` y compara tamaño (y suma si se firmó con ella), marca `verificadoEn` y calcula `venceEn`. Esto reemplaza `rclone check`.
 5. **Vencimiento de crudos:** una sola regla de ciclo de vida por prefijo (p. ej. `crudos/` si se ordena la clave como `crudos/ws/…`), y la ficha muestra la fecha real por archivo. Los días pueden ser un ajuste del workspace (plan).
@@ -355,13 +355,13 @@ Patrón ya probado en el monorepo: FotoRank firma un `PUT` a R2 con `@aws-sdk/s3
 
 ### 5.6 Publicar en la galería propia en lugar de Proof
 
-- `POST /api/agente/v1/trabajos/{id}/galeria` (idempotente: si ya existe devuelve la misma) — reemplaza `alboom.py · _buscar_galeria()` + `_crear_galeria()`. La configuración (selección, descarga, marca de agua, vencimiento) sale de una **plantilla del workspace**, equivalente al preset.
-- El cliente sale de la Contratación: no hay que buscarlo ni darlo de alta por pantalla (`alboom.py · _agregar_cliente()` desaparece). Acceso por **enlace personal** o código por cliente, nunca una clave común.
+- `POST /api/agente/v1/proyectos/{id}/galeria` (idempotente: si ya existe devuelve la misma) — reemplaza `alboom.py · _buscar_galeria()` + `_crear_galeria()`. La configuración (selección, descarga, marca de agua, vencimiento) sale de una **plantilla del workspace**, equivalente al preset.
+- El cliente sale de la Pedido: no hay que buscarlo ni darlo de alta por pantalla (`alboom.py · _agregar_cliente()` desaparece). Acceso por **enlace personal** o código por cliente, nunca una clave común.
 - Las fotos se asocian a la galería al confirmar cada entrega; el **orden por fecha de captura** se calcula en el servidor leyendo EXIF (reemplaza `_ordenar_por_captura()`).
 - `POST …/galeria/publicar` con `{enviarEmail: bool}` → FOTOFFICE envía el email con Resend y devuelve el enlace y el texto para compartir por WhatsApp (reemplaza `_publicar()` y el portapapeles).
 - Transición: mantener la fase `proof` como opcional y agregar una fase nueva **"Publicar en galería"**; cuando la galería propia esté probada, apagar Proof en Ajustes.
 
-### 5.7 Respaldo y verificación visibles en la ficha del Trabajo
+### 5.7 Respaldo y verificación visibles en la ficha del Proyecto
 
 Sección **"Material"** en la ficha:
 
@@ -385,13 +385,13 @@ El agente informa avance con `POST …/ingestas/{id}/eventos` (fase, porcentaje,
 
 ## 6. Dudas abiertas
 
-1. **¿Número de Trabajo = número de Alboom?** Para migrar sin renombrar carpetas conviene guardar el número de Alboom como referencia externa del Trabajo. ¿Se mantendrá la numeración de Alboom en FOTOFFICE o habrá una propia?
-2. **¿Trabajo o Contratación como ancla?** Un Trabajo con varias Contrataciones (p. ej. fiesta + book) ¿comparte una carpeta/galería o tiene una por Contratación?
+1. **¿Número de Proyecto = número de Alboom?** Para migrar sin renombrar carpetas conviene guardar el número de Alboom como referencia externa del Proyecto. ¿Se mantendrá la numeración de Alboom en FOTOFFICE o habrá una propia?
+2. **¿Proyecto o Pedido como ancla?** Un Proyecto con varias Pedidos (p. ej. fiesta + book) ¿comparte una carpeta/galería o tiene una por Pedido?
 3. **Crudos en DNX Nube por workspace:** ¿cada estudio usa el bucket de DNX (costo a cargo de DNX, cobrado por plan) o su propio bucket? ¿180 días fijo o configurable?
 4. **¿Se mantiene Drive** como entrega al cliente o la galería propia lo reemplaza? ¿Y la idea de compartir la carpeta de Drive por email?
 5. **¿La galería recibe sólo 4 y 5 estrellas** (lo que exporta Aftershoot hoy) o también el resto para venta/selección?
 6. **Tamaño**: ¿se publican los JPG de ~17 MB como original descargable, o se exporta aparte una versión más liviana?
-7. **Varios equipos/fotógrafos** en un mismo Trabajo (segunda cámara en otra computadora): ¿se admite ingesta desde dos agentes a la vez?
+7. **Varios equipos/fotógrafos** en un mismo Proyecto (segunda cámara en otra computadora): ¿se admite ingesta desde dos agentes a la vez?
 8. **Agente en Windows**: Aftershoot no está calibrado; ¿hay equipos Windows en uso real?
 9. **Seguridad de la firma**: confirmar si R2 acepta suma SHA‑256 en URLs `PUT` firmadas; si no, la verificación será por tamaño + huella calculada del lado del servidor en segundo plano.
 10. **Clientes actuales de Proof**: ¿se migran galerías ya publicadas o conviven hasta que venzan?
