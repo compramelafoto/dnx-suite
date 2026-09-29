@@ -1,9 +1,26 @@
 # Etapa 0.1 — Quién ve qué: equipo, roles, tipo de organización y módulos
 
-> Fecha: 2026-09-29 · Estado: **diseño aprobado por Daniel en conversación, pendiente de revisión escrita**
+> Fecha: 2026-09-29 · Estado: **diseño aprobado por Daniel; ajustado el mismo día al relevar el código (ver §0)**
 > Contexto: primera pieza de la Etapa 0 (cimientos) del plan de migración de Alboom a FOTOFFICE
 > (`docs/alboom/00-mapa-general-y-plan.md`) y de la propuesta de módulos por tipo de workspace
 > (`docs/negocio/2026-09-29-modulos-por-tipo-de-workspace.md`).
+
+## 0. Ajustes tras relevar el código (29/09)
+
+1. **Ninguna columna nueva en tablas que leen todas las apps.** `Workspace` y `WorkspaceFeatureModule`
+   los consultan varias apps con el mismo cliente Prisma: una columna que falte en una sola base rompe
+   todas las consultas a ese modelo. Por eso:
+   - el tipo de organización va en `FotofficeWorkspaceBranding.organizationType` (tabla propia de
+     FOTOFFICE, donde ya vive `activityType`);
+   - quién encendió o apagó un módulo se registra en la tabla nueva de eventos (renombrada
+     `WorkspaceAdminEvent`, que cubre equipo **y** módulos), no en una columna de `WorkspaceFeatureModule`.
+2. **Para entrar al panel, Equipo necesita `WorkspaceAppAccess(FOTOFFICE)`** (`hasAppAccess`): aceptar una
+   invitación crea la membresía **y** ese acceso; dar de baja borra los dos.
+3. **El tipo de organización se pide en Configuración → Módulos** la primera vez (y con un aviso en el
+   inicio del dueño), no en el alta: la portada no le pasa el tipo al registro y cambiar el alta excede esta
+   pieza.
+4. La ficha "Equipo y permisos" de la portada (`lib/landing/catalogo.ts`) promete "permiso por módulo": se
+   corrige el texto a roles.
 
 ## 1. Problema
 
@@ -46,7 +63,7 @@ trabajan en DNX y **no se migran**.
 
 | Capacidad | Dueño | Admin | Equipo | Colaborador |
 |---|:-:|:-:|:-:|:-:|
-| `usarModulo` — operar cualquier módulo encendido | ✓ | ✓ | ✓ | — (sólo lo asignado) |
+| `operar` — operar cualquier módulo encendido | ✓ | ✓ | ✓ | — (sólo lo asignado) |
 | `verDinero` — caja, cobranzas, precios, informes | ✓ | ✓ | ✓ | — |
 | `configurar` — Configuración y Módulos | ✓ | ✓ | — | — |
 | `gestionarEquipo` — invitar, cambiar roles, dar de baja | ✓ | ✓ | — | — |
@@ -71,8 +88,8 @@ trabajan en DNX y **no se migran**.
 
 - `lib/access/roles.ts`: etiquetas visibles por rol y orden de jerarquía.
 - `lib/access/policy.ts`: función pura `puede(rol, capacidad): boolean` con la matriz de §3.3. Sin Prisma.
-- `lib/access/require.ts`: guardas de servidor que combinan workspace activo + módulo encendido + capacidad:
-  `requireCapacidad(capacidad, { moduleKey? })`. Redirige o lanza igual que las guardas actuales.
+- Las guardas de servidor existentes (`lib/*/access.ts`) se conservan con su forma actual y pasan a
+  preguntar a `puede()`; no se crea una guarda genérica nueva en esta pieza.
 - `lib/access/responsable.ts`: `filtroSoloAsignado(rol, userId)` que devuelve el `where` para los listados
   (vacío si el rol ve todo). Se usa recién cuando existan entidades con responsable; en 0.1 queda probado
   con tests.
@@ -98,7 +115,7 @@ Ruta nueva bajo `app/workspace/configuracion/equipo/` (Dueño y Admin).
   - Un Administrador no puede modificar ni dar de baja a un Dueño, ni nombrar Dueños.
   - Dar de baja borra la fila de `WorkspaceMembership` (corta el acceso en el próximo pedido) y **no borra
     nada** de lo que la persona hizo: el `User` sigue existiendo y su nombre sigue en historiales.
-  - Toda invitación, aceptación, cambio de rol y baja deja una fila en `WorkspaceTeamEvent` (quién, a quién,
+  - Toda invitación, aceptación, cambio de rol y baja deja una fila en `WorkspaceAdminEvent` (quién, a quién,
     qué, rol anterior y nuevo, cuándo). La pantalla de Equipo muestra ese historial.
   - Si el usuario invitado ya pertenece al workspace, no se crea invitación duplicada.
 
@@ -126,13 +143,14 @@ model WorkspaceInvitation {
 ```
 
 ```prisma
-model WorkspaceTeamEvent {
+model WorkspaceAdminEvent {
   id            String   @id @default(cuid())
   workspaceId   String
   actorUserId   Int?     /// null = sistema
   targetUserId  Int?
   targetEmail   String?
-  kind          String   /// INVITED | INVITE_REVOKED | ACCEPTED | ROLE_CHANGED | REMOVED
+  kind          String   /// INVITED | INVITE_REVOKED | ACCEPTED | ROLE_CHANGED | REMOVED | MODULE_ON | MODULE_OFF | MODULE_REQUESTED | ORG_TYPE_SET
+  moduleKey     String?
   fromRole      String?
   toRole        String?
   createdAt     DateTime @default(now())
@@ -144,18 +162,20 @@ model WorkspaceTeamEvent {
 
 - **Aceptación**: `/equipo/aceptar?token=…`. Exige sesión; si no hay, lleva a iniciar sesión o registrarse
   y vuelve. Valida token (hash), vigencia, no usada, no revocada y **email de la sesión = email invitado**.
-  Crea la `WorkspaceMembership` con el rol y marca `acceptedAt` en la misma transacción.
+  Crea la `WorkspaceMembership` con el rol, el `WorkspaceAppAccess(FOTOFFICE, enabled)` y marca
+  `acceptedAt` en la misma transacción.
 - **Correo**: por `lib/communications/send-and-log.ts` con la firma del workspace. Una invitación creada
   no es una invitación enviada: `sentAt` sólo se llena cuando Resend la acepta.
 
 ### 4.3 Tipo de organización
 
-- Campo nuevo `Workspace.organizationType String?` (texto, sin enum nuevo, igual criterio que
-  `activityType`). Valores = ids de `lib/landing/tipos.ts` + `estudio`.
+- Campo nuevo `FotofficeWorkspaceBranding.organizationType String?` (texto, sin enum nuevo, igual
+  criterio que `activityType`). Valores = ids de `lib/landing/tipos.ts` + `estudio`.
 - `lib/landing/tipos.ts` suma el tipo `estudio` con sus 3 destacados; el test existente sigue exigiendo
   que apunten a módulos que existen.
-- Al crear un workspace (flujo de entrada / `ensure-workspace`), si viene el tipo desde la portada se
-  guarda y se ofrece el **paquete sugerido** (§4.4) para confirmar.
+- Si el workspace no tiene tipo, Configuración → Módulos lo pregunta primero (las 8 opciones de la
+  portada) y ofrece el **paquete sugerido** (§4.4) para confirmar; el inicio del dueño muestra un aviso
+  hasta que se elija.
 - Workspaces existentes: se asigna a mano en la publicación — DNX Estudio `estudio`, SFPR `sociedad`,
   Foto Positiva `ong`. **Sin cambiar módulos encendidos.**
 
@@ -199,10 +219,13 @@ Ruta nueva `app/workspace/configuracion/modulos/` (Dueño y Admin).
 - Cada módulo: nombre (con vocabulario), el "por qué" escrito para el tipo (de `tipos.ts`; si no hay, la
   descripción del catálogo), interruptor.
 - Encender con dependencias faltantes → diálogo "También hay que encender X" (enciende ambos).
-- Apagar con dependientes → diálogo "X deja de funcionar" (los dependientes quedan ocultos, no se borran).
+- Apagar con dependientes → diálogo "X deja de funcionar"; al confirmar se apagan juntos (ocultos, sin
+  borrar datos). Si algún dependiente cobra comisión, **no se puede apagar** desde el workspace: el
+  dependiente lo gestiona FOTOFFICE y volver a encenderlo exigiría al Super Admin.
 - Módulos con comisión → botón **Pedir activación** que avisa al Super Admin por correo (no enciende).
 - `PLANNED` → "Próximamente", sin interruptor.
-- Cada cambio escribe `WorkspaceFeatureModule` con `updatedByUserId` (columna nueva, §5).
+- Cada cambio escribe `WorkspaceFeatureModule` y un `WorkspaceAdminEvent` (MODULE_ON / MODULE_OFF /
+  MODULE_REQUESTED) con quién lo hizo.
 - El panel del Super Admin sigue funcionando igual.
 
 ### 4.6 Menú lateral
@@ -217,9 +240,8 @@ muestre.
 Migración nueva (SQL a mano en las bases con dominio FOTOFFICE + `migrate resolve`, **antes** del código):
 
 1. `ALTER TYPE "WorkspaceRole" ADD VALUE 'COLLABORATOR';`
-2. `CREATE TABLE "WorkspaceInvitation" …` y `CREATE TABLE "WorkspaceTeamEvent" …` con índices y FK.
-3. `ALTER TABLE "Workspace" ADD COLUMN "organizationType" TEXT;`
-4. `ALTER TABLE "WorkspaceFeatureModule" ADD COLUMN "updatedByUserId" INTEGER;` (hoy no existe).
+2. `CREATE TABLE "WorkspaceInvitation" …` y `CREATE TABLE "WorkspaceAdminEvent" …` con índices y FK.
+3. `ALTER TABLE "FotofficeWorkspaceBranding" ADD COLUMN "organizationType" TEXT;`
 
 Todo es aditivo. Bases: las mismas de la etapa 1b de Ventas (`compramelafoto/development` = producción de
 FOTOFFICE, `compramelafoto/production`, `clickaton-production`, `dnx-suite-staging`). InfoSpot queda
@@ -245,7 +267,7 @@ afuera si no tiene `Workspace` (verificar). Checksum registrado contra el archiv
 - `registry.test.ts`: todo módulo tiene familia; `dependsOn` apunta a claves existentes; no hay ciclos.
 - `tipos.test.ts` (existente): incluye `estudio`.
 - Invitaciones: vencida, usada, revocada, email distinto, duplicada, último dueño, admin contra dueño;
-  cada acción deja su `WorkspaceTeamEvent`.
+  cada acción deja su `WorkspaceAdminEvent`.
 - Auditoría de guardas: un test por módulo que fije qué puede Equipo.
 - **Prueba manual antes de fusionar**: Daniel invita una cuenta de prueba como Equipo en DNX Estudio y
   verifica que entra, usa Caja y Ventas, y no ve Configuración, Módulos ni Equipo.
