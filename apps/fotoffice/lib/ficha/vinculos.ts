@@ -34,3 +34,40 @@ export function etiquetaDelVinculo(clave: string, lado: "desde" | "hacia", custo
   const v = VINCULOS.find((x) => x.clave === clave);
   return v ? v[lado] : clave;
 }
+
+/**
+ * Hacia dónde apunta la cara elegida. La pantalla pregunta "¿Qué es <otra persona> para <esta
+ * persona>?", así que la respuesta describe a la OTRA:
+ * - "otra-es": la otra persona es el origen (su cara es `desde`: "Madre o padre").
+ * - "esta-es": esta persona es el origen (la otra se lee con `hacia`: "Hijo o hija").
+ */
+export type SentidoVinculo = "otra-es" | "esta-es";
+
+export function esSentidoDeVinculo(v: unknown): v is SentidoVinculo {
+  return v === "otra-es" || v === "esta-es";
+}
+
+export type CaraDeVinculo = { valor: string; clave: string; sentido: SentidoVinculo; texto: string };
+
+/**
+ * Las opciones del selector: las dos caras de cada vínculo ("Madre o padre", "Hijo o hija"…),
+ * una sola cuando se lee igual desde los dos lados ("Pareja").
+ */
+export function carasDeVinculos(): CaraDeVinculo[] {
+  const out: CaraDeVinculo[] = [];
+  for (const v of VINCULOS) {
+    if (v.desde === v.hacia) {
+      out.push({ valor: `${v.clave}:esta-es`, clave: v.clave, sentido: "esta-es", texto: v.desde });
+      continue;
+    }
+    out.push({ valor: `${v.clave}:otra-es`, clave: v.clave, sentido: "otra-es", texto: v.desde });
+    out.push({ valor: `${v.clave}:esta-es`, clave: v.clave, sentido: "esta-es", texto: v.hacia });
+  }
+  return out;
+}
+
+/** Cómo se lee, desde la ficha de una persona, a la otra persona de la relación. */
+export function etiquetaDeLaOtra(clave: string, soyOrigen: boolean, customLabel?: string | null): string {
+  // La otra es el origen cuando yo no lo soy: su cara es `desde`.
+  return etiquetaDelVinculo(clave, soyOrigen ? "hacia" : "desde", customLabel);
+}

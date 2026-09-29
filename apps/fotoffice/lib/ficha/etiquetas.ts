@@ -248,3 +248,16 @@ export async function borrarEtiqueta(ctx: CtxEtiquetas, tagId: string): Promise<
   });
   return { ok: true };
 }
+
+export type EtiquetaDelCatalogo = { id: string; name: string; color: string; personas: number };
+
+/** Todo el catálogo, por nombre, con a cuántas personas está puesta cada etiqueta. */
+export async function listarCatalogoDeEtiquetas(workspaceId: string): Promise<EtiquetaDelCatalogo[]> {
+  const filas = await prisma.fotofficeTag.findMany({
+    where: { workspaceId },
+    orderBy: { nameKey: "asc" },
+    take: 1000,
+    select: { id: true, name: true, color: true, _count: { select: { assignments: true } } },
+  });
+  return filas.map((f) => ({ id: f.id, name: f.name, color: f.color, personas: f._count.assignments }));
+}

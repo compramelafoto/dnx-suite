@@ -150,3 +150,11 @@ describe("catálogo", () => {
     expect(H.tagDeleteMany).toHaveBeenCalled();
   });
 });
+
+describe("listarCatalogoDeEtiquetas", () => {
+  it("del workspace, con cuántas personas la tienen", async () => {
+    H.tagFindMany.mockResolvedValue([{ id: "t1", name: "VIP", color: "rojo", _count: { assignments: 3 } }]);
+    expect(await E.listarCatalogoDeEtiquetas("ws-1")).toEqual([{ id: "t1", name: "VIP", color: "rojo", personas: 3 }]);
+    expect(H.tagFindMany.mock.calls[0][0].where).toEqual({ workspaceId: "ws-1" });
+  });
+});

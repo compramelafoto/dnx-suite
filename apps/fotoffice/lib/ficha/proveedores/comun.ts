@@ -5,13 +5,7 @@ export function filas(take: number): number {
   return Math.min(Math.max(1, Math.floor(take)), 101);
 }
 
-/** Tamaño de archivo legible: "820 KB", "1,5 MB". */
-export function tamanoLegible(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes < 0) return "";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1).replace(".", ",")} MB`;
-}
+export { tamanoLegible } from "../formato";
 
 /** `{ campo: { before, after } }` guardado en JSON → pares legibles. */
 export function leerCambios(raw: unknown): [string, { before?: unknown; after?: unknown }][] {

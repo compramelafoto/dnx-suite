@@ -7,6 +7,7 @@ import { borrarNota, crearNota, editarNota, fijarNota, type ResultadoNota } from
 import { buscarEtiquetas, ponerEtiqueta, quitarEtiqueta } from "@/lib/ficha/etiquetas";
 import type { PersonaRef } from "@/lib/ficha/persona";
 import { borrarRelacion, buscarPersonas, crearRelacion, type PersonaEncontrada } from "@/lib/ficha/relaciones";
+import { esSentidoDeVinculo, type SentidoVinculo } from "@/lib/ficha/vinculos";
 import { puede } from "@/lib/access/policy";
 import {
   borrarAdjunto,
@@ -209,11 +210,12 @@ export type OtraPedida = PersonaPedida | { nuevoCliente: { nombre: string; telef
 
 export async function crearRelacionAction(
   persona: PersonaPedida,
-  datos: { otra: OtraPedida; clave: string; customLabel?: string; nota?: string },
+  datos: { otra: OtraPedida; clave: string; customLabel?: string; nota?: string; sentido?: SentidoVinculo },
 ): Promise<EstadoFicha> {
   if (!personaValida(persona) || !datos || typeof datos !== "object") return DATOS_INVALIDOS;
-  const { otra, clave, customLabel, nota } = datos as Record<string, unknown>;
+  const { otra, clave, customLabel, nota, sentido } = datos as Record<string, unknown>;
   if (typeof clave !== "string" || clave.length > 40) return DATOS_INVALIDOS;
+  if (sentido !== undefined && !esSentidoDeVinculo(sentido)) return DATOS_INVALIDOS;
   if (customLabel !== undefined && (typeof customLabel !== "string" || customLabel.length > 200)) return DATOS_INVALIDOS;
   if (nota !== undefined && (typeof nota !== "string" || nota.length > 1000)) return DATOS_INVALIDOS;
 
@@ -233,7 +235,7 @@ export async function crearRelacionAction(
 
   const ctx = await contextoDeFicha(persona);
   if (!ctx) return SIN_ACCESO;
-  const r = await crearRelacion(ctx, ctx.persona, { otra: destino, clave, customLabel, nota });
+  const r = await crearRelacion(ctx, ctx.persona, { otra: destino, clave, customLabel, nota, sentido });
   if (r.ok) {
     revalidarFicha(ctx.persona);
     // La otra ficha también cambia: se ve el vínculo desde el otro lado.

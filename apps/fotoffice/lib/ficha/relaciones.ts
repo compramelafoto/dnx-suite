@@ -3,7 +3,15 @@ import { prisma, type Prisma } from "@repo/db";
 import { crearClienteConNumero } from "@/lib/clients/alta";
 import { registrarEventoPersona, type Actor } from "./eventos";
 import { duenoDe, resolverPersonaPorCliente, resolverPersonaPorSocio, type Dueno, type PersonaRef } from "./persona";
-import { CLAVE_VINCULO_LIBRE, MAX_ETIQUETA_LIBRE, esClaveDeVinculo, etiquetaDelVinculo } from "./vinculos";
+import {
+  CLAVE_VINCULO_LIBRE,
+  MAX_ETIQUETA_LIBRE,
+  esClaveDeVinculo,
+  esSentidoDeVinculo,
+  etiquetaDeLaOtra,
+  etiquetaDelVinculo,
+  type SentidoVinculo,
+} from "./vinculos";
 
 export const MAX_NOTA_RELACION = 200;
 export const MAX_NOMBRE_ALTA_RAPIDA = 100;
@@ -55,7 +63,8 @@ function extremoDeDueno(lado: "from" | "to", d: Dueno) {
 
 /**
  * Las relaciones de la persona, leídas en los dos sentidos y con las dos formas (cliente y
- * socio). Del lado de origen se lee `desde`; del lado de destino, `hacia`.
+ * socio). La etiqueta describe a la OTRA persona ("Madre o padre" en la ficha de la hija):
+ * si la otra es el origen se lee `desde`; si es el destino, `hacia`.
  */
 export async function relacionesDePersona(workspaceId: string, persona: PersonaRef): Promise<RelacionDePersona[]> {
   const donde = dondeInvolucra(workspaceId, persona);
@@ -96,7 +105,7 @@ export async function relacionesDePersona(workspaceId: string, persona: PersonaR
     out.push({
       id: f.id,
       otra,
-      etiqueta: etiquetaDelVinculo(f.kind, soyOrigen ? "desde" : "hacia", f.customLabel),
+      etiqueta: etiquetaDeLaOtra(f.kind, soyOrigen, f.customLabel),
       nota: f.note,
     });
   }
@@ -120,12 +129,27 @@ function limpiarNuevoCliente(v: unknown): { nombre: string; telefono: string } |
   return { nombre: n, telefono: t };
 }
 
+/**
+ * `sentido` dice a quién describe la cara `desde` del vínculo (ver `SentidoVinculo`): con
+ * "otra-es" la otra persona queda como origen (`from`); con "esta-es" (el valor por omisión),
+ * esta persona. Así, desde la ficha de la hija, elegir "Madre o padre" para la madre guarda
+ * from = madre, to = hija.
+ */
 export async function crearRelacion(
   ctx: CtxRelaciones,
   persona: PersonaRef,
-  datos: { otra: OtraPersona; clave: string; customLabel?: string | null; nota?: string | null },
+  datos: {
+    otra: OtraPersona;
+    clave: string;
+    customLabel?: string | null;
+    nota?: string | null;
+    sentido?: SentidoVinculo;
+  },
 ): Promise<ResultadoRelacion> {
   if (!esClaveDeVinculo(datos.clave)) return { ok: false, error: "Elegí el tipo de vínculo." };
+  const sentido = datos.sentido ?? "esta-es";
+  if (!esSentidoDeVinculo(sentido)) return { ok: false, error: "Elegí el tipo de vínculo." };
+  const otraEsOrigen = sentido === "otra-es";
   let customLabel: string | null = null;
   if (datos.clave === CLAVE_VINCULO_LIBRE) {
     const c = typeof datos.customLabel === "string" ? datos.customLabel.replace(/\s+/g, " ").trim() : "";
@@ -143,11 +167,13 @@ export async function crearRelacion(
   }
 
   const actor: Actor = { userId: ctx.userId, label: ctx.userLabel };
-  const desde = duenoDe(persona);
-  const detalle = (relacionId: string, otroNombre: string, sentido: "desde" | "hacia") => ({
+  const yo = duenoDe(persona);
+  // Cada evento describe a la otra persona: el origen ve al destino con `hacia` y el destino
+  // ve al origen con `desde`.
+  const detalle = (relacionId: string, otroNombre: string, lado: "desde" | "hacia") => ({
     relacionId,
     vinculo: datos.clave,
-    etiqueta: etiquetaDelVinculo(datos.clave, sentido, customLabel),
+    etiqueta: etiquetaDelVinculo(datos.clave, lado, customLabel),
     otra: otroNombre,
   });
   const nombreDe = async (p: PersonaRef): Promise<string> => {
@@ -178,11 +204,12 @@ export async function crearRelacion(
       { firstName: nuevo.nombre, phone: nuevo.telefono || null },
       actor,
       async (tx, clientId) => {
+        const nueva: Dueno = { clientId };
         const rel = await tx.fotofficePersonRelation.create({
           data: {
             workspaceId: ctx.workspaceId,
-            ...extremoDeDueno("from", desde),
-            toClientId: clientId,
+            ...extremoDeDueno("from", otraEsOrigen ? nueva : yo),
+            ...extremoDeDueno("to", otraEsOrigen ? yo : nueva),
             kind: datos.clave,
             customLabel,
             note: nota,
@@ -191,10 +218,12 @@ export async function crearRelacion(
           select: { id: true },
         });
         await registrarEventoPersona(tx, {
-          workspaceId: ctx.workspaceId, dueno: desde, kind: "RELACION_CREADA", detail: detalle(rel.id, nuevo.nombre, "hacia"), actor,
+          workspaceId: ctx.workspaceId, dueno: yo, kind: "RELACION_CREADA",
+          detail: detalle(rel.id, nuevo.nombre, otraEsOrigen ? "desde" : "hacia"), actor,
         });
         await registrarEventoPersona(tx, {
-          workspaceId: ctx.workspaceId, dueno: { clientId }, kind: "RELACION_CREADA", detail: detalle(rel.id, mia, "desde"), actor,
+          workspaceId: ctx.workspaceId, dueno: nueva, kind: "RELACION_CREADA",
+          detail: detalle(rel.id, mia, otraEsOrigen ? "hacia" : "desde"), actor,
         });
       },
     );
@@ -223,14 +252,14 @@ export async function crearRelacion(
   });
   if (repetida) return { ok: false, error: ERROR_YA_VINCULADAS };
 
-  const hacia = duenoDe(otra);
+  const suyo = duenoDe(otra);
   const suya = await nombreDe(otra);
   await prisma.$transaction(async (tx) => {
     const rel = await tx.fotofficePersonRelation.create({
       data: {
         workspaceId: ctx.workspaceId,
-        ...extremoDeDueno("from", desde),
-        ...extremoDeDueno("to", hacia),
+        ...extremoDeDueno("from", otraEsOrigen ? suyo : yo),
+        ...extremoDeDueno("to", otraEsOrigen ? yo : suyo),
         kind: datos.clave,
         customLabel,
         note: nota,
@@ -239,10 +268,12 @@ export async function crearRelacion(
       select: { id: true },
     });
     await registrarEventoPersona(tx, {
-      workspaceId: ctx.workspaceId, dueno: desde, kind: "RELACION_CREADA", detail: detalle(rel.id, suya, "hacia"), actor,
+      workspaceId: ctx.workspaceId, dueno: yo, kind: "RELACION_CREADA",
+      detail: detalle(rel.id, suya, otraEsOrigen ? "desde" : "hacia"), actor,
     });
     await registrarEventoPersona(tx, {
-      workspaceId: ctx.workspaceId, dueno: hacia, kind: "RELACION_CREADA", detail: detalle(rel.id, mia, "desde"), actor,
+      workspaceId: ctx.workspaceId, dueno: suyo, kind: "RELACION_CREADA",
+      detail: detalle(rel.id, mia, otraEsOrigen ? "hacia" : "desde"), actor,
     });
   });
   return { ok: true };
@@ -263,7 +294,8 @@ export async function borrarRelacion(ctx: CtxRelaciones, persona: PersonaRef, id
   const destino: Dueno = rel.toClientId ? { clientId: rel.toClientId } : { memberId: rel.toMemberId! };
   await prisma.$transaction(async (tx) => {
     await tx.fotofficePersonRelation.deleteMany({ where: { id: rel.id, workspaceId: ctx.workspaceId } });
-    for (const [dueno, sentido] of [[origen, "desde"], [destino, "hacia"]] as const) {
+    // Como al crear: cada extremo ve descripta a la otra persona.
+    for (const [dueno, sentido] of [[origen, "hacia"], [destino, "desde"]] as const) {
       await registrarEventoPersona(tx, {
         workspaceId: ctx.workspaceId,
         dueno,

@@ -23,15 +23,34 @@ export const proveedorNotas: Proveedor = {
       },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: filas(take),
-      select: { id: true, body: true, createdAt: true, editedAt: true, authorLabel: true, category: { select: { name: true } } },
+      select: {
+        id: true,
+        body: true,
+        createdAt: true,
+        editedAt: true,
+        authorLabel: true,
+        authorUserId: true,
+        categoryId: true,
+        category: { select: { name: true } },
+      },
     });
-    return filasNotas.map((n) => ({
-      id: `${PREFIJO}${n.id}`,
-      tipo: "notas" as const,
-      fecha: n.createdAt,
-      actor: n.authorLabel || null,
-      titulo: `Nota · ${n.category?.name ?? "Observaciones"}${n.editedAt ? " (editada)" : ""}`,
-      detalle: n.body,
-    }));
+    return filasNotas.map((n) => {
+      const categoria = n.category?.name ?? "Observaciones";
+      return {
+        id: `${PREFIJO}${n.id}`,
+        tipo: "notas" as const,
+        fecha: n.createdAt,
+        actor: n.authorLabel || null,
+        titulo: `Nota · ${categoria}${n.editedAt ? " (editada)" : ""}`,
+        detalle: n.body,
+        nota: {
+          id: n.id,
+          categoryId: n.categoryId ?? null,
+          categoria,
+          authorUserId: n.authorUserId ?? null,
+          editada: n.editedAt !== null,
+        },
+      };
+    });
   },
 };

@@ -13,6 +13,7 @@ import {
   LayoutGrid,
   Settings,
   Shield,
+  Tags,
   UserCog,
   Users,
   Wallet2,
@@ -303,6 +304,12 @@ export function ShellNav({
       label: "Módulos",
       icon: LayoutGrid,
       isActive: under("/workspace/configuracion/modulos"),
+    });
+    institucion.push({
+      href: "/workspace/configuracion/ficha",
+      label: "Ficha",
+      icon: Tags,
+      isActive: under("/workspace/configuracion/ficha"),
     });
   }
 

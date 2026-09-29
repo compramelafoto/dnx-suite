@@ -216,7 +216,8 @@ describe("personas relacionadas", () => {
   });
   it("crear: forma inválida no llega a la guarda", async () => {
     for (const d of [null, { otra: null, clave: "amigo" }, { otra: { tipo: "X", id: "a" }, clave: "amigo" }, { otra: P, clave: 3 },
-      { otra: { nuevoCliente: { nombre: 1, telefono: "" } }, clave: "amigo" }]) {
+      { otra: { nuevoCliente: { nombre: 1, telefono: "" } }, clave: "amigo" },
+      { otra: { tipo: "SOCIO", id: "m2" }, clave: "amigo", sentido: "arriba" }]) {
       expect(await crearRelacionAction(P, d as any)).toEqual({ ok: false, error: "Los datos no son válidos." });
     }
     expect(H.ctx).not.toHaveBeenCalled();
@@ -233,6 +234,12 @@ describe("personas relacionadas", () => {
     expect(H.crearRel.mock.calls[0][2]).toMatchObject({ otra: { clientId: null, memberId: "m2" }, clave: "amigo" });
     expect(H.revalidate).toHaveBeenCalledWith("/members/m2");
     expect(H.revalidate).toHaveBeenCalledWith("/clientes/c1");
+  });
+  it("crear: pasa el sentido elegido", async () => {
+    H.ctx.mockResolvedValue(CTX);
+    H.crearRel.mockResolvedValue({ ok: true });
+    await crearRelacionAction(P, { otra: { tipo: "CLIENTE", id: "c9" }, clave: "madre-padre", sentido: "otra-es" });
+    expect(H.crearRel.mock.calls[0][2]).toMatchObject({ clave: "madre-padre", sentido: "otra-es" });
   });
   it("crear: alta rápida", async () => {
     H.ctx.mockResolvedValue(CTX);

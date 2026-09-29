@@ -41,16 +41,16 @@ describe("relacionesDePersona", () => {
     fromClientId: null, fromMemberId: null, toClientId: null, toMemberId: null,
     fromClient: null, toClient: null, fromMember: null, toMember: null, ...o,
   });
-  it("lee desde el origen 'Madre o padre' y desde el destino 'Hijo o hija'", async () => {
+  it("la etiqueta describe a la otra: el origen ve 'Hijo o hija' y el destino 'Madre o padre'", async () => {
     H.relFindMany.mockResolvedValue([
       fila({ id: "a", fromClientId: "c1", toClientId: "c2", toClient: { id: "c2", firstName: "Luis", lastName: "Paz", businessName: null }, note: "hijo mayor" }),
       fila({ id: "b", fromMemberId: "m9", toClientId: "c1", fromMember: { id: "m9", firstName: "Rosa", lastName: "Díaz" } }),
     ]);
     const r = await R.relacionesDePersona("ws-1", YO);
     expect(r[0]).toEqual({
-      id: "a", otra: { tipo: "CLIENTE", id: "c2", nombre: "Luis Paz", href: "/clientes/c2" }, etiqueta: "Madre o padre", nota: "hijo mayor",
+      id: "a", otra: { tipo: "CLIENTE", id: "c2", nombre: "Luis Paz", href: "/clientes/c2" }, etiqueta: "Hijo o hija", nota: "hijo mayor",
     });
-    expect(r[1]).toMatchObject({ etiqueta: "Hijo o hija", otra: { tipo: "SOCIO", id: "m9", nombre: "Rosa Díaz", href: "/members/m9" } });
+    expect(r[1]).toMatchObject({ etiqueta: "Madre o padre", otra: { tipo: "SOCIO", id: "m9", nombre: "Rosa Díaz", href: "/members/m9" } });
   });
   it("busca por las dos formas y en los dos sentidos, dentro del workspace", async () => {
     H.relFindMany.mockResolvedValue([]);
@@ -66,7 +66,7 @@ describe("relacionesDePersona", () => {
       fila({ fromMemberId: "m1", toClientId: "c2", toClient: { id: "c2", firstName: "Luis", lastName: null, businessName: null } }),
     ]);
     const r = await R.relacionesDePersona("ws-1", { clientId: "c1", memberId: "m1" });
-    expect(r[0].etiqueta).toBe("Madre o padre");
+    expect(r[0].etiqueta).toBe("Hijo o hija");
   });
   it("el vínculo libre muestra el texto escrito", async () => {
     H.relFindMany.mockResolvedValue([
@@ -141,6 +141,60 @@ describe("crearRelacion", () => {
     expect(H.relCreate.mock.calls[0][0].data).toMatchObject({ fromClientId: "c1", toClientId: "cNuevo", kind: "hermano" });
     expect(H.evento.mock.calls.map((c) => c[1].dueno)).toEqual([{ clientId: "c1" }, { clientId: "cNuevo" }]);
   });
+  it("desde la ficha de la hija, 'Madre o padre' para la madre guarda from = madre, to = hija", async () => {
+    H.relFind.mockResolvedValue(null);
+    const HIJA = { clientId: "c2", memberId: null };
+    const r = await R.crearRelacion(CTX, HIJA, { otra: { clientId: "c1", memberId: null }, clave: "madre-padre", sentido: "otra-es" });
+    expect(r).toEqual({ ok: true });
+    expect(H.relCreate.mock.calls[0][0].data).toMatchObject({ fromClientId: "c1", toClientId: "c2", kind: "madre-padre" });
+    // Cada historia describe a la otra persona.
+    expect(H.evento.mock.calls.map((c) => [c[1].dueno, c[1].detail.etiqueta, c[1].detail.otra])).toEqual([
+      [{ clientId: "c2" }, "Madre o padre", "Ana Gómez"],
+      [{ clientId: "c1" }, "Hijo o hija", "Luis Paz"],
+    ]);
+
+    // Leída desde cada lado: la hija ve a su madre y la madre ve a su hija.
+    const fila = {
+      id: "r1", kind: "madre-padre", customLabel: null, note: null,
+      fromClientId: "c1", fromMemberId: null, toClientId: "c2", toMemberId: null,
+      fromClient: { id: "c1", firstName: "Ana", lastName: "Gómez", businessName: null },
+      toClient: { id: "c2", firstName: "Luis", lastName: "Paz", businessName: null },
+      fromMember: null, toMember: null,
+    };
+    H.relFindMany.mockResolvedValue([fila]);
+    expect((await R.relacionesDePersona("ws-1", HIJA))[0]).toMatchObject({ etiqueta: "Madre o padre", otra: { id: "c1" } });
+    expect((await R.relacionesDePersona("ws-1", YO))[0]).toMatchObject({ etiqueta: "Hijo o hija", otra: { id: "c2" } });
+  });
+  it("desde la ficha de la madre, 'Hijo o hija' para la hija guarda from = madre, to = hija", async () => {
+    H.relFind.mockResolvedValue(null);
+    const r = await R.crearRelacion(CTX, YO, { otra: { clientId: "c2", memberId: null }, clave: "madre-padre", sentido: "esta-es" });
+    expect(r).toEqual({ ok: true });
+    expect(H.relCreate.mock.calls[0][0].data).toMatchObject({ fromClientId: "c1", toClientId: "c2" });
+    expect(H.evento.mock.calls.map((c) => [c[1].dueno, c[1].detail.etiqueta])).toEqual([
+      [{ clientId: "c1" }, "Hijo o hija"],
+      [{ clientId: "c2" }, "Madre o padre"],
+    ]);
+  });
+  it("sentido desconocido: no crea nada", async () => {
+    const r = await R.crearRelacion(CTX, YO, { otra: { clientId: "c2", memberId: null }, clave: "amigo", sentido: "x" as never });
+    expect(r.ok).toBe(false);
+    expect(H.relCreate).not.toHaveBeenCalled();
+  });
+  it("alta rápida con 'otra-es': el cliente nuevo queda como origen", async () => {
+    H.alta.mockImplementation(async (_ws: string, _d: unknown, _a: unknown, dentro: any) => {
+      await dentro({ fotofficePersonRelation: { create: H.relCreate } }, "cNuevo");
+      return "cNuevo";
+    });
+    const r = await R.crearRelacion(CTX, YO, {
+      otra: { nuevoCliente: { nombre: "Rosa", telefono: "" } }, clave: "madre-padre", sentido: "otra-es",
+    });
+    expect(r).toEqual({ ok: true });
+    expect(H.relCreate.mock.calls[0][0].data).toMatchObject({ fromClientId: "cNuevo", toClientId: "c1" });
+    expect(H.evento.mock.calls.map((c) => [c[1].dueno, c[1].detail.etiqueta])).toEqual([
+      [{ clientId: "c1" }, "Madre o padre"],
+      [{ clientId: "cNuevo" }, "Hijo o hija"],
+    ]);
+  });
   it("alta rápida sin nombre no crea nada", async () => {
     const r = await R.crearRelacion(CTX, YO, { otra: { nuevoCliente: { nombre: " ", telefono: "1" } }, clave: "amigo" });
     expect(r.ok).toBe(false);
@@ -153,8 +207,8 @@ describe("borrarRelacion", () => {
     H.relFind.mockResolvedValue({ id: "r1", kind: "madre-padre", customLabel: null, fromClientId: "c1", fromMemberId: null, toClientId: null, toMemberId: "m5" });
     expect(await R.borrarRelacion(CTX, YO, "r1")).toEqual({ ok: true });
     expect(H.relDeleteMany.mock.calls[0][0].where).toEqual({ id: "r1", workspaceId: "ws-1" });
-    expect(H.evento.mock.calls.map((c) => [c[1].kind, c[1].dueno])).toEqual([
-      ["RELACION_BORRADA", { clientId: "c1" }], ["RELACION_BORRADA", { memberId: "m5" }],
+    expect(H.evento.mock.calls.map((c) => [c[1].kind, c[1].dueno, c[1].detail.etiqueta])).toEqual([
+      ["RELACION_BORRADA", { clientId: "c1" }, "Hijo o hija"], ["RELACION_BORRADA", { memberId: "m5" }, "Madre o padre"],
     ]);
   });
   it("una relación ajena o de otra persona: no encontrada", async () => {

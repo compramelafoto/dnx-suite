@@ -23,6 +23,11 @@ export type EventoFicha = {
   detalle?: string;
   enlace?: string;
   cambios?: { campo: string; antes: string; despues: string }[];
+  /**
+   * Sólo en las notas: lo que la pantalla necesita para editar, borrar o fijar la nota. La
+   * decisión de quién puede hacerlo se vuelve a tomar en el servidor en cada acción.
+   */
+  nota?: { id: string; categoryId: string | null; categoria: string; authorUserId: number | null; editada: boolean };
 };
 
 /**

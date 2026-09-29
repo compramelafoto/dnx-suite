@@ -80,9 +80,14 @@ describe("notas", () => {
     expect(take).toBe(31);
   });
   it("arma el evento", async () => {
-    H.nota.mockResolvedValue([{ id: "n1", body: "Hola", createdAt: F, editedAt: null, authorLabel: "Ana", category: { name: "Correo" } }]);
+    H.nota.mockResolvedValue([
+      { id: "n1", body: "Hola", createdAt: F, editedAt: null, authorLabel: "Ana", authorUserId: 7, categoryId: "k1", category: { name: "Correo" } },
+    ]);
     const [e] = await proveedorNotas.traer(CTX, SOLO_CLIENTE, null, 31);
-    expect(e).toEqual({ id: "notas:n1", tipo: "notas", fecha: F, actor: "Ana", titulo: "Nota · Correo", detalle: "Hola" });
+    expect(e).toEqual({
+      id: "notas:n1", tipo: "notas", fecha: F, actor: "Ana", titulo: "Nota · Correo", detalle: "Hola",
+      nota: { id: "n1", categoryId: "k1", categoria: "Correo", authorUserId: 7, editada: false },
+    });
     expect(llamada(H.nota).where.AND).toEqual([{}]);
   });
 });

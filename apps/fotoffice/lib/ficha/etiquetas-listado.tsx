@@ -3,6 +3,7 @@ import { prisma } from "@repo/db";
 import type { ContextoListado, Opcion, ResultadoLote } from "@/lib/listado/tipos";
 import { buscarEtiquetas, ponerEtiqueta, quitarEtiqueta, type CtxEtiquetas } from "./etiquetas";
 import type { PersonaRef } from "./persona";
+import { claseDeColorEtiqueta } from "./formato";
 
 /** Lo que los dos listados comparten para filtrar, mostrar y aplicar etiquetas en lote. */
 const ID_VALIDO = /^[A-Za-z0-9_-]{1,64}$/;
@@ -24,23 +25,12 @@ export function unirEtiquetasDeFila(...listas: (Asignacion[] | null | undefined)
   return [...vistas.values()];
 }
 
-const CLASES_COLOR: Record<string, string> = {
-  gris: "bg-gray-100 text-gray-700",
-  rojo: "bg-red-100 text-red-700",
-  naranja: "bg-orange-100 text-orange-700",
-  amarillo: "bg-yellow-100 text-yellow-800",
-  verde: "bg-green-100 text-green-700",
-  azul: "bg-blue-100 text-blue-700",
-  violeta: "bg-violet-100 text-violet-700",
-  rosa: "bg-pink-100 text-pink-700",
-};
-
 export function ChipsEtiquetas({ etiquetas }: { etiquetas: EtiquetaChip[] }) {
   if (etiquetas.length === 0) return <span className="text-[var(--fo-muted)]">—</span>;
   return (
     <span className="flex flex-wrap gap-1">
       {etiquetas.map((t) => (
-        <span key={t.id} className={`rounded-full px-2 py-0.5 text-xs ${CLASES_COLOR[t.color] ?? CLASES_COLOR.gris}`}>
+        <span key={t.id} className={`rounded-full px-2 py-0.5 text-xs ${claseDeColorEtiqueta(t.color)}`}>
           {t.name}
         </span>
       ))}
