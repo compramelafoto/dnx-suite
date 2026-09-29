@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { contextoDeFicha, type PersonaPedida } from "@/lib/ficha/acceso";
 import { asegurarCategorias } from "@/lib/ficha/categorias";
 import { borrarNota, crearNota, editarNota, fijarNota, type ResultadoNota } from "@/lib/ficha/notas";
+import { buscarEtiquetas, ponerEtiqueta, quitarEtiqueta } from "@/lib/ficha/etiquetas";
 import type { PersonaRef } from "@/lib/ficha/persona";
 
 export type EstadoFicha = ResultadoNota;
@@ -69,4 +70,45 @@ export async function fijarNotaAction(persona: PersonaPedida, noteId: string, fi
   const r = await fijarNota(ctx, noteId, fijar);
   if (r.ok) revalidarFicha(ctx.persona);
   return r;
+}
+
+export async function ponerEtiquetaAction(
+  persona: PersonaPedida,
+  ref: { tagId: string } | { nombre: string },
+): Promise<EstadoFicha> {
+  if (!personaValida(persona) || !ref || typeof ref !== "object") return DATOS_INVALIDOS;
+  const r = ref as Record<string, unknown>;
+  const limpia = idValido(r.tagId)
+    ? { tagId: r.tagId }
+    : typeof r.nombre === "string" && r.nombre.length <= 200
+      ? { nombre: r.nombre }
+      : null;
+  if (!limpia) return DATOS_INVALIDOS;
+  const ctx = await contextoDeFicha(persona);
+  if (!ctx) return SIN_ACCESO;
+  const res = await ponerEtiqueta(ctx, ctx.persona, limpia);
+  if (res.ok) revalidarFicha(ctx.persona);
+  return res;
+}
+
+export async function quitarEtiquetaAction(persona: PersonaPedida, tagId: string): Promise<EstadoFicha> {
+  if (!personaValida(persona) || !idValido(tagId)) return DATOS_INVALIDOS;
+  const ctx = await contextoDeFicha(persona);
+  if (!ctx) return SIN_ACCESO;
+  const res = await quitarEtiqueta(ctx, ctx.persona, tagId);
+  if (res.ok) revalidarFicha(ctx.persona);
+  return res;
+}
+
+/** Sugerencias al escribir: hasta 10, con al menos 1 carácter. Sin acceso, lista vacía. */
+export async function buscarEtiquetasAction(
+  persona: PersonaPedida,
+  texto: string,
+): Promise<{ id: string; name: string; color: string }[]> {
+  if (!personaValida(persona) || typeof texto !== "string") return [];
+  const t = texto.trim().slice(0, 40);
+  if (t.length < 1) return [];
+  const ctx = await contextoDeFicha(persona);
+  if (!ctx) return [];
+  return buscarEtiquetas(ctx.workspaceId, t, 10);
 }

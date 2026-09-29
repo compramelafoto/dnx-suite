@@ -7,6 +7,9 @@ const H = vi.hoisted(() => ({
   editar: vi.fn(),
   borrar: vi.fn(),
   fijar: vi.fn(),
+  poner: vi.fn(),
+  quitar: vi.fn(),
+  buscar: vi.fn(),
   revalidate: vi.fn(),
 }));
 
@@ -22,7 +25,9 @@ vi.mock("@/lib/ficha/notas", () => ({
   fijarNota: H.fijar,
 }));
 
-const { crearNotaAction, editarNotaAction, borrarNotaAction, fijarNotaAction } = await import("./ficha");
+vi.mock("@/lib/ficha/etiquetas", () => ({ ponerEtiqueta: H.poner, quitarEtiqueta: H.quitar, buscarEtiquetas: H.buscar }));
+
+const { ponerEtiquetaAction, quitarEtiquetaAction, buscarEtiquetasAction, crearNotaAction, editarNotaAction, borrarNotaAction, fijarNotaAction } = await import("./ficha");
 
 const CTX = {
   workspaceId: "ws-1", workspaceSlug: "sfpr", userId: 1, userLabel: "Ana", role: "STAFF",
@@ -33,7 +38,7 @@ const P = { tipo: "CLIENTE", id: "c1" } as const;
 beforeEach(() => {
   for (const f of Object.values(H)) f.mockReset();
   H.ctx.mockResolvedValue(CTX);
-  for (const f of [H.crear, H.editar, H.borrar, H.fijar]) f.mockResolvedValue({ ok: true });
+  for (const f of [H.crear, H.editar, H.borrar, H.fijar, H.poner, H.quitar]) f.mockResolvedValue({ ok: true });
 });
 
 describe("acciones de notas", () => {
@@ -78,5 +83,32 @@ describe("acciones de notas", () => {
     expect(H.crear).toHaveBeenCalledWith(CTX, { body: "hola", categoryId: "cat" });
     expect(H.revalidate).toHaveBeenCalledWith("/clientes/c1");
     expect(H.revalidate).toHaveBeenCalledWith("/members/m1");
+  });
+});
+
+describe("acciones de etiquetas", () => {
+  it("sin contexto: no escribe ni busca", async () => {
+    H.ctx.mockResolvedValue(null);
+    expect((await ponerEtiquetaAction(P, { nombre: "VIP" })).ok).toBe(false);
+    expect((await quitarEtiquetaAction(P, "t1")).ok).toBe(false);
+    expect(await buscarEtiquetasAction(P, "vi")).toEqual([]);
+    for (const f of [H.poner, H.quitar, H.buscar, H.revalidate]) expect(f).not.toHaveBeenCalled();
+  });
+  it("forma inválida: rechaza antes de la sesión", async () => {
+    expect((await ponerEtiquetaAction(P, {} as never)).ok).toBe(false);
+    expect((await ponerEtiquetaAction(P, { nombre: 3 } as never)).ok).toBe(false);
+    expect((await quitarEtiquetaAction(P, 3 as never)).ok).toBe(false);
+    expect(await buscarEtiquetasAction(P, "   ")).toEqual([]);
+    expect(H.ctx).not.toHaveBeenCalled();
+  });
+  it("poner pasa la persona del contexto y revalida", async () => {
+    expect((await ponerEtiquetaAction(P, { nombre: "VIP" })).ok).toBe(true);
+    expect(H.poner).toHaveBeenCalledWith(CTX, CTX.persona, { nombre: "VIP" });
+    expect(H.revalidate).toHaveBeenCalledWith("/clientes/c1");
+  });
+  it("buscar usa el workspace de la sesión y tope 10", async () => {
+    H.buscar.mockResolvedValue([{ id: "t", name: "VIP", color: "gris" }]);
+    expect(await buscarEtiquetasAction(P, " vi ")).toHaveLength(1);
+    expect(H.buscar).toHaveBeenCalledWith("ws-1", "vi", 10);
   });
 });
