@@ -332,6 +332,7 @@ model User {
   clickatonReferralCode               ClickatonReferralCode?
   clickatonReferralsMade              ClickatonReferralAttribution[]     @relation("ClickatonReferralReferrer")
   clickatonReferralReceived           ClickatonReferralAttribution?      @relation("ClickatonReferralReferred")
+  fotofficeNotes FotofficeNote[] @relation("FotofficeNoteAuthor")
 }
 
 /// Perfil financiero de ¿Cuánto Cobro? (wizard bloque A), 1:1 con User.
@@ -7120,6 +7121,14 @@ model Workspace {
   coverageCollaborators       CoverageCollaboratorProfile[]
   coverageEvents              CoverageEvent[]
   vocabulary                  WorkspaceVocabulary?
+  fotofficeNoteCategories FotofficeNoteCategory[]
+  fotofficeNotes FotofficeNote[]
+  fotofficeTags FotofficeTag[]
+  fotofficeTagAssignments FotofficeTagAssignment[]
+  fotofficeAttachments FotofficeAttachment[]
+  fotofficePersonRelations FotofficePersonRelation[]
+  fotofficePersonEvents FotofficePersonEvent[]
+  clientAudits ClientAudit[]
 }
 
 model WorkspaceFeatureModule {
@@ -7205,6 +7214,178 @@ model FotofficeListView {
   @@index([workspaceId, listKey, kind])
   @@index([ownerUserId])
 }
+/// Catálogo de categorías de notas por workspace (etapa 0.3).
+model FotofficeNoteCategory {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  notes     FotofficeNote[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, isActive, order])
+}
+
+/// Nota sobre una persona: exactamente uno de clientId/memberId (CHECK en el SQL).
+model FotofficeNote {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  clientId     String?
+  memberId     String?
+  /// NULL = "Observaciones" convertidas desde Client.notes / Member.notes.
+  categoryId   String?
+  body         String
+  pinned       Boolean   @default(false)
+  authorUserId Int?
+  authorLabel  String
+  editedAt     DateTime?
+  deletedAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  workspace Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client    Client?                @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  member    Member?                @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  category  FotofficeNoteCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  author    User?                  @relation("FotofficeNoteAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, clientId, createdAt])
+  @@index([workspaceId, memberId, createdAt])
+}
+
+model FotofficeTag {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  /// name sin mayúsculas ni acentos: la unicidad se decide por acá.
+  nameKey     String
+  /// gris | rojo | naranja | amarillo | verde | azul | violeta | rosa
+  color       String   @default("gris")
+  createdAt   DateTime @default(now())
+
+  workspace   Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  assignments FotofficeTagAssignment[]
+
+  @@unique([workspaceId, nameKey])
+}
+
+/// Exactamente uno de clientId/memberId (CHECK en el SQL). Única por etiqueta + persona (índices parciales).
+model FotofficeTagAssignment {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  tagId           String
+  clientId        String?
+  memberId        String?
+  createdByUserId Int?
+  createdAt       DateTime @default(now())
+
+  workspace Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  tag       FotofficeTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  client    Client?      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  member    Member?      @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, tagId])
+  @@index([clientId])
+  @@index([memberId])
+}
+
+model FotofficeAttachment {
+  id               String    @id @default(cuid())
+  workspaceId      String
+  clientId         String?
+  memberId         String?
+  /// adjuntos/<workspaceId>/<uuid> — nunca sale al navegador.
+  storageKey       String    @unique
+  fileName         String
+  contentType      String
+  sizeBytes        Int
+  /// PENDIENTE | LISTO | BORRADO
+  status           String    @default("PENDIENTE")
+  uploadedByUserId Int?
+  uploadedByLabel  String
+  deletedAt        DateTime?
+  purgeAfter       DateTime?
+  createdAt        DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client    Client?   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  member    Member?   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, clientId, createdAt])
+  @@index([workspaceId, memberId, createdAt])
+  @@index([status, purgeAfter])
+}
+
+/// Vínculo entre dos personas del mismo workspace. `kind` es la clave del catálogo desde el lado "from".
+model FotofficePersonRelation {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  fromClientId    String?
+  fromMemberId    String?
+  toClientId      String?
+  toMemberId      String?
+  kind            String
+  customLabel     String?
+  note            String?
+  createdByUserId Int?
+  createdAt       DateTime @default(now())
+
+  workspace  Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  fromClient Client?   @relation("RelationFromClient", fields: [fromClientId], references: [id], onDelete: Cascade)
+  fromMember Member?   @relation("RelationFromMember", fields: [fromMemberId], references: [id], onDelete: Cascade)
+  toClient   Client?   @relation("RelationToClient", fields: [toClientId], references: [id], onDelete: Cascade)
+  toMember   Member?   @relation("RelationToMember", fields: [toMemberId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, fromClientId])
+  @@index([workspaceId, fromMemberId])
+  @@index([workspaceId, toClientId])
+  @@index([workspaceId, toMemberId])
+}
+
+/// Eventos de las piezas de la ficha (etiquetas, relaciones, notas borradas, adjuntos, vínculo cliente-socio).
+model FotofficePersonEvent {
+  id          String   @id @default(cuid())
+  workspaceId String
+  clientId    String?
+  memberId    String?
+  /// ETIQUETA_PUESTA | ETIQUETA_QUITADA | RELACION_CREADA | RELACION_BORRADA | NOTA_BORRADA |
+  /// ADJUNTO_SUBIDO | ADJUNTO_BORRADO | ADJUNTO_RESTAURADO | SOCIO_VINCULADO | SOCIO_DESVINCULADO
+  kind        String
+  detail      Json?
+  actorUserId Int?
+  actorLabel  String
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client    Client?   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  member    Member?   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, clientId, createdAt])
+  @@index([workspaceId, memberId, createdAt])
+}
+
+/// Historial de cambios de datos del cliente. Mismo formato que MemberAudit.
+model ClientAudit {
+  id          String   @id @default(cuid())
+  workspaceId String
+  clientId    String
+  /// CREATED | UPDATED
+  action      String
+  actorUserId Int?
+  actorLabel  String
+  /// { campo: { before, after } } — sólo los campos que cambiaron.
+  changesJson Json?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client    Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, clientId, createdAt])
+}
+
 
 /// Registro de exportaciones y acciones en lote hechas desde un listado.
 model FotofficeListActivity {
@@ -7496,6 +7677,12 @@ model Member {
   @@index([workspaceId, documentNumber])
   @@index([workspaceId, lastName, firstName])
   @@index([workspaceId, recommendedByMemberId])
+  fotofficeNotes FotofficeNote[]
+  fotofficeTags FotofficeTagAssignment[]
+  fotofficeAttachments FotofficeAttachment[]
+  fotofficeEvents FotofficePersonEvent[]
+  relationsFrom FotofficePersonRelation[] @relation("RelationFromMember")
+  relationsTo FotofficePersonRelation[] @relation("RelationToMember")
 }
 
 /// Invitación para que un socio acceda con su propia cuenta.
@@ -17470,6 +17657,13 @@ model Client {
   @@index([workspaceId, status])
   @@index([workspaceId, docNumber])
   @@index([workspaceId, email])
+  fotofficeNotes FotofficeNote[]
+  fotofficeTags FotofficeTagAssignment[]
+  fotofficeAttachments FotofficeAttachment[]
+  fotofficeEvents FotofficePersonEvent[]
+  audits ClientAudit[]
+  relationsFrom FotofficePersonRelation[] @relation("RelationFromClient")
+  relationsTo FotofficePersonRelation[] @relation("RelationToClient")
 }
 
 /// Una cuenta de caja: dónde está la plata.
