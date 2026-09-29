@@ -23,15 +23,22 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("@/lib/entrada/require-own-workspace", () => ({
   requireOwnWorkspace: vi.fn(async () => ({ workspaceId: "ws1", created: false, onboardingCompleted: true })),
 }));
+class FakeTeamError extends Error {}
 vi.mock("@repo/db/fotoffice-team", () => ({
-  TeamError: class TeamError extends Error {},
+  TeamError: FakeTeamError,
   changeMemberRole: m.changeRole,
   removeMember: m.remove,
   revokeTeamInvitation: m.revoke,
 }));
 vi.mock("@/lib/team/invite", () => ({ inviteTeamMember: m.invite }));
 
-const { inviteTeamAction, changeRoleAction, removeMemberAction, resendInvitationAction } =
+const {
+  inviteTeamAction,
+  changeRoleAction,
+  removeMemberAction,
+  resendInvitationAction,
+  revokeInvitationAction,
+} =
   await import("./actions");
 
 function fd(o: Record<string, string>) {
@@ -113,10 +120,51 @@ describe("acciones de Equipo", () => {
     roles("WORKSPACE_OWNER");
     m.invFindFirst.mockResolvedValue({ email: "ana@x.test", role: "STAFF" });
     const r = await resendInvitationAction(undefined, fd({ invitationId: "inv1" }));
-    expect(m.invFindFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "inv1", workspaceId: "ws1" } }));
+    expect(m.invFindFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "inv1", workspaceId: "ws1", acceptedAt: null } }));
     expect(m.invite).toHaveBeenCalledWith(
       expect.objectContaining({ workspaceId: "ws1", email: "ana@x.test", role: "STAFF" }),
     );
     expect(r.ok).toBe("Invitación reenviada a ana@x.test.");
+  });
+
+  it("anular una invitación devuelve ok", async () => {
+    roles("WORKSPACE_ADMIN");
+    const r = await revokeInvitationAction(undefined, fd({ invitationId: "inv1" }));
+    expect(m.revoke).toHaveBeenCalledWith("ws1", "inv1", 1);
+    expect(r).toEqual({ error: null, ok: "Invitación anulada." });
+  });
+
+  it("anular una invitación inexistente devuelve un mensaje amable", async () => {
+    roles("WORKSPACE_ADMIN");
+    m.revoke.mockRejectedValue(new FakeTeamError("NOT_FOUND"));
+    const r = await revokeInvitationAction(undefined, fd({ invitationId: "nada" }));
+    expect(r.error).toMatch(/No se encontró la invitación/);
+  });
+
+  it("reenviar una invitación de otro workspace no la encuentra", async () => {
+    roles("WORKSPACE_OWNER");
+    m.invFindFirst.mockResolvedValue(null);
+    const r = await resendInvitationAction(undefined, fd({ invitationId: "ajena" }));
+    expect(m.invFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "ajena", workspaceId: "ws1", acceptedAt: null } }),
+    );
+    expect(r).toEqual({ error: "No se encontró la invitación." });
+    expect(m.invite).not.toHaveBeenCalled();
+  });
+
+  it("no reenvía una invitación con un rol que ya no se ofrece", async () => {
+    roles("WORKSPACE_OWNER");
+    m.invFindFirst.mockResolvedValue({ email: "ana@x.test", role: "COLLABORATOR" });
+    const r = await resendInvitationAction(undefined, fd({ invitationId: "inv1" }));
+    expect(r.error).toBe("Ese rol no está disponible.");
+    expect(m.invite).not.toHaveBeenCalled();
+  });
+
+  it("dar de baja con TeamError devuelve un mensaje amable", async () => {
+    roles("WORKSPACE_OWNER", "STAFF");
+    m.count.mockResolvedValue(1);
+    m.remove.mockRejectedValue(new FakeTeamError("NOT_FOUND"));
+    const r = await removeMemberAction(undefined, fd({ userId: "7" }));
+    expect(r.error).toBe("No se encontró a esa persona en el equipo.");
   });
 });

@@ -7,6 +7,7 @@ import { requireAuth } from "@/lib/auth";
 import { requireOwnWorkspace } from "@/lib/entrada/require-own-workspace";
 import { invitationState } from "@/lib/members/invitations";
 import { getModuleDefinition } from "@/lib/modules/registry";
+import { tipoPorId } from "@/lib/landing/tipos";
 import { rolesOfrecidos } from "@/lib/team/rules";
 import { EquipoClient, type EventoVista, type InvitacionVista, type MiembroVista } from "./equipo-client";
 
@@ -33,7 +34,7 @@ function textoEvento(e: Evento, miembros: Miembros): string {
     case "INVITE_REVOKED":
       return `anuló la invitación de ${e.targetEmail ?? "alguien"}`;
     case "ACCEPTED":
-      return `${e.targetEmail ?? objetivo} aceptó la invitación`;
+      return `${objetivo} aceptó la invitación como ${etiquetaRol(e.toRole)}`;
     case "ROLE_CHANGED":
       return `cambió el rol de ${objetivo} de ${etiquetaRol(e.fromRole)} a ${etiquetaRol(e.toRole)}`;
     case "REMOVED":
@@ -45,7 +46,7 @@ function textoEvento(e: Evento, miembros: Miembros): string {
     case "MODULE_REQUESTED":
       return `pidió activar ${labelModulo(e.moduleKey)}`;
     case "ORG_TYPE_SET":
-      return `eligió el tipo ${e.detail ?? e.toRole ?? ""}`.trim();
+      return `eligió el tipo ${tipoPorId(e.detail)?.label ?? e.detail ?? ""}`.trim();
     default:
       return "hizo un cambio";
   }
@@ -75,6 +76,25 @@ export default async function EquipoPage() {
   const ofrecidos = rolesOfrecidos(role, getModuleDefinition("projects")?.status === "AVAILABLE");
   const esDueno = role === "WORKSPACE_OWNER";
 
+  // Quien ya no está en el equipo (o nunca estuvo) igual tiene que aparecer con su nombre.
+  const conocidos = new Set(team.members.map((m) => m.userId));
+  const faltantes = new Set<number>();
+  for (const e of team.events) {
+    for (const id of [e.actorUserId, e.targetUserId]) {
+      if (id != null && !conocidos.has(id)) faltantes.add(id);
+    }
+  }
+  const extra = faltantes.size
+    ? await prisma.user.findMany({
+        where: { id: { in: [...faltantes] } },
+        select: { id: true, name: true, email: true },
+      })
+    : [];
+  const personas: Miembros = [
+    ...team.members.map((m) => ({ userId: m.userId, name: m.name, email: m.email })),
+    ...extra.map((u) => ({ userId: u.id, name: u.name, email: u.email })),
+  ];
+
   const miembros: MiembroVista[] = team.members.map((m) => ({
     userId: m.userId,
     name: m.name,
@@ -84,7 +104,13 @@ export default async function EquipoPage() {
     lastLogin: m.lastLoginAt ? m.lastLoginAt.toLocaleDateString("es-AR") : "Nunca",
     esUnoMismo: m.userId === user.id,
   }));
+  // Una anulada que ya fue reemplazada por otra más nueva al mismo correo es ruido.
+  const conMasNueva = (i: (typeof team.invitations)[number]) =>
+    team.invitations.some(
+      (o) => o.id !== i.id && o.email === i.email && o.expiresAt.getTime() > i.expiresAt.getTime(),
+    );
   const invitaciones: InvitacionVista[] = team.invitations
+    .filter((i) => !(i.revokedAt && !i.acceptedAt && conMasNueva(i)))
     .map((i) => ({
       id: i.id,
       email: i.email,
@@ -97,8 +123,8 @@ export default async function EquipoPage() {
   const eventos: EventoVista[] = team.events.map((e) => ({
     id: e.id,
     fecha: e.createdAt.toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" }),
-    actor: e.actorUserId == null ? "El sistema" : persona(e.actorUserId, null, team.members),
-    texto: textoEvento(e, team.members),
+    actor: e.actorUserId == null ? "El sistema" : persona(e.actorUserId, null, personas),
+    texto: textoEvento(e, personas),
   }));
 
   return (

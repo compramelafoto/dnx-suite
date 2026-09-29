@@ -135,10 +135,13 @@ export async function resendInvitationAction(
   const { user, workspaceId, role } = await contexto();
   if (!role || !puede(role, "gestionarEquipo")) return { error: SIN_PERMISO };
   const inv = await prisma.workspaceInvitation.findFirst({
-    where: { id: String(fd.get("invitationId") ?? ""), workspaceId },
+    where: { id: String(fd.get("invitationId") ?? ""), workspaceId, acceptedAt: null },
     select: { email: true, role: true },
   });
   if (!inv) return { error: "No se encontró la invitación." };
+  if (!rolesOfrecidos(role, colaboradorDisponible()).includes(inv.role)) {
+    return { error: "Ese rol no está disponible." };
+  }
   // Al crear la nueva, `createTeamInvitation` deja sin efecto la anterior.
   const r = await inviteTeamMember({
     workspaceId,

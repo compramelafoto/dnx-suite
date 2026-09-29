@@ -224,8 +224,16 @@ export async function removeMember(workspaceId: string, targetUserId: number, ac
     });
     await tx.workspaceAppAccess.deleteMany({ where: { userId: targetUserId, workspaceId, app: "FOTOFFICE" } });
     await tx.membership.deleteMany({ where: { userId: targetUserId, workspaceId } });
+    const removed = await tx.user.findUnique({ where: { id: targetUserId }, select: { email: true } });
     await tx.workspaceAdminEvent.create({
-      data: { workspaceId, actorUserId, targetUserId, kind: "REMOVED", fromRole: current.role },
+      data: {
+        workspaceId,
+        actorUserId,
+        targetUserId,
+        targetEmail: removed?.email,
+        kind: "REMOVED",
+        fromRole: current.role,
+      },
     });
   });
 }
