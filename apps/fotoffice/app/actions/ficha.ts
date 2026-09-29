@@ -17,6 +17,15 @@ import {
   restaurarAdjunto,
 } from "@/lib/ficha/adjuntos";
 import { adjuntosR2Configurado } from "@/lib/ficha/adjuntos-r2";
+import {
+  armarLinea,
+  leerCursor,
+  serializarPagina,
+  TIPOS_EVENTO,
+  type PaginaLineaWire,
+  type TipoEvento,
+} from "@/lib/ficha/linea-de-tiempo";
+import { PROVEEDORES_FICHA } from "@/lib/ficha/proveedores";
 
 export type EstadoFicha = ResultadoNota;
 
@@ -252,4 +261,30 @@ export async function buscarPersonasAction(texto: string): Promise<PersonaEncont
   const ctx = await contextoDeBusquedaDePersonas();
   if (!ctx) return [];
   return buscarPersonas(ctx.workspaceId, t, { clientes: ctx.clientes, socios: ctx.socios, take: 10 });
+}
+
+export type PaginaLineaResultado = ({ ok: true } & PaginaLineaWire) | Falla;
+
+/**
+ * La página siguiente de la línea de tiempo. Los permisos de plata se aplican en el servidor
+ * (`armarLinea`): sin `verDinero`, esos eventos no se leen ni viajan.
+ */
+export async function verMasAction(
+  persona: PersonaPedida,
+  filtro: TipoEvento | null,
+  cursor: string | null,
+): Promise<PaginaLineaResultado> {
+  if (!personaValida(persona)) return DATOS_INVALIDOS;
+  if (filtro !== null && !(TIPOS_EVENTO as readonly unknown[]).includes(filtro)) return DATOS_INVALIDOS;
+  if (cursor !== null && (typeof cursor !== "string" || !leerCursor(cursor))) return DATOS_INVALIDOS;
+  const ctx = await contextoDeFicha(persona);
+  if (!ctx) return SIN_ACCESO;
+  const pagina = await armarLinea({
+    proveedores: PROVEEDORES_FICHA,
+    ctx: { workspaceId: ctx.workspaceId, role: ctx.role },
+    persona: ctx.persona,
+    filtro,
+    cursor,
+  });
+  return { ok: true, ...serializarPagina(pagina) };
 }

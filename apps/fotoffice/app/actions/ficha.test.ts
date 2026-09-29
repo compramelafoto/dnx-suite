@@ -47,6 +47,14 @@ vi.mock("@/lib/ficha/adjuntos", () => ({
 vi.mock("@/lib/ficha/adjuntos-r2", () => ({ adjuntosR2Configurado: H.r2ok }));
 vi.mock("@/lib/ficha/etiquetas", () => ({ ponerEtiqueta: H.poner, quitarEtiqueta: H.quitar, buscarEtiquetas: H.buscar }));
 
+const L = vi.hoisted(() => ({ notas: vi.fn(), caja: vi.fn() }));
+vi.mock("@/lib/ficha/proveedores", () => ({
+  PROVEEDORES_FICHA: [
+    { clave: "notas", tipo: "notas", traer: L.notas },
+    { clave: "caja", tipo: "plata", capacidad: "verDinero", traer: L.caja },
+  ],
+}));
+
 const m = await import("./ficha");
 const { crearRelacionAction, borrarRelacionAction, buscarPersonasAction, ponerEtiquetaAction, quitarEtiquetaAction, buscarEtiquetasAction, crearNotaAction, editarNotaAction, borrarNotaAction, fijarNotaAction } = m;
 
@@ -247,5 +255,50 @@ describe("personas relacionadas", () => {
     H.buscarPers.mockResolvedValue([{ tipo: "CLIENTE", id: "c2", nombre: "Ana", detalle: null }]);
     expect(await buscarPersonasAction("ana")).toHaveLength(1);
     expect(H.buscarPers).toHaveBeenCalledWith("ws-1", "ana", { clientes: true, socios: false, take: 10 });
+  });
+});
+
+describe("verMasAction", () => {
+  const NOTA = { id: "notas:n1", tipo: "notas", fecha: new Date("2026-09-01T10:00:00.000Z"), actor: "Ana", titulo: "Nota" };
+  const PLATA = { id: "caja:k1", tipo: "plata", fecha: new Date("2026-09-02T10:00:00.000Z"), actor: null, titulo: "Ingreso" };
+  beforeEach(() => {
+    L.notas.mockReset().mockResolvedValue([NOTA]);
+    L.caja.mockReset().mockResolvedValue([PLATA]);
+  });
+
+  it("forma inválida: rechaza sin mirar la sesión", async () => {
+    expect(await m.verMasAction({ tipo: "OTRO", id: "x" } as never, null, null)).toEqual({ ok: false, error: "Los datos no son válidos." });
+    expect(await m.verMasAction(P, "hack" as never, null)).toEqual({ ok: false, error: "Los datos no son válidos." });
+    expect(await m.verMasAction(P, null, "basura")).toEqual({ ok: false, error: "Los datos no son válidos." });
+    expect(H.ctx).not.toHaveBeenCalled();
+  });
+
+  it("sin contexto: sin acceso y no lee nada", async () => {
+    H.ctx.mockResolvedValue(null);
+    expect((await m.verMasAction(P, null, null)).ok).toBe(false);
+    expect(L.notas).not.toHaveBeenCalled();
+  });
+
+  it("devuelve la página serializable, con el workspace y la persona de la sesión", async () => {
+    const r = await m.verMasAction(P, null, "2026-09-03T00:00:00.000Z|notas:zz");
+    expect(r).toEqual({
+      ok: true,
+      eventos: [
+        { ...PLATA, fecha: "2026-09-02T10:00:00.000Z" },
+        { ...NOTA, fecha: "2026-09-01T10:00:00.000Z" },
+      ],
+      siguiente: null,
+      fallaron: [],
+    });
+    expect(L.notas.mock.calls[0]![0]).toEqual({ workspaceId: "ws-1" });
+    expect(L.notas.mock.calls[0]![1]).toEqual({ clientId: "c1", memberId: "m1" });
+    expect(L.notas.mock.calls[0]![2]).toEqual(new Date("2026-09-03T00:00:00.000Z"));
+  });
+
+  it("sin verDinero la plata no se lee ni viaja", async () => {
+    H.ctx.mockResolvedValue({ ...CTX, role: "COLLABORATOR" });
+    const r = await m.verMasAction(P, null, null);
+    expect(r.ok && r.eventos.map((e) => e.id)).toEqual(["notas:n1"]);
+    expect(L.caja).not.toHaveBeenCalled();
   });
 });
