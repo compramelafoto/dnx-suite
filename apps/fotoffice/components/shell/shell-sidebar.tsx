@@ -17,6 +17,8 @@ export function ShellSidebar({
   canManageMembers,
   canCoordinateCoverages,
   canManageWorkspaceSettings,
+  canManageTeam,
+  organizationType,
   platformAdmin,
   vocabulary,
 }: {
@@ -37,6 +39,8 @@ export function ShellSidebar({
   canManageMembers: boolean;
   canCoordinateCoverages: boolean;
   canManageWorkspaceSettings: boolean;
+  canManageTeam: boolean;
+  organizationType: string | null;
   platformAdmin: boolean;
   vocabulary: PersonVocabulary;
 }) {
@@ -71,6 +75,8 @@ export function ShellSidebar({
         canManageMembers={canManageMembers}
         canCoordinateCoverages={canCoordinateCoverages}
         canManageWorkspaceSettings={canManageWorkspaceSettings}
+        canManageTeam={canManageTeam}
+        organizationType={organizationType}
         platformAdmin={platformAdmin}
         vocabulary={vocabulary}
       />

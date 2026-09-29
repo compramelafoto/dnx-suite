@@ -7,6 +7,7 @@ import { requireOwnWorkspace } from "@/lib/entrada/require-own-workspace";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { resolveEnabledNavModules } from "@/lib/modules/nav";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
+import { puede } from "@/lib/access/policy";
 import { PORTAL_HOME } from "@/lib/portal/destination";
 import { resolveFotofficeUserKind } from "@/lib/portal/user-kind";
 import { listUserProfiles } from "@/lib/portal/profiles";
@@ -154,6 +155,22 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
           >
             Configuración
           </Link>
+          {puede(workspaceRole, "gestionarEquipo") ? (
+          <Link
+            href="/workspace/configuracion/equipo"
+            className="block rounded-xl px-4 py-3 text-sm font-medium text-[var(--fo-text)] hover:bg-[var(--fo-surface)] border border-transparent hover:border-[var(--fo-border)]"
+          >
+            Equipo
+          </Link>
+          ) : null}
+          {puede(workspaceRole, "configurar") ? (
+          <Link
+            href="/workspace/configuracion/modulos"
+            className="block rounded-xl px-4 py-3 text-sm font-medium text-[var(--fo-text)] hover:bg-[var(--fo-surface)] border border-transparent hover:border-[var(--fo-border)]"
+          >
+            Módulos
+          </Link>
+          ) : null}
         </nav>
         <main className="flex-1 min-w-0">{children}</main>
       </div>

@@ -15,6 +15,8 @@ import { canManageMembers } from "@/lib/members/role-policy";
 import { canCoordinateCoverages } from "@/lib/coverages/access-policy";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
+import { puede } from "@/lib/access/policy";
+import { getOrganizationType } from "@/lib/workspace-type";
 import { isFotofficePlatformAdmin } from "@/lib/platform-admin";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { personVocabulary } from "@/lib/vocabulario/personas";
@@ -49,7 +51,10 @@ export default async function ShellLayout({ children }: { children: React.ReactN
   const activeRole = workspace !== null ? await resolveWorkspaceRole(user.id, workspace.id) : null;
   const canManageMembersFlag = canManageMembers(activeRole);
   const canManageWorkspaceSettingsFlag = canManageWorkspaceSettings(activeRole);
-  const platformAdmin = await isFotofficePlatformAdmin(user.id);
+  const [platformAdmin, organizationType] = await Promise.all([
+    isFotofficePlatformAdmin(user.id),
+    workspace !== null ? getOrganizationType(workspace.id) : Promise.resolve(null),
+  ]);
   // Sin workspace activo (recién invitado, todavía sin `ensure`) no hay fila que leer: el
   // vocabulario por omisión es lo correcto, ya que tampoco hay ningún módulo habilitado.
   const vocabulary =
@@ -77,6 +82,8 @@ export default async function ShellLayout({ children }: { children: React.ReactN
           canManageMembers={canManageMembersFlag}
           canCoordinateCoverages={canCoordinateCoverages(activeRole)}
           canManageWorkspaceSettings={canManageWorkspaceSettingsFlag}
+          canManageTeam={puede(activeRole, "gestionarEquipo")}
+          organizationType={organizationType}
           platformAdmin={platformAdmin}
           vocabulary={vocabulary}
         />

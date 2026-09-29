@@ -10,6 +10,7 @@ import {
   Plug,
   Inbox,
   LayoutDashboard,
+  LayoutGrid,
   Settings,
   Shield,
   UserCog,
@@ -29,6 +30,9 @@ import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
+import { ordenarSecciones } from "@/lib/modules/nav-order";
+import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
+import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
 /**
@@ -157,6 +161,8 @@ export function ShellNav({
   canManageMembers,
   canCoordinateCoverages,
   canManageWorkspaceSettings,
+  canManageTeam,
+  organizationType,
   platformAdmin,
   vocabulary,
 }: {
@@ -171,6 +177,9 @@ export function ShellNav({
   canManageMembers: boolean;
   canCoordinateCoverages: boolean;
   canManageWorkspaceSettings: boolean;
+  /** Puede ver Equipo (`gestionarEquipo`). Módulos usa `canManageWorkspaceSettings` (`configurar`). */
+  canManageTeam: boolean;
+  organizationType: string | null;
   platformAdmin: boolean;
   vocabulary: PersonVocabulary;
 }) {
@@ -280,6 +289,22 @@ export function ShellNav({
         },
       ]
     : [];
+  if (canManageTeam) {
+    institucion.push({
+      href: "/workspace/configuracion/equipo",
+      label: "Equipo",
+      icon: Users,
+      isActive: under("/workspace/configuracion/equipo"),
+    });
+  }
+  if (canManageWorkspaceSettings) {
+    institucion.push({
+      href: "/workspace/configuracion/modulos",
+      label: "Módulos",
+      icon: LayoutGrid,
+      isActive: under("/workspace/configuracion/modulos"),
+    });
+  }
 
   const plataforma: Item[] = platformAdmin
     ? [
@@ -289,6 +314,21 @@ export function ShellNav({
         { href: "/admin/owners", label: "Dueños", icon: Users, isActive: under("/admin/owners") },
       ]
     : [];
+
+  // Las secciones con módulo se ordenan por la familia que le corresponde al tipo de
+  // organización; Inicio, Institución y Plataforma conservan su lugar.
+  const secciones = ordenarSecciones(
+    [
+      { id: "socios", title: vocabulary.Plural, items: socios, moduleKey: MEMBERS_MODULE_KEY },
+      { id: "sorteos", title: "Sorteos", items: sorteos, moduleKey: RAFFLES_MODULE_KEY },
+      { id: "coberturas", title: "Coberturas", items: coberturas, moduleKey: COVERAGES_MODULE_KEY },
+      { id: "cursos", title: "Cursos", items: cursosItems, moduleKey: COURSES_SALES_MODULE_KEY },
+      { id: "reservas", title: "Reservas", items: reservas, moduleKey: BOOKINGS_MODULE_KEY },
+      { id: "captacion", title: "Captación", items: captacion, moduleKey: SERVICE_LEADS_MODULE_KEY },
+      { id: "presencia", title: "Presencia pública", items: presencia, moduleKey: WEBSITE_MODULE_KEY },
+    ] as { id: string; title: string; items: Item[]; moduleKey: string | null }[],
+    organizationType,
+  );
 
   return (
     <nav className="flex flex-col gap-0.5" aria-label="Principal">
@@ -300,13 +340,9 @@ export function ShellNav({
           { href: "/dashboard", label: "Inicio", icon: LayoutDashboard, isActive: exact("/dashboard") },
         ]}
       />
-      <Section title={vocabulary.Plural} items={socios} path={path} onNavigate={closeDrawer} />
-      <Section title="Sorteos" items={sorteos} path={path} onNavigate={closeDrawer} />
-      <Section title="Coberturas" items={coberturas} path={path} onNavigate={closeDrawer} />
-      <Section title="Cursos" items={cursosItems} path={path} onNavigate={closeDrawer} />
-      <Section title="Reservas" items={reservas} path={path} onNavigate={closeDrawer} />
-      <Section title="Captación" items={captacion} path={path} onNavigate={closeDrawer} />
-      <Section title="Presencia pública" items={presencia} path={path} onNavigate={closeDrawer} />
+      {secciones.map((sec) => (
+        <Section key={sec.id} title={sec.title} items={sec.items} path={path} onNavigate={closeDrawer} />
+      ))}
       <Section title="Institución" items={institucion} path={path} onNavigate={closeDrawer} />
       <Section title="Plataforma" items={plataforma} path={path} onNavigate={closeDrawer} />
     </nav>
