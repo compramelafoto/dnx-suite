@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { contextoDeListado, exigirCapacidad } from "@/lib/listado/acceso";
 import { aplicarLote, prepararLote, type PreparacionLote, type ResultadoAplicar, type Seleccion } from "@/lib/listado/lote";
 import { hoyEnBuenosAires } from "@/lib/listado/periodos";
-import { definicionDe, LISTAS } from "@/lib/listado/registro";
+import { definicionDe, entradaDeLista } from "@/lib/listado/registro";
 import type { Opcion } from "@/lib/listado/tipos";
 import { borrarVista, crearVista, normalizarNombreVista, renombrarVista, sanearQuery } from "@/lib/listado/vistas";
 
@@ -12,6 +12,11 @@ type Estado = { error: string | null; ok?: boolean };
 
 const SIN_ACCESO = { error: "No tenés acceso a esta lista." };
 const VISTA_AJENA = { error: "No encontramos esa vista o no podés modificarla." };
+
+function revalidarLista(clave: string) {
+  const lista = entradaDeLista(clave);
+  if (lista) revalidatePath(lista.ruta);
+}
 
 function texto(fd: FormData, campo: string): string {
   const v = fd.get(campo);
@@ -32,7 +37,7 @@ export async function guardarVistaAction(_prev: Estado, formData: FormData): Pro
     return { error: "Sólo el dueño o un administrador pueden compartir vistas con el equipo." };
   }
   await crearVista(ctx, clave, nombre, sanearQuery(def, texto(formData, "query")), compartida);
-  revalidatePath(LISTAS[clave].ruta);
+  revalidarLista(clave);
   return { error: null, ok: true };
 }
 
@@ -43,7 +48,7 @@ export async function renombrarVistaAction(_prev: Estado, formData: FormData): P
   const nombre = normalizarNombreVista(texto(formData, "nombre"));
   if (!nombre) return { error: "Poné un nombre de hasta 60 caracteres." };
   if (!(await renombrarVista(ctx, texto(formData, "id"), nombre))) return VISTA_AJENA;
-  revalidatePath(LISTAS[clave].ruta);
+  revalidarLista(clave);
   return { error: null, ok: true };
 }
 
@@ -52,7 +57,7 @@ export async function borrarVistaAction(_prev: Estado, formData: FormData): Prom
   const ctx = await contextoDeListado(clave);
   if (!ctx) return SIN_ACCESO;
   if (!(await borrarVista(ctx, texto(formData, "id")))) return VISTA_AJENA;
-  revalidatePath(LISTAS[clave].ruta);
+  revalidarLista(clave);
   return { error: null, ok: true };
 }
 
@@ -98,7 +103,7 @@ export async function aplicarLoteAction(
   if (!accion) return { error: "Acción desconocida." };
   if (!exigirCapacidad(ctx, accion.capacidad)) return { error: "No tenés permiso para esta acción." };
   const r = await aplicarLote(def, accion, ctx, entrada.seleccion, entrada.parametro, entrada.cantidadConfirmada, hoyEnBuenosAires());
-  if (r.estado === "hecho") revalidatePath(LISTAS[entrada.clave].ruta);
+  if (r.estado === "hecho") revalidarLista(entrada.clave);
   return r;
 }
 

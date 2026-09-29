@@ -4,7 +4,7 @@ import { resolveActiveWorkspace } from "@/lib/workspace";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { puede, type Capacidad } from "@/lib/access/policy";
-import { LISTAS } from "./registro";
+import { entradaDeLista } from "./registro";
 import type { ContextoListado } from "./tipos";
 
 /** Cómo se nombra a la persona en el registro de actividad. Una sola regla para todas las páginas. */
@@ -18,7 +18,7 @@ export function etiquetaDeUsuario(user: { id: number; name?: string | null; emai
  * redirige: un redirect en una descarga produce un archivo con HTML adentro.
  */
 export async function contextoDeListado(clave: string): Promise<ContextoListado | null> {
-  const lista = LISTAS[clave];
+  const lista = entradaDeLista(clave);
   if (!lista) return null;
   const user = await getAuthUser();
   if (!user) return null;

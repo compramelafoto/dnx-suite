@@ -32,7 +32,16 @@ export const LISTAS: Record<string, EntradaLista> = {
   },
 };
 
+/**
+ * La entrada de una lista, sólo si es propia del registro: claves heredadas del prototipo
+ * (`constructor`, `__proto__`, `toString`…) cuentan como desconocidas. Toda búsqueda por clave
+ * que llegue de afuera (dirección, formulario) pasa por acá, nunca por `LISTAS[clave]`.
+ */
+export function entradaDeLista(clave: string): EntradaLista | null {
+  return typeof clave === "string" && Object.hasOwn(LISTAS, clave) ? LISTAS[clave] : null;
+}
+
 export async function definicionDe(clave: string, ctx: ContextoListado): Promise<ListadoCualquiera | null> {
-  const l = LISTAS[clave];
+  const l = entradaDeLista(clave);
   return l ? l.cargar(ctx) : null;
 }

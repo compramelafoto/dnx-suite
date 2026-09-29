@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { LISTAS } from "./registro";
+import { definicionDe, entradaDeLista, LISTAS } from "./registro";
+import type { ContextoListado } from "./tipos";
 
 describe("registro de listas", () => {
   it("tiene las tres listas de la etapa con su módulo", () => {
@@ -16,5 +17,19 @@ describe("registro de listas", () => {
       socios: "/members",
       "caja-movimientos": "/caja/movimientos",
     });
+  });
+});
+
+describe("claves que no son listas", () => {
+  const ctx: ContextoListado = { workspaceId: "w", workspaceName: "W", userId: 1, userLabel: "x", role: "WORKSPACE_OWNER" };
+  const heredadas = ["constructor", "__proto__", "toString", "hasOwnProperty", "valueOf", "inventada", ""];
+
+  it("las heredadas del prototipo cuentan como desconocidas", () => {
+    for (const c of heredadas) expect(entradaDeLista(c)).toBeNull();
+    expect(entradaDeLista("clientes")?.ruta).toBe("/clientes");
+  });
+
+  it("definicionDe devuelve null sin cargar nada", async () => {
+    for (const c of heredadas) expect(await definicionDe(c, ctx)).toBeNull();
   });
 });
