@@ -11,6 +11,9 @@ export type OrdersObserveAlertCode =
   | "GET_ORDER_FAILED"
   /** No hay callback de GET Order configurado: el estado real nunca se consultó. */
   | "GET_ORDER_NOT_CONFIGURED"
+  /** Qué convención de `data.id` usó MP para firmar (la doc es ambigua por tópico). */
+  | "SIGNATURE_DATA_ID_AS_RECEIVED"
+  | "SIGNATURE_DATA_ID_LOWERCASED"
   | "DEAD_LETTER"
   | "RETRY_SCHEDULED";
 

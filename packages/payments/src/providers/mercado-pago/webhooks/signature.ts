@@ -67,8 +67,17 @@ export type VerifyMercadoPagoWebhookSignatureInput = {
   nowMs?: number;
 };
 
+/** Qué forma del `data.id` produjo la firma que Mercado Pago envió. */
+export type MercadoPagoDataIdVariant = "as_received" | "lowercased";
+
 export type VerifyMercadoPagoWebhookSignatureResult =
-  | { ok: true; ts: string; manifest: string }
+  | {
+      ok: true;
+      ts: string;
+      manifest: string;
+      /** Observabilidad: deja ver qué convención usó MP para este tópico. */
+      dataIdVariant: MercadoPagoDataIdVariant;
+    }
   | {
       ok: false;
       reason:
@@ -111,17 +120,33 @@ export function verifyMercadoPagoWebhookSignature(
     }
   }
 
-  const manifest = buildMercadoPagoWebhookManifest({ dataId, requestId, ts });
-  const digest = createHmac("sha256", input.secret).update(manifest).digest("hex");
-
-  const expected = Buffer.from(digest, "utf8");
-  const provided = Buffer.from(v1, "utf8");
-  const valid =
-    expected.length === provided.length && timingSafeEqual(expected, provided);
-
-  if (!valid) {
-    return { ok: false, reason: "signature_mismatch" };
+  /**
+   * La documentación pide pasar el `data.id` alfanumérico a minúsculas, pero esa
+   * regla se escribió para el tópico `payment`. Las notificaciones de `order`
+   * traen identificadores en mayúsculas (`ORDTST…`) y Mercado Pago las firma tal
+   * cual las envía. Probamos ambas convenciones y avisamos cuál coincidió, en vez
+   * de rechazar una notificación legítima por una ambigüedad de la documentación.
+   *
+   * Aceptar dos variantes no debilita la verificación: las dos son HMAC con el
+   * mismo secreto, y sin ese secreto ninguna se puede falsificar.
+   */
+  const lowered = normalizeMercadoPagoDataId(dataId);
+  const candidates: Array<{ id: string; variant: MercadoPagoDataIdVariant }> = [
+    { id: dataId, variant: "as_received" },
+  ];
+  if (lowered !== dataId) {
+    candidates.push({ id: lowered, variant: "lowercased" });
   }
 
-  return { ok: true, ts, manifest };
+  const provided = Buffer.from(v1, "utf8");
+  for (const candidate of candidates) {
+    const manifest = `${[`id:${candidate.id}`, `request-id:${requestId}`, `ts:${ts}`].join(";")};`;
+    const digest = createHmac("sha256", input.secret).update(manifest).digest("hex");
+    const expected = Buffer.from(digest, "utf8");
+    if (expected.length === provided.length && timingSafeEqual(expected, provided)) {
+      return { ok: true, ts, manifest, dataIdVariant: candidate.variant };
+    }
+  }
+
+  return { ok: false, reason: "signature_mismatch" };
 }
