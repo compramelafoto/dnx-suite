@@ -7127,6 +7127,10 @@ model Workspace {
   fotofficeTagAssignments FotofficeTagAssignment[]
   fotofficeAttachments FotofficeAttachment[]
   fotofficePersonRelations FotofficePersonRelation[]
+  fotofficeCircuits FotofficeCircuit[]
+  fotofficeLossReasons FotofficeLossReason[]
+  fotofficeJourneys FotofficeJourney[]
+  fotofficeTasks FotofficeTask[]
   fotofficePersonEvents FotofficePersonEvent[]
   clientAudits ClientAudit[]
 }
@@ -19209,4 +19213,175 @@ model ClickatonTestimonialInvite {
 
   @@unique([editionId, email])
   @@index([editionId, status])
+}
+
+/// Circuito de etapas (embudo de venta o flujo de trabajo). Etapa 0.4.
+model FotofficeCircuit {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  /// VENTA | TRABAJO
+  kind        String
+  isActive    Boolean  @default(true)
+  /// Uno por clase y workspace (índice único parcial en el SQL).
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  stages    FotofficeStage[]
+  journeys  FotofficeJourney[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, kind, isActive])
+}
+
+model FotofficeStage {
+  id           String    @id @default(cuid())
+  circuitId    String
+  name         String
+  color        String    @default("gris")
+  order        Int
+  /// 0 = sin vencimiento.
+  days         Int       @default(0)
+  requireTasks Boolean   @default(false)
+  /// Sólo circuitos de VENTA de Captación: NEW | CONTACTED | QUOTED | INTERESTED.
+  leadStatus   String?
+  archivedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  circuit   FotofficeCircuit             @relation(fields: [circuitId], references: [id], onDelete: Cascade)
+  templates FotofficeStageTaskTemplate[]
+  rules     FotofficeStageRule[]
+  journeys  FotofficeJourney[]
+  tasks     FotofficeTask[]
+  stepsFrom FotofficeJourneyStep[]       @relation("StepFrom")
+  stepsTo   FotofficeJourneyStep[]       @relation("StepTo")
+
+  @@index([circuitId, order])
+}
+
+model FotofficeStageTaskTemplate {
+  id       String  @id @default(cuid())
+  stageId  String
+  title    String
+  days     Int     @default(0)
+  required Boolean @default(false)
+  order    Int
+
+  stage FotofficeStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+
+  @@index([stageId, order])
+}
+
+model FotofficeStageRule {
+  id      String @id @default(cuid())
+  stageId String
+  event   String
+
+  stage FotofficeStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+
+  @@unique([stageId, event])
+}
+
+model FotofficeLossReason {
+  id          String  @id @default(cuid())
+  workspaceId String
+  name        String
+  order       Int     @default(0)
+  isActive    Boolean @default(true)
+
+  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  journeys  FotofficeJourney[]
+
+  @@unique([workspaceId, name])
+}
+
+/// El recorrido de un registro por un circuito.
+model FotofficeJourney {
+  id             String    @id @default(cuid())
+  workspaceId    String
+  circuitId      String
+  /// VENTA | TRABAJO — copia de la clase del circuito, para el índice único parcial.
+  kind           String
+  /// CAPTACION | CONSULTA | PROYECTO | COBERTURA
+  subjectType    String
+  subjectId      String
+  /// null cuando el recorrido terminó.
+  stageId        String?
+  /// GANADA | PERDIDA | TERMINADO | CANCELADO
+  outcome        String?
+  lossReasonId   String?
+  enteredStageAt DateTime  @default(now())
+  stageDueAt     DateTime?
+  ownerUserId    Int?
+  closedAt       DateTime?
+  createdAt      DateTime  @default(now())
+
+  workspace  Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  circuit    FotofficeCircuit     @relation(fields: [circuitId], references: [id], onDelete: Restrict)
+  stage      FotofficeStage?      @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  lossReason FotofficeLossReason? @relation(fields: [lossReasonId], references: [id], onDelete: SetNull)
+  steps      FotofficeJourneyStep[]
+  tasks      FotofficeTask[]
+  processed  FotofficeProcessedEvent[]
+
+  @@index([workspaceId, subjectType, subjectId])
+  @@index([circuitId, stageId])
+}
+
+model FotofficeJourneyStep {
+  id                     String   @id @default(cuid())
+  journeyId              String
+  fromStageId            String?
+  toStageId              String?
+  outcome                String?
+  note                   String?
+  auto                   Boolean  @default(false)
+  event                  String?
+  forcedWithPendingTasks Boolean  @default(false)
+  actorUserId            Int?
+  actorLabel             String
+  createdAt              DateTime @default(now())
+
+  journey   FotofficeJourney @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  fromStage FotofficeStage?  @relation("StepFrom", fields: [fromStageId], references: [id], onDelete: SetNull)
+  toStage   FotofficeStage?  @relation("StepTo", fields: [toStageId], references: [id], onDelete: SetNull)
+
+  @@index([journeyId, createdAt])
+}
+
+model FotofficeTask {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  journeyId       String?
+  stageId         String?
+  subjectType     String
+  subjectId       String
+  title           String
+  dueAt           DateTime?
+  assigneeUserId  Int?
+  required        Boolean   @default(false)
+  doneAt          DateTime?
+  doneByUserId    Int?
+  createdByUserId Int?
+  createdAt       DateTime  @default(now())
+
+  workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  journey   FotofficeJourney? @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  stage     FotofficeStage?   @relation(fields: [stageId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, assigneeUserId, doneAt, dueAt])
+  @@index([journeyId])
+}
+
+model FotofficeProcessedEvent {
+  id        String   @id @default(cuid())
+  journeyId String
+  event     String
+  sourceRef String
+  createdAt DateTime @default(now())
+
+  journey FotofficeJourney @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+
+  @@unique([journeyId, event, sourceRef])
 }
