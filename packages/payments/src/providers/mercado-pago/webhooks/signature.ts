@@ -61,6 +61,12 @@ export type VerifyMercadoPagoWebhookSignatureInput = {
   signatureHeader: string | null | undefined;
   requestIdHeader: string | null | undefined;
   dataId: string | null | undefined;
+  /**
+   * `data.id` tal como vino en la query de la notificación. Mercado Pago arma el
+   * manifest con los parámetros de la URL, así que si no lo mandó ahí, su firma
+   * no incluye el segmento `id:` — aunque el cuerpo sí traiga el identificador.
+   */
+  queryDataId?: string | null;
   secret: string | null | undefined;
   /** Tolerancia opcional en ms respecto a Date.now(); 0/undefined = sin chequeo. */
   maxSkewMs?: number;
@@ -68,7 +74,13 @@ export type VerifyMercadoPagoWebhookSignatureInput = {
 };
 
 /** Qué forma del `data.id` produjo la firma que Mercado Pago envió. */
-export type MercadoPagoDataIdVariant = "as_received" | "lowercased";
+export type MercadoPagoDataIdVariant =
+  | "query"
+  | "query_lowercased"
+  | "as_received"
+  | "lowercased"
+  /** MP no mandó `data.id` en la URL: su manifest no lleva el segmento `id:`. */
+  | "omitted";
 
 export type VerifyMercadoPagoWebhookSignatureResult =
   | {
@@ -142,17 +154,25 @@ export function verifyMercadoPagoWebhookSignature(
    * Aceptar dos variantes no debilita la verificación: las dos son HMAC con el
    * mismo secreto, y sin ese secreto ninguna se puede falsificar.
    */
-  const lowered = normalizeMercadoPagoDataId(dataId);
-  const candidates: Array<{ id: string; variant: MercadoPagoDataIdVariant }> = [
-    { id: dataId, variant: "as_received" },
-  ];
-  if (lowered !== dataId) {
-    candidates.push({ id: lowered, variant: "lowercased" });
+  const queryId = input.queryDataId?.trim() || null;
+  const candidates: Array<{ id: string | null; variant: MercadoPagoDataIdVariant }> = [];
+  const push = (id: string | null, variant: MercadoPagoDataIdVariant) => {
+    if (!candidates.some((c) => c.id === id)) candidates.push({ id, variant });
+  };
+
+  if (queryId) {
+    push(queryId, "query");
+    push(normalizeMercadoPagoDataId(queryId), "query_lowercased");
   }
+  push(dataId, "as_received");
+  push(normalizeMercadoPagoDataId(dataId), "lowercased");
+  push(null, "omitted");
 
   const provided = Buffer.from(v1, "utf8");
   for (const candidate of candidates) {
-    const manifest = `${[`id:${candidate.id}`, `request-id:${requestId}`, `ts:${ts}`].join(";")};`;
+    const parts = candidate.id ? [`id:${candidate.id}`] : [];
+    parts.push(`request-id:${requestId}`, `ts:${ts}`);
+    const manifest = `${parts.join(";")};`;
     const digest = createHmac("sha256", input.secret).update(manifest).digest("hex");
     const expected = Buffer.from(digest, "utf8");
     if (expected.length === provided.length && timingSafeEqual(expected, provided)) {
@@ -168,12 +188,14 @@ export function verifyMercadoPagoWebhookSignature(
       requestIdPresent: true,
       ts,
       receivedV1Prefix: v1.slice(0, 8),
-      expectedV1Prefixes: candidates.map((c) =>
-        createHmac("sha256", input.secret as string)
-          .update(`id:${c.id};request-id:${requestId};ts:${ts};`)
+      expectedV1Prefixes: candidates.map((c) => {
+        const parts = c.id ? [`id:${c.id}`] : [];
+        parts.push(`request-id:${requestId}`, `ts:${ts}`);
+        return `${c.variant}=${createHmac("sha256", input.secret as string)
+          .update(`${parts.join(";")};`)
           .digest("hex")
-          .slice(0, 8),
-      ),
+          .slice(0, 8)}`;
+      }),
     },
   };
 }
