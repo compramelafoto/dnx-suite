@@ -85,7 +85,7 @@ export default async function MarathonDetailPage({ params }: PageProps) {
         pathname,
         publicLandingAllowed,
       }),
-      listPublishedTestimonials({ editionId: marathon.id, limit: 6 }),
+      listPublishedTestimonials({ editionId: marathon.id, limit: 24 }),
     ]);
   const offer = offerResult.ok ? offerResult.data : null;
   const welcomePayload = welcomeAd ? toClickatonEventWelcomePublicPayload(welcomeAd) : null;

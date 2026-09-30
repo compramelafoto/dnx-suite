@@ -325,6 +325,9 @@ model User {
   subilafotoSellerProfiles            SubilafotoSellerProfile[]
   subilafotoCollaborations            SubilafotoCollaborator[]
   coverageEvents                      CoverageEvent[]
+  clickatonReferralCode               ClickatonReferralCode?
+  clickatonReferralsMade              ClickatonReferralAttribution[]     @relation("ClickatonReferralReferrer")
+  clickatonReferralReceived           ClickatonReferralAttribution?      @relation("ClickatonReferralReferred")
 }
 
 /// Perfil financiero de ¿Cuánto Cobro? (wizard bloque A), 1:1 con User.
@@ -9793,6 +9796,8 @@ model FotorankJudgeAssignment {
   votes                         FotorankJudgeVote[]
   admissionBatchId              String?
   promptExternalId              String?
+  /// Qué vacante de jurado ocupa. Nulo = asignación sin reparto.
+  seatNumber                    Int?
   admissionBatch                FotorankAdmissionBatch?       @relation(fields: [admissionBatchId], references: [id], onDelete: SetNull)
   juryEvaluations               FotorankJuryEvaluation[]
 
@@ -11881,6 +11886,11 @@ model ClickatonEdition {
   surveyResponses            ClickatonSurveyResponse[]
   testimonials               ClickatonTestimonial[]
   testimonialInvites         ClickatonTestimonialInvite[]
+  /// Números reales de la edición: gastos, sobrante contado y comisiones de MP.
+  financeExpenses            ClickatonEditionExpense[]
+  leftoverItems              ClickatonEditionLeftoverItem[]
+  leftoverItemsReceived      ClickatonEditionLeftoverItem[]        @relation("LeftoverCarriedToEdition")
+  resultSettings             ClickatonEditionResultSettings?
 
   /// Habilita la compra de regalos en esta edición. Nace apagado.
   giftVouchersEnabled Boolean @default(false)
@@ -12761,10 +12771,10 @@ model ClickatonPhotoSubmissionAudit {
 /// teléfono si sus fotos guardan la ubicación y si el reloj está bien.
 /// La foto NUNCA se sube: acá sólo se guarda el veredicto.
 model ClickatonReadinessCheck {
-  id                String                @id @default(cuid())
+  id                String   @id @default(cuid())
   editionId         String
   registrationId    String
-  checkedAt         DateTime              @default(now())
+  checkedAt         DateTime @default(now())
   hasGps            Boolean
   /// Positivo = el teléfono va adelantado respecto del servidor.
   clockDeltaMinutes Int?
@@ -12774,7 +12784,7 @@ model ClickatonReadinessCheck {
   result            String
   /// Todos los problemas encontrados, no sólo el principal.
   detail            Json?
-  createdAt         DateTime              @default(now())
+  createdAt         DateTime @default(now())
 
   edition      ClickatonEdition      @relation(fields: [editionId], references: [id], onDelete: Cascade)
   registration ClickatonRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
@@ -13784,6 +13794,178 @@ model ClickatonContactMessage {
 }
 
 // ---------------------------------------------------------------------------
+// CLICKATÓN REFERIDOS (Etapa 01) — atribución "quién trajo a quién"
+//
+// El premio es volver, no cobrar: NO se reutiliza el programa de comisiones de
+// CompraMeLaFoto (`ReferralCode` / `ReferralEarning` / `ReferralPayoutRequest`),
+// que paga dinero y vive en otra app.
+//
+// El contador de colegas traídos NO es una columna: es
+// `count(atribuciones con status = EARNED)`. Al canjear, esas N pasan a
+// CONSUMED. Así hay auditoría completa, no hay saldo mutable que reconciliar,
+// y "lo que no se usó se conserva" sale solo.
+// ---------------------------------------------------------------------------
+
+enum ClickatonReferralAttributionStatus {
+  /// Colega traído y pagado: cuenta para la escalera.
+  EARNED
+  /// Tomado por una inscripción que todavía no se pagó. Sin este estado, dos
+  /// inscripciones simultáneas usarían los mismos colegas y las dos entrarían
+  /// con descuento.
+  RESERVED
+  /// Ya se canjeó en una inscripción con descuento pagada.
+  CONSUMED
+  /// El pago del referido se cayó (reembolso, contracargo, cancelación).
+  REVOKED
+}
+
+/// Código del link de invitación (`/i/<code>`). Uno por usuario, creado
+/// on-demand la primera vez que entra a su panel.
+model ClickatonReferralCode {
+  id        String   @id @default(cuid())
+  userId    Int      @unique
+  code      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User                           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attributions ClickatonReferralAttribution[]
+
+  @@index([code])
+}
+
+/// Fotógrafos de otras plataformas de la casa (CompraMeLaFoto, FOTOFFICE,
+/// FotoRank) a los que se les quiere contar que existe Clickatón.
+///
+/// Los contactos se copian acá en vez de leerse en vivo porque las cuentas no
+/// se comparten entre plataformas y cada una vive en su propia base. Copiarlos
+/// deja además registro de a quién se le escribió y de quién pidió no recibir
+/// más, que es lo que hace responsable un envío a gente que no lo pidió.
+model ClickatonOutreachContact {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String?
+  /// compramelafoto | fotoffice | fotorank
+  origen       String
+  /// Cuándo se le mandó el último correo, y de qué campaña.
+  lastSentAt   DateTime?
+  lastCampaign String?
+  /// Pidió no recibir más. Nunca se le vuelve a escribir.
+  optedOutAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([origen])
+  @@index([lastSentAt])
+  @@index([optedOutAt])
+}
+
+/// Una localidad escrita por participantes, normalizada y ubicada en el mapa.
+///
+/// La inscripción guarda la ciudad como texto libre ("ROSARIO", "rosario",
+/// "Rosario (Santa Fe - CP 2000)"). Esta tabla junta todas las variantes bajo
+/// una `clave` normalizada y le pone coordenadas. La inscripción no cambia: se
+/// une por la clave, calculada con `claveDeLocalidad()`.
+///
+/// Tabla aparte a propósito: una columna nueva en ClickatonRegistration rompe
+/// toda lectura de inscripciones en cualquier base donde falte la migración.
+model ClickatonLocality {
+  id         String    @id @default(cuid())
+  /// ciudad|provincia normalizadas (minúsculas, sin tildes ni código postal).
+  clave      String    @unique
+  /// Nombre canónico para mostrar.
+  ciudad     String
+  provincia  String?
+  pais       String    @default("AR")
+  lat        Float?
+  lng        Float?
+  /// GEOREF (API oficial de localidades) | MANUAL (corregida en el panel)
+  origen     String
+  /// RESUELTA | DUDOSA | NO_ENCONTRADA
+  estado     String
+  /// Opciones que devolvió el geocodificador cuando no hubo una sola.
+  candidatos Json?
+  revisadaAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([estado])
+}
+
+/// Puente entre la inscripción y la confirmación del pago.
+///
+/// La cookie `ck_ref` existe cuando la persona se inscribe, pero `confirmPaid`
+/// corre en el webhook, sin navegador. Acá queda anotado el código con el que
+/// llegó, para leerlo cuando el pago se aprueba.
+///
+/// Es una tabla propia y no una columna en `ClickatonRegistration` a propósito:
+/// una columna nueva sin aplicar rompe TODA lectura del modelo, no sólo lo
+/// nuevo. Así, si el SQL no llegó, sólo falla el programa de referidos.
+model ClickatonReferralClaim {
+  id             String   @id @default(cuid())
+  registrationId String   @unique
+  code           String
+  createdAt      DateTime @default(now())
+
+  @@index([code])
+}
+
+/// Quién trajo a quién. `referredUserId` es único: cada persona cuenta una
+/// sola vez en su vida, aunque después se inscriba a diez ediciones.
+model ClickatonReferralAttribution {
+  id                     String                             @id @default(cuid())
+  referrerUserId         Int
+  referredUserId         Int                                @unique
+  /// Snapshot del email con el que se inscribió el referido.
+  referredEmail          String
+  referralCodeId         String
+  /// Inscripción del referido que generó la atribución.
+  registrationId         String                             @unique
+  editionId              String
+  status                 ClickatonReferralAttributionStatus @default(EARNED)
+  earnedAt               DateTime                           @default(now())
+  revokedAt              DateTime?
+  revokedReason          String?
+  consumedAt             DateTime?
+  /// Inscripción del REFERIDOR donde se usó el beneficio (Etapa 02).
+  consumedRegistrationId String?
+  createdAt              DateTime                           @default(now())
+  updatedAt              DateTime                           @updatedAt
+
+  referrer     User                  @relation("ClickatonReferralReferrer", fields: [referrerUserId], references: [id], onDelete: Cascade)
+  referred     User                  @relation("ClickatonReferralReferred", fields: [referredUserId], references: [id], onDelete: Cascade)
+  referralCode ClickatonReferralCode @relation(fields: [referralCodeId], references: [id], onDelete: Restrict)
+
+  @@index([referrerUserId, status])
+  @@index([referralCodeId])
+  @@index([editionId])
+  @@index([consumedRegistrationId])
+}
+
+/// Todo intento de atribución, incluido el que NO prosperó. En CompraMeLaFoto
+/// estos casos se descartaban en silencio y fue imposible auditarlos o
+/// recuperarlos.
+model ClickatonReferralAttributionAttempt {
+  id             String   @id @default(cuid())
+  code           String
+  referrerUserId Int?
+  referredUserId Int?
+  referredEmail  String?
+  registrationId String?
+  /// CREATED | CODE_NOT_FOUND | CODE_INACTIVE | SELF_REFERRAL | SAME_EMAIL |
+  /// ALREADY_ATTRIBUTED | REFERRER_NOT_ELIGIBLE | ERROR
+  outcome        String
+  detail         String?
+  createdAt      DateTime @default(now())
+
+  @@index([outcome, createdAt])
+  @@index([code])
+  @@index([registrationId])
+  @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
 // DNX Notifications Engine (Etapa 18) — campañas / outbox / preferencias
 // Reutiliza DashboardNotification (CLF) para bandeja in-app; no duplica inbox.
 // ---------------------------------------------------------------------------
@@ -14407,6 +14589,9 @@ model FotorankJuryScoringSession {
   submittedEvaluationsCount  Int                              @default(0)
   incompleteEntriesCount     Int                              @default(0)
   assignmentSeed             String?
+  /// Cuántas vacantes de jurado abre esta sesión. Nulo = todavía no se declaró,
+  /// no se aplica reparto y cada jurado ve todas las obras de sus categorías.
+  plannedSeats               Int?
   openedByUserId             Int?
   closedByUserId             Int?
   openedAt                   DateTime?
@@ -14421,6 +14606,7 @@ model FotorankJuryScoringSession {
   evaluations                   FotorankJuryEvaluation[]
   aggregates                    FotorankJuryPreliminaryAggregate[]
   resultBatches                 FotorankResultBatch[]
+  seatOverrides                 FotorankJurySeatPromptOverride[]
   /// ETAPA 16A — recomendación de carga (no bloqueante); default 500 fotos evaluadas/jurado.
   recommendedMaxEntriesPerJudge Int                                @default(500)
   /// ETAPA 16A — Clickatón exige enteros; otros concursos pueden habilitar decimales.
@@ -14436,6 +14622,26 @@ model FotorankJuryScoringSession {
   @@index([admissionBatchId, status])
   @@index([contestId, status])
   @@index([rubricId])
+}
+
+/// Excepción al reparto por vacantes.
+///
+/// El reparto se calcula, no se guarda. Esta tabla es lo único que se escribe, y
+/// sólo cuando el organizador redistribuye a mano el lote de una vacante que
+/// nunca se llenó: queda dicho qué consigna pasó a quién, por qué y quién lo hizo.
+model FotorankJurySeatPromptOverride {
+  id               String   @id @default(cuid())
+  scoringSessionId String
+  seatNumber       Int
+  promptExternalId String
+  motivo           String
+  createdByUserId  Int?
+  createdAt        DateTime @default(now())
+
+  scoringSession FotorankJuryScoringSession @relation(fields: [scoringSessionId], references: [id], onDelete: Cascade)
+
+  @@unique([scoringSessionId, seatNumber, promptExternalId], map: "FotorankJurySeatPromptOverride_unico")
+  @@index([scoringSessionId], map: "FotorankJurySeatPromptOverride_sesion")
 }
 
 model FotorankMinorAuthorization {
@@ -18479,7 +18685,8 @@ model CoverageEvent {
   /// REQUEST | COVERAGE | CALL | APPLICATION | ASSIGNMENT | DELIVERABLE
   entityType String
   entityId   String
-  /// CREADA | ESTADO_CAMBIADO | NOTA | INFO_PEDIDA | INFO_RESPONDIDA | EMAIL_ENVIADO
+  /// CREADA | ESTADO_CAMBIADO | NOTA | INFO_PEDIDA | INFO_RESPONDIDA | EMAIL_ENVIADO |
+  /// ENLACE_REEMITIDO
   type       String
   fromStatus String?
   toStatus   String?
@@ -18622,15 +18829,15 @@ enum ClickatonTestimonialInviteStatus {
 
 /// Encuesta de satisfacción. PRIVADA: ninguna ruta pública la consulta.
 model ClickatonSurveyResponse {
-  id             String                         @id @default(cuid())
-  editionId      String
-  userId         Int
-  authorRole     ClickatonTestimonialAuthorRole
+  id                 String                         @id @default(cuid())
+  editionId          String
+  userId             Int
+  authorRole         ClickatonTestimonialAuthorRole
   /// Origen de la identidad (soft refs; sólo una está poblada).
-  registrationId String?
-  venueId        String?
+  registrationId     String?
+  venueId            String?
   /// 0..10 — "¿Qué tan probable es que lo recomiendes?"
-  npsScore       Int
+  npsScore           Int
   /// 1..5 cada una; null = "No aplica" y no promedia.
   scoreOrganization  Int?
   scorePrompts       Int?
@@ -18642,11 +18849,11 @@ model ClickatonSurveyResponse {
   wouldReturn        ClickatonSurveyWouldReturn?
   /// Crítica constructiva. NUNCA se publica ni se copia al testimonio.
   improvementNotes   String?
-  submittedAt        DateTime                   @default(now())
-  updatedAt          DateTime                   @updatedAt
+  submittedAt        DateTime                       @default(now())
+  updatedAt          DateTime                       @updatedAt
   auditIp            String?
   auditUserAgent     String?
-  edition            ClickatonEdition           @relation(fields: [editionId], references: [id], onDelete: Restrict)
+  edition            ClickatonEdition               @relation(fields: [editionId], references: [id], onDelete: Restrict)
   testimonial        ClickatonTestimonial?
 
   @@unique([editionId, userId])
@@ -18706,4 +18913,78 @@ model ClickatonTestimonialInvite {
 
   @@unique([editionId, email])
   @@index([editionId, status])
+}
+
+// ---------------------------------------------------------------------------
+// Números reales por edición (Clickatón)
+//
+// Separa gastos, sobrante y comisiones de cada edición para ver, edición sobre
+// edición, si se salió para atrás o no. Los ingresos NO se cargan: salen de las
+// inscripciones pagas. Importes en centavos, como el resto de Clickatón.
+// ---------------------------------------------------------------------------
+
+/// Gasto de una edición. Editable: muchos se cargan aproximados y se ajustan.
+model ClickatonEditionExpense {
+  id              String    @id @default(cuid())
+  editionId       String
+  concept         String
+  description     String?
+  /// PUBLICIDAD | MERCHANDISING | LOGISTICA | PREMIOS | OTRO (texto libre tipado en app).
+  category        String    @default("OTRO")
+  amountMinor     Int
+  /// Quién lo pagó (Tammy, Dani, Rodri, la caja…). Texto libre.
+  paidBy          String?
+  spentAt         DateTime?
+  /// "Aprox, después ajusto": el número todavía no es definitivo.
+  isEstimate      Boolean   @default(false)
+  createdByUserId Int?
+  updatedByUserId Int?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  edition ClickatonEdition @relation(fields: [editionId], references: [id], onDelete: Restrict)
+
+  @@index([editionId, createdAt])
+}
+
+/// Lo que sobró al terminar la edición, contado a mano. No toca el stock del
+/// catálogo (que es un número de venta, no un inventario físico).
+model ClickatonEditionLeftoverItem {
+  id                 String    @id @default(cuid())
+  editionId          String
+  itemName           String
+  /// Talle, color u otro detalle.
+  detail             String?
+  quantity           Int
+  /// Lo que costó cada unidad; null = todavía sin costo cargado.
+  unitCostMinor      Int?
+  countedAt          DateTime?
+  notes              String?
+  /// Si pasa a otra edición, allá cuenta como mercadería recibida.
+  carriedToEditionId String?
+  createdByUserId    Int?
+  updatedByUserId    Int?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  edition          ClickatonEdition  @relation(fields: [editionId], references: [id], onDelete: Restrict)
+  carriedToEdition ClickatonEdition? @relation("LeftoverCarriedToEdition", fields: [carriedToEditionId], references: [id], onDelete: SetNull)
+
+  @@index([editionId])
+  @@index([carriedToEditionId])
+}
+
+/// Comisiones de Mercado Pago de la edición. Los porcentajes se guardan en
+/// puntos básicos (761 = 7,61 %). Si se carga el monto real, manda sobre el %.
+model ClickatonEditionResultSettings {
+  editionId          String   @id
+  mpProcessingFeeBps Int?
+  mpWithdrawalFeeBps Int?
+  mpFeesActualMinor  Int?
+  notes              String?
+  updatedByUserId    Int?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  edition ClickatonEdition @relation(fields: [editionId], references: [id], onDelete: Restrict)
 }

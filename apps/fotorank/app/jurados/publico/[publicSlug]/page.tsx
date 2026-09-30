@@ -147,6 +147,10 @@ export default async function JudgePublicProfilePage({ params }: { params: Promi
         </Card>
 
         <p className="text-center text-xs text-fr-muted-soft">
+          <Link href="/jurados/galeria" className="underline underline-offset-2 hover:text-fr-muted">
+            Ver todos los jurados
+          </Link>
+          {" · "}
           <Link href="/jurados/postulacion" className="underline underline-offset-2 hover:text-fr-muted">
             ¿Sos fotógrafo? Postulate como jurado
           </Link>

@@ -32,6 +32,7 @@ export function GiftRedeemClient(props: {
   const [documentNumber, setDocumentNumber] = useState("");
   const [city, setCity] = useState("");
   const [province, setProvince] = useState("");
+  const [birthDate, setBirthDate] = useState("");
   const [instagramHandle, setInstagramHandle] = useState("");
   const [emergencyContactName, setEmergencyContactName] = useState("");
   const [emergencyContactPhone, setEmergencyContactPhone] = useState("");
@@ -94,6 +95,14 @@ export function GiftRedeemClient(props: {
       setError("Elegí la sede donde vas a participar.");
       return;
     }
+    {
+      const anio = Number(birthDate.slice(0, 4));
+      const hoy = new Date().getFullYear();
+      if (!birthDate || !(anio >= hoy - 110 && anio <= hoy - 5)) {
+        setError("Completá tu fecha de nacimiento.");
+        return;
+      }
+    }
     for (const product of shirtProducts) {
       if (!variantChoices[product.productId]) {
         setError(`Elegí el talle de ${product.productName}.`);
@@ -122,6 +131,7 @@ export function GiftRedeemClient(props: {
       fd.set("documentNumber", documentNumber);
       fd.set("city", city);
       fd.set("province", province);
+      fd.set("birthDate", birthDate);
       fd.set("instagramHandle", instagramHandle);
       fd.set("emergencyContactName", emergencyContactName);
       fd.set("emergencyContactPhone", emergencyContactPhone);
@@ -223,6 +233,13 @@ export function GiftRedeemClient(props: {
           />
           <Field id="city" label="Ciudad" value={city} onChange={setCity} />
           <Field id="province" label="Provincia" value={province} onChange={setProvince} />
+          <Field
+            id="birthDate"
+            label="Fecha de nacimiento *"
+            type="date"
+            value={birthDate}
+            onChange={setBirthDate}
+          />
           <Field
             id="emergencyContactName"
             label="Contacto de emergencia"

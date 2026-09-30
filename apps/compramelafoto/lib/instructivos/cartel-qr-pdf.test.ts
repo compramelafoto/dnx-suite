@@ -40,6 +40,14 @@ describe("lineaDeAccion", () => {
     assert.match(lineaDeAccion(perfil({ busqueda: ["dorsal", "navegar"] })), /número/i);
   });
 
+  it("nombra todos los métodos de búsqueda, no sólo el primero", () => {
+    const linea = lineaDeAccion(perfil({ busqueda: ["cara", "dorsal", "palabra", "navegar"] }));
+    assert.equal(
+      linea,
+      "Escaneá el código y buscá tus fotos con una selfie, tu número o palabra clave"
+    );
+  });
+
   it("en preventa habla de reservar, no de mirar", () => {
     assert.match(lineaDeAccion(perfil({ momento: "preventa" })), /reserv/i);
   });

@@ -43,7 +43,7 @@ export default async function SentDirectoryInvitationsPage() {
     <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="font-sans text-2xl font-semibold text-fr-primary">Invitaciones (directorio)</h1>
+          <h1 className="font-sans text-2xl font-semibold text-fr-primary">Invitaciones a jurados</h1>
           <p className="mt-2 text-sm text-fr-muted">Enviadas desde el directorio profesional.</p>
         </div>
         <Link href="/jurados/directorio" className="fr-btn fr-btn-secondary text-sm">

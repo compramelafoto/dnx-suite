@@ -70,25 +70,26 @@ export function TestimonialModerationPanel({
       <Card className="space-y-4">
         <div className="space-y-1">
           <h2 className="text-lg font-semibold text-ck-text">
-            El fragmento que sale publicado
+            El texto que sale publicado
           </h2>
           <p className="text-sm text-ck-text-secondary">
-            Es el recorte que aparece entre comillas en el inicio y en la ficha
-            de la edición. Se puede acortar, pero no reescribir lo que dijo.
+            Por defecto se publica el testimonio <strong>completo</strong>, tal
+            como lo escribió. Si querés acortarlo, editalo acá; si vaciás el
+            campo, vuelve a salir entero. Se puede recortar, no reescribir.
           </p>
         </div>
         <form action={excerptAction} className="space-y-3">
           <input type="hidden" name="testimonialId" value={testimonialId} />
           <Textarea
             name="highlightedExcerpt"
-            rows={3}
+            rows={6}
             maxLength={EXCERPT_MAX_LENGTH}
             defaultValue={defaultExcerpt}
             disabled={savingExcerpt}
           />
           <div className="flex items-center gap-3">
             <Button type="submit" variant="outline" disabled={savingExcerpt}>
-              {savingExcerpt ? "Guardando…" : "Guardar fragmento"}
+              {savingExcerpt ? "Guardando…" : "Guardar texto"}
             </Button>
             <Feedback state={excerptState} />
           </div>

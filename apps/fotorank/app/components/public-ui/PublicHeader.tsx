@@ -23,6 +23,7 @@ const DEFAULT_MARKETING_LINKS: PublicNavLink[] = [
   { href: "/#concursos", label: "Concursos" },
   { href: "/#como-participar", label: "Cómo participar" },
   { href: "/#que-es", label: "Qué es FotoRank" },
+  { href: "/jurados/galeria", label: "Jurados" },
 ];
 
 /**

@@ -2,9 +2,11 @@ import { createHash, randomBytes } from "node:crypto";
 import { prisma } from "@/lib/admin/db";
 import { hasEditionCapability } from "@/lib/timeline/permissions";
 import { getEditionTemporalState } from "@/lib/timeline/prisma-timeline";
-import { isWithinUploadWindow, resolveEffectiveWindows } from "@/lib/photo-upload/windows";
-import { systemClock } from "@/lib/timeline/clock";
-import { buildAnonymousJuryCode } from "./anonymity";
+import { resolveEffectiveWindows } from "@/lib/photo-upload/windows";
+import { buildAnonymousJuryCode, codigosAnonimosDelLote } from "./anonymity";
+import { proximaTanda } from "./proxima-tanda";
+import { puedeAdmitirse } from "./puede-admitirse";
+import { revisarSubidaEnTermino } from "./subida-en-termino";
 import { AdmissionError } from "./errors";
 import {
   CAPABILITY_ADMIT_ENTRIES,
@@ -167,7 +169,6 @@ export async function evaluateSubmission(input: {
   }
 
   const temporal = await getEditionTemporalState(input.editionId);
-  const clock = systemClock();
   const windows = resolveEffectiveWindows({
     status: submission.prompt.status,
     releasedAt: submission.prompt.releasedAt,
@@ -176,7 +177,26 @@ export async function evaluateSubmission(input: {
     uploadStartsAt: submission.prompt.uploadStartsAt,
     uploadEndsAt: submission.prompt.uploadEndsAt,
   });
-  const uploadOk = isWithinUploadWindow(windows, clock);
+
+  /*
+   * Se pregunta por el hecho, no por el momento en que se mira.
+   *
+   * Antes esto miraba el reloj del servidor, o sea preguntaba "¿estamos
+   * ahora dentro de la ventana?". Como la revisión se hace cuando la maratón
+   * terminó, la respuesta era siempre que no, y 100 fotos entregadas a tiempo
+   * quedaron rechazadas por llegar tarde.
+   *
+   * La ventana se toma de la que quedó guardada en el envío cuando la foto
+   * entró; si esa faltara, se usa la del prompt. Así la decisión es la misma
+   * hoy que dentro de un año, y mover el cronograma después no reescribe la
+   * historia.
+   */
+  const ventana = revisarSubidaEnTermino({
+    subidaEn: submission.createdAt,
+    ventanaDesde: submission.uploadWindowStartsAt ?? windows.uploadStartsAt ?? null,
+    ventanaHasta: submission.uploadWindowEndsAt ?? windows.uploadEndsAt ?? null,
+  });
+  const uploadOk = ventana.enTermino;
 
   let entryStatus: string | null = null;
   if (submission.fotorankEntryId) {
@@ -310,6 +330,8 @@ export async function admitSubmission(input: {
   actor: Actor;
   batchId?: string | null;
   reason?: string | null;
+  /** Viene de una persona que miró la obra y decidió admitirla. */
+  resolviendoRevisionManual?: boolean;
 }) {
   await requireCap(input.actor, input.editionId, CAPABILITY_ADMIT_ENTRIES);
   const { decision, decisionId } = await evaluateSubmission({
@@ -318,17 +340,17 @@ export async function admitSubmission(input: {
     actor: input.actor,
     reason: input.reason,
   });
-  if (!decision.eligible && decision.status !== "PENDING_MANUAL_REVIEW") {
+  const permiso = puedeAdmitirse({
+    status: decision.status,
+    eligible: decision.eligible,
+    resolviendoRevisionManual: input.resolviendoRevisionManual,
+  });
+  if (!permiso.ok) {
     throw new AdmissionError(
-      "NOT_ELIGIBLE",
-      "La obra no es elegible para admisión automática.",
-      409,
-    );
-  }
-  if (decision.status === "PENDING_MANUAL_REVIEW") {
-    throw new AdmissionError(
-      "MANUAL_REVIEW_REQUIRED",
-      "Resolvé la revisión manual antes de admitir.",
+      permiso.error,
+      permiso.error === "MANUAL_REVIEW_REQUIRED"
+        ? "Resolvé la revisión manual antes de admitir."
+        : "La obra no es elegible para admisión automática.",
       409,
     );
   }
@@ -476,6 +498,7 @@ export async function resolveManualReview(input: {
       submissionId: input.submissionId,
       actor: input.actor,
       reason: input.notes || "manual-admit",
+      resolviendoRevisionManual: true,
     });
   }
   if (input.decision === "REJECT") {
@@ -637,6 +660,23 @@ export async function freezeAdmittedEntries(input: {
     },
   });
 
+  /*
+   * Los códigos anónimos se calculan de una, para todo el lote.
+   *
+   * Antes salía uno por obra de un hash recortado a 9000 valores: con 270 obras
+   * en una categoría chocaban casi seguro, y el congelamiento moría a mitad de
+   * camino con una violación de unicidad. Numerados de corrido no pueden chocar.
+   */
+  const codigos = codigosAnonimosDelLote({
+    contestId: batch.contestId,
+    batchId: batch.id,
+    entradas: admitted.map((e) => ({
+      entryId: e.id,
+      categoryId: e.categoryId,
+      categorySlug: e.category.slug,
+    })),
+  });
+
   let frozen = 0;
   for (const entry of admitted) {
     const asset = await ensureJuryAssetForEntry({
@@ -645,7 +685,7 @@ export async function freezeAdmittedEntries(input: {
       actor: input.actor,
     });
     const anonymousCode =
-      entry.anonymousJuryCode ??
+      codigos.get(entry.id) ??
       buildAnonymousJuryCode({
         contestId: entry.contestId,
         categoryId: entry.categoryId,
@@ -856,10 +896,33 @@ export async function evaluatePendingBulk(input: {
     actor: input.actor,
   });
 
-  const submissions = await prisma.clickatonPhotoSubmission.findMany({
+  /*
+   * Se revisan las que todavía no tienen decisión.
+   *
+   * Antes esto tomaba siempre las primeras de la edición, sin mirar si ya se
+   * habían revisado: apretar el botón una segunda vez volvía sobre las mismas
+   * y nunca llegaba a las siguientes. En la 1ª edición quedaron **2923
+   * decisiones sobre 100 fotos** y 170 sin tocar, por más que se apretara.
+   *
+   * Para volver a revisar algo ya decidido está la revisión manual, que es
+   * donde corresponde: una segunda pasada automática sobre lo mismo no agrega
+   * nada y esconde lo que falta.
+   */
+  const yaDecididas = await prisma.clickatonTechnicalAdmissionDecision.findMany({
+    where: { editionId: input.editionId },
+    distinct: ["submissionId"],
+    select: { submissionId: true },
+  });
+
+  const candidatas = await prisma.clickatonPhotoSubmission.findMany({
     where: { editionId: input.editionId, status: "CONFIRMED" },
-    take: input.limit ?? 100,
     orderBy: { confirmedAt: "asc" },
+  });
+
+  const submissions = proximaTanda({
+    envios: candidatas,
+    yaDecididos: new Set(yaDecididas.map((d) => d.submissionId)),
+    porTanda: input.limit ?? 100,
   });
 
   let processed = 0;
@@ -952,6 +1015,15 @@ export async function getAdmissionDashboard(editionId: string, actor: Actor) {
     byStatus[d.status] = (byStatus[d.status] ?? 0) + 1;
   }
 
+  /*
+   * Cuántas ya tienen decisión, contadas directamente.
+   *
+   * Restar los estados uno por uno deja afuera a los que nadie enumeró
+   * —reemplazadas, retiradas— y el número de "sin revisar" sale mal sin que se
+   * note. `decisions` ya viene con una fila por envío.
+   */
+  const conDecision = decisions.length;
+
   return {
     config,
     window: {
@@ -962,6 +1034,8 @@ export async function getAdmissionDashboard(editionId: string, actor: Actor) {
     totals: {
       submissions: total,
       confirmed,
+      conDecision,
+      sinRevisar: Math.max(0, confirmed - conDecision),
       withoutEntry,
       eligible: byStatus.ELIGIBLE ?? 0,
       admitted: (byStatus.ADMITTED ?? 0) + (byStatus.FROZEN_FOR_JURY ?? 0),
@@ -1091,6 +1165,77 @@ export async function listFrozenJuryRoster(input: {
     },
   });
   return { batch, entries: snapshots };
+}
+
+/**
+ * Las fotografías que esperan una decisión humana, con lo necesario para
+ * tomarla: la imagen, quién la mandó, para qué consigna y qué leyó el control
+ * técnico. Sin esto la pantalla mostraba un código de motivo y nada más.
+ */
+export async function listarPendientesDeRevision(input: {
+  editionId: string;
+  actor: Actor;
+  limite?: number;
+}) {
+  await requireCap(input.actor, input.editionId, CAPABILITY_VIEW_ADMISSION);
+
+  const ultimas = await prisma.clickatonTechnicalAdmissionDecision.findMany({
+    where: { editionId: input.editionId },
+    distinct: ["submissionId"],
+    orderBy: { evaluatedAt: "desc" },
+    select: {
+      id: true,
+      submissionId: true,
+      status: true,
+      manualReviewReasons: true,
+      warningReasons: true,
+      evaluatedAt: true,
+    },
+  });
+
+  const pendientes = ultimas
+    .filter((d) => d.status === "PENDING_MANUAL_REVIEW")
+    .slice(0, input.limite ?? 50);
+  if (pendientes.length === 0) return [];
+
+  const envios = await prisma.clickatonPhotoSubmission.findMany({
+    where: { id: { in: pendientes.map((d) => d.submissionId) } },
+    select: {
+      id: true,
+      createdAt: true,
+      captureDateInterpreted: true,
+      previewStorageKey: true,
+      originalStorageKey: true,
+      technicalSummaryJson: true,
+      registration: { select: { visibleCode: true } },
+      prompt: { select: { sequence: true, title: true, titleSnapshot: true } },
+    },
+  });
+  const porId = new Map(envios.map((e) => [e.id, e]));
+
+  return pendientes.flatMap((d) => {
+    const envio = porId.get(d.submissionId);
+    if (!envio) return [];
+    const resumen = (envio.technicalSummaryJson ?? {}) as {
+      captureEval?: { reason?: string | null };
+    };
+    return [
+      {
+        decisionId: d.id,
+        submissionId: d.submissionId,
+        evaluatedAt: d.evaluatedAt,
+        manualReviewReasons: d.manualReviewReasons,
+        warningReasons: d.warningReasons,
+        participante: envio.registration?.visibleCode ?? null,
+        consignaNumero: envio.prompt?.sequence ?? null,
+        consignaTitulo: envio.prompt?.titleSnapshot ?? envio.prompt?.title ?? null,
+        subidaEn: envio.createdAt,
+        capturaEn: envio.captureDateInterpreted,
+        razonDeCaptura: resumen.captureEval?.reason ?? null,
+        tieneArchivo: Boolean(envio.previewStorageKey ?? envio.originalStorageKey),
+      },
+    ];
+  });
 }
 
 export type { ReasonCode, AdmissionStatus };

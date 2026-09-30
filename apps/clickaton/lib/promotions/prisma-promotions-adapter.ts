@@ -340,6 +340,30 @@ export async function releaseClickatonPromotionRedemption(registrationId: string
   return result.count;
 }
 
+/**
+ * Libera una reserva que todavía no llegó a tener inscripción.
+ *
+ * Hace falta cuando el beneficio por referidos le gana al cupón: el cupón ya
+ * se reservó para comparar los dos, y si pierde tiene que volver a estar
+ * disponible en vez de quedar quemado.
+ */
+export async function releaseClickatonPromotionByIdempotencyKey(
+  idempotencyKey: string,
+): Promise<number> {
+  const result = await prisma.dnxPromotionRedemption.updateMany({
+    where: {
+      idempotencyKey,
+      registrationId: null,
+      status: "RESERVED",
+    },
+    data: {
+      status: "RELEASED",
+      releasedAt: new Date(),
+    },
+  });
+  return result.count;
+}
+
 export async function listClickatonPromotions(editionId?: string | null) {
   return prisma.dnxPromotion.findMany({
     where: {

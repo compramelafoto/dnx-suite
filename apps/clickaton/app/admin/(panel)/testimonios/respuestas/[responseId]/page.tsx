@@ -7,7 +7,7 @@ import { adminRoutes } from "@/config/admin/navigation";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
 import { fechaHoraLargaAr } from "@/lib/fecha-ar";
 import { loadResponseDetail } from "@/lib/testimonials/admin/list-responses";
-import { buildExcerpt } from "@/lib/testimonials/domain/excerpt";
+import { publishedText } from "@/lib/testimonials/domain/published-text";
 import {
   NPS_QUESTION,
   SURVEY_ASPECTS,
@@ -127,7 +127,7 @@ export default async function AdminTestimonialResponseDetailPage({
           status={testimonial.status}
           publicationConsent={testimonial.publicationConsent}
           defaultExcerpt={
-            testimonial.highlightedExcerpt ?? buildExcerpt(testimonial.quote)
+            publishedText(testimonial)
           }
         />
       ) : (

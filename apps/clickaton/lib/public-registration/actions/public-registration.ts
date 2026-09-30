@@ -1,5 +1,7 @@
 "use server";
 
+import { after } from "next/server";
+
 import type {
   CreatePublicRegistrationInput,
   PublicRegistrationContextDto,
@@ -8,6 +10,23 @@ import type {
 } from "../domain/types";
 import { formBool, formString, pubFailure, pubSuccess, type PublicRegistrationActionState } from "./action-result";
 import { getPublicRegistrationService } from "./runtime";
+
+/**
+ * Usuario de la sesión, o null si se inscribe como invitado.
+ *
+ * Es lo único que autoriza el beneficio por referidos: el email del formulario
+ * no sirve, porque cualquiera puede escribir el de otro.
+ */
+async function resolverUsuarioDeSesion(): Promise<number | null> {
+  try {
+    const { getClickatonAuthUser } = await import("@/lib/admin/auth");
+    const user = await getClickatonAuthUser();
+    return user?.id ?? null;
+  } catch {
+    // Sin sesión se sigue igual: la inscripción como invitado no se rompe.
+    return null;
+  }
+}
 
 export async function getPublicRegistrationOfferAction(
   slug: string,
@@ -24,7 +43,9 @@ export async function getPublicRegistrationContextAction(
   slug: string,
 ): Promise<PublicRegistrationActionState<PublicRegistrationContextDto>> {
   try {
-    const data = await getPublicRegistrationService().getContext(slug);
+    const data = await getPublicRegistrationService().getContext(slug, {
+      sessionUserId: await resolverUsuarioDeSesion(),
+    });
     return pubSuccess(data);
   } catch (error) {
     return pubFailure<PublicRegistrationContextDto>(error);
@@ -115,6 +136,9 @@ export async function createPublicRegistrationAction(
     promoCode: formString(formData, "promoCode") || null,
     usePassCredit: formBool(formData, "usePassCredit"),
     passEntitlementId: formString(formData, "passEntitlementId") || null,
+    // Del servidor, nunca del formulario: es lo que autoriza el beneficio por
+    // referidos.
+    sessionUserId: await resolverUsuarioDeSesion(),
   };
 
   const values: Record<string, string> = {
@@ -129,6 +153,24 @@ export async function createPublicRegistrationAction(
 
   try {
     const data = await getPublicRegistrationService().createRegistration(input);
+
+    // La cookie del link de invitación sólo existe acá: confirmPaid corre
+    // después en el webhook, sin navegador.
+    const { registrarClaimDeReferido } = await import(
+      "@/lib/referrals/application/registrar-claim"
+    );
+    await registrarClaimDeReferido(data.registrationId);
+
+    // Ubicar la ciudad en el mapa de Personas, sin demorar a quien se inscribe.
+    after(async () => {
+      const { asegurarLocalidad } = await import("@/lib/localities/service");
+      await asegurarLocalidad({
+        ciudad: input.participant.city,
+        provincia: input.participant.province,
+        pais: input.participant.country,
+      });
+    });
+
     return pubSuccess(data, "Inscripción reservada.");
   } catch (error) {
     return pubFailure<PublicRegistrationSummaryDto>(error, values);

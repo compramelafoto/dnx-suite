@@ -33,7 +33,7 @@ test.describe("Jurado — invitación", () => {
 
     await context.clearCookies();
     await loginAsJudge(page, E2E_INVITE_JUDGE_EMAIL, E2E_INVITE_JUDGE_PASSWORD);
-    await expect(page.getByRole("heading", { name: /Panel del jurado/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Concursos a calificar/i })).toBeVisible();
     },
   );
 

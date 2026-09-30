@@ -81,7 +81,11 @@ export const ASPECT_MIN = 1;
 export const ASPECT_MAX = 5;
 
 export const QUOTE_MAX_LENGTH = 400;
-export const EXCERPT_MAX_LENGTH = 240;
+/**
+ * El recorte admite el testimonio entero: por defecto se publica completo, y
+ * acortarlo es una decisión del admin, no un límite del sistema.
+ */
+export const EXCERPT_MAX_LENGTH = QUOTE_MAX_LENGTH;
 export const IMPROVEMENT_MAX_LENGTH = 1000;
 
 /** La promesa que hace que la gente critique en serio. No sacarla. */

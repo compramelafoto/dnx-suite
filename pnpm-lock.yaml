@@ -50,6 +50,9 @@ importers:
       '@repo/design-system':
         specifier: workspace:*
         version: link:../../packages/design-system
+      '@repo/jury-ranking':
+        specifier: workspace:*
+        version: link:../../packages/jury-ranking
       '@repo/media-composition':
         specifier: workspace:*
         version: link:../../packages/media-composition
@@ -764,6 +767,9 @@ importers:
       '@repo/design-system':
         specifier: workspace:*
         version: link:../../packages/design-system
+      '@repo/jury-ranking':
+        specifier: workspace:*
+        version: link:../../packages/jury-ranking
       '@repo/partners':
         specifier: workspace:*
         version: link:../../packages/partners
@@ -1587,6 +1593,15 @@ importers:
       tsx:
         specifier: ^4.21.0
         version: 4.23.0
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+
+  packages/jury-ranking:
+    devDependencies:
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
       typescript:
         specifier: 5.9.2
         version: 5.9.2

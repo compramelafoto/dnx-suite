@@ -4,7 +4,7 @@ import { prisma } from "@repo/db";
 import { PublicShell } from "../../../components/public-ui";
 import { getJudgeAuthUser } from "../../../lib/judge-auth";
 import { portfolioImageSrc } from "../../../lib/fotorank/judges/portfolioSrc";
-import { PortfolioDelJurado } from "../../../jurado/perfil/PortfolioDelJurado";
+import { PortfolioDelJurado } from "../../../jurado/(panel)/perfil/PortfolioDelJurado";
 
 export const dynamic = "force-dynamic";
 

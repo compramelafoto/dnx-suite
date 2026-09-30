@@ -1,10 +1,12 @@
 import {
   activateRubricAction,
   closeScoringSessionAction,
+  configurarTipoDeCalificacionAction,
   ensureScoringSessionAction,
   openScoringSessionAction,
 } from "../../../../../lib/fotorank/jury/scoring-actions";
 import { getCoverageReport } from "../../../../../lib/fotorank/jury/scoring-session-service";
+import { DESCRIPCION_DEL_TIPO } from "../../../../../lib/fotorank/jury/tiposDeCalificacion";
 import {
   activateResultRuleSetAction,
   ensureResultRuleSetAction,
@@ -32,6 +34,9 @@ type Props = {
   rubric: Rubric | null;
   resultBatchId: string | null;
   ruleSetId: string | null;
+  /** Cómo se califica hoy, en palabras. Null mientras la rúbrica esté vacía. */
+  tipoActual?: string | null;
+  tipoError?: string | null;
 };
 
 export async function ScoringSessionPanel({
@@ -41,6 +46,8 @@ export async function ScoringSessionPanel({
   rubric,
   resultBatchId,
   ruleSetId,
+  tipoActual = null,
+  tipoError = null,
 }: Props) {
   const coverage =
     session && (session.status === "OPEN" || session.status === "CLOSED" || session.status === "LOCKED")
@@ -123,6 +130,63 @@ export async function ScoringSessionPanel({
             <p className="text-emerald-300">Cobertura OK para cierre.</p>
           )}
         </div>
+      ) : null}
+
+      {session && rubric && rubric.status !== "ACTIVE" ? (
+        <form
+          action={configurarTipoDeCalificacionAction.bind(null, contestId)}
+          className="space-y-4 rounded-xl border border-fr-border bg-fr-bg/40 px-4 py-4"
+          data-testid="tipo-de-calificacion"
+        >
+          <input type="hidden" name="sessionId" value={session.id} />
+          <div>
+            <p className="font-semibold text-fr-primary">Tipo de calificación</p>
+            <p className="mt-1 text-sm text-fr-muted">
+              {tipoActual ? `Hoy: ${tipoActual}.` : "Todavía no elegiste cómo se califica."} Se
+              puede cambiar hasta activar la rúbrica.
+            </p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            {(
+              [
+                ["CRITERIOS", DESCRIPCION_DEL_TIPO.CRITERIOS, "Criterios del concurso"],
+                ["NOTA_UNICA", DESCRIPCION_DEL_TIPO.NOTA_UNICA, "Nota única"],
+                ["SI_NO", DESCRIPCION_DEL_TIPO.SI_NO, "Sí o no"],
+                ["SELECCION_CON_CUPO", DESCRIPCION_DEL_TIPO.SELECCION_CON_CUPO, "Elegir con cupo"],
+              ] as const
+            ).map(([valor, ayuda, etiqueta]) => (
+              <label key={valor} className="flex gap-2 rounded-lg border border-fr-border p-3 text-sm">
+                <input type="radio" name="tipo" value={valor} required />
+                <span>
+                  <span className="font-medium text-fr-primary">{etiqueta}</span>
+                  <span className="mt-1 block text-xs text-fr-muted">{ayuda}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-4 text-sm">
+            <label className="flex items-center gap-2 text-fr-muted">
+              Escala de la nota única
+              <select name="escala" defaultValue="1_10" className="rounded-lg border border-fr-border bg-fr-bg px-2 py-1">
+                <option value="1_5">1 a 5</option>
+                <option value="1_10">1 a 10</option>
+                <option value="0_100">0 a 100</option>
+              </select>
+            </label>
+            <label className="flex items-center gap-2 text-fr-muted">
+              Cupo por jurado (elegir con cupo)
+              <input name="cupo" type="number" min={1} max={500} defaultValue={10} className="w-20 rounded-lg border border-fr-border bg-fr-bg px-2 py-1" />
+            </label>
+          </div>
+          {tipoError ? <p className="text-sm text-amber-200">{tipoError}</p> : null}
+          <button type="submit" className="fr-btn fr-btn-secondary min-h-11 px-5 text-sm">
+            Guardar tipo de calificación
+          </button>
+        </form>
+      ) : tipoActual ? (
+        <p className="text-sm text-fr-muted">
+          Tipo de calificación: <span className="text-fr-primary">{tipoActual}</span>
+        </p>
       ) : null}
 
       <div className="flex flex-wrap gap-3">

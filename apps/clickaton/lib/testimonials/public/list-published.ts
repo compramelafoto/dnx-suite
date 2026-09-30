@@ -9,7 +9,7 @@ import "server-only";
  */
 import { prisma } from "@repo/db";
 import type { ClickatonTestimonialAuthorRole } from "../domain/types";
-import { buildExcerpt } from "../domain/excerpt";
+import { publishedText } from "../domain/published-text";
 import { testimonialPhotoPath } from "./voices-presentation";
 
 export type PublishedTestimonial = {
@@ -53,7 +53,7 @@ export async function listPublishedTestimonials(options?: {
 
   return rows.map((row) => ({
     id: row.id,
-    excerpt: row.highlightedExcerpt?.trim() || buildExcerpt(row.quote),
+    excerpt: publishedText(row),
     authorName: row.authorName,
     authorRole: row.authorRole,
     editionName: row.edition.name,

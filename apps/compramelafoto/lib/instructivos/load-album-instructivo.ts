@@ -77,7 +77,6 @@ export async function loadAlbumInstructivo(
 
   const [
     fotosCargadas,
-    rostrosDetectados,
     tokens,
     readiness,
     packsGaleriaActivos,
@@ -87,7 +86,6 @@ export async function loadAlbumInstructivo(
     lab,
   ] = await Promise.all([
     prisma.photo.count({ where: { albumId: album.id } }),
-    prisma.photoFace.count({ where: { photo: { albumId: album.id } } }),
     prisma.ocrToken.findMany({
       where: { photo: { albumId: album.id } },
       select: { textNorm: true },
@@ -141,7 +139,6 @@ export async function loadAlbumInstructivo(
     },
     senales: {
       fotosCargadas,
-      rostrosDetectados,
       tokensNumericos,
       tokensDeTexto,
       packsPreventaActivos: packsPreventaAlbumPack + packsPreventaDefinition,

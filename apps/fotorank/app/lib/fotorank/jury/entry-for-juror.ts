@@ -79,7 +79,14 @@ function juryMediaSecret(): string {
   return secret;
 }
 
-function signedPreviewUrl(assetId: string, baseUrl: string, now: Date): string {
+/**
+ * El enlace con el que el navegador del jurado le pide la foto a Clickatón.
+ *
+ * FotoRank no tiene las llaves del bucket: firma con el secreto compartido y
+ * la imagen la sirve Clickatón, que sí las tiene. Pedírsela al almacenamiento
+ * de FotoRank devuelve una imagen rota, que es lo que mostraba el visor.
+ */
+export function signedPreviewUrl(assetId: string, baseUrl: string, now: Date): string {
   const expMs = now.getTime() + VIGENCIA_MS;
   const sig = createHmac("sha256", juryMediaSecret())
     .update(`${PURPOSE}:${assetId}:${expMs}`)

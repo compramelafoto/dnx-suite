@@ -179,7 +179,9 @@ export async function buildTarjetasPdf(
       }
       yTexto -= 5;
 
-      const lineasAccion = enLineas(accion, regular, anchoTexto, 7, 2);
+      // Tres renglones: con selfie, número y palabra clave la leyenda no entra en dos, y
+      // enLineas corta lo que sobra sin avisar.
+      const lineasAccion = enLineas(accion, regular, anchoTexto, 7, 3);
       for (const linea of lineasAccion) {
         const ajustada = ajustarAlAncho(linea, regular, anchoTexto, 7, 5.5);
         page.drawText(ajustada.texto, {

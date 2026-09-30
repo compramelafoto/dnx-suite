@@ -111,6 +111,8 @@ export async function asignarJuradoAMaraton(input: {
   methodConfigJson?: unknown;
   evaluationStartsAt?: Date | null;
   evaluationEndsAt?: Date | null;
+  /** En qué vacante queda sentado. Nulo mientras no haya reparto declarado. */
+  seatNumber?: number | null;
 }): Promise<ResultadoDeAsignacion> {
   if (!input.padron) return { ok: false, error: "SIN_PADRON" };
   if (!input.maraton) return { ok: false, error: "SIN_MARATON" };
@@ -161,6 +163,7 @@ export async function asignarJuradoAMaraton(input: {
       createdByUserId: input.createdByUserId,
       evaluationStartsAt: input.evaluationStartsAt ?? null,
       evaluationEndsAt: input.evaluationEndsAt ?? null,
+      seatNumber: input.seatNumber ?? null,
     })),
   });
 

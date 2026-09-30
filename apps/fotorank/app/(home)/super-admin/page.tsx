@@ -245,30 +245,6 @@ export default async function SuperAdminPage() {
         </div>
       </section>
 
-      <section id="config" className="space-y-6 scroll-mt-8">
-        <h2 className="text-2xl font-semibold tracking-tight">Configuración global</h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {(
-            [
-              ["Categorías", "/categorias"],
-              ["Jurados / directorio", "/jurados/directorio"],
-              ["Config institucional (contexto activo)", "/dashboard/settings"],
-              ["Bases / consentimientos", "/super-admin#concursos"],
-              ["Emails / notificaciones", "/super-admin#logs"],
-              ["Autenticación (env / OAuth)", "/super-admin#config"],
-            ] as const
-          ).map(([label, href]) => (
-            <Link
-              key={label}
-              href={href}
-              className="fr-recuadro border border-fr-border bg-fr-card transition-colors hover:border-gold/40"
-            >
-              <span className="font-semibold text-fr-primary">{label}</span>
-            </Link>
-          ))}
-        </div>
-      </section>
-
       <section id="logs" className="space-y-6 scroll-mt-8">
         <h2 className="text-2xl font-semibold tracking-tight">Logs y auditoría</h2>
         <ul className="space-y-3" data-testid="super-admin-audit-list">

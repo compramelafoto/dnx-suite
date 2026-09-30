@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import { getClickatonJuryPrisma } from "@repo/db/clickaton-jury-client";
 import { getJuryDirectoryPrisma } from "@repo/db/jury-directory-client";
 
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
@@ -7,13 +6,47 @@ import { Card } from "@/components/ui/Card";
 import { adminRoutes } from "@/config/admin/navigation";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
 import { prisma } from "@/lib/admin/db";
-import {
-  SIN_CONEXION_AL_PADRON,
-  SIN_CONEXION_A_CLICKATON,
-} from "@/lib/jury-assignment/assign-judge";
+import { SIN_CONEXION_AL_PADRON } from "@/lib/jury-assignment/assign-judge";
 import { listarJuradosAsignables, type PadronPrisma } from "@/lib/jury-assignment/service";
 
+import { armarVacantes, sePuedeCambiarLaCantidad } from "@/lib/jury-assignment/vacantes";
+import { cargaDelReparto } from "@/lib/jury-assignment/reparto";
+
+import { EquipoDeJurado } from "./EquipoDeJurado";
 import { JuradosDeLaEdicion } from "./JuradosDeLaEdicion";
+
+/**
+ * Cuántos jurados recomendar para este volumen de obras.
+ *
+ * Espejo de `juradosRecomendados()` de FotoRank: Clickatón no importa de esa app
+ * a propósito. Si cambia una, cambia la otra.
+ */
+function juradosRecomendados(input: {
+  obras: number;
+  miradasPorObra: number;
+  topeDeFotosPorJurado: number;
+}): { recomendados: number; motivo: string } | null {
+  if (!Number.isFinite(input.obras) || input.obras < 1) return null;
+
+  const tope =
+    Number.isFinite(input.topeDeFotosPorJurado) && input.topeDeFotosPorJurado > 0
+      ? Math.floor(input.topeDeFotosPorJurado)
+      : 200;
+  const miradas = Number.isFinite(input.miradasPorObra)
+    ? Math.max(1, Math.floor(input.miradasPorObra))
+    : 1;
+
+  const evaluaciones = Math.floor(input.obras) * miradas;
+  const recomendados = Math.max(3, Math.ceil(evaluaciones / tope));
+
+  return {
+    recomendados,
+    motivo:
+      `${Math.floor(input.obras)} obras con ${miradas} mirada${miradas === 1 ? "" : "s"} ` +
+      `cada una son ${evaluaciones} evaluaciones; a ${tope} fotos por jurado hacen falta ` +
+      `${recomendados}.`,
+  };
+}
 
 export const dynamic = "force-dynamic";
 
@@ -66,42 +99,45 @@ export default async function JuradosDeLaEdicionPage({
     );
   }
 
+  /*
+   * Sólo el padrón necesita conexión propia: vive en la base de FotoRank. Las
+   * asignaciones son de esta misma base y se leen con el cliente de siempre.
+   */
   const padron = getJuryDirectoryPrisma() as unknown as PadronPrisma | null;
-  const maraton = getClickatonJuryPrisma();
 
   /*
-   * Los dos avisos van primero y son explícitos.
-   *
-   * Sin ellos, una lista vacía se lee como "no hay jurados" y nadie se enteraría
-   * de que lo que falta es configurar la conexión entre las dos plataformas.
+   * El aviso va primero y es explícito: sin él, una lista vacía se lee como
+   * "no hay jurados" y nadie se enteraría de que lo que falta es configurar la
+   * conexión entre las dos plataformas.
    */
-  if (!padron || !maraton) {
+  if (!padron) {
     return (
       <div className="space-y-6">
         {encabezado}
         <Card variant="outlined" className="space-y-3 p-6">
           <p className="text-sm font-semibold text-ck-text">No se puede asignar jurados</p>
           <p className="text-sm leading-relaxed text-ck-text-secondary">
-            {!padron ? SIN_CONEXION_AL_PADRON : SIN_CONEXION_A_CLICKATON}
+            {SIN_CONEXION_AL_PADRON}
           </p>
         </Card>
       </div>
     );
   }
 
-  const [disponibles, categorias, asignadas] = await Promise.all([
+  const [disponibles, categorias, asignadas, sesion, consignas, obras] = await Promise.all([
     listarJuradosAsignables(padron),
     prisma.fotorankContestCategory.findMany({
       where: { contestId: edicion.fotorankContestId, status: "ACTIVE" },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
-    maraton.fotorankJudgeAssignment.findMany({
+    prisma.fotorankJudgeAssignment.findMany({
       where: { contestId: edicion.fotorankContestId },
       select: {
         id: true,
         judgeAccountId: true,
         categoryId: true,
+        seatNumber: true,
         assignmentStatus: true,
         judgeAccount: { select: { email: true } },
         category: { select: { name: true } },
@@ -109,11 +145,87 @@ export default async function JuradosDeLaEdicionPage({
       },
       orderBy: { createdAt: "asc" },
     }),
+    prisma.fotorankJuryScoringSession.findFirst({
+      where: { admissionBatch: { editionId } },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        plannedSeats: true,
+        minimumEvaluationsPerEntry: true,
+        recommendedMaxEntriesPerJudge: true,
+      },
+    }),
+    prisma.clickatonPrompt.findMany({
+      where: { editionId },
+      orderBy: { sequence: "asc" },
+      select: { id: true, sequence: true, title: true },
+    }),
+    prisma.fotorankContestEntry.count({
+      where: { contestId: edicion.fotorankContestId, admissionStatus: "FROZEN_FOR_JURY" },
+    }),
   ]);
+
+  const [excepciones, enviadas] = sesion
+    ? await Promise.all([
+        prisma.fotorankJurySeatPromptOverride.findMany({
+          where: { scoringSessionId: sesion.id },
+          select: { seatNumber: true, promptExternalId: true },
+        }),
+        prisma.fotorankJuryEvaluation.count({
+          where: { scoringSessionId: sesion.id, status: { in: ["SUBMITTED", "LOCKED"] } },
+        }),
+      ])
+    : [[], 0];
+
+  const miradasPorObra = sesion?.minimumEvaluationsPerEntry ?? 3;
+  const tope = sesion?.recommendedMaxEntriesPerJudge ?? 200;
+
+  const vacantes = armarVacantes({
+    plannedSeats: sesion?.plannedSeats ?? 0,
+    consignas: consignas.map((c) => ({
+      id: c.id,
+      sequence: c.sequence,
+      titulo: c.title ?? `Consigna ${c.sequence}`,
+    })),
+    miradasPorObra,
+    ocupantes: asignadas.map((a) => ({
+      seatNumber: a.seatNumber,
+      judgeAccountId: a.judgeAccountId,
+      nombre: a.judgeAccount?.email ?? null,
+    })),
+    excepciones,
+  });
+
+  const carga = cargaDelReparto({
+    obras,
+    consignas: consignas.length,
+    jurados: vacantes.length || (sesion?.plannedSeats ?? 0) || 3,
+    miradasPorObra,
+  });
+
+  // Un objeto y no un Map: lo que cruza al componente de cliente tiene que ser
+  // serializable, y un Map llega vacío sin avisar.
+  const nombreDeConsigna: Record<string, string> = {};
+  for (const c of consignas) nombreDeConsigna[c.id] = `Consigna ${c.sequence}`;
 
   return (
     <div className="space-y-6">
       {encabezado}
+      <EquipoDeJurado
+        editionId={editionId}
+        hayJuzgamiento={Boolean(sesion)}
+        vacantes={vacantes}
+        recomendacion={juradosRecomendados({
+          obras,
+          miradasPorObra,
+          topeDeFotosPorJurado: tope,
+        })}
+        tope={tope}
+        obras={obras}
+        fotosPorJurado={carga.fotosPorJurado}
+        sePuedeCambiar={sePuedeCambiarLaCantidad({ evaluacionesEnviadas: enviadas })}
+        nombreDeConsigna={nombreDeConsigna}
+      />
       <JuradosDeLaEdicion
         editionId={editionId}
         disponibles={disponibles ?? []}

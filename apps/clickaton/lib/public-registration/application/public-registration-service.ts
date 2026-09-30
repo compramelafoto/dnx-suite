@@ -374,7 +374,11 @@ export function createPublicRegistrationService(deps: {
 
     async getContext(
       slug: string,
-      opts?: { participantEmail?: string | null },
+      opts?: {
+        participantEmail?: string | null;
+        /** Usuario de la sesión. Nunca derivado del email tipeado. */
+        sessionUserId?: number | null;
+      },
     ): Promise<PublicRegistrationContextDto> {
       const edition = await repo.getEditionBySlug(slug);
       if (!edition || !edition.isPublished || !edition.registrationEnabled) {
@@ -492,6 +496,31 @@ export function createPublicRegistrationService(deps: {
         }
       }
 
+      // Beneficio por colegas traídos.
+      //
+      // Se resuelve por la SESIÓN, nunca por el email tipeado: con el email de
+      // otro, cualquiera podría ver —y gastar— los colegas que esa persona
+      // trajo. Sólo presentación; el descuento real se recalcula y se reserva
+      // al crear la inscripción, también contra la sesión.
+      let referralBenefit: PublicRegistrationContextDto["referralBenefit"] = null;
+      if (opts?.sessionUserId != null) {
+        try {
+          const [{ prismaReferralRepository }, { descuentoPorColegas }] =
+            await Promise.all([
+              import("@/lib/referrals/infrastructure/prisma-referral-repository"),
+              import("@/lib/referrals/domain/escalera"),
+            ]);
+          const colegas = await prismaReferralRepository.contarColegasTraidos(
+            opts.sessionUserId,
+          );
+          if (colegas > 0) {
+            referralBenefit = { colegas, descuento: descuentoPorColegas(colegas) };
+          }
+        } catch (error) {
+          console.error("[clickaton] referralBenefit lookup failed:", error);
+        }
+      }
+
       return {
         edition: {
           id: edition.id,
@@ -516,6 +545,7 @@ export function createPublicRegistrationService(deps: {
         highestPricePhase,
         registrationWindow: window,
         passCredits,
+        referralBenefit,
         legal: {
           termsPath: "/legal/terminos",
           privacyPath: "/legal/privacidad",
@@ -717,6 +747,9 @@ export function createPublicRegistrationService(deps: {
       let promotionId: string | null = null;
       let promotionCodeSnapshot: string | null = null;
       let promoIdempotencyKey: string | null = null;
+      // Precio de lista antes de cualquier descuento: es contra éste que se
+      // comparan el cupón y el beneficio por referidos.
+      const montoDeLista = chargeAmount;
       const rawPromo = input.promoCode?.trim() ?? "";
       if (rawPromo) {
         if (!promotions) {
@@ -753,6 +786,53 @@ export function createPublicRegistrationService(deps: {
         chargeAmount = reserved.applied.quote.finalAmount;
         promotionId = reserved.applied.quote.promotionId;
         promotionCodeSnapshot = reserved.applied.quote.code;
+      }
+
+      // Beneficio por referidos. NO se suma al cupón: se aplica el mayor de
+      // los dos, y en empate gana el cupón para que los colegas traídos queden
+      // guardados para la próxima.
+      //
+      // `sessionUserId`, no `userId`: éste último sale del email tipeado, y
+      // con el email de un referidor cualquiera podría gastarle los colegas
+      // que trajo. El beneficio es de quien tiene la sesión iniciada.
+      let referralRef: string | null = null;
+      const referidorUserId = input.sessionUserId ?? null;
+      if (montoDeLista > 0 && referidorUserId != null && !usePassCredit) {
+        try {
+          const [{ reservarBeneficio }, { prismaReferralRepository }] = await Promise.all([
+            import("@/lib/referrals/application/canjear-beneficio"),
+            import("@/lib/referrals/infrastructure/prisma-referral-repository"),
+          ]);
+
+          const ref = `clickaton:ref:${input.idempotencyKey}`;
+          const eleccion = await reservarBeneficio(prismaReferralRepository, {
+            userId: referidorUserId,
+            montoOriginal: montoDeLista,
+            cupon: promotionId ? { descuento: discountAmount } : null,
+            ref,
+          });
+
+          if (eleccion.gana === "referidos" && eleccion.colegasReservados > 0) {
+            // El cupón perdió: se libera para que no quede quemado por una
+            // comparación que no ganó.
+            if (promoIdempotencyKey) {
+              const { releaseClickatonPromotionByIdempotencyKey } = await import(
+                "@/lib/promotions/prisma-promotions-adapter"
+              );
+              await releaseClickatonPromotionByIdempotencyKey(promoIdempotencyKey);
+              promotionId = null;
+              promotionCodeSnapshot = null;
+              promoIdempotencyKey = null;
+            }
+            discountAmount = eleccion.descuentoAplicado;
+            chargeAmount = eleccion.montoFinal;
+            referralRef = ref;
+          }
+        } catch (error) {
+          // Best-effort: nadie se queda sin inscribirse porque falle el
+          // programa de referidos. Paga el precio con el cupón que traía.
+          console.error("[clickaton] reservarBeneficio falló:", error);
+        }
       }
 
       const existingIdem = await repo.findByIdempotencyKey(input.idempotencyKey);
@@ -925,6 +1005,27 @@ export function createPublicRegistrationService(deps: {
           idempotencyKey: promoIdempotencyKey,
           registrationId: registration.id,
         });
+      }
+
+      // La reserva de referidos nació atada a la clave de idempotencia porque
+      // la inscripción todavía no existía. Recién ahora se le puede poner su
+      // id, que es lo que permite confirmarla al pagar o liberarla si vence.
+      if (referralRef) {
+        try {
+          const [{ adjuntarReservaAInscripcion }, { prismaReferralRepository }] =
+            await Promise.all([
+              import("@/lib/referrals/application/canjear-beneficio"),
+              import("@/lib/referrals/infrastructure/prisma-referral-repository"),
+            ]);
+          await adjuntarReservaAInscripcion(prismaReferralRepository, {
+            ref: referralRef,
+            registrationId: registration.id,
+          });
+        } catch (error) {
+          // La reserva queda atada a la clave; el barrido de holds vencidos la
+          // libera igual. Nunca se pierde: a lo sumo tarda en volver.
+          console.error("[clickaton] adjuntarReservaAInscripcion falló:", error);
+        }
       }
 
       // Free tickets / canje Pack: confirm immediately (no Mercado Pago) when wired.
