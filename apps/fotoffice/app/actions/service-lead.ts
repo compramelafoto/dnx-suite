@@ -2,6 +2,7 @@
 
 import { Prisma, prisma } from "@repo/db";
 import { z } from "zod";
+import { notificarEvento } from "@/lib/circuitos/eventos";
 
 const serviceLeadSchema = z.object({
   workspaceSlug: z.string().min(1),
@@ -78,13 +79,10 @@ export async function createServiceLead(
     }
 
     const data = parsed.data;
-    console.log("SLUG RECIBIDO:", data.workspaceSlug);
 
     const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
       where: { publicSlug: data.workspaceSlug },
     });
-    console.log("BRANDING:", branding);
-    console.log("WORKSPACE ID QUE SE USA:", branding?.workspaceId);
 
     if (!branding) {
       return { success: false, error: "Workspace no encontrado." };
@@ -95,7 +93,8 @@ export async function createServiceLead(
         : "";
     const resolvedEventSubtype = data.eventSubtype?.trim() || budgetTypeFromMeta || "";
 
-    await prisma.serviceSalesLead.create({
+    const creado = await prisma.serviceSalesLead.create({
+      select: { id: true },
       data: {
         workspaceId: branding.workspaceId,
         formId: emptyToNull(data.formId),
@@ -113,9 +112,19 @@ export async function createServiceLead(
       },
     });
 
+    // La consulta ya quedó registrada: el motor de etapas la pone en la primera etapa. Una falla
+    // del motor nunca hace fallar el alta (notificarEvento no lanza; esto es por las dudas).
+    try {
+      await notificarEvento(branding.workspaceId, { tipo: "CAPTACION", id: creado.id }, "CONSULTA_RECIBIDA", creado.id);
+    } catch {
+      console.error("[captacion] no se pudo enganchar la consulta nueva al embudo");
+    }
+
     return { success: true };
   } catch (error) {
-    console.error("Error al crear ServiceSalesLead:", error);
+    // Sólo el tipo y el código: el mensaje de Prisma puede repetir los datos de la persona.
+    const e = error as { name?: string; code?: string } | null;
+    console.error("Error al crear ServiceSalesLead:", { error: e?.name ?? "desconocido", codigo: e?.code ?? null });
     return { success: false, error: "No se pudo registrar el lead." };
   }
 }

@@ -251,7 +251,8 @@ export async function mover(
         fromStageId: j.stageId,
         toStageId: etapaDestino.id,
         note: opts.nota?.trim() || null,
-        auto: !!opts.auto,
+        // Automático = lo hizo el Sistema (por un evento o por la importación de consultas).
+        auto: !!opts.auto || ctx.userId === null,
         event: opts.auto?.evento ?? null,
         forcedWithPendingTasks: pendientes.length > 0,
         actorUserId: ctx.userId,
