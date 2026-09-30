@@ -7,6 +7,7 @@ import { Recorrido } from "@/components/circuitos/recorrido";
 import { Tareas } from "@/components/circuitos/tareas";
 import { puede } from "@/lib/access/policy";
 import { cargarFicha } from "@/lib/circuitos/ficha";
+import { claveDeRecorrido } from "@/lib/circuitos/ficha-vista";
 import { fechaBA, fechaHoraBA } from "@/lib/ficha/formato";
 import { requireServiceLeadsStaff } from "@/lib/service-leads/access";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
@@ -101,13 +102,14 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
           {recorrido ? (
             <>
               <Recorrido
+                key={claveDeRecorrido(recorrido)}
                 recorrido={recorrido}
                 titulo={consulta.nombre}
                 motivos={ficha.motivos}
                 responsables={ficha.responsables}
                 puedePasarIgual={puede(role, "configurar")}
               />
-              <Tareas journeyId={recorrido.id} tareas={ficha.tareas} abierto={recorrido.abierto} />
+              <Tareas key={recorrido.id} journeyId={recorrido.id} tareas={ficha.tareas} abierto={recorrido.abierto} />
               {ficha.proyeccion ? <Proyeccion proyeccion={ficha.proyeccion} /> : null}
               <Historial pasos={ficha.historial} />
             </>

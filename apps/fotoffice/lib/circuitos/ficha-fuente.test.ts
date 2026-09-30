@@ -68,4 +68,16 @@ describe("ficha de la consulta", () => {
     expect(pagina()).toContain("<Proyeccion");
     expect(pagina()).toContain("<Historial");
   });
+
+  it("los formularios arrancan de nuevo con datos frescos y el responsable no pierde el foco", () => {
+    const p = pagina();
+    expect(p).toContain("key={claveDeRecorrido(recorrido)}");
+    expect(p).toContain("<Tareas key={recorrido.id}");
+    const r = componente("recorrido.tsx");
+    expect(r).toContain("onClick={abrirVencimiento}");
+    expect(r).toContain("aria-busy={guardandoResponsable}");
+    const select = r.slice(r.indexOf('aria-label="Responsable"'), r.indexOf("Sin responsable"));
+    expect(select).not.toContain("disabled=");
+    expect(componente("tareas.tsx")).toContain("tildeVisible(t.hecha, tildes[t.id])");
+  });
 });

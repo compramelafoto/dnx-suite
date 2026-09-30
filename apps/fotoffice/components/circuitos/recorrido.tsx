@@ -1,13 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { asignarResponsableAction, cambiarVencimientoAction, cerrarAction, moverAction } from "@/app/actions/circuitos";
 import { ETIQUETA_SALIDA } from "@/lib/circuitos/constantes";
-import { finDelDiaElegido } from "@/lib/circuitos/ficha-vista";
+import { finDelDiaElegido, valoresDeVencimiento } from "@/lib/circuitos/ficha-vista";
 import type { RecorridoFicha } from "@/lib/circuitos/ficha";
 import { claseDeColorEtiqueta, fechaBA, fechaHoraBA } from "@/lib/ficha/formato";
-import { hoyEnBuenosAires } from "@/lib/listado/periodos";
 import { DialogoGanada } from "./dialogo-ganada";
 import { DialogoPerdida } from "./dialogo-perdida";
 
@@ -50,8 +49,14 @@ export function Recorrido({
   const [destino, setDestino] = useState<{ id: string; nombre: string } | null>(null);
   const [notaMover, setNotaMover] = useState("");
   const [editandoVence, setEditandoVence] = useState(false);
-  const [fechaVence, setFechaVence] = useState(recorrido.stageDueAt ? hoyEnBuenosAires(new Date(recorrido.stageDueAt)) : "");
-  const [sinVence, setSinVence] = useState(recorrido.stageDueAt === null);
+  const [fechaVence, setFechaVence] = useState(() => valoresDeVencimiento(recorrido.stageDueAt).fecha);
+  const [sinVence, setSinVence] = useState(() => valoresDeVencimiento(recorrido.stageDueAt).sin);
+  // Responsable: el selector nunca se deshabilita (perdería el foco). Hay como mucho un guardado
+  // en vuelo; si se elige otro mientras tanto, se guarda sólo el último al terminar.
+  const [responsable, setResponsable] = useState<number | null>(recorrido.responsableId);
+  const [guardandoResponsable, setGuardandoResponsable] = useState(false);
+  const enVuelo = useRef(false);
+  const siguiente = useRef<{ userId: number | null } | null>(null);
   const [notaVence, setNotaVence] = useState("");
   const [ganando, setGanando] = useState(false);
   const [perdiendo, setPerdiendo] = useState(false);
@@ -94,6 +99,51 @@ export function Recorrido({
         `Quedó como ${ETIQUETA_SALIDA[salidas.fracaso] ?? salidas.fracaso}.`,
         op,
       );
+    }
+  }
+
+  function abrirVencimiento() {
+    // Siempre desde el vencimiento vigente, no desde lo que quedó de una edición anterior.
+    const v = valoresDeVencimiento(recorrido.stageDueAt);
+    setFechaVence(v.fecha);
+    setSinVence(v.sin);
+    setNotaVence("");
+    setEditandoVence(true);
+  }
+
+  async function guardarResponsable(userId: number | null) {
+    if (enVuelo.current) {
+      siguiente.current = { userId };
+      return;
+    }
+    enVuelo.current = true;
+    setGuardandoResponsable(true);
+    setAviso(null);
+    let actual = userId;
+    try {
+      for (;;) {
+        const r = await asignarResponsableAction({ journeyId: recorrido.id, userId: actual });
+        if (!r.ok) {
+          setAviso({ mensaje: r.error });
+          setResponsable(recorrido.responsableId);
+          break;
+        }
+        const otro = siguiente.current;
+        siguiente.current = null;
+        if (!otro || otro.userId === actual) {
+          setEstado("Responsable guardado.");
+          break;
+        }
+        actual = otro.userId;
+      }
+      router.refresh();
+    } catch {
+      setAviso({ mensaje: MENSAJE_FALLA });
+      setResponsable(recorrido.responsableId);
+    } finally {
+      enVuelo.current = false;
+      siguiente.current = null;
+      setGuardandoResponsable(false);
     }
   }
 
@@ -179,11 +229,12 @@ export function Recorrido({
               <select
                 className="fo-input"
                 aria-label="Responsable"
-                value={recorrido.responsableId ?? ""}
-                disabled={pendiente}
+                value={responsable ?? ""}
+                aria-busy={guardandoResponsable}
                 onChange={(ev) => {
                   const userId = ev.target.value ? Number(ev.target.value) : null;
-                  correr(() => asignarResponsableAction({ journeyId: recorrido.id, userId }), "Responsable guardado.");
+                  setResponsable(userId);
+                  void guardarResponsable(userId);
                 }}
               >
                 <option value="">Sin responsable</option>
@@ -203,7 +254,7 @@ export function Recorrido({
                 {recorrido.vencida ? " · Vencida" : ""}
               </span>
               {!editandoVence ? (
-                <button type="button" className="fo-btn fo-btn-ghost text-xs" onClick={() => setEditandoVence(true)}>
+                <button type="button" className="fo-btn fo-btn-ghost text-xs" onClick={abrirVencimiento}>
                   Cambiar
                 </button>
               ) : null}

@@ -172,3 +172,22 @@ describe("piezas puras de la ficha", () => {
     expect(finDelDiaElegido("20/10/2026")).toBeNull();
   });
 });
+
+describe("estado de los formularios de la ficha", async () => {
+  const { valoresDeVencimiento, claveDeRecorrido, tildeVisible } = await import("./ficha-vista");
+  it("el vencimiento arranca en la fecha AR del vencimiento actual", () => {
+    expect(valoresDeVencimiento("2026-10-17T02:59:59.999Z")).toEqual({ fecha: "2026-10-16", sin: false });
+    expect(valoresDeVencimiento(null)).toEqual({ fecha: "", sin: true });
+  });
+  it("la clave del recorrido cambia al moverlo o cambiar el vencimiento", () => {
+    const r = { id: "j1", enteredStageAt: "2026-10-14T13:00:00.000Z", stageDueAt: null };
+    expect(claveDeRecorrido(r)).not.toBe(claveDeRecorrido({ ...r, enteredStageAt: "2026-10-15T13:00:00.000Z" }));
+    expect(claveDeRecorrido(r)).not.toBe(claveDeRecorrido({ ...r, stageDueAt: "2026-10-17T02:59:59.999Z" }));
+  });
+  it("la tilde optimista cede cuando llega el dato nuevo del servidor", () => {
+    expect(tildeVisible(false, { valor: true, base: false })).toBe(true);
+    expect(tildeVisible(true, { valor: true, base: false })).toBe(true);
+    expect(tildeVisible(false, { valor: true, base: true })).toBe(false); // otro la destildó después
+    expect(tildeVisible(true, undefined)).toBe(true);
+  });
+});

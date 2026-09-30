@@ -124,3 +124,26 @@ export function finDelDiaElegido(ymd: string): Date | null {
   if (!new Date(`${ymd}T00:00:00Z`).toISOString().startsWith(ymd)) return null;
   return new Date(`${ymd}T23:59:59.999-03:00`);
 }
+
+/** Valores con los que arranca el formulario de vencimiento: la fecha (AR) del vencimiento actual. */
+export function valoresDeVencimiento(stageDueAt: string | null): { fecha: string; sin: boolean } {
+  if (!stageDueAt) return { fecha: "", sin: true };
+  const d = new Date(stageDueAt);
+  if (Number.isNaN(d.getTime())) return { fecha: "", sin: true };
+  const fecha = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  return { fecha, sin: false };
+}
+
+/** Clave del recorrido en la ficha: cambia al moverlo, así sus formularios arrancan de nuevo. */
+export function claveDeRecorrido(r: { id: string; enteredStageAt: string; stageDueAt: string | null }): string {
+  return `${r.id}:${r.enteredStageAt}:${r.stageDueAt ?? ""}`;
+}
+
+/**
+ * Tilde optimista: vale sólo mientras el dato del servidor sea el mismo sobre el que se tildó.
+ * Cuando llegan datos nuevos (distinto `base`), manda el servidor.
+ */
+export type Tilde = { valor: boolean; base: boolean };
+export function tildeVisible(servidor: boolean, tilde: Tilde | undefined): boolean {
+  return tilde && tilde.base === servidor ? tilde.valor : servidor;
+}

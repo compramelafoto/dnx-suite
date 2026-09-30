@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { borrarTareaAction, crearTareaAction, tildarTareaAction } from "@/app/actions/circuitos";
-import { finDelDiaElegido, type TareaFicha } from "@/lib/circuitos/ficha-vista";
+import { finDelDiaElegido, tildeVisible, type Tilde, type TareaFicha } from "@/lib/circuitos/ficha-vista";
 import { fechaBA } from "@/lib/ficha/formato";
 
 const MENSAJE_FALLA = "No se pudo guardar el cambio. Probá de nuevo.";
@@ -20,8 +20,9 @@ export function Tareas({ journeyId, tareas, abierto }: { journeyId: string; tare
   const [error, setError] = useState<string | null>(null);
   const [titulo, setTitulo] = useState("");
   const [fecha, setFecha] = useState("");
-  // Tilde optimista: se ve al instante y se corrige si el servidor lo rechaza.
-  const [tildes, setTildes] = useState<Record<string, boolean>>({});
+  // Tilde optimista: se ve al instante, se corrige si el servidor lo rechaza y cede en cuanto
+  // llegan datos nuevos del servidor (guarda el valor sobre el que se tildó).
+  const [tildes, setTildes] = useState<Record<string, Tilde>>({});
 
   function correr(accion: () => Promise<{ ok: boolean; error?: string }>, alTerminar?: () => void, alFallar?: () => void) {
     setError(null);
@@ -43,7 +44,7 @@ export function Tareas({ journeyId, tareas, abierto }: { journeyId: string; tare
   }
 
   function tildar(t: TareaFicha, hecha: boolean) {
-    setTildes((x) => ({ ...x, [t.id]: hecha }));
+    setTildes((x) => ({ ...x, [t.id]: { valor: hecha, base: t.hecha } }));
     const volver = () =>
       setTildes((x) => {
         const resto = { ...x };
@@ -83,7 +84,7 @@ export function Tareas({ journeyId, tareas, abierto }: { journeyId: string; tare
       {tareas.length === 0 ? <p className="text-sm text-[var(--fo-muted)]">No hay tareas.</p> : null}
       <ul className="space-y-2">
         {tareas.map((t) => {
-          const hecha = tildes[t.id] ?? t.hecha;
+          const hecha = tildeVisible(t.hecha, tildes[t.id]);
           return (
             <li key={t.id} className="flex items-start gap-2 text-sm">
               <input
