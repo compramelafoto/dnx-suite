@@ -90,7 +90,7 @@
 **Interfaces:**
 - Produces: `PORTFOLIO_MODULE_KEY = "portfolio"`, `PORTFOLIO_MAX_PHOTOS = 20`, `PORTFOLIO_OVERDUE_LIMIT = 3`, `PORTFOLIO_PUBLIC_SEGMENT = "socios"`
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 En `apps/fotoffice/lib/modules/registry.test.ts`, agregar:
 
@@ -106,12 +106,12 @@ it("el módulo portfolio está en el catálogo, disponible y con su ruta", () =>
 
 Agregar el import `import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";` al encabezado del archivo.
 
-- [ ] **Step 2: Correr el test y verificar que falla**
+- [x] **Step 2: Correr el test y verificar que falla**
 
 Run: `cd apps/fotoffice && pnpm test -- registry`
 Expected: FAIL — no resuelve `@/lib/portfolio/constants`.
 
-- [ ] **Step 3: Crear las constantes**
+- [x] **Step 3: Crear las constantes**
 
 `apps/fotoffice/lib/portfolio/constants.ts`:
 
@@ -142,7 +142,7 @@ export const PORTFOLIO_OVERDUE_LIMIT = 3;
 export const PORTFOLIO_PUBLIC_SEGMENT = "socios";
 ```
 
-- [ ] **Step 4: Dar de alta el módulo**
+- [x] **Step 4: Dar de alta el módulo**
 
 En `apps/fotoffice/lib/modules/registry.ts`, agregar el import y la entrada junto a los otros módulos institucionales (antes de `governance`):
 
@@ -159,12 +159,12 @@ En `apps/fotoffice/lib/modules/registry.ts`, agregar el import y la entrada junt
   },
 ```
 
-- [ ] **Step 5: Correr los tests y verificar que pasan**
+- [x] **Step 5: Correr los tests y verificar que pasan**
 
 Run: `cd apps/fotoffice && pnpm test -- registry`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/fotoffice/lib/portfolio/constants.ts apps/fotoffice/lib/modules/registry.ts apps/fotoffice/lib/modules/registry.test.ts
@@ -189,7 +189,7 @@ Es el corazón del módulo y no toca la base: siete hechos entran, una respuesta
   - `type PortfolioVisibility = { visible: true } | { visible: false; reason: PortfolioHiddenReason }`
   - `function portfolioVisibility(facts: PortfolioVisibilityFacts): PortfolioVisibility`
 
-- [ ] **Step 1: Escribir los tests que fallan**
+- [x] **Step 1: Escribir los tests que fallan**
 
 `apps/fotoffice/lib/portfolio/visibility.test.ts`:
 
@@ -313,12 +313,12 @@ describe("portfolioVisibility", () => {
 });
 ```
 
-- [ ] **Step 2: Correr y verificar que falla**
+- [x] **Step 2: Correr y verificar que falla**
 
 Run: `cd apps/fotoffice && pnpm test -- visibility`
 Expected: FAIL — no existe `./visibility`.
 
-- [ ] **Step 3: Escribir la implementación**
+- [x] **Step 3: Escribir la implementación**
 
 `apps/fotoffice/lib/portfolio/visibility.ts`:
 
@@ -392,12 +392,12 @@ export function portfolioVisibility(facts: PortfolioVisibilityFacts): PortfolioV
 }
 ```
 
-- [ ] **Step 4: Correr y verificar que pasan los 15**
+- [x] **Step 4: Correr y verificar que pasan los 15**
 
 Run: `cd apps/fotoffice && pnpm test -- visibility`
 Expected: PASS, 15 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/fotoffice/lib/portfolio/visibility.ts apps/fotoffice/lib/portfolio/visibility.test.ts
@@ -416,7 +416,7 @@ git commit -m "La regla única que decide si un portfolio está al aire"
 - Consumes: `PortfolioHiddenReason` (Task 2), `PersonVocabulary` de `@/lib/vocabulario/personas`
 - Produces: `function hiddenReasonMessage(reason: PortfolioHiddenReason): { title: string; detail: string; action: { label: string; href: string } | null }`
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 `apps/fotoffice/lib/portfolio/visibility-labels.test.ts`:
 
@@ -465,12 +465,12 @@ describe("hiddenReasonMessage", () => {
 });
 ```
 
-- [ ] **Step 2: Correr y verificar que falla**
+- [x] **Step 2: Correr y verificar que falla**
 
 Run: `cd apps/fotoffice && pnpm test -- visibility-labels`
 Expected: FAIL.
 
-- [ ] **Step 3: Escribir la implementación**
+- [x] **Step 3: Escribir la implementación**
 
 `apps/fotoffice/lib/portfolio/visibility-labels.ts`:
 
@@ -541,12 +541,12 @@ export function hiddenReasonMessage(reason: PortfolioHiddenReason): HiddenReason
 }
 ```
 
-- [ ] **Step 4: Correr y verificar que pasan**
+- [x] **Step 4: Correr y verificar que pasan**
 
 Run: `cd apps/fotoffice && pnpm test -- visibility-labels`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/fotoffice/lib/portfolio/visibility-labels.ts apps/fotoffice/lib/portfolio/visibility-labels.test.ts
@@ -565,7 +565,7 @@ git commit -m "El texto que explica al socio por qué su portfolio no se ve"
 - Consumes: `slugify` de `@/lib/slug`
 - Produces: `function derivePortfolioSlug(params: { firstName: string; lastName: string; taken: ReadonlySet<string> }): string`
 
-- [ ] **Step 1: Escribir los tests que fallan**
+- [x] **Step 1: Escribir los tests que fallan**
 
 `apps/fotoffice/lib/portfolio/slug.test.ts`:
 
@@ -619,12 +619,12 @@ describe("derivePortfolioSlug", () => {
 });
 ```
 
-- [ ] **Step 2: Correr y verificar que falla**
+- [x] **Step 2: Correr y verificar que falla**
 
 Run: `cd apps/fotoffice && pnpm test -- portfolio/slug`
 Expected: FAIL.
 
-- [ ] **Step 3: Escribir la implementación**
+- [x] **Step 3: Escribir la implementación**
 
 `apps/fotoffice/lib/portfolio/slug.ts`:
 
@@ -655,12 +655,12 @@ export function derivePortfolioSlug(params: {
 }
 ```
 
-- [ ] **Step 4: Correr y verificar que pasan**
+- [x] **Step 4: Correr y verificar que pasan**
 
 Run: `cd apps/fotoffice && pnpm test -- portfolio/slug`
 Expected: PASS, 6 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/fotoffice/lib/portfolio/slug.ts apps/fotoffice/lib/portfolio/slug.test.ts
@@ -678,7 +678,7 @@ git commit -m "La dirección pública de cada portfolio"
 **Interfaces:**
 - Produces: `prisma.fotofficeMemberPortfolio`, `prisma.fotofficeMemberPortfolioPhoto`, y los valores `PORTFOLIO_HIDDEN` / `PORTFOLIO_RESTORED` de `MemberAuditAction`
 
-- [ ] **Step 1: Agregar los modelos al schema**
+- [x] **Step 1: Agregar los modelos al schema**
 
 En `packages/db/prisma/schema.prisma`, después de `model MemberAudit`:
 
@@ -789,7 +789,7 @@ En `enum MemberAuditAction`, agregar al final:
   PORTFOLIO_RESTORED
 ```
 
-- [ ] **Step 2: Escribir la migración a mano**
+- [x] **Step 2: Escribir la migración a mano**
 
 `packages/db/prisma/migrations/20260923120000_fotoffice_member_portfolio/migration.sql`:
 
@@ -850,24 +850,24 @@ ALTER TABLE "FotofficeMemberPortfolioPhoto" ADD CONSTRAINT "FotofficeMemberPortf
 
 > **Ojo con el `ALTER TYPE`.** Postgres no permite usar un valor de enum recién agregado dentro de la misma transacción en que se lo agregó. Esta migración no lo usa —sólo lo declara—, así que es seguro. Si una migración futura necesitara insertarlo, va en un archivo aparte.
 
-- [ ] **Step 3: Regenerar el cliente y verificar que el schema es válido**
+- [x] **Step 3: Regenerar el cliente y verificar que el schema es válido**
 
 Run: `cd packages/db && pnpm exec prisma generate`
 Expected: "Generated Prisma Client" sin errores.
 
-- [ ] **Step 4: Verificar que la migración es SQL válido contra una base descartable**
+- [x] **Step 4: Verificar que la migración es SQL válido contra una base descartable**
 
 Run: `cd /Users/danielcuart/Desktop/PROGRAMACIONES/dnx-suite && docker compose up -d postgres && cd packages/db && pnpm exec prisma migrate deploy`
 Expected: aplica todas las migraciones, incluida la nueva, sin error.
 
 Si Docker no está disponible, dejar constancia en el informe de la etapa y verificar el SQL en la etapa 5 contra una rama de prueba de Neon. **Nunca contra `development`.**
 
-- [ ] **Step 5: Correr los tests para confirmar que nada se rompió**
+- [x] **Step 5: Correr los tests para confirmar que nada se rompió**
 
 Run: `cd apps/fotoffice && pnpm test`
 Expected: PASS, 3261 tests o más.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/db/prisma/schema.prisma packages/db/prisma/migrations/20260923120000_fotoffice_member_portfolio
@@ -887,7 +887,7 @@ git commit -m "Las tablas del portfolio de socios"
 **Interfaces:**
 - Produces: `IMAGE_PRESETS.memberPortfolioPhoto`, `FOTOFFICE_R2_PREFIXES.memberPortfolioPhoto = "fotoffice/member-portfolio"`, y el campo opcional `aspectRatioFree?: boolean` en `ImagePreset`
 
-- [ ] **Step 1: Escribir los tests que fallan**
+- [x] **Step 1: Escribir los tests que fallan**
 
 Crear `apps/fotoffice/lib/images/presets.test.ts`:
 
@@ -933,12 +933,12 @@ it("una key de otra app sigue sin ser borrable", () => {
 });
 ```
 
-- [ ] **Step 2: Correr y verificar que fallan**
+- [x] **Step 2: Correr y verificar que fallan**
 
 Run: `cd apps/fotoffice && pnpm test -- images`
 Expected: FAIL.
 
-- [ ] **Step 3: Agregar el prefijo de R2**
+- [x] **Step 3: Agregar el prefijo de R2**
 
 En `apps/fotoffice/lib/images/r2-key-policy.ts`, dentro de `FOTOFFICE_R2_PREFIXES`:
 
@@ -946,7 +946,7 @@ En `apps/fotoffice/lib/images/r2-key-policy.ts`, dentro de `FOTOFFICE_R2_PREFIXE
   memberPortfolioPhoto: "fotoffice/member-portfolio",
 ```
 
-- [ ] **Step 4: Agregar el campo y el preset**
+- [x] **Step 4: Agregar el campo y el preset**
 
 En `apps/fotoffice/lib/images/presets.ts`, en el tipo `ImagePreset`, después de `aspectRatioTolerance`:
 
@@ -981,7 +981,7 @@ Y el preset nuevo dentro de `IMAGE_PRESETS`:
 
 > `minWidth` y `minHeight` en 1000 con proporción libre significan "el lado mayor de 1000 px"; la comprobación de dimensiones vive en el cliente y se ajusta en el Step 5.
 
-- [ ] **Step 5: Respetar la proporción libre en el campo de subida**
+- [x] **Step 5: Respetar la proporción libre en el campo de subida**
 
 En `apps/fotoffice/components/image-upload-field.tsx:95-105`, envolver la comprobación de proporción:
 
@@ -1005,12 +1005,12 @@ Y, para el mínimo de dimensiones con proporción libre, comparar contra el lado
 
 Reemplazar la condición del mínimo existente por `cumpleMinimo`.
 
-- [ ] **Step 6: Correr y verificar que pasan**
+- [x] **Step 6: Correr y verificar que pasan**
 
 Run: `cd apps/fotoffice && pnpm test -- images`
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/fotoffice/lib/images apps/fotoffice/components/image-upload-field.tsx
@@ -1018,6 +1018,32 @@ git commit -m "Preset de foto de portfolio, sin proporción forzada"
 ```
 
 ---
+
+---
+
+## Lo que cambió al ejecutar la Etapa 1 *(30/09/2026)*
+
+Cuatro desviaciones respecto de lo planificado, todas verificadas:
+
+1. **La migración quedó fechada `20260930120000`**, no `20260923120000`. Entre la escritura del
+   plan y su ejecución entraron seis migraciones nuevas; una fechada antes de otras ya aplicadas
+   se aplica fuera de orden.
+2. **La historia de migraciones del repo no se puede reproducir desde cero.**
+   `20260911120000_video_frames_face_recognition` espera la tabla `VideoAsset`, que su propia
+   historia no crea, así que `prisma migrate deploy` desde una base vacía corta ahí. Es una
+   condición previa del repo, no de esta obra. La verificación se hizo por otro camino: construir
+   la base con el esquema **anterior** a este cambio, aplicar esta migración encima y comparar
+   contra el esquema nuevo. El diff salió vacío — coincidencia exacta.
+3. **Hizo falta una tarea que el plan no tenía:** dar de alta la ficha del módulo en
+   `lib/landing/catalogo.ts`. Lo pidió un test que ya existía (`catalogo.test.ts`), que vigila que
+   todo módulo encendible se cuente en la portada de venta. Sin eso, el módulo se enciende y nadie
+   se entera de que existe.
+4. **El chequeo de tipos necesita `--max-old-space-size=8192`.** Con la memoria por defecto,
+   `tsc` muere por falta de memoria antes de terminar, y ese corte parece un éxito: `pnpm exec`
+   devuelve 0. Correrlo sin la memoria extra es no chequear nada. Encontró un error real que los
+   tests no ven, porque vitest no chequea tipos.
+
+**Estado al cerrar la etapa:** 269 archivos de test, 3327 tests, 0 fallas. Tipos limpios.
 
 # ETAPA 2 — El socio lo arma
 
