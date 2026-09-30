@@ -26,6 +26,11 @@ const inicial: PanelState = { error: null, ok: null };
  * principal va sola y ancha, y las dos salidas menores —pedir un dato, no poder tomarlo— viven
  * detrás de un botón que recién entonces pide lo que hace falta escribir. Es el mismo patrón que
  * usa la bandeja de solicitudes de asociación (`components/membership/application-card.tsx`).
+ *
+ * **Esperar una respuesta no puede ser un estado sin salida.** La máquina permitía salir de
+ * `REQUIERE_INFO` por dos lados y esta pantalla no ofrecía ninguno, así que un pedido cuyo dato
+ * nunca llegó se quedaba trabado para siempre y la única salida era escribir en la base.
+ * `criterios-callejones.test.ts` verifica que no vuelva a pasar.
  */
 export function EvaluacionPanel({
   id,
@@ -237,10 +242,111 @@ export function EvaluacionPanel({
         </div>
       ) : null}
 
+      {/*
+        Esperar una respuesta que no llega no puede ser un estado sin salida.
+
+        `REQUIERE_INFO` permite volver a `EN_EVALUACION` y también terminar en `RECHAZADA`, y
+        esta pantalla no ofrecía ninguna de las dos: la coordinación pedía un dato, la
+        organización no contestaba nunca, y el pedido se quedaba ahí para siempre. La única
+        salida era escribir en la base.
+
+        Las dos salidas son las que de verdad pasan, y se leen como lo que son. Seguir sin el
+        dato no es un atajo: es decidir con lo que hay. Dar por terminado el intento no es un
+        castigo a la organización: casi siempre se le fue el tema de las manos, y el texto del
+        correo sale escrito en esos términos.
+      */}
       {!cerrada && status === "REQUIERE_INFO" ? (
-        <p className="fo-alert-warning rounded-[var(--fo-radius-sm)] p-3 text-sm leading-relaxed">
-          Les pedimos: «{infoRequested}»
-        </p>
+        <div className="space-y-4">
+          <p className="fo-alert-warning rounded-[var(--fo-radius-sm)] p-3 text-sm leading-relaxed">
+            Les pedimos: «{infoRequested}»
+          </p>
+
+          <div className="space-y-4 border-t border-[var(--fo-border)] pt-4">
+            <p className="fo-helper">¿Pasó el tiempo y no contestaron?</p>
+
+            {/*
+              Volver a evaluación alcanza con revisar: `transitionNeedsCoordinator` sólo exige
+              coordinar para los destinos que le cierran la puerta a la organización, y éste es
+              el que la deja abierta.
+            */}
+            <div className="space-y-2">
+              <form action={cambiarEstado}>
+                <input type="hidden" name="id" value={id} />
+                <input type="hidden" name="to" value="EN_EVALUACION" />
+                <button
+                  type="submit"
+                  className="fo-btn fo-btn-primary min-h-12 w-full text-base sm:w-auto"
+                  disabled={cambiando}
+                >
+                  {cambiando ? "Volviendo a evaluación…" : "Seguir sin ese dato"}
+                </button>
+              </form>
+              <p className="fo-helper">
+                Vuelve a evaluación y se decide con lo que ya tenemos. La organización no recibe
+                ningún aviso, pero el cuadro para contestarnos desaparece de su enlace: si
+                todavía esperás la respuesta, no aprietes esto.
+              </p>
+            </div>
+
+            {puedeCoordinar ? (
+              <div className="space-y-3">
+                {!rechazando ? (
+                  <button
+                    type="button"
+                    onClick={() => setRechazando(true)}
+                    className="fo-btn fo-btn-secondary min-h-11 text-sm"
+                  >
+                    Dar por terminado el intento
+                  </button>
+                ) : null}
+
+                {rechazando ? (
+                  <form action={cambiarEstado} className="fo-field-stack">
+                    <input type="hidden" name="id" value={id} />
+                    <input type="hidden" name="to" value="RECHAZADA" />
+                    <label className="fo-label" htmlFor="reasonSinRespuesta">
+                      Qué les decimos
+                    </label>
+                    <p className="fo-helper">
+                      Se lo mandamos tal como quede escrito. Está redactado para no sonar a
+                      reproche —nadie le debía nada a nadie— y deja la puerta abierta para que
+                      vuelvan. Cambialo si en este caso corresponde otra cosa.
+                    </p>
+                    <textarea
+                      id="reasonSinRespuesta"
+                      name="reason"
+                      rows={4}
+                      required
+                      className="fo-input"
+                      defaultValue="Quedamos esperando el dato que les pedimos y no llegó, así que por ahora damos por cerrado este pedido. No es ningún problema: si todavía necesitan la cobertura, escribinos de nuevo con esa información y lo volvemos a ver con todo gusto."
+                    />
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <button
+                        type="submit"
+                        className="fo-btn fo-btn-danger-outline min-h-11 text-sm"
+                        disabled={cambiando}
+                      >
+                        {cambiando ? "Avisando…" : "Avisarles y cerrar el pedido"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRechazando(false)}
+                        className="fo-btn fo-btn-ghost min-h-11 text-sm"
+                      >
+                        Mejor no
+                      </button>
+                    </div>
+                  </form>
+                ) : null}
+              </div>
+            ) : (
+              <p className="fo-helper">
+                Dar por terminado el intento lo decide una coordinadora. Vos sí podés volverlo a
+                evaluación.
+              </p>
+            )}
+          </div>
+        </div>
       ) : null}
 
       <details className="border-t border-[var(--fo-border)] pt-4">
