@@ -172,8 +172,13 @@ export function crearBaseEnMemoria() {
   let abiertas = 0;
 
   /** Cliente que llama a `tablas` en el momento (así ve los reemplazos) si `permitido()` lo deja. */
+  /** SQL crudo recibido (sólo se registra: el bloqueo de la base real acá no hace nada). */
+  const sql: { texto: string; valores: unknown[] }[] = [];
+  /** Se llama con cada SQL crudo, dentro de la transacción: sirve para simular otra corrida. */
+  const ganchos: { alEjecutarSql: ((texto: string, valores: unknown[]) => void) | null } = { alEjecutarSql: null };
+
   function cliente(permitido: () => string | null): Record<string, unknown> {
-    return Object.fromEntries(
+    const c: Record<string, unknown> = Object.fromEntries(
       TABLAS.map((t) => [
         t,
         new Proxy({}, {
@@ -185,6 +190,15 @@ export function crearBaseEnMemoria() {
         }),
       ]),
     );
+    c.$executeRaw = async (partes: TemplateStringsArray, ...valores: unknown[]) => {
+      const error = permitido();
+      if (error) throw new Error(error);
+      const texto = partes.join("$");
+      sql.push({ texto, valores });
+      ganchos.alEjecutarSql?.(texto, valores);
+      return 1;
+    };
+    return c;
   }
 
   const FUERA = "uso de prisma fuera de la transacción";
@@ -211,6 +225,8 @@ export function crearBaseEnMemoria() {
     prisma,
     /** Para simular fallas o carreras: reemplazar un método acá lo cambia para `prisma` y para `tx`. */
     tablas,
+    sql,
+    ganchos,
     datos,
     transacciones,
     /** Inserta una fila de prueba con los valores por defecto de su tabla. */
@@ -219,6 +235,8 @@ export function crearBaseEnMemoria() {
       for (const t of TABLAS) datos[t] = [];
       transacciones.length = 0;
       abiertas = 0;
+      sql.length = 0;
+      ganchos.alEjecutarSql = null;
     },
   };
 }

@@ -168,6 +168,24 @@ describe("notificarEvento: reglas", () => {
     expect(await E.notificarEvento("ws-1", CONSULTA, "PRESUPUESTO_ACEPTADO", "pres-1")).toEqual({ movido: true });
   });
 
+  it("si el movimiento lanza, el evento no queda marcado y un nuevo aviso lo mueve", async () => {
+    const id = await iniciado();
+    regla("s2", "PRESUPUESTO_ACEPTADO");
+    const original = B.tablas.serviceSalesLead.updateMany;
+    B.tablas.serviceSalesLead.updateMany = async () => {
+      throw Object.assign(new Error("base caída"), { code: "P1001" });
+    };
+    try {
+      expect(await E.notificarEvento("ws-1", CONSULTA, "PRESUPUESTO_ACEPTADO", "pres-1")).toEqual({ movido: false });
+    } finally {
+      B.tablas.serviceSalesLead.updateMany = original;
+    }
+    expect(B.datos.fotofficeProcessedEvent).toHaveLength(0);
+    expect(recorrido(id).stageId).toBe("s1");
+    expect(await E.notificarEvento("ws-1", CONSULTA, "PRESUPUESTO_ACEPTADO", "pres-1")).toEqual({ movido: true });
+    expect(recorrido(id).stageId).toBe("s2");
+  });
+
   it("una falla de la base no lanza", async () => {
     await iniciado();
     const original = B.tablas.fotofficeJourney.findMany;
@@ -196,7 +214,7 @@ describe("engancharConsultas", () => {
   it("mapea los seis estados sin cambiar el estado de las consultas", async () => {
     B.datos.serviceSalesLead = [];
     sembrarSeis();
-    expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 6 });
+    expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 6, quedan: 0 });
     expect(de("NEW")[0]).toMatchObject({ stageId: "s1", closedAt: null, circuitId: "c1" });
     expect(de("CONTACTED")[0]).toMatchObject({ stageId: "s2", closedAt: null });
     expect(de("QUOTED")[0]).toMatchObject({ stageId: "s4", closedAt: null });
@@ -217,21 +235,63 @@ describe("engancharConsultas", () => {
       workspaceId: "ws-1", circuitId: "c1", kind: "VENTA", subjectType: "CAPTACION", subjectId: "l-cerrada",
       stageId: null, outcome: "GANADA", closedAt: AHORA,
     });
-    expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 6 });
+    expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 6, quedan: 0 });
     const antes = foto();
-    expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 0 });
+    expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 0, quedan: 0 });
     expect(foto()).toBe(antes);
     expect(recorridos("l-cerrada")).toHaveLength(1);
     expect(recorridos("lead-ajeno")).toHaveLength(0);
   });
 
-  it("recorre en lotes todas las consultas", async () => {
+  it("engancha como mucho 150 por llamada, recorre en lotes y dice cuántas quedan", async () => {
+    expect(E.TOPE_ENGANCHE).toBe(150);
     B.datos.serviceSalesLead = [];
-    for (let i = 0; i < 2 * E.LOTE_ENGANCHE + 3; i++) {
+    const total = 2 * E.LOTE_ENGANCHE + 3; // 403: más de dos lotes de lectura
+    for (let i = 0; i < total; i++) {
       B.agregar("serviceSalesLead", { id: `m-${String(i).padStart(4, "0")}`, workspaceId: "ws-1", name: "x", eventType: "XV", status: "NEW" });
     }
-    expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 2 * E.LOTE_ENGANCHE + 3 });
-    expect(B.datos.fotofficeJourney).toHaveLength(2 * E.LOTE_ENGANCHE + 3);
+    expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 150, quedan: total - 150 });
+    expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 150, quedan: total - 300 });
+    expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: total - 300, quedan: 0 });
+    expect(B.datos.fotofficeJourney).toHaveLength(total);
+    expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 0, quedan: 0 });
+  });
+
+  it("cada consulta en una transacción con bloqueo; si otra corrida ya la enganchó, no la duplica", async () => {
+    B.datos.serviceSalesLead = [];
+    sembrarSeis();
+    // Otra corrida engancha "l-WON" entre la lectura del lote y el bloqueo de esta.
+    B.ganchos.alEjecutarSql = (_texto, valores) => {
+      if (valores[0] === "fotoffice-enganche:l-WON" && recorridos("l-WON").length === 0) {
+        B.datos.fotofficeJourney.push({
+          id: "j-otra", workspaceId: "ws-1", circuitId: "c1", kind: "VENTA", subjectType: "CAPTACION", subjectId: "l-WON",
+          stageId: null, outcome: "GANADA", closedAt: AHORA, enteredStageAt: AHORA, createdAt: AHORA,
+        });
+      }
+    };
+    expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 5, quedan: 0 });
+    expect(recorridos("l-WON").map((j) => j.id)).toEqual(["j-otra"]);
+    expect(B.sql.map((q) => q.valores[0])).toContain("fotoffice-enganche:l-LOST");
+    expect(B.sql[0]!.texto).toContain("pg_advisory_xact_lock(hashtext(");
+  });
+
+  it("una falla a mitad de camino no deja la consulta a medias y se reintenta", async () => {
+    B.datos.serviceSalesLead = [];
+    sembrarSeis();
+    const original = B.tablas.serviceSalesLead.updateMany;
+    B.tablas.serviceSalesLead.updateMany = async () => {
+      throw Object.assign(new Error("base caída"), { code: "P1001" });
+    };
+    try {
+      // Mover y cerrar actualizan el estado de la consulta: CONTACTED, QUOTED, WON y LOST fallan.
+      expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 2, quedan: 4 });
+    } finally {
+      B.tablas.serviceSalesLead.updateMany = original;
+    }
+    for (const s of ["CONTACTED", "QUOTED", "WON", "LOST"]) expect(de(s)).toHaveLength(0);
+    expect(B.datos.fotofficeJourneyStep.filter((p) => !B.datos.fotofficeJourney.some((j) => j.id === p.journeyId))).toHaveLength(0);
+    expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 4, quedan: 0 });
+    expect(de("WON")[0]).toMatchObject({ outcome: "GANADA" });
   });
 
   it("las tareas obligatorias de la primera etapa no frenan la importación (queda forzado)", async () => {
@@ -239,7 +299,7 @@ describe("engancharConsultas", () => {
     sembrarSeis();
     B.datos.fotofficeStage.find((s) => s.id === "s1")!.requireTasks = true;
     B.agregar("fotofficeStageTaskTemplate", { stageId: "s1", title: "Llamar", required: true, order: 0 });
-    expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 6 });
+    expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 6, quedan: 0 });
     expect(de("CONTACTED")[0]).toMatchObject({ stageId: "s2" });
     expect(de("WON")[0]).toMatchObject({ outcome: "GANADA" });
     expect(pasos(de("WON")[0]!.id as string).at(-1)).toMatchObject({ forcedWithPendingTasks: true });
@@ -249,12 +309,15 @@ describe("engancharConsultas", () => {
     B.datos.serviceSalesLead = [];
     sembrarSeis();
     for (const r of B.datos.fotofficeLossReason) r.isActive = false;
-    expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 5 });
+    expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 5, quedan: 1 });
     expect(de("LOST")).toHaveLength(0);
     for (const r of B.datos.fotofficeLossReason) r.isActive = true;
     B.datos.fotofficeLossReason = B.datos.fotofficeLossReason.filter((r) => r.name !== "Otro");
-    expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 1 });
+    expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 1, quedan: 0 });
     expect(de("LOST")[0]).toMatchObject({ lossReasonId: "r-precio" });
-    expect(await E.engancharConsultas("ws-2")).toEqual({ enganchadas: 0 });
+    B.datos.fotofficeCircuit = [];
+    B.agregar("serviceSalesLead", { id: "l-sin", workspaceId: "ws-1", name: "x", eventType: "XV", status: "NEW" });
+    expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 0, quedan: 1 });
+    expect(await E.engancharConsultas("ws-2")).toEqual({ enganchadas: 0, quedan: 0 });
   });
 });
