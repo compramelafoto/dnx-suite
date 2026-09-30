@@ -179,6 +179,14 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
             Ficha
           </Link>
           ) : null}
+          {puede(workspaceRole, "configurar") ? (
+          <Link
+            href="/workspace/configuracion/circuitos"
+            className="block rounded-xl px-4 py-3 text-sm font-medium text-[var(--fo-text)] hover:bg-[var(--fo-surface)] border border-transparent hover:border-[var(--fo-border)]"
+          >
+            Circuitos
+          </Link>
+          ) : null}
         </nav>
         <main className="flex-1 min-w-0">{children}</main>
       </div>

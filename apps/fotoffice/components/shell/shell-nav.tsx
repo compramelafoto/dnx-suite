@@ -17,6 +17,7 @@ import {
   UserCog,
   Users,
   Wallet2,
+  Workflow,
 } from "lucide-react";
 import type { ComponentType } from "react";
 import { useShellNav } from "./shell-frame";
@@ -310,6 +311,12 @@ export function ShellNav({
       label: "Ficha",
       icon: Tags,
       isActive: under("/workspace/configuracion/ficha"),
+    });
+    institucion.push({
+      href: "/workspace/configuracion/circuitos",
+      label: "Circuitos",
+      icon: Workflow,
+      isActive: under("/workspace/configuracion/circuitos"),
     });
   }
 
