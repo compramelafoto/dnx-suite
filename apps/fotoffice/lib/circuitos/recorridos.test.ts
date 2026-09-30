@@ -127,9 +127,9 @@ describe("iniciarRecorrido", () => {
     B.agregar("fotofficeJourney", {
       id: "j-ganador", workspaceId: "ws-1", circuitId: "c1", kind: "VENTA", subjectType: "CAPTACION", subjectId: "lead-1", stageId: "s1",
     });
-    const original = (B.prisma.fotofficeJourney as { findFirst: (a: unknown) => Promise<unknown> }).findFirst;
+    const original = (B.tablas.fotofficeJourney as unknown as { findFirst: (a: unknown) => Promise<unknown> }).findFirst;
     let primera = true;
-    (B.prisma.fotofficeJourney as { findFirst: unknown }).findFirst = async (a: unknown) => {
+    (B.tablas.fotofficeJourney as unknown as { findFirst: unknown }).findFirst = async (a: unknown) => {
       if (primera) {
         primera = false;
         return null;
@@ -139,7 +139,7 @@ describe("iniciarRecorrido", () => {
     try {
       expect(await R.iniciarRecorrido(EQUIPO, CONSULTA)).toEqual({ journeyId: "j-ganador" });
     } finally {
-      (B.prisma.fotofficeJourney as { findFirst: unknown }).findFirst = original;
+      (B.tablas.fotofficeJourney as unknown as { findFirst: unknown }).findFirst = original;
     }
   });
 });
@@ -190,7 +190,7 @@ describe("mover", () => {
   it("si alguien lo movió entre la lectura y la escritura, se deshace todo", async () => {
     const id = await iniciado();
     tildarObligatorias(id);
-    const tabla = B.prisma.fotofficeJourney as { updateMany: (a: unknown) => Promise<{ count: number }> };
+    const tabla = B.tablas.fotofficeJourney as unknown as { updateMany: (a: unknown) => Promise<{ count: number }> };
     const original = tabla.updateMany;
     tabla.updateMany = async (a) => {
       recorrido(id).enteredStageAt = new Date(LUEGO.getTime() - 5); // otro movimiento se adelantó
@@ -211,7 +211,7 @@ describe("mover", () => {
     const id = await iniciado();
     tildarObligatorias(id);
     const antes = foto();
-    const tabla = B.prisma.serviceSalesLead as { updateMany: unknown };
+    const tabla = B.tablas.serviceSalesLead as unknown as { updateMany: unknown };
     const original = tabla.updateMany;
     tabla.updateMany = async () => {
       throw new Error("base caída");
@@ -295,6 +295,7 @@ describe("cerrar", () => {
 
   it("ganada: consulta en WON y sin motivo", async () => {
     const id = await iniciado();
+    tildarObligatorias(id);
     expect(await R.cerrar(EQUIPO, id, "GANADA", "r1")).toEqual({ ok: true });
     expect(recorrido(id)).toMatchObject({ outcome: "GANADA", lossReasonId: null });
     expect(lead().status).toBe("WON");
@@ -302,6 +303,7 @@ describe("cerrar", () => {
 
   it("rechaza salida de otra clase, recorrido cerrado y de otro workspace", async () => {
     const id = await iniciado();
+    tildarObligatorias(id);
     expect(await R.cerrar(EQUIPO, id, "TERMINADO")).toEqual({ ok: false, error: "Ese resultado no corresponde a este circuito." });
     await R.cerrar(EQUIPO, id, "GANADA");
     expect(await R.cerrar(EQUIPO, id, "PERDIDA", "r1")).toEqual({ ok: false, error: "Ese registro ya está cerrado." });
@@ -312,13 +314,66 @@ describe("cerrar", () => {
 
   it("cerrado, se puede volver a iniciar uno nuevo", async () => {
     const id = await iniciado();
+    tildarObligatorias(id);
     await R.cerrar(EQUIPO, id, "GANADA");
     const { journeyId } = await R.iniciarRecorrido(EQUIPO, CONSULTA);
     expect(journeyId).not.toBe(id);
   });
 });
 
+describe("cerrar: ganar cuenta como avance y respeta la concurrencia", () => {
+  it("ganar con obligatorias pendientes se frena; `configurar` fuerza y queda registrado", async () => {
+    const id = await iniciado();
+    const antes = foto();
+    const bloqueo = { ok: false, error: "Faltan tareas obligatorias: Llamar.", pendientes: ["Llamar"] };
+    expect(await R.cerrar(EQUIPO, id, "GANADA")).toEqual(bloqueo);
+    expect(await R.cerrar(EQUIPO, id, "GANADA", undefined, undefined, { forzar: true })).toEqual(bloqueo);
+    expect(await R.cerrar(ADMIN, id, "GANADA")).toEqual(bloqueo);
+    expect(foto()).toBe(antes);
+
+    expect(await R.cerrar(ADMIN, id, "GANADA", undefined, undefined, { forzar: true })).toEqual({ ok: true });
+    expect(recorrido(id)).toMatchObject({ outcome: "GANADA", stageId: null });
+    expect(pasos(id).at(-1)).toMatchObject({ outcome: "GANADA", forcedWithPendingTasks: true, actorUserId: 8 });
+    expect(lead().status).toBe("WON");
+  });
+
+  it("perder no exige tareas y no marca forzado", async () => {
+    const id = await iniciado();
+    expect(await R.cerrar(EQUIPO, id, "PERDIDA", "r1")).toEqual({ ok: true });
+    expect(pasos(id).at(-1)).toMatchObject({ outcome: "PERDIDA", forcedWithPendingTasks: false });
+  });
+
+  it("ganar desde una etapa que no exige tareas no pregunta por ellas", async () => {
+    const id = await iniciado();
+    B.datos.fotofficeStage.find((s) => s.id === "s1")!.requireTasks = false;
+    expect(await R.cerrar(EQUIPO, id, "GANADA")).toEqual({ ok: true });
+    expect(pasos(id).at(-1)).toMatchObject({ forcedWithPendingTasks: false });
+  });
+
+  it("con `esperado` viejo: 'cambió mientras tanto' y nada escrito; con el vigente, cierra", async () => {
+    const id = await iniciado();
+    tildarObligatorias(id);
+    const antes = foto();
+    const viejo = new Date(AHORA.getTime() - 1);
+    expect(await R.cerrar(EQUIPO, id, "GANADA", undefined, undefined, { esperado: viejo })).toEqual({ ok: false, error: "Esta consulta cambió mientras tanto." });
+    expect(await R.cerrar(EQUIPO, id, "PERDIDA", "r1", undefined, { esperado: viejo })).toEqual({ ok: false, error: "Esta consulta cambió mientras tanto." });
+    expect(foto()).toBe(antes);
+    expect(await R.cerrar(EQUIPO, id, "GANADA", undefined, undefined, { esperado: AHORA })).toEqual({ ok: true });
+  });
+});
+
 describe("cambiarVencimiento", () => {
+  it("con `esperado` viejo: 'cambió mientras tanto' y nada escrito; con el vigente, cambia", async () => {
+    const id = await iniciado();
+    const antes = foto();
+    expect(await R.cambiarVencimiento(EQUIPO, id, null, "", { esperado: new Date(AHORA.getTime() + 1) })).toEqual({
+      ok: false, error: "Esta consulta cambió mientras tanto.",
+    });
+    expect(foto()).toBe(antes);
+    expect(await R.cambiarVencimiento(EQUIPO, id, null, "", { esperado: AHORA })).toEqual({ ok: true });
+    expect(recorrido(id).stageDueAt).toBeNull();
+  });
+
   it("cambia el vencimiento y deja el paso con la nota", async () => {
     const id = await iniciado();
     expect(await R.cambiarVencimiento(EQUIPO, id, fin("2026-10-20"), " Pidió más tiempo ")).toEqual({ ok: true });
@@ -351,5 +406,27 @@ describe("asignarResponsable", () => {
   it("recorrido de otro workspace: no encontrado", async () => {
     expect(await R.asignarResponsable(EQUIPO, "j-ajeno", 7)).toEqual({ ok: false, error: "No encontramos ese registro." });
     expect(recorrido("j-ajeno").ownerUserId).toBeNull();
+  });
+});
+
+describe("base en memoria", () => {
+  it("la transacción recibe su propio `tx` y usar el `prisma` global adentro lanza", async () => {
+    const prisma = B.prisma as unknown as {
+      $transaction: (fn: (tx: unknown) => Promise<unknown>) => Promise<unknown>;
+      fotofficeTask: { count: () => Promise<number>; create: (a: unknown) => Promise<unknown> };
+    };
+    let guardado: { fotofficeTask: { count: () => Promise<number> } } | null = null;
+    await expect(
+      prisma.$transaction(async (tx) => {
+        guardado = tx as typeof guardado;
+        expect(tx).not.toBe(B.prisma);
+        await prisma.fotofficeTask.create({ data: { workspaceId: "ws-1", subjectType: "CAPTACION", subjectId: "x", title: "t" } });
+      }),
+    ).rejects.toThrow("uso de prisma fuera de la transacción");
+    expect(B.datos.fotofficeTask).toHaveLength(0);
+    await expect(prisma.$transaction(async () => prisma.$transaction(async () => null))).rejects.toThrow("fuera de la transacción");
+    // Afuera, el global vuelve a andar y el `tx` viejo ya no.
+    expect(await prisma.fotofficeTask.count()).toBe(0);
+    await expect(guardado!.fotofficeTask.count()).rejects.toThrow("ya terminada");
   });
 });

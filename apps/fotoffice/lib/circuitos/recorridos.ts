@@ -224,15 +224,7 @@ export async function mover(
 
     // Exigir tareas completas sólo frena el avance: volver atrás no pide terminar nada.
     const requiereTareas = !!actual?.requireTasks && !!destino && !esRetroceso(etapas, j.stageId, destinoId);
-    const pendientes = requiereTareas
-      ? (
-          await tx.fotofficeTask.findMany({
-            where: { workspaceId, journeyId: j.id, stageId: j.stageId, required: true, doneAt: null },
-            select: { title: true },
-            orderBy: { createdAt: "asc" },
-          })
-        ).map((t) => t.title)
-      : [];
+    const pendientes = requiereTareas ? await obligatoriasPendientes(tx, workspaceId, j.id, j.stageId) : [];
     const puedeForzar = puede(ctx.role, "configurar");
     const v = validarMovimiento({
       etapas, actualId: j.stageId, destinoId, requiereTareas, pendientesObligatorias: pendientes,
@@ -273,11 +265,31 @@ export async function mover(
   });
 }
 
+/** Títulos de las tareas obligatorias sin tildar de la etapa en la que está el recorrido. */
+async function obligatoriasPendientes(tx: Tx, workspaceId: string, journeyId: string, stageId: string): Promise<string[]> {
+  const filas = await tx.fotofficeTask.findMany({
+    where: { workspaceId, journeyId, stageId, required: true, doneAt: null },
+    select: { title: true },
+    orderBy: { createdAt: "asc" },
+  });
+  return filas.map((t) => t.title);
+}
+
 /**
  * Termina un recorrido con éxito o fracaso de su clase. El fracaso exige un motivo activo del
- * workspace. Las tareas pendientes quedan como están.
+ * workspace. El éxito cuenta como avance: si la etapa actual exige tareas completas y faltan
+ * obligatorias, se frena salvo que quien puede `configurar` lo fuerce (queda registrado).
+ * Con `esperado`, sólo cierra si el recorrido sigue en la etapa desde ese momento. Las tareas
+ * pendientes quedan como están.
  */
-export async function cerrar(ctx: CtxCircuitos, journeyId: string, salida: string, lossReasonId?: string, nota?: string): Promise<Resultado> {
+export async function cerrar(
+  ctx: CtxCircuitos,
+  journeyId: string,
+  salida: string,
+  lossReasonId?: string,
+  nota?: string,
+  opts: { esperado?: Date; forzar?: boolean } = {},
+): Promise<ResultadoMover> {
   const { workspaceId } = ctx;
   return enTransaccion(async (tx) => {
     const j = await recorridoAbierto(tx, workspaceId, journeyId);
@@ -293,9 +305,21 @@ export async function cerrar(ctx: CtxCircuitos, journeyId: string, salida: strin
       motivoId = motivo.id;
     }
 
+    let pendientes: string[] = [];
+    if (salida === salidas.exito) {
+      const actual = await tx.fotofficeStage.findFirst({
+        where: { id: j.stageId, circuit: { workspaceId } },
+        select: { requireTasks: true },
+      });
+      if (actual?.requireTasks) pendientes = await obligatoriasPendientes(tx, workspaceId, j.id, j.stageId);
+      if (pendientes.length > 0 && !(opts.forzar === true && puede(ctx.role, "configurar"))) {
+        throw new Rechazo(mensajeTareasPendientes(pendientes), pendientes);
+      }
+    }
+
     const ahora = new Date();
     const actualizado = await tx.fotofficeJourney.updateMany({
-      where: { id: j.id, workspaceId, stageId: j.stageId, enteredStageAt: j.enteredStageAt, closedAt: null },
+      where: { id: j.id, workspaceId, stageId: j.stageId, enteredStageAt: opts.esperado ?? j.enteredStageAt, closedAt: null },
       data: { stageId: null, stageDueAt: null, outcome: salida, lossReasonId: motivoId, closedAt: ahora },
     });
     if (actualizado.count !== 1) throw new Rechazo(MENSAJES.cambio);
@@ -307,6 +331,7 @@ export async function cerrar(ctx: CtxCircuitos, journeyId: string, salida: strin
         toStageId: null,
         outcome: salida,
         note: nota?.trim() || null,
+        forcedWithPendingTasks: pendientes.length > 0,
         actorUserId: ctx.userId,
         actorLabel: ctx.userLabel,
         auto: ctx.userId === null,
@@ -321,13 +346,20 @@ export async function cerrar(ctx: CtxCircuitos, journeyId: string, salida: strin
 /**
  * Cambia a mano el vencimiento de la etapa actual (null = sin vencimiento). Queda en el
  * historial como un paso de la etapa a sí misma con la nota "Vencimiento cambiado a …".
+ * Con `esperado`, sólo lo cambia si el recorrido sigue en la etapa desde ese momento.
  */
-export async function cambiarVencimiento(ctx: CtxCircuitos, journeyId: string, dueAt: Date | null, nota: string): Promise<Resultado> {
+export async function cambiarVencimiento(
+  ctx: CtxCircuitos,
+  journeyId: string,
+  dueAt: Date | null,
+  nota: string,
+  opts: { esperado?: Date } = {},
+): Promise<Resultado> {
   const { workspaceId } = ctx;
   return enTransaccion(async (tx) => {
     const j = await recorridoAbierto(tx, workspaceId, journeyId);
     const actualizado = await tx.fotofficeJourney.updateMany({
-      where: { id: j.id, workspaceId, stageId: j.stageId, enteredStageAt: j.enteredStageAt, closedAt: null },
+      where: { id: j.id, workspaceId, stageId: j.stageId, enteredStageAt: opts.esperado ?? j.enteredStageAt, closedAt: null },
       data: { stageDueAt: dueAt },
     });
     if (actualizado.count !== 1) throw new Rechazo(MENSAJES.cambio);

@@ -3,6 +3,11 @@
  * el motor (igualdad —fechas por valor—, `in`, relaciones `circuit`/`stage`/`journey`),
  * `select`, `orderBy`, el índice único parcial de recorridos abiertos y deshace todo lo escrito
  * cuando la transacción lanza. Así las pruebas miran el resultado, no la forma de las llamadas.
+ *
+ * Como Prisma, `$transaction(fn)` le pasa a `fn` un cliente `tx` propio. Mientras la transacción
+ * está abierta, usar el `prisma` global lanza (en la base real esa escritura quedaría afuera de
+ * la transacción y no se desharía), y usar `tx` después de cerrada también lanza.
+ * Para simular fallas o carreras, las pruebas reemplazan métodos en `tablas` (lo usan ambos).
  */
 
 type Fila = Record<string, unknown>;
@@ -12,6 +17,7 @@ type Orden = Record<string, "asc" | "desc">;
 const TABLAS = [
   "fotofficeCircuit", "fotofficeStage", "fotofficeStageTaskTemplate", "fotofficeLossReason",
   "fotofficeJourney", "fotofficeJourneyStep", "fotofficeTask", "serviceSalesLead", "workspaceMembership",
+  "fotofficeStageRule", "fotofficeProcessedEvent", "fotofficeWorkspaceBranding",
 ] as const;
 export type Tabla = (typeof TABLAS)[number];
 
@@ -71,10 +77,20 @@ export function crearBaseEnMemoria() {
         return destino !== undefined && cumple(destino, cond as Where);
       }
       if (cond && typeof cond === "object" && !(cond instanceof Date)) {
-        const c = cond as { in?: unknown[]; not?: unknown };
-        if (c.in) return c.in.some((x) => igual(f[k], x));
-        if ("not" in c) return !igual(f[k], c.not);
-        throw new Error(`Filtro no soportado en ${k}`);
+        const c = cond as Record<string, unknown>;
+        const v = f[k] ?? null;
+        const n = (x: unknown) => (x instanceof Date ? x.getTime() : (x as number | string));
+        return Object.entries(c).every(([op, x]) => {
+          if (x === undefined) return true;
+          if (op === "in") return (x as unknown[]).some((y) => igual(v, y));
+          if (op === "not") return !igual(v, x);
+          if (v === null) return false;
+          if (op === "lt") return n(v) < n(x);
+          if (op === "lte") return n(v) <= n(x);
+          if (op === "gt") return n(v) > n(x);
+          if (op === "gte") return n(v) >= n(x);
+          throw new Error(`Filtro no soportado en ${k}: ${op}`);
+        });
       }
       return igual(f[k] ?? null, cond);
     });
@@ -100,12 +116,16 @@ export function crearBaseEnMemoria() {
     });
   }
 
+  /** Índices únicos que el motor usa para detectar carreras y repeticiones. */
+  const UNICOS: Partial<Record<Tabla, { columnas: string[]; aplica?: (f: Fila) => boolean }>> = {
+    fotofficeJourney: { columnas: ["workspaceId", "subjectType", "subjectId", "kind"], aplica: (f) => f.closedAt === null },
+    fotofficeProcessedEvent: { columnas: ["journeyId", "event", "sourceRef"] },
+  };
+
   function verificarUnicidad(tabla: Tabla, f: Fila) {
-    if (tabla !== "fotofficeJourney" || f.closedAt !== null) return;
-    const choca = datos.fotofficeJourney.some(
-      (x) => x !== f && x.closedAt === null && x.workspaceId === f.workspaceId && x.subjectType === f.subjectType
-        && x.subjectId === f.subjectId && x.kind === f.kind,
-    );
+    const u = UNICOS[tabla];
+    if (!u || (u.aplica && !u.aplica(f))) return;
+    const choca = datos[tabla].some((x) => x !== f && (!u.aplica || u.aplica(x)) && u.columnas.every((c) => x[c] === f[c]));
     if (choca) throw Object.assign(new Error("Unique constraint failed"), { code: "P2002" });
   }
 
@@ -138,23 +158,59 @@ export function crearBaseEnMemoria() {
         }
         return { count: hits.length };
       },
+      deleteMany: async (a: { where?: Where } = {}) => {
+        const antes = datos[tabla].length;
+        datos[tabla] = datos[tabla].filter((x) => !cumple(x, a.where));
+        return { count: antes - datos[tabla].length };
+      },
     };
   }
 
-  const prisma: Record<string, unknown> = Object.fromEntries(TABLAS.map((t) => [t, delegado(t)]));
+  type Delegado = ReturnType<typeof delegado>;
+  /** Los métodos reales de cada tabla. Lo usan el `prisma` global y cada `tx`. */
+  const tablas = Object.fromEntries(TABLAS.map((t) => [t, delegado(t)])) as Record<Tabla, Delegado>;
+  let abiertas = 0;
+
+  /** Cliente que llama a `tablas` en el momento (así ve los reemplazos) si `permitido()` lo deja. */
+  function cliente(permitido: () => string | null): Record<string, unknown> {
+    return Object.fromEntries(
+      TABLAS.map((t) => [
+        t,
+        new Proxy({}, {
+          get: (_o, metodo: string) => async (...args: unknown[]) => {
+            const error = permitido();
+            if (error) throw new Error(error);
+            return (tablas[t] as unknown as Record<string, (...a: unknown[]) => unknown>)[metodo]!(...args);
+          },
+        }),
+      ]),
+    );
+  }
+
+  const FUERA = "uso de prisma fuera de la transacción";
+  const prisma: Record<string, unknown> = cliente(() => (abiertas > 0 ? FUERA : null));
   prisma.$transaction = async (fn: (tx: unknown) => Promise<unknown>, opciones?: unknown) => {
+    if (abiertas > 0) throw new Error(FUERA);
     transacciones.push({ opciones });
     const foto = Object.fromEntries(TABLAS.map((t) => [t, datos[t].map((f) => clonar(f) as Fila)])) as Record<Tabla, Fila[]>;
+    let viva = true;
+    const tx = cliente(() => (viva ? null : "uso de tx con la transacción ya terminada"));
+    abiertas++;
     try {
-      return await fn(prisma);
+      return await fn(tx);
     } catch (error) {
       for (const t of TABLAS) datos[t] = foto[t];
       throw error;
+    } finally {
+      viva = false;
+      abiertas--;
     }
   };
 
   return {
     prisma,
+    /** Para simular fallas o carreras: reemplazar un método acá lo cambia para `prisma` y para `tx`. */
+    tablas,
     datos,
     transacciones,
     /** Inserta una fila de prueba con los valores por defecto de su tabla. */
@@ -162,6 +218,7 @@ export function crearBaseEnMemoria() {
     vaciar: () => {
       for (const t of TABLAS) datos[t] = [];
       transacciones.length = 0;
+      abiertas = 0;
     },
   };
 }
