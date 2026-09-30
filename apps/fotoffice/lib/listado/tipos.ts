@@ -106,6 +106,8 @@ export type DefinicionListado<F> = {
   validarRelacion?: (ctx: ContextoListado, clave: string, id: string) => Promise<string | null>;
   opcionesRelacion?: (ctx: ContextoListado, clave: string) => Promise<Opcion[]>;
   buscarRelacion?: (ctx: ContextoListado, clave: string, texto: string) => Promise<Opcion[]>;
+  /** Aviso opcional sobre la consulta resuelta (p. ej. un filtro que no se pudo aplicar entero). */
+  aviso?: (ctx: ContextoListado, c: ConsultaResuelta) => Promise<string | null>;
   acciones: AccionLote[];
   exportar: { columnas: ColumnaExport<F>[] };
   panel?: (ctx: ContextoListado, id: string) => Promise<ReactNode | null>;

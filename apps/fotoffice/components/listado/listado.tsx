@@ -103,10 +103,11 @@ export async function Listado<F>({
 
   const puedeExportar = exigirCapacidad(ctx, "verDinero");
   const rutaExportar = `/api/listados/${encodeURIComponent(def.clave)}/exportar`;
-  const [filtros, acciones, contenidoPanel] = await Promise.all([
+  const [filtros, acciones, contenidoPanel, avisoDeLista] = await Promise.all([
     filtrosVisibles(def, ctx, resuelta.etiquetasRelacion),
     accionesVisibles(def, ctx),
     consulta.ver && def.panel ? def.panel(ctx, consulta.ver) : null,
+    def.aviso ? def.aviso(ctx, resuelta) : null,
   ]);
 
   const etiquetaDe = new Map(def.filtros.map((f) => [f.clave, f.etiqueta]));
@@ -153,6 +154,12 @@ export async function Listado<F>({
       {descartados.length ? (
         <p className="fo-alert-warning rounded-[var(--fo-radius-sm)] px-4 py-2 text-sm text-[var(--fo-text)]" role="status">
           Se ignoraron filtros que ya no existen: {descartados.join(", ")}.
+        </p>
+      ) : null}
+
+      {avisoDeLista ? (
+        <p className="fo-alert-warning rounded-[var(--fo-radius-sm)] px-4 py-2 text-sm text-[var(--fo-text)]" role="status">
+          {avisoDeLista}
         </p>
       ) : null}
 

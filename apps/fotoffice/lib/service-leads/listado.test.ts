@@ -19,7 +19,7 @@ vi.mock("@repo/db", () => ({
   },
 }));
 
-import { diasEnEtapa, listadoCaptacion, resolverWhere, whereCaptacion, whereRecorridos } from "./listado";
+import { avisoCaptacion, AVISO_DEMASIADAS, TOPE_SUBCONSULTA, diasEnEtapa, listadoCaptacion, resolverWhere, whereCaptacion, whereRecorridos } from "./listado";
 import { PARAMETROS_RESERVADOS, type ConsultaResuelta, type ContextoListado } from "@/lib/listado/tipos";
 
 const base = { q: "", filtros: {}, periodos: {}, etiquetasRelacion: {}, orden: { campo: "alta", desc: true }, pagina: 1, filas: 25, ver: null } as ConsultaResuelta;
@@ -60,11 +60,20 @@ describe("whereRecorridos", () => {
     expect(whereRecorridos("w1", { ...base, filtros: { resultado: "abierta" } }, ahora).outcome).toBeNull();
   });
   it("vencidas: abiertas con vencimiento pasado; en plazo: sin vencimiento o futuro", () => {
-    expect(whereRecorridos("w1", { ...base, filtros: { vencidas: "si" } }, ahora)).toMatchObject({ outcome: null, stageDueAt: { lt: ahora } });
-    expect(whereRecorridos("w1", { ...base, filtros: { vencidas: "no" } }, ahora)).toMatchObject({
-      outcome: null,
-      OR: [{ stageDueAt: null }, { stageDueAt: { gte: ahora } }],
-    });
+    expect(whereRecorridos("w1", { ...base, filtros: { vencidas: "si" } }, ahora).AND).toEqual([{ outcome: null }, { stageDueAt: { lt: ahora } }]);
+    expect(whereRecorridos("w1", { ...base, filtros: { vencidas: "no" } }, ahora).AND).toEqual([
+      { outcome: null },
+      { OR: [{ stageDueAt: null }, { stageDueAt: { gte: ahora } }] },
+    ]);
+  });
+  it("vencidas se combina con resultado en vez de pisarlo", () => {
+    const abiertas = whereRecorridos("w1", { ...base, filtros: { resultado: "abierta", vencidas: "si" } }, ahora);
+    expect(abiertas.outcome).toBeNull();
+    expect(abiertas.AND).toContainEqual({ stageDueAt: { lt: ahora } });
+    // Ganada + vencidas: outcome = GANADA y AND outcome = null no pueden cumplirse a la vez.
+    const ganadas = whereRecorridos("w1", { ...base, filtros: { resultado: "GANADA", vencidas: "si" } }, ahora);
+    expect(ganadas.outcome).toBe("GANADA");
+    expect(ganadas.AND).toContainEqual({ outcome: null });
   });
 });
 
@@ -79,6 +88,19 @@ describe("resolverWhere", () => {
     expect(journeyFindMany.mock.calls[0][0].where).toMatchObject({ workspaceId: "w1", subjectType: "CAPTACION", stageId: "e1" });
     expect(journeyFindMany.mock.calls[0][0].select).toEqual({ subjectId: true });
     expect(w).toEqual({ workspaceId: "w1", id: { in: ["a", "b"] } });
+  });
+  it("pasado el tope no devuelve resultados parciales y avisa", async () => {
+    journeyFindMany.mockResolvedValue(Array.from({ length: TOPE_SUBCONSULTA + 1 }, (_, i) => ({ subjectId: `s${i}` })));
+    const c = { ...base, filtros: { resultado: "abierta" } };
+    expect(await resolverWhere(ctx, c, ahora)).toEqual({ workspaceId: "w1", id: { in: [] } });
+    expect(journeyFindMany.mock.calls[0][0].take).toBe(TOPE_SUBCONSULTA + 1);
+    expect(journeyFindMany.mock.calls[0][0].orderBy).toBeDefined();
+    expect(await avisoCaptacion(ctx, c, ahora)).toBe(AVISO_DEMASIADAS);
+  });
+  it("dentro del tope no hay aviso", async () => {
+    journeyFindMany.mockResolvedValue([{ subjectId: "a" }]);
+    expect(await avisoCaptacion(ctx, { ...base, filtros: { resultado: "abierta" } }, ahora)).toBeNull();
+    expect(await avisoCaptacion(ctx, base, ahora)).toBeNull();
   });
   it("si ningún recorrido coincide, la lista queda vacía", async () => {
     journeyFindMany.mockResolvedValue([]);

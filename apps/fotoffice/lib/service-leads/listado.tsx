@@ -33,8 +33,8 @@ const ID_VALIDO = /^[A-Za-z0-9_-]{1,64}$/;
 
 /**
  * Tope de ids que devuelve la subconsulta de recorridos. Cada id viaja como parámetro del
- * `IN (...)` de la consulta principal (Postgres admite hasta 32.767): pasado el tope se
- * recorta, algo que a la escala de un estudio no debería pasar.
+ * `IN (...)` de la consulta principal (Postgres admite hasta 32.767): pasado el tope la lista
+ * sale vacía con un aviso (nunca parcial), algo que a la escala de un estudio no debería pasar.
  */
 export const TOPE_SUBCONSULTA = 20_000;
 
@@ -69,12 +69,13 @@ export function whereRecorridos(workspaceId: string, c: ConsultaResuelta, ahora:
   if (f.etapa) where.stageId = f.etapa;
   if (f.resultado === "abierta") where.outcome = null;
   else if (f.resultado) where.outcome = f.resultado;
-  if (f.vencidas === "si") {
-    where.outcome = null;
-    where.stageDueAt = { lt: ahora };
-  } else if (f.vencidas === "no") {
-    where.outcome = null;
-    where.OR = [{ stageDueAt: null }, { stageDueAt: { gte: ahora } }];
+  // `vencidas` sólo aplica a recorridos abiertos y se combina con `resultado`: una salida
+  // (GANADA / PERDIDA) junto con `vencidas` no puede coincidir con nada.
+  if (f.vencidas) {
+    const and: Prisma.FotofficeJourneyWhereInput[] = [{ outcome: null }];
+    if (f.vencidas === "si") and.push({ stageDueAt: { lt: ahora } });
+    else and.push({ OR: [{ stageDueAt: null }, { stageDueAt: { gte: ahora } }] });
+    where.AND = and;
   }
   return where;
 }
@@ -110,18 +111,34 @@ export function whereCaptacion(workspaceId: string, c: ConsultaResuelta, idsReco
  * (no se agregan columnas a la tabla), los filtros de circuito, etapa, resultado y vencidas se
  * resuelven con una subconsulta previa de `subjectId` acotada al workspace (y al tipo CAPTACION).
  *
- * Costo: una consulta extra por listado, que lee como mucho `TOPE_SUBCONSULTA` ids usando el
+ * Costo: una consulta extra por listado, que lee como mucho `TOPE_SUBCONSULTA` + 1 ids usando el
  * índice `(workspaceId, subjectType, subjectId)`, y un `IN` con esos ids en la consulta principal.
  * Sin esos filtros no hay subconsulta.
  */
 export async function resolverWhere(ctx: ContextoListado, c: ConsultaResuelta, ahora: Date = new Date()): Promise<Prisma.ServiceSalesLeadWhereInput> {
   if (!filtraPorRecorrido(c)) return whereCaptacion(ctx.workspaceId, c, null);
+  // Pasado el tope no se devuelven resultados parciales: la lista queda vacía y `avisoCaptacion` explica por qué.
+  return whereCaptacion(ctx.workspaceId, c, (await idsDeRecorridos(ctx, c, ahora)) ?? []);
+}
+
+/** Ids de consultas con recorrido que cumple los filtros; null si son más que `TOPE_SUBCONSULTA`. */
+async function idsDeRecorridos(ctx: ContextoListado, c: ConsultaResuelta, ahora: Date): Promise<string[] | null> {
   const filas = await prisma.fotofficeJourney.findMany({
     where: whereRecorridos(ctx.workspaceId, c, ahora),
     select: { subjectId: true },
-    take: TOPE_SUBCONSULTA,
+    orderBy: [{ subjectId: "asc" }, { id: "asc" }],
+    take: TOPE_SUBCONSULTA + 1,
   });
-  return whereCaptacion(ctx.workspaceId, c, Array.from(new Set(filas.map((f) => f.subjectId))));
+  if (filas.length > TOPE_SUBCONSULTA) return null;
+  return Array.from(new Set(filas.map((f) => f.subjectId)));
+}
+
+export const AVISO_DEMASIADAS = "Hay demasiadas consultas para filtrar por etapa o resultado. Acotá con período o búsqueda.";
+
+/** Aviso del listado: los filtros de recorrido superaron el tope y la lista se muestra vacía. */
+export async function avisoCaptacion(ctx: ContextoListado, c: ConsultaResuelta, ahora: Date = new Date()): Promise<string | null> {
+  if (!filtraPorRecorrido(c)) return null;
+  return (await idsDeRecorridos(ctx, c, ahora)) === null ? AVISO_DEMASIADAS : null;
 }
 
 function ordenarPor(c: ConsultaResuelta): Prisma.ServiceSalesLeadOrderByWithRelationInput[] {
@@ -290,6 +307,7 @@ export const listadoCaptacion: DefinicionListado<FilaCaptacion> = {
     return null;
   },
   // Sin acciones en lote en esta etapa: mover, ganar o perder se hace desde el tablero y la ficha.
+  aviso: avisoCaptacion,
   acciones: [],
   exportar: {
     columnas: [
