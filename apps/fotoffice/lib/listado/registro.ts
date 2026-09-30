@@ -1,3 +1,4 @@
+import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import type { ContextoListado, DefinicionListado } from "./tipos";
 
 /** Las filas de cada lista son de tipos distintos; el registro las trata de forma opaca. */
@@ -24,6 +25,12 @@ export const LISTAS: Record<string, EntradaLista> = {
       ]);
       return listadoSocios(await loadPersonVocabulary(ctx.workspaceId));
     },
+  },
+  captacion: {
+    moduleKey: SERVICE_LEADS_MODULE_KEY,
+    // La lista vive en su propia ruta: `vista` es parámetro reservado del motor (vistas guardadas).
+    ruta: "/captacion/lista",
+    cargar: async () => (await import("@/lib/service-leads/listado")).listadoCaptacion,
   },
   "caja-movimientos": {
     moduleKey: "cash",

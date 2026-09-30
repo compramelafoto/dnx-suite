@@ -1,0 +1,50 @@
+import Link from "next/link";
+import type { ReactNode } from "react";
+import { PageHeader } from "@/components/page-header";
+
+/** Las pestañas de Captación. El Informe (Tarea 11) se conecta cuando exista su pantalla. */
+export const PESTANAS_CAPTACION = [
+  { clave: "tablero", texto: "Tablero", href: "/captacion" },
+  { clave: "lista", texto: "Lista", href: "/captacion/lista" },
+  { clave: "informe", texto: "Informe", href: "/captacion?vista=informe" },
+] as const;
+export type PestanaCaptacion = (typeof PESTANAS_CAPTACION)[number]["clave"];
+
+/** Cabecera común de Captación: título, pestañas y el aviso de las consultas por ordenar. */
+export function ArmazonCaptacion({
+  activa,
+  quedan,
+  children,
+}: {
+  activa: PestanaCaptacion;
+  quedan: number;
+  children: ReactNode;
+}) {
+  return (
+    <div className="space-y-6">
+      <PageHeader title="Captación" description="Consultas de presupuesto, organizadas por etapas." />
+      <nav aria-label="Vistas de Captación" className="flex gap-1 border-b border-[var(--fo-border)]">
+        {PESTANAS_CAPTACION.map((p) => (
+          <Link
+            key={p.clave}
+            href={p.href}
+            aria-current={p.clave === activa ? "page" : undefined}
+            className={
+              p.clave === activa
+                ? "border-b-2 border-[var(--fo-accent)] px-3 py-2 text-sm font-medium text-[var(--fo-text)]"
+                : "px-3 py-2 text-sm text-[var(--fo-muted)] hover:text-[var(--fo-text)]"
+            }
+          >
+            {p.texto}
+          </Link>
+        ))}
+      </nav>
+      {quedan > 0 ? (
+        <p role="status" className="fo-card text-sm text-[var(--fo-muted)]">
+          Estamos ordenando las consultas anteriores en sus etapas: quedan {quedan}. Actualizá la página en unos segundos.
+        </p>
+      ) : null}
+      {children}
+    </div>
+  );
+}

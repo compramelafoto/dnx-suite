@@ -255,10 +255,10 @@ export function ShellNav({
           isActive: under("/dashboard/service-leads/forms"),
         },
         {
-          href: "/dashboard/service-leads",
-          label: "Leads",
+          href: "/captacion",
+          label: "Consultas",
           icon: Inbox,
-          isActive: exact("/dashboard/service-leads"),
+          isActive: under("/captacion"),
         },
       ]
     : [];
