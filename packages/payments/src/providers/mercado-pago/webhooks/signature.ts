@@ -100,6 +100,8 @@ export type VerifyMercadoPagoWebhookSignatureResult =
       diagnostics?: {
         dataId: string | null;
         requestIdPresent: boolean;
+        /** Id de correlación de MP; no es un secreto y hace falta para reproducir el manifest. */
+        requestId: string | null;
         ts: string | null;
         receivedV1Prefix: string | null;
         expectedV1Prefixes: string[];
@@ -172,11 +174,15 @@ export function verifyMercadoPagoWebhookSignature(
   for (const candidate of candidates) {
     const parts = candidate.id ? [`id:${candidate.id}`] : [];
     parts.push(`request-id:${requestId}`, `ts:${ts}`);
-    const manifest = `${parts.join(";")};`;
-    const digest = createHmac("sha256", input.secret).update(manifest).digest("hex");
-    const expected = Buffer.from(digest, "utf8");
-    if (expected.length === provided.length && timingSafeEqual(expected, provided)) {
-      return { ok: true, ts, manifest, dataIdVariant: candidate.variant };
+    const base = parts.join(";");
+    // La doc muestra el manifest terminado en `;`, pero no todas las
+    // implementaciones lo agregan. Probamos ambas formas.
+    for (const manifest of [`${base};`, base]) {
+      const digest = createHmac("sha256", input.secret).update(manifest).digest("hex");
+      const expected = Buffer.from(digest, "utf8");
+      if (expected.length === provided.length && timingSafeEqual(expected, provided)) {
+        return { ok: true, ts, manifest, dataIdVariant: candidate.variant };
+      }
     }
   }
 
@@ -186,6 +192,7 @@ export function verifyMercadoPagoWebhookSignature(
     diagnostics: {
       dataId,
       requestIdPresent: true,
+      requestId,
       ts,
       receivedV1Prefix: v1.slice(0, 8),
       expectedV1Prefixes: candidates.map((c) => {
