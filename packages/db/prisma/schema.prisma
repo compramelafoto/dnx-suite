@@ -18685,7 +18685,8 @@ model CoverageEvent {
   /// REQUEST | COVERAGE | CALL | APPLICATION | ASSIGNMENT | DELIVERABLE
   entityType String
   entityId   String
-  /// CREADA | ESTADO_CAMBIADO | NOTA | INFO_PEDIDA | INFO_RESPONDIDA | EMAIL_ENVIADO
+  /// CREADA | ESTADO_CAMBIADO | NOTA | INFO_PEDIDA | INFO_RESPONDIDA | EMAIL_ENVIADO |
+  /// ENLACE_REEMITIDO
   type       String
   fromStatus String?
   toStatus   String?
