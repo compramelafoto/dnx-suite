@@ -1062,7 +1062,7 @@ La pieza con más filo del módulo: cuando el archivo no pasa por el servidor, l
   - `function createFotofficeUploadUrl(params: { prefix: string; originalFilename: string; contentType: string }): Promise<{ uploadUrl: string; key: string; publicUrl: string }>`
   - `function verifyUploadedImage(params: { key: string; maxFileSizeBytes: number; acceptedFormats: readonly string[] }): Promise<{ ok: true; sizeBytes: number; contentType: string } | { ok: false; error: string }>`
 
-- [ ] **Step 1: Declarar la dependencia**
+- [x] **Step 1: Declarar la dependencia**
 
 En `apps/fotoffice/package.json`, en `dependencies`, junto a `@aws-sdk/client-s3`:
 
@@ -1073,7 +1073,7 @@ En `apps/fotoffice/package.json`, en `dependencies`, junto a `@aws-sdk/client-s3
 Run: `cd /Users/danielcuart/Desktop/PROGRAMACIONES/dnx-suite && pnpm install`
 Expected: instala reusando la resolución que ya existe. **Verificar con `git diff pnpm-lock.yaml` que el único cambio es el de FOTOFFICE**: el lockfile es de todos, y una resolución movida rompe otras apps.
 
-- [ ] **Step 2: Escribir el test que falla**
+- [x] **Step 2: Escribir el test que falla**
 
 `apps/fotoffice/lib/images/r2-presign.test.ts`:
 
@@ -1172,12 +1172,12 @@ describe("verifyUploadedImage", () => {
 });
 ```
 
-- [ ] **Step 3: Correr y verificar que falla**
+- [x] **Step 3: Correr y verificar que falla**
 
 Run: `cd apps/fotoffice && pnpm test -- r2-presign`
 Expected: FAIL.
 
-- [ ] **Step 4: Exponer el cliente y el bucket desde `r2-client.ts`**
+- [x] **Step 4: Exponer el cliente y el bucket desde `r2-client.ts`**
 
 En `apps/fotoffice/lib/images/r2-client.ts`, exportar el cliente y el nombre del bucket que hoy son internos (sin cambiar nada más):
 
@@ -1188,7 +1188,7 @@ export const FOTOFFICE_R2_BUCKET = process.env.R2_BUCKET ?? "";
 
 Ajustar los nombres a los que el archivo ya usa internamente; el objetivo es sólo dejarlos accesibles, no reescribir la construcción del cliente.
 
-- [ ] **Step 5: Escribir `r2-presign.ts`**
+- [x] **Step 5: Escribir `r2-presign.ts`**
 
 ```ts
 import { GetObjectCommand, HeadObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
@@ -1289,12 +1289,12 @@ export async function verifyUploadedImage(params: {
 }
 ```
 
-- [ ] **Step 6: Correr y verificar que pasan**
+- [x] **Step 6: Correr y verificar que pasan**
 
 Run: `cd apps/fotoffice && pnpm test -- r2-presign`
 Expected: PASS, 6 tests.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/fotoffice/lib/images/r2-presign.ts apps/fotoffice/lib/images/r2-presign.test.ts apps/fotoffice/lib/images/r2-client.ts apps/fotoffice/package.json pnpm-lock.yaml
@@ -1317,7 +1317,7 @@ git commit -m "Subida directa a R2 con verificación del objeto subido"
   - `function ensurePortfolio(params: { workspaceId: string; memberId: string; firstName: string; lastName: string }): Promise<{ id: string; publicSlug: string }>`
   - `function loadPortfolioForMember(params: { workspaceId: string; memberId: string }): Promise<PortfolioView>`
 
-- [ ] **Step 1: Escribir los tests que fallan**
+- [x] **Step 1: Escribir los tests que fallan**
 
 `apps/fotoffice/lib/portfolio/repository.test.ts` — con el mismo patrón de mock de `@repo/db` que usa `lib/modules/gating.test.ts`:
 
@@ -1398,12 +1398,12 @@ describe("ensurePortfolio", () => {
 });
 ```
 
-- [ ] **Step 2: Correr y verificar que falla**
+- [x] **Step 2: Correr y verificar que falla**
 
 Run: `cd apps/fotoffice && pnpm test -- portfolio/repository`
 Expected: FAIL.
 
-- [ ] **Step 3: Implementar `ensurePortfolio` y `loadPortfolioForMember`**
+- [x] **Step 3: Implementar `ensurePortfolio` y `loadPortfolioForMember`**
 
 `apps/fotoffice/lib/portfolio/repository.ts`. `ensurePortfolio` busca por `memberId`, y si no hay fila junta los slugs del workspace, deriva el suyo y crea. `loadPortfolioForMember` trae el portfolio con sus fotos ordenadas por `order`, consulta `isModuleEnabledForWorkspace`, lee `directoryOptIn` y `status` del socio y el `overdueCount` del balance, y arma la respuesta pasando los siete hechos por `portfolioVisibility`.
 
@@ -1440,12 +1440,12 @@ export async function ensurePortfolio(params: {
 
 > **Carrera entre dos pestañas.** Dos llamadas simultáneas pueden derivar el mismo slug y una de las dos choca contra `@@unique([workspaceId, publicSlug])`. Envolver el `create` en un `try/catch` de `P2002` que reintente una vez releyendo los tomados. Un reintento alcanza: el caso es raro y el segundo intento ya ve el slug del primero.
 
-- [ ] **Step 4: Correr y verificar que pasan**
+- [x] **Step 4: Correr y verificar que pasan**
 
 Run: `cd apps/fotoffice && pnpm test -- portfolio/repository`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/fotoffice/lib/portfolio/repository.ts apps/fotoffice/lib/portfolio/repository.test.ts
@@ -1465,7 +1465,7 @@ git commit -m "Lectura y creación del portfolio de un socio"
 - Consumes: `loadPortalContext` de `@/lib/portal/access`, `createFotofficeUploadUrl` (Task 7), `PORTFOLIO_MAX_PHOTOS` (Task 1)
 - Produces: `function canAcceptAnotherPhoto(photoCount: number): { ok: true } | { ok: false; error: string }`
 
-- [ ] **Step 1: Escribir el test que falla**
+- [x] **Step 1: Escribir el test que falla**
 
 `apps/fotoffice/lib/portfolio/upload-guard.test.ts`:
 
@@ -1490,12 +1490,12 @@ describe("canAcceptAnotherPhoto", () => {
 });
 ```
 
-- [ ] **Step 2: Correr y verificar que falla**
+- [x] **Step 2: Correr y verificar que falla**
 
 Run: `cd apps/fotoffice && pnpm test -- upload-guard`
 Expected: FAIL.
 
-- [ ] **Step 3: Implementar la guarda**
+- [x] **Step 3: Implementar la guarda**
 
 ```ts
 import { PORTFOLIO_MAX_PHOTOS } from "./constants";
@@ -1517,7 +1517,7 @@ export function canAcceptAnotherPhoto(
 }
 ```
 
-- [ ] **Step 4: Escribir la ruta**
+- [x] **Step 4: Escribir la ruta**
 
 `apps/fotoffice/app/api/portal/portfolio/upload-url/route.ts`, con la misma estructura que `app/api/portal/foto/route.ts`:
 
@@ -1530,12 +1530,12 @@ export function canAcceptAnotherPhoto(
 
 **El `contentType` llega del cliente y sólo sirve para firmar.** La verdad sobre el archivo se establece después de la subida, en Task 10. El `prefix` se arma en el servidor con el `workspaceId` de la sesión: así es estructuralmente imposible escribir en el namespace de otra institución.
 
-- [ ] **Step 5: Correr los tests y el chequeo de tipos**
+- [x] **Step 5: Correr los tests y el chequeo de tipos**
 
 Run: `cd apps/fotoffice && pnpm test && pnpm exec tsc --noEmit -p tsconfig.json`
 Expected: PASS y sin errores de tipos.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/fotoffice/lib/portfolio/upload-guard.ts apps/fotoffice/lib/portfolio/upload-guard.test.ts apps/fotoffice/app/api/portal/portfolio/upload-url
@@ -1560,7 +1560,7 @@ git commit -m "La ruta que entrega la URL firmada para subir una foto"
   - `deletePortfolioPhotoAction(input: { photoId: string }): Promise<{ ok: boolean; error?: string }>`
   - `setPortfolioPublishedAction(input: { published: boolean }): Promise<{ ok: boolean; error?: string }>`
 
-- [ ] **Step 1: Escribir los tests que fallan**
+- [x] **Step 1: Escribir los tests que fallan**
 
 Los cuatro que cubren lo que puede salir mal de verdad:
 
@@ -1592,12 +1592,12 @@ it("publicar sin consentimiento devuelve error y no prende el interruptor", asyn
 
 Escribirlos completos siguiendo el patrón de mock de `@repo/db` de Task 8.
 
-- [ ] **Step 2: Correr y verificar que fallan**
+- [x] **Step 2: Correr y verificar que fallan**
 
 Run: `cd apps/fotoffice && pnpm test -- actions/portfolio`
 Expected: FAIL.
 
-- [ ] **Step 3: Implementar las acciones**
+- [x] **Step 3: Implementar las acciones**
 
 Reglas que valen para las seis:
 
@@ -1608,12 +1608,12 @@ Reglas que valen para las seis:
 - `setPortfolioPublishedAction` con `published: true` verifica `directoryOptIn` y que haya al menos una foto; si falta alguna, devuelve el error en lugar de prender el interruptor.
 - Todas terminan con `revalidatePath("/portal/portfolio")`, y las que cambian lo público además `revalidatePath("/w/[workspaceSlug]/socios", "page")`.
 
-- [ ] **Step 4: Correr y verificar que pasan**
+- [x] **Step 4: Correr y verificar que pasan**
 
 Run: `cd apps/fotoffice && pnpm test -- actions/portfolio`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/fotoffice/app/actions/portfolio.ts apps/fotoffice/app/actions/portfolio.test.ts
@@ -1635,7 +1635,7 @@ git commit -m "Las acciones con las que el socio arma su portfolio"
 **Interfaces:**
 - Consumes: `loadPortfolioForMember` (Task 8), `hiddenReasonMessage` (Task 3), las seis acciones (Task 10)
 
-- [ ] **Step 1: Escribir el test del menú**
+- [x] **Step 1: Escribir el test del menú**
 
 En `apps/fotoffice/lib/portal/menu.test.ts` (crearlo si no existe, con el patrón de los otros tests de catálogo):
 
@@ -1653,12 +1653,12 @@ it("su etiqueta no dice la palabra 'socio': el vocabulario lo resuelve la instit
 });
 ```
 
-- [ ] **Step 2: Correr y verificar que falla**
+- [x] **Step 2: Correr y verificar que falla**
 
 Run: `cd apps/fotoffice && pnpm test -- portal/menu`
 Expected: FAIL.
 
-- [ ] **Step 3: Agregar la entrada al menú**
+- [x] **Step 3: Agregar la entrada al menú**
 
 En `apps/fotoffice/lib/portal/menu.ts`, con `order: 45` (después de "Mi perfil", con el que está emparentado):
 
@@ -1674,7 +1674,7 @@ En `apps/fotoffice/lib/portal/menu.ts`, con `order: 45` (después de "Mi perfil"
   },
 ```
 
-- [ ] **Step 4: Escribir la pantalla**
+- [x] **Step 4: Escribir la pantalla**
 
 `app/portal/portfolio/page.tsx` — server component. Resuelve `requireAuth()` → `loadPortalContext` → `loadPortfolioForMember`. Si el módulo no está habilitado, `notFound()`. Tres bloques, en este orden:
 
@@ -1685,18 +1685,18 @@ En `apps/fotoffice/lib/portal/menu.ts`, con `order: 45` (después de "Mi perfil"
 
 Clases: las `fo-card`, `fo-btn` y variables `--fo-*` que ya usa el resto del portal. Nada de colores sueltos.
 
-- [ ] **Step 5: Verificar en el navegador**
+- [x] **Step 5: Verificar en el navegador**
 
 Run: `cd apps/fotoffice && pnpm dev` (puerto 3010) y entrar a `/portal/portfolio` con un socio de prueba.
 
 Comprobar: subir una foto de más de 5 MB (tiene que entrar — es la prueba de que la subida directa funciona), reordenar arrastrando y recargar, marcar destacada, borrar, y que el cartel de estado diga la verdad en cada paso.
 
-- [ ] **Step 6: Correr todos los tests**
+- [x] **Step 6: Correr todos los tests**
 
 Run: `cd apps/fotoffice && pnpm test`
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/fotoffice/app/portal/portfolio apps/fotoffice/components/portal/portfolio apps/fotoffice/lib/portal/menu.ts apps/fotoffice/lib/portal/menu.test.ts
@@ -1704,6 +1704,37 @@ git commit -m "La pantalla donde el socio arma su portfolio"
 ```
 
 ---
+
+---
+
+## Lo que cambió al ejecutar la Etapa 2 *(30/09/2026)*
+
+1. **La verificación en el navegador quedó pendiente, y no por falta de ganas.** El worktree no
+   tiene archivo de entorno, así que el servidor local no tiene base de datos: la pantalla fallaría
+   por eso y no por el código. Y aunque la tuviera, **la migración no está aplicada en ninguna
+   base**, así que leer las tablas del portfolio daría error. Es la etapa 5, y toca infraestructura
+   compartida: no se hace de callado.
+
+   En su lugar se corrió `pnpm build`, que compila todas las páginas y es lo que detecta errores de
+   frontera cliente/servidor —la clase de error que los tests no ven en código de interfaz—.
+   Compiló limpio y las dos rutas nuevas aparecen en el mapa: `/portal/portfolio` y
+   `/api/portal/portfolio/upload-url`.
+
+2. **`pnpm lint` ya fallaba antes de esta obra.** Tres errores de `react-hooks/set-state-in-effect`
+   en `hero-block-view.tsx` y `mass-grading-screen.tsx`, más avisos en `approve.ts`. Ninguno es de
+   estos archivos. No se tocaron: arreglarlos es otra obra.
+
+3. **Un chequeo de seguridad que el plan no tenía.** `registerPortfolioPhotoAction` verifica que la
+   key caiga en el namespace de **esta** institución, no sólo en el de FotoOffice. Sin eso, alguien
+   podía pedir una URL firmada para su propio workspace y después registrar la key de otro: la foto
+   de otra institución aparecería en su portfolio. Tiene su test.
+
+4. **`export const maxDuration` y un export de conveniencia salieron del archivo de ruta.** Un
+   archivo `route.ts` de Next sólo admite los métodos HTTP y su configuración; exportar otra cosa
+   desde ahí no es válido. El preset lo importa el componente directamente.
+
+**Estado al cerrar la etapa:** 273 archivos de test, 3394 tests, 0 fallas. Tipos limpios. Build
+compilando.
 
 # ETAPA 3 — El sitio lo muestra
 
