@@ -42,7 +42,56 @@ describe("CIRCUITOS_DNX", () => {
     const n = CIRCUITOS_DNX.map((c) => c.name);
     expect(new Set(n).size).toBe(n.length);
     const todo = JSON.stringify(CIRCUITOS_DNX);
-    for (const x of ["oportunidnad", "Confecciónar", "Eidción", "Instalr", "Impresion ", "Proyeccion"]) expect(todo).not.toContain(x);
+    for (const x of ["oportunidnad", "Confecciónar", "Confecciónar ", "Eidción", "Instalr", "Impresion ", "Proyeccion"]) expect(todo).not.toContain(x);
+  });
+  it("días por etapa y total como en el documento", () => {
+    const DIAS: Record<string, [number[], number]> = {
+      "Colaboradores": [[1, 1], 2],
+      "Embudo de Ventas DNX 2022": [[2, 1, 1, 1, 1, 1], 7],
+      "Plataforma 360": [[1], 1],
+      "Workshops": [[2, 1, 1, 1], 5],
+      "Base 360°": [[3, 1, 1], 5],
+      "Cobertura y edición de fotografía de evento": [[1, 1, 10, 1, 1, 1, 0], 15],
+      "Cobertura y edición de Video de evento": [[1, 1, 15, 1, 1, 0], 19],
+      "Diseño de invitación web": [[2, 2, 1], 5],
+      "Edición de placa gráfica o diseño": [[1, 1, 1, 1, 1, 1], 6],
+      "Edición de Videos para RRSS": [[1, 1, 1, 1, 1, 1], 6],
+      "Evento Social - Edición de Video Final de Fiesta": [[0, 0, 0, 0, 0], 0],
+      "Evento Social - Fotografías como 2do fotógrafo": [[1, 1, 0], 2],
+      "Fotolibro": [[7, 2, 1, 1, 1, 1, 1, 7, 2, 0], 23],
+      "Impresión de Fotografías": [[1, 1, 1, 0], 3],
+      "Impresión de Fotografías para Números de MESA": [[1, 1, 1, 1, 0], 4],
+      "Impresiones a laboratorio": [[1, 1, 1, 1, 1], 5],
+      "Pendrive": [[1, 1, 0], 2],
+      "Publicar Video en RRSS": [[1, 1, 1, 1], 4],
+      "Servicio de Proyección en Vivo Selpix": [[0, 1, 3], 4],
+      "Sesión Fotográfica": [[0, 1, 1, 1, 1, 1, 2, 0], 7],
+      "Stand de glitter": [[20], 20],
+    };
+    expect(Object.keys(DIAS)).toHaveLength(21);
+    for (const c of CIRCUITOS_DNX) {
+      const [dias, total] = DIAS[c.name]!;
+      const reales = c.stages.map((s) => s.days);
+      expect(reales, c.name).toEqual(dias);
+      expect(reales.reduce((a, b) => a + b, 0), c.name).toBe(total);
+    }
+  });
+  it("cantidad de tareas por circuito", () => {
+    const TAREAS: Record<string, number> = {
+      "Diseño de invitación web": 5,
+      "Edición de placa gráfica o diseño": 6,
+      "Edición de Videos para RRSS": 4,
+      "Evento Social - Edición de Video Final de Fiesta": 1,
+      "Fotolibro": 4,
+      "Impresión de Fotografías": 1,
+      "Impresiones a laboratorio": 6,
+      "Publicar Video en RRSS": 3,
+      "Servicio de Proyección en Vivo Selpix": 9,
+    };
+    for (const c of CIRCUITOS_DNX) {
+      const n = c.stages.reduce((a, s) => a + (s.tasks?.length ?? 0), 0);
+      expect(n, c.name).toBe(TAREAS[c.name] ?? 0);
+    }
   });
   it("Stand de glitter sin tareas", () => {
     const g = CIRCUITOS_DNX.find((c) => c.name === "Stand de glitter")!;
@@ -69,6 +118,7 @@ describe("asegurarCircuitos", () => {
   });
   it("DNX: 21 circuitos y 6 motivos", async () => {
     await asegurarCircuitos("w1", "dnx-estudio");
+    expect(vi.mocked(prisma.$transaction).mock.calls[0]![1]).toEqual({ timeout: 30_000, maxWait: 10_000 });
     expect(tx.fotofficeCircuit.create).toHaveBeenCalledTimes(21);
     expect(tx.fotofficeLossReason.createMany.mock.calls[0]![0].data).toHaveLength(MOTIVOS_INICIALES.length);
   });

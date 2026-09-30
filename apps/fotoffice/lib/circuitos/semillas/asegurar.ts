@@ -6,6 +6,9 @@ export { CIRCUITOS_DNX, MOTIVOS_INICIALES } from "./dnx";
 export type { SemillaCircuito } from "./dnx";
 export { CIRCUITO_MINIMO } from "./minimo";
 
+/** La carga inicial de DNX son ~21 circuitos, ~100 etapas y ~50 tareas modelo: el tope por defecto (5 s) no alcanza en Neon. */
+export const OPCIONES_TRANSACCION = { timeout: 30_000, maxWait: 10_000 };
+
 function datosCircuito(workspaceId: string, c: SemillaCircuito) {
   return {
     workspaceId,
@@ -44,7 +47,7 @@ export async function asegurarCircuitos(workspaceId: string, slug: string): Prom
           data: MOTIVOS_INICIALES.map((name, order) => ({ workspaceId, name, order })),
         });
       }
-    });
+    }, OPCIONES_TRANSACCION);
   } catch (error) {
     // Otra petición se adelantó y creó los mismos circuitos: no hay nada que hacer.
     if ((error as { code?: string } | null)?.code === "P2002") return;
