@@ -37,6 +37,20 @@ function getS3Client(): S3Client {
   return s3Client;
 }
 
+/**
+ * El mismo cliente y el mismo bucket que usa el resto del archivo, expuestos para `r2-presign.ts`.
+ *
+ * Firmar una URL de subida exige las mismas credenciales que subir: si `r2-presign` construyera su
+ * propio cliente, habría dos lugares donde configurar R2 y un día dirían cosas distintas.
+ */
+export function getFotofficeR2Client(): S3Client {
+  return getS3Client();
+}
+
+export function getFotofficeR2Bucket(): string {
+  return getBucketName();
+}
+
 export function isFotofficeR2Configured(): boolean {
   return Boolean(
     process.env.R2_ACCOUNT_ID &&
