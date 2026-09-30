@@ -17,7 +17,7 @@ type Orden = Record<string, "asc" | "desc">;
 const TABLAS = [
   "fotofficeCircuit", "fotofficeStage", "fotofficeStageTaskTemplate", "fotofficeLossReason",
   "fotofficeJourney", "fotofficeJourneyStep", "fotofficeTask", "serviceSalesLead", "workspaceMembership",
-  "fotofficeStageRule", "fotofficeProcessedEvent", "fotofficeWorkspaceBranding",
+  "fotofficeStageRule", "fotofficeProcessedEvent", "fotofficeWorkspaceBranding", "serviceLeadForm",
 ] as const;
 export type Tabla = (typeof TABLAS)[number];
 

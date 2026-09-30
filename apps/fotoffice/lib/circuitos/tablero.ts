@@ -56,6 +56,28 @@ function nombreDeUsuario(u: { id: number; name?: string | null; email?: string |
   return u?.name?.trim() || u?.email?.trim() || `Usuario ${id}`;
 }
 
+/** Motivos de pérdida activos del workspace, en su orden. */
+export async function motivosActivos(workspaceId: string): Promise<{ id: string; nombre: string }[]> {
+  const motivos = await prisma.fotofficeLossReason.findMany({
+    where: { workspaceId, isActive: true },
+    select: { id: true, name: true },
+    orderBy: [{ order: "asc" }, { name: "asc" }],
+  });
+  return motivos.map((m) => ({ id: m.id, nombre: m.name }));
+}
+
+/** Miembros del workspace, por nombre: los que pueden ser responsables de un recorrido. */
+export async function responsablesDe(workspaceId: string): Promise<{ id: number; nombre: string }[]> {
+  const miembros = await prisma.workspaceMembership.findMany({
+    where: { workspaceId },
+    select: { userId: true, user: { select: { id: true, name: true, email: true } } },
+    orderBy: { userId: "asc" },
+  });
+  return miembros
+    .map((m) => ({ id: m.userId, nombre: nombreDeUsuario(m.user, m.userId) }))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+}
+
 async function elegirCircuito(workspaceId: string, circuitoId: string | null) {
   const circuitos = await prisma.fotofficeCircuit.findMany({
     where: { workspaceId, kind: CLASE, isActive: true },
@@ -78,28 +100,13 @@ export async function cargarTablero(
   ahora: Date,
 ): Promise<Tablero> {
   const { workspaceId } = ctx;
-  const [{ circuito, circuitos }, motivos, miembros] = await Promise.all([
+  const [{ circuito, circuitos }, motivos, responsables] = await Promise.all([
     elegirCircuito(workspaceId, circuitoId),
-    prisma.fotofficeLossReason.findMany({
-      where: { workspaceId, isActive: true },
-      select: { id: true, name: true },
-      orderBy: [{ order: "asc" }, { name: "asc" }],
-    }),
-    prisma.workspaceMembership.findMany({
-      where: { workspaceId },
-      select: { userId: true, user: { select: { id: true, name: true, email: true } } },
-      orderBy: { userId: "asc" },
-    }),
+    motivosActivos(workspaceId),
+    responsablesDe(workspaceId),
   ]);
 
-  const base = {
-    circuitos,
-    salidas: SALIDAS[CLASE],
-    motivos: motivos.map((m) => ({ id: m.id, nombre: m.name })),
-    responsables: miembros
-      .map((m) => ({ id: m.userId, nombre: nombreDeUsuario(m.user, m.userId) }))
-      .sort((a, b) => a.nombre.localeCompare(b.nombre, "es")),
-  };
+  const base = { circuitos, salidas: SALIDAS[CLASE], motivos, responsables };
   if (!circuito) return { circuito: null, columnas: [], ...base };
 
   const etapas = await prisma.fotofficeStage.findMany({
