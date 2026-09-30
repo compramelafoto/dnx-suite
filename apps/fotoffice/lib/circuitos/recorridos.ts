@@ -393,3 +393,9 @@ export async function asignarResponsable(ctx: CtxCircuitos, journeyId: string, u
     return { ok: true as const };
   });
 }
+
+/** El registro que recorre este recorrido del workspace (null si no existe o es ajeno). */
+export async function sujetoDeRecorrido(workspaceId: string, journeyId: string): Promise<Sujeto | null> {
+  const j = await prisma.fotofficeJourney.findFirst({ where: { id: journeyId, workspaceId }, select: { subjectType: true, subjectId: true } });
+  return j ? { tipo: j.subjectType as TipoSujeto, id: j.subjectId } : null;
+}

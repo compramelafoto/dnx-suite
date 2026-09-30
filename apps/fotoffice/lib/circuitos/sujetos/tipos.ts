@@ -14,6 +14,10 @@ export type NombreDeSujeto = { titulo: string; subtitulo?: string; href: string 
 export type Adaptador = {
   /** Módulo que tiene que estar encendido para operar sobre este tipo de registro. */
   moduleKey: string;
+  /** Pantalla donde se ven todos los registros de este tipo (se revalida después de cada cambio). */
+  rutaTablero: string;
+  /** Ficha de un registro. */
+  rutaFicha(id: string): string;
   /** El registro existe y es de este workspace. */
   existe(tx: Prisma.TransactionClient, workspaceId: string, id: string): Promise<boolean>;
   /** Nombre, detalle y enlace a la ficha de cada id (sólo los del workspace). */

@@ -27,6 +27,8 @@ describe("adaptadorDe", () => {
   it("sólo Captación está conectada", () => {
     expect(adaptadorDe("CAPTACION")).toBe(adaptadorCaptacion);
     expect(adaptadorCaptacion.moduleKey).toBe("service-leads");
+    expect(adaptadorCaptacion.rutaTablero).toBe("/captacion");
+    expect(adaptadorCaptacion.rutaFicha("a/b")).toBe("/captacion/a%2Fb");
     for (const t of ["CONSULTA", "PROYECTO", "COBERTURA", "toString", ""]) expect(adaptadorDe(t)).toBeNull();
   });
 });

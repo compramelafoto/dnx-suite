@@ -23,6 +23,8 @@ export function hrefDeConsulta(id: string): string {
 /** Captación: el sujeto es una `ServiceSalesLead` (consulta de presupuesto). */
 export const adaptadorCaptacion: Adaptador = {
   moduleKey: SERVICE_LEADS_MODULE_KEY,
+  rutaTablero: "/captacion",
+  rutaFicha: hrefDeConsulta,
 
   async existe(tx, workspaceId, id) {
     return (await tx.serviceSalesLead.count({ where: { id, workspaceId } })) > 0;
