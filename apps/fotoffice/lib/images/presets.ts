@@ -17,6 +17,16 @@ export type ImagePreset = {
   aspectRatio: ImageAspectRatio;
   /** Si la imagen se aleja demasiado de aspectRatio, se avisa (nunca se rechaza por esto). */
   aspectRatioTolerance: number;
+  /**
+   * Sin proporción recomendada: cada imagen es la que es. Lo usa la obra de un fotógrafo, donde
+   * hay panorámicas, verticales y cuadradas, y avisar que "se aleja de la proporción" sería
+   * decidir por él. `aspectRatio` sigue declarándose porque el tipo lo exige y el visor lo usa
+   * como caja por defecto, pero no se valida.
+   *
+   * Con esto en true, el mínimo de dimensiones se mide sobre el LADO MAYOR, no sobre los dos:
+   * una panorámica legítima es más baja que ancha y no por eso está en baja resolución.
+   */
+  aspectRatioFree?: boolean;
   minWidth: number;
   minHeight: number;
   maxFileSizeBytes: number;
@@ -134,6 +144,25 @@ export const IMAGE_PRESETS = {
     minHeight: 32,
     maxFileSizeBytes: 1 * MB,
     acceptedFormats: ["image/png", "image/webp"],
+    objectFit: "contain",
+  },
+  memberPortfolioPhoto: {
+    key: "memberPortfolioPhoto",
+    label: "Foto de portfolio",
+    widthRecommended: 2400,
+    heightRecommended: 1600,
+    /** Sólo la caja por defecto del visor: con `aspectRatioFree` no se valida ni se avisa. */
+    aspectRatio: { width: 3, height: 2 },
+    aspectRatioTolerance: 1,
+    aspectRatioFree: true,
+    /**
+     * 1000 px de lado mayor. No es el mínimo de una pantalla: es el mínimo para que la foto
+     * aguante un monitor grande, que es donde se mira obra.
+     */
+    minWidth: 1000,
+    minHeight: 1000,
+    maxFileSizeBytes: 10 * MB,
+    acceptedFormats: ["image/jpeg", "image/webp", "image/png"],
     objectFit: "contain",
   },
 } as const satisfies Record<string, ImagePreset>;
