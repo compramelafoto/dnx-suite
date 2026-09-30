@@ -27,10 +27,11 @@ const inicial: PanelState = { error: null, ok: null };
  * detrás de un botón que recién entonces pide lo que hace falta escribir. Es el mismo patrón que
  * usa la bandeja de solicitudes de asociación (`components/membership/application-card.tsx`).
  *
- * **Esperar una respuesta no puede ser un estado sin salida.** La máquina permitía salir de
- * `REQUIERE_INFO` por dos lados y esta pantalla no ofrecía ninguno, así que un pedido cuyo dato
- * nunca llegó se quedaba trabado para siempre y la única salida era escribir en la base.
- * `criterios-callejones.test.ts` verifica que no vuelva a pasar.
+ * **Todo estado vivo tiene alguna salida ofrecida acá.** No es un detalle de prolijidad: la
+ * máquina de estados permitía salir de `REQUIERE_INFO` y de `APROBADA` y esta pantalla no
+ * ofrecía ninguna de las dos, así que un pedido que esperaba un dato que nunca llegó —o uno
+ * aprobado cuya actividad ya pasó— se quedaba trabado para siempre y la única salida era
+ * escribir en la base. `criterios-callejones.test.ts` verifica que no vuelva a pasar.
  */
 export function EvaluacionPanel({
   id,
@@ -38,6 +39,7 @@ export function EvaluacionPanel({
   puedeCoordinar,
   infoRequested,
   advertenciaOtraCobertura,
+  avisoAlCerrar,
 }: {
   id: string;
   status: string;
@@ -51,6 +53,14 @@ export function EvaluacionPanel({
    * dato que cambia la decisión, y enterarse después de haber aprobado no sirve de nada.
    */
   advertenciaOtraCobertura?: string | null;
+  /**
+   * Que el pedido todavía tenga coberturas sin terminar, si las tiene.
+   *
+   * Se lee **adentro del formulario de cerrar**, no arriba de la tarjeta: es lo que hay que
+   * saber en el segundo antes de apretar, y cerrar el pedido no toca esas coberturas (ver
+   * `avisoAlCerrarSolicitud`).
+   */
+  avisoAlCerrar?: string | null;
 }) {
   const [estadoState, cambiarEstado, cambiando] = useActionState(
     changeRequestStatusAction,
@@ -61,6 +71,7 @@ export function EvaluacionPanel({
 
   const [pidiendoDato, setPidiendoDato] = useState(false);
   const [rechazando, setRechazando] = useState(false);
+  const [cerrando, setCerrando] = useState(false);
 
   const cerrada = ["RECHAZADA", "CERRADA", "CANCELADA_SOLICITANTE", "CANCELADA_ORGANIZACION"].includes(
     status,
@@ -346,6 +357,72 @@ export function EvaluacionPanel({
               </p>
             )}
           </div>
+        </div>
+      ) : null}
+
+      {/*
+        Un pedido aprobado tampoco puede quedar abierto para siempre.
+
+        `APROBADA → CERRADA` existe en la máquina y ninguna pantalla lo ofrecía: una cobertura
+        que ya ocurrió, o que la organización dio de baja, se quedaba en la bandeja sin forma de
+        sacarla. Cerrar es lo único que se ofrece acá — el ciclo de la cobertura (`REALIZADA`,
+        `ENTREGADA`) es de la etapa 1c y no se toca.
+
+        Detrás de un botón y con el aviso adentro: cerrar es terminal, y si el pedido todavía
+        tiene coberturas sin terminar hay que leerlo antes y no después.
+      */}
+      {!cerrada && status === "APROBADA" && puedeCoordinar ? (
+        <div className="space-y-3 border-t border-[var(--fo-border)] pt-4">
+          <p className="fo-helper">
+            ¿Ya pasó todo lo que tenía que pasar, o la organización dio de baja la actividad?
+          </p>
+
+          {!cerrando ? (
+            <button
+              type="button"
+              onClick={() => setCerrando(true)}
+              className="fo-btn fo-btn-secondary min-h-11 text-sm"
+            >
+              Cerrar el pedido
+            </button>
+          ) : (
+            <form action={cambiarEstado} className="fo-field-stack">
+              <input type="hidden" name="id" value={id} />
+              <input type="hidden" name="to" value="CERRADA" />
+              {avisoAlCerrar ? (
+                <p className="fo-alert-warning rounded-[var(--fo-radius-sm)] p-3 text-sm leading-relaxed">
+                  <strong>Ojo:</strong> {avisoAlCerrar}
+                </p>
+              ) : null}
+              <p className="fo-helper">
+                Sale de la bandeja y no se reabre. La organización no recibe ningún aviso por
+                esto.
+              </p>
+              <label className="fo-label" htmlFor="motivoDelCierre">
+                Por qué lo cerramos (podés dejarlo vacío)
+              </label>
+              <p className="fo-helper">
+                Queda en el historial, para acordarse dentro de un año. La organización no lo ve.
+              </p>
+              <textarea id="motivoDelCierre" name="reason" rows={2} className="fo-input" />
+              <div className="flex flex-wrap gap-2 pt-1">
+                <button
+                  type="submit"
+                  className="fo-btn fo-btn-primary min-h-11 text-sm"
+                  disabled={cambiando}
+                >
+                  {cambiando ? "Cerrando…" : "Cerrarlo"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCerrando(false)}
+                  className="fo-btn fo-btn-ghost min-h-11 text-sm"
+                >
+                  Mejor no
+                </button>
+              </div>
+            </form>
+          )}
         </div>
       ) : null}
 

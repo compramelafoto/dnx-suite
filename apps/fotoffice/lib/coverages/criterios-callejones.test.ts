@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { REQUEST_LIVE_STATUSES, REQUEST_STATUSES, type RequestStatus } from "./states";
 import { canTransitionRequest, transitionRequiresReason } from "./transitions";
 import { transitionNeedsCoordinator } from "./access-policy";
 
@@ -59,5 +60,55 @@ describe("un pedido que espera información no queda trabado", () => {
     // tomarla" y nada más.
     expect(transitionRequiresReason("RECHAZADA")).toBe(true);
     expect(canTransitionRequest("REQUIERE_INFO", "RECHAZADA")).toBe(true);
+  });
+});
+
+describe("una solicitud aprobada se puede cerrar", () => {
+  it("la máquina lo permite y el panel lo ofrece", () => {
+    expect(canTransitionRequest("APROBADA", "CERRADA")).toBe(true);
+    expect(destinosQueOfreceElPanel().has("CERRADA")).toBe(true);
+  });
+
+  it("cerrar exige coordinar y no exige motivo", () => {
+    expect(transitionNeedsCoordinator("CERRADA")).toBe(true);
+    expect(transitionRequiresReason("CERRADA")).toBe(false);
+  });
+
+  it("cerrar es terminal: no se reabre por ningún camino", () => {
+    for (const destino of REQUEST_STATUSES) {
+      expect(canTransitionRequest("CERRADA", destino), destino).toBe(false);
+    }
+  });
+
+  it("cerrar la solicitud no toca el ciclo de la cobertura, que es de la etapa 1c", () => {
+    // Si algún día alguien agrega `REALIZADA` o `ENTREGADA` a los destinos del panel de la
+    // ficha, es que se mezclaron dos etapas: esos estados son de la cobertura, no del pedido.
+    const ofrecidos = destinosQueOfreceElPanel();
+    expect(ofrecidos.has("REALIZADA")).toBe(false);
+    expect(ofrecidos.has("ENTREGADA")).toBe(false);
+    for (const destino of ofrecidos) {
+      expect(
+        (REQUEST_STATUSES as readonly string[]).includes(destino),
+        `${destino} no es un estado de solicitud`,
+      ).toBe(true);
+    }
+  });
+});
+
+describe("ningún estado vivo se queda sin salida", () => {
+  /**
+   * El test que habría encontrado los dos callejones de estado de una sola vez.
+   *
+   * Para cada estado en que el pedido todavía está vivo, el panel tiene que ofrecer **al menos
+   * una** transición válida desde ahí. No pide que ofrezca todas —cancelar, por ejemplo, se
+   * alcanza desde cualquier estado vivo y esta etapa no lo ofrece— pero sí que ninguno quede
+   * sin ningún camino hacia adelante, que es justo lo que pasaba.
+   */
+  it("desde cada estado vivo hay al menos una salida ofrecida en la ficha", () => {
+    const ofrecidos = [...destinosQueOfreceElPanel()];
+    const trabados = REQUEST_LIVE_STATUSES.filter(
+      (desde: RequestStatus) => !ofrecidos.some((hacia) => canTransitionRequest(desde, hacia)),
+    );
+    expect(trabados).toEqual([]);
   });
 });

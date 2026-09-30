@@ -15,6 +15,7 @@ import { fechaHoraArgentina } from "@/lib/coverages/format";
 import { recomendarRefuerzo } from "@/lib/coverages/reinforcement";
 import { choiceOptionValue, choiceValueLabel, requestFieldByKey } from "@/lib/coverages/request-fields";
 import { loadRequest, loadSettings } from "@/lib/coverages/repository";
+import { avisoAlCerrarSolicitud } from "@/lib/coverages/cierre-de-solicitud";
 import { coverageEventLabel, requestStatusLabel } from "@/lib/coverages/states";
 import { canCoordinateCoverages } from "@/lib/coverages/access-policy";
 import { CONSENT_LABELS, type ConsentKind } from "@/lib/coverages/consents";
@@ -94,6 +95,7 @@ export default async function FichaSolicitudPage({
         puedeCoordinar={puedeCoordinar}
         infoRequested={solicitud.infoRequested}
         advertenciaOtraCobertura={advertirOtraCobertura(solicitud.otherCoverage)}
+        avisoAlCerrar={avisoAlCerrarSolicitud(solicitud.coverages)}
       />
 
       {muestraCoberturas ? (
