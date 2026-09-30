@@ -146,6 +146,8 @@ model User {
   dashboardNotifications                DashboardNotification[]
   fotofficePhotographerProfile          FotofficePhotographerProfile?
   fotofficeInstitutionalMemberships     Member[]
+  /// Portfolios que bajó del sitio. SetNull: borrar su usuario no borra lo que hizo.
+  fotofficePortfoliosHidden             FotofficeMemberPortfolio[]             @relation("PortfolioHiddenBy")
   clickatonRegistrations                ClickatonRegistration[]                @relation("ClickatonRegistrationParticipant")
   clickatonCheckInsOperated             ClickatonCheckIn[]                     @relation("ClickatonCheckInOperator")
   clickatonCheckInsReversed             ClickatonCheckIn[]                     @relation("ClickatonCheckInReverser")
@@ -7080,6 +7082,7 @@ model Workspace {
   institutionalMembers        Member[]
   memberCategories            MemberCategory[]
   memberAudits                MemberAudit[]
+  memberPortfolios            FotofficeMemberPortfolio[]
   memberInvitations           MemberInvitation[]
   moduleFees                  WorkspaceModuleFee[]
   integrations                WorkspaceIntegration[]
@@ -7422,6 +7425,9 @@ model Member {
   coverageApplications            CoverageApplication[]
   coverageAssignments             CoverageAssignment[]
   coverageDeliverables            CoverageDeliverable[]
+  /// Su portfolio, si alguna vez entró a armarlo. La fila se crea recién cuando la persona
+  /// abre la pantalla: no se le inventa un portfolio vacío a todo el padrón.
+  portfolio                       FotofficeMemberPortfolio?
 
   @@unique([workspaceId, memberNumber])
   @@unique([workspaceId, email])
@@ -7915,6 +7921,10 @@ enum MemberAuditAction {
   INVITE_SEND_FAILED
   INVITE_REVOKED
   INVITE_ACCEPTED
+  /// La institución bajó el portfolio del sitio. Exige motivo, como la suspensión y la baja.
+  PORTFOLIO_HIDDEN
+  /// La institución lo volvió a publicar, o lo publicó pese a la deuda.
+  PORTFOLIO_RESTORED
 }
 
 /// De dónde vino la operación. `SYSTEM` queda para procesos automáticos futuros
@@ -8016,6 +8026,84 @@ model MemberAudit {
   @@index([workspaceId, createdAt])
   /// Recuperar un lote de importación completo.
   @@index([batchId])
+}
+
+/// El portfolio de una persona del padrón: una galería, con una foto destacada.
+///
+/// NO guarda la presencia profesional (presentación, especialidades, redes, sitio): eso vive en
+/// `Member` desde el alta y se lee de ahí. Duplicarlo sería garantizar que algún día digan
+/// cosas distintas.
+model FotofficeMemberPortfolio {
+  id          String @id @default(cuid())
+  workspaceId String
+  memberId    String @unique
+
+  /// Dirección pública: `/w/{slug}/socios/{publicSlug}`. Se calcula al crear y NO se recalcula
+  /// si la persona cambia de apellido — una dirección publicada que deja de funcionar es un
+  /// enlace roto en el sitio de otro.
+  publicSlug String
+
+  /// El interruptor de la persona. Arranca apagado: tener un portfolio y publicarlo son dos
+  /// actos distintos.
+  memberPublished   Boolean   @default(false)
+  memberPublishedAt DateTime?
+
+  /// La foto que la representa en el directorio. SetNull: si se borra esa foto el portfolio
+  /// sigue existiendo y la destacada pasa a ser la primera que quede.
+  coverPhotoId String? @unique
+
+  /// La bajada de la institución. Los tres campos van juntos: nunca se baja sin motivo.
+  hiddenByAdminAt     DateTime?
+  hiddenByAdminUserId Int?
+  hiddenReason        String?
+
+  /// El perdón de deuda. Saltea SOLO la condición de cargos vencidos, ninguna otra — ver
+  /// `apps/fotoffice/lib/portfolio/visibility.ts`. Existe porque la migración del historial de
+  /// pagos está incompleta y hay gente al día que figura debiendo: una regla automática sin
+  /// forma humana de contradecirla es una trampa.
+  adminForcePublish Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace    Workspace                       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member       Member                          @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  hiddenByUser User?                           @relation("PortfolioHiddenBy", fields: [hiddenByAdminUserId], references: [id], onDelete: SetNull)
+  photos       FotofficeMemberPortfolioPhoto[] @relation("PortfolioPhotos")
+  coverPhoto   FotofficeMemberPortfolioPhoto?  @relation("PortfolioCoverPhoto", fields: [coverPhotoId], references: [id], onDelete: SetNull)
+
+  /// Dos personas de la misma institución no pueden compartir dirección. Dos de instituciones
+  /// distintas sí: las direcciones viven bajo `/w/{slug}/`.
+  @@unique([workspaceId, publicSlug])
+  @@index([workspaceId])
+}
+
+/// Una foto del portfolio de una persona.
+model FotofficeMemberPortfolioPhoto {
+  id          String @id @default(cuid())
+  portfolioId String
+
+  /// Key dentro del bucket compartido del monorepo, bajo `fotoffice/member-portfolio/`.
+  r2Key       String
+  url         String
+  contentType String
+  sizeBytes   Int
+  /// Se guardan para reservar el espacio de cada foto antes de que cargue: sin esto la galería
+  /// salta mientras se arma.
+  width       Int
+  height      Int
+
+  /// El orden que eligió la persona. Denso dentro de un portfolio, arranca en 0.
+  order Int
+  title String?
+  year  Int?
+
+  createdAt DateTime @default(now())
+
+  portfolio FotofficeMemberPortfolio  @relation("PortfolioPhotos", fields: [portfolioId], references: [id], onDelete: Cascade)
+  coverOf   FotofficeMemberPortfolio? @relation("PortfolioCoverPhoto")
+
+  @@index([portfolioId, order])
 }
 
 model CourseSalesWorkspaceSettings {
