@@ -137,8 +137,21 @@ describe("cargarTablero", () => {
   });
 
   it("filtra por responsable y por vencidas", async () => {
-    expect(idsDe(await cargarTablero(CTX, null, { responsable: 8 }, AHORA))).toEqual([["s1", []], ["s2", ["j2"]], ["s-arch", []]]);
-    expect(idsDe(await cargarTablero(CTX, null, { soloVencidas: true }, AHORA))).toEqual([["s1", ["j1"]], ["s2", []], ["s-arch", []]]);
+    // La archivada sólo aparece si le quedan recorridos que coinciden con los filtros.
+    expect(idsDe(await cargarTablero(CTX, null, { responsable: 8 }, AHORA))).toEqual([["s1", []], ["s2", ["j2"]]]);
+    expect(idsDe(await cargarTablero(CTX, null, { soloVencidas: true }, AHORA))).toEqual([["s1", ["j1"]], ["s2", []]]);
+  });
+
+  it("cuenta con un solo groupBy, sin un count por columna", async () => {
+    const recorridos = B.tablas.fotofficeJourney;
+    const groupBy = vi.spyOn(recorridos, "groupBy");
+    const count = vi.spyOn(recorridos, "count");
+    const t = await cargarTablero(CTX, null, {}, AHORA);
+    expect(groupBy).toHaveBeenCalledTimes(1);
+    expect(count).not.toHaveBeenCalled();
+    expect(t.columnas.map((c) => c.total)).toEqual([1, 1, 1]);
+    groupBy.mockRestore();
+    count.mockRestore();
   });
 
   it("sin circuitos de venta devuelve un tablero vacío", async () => {

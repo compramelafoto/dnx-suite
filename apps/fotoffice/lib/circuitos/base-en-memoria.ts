@@ -145,6 +145,17 @@ export function crearBaseEnMemoria() {
       findMany: async (a: { where?: Where; select?: Record<string, boolean>; orderBy?: Orden | Orden[]; take?: number } = {}) =>
         ordenar(datos[tabla].filter((x) => cumple(x, a.where)), a.orderBy).slice(0, a.take ?? Infinity).map((x) => elegir(x, a.select)),
       count: async (a: { where?: Where } = {}) => datos[tabla].filter((x) => cumple(x, a.where)).length,
+      /** Mínimo: agrupa por columnas y sólo admite `_count: true` (cantidad de filas por grupo). */
+      groupBy: async (a: { by: string[]; where?: Where; _count?: true }) => {
+        const grupos = new Map<string, Fila>();
+        for (const x of datos[tabla].filter((f) => cumple(f, a.where))) {
+          const clave = JSON.stringify(a.by.map((c) => x[c] ?? null));
+          const g = grupos.get(clave) ?? { ...Object.fromEntries(a.by.map((c) => [c, x[c] ?? null])), _count: 0 };
+          g._count = (g._count as number) + 1;
+          grupos.set(clave, g);
+        }
+        return [...grupos.values()];
+      },
       create: async (a: { data: Fila; select?: Record<string, boolean> }) => elegir(insertar(tabla, a.data), a.select),
       createMany: async (a: { data: Fila[] }) => {
         for (const d of a.data) insertar(tabla, d);

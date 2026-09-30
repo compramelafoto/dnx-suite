@@ -7,6 +7,7 @@ import { cerrarAction, moverAction } from "@/app/actions/circuitos";
 import { ETIQUETA_SALIDA } from "@/lib/circuitos/constantes";
 import { claseDeColorEtiqueta } from "@/lib/ficha/formato";
 import type { Tablero as DatosTablero, TarjetaVista } from "@/lib/circuitos/tablero";
+import { DialogoGanada } from "./dialogo-ganada";
 import { DialogoPerdida } from "./dialogo-perdida";
 import type { Destino } from "./mover-a";
 import { Tarjeta, type AvisoTarjeta } from "./tarjeta";
@@ -59,10 +60,12 @@ export function Tablero({
   const router = useRouter();
   const ancha = useSyncExternalStore(suscribirAncho, esAncha, esAnchaEnServidor);
   const [pendiente, iniciar] = useTransition();
-  const [ocupada, setOcupada] = useState<string | null>(null);
+  // Tarjetas con una operación en curso: cada una se libera sola, así dos operaciones a la vez no se pisan.
+  const [ocupadas, setOcupadas] = useState<ReadonlySet<string>>(() => new Set());
   const [avisos, setAvisos] = useState<Record<string, AvisoTarjeta & { op: Operacion }>>({});
   const [estado, setEstado] = useState("");
   const [perdiendo, setPerdiendo] = useState<Omit<Operacion, "destino"> | null>(null);
+  const [ganando, setGanando] = useState<Omit<Operacion, "destino"> | null>(null);
   const [sobre, setSobre] = useState<string | null>(null);
   const arrastre = useRef<Arrastre | null>(null);
 
@@ -80,10 +83,20 @@ export function Tablero({
     });
   }
 
+  function marcarOcupada(journeyId: string, ocupada: boolean) {
+    setOcupadas((prev) => {
+      const s = new Set(prev);
+      if (ocupada) s.add(journeyId);
+      else s.delete(journeyId);
+      return s;
+    });
+  }
+
   function ejecutar(op: Operacion, forzar = false) {
+    if (ocupadas.has(op.journeyId)) return;
     quitarAviso(op.journeyId);
     setEstado("");
-    setOcupada(op.journeyId);
+    marcarOcupada(op.journeyId, true);
     iniciar(async () => {
       try {
         const base = { journeyId: op.journeyId, esperado: op.esperado, ...(forzar ? { forzar: true } : {}) };
@@ -110,7 +123,7 @@ export function Tablero({
       } catch {
         setAvisos((a) => ({ ...a, [op.journeyId]: { mensaje: MENSAJE_FALLA, puedePasarIgual: false, op } }));
       } finally {
-        setOcupada(null);
+        marcarOcupada(op.journeyId, false);
       }
     });
   }
@@ -119,6 +132,11 @@ export function Tablero({
     const op = { journeyId: tarjeta.journeyId, titulo: tarjeta.sujeto.titulo, esperado: tarjeta.enteredStageAt };
     if (destino.tipo === "salida" && destino.salida === salidas.fracaso) {
       setPerdiendo(op);
+      return;
+    }
+    // Ganar no se puede deshacer: se confirma siempre (al soltar y desde "Mover a…").
+    if (destino.tipo === "salida" && destino.salida === salidas.exito) {
+      setGanando(op);
       return;
     }
     ejecutar({ ...op, destino });
@@ -260,7 +278,7 @@ export function Tablero({
                       tarjeta={t}
                       responsable={t.responsableId !== null ? (nombreResponsable.get(t.responsableId) ?? null) : null}
                       arrastrable={ancha}
-                      ocupada={ocupada === t.journeyId}
+                      ocupada={ocupadas.has(t.journeyId)}
                       aviso={aviso ?? null}
                       etapasDestino={destinos}
                       salidas={listaSalidas}
@@ -305,6 +323,15 @@ export function Tablero({
         ) : null}
       </div>
 
+      <DialogoGanada
+        titulo={ganando?.titulo ?? null}
+        onCancelar={() => setGanando(null)}
+        onConfirmar={() => {
+          if (!ganando) return;
+          setGanando(null);
+          ejecutar({ ...ganando, destino: { tipo: "salida", salida: salidas.exito } });
+        }}
+      />
       <DialogoPerdida
         titulo={perdiendo?.titulo ?? null}
         motivos={motivos}

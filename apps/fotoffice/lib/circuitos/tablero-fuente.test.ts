@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 const RAIZ = join(__dirname, "..", "..");
 const leer = (...p: string[]) => readFileSync(join(RAIZ, ...p), "utf8");
 const componente = (f: string) => leer("components", "circuitos", f);
-const COMPONENTES = ["tablero.tsx", "tarjeta.tsx", "mover-a.tsx", "dialogo-perdida.tsx"];
+const COMPONENTES = ["tablero.tsx", "tarjeta.tsx", "mover-a.tsx", "dialogo-perdida.tsx", "dialogo-ganada.tsx"];
 
 describe("tablero de Captación", () => {
   it("los componentes son de cliente y no importan la base", () => {
@@ -25,6 +25,27 @@ describe("tablero de Captación", () => {
     const m = componente("mover-a.tsx");
     expect(m).toContain("<select");
     expect(m).toContain("Mover a…");
+  });
+
+  it("«Mover a…» es de dos pasos: el select sólo elige, el botón aplica", () => {
+    const m = componente("mover-a.tsx");
+    expect(m).toContain("onChange={(ev) => setElegido(ev.target.value)}");
+    expect(m).toContain('type="submit"');
+    expect(m).toContain("disabled={deshabilitado || !destino}");
+    expect(m.match(/onElegir\(/g)).toHaveLength(1);
+    expect(m.indexOf("onElegir(destino)")).toBeGreaterThan(m.indexOf("onSubmit="));
+  });
+
+  it("ganar se confirma siempre y las operaciones en curso son por tarjeta", () => {
+    const t = componente("tablero.tsx");
+    expect(t).toContain("setGanando(op)");
+    expect(t).toContain("<DialogoGanada");
+    // Soltar pasa por `pedir` (que confirma); el único `ejecutar` de ganada sale del diálogo.
+    expect(t).toContain("if (a) pedir(a.tarjeta, destino)");
+    expect(t).toContain("ejecutar({ ...ganando,");
+    expect(t.indexOf("setGanando(op)")).toBeLessThan(t.indexOf("ejecutar({ ...op, destino })"));
+    expect(t).toContain("ocupadas.has(t.journeyId)");
+    expect(componente("dialogo-ganada.tsx")).toContain("¿Marcar como ganada? No se puede deshacer.");
   });
 
   it("el tablero suelta con HTML5 nativo, sin arrastre en pantallas chicas y con zonas de salida", () => {

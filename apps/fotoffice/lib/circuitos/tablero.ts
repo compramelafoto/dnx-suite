@@ -108,31 +108,36 @@ export async function cargarTablero(
     orderBy: [{ order: "asc" }],
   });
 
-  const abiertos = { workspaceId, circuitId: circuito.id, subjectType: TIPO_SUJETO, closedAt: null };
-  // Una etapa archivada sigue apareciendo (al final) mientras tenga recorridos abiertos, para
-  // poder sacarlos de ahí. Se decide sin filtros, así la columna no aparece y desaparece.
-  const archivadas = [];
-  for (const e of etapas.filter((x) => x.archivedAt !== null)) {
-    if ((await prisma.fotofficeJourney.count({ where: { ...abiertos, stageId: e.id } })) > 0) archivadas.push(e);
-  }
-  const visibles = [...etapas.filter((e) => e.archivedAt === null), ...archivadas];
-
   const where = {
-    ...abiertos,
+    workspaceId,
+    circuitId: circuito.id,
+    subjectType: TIPO_SUJETO,
+    closedAt: null,
     ...(filtros.responsable !== undefined ? { ownerUserId: filtros.responsable } : {}),
     ...(filtros.soloVencidas ? { stageDueAt: { lt: ahora } } : {}),
   };
+  // Un solo conteo por etapa (con los filtros) para toda la pantalla.
+  const grupos = await prisma.fotofficeJourney.groupBy({ by: ["stageId"], where, _count: true });
+  const totalDe = new Map(grupos.map((g) => [g.stageId, g._count]));
+  // Una etapa archivada aparece (al final) mientras tenga recorridos abiertos que coincidan con
+  // los filtros, para poder sacarlos de ahí; no recibe movimientos nuevos.
+  const visibles = [
+    ...etapas.filter((e) => e.archivedAt === null),
+    ...etapas.filter((e) => e.archivedAt !== null && (totalDe.get(e.id) ?? 0) > 0),
+  ];
+
   const porEtapa = await Promise.all(
     visibles.map(async (e) => {
-      const [filas, total] = await Promise.all([
-        prisma.fotofficeJourney.findMany({
-          where: { ...where, stageId: e.id },
-          select: { id: true, subjectType: true, subjectId: true, stageId: true, enteredStageAt: true, stageDueAt: true, ownerUserId: true },
-          orderBy: [{ enteredStageAt: "asc" }, { id: "asc" }],
-          take: TOPE_POR_COLUMNA,
-        }),
-        prisma.fotofficeJourney.count({ where: { ...where, stageId: e.id } }),
-      ]);
+      const total = totalDe.get(e.id) ?? 0;
+      const filas =
+        total === 0
+          ? []
+          : await prisma.fotofficeJourney.findMany({
+              where: { ...where, stageId: e.id },
+              select: { id: true, subjectType: true, subjectId: true, stageId: true, enteredStageAt: true, stageDueAt: true, ownerUserId: true },
+              orderBy: [{ enteredStageAt: "asc" }, { id: "asc" }],
+              take: TOPE_POR_COLUMNA,
+            });
       return { etapa: e, filas, total };
     }),
   );
