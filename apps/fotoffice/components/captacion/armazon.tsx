@@ -2,11 +2,11 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { PageHeader } from "@/components/page-header";
 
-/** Las pestañas de Captación. El Informe (Tarea 11) se conecta cuando exista su pantalla. */
+/** Las pestañas de Captación. El Informe es la Tarea 11. */
 export const PESTANAS_CAPTACION = [
   { clave: "tablero", texto: "Tablero", href: "/captacion" },
   { clave: "lista", texto: "Lista", href: "/captacion/lista" },
-  { clave: "informe", texto: "Informe", href: "/captacion?vista=informe" },
+  { clave: "informe", texto: "Informe", href: "/captacion/informe" },
 ] as const;
 export type PestanaCaptacion = (typeof PESTANAS_CAPTACION)[number]["clave"];
 
