@@ -6,6 +6,7 @@ import {
   addNoteAction,
   changeRequestStatusAction,
   requestInfoAction,
+  resendTrackingLinkAction,
   type PanelState,
 } from "../actions";
 
@@ -40,6 +41,7 @@ export function EvaluacionPanel({
   infoRequested,
   advertenciaOtraCobertura,
   avisoAlCerrar,
+  reenvioDeEnlace,
 }: {
   id: string;
   status: string;
@@ -61,6 +63,14 @@ export function EvaluacionPanel({
    * `avisoAlCerrarSolicitud`).
    */
   avisoAlCerrar?: string | null;
+  /**
+   * Si se le puede emitir un enlace de seguimiento nuevo, y a quién iría.
+   *
+   * La decisión la toma `puedeReemitirEnlace` en el servidor; esto es la misma respuesta
+   * adelantada, para no ofrecer un botón que va a rebotar y para poder explicar por qué no se
+   * puede en vez de no mostrar nada.
+   */
+  reenvioDeEnlace?: { habilitado: boolean; motivo: string | null; destino: string | null };
 }) {
   const [estadoState, cambiarEstado, cambiando] = useActionState(
     changeRequestStatusAction,
@@ -68,6 +78,10 @@ export function EvaluacionPanel({
   );
   const [infoState, pedirInfo, pidiendo] = useActionState(requestInfoAction, inicial);
   const [notaState, anotar, anotando] = useActionState(addNoteAction, inicial);
+  const [reenvioState, reenviarEnlace, reenviando] = useActionState(
+    resendTrackingLinkAction,
+    inicial,
+  );
 
   const [pidiendoDato, setPidiendoDato] = useState(false);
   const [rechazando, setRechazando] = useState(false);
@@ -424,6 +438,52 @@ export function EvaluacionPanel({
             </form>
           )}
         </div>
+      ) : null}
+
+      {/*
+        Reparar un enlace que no llegó.
+
+        El enlace rota al aprobar y al pedir un dato, y el token crudo vive un instante: se manda
+        por correo y en la base queda sólo su hash. Si ese correo falla, la organización se queda
+        sin enlace vivo y **nadie lo puede recuperar** —por diseño—. Lo único posible es emitir
+        otro, y eso apaga el anterior: la advertencia va ARRIBA del botón, adentro del mismo
+        bloque que hay que abrir para llegar a él, no en un aviso después de haberlo apretado.
+
+        Cuando no se puede, se explica por qué en vez de no mostrar nada: «no hay correo cargado»
+        y «falta la dirección pública de la aplicación» se arreglan en lugares distintos.
+      */}
+      {!cerrada ? (
+        <details className="border-t border-[var(--fo-border)] pt-4">
+          <summary className="cursor-pointer text-sm font-medium">
+            Reenviarles el enlace de seguimiento
+          </summary>
+          <div className="space-y-3 pt-3">
+            {reenvioDeEnlace?.habilitado ? (
+              <>
+                <p className="fo-alert-warning rounded-[var(--fo-radius-sm)] p-3 text-sm leading-relaxed">
+                  <strong>Emitir uno nuevo apaga el que tengan.</strong> Si la organización
+                  guardó el enlace de un correo anterior, deja de funcionar en el momento en que
+                  apretás. El que tiene ahora no lo podemos leer ni recuperar: de ese enlace sólo
+                  guardamos una huella, nunca el enlace.
+                </p>
+                <p className="fo-helper">Se lo mandamos a {reenvioDeEnlace.destino}.</p>
+                <form action={reenviarEnlace}>
+                  <input type="hidden" name="id" value={id} />
+                  <button
+                    type="submit"
+                    className="fo-btn fo-btn-secondary min-h-11 text-sm"
+                    disabled={reenviando}
+                  >
+                    {reenviando ? "Emitiendo y mandando…" : "Emitir uno nuevo y mandarlo"}
+                  </button>
+                </form>
+                <Aviso state={reenvioState} />
+              </>
+            ) : (
+              <p className="fo-helper">{reenvioDeEnlace?.motivo}</p>
+            )}
+          </div>
+        </details>
       ) : null}
 
       <details className="border-t border-[var(--fo-border)] pt-4">

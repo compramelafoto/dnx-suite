@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
+import { appUrl } from "@/lib/app-url";
 import { EstadoCoberturaChip, EstadoSolicitudChip } from "@/components/coberturas/estado-chip";
 import { LugarConfirmado } from "@/components/coberturas/lugar-confirmado";
 import { requireCoveragesReviewer } from "@/lib/coverages/access";
@@ -16,6 +17,7 @@ import { recomendarRefuerzo } from "@/lib/coverages/reinforcement";
 import { choiceOptionValue, choiceValueLabel, requestFieldByKey } from "@/lib/coverages/request-fields";
 import { loadRequest, loadSettings } from "@/lib/coverages/repository";
 import { avisoAlCerrarSolicitud } from "@/lib/coverages/cierre-de-solicitud";
+import { puedeReemitirEnlace } from "@/lib/coverages/reenvio-enlace";
 import { coverageEventLabel, requestStatusLabel } from "@/lib/coverages/states";
 import { canCoordinateCoverages } from "@/lib/coverages/access-policy";
 import { CONSENT_LABELS, type ConsentKind } from "@/lib/coverages/consents";
@@ -60,6 +62,18 @@ export default async function FichaSolicitudPage({
   const puedeCoordinar = canCoordinateCoverages(role);
   const muestraCoberturas = solicitud.coverages.length > 0 || solicitud.status === "APROBADA";
 
+  /*
+    Si se le puede emitir un enlace nuevo, contestado acá para que la pantalla no ofrezca un
+    botón que va a rebotar. **No es el control**: `resendTrackingLinkAction` vuelve a preguntarle
+    lo mismo a la misma función en el servidor. `appUrl()` sólo se puede leer de este lado.
+  */
+  const correoDeLaOrganizacion = solicitud.client.email?.trim() || null;
+  const reenvio = puedeReemitirEnlace({
+    status: solicitud.status,
+    tieneDestinatario: Boolean(correoDeLaOrganizacion),
+    tieneAppUrl: Boolean(appUrl()),
+  });
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -96,6 +110,11 @@ export default async function FichaSolicitudPage({
         infoRequested={solicitud.infoRequested}
         advertenciaOtraCobertura={advertirOtraCobertura(solicitud.otherCoverage)}
         avisoAlCerrar={avisoAlCerrarSolicitud(solicitud.coverages)}
+        reenvioDeEnlace={{
+          habilitado: reenvio.ok,
+          motivo: reenvio.ok ? null : reenvio.error,
+          destino: correoDeLaOrganizacion,
+        }}
       />
 
       {muestraCoberturas ? (
