@@ -141,6 +141,36 @@ export default async function WorkspaceSettingsPage() {
         </Link>
       ) : null}
 
+      {membership?.role && puede(membership.role, "configurar") ? (
+        <Link
+          href="/workspace/configuracion/campos"
+          className="fo-card flex items-center justify-between gap-4 p-4 transition hover:border-[var(--fo-accent,#1d4ed8)]"
+        >
+          <span className="space-y-0.5">
+            <span className="block text-sm font-semibold">Campos</span>
+            <span className="block text-xs text-[var(--fo-muted)]">
+              Datos propios para las fichas de clientes, {vocabulario.plural} y consultas.
+            </span>
+          </span>
+          <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
+        </Link>
+      ) : null}
+
+      {membership?.role && puede(membership.role, "configurar") ? (
+        <Link
+          href="/workspace/configuracion/numeracion"
+          className="fo-card flex items-center justify-between gap-4 p-4 transition hover:border-[var(--fo-accent,#1d4ed8)]"
+        >
+          <span className="space-y-0.5">
+            <span className="block text-sm font-semibold">Numeración</span>
+            <span className="block text-xs text-[var(--fo-muted)]">
+              Prefijo, año y próximo número de consultas, presupuestos, pedidos, contratos y proyectos.
+            </span>
+          </span>
+          <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
+        </Link>
+      ) : null}
+
       <div className="space-y-3">
         <h1 className="text-2xl font-semibold tracking-tight text-[var(--fo-text)]">
           Configuración del negocio

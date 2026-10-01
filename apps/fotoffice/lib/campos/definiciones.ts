@@ -134,6 +134,20 @@ export function listarCampos(
   return leerCamposCacheado(workspaceId, entityType, opciones.incluirArchivados === true);
 }
 
+/**
+ * Cuántos valores guardados tiene cada campo (sólo los del workspace). Configuración lo usa para
+ * ofrecer "Borrar" sólo a los campos sin datos; el borrado vuelve a verificarlo adentro.
+ */
+export async function contarValoresPorCampo(workspaceId: string, fieldIds: string[]): Promise<Record<string, number>> {
+  if (fieldIds.length === 0) return {};
+  const grupos = await prisma.fotofficeCustomValue.groupBy({
+    by: ["fieldId"],
+    where: { workspaceId, fieldId: { in: fieldIds } },
+    _count: true,
+  });
+  return Object.fromEntries(grupos.map((g) => [g.fieldId, g._count as number]));
+}
+
 /** El campo, sólo si es del workspace. */
 async function campoDelWorkspace(workspaceId: string, fieldId: unknown) {
   if (typeof fieldId !== "string" || !fieldId || fieldId.length > 100) return null;
