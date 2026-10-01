@@ -5,6 +5,7 @@ import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import type { Proveedor } from "../linea-de-tiempo";
 import { proveedorAdjuntos } from "./adjuntos";
 import { proveedorCaja } from "./caja";
+import { proveedorCampos } from "./campos";
 import { proveedorCarnets } from "./carnets";
 import { proveedorCuotas } from "./cuotas";
 import { proveedorEventosPersona } from "./eventos-persona";
@@ -18,6 +19,7 @@ export const PROVEEDORES_FICHA: Proveedor[] = [
   proveedorEventosPersona,
   proveedorHistorialCliente,
   proveedorHistorialSocio,
+  proveedorCampos,
   proveedorCaja,
   proveedorCuotas,
   proveedorCarnets,

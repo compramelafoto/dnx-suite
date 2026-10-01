@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
+import { MasDatos } from "@/components/campos/mas-datos";
 import { Historial } from "@/components/circuitos/historial";
 import { Proyeccion } from "@/components/circuitos/proyeccion";
 import { Recorrido } from "@/components/circuitos/recorrido";
 import { Tareas } from "@/components/circuitos/tareas";
 import { puede } from "@/lib/access/policy";
+import { cambiosDeConsulta } from "@/lib/campos/ficha";
 import { cargarFicha } from "@/lib/circuitos/ficha";
 import { claveDeRecorrido } from "@/lib/circuitos/ficha-vista";
 import { fechaBA, fechaHoraBA } from "@/lib/ficha/formato";
@@ -30,6 +32,8 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
 
   const [ficha, role] = await Promise.all([cargarFicha(workspace.id, id, new Date()), resolveWorkspaceRole(user.id, workspace.id)]);
   if (!ficha) notFound();
+  // Recién con la consulta verificada en el workspace de la sesión: sus cambios de "Más datos".
+  const cambios = await cambiosDeConsulta(workspace.id, id);
 
   const { consulta, recorrido } = ficha;
   const evento = [consulta.tipo, consulta.subtipo].filter(Boolean).join(" · ");
@@ -78,25 +82,28 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
       />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-        <section aria-labelledby="datos-titulo" className="fo-card space-y-3 self-start">
-          <h2 id="datos-titulo" className="text-base font-semibold text-[var(--fo-text)]">
-            Datos de la consulta
-          </h2>
-          <dl className="space-y-2 text-sm">
-            {datos.map((d) => (
-              <div key={d.termino}>
-                <dt className="text-xs text-[var(--fo-muted)]">{d.termino}</dt>
-                <dd className="break-words text-[var(--fo-text)]">{d.valor || "—"}</dd>
+        <div className="min-w-0 space-y-4 self-start">
+          <section aria-labelledby="datos-titulo" className="fo-card space-y-3">
+            <h2 id="datos-titulo" className="text-base font-semibold text-[var(--fo-text)]">
+              Datos de la consulta
+            </h2>
+            <dl className="space-y-2 text-sm">
+              {datos.map((d) => (
+                <div key={d.termino}>
+                  <dt className="text-xs text-[var(--fo-muted)]">{d.termino}</dt>
+                  <dd className="break-words text-[var(--fo-text)]">{d.valor || "—"}</dd>
+                </div>
+              ))}
+            </dl>
+            {consulta.mensaje ? (
+              <div className="space-y-1 border-t border-[var(--fo-border)] pt-3">
+                <p className="text-xs text-[var(--fo-muted)]">Mensaje</p>
+                <p className="whitespace-pre-line break-words text-sm text-[var(--fo-text)]">{consulta.mensaje}</p>
               </div>
-            ))}
-          </dl>
-          {consulta.mensaje ? (
-            <div className="space-y-1 border-t border-[var(--fo-border)] pt-3">
-              <p className="text-xs text-[var(--fo-muted)]">Mensaje</p>
-              <p className="whitespace-pre-line break-words text-sm text-[var(--fo-text)]">{consulta.mensaje}</p>
-            </div>
-          ) : null}
-        </section>
+            ) : null}
+          </section>
+          <MasDatos entityType="CONSULTA" entityId={id} />
+        </div>
 
         <div className="space-y-6">
           {recorrido ? (
@@ -111,12 +118,15 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
               />
               <Tareas key={recorrido.id} journeyId={recorrido.id} tareas={ficha.tareas} abierto={recorrido.abierto} />
               {ficha.proyeccion ? <Proyeccion proyeccion={ficha.proyeccion} /> : null}
-              <Historial pasos={ficha.historial} />
+              <Historial pasos={ficha.historial} cambios={cambios} />
             </>
           ) : (
-            <p className="fo-card text-sm text-[var(--fo-muted)]">
-              Esta consulta todavía no está en ningún circuito. Se ordena sola al abrir el tablero de Captación.
-            </p>
+            <>
+              <p className="fo-card text-sm text-[var(--fo-muted)]">
+                Esta consulta todavía no está en ningún circuito. Se ordena sola al abrir el tablero de Captación.
+              </p>
+              {cambios.length > 0 ? <Historial pasos={[]} cambios={cambios} /> : null}
+            </>
           )}
         </div>
       </div>
