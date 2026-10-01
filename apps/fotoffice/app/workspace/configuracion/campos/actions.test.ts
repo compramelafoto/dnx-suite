@@ -77,13 +77,31 @@ describe("Configuración → Campos (acciones)", () => {
     expect(campos()).toHaveLength(0);
   });
 
+  it("Clientes y Socios con su módulo apagado: no crean ni reordenan; los demás tipos siguen", async () => {
+    const { CLIENTS_MODULE_KEY } = await import("@/lib/clients/constants");
+    const { MEMBERS_MODULE_KEY } = await import("@/lib/members/constants");
+    const apagado = "Ese módulo no está activo.";
+    for (const [tipo, modulo] of [["CLIENTE", CLIENTS_MODULE_KEY], ["SOCIO", MEMBERS_MODULE_KEY]] as const) {
+      H.modulo.mockImplementation(async (_ws: string, clave: string) => clave !== modulo);
+      expect((await A.crearCampoAction(undefined, fd({ entityType: tipo, nombre: "X", tipo: "TEXTO" }))).error).toBe(apagado);
+      expect((await A.reordenarCamposAction(undefined, fd({ entityType: tipo, orden: [] }))).error).toBe(apagado);
+    }
+    expect(campos()).toHaveLength(0);
+    // Con Socios apagado, un campo de clientes sí se crea y después no se archiva si se apaga Clientes.
+    H.modulo.mockImplementation(async (_ws: string, clave: string) => clave !== MEMBERS_MODULE_KEY);
+    const id = await crear("Del cliente");
+    H.modulo.mockImplementation(async (_ws: string, clave: string) => clave !== CLIENTS_MODULE_KEY);
+    expect((await A.archivarCampoAction(undefined, fd({ id }))).error).toBe(apagado);
+  });
+
   it("un campo de Consultas con Captación apagada no se edita, archiva, borra ni toca sus opciones", async () => {
     const r = await A.crearCampoAction(undefined, fd({ entityType: "CONSULTA", nombre: "Origen", tipo: "LISTA", opciones: "Web\nRedes" }));
     expect(r.error).toBeNull();
     const id = campos()[0]!.id as string;
     const op = opciones()[0]!.id as string;
     const cliente = await crear("Del cliente");
-    H.modulo.mockResolvedValue(false);
+    const { SERVICE_LEADS_MODULE_KEY } = await import("@/lib/service-leads/constants");
+    H.modulo.mockImplementation(async (_ws: string, clave: string) => clave !== SERVICE_LEADS_MODULE_KEY);
     const antes = JSON.stringify(B.datos);
     const apagado = { error: "Ese módulo no está activo." };
     expect(await A.editarCampoAction(undefined, fd({ id, nombre: "X", tipo: "LISTA" }))).toEqual(apagado);

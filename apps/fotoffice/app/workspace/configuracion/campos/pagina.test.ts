@@ -14,17 +14,19 @@ describe("Configuración → Campos", () => {
     expect(guarda).toBeGreaterThan(p.indexOf("await requireActiveWorkspaceRole()"));
     for (const lectura of [
       "prisma.", "asegurarCamposIniciales(", "leerCampos(", "contarValoresPorCampo(", "loadPersonVocabulary(",
-      "isModuleEnabledForWorkspace(", "await searchParams",
+      "tiposConModuloEncendido(", "await searchParams",
     ]) {
       expect(p.indexOf(lectura), lectura).toBeGreaterThan(guarda);
     }
   });
 
-  it("Consultas sólo con Captación encendida y Socios con el vocabulario", () => {
+  it("cada pestaña sólo con su módulo encendido y Socios con el vocabulario", () => {
     const p = aqui("page.tsx");
-    expect(p).toContain("isModuleEnabledForWorkspace(workspace.id, SERVICE_LEADS_MODULE_KEY)");
-    expect(p).toContain('p.entityType !== "CONSULTA" || conCaptacion');
+    expect(p).toContain("tiposConModuloEncendido(workspace.id)");
+    expect(p).toContain("PESTANAS.filter((p) => encendidos.includes(p.entityType))");
     expect(p).toContain("SOCIO: vocabulario.Plural");
+    // La tarjeta de Configuración nombra los mismos tipos que las pestañas.
+    expect(leer("app", "workspace", "configuracion", "page.tsx")).toContain("tiposConModuloEncendido(");
   });
 
   it("las acciones son de servidor y cada una pasa por el contexto con `configurar` primero", () => {

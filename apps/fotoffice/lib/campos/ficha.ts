@@ -1,10 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { puede } from "@/lib/access/policy";
-import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
-import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
-import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
-import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
+import { moduloDeRegistroEncendido } from "./modulos";
 import { contextoDeCampos, type ContextoCampos } from "./acceso";
 import type { TipoRegistroActivo } from "./constantes";
 import { esTipoRegistroActivo, listarCampos } from "./definiciones";
@@ -18,8 +15,6 @@ import { vistaDeCampo, type CambioVista, type CampoVista } from "./vista";
  */
 const contextoDelPedido = cache(contextoDeCampos);
 
-const MODULO = { CLIENTE: CLIENTS_MODULE_KEY, SOCIO: MEMBERS_MODULE_KEY, CONSULTA: SERVICE_LEADS_MODULE_KEY } as const;
-
 /**
  * Guarda de "Más datos": sesión, workspace de la sesión, rol que opera, módulo del tipo
  * encendido y registro del mismo workspace. Devuelve null ante cualquier falta, sin
@@ -30,7 +25,7 @@ export async function contextoDeMasDatos(entityType: unknown, entityId: unknown)
   if (typeof entityId !== "string" || !entityId || entityId.length > 100) return null;
   const ctx = await contextoDelPedido();
   if (!ctx) return null;
-  if (!(await isModuleEnabledForWorkspace(ctx.workspaceId, MODULO[entityType]))) return null;
+  if (!(await moduloDeRegistroEncendido(ctx.workspaceId, entityType))) return null;
   if (!(await registroDelWorkspace(ctx.workspaceId, entityType, entityId))) return null;
   return ctx;
 }

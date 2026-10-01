@@ -5,8 +5,7 @@ import { puede } from "@/lib/access/policy";
 import { asegurarCamposIniciales } from "@/lib/campos/semillas";
 import { contarValoresPorCampo, leerCampos } from "@/lib/campos/definiciones";
 import { MAX_CAMPOS, type TipoRegistroActivo } from "@/lib/campos/constantes";
-import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
-import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
+import { enumerar, tiposConModuloEncendido } from "@/lib/campos/modulos";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { prisma } from "@repo/db";
 import { CamposLista, type CampoFila } from "./campos-lista";
@@ -45,17 +44,29 @@ export default async function ConfiguracionCamposPage({
   });
   await asegurarCamposIniciales(workspace.id, branding?.publicSlug ?? "");
 
-  const [vocabulario, conCaptacion] = await Promise.all([
+  const [vocabulario, encendidos] = await Promise.all([
     loadPersonVocabulary(workspace.id),
-    isModuleEnabledForWorkspace(workspace.id, SERVICE_LEADS_MODULE_KEY),
+    tiposConModuloEncendido(workspace.id),
   ]);
   const titulos: Record<TipoRegistroActivo, string> = {
     CLIENTE: "Clientes",
     SOCIO: vocabulario.Plural,
     CONSULTA: "Consultas",
   };
-  // Consultas sólo con Captación encendida.
-  const pestanas = PESTANAS.filter((p) => p.entityType !== "CONSULTA" || conCaptacion);
+  const enMinuscula: Record<TipoRegistroActivo, string> = { CLIENTE: "clientes", SOCIO: vocabulario.plural, CONSULTA: "consultas" };
+  // Cada pestaña sólo con su módulo encendido: Clientes, Socios, Captación.
+  const pestanas = PESTANAS.filter((p) => encendidos.includes(p.entityType));
+  if (pestanas.length === 0) {
+    return (
+      <div className="max-w-xl space-y-6">
+        <PageHeader title="Campos" />
+        <p className="text-sm text-[var(--fo-muted)]">
+          Los campos personalizados se usan en las fichas de clientes, {vocabulario.plural} o consultas. Encendé alguno de
+          esos módulos para configurarlos.
+        </p>
+      </div>
+    );
+  }
 
   const { tipo: pedido } = await searchParams;
   const elegida = pestanas.find((p) => p.slug === pedido) ?? pestanas[0]!;
@@ -77,7 +88,7 @@ export default async function ConfiguracionCamposPage({
     <div className="max-w-4xl space-y-6">
       <PageHeader
         title="Campos"
-        description={`Datos propios que querés guardar en cada ficha de clientes, ${vocabulario.plural}${conCaptacion ? " o consultas" : ""}. Hasta ${MAX_CAMPOS} campos activos por tipo.`}
+        description={`Datos propios que querés guardar en cada ficha de ${enumerar(pestanas.map((p) => enMinuscula[p.entityType]), "o")}. Hasta ${MAX_CAMPOS} campos activos por tipo.`}
       />
       <nav aria-label="Tipo de registro" className="flex flex-wrap gap-2 border-b border-[var(--fo-border)] pb-2">
         {pestanas.map((p) => {

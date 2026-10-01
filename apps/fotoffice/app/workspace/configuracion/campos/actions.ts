@@ -4,8 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireActiveWorkspaceRole } from "@/lib/access/active-context";
 import { puede } from "@/lib/access/policy";
 import { etiquetaDeUsuario } from "@/lib/listado/acceso";
-import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
-import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
+import { moduloDeRegistroEncendido } from "@/lib/campos/modulos";
 import { MAX_NOMBRE_CAMPO } from "@/lib/campos/constantes";
 import {
   archivarCampo,
@@ -15,6 +14,7 @@ import {
   crearOpcion,
   desarchivarCampo,
   editarCampo,
+  esTipoRegistroActivo,
   renombrarOpcion,
   reordenarCampos,
   reordenarOpciones,
@@ -59,9 +59,12 @@ function ids(fd: FormData, nombre: string, max = 500): string[] | null {
   return v as string[];
 }
 
-/** Las consultas sólo se configuran con Captación encendida (como su pestaña). */
+/**
+ * Cada tipo sólo se configura con su módulo encendido (como su pestaña): clientes con Clientes,
+ * socios con Socios, consultas con Captación. Un tipo desconocido lo rechaza el catálogo.
+ */
 async function moduloApagado(workspaceId: string, entityType: string): Promise<boolean> {
-  return entityType === "CONSULTA" && !(await isModuleEnabledForWorkspace(workspaceId, SERVICE_LEADS_MODULE_KEY));
+  return esTipoRegistroActivo(entityType) && !(await moduloDeRegistroEncendido(workspaceId, entityType));
 }
 
 /** Mismo freno para un campo u opción ya existente: se mira el tipo de su campo. */
