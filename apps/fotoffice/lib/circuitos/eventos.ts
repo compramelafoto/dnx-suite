@@ -18,6 +18,11 @@ import { numerarConsultasPendientes } from "@/lib/service-leads/numero";
 
 /** Consultas que se enganchan como mucho en cada llamada (cada una es una transacción). */
 export const TOPE_ENGANCHE = 150;
+/**
+ * Consultas que se numeran como mucho en cada llamada. Más bajo que el enganche: cada número es
+ * una transacción con bloqueo de la secuencia del workspace, y esto corre al abrir Captación.
+ */
+export const TOPE_NUMERACION = 50;
 /** Nota de todos los pasos que escribe la importación de consultas (el informe los reconoce por ella). */
 export { NOTA_IMPORTADA } from "./constantes";
 const MOTIVO_IMPORTADA = "Otro";
@@ -159,7 +164,7 @@ type ConsultaSinRecorrido = { id: string; status: string; createdAt: Date; updat
  * Además numera (0.5) las consultas que todavía no tienen número —las de antes de la numeración
  * y las que no se pudieron numerar al darse de alta—, también de la más vieja a la más nueva,
  * con el año de su alta y cada una en su propia transacción (ver `numerarConsultasPendientes`),
- * hasta `TOPE_ENGANCHE` por llamada. `quedan` cuenta las consultas a las que les falta el
+ * hasta `TOPE_NUMERACION` por llamada. `quedan` cuenta las consultas a las que les falta el
  * recorrido, el número o las dos cosas.
  *
  * Se llama cada vez que se abre Captación: lee sólo las consultas sin recorrido y las sin número
@@ -169,7 +174,7 @@ export async function engancharConsultas(workspaceId: string): Promise<{ enganch
   const recorridos = await engancharRecorridos(workspaceId);
   let numeracionCompleta = false;
   try {
-    numeracionCompleta = (await numerarConsultasPendientes(workspaceId, TOPE_ENGANCHE)).completo;
+    numeracionCompleta = (await numerarConsultasPendientes(workspaceId, TOPE_NUMERACION)).completo;
   } catch (error) {
     registrarFalla("numerarConsultasPendientes", { workspaceId }, error);
   }

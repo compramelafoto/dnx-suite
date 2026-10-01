@@ -297,10 +297,16 @@ describe("engancharConsultas", () => {
     for (let i = 0; i < total; i++) {
       B.agregar("serviceSalesLead", { id: `m-${String(i).padStart(4, "0")}`, workspaceId: "ws-1", name: "x", eventType: "XV", status: "NEW" });
     }
-    expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 150, quedan: total - 150 });
-    expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 150, quedan: total - 300 });
-    expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: total - 300, quedan: 0 });
+    // `quedan` cuenta también las que no tienen número, que avanza de a `TOPE_NUMERACION` (50).
+    expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 150, quedan: total - 50 });
+    expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 150, quedan: total - 100 });
+    expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: total - 300, quedan: total - 150 });
     expect(B.datos.fotofficeJourney).toHaveLength(total);
+    // Ya enganchadas todas, siguen las llamadas que sólo numeran.
+    for (let numeradas = 200; numeradas < total; numeradas += 50) {
+      expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 0, quedan: total - numeradas });
+    }
+    expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 0, quedan: 0 });
     expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 0, quedan: 0 });
   });
 
@@ -482,19 +488,20 @@ describe("engancharConsultas: numeración (0.5)", () => {
     expect([numero("c-1"), numero("c-2")]).toEqual(["2026-0001", "2026-0002"]);
   });
 
-  it("numera como mucho 150 por llamada y `quedan` cuenta también las que no tienen número", async () => {
+  it("numera como mucho 50 por llamada y `quedan` cuenta también las que no tienen número", async () => {
+    expect(E.TOPE_NUMERACION).toBe(50);
     B.datos.serviceSalesLead = [];
-    for (let i = 0; i < 160; i++) alta(`n-${String(i).padStart(4, "0")}`, `2026-0${1 + Math.floor(i / 30)}-01T12:00:00Z`);
+    for (let i = 0; i < 60; i++) alta(`n-${String(i).padStart(4, "0")}`, `2026-0${1 + Math.floor(i / 30)}-01T12:00:00Z`);
     // Todas con recorrido: sólo falta el número.
     for (const l of B.datos.serviceSalesLead) {
       B.agregar("fotofficeJourney", { workspaceId: "ws-1", circuitId: "c1", kind: "VENTA", subjectType: "CAPTACION", subjectId: l.id, stageId: "s1" });
     }
     expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 0, quedan: 10 });
     expect(numero("n-0000")).toBe("2026-0001");
-    expect(numero("n-0149")).toBe("2026-0150");
-    expect(numero("n-0150")).toBeNull();
+    expect(numero("n-0049")).toBe("2026-0050");
+    expect(numero("n-0050")).toBeNull();
     expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 0, quedan: 0 });
-    expect(numero("n-0159")).toBe("2026-0160");
+    expect(numero("n-0059")).toBe("2026-0060");
   });
 
   it("sin circuito de venta igual numera; una falla de numeración no frena el resto ni rompe el enganche", async () => {
