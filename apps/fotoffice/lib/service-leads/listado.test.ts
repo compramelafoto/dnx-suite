@@ -27,7 +27,6 @@ import {
   TOPE_SUBCONSULTA,
   diasEnEtapa,
   listadoCaptacion,
-  numerosDentroDeRecorridos,
   ordenarPorNumero,
   resolverWhere,
   textoDeNumeroBuscado,
@@ -35,6 +34,7 @@ import {
   whereRecorridos,
 } from "./listado";
 import { PARAMETROS_RESERVADOS, type ConsultaResuelta, type ContextoListado } from "@/lib/listado/tipos";
+import { avisoDeCampos } from "@/lib/campos/listado";
 
 const base = { q: "", filtros: {}, periodos: {}, etiquetasRelacion: {}, orden: { campo: "alta", desc: true }, pagina: 1, filas: 25, ver: null } as ConsultaResuelta;
 const ctx: ContextoListado = { workspaceId: "w1", workspaceName: "W", userId: 1, userLabel: "u", role: "WORKSPACE_OWNER" };
@@ -68,12 +68,19 @@ describe("whereCaptacion", () => {
 });
 
 describe("campos personalizados en whereCaptacion", () => {
-  it("la búsqueda suma los ids de los campos al OR y los filtros acotan con AND sin pisar los recorridos", () => {
-    const w = whereCaptacion("w1", { ...base, q: "boda", campos: { soloIds: ["l2"], buscarIds: ["l1"] } }, ["l2", "l3"]);
+  it("la búsqueda suma los ids de los campos al OR y los filtros se intersecan con los recorridos", () => {
+    const w = whereCaptacion("w1", { ...base, q: "boda", campos: { soloIds: ["l2", "l3"], buscarIds: ["l1", "l3"] } }, ["l2", "l3", "l4"]);
     expect(w.workspaceId).toBe("w1");
-    expect(w.OR).toContainEqual({ id: { in: ["l1"] } });
+    // Fuera de la intersección (l1) igual quedaría afuera: no viaja.
+    expect(w.OR).toContainEqual({ id: { in: ["l3"] } });
+    expect(w.OR).toContainEqual({ name: { contains: "boda", mode: "insensitive" } });
     expect(w.id).toEqual({ in: ["l2", "l3"] });
-    expect(w.AND).toEqual([{ id: { in: ["l2"] } }]);
+    expect(w.AND).toBeUndefined();
+  });
+  it("sin recorridos, la búsqueda por número y la de campos van en una sola lista del OR", () => {
+    const w = whereCaptacion("w1", { ...base, q: "42", campos: { soloIds: null, buscarIds: ["b", "c"] } }, null, ["a", "b"]);
+    expect(w.OR).toContainEqual({ id: { in: ["a", "b", "c"] } });
+    expect(w.id).toBeUndefined();
   });
   it("ninguna clave propia usa el prefijo de los campos personalizados", () => {
     for (const f of listadoCaptacion.filtros) expect(f.clave.startsWith("cf_")).toBe(false);
@@ -323,32 +330,57 @@ describe("número de consulta en la lista", () => {
     expect(leadFindMany.mock.calls[1][0]).toMatchObject({ orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 10 });
   });
 
-  it("con recorridos, la búsqueda por número sólo lleva los ids que están en ellos y nunca pasa el tope de parámetros", () => {
+  it("con recorridos, la búsqueda por número sólo lleva los ids que están en ellos; juntas no pasan el tope", () => {
     const rango = (pre: string, n: number) => Array.from({ length: n }, (_, i) => `${pre}${i}`);
-    const parametros = (w: ReturnType<typeof whereCaptacion>) => {
-      const enId = (w.id as { in?: string[] } | undefined)?.in?.length ?? 0;
-      const enOr = (w.OR ?? []).reduce((n, o) => n + (((o as { id?: { in?: string[] } }).id?.in?.length) ?? 0), 0);
-      return enId + enOr;
-    };
     const q = { ...base, q: "2026" };
     // Intersección: sólo viajan los números que están entre los recorridos.
     const chica = whereCaptacion("w1", q, ["a", "b", "c"], ["b", "z", "c", "y"]);
     expect(chica.OR).toContainEqual({ id: { in: ["b", "c"] } });
 
-    // Listas grandes: recorridos al tope y números que también lo llenan.
-    const recorridos = rango("r", TOPE_SUBCONSULTA);
-    const numeros = [...rango("r", TOPE_SUBCONSULTA / 2), ...rango("n", TOPE_SUBCONSULTA / 2)];
-    const grande = whereCaptacion("w1", q, recorridos, numeros);
-    expect(parametros(grande)).toBeLessThanOrEqual(TOPE_SUBCONSULTA);
-    expect(grande.id).toEqual({ in: recorridos });
-
     // Debajo del tope, las dos listas viajan (sin los ajenos a los recorridos).
     const media = whereCaptacion("w1", q, rango("r", 10_000), [...rango("r", 5_000), ...rango("n", 20_000)]);
     expect(parametros(media)).toBe(15_000);
-    expect(parametros(media)).toBeLessThanOrEqual(TOPE_SUBCONSULTA);
 
-    // Sin recorridos, una lista de números de más no viaja.
-    expect(numerosDentroDeRecorridos(rango("n", TOPE_SUBCONSULTA + 1), null)).toEqual([]);
-    expect(numerosDentroDeRecorridos(["a"], null)).toEqual(["a"]);
+    // Listas grandes: recorridos al tope y números que también caen en ellos → vacía, nunca parcial.
+    const grande = whereCaptacion("w1", q, rango("r", TOPE_SUBCONSULTA), rango("r", TOPE_SUBCONSULTA / 2));
+    expect(grande).toEqual({ workspaceId: "w1", id: { in: [] } });
+  });
+
+  it("listas de 15.000 y 18.000: ninguna consulta pasa el presupuesto y aparece el aviso", async () => {
+    const rango = (pre: string, n: number) => Array.from({ length: n }, (_, i) => `${pre}${i}`);
+    const recorridos = rango("x", 15_000);
+    const camposBusqueda = rango("x", 18_000);
+    journeyFindMany.mockResolvedValue(recorridos.map((subjectId) => ({ subjectId })));
+    leadFindMany.mockResolvedValue([]);
+    leadCount.mockResolvedValue(0);
+
+    // Recorridos (AND, 15.000) + búsqueda en campos (OR, 18.000; 15.000 dentro de los recorridos).
+    const c = { ...base, q: "boda", filtros: { etapa: "e1" }, campos: { soloIds: null, buscarIds: camposBusqueda } };
+    expect(await listadoCaptacion.contar(ctx, c)).toBe(0);
+    await listadoCaptacion.traer(ctx, c, { skip: 0, take: 25 });
+    await listadoCaptacion.traerIds(ctx, { ...c, orden: { campo: "numero", desc: false } }, 10);
+    for (const [args] of [...leadCount.mock.calls, ...leadFindMany.mock.calls]) {
+      expect(parametros(args.where)).toBeLessThanOrEqual(TOPE_SUBCONSULTA);
+      expect(args.where).toEqual({ workspaceId: "w1", id: { in: [] } });
+    }
+    expect(await avisoCaptacion(ctx, c, ahora)).toBe(AVISO_DEMASIADAS);
+
+    // Sin recorridos: 15.000 números + 18.000 de campos, disjuntos → 33.000.
+    numeroFindMany.mockResolvedValue(rango("n", 15_000).map((entityId) => ({ entityId })));
+    const sinRecorridos = { ...base, q: "2", campos: { soloIds: null, buscarIds: camposBusqueda } };
+    const w = await resolverWhere(ctx, sinRecorridos, ahora);
+    expect(w).toEqual({ workspaceId: "w1", id: { in: [] } });
+    expect(await avisoCaptacion(ctx, sinRecorridos, ahora)).toBe(avisoDeCampos("consultas"));
+
+    // Dentro del presupuesto no hay aviso.
+    expect(await avisoCaptacion(ctx, { ...sinRecorridos, campos: { soloIds: null, buscarIds: rango("x", 4_000) } }, ahora)).toBeNull();
   });
 });
+
+/** Parámetros de ids de un `where` de Captación: el `id IN` y los del OR de la búsqueda. */
+function parametros(w: { id?: unknown; OR?: unknown[]; AND?: unknown }): number {
+  const enId = (w.id as { in?: string[] } | undefined)?.in?.length ?? 0;
+  const enOr = (w.OR ?? []).reduce<number>((n, o) => n + ((o as { id?: { in?: string[] } }).id?.in?.length ?? 0), 0);
+  const enAnd = ((w.AND as { id?: { in?: string[] } }[] | undefined) ?? []).reduce<number>((n, o) => n + (o.id?.in?.length ?? 0), 0);
+  return enId + enOr + enAnd;
+}

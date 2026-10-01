@@ -234,9 +234,10 @@ describe("conCampos", () => {
     const c = { ...BASE, q: "boda", filtros: { cf_estilo: "o-moderno" } };
     await def.contar(CTX, c);
     const filas = await def.traer(CTX, c, { skip: 0, take: 25 });
+    // La búsqueda sólo lleva los ids que cumplen los filtros: c1 igual quedaría afuera.
     expect(vistas.map((v) => v.campos)).toEqual([
-      { soloIds: ["c2"], buscarIds: ["c1", "c2"] },
-      { soloIds: ["c2"], buscarIds: ["c1", "c2"] },
+      { soloIds: ["c2"], buscarIds: ["c2"] },
+      { soloIds: ["c2"], buscarIds: ["c2"] },
     ]);
     // Dos subconsultas (filtro y búsqueda) compartidas entre contar y traer, más una para los valores.
     expect(espia).toHaveBeenCalledTimes(3);
@@ -269,10 +270,40 @@ describe("conCampos", () => {
 describe("restriccionDeCampos", () => {
   it("acota con AND y suma la alternativa de búsqueda sólo si hay texto e ids", () => {
     expect(L.restriccionDeCampos(BASE)).toEqual({ buscar: null, acotar: null });
-    expect(L.restriccionDeCampos({ ...BASE, q: "x", campos: { soloIds: ["a"], buscarIds: ["b"] } })).toEqual({
+    expect(L.restriccionDeCampos({ ...BASE, q: "x", campos: { soloIds: ["a", "b"], buscarIds: ["b", "c"] } })).toEqual({
       buscar: { id: { in: ["b"] } },
-      acotar: { id: { in: ["a"] } },
+      acotar: { id: { in: ["a", "b"] } },
     });
+    expect(L.restriccionDeCampos({ ...BASE, q: "x", campos: { soloIds: null, buscarIds: ["b"] } })).toEqual({ buscar: { id: { in: ["b"] } }, acotar: null });
+    // Sin texto la búsqueda no aplica.
+    expect(L.restriccionDeCampos({ ...BASE, campos: { soloIds: null, buscarIds: ["b"] } })).toEqual({ buscar: null, acotar: null });
     expect(L.restriccionDeCampos({ ...BASE, q: "x", campos: { soloIds: null, buscarIds: [] } })).toEqual({ buscar: null, acotar: null });
+  });
+
+  it("si las dos listas juntas pasan el tope, la lista sale vacía en vez de mandar de más", () => {
+    const rango = (n: number) => Array.from({ length: n }, (_, i) => `x${i}`);
+    const r = L.restriccionDeCampos({ ...BASE, q: "x", campos: { soloIds: rango(15_000), buscarIds: rango(18_000) } });
+    expect(r).toEqual({ buscar: null, acotar: { id: { in: [] } } });
+  });
+});
+
+describe("presupuesto conjunto de filtros y búsqueda", () => {
+  it("un filtro de 15.000 y una búsqueda de 18.000: ninguna consulta pasa el tope y aparece el aviso", async () => {
+    const original = B.tablas.fotofficeCustomValue.findMany;
+    vi.spyOn(B.tablas.fotofficeCustomValue, "findMany").mockImplementation((async (a: { where?: Record<string, unknown>; take?: number }) => {
+      if (a.where?.fieldId === "vip") return Array.from({ length: 15_000 }, (_, i) => ({ entityId: `m${i}` }));
+      if (a.where?.valueText) return Array.from({ length: 18_000 }, (_, i) => ({ entityId: `m${i}` }));
+      return original(a);
+    }) as typeof original);
+    const vistas: ConsultaResuelta[] = [];
+    const def = L.conCampos(definicionFalsa(vistas), await L.camposParaListado(CTX, "CLIENTE"));
+    const c = { ...BASE, q: "boda", filtros: { cf_vip: "si" } };
+    await def.contar(CTX, c);
+    // Cada lista cabe sola (15.000 y 18.000), pero juntas (15.000 + 15.000) no: vacía, nunca parcial.
+    expect(vistas[0].campos).toEqual({ soloIds: [], buscarIds: [] });
+    const r = L.restriccionDeCampos(vistas[0]);
+    const parametros = (r.acotar?.id.in.length ?? 0) + (r.buscar?.id.in.length ?? 0);
+    expect(parametros).toBeLessThanOrEqual(L.TOPE_SUBCONSULTA_CAMPOS);
+    expect(await def.aviso!(CTX, c)).toBe(L.avisoDeCampos("clientes"));
   });
 });

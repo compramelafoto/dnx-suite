@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma, type Prisma } from "@repo/db";
 import { hoyEnBuenosAires } from "@/lib/listado/periodos";
+import { presupuestoDeIds, TOPE_IDS_POR_CONSULTA } from "@/lib/listado/presupuesto";
 import {
   PARAMETROS_RESERVADOS,
   type ColumnaDef,
@@ -23,15 +24,19 @@ import { hrefSeguro } from "./vista";
  * `lib/ficha/etiquetas-listado.tsx`: columnas secundarias, filtros `cf_<clave>`, búsqueda y
  * exportación. Como los registros no tienen relación con `FotofficeCustomValue` (es polimórfica),
  * filtros y búsqueda se resuelven con una subconsulta previa de `entityId` acotada al workspace
- * de la sesión, que viaja como `id IN (...)` a la consulta principal. Pasado el tope la lista
+ * de la sesión, que viaja como `id IN (...)` a la consulta principal. Filtros y búsqueda se
+ * cuentan juntos contra `TOPE_IDS_POR_CONSULTA` (`presupuestoDeIds`): pasado el tope la lista
  * sale vacía con un aviso (nunca parcial), como en Captación (0.4).
  */
 
 /** Prefijo de las claves de filtro y de columna. Ninguna clave del motor ni de las listas empieza así. */
 export const PREFIJO_CAMPO = "cf_";
 
-/** Ids que puede devolver cada subconsulta (cada id viaja como parámetro del `IN`). */
-export const TOPE_SUBCONSULTA_CAMPOS = 20_000;
+/**
+ * Ids que puede devolver cada subconsulta (cada id viaja como parámetro del `IN`). Es el mismo
+ * presupuesto que comparten todas las listas de una consulta: una sola ya no puede pasarlo.
+ */
+export const TOPE_SUBCONSULTA_CAMPOS = TOPE_IDS_POR_CONSULTA;
 
 /** Los tipos cuyo valor entra en la búsqueda general. */
 const TIPOS_BUSCABLES: readonly TipoCampo[] = ["TEXTO", "TEXTO_LARGO", "ENLACE"];
@@ -51,7 +56,10 @@ export type CamposDeListado = {
   columnasExport: ColumnaExport<ConCampos>[];
   /** Ids de registros cuyo texto o enlace contiene `q`; null si son más que el tope. */
   condicionBusqueda: (q: string) => Promise<string[] | null>;
-  /** Lo que la consulta pide a los campos (filtros y búsqueda); `excedido` si alguna superó el tope. */
+  /**
+   * Lo que la consulta pide a los campos (filtros y búsqueda); `excedido` si alguna subconsulta o
+   * las listas juntas superaron el tope.
+   */
   restriccion: (c: ConsultaResuelta) => Promise<RestriccionCampos & { excedido: boolean }>;
   /** Valores de una página entera, en una sola consulta. */
   cargarValores: (ids: string[]) => Promise<Map<string, Map<string, ValorGuardado>>>;
@@ -172,29 +180,27 @@ export async function camposParaListado(ctx: ContextoListado, entityType: TipoRe
   };
 
   const restriccion = async (c: ConsultaResuelta) => {
-    let soloIds: string[] | null = null;
-    let excedido = false;
+    // Pasado el tope no se devuelven resultados parciales: la lista queda vacía y el aviso explica por qué.
+    const vacia = { soloIds: [], buscarIds: [], excedido: true };
+    const filtros: string[][] = [];
     for (const [clave, valor] of Object.entries(c.filtros)) {
       const campo = porClave.get(clave);
       if (!campo) continue;
       const cond = condicionDeFiltro(campo, valor, c.periodos[clave]);
       if (!cond) continue;
       const ids = await idsQueCumplen(ctx, entityType, { ...cond, fieldId: campo.id });
-      if (ids === null) {
-        excedido = true;
-        break;
-      }
-      const hay = new Set(ids);
-      soloIds = soloIds === null ? ids : soloIds.filter((id) => hay.has(id));
+      if (ids === null) return vacia;
+      filtros.push(ids);
     }
     let buscarIds: string[] = [];
-    if (!excedido && c.q.trim()) {
+    if (c.q.trim()) {
       const ids = await condicionBusqueda(c.q);
-      if (ids === null) excedido = true;
-      else buscarIds = ids;
+      if (ids === null) return vacia;
+      buscarIds = ids;
     }
-    // Pasado el tope no se devuelven resultados parciales: la lista queda vacía y el aviso explica por qué.
-    return excedido ? { soloIds: [], buscarIds: [], excedido } : { soloIds, buscarIds, excedido };
+    // Cada lista cabe sola; juntas (filtros intersecados + búsqueda) también tienen que caber.
+    const r = presupuestoDeIds({ y: filtros, o: [buscarIds] });
+    return r.excedido ? vacia : { soloIds: r.y, buscarIds: r.o, excedido: false };
   };
 
   return {
@@ -264,8 +270,11 @@ export function conCampos<F extends object>(def: DefinicionListado<F>, campos: C
     traerIds: async (ctx, c, tope) => def.traerIds(ctx, await resolver(c), tope),
     traerPorIds: async (ctx, ids) => adjuntar(await def.traerPorIds(ctx, ids)),
     aviso: async (ctx, c) => {
+      // La lista recibe la consulta con la restricción de los campos: su aviso puede contar sus
+      // propias listas de ids junto con éstas (como hace Captación).
+      const resuelta = await resolver(c);
       const [propio, deCampos] = await Promise.all([
-        def.aviso ? def.aviso(ctx, c) : null,
+        def.aviso ? def.aviso(ctx, resuelta) : null,
         tocaCampos(campos, filtros, c) ? restringir(c).then((r) => (r.excedido ? aviso : null)) : null,
       ]);
       return [propio, deCampos].filter(Boolean).join(" ") || null;
@@ -274,14 +283,24 @@ export function conCampos<F extends object>(def: DefinicionListado<F>, campos: C
   };
 }
 
+/** Puro: las listas de ids de `c.campos`, para sumarlas a un presupuesto (`presupuestoDeIds`). */
+export function listasDeCampos(c: ConsultaResuelta): { y: string[] | null; o: string[] } {
+  const r = c.campos;
+  return { y: r ? r.soloIds : null, o: r && c.q.trim() ? r.buscarIds : [] };
+}
+
 /**
  * Puro: aplica `c.campos` a un `where` de Prisma con `id`. `buscar` es el OR de la búsqueda
- * general de la lista (se le suma la alternativa de los campos) y `soloIds` va como AND.
+ * general de la lista (se le suma la alternativa de los campos) y `soloIds` va como AND. Pasa por
+ * `presupuestoDeIds`: si las dos listas juntas pasan el tope, la lista sale vacía (el aviso de
+ * `conCampos` lo explica), nunca parcial.
  */
 export function restriccionDeCampos(c: ConsultaResuelta): { buscar: { id: { in: string[] } } | null; acotar: { id: { in: string[] } } | null } {
-  const r = c.campos;
+  const { y, o } = listasDeCampos(c);
+  const r = presupuestoDeIds({ y: [y], o: [o] });
+  if (r.excedido) return { buscar: null, acotar: { id: { in: [] } } };
   return {
-    buscar: r && c.q.trim() && r.buscarIds.length > 0 ? { id: { in: r.buscarIds } } : null,
-    acotar: r && r.soloIds !== null ? { id: { in: r.soloIds } } : null,
+    buscar: r.o.length > 0 ? { id: { in: r.o } } : null,
+    acotar: r.y !== null ? { id: { in: r.y } } : null,
   };
 }

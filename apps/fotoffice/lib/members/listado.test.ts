@@ -81,10 +81,16 @@ describe("whereSocios", () => {
 
 describe("campos personalizados en el where", () => {
   it("la búsqueda suma los ids de los campos al OR y los filtros acotan dentro del AND", () => {
-    const w = whereSocios("w1", { ...base, q: "x", filtros: { acceso: "SIN_EMAIL" }, campos: { soloIds: ["m2"], buscarIds: ["m1"] } });
+    const w = whereSocios("w1", { ...base, q: "x", filtros: { acceso: "SIN_EMAIL" }, campos: { soloIds: ["m1", "m2"], buscarIds: ["m1", "m3"] } });
     expect(w.workspaceId).toBe("w1");
     expect(w.OR).toContainEqual({ id: { in: ["m1"] } });
-    expect(w.AND).toContainEqual({ id: { in: ["m2"] } });
+    expect(w.AND).toContainEqual({ id: { in: ["m1", "m2"] } });
+  });
+  it("si filtros y búsqueda juntos pasan el presupuesto de ids, la lista queda vacía", () => {
+    const rango = (n: number) => Array.from({ length: n }, (_, i) => `m${i}`);
+    const w = whereSocios("w1", { ...base, q: "x", campos: { soloIds: rango(15_000), buscarIds: rango(18_000) } });
+    expect(w.AND).toContainEqual({ id: { in: [] } });
+    expect(w.OR).not.toContainEqual(expect.objectContaining({ id: expect.anything() }));
   });
 });
 
