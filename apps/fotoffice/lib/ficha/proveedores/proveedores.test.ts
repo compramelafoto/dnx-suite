@@ -59,7 +59,7 @@ beforeEach(() => {
 describe("todos los proveedores", () => {
   it("están registrados con claves únicas", () => {
     const claves = PROVEEDORES_FICHA.map((p) => p.clave);
-    expect(claves).toEqual(["notas", "eventos-persona", "historial-cliente", "historial-socio", "campos", "caja", "cuotas", "carnets", "adjuntos"]);
+    expect(claves).toEqual(["notas", "eventos-persona", "historial-cliente", "historial-socio", "campos", "mensajes", "caja", "cuotas", "carnets", "adjuntos"]);
   });
   it("sólo caja y cuotas piden verDinero", () => {
     expect(PROVEEDORES_FICHA.filter((p) => p.capacidad === "verDinero").map((p) => p.clave)).toEqual(["caja", "cuotas"]);

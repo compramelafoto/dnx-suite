@@ -42,7 +42,7 @@ describe("proveedoresParaWorkspace — las fuentes siguen a los módulos encendi
 
   it("sin ninguno: quedan las fuentes que no dependen de módulo", async () => {
     conModulos([]);
-    expect(await claves()).toEqual(["notas", "eventos-persona", "historial-cliente", "historial-socio", "campos", "adjuntos"]);
+    expect(await claves()).toEqual(["notas", "eventos-persona", "historial-cliente", "historial-socio", "campos", "mensajes", "adjuntos"]);
   });
 
   it("pregunta por el workspace recibido, una vez por módulo", async () => {

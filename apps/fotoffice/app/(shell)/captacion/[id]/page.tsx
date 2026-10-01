@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { MasDatos } from "@/components/campos/mas-datos";
+import { Mensaje } from "@/components/mensajes/mensaje";
 import { Historial } from "@/components/circuitos/historial";
 import { Proyeccion } from "@/components/circuitos/proyeccion";
 import { Recorrido } from "@/components/circuitos/recorrido";
@@ -12,6 +13,7 @@ import { cargarFicha } from "@/lib/circuitos/ficha";
 import { claveDeRecorrido } from "@/lib/circuitos/ficha-vista";
 import { fechaBA, fechaHoraBA } from "@/lib/ficha/formato";
 import { numeroDe } from "@/lib/numeracion/asignar";
+import { mensajesDeConsulta } from "@/lib/plantillas/registro";
 import { TIPO_CONSULTA, tituloDeConsulta } from "@/lib/service-leads/numero";
 import { requireServiceLeadsStaff } from "@/lib/service-leads/access";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
@@ -34,8 +36,13 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
 
   const [ficha, role] = await Promise.all([cargarFicha(workspace.id, id, new Date()), resolveWorkspaceRole(user.id, workspace.id)]);
   if (!ficha) notFound();
-  // Recién con la consulta verificada en el workspace de la sesión: sus cambios de "Más datos" y su número.
-  const [cambios, numeros] = await Promise.all([cambiosDeConsulta(workspace.id, id), numeroDe(workspace.id, TIPO_CONSULTA, [id])]);
+  // Recién con la consulta verificada en el workspace de la sesión: sus cambios de "Más datos", sus
+  // mensajes y su número.
+  const [cambios, mensajes, numeros] = await Promise.all([
+    cambiosDeConsulta(workspace.id, id),
+    mensajesDeConsulta(workspace.id, id),
+    numeroDe(workspace.id, TIPO_CONSULTA, [id]),
+  ]);
 
   const { consulta, recorrido } = ficha;
   const evento = [consulta.tipo, consulta.subtipo].filter(Boolean).join(" · ");
@@ -104,6 +111,7 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
               </div>
             ) : null}
           </section>
+          <Mensaje entityType="CONSULTA" entityId={id} />
           <MasDatos entityType="CONSULTA" entityId={id} />
         </div>
 
@@ -120,14 +128,14 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
               />
               <Tareas key={recorrido.id} journeyId={recorrido.id} tareas={ficha.tareas} abierto={recorrido.abierto} />
               {ficha.proyeccion ? <Proyeccion proyeccion={ficha.proyeccion} /> : null}
-              <Historial pasos={ficha.historial} cambios={cambios} />
+              <Historial pasos={ficha.historial} cambios={cambios} mensajes={mensajes} />
             </>
           ) : (
             <>
               <p className="fo-card text-sm text-[var(--fo-muted)]">
                 Esta consulta todavía no está en ningún circuito. Se ordena sola al abrir el tablero de Captación.
               </p>
-              {cambios.length > 0 ? <Historial pasos={[]} cambios={cambios} /> : null}
+              {cambios.length > 0 || mensajes.length > 0 ? <Historial pasos={[]} cambios={cambios} mensajes={mensajes} /> : null}
             </>
           )}
         </div>

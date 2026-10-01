@@ -214,3 +214,29 @@ export async function contextoDe(
     camposActivos: campos.activos,
   };
 }
+
+/**
+ * Sólo adónde puede ir un mensaje (correo y teléfono de la persona), con la misma regla que
+ * `contextoDe` pero sin cargar organización, firma ni campos: lo usa la ficha para habilitar o
+ * no cada canal. null si el registro no es del workspace.
+ */
+export async function destinoDe(
+  workspaceId: string,
+  entityType: TipoFichaMensaje,
+  entityId: string,
+): Promise<ContextoMensaje["destino"] | null> {
+  if (!esTipoFichaMensaje(entityType) || typeof entityId !== "string" || !entityId || entityId.length > 100) return null;
+  if (entityType === "CONSULTA") {
+    const lead = await prisma.serviceSalesLead.findFirst({ where: { id: entityId, workspaceId }, select: { email: true, phone: true } });
+    return lead ? { email: limpio(lead.email), telefono: limpio(lead.phone) } : null;
+  }
+  const ref = entityType === "CLIENTE"
+    ? await resolverPersonaPorCliente(workspaceId, entityId)
+    : await resolverPersonaPorSocio(workspaceId, entityId);
+  if (!ref) return null;
+  const [cliente, socio] = await Promise.all([datosDeCliente(workspaceId, ref.clientId), datosDeSocio(workspaceId, ref.memberId)]);
+  const principal = entityType === "CLIENTE" ? cliente : socio;
+  if (!principal) return null;
+  const persona = combinar(principal, entityType === "CLIENTE" ? socio : cliente);
+  return { email: persona.email, telefono: persona.telefono };
+}
