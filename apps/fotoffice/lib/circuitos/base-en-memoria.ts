@@ -23,6 +23,8 @@ const TABLAS = [
   "client", "member",
   // Numeración (0.5).
   "fotofficeSequence", "fotofficeSequenceChange", "fotofficeRecordNumber",
+  // Plantillas de mensajes (0.6).
+  "fotofficeMessageTemplate", "fotofficeMessage",
 ] as const;
 export type Tabla = (typeof TABLAS)[number];
 
@@ -62,6 +64,14 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
   fotofficeSequence: () => ({ prefix: "", withYear: false, digits: 1, nextValue: 1, currentYear: null }),
   fotofficeSequenceChange: () => ({ before: null, after: null, actorUserId: null, actorLabel: null, createdAt: new Date() }),
   fotofficeRecordNumber: () => ({ year: null, createdAt: new Date() }),
+  fotofficeMessageTemplate: () => ({
+    subject: null, systemKey: null, enabled: false, order: 0, archivedAt: null, createdAt: new Date(), updatedAt: new Date(),
+    updatedByUserId: null,
+  }),
+  fotofficeMessage: () => ({
+    templateId: null, subject: null, automatic: false, providerId: null, errorCode: null, actorUserId: null, actorLabel: null,
+    createdAt: new Date(),
+  }),
 };
 
 function igual(a: unknown, b: unknown): boolean {
@@ -151,6 +161,10 @@ export function crearBaseEnMemoria() {
       { columnas: ["entityType", "entityId"] },
       { columnas: ["workspaceId", "sequenceKey", "year", "value"], aplica: (f) => f.year !== null && f.year !== undefined },
       { columnas: ["workspaceId", "sequenceKey", "value"], aplica: (f) => f.year === null || f.year === undefined },
+    ],
+    // Como en la migración: único parcial donde systemKey no es null.
+    fotofficeMessageTemplate: [
+      { columnas: ["workspaceId", "systemKey"], aplica: (f) => f.systemKey !== null && f.systemKey !== undefined },
     ],
   };
 
