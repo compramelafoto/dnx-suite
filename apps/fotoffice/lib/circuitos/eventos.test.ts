@@ -290,10 +290,10 @@ describe("engancharConsultas", () => {
     expect(recorridos("lead-ajeno")).toHaveLength(0);
   });
 
-  it("engancha como mucho 150 por llamada, recorre en lotes y dice cuántas quedan", async () => {
+  it("engancha como mucho 150 por llamada, de la más vieja a la más nueva, y dice cuántas quedan", async () => {
     expect(E.TOPE_ENGANCHE).toBe(150);
     B.datos.serviceSalesLead = [];
-    const total = 2 * E.LOTE_ENGANCHE + 3; // 403: más de dos lotes de lectura
+    const total = 403;
     for (let i = 0; i < total; i++) {
       B.agregar("serviceSalesLead", { id: `m-${String(i).padStart(4, "0")}`, workspaceId: "ws-1", name: "x", eventType: "XV", status: "NEW" });
     }
@@ -302,6 +302,80 @@ describe("engancharConsultas", () => {
     expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: total - 300, quedan: 0 });
     expect(B.datos.fotofficeJourney).toHaveLength(total);
     expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 0, quedan: 0 });
+  });
+
+  it("lee sólo las consultas sin recorrido, en una consulta acotada y con parámetros", async () => {
+    B.datos.serviceSalesLead = [];
+    sembrarSeis();
+    // Nunca recorre todas las consultas con Prisma.
+    B.tablas.serviceSalesLead.findMany = (async () => {
+      throw new Error("leyó todas las consultas");
+    }) as never;
+    expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 6, quedan: 0 });
+    const lecturas = () => B.sql.filter((q) => q.texto.includes("consultas-sin-recorrido"));
+    expect(lecturas()).toHaveLength(1); // todo cupo en el lote: no hace falta contar
+    const [lista] = lecturas();
+    expect(lista!.texto).toMatch(/NOT EXISTS[\s\S]*"FotofficeJourney"[\s\S]*ORDER BY l\."createdAt" ASC[\s\S]*LIMIT \$$/);
+    expect(lista!.texto).not.toContain("ws-1");
+    expect(lista!.valores).toEqual(["ws-1", true, E.TOPE_ENGANCHE + 1]);
+
+    // Con todo enganchado, abrir Captación es una lectura que no devuelve nada.
+    B.sql.length = 0;
+    const antes = foto();
+    expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 0, quedan: 0 });
+    expect(lecturas()).toHaveLength(1);
+    expect(foto()).toBe(antes);
+  });
+
+  it("fecha la importación con la historia de la consulta y marca todos sus pasos", async () => {
+    B.datos.serviceSalesLead = [];
+    const alta = new Date("2026-03-10T13:00:00.000Z");
+    const modificada = new Date("2026-04-05T18:00:00.000Z");
+    const lead = (status: string, extra: Record<string, unknown> = {}) =>
+      B.agregar("serviceSalesLead", { id: `l-${status}`, workspaceId: "ws-1", name: status, eventType: "BODA", status, createdAt: alta, updatedAt: modificada, ...extra });
+    lead("NEW");
+    lead("CONTACTED");
+    lead("WON");
+    // Una modificación anterior al alta (dato raro): el cierre nunca queda antes del alta.
+    lead("LOST", { updatedAt: new Date("2026-01-01T00:00:00.000Z") });
+    expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 4, quedan: 0 });
+
+    const nueva = de("NEW")[0]!;
+    // La entrada es histórica; el vencimiento se cuenta desde hoy (s1: 2 días).
+    expect(nueva).toMatchObject({ enteredStageAt: alta, createdAt: AHORA });
+    expect((nueva.stageDueAt as Date).getTime()).toBeGreaterThan(AHORA.getTime());
+    expect(pasos(nueva.id as string)).toEqual([expect.objectContaining({ toStageId: "s1", createdAt: alta, note: E.NOTA_IMPORTADA })]);
+
+    const contactada = de("CONTACTED")[0]!;
+    expect(contactada).toMatchObject({ stageId: "s2", enteredStageAt: new Date(alta.getTime() + 1) });
+    expect(pasos(contactada.id as string).map((p) => [p.toStageId, (p.createdAt as Date).getTime(), p.note])).toEqual([
+      ["s1", alta.getTime(), E.NOTA_IMPORTADA],
+      ["s2", alta.getTime() + 1, E.NOTA_IMPORTADA],
+    ]);
+
+    const ganada = de("WON")[0]!;
+    expect(ganada).toMatchObject({ outcome: "GANADA", closedAt: modificada, enteredStageAt: alta });
+    expect(pasos(ganada.id as string).map((p) => [p.outcome, p.createdAt, p.note])).toEqual([
+      [null, alta, E.NOTA_IMPORTADA],
+      ["GANADA", modificada, E.NOTA_IMPORTADA],
+    ]);
+
+    const perdida = de("LOST")[0]!;
+    expect(perdida).toMatchObject({ outcome: "PERDIDA", closedAt: new Date(alta.getTime() + 2) });
+    expect(pasos(perdida.id as string).at(-1)).toMatchObject({ createdAt: new Date(alta.getTime() + 2), note: E.NOTA_IMPORTADA });
+  });
+
+  it("sin motivo activo, muchas perdidas en espera no tapan a las demás", async () => {
+    B.datos.serviceSalesLead = [];
+    for (let i = 0; i < E.TOPE_ENGANCHE + 10; i++) {
+      B.agregar("serviceSalesLead", {
+        id: `p-${String(i).padStart(4, "0")}`, workspaceId: "ws-1", name: "x", eventType: "XV", status: "LOST", createdAt: new Date("2026-01-01T00:00:00Z"),
+      });
+    }
+    B.agregar("serviceSalesLead", { id: "l-nueva", workspaceId: "ws-1", name: "x", eventType: "XV", status: "NEW" });
+    for (const r of B.datos.fotofficeLossReason) r.isActive = false;
+    expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 1, quedan: E.TOPE_ENGANCHE + 10 });
+    expect(recorridos("l-nueva")).toHaveLength(1);
   });
 
   it("cada consulta en una transacción con bloqueo; si otra corrida ya la enganchó, no la duplica", async () => {
@@ -319,7 +393,7 @@ describe("engancharConsultas", () => {
     expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 5, quedan: 0 });
     expect(recorridos("l-WON").map((j) => j.id)).toEqual(["j-otra"]);
     expect(B.sql.map((q) => q.valores[0])).toContain("fotoffice-enganche:l-LOST");
-    expect(B.sql[0]!.texto).toContain("pg_advisory_xact_lock(hashtext(");
+    expect(B.sql.find((q) => q.valores[0] === "fotoffice-enganche:l-LOST")!.texto).toContain("pg_advisory_xact_lock(hashtext(");
   });
 
   it("una falla a mitad de camino no deja la consulta a medias y se reintenta", async () => {

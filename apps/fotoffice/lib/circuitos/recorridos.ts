@@ -11,8 +11,24 @@ type Tx = Prisma.TransactionClient;
 export type Resultado = { ok: true } | { ok: false; error: string };
 export type ResultadoMover = { ok: true } | { ok: false; error: string; pendientes?: string[] };
 
-/** Un movimiento escribe recorrido, paso, tareas y el estado del sujeto: el tope por defecto (5 s) es justo en Neon. */
+/**
+ * Un movimiento escribe recorrido, paso, tareas y el estado del sujeto: el tope por defecto (5 s) es justo en Neon.
+ *
+ * Sin `isolationLevel`: corre con el de la base, READ COMMITTED en Postgres. Los controles de
+ * carrera del motor dependen de eso —el `updateMany` condicionado a lo leído y, en el enganche
+ * de consultas, volver a mirar después del bloqueo ven lo que otra transacción ya confirmó—.
+ * Con REPEATABLE READ o SERIALIZABLE esa segunda mirada vería la foto vieja (o la base
+ * abortaría con errores de serialización): revisar esos controles antes de cambiarlo.
+ */
 export const OPCIONES_TRANSACCION = { timeout: 15_000 };
+
+/**
+ * Fechas de una importación (el enganche de consultas existentes): el paso y la entrada a la
+ * etapa (o el cierre) quedan con la fecha histórica `fecha` y el paso lleva `nota`. Los
+ * vencimientos —de la etapa y de sus tareas— se cuentan desde ahora: el motor empieza a
+ * seguir la consulta hoy, y contarlos desde la fecha vieja la mostraría vencida de entrada.
+ */
+export type Importacion = { fecha: Date; nota: string };
 
 export const MENSAJES = {
   noEncontrado: "No encontramos ese registro.",
@@ -129,6 +145,7 @@ export async function iniciarEnTransaccion(
   sujeto: Sujeto,
   circuitoId?: string,
   leido?: { kind: string | null },
+  importacion?: Importacion,
 ): Promise<{ journeyId: string }> {
   const adaptador = adaptadorDe(sujeto.tipo);
   if (!adaptador) throw new Error(MENSAJES.noEncontrado);
@@ -152,6 +169,7 @@ export async function iniciarEnTransaccion(
   if (!primera) throw new Error(MENSAJES.sinEtapas);
 
   const ahora = new Date();
+  const entrada = importacion?.fecha ?? ahora;
   const j = await tx.fotofficeJourney.create({
     data: {
       workspaceId,
@@ -160,7 +178,7 @@ export async function iniciarEnTransaccion(
       subjectType: sujeto.tipo,
       subjectId: sujeto.id,
       stageId: primera.id,
-      enteredStageAt: ahora,
+      enteredStageAt: entrada,
       stageDueAt: vencimientoDeEtapa(ahora, primera.days),
       ownerUserId: null,
     },
@@ -171,10 +189,11 @@ export async function iniciarEnTransaccion(
       journeyId: j.id,
       fromStageId: null,
       toStageId: primera.id,
+      note: importacion?.nota ?? null,
       auto: ctx.userId === null,
       actorUserId: ctx.userId,
       actorLabel: ctx.userLabel,
-      createdAt: ahora,
+      createdAt: entrada,
     },
   });
   await crearTareasDeEtapa(tx, ctx, j, primera.id, ahora);
@@ -239,7 +258,7 @@ export async function moverEnTransaccion(
   ctx: CtxCircuitos,
   journeyId: string,
   destinoId: string,
-  opts: { nota?: string; forzar?: boolean; esperado?: Date; auto?: { evento: string } } = {},
+  opts: { nota?: string; forzar?: boolean; esperado?: Date; auto?: { evento: string }; fecha?: Date } = {},
 ): Promise<{ ok: true }> {
   const { workspaceId } = ctx;
   const j = await recorridoAbierto(tx, workspaceId, journeyId);
@@ -267,9 +286,11 @@ export async function moverEnTransaccion(
   const etapaDestino = destino!;
 
   const ahora = new Date();
+  // `fecha` sólo la usa la importación (ver `Importacion`): el vencimiento se cuenta desde ahora.
+  const entrada = opts.fecha ?? ahora;
   const actualizado = await tx.fotofficeJourney.updateMany({
     where: { id: j.id, workspaceId, stageId: j.stageId, enteredStageAt: opts.esperado ?? j.enteredStageAt, closedAt: null },
-    data: { stageId: etapaDestino.id, enteredStageAt: ahora, stageDueAt: vencimientoDeEtapa(ahora, etapaDestino.days) },
+    data: { stageId: etapaDestino.id, enteredStageAt: entrada, stageDueAt: vencimientoDeEtapa(ahora, etapaDestino.days) },
   });
   if (actualizado.count !== 1) throw new Rechazo(MENSAJES.cambio);
 
@@ -285,7 +306,7 @@ export async function moverEnTransaccion(
       forcedWithPendingTasks: pendientes.length > 0,
       actorUserId: ctx.userId,
       actorLabel: ctx.userLabel,
-      createdAt: ahora,
+      createdAt: entrada,
     },
   });
   await crearTareasDeEtapa(tx, ctx, j, etapaDestino.id, ahora);
@@ -335,7 +356,7 @@ export async function cerrarEnTransaccion(
   salida: string,
   lossReasonId?: string,
   nota?: string,
-  opts: { esperado?: Date; forzar?: boolean; deSistema?: boolean } = {},
+  opts: { esperado?: Date; forzar?: boolean; deSistema?: boolean; fecha?: Date } = {},
 ): Promise<{ ok: true }> {
   const { workspaceId } = ctx;
   const j = await recorridoAbierto(tx, workspaceId, journeyId);
@@ -364,10 +385,11 @@ export async function cerrarEnTransaccion(
     }
   }
 
-  const ahora = new Date();
+  // `fecha` sólo la usa la importación (ver `Importacion`).
+  const cierre = opts.fecha ?? new Date();
   const actualizado = await tx.fotofficeJourney.updateMany({
     where: { id: j.id, workspaceId, stageId: j.stageId, enteredStageAt: opts.esperado ?? j.enteredStageAt, closedAt: null },
-    data: { stageId: null, stageDueAt: null, outcome: salida, lossReasonId: motivoId, closedAt: ahora },
+    data: { stageId: null, stageDueAt: null, outcome: salida, lossReasonId: motivoId, closedAt: cierre },
   });
   if (actualizado.count !== 1) throw new Rechazo(MENSAJES.cambio);
 
@@ -382,7 +404,7 @@ export async function cerrarEnTransaccion(
       actorUserId: ctx.userId,
       actorLabel: ctx.userLabel,
       auto: ctx.userId === null,
-      createdAt: ahora,
+      createdAt: cierre,
     },
   });
   await adaptadorDe(j.subjectType)?.alCambiarEtapa?.(tx, workspaceId, j.subjectId, null, salida);

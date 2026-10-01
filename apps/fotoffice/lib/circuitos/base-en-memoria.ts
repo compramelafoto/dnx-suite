@@ -45,7 +45,7 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
     journeyId: null, stageId: null, dueAt: null, assigneeUserId: null, required: false, doneAt: null,
     doneByUserId: null, createdByUserId: null, createdAt: new Date(),
   }),
-  serviceSalesLead: () => ({ status: "NEW", eventDate: null, createdAt: new Date() }),
+  serviceSalesLead: () => ({ status: "NEW", eventDate: null, createdAt: new Date(), updatedAt: new Date() }),
 };
 
 function igual(a: unknown, b: unknown): boolean {
@@ -183,7 +183,7 @@ export function crearBaseEnMemoria() {
   let abiertas = 0;
 
   /** Cliente que llama a `tablas` en el momento (así ve los reemplazos) si `permitido()` lo deja. */
-  /** SQL crudo recibido (sólo se registra: el bloqueo de la base real acá no hace nada). */
+  /** SQL crudo recibido (`$executeRaw` sólo se registra: el bloqueo de la base real acá no hace nada). */
   const sql: { texto: string; valores: unknown[] }[] = [];
   /** Se llama con cada SQL crudo, dentro de la transacción: sirve para simular otra corrida. */
   const ganchos: { alEjecutarSql: ((texto: string, valores: unknown[]) => void) | null } = { alEjecutarSql: null };
@@ -209,7 +209,35 @@ export function crearBaseEnMemoria() {
       ganchos.alEjecutarSql?.(texto, valores);
       return 1;
     };
+    c.$queryRaw = async (partes: TemplateStringsArray, ...valores: unknown[]) => {
+      const error = permitido();
+      if (error) throw new Error(error);
+      const texto = partes.join("$");
+      sql.push({ texto, valores });
+      return emularConsulta(texto, valores);
+    };
     return c;
+  }
+
+  /**
+   * Sólo emula el SQL crudo que el motor usa, reconocido por su comentario; cualquier otro
+   * lanza. "consultas-sin-recorrido": consultas del workspace sin ningún recorrido de venta.
+   */
+  function emularConsulta(texto: string, valores: unknown[]): unknown[] {
+    if (!texto.includes("consultas-sin-recorrido")) throw new Error("SQL crudo no emulado en la base en memoria");
+    const workspaceId = valores[0];
+    const sinRecorrido = datos.serviceSalesLead.filter(
+      (l) =>
+        l.workspaceId === workspaceId &&
+        !datos.fotofficeJourney.some(
+          (j) => j.workspaceId === l.workspaceId && j.subjectType === "CAPTACION" && j.subjectId === l.id && j.kind === "VENTA",
+        ),
+    );
+    if (texto.includes("consultas-sin-recorrido: cuenta")) return [{ n: BigInt(sinRecorrido.length) }];
+    const [, conPerdidas, limite] = valores as [string, boolean, number];
+    return ordenar(sinRecorrido.filter((l) => conPerdidas || l.status !== "LOST"), [{ createdAt: "asc" }, { id: "asc" }])
+      .slice(0, limite)
+      .map((l) => elegir(l, { id: true, status: true, createdAt: true, updatedAt: true }));
   }
 
   const FUERA = "uso de prisma fuera de la transacción";

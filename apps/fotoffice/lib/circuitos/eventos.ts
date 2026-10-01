@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma, type Prisma } from "@repo/db";
-import { EVENTOS, ESTADOS_CAPTACION, SALIDAS, type Evento } from "./constantes";
+import { EVENTOS, ESTADOS_CAPTACION, NOTA_IMPORTADA, SALIDAS, type Evento } from "./constantes";
 import { esRetroceso } from "./calculos";
 import {
   cerrar,
@@ -15,11 +15,10 @@ import { asegurarCircuitos } from "./semillas/asegurar";
 import { adaptadorDe, type Sujeto } from "./sujetos";
 import { contextoDeSistema, type CtxCircuitos } from "./acceso";
 
-/** Tamaño de cada lote al leer las consultas existentes. */
-export const LOTE_ENGANCHE = 200;
 /** Consultas que se enganchan como mucho en cada llamada (cada una es una transacción). */
 export const TOPE_ENGANCHE = 150;
-export const NOTA_IMPORTADA = "Importada con su estado anterior";
+/** Nota de todos los pasos que escribe la importación de consultas (el informe los reconoce por ella). */
+export { NOTA_IMPORTADA } from "./constantes";
 const MOTIVO_IMPORTADA = "Otro";
 
 function esChoqueDeUnicidad(error: unknown): boolean {
@@ -126,6 +125,8 @@ async function aplicarRegla(
     await prisma.$transaction(async (tx) => {
       await tx.fotofficeProcessedEvent.create({ data: { journeyId: j.id, event: evento, sourceRef } });
       await moverEnTransaccion(tx, ctx, j.id, destino.id, { auto: { evento }, esperado: j.enteredStageAt });
+      // READ COMMITTED (ver `OPCIONES_TRANSACCION`): el índice único de eventos procesados y el
+      // `updateMany` condicionado a `esperado` frenan a la otra corrida simultánea.
     }, OPCIONES_TRANSACCION);
   } catch (error) {
     // Ya procesado, o el motor lo rechazó (tareas obligatorias, cambió mientras tanto).
@@ -136,28 +137,37 @@ async function aplicarRegla(
 }
 
 type EstadoConsulta = (typeof ESTADOS_CAPTACION)[number] | "WON" | "LOST";
+type ConsultaSinRecorrido = { id: string; status: string; createdAt: Date; updatedAt: Date };
 
 /**
  * Engancha una vez las consultas del workspace que todavía no tienen recorrido de venta:
  * NEW → primera etapa del circuito predeterminado; CONTACTED / QUOTED / INTERESTED → la etapa
  * marcada con ese estado (o la primera); WON / LOST → recorrido cerrado como Ganada / Perdida
- * (motivo "Otro") con la nota "Importada con su estado anterior".
+ * (motivo "Otro").
+ *
+ * Es una importación de datos viejos, fechada con su historia: la entrada a la primera etapa
+ * es el alta de la consulta (`createdAt`), y el cierre de una ganada o perdida, su última
+ * modificación (`updatedAt`, nunca antes del alta). Todos sus pasos llevan la nota
+ * `NOTA_IMPORTADA`, que el informe usa para no contarlos como movimiento real.
  *
  * Cada consulta se engancha en UNA transacción que primero toma un bloqueo por consulta y vuelve
  * a mirar si ya tiene recorrido de venta (abierto o cerrado): dos corridas simultáneas no la
  * duplican, y una falla no la deja a medias (se reintenta en la próxima llamada). Engancha como
  * mucho `TOPE_ENGANCHE` por llamada; `quedan` son las que siguen sin recorrido al terminar.
+ *
+ * Se llama cada vez que se abre Captación: lee sólo las consultas sin recorrido (una consulta
+ * acotada), así que con todo enganchado cuesta una lectura que no devuelve nada.
  */
 export async function engancharConsultas(workspaceId: string): Promise<{ enganchadas: number; quedan: number }> {
   const circuito = await circuitoDeVenta(workspaceId);
-  if (!circuito) return { enganchadas: 0, quedan: await sinRecorrido(workspaceId) };
+  if (!circuito) return { enganchadas: 0, quedan: await contarSinRecorrido(workspaceId) };
   const etapas = await prisma.fotofficeStage.findMany({
     where: { circuitId: circuito.id, circuit: { workspaceId }, archivedAt: null },
     select: { id: true, leadStatus: true },
     orderBy: { order: "asc" },
   });
   const primera = etapas[0];
-  if (!primera) return { enganchadas: 0, quedan: await sinRecorrido(workspaceId) };
+  if (!primera) return { enganchadas: 0, quedan: await contarSinRecorrido(workspaceId) };
   const etapaPorEstado = new Map<string, string>();
   for (const e of etapas) if (e.leadStatus && !etapaPorEstado.has(e.leadStatus)) etapaPorEstado.set(e.leadStatus, e.id);
   const motivoId = await motivoDeImportacion(workspaceId);
@@ -167,84 +177,104 @@ export async function engancharConsultas(workspaceId: string): Promise<{ enganch
   const ctx: CtxCircuitos = { ...contextoDeSistema(workspaceId), role: "WORKSPACE_OWNER" };
   const plan = { circuitoId: circuito.id, primeraId: primera.id, etapaPorEstado, motivoId };
 
+  // Sin motivo activo no se puede perder: las perdidas esperan y no ocupan lugar en el lote
+  // (si no, con muchas perdidas el lote nunca llegaría a las demás).
+  const lote = await consultasSinRecorrido(workspaceId, motivoId !== null, TOPE_ENGANCHE + 1);
+  const hayMas = lote.length > TOPE_ENGANCHE;
   let enganchadas = 0;
-  let intentadas = 0;
-  let quedan = 0;
-  await recorrerSinRecorrido(workspaceId, async (lead) => {
+  let fallidas = 0;
+  for (const lead of lote.slice(0, TOPE_ENGANCHE)) {
     const estado = lead.status as EstadoConsulta;
-    if (intentadas >= TOPE_ENGANCHE || (estado === "LOST" && !motivoId)) {
-      quedan++; // sin motivo activo no se puede perder: espera
-      return;
-    }
-    intentadas++;
     try {
-      if (await engancharUna(ctx, lead.id, estado, plan)) enganchadas++;
+      if (await engancharUna(ctx, lead, estado, plan)) enganchadas++;
     } catch (error) {
-      quedan++;
+      fallidas++;
       registrarFalla("engancharConsultas", { workspaceId, estado }, error);
     }
-  });
-  return { enganchadas, quedan };
-}
-
-/** Recorre, en lotes, las consultas del workspace sin ningún recorrido de venta. */
-async function recorrerSinRecorrido(workspaceId: string, cadaUna: (lead: { id: string; status: string }) => Promise<void>): Promise<void> {
-  let cursor: string | undefined;
-  for (;;) {
-    const lote = await prisma.serviceSalesLead.findMany({
-      where: { workspaceId, ...(cursor ? { id: { gt: cursor } } : {}) },
-      select: { id: true, status: true },
-      orderBy: { id: "asc" },
-      take: LOTE_ENGANCHE,
-    });
-    if (lote.length === 0) return;
-    cursor = lote[lote.length - 1]!.id;
-    const conRecorrido = new Set(
-      (
-        await prisma.fotofficeJourney.findMany({
-          where: { workspaceId, subjectType: "CAPTACION", kind: "VENTA", subjectId: { in: lote.map((l) => l.id) } },
-          select: { subjectId: true },
-        })
-      ).map((j) => j.subjectId),
-    );
-    for (const lead of lote) if (!conRecorrido.has(lead.id)) await cadaUna(lead);
-    if (lote.length < LOTE_ENGANCHE) return;
   }
+  // Lo común (todo enganchado de una) no necesita contar de nuevo.
+  if (!hayMas && motivoId !== null) return { enganchadas, quedan: fallidas };
+  return { enganchadas, quedan: await contarSinRecorrido(workspaceId) };
 }
 
-async function sinRecorrido(workspaceId: string): Promise<number> {
-  let n = 0;
-  await recorrerSinRecorrido(workspaceId, async () => {
-    n++;
-  });
-  return n;
+/*
+ * Las dos consultas de abajo son SQL crudo porque Prisma no sabe expresar "sin ningún
+ * recorrido" (el recorrido nombra a la consulta por `subjectId`, sin relación). Los valores
+ * van siempre como parámetros. `status` es un enum: se compara y devuelve como texto. El
+ * comentario `consultas-sin-recorrido` lo usa la base en memoria de las pruebas para
+ * reconocerlas. Usan el índice de FotofficeJourney (workspaceId, subjectType, subjectId).
+ */
+
+/** Hasta `limite` consultas sin ningún recorrido de venta, de la más vieja a la más nueva. */
+async function consultasSinRecorrido(workspaceId: string, conPerdidas: boolean, limite: number): Promise<ConsultaSinRecorrido[]> {
+  return prisma.$queryRaw<ConsultaSinRecorrido[]>`
+    /* consultas-sin-recorrido: lista */
+    SELECT l."id", l."status"::text AS "status", l."createdAt", l."updatedAt"
+    FROM "ServiceSalesLead" l
+    WHERE l."workspaceId" = ${workspaceId}
+      AND (${conPerdidas}::boolean OR l."status"::text <> 'LOST')
+      AND NOT EXISTS (
+        SELECT 1 FROM "FotofficeJourney" j
+        WHERE j."workspaceId" = l."workspaceId" AND j."subjectType" = 'CAPTACION' AND j."subjectId" = l."id" AND j."kind" = 'VENTA'
+      )
+    ORDER BY l."createdAt" ASC, l."id" ASC
+    LIMIT ${limite}`;
 }
+
+/** Cuántas consultas del workspace siguen sin ningún recorrido de venta. */
+async function contarSinRecorrido(workspaceId: string): Promise<number> {
+  const [fila] = await prisma.$queryRaw<{ n: bigint | number }[]>`
+    /* consultas-sin-recorrido: cuenta */
+    SELECT count(*) AS "n"
+    FROM "ServiceSalesLead" l
+    WHERE l."workspaceId" = ${workspaceId}
+      AND NOT EXISTS (
+        SELECT 1 FROM "FotofficeJourney" j
+        WHERE j."workspaceId" = l."workspaceId" AND j."subjectType" = 'CAPTACION' AND j."subjectId" = l."id" AND j."kind" = 'VENTA'
+      )`;
+  return Number(fila?.n ?? 0);
+}
+
+/** 1 ms entre pasos importados con la misma fecha, para que el historial conserve su orden. */
+const MS = 1;
 
 /**
  * Engancha una consulta en una sola transacción. Devuelve false si otra corrida ya la enganchó.
  * El bloqueo es por consulta y dura hasta el fin de la transacción.
+ *
+ * Depende de READ COMMITTED (ver `OPCIONES_TRANSACCION`): después de tomar el bloqueo, el
+ * `count` tiene que ver el recorrido que otra corrida confirmó mientras esperábamos.
  */
 async function engancharUna(
   ctx: CtxCircuitos,
-  leadId: string,
+  lead: ConsultaSinRecorrido,
   estado: EstadoConsulta,
   plan: { circuitoId: string; primeraId: string; etapaPorEstado: Map<string, string>; motivoId: string | null },
 ): Promise<boolean> {
   const { workspaceId } = ctx;
+  const alta = new Date(lead.createdAt);
+  // Nunca antes del alta (ni del paso anterior): el historial no puede ir hacia atrás.
+  const cierre = new Date(Math.max(new Date(lead.updatedAt).getTime(), alta.getTime() + 2 * MS));
   return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`fotoffice-enganche:${leadId}`}))`;
-    const ya = await tx.fotofficeJourney.count({ where: { workspaceId, subjectType: "CAPTACION", subjectId: leadId, kind: "VENTA" } });
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`fotoffice-enganche:${lead.id}`}))`;
+    const ya = await tx.fotofficeJourney.count({ where: { workspaceId, subjectType: "CAPTACION", subjectId: lead.id, kind: "VENTA" } });
     if (ya > 0) return false;
 
-    const { journeyId } = await iniciarEnTransaccion(tx, ctx, { tipo: "CAPTACION", id: leadId }, plan.circuitoId);
+    const { journeyId } = await iniciarEnTransaccion(tx, ctx, { tipo: "CAPTACION", id: lead.id }, plan.circuitoId, undefined, {
+      fecha: alta,
+      nota: NOTA_IMPORTADA,
+    });
     const destino = plan.etapaPorEstado.get(estado);
     if (estado !== "NEW" && destino && destino !== plan.primeraId) {
-      await moverEnTransaccion(tx, ctx, journeyId, destino, { nota: NOTA_IMPORTADA, forzar: true });
+      await moverEnTransaccion(tx, ctx, journeyId, destino, { nota: NOTA_IMPORTADA, forzar: true, fecha: new Date(alta.getTime() + MS) });
     }
     if (estado === "WON" || estado === "LOST") {
       const exito = estado === "WON";
       const salida = exito ? SALIDAS.VENTA.exito : SALIDAS.VENTA.fracaso;
-      await cerrarEnTransaccion(tx, ctx, journeyId, salida, exito ? undefined : plan.motivoId!, NOTA_IMPORTADA, { forzar: true });
+      await cerrarEnTransaccion(tx, ctx, journeyId, salida, exito ? undefined : plan.motivoId!, NOTA_IMPORTADA, {
+        forzar: true,
+        fecha: cierre,
+      });
     }
     return true;
   }, OPCIONES_TRANSACCION);
