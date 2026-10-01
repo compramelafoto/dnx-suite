@@ -197,6 +197,14 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
           ) : null}
           {puede(workspaceRole, "configurar") ? (
           <Link
+            href="/workspace/configuracion/plantillas"
+            className="block rounded-xl px-4 py-3 text-sm font-medium text-[var(--fo-text)] hover:bg-[var(--fo-surface)] border border-transparent hover:border-[var(--fo-border)]"
+          >
+            Plantillas
+          </Link>
+          ) : null}
+          {puede(workspaceRole, "configurar") ? (
+          <Link
             href="/workspace/configuracion/numeracion"
             className="block rounded-xl px-4 py-3 text-sm font-medium text-[var(--fo-text)] hover:bg-[var(--fo-surface)] border border-transparent hover:border-[var(--fo-border)]"
           >

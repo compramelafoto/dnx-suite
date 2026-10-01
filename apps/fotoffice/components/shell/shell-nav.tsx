@@ -13,6 +13,7 @@ import {
   LayoutDashboard,
   LayoutGrid,
   ListPlus,
+  MessageSquareText,
   Settings,
   Shield,
   Tags,
@@ -325,6 +326,12 @@ export function ShellNav({
       label: "Campos",
       icon: ListPlus,
       isActive: under("/workspace/configuracion/campos"),
+    });
+    institucion.push({
+      href: "/workspace/configuracion/plantillas",
+      label: "Plantillas",
+      icon: MessageSquareText,
+      isActive: under("/workspace/configuracion/plantillas"),
     });
     institucion.push({
       href: "/workspace/configuracion/numeracion",
