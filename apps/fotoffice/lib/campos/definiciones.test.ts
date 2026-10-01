@@ -133,6 +133,28 @@ describe("editar", () => {
     expect(await D.editarCampo(ADMIN, id, { tipo: "TEXTO" })).toEqual({ ok: false, error: M.tipoConDatos });
     expect(campo(id).type).toBe("NUMERO");
   });
+
+  it("el cambio de tipo se verifica dentro de la transacción: un valor que llega en el medio lo frena", async () => {
+    const id = await crear("Dato");
+    const original = B.tablas.fotofficeCustomValue.count;
+    let llamadas = 0;
+    B.tablas.fotofficeCustomValue.count = async (a) => {
+      // La primera (fuera de la transacción) no ve nada; justo después alguien guarda un valor.
+      if (++llamadas === 1) {
+        B.agregar("fotofficeCustomValue", { workspaceId: "ws-1", fieldId: id, entityType: "CLIENTE", entityId: "c1", valueText: "x" });
+        return 0;
+      }
+      return original(a);
+    };
+    try {
+      expect(await D.editarCampo(ADMIN, id, { tipo: "NUMERO", nombre: "Otro" })).toEqual({ ok: false, error: M.tipoConDatos });
+    } finally {
+      B.tablas.fotofficeCustomValue.count = original;
+    }
+    expect(llamadas).toBe(2);
+    expect(campo(id)).toMatchObject({ type: "TEXTO", name: "Dato" });
+    expect(B.transacciones.length).toBeGreaterThan(0);
+  });
 });
 
 describe("borrar o archivar", () => {

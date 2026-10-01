@@ -16,7 +16,7 @@ export const MENSAJES_VALORES = {
   sinPermiso: "No tenés permiso para hacer esto.",
   noEncontrado: "No encontramos ese registro.",
   revisar: "Revisá los campos marcados.",
-  obligatorio: "Este campo es obligatorio.",
+  obligatorio: "Este dato es obligatorio.",
 } as const;
 
 /**
@@ -136,13 +136,18 @@ export async function guardarValores(
     return { ok: false, error: MENSAJES_VALORES.noEncontrado };
   }
 
-  const campos = (await leerCampos(ctx.workspaceId, entityType)).filter((c) => Object.hasOwn(entrada, c.id));
-  if (campos.length === 0) return { ok: true };
+  const activos = await leerCampos(ctx.workspaceId, entityType);
+  const campos = activos.filter((c) => Object.hasOwn(entrada, c.id));
 
   const actuales = await valoresDe(ctx.workspaceId, entityType, [entityId]);
   const delRegistro = actuales.get(entityId) ?? new Map<string, ValorGuardado>();
 
   const errores: Record<string, string> = {};
+  // Un obligatorio que no vino (por ejemplo, marcado como obligatorio después de abrir el
+  // formulario) se exige contra lo que el registro ya tiene guardado.
+  for (const c of activos) {
+    if (c.required && !Object.hasOwn(entrada, c.id) && !delRegistro.has(c.id)) errores[c.id] = MENSAJES_VALORES.obligatorio;
+  }
   const nuevos = new Map<string, ValorGuardado | null>();
   for (const c of campos) {
     const actual = delRegistro.get(c.id) ?? null;
@@ -155,6 +160,7 @@ export async function guardarValores(
     else nuevos.set(c.id, r.valor);
   }
   if (Object.keys(errores).length > 0) return { ok: false, error: MENSAJES_VALORES.revisar, errores };
+  if (campos.length === 0) return { ok: true };
 
   const escribir = () =>
     prisma.$transaction(async (tx) => {
@@ -220,26 +226,40 @@ export type CambioDeValor = {
   createdAt: Date;
 };
 
-/** Historial de un registro, del más nuevo al más viejo; `antesDe` pagina. */
+/** Posición en el historial: la última fila mostrada. */
+export type CursorDeCambios = { fecha: Date; id: string };
+
+export type PaginaDeCambios = { cambios: CambioDeValor[]; siguiente: CursorDeCambios | null };
+
+/**
+ * Historial de un registro, del más nuevo al más viejo (en empate de fecha, id descendente).
+ * `antesDe` es el cursor compuesto (fecha + id) de la última fila mostrada: las filas de un
+ * mismo guardado comparten la fecha y no se pierden al cortar la página. `siguiente` es null
+ * cuando no hay más.
+ */
 export async function cambiosDe(
   workspaceId: string,
   entityType: TipoRegistro,
   entityId: string,
-  opciones: { antesDe?: Date; take: number },
-): Promise<CambioDeValor[]> {
+  opciones: { antesDe?: CursorDeCambios; take: number },
+): Promise<PaginaDeCambios> {
   const take = Math.min(Math.max(1, Math.floor(opciones.take) || 1), 200);
-  const filas = await prisma.fotofficeCustomValueChange.findMany({
-    where: { workspaceId, entityType, entityId, ...(opciones.antesDe ? { createdAt: { lt: opciones.antesDe } } : {}) },
+  const c = opciones.antesDe;
+  const corte = c ? { OR: [{ createdAt: { lt: c.fecha } }, { createdAt: c.fecha, id: { lt: c.id } }] } : {};
+  const leidas = await prisma.fotofficeCustomValueChange.findMany({
+    where: { workspaceId, entityType, entityId, ...corte },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    take,
+    take: take + 1,
     select: { id: true, fieldId: true, before: true, after: true, actorLabel: true, createdAt: true },
   });
+  const hayMas = leidas.length > take;
+  const filas = leidas.slice(0, take);
   const ids = [...new Set(filas.map((f) => f.fieldId))];
   const nombres = ids.length
     ? await prisma.fotofficeCustomField.findMany({ where: { workspaceId, id: { in: ids } }, select: { id: true, name: true } })
     : [];
   const nombre = new Map(nombres.map((n) => [n.id, n.name]));
-  return filas.map((f) => ({
+  const cambios = filas.map((f) => ({
     id: f.id,
     fieldId: f.fieldId,
     campo: nombre.get(f.fieldId) ?? "Campo borrado",
@@ -248,4 +268,6 @@ export async function cambiosDe(
     actorLabel: f.actorLabel,
     createdAt: f.createdAt,
   }));
+  const ultima = filas.at(-1);
+  return { cambios, siguiente: hayMas && ultima ? { fecha: ultima.createdAt, id: ultima.id } : null };
 }

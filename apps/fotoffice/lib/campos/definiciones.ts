@@ -254,12 +254,19 @@ export async function editarCampo(ctx: CtxCampos, fieldId: string, cambios: Camb
   }
   if (cambios.tipo !== undefined && cambios.tipo !== campo.type) {
     if (!esTipoCampo(cambios.tipo)) return no(MENSAJES_CAMPOS.tipoInvalido);
+    // Aviso temprano sin abrir transacción; la verificación que vale es la de adentro.
     if (await tieneValores(ctx.workspaceId, campo.id)) return no(MENSAJES_CAMPOS.tipoConDatos);
     data.type = cambios.tipo;
   }
   if (Object.keys(data).length === 0) return { ok: true };
-  await prisma.fotofficeCustomField.updateMany({ where: { id: campo.id, workspaceId: ctx.workspaceId }, data });
-  return { ok: true };
+  return prisma.$transaction(async (tx) => {
+    // Se vuelve a contar adentro: un valor guardado en el mismo instante no queda con otro tipo.
+    if (data.type && (await tx.fotofficeCustomValue.count({ where: { workspaceId: ctx.workspaceId, fieldId: campo.id } })) > 0) {
+      return no(MENSAJES_CAMPOS.tipoConDatos);
+    }
+    await tx.fotofficeCustomField.updateMany({ where: { id: campo.id, workspaceId: ctx.workspaceId }, data });
+    return { ok: true as const };
+  });
 }
 
 /** `ids` son los campos activos del tipo, en el orden nuevo (todos, sin repetir). */

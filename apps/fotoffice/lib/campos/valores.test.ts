@@ -90,10 +90,10 @@ describe("aislamiento", () => {
   it("no se escribe sobre un registro de otro workspace ni con un campo ajeno", async () => {
     expect(await V.guardarValores(CTX, "CLIENTE", "cx", { ajeno: "pisado", dni: "1" })).toEqual({ ok: false, error: M.noEncontrado });
     // Registro propio con el id de un campo de otro workspace: se ignora.
-    expect(await V.guardarValores(CTX, "CLIENTE", "c1", { ajeno: "pisado" })).toEqual({ ok: true });
+    expect(await V.guardarValores(CTX, "CLIENTE", "c1", { ajeno: "pisado", dni: "1" })).toEqual({ ok: true });
     expect(await V.guardarValores(OTRO, "CLIENTE", "c1", { ajeno: "pisado" })).toEqual({ ok: false, error: M.noEncontrado });
-    expect(B.datos.fotofficeCustomValue.map((v) => v.valueText)).toEqual(["secreto"]);
-    expect(historial()).toHaveLength(0);
+    expect(B.datos.fotofficeCustomValue.map((v) => [v.fieldId, v.valueText])).toEqual([["ajeno", "secreto"], ["dni", "1"]]);
+    expect(historial().map((h) => h.fieldId)).toEqual(["dni"]);
   });
 
   it("sin `operar` no toca nada", async () => {
@@ -105,8 +105,21 @@ describe("aislamiento", () => {
 describe("validación", () => {
   it("obligatorio vacío → error de ese campo, y nada se escribe", async () => {
     const r = await V.guardarValores(CTX, "CLIENTE", "c1", { dni: "  ", enlace: "https://x.com" });
-    expect(r).toEqual({ ok: false, error: M.revisar, errores: { dni: "Este campo es obligatorio." } });
+    expect(r).toEqual({ ok: false, error: M.revisar, errores: { dni: "Este dato es obligatorio." } });
     expect(valores()).toHaveLength(0);
+  });
+
+  it("un obligatorio que no vino se exige contra lo guardado (marcado obligatorio después de abrir el formulario)", async () => {
+    // El formulario se abrió sin "vip" obligatorio; mientras, alguien lo marcó.
+    B.datos.fotofficeCustomField.find((f) => f.id === "vip")!.required = true;
+    const r = await V.guardarValores(CTX, "CLIENTE", "c1", { dni: "1", enlace: "https://x.com" });
+    expect(r).toEqual({ ok: false, error: M.revisar, errores: { vip: "Este dato es obligatorio." } });
+    expect(valores()).toHaveLength(0);
+    // Si ya tenía valor guardado, no hace falta mandarlo.
+    B.agregar("fotofficeCustomValue", { workspaceId: "ws-1", fieldId: "vip", entityType: "CLIENTE", entityId: "c1", valueBool: true });
+    expect(await V.guardarValores(CTX, "CLIENTE", "c1", { dni: "1" })).toEqual({ ok: true });
+    // Y un obligatorio vacío frena aunque la entrada no traiga ningún campo conocido.
+    expect(await V.guardarValores(CTX, "CLIENTE", "c2", {})).toMatchObject({ ok: false, errores: { dni: M.obligatorio, vip: M.obligatorio } });
   });
 
   it("errores por campo con el motivo de cada tipo", async () => {
@@ -117,9 +130,10 @@ describe("validación", () => {
   });
 
   it("una opción archivada no se acepta como valor nuevo, pero sí se conserva la que ya tenía", async () => {
-    const r = await V.guardarValores(CTX, "CLIENTE", "c1", { estilo: "o-retro" });
+    const r = await V.guardarValores(CTX, "CLIENTE", "c1", { estilo: "o-retro", dni: "1" });
     expect(r).toEqual({ ok: false, error: M.revisar, errores: { estilo: "Elegí una de las opciones de la lista." } });
     B.agregar("fotofficeCustomValue", { workspaceId: "ws-1", fieldId: "estilo", entityType: "CLIENTE", entityId: "c2", optionId: "o-retro" });
+    B.agregar("fotofficeCustomValue", { workspaceId: "ws-1", fieldId: "dni", entityType: "CLIENTE", entityId: "c2", valueText: "2" });
     expect(await V.guardarValores(CTX, "CLIENTE", "c2", { estilo: "o-retro" })).toEqual({ ok: true });
     expect(historial()).toHaveLength(0);
   });
@@ -127,11 +141,13 @@ describe("validación", () => {
   it("una opción de otro campo se rechaza", async () => {
     B.agregar("fotofficeCustomField", { id: "otra-lista", workspaceId: "ws-1", entityType: "CLIENTE", key: "ol", name: "OL", type: "LISTA" });
     B.agregar("fotofficeCustomFieldOption", { id: "o-otra", fieldId: "otra-lista", label: "Otra" });
-    expect(await V.guardarValores(CTX, "CLIENTE", "c1", { estilo: "o-otra" })).toMatchObject({ ok: false, errores: { estilo: expect.any(String) } });
+    expect(await V.guardarValores(CTX, "CLIENTE", "c1", { estilo: "o-otra", dni: "1" })).toMatchObject({ ok: false, errores: { estilo: expect.any(String) } });
   });
 
   it("los campos archivados no se editan", async () => {
-    expect(await V.guardarValores(CTX, "CLIENTE", "c1", { viejo: "nuevo" })).toEqual({ ok: true });
+    expect(await V.guardarValores(CTX, "CLIENTE", "c1", { viejo: "nuevo", dni: "1" })).toEqual({ ok: true });
+    expect(valores().map((v) => v.fieldId)).toEqual(["dni"]);
+    B.datos.fotofficeCustomValue = B.datos.fotofficeCustomValue.filter((v) => v.fieldId !== "dni");
     expect(valores()).toHaveLength(0);
   });
 });
@@ -189,9 +205,26 @@ describe("historial", () => {
     h("h3", "borrado", "3");
     h("hx", "dni", "4", "ws-2");
     const todos = await V.cambiosDe("ws-1", "CLIENTE", "c1", { take: 10 });
-    expect(todos.map((c) => [c.id, c.campo])).toEqual([["h3", "Campo borrado"], ["h2", "Estilo"], ["h1", "DNI"]]);
-    const pagina = await V.cambiosDe("ws-1", "CLIENTE", "c1", { take: 1, antesDe: t("3") });
-    expect(pagina.map((c) => c.id)).toEqual(["h2"]);
-    expect(await V.cambiosDe("ws-1", "SOCIO", "c1", { take: 10 })).toEqual([]);
+    expect(todos.cambios.map((c) => [c.id, c.campo])).toEqual([["h3", "Campo borrado"], ["h2", "Estilo"], ["h1", "DNI"]]);
+    expect(todos.siguiente).toBeNull();
+    const pagina = await V.cambiosDe("ws-1", "CLIENTE", "c1", { take: 1, antesDe: { fecha: t("3"), id: "h3" } });
+    expect(pagina.cambios.map((c) => c.id)).toEqual(["h2"]);
+    expect(pagina.siguiente).toEqual({ fecha: t("2"), id: "h2" });
+    expect(await V.cambiosDe("ws-1", "SOCIO", "c1", { take: 10 })).toEqual({ cambios: [], siguiente: null });
+  });
+
+  it("cambiosDe no pierde filas de un mismo guardado al cortar la página", async () => {
+    await V.guardarValores(CTX, "CLIENTE", "c1", { dni: "1", vip: "si", monto: "5" });
+    expect(historial()).toHaveLength(3);
+    // Un solo createMany: en la base real comparten la fecha.
+    const misma = new Date("2026-10-01T15:00:00Z");
+    for (const h of historial()) h.createdAt = misma;
+    const p1 = await V.cambiosDe("ws-1", "CLIENTE", "c1", { take: 2 });
+    expect(p1.cambios).toHaveLength(2);
+    expect(p1.siguiente).not.toBeNull();
+    const p2 = await V.cambiosDe("ws-1", "CLIENTE", "c1", { take: 2, antesDe: p1.siguiente! });
+    expect(p2.cambios).toHaveLength(1);
+    expect(p2.siguiente).toBeNull();
+    expect(new Set([...p1.cambios, ...p2.cambios].map((c) => c.fieldId))).toEqual(new Set(["dni", "vip", "monto"]));
   });
 });
