@@ -310,6 +310,11 @@ async function obligatoriasPendientes(tx: Tx, workspaceId: string, journeyId: st
  * obligatorias, se frena salvo que quien puede `configurar` lo fuerce (queda registrado).
  * Con `esperado`, sólo cierra si el recorrido sigue en la etapa desde ese momento. Las tareas
  * pendientes quedan como están.
+ *
+ * `deSistema` es interno (nunca viene de un formulario): cuando el Sistema (`userId: null`)
+ * registra un éxito que otro módulo ya dio por hecho —p. ej. se aprobó una inscripción—, las
+ * obligatorias pendientes no lo frenan y el paso queda marcado como forzado. Con un usuario,
+ * no tiene efecto.
  */
 export async function cerrar(
   ctx: CtxCircuitos,
@@ -317,7 +322,7 @@ export async function cerrar(
   salida: string,
   lossReasonId?: string,
   nota?: string,
-  opts: { esperado?: Date; forzar?: boolean } = {},
+  opts: { esperado?: Date; forzar?: boolean; deSistema?: boolean } = {},
 ): Promise<ResultadoMover> {
   return enTransaccion((tx) => cerrarEnTransaccion(tx, ctx, journeyId, salida, lossReasonId, nota, opts));
 }
@@ -330,7 +335,7 @@ export async function cerrarEnTransaccion(
   salida: string,
   lossReasonId?: string,
   nota?: string,
-  opts: { esperado?: Date; forzar?: boolean } = {},
+  opts: { esperado?: Date; forzar?: boolean; deSistema?: boolean } = {},
 ): Promise<{ ok: true }> {
   const { workspaceId } = ctx;
   const j = await recorridoAbierto(tx, workspaceId, journeyId);
@@ -353,7 +358,8 @@ export async function cerrarEnTransaccion(
       select: { requireTasks: true },
     });
     if (actual?.requireTasks) pendientes = await obligatoriasPendientes(tx, workspaceId, j.id, j.stageId);
-    if (pendientes.length > 0 && !(opts.forzar === true && puede(ctx.role, "configurar"))) {
+    const fuerzaElSistema = opts.deSistema === true && ctx.userId === null;
+    if (pendientes.length > 0 && !fuerzaElSistema && !(opts.forzar === true && puede(ctx.role, "configurar"))) {
       throw new Rechazo(mensajeTareasPendientes(pendientes), pendientes);
     }
   }

@@ -3,6 +3,7 @@ import { prisma, type Prisma } from "@repo/db";
 import { EVENTOS, ESTADOS_CAPTACION, SALIDAS, type Evento } from "./constantes";
 import { esRetroceso } from "./calculos";
 import {
+  cerrar,
   cerrarEnTransaccion,
   esRechazo,
   iniciarEnTransaccion,
@@ -73,6 +74,27 @@ export async function notificarEvento(workspaceId: string, sujeto: Sujeto, event
   } catch (error) {
     registrarFalla("notificarEvento", { workspaceId, evento, tipo: sujeto.tipo }, error);
     return { movido: false };
+  }
+}
+
+/**
+ * Otro módulo ya dio por ganada una consulta (p. ej. se aprobó la inscripción de alguien que
+ * ya había consultado): cierra como Ganada su recorrido de venta abierto, como Sistema. Las
+ * tareas obligatorias pendientes no lo frenan (el paso queda marcado como forzado). Nunca
+ * lanza: una falla del motor no puede romper la operación del módulo que avisa.
+ */
+export async function ganarConsultaPorSistema(workspaceId: string, leadId: string, nota: string): Promise<{ cerrado: boolean }> {
+  try {
+    const abierto = await prisma.fotofficeJourney.findFirst({
+      where: { workspaceId, subjectType: "CAPTACION", subjectId: leadId, kind: "VENTA", closedAt: null },
+      select: { id: true },
+    });
+    if (!abierto) return { cerrado: false };
+    const r = await cerrar(contextoDeSistema(workspaceId), abierto.id, SALIDAS.VENTA.exito, undefined, nota, { deSistema: true });
+    return { cerrado: r.ok };
+  } catch (error) {
+    registrarFalla("ganarConsultaPorSistema", { workspaceId }, error);
+    return { cerrado: false };
   }
 }
 

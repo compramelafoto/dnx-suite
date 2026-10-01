@@ -84,6 +84,9 @@ vi.mock("@repo/db", () => {
 });
 
 vi.mock("./log", () => ({ logCourseEvent: logCourseEventMock }));
+// El motor de etapas tiene sus propias pruebas; acá sólo importa que la aprobación lo avise.
+const ganarConsultaMock = vi.hoisted(() => vi.fn(async () => ({ cerrado: true })));
+vi.mock("@/lib/circuitos/eventos", () => ({ ganarConsultaPorSistema: ganarConsultaMock }));
 
 vi.mock("./availability", () => ({
   computeAvailableSpots: () => 5,
@@ -161,6 +164,28 @@ beforeEach(() => {
   sendTransactionalEmailMock.mockReset().mockResolvedValue({ status: "SENT", providerId: "email_1" });
   warnSpy.mockClear();
   errorSpy.mockClear();
+  ganarConsultaMock.mockClear();
+});
+
+describe("aprobación y motor de etapas", () => {
+  it("con una consulta previa, la marca ganada y cierra su recorrido de venta como Sistema", async () => {
+    await approveCourseEnrollment({ enrollmentId: "enr-1" });
+    expect(leadUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "lead-1" }, data: expect.objectContaining({ status: "WON" }) }));
+    expect(ganarConsultaMock).toHaveBeenCalledTimes(1);
+    expect(ganarConsultaMock).toHaveBeenCalledWith("ws-sfpr", "lead-1", "Inscripción aprobada para Iluminación I");
+  });
+
+  it("sin consulta previa, no hay recorrido que cerrar", async () => {
+    leadFindFirstMock.mockResolvedValue(null);
+    await approveCourseEnrollment({ enrollmentId: "enr-1" });
+    expect(ganarConsultaMock).not.toHaveBeenCalled();
+  });
+
+  it("si el motor no pudo cerrar, la aprobación sigue igual", async () => {
+    ganarConsultaMock.mockResolvedValueOnce({ cerrado: false });
+    expect(await approveCourseEnrollment({ enrollmentId: "enr-1" })).toEqual({ ok: true, alreadyApproved: false });
+    expect(sendTransactionalEmailMock).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("aprobación con envío exitoso", () => {

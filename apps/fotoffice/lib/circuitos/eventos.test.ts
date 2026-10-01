@@ -202,6 +202,53 @@ describe("notificarEvento: reglas", () => {
   });
 });
 
+describe("ganarConsultaPorSistema", () => {
+  it("cierra como Ganada el recorrido abierto, como Sistema, aunque falten obligatorias (queda forzado)", async () => {
+    B.datos.fotofficeStage.find((s) => s.id === "s1")!.requireTasks = true;
+    B.agregar("fotofficeStageTaskTemplate", { stageId: "s1", title: "Llamar", required: true, order: 0 });
+    const id = await iniciado();
+    expect(await E.ganarConsultaPorSistema("ws-1", "lead-1", "Inscripción aprobada para Iluminación I")).toEqual({ cerrado: true });
+    expect(recorrido(id)).toMatchObject({ outcome: "GANADA", stageId: null, closedAt: AHORA });
+    expect(pasos(id).at(-1)).toMatchObject({
+      outcome: "GANADA", forcedWithPendingTasks: true, auto: true, actorUserId: null, actorLabel: "Sistema",
+      note: "Inscripción aprobada para Iluminación I",
+    });
+    expect(B.datos.serviceSalesLead.find((l) => l.id === "lead-1")!.status).toBe("WON");
+  });
+
+  it("sin obligatorias pendientes no marca forzado", async () => {
+    const id = await iniciado();
+    expect(await E.ganarConsultaPorSistema("ws-1", "lead-1", "x")).toEqual({ cerrado: true });
+    expect(pasos(id).at(-1)).toMatchObject({ outcome: "GANADA", forcedWithPendingTasks: false });
+  });
+
+  it("deSistema no sirve a un usuario: el equipo sigue frenado por las obligatorias", async () => {
+    B.datos.fotofficeStage.find((s) => s.id === "s1")!.requireTasks = true;
+    B.agregar("fotofficeStageTaskTemplate", { stageId: "s1", title: "Llamar", required: true, order: 0 });
+    const id = await iniciado();
+    expect(await R.cerrar(EQUIPO, id, "GANADA", undefined, undefined, { deSistema: true })).toMatchObject({ ok: false, pendientes: ["Llamar"] });
+    expect(recorrido(id).closedAt).toBeNull();
+  });
+
+  it("sin recorrido abierto, de otro workspace o con la base caída: no cierra y no lanza", async () => {
+    expect(await E.ganarConsultaPorSistema("ws-1", "lead-1", "x")).toEqual({ cerrado: false });
+    const id = await iniciado();
+    expect(await E.ganarConsultaPorSistema("ws-2", "lead-1", "x")).toEqual({ cerrado: false });
+    expect(recorrido(id).closedAt).toBeNull();
+    const original = B.tablas.fotofficeJourney.findFirst;
+    B.tablas.fotofficeJourney.findFirst = async () => {
+      throw Object.assign(new Error("Laura Pérez"), { code: "P1001" });
+    };
+    try {
+      expect(await E.ganarConsultaPorSistema("ws-1", "lead-1", "x")).toEqual({ cerrado: false });
+    } finally {
+      B.tablas.fotofficeJourney.findFirst = original;
+    }
+    expect(JSON.stringify(errores.mock.calls)).not.toContain("Laura");
+    expect(recorrido(id).closedAt).toBeNull();
+  });
+});
+
 describe("engancharConsultas", () => {
   function sembrarSeis() {
     for (const status of ["NEW", "CONTACTED", "QUOTED", "INTERESTED", "WON", "LOST"]) {
