@@ -7,8 +7,12 @@ const B = await vi.hoisted(async () => {
 
 vi.mock("server-only", () => ({}));
 vi.mock("@repo/db", () => ({ prisma: B.prisma }));
+const H = vi.hoisted(() => ({ encendidos: new Set<string>() }));
+vi.mock("@/lib/modules/gating", () => ({ isModuleEnabledForWorkspace: async (_ws: string, clave: string) => H.encendidos.has(clave) }));
 
 const { proveedorCampos } = await import("./campos");
+const { CLIENTS_MODULE_KEY } = await import("@/lib/clients/constants");
+const { MEMBERS_MODULE_KEY } = await import("@/lib/members/constants");
 const { armarLinea } = await import("../linea-de-tiempo");
 
 const T = (min: number) => new Date(Date.UTC(2026, 9, 1, 12, min));
@@ -19,6 +23,7 @@ function cambio(id: string, extra: Record<string, unknown>) {
 }
 
 beforeEach(() => {
+  H.encendidos = new Set([CLIENTS_MODULE_KEY, MEMBERS_MODULE_KEY]);
   B.vaciar();
   B.agregar("fotofficeCustomField", { id: "f-dni", workspaceId: "ws-1", entityType: "CLIENTE", key: "dni", name: "DNI", type: "TEXTO" });
   B.agregar("fotofficeCustomField", { id: "f-cat", workspaceId: "ws-1", entityType: "SOCIO", key: "cat", name: "Categoría vieja", type: "TEXTO" });
@@ -55,6 +60,16 @@ describe("proveedor campos — cambios de «Más datos» en la línea de tiempo"
     expect((await proveedorCampos.traer(WS, { clientId: "c1", memberId: null }, null, 10)).map((e) => e.id)).toEqual(["campos:a1"]);
     expect((await proveedorCampos.traer(WS, { clientId: null, memberId: "m1" }, null, 10)).map((e) => e.id)).toEqual(["campos:a2"]);
     expect(await proveedorCampos.traer(WS, { clientId: null, memberId: null }, null, 10)).toEqual([]);
+  });
+
+  it("cada lado sólo con su módulo encendido, como «Más datos» en la ficha", async () => {
+    const persona = { clientId: "c1", memberId: "m1" };
+    H.encendidos = new Set([CLIENTS_MODULE_KEY]);
+    expect((await proveedorCampos.traer(WS, persona, null, 10)).map((e) => e.id)).toEqual(["campos:a1"]);
+    H.encendidos = new Set([MEMBERS_MODULE_KEY]);
+    expect((await proveedorCampos.traer(WS, persona, null, 10)).map((e) => e.id)).toEqual(["campos:a2"]);
+    H.encendidos = new Set();
+    expect(await proveedorCampos.traer(WS, persona, null, 10)).toEqual([]);
   });
 
   it("otro workspace no ve nada aunque coincidan los ids", async () => {
