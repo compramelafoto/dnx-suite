@@ -7,6 +7,7 @@ const H = vi.hoisted(() => ({
   crear: vi.fn(),
   notificar: vi.fn(),
   numerar: vi.fn(),
+  responder: vi.fn(),
 }));
 
 vi.mock("@repo/db", () => ({
@@ -18,6 +19,7 @@ vi.mock("@repo/db", () => ({
 }));
 vi.mock("@/lib/circuitos/eventos", () => ({ notificarEvento: H.notificar }));
 vi.mock("@/lib/service-leads/numero", () => ({ numerarConsultaNueva: H.numerar }));
+vi.mock("@/lib/plantillas/automaticos", () => ({ responderConsultaNueva: H.responder }));
 
 const { createServiceLead } = await import("./service-lead");
 
@@ -30,6 +32,7 @@ beforeEach(() => {
   H.crear.mockResolvedValue({ id: "lead-9", createdAt: ALTA });
   H.numerar.mockResolvedValue({ year: 2026, value: 1, display: "2026-0001" });
   H.notificar.mockResolvedValue({ movido: true });
+  H.responder.mockResolvedValue("APAGADA");
 });
 
 describe("createServiceLead", () => {
@@ -78,6 +81,33 @@ describe("createServiceLead", () => {
     expect(registrado).toContain("P2000");
     expect(H.notificar).not.toHaveBeenCalled();
     errores.mockRestore();
+  });
+
+  it("responde la consulta automáticamente después de numerarla, con el workspace del slug", async () => {
+    await createServiceLead(ENTRADA);
+    expect(H.responder).toHaveBeenCalledTimes(1);
+    expect(H.responder).toHaveBeenCalledWith("ws-1", "lead-9");
+    expect(H.numerar.mock.invocationCallOrder[0]).toBeLessThan(H.responder.mock.invocationCallOrder[0]!);
+  });
+
+  it("si la respuesta automática explota, el alta igual sale bien y sigue al motor", async () => {
+    const errores = vi.spyOn(console, "error").mockImplementation(() => {});
+    H.responder.mockRejectedValue(new Error("Resend caído laura@example.com"));
+    expect(await createServiceLead(ENTRADA)).toEqual({ success: true });
+    expect(H.notificar).toHaveBeenCalled();
+    expect(JSON.stringify(errores.mock.calls)).not.toContain("laura@example.com");
+    errores.mockRestore();
+  });
+
+  it("sin workspace o si falla el alta, no responde", async () => {
+    H.branding.mockResolvedValue(null);
+    await createServiceLead(ENTRADA);
+    H.branding.mockResolvedValue({ workspaceId: "ws-1", publicSlug: "dnx-estudio" });
+    const errores = vi.spyOn(console, "error").mockImplementation(() => {});
+    H.crear.mockRejectedValue(new Error("x"));
+    await createServiceLead(ENTRADA);
+    errores.mockRestore();
+    expect(H.responder).not.toHaveBeenCalled();
   });
 
   it("no quedan console.log en el archivo", () => {

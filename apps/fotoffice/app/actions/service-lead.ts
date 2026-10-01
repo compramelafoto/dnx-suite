@@ -3,6 +3,7 @@
 import { Prisma, prisma } from "@repo/db";
 import { z } from "zod";
 import { notificarEvento } from "@/lib/circuitos/eventos";
+import { responderConsultaNueva } from "@/lib/plantillas/automaticos";
 import { numerarConsultaNueva } from "@/lib/service-leads/numero";
 
 const serviceLeadSchema = z.object({
@@ -117,6 +118,15 @@ export async function createServiceLead(
     // falla de la numeración nunca deshaga el alta (numerarConsultaNueva no lanza; si falla, la
     // numera el próximo enganche).
     await numerarConsultaNueva(branding.workspaceId, creado.id, creado.createdAt);
+
+    // Respuesta automática por correo (0.6), sólo en este camino del formulario público: va después
+    // del número para que [consulta_numero] ya exista. Nunca hace fallar el alta (no lanza; si el
+    // correo falla, queda registrado como "Falló").
+    try {
+      await responderConsultaNueva(branding.workspaceId, creado.id);
+    } catch {
+      console.error("[plantillas] no se pudo enganchar la respuesta automática");
+    }
 
     // El motor de etapas la pone en la primera etapa. Una falla
     // del motor nunca hace fallar el alta (notificarEvento no lanza; esto es por las dudas).
