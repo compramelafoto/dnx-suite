@@ -11895,6 +11895,8 @@ model ClickatonEdition {
   resultSettings             ClickatonEditionResultSettings?
   homeDelivery               ClickatonEditionHomeDelivery?
   homeDeliveryShipments      ClickatonRegistrationShipping[]
+  /// Comisiones de fotógrafos afiliados por inscripciones de esta edición.
+  affiliateCommissions       ClickatonAffiliateCommission[]
 
   /// Habilita la compra de regalos en esta edición. Nace apagado.
   giftVouchersEnabled Boolean @default(false)
@@ -12370,6 +12372,7 @@ model ClickatonRegistration {
   credential                         ClickatonParticipantCredential?
   checkIns                           ClickatonCheckIn[]
   shipping                           ClickatonRegistrationShipping?
+  affiliateCommission                ClickatonAffiliateCommission?
   kitDeliveries                      ClickatonKitDelivery[]
   statusHistory                      ClickatonRegistrationStatusHistory[]
   audits                             ClickatonRegistrationAudit[]
@@ -19053,5 +19056,90 @@ model ClickatonRegistrationShipping {
   registration ClickatonRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
   edition      ClickatonEdition      @relation(fields: [editionId], references: [id], onDelete: Restrict)
 
+  @@index([editionId, status])
+}
+
+/// Fotógrafo que comparte un código de descuento y cobra una comisión por cada
+/// inscripción que lo usa. Cobra por Split 1:N de Mercado Pago (si aceptó la
+/// invitación) o, si no se puede repartir, a mano.
+model ClickatonAffiliate {
+  id                 String    @id @default(cuid())
+  /// Usuario DNX del fotógrafo (para Mi cuenta). Sin FK: no toca `User`.
+  userId             Int?      @unique
+  displayName        String
+  /// Email de contacto.
+  email              String
+  /// Email de la cuenta de Mercado Pago a la que se le manda la invitación.
+  mpSellerEmail      String    @unique
+  /// `DnxPaymentRecipient.id` (tipo AFFILIATE) que espera el paquete de pagos.
+  paymentRecipientId String?
+  /// receiver_id de MP: es un UUID, no el id numérico de la cuenta.
+  consentReceiverId  String?
+  /// NONE | PENDING | ACTIVE | REJECTED | CANCELED | EXPIRED
+  consentStatus      String    @default("NONE")
+  consentInviteUrl   String?
+  consentCheckedAt   DateTime?
+  isActive           Boolean   @default(true)
+  notes              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  commissions ClickatonAffiliateCommission[]
+}
+
+enum ClickatonAffiliateCommissionMode {
+  /// Se le pagó en el mismo cobro, por Split 1:N.
+  SPLIT
+  /// Se cobró por Checkout Pro: se le transfiere a mano.
+  MANUAL
+}
+
+enum ClickatonAffiliateCommissionStatus {
+  /// Reservada al crear la inscripción; todavía no hay cobro.
+  PENDING
+  PAID_BY_SPLIT
+  /// Cobrada sin reparto: se le debe al fotógrafo.
+  OWED
+  /// Transferida a mano.
+  PAID_OUT
+  /// Reembolso, anulación o reserva vencida: el fotógrafo pierde la comisión.
+  REVERSED
+}
+
+/// Libro de comisiones: una por inscripción que usó un código con dueño.
+/// Montos en centavos.
+model ClickatonAffiliateCommission {
+  id                    String                             @id @default(cuid())
+  registrationId        String                             @unique
+  editionId             String
+  affiliateId           String
+  promotionId           String
+  promotionCodeSnapshot String
+  commissionBps         Int
+  /// Precio de lista de la inscripción, sin descuento ni envío.
+  baseAmount            Int
+  grossAmount           Int
+  mpFeeBps              Int
+  mpFeeShareAmount      Int
+  /// Lo que recibe el fotógrafo.
+  netAmount             Int
+  /// Se define al cobrar.
+  mode                  ClickatonAffiliateCommissionMode?
+  status                ClickatonAffiliateCommissionStatus @default(PENDING)
+  providerOrderId       String?
+  paidAt                DateTime?
+  paidOutAt             DateTime?
+  paidOutByUserId       Int?
+  paidOutReference      String?
+  reversedAt            DateTime?
+  reversalReason        String?
+  createdAt             DateTime                           @default(now())
+  updatedAt             DateTime                           @updatedAt
+
+  registration ClickatonRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  edition      ClickatonEdition      @relation(fields: [editionId], references: [id], onDelete: Restrict)
+  affiliate    ClickatonAffiliate    @relation(fields: [affiliateId], references: [id], onDelete: Restrict)
+
+  @@index([affiliateId, status])
   @@index([editionId, status])
 }
