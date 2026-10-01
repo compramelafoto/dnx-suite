@@ -403,6 +403,13 @@ describe("asignarResponsable", () => {
     expect(recorrido(id).ownerUserId).toBeNull();
   });
 
+  it("recorrido cerrado: lo rechaza y no cambia el responsable", async () => {
+    const id = await iniciado();
+    expect(await R.cerrar(EQUIPO, id, "PERDIDA", "r1")).toEqual({ ok: true });
+    expect(await R.asignarResponsable(EQUIPO, id, 7)).toEqual({ ok: false, error: "Ese registro ya está cerrado." });
+    expect(recorrido(id).ownerUserId).toBeNull();
+  });
+
   it("recorrido de otro workspace: no encontrado", async () => {
     expect(await R.asignarResponsable(EQUIPO, "j-ajeno", 7)).toEqual({ ok: false, error: "No encontramos ese registro." });
     expect(recorrido("j-ajeno").ownerUserId).toBeNull();

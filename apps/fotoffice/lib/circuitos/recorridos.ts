@@ -419,17 +419,19 @@ export async function cambiarVencimiento(
   });
 }
 
-/** Asigna (o quita, con null) el responsable del recorrido. Sólo miembros del workspace. */
+/** Asigna (o quita, con null) el responsable de un recorrido abierto. Sólo miembros del workspace. */
 export async function asignarResponsable(ctx: CtxCircuitos, journeyId: string, userId: number | null): Promise<Resultado> {
   const { workspaceId } = ctx;
   return enTransaccion(async (tx) => {
-    const j = await tx.fotofficeJourney.findFirst({ where: { id: journeyId, workspaceId }, select: { id: true } });
+    const j = await tx.fotofficeJourney.findFirst({ where: { id: journeyId, workspaceId }, select: { id: true, closedAt: true } });
     if (!j) throw new Rechazo(MENSAJES.noEncontrado);
+    if (j.closedAt !== null) throw new Rechazo(MENSAJES.cerrado);
     if (userId !== null) {
       const miembro = await tx.workspaceMembership.findFirst({ where: { userId, workspaceId }, select: { id: true } });
       if (!miembro) throw new Rechazo(MENSAJES.noEsDelEquipo);
     }
-    await tx.fotofficeJourney.updateMany({ where: { id: j.id, workspaceId }, data: { ownerUserId: userId } });
+    const actualizado = await tx.fotofficeJourney.updateMany({ where: { id: j.id, workspaceId, closedAt: null }, data: { ownerUserId: userId } });
+    if (actualizado.count !== 1) throw new Rechazo(MENSAJES.cerrado);
     return { ok: true as const };
   });
 }
