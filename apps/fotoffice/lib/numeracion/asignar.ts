@@ -66,13 +66,37 @@ function siguienteDeAnioAnterior(tx: Tx, workspaceId: string, key: ClaveSecuenci
     WHERE r."workspaceId" = ${workspaceId} AND r."sequenceKey" = ${key} AND r."year" = ${anio}::int`;
 }
 
-async function tomarNumero(tx: Tx, workspaceId: string, key: ClaveSecuencia, anio: number): Promise<FilaAsignada | null> {
+/** Número que ya tiene el registro, o null. Si es de otro workspace, lanza. */
+async function numeroExistente(tx: Tx, workspaceId: string, entityType: string, entityId: string): Promise<NumeroAsignado | null> {
+  const ya = await tx.fotofficeRecordNumber.findFirst({
+    where: { entityType, entityId },
+    select: { workspaceId: true, year: true, value: true, display: true },
+  });
+  if (!ya) return null;
+  if (ya.workspaceId !== workspaceId) throw new Error("El registro es de otro workspace.");
+  return { year: ya.year, value: ya.value, display: ya.display };
+}
+
+/**
+ * Con el candado tomado vuelve a mirar si el registro ya tiene número (`yaNumerado`): si otra
+ * transacción numeró el MISMO registro mientras esta esperaba, devuelve ese número en vez de
+ * consumir otro y chocar con el índice único.
+ */
+async function tomarNumero(
+  tx: Tx,
+  workspaceId: string,
+  key: ClaveSecuencia,
+  anio: number,
+  yaNumerado: () => Promise<NumeroAsignado | null>,
+): Promise<FilaAsignada | NumeroAsignado | null> {
   let [sec] = await bloquear(tx, workspaceId, key);
   if (!sec) {
     await asegurarSecuencias(workspaceId, tx);
     [sec] = await bloquear(tx, workspaceId, key);
   }
   if (!sec) return null;
+  const ya = await yaNumerado();
+  if (ya) return ya;
   if (sec.withYear && sec.currentYear !== null && anio < Number(sec.currentYear)) {
     const [r] = await siguienteDeAnioAnterior(tx, workspaceId, key, anio);
     return { value: r?.value ?? 1, year: anio, prefix: sec.prefix, withYear: true, digits: sec.digits };
@@ -93,18 +117,13 @@ export async function asignarNumero(
   const { workspaceId, key, entityType, entityId, fecha } = args;
   if (!esClaveSecuencia(key)) throw new Error(`Secuencia desconocida: ${String(key)}`);
 
-  const ya = await tx.fotofficeRecordNumber.findFirst({
-    where: { entityType, entityId },
-    select: { workspaceId: true, year: true, value: true, display: true },
-  });
-  if (ya) {
-    if (ya.workspaceId !== workspaceId) throw new Error("El registro es de otro workspace.");
-    return { year: ya.year, value: ya.value, display: ya.display };
-  }
+  const ya = await numeroExistente(tx, workspaceId, entityType, entityId);
+  if (ya) return ya;
 
   const anio = anioEnBuenosAires(fecha);
-  const fila = await tomarNumero(tx, workspaceId, key, anio);
+  const fila = await tomarNumero(tx, workspaceId, key, anio, () => numeroExistente(tx, workspaceId, entityType, entityId));
   if (!fila) throw new Error(`No se pudo crear la secuencia ${key}.`);
+  if ("display" in fila) return fila;
 
   const value = Number(fila.value);
   const year = fila.year === null ? null : Number(fila.year);

@@ -103,6 +103,23 @@ describe("asignarNumero", () => {
     expect(B.datos.fotofficeRecordNumber).toHaveLength(1);
   });
 
+  it("si otra transacción numeró el MISMO registro mientras esperaba el candado, devuelve ese número", async () => {
+    await numerar();
+    // La otra corrida confirma el número de "lead-x" justo cuando esta toma el candado.
+    B.ganchos.alEjecutarSql = (texto) => {
+      if (!texto.includes("numeracion-candado") || B.datos.fotofficeRecordNumber.some((r) => r.entityId === "lead-x")) return;
+      secuencia("CONSULTA").nextValue = 3;
+      B.datos.fotofficeRecordNumber.push({
+        id: "rn-otra", workspaceId: "ws-1", sequenceKey: "CONSULTA", entityType: "CONSULTA", entityId: "lead-x",
+        year: 2026, value: 2, display: "2026-0002", createdAt: HOY,
+      });
+    };
+    expect(await numerar("CONSULTA", HOY, "ws-1", "lead-x")).toEqual({ year: 2026, value: 2, display: "2026-0002" });
+    expect(secuencia("CONSULTA").nextValue).toBe(3);
+    expect(B.datos.fotofficeRecordNumber.filter((r) => r.entityId === "lead-x")).toHaveLength(1);
+    expect(B.sql.filter((q) => q.texto.includes("numeracion-asignar"))).toHaveLength(1);
+  });
+
   it("si la transacción del llamador se deshace, el número no se consume", async () => {
     await numerar();
     await expect(
