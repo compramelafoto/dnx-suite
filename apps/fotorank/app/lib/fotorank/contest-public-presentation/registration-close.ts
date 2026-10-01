@@ -34,10 +34,24 @@ function overrideLabel(slug: string): string | null {
   return null;
 }
 
-export function formatPublicDate(date: Date | null | undefined): string | null {
+/**
+ * Sin `timeZone` explícito el servidor (UTC en Vercel) mostraba un cierre a las 23:59 de
+ * Argentina como el día siguiente. Se usa la zona del concurso y, si no tiene, Argentina.
+ */
+const ZONA_PUBLICA_POR_DEFECTO = "America/Argentina/Buenos_Aires";
+
+export function formatPublicDate(
+  date: Date | null | undefined,
+  timeZone?: string | null,
+): string | null {
   if (!date) return null;
   try {
-    return date.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" });
+    return date.toLocaleDateString("es-AR", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      timeZone: timeZone || ZONA_PUBLICA_POR_DEFECTO,
+    });
   } catch {
     return null;
   }
@@ -47,9 +61,13 @@ export function resolveRegistrationCloseLabel(input: {
   slug: string;
   registrationClosesAt?: Date | null;
   submissionDeadline?: Date | null;
+  timezone?: string | null;
 }): string | null {
   const override = overrideLabel(input.slug);
   if (override) return override;
   // Sin override: la fecha de cierre de inscripción manda sobre la de entrega.
-  return formatPublicDate(input.registrationClosesAt ?? input.submissionDeadline ?? null);
+  return formatPublicDate(
+    input.registrationClosesAt ?? input.submissionDeadline ?? null,
+    input.timezone,
+  );
 }
