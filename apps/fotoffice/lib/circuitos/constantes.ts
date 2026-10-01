@@ -19,3 +19,5 @@ export const ETIQUETA_EVENTO: Record<Evento, string> = {
 };
 export const EVENTOS_CONECTADOS: readonly Evento[] = ["CONSULTA_RECIBIDA"];
 export const ESTADOS_CAPTACION = ["NEW", "CONTACTED", "QUOTED", "INTERESTED"] as const;
+/** Nota de los pasos que escribe la importación de consultas existentes (el informe no los cuenta como movimiento). */
+export const NOTA_IMPORTADA = "Importada con su estado anterior";

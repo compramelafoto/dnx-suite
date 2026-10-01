@@ -1,12 +1,17 @@
 import "server-only";
 import { prisma } from "@repo/db";
-import { SALIDAS } from "./constantes";
+import { NOTA_IMPORTADA, SALIDAS } from "./constantes";
 
 /**
  * Informe de un circuito en un período: cuánto tardan las consultas en cada etapa, cuántas
  * pasan por ella, cuántas se pierden desde ahí y por qué motivos. Todo acotado al workspace:
  * un circuito de otro workspace (o inexistente) devuelve null. El período (`desde`–`hasta`,
  * ambos incluidos) lo arma quien llama en hora de Buenos Aires (`resolverPeriodo`).
+ *
+ * Los pasos de la importación de consultas existentes (nota `NOTA_IMPORTADA`) no son
+ * movimiento real: no cuentan en "pasaron", en el promedio de días (ni como salida ni como
+ * la entrada desde la que se mide) ni en "perdidas desde acá". Sus cierres sí cuentan como
+ * ganadas / perdidas (y su motivo) en el mes de su fecha histórica.
  */
 
 export type EtapaInforme = {
@@ -31,7 +36,18 @@ export type InformeCircuito = {
 const DIA_MS = 24 * 60 * 60 * 1000;
 export const SIN_MOTIVO = "Sin motivo";
 
-type Paso = { id: string; journeyId: string; fromStageId: string | null; toStageId: string | null; outcome: string | null; createdAt: Date };
+type Paso = {
+  id: string;
+  journeyId: string;
+  fromStageId: string | null;
+  toStageId: string | null;
+  outcome: string | null;
+  note: string | null;
+  createdAt: Date;
+};
+
+/** Paso escrito por la importación de consultas existentes, no por un movimiento real. */
+const esImportado = (p: Paso) => p.note === NOTA_IMPORTADA;
 
 /** Entrada a una etapa: un paso que llega a una etapa distinta de la de origen (no un cambio de vencimiento). */
 const esEntrada = (p: Paso) => p.toStageId !== null && p.fromStageId !== p.toStageId;
@@ -44,7 +60,7 @@ export async function informeCircuito(workspaceId: string, circuitId: string, de
   const salidas = (SALIDAS as Record<string, { exito: string; fracaso: string } | undefined>)[circuito.kind] ?? SALIDAS.VENTA;
   const enPeriodo = (d: Date) => d.getTime() >= desde.getTime() && d.getTime() <= hasta.getTime();
 
-  const selectPaso = { id: true, journeyId: true, fromStageId: true, toStageId: true, outcome: true, createdAt: true } as const;
+  const selectPaso = { id: true, journeyId: true, fromStageId: true, toStageId: true, outcome: true, note: true, createdAt: true } as const;
   const [etapas, pasosPeriodo, cerradasPerdidas] = await Promise.all([
     prisma.fotofficeStage.findMany({
       where: { circuitId: circuito.id, circuit: { workspaceId } },
@@ -62,7 +78,7 @@ export async function informeCircuito(workspaceId: string, circuitId: string, de
   ]);
 
   // Para medir cuánto estuvo en la etapa hace falta la entrada, que puede ser anterior al período.
-  const conSalida = [...new Set(pasosPeriodo.filter(esSalida).map((p) => p.journeyId))];
+  const conSalida = [...new Set(pasosPeriodo.filter((p) => esSalida(p) && !esImportado(p)).map((p) => p.journeyId))];
   const historia: Paso[] = conSalida.length
     ? await prisma.fotofficeJourneyStep.findMany({
         where: { journeyId: { in: conSalida }, createdAt: { lte: hasta }, journey: { workspaceId, circuitId: circuito.id } },
@@ -72,15 +88,16 @@ export async function informeCircuito(workspaceId: string, circuitId: string, de
     : [];
 
   const duraciones = new Map<string, number[]>();
-  let actual: { journeyId: string; stageId: string; desde: Date } | null = null;
+  let actual: { journeyId: string; stageId: string; desde: Date; importada: boolean } | null = null;
   for (const p of historia) {
     if (actual && actual.journeyId !== p.journeyId) actual = null;
-    if (esSalida(p) && enPeriodo(p.createdAt) && actual && actual.stageId === p.fromStageId) {
+    // Una entrada importada no dice cuándo llegó de verdad a la etapa: esa estadía no se mide.
+    if (esSalida(p) && !esImportado(p) && enPeriodo(p.createdAt) && actual && !actual.importada && actual.stageId === p.fromStageId) {
       const lista = duraciones.get(p.fromStageId!) ?? [];
       lista.push(p.createdAt.getTime() - actual.desde.getTime());
       duraciones.set(p.fromStageId!, lista);
     }
-    if (esEntrada(p)) actual = { journeyId: p.journeyId, stageId: p.toStageId!, desde: p.createdAt };
+    if (esEntrada(p)) actual = { journeyId: p.journeyId, stageId: p.toStageId!, desde: p.createdAt, importada: esImportado(p) };
     else if (p.toStageId === null && p.fromStageId !== null) actual = null;
   }
 
@@ -89,7 +106,7 @@ export async function informeCircuito(workspaceId: string, circuitId: string, de
   let ganadas = 0;
   let perdidas = 0;
   for (const p of pasosPeriodo) {
-    if (esEntrada(p)) {
+    if (esEntrada(p) && !esImportado(p)) {
       const s = entraron.get(p.toStageId!) ?? new Set<string>();
       s.add(p.journeyId);
       entraron.set(p.toStageId!, s);
@@ -97,7 +114,8 @@ export async function informeCircuito(workspaceId: string, circuitId: string, de
     if (p.toStageId === null && p.outcome === salidas.exito) ganadas++;
     if (p.toStageId === null && p.outcome === salidas.fracaso) {
       perdidas++;
-      if (p.fromStageId) perdidasDesde.set(p.fromStageId, (perdidasDesde.get(p.fromStageId) ?? 0) + 1);
+      // Se sabe que se perdió, no desde qué etapa: el importado no suma a "perdidas desde acá".
+      if (p.fromStageId && !esImportado(p)) perdidasDesde.set(p.fromStageId, (perdidasDesde.get(p.fromStageId) ?? 0) + 1);
     }
   }
 

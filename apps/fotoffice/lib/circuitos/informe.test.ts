@@ -56,6 +56,28 @@ describe("informeCircuito", () => {
     expect(r.motivos).toEqual([{ nombre: "Precio", cantidad: 1 }]);
   });
 
+  it("los pasos importados no cuentan como movimiento; lo real posterior, sí", async () => {
+    const IMP = { note: "Importada con su estado anterior", auto: true, actorLabel: "Sistema" };
+    // i1: consulta creada el 05/10 (mes de la migración) e importada como CONTACTED.
+    B.agregar("fotofficeJourney", { ...J, id: "i1", subjectId: "li1", stageId: "s2" });
+    paso("i1", null, "s1", "2026-10-05T15:00:00Z", IMP);
+    paso("i1", "s1", "s2", "2026-10-05T15:00:00.001Z", IMP);
+    // Movimiento real después de la importación: sale de s2 (entrada importada: no se mide) a s3.
+    paso("i1", "s2", "s3", "2026-10-20T15:00:00Z");
+    // i2: perdida importada con fecha de octubre, desde la primera etapa.
+    B.agregar("fotofficeJourney", { ...J, id: "i2", subjectId: "li2", outcome: "PERDIDA", lossReasonId: "m1", closedAt: d("2026-10-06T15:00:00.002Z") });
+    paso("i2", null, "s1", "2026-10-06T15:00:00Z", IMP);
+    paso("i2", "s1", null, "2026-10-06T15:00:00.002Z", { ...IMP, outcome: "PERDIDA" });
+
+    const r = (await informeCircuito("ws-1", "c1", OCTUBRE.desde, OCTUBRE.hasta))!;
+    const e = Object.fromEntries(r.etapas.map((x) => [x.id, x]));
+    expect(e.s1).toMatchObject({ pasaron: 0, diasPromedio: null, perdidasDesdeAca: 0 });
+    expect(e.s2).toMatchObject({ pasaron: 0, diasPromedio: null });
+    expect(e.s3).toMatchObject({ pasaron: 1 }); // la entrada real sí cuenta
+    // El cierre importado cuenta en su mes, con su motivo.
+    expect(r).toMatchObject({ ganadas: 0, perdidas: 1, motivos: [{ nombre: "Precio", cantidad: 1 }] });
+  });
+
   it("etapas sin pasos → null; las archivadas sin movimiento no aparecen", async () => {
     const r = (await informeCircuito("ws-1", "c1", OCTUBRE.desde, OCTUBRE.hasta))!;
     expect(r.etapas.map((x) => x.id)).toEqual(["s1", "s2", "s3"]);
