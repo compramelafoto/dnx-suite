@@ -371,7 +371,8 @@ export async function editarEtapa(
 
 /**
  * Nuevo orden de las etapas activas. Exige exactamente las etapas no archivadas del circuito
- * (sin repetidas, sin faltantes, sin ajenas) y reescribe `order` 0..n. Sólo escribe en
+ * (sin repetidas, sin faltantes, sin ajenas) y reescribe `order` 0..n-1; las archivadas quedan
+ * detrás (n…), en el orden relativo que tenían. Sólo escribe en
  * `fotofficeStage`: ningún recorrido cambia de etapa.
  */
 export async function reordenarEtapas(ctx: CtxConfiguracion, circuitId: string, idsEnOrden: unknown): Promise<Resultado> {
@@ -392,6 +393,16 @@ export async function reordenarEtapas(ctx: CtxConfiguracion, circuitId: string, 
     }
     for (const [order, stageId] of ids.entries()) {
       await tx.fotofficeStage.updateMany({ where: { id: stageId, circuitId: c.id }, data: { order } });
+    }
+    // Las archivadas van detrás (n, n+1, …) conservando su orden relativo: si compartieran
+    // número con una activa, `esRetroceso` no sabría cuál va antes.
+    const archivadas = await tx.fotofficeStage.findMany({
+      where: { circuitId: c.id, circuit: { workspaceId: ctx.workspaceId }, archivedAt: { not: null } },
+      select: { id: true },
+      orderBy: [{ order: "asc" }, { id: "asc" }],
+    });
+    for (const [i, etapa] of archivadas.entries()) {
+      await tx.fotofficeStage.updateMany({ where: { id: etapa.id, circuitId: c.id }, data: { order: ids.length + i } });
     }
     return { ok: true as const };
   });

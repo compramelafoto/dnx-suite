@@ -100,6 +100,17 @@ describe("reordenarEtapas", () => {
     expect(B.datos.fotofficeJourney.map((j) => ({ id: j.id, stageId: j.stageId }))).toEqual(antes);
   });
 
+  it("renumera las archivadas detrás de las activas, conservando su orden relativo", async () => {
+    // Números que chocan con los de las activas (p. ej. tras archivar y reordenar antes).
+    etapa("s-arch")!.order = 1;
+    B.agregar("fotofficeStage", { id: "s-arch2", circuitId: "c1", name: "Más vieja", order: 0, archivedAt: new Date("2026-01-01T00:00:00Z") });
+    expect(await C.reordenarEtapas(ADMIN, "c1", ["s3", "s1", "s2"])).toEqual({ ok: true });
+    expect([etapa("s3")!.order, etapa("s1")!.order, etapa("s2")!.order]).toEqual([0, 1, 2]);
+    expect([etapa("s-arch2")!.order, etapa("s-arch")!.order]).toEqual([3, 4]);
+    expect(etapa("xs1")!.order).toBe(0);
+    expect(etapa("u1")!.order).toBe(0);
+  });
+
   it("rechaza ids incompletos, repetidos, archivados o ajenos sin escribir", async () => {
     for (const ids of [
       ["s1", "s2"],
