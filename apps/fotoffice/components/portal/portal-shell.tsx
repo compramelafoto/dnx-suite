@@ -31,10 +31,10 @@ export function PortalShell({
     <div className="min-h-screen bg-[var(--fo-bg)] pb-20 text-[var(--fo-text)] md:pb-0">
       {/*
         Pegado arriba: la identidad del socio tiene que estar a mano en cualquier punto de una
-        lista larga de cuotas, no solo al principio. Mide 4rem justos: el panel lateral se
-        engancha debajo con `top-16`.
+        lista larga de cuotas, no solo al principio. Mide 5rem en el teléfono y 6rem desde
+        pantalla mediana: el panel lateral se engancha justo debajo con `top-24`.
       */}
-      <header className="sticky top-0 z-30 h-16 border-b border-[var(--fo-border)] bg-[var(--fo-surface)]">
+      <header className="sticky top-0 z-30 h-20 border-b border-[var(--fo-border)] md:h-24 bg-[var(--fo-surface)]">
         <div className="mx-auto flex h-full max-w-7xl items-center gap-3 px-4 md:px-6">
           <div className="flex min-w-0 flex-1 items-center gap-3">
             {institution.logoUrl ? (
@@ -42,7 +42,7 @@ export function PortalShell({
               <img
                 src={institution.logoUrl}
                 alt={institution.name}
-                className="h-10 w-auto max-w-32 shrink-0 object-contain"
+                className="h-14 w-auto max-w-40 shrink-0 object-contain md:h-20 md:max-w-64"
               />
             ) : null}
             <span className="hidden truncate text-sm font-semibold sm:block">{institution.name}</span>
