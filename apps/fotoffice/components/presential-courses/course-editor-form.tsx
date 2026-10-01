@@ -20,6 +20,10 @@ type CourseFormInitial = {
   instructorName?: string | null;
   level?: string | null;
   status?: "DRAFT" | "PUBLISHED" | "UPCOMING" | "HIDDEN";
+  deliveryMode?: "PRESENCIAL" | "LIVE" | "RECORDED";
+  priceArs?: string | null;
+  accessMonths?: number;
+  completionPercent?: number;
   faqJson?: unknown;
   classroomLink?: string | null;
   classroomCode?: string | null;
@@ -67,6 +71,25 @@ export function CourseEditorForm({
               <option value="UPCOMING">Próximamente</option>
               <option value="HIDDEN">Oculto</option>
             </select>
+          </div>
+          <div className="fo-field-stack">
+            <label className="fo-label" htmlFor="deliveryMode">
+              Modalidad
+            </label>
+            <select
+              id="deliveryMode"
+              name="deliveryMode"
+              className="fo-input"
+              defaultValue={initial?.deliveryMode ?? "PRESENCIAL"}
+            >
+              <option value="PRESENCIAL">Presencial</option>
+              <option value="LIVE">En vivo</option>
+              <option value="RECORDED">Grabado</option>
+            </select>
+            <p className="fo-helper">
+              El presencial y el que va en vivo se organizan en ediciones con fecha y lugar. El
+              grabado se organiza en clases, y el alumno lo mira cuando quiere.
+            </p>
           </div>
           <div className="fo-field-stack">
             <label className="fo-label" htmlFor="instructorName">

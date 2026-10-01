@@ -3,6 +3,9 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
 
+import { getAuthUser } from "./auth";
+import { puedeEntrarConLaSesionDelSitio } from "./fotorank/judges/puenteDeSesion";
+
 /** Cookie con token opaco (no es el id de cuenta). Nombre distinto al legado `dnx_judge_auth`. */
 const JUDGE_SESSION_COOKIE = "dnx_judge_session";
 const SESSION_MAX_AGE_SEC = 60 * 60 * 24 * 7; // 7 días
@@ -17,6 +20,8 @@ export type JudgeAuthUser = {
   id: string;
   email: string;
   accountStatus: string;
+  /** Null hasta que confirma el correo. Sin esto su ficha no entra a revisión. */
+  emailVerifiedAt: Date | null;
   profile: {
     firstName: string;
     lastName: string;
@@ -25,10 +30,59 @@ export type JudgeAuthUser = {
   } | null;
 };
 
+/**
+ * El jurado entra con la contraseña del sitio, sin una segunda clave.
+ *
+ * Se consulta cuando no hay sesión de jurado propia. Ver `puenteDeSesion.ts`
+ * para por qué hacen falta las dos confirmaciones de correo.
+ */
+async function juradoPorLaSesionDelSitio(): Promise<JudgeAuthUser | null> {
+  const sesion = await getAuthUser();
+  if (!sesion?.email) return null;
+
+  /*
+   * `AuthUser` no trae `emailVerifiedAt` y agregárselo tocaría un tipo que usa
+   * toda la app, así que se consulta acá. Cuesta poco: esto sólo corre cuando
+   * no hay sesión de jurado propia.
+   */
+  const usuario = await prisma.user.findUnique({
+    where: { id: sesion.id },
+    select: { email: true, emailVerifiedAt: true },
+  });
+  if (!usuario) return null;
+
+  const cuenta = await prisma.fotorankJudgeAccount.findUnique({
+    where: { email: usuario.email.trim().toLowerCase() },
+    select: {
+      id: true,
+      email: true,
+      accountStatus: true,
+      emailVerifiedAt: true,
+      profile: {
+        select: { firstName: true, lastName: true, publicSlug: true, avatarUrl: true },
+      },
+    },
+  });
+
+  const permiso = puedeEntrarConLaSesionDelSitio({
+    usuario: { email: usuario.email, emailVerifiedAt: usuario.emailVerifiedAt },
+    cuentaDeJurado: cuenta,
+  });
+  if (!permiso.ok || !cuenta) return null;
+
+  return {
+    id: cuenta.id,
+    email: cuenta.email,
+    accountStatus: cuenta.accountStatus,
+    emailVerifiedAt: cuenta.emailVerifiedAt,
+    profile: cuenta.profile,
+  };
+}
+
 export async function getJudgeAuthUser(): Promise<JudgeAuthUser | null> {
   const cookieStore = await cookies();
   const rawToken = cookieStore.get(JUDGE_SESSION_COOKIE)?.value;
-  if (!rawToken) return null;
+  if (!rawToken) return juradoPorLaSesionDelSitio();
 
   const tokenHash = hashSessionToken(rawToken);
 
@@ -45,12 +99,14 @@ export async function getJudgeAuthUser(): Promise<JudgeAuthUser | null> {
     },
   });
 
-  if (!session) return null;
+  // Una sesión de jurado vencida o desconocida no puede tapar el puente: si no,
+  // una cookie vieja dejaría a la persona pidiendo una contraseña que ya no usa.
+  if (!session) return juradoPorLaSesionDelSitio();
 
   const now = new Date();
   if (session.expiresAt <= now) {
     await prisma.fotorankJudgeSession.delete({ where: { id: session.id } }).catch(() => {});
-    return null;
+    return juradoPorLaSesionDelSitio();
   }
 
   const judge = session.judgeAccount;
@@ -64,6 +120,7 @@ export async function getJudgeAuthUser(): Promise<JudgeAuthUser | null> {
     id: judge.id,
     email: judge.email,
     accountStatus: judge.accountStatus,
+    emailVerifiedAt: judge.emailVerifiedAt,
     profile: judge.profile,
   };
 }

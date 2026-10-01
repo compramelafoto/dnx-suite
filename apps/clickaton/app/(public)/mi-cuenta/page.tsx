@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
+import { AffiliateSection } from "@/components/account/AffiliateSection";
+import { ReferralSection } from "@/components/account/ReferralSection";
 import { adminRoutes } from "@/config/admin/navigation";
 import { logoutClickatonAction } from "@/app/(public)/login/actions";
 import {
@@ -18,10 +20,58 @@ import {
   presentPaymentStatus,
   publicToneToBadgeVariant,
 } from "@/lib/public-ux/status-presentation";
+import { fechaHoraLargaAr } from "@/lib/fecha-ar";
 
 export const dynamic = "force-dynamic";
 
-export default async function MiCuentaPage() {
+/**
+ * Best-effort: si el programa de referidos falla, `mi-cuenta` sigue mostrando
+ * las inscripciones. Nadie se queda sin ver su acreditación por esto.
+ */
+async function cargarProgramaDeReferidos(userId: number) {
+  try {
+    const [{ obtenerOCrearCodigoDeReferido, prismaReferralRepository }, { presentarProgramaDeReferidos }, { resolveClickatonPublicOrigin }] =
+      await Promise.all([
+        import("@/lib/referrals/infrastructure/prisma-referral-repository"),
+        import("@/lib/referrals/ui/referral-presentation"),
+        import("@/lib/site/public-origin"),
+      ]);
+
+    const [codigo, colegas] = await Promise.all([
+      obtenerOCrearCodigoDeReferido(userId),
+      prismaReferralRepository.contarColegasTraidos(userId),
+    ]);
+
+    return presentarProgramaDeReferidos({
+      code: codigo.code,
+      colegas,
+      baseUrl: resolveClickatonPublicOrigin(),
+    });
+  } catch (error) {
+    console.error("[clickaton] cargarProgramaDeReferidos falló:", error);
+    return null;
+  }
+}
+
+/**
+ * Best-effort: la sección del fotógrafo con código sólo aparece si el usuario
+ * es afiliado; si falla (por ejemplo, falta la tabla), no rompe Mi cuenta.
+ */
+async function cargarMisCodigosDeFotografo(userId: number) {
+  try {
+    const { loadMyAffiliate } = await import("@/lib/affiliates/account/queries");
+    return await loadMyAffiliate(userId);
+  } catch (error) {
+    console.error("[clickaton] cargarMisCodigosDeFotografo falló:", error);
+    return null;
+  }
+}
+
+type Props = {
+  searchParams: Promise<{ afiliadoOk?: string; afiliadoError?: string }>;
+};
+
+export default async function MiCuentaPage({ searchParams }: Props) {
   const user = await getClickatonAuthUser();
   if (!user) {
     redirect(`${CLICKATON_LOGIN_PATH}?next=${encodeURIComponent("/mi-cuenta")}`);
@@ -44,6 +94,15 @@ export default async function MiCuentaPage() {
     orderBy: { createdAt: "desc" },
     take: 20,
   });
+
+  // Cualquiera con cuenta puede invitar, haya participado o no: el invitado
+  // tiene que pagar para contar, así que nadie se fabrica un beneficio.
+  const [programaDeReferidos, misCodigos, flash] = await Promise.all([
+    cargarProgramaDeReferidos(user.id),
+    cargarMisCodigosDeFotografo(user.id),
+    searchParams,
+  ]);
+  const yaParticipo = registrations.some((reg) => reg.status === "CONFIRMED");
 
   return (
     <div className="mx-auto max-w-2xl space-y-8 px-4 py-16 md:py-20">
@@ -87,6 +146,18 @@ export default async function MiCuentaPage() {
         </div>
       </Card>
 
+      {misCodigos ? (
+        <AffiliateSection
+          afiliado={misCodigos}
+          ok={flash.afiliadoOk}
+          error={flash.afiliadoError}
+        />
+      ) : null}
+
+      {programaDeReferidos ? (
+        <ReferralSection programa={programaDeReferidos} yaParticipo={yaParticipo} />
+      ) : null}
+
       <section className="space-y-4" aria-labelledby="mis-inscripciones-title">
         <h2 id="mis-inscripciones-title" className="ck-heading-md">
           Mis inscripciones
@@ -113,11 +184,7 @@ export default async function MiCuentaPage() {
               );
               const payment = presentPaymentStatus(reg.paymentStatus);
               const eventDate = reg.edition.startAt
-                ? new Date(reg.edition.startAt).toLocaleString("es-AR", {
-                    dateStyle: "long",
-                    timeStyle: "short",
-                    timeZone: reg.edition.timezone ?? "America/Argentina/Cordoba",
-                  })
+                ? fechaHoraLargaAr(reg.edition.startAt, reg.edition.timezone)
                 : null;
               return (
                 <li key={reg.id}>

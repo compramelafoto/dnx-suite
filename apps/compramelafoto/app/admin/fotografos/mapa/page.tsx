@@ -257,7 +257,7 @@ export default function AdminFotografosMapaPage() {
       )}
 
       {stats && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="grid dnx-grid-5 dnx-grid-compacta gap-3">
           <Card className="p-4">
             <p className="text-xs uppercase tracking-wide text-[#6b7280] m-0">Registrados</p>
             <p className="text-2xl font-semibold text-[#1a1a1a] mt-1 m-0">{stats.totalRegistered}</p>

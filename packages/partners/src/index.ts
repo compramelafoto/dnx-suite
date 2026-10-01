@@ -673,3 +673,18 @@ export type {
 } from "./inventory-booking";
 export { consumeRateLimit, rateLimitSize, resetRateLimits } from "./rate-limit";
 export type { RateLimitOptions, RateLimitResult } from "./rate-limit";
+
+export {
+  DNX_PARTNER_PROPOSAL_STATUSES,
+  PROPOSAL_CODE_ALPHABET,
+  PROPOSAL_CODE_LENGTH,
+  PROPOSAL_CODE_PREFIX,
+  PROPOSAL_TTL_DAYS,
+  generateProposalCode,
+  isProposalCode,
+  isProposalExpired,
+  normalizeProposalCode,
+  proposalDaysLeft,
+  proposalExpiryFrom,
+} from "./proposal-record";
+export type { DnxPartnerProposalStatus, ProposalLifetime } from "./proposal-record";

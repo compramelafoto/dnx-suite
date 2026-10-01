@@ -123,6 +123,10 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       data.displayOrder = Math.trunc(d);
     }
 
+    if ("isRecommended" in body) {
+      data.isRecommended = Boolean(body.isRecommended);
+    }
+
     if ("currency" in body) {
       const c = String(body.currency ?? "").trim();
       if (!c) {

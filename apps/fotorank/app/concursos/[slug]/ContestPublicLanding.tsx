@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { PublicContestLandingData } from "../../lib/fotorank/publicContestLanding";
 import { parsePrizesRewardsConfig } from "../../lib/fotorank/prizesRewards";
 import {
@@ -28,6 +27,7 @@ import {
   resolveRegistrationCloseLabel,
 } from "../../lib/fotorank/contest-public-presentation";
 import type { StatusTone } from "../../lib/fotorank/public-ux/participant-status";
+import { ContestJudgesSection } from "../../components/contest-public/ContestJudgesSection";
 
 const fmtDate = formatPublicDate;
 
@@ -451,57 +451,7 @@ export function ContestPublicLanding({
         </section>
       ) : null}
 
-      {judges.length > 0 ? (
-        <section className="fr-public-section" id="jurado">
-          <PageContainer>
-            <PublicSectionHeader
-              title="Jurado"
-              action={
-                <Link
-                  href={`/concursos/${contest.slug}/jurados`}
-                  className="text-sm font-medium text-[var(--primary)] hover:underline"
-                >
-                  Ver todos
-                </Link>
-              }
-            />
-            <ul className="fr-public-stack-content fr-public-card-grid sm:grid-cols-2 lg:grid-cols-3">
-              {judges.map((j) => (
-                <li key={j.publicSlug}>
-                  <Link
-                    href={`/jurados/publico/${j.publicSlug}`}
-                    className="fr-public-card group block transition-colors hover:border-[var(--primary)]"
-                  >
-                    <div className="flex flex-col items-center text-center">
-                      {j.avatarUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={j.avatarUrl}
-                          alt=""
-                          className="h-24 w-24 rounded-full border border-[var(--border)] object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-24 w-24 items-center justify-center rounded-full border border-dashed border-[var(--border)] text-[var(--foreground-muted)]">
-                          {j.firstName[0]}
-                          {j.lastName[0]}
-                        </div>
-                      )}
-                      <h3 className="mt-4 text-lg font-semibold text-[var(--foreground)] group-hover:text-[var(--primary)]">
-                        {j.firstName} {j.lastName}
-                      </h3>
-                      {j.shortBio ? (
-                        <p className="fr-public-body mt-2 line-clamp-3 text-sm">{j.shortBio}</p>
-                      ) : (
-                        <p className="mt-2 text-xs text-[var(--foreground-muted)]">Ver perfil</p>
-                      )}
-                    </div>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </PageContainer>
-        </section>
-      ) : null}
+      <ContestJudgesSection judges={judges} contestSlug={contest.slug} />
 
       <section className="fr-public-section" id="bases">
         <PageContainer>

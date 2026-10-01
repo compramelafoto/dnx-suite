@@ -32,6 +32,8 @@ export { createInfoSpotCollector, type InfoSpotOptions } from "./collectors/info
 
 export { createFotofficeCollector, type FotofficeOptions } from "./collectors/fotoffice";
 
+export { createFinanceCollector, type FinanceOptions } from "./collectors/finance";
+
 export {
   createFaceRecognitionCollector,
   type FaceRecognitionOptions,

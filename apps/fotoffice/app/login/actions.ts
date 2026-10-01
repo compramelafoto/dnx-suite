@@ -16,6 +16,16 @@ export async function fotofficeLoginAction(
 ): Promise<LoginFormState> {
   const email = formData.get("email")?.toString()?.trim().toLowerCase();
   const password = formData.get("password")?.toString() ?? "";
+  /*
+    El panel de login pone `next` en dos lados: este campo oculto y el enlace de Google. Solo
+    el de Google se usaba, así que entrar con contraseña te dejaba en la portada aunque
+    vinieras de un enlace que decía a dónde ibas — y la puerta de cada institución
+    (`/w/sfpr/entrar`) es justamente eso.
+
+    No se valida acá: `resolveFotofficePostLoginDestination` ya distingue una ruta interna de
+    un intento de llevarte a otro sitio, y es el único lugar donde esa regla debe vivir.
+  */
+  const next = formData.get("next")?.toString()?.trim() || null;
   if (!email) return { error: "El email es obligatorio." };
   if (!password) return { error: "La contraseña es obligatoria." };
 
@@ -49,7 +59,7 @@ export async function fotofficeLoginAction(
       where: { id: user.id },
       data: { lastLoginAt: new Date() },
     });
-    const dest = await resolveFotofficePostLoginDestination({ userId: user.id });
+    const dest = await resolveFotofficePostLoginDestination({ userId: user.id, next });
     if (dest.workspaceId) {
       const cookieStore = await cookies();
       cookieStore.set(FOTOFFICE_WORKSPACE_COOKIE, dest.workspaceId, {

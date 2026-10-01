@@ -1,5 +1,7 @@
 import Link from "next/link";
 import type { ResolvedPortalItem } from "@/lib/portal/menu";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
+import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
 import { PortalIcon } from "./portal-icon";
 
 /**
@@ -12,7 +14,13 @@ import { PortalIcon } from "./portal-icon";
  * Acá el lector es el socio, que entra cada tanto y lo que necesita saber es qué le da la
  * institución por su cuota. Lo que viene es parte de esa respuesta.
  */
-export function PortalSections({ items }: { items: ResolvedPortalItem[] }) {
+export function PortalSections({
+  items,
+  vocabulary,
+}: {
+  items: ResolvedPortalItem[];
+  vocabulary: PersonVocabulary;
+}) {
   const disponibles = items.filter((i) => i.state === "DISPONIBLE");
   const proximas = items.filter((i) => i.state === "PROXIMAMENTE");
 
@@ -31,9 +39,11 @@ export function PortalSections({ items }: { items: ResolvedPortalItem[] }) {
                   <PortalIcon name={i.icon} />
                 </span>
                 <span className="min-w-0">
-                  <span className="block text-sm font-medium">{i.label}</span>
+                  <span className="block text-sm font-medium">
+                    {aplicarVocabulario(i.label, vocabulary)}
+                  </span>
                   <span className="block text-xs leading-relaxed text-[var(--fo-muted)]">
-                    {i.description}
+                    {aplicarVocabulario(i.description, vocabulary)}
                   </span>
                 </span>
               </Link>
@@ -70,7 +80,7 @@ export function PortalSections({ items }: { items: ResolvedPortalItem[] }) {
                     </span>
                   </span>
                   <span className="block text-xs leading-relaxed text-[var(--fo-muted-soft)]">
-                    {i.description}
+                    {aplicarVocabulario(i.description, vocabulary)}
                   </span>
                 </span>
               </li>

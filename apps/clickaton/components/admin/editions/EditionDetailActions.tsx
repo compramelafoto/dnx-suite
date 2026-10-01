@@ -12,14 +12,20 @@ type Props = {
 
 const MODULES = [
   { key: "precios", label: "Precios" },
-  { key: "finanzas", label: "Finanzas" },
+  { key: "numeros", label: "Números reales" },
+  { key: "finanzas", label: "Cobros y reparto" },
   { key: "sponsors", label: "Sponsors y beneficios" },
   { key: "cronograma", label: "Cronograma" },
   { key: "consignas", label: "Consignas" },
   { key: "envios", label: "Envíos" },
+  { key: "regalos", label: "Regalos" },
+  { key: "kits-a-domicilio", label: "Kits a domicilio" },
   { key: "admision", label: "Admisión" },
+  { key: "jurados", label: "Jurados" },
+  { key: "resultados", label: "Resultados" },
   { key: "acreditacion", label: "Acreditación" },
   { key: "placas", label: "Placas" },
+  { key: "ensayo", label: "Ensayo" },
 ] as const;
 
 /**

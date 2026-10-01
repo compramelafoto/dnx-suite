@@ -1,4 +1,4 @@
-import { TemplateEditorShell } from "@repo/template-editor-ui";
+import { TemplateEditorShell, TEMPLATE_V2_BASE_PATHS } from "@repo/template-editor-ui";
 
 type Props = {
   params: Promise<{ templateId: string; versionId: string }>;
@@ -6,5 +6,9 @@ type Props = {
 
 export default async function TemplateV2EditorPage({ params }: Props) {
   const { templateId, versionId } = await params;
-  return <TemplateEditorShell templateId={templateId} versionId={versionId} />;
+  return <TemplateEditorShell
+      templateId={templateId}
+      versionId={versionId}
+      basePath={TEMPLATE_V2_BASE_PATHS.compramelafoto}
+    />;
 }

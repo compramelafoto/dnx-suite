@@ -1,13 +1,17 @@
 import { notFound } from "next/navigation";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { AdminTechnicalInfo } from "@/components/admin/AdminTechnicalInfo";
+import { ConfirmSubmitButton } from "@/components/admin/ConfirmSubmitButton";
+import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { adminRoutes } from "@/config/admin/navigation";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
+import { presentarInterruptorDeAcreditacion } from "@/lib/accreditation/ui/accreditation-switch";
 import { prisma } from "@/lib/admin/db";
 import {
   registerDeviceAction,
+  toggleAccreditationAction,
   syncOfflineAction,
 } from "@/lib/accreditation/actions";
 import {
@@ -31,6 +35,12 @@ export default async function EditionAccreditationPage({ params }: Props) {
     id: user.id,
     email: user.email,
     globalRole: user.globalRole,
+  });
+
+  const interruptor = presentarInterruptorDeAcreditacion({
+    habilitado: dash.window.enabled,
+    ingresosRegistrados: dash.totals.checkedIn,
+    ventanaAbierta: dash.window.canCheckIn === true,
   });
 
   return (
@@ -75,18 +85,49 @@ export default async function EditionAccreditationPage({ params }: Props) {
       </div>
 
       <Card variant="outlined" className="space-y-3 p-5 text-sm">
-        <p>
-          Ventana de acreditación:{" "}
-          <strong>
-            {dash.window.canCheckIn == null
-              ? "Horario a confirmar"
-              : dash.window.canCheckIn
-                ? "Abierta"
-                : "Cerrada"}
-          </strong>
-          {" · "}Módulo:{" "}
-          <strong>{dash.window.enabled ? "Habilitado" : "Deshabilitado"}</strong>
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0 space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant={interruptor.tono}>{interruptor.estado}</Badge>
+              <span className="text-ck-text-secondary">
+                Horario de acreditación:{" "}
+                <strong>
+                  {dash.window.canCheckIn == null
+                    ? "a confirmar"
+                    : dash.window.canCheckIn
+                      ? "abierto"
+                      : "cerrado"}
+                </strong>
+              </span>
+            </div>
+            <p className="text-ck-text-muted">{interruptor.explicacion}</p>
+          </div>
+
+          <form action={toggleAccreditationAction.bind(null, editionId)}>
+            <input
+              type="hidden"
+              name="enabled"
+              value={interruptor.accion === "ENCENDER" ? "true" : "false"}
+            />
+            {interruptor.pideConfirmacion && interruptor.textoDeConfirmacion ? (
+              <ConfirmSubmitButton
+                confirmMessage={interruptor.textoDeConfirmacion}
+                variant="outline"
+                size="sm"
+              >
+                {interruptor.etiquetaDelBoton}
+              </ConfirmSubmitButton>
+            ) : (
+              <Button
+                type="submit"
+                variant={interruptor.accion === "ENCENDER" ? "primary" : "outline"}
+                size="sm"
+              >
+                {interruptor.etiquetaDelBoton}
+              </Button>
+            )}
+          </form>
+        </div>
         <p className="text-ck-text-secondary">
           El código QR se utiliza durante la acreditación para identificar al participante.
         </p>
@@ -104,6 +145,11 @@ export default async function EditionAccreditationPage({ params }: Props) {
 
       <Card variant="outlined" className="space-y-4 p-5">
         <h2 className="font-semibold">Dispositivos</h2>
+        <p className="text-sm text-ck-text-secondary">
+          Registrá cada celular o tablet que va a escanear en la puerta. Después, en la pantalla
+          de escaneo, el operador elige cuál está usando y cada acreditación queda atada a ese
+          aparato.
+        </p>
         <form action={registerDeviceAction.bind(null, editionId)} className="flex flex-wrap gap-3">
           <input
             name="name"
@@ -130,11 +176,31 @@ export default async function EditionAccreditationPage({ params }: Props) {
             <li className="text-ck-text-muted">Sin dispositivos registrados.</li>
           ) : null}
         </ul>
-        <form action={syncOfflineAction.bind(null, editionId)}>
-          <Button type="submit" size="sm" variant="outline">
-            Sincronizar cola offline
-          </Button>
-        </form>
+        <div className="space-y-2 border-t border-ck-border pt-4">
+          <h3 className="text-sm font-semibold">Acreditaciones tomadas sin conexión</h3>
+          {dash.offline.allowed ? (
+            <p className="text-sm text-ck-text-secondary">
+              Esperando sincronizar: <strong>{dash.offline.pending}</strong> · ya acreditadas:{" "}
+              <strong>{dash.offline.synced}</strong> · con conflicto:{" "}
+              <strong>{dash.offline.conflicts}</strong> · rechazadas:{" "}
+              <strong>{dash.offline.rejected}</strong>
+            </p>
+          ) : (
+            <p className="text-sm text-amber-300">
+              El modo sin conexión está apagado para esta edición: si se cae la red en la sede,
+              los escaneos se pierden.
+            </p>
+          )}
+          <p className="text-xs text-ck-text-muted">
+            Cada celular sincroniza solo al recuperar la señal. Este botón fuerza el intento
+            desde el servidor, por si quedó algo trabado.
+          </p>
+          <form action={syncOfflineAction.bind(null, editionId)}>
+            <Button type="submit" size="sm" variant="outline">
+              Sincronizar cola offline
+            </Button>
+          </form>
+        </div>
       </Card>
 
       <Card variant="outlined" className="space-y-3 p-5">

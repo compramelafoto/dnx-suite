@@ -250,7 +250,7 @@ export default function AdminPhotoProcessingPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid dnx-grid-4 dnx-grid-compacta gap-3">
           <StatusPill label="Pendientes" value={ingest?.byStatus.PENDING ?? 0} tone="warn" />
           <StatusPill label="Procesando" value={ingest?.byStatus.PROCESSING ?? 0} tone="info" />
           <StatusPill label="Completadas" value={ingest?.byStatus.COMPLETED ?? 0} tone="ok" />
@@ -369,7 +369,7 @@ export default function AdminPhotoProcessingPage() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid dnx-grid-4 dnx-grid-compacta gap-3">
           <StatusPill label="Fotos totales" value={analysis?.totalPhotos ?? 0} tone="neutral" />
           <StatusPill
             label="Análisis pendiente"
@@ -390,7 +390,7 @@ export default function AdminPhotoProcessingPage() {
             {analysis?.progressPercent ?? 0}%
           </p>
           <ProgressBar percent={analysis?.progressPercent ?? 0} tone="emerald" />
-          <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-gray-600">
+          <div className="mt-3 grid dnx-grid-4 dnx-grid-compacta gap-2 text-xs text-gray-600">
             <span>PENDING: {analysis?.photosByStatus.PENDING ?? 0}</span>
             <span>PROCESSING: {analysis?.photosByStatus.PROCESSING ?? 0}</span>
             <span>DONE: {analysis?.photosByStatus.DONE ?? 0}</span>

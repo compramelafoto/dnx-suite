@@ -4,7 +4,9 @@ export const fotofficeAuthBrand: DnxAuthBrandConfig = {
   applicationId: "fotoffice",
   productName: "FotoOffice",
   logo: {
-    src: "/fotoffice-logo.jpg",
+    // PNG con transparencia, no el JPG viejo: ése traía un rectángulo negro pegado que se
+    // recortaba contra el panel de login. El PNG se apoya sobre cualquier fondo.
+    src: "/fotoffice-logo.png",
     alt: "FotoOffice",
     height: "3rem",
     href: "/",

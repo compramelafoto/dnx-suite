@@ -23,7 +23,7 @@ export { GoogleFontsLoader } from "./GoogleFontsLoader";
 export { useTemplateEditorAutosave } from "./useTemplateEditorAutosave";
 export { useTemplateEditorHotkeys } from "./useTemplateEditorHotkeys";
 export {
-  DEFAULT_TEMPLATE_V2_BASE_PATH,
+  TEMPLATE_V2_BASE_PATHS,
   templateV2EditorPath,
 } from "./template-v2-base-path";
 

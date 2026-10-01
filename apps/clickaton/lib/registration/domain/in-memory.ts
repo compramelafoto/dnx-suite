@@ -155,6 +155,12 @@ export function createInMemoryRegistrationRepository(
           id: id("ri"),
           ...item,
         })),
+        // Centro de Transmisión: mismo criterio que el repositorio de Prisma.
+        locationConsentAt: cmd.locationConsentAt ?? null,
+        locationPublicConsentAt: cmd.locationPublicConsentAt ?? null,
+        interviewConsentAt: cmd.interviewConsentAt ?? null,
+        locationConsentVersion: cmd.locationConsentVersion ?? null,
+        locationConsentDeclaredAdult: cmd.locationConsentDeclaredAdult ?? false,
       };
       store.registrations.set(record.id, record);
       store.statusHistory.push({

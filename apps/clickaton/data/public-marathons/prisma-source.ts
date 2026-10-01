@@ -15,6 +15,7 @@ import {
   ARGENTINA_2026_SCHEDULE,
   CLICKATON_ARGENTINA_2026,
 } from "@/config/editions/argentina-2026";
+import { resolveRegistrationWindow } from "@/data/public-marathons/registration-window";
 import type { PublicMarathonDataSource } from "@/data/public-marathons/types";
 import type { PublicMarathon } from "@/types/marathon";
 
@@ -70,11 +71,12 @@ function mapEditionToPublicMarathon(row: {
     tickets[0]?.priceAmount ?? 0,
   );
   const currency = tickets[0]?.currency ?? "ARS";
-  const now = Date.now();
-  const openAt = row.registrationOpenAt?.getTime() ?? 0;
-  const closeAt = row.registrationCloseAt?.getTime() ?? Number.POSITIVE_INFINITY;
-  const windowOpen = now >= openAt && now <= closeAt;
-  const registrationOpen = Boolean(row.registrationEnabled) && windowOpen;
+  const registrationWindow = resolveRegistrationWindow({
+    registrationEnabled: Boolean(row.registrationEnabled),
+    registrationOpenAt: row.registrationOpenAt,
+    registrationCloseAt: row.registrationCloseAt,
+  });
+  const registrationOpen = registrationWindow === "open";
   const isFree = tickets.length > 0 && tickets.every((t) => t.priceAmount === 0);
   const hasPaid = tickets.some((t) => t.priceAmount > 0);
   const countryCode = venue?.country ?? row.country ?? "AR";
@@ -129,8 +131,20 @@ function mapEditionToPublicMarathon(row: {
       row.description ??
       row.shortDescription ??
       "Edición Clickatón. Revisá fechas, precio vigente e inclusión de kit antes de inscribirte.",
-    status: registrationOpen ? "registration_open" : "announced",
-    registrationStatus: registrationOpen ? "open" : "coming_soon",
+    status:
+      registrationWindow === "open"
+        ? "registration_open"
+        : registrationWindow === "closed"
+          ? "registration_closed"
+          : "announced",
+    registrationStatus:
+      registrationWindow === "open"
+        ? "open"
+        : registrationWindow === "closed"
+          ? "closed"
+          : registrationWindow === "unavailable"
+            ? "unavailable"
+            : "coming_soon",
     format: "individual",
     modality: "Presencial",
     featured: true,
@@ -154,7 +168,9 @@ function mapEditionToPublicMarathon(row: {
     registrationCloseAt: row.registrationCloseAt?.toISOString(),
     registration: {
       mode: isFree ? "free" : hasPaid ? "paid" : "free",
-      status: registrationOpen ? "open" : "not_open",
+      // "unavailable" (kill switch) se presenta como cerrada: el público no
+      // necesita saber que hay un interruptor, pero no debe leer "próximamente".
+      status: registrationWindow === "unavailable" ? "closed" : registrationWindow,
       canRegister: registrationOpen && tickets.length > 0,
       displayPrice:
         tickets.length === 0

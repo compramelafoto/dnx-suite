@@ -9,6 +9,8 @@ import { auditActorFrom } from "@/lib/members/audit";
 import { canMemberUseInvitations, emailsMatch, invitationState } from "@/lib/members/invitations";
 import { clearInvitationContinuity } from "@/lib/members/invitation-continuity";
 import { resolvePortalDestination } from "@/lib/portal/destination";
+import { mensajeDePadron } from "@/lib/members/mensajes";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 
 export type AcceptInvitationState = { error: string | null };
 
@@ -35,7 +37,7 @@ export async function acceptInvitationAction(
       expiresAt: true,
       acceptedAt: true,
       revokedAt: true,
-      member: { select: { status: true } },
+      member: { select: { status: true, workspaceId: true } },
     },
   });
   if (!invitation) return { error: "La invitación ya no es válida." };
@@ -53,11 +55,14 @@ export async function acceptInvitationAction(
     await acceptMemberInvitation(invitationId, user.id, auditActorFrom(user));
   } catch (e) {
     if (e instanceof MemberLinkError) {
+      // La institución se conoce por la ficha invitada, no por la sesión: quien acepta
+      // todavía no pertenece a ningún workspace.
+      const vocabulary = await loadPersonVocabulary(invitation.member.workspaceId);
       switch (e.reason) {
         case "ALREADY_LINKED":
-          return { error: "Este socio ya tiene una cuenta vinculada." };
+          return { error: mensajeDePadron("yaVinculado", vocabulary) };
         case "USER_TAKEN":
-          return { error: "Tu cuenta ya está vinculada a otro socio de esta institución." };
+          return { error: mensajeDePadron("cuentaTomadaEnEstaInstitucion", vocabulary) };
         default:
           return { error: "La invitación ya no es válida." };
       }

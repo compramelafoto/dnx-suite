@@ -99,14 +99,14 @@ export function compareRulesTextWithConfiguration(
     items.push({ key: "open_date", status: "MISSING", severity: "BLOCKING", expected: "2026-08-01" });
   }
 
-  if (mentions(t, [/30\s+de\s+septiembre|septiembre inclusive|1\s+de\s+octubre|cierre exclusivo/i])) {
-    items.push({ key: "close_date", status: "MATCH", severity: "INFO", expected: "exclusive 2026-10-01" });
+  if (mentions(t, [/31\s+de\s+octubre|octubre\s+de\s+2026\s+inclusive|1\s+de\s+noviembre|cierre exclusivo/i])) {
+    items.push({ key: "close_date", status: "MATCH", severity: "INFO", expected: "exclusive 2026-11-01" });
   } else if (mentions(t, [/23:59|23\.59/])) {
     items.push({
       key: "close_date",
       status: "CONFLICT",
       severity: "WARNING",
-      expected: "exclusive 2026-10-01",
+      expected: "exclusive 2026-11-01",
       evidence: "Uso de 23:59 aproximado",
     });
   }

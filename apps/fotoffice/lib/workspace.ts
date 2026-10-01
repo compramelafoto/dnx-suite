@@ -22,21 +22,25 @@ export type ActiveWorkspace = {
  *   (`switchWorkspaceAction`), por eso es la que soporta cambiar de workspace
  *   activo cuando el usuario pertenece a más de uno.
  *
- * - `ensureFotofficeWorkspaceForUser` (`./ensure-workspace.ts`): **crea si hace
- *   falta** (bootstrap idempotente). Es la fuente correcta para los puntos de
- *   entrada reales — `resolveFotofficePostLoginDestination`, `/workspace/*`,
- *   `/onboarding` — donde todavía no hay garantía de que el usuario tenga
- *   workspace. NO lee `FOTOFFICE_WORKSPACE_COOKIE`: siempre prioriza el
- *   workspace donde el usuario es `WORKSPACE_OWNER` (o el más antiguo).
+ * - `findFotofficeWorkspaceForUser` (`./ensure-workspace.ts`), que los puntos de
+ *   entrada reales usan a través de `requireOwnWorkspace`
+ *   (`./entrada/require-own-workspace.ts`): **tampoco crea**. Es la fuente para
+ *   `resolveFotofficePostLoginDestination`, `/workspace/*` y `/onboarding`, donde
+ *   todavía no hay garantía de que el usuario tenga workspace; cuando no lo tiene,
+ *   se le pregunta en `/bienvenida` en vez de fabricárselo. NO lee
+ *   `FOTOFFICE_WORKSPACE_COOKIE`: siempre prioriza el workspace donde el usuario es
+ *   `WORKSPACE_OWNER` (o el más antiguo).
  *
- * Pendiente real (no resuelto en esta etapa, requiere tocar la firma de
- * `ensureFotofficeWorkspaceForUser` y evaluar impacto en sus 3 callers):
- * si un usuario cambia de workspace activo desde `(shell)` vía el switcher
- * del header y después navega a `/workspace`, va a ver el workspace por
- * defecto (OWNER-first), no el que acaba de elegir — porque `ensure*` no
- * consulta la cookie. No importa hoy (nadie tiene más de un workspace en la
- * práctica), pero va a importar el día que una institución tenga varios
- * administradores con acceso a varios workspaces.
+ * Hasta el 2026-09-14 esa segunda función creaba el workspace si faltaba, y de ahí
+ * salieron dos instituciones fantasma en producción. Crear quedó separado en
+ * `createFotofficeWorkspaceForUser`, con un solo llamador autorizado.
+ *
+ * Pendiente real (no resuelto en esta etapa): si un usuario cambia de workspace
+ * activo desde `(shell)` vía el switcher del header y después navega a `/workspace`,
+ * va a ver el workspace por defecto (OWNER-first), no el que acaba de elegir —
+ * porque ese camino no consulta la cookie. No importa hoy (nadie tiene más de un
+ * workspace en la práctica), pero va a importar el día que una institución tenga
+ * varios administradores con acceso a varios workspaces.
  */
 
 export async function getMembershipWorkspaceIds(userId: number): Promise<string[]> {

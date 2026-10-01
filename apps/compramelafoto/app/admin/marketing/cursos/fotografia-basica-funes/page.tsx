@@ -171,7 +171,7 @@ export default function AdminDnxCursoFotografiaFunesPage() {
         <p className="mt-8 text-gray-500">Cargando…</p>
       ) : data ? (
         <>
-          <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="mt-8 grid dnx-grid-5 gap-4">
             <div className={statClass}>
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Interesados</p>
               <p className="mt-2 text-2xl font-bold tabular-nums text-gray-900 dark:text-white">

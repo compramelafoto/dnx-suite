@@ -3,12 +3,14 @@ import { prisma } from "@repo/db";
 /**
  * Para qué lado de FotoOffice es esta persona.
  *
- * Existe por un defecto concreto: `ensureFotofficeWorkspaceForUser` le CREA un workspace a
- * quien no tiene ninguno, con esa persona como `WORKSPACE_OWNER`. Es lo correcto para un
- * fotógrafo que recién llega, y exactamente lo contrario de lo que hay que hacerle a un
- * socio: si los 152 socios de SFPR activaran su acceso, tendríamos 152 instituciones vacías.
+ * Existe por un defecto concreto: el camino de "usuario nuevo" le CREABA un workspace a quien
+ * no tenía ninguno, con esa persona como `WORKSPACE_OWNER`. Es lo correcto para un fotógrafo
+ * que recién llega, y exactamente lo contrario de lo que hay que hacerle a un socio: si los
+ * 152 socios de SFPR activaran su acceso, tendríamos 152 instituciones vacías.
  *
- * Por eso hay que saber de quién se trata ANTES de llamar a esa función, no después.
+ * Desde el 2026-09-14 ese camino ya no crea nada —pregunta en `/bienvenida`— así que esto
+ * dejó de ser la única defensa. Sigue importando igual: es lo que manda al socio a su portal
+ * en vez de ofrecerle un menú donde una opción es fabricarse una institución.
  */
 
 export type FotofficeUserKind =

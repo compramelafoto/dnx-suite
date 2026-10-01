@@ -1,4 +1,5 @@
 import { buildPromotionQuote } from "./calculate";
+import { readEligibilityRule } from "./eligibility";
 import type {
   PreviewPromotionInput,
   PreviewPromotionResult,
@@ -41,6 +42,14 @@ export function previewPromotion(input: PreviewPromotionInput): PreviewPromotion
   }
   if (promo.editionId && promo.editionId !== (input.editionId ?? null)) {
     return reject("EDITION_MISMATCH", "Este código no aplica a esta edición.");
+  }
+  // Fail-closed: si el cupón tiene condición y nadie la resolvió, no se acepta.
+  const eligibilityRule = readEligibilityRule(promo.metadata);
+  if (eligibilityRule && input.eligibility?.isEligible !== true) {
+    return reject(
+      "NOT_ELIGIBLE",
+      "Este código es exclusivo para quienes participaron de una edición anterior.",
+    );
   }
   if (
     promo.minimumPurchaseAmount != null &&

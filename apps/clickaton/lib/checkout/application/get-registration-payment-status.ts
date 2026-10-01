@@ -56,7 +56,46 @@ export function createGetRegistrationPaymentStatusUseCase(deps: {
           const holdExpired =
             registration.holdExpiresAt != null &&
             registration.holdExpiresAt.getTime() < Date.now();
-          if (!holdExpired && holds.capacityHoldActive) {
+          if (!holdExpired && holds.capacityHoldActive && registration.isGift) {
+            // Un regalo NO se confirma como participante acá tampoco: sin
+            // esta rama, volver del pago a la pantalla de estado convertía el
+            // regalo en una inscripción a nombre de quien lo compró, y el
+            // voucher no se emitía nunca.
+            const redeemableUntil =
+              await deps.registrationPort.getEditionRegistrationCloseAt(
+                registration.editionId,
+              );
+            registration = await deps.registrationPort.confirmGiftPaid({
+              registrationId: registration.id,
+              paymentOrderId: order.id,
+              source: "dnx_payments_s2s_refresh",
+              requestId: `s2s_refresh_${order.id}_${Date.now()}`,
+              redeemableUntil,
+            });
+            try {
+              const { issueGiftVoucherOnPayment } = await import(
+                "@/lib/gift-vouchers/application/issue-gift-voucher"
+              );
+              const { createPrismaGiftVoucherRepository } = await import(
+                "@/lib/gift-vouchers/infrastructure/prisma-gift-voucher-repository"
+              );
+              const issued = await issueGiftVoucherOnPayment({
+                vouchers: createPrismaGiftVoucherRepository(),
+              }).execute({
+                registrationId: registration.id,
+                editionRegistrationCloseAt: redeemableUntil,
+                paidAt: new Date(),
+              });
+              if (issued.issued) {
+                const { notifyGiftPurchased } = await import(
+                  "@/lib/gift-vouchers/notifications/notify-gift-lifecycle"
+                );
+                await notifyGiftPurchased(registration.id);
+              }
+            } catch {
+              // soft-fail: el pago ya quedó acreditado; el voucher se emite a mano
+            }
+          } else if (!holdExpired && holds.capacityHoldActive) {
             const prefix = await deps.registrationPort.getEditionPrefix(registration.editionId);
             registration = await deps.registrationPort.confirmPaid({
               registrationId: registration.id,

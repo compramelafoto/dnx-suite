@@ -161,7 +161,7 @@ export async function cancelPortalBookingAction(formData: FormData): Promise<voi
     workspaceId: context.workspace.id,
     bookingId: reserva.id,
     byUserId: user.id,
-    reason: "Cancelada por el socio",
+    reason: "Cancelada desde el portal",
   });
 
   revalidatePath(PORTAL);

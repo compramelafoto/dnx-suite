@@ -1,5 +1,7 @@
 import { prisma } from "@repo/db";
-import { ensureFotofficeWorkspaceForUser } from "@/lib/ensure-workspace";
+import { findFotofficeWorkspaceForUser } from "@/lib/ensure-workspace";
+import { WELCOME_PATH } from "@/lib/entrada/welcome";
+import { doorPathFor, parseDoorPath } from "@/lib/entrada/institution-door";
 import { findClaimableMembership } from "@/lib/portal/claim";
 import { isFotofficePlatformAdminRole, resolvePlatformRole } from "@/lib/fotoffice-roles";
 import { safeFotofficeNextPath } from "@/lib/google-login";
@@ -61,6 +63,18 @@ export async function resolveFotofficePostLoginDestination(params: {
   const continuity = await resolveInvitationContinuityPath(user.email);
   if (continuity) return { path: continuity, workspaceId: null };
 
+  /*
+    Quien entró por la puerta de una institución —`/w/sfpr/entrar`— ya dijo a dónde viene, y
+    eso vale más que cualquier cosa que pueda decidirse acá: más que el selector de perfil
+    (preguntarle sería ignorar lo que ya contestó) y más que el portal genérico.
+
+    Se lo devuelve a la puerta en vez de resolverlo acá porque la puerta es la única que sabe
+    a qué workspace corresponde ese slug. `parseDoorPath` es estricto: cualquier `next` que no
+    sea exactamente esa forma sigue el camino de siempre.
+  */
+  const door = parseDoorPath(params.next);
+  if (door) return { path: doorPathFor(door), workspaceId: null };
+
   /**
    * Con más de un perfil hay que preguntar: la misma persona puede administrar su negocio y
    * ser socia de una institución, y solo ella sabe a cuál de las dos viene hoy. Si ya eligió
@@ -97,11 +111,20 @@ export async function resolveFotofficePostLoginDestination(params: {
     return { path: "/soy-socio", workspaceId: null };
   }
 
-  const ensured = await ensureFotofficeWorkspaceForUser({
+  /*
+    Hasta acá no se reconoció a nadie: ni equipo, ni socio, ni invitación pendiente. Antes el
+    paso siguiente le creaba una institución con esta persona de dueña, y así aparecieron las
+    dos fantasma de producción. Ahora se le pregunta a qué vino.
+
+    El `next` del navegador tampoco puede saltear la pregunta: un `/workspace` guardado en
+    favoritos volvería a abrir el mismo camino.
+  */
+  const ensured = await findFotofficeWorkspaceForUser({
     userId: user.id,
     email: user.email,
     name: user.name,
   });
+  if (!ensured) return { path: WELCOME_PATH, workspaceId: null };
 
   if (!ensured.onboardingCompleted) {
     return { path: "/onboarding", workspaceId: ensured.workspaceId };

@@ -47,7 +47,7 @@ export function canSeal(input: {
     return no("Todavía no cerró el padrón.");
   }
   if (input.entrantCount === 0) {
-    return no("Ningún socio quedó al día al cerrar el padrón. El sorteo no se puede sellar.");
+    return no("Ningún {persona} quedó al día al cerrar el padrón. El sorteo no se puede sellar.");
   }
   if (input.entrantCount < input.prizeCount) {
     return no(

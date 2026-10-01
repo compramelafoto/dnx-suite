@@ -30,8 +30,8 @@ vi.mock("@repo/db", () => ({
 
 vi.mock("@/lib/auth", () => ({ requireAuth: requireAuthMock }));
 
-vi.mock("@/lib/ensure-workspace", () => ({
-  ensureFotofficeWorkspaceForUser: vi.fn(async () => ({
+vi.mock("@/lib/entrada/require-own-workspace", () => ({
+  requireOwnWorkspace: vi.fn(async () => ({
     workspaceId: "ws-sfpr",
     created: false,
     onboardingCompleted: true,

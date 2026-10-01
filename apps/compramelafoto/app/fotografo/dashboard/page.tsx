@@ -82,10 +82,23 @@ export default function PhotographerDashboardPage() {
         photographerId: photographerId.toString(),
         status: "PENDING",
       });
-      fetch(`/api/dashboard/removal-requests?${removalParams}`)
-        .then((res) => res.json())
-        .then((data) => {
-          if (active && Array.isArray(data)) setPendingRemovalCount(data.length);
+      // Fotos y videos juntos: para el fotógrafo es el mismo trámite, y si el
+      // aviso contara sólo las fotos, un pedido de baja de video pasaría
+      // desapercibido hasta que alguien reclame.
+      Promise.all([
+        fetch(`/api/dashboard/removal-requests?${removalParams}`)
+          .then((res) => res.json())
+          .catch(() => []),
+        fetch(`/api/dashboard/video-removal-requests?${removalParams}`)
+          .then((res) => res.json())
+          .catch(() => []),
+      ])
+        .then(([fotos, videos]) => {
+          if (!active) return;
+          const n =
+            (Array.isArray(fotos) ? fotos.length : 0) +
+            (Array.isArray(videos) ? videos.length : 0);
+          setPendingRemovalCount(n);
         })
         .catch(() => {});
 

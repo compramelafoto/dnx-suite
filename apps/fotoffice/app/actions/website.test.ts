@@ -341,7 +341,7 @@ describe("saveWebsiteBlocksAction", () => {
     membershipFindUniqueMock.mockResolvedValueOnce({ role: "WORKSPACE_OWNER" });
     websiteUpdateManyMock.mockResolvedValueOnce({ count: 1 });
     websiteFindUniqueMock.mockResolvedValueOnce({ updatedAt: new Date("2026-08-19T10:00:05.000Z") });
-    const presets = { headerPreset: "centered", showLoginButton: true, loginButtonLabel: "Entrar", logoSizePx: 48, typographyPreset: "editorial", buttonPreset: "pill", animationPreset: "soft" };
+    const presets = { headerPreset: "centered", showLoginButton: true, loginButtonLabel: "Entrar", logoSizePx: 48, typographyPreset: "editorial", buttonPreset: "pill", animationPreset: "soft", footerPreset: "simple" };
     const result = await saveWebsiteBlocksAction(
       undefined,
       buildFormData({ designPresetsJson: JSON.stringify(presets), draftUpdatedAt: "2026-08-19T10:00:00.000Z" }),
@@ -356,7 +356,7 @@ describe("saveWebsiteBlocksAction", () => {
     membershipFindUniqueMock.mockResolvedValueOnce({ role: "WORKSPACE_OWNER" });
     websiteUpdateManyMock.mockResolvedValueOnce({ count: 1 });
     websiteFindUniqueMock.mockResolvedValueOnce({ updatedAt: new Date("2026-08-19T10:00:05.000Z") });
-    const presets = { headerPreset: "minimal", showLoginButton: false, loginButtonLabel: "Iniciar sesión", logoSizePx: 40, typographyPreset: "modern", buttonPreset: "rounded", animationPreset: "none" };
+    const presets = { headerPreset: "minimal", showLoginButton: false, loginButtonLabel: "Iniciar sesión", logoSizePx: 40, typographyPreset: "modern", buttonPreset: "rounded", animationPreset: "none", footerPreset: "simple" };
     await saveWebsiteBlocksAction(
       undefined,
       buildFormData({ blocksJson: JSON.stringify([VALID_BLOCK]), designPresetsJson: JSON.stringify(presets), draftUpdatedAt: "2026-08-19T10:00:00.000Z" }),

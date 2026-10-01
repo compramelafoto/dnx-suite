@@ -43,7 +43,7 @@ export function WorkspaceModuleFeeField({
           className="fo-input w-20 text-sm"
         />
         <span className="text-xs text-[var(--fo-muted)]">%</span>
-        <button type="submit" disabled={pending} className="fo-btn text-xs min-h-9 px-3">
+        <button type="submit" disabled={pending} className="fo-btn fo-btn-primary text-xs min-h-9 px-3">
           {pending ? "…" : "Guardar"}
         </button>
       </div>

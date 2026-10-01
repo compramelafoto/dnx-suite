@@ -45,6 +45,9 @@ export {
 export type { QrLegibility, QrLegibilityLevel } from "./validation/qr";
 
 export { FONT_CATALOG, FONT_IDS, isFontId, slotFor } from "./fonts/catalog";
+/* Las tipografías incrustadas: las usa también la composición de placas, que dibuja con sharp
+ * y necesita que la familia viaje dentro del SVG. */
+export { readFontBytes } from "./fonts/load";
 export type { FontId, FontSlot, FontDefinition } from "./fonts/catalog";
 
 export { RENDERER_VERSION } from "./render/version";

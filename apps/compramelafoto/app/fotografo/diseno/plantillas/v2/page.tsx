@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Role } from "@/lib/prisma";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
-import { CreateTemplateV2Button } from "@repo/template-editor-ui";
+import { CreateTemplateV2Button, TEMPLATE_V2_BASE_PATHS } from "@repo/template-editor-ui";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -114,7 +114,7 @@ export default async function PlantillasV2ListPage() {
             abrir una anterior sin salir del flujo.
           </p>
         </div>
-        <CreateTemplateV2Button />
+        <CreateTemplateV2Button basePath={TEMPLATE_V2_BASE_PATHS.compramelafoto} />
       </div>
 
       {templates.length === 0 ? (

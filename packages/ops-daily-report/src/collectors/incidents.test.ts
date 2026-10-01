@@ -101,6 +101,12 @@ test("los pagos sin conciliar son críticos e inmediatos", async () => {
   assert.equal(alert.severity, "critical");
   assert.equal(alert.urgency, "immediate");
   assert.equal(alert.since, "2026-08-22T12:00:00.000Z");
+  // F-6: con el filtro corregido esto ya no es una sospecha ("puede haber
+  // plata sin entregar") sino un hecho concreto: el cliente pagó fotos
+  // digitales y no las recibió.
+  assert.match(alert.detail, /pagaron fotos digitales/);
+  assert.match(alert.detail, /todavía no las recibieron/);
+  assert.doesNotMatch(alert.detail, /puede haber/i);
 });
 
 test("las alertas de fraude abiertas son de gravedad alta para hoy", async () => {

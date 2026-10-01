@@ -1,0 +1,205 @@
+{
+  "proyecto": "El medio: noticias, agenda y coberturas",
+  "plataforma": "InfoSpot",
+  "spec": "docs/infospot/19-editorial-workflow-core.md",
+  "enUso": "parcial",
+  "usoNota": "19 notas publicadas por un redactor real y 191 lecturas registradas entre el 14/07 y el 15/09, pero la agenda pública está vacía (78 de los 79 eventos quedaron en DRAFT) y no hay ningún ingreso: 0 órdenes y la atribución a CompraMeLaFoto no se cobra",
+  "etapas": [
+    {
+      "nombre": "El medio en pie",
+      "criterios": [
+        {
+          "que": "El portal abre en infospot.com.ar con su portada, sus noticias y su agenda",
+          "implementado": { "fecha": "2026-07-13" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "200 en /, /noticias, /eventos, /colaboradores, /publicar-evento, /categorias/deportes y /api/health; infospot.com.ar y www verificados en el proyecto Vercel infospot-dnxsuite"
+          }
+        },
+        {
+          "que": "La redacción entra con su cuenta y tiene su rol",
+          "implementado": { "fecha": "2026-07-13" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "4 filas en InfoSpotUserRole sobre 5 usuarios: 3 INFOSPOT_DIRECTOR y 1 INFOSPOT_REDACTOR (alandeira2607@gmail.com), que es el autor de las 19 notas publicadas"
+          }
+        },
+        {
+          "que": "El lector encuentra una nota buscando en el sitio",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "No hay buscador: la cabecera del sitio en producción dice literalmente «Buscar (próximamente)»"
+        }
+      ]
+    },
+    {
+      "nombre": "Publicar una noticia",
+      "criterios": [
+        {
+          "que": "Un redactor escribe una nota y la publica",
+          "implementado": { "fecha": "2026-07-21" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "28 notas en InfoSpotArticle: 19 PUBLISHED, 5 DRAFT y 4 ARCHIVED; todas con contentTag REAL, primera el 21/07 y última el 02/09"
+          }
+        },
+        {
+          "que": "La nota lleva fotos de CompraMeLaFoto con su crédito y su copia editorial propia",
+          "implementado": { "fecha": "2026-07-14" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "20 filas en InfoSpotEditorialPhoto, todas en READY/ACTIVE, importadas entre el 14 y el 21/07; la nota cobertura-rally-bonaerense-pringles sirve 61 imágenes del prefijo infospot/editorial"
+          }
+        },
+        {
+          "que": "El público lee las notas y queda medido",
+          "implementado": { "fecha": "2026-07-14" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "InfoSpotContentMetricDaily: 191 ARTICLE_VIEW repartidas en 66 días, del 14/07 al 15/09"
+          }
+        },
+        {
+          "que": "El director devuelve una nota con observaciones antes de publicarla",
+          "implementado": { "fecha": "2026-08-20" },
+          "probado": null,
+          "bloqueado": "0 filas en InfoSpotArticleObservation: el circuito de revisión existe y nunca se usó; las 19 notas las publicó el propio redactor"
+        }
+      ]
+    },
+    {
+      "nombre": "La agenda de eventos",
+      "criterios": [
+        {
+          "que": "Los eventos de CompraMeLaFoto entran solos a InfoSpot",
+          "implementado": { "fecha": "2026-07-13" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "79 filas en InfoSpotEvent, todas con originKind IMPORTED, la última creada el 15/09; el cron clf-events-sync sigue vivo: InfoSpotContentOrigin (102 filas) actualizado el 21/09 a las 01:30"
+          }
+        },
+        {
+          "que": "Cada evento queda ubicado en el mapa",
+          "implementado": { "fecha": "2026-08-14" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "76 eventos en GEOCODED con latitud y longitud y 1 en CONFIRMED; sólo 2 quedaron en NEEDS_REVIEW"
+          }
+        },
+        {
+          "que": "El lector abre la agenda y ve lo que está por pasar",
+          "implementado": { "fecha": "2026-07-13" },
+          "probado": null,
+          "bloqueado": "78 de los 79 eventos quedaron en DRAFT y el único publicado (16/08) ya pasó: /eventos dice «Todavía no hay próximos eventos publicados». La agenda es la promesa de la marca y en producción está vacía"
+        },
+        {
+          "que": "Un organizador publica su evento desde el formulario público",
+          "implementado": { "fecha": "2026-07-13" },
+          "probado": null,
+          "bloqueado": "0 filas en InfoSpotEventSubmission: /publicar-evento responde 200 y nunca lo completó nadie"
+        },
+        {
+          "que": "La redacción convoca un fotógrafo para cubrir un evento",
+          "implementado": { "fecha": "2026-08-14" },
+          "probado": null,
+          "bloqueado": "0 filas en InfoSpotPhotographerCall"
+        }
+      ]
+    },
+    {
+      "nombre": "Las coberturas: del álbum a la nota",
+      "criterios": [
+        {
+          "que": "Las coberturas de CompraMeLaFoto aparecen en el centro de coberturas",
+          "implementado": { "fecha": "2026-07-22" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "142 filas en InfoSpotCoverage, todas en syncStatus SYNCED y sin lastSyncError; 133 comercialmente AVAILABLE y 8 REACTIVATABLE"
+          }
+        },
+        {
+          "que": "Una cobertura se convierte en nota con sus fotos, sus créditos y su enlace de compra",
+          "implementado": { "fecha": "2026-07-22" },
+          "probado": {
+            "fecha": "2026-07-22",
+            "evidencia": "1 cobertura en LINKED/PUBLISHED y la nota cobertura-rally-bonaerense-pringles publicada el 22/07, con 61 fotos editoriales y 8 enlaces a compramelafoto.com. Las otras 141 siguen UNASSIGNED"
+          }
+        },
+        {
+          "que": "El descubrimiento de coberturas se mantiene al día",
+          "implementado": { "fecha": "2026-07-22" },
+          "probado": null,
+          "bloqueado": "InfoSpotCoverage no se toca desde el 22/07: el máximo de createdAt y de updatedAt es de ese día. Las 142 entraron en un lote único y el cron reconcile-public-coverage, programado cada 30 minutos, no actualizó nada en dos meses"
+        },
+        {
+          "que": "El lector de una nota pasa a comprar las fotos en CompraMeLaFoto",
+          "implementado": { "fecha": "2026-07-22" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "InfoSpotContentMetricDaily: 7 PURCHASE_CLICK y 5 ALBUM_CLICK entre el 21/07 y el 06/09; los enlaces salen por /api/r con source=infospot&is_author=5"
+          }
+        },
+        {
+          "que": "La compra que nació en InfoSpot se le reconoce al redactor",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "La cadena se corta en CompraMeLaFoto: el enlace lleva source e is_author y el middleware guarda la cookie clf_infospot_attr, pero nadie más la lee. En todo apps/compramelafoto sólo la mencionan middleware.ts y su propio ayudante, cuyo comentario dice «uso futuro: comisión / split»"
+        }
+      ]
+    },
+    {
+      "nombre": "La portada que decide qué se ve y los avisos",
+      "criterios": [
+        {
+          "que": "La redacción arma la portada colocando los bloques que quiere",
+          "implementado": { "fecha": "2026-08-20" },
+          "probado": null,
+          "bloqueado": "0 filas en InfoSpotHomepagePlacement: el motor de distribución nunca colocó nada y la portada se arma sólo con los bloques automáticos"
+        },
+        {
+          "que": "Una campaña avisa de un evento cercano a quien lo quiere saber",
+          "implementado": { "fecha": "2026-09-11" },
+          "probado": null,
+          "bloqueado": "0 campañas y 0 envíos (DnxNotificationCampaign y DnxNotificationDelivery vacías) y 0 preferencias de notificación. Además InfoSpot no tiene dominio de correo propio: resend._domainkey.infospot.com.ar no existe en el DNS"
+        },
+        {
+          "que": "El lector configura qué contenido quiere ver",
+          "implementado": { "fecha": "2026-08-20" },
+          "probado": null,
+          "bloqueado": "0 filas en InfoSpotUserPreferences"
+        },
+        {
+          "que": "Los colaboradores tienen su perfil público con su firma",
+          "implementado": { "fecha": "2026-08-20" },
+          "probado": null,
+          "bloqueado": "0 filas en DnxUserProfile y /autores/1 devuelve 404. La página /colaboradores lo dice sola: «Todavía no publicamos perfiles individuales»"
+        }
+      ]
+    },
+    {
+      "nombre": "Que el medio se pague",
+      "criterios": [
+        {
+          "que": "Un sponsor aparece en el sitio y se le miden las vistas y los clics",
+          "implementado": { "fecha": "2026-08-14" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "1 DnxPartner activo (Vicario) con 6 impresiones entre el 14/08 y el 07/09 y 6 clics registrados"
+          }
+        },
+        {
+          "que": "Un anunciante contrata una campaña con sus piezas y su período",
+          "implementado": { "fecha": "2026-08-14" },
+          "probado": null,
+          "bloqueado": "0 filas en DnxPartnerCampaign y 0 en DnxPartnerAdPlacement: el único sponsor se muestra sin campaña detrás"
+        },
+        {
+          "que": "El medio cobra algo por lo que publica",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "No hay ningún mecanismo de cobro en la aplicación: 0 órdenes en la base y el único ingreso posible hoy es indirecto, por los 7 clics de compra hacia CompraMeLaFoto, que además no se atribuyen a nadie. Confirma la comparativa 2026: InfoSpot sólo cuesta cómputo"
+        }
+      ]
+    }
+  ]
+}

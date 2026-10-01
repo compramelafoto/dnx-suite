@@ -170,7 +170,13 @@ describe("resolveFotofficePostLoginDestination — B: resolución de workspace a
     expect(workspaceCreateMock).not.toHaveBeenCalled();
   });
 
-  it("usuario sin ninguna membership: se crea un workspace nuevo (bootstrap)", async () => {
+  it("usuario sin ninguna membership: se le pregunta a qué vino, no se le crea nada", async () => {
+    /*
+      Este caso afirmaba lo contrario —"se crea un workspace nuevo (bootstrap)"— y por eso el
+      defecto vivió meses sin que ningún test se quejara: el comportamiento estaba escrito
+      como si fuera lo deseado. Iniciar sesión no puede fabricar una institución; crearla es
+      un acto explícito que vive en `createOwnBusinessAction`.
+    */
     userFindUniqueMock.mockResolvedValueOnce({
       id: 6,
       email: "nuevo@dnx.local",
@@ -180,11 +186,10 @@ describe("resolveFotofficePostLoginDestination — B: resolución de workspace a
     });
     workspaceMembershipFindManyMock.mockResolvedValueOnce([]);
     membershipFindFirstMock.mockResolvedValueOnce(null);
-    workspaceCreateMock.mockResolvedValueOnce({ id: "ws-nuevo" });
 
     const dest = await resolveFotofficePostLoginDestination({ userId: 6 });
 
-    expect(workspaceCreateMock).toHaveBeenCalledTimes(1);
-    expect(dest).toEqual({ path: "/onboarding", workspaceId: "ws-nuevo" });
+    expect(workspaceCreateMock).not.toHaveBeenCalled();
+    expect(dest).toEqual({ path: "/bienvenida", workspaceId: null });
   });
 });

@@ -282,7 +282,7 @@ export function SchoolStudentsTab(p: SchoolStudentsTabProps) {
       {p.importSummary ? (
         <Card className="rounded-2xl border border-emerald-100 bg-emerald-50/30 p-6 shadow-sm">
           <h3 className="text-base font-semibold text-emerald-950">Resultado de importación</h3>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="mt-4 grid dnx-grid-5 gap-3">
             <Metric label="Total filas" value={String(p.importSummary.totalRows)} />
             <Metric label="Creados" value={String(p.importSummary.createdCount)} />
             <Metric label="Actualizados" value={String(p.importSummary.updatedCount)} />
@@ -328,7 +328,7 @@ export function SchoolStudentsTab(p: SchoolStudentsTabProps) {
               onChange={(e) => p.setStudentSearch(e.target.value)}
             />
           </div>
-          <div className="grid w-full gap-3 sm:grid-cols-3 xl:w-auto xl:max-w-3xl">
+          <div className="grid dnx-grid-3 w-full gap-3 xl:w-auto xl:max-w-3xl">
             <FilterSelect label="Curso" value={p.studentFilterCourse} options={filterOptions.courses} onChange={p.setStudentFilterCourse} />
             <FilterSelect
               label="División"
@@ -355,7 +355,7 @@ export function SchoolStudentsTab(p: SchoolStudentsTabProps) {
               Este alumno tiene preventas/pedidos. Editá sólo datos necesarios para no romper la trazabilidad.
             </p>
           ) : null}
-          <div className="mt-5 grid gap-4 md:grid-cols-2">
+          <div className="mt-5 grid dnx-grid-2 gap-4">
             <Field label="Nombre *">
               <Input
                 value={p.studentForm.firstName}

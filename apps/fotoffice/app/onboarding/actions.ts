@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
 import { requireAuth } from "@/lib/auth";
-import { ensureFotofficeWorkspaceForUser } from "@/lib/ensure-workspace";
+import { requireOwnWorkspace } from "@/lib/entrada/require-own-workspace";
 import {
   FOTOFFICE_ORGANIZATION_TYPE_IDS,
   FOTOFFICE_SPECIALTY_IDS,
@@ -17,7 +17,7 @@ export type OnboardingState = { error: string | null; ok?: boolean };
 const ACTIVITY_IDS = FOTOFFICE_ORGANIZATION_TYPE_IDS;
 
 async function requireOwnedWorkspace(userId: number, email: string, name: string | null) {
-  const ensured = await ensureFotofficeWorkspaceForUser({ userId, email, name });
+  const ensured = await requireOwnWorkspace({ id: userId, email, name });
   const membership = await prisma.workspaceMembership.findUnique({
     where: {
       userId_workspaceId: { userId, workspaceId: ensured.workspaceId },

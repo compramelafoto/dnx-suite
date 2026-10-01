@@ -16,6 +16,7 @@ import {
   MEMBER_ACCESS_LABELS,
   memberAccessStatus,
 } from "@/lib/members/invitations";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
 const initial: MemberAccessState = { error: null };
 
@@ -24,7 +25,15 @@ function fmt(d: Date): string {
 }
 
 /** Cuenta ya vinculada: solo queda la opción de desvincular, con motivo obligatorio. */
-function LinkedState({ memberId, userEmail }: { memberId: string; userEmail: string | null }) {
+function LinkedState({
+  memberId,
+  userEmail,
+  vocabulary,
+}: {
+  memberId: string;
+  userEmail: string | null;
+  vocabulary: PersonVocabulary;
+}) {
   const [state, action, pending] = useActionState(unlinkMemberUserAction, initial);
   const [confirming, setConfirming] = useState(false);
 
@@ -45,8 +54,7 @@ function LinkedState({ memberId, userEmail }: { memberId: string; userEmail: str
         <form action={action} className="fo-card space-y-2 border-[var(--fo-danger)]/40 p-3">
           <input type="hidden" name="memberId" value={memberId} />
           <p className="text-xs text-[var(--fo-text)]">
-            El socio dejará de poder acceder con esa cuenta. La cuenta NO se elimina y conserva sus
-            otros accesos. Queda registrado en el historial.
+            {`El ${vocabulary.singular} dejará de poder acceder con esa cuenta. La cuenta NO se elimina y conserva sus otros accesos. Queda registrado en el historial.`}
           </p>
           <label className="fo-label text-xs" htmlFor="unlink-reason">
             Motivo (obligatorio)
@@ -56,7 +64,7 @@ function LinkedState({ memberId, userEmail }: { memberId: string; userEmail: str
             name="reason"
             required
             maxLength={500}
-            placeholder="Ej. El socio pidió cambiar de cuenta"
+            placeholder={`Ej. El ${vocabulary.singular} pidió cambiar de cuenta`}
             className="fo-input !min-h-9 !py-1 text-sm"
           />
           <div className="flex gap-2">
@@ -79,7 +87,15 @@ function LinkedState({ memberId, userEmail }: { memberId: string; userEmail: str
 }
 
 /** Buscar una cuenta existente por email exacto y vincularla, con confirmación explícita. */
-function LinkExistingUser({ memberId, memberEmail }: { memberId: string; memberEmail: string | null }) {
+function LinkExistingUser({
+  memberId,
+  memberEmail,
+  vocabulary,
+}: {
+  memberId: string;
+  memberEmail: string | null;
+  vocabulary: PersonVocabulary;
+}) {
   const [search, searchAction, searching] = useActionState(findUserToLinkAction, initial);
   const [link, linkAction, linking] = useActionState(linkMemberUserAction, initial);
   const candidate = link.candidate ?? search.candidate;
@@ -119,18 +135,19 @@ function LinkExistingUser({ memberId, memberEmail }: { memberId: string; memberE
             {candidate.name ? ` (${candidate.name})` : ""}
           </p>
           <p className="text-xs text-[var(--fo-muted)]">
-            Email del socio: {memberEmail ?? "sin email"}
+            {`Email del ${vocabulary.singular}: ${memberEmail ?? "sin email"}`}
           </p>
 
           {!candidate.emailMatchesMember ? (
             <div className="space-y-2 rounded border border-[var(--fo-danger)]/50 p-2">
               <p className="text-xs text-[var(--fo-danger)]">
-                Los emails <strong>no coinciden</strong>. Verificá que esta sea realmente la cuenta
-                de esta persona: vincularla le dará acceso a su ficha de socio.
+                {"Los emails "}
+                <strong>no coinciden</strong>
+                {`. Verificá que esta sea realmente la cuenta de esta persona: vincularla le dará acceso a su ficha de ${vocabulary.singular}.`}
               </p>
               <label className="flex items-start gap-2 text-xs text-[var(--fo-text)]">
                 <input type="checkbox" name="confirmMismatch" className="mt-0.5" required />
-                <span>Confirmo que esta cuenta pertenece a este socio.</span>
+                <span>{`Confirmo que esta cuenta pertenece a este ${vocabulary.singular}.`}</span>
               </label>
             </div>
           ) : null}
@@ -194,10 +211,12 @@ function InviteMember({
   memberId,
   memberEmail,
   isResend,
+  vocabulary,
 }: {
   memberId: string;
   memberEmail: string | null;
   isResend: boolean;
+  vocabulary: PersonVocabulary;
 }) {
   const [state, action, pending] = useActionState(inviteMemberAction, initial);
 
@@ -218,7 +237,7 @@ function InviteMember({
           ? isResend
             ? `Se enviará un enlace nuevo a ${memberEmail} y el anterior quedará sin efecto. Vence en 72 horas.`
             : `Se le enviará un email a ${memberEmail}. El enlace vence en 72 horas.`
-          : "Este socio no tiene email: cargale uno propio para poder invitarlo."}
+          : `Este ${vocabulary.singular} no tiene email: cargale uno propio para poder invitarlo.`}
       </p>
       {state.sentTo ? (
         <p className="text-xs text-[var(--fo-success,#047857)]">
@@ -283,17 +302,19 @@ export function MemberAccessPanel({
   linkedUserEmail,
   isLinked,
   invitations,
+  vocabulary,
 }: {
   memberId: string;
   memberEmail: string | null;
   linkedUserEmail: string | null;
   isLinked: boolean;
   invitations: MemberInvitationRecord[];
+  vocabulary: PersonVocabulary;
 }) {
   return (
     <div className="space-y-5">
       {isLinked ? (
-        <LinkedState memberId={memberId} userEmail={linkedUserEmail} />
+        <LinkedState memberId={memberId} userEmail={linkedUserEmail} vocabulary={vocabulary} />
       ) : (
         <>
           {/* En esta rama el socio no está vinculado: `isLinked` ya lo garantiza. */}
@@ -302,8 +323,9 @@ export function MemberAccessPanel({
             memberId={memberId}
             memberEmail={memberEmail}
             isResend={invitations.some((inv) => invitationState(inv) !== "ACCEPTED")}
+            vocabulary={vocabulary}
           />
-          <LinkExistingUser memberId={memberId} memberEmail={memberEmail} />
+          <LinkExistingUser memberId={memberId} memberEmail={memberEmail} vocabulary={vocabulary} />
         </>
       )}
       <InvitationList memberId={memberId} invitations={invitations} />

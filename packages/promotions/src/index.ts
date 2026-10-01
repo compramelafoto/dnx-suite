@@ -4,6 +4,9 @@ export type {
   PromotionRedemptionStatus,
   PromotionRecord,
   PromotionUsageCounters,
+  PromotionEligibilityKind,
+  PromotionEligibilityRule,
+  PromotionEligibilityResolution,
   PreviewPromotionInput,
   PromotionQuote,
   PromotionRejectionCode,
@@ -16,8 +19,10 @@ export {
   PROMOTION_DISCOUNT_TYPES,
   PROMOTION_PLATFORMS,
   PROMOTION_REDEMPTION_STATUSES,
+  PROMOTION_ELIGIBILITY_KINDS,
 } from "./types";
 
+export { readEligibilityRule } from "./eligibility";
 export { normalizePromotionCode, isValidPromotionCodeFormat } from "./normalize";
 export { calculateDiscountAmount, buildPromotionQuote } from "./calculate";
 export {

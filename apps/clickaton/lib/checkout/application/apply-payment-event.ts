@@ -85,9 +85,12 @@ export function createApplyPaymentEventUseCase(deps: {
         };
       }
 
-      // Evento duplicado: orden ya en estado terminal aprobado
+      // Evento duplicado: orden ya en estado terminal aprobado.
+      // Para un regalo el estado terminal del pago es GIFT_AWAITING_REDEMPTION,
+      // no CONFIRMED: la inscripción se confirma recién cuando se activa.
       if (
-        registration.status === "CONFIRMED" &&
+        (registration.status === "CONFIRMED" ||
+          registration.status === "GIFT_AWAITING_REDEMPTION") &&
         registration.paymentStatus === "APPROVED" &&
         order.status === "APPROVED"
       ) {
@@ -185,6 +188,78 @@ export function createApplyPaymentEventUseCase(deps: {
             paymentIdempotencyKey: registration.paymentIdempotencyKey ?? order.idempotencyKey,
             paymentStatus: "PROCESSING",
           });
+        }
+
+        // Regalo: no se confirma como participante. Se emite el voucher y el
+        // cupo sigue reservado hasta que quien lo recibe lo active.
+        // No corresponde número visible, ni credencial, ni QR, ni sincronizar
+        // con FotoRank: todavía no se sabe quién va a participar.
+        if (registration.isGift) {
+          const redeemableUntil =
+            await deps.registrationPort.getEditionRegistrationCloseAt(
+              registration.editionId,
+            );
+          const giftConfirmed = await deps.registrationPort.confirmGiftPaid({
+            registrationId: registration.id,
+            paymentOrderId: order.id,
+            source: "dnx_payments_webhook",
+            requestId: event.eventId,
+            redeemableUntil,
+          });
+
+          try {
+            const { issueGiftVoucherOnPayment } = await import(
+              "@/lib/gift-vouchers/application/issue-gift-voucher"
+            );
+            const { createPrismaGiftVoucherRepository } = await import(
+              "@/lib/gift-vouchers/infrastructure/prisma-gift-voucher-repository"
+            );
+            const issued = await issueGiftVoucherOnPayment({
+              vouchers: createPrismaGiftVoucherRepository(),
+            }).execute({
+              registrationId: registration.id,
+              editionRegistrationCloseAt: redeemableUntil,
+              paidAt: new Date(),
+            });
+
+            // Sólo en la primera acreditación: un aviso repetido de Mercado
+            // Pago no tiene que volver a mandarle el voucher a nadie.
+            if (issued.issued) {
+              const { notifyGiftPurchased } = await import(
+                "@/lib/gift-vouchers/notifications/notify-gift-lifecycle"
+              );
+              await notifyGiftPurchased(registration.id);
+            }
+          } catch (err) {
+            // El pago ya quedó acreditado: el voucher se puede emitir a mano.
+            log?.({
+              event: "conflict",
+              registrationId: giftConfirmed.id,
+              orderId: order.id,
+              meta: {
+                code: "GIFT_VOUCHER_ISSUE_SOFT_FAIL",
+                reason: err instanceof Error ? err.message.slice(0, 80) : "unknown",
+              },
+            });
+          }
+
+          log?.({
+            event: "registration_confirmed",
+            registrationId: giftConfirmed.id,
+            orderId: order.id,
+            meta: { gift: true },
+          });
+
+          return {
+            applied: true,
+            duplicate: false,
+            conflict: false,
+            registrationId: giftConfirmed.id,
+            registrationStatus: giftConfirmed.status,
+            paymentStatus: giftConfirmed.paymentStatus,
+            holdsAction: "none",
+            orderStatus: order.status,
+          };
         }
 
         const confirmed = await deps.registrationPort.confirmPaid({
@@ -365,6 +440,56 @@ export function createApplyPaymentEventUseCase(deps: {
         reason: `order_${order.status.toLowerCase()}`,
         requestId: event.eventId,
       });
+
+      // Devolvieron la plata de un regalo: el código tiene que dejar de
+      // servir y el cupo volver a la venta. Sin esto, el pago se devuelve y
+      // quien lo recibe igual activa una inscripción que ya nadie pagó.
+      if (registration.isGift && nextPay === "REFUNDED") {
+        try {
+          const { voidGiftVoucherOnRefund } = await import(
+            "@/lib/gift-vouchers/application/void-gift-on-refund"
+          );
+          const { createPrismaGiftVoucherRepository } = await import(
+            "@/lib/gift-vouchers/infrastructure/prisma-gift-voucher-repository"
+          );
+          const { createPrismaPublicRegistrationRepository } = await import(
+            "@/lib/public-registration/infrastructure/prisma-public-registration-repository"
+          );
+          const publicRepo = createPrismaPublicRegistrationRepository();
+          const voided = await voidGiftVoucherOnRefund({
+            vouchers: createPrismaGiftVoucherRepository(),
+            clock: { now: () => new Date() },
+            registrations: {
+              async releaseGiftRegistration(registrationId) {
+                await publicRepo.releaseGiftRegistration({
+                  registrationId,
+                  now: new Date(),
+                  reason: "gift_refunded",
+                });
+              },
+            },
+          }).execute({ registrationId: registration.id });
+
+          log?.({
+            event: "holds_released",
+            registrationId: registration.id,
+            orderId: order.id,
+            meta: { via: "gift_refund", voided: voided.voided },
+          });
+        } catch (err) {
+          // El reembolso ya quedó asentado: el voucher se anula a mano desde
+          // el panel de Regalos si esto falla.
+          log?.({
+            event: "conflict",
+            registrationId: registration.id,
+            orderId: order.id,
+            meta: {
+              code: "GIFT_REFUND_VOID_SOFT_FAIL",
+              reason: err instanceof Error ? err.message.slice(0, 80) : "unknown",
+            },
+          });
+        }
+      }
 
       return {
         applied: true,

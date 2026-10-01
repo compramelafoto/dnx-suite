@@ -1,9 +1,11 @@
+/* eslint-disable turbo/no-undeclared-env-vars -- el test enciende y apaga las banderas documentadas */
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 import {
   AUTO_GENERATED_CARD_TYPES,
   autoGenerateParticipantCardsForRegistration,
   enqueueParticipantCardsAfterPaid,
+  filtroDeInscripcionesPendientes,
   isParticipantCardAutoGenerationEnabled,
   processDueParticipantCards,
 } from "../participant-card-autogenerate";
@@ -95,5 +97,85 @@ describe("autogeneración de placas de participante", () => {
     assert.doesNotThrow(() =>
       enqueueParticipantCardsAfterPaid({ registrationId: "reg_inexistente" })
     );
+  });
+});
+
+/**
+ * En Vercel el servidor se congela apenas responde. Una tarea lanzada y olvidada queda a mitad
+ * de camino, y la placa aparece recién cuando pasa el cron: hasta cinco minutos después de
+ * pagar. Programarla hace que el servidor la espere antes de apagarse.
+ */
+describe("la placa que se dispara al confirmarse el pago", () => {
+  function habilitar() {
+    process.env.CLICKATON_PARTICIPANT_CARDS_V2_ENABLED = "true";
+    process.env.CLICKATON_PARTICIPANT_CARDS_PERSISTENCE_ENABLED = "true";
+    process.env.CLICKATON_CARD_RENDER_PROVIDER = "design-studio";
+    process.env.CLICKATON_PARTICIPANT_CARDS_STORAGE_PROVIDER = "local";
+  }
+
+  it("se programa para que el servidor la espere, en vez de quedar suelta", () => {
+    habilitar();
+    const programadas: (() => unknown)[] = [];
+
+    enqueueParticipantCardsAfterPaid(
+      { registrationId: "reg_x" },
+      { schedule: (tarea) => programadas.push(tarea) }
+    );
+
+    assert.equal(programadas.length, 1);
+  });
+
+  it("no programa nada si la generación automática está apagada", () => {
+    delete process.env.CLICKATON_PARTICIPANT_CARDS_V2_ENABLED;
+    const programadas: (() => unknown)[] = [];
+
+    enqueueParticipantCardsAfterPaid(
+      { registrationId: "reg_x" },
+      { schedule: (tarea) => programadas.push(tarea) }
+    );
+
+    assert.equal(programadas.length, 0);
+  });
+
+  it("sigue sin lanzar si no hay dónde programar la tarea", () => {
+    habilitar();
+
+    assert.doesNotThrow(() =>
+      enqueueParticipantCardsAfterPaid(
+        { registrationId: "reg_x" },
+        {
+          schedule: () => {
+            throw new Error("fuera del contexto de una request");
+          },
+        }
+      )
+    );
+  });
+});
+
+/**
+ * A quién sale a buscar el barrido del cron.
+ *
+ * Buscaba inscripciones **sin ninguna placa lista**. Con dos placas por persona, a quien ya le
+ * había salido la de bienvenida nunca se le volvía a intentar la de "Soy parte": quedaba fuera
+ * del barrido para siempre. Se vio en producción con 76 placas pendientes y el cron sin tomar
+ * ninguna.
+ */
+describe("a quién busca el barrido", () => {
+  it("mira cada tipo de placa por separado", () => {
+    const filtro = filtroDeInscripcionesPendientes(["welcome", "member"]);
+
+    assert.deepEqual(filtro.OR, [
+      { participantCards: { none: { status: "READY", cardType: "WELCOME" } } },
+      { participantCards: { none: { status: "READY", cardType: "MEMBER" } } },
+    ]);
+  });
+
+  it("sólo toma inscripciones confirmadas, con foto y con consentimiento", () => {
+    const filtro = filtroDeInscripcionesPendientes(["welcome"]);
+
+    assert.equal(filtro.status, "CONFIRMED");
+    assert.deepEqual(filtro.profilePhotoAssetId, { not: null });
+    assert.equal(filtro.imageUsageConsent, true);
   });
 });

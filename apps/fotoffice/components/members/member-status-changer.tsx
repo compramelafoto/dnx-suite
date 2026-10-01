@@ -4,15 +4,18 @@ import { useActionState, useState } from "react";
 import { changeMemberStatusAction, type ChangeStatusState } from "@/app/actions/members";
 import { MEMBER_STATUS_LABELS, MEMBER_STATUS_OPTIONS, isMemberStatus } from "@/lib/members/status-labels";
 import { statusRequiresReason } from "@/lib/members/audit";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
 const initial: ChangeStatusState = { error: null };
 
 export function MemberStatusChanger({
   memberId,
   status,
+  vocabulary,
 }: {
   memberId: string;
   status: string;
+  vocabulary: PersonVocabulary;
 }) {
   const [state, action, pending] = useActionState(changeMemberStatusAction, initial);
   const [selected, setSelected] = useState(status);
@@ -34,7 +37,7 @@ export function MemberStatusChanger({
           onChange={(e) => setSelected(e.target.value)}
           disabled={pending}
           className="fo-input !min-h-9 !py-1 text-sm"
-          aria-label="Cambiar estado del socio"
+          aria-label={`Cambiar estado del ${vocabulary.singular}`}
         >
           {MEMBER_STATUS_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
@@ -54,7 +57,7 @@ export function MemberStatusChanger({
       {confirming ? (
         <div className="fo-card space-y-2 border-[var(--fo-danger)]/40 p-3">
           <p className="text-xs text-[var(--fo-text)]">
-            Vas a marcar a este socio como{" "}
+            {`Vas a marcar a este ${vocabulary.singular} como`}{" "}
             <strong>{MEMBER_STATUS_LABELS[selected as keyof typeof MEMBER_STATUS_LABELS]}</strong>. Queda
             registrado en su historial junto con tu nombre y la fecha.
           </p>

@@ -48,6 +48,7 @@ export async function GET(
 
     const { videos, devDiagnostics } = await listPublicReadyVideosForAlbum(prisma, album.id, {
       applyExpiresFilter: accessResult.access.applyExpiresFilter,
+      allowedVideoIds: accessResult.access.allowedVideoIds,
     });
 
     return NextResponse.json({

@@ -1,0 +1,186 @@
+/**
+ * Instructivo en PDF.
+ *
+ * Se compone con `pdf-lib` y no con el Designer porque el largo es variable: un álbum
+ * simple son cuatro pasos y una preventa con selfie son nueve. El texto tiene que fluir y
+ * abrir página nueva solo; con bloques de posición fija se cortaría.
+ */
+
+import {
+  PDFDocument,
+  StandardFonts,
+  rgb,
+  type PDFFont,
+  type PDFImage,
+  type PDFPage,
+} from "pdf-lib";
+
+import type { AlbumInstructivoProfile } from "./album-instructivo-profile";
+import type { InstructivoStep } from "./album-instructivo-steps";
+
+const A4 = { ancho: 595.28, alto: 841.89 };
+const MARGEN = 56;
+const ANCHO_UTIL = A4.ancho - MARGEN * 2;
+
+/**
+ * Punto medio (U+00B7), no viñeta redonda (U+2022): las fuentes estándar de PDF son
+ * Latin-1 y la viñeta redonda queda fuera, así que se borraría sin aviso.
+ */
+const VINETA = "\u00B7";
+
+function hexARgb(hex: string | null) {
+  const limpio = (hex || "").replace("#", "").trim();
+  if (!/^[0-9a-fA-F]{6}$/.test(limpio)) return rgb(0.76, 0.48, 0.24);
+  const n = Number.parseInt(limpio, 16);
+  return rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255);
+}
+
+/**
+ * Las fuentes estándar de PDF son Latin-1: un carácter fuera de ese juego hace fallar la
+ * emisión entera. El texto del instructivo es español rioplatense (acentos y ñ entran en
+ * Latin-1), pero el título del álbum lo escribe el fotógrafo y puede traer cualquier cosa.
+ */
+function soloLatin1(texto: string): string {
+  return texto.replace(/[^\u0000-\u00FF]/g, "");
+}
+
+/** Corta el texto en líneas que entran en `ancho` con esa fuente y tamaño. */
+export function quebrarEnLineas(
+  texto: string,
+  font: PDFFont,
+  tam: number,
+  ancho: number
+): string[] {
+  const palabras = soloLatin1(texto).split(/\s+/).filter(Boolean);
+  const lineas: string[] = [];
+  let actual = "";
+  for (const palabra of palabras) {
+    const tentativa = actual ? `${actual} ${palabra}` : palabra;
+    if (font.widthOfTextAtSize(tentativa, tam) <= ancho) {
+      actual = tentativa;
+    } else {
+      if (actual) lineas.push(actual);
+      actual = palabra;
+    }
+  }
+  if (actual) lineas.push(actual);
+  return lineas;
+}
+
+/**
+ * Baja el logo del fotógrafo y lo incrusta. Devuelve `null` ante cualquier problema: un
+ * logo que no carga no puede dejar al cliente sin instructivo.
+ */
+async function incrustarLogo(
+  pdf: PDFDocument,
+  logoUrl: string | null
+): Promise<PDFImage | null> {
+  if (!logoUrl) return null;
+  try {
+    const respuesta = await fetch(logoUrl, { signal: AbortSignal.timeout(5000) });
+    if (!respuesta.ok) return null;
+    const bytes = new Uint8Array(await respuesta.arrayBuffer());
+    // La firma del archivo manda, no la extensión de la URL.
+    const esPng = bytes[0] === 0x89 && bytes[1] === 0x50;
+    const esJpg = bytes[0] === 0xff && bytes[1] === 0xd8;
+    if (esPng) return await pdf.embedPng(bytes);
+    if (esJpg) return await pdf.embedJpg(bytes);
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export async function buildInstructivoPdf(
+  profile: AlbumInstructivoProfile,
+  steps: InstructivoStep[],
+  qrPng: Uint8Array
+): Promise<Uint8Array> {
+  const pdf = await PDFDocument.create();
+  const regular = await pdf.embedFont(StandardFonts.Helvetica);
+  const negrita = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const color = hexARgb(profile.fotografo.color);
+  const qr = await pdf.embedPng(qrPng);
+
+  let page: PDFPage = pdf.addPage([A4.ancho, A4.alto]);
+  let y = A4.alto - MARGEN;
+
+  const nuevaPagina = () => {
+    page = pdf.addPage([A4.ancho, A4.alto]);
+    y = A4.alto - MARGEN;
+  };
+
+  const escribir = (
+    texto: string,
+    font: PDFFont,
+    tam: number,
+    opciones: { sangria?: number; color?: ReturnType<typeof rgb>; anchoMax?: number } = {}
+  ) => {
+    const sangria = opciones.sangria ?? 0;
+    const ancho = (opciones.anchoMax ?? ANCHO_UTIL) - sangria;
+    for (const linea of quebrarEnLineas(texto, font, tam, ancho)) {
+      if (y - tam < MARGEN) nuevaPagina();
+      page.drawText(linea, {
+        x: MARGEN + sangria,
+        y: y - tam,
+        size: tam,
+        font,
+        color: opciones.color,
+      });
+      y -= tam * 1.45;
+    }
+  };
+
+  // Encabezado: identidad del fotógrafo a la izquierda, QR del álbum a la derecha.
+  const LADO_QR = 96;
+  page.drawImage(qr, {
+    x: A4.ancho - MARGEN - LADO_QR,
+    y: y - LADO_QR,
+    width: LADO_QR,
+    height: LADO_QR,
+  });
+
+  const anchoEncabezado = ANCHO_UTIL - LADO_QR - 16;
+
+  // Logo del fotógrafo arriba de todo, escalado para no pasar de 40pt de alto ni del
+  // ancho disponible junto al QR.
+  const logo = await incrustarLogo(pdf, profile.fotografo.logoUrl);
+  if (logo) {
+    const ALTO_LOGO = 40;
+    const escala = Math.min(ALTO_LOGO / logo.height, anchoEncabezado / logo.width);
+    const ancho = logo.width * escala;
+    const alto = logo.height * escala;
+    page.drawImage(logo, { x: MARGEN, y: y - alto, width: ancho, height: alto });
+    y -= alto + 12;
+  }
+
+  escribir(profile.fotografo.nombre, regular, 11, {
+    color: rgb(0.42, 0.45, 0.5),
+    anchoMax: anchoEncabezado,
+  });
+  escribir(profile.album.titulo, negrita, 20, { color, anchoMax: anchoEncabezado });
+  escribir("Cómo encontrar y comprar tus fotos", regular, 12, { anchoMax: anchoEncabezado });
+  escribir(profile.album.url, regular, 10, {
+    color: rgb(0.42, 0.45, 0.5),
+    anchoMax: anchoEncabezado,
+  });
+
+  // El encabezado nunca puede solaparse con el QR.
+  y = Math.min(y, A4.alto - MARGEN - LADO_QR) - 24;
+
+  steps.forEach((step, i) => {
+    // Un título suelto al pie de página queda huérfano: si no entra con al menos una
+    // línea de detalle, abrimos página antes de escribirlo.
+    if (y - 48 < MARGEN) nuevaPagina();
+    escribir(`${i + 1}. ${step.titulo}`, negrita, 13, { color });
+    for (const linea of step.detalle) {
+      escribir(`${VINETA}  ${linea}`, regular, 11, { sangria: 14 });
+    }
+    if (step.nota) {
+      escribir(step.nota, negrita, 10, { sangria: 14, color: rgb(0.49, 0.29, 0.12) });
+    }
+    y -= 10;
+  });
+
+  return pdf.save();
+}

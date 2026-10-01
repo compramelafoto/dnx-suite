@@ -121,7 +121,7 @@ function SectionBlock({ section }: { section: ReportSection }) {
       {section.groups.map((group) => (
         <div key={group.title} className="space-y-2">
           <h3 className="text-sm font-medium text-gray-600 m-0">{group.title}</h3>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="grid dnx-grid-4 dnx-grid-compacta gap-3">
             {group.metrics.map((metric) => (
               <MetricCard key={metric.key} metric={metric} />
             ))}

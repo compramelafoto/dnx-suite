@@ -97,6 +97,14 @@
     {
       "path": "/api/cron/refresh-mp-oauth-tokens",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/cleanup-expired-videos",
+      "schedule": "20 4 * * *"
+    },
+    {
+      "path": "/api/cron/analyze-video-frames",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

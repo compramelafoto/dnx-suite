@@ -2,17 +2,21 @@ import Link from "next/link";
 import { listMemberCategories } from "@repo/db/fotoffice-members";
 import { requireMembersManageContext } from "@/lib/members/access";
 import { PageHeader } from "@/components/page-header";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { Tag } from "lucide-react";
 
 export default async function MemberCategoriesPage() {
   const { workspace } = await requireMembersManageContext();
-  const categories = await listMemberCategories(workspace.id);
+  const [categories, v] = await Promise.all([
+    listMemberCategories(workspace.id),
+    loadPersonVocabulary(workspace.id),
+  ]);
 
   return (
     <div className="space-y-10">
       <PageHeader
-        title="Categorías de socios"
-        description="Cada workspace define sus propias categorías. No eliminan socios existentes al desactivarse."
+        title={`Categorías de ${v.plural}`}
+        description={`Cada workspace define sus propias categorías. No eliminan ${v.plural} existentes al desactivarse.`}
         actions={
           <>
             <Link href="/members" className="fo-btn fo-btn-secondary text-sm">
@@ -32,9 +36,11 @@ export default async function MemberCategoriesPage() {
           </div>
           <div className="space-y-2 max-w-md">
             <p className="text-base font-semibold text-[var(--fo-text)]">Todavía no hay categorías</p>
+            {/* Reformulado: el ejemplo "Socio activo" hacía concordar el adjetivo en
+                masculino con la palabra configurada. Los nombres de categoría de ejemplo no
+                repiten la palabra, así que no dependen de su género. */}
             <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
-              Creá al menos una antes de cargar socios — por ejemplo &ldquo;Socio activo&rdquo; o
-              &ldquo;Estudiante&rdquo;.
+              {`Creá al menos una antes de cargar ${v.plural} — por ejemplo "Activo" o "Estudiante".`}
             </p>
           </div>
           <Link href="/members/categories/new" className="fo-btn fo-btn-primary text-sm">

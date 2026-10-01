@@ -1,13 +1,8 @@
+import type { MpConnectConfig } from "@repo/payments/mercado-pago-connect";
 import { FOTOFFICE_MP_ENV } from "./constants";
 
-export type MpConnectConfig = {
-  configured: boolean;
-  /** Nombres de las variables que faltan, para poder decírselo al operador. */
-  missing: string[];
-  clientId: string | null;
-  clientSecret: string | null;
-  redirectUri: string | null;
-};
+// El tipo vive en el paquete desde que el flujo se compartió con Subí la Foto.
+export type { MpConnectConfig };
 
 /**
  * Lee la configuración de la aplicación de MercadoPago de FotoOffice.

@@ -214,7 +214,7 @@ export default function AdminMensajesPage() {
           )}
         </Card>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid dnx-grid-3 gap-6">
           {/* Lista de mensajes */}
           <div className="lg:col-span-1 space-y-3">
             {messages.map((msg) => (

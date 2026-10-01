@@ -114,7 +114,7 @@ export default function AdminAuditoriaPage() {
 
       <Card className="p-4">
         <h2 className="text-sm font-semibold text-gray-700 mb-3">Buscar y filtrar</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid dnx-grid-4 gap-3">
           <div className="lg:col-span-2">
             <label className="block text-xs font-medium text-gray-500 mb-1">Buscar</label>
             <Input

@@ -1,4 +1,10 @@
 import { createHash } from "node:crypto";
+import {
+  buildAffiliateCommissionDraft,
+  DEFAULT_MP_FEE_BPS_ENV,
+  resolveAffiliateMpFeeBps,
+  type AffiliateCommissionDraft,
+} from "@/lib/affiliates/domain/commission-draft";
 import { marathonPath } from "@/config/navigation";
 import { attachPhaseProductsToTickets } from "@/lib/catalog/application/attach-phase-products";
 import { filterPhaseItemsByFirstNQuota } from "@/lib/catalog/domain/first-n-benefit";
@@ -10,6 +16,15 @@ import {
   resolveHighestActivePricePhase,
 } from "@/lib/pricing/domain/resolve-price-phase";
 import { assertInstagramHandle } from "@repo/media-composition";
+import { resolveLocationConsent } from "@/lib/broadcast-consent/domain/location-consent";
+import { systemClock, type EditionClock } from "@/lib/timeline/clock";
+import {
+  homeDeliveryOffer,
+  isGuaranteed,
+  isInExcludedCity,
+  parseHomeDeliveryAddress,
+  type HomeDeliveryShippingRecord,
+} from "@/lib/home-delivery/domain";
 import { sendParticipantFunnelEmail } from "@/lib/registration/notifications/participant-email";
 import {
   signRegistrationAccessToken,
@@ -67,6 +82,7 @@ function fingerprint(input: {
   variantChoices: Array<{ productId: string; productVariantId: string }>;
   totalAmount: number;
   usePassCredit?: boolean;
+  homeDeliveryKey?: string | null;
 }): string {
   return createHash("sha256")
     .update(
@@ -80,23 +96,27 @@ function fingerprint(input: {
         ),
         total: input.totalAmount,
         usePassCredit: Boolean(input.usePassCredit),
+        // Sólo si eligió envío: no cambia la huella de las inscripciones de siempre.
+        ...(input.homeDeliveryKey ? { homeDelivery: input.homeDeliveryKey } : {}),
       }),
     )
     .digest("hex");
 }
 
-function registrationWindowOf(edition: {
-  isPublished: boolean;
-  registrationEnabled: boolean;
-  status: string;
-  registrationOpenAt: Date | null;
-  registrationCloseAt: Date | null;
-}): PublicRegistrationContextDto["registrationWindow"] {
+function registrationWindowOf(
+  edition: {
+    isPublished: boolean;
+    registrationEnabled: boolean;
+    status: string;
+    registrationOpenAt: Date | null;
+    registrationCloseAt: Date | null;
+  },
+  now: number,
+): PublicRegistrationContextDto["registrationWindow"] {
   if (!edition.isPublished || !edition.registrationEnabled) return "unavailable";
   if (edition.status === "CANCELLED" || edition.status === "COMPLETED" || edition.status === "DRAFT") {
     return "unavailable";
   }
-  const now = Date.now();
   if (edition.registrationOpenAt && edition.registrationOpenAt.getTime() > now) {
     return "not_open";
   }
@@ -242,6 +262,8 @@ export type PromotionsPort = {
     currency: string;
     editionId: string;
     userId: number | null;
+    /** Email normalizado. Necesario para cupones con condición de elegibilidad. */
+    email?: string | null;
     registrationId?: string | null;
     orderId: string;
     idempotencyKey: string;
@@ -268,6 +290,43 @@ export type PromotionsPort = {
   releaseByRegistration: (registrationId: string) => Promise<number>;
 };
 
+/**
+ * Arma la comisión PENDING del cupón con dueño, o null. Cualquier falla (tabla
+ * ausente, base caída) se loguea y la inscripción sigue sin comisión.
+ */
+export async function resolveAffiliateCommissionDraft(
+  repo: Pick<PublicRegistrationRepository, "getAffiliateCommissionContext">,
+  input: {
+    promotionId: string;
+    promotionCode: string;
+    editionId: string;
+    baseAmount: number;
+    totalAmount: number;
+  },
+  envDefaultMpFeeBps: string | null | undefined = process.env[DEFAULT_MP_FEE_BPS_ENV],
+): Promise<AffiliateCommissionDraft | null> {
+  if (!repo.getAffiliateCommissionContext) return null;
+  try {
+    const context = await repo.getAffiliateCommissionContext({
+      promotionId: input.promotionId,
+      editionId: input.editionId,
+    });
+    if (!context) return null;
+    return buildAffiliateCommissionDraft({
+      affiliate: context.affiliate,
+      affiliateActive: context.affiliateActive,
+      promotionId: input.promotionId,
+      promotionCode: input.promotionCode,
+      baseAmount: input.baseAmount,
+      totalAmount: input.totalAmount,
+      mpFeeBps: resolveAffiliateMpFeeBps(context.editionMpFeeBps, envDefaultMpFeeBps),
+    });
+  } catch (error) {
+    console.error("[clickaton] comisión de afiliado: no se pudo anotar:", error);
+    return null;
+  }
+}
+
 export function createPublicRegistrationService(deps: {
   repo: PublicRegistrationRepository;
   rateLimit?: RateLimitStore | null;
@@ -275,13 +334,48 @@ export function createPublicRegistrationService(deps: {
   /** Prisma-backed in production; omit in in-memory selfchecks. */
   confirmFree?: ConfirmFreeRegistrationFn | null;
   promotions?: PromotionsPort | null;
+  /**
+   * Reloj de la edición. Por defecto la hora real.
+   * El ensayo de edición lo inyecta para preguntar qué vería un participante
+   * en un momento distinto del actual. Nunca llega desde el navegador.
+   */
+  clock?: EditionClock | null;
+  /**
+   * Alta idempotente de la entrada Pack 4 al armar el contexto. Escribe en la
+   * base, así que el ensayo en seco la reemplaza por una función que no hace
+   * nada: mirar una edición nunca debería modificarla.
+   */
+  ensurePackTicket?: ((editionId: string) => Promise<unknown>) | null;
 }) {
   const { repo } = deps;
   const rateLimit = deps.rateLimit ?? null;
   const confirmFree = deps.confirmFree ?? null;
   const promotions = deps.promotions ?? null;
+  const clock = deps.clock ?? systemClock();
+  const ensurePackTicket =
+    deps.ensurePackTicket ??
+    (async (editionId: string) => {
+      const { ensureMarathonPackTicket } = await import("@/lib/packs/ensure-pack-ticket");
+      return ensureMarathonPackTicket(editionId);
+    });
   const expireUseCase = createExpirePendingRegistrationsUseCase({ repo });
   const eligibilityUseCase = createCheckoutEligibilityUseCase({ repo });
+
+
+  async function loadHomeDeliveryConfig(editionId: string) {
+    if (!repo.getHomeDeliveryConfig) return null;
+    try {
+      return await repo.getHomeDeliveryConfig(editionId);
+    } catch (error) {
+      // Sin la tabla (migración sin aplicar) la inscripción sigue andando sin envío.
+      console.error("[clickaton] getHomeDeliveryConfig falló:", error);
+      return null;
+    }
+  }
+
+  async function loadHomeDeliveryOffer(editionId: string) {
+    return homeDeliveryOffer(await loadHomeDeliveryConfig(editionId), clock.now());
+  }
 
   return {
     async getOffer(slug: string): Promise<PublicRegistrationOffer> {
@@ -294,7 +388,7 @@ export function createPublicRegistrationService(deps: {
           reason: "edition_unavailable",
         };
       }
-      const window = registrationWindowOf(edition);
+      const window = registrationWindowOf(edition, clock.now().getTime());
       if (window === "unavailable") {
         return {
           available: false,
@@ -349,7 +443,11 @@ export function createPublicRegistrationService(deps: {
 
     async getContext(
       slug: string,
-      opts?: { participantEmail?: string | null },
+      opts?: {
+        participantEmail?: string | null;
+        /** Usuario de la sesión. Nunca derivado del email tipeado. */
+        sessionUserId?: number | null;
+      },
     ): Promise<PublicRegistrationContextDto> {
       const edition = await repo.getEditionBySlug(slug);
       if (!edition || !edition.isPublished || !edition.registrationEnabled) {
@@ -358,7 +456,7 @@ export function createPublicRegistrationService(deps: {
           "Esta edición no está disponible para inscripción.",
         );
       }
-      const window = registrationWindowOf(edition);
+      const window = registrationWindowOf(edition, clock.now().getTime());
       if (window === "unavailable") {
         throw new PublicRegistrationError(
           "EDITION_NOT_AVAILABLE",
@@ -367,8 +465,7 @@ export function createPublicRegistrationService(deps: {
       }
       const venues = await repo.listActiveVenues(edition.id);
       try {
-        const { ensureMarathonPackTicket } = await import("@/lib/packs/ensure-pack-ticket");
-        await ensureMarathonPackTicket(edition.id);
+        await ensurePackTicket(edition.id);
       } catch (error) {
         console.error("[clickaton] ensureMarathonPackTicket failed:", error);
       }
@@ -382,7 +479,7 @@ export function createPublicRegistrationService(deps: {
       ];
 
       const phases = await repo.listPricePhases(edition.id);
-      const resolvedPhase = resolveCurrentPricePhase(phases, new Date());
+      const resolvedPhase = resolveCurrentPricePhase(phases, clock.now());
       const highestPhase = resolveHighestActivePricePhase(phases);
       let phaseItems =
         resolvedPhase != null
@@ -392,7 +489,7 @@ export function createPublicRegistrationService(deps: {
       let shirtBenefitEnded = false;
       if (phaseItems.length > 0) {
         const claims = await repo.countPhaseBenefitClaims(phaseItems.map((i) => i.id));
-        const now = new Date();
+        const now = clock.now();
         const hadMerch = phaseItems.some((i) => i.isIncluded && i.fulfillmentRequired);
         const { available, omitted } = filterPhaseItemsByFirstNQuota(phaseItems, {
           confirmedByItemId: claims.confirmedByItemId,
@@ -468,6 +565,31 @@ export function createPublicRegistrationService(deps: {
         }
       }
 
+      // Beneficio por colegas traídos.
+      //
+      // Se resuelve por la SESIÓN, nunca por el email tipeado: con el email de
+      // otro, cualquiera podría ver —y gastar— los colegas que esa persona
+      // trajo. Sólo presentación; el descuento real se recalcula y se reserva
+      // al crear la inscripción, también contra la sesión.
+      let referralBenefit: PublicRegistrationContextDto["referralBenefit"] = null;
+      if (opts?.sessionUserId != null) {
+        try {
+          const [{ prismaReferralRepository }, { descuentoPorColegas }] =
+            await Promise.all([
+              import("@/lib/referrals/infrastructure/prisma-referral-repository"),
+              import("@/lib/referrals/domain/escalera"),
+            ]);
+          const colegas = await prismaReferralRepository.contarColegasTraidos(
+            opts.sessionUserId,
+          );
+          if (colegas > 0) {
+            referralBenefit = { colegas, descuento: descuentoPorColegas(colegas) };
+          }
+        } catch (error) {
+          console.error("[clickaton] referralBenefit lookup failed:", error);
+        }
+      }
+
       return {
         edition: {
           id: edition.id,
@@ -483,6 +605,7 @@ export function createPublicRegistrationService(deps: {
           endAt: edition.endAt,
           timezone: edition.timezone,
           currency: edition.currency,
+          giftVouchersEnabled: edition.giftVouchersEnabled ?? false,
         },
         venues,
         tickets,
@@ -491,6 +614,8 @@ export function createPublicRegistrationService(deps: {
         highestPricePhase,
         registrationWindow: window,
         passCredits,
+        referralBenefit,
+        homeDelivery: await loadHomeDeliveryOffer(edition.id),
         legal: {
           termsPath: "/legal/terminos",
           privacyPath: "/legal/privacidad",
@@ -554,7 +679,7 @@ export function createPublicRegistrationService(deps: {
       validateParticipant(input.participant);
 
       const edition = await repo.getEditionBySlug(input.editionSlug);
-      if (!edition || registrationWindowOf(edition) !== "open") {
+      if (!edition || registrationWindowOf(edition, clock.now().getTime()) !== "open") {
         throw new PublicRegistrationError(
           "EDITION_NOT_AVAILABLE",
           "La edición no admite nuevas inscripciones en este momento.",
@@ -602,7 +727,29 @@ export function createPublicRegistrationService(deps: {
         }
       }
 
-      const now = new Date();
+      const now = clock.now();
+
+      // Centro de Transmisión: opt-in explícito, nunca derivado de acceptTerms.
+      const locationConsent = resolveLocationConsent({
+        choices: {
+          personal: input.locationConsent === true,
+          publicMap: input.locationPublicConsent === true,
+          interview: input.interviewConsent === true,
+          declaredAdult: input.locationDeclaredAdult === true,
+        },
+        birthDate: input.participant.birthDate
+          ? new Date(input.participant.birthDate)
+          : null,
+        eventDate: edition.startAt ?? now,
+        now,
+        // El formulario público de inscripción todavía no recolecta los
+        // datos del adulto responsable (no hay campo para eso en
+        // `PublicParticipantInput`), así que un menor que se inscribe por
+        // esta vía siempre cae en "sin autorización": el dominio no le
+        // otorga ninguna de las tres casillas. Es el default seguro hasta
+        // que exista esa recolección; no se inventa acá.
+      });
+
       const { isMarathonPackTicketCode } = await import("@/lib/packs/marathon-pack");
       const isPack = isMarathonPackTicketCode(ticket.code) || Boolean(ticket.isMarathonPack);
       const usePassCredit = Boolean(input.usePassCredit);
@@ -670,6 +817,9 @@ export function createPublicRegistrationService(deps: {
       let promotionId: string | null = null;
       let promotionCodeSnapshot: string | null = null;
       let promoIdempotencyKey: string | null = null;
+      // Precio de lista antes de cualquier descuento: es contra éste que se
+      // comparan el cupón y el beneficio por referidos.
+      const montoDeLista = chargeAmount;
       const rawPromo = input.promoCode?.trim() ?? "";
       if (rawPromo) {
         if (!promotions) {
@@ -691,6 +841,7 @@ export function createPublicRegistrationService(deps: {
           currency: ticket.currency,
           editionId: edition.id,
           userId,
+          email,
           orderId: promoIdempotencyKey,
           idempotencyKey: promoIdempotencyKey,
           now,
@@ -707,6 +858,85 @@ export function createPublicRegistrationService(deps: {
         promotionCodeSnapshot = reserved.applied.quote.code;
       }
 
+      // Beneficio por referidos. NO se suma al cupón: se aplica el mayor de
+      // los dos, y en empate gana el cupón para que los colegas traídos queden
+      // guardados para la próxima.
+      //
+      // `sessionUserId`, no `userId`: éste último sale del email tipeado, y
+      // con el email de un referidor cualquiera podría gastarle los colegas
+      // que trajo. El beneficio es de quien tiene la sesión iniciada.
+      let referralRef: string | null = null;
+      const referidorUserId = input.sessionUserId ?? null;
+      if (montoDeLista > 0 && referidorUserId != null && !usePassCredit) {
+        try {
+          const [{ reservarBeneficio }, { prismaReferralRepository }] = await Promise.all([
+            import("@/lib/referrals/application/canjear-beneficio"),
+            import("@/lib/referrals/infrastructure/prisma-referral-repository"),
+          ]);
+
+          const ref = `clickaton:ref:${input.idempotencyKey}`;
+          const eleccion = await reservarBeneficio(prismaReferralRepository, {
+            userId: referidorUserId,
+            montoOriginal: montoDeLista,
+            cupon: promotionId ? { descuento: discountAmount } : null,
+            ref,
+          });
+
+          if (eleccion.gana === "referidos" && eleccion.colegasReservados > 0) {
+            // El cupón perdió: se libera para que no quede quemado por una
+            // comparación que no ganó.
+            if (promoIdempotencyKey) {
+              const { releaseClickatonPromotionByIdempotencyKey } = await import(
+                "@/lib/promotions/prisma-promotions-adapter"
+              );
+              await releaseClickatonPromotionByIdempotencyKey(promoIdempotencyKey);
+              promotionId = null;
+              promotionCodeSnapshot = null;
+              promoIdempotencyKey = null;
+            }
+            discountAmount = eleccion.descuentoAplicado;
+            chargeAmount = eleccion.montoFinal;
+            referralRef = ref;
+          }
+        } catch (error) {
+          // Best-effort: nadie se queda sin inscribirse porque falle el
+          // programa de referidos. Paga el precio con el cupón que traía.
+          console.error("[clickaton] reservarBeneficio falló:", error);
+        }
+      }
+
+      // Envío del kit a domicilio. Se suma después del cupón y de los referidos:
+      // ningún descuento toca el costo del envío.
+      let shipping: HomeDeliveryShippingRecord | null = null;
+      if (input.homeDelivery) {
+        const config = await loadHomeDeliveryConfig(edition.id);
+        if (!homeDeliveryOffer(config, now) || !config) {
+          throw new PublicRegistrationError(
+            "EDITION_NOT_AVAILABLE",
+            "Esta edición no ofrece envío del kit a domicilio.",
+          );
+        }
+        if (usePassCredit) {
+          throw new PublicRegistrationError(
+            "INVALID_VARIANT",
+            "El envío a domicilio no se puede combinar con un canje de crédito del Pack. Escribinos y lo coordinamos.",
+          );
+        }
+        const parsed = parseHomeDeliveryAddress(input.homeDelivery);
+        if (!parsed.ok) throw new PublicRegistrationValidationError(parsed.errors);
+        if (isInExcludedCity(parsed.address, config)) {
+          throw new PublicRegistrationValidationError({
+            "delivery.city": `El envío es para quienes viven fuera de ${config.excludedCity}. En ${config.excludedCity} el kit se retira en la sede.`,
+          });
+        }
+        shipping = {
+          ...parsed.address,
+          feeAmount: config.feeAmount,
+          guaranteed: isGuaranteed(config, now),
+        };
+        chargeAmount += config.feeAmount;
+      }
+
       const existingIdem = await repo.findByIdempotencyKey(input.idempotencyKey);
       const fp = fingerprint({
         editionId: edition.id,
@@ -716,6 +946,9 @@ export function createPublicRegistrationService(deps: {
         variantChoices: input.variantChoices,
         totalAmount: chargeAmount,
         usePassCredit,
+        homeDeliveryKey: shipping
+          ? `${shipping.postalCode}|${shipping.street}|${shipping.streetNumber}|${shipping.documentNumber}`
+          : null,
       });
 
       if (existingIdem) {
@@ -805,6 +1038,21 @@ export function createPublicRegistrationService(deps: {
         };
       }
 
+      // Comisión del fotógrafo dueño del cupón. Va después del cupón, de los
+      // referidos (que pueden haberle ganado al cupón) y del envío: la base es
+      // el precio de lista, sin envío; el total es lo que efectivamente se
+      // cobra. Best-effort: nunca impide la inscripción.
+      const affiliateCommission =
+        promotionId && promotionCodeSnapshot && !usePassCredit && chargeAmount > 0
+          ? await resolveAffiliateCommissionDraft(repo, {
+              promotionId,
+              promotionCode: promotionCodeSnapshot,
+              editionId: edition.id,
+              baseAmount: montoDeLista,
+              totalAmount: chargeAmount,
+            })
+          : null;
+
       const items = buildItemsFromTicket(ticket, input.variantChoices);
       const holdMinutes = ticket.holdMinutes > 0 ? ticket.holdMinutes : 20;
       const holdExpiresAt = new Date(now.getTime() + holdMinutes * 60_000);
@@ -813,6 +1061,8 @@ export function createPublicRegistrationService(deps: {
         idempotencyKey: input.idempotencyKey,
         fingerprint: fp,
         holdExpiresAt,
+        shipping,
+        affiliateCommission,
         cmd: {
           editionId: edition.id,
           userId,
@@ -855,6 +1105,13 @@ export function createPublicRegistrationService(deps: {
           socialPublicationConsent,
           consentAcceptedAt: now,
           consentVersion: input.consentVersion ?? "2026-08-social-v1",
+          locationConsentAt: locationConsent.locationConsentAt,
+          locationPublicConsentAt: locationConsent.locationPublicConsentAt,
+          interviewConsentAt: locationConsent.interviewConsentAt,
+          locationConsentVersion: locationConsent.locationConsentVersion,
+          // Viene del dominio (pegajosa), no del pedido crudo: ver
+          // `resolveLocationConsent`.
+          locationConsentDeclaredAdult: locationConsent.locationConsentDeclaredAdult,
           termsVersion: input.termsVersion ?? "CLICKATON_TERMS_2026_09_19_v2",
           termsAcceptedAt: now,
           promotionalLicenseAcceptedAt: promotionalLicenseConsent ? now : null,
@@ -870,6 +1127,27 @@ export function createPublicRegistrationService(deps: {
           idempotencyKey: promoIdempotencyKey,
           registrationId: registration.id,
         });
+      }
+
+      // La reserva de referidos nació atada a la clave de idempotencia porque
+      // la inscripción todavía no existía. Recién ahora se le puede poner su
+      // id, que es lo que permite confirmarla al pagar o liberarla si vence.
+      if (referralRef) {
+        try {
+          const [{ adjuntarReservaAInscripcion }, { prismaReferralRepository }] =
+            await Promise.all([
+              import("@/lib/referrals/application/canjear-beneficio"),
+              import("@/lib/referrals/infrastructure/prisma-referral-repository"),
+            ]);
+          await adjuntarReservaAInscripcion(prismaReferralRepository, {
+            ref: referralRef,
+            registrationId: registration.id,
+          });
+        } catch (error) {
+          // La reserva queda atada a la clave; el barrido de holds vencidos la
+          // libera igual. Nunca se pierde: a lo sumo tarda en volver.
+          console.error("[clickaton] adjuntarReservaAInscripcion falló:", error);
+        }
       }
 
       // Free tickets / canje Pack: confirm immediately (no Mercado Pago) when wired.
@@ -932,7 +1210,7 @@ export function createPublicRegistrationService(deps: {
           editionSlug: edition.slug,
           expiresAtMs: holdExpiresAt.getTime(),
         });
-        const amountLabel = `${(ticket.priceAmount / 100).toFixed(2)} ${ticket.currency}`;
+        const amountLabel = `${(chargeAmount / 100).toFixed(2)} ${ticket.currency}`;
         await sendParticipantFunnelEmail({
           kind: "reservation_created",
           to: email,
@@ -1008,7 +1286,7 @@ export function createPublicRegistrationService(deps: {
       const venueName =
         venues.find((v) => v.id === registration.venueId)?.name ?? null;
       const ticket = await repo.getTicketDetail(registration.ticketTypeId);
-      const now = new Date();
+      const now = clock.now();
       const stale = isStalePendingHold({
         status: registration.status,
         holdExpiresAt: registration.holdExpiresAt,
@@ -1030,6 +1308,11 @@ export function createPublicRegistrationService(deps: {
         (registration.status === "PENDING_PAYMENT" || registration.status === "DRAFT");
 
       // Token de acceso: al menos 5 min tras apertura; no extender artificialmente reservas vencidas.
+      //
+      // A propósito con la hora real y no con `clock`: el vencimiento de un token
+      // firmado se mide contra el tiempo del mundo. Con el reloj simulado, un
+      // ensayo parado en el pasado emitiría un token ya vencido y uno parado en el
+      // futuro, un token con vida artificialmente larga.
       const holdMs = registration.holdExpiresAt?.getTime();
       const tokenExpMs =
         holdMs && holdMs > Date.now()
@@ -1040,7 +1323,7 @@ export function createPublicRegistrationService(deps: {
         editionSlug: edition.slug,
         expiresAtMs: tokenExpMs,
       });
-      return repo.buildSummary({
+      const summary = await repo.buildSummary({
         registration,
         edition,
         venueName,
@@ -1050,6 +1333,25 @@ export function createPublicRegistrationService(deps: {
         reservationActive,
         checkoutEligible,
       });
+      let shipping: HomeDeliveryShippingRecord | null = null;
+      if (repo.getShipping) {
+        try {
+          shipping = await repo.getShipping(registration.id);
+        } catch (error) {
+          console.error("[clickaton] getShipping falló:", error);
+        }
+      }
+      return {
+        ...summary,
+        homeDelivery: shipping
+          ? {
+              feeAmount: shipping.feeAmount,
+              guaranteed: shipping.guaranteed,
+              city: shipping.city,
+              province: shipping.province,
+            }
+          : null,
+      };
     },
   };
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { resolveAvailableFormats } from "@/lib/albums/available-formats";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import OrderItem from "@/components/order/OrderItem";
 import Button from "@/components/ui/Button";
@@ -2051,10 +2052,29 @@ export default function ComprarClient() {
                     photoIdForItem != null &&
                     faceBulkPackIdSet.has(photoIdForItem) &&
                     tipo === "digital";
+                  // Manda la configuración del álbum; la foto sólo restringe más.
+                  // Antes esto miraba nada más la foto, así que en un álbum de
+                  // sólo digital el cliente igual podía elegir "Impresa" y le
+                  // aparecía $0 porque no hay precios de impresión cargados.
+                  //
+                  // En modo canje no aplica: ahí el pack define qué se puede
+                  // elegir y el álbum no interviene.
+                  const itemFormats = redeemMode
+                    ? {
+                        digital: item.sellDigital ?? true,
+                        print: item.sellPrint ?? true,
+                        any: (item.sellDigital ?? true) || (item.sellPrint ?? true),
+                      }
+                    : resolveAvailableFormats({
+                        albumAllowsDigital: albumPricing?.enableDigitalPhotos,
+                        albumAllowsPrint: albumPricing?.enablePrintedPhotos,
+                        photoSellsDigital: item.sellDigital,
+                        photoSellsPrint: item.sellPrint,
+                      });
+
                   const showTipoChoice = redeemMode
-                    ? (item.sellDigital ?? true) || (item.sellPrint ?? true)
-                    : ((item.sellDigital ?? true) || (item.sellPrint ?? true)) &&
-                      (albumPricing?.enableDigitalPhotos || albumPricing?.enablePrintedPhotos) &&
+                    ? itemFormats.any
+                    : itemFormats.any &&
                       ((albumPricing?.digitalPhotoPriceCents ?? 0) > 0 || albumPricing?.enablePrintedPhotos);
 
                   let basePrice = 0;
@@ -2132,12 +2152,12 @@ export default function ComprarClient() {
                       onFinishChange={(finish) => updateItem(index, { finish: finish as Finish })}
                       onQuantityChange={(q) => updateItem(index, { quantity: q })}
                       tipo={tipo}
-                      sellDigital={item.sellDigital ?? true}
-                      sellPrint={item.sellPrint ?? true}
+                      sellDigital={itemFormats.digital}
+                      sellPrint={itemFormats.print}
                       onTipoChange={showTipoChoice ? (t) => {
-                        if (t === "digital" && (item.sellDigital ?? true)) {
+                        if (t === "digital" && itemFormats.digital) {
                           updateItem(index, { tipo: "digital", quantity: 1 });
-                        } else if (t === "impresa" && (item.sellPrint ?? true)) {
+                        } else if (t === "impresa" && itemFormats.print) {
                           let validSize = item.size && item.size !== "DIGITAL" ? item.size : "10x15";
                           if (pricingLoaded && pricingForItem.basePrices.length > 0) {
                             const sizeExists = pricingForItem.basePrices.find((bp) => bp.size === validSize);

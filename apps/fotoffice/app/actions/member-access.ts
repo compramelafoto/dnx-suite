@@ -14,6 +14,10 @@ import { requireMembersManageContext } from "@/lib/members/access";
 import { inviteOneMember } from "@/lib/members/invite-member";
 import { auditActorFrom, normalizeReason } from "@/lib/members/audit";
 import { emailsMatch, INVITE_BATCH_MAX } from "@/lib/members/invitations";
+import { mensajeDePadron } from "@/lib/members/mensajes";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
+import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 
 export type MemberAccessState = {
   error: string | null;
@@ -24,22 +28,22 @@ export type MemberAccessState = {
   ok?: boolean;
 };
 
-function friendlyLinkError(e: unknown): string {
+function friendlyLinkError(e: unknown, vocabulary: PersonVocabulary): string {
   if (e instanceof MemberConcurrencyError) {
-    return "Otra persona modificó este socio mientras tanto. Recargá la ficha e intentá de nuevo.";
+    return mensajeDePadron("modificadoMientrasTanto", vocabulary);
   }
   if (e instanceof MemberLinkError) {
     switch (e.reason) {
       case "ALREADY_LINKED":
-        return "Este socio ya tiene una cuenta vinculada.";
+        return mensajeDePadron("yaVinculado", vocabulary);
       case "USER_TAKEN":
-        return "Esa cuenta ya está vinculada a otro socio de este workspace.";
+        return mensajeDePadron("cuentaTomada", vocabulary);
       case "INVITATION_INVALID":
         return "La invitación ya no es válida.";
       case "MEMBER_NOT_ACTIVE":
-        return "Solo se puede invitar a un socio activo.";
+        return mensajeDePadron("soloSePuedeInvitarActivo", vocabulary);
       default:
-        return "Socio no encontrado.";
+        return mensajeDePadron("noEncontrado", vocabulary);
     }
   }
   return "No se pudo completar la operación.";
@@ -56,20 +60,21 @@ export async function findUserToLinkAction(
   formData: FormData,
 ): Promise<MemberAccessState> {
   const { workspace } = await requireMembersManageContext();
+  const vocabulary = await loadPersonVocabulary(workspace.id);
   const memberId = formData.get("memberId")?.toString()?.trim();
   const email = formData.get("email")?.toString()?.trim();
-  if (!memberId) return { error: "Socio inválido." };
+  if (!memberId) return { error: mensajeDePadron("invalido", vocabulary) };
   if (!email) return { error: "Escribí el email exacto de la cuenta a vincular." };
 
   const member = await getMember(workspace.id, memberId);
-  if (!member) return { error: "Socio no encontrado." };
-  if (member.userId !== null) return { error: "Este socio ya tiene una cuenta vinculada." };
+  if (!member) return { error: mensajeDePadron("noEncontrado", vocabulary) };
+  if (member.userId !== null) return { error: mensajeDePadron("yaVinculado", vocabulary) };
 
   const user = await findLinkableUserByEmail(email);
   if (!user) {
     // Mensaje deliberadamente igual para "no existe" que para cualquier otro caso: desde acá
     // no se puede sondear qué emails están registrados en la plataforma.
-    return { error: "No encontramos una cuenta con ese email exacto. Revisá el email o invitá al socio." };
+    return { error: mensajeDePadron("cuentaNoEncontrada", vocabulary) };
   }
 
   return {
@@ -95,12 +100,13 @@ export async function linkMemberUserAction(
   formData: FormData,
 ): Promise<MemberAccessState> {
   const { workspace, user: actorUser } = await requireMembersManageContext();
+  const vocabulary = await loadPersonVocabulary(workspace.id);
   const memberId = formData.get("memberId")?.toString()?.trim();
   const userId = Number(formData.get("userId")?.toString() ?? "");
   if (!memberId || !Number.isInteger(userId)) return { error: "Datos inválidos." };
 
   const member = await getMember(workspace.id, memberId);
-  if (!member) return { error: "Socio no encontrado." };
+  if (!member) return { error: mensajeDePadron("noEncontrado", vocabulary) };
 
   const target = await findLinkableUserByEmail(formData.get("email")?.toString() ?? "");
   if (!target || target.id !== userId) {
@@ -110,8 +116,7 @@ export async function linkMemberUserAction(
   const mismatch = !emailsMatch(member.email, target.email);
   if (mismatch && formData.get("confirmMismatch") !== "on") {
     return {
-      error:
-        "Los emails no coinciden: confirmá que esta es realmente la cuenta del socio antes de continuar.",
+      error: mensajeDePadron("emailsNoCoinciden", vocabulary),
       candidate: { userId: target.id, email: target.email, name: target.name, emailMatchesMember: false },
     };
   }
@@ -126,7 +131,7 @@ export async function linkMemberUserAction(
       expectedUpdatedAt: member.updatedAt,
     });
   } catch (e) {
-    return { error: friendlyLinkError(e) };
+    return { error: friendlyLinkError(e, vocabulary) };
   }
 
   revalidatePath(`/members/${memberId}`);
@@ -139,8 +144,9 @@ export async function inviteMemberAction(
   formData: FormData,
 ): Promise<MemberAccessState> {
   const { workspace, user: actorUser } = await requireMembersManageContext();
+  const vocabulary = await loadPersonVocabulary(workspace.id);
   const memberId = formData.get("memberId")?.toString()?.trim();
-  if (!memberId) return { error: "Socio inválido." };
+  if (!memberId) return { error: mensajeDePadron("invalido", vocabulary) };
 
   const result = await inviteOneMember(workspace, actorUser, memberId);
   revalidatePath(`/members/${memberId}`);
@@ -171,6 +177,7 @@ export async function inviteMembersBatchAction(
   formData: FormData,
 ): Promise<InviteBatchState> {
   const { workspace, user: actorUser } = await requireMembersManageContext();
+  const vocabulary = await loadPersonVocabulary(workspace.id);
 
   // `getAll` y no `get`: el formulario manda una casilla por socio seleccionado.
   const ids = Array.from(
@@ -182,10 +189,13 @@ export async function inviteMembersBatchAction(
     ),
   );
 
-  if (ids.length === 0) return { error: "No seleccionaste ningún socio." };
+  if (ids.length === 0) return { error: mensajeDePadron("ningunoSeleccionado", vocabulary) };
   if (ids.length > INVITE_BATCH_MAX) {
     return {
-      error: `Se pueden invitar hasta ${INVITE_BATCH_MAX} socios por vez. Seleccionaste ${ids.length}.`,
+      error: aplicarVocabulario(
+        `Se pueden invitar hasta ${INVITE_BATCH_MAX} {personas} por vez. Seleccionaste ${ids.length}.`,
+        vocabulary,
+      ),
     };
   }
 
@@ -224,17 +234,18 @@ export async function unlinkMemberUserAction(
   formData: FormData,
 ): Promise<MemberAccessState> {
   const { workspace, user: actorUser } = await requireMembersManageContext();
+  const vocabulary = await loadPersonVocabulary(workspace.id);
   const memberId = formData.get("memberId")?.toString()?.trim();
-  if (!memberId) return { error: "Socio inválido." };
+  if (!memberId) return { error: mensajeDePadron("invalido", vocabulary) };
 
   const reason = normalizeReason(formData.get("reason")?.toString());
   if (!reason) {
-    return { error: "Escribí el motivo de la desvinculación: queda registrado en el historial del socio." };
+    return { error: mensajeDePadron("motivoDeDesvinculacion", vocabulary) };
   }
 
   const member = await getMember(workspace.id, memberId);
-  if (!member) return { error: "Socio no encontrado." };
-  if (member.userId === null) return { error: "Este socio no tiene ninguna cuenta vinculada." };
+  if (!member) return { error: mensajeDePadron("noEncontrado", vocabulary) };
+  if (member.userId === null) return { error: mensajeDePadron("sinCuentaVinculada", vocabulary) };
 
   try {
     await unlinkMemberFromUser(workspace.id, memberId, {
@@ -243,7 +254,7 @@ export async function unlinkMemberUserAction(
       expectedUpdatedAt: member.updatedAt,
     });
   } catch (e) {
-    return { error: friendlyLinkError(e) };
+    return { error: friendlyLinkError(e, vocabulary) };
   }
 
   revalidatePath(`/members/${memberId}`);

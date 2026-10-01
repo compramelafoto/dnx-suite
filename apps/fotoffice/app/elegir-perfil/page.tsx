@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
 import { findClaimableMembership } from "@/lib/portal/claim";
 import { listUserProfiles } from "@/lib/portal/profiles";
+import { WELCOME_PATH } from "@/lib/entrada/welcome";
 import { chooseProfileAction, createOwnBusinessAction } from "@/app/actions/profile-choice";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +32,9 @@ export default async function ChooseProfilePage() {
   if (profiles.length === 1) {
     redirect(profiles[0]!.kind === "TEAM" ? "/workspace" : "/portal");
   }
-  if (profiles.length === 0) redirect("/workspace");
+  // Sin ningún perfil no hay nada que elegir, y mandarlo a `/workspace` era el atajo por el
+  // que igual terminaba con una institución creada. La pregunta va en la bienvenida.
+  if (profiles.length === 0) redirect(WELCOME_PATH);
 
   const hasBusiness = profiles.some((p) => p.kind === "TEAM");
 

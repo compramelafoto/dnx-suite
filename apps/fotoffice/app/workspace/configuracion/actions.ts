@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
 import { requireAuth } from "@/lib/auth";
-import { ensureFotofficeWorkspaceForUser } from "@/lib/ensure-workspace";
+import { requireOwnWorkspace } from "@/lib/entrada/require-own-workspace";
 import {
   FOTOFFICE_ORGANIZATION_TYPE_IDS,
   FOTOFFICE_SPECIALTY_IDS,
@@ -53,11 +53,7 @@ export async function sendTestEmailAction(
   formData: FormData,
 ): Promise<TestEmailState> {
   const user = await requireAuth();
-  const ensured = await ensureFotofficeWorkspaceForUser({
-    userId: user.id,
-    email: user.email,
-    name: user.name,
-  });
+  const ensured = await requireOwnWorkspace(user);
 
   const membership = await prisma.workspaceMembership.findUnique({
     where: { userId_workspaceId: { userId: user.id, workspaceId: ensured.workspaceId } },
@@ -112,11 +108,7 @@ export async function updateWorkspaceSettingsAction(
   formData: FormData,
 ): Promise<SettingsState> {
   const user = await requireAuth();
-  const ensured = await ensureFotofficeWorkspaceForUser({
-    userId: user.id,
-    email: user.email,
-    name: user.name,
-  });
+  const ensured = await requireOwnWorkspace(user);
 
   const membership = await prisma.workspaceMembership.findUnique({
     where: {

@@ -5,6 +5,7 @@ import {
   formatAuditValue,
   memberFieldLabel,
 } from "@/lib/members/audit-labels";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
 function fmtDateTime(d: Date): string {
   return new Intl.DateTimeFormat("es-AR", { dateStyle: "medium", timeStyle: "short" }).format(d);
@@ -21,7 +22,13 @@ function readChanges(raw: unknown): [string, FieldChange][] {
  * Historial del socio, más reciente primero. Es solo lectura: el registro es inmutable y no se
  * ofrece editarlo ni borrarlo desde ningún lado.
  */
-export function MemberAuditLog({ entries }: { entries: MemberAuditRecord[] }) {
+export function MemberAuditLog({
+  entries,
+  vocabulary,
+}: {
+  entries: MemberAuditRecord[];
+  vocabulary: PersonVocabulary;
+}) {
   if (entries.length === 0) {
     return (
       <p className="text-sm text-[var(--fo-muted)]">
@@ -64,7 +71,7 @@ export function MemberAuditLog({ entries }: { entries: MemberAuditRecord[] }) {
               <ul className="mt-2 space-y-1">
                 {changes.map(([field, change]) => (
                   <li key={field} className="text-xs text-[var(--fo-muted)]">
-                    <span className="text-[var(--fo-text)]">{memberFieldLabel(field)}:</span>{" "}
+                    <span className="text-[var(--fo-text)]">{memberFieldLabel(field, vocabulary)}:</span>{" "}
                     <span className="line-through">{formatAuditValue(field, change.before)}</span>{" "}
                     <span aria-hidden>→</span>{" "}
                     <span className="text-[var(--fo-text)]">{formatAuditValue(field, change.after)}</span>

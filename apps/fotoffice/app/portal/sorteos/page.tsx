@@ -6,6 +6,7 @@ import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { loadPortalRaffles, type PortalRaffleView } from "@/lib/raffles/portal";
 import { fechaCorta, fechaHora } from "@/lib/raffles/labels";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,7 @@ export default async function PortalSorteosPage() {
     workspaceId: context.workspace.id,
     memberId: context.member.id,
   });
+  const v = await loadPersonVocabulary(context.workspace.id);
 
   // Lo que gané y todavía no retiré va arriba de todo: es lo único que exige que haga algo.
   const premiosMios = past.flatMap((s) =>
@@ -34,8 +36,7 @@ export default async function PortalSorteosPage() {
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold">Sorteos</h1>
         <p className="text-sm text-[var(--fo-muted)]">
-          Participan los socios al día. El resultado sale de un número que no lo elige nadie, y
-          cualquiera puede comprobarlo.
+          {`Participan ${v.plural} al día. El resultado sale de un número que no lo elige nadie, y cualquiera puede comprobarlo.`}
         </p>
       </header>
 

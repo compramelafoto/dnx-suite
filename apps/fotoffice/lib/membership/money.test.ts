@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decimalArsToMinor, formatMinorArs, minorToDecimalString } from "./money";
+import { decimalArsToMinor, formatMinorArs, minorToDecimalString, parseArsToMinor } from "./money";
 
 describe("decimalArsToMinor", () => {
   it("convierte pesos con centavos a centavos enteros", () => {
@@ -42,6 +42,17 @@ describe("minorToDecimalString", () => {
     for (const texto of ["0.00", "0.01", "47000.00", "1234567.89", "-12.34"]) {
       expect(minorToDecimalString(decimalArsToMinor(texto))).toBe(texto);
     }
+  });
+});
+
+describe("parseArsToMinor", () => {
+  it("un importe con tres o más decimales se acepta y se redondea al centavo", () => {
+    // Cobro manual tenía antes un parser propio que rechazaba esto de plano. Al unificarse
+    // con el de Reservas (Tarea 8), el comportamiento cambió a redondear en vez de rechazar
+    // —y el redondeo puede ir hacia arriba, como acá: 1,555 pesos redondea a 1,56 (156
+    // centavos), no a 1,55—. Este test deja ese cambio documentado y cubierto.
+    expect(parseArsToMinor("1,555")).toBe(156);
+    expect(parseArsToMinor("8000,555")).toBe(800056);
   });
 });
 

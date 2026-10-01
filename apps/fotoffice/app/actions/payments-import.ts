@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { requireActiveWorkspace } from "@/lib/workspace";
 import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
 import { importHistoricalPayments } from "@/lib/membership/history-import/import";
@@ -58,7 +59,10 @@ async function lookups(workspaceId: string) {
   const existingDedupKeys = new Set(
     yaImportados.map((p) => p.providerPaymentRef).filter((r): r is string => r !== null),
   );
-  return { membersByNumber, existingDedupKeys };
+  // El vocabulario viaja con los demás datos del workspace: los dos pasos —revisar e
+  // importar— hablan con la misma palabra sin tener que acordarse de pedirlo cada uno.
+  const vocabulary = await loadPersonVocabulary(workspaceId);
+  return { membersByNumber, existingDedupKeys, vocabulary };
 }
 
 export type PaymentImportValidationState =

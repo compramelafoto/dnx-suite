@@ -26,6 +26,7 @@ export type PackFormPayload = {
   description: string | null;
   priceClientArs: number;
   isActive: boolean;
+  isRecommended: boolean;
   availabilityPhase: "PRE_UPLOAD" | "POST_UPLOAD";
   validFrom: string | null;
   validUntil: string | null;
@@ -55,6 +56,7 @@ export default function PreventaPackFormModal({
   const [description, setDescription] = useState("");
   const [priceClientArs, setPriceClientArs] = useState("0");
   const [isActive, setIsActive] = useState(true);
+  const [isRecommended, setIsRecommended] = useState(false);
   const [availabilityPhase, setAvailabilityPhase] = useState<
     "PRE_UPLOAD" | "POST_UPLOAD"
   >("PRE_UPLOAD");
@@ -71,6 +73,7 @@ export default function PreventaPackFormModal({
       setDescription(pack.description ?? "");
       setPriceClientArs(String(pack.priceClientArs));
       setIsActive(pack.isActive);
+      setIsRecommended(pack.isRecommended === true);
       setAvailabilityPhase(pack.availabilityPhase ?? "PRE_UPLOAD");
       setValidFrom(isoToLocalInput(pack.validFrom));
       setValidUntil(isoToLocalInput(pack.validUntil));
@@ -80,6 +83,8 @@ export default function PreventaPackFormModal({
       setDescription(duplicateSource.description ?? "");
       setPriceClientArs(String(duplicateSource.priceClientArs));
       setIsActive(duplicateSource.isActive);
+      // El destacado no se duplica: hay uno solo por álbum.
+      setIsRecommended(false);
       setAvailabilityPhase(duplicateSource.availabilityPhase ?? "PRE_UPLOAD");
       setValidFrom("");
       setValidUntil("");
@@ -151,6 +156,7 @@ export default function PreventaPackFormModal({
       description: description.trim() || null,
       priceClientArs: price,
       isActive,
+      isRecommended,
       availabilityPhase,
       currency: "ARS",
       validFrom: validFrom ? new Date(validFrom).toISOString() : null,
@@ -342,6 +348,23 @@ export default function PreventaPackFormModal({
                     {PACK_EMPTY_ACTIVATION_MESSAGE}
                   </span>
                 ) : null}
+              </span>
+            </label>
+            <label className="flex items-start gap-2 cursor-pointer border-t border-[#f3f4f6] pt-3">
+              <input
+                type="checkbox"
+                checked={isRecommended}
+                onChange={(e) => setIsRecommended(e.target.checked)}
+                disabled={saving}
+                className="mt-1"
+              />
+              <span className="text-sm min-w-0">
+                <span className="font-medium text-[#1a1a1a]">Recomendado</span>
+                <span className="block text-xs text-[#6b7280] mt-1 leading-relaxed">
+                  Le pone el cartel «Recomendado» en la página de preventa y lo destaca
+                  entre las opciones. Es uno solo por álbum: si marcás este, se lo saca al
+                  que lo tenía.
+                </span>
               </span>
             </label>
           </div>

@@ -1,3 +1,4 @@
+import { isSistemaViejoDePlacasActivo } from "./sistema-viejo";
 import { Prisma, prisma } from "@/lib/admin/db";
 
 const TEMPLATE_ID = "clickaton.welcome.story";
@@ -7,6 +8,10 @@ export async function enqueueWelcomeCardAfterPaid(input: {
   registrationId: string;
   editionId: string;
 }): Promise<{ ok: boolean; cardId?: string; reason?: string }> {
+  // Con el generador viejo apagado, el pago ya no encola ninguna placa suya.
+  if (!isSistemaViejoDePlacasActivo()) {
+    return { ok: false, reason: "SISTEMA_VIEJO_APAGADO" };
+  }
   try {
     const registration = await prisma.clickatonRegistration.findUnique({
       where: { id: input.registrationId },

@@ -10,15 +10,18 @@ import {
   savePortalProfileAction,
   type PortalProfileState,
 } from "@/app/actions/portal-profile";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
 const initial: PortalProfileState = { error: null, ok: null };
 
 export function ProfessionalProfileForm({
   institutionName,
   defaults,
+  vocabulary,
 }: {
   institutionName: string;
   defaults: PresenciaDefaults;
+  vocabulary: PersonVocabulary;
 }) {
   const [state, submit, pending] = useActionState(savePortalProfileAction, initial);
 
@@ -27,6 +30,7 @@ export function ProfessionalProfileForm({
       <ProfessionalPresenceFields
         institutionName={institutionName}
         defaults={defaults}
+        vocabulary={vocabulary}
         intro={`Esto es lo que ${institutionName} usa para recomendarte y difundir tu trabajo. Actualizalo cuando quieras.`}
       />
 

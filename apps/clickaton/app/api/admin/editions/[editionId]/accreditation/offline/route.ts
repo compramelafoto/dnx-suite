@@ -16,6 +16,7 @@ export async function POST(req: Request, ctx: Ctx) {
     action?: string;
     clientOccurredAt?: string;
     qr?: string;
+    shortCode?: string;
     registrationIdHint?: string;
     deviceId?: string;
   };
@@ -33,13 +34,19 @@ export async function POST(req: Request, ctx: Ctx) {
       return NextResponse.json({ error: "INVALID_OFFLINE_PAYLOAD" }, { status: 400 });
     }
 
+    const clientOccurredAt = new Date(body.clientOccurredAt);
+    if (Number.isNaN(clientOccurredAt.getTime())) {
+      return NextResponse.json({ error: "INVALID_OFFLINE_TIMESTAMP" }, { status: 400 });
+    }
+
     const ev = await enqueueOfflineEvent({
       editionId,
       deviceId: body.deviceId ?? null,
       idempotencyKey: body.idempotencyKey,
       action: body.action,
-      clientOccurredAt: new Date(body.clientOccurredAt),
+      clientOccurredAt,
       qrPlaintext: body.qr ?? null,
+      shortCode: body.shortCode ?? null,
       registrationIdHint: body.registrationIdHint ?? null,
     });
     return NextResponse.json(

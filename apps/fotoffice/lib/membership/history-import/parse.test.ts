@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { personVocabulary } from "@/lib/vocabulario/personas";
 import { composeReference, parseAndValidatePaymentImport } from "./parse";
 
 const WS = "ws-sfpr";
@@ -13,6 +14,7 @@ function correr(csv: string, yaImportados: string[] = []) {
   return parseAndValidatePaymentImport({
     rawCsv: csv,
     workspaceId: WS,
+    vocabulary: personVocabulary(null),
     membersByNumber: PADRON,
     existingDedupKeys: new Set(yaImportados),
   });
@@ -112,6 +114,7 @@ describe("no duplicar", () => {
     const alla = parseAndValidatePaymentImport({
       rawCsv: `${ENCABEZADO}\n12,2024-03-10,15000,EFECTIVO,,`,
       workspaceId: "ws-otra",
+      vocabulary: personVocabulary(null),
       membersByNumber: PADRON,
       existingDedupKeys: new Set(),
     });

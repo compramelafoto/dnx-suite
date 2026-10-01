@@ -1,0 +1,13 @@
+-- Un propósito propio para el enlace que cambia la contraseña de un jurado.
+--
+-- El jurado de FotoRank no tiene fila en "User", así que no puede usar
+-- "PasswordResetToken", que depende de ella. Su enlace vive en
+-- "EmailVerificationToken", igual que la confirmación de correo.
+--
+-- El propósito es nuevo y no se reutiliza VERIFY_EMAIL: si fueran el mismo,
+-- el enlace que confirma un correo serviría también para cambiarle la
+-- contraseña a esa cuenta.
+--
+-- Agregar un valor a un enum no toca ninguna fila existente. No se puede
+-- deshacer en PostgreSQL: revertirlo exige recrear el tipo.
+ALTER TYPE "TokenPurpose" ADD VALUE IF NOT EXISTS 'PASSWORD_RESET';

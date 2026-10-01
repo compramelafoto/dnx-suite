@@ -3,9 +3,10 @@ import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
 import { FotofficeLogo } from "@/components/fotoffice-logo";
 import { hasAppAccess, requireAuth } from "@/lib/auth";
-import { ensureFotofficeWorkspaceForUser } from "@/lib/ensure-workspace";
+import { requireOwnWorkspace } from "@/lib/entrada/require-own-workspace";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { resolveEnabledNavModules } from "@/lib/modules/nav";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { PORTAL_HOME } from "@/lib/portal/destination";
 import { resolveFotofficeUserKind } from "@/lib/portal/user-kind";
 import { listUserProfiles } from "@/lib/portal/profiles";
@@ -18,11 +19,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
   // institución propia —con rol de dueño— a quien solo es socio de otra.
   if ((await resolveFotofficeUserKind(user.id)) === "MEMBER") redirect(PORTAL_HOME);
 
-  const ensured = await ensureFotofficeWorkspaceForUser({
-    userId: user.id,
-    email: user.email,
-    name: user.name,
-  });
+  const ensured = await requireOwnWorkspace(user);
 
   const membership = await prisma.workspaceMembership.findUnique({
     where: {
@@ -63,8 +60,11 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
   // institución) se ofrece volver al selector sin cerrar sesión.
   const profiles = await listUserProfiles(user.id);
 
-  const enabledModuleKeys = await getEnabledModuleKeysForWorkspace(ensured.workspaceId);
-  const navModules = resolveEnabledNavModules(enabledModuleKeys);
+  const [enabledModuleKeys, vocabulary] = await Promise.all([
+    getEnabledModuleKeysForWorkspace(ensured.workspaceId),
+    loadPersonVocabulary(ensured.workspaceId),
+  ]);
+  const navModules = resolveEnabledNavModules(enabledModuleKeys, vocabulary);
 
   return (
     <div className="min-h-screen flex flex-col bg-[var(--fo-bg)]">
@@ -117,7 +117,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
             )}
             {profiles.length > 1 ? (
               <form action={switchProfileAction}>
-                <button type="submit" className="fo-btn text-sm min-h-10">
+                <button type="submit" className="fo-btn fo-btn-secondary text-sm min-h-10">
                   Cambiar de perfil
                 </button>
               </form>

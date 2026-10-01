@@ -7,19 +7,15 @@ import { getPlatformFeeBps } from "@/lib/platform-fee/store";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { FEE_SINCE_PERIOD } from "@/lib/platform-fee/debt";
 import { MANUAL_METHODS, registerManualPayment, type ManualMethod } from "@/lib/membership/manual-payment";
+import { parseArsToMinor } from "@/lib/membership/money";
+import { mensajeDePadron } from "@/lib/members/mensajes";
+import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 
 export type ManualPaymentState = {
   error: string | null;
   ok: string | null;
 };
-
-/** "8000", "8.000", "8000,50" — se acepta lo que la Secretaría escribe naturalmente. */
-function parseArsToMinor(raw: string): number | null {
-  const texto = raw.trim().replace(/\./g, "").replace(",", ".");
-  if (!/^\d+(\.\d{1,2})?$/.test(texto)) return null;
-  const [entera = "0", decimal = ""] = texto.split(".");
-  return Number(entera) * 100 + Number(`${decimal}00`.slice(0, 2));
-}
 
 const money = (minor: number) =>
   `$${(minor / 100).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -40,12 +36,17 @@ export async function registerManualPaymentAction(
     return { error: "Solo quien administra los cobros puede registrar un pago.", ok: null };
   }
 
+  const vocabulary = await loadPersonVocabulary(workspace.id);
   const memberId = String(formData.get("memberId") ?? "").trim();
-  if (!memberId) return { error: "Elegí a qué socio corresponde el pago.", ok: null };
+  if (!memberId) return { error: mensajeDePadron("elegiUno", vocabulary), ok: null };
 
+  // El parser compartido (lib/membership/money.ts) acepta más de dos decimales y los
+  // redondea al centavo en vez de rechazarlos —es el mismo comportamiento que ya tenía
+  // Reservas—, así que el mensaje no puede prometer un tope de decimales que ya no existe:
+  // sólo rechaza lo que de verdad no es un importe (vacío, texto, negativo o cero).
   const amountMinor = parseArsToMinor(String(formData.get("amount") ?? ""));
   if (amountMinor === null || amountMinor <= 0) {
-    return { error: "Escribí el importe cobrado, con hasta dos decimales.", ok: null };
+    return { error: "Escribí el importe cobrado: un número mayor que cero.", ok: null };
   }
 
   const method = String(formData.get("method") ?? "") as ManualMethod;
@@ -81,7 +82,12 @@ export async function registerManualPaymentAction(
 
   const partes = [`Pago de ${money(amountMinor)} registrado.`];
   if (r.unappliedMinor > 0) {
-    partes.push(`Quedaron ${money(r.unappliedMinor)} a favor del socio, sin cuota a la que imputar.`);
+    partes.push(
+      aplicarVocabulario(
+        `Quedaron ${money(r.unappliedMinor)} a favor del {persona}, sin cuota a la que imputar.`,
+        vocabulary,
+      ),
+    );
   }
   if (r.accruedFeeMinor > 0) {
     partes.push(

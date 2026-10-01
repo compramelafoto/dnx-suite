@@ -9,9 +9,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * iniciara sesión se llevaba una institución vacía de regalo.
  */
 
-const { userFindUniqueMock, ensureMock, userKindMock, listProfilesMock, readChoiceMock } = vi.hoisted(() => ({
+const { userFindUniqueMock, findMock, userKindMock, listProfilesMock, readChoiceMock } = vi.hoisted(() => ({
   userFindUniqueMock: vi.fn(),
-  ensureMock: vi.fn(),
+  findMock: vi.fn(),
   userKindMock: vi.fn(),
   listProfilesMock: vi.fn(),
   readChoiceMock: vi.fn(),
@@ -29,7 +29,7 @@ vi.mock("@/lib/members/invitation-continuity-resolve", () => ({
 }));
 
 vi.mock("@repo/db", () => ({ prisma: { user: { findUnique: userFindUniqueMock } } }));
-vi.mock("@/lib/ensure-workspace", () => ({ ensureFotofficeWorkspaceForUser: ensureMock }));
+vi.mock("@/lib/ensure-workspace", () => ({ findFotofficeWorkspaceForUser: findMock }));
 vi.mock("@/lib/portal/claim", () => ({ findClaimableMembership: async () => null }));
 vi.mock("@/lib/portal/user-kind", () => ({ resolveFotofficeUserKind: userKindMock }));
 
@@ -43,7 +43,7 @@ beforeEach(() => {
     role: "PHOTOGRAPHER",
     globalRole: "USER",
   });
-  ensureMock.mockReset().mockResolvedValue({ workspaceId: "ws-1", onboardingCompleted: true });
+  findMock.mockReset().mockResolvedValue({ workspaceId: "ws-1", onboardingCompleted: true });
   userKindMock.mockReset().mockResolvedValue("TEAM");
   listProfilesMock.mockReset().mockResolvedValue([]);
   readChoiceMock.mockReset().mockResolvedValue(null);
@@ -59,7 +59,7 @@ describe("socio ya vinculado", () => {
 
   it("NUNCA se le crea un workspace", async () => {
     await resolveFotofficePostLoginDestination({ userId: 7 });
-    expect(ensureMock).not.toHaveBeenCalled();
+    expect(findMock).not.toHaveBeenCalled();
   });
 
   it("no queda asociado a ningún workspace por esta vía", async () => {
@@ -70,7 +70,7 @@ describe("socio ya vinculado", () => {
   it("acepta un next dentro del portal", async () => {
     const dest = await resolveFotofficePostLoginDestination({ userId: 7, next: "/portal/pagos" });
     expect(dest.path).toBe("/portal/pagos");
-    expect(ensureMock).not.toHaveBeenCalled();
+    expect(findMock).not.toHaveBeenCalled();
   });
 
   it.each(["/workspace", "/members", "https://malicioso.test"])(
@@ -78,7 +78,7 @@ describe("socio ya vinculado", () => {
     async (next) => {
       const dest = await resolveFotofficePostLoginDestination({ userId: 7, next });
       expect(dest.path).toBe("/portal");
-      expect(ensureMock).not.toHaveBeenCalled();
+      expect(findMock).not.toHaveBeenCalled();
     },
   );
 });
@@ -96,7 +96,7 @@ describe("vuelta a una invitación en curso", () => {
       next: "/invitacion/abc123",
     });
     expect(dest.path).toBe("/invitacion/abc123");
-    expect(ensureMock).not.toHaveBeenCalled();
+    expect(findMock).not.toHaveBeenCalled();
   });
 
   it("también respeta la invitación para alguien ya socio", async () => {
@@ -106,14 +106,14 @@ describe("vuelta a una invitación en curso", () => {
       next: "/invitacion/abc123",
     });
     expect(dest.path).toBe("/invitacion/abc123");
-    expect(ensureMock).not.toHaveBeenCalled();
+    expect(findMock).not.toHaveBeenCalled();
   });
 
   it("un next que solo empieza parecido NO toma el atajo de invitación", async () => {
     userKindMock.mockResolvedValue("NEW");
     await resolveFotofficePostLoginDestination({ userId: 7, next: "/invitacionfalsa/abc" });
     // Sigue el camino normal de un usuario nuevo, que sí prepara su workspace.
-    expect(ensureMock).toHaveBeenCalledTimes(1);
+    expect(findMock).toHaveBeenCalledTimes(1);
   });
 
   it("un socio tampoco llega al portal por un next parecido a una invitación", async () => {
@@ -123,7 +123,7 @@ describe("vuelta a una invitación en curso", () => {
       next: "/invitacionfalsa/abc",
     });
     expect(dest.path).toBe("/portal");
-    expect(ensureMock).not.toHaveBeenCalled();
+    expect(findMock).not.toHaveBeenCalled();
   });
 });
 
@@ -131,20 +131,25 @@ describe("el equipo administrador conserva su comportamiento", () => {
   it("con onboarding completo va al panel", async () => {
     const dest = await resolveFotofficePostLoginDestination({ userId: 7 });
     expect(dest.path).toBe("/workspace");
-    expect(ensureMock).toHaveBeenCalledTimes(1);
+    expect(findMock).toHaveBeenCalledTimes(1);
   });
 
   it("sin onboarding completo va al onboarding", async () => {
-    ensureMock.mockResolvedValue({ workspaceId: "ws-1", onboardingCompleted: false });
+    findMock.mockResolvedValue({ workspaceId: "ws-1", onboardingCompleted: false });
     const dest = await resolveFotofficePostLoginDestination({ userId: 7 });
     expect(dest.path).toBe("/onboarding");
   });
 
-  it("un fotógrafo nuevo sí recibe su workspace", async () => {
+  it("a un fotógrafo nuevo se le pregunta: ya no se le regala una institución", async () => {
+    // Antes este caso terminaba en `/onboarding` con un `Workspace` recién creado. Ese era
+    // justo el camino por el que aparecieron las dos instituciones fantasma de producción:
+    // el socio al que el reconocimiento por email no encontró caía acá.
     userKindMock.mockResolvedValue("NEW");
+    findMock.mockResolvedValue(null);
+
     const dest = await resolveFotofficePostLoginDestination({ userId: 7 });
-    expect(ensureMock).toHaveBeenCalledTimes(1);
-    expect(dest.path).toBe("/workspace");
+
+    expect(dest).toEqual({ path: "/bienvenida", workspaceId: null });
   });
 });
 
@@ -165,7 +170,7 @@ describe("selector de perfil", () => {
   it("con dos perfiles y sin elección previa, pregunta", async () => {
     const dest = await resolveFotofficePostLoginDestination({ userId: 4 });
     expect(dest.path).toBe("/elegir-perfil");
-    expect(ensureMock).not.toHaveBeenCalled();
+    expect(findMock).not.toHaveBeenCalled();
   });
 
   it("con un solo perfil no pregunta nada", async () => {
@@ -179,7 +184,7 @@ describe("selector de perfil", () => {
     const dest = await resolveFotofficePostLoginDestination({ userId: 4 });
     expect(dest.path).toBe("/portal");
     // Elegir el perfil de socio no debe prepararle un workspace.
-    expect(ensureMock).not.toHaveBeenCalled();
+    expect(findMock).not.toHaveBeenCalled();
   });
 
   it("respeta la elección guardada: equipo va al panel", async () => {
@@ -202,5 +207,58 @@ describe("selector de perfil", () => {
   it("una invitación en curso gana sobre el selector", async () => {
     const dest = await resolveFotofficePostLoginDestination({ userId: 4, next: "/invitacion/abc" });
     expect(dest.path).toBe("/invitacion/abc");
+  });
+});
+
+/**
+ * Entrar por la puerta de una institución.
+ *
+ * Quien entró por `/w/sfpr/entrar` ya dijo a dónde viene. El post-login no resuelve ese caso:
+ * lo devuelve a la puerta, que es la que sabe leer el slug y mirar los perfiles de esa
+ * institución puntual.
+ */
+describe("la puerta de una institución", () => {
+  it("vuelve a la puerta, que es la que decide", async () => {
+    // Sin esto, alguien con dos perfiles entraría por la puerta de SFPR y le preguntaríamos
+    // igual a cuál viene — que es justo lo que la puerta vino a evitar.
+    listProfilesMock.mockResolvedValue([
+      { kind: "TEAM", workspaceId: "ws-propio", workspaceName: "Estudio", role: "WORKSPACE_OWNER" },
+      {
+        kind: "MEMBER",
+        workspaceId: "ws-sfpr",
+        workspaceName: "SFPR",
+        memberId: "m-1",
+        memberNumber: "648",
+      },
+    ]);
+
+    const dest = await resolveFotofficePostLoginDestination({
+      userId: 4,
+      next: "/w/sfpr/entrar",
+    });
+
+    expect(dest.path).toBe("/w/sfpr/entrar");
+  });
+
+  it("un socio que entró por la puerta tampoco se va derecho al portal genérico", async () => {
+    userKindMock.mockResolvedValue("MEMBER");
+
+    const dest = await resolveFotofficePostLoginDestination({
+      userId: 4,
+      next: "/w/sfpr/entrar",
+    });
+
+    expect(dest.path).toBe("/w/sfpr/entrar");
+  });
+
+  it("un `next` que solo se parece a una puerta no manda a ninguna parte", async () => {
+    userKindMock.mockResolvedValue("MEMBER");
+
+    const dest = await resolveFotofficePostLoginDestination({
+      userId: 4,
+      next: "//malo.com/w/sfpr/entrar",
+    });
+
+    expect(dest.path).toBe("/portal");
   });
 });

@@ -9,10 +9,12 @@ import {
   logPublicVideoListDiagnostics,
   type PublicVideoListDiagnostics,
 } from "@/lib/videos/public-video-list-diagnostics";
+import { resolveClientMarketplaceFeePercent } from "@/lib/pricing/client-price";
 
 /** Mismo criterio de álbum que la grilla de fotos en `/g/[shareSlug]`. */
 export type EventAlbumForPublicVideos = {
   id: number;
+  userId: number | null;
   title: string | null;
   publicSlug: string | null;
   isPublic: boolean | null;
@@ -57,6 +59,7 @@ const eventVideoSelect = {
   height: true,
   uploadedAt: true,
   sellEnabled: true,
+  priceCents: true,
   expiresAt: true,
   processingStatus: true,
   isRemoved: true,
@@ -89,6 +92,7 @@ export async function listPublicReadyVideosForEvent(
     },
     select: {
       id: true,
+      userId: true,
       title: true,
       publicSlug: true,
       isPublic: true,
@@ -125,6 +129,24 @@ export async function listPublicReadyVideosForEvent(
       videos: [],
       devDiagnostics: devDiagnosticsPayload(emptyDiagnostics) ?? null,
     };
+  }
+
+  // En una galería de evento conviven álbumes de distintos fotógrafos y el fee
+  // puede variar entre ellos, así que se resuelve por álbum. La caché evita
+  // repetir la consulta cuando varios álbumes son del mismo fotógrafo.
+  const feeCache = new Map<string, number>();
+  const feeByAlbumId = new Map<number, number>();
+  for (const a of eligible) {
+    const clave = `${a.userId ?? "null"}:${a.selectedLabId ?? "null"}`;
+    let fee = feeCache.get(clave);
+    if (fee == null) {
+      fee = await resolveClientMarketplaceFeePercent({
+        photographerId: a.userId ?? null,
+        labId: a.selectedLabId ?? null,
+      });
+      feeCache.set(clave, fee);
+    }
+    feeByAlbumId.set(a.id, fee);
   }
 
   const metaByAlbumId = new Map(
@@ -172,7 +194,10 @@ export async function listPublicReadyVideosForEvent(
     const meta = metaByAlbumId.get(v.albumId);
     const albumTitle = meta?.title ?? null;
     return {
-      ...toPublicVideoDto(v as typeof v & { category: VideoCategory }),
+      ...toPublicVideoDto(
+        v as typeof v & { category: VideoCategory },
+        feeByAlbumId.get(v.albumId) ?? 0
+      ),
       albumId: v.albumId,
       albumTitle,
       albumName: albumTitle,

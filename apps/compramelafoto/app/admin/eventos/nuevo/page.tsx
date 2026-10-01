@@ -223,7 +223,7 @@ export default function AdminNewEventPage() {
               />
               <p className="text-xs text-gray-500 mt-1">Sirve para que el fotógrafo sepa si es un evento multitudinario o más íntimo.</p>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full min-w-0">
+            <div className="grid dnx-grid-2 gap-4 w-full min-w-0">
               <div className="min-w-0">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Fecha y hora de inicio *</label>
                 <Input

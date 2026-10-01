@@ -98,7 +98,7 @@ describe("FotOffice — Split de Pagos (1 a N) desactivado", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("el cobro convencional de cursos (Checkout Pro) sigue intacto", () => {
+  it("el cobro convencional de cursos (Checkout Pro en dos vías) sigue intacto", () => {
     const preference = readFileSync(
       path.join(
         APP_ROOT,
@@ -106,16 +106,20 @@ describe("FotOffice — Split de Pagos (1 a N) desactivado", () => {
       ),
       "utf8",
     );
-    // Preferencia de Checkout Pro, sin split ni receivers.
-    expect(preference).toContain("createMercadoPagoPreference");
+    // La ruta sólo delega: la preferencia se arma en el checkout del módulo.
+    expect(preference).toContain("createCourseEnrollmentCheckout");
     expect(preference).not.toContain("splits");
 
-    const mp = readFileSync(
-      path.join(APP_ROOT, "lib/presential-courses/mercadopago.ts"),
+    const checkout = readFileSync(
+      path.join(APP_ROOT, "lib/presential-courses/checkout.ts"),
       "utf8",
     );
-    expect(mp).toContain("/checkout/preferences");
-    expect(mp).toContain("/v1/payments/");
-    expect(mp).not.toContain("/v1/orders");
+    // Dos vías: cobra la institución con su token y la plataforma retiene con
+    // `marketplaceFeeMinor`. Ni Orders, ni receivers, ni splits.
+    expect(checkout).toContain("createMercadoPagoCheckoutProLiveAdapter");
+    expect(checkout).toContain("accessTokenOverride");
+    expect(checkout).toContain("marketplaceFeeMinor");
+    expect(checkout).not.toContain("splits");
+    expect(checkout).not.toContain("/v1/orders");
   });
 });

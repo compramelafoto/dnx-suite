@@ -44,6 +44,15 @@ export type PublicLimit = { limit: number; windowMs: number };
 export const PIECE_LIMIT: PublicLimit = { limit: 90, windowMs: 5 * 60_000 };
 export const PDF_LIMIT: PublicLimit = { limit: 6, windowMs: 10 * 60_000 };
 
+/**
+ * Abrir una propuesta por código.
+ *
+ * Con mil millones de combinaciones, adivinar una a ciegas ya es impracticable;
+ * este tope es lo que impide convertirlo en algo peor que impracticable. Es
+ * holgado a propósito: quien tiene su código lo abre las veces que quiera.
+ */
+export const CODE_LIMIT: PublicLimit = { limit: 30, windowMs: 10 * 60_000 };
+
 /** Devuelve la respuesta de rechazo, o null si el pedido puede seguir. */
 export function rejectIfRateLimited(
   request: Request,

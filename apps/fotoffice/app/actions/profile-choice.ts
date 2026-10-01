@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
-import { ensureFotofficeWorkspaceForUser } from "@/lib/ensure-workspace";
+import { createFotofficeWorkspaceForUser } from "@/lib/ensure-workspace";
 import { clearProfileChoice, setProfileChoice } from "@/lib/portal/profile-choice";
 import {
   findProfileByKey,
@@ -45,8 +45,11 @@ export async function switchProfileAction(): Promise<void> {
  * ocurrir por accidente al visitar una ruta, pero SÍ tiene que poder hacerse a propósito.
  * Acá la persona lo pide explícitamente, y recién entonces se crea.
  *
- * Reusa `ensureFotofficeWorkspaceForUser`, que ya crea workspace, membresía de dueño y
- * branding inicial; después sigue por el onboarding que ya existe.
+ * Usa `createFotofficeWorkspaceForUser`, que crea workspace, membresía de dueño y branding
+ * inicial; después sigue por el onboarding que ya existe.
+ *
+ * **Este archivo es el único del panel autorizado a crear una institución**, y hay una barrera
+ * que lo verifica sobre el código fuente: `lib/entrada/sin-institucion-fantasma.test.ts`.
  */
 export async function createOwnBusinessAction(): Promise<void> {
   const user = await requireAuth();
@@ -59,7 +62,7 @@ export async function createOwnBusinessAction(): Promise<void> {
     redirect("/workspace");
   }
 
-  const ensured = await ensureFotofficeWorkspaceForUser({
+  const ensured = await createFotofficeWorkspaceForUser({
     userId: user.id,
     email: user.email,
     name: user.name,

@@ -1,0 +1,19 @@
+{
+  "name": "@repo/jury-ranking",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Motor puro de ranking de jurado (clickaton-ranking-v2). Sin React/Next/Prisma.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "typescript": "5.9.2"
+  }
+}

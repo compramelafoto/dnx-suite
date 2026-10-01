@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { purchasedThingsLabel } from "@/lib/videos/purchase-success-copy";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { isPreventaUxV2EnabledClient } from "@/lib/preventa-canjeable/preventa-ux-v2-feature-flag";
@@ -26,6 +27,8 @@ export default function SuccessClient() {
   const [paymentStatus, setPaymentStatus] = useState<"loading" | "pending" | "approved" | "error">("loading");
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [downloadCenterUrl, setDownloadCenterUrl] = useState<string | null>(null);
+  /** Videos del pedido: define si el texto habla de fotos o de videos. */
+  const [videoCount, setVideoCount] = useState<number>(0);
   const [isPreparing, setIsPreparing] = useState(false);
   const [digitalFiles, setDigitalFiles] = useState<Array<{ photoId: number; filename: string; downloadUrl: string }>>([]);
   const [loadingFiles, setLoadingFiles] = useState(false);
@@ -102,6 +105,9 @@ export default function SuccessClient() {
                 : undefined,
           })
         );
+      }
+      if (typeof data?.digitalDelivery?.videoCount === "number") {
+        setVideoCount(data.digitalDelivery.videoCount);
       }
       if (data?.digitalDelivery?.downloadCenterUrl) {
         setDownloadCenterUrl(data.digitalDelivery.downloadCenterUrl);
@@ -353,7 +359,7 @@ export default function SuccessClient() {
                   : orderType === "PRECOMPRA_ORDER" || bridgePreCompraOrderId != null
                   ? "Tu compra fue registrada. Te vamos a enviar un email con el acceso a tu pack para continuar el canje cuando corresponda."
                   : downloadCenterUrl
-                    ? "Pago confirmado. Ya podés ver y descargar tus fotos desde tu centro de descargas."
+                    ? `Pago confirmado. Ya podés ver y descargar ${purchasedThingsLabel({ photos: digitalFiles.length, videos: videoCount })} desde tu centro de descargas.`
                     : downloadUrl
                       ? "Pago confirmado. Ya podés descargar todas tus fotos juntas o bajarlas por separado."
                       : orderType === "ALBUM_ORDER" && isPreparing
@@ -409,7 +415,9 @@ export default function SuccessClient() {
           {downloadCenterUrl ? (
             <div style={{ padding: 16, backgroundColor: "#ecfeff", borderRadius: 8 }}>
               <p style={{ color: "#0e7490", fontWeight: "bold" }}>
-                📷 Tus fotos están listas
+                {videoCount > 0 && digitalFiles.length === 0
+                  ? `🎬 ${videoCount === 1 ? "Tu video está listo" : "Tus videos están listos"}`
+                  : "📷 Tus fotos están listas"}
               </p>
               <p style={{ color: "#155e75", marginTop: 8 }}>
                 Entrá a tu centro de descargas para ver las fotos, bajarlas una por una o descargar

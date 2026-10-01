@@ -28,6 +28,7 @@
 import { randomUUID } from "node:crypto";
 import { cache } from "react";
 import { Prisma, prisma } from "@repo/db";
+import { cuentaDeJuradoAbreElPanel } from "./judge-panel-entry";
 
 export type HomeCapabilityKind =
   | "participant"
@@ -243,9 +244,7 @@ export function buildHomeCapabilities(
   let hasJuryAccount = false;
   if (settled.judgeAccount.status === "fulfilled") {
     const judgeAccount = settled.judgeAccount.value;
-    const juryActive =
-      Boolean(judgeAccount) &&
-      (judgeAccount!.accountStatus === "ACTIVE" || judgeAccount!.accountStatus === "INVITED");
+    const juryActive = cuentaDeJuradoAbreElPanel(judgeAccount?.accountStatus);
     hasJuryAccount = juryActive;
     if (juryActive && judgeAccount) {
       const byContest = new Map<string, HomeJuryContestSummary>();
@@ -396,6 +395,12 @@ export async function resolveHomeCapabilities(
 export function resolvePostLoginPath(caps: HomeCapabilities): string {
   const { kinds, degraded } = caps;
 
+  // El super admin es sólo super admin: entra a administrar la plataforma, no
+  // al hub de fotógrafo, aunque también tenga inscripciones o cuenta de jurado.
+  if (caps.isSuperAdmin) {
+    return "/super-admin";
+  }
+
   if (degraded) {
     return "/mi-actividad";
   }
@@ -411,8 +416,9 @@ export function resolvePostLoginPath(caps: HomeCapabilities): string {
       case "organizer":
         return "/dashboard";
       case "jury":
-        // Sesión jurado sigue siendo independiente; aterriza en login jurado con next.
-        return "/jurado/login?next=/jurado/panel";
+        // Directo al panel: entra con la sesión del sitio (ver `puenteDeSesion`).
+        // Si el puente no alcanza, el panel mismo lo manda al login de jurado.
+        return "/jurado/panel";
       case "superAdmin":
         return "/mi-actividad";
       default:

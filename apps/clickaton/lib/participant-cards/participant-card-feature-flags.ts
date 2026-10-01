@@ -12,6 +12,8 @@
 export const PARTICIPANT_CARDS_V2_FLAG = "CLICKATON_PARTICIPANT_CARDS_V2_ENABLED";
 export const PARTICIPANT_CARDS_V2_ADMIN_FLAG =
   "CLICKATON_PARTICIPANT_CARDS_V2_ADMIN_ENABLED";
+export const PARTICIPANT_CARDS_PUBLIC_UI_FLAG =
+  "CLICKATON_PARTICIPANT_CARDS_PUBLIC_UI_ENABLED";
 export const PARTICIPANT_CARDS_PERSISTENCE_FLAG =
   "CLICKATON_PARTICIPANT_CARDS_PERSISTENCE_ENABLED";
 export const CARD_RENDER_PROVIDER_FLAG = "CLICKATON_CARD_RENDER_PROVIDER";
@@ -45,6 +47,18 @@ export function isAdminCardsV2Enabled(): boolean {
   const defaultValue = !isProductionRuntime();
   // eslint-disable-next-line turbo/no-undeclared-env-vars -- documented feature flag
   return parseTruthy(process.env.CLICKATON_PARTICIPANT_CARDS_V2_ADMIN_ENABLED) ?? defaultValue;
+}
+
+/**
+ * Si el participante ve la sección de placas nuevas.
+ *
+ * Va aparte de la bandera que enciende la generación para poder generar el backlog y
+ * comprobarlo antes de mostrárselo a nadie. Sin declarar equivale a encendida: una vez que la
+ * generación funciona, ocultar la sección tiene que ser una decisión explícita.
+ */
+export function isParticipantCardsPublicUiEnabled(): boolean {
+  // eslint-disable-next-line turbo/no-undeclared-env-vars -- documented feature flag
+  return parseTruthy(process.env.CLICKATON_PARTICIPANT_CARDS_PUBLIC_UI_ENABLED) ?? true;
 }
 
 export function isPersistenceEnabled(): boolean {

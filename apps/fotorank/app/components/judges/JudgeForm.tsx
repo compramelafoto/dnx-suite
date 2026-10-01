@@ -5,6 +5,7 @@ import { Button, FormField, FormSection, spacing, radius, useResolvedTheme, Card
 import { uploadJudgeAvatarImage } from "../../actions/judges";
 import {
   JUDGE_AVATAR_MAX_BYTES,
+  isJudgeAvatarKey,
   normalizeJudgeAvatarUrl,
 } from "../../lib/fotorank/judges/judgeAvatar";
 import { JudgeBioEditor } from "./JudgeBioEditor";
@@ -17,6 +18,8 @@ export type JudgeFormValues = {
   lastName: string;
   phone?: string;
   avatarUrl?: string;
+  /** Ruta ya armada para la vista previa (avatarUrl guarda la clave del bucket, no una URL). */
+  avatarPreviewSrc?: string | null;
   shortBio?: string;
   fullBioRichJson?: unknown;
   city?: string;
@@ -49,10 +52,10 @@ export function JudgeForm({
   const [error, setError] = useState<string | null>(null);
 
   const [avatarMode, setAvatarMode] = useState<"url" | "file">(() =>
-    initialValues?.avatarUrl?.startsWith("/uploads/judges/") ? "file" : "url"
+    isJudgeAvatarKey(initialValues?.avatarUrl) ? "file" : "url"
   );
   const [avatarUrlText, setAvatarUrlText] = useState(
-    initialValues?.avatarUrl?.startsWith("/uploads/judges/") ? "" : (initialValues?.avatarUrl ?? "")
+    isJudgeAvatarKey(initialValues?.avatarUrl) ? "" : (initialValues?.avatarUrl ?? "")
   );
   const [avatarFileKey, setAvatarFileKey] = useState(0);
   const [filePreviewObjectUrl, setFilePreviewObjectUrl] = useState<string | null>(null);
@@ -78,9 +81,9 @@ export function JudgeForm({
   const avatarPreviewSrc = useMemo(() => {
     if (filePreviewObjectUrl) return filePreviewObjectUrl;
     if (avatarMode === "url" && normalizedUrlForPreview) return normalizedUrlForPreview;
-    if (avatarMode === "file" && initialValues?.avatarUrl?.trim()) return initialValues.avatarUrl.trim();
+    if (avatarMode === "file" && initialValues?.avatarPreviewSrc) return initialValues.avatarPreviewSrc;
     return null;
-  }, [avatarMode, filePreviewObjectUrl, initialValues?.avatarUrl, normalizedUrlForPreview]);
+  }, [avatarMode, filePreviewObjectUrl, initialValues?.avatarPreviewSrc, normalizedUrlForPreview]);
 
   useEffect(() => {
     setAvatarPreviewError(false);
@@ -127,7 +130,7 @@ export function JudgeForm({
         fd.append("file", file);
         const up = await uploadJudgeAvatarImage(fd);
         if (!up.ok) return { ok: false, error: up.error };
-        return { ok: true, url: up.data!.url };
+        return { ok: true, url: up.data!.key };
       }
       if (avatarMode === "url") {
         const trimmed = avatarUrlText.trim();
@@ -318,9 +321,9 @@ export function JudgeForm({
                     style={{ color: theme.text.secondary }}
                     onChange={handleAvatarFileChange}
                   />
-                  {initialValues?.avatarUrl?.startsWith("/uploads/judges/") ? (
+                  {isJudgeAvatarKey(initialValues?.avatarUrl) ? (
                     <p style={{ fontSize: "0.85rem", color: theme.text.secondary, margin: 0 }}>
-                      Ya hay una foto en el servidor. Elegí un archivo nuevo para reemplazarla (la anterior se elimina al guardar).
+                      Ya hay una foto cargada. Elegí un archivo nuevo para reemplazarla: la anterior se borra al guardar.
                     </p>
                   ) : null}
                 </div>

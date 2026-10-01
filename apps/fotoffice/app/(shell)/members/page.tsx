@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/page-header";
 import { MEMBER_STATUS_LABELS, isMemberStatus } from "@/lib/members/status-labels";
 import { MEMBER_ACCESS_LABELS, memberAccessStatus } from "@/lib/members/invitations";
 import { InviteBatchForm } from "@/components/members/invite-batch-form";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { Users } from "lucide-react";
 
 function buildQuery(params: Record<string, string | undefined>, overrides: Record<string, string | undefined>) {
@@ -34,6 +35,7 @@ export default async function MembersPage({
   }>;
 }) {
   const { workspace, canManage } = await requireMembersContext();
+  const v = await loadPersonVocabulary(workspace.id);
   const sp = await searchParams;
   const q = sp.q?.trim() || undefined;
   const status = sp.status && isMemberStatus(sp.status) ? sp.status : undefined;
@@ -60,8 +62,8 @@ export default async function MembersPage({
   return (
     <div className="space-y-10">
       <PageHeader
-        title="Socios"
-        description="Padrón de socios de este workspace: alta, edición, categorías y estado."
+        title={v.Plural}
+        description={`Padrón de ${v.plural} de este workspace: alta, edición, categorías y estado.`}
         actions={
           canManage ? (
             <>
@@ -84,10 +86,10 @@ export default async function MembersPage({
                 </a>
               ) : null}
               <Link href="/members/import" className="fo-btn fo-btn-secondary text-sm">
-                Importar socios
+                {`Importar ${v.plural}`}
               </Link>
               <Link href="/members/new" className="fo-btn fo-btn-primary text-sm">
-                Nuevo socio
+                {`Agregar ${v.singular}`}
               </Link>
             </>
           ) : undefined
@@ -100,11 +102,13 @@ export default async function MembersPage({
             <Users className="size-7" aria-hidden />
           </div>
           <div className="space-y-2 max-w-md">
-            <p className="text-base font-semibold text-[var(--fo-text)]">Todavía no hay socios cargados</p>
+            {/* Reformulado para no depender del género: "cargados" concordaba en masculino
+                con "socios" y no con la palabra que configure cada workspace. */}
+            <p className="text-base font-semibold text-[var(--fo-text)]">{`El padrón de ${v.plural} todavía está vacío`}</p>
             <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
               {categories.length === 0
-                ? "Primero creá al menos una categoría de socio, después vas a poder cargar socios."
-                : "Cargá el primer socio del padrón de este workspace."}
+                ? `Primero creá al menos una categoría de ${v.singular}, después vas a poder cargar ${v.plural}.`
+                : `Empezá cargando ${v.plural} al padrón de este workspace.`}
             </p>
           </div>
           {canManage ? (
@@ -114,7 +118,7 @@ export default async function MembersPage({
               </Link>
             ) : (
               <Link href="/members/new" className="fo-btn fo-btn-primary text-sm">
-                Agregar primer socio
+                {`Agregar ${v.singular}`}
               </Link>
             )
           ) : null}
@@ -206,16 +210,18 @@ export default async function MembersPage({
 
           {result.items.length === 0 ? (
             <div className="fo-card flex flex-col items-center text-center py-12 px-6 gap-3">
+              {/* Reformulado: "Ningún socio" y "todos los socios" concuerdan en masculino con
+                  un artículo/cuantificador que no sabemos si le cabe a la palabra configurada. */}
               <p className="text-sm font-medium text-[var(--fo-text)]">
-                Ningún socio coincide con esa búsqueda.
+                {`No hay ${v.plural} que coincidan con esa búsqueda.`}
               </p>
               <Link href="/members" className="fo-btn fo-btn-secondary text-sm">
-                Ver todos los socios
+                Ver todo el padrón
               </Link>
             </div>
           ) : (
             <>
-              <InviteBatchForm canManage={canManage}>
+              <InviteBatchForm canManage={canManage} vocabulary={v}>
               <div className="overflow-x-auto rounded-[var(--fo-radius)] border border-[var(--fo-border)]">
                 <table className="w-full text-sm text-left min-w-[860px]">
                   <thead className="bg-[var(--fo-bg-elevated)] text-[var(--fo-muted)]">
@@ -303,7 +309,7 @@ export default async function MembersPage({
               {result.pageCount > 1 ? (
                 <div className="flex items-center justify-between text-sm text-[var(--fo-muted)]">
                   <p>
-                    Página {result.page} de {result.pageCount} — {result.total} socios
+                    {`Página ${result.page} de ${result.pageCount} — ${result.total} ${result.total === 1 ? v.singular : v.plural}`}
                   </p>
                   <div className="flex gap-2">
                     {result.page > 1 ? (

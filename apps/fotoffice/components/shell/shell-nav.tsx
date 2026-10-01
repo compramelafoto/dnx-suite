@@ -4,32 +4,21 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Building2,
-  CalendarClock,
   ClipboardCheck,
-  CreditCard,
   FileText,
-  Palette,
   Globe,
   Plug,
-  CalendarDays,
-  DoorOpen,
-  PackageCheck,
-  PackagePlus,
-  GraduationCap,
   Inbox,
   LayoutDashboard,
-  LayoutGrid,
   Settings,
   Shield,
-  Tag,
-  Ticket,
   UserCog,
   Users,
-  Wallet,
   Wallet2,
 } from "lucide-react";
 import type { ComponentType } from "react";
 import { useShellNav } from "./shell-frame";
+import { ICONOS } from "./nav-icons";
 import {
   claimedPrefixes,
   submodulesFor,
@@ -38,7 +27,9 @@ import {
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
+import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
 /**
  * Menú principal.
@@ -76,33 +67,19 @@ function under(href: string) {
   return (path: string) => path === href || path.startsWith(`${href}/`);
 }
 
-/** Los íconos que puede nombrar un submódulo. Cerrado a propósito: un nombre suelto no dibuja nada. */
-const ICONOS: Record<string, ComponentType<{ className?: string }>> = {
-  CalendarClock,
-  CalendarDays,
-  CreditCard,
-  DoorOpen,
-  GraduationCap,
-  Inbox,
-  LayoutGrid,
-  PackageCheck,
-  PackagePlus,
-  Palette,
-  Tag,
-  Ticket,
-  Users,
-  Wallet,
-};
-
 /**
  * Convierte las pantallas declaradas de un módulo en entradas del menú.
  *
  * La lista vive en `lib/modules/submodules.ts` y la comparte con el inicio del workspace: es
  * lo que evita que una pantalla nueva aparezca en un lado y en el otro no.
  */
-function itemsDeModulo(moduleKey: string, canManage: boolean): Item[] {
+function itemsDeModulo(
+  moduleKey: string,
+  canManage: boolean,
+  vocabulary: PersonVocabulary,
+): Item[] {
   const reclamadas = claimedPrefixes(moduleKey);
-  return submodulesFor(moduleKey, { canManage }).map((sub: SubmoduleItem) => ({
+  return submodulesFor(moduleKey, { canManage }, vocabulary).map((sub: SubmoduleItem) => ({
     href: sub.href,
     label: sub.label,
     icon: ICONOS[sub.icon] ?? LayoutDashboard,
@@ -173,40 +150,52 @@ export function ShellNav({
   membersEnabled,
   bookingsEnabled,
   rafflesEnabled,
+  coveragesEnabled,
   websiteEnabled,
+  serviceLeadsEnabled,
   canManageMembers,
   canManageWorkspaceSettings,
   platformAdmin,
+  vocabulary,
 }: {
   coursesEnabled: boolean;
   evaluacionesEnabled: boolean;
   membersEnabled: boolean;
   bookingsEnabled: boolean;
   rafflesEnabled: boolean;
+  coveragesEnabled: boolean;
   websiteEnabled: boolean;
+  serviceLeadsEnabled: boolean;
   canManageMembers: boolean;
   canManageWorkspaceSettings: boolean;
   platformAdmin: boolean;
+  vocabulary: PersonVocabulary;
 }) {
   const path = usePathname() ?? "";
   const { closeDrawer } = useShellNav();
 
   const socios: Item[] = membersEnabled
-    ? itemsDeModulo(MEMBERS_MODULE_KEY, canManageMembers)
+    ? itemsDeModulo(MEMBERS_MODULE_KEY, canManageMembers, vocabulary)
     : [];
 
   const reservas: Item[] = bookingsEnabled
-    ? itemsDeModulo(BOOKINGS_MODULE_KEY, canManageWorkspaceSettings)
+    ? itemsDeModulo(BOOKINGS_MODULE_KEY, canManageWorkspaceSettings, vocabulary)
     : [];
 
   // Sorteos vive en el grupo Socios: es una de las cosas que la institución le da al socio
   // al día, y separarlo en su propia sección lo dejaría suelto al lado de Cuotas.
   const sorteos: Item[] = rafflesEnabled
-    ? itemsDeModulo(RAFFLES_MODULE_KEY, canManageWorkspaceSettings)
+    ? itemsDeModulo(RAFFLES_MODULE_KEY, canManageWorkspaceSettings, vocabulary)
+    : [];
+
+  // Grupo propio y no dentro de Socios: coberturas se le pide a cualquier institución con
+  // actividad fotográfica, no sólo a las que tienen padrón de socios.
+  const coberturas: Item[] = coveragesEnabled
+    ? itemsDeModulo(COVERAGES_MODULE_KEY, canManageWorkspaceSettings, vocabulary)
     : [];
 
   const cursos: Item[] = coursesEnabled
-    ? itemsDeModulo(COURSES_SALES_MODULE_KEY, true)
+    ? itemsDeModulo(COURSES_SALES_MODULE_KEY, true, vocabulary)
     : [];
 
   // Evaluaciones evalúa actividades de los cursos: es del mismo dominio, no un módulo suelto.
@@ -236,23 +225,29 @@ export function ShellNav({
       : []),
   ];
 
-  // Formularios compartibles para juntar contactos. Vivían escritos aparte, debajo del menú y
-  // con otro estilo: se veían como un apéndice y no como un módulo más.
-  // Deuda registrada: no tiene llave de módulo, así que no se puede apagar por organización.
-  const captacion: Item[] = [
-    {
-      href: "/dashboard/service-leads/forms",
-      label: "Formularios",
-      icon: FileText,
-      isActive: under("/dashboard/service-leads/forms"),
-    },
-    {
-      href: "/dashboard/service-leads",
-      label: "Leads",
-      icon: Inbox,
-      isActive: exact("/dashboard/service-leads"),
-    },
-  ];
+  /*
+    Formularios públicos para pedir presupuesto y la bandeja donde llegan esas consultas.
+
+    Estaban escritos a mano acá, sin llave de módulo, así que **le aparecían a todo el
+    mundo** usara o no la función —la deuda estaba anotada en este mismo lugar desde que se
+    agregaron—. Ahora es un módulo como los demás y arranca apagado.
+  */
+  const captacion: Item[] = serviceLeadsEnabled
+    ? [
+        {
+          href: "/dashboard/service-leads/forms",
+          label: "Formularios",
+          icon: FileText,
+          isActive: under("/dashboard/service-leads/forms"),
+        },
+        {
+          href: "/dashboard/service-leads",
+          label: "Leads",
+          icon: Inbox,
+          isActive: exact("/dashboard/service-leads"),
+        },
+      ]
+    : [];
 
   // Presencia pública: hoy un solo ítem, y aun así con encabezado propio. Es donde aterrizan
   // el blog, los portfolios y las redes cuando existan.
@@ -302,8 +297,9 @@ export function ShellNav({
           { href: "/dashboard", label: "Inicio", icon: LayoutDashboard, isActive: exact("/dashboard") },
         ]}
       />
-      <Section title="Socios" items={socios} path={path} onNavigate={closeDrawer} />
+      <Section title={vocabulary.Plural} items={socios} path={path} onNavigate={closeDrawer} />
       <Section title="Sorteos" items={sorteos} path={path} onNavigate={closeDrawer} />
+      <Section title="Coberturas" items={coberturas} path={path} onNavigate={closeDrawer} />
       <Section title="Cursos" items={cursosItems} path={path} onNavigate={closeDrawer} />
       <Section title="Reservas" items={reservas} path={path} onNavigate={closeDrawer} />
       <Section title="Captación" items={captacion} path={path} onNavigate={closeDrawer} />

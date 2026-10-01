@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { formatearEnAr } from "@/lib/fecha-ar";
 import { ArchiveMessageButton } from "@/components/admin/messages/ArchiveMessageButton";
 import { MarkReadButton } from "@/components/admin/messages/MarkReadButton";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
@@ -16,10 +17,15 @@ type Props = {
 };
 
 function formatDate(value: Date) {
-  return new Intl.DateTimeFormat("es-AR", {
-    dateStyle: "full",
-    timeStyle: "short",
-  }).format(value);
+  return formatearEnAr(value, {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
 }
 
 export default async function AdminMessageDetailPage({ params }: Props) {

@@ -5,13 +5,15 @@ import { requireMembersManageContext } from "@/lib/members/access";
 import { PageHeader } from "@/components/page-header";
 import { MemberForm } from "@/components/members/member-form";
 import { resolveCategoryOptionsForEdit } from "@/lib/members/category-options";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 
 export default async function EditMemberPage({ params }: { params: Promise<{ id: string }> }) {
   const { workspace } = await requireMembersManageContext();
   const { id } = await params;
-  const [member, categories] = await Promise.all([
+  const [member, categories, v] = await Promise.all([
     getMember(workspace.id, id),
     listMemberCategories(workspace.id, { onlyActive: true }),
+    loadPersonVocabulary(workspace.id),
   ]);
   if (!member) notFound();
 
@@ -30,6 +32,7 @@ export default async function EditMemberPage({ params }: { params: Promise<{ id:
       <MemberForm
         member={member}
         categories={categoryOptions.map((c) => ({ id: c.id, name: c.name }))}
+        vocabulary={v}
       />
     </div>
   );

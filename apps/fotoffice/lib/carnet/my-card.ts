@@ -5,6 +5,8 @@ import { computeCardStatus, explainDisabled, type MemberInstitutionalStatus } fr
 import { openCardToken } from "./token-vault";
 import { decimalArsToMinor } from "@/lib/membership/money";
 import type { FulfillmentState } from "./fulfillment";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
+import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
 
 /**
  * El carnet del propio socio — **nivel 2**.
@@ -61,7 +63,7 @@ export async function loadMyCard(
   });
   if (!card) return null;
 
-  const [cargos, branding, impresa] = await Promise.all([
+  const [cargos, branding, impresa, vocabulary] = await Promise.all([
     prisma.membershipCharge.findMany({
       where: { memberId },
       select: { concept: true, period: true, balanceArs: true },
@@ -75,6 +77,7 @@ export async function loadMyCard(
       orderBy: { issuedAt: "desc" },
       select: { fulfillmentState: true, validUntil: true },
     }),
+    loadPersonVocabulary(card.workspace.id),
   ]);
 
   const duesCharges: DuesCharge[] = cargos.map((c) => ({
@@ -106,7 +109,10 @@ export async function loadMyCard(
     photoUrl: card.member.avatarUrl,
     validUntil: card.validUntil,
     enabled: status.enabled,
-    disabledReason: status.reason ? explainDisabled(status.reason) : null,
+    // `explainDisabled` es pura y devuelve marcadores; la palabra la pone la institución.
+    disabledReason: status.reason
+      ? aplicarVocabulario(explainDisabled(status.reason), vocabulary)
+      : null,
     verificationUrl: token ? `${baseUrl.replace(/\/+$/, "")}/c/${token}` : null,
     totalDueMinor: duesCharges.reduce((s, c) => s + c.balanceMinor, 0),
     printedState: (impresa?.fulfillmentState ?? null) as FulfillmentState | null,

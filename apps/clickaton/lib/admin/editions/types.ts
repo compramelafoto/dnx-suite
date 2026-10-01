@@ -1,4 +1,4 @@
-import { toDateTimeLocalValue } from "@/lib/admin/datetime-input";
+import { DEFAULT_ADMIN_TIME_ZONE, toDateTimeLocalValue } from "@/lib/admin/datetime-input";
 
 export const CLICKATON_EDITION_STATUSES = [
   "DRAFT",
@@ -27,6 +27,7 @@ export type ClickatonEditionRecord = {
   registrationOpenAt: Date | null;
   registrationCloseAt: Date | null;
   defaultCapacity: number | null;
+  supportWhatsappPhone: string | null;
   location: string | null;
   city: string | null;
   provinceOrState: string | null;
@@ -65,6 +66,7 @@ export type ClickatonEditionFormInput = {
   registrationOpenAt: string;
   registrationCloseAt: string;
   defaultCapacity: string;
+  supportWhatsappPhone: string;
   location: string;
   city: string;
   provinceOrState: string;
@@ -99,12 +101,13 @@ export function emptyEditionFormInput(): ClickatonEditionFormInput {
     status: "DRAFT",
     isPublished: false,
     registrationEnabled: false,
-    timezone: "America/Argentina/Buenos_Aires",
+    timezone: DEFAULT_ADMIN_TIME_ZONE,
     startAt: "",
     endAt: "",
     registrationOpenAt: "",
     registrationCloseAt: "",
     defaultCapacity: "",
+    supportWhatsappPhone: "",
     location: "",
     city: "",
     provinceOrState: "",
@@ -117,6 +120,8 @@ export function emptyEditionFormInput(): ClickatonEditionFormInput {
 }
 
 export function editionToFormInput(edition: ClickatonEditionRecord): ClickatonEditionFormInput {
+  // Las fechas se muestran en la hora local de la edición, no en la del servidor.
+  const editionTimeZone = edition.timezone ?? DEFAULT_ADMIN_TIME_ZONE;
   return {
     name: edition.name,
     slug: edition.slug,
@@ -125,15 +130,16 @@ export function editionToFormInput(edition: ClickatonEditionRecord): ClickatonEd
     status: edition.status,
     isPublished: edition.isPublished,
     registrationEnabled: edition.registrationEnabled,
-    timezone: edition.timezone ?? "America/Argentina/Buenos_Aires",
-    startAt: toDateTimeLocalValue(edition.startAt),
-    endAt: toDateTimeLocalValue(edition.endAt),
-    registrationOpenAt: toDateTimeLocalValue(edition.registrationOpenAt),
-    registrationCloseAt: toDateTimeLocalValue(edition.registrationCloseAt),
+    timezone: editionTimeZone,
+    startAt: toDateTimeLocalValue(edition.startAt, editionTimeZone),
+    endAt: toDateTimeLocalValue(edition.endAt, editionTimeZone),
+    registrationOpenAt: toDateTimeLocalValue(edition.registrationOpenAt, editionTimeZone),
+    registrationCloseAt: toDateTimeLocalValue(edition.registrationCloseAt, editionTimeZone),
     defaultCapacity:
       edition.defaultCapacity === null || edition.defaultCapacity === undefined
         ? ""
         : String(edition.defaultCapacity),
+    supportWhatsappPhone: edition.supportWhatsappPhone ?? "",
     location: edition.location ?? "",
     city: edition.city ?? "",
     provinceOrState: edition.provinceOrState ?? "",

@@ -137,7 +137,7 @@ export default function AdminConversionAnalyticsPanel() {
         <>
           <ConversionKpiGrid summary={data.summary} recoveredRevenue={data.recoveredRevenue} />
 
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <div className="grid dnx-grid-2 gap-4">
             <ConversionRecoveryReasons reasons={data.recoveryReasons} />
             <Card className="p-4 sm:p-6 min-w-0">
               <h3 className="text-base font-semibold text-[#111827] mb-1">Conversión por día</h3>
@@ -159,7 +159,7 @@ export default function AdminConversionAnalyticsPanel() {
             </Card>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="grid dnx-grid-2 gap-4">
             <RankTable
               title="Mejores álbumes por conversión"
               rows={data.topAlbums.map((r) => ({
@@ -186,7 +186,7 @@ export default function AdminConversionAnalyticsPanel() {
             />
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="grid dnx-grid-2 gap-4">
             <RankTable
               title="Mejores fotógrafos por conversión"
               rows={data.topPhotographers.map((r) => ({
@@ -218,7 +218,7 @@ export default function AdminConversionAnalyticsPanel() {
             <p className="text-sm text-[#6b7280] mb-4">
               FunnelVisit — overlay, retry, banner (últimos {data.periodDays} días).
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="grid dnx-grid-3 gap-3">
               {data.uxFunnelEvents.map((ev) => (
                 <div key={ev.event} className="rounded-xl border border-[#e5e7eb] bg-[#f9fafb] p-3 min-w-0">
                   <p className="text-xs font-mono text-[#6b7280] break-all">{ev.event}</p>

@@ -7,6 +7,7 @@ import {
   admitSubmission,
   closeAdmissionBatch,
   ensureAdmissionConfig,
+  setAdmissionEnabled,
   evaluatePendingBulk,
   evaluateSubmission,
   freezeAdmittedEntries,
@@ -23,6 +24,22 @@ function actorFrom(user: { id: number; email: string; globalRole: string }) {
 function revalidateAdmission(editionId: string) {
   revalidatePath(`${adminRoutes.editions}/${editionId}/admision`);
   revalidatePath(`${adminRoutes.editions}/${editionId}/envios`);
+}
+
+/**
+ * Enciende o apaga la admisión técnica desde el panel.
+ *
+ * Con la admisión apagada las fotos entran igual, pero nadie las revisa sola y
+ * el jurado no tiene nada que mirar: sólo ve las obras admitidas y congeladas.
+ */
+export async function toggleAdmissionAction(
+  editionId: string,
+  formData: FormData,
+): Promise<void> {
+  const user = await requireClickatonAdmin();
+  const enabled = String(formData.get("enabled") ?? "") === "true";
+  await setAdmissionEnabled({ editionId, enabled, actor: actorFrom(user) });
+  revalidateAdmission(editionId);
 }
 
 export async function ensureAdmissionConfigAction(editionId: string) {

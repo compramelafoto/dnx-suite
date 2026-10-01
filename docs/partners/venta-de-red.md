@@ -112,3 +112,9 @@ Revisado contra el código el 2026-09-09.
 
    Se administra en **Sponsors → Vendedores habilitados**, y de ahí sale el
    desplegable de «quién trajo la venta»: el campo dejó de ser texto libre.
+
+   La migración `20260909120000_partner_sales_agent` **se aplicó en producción
+   recién el 2026-09-11**. Entre el 9 y el 11 la pantalla existía y la tabla no:
+   mostraba el aviso de «falta migrar» en vez de romperse —`withClickatonDb`
+   convierte el error de tabla ausente en un cartel— pero no servía. Conviene
+   verificar la tabla en la base, no solo que la pantalla responda.

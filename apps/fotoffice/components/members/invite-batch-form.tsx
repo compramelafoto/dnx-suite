@@ -3,6 +3,7 @@
 import { useActionState, useCallback, useRef, useState } from "react";
 import { inviteMembersBatchAction } from "@/app/actions/member-access";
 import { INVITE_BATCH_MAX } from "@/lib/members/invitations";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
 /**
  * Invitación de varios socios desde el padrón.
@@ -18,9 +19,11 @@ import { INVITE_BATCH_MAX } from "@/lib/members/invitations";
 export function InviteBatchForm({
   children,
   canManage,
+  vocabulary,
 }: {
   children: React.ReactNode;
   canManage: boolean;
+  vocabulary: PersonVocabulary;
 }) {
   const [state, action, pending] = useActionState(inviteMembersBatchAction, {
     error: null,
@@ -72,7 +75,7 @@ export function InviteBatchForm({
               ? "Enviando invitaciones…"
               : selected === 0
                 ? "Invitar a los seleccionados"
-                : `Invitar a ${selected} socio${selected === 1 ? "" : "s"}`}
+                : `Invitar a ${selected} ${selected === 1 ? vocabulary.singular : vocabulary.plural}`}
           </button>
           <button
             type="button"
@@ -91,8 +94,7 @@ export function InviteBatchForm({
             </button>
           ) : null}
           <p className="text-xs text-[var(--fo-muted)]">
-            Se envía de a {INVITE_BATCH_MAX} por vez. Los socios sin email o que ya tienen
-            acceso no se pueden seleccionar.
+            {`Se envía de a ${INVITE_BATCH_MAX} por vez. Los ${vocabulary.plural} sin email o que ya tienen acceso no se pueden seleccionar.`}
           </p>
         </div>
       ) : null}
@@ -120,14 +122,14 @@ export function InviteBatchForm({
             <div className="space-y-1">
               <p className="text-sm text-[var(--fo-danger)]">
                 {state.failed.length === 1
-                  ? "1 socio quedó sin invitar:"
-                  : `${state.failed.length} socios quedaron sin invitar:`}
+                  ? `Quedó 1 ${vocabulary.singular} sin invitar:`
+                  : `Quedaron ${state.failed.length} ${vocabulary.plural} sin invitar:`}
               </p>
               <ul className="text-xs text-[var(--fo-muted)] space-y-0.5">
                 {state.failed.map((f) => (
                   <li key={f.memberId}>
                     <a href={`/members/${f.memberId}`} className="underline">
-                      Ver socio
+                      {`Ver ${vocabulary.singular}`}
                     </a>{" "}
                     — {f.error}
                   </li>

@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
-import { buildProposalPdf, ProposalWithoutSpacesError } from "@/lib/propuesta/pdf";
+import {
+  buildProposalPdf,
+  resolveProposalPlan,
+  ProposalWithoutSpacesError,
+} from "@/lib/propuesta/pdf";
+import { guardarPropuesta } from "@/lib/propuesta/persistencia";
 import {
   PDF_LIMIT,
+  clientKeyFrom,
   leerLogoDelFormulario,
   rejectIfRateLimited,
 } from "@/lib/propuesta/public-guard";
@@ -64,7 +70,12 @@ function nombreDeArchivo(brandName: string): string {
 
 /**
  * Devuelve el dossier en PDF con las piezas compuestas.
- * No guarda nada: recibe, compone y devuelve.
+ *
+ * Guarda la propuesta antes de dibujarla: el código que va impreso en la portada
+ * sale de la fila ya escrita. Si guardar falla —tabla sin migrar, R2 sin
+ * configurar—, el PDF sale igual pero sin código. La pantalla es una herramienta
+ * de venta: que no se pueda recuperar después es peor que nada, pero no vender
+ * es peor todavía.
  */
 export async function POST(request: Request) {
   const frenado = rejectIfRateLimited(request, PDF_LIMIT);
@@ -100,6 +111,24 @@ export async function POST(request: Request) {
       : defaultProposalPeriod(issuedAt);
 
   try {
+    const { plan, plate } = await resolveProposalPlan({
+      brandName,
+      industry: industry || null,
+      logo: logo.buffer,
+      excludePieceIds: excluidas,
+      period,
+      availability: await disponibilidadONada(period, issuedAt),
+    });
+
+    const guardada = await guardarPropuesta({
+      plan,
+      logo: logo.buffer,
+      period,
+      contactUrl: String(form.get("contactUrl") ?? "").trim() || null,
+      clientKeyHash: clientKeyFrom(request),
+      now: issuedAt,
+    });
+
     const pdf = await buildProposalPdf({
       brandName,
       industry: industry || null,
@@ -107,16 +136,25 @@ export async function POST(request: Request) {
       excludePieceIds: excluidas,
       issuedAt,
       period,
-      availability: await disponibilidadONada(period, issuedAt),
+      plan,
+      plate,
+      code: guardada?.code ?? null,
+      expiresAt: guardada?.expiresAt ?? null,
     });
 
-    return new NextResponse(new Uint8Array(pdf), {
-      headers: {
-        "content-type": "application/pdf",
-        "content-disposition": `attachment; filename="${nombreDeArchivo(brandName)}"`,
-        "cache-control": "no-store",
-      },
+    const headers = new Headers({
+      "content-type": "application/pdf",
+      "content-disposition": `attachment; filename="${nombreDeArchivo(brandName)}"`,
+      "cache-control": "no-store",
     });
+    // El PDF es binario: el código viaja por cabecera para que la pantalla lo
+    // muestre sin tener que pedir la propuesta otra vez.
+    if (guardada) {
+      headers.set("x-propuesta-codigo", guardada.code);
+      headers.set("x-propuesta-vence", guardada.expiresAt.toISOString());
+    }
+
+    return new NextResponse(new Uint8Array(pdf), { headers });
   } catch (err) {
     if (err instanceof ProposalWithoutSpacesError) {
       return NextResponse.json({ error: err.message }, { status: 409 });

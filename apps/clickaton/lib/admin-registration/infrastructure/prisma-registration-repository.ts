@@ -1,4 +1,6 @@
 import { prisma, Prisma } from "@/lib/admin/db";
+import { reverseAffiliateCommission } from "@/lib/affiliates/infrastructure/commission-lifecycle";
+import { welcomeCardMediaUrl } from "@/lib/welcome-card/media-url";
 import type {
   ClickatonPaymentStatus,
   ClickatonRegistrationStatus,
@@ -300,11 +302,14 @@ async function loadDetail(id: string): Promise<AdminRegistrationDetail | null> {
           status: latestCard.status,
           templateId: latestCard.templateId,
           templateVersion: latestCard.templateVersion,
-          pngUrl: latestCard.pngAssetId
-            ? assetUrl.get(latestCard.pngAssetId) ?? null
-            : null,
+          /*
+           * Por el proxy autenticado y no por la dirección que guarda el archivo: esa apunta
+           * al proxy de medios públicos, que rechaza a propósito las placas y devuelve 404.
+           * Era lo que dejaba la vista previa del panel siempre rota.
+           */
+          pngUrl: latestCard.pngAssetId ? welcomeCardMediaUrl(row.id) : null,
           webpUrl: latestCard.webpAssetId
-            ? assetUrl.get(latestCard.webpAssetId) ?? null
+            ? welcomeCardMediaUrl(row.id, { format: "webp" })
             : null,
           publicationStatus: latestCard.publicationStatus,
           lastErrorCode: latestCard.lastErrorCode,
@@ -542,6 +547,26 @@ export function createPrismaAdminRegistrationRepository(): ClickatonAdminRegistr
           },
         });
       });
+
+      // Anulada o descalificada desde el panel: el fotógrafo dueño del cupón
+      // pierde la comisión. Best-effort, no tira.
+      if (
+        input.nextStatus === "CANCELLED" ||
+        input.nextStatus === "DISQUALIFIED" ||
+        input.nextStatus === "REFUNDED"
+      ) {
+        const label =
+          input.nextStatus === "DISQUALIFIED"
+            ? "descalificada desde el panel"
+            : input.nextStatus === "REFUNDED"
+              ? "reembolsada desde el panel"
+              : "cancelada desde el panel";
+        await reverseAffiliateCommission(
+          prisma,
+          input.registrationId,
+          `${label}: ${input.reason.trim()}`,
+        );
+      }
 
       const detail = await loadDetail(input.registrationId);
       if (!detail) throw new AdminRegistrationNotFoundError(input.registrationId);

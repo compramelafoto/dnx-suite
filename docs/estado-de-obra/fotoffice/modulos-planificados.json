@@ -1,0 +1,44 @@
+{
+  "proyecto": "Módulos planificados",
+  "plataforma": "FOTOFFICE",
+  "spec": "apps/fotoffice/lib/modules/registry.ts",
+  "enUso": "no",
+  "usoNota": "Cinco claves reservadas en el catálogo y ni una línea escrita: no aparecen en el menú, no se pueden encender y no existe ninguna tabla suya. Para medir cuánto se comunica FOTOFFICE hoy: en toda su historia salieron 8 correos registrados",
+  "etapas": [
+    {
+      "nombre": "Claves reservadas, sin implementar",
+      "criterios": [
+        {
+          "que": "Comunicación: una institución le manda un mensaje por correo a sus socios o a sus clientes",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Clave «communications» reservada en el catálogo, sin una línea escrita. En toda la vida de FOTOFFICE salieron 8 correos registrados: 2 de una prueba del 22/08, 4 de Coberturas el 17/09 y 2 del alta de socios el 20/09"
+        },
+        {
+          "que": "Eventos: una institución organiza un evento con inscripción y toma la asistencia",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Clave «events» reservada en el catálogo, sin una línea escrita"
+        },
+        {
+          "que": "Gobierno institucional: se labran las actas, se vota y quedan las resoluciones",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Clave «governance» reservada en el catálogo, sin una línea escrita. El informe de altas para la comisión directiva espera este módulo"
+        },
+        {
+          "que": "Muestras: una institución arma su muestra y la publica",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Clave «exhibitions» reservada en el catálogo, sin una línea escrita"
+        },
+        {
+          "que": "Transparencia: la institución publica su balance y su rendición de cuentas",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Clave «transparency» reservada en el catálogo, sin una línea escrita"
+        }
+      ]
+    }
+  ]
+}

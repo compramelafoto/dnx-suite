@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CreateTemplateV2Button } from "@repo/template-editor-ui";
+import { CreateTemplateV2Button, TEMPLATE_V2_BASE_PATHS } from "@repo/template-editor-ui";
 import { AdminMigrationNotice } from "@/components/admin/AdminMigrationNotice";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { Badge } from "@/components/ui/Badge";
@@ -9,15 +9,19 @@ import { requireClickatonAdmin } from "@/lib/admin/auth";
 import { prisma, withClickatonDb } from "@/lib/admin/db";
 // El import registra el runtime del editor (base, sesión y almacenamiento).
 import "@/lib/template-v2/server";
+import { formatearEnAr } from "@/lib/fecha-ar";
 
 export const dynamic = "force-dynamic";
 
 function formatDate(value: Date | null): string {
-  if (!value) return "—";
-  return new Intl.DateTimeFormat("es-AR", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(value);
+  return formatearEnAr(value, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
 }
 
 export default async function ClickatonTemplatesPage() {
@@ -58,7 +62,7 @@ export default async function ClickatonTemplatesPage() {
         title="Plantillas"
         description="Diseñá las piezas de Clickatón. Una vez guardadas, se asignan a las placas de cada edición desde Ediciones → Placas."
         breadcrumbs={breadcrumbs}
-        actions={<CreateTemplateV2Button />}
+        actions={<CreateTemplateV2Button basePath={TEMPLATE_V2_BASE_PATHS.clickaton} />}
       />
 
       {templates.length === 0 ? (

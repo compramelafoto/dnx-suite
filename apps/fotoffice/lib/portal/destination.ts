@@ -4,9 +4,10 @@
  * Centralizado a propósito: cuando exista el módulo Pagos, `PORTAL_HOME` pasa a ser
  * `/portal/pagos` y no hay que salir a buscar redirecciones sueltas por el código.
  *
- * El destino NUNCA es `/workspace`. Esa ruta crea un workspace nuevo para quien no tiene
- * ninguno (`ensureFotofficeWorkspaceForUser`), así que mandar ahí a un socio le fabricaría
- * una institución propia de la que además quedaría dueño.
+ * El destino NUNCA es `/workspace`. Hasta el 2026-09-14 esa ruta le creaba un workspace nuevo
+ * a quien no tenía ninguno, así que mandar ahí a un socio le fabricaba una institución propia
+ * de la que además quedaba dueño. Hoy `/workspace` ya no crea —rebota a `/bienvenida`— pero
+ * sigue sin ser el lugar de un socio: es el panel de administración de un negocio.
  */
 export const PORTAL_HOME = "/portal";
 

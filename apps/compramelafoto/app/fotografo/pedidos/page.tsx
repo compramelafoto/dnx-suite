@@ -117,6 +117,7 @@ export default function PhotographerPedidosPage() {
     hasDigitalItems: o.hasDigitalItems,
     hasPrintItems: o.hasPrintItems,
     digitalItemsCount: o.digitalItemsCount,
+    videoItemsCount: o.videoItemsCount ?? 0,
     printItemsCount: o.printItemsCount,
     _dataProtected: o._dataProtected,
     downloadLinkViewedAt: o.downloadLinkViewedAt,

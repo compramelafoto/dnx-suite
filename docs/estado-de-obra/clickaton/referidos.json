@@ -1,0 +1,57 @@
+{
+  "proyecto": "Invitá a tus amigos (referidos)",
+  "plataforma": "Clickatón",
+  "enUso": "parcial",
+  "usoNota": "77 links de invitación generados y 76 correos enviados el 24/09; 1 amigo se sumó y pagó el 26/09. Nadie usó todavía el descuento ganado, y a los 666 contactos de otras plataformas no se les escribió",
+  "etapas": [
+    {
+      "nombre": "Invitar",
+      "criterios": [
+        {
+          "que": "Cualquiera con cuenta ve su link para invitar en Mi cuenta",
+          "implementado": { "pr": 255, "fecha": "2026-09-24" },
+          "probado": { "fecha": "2026-09-29", "evidencia": "77 filas en ClickatonReferralCode" }
+        },
+        {
+          "que": "El correo de invitación sale desde el panel, primero la prueba y después a todos",
+          "implementado": { "pr": 254, "fecha": "2026-09-24" },
+          "probado": {
+            "fecha": "2026-09-29",
+            "evidencia": "76 correos «Invitá a tus amigos a Clickatón y vení gratis» en SENT: 1 el 24/09 a las 04:23 UTC y 75 entre las 23:13 y las 23:14 UTC del mismo día"
+          }
+        },
+        {
+          "que": "Los fotógrafos de las otras plataformas reciben la invitación por tandas, con una salida para darse de baja",
+          "implementado": { "pr": 262, "fecha": "2026-09-25" },
+          "probado": null,
+          "bloqueado": "666 contactos cargados en ClickatonOutreachContact y 0 enviados (ninguno con lastSentAt)"
+        }
+      ]
+    },
+    {
+      "nombre": "Ganar y usar el descuento",
+      "criterios": [
+        {
+          "que": "Un amigo invitado que se inscribe y paga le suma un amigo a quien lo invitó",
+          "implementado": { "pr": 251, "fecha": "2026-09-23" },
+          "probado": {
+            "fecha": "2026-09-29",
+            "evidencia": "1 atribución EARNED el 26/09 a las 12:27 UTC, sobre una inscripción CONFIRMED de la 2ª edición; 1 intento registrado (CREATED)"
+          }
+        },
+        {
+          "que": "El amigo invitado entra con 10% de descuento",
+          "implementado": { "pr": 251, "fecha": "2026-09-23" },
+          "probado": null,
+          "bloqueado": "La única inscripción que llegó por invitación (26/09) pagó el precio entero de la fase «Preventa exclusiva»: subtotal y total 3000000, descuento 0. Hay que averiguar por qué no se aplicó el 10%"
+        },
+        {
+          "que": "Quien juntó amigos usa su descuento en la próxima inscripción, y si un cupón es mejor gana el cupón",
+          "implementado": { "pr": 251, "fecha": "2026-09-23" },
+          "probado": null,
+          "bloqueado": "0 beneficios consumidos: la única atribución ganada no tiene consumedAt"
+        }
+      ]
+    }
+  ]
+}

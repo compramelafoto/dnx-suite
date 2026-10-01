@@ -19,6 +19,7 @@ import type {
   ClickatonParticipantCardType,
   ParticipantCardActor,
 } from "./participant-card-types";
+import { tieneParticipanteDefinido } from "@/lib/registration/domain/participante-definido";
 
 export const AUTO_GENERATED_CARD_TYPES: ClickatonParticipantCardType[] = [
   "welcome",
@@ -105,6 +106,16 @@ export async function autoGenerateParticipantCardsForRegistration(input: {
     return skippedResult(input.registrationId, cardTypes, "REGISTRATION_NOT_FOUND");
   }
 
+  // La placa lleva el nombre, la ciudad y la foto de quien participa, así que
+  // sólo se puede dibujar cuando la inscripción ya tiene a esa persona.
+  //
+  // Un REGALO pagado y sin activar todavía tiene los datos de quien lo compró:
+  // sin esta guarda, la placa sale con el nombre del que regaló y nadie se
+  // entera hasta que el participante la ve con el nombre de otro.
+  if (!tieneParticipanteDefinido(registration)) {
+    return skippedResult(input.registrationId, cardTypes, "NOT_ELIGIBLE");
+  }
+
   const actor = buildSystemActorFor(registration);
   if (!actor) {
     return skippedResult(input.registrationId, cardTypes, "NO_ACTOR_IDENTITY");
@@ -151,16 +162,52 @@ export async function autoGenerateParticipantCardsForRegistration(input: {
   return { registrationId: input.registrationId, attempted: true, outcomes };
 }
 
-/** Soft-fail para el hot path de checkout: nunca propaga el error. */
-export function enqueueParticipantCardsAfterPaid(input: {
-  registrationId: string;
-}): void {
+/** Programa una tarea para que corra después de responder. */
+export type ParticipantCardTaskScheduler = (tarea: () => unknown) => void;
+
+/**
+ * El programador de tareas de Next.
+ *
+ * Se carga a demanda porque este módulo también corre fuera de una request —el cron, los
+ * scripts de mantenimiento—, y ahí `next/server` no tiene ningún contexto que ofrecer.
+ */
+function defaultScheduler(tarea: () => unknown): void {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- carga perezosa: fuera de una request no hay contexto
+  const { after } = require("next/server") as { after: ParticipantCardTaskScheduler };
+  after(tarea);
+}
+
+/**
+ * Dispara la generación de las placas apenas se confirma el pago.
+ *
+ * La tarea se **programa**, no se lanza y se olvida: en Vercel el servidor se congela apenas
+ * responde, así que una promesa suelta queda a mitad de camino y la placa recién aparece
+ * cuando pasa el cron, hasta cinco minutos más tarde. Programada, el servidor la espera antes
+ * de apagarse y la placa ya está lista cuando el participante llega a su pantalla.
+ *
+ * Nunca propaga el error: el pago ya está confirmado, y el cron sigue siendo la red de
+ * seguridad si la generación falla.
+ */
+export function enqueueParticipantCardsAfterPaid(
+  input: { registrationId: string },
+  deps: { schedule?: ParticipantCardTaskScheduler } = {}
+): void {
   if (!isParticipantCardAutoGenerationEnabled()) return;
-  void autoGenerateParticipantCardsForRegistration({
-    registrationId: input.registrationId,
-  }).catch(() => {
-    /* el cron reintenta; el pago sigue confirmado */
-  });
+
+  const generar = () =>
+    autoGenerateParticipantCardsForRegistration({
+      registrationId: input.registrationId,
+    }).catch(() => {
+      /* el cron reintenta; el pago sigue confirmado */
+    });
+
+  try {
+    (deps.schedule ?? defaultScheduler)(generar);
+  } catch {
+    // Sin contexto de request —cron, scripts— no hay nadie que espere la tarea: se la lanza
+    // igual, que es exactamente lo que se hacía antes de poder programarla.
+    void generar();
+  }
 }
 
 export type ProcessDueParticipantCardsResult = {
@@ -176,6 +223,31 @@ export type ProcessDueParticipantCardsResult = {
  * Red de seguridad: recorre inscripciones confirmadas con foto que todavía no
  * tienen las dos placas en estado READY y las genera.
  */
+/**
+ * A quién sale a buscar el barrido.
+ *
+ * Mira **cada tipo de placa por separado**. Antes pedía inscripciones sin ninguna placa lista, y
+ * con dos placas por persona eso dejaba afuera a quien ya tenía una: su segunda placa no se
+ * volvía a intentar nunca. Se vio en producción con 76 pendientes y el cron sin tomar ninguna.
+ */
+export function filtroDeInscripcionesPendientes(
+  cardTypes: readonly ClickatonParticipantCardType[]
+) {
+  return {
+    status: "CONFIRMED" as const,
+    profilePhotoAssetId: { not: null },
+    imageUsageConsent: true,
+    OR: cardTypes.map((cardType) => ({
+      participantCards: {
+        none: {
+          status: "READY" as const,
+          cardType: (cardType === "member" ? "MEMBER" : "WELCOME") as "WELCOME" | "MEMBER",
+        },
+      },
+    })),
+  };
+}
+
 export async function processDueParticipantCards(
   limit = 25
 ): Promise<ProcessDueParticipantCardsResult> {
@@ -186,14 +258,7 @@ export async function processDueParticipantCards(
   const safeLimit = Math.max(1, Math.min(100, Math.trunc(limit) || 25));
 
   const candidates = await prisma.clickatonRegistration.findMany({
-    where: {
-      status: "CONFIRMED",
-      profilePhotoAssetId: { not: null },
-      imageUsageConsent: true,
-      participantCards: {
-        none: { status: "READY" },
-      },
-    },
+    where: filtroDeInscripcionesPendientes(AUTO_GENERATED_CARD_TYPES),
     orderBy: { updatedAt: "asc" },
     take: safeLimit,
     select: { id: true },

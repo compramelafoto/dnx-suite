@@ -1,0 +1,25 @@
+{
+  "proyecto": "Mercado Pago — reparto 1:N",
+  "plataforma": "Transversal",
+  "enUso": "no",
+  "usoNota": "El código está en main desde el 2026-09-05 y no cobró nunca",
+  "etapas": [
+    {
+      "nombre": "Cobrar y repartir entre varias partes",
+      "criterios": [
+        {
+          "que": "Un pago se reparte entre las partes que corresponde",
+          "implementado": { "fecha": "2026-09-05" },
+          "probado": null,
+          "bloqueado": "Falta cargar la notification URL en el panel de Mercado Pago"
+        },
+        {
+          "que": "La homologación de Mercado Pago está aprobada",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Faltan las 4 evidencias que pide Mercado Pago"
+        }
+      ]
+    }
+  ]
+}

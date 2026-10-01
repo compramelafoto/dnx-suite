@@ -3,7 +3,7 @@ import { readDesignDocument } from "../document/migrate";
 import { DESIGN_SCHEMA_VERSION } from "../document/schema";
 import { resolveVariables } from "../variables/resolve";
 import { renderPdf } from "../render/pdf";
-import { pdfToPng } from "../render/png";
+import { pdfToPng } from "../render/png-wasm";
 import { renderSvgPages } from "../render/svg";
 import { RENDERER_VERSION } from "../render/version";
 import type { EmitOutcome, EmitRequest, EmittedFile } from "./contract";

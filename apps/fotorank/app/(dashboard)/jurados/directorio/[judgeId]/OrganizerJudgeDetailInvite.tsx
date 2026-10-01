@@ -46,7 +46,7 @@ export function OrganizerJudgeDetailInvite({
         proposedRoleLabel: role || undefined,
         compensationOfferedText: comp || undefined,
         organizerAcceptedExternalPaymentDisclaimer: disclaimer,
-        methodType: "SCORE_1_5",
+        methodType: "CRITERIA_BASED",
         methodConfigJson: {},
         assignmentType: "PRIMARY",
       });
@@ -62,7 +62,7 @@ export function OrganizerJudgeDetailInvite({
     <div className="fr-recuadro rounded-xl border border-fr-border bg-fr-card">
       <h2 className="font-sans text-lg font-semibold text-fr-primary">Invitar a jurar</h2>
       <p className="mt-2 text-sm text-fr-muted">
-        Se crearán asignaciones en las categorías elegidas cuando el jurado acepte. Método por defecto: puntuación 1–5.
+        Se crearán asignaciones en las categorías elegidas cuando el jurado acepte. Califica con los criterios del concurso.
       </p>
       {contests.length === 0 ? (
         <p className="mt-6 text-sm text-amber-200">No hay concursos abiertos en tu organización para invitar.</p>

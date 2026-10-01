@@ -3,6 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { directoryCancelInvitationAction } from "../../../../actions/judgeProfessionalDirectory";
+import { StatusBadge } from "../../../../components/public-ui";
+import { presentJudgeDirectoryInviteStatus } from "../../../../lib/fotorank/judges/ui/judgeStatus";
+import { fechaExacta, tiempoRelativo } from "../../../../lib/fotorank/judges/ui/tiempoRelativo";
 
 type Row = { id: string; status: string; createdAt: string; contestTitle: string; judgeLabel: string };
 
@@ -47,8 +50,17 @@ export function SentDirectoryInvitationsClient({ initial }: { initial: Row[] }) 
               <tr key={r.id} className="border-b border-fr-border/80">
                 <td className="fr-recuadro py-3 text-fr-primary">{r.judgeLabel}</td>
                 <td className="fr-recuadro py-3 text-fr-muted">{r.contestTitle}</td>
-                <td className="fr-recuadro py-3 text-fr-muted">{r.status}</td>
-                <td className="fr-recuadro py-3 text-fr-muted">{new Date(r.createdAt).toLocaleString("es-AR")}</td>
+                <td className="fr-recuadro py-3">
+                  <span title={presentJudgeDirectoryInviteStatus(r.status).description}>
+                    <StatusBadge {...presentJudgeDirectoryInviteStatus(r.status)} />
+                  </span>
+                </td>
+                <td
+                  className="fr-recuadro py-3 text-fr-muted"
+                  title={fechaExacta(new Date(r.createdAt))}
+                >
+                  {tiempoRelativo(new Date(r.createdAt))}
+                </td>
                 <td className="fr-recuadro py-3">
                   {r.status === "PENDING" ? (
                     <button

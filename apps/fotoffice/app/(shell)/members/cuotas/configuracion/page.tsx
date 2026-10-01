@@ -6,6 +6,7 @@ import { requireActiveWorkspace } from "@/lib/workspace";
 import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
 import { getDuesSettings } from "@/lib/membership/settings";
 import { decimalArsToMinor, formatMinorArs } from "@/lib/membership/money";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { DuesSettingsForm, FeeValueForm } from "./forms";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +29,7 @@ export default async function ConfiguracionCuotasPage() {
   if (!(await canManageWorkspaceCollection(user.id, workspace.id))) redirect("/members/cuotas");
 
   const ahora = new Date();
-  const [settings, categorias, valores] = await Promise.all([
+  const [settings, categorias, valores, vocab] = await Promise.all([
     getDuesSettings(workspace.id),
     prisma.memberCategory.findMany({
       where: { workspaceId: workspace.id, isActive: true },
@@ -48,6 +49,7 @@ export default async function ConfiguracionCuotasPage() {
       orderBy: [{ validFrom: "desc" }],
       take: 30,
     }),
+    loadPersonVocabulary(workspace.id),
   ]);
 
   const hoy = `${ahora.getUTCFullYear()}-${String(ahora.getUTCMonth() + 1).padStart(2, "0")}-${String(ahora.getUTCDate()).padStart(2, "0")}`;
@@ -132,6 +134,7 @@ export default async function ConfiguracionCuotasPage() {
             recommendationEnabled: settings.recommendationEnabled,
             recommendationBenefitPercent: settings.recommendationBenefitPercent,
           }}
+          vocabulary={vocab}
         />
       </section>
     </div>

@@ -73,7 +73,7 @@ export const clickatonLegalFunnelContent = {
     },
     {
       title: "Reglas de la edición y consignas",
-      body: "El día del evento rigen las reglas operativas de la edición (horario, consignas, límites de envío, criterios técnicos). Hay 10 consignas (1 fotografía por consigna); el mínimo competitivo es 8 obras válidas según ventana de captura. Las consignas se liberan desde las 16:00 según el cronograma oficial. El incumplimiento de reglas técnicas o de integridad (incluida captura fuera de ventana) puede invalidar obras o la participación competitiva sin derecho a reembolso de la inscripción, sin perjuicio de derechos irrenunciables del consumidor cuando correspondan.",
+      body: "El día del evento rigen las reglas operativas de la edición (horario, consignas, límites de envío, criterios técnicos). Hay 10 consignas (1 fotografía por consigna); el mínimo competitivo es 8 obras válidas según ventana de captura. Puede haber además una consigna sorpresa extra, de entrega opcional y fuera de puntaje: no suma al mínimo competitivo ni al ranking. Las consignas se liberan desde las 16:00 según el cronograma oficial. El incumplimiento de reglas técnicas o de integridad (incluida captura fuera de ventana) puede invalidar obras o la participación competitiva sin derecho a reembolso de la inscripción, sin perjuicio de derechos irrenunciables del consumidor cuando correspondan.",
     },
     {
       title: "Cambios de fecha, sede o cronograma",

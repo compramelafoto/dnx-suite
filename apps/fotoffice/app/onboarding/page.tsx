@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
 import { requireAuth } from "@/lib/auth";
 import { findClaimableMembership } from "@/lib/portal/claim";
-import { ensureFotofficeWorkspaceForUser } from "@/lib/ensure-workspace";
+import { requireOwnWorkspace } from "@/lib/entrada/require-own-workspace";
 import { PORTAL_HOME } from "@/lib/portal/destination";
 import { resolveFotofficeUserKind } from "@/lib/portal/user-kind";
 import { normalizeFotofficeOrganizationType } from "@/lib/onboarding-constants";
@@ -23,11 +23,7 @@ export default async function OnboardingPage() {
   }
 
 
-  const ensured = await ensureFotofficeWorkspaceForUser({
-    userId: user.id,
-    email: user.email,
-    name: user.name,
-  });
+  const ensured = await requireOwnWorkspace(user);
 
   if (ensured.onboardingCompleted) {
     redirect("/workspace");

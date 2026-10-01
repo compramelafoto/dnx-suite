@@ -15,6 +15,7 @@ export const FONT_IDS = [
   "merriweather",
   "cinzel",
   "greatVibes",
+  "barlowCondensed",
 ] as const;
 
 export type FontId = (typeof FONT_IDS)[number];
@@ -106,6 +107,18 @@ export const FONT_CATALOG: Record<FontId, FontDefinition> = {
       bold: "great-vibes-latin-400-normal.woff",
       italic: "great-vibes-latin-400-normal.woff",
       boldItalic: "great-vibes-latin-400-normal.woff",
+    },
+  },
+  barlowCondensed: {
+    label: "Barlow Condensed",
+    cssFamily: "Barlow Condensed",
+    fallbackStack: "'Barlow Condensed', 'Arial Narrow', Arial, sans-serif",
+    pkg: "@fontsource/barlow-condensed",
+    files: {
+      normal: "barlow-condensed-latin-400-normal.woff",
+      bold: "barlow-condensed-latin-700-normal.woff",
+      italic: "barlow-condensed-latin-400-italic.woff",
+      boldItalic: "barlow-condensed-latin-700-italic.woff",
     },
   },
 };

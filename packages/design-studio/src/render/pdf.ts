@@ -2,6 +2,7 @@ import {
   appendBezierCurve,
   clip,
   closePath,
+  concatTransformationMatrix,
   degrees,
   endPath,
   lineTo,
@@ -193,11 +194,35 @@ async function dibujarPagina(
      *
      * `q … Q` acota el clip a esta imagen: sin el par, todo lo que se dibuje después queda
      * recortado por la misma forma.
+     *
+     * Se recorta **siempre**, no sólo en las formas redondas. Con `cover` la imagen se agranda
+     * hasta cubrir la caja y lo que sobra tiene que quedar afuera: sin recorte se dibujaba
+     * entera y se salía por los costados, tapando lo que la rodeaba —un marco, por ejemplo—.
+     * Con `contain` la imagen ya entra, así que el recorte no cambia nada.
      */
-    const recorta = item.mask === "circle" || item.mask === "ellipse" || !!item.cornerRadiusPt;
-    if (recorta) {
-      page.pushOperators(pushGraphicsState(), ...operadoresDeClip(item, yPdf), clip(), endPath());
+    const gira = Boolean(item.rotation);
+    page.pushOperators(pushGraphicsState());
+
+    /*
+     * Cuando el bloque está girado, el recorte tiene que girar con él. Se gira el sistema de
+     * coordenadas alrededor del centro de la caja y se dibujan adentro tanto el recorte como la
+     * imagen: así los dos quedan alineados. Por eso la imagen ya no lleva su propio `rotate`,
+     * que la giraría dos veces.
+     */
+    if (gira) {
+      const cx = item.xPt + item.widthPt / 2;
+      const cy = yPdf + item.heightPt / 2;
+      const rad = (-item.rotation * Math.PI) / 180;
+      const cos = Math.cos(rad);
+      const sen = Math.sin(rad);
+      page.pushOperators(
+        concatTransformationMatrix(1, 0, 0, 1, cx, cy),
+        concatTransformationMatrix(cos, sen, -sen, cos, 0, 0),
+        concatTransformationMatrix(1, 0, 0, 1, -cx, -cy),
+      );
     }
+
+    page.pushOperators(...operadoresDeClip(item, yPdf), clip(), endPath());
 
     page.drawImage(imagen, {
       x: item.xPt + (item.widthPt - ancho) / 2,
@@ -205,10 +230,9 @@ async function dibujarPagina(
       width: ancho,
       height: altoImg,
       opacity: item.opacity,
-      ...(item.rotation ? { rotate: degrees(-item.rotation) } : {}),
     });
 
-    if (recorta) page.pushOperators(popGraphicsState());
+    page.pushOperators(popGraphicsState());
   }
 }
 

@@ -39,6 +39,20 @@ export {
 export type { OperationalSnapshotResult } from "./build-operational-snapshot";
 export { createMercadoPagoOrders1nClickatonBridge } from "./orders-1n-registration-bridge";
 export type { Orders1nRegistrationBridgeDeps } from "./orders-1n-registration-bridge";
+export {
+  createMercadoPagoOrdersAffiliateSplitBridge,
+  createProductionAffiliateSplitOrdersAdapter,
+  deriveMercadoPagoIdempotencyKey,
+  mapAffiliateSplitOrderStatus,
+} from "./orders-1n-affiliate-split-bridge";
+export type {
+  OrdersAffiliateSplitBridgeDeps,
+  AffiliateSplitOrdersAdapterPort,
+} from "./orders-1n-affiliate-split-bridge";
+export {
+  createClickatonAffiliateSplitCompositeBridge,
+  isMercadoPagoOrdersProviderId,
+} from "./affiliate-split-composite-bridge";
 export { fulfillRegistrationFromOrdersObserve } from "./fulfill-from-orders-observe";
 export type {
   FulfillFromOrdersObserveInput,

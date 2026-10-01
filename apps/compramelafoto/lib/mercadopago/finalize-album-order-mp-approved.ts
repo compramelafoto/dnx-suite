@@ -19,7 +19,10 @@ import { registerAuditEvent } from "@/lib/antifraud/audit";
 import { consumeReferralEarningsForDiscount } from "@/lib/referral/consume-referral-earnings-discount";
 import { createReferralEarningsForPaidSale } from "@/lib/referral/create-referral-earnings-for-paid-sale";
 import { buildPreventaPackSnapshotV1 } from "@/lib/preventa-canjeable/preventa-pack-snapshot-v1";
-import { ensurePackAccessTokenForOrder } from "@/lib/preventa-canjeable/pack-access-tokens";
+import {
+  createPackAccessTokenForOrder,
+  ensurePackAccessTokenForOrder,
+} from "@/lib/preventa-canjeable/pack-access-tokens";
 import { queuePreventaPackAccessEmail } from "@/lib/order-confirmation-email";
 import {
   readPackDefinitionIdFromOrderPricingSnapshot,
@@ -276,17 +279,28 @@ export async function finalizeAlbumOrderMercadoPagoApproved(
   }
 
   if (order.origin === OrderOrigin.PREVENTA_PACK) {
+    // El comprobante al comprador no puede depender de que el token se genere:
+    // si falla, el email sale igual explicando cómo recuperar el acceso.
+    let packAccessUrl: string | null = null;
     try {
-      const tokenData = await ensurePackAccessTokenForOrder(orderId);
+      const tokenData =
+        (await ensurePackAccessTokenForOrder(orderId)) ??
+        (await createPackAccessTokenForOrder(orderId, { revokeExisting: false }));
       if (tokenData?.token) {
         const appUrl =
           process.env.APP_URL ||
           (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://compramelafoto.com");
-        const packAccessUrl = `${appUrl}/cliente/pack/${tokenData.token}`;
-        await queuePreventaPackAccessEmail(orderId, packAccessUrl);
+        packAccessUrl = `${appUrl}/cliente/pack/${tokenData.token}`;
+      } else {
+        console.error("pack-access-token no generado; se envía comprobante sin link", { orderId });
       }
     } catch (err) {
-      console.error("pack-access-token create failed", { orderId });
+      console.error("pack-access-token create failed", { orderId, err });
+    }
+    try {
+      await queuePreventaPackAccessEmail(orderId, packAccessUrl);
+    } catch (err) {
+      console.error("preventa-pack-access-email: no se pudo encolar", { orderId, err });
     }
   }
 

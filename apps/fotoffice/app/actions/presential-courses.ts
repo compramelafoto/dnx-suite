@@ -13,6 +13,7 @@ import {
 } from "@/lib/presential-courses/availability";
 
 const courseStatusSchema = z.enum(["DRAFT", "PUBLISHED", "UPCOMING", "HIDDEN"]);
+const deliveryModeSchema = z.enum(["PRESENCIAL", "LIVE", "RECORDED"]);
 const courseSchema = z.object({
   title: z.string().min(1).max(200),
   slug: z
@@ -28,6 +29,11 @@ const courseSchema = z.object({
   instructorName: z.string().max(160).optional().nullable(),
   level: z.string().max(80).optional().nullable(),
   status: courseStatusSchema.default("DRAFT"),
+  deliveryMode: deliveryModeSchema.default("PRESENCIAL"),
+  /// Sólo el grabado los usa: no tiene ediciones donde guardar el precio.
+  priceArs: z.coerce.number().min(0).optional().nullable(),
+  accessMonths: z.coerce.number().int().min(1).max(120).default(12),
+  completionPercent: z.coerce.number().int().min(1).max(100).default(80),
   classroomLink: z.string().url().optional().nullable().or(z.literal("")),
   classroomCode: z.string().max(200).optional().nullable(),
   classroomInstructions: z.string().max(5000).optional().nullable(),
@@ -95,6 +101,10 @@ function normalizeCourseInput(input: z.input<typeof courseSchema>) {
     instructorName: emptyToNull(parsed.instructorName ?? undefined),
     level: emptyToNull(parsed.level ?? undefined),
     status: parsed.status,
+    deliveryMode: parsed.deliveryMode,
+    priceArs: parsed.priceArs ?? null,
+    accessMonths: parsed.accessMonths,
+    completionPercent: parsed.completionPercent,
     classroomLink: emptyToNull(parsed.classroomLink ?? undefined),
     classroomCode: emptyToNull(parsed.classroomCode ?? undefined),
     classroomInstructions: emptyToNull(parsed.classroomInstructions ?? undefined),
@@ -239,6 +249,10 @@ export async function duplicateCourse(courseId: string) {
       classroomLink: source.classroomLink,
       classroomCode: source.classroomCode,
       classroomInstructions: source.classroomInstructions,
+      deliveryMode: source.deliveryMode,
+      priceArs: source.priceArs,
+      accessMonths: source.accessMonths,
+      completionPercent: source.completionPercent,
       status: "DRAFT",
     },
     select: { id: true },
@@ -372,6 +386,14 @@ export async function createPresentialCourseAction(
       instructorName: emptyToNull(formData.get("instructorName")?.toString()),
       level: emptyToNull(formData.get("level")?.toString()),
       status: (formData.get("status")?.toString() as z.infer<typeof courseStatusSchema>) ?? "DRAFT",
+      deliveryMode:
+        (formData.get("deliveryMode")?.toString() as z.infer<typeof deliveryModeSchema>) ??
+        "PRESENCIAL",
+      priceArs: formData.get("priceArs")?.toString()?.trim()
+        ? Number(formData.get("priceArs")?.toString())
+        : null,
+      accessMonths: Number(formData.get("accessMonths")?.toString() || 12),
+      completionPercent: Number(formData.get("completionPercent")?.toString() || 80),
       classroomLink: emptyToNull(formData.get("classroomLink")?.toString()),
       classroomCode: emptyToNull(formData.get("classroomCode")?.toString()),
       classroomInstructions: emptyToNull(formData.get("classroomInstructions")?.toString()),
@@ -401,6 +423,14 @@ export async function updatePresentialCourseAction(
       instructorName: emptyToNull(formData.get("instructorName")?.toString()),
       level: emptyToNull(formData.get("level")?.toString()),
       status: (formData.get("status")?.toString() as z.infer<typeof courseStatusSchema>) ?? "DRAFT",
+      deliveryMode:
+        (formData.get("deliveryMode")?.toString() as z.infer<typeof deliveryModeSchema>) ??
+        "PRESENCIAL",
+      priceArs: formData.get("priceArs")?.toString()?.trim()
+        ? Number(formData.get("priceArs")?.toString())
+        : null,
+      accessMonths: Number(formData.get("accessMonths")?.toString() || 12),
+      completionPercent: Number(formData.get("completionPercent")?.toString() || 80),
       classroomLink: emptyToNull(formData.get("classroomLink")?.toString()),
       classroomCode: emptyToNull(formData.get("classroomCode")?.toString()),
       classroomInstructions: emptyToNull(formData.get("classroomInstructions")?.toString()),

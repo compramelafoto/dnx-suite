@@ -8,6 +8,7 @@ import {
 } from "@/app/actions/membership-applications";
 import type { InboxItem } from "@/lib/membership/inbox";
 import { ProfessionalPresenceSummary } from "./professional-presence-summary";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
 const initial: ApplicationFormState = { error: null, ok: null };
 
@@ -23,7 +24,13 @@ function formatArs(raw: string): string {
   return new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2 }).format(n);
 }
 
-export function ApplicationCard({ item }: { item: InboxItem }) {
+export function ApplicationCard({
+  item,
+  vocabulary,
+}: {
+  item: InboxItem;
+  vocabulary: PersonVocabulary;
+}) {
   const [approveState, approve, approving] = useActionState(approveApplicationAction, initial);
   const [rejectState, reject, rejecting] = useActionState(rejectApplicationAction, initial);
   const [showReject, setShowReject] = useState(false);
@@ -66,7 +73,7 @@ export function ApplicationCard({ item }: { item: InboxItem }) {
           </p>
         ) : (
           <p key={i} className="text-xs text-[var(--fo-muted)] leading-relaxed">
-            ℹ️ Ya fue socio N° <strong>{n.memberNumber}</strong>
+            {`ℹ️ Ya fue ${vocabulary.singular} N°`} <strong>{n.memberNumber}</strong>
             {n.leftAt ? `, baja en ${n.leftAt.toLocaleDateString("es-AR")}` : ""}. Deuda
             registrada: <strong>${formatArs(n.debtArs)}</strong>.
           </p>

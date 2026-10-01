@@ -1,6 +1,10 @@
 import "server-only";
 import { prisma } from "@repo/db";
 import { isEligible } from "./eligibility";
+import { mensajeDePadron } from "@/lib/members/mensajes";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
+import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { loadMemberForRaffle } from "./repository";
 import { resolveLogoUrl } from "./logo-url";
 
@@ -92,7 +96,7 @@ export async function loadPortalRaffles(input: {
   memberId: string;
   now?: Date;
 }): Promise<{ current: PortalRaffleView | null; past: PortalRaffleView[] }> {
-  const [filas, socio] = await Promise.all([
+  const [filas, socio, vocabulary] = await Promise.all([
     prisma.raffle.findMany({
       where: { workspaceId: input.workspaceId, status: { not: "BORRADOR" } },
       orderBy: { drawsAt: "desc" },
@@ -128,9 +132,12 @@ export async function loadPortalRaffles(input: {
       },
     }),
     loadMemberForRaffle(input.workspaceId, input.memberId),
+    loadPersonVocabulary(input.workspaceId),
   ]);
 
-  const vistas = (filas as FilaSorteo[]).map((f) => armarVista(f, socio, input.memberId));
+  const vistas = (filas as FilaSorteo[]).map((f) =>
+    armarVista(f, socio, input.memberId, vocabulary),
+  );
 
   // El actual es el que todavía no se resolvió y no se canceló. Puede no haber ninguno.
   const current =
@@ -144,6 +151,7 @@ function armarVista(
   f: FilaSorteo,
   socio: Awaited<ReturnType<typeof loadMemberForRaffle>>,
   memberId: string,
+  vocabulary: PersonVocabulary,
 ): PortalRaffleView {
   const congelado = SELLADO.has(f.status);
 
@@ -157,12 +165,22 @@ function armarVista(
         frozen: true,
       }
     : socio === null
-      ? { participating: false, reason: "No encontramos tu ficha de socio.", frozen: false }
+      ? {
+          participating: false,
+          reason: mensajeDePadron("fichaNoEncontrada", vocabulary),
+          frozen: false,
+        }
       : (() => {
           // `isEligible` habla de elegibilidad; acá se habla de participación. Se traduce en
           // un solo lugar en vez de exponer dos vocabularios para lo mismo.
           const e = isEligible(socio, f.entriesCloseAt);
-          return { participating: e.eligible, reason: e.reason, frozen: false };
+          // `isEligible` es pura y devuelve el motivo con marcadores; acá sí se sabe en qué
+          // institución estamos.
+          return {
+            participating: e.eligible,
+            reason: e.reason ? aplicarVocabulario(e.reason, vocabulary) : null,
+            frozen: false,
+          };
         })();
 
   const partnersBaseUrl = process.env.PARTNERS_PUBLIC_URL ?? null;
@@ -173,7 +191,9 @@ function armarVista(
     description: p.description,
     partnerName: p.partnerNameSnapshot,
     partnerLogoUrl: resolveLogoUrl(p.partnerLogoSnapshot, partnersBaseUrl),
-    winnerLabel: p.award ? `Socio en la posición ${p.award.winnerPosition}` : null,
+    winnerLabel: p.award
+      ? aplicarVocabulario(`{Persona} en la posición ${p.award.winnerPosition}`, vocabulary)
+      : null,
   }));
 
   const myAwards: PortalAward[] = f.prizes

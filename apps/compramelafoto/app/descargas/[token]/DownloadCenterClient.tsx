@@ -301,6 +301,50 @@ function PhotoCard({
   );
 }
 
+/**
+ * Los videos comprados, en la misma pantalla que las fotos.
+ *
+ * No entran en el zip: cada video pesa cientos de megas y meterlos en un
+ * archivo comprimido haría esperar al cliente por algo que ya puede bajar.
+ */
+function VideosSection({ data }: { data: DownloadCenterData }) {
+  if (!data.videos || data.videos.length === 0) return null;
+
+  return (
+    <section aria-label="Videos comprados" className="min-w-0">
+      <h2 className="mb-3 text-base font-semibold text-[#111827]">
+        {data.videos.length === 1 ? "Tu video" : `Tus ${data.videos.length} videos`}
+      </h2>
+      <ul className="flex flex-col gap-3">
+        {data.videos.map((video) => (
+          <li
+            key={video.videoId}
+            className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#e5e7eb] bg-white px-4 py-3"
+          >
+            <div className="min-w-0">
+              <p className="truncate font-medium text-[#111827]">{video.title}</p>
+              <p className="text-xs text-[#6b7280]">
+                {video.durationLabel ? `${video.durationLabel} · ` : ""}
+                Calidad original, sin marca de agua
+              </p>
+            </div>
+            {video.available && video.downloadUrl ? (
+              <a
+                href={video.downloadUrl}
+                className="whitespace-nowrap rounded-lg bg-[#111827] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#374151]"
+              >
+                Descargar
+              </a>
+            ) : (
+              <span className="text-xs text-[#b91c1c]">{video.unavailableReason}</span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export default function DownloadCenterClient({ data }: Props) {
   const [isMobile, setIsMobile] = useState(false);
   const [zipState, setZipState] = useState(data.zip);
@@ -374,6 +418,8 @@ export default function DownloadCenterClient({ data }: Props) {
               galería.
             </p>
           ) : null}
+
+          {!isExpired ? <VideosSection data={data} /> : null}
 
           {!isExpired ? <ZipSection data={data} zipState={zipState} /> : null}
         </div>

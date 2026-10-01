@@ -3,10 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Button from "./primitives/Button";
-import {
-  DEFAULT_TEMPLATE_V2_BASE_PATH,
-  templateV2EditorPath,
-} from "./template-v2-base-path";
+import { templateV2EditorPath } from "./template-v2-base-path";
 
 type CreateResponse = {
   ok: boolean;
@@ -35,8 +32,11 @@ const CLICKATON_PRESETS: PresetOption[] = [
 ];
 
 export function CreateTemplateV2Button({
-  basePath = DEFAULT_TEMPLATE_V2_BASE_PATH,
-}: { basePath?: string } = {}) {
+  basePath,
+}: {
+  /** Dónde monta el editor la app que hospeda. Obligatorio: ver `TEMPLATE_V2_BASE_PATHS`. */
+  basePath: string;
+}) {
   const router = useRouter();
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);

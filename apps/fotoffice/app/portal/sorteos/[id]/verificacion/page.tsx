@@ -7,6 +7,7 @@ import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { buildVerification, recheck } from "@/lib/raffles/verification";
 import { fechaHora } from "@/lib/raffles/labels";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +53,8 @@ export default async function VerificacionPage({ params }: { params: Promise<{ i
     },
   });
   if (!sorteo) notFound();
+
+  const v = await loadPersonVocabulary(context.workspace.id);
 
   const datos = buildVerification(sorteo);
   if (!datos) {
@@ -226,15 +229,14 @@ para cada premio, con la bolsa de los que todavía no ganaron:
           Los {datos.entrants.length} participantes, en el orden que entró en la cuenta
         </h2>
         <p className="text-sm text-[var(--fo-muted)]">
-          Esta es la lista congelada el {fechaHora(datos.sealedAt)}. Es con estos datos —la
-          posición y el número de socio— que se calcula la huella de arriba.
+          {`Esta es la lista congelada el ${fechaHora(datos.sealedAt)}. Es con estos datos —la posición y el número de ${v.singular}— que se calcula la huella de arriba.`}
         </p>
         <div className="fo-card max-h-96 overflow-y-auto">
           <table className="w-full text-sm">
             <thead className="sticky top-0 bg-[var(--fo-surface)] text-left text-[var(--fo-muted)]">
               <tr className="border-b border-[var(--fo-border)]">
                 <th className="px-4 py-2 font-medium">Posición</th>
-                <th className="px-4 py-2 font-medium">Socio</th>
+                <th className="px-4 py-2 font-medium">{v.Singular}</th>
                 <th className="px-4 py-2 font-medium">Nombre</th>
               </tr>
             </thead>

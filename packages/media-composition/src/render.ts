@@ -1,3 +1,4 @@
+import { readFontBytes } from "@repo/design-studio";
 import { createHash } from "node:crypto";
 import sharp from "sharp";
 import { extractSquareCrop, resolveCropParams } from "./crop";
@@ -45,7 +46,22 @@ async function prepareLogo(
     .toBuffer();
 }
 
-function buildTextSvg(template: CompositionTemplate, variables: RenderRequest["variables"]): string {
+/**
+ * La familia que se declara dentro del dibujo.
+ *
+ * En el servidor no hay ninguna tipografía instalada: pedir "Arial" hacía que librsvg no
+ * encontrara con qué escribir y no dibujara **ningún** texto. Salían la franja y la foto, y ni
+ * una palabra. En una computadora de trabajo Arial existe, así que sólo fallaba en producción.
+ *
+ * La tipografía viaja incrustada en el propio dibujo, tomada del módulo de diseño, que ya la
+ * lleva en base64 por exactamente el mismo motivo.
+ */
+const FAMILIA = "DM Sans";
+
+async function buildTextSvg(
+  template: CompositionTemplate,
+  variables: RenderRequest["variables"],
+): Promise<string> {
   const vars = {
     ...variables,
     city:
@@ -55,8 +71,16 @@ function buildTextSvg(template: CompositionTemplate, variables: RenderRequest["v
     province: "",
   };
 
+  const [normal, bold] = await Promise.all([
+    readFontBytes("dmSans", "normal"),
+    readFontBytes("dmSans", "bold"),
+  ]);
+  const cara = (bytes: Uint8Array, weight: number) =>
+    `@font-face{font-family:"${FAMILIA}";font-weight:${weight};src:url(data:font/woff;base64,${Buffer.from(bytes).toString("base64")}) format("woff");}`;
+
   const parts: string[] = [
     `<svg width="${template.width}" height="${template.height}" xmlns="http://www.w3.org/2000/svg">`,
+    `<defs><style>${cara(normal, 400)}${cara(bold, 700)}</style></defs>`,
   ];
 
   for (const block of template.blocks) {
@@ -83,7 +107,7 @@ function buildTextSvg(template: CompositionTemplate, variables: RenderRequest["v
     lines.forEach((line, i) => {
       const y = block.y + i * (block.fontSize * 1.25);
       parts.push(
-        `<text x="${x}" y="${y}" text-anchor="${anchor}" font-family="Arial, Helvetica, sans-serif" font-size="${block.fontSize}" font-weight="${weight}" fill="${escapeXml(block.color)}">${escapeXml(line)}</text>`,
+        `<text x="${x}" y="${y}" text-anchor="${anchor}" font-family="${FAMILIA}" font-size="${block.fontSize}" font-weight="${weight}" fill="${escapeXml(block.color)}">${escapeXml(line)}</text>`,
       );
     });
   }
@@ -157,7 +181,7 @@ export async function renderComposition(request: RenderRequest): Promise<RenderO
     }
   }
 
-  const textSvg = buildTextSvg(template, request.variables);
+  const textSvg = await buildTextSvg(template, request.variables);
   composites.push({ input: Buffer.from(textSvg), left: 0, top: 0 });
 
   const composed = await canvas.composite(composites).png().toBuffer();
@@ -186,3 +210,6 @@ export function hashRenderInputs(parts: Array<string | Buffer | null | undefined
   }
   return h.digest("hex");
 }
+
+/** Sólo para pruebas: el dibujo de texto tiene que declarar la tipografía que lleva adentro. */
+export const buildTextSvgParaTest = buildTextSvg;

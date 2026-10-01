@@ -2,6 +2,7 @@ import Link from "next/link";
 import { FotofficeLogo } from "@/components/fotoffice-logo";
 import { NavToggle } from "./nav-toggle";
 import { ShellNav } from "./shell-nav";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
 export function ShellSidebar({
   workspaceName,
@@ -10,10 +11,13 @@ export function ShellSidebar({
   membersEnabled,
   bookingsEnabled,
   rafflesEnabled,
+  coveragesEnabled,
   websiteEnabled,
+  serviceLeadsEnabled,
   canManageMembers,
   canManageWorkspaceSettings,
   platformAdmin,
+  vocabulary,
 }: {
   /**
    * Nombre de la organización activa. Antes acá decía "Venta de cursos", fijo en el código:
@@ -26,10 +30,13 @@ export function ShellSidebar({
   membersEnabled: boolean;
   bookingsEnabled: boolean;
   rafflesEnabled: boolean;
+  coveragesEnabled: boolean;
   websiteEnabled: boolean;
+  serviceLeadsEnabled: boolean;
   canManageMembers: boolean;
   canManageWorkspaceSettings: boolean;
   platformAdmin: boolean;
+  vocabulary: PersonVocabulary;
 }) {
   return (
     <aside className="min-h-full md:min-h-screen border-b md:border-b-0 md:border-r border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] p-4 md:p-5">
@@ -56,10 +63,13 @@ export function ShellSidebar({
         membersEnabled={membersEnabled}
         bookingsEnabled={bookingsEnabled}
         rafflesEnabled={rafflesEnabled}
+        coveragesEnabled={coveragesEnabled}
         websiteEnabled={websiteEnabled}
+        serviceLeadsEnabled={serviceLeadsEnabled}
         canManageMembers={canManageMembers}
         canManageWorkspaceSettings={canManageWorkspaceSettings}
         platformAdmin={platformAdmin}
+        vocabulary={vocabulary}
       />
     </aside>
   );

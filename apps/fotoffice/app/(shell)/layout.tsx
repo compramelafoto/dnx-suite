@@ -8,11 +8,15 @@ import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
+import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
+import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { canManageMembers } from "@/lib/members/role-policy";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { isFotofficePlatformAdmin } from "@/lib/platform-admin";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
+import { personVocabulary } from "@/lib/vocabulario/personas";
 import { ShellSidebar } from "@/components/shell/shell-sidebar";
 import { ShellFrame } from "@/components/shell/shell-frame";
 import { ShellHeader } from "@/components/shell/shell-header";
@@ -36,13 +40,19 @@ export default async function ShellLayout({ children }: { children: React.ReactN
   const membersOn = enabledModuleKeys.has(MEMBERS_MODULE_KEY);
   const bookingsOn = enabledModuleKeys.has(BOOKINGS_MODULE_KEY);
   const rafflesOn = enabledModuleKeys.has(RAFFLES_MODULE_KEY);
+  const coveragesOn = enabledModuleKeys.has(COVERAGES_MODULE_KEY);
   const websiteOn = enabledModuleKeys.has(WEBSITE_MODULE_KEY);
+  const serviceLeadsOn = enabledModuleKeys.has(SERVICE_LEADS_MODULE_KEY);
   // Un solo rol resuelto alimenta los dos flags del menú: si se resolvieran por caminos
   // distintos, volvería a poder pasar que uno ofrezca lo que el otro niega.
   const activeRole = workspace !== null ? await resolveWorkspaceRole(user.id, workspace.id) : null;
   const canManageMembersFlag = canManageMembers(activeRole);
   const canManageWorkspaceSettingsFlag = canManageWorkspaceSettings(activeRole);
   const platformAdmin = await isFotofficePlatformAdmin(user.id);
+  // Sin workspace activo (recién invitado, todavía sin `ensure`) no hay fila que leer: el
+  // vocabulario por omisión es lo correcto, ya que tampoco hay ningún módulo habilitado.
+  const vocabulary =
+    workspace !== null ? await loadPersonVocabulary(workspace.id) : personVocabulary(null);
 
   // Se lee acá, en el servidor, para que el menú ya salga oculto en el primer pintado:
   // decidirlo en el navegador lo mostraría y lo escondería en cada carga de página.
@@ -60,10 +70,13 @@ export default async function ShellLayout({ children }: { children: React.ReactN
           membersEnabled={membersOn}
           bookingsEnabled={bookingsOn}
           rafflesEnabled={rafflesOn}
+          coveragesEnabled={coveragesOn}
           websiteEnabled={websiteOn}
+          serviceLeadsEnabled={serviceLeadsOn}
           canManageMembers={canManageMembersFlag}
           canManageWorkspaceSettings={canManageWorkspaceSettingsFlag}
           platformAdmin={platformAdmin}
+          vocabulary={vocabulary}
         />
       }
       header={

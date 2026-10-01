@@ -13,6 +13,8 @@ import {
   type DnxPartnerAdPlacementKey,
 } from "@repo/partners";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
+import { parseDateTimeInput } from "@/lib/admin/datetime-input";
+import { fechaAr } from "@/lib/fecha-ar";
 
 /**
  * Tomar, confirmar, extender y liberar lugares del inventario publicitario.
@@ -30,11 +32,15 @@ function volver(mensaje: string, tipo: "ok" | "error"): never {
 }
 
 /** Lee una fecha `AAAA-MM-DD` del formulario. */
+/**
+ * El campo es un `<input type="date">`: un día, sin hora. Se guarda su
+ * medianoche argentina. Antes se guardaba la medianoche UTC, que en Argentina
+ * son las 21:00 del día anterior: la vigencia se leía corrida un día.
+ */
 function leerFecha(valor: FormDataEntryValue | null): Date | null {
   const texto = String(valor ?? "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(texto)) return null;
-  const fecha = new Date(`${texto}T00:00:00.000Z`);
-  return Number.isNaN(fecha.getTime()) ? null : fecha;
+  return parseDateTimeInput(`${texto}T00:00`);
 }
 
 function espacioDelCatalogo(placementKey: string) {
@@ -82,14 +88,14 @@ export async function reservarLugarAction(formData: FormData): Promise<void> {
 
   if (!resultado.ok) {
     const cuando = resultado.nextFreeAt
-      ? ` Se libera el ${resultado.nextFreeAt.toLocaleDateString("es-AR")}.`
+      ? ` Se libera el ${fechaAr(resultado.nextFreeAt)}.`
       : "";
     volver(`No queda lugar en ese espacio para ese período.${cuando}`, "error");
   }
 
   revalidatePath(RUTA);
   volver(
-    `Lugar ${resultado.slotIndex + 1} reservado hasta el ${resultado.expiresAt.toLocaleDateString("es-AR")}.`,
+    `Lugar ${resultado.slotIndex + 1} reservado hasta el ${fechaAr(resultado.expiresAt)}.`,
     "ok",
   );
 }
@@ -133,7 +139,7 @@ export async function extenderReservaAction(formData: FormData): Promise<void> {
   }
 
   revalidatePath(RUTA);
-  volver(`Reserva extendida hasta el ${resultado.expiresAt.toLocaleDateString("es-AR")}.`, "ok");
+  volver(`Reserva extendida hasta el ${fechaAr(resultado.expiresAt)}.`, "ok");
 }
 
 export async function liberarLugarAction(formData: FormData): Promise<void> {

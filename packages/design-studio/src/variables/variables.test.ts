@@ -110,3 +110,18 @@ test("interpola marcadores y deja el texto fijo intacto", () => {
 test("interpolar un marcador no declarado es un error, no una cadena vacia", () => {
   assert.throws(() => interpolate("Hola {{noExiste}}", { fullName: "Daniel" }), /noExiste/);
 });
+
+test("interpola variables con punto, como las de Clickaton", () => {
+  const resueltas = { "participant.fullName": "Daniel Fotógrafo" };
+  assert.equal(
+    interpolate("{{participant.fullName}}", resueltas),
+    "Daniel Fotógrafo",
+  );
+});
+
+test("un marcador con punto sin declarar tambien es un error", () => {
+  assert.throws(
+    () => interpolate("{{participant.noExiste}}", { "participant.fullName": "Daniel" }),
+    /participant\.noExiste/,
+  );
+});

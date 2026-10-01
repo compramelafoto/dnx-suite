@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Link from "next/link";
-import { CreateTemplateV2Button } from "@repo/template-editor-ui";
+import { CreateTemplateV2Button, TEMPLATE_V2_BASE_PATHS } from "@repo/template-editor-ui";
 
 type TemplatePublication = {
   reviewStatus: string;
@@ -188,7 +188,7 @@ export default function DashboardDesignsPage() {
           </p>
         </div>
         <div className="shrink-0">
-          <CreateTemplateV2Button />
+          <CreateTemplateV2Button basePath={TEMPLATE_V2_BASE_PATHS.compramelafoto} />
         </div>
       </header>
 

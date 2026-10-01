@@ -7,6 +7,8 @@ import {
   resolveOrganizationsForDashboardUser,
   userIsFotorankSuperAdmin,
 } from "../lib/fotorank/access/super-admin";
+import { perfilesDeLaCuenta } from "../lib/fotorank/access/perfilesDeLaCuenta";
+import { menuDeLaCuenta } from "../components/shell/menuDeLaCuenta";
 import { FOTORANK_ACTIVE_ORG_COOKIE } from "../lib/fotorank/dashboard-org-context";
 import { getContestOrganizationProfileById } from "../lib/fotorank/organizationProfile";
 import { bootstrapFotorankProfile } from "../lib/fotorank/profile";
@@ -81,6 +83,7 @@ export default async function DashboardLayoutWrapper({
     : null;
 
   const suiteWorkspaces = await getWorkspaceOptionsForUser(user.id);
+  const menu = menuDeLaCuenta(await perfilesDeLaCuenta(user));
   const actAsOrgName =
     isSuperAdmin && actAsOrganizationId
       ? organizations.find((o) => o.id === actAsOrganizationId)?.name ?? null
@@ -88,6 +91,7 @@ export default async function DashboardLayoutWrapper({
 
   return (
     <DashboardLayout
+      menu={menu}
       organizations={organizations}
       currentOrganizationId={currentOrganizationId}
       organizationProfile={organizationProfile}
@@ -96,6 +100,7 @@ export default async function DashboardLayoutWrapper({
       activeSuiteWorkspaceId={user.currentWorkspaceId}
       userDisplayName={user.name ?? ""}
       userEmail={user.email}
+      esSuperAdmin={isSuperAdmin}
     >
       {userIsFotorankSuperAdmin(user) && actAsOrgName ? (
         <SuperAdminActAsBanner organizationName={actAsOrgName} />

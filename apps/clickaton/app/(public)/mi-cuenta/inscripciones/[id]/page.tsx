@@ -11,11 +11,14 @@ import {
   type ParticipantCardUiState,
 } from "@/components/account/ParticipantCardsSection";
 import { PublicStatusCard } from "@/components/account/PublicStatusCard";
+import { LocationConsentPanel } from "@/components/participant/LocationConsentPanel";
 import { getClickatonAuthUser } from "@/lib/admin/auth";
 import { hasClickatonCardConsent } from "@/lib/participant-cards";
 import { evaluateClickatonCardEligibility } from "@/lib/participant-cards";
-import { isParticipantCardsV2Enabled } from "@/lib/participant-cards/participant-card-feature-flags";
 import { canExposeParticipantCardsActions } from "@/lib/participant-cards/participant-card-runtime-config";
+import { isParticipantCardsPublicUiEnabled } from "@/lib/participant-cards/participant-card-feature-flags";
+import { isSistemaViejoDePlacasActivo } from "@/lib/welcome-card/sistema-viejo";
+import { decideParticipantCardsSections } from "@/lib/participant-cards/participant-card-section-visibility";
 import { CLICKATON_LOGIN_PATH } from "@/lib/auth/return-path";
 import { participantLivePath } from "@/lib/participant-live/routes";
 import { resolveActiveQrPlaintext } from "@/lib/registration/application/confirm-free-registration";
@@ -33,6 +36,7 @@ import {
   presentProfilePhotoStatus,
   publicToneToBadgeVariant,
 } from "@/lib/public-ux/status-presentation";
+import { fechaHoraAr, fechaHoraLargaAr } from "@/lib/fecha-ar";
 
 export const dynamic = "force-dynamic";
 
@@ -94,6 +98,14 @@ export default async function RegistrationCredentialPage({ params }: Props) {
     registration.status === "CONFIRMED" &&
     (registration.paymentStatus === "APPROVED" ||
       registration.paymentStatus === "NOT_REQUIRED");
+
+  // Cuál de los dos sistemas de placas se muestra. Nunca los dos, y nunca ninguno si pagó.
+  const cardSections = decideParticipantCardsSections({
+    paid,
+    v2Available: canExposeParticipantCardsActions(),
+    publicUiEnabled: isParticipantCardsPublicUiEnabled(),
+    legacyEnabled: isSistemaViejoDePlacasActivo(),
+  });
 
   const temporal = await getEditionTemporalState(registration.editionId);
   // El detalle de consignas vive en la pantalla única (/en-vivo). Acá solo el progreso.
@@ -167,13 +179,11 @@ export default async function RegistrationCredentialPage({ params }: Props) {
     : null;
 
   const shirt = registration.items.find((i) => i.isIncluded);
-  const eventDate = registration.edition.startAt
-    ? new Date(registration.edition.startAt).toLocaleString("es-AR", {
-        dateStyle: "long",
-        timeStyle: "short",
-        timeZone: registration.edition.timezone ?? "America/Argentina/Cordoba",
-      })
-    : "A confirmar";
+  const eventDate = fechaHoraLargaAr(
+    registration.edition.startAt,
+    registration.edition.timezone,
+    "A confirmar",
+  );
   const placeLabel = registration.venue
     ? `${registration.venue.name} · ${registration.venue.city}`
     : registration.edition.location ?? "A confirmar";
@@ -271,7 +281,14 @@ export default async function RegistrationCredentialPage({ params }: Props) {
         </dl>
       </Card>
 
-      {canExposeParticipantCardsActions()
+      <LocationConsentPanel
+        registrationId={registration.id}
+        locationConsentAt={registration.locationConsentAt}
+        locationPublicConsentAt={registration.locationPublicConsentAt}
+        interviewConsentAt={registration.interviewConsentAt}
+      />
+
+      {cardSections.v2
         ? (() => {
         const consent = hasClickatonCardConsent(registration);
         const hasPhoto = Boolean(registration.profilePhotoAssetId);
@@ -343,7 +360,7 @@ export default async function RegistrationCredentialPage({ params }: Props) {
       })()
         : null}
 
-      {paid && !isParticipantCardsV2Enabled() ? (
+      {cardSections.legacy ? (
         <WelcomeCardShareCard
           registrationId={registration.id}
           status={registration.welcomeCardStatus}
@@ -361,9 +378,10 @@ export default async function RegistrationCredentialPage({ params }: Props) {
           <div className="space-y-3 text-sm">
             <p className="font-semibold text-ck-yellow">Acreditación confirmada</p>
             <p>
-              {new Date(registration.checkIns[0].checkedInAt).toLocaleString("es-AR", {
-                timeZone: registration.edition.timezone ?? "America/Argentina/Cordoba",
-              })}
+              {fechaHoraAr(
+                registration.checkIns[0].checkedInAt,
+                registration.edition.timezone,
+              )}
               {" · "}
               {presentCheckInSource(registration.checkIns[0].source)}
             </p>
@@ -431,9 +449,7 @@ export default async function RegistrationCredentialPage({ params }: Props) {
           <div>
             <dt className="text-ck-text-muted">Inscripción confirmada</dt>
             <dd>
-              {registration.confirmedAt
-                ? new Date(registration.confirmedAt).toLocaleString("es-AR")
-                : "—"}
+              {fechaHoraAr(registration.confirmedAt, registration.edition.timezone)}
             </dd>
           </div>
         </dl>
@@ -441,9 +457,7 @@ export default async function RegistrationCredentialPage({ params }: Props) {
           <p className="text-sm text-ck-text-secondary">
             Próxima fase: {temporal.nextEvent.name}
             {temporal.nextEvent.startsAt
-              ? ` · ${new Date(temporal.nextEvent.startsAt).toLocaleString("es-AR", {
-                  timeZone: temporal.timezone,
-                })}`
+              ? ` · ${fechaHoraAr(temporal.nextEvent.startsAt, temporal.timezone)}`
               : " · horario a confirmar"}
           </p>
         ) : null}

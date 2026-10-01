@@ -2,9 +2,13 @@ import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
+import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
+import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
+import { CASH_MODULE_KEY } from "@/lib/cash/constants";
+import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 
 /**
  * Catálogo central de módulos de FotoOffice.
@@ -66,6 +70,16 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     status: "AVAILABLE",
   },
   {
+    key: SERVICE_LEADS_MODULE_KEY,
+    label: "Captación de presupuestos",
+    description:
+      "Formularios públicos para pedir presupuesto y la bandeja donde llegan esas consultas.",
+    category: "GENERAL",
+    order: 24,
+    route: "/dashboard/service-leads",
+    status: "AVAILABLE",
+  },
+  {
     key: WEBSITE_MODULE_KEY,
     label: "Sitio web",
     description: "Sitio público del workspace: portada, secciones y datos de publicación.",
@@ -78,26 +92,38 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     key: BOOKINGS_MODULE_KEY,
     label: "Reservas",
     description:
-      "Reserva de salón, estudio, coworking u otros espacios: horarios, tarifas para socios y no socios, extras y agenda.",
+      "Reserva de salón, estudio, coworking u otros espacios: horarios, tarifas para {personas} y no {personas}, extras y agenda.",
     category: "GENERAL",
     order: 60,
     route: "/reservas",
     status: "AVAILABLE",
   },
+  {
+    key: COVERAGES_MODULE_KEY,
+    label: "Solicitudes y Coberturas",
+    description:
+      "Pedidos de cobertura fotográfica: evaluación, convocatoria de colaboradores, asignación del equipo y control de entregas.",
+    category: "GENERAL",
+    order: 65,
+    route: "/coberturas",
+    status: "AVAILABLE",
+  },
 
   // --- Reservados para etapas futuras. Claves fijadas, SIN implementar. ---
   {
-    key: "cash",
+    key: CASH_MODULE_KEY,
     label: "Caja",
-    description: "Ingresos y egresos genéricos del workspace.",
+    description:
+      "Ingresos y egresos del negocio, con cuentas separadas, arqueo por turno y reportes por período.",
     category: "GENERAL",
     order: 30,
-    status: "PLANNED",
+    route: "/caja",
+    status: "AVAILABLE",
   },
   {
     key: "communications",
     label: "Comunicación",
-    description: "Envío de comunicaciones/email a clientes o socios del workspace.",
+    description: "Envío de comunicaciones/email a clientes o {personas} del workspace.",
     category: "GENERAL",
     order: 40,
     status: "PLANNED",
@@ -111,17 +137,19 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     status: "PLANNED",
   },
   {
-    key: "clients",
+    key: CLIENTS_MODULE_KEY,
     label: "Clientes",
-    description: "Padrón de clientes del workspace.",
+    description:
+      "Padrón de clientes del negocio: ficha, contacto, datos fiscales y enlace opcional al {persona}.",
     category: "GENERAL",
     order: 70,
-    status: "PLANNED",
+    route: "/clientes",
+    status: "AVAILABLE",
   },
   {
     key: MEMBERS_MODULE_KEY,
-    label: "Socios",
-    description: "Padrón de socios de una institución: alta, edición, categorías y estado.",
+    label: "{Personas}",
+    description: "Padrón de {personas} de una institución: alta, edición, categorías y estado.",
     category: "INSTITUTIONAL",
     order: 100,
     route: "/members",
@@ -131,7 +159,7 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     key: MEMBERSHIP_DUES_MODULE_KEY,
     label: "Cuotas societarias",
     description:
-      "Cuotas periódicas de los socios: generación mensual, cobro por Mercado Pago, pagos a mano e historial.",
+      "Cuotas periódicas de los {personas}: generación mensual, cobro por Mercado Pago, pagos a mano e historial.",
     category: "INSTITUTIONAL",
     order: 110,
     route: "/members/cuotas",
@@ -141,7 +169,7 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     key: RAFFLES_MODULE_KEY,
     label: "Sorteos",
     description:
-      "Sorteos entre socios al día, con premios donados por marcas aliadas y un resultado que cualquiera puede comprobar.",
+      "Sorteos entre {personas} al día, con premios donados por marcas aliadas y un resultado que cualquiera puede comprobar.",
     category: "INSTITUTIONAL",
     order: 115,
     route: "/sorteos",

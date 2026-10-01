@@ -1,6 +1,10 @@
+import type { AffiliateCommissionDraft } from "@/lib/affiliates/domain/commission-draft";
+import { readCouponAffiliate } from "@/lib/affiliates/domain/coupon-affiliate";
+import type { HomeDeliveryConfig, HomeDeliveryShippingRecord } from "@/lib/home-delivery/domain";
 import { createHash, randomBytes } from "node:crypto";
 import { buildAvailability } from "@/lib/admin-catalog/domain/availability";
 import type { PricePhaseRecord } from "@/lib/pricing/domain/types";
+import { systemClock, type EditionClock } from "@/lib/timeline/clock";
 import type { CreateDraftRegistrationCommand } from "@/lib/registration/domain/commands";
 import {
   createInMemoryClickatonStore,
@@ -94,6 +98,21 @@ export type InMemoryPublicStore = {
   capacityLocks: Map<string, Promise<void>>;
   /** Mutex por registrationId para expiración concurrente. */
   expireLocks: Map<string, Promise<void>>;
+  /** Envío del kit a domicilio, por edición. */
+  homeDeliveryConfigs: Map<string, HomeDeliveryConfig>;
+  /** Envío elegido, por registrationId. */
+  shippings: Map<string, HomeDeliveryShippingRecord>;
+  /** `DnxPromotion.metadata`, por promotionId. */
+  promotionMetadata: Map<string, unknown>;
+  /** `ClickatonAffiliate.isActive`, por affiliateId. */
+  affiliatesActive: Map<string, boolean>;
+  /** `ClickatonEditionResultSettings.mpProcessingFeeBps`, por edición. */
+  editionMpFeeBps: Map<string, number | null>;
+  /** Comisiones de afiliado (PENDING al crear), por registrationId. */
+  affiliateCommissions: Map<
+    string,
+    AffiliateCommissionDraft & { editionId: string; status: "PENDING" }
+  >;
 };
 
 export function createInMemoryPublicStore(): InMemoryPublicStore {
@@ -110,6 +129,12 @@ export function createInMemoryPublicStore(): InMemoryPublicStore {
     nextUserId: 100,
     capacityLocks: new Map(),
     expireLocks: new Map(),
+    homeDeliveryConfigs: new Map(),
+    shippings: new Map(),
+    promotionMetadata: new Map(),
+    affiliatesActive: new Map(),
+    editionMpFeeBps: new Map(),
+    affiliateCommissions: new Map(),
   };
 }
 
@@ -122,6 +147,7 @@ function kitKindOf(products: PublicTicketProductDto[]): PublicCatalogTicket["kit
 function toTicketDto(
   store: InMemoryPublicStore,
   row: InMemoryPublicTicketRow,
+  now: Date,
 ): PublicCatalogTicket {
   const confirmed = [...store.domain.registrations.values()].filter(
     (r) => r.ticketTypeId === row.id && r.status === "CONFIRMED",
@@ -141,6 +167,7 @@ function toTicketDto(
     salesStartAt: row.salesStartAt,
     salesEndAt: row.salesEndAt,
     isActive: row.isActive,
+    now,
   });
   const products = row.products.map((p) => ({
     ...p,
@@ -202,7 +229,10 @@ async function withCapacityLock<T>(
 
 export function createInMemoryPublicRegistrationRepository(
   store: InMemoryPublicStore,
+  options: { clock?: EditionClock | null } = {},
 ): PublicRegistrationRepository {
+  /** Por defecto la hora real. El ensayo de edición inyecta un reloj fijo. */
+  const clock = options.clock ?? systemClock();
   const domainRegs = createInMemoryRegistrationRepository(store.domain);
 
   return {
@@ -217,7 +247,7 @@ export function createInMemoryPublicRegistrationRepository(
     async listSellableTickets(editionId) {
       return [...store.tickets.values()]
         .filter((t) => t.editionId === editionId && t.isActive)
-        .map((t) => toTicketDto(store, t));
+        .map((t) => toTicketDto(store, t, clock.now()));
     },
 
     async listPricePhases(editionId) {
@@ -275,7 +305,7 @@ export function createInMemoryPublicRegistrationRepository(
 
     async getTicketDetail(ticketTypeId) {
       const row = store.tickets.get(ticketTypeId);
-      return row ? toTicketDto(store, row) : null;
+      return row ? toTicketDto(store, row, clock.now()) : null;
     },
 
     async countConfirmedAndActiveHolds(ticketTypeId) {
@@ -416,6 +446,147 @@ export function createInMemoryPublicRegistrationRepository(
       };
     },
 
+    async releaseGiftRegistration(input) {
+      const reg = store.domain.registrations.get(input.registrationId);
+      if (!reg) return;
+      if (reg.status === "CONFIRMED" || reg.status === "CANCELLED") return;
+
+      for (const [id, hold] of store.domain.capacityHolds) {
+        if (hold.registrationId === input.registrationId && hold.status === "ACTIVE") {
+          hold.status = "RELEASED";
+          hold.releasedAt = input.now;
+          store.domain.capacityHolds.set(id, hold);
+        }
+      }
+      reg.status = "CANCELLED";
+      reg.cancelledAt = input.now;
+      store.domain.registrations.set(reg.id, reg);
+    },
+
+    async completeGiftRegistration(cmd) {
+      const existing = store.domain.registrations.get(cmd.registrationId);
+      if (!existing) {
+        throw new PublicRegistrationError(
+          "NOT_FOUND",
+          "No encontramos la inscripción de este regalo.",
+        );
+      }
+      if (existing.status === "CONFIRMED") {
+        return { id: existing.id, visibleCode: existing.visibleCode ?? null };
+      }
+      if (existing.status !== "GIFT_AWAITING_REDEMPTION") {
+        throw new PublicRegistrationError(
+          "EDITION_NOT_AVAILABLE",
+          "Este regalo no está disponible para activar.",
+        );
+      }
+
+      existing.participant = {
+        ...existing.participant,
+        firstName: cmd.participant.firstName.trim(),
+        lastName: cmd.participant.lastName.trim(),
+        email: cmd.participant.email,
+        phone: cmd.participant.phone?.trim() || null,
+        documentNumber: normalizeDocument(cmd.participant.documentNumber) || null,
+        acceptedTermsAt: cmd.acceptedAt,
+        acceptedImageAt: cmd.acceptedAt,
+      };
+      if (cmd.venueId) existing.venueId = cmd.venueId;
+      store.domain.registrations.set(existing.id, existing);
+
+      const confirmed = await domainRegs.confirm({
+        registrationId: cmd.registrationId,
+        paymentStatus: existing.paymentStatus,
+        assignVisibleCode: !existing.visibleCode,
+        editionPrefix: cmd.editionPrefix ?? "CK",
+        source: "public_gift_redeem",
+        requestId: cmd.idempotencyKey,
+      });
+
+      for (const [id, hold] of store.domain.capacityHolds) {
+        if (hold.registrationId === cmd.registrationId && hold.status === "ACTIVE") {
+          hold.status = "CONSUMED";
+          hold.consumedAt = cmd.acceptedAt;
+          store.domain.capacityHolds.set(id, hold);
+        }
+      }
+
+      return { id: confirmed.id, visibleCode: confirmed.visibleCode ?? null };
+    },
+
+    async createReservedGiftRegistration(cmd) {
+      return withCapacityLock(store, cmd.ticketTypeId, async () => {
+        let confirmed = 0;
+        let activeHolds = 0;
+        for (const r of store.domain.registrations.values()) {
+          if (r.ticketTypeId === cmd.ticketTypeId && r.status === "CONFIRMED") {
+            confirmed += 1;
+          }
+        }
+        for (const h of store.domain.capacityHolds.values()) {
+          if (
+            h.ticketTypeId === cmd.ticketTypeId &&
+            h.status === "ACTIVE" &&
+            h.expiresAt.getTime() > Date.now()
+          ) {
+            activeHolds += 1;
+          }
+        }
+        const ticket = store.tickets.get(cmd.ticketTypeId);
+        if (ticket?.capacity != null && confirmed + activeHolds >= ticket.capacity) {
+          throw new PublicRegistrationError(
+            "CAPACITY_EXCEEDED",
+            "No quedan cupos disponibles para esta entrada.",
+          );
+        }
+
+        // Sin items ni stock holds: el talle lo elige quien recibe el regalo.
+        const draft = await domainRegs.createDraft({
+          editionId: cmd.editionId,
+          userId: null,
+          ticket: { ticketTypeId: cmd.ticketTypeId, venueId: cmd.venueId },
+          participant: {
+            firstName: cmd.contact.firstName,
+            lastName: cmd.contact.lastName,
+            email: cmd.contact.email,
+            phone: cmd.contact.phone,
+            country: "AR",
+            acceptedTermsAt: cmd.acceptedTermsAt,
+          },
+          currency: cmd.currency,
+          subtotalAmount: cmd.subtotalAmount,
+          discountAmount: cmd.discountAmount,
+          totalAmount: cmd.totalAmount,
+          pricePhaseId: cmd.pricePhaseId,
+          pricePhaseNameSnapshot: cmd.pricePhaseNameSnapshot,
+          pricePhaseAmountSnapshot: cmd.pricePhaseAmountSnapshot,
+          promotionId: cmd.promotionId,
+          promotionCodeSnapshot: cmd.promotionCodeSnapshot,
+          termsVersion: cmd.termsVersion,
+          termsAcceptedAt: cmd.acceptedTermsAt,
+          holdMinutes: cmd.holdMinutes,
+          items: [],
+        });
+
+        await domainRegs.createCapacityHold({
+          registrationId: draft.id,
+          editionId: cmd.editionId,
+          venueId: cmd.venueId,
+          ticketTypeId: cmd.ticketTypeId,
+          expiresAt: cmd.holdExpiresAt,
+        });
+
+        const stored = store.domain.registrations.get(draft.id);
+        if (stored) {
+          stored.isGift = true;
+          stored.paymentIdempotencyKey = cmd.idempotencyKey;
+          store.domain.registrations.set(stored.id, stored);
+        }
+
+        return { id: draft.id };
+      });
+    },
+
     async createReservedRegistration(input) {
       return withCapacityLock(store, input.cmd.ticket.ticketTypeId, async () => {
         let confirmed = 0;
@@ -507,6 +678,14 @@ export function createInMemoryPublicRegistrationRepository(
           });
           pending.paymentIdempotencyKey = input.idempotencyKey;
           store.domain.registrations.set(pending.id, pending);
+          if (input.shipping) store.shippings.set(pending.id, { ...input.shipping });
+          if (input.affiliateCommission) {
+            store.affiliateCommissions.set(pending.id, {
+              ...input.affiliateCommission,
+              editionId: input.cmd.editionId,
+              status: "PENDING",
+            });
+          }
 
           store.idempotency.set(input.idempotencyKey, {
             key: input.idempotencyKey,
@@ -533,6 +712,24 @@ export function createInMemoryPublicRegistrationRepository(
           throw error;
         }
       });
+    },
+
+    async getHomeDeliveryConfig(editionId) {
+      return store.homeDeliveryConfigs.get(editionId) ?? null;
+    },
+
+    async getShipping(registrationId) {
+      return store.shippings.get(registrationId) ?? null;
+    },
+
+    async getAffiliateCommissionContext({ promotionId, editionId }) {
+      const affiliate = readCouponAffiliate(store.promotionMetadata.get(promotionId) ?? null);
+      if (!affiliate) return null;
+      return {
+        affiliate,
+        affiliateActive: store.affiliatesActive.get(affiliate.affiliateId) === true,
+        editionMpFeeBps: store.editionMpFeeBps.get(editionId) ?? null,
+      };
     },
 
     async getRegistration(id) {

@@ -1,0 +1,87 @@
+{
+  "proyecto": "Captación de presupuestos",
+  "plataforma": "FOTOFFICE",
+  "enUso": "parcial",
+  "usoNota": "2 formularios públicos en DNX Estudio y 1 consulta captada; el módulo no está encendido en ninguna institución y las pantallas se abren igual porque no lo verifican",
+  "etapas": [
+    {
+      "nombre": "Captar la consulta",
+      "criterios": [
+        {
+          "que": "Se crea un formulario público para pedir presupuesto, con su dirección propia",
+          "implementado": { "pr": 177, "fecha": "2026-09-17" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "2 formularios activos en DNX Estudio: «xv» y «general», con uno marcado por defecto"
+          }
+        },
+        {
+          "que": "Un interesado completa el formulario y su consulta aparece en la bandeja",
+          "implementado": { "pr": 177, "fecha": "2026-09-17" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "1 consulta captada por el formulario «xv» y guardada con sus datos de evento"
+          }
+        },
+        {
+          "que": "Tras enviar, al interesado se lo lleva a WhatsApp o a la página que la institución eligió",
+          "implementado": { "pr": 177, "fecha": "2026-09-17" },
+          "probado": null,
+          "bloqueado": "Falta completar un formulario con la acción configurada y ver el redireccionamiento"
+        },
+        {
+          "que": "El interesado recibe la respuesta automática por correo",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "La configuración se guarda y nadie la lee: el módulo no manda un solo correo, aunque la pantalla promete respuesta automática"
+        }
+      ]
+    },
+    {
+      "nombre": "Que el módulo sea de cualquier institución",
+      "criterios": [
+        {
+          "que": "El módulo se enciende y se apaga por institución, y apagado no se puede entrar",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "No está encendido en ninguna institución, y las pantallas no verifican el módulo: con la dirección exacta se entra igual"
+        },
+        {
+          "que": "El enlace para compartir es el de la institución que lo mira",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "La dirección pública está fija en «dnx-estudio»: cualquier otra institución ve un enlace equivocado"
+        },
+        {
+          "que": "La institución define qué campos pide su formulario",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "No hay editor de campos: el formulario general sólo funciona si el detalle se carga a mano en la base"
+        }
+      ]
+    },
+    {
+      "nombre": "Trabajar la consulta",
+      "criterios": [
+        {
+          "que": "La bandeja muestra cada consulta con su contacto, su tipo y la fecha del evento",
+          "implementado": { "pr": 177, "fecha": "2026-09-17" },
+          "probado": null,
+          "bloqueado": "Falta abrir la bandeja con sesión iniciada y comparar contra la consulta captada"
+        },
+        {
+          "que": "La consulta cambia de estado, se asigna y se le anotan comentarios",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "La bandeja es sólo lectura: no hay acciones ni historial"
+        },
+        {
+          "que": "El formulario se puede insertar en un sitio web propio",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "El botón dice «Próximamente»"
+        }
+      ]
+    }
+  ]
+}

@@ -83,6 +83,7 @@ function humanFieldsForBenefit(
     includedQuantity: iq,
     selectionMode,
     requiredPhotoCount: rpc,
+    photographerProductName: b.photographerProduct?.name ?? null,
   });
   const summary = buildBenefitDashboardSummary({
     kind,

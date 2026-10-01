@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { createClientDownloadToken } from "@/lib/download-tokens";
+import {
+  buildDownloadCenterVideos,
+  type DownloadCenterVideo,
+} from "@/lib/videos/download-center-videos";
 import { getAppConfig } from "@/lib/services/settingsService";
 import { safeFilename } from "@/lib/safe-filename";
 import {
@@ -36,6 +40,8 @@ export type DownloadCenterData = {
   purchasedAtLabel: string;
   photoCount: number;
   photos: DownloadCenterPhoto[];
+  /** Videos comprados en el mismo pedido. Cada uno se baja por su cuenta. */
+  videos: DownloadCenterVideo[];
   availability: {
     status: DownloadAvailabilityStatus;
     daysRemaining: number;
@@ -144,6 +150,20 @@ export async function loadDownloadCenterByToken(
           photo: { select: { id: true, originalKey: true } },
         },
       },
+      videoItems: {
+        select: {
+          videoId: true,
+          videoTitle: true,
+          video: {
+            select: {
+              id: true,
+              originalKey: true,
+              durationSeconds: true,
+              thumbnailKey: true,
+            },
+          },
+        },
+      },
     },
   });
 
@@ -240,6 +260,10 @@ export async function loadDownloadCenterByToken(
     purchasedAtLabel: formatDownloadExpiryDate(order.createdAt),
     photoCount: photos.length,
     photos,
+    videos: buildDownloadCenterVideos(order.videoItems ?? [], {
+      accessToken,
+      baseUrl: appBase,
+    }),
     availability: {
       status: effectiveStatus,
       daysRemaining: albumDeleted ? 0 : availability.daysRemaining,

@@ -78,14 +78,14 @@ describe("getEnabledModuleKeysForWorkspace", () => {
   it("un módulo PLANNED nunca puede aparecer como habilitado: el filtro enviado a Prisma nunca lo incluye", async () => {
     findManyMock.mockResolvedValueOnce([]);
     const set = await getEnabledModuleKeysForWorkspace("ws-a");
-    expect(set.has("cash")).toBe(false);
+    expect(set.has("events")).toBe(false);
     expect(set.size).toBe(0);
 
     const callArg = findManyMock.mock.calls[0][0] as { where: { moduleKey: { in: string[] } } };
     expect(callArg.where.moduleKey.in).toContain("courses-sales");
     expect(callArg.where.moduleKey.in).toContain("evaluaciones");
     expect(callArg.where.moduleKey.in).toContain("members");
-    expect(callArg.where.moduleKey.in).not.toContain("cash");
+    expect(callArg.where.moduleKey.in).not.toContain("events");
   });
 
   it("aislamiento: el Set de un workspace no incluye módulos habilitados de otro", async () => {

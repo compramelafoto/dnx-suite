@@ -12,6 +12,8 @@ const TRAZOS: Record<PortalIconName, string> = {
   school: "M12 4 3 8.5l9 4.5 9-4.5zM6.5 11v5c0 1.5 2.5 3 5.5 3s5.5-1.5 5.5-3v-5",
   institution: "M3 9.5 12 4l9 5.5M5 11v8M9.5 11v8M14.5 11v8M19 11v8M3.5 20h17",
   share: "M9 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM21 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM21 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM8.6 13.5l6.8 3.4M15.4 7.1 8.6 10.5",
+  camera:
+    "M3 8.5h4l1.5-2h7l1.5 2h4a1 1 0 0 1 1 1v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V9.5a1 1 0 0 1 1-1zM9 13.5a3 3 0 1 0 6 0 3 3 0 0 0-6 0z",
 };
 
 export function PortalIcon({

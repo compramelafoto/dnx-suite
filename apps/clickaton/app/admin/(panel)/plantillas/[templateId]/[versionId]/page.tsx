@@ -1,4 +1,4 @@
-import { TemplateEditorShell } from "@repo/template-editor-ui";
+import { TemplateEditorShell, TEMPLATE_V2_BASE_PATHS } from "@repo/template-editor-ui";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
 // El import registra el runtime del editor (base, sesión y almacenamiento).
 import "@/lib/template-v2/server";
@@ -10,5 +10,9 @@ type Props = { params: Promise<{ templateId: string; versionId: string }> };
 export default async function ClickatonTemplateEditorPage({ params }: Props) {
   await requireClickatonAdmin();
   const { templateId, versionId } = await params;
-  return <TemplateEditorShell templateId={templateId} versionId={versionId} />;
+  return <TemplateEditorShell
+      templateId={templateId}
+      versionId={versionId}
+      basePath={TEMPLATE_V2_BASE_PATHS.clickaton}
+    />;
 }

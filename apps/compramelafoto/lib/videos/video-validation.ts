@@ -53,21 +53,35 @@ export const VIDEO_LIMITS_BY_CATEGORY: Record<
   OTHER: { maxBytes: 500 * 1024 * 1024, maxDurationSeconds: 5 * 60 },
 };
 
-/** Precio mínimo en centavos ARS por categoría (100 centavos = $1). */
+/**
+ * Precio mínimo en centavos ARS por categoría (100 centavos = $1).
+ *
+ * Subidos 3x el 2026-09-13: los valores originales quedaron muy bajos para lo
+ * que cuesta producir un video. Son mínimos, no precios sugeridos: el fotógrafo
+ * pone el suyo arriba de esto.
+ *
+ * Lo que ve el cliente es este monto más el fee de plataforma.
+ */
 export const VIDEO_MIN_PRICE_CENTS_BY_CATEGORY: Record<VideoCategory, number> = {
-  REEL: 300_000,
-  HIGHLIGHT: 500_000,
-  CEREMONY: 800_000,
-  DRONE: 600_000,
-  INTERVIEW: 400_000,
-  BACKSTAGE: 400_000,
-  SHOW: 800_000,
-  SPORT: 500_000,
-  SCHOOL: 500_000,
-  OTHER: 400_000,
+  REEL: 900_000, // $9.000
+  HIGHLIGHT: 1_500_000, // $15.000
+  CEREMONY: 2_400_000, // $24.000
+  DRONE: 1_800_000, // $18.000
+  INTERVIEW: 1_200_000, // $12.000
+  BACKSTAGE: 1_200_000, // $12.000
+  SHOW: 2_400_000, // $24.000
+  SPORT: 1_500_000, // $15.000
+  SCHOOL: 1_500_000, // $15.000
+  OTHER: 1_200_000, // $12.000
 };
 
-export const VIDEO_DEFAULT_PRICE_CENTS = 1_000_000;
+/**
+ * Precio que viene cargado por defecto: $30.000.
+ *
+ * Tiene que quedar por encima del mínimo más alto, o al fotógrafo que sube una
+ * ceremonia le aparecería un precio que el sistema le rechaza.
+ */
+export const VIDEO_DEFAULT_PRICE_CENTS = 3_000_000;
 
 const EXT_BY_MIME: Record<string, string> = {
   "video/mp4": ".mp4",

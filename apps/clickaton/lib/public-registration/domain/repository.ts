@@ -1,3 +1,6 @@
+import type { AffiliateCommissionDraft } from "@/lib/affiliates/domain/commission-draft";
+import type { CouponAffiliate } from "@/lib/affiliates/domain/coupon-affiliate";
+import type { HomeDeliveryConfig, HomeDeliveryShippingRecord } from "@/lib/home-delivery/domain";
 import type { PricePhaseItemResolvedInput } from "@/lib/catalog/domain/resolve-included-items";
 import type { PricePhaseRecord } from "@/lib/pricing/domain/types";
 import type { ClickatonRegistrationRecord } from "@/lib/registration/domain/types";
@@ -11,12 +14,81 @@ import type {
   PublicVenueDto,
 } from "./types";
 
+export type AffiliateCommissionContext = {
+  affiliate: CouponAffiliate;
+  affiliateActive: boolean;
+  /** `ClickatonEditionResultSettings.mpProcessingFeeBps` de la edición. */
+  editionMpFeeBps: number | null;
+};
+
 export type PublicCatalogEdition = PublicEditionDto & {
   visibleCodePrefix: string | null;
 };
 
 export type PublicCatalogTicket = PublicTicketDto & {
   editionId: string;
+};
+
+/**
+ * Reserva "a designar" de un regalo: se guardan los datos de quien compra
+ * como contacto, y el cupo queda tomado. Quien recibe el regalo completa sus
+ * propios datos al activarlo.
+ */
+export type CreateReservedGiftRegistrationCommand = {
+  idempotencyKey: string;
+  holdExpiresAt: Date;
+  holdMinutes: number;
+  isGift: true;
+  editionId: string;
+  ticketTypeId: string;
+  venueId: string | null;
+  contact: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string | null;
+  };
+  currency: string;
+  subtotalAmount: number;
+  discountAmount: number;
+  totalAmount: number;
+  promotionId: string | null;
+  promotionCodeSnapshot: string | null;
+  pricePhaseId: string | null;
+  pricePhaseNameSnapshot: string | null;
+  pricePhaseAmountSnapshot: number | null;
+  acceptedTermsAt: Date;
+  termsVersion: string;
+};
+
+/**
+ * Canje del regalo: la inscripción "a designar" se completa con los datos de
+ * quien lo recibe y pasa a CONFIRMED, emitiendo número visible, credencial y
+ * QR como cualquier confirmación.
+ */
+export type CompleteGiftRegistrationCommand = {
+  registrationId: string;
+  editionId: string;
+  editionPrefix: string | null;
+  venueId: string | null;
+  variantChoices: Array<{ productId: string; productVariantId: string }>;
+  participant: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone?: string;
+    documentNumber?: string;
+    city?: string;
+    province?: string;
+    country?: string;
+    birthDate?: string;
+    emergencyContactName?: string;
+    emergencyContactPhone?: string;
+  };
+  profilePhotoAssetId: string;
+  instagramHandle: string;
+  acceptedAt: Date;
+  idempotencyKey: string;
 };
 
 export type IdempotencyRecord = {
@@ -89,7 +161,47 @@ export interface PublicRegistrationRepository {
     idempotencyKey: string;
     fingerprint: string;
     holdExpiresAt: Date;
+    /** Envío a domicilio: se guarda en la misma transacción que la inscripción. */
+    shipping?: HomeDeliveryShippingRecord | null;
+    /**
+     * Comisión del fotógrafo dueño del cupón (PENDING). Misma transacción que
+     * la inscripción.
+     */
+    affiliateCommission?: AffiliateCommissionDraft | null;
   }): Promise<ClickatonRegistrationRecord>;
+  /**
+   * Lo necesario para anotar la comisión de un cupón con dueño. null si el
+   * cupón no tiene dueño. Puede tirar (tabla ausente): quien llama lo ignora.
+   */
+  getAffiliateCommissionContext?(input: {
+    promotionId: string;
+    editionId: string;
+  }): Promise<AffiliateCommissionContext | null>;
+  /** Configuración del envío del kit a domicilio de la edición. */
+  getHomeDeliveryConfig?(editionId: string): Promise<HomeDeliveryConfig | null>;
+  /** Envío elegido por una inscripción (null si retira en sede). */
+  getShipping?(registrationId: string): Promise<HomeDeliveryShippingRecord | null>;
+  /**
+   * Reserva de regalo: toma cupo sin items ni stock (el talle se elige al
+   * activar) y sin bloquear por email duplicado — quien regala puede además
+   * estar inscripto, y puede regalar más de una vez.
+   */
+  createReservedGiftRegistration(
+    cmd: CreateReservedGiftRegistrationCommand,
+  ): Promise<{ id: string }>;
+  /** Canje del regalo: completa la inscripción y la confirma. Idempotente. */
+  completeGiftRegistration(
+    cmd: CompleteGiftRegistrationCommand,
+  ): Promise<{ id: string; visibleCode: string | null }>;
+  /**
+   * Anulación de un regalo: cancela su inscripción y devuelve el cupo a la
+   * venta. No toca un regalo ya activado — de eso se ocupa el caso de uso.
+   */
+  releaseGiftRegistration(input: {
+    registrationId: string;
+    now: Date;
+    reason: string;
+  }): Promise<void>;
   getRegistration(id: string): Promise<ClickatonRegistrationRecord | null>;
   /** Holds ACTIVE + variant reservedStock para eligibility. */
   getHoldSnapshot(registrationId: string): Promise<{
