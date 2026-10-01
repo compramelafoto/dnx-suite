@@ -3,7 +3,7 @@ import { countMembersByStatus, listMemberCategories } from "@repo/db/fotoffice-m
 import { requireMembersContext } from "@/lib/members/access";
 import { PageHeader } from "@/components/page-header";
 import { Listado } from "@/components/listado/listado";
-import { listadoSocios } from "@/lib/members/listado";
+import { cargarListadoSocios } from "@/lib/members/listado";
 import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import type { ContextoListado } from "@/lib/listado/tipos";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
@@ -107,7 +107,7 @@ export default async function MembersPage({
             </div>
           </div>
 
-          <Listado def={listadoSocios(v)} ctx={ctx} ruta="/members" searchParams={searchParams} />
+          <Listado def={await cargarListadoSocios(ctx, v)} ctx={ctx} ruta="/members" searchParams={searchParams} />
         </>
       )}
     </div>

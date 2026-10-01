@@ -23,6 +23,7 @@ import {
   unirEtiquetasDeFila,
   validarEtiquetaDelFiltro,
 } from "@/lib/ficha/etiquetas-listado";
+import { camposParaListado, conCampos, restriccionDeCampos } from "@/lib/campos/listado";
 import { auditActorFrom, type AuditActorUser } from "./audit";
 import { normalizeDocument } from "./documents";
 import { inviteOneMember } from "./invite-member";
@@ -94,6 +95,7 @@ function etiquetaAcceso(f: FilaSocio): string {
 /** Puro: lo que se le pide a Prisma. `workspaceId` va siempre, primero. */
 export function whereSocios(workspaceId: string, c: ConsultaResuelta): Prisma.MemberWhereInput {
   const where: Prisma.MemberWhereInput = { workspaceId };
+  const campos = restriccionDeCampos(c);
   const q = c.q.trim();
   if (q) {
     where.OR = [
@@ -102,6 +104,7 @@ export function whereSocios(workspaceId: string, c: ConsultaResuelta): Prisma.Me
       { memberNumber: { contains: q, mode: "insensitive" } },
       { email: { contains: q, mode: "insensitive" } },
       { documentNumber: { contains: q, mode: "insensitive" } },
+      ...(campos.buscar ? [campos.buscar] : []),
     ];
   }
   const estado = c.filtros.estado;
@@ -114,6 +117,7 @@ export function whereSocios(workspaceId: string, c: ConsultaResuelta): Prisma.Me
   // Las etiquetas viven en el socio o en su cliente vinculado; también dentro del AND por el OR de la búsqueda.
   const etiqueta = c.filtros.etiqueta;
   if (etiqueta) and.push({ OR: [{ fotofficeTags: { some: { tagId: etiqueta } } }, { clientLink: { fotofficeTags: { some: { tagId: etiqueta } } } }] });
+  if (campos.acotar) and.push(campos.acotar);
   if (and.length > 0) where.AND = and;
   if (c.filtros.deuda === "si") where.charges = { some: cargoImpagoWhere(workspaceId) };
   else if (c.filtros.deuda === "no") where.charges = { none: cargoImpagoWhere(workspaceId) };
@@ -472,4 +476,9 @@ export function listadoSocios(v: PersonVocabulary): DefinicionListado<FilaSocio>
     },
     panel: panelSocio,
   };
+}
+
+/** La lista con los campos personalizados del workspace (columnas, filtros, búsqueda y exportación). */
+export async function cargarListadoSocios(ctx: ContextoListado, v: PersonVocabulary) {
+  return conCampos(listadoSocios(v), await camposParaListado(ctx, "SOCIO"));
 }

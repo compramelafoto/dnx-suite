@@ -5,6 +5,7 @@ import { claseDeColorEtiqueta } from "@/lib/ficha/formato";
 import { ETIQUETA_SALIDA } from "@/lib/circuitos/constantes";
 import { estaVencida } from "@/lib/circuitos/calculos";
 import type { ConsultaResuelta, ContextoListado, DefinicionListado, Opcion } from "@/lib/listado/tipos";
+import { camposParaListado, conCampos, restriccionDeCampos } from "@/lib/campos/listado";
 import { SERVICE_LEAD_EVENT_TYPE_LABELS } from "./form-definitions";
 
 const SELECT_FILA = {
@@ -83,6 +84,7 @@ export function whereRecorridos(workspaceId: string, c: ConsultaResuelta, ahora:
 /** Puro: lo que se le pide a Prisma. `workspaceId` va siempre, primero. `idsRecorrido` viene de la subconsulta. */
 export function whereCaptacion(workspaceId: string, c: ConsultaResuelta, idsRecorrido: string[] | null): Prisma.ServiceSalesLeadWhereInput {
   const where: Prisma.ServiceSalesLeadWhereInput = { workspaceId };
+  const campos = restriccionDeCampos(c);
   const q = c.q.trim();
   if (q) {
     const minuscula = q.toLowerCase();
@@ -96,6 +98,7 @@ export function whereCaptacion(workspaceId: string, c: ConsultaResuelta, idsReco
       { eventType: { contains: q, mode: "insensitive" } },
     ];
     if (codigos.length > 0) or.push({ eventType: { in: codigos } });
+    if (campos.buscar) or.push(campos.buscar);
     where.OR = or;
   }
   const evento = c.periodos.evento;
@@ -103,6 +106,8 @@ export function whereCaptacion(workspaceId: string, c: ConsultaResuelta, idsReco
   const alta = c.periodos.alta;
   if (alta) where.createdAt = { gte: alta.desde, lte: alta.hasta };
   if (idsRecorrido) where.id = { in: idsRecorrido };
+  // Va en un AND: `id` ya puede estar acotado por los recorridos.
+  if (campos.acotar) where.AND = [campos.acotar];
   return where;
 }
 
@@ -325,3 +330,8 @@ export const listadoCaptacion: DefinicionListado<FilaCaptacion> = {
     ],
   },
 };
+
+/** La lista con los campos personalizados del workspace (columnas, filtros, búsqueda y exportación). */
+export async function cargarListadoCaptacion(ctx: ContextoListado) {
+  return conCampos(listadoCaptacion, await camposParaListado(ctx, "CONSULTA"));
+}

@@ -100,7 +100,13 @@ export function crearBaseEnMemoria() {
           if (x === undefined) return true;
           if (op === "in") return (x as unknown[]).some((y) => igual(v, y));
           if (op === "not") return !igual(v, x);
+          // `mode` sólo modifica a `contains`.
+          if (op === "mode") return true;
           if (v === null) return false;
+          if (op === "contains") {
+            const a = String(v), b = String(x);
+            return c.mode === "insensitive" ? a.toLowerCase().includes(b.toLowerCase()) : a.includes(b);
+          }
           if (op === "lt") return n(v) < n(x);
           if (op === "lte") return n(v) <= n(x);
           if (op === "gt") return n(v) > n(x);

@@ -50,6 +50,20 @@ describe("whereCaptacion", () => {
   });
 });
 
+describe("campos personalizados en whereCaptacion", () => {
+  it("la búsqueda suma los ids de los campos al OR y los filtros acotan con AND sin pisar los recorridos", () => {
+    const w = whereCaptacion("w1", { ...base, q: "boda", campos: { soloIds: ["l2"], buscarIds: ["l1"] } }, ["l2", "l3"]);
+    expect(w.workspaceId).toBe("w1");
+    expect(w.OR).toContainEqual({ id: { in: ["l1"] } });
+    expect(w.id).toEqual({ in: ["l2", "l3"] });
+    expect(w.AND).toEqual([{ id: { in: ["l2"] } }]);
+  });
+  it("ninguna clave propia usa el prefijo de los campos personalizados", () => {
+    for (const f of listadoCaptacion.filtros) expect(f.clave.startsWith("cf_")).toBe(false);
+    for (const c of listadoCaptacion.columnas) expect(c.clave.startsWith("cf_")).toBe(false);
+  });
+});
+
 describe("whereRecorridos", () => {
   it("siempre acota a workspace, Captación y venta", () => {
     expect(whereRecorridos("w1", base, ahora)).toEqual({ workspaceId: "w1", subjectType: "CAPTACION", kind: "VENTA" });

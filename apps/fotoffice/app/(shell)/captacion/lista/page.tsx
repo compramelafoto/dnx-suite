@@ -5,7 +5,7 @@ import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import type { ContextoListado } from "@/lib/listado/tipos";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { requireServiceLeadsStaff } from "@/lib/service-leads/access";
-import { listadoCaptacion } from "@/lib/service-leads/listado";
+import { cargarListadoCaptacion } from "@/lib/service-leads/listado";
 import { prepararCaptacion } from "@/lib/service-leads/preparar";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +30,7 @@ export default async function CaptacionListaPage({
 
   return (
     <ArmazonCaptacion activa="lista" quedan={quedan}>
-      <Listado def={listadoCaptacion} ctx={ctx} ruta="/captacion/lista" searchParams={searchParams} />
+      <Listado def={await cargarListadoCaptacion(ctx)} ctx={ctx} ruta="/captacion/lista" searchParams={searchParams} />
     </ArmazonCaptacion>
   );
 }

@@ -45,9 +45,25 @@ describe("whereClientes", () => {
   });
 });
 
+describe("campos personalizados en el where", () => {
+  it("la búsqueda suma los ids de los campos al OR y los filtros acotan con AND", () => {
+    const w = whereClientes("w1", { ...base, q: "boda", campos: { soloIds: ["c2"], buscarIds: ["c1"] } });
+    expect(w.workspaceId).toBe("w1");
+    expect(w.OR).toContainEqual({ id: { in: ["c1"] } });
+    expect(w.AND).toEqual([{ id: { in: ["c2"] } }]);
+  });
+  it("una restricción vacía (tope superado) deja la lista vacía", () => {
+    expect(whereClientes("w1", { ...base, campos: { soloIds: [], buscarIds: [] } }).AND).toEqual([{ id: { in: [] } }]);
+  });
+});
+
 describe("definición", () => {
   it("ninguna clave de filtro está reservada", () => {
     for (const f of listadoClientes.filtros) expect(PARAMETROS_RESERVADOS as readonly string[]).not.toContain(f.clave);
+  });
+  it("ninguna clave propia usa el prefijo de los campos personalizados", () => {
+    for (const f of listadoClientes.filtros) expect(f.clave.startsWith("cf_")).toBe(false);
+    for (const c of listadoClientes.columnas) expect(c.clave.startsWith("cf_")).toBe(false);
   });
   it("los órdenes incluyen el de por defecto y los de las columnas", () => {
     expect(listadoClientes.ordenes).toContain(listadoClientes.ordenPorDefecto.campo);
