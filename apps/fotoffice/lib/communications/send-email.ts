@@ -20,6 +20,13 @@ export type OutboundEmail = {
   subject: string;
   html: string;
   text: string;
+  /**
+   * Nombre visible del remitente (opcional). Reemplaza el nombre configurado y conserva la
+   * casilla de `FOTOFFICE_NOTIFICATIONS_FROM`: la dirección sigue saliendo sólo del entorno.
+   */
+  fromName?: string;
+  /** "Responder a" (opcional): una sola dirección. */
+  replyTo?: string;
 };
 
 export type SendOutcome =
@@ -70,6 +77,26 @@ function describeRejection(httpStatus: number, body: string, apiKey: string): st
   return sanitizeDetail(parts.join(" · "), apiKey);
 }
 
+/** Casilla del remitente configurado: lo de adentro de `<…>` o el valor pelado. */
+function senderAddress(from: string): string {
+  const m = from.match(/<([^<>]+)>\s*$/);
+  return (m ? m[1]! : from).trim();
+}
+
+/**
+ * Nombre visible seguro para la cabecera: sin comillas, `<>`, barras ni saltos de línea (que
+ * permitirían inyectar cabeceras o una casilla distinta), en una línea y truncado.
+ */
+function safeDisplayName(name: string): string {
+  return name.replace(/["<>\\\r\n\t]/g, " ").replace(/\s+/g, " ").trim().slice(0, 100);
+}
+
+/** Remitente final: el configurado, o su casilla con el nombre visible pedido. */
+export function buildFrom(configuredFrom: string, fromName?: string): string {
+  const name = fromName ? safeDisplayName(fromName) : "";
+  return name ? `"${name}" <${senderAddress(configuredFrom)}>` : configuredFrom;
+}
+
 export async function sendTransactionalEmail(
   message: OutboundEmail,
   deps: SendDeps = {},
@@ -94,11 +121,12 @@ export async function sendTransactionalEmail(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from,
+        from: buildFrom(from, message.fromName),
         to: [message.to],
         subject: message.subject,
         html: message.html,
         text: message.text,
+        ...(message.replyTo ? { reply_to: message.replyTo } : {}),
       }),
     });
   } catch (error) {

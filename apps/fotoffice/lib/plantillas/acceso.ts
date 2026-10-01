@@ -10,6 +10,9 @@ import type { CtxPlantillas } from "./definiciones";
 export type ContextoPlantillas = CtxPlantillas & {
   /** Slug público del workspace ("" si no tiene). Decide las plantillas iniciales de DNX. */
   workspaceSlug: string;
+  /** Nombre y correo de quien envía, para `[usuario_nombre]` y `[usuario_email]`. */
+  userName: string | null;
+  userEmail: string | null;
 };
 
 /**
@@ -34,6 +37,8 @@ export async function contextoDePlantillas(): Promise<ContextoPlantillas | null>
     workspaceSlug: branding?.publicSlug ?? "",
     userId: user.id,
     userLabel: etiquetaDeUsuario(user),
+    userName: user.name?.trim() || null,
+    userEmail: user.email?.trim() || null,
     role,
   };
 }

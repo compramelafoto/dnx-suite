@@ -20,7 +20,8 @@ beforeEach(() => {
 describe("contextoDePlantillas", () => {
   it("devuelve el workspace de la sesión con su slug", async () => {
     expect(await contextoDePlantillas()).toEqual({
-      workspaceId: "ws-1", workspaceSlug: "dnx-estudio", userId: 5, userLabel: "Ana", role: "STAFF",
+      workspaceId: "ws-1", workspaceSlug: "dnx-estudio", userId: 5, userLabel: "Ana", userName: "Ana", userEmail: "a@x",
+      role: "STAFF",
     });
     expect(H.branding).toHaveBeenCalledWith({ where: { workspaceId: "ws-1" }, select: { publicSlug: true } });
   });

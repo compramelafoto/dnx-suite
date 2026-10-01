@@ -1,0 +1,354 @@
+import "server-only";
+import { prisma } from "@repo/db";
+import { puede } from "@/lib/access/policy";
+import { sendTransactionalEmail, type OutboundEmail, type SendOutcome } from "@/lib/communications/send-email";
+import { buildWhatsappUrl, normalizeWhatsappNumber } from "@/lib/contact/whatsapp";
+import {
+  CLAVE_FIRMA, MARCADOR_FIRMA, MAX_ASUNTO, MAX_CUERPO, TOPE_CORREOS_DIA, ZONA_HORARIA, type Canal,
+} from "./constantes";
+import { contextoDe, type ContextoMensaje, type TipoFichaMensaje } from "./contexto";
+import { plantillaParaUsar } from "./definiciones";
+import { analizar, completar, tieneMarcadorSinCompletar } from "./motor";
+import { cuerpoCorreoHtml, cuerpoCorreoTexto, textoWhatsapp } from "./render";
+import { clavesPermitidas, resolverVariables } from "./variables";
+
+/**
+ * Envío de mensajes desde una ficha: correo con `sendTransactionalEmail` (nunca lanza), enlace de
+ * WhatsApp, registro en `FotofficeMessage` y tope diario. Nunca se loguean direcciones, números
+ * ni cuerpos: sólo códigos.
+ */
+
+/** Quién envía. `role` se exige (`operar`) salvo en los automáticos, que no tienen usuario. */
+export type CtxEnvio = {
+  workspaceId: string;
+  userId: number | null;
+  userLabel: string | null;
+  userName?: string | null;
+  userEmail?: string | null;
+  role: string | null;
+};
+
+export const MENSAJES_ENVIO = {
+  sinPermiso: "No tenés permiso para enviar mensajes.",
+  noEncontrado: "No encontramos ese registro.",
+  plantillaNoEncontrada: "No encontramos esa plantilla.",
+  plantillaConErrores: "La plantilla tiene variables que ya no se pueden usar: revisala en Configuración → Plantillas.",
+  sinCorreo: "Esta persona no tiene un correo válido cargado.",
+  sinWhatsapp: "Esta persona no tiene un teléfono válido para WhatsApp (con código de país).",
+  asunto: `Poné un asunto de hasta ${MAX_ASUNTO} caracteres.`,
+  cuerpoVacio: "Escribí el texto del mensaje.",
+  marcadorSinCompletar: "Completá los textos entre corchetes en mayúsculas antes de enviar.",
+  tope: `Llegaste al tope de ${TOPE_CORREOS_DIA} correos por día de la organización. Podés volver a enviar mañana.`,
+  datosInvalidos: "Los datos no son válidos.",
+  falloConfiguracion: "El envío de correos no está configurado. Avisale a quien administra FOTOFFICE.",
+  falloProveedor: "El proveedor de correo rechazó el envío.",
+  falloConexion: "No pudimos conectar con el proveedor de correo. Probá de nuevo en un rato.",
+} as const;
+
+const variableSinCompletar = (token: string) => `Quedó una variable sin completar: ${token}`;
+const cuerpoLargo = (canal: Canal) =>
+  `El texto puede tener hasta ${MAX_CUERPO[canal].toLocaleString("es-AR")} caracteres en ${canal === "EMAIL" ? "Correo" : "WhatsApp"}.`;
+
+type Falla = { ok: false; error: string };
+const no = (error: string): Falla => ({ ok: false, error });
+
+function usuarioDe(ctx: CtxEnvio) {
+  return { nombre: ctx.userName ?? ctx.userLabel ?? null, email: ctx.userEmail ?? null };
+}
+
+function correoValido(v: string | null): v is string {
+  return typeof v === "string" && v.length <= 254 && /^[^\s@<>,;"]+@[^\s@<>,;"]+\.[^\s@<>,;"]+$/.test(v);
+}
+
+// ─── Preparar ────────────────────────────────────────────────────────────────
+
+export type MensajePreparado = {
+  ok: true;
+  asunto: string;
+  cuerpo: string;
+  /** Variables que quedaron vacías (sin repetir), para marcarlas en el panel. */
+  vacias: string[];
+  /** Si el texto todavía tiene `[TEXTO EN MAYÚSCULAS]` por completar a mano. */
+  pendientes: boolean;
+  /** Adónde iría (para el panel): correo o teléfono de la persona. */
+  destino: { email: string | null; telefono: string | null };
+};
+
+/**
+ * Completa asunto y cuerpo con los datos del registro. `[firma]` queda escrita tal cual en el cuerpo
+ * (el envío la resuelve), y en el asunto se quita. Puro sobre un contexto ya cargado.
+ */
+export function completarTextos(
+  contexto: ContextoMensaje,
+  tipo: TipoFichaMensaje,
+  asunto: string | null,
+  cuerpo: string,
+): { ok: true; asunto: string; cuerpo: string; vacias: string[] } | Falla {
+  const permitidas = clavesPermitidas(tipo, contexto.camposActivos);
+  const valores = resolverVariables(contexto.variables);
+  const rCuerpo = analizar(cuerpo, permitidas);
+  const rAsunto = asunto ? analizar(asunto, permitidas) : null;
+  if (!rCuerpo.ok || (rAsunto && !rAsunto.ok)) return no(MENSAJES_ENVIO.plantillaConErrores);
+  const c = completar(rCuerpo.piezas, valores);
+  const a = rAsunto?.ok ? completar(rAsunto.piezas, valores) : null;
+  const vacias = [...new Set([...(a?.vacias ?? []), ...c.vacias])];
+  return {
+    ok: true,
+    asunto: a ? a.texto.split(MARCADOR_FIRMA).join("").replace(/\s+/g, " ").trim() : "",
+    cuerpo: c.texto.split(MARCADOR_FIRMA).join(`[${CLAVE_FIRMA}]`),
+    vacias,
+  };
+}
+
+/**
+ * Asunto y cuerpo para el panel, con la plantilla elegida (del workspace, activa, del canal y de
+ * la ficha o GENERAL) o vacíos para escribir a mano. No escribe nada.
+ */
+export async function prepararMensaje(
+  ctx: CtxEnvio,
+  datos: { canal: Canal; entityType: TipoFichaMensaje; entityId: string; templateId?: string | null },
+): Promise<MensajePreparado | Falla> {
+  const contexto = await contextoDe(ctx.workspaceId, datos.entityType, datos.entityId, usuarioDe(ctx));
+  if (!contexto) return no(MENSAJES_ENVIO.noEncontrado);
+  if (datos.templateId == null || datos.templateId === "") {
+    return { ok: true, asunto: "", cuerpo: "", vacias: [], pendientes: false, destino: contexto.destino };
+  }
+  const plantilla = await plantillaParaUsar(ctx.workspaceId, datos.templateId, datos.canal, datos.entityType);
+  if (!plantilla) return no(MENSAJES_ENVIO.plantillaNoEncontrada);
+  const r = completarTextos(contexto, datos.entityType, datos.canal === "EMAIL" ? plantilla.subject : null, plantilla.body);
+  if (!r.ok) return r;
+  return {
+    ...r,
+    pendientes: tieneMarcadorSinCompletar(r.asunto) || tieneMarcadorSinCompletar(r.cuerpo),
+    destino: contexto.destino,
+  };
+}
+
+// ─── Validación del texto final ──────────────────────────────────────────────
+
+/** El primer `[…]` desde la posición del error, para nombrarlo en el mensaje. */
+function tokenEn(texto: string, posicion: number): string {
+  return texto.slice(posicion).match(/^\[[^\]\n]{0,60}\]/)?.[0] ?? "[…]";
+}
+
+/**
+ * El texto final ya viene completado y retocado por quien envía. Se vuelve a analizar sólo con
+ * `[firma]` permitida: cualquier otra variable o bloque que quedó es un error. Devuelve las
+ * piezas completadas (la firma como marcador) o el error.
+ */
+function textoFinal(texto: string, conFirma: boolean): { ok: true; texto: string; conFirma: boolean } | Falla {
+  const r = analizar(texto, new Set(conFirma ? [CLAVE_FIRMA] : []));
+  if (!r.ok) return no(variableSinCompletar(tokenEn(texto, r.errores[0]!.posicion)));
+  const c = completar(r.piezas, () => null);
+  return { ok: true, texto: c.texto, conFirma: c.conFirma };
+}
+
+function validarCuerpo(cuerpo: unknown, canal: Canal): { ok: true; cuerpo: string } | Falla {
+  if (typeof cuerpo !== "string") return no(MENSAJES_ENVIO.cuerpoVacio);
+  const t = cuerpo.replace(/\r\n?/g, "\n").trim();
+  if (!t) return no(MENSAJES_ENVIO.cuerpoVacio);
+  if (t.length > MAX_CUERPO[canal]) return no(cuerpoLargo(canal));
+  return { ok: true, cuerpo: t };
+}
+
+/** La plantilla usada, si vino: del workspace y válida para el canal y la ficha (o la automática). */
+async function validarPlantilla(
+  workspaceId: string,
+  templateId: unknown,
+  canal: Canal,
+  tipo: TipoFichaMensaje,
+  automatico: boolean,
+): Promise<{ ok: true; id: string | null } | Falla> {
+  if (templateId === undefined || templateId === null || templateId === "") return { ok: true, id: null };
+  if (typeof templateId !== "string" || templateId.length > 100) return no(MENSAJES_ENVIO.plantillaNoEncontrada);
+  if (automatico) {
+    const f = await prisma.fotofficeMessageTemplate.findFirst({
+      where: { id: templateId, workspaceId, channel: canal, entityType: tipo, systemKey: { not: null }, archivedAt: null },
+      select: { id: true },
+    });
+    return f ? { ok: true, id: f.id } : no(MENSAJES_ENVIO.plantillaNoEncontrada);
+  }
+  const p = await plantillaParaUsar(workspaceId, templateId, canal, tipo);
+  return p ? { ok: true, id: p.id } : no(MENSAJES_ENVIO.plantillaNoEncontrada);
+}
+
+// ─── Tope diario ─────────────────────────────────────────────────────────────
+
+/** Comienzo del día de hoy en Buenos Aires (UTC−3 fijo: Argentina no tiene horario de verano). */
+export function inicioDelDiaAR(ahora: Date): Date {
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", { timeZone: ZONA_HORARIA, year: "numeric", month: "2-digit", day: "2-digit" })
+      .formatToParts(ahora)
+      .map((x) => [x.type, x.value]),
+  );
+  return new Date(`${p.year}-${p.month}-${p.day}T00:00:00.000-03:00`);
+}
+
+/** Correos enviados (`SENT`) hoy por la organización. Usa el índice (workspaceId, channel, createdAt). */
+export async function correosEnviadosHoy(workspaceId: string, ahora: Date): Promise<number> {
+  return prisma.fotofficeMessage.count({
+    where: { workspaceId, channel: "EMAIL", createdAt: { gte: inicioDelDiaAR(ahora) }, status: "SENT" },
+  });
+}
+
+// ─── Correo ──────────────────────────────────────────────────────────────────
+
+export type DepsEnvio = {
+  /** Inyectable en las pruebas: nunca se manda un correo real desde un test. */
+  enviar?: (mensaje: OutboundEmail) => Promise<SendOutcome>;
+  ahora?: () => Date;
+};
+
+export type ResultadoEnvio = { ok: true; mensajeId: string } | { ok: false; error: string; registrado?: boolean };
+
+/** Código para guardar (nunca el detalle, que puede traer datos): estado + HTTP + nombre del error. */
+function codigoDeError(r: Exclude<SendOutcome, { status: "SENT" }>): string {
+  if (r.status !== "PROVIDER_REJECTED") return r.status;
+  const m = r.detail.match(/^HTTP (\d{3})(?: · ([a-z_]{1,60}))?/);
+  return ["PROVIDER_REJECTED", m?.[1], m?.[2]].filter(Boolean).join(":");
+}
+
+function mensajeDeFalla(r: Exclude<SendOutcome, { status: "SENT" }>): string {
+  if (r.status === "CONFIGURATION_ERROR") return MENSAJES_ENVIO.falloConfiguracion;
+  if (r.status === "PROVIDER_REJECTED") return MENSAJES_ENVIO.falloProveedor;
+  return MENSAJES_ENVIO.falloConexion;
+}
+
+export type DatosCorreo = {
+  entityType: TipoFichaMensaje;
+  entityId: string;
+  templateId?: string | null;
+  asunto: unknown;
+  cuerpo: unknown;
+  automatico?: boolean;
+};
+
+/**
+ * Envía un correo a la persona del registro y lo registra (`SENT` o `FAILED`). El tope diario se
+ * mira antes: al llegar, no se envía ni se registra. Una falla del proveedor queda registrada
+ * con su código y no se reintenta.
+ */
+export async function enviarCorreo(ctx: CtxEnvio, datos: DatosCorreo, deps: DepsEnvio = {}): Promise<ResultadoEnvio> {
+  const automatico = datos.automatico === true;
+  if (!automatico && !puede(ctx.role, "operar")) return no(MENSAJES_ENVIO.sinPermiso);
+
+  if (typeof datos.asunto !== "string") return no(MENSAJES_ENVIO.asunto);
+  const asunto = datos.asunto.replace(/\s+/g, " ").trim();
+  if (!asunto || asunto.length > MAX_ASUNTO) return no(MENSAJES_ENVIO.asunto);
+  const vc = validarCuerpo(datos.cuerpo, "EMAIL");
+  if (!vc.ok) return vc;
+  if (tieneMarcadorSinCompletar(asunto) || tieneMarcadorSinCompletar(vc.cuerpo)) return no(MENSAJES_ENVIO.marcadorSinCompletar);
+  const fa = textoFinal(asunto, false);
+  if (!fa.ok) return fa;
+  const fc = textoFinal(vc.cuerpo, true);
+  if (!fc.ok) return fc;
+
+  const contexto = await contextoDe(ctx.workspaceId, datos.entityType, datos.entityId, usuarioDe(ctx));
+  if (!contexto) return no(MENSAJES_ENVIO.noEncontrado);
+  const plantilla = await validarPlantilla(ctx.workspaceId, datos.templateId, "EMAIL", datos.entityType, automatico);
+  if (!plantilla.ok) return plantilla;
+  const para = contexto.destino.email;
+  if (!correoValido(para)) return no(MENSAJES_ENVIO.sinCorreo);
+
+  const ahora = (deps.ahora ?? (() => new Date()))();
+  if ((await correosEnviadosHoy(ctx.workspaceId, ahora)) >= TOPE_CORREOS_DIA) return no(MENSAJES_ENVIO.tope);
+
+  const enviar = deps.enviar ?? ((m: OutboundEmail) => sendTransactionalEmail(m));
+  const resultado = await enviar({
+    to: para,
+    subject: fa.texto,
+    html: cuerpoCorreoHtml(fc.texto, contexto.firma.html, fc.conFirma),
+    text: cuerpoCorreoTexto(fc.texto, contexto.firma.texto, fc.conFirma),
+    fromName: contexto.remitente.nombre,
+    ...(correoValido(contexto.remitente.replyTo) ? { replyTo: contexto.remitente.replyTo } : {}),
+  });
+
+  const fallo = resultado.status === "SENT" ? null : resultado;
+  let mensajeId: string | null = null;
+  try {
+    const fila = await prisma.fotofficeMessage.create({
+      data: {
+        workspaceId: ctx.workspaceId,
+        channel: "EMAIL",
+        entityType: datos.entityType,
+        entityId: datos.entityId,
+        templateId: plantilla.id,
+        toAddress: para,
+        subject: fa.texto,
+        body: vc.cuerpo,
+        status: fallo ? "FAILED" : "SENT",
+        automatic: automatico,
+        providerId: resultado.status === "SENT" ? resultado.providerId : null,
+        errorCode: fallo ? codigoDeError(fallo) : null,
+        actorUserId: ctx.userId,
+        actorLabel: automatico ? "Automático" : ctx.userLabel,
+      },
+      select: { id: true },
+    });
+    mensajeId = fila.id;
+  } catch (e) {
+    // Sólo el código: nunca la dirección ni el cuerpo.
+    console.error("[plantillas] no se pudo registrar el mensaje", { codigo: (e as { code?: unknown })?.code ?? "desconocido" });
+  }
+
+  if (fallo) {
+    console.warn("[plantillas] falló el envío de un correo", { codigo: codigoDeError(fallo) });
+    return { ok: false, error: mensajeDeFalla(fallo), registrado: mensajeId !== null };
+  }
+  return { ok: true, mensajeId: mensajeId ?? "" };
+}
+
+// ─── WhatsApp ────────────────────────────────────────────────────────────────
+
+export type DatosWhatsapp = {
+  entityType: TipoFichaMensaje;
+  entityId: string;
+  templateId?: string | null;
+  cuerpo: unknown;
+};
+
+export type ResultadoWhatsapp = { ok: true; url: string; mensajeId: string } | Falla;
+
+/**
+ * Arma el enlace `wa.me` con el texto final para el teléfono de la persona y lo registra como
+ * `OPENED_WHATSAPP`. La firma va sólo si el texto la pide con `[firma]`.
+ */
+export async function abrirWhatsapp(ctx: CtxEnvio, datos: DatosWhatsapp): Promise<ResultadoWhatsapp> {
+  if (!puede(ctx.role, "operar")) return no(MENSAJES_ENVIO.sinPermiso);
+  const vc = validarCuerpo(datos.cuerpo, "WHATSAPP");
+  if (!vc.ok) return vc;
+  if (tieneMarcadorSinCompletar(vc.cuerpo)) return no(MENSAJES_ENVIO.marcadorSinCompletar);
+  const fc = textoFinal(vc.cuerpo, true);
+  if (!fc.ok) return fc;
+
+  const contexto = await contextoDe(ctx.workspaceId, datos.entityType, datos.entityId, usuarioDe(ctx));
+  if (!contexto) return no(MENSAJES_ENVIO.noEncontrado);
+  const plantilla = await validarPlantilla(ctx.workspaceId, datos.templateId, "WHATSAPP", datos.entityType, false);
+  if (!plantilla.ok) return plantilla;
+  const numero = normalizeWhatsappNumber(contexto.destino.telefono);
+  if (!numero) return no(MENSAJES_ENVIO.sinWhatsapp);
+
+  const texto = textoWhatsapp(fc.texto, contexto.firma.texto);
+  if (texto.length > MAX_CUERPO.WHATSAPP) return no(cuerpoLargo("WHATSAPP"));
+  const url = buildWhatsappUrl(numero, texto);
+  if (!url) return no(MENSAJES_ENVIO.sinWhatsapp);
+
+  const fila = await prisma.fotofficeMessage.create({
+    data: {
+      workspaceId: ctx.workspaceId,
+      channel: "WHATSAPP",
+      entityType: datos.entityType,
+      entityId: datos.entityId,
+      templateId: plantilla.id,
+      toAddress: numero,
+      subject: null,
+      body: texto,
+      status: "OPENED_WHATSAPP",
+      automatic: false,
+      actorUserId: ctx.userId,
+      actorLabel: ctx.userLabel,
+    },
+    select: { id: true },
+  });
+  return { ok: true, url, mensajeId: fila.id };
+}

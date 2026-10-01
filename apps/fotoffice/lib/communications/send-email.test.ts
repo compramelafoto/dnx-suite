@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { sendTransactionalEmail } from "./send-email";
+import { buildFrom, sendTransactionalEmail } from "./send-email";
 
 const API_KEY = "re_supersecret_value_0123456789";
 const ENV = {
@@ -117,5 +117,35 @@ describe("sendTransactionalEmail", () => {
     const headers = init.headers as Record<string, string>;
     expect(headers.Authorization).toBe(`Bearer ${API_KEY}`);
     expect(String(init.body)).not.toContain(API_KEY);
+  });
+
+  it("sin nombre visible ni responder-a, el pedido no cambia (sin reply_to)", async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse(200, { id: "email_123" }));
+    await sendTransactionalEmail(MESSAGE, { env: ENV, fetchImpl });
+    const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).not.toHaveProperty("reply_to");
+  });
+
+  it("con nombre visible conserva la casilla del entorno y agrega reply_to", async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse(200, { id: "email_123" }));
+    await sendTransactionalEmail(
+      { ...MESSAGE, fromName: "Estudio DNX", replyTo: "hola@estudio.example" },
+      { env: ENV, fetchImpl },
+    );
+    const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(String(init.body));
+    expect(body.from).toBe('"Estudio DNX" <no-reply@mail.fotoffice.com>');
+    expect(body.reply_to).toBe("hola@estudio.example");
+  });
+});
+
+describe("buildFrom", () => {
+  it("toma la casilla pelada o entre <> y limpia el nombre", () => {
+    expect(buildFrom("no-reply@mail.example", "Club")).toBe('"Club" <no-reply@mail.example>');
+    expect(buildFrom("X <no-reply@mail.example>", 'Ma"la <otra@x.y>\r\nBcc: z')).toBe(
+      '"Ma la otra@x.y Bcc: z" <no-reply@mail.example>',
+    );
+    expect(buildFrom("X <no-reply@mail.example>", "   ")).toBe("X <no-reply@mail.example>");
+    expect(buildFrom("X <no-reply@mail.example>")).toBe("X <no-reply@mail.example>");
   });
 });
