@@ -41,7 +41,7 @@ export function PortalSidebar({
   const proximas = items.filter((i) => i.state === "PROXIMAMENTE");
 
   return (
-    <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-60 shrink-0 flex-col overflow-y-auto py-5 md:flex">
+    <aside className="sticky top-24 hidden h-[calc(100vh-6rem)] w-60 shrink-0 flex-col overflow-y-auto py-5 md:flex">
       <nav aria-label="Secciones" className="space-y-0.5">
         {disponibles.map((i) => {
           const activa = esActiva(pathname, i.href);
