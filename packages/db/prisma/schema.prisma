@@ -7138,6 +7138,8 @@ model Workspace {
   fotofficeSequences FotofficeSequence[]
   fotofficeSequenceChanges FotofficeSequenceChange[]
   fotofficeRecordNumbers FotofficeRecordNumber[]
+  fotofficeMessageTemplates FotofficeMessageTemplate[]
+  fotofficeMessages FotofficeMessage[]
   clientAudits ClientAudit[]
 }
 
@@ -19519,4 +19521,64 @@ model FotofficeRecordNumber {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@unique([entityType, entityId])
+}
+
+/// Etapa 0.6: plantilla de mensaje (correo o WhatsApp) de una organización.
+/// En el SQL: índice único parcial (workspaceId, systemKey) donde systemKey no es null,
+/// y CHECKs de channel, entityType y asunto (obligatorio en EMAIL, nulo en WHATSAPP).
+model FotofficeMessageTemplate {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  /// EMAIL | WHATSAPP
+  channel         String
+  /// GENERAL | CLIENTE | SOCIO | CONSULTA
+  entityType      String
+  name            String
+  /// Sólo en EMAIL (obligatorio); null en WHATSAPP.
+  subject         String?
+  body            String    @db.Text
+  /// null en las plantillas comunes; CONSULTA_AUTORESPUESTA en la automática.
+  systemKey       String?
+  /// Sólo tiene sentido en las automáticas.
+  enabled         Boolean   @default(false)
+  order           Int       @default(0)
+  archivedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  updatedByUserId Int?
+
+  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  messages  FotofficeMessage[]
+
+  @@index([workspaceId, channel, archivedAt, order])
+}
+
+/// Etapa 0.6: registro de un mensaje enviado (o abierto en WhatsApp) desde una ficha.
+/// entityId es polimórfico y se valida en código. En el SQL: CHECKs de status y channel.
+model FotofficeMessage {
+  id          String   @id @default(cuid())
+  workspaceId String
+  /// EMAIL | WHATSAPP
+  channel     String
+  /// CLIENTE | SOCIO | CONSULTA
+  entityType  String
+  entityId    String
+  templateId  String?
+  toAddress   String
+  subject     String?
+  body        String   @db.Text
+  /// SENT | FAILED | OPENED_WHATSAPP
+  status      String
+  automatic   Boolean  @default(false)
+  providerId  String?
+  errorCode   String?
+  actorUserId Int?
+  actorLabel  String?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  template  FotofficeMessageTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, entityType, entityId, createdAt])
+  @@index([workspaceId, channel, createdAt])
 }
