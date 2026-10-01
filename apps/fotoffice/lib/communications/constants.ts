@@ -92,6 +92,15 @@ export const COVERAGE_EMAIL_KEYS = {
   INFO_REQUESTED: "fotoffice.coverages.request-info-requested",
   APPROVED: "fotoffice.coverages.request-approved",
   REJECTED: "fotoffice.coverages.request-rejected",
+  /**
+   * Se le emitió un enlace de seguimiento nuevo porque el anterior no llegó. Sale a la
+   * organización solicitante.
+   *
+   * Tiene su propia clave y no reusa la del acuse de recibo: la pregunta que hay que poder
+   * contestar mirando `SentEmailLog` es «¿le reenviamos el enlace o no?», y mezclada con el
+   * correo de recepción no se distingue.
+   */
+  TRACKING_LINK: "fotoffice.coverages.tracking-link",
   /** Se publicó una convocatoria. Sale a cada colaborador activo, por separado. */
   CALL_PUBLISHED: "fotoffice.coverages.call-published",
   /** Alguien quedó seleccionado o se lo invitó directo. Sale a esa persona. */

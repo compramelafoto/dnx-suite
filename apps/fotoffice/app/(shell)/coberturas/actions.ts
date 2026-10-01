@@ -14,8 +14,10 @@ import {
   buildInfoRequestedEmail,
   buildRequestApprovedEmail,
   buildRequestRejectedEmail,
+  buildTrackingLinkEmail,
   contactGreetingName,
 } from "@/lib/coverages/emails";
+import { puedeReemitirEnlace } from "@/lib/coverages/reenvio-enlace";
 import { recordEvent } from "@/lib/coverages/events";
 import { planGenerarCobertura } from "@/lib/coverages/generar-cobertura";
 import { loadRequest, loadSettings } from "@/lib/coverages/repository";
@@ -309,6 +311,113 @@ export async function requestInfoAction(
 
   revalidatePath(`/coberturas/${solicitud.id}`);
   return { error: null, ok: "Se lo pedimos.", warn };
+}
+
+/**
+ * Emitirle un enlace de seguimiento nuevo y mandárselo.
+ *
+ * Existe porque el enlace **no se puede recuperar**: el token crudo viaja una sola vez, en el
+ * correo, y en la base queda sólo su SHA-256. Si ese correo no llega —una casilla mal escrita,
+ * el proveedor caído, el mensaje en el correo no deseado— la organización se queda sin enlace
+ * vivo y nadie, ni la coordinación ni el equipo técnico, puede leerle el que tenía. Eso es por
+ * diseño y está bien. Lo que faltaba era poder emitir otro.
+ *
+ * `requireCoveragesReviewer` y no coordinador, con el mismo criterio que `requestInfoAction`:
+ * esa acción ya rota el enlace y le escribe a la organización con permiso de revisar, y ésta
+ * hace estrictamente menos —ni cambia de estado ni pide nada—. Además es la reparación de un
+ * fallo que quien revisa puede haber provocado: el aviso de «el correo no salió» aparece en la
+ * pantalla de quien apretó, y tiene que poder arreglarlo sin salir a buscar a una coordinadora.
+ *
+ * **Emitir uno nuevo mata el anterior**, así que la pantalla lo dice antes de ofrecer el botón
+ * (ver `evaluacion-panel.tsx`). Acá se vuelve a decidir con `puedeReemitirEnlace`, que consulta
+ * a `debeRotarEnlace` igual que el resto del módulo: sin destinatario o sin `appUrl()` no se
+ * rota nada, porque rotar sin poder avisar deja a la organización sin enlace y sin manera de
+ * enterarse.
+ *
+ * El correo sale **fuera de la transacción**, y que falle no deja nada a medias: el token nuevo
+ * ya quedó guardado y el historial ya lo dice. Lo único que cambia es el `warn` de la pantalla,
+ * que invita a volver a intentarlo.
+ *
+ * **El token crudo no se registra en ningún lado**: no entra en la nota del evento, y
+ * `SentEmailLog` guarda destinatario y asunto pero nunca el cuerpo (ver `sendAndLogEmail`). El
+ * asunto no lo lleva.
+ */
+export async function resendTrackingLinkAction(
+  _prev: PanelState | undefined,
+  formData: FormData,
+): Promise<PanelState> {
+  const { user, workspace } = await requireCoveragesReviewer();
+  const id = formData.get("id")?.toString() ?? "";
+
+  const solicitud = await prisma.coverageRequest.findFirst({
+    where: { id, workspaceId: workspace.id },
+    include: { client: { select: { email: true, businessName: true, firstName: true, lastName: true } } },
+  });
+  if (!solicitud) return { error: "No encontramos esa solicitud.", ok: null };
+
+  const destino = solicitud.client.email?.trim() || null;
+  const base = appUrl();
+  const permiso = puedeReemitirEnlace({
+    status: solicitud.status,
+    tieneDestinatario: Boolean(destino),
+    tieneAppUrl: Boolean(base),
+  });
+  if (!permiso.ok) return { error: permiso.error, ok: null };
+  // `puedeReemitirEnlace` ya garantiza las dos, pero el tipo no lo sabe.
+  if (!destino || !base) return { error: "No se puede emitir el enlace ahora.", ok: null };
+
+  const settings = await loadSettings(workspace.id);
+  const rawToken = generateTrackingToken();
+
+  await prisma.$transaction(async (tx) => {
+    // `updateMany` con el workspace en el `where` y no un `update` por id: es la escritura que
+    // pisa la credencial de la organización, y el aislamiento viaja con ella.
+    await tx.coverageRequest.updateMany({
+      where: { id: solicitud.id, workspaceId: workspace.id },
+      data: {
+        tokenHash: hashTrackingToken(rawToken),
+        tokenExpiresAt: trackingExpiryFrom(settings.trackingLinkTtlDays),
+        // Un enlace recién emitido tiene que servir. Si el anterior estaba revocado y la marca
+        // quedara puesta, el enlace nuevo nacería muerto (ver `isTrackingLinkUsable`).
+        tokenRevokedAt: null,
+      },
+    });
+    await recordEvent(tx, {
+      workspaceId: workspace.id,
+      entityType: "REQUEST",
+      entityId: solicitud.id,
+      type: "ENLACE_REEMITIDO",
+      actorUserId: user.id,
+      actorLabel: user.name ?? user.email,
+      // Sin el enlace: el historial no guarda credenciales.
+      note: "El enlace anterior dejó de funcionar.",
+    });
+  });
+
+  const contexto = await loadWorkspaceEmailContext(workspace.id);
+  const resultado = await sendAndLogEmail({
+    to: destino,
+    templateKey: COVERAGE_EMAIL_KEYS.TRACKING_LINK,
+    body: buildTrackingLinkEmail({
+      context: contexto,
+      publicCode: solicitud.publicCode,
+      eventTitle: solicitud.eventTitle,
+      contactName: contactGreetingName(solicitud.client),
+      trackingUrl: `${base}/sc/${rawToken}`,
+    }),
+  });
+
+  revalidatePath(`/coberturas/${solicitud.id}`);
+
+  if (resultado.status !== "SENT") {
+    return {
+      error: null,
+      ok: null,
+      warn: `El enlace nuevo quedó emitido, pero el correo a ${destino} no salió. El anterior ya dejó de funcionar: probá de nuevo, o revisá que la dirección esté bien escrita.`,
+    };
+  }
+
+  return { error: null, ok: `Se lo mandamos a ${destino}. El enlace anterior dejó de funcionar.` };
 }
 
 /** Una nota interna. La organización nunca la ve. */

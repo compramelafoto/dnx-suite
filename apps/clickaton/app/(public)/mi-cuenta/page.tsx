@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
+import { AffiliateSection } from "@/components/account/AffiliateSection";
 import { ReferralSection } from "@/components/account/ReferralSection";
 import { adminRoutes } from "@/config/admin/navigation";
 import { logoutClickatonAction } from "@/app/(public)/login/actions";
@@ -52,7 +53,25 @@ async function cargarProgramaDeReferidos(userId: number) {
   }
 }
 
-export default async function MiCuentaPage() {
+/**
+ * Best-effort: la sección del fotógrafo con código sólo aparece si el usuario
+ * es afiliado; si falla (por ejemplo, falta la tabla), no rompe Mi cuenta.
+ */
+async function cargarMisCodigosDeFotografo(userId: number) {
+  try {
+    const { loadMyAffiliate } = await import("@/lib/affiliates/account/queries");
+    return await loadMyAffiliate(userId);
+  } catch (error) {
+    console.error("[clickaton] cargarMisCodigosDeFotografo falló:", error);
+    return null;
+  }
+}
+
+type Props = {
+  searchParams: Promise<{ afiliadoOk?: string; afiliadoError?: string }>;
+};
+
+export default async function MiCuentaPage({ searchParams }: Props) {
   const user = await getClickatonAuthUser();
   if (!user) {
     redirect(`${CLICKATON_LOGIN_PATH}?next=${encodeURIComponent("/mi-cuenta")}`);
@@ -78,7 +97,11 @@ export default async function MiCuentaPage() {
 
   // Cualquiera con cuenta puede invitar, haya participado o no: el invitado
   // tiene que pagar para contar, así que nadie se fabrica un beneficio.
-  const programaDeReferidos = await cargarProgramaDeReferidos(user.id);
+  const [programaDeReferidos, misCodigos, flash] = await Promise.all([
+    cargarProgramaDeReferidos(user.id),
+    cargarMisCodigosDeFotografo(user.id),
+    searchParams,
+  ]);
   const yaParticipo = registrations.some((reg) => reg.status === "CONFIRMED");
 
   return (
@@ -122,6 +145,14 @@ export default async function MiCuentaPage() {
           </form>
         </div>
       </Card>
+
+      {misCodigos ? (
+        <AffiliateSection
+          afiliado={misCodigos}
+          ok={flash.afiliadoOk}
+          error={flash.afiliadoError}
+        />
+      ) : null}
 
       {programaDeReferidos ? (
         <ReferralSection programa={programaDeReferidos} yaParticipo={yaParticipo} />
