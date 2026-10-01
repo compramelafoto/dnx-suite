@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { prisma } from "@repo/db";
 import { redirect } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
 import { loadPortalContext } from "@/lib/portal/access";
@@ -24,6 +25,12 @@ export default async function PortalSorteosPage() {
     memberId: context.member.id,
   });
   const v = await loadPersonVocabulary(context.workspace.id);
+  const slug = (
+    await prisma.fotofficeWorkspaceBranding.findUnique({
+      where: { workspaceId: context.workspace.id },
+      select: { publicSlug: true },
+    })
+  )?.publicSlug;
 
   // Lo que gané y todavía no retiré va arriba de todo: es lo único que exige que haga algo.
   const premiosMios = past.flatMap((s) =>
@@ -64,7 +71,12 @@ export default async function PortalSorteosPage() {
         </section>
       ) : null}
 
-      {current ? <SorteoActual sorteo={current} /> : null}
+      {current ? (
+        <SorteoActual
+          sorteo={current}
+          publicUrl={slug ? `/w/${slug}/sorteos/${current.id}` : null}
+        />
+      ) : null}
 
       {!current && premiosMios.length === 0 ? (
         <p className="fo-card p-6 text-sm text-[var(--fo-muted)]">
@@ -103,7 +115,7 @@ export default async function PortalSorteosPage() {
   );
 }
 
-function SorteoActual({ sorteo }: { sorteo: PortalRaffleView }) {
+function SorteoActual({ sorteo, publicUrl }: { sorteo: PortalRaffleView; publicUrl: string | null }) {
   const { myStatus } = sorteo;
 
   return (
@@ -154,6 +166,17 @@ function SorteoActual({ sorteo }: { sorteo: PortalRaffleView }) {
           </h3>
           <PrizeCards prizes={sorteo.prizes} />
         </div>
+
+        {publicUrl ? (
+          <p className="text-sm">
+            <a href={publicUrl} target="_blank" rel="noopener noreferrer" className="font-medium underline">
+              Ver la página del sorteo
+            </a>{" "}
+            <span className="text-[var(--fo-muted)]">
+              — la que se proyecta el día del sorteo. Podés compartirla.
+            </span>
+          </p>
+        ) : null}
 
         {sorteo.status === "PADRON_SELLADO" ? (
           <p className="text-sm text-[var(--fo-muted)]">
