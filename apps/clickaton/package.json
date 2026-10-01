@@ -113,6 +113,7 @@
     "test:gift-vouchers": "tsx --test lib/gift-vouchers/domain/*.test.ts lib/gift-vouchers/application/*.test.ts lib/gift-vouchers/infrastructure/*.test.ts lib/gift-vouchers/notifications/*.test.ts lib/gift-vouchers/ui/*.test.ts",
     "test:referrals": "tsx --test lib/referrals/domain/*.test.ts lib/referrals/application/*.test.ts lib/referrals/ui/*.test.ts lib/referrals/notifications/*.test.ts",
     "test:promotions-eligibility": "tsx --test lib/promotions/eligibility-where.test.ts",
+    "test:home-delivery": "tsx --test lib/home-delivery/*.test.ts lib/public-registration/application/home-delivery-funnel.test.ts",
     "test:demo-schedule": "tsx --test scripts/lib/demo-schedule.test.ts",
     "seed:clickaton-blog-taxonomy": "tsx scripts/seed-clickaton-blog-taxonomy.ts",
     "seed:pilot-edition": "tsx scripts/seed-pilot-edition-test.ts",

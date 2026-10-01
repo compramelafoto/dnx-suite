@@ -370,6 +370,42 @@ export function createPrismaPublicRegistrationRepository(
       return row ? mapEdition(row) : null;
     },
 
+    async getHomeDeliveryConfig(editionId) {
+      const row = await prisma.clickatonEditionHomeDelivery.findUnique({
+        where: { editionId },
+        include: { edition: { select: { city: true, provinceOrState: true } } },
+      });
+      if (!row) return null;
+      return {
+        enabled: row.enabled,
+        feeAmount: row.feeAmount,
+        guaranteedUntil: row.guaranteedUntil,
+        excludedCity: row.edition.city,
+        excludedProvince: row.edition.provinceOrState,
+      };
+    },
+
+    async getShipping(registrationId) {
+      const row = await prisma.clickatonRegistrationShipping.findUnique({
+        where: { registrationId },
+      });
+      if (!row) return null;
+      return {
+        feeAmount: row.feeAmount,
+        guaranteed: row.guaranteed,
+        recipientName: row.recipientName,
+        documentNumber: row.documentNumber,
+        phone: row.phone,
+        street: row.street,
+        streetNumber: row.streetNumber,
+        floor: row.floor,
+        city: row.city,
+        province: row.province,
+        postalCode: row.postalCode,
+        reference: row.reference,
+      };
+    },
+
     async listPricePhases(editionId) {
       return prisma.clickatonRegistrationPricePhase.findMany({
         where: { editionId },
@@ -1502,6 +1538,27 @@ export function createPrismaPublicRegistrationRepository(
                 input.cmd.identifiablePersonsPolicyVersion ?? null,
               holdExpiresAt: input.holdExpiresAt,
               paymentIdempotencyKey: input.idempotencyKey,
+              ...(input.shipping
+                ? {
+                    shipping: {
+                      create: {
+                        editionId: input.cmd.editionId,
+                        feeAmount: input.shipping.feeAmount,
+                        guaranteed: input.shipping.guaranteed,
+                        recipientName: input.shipping.recipientName,
+                        documentNumber: input.shipping.documentNumber,
+                        phone: input.shipping.phone,
+                        street: input.shipping.street,
+                        streetNumber: input.shipping.streetNumber,
+                        floor: input.shipping.floor,
+                        city: input.shipping.city,
+                        province: input.shipping.province,
+                        postalCode: input.shipping.postalCode,
+                        reference: input.shipping.reference,
+                      },
+                    },
+                  }
+                : {}),
               items: {
                 create: reservedItems.map((item) => ({
                   ticketTypeItemId: item.ticketTypeItemId ?? null,

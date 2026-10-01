@@ -1,3 +1,4 @@
+import type { HomeDeliveryConfig, HomeDeliveryShippingRecord } from "@/lib/home-delivery/domain";
 import { createHash, randomBytes } from "node:crypto";
 import { buildAvailability } from "@/lib/admin-catalog/domain/availability";
 import type { PricePhaseRecord } from "@/lib/pricing/domain/types";
@@ -95,6 +96,10 @@ export type InMemoryPublicStore = {
   capacityLocks: Map<string, Promise<void>>;
   /** Mutex por registrationId para expiración concurrente. */
   expireLocks: Map<string, Promise<void>>;
+  /** Envío del kit a domicilio, por edición. */
+  homeDeliveryConfigs: Map<string, HomeDeliveryConfig>;
+  /** Envío elegido, por registrationId. */
+  shippings: Map<string, HomeDeliveryShippingRecord>;
 };
 
 export function createInMemoryPublicStore(): InMemoryPublicStore {
@@ -111,6 +116,8 @@ export function createInMemoryPublicStore(): InMemoryPublicStore {
     nextUserId: 100,
     capacityLocks: new Map(),
     expireLocks: new Map(),
+    homeDeliveryConfigs: new Map(),
+    shippings: new Map(),
   };
 }
 
@@ -654,6 +661,7 @@ export function createInMemoryPublicRegistrationRepository(
           });
           pending.paymentIdempotencyKey = input.idempotencyKey;
           store.domain.registrations.set(pending.id, pending);
+          if (input.shipping) store.shippings.set(pending.id, { ...input.shipping });
 
           store.idempotency.set(input.idempotencyKey, {
             key: input.idempotencyKey,
@@ -680,6 +688,14 @@ export function createInMemoryPublicRegistrationRepository(
           throw error;
         }
       });
+    },
+
+    async getHomeDeliveryConfig(editionId) {
+      return store.homeDeliveryConfigs.get(editionId) ?? null;
+    },
+
+    async getShipping(registrationId) {
+      return store.shippings.get(registrationId) ?? null;
     },
 
     async getRegistration(id) {

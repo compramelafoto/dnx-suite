@@ -19,6 +19,7 @@ const MODULES = [
   { key: "consignas", label: "Consignas" },
   { key: "envios", label: "Envíos" },
   { key: "regalos", label: "Regalos" },
+  { key: "kits-a-domicilio", label: "Kits a domicilio" },
   { key: "admision", label: "Admisión" },
   { key: "jurados", label: "Jurados" },
   { key: "resultados", label: "Resultados" },
