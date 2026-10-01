@@ -1238,16 +1238,25 @@ export default function DashboardAlbumDetailPage() {
     setDeletingSelected(true);
     setError(null);
     try {
+      let retiredCount = 0;
       for (const id of toDelete) {
         const res = await fetch(`/api/dashboard/albums/${albumId}/photos/${id}`, { method: "DELETE" });
+        const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          const data = await res.json();
           throw new Error(data.error || "Error eliminando foto");
         }
+        if (data.retiredBecauseOrdered) retiredCount++;
       }
       setSelectedPhotoIds(new Set());
       setSelectedPhotoMeta(new Map());
       await loadAlbum();
+      if (retiredCount > 0) {
+        alert(
+          retiredCount === 1
+            ? "Una de las fotos ya fue vendida: la quitamos del álbum, pero conservamos el archivo para que el comprador pueda descargarla."
+            : `${retiredCount} de las fotos ya fueron vendidas: las quitamos del álbum, pero conservamos los archivos para que los compradores puedan descargarlas.`
+        );
+      }
     } catch (err: any) {
       console.error("Error eliminando fotos:", err);
       setError(err?.message || "Error eliminando fotos");
