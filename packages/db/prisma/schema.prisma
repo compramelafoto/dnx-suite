@@ -7132,6 +7132,12 @@ model Workspace {
   fotofficeJourneys FotofficeJourney[]
   fotofficeTasks FotofficeTask[]
   fotofficePersonEvents FotofficePersonEvent[]
+  fotofficeCustomFields FotofficeCustomField[]
+  fotofficeCustomValues FotofficeCustomValue[]
+  fotofficeCustomValueChanges FotofficeCustomValueChange[]
+  fotofficeSequences FotofficeSequence[]
+  fotofficeSequenceChanges FotofficeSequenceChange[]
+  fotofficeRecordNumbers FotofficeRecordNumber[]
   clientAudits ClientAudit[]
 }
 
@@ -19384,4 +19390,133 @@ model FotofficeProcessedEvent {
   journey FotofficeJourney @relation(fields: [journeyId], references: [id], onDelete: Cascade)
 
   @@unique([journeyId, event, sourceRef])
+}
+
+/// Etapa 0.5: campo personalizado de una organización para un tipo de registro.
+model FotofficeCustomField {
+  id          String    @id @default(cuid())
+  workspaceId String
+  /// CLIENTE | SOCIO | CONSULTA (reservados: PRESUPUESTO | PEDIDO | CONTRATO | PROYECTO)
+  entityType  String
+  /// Estable: se genera del nombre al crear y nunca cambia.
+  key         String
+  name        String
+  /// TEXTO | TEXTO_LARGO | NUMERO | FECHA | SI_NO | LISTA | ENLACE
+  type        String
+  required    Boolean   @default(false)
+  showInList  Boolean   @default(false)
+  order       Int       @default(0)
+  archivedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  workspace Workspace                    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  options   FotofficeCustomFieldOption[]
+  values    FotofficeCustomValue[]
+
+  @@unique([workspaceId, entityType, key])
+  @@index([workspaceId, entityType, archivedAt, order])
+}
+
+model FotofficeCustomFieldOption {
+  id         String    @id @default(cuid())
+  fieldId    String
+  label      String
+  order      Int       @default(0)
+  archivedAt DateTime?
+
+  field  FotofficeCustomField   @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  values FotofficeCustomValue[]
+
+  @@index([fieldId, order])
+}
+
+/// Valor de un campo para un registro. Sin FK al registro (polimórfico): el código valida el workspace.
+model FotofficeCustomValue {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  fieldId         String
+  entityType      String
+  entityId        String
+  valueText       String?
+  valueNumber     Decimal?  @db.Decimal(18, 4)
+  valueDate       DateTime? @db.Date
+  valueBool       Boolean?
+  optionId        String?
+  updatedAt       DateTime  @updatedAt
+  updatedByUserId Int?
+
+  workspace Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  field     FotofficeCustomField        @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  option    FotofficeCustomFieldOption? @relation(fields: [optionId], references: [id], onDelete: SetNull)
+
+  @@unique([fieldId, entityId])
+  @@index([workspaceId, entityType, entityId])
+  @@index([fieldId, optionId])
+}
+
+/// Historial de cambios de valores, con antes y después como texto legible.
+model FotofficeCustomValueChange {
+  id          String   @id @default(cuid())
+  workspaceId String
+  entityType  String
+  entityId    String
+  fieldId     String
+  before      String?
+  after       String?
+  actorUserId Int?
+  actorLabel  String?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, entityType, entityId, createdAt])
+}
+
+/// Contador configurable. key: CONSULTA | PRESUPUESTO | PEDIDO | CONTRATO | PROYECTO
+model FotofficeSequence {
+  id          String  @id @default(cuid())
+  workspaceId String
+  key         String
+  prefix      String  @default("")
+  withYear    Boolean @default(false)
+  digits      Int     @default(1)
+  nextValue   Int     @default(1)
+  currentYear Int?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, key])
+}
+
+model FotofficeSequenceChange {
+  id          String   @id @default(cuid())
+  workspaceId String
+  key         String
+  before      Json?
+  after       Json?
+  actorUserId Int?
+  actorLabel  String?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, key, createdAt])
+}
+
+/// Número asignado a un registro. year es null si la secuencia no lleva año
+/// (en el SQL, dos índices únicos parciales cubren los dos casos).
+model FotofficeRecordNumber {
+  id          String   @id @default(cuid())
+  workspaceId String
+  sequenceKey String
+  entityType  String
+  entityId    String
+  year        Int?
+  value       Int
+  display     String
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([entityType, entityId])
 }
