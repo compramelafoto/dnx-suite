@@ -11,6 +11,8 @@ import { cambiosDeConsulta } from "@/lib/campos/ficha";
 import { cargarFicha } from "@/lib/circuitos/ficha";
 import { claveDeRecorrido } from "@/lib/circuitos/ficha-vista";
 import { fechaBA, fechaHoraBA } from "@/lib/ficha/formato";
+import { numeroDe } from "@/lib/numeracion/asignar";
+import { TIPO_CONSULTA, tituloDeConsulta } from "@/lib/service-leads/numero";
 import { requireServiceLeadsStaff } from "@/lib/service-leads/access";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
 
@@ -32,8 +34,8 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
 
   const [ficha, role] = await Promise.all([cargarFicha(workspace.id, id, new Date()), resolveWorkspaceRole(user.id, workspace.id)]);
   if (!ficha) notFound();
-  // Recién con la consulta verificada en el workspace de la sesión: sus cambios de "Más datos".
-  const cambios = await cambiosDeConsulta(workspace.id, id);
+  // Recién con la consulta verificada en el workspace de la sesión: sus cambios de "Más datos" y su número.
+  const [cambios, numeros] = await Promise.all([cambiosDeConsulta(workspace.id, id), numeroDe(workspace.id, TIPO_CONSULTA, [id])]);
 
   const { consulta, recorrido } = ficha;
   const evento = [consulta.tipo, consulta.subtipo].filter(Boolean).join(" · ");
@@ -72,7 +74,7 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
   return (
     <div className="space-y-6">
       <PageHeader
-        title={consulta.nombre}
+        title={tituloDeConsulta(consulta.nombre, numeros.get(id))}
         description={evento}
         actions={
           <Link href="/captacion" className="fo-btn fo-btn-secondary text-sm">

@@ -3,6 +3,7 @@
 import { Prisma, prisma } from "@repo/db";
 import { z } from "zod";
 import { notificarEvento } from "@/lib/circuitos/eventos";
+import { numerarConsultaNueva } from "@/lib/service-leads/numero";
 
 const serviceLeadSchema = z.object({
   workspaceSlug: z.string().min(1),
@@ -94,7 +95,7 @@ export async function createServiceLead(
     const resolvedEventSubtype = data.eventSubtype?.trim() || budgetTypeFromMeta || "";
 
     const creado = await prisma.serviceSalesLead.create({
-      select: { id: true },
+      select: { id: true, createdAt: true },
       data: {
         workspaceId: branding.workspaceId,
         formId: emptyToNull(data.formId),
@@ -112,7 +113,12 @@ export async function createServiceLead(
       },
     });
 
-    // La consulta ya quedó registrada: el motor de etapas la pone en la primera etapa. Una falla
+    // La consulta ya quedó registrada: recibe su número en una transacción aparte, para que una
+    // falla de la numeración nunca deshaga el alta (numerarConsultaNueva no lanza; si falla, la
+    // numera el próximo enganche).
+    await numerarConsultaNueva(branding.workspaceId, creado.id, creado.createdAt);
+
+    // El motor de etapas la pone en la primera etapa. Una falla
     // del motor nunca hace fallar el alta (notificarEvento no lanza; esto es por las dudas).
     try {
       await notificarEvento(branding.workspaceId, { tipo: "CAPTACION", id: creado.id }, "CONSULTA_RECIBIDA", creado.id);

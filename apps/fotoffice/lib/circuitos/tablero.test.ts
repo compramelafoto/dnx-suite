@@ -103,6 +103,7 @@ describe("cargarTablero", () => {
     expect(j1).toEqual({
       journeyId: "j1",
       sujeto: { titulo: "Laura", subtitulo: "Boda", href: "/captacion/l1" },
+      numero: null,
       diasEnEtapa: 1,
       vencida: true,
       tareas: { hechas: 1, total: 3 },
@@ -111,6 +112,19 @@ describe("cargarTablero", () => {
     });
     const j2 = t.columnas[1]!.tarjetas[0]!;
     expect(j2).toMatchObject({ diasEnEtapa: 3, vencida: false, tareas: { hechas: 0, total: 0 } });
+  });
+
+  it("cada tarjeta lleva el número de su consulta (todos en una sola lectura); sin número, null", async () => {
+    B.agregar("fotofficeRecordNumber", { workspaceId: "ws-1", sequenceKey: "CONSULTA", entityType: "CONSULTA", entityId: "l2", year: 2026, value: 42, display: "2026-0042" });
+    // El mismo id con número de otro workspace no se muestra.
+    B.agregar("fotofficeRecordNumber", { workspaceId: "ws-2", sequenceKey: "CONSULTA", entityType: "CONSULTA", entityId: "l1", year: 2026, value: 7, display: "2026-0007" });
+    const lecturas = vi.spyOn(B.tablas.fotofficeRecordNumber, "findMany");
+    const t = await cargarTablero(CTX, null, {}, AHORA);
+    expect(lecturas).toHaveBeenCalledTimes(1);
+    lecturas.mockRestore();
+    const tarjetas = new Map(t.columnas.flatMap((c) => c.tarjetas).map((x) => [x.journeyId, x.numero]));
+    expect(tarjetas.get("j1")).toBeNull();
+    expect(tarjetas.get("j2")).toBe("2026-0042");
   });
 
   it("elige otro circuito del workspace; uno ajeno, inactivo o de trabajo cae al predeterminado", async () => {

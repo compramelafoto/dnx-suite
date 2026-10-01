@@ -6,6 +6,7 @@ const H = vi.hoisted(() => ({
   branding: vi.fn(),
   crear: vi.fn(),
   notificar: vi.fn(),
+  numerar: vi.fn(),
 }));
 
 vi.mock("@repo/db", () => ({
@@ -16,15 +17,18 @@ vi.mock("@repo/db", () => ({
   },
 }));
 vi.mock("@/lib/circuitos/eventos", () => ({ notificarEvento: H.notificar }));
+vi.mock("@/lib/service-leads/numero", () => ({ numerarConsultaNueva: H.numerar }));
 
 const { createServiceLead } = await import("./service-lead");
 
+const ALTA = new Date("2026-10-01T15:00:00Z");
 const ENTRADA = { workspaceSlug: "dnx-estudio", name: "Laura Pérez", email: "laura@example.com", eventType: "BODA" };
 
 beforeEach(() => {
   vi.clearAllMocks();
   H.branding.mockResolvedValue({ workspaceId: "ws-1", publicSlug: "dnx-estudio" });
-  H.crear.mockResolvedValue({ id: "lead-9" });
+  H.crear.mockResolvedValue({ id: "lead-9", createdAt: ALTA });
+  H.numerar.mockResolvedValue({ year: 2026, value: 1, display: "2026-0001" });
   H.notificar.mockResolvedValue({ movido: true });
 });
 
@@ -33,6 +37,19 @@ describe("createServiceLead", () => {
     expect(await createServiceLead(ENTRADA)).toEqual({ success: true });
     expect(H.crear).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ workspaceId: "ws-1", status: "NEW" }) }));
     expect(H.notificar).toHaveBeenCalledWith("ws-1", { tipo: "CAPTACION", id: "lead-9" }, "CONSULTA_RECIBIDA", "lead-9");
+  });
+
+  it("numera la consulta recién creada, después del alta y antes de avisar al motor", async () => {
+    await createServiceLead(ENTRADA);
+    expect(H.numerar).toHaveBeenCalledWith("ws-1", "lead-9", ALTA);
+    expect(H.crear.mock.invocationCallOrder[0]).toBeLessThan(H.numerar.mock.invocationCallOrder[0]!);
+    expect(H.numerar.mock.invocationCallOrder[0]).toBeLessThan(H.notificar.mock.invocationCallOrder[0]!);
+  });
+
+  it("sin número (la numeración no pudo) el alta igual sale bien", async () => {
+    H.numerar.mockResolvedValue(null);
+    expect(await createServiceLead(ENTRADA)).toEqual({ success: true });
+    expect(H.notificar).toHaveBeenCalled();
   });
 
   it("una falla del motor no hace fallar el alta", async () => {

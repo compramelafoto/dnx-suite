@@ -14,6 +14,7 @@ import {
 import { asegurarCircuitos } from "./semillas/asegurar";
 import { adaptadorDe, type Sujeto } from "./sujetos";
 import { contextoDeSistema, type CtxCircuitos } from "./acceso";
+import { numerarConsultasPendientes } from "@/lib/service-leads/numero";
 
 /** Consultas que se enganchan como mucho en cada llamada (cada una es una transacción). */
 export const TOPE_ENGANCHE = 150;
@@ -153,21 +154,41 @@ type ConsultaSinRecorrido = { id: string; status: string; createdAt: Date; updat
  * Cada consulta se engancha en UNA transacción que primero toma un bloqueo por consulta y vuelve
  * a mirar si ya tiene recorrido de venta (abierto o cerrado): dos corridas simultáneas no la
  * duplican, y una falla no la deja a medias (se reintenta en la próxima llamada). Engancha como
- * mucho `TOPE_ENGANCHE` por llamada; `quedan` son las que siguen sin recorrido al terminar.
+ * mucho `TOPE_ENGANCHE` por llamada.
  *
- * Se llama cada vez que se abre Captación: lee sólo las consultas sin recorrido (una consulta
- * acotada), así que con todo enganchado cuesta una lectura que no devuelve nada.
+ * Además numera (0.5) las consultas que todavía no tienen número —las de antes de la numeración
+ * y las que no se pudieron numerar al darse de alta—, también de la más vieja a la más nueva,
+ * con el año de su alta y cada una en su propia transacción (ver `numerarConsultasPendientes`),
+ * hasta `TOPE_ENGANCHE` por llamada. `quedan` cuenta las consultas a las que les falta el
+ * recorrido, el número o las dos cosas.
+ *
+ * Se llama cada vez que se abre Captación: lee sólo las consultas sin recorrido y las sin número
+ * (dos consultas acotadas), así que con todo enganchado cuesta dos lecturas que no devuelven nada.
  */
 export async function engancharConsultas(workspaceId: string): Promise<{ enganchadas: number; quedan: number }> {
+  const recorridos = await engancharRecorridos(workspaceId);
+  let numeracionCompleta = false;
+  try {
+    numeracionCompleta = (await numerarConsultasPendientes(workspaceId, TOPE_ENGANCHE)).completo;
+  } catch (error) {
+    registrarFalla("numerarConsultasPendientes", { workspaceId }, error);
+  }
+  // Lo común (todo enganchado y numerado de una) no necesita contar de nuevo.
+  if (recorridos.completo && numeracionCompleta) return { enganchadas: recorridos.enganchadas, quedan: 0 };
+  return { enganchadas: recorridos.enganchadas, quedan: await contarPendientes(workspaceId) };
+}
+
+/** Los recorridos de `engancharConsultas`. `completo`: no quedó ninguna consulta sin recorrido. */
+async function engancharRecorridos(workspaceId: string): Promise<{ enganchadas: number; completo: boolean }> {
   const circuito = await circuitoDeVenta(workspaceId);
-  if (!circuito) return { enganchadas: 0, quedan: await contarSinRecorrido(workspaceId) };
+  if (!circuito) return { enganchadas: 0, completo: false };
   const etapas = await prisma.fotofficeStage.findMany({
     where: { circuitId: circuito.id, circuit: { workspaceId }, archivedAt: null },
     select: { id: true, leadStatus: true },
     orderBy: { order: "asc" },
   });
   const primera = etapas[0];
-  if (!primera) return { enganchadas: 0, quedan: await contarSinRecorrido(workspaceId) };
+  if (!primera) return { enganchadas: 0, completo: false };
   const etapaPorEstado = new Map<string, string>();
   for (const e of etapas) if (e.leadStatus && !etapaPorEstado.has(e.leadStatus)) etapaPorEstado.set(e.leadStatus, e.id);
   const motivoId = await motivoDeImportacion(workspaceId);
@@ -192,17 +213,17 @@ export async function engancharConsultas(workspaceId: string): Promise<{ enganch
       registrarFalla("engancharConsultas", { workspaceId, estado }, error);
     }
   }
-  // Lo común (todo enganchado de una) no necesita contar de nuevo.
-  if (!hayMas && motivoId !== null) return { enganchadas, quedan: fallidas };
-  return { enganchadas, quedan: await contarSinRecorrido(workspaceId) };
+  return { enganchadas, completo: !hayMas && motivoId !== null && fallidas === 0 };
 }
 
 /*
- * Las dos consultas de abajo son SQL crudo porque Prisma no sabe expresar "sin ningún
- * recorrido" (el recorrido nombra a la consulta por `subjectId`, sin relación). Los valores
- * van siempre como parámetros. `status` es un enum: se compara y devuelve como texto. El
- * comentario `consultas-sin-recorrido` lo usa la base en memoria de las pruebas para
- * reconocerlas. Usan el índice de FotofficeJourney (workspaceId, subjectType, subjectId).
+ * Las consultas de abajo son SQL crudo porque Prisma no sabe expresar "sin ningún
+ * recorrido" ni "sin número" (el recorrido y el número nombran a la consulta por `subjectId` /
+ * `entityId`, sin relación). Los valores van siempre como parámetros. `status` es un enum: se
+ * compara y devuelve como texto. Los comentarios `consultas-sin-recorrido` y
+ * `consultas-pendientes` los usa la base en memoria de las pruebas para reconocerlas. Usan el
+ * índice de FotofficeJourney (workspaceId, subjectType, subjectId) y el único de
+ * FotofficeRecordNumber (entityType, entityId).
  */
 
 /** Hasta `limite` consultas sin ningún recorrido de venta, de la más vieja a la más nueva. */
@@ -221,16 +242,22 @@ async function consultasSinRecorrido(workspaceId: string, conPerdidas: boolean, 
     LIMIT ${limite}`;
 }
 
-/** Cuántas consultas del workspace siguen sin ningún recorrido de venta. */
-async function contarSinRecorrido(workspaceId: string): Promise<number> {
+/** Cuántas consultas del workspace siguen sin recorrido de venta, sin número o sin las dos cosas. */
+async function contarPendientes(workspaceId: string): Promise<number> {
   const [fila] = await prisma.$queryRaw<{ n: bigint | number }[]>`
-    /* consultas-sin-recorrido: cuenta */
+    /* consultas-pendientes: cuenta */
     SELECT count(*) AS "n"
     FROM "ServiceSalesLead" l
     WHERE l."workspaceId" = ${workspaceId}
-      AND NOT EXISTS (
-        SELECT 1 FROM "FotofficeJourney" j
-        WHERE j."workspaceId" = l."workspaceId" AND j."subjectType" = 'CAPTACION' AND j."subjectId" = l."id" AND j."kind" = 'VENTA'
+      AND (
+        NOT EXISTS (
+          SELECT 1 FROM "FotofficeJourney" j
+          WHERE j."workspaceId" = l."workspaceId" AND j."subjectType" = 'CAPTACION' AND j."subjectId" = l."id" AND j."kind" = 'VENTA'
+        )
+        OR NOT EXISTS (
+          SELECT 1 FROM "FotofficeRecordNumber" r
+          WHERE r."entityType" = 'CONSULTA' AND r."entityId" = l."id"
+        )
       )`;
   return Number(fila?.n ?? 0);
 }

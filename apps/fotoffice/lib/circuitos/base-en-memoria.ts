@@ -264,21 +264,35 @@ export function crearBaseEnMemoria() {
 
   /**
    * Sólo emula el SQL crudo que el motor usa, reconocido por su comentario; cualquier otro
-   * lanza. "consultas-sin-recorrido": consultas del workspace sin ningún recorrido de venta.
+   * lanza. "consultas-sin-recorrido": consultas del workspace sin ningún recorrido de venta;
+   * "consultas-sin-numero" y "consultas-pendientes": las de la numeración de Captación (0.5).
    */
   function emularConsulta(texto: string, valores: unknown[]): unknown[] {
     if (texto.includes("numeracion-asignar")) return emularAsignacion(valores);
     if (texto.includes("numeracion-candado")) return emularCandado(valores);
     if (texto.includes("numeracion-anio-anterior")) return emularAnioAnterior(valores);
-    if (!texto.includes("consultas-sin-recorrido")) throw new Error("SQL crudo no emulado en la base en memoria");
     const workspaceId = valores[0];
-    const sinRecorrido = datos.serviceSalesLead.filter(
-      (l) =>
-        l.workspaceId === workspaceId &&
-        !datos.fotofficeJourney.some(
-          (j) => j.workspaceId === l.workspaceId && j.subjectType === "CAPTACION" && j.subjectId === l.id && j.kind === "VENTA",
-        ),
-    );
+    const tieneRecorrido = (l: Fila) =>
+      datos.fotofficeJourney.some(
+        (j) => j.workspaceId === l.workspaceId && j.subjectType === "CAPTACION" && j.subjectId === l.id && j.kind === "VENTA",
+      );
+    const tieneNumero = (l: Fila) => datos.fotofficeRecordNumber.some((r) => r.entityType === "CONSULTA" && r.entityId === l.id);
+    const delWorkspace = datos.serviceSalesLead.filter((l) => l.workspaceId === workspaceId);
+    // "consultas-pendientes: cuenta": sin recorrido de venta o sin número.
+    if (texto.includes("consultas-pendientes: cuenta")) {
+      return [{ n: BigInt(delWorkspace.filter((l) => !tieneRecorrido(l) || !tieneNumero(l)).length) }];
+    }
+    // "consultas-sin-numero": lista (workspaceId, límite) u otra (workspaceId, id a excluir).
+    if (texto.includes("consultas-sin-numero: lista")) {
+      return ordenar(delWorkspace.filter((l) => !tieneNumero(l)), [{ createdAt: "asc" }, { id: "asc" }])
+        .slice(0, valores[1] as number)
+        .map((l) => elegir(l, { id: true, createdAt: true }));
+    }
+    if (texto.includes("consultas-sin-numero: otra")) {
+      return delWorkspace.some((l) => l.id !== valores[1] && !tieneNumero(l)) ? [{ hay: 1 }] : [];
+    }
+    if (!texto.includes("consultas-sin-recorrido")) throw new Error("SQL crudo no emulado en la base en memoria");
+    const sinRecorrido = delWorkspace.filter((l) => !tieneRecorrido(l));
     if (texto.includes("consultas-sin-recorrido: cuenta")) return [{ n: BigInt(sinRecorrido.length) }];
     const [, conPerdidas, limite] = valores as [string, boolean, number];
     return ordenar(sinRecorrido.filter((l) => conPerdidas || l.status !== "LOST"), [{ createdAt: "asc" }, { id: "asc" }])

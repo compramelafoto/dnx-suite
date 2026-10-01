@@ -4,6 +4,7 @@ import { sendEnrollmentApprovedEmail } from "./email";
 import { loadWorkspaceSignature } from "@/lib/communications/load-workspace-signature";
 import { computeAvailableSpots, getApprovedEnrollmentCountsByInstanceIds } from "./availability";
 import { ganarConsultaPorSistema } from "@/lib/circuitos/eventos";
+import { numerarConsultaNueva } from "@/lib/service-leads/numero";
 
 function decimalToNumber(value: Prisma.Decimal) {
   return Number(value.toString());
@@ -147,7 +148,8 @@ export async function approveCourseEnrollment(args: {
       leadId: existingContact.id,
     });
   } else {
-    await prisma.serviceSalesLead.create({
+    const creado = await prisma.serviceSalesLead.create({
+      select: { id: true, createdAt: true },
       data: {
         workspaceId: enrollment.workspaceId,
         name: enrollment.name,
@@ -160,6 +162,9 @@ export async function approveCourseEnrollment(args: {
         metaJson: crmPayload as Prisma.InputJsonValue,
       },
     });
+    // Su número, en una transacción aparte: nunca lanza ni frena la aprobación (si falla, la
+    // numera el próximo enganche al abrir Captación).
+    await numerarConsultaNueva(enrollment.workspaceId, creado.id, creado.createdAt);
     logCourseEvent("crm_contact_created", {
       workspaceId: enrollment.workspaceId,
       enrollmentId: enrollment.id,

@@ -9,6 +9,7 @@ const circuitFindMany = vi.fn();
 const circuitFindFirst = vi.fn();
 const stageFindMany = vi.fn();
 const stageFindFirst = vi.fn();
+const numeroFindMany = vi.fn();
 vi.mock("server-only", () => ({}));
 vi.mock("@repo/db", () => ({
   prisma: {
@@ -16,17 +17,32 @@ vi.mock("@repo/db", () => ({
     fotofficeJourney: { findMany: (...a: unknown[]) => journeyFindMany(...a) },
     fotofficeCircuit: { findMany: (...a: unknown[]) => circuitFindMany(...a), findFirst: (...a: unknown[]) => circuitFindFirst(...a) },
     fotofficeStage: { findMany: (...a: unknown[]) => stageFindMany(...a), findFirst: (...a: unknown[]) => stageFindFirst(...a) },
+    fotofficeRecordNumber: { findMany: (...a: unknown[]) => numeroFindMany(...a) },
   },
 }));
 
-import { avisoCaptacion, AVISO_DEMASIADAS, TOPE_SUBCONSULTA, diasEnEtapa, listadoCaptacion, resolverWhere, whereCaptacion, whereRecorridos } from "./listado";
+import {
+  avisoCaptacion,
+  AVISO_DEMASIADAS,
+  TOPE_SUBCONSULTA,
+  diasEnEtapa,
+  listadoCaptacion,
+  ordenarPorNumero,
+  resolverWhere,
+  textoDeNumeroBuscado,
+  whereCaptacion,
+  whereRecorridos,
+} from "./listado";
 import { PARAMETROS_RESERVADOS, type ConsultaResuelta, type ContextoListado } from "@/lib/listado/tipos";
 
 const base = { q: "", filtros: {}, periodos: {}, etiquetasRelacion: {}, orden: { campo: "alta", desc: true }, pagina: 1, filas: 25, ver: null } as ConsultaResuelta;
 const ctx: ContextoListado = { workspaceId: "w1", workspaceName: "W", userId: 1, userLabel: "u", role: "WORKSPACE_OWNER" };
 const ahora = new Date("2026-09-30T15:00:00.000Z");
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  numeroFindMany.mockResolvedValue([]);
+});
 
 describe("whereCaptacion", () => {
   it("siempre filtra por workspace", () => expect(whereCaptacion("w1", base, null)).toEqual({ workspaceId: "w1" }));
@@ -199,5 +215,110 @@ describe("rutas y guarda (prueba de fuente)", () => {
   it("el menú y el registro de módulos apuntan a /captacion", () => {
     expect(leer("components/shell/shell-nav.tsx")).toContain('href: "/captacion"');
     expect(leer("lib/modules/registry.ts")).toContain('route: "/captacion"');
+  });
+});
+
+describe("número de consulta en la lista", () => {
+  const fila = (id: string, createdAt = ahora) => ({ id, name: id, email: null, phone: null, eventType: "BODA", eventDate: null, createdAt });
+
+  it("columna N° ordenable y exportada; búsqueda que nombra el número", () => {
+    const col = listadoCaptacion.columnas.find((c) => c.clave === "numero");
+    expect(col).toMatchObject({ titulo: "N°", orden: "numero" });
+    expect(listadoCaptacion.ordenes).toContain("numero");
+    expect(listadoCaptacion.exportar.columnas.map((c) => c.titulo)).toContain("N°");
+    expect(listadoCaptacion.placeholderBusqueda).toMatch(/número/);
+  });
+
+  it("cada fila trae su número con una sola lectura por página; sin número, null", async () => {
+    leadFindMany.mockResolvedValue([fila("a"), fila("b")]);
+    journeyFindMany.mockResolvedValue([]);
+    numeroFindMany.mockResolvedValue([{ entityId: "a", display: "2026-0042" }]);
+    const filas = await listadoCaptacion.traer(ctx, base, { skip: 0, take: 25 });
+    expect(filas.map((f) => [f.id, f.numero])).toEqual([["a", "2026-0042"], ["b", null]]);
+    expect(numeroFindMany).toHaveBeenCalledTimes(1);
+    expect(numeroFindMany.mock.calls[0][0].where).toEqual({ workspaceId: "w1", entityType: "CONSULTA", entityId: { in: ["a", "b"] } });
+  });
+
+  it("texto buscado: con dígitos, sin el «N°» de adelante", () => {
+    expect(textoDeNumeroBuscado("2026-0042")).toBe("2026-0042");
+    expect(textoDeNumeroBuscado(" 42 ")).toBe("42");
+    expect(textoDeNumeroBuscado("N° 42")).toBe("42");
+    expect(textoDeNumeroBuscado("nº0042")).toBe("0042");
+    expect(textoDeNumeroBuscado("Nro. 7")).toBe("7");
+    expect(textoDeNumeroBuscado("Nicolás")).toBeNull();
+    expect(textoDeNumeroBuscado("")).toBeNull();
+  });
+
+  it("buscar por el número mostrado («2026-0042» o «42») suma esas consultas a la búsqueda", async () => {
+    numeroFindMany.mockResolvedValue([{ entityId: "l42" }]);
+    for (const q of ["2026-0042", "42"]) {
+      numeroFindMany.mockClear();
+      const w = await resolverWhere(ctx, { ...base, q }, ahora);
+      expect(numeroFindMany.mock.calls[0][0].where).toEqual({
+        workspaceId: "w1",
+        entityType: "CONSULTA",
+        display: { contains: q, mode: "insensitive" },
+      });
+      expect(w.workspaceId).toBe("w1");
+      expect(w.OR).toContainEqual({ id: { in: ["l42"] } });
+      expect(w.OR).toContainEqual({ name: { contains: q, mode: "insensitive" } });
+    }
+  });
+
+  it("sin dígitos no busca números; si coinciden demasiados, no suma nada", async () => {
+    await resolverWhere(ctx, { ...base, q: "boda" }, ahora);
+    expect(numeroFindMany).not.toHaveBeenCalled();
+    numeroFindMany.mockResolvedValue(Array.from({ length: TOPE_SUBCONSULTA + 1 }, (_, i) => ({ entityId: `n${i}` })));
+    const w = await resolverWhere(ctx, { ...base, q: "2" }, ahora);
+    expect(numeroFindMany.mock.calls[0][0].take).toBe(TOPE_SUBCONSULTA + 1);
+    expect(w.OR).not.toContainEqual(expect.objectContaining({ id: expect.anything() }));
+  });
+
+  it("ordenar por número: año y valor; las sin número al final, en su orden", () => {
+    const numeros = new Map([
+      ["a", { year: 2026, value: 2 }],
+      ["b", { year: 2025, value: 9 }],
+      ["c", { year: 2026, value: 10 }],
+    ]);
+    // Llegan en orden de alta; "x" e "y" no tienen número.
+    expect(ordenarPorNumero(["x", "b", "a", "y", "c"], numeros, false)).toEqual(["b", "a", "c", "x", "y"]);
+    expect(ordenarPorNumero(["y", "c", "a", "x", "b"], numeros, true)).toEqual(["c", "a", "b", "y", "x"]);
+  });
+
+  it("traer con orden por número pagina sobre el orden por número y acota todo al workspace", async () => {
+    // 1ª lectura: ids del resultado; 2ª: las filas de la página.
+    leadFindMany.mockResolvedValueOnce([{ id: "a" }, { id: "b" }, { id: "c" }]).mockResolvedValueOnce([fila("a"), fila("c")]);
+    journeyFindMany.mockResolvedValue([]);
+    numeroFindMany
+      .mockResolvedValueOnce([
+        { entityId: "a", year: 2026, value: 3 },
+        { entityId: "b", year: 2026, value: 1 },
+        { entityId: "c", year: 2026, value: 2 },
+      ])
+      .mockResolvedValueOnce([
+        { entityId: "a", display: "2026-0003" },
+        { entityId: "c", display: "2026-0002" },
+      ]);
+    const filas = await listadoCaptacion.traer(ctx, { ...base, orden: { campo: "numero", desc: false } }, { skip: 1, take: 2 });
+    expect(filas.map((f) => [f.id, f.numero])).toEqual([["c", "2026-0002"], ["a", "2026-0003"]]);
+    expect(leadFindMany.mock.calls[0][0]).toMatchObject({ where: { workspaceId: "w1" }, select: { id: true }, take: TOPE_SUBCONSULTA + 1 });
+    expect(leadFindMany.mock.calls[1][0].where).toEqual({ workspaceId: "w1", id: { in: ["c", "a"] } });
+    expect(numeroFindMany.mock.calls[0][0].where).toMatchObject({ workspaceId: "w1", entityType: "CONSULTA" });
+  });
+
+  it("traerIds con orden por número; pasado el tope, ordena por alta", async () => {
+    leadFindMany.mockResolvedValueOnce([{ id: "a" }, { id: "b" }]);
+    numeroFindMany.mockResolvedValueOnce([
+      { entityId: "a", year: 2026, value: 5 },
+      { entityId: "b", year: 2026, value: 4 },
+    ]);
+    expect(await listadoCaptacion.traerIds(ctx, { ...base, orden: { campo: "numero", desc: false } }, 10)).toEqual(["b", "a"]);
+
+    leadFindMany.mockReset();
+    leadFindMany
+      .mockResolvedValueOnce(Array.from({ length: TOPE_SUBCONSULTA + 1 }, (_, i) => ({ id: `s${i}` })))
+      .mockResolvedValueOnce([{ id: "s0" }]);
+    expect(await listadoCaptacion.traerIds(ctx, { ...base, orden: { campo: "numero", desc: true } }, 10)).toEqual(["s0"]);
+    expect(leadFindMany.mock.calls[1][0]).toMatchObject({ orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 10 });
   });
 });

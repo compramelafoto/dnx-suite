@@ -4,6 +4,8 @@ import { hoyEnBuenosAires } from "../listado/periodos";
 import { estaVencida } from "./calculos";
 import { SALIDAS, type Clase } from "./constantes";
 import { adaptadorDe, type NombreDeSujeto } from "./sujetos";
+import { numeroDe } from "../numeracion/asignar";
+import { TIPO_CONSULTA } from "../service-leads/numero";
 
 /**
  * Datos del tablero de Captación. Todo se lee acotado al workspace de la sesión: el circuito
@@ -21,6 +23,8 @@ const DIA_MS = 24 * 60 * 60 * 1000;
 export type TarjetaVista = {
   journeyId: string;
   sujeto: NombreDeSujeto;
+  /** Número de la consulta ("2026-0042"); null si todavía no tiene. */
+  numero: string | null;
   diasEnEtapa: number;
   vencida: boolean;
   tareas: { hechas: number; total: number };
@@ -170,7 +174,12 @@ export async function cargarTablero(
   }
 
   const adaptador = adaptadorDe(TIPO_SUJETO);
-  const nombres = adaptador ? await adaptador.nombre(workspaceId, recorridos.map((j) => j.subjectId)) : new Map<string, NombreDeSujeto>();
+  const sujetos = recorridos.map((j) => j.subjectId);
+  // Nombres y números de todo el tablero en una lectura cada uno.
+  const [nombres, numeros] = await Promise.all([
+    adaptador ? adaptador.nombre(workspaceId, sujetos) : new Map<string, NombreDeSujeto>(),
+    numeroDe(workspaceId, TIPO_CONSULTA, sujetos),
+  ]);
 
   const columnas: ColumnaVista[] = porEtapa.map(({ etapa, filas, total }) => ({
     etapa: { id: etapa.id, nombre: etapa.name, color: etapa.color, archivada: etapa.archivedAt !== null },
@@ -179,6 +188,7 @@ export async function cargarTablero(
     tarjetas: filas.map((j) => ({
       journeyId: j.id,
       sujeto: nombres.get(j.subjectId) ?? { titulo: "Consulta sin datos", href: adaptador?.rutaFicha(j.subjectId) ?? RUTA_LISTA },
+      numero: numeros.get(j.subjectId) ?? null,
       diasEnEtapa: diasEnEtapaAR(j.enteredStageAt, ahora),
       vencida: estaVencida(j.stageDueAt, ahora),
       tareas: conteo.get(j.id) ?? { hechas: 0, total: 0 },
