@@ -152,19 +152,38 @@ export default async function PublicRegistrationSummaryPage({
             </div>
           </dl>
           <dl className="min-w-0 space-y-3 text-sm">
+            {hasDiscount || s.homeDelivery ? (
+              <div>
+                <dt className="text-ck-text-secondary">Inscripción</dt>
+                <dd>
+                  {formatPublicPrice(
+                    s.subtotalAmount - (s.homeDelivery?.feeAmount ?? 0),
+                    s.currency,
+                  )}
+                </dd>
+              </div>
+            ) : null}
             {hasDiscount ? (
-              <>
-                <div>
-                  <dt className="text-ck-text-secondary">Precio base</dt>
-                  <dd>{formatPublicPrice(s.subtotalAmount, s.currency)}</dd>
-                </div>
-                <div>
-                  <dt className="text-ck-text-secondary">Descuento</dt>
-                  <dd className="text-emerald-400">
-                    − {formatPublicPrice(s.discountAmount, s.currency)}
-                  </dd>
-                </div>
-              </>
+              <div>
+                <dt className="text-ck-text-secondary">Descuento</dt>
+                <dd className="text-emerald-400">
+                  − {formatPublicPrice(s.discountAmount, s.currency)}
+                </dd>
+              </div>
+            ) : null}
+            {s.homeDelivery ? (
+              <div>
+                <dt className="text-ck-text-secondary">Envío del kit a domicilio</dt>
+                <dd>
+                  {formatPublicPrice(s.homeDelivery.feeAmount, s.currency)}
+                  <span className="block text-xs text-ck-text-muted">
+                    A {s.homeDelivery.city}, {s.homeDelivery.province}
+                    {s.homeDelivery.guaranteed
+                      ? ""
+                      : " · sin garantía de llegada antes de la maratón"}
+                  </span>
+                </dd>
+              </div>
             ) : null}
             <div>
               <dt className="text-ck-text-secondary">Total a pagar</dt>

@@ -1,3 +1,4 @@
+import type { HomeDeliveryConfig, HomeDeliveryShippingRecord } from "@/lib/home-delivery/domain";
 import type { PricePhaseItemResolvedInput } from "@/lib/catalog/domain/resolve-included-items";
 import type { PricePhaseRecord } from "@/lib/pricing/domain/types";
 import type { ClickatonRegistrationRecord } from "@/lib/registration/domain/types";
@@ -151,7 +152,13 @@ export interface PublicRegistrationRepository {
     idempotencyKey: string;
     fingerprint: string;
     holdExpiresAt: Date;
+    /** Envío a domicilio: se guarda en la misma transacción que la inscripción. */
+    shipping?: HomeDeliveryShippingRecord | null;
   }): Promise<ClickatonRegistrationRecord>;
+  /** Configuración del envío del kit a domicilio de la edición. */
+  getHomeDeliveryConfig?(editionId: string): Promise<HomeDeliveryConfig | null>;
+  /** Envío elegido por una inscripción (null si retira en sede). */
+  getShipping?(registrationId: string): Promise<HomeDeliveryShippingRecord | null>;
   /**
    * Reserva de regalo: toma cupo sin items ni stock (el talle se elige al
    * activar) y sin bloquear por email duplicado — quien regala puede además
