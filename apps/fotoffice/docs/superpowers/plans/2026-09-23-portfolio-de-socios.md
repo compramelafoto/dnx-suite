@@ -1991,7 +1991,7 @@ git commit -am "Las fichas publicadas entran al sitemap"
   - `forcePublishPortfolioAction(input: { portfolioId: string; reason: string; force: boolean }): Promise<{ ok: boolean; error?: string }>`
   - `loadPortfoliosForAdmin(workspaceId: string): Promise<AdminPortfolioRow[]>`
 
-- [ ] **Step 1: Escribir los tests que fallan**
+- [x] **Step 1: Escribir los tests que fallan**
 
 ```ts
 it("bajar exige motivo: sin él no escribe nada", async () => { /* ... */ });
@@ -2004,23 +2004,23 @@ it("quien no es OWNER ni ADMIN del workspace no puede bajar nada", async () => {
 
 Los dos últimos son los que cierran el módulo: el aislamiento entre instituciones y el permiso.
 
-- [ ] **Step 2: Correr y verificar que fallan**
+- [x] **Step 2: Correr y verificar que fallan**
 
 Run: `cd apps/fotoffice && pnpm test -- portfolio-admin`
 Expected: FAIL.
 
-- [ ] **Step 3: Implementar**
+- [x] **Step 3: Implementar**
 
 Las tres acciones resuelven el workspace activo desde la sesión —igual que el resto de `app/actions/`— y **filtran cada `update` por ese `workspaceId`**: un id de otra institución no encuentra fila. El motivo es obligatorio y se valida antes de escribir. Cada acción escribe su fila en `MemberAudit` con `actorUserId`, `actorLabel` y `reason`, dentro de la misma transacción que el cambio: una bajada sin su registro de auditoría es peor que no haberla hecho.
 
 `loadPortfoliosForAdmin` devuelve una fila por socio con portfolio: nombre, cantidad de fotos, si publicó, y el resultado de `portfolioVisibility` para poder mostrar el estado real con su motivo.
 
-- [ ] **Step 4: Correr y verificar que pasan**
+- [x] **Step 4: Correr y verificar que pasan**
 
 Run: `cd apps/fotoffice && pnpm test -- portfolio-admin`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/fotoffice/app/actions/portfolio-admin.ts apps/fotoffice/app/actions/portfolio-admin.test.ts apps/fotoffice/lib/portfolio/admin-queries.ts
@@ -2035,7 +2035,7 @@ git commit -m "La institución puede bajar un portfolio y publicarlo igual"
 - Create: `apps/fotoffice/app/(shell)/portfolios/page.tsx`
 - Create: `apps/fotoffice/components/portfolios/portfolio-admin-row.tsx`
 
-- [ ] **Step 1: Escribir la pantalla**
+- [x] **Step 1: Escribir la pantalla**
 
 Server component con el guard del shell que usan las otras pantallas del panel, más `isModuleEnabledForWorkspace` → `notFound()`.
 
@@ -2043,13 +2043,13 @@ Tres números arriba: cuántos publicados, cuántos armados sin publicar, cuánt
 
 La tabla: nombre, fotos, estado con su motivo, y las dos acciones. Cada una abre un diálogo que **exige el motivo** antes de habilitar el botón.
 
-- [ ] **Step 2: Verificar en el navegador**
+- [x] **Step 2: Verificar en el navegador**
 
 Run: `cd apps/fotoffice && pnpm dev`
 
 Bajar un portfolio con motivo y comprobar que desaparece del directorio público y que el motivo figura en el historial del socio. Publicar igual uno con deuda y comprobar que aparece.
 
-- [ ] **Step 3: Correr todos los tests. Commit**
+- [x] **Step 3: Correr todos los tests. Commit**
 
 ```bash
 git add apps/fotoffice/app/\(shell\)/portfolios apps/fotoffice/components/portfolios
@@ -2057,6 +2057,35 @@ git commit -m "El panel desde el que la institución mira y controla los portfol
 ```
 
 ---
+
+---
+
+## Lo que cambió al ejecutar la Etapa 4 *(01/10/2026)*
+
+1. **El umbral de deuda se ratificó en 3.** Durante la etapa surgió la duda de si "al día" debía
+   significar *cualquier* cuota vencida. Se confirmó que no: el umbral queda en 3, como se diseñó.
+   Con la migración de pagos viejos todavía incompleta, bajar el umbral a 1 haría desaparecer de
+   golpe a los 48 socios cuyos pagos previos a 10/2025 no se importaron.
+
+2. **`MemberAuditSource` no tiene `PANEL`.** Sus valores son `MANUAL`, `CSV_IMPORT` y `SYSTEM`; lo
+   que corresponde es `MANUAL`. Los tests no lo detectaron porque Prisma está simulado — lo
+   encontró el chequeo de tipos. Quedó un test que lo fija.
+
+3. **`PageHeader` no recibe `icon`.** Sólo `title`, `description` y `actions`.
+
+4. **Dos listas de nombres reservados pedían la ruta nueva**, cada una con su propio test:
+   `RESERVED_SLUGS` en `lib/entrada/institution-shortcut.ts` y `FOTOFFICE_RESERVED_SLUGS` en
+   `lib/website/reserved-slugs.ts`. Es la red que impide que una institución llamada "Portfolios"
+   tape la pantalla del panel. El plan no las mencionaba; los tests sí.
+
+5. **Se agregó `lib/portfolio/admin-access.ts`**, que el plan no preveía. Devuelve `null` en vez de
+   redirigir, porque lo usan las acciones: un `redirect` dentro de una server action convierte un
+   "no tenés permiso" en una navegación que nadie pidió. OWNER y ADMIN pueden; **STAFF no**.
+
+6. **Verificado por compilación, no en el navegador**, por lo mismo que las etapas 2 y 3.
+
+**Estado al cerrar la etapa:** 276 archivos de test, 3455 tests, 0 fallas. Tipos limpios. Build
+compilando.
 
 # ETAPA 5 — Encendido
 
