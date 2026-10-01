@@ -1,3 +1,5 @@
+import type { AffiliateCommissionDraft } from "@/lib/affiliates/domain/commission-draft";
+import { readCouponAffiliate } from "@/lib/affiliates/domain/coupon-affiliate";
 import type { HomeDeliveryConfig, HomeDeliveryShippingRecord } from "@/lib/home-delivery/domain";
 import { createHash, randomBytes } from "node:crypto";
 import { buildAvailability } from "@/lib/admin-catalog/domain/availability";
@@ -100,6 +102,17 @@ export type InMemoryPublicStore = {
   homeDeliveryConfigs: Map<string, HomeDeliveryConfig>;
   /** Envío elegido, por registrationId. */
   shippings: Map<string, HomeDeliveryShippingRecord>;
+  /** `DnxPromotion.metadata`, por promotionId. */
+  promotionMetadata: Map<string, unknown>;
+  /** `ClickatonAffiliate.isActive`, por affiliateId. */
+  affiliatesActive: Map<string, boolean>;
+  /** `ClickatonEditionResultSettings.mpProcessingFeeBps`, por edición. */
+  editionMpFeeBps: Map<string, number | null>;
+  /** Comisiones de afiliado (PENDING al crear), por registrationId. */
+  affiliateCommissions: Map<
+    string,
+    AffiliateCommissionDraft & { editionId: string; status: "PENDING" }
+  >;
 };
 
 export function createInMemoryPublicStore(): InMemoryPublicStore {
@@ -118,6 +131,10 @@ export function createInMemoryPublicStore(): InMemoryPublicStore {
     expireLocks: new Map(),
     homeDeliveryConfigs: new Map(),
     shippings: new Map(),
+    promotionMetadata: new Map(),
+    affiliatesActive: new Map(),
+    editionMpFeeBps: new Map(),
+    affiliateCommissions: new Map(),
   };
 }
 
@@ -662,6 +679,13 @@ export function createInMemoryPublicRegistrationRepository(
           pending.paymentIdempotencyKey = input.idempotencyKey;
           store.domain.registrations.set(pending.id, pending);
           if (input.shipping) store.shippings.set(pending.id, { ...input.shipping });
+          if (input.affiliateCommission) {
+            store.affiliateCommissions.set(pending.id, {
+              ...input.affiliateCommission,
+              editionId: input.cmd.editionId,
+              status: "PENDING",
+            });
+          }
 
           store.idempotency.set(input.idempotencyKey, {
             key: input.idempotencyKey,
@@ -696,6 +720,16 @@ export function createInMemoryPublicRegistrationRepository(
 
     async getShipping(registrationId) {
       return store.shippings.get(registrationId) ?? null;
+    },
+
+    async getAffiliateCommissionContext({ promotionId, editionId }) {
+      const affiliate = readCouponAffiliate(store.promotionMetadata.get(promotionId) ?? null);
+      if (!affiliate) return null;
+      return {
+        affiliate,
+        affiliateActive: store.affiliatesActive.get(affiliate.affiliateId) === true,
+        editionMpFeeBps: store.editionMpFeeBps.get(editionId) ?? null,
+      };
     },
 
     async getRegistration(id) {

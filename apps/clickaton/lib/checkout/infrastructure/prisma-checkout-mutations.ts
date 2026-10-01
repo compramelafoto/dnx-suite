@@ -1,4 +1,8 @@
 import { Prisma, prisma } from "@repo/db";
+import {
+  reverseAffiliateCommission,
+  settleAffiliateCommissionOnPaid,
+} from "@/lib/affiliates/infrastructure/commission-lifecycle";
 import { confirmClickatonPromotionRedemption } from "@/lib/promotions/prisma-promotions-adapter";
 import { linkRegistrationIdentity } from "@/lib/registration/application/link-registration-identity";
 import { issueRegistrationQrToken } from "@/lib/registration/security/qr-token";
@@ -48,6 +52,22 @@ async function revocarReferidoSiElPagoSeCayo(
   } catch (error) {
     console.error("[clickaton] revocarReferidoSiElPagoSeCayo falló:", error);
   }
+}
+
+/**
+ * Motivo para anular la comisión del afiliado según el nuevo estado, o null si
+ * no corresponde. Un pago fallido sin anular la inscripción no la toca: se
+ * puede reintentar.
+ */
+export function commissionReversalReasonFor(
+  paymentStatus: string,
+  registrationStatus: string | null,
+): string | null {
+  if (paymentStatus === "REFUNDED") return "pago reembolsado";
+  if (registrationStatus === "REFUNDED") return "inscripción reembolsada";
+  if (registrationStatus === "CANCELLED") return "inscripción cancelada";
+  if (registrationStatus === "DISQUALIFIED") return "inscripción descalificada";
+  return null;
 }
 
 function formatVisibleCode(prefix: string, seq: number, width = 5): string {
@@ -523,6 +543,8 @@ export function createPrismaCheckoutMutations(): CheckoutRegistrationMutations {
         } catch {
           // best-effort: el pago ya quedó CONFIRMADO
         }
+        // Comisión del dueño del cupón: PENDING → PAID_BY_SPLIT u OWED. No tira.
+        await settleAffiliateCommissionOnPaid(prisma, input.registrationId);
         try {
           const linked = await linkRegistrationIdentity({
             registrationId: input.registrationId,
@@ -642,6 +664,16 @@ export function createPrismaCheckoutMutations(): CheckoutRegistrationMutations {
       // Un pago revertido no es un colega traído: el contador baja.
       await revocarReferidoSiElPagoSeCayo(input.registrationId, row.paymentStatus);
 
+      // Reembolso (incluye contracargos, que llegan como REFUNDED) o
+      // inscripción anulada: el fotógrafo pierde la comisión. No tira.
+      const commissionReversal = commissionReversalReasonFor(
+        row.paymentStatus,
+        input.registrationStatus ?? null,
+      );
+      if (commissionReversal) {
+        await reverseAffiliateCommission(prisma, input.registrationId, commissionReversal);
+      }
+
       return mapRecord(row);
     },
 
@@ -714,6 +746,14 @@ export function createPrismaCheckoutMutations(): CheckoutRegistrationMutations {
         });
 
         return mapRecord(updated);
+      }).then(async (record) => {
+        // El cobro se cayó y la inscripción quedó cancelada. No tira.
+        await reverseAffiliateCommission(
+          prisma,
+          input.registrationId,
+          `pago ${input.paymentStatus.toLowerCase()}: inscripción cancelada`,
+        );
+        return record;
       });
     },
   };

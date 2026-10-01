@@ -1,4 +1,10 @@
 import { createHash } from "node:crypto";
+import {
+  buildAffiliateCommissionDraft,
+  DEFAULT_MP_FEE_BPS_ENV,
+  resolveAffiliateMpFeeBps,
+  type AffiliateCommissionDraft,
+} from "@/lib/affiliates/domain/commission-draft";
 import { marathonPath } from "@/config/navigation";
 import { attachPhaseProductsToTickets } from "@/lib/catalog/application/attach-phase-products";
 import { filterPhaseItemsByFirstNQuota } from "@/lib/catalog/domain/first-n-benefit";
@@ -283,6 +289,43 @@ export type PromotionsPort = {
   }) => Promise<void>;
   releaseByRegistration: (registrationId: string) => Promise<number>;
 };
+
+/**
+ * Arma la comisión PENDING del cupón con dueño, o null. Cualquier falla (tabla
+ * ausente, base caída) se loguea y la inscripción sigue sin comisión.
+ */
+export async function resolveAffiliateCommissionDraft(
+  repo: Pick<PublicRegistrationRepository, "getAffiliateCommissionContext">,
+  input: {
+    promotionId: string;
+    promotionCode: string;
+    editionId: string;
+    baseAmount: number;
+    totalAmount: number;
+  },
+  envDefaultMpFeeBps: string | null | undefined = process.env[DEFAULT_MP_FEE_BPS_ENV],
+): Promise<AffiliateCommissionDraft | null> {
+  if (!repo.getAffiliateCommissionContext) return null;
+  try {
+    const context = await repo.getAffiliateCommissionContext({
+      promotionId: input.promotionId,
+      editionId: input.editionId,
+    });
+    if (!context) return null;
+    return buildAffiliateCommissionDraft({
+      affiliate: context.affiliate,
+      affiliateActive: context.affiliateActive,
+      promotionId: input.promotionId,
+      promotionCode: input.promotionCode,
+      baseAmount: input.baseAmount,
+      totalAmount: input.totalAmount,
+      mpFeeBps: resolveAffiliateMpFeeBps(context.editionMpFeeBps, envDefaultMpFeeBps),
+    });
+  } catch (error) {
+    console.error("[clickaton] comisión de afiliado: no se pudo anotar:", error);
+    return null;
+  }
+}
 
 export function createPublicRegistrationService(deps: {
   repo: PublicRegistrationRepository;
@@ -995,6 +1038,21 @@ export function createPublicRegistrationService(deps: {
         };
       }
 
+      // Comisión del fotógrafo dueño del cupón. Va después del cupón, de los
+      // referidos (que pueden haberle ganado al cupón) y del envío: la base es
+      // el precio de lista, sin envío; el total es lo que efectivamente se
+      // cobra. Best-effort: nunca impide la inscripción.
+      const affiliateCommission =
+        promotionId && promotionCodeSnapshot && !usePassCredit && chargeAmount > 0
+          ? await resolveAffiliateCommissionDraft(repo, {
+              promotionId,
+              promotionCode: promotionCodeSnapshot,
+              editionId: edition.id,
+              baseAmount: montoDeLista,
+              totalAmount: chargeAmount,
+            })
+          : null;
+
       const items = buildItemsFromTicket(ticket, input.variantChoices);
       const holdMinutes = ticket.holdMinutes > 0 ? ticket.holdMinutes : 20;
       const holdExpiresAt = new Date(now.getTime() + holdMinutes * 60_000);
@@ -1004,6 +1062,7 @@ export function createPublicRegistrationService(deps: {
         fingerprint: fp,
         holdExpiresAt,
         shipping,
+        affiliateCommission,
         cmd: {
           editionId: edition.id,
           userId,
