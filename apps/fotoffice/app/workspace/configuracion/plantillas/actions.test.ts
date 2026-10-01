@@ -156,6 +156,28 @@ describe("Configuración → Plantillas (acciones)", () => {
     expect((await A.crearPlantillaAction(undefined, fd({ canal: "EMAIL", tipo: "GENERAL", nombre: "G", asunto: "a", cuerpo: "b" }))).error).toBeNull();
   });
 
+  it("una plantilla de un módulo apagado no se duplica, archiva, desarchiva, borra ni mueve; General y las demás sí", async () => {
+    const { SERVICE_LEADS_MODULE_KEY } = await import("@/lib/service-leads/constants");
+    const consulta = await crear("De consulta", { tipo: "CONSULTA" });
+    const general = await crear("General", { tipo: "GENERAL" });
+    const cliente = await crear("Cliente");
+    const archivada = await crear("Archivada", { tipo: "CONSULTA" });
+    expect((await A.archivarPlantillaAction(undefined, fd({ id: archivada }))).error).toBeNull();
+    H.modulo.mockImplementation(async (_ws: string, clave: string) => clave !== SERVICE_LEADS_MODULE_KEY);
+    const antes = JSON.stringify(B.datos);
+    expect(await A.duplicarPlantillaAction(undefined, fd({ id: consulta }))).toEqual({ error: APAGADO });
+    expect(await A.archivarPlantillaAction(undefined, fd({ id: consulta }))).toEqual({ error: APAGADO });
+    expect(await A.borrarPlantillaAction(undefined, fd({ id: consulta }))).toEqual({ error: APAGADO });
+    expect(await A.desarchivarPlantillaAction(undefined, fd({ id: archivada }))).toEqual({ error: APAGADO });
+    expect(await A.editarPlantillaAction(undefined, fd({ id: consulta, tipo: "GENERAL", nombre: "X", asunto: "a", cuerpo: "b" }))).toEqual({ error: APAGADO });
+    // Mover la de consulta, no; ordenar las demás sin tocarla, sí.
+    expect(await A.reordenarPlantillasAction(undefined, fd({ canal: "EMAIL", orden: [general, consulta, cliente] }))).toEqual({ error: APAGADO });
+    expect(JSON.stringify(B.datos)).toBe(antes);
+    expect((await A.reordenarPlantillasAction(undefined, fd({ canal: "EMAIL", orden: [consulta, cliente, general] }))).error).toBeNull();
+    expect((await A.duplicarPlantillaAction(undefined, fd({ id: general }))).error).toBeNull();
+    expect((await A.archivarPlantillaAction(undefined, fd({ id: cliente }))).error).toBeNull();
+  });
+
   it("formulario incompleto: datos inválidos", async () => {
     expect(await A.crearPlantillaAction(undefined, fd({ nombre: "X" }))).toEqual({ error: "Los datos no son válidos." });
     expect(await A.editarPlantillaAction(undefined, fd({ tipo: "GENERAL" }))).toEqual({ error: "Los datos no son válidos." });

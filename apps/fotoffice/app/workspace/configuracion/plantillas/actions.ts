@@ -16,7 +16,9 @@ import {
   editarPlantilla,
   esClaveAutomatico,
   guardarAutomatico,
+  listarPlantillas,
   reordenarPlantillas,
+  tipoDePlantilla,
 } from "@/lib/plantillas/definiciones";
 
 /** Error de una variable o bloque, junto al texto donde está y su posición (base 0). */
@@ -72,6 +74,24 @@ async function moduloApagado(workspaceId: string, tipo: string): Promise<boolean
   return !(await moduloDeRegistroEncendido(workspaceId, tipo));
 }
 
+/** Mismo freno para una plantilla ya existente: se mira su tipo de ficha. Ajena o inexistente: lo dice el catálogo. */
+async function apagadoPorPlantilla(workspaceId: string, id: string): Promise<boolean> {
+  const tipo = await tipoDePlantilla(workspaceId, id);
+  return tipo !== null && (await moduloApagado(workspaceId, tipo));
+}
+
+/**
+ * Al reordenar se miran sólo las plantillas que cambian de lugar: una de un módulo apagado no se
+ * mueve, pero no impide ordenar las demás. Un canal inválido lo rechaza el catálogo.
+ */
+async function apagadoAlReordenar(workspaceId: string, canal: string, orden: string[]): Promise<boolean> {
+  if (canal !== "EMAIL" && canal !== "WHATSAPP") return false;
+  const actuales = await listarPlantillas(workspaceId, { canal });
+  const tipos = new Set(actuales.filter((p, i) => orden[i] !== p.id).map((p) => p.entityType));
+  for (const tipo of tipos) if (await moduloApagado(workspaceId, tipo)) return true;
+  return false;
+}
+
 function resultado(
   r: { ok: true } | { ok: false; error: string; errores?: ErrorDeCampo[] },
   ok: string,
@@ -108,7 +128,8 @@ export async function editarPlantillaAction(_prev: EstadoPlantillas | undefined,
   const id = campo(fd, "id");
   const tipo = campo(fd, "tipo", 20);
   if (id === null || tipo === null) return DATOS_INVALIDOS;
-  if (await moduloApagado(ctx.workspaceId, tipo)) return MODULO_APAGADO;
+  // Ni la ficha nueva ni la que tenía pueden ser de un módulo apagado.
+  if ((await moduloApagado(ctx.workspaceId, tipo)) || (await apagadoPorPlantilla(ctx.workspaceId, id))) return MODULO_APAGADO;
   return resultado(
     await editarPlantilla(ctx, id, {
       tipo,
@@ -125,6 +146,7 @@ export async function duplicarPlantillaAction(_prev: EstadoPlantillas | undefine
   if (!ctx) return SIN_PERMISO;
   const id = campo(fd, "id");
   if (id === null) return DATOS_INVALIDOS;
+  if (await apagadoPorPlantilla(ctx.workspaceId, id)) return MODULO_APAGADO;
   return resultado(await duplicarPlantilla(ctx, id), "Plantilla duplicada: quedó al final de la lista.");
 }
 
@@ -135,6 +157,7 @@ export async function reordenarPlantillasAction(_prev: EstadoPlantillas | undefi
   const canal = campo(fd, "canal", 20);
   const orden = ids(fd, "orden");
   if (canal === null || orden === null) return DATOS_INVALIDOS;
+  if (await apagadoAlReordenar(ctx.workspaceId, canal, orden)) return MODULO_APAGADO;
   return resultado(await reordenarPlantillas(ctx, canal, orden), "Orden guardado.");
 }
 
@@ -143,6 +166,7 @@ export async function archivarPlantillaAction(_prev: EstadoPlantillas | undefine
   if (!ctx) return SIN_PERMISO;
   const id = campo(fd, "id");
   if (id === null) return DATOS_INVALIDOS;
+  if (await apagadoPorPlantilla(ctx.workspaceId, id)) return MODULO_APAGADO;
   return resultado(await archivarPlantilla(ctx, id), "Plantilla archivada.");
 }
 
@@ -151,6 +175,7 @@ export async function desarchivarPlantillaAction(_prev: EstadoPlantillas | undef
   if (!ctx) return SIN_PERMISO;
   const id = campo(fd, "id");
   if (id === null) return DATOS_INVALIDOS;
+  if (await apagadoPorPlantilla(ctx.workspaceId, id)) return MODULO_APAGADO;
   return resultado(await desarchivarPlantilla(ctx, id), "Plantilla desarchivada.");
 }
 
@@ -159,6 +184,7 @@ export async function borrarPlantillaAction(_prev: EstadoPlantillas | undefined,
   if (!ctx) return SIN_PERMISO;
   const id = campo(fd, "id");
   if (id === null) return DATOS_INVALIDOS;
+  if (await apagadoPorPlantilla(ctx.workspaceId, id)) return MODULO_APAGADO;
   return resultado(await borrarPlantilla(ctx, id), "Plantilla borrada.");
 }
 

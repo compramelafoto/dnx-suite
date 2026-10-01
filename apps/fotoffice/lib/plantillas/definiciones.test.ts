@@ -102,6 +102,19 @@ describe("crear, validar y listar", () => {
     expect(plantillas()).toHaveLength(0);
   });
 
+  it("la posición del error es la del texto tal como se escribió (sin recortar)", async () => {
+    const r = await D.crearPlantilla(ADMIN, {
+      canal: "EMAIL", tipo: "CLIENTE", nombre: "N", asunto: "Hola  [nombrr]", cuerpo: "\r\n  Hola\r\n[consulta_numero]",
+    });
+    expect(!r.ok && r.errores).toEqual([
+      expect.objectContaining({ campo: "asunto", variable: "nombrr", posicion: 6 }),
+      expect.objectContaining({ campo: "cuerpo", variable: "consulta_numero", posicion: 8 }),
+    ]);
+    // Lo guardado sí va recortado.
+    const ok = await crear({ asunto: "  Hola   [nombre] ", cuerpo: "\n\nHola [nombre]\n\n" });
+    expect(plantilla(ok)).toMatchObject({ subject: "Hola [nombre]", body: "Hola [nombre]" });
+  });
+
   it("una GENERAL no acepta variables de consulta ni campos", async () => {
     B.agregar("fotofficeCustomField", { workspaceId: "ws-1", entityType: "CONSULTA", key: "salon", name: "Salón", type: "TEXTO" });
     const g = await D.crearPlantilla(ADMIN, { canal: "WHATSAPP", tipo: "GENERAL", nombre: "N", cuerpo: "[consulta_fecha]" });

@@ -1,7 +1,7 @@
 "use client";
 
 import { startTransition, useActionState, useState, type FormEvent } from "react";
-import type { Canal, TipoPlantilla } from "@/lib/plantillas/constantes";
+import { ETIQUETA_CANAL, ETIQUETA_TIPO_PLANTILLA, type Canal, type TipoPlantilla } from "@/lib/plantillas/constantes";
 import { Mensaje } from "../ficha/mensaje";
 import { guardarAutomaticoAction, type EstadoPlantillas } from "./actions";
 import { EditorTexto } from "./editor-texto";
@@ -15,9 +15,10 @@ export function AutomaticoForm({
   nombre,
   canal,
   tipo,
-  encendido: encendidoInicial,
-  asunto: asuntoInicial,
-  cuerpo: cuerpoInicial,
+  encendido: encendidoGuardado,
+  actualizado,
+  asunto: asuntoGuardado,
+  cuerpo: cuerpoGuardado,
   campos,
 }: {
   clave: string;
@@ -25,14 +26,29 @@ export function AutomaticoForm({
   canal: Canal;
   tipo: TipoPlantilla;
   encendido: boolean;
+  /** Última vez que se guardó (ISO): si cambia, el formulario muestra lo guardado. */
+  actualizado: string;
   asunto: string;
   cuerpo: string;
   campos: CampoDeEjemplo[];
 }) {
-  const [encendido, setEncendido] = useState(encendidoInicial);
-  const [asunto, setAsunto] = useState(asuntoInicial);
-  const [cuerpo, setCuerpo] = useState(cuerpoInicial);
-  const [estado, enviar, pendiente] = useActionState(guardarAutomaticoAction, INICIAL);
+  const [encendido, setEncendido] = useState(encendidoGuardado);
+  const [asunto, setAsunto] = useState(asuntoGuardado);
+  const [cuerpo, setCuerpo] = useState(cuerpoGuardado);
+  // Al guardar, la página se revalida: el formulario pasa a mostrar lo que quedó guardado (recortado).
+  const [version, setVersion] = useState(actualizado);
+  if (version !== actualizado) {
+    setVersion(actualizado);
+    setEncendido(encendidoGuardado);
+    setAsunto(asuntoGuardado);
+    setCuerpo(cuerpoGuardado);
+  }
+  const [estado, enviar, pendiente] = useActionState(async (prev: EstadoPlantillas, fd: FormData) => {
+    const r = await guardarAutomaticoAction(prev, fd);
+    // Si no se guardó, el interruptor vuelve a lo que está guardado.
+    if (r.error) setEncendido(encendidoGuardado);
+    return r;
+  }, INICIAL);
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     // Controlado: sin el reseteo automático del formulario de React.
@@ -47,6 +63,9 @@ export function AutomaticoForm({
         <h2 id="automatico-titulo" className="text-base font-semibold">
           {nombre}
         </h2>
+        <p className="text-xs font-medium text-[var(--fo-muted)]">
+          {ETIQUETA_TIPO_PLANTILLA[tipo]} · {ETIQUETA_CANAL[canal]}
+        </p>
         <p className="text-sm text-[var(--fo-muted)]">
           Cuando llega una consulta por el formulario público y trae correo, se le manda este correo después de guardarla.
           No se manda en las consultas cargadas a mano ni en las inscripciones presenciales. Si el envío falla, la consulta
@@ -63,10 +82,9 @@ export function AutomaticoForm({
             value="1"
             checked={encendido}
             onChange={(e) => setEncendido(e.target.checked)}
-            aria-checked={encendido}
             className="size-4"
           />
-          {encendido ? "Encendida: se manda sola" : "Apagada: no se manda"}
+          Mandar automáticamente
         </label>
         <EditorTexto
           idBase={`auto-${clave}`}

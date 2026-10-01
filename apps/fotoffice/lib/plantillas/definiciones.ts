@@ -116,25 +116,30 @@ async function validarTexto(
   cuerpo: unknown,
 ): Promise<{ ok: true; valor: TextoValido } | { ok: false; error: string; errores?: ErrorDeTexto[] }> {
   let subject: string | null = null;
+  // Se analiza el texto tal como lo ve quien escribe (sólo con los saltos de línea normalizados), así
+  // las posiciones de los errores coinciden con el campo; se recorta después.
+  let asuntoVisto: string | null = null;
   if (canal === "EMAIL") {
     if (typeof asunto !== "string") return no(MENSAJES_PLANTILLAS.asunto);
+    asuntoVisto = asunto.replace(/\r\n?/g, "\n");
     subject = asunto.replace(/\s+/g, " ").trim();
     if (subject.length < 1 || subject.length > MAX_ASUNTO) return no(MENSAJES_PLANTILLAS.asunto);
   } else if (asunto !== undefined && asunto !== null && asunto !== "") {
     return no(MENSAJES_PLANTILLAS.datosInvalidos);
   }
   if (typeof cuerpo !== "string") return no(MENSAJES_PLANTILLAS.cuerpoVacio);
-  const body = cuerpo.replace(/\r\n?/g, "\n").trim();
+  const cuerpoVisto = cuerpo.replace(/\r\n?/g, "\n");
+  const body = cuerpoVisto.trim();
   if (!body) return no(MENSAJES_PLANTILLAS.cuerpoVacio);
   if (body.length > MAX_CUERPO[canal]) return no(mensajeCuerpoLargo(canal));
 
   const permitidas = clavesPermitidas(tipo, await camposDe(workspaceId, tipo));
   const errores: ErrorDeTexto[] = [];
-  if (subject !== null) {
-    const r = analizar(subject, permitidas);
+  if (asuntoVisto !== null) {
+    const r = analizar(asuntoVisto, permitidas);
     if (!r.ok) errores.push(...r.errores.map((e) => ({ ...e, campo: "asunto" as const })));
   }
-  const r = analizar(body, permitidas);
+  const r = analizar(cuerpoVisto, permitidas);
   if (!r.ok) errores.push(...r.errores.map((e) => ({ ...e, campo: "cuerpo" as const })));
   if (errores.length) {
     const e = errores[0]!;
@@ -210,6 +215,16 @@ async function plantillaDelWorkspace(workspaceId: string, id: unknown) {
       id: true, channel: true, entityType: true, name: true, subject: true, body: true, systemKey: true, archivedAt: true,
     },
   });
+}
+
+/**
+ * Tipo de ficha de una plantilla común del workspace; null si no existe, es ajena o es automática.
+ * Configuración lo usa para frenar las plantillas de un módulo apagado antes de tocar nada.
+ */
+export async function tipoDePlantilla(workspaceId: string, id: unknown): Promise<TipoPlantilla | null> {
+  const p = await plantillaDelWorkspace(workspaceId, id);
+  if (!p || p.systemKey !== null || !esTipoPlantilla(p.entityType)) return null;
+  return p.entityType;
 }
 
 async function activasDelCanal(workspaceId: string, canal: string): Promise<number> {

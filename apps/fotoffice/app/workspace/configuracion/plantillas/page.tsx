@@ -94,6 +94,7 @@ export default async function ConfiguracionPlantillasPage({
       body: p.body,
       archivado: p.archivedAt !== null,
       usos: usos[p.id] ?? 0,
+      actualizada: p.updatedAt.toISOString(),
     }));
     contenido = (
       <PlantillasLista
@@ -115,6 +116,7 @@ export default async function ConfiguracionPlantillasPage({
         canal={def.canal}
         tipo={def.tipo}
         encendido={auto?.enabled ?? false}
+        actualizado={auto?.updatedAt.toISOString() ?? ""}
         asunto={auto?.subject ?? ""}
         cuerpo={auto?.body ?? ""}
         campos={campos[def.tipo]}

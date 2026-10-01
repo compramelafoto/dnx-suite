@@ -68,12 +68,12 @@ export function armarVistaPrevia(
 
   let asuntoFinal: string | null = null;
   if (canal === "EMAIL") {
-    const a = analizar(asunto.replace(/\s+/g, " ").trim(), permitidas);
+    const a = analizar(asunto.replace(/\r\n?/g, "\n"), permitidas);
     if (!a.ok) errores.push(...a.errores.map((e) => ({ ...e, campo: "asunto" as const })));
     else {
       const r = completar(a.piezas, valores);
       // En el asunto la firma no tiene lugar: se quita el marcador.
-      asuntoFinal = r.texto.split(MARCADOR_FIRMA).join("").trim();
+      asuntoFinal = r.texto.split(MARCADOR_FIRMA).join("").replace(/\s+/g, " ").trim();
       vacias.push(...r.vacias);
     }
   }

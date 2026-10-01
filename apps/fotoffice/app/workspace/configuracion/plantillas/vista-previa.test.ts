@@ -38,6 +38,19 @@ describe("vista previa con datos de ejemplo", () => {
     });
   });
 
+  it("posiciones sobre el texto sin recortar: línea en blanco al principio y espacios dobles", () => {
+    const v = armarVistaPrevia("EMAIL", "CLIENTE", [], "Hola  [nombrr]", "\r\nHola [consulta_numero]", HOY);
+    expect(v).toEqual({
+      ok: false,
+      errores: [
+        expect.objectContaining({ campo: "asunto", posicion: 6, variable: "nombrr" }),
+        expect.objectContaining({ campo: "cuerpo", posicion: 6, variable: "consulta_numero" }),
+      ],
+    });
+    const ok = armarVistaPrevia("EMAIL", "CLIENTE", [], "  Hola   [nombre] ", "x", HOY);
+    expect(ok.ok && ok.asunto).toBe("Hola Ana");
+  });
+
   it("consulta: fecha de calendario y número de ejemplo", () => {
     const v = armarVistaPrevia("WHATSAPP", "CONSULTA", [], "", "[consulta_numero] [consulta_fecha]", HOY);
     expect(v).toMatchObject({ ok: true, texto: "C-2026-0042 12/12/2026" });

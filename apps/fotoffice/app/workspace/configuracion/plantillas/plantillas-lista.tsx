@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useActionState, useState, type FormEvent, type MouseEvent } from "react";
+import { startTransition, useActionState, useEffect, useRef, useState, type FormEvent, type MouseEvent, type Ref } from "react";
 import { Archive, ArchiveRestore, ArrowDown, ArrowUp, Copy, Pencil, Plus, Trash2, X } from "lucide-react";
 import { ETIQUETA_CANAL, MAX_NOMBRE_PLANTILLA, type Canal, type TipoPlantilla } from "@/lib/plantillas/constantes";
 import { Mensaje } from "../ficha/mensaje";
@@ -25,6 +25,8 @@ export type PlantillaFila = {
   archivado: boolean;
   /** Mensajes registrados con esta plantilla: usada no se borra, se archiva. */
   usos: number;
+  /** Última vez que se guardó (ISO): si cambia, el editor muestra lo guardado. */
+  actualizada: string;
 };
 
 const INICIAL: EstadoPlantillas = { error: null };
@@ -76,6 +78,8 @@ function BotonMover({
   direccion,
   nombre,
   deshabilitado,
+  botonRef,
+  onMover,
 }: {
   enviar: (fd: FormData) => void;
   canal: Canal;
@@ -83,6 +87,8 @@ function BotonMover({
   direccion: "subir" | "bajar";
   nombre: string;
   deshabilitado: boolean;
+  botonRef: Ref<HTMLButtonElement>;
+  onMover: () => void;
 }) {
   const Icono = direccion === "subir" ? ArrowUp : ArrowDown;
   return (
@@ -93,9 +99,11 @@ function BotonMover({
         <input key={id} type="hidden" name="orden" value={id} />
       ))}
       <button
+        ref={botonRef}
         type="submit"
         className="fo-icon-btn"
         disabled={deshabilitado}
+        onClick={onMover}
         aria-label={`${direccion === "subir" ? "Subir" : "Bajar"} ${nombre}`}
         title={direccion === "subir" ? "Subir" : "Bajar"}
       >
@@ -152,6 +160,7 @@ function EditorPlantilla({
   etiquetas,
   campos,
   onCerrar,
+  onCreada,
 }: {
   canal: Canal;
   /** null: plantilla nueva. */
@@ -160,17 +169,28 @@ function EditorPlantilla({
   etiquetas: Record<TipoPlantilla, string>;
   campos: CamposPorTipo;
   onCerrar: () => void;
+  /** Sólo para la nueva: se cierra el editor y la lista muestra la confirmación. */
+  onCreada?: (mensaje: string) => void;
 }) {
   const idBase = plantilla ? `pl-${plantilla.id}` : `pl-nueva-${canal}`;
   const [nombre, setNombre] = useState(plantilla?.name ?? "");
   const [tipo, setTipo] = useState<TipoPlantilla>(plantilla?.entityType ?? "GENERAL");
   const [asunto, setAsunto] = useState(plantilla?.subject ?? "");
   const [cuerpo, setCuerpo] = useState(plantilla?.body ?? "");
+  // Al guardar, la página se revalida: el editor pasa a mostrar lo que quedó guardado (recortado).
+  const [version, setVersion] = useState(plantilla?.actualizada);
+  if (plantilla && version !== plantilla.actualizada) {
+    setVersion(plantilla.actualizada);
+    setNombre(plantilla.name);
+    setTipo(plantilla.entityType);
+    setAsunto(plantilla.subject ?? "");
+    setCuerpo(plantilla.body);
+  }
   const [estado, enviar, pendiente] = useActionState(async (prev: EstadoPlantillas, fd: FormData) => {
     if (!plantilla) {
       const r = await crearPlantillaAction(prev, fd);
-      // La nueva aparece en la lista (la página se revalida): se cierra el editor.
-      if (!r.error) onCerrar();
+      // La nueva aparece en la lista (la página se revalida): se cierra el editor y la lista confirma.
+      if (!r.error) onCreada?.(r.ok ?? "Plantilla agregada.");
       return r;
     }
     return editarPlantillaAction(prev, fd);
@@ -271,6 +291,19 @@ function FilaPlantilla({
   editor: React.ReactNode;
 }) {
   const [estado, enviar, pendiente] = useActionState(despachar, INICIAL);
+  const subirRef = useRef<HTMLButtonElement>(null);
+  const bajarRef = useRef<HTMLButtonElement>(null);
+  // Tras subir/bajar el foco vuelve al mismo botón de la fila (o al otro si quedó deshabilitado).
+  const movida = useRef<"subir" | "bajar" | null>(null);
+  const primera = i === 0;
+  const ultima = i === ids.length - 1;
+  useEffect(() => {
+    if (pendiente || !movida.current) return;
+    const quiere = movida.current;
+    movida.current = null;
+    const usarSubir = quiere === "subir" ? !primera : ultima;
+    (usarSubir ? subirRef : bajarRef).current?.focus();
+  }, [estado, pendiente, primera, ultima]);
   return (
     <li className="space-y-2 py-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -280,14 +313,25 @@ function FilaPlantilla({
             Para {etiqueta} · {textoUsos(p.usos)}
           </p>
         </div>
-        <BotonMover enviar={enviar} canal={canal} orden={mover(ids, i, -1)} direccion="subir" nombre={p.name} deshabilitado={pendiente || i === 0} />
+        <BotonMover
+          enviar={enviar}
+          canal={canal}
+          orden={mover(ids, i, -1)}
+          direccion="subir"
+          nombre={p.name}
+          deshabilitado={pendiente || primera}
+          botonRef={subirRef}
+          onMover={() => (movida.current = "subir")}
+        />
         <BotonMover
           enviar={enviar}
           canal={canal}
           orden={mover(ids, i, 1)}
           direccion="bajar"
           nombre={p.name}
-          deshabilitado={pendiente || i === ids.length - 1}
+          deshabilitado={pendiente || ultima}
+          botonRef={bajarRef}
+          onMover={() => (movida.current = "bajar")}
         />
         <button type="button" className="fo-btn fo-btn-ghost text-xs" onClick={onAbrir} aria-expanded={abierta}>
           <Pencil className="size-4" aria-hidden />
@@ -362,6 +406,8 @@ export function PlantillasLista({
 }) {
   // Qué editor está abierto: una plantilla (su id), "nueva" o ninguno.
   const [abierta, setAbierta] = useState<string | null>(null);
+  // Confirmación de la última plantilla creada: queda a la vista con el editor ya cerrado.
+  const [aviso, setAviso] = useState<string | null>(null);
   const activas = plantillas.filter((p) => !p.archivado);
   const archivadas = plantillas.filter((p) => p.archivado);
   const ids = activas.map((p) => p.id);
@@ -380,7 +426,10 @@ export function PlantillasLista({
           </p>
         </div>
         {abierta !== "nueva" ? (
-          <button type="button" className="fo-btn fo-btn-primary text-sm" onClick={() => setAbierta("nueva")}>
+          <button type="button" className="fo-btn fo-btn-primary text-sm" onClick={() => {
+              setAviso(null);
+              setAbierta("nueva");
+            }}>
             <Plus className="size-4" aria-hidden />
             Nueva plantilla
           </button>
@@ -388,7 +437,23 @@ export function PlantillasLista({
       </div>
 
       {abierta === "nueva" ? (
-        <EditorPlantilla canal={canal} plantilla={null} tipos={tipos} etiquetas={etiquetas} campos={campos} onCerrar={() => setAbierta(null)} />
+        <EditorPlantilla
+          canal={canal}
+          plantilla={null}
+          tipos={tipos}
+          etiquetas={etiquetas}
+          campos={campos}
+          onCerrar={() => setAbierta(null)}
+          onCreada={(mensaje) => {
+            setAviso(mensaje);
+            setAbierta(null);
+          }}
+        />
+      ) : null}
+      {aviso ? (
+        <p role="status" className="text-sm text-[var(--fo-success)]">
+          {aviso}
+        </p>
       ) : null}
 
       {activas.length === 0 ? (
