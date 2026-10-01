@@ -135,6 +135,16 @@ describe("acciones de mensajes", () => {
     expect(H.revalidate).not.toHaveBeenCalled();
   });
 
+  it("un `automatico: true` del cliente no sirve: sin `operar` se rechaza y nunca llega como automático", async () => {
+    H.ctx.mockResolvedValue({ ...CTX, role: "COLLABORATOR" });
+    expect(await llamar.correo({ ...CORREO, automatico: true })).toEqual(SIN_ACCESO);
+    expect(H.correo).not.toHaveBeenCalled();
+    H.ctx.mockResolvedValue(CTX);
+    await llamar.correo({ ...CORREO, automatico: true });
+    expect(H.correo).toHaveBeenCalledTimes(1);
+    expect(H.correo.mock.calls[0]![1]).not.toHaveProperty("automatico");
+  });
+
   it("el archivo \"use server\" sólo exporta funciones async", () => {
     const fuente = readFileSync(new URL("./mensajes.ts", import.meta.url), "utf8");
     expect(fuente.startsWith('"use server";')).toBe(true);

@@ -3,6 +3,7 @@ import { prisma } from "@repo/db";
 import { listarCampos } from "@/lib/campos/definiciones";
 import { valoresDe } from "@/lib/campos/valores";
 import { textoLegible } from "@/lib/campos/validacion";
+import { normalizeWhatsappNumber } from "@/lib/contact/whatsapp";
 import { loadWorkspaceEmailContext } from "@/lib/communications/load-workspace-signature";
 import { ETIQUETA_SALIDA } from "@/lib/circuitos/constantes";
 import { resolverPersonaPorCliente, resolverPersonaPorSocio } from "@/lib/ficha/persona";
@@ -77,12 +78,26 @@ async function datosDeSocio(
   };
 }
 
-/** Primero lo de la identidad principal; lo que le falte, de la otra (cliente ↔ socio vinculados). */
+/** Correo con forma de dirección (una sola, sin separadores ni `<>`). */
+export function correoValido(v: string | null | undefined): v is string {
+  return typeof v === "string" && v.length <= 254 && /^[^\s@<>,;"]+@[^\s@<>,;"]+\.[^\s@<>,;"]+$/.test(v);
+}
+
+/** El primero que sirve; si ninguno sirve, el primero cargado (para mostrarlo). */
+function primeroQueSirve(valores: (string | null | undefined)[], sirve: (v: string) => boolean): string | null {
+  const cargados = valores.filter((v): v is string => typeof v === "string" && v.length > 0);
+  return cargados.find(sirve) ?? cargados[0] ?? null;
+}
+
+/**
+ * Primero lo de la identidad principal; lo que le falte o no sirva, de la otra (cliente ↔ socio
+ * vinculados). El correo es el primero válido; el teléfono, el primero que sirve para WhatsApp.
+ */
 function combinar(principal: DatosPersona | null, otra: DatosPersona | null): DatosPersona {
   return {
     nombreCompleto: principal?.nombreCompleto ?? otra?.nombreCompleto ?? null,
-    email: principal?.email ?? otra?.email ?? null,
-    telefono: principal?.telefono ?? otra?.telefono ?? null,
+    email: primeroQueSirve([principal?.email, otra?.email], correoValido),
+    telefono: primeroQueSirve([principal?.telefono, otra?.telefono], (t) => normalizeWhatsappNumber(t) !== null),
   };
 }
 

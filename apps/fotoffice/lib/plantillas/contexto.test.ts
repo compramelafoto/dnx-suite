@@ -125,4 +125,17 @@ describe("contextoDe", () => {
     expect(c!.remitente.replyTo).toBeNull();
     expect(c!.firma).toEqual({ html: "", texto: "" });
   });
+
+  it("toma el primer correo válido y el primer teléfono que sirve para WhatsApp (cliente, después socio)", async () => {
+    B.agregar("member", { id: "m1", workspaceId: "ws-1", firstName: "Juan", lastName: "Sosa", email: "juan@x.test", phone: "+54 341 4444444", memberNumber: "1" });
+    B.agregar("client", { id: "c1", workspaceId: "ws-1", kind: "PERSONA", firstName: "Juan", email: "no-es-correo", phone: "4444444", memberId: "m1" });
+    const c = await contextoDe("ws-1", "CLIENTE", "c1", USUARIO);
+    expect(c!.destino).toEqual({ email: "juan@x.test", telefono: "+54 341 4444444" });
+  });
+
+  it("si ninguno sirve, queda el primero cargado (para mostrarlo)", async () => {
+    B.agregar("client", { id: "c1", workspaceId: "ws-1", kind: "PERSONA", firstName: "A", email: "malo", phone: "123", memberId: null });
+    const c = await contextoDe("ws-1", "CLIENTE", "c1", USUARIO);
+    expect(c!.destino).toEqual({ email: "malo", telefono: "123" });
+  });
 });

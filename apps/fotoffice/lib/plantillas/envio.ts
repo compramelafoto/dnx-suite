@@ -4,9 +4,9 @@ import { puede } from "@/lib/access/policy";
 import { sendTransactionalEmail, type OutboundEmail, type SendOutcome } from "@/lib/communications/send-email";
 import { buildWhatsappUrl, normalizeWhatsappNumber } from "@/lib/contact/whatsapp";
 import {
-  CLAVE_FIRMA, MARCADOR_FIRMA, MAX_ASUNTO, MAX_CUERPO, TOPE_CORREOS_DIA, ZONA_HORARIA, type Canal,
+  CARACTER_MARCADOR, CLAVE_FIRMA, CLAVES_AUTOMATICO, MARCADOR_FIRMA, MAX_ASUNTO, MAX_CUERPO, TOPE_CORREOS_DIA, ZONA_HORARIA, type Canal,
 } from "./constantes";
-import { contextoDe, type ContextoMensaje, type TipoFichaMensaje } from "./contexto";
+import { contextoDe, correoValido, type ContextoMensaje, type TipoFichaMensaje } from "./contexto";
 import { plantillaParaUsar } from "./definiciones";
 import { analizar, completar, tieneMarcadorSinCompletar } from "./motor";
 import { cuerpoCorreoHtml, cuerpoCorreoTexto, textoWhatsapp } from "./render";
@@ -40,6 +40,7 @@ export const MENSAJES_ENVIO = {
   marcadorSinCompletar: "Completá los textos entre corchetes en mayúsculas antes de enviar.",
   tope: `Llegaste al tope de ${TOPE_CORREOS_DIA} correos por día de la organización. Podés volver a enviar mañana.`,
   datosInvalidos: "Los datos no son válidos.",
+  falloRegistro: "No pudimos registrar el mensaje. Probá de nuevo.",
   falloConfiguracion: "El envío de correos no está configurado. Avisale a quien administra FOTOFFICE.",
   falloProveedor: "El proveedor de correo rechazó el envío.",
   falloConexion: "No pudimos conectar con el proveedor de correo. Probá de nuevo en un rato.",
@@ -56,9 +57,6 @@ function usuarioDe(ctx: CtxEnvio) {
   return { nombre: ctx.userName ?? ctx.userLabel ?? null, email: ctx.userEmail ?? null };
 }
 
-function correoValido(v: string | null): v is string {
-  return typeof v === "string" && v.length <= 254 && /^[^\s@<>,;"]+@[^\s@<>,;"]+\.[^\s@<>,;"]+$/.test(v);
-}
 
 // ─── Preparar ────────────────────────────────────────────────────────────────
 
@@ -85,7 +83,10 @@ export function completarTextos(
   cuerpo: string,
 ): { ok: true; asunto: string; cuerpo: string; vacias: string[] } | Falla {
   const permitidas = clavesPermitidas(tipo, contexto.camposActivos);
-  const valores = resolverVariables(contexto.variables);
+  const crudos = resolverVariables(contexto.variables);
+  // Los corchetes de un dato (un nombre como "[Estudio]") no son marcadores: se vuelven paréntesis
+  // para que el envío no los confunda con variables o textos por completar.
+  const valores = (clave: string) => crudos(clave)?.replace(/\[/g, "(").replace(/\]/g, ")") ?? null;
   const rCuerpo = analizar(cuerpo, permitidas);
   const rAsunto = asunto ? analizar(asunto, permitidas) : null;
   if (!rCuerpo.ok || (rAsunto && !rAsunto.ok)) return no(MENSAJES_ENVIO.plantillaConErrores);
@@ -159,11 +160,17 @@ async function validarPlantilla(
   tipo: TipoFichaMensaje,
   automatico: boolean,
 ): Promise<{ ok: true; id: string | null } | Falla> {
-  if (templateId === undefined || templateId === null || templateId === "") return { ok: true, id: null };
+  if (templateId === undefined || templateId === null || templateId === "") {
+    // Un automático siempre sale de su plantilla: sin ella, no se envía.
+    return automatico ? no(MENSAJES_ENVIO.plantillaNoEncontrada) : { ok: true, id: null };
+  }
   if (typeof templateId !== "string" || templateId.length > 100) return no(MENSAJES_ENVIO.plantillaNoEncontrada);
   if (automatico) {
     const f = await prisma.fotofficeMessageTemplate.findFirst({
-      where: { id: templateId, workspaceId, channel: canal, entityType: tipo, systemKey: { not: null }, archivedAt: null },
+      where: {
+        id: templateId, workspaceId, channel: canal, entityType: tipo, systemKey: { in: [...CLAVES_AUTOMATICO] }, enabled: true,
+        archivedAt: null,
+      },
       select: { id: true },
     });
     return f ? { ok: true, id: f.id } : no(MENSAJES_ENVIO.plantillaNoEncontrada);
@@ -275,7 +282,7 @@ export async function enviarCorreo(ctx: CtxEnvio, datos: DatosCorreo, deps: Deps
         templateId: plantilla.id,
         toAddress: para,
         subject: fa.texto,
-        body: vc.cuerpo,
+        body: vc.cuerpo.split(CARACTER_MARCADOR).join(""),
         status: fallo ? "FAILED" : "SENT",
         automatic: automatico,
         providerId: resultado.status === "SENT" ? resultado.providerId : null,
@@ -333,22 +340,29 @@ export async function abrirWhatsapp(ctx: CtxEnvio, datos: DatosWhatsapp): Promis
   const url = buildWhatsappUrl(numero, texto);
   if (!url) return no(MENSAJES_ENVIO.sinWhatsapp);
 
-  const fila = await prisma.fotofficeMessage.create({
-    data: {
-      workspaceId: ctx.workspaceId,
-      channel: "WHATSAPP",
-      entityType: datos.entityType,
-      entityId: datos.entityId,
-      templateId: plantilla.id,
-      toAddress: numero,
-      subject: null,
-      body: texto,
-      status: "OPENED_WHATSAPP",
-      automatic: false,
-      actorUserId: ctx.userId,
-      actorLabel: ctx.userLabel,
-    },
-    select: { id: true },
-  });
+  let fila: { id: string };
+  try {
+    fila = await prisma.fotofficeMessage.create({
+      data: {
+        workspaceId: ctx.workspaceId,
+        channel: "WHATSAPP",
+        entityType: datos.entityType,
+        entityId: datos.entityId,
+        templateId: plantilla.id,
+        toAddress: numero,
+        subject: null,
+        body: texto,
+        status: "OPENED_WHATSAPP",
+        automatic: false,
+        actorUserId: ctx.userId,
+        actorLabel: ctx.userLabel,
+      },
+      select: { id: true },
+    });
+  } catch (e) {
+    // Sólo el código: nunca el número ni el texto.
+    console.error("[plantillas] no se pudo registrar el WhatsApp", { codigo: (e as { code?: unknown })?.code ?? "desconocido" });
+    return no(MENSAJES_ENVIO.falloRegistro);
+  }
   return { ok: true, url, mensajeId: fila.id };
 }

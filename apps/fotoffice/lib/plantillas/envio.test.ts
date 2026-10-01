@@ -261,6 +261,57 @@ describe("enviarCorreo", () => {
   });
 });
 
+describe("arreglos de revisión", () => {
+  it("un automático sin plantilla, con la automática apagada o de otro workspace: no se envía", async () => {
+    B.agregar("serviceSalesLead", { id: "l1", workspaceId: "ws-1", name: "Mara", email: "mara@x.test", eventType: "BODA" });
+    const apagada = plantilla({ entityType: "CONSULTA", systemKey: "CONSULTA_AUTORESPUESTA", enabled: false });
+    const ajena = plantilla({ workspaceId: "ws-2", entityType: "CONSULTA", systemKey: "CONSULTA_AUTORESPUESTA", enabled: true });
+    const sinUsuario = { workspaceId: "ws-1", userId: null, userLabel: null, role: null };
+    const d = { entityType: "CONSULTA" as const, entityId: "l1", asunto: "Hola", cuerpo: "Gracias", automatico: true };
+    const enviar = enviador();
+    for (const templateId of [undefined, null, "", apagada, ajena]) {
+      expect(await E.enviarCorreo(sinUsuario, { ...d, templateId }, { enviar, ahora: () => AHORA })).toEqual({
+        ok: false, error: M.plantillaNoEncontrada,
+      });
+    }
+    expect(enviar).not.toHaveBeenCalled();
+    expect(mensajes()).toHaveLength(0);
+  });
+
+  it("los corchetes de un dato se vuelven paréntesis y no frenan el envío", async () => {
+    cliente({ id: "c2", firstName: "[Estudio]", lastName: "[NOMBRE]" });
+    const id = plantilla({ subject: "Hola [nombre_completo]", body: "Hola [nombre_completo]" });
+    const r = await E.prepararMensaje(CTX, { canal: "EMAIL", entityType: "CLIENTE", entityId: "c2", templateId: id });
+    expect(r).toMatchObject({ ok: true, asunto: "Hola (Estudio) (NOMBRE)", cuerpo: "Hola (Estudio) (NOMBRE)", pendientes: false });
+    if (!r.ok) return;
+    const enviar = enviador();
+    expect((await E.enviarCorreo(CTX, { ...BASE, entityId: "c2", templateId: id, asunto: r.asunto, cuerpo: r.cuerpo }, { enviar, ahora: () => AHORA })).ok).toBe(true);
+  });
+
+  it("el cuerpo registrado no guarda el carácter del marcador", async () => {
+    await E.enviarCorreo(CTX, { ...BASE, cuerpo: "Hola \uE000firma\uE000 x" }, { enviar: enviador(), ahora: () => AHORA });
+    expect(mensajes()[0]!.body).toBe("Hola firma x");
+  });
+
+  it("si no se puede registrar el WhatsApp, devuelve un error en vez de lanzar", async () => {
+    const original = B.tablas.fotofficeMessage.create;
+    B.tablas.fotofficeMessage.create = async () => {
+      throw Object.assign(new Error("caída"), { code: "P1001" });
+    };
+    const consola = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(await E.abrirWhatsapp(CTX, { entityType: "CLIENTE", entityId: "c1", cuerpo: "Hola privado" })).toEqual({
+        ok: false, error: M.falloRegistro,
+      });
+      const logs = JSON.stringify(consola.mock.calls);
+      expect(logs).not.toContain("Hola privado");
+      expect(logs).not.toContain("5493415550000");
+    } finally {
+      B.tablas.fotofficeMessage.create = original;
+    }
+  });
+});
+
 describe("abrirWhatsapp", () => {
   it("normaliza el número, arma la URL con el texto y registra OPENED_WHATSAPP", async () => {
     const id = plantilla({ channel: "WHATSAPP", subject: null, body: "Hola" });
