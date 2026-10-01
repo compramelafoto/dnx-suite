@@ -159,6 +159,10 @@ export function PanelMensaje({ entityType, entityId, panel }: { entityType: Tipo
         ref={ref}
         aria-labelledby={`mensaje-titulo-${entityId}`}
         className="fo-card w-[92vw] max-w-2xl p-0 backdrop:bg-black/50"
+        // Mientras se envía, Esc no cierra: el resultado tiene que verse.
+        onCancel={(ev) => {
+          if (ocupado) ev.preventDefault();
+        }}
         onClose={() => {
           if (abierto) cerrar();
         }}
@@ -275,7 +279,7 @@ export function PanelMensaje({ entityType, entityId, panel }: { entityType: Tipo
                 {enlace ? "Cerrar" : "Cancelar"}
               </button>
               {enlace ? null : (
-                <button type="submit" className="fo-btn fo-btn-primary text-sm" disabled={ocupado || !cuerpo.trim()}>
+                <button type="submit" className="fo-btn fo-btn-primary text-sm" disabled={ocupado || !cuerpo.trim() || pendientes}>
                   {canal === "EMAIL" ? (enviando ? "Enviando…" : "Enviar") : enviando ? "Abriendo…" : "Abrir WhatsApp"}
                 </button>
               )}
