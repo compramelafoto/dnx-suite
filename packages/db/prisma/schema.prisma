@@ -7353,6 +7353,8 @@ model Member {
   /// Se pide desde el alta: pedirla después implica volver a contactar a cada socio uno por uno.
   /// Nombre del estudio o marca, si trabaja con uno distinto de su nombre.
   businessName   String?
+  /// Logo de ese estudio o marca. Se muestra en el portal junto al nombre; lo sube el socio.
+  businessLogoUrl String?
   /// Rubros en los que trabaja. Vocabulario cerrado, validado en lib/membership/specialties.ts.
   specialties    String[] @default([])
   /// Presentación breve, en palabras del socio.

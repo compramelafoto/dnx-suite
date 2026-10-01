@@ -55,7 +55,7 @@ export default async function PortalPage() {
   const perfil = await prisma.member.findUnique({
     where: { id: context.member.id },
     select: {
-      businessName: true, bio: true, specialties: true, instagram: true, website: true,
+      businessName: true, businessLogoUrl: true, bio: true, specialties: true, instagram: true, website: true,
       avatarUrl: true, profilePhotoUrl: true,
     },
   });
@@ -88,6 +88,7 @@ export default async function PortalPage() {
         categoryName: context.member.categoryName ?? null,
         photoUrl: perfil?.profilePhotoUrl ?? perfil?.avatarUrl ?? null,
         businessName: perfil?.businessName?.trim() || null,
+        businessLogoUrl: perfil?.businessLogoUrl ?? null,
       }}
       antiguedad={antiguedad}
       cuenta={cuenta}

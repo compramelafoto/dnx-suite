@@ -24,6 +24,8 @@ export type PortalHomeProps = {
     photoUrl: string | null;
     /** Nombre de su estudio o empresa, si lo cargó en su perfil. */
     businessName: string | null;
+    /** Logo de esa empresa, si lo subió en Mi perfil. */
+    businessLogoUrl: string | null;
   };
   antiguedad: { desde: string | null; anios: number | null };
   cuenta: Pick<MemberBalance, "charges" | "dueMinor" | "overdueCount">;
@@ -74,10 +76,22 @@ export function PortalHome({
         <div className="min-w-0">
           <p className="text-sm text-[var(--fo-muted)]">{institution}</p>
           <h1 className="text-2xl font-semibold tracking-tight">Hola, {member.firstName}</h1>
-          {member.businessName ? (
-            <p className="truncate text-sm font-medium text-[var(--fo-text-secondary)]">
-              {member.businessName}
-            </p>
+          {member.businessName || member.businessLogoUrl ? (
+            <div className="mt-1 flex min-w-0 items-center gap-2">
+              {member.businessLogoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element -- el logo vive en R2, fuera del build
+                <img
+                  src={member.businessLogoUrl}
+                  alt={member.businessName ?? "Logo de tu empresa"}
+                  className="h-8 w-auto max-w-28 shrink-0 rounded bg-white object-contain"
+                />
+              ) : null}
+              {member.businessName ? (
+                <p className="truncate text-sm font-medium text-[var(--fo-text-secondary)]">
+                  {member.businessName}
+                </p>
+              ) : null}
+            </div>
           ) : member.photoUrl ? null : (
             <Link href="/portal/perfil" className="text-xs text-[var(--fo-accent-hover)] hover:underline">
               Subí tu foto
