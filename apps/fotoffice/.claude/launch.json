@@ -1,0 +1,27 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "compramelafoto-dev",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "compramelafoto",
+        "run",
+        "dev"
+      ],
+      "port": 3002
+    },
+    {
+      "name": "fotoffice-dev",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "fotoffice",
+        "run",
+        "dev"
+      ],
+      "port": 3010
+    }
+  ]
+}
