@@ -80,6 +80,17 @@ export const MEMBERSHIP_EMAIL_KEYS = {
 } as const;
 
 /**
+ * Claves del recordatorio de cuota en `SentEmailLog`.
+ *
+ * Dos claves y no una para poder contestar «¿lo mandó la tarea del día del recordatorio o
+ * alguien apretó el botón?». Para no repetir el correo en el mes se miran las dos.
+ */
+export const DUES_EMAIL_KEYS = {
+  REMINDER: "fotoffice.membership.dues-reminder",
+  REMINDER_MANUAL: "fotoffice.membership.dues-reminder-manual",
+} as const;
+
+/**
  * Claves de las comunicaciones del módulo de coberturas en `SentEmailLog`.
  *
  * Se registran todos —también los que fallan— por el mismo motivo que en el alta de socios:

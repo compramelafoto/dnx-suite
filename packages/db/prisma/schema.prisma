@@ -8512,6 +8512,10 @@ model RafflePrize {
   /// dominio Partners, que vive en su propia aplicación.
   partnerId           String?
   partnerNameSnapshot String?
+  /// Dirección completa del logo del aliado. Viaja con el premio para que el anuncio y el
+  /// recordatorio de cuota lo muestren aunque la marca cambie después. La columna ya existe
+  /// en las bases (migración `20260915000000_sorteos_logo`, del PR de avisos del sorteo).
+  partnerLogoSnapshot String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

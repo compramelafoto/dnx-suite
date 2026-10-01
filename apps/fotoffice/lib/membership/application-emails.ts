@@ -21,7 +21,7 @@ import type { RenderedEmailSignature } from "@repo/communications/signature";
 
 export type EmailBody = { subject: string; html: string; text: string };
 
-function escapeHtml(value: string): string {
+export function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -36,6 +36,11 @@ type Composition = {
   greetingName?: string | null;
   paragraphs: string[];
   cta?: { label: string; url: string } | null;
+  /**
+   * Bloques ya armados que van después del botón, como el del sorteo en el recordatorio de
+   * cuota. Quien los arma escapa su propio HTML; acá se insertan tal cual.
+   */
+  blocks?: { html: string; text: string }[];
   /** Aclaraciones al pie, en letra chica. */
   notes?: string[];
   signature: RenderedEmailSignature | null;
@@ -64,6 +69,8 @@ export function compose(input: Composition): EmailBody {
   <p style="font-size:13px;color:#6b7280;">Si el botón no funciona, copiá y pegá esta dirección en tu navegador:<br>${escapeHtml(input.cta.url)}</p>`
     : "";
 
+  const htmlBloques = (input.blocks ?? []).map((b) => `\n  ${b.html}`).join("");
+
   const htmlNotas = (input.notes ?? [])
     .map((n) => `\n  <p style="font-size:13px;color:#6b7280;">${escapeHtml(n)}</p>`)
     .join("");
@@ -74,7 +81,7 @@ export function compose(input: Composition): EmailBody {
 
   const html = `
 <div>
-${saludo ? `  <p>${escapeHtml(saludo)}</p>\n` : ""}${htmlParrafos}${htmlCta}${htmlNotas}${htmlFirma}
+${saludo ? `  <p>${escapeHtml(saludo)}</p>\n` : ""}${htmlParrafos}${htmlCta}${htmlBloques}${htmlNotas}${htmlFirma}
 </div>
 `.trim();
 
@@ -82,6 +89,7 @@ ${saludo ? `  <p>${escapeHtml(saludo)}</p>\n` : ""}${htmlParrafos}${htmlCta}${ht
     ...(saludo ? [saludo, ""] : []),
     input.paragraphs.join("\n\n"),
     ...(input.cta ? ["", `${input.cta.label}:`, input.cta.url] : []),
+    ...(input.blocks ?? []).flatMap((b) => ["", b.text]),
     ...((input.notes ?? []).length ? ["", (input.notes ?? []).join("\n")] : []),
     ...(input.signature ? ["", input.signature.text] : []),
   ].join("\n");
