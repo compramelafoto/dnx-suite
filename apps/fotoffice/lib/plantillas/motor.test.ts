@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MARCADOR_FIRMA } from "./constantes";
-import { analizar, completar, type Pieza } from "./motor";
+import { analizar, completar, tieneMarcadorSinCompletar, type Pieza } from "./motor";
 
 const P = new Set(["nombre", "consulta_fecha", "consulta_lugar", "firma", "campo:dni", "campo:2do_nombre"]);
 
@@ -120,5 +120,17 @@ describe("completar", () => {
 
   it("los valores se insertan tal cual (sin interpretar corchetes)", () => {
     expect(completar(piezas("[nombre]"), valores({ nombre: "[consulta_lugar]" })).texto).toBe("[consulta_lugar]");
+  });
+});
+
+describe("tieneMarcadorSinCompletar", () => {
+  it("detecta corchetes que empiezan en mayúscula (con tildes) y no las variables", () => {
+    expect(tieneMarcadorSinCompletar("Mirá [PEGÁ ACÁ EL ENLACE]")).toBe(true);
+    expect(tieneMarcadorSinCompletar("[Ñandú]")).toBe(true);
+    expect(tieneMarcadorSinCompletar("[Él lo completa]")).toBe(true);
+    expect(tieneMarcadorSinCompletar("Hola [nombre], [si:consulta_fecha][consulta_fecha][/si] [2026] [] [nota]")).toBe(false);
+    expect(tieneMarcadorSinCompletar("[PEGÁ sin cerrar")).toBe(false);
+    expect(tieneMarcadorSinCompletar(null)).toBe(false);
+    expect(tieneMarcadorSinCompletar(undefined)).toBe(false);
   });
 });

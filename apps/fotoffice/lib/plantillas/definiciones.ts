@@ -7,7 +7,7 @@ import {
   MAX_PLANTILLAS_ACTIVAS_POR_CANAL, TIPOS_PLANTILLA,
   type Canal, type ClaveAutomatico, type TipoPlantilla,
 } from "./constantes";
-import { analizar, type ErrorPlantilla } from "./motor";
+import { analizar, tieneMarcadorSinCompletar, type ErrorPlantilla } from "./motor";
 import { clavesPermitidas, type CampoParaVariables } from "./variables";
 
 /** Quién configura. Las funciones de escritura exigen `configurar` adentro. */
@@ -60,6 +60,7 @@ export const MENSAJES_PLANTILLAS = {
   yaSeUso: "Esta plantilla ya se usó: archivala.",
   ordenDesactualizado: "La lista cambió mientras la ordenabas: recargá la página.",
   datosInvalidos: "Los datos no son válidos.",
+  marcadorSinCompletar: "Completá los textos entre corchetes en mayúsculas antes de encenderla.",
 } as const;
 
 const no = (error: string, errores?: ErrorDeTexto[]) => ({ ok: false as const, error, ...(errores ? { errores } : {}) });
@@ -163,6 +164,8 @@ export async function listarPlantillas(
       ...(opciones.incluirArchivadas ? {} : { archivedAt: null }),
     },
     orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+    // Techo de seguridad: activas son ≤ 100 por canal (tope); con archivadas incluidas, 500 alcanza
+    // de sobra para la pantalla de Configuración. Si alguna vez se pasa, las más nuevas no se listan.
     take: 500,
     select: SELECT_PLANTILLA,
   });
@@ -306,6 +309,10 @@ export async function duplicarPlantilla(ctx: CtxPlantillas, id: string): Promise
   if ((await activasDelCanal(ctx.workspaceId, p.channel)) >= MAX_PLANTILLAS_ACTIVAS_POR_CANAL) {
     return no(mensajeTope(p.channel));
   }
+  // Se revalida: un campo personalizado pudo archivarse desde que se guardó el original.
+  if (!esTipoPlantilla(p.entityType)) return no(MENSAJES_PLANTILLAS.datosInvalidos);
+  const texto = await validarTexto(ctx.workspaceId, p.channel, p.entityType, p.subject, p.body);
+  if (!texto.ok) return texto;
   const name = `Copia de ${p.name}`.slice(0, MAX_NOMBRE_PLANTILLA).trim();
   const creada = await prisma.fotofficeMessageTemplate.create({
     data: {
@@ -313,8 +320,8 @@ export async function duplicarPlantilla(ctx: CtxPlantillas, id: string): Promise
       channel: p.channel,
       entityType: p.entityType,
       name,
-      subject: p.subject,
-      body: p.body,
+      subject: texto.valor.subject,
+      body: texto.valor.body,
       order: await ordenAlFinal(ctx.workspaceId, p.channel),
       updatedByUserId: ctx.userId,
     },
@@ -417,6 +424,9 @@ export async function guardarAutomatico(ctx: CtxPlantillas, clave: unknown, dato
   const def = AUTOMATICOS[clave];
   const texto = await validarTexto(ctx.workspaceId, def.canal, def.tipo, datos.subject, datos.body);
   if (!texto.ok) return texto;
+  if (datos.enabled && (tieneMarcadorSinCompletar(texto.valor.subject) || tieneMarcadorSinCompletar(texto.valor.body))) {
+    return no(MENSAJES_PLANTILLAS.marcadorSinCompletar);
+  }
   const data = {
     enabled: datos.enabled, subject: texto.valor.subject, body: texto.valor.body, updatedByUserId: ctx.userId,
   };

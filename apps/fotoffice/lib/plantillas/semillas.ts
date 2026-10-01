@@ -83,7 +83,11 @@ Armamos una propuesta pensada para lo que nos contaste:
 
 [COMPLETÁ ACÁ LA PROPUESTA: SERVICIOS, HORAS DE COBERTURA Y VALOR]
 
-Nos encantaría contártela en detalle y conocernos. Te proponemos coordinar una entrevista, presencial o por videollamada, sin ningún compromiso. Contanos qué día y horario te quedan cómodos respondiendo este correo[si:organizacion_whatsapp], escribiéndonos por WhatsApp al [organizacion_whatsapp][/si][si:organizacion_email] o a [organizacion_email][/si].
+Nos encantaría contártela en detalle y conocernos. Te proponemos coordinar una entrevista, presencial o por videollamada, sin ningún compromiso. Podés elegir el día y el horario que te queden cómodos en nuestra agenda:
+
+[PEGÁ ACÁ EL ENLACE A TU AGENDA]
+
+Si preferís, contanos respondiendo este correo[si:organizacion_whatsapp], escribiéndonos por WhatsApp al [organizacion_whatsapp][/si][si:organizacion_email] o escribiéndonos a [organizacion_email][/si].
 
 ¡Gracias de nuevo por escribirnos!
 

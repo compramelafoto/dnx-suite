@@ -194,6 +194,15 @@ describe("duplicar, reordenar, borrar y archivar", () => {
     expect((plantilla(r.id).name as string).length).toBe(80);
   });
 
+  it("duplicar revalida: si un campo usado se archivó, no copia", async () => {
+    const campo = B.agregar("fotofficeCustomField", { workspaceId: "ws-1", entityType: "CLIENTE", key: "salon", name: "Salón", type: "TEXTO" });
+    const id = await crear({ cuerpo: "Salón: [campo:salon]" });
+    campo.archivedAt = new Date();
+    const r = await D.duplicarPlantilla(ADMIN, id);
+    expect(!r.ok && r.errores?.[0]?.variable).toBe("campo:salon");
+    expect(plantillas()).toHaveLength(1);
+  });
+
   it("reordena sólo con la lista completa de activas del canal", async () => {
     const a = await crear({ nombre: "A" });
     const b = await crear({ nombre: "B" });
@@ -249,5 +258,37 @@ describe("mensaje automático", () => {
     expect(plantillas()[0]).toMatchObject({ enabled: false, subject: "Otra", systemKey: "CONSULTA_AUTORESPUESTA" });
     // El de otro workspace no se toca.
     expect(await D.leerAutomatico("ws-2", "CONSULTA_AUTORESPUESTA")).toBeNull();
+  });
+
+  it("no se enciende mientras quede un texto entre corchetes en mayúsculas", async () => {
+    automatico();
+    const enAsunto = await D.guardarAutomatico(ADMIN, "CONSULTA_AUTORESPUESTA", { enabled: true, subject: "Hola [COMPLETÁ]", body: "b" });
+    expect(enAsunto).toEqual({ ok: false, error: M.marcadorSinCompletar });
+    const enCuerpo = await D.guardarAutomatico(ADMIN, "CONSULTA_AUTORESPUESTA", {
+      enabled: true, subject: "Hola", body: "Mirá [PEGÁ ACÁ EL ENLACE A TU AGENDA]",
+    });
+    expect(enCuerpo).toEqual({ ok: false, error: M.marcadorSinCompletar });
+    expect(plantillas()[0]).toMatchObject({ subject: "Recibimos tu consulta", body: "Hola" });
+    // Apagada se puede guardar igual, para completarla después.
+    expect(await D.guardarAutomatico(ADMIN, "CONSULTA_AUTORESPUESTA", {
+      enabled: false, subject: "Hola", body: "Mirá [PEGÁ ACÁ EL ENLACE A TU AGENDA]",
+    })).toEqual({ ok: true });
+    expect(plantillas()[0]).toMatchObject({ enabled: false, body: "Mirá [PEGÁ ACÁ EL ENLACE A TU AGENDA]" });
+  });
+
+  it("si la semilla lo crea en el mismo instante (P2002), actualiza en vez de fallar", async () => {
+    const original = B.tablas.fotofficeMessageTemplate.create;
+    B.tablas.fotofficeMessageTemplate.create = async () => {
+      // La otra pestaña lo creó entre el updateMany (0 filas) y este create.
+      automatico();
+      throw Object.assign(new Error("Unique constraint"), { code: "P2002" });
+    };
+    try {
+      expect(await D.guardarAutomatico(ADMIN, "CONSULTA_AUTORESPUESTA", { enabled: true, subject: "Nuevo", body: "Hola [nombre]" })).toEqual({ ok: true });
+    } finally {
+      B.tablas.fotofficeMessageTemplate.create = original;
+    }
+    expect(plantillas()).toHaveLength(1);
+    expect(plantillas()[0]).toMatchObject({ enabled: true, subject: "Nuevo", body: "Hola [nombre]", updatedByUserId: 1 });
   });
 });

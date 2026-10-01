@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { analizar } from "./motor";
+import { analizar, tieneMarcadorSinCompletar } from "./motor";
 import { clavesPermitidas } from "./variables";
 import { MAX_ASUNTO, MAX_CUERPO, MAX_NOMBRE_PLANTILLA } from "./constantes";
 
@@ -38,6 +38,19 @@ describe("textos iniciales", () => {
       expect(t.asunto!.length).toBeLessThanOrEqual(MAX_ASUNTO);
     } else {
       expect(t.asunto).toBeNull();
+    }
+  });
+
+  it("la Propuesta pide el enlace a la agenda y no deja un \"o a\" suelto sin WhatsApp", () => {
+    const p = S.PLANTILLAS_DNX.find((x) => x.nombre === "Propuesta para tu evento")!;
+    expect(p.cuerpo).toContain("[PEGÁ ACÁ EL ENLACE A TU AGENDA]");
+    expect(tieneMarcadorSinCompletar(p.cuerpo)).toBe(true);
+    expect(p.cuerpo).toContain("[si:organizacion_email] o escribiéndonos a [organizacion_email][/si]");
+  });
+
+  it("las autorespuestas iniciales no tienen textos para completar (se pueden encender)", () => {
+    for (const a of [S.AUTORESPUESTA_DNX, S.AUTORESPUESTA_GENERICA]) {
+      expect(tieneMarcadorSinCompletar(a.asunto) || tieneMarcadorSinCompletar(a.cuerpo)).toBe(false);
     }
   });
 

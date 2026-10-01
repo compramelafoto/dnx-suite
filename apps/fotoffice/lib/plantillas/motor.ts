@@ -39,6 +39,16 @@ function validarClave(clave: string, posicion: number, permitidas: ReadonlySet<s
   return permitidas.has(clave) ? null : desconocida(posicion, clave);
 }
 
+/**
+ * Texto para completar a mano: entre corchetes y empezando en mayúscula (`[PEGÁ ACÁ EL ENLACE]`).
+ * El motor lo deja como texto literal; un automático no se enciende y un envío se frena mientras quede.
+ */
+const MARCADOR_SIN_COMPLETAR = /\[[A-ZÁÉÍÓÚÑÜ][^\]]*\]/;
+
+export function tieneMarcadorSinCompletar(texto: string | null | undefined): boolean {
+  return typeof texto === "string" && MARCADOR_SIN_COMPLETAR.test(texto);
+}
+
 export function analizar(texto: string, permitidas: ReadonlySet<string>): ResultadoAnalisis {
   const raiz: Pieza[] = [];
   const errores: ErrorPlantilla[] = [];
