@@ -86,6 +86,20 @@ export function whereRecorridos(workspaceId: string, c: ConsultaResuelta, ahora:
 }
 
 /**
+ * Puro: los ids de la búsqueda por número que pueden viajar junto a los de los recorridos. Con
+ * recorridos, sólo los que están en esa lista (los demás igual quedarían afuera). Cada id es un
+ * parámetro de la consulta (Postgres admite hasta 32.767): si las dos listas juntas pasan
+ * `TOPE_SUBCONSULTA`, la búsqueda por número no suma nada —la misma regla que cuando coinciden
+ * demasiados números— y el resto de la búsqueda sigue igual.
+ */
+export function numerosDentroDeRecorridos(idsNumero: string[], idsRecorrido: string[] | null): string[] {
+  if (!idsRecorrido) return idsNumero.length > TOPE_SUBCONSULTA ? [] : idsNumero;
+  const enRecorridos = new Set(idsRecorrido);
+  const comunes = idsNumero.filter((id) => enRecorridos.has(id));
+  return idsRecorrido.length + comunes.length > TOPE_SUBCONSULTA ? [] : comunes;
+}
+
+/**
  * Puro: lo que se le pide a Prisma. `workspaceId` va siempre, primero. `idsRecorrido` viene de la
  * subconsulta de recorridos; `idsNumero`, de la búsqueda por número (se suma al OR de la búsqueda).
  */
@@ -110,7 +124,8 @@ export function whereCaptacion(
       { eventType: { contains: q, mode: "insensitive" } },
     ];
     if (codigos.length > 0) or.push({ eventType: { in: codigos } });
-    if (idsNumero.length > 0) or.push({ id: { in: idsNumero } });
+    const porNumero = numerosDentroDeRecorridos(idsNumero, idsRecorrido);
+    if (porNumero.length > 0) or.push({ id: { in: porNumero } });
     if (campos.buscar) or.push(campos.buscar);
     where.OR = or;
   }

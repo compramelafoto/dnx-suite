@@ -89,6 +89,33 @@ describe("numerarConsultaNueva", () => {
     expect(await N.numerarConsultaNueva("ws-1", "nueva", AHORA)).toMatchObject({ display: "2026-0001" });
   });
 
+  it("dos altas simultáneas (cada una ve a la otra sin número): ninguna se numera al crearse y el enganche las numera por alta", async () => {
+    // Las dos filas ya confirmaron antes de que cualquiera de las dos llegue a numerar. "b" se
+    // insertó primero pero se dio de alta después: manda la fecha de alta, no el orden de inserción.
+    const t1 = new Date("2026-10-01T15:00:00.000Z");
+    const t2 = new Date("2026-10-01T15:00:00.500Z");
+    B.agregar("serviceSalesLead", { id: "b", workspaceId: "ws-1", name: "x", eventType: "XV", createdAt: t2 });
+    B.agregar("serviceSalesLead", { id: "a", workspaceId: "ws-1", name: "x", eventType: "XV", createdAt: t1 });
+    expect(await Promise.all([N.numerarConsultaNueva("ws-1", "b", t2), N.numerarConsultaNueva("ws-1", "a", t1)])).toEqual([null, null]);
+    expect(B.datos.fotofficeRecordNumber).toHaveLength(0);
+    // La parte de numeración del enganche (la que corre `engancharConsultas`).
+    expect(await N.numerarConsultasPendientes("ws-1", 150)).toEqual({ numeradas: 2, completo: true });
+    expect([numero("a"), numero("b")]).toEqual(["2026-0001", "2026-0002"]);
+  });
+
+  it("dos altas simultáneas con una vieja sin número: tampoco se numeran al crearse; el enganche numera las tres por alta", async () => {
+    B.agregar("serviceSalesLead", { id: "vieja", workspaceId: "ws-1", name: "x", eventType: "XV", createdAt: new Date("2025-12-20T12:00:00Z") });
+    B.agregar("serviceSalesLead", { id: "n2", workspaceId: "ws-1", name: "x", eventType: "XV", createdAt: new Date("2026-10-01T15:00:01Z") });
+    B.agregar("serviceSalesLead", { id: "n1", workspaceId: "ws-1", name: "x", eventType: "XV", createdAt: AHORA });
+    expect(await Promise.all([N.numerarConsultaNueva("ws-1", "n1", AHORA), N.numerarConsultaNueva("ws-1", "n2", AHORA)])).toEqual([null, null]);
+    expect(B.datos.fotofficeRecordNumber).toHaveLength(0);
+    await N.numerarConsultasPendientes("ws-1", 150);
+    expect([numero("vieja"), numero("n1"), numero("n2")]).toEqual(["2025-0001", "2026-0001", "2026-0002"]);
+    // Una segunda corrida no cambia nada.
+    expect(await N.numerarConsultasPendientes("ws-1", 150)).toEqual({ numeradas: 0, completo: true });
+    expect(B.datos.fotofficeRecordNumber).toHaveLength(3);
+  });
+
   it("es idempotente: numerar dos veces la misma consulta devuelve el mismo número", async () => {
     B.agregar("serviceSalesLead", { id: "c-1", workspaceId: "ws-1", name: "x", eventType: "XV", createdAt: AHORA });
     const primero = await N.numerarConsulta("ws-1", "c-1", AHORA);

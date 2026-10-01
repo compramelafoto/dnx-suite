@@ -27,6 +27,7 @@ import {
   TOPE_SUBCONSULTA,
   diasEnEtapa,
   listadoCaptacion,
+  numerosDentroDeRecorridos,
   ordenarPorNumero,
   resolverWhere,
   textoDeNumeroBuscado,
@@ -320,5 +321,34 @@ describe("número de consulta en la lista", () => {
       .mockResolvedValueOnce([{ id: "s0" }]);
     expect(await listadoCaptacion.traerIds(ctx, { ...base, orden: { campo: "numero", desc: true } }, 10)).toEqual(["s0"]);
     expect(leadFindMany.mock.calls[1][0]).toMatchObject({ orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 10 });
+  });
+
+  it("con recorridos, la búsqueda por número sólo lleva los ids que están en ellos y nunca pasa el tope de parámetros", () => {
+    const rango = (pre: string, n: number) => Array.from({ length: n }, (_, i) => `${pre}${i}`);
+    const parametros = (w: ReturnType<typeof whereCaptacion>) => {
+      const enId = (w.id as { in?: string[] } | undefined)?.in?.length ?? 0;
+      const enOr = (w.OR ?? []).reduce((n, o) => n + (((o as { id?: { in?: string[] } }).id?.in?.length) ?? 0), 0);
+      return enId + enOr;
+    };
+    const q = { ...base, q: "2026" };
+    // Intersección: sólo viajan los números que están entre los recorridos.
+    const chica = whereCaptacion("w1", q, ["a", "b", "c"], ["b", "z", "c", "y"]);
+    expect(chica.OR).toContainEqual({ id: { in: ["b", "c"] } });
+
+    // Listas grandes: recorridos al tope y números que también lo llenan.
+    const recorridos = rango("r", TOPE_SUBCONSULTA);
+    const numeros = [...rango("r", TOPE_SUBCONSULTA / 2), ...rango("n", TOPE_SUBCONSULTA / 2)];
+    const grande = whereCaptacion("w1", q, recorridos, numeros);
+    expect(parametros(grande)).toBeLessThanOrEqual(TOPE_SUBCONSULTA);
+    expect(grande.id).toEqual({ in: recorridos });
+
+    // Debajo del tope, las dos listas viajan (sin los ajenos a los recorridos).
+    const media = whereCaptacion("w1", q, rango("r", 10_000), [...rango("r", 5_000), ...rango("n", 20_000)]);
+    expect(parametros(media)).toBe(15_000);
+    expect(parametros(media)).toBeLessThanOrEqual(TOPE_SUBCONSULTA);
+
+    // Sin recorridos, una lista de números de más no viaja.
+    expect(numerosDentroDeRecorridos(rango("n", TOPE_SUBCONSULTA + 1), null)).toEqual([]);
+    expect(numerosDentroDeRecorridos(["a"], null)).toEqual(["a"]);
   });
 });

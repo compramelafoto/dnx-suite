@@ -35,6 +35,11 @@ export function numerarConsulta(workspaceId: string, leadId: string, alta: Date)
 /**
  * ¿Hay otra consulta del workspace todavía sin número? No compara fechas en SQL (la columna es
  * sin zona horaria): cualquier otra sin número es anterior o se está dando de alta a la vez.
+ *
+ * Costo: con todo numerado, el `NOT EXISTS` (por el índice único entityType, entityId) recorre las
+ * consultas del workspace hasta no encontrar ninguna: lineal en la cantidad de consultas en cada
+ * alta. Aceptado a la escala de un estudio (miles, no millones); si creciera, un índice o una
+ * marca por workspace lo resolvería.
  */
 async function hayOtrasSinNumero(workspaceId: string, leadId: string): Promise<boolean> {
   const filas = await prisma.$queryRaw<{ hay: number }[]>`
