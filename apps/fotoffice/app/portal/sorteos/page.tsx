@@ -7,6 +7,7 @@ import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { loadPortalRaffles, type PortalRaffleView } from "@/lib/raffles/portal";
 import { fechaCorta, fechaHora } from "@/lib/raffles/labels";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
+import { PrizeCards } from "@/components/raffles/prize-cards";
 
 export const dynamic = "force-dynamic";
 
@@ -147,33 +148,11 @@ function SorteoActual({ sorteo }: { sorteo: PortalRaffleView }) {
           <strong>{fechaHora(sorteo.drawsAt)}</strong>.
         </p>
 
-        <div className="space-y-3">
+        <div className="space-y-4 pt-2">
           <h3 className="text-sm font-medium uppercase tracking-wide text-[var(--fo-muted)]">
             {sorteo.prizes.length === 1 ? "El premio" : "Los premios"}
           </h3>
-          <ul className="space-y-3">
-            {sorteo.prizes.map((p) => (
-              <li key={p.id} className="flex items-start gap-3 text-sm">
-                {p.partnerLogoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={p.partnerLogoUrl}
-                    alt={p.partnerName ?? ""}
-                    className="size-12 shrink-0 rounded-[var(--fo-radius)] border border-[var(--fo-border)] bg-white object-contain p-1"
-                  />
-                ) : null}
-                <div>
-                  <span className="font-medium">{p.title}</span>
-                  {p.partnerName ? (
-                    <span className="text-[var(--fo-muted)]"> — lo dona {p.partnerName}</span>
-                  ) : null}
-                  {p.description ? (
-                    <p className="text-[var(--fo-muted)]">{p.description}</p>
-                  ) : null}
-                </div>
-              </li>
-            ))}
-          </ul>
+          <PrizeCards prizes={sorteo.prizes} />
         </div>
 
         {sorteo.status === "PADRON_SELLADO" ? (

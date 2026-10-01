@@ -35,4 +35,10 @@ describe("la dirección del logo de un aliado", () => {
     expect(resolveLogoUrl("javascript:alert(1)", "https://clickaton.ar")).toBe(null);
     expect(resolveLogoUrl("data:image/png;base64,AAA", "https://clickaton.ar")).toBe(null);
   });
+
+  it("la ruta propia de logos de DNX Partners se usa tal cual, aun sin dominio configurado", () => {
+    expect(resolveLogoUrl("/api/sorteos/logo/cmsjrt3d60017lb040fkzsk8x", null)).toBe(
+      "/api/sorteos/logo/cmsjrt3d60017lb040fkzsk8x",
+    );
+  });
 });

@@ -20,6 +20,9 @@ export function resolveLogoUrl(
 
   if (/^https?:\/\//i.test(valor)) return valor;
 
+  // La ruta propia que entrega los logos de DNX Partners: ya es de este sitio.
+  if (valor.startsWith("/api/sorteos/logo/")) return valor;
+
   // Sólo se completa una ruta del sitio. Cualquier otra cosa —`javascript:`, `data:`— no es
   // un logo, es algo que alguien escribió donde no debía.
   if (!valor.startsWith("/")) return null;
