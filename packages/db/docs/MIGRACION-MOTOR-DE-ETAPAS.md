@@ -31,7 +31,10 @@ consultas existentes corren **en código**, al abrir Captación o Configuración
   circuitos y 6 motivos de pérdida).
 - `engancharConsultas` crea un recorrido (en el circuito de venta predeterminado) por cada
   consulta existente que no lo tenga. Procesa **como máximo 150 por llamada** y muestra un
-  aviso "quedan N": hay que **recargar la página hasta que diga 0**.
+  aviso "quedan N": hay que **recargar la página hasta que diga 0**. Es una importación
+  fechada con la historia de cada consulta: la entrada a la primera etapa es su alta y, si ya
+  estaba ganada o perdida, el cierre es su última modificación. Sus pasos llevan la nota
+  "Importada con su estado anterior" y el informe no los cuenta como movimiento del mes.
 
 **Concurrencia.** El enganche toma un bloqueo consultivo de Postgres (advisory lock) por
 consulta, para que dos pestañas abiertas a la vez no creen recorridos duplicados. Eso supone
@@ -58,9 +61,11 @@ Si no da el checksum de la tabla de arriba, **parar**: el archivo cambió despu�
 2. Esta rama se rebasa sobre `main` actualizado.
 3. SQL en **staging** (`dnx-suite-staging`) y **prueba con `next dev` apuntando a staging**:
    abrir Captación, mover una consulta, tildar una tarea (sección 6).
-4. SQL en **FOTOFFICE producción** (`compramelafoto` / `development`), con la verificación
-   del paso 3 de la sección 4 inmediatamente después.
+4. SQL en **FOTOFFICE producción** (`compramelafoto` / `development`), con la primera parte
+   del paso 3 de la sección 4 (tablas vacías) inmediatamente después.
 5. Recién entonces se fusiona el PR.
+6. Con el código ya publicado, abrir Captación en DNX, recargar hasta que no diga "quedan N"
+   y hacer la segunda parte del paso 3 (circuitos y recorridos).
 
 ## 3. En qué bases va
 
@@ -125,7 +130,17 @@ SELECT count(*) FROM "_prisma_migrations"
  WHERE migration_name='20261003120000_fotoffice_motor_de_etapas' AND finished_at IS NOT NULL; -- 1
 ```
 
-Después de abrir Captación en DNX (y recargar hasta que no diga "quedan N"):
+**Después de fusionar el PR** (los circuitos y los recorridos los crea el código nuevo, no el
+SQL: antes de publicarlo estas cuentas dan 0). Abrir Captación en DNX, recargar hasta que no
+diga "quedan N" y entonces:
+
+Primero, el id del workspace de DNX (sólo lectura):
+
+```sql
+SELECT "workspaceId" FROM "FotofficeWorkspaceBranding" WHERE "publicSlug" = 'dnx-estudio';
+```
+
+Con ese valor en lugar de `<id de DNX>`:
 
 ```sql
 -- 21 circuitos y 6 motivos de pérdida en DNX
@@ -135,12 +150,22 @@ SELECT count(*) FROM "FotofficeLossReason" WHERE "workspaceId" = '<id de DNX>'; 
 -- un recorrido de venta por consulta existente: los dos números deben coincidir
 SELECT
   (SELECT count(*) FROM "ServiceSalesLead" WHERE "workspaceId" = '<id de DNX>') AS consultas,
-  (SELECT count(*) FROM "FotofficeJourney" j
-     JOIN "FotofficeCircuit" c ON c.id = j."circuitId"
-    WHERE j."workspaceId" = '<id de DNX>' AND j."subjectType" = 'CAPTACION' AND c.kind = 'VENTA') AS recorridos;
+  (SELECT count(DISTINCT j."subjectId") FROM "FotofficeJourney" j
+    WHERE j."workspaceId" = '<id de DNX>' AND j."subjectType" = 'CAPTACION' AND j.kind = 'VENTA') AS recorridos;
 ```
 
 Si `recorridos` es menor, todavía quedan consultas por enganchar: recargar Captación.
+
+**Si "quedan N" no llega a 0** después de varias recargas, es por una de estas dos causas:
+
+- **Consultas perdidas sin motivo activo.** Una consulta que ya estaba perdida se importa con
+  el motivo "Otro" (o el primer motivo activo). Si no hay ninguno activo, esas consultas
+  esperan. Solución: en Configuración → Circuitos → Motivos, activar "Otro" (o cualquier
+  motivo) y recargar Captación.
+- **Una consulta que falla al engancharse.** No queda a medias (se reintenta en cada
+  recarga), pero vuelve a fallar. Buscar en los logs de Vercel de FOTOFFICE la línea
+  `[circuitos] engancharConsultas falló`: trae el `workspaceId`, el estado de la consulta y el
+  código del error (nunca datos personales). Con eso, avisar para revisarla.
 
 ## 5. Rollback
 
@@ -182,3 +207,9 @@ que la Captación vieja sigue funcionando con los estados de siempre.
 7. En Configuración → Circuitos, reordenar etapas: ninguna consulta debe cambiar de etapa.
 8. En el inicio, ver "Mis tareas".
 9. Mandar una consulta nueva desde el formulario público: entra sola en la primera etapa.
+10. Aprobar la inscripción a un curso de alguien que **ya tenía una consulta** (mismo correo o
+    WhatsApp): en el tablero, esa consulta deja de estar abierta y queda como Ganada, con el
+    paso hecho por "Sistema" ("Inscripción aprobada para …").
+11. Después del enganche, abrir el informe de Captación del mes actual: las consultas viejas
+    no deben aparecer "pasando" por la primera etapa este mes; las ganadas y perdidas
+    importadas cuentan en el mes de su última modificación, no en el de la migración.
