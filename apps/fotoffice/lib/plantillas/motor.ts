@@ -81,8 +81,12 @@ export function analizar(texto: string, permitidas: ReadonlySet<string>): Result
         errores.push({ posicion, mensaje: "Falta la variable en [si:]." });
         continue;
       }
-      const error = validarClave(clave, posicion, permitidas);
-      if (error) errores.push(error);
+      if (clave === CLAVE_FIRMA) {
+        errores.push({ posicion, variable: clave, mensaje: "La firma no puede usarse como condición." });
+      } else {
+        const error = validarClave(clave, posicion, permitidas);
+        if (error) errores.push(error);
+      }
       bloque = { clave, posicion, piezas: [] };
       continue;
     }

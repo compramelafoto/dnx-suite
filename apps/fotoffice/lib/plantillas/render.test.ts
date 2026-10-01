@@ -36,6 +36,22 @@ describe("cuerpoCorreoHtml", () => {
     expect(html).toContain('&quot;<a href="https://b.com/y" rel="noopener noreferrer">https://b.com/y</a>&quot;');
   });
 
+  it("un \")\" final sólo se quita si sobra", () => {
+    expect(cuerpoCorreoHtml("http://x.com/a_(b)", "", true)).toBe('<p><a href="http://x.com/a_(b)" rel="noopener noreferrer">http://x.com/a_(b)</a></p>');
+    expect(cuerpoCorreoHtml("(ver http://x.com)", "", true)).toBe('<p>(ver <a href="http://x.com" rel="noopener noreferrer">http://x.com</a>)</p>');
+    expect(cuerpoCorreoHtml("(http://x.com/a_(b)).", "", true)).toContain('href="http://x.com/a_(b)"');
+  });
+
+  it("textos con miles de espacios se procesan rápido (sin regex cuadrática)", () => {
+    const espacios = " ".repeat(80_000);
+    const t0 = performance.now();
+    cuerpoCorreoHtml(`a${espacios}b\n${espacios}\n${espacios}x`, "", true);
+    cuerpoCorreoTexto(`a${espacios}b\n${espacios}`, "", true);
+    textoWhatsapp(`a${espacios}\n${espacios}b`);
+    cuerpoCorreoHtml(`http://x.com/${".".repeat(80_000)}`, "", true);
+    expect(performance.now() - t0).toBeLessThan(200);
+  });
+
   it("un enlace con intento de cortar el atributo queda escapado", () => {
     const html = cuerpoCorreoHtml("https://x.com/'onmouseover='alert(1)", "", true);
     expect(html).not.toContain("'onmouseover");

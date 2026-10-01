@@ -6,14 +6,48 @@
  * - `MARCADOR_FIRMA` (lo que deja `[firma]`) se reemplaza por la firma sin escaparla: viene del
  *   renderer de firmas, que ya la escapó.
  */
-import { escapeHtml } from "@repo/communications/templates";
 import { MARCADOR_FIRMA } from "./constantes";
 
 const ENLACE = /https?:\/\/[^\s<>"']+/gi;
-const PUNTUACION_FINAL = /[.,;:!?)\]}]+$/;
+const PUNTUACION_FINAL = new Set([".", ",", ";", ":", "!", "?", "]", "}"]);
 
+/** Local (no el barrel de @repo/communications) para que la vista previa del cliente no cargue el motor de templates. */
+function escapeHtml(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+/** Saltos de línea en `\n` y sin espacios al final de cada línea. Lineal: nada de regex con `[ \t]+` sin ancla. */
 function normalizar(texto: string): string {
-  return texto.replace(/\r\n?/g, "\n").replace(/[ \t]+\n/g, "\n");
+  return texto
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((l) => l.trimEnd())
+    .join("\n");
+}
+
+function contar(s: string, c: string): number {
+  let n = 0;
+  for (const x of s) if (x === c) n++;
+  return n;
+}
+
+/**
+ * Quita la puntuación final que no es parte del enlace. Un ")" final sólo se quita si sobra
+ * (más ")" que "("), así `http://x.com/a_(b)` queda entero y `(ver http://x.com)` no arrastra el ")".
+ */
+function recortarEnlace(url: string): string {
+  let fin = url.length;
+  let abiertos = contar(url, "(");
+  let cerrados = contar(url, ")");
+  while (fin > 0) {
+    const c = url[fin - 1]!;
+    if (PUNTUACION_FINAL.has(c)) fin--;
+    else if (c === ")" && cerrados > abiertos) {
+      fin--;
+      cerrados--;
+    } else break;
+  }
+  return url.slice(0, fin);
 }
 
 function compactar(texto: string): string {
@@ -25,9 +59,7 @@ function tramoHtml(texto: string): string {
   let html = "";
   let desde = 0;
   for (const m of texto.matchAll(ENLACE)) {
-    let url = m[0];
-    const sobra = url.match(PUNTUACION_FINAL)?.[0] ?? "";
-    url = url.slice(0, url.length - sobra.length);
+    const url = recortarEnlace(m[0]);
     if (!/^https?:\/\/./i.test(url)) continue;
     html += escapeHtml(texto.slice(desde, m.index));
     const u = escapeHtml(url);
@@ -45,7 +77,8 @@ function tramoHtml(texto: string): string {
 export function cuerpoCorreoHtml(texto: string, firmaHtml: string, conFirma = texto.includes(MARCADOR_FIRMA)): string {
   const t = normalizar(texto);
   const bloques: string[] = [];
-  for (const parrafo of t.split(/\n[ \t]*\n/)) {
+  // Las líneas ya vienen sin espacios al final: una línea en blanco es "\n\n".
+  for (const parrafo of t.split(/\n\n+/)) {
     parrafo.split(MARCADOR_FIRMA).forEach((parte, i) => {
       if (i > 0 && firmaHtml) bloques.push(firmaHtml);
       const limpia = parte.trim();

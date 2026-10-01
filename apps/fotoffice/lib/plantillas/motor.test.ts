@@ -63,6 +63,12 @@ describe("analizar", () => {
     expect(errores("[si:inventada]x[/si]")[0]).toMatchObject({ posicion: 0, variable: "inventada" });
   });
 
+  it("la firma no puede ser condición de un bloque", () => {
+    const e = errores("Hola [si:firma]x[/si]");
+    expect(e).toHaveLength(1);
+    expect(e[0]).toMatchObject({ posicion: 5, variable: "firma", mensaje: "La firma no puede usarse como condición." });
+  });
+
   it("bloque sin cerrar, cierre sin abrir y bloques anidados son error", () => {
     expect(errores("Hola [si:nombre]x")[0]).toMatchObject({ posicion: 5 });
     expect(errores("Hola [si:nombre]x")[0]!.mensaje).toContain("[/si]");
