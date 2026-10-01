@@ -18,6 +18,9 @@ const TABLAS = [
   "fotofficeCircuit", "fotofficeStage", "fotofficeStageTaskTemplate", "fotofficeLossReason",
   "fotofficeJourney", "fotofficeJourneyStep", "fotofficeTask", "serviceSalesLead", "workspaceMembership",
   "fotofficeStageRule", "fotofficeProcessedEvent", "fotofficeWorkspaceBranding", "serviceLeadForm",
+  // Campos personalizados (0.5) y los registros a los que se cuelgan.
+  "fotofficeCustomField", "fotofficeCustomFieldOption", "fotofficeCustomValue", "fotofficeCustomValueChange",
+  "client", "member",
 ] as const;
 export type Tabla = (typeof TABLAS)[number];
 
@@ -26,6 +29,7 @@ const RELACIONES: Record<string, { columna: string; tabla: Tabla }> = {
   circuit: { columna: "circuitId", tabla: "fotofficeCircuit" },
   stage: { columna: "stageId", tabla: "fotofficeStage" },
   journey: { columna: "journeyId", tabla: "fotofficeJourney" },
+  field: { columna: "fieldId", tabla: "fotofficeCustomField" },
 };
 
 const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
@@ -46,6 +50,13 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
     doneByUserId: null, createdByUserId: null, createdAt: new Date(),
   }),
   serviceSalesLead: () => ({ status: "NEW", eventDate: null, createdAt: new Date(), updatedAt: new Date() }),
+  fotofficeCustomField: () => ({ required: false, showInList: false, order: 0, archivedAt: null, createdAt: new Date() }),
+  fotofficeCustomFieldOption: () => ({ order: 0, archivedAt: null }),
+  fotofficeCustomValue: () => ({
+    valueText: null, valueNumber: null, valueDate: null, valueBool: null, optionId: null, updatedAt: new Date(),
+    updatedByUserId: null,
+  }),
+  fotofficeCustomValueChange: () => ({ before: null, after: null, actorUserId: null, actorLabel: null, createdAt: new Date() }),
 };
 
 function igual(a: unknown, b: unknown): boolean {
@@ -120,6 +131,8 @@ export function crearBaseEnMemoria() {
   const UNICOS: Partial<Record<Tabla, { columnas: string[]; aplica?: (f: Fila) => boolean }>> = {
     fotofficeJourney: { columnas: ["workspaceId", "subjectType", "subjectId", "kind"], aplica: (f) => f.closedAt === null },
     fotofficeProcessedEvent: { columnas: ["journeyId", "event", "sourceRef"] },
+    fotofficeCustomField: { columnas: ["workspaceId", "entityType", "key"] },
+    fotofficeCustomValue: { columnas: ["fieldId", "entityId"] },
   };
 
   function verificarUnicidad(tabla: Tabla, f: Fila) {
