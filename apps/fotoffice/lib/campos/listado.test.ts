@@ -13,6 +13,7 @@ vi.mock("@/lib/vocabulario/load", () => ({ loadPersonVocabulary: async () => ({ 
 const L = await import("./listado");
 const { PARAMETROS_RESERVADOS } = await import("@/lib/listado/tipos");
 const { resolverPeriodo } = await import("@/lib/listado/periodos");
+const { leerConsulta } = await import("@/lib/listado/consulta");
 import type { ConsultaResuelta, ContextoListado, DefinicionListado } from "@/lib/listado/tipos";
 
 const CTX: ContextoListado = { workspaceId: "ws-1", workspaceName: "W", userId: 1, userLabel: "Ana", role: "STAFF" };
@@ -39,6 +40,9 @@ function sembrar() {
   // Otro tipo de registro y otro workspace: nunca aparecen.
   campo("socio", { name: "Del socio", entityType: "SOCIO", showInList: true });
   B.agregar("fotofficeCustomField", { id: "ajeno", workspaceId: "ws-2", entityType: "CLIENTE", key: "ajeno", name: "Ajeno", type: "SI_NO", showInList: true });
+  // Un campo Lista con la misma clave en otro workspace, con su propia opción.
+  B.agregar("fotofficeCustomField", { id: "estilo-ws2", workspaceId: "ws-2", entityType: "CLIENTE", key: "estilo", name: "Estilo", type: "LISTA" });
+  B.agregar("fotofficeCustomFieldOption", { id: "o-de-ws-2", fieldId: "estilo-ws2", label: "Ajena", order: 0 });
   B.agregar("fotofficeCustomFieldOption", { id: "o-clasico", fieldId: "estilo", label: "Clásico", order: 0 });
   B.agregar("fotofficeCustomFieldOption", { id: "o-moderno", fieldId: "estilo", label: "Moderno", order: 1 });
   B.agregar("fotofficeCustomFieldOption", { id: "o-retro", fieldId: "estilo", label: "Retro", order: 2, archivedAt: new Date() });
@@ -57,6 +61,7 @@ function sembrar() {
   valor("c3", "monto", { valueNumber: "999" });
   // Un valor de otro workspace colgado del mismo campo y la misma opción: la subconsulta no lo ve.
   valor("cx", "estilo", { optionId: "o-clasico" }, "ws-2");
+  valor("cx", "estilo-ws2", { optionId: "o-de-ws-2" }, "ws-2");
   valor("cx", "archivos", { valueText: "https://boda.example.com" }, "ws-2");
 }
 
@@ -130,6 +135,22 @@ describe("restricción de filtros y búsqueda", () => {
     const c = await L.camposParaListado(CTX, "CLIENTE");
     const r = await c.restriccion({ ...BASE, filtros: { cf_estilo: "o-clasico" } });
     expect(r).toEqual({ soloIds: ["c1"], buscarIds: [], excedido: false });
+  });
+
+  it("una opción de otro campo u otro workspace no es válida: el motor la descarta y no filtra", async () => {
+    const c = await L.camposParaListado(CTX, "CLIENTE");
+    const lista = c.campos.find((x) => x.id === "estilo")!;
+    // Opción de otro campo (archivado), archivada del mismo campo y la del campo homónimo de otro workspace.
+    for (const ajena of ["o-viejo", "o-retro", "o-de-ws-2"]) {
+      expect(L.condicionDeFiltro(lista, ajena, undefined)).toBeNull();
+      expect(await c.restriccion({ ...BASE, filtros: { cf_estilo: ajena } })).toEqual({ soloIds: null, buscarIds: [], excedido: false });
+      const def = L.conCampos(definicionFalsa([]), c);
+      const { descartados, consulta } = leerConsulta(def, new URLSearchParams({ cf_estilo: ajena }));
+      expect(descartados).toEqual(["cf_estilo"]);
+      expect(consulta.filtros).toEqual({});
+    }
+    // Y una opción de este workspace sí se acepta.
+    expect(leerConsulta(L.conCampos(definicionFalsa([]), c), new URLSearchParams({ cf_estilo: "o-clasico" })).descartados).toEqual([]);
   });
 
   it("Sí/No y la intersección de varios filtros", async () => {
