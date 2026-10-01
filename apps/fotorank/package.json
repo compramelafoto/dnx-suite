@@ -126,6 +126,7 @@
     "test:menu-de-la-cuenta": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/components/shell/menuDeLaCuenta.test.ts ../../apps/fotorank/app/components/shell/shell-nav.test.ts",
     "test:competir-y-juzgar": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/jury/competir-y-juzgar.test.ts",
     "test:bases-al-publicar": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/registration/basesAlPublicar.test.ts",
+    "test:fechas-publicas": "TZ=UTC pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/contest-public-presentation/registration-close.test.ts",
     "test:mensaje-de-asignacion": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/mensajeDeAsignacion.test.ts"
   },
   "dependencies": {
