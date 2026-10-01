@@ -1,4 +1,6 @@
 import { Prisma, prisma } from "@/lib/admin/db";
+import { readCouponAffiliate } from "@/lib/affiliates/domain/coupon-affiliate";
+import { reverseAffiliateCommission } from "@/lib/affiliates/infrastructure/commission-lifecycle";
 import { buildAvailability } from "@/lib/admin-catalog/domain/availability";
 import { systemClock, type EditionClock } from "@/lib/timeline/clock";
 import { releaseClickatonPromotionRedemption } from "@/lib/promotions/prisma-promotions-adapter";
@@ -382,6 +384,30 @@ export function createPrismaPublicRegistrationRepository(
         guaranteedUntil: row.guaranteedUntil,
         excludedCity: row.edition.city,
         excludedProvince: row.edition.provinceOrState,
+      };
+    },
+
+    async getAffiliateCommissionContext({ promotionId, editionId }) {
+      const promotion = await prisma.dnxPromotion.findUnique({
+        where: { id: promotionId },
+        select: { metadata: true },
+      });
+      const affiliate = readCouponAffiliate(promotion?.metadata ?? null);
+      if (!affiliate) return null;
+      const [row, settings] = await Promise.all([
+        prisma.clickatonAffiliate.findUnique({
+          where: { id: affiliate.affiliateId },
+          select: { isActive: true },
+        }),
+        prisma.clickatonEditionResultSettings.findUnique({
+          where: { editionId },
+          select: { mpProcessingFeeBps: true },
+        }),
+      ]);
+      return {
+        affiliate,
+        affiliateActive: row?.isActive === true,
+        editionMpFeeBps: settings?.mpProcessingFeeBps ?? null,
       };
     },
 
@@ -1559,6 +1585,25 @@ export function createPrismaPublicRegistrationRepository(
                     },
                   }
                 : {}),
+              ...(input.affiliateCommission
+                ? {
+                    affiliateCommission: {
+                      create: {
+                        editionId: input.cmd.editionId,
+                        affiliateId: input.affiliateCommission.affiliateId,
+                        promotionId: input.affiliateCommission.promotionId,
+                        promotionCodeSnapshot: input.affiliateCommission.promotionCodeSnapshot,
+                        commissionBps: input.affiliateCommission.commissionBps,
+                        baseAmount: input.affiliateCommission.baseAmount,
+                        grossAmount: input.affiliateCommission.grossAmount,
+                        mpFeeBps: input.affiliateCommission.mpFeeBps,
+                        mpFeeShareAmount: input.affiliateCommission.mpFeeShareAmount,
+                        netAmount: input.affiliateCommission.netAmount,
+                        status: "PENDING",
+                      },
+                    },
+                  }
+                : {}),
               items: {
                 create: reservedItems.map((item) => ({
                   ticketTypeItemId: item.ticketTypeItemId ?? null,
@@ -1873,6 +1918,9 @@ export function createPrismaPublicRegistrationRepository(
           } catch {
             // best-effort: no bloquear expiración de hold
           }
+          // El fotógrafo pierde la comisión de una reserva que nunca se pagó.
+          // No tira: sólo loguea.
+          await reverseAffiliateCommission(prisma, registrationId, "reserva vencida sin pago");
         }
         return result;
       });

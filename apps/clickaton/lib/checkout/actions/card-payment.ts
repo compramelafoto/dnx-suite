@@ -7,7 +7,8 @@ import {
   type CardPaymentSubmission,
 } from "@repo/payments/frontend";
 import { checkoutFailure, checkoutSuccess, type CheckoutActionState } from "./action-result";
-import { getCheckoutService } from "./runtime";
+import { getCheckoutServiceReady } from "./runtime";
+import { resolveRegistrationPaymentMethod } from "@/lib/affiliates/infrastructure/affiliate-split-checkout";
 import { isClickatonCardBrickCheckoutEnabled } from "../card-brick-enabled";
 import type { CardPaymentCheckoutResultDto } from "../domain/types";
 
@@ -47,7 +48,13 @@ export async function submitRegistrationCardPaymentAction(
   input: SubmitRegistrationCardPaymentInput,
 ): Promise<CheckoutActionState<CardPaymentCheckoutResultDto>> {
   try {
-    if (!isClickatonCardBrickCheckoutEnabled()) {
+    // Brick habilitado por los flags de prueba (Orders TEST) o, en producción,
+    // porque esta inscripción califica para el cobro dividido al afiliado
+    // (se verifica acá, en el servidor; el checkout lo vuelve a verificar).
+    const cardAllowed =
+      isClickatonCardBrickCheckoutEnabled() ||
+      (await resolveRegistrationPaymentMethod(input.registrationId)) === "card_brick_split";
+    if (!cardAllowed) {
       return checkoutFailure(
         new Error("CARD_BRICK_FLAG_OFF: Orders 1:N Brick path is not enabled"),
       );
@@ -63,7 +70,8 @@ export async function submitRegistrationCardPaymentAction(
       }),
     );
 
-    const data = await getCheckoutService().createCheckout({
+    // Ready: en producción calienta el OAuth del collector antes de cobrar.
+    const data = await (await getCheckoutServiceReady()).createCheckout({
       registrationId: input.registrationId,
       editionSlug: input.editionSlug,
       accessToken: input.accessToken,

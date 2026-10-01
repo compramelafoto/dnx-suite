@@ -1,3 +1,5 @@
+import type { AffiliateCommissionDraft } from "@/lib/affiliates/domain/commission-draft";
+import type { CouponAffiliate } from "@/lib/affiliates/domain/coupon-affiliate";
 import type { HomeDeliveryConfig, HomeDeliveryShippingRecord } from "@/lib/home-delivery/domain";
 import type { PricePhaseItemResolvedInput } from "@/lib/catalog/domain/resolve-included-items";
 import type { PricePhaseRecord } from "@/lib/pricing/domain/types";
@@ -11,6 +13,13 @@ import type {
   PublicTicketDto,
   PublicVenueDto,
 } from "./types";
+
+export type AffiliateCommissionContext = {
+  affiliate: CouponAffiliate;
+  affiliateActive: boolean;
+  /** `ClickatonEditionResultSettings.mpProcessingFeeBps` de la edición. */
+  editionMpFeeBps: number | null;
+};
 
 export type PublicCatalogEdition = PublicEditionDto & {
   visibleCodePrefix: string | null;
@@ -154,7 +163,20 @@ export interface PublicRegistrationRepository {
     holdExpiresAt: Date;
     /** Envío a domicilio: se guarda en la misma transacción que la inscripción. */
     shipping?: HomeDeliveryShippingRecord | null;
+    /**
+     * Comisión del fotógrafo dueño del cupón (PENDING). Misma transacción que
+     * la inscripción.
+     */
+    affiliateCommission?: AffiliateCommissionDraft | null;
   }): Promise<ClickatonRegistrationRecord>;
+  /**
+   * Lo necesario para anotar la comisión de un cupón con dueño. null si el
+   * cupón no tiene dueño. Puede tirar (tabla ausente): quien llama lo ignora.
+   */
+  getAffiliateCommissionContext?(input: {
+    promotionId: string;
+    editionId: string;
+  }): Promise<AffiliateCommissionContext | null>;
   /** Configuración del envío del kit a domicilio de la edición. */
   getHomeDeliveryConfig?(editionId: string): Promise<HomeDeliveryConfig | null>;
   /** Envío elegido por una inscripción (null si retira en sede). */
