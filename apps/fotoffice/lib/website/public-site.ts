@@ -1,5 +1,7 @@
 import { cache } from "react";
 import { prisma } from "@repo/db";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import { parseWebsiteSections, type WebsiteBlock } from "./blocks";
 import { resolveWebsiteColors, type WebsiteColors } from "./branding-defaults";
 import { parseWebsiteDesignPresets, type WebsiteDesignPresets } from "./design-presets";
@@ -50,6 +52,8 @@ export type PublicSite = {
   homeBlocks: WebsiteBlock[];
   hasPublishedSite: boolean;
   enabledModuleKeys: Set<string>;
+  /** Cómo llama esta institución a la gente de su padrón. Lo usa el menú del sitio. */
+  personVocabulary: PersonVocabulary;
   contact: PublicSiteContact;
 };
 
@@ -92,7 +96,7 @@ export const loadPublicSite = cache(async function loadPublicSite(workspaceSlug:
   });
   if (!branding) return null;
 
-  const [enabledModuleKeys, website] = await Promise.all([
+  const [enabledModuleKeys, website, vocabulario] = await Promise.all([
     getEnabledModuleKeysForWorkspace(branding.workspaceId),
     prisma.fotofficeWorkspaceWebsite.findUnique({
       where: { workspaceId: branding.workspaceId },
@@ -100,6 +104,7 @@ export const loadPublicSite = cache(async function loadPublicSite(workspaceSlug:
         publishedVersion: { select: { sectionsJson: true, designPresetsJson: true } },
       },
     }),
+    loadPersonVocabulary(branding.workspaceId),
   ]);
 
   const websiteModuleEnabled = enabledModuleKeys.has(WEBSITE_MODULE_KEY);
@@ -120,6 +125,7 @@ export const loadPublicSite = cache(async function loadPublicSite(workspaceSlug:
     homeBlocks,
     hasPublishedSite,
     enabledModuleKeys,
+    personVocabulary: vocabulario,
     contact: {
       email: branding.contactEmail,
       phone: branding.phone,
