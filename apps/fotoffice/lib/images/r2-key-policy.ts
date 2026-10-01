@@ -8,6 +8,7 @@ export const FOTOFFICE_R2_PREFIXES = {
   workspaceLogo: "fotoffice/workspace-logos",
   workspaceCover: "fotoffice/workspace-covers",
   memberAvatar: "fotoffice/member-avatars",
+  memberBusinessLogo: "fotoffice/member-business-logos",
   photographerAvatar: "fotoffice/photographer-avatars",
   courseCover: "fotoffice/course-covers",
   websiteHeroImage: "fotoffice/website-hero-images",

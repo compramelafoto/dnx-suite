@@ -71,6 +71,20 @@ export const IMAGE_PRESETS = {
     acceptedFormats: ["image/jpeg", "image/png", "image/webp"],
     objectFit: "cover",
   },
+  memberBusinessLogo: {
+    key: "memberBusinessLogo",
+    label: "Logo de la empresa del socio",
+    widthRecommended: 800,
+    heightRecommended: 800,
+    // Los logos rara vez son cuadrados: la proporción solo genera un aviso y se muestra entero.
+    aspectRatio: { width: 1, height: 1 },
+    aspectRatioTolerance: 0.5,
+    minWidth: 120,
+    minHeight: 120,
+    maxFileSizeBytes: 3 * MB,
+    acceptedFormats: ["image/png", "image/jpeg", "image/webp"],
+    objectFit: "contain",
+  },
   photographerAvatar: {
     key: "photographerAvatar",
     label: "Foto de perfil",

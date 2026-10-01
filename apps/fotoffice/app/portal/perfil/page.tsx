@@ -6,6 +6,7 @@ import { describeSeniority } from "@/lib/portal/identity";
 import { MEMBER_STATUS_LABELS, isMemberStatus } from "@/lib/members/status-labels";
 import { ProfessionalProfileForm } from "@/components/portal/professional-profile-form";
 import { MemberPhotoUpload } from "@/components/portal/member-photo-upload";
+import { BusinessLogoUpload } from "@/components/portal/business-logo-upload";
 import { PersonalDataForm } from "@/components/portal/personal-data-form";
 
 export const metadata = { title: "Mi perfil" };
@@ -18,7 +19,7 @@ export const metadata = { title: "Mi perfil" };
  * 1. **Su ficha en la institución**, en modo lectura. Número, categoría, estado y antigüedad.
  *    No los edita ella, pero tiene que verlos: no aparecían en ninguna pantalla del portal, y
  *    la única forma de saber el propio número era preguntarlo.
- * 2. **Sus fotos**, la del portal y la de la credencial.
+ * 2. **Sus imágenes**: la foto del portal, la de la credencial y el logo de su empresa.
  * 3. **Sus datos personales**, editables por ella. Es su información, y corregir un teléfono
  *    mal cargado no puede depender de que alguien de la Secretaría tenga tiempo.
  * 4. **Su presencia profesional**, que es lo único que puede llegar a publicarse.
@@ -48,6 +49,7 @@ export default async function PerfilPage() {
       province: true,
       postalCode: true,
       businessName: true,
+      businessLogoUrl: true,
       bio: true,
       specialties: true,
       website: true,
@@ -120,6 +122,10 @@ export default async function PerfilPage() {
           carnetUrl={socio.avatarUrl}
         />
         <MemberPhotoUpload tipo="CARNET" currentUrl={socio.avatarUrl} />
+        <BusinessLogoUpload
+          currentUrl={socio.businessLogoUrl}
+          businessName={socio.businessName?.trim() || null}
+        />
       </div>
 
       <PersonalDataForm
