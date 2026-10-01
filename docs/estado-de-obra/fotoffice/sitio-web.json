@@ -155,7 +155,7 @@
           "que": "El sitio se ve bien al compartirlo por WhatsApp y los buscadores lo encuentran",
           "implementado": null,
           "probado": null,
-          "bloqueado": "No hay Open Graph, ni sitemap.xml, ni robots.txt. Sin ruta pública no hay nada que indexar. Diseñado el 20/09 (etapa 10)"
+          "bloqueado": "No hay Open Graph, ni sitemap.xml, ni robots.txt: desde el 21/09 /w/sfpr es pública, pero los buscadores no tienen cómo encontrarla. Diseñado el 20/09 (etapa 10)"
         },
         {
           "que": "Se restaura una versión anterior desde el historial",

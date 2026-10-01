@@ -2,7 +2,7 @@
   "proyecto": "La maratón: inscripción, jornada y revelado",
   "plataforma": "Clickatón",
   "enUso": "si",
-  "usoNota": "1ª edición corrida: 31 inscripciones confirmadas (16 canceladas y 4 devueltas), 33 acreditados y 278 fotos subidas. La 2ª edición (Navidad, 26/12) abrió la venta el 21/09 y ya tiene 8 inscripciones confirmadas, 7 de ellas con cupón",
+  "usoNota": "1ª edición corrida y en juzgamiento: 30 inscripciones confirmadas (16 canceladas y 4 devueltas), 33 acreditados, 278 fotos subidas, 270 obras congeladas y 423 evaluaciones de jurado enviadas al 29/09. La 2ª edición (Navidad, 26/12) lleva 15 inscripciones confirmadas, 13 de ellas con cupón, y 1 regalo pagado sin activar",
   "etapas": [
     {
       "nombre": "Inscribirse y pagar",
@@ -11,15 +11,15 @@
           "que": "Alguien reserva su lugar y completa la inscripción",
           "implementado": { "fecha": "2026-09-19" },
           "probado": {
-            "fecha": "2026-09-21",
-            "evidencia": "51 inscripciones en la 1ª edición (31 confirmadas, 16 canceladas, 4 devueltas) y 10 en la 2ª el primer día de venta"
+            "fecha": "2026-09-29",
+            "evidencia": "50 inscripciones reales en la 1ª edición (30 confirmadas, 16 canceladas, 4 devueltas) y 23 en la 2ª (15 confirmadas, 7 canceladas y 1 regalo a designar), sin contar las de prueba"
           }
         },
         {
           "que": "Un pago por Mercado Pago confirma la inscripción sola",
           "implementado": { "fecha": "2026-09-16" },
           "probado": null,
-          "bloqueado": "Sigue faltando MERCADOPAGO_WEBHOOK_SECRET en Vercel producción: los avisos reales se rechazan por firma desde el 08/08 y lo único que confirma un pago es que la persona vuelva a la pantalla o que lo levante el rescate"
+          "bloqueado": "Sigue faltando MERCADOPAGO_WEBHOOK_SECRET en Vercel producción: de las 5.502 entradas en DnxPaymentWebhookInbox desde el 15/09 (la última del 29/09), todas son S2S_REFRESH y ninguna HTTP_WEBHOOK. Lo único que confirma un pago es que la persona vuelva a la pantalla o que lo levante el rescate"
         },
         {
           "que": "Un pago que el aviso no confirmó se rescata solo, aunque la reserva haya vencido",
@@ -41,7 +41,7 @@
           "que": "Un cupón vale sólo para la edición donde se creó",
           "implementado": null,
           "probado": null,
-          "bloqueado": "Quedan 2 cupones activos con editionId nulo (FLORA y CONQUIENSUME50), que valen para todas las ediciones: eran 5 y se limpiaron 3 el 21/09. Es dato, no código: no hay nada que impida volver a crear uno así"
+          "bloqueado": "Al 29/09 hay 4 cupones activos de Clickatón con editionId nulo (FLORA, CONQUIENSUME50, ARTEENFOCO20 y CALLEJEANDO20), que valen para todas las ediciones: el 21/09 se habían dejado en 2. Es dato, no código: no hay nada que impida volver a crear uno así"
         },
         {
           "que": "Se puede activar un pago en efectivo desde el panel",
@@ -71,26 +71,44 @@
         {
           "que": "Alguien compra un lugar y recibe el código para regalarlo",
           "implementado": { "pr": 219, "fecha": "2026-09-21" },
-          "probado": null,
-          "bloqueado": "El único regalo de producción (REGALO-SBEW-3QQC, creado el 22/09 a las 02:21 UTC) quedó en PENDING_PAYMENT: falta una compra real de punta a punta. El circuito completo sí se recorrió contra una copia de la base"
+          "probado": {
+            "fecha": "2026-09-29",
+            "evidencia": "REGALO-S8Z7-P8Q4 se pagó el 22/09 a las 19:33 UTC y está ACTIVE, con su inscripción en GIFT_AWAITING_REDEMPTION ocupando el cupo. Hubo 7 regalos iniciados: 5 quedaron sin pagar y 1 se devolvió"
+          }
+        },
+        {
+          "que": "El cupón de descuento se aplica también al regalar",
+          "implementado": { "pr": 238, "fecha": "2026-09-22" },
+          "probado": {
+            "fecha": "2026-09-29",
+            "evidencia": "El regalo REGALO-S8Z7-P8Q4, pagado el 22/09 después del arreglo, guardó el cupón DIADELFOTOGRAFO con subtotal 3000000, descuento 1500000 y total 1500000 (centavos)"
+          }
+        },
+        {
+          "que": "Si se devuelve la plata de un regalo sin activar, el código se anula y el cupo vuelve a la venta",
+          "implementado": { "pr": 225, "fecha": "2026-09-22" },
+          "probado": {
+            "fecha": "2026-09-29",
+            "evidencia": "REGALO-2ADW-J3CK se pagó el 22/09 a las 02:39 UTC y al devolverse quedó REFUNDED con cancelledAt a las 06:08 UTC; su inscripción pasó a CANCELLED"
+          }
         },
         {
           "que": "Quien recibe el regalo lo activa con su código y completa su inscripción sin pagar",
           "implementado": { "pr": 219, "fecha": "2026-09-21" },
           "probado": null,
-          "bloqueado": "Depende de que haya un regalo pagado: no hay ninguno"
+          "bloqueado": "El único regalo pagado y vigente (REGALO-S8Z7-P8Q4, 22/09) todavía no se activó: 0 regalos con redeemedAt"
         },
         {
           "que": "El resumen de la tarjeta dice que fue un regalo y la hora de la reserva se lee bien",
           "implementado": { "pr": 222, "fecha": "2026-09-21" },
           "probado": null,
-          "bloqueado": "El texto del resumen sólo se ve en el resumen real de una tarjeta, y todavía no hubo una compra de regalo"
+          "bloqueado": "Hubo 2 compras reales de regalo el 22/09, pero el texto sólo se ve en el resumen de la tarjeta de quien pagó y nadie lo miró todavía"
         },
         {
           "que": "El regalo que nadie activa antes del cierre pasa a la edición siguiente",
           "implementado": { "pr": 219, "fecha": "2026-09-21" },
           "probado": null,
-          "bloqueado": "El cron existe y nunca tuvo un regalo vencido que trasladar"
+          "bloqueado": "El cron existe y nunca tuvo un regalo vencido que trasladar: la inscripción de la 2ª edición sigue abierta"
         }
       ]
     },
@@ -108,10 +126,7 @@
         {
           "que": "Se acredita gente en la puerta",
           "implementado": { "fecha": "2026-09-19" },
-          "probado": {
-            "fecha": "2026-09-20",
-            "evidencia": "33 acreditaciones registradas"
-          }
+          "probado": { "fecha": "2026-09-20", "evidencia": "33 acreditaciones registradas" }
         },
         {
           "que": "La acreditación funciona sin conexión y se sincroniza después",
@@ -169,21 +184,58 @@
       "criterios": [
         {
           "que": "La admisión técnica decide qué fotos entran",
-          "implementado": { "fecha": "2026-09-19" },
-          "probado": null,
-          "bloqueado": "Sólo 2 decisiones sobre las 278 fotos: el recorrido no se ejercitó"
+          "implementado": { "pr": 250, "fecha": "2026-09-23" },
+          "probado": {
+            "fecha": "2026-09-29",
+            "evidencia": "El lote de la 1ª edición se congeló el 24/09 a las 18:22 UTC con 270 obras: 270 admitidas, 0 rechazadas y 0 pendientes. Antes del arreglo del reloj (PR 248) 100 fotos figuraban rechazadas por tarde, y la revisión no pasaba de las primeras 100 (PR 250)"
+          }
+        },
+        {
+          "que": "Las fotos que esperan una decisión humana se ven y se admiten o rechazan desde la misma pantalla",
+          "implementado": { "pr": 252, "fecha": "2026-09-23" },
+          "probado": {
+            "fecha": "2026-09-29",
+            "evidencia": "Las decisiones en PENDING_MANUAL_REVIEW de la 1ª edición quedaron resueltas: el lote se congeló el 24/09 con 0 pendientes y 270 admitidas"
+          }
+        },
+        {
+          "que": "El organizador declara cuántos jurados van a ser y los va sentando en vacantes, cada una con su lote de consignas",
+          "implementado": { "pr": 256, "fecha": "2026-09-24" },
+          "probado": {
+            "fecha": "2026-09-29",
+            "evidencia": "La sesión de juzgamiento de la 1ª edición está OPEN desde el 24/09 con 5 vacantes y 3 miradas por obra, y hay 5 asignaciones sentadas en las vacantes 1 a 5 en la base de Clickatón"
+          }
         },
         {
           "que": "Un jurado evalúa las fotos admitidas",
-          "implementado": { "fecha": "2026-09-19" },
+          "implementado": { "pr": 234, "fecha": "2026-09-22" },
+          "probado": {
+            "fecha": "2026-09-29",
+            "evidencia": "423 evaluaciones SUBMITTED (27/09 a 29/09) de 3 jurados, con 1692 notas por criterio, sobre las 270 obras congeladas. La meta son 810 (270 obras × 3 miradas): va el 52%"
+          }
+        },
+        {
+          "que": "La organización ve el ranking por consigna mientras el jurado califica, y el final cuando se cierra",
+          "implementado": { "pr": 273, "fecha": "2026-09-25" },
           "probado": null,
-          "bloqueado": "0 cuentas de jurado en la base de Clickatón: el padrón único ya está fusionado pero la ficha espejo nunca se creó"
+          "bloqueado": "El parcial se calcula en vivo y no deja rastro en la base (0 filas en FotorankResultBatch): falta abrir /admin/ediciones/[id]/resultados de la 1ª edición y compararlo con las 423 evaluaciones"
         },
         {
           "que": "Hay votación del público y se publican resultados",
           "implementado": null,
           "probado": null,
           "bloqueado": "0 rondas de votación creadas"
+        }
+      ]
+    },
+    {
+      "nombre": "El panel de la organización",
+      "criterios": [
+        {
+          "que": "Todas las horas del panel, del sitio y de los correos se leen en hora argentina, con reloj de 24 horas",
+          "implementado": { "pr": 227, "fecha": "2026-09-22" },
+          "probado": null,
+          "bloqueado": "La hora mostrada no deja rastro en la base: falta abrir el padrón de la 2ª edición y comparar la hora de una inscripción con su createdAt en UTC (debe dar 3 horas menos)"
         }
       ]
     },
@@ -200,7 +252,7 @@
           "que": "La base de producción está al día con las migraciones",
           "implementado": null,
           "probado": null,
-          "bloqueado": "El deploy nunca corre migrate deploy. El 21/09 hubo que aplicar cuatro a mano (los dos de jurados, cursos grabados y los regalos): la última, 20260921143000_clickaton_gift_vouchers, quedó registrada a las 01:46 UTC del 22/09. Vuelve a atrasarse con cada despliegue"
+          "bloqueado": "El deploy nunca corre migrate deploy: cada migración se aplica a mano. Al 29/09 las tablas y columnas están, pero _prisma_migrations no registra dos que sí se aplicaron: 20260919090000_clickaton_soporte_whatsapp_y_finalizar_entrega y 20260925180000_clickaton_localities. La última registrada es 20260929120000_clickaton_numeros_por_edicion (29/09 06:19 UTC)"
         }
       ]
     }
