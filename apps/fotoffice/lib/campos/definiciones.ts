@@ -148,6 +148,27 @@ export async function contarValoresPorCampo(workspaceId: string, fieldIds: strin
   return Object.fromEntries(grupos.map((g) => [g.fieldId, g._count as number]));
 }
 
+/**
+ * Tipo de registro del campo (o de la opción, por su campo), sólo si es del workspace; null si no.
+ * Configuración lo usa para frenar los campos de un módulo apagado antes de tocar nada.
+ */
+export async function tipoDeRegistroDe(
+  workspaceId: string,
+  ref: { campoId?: string; opcionId?: string },
+): Promise<string | null> {
+  if (ref.campoId) {
+    const c = await campoDelWorkspace(workspaceId, ref.campoId);
+    return c?.entityType ?? null;
+  }
+  if (ref.opcionId) {
+    const o = await opcionDelWorkspace(workspaceId, ref.opcionId);
+    if (!o) return null;
+    const c = await campoDelWorkspace(workspaceId, o.fieldId);
+    return c?.entityType ?? null;
+  }
+  return null;
+}
+
 /** El campo, sólo si es del workspace. */
 async function campoDelWorkspace(workspaceId: string, fieldId: unknown) {
   if (typeof fieldId !== "string" || !fieldId || fieldId.length > 100) return null;

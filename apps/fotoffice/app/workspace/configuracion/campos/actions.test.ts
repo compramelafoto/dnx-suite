@@ -77,6 +77,28 @@ describe("Configuración → Campos (acciones)", () => {
     expect(campos()).toHaveLength(0);
   });
 
+  it("un campo de Consultas con Captación apagada no se edita, archiva, borra ni toca sus opciones", async () => {
+    const r = await A.crearCampoAction(undefined, fd({ entityType: "CONSULTA", nombre: "Origen", tipo: "LISTA", opciones: "Web\nRedes" }));
+    expect(r.error).toBeNull();
+    const id = campos()[0]!.id as string;
+    const op = opciones()[0]!.id as string;
+    const cliente = await crear("Del cliente");
+    H.modulo.mockResolvedValue(false);
+    const antes = JSON.stringify(B.datos);
+    const apagado = { error: "Ese módulo no está activo." };
+    expect(await A.editarCampoAction(undefined, fd({ id, nombre: "X", tipo: "LISTA" }))).toEqual(apagado);
+    expect(await A.archivarCampoAction(undefined, fd({ id }))).toEqual(apagado);
+    expect(await A.desarchivarCampoAction(undefined, fd({ id }))).toEqual(apagado);
+    expect(await A.borrarCampoAction(undefined, fd({ id }))).toEqual(apagado);
+    expect(await A.crearOpcionAction(undefined, fd({ campoId: id, etiqueta: "Otra" }))).toEqual(apagado);
+    expect(await A.reordenarOpcionesAction(undefined, fd({ campoId: id, orden: opciones().map((o) => o.id as string).reverse() }))).toEqual(apagado);
+    expect(await A.renombrarOpcionAction(undefined, fd({ id: op, etiqueta: "Sitio" }))).toEqual(apagado);
+    expect(await A.archivarOpcionAction(undefined, fd({ id: op }))).toEqual(apagado);
+    expect(JSON.stringify(B.datos)).toBe(antes);
+    // Los campos de clientes no dependen de Captación.
+    expect((await A.archivarCampoAction(undefined, fd({ id: cliente }))).error).toBeNull();
+  });
+
   it("editar: nombre y casillas; el tipo con datos no cambia y el error llega a la pantalla", async () => {
     const id = await crear("Notas");
     expect((await A.editarCampoAction(undefined, fd({ id, nombre: "Notas largas", tipo: "TEXTO", obligatorio: "1" }))).error).toBeNull();

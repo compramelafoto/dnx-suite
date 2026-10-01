@@ -48,3 +48,11 @@ describe("Configuración → Numeración", () => {
     expect(leer("app", "workspace", "configuracion", "page.tsx")).toContain('"/workspace/configuracion/numeracion"');
   });
 });
+
+describe("Configuración → Numeración: después de guardar", () => {
+  it("el formulario se resincroniza con lo guardado", () => {
+    const c = readFileSync(join(__dirname, "secuencia-fila.tsx"), "utf8");
+    expect(c).toContain("visto.firma !== firma || (visto.estado !== estado && estado.ok)");
+    expect(c).toContain("setProximo(String(s.proximo))");
+  });
+});

@@ -18,6 +18,7 @@ import {
   renombrarOpcion,
   reordenarCampos,
   reordenarOpciones,
+  tipoDeRegistroDe,
 } from "@/lib/campos/definiciones";
 
 /** Estado de cada formulario de Configuración → Campos (`useActionState`). */
@@ -63,6 +64,12 @@ async function moduloApagado(workspaceId: string, entityType: string): Promise<b
   return entityType === "CONSULTA" && !(await isModuleEnabledForWorkspace(workspaceId, SERVICE_LEADS_MODULE_KEY));
 }
 
+/** Mismo freno para un campo u opción ya existente: se mira el tipo de su campo. */
+async function apagadoPorCampo(workspaceId: string, ref: { campoId?: string; opcionId?: string }): Promise<boolean> {
+  const tipo = await tipoDeRegistroDe(workspaceId, ref);
+  return tipo !== null && (await moduloApagado(workspaceId, tipo));
+}
+
 function resultado(r: { ok: true } | { ok: false; error: string }, ok: string): EstadoCampos {
   if (!r.ok) return { error: r.error };
   revalidatePath(RUTA);
@@ -99,6 +106,7 @@ export async function editarCampoAction(_prev: EstadoCampos | undefined, fd: For
   if (!ctx) return SIN_PERMISO;
   const id = campo(fd, "id");
   if (id === null) return DATOS_INVALIDOS;
+  if (await apagadoPorCampo(ctx.workspaceId, { campoId: id })) return MODULO_APAGADO;
   return resultado(
     await editarCampo(ctx, id, {
       nombre: texto(fd, "nombre"),
@@ -126,6 +134,7 @@ export async function archivarCampoAction(_prev: EstadoCampos | undefined, fd: F
   if (!ctx) return SIN_PERMISO;
   const id = campo(fd, "id");
   if (id === null) return DATOS_INVALIDOS;
+  if (await apagadoPorCampo(ctx.workspaceId, { campoId: id })) return MODULO_APAGADO;
   return resultado(await archivarCampo(ctx, id), "Campo archivado.");
 }
 
@@ -134,6 +143,7 @@ export async function desarchivarCampoAction(_prev: EstadoCampos | undefined, fd
   if (!ctx) return SIN_PERMISO;
   const id = campo(fd, "id");
   if (id === null) return DATOS_INVALIDOS;
+  if (await apagadoPorCampo(ctx.workspaceId, { campoId: id })) return MODULO_APAGADO;
   return resultado(await desarchivarCampo(ctx, id), "Campo desarchivado.");
 }
 
@@ -142,6 +152,7 @@ export async function borrarCampoAction(_prev: EstadoCampos | undefined, fd: For
   if (!ctx) return SIN_PERMISO;
   const id = campo(fd, "id");
   if (id === null) return DATOS_INVALIDOS;
+  if (await apagadoPorCampo(ctx.workspaceId, { campoId: id })) return MODULO_APAGADO;
   return resultado(await borrarCampo(ctx, id), "Campo borrado.");
 }
 
@@ -152,6 +163,7 @@ export async function crearOpcionAction(_prev: EstadoCampos | undefined, fd: For
   if (!ctx) return SIN_PERMISO;
   const campoId = campo(fd, "campoId");
   if (campoId === null) return DATOS_INVALIDOS;
+  if (await apagadoPorCampo(ctx.workspaceId, { campoId })) return MODULO_APAGADO;
   return resultado(await crearOpcion(ctx, campoId, texto(fd, "etiqueta")), "Opción agregada.");
 }
 
@@ -160,6 +172,7 @@ export async function renombrarOpcionAction(_prev: EstadoCampos | undefined, fd:
   if (!ctx) return SIN_PERMISO;
   const id = campo(fd, "id");
   if (id === null) return DATOS_INVALIDOS;
+  if (await apagadoPorCampo(ctx.workspaceId, { opcionId: id })) return MODULO_APAGADO;
   return resultado(await renombrarOpcion(ctx, id, texto(fd, "etiqueta")), "Opción guardada.");
 }
 
@@ -168,6 +181,7 @@ export async function archivarOpcionAction(_prev: EstadoCampos | undefined, fd: 
   if (!ctx) return SIN_PERMISO;
   const id = campo(fd, "id");
   if (id === null) return DATOS_INVALIDOS;
+  if (await apagadoPorCampo(ctx.workspaceId, { opcionId: id })) return MODULO_APAGADO;
   return resultado(await archivarOpcion(ctx, id), "Opción archivada.");
 }
 
@@ -178,5 +192,6 @@ export async function reordenarOpcionesAction(_prev: EstadoCampos | undefined, f
   const campoId = campo(fd, "campoId");
   const orden = ids(fd, "orden", 200);
   if (campoId === null || orden === null) return DATOS_INVALIDOS;
+  if (await apagadoPorCampo(ctx.workspaceId, { campoId })) return MODULO_APAGADO;
   return resultado(await reordenarOpciones(ctx, campoId, orden), "Orden guardado.");
 }

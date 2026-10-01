@@ -40,6 +40,20 @@ export function SecuenciaFila({ s, anio }: { s: SecuenciaVista; anio: number }) 
   const [conAnio, setConAnio] = useState(s.conAnio);
   const [digitos, setDigitos] = useState(String(s.digitos));
   const [proximo, setProximo] = useState(String(s.proximo));
+  // Después de guardar (o si otra pestaña cambió la secuencia) el formulario vuelve a mostrar lo
+  // que quedó guardado: el servidor normaliza ("007" → 7, espacios del prefijo) y la página
+  // revalidada trae los valores nuevos junto con el resultado de la acción.
+  const firma = `${s.prefijo}|${s.conAnio}|${s.digitos}|${s.proximo}`;
+  const [visto, setVisto] = useState<{ firma: string; estado: EstadoNumeracion }>({ firma, estado });
+  if (visto.firma !== firma || (visto.estado !== estado && estado.ok)) {
+    setVisto({ firma, estado });
+    setPrefijo(s.prefijo);
+    setConAnio(s.conAnio);
+    setDigitos(String(s.digitos));
+    setProximo(String(s.proximo));
+  } else if (visto.estado !== estado) {
+    setVisto({ firma, estado });
+  }
   const id = s.clave.toLowerCase();
   // Sin `action` en el formulario: así React no lo resetea al terminar y los campos quedan como se guardaron.
   const guardar = (e: FormEvent<HTMLFormElement>) => {

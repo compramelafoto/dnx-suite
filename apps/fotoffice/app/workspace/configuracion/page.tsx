@@ -12,6 +12,8 @@ import { toEmailSignatureData } from "@/lib/communications/workspace-signature";
 import { getWorkspaceCollectionStatus } from "@/lib/payments/connect/status";
 import { collectionCopy } from "@/lib/payments/connect/messages";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
+import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
+import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 
 export default async function WorkspaceSettingsPage() {
   const user = await requireAuth();
@@ -38,6 +40,8 @@ export default async function WorkspaceSettingsPage() {
   // El acceso a Palabras muestra la que rige hoy: sin eso, entrar es la única forma de saber
   // si alguien ya la cambió.
   const vocabulario = await loadPersonVocabulary(ensured.workspaceId);
+  // La tarjeta de Campos nombra las consultas sólo si Captación está encendida (como su página).
+  const conCaptacion = await isModuleEnabledForWorkspace(ensured.workspaceId, SERVICE_LEADS_MODULE_KEY);
 
   return (
     <div className="space-y-8 max-w-xl">
@@ -149,7 +153,7 @@ export default async function WorkspaceSettingsPage() {
           <span className="space-y-0.5">
             <span className="block text-sm font-semibold">Campos</span>
             <span className="block text-xs text-[var(--fo-muted)]">
-              Datos propios para las fichas de clientes, {vocabulario.plural} y consultas.
+              Datos propios para las fichas de clientes{conCaptacion ? `, ${vocabulario.plural} y consultas` : ` y ${vocabulario.plural}`}.
             </span>
           </span>
           <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
