@@ -105,6 +105,13 @@ describe("cargarMasDatos", () => {
     expect(B.datos.fotofficeCustomField).toHaveLength(1);
   });
 
+  it("en DNX con campos de clientes ya creados: un conteo, sin abrir transacción", async () => {
+    H.ctx.mockResolvedValue({ ...CTX, workspaceSlug: "dnx-estudio" });
+    await F.cargarMasDatos("CLIENTE", "c1");
+    expect(B.transacciones).toHaveLength(0);
+    expect(B.datos.fotofficeCustomField.filter((f) => f.name === "Archivos del cliente")).toHaveLength(0);
+  });
+
   it("sin campos activos: lista vacía", async () => {
     expect((await F.cargarMasDatos("SOCIO", "m1"))?.campos).toEqual([]);
   });

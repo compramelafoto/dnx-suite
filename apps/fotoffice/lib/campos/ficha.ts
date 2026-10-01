@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { puede } from "@/lib/access/policy";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
@@ -11,6 +12,12 @@ import { asegurarCamposIniciales } from "./semillas";
 import { cambiosDe, registroDelWorkspace, valoresDe } from "./valores";
 import { vistaDeCampo, type CambioVista, type CampoVista } from "./vista";
 
+/**
+ * Sesión, workspace, rol y slug: lecturas puras del pedido, resueltas una sola vez aunque la
+ * página tenga más de una tarjeta.
+ */
+const contextoDelPedido = cache(contextoDeCampos);
+
 const MODULO = { CLIENTE: CLIENTS_MODULE_KEY, SOCIO: MEMBERS_MODULE_KEY, CONSULTA: SERVICE_LEADS_MODULE_KEY } as const;
 
 /**
@@ -21,7 +28,7 @@ const MODULO = { CLIENTE: CLIENTS_MODULE_KEY, SOCIO: MEMBERS_MODULE_KEY, CONSULT
 export async function contextoDeMasDatos(entityType: unknown, entityId: unknown): Promise<ContextoCampos | null> {
   if (!esTipoRegistroActivo(entityType)) return null;
   if (typeof entityId !== "string" || !entityId || entityId.length > 100) return null;
-  const ctx = await contextoDeCampos();
+  const ctx = await contextoDelPedido();
   if (!ctx) return null;
   if (!(await isModuleEnabledForWorkspace(ctx.workspaceId, MODULO[entityType]))) return null;
   if (!(await registroDelWorkspace(ctx.workspaceId, entityType, entityId))) return null;

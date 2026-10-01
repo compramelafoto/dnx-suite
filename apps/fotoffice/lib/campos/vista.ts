@@ -86,3 +86,21 @@ export function vistaDeCampo(
 
 /** Un cambio de "Más datos" para un historial, en texto plano. */
 export type CambioVista = { id: string; fecha: string; quien: string; campo: string; antes: string; despues: string };
+
+/**
+ * Lo que se manda al guardar: sólo los campos cuyo valor (sin espacios en los bordes) cambió
+ * respecto de lo guardado; vacío → null. Los que no vienen, `guardarValores` los deja como
+ * están (y un obligatorio ausente se exige contra lo ya guardado).
+ */
+export function valoresCambiados(
+  campos: Pick<CampoVista, "id" | "crudo">[],
+  valores: Record<string, string | undefined>,
+): Record<string, string | null> {
+  const salida: Record<string, string | null> = {};
+  for (const c of campos) {
+    const v = (valores[c.id] ?? "").trim();
+    if (v === c.crudo.trim()) continue;
+    salida[c.id] = v === "" ? null : v;
+  }
+  return salida;
+}

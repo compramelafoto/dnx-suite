@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hrefSeguro, vistaDeCampo } from "./vista";
+import { hrefSeguro, valoresCambiados, vistaDeCampo } from "./vista";
 
 const campo = (type: Parameters<typeof vistaDeCampo>[0]["type"], extra: Partial<Parameters<typeof vistaDeCampo>[0]> = {}) => ({
   id: "f", name: "Campo", type, required: false, opciones: [], etiquetas: {}, ...extra,
@@ -41,5 +41,21 @@ describe("vistaDeCampo", () => {
       crudo: "o2",
       opciones: [{ id: "o1", label: "A" }, { id: "o2", label: "B (archivada)" }],
     });
+  });
+});
+
+describe("valoresCambiados", () => {
+  const campos = [
+    { id: "a", crudo: "hola" },
+    { id: "b", crudo: "" },
+    { id: "c", crudo: "1500,5" },
+    { id: "d", crudo: "si" },
+  ];
+  it("sin cambios (o sólo espacios en los bordes): nada", () => {
+    expect(valoresCambiados(campos, { a: " hola ", b: "", c: "1500,5", d: "si" })).toEqual({});
+    expect(valoresCambiados(campos, {})).toEqual({ a: null, c: null, d: null });
+  });
+  it("sólo los que cambiaron; vaciar manda null", () => {
+    expect(valoresCambiados(campos, { a: "hola", b: " nuevo ", c: "", d: "no" })).toEqual({ b: "nuevo", c: null, d: "no" });
   });
 });

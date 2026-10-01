@@ -18,6 +18,8 @@ export const CAMPO_INICIAL_DNX = {
  */
 export async function asegurarCamposIniciales(workspaceId: string, slug: string): Promise<void> {
   if (slug !== SLUG_DNX) return;
+  // Lo común es que ya tenga campos: un conteo simple, sin abrir transacción.
+  if ((await prisma.fotofficeCustomField.count({ where: { workspaceId, entityType: CAMPO_INICIAL_DNX.entityType } })) > 0) return;
   try {
     await prisma.$transaction(async (tx) => {
       if ((await tx.fotofficeCustomField.count({ where: { workspaceId, entityType: CAMPO_INICIAL_DNX.entityType } })) > 0) return;

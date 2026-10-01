@@ -35,6 +35,24 @@ describe("tarjeta Más datos", () => {
     expect(e).toContain("errores[c.id]");
   });
 
+  it("el editor manda sólo lo que cambió y, sin cambios, cierra sin llamar a la acción", () => {
+    const e = componente("editor-mas-datos.tsx");
+    const diff = e.indexOf("const datos = valoresCambiados(campos, valores);");
+    expect(diff).toBeGreaterThan(0);
+    const sinCambios = e.indexOf("if (Object.keys(datos).length === 0) {");
+    expect(sinCambios).toBeGreaterThan(diff);
+    expect(e.indexOf("guardarValoresAction(")).toBeGreaterThan(sinCambios);
+    expect(e.slice(sinCambios, e.indexOf("guardarValoresAction("))).toMatch(/cancelar\(\);\s*return;/);
+  });
+
+  it("errores de campos que el formulario no tiene: avisa que la configuración cambió y recarga", () => {
+    const e = componente("editor-mas-datos.tsx");
+    expect(e).toContain('"La configuración de los campos cambió; recargá la página."');
+    const aviso = e.indexOf("setError(CONFIGURACION_CAMBIO);");
+    expect(aviso).toBeGreaterThan(0);
+    expect(e.indexOf("router.refresh();", aviso)).toBeGreaterThan(aviso);
+  });
+
   it("ningún componente de la carpeta importa la base", () => {
     for (const f of readdirSync(join(RAIZ, "components", "campos"))) {
       if (f.endsWith(".test.ts")) continue;
@@ -48,7 +66,7 @@ describe("tarjeta Más datos", () => {
     expect(guarda).toBeGreaterThan(0);
     expect(f.indexOf("await listarCampos(")).toBeGreaterThan(guarda);
     expect(f.indexOf("await valoresDe(")).toBeGreaterThan(guarda);
-    const ctx = f.indexOf("await contextoDeCampos()");
+    const ctx = f.indexOf("await contextoDelPedido()");
     expect(f.indexOf("registroDelWorkspace(ctx.workspaceId")).toBeGreaterThan(ctx);
   });
 

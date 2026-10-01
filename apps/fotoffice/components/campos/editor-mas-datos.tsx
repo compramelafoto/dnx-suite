@@ -4,9 +4,11 @@ import { useState, useTransition, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { guardarValoresAction } from "@/app/actions/campos";
 import { MAX_ENLACE, MAX_TEXTO, MAX_TEXTO_LARGO } from "@/lib/campos/constantes";
-import type { CampoVista } from "@/lib/campos/vista";
+import { valoresCambiados, type CampoVista } from "@/lib/campos/vista";
 
 type Resultado = Awaited<ReturnType<typeof guardarValoresAction>>;
+
+const CONFIGURACION_CAMBIO = "La configuración de los campos cambió; recargá la página.";
 
 /**
  * La parte interactiva de "Más datos": el botón "Editar" (sólo si `puedeEditar`) y el
@@ -53,10 +55,11 @@ export function EditorMasDatos({
 
   function guardar(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const datos: Record<string, string | null> = {};
-    for (const c of campos) {
-      const v = (valores[c.id] ?? "").trim();
-      datos[c.id] = v === "" ? null : v;
+    // Sólo lo que cambió: lo demás queda como está guardado.
+    const datos = valoresCambiados(campos, valores);
+    if (Object.keys(datos).length === 0) {
+      cancelar();
+      return;
     }
     iniciar(async () => {
       let r: Resultado;
@@ -71,8 +74,17 @@ export function EditorMasDatos({
         router.refresh();
         return;
       }
+      const errores = r.errores ?? {};
+      const ids = new Set(campos.map((c) => c.id));
+      if (Object.keys(errores).some((id) => !ids.has(id))) {
+        // Un campo que el formulario no tiene (alguien cambió la configuración mientras tanto).
+        setError(CONFIGURACION_CAMBIO);
+        setErrores(Object.fromEntries(Object.entries(errores).filter(([id]) => ids.has(id))));
+        router.refresh();
+        return;
+      }
       setError(r.error);
-      setErrores(r.errores ?? {});
+      setErrores(errores);
     });
   }
 
