@@ -21,6 +21,8 @@ const TABLAS = [
   // Campos personalizados (0.5) y los registros a los que se cuelgan.
   "fotofficeCustomField", "fotofficeCustomFieldOption", "fotofficeCustomValue", "fotofficeCustomValueChange",
   "client", "member",
+  // Numeración (0.5).
+  "fotofficeSequence", "fotofficeSequenceChange", "fotofficeRecordNumber",
 ] as const;
 export type Tabla = (typeof TABLAS)[number];
 
@@ -57,6 +59,9 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
     updatedByUserId: null,
   }),
   fotofficeCustomValueChange: () => ({ before: null, after: null, actorUserId: null, actorLabel: null, createdAt: new Date() }),
+  fotofficeSequence: () => ({ prefix: "", withYear: false, digits: 1, nextValue: 1, currentYear: null }),
+  fotofficeSequenceChange: () => ({ before: null, after: null, actorUserId: null, actorLabel: null, createdAt: new Date() }),
+  fotofficeRecordNumber: () => ({ year: null, createdAt: new Date() }),
 };
 
 function igual(a: unknown, b: unknown): boolean {
@@ -128,18 +133,27 @@ export function crearBaseEnMemoria() {
   }
 
   /** Índices únicos que el motor usa para detectar carreras y repeticiones. */
-  const UNICOS: Partial<Record<Tabla, { columnas: string[]; aplica?: (f: Fila) => boolean }>> = {
-    fotofficeJourney: { columnas: ["workspaceId", "subjectType", "subjectId", "kind"], aplica: (f) => f.closedAt === null },
-    fotofficeProcessedEvent: { columnas: ["journeyId", "event", "sourceRef"] },
-    fotofficeCustomField: { columnas: ["workspaceId", "entityType", "key"] },
-    fotofficeCustomValue: { columnas: ["fieldId", "entityId"] },
+  type Unico = { columnas: string[]; aplica?: (f: Fila) => boolean };
+  const UNICOS: Partial<Record<Tabla, Unico[]>> = {
+    fotofficeJourney: [{ columnas: ["workspaceId", "subjectType", "subjectId", "kind"], aplica: (f) => f.closedAt === null }],
+    fotofficeProcessedEvent: [{ columnas: ["journeyId", "event", "sourceRef"] }],
+    fotofficeCustomField: [{ columnas: ["workspaceId", "entityType", "key"] }],
+    fotofficeCustomValue: [{ columnas: ["fieldId", "entityId"] }],
+    fotofficeSequence: [{ columnas: ["workspaceId", "key"] }],
+    // Como en la migración: uno común y dos parciales (con año / sin año).
+    fotofficeRecordNumber: [
+      { columnas: ["entityType", "entityId"] },
+      { columnas: ["workspaceId", "sequenceKey", "year", "value"], aplica: (f) => f.year !== null && f.year !== undefined },
+      { columnas: ["workspaceId", "sequenceKey", "value"], aplica: (f) => f.year === null || f.year === undefined },
+    ],
   };
 
   function verificarUnicidad(tabla: Tabla, f: Fila) {
-    const u = UNICOS[tabla];
-    if (!u || (u.aplica && !u.aplica(f))) return;
-    const choca = datos[tabla].some((x) => x !== f && (!u.aplica || u.aplica(x)) && u.columnas.every((c) => x[c] === f[c]));
-    if (choca) throw Object.assign(new Error("Unique constraint failed"), { code: "P2002" });
+    for (const u of UNICOS[tabla] ?? []) {
+      if (u.aplica && !u.aplica(f)) continue;
+      const choca = datos[tabla].some((x) => x !== f && (!u.aplica || u.aplica(x)) && u.columnas.every((c) => x[c] === f[c]));
+      if (choca) throw Object.assign(new Error("Unique constraint failed"), { code: "P2002" });
+    }
   }
 
   function insertar(tabla: Tabla, data: Fila): Fila {
@@ -170,9 +184,18 @@ export function crearBaseEnMemoria() {
         return [...grupos.values()];
       },
       create: async (a: { data: Fila; select?: Record<string, boolean> }) => elegir(insertar(tabla, a.data), a.select),
-      createMany: async (a: { data: Fila[] }) => {
-        for (const d of a.data) insertar(tabla, d);
-        return { count: a.data.length };
+      /** Con `skipDuplicates` (ON CONFLICT DO NOTHING) saltea las filas que chocan con un único. */
+      createMany: async (a: { data: Fila[]; skipDuplicates?: boolean }) => {
+        let count = 0;
+        for (const d of a.data) {
+          try {
+            insertar(tabla, d);
+            count++;
+          } catch (e) {
+            if (!a.skipDuplicates || (e as { code?: unknown }).code !== "P2002") throw e;
+          }
+        }
+        return { count };
       },
       updateMany: async (a: { where?: Where; data: Fila }) => {
         const hits = datos[tabla].filter((x) => cumple(x, a.where));
@@ -237,6 +260,7 @@ export function crearBaseEnMemoria() {
    * lanza. "consultas-sin-recorrido": consultas del workspace sin ningún recorrido de venta.
    */
   function emularConsulta(texto: string, valores: unknown[]): unknown[] {
+    if (texto.includes("numeracion-asignar")) return emularAsignacion(valores);
     if (!texto.includes("consultas-sin-recorrido")) throw new Error("SQL crudo no emulado en la base en memoria");
     const workspaceId = valores[0];
     const sinRecorrido = datos.serviceSalesLead.filter(
@@ -251,6 +275,33 @@ export function crearBaseEnMemoria() {
     return ordenar(sinRecorrido.filter((l) => conPerdidas || l.status !== "LOST"), [{ createdAt: "asc" }, { id: "asc" }])
       .slice(0, limite)
       .map((l) => elegir(l, { id: true, status: true, createdAt: true, updatedAt: true }));
+  }
+
+  /**
+   * "numeracion-asignar": el UPDATE … RETURNING de `lib/numeracion/asignar.ts`. Parámetros: el
+   * año (repetido) y al final workspaceId y key. Devuelve lo mismo que el RETURNING (con `value`
+   * y `year` como bigint, como puede llegar de Prisma).
+   */
+  function emularAsignacion(valores: unknown[]): unknown[] {
+    const anio = valores[0] as number;
+    const ws = valores[valores.length - 2] as string;
+    const key = valores[valores.length - 1] as string;
+    const s = datos.fotofficeSequence.find((x) => x.workspaceId === ws && x.key === key);
+    if (!s) return [];
+    if (s.withYear && s.currentYear !== anio) {
+      const usados = datos.fotofficeRecordNumber
+        .filter((r) => r.workspaceId === ws && r.sequenceKey === key && r.year === anio)
+        .map((r) => r.value as number);
+      s.nextValue = Math.max(0, ...usados) + 2;
+    } else {
+      s.nextValue = (s.nextValue as number) + 1;
+    }
+    s.currentYear = s.withYear ? anio : null;
+    return [{
+      value: BigInt((s.nextValue as number) - 1),
+      year: s.currentYear === null ? null : BigInt(s.currentYear as number),
+      prefix: s.prefix, withYear: s.withYear, digits: s.digits,
+    }];
   }
 
   const FUERA = "uso de prisma fuera de la transacción";
