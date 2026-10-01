@@ -1747,7 +1747,7 @@ compilando.
 **Interfaces:**
 - Produces: campo `labelFromVocabulary?: "personPlural"` en `PublicModulePage`, y `function resolvePublicModuleLabel(page: PublicModulePage, vocabulary: PersonVocabulary): string`
 
-- [ ] **Step 1: Escribir los tests que fallan**
+- [x] **Step 1: Escribir los tests que fallan**
 
 ```ts
 it("el portfolio aporta la página /socios al sitio", () => {
@@ -1782,25 +1782,25 @@ it("una página sin vocabulario declarado conserva su etiqueta fija", () => {
 });
 ```
 
-- [ ] **Step 2: Correr y verificar que fallan**
+- [x] **Step 2: Correr y verificar que fallan**
 
 Run: `cd apps/fotoffice && pnpm test -- public-modules`
 Expected: FAIL.
 
-- [ ] **Step 3: Implementar**
+- [x] **Step 3: Implementar**
 
 Agregar el campo al tipo, la entrada nueva con `order: 25`, y el resolvedor que capitaliza la primera letra del plural del vocabulario. Reemplazar el comentario existente *"Ojo: el vocabulario por workspace todavía no se aplica acá"* por la explicación de que ahora se aplica cuando la entrada lo declara, y de que **el segmento nunca sigue al vocabulario** porque cambiar una palabra no puede romper enlaces publicados.
 
-- [ ] **Step 4: Usar el resolvedor donde se arma el menú público**
+- [x] **Step 4: Usar el resolvedor donde se arma el menú público**
 
 Buscar el consumidor de `publicModulePagesFor` en `lib/website/site-nav.ts` y pasar cada entrada por `resolvePublicModuleLabel`, cargando el vocabulario con `loadPersonVocabulary(workspaceId)`.
 
-- [ ] **Step 5: Correr y verificar que pasan**
+- [x] **Step 5: Correr y verificar que pasan**
 
 Run: `cd apps/fotoffice && pnpm test -- public-modules site-nav`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/fotoffice/lib/website/public-modules.ts apps/fotoffice/lib/website/public-modules.test.ts apps/fotoffice/lib/website/site-nav.ts
@@ -1821,7 +1821,7 @@ git commit -m "La página de portfolios entra al sitio con la palabra de cada in
   - `function loadPublicDirectory(workspaceId: string): Promise<DirectoryEntry[]>`
   - `function loadPublicPortfolio(params: { workspaceId: string; publicSlug: string }): Promise<PublicPortfolio | null>`
 
-- [ ] **Step 1: Escribir los tests que fallan**
+- [x] **Step 1: Escribir los tests que fallan**
 
 Los que importan son los de exclusión — que lo que no debe verse, no se vea:
 
@@ -1839,23 +1839,23 @@ it("ordena alfabéticamente por apellido", async () => { /* ... */ });
 
 El último es el que cierra el agujero clásico: que el directorio filtre bien pero la ficha se abra igual escribiendo la dirección exacta.
 
-- [ ] **Step 2: Correr y verificar que fallan**
+- [x] **Step 2: Correr y verificar que fallan**
 
 Run: `cd apps/fotoffice && pnpm test -- public-queries`
 Expected: FAIL.
 
-- [ ] **Step 3: Implementar**
+- [x] **Step 3: Implementar**
 
 Las dos funciones traen sus candidatos de la base y **filtran con `portfolioVisibility`**, la misma función que usa el portal. No se reescribe la condición en SQL: si se escribiera dos veces, un día dirían cosas distintas — que es exactamente el modo de falla que la regla única existe para evitar.
 
 El `overdueCount` de cada socio se calcula en una sola consulta agregada sobre `MembershipCharge` para todo el workspace, no una por socio: el directorio de una institución con 150 socios no puede hacer 150 viajes a la base.
 
-- [ ] **Step 4: Correr y verificar que pasan**
+- [x] **Step 4: Correr y verificar que pasan**
 
 Run: `cd apps/fotoffice && pnpm test -- public-queries`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/fotoffice/lib/portfolio/public-queries.ts apps/fotoffice/lib/portfolio/public-queries.test.ts
@@ -1874,34 +1874,34 @@ git commit -m "Las lecturas públicas del directorio y la ficha"
 **Interfaces:**
 - Consumes: `loadPublicDirectory`, `loadPublicPortfolio` (Task 13), `isModuleEnabledForWorkspace`, `loadPersonVocabulary`
 
-- [ ] **Step 1: Escribir el directorio**
+- [x] **Step 1: Escribir el directorio**
 
 Mismo encabezado que `app/w/[workspaceSlug]/cursos/page.tsx`: resolver `branding` por `publicSlug`, `notFound()` si no hay, `notFound()` si el módulo no está habilitado.
 
 Grilla de tarjetas con la foto destacada (con `width`/`height` para que no salte), el nombre, el estudio y las especialidades. Filtro por especialidad resuelto por query string (`?especialidad=retrato`), que funciona sin JavaScript. Título de la página: el plural del vocabulario, capitalizado. Si no hay nadie publicado, un texto sobrio — nunca una grilla de huecos.
 
-- [ ] **Step 2: Escribir la ficha**
+- [x] **Step 2: Escribir la ficha**
 
 `notFound()` si el módulo está apagado o si `loadPublicPortfolio` devuelve `null` — que es el mismo 404, a propósito: quien prueba direcciones no debe poder distinguir "no existe" de "existe y no está publicado".
 
 Presentación, especialidades, enlaces al sitio y redes (con `rel="noopener noreferrer"`), y la galería. `generateMetadata` con título, descripción y `openGraph.images` apuntando a la foto destacada.
 
-- [ ] **Step 3: Escribir el visor**
+- [x] **Step 3: Escribir el visor**
 
 `portfolio-gallery.tsx`, client component: grilla que abre la foto a pantalla completa, con flechas, Escape para cerrar y foco atrapado dentro del visor mientras está abierto.
 
-- [ ] **Step 4: Verificar en el navegador**
+- [x] **Step 4: Verificar en el navegador**
 
 Run: `cd apps/fotoffice && pnpm dev`
 
 Comprobar, con el módulo encendido en un workspace de prueba: el directorio lista sólo a quien corresponde; la ficha abre; la ficha de alguien despublicado da 404; con el módulo apagado las dos dan 404 y la entrada desaparece del menú; y en un teléfono (`resize` a 375 px) no hay desborde horizontal.
 
-- [ ] **Step 5: Correr todos los tests**
+- [x] **Step 5: Correr todos los tests**
 
 Run: `cd apps/fotoffice && pnpm test`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/fotoffice/app/w/\[workspaceSlug\]/socios apps/fotoffice/components/public/portfolio
@@ -1910,7 +1910,42 @@ git commit -m "El directorio y la ficha pública de cada portfolio"
 
 ---
 
-## Task 15: Las fichas en el sitemap
+---
+
+## Lo que cambió al ejecutar la Etapa 3 *(01/10/2026)*
+
+1. **La Task 15 no se hizo, y no por olvido: el sitemap no existe.** El plan daba por sentado que
+   había uno al que agregarle las fichas. No lo hay — `sitemap.xml` figura sólo como segmento
+   *reservado* en `public-modules.ts`, con el comentario "No se usa todavía".
+
+   Hacerla habría significado construir el sitemap de todo el sitio público —portada, páginas de
+   módulo, páginas del dueño— y encima un `robots.txt` que lo anuncie, porque un sitemap que nada
+   referencia no lo lee nadie. Eso es una obra del módulo Sitio web, no de esta, y decidirla no me
+   corresponde. **Queda pendiente y declarada.** Las fichas ya tienen su `generateMetadata` con
+   Open Graph, que es lo que hace falta para que compartir un enlace se vea bien; lo que falta es
+   que un buscador las descubra sola.
+
+2. **El vocabulario del sitio necesitó más que `public-modules.ts`.** Para que el menú diga la
+   palabra de cada institución hubo que llevarla hasta ahí: `PublicSite` ahora carga
+   `personVocabulary`, el armazón se lo pasa a `buildSiteNav`, y `buildSiteNav` lo recibe como
+   opcional para que ningún caller viejo cambie de comportamiento.
+
+3. **El filtro por especialidad quedó por la dirección**, no por JavaScript: funciona sin scripts,
+   se puede compartir como enlace y queda en el historial. Para una lista de este tamaño, filtrar
+   en memoria alcanza.
+
+4. **El visor es un `<dialog>` nativo.** El foco atrapado y Escape los maneja el navegador. Hecho a
+   mano falla casi siempre en el mismo caso: quien navega con teclado termina tabulando por detrás
+   del visor abierto.
+
+5. **Verificado por compilación, no en el navegador** — por lo mismo que la etapa 2: no hay base
+   contra la que correr. `pnpm build` compila limpio y las tres rutas conviven, con el segmento fijo
+   `socios` ganándole al comodín `[...rest]` del constructor de páginas.
+
+**Estado al cerrar la etapa:** 274 archivos de test, 3428 tests, 0 fallas. Tipos limpios. Build
+compilando.
+
+## Task 15: Las fichas en el sitemap — NO HECHA (ver la nota al pie de la etapa)
 
 **Files:**
 - Modify: el `sitemap.xml` del sitio público (buscarlo con `git grep -l sitemap apps/fotoffice/app`)
