@@ -64,6 +64,31 @@ describe("asignarNumero", () => {
     expect((await numerar()).display).toBe("2026-0003");
   });
 
+  it("numerar un año anterior no toca la secuencia", async () => {
+    await numerar();
+    await numerar();
+    const antes = { ...secuencia("CONSULTA") };
+    expect((await numerar("CONSULTA", new Date("2025-05-01T10:00:00-03:00"))).display).toBe("2025-0001");
+    expect((await numerar("CONSULTA", new Date("2025-06-01T10:00:00-03:00"))).display).toBe("2025-0002");
+    expect((await numerar("CONSULTA", new Date("2024-02-01T10:00:00-03:00"))).display).toBe("2024-0001");
+    expect(secuencia("CONSULTA")).toMatchObject({ nextValue: antes.nextValue, currentYear: 2026 });
+    expect(secuencia("CONSULTA").nextValue).toBe(3);
+  });
+
+  it("después de numerar un año anterior, el año corriente sigue su contador", async () => {
+    await numerar();
+    await numerar("CONSULTA", new Date("2025-05-01T10:00:00-03:00"));
+    expect(await numerar()).toEqual({ year: 2026, value: 2, display: "2026-0002" });
+    expect(await numerar()).toEqual({ year: 2026, value: 3, display: "2026-0003" });
+  });
+
+  it("un próximo número configurado no se pierde al numerar un año anterior", async () => {
+    expect(await S.configurarSecuencia(ADMIN, "CONSULTA", { prefix: "", withYear: true, digits: 4, nextValue: 42 }, HOY)).toEqual({ ok: true });
+    expect((await numerar("CONSULTA", new Date("2025-05-01T10:00:00-03:00"))).display).toBe("2025-0001");
+    expect((await numerar()).display).toBe("2026-0042");
+    expect((await numerar()).display).toBe("2026-0043");
+  });
+
   it("sin año no reinicia", async () => {
     await numerar("PEDIDO", new Date("2026-12-31T10:00:00-03:00"));
     expect((await numerar("PEDIDO", new Date("2027-01-02T10:00:00-03:00"))).display).toBe("2");
@@ -115,10 +140,20 @@ describe("asignarNumero", () => {
 describe("el SQL de asignación", () => {
   it("usa parámetros enlazados y sólo columnas que existen en la migración", async () => {
     await numerar("CONSULTA", HOY, "ws-1", "lead-1");
+    await numerar("CONSULTA", new Date("2025-05-01T10:00:00-03:00"), "ws-1", "lead-viejo");
     const q = B.sql.find((s) => s.texto.includes("numeracion-asignar"))!;
-    expect(q.valores).toEqual([2026, 2026, 2026, "ws-1", "CONSULTA"]);
-    expect(q.texto).not.toContain("ws-1");
-    expect(q.texto).not.toContain("2026");
+    const candado = B.sql.find((s) => s.texto.includes("numeracion-candado"))!;
+    const anterior = B.sql.find((s) => s.texto.includes("numeracion-anio-anterior"))!;
+    expect(q.valores).toEqual([2026, 2026, 2026, "ws-1", "CONSULTA", 2026]);
+    expect(candado.valores).toEqual(["ws-1", "CONSULTA"]);
+    expect(candado.texto).toContain("FOR UPDATE");
+    expect(anterior.valores).toEqual(["ws-1", "CONSULTA", 2025]);
+    // El año anterior no actualiza la secuencia: hubo un solo UPDATE.
+    expect(B.sql.filter((s) => s.texto.includes("numeracion-asignar"))).toHaveLength(1);
+    for (const x of [q, candado, anterior]) {
+      expect(x.texto).not.toContain("ws-1");
+      expect(x.texto).not.toMatch(/202[56]/);
+    }
 
     const migracion = readFileSync(
       resolve(__dirname, "../../../../packages/db/prisma/migrations/20261004120000_fotoffice_campos_y_numeracion/migration.sql"),
@@ -128,7 +163,7 @@ describe("el SQL de asignación", () => {
     const columnas = new Set(
       [tabla("FotofficeSequence"), tabla("FotofficeRecordNumber")].flatMap((t) => [...t.matchAll(/^\s+"(\w+)"/gm)].map((m) => m[1]!)),
     );
-    const usados = [...q.texto.matchAll(/"(\w+)"/g)].map((m) => m[1]!);
+    const usados = [q, candado, anterior].flatMap((x) => [...x.texto.matchAll(/"(\w+)"/g)].map((m) => m[1]!));
     const alias = new Set(["value", "year"]); // nombres de salida del RETURNING (también son columnas)
     for (const u of usados) {
       if (u === "FotofficeSequence" || u === "FotofficeRecordNumber") continue;

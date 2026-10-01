@@ -261,6 +261,8 @@ export function crearBaseEnMemoria() {
    */
   function emularConsulta(texto: string, valores: unknown[]): unknown[] {
     if (texto.includes("numeracion-asignar")) return emularAsignacion(valores);
+    if (texto.includes("numeracion-candado")) return emularCandado(valores);
+    if (texto.includes("numeracion-anio-anterior")) return emularAnioAnterior(valores);
     if (!texto.includes("consultas-sin-recorrido")) throw new Error("SQL crudo no emulado en la base en memoria");
     const workspaceId = valores[0];
     const sinRecorrido = datos.serviceSalesLead.filter(
@@ -278,16 +280,39 @@ export function crearBaseEnMemoria() {
   }
 
   /**
-   * "numeracion-asignar": el UPDATE … RETURNING de `lib/numeracion/asignar.ts`. Parámetros: el
-   * año (repetido) y al final workspaceId y key. Devuelve lo mismo que el RETURNING (con `value`
-   * y `year` como bigint, como puede llegar de Prisma).
+   * "numeracion-candado": el SELECT … FOR UPDATE de `lib/numeracion/asignar.ts` (acá no hay
+   * concurrencia: sólo lee). Parámetros: workspaceId y key.
    */
-  function emularAsignacion(valores: unknown[]): unknown[] {
-    const anio = valores[0] as number;
-    const ws = valores[valores.length - 2] as string;
-    const key = valores[valores.length - 1] as string;
+  function emularCandado(valores: unknown[]): unknown[] {
+    const [ws, key] = valores as [string, string];
     const s = datos.fotofficeSequence.find((x) => x.workspaceId === ws && x.key === key);
     if (!s) return [];
+    return [{ prefix: s.prefix, withYear: s.withYear, digits: s.digits, currentYear: s.currentYear === null ? null : BigInt(s.currentYear as number) }];
+  }
+
+  /**
+   * "numeracion-anio-anterior": MAX(value) + 1 de los números de ese año. Parámetros: workspaceId,
+   * key y año. Devuelve `value` como bigint.
+   */
+  function emularAnioAnterior(valores: unknown[]): unknown[] {
+    const [ws, key, anio] = valores as [string, string, number];
+    const usados = datos.fotofficeRecordNumber
+      .filter((r) => r.workspaceId === ws && r.sequenceKey === key && r.year === anio)
+      .map((r) => r.value as number);
+    return [{ value: BigInt(Math.max(0, ...usados) + 1) }];
+  }
+
+  /**
+   * "numeracion-asignar": el UPDATE … RETURNING de `lib/numeracion/asignar.ts`. Parámetros: el
+   * año (CASE, subconsulta, currentYear), workspaceId, key y el año de la condición final (no
+   * actualiza si la secuencia lleva año y su año es posterior). Devuelve lo mismo que el
+   * RETURNING (con `value` y `year` como bigint, como puede llegar de Prisma).
+   */
+  function emularAsignacion(valores: unknown[]): unknown[] {
+    const [anio, , , ws, key, anioCondicion] = valores as [number, number, number, string, string, number];
+    const s = datos.fotofficeSequence.find((x) => x.workspaceId === ws && x.key === key);
+    if (!s) return [];
+    if (s.withYear && s.currentYear !== null && (s.currentYear as number) > anioCondicion) return [];
     if (s.withYear && s.currentYear !== anio) {
       const usados = datos.fotofficeRecordNumber
         .filter((r) => r.workspaceId === ws && r.sequenceKey === key && r.year === anio)

@@ -61,6 +61,15 @@ describe("vistaPrevia", () => {
     // Año de Buenos Aires.
     expect(S.vistaPrevia({ prefix: "", withYear: true, digits: 2, nextValue: 3 }, new Date("2027-01-01T02:00:00Z"))).toBe("2026-03");
   });
+
+  it("al cambiar de año sigue después del último usado de ese año, como la asignación", () => {
+    const cfg = { prefix: "", withYear: true, digits: 4, nextValue: 90, currentYear: 2025 };
+    expect(S.vistaPrevia(cfg, HOY, 7)).toBe("2026-0008");
+    // currentYear null (nunca numeró con año) también arranca desde el último usado + 1.
+    expect(S.vistaPrevia({ ...cfg, currentYear: null }, HOY, 3)).toBe("2026-0004");
+    // Mismo año: manda nextValue, el último usado no importa.
+    expect(S.vistaPrevia({ ...cfg, currentYear: 2026 }, HOY, 7)).toBe("2026-0090");
+  });
 });
 
 describe("leerSecuencias", () => {
@@ -73,6 +82,16 @@ describe("leerSecuencias", () => {
     // Al año siguiente la secuencia con año arranca de nuevo.
     const enero = await S.leerSecuencias("ws-1", new Date("2027-01-05T10:00:00-03:00"));
     expect(enero[0]).toMatchObject({ proximo: 1, minimoProximo: 1, vistaPrevia: "2027-0001" });
+  });
+
+  it("la vista previa coincide con lo que asigna cuando el año nuevo ya tiene números", async () => {
+    B.agregar("fotofficeSequence", { workspaceId: "ws-1", key: "CONSULTA", withYear: true, digits: 4, nextValue: 90, currentYear: 2025 });
+    B.agregar("fotofficeRecordNumber", {
+      workspaceId: "ws-1", sequenceKey: "CONSULTA", entityType: "CONSULTA", entityId: "viejo", year: 2026, value: 5, display: "2026-0005",
+    });
+    const [consulta] = await S.leerSecuencias("ws-1", HOY);
+    expect(consulta).toMatchObject({ proximo: 6, minimoProximo: 6, vistaPrevia: "2026-0006" });
+    expect((await numerar("CONSULTA")).display).toBe("2026-0006");
   });
 });
 

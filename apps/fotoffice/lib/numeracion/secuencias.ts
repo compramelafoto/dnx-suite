@@ -34,7 +34,7 @@ export type CtxNumeracion = { workspaceId: string; userId: number; userLabel: st
 export type ConfigConAnio = ConfigSecuencia & { currentYear: number | null };
 export type SecuenciaLeida = ConfigConAnio & {
   key: ClaveSecuencia;
-  /** El número que va a salir ahora (1 si la secuencia lleva año y el año cambió). */
+  /** El número que va a salir ahora (si la secuencia lleva año y el año cambió: último usado de este año + 1). */
   proximo: number;
   /** Menor "próximo número" que se puede configurar: último usado + 1. */
   minimoProximo: number;
@@ -72,11 +72,25 @@ async function ultimoUsado(cliente: Cliente, workspaceId: string, key: ClaveSecu
   return fila?.value ?? 0;
 }
 
-/** Texto del próximo número para `config` en el día `hoy` (hora de Buenos Aires). */
-export function vistaPrevia(config: ConfigSecuencia & { currentYear?: number | null }, hoy: Date): string {
+/**
+ * Número que va a salir ahora, igual que lo calcula `asignarNumero`: si la secuencia lleva año y
+ * el año guardado (`currentYear`) no es `anio` —también si es `null`: nunca numeró con año—,
+ * arranca después del último usado de `anio` (`ultimoUsado`, 0 si no hay); si no, `nextValue`.
+ * Con `currentYear` sin pasar (formulario sin fila guardada) devuelve `nextValue`.
+ */
+function proximoNumero(config: ConfigSecuencia & { currentYear?: number | null }, anio: number, ultimoUsado = 0): number {
+  const reinicia = config.withYear && config.currentYear !== undefined && config.currentYear !== anio;
+  return reinicia ? ultimoUsado + 1 : config.nextValue;
+}
+
+/**
+ * Texto del próximo número para `config` en el día `hoy` (hora de Buenos Aires). `ultimoUsado` es
+ * el último número usado del año de `hoy`: si el año cambió, el próximo es ése + 1 (como en la
+ * asignación), no siempre 1.
+ */
+export function vistaPrevia(config: ConfigSecuencia & { currentYear?: number | null }, hoy: Date, ultimoUsado = 0): string {
   const anio = anioEnBuenosAires(hoy);
-  const reinicia = config.withYear && config.currentYear != null && config.currentYear !== anio;
-  return formatearNumero(config, config.withYear ? anio : null, reinicia ? 1 : config.nextValue);
+  return formatearNumero(config, config.withYear ? anio : null, proximoNumero(config, anio, ultimoUsado));
 }
 
 const SELECT_SECUENCIA = { key: true, prefix: true, withYear: true, digits: true, nextValue: true, currentYear: true } as const;
@@ -91,16 +105,15 @@ export async function leerSecuencias(workspaceId: string, hoy: Date = new Date()
     const f = filas.find((x) => x.key === key);
     if (!f) continue;
     const ultimo = await ultimoUsado(prisma, workspaceId, key, f.withYear, anio);
-    const reinicia = f.withYear && f.currentYear !== anio;
-    const proximo = reinicia ? ultimo + 1 : f.nextValue;
-    const config = { prefix: f.prefix, withYear: f.withYear, digits: f.digits, nextValue: proximo };
+    const config = { prefix: f.prefix, withYear: f.withYear, digits: f.digits, nextValue: f.nextValue, currentYear: f.currentYear };
+    const proximo = proximoNumero(config, anio, ultimo);
     out.push({
       ...config,
+      nextValue: proximo,
       key,
-      currentYear: f.currentYear,
       proximo,
       minimoProximo: ultimo + 1,
-      vistaPrevia: formatearNumero(config, f.withYear ? anio : null, proximo),
+      vistaPrevia: vistaPrevia(config, hoy, ultimo),
     });
   }
   return out;
@@ -124,11 +137,13 @@ export async function configurarSecuencia(
 
   return prisma.$transaction(async (tx) => {
     const where = { workspaceId: ctx.workspaceId, key };
+    // Toma el candado de la fila (UPDATE sin cambio real) ANTES de leerla y de mirar el último
+    // usado: una asignación concurrente espera a que esta transacción termine, y lo que ya se
+    // confirmó se ve en las lecturas siguientes (el historial y la comparación usan datos frescos).
+    const tomado = await tx.fotofficeSequence.updateMany({ where, data: { key } });
+    if (tomado.count === 0) return { ok: false as const, error: MENSAJES_NUMERACION.noEncontrada };
     const antes = await tx.fotofficeSequence.findFirst({ where, select: SELECT_SECUENCIA });
     if (!antes) return { ok: false as const, error: MENSAJES_NUMERACION.noEncontrada };
-    // Toma el candado de la fila antes de mirar el último usado: una asignación concurrente
-    // espera a que esta transacción termine, y una ya confirmada se ve en la lectura siguiente.
-    await tx.fotofficeSequence.updateMany({ where, data: { digits: antes.digits } });
 
     const ultimo = await ultimoUsado(tx, ctx.workspaceId, key, raw.withYear === true, anio);
     const v = validarConfigSecuencia(raw, ultimo + 1);

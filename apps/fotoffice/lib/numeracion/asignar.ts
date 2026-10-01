@@ -15,12 +15,26 @@ type FilaAsignada = {
   digits: number | bigint;
 };
 
+type FilaSecuencia = { prefix: string; withYear: boolean; digits: number | bigint; currentYear: number | bigint | null };
+
 /**
- * Consume el próximo número de la secuencia en UNA sentencia: el candado de la fila hace que dos
- * altas simultáneas nunca reciban el mismo número (la segunda espera y relee la fila ya
- * actualizada). Si la secuencia lleva año y el año cambió, arranca en 1 —o después del último
- * número de ese año, si ya había alguno (enganche de consultas viejas fechadas en otro año)—.
- * Devuelve el número consumido: `nextValue` nuevo - 1. Vacío si la secuencia no existe.
+ * Toma el candado de la fila de la secuencia (espera si otra alta la tiene) y la lee. Después de
+ * esto, cada sentencia de esta transacción ve todo lo que confirmaron las altas anteriores.
+ */
+function bloquear(tx: Tx, workspaceId: string, key: ClaveSecuencia) {
+  return tx.$queryRaw<FilaSecuencia[]>`
+    /* numeracion-candado */
+    SELECT s."prefix", s."withYear", s."digits", s."currentYear"
+    FROM "FotofficeSequence" AS s
+    WHERE s."workspaceId" = ${workspaceId} AND s."key" = ${key}
+    FOR UPDATE`;
+}
+
+/**
+ * Consume el próximo número de la secuencia (con el candado ya tomado). Si lleva año y el año es
+ * nuevo (o nunca numeró con año), arranca después del último número de ese año (1 si no hay).
+ * Devuelve el número consumido: `nextValue` nuevo - 1. La última condición nunca falla con el
+ * candado tomado (los años anteriores van por `siguienteDeAnioAnterior`); es una red.
  */
 function consumir(tx: Tx, workspaceId: string, key: ClaveSecuencia, anio: number) {
   return tx.$queryRaw<FilaAsignada[]>`
@@ -34,7 +48,37 @@ function consumir(tx: Tx, workspaceId: string, key: ClaveSecuencia, anio: number
         END,
         "currentYear" = CASE WHEN s."withYear" THEN ${anio}::int ELSE NULL END
     WHERE s."workspaceId" = ${workspaceId} AND s."key" = ${key}
+      AND (NOT s."withYear" OR s."currentYear" IS NULL OR s."currentYear" <= ${anio}::int)
     RETURNING s."nextValue" - 1 AS "value", s."currentYear" AS "year", s."prefix", s."withYear", s."digits"`;
+}
+
+/**
+ * Número para un registro de un año ANTERIOR al de la secuencia (enganche de consultas viejas):
+ * último usado de ese año + 1, sin tocar la secuencia —así el contador del año corriente (y un
+ * próximo número configurado) sigue intacto—. Va con el candado de la fila ya tomado, que
+ * serializa las altas: el MAX se lee después de que las anteriores confirmaron.
+ */
+function siguienteDeAnioAnterior(tx: Tx, workspaceId: string, key: ClaveSecuencia, anio: number) {
+  return tx.$queryRaw<{ value: number | bigint }[]>`
+    /* numeracion-anio-anterior */
+    SELECT COALESCE(MAX(r."value"), 0) + 1 AS "value"
+    FROM "FotofficeRecordNumber" AS r
+    WHERE r."workspaceId" = ${workspaceId} AND r."sequenceKey" = ${key} AND r."year" = ${anio}::int`;
+}
+
+async function tomarNumero(tx: Tx, workspaceId: string, key: ClaveSecuencia, anio: number): Promise<FilaAsignada | null> {
+  let [sec] = await bloquear(tx, workspaceId, key);
+  if (!sec) {
+    await asegurarSecuencias(workspaceId, tx);
+    [sec] = await bloquear(tx, workspaceId, key);
+  }
+  if (!sec) return null;
+  if (sec.withYear && sec.currentYear !== null && anio < Number(sec.currentYear)) {
+    const [r] = await siguienteDeAnioAnterior(tx, workspaceId, key, anio);
+    return { value: r?.value ?? 1, year: anio, prefix: sec.prefix, withYear: true, digits: sec.digits };
+  }
+  const [fila] = await consumir(tx, workspaceId, key, anio);
+  return fila ?? null;
 }
 
 /**
@@ -59,11 +103,7 @@ export async function asignarNumero(
   }
 
   const anio = anioEnBuenosAires(fecha);
-  let [fila] = await consumir(tx, workspaceId, key, anio);
-  if (!fila) {
-    await asegurarSecuencias(workspaceId, tx);
-    [fila] = await consumir(tx, workspaceId, key, anio);
-  }
+  const fila = await tomarNumero(tx, workspaceId, key, anio);
   if (!fila) throw new Error(`No se pudo crear la secuencia ${key}.`);
 
   const value = Number(fila.value);
