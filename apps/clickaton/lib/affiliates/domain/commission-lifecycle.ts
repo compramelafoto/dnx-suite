@@ -18,7 +18,12 @@ export type CommissionLifecycleState = {
 };
 
 export type CommissionLifecycleEvent =
-  | { type: "PAID" }
+  /**
+   * `paidViaSplit`: el cobro salió por la orden con reparto (referencia con
+   * guiones). Respaldo por si no llegó a guardarse `mode = SPLIT` después de
+   * cobrar: sin esto quedaría "a transferir" y se le pagaría dos veces.
+   */
+  | { type: "PAID"; paidViaSplit?: boolean }
   | { type: "REVERSE"; reason: string };
 
 export type CommissionLifecycleChange = {
@@ -52,7 +57,7 @@ export function nextCommissionState(
     // Sólo una reservada se cobra. Una anulada no revive por un pago tardío:
     // ese caso lo mira una persona (la inscripción queda en revisión manual).
     if (current.status !== "PENDING") return null;
-    if (current.mode === "SPLIT") {
+    if (current.mode === "SPLIT" || event.paidViaSplit) {
       return { status: "PAID_BY_SPLIT", mode: "SPLIT", setPaidAt: true };
     }
     return { status: "OWED", mode: "MANUAL", setPaidAt: true };

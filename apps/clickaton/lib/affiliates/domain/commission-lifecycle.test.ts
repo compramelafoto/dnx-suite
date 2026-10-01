@@ -79,3 +79,9 @@ test("un motivo vacío igual deja constancia", () => {
   const change = nextCommissionState({ status: "PENDING", mode: null }, { type: "REVERSE", reason: "  " });
   assert.equal(change?.reversalReason, "anulada");
 });
+
+test("pago por la orden con reparto sin modo guardado: igual queda cobrada por reparto", () => {
+  const change = nextCommissionState({ status: "PENDING", mode: null }, { type: "PAID", paidViaSplit: true });
+  assert.equal(change?.status, "PAID_BY_SPLIT");
+  assert.equal(change?.mode, "SPLIT");
+});

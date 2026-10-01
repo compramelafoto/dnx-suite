@@ -1,3 +1,4 @@
+import { isAffiliateSplitActive } from "@/lib/affiliates/infrastructure/affiliate-split-flag";
 import { Prisma, prisma } from "@repo/db";
 import {
   reverseAffiliateCommission,
@@ -544,7 +545,12 @@ export function createPrismaCheckoutMutations(): CheckoutRegistrationMutations {
           // best-effort: el pago ya quedó CONFIRMADO
         }
         // Comisión del dueño del cupón: PENDING → PAID_BY_SPLIT u OWED. No tira.
-        await settleAffiliateCommissionOnPaid(prisma, input.registrationId);
+        // En producción sólo la orden con reparto usa la referencia con guiones.
+        await settleAffiliateCommissionOnPaid(prisma, input.registrationId, new Date(), {
+          paidViaSplit:
+            isAffiliateSplitActive() &&
+            (record.paymentExternalReference ?? "").startsWith("clickaton-registration-"),
+        });
         try {
           const linked = await linkRegistrationIdentity({
             registrationId: input.registrationId,

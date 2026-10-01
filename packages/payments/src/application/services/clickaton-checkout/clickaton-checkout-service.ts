@@ -336,10 +336,14 @@ export function createClickatonCheckoutService(
         throw new Error("clickaton_checkout_production_forbidden");
       }
       const now = new Date().toISOString();
+      // Orders rechaza ':' en external_reference: un cobro con reparto al
+      // afiliado (Orders 1:N productivo) usa la forma con guiones aunque el
+      // puente principal sea Checkout Pro.
+      const usesOrdersSplit = Boolean(input.affiliateSplit && input.cardPayment);
       const externalReference = externalRefForSource(
         input.sourceType,
         input.sourceId,
-        bridge.mode,
+        usesOrdersSplit ? "mercado_pago_orders_test" : bridge.mode,
       );
 
       // Etapa 6: snapshot financiero obligatorio para Mercado Pago (no stub owner).
@@ -592,6 +596,10 @@ export function createClickatonCheckoutService(
           checkoutBaseUrl: input.checkoutBaseUrl,
           sourceId: input.sourceId,
           ...(input.cardPayment ? { cardPayment: input.cardPayment } : {}),
+          ...(usesOrdersSplit && input.affiliateSplit
+            ? { affiliateSplit: input.affiliateSplit }
+            : {}),
+          ...(usesOrdersSplit && input.payerName ? { payerName: input.payerName } : {}),
           ...(editionPlan && input.editionFinance?.collectorAccessToken
             ? {
                 collectorAccessToken: input.editionFinance.collectorAccessToken,

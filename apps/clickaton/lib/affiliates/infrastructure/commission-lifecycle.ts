@@ -72,8 +72,9 @@ export function settleAffiliateCommissionOnPaid(
   db: AffiliateCommissionDb,
   registrationId: string,
   now: Date = new Date(),
+  opts: { paidViaSplit?: boolean } = {},
 ): Promise<CommissionLifecycleOutcome> {
-  return applyEvent(db, registrationId, { type: "PAID" }, now);
+  return applyEvent(db, registrationId, { type: "PAID", paidViaSplit: opts.paidViaSplit }, now);
 }
 
 /**

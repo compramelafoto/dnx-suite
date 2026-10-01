@@ -18,6 +18,10 @@ import {
   resolveClickatonMercadoPagoPublicKey,
 } from "@/lib/checkout/card-brick-enabled";
 import {
+  resolveProductionCardBrickPublicKey,
+  resolveRegistrationPaymentMethod,
+} from "@/lib/affiliates/infrastructure/affiliate-split-checkout";
+import {
   presentParticipantRegistration,
   publicToneToBadgeVariant,
 } from "@/lib/public-ux/status-presentation";
@@ -82,7 +86,17 @@ export default async function PublicRegistrationSummaryPage({
   }
 
   const s = result.data;
-  const cardBrickEnabled = isClickatonCardBrickCheckoutEnabled();
+  // Cobro dividido al afiliado (producción): la inscripción con cupón de un
+  // fotógrafo con permiso ACTIVO paga con tarjeta acá mismo (Orders 1:N). Sin
+  // public key de producción, sigue por Checkout Pro como siempre.
+  const splitPublicKey =
+    s.checkoutEligible && !isClickatonCardBrickCheckoutEnabled()
+      ? (await resolveRegistrationPaymentMethod(s.registrationId)) === "card_brick_split"
+        ? resolveProductionCardBrickPublicKey()
+        : null
+      : null;
+  const affiliateSplitCard = Boolean(splitPublicKey);
+  const cardBrickEnabled = isClickatonCardBrickCheckoutEnabled() || affiliateSplitCard;
   const statusPresentation = presentParticipantRegistration(s.status, s.paymentStatus);
   const hasDiscount = s.discountAmount > 0;
 
@@ -252,9 +266,11 @@ export default async function PublicRegistrationSummaryPage({
               currency={s.currency}
               expiresLabel={formatHoldExpiry(s.holdExpiresAt)}
               eligible={s.checkoutEligible}
-              testEnvironment={isClickatonDnxCheckoutEnabled()}
+              testEnvironment={affiliateSplitCard ? false : isClickatonDnxCheckoutEnabled()}
               cardBrickEnabled={cardBrickEnabled}
-              mercadoPagoPublicKey={resolveClickatonMercadoPagoPublicKey()}
+              mercadoPagoPublicKey={
+                affiliateSplitCard ? splitPublicKey : resolveClickatonMercadoPagoPublicKey()
+              }
               autoStart={!cardBrickEnabled}
             />
           ) : (
