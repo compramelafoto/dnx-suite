@@ -12,7 +12,7 @@ vi.mock("next/navigation", () => ({ redirect: redirectMock }));
 vi.mock("@/lib/workspace", () => ({ requireActiveWorkspace: requireActiveWorkspaceMock }));
 vi.mock("@/lib/permissions/module-access", () => ({ getModuleLevel: levelMock }));
 
-const { requireRafflesAdmin, requireRafflesStaff } = await import("./access");
+const { requireBookingsAdmin, requireBookingsStaff } = await import("./access");
 
 const ws = { id: "ws-1", name: "SFPR" };
 
@@ -22,30 +22,30 @@ beforeEach(() => {
   levelMock.mockReset().mockResolvedValue("MANAGE");
 });
 
-describe("la puerta del módulo Sorteos", () => {
+describe("la puerta del módulo Reservas", () => {
   it("pregunta el nivel de ESTA persona en ESTE workspace y ESTE módulo", async () => {
-    await requireRafflesStaff();
-    expect(levelMock).toHaveBeenCalledWith(7, "ws-1", "raffles");
+    await requireBookingsStaff();
+    expect(levelMock).toHaveBeenCalledWith(7, "ws-1", "bookings");
   });
 
   it("sin workspace activo, va a elegir uno", async () => {
     requireActiveWorkspaceMock.mockResolvedValue({ user: { id: 7 }, workspace: null });
-    await expect(requireRafflesStaff()).rejects.toThrow("REDIRECT:/workspace");
+    await expect(requireBookingsStaff()).rejects.toThrow("REDIRECT:/workspace");
   });
 
   it("sin nivel (módulo apagado o sin rol), afuera", async () => {
     levelMock.mockResolvedValue("NONE");
-    await expect(requireRafflesStaff()).rejects.toThrow("REDIRECT:/dashboard");
-    await expect(requireRafflesAdmin()).rejects.toThrow("REDIRECT:/dashboard");
+    await expect(requireBookingsStaff()).rejects.toThrow("REDIRECT:/dashboard");
+    await expect(requireBookingsAdmin()).rejects.toThrow("REDIRECT:/dashboard");
   });
 
   it("con VIEW ve la lista pero no administra", async () => {
     levelMock.mockResolvedValue("VIEW");
-    await expect(requireRafflesStaff()).resolves.toMatchObject({ level: "VIEW" });
-    await expect(requireRafflesAdmin()).rejects.toThrow("REDIRECT:/sorteos");
+    await expect(requireBookingsStaff()).resolves.toMatchObject({ level: "VIEW" });
+    await expect(requireBookingsAdmin()).rejects.toThrow("REDIRECT:/reservas");
   });
 
   it("con MANAGE administra", async () => {
-    await expect(requireRafflesAdmin()).resolves.toMatchObject({ workspace: ws, level: "MANAGE" });
+    await expect(requireBookingsAdmin()).resolves.toMatchObject({ workspace: ws, level: "MANAGE" });
   });
 });
