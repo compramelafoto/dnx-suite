@@ -203,6 +203,15 @@ async function main() {
         memberPublished: caso.publicado,
         memberPublishedAt: caso.publicado ? new Date() : null,
         adminForcePublish: caso.perdonado ?? false,
+        // Para poder mirar la franja de Instagram en la vista previa.
+        instagramEnabled: caso.conSesion ?? false,
+        instagramPostUrls: caso.conSesion
+          ? [
+              "https://www.instagram.com/p/C1example0001/",
+              "https://www.instagram.com/p/C1example0002/",
+              "https://www.instagram.com/p/C1example0003/",
+            ]
+          : [],
       },
     });
 

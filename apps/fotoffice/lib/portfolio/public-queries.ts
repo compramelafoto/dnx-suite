@@ -47,6 +47,8 @@ export type PublicPortfolio = {
   publicSlug: string;
   displayName: string;
   businessName: string | null;
+  /** Logo del estudio. Sólo en la ficha: el directorio muestra obra, no logos. */
+  businessLogoUrl: string | null;
   specialties: string[];
   bio: string | null;
   profilePhotoUrl: string | null;
@@ -60,6 +62,8 @@ export type PublicPortfolio = {
   };
   coverUrl: string | null;
   photos: PublicPortfolioPhoto[];
+  /** Posteos que el socio eligió mostrar. Vacío si apagó la franja o no cargó ninguno. */
+  instagramPosts: string[];
 };
 
 /** Lo único que se lee del socio. Todo lo demás queda del lado privado. */
@@ -69,6 +73,7 @@ const SELECT_MIEMBRO = {
   status: true,
   directoryOptIn: true,
   businessName: true,
+  businessLogoUrl: true,
   specialties: true,
   bio: true,
   website: true,
@@ -208,6 +213,8 @@ export async function loadPublicPortfolio(params: {
       hiddenByAdminAt: true,
       adminForcePublish: true,
       coverPhotoId: true,
+      instagramEnabled: true,
+      instagramPostUrls: true,
       member: { select: SELECT_MIEMBRO },
       coverPhoto: { select: { url: true, width: true, height: true } },
       photos: { select: SELECT_FOTO, orderBy: { order: "asc" } },
@@ -227,22 +234,53 @@ export async function loadPublicPortfolio(params: {
   });
   if (!alAire) return null;
 
+  return aPublicPortfolio(fila);
+}
+
+/** El armado de la ficha, en un solo lugar: lo comparten la página pública y la vista previa. */
+type FilaDeFicha = {
+  publicSlug: string;
+  member: Record<string, unknown> & FilaMiembro;
+  coverPhoto: { url: string } | null;
+  instagramEnabled: boolean;
+  instagramPostUrls: string[];
+  photos: { id: string; url: string; width: number; height: number; title: string | null; year: number | null }[];
+};
+
+function aPublicPortfolio(fila: FilaDeFicha): PublicPortfolio {
+  const m = fila.member as FilaMiembro & {
+    businessName: string | null;
+    businessLogoUrl: string | null;
+    specialties: string[];
+    bio: string | null;
+    profilePhotoUrl: string | null;
+    website: string | null;
+    instagram: string | null;
+    tiktok: string | null;
+    facebook: string | null;
+    youtube: string | null;
+    linkedin: string | null;
+  };
+
   return {
     publicSlug: fila.publicSlug,
     displayName: nombreVisible(fila.member),
-    businessName: fila.member.businessName,
-    specialties: fila.member.specialties,
-    bio: fila.member.bio,
-    profilePhotoUrl: fila.member.profilePhotoUrl,
+    businessName: m.businessName,
+    businessLogoUrl: m.businessLogoUrl,
+    specialties: m.specialties,
+    bio: m.bio,
+    profilePhotoUrl: m.profilePhotoUrl,
     links: {
-      website: fila.member.website,
-      instagram: fila.member.instagram,
-      tiktok: fila.member.tiktok,
-      facebook: fila.member.facebook,
-      youtube: fila.member.youtube,
-      linkedin: fila.member.linkedin,
+      website: m.website,
+      instagram: m.instagram,
+      tiktok: m.tiktok,
+      facebook: m.facebook,
+      youtube: m.youtube,
+      linkedin: m.linkedin,
     },
     coverUrl: fila.coverPhoto?.url ?? null,
+    // El interruptor manda: apagarlo oculta la franja sin que el socio pierda los enlaces que cargó.
+    instagramPosts: fila.instagramEnabled ? fila.instagramPostUrls : [],
     photos: fila.photos.map((f) => ({
       id: f.id,
       url: f.url,
@@ -252,4 +290,34 @@ export async function loadPublicPortfolio(params: {
       year: f.year,
     })),
   };
+}
+
+
+/**
+ * La ficha de una persona **tal como se vería**, aunque todavía no esté públicada.
+ *
+ * La usa la vista previa del portal, y por eso **saltea las siete condiciones a propósito**: el
+ * sentido de una vista previa es ver cómo queda antes de prender el interruptor.
+ *
+ * Es seguro porque quien llama ya resolvió de quién es la ficha desde la sesión: acá no hay ningún
+ * parámetro con el que pedir la de otro. No tiene ruta pública y nada la expone.
+ */
+export async function loadPortfolioPreview(params: {
+  workspaceId: string;
+  memberId: string;
+}): Promise<PublicPortfolio | null> {
+  const fila = await prisma.fotofficeMemberPortfolio.findFirst({
+    where: { workspaceId: params.workspaceId, memberId: params.memberId },
+    select: {
+      publicSlug: true,
+      instagramEnabled: true,
+      instagramPostUrls: true,
+      member: { select: SELECT_MIEMBRO },
+      coverPhoto: { select: { url: true } },
+      photos: { select: SELECT_FOTO, orderBy: { order: "asc" } },
+    },
+  });
+  if (!fila) return null;
+
+  return aPublicPortfolio(fila);
 }

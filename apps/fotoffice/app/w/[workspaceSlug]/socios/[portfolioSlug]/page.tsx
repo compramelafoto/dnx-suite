@@ -5,8 +5,8 @@ import { prisma } from "@repo/db";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { etiquetaEspecialidad } from "@/lib/membership/specialties";
 import { PORTFOLIO_PUBLIC_SEGMENT } from "@/lib/portfolio/constants";
-import { loadPublicPortfolio, type PublicPortfolio } from "@/lib/portfolio/public-queries";
-import { PortfolioGallery } from "@/components/public/portfolio/portfolio-gallery";
+import { loadPublicPortfolio } from "@/lib/portfolio/public-queries";
+import { PortfolioShowcase } from "@/components/public/portfolio/portfolio-showcase";
 
 type Props = { params: Promise<{ workspaceSlug: string; portfolioSlug: string }> };
 
@@ -57,7 +57,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 /**
- * La ficha pública de una persona: su presentación, sus enlaces y su galería.
+ * La ficha pública de una persona.
+ *
+ * Todo lo que se dibuja vive en `PortfolioShowcase`, que comparte con la vista previa del portal:
+ * así lo que el socio ve antes de publicar es exactamente lo que va a ver quien entre.
  *
  * El 404 es el mismo tanto si el slug no existe como si existe y no está publicado, a propósito:
  * quien prueba direcciones no tiene que poder distinguir una cosa de la otra.
@@ -67,109 +70,21 @@ export default async function PublicPortfolioPage({ params }: Props) {
   const datos = await cargar(workspaceSlug, portfolioSlug);
   if (!datos) notFound();
 
-  const { branding, portfolio } = datos;
-  const vocabulario = await loadPersonVocabulary(branding.workspaceId);
+  const vocabulario = await loadPersonVocabulary(datos.branding.workspaceId);
   const volver = `/w/${workspaceSlug}/${PORTFOLIO_PUBLIC_SEGMENT}`;
 
   return (
     <main className="mx-auto max-w-5xl space-y-10 px-4 py-12 md:px-8 md:py-16">
       <p>
-        <Link href={volver} className="text-sm underline opacity-70">
+        <Link
+          href={volver}
+          className="inline-flex items-center gap-1 text-sm underline opacity-70 transition-opacity hover:opacity-100"
+        >
           ← Volver a {vocabulario.plural}
         </Link>
       </p>
 
-      <header className="flex flex-col gap-6 sm:flex-row sm:items-start">
-        {portfolio.profilePhotoUrl ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={portfolio.profilePhotoUrl}
-            alt={portfolio.displayName}
-            width={160}
-            height={160}
-            className="h-28 w-28 shrink-0 rounded-full object-cover"
-          />
-        ) : null}
-
-        <div className="space-y-3">
-          <div className="space-y-1">
-            <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">
-              {portfolio.displayName}
-            </h1>
-            {portfolio.businessName ? (
-              <p className="opacity-80">{portfolio.businessName}</p>
-            ) : null}
-          </div>
-
-          {portfolio.specialties.length > 0 ? (
-            <ul className="flex flex-wrap gap-2">
-              {portfolio.specialties.map((id) => (
-                <li
-                  key={id}
-                  className="rounded-full border px-3 py-1 text-xs"
-                  style={{ borderColor: "var(--wsite-text)", opacity: 0.7 }}
-                >
-                  {etiquetaEspecialidad(id)}
-                </li>
-              ))}
-            </ul>
-          ) : null}
-
-          {portfolio.bio ? (
-            <p className="max-w-prose whitespace-pre-line text-sm opacity-90">{portfolio.bio}</p>
-          ) : null}
-
-          <EnlacesDeContacto links={portfolio.links} />
-        </div>
-      </header>
-
-      <PortfolioGallery photos={portfolio.photos} authorName={portfolio.displayName} />
+      <PortfolioShowcase portfolio={datos.portfolio} />
     </main>
   );
-}
-
-/**
- * Los enlaces que la persona cargó. Todos con `rel="noopener noreferrer"`: son direcciones que
- * escribió alguien de afuera del equipo, y una pestaña abierta con `window.opener` vivo puede
- * redirigir la nuestra.
- */
-function EnlacesDeContacto({ links }: { links: PublicPortfolio["links"] }) {
-  const items: { etiqueta: string; href: string }[] = [];
-  if (links.website) items.push({ etiqueta: "Sitio", href: normalizarUrl(links.website) });
-  if (links.instagram)
-    items.push({ etiqueta: "Instagram", href: `https://instagram.com/${limpiarUsuario(links.instagram)}` });
-  if (links.tiktok)
-    items.push({ etiqueta: "TikTok", href: `https://tiktok.com/@${limpiarUsuario(links.tiktok)}` });
-  if (links.facebook) items.push({ etiqueta: "Facebook", href: normalizarUrl(links.facebook) });
-  if (links.youtube) items.push({ etiqueta: "YouTube", href: normalizarUrl(links.youtube) });
-  if (links.linkedin) items.push({ etiqueta: "LinkedIn", href: normalizarUrl(links.linkedin) });
-
-  if (items.length === 0) return null;
-
-  return (
-    <ul className="flex flex-wrap gap-3 text-sm">
-      {items.map((i) => (
-        <li key={i.etiqueta}>
-          <a href={i.href} target="_blank" rel="noopener noreferrer" className="underline">
-            {i.etiqueta}
-          </a>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-/** Quien escribe "miestudio.com" sin `https://` igual tiene que terminar en su sitio. */
-function normalizarUrl(valor: string): string {
-  const limpio = valor.trim();
-  return /^https?:\/\//i.test(limpio) ? limpio : `https://${limpio}`;
-}
-
-/** Acepta "@usuario", "usuario" o la URL completa pegada en el campo. */
-function limpiarUsuario(valor: string): string {
-  return valor
-    .trim()
-    .replace(/^https?:\/\/(www\.)?[^/]+\//i, "")
-    .replace(/^@/, "")
-    .replace(/\/+$/, "");
 }

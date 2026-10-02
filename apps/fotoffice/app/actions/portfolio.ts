@@ -12,6 +12,7 @@ import { verifyUploadedImage } from "@/lib/images/r2-presign";
 import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
 import { ensurePortfolio } from "@/lib/portfolio/repository";
 import { canAcceptAnotherPhoto } from "@/lib/portfolio/upload-guard";
+import { parseInstagramPostUrls } from "@/lib/portfolio/instagram";
 
 /**
  * Todo lo que una persona puede hacer con su propio portfolio.
@@ -319,6 +320,31 @@ export async function setPortfolioPublishedAction(input: {
       // de cuándo esta persona se sumó al directorio.
       memberPublishedAt: new Date(),
     },
+  });
+
+  refrescarPantallas();
+  return { ok: true };
+}
+
+/**
+ * Los posteos de Instagram que el socio quiere mostrar, y si la franja se ve.
+ *
+ * El interruptor y los enlaces se guardan juntos aunque sean dos cosas: apagar la franja **no**
+ * borra lo cargado. Quien la apaga por un tiempo no tiene que volver a pegar seis direcciones.
+ */
+export async function setPortfolioInstagramAction(input: {
+  enabled: boolean;
+  postUrls: string[];
+}): Promise<PortfolioActionResult> {
+  const ctx = await contextoDelPortfolio();
+  if (!ctx.ok) return ctx;
+
+  const parsed = parseInstagramPostUrls(input.postUrls);
+  if (!parsed.ok) return { ok: false, error: parsed.error };
+
+  await prisma.fotofficeMemberPortfolio.update({
+    where: { id: ctx.portfolioId },
+    data: { instagramEnabled: input.enabled, instagramPostUrls: parsed.urls },
   });
 
   refrescarPantallas();

@@ -32,6 +32,10 @@ export type PortfolioView = {
   memberPublished: boolean;
   photos: PortfolioPhotoView[];
   visibility: PortfolioVisibility;
+  /** Si la ficha muestra la franja de posteos de Instagram. */
+  instagramEnabled: boolean;
+  /** Los enlaces cargados. Se conservan aunque la franja esté apagada. */
+  instagramPostUrls: string[];
 };
 
 const SELECT_FOTO = {
@@ -133,6 +137,8 @@ export async function loadPortfolioForMember(params: {
         coverPhotoId: true,
         hiddenByAdminAt: true,
         adminForcePublish: true,
+        instagramEnabled: true,
+        instagramPostUrls: true,
         photos: { select: SELECT_FOTO, orderBy: { order: "asc" } },
       },
     }),
@@ -161,5 +167,7 @@ export async function loadPortfolioForMember(params: {
     memberPublished: fila?.memberPublished ?? false,
     photos,
     visibility,
+    instagramEnabled: fila?.instagramEnabled ?? false,
+    instagramPostUrls: fila?.instagramPostUrls ?? [],
   };
 }
