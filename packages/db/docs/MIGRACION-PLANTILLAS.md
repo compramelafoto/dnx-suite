@@ -20,7 +20,7 @@ Qué lee cada tabla:
 | Tabla | Pantallas que la leen |
 |---|---|
 | `FotofficeMessageTemplate` | **Configuración → Plantillas; panel "Mensaje" de las fichas de Cliente, Socio y Consulta; historial de la ficha de Consulta (nombre de la plantilla usada); alta por el formulario público (respuesta automática)** |
-| `FotofficeMessage` | **Línea de tiempo de las fichas de Cliente y Socio; historial de la ficha de Consulta; Configuración → Plantillas (cuántas veces se usó cada una); envío de correos (tope diario de 200)** |
+| `FotofficeMessage` | **Línea de tiempo de las fichas de Cliente y Socio; historial de la ficha de Consulta; Configuración → Plantillas (cuántas veces se usó cada una); envío de correos (tope diario de 200 manuales y 50 automáticos; una respuesta automática por dirección cada 24 h)** |
 
 ## 1. Qué se aplica
 
@@ -179,8 +179,26 @@ enviados: no tiene vuelta atrás. Las fichas de Cliente, Socio y Consulta en sí
   "El envío de correos no está configurado".
 
 El nombre visible del remitente es el de la organización y "responder a" es el correo de
-contacto cargado en la marca de la organización. **Tope: 200 correos por día y por
-organización** (día de Buenos Aires), contando los automáticos; al llegar, no se envía.
+contacto cargado en la marca de la organización.
+
+**Topes** (por organización y día de Buenos Aires; al llegar, no se envía ni se registra):
+
+- **200 correos enviados a mano** desde las fichas.
+- **50 respuestas automáticas**, aparte: no consumen los 200 de los envíos a mano.
+- **Una sola respuesta automática por dirección de correo cada 24 h** (sin importar
+  mayúsculas): si alguien manda dos consultas seguidas, la segunda se guarda pero no se
+  responde. Para repetir la prueba del punto 3 con el mismo correo hay que esperar 24 h o usar
+  otra dirección.
+
+**Por qué estos topes (abuso del formulario público).** El formulario de consultas es abierto:
+cualquiera puede cargar la dirección de otra persona y hacer que la organización le mande la
+respuesta automática. Para que no sirva para mandar correos en masa con el remitente de la
+organización: los topes de arriba, un freno de 10 consultas cada 10 minutos por IP en el
+formulario (en memoria, por instancia de Vercel: frena un bucle, no es un control de
+seguridad), largos máximos en los campos (nombre 120, correo 254, teléfono 40, mensaje 4000) y
+las respuestas automáticas iniciales **no repiten el mensaje libre** de la consulta (la
+variable `[consulta_mensaje]` se puede agregar a mano, pero conviene no hacerlo). Con Captación
+apagada, la respuesta automática no sale aunque esté encendida (y siempre se puede apagar).
 
 1. **Correo:** desde la ficha de un cliente **propio de Daniel** (con su correo), botón
    "Mensaje" → Correo → elegir una plantilla → enviar. Debe llegar el correo con la firma y
@@ -188,7 +206,7 @@ organización** (día de Buenos Aires), contando los automáticos; al llegar, no
 2. **WhatsApp:** desde una ficha con **el número de Daniel**, "Mensaje" → WhatsApp → elegir
    una plantilla → abrir. Se abre WhatsApp con el texto completo y queda en la línea de tiempo
    como "Abierto en WhatsApp".
-3. **Respuesta automática:** en Configuración → Plantillas, encender la respuesta automática.
+3. **Respuesta automática:** en Configuración → Plantillas, encender la respuesta automática (con el módulo Captación activo).
    Hacer una consulta de prueba desde el formulario público con un correo de Daniel. Debe
    llegar el correo con el número de la consulta, y en el historial de esa consulta debe
    figurar el mensaje como "Automático".

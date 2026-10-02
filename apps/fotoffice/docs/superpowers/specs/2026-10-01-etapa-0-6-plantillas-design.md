@@ -153,7 +153,11 @@
 - **No se manda** en las consultas cargadas a mano ni en las inscripciones presenciales **[decisión]**.
 - **Va después de guardar la consulta y después del número (0.5):** si el correo falla, la consulta queda
   igual y el fallo queda registrado.
-- Usa el mismo tope diario y queda en el registro de la consulta como "Automático".
+- Queda en el registro de la consulta como "Automático".
+- **Contra el abuso del formulario público (ruling R11):** sólo con Captación activa (apagarla
+  siempre se puede); tope propio de **50 automáticos por día** y organización, que no consume los 200
+  manuales; **una sola respuesta por dirección cada 24 h**; largos máximos en el formulario y un freno
+  por IP; las respuestas iniciales no repiten `[consulta_mensaje]`.
 
 ### 3.6 Plantillas iniciales de DNX [decisión]
 
