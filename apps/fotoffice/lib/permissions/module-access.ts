@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { Prisma, prisma } from "@repo/db";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { listAvailableModuleKeys } from "@/lib/modules/registry";
@@ -45,16 +46,26 @@ async function loadAssignments(userId: number, workspaceId: string): Promise<Rol
   }
 }
 
-export async function getModuleLevels(
-  userId: number,
-  workspaceId: string,
-  now: Date = new Date(),
-): Promise<ModuleLevels> {
+/**
+ * Varios guardas de una misma pantalla (shell, layout, página) preguntan lo mismo. `cache` de
+ * React junta las tres consultas por (usuario, institución) dentro de un mismo render; fuera de
+ * un render no memoiza. No lleva `now`: sólo se cachean datos, el reloj se aplica después.
+ */
+const loadLevelInputs = cache(async (userId: number, workspaceId: string) => {
   const [enabled, workspaceRole, assignments] = await Promise.all([
     getEnabledModuleKeysForWorkspace(workspaceId),
     resolveWorkspaceRole(userId, workspaceId),
     loadAssignments(userId, workspaceId),
   ]);
+  return { enabled, workspaceRole, assignments };
+});
+
+export async function getModuleLevels(
+  userId: number,
+  workspaceId: string,
+  now: Date = new Date(),
+): Promise<ModuleLevels> {
+  const { enabled, workspaceRole, assignments } = await loadLevelInputs(userId, workspaceId);
 
   const levels: Record<string, ModuleLevel> = {};
   for (const moduleKey of listAvailableModuleKeys()) {

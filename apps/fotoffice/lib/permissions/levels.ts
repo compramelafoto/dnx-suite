@@ -32,7 +32,12 @@ export function hasLevel(actual: ModuleLevel, required: "VIEW" | "MANAGE"): bool
   return RANK[actual] >= RANK[required];
 }
 
-/** Dueño y admin gestionan todo. `ADMIN` es el valor de la tabla legacy `Membership`. */
+/**
+ * Dueño y admin gestionan todo. `ADMIN` queda sólo por si un llamador pasa un rol legacy: por
+ * `getModuleLevels` el rol sale siempre de `WorkspaceMembership`, así que quien esté sólo en la
+ * tabla vieja `Membership` obtiene NONE (verificado 2026-10-03: la única cuenta así en
+ * producción es un seed de FotoRank sin ninguno de estos módulos habilitados).
+ */
 const FULL_ACCESS_ROLES = new Set(["WORKSPACE_OWNER", "WORKSPACE_ADMIN", "ADMIN"]);
 
 /**
