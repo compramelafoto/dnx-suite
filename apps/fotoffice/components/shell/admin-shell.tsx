@@ -10,7 +10,8 @@ import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
-import { canManageMembers } from "@/lib/members/role-policy";
+import { getModuleLevels } from "@/lib/permissions/module-access";
+import { manageFlagFor } from "@/lib/permissions/levels";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { isFotofficePlatformAdmin } from "@/lib/platform-admin";
@@ -61,11 +62,14 @@ export async function AdminShell({ user, children }: { user: PanelUser; children
   const coveragesOn = enabledModuleKeys.has(COVERAGES_MODULE_KEY);
   const websiteOn = enabledModuleKeys.has(WEBSITE_MODULE_KEY);
   const serviceLeadsOn = enabledModuleKeys.has(SERVICE_LEADS_MODULE_KEY);
-  // Un solo rol resuelto alimenta los dos flags del menú: si se resolvieran por caminos
-  // distintos, volvería a poder pasar que uno ofrezca lo que el otro niega.
+  // El rol sigue alimentando el encabezado y Configuración (que no se delega). Los permisos
+  // de cada módulo salen de un solo cálculo de niveles, el mismo que usan las páginas.
   const activeRole = workspace !== null ? await resolveWorkspaceRole(user.id, workspace.id) : null;
-  const canManageMembersFlag = canManageMembers(activeRole);
+  const levels = workspace !== null ? await getModuleLevels(user.id, workspace.id) : {};
   const canManageWorkspaceSettingsFlag = canManageWorkspaceSettings(activeRole);
+  const canManageMembersFlag = manageFlagFor(levels, MEMBERS_MODULE_KEY, false);
+  const canManageBookingsFlag = manageFlagFor(levels, BOOKINGS_MODULE_KEY, false);
+  const canManageRafflesFlag = manageFlagFor(levels, RAFFLES_MODULE_KEY, false);
   const platformAdmin = await isFotofficePlatformAdmin(user.id);
   // Sin workspace activo (recién invitado, todavía sin `ensure`) no hay fila que leer: el
   // vocabulario por omisión es lo correcto, ya que tampoco hay ningún módulo habilitado.
@@ -107,6 +111,8 @@ export async function AdminShell({ user, children }: { user: PanelUser; children
           websiteEnabled={websiteOn}
           serviceLeadsEnabled={serviceLeadsOn}
           canManageMembers={canManageMembersFlag}
+          canManageBookings={canManageBookingsFlag}
+          canManageRaffles={canManageRafflesFlag}
           canManageWorkspaceSettings={canManageWorkspaceSettingsFlag}
           platformAdmin={platformAdmin}
           vocabulary={vocabulary}

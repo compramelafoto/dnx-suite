@@ -6,7 +6,8 @@ import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { resolveEnabledNavModules } from "@/lib/modules/nav";
 import { submodulesFor } from "@/lib/modules/submodules";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
-import { canManageMembers } from "@/lib/members/role-policy";
+import { getModuleLevels } from "@/lib/permissions/module-access";
+import { manageFlagFor } from "@/lib/permissions/levels";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
@@ -35,17 +36,18 @@ export default async function WorkspaceHomePage() {
   const workspaceId = activa?.id ?? ensured.workspaceId;
   const now = new Date();
 
-  const [branding, profile, enabled, vocabulary, role] = await Promise.all([
+  const [branding, profile, enabled, vocabulary, role, levels] = await Promise.all([
     prisma.fotofficeWorkspaceBranding.findUnique({ where: { workspaceId } }),
     prisma.fotofficePhotographerProfile.findUnique({ where: { userId: user.id } }),
     getEnabledModuleKeysForWorkspace(workspaceId),
     loadPersonVocabulary(workspaceId),
     resolveWorkspaceRole(user.id, workspaceId),
+    getModuleLevels(user.id, workspaceId),
   ]);
   const datos = await loadWorkspaceHome({ userId: user.id, workspaceId, role, enabled, now });
   const admin = canManageWorkspaceSettings(role);
   const modulos = resolveEnabledNavModules(enabled, vocabulary);
-  const puedeAdministrarSocios = canManageMembers(role);
+  const puedeAdministrarSocios = manageFlagFor(levels, MEMBERS_MODULE_KEY, false);
 
   const nombre = (profile?.displayName ?? user.name ?? "").split(" ")[0] || "equipo";
   const institucion = branding?.commercialName?.trim() || activa?.name || "tu institución";
@@ -69,10 +71,10 @@ export default async function WorkspaceHomePage() {
       faltaConfigurar={faltaConfigurar}
       modulos={modulos.map((m) => ({
         ...m,
-        // El permiso es por módulo: el de Socios no habilita nada en otro.
+        // El permiso es por módulo: sale del nivel en los módulos migrados y del rol de admin en el resto.
         pantallas: submodulesFor(
           m.key,
-          { canManage: m.key === MEMBERS_MODULE_KEY ? puedeAdministrarSocios : admin },
+          { canManage: manageFlagFor(levels, m.key, admin) },
           vocabulary,
         ),
       }))}

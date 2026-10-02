@@ -156,6 +156,8 @@ export function ShellNav({
   websiteEnabled,
   serviceLeadsEnabled,
   canManageMembers,
+  canManageBookings,
+  canManageRaffles,
   canManageWorkspaceSettings,
   platformAdmin,
   vocabulary,
@@ -169,6 +171,8 @@ export function ShellNav({
   websiteEnabled: boolean;
   serviceLeadsEnabled: boolean;
   canManageMembers: boolean;
+  canManageBookings: boolean;
+  canManageRaffles: boolean;
   canManageWorkspaceSettings: boolean;
   platformAdmin: boolean;
   vocabulary: PersonVocabulary;
@@ -181,13 +185,13 @@ export function ShellNav({
     : [];
 
   const reservas: Item[] = bookingsEnabled
-    ? itemsDeModulo(BOOKINGS_MODULE_KEY, canManageWorkspaceSettings, vocabulary)
+    ? itemsDeModulo(BOOKINGS_MODULE_KEY, canManageBookings, vocabulary)
     : [];
 
   // Sorteos vive en el grupo Socios: es una de las cosas que la institución le da al socio
   // al día, y separarlo en su propia sección lo dejaría suelto al lado de Cuotas.
   const sorteos: Item[] = rafflesEnabled
-    ? itemsDeModulo(RAFFLES_MODULE_KEY, canManageWorkspaceSettings, vocabulary)
+    ? itemsDeModulo(RAFFLES_MODULE_KEY, canManageRaffles, vocabulary)
     : [];
 
   // Grupo propio y no dentro de Socios: coberturas se le pide a cualquier institución con
