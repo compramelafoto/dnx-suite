@@ -23,6 +23,12 @@ export type CreateHomologationOrderInput = {
   paymentMethodId: string;
   installments: number;
   deviceSessionId: string;
+  /**
+   * Identificación del titular, tal como la ingresó en el Brick.
+   * Mercado Pago rechaza con `high_risk` los pagos cuyo pagador llega sin más
+   * dato que el email: es la señal antifraude que pide el checklist IXFS-16376.
+   */
+  payerIdentification?: { type: string; number: string };
   /** Display-only; ignored for charge. */
   clientDisplayedAmountMinor?: number;
 };
@@ -152,6 +158,9 @@ export async function createClfMpSplit1nHomologationOrder(
     paymentMethodId: input.paymentMethodId || "master",
     installments: input.installments || 1,
     payerEmail: "buyer.clf.homolog@testuser.com",
+    ...(input.payerIdentification
+      ? { payerProfile: { identification: input.payerIdentification } }
+      : {}),
     statementDescriptor: "DNX TEST",
     items: [
       singleIntangibleItem({

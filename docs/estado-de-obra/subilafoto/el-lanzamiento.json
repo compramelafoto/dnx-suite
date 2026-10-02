@@ -3,7 +3,7 @@
   "plataforma": "SubiLaFoto",
   "spec": "docs/subilafoto/00-documento-maestro.md",
   "enUso": "no",
-  "usoNota": "A 20 días del lanzamiento del 10/10 la base de producción tiene 0 perfiles de venta, 0 eventos, 0 fotos, 0 órdenes y 0 correos; lo único vivo son los cinco cron (1495 corridas de cierre y de moderación al 21/09)",
+  "usoNota": "A 11 días del lanzamiento del 10/10, la base de producción sigue igual que el 21/09: 0 perfiles de venta, 0 eventos, 0 órdenes, 0 decisiones de moderación y 0 correos (verificado el 29/09); lo único vivo son los cinco cron",
   "etapas": [
     {
       "nombre": "La plataforma en pie",

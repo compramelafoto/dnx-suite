@@ -6,11 +6,14 @@ import {
   Building2,
   ClipboardCheck,
   FileText,
+  Hash,
   Globe,
   Plug,
   Inbox,
   LayoutDashboard,
   LayoutGrid,
+  ListPlus,
+  MessageSquareText,
   Settings,
   Shield,
   Tags,
@@ -317,6 +320,24 @@ export function ShellNav({
       label: "Circuitos",
       icon: Workflow,
       isActive: under("/workspace/configuracion/circuitos"),
+    });
+    institucion.push({
+      href: "/workspace/configuracion/campos",
+      label: "Campos",
+      icon: ListPlus,
+      isActive: under("/workspace/configuracion/campos"),
+    });
+    institucion.push({
+      href: "/workspace/configuracion/plantillas",
+      label: "Plantillas",
+      icon: MessageSquareText,
+      isActive: under("/workspace/configuracion/plantillas"),
+    });
+    institucion.push({
+      href: "/workspace/configuracion/numeracion",
+      label: "Numeración",
+      icon: Hash,
+      isActive: under("/workspace/configuracion/numeracion"),
     });
   }
 

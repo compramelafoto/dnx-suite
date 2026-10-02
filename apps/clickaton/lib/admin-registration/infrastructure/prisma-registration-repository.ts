@@ -1,4 +1,5 @@
 import { prisma, Prisma } from "@/lib/admin/db";
+import { reverseAffiliateCommission } from "@/lib/affiliates/infrastructure/commission-lifecycle";
 import { welcomeCardMediaUrl } from "@/lib/welcome-card/media-url";
 import type {
   ClickatonPaymentStatus,
@@ -546,6 +547,26 @@ export function createPrismaAdminRegistrationRepository(): ClickatonAdminRegistr
           },
         });
       });
+
+      // Anulada o descalificada desde el panel: el fotógrafo dueño del cupón
+      // pierde la comisión. Best-effort, no tira.
+      if (
+        input.nextStatus === "CANCELLED" ||
+        input.nextStatus === "DISQUALIFIED" ||
+        input.nextStatus === "REFUNDED"
+      ) {
+        const label =
+          input.nextStatus === "DISQUALIFIED"
+            ? "descalificada desde el panel"
+            : input.nextStatus === "REFUNDED"
+              ? "reembolsada desde el panel"
+              : "cancelada desde el panel";
+        await reverseAffiliateCommission(
+          prisma,
+          input.registrationId,
+          `${label}: ${input.reason.trim()}`,
+        );
+      }
 
       const detail = await loadDetail(input.registrationId);
       if (!detail) throw new AdminRegistrationNotFoundError(input.registrationId);

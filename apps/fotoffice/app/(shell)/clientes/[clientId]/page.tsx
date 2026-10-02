@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Ficha } from "@/components/ficha/ficha";
 import { DatosFicha } from "@/components/ficha/datos-ficha";
+import { MasDatos } from "@/components/campos/mas-datos";
+import { Mensaje } from "@/components/mensajes/mensaje";
 import type { InsigniaFicha } from "@/components/ficha/encabezado-ficha";
 import { requireClientsStaff } from "@/lib/clients/access";
 import { getClient, listMembersAvailableToLink } from "@/lib/clients/repository";
@@ -69,9 +71,13 @@ export default async function ClientePage({
           correo: cliente.email,
         }}
         datos={
-          <DatosFicha titulo="Datos">
-            <ClientForm client={cliente} enColumna />
-          </DatosFicha>
+          <>
+            <Mensaje entityType="CLIENTE" entityId={cliente.id} />
+            <DatosFicha titulo="Datos">
+              <ClientForm client={cliente} enColumna />
+            </DatosFicha>
+            <MasDatos entityType="CLIENTE" entityId={cliente.id} />
+          </>
         }
         lateral={
           <DatosFicha titulo="¿Es socio?">

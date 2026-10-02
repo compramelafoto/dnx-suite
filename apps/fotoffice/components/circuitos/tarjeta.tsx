@@ -52,6 +52,7 @@ export function Tarjeta({
       } ${arrastrable ? "cursor-grab active:cursor-grabbing" : ""} ${ocupada ? "opacity-60" : ""}`}
     >
       <div className="min-w-0">
+        {tarjeta.numero ? <p className="text-xs tabular-nums text-[var(--fo-muted)]">N° {tarjeta.numero}</p> : null}
         <Link href={sujeto.href} className="block truncate font-medium text-[var(--fo-text)] hover:underline" draggable={false}>
           {sujeto.titulo}
         </Link>

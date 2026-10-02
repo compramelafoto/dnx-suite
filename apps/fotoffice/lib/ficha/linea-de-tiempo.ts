@@ -1,4 +1,5 @@
 import { puede } from "@/lib/access/policy";
+import type { MensajeVista } from "@/lib/plantillas/vista-mensaje";
 import type { PersonaRef } from "./persona";
 
 /**
@@ -10,7 +11,7 @@ import type { PersonaRef } from "./persona";
  * y los proveedores se prueban por separado.
  */
 
-export const TIPOS_EVENTO = ["notas", "cambios", "plata", "portal", "carnets", "adjuntos"] as const;
+export const TIPOS_EVENTO = ["notas", "cambios", "mensajes", "plata", "portal", "carnets", "adjuntos"] as const;
 export type TipoEvento = (typeof TIPOS_EVENTO)[number];
 
 export type EventoFicha = {
@@ -28,6 +29,8 @@ export type EventoFicha = {
    * decisión de quién puede hacerlo se vuelve a tomar en el servidor en cada acción.
    */
   nota?: { id: string; categoryId: string | null; categoria: string; authorUserId: number | null; editada: boolean };
+  /** Sólo en los mensajes (correo o WhatsApp): canal, estado, asunto y cuerpo para mostrarlos. */
+  mensaje?: MensajeVista;
 };
 
 /**

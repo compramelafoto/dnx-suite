@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
   findFirstMock,
   updateMock,
+  prizeUpdateManyMock,
   awardCreateManyMock,
   awardFindManyMock,
   transactionMock,
@@ -11,6 +12,7 @@ const {
 } = vi.hoisted(() => ({
   findFirstMock: vi.fn(),
   updateMock: vi.fn(),
+  prizeUpdateManyMock: vi.fn(),
   awardCreateManyMock: vi.fn(),
   awardFindManyMock: vi.fn(),
   transactionMock: vi.fn(),
@@ -21,6 +23,7 @@ const {
 vi.mock("@repo/db", () => ({
   prisma: {
     raffle: { findFirst: findFirstMock, findMany: vi.fn(), update: updateMock },
+    rafflePrize: { updateMany: prizeUpdateManyMock },
     rafflePrizeAward: { createMany: awardCreateManyMock, findMany: awardFindManyMock },
     $transaction: transactionMock,
   },
@@ -47,6 +50,7 @@ const sorteo = {
   drandChainHash: "c".repeat(64),
   drandRound: 1000,
   drandRandomness: null as string | null,
+  pickupDays: 15,
   prizes: [
     { id: "p-1", order: 1 },
     { id: "p-2", order: 2 },
@@ -58,13 +62,18 @@ beforeEach(() => {
   findFirstMock.mockReset().mockResolvedValue(sorteo);
   updateMock.mockReset().mockResolvedValue({});
   awardCreateManyMock.mockReset().mockResolvedValue({ count: 2 });
+  prizeUpdateManyMock.mockReset().mockResolvedValue({ count: 2 });
   awardFindManyMock.mockReset().mockResolvedValue([]);
   eventMock.mockReset();
   fetchRoundMock
     .mockReset()
     .mockResolvedValue({ round: 1000, randomness: "b".repeat(64), signature: "d".repeat(96) });
   transactionMock.mockReset().mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) =>
-    fn({ raffle: { update: updateMock }, rafflePrizeAward: { createMany: awardCreateManyMock } }),
+    fn({
+      raffle: { update: updateMock },
+      rafflePrize: { updateMany: prizeUpdateManyMock },
+      rafflePrizeAward: { createMany: awardCreateManyMock },
+    }),
   );
 });
 
@@ -173,6 +182,26 @@ describe("resolver el sorteo", () => {
   it("sin tanda fijada no resuelve", async () => {
     findFirstMock.mockResolvedValue({ ...sorteo, drandRound: null });
     expect((await resolver()).ok).toBe(false);
+  });
+
+  it("fija el plazo de retiro al resolver: 15 días desde el sorteo", async () => {
+    await resolver();
+    const datos = prizeUpdateManyMock.mock.calls[0][0].data;
+    const dias = (datos.pickupDeadline.getTime() - DESPUES.getTime()) / 86_400_000;
+    expect(dias).toBe(15);
+  });
+
+  it("el plazo se le pone a todos los premios del sorteo, sin excepciones", async () => {
+    await resolver();
+    expect(prizeUpdateManyMock.mock.calls[0][0].where).toEqual({ raffleId: "r-1" });
+  });
+
+  it("el plazo respeta lo que diga el sorteo, no un número fijo en el código", async () => {
+    findFirstMock.mockResolvedValue({ ...sorteo, pickupDays: 30 });
+    await resolver();
+    const datos = prizeUpdateManyMock.mock.calls[0][0].data;
+    const dias = (datos.pickupDeadline.getTime() - DESPUES.getTime()) / 86_400_000;
+    expect(dias).toBe(30);
   });
 
   it("deja registrado el sorteo con la tanda y el valor usados", async () => {

@@ -45,6 +45,7 @@ function mapDurableToPaymentOrder(order: DurableCheckoutOrder): PaymentOrder {
     payloadHash: order.payloadHash,
     attempt: order.attempt,
     statusDetail: order.statusDetail ?? null,
+    providerOrderId: order.providerOrderId ?? null,
     createdAt: new Date(order.createdAt),
     updatedAt: new Date(order.updatedAt),
     approvedAt: order.approvedAt ? new Date(order.approvedAt) : null,
@@ -189,6 +190,15 @@ export function createDurableDnxPaymentsClient(deps: {
         environment: liveBridge ? "production" : "sandbox",
         isTestFixture: liveBridge ? false : deps.isTestFixture,
         ...(input.cardPayment ? { cardPayment: input.cardPayment } : {}),
+        ...(input.affiliateSplit && input.cardPayment
+          ? {
+              affiliateSplit: input.affiliateSplit,
+              payerName: {
+                ...(input.payer?.firstName ? { firstName: input.payer.firstName } : {}),
+                ...(input.payer?.lastName ? { lastName: input.payer.lastName } : {}),
+              },
+            }
+          : {}),
         ...(input.editionFinance
           ? {
               editionFinance: {

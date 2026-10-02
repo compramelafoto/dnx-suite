@@ -87,6 +87,8 @@ vi.mock("./log", () => ({ logCourseEvent: logCourseEventMock }));
 // El motor de etapas tiene sus propias pruebas; acá sólo importa que la aprobación lo avise.
 const ganarConsultaMock = vi.hoisted(() => vi.fn(async () => ({ cerrado: true })));
 vi.mock("@/lib/circuitos/eventos", () => ({ ganarConsultaPorSistema: ganarConsultaMock }));
+const numerarMock = vi.hoisted(() => vi.fn(async () => null));
+vi.mock("@/lib/service-leads/numero", () => ({ numerarConsultaNueva: numerarMock }));
 
 vi.mock("./availability", () => ({
   computeAvailableSpots: () => 5,
@@ -157,7 +159,8 @@ beforeEach(() => {
   settingsFindUniqueMock.mockReset().mockResolvedValue({ coursesFeePercent: new Prisma.Decimal(10) });
   leadFindFirstMock.mockReset().mockResolvedValue({ id: "lead-1" });
   leadUpdateMock.mockReset().mockResolvedValue({ id: "lead-1" });
-  leadCreateMock.mockReset().mockResolvedValue({ id: "lead-2" });
+  leadCreateMock.mockReset().mockResolvedValue({ id: "lead-2", createdAt: new Date("2026-10-01T15:00:00Z") });
+  numerarMock.mockClear();
   approvedCountsMock.mockReset().mockResolvedValue(new Map());
   loadSignatureMock.mockReset().mockResolvedValue(SIGNATURE);
   logCourseEventMock.mockReset();
@@ -175,10 +178,16 @@ describe("aprobación y motor de etapas", () => {
     expect(ganarConsultaMock).toHaveBeenCalledWith("ws-sfpr", "lead-1", "Inscripción aprobada para Iluminación I");
   });
 
-  it("sin consulta previa, no hay recorrido que cerrar", async () => {
+  it("sin consulta previa, no hay recorrido que cerrar; la consulta nueva recibe su número", async () => {
     leadFindFirstMock.mockResolvedValue(null);
     await approveCourseEnrollment({ enrollmentId: "enr-1" });
     expect(ganarConsultaMock).not.toHaveBeenCalled();
+    expect(numerarMock).toHaveBeenCalledWith("ws-sfpr", "lead-2", new Date("2026-10-01T15:00:00Z"));
+  });
+
+  it("con una consulta previa no numera nada nuevo (la previa conserva el suyo)", async () => {
+    await approveCourseEnrollment({ enrollmentId: "enr-1" });
+    expect(numerarMock).not.toHaveBeenCalled();
   });
 
   it("si el motor no pudo cerrar, la aprobación sigue igual", async () => {

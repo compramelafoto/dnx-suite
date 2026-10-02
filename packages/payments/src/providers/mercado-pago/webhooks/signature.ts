@@ -61,16 +61,51 @@ export type VerifyMercadoPagoWebhookSignatureInput = {
   signatureHeader: string | null | undefined;
   requestIdHeader: string | null | undefined;
   dataId: string | null | undefined;
+  /**
+   * `data.id` tal como vino en la query de la notificación. Mercado Pago arma el
+   * manifest con los parámetros de la URL, así que si no lo mandó ahí, su firma
+   * no incluye el segmento `id:` — aunque el cuerpo sí traiga el identificador.
+   */
+  queryDataId?: string | null;
   secret: string | null | undefined;
   /** Tolerancia opcional en ms respecto a Date.now(); 0/undefined = sin chequeo. */
   maxSkewMs?: number;
   nowMs?: number;
 };
 
+/** Qué forma del `data.id` produjo la firma que Mercado Pago envió. */
+export type MercadoPagoDataIdVariant =
+  | "query"
+  | "query_lowercased"
+  | "as_received"
+  | "lowercased"
+  /** MP no mandó `data.id` en la URL: su manifest no lleva el segmento `id:`. */
+  | "omitted";
+
 export type VerifyMercadoPagoWebhookSignatureResult =
-  | { ok: true; ts: string; manifest: string }
+  | {
+      ok: true;
+      ts: string;
+      manifest: string;
+      /** Observabilidad: deja ver qué convención usó MP para este tópico. */
+      dataIdVariant: MercadoPagoDataIdVariant;
+    }
   | {
       ok: false;
+      /**
+       * Pistas sanitizadas para poder diagnosticar un rechazo sin exponer el
+       * secreto: un `signature_mismatch` a secas no dice nada y obliga a
+       * adivinar. No incluye el secreto ni la firma completa.
+       */
+      diagnostics?: {
+        dataId: string | null;
+        requestIdPresent: boolean;
+        /** Id de correlación de MP; no es un secreto y hace falta para reproducir el manifest. */
+        requestId: string | null;
+        ts: string | null;
+        receivedV1Prefix: string | null;
+        expectedV1Prefixes: string[];
+      };
       reason:
         | "missing_secret"
         | "missing_signature"
@@ -111,17 +146,63 @@ export function verifyMercadoPagoWebhookSignature(
     }
   }
 
-  const manifest = buildMercadoPagoWebhookManifest({ dataId, requestId, ts });
-  const digest = createHmac("sha256", input.secret).update(manifest).digest("hex");
+  /**
+   * La documentación pide pasar el `data.id` alfanumérico a minúsculas, pero esa
+   * regla se escribió para el tópico `payment`. Las notificaciones de `order`
+   * traen identificadores en mayúsculas (`ORDTST…`) y Mercado Pago las firma tal
+   * cual las envía. Probamos ambas convenciones y avisamos cuál coincidió, en vez
+   * de rechazar una notificación legítima por una ambigüedad de la documentación.
+   *
+   * Aceptar dos variantes no debilita la verificación: las dos son HMAC con el
+   * mismo secreto, y sin ese secreto ninguna se puede falsificar.
+   */
+  const queryId = input.queryDataId?.trim() || null;
+  const candidates: Array<{ id: string | null; variant: MercadoPagoDataIdVariant }> = [];
+  const push = (id: string | null, variant: MercadoPagoDataIdVariant) => {
+    if (!candidates.some((c) => c.id === id)) candidates.push({ id, variant });
+  };
 
-  const expected = Buffer.from(digest, "utf8");
+  if (queryId) {
+    push(queryId, "query");
+    push(normalizeMercadoPagoDataId(queryId), "query_lowercased");
+  }
+  push(dataId, "as_received");
+  push(normalizeMercadoPagoDataId(dataId), "lowercased");
+  push(null, "omitted");
+
   const provided = Buffer.from(v1, "utf8");
-  const valid =
-    expected.length === provided.length && timingSafeEqual(expected, provided);
-
-  if (!valid) {
-    return { ok: false, reason: "signature_mismatch" };
+  for (const candidate of candidates) {
+    const parts = candidate.id ? [`id:${candidate.id}`] : [];
+    parts.push(`request-id:${requestId}`, `ts:${ts}`);
+    const base = parts.join(";");
+    // La doc muestra el manifest terminado en `;`, pero no todas las
+    // implementaciones lo agregan. Probamos ambas formas.
+    for (const manifest of [`${base};`, base]) {
+      const digest = createHmac("sha256", input.secret).update(manifest).digest("hex");
+      const expected = Buffer.from(digest, "utf8");
+      if (expected.length === provided.length && timingSafeEqual(expected, provided)) {
+        return { ok: true, ts, manifest, dataIdVariant: candidate.variant };
+      }
+    }
   }
 
-  return { ok: true, ts, manifest };
+  return {
+    ok: false,
+    reason: "signature_mismatch",
+    diagnostics: {
+      dataId,
+      requestIdPresent: true,
+      requestId,
+      ts,
+      receivedV1Prefix: v1.slice(0, 8),
+      expectedV1Prefixes: candidates.map((c) => {
+        const parts = c.id ? [`id:${c.id}`] : [];
+        parts.push(`request-id:${requestId}`, `ts:${ts}`);
+        return `${c.variant}=${createHmac("sha256", input.secret as string)
+          .update(`${parts.join(";")};`)
+          .digest("hex")
+          .slice(0, 8)}`;
+      }),
+    },
+  };
 }
