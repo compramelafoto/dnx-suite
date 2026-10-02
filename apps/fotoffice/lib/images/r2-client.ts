@@ -1,9 +1,16 @@
 /**
- * Cliente R2 de FotoOffice. Mismo bucket/env que otras apps del monorepo
- * (ver `apps/infospot/lib/r2-client.ts`) — no se crea storage nuevo, se
- * reutiliza el existente con namespace propio (`fotoffice/*`, ver
- * `r2-key-policy.ts`). Apps no se acoplan entre sí: este archivo es una
- * copia local intencional, no un import cruzado a InfoSpot.
+ * Cliente R2 de FotoOffice.
+ *
+ * **El bucket es propio** (`fotoffice-media`), no compartido: cada app del monorepo tiene el suyo.
+ * Este comentario decía lo contrario —venía de cuando el archivo se copió de InfoSpot— y esa frase
+ * costó tiempo real: hizo frenar un cambio de CORS por miedo a romper otras apps que no estaban ahí.
+ *
+ * Las keys igual cuelgan de un nivel `fotoffice/` (ver `r2-key-policy.ts`), que es herencia de esa
+ * época y hoy sobra. **No se saca a propósito:** las direcciones ya guardadas viven en 16 columnas
+ * y, peor, dentro del JSON de siete versiones publicadas del sitio, que son fotos congeladas de lo
+ * que se publicó. Reescribirlas es mucho riesgo para una mejora que no se ve.
+ *
+ * El archivo sigue siendo una copia local intencional, no un import cruzado a InfoSpot.
  */
 import { randomUUID } from "node:crypto";
 import {
