@@ -13,6 +13,7 @@ import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
 import { ensurePortfolio } from "@/lib/portfolio/repository";
 import { canAcceptAnotherPhoto } from "@/lib/portfolio/upload-guard";
 import { parseInstagramPostUrls } from "@/lib/portfolio/instagram";
+import { parsePortfolioVideoUrls } from "@/lib/portfolio/videos";
 
 /**
  * Todo lo que una persona puede hacer con su propio portfolio.
@@ -345,6 +346,44 @@ export async function setPortfolioInstagramAction(input: {
   await prisma.fotofficeMemberPortfolio.update({
     where: { id: ctx.portfolioId },
     data: { instagramEnabled: input.enabled, instagramPostUrls: parsed.urls },
+  });
+
+  refrescarPantallas();
+  return { ok: true };
+}
+
+/**
+ * Los videos del portfolio, guardados de una.
+ *
+ * Reemplaza la lista entera en vez de agregar y borrar de a uno: el socio los pega como texto, y lo
+ * que ve en el cuadro **es** lo que queda. Reconciliar línea por línea sería más código para una
+ * lista de doce.
+ *
+ * La transacción importa: entre borrar los viejos y escribir los nuevos, una ficha pública leída en
+ * ese instante mostraría un portfolio sin videos.
+ */
+export async function setPortfolioVideosAction(input: {
+  urls: string[];
+}): Promise<PortfolioActionResult> {
+  const ctx = await contextoDelPortfolio();
+  if (!ctx.ok) return ctx;
+
+  const parsed = parsePortfolioVideoUrls(input.urls);
+  if (!parsed.ok) return { ok: false, error: parsed.error };
+
+  await prisma.$transaction(async (tx) => {
+    await tx.fotofficeMemberPortfolioVideo.deleteMany({ where: { portfolioId: ctx.portfolioId } });
+    if (parsed.videos.length > 0) {
+      await tx.fotofficeMemberPortfolioVideo.createMany({
+        data: parsed.videos.map((v, indice) => ({
+          portfolioId: ctx.portfolioId,
+          platform: v.platform,
+          url: v.url,
+          videoId: v.videoId,
+          order: indice,
+        })),
+      });
+    }
   });
 
   refrescarPantallas();

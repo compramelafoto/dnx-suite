@@ -11,6 +11,7 @@ import { PortfolioUploader } from "@/components/portal/portfolio/portfolio-uploa
 import { PortfolioPhotoGrid } from "@/components/portal/portfolio/portfolio-photo-grid";
 import { PortfolioPublishToggle } from "@/components/portal/portfolio/portfolio-publish-toggle";
 import { PortfolioInstagramForm } from "@/components/portal/portfolio/portfolio-instagram-form";
+import { PortfolioVideosForm } from "@/components/portal/portfolio/portfolio-videos-form";
 
 export const metadata = { title: "Mi portfolio" };
 export const dynamic = "force-dynamic";
@@ -86,6 +87,8 @@ export default async function PortalPortfolioPage() {
       <PortfolioUploader photoCount={portfolio.photos.length} />
 
       <PortfolioPhotoGrid photos={portfolio.photos} />
+
+      <PortfolioVideosForm urls={portfolio.videoUrls} />
 
       <PortfolioInstagramForm
         enabled={portfolio.instagramEnabled}

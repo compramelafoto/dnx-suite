@@ -3,6 +3,7 @@ import { etiquetaEspecialidad } from "@/lib/membership/specialties";
 import type { PublicPortfolio } from "@/lib/portfolio/public-queries";
 import { PortfolioGallery } from "./portfolio-gallery";
 import { InstagramStrip } from "./instagram-strip";
+import { PortfolioVideos } from "./portfolio-videos";
 
 /**
  * La ficha de un socio, de la cabecera al último posteo.
@@ -117,6 +118,9 @@ export function PortfolioShowcase({
       </header>
 
       <PortfolioGallery photos={portfolio.photos} authorName={portfolio.displayName} />
+
+      {/* Los videos después de la obra fija y antes de las redes: es el orden de importancia. */}
+      <PortfolioVideos videos={portfolio.videos} authorName={portfolio.displayName} />
 
       {portfolio.instagramPosts.length > 0 ? (
         <InstagramStrip posts={portfolio.instagramPosts} handle={instagramHandle} />

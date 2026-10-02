@@ -249,6 +249,21 @@ async function main() {
       if (i === 0) primera = foto.id;
     }
 
+    // Un video de cada clase, para poder mirar las cuatro formas de mostrarlos.
+    if (caso.conSesion) {
+      const VIDEOS = [
+        { platform: "YOUTUBE", url: "https://www.youtube.com/watch?v=aqz-KE-bpKQ", videoId: "aqz-KE-bpKQ" },
+        { platform: "VIMEO", url: "https://vimeo.com/76979871", videoId: "76979871" },
+        { platform: "INSTAGRAM", url: "https://www.instagram.com/reel/C1example0001/", videoId: null },
+        { platform: "OTRO", url: "https://miestudio.com.ar/demo-reel", videoId: null },
+      ];
+      for (const [i, v] of VIDEOS.entries()) {
+        await prisma.fotofficeMemberPortfolioVideo.create({
+          data: { portfolioId: portfolio.id, ...v, order: i },
+        });
+      }
+    }
+
     if (primera) {
       await prisma.fotofficeMemberPortfolio.update({
         where: { id: portfolio.id },

@@ -8093,6 +8093,7 @@ model FotofficeMemberPortfolio {
   member       Member                          @relation(fields: [memberId], references: [id], onDelete: Cascade)
   hiddenByUser User?                           @relation("PortfolioHiddenBy", fields: [hiddenByAdminUserId], references: [id], onDelete: SetNull)
   photos       FotofficeMemberPortfolioPhoto[] @relation("PortfolioPhotos")
+  videos       FotofficeMemberPortfolioVideo[]
   coverPhoto   FotofficeMemberPortfolioPhoto?  @relation("PortfolioCoverPhoto", fields: [coverPhotoId], references: [id], onDelete: SetNull)
 
   /// Dos personas de la misma institución no pueden compartir dirección. Dos de instituciones
@@ -8125,6 +8126,34 @@ model FotofficeMemberPortfolioPhoto {
 
   portfolio FotofficeMemberPortfolio  @relation("PortfolioPhotos", fields: [portfolioId], references: [id], onDelete: Cascade)
   coverOf   FotofficeMemberPortfolio? @relation("PortfolioCoverPhoto")
+
+  @@index([portfolioId, order])
+}
+
+/// Un video del portfolio, agregado pegando su dirección.
+///
+/// No se guarda el archivo: un video pesa cientos de megas y ya está alojado donde el socio lo
+/// subió. Se guarda de dónde viene y cómo mostrarlo.
+model FotofficeMemberPortfolioVideo {
+  id          String @id @default(cuid())
+  portfolioId String
+
+  /// YOUTUBE, VIMEO, INSTAGRAM, TIKTOK u OTRO. Texto y no enum a propósito: agregar una plataforma
+  /// es cambiar `lib/portfolio/videos.ts`, no migrar la base.
+  platform String
+  /// La dirección canónica, ya normalizada por `parsePortfolioVideoUrl`.
+  url      String
+  /// Identificador del video. Sólo lo tienen YouTube y Vimeo, que se embeben por iframe.
+  videoId  String?
+  /// Título que puso el socio. Opcional: un video sin título es un video válido.
+  title    String?
+
+  /// El orden que eligió el socio. Denso dentro de un portfolio, arranca en 0.
+  order Int
+
+  createdAt DateTime @default(now())
+
+  portfolio FotofficeMemberPortfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
 
   @@index([portfolioId, order])
 }
