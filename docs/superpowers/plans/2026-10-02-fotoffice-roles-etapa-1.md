@@ -59,14 +59,7 @@ pnpm --filter fotoffice test
 ```
 Expected: todo en verde. Si algo falla **antes** de tocar nada, anotarlo en el PR y no arreglarlo acá.
 
-- [ ] **Step 3: Commit del spec y este plan**
-
-```bash
-git add docs/superpowers/specs/2026-10-02-fotoffice-roles-comision-directiva-design.md docs/superpowers/plans/2026-10-02-fotoffice-roles-etapa-1.md
-git commit -m "Diseñar los roles y la Comisión directiva de FOTOFFICE
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
-```
+- [x] **Step 3: Commit del spec y este plan** — ya hecho en la rama (`db62fe46`). Saltear.
 
 ---
 
