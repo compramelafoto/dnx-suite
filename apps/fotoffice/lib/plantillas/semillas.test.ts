@@ -54,6 +54,12 @@ describe("textos iniciales", () => {
     }
   });
 
+  it("las autorespuestas no repiten el mensaje libre de la consulta (el formulario es público)", () => {
+    for (const a of [S.AUTORESPUESTA_DNX, S.AUTORESPUESTA_GENERICA]) {
+      expect(`${a.asunto}${a.cuerpo}`).not.toContain("consulta_mensaje");
+    }
+  });
+
   it("DNX: 5 de correo y 2 de WhatsApp con los nombres del spec", () => {
     expect(S.PLANTILLAS_DNX.map((p) => `${p.canal}:${p.tipo}:${p.nombre}`)).toEqual([
       "EMAIL:CLIENTE:¡Gracias por elegirnos!",

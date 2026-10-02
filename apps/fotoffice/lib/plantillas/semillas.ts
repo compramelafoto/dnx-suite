@@ -136,7 +136,11 @@ Saludos, [usuario_nombre].[/si]`,
   },
 ];
 
-/** Respuesta automática de DNX: la de Alboom corregida (agradece, promete la propuesta y repite los datos). */
+/**
+ * Respuesta automática de DNX: la de Alboom corregida (agradece, promete la propuesta y repite los
+ * datos). No repite el mensaje libre de la consulta: el formulario es público y alguien podría
+ * usarlo para mandar su propio texto a cualquier dirección con el remitente de la organización.
+ */
 export const AUTORESPUESTA_DNX: AutorespuestaInicial = {
   asunto: "Recibimos tu consulta[si:consulta_numero] n.º [consulta_numero][/si]",
   cuerpo: `Hola[si:nombre], [nombre][/si]:
@@ -151,9 +155,6 @@ Estos son los datos que nos dejaste:
 [/si][si:consulta_tipo]Tipo de evento: [consulta_tipo]
 [/si][si:consulta_fecha]Fecha: [consulta_fecha]
 [/si][si:consulta_lugar]Lugar: [consulta_lugar]
-[/si][si:consulta_mensaje]
-Tu mensaje:
-[consulta_mensaje]
 [/si]
 Si algún dato no es correcto o querés sumar algo, respondé este correo[si:organizacion_whatsapp] o escribinos por WhatsApp al [organizacion_whatsapp][/si].
 
@@ -162,7 +163,7 @@ Si algún dato no es correcto o querés sumar algo, respondé este correo[si:org
 [firma]`,
 };
 
-/** Respuesta automática neutra para el resto de las organizaciones. */
+/** Respuesta automática neutra para el resto de las organizaciones (tampoco repite el mensaje libre). */
 export const AUTORESPUESTA_GENERICA: AutorespuestaInicial = {
   asunto: "Recibimos tu consulta",
   cuerpo: `Hola[si:nombre], [nombre][/si]:
