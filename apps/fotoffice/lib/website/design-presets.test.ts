@@ -24,7 +24,7 @@ describe("parseWebsiteDesignPresets", () => {
     expect(result.buttonPreset).toBe("pill");
   });
 
-  it("logoSizePx fuera de rango (24-96) cae a default — nunca un tamaño arbitrario", () => {
+  it("logoSizePx fuera de rango (24-160) cae a default — nunca un tamaño arbitrario", () => {
     expect(parseWebsiteDesignPresets({ logoSizePx: 500 }).logoSizePx).toBe(DEFAULT_DESIGN_PRESETS.logoSizePx);
     expect(parseWebsiteDesignPresets({ logoSizePx: 1 }).logoSizePx).toBe(DEFAULT_DESIGN_PRESETS.logoSizePx);
     expect(parseWebsiteDesignPresets({ logoSizePx: 60 }).logoSizePx).toBe(60);

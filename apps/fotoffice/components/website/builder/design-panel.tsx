@@ -61,7 +61,7 @@ export function DesignPanel({
             <input
               type="range"
               min={24}
-              max={96}
+              max={160}
               step={4}
               value={presets.logoSizePx}
               onChange={(e) => onPresetsChange({ ...presets, logoSizePx: Number(e.target.value) })}

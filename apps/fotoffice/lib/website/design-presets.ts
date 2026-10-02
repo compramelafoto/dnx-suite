@@ -128,7 +128,7 @@ export const websiteDesignPresetsSchema = z.object({
   headerPreset: z.enum(HEADER_IDS).catch(DEFAULT_DESIGN_PRESETS.headerPreset),
   showLoginButton: z.boolean().catch(DEFAULT_DESIGN_PRESETS.showLoginButton),
   loginButtonLabel: z.string().max(40).catch(DEFAULT_DESIGN_PRESETS.loginButtonLabel),
-  logoSizePx: z.number().int().min(24).max(96).catch(DEFAULT_DESIGN_PRESETS.logoSizePx),
+  logoSizePx: z.number().int().min(24).max(160).catch(DEFAULT_DESIGN_PRESETS.logoSizePx),
   typographyPreset: z.enum(TYPOGRAPHY_IDS).catch(DEFAULT_DESIGN_PRESETS.typographyPreset),
   buttonPreset: z.enum(BUTTON_IDS).catch(DEFAULT_DESIGN_PRESETS.buttonPreset),
   animationPreset: z.enum(ANIMATION_IDS).catch(DEFAULT_DESIGN_PRESETS.animationPreset),
