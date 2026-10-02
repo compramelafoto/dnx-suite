@@ -1,165 +1,95 @@
-import Link from "next/link";
 import { prisma } from "@repo/db";
 import { requireAuth } from "@/lib/auth";
 import { requireOwnWorkspace } from "@/lib/entrada/require-own-workspace";
+import { resolveActiveWorkspace } from "@/lib/workspace";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { resolveEnabledNavModules } from "@/lib/modules/nav";
 import { submodulesFor } from "@/lib/modules/submodules";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { canManageMembers } from "@/lib/members/role-policy";
+import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { puede } from "@/lib/access/policy";
 import { getOrganizationType } from "@/lib/workspace-type";
-import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
+import { loadWorkspaceHome } from "@/lib/workspace-home/load";
+import { WorkspaceHome } from "@/components/workspace-home/workspace-home";
 
+export const dynamic = "force-dynamic";
+
+/**
+ * El inicio de la institución: cómo viene todo, de un vistazo.
+ *
+ * Arriba lo que espera una acción del equipo; después los cuatro números que dicen si la
+ * institución está bien (socios, deuda, lo cobrado en el mes, la caja); después el detalle por
+ * módulo. Al pie, todas las pantallas, para quien vino a buscar una en particular.
+ *
+ * Antes esta pantalla era una lista de módulos con sus pantallas: un índice, no un tablero.
+ * Para saber cuánto se había cobrado había que entrar a Cuotas; para saber si había altas
+ * esperando, a Solicitudes. Ahora se ve sin entrar a ningún lado.
+ */
 export default async function WorkspaceHomePage() {
   const user = await requireAuth();
   const ensured = await requireOwnWorkspace(user);
+  // La misma institución que muestra el encabezado y que usan las pantallas de cada módulo:
+  // si el inicio leyera otra, sus números no coincidirían con los de la pantalla a la que llevan.
+  const activa = await resolveActiveWorkspace(user.id);
+  const workspaceId = activa?.id ?? ensured.workspaceId;
+  const now = new Date();
 
-  const [branding, profile, enabledModuleKeys, vocabulary] = await Promise.all([
-    prisma.fotofficeWorkspaceBranding.findUnique({
-      where: { workspaceId: ensured.workspaceId },
-    }),
+  const [branding, profile, enabled, vocabulary, role] = await Promise.all([
+    prisma.fotofficeWorkspaceBranding.findUnique({ where: { workspaceId } }),
     prisma.fotofficePhotographerProfile.findUnique({ where: { userId: user.id } }),
-    getEnabledModuleKeysForWorkspace(ensured.workspaceId),
-    loadPersonVocabulary(ensured.workspaceId),
+    getEnabledModuleKeysForWorkspace(workspaceId),
+    loadPersonVocabulary(workspaceId),
+    resolveWorkspaceRole(user.id, workspaceId),
   ]);
-  const modules = resolveEnabledNavModules(enabledModuleKeys, vocabulary);
-
-  // Las tarjetas listan las pantallas de cada módulo. Sin esto, desde el inicio no había forma
-  // de enterarse de que existían: la tarjeta decía "Socios" y nada más.
-  const rolActivo = await resolveWorkspaceRole(user.id, ensured.workspaceId);
-  const puedeAdministrarSocios = canManageMembers(rolActivo);
-  const puedeConfigurar = canManageWorkspaceSettings(rolActivo);
+  const datos = await loadWorkspaceHome({ userId: user.id, workspaceId, role, enabled, now });
+  const admin = canManageWorkspaceSettings(role);
+  const modulos = resolveEnabledNavModules(enabled, vocabulary);
+  const puedeAdministrarSocios = canManageMembers(role);
   // Sin tipo elegido no se puede ordenar el menú ni sugerir módulos: se lo pedimos a quien puede decidirlo.
-  const avisoDeTipo =
-    !!rolActivo && puede(rolActivo, "configurar") && (await getOrganizationType(ensured.workspaceId)) === null;
+  const faltaTipoDeOrganizacion =
+    puede(role, "configurar") && (await getOrganizationType(workspaceId)) === null;
 
-  const pending: string[] = [];
-  if (!profile?.displayName) pending.push("Nombre visible");
-  if (!branding?.activityType) pending.push("Tipo de organización");
-  if (!branding?.city) pending.push("Ciudad");
-  if (!branding?.specialties?.length) pending.push("Especialidades");
-  if (!branding?.logoUrl) pending.push("Logo del negocio");
-
-  const display = profile?.displayName ?? user.name ?? "fotógrafo";
+  const nombre = (profile?.displayName ?? user.name ?? "").split(" ")[0] || "equipo";
+  const institucion = branding?.commercialName?.trim() || activa?.name || "tu institución";
+  const faltaConfigurar: string[] = [];
+  if (admin) {
+    if (!profile?.displayName) faltaConfigurar.push("tu nombre visible");
+    if (!branding?.city) faltaConfigurar.push("la ciudad");
+    if (!branding?.logoUrl) faltaConfigurar.push("el logo");
+  }
 
   return (
-    <div className="space-y-10">
-      {avisoDeTipo ? (
-        <p className="fo-card p-4 text-sm" role="status">
-          Contanos qué tipo de organización son para ordenar el menú y sugerirte módulos.{" "}
-          <Link href="/workspace/configuracion/modulos" className="font-medium text-[var(--fo-accent,#1d4ed8)]">
-            Elegir →
-          </Link>
-        </p>
-      ) : null}
-      <section className="space-y-4">
-        <h1 className="text-3xl font-semibold tracking-tight text-[var(--fo-text)]">
-          Hola, {display}
-        </h1>
-        <p className="text-[var(--fo-muted)] leading-relaxed max-w-2xl">
-          Este es tu workspace de{" "}
-          <strong className="text-[var(--fo-text)] font-medium">
-            {branding?.commercialName ?? "tu negocio"}
-          </strong>
-          . Desde acá vas a administrar clientes, trabajos y la operación del estudio.
-        </p>
-      </section>
-
-      <section className="fo-card space-y-4">
-        <h2 className="text-lg font-semibold text-[var(--fo-text)]">Estado de configuración</h2>
-        {pending.length === 0 ? (
-          <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
-            Perfil y negocio con lo esencial completo.
-          </p>
-        ) : (
-          <>
-            <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
-              Todavía podés completar:
-            </p>
-            <ul className="list-disc pl-5 text-sm text-[var(--fo-text)] space-y-1">
-              {pending.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-            <Link href="/workspace/configuracion" className="fo-btn fo-btn-primary inline-flex w-fit">
-              Completar configuración
-            </Link>
-          </>
-        )}
-      </section>
-
-      <section className="space-y-4">
-        <h2 className="text-lg font-semibold text-[var(--fo-text)]">Módulos</h2>
-        {modules.length > 0 ? (
-          <div className="grid sm:grid-cols-2 gap-4">
-            {modules.map((m) => {
-              // El permiso es por módulo: el de Socios no habilita nada en otro.
-              const pantallas = submodulesFor(
-                m.key,
-                {
-                  canManage:
-                    m.key === MEMBERS_MODULE_KEY || m.key === COVERAGES_MODULE_KEY
-                      ? puedeAdministrarSocios
-                      : // Reservas, Caja y demás: sus pantallas "requiresManage" son de configuración.
-                        puedeConfigurar,
-                  canConfigure: puedeConfigurar,
-                },
-                vocabulary,
-              );
-              return (
-                <div
-                  key={m.key}
-                  className="fo-card flex flex-col gap-3 transition-colors hover:border-[var(--fo-accent)]/40"
-                >
-                  <Link href={m.route} className="font-medium text-[var(--fo-text)] hover:underline">
-                    {m.label}
-                  </Link>
-                  {pantallas.length > 0 ? (
-                    <ul className="space-y-1.5">
-                      {pantallas.map((sub) => (
-                        <li key={sub.href}>
-                          <Link
-                            href={sub.href}
-                            className="group block rounded-lg px-2 py-1.5 -mx-2 transition-colors hover:bg-[var(--fo-surface-hover)]"
-                          >
-                            <span className="block text-sm text-[var(--fo-text)] group-hover:text-[var(--fo-accent)]">
-                              {sub.label}
-                            </span>
-                            <span className="block text-xs text-[var(--fo-muted)] leading-relaxed">
-                              {sub.description}
-                            </span>
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
-            Todavía no tenés módulos habilitados en este workspace. Pedí a un administrador de
-            plataforma que active alguno.
-          </p>
-        )}
-      </section>
-
-      <section className="space-y-4">
-        <h2 className="text-lg font-semibold text-[var(--fo-text)]">Accesos rápidos</h2>
-        <div className="grid sm:grid-cols-2 gap-4">
-          <Link href="/workspace/configuracion" className="fo-card hover:border-[var(--fo-accent)]/40">
-            <p className="font-medium text-[var(--fo-text)]">Configuración del negocio</p>
-            <p className="text-sm text-[var(--fo-muted)] mt-2 leading-relaxed">
-              Nombre, contacto, ubicación y especialidades.
-            </p>
-          </Link>
-        </div>
-      </section>
-    </div>
+    <WorkspaceHome
+      now={now}
+      nombre={nombre}
+      institucion={institucion}
+      publicSlug={branding?.publicSlug ?? null}
+      datos={datos}
+      vocabulary={vocabulary}
+      admin={admin}
+      puedeCrearSocio={puedeAdministrarSocios && enabled.has(MEMBERS_MODULE_KEY)}
+      faltaConfigurar={faltaConfigurar}
+      faltaTipoDeOrganizacion={faltaTipoDeOrganizacion}
+      modulos={modulos.map((m) => ({
+        ...m,
+        // El permiso es por módulo: el de Socios no habilita nada en otro.
+        pantallas: submodulesFor(
+          m.key,
+          {
+            canManage:
+              m.key === MEMBERS_MODULE_KEY || m.key === COVERAGES_MODULE_KEY
+                ? puedeAdministrarSocios
+                : // Reservas, Caja y demás: sus pantallas "requiresManage" son de configuración.
+                  admin,
+            canConfigure: admin,
+          },
+          vocabulary,
+        ),
+      }))}
+    />
   );
 }

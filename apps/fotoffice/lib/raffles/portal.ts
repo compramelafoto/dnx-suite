@@ -7,6 +7,7 @@ import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { loadMemberForRaffle } from "./repository";
 import { resolveLogoUrl } from "./logo-url";
+import { loadPartnerCards, type PartnerCard } from "./partners-live";
 
 /**
  * Lo que el socio ve de los sorteos.
@@ -31,6 +32,9 @@ export type PortalPrize = {
   partnerName: string | null;
   /** Ya resuelta a una dirección que el navegador del socio puede pedir. */
   partnerLogoUrl: string | null;
+  /** Perfil del aliado, de DNX Partners. La ficha del premio lleva ahí al tocarla. */
+  partnerInstagramUrl: string | null;
+  partnerWebsiteUrl: string | null;
   winnerLabel: string | null;
 };
 
@@ -81,6 +85,7 @@ type FilaSorteo = {
     conditions: string | null;
     pickupInstructions: string | null;
     pickupDeadline: Date | null;
+    partnerId: string | null;
     partnerNameSnapshot: string | null;
     partnerLogoSnapshot: string | null;
     award: { memberId: string; status: string; winnerPosition: number } | null;
@@ -121,6 +126,7 @@ export async function loadPortalRaffles(input: {
             conditions: true,
             pickupInstructions: true,
             pickupDeadline: true,
+            partnerId: true,
             partnerNameSnapshot: true,
             partnerLogoSnapshot: true,
             award: { select: { memberId: true, status: true, winnerPosition: true } },
@@ -135,8 +141,15 @@ export async function loadPortalRaffles(input: {
     loadPersonVocabulary(input.workspaceId),
   ]);
 
+  // Sólo los sorteos que todavía no se resolvieron muestran al aliado en vivo; los cerrados
+  // conservan la instantánea, que es la constancia de lo que se sorteó.
+  const abiertos = (filas as FilaSorteo[]).filter(
+    (f) => f.status === "ANUNCIADO" || f.status === "PADRON_SELLADO",
+  );
+  const aliados = await loadPartnerCards(abiertos.flatMap((f) => f.prizes.map((p) => p.partnerId)));
+
   const vistas = (filas as FilaSorteo[]).map((f) =>
-    armarVista(f, socio, input.memberId, vocabulary),
+    armarVista(f, socio, input.memberId, vocabulary, aliados),
   );
 
   // El actual es el que todavía no se resolvió y no se canceló. Puede no haber ninguno.
@@ -152,6 +165,7 @@ function armarVista(
   socio: Awaited<ReturnType<typeof loadMemberForRaffle>>,
   memberId: string,
   vocabulary: PersonVocabulary,
+  aliados: Map<string, PartnerCard>,
 ): PortalRaffleView {
   const congelado = SELLADO.has(f.status);
 
@@ -184,17 +198,22 @@ function armarVista(
         })();
 
   const partnersBaseUrl = process.env.PARTNERS_PUBLIC_URL ?? null;
-  const prizes: PortalPrize[] = f.prizes.map((p) => ({
-    id: p.id,
-    order: p.order,
-    title: p.title,
-    description: p.description,
-    partnerName: p.partnerNameSnapshot,
-    partnerLogoUrl: resolveLogoUrl(p.partnerLogoSnapshot, partnersBaseUrl),
-    winnerLabel: p.award
-      ? aplicarVocabulario(`{Persona} en la posición ${p.award.winnerPosition}`, vocabulary)
-      : null,
-  }));
+  const prizes: PortalPrize[] = f.prizes.map((p) => {
+    const aliado = p.partnerId ? aliados.get(p.partnerId) : undefined;
+    return {
+      id: p.id,
+      order: p.order,
+      title: p.title,
+      description: p.description,
+      partnerName: aliado?.name ?? p.partnerNameSnapshot,
+      partnerLogoUrl: aliado?.logoSrc ?? resolveLogoUrl(p.partnerLogoSnapshot, partnersBaseUrl),
+      partnerInstagramUrl: aliado?.instagramUrl ?? null,
+      partnerWebsiteUrl: aliado?.websiteUrl ?? null,
+      winnerLabel: p.award
+        ? aplicarVocabulario(`{Persona} en la posición ${p.award.winnerPosition}`, vocabulary)
+        : null,
+    };
+  });
 
   const myAwards: PortalAward[] = f.prizes
     .filter((p) => p.award?.memberId === memberId)

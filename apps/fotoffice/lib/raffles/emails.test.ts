@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSponsorNoticeEmail, buildWinnerNoticeEmail } from "./emails";
+import { buildResultsEmail, buildSponsorNoticeEmail, buildWinnerNoticeEmail } from "./emails";
 
 const VENCE = new Date("2026-10-15T23:59:59Z");
 
@@ -119,5 +119,41 @@ describe("el aviso al aliado que dona el premio", () => {
 
   it("el asunto identifica el premio y la institución", () => {
     expect(email.subject).toContain("Mochila para equipo fotográfico");
+  });
+});
+
+describe("buildResultsEmail", () => {
+  const base = {
+    raffleTitle: "Sorteo del Mes!",
+    winners: [
+      { prizeTitle: "Limpieza de sensor", partnerName: "Tecnoflash", winnerName: "Daniel Andrés C. · Socio N° 556" },
+      { prizeTitle: "50% en cursos", partnerName: null, winnerName: "Ana D. · Socio N° 12" },
+    ],
+    publicUrl: "https://fotoffice.com/w/sfpr/sorteos/abc",
+    recipientFirstName: "Laura",
+    memberWordPlural: "socios",
+    signature: null,
+  };
+
+  it("lista a cada ganador con su premio y el enlace a la página pública", () => {
+    const m = buildResultsEmail({ ...base, participated: true });
+    expect(m.subject).toBe("Resultados de Sorteo del Mes!");
+    expect(m.text).toContain("Limpieza de sensor (lo dona Tecnoflash): Daniel Andrés C. · Socio N° 556");
+    expect(m.text).toContain("https://fotoffice.com/w/sfpr/sorteos/abc");
+    expect(m.html).toContain("Ver el sorteo");
+  });
+
+  it("al que no participó le dice por qué y cómo entrar en el próximo", () => {
+    expect(buildResultsEmail({ ...base, participated: false }).text).toContain("ponete al día");
+    expect(buildResultsEmail({ ...base, participated: true }).text).not.toContain("ponete al día");
+  });
+
+  it("escapa lo que viene de la base", () => {
+    const m = buildResultsEmail({
+      ...base,
+      participated: true,
+      winners: [{ prizeTitle: "<b>x</b>", partnerName: null, winnerName: "A" }],
+    });
+    expect(m.html).not.toContain("<b>x</b>");
   });
 });

@@ -60,7 +60,8 @@ describe("Configuración → Campos", () => {
 
   it("aparece en los tres menús de Configuración", () => {
     expect(leer("components", "shell", "shell-nav.tsx")).toContain('"/workspace/configuracion/campos"');
-    expect(leer("app", "workspace", "layout.tsx")).toContain('"/workspace/configuracion/campos"');
+    // `/workspace` ya no tiene menú propio: monta el mismo `AdminShell` (y su `ShellNav`) que el resto del panel.
+    expect(leer("app", "workspace", "layout.tsx")).toContain("<AdminShell");
     expect(leer("app", "workspace", "configuracion", "page.tsx")).toContain('"/workspace/configuracion/campos"');
   });
 });

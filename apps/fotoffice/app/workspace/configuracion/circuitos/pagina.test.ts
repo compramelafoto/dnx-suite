@@ -52,7 +52,8 @@ describe("Configuración → Circuitos", () => {
 
   it("aparece en el menú junto a Ficha", () => {
     expect(leer("components", "shell", "shell-nav.tsx")).toContain('"/workspace/configuracion/circuitos"');
-    expect(leer("app", "workspace", "layout.tsx")).toContain('"/workspace/configuracion/circuitos"');
+    // `/workspace` ya no tiene menú propio: monta el mismo `AdminShell` (y su `ShellNav`) que el resto del panel.
+    expect(leer("app", "workspace", "layout.tsx")).toContain("<AdminShell");
     expect(leer("app", "workspace", "configuracion", "page.tsx")).toContain('"/workspace/configuracion/circuitos"');
   });
 });

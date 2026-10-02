@@ -48,10 +48,10 @@ export function ShellSidebar({
     <aside className="min-h-full md:min-h-screen border-b md:border-b-0 md:border-r border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] p-4 md:p-5">
       <div className="mb-8 flex items-start justify-between gap-2">
         <Link
-          href="/dashboard"
+          href="/workspace"
           className="block min-w-0 rounded-[var(--fo-radius-sm)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--fo-accent)]"
         >
-          <span className="sr-only">Fotoffice — ir al panel</span>
+          <span className="sr-only">Fotoffice — ir al inicio</span>
           <div className="px-0 py-1 md:py-2">
             <FotofficeLogo variant="sidebar" />
           </div>

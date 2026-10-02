@@ -372,7 +372,14 @@ export function ShellNav({
         path={path}
         onNavigate={closeDrawer}
         items={[
-          { href: "/dashboard", label: "Inicio", icon: LayoutDashboard, isActive: exact("/dashboard") },
+          // El tablero de la institución. `/dashboard` queda como pantalla de rescate para quien
+          // no tiene permiso en algún módulo, y se marca igual: también es "el inicio".
+          {
+            href: "/workspace",
+            label: "Inicio",
+            icon: LayoutDashboard,
+            isActive: (p: string) => p === "/workspace" || p === "/dashboard",
+          },
         ]}
       />
       {secciones.map((sec) => (
