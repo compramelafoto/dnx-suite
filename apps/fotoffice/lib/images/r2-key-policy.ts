@@ -1,8 +1,13 @@
 /**
  * Política de keys R2 propias de FotoOffice.
- * Mismo patrón que `apps/infospot/lib/r2-key-policy.ts`: bucket compartido
- * entre apps del monorepo, namespaced por prefijo — FotoOffice nunca debe
- * poder tocar keys de otra app (`infospot/`, `albums/`, etc.).
+ *
+ * El bucket es propio (`fotoffice-media`), no compartido — ver `r2-client.ts`. El nivel `fotoffice/`
+ * que encabeza cada prefijo es herencia de cuando sí se compartía; se conserva porque las
+ * direcciones ya guardadas lo tienen.
+ *
+ * **La lista sigue siendo la frontera de borrado**, y por eso importa: `assertFotofficeDeletableR2Key`
+ * sólo deja borrar lo que empieza con uno de estos prefijos. Un error de cálculo que arme una key
+ * fuera de la lista falla en vez de borrar algo que no corresponde.
  */
 export const FOTOFFICE_R2_PREFIXES = {
   workspaceLogo: "fotoffice/workspace-logos",
@@ -17,6 +22,7 @@ export const FOTOFFICE_R2_PREFIXES = {
   websiteBlockImage: "fotoffice/website-block-images",
   favicon: "fotoffice/favicons",
   templateImage: "fotoffice/template-images",
+  memberPortfolioPhoto: "fotoffice/member-portfolio",
 } as const;
 
 export const FOTOFFICE_R2_DELETABLE_PREFIXES = Object.values(FOTOFFICE_R2_PREFIXES).map(

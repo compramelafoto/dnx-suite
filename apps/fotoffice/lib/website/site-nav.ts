@@ -1,7 +1,8 @@
 import type { WebsiteBlock } from "./blocks";
 import { deriveHomeNavItems } from "./navigation";
 import { BLOG_PUBLIC_PAGE_KEY } from "./constants";
-import { publicModulePagesFor } from "./public-modules";
+import { publicModulePagesFor, resolvePublicModuleLabel } from "./public-modules";
+import { personVocabulary, type PersonVocabulary } from "@/lib/vocabulario/personas";
 
 /**
  * El menú del sitio público. Se arma solo: Inicio, las secciones de la portada como submenú, y
@@ -56,6 +57,12 @@ export function buildSiteNav(input: {
    * vacío no va al menú: sería un ítem que lleva a "todavía no hay artículos".
    */
   hasPublishedBlog?: boolean;
+  /**
+   * Cómo llama esta institución a la gente de su padrón. Las páginas de módulo que lo declaran
+   * toman su etiqueta de acá; el resto conserva la fija. Omitirlo deja las palabras por omisión,
+   * así ningún caller viejo cambia de comportamiento.
+   */
+  personVocabulary?: PersonVocabulary;
 }): SiteNavItem[] {
   const base = `/w/${input.workspaceSlug}`;
 
@@ -85,9 +92,15 @@ export function buildSiteNav(input: {
     ? new Set([...input.enabledModuleKeys, BLOG_PUBLIC_PAGE_KEY])
     : input.enabledModuleKeys;
 
+  const vocabulario = input.personVocabulary ?? personVocabulary(null);
   const paginasDeModulo: SiteNavItem[] = publicModulePagesFor(paginasHabilitadas).map((pagina) => {
     const href = `${base}/${pagina.segment}`;
-    return { id: pagina.moduleKey, label: pagina.label, href, children: [] };
+    return {
+      id: pagina.moduleKey,
+      label: resolvePublicModuleLabel(pagina, vocabulario),
+      href,
+      children: [],
+    };
   });
 
   return [inicio, ...paginasDeModulo];

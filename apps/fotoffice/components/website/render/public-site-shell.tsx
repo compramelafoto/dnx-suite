@@ -34,6 +34,7 @@ export function PublicSiteShell({
     enabledModuleKeys: site.enabledModuleKeys,
     hasPublishedSite: site.hasPublishedSite,
     hasPublishedBlog: site.hasPublishedBlog,
+    personVocabulary: site.personVocabulary,
   });
 
   const themeVars = {
