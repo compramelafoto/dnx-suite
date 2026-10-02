@@ -117,6 +117,12 @@ async function leerFichaVieja(slug: string): Promise<{ fotos: string[]; bio: str
 /**
  * Trae a nuestro bucket las fotos que quedaron apuntando a Alboom.
  *
+ * **En producción esto se hace desde el panel, no desde acá.** Subir exige las claves de escritura
+ * de R2, y en Vercel están marcadas como sensibles: no se pueden volver a leer. La app desplegada
+ * sí las tiene, así que el realojado vive en `apps/fotoffice/lib/portfolio/localize-photos.ts` y se
+ * dispara con un botón en `/admin/workspaces/{id}`. Este modo queda para una máquina que tenga las
+ * claves a mano.
+ *
  * Se puede correr cuantas veces haga falta: busca sólo las marcadas con `externo:`, y cada una que
  * logra traer deja de estarlo. Una que falle queda marcada y se reintenta la próxima vez.
  */
