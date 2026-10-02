@@ -36,6 +36,8 @@ export type DirectoryEntry = {
   coverUrl: string | null;
   coverWidth: number | null;
   coverHeight: number | null;
+  /** El `alt` de la destacada. El directorio es la página que Google más recorre. */
+  coverAltText: string | null;
 };
 
 export type PublicPortfolioPhoto = {
@@ -45,6 +47,8 @@ export type PublicPortfolioPhoto = {
   height: number;
   title: string | null;
   year: number | null;
+  /** Lo que va en el `alt`: lo lee Google y lo escucha un lector de pantalla. */
+  altText: string | null;
 };
 
 export type PublicPortfolioVideo = PortfolioVideo & {
@@ -120,6 +124,7 @@ const SELECT_FOTO = {
   order: true,
   title: true,
   year: true,
+  altText: true,
 } as const;
 
 type FilaMiembro = {
@@ -187,7 +192,7 @@ export async function loadPublicDirectory(workspaceId: string): Promise<Director
         hiddenByAdminAt: true,
         adminForcePublish: true,
         member: { select: SELECT_MIEMBRO },
-        coverPhoto: { select: { url: true, width: true, height: true } },
+        coverPhoto: { select: { url: true, width: true, height: true, altText: true } },
         _count: { select: { photos: true } },
       },
     }),
@@ -214,6 +219,7 @@ export async function loadPublicDirectory(workspaceId: string): Promise<Director
       coverUrl: f.coverPhoto?.url ?? null,
       coverWidth: f.coverPhoto?.width ?? null,
       coverHeight: f.coverPhoto?.height ?? null,
+      coverAltText: f.coverPhoto?.altText ?? null,
     }))
     // Alfabético por apellido, con las reglas del español: "Álvarez" antes que "Benítez".
     .sort((a, b) => a.displayName.localeCompare(b.displayName, "es", { sensitivity: "base" }));
@@ -273,7 +279,7 @@ type FilaDeFicha = {
   coverPhoto: { url: string } | null;
   instagramEnabled: boolean;
   instagramPostUrls: string[];
-  photos: { id: string; url: string; width: number; height: number; title: string | null; year: number | null }[];
+  photos: { id: string; url: string; width: number; height: number; title: string | null; year: number | null; altText: string | null }[];
   videos?: { id: string; platform: string; url: string; videoId: string | null; title: string | null }[];
 };
 
@@ -328,6 +334,7 @@ function aPublicPortfolio(fila: FilaDeFicha): PublicPortfolio {
       height: f.height,
       title: f.title,
       year: f.year,
+      altText: f.altText,
     })),
   };
 }

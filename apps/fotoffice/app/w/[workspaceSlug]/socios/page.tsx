@@ -161,7 +161,7 @@ function TarjetaDeSocio({ entrada, base }: { entrada: DirectoryEntry; base: stri
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
               src={entrada.coverUrl}
-              alt={`Obra de ${entrada.displayName}`}
+              alt={entrada.coverAltText ?? `Obra de ${entrada.displayName}`}
               width={entrada.coverWidth ?? undefined}
               height={entrada.coverHeight ?? undefined}
               loading="lazy"

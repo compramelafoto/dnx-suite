@@ -8121,6 +8121,12 @@ model FotofficeMemberPortfolioPhoto {
   order Int
   title String?
   year  Int?
+  /// Descripción de lo que se ve en la foto. Va al atributo `alt` de la imagen.
+  ///
+  /// Es lo que lee Google para encontrar la foto **y** lo que escucha quien usa un lector de
+  /// pantalla. Un solo texto para las dos cosas: separarlos produciría dos descripciones de la
+  /// misma foto que algún día se contradicen.
+  altText String?
 
   createdAt DateTime @default(now())
 
