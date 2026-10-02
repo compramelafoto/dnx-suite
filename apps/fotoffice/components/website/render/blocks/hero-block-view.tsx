@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, ty
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { HeroBlockConfig, HeroContentPosition, HeroHeightPreset, HeroImageFocus, HeroOverlayPreset, HeroSlideAlign } from "@/lib/website/blocks";
 import { useHeroEditingSlideId } from "@/lib/website/hero-editing-context";
+import { enlaceDeBoton } from "@/lib/website/button-href";
 
 const HEIGHT_CLASS: Record<HeroHeightPreset, string> = {
   compact: "min-h-[240px] sm:min-h-[320px]",
@@ -167,9 +168,9 @@ export function HeroBlockView({ config, blockId }: { config: HeroBlockConfig; bl
                 {slide.title || "Título principal"}
               </h1>
               {slide.subtitle ? <p className="text-lg sm:text-xl max-w-2xl leading-relaxed text-white/90">{slide.subtitle}</p> : null}
-              {slide.showButton && slide.buttonLabel && slide.buttonUrl ? (
+              {slide.showButton && slide.buttonLabel && enlaceDeBoton(slide.buttonUrl) ? (
                 <a
-                  href={slide.buttonUrl}
+                  href={enlaceDeBoton(slide.buttonUrl) ?? undefined}
                   className="inline-flex mt-2 text-sm transition-transform hover:scale-[1.02]"
                   style={{
                     borderRadius: "var(--wsite-button-radius)",

@@ -1,4 +1,5 @@
 import type { CtaBlockConfig } from "@/lib/website/blocks";
+import { enlaceDeBoton } from "@/lib/website/button-href";
 
 export function CtaBlockView({ config }: { config: CtaBlockConfig }) {
   const solid = config.stylePreset === "solid";
@@ -17,7 +18,7 @@ export function CtaBlockView({ config }: { config: CtaBlockConfig }) {
           </p>
         ) : null}
         <a
-          href={config.buttonUrl || "#"}
+          href={enlaceDeBoton(config.buttonUrl) ?? "#"}
           className="inline-flex mt-2 text-sm"
           style={{
             borderRadius: "var(--wsite-button-radius)",
