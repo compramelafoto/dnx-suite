@@ -33,6 +33,7 @@ export function PublicSiteShell({
     homeBlocks: site.homeBlocks,
     enabledModuleKeys: site.enabledModuleKeys,
     hasPublishedSite: site.hasPublishedSite,
+    personVocabulary: site.personVocabulary,
   });
 
   const themeVars = {

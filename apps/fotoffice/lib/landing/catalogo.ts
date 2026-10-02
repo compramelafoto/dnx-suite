@@ -7,6 +7,7 @@ import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
+import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 
@@ -74,6 +75,19 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
     resuelve:
       "Sorteás entre los socios que están al día, con premios de las marcas aliadas. El número ganador no lo elige el sistema: sale de una baliza pública de azar que se consulta en varios servidores a la vez. Cualquier socio puede rehacer la cuenta después y comprobar que salió así.",
     pantallas: ["Sorteos y participantes", "Entregas de premios", "Comprobación pública del resultado"],
+  },
+  {
+    key: PORTFOLIO_MODULE_KEY,
+    cuadro: "03b",
+    nombre: "Portfolios",
+    resuelve:
+      "Cada socio arma su galería desde su propio portal y queda publicada en el sitio de la institución, con su obra, su presentación y su contacto. Nadie de la Secretaría toca una foto. La institución decide si se muestra y puede bajar un portfolio cuando haga falta, pero no edita la obra de nadie.",
+    pantallas: [
+      "Mi portfolio, en el portal del socio",
+      "Directorio público de socios",
+      "La ficha de cada socio, con su galería",
+      "Control de publicación desde el panel",
+    ],
   },
   {
     key: BOOKINGS_MODULE_KEY,

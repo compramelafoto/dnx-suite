@@ -3,6 +3,7 @@ import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
+import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
 
 /**
  * El menú del socio, en un solo lugar.
@@ -112,6 +113,15 @@ export const PORTAL_MENU: PortalMenuItem[] = [
     icon: "user",
     built: true,
     primary: true,
+  },
+  {
+    order: 45,
+    label: "Mi portfolio",
+    href: "/portal/portfolio",
+    description: "Tus fotos, publicadas en el sitio de la institución.",
+    icon: "camera",
+    requiresModule: PORTFOLIO_MODULE_KEY,
+    built: true,
   },
   {
     order: 50,
