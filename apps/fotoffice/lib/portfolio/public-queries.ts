@@ -4,6 +4,7 @@ import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { PORTFOLIO_MODULE_KEY } from "./constants";
 import { portfolioVisibility } from "./visibility";
 import { normalizeArgentineWhatsappNumber } from "./whatsapp";
+import type { PortfolioVideo, VideoPlatform } from "./videos";
 
 /**
  * Las dos lecturas públicas: el directorio y la ficha de una persona.
@@ -46,6 +47,11 @@ export type PublicPortfolioPhoto = {
   year: number | null;
 };
 
+export type PublicPortfolioVideo = PortfolioVideo & {
+  id: string;
+  title: string | null;
+};
+
 export type PublicPortfolio = {
   publicSlug: string;
   displayName: string;
@@ -67,6 +73,8 @@ export type PublicPortfolio = {
   /** Si tiene un teléfono que se pudo normalizar. El número NO viaja: ver `SELECT_MIEMBRO`. */
   canContactByWhatsapp: boolean;
   photos: PublicPortfolioPhoto[];
+  /** Videos que el socio pegó, en su orden. */
+  videos: PublicPortfolioVideo[];
   /** Posteos que el socio eligió mostrar. Vacío si apagó la franja o no cargó ninguno. */
   instagramPosts: string[];
 };
@@ -94,6 +102,14 @@ const SELECT_MIEMBRO = {
    * así nadie puede cosechar los teléfonos de todo el padrón del código fuente del directorio.
    */
   phone: true,
+} as const;
+
+const SELECT_VIDEO = {
+  id: true,
+  platform: true,
+  url: true,
+  videoId: true,
+  title: true,
 } as const;
 
 const SELECT_FOTO = {
@@ -230,6 +246,7 @@ export async function loadPublicPortfolio(params: {
       member: { select: SELECT_MIEMBRO },
       coverPhoto: { select: { url: true, width: true, height: true } },
       photos: { select: SELECT_FOTO, orderBy: { order: "asc" } },
+      videos: { select: SELECT_VIDEO, orderBy: { order: "asc" } },
     },
   });
   if (!fila) return null;
@@ -257,6 +274,7 @@ type FilaDeFicha = {
   instagramEnabled: boolean;
   instagramPostUrls: string[];
   photos: { id: string; url: string; width: number; height: number; title: string | null; year: number | null }[];
+  videos?: { id: string; platform: string; url: string; videoId: string | null; title: string | null }[];
 };
 
 function aPublicPortfolio(fila: FilaDeFicha): PublicPortfolio {
@@ -295,6 +313,14 @@ function aPublicPortfolio(fila: FilaDeFicha): PublicPortfolio {
     canContactByWhatsapp: normalizeArgentineWhatsappNumber(m.phone) !== null,
     // El interruptor manda: apagarlo oculta la franja sin que el socio pierda los enlaces que cargó.
     instagramPosts: fila.instagramEnabled ? fila.instagramPostUrls : [],
+    videos: (fila.videos ?? []).map((v) => ({
+      id: v.id,
+      // Lo guardado es texto; el tipo cerrado vive en `videos.ts`, no en la base.
+      platform: v.platform as VideoPlatform,
+      url: v.url,
+      videoId: v.videoId,
+      title: v.title,
+    })),
     photos: fila.photos.map((f) => ({
       id: f.id,
       url: f.url,
@@ -329,6 +355,7 @@ export async function loadPortfolioPreview(params: {
       member: { select: SELECT_MIEMBRO },
       coverPhoto: { select: { url: true } },
       photos: { select: SELECT_FOTO, orderBy: { order: "asc" } },
+      videos: { select: SELECT_VIDEO, orderBy: { order: "asc" } },
     },
   });
   if (!fila) return null;

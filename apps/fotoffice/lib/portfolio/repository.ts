@@ -36,6 +36,8 @@ export type PortfolioView = {
   instagramEnabled: boolean;
   /** Los enlaces cargados. Se conservan aunque la franja esté apagada. */
   instagramPostUrls: string[];
+  /** Las direcciones de los videos, en orden, como las pegó el socio. */
+  videoUrls: string[];
 };
 
 const SELECT_FOTO = {
@@ -140,6 +142,7 @@ export async function loadPortfolioForMember(params: {
         instagramEnabled: true,
         instagramPostUrls: true,
         photos: { select: SELECT_FOTO, orderBy: { order: "asc" } },
+        videos: { select: { url: true }, orderBy: { order: "asc" } },
       },
     }),
     loadMemberBalance(params.memberId),
@@ -169,5 +172,6 @@ export async function loadPortfolioForMember(params: {
     visibility,
     instagramEnabled: fila?.instagramEnabled ?? false,
     instagramPostUrls: fila?.instagramPostUrls ?? [],
+    videoUrls: (fila?.videos ?? []).map((v) => v.url),
   };
 }
