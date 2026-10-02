@@ -12,6 +12,7 @@ const B = await vi.hoisted(async () => {
 const H = vi.hoisted(() => ({
   enviar: vi.fn(async (_m: unknown): Promise<unknown> => ({ status: "SENT", providerId: "re_auto_1" })),
   notificar: vi.fn(async () => ({ movido: true })),
+  modulo: vi.fn(async (_ws: string, _m: string) => true),
 }));
 
 vi.mock("@repo/db", () => ({ prisma: B.prisma, Prisma: { JsonNull: null } }));
@@ -27,6 +28,7 @@ vi.mock("@/lib/communications/load-workspace-signature", () => ({
 }));
 vi.mock("@/lib/communications/send-email", () => ({ sendTransactionalEmail: H.enviar }));
 vi.mock("@/lib/circuitos/eventos", () => ({ notificarEvento: H.notificar }));
+vi.mock("@/lib/modules/gating", () => ({ isModuleEnabledForWorkspace: H.modulo }));
 
 const A = await import("./automaticos");
 const { createServiceLead } = await import("@/app/actions/service-lead");
@@ -58,6 +60,8 @@ beforeEach(() => {
   H.enviar.mockReset();
   H.enviar.mockResolvedValue({ status: "SENT", providerId: "re_auto_1" });
   H.notificar.mockClear();
+  H.modulo.mockReset();
+  H.modulo.mockResolvedValue(true);
   // La base en memoria no tiene findUnique: el alta busca el branding por su slug público.
   (B.tablas.fotofficeWorkspaceBranding as unknown as Record<string, unknown>).findUnique = (a: never) => B.tablas.fotofficeWorkspaceBranding.findFirst(a);
   B.agregar("fotofficeWorkspaceBranding", { workspaceId: "ws-1", publicSlug: "dnx-estudio" });
@@ -132,18 +136,71 @@ describe("responderConsultaNueva", () => {
     expect(H.enviar).not.toHaveBeenCalled();
   });
 
-  it("tope diario alcanzado: no envía ni registra como enviado", async () => {
+  it("con Captación apagada: no envía ni registra, aunque esté encendida", async () => {
     autorespuesta();
     consulta();
-    for (let i = 0; i < 200; i++) {
+    H.modulo.mockResolvedValue(false);
+    expect(await A.responderConsultaNueva("ws-1", "l1")).toBe("APAGADA");
+    expect(H.modulo).toHaveBeenCalledWith("ws-1", "service-leads");
+    expect(H.enviar).not.toHaveBeenCalled();
+    expect(mensajes()).toHaveLength(0);
+  });
+
+  /** `n` correos ya enviados hoy en ws-1, a otras direcciones. */
+  function enviadosHoy(n: number, datos: Record<string, unknown> = {}) {
+    for (let i = 0; i < n; i++) {
       B.agregar("fotofficeMessage", {
-        workspaceId: "ws-1", channel: "EMAIL", entityType: "CONSULTA", entityId: "otra", toAddress: "x", body: "x", status: "SENT",
-        createdAt: new Date("2026-10-01T10:00:00.000Z"),
+        workspaceId: "ws-1", channel: "EMAIL", entityType: "CONSULTA", entityId: "otra", toAddress: `otra${i}@x.test`, body: "x",
+        status: "SENT", createdAt: new Date("2026-10-01T10:00:00.000Z"), ...datos,
       });
     }
+  }
+
+  it("tope de automáticos (50 por día): al llegar no envía ni registra", async () => {
+    autorespuesta();
+    consulta();
+    enviadosHoy(50, { automatic: true });
     expect(await A.responderConsultaNueva("ws-1", "l1")).toBe("NO_ENVIADO");
     expect(H.enviar).not.toHaveBeenCalled();
-    expect(mensajes()).toHaveLength(200);
+    expect(mensajes()).toHaveLength(50);
+  });
+
+  it("con 49 automáticos hoy todavía responde", async () => {
+    autorespuesta();
+    consulta();
+    enviadosHoy(49, { automatic: true });
+    expect(await A.responderConsultaNueva("ws-1", "l1")).toBe("ENVIADO");
+  });
+
+  it("los 200 manuales del día no frenan a los automáticos", async () => {
+    autorespuesta();
+    consulta();
+    enviadosHoy(200);
+    expect(await A.responderConsultaNueva("ws-1", "l1")).toBe("ENVIADO");
+    expect(mensajes()).toHaveLength(201);
+  });
+
+  it("una sola respuesta por dirección cada 24 h (sin importar mayúsculas)", async () => {
+    autorespuesta();
+    consulta();
+    B.agregar("fotofficeMessage", {
+      workspaceId: "ws-1", channel: "EMAIL", entityType: "CONSULTA", entityId: "l0", toAddress: EMAIL.toUpperCase(), body: "x",
+      status: "FAILED", automatic: true, createdAt: new Date("2026-09-30T15:30:00.000Z"),
+    });
+    expect(await A.responderConsultaNueva("ws-1", "l1")).toBe("YA_RESPONDIDO");
+    expect(H.enviar).not.toHaveBeenCalled();
+    expect(mensajes()).toHaveLength(1);
+  });
+
+  it("pasadas 24 h, o si el previo fue manual o de otra organización, responde", async () => {
+    autorespuesta();
+    consulta();
+    const previo = { channel: "EMAIL", entityType: "CONSULTA", entityId: "l0", toAddress: EMAIL, body: "x", status: "SENT" };
+    B.agregar("fotofficeMessage", { ...previo, workspaceId: "ws-1", automatic: true, createdAt: new Date("2026-09-30T14:59:00.000Z") });
+    B.agregar("fotofficeMessage", { ...previo, workspaceId: "ws-1", automatic: false, createdAt: new Date("2026-10-01T14:00:00.000Z") });
+    B.agregar("fotofficeMessage", { ...previo, workspaceId: "ws-2", automatic: true, createdAt: new Date("2026-10-01T14:00:00.000Z") });
+    expect(await A.responderConsultaNueva("ws-1", "l1")).toBe("ENVIADO");
+    expect(H.enviar).toHaveBeenCalledTimes(1);
   });
 
   it("si el proveedor falla: no lanza y queda registrado como fallido", async () => {
@@ -182,6 +239,14 @@ describe("alta por el formulario público", () => {
     expect(mensajes()).toHaveLength(1);
     expect(mensajes()[0]).toMatchObject({ automatic: true, status: "SENT", actorLabel: "Automático" });
     expect(H.notificar).toHaveBeenCalled();
+  });
+
+  it("dos consultas seguidas desde la misma dirección: una sola respuesta", async () => {
+    autorespuesta();
+    expect(await createServiceLead(ENTRADA)).toEqual({ success: true });
+    expect(await createServiceLead({ ...ENTRADA, email: EMAIL.toUpperCase() })).toEqual({ success: true });
+    expect(B.datos.serviceSalesLead).toHaveLength(2);
+    expect(H.enviar).toHaveBeenCalledTimes(1);
   });
 
   it("apagada: crea la consulta y no manda nada", async () => {

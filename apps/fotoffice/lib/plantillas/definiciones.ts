@@ -437,6 +437,18 @@ export async function guardarAutomatico(ctx: CtxPlantillas, clave: unknown, dato
   if (!esClaveAutomatico(clave)) return no(MENSAJES_PLANTILLAS.noEncontrada);
   if (!datos || typeof datos !== "object" || typeof datos.enabled !== "boolean") return no(MENSAJES_PLANTILLAS.datosInvalidos);
   const def = AUTOMATICOS[clave];
+  // Apagar sin tocar los textos se puede siempre, aunque lo guardado ya no valide (una variable
+  // de un campo que se archivó, por ejemplo): sólo se cambia el interruptor.
+  if (datos.enabled === false) {
+    const guardado = await leerAutomatico(ctx.workspaceId, clave);
+    if (guardado && (guardado.subject ?? "") === datos.subject && guardado.body === datos.body) {
+      await prisma.fotofficeMessageTemplate.updateMany({
+        where: { workspaceId: ctx.workspaceId, systemKey: clave },
+        data: { enabled: false, updatedByUserId: ctx.userId },
+      });
+      return { ok: true };
+    }
+  }
   const texto = await validarTexto(ctx.workspaceId, def.canal, def.tipo, datos.subject, datos.body);
   if (!texto.ok) return texto;
   if (datos.enabled && (tieneMarcadorSinCompletar(texto.valor.subject) || tieneMarcadorSinCompletar(texto.valor.body))) {

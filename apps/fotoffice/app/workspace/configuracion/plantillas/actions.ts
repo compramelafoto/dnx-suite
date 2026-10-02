@@ -190,14 +190,17 @@ export async function borrarPlantillaAction(_prev: EstadoPlantillas | undefined,
 
 // ─── Automáticos ─────────────────────────────────────────────────────────────
 
-/** Interruptor, asunto y cuerpo. Sólo con el módulo de su ficha encendido (Captación para la consulta). */
+/**
+ * Interruptor, asunto y cuerpo. Encenderlo exige el módulo de su ficha (Captación para la
+ * consulta); apagarlo se puede siempre, aunque el módulo esté apagado.
+ */
 export async function guardarAutomaticoAction(_prev: EstadoPlantillas | undefined, fd: FormData): Promise<EstadoPlantillas> {
   const ctx = await contexto();
   if (!ctx) return SIN_PERMISO;
   const clave = campo(fd, "clave", 50);
   if (clave === null || !esClaveAutomatico(clave)) return DATOS_INVALIDOS;
-  if (await moduloApagado(ctx.workspaceId, AUTOMATICOS[clave].tipo)) return MODULO_APAGADO;
   const enabled = fd.get("enabled") === "1";
+  if (enabled && (await moduloApagado(ctx.workspaceId, AUTOMATICOS[clave].tipo))) return MODULO_APAGADO;
   return resultado(
     await guardarAutomatico(ctx, clave, {
       enabled,

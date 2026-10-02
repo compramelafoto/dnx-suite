@@ -33,8 +33,15 @@ export const MAX_ASUNTO = 200;
 export const MAX_CUERPO: Record<Canal, number> = { EMAIL: 10_000, WHATSAPP: 4_000 };
 /** Plantillas activas (no archivadas) por canal y organización. */
 export const MAX_PLANTILLAS_ACTIVAS_POR_CANAL = 100;
-/** Correos por día (de Buenos Aires) y organización, contando los automáticos. */
+/** Correos enviados a mano por día (de Buenos Aires) y organización. Los automáticos no cuentan acá. */
 export const TOPE_CORREOS_DIA = 200;
+/**
+ * Correos automáticos por día (de Buenos Aires) y organización, aparte de los manuales: el
+ * formulario público es abierto y alguien podría usarlo para disparar respuestas en masa.
+ */
+export const TOPE_AUTOMATICOS_DIA = 50;
+/** Una sola respuesta automática por dirección de correo y organización en este lapso. */
+export const VENTANA_UNA_AUTORESPUESTA_MS = 24 * 60 * 60 * 1000;
 
 export const ZONA_HORARIA = "America/Argentina/Buenos_Aires";
 

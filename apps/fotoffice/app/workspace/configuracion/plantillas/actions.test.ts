@@ -221,6 +221,30 @@ describe("Configuración → Plantillas (automático)", () => {
     expect(JSON.stringify(B.datos)).toBe(antes);
   });
 
+  it("sin Captación igual se puede apagar", async () => {
+    const id = automatico();
+    B.datos.fotofficeMessageTemplate.find((p) => p.id === id)!.enabled = true;
+    const { SERVICE_LEADS_MODULE_KEY } = await import("@/lib/service-leads/constants");
+    H.modulo.mockImplementation(async (_ws: string, clave: string) => clave !== SERVICE_LEADS_MODULE_KEY);
+    const r = await A.guardarAutomaticoAction(undefined, fd({ clave: "CONSULTA_AUTORESPUESTA", asunto: "Recibimos tu consulta", cuerpo: "Hola" }));
+    expect(r).toEqual({ error: null, ok: "Guardado: la respuesta automática está apagada." });
+    expect(plantillas().find((p) => p.id === id)!.enabled).toBe(false);
+  });
+
+  it("apagar sin tocar los textos no los vuelve a validar (aunque lo guardado ya no valga)", async () => {
+    const id = automatico();
+    const fila = B.datos.fotofficeMessageTemplate.find((p) => p.id === id)!;
+    Object.assign(fila, { enabled: true, body: "Socio [socio_numero]" });
+    const r = await A.guardarAutomaticoAction(undefined, fd({ clave: "CONSULTA_AUTORESPUESTA", asunto: "Recibimos tu consulta", cuerpo: "Socio [socio_numero]" }));
+    expect(r).toEqual({ error: null, ok: "Guardado: la respuesta automática está apagada." });
+    expect(plantillas().find((p) => p.id === id)).toMatchObject({ enabled: false, body: "Socio [socio_numero]", updatedByUserId: 7 });
+    // Si al apagar se cambia el texto, sí se valida.
+    fila.enabled = true;
+    const r2 = await A.guardarAutomaticoAction(undefined, fd({ clave: "CONSULTA_AUTORESPUESTA", asunto: "Hola", cuerpo: "Otro [socio_numero]" }));
+    expect(r2.errores).toEqual([expect.objectContaining({ campo: "cuerpo", variable: "socio_numero" })]);
+    expect(plantillas().find((p) => p.id === id)!.enabled).toBe(true);
+  });
+
   it("una variable de otra ficha en el automático vuelve con su posición", async () => {
     automatico();
     const r = await A.guardarAutomaticoAction(

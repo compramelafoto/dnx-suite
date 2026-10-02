@@ -4,7 +4,7 @@ import { puede } from "@/lib/access/policy";
 import { sendTransactionalEmail, type OutboundEmail, type SendOutcome } from "@/lib/communications/send-email";
 import { buildWhatsappUrl, normalizeWhatsappNumber } from "@/lib/contact/whatsapp";
 import {
-  CARACTER_MARCADOR, CLAVE_FIRMA, CLAVES_AUTOMATICO, MARCADOR_FIRMA, MAX_ASUNTO, MAX_CUERPO, TOPE_CORREOS_DIA, ZONA_HORARIA, type Canal,
+  CARACTER_MARCADOR, CLAVE_FIRMA, CLAVES_AUTOMATICO, MARCADOR_FIRMA, MAX_ASUNTO, MAX_CUERPO, TOPE_AUTOMATICOS_DIA, TOPE_CORREOS_DIA, ZONA_HORARIA, type Canal,
 } from "./constantes";
 import { contextoDe, correoValido, type ContextoMensaje, type TipoFichaMensaje } from "./contexto";
 import { plantillaParaUsar } from "./definiciones";
@@ -39,6 +39,7 @@ export const MENSAJES_ENVIO = {
   cuerpoVacio: "Escribí el texto del mensaje.",
   marcadorSinCompletar: "Completá los textos entre corchetes en mayúsculas antes de enviar.",
   tope: `Llegaste al tope de ${TOPE_CORREOS_DIA} correos por día de la organización. Podés volver a enviar mañana.`,
+  topeAutomaticos: `Se llegó al tope de ${TOPE_AUTOMATICOS_DIA} correos automáticos por día de la organización.`,
   datosInvalidos: "Los datos no son válidos.",
   falloRegistro: "No pudimos registrar el mensaje. Probá de nuevo.",
   falloConfiguracion: "El envío de correos no está configurado. Avisale a quien administra FOTOFFICE.",
@@ -191,10 +192,13 @@ export function inicioDelDiaAR(ahora: Date): Date {
   return new Date(`${p.year}-${p.month}-${p.day}T00:00:00.000-03:00`);
 }
 
-/** Correos enviados (`SENT`) hoy por la organización. Usa el índice (workspaceId, channel, createdAt). */
-export async function correosEnviadosHoy(workspaceId: string, ahora: Date): Promise<number> {
+/**
+ * Correos enviados (`SENT`) hoy por la organización: los manuales o, con `automaticos`, los
+ * automáticos. Cada grupo tiene su propio tope. Usa el índice (workspaceId, channel, createdAt).
+ */
+export async function correosEnviadosHoy(workspaceId: string, ahora: Date, automaticos = false): Promise<number> {
   return prisma.fotofficeMessage.count({
-    where: { workspaceId, channel: "EMAIL", createdAt: { gte: inicioDelDiaAR(ahora) }, status: "SENT" },
+    where: { workspaceId, channel: "EMAIL", createdAt: { gte: inicioDelDiaAR(ahora) }, status: "SENT", automatic: automaticos },
   });
 }
 
@@ -258,7 +262,14 @@ export async function enviarCorreo(ctx: CtxEnvio, datos: DatosCorreo, deps: Deps
   if (!correoValido(para)) return no(MENSAJES_ENVIO.sinCorreo);
 
   const ahora = (deps.ahora ?? (() => new Date()))();
-  if ((await correosEnviadosHoy(ctx.workspaceId, ahora)) >= TOPE_CORREOS_DIA) return no(MENSAJES_ENVIO.tope);
+  if (automatico) {
+    if ((await correosEnviadosHoy(ctx.workspaceId, ahora, true)) >= TOPE_AUTOMATICOS_DIA) {
+      console.warn("[plantillas] tope de correos automáticos alcanzado", { codigo: "TOPE_AUTOMATICOS" });
+      return no(MENSAJES_ENVIO.topeAutomaticos);
+    }
+  } else if ((await correosEnviadosHoy(ctx.workspaceId, ahora)) >= TOPE_CORREOS_DIA) {
+    return no(MENSAJES_ENVIO.tope);
+  }
 
   const enviar = deps.enviar ?? ((m: OutboundEmail) => sendTransactionalEmail(m));
   const resultado = await enviar({

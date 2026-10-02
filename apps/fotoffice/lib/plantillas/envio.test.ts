@@ -191,6 +191,16 @@ describe("enviarCorreo", () => {
     expect((await E.enviarCorreo(CTX, BASE, { enviar, ahora: () => AHORA }))).toEqual({ ok: false, error: M.tope });
   });
 
+  it("los automáticos tienen su propio tope: no consumen los 200 manuales", async () => {
+    enviados(199);
+    enviados(50, { automatic: true });
+    expect(await E.correosEnviadosHoy("ws-1", AHORA)).toBe(199);
+    expect(await E.correosEnviadosHoy("ws-1", AHORA, true)).toBe(50);
+    const enviar = enviador();
+    expect((await E.enviarCorreo(CTX, BASE, { enviar, ahora: () => AHORA })).ok).toBe(true);
+    expect(await E.enviarCorreo(CTX, BASE, { enviar, ahora: () => AHORA })).toEqual({ ok: false, error: M.tope });
+  });
+
   it("falla del proveedor: registra FAILED con código y sin datos personales en los logs", async () => {
     const consola = [vi.spyOn(console, "warn").mockImplementation(() => {}), vi.spyOn(console, "error").mockImplementation(() => {}),
       vi.spyOn(console, "log").mockImplementation(() => {}), vi.spyOn(console, "info").mockImplementation(() => {})];
