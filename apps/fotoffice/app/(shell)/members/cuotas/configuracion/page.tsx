@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
 import { PageHeader } from "@/components/page-header";
 import { requireActiveWorkspace } from "@/lib/workspace";
-import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
+import { hasModuleLevel } from "@/lib/permissions/module-access";
+import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { getDuesSettings } from "@/lib/membership/settings";
 import { decimalArsToMinor, formatMinorArs } from "@/lib/membership/money";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
@@ -29,7 +30,7 @@ function fechaLegible(d: Date): string {
 export default async function ConfiguracionCuotasPage() {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) redirect("/workspace");
-  if (!(await canManageWorkspaceCollection(user.id, workspace.id))) redirect("/members/cuotas");
+  if (!(await hasModuleLevel(user.id, workspace.id, MEMBERSHIP_DUES_MODULE_KEY, "MANAGE"))) redirect("/members/cuotas");
 
   const ahora = new Date();
   const [settings, categorias, valores, vocab, previa] = await Promise.all([

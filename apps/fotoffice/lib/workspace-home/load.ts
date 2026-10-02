@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@repo/db";
 import { countMembersByStatus } from "@repo/db/fotoffice-members";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
-import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
+import { hasModuleLevel } from "@/lib/permissions/module-access";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
@@ -91,7 +91,7 @@ export async function loadWorkspaceHome(input: {
   const admin = canManageWorkspaceSettings(role);
   const cobra =
     (enabled.has(MEMBERSHIP_DUES_MODULE_KEY) || enabled.has(MEMBERS_MODULE_KEY)) &&
-    (await canManageWorkspaceCollection(input.userId, workspaceId));
+    (await hasModuleLevel(input.userId, workspaceId, MEMBERSHIP_DUES_MODULE_KEY, "MANAGE"));
   const enUnaSemana = new Date(now.getTime() + 7 * 86_400_000);
 
   const [socios, cuotas, cobradoMes, altas, caja, reservas, sorteo, premios, coberturas, pedidos] =

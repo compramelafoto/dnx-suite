@@ -26,6 +26,7 @@ describe("resolución de rol de workspace — menú y páginas leen lo mismo", (
   // panel: `(shell)` y `/workspace`. Lo que hay que mirar es ese componente, no el layout.
   const layoutSrc = readFileSync(join(appRoot, "components/shell/admin-shell.tsx"), "utf8");
   const membersAccessSrc = readFileSync(join(here, "members/access.ts"), "utf8");
+  const permissionsSrc = readFileSync(join(here, "permissions/module-access.ts"), "utf8");
   const workspaceHomeSrc = readFileSync(join(appRoot, "app/workspace/page.tsx"), "utf8");
 
   it("hay UNA sola función que resuelve el rol, y consulta solo `workspaceMembership`", () => {
@@ -40,8 +41,13 @@ describe("resolución de rol de workspace — menú y páginas leen lo mismo", (
     assert.doesNotMatch(layoutSrc, /prisma\.membership\b/);
   });
 
-  it("los guards del módulo Socios usan esa misma función", () => {
-    assert.match(membersAccessSrc, /resolveWorkspaceRole/);
+  it("la función de niveles resuelve el rol con esa misma función", () => {
+    assert.match(permissionsSrc, /resolveWorkspaceRole/);
+    assert.doesNotMatch(permissionsSrc, /prisma\.membership\b/);
+  });
+
+  it("los guards del módulo Socios preguntan el nivel, no el rol por su cuenta", () => {
+    assert.match(membersAccessSrc, /getModuleLevel/);
     assert.doesNotMatch(membersAccessSrc, /prisma\.workspaceMembership/);
     assert.doesNotMatch(membersAccessSrc, /prisma\.membership\b/);
   });

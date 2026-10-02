@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
 import { requireActiveWorkspace } from "@/lib/workspace";
-import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
+import { hasModuleLevel } from "@/lib/permissions/module-access";
+import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { parseFeeValue, validateDuesSettings } from "@/lib/membership/fee-value-rules";
 import { parseRecommendationPercent } from "@/lib/membership/settings";
 import { minorToDecimalString } from "@/lib/membership/money";
@@ -20,7 +21,7 @@ export type SettingsResult = { ok: true } | { ok: false; error: string };
 export async function saveDuesSettingsAction(formData: FormData): Promise<SettingsResult> {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) return { ok: false, error: "No hay una institución activa." };
-  if (!(await canManageWorkspaceCollection(user.id, workspace.id))) {
+  if (!(await hasModuleLevel(user.id, workspace.id, MEMBERSHIP_DUES_MODULE_KEY, "MANAGE"))) {
     return { ok: false, error: "Solo el dueño o un administrador puede cambiar esto." };
   }
 
@@ -67,7 +68,7 @@ export async function saveDuesSettingsAction(formData: FormData): Promise<Settin
 export async function saveFeeValueAction(formData: FormData): Promise<SettingsResult> {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) return { ok: false, error: "No hay una institución activa." };
-  if (!(await canManageWorkspaceCollection(user.id, workspace.id))) {
+  if (!(await hasModuleLevel(user.id, workspace.id, MEMBERSHIP_DUES_MODULE_KEY, "MANAGE"))) {
     return { ok: false, error: "Solo el dueño o un administrador puede cambiar esto." };
   }
 
@@ -129,7 +130,7 @@ export async function sendDuesReminderNowAction(): Promise<
 > {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) return { ok: false, error: "No hay una institución activa." };
-  if (!(await canManageWorkspaceCollection(user.id, workspace.id))) {
+  if (!(await hasModuleLevel(user.id, workspace.id, MEMBERSHIP_DUES_MODULE_KEY, "MANAGE"))) {
     return { ok: false, error: "Solo el dueño o un administrador puede mandar el recordatorio." };
   }
 
