@@ -96,8 +96,28 @@ export default async function PublicPortfolioPage({ params }: Props) {
             <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">
               {portfolio.displayName}
             </h1>
-            {portfolio.businessName ? (
-              <p className="opacity-80">{portfolio.businessName}</p>
+            {portfolio.businessName || portfolio.businessLogoUrl ? (
+              /*
+               * El logo acompaña al nombre del estudio, chico y al lado — no compite con la foto de
+               * perfil ni con la obra. En un portfolio manda lo que la persona fotografió.
+               *
+               * Fondo blanco como en el portal: casi todos los logos son PNG con transparencia
+               * hechos para fondo claro, y sobre un sitio oscuro desaparecerían.
+               */
+              <div className="flex min-w-0 items-center gap-2">
+                {portfolio.businessLogoUrl ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={portfolio.businessLogoUrl}
+                    alt={portfolio.businessName ?? `Logo de ${portfolio.displayName}`}
+                    className="h-8 w-auto max-w-28 shrink-0 rounded bg-white object-contain"
+                    loading="lazy"
+                  />
+                ) : null}
+                {portfolio.businessName ? (
+                  <p className="truncate opacity-80">{portfolio.businessName}</p>
+                ) : null}
+              </div>
             ) : null}
           </div>
 

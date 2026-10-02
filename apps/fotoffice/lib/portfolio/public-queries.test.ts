@@ -29,6 +29,7 @@ function filaAlAire(overrides: Record<string, unknown> = {}) {
       status: "ACTIVE",
       directoryOptIn: true,
       businessName: "Estudio Pérez",
+      businessLogoUrl: "https://cdn.example/logo-perez.png",
       specialties: ["retrato"],
       bio: "Hago retratos.",
       website: "https://perez.example",
@@ -170,6 +171,28 @@ describe("loadPublicDirectory — qué sí se lista", () => {
     await loadPublicDirectory("ws-1");
     // Un directorio de 150 personas no puede hacer 150 viajes a la base.
     expect(charge.groupBy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("el logo de la empresa", () => {
+  it("la ficha lo expone, para que el estudio se vea identificado", async () => {
+    portfolio.findFirst.mockResolvedValue(filaAlAire());
+    const r = await loadPublicPortfolio({ workspaceId: "ws-1", publicSlug: "juan-perez" });
+    expect(r?.businessLogoUrl).toBe("https://cdn.example/logo-perez.png");
+  });
+
+  it("quien no subió logo no rompe la ficha", async () => {
+    portfolio.findFirst.mockResolvedValue(
+      filaAlAire({ member: { ...filaAlAire().member, businessLogoUrl: null } }),
+    );
+    const r = await loadPublicPortfolio({ workspaceId: "ws-1", publicSlug: "juan-perez" });
+    expect(r?.businessLogoUrl).toBeNull();
+  });
+
+  it("el directorio NO lo trae: la grilla es obra, no una pared de logos", async () => {
+    portfolio.findMany.mockResolvedValue([filaAlAire()]);
+    const [entrada] = await loadPublicDirectory("ws-1");
+    expect(entrada).not.toHaveProperty("businessLogoUrl");
   });
 });
 

@@ -47,6 +47,8 @@ export type PublicPortfolio = {
   publicSlug: string;
   displayName: string;
   businessName: string | null;
+  /** Logo del estudio. Sólo en la ficha: el directorio muestra obra, no logos. */
+  businessLogoUrl: string | null;
   specialties: string[];
   bio: string | null;
   profilePhotoUrl: string | null;
@@ -69,6 +71,7 @@ const SELECT_MIEMBRO = {
   status: true,
   directoryOptIn: true,
   businessName: true,
+  businessLogoUrl: true,
   specialties: true,
   bio: true,
   website: true,
@@ -231,6 +234,7 @@ export async function loadPublicPortfolio(params: {
     publicSlug: fila.publicSlug,
     displayName: nombreVisible(fila.member),
     businessName: fila.member.businessName,
+    businessLogoUrl: fila.member.businessLogoUrl,
     specialties: fila.member.specialties,
     bio: fila.member.bio,
     profilePhotoUrl: fila.member.profilePhotoUrl,
