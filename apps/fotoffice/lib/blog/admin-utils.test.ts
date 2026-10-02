@@ -9,7 +9,7 @@ import {
   stripClientScope,
   trimOptionalFormValue,
 } from "./admin-utils";
-import { blogAdminSectionFor, isBlogNavActive, isWebsiteNavActive } from "./admin-nav";
+import { blogAdminSectionFor, isBlogNavActive, isWebsiteNavActive, isDomainNavActive } from "./admin-nav";
 import { toDateInputValueAr } from "./admin-form";
 
 describe("stripClientScope", () => {
@@ -93,6 +93,12 @@ describe("navegación del blog", () => {
     expect(isWebsiteNavActive("/website/blog/tags")).toBe(false);
     expect(isBlogNavActive("/website/blog/tags")).toBe(true);
     expect(isBlogNavActive("/website")).toBe(false);
+  });
+  it("Sitio web no queda marcado en Dominio, que tiene su ítem", () => {
+    expect(isWebsiteNavActive("/website/dominio")).toBe(false);
+    expect(isDomainNavActive("/website/dominio")).toBe(true);
+    expect(isDomainNavActive("/website/dominios-raros")).toBe(false);
+    expect(isDomainNavActive("/website")).toBe(false);
   });
 });
 
