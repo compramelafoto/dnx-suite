@@ -429,6 +429,11 @@ export async function leerAutomatico(workspaceId: string, clave: ClaveAutomatico
   return { ...f, clave, channel: f.channel as Canal, entityType: f.entityType as TipoPlantilla };
 }
 
+/** Saltos de línea unificados y sin espacios en los extremos, sólo para comparar. */
+function normalizarParaComparar(s: string): string {
+  return s.replace(/\r\n?/g, "\n").trim();
+}
+
 export type CambiosDeAutomatico = { enabled: unknown; subject: unknown; body: unknown };
 
 /** Interruptor, asunto y cuerpo. Ficha y canal son fijos (`AUTOMATICOS`). Si no existía, lo crea. */
@@ -439,9 +444,16 @@ export async function guardarAutomatico(ctx: CtxPlantillas, clave: unknown, dato
   const def = AUTOMATICOS[clave];
   // Apagar sin tocar los textos se puede siempre, aunque lo guardado ya no valide (una variable
   // de un campo que se archivó, por ejemplo): sólo se cambia el interruptor.
+  // Se comparan normalizados: el formulario manda los saltos de línea como \r\n.
   if (datos.enabled === false) {
     const guardado = await leerAutomatico(ctx.workspaceId, clave);
-    if (guardado && (guardado.subject ?? "") === datos.subject && guardado.body === datos.body) {
+    if (
+      guardado &&
+      typeof datos.subject === "string" &&
+      typeof datos.body === "string" &&
+      normalizarParaComparar(guardado.subject ?? "") === normalizarParaComparar(datos.subject) &&
+      normalizarParaComparar(guardado.body) === normalizarParaComparar(datos.body)
+    ) {
       await prisma.fotofficeMessageTemplate.updateMany({
         where: { workspaceId: ctx.workspaceId, systemKey: clave },
         data: { enabled: false, updatedByUserId: ctx.userId },

@@ -20,6 +20,7 @@ export function AutomaticoForm({
   asunto: asuntoGuardado,
   cuerpo: cuerpoGuardado,
   campos,
+  soloApagar = false,
 }: {
   clave: string;
   nombre: string;
@@ -31,6 +32,11 @@ export function AutomaticoForm({
   asunto: string;
   cuerpo: string;
   campos: CampoDeEjemplo[];
+  /**
+   * Con Captación apagada: sólo se puede apagar. Los textos no se editan y viajan tal cual están
+   * guardados, así que apagar no los revalida.
+   */
+  soloApagar?: boolean;
 }) {
   const [encendido, setEncendido] = useState(encendidoGuardado);
   const [asunto, setAsunto] = useState(asuntoGuardado);
@@ -72,6 +78,13 @@ export function AutomaticoForm({
           queda igual y el fallo queda en su historial.
         </p>
       </div>
+      {soloApagar ? (
+        <p role="note" className="rounded-lg border border-[var(--fo-border)] p-3 text-sm">
+          El módulo Captación está apagado, así que esta respuesta no se está mandando aunque figure encendida. Mientras
+          siga apagado sólo podés apagarla; para editar el texto o volver a encenderla, activá Captación en
+          Configuración → Módulos.
+        </p>
+      ) : null}
       <form onSubmit={onSubmit} className="space-y-4">
         <input type="hidden" name="clave" value={clave} />
         <label className="flex items-center gap-3 text-sm font-medium">
@@ -82,22 +95,30 @@ export function AutomaticoForm({
             value="1"
             checked={encendido}
             onChange={(e) => setEncendido(e.target.checked)}
+            disabled={soloApagar && !encendido}
             className="size-4"
           />
           Mandar automáticamente
         </label>
-        <EditorTexto
-          idBase={`auto-${clave}`}
-          canal={canal}
-          tipo={tipo}
-          campos={campos}
-          asunto={asunto}
-          setAsunto={setAsunto}
-          cuerpo={cuerpo}
-          setCuerpo={setCuerpo}
-          errores={estado.errores}
-        />
-        <button type="submit" className="fo-btn fo-btn-primary text-sm" disabled={pendiente}>
+        {soloApagar ? (
+          <>
+            <input type="hidden" name="asunto" value={asuntoGuardado} />
+            <input type="hidden" name="cuerpo" value={cuerpoGuardado} />
+          </>
+        ) : (
+          <EditorTexto
+            idBase={`auto-${clave}`}
+            canal={canal}
+            tipo={tipo}
+            campos={campos}
+            asunto={asunto}
+            setAsunto={setAsunto}
+            cuerpo={cuerpo}
+            setCuerpo={setCuerpo}
+            errores={estado.errores}
+          />
+        )}
+        <button type="submit" className="fo-btn fo-btn-primary text-sm" disabled={pendiente || (soloApagar && encendido)}>
           Guardar
         </button>
         {estado.errores?.length ? null : <Mensaje estado={estado} />}

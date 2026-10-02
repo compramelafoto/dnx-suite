@@ -70,8 +70,12 @@ export default async function ConfiguracionPlantillasPage({
     ...encendidos.map((t) => ({ valor: t, etiqueta: etiquetas[t] })),
   ];
   const conCaptacion = encendidos.includes("CONSULTA");
+  const auto = await leerAutomatico(workspace.id, "CONSULTA_AUTORESPUESTA");
+  // Automáticos se ve con Captación encendida o, sin ella, mientras la respuesta siga encendida:
+  // así se puede apagar (con el módulo apagado no sale, pero no debe quedar prendida a escondidas).
+  const conAutomaticos = conCaptacion || auto?.enabled === true;
 
-  const pestanas = PESTANAS.filter((p) => p.slug !== "automaticos" || conCaptacion);
+  const pestanas = PESTANAS.filter((p) => p.slug !== "automaticos" || conAutomaticos);
   const { canal: pedido } = await searchParams;
   const elegida = pestanas.find((p) => p.slug === pedido) ?? pestanas[0]!;
 
@@ -108,7 +112,6 @@ export default async function ConfiguracionPlantillasPage({
     );
   } else {
     const def = AUTOMATICOS.CONSULTA_AUTORESPUESTA;
-    const auto = await leerAutomatico(workspace.id, "CONSULTA_AUTORESPUESTA");
     contenido = (
       <AutomaticoForm
         clave="CONSULTA_AUTORESPUESTA"
@@ -120,6 +123,7 @@ export default async function ConfiguracionPlantillasPage({
         asunto={auto?.subject ?? ""}
         cuerpo={auto?.body ?? ""}
         campos={campos[def.tipo]}
+        soloApagar={!conCaptacion}
       />
     );
   }

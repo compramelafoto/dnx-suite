@@ -245,6 +245,27 @@ describe("Configuración → Plantillas (automático)", () => {
     expect(plantillas().find((p) => p.id === id)!.enabled).toBe(true);
   });
 
+  it("apagar con el cuerpo en varias líneas (\\r\\n del formulario) y un campo archivado: no revalida", async () => {
+    const id = automatico();
+    B.agregar("fotofficeCustomField", {
+      workspaceId: "ws-1", entityType: "CONSULTA", key: "x", name: "X", type: "TEXTO", archivedAt: new Date(),
+    });
+    const guardado = "Hola [nombre]:\n\nTu salón: [campo:x]\n\n[firma]";
+    Object.assign(B.datos.fotofficeMessageTemplate.find((p) => p.id === id)!, { enabled: true, body: guardado });
+    const r = await A.guardarAutomaticoAction(
+      undefined,
+      fd({ clave: "CONSULTA_AUTORESPUESTA", asunto: "Recibimos tu consulta ", cuerpo: guardado.replace(/\n/g, "\r\n") }),
+    );
+    expect(r).toEqual({ error: null, ok: "Guardado: la respuesta automática está apagada." });
+    expect(plantillas().find((p) => p.id === id)).toMatchObject({ enabled: false, body: guardado });
+    // Encenderla con ese texto sí se valida: el campo ya no existe.
+    const on = await A.guardarAutomaticoAction(
+      undefined,
+      fd({ clave: "CONSULTA_AUTORESPUESTA", enabled: "1", asunto: "Recibimos tu consulta", cuerpo: guardado.replace(/\n/g, "\r\n") }),
+    );
+    expect(on.errores).toEqual([expect.objectContaining({ campo: "cuerpo", variable: "campo:x" })]);
+  });
+
   it("una variable de otra ficha en el automático vuelve con su posición", async () => {
     automatico();
     const r = await A.guardarAutomaticoAction(

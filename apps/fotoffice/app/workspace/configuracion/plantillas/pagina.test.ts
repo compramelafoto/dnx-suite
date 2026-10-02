@@ -36,13 +36,27 @@ describe("Configuración → Plantillas", () => {
     expect(p.indexOf("asegurarPlantillasIniciales(")).toBeLessThan(p.indexOf("listarPlantillas("));
   });
 
-  it("ofrece cada tipo sólo con su módulo y Automáticos sólo con Captación", () => {
+  it("ofrece cada tipo sólo con su módulo y Automáticos con Captación o mientras siga encendida", () => {
     const p = aqui("page.tsx");
     expect(p).toContain("tiposConModuloEncendido(workspace.id)");
     expect(p).toContain('{ valor: "GENERAL", etiqueta: etiquetas.GENERAL }');
     expect(p).toContain("...encendidos.map((t) => ({ valor: t, etiqueta: etiquetas[t] }))");
     expect(p).toContain("SOCIO: vocabulario.Plural");
-    expect(p).toContain('p.slug !== "automaticos" || conCaptacion');
+    expect(p).toContain('const conAutomaticos = conCaptacion || auto?.enabled === true;');
+    expect(p).toContain('p.slug !== "automaticos" || conAutomaticos');
+    expect(p).toContain("soloApagar={!conCaptacion}");
+  });
+
+  it("sin Captación el formulario del automático sólo deja apagarlo y explica por qué", () => {
+    const f = aqui("automatico-form.tsx");
+    expect(f).toContain("El módulo Captación está apagado");
+    expect(f).toContain("disabled={soloApagar && !encendido}");
+    expect(f).toContain("disabled={pendiente || (soloApagar && encendido)}");
+    // Los textos viajan tal cual están guardados (así apagar no los revalida) y no se editan.
+    expect(f).toContain('<input type="hidden" name="asunto" value={asuntoGuardado} />');
+    expect(f).toContain('<input type="hidden" name="cuerpo" value={cuerpoGuardado} />');
+    const editor = f.indexOf("<EditorTexto");
+    expect(editor).toBeGreaterThan(f.indexOf("{soloApagar ? (\n          <>"));
   });
 
   it("las acciones son de servidor y cada una pasa por el contexto con `configurar` primero", () => {
