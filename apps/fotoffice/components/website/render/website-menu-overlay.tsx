@@ -3,7 +3,8 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import type { MenuSideId } from "@/lib/website/design-presets";
 import type { SiteNavItem } from "@/lib/website/site-nav";
-import { SiteNavLink, useIsCurrentNavItem } from "./website-header-nav-client";
+import { levelStyle } from "@/lib/website/typography";
+import { PESO_ACTUAL, SiteNavLink, useIsCurrentNavItem } from "./website-header-nav-client";
 
 export type MenuOverlayVariant = "drawer" | "fullscreen" | "modal";
 
@@ -115,7 +116,7 @@ export function WebsiteMenuOverlay({
           aria-modal="true"
           aria-label="Menú"
           className={`absolute flex flex-col ${posicionPanel}`}
-          style={{ backgroundColor: "var(--wsite-bg)", color: "var(--wsite-text)" }}
+          style={{ backgroundColor: "var(--wsite-bg)", color: "var(--wsite-menu-color)" }}
         >
           <button
             ref={botonCerrar}
@@ -142,10 +143,8 @@ export function WebsiteMenuOverlay({
                     current={actual}
                     onNavigate={cerrar}
                     className={`${tamanoItem} transition-opacity hover:opacity-70`}
-                    style={{
-                      fontWeight: actual ? 600 : 400,
-                      fontFamily: variant === "drawer" ? undefined : "var(--wsite-heading-font)",
-                    }}
+                    // Letra, grosor y mayúsculas del nivel Menú; el tamaño, el de cada panel.
+                    style={{ ...levelStyle("menu", { color: false }), fontSize: undefined, ...(actual ? PESO_ACTUAL : {}) }}
                   />
                   {item.children.map((hijo) => (
                     <SiteNavLink

@@ -1,5 +1,6 @@
 import type { WebsiteDesignPresets } from "@/lib/website/design-presets";
 import type { SiteNavItem } from "@/lib/website/site-nav";
+import { levelStyle } from "@/lib/website/typography";
 import { WebsiteHeaderNavClient } from "./website-header-nav-client";
 import { WebsiteMenuOverlay } from "./website-menu-overlay";
 
@@ -43,10 +44,11 @@ export function WebsiteHeaderView({
   const centered = layout === "topbar" && preset === "centered";
   const minimal = layout === "topbar" && preset === "minimal";
 
-  const colorTexto = overlay ? "#ffffff" : "var(--wsite-text)";
+  // Los ítems del menú toman el color de su nivel; sobre la portada (barra transparente), blanco.
+  const colorTexto = overlay ? "#ffffff" : "var(--wsite-menu-color)";
 
   const logo = (
-    <a href={homeHref} className="flex shrink-0 items-center gap-2" style={{ color: colorTexto }}>
+    <a href={homeHref} className="flex shrink-0 items-center gap-2" style={{ color: overlay ? "#ffffff" : "var(--wsite-text)" }}>
       {logoUrl ? (
         // En el teléfono se limita al 18% del ancho: un logo de 160 px taparía media pantalla.
         // eslint-disable-next-line @next/next/no-img-element -- el logo vive en R2
@@ -66,14 +68,14 @@ export function WebsiteHeaderView({
   const botonLogin = designPresets.showLoginButton ? (
     <a
       href="/login"
-      className="inline-block shrink-0 text-sm"
+      className="inline-block shrink-0"
       style={{
+        ...levelStyle("button", { color: false }),
         backgroundColor: "var(--wsite-accent)",
         color: "#ffffff",
         borderRadius: "var(--wsite-button-radius)",
         paddingInline: "var(--wsite-button-padding-x)",
         paddingBlock: "var(--wsite-button-padding-y)",
-        fontWeight: "var(--wsite-button-weight)",
       }}
     >
       {designPresets.loginButtonLabel || "Iniciar sesión"}

@@ -3,6 +3,7 @@
 import type { CSSProperties } from "react";
 import { usePathname } from "next/navigation";
 import { isPathCurrent, type SiteNavItem } from "@/lib/website/site-nav";
+import { levelStyle } from "@/lib/website/typography";
 
 /**
  * Sólo los enlaces del menú cruzan al navegador. `WebsiteHeaderView` sigue siendo un Server
@@ -46,6 +47,9 @@ export function SiteNavLink({
   );
 }
 
+/** El ítem actual va un punto más grueso que el resto, sea cual sea el grosor elegido. */
+export const PESO_ACTUAL = { fontWeight: "min(900, calc(var(--wsite-menu-weight) + 200))" } as const;
+
 /**
  * Los ítems a la vista, para pantallas grandes: en fila (barra superior) o en columna (barra
  * lateral fija). En el celular no se muestra: ahí manda `WebsiteMenuOverlay`.
@@ -76,8 +80,8 @@ export function WebsiteHeaderNavClient({
       aria-label="Menú principal"
       className={
         vertical
-          ? "hidden flex-col gap-3 text-sm @3xl:flex"
-          : `hidden items-center gap-6 text-sm @3xl:flex ${centered ? "flex-wrap justify-center" : ""}`
+          ? "hidden flex-col gap-3 @3xl:flex"
+          : `hidden items-center gap-6 @3xl:flex ${centered ? "flex-wrap justify-center" : ""}`
       }
     >
       {itemsVisibles.map((item) => {
@@ -88,7 +92,7 @@ export function WebsiteHeaderNavClient({
             item={item}
             current={actual}
             className="transition-opacity hover:opacity-70"
-            style={{ color: colorTexto, opacity: actual ? 1 : 0.75, fontWeight: actual ? 600 : 400 }}
+            style={{ ...levelStyle("menu", { color: false }), color: colorTexto, opacity: actual ? 1 : 0.75, ...(actual ? PESO_ACTUAL : {}) }}
           />
         );
       })}

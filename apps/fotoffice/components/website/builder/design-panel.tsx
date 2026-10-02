@@ -6,9 +6,9 @@ import {
   ANIMATION_PRESETS,
   BUTTON_PRESETS,
   FOOTER_PRESETS,
-  TYPOGRAPHY_PRESETS,
   type WebsiteDesignPresets,
 } from "@/lib/website/design-presets";
+import { TypographyPanel } from "./typography-panel";
 import { WEBSITE_DEFAULT_COLORS, type WebsiteColors } from "@/lib/website/branding-defaults";
 
 const COLOR_FIELDS: { key: keyof WebsiteColors; label: string }[] = [
@@ -99,15 +99,7 @@ export function DesignPanel({
           </div>
         </section>
 
-        <section className="space-y-3">
-          <p className="text-xs font-semibold text-[var(--fo-text)]">Tipografía</p>
-          <SelectField
-            label="Estilo"
-            value={presets.typographyPreset}
-            onChange={(v) => onPresetsChange({ ...presets, typographyPreset: v as WebsiteDesignPresets["typographyPreset"] })}
-            options={TYPOGRAPHY_PRESETS.map((p) => ({ value: p.id, label: p.label }))}
-          />
-        </section>
+        <TypographyPanel presets={presets} colors={colors} onPresetsChange={onPresetsChange} />
 
         <section className="space-y-3">
           <p className="text-xs font-semibold text-[var(--fo-text)]">Botones</p>

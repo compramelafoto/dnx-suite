@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
-import type { WebsiteDesignPresets } from "@/lib/website/design-presets";
+import { websiteFontsHref, type WebsiteDesignPresets } from "@/lib/website/design-presets";
 
 /**
  * El marco común del sitio: encabezado, contenido y pie. Lo usan el sitio público
@@ -27,8 +27,12 @@ export function SiteFrame({
 }) {
   const sidebar = designPresets.menuLayout === "sidebar";
   const fila = sidebar ? (designPresets.menuSide === "left" ? "@3xl:flex-row" : "@3xl:flex-row-reverse") : "";
+  // Sólo las letras de Google que el diseño usa. React 19 sube este `<link>` al `<head>` (por
+  // `precedence`) y no lo repite aunque se dibuje dos veces.
+  const fuentes = websiteFontsHref(designPresets);
   return (
     <div className="@container" style={{ ...style, minHeight }}>
+      {fuentes ? <link rel="stylesheet" href={fuentes} precedence="wsite-fonts" /> : null}
       <div className={`flex flex-col ${fila}`} style={{ minHeight }}>
         {header}
         <div className="flex min-w-0 flex-1 flex-col">

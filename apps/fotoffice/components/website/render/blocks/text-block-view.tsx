@@ -1,4 +1,5 @@
 import type { TextBlockConfig } from "@/lib/website/blocks";
+import { levelStyle } from "@/lib/website/typography";
 
 export function TextBlockView({ config }: { config: TextBlockConfig }) {
   const align = config.align === "center" ? "text-center mx-auto" : "text-left";
@@ -8,21 +9,16 @@ export function TextBlockView({ config }: { config: TextBlockConfig }) {
     <section className="px-6 py-14">
       <div className={`max-w-3xl space-y-4 ${align}`}>
         {config.title ? (
-          <h2
-            className="text-2xl"
-            style={{ color: "var(--wsite-text)", fontFamily: "var(--wsite-heading-font)", fontWeight: "var(--wsite-heading-weight)", letterSpacing: "var(--wsite-letter-spacing)" }}
-          >
-            {config.title}
-          </h2>
+          <h2 style={{ ...levelStyle("heading", { color: true }), letterSpacing: "var(--wsite-letter-spacing)" }}>{config.title}</h2>
         ) : null}
         {paragraphs.length > 0 ? (
           paragraphs.map((p, i) => (
-            <p key={i} className="leading-relaxed whitespace-pre-line" style={{ color: "var(--wsite-text)", opacity: 0.85 }}>
+            <p key={i} className="leading-relaxed whitespace-pre-line" style={{ ...levelStyle("body", { color: true }), opacity: 0.85 }}>
               {p}
             </p>
           ))
         ) : (
-          <p className="leading-relaxed opacity-50" style={{ color: "var(--wsite-text)" }}>
+          <p className="leading-relaxed opacity-50" style={levelStyle("body", { color: true })}>
             Sin contenido todavía.
           </p>
         )}

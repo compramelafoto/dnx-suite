@@ -42,6 +42,7 @@ describe("parseWebsiteDesignPresets", () => {
       footerPreset: "simple",
       menuLayout: "drawer",
       menuSide: "left",
+      typographyLevels: { title: { font: "playfair-display", size: "xl" }, body: { color: "#112233" } },
     };
     expect(parseWebsiteDesignPresets(full)).toEqual(full);
   });
