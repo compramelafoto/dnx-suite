@@ -13,6 +13,9 @@ import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
 import { PortalIcon } from "./portal-icon";
 import { PortalAvatar } from "./portal-shell";
+import type { PortalRaffleView } from "@/lib/raffles/portal";
+import { fechaHora } from "@/lib/raffles/labels";
+import { PrizeCards } from "@/components/raffles/prize-cards";
 
 export type PortalHomeProps = {
   institution: string;
@@ -37,6 +40,8 @@ export type PortalHomeProps = {
   perfilVacio: boolean;
   puedeCambiarPerfil: boolean;
   tieneNegocio: boolean;
+  /** El sorteo abierto, si hay uno y el módulo está prendido. */
+  sorteo: PortalRaffleView | null;
 };
 
 /**
@@ -58,6 +63,7 @@ export function PortalHome({
   perfilVacio,
   puedeCambiarPerfil,
   tieneNegocio,
+  sorteo,
 }: PortalHomeProps) {
   const cuotasPendientes = cuenta.charges.filter((c) => !isOpeningBalance(c.period));
   const alDia = cuenta.charges.length === 0;
@@ -141,6 +147,8 @@ export function PortalHome({
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
+          {sorteo ? <TarjetaSorteo sorteo={sorteo} /> : null}
+
           <section className="fo-card space-y-4 p-5">
             <div className="flex flex-wrap items-baseline justify-between gap-3">
               <h2 className="text-base font-semibold">Tus cuotas</h2>
@@ -378,5 +386,59 @@ function Indicador({
       <p className={`mt-1 truncate text-lg font-semibold tabular-nums ${TONOS[tono]}`}>{valor}</p>
       {detalle ? <p className="text-xs leading-snug text-[var(--fo-muted)]">{detalle}</p> : null}
     </div>
+  );
+}
+
+/**
+ * El sorteo del mes en el inicio. Quien está al día lo ve destacado: es el premio por estarlo.
+ * Quien no, ve qué le falta para entrar, con el camino a sus cuotas.
+ */
+function TarjetaSorteo({ sorteo }: { sorteo: PortalRaffleView }) {
+  const { participating, reason, frozen } = sorteo.myStatus;
+  return (
+    <section
+      className={`fo-card space-y-4 p-5 ${
+        participating ? "border-2 border-[var(--fo-success-border)]" : ""
+      }`}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-medium uppercase tracking-wide text-[var(--fo-muted)]">
+            Sorteo del mes
+          </p>
+          <h2 className="text-base font-semibold">{sorteo.title}</h2>
+          <p className="text-sm text-[var(--fo-muted)]">Se sortea el {fechaHora(sorteo.drawsAt)}.</p>
+        </div>
+        <span
+          className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${
+            participating
+              ? "bg-[var(--fo-success-soft)] text-[var(--fo-success)]"
+              : "bg-[var(--fo-warning-soft)] text-[var(--fo-warning)]"
+          }`}
+        >
+          {participating ? "Estás participando" : "Todavía no participás"}
+        </span>
+      </div>
+
+      {!participating ? (
+        <p className="text-sm">
+          {reason}{" "}
+          {!frozen ? (
+            <>
+              Si te ponés al día antes del {fechaHora(sorteo.entriesCloseAt)}, entrás.{" "}
+              <Link href="/portal/cuotas" className="font-medium underline">
+                Ver mis cuotas
+              </Link>
+            </>
+          ) : null}
+        </p>
+      ) : null}
+
+      {sorteo.prizes.length > 0 ? <PrizeCards prizes={sorteo.prizes} compacta /> : null}
+
+      <Link href="/portal/sorteos" className="inline-flex text-sm font-medium text-[var(--fo-accent-hover)] hover:underline">
+        Ver el sorteo completo →
+      </Link>
+    </section>
   );
 }

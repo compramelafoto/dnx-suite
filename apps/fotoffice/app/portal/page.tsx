@@ -12,6 +12,7 @@ import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { resolvePortalMenu } from "@/lib/portal/menu";
 import { PortalHome } from "@/components/portal/portal-home";
+import { loadPortalRaffles } from "@/lib/raffles/portal";
 
 export const dynamic = "force-dynamic";
 
@@ -78,6 +79,16 @@ export default async function PortalPage() {
     (s) => s.href === "/portal/recomendados" && s.state === "DISPONIBLE",
   );
 
+  // El sorteo del mes, si el módulo está prendido: estar al día tiene premio, y el inicio es
+  // donde el socio se entera.
+  const sorteosDisponibles = secciones.some(
+    (s) => s.href === "/portal/sorteos" && s.state === "DISPONIBLE",
+  );
+  const sorteo = sorteosDisponibles
+    ? (await loadPortalRaffles({ workspaceId: context.workspace.id, memberId: context.member.id }))
+        .current
+    : null;
+
   return (
     <PortalHome
       institution={institution}
@@ -101,6 +112,7 @@ export default async function PortalPage() {
       perfilVacio={perfilVacio}
       puedeCambiarPerfil={profiles.length > 1}
       tieneNegocio={profiles.some((p) => p.kind === "TEAM")}
+      sorteo={sorteo}
     />
   );
 }
