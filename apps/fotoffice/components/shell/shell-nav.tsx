@@ -10,6 +10,7 @@ import {
   Plug,
   Inbox,
   LayoutDashboard,
+  Newspaper,
   Settings,
   Shield,
   UserCog,
@@ -30,6 +31,7 @@ import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
+import { isBlogNavActive, isWebsiteNavActive } from "@/lib/blog/admin-nav";
 
 /**
  * Menú principal.
@@ -249,10 +251,20 @@ export function ShellNav({
       ]
     : [];
 
-  // Presencia pública: hoy un solo ítem, y aun así con encabezado propio. Es donde aterrizan
-  // el blog, los portfolios y las redes cuando existan.
+  // Presencia pública: el sitio y su blog. Es donde aterrizan los portfolios y las redes
+  // cuando existan.
+  //
+  // El blog vive adentro de `/website` (es una sección del módulo Sitio web, con la misma
+  // llave), pero tiene ítem propio porque se usa todas las semanas y el constructor no.
+  // Por eso "Sitio web" deja de marcarse con `under("/website")`: adentro del blog quedaban
+  // los dos encendidos. Sólo lo ven quienes pueden escribir en él (dueño o administrador).
   const presencia: Item[] = websiteEnabled
-    ? [{ href: "/website", label: "Sitio web", icon: Globe, isActive: under("/website") }]
+    ? [
+        { href: "/website", label: "Sitio web", icon: Globe, isActive: isWebsiteNavActive },
+        ...(canManageWorkspaceSettings
+          ? [{ href: "/website/blog", label: "Blog", icon: Newspaper, isActive: isBlogNavActive }]
+          : []),
+      ]
     : [];
 
   const institucion: Item[] = canManageWorkspaceSettings

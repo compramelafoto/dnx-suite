@@ -9,6 +9,7 @@ import {
   publicModulePagesFor,
   resolvePublicModuleLabel,
 } from "./public-modules";
+import { BLOG_PUBLIC_PAGE_KEY } from "./constants";
 import { buildSiteNav, type SiteNavItem } from "./site-nav";
 
 /**
@@ -169,6 +170,15 @@ export function availableMenuSections(homeBlocks: WebsiteBlock[]): MenuSectionOp
     .map((item) => ({ blockId: item.id, label: item.label, anchor: item.anchor }));
 }
 
+/**
+ * Las páginas habilitadas contando el blog, que no es un módulo: entra con su llave propia
+ * cuando tiene artículos publicados (misma regla que `buildSiteNav`). Lo usan también el
+ * constructor y las vistas previas, para que el blog aparezca en la lista del menú.
+ */
+export function withBlogPage(enabledModuleKeys: ReadonlySet<string>, hasPublishedBlog: boolean): ReadonlySet<string> {
+  return hasPublishedBlog ? new Set([...enabledModuleKeys, BLOG_PUBLIC_PAGE_KEY]) : enabledModuleKeys;
+}
+
 function pageEntry(page: string): SiteMenuEntry {
   return { id: `page:${page}`, kind: "page", page, label: null, hidden: false };
 }
@@ -202,17 +212,20 @@ export function resolveSiteNav(input: {
   menu: SiteMenu | null;
   /** Ver `buildSiteNav`: omitirlo deja las palabras por omisión. */
   personVocabulary?: PersonVocabulary;
+  /** Ver `buildSiteNav`: el blog cuenta como página habilitada sólo con artículos publicados. */
+  hasPublishedBlog?: boolean;
 }): SiteNavItem[] {
   if (!input.menu) return buildSiteNav(input);
 
   const base = `/w/${input.workspaceSlug}`;
-  const paginas = new Map(availableMenuPages(input.enabledModuleKeys, input.personVocabulary).map((p) => [p.page, p]));
+  const habilitadas = withBlogPage(input.enabledModuleKeys, Boolean(input.hasPublishedBlog));
+  const paginas = new Map(availableMenuPages(habilitadas, input.personVocabulary).map((p) => [p.page, p]));
   const secciones = new Map(
     (input.hasPublishedSite ? availableMenuSections(input.homeBlocks) : []).map((s) => [s.blockId, s]),
   );
 
   const nav: SiteNavItem[] = [];
-  for (const entry of materializeSiteMenu(input.menu, input.enabledModuleKeys).items) {
+  for (const entry of materializeSiteMenu(input.menu, habilitadas).items) {
     if (entry.hidden) continue;
     if (entry.kind === "page") {
       const pagina = paginas.get(entry.page);

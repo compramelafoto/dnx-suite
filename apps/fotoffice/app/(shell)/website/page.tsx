@@ -3,6 +3,8 @@ import { loadWebsiteCmsContext } from "@/lib/website/page-context";
 import { resolveWebsiteColors } from "@/lib/website/branding-defaults";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
+import { listBlogPosts } from "@/lib/blog/public";
+import { withBlogPage } from "@/lib/website/site-menu";
 import { normalizeFotofficeOrganizationType } from "@/lib/onboarding-constants";
 import { PageHeader } from "@/components/page-header";
 import { WebsiteBuilder } from "@/components/website/builder/website-builder";
@@ -13,7 +15,7 @@ export default async function WebsiteBuilderPage({ searchParams }: { searchParam
     searchParams,
   ]);
 
-  const [branding, enabledModuleKeys, personVocabulary] = await Promise.all([
+  const [branding, enabledModuleKeys, personVocabulary, hasPublishedBlog] = await Promise.all([
     prisma.fotofficeWorkspaceBranding.findUnique({
       where: { workspaceId: workspace.id },
       select: {
@@ -30,6 +32,8 @@ export default async function WebsiteBuilderPage({ searchParams }: { searchParam
     }),
     getEnabledModuleKeysForWorkspace(workspace.id),
     loadPersonVocabulary(workspace.id),
+    // Misma regla que el sitio público: el blog va al menú si tiene al menos un artículo.
+    listBlogPosts({ workspaceId: workspace.id, slug: "", nombre: workspace.name, logoUrl: null }, { limit: 1 }).then((p) => p.length > 0),
   ]);
 
   return (
@@ -42,7 +46,7 @@ export default async function WebsiteBuilderPage({ searchParams }: { searchParam
         initialFaviconUrl={branding?.faviconUrl ?? null}
         initialDesignPresets={designPresets}
         initialMenu={menu}
-        enabledModuleKeys={[...enabledModuleKeys]}
+        enabledModuleKeys={[...withBlogPage(enabledModuleKeys, hasPublishedBlog)]}
         personVocabulary={personVocabulary}
         initialPanel={panel === "menu" ? "MENU" : undefined}
         workspaceName={branding?.commercialName ?? workspace.name}

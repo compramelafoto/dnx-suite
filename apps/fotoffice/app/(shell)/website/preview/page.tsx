@@ -7,6 +7,7 @@ import { websiteDesignCssVars } from "@/lib/website/design-presets";
 import { resolveSiteNav, toPreviewNav } from "@/lib/website/site-menu";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
+import { listBlogPosts } from "@/lib/blog/public";
 import { WebsitePageRenderer } from "@/components/website/render/website-page-renderer";
 import { WebsiteHeaderView } from "@/components/website/render/website-header-view";
 import { SiteFrame } from "@/components/website/render/site-frame";
@@ -20,18 +21,19 @@ import { SiteFrame } from "@/components/website/render/site-frame";
 export default async function WebsitePreviewPage() {
   const { workspace, sections, designPresets, menu } = await loadWebsiteCmsContext();
 
-  const [branding, enabledModuleKeys, personVocabulary] = await Promise.all([
+  const [branding, enabledModuleKeys, personVocabulary, hasPublishedBlog] = await Promise.all([
     prisma.fotofficeWorkspaceBranding.findUnique({
       where: { workspaceId: workspace.id },
       select: { primaryColor: true, secondaryColor: true, backgroundColor: true, textColor: true, accentColor: true, logoUrl: true, commercialName: true },
     }),
     getEnabledModuleKeysForWorkspace(workspace.id),
     loadPersonVocabulary(workspace.id),
+    listBlogPosts({ workspaceId: workspace.id, slug: "", nombre: workspace.name, logoUrl: null }, { limit: 1 }).then((p) => p.length > 0),
   ]);
   const colors = resolveWebsiteColors(branding);
   const blocks = sections.pages.home ?? [];
   const navItems = toPreviewNav(
-    resolveSiteNav({ workspaceSlug: "vista-previa", homeBlocks: blocks, enabledModuleKeys, hasPublishedSite: true, menu, personVocabulary }),
+    resolveSiteNav({ workspaceSlug: "vista-previa", homeBlocks: blocks, enabledModuleKeys, hasPublishedSite: true, menu, personVocabulary, hasPublishedBlog }),
   );
   const themeVars = {
     "--wsite-primary": colors.primaryColor,

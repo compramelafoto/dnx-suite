@@ -164,6 +164,13 @@ describe("resolveSiteNav", () => {
     expect(resolveSiteNav({ ...comun, menu: menu(page("home")) }).map((i) => i.label)).toContain("Voluntarios");
   });
 
+  it("el blog entra al final del menú editado sólo si tiene artículos publicados", () => {
+    const editado = menu(page("home"));
+    expect(resolveSiteNav({ ...base, menu: editado, hasPublishedBlog: false }).map((i) => i.label)).not.toContain("Blog");
+    const nav = resolveSiteNav({ ...base, menu: editado, hasPublishedBlog: true });
+    expect(nav[nav.length - 1]).toMatchObject({ label: "Blog", href: "/w/sfpr/blog" });
+  });
+
   it("Inicio se marca por igualdad exacta", () => {
     const nav = resolveSiteNav({ ...base, menu: menu(page("home")) });
     expect(nav[0]).toMatchObject({ href: "/w/sfpr", exact: true });
