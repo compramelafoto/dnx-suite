@@ -1,4 +1,4 @@
-import { compose, type EmailBody } from "@/lib/membership/application-emails";
+import { compose, escapeHtml, type EmailBody } from "@/lib/membership/application-emails";
 import type { RenderedEmailSignature } from "@repo/communications/signature";
 
 /**
@@ -117,6 +117,62 @@ export function buildSponsorNoticeEmail(
       `Ganador: ${input.winnerFullName} (socio N° ${input.winnerMemberNumber}).`,
       `Retira hasta el ${vence}.`,
     ],
+    signature: input.signature,
+  });
+}
+
+/**
+ * Los resultados, a todos los socios activos.
+ *
+ * Al que participó le cuenta quién ganó; al que no, además, que estando al día el mes que viene
+ * entra. Los ganadores van con nombre e inicial, igual que en la página pública: es un correo
+ * masivo y se reenvía.
+ */
+export function buildResultsEmail(input: {
+  raffleTitle: string;
+  winners: { prizeTitle: string; partnerName: string | null; winnerName: string }[];
+  publicUrl: string | null;
+  recipientFirstName: string;
+  participated: boolean;
+  memberWordPlural: string;
+  signature: RenderedEmailSignature | null;
+}): EmailBody {
+  const lista = input.winners.map(
+    (w) => `${w.prizeTitle}${w.partnerName ? ` (lo dona ${w.partnerName})` : ""}: ${w.winnerName}`,
+  );
+  const html = `<ul style="padding-left:20px;margin:8px 0 16px;">${input.winners
+    .map(
+      (w) =>
+        `<li style="margin:6px 0;"><strong>${escapeHtml(w.prizeTitle)}</strong>${
+          w.partnerName ? ` <span style="color:#6b7280;">(lo dona ${escapeHtml(w.partnerName)})</span>` : ""
+        }<br>${escapeHtml(w.winnerName)}</li>`,
+    )
+    .join("")}</ul>`;
+
+  const parrafos = [
+    `Ya se hizo ${input.raffleTitle}. ${input.winners.length === 1 ? "Este es el ganador:" : "Estos son los ganadores:"}`,
+  ];
+  const cierre = input.participated
+    ? "Gracias por estar al día: es lo que hace posible estos sorteos."
+    : `Esta vez no participaste porque al cierre tenías cuotas pendientes. Participan todos los ${input.memberWordPlural} que están al día: ponete al día y entrás en el próximo.`;
+
+  return compose({
+    subject: `Resultados de ${input.raffleTitle}`,
+    greetingName: input.recipientFirstName,
+    paragraphs: parrafos,
+    // Sin `cta`: `compose` pone el botón antes de los bloques, y acá tiene que ir después de
+    // la lista de ganadores.
+    blocks: [
+      {
+        html: `${html}\n  <p>${escapeHtml(cierre)}</p>${
+          input.publicUrl
+            ? `\n  <p style="margin:24px 0;"><a href="${escapeHtml(input.publicUrl)}" style="background:#1d4ed8;color:#ffffff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600;">Ver el sorteo</a></p>`
+            : ""
+        }`,
+        text: `${lista.join("\n")}\n\n${cierre}${input.publicUrl ? `\n\nVer el sorteo: ${input.publicUrl}` : ""}`,
+      },
+    ],
+    notes: ["El resultado se puede comprobar: sale de un número público que no controla nadie de la institución."],
     signature: input.signature,
   });
 }
