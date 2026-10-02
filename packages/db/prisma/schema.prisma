@@ -7081,6 +7081,7 @@ model Workspace {
   courseSalesSettings         CourseSalesWorkspaceSettings?
   fotofficeBranding           FotofficeWorkspaceBranding?
   fotofficeWebsite            FotofficeWorkspaceWebsite?
+  fotofficeDomain             FotofficeWorkspaceDomain?
   fotorankJudgeAccounts       FotorankJudgeAccount[]
   memberships                 Membership[]
   serviceLeadForms            ServiceLeadForm[]
@@ -7214,6 +7215,28 @@ model FotofficeWorkspaceWebsite {
   workspace          Workspace                          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   publishedVersion   FotofficeWorkspaceWebsiteVersion?  @relation("WebsitePublishedVersion", fields: [publishedVersionId], references: [id])
   versions           FotofficeWorkspaceWebsiteVersion[] @relation("WebsiteVersionHistory")
+}
+
+/// Dominio propio del sitio público de una institución (ej. `sfpr.com.ar`). Tabla aparte y no
+/// columnas en `FotofficeWorkspaceWebsite`: el esquema se comparte con otras bases y una columna
+/// sin aplicar rompe todas las consultas del modelo. Spec:
+/// `apps/fotoffice/docs/superpowers/specs/2026-10-02-sitio-web-dominio-propio-design.md`.
+model FotofficeWorkspaceDomain {
+  id                 String    @id @default(cuid())
+  workspaceId        String    @unique
+  /// Dominio raíz, en minúsculas, sin `www.` ni protocolo. `www.<domain>` se atiende solo.
+  domain             String    @unique
+  /// PENDING (falta el DNS) · CONNECTED (apunta bien) · ERROR. Texto y no enum: agregar un
+  /// estado no obliga a migrar las otras bases que comparten el esquema.
+  status             String    @default("PENDING")
+  /// Cuándo se agregó al proyecto de Vercel. null = sin token configurado o falló.
+  vercelRegisteredAt DateTime?
+  lastCheckedAt      DateTime?
+  /// Último problema, en lenguaje claro para el dueño de la institución.
+  lastError          String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  workspace          Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
 /// Snapshot INMUTABLE de una publicación del sitio — nunca se edita después de creado. Solo

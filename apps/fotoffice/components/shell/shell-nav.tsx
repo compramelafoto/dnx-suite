@@ -7,6 +7,7 @@ import {
   ClipboardCheck,
   FileText,
   Globe,
+  Link2,
   Plug,
   Inbox,
   LayoutDashboard,
@@ -31,7 +32,7 @@ import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
-import { isBlogNavActive, isWebsiteNavActive } from "@/lib/blog/admin-nav";
+import { isBlogNavActive, isDomainNavActive, isWebsiteNavActive } from "@/lib/blog/admin-nav";
 
 /**
  * Menú principal.
@@ -262,7 +263,11 @@ export function ShellNav({
     ? [
         { href: "/website", label: "Sitio web", icon: Globe, isActive: isWebsiteNavActive },
         ...(canManageWorkspaceSettings
-          ? [{ href: "/website/blog", label: "Blog", icon: Newspaper, isActive: isBlogNavActive }]
+          ? [
+              { href: "/website/blog", label: "Blog", icon: Newspaper, isActive: isBlogNavActive },
+              // Conectar el dominio propio (ej. sfpr.com.ar). Mismo permiso que el blog.
+              { href: "/website/dominio", label: "Dominio", icon: Link2, isActive: isDomainNavActive },
+            ]
           : []),
       ]
     : [];
