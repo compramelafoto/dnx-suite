@@ -2,7 +2,7 @@ import { formatMinorArs } from "@/lib/membership/money";
 import type { MovementRow } from "@/lib/cash/repository";
 import { reverseMovementAction } from "./actions";
 
-const ETIQUETA_METODO: Record<string, string> = {
+export const ETIQUETA_METODO: Record<string, string> = {
   EFECTIVO: "Efectivo",
   TRANSFERENCIA: "Transferencia",
   MERCADO_PAGO: "Mercado Pago",
@@ -12,6 +12,24 @@ const ETIQUETA_METODO: Record<string, string> = {
 
 function fecha(d: Date) {
   return d.toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" });
+}
+
+/**
+ * El botón de anular de una fila, con su motivo. Lo usan esta tabla y el listado estándar de
+ * `/caja/movimientos`. No aparece en un movimiento ya anulado ni en una pata de un pase (ver
+ * abajo por qué).
+ */
+export function AnularMovimiento({ movement: m }: { movement: Pick<MovementRow, "id" | "isReversed" | "transferId"> }) {
+  if (m.isReversed || m.transferId) return null;
+  return (
+    <form action={reverseMovementAction} className="flex flex-wrap items-center gap-1">
+      <input type="hidden" name="movementId" value={m.id} />
+      <input name="reverseReason" className="fo-input min-w-0 flex-1 text-xs" placeholder="Motivo de la anulación" required />
+      <button type="submit" className="fo-btn fo-btn-danger-outline shrink-0 text-xs">
+        Anular
+      </button>
+    </form>
+  );
 }
 
 /**
@@ -101,20 +119,7 @@ export function MovementsTable({
               </td>
               {showReverseAction ? (
                 <td className="px-4 py-3">
-                  {m.isReversed || m.transferId ? null : (
-                    <form action={reverseMovementAction} className="flex flex-wrap items-center gap-1">
-                      <input type="hidden" name="movementId" value={m.id} />
-                      <input
-                        name="reverseReason"
-                        className="fo-input min-w-0 flex-1 text-xs"
-                        placeholder="Motivo de la anulación"
-                        required
-                      />
-                      <button type="submit" className="fo-btn fo-btn-danger-outline shrink-0 text-xs">
-                        Anular
-                      </button>
-                    </form>
-                  )}
+                  <AnularMovimiento movement={m} />
                 </td>
               ) : null}
             </tr>

@@ -129,7 +129,7 @@ export async function openShiftFor(workspaceId: string, accountId: string): Prom
   };
 }
 
-const movementSelect = {
+export const movementSelect = {
   id: true,
   kind: true,
   amountArs: true,
@@ -180,7 +180,7 @@ export type MovementRow = {
   transferId: string | null;
 };
 
-function toMovementRow(r: MovementQueryRow): MovementRow {
+export function toMovementRow(r: MovementQueryRow): MovementRow {
   return {
     id: r.id,
     kind: r.kind as "INGRESO" | "EGRESO",

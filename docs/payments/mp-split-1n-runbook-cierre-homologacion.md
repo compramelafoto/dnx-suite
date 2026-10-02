@@ -7,6 +7,23 @@
 Los bloques van en orden de dependencia. Dentro de cada bloque, los pasos también.
 **Ningún paso mueve dinero hasta el bloque F**, que está separado a propósito.
 
+> ## Cómo funciona el proceso, según MP (2026-09-15)
+>
+> Marilyn lo aclaró y conviene tenerlo presente al leer todo lo que sigue:
+>
+> 1. **Las revisiones se hacen en ambiente de test**, con órdenes de prueba. Ahí se alinea el
+>    desarrollo con el checklist.
+> 2. **El video de la experiencia de pago también se evalúa en test.**
+> 3. **El Order ID productivo es el registro final**, para revalidar que lo trabajado en test
+>    quedó disponible en producción.
+>
+> Es decir: **los bloques D y E son el trabajo de verdad, y no cuestan un peso.** El bloque F es
+> una formalidad de cierre que llega cuando MP ya aprobó todo.
+>
+> Encaja con cómo está construido: la superficie `/homologacion/compra` funciona **sólo en
+> preview** —el guard la bloquea cuando `VERCEL_ENV=production`—, que es justo el ambiente donde
+> MP quiere ver las pruebas.
+
 ---
 
 ## Bloque A — Ahora mismo, sin depender de nadie
@@ -34,8 +51,16 @@ Conviene aprovechar el mismo mensaje para avisar que vamos a renombrar la app (B
 `Comprame la Foto` → **`DNX Suite`**. MP ya confirmó que no tiene impacto: su tracking va por
 ID de aplicación, que no cambia. En el checklist ya nos registran con ese nombre.
 
-### B2. Elegir la notification URL única
-No se puede declarar más de una. **Recomendación: `https://compramelafoto.com/api/webhooks/dnx-payments`.**
+### B2. La notification URL única
+No se puede declarar más de una. **Es esta, con `www`:**
+
+```
+https://www.compramelafoto.com/api/webhooks/dnx-payments
+```
+
+> ⚠️ **Sin `www` no sirve.** `compramelafoto.com` responde **308 y redirige** al dominio
+> canónico; muchos emisores de webhooks no siguen redirecciones y la notificación se perdería
+> en silencio. Verificado el 2026-09-15.
 
 Por qué ese host:
 - Es el dominio más estable de la suite.
@@ -69,7 +94,7 @@ Para que el endpoint funcione y no falle cerrado:
 | `DNX_MP_ORDERS_1N_PRODUCTION_ENABLED` | **`false`** | Si está en `true`, el guard bloquea el receptor |
 | `MERCADOPAGO_TEST_ACCESS_TOKEN` | Token TEST de la app DNX Suite | Sin esto no hay `GET` y el pipeline marca `GET_ORDER_NOT_CONFIGURED` |
 | `MERCADOPAGO_TEST_PUBLIC_KEY` | Public key TEST | Card Payment Brick |
-| `DNX_PAYMENTS_WEBHOOK_SECRET` | El de B4 | Validación de firma |
+| `MERCADOPAGO_WEBHOOK_SECRET` | El de B4 | Validación de firma. **Ojo con el nombre:** el handler lee esta variable, no `DNX_PAYMENTS_WEBHOOK_SECRET`. Y si ya había una cargada de la época de Checkout Pro, hay que reemplazarla por la de la app DNX Suite |
 | `DNX_CLF_MP_SPLIT_1N_HOMOLOGATION_ENABLED` | `true` | Habilita la superficie del Brick |
 
 **El token del `GET` tiene que ser el de la misma app que creó la Order.** Un `GET` con el token
@@ -81,8 +106,18 @@ de otra cuenta devuelve `Order not found`: eso fue exactamente lo que rompió la
 
 Produce la evidencia **"GET a la orden post-webhook"** del checklist.
 
+> **Dónde se corre.** La superficie que crea la orden vive **sólo en preview** (en producción
+> devuelve 404 a propósito). El receptor del webhook, en cambio, **sí corre en producción** y ya
+> está respondiendo — verificado el 2026-09-15: contesta `WEBHOOK_INVALID_SIGNATURE`, lo que
+> confirma que el endpoint está desplegado, el flag de observe encendido, el de producción
+> apagado y el secreto cargado.
+
 1. Entrar a `/admin/homologacion-mp-split-1n` en el entorno configurado. (Para el video del bloque E, la ruta es `/homologacion/compra`.)
-2. Correr el escenario `OWNER_PLUS_2` (owner + 2 partners = 3 receptores). Cubre de una vez la evidencia **"Split con múltiples partners"**.
+2. Correr el escenario `OWNER_PLUS_2` (owner + 2 partners = 3 receptores). Cubre de una vez la evidencia **"Split con múltiples partners"** — **ya obtenida el 2026-09-17**, ver [auditoría §8](./mp-split-1n-checklist-oficial-auditoria.md).
+
+   > **Ojo con el pagador.** Si la Order sale con el email y nada más, Mercado Pago la rechaza
+   > con `high_risk` aunque el titular sea `APRO`. La identificación tiene que viajar desde el
+   > Brick hasta la Order.
 3. Pagar con tarjeta de prueba. El `payer.email` debe terminar en `@testuser.com` — los fixtures ya cumplen.
 4. Verificar en los logs del endpoint que la respuesta traiga:
    - `WEBHOOK_RECEIVED: true`
@@ -161,7 +196,7 @@ Paquete final con las cuatro evidencias que pide el checklist:
 | Evidencia | De dónde sale |
 |---|---|
 | Video del flujo de pago aprobado | Bloque E |
-| Split con múltiples partners (owner + 2) | Bloque D, paso 2 |
+| Split con múltiples partners (owner + 2) | ✅ **YA OBTENIDA** el 2026-09-17 — orden `ORDTST01M2R3…`, `PROCESSED_ACCREDITED`, 3 receptores. Ver [auditoría §8](./mp-split-1n-checklist-oficial-auditoria.md) |
 | GET a la orden post-webhook | Bloque D, paso 5 |
 | Order ID productivo con `live_mode: true` | Bloque F |
 

@@ -1,4 +1,10 @@
 import { createHash } from "node:crypto";
+import {
+  buildAffiliateCommissionDraft,
+  DEFAULT_MP_FEE_BPS_ENV,
+  resolveAffiliateMpFeeBps,
+  type AffiliateCommissionDraft,
+} from "@/lib/affiliates/domain/commission-draft";
 import { marathonPath } from "@/config/navigation";
 import { attachPhaseProductsToTickets } from "@/lib/catalog/application/attach-phase-products";
 import { filterPhaseItemsByFirstNQuota } from "@/lib/catalog/domain/first-n-benefit";
@@ -12,6 +18,13 @@ import {
 import { assertInstagramHandle } from "@repo/media-composition";
 import { resolveLocationConsent } from "@/lib/broadcast-consent/domain/location-consent";
 import { systemClock, type EditionClock } from "@/lib/timeline/clock";
+import {
+  homeDeliveryOffer,
+  isGuaranteed,
+  isInExcludedCity,
+  parseHomeDeliveryAddress,
+  type HomeDeliveryShippingRecord,
+} from "@/lib/home-delivery/domain";
 import { sendParticipantFunnelEmail } from "@/lib/registration/notifications/participant-email";
 import {
   signRegistrationAccessToken,
@@ -69,6 +82,7 @@ function fingerprint(input: {
   variantChoices: Array<{ productId: string; productVariantId: string }>;
   totalAmount: number;
   usePassCredit?: boolean;
+  homeDeliveryKey?: string | null;
 }): string {
   return createHash("sha256")
     .update(
@@ -82,6 +96,8 @@ function fingerprint(input: {
         ),
         total: input.totalAmount,
         usePassCredit: Boolean(input.usePassCredit),
+        // Sólo si eligió envío: no cambia la huella de las inscripciones de siempre.
+        ...(input.homeDeliveryKey ? { homeDelivery: input.homeDeliveryKey } : {}),
       }),
     )
     .digest("hex");
@@ -274,6 +290,43 @@ export type PromotionsPort = {
   releaseByRegistration: (registrationId: string) => Promise<number>;
 };
 
+/**
+ * Arma la comisión PENDING del cupón con dueño, o null. Cualquier falla (tabla
+ * ausente, base caída) se loguea y la inscripción sigue sin comisión.
+ */
+export async function resolveAffiliateCommissionDraft(
+  repo: Pick<PublicRegistrationRepository, "getAffiliateCommissionContext">,
+  input: {
+    promotionId: string;
+    promotionCode: string;
+    editionId: string;
+    baseAmount: number;
+    totalAmount: number;
+  },
+  envDefaultMpFeeBps: string | null | undefined = process.env[DEFAULT_MP_FEE_BPS_ENV],
+): Promise<AffiliateCommissionDraft | null> {
+  if (!repo.getAffiliateCommissionContext) return null;
+  try {
+    const context = await repo.getAffiliateCommissionContext({
+      promotionId: input.promotionId,
+      editionId: input.editionId,
+    });
+    if (!context) return null;
+    return buildAffiliateCommissionDraft({
+      affiliate: context.affiliate,
+      affiliateActive: context.affiliateActive,
+      promotionId: input.promotionId,
+      promotionCode: input.promotionCode,
+      baseAmount: input.baseAmount,
+      totalAmount: input.totalAmount,
+      mpFeeBps: resolveAffiliateMpFeeBps(context.editionMpFeeBps, envDefaultMpFeeBps),
+    });
+  } catch (error) {
+    console.error("[clickaton] comisión de afiliado: no se pudo anotar:", error);
+    return null;
+  }
+}
+
 export function createPublicRegistrationService(deps: {
   repo: PublicRegistrationRepository;
   rateLimit?: RateLimitStore | null;
@@ -307,6 +360,22 @@ export function createPublicRegistrationService(deps: {
     });
   const expireUseCase = createExpirePendingRegistrationsUseCase({ repo });
   const eligibilityUseCase = createCheckoutEligibilityUseCase({ repo });
+
+
+  async function loadHomeDeliveryConfig(editionId: string) {
+    if (!repo.getHomeDeliveryConfig) return null;
+    try {
+      return await repo.getHomeDeliveryConfig(editionId);
+    } catch (error) {
+      // Sin la tabla (migración sin aplicar) la inscripción sigue andando sin envío.
+      console.error("[clickaton] getHomeDeliveryConfig falló:", error);
+      return null;
+    }
+  }
+
+  async function loadHomeDeliveryOffer(editionId: string) {
+    return homeDeliveryOffer(await loadHomeDeliveryConfig(editionId), clock.now());
+  }
 
   return {
     async getOffer(slug: string): Promise<PublicRegistrationOffer> {
@@ -546,6 +615,7 @@ export function createPublicRegistrationService(deps: {
         registrationWindow: window,
         passCredits,
         referralBenefit,
+        homeDelivery: await loadHomeDeliveryOffer(edition.id),
         legal: {
           termsPath: "/legal/terminos",
           privacyPath: "/legal/privacidad",
@@ -835,6 +905,38 @@ export function createPublicRegistrationService(deps: {
         }
       }
 
+      // Envío del kit a domicilio. Se suma después del cupón y de los referidos:
+      // ningún descuento toca el costo del envío.
+      let shipping: HomeDeliveryShippingRecord | null = null;
+      if (input.homeDelivery) {
+        const config = await loadHomeDeliveryConfig(edition.id);
+        if (!homeDeliveryOffer(config, now) || !config) {
+          throw new PublicRegistrationError(
+            "EDITION_NOT_AVAILABLE",
+            "Esta edición no ofrece envío del kit a domicilio.",
+          );
+        }
+        if (usePassCredit) {
+          throw new PublicRegistrationError(
+            "INVALID_VARIANT",
+            "El envío a domicilio no se puede combinar con un canje de crédito del Pack. Escribinos y lo coordinamos.",
+          );
+        }
+        const parsed = parseHomeDeliveryAddress(input.homeDelivery);
+        if (!parsed.ok) throw new PublicRegistrationValidationError(parsed.errors);
+        if (isInExcludedCity(parsed.address, config)) {
+          throw new PublicRegistrationValidationError({
+            "delivery.city": `El envío es para quienes viven fuera de ${config.excludedCity}. En ${config.excludedCity} el kit se retira en la sede.`,
+          });
+        }
+        shipping = {
+          ...parsed.address,
+          feeAmount: config.feeAmount,
+          guaranteed: isGuaranteed(config, now),
+        };
+        chargeAmount += config.feeAmount;
+      }
+
       const existingIdem = await repo.findByIdempotencyKey(input.idempotencyKey);
       const fp = fingerprint({
         editionId: edition.id,
@@ -844,6 +946,9 @@ export function createPublicRegistrationService(deps: {
         variantChoices: input.variantChoices,
         totalAmount: chargeAmount,
         usePassCredit,
+        homeDeliveryKey: shipping
+          ? `${shipping.postalCode}|${shipping.street}|${shipping.streetNumber}|${shipping.documentNumber}`
+          : null,
       });
 
       if (existingIdem) {
@@ -933,6 +1038,21 @@ export function createPublicRegistrationService(deps: {
         };
       }
 
+      // Comisión del fotógrafo dueño del cupón. Va después del cupón, de los
+      // referidos (que pueden haberle ganado al cupón) y del envío: la base es
+      // el precio de lista, sin envío; el total es lo que efectivamente se
+      // cobra. Best-effort: nunca impide la inscripción.
+      const affiliateCommission =
+        promotionId && promotionCodeSnapshot && !usePassCredit && chargeAmount > 0
+          ? await resolveAffiliateCommissionDraft(repo, {
+              promotionId,
+              promotionCode: promotionCodeSnapshot,
+              editionId: edition.id,
+              baseAmount: montoDeLista,
+              totalAmount: chargeAmount,
+            })
+          : null;
+
       const items = buildItemsFromTicket(ticket, input.variantChoices);
       const holdMinutes = ticket.holdMinutes > 0 ? ticket.holdMinutes : 20;
       const holdExpiresAt = new Date(now.getTime() + holdMinutes * 60_000);
@@ -941,6 +1061,8 @@ export function createPublicRegistrationService(deps: {
         idempotencyKey: input.idempotencyKey,
         fingerprint: fp,
         holdExpiresAt,
+        shipping,
+        affiliateCommission,
         cmd: {
           editionId: edition.id,
           userId,
@@ -1088,7 +1210,7 @@ export function createPublicRegistrationService(deps: {
           editionSlug: edition.slug,
           expiresAtMs: holdExpiresAt.getTime(),
         });
-        const amountLabel = `${(ticket.priceAmount / 100).toFixed(2)} ${ticket.currency}`;
+        const amountLabel = `${(chargeAmount / 100).toFixed(2)} ${ticket.currency}`;
         await sendParticipantFunnelEmail({
           kind: "reservation_created",
           to: email,
@@ -1201,7 +1323,7 @@ export function createPublicRegistrationService(deps: {
         editionSlug: edition.slug,
         expiresAtMs: tokenExpMs,
       });
-      return repo.buildSummary({
+      const summary = await repo.buildSummary({
         registration,
         edition,
         venueName,
@@ -1211,6 +1333,25 @@ export function createPublicRegistrationService(deps: {
         reservationActive,
         checkoutEligible,
       });
+      let shipping: HomeDeliveryShippingRecord | null = null;
+      if (repo.getShipping) {
+        try {
+          shipping = await repo.getShipping(registration.id);
+        } catch (error) {
+          console.error("[clickaton] getShipping falló:", error);
+        }
+      }
+      return {
+        ...summary,
+        homeDelivery: shipping
+          ? {
+              feeAmount: shipping.feeAmount,
+              guaranteed: shipping.guaranteed,
+              city: shipping.city,
+              province: shipping.province,
+            }
+          : null,
+      };
     },
   };
 }

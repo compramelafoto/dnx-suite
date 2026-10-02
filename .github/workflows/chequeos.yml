@@ -142,3 +142,10 @@ jobs:
 
       - name: Pruebas del informe diario
         run: pnpm --filter @repo/ops-daily-report test
+
+      # Todas las de FotoOffice: socios, cuotas, carnets, reservas, sorteos,
+      # caja, coberturas, portal y el resto. Trabajan con la base simulada, así
+      # que no necesitan DATABASE_URL ni tocan ninguna base real. Antes no las
+      # corría nadie en los PR.
+      - name: Pruebas de FotoOffice
+        run: pnpm --filter fotoffice test

@@ -24,7 +24,8 @@ export type ParticipantEmailKind =
   | "reservation_created"
   | "payment_confirmed"
   | "free_confirmed"
-  | "hold_expired";
+  | "hold_expired"
+  | "kit_dispatched";
 
 /**
  * Destinatario efectivo.
@@ -91,6 +92,10 @@ export async function sendParticipantFunnelEmail(input: {
   visibleCode?: string | null;
   instagramHandle?: string | null;
   paymentStatus?: string | null;
+  /** Eligió recibir el kit por correo: cambia el bloque de acreditación. */
+  homeDelivery?: { city: string; province: string; guaranteed: boolean } | null;
+  /** Para `kit_dispatched`: con qué correo y con qué número se sigue. */
+  shipment?: { carrier: string | null; trackingNumber: string | null } | null;
   /** Build subject/body only — caller owns durable send. */
   dryRunBuildOnly?: boolean;
 }): Promise<ParticipantFunnelEmailBuilt> {
@@ -165,12 +170,16 @@ export async function sendParticipantFunnelEmail(input: {
           : "",
         includedText,
         ``,
-        POST_PAYMENT_ACCREDITATION.heading,
-        `Lugar: ${POST_PAYMENT_ACCREDITATION.venueName} — ${POST_PAYMENT_ACCREDITATION.city}`,
-        `Fecha: ${POST_PAYMENT_ACCREDITATION.dateLabel}`,
-        `Horario de acreditación: ${POST_PAYMENT_ACCREDITATION.accreditationWindow}`,
-        `Charla introductoria: ${POST_PAYMENT_ACCREDITATION.talkWindow}`,
-        POST_PAYMENT_ACCREDITATION.presentWithQr,
+        ...(input.homeDelivery
+          ? homeDeliveryLines(input.homeDelivery)
+          : [
+              POST_PAYMENT_ACCREDITATION.heading,
+              `Lugar: ${POST_PAYMENT_ACCREDITATION.venueName} — ${POST_PAYMENT_ACCREDITATION.city}`,
+              `Fecha: ${POST_PAYMENT_ACCREDITATION.dateLabel}`,
+              `Horario de acreditación: ${POST_PAYMENT_ACCREDITATION.accreditationWindow}`,
+              `Charla introductoria: ${POST_PAYMENT_ACCREDITATION.talkWindow}`,
+              POST_PAYMENT_ACCREDITATION.presentWithQr,
+            ]),
         ``,
         `CRONOGRAMA`,
         ...POST_PAYMENT_SCHEDULE.map((row) => `${row.time} ${row.label}`),
@@ -201,8 +210,28 @@ export async function sendParticipantFunnelEmail(input: {
         summaryUrl,
         readinessUrl,
         support,
+        homeDelivery: input.homeDelivery ?? null,
       });
       break;
+    case "kit_dispatched": {
+      subject = subjectLine(`Tu kit de Clickatón está en camino — ${input.editionName}`);
+      const kitQrUrl = `${baseUrl()}/recibi-mi-kit`;
+      const carrier = input.shipment?.carrier?.trim() || null;
+      const tracking = input.shipment?.trackingNumber?.trim() || null;
+      const lines = [
+        `Hola ${input.participantName},`,
+        ``,
+        `Despachamos tu kit de ${input.editionName}.`,
+        carrier ? `Correo: ${carrier}` : "",
+        tracking ? `Número de seguimiento: ${tracking}` : "",
+        ``,
+        `Cuando te llegue, escaneá el QR del instructivo (o entrá a ${kitQrUrl}), iniciá sesión con este email y quedás acreditado.`,
+        support,
+      ];
+      text = lines.filter((l, i) => l !== "" || lines[i - 1] !== "").join("\n");
+      html = `<p>Hola ${escapeHtml(input.participantName)},</p><p>Despachamos tu kit de <strong>${escapeHtml(input.editionName)}</strong>.</p>${carrier ? `<p>Correo: <strong>${escapeHtml(carrier)}</strong></p>` : ""}${tracking ? `<p>Número de seguimiento: <strong>${escapeHtml(tracking)}</strong></p>` : ""}<p>Cuando te llegue, escaneá el QR del instructivo, iniciá sesión con este email y quedás acreditado. También podés entrar acá: <a href="${kitQrUrl}">${escapeHtml(kitQrUrl)}</a></p><p>${escapeHtml(support)}</p>`;
+      break;
+    }
     case "hold_expired":
       subject = subjectLine(`Reserva vencida — ${input.editionName}`);
       text = [
@@ -254,6 +283,7 @@ function buildConfirmedHtml(input: {
   summaryUrl: string;
   readinessUrl: string;
   support: string;
+  homeDelivery?: { city: string; province: string; guaranteed: boolean } | null;
 }): string {
   const ig = input.instagramHandle
     ? `@${input.instagramHandle.replace(/^@/, "")}`
@@ -282,14 +312,17 @@ function buildConfirmedHtml(input: {
         ${ig ? `<p style="margin:0 0 8px;color:#333;">Instagram: ${escapeHtml(ig)}</p>` : ""}
         ${input.editionDate ? `<p style="margin:0 0 8px;color:#333;">Fecha del evento: <strong>${escapeHtml(input.editionDate)}</strong></p>` : ""}
         ${input.includedHtml}
-        <div style="margin:20px 0;padding:16px;border:1px solid #eee;border-radius:12px;background:#fafafa;">
+        ${input.homeDelivery ? `<div style="margin:20px 0;padding:16px;border:1px solid #eee;border-radius:12px;background:#fafafa;">
+          <p style="margin:0 0 8px;color:${input.brand};font-size:12px;font-weight:800;letter-spacing:0.08em;">${escapeHtml(homeDeliveryLines(input.homeDelivery)[0]!)}</p>
+          ${homeDeliveryLines(input.homeDelivery).slice(1).map((l) => `<p style="margin:0 0 4px;color:#333;">${escapeHtml(l)}</p>`).join("")}
+        </div>` : `<div style="margin:20px 0;padding:16px;border:1px solid #eee;border-radius:12px;background:#fafafa;">
           <p style="margin:0 0 8px;color:${input.brand};font-size:12px;font-weight:800;letter-spacing:0.08em;">${escapeHtml(POST_PAYMENT_ACCREDITATION.heading)}</p>
           <p style="margin:0 0 4px;color:#111;"><strong>${escapeHtml(POST_PAYMENT_ACCREDITATION.venueName)}</strong> — ${escapeHtml(POST_PAYMENT_ACCREDITATION.city)}</p>
           <p style="margin:0 0 4px;color:#333;">${escapeHtml(POST_PAYMENT_ACCREDITATION.dateLabel)}</p>
           <p style="margin:0 0 4px;color:#333;">Acreditación: ${escapeHtml(POST_PAYMENT_ACCREDITATION.accreditationWindow)}</p>
           <p style="margin:0 0 8px;color:#333;">Charla introductoria: ${escapeHtml(POST_PAYMENT_ACCREDITATION.talkWindow)}</p>
           <p style="margin:0;color:#555;font-size:13px;">${escapeHtml(POST_PAYMENT_ACCREDITATION.presentWithQr)}</p>
-        </div>
+        </div>`}
         <div style="margin:0 0 20px;padding:16px;border:1px solid #eee;border-radius:12px;">
           <p style="margin:0 0 8px;color:${input.brand};font-size:12px;font-weight:800;letter-spacing:0.08em;">Cronograma</p>
           ${POST_PAYMENT_SCHEDULE.map((row) => `<p style="margin:0 0 4px;color:#333;">${escapeHtml(row.time)} · ${escapeHtml(row.label)}</p>`).join("")}
@@ -316,4 +349,20 @@ function escapeHtml(value: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+/** Bloque "tu kit viaja a tu casa", en lugar de la acreditación presencial. */
+export function homeDeliveryLines(d: {
+  city: string;
+  province: string;
+  guaranteed: boolean;
+}): string[] {
+  return [
+    "TU KIT VIAJA A TU CASA",
+    `Lo despachamos por correo a ${d.city}, ${d.province}. Cuando salga te mandamos el número de seguimiento.`,
+    d.guaranteed
+      ? "Te llega antes de la maratón."
+      : "Te inscribiste después de la fecha garantizada: puede llegar después de la maratón. Participás igual.",
+    "No tenés que acreditarte en ninguna sede: cuando recibas el kit, escaneá el QR del instructivo, iniciá sesión con tu email y listo.",
+  ];
 }

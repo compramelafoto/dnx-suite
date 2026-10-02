@@ -23,6 +23,7 @@ describe("snapshot del actor", () => {
 
   it("cae al email solo si no hay nombre", () => {
     expect(auditActorFrom(user({ name: null })).label).toBe("ana@sfpr.test");
+    expect(auditActorFrom({ id: 9, name: " ", email: null }).label).toBe("Usuario 9");
   });
 
   it("un nombre de solo espacios no se guarda como label", () => {

@@ -7,6 +7,7 @@ import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
 import { parseFeeValue, validateDuesSettings } from "@/lib/membership/fee-value-rules";
 import { parseRecommendationPercent } from "@/lib/membership/settings";
 import { minorToDecimalString } from "@/lib/membership/money";
+import { sendDuesReminders } from "@/lib/membership/dues-reminder";
 
 export type SettingsResult = { ok: true } | { ok: false; error: string };
 
@@ -115,4 +116,29 @@ export async function saveFeeValueAction(formData: FormData): Promise<SettingsRe
   revalidatePath("/members/cuotas/configuracion");
   revalidatePath("/members/cuotas");
   return { ok: true };
+}
+
+/**
+ * Manda el recordatorio de cuota ahora, sin esperar el día configurado.
+ *
+ * Mismo permiso que la configuración: es un correo a todo el padrón que debe. A quien ya lo
+ * recibió este mes no se le repite, así que apretarlo dos veces no duplica nada.
+ */
+export async function sendDuesReminderNowAction(): Promise<
+  { ok: true; message: string } | { ok: false; error: string }
+> {
+  const { user, workspace } = await requireActiveWorkspace();
+  if (!workspace) return { ok: false, error: "No hay una institución activa." };
+  if (!(await canManageWorkspaceCollection(user.id, workspace.id))) {
+    return { ok: false, error: "Solo el dueño o un administrador puede mandar el recordatorio." };
+  }
+
+  const r = await sendDuesReminders({ workspaceId: workspace.id, mode: "MANUAL" });
+  revalidatePath("/members/cuotas/configuracion");
+
+  const partes = [`Enviados: ${r.enviados}.`];
+  if (r.yaRecordados > 0) partes.push(`Ya lo habían recibido este mes: ${r.yaRecordados}.`);
+  if (r.sinEmail > 0) partes.push(`Sin email cargado: ${r.sinEmail}.`);
+  if (r.fallidos > 0) partes.push(`No salieron: ${r.fallidos} (quedaron registrados; volvé a apretar para reintentar).`);
+  return { ok: true, message: partes.join(" ") };
 }

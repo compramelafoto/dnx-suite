@@ -4,9 +4,12 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma, Prisma } from "@repo/db";
 import { parseClientForm } from "@/lib/clients/client-form";
-import { nextClientNumber } from "@/lib/clients/client-number";
-import { lastClientNumber } from "@/lib/clients/repository";
+import { crearClienteConNumero } from "@/lib/clients/alta";
 import { requireClientsStaff } from "@/lib/clients/access";
+import { CAMPOS_AUDITADOS_CLIENTE } from "@/lib/clients/audit";
+import { diffCampos, registrarEventoPersona, type Actor } from "@/lib/ficha/eventos";
+import { mudarPiezasDelSocioAlCliente } from "@/lib/ficha/mudanza";
+import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 
 const LISTA = "/clientes";
 
@@ -28,31 +31,36 @@ export async function saveClientAction(formData: FormData): Promise<void> {
   const parsed = parseClientForm(formData);
   if (!parsed.ok) redirect(`${destinoError}?error=${encodeURIComponent(parsed.error)}`);
   const v = parsed.values;
+  const actor: Actor = { userId: user.id, label: etiquetaDeUsuario(user) };
 
   if (clientId) {
-    // El `where` de un update tiene que ser único, así que el workspace no puede viajar ahí.
-    const propio = await prisma.client.count({ where: { id: clientId, workspaceId: workspace.id } });
-    if (propio === 0) redirect(`${LISTA}?error=${encodeURIComponent("Ese cliente no existe.")}`);
-    await prisma.client.update({ where: { id: clientId }, data: v });
+    // El `where` de un update tiene que ser único, así que el workspace se verifica leyendo
+    // antes, en la misma transacción que el update y el historial.
+    const existia = await prisma.$transaction(async (tx) => {
+      const antes = await tx.client.findFirst({ where: { id: clientId, workspaceId: workspace.id } });
+      if (!antes) return false;
+      await tx.client.update({ where: { id: clientId }, data: v });
+      const cambios = diffCampos(antes, v, CAMPOS_AUDITADOS_CLIENTE);
+      if (Object.keys(cambios).length > 0) {
+        await tx.clientAudit.create({
+          data: {
+            workspaceId: workspace.id,
+            clientId,
+            action: "UPDATED",
+            actorUserId: actor.userId,
+            actorLabel: actor.label,
+            changesJson: cambios as Prisma.InputJsonValue,
+          },
+        });
+      }
+      return true;
+    });
+    if (!existia) redirect(`${LISTA}?error=${encodeURIComponent("Ese cliente no existe.")}`);
     revalidatePath(LISTA);
     redirect(`${LISTA}/${clientId}?ok=1`);
   }
 
-  let creadoId: string | null = null;
-  for (let intento = 0; intento < 3 && creadoId === null; intento++) {
-    const clientNumber = nextClientNumber(await lastClientNumber(workspace.id));
-    try {
-      const creado = await prisma.client.create({
-        data: { ...v, workspaceId: workspace.id, clientNumber, createdByUserId: user.id },
-        select: { id: true },
-      });
-      creadoId = creado.id;
-    } catch (e) {
-      // P2002 = choque con un índice único. Sólo puede ser el número: lo demás no es único.
-      const choque = e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
-      if (!choque) throw e;
-    }
-  }
+  const creadoId = await crearClienteConNumero(workspace.id, v, actor);
 
   if (creadoId === null) {
     redirect(`${destinoError}?error=${encodeURIComponent("No se pudo asignar un número. Probá de nuevo.")}`);
@@ -70,7 +78,8 @@ export async function saveClientAction(formData: FormData): Promise<void> {
  * historial es un error que después no se puede deshacer.
  */
 export async function linkClientToMemberAction(formData: FormData): Promise<void> {
-  const { workspace } = await requireClientsStaff();
+  const { workspace, user } = await requireClientsStaff();
+  const actor: Actor = { userId: user.id, label: etiquetaDeUsuario(user) };
   const clientId = String(formData.get("clientId") ?? "").trim();
   const memberId = String(formData.get("memberId") ?? "").trim() || null;
 
@@ -86,8 +95,41 @@ export async function linkClientToMemberAction(formData: FormData): Promise<void
     }
   }
 
+  let socioAnterior = null as string | null;
   try {
-    await prisma.client.update({ where: { id: clientId }, data: { memberId } });
+    await prisma.$transaction(async (tx) => {
+      const antes = await tx.client.findFirst({
+        where: { id: clientId, workspaceId: workspace.id },
+        select: { memberId: true },
+      });
+      if (!antes) throw new Error("Cliente inexistente");
+      socioAnterior = antes.memberId;
+      await tx.client.update({ where: { id: clientId }, data: { memberId } });
+
+      const dueno = { clientId };
+      if (antes.memberId && antes.memberId !== memberId) {
+        await registrarEventoPersona(tx, {
+          workspaceId: workspace.id,
+          dueno,
+          kind: "SOCIO_DESVINCULADO",
+          detail: { memberId: antes.memberId },
+          actor,
+        });
+      }
+      if (memberId) {
+        // Las piezas del socio pasan al cliente; al desvincular no vuelven: quedan en el cliente.
+        await mudarPiezasDelSocioAlCliente(tx, { workspaceId: workspace.id, memberId, clientId });
+        if (antes.memberId !== memberId) {
+          await registrarEventoPersona(tx, {
+            workspaceId: workspace.id,
+            dueno,
+            kind: "SOCIO_VINCULADO",
+            detail: { memberId },
+            actor,
+          });
+        }
+      }
+    });
   } catch (e) {
     // memberId es único: ese socio ya está enlazado a otra ficha de cliente.
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
@@ -97,5 +139,8 @@ export async function linkClientToMemberAction(formData: FormData): Promise<void
   }
 
   revalidatePath(`${LISTA}/${clientId}`);
+  // La ficha del socio muestra este vínculo: la nueva y la anterior cambian.
+  if (memberId) revalidatePath(`/members/${memberId}`);
+  if (socioAnterior && socioAnterior !== memberId) revalidatePath(`/members/${socioAnterior}`);
   redirect(`${LISTA}/${clientId}?ok=1`);
 }

@@ -26,8 +26,8 @@ const h1 = hashContestRulesConfiguration(config);
 const h2 = hashContestRulesConfiguration(structuredClone(config));
 assert.equal(h1, h2);
 
-// 3-4 fechas / límite exclusivo 1 oct
-const closeEx = contestLocalToUtc("2026-10-01T00:00:00", "America/Argentina/Cordoba");
+// 3-4 fechas / límite exclusivo 1 nov (extendido desde 1 oct en bases v3)
+const closeEx = contestLocalToUtc("2026-11-01T00:00:00", "America/Argentina/Cordoba");
 assert.equal(config.schedule.registrationClosesAtExclusive, closeEx.toISOString());
 const lastInclusive = new Date(closeEx.getTime() - 1);
 assert.ok(lastInclusive.getTime() < closeEx.getTime());

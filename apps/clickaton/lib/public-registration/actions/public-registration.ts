@@ -139,6 +139,20 @@ export async function createPublicRegistrationAction(
     // Del servidor, nunca del formulario: es lo que autoriza el beneficio por
     // referidos.
     sessionUserId: await resolverUsuarioDeSesion(),
+    homeDelivery: formBool(formData, "homeDelivery")
+      ? {
+          recipientName: formString(formData, "delivery.recipientName"),
+          documentNumber: formString(formData, "delivery.documentNumber"),
+          phone: formString(formData, "delivery.phone"),
+          street: formString(formData, "delivery.street"),
+          streetNumber: formString(formData, "delivery.streetNumber"),
+          floor: formString(formData, "delivery.floor"),
+          city: formString(formData, "delivery.city"),
+          province: formString(formData, "delivery.province"),
+          postalCode: formString(formData, "delivery.postalCode"),
+          reference: formString(formData, "delivery.reference"),
+        }
+      : null,
   };
 
   const values: Record<string, string> = {
