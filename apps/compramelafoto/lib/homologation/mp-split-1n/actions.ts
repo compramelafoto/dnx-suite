@@ -89,6 +89,9 @@ export async function submitClfMpSplit1nHomologationPaymentAction(
       paymentMethodId: input.cardPayment.paymentMethodId,
       installments: input.cardPayment.installments ?? 1,
       deviceSessionId: device,
+      ...(input.cardPayment.payer?.identification
+        ? { payerIdentification: input.cardPayment.payer.identification }
+        : {}),
       clientDisplayedAmountMinor: input.clientDisplayedAmountMinor,
     });
 

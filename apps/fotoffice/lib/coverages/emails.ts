@@ -184,6 +184,34 @@ export function buildRequestRejectedEmail(input: Base & { reason: string }): Ema
 }
 
 /**
+ * El enlace de seguimiento, de nuevo.
+ *
+ * Sale cuando la coordinación lo reemite a mano, porque el correo anterior no llegó y el enlace
+ * que llevaba no se puede recuperar (en la base sólo vive su hash).
+ *
+ * **Dice que el anterior dejó de funcionar.** Emitir uno nuevo apaga el viejo, y si la
+ * organización tenía guardado el correo de recepción va a volver a ese enlace primero: sin esta
+ * aclaración prueba el que no sirve, ve "no encontramos este pedido" y concluye que le borraron
+ * el pedido.
+ *
+ * No explica por qué se reemitió. Quien lee esto no tiene por qué enterarse de que un correo
+ * nuestro falló: lo que necesita es el enlace que funciona.
+ */
+export function buildTrackingLinkEmail(input: Base): EmailBody {
+  return compose({
+    subject: `Tu enlace para seguir el pedido ${input.publicCode}`,
+    greetingName: input.contactName,
+    paragraphs: [
+      `Acá tenés de nuevo el enlace para ver cómo va «${input.eventTitle}».`,
+      "Es un enlace nuevo: si tenías guardado uno anterior, ese ya no funciona. Usá este.",
+    ],
+    cta: { label: "Ver cómo va tu pedido", url: input.trackingUrl },
+    notes: ["Guardá este correo: ese enlace es tuyo y no lo tiene nadie más."],
+    signature: input.context.signature,
+  });
+}
+
+/**
  * El aviso interno de que entró una solicitud.
  *
  * Sin datos de contacto de la organización: el que lo reciba entra al panel y los ve ahí, con

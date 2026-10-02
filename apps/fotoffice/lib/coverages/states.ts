@@ -162,6 +162,7 @@ export const COVERAGE_EVENT_LABELS: Record<string, string> = {
   INFO_PEDIDA: "Se pidió información",
   INFO_RESPONDIDA: "Respondieron",
   EMAIL_ENVIADO: "Correo enviado",
+  ENLACE_REEMITIDO: "Se emitió un enlace de seguimiento nuevo",
 };
 
 export function coverageEventLabel(type: string): string {

@@ -12,6 +12,10 @@ export const adminRoutes = {
   /** Una fila por persona: todas sus inscripciones, fotos, notas y ciudad. */
   people: "/admin/personas",
   promotions: "/admin/promociones",
+  /** Fotógrafos dueños de códigos con comisión. */
+  affiliates: "/admin/afiliados",
+  /** Comisiones de los códigos de fotógrafo: cobradas, a transferir, transferidas. */
+  commissions: "/admin/comisiones",
   social: "/admin/social",
   sponsors: "/admin/sponsors",
   /** Qué lugares del inventario publicitario están tomados. */
@@ -28,6 +32,7 @@ export const adminRoutes = {
   referrals: "/admin/referidos",
   settings: "/admin/configuracion",
   financeOwner: "/admin/finanzas/cuenta-owner",
+  editionResults: "/admin/finanzas/ediciones",
   /** Partner / recipient self-connect (Mi cuenta de cobro). */
   financePartner: "/admin/finanzas/mi-cuenta",
   integrations: "/admin/integraciones",
@@ -91,6 +96,18 @@ export const adminNavigation: readonly AdminNavItem[] = [
     section: "main",
   },
   {
+    label: "Fotógrafos con código",
+    href: adminRoutes.affiliates,
+    icon: "promotions",
+    section: "main",
+  },
+  {
+    label: "Comisiones de fotógrafos",
+    href: adminRoutes.commissions,
+    icon: "finance",
+    section: "main",
+  },
+  {
     label: "Publicaciones y comunicaciones",
     href: adminRoutes.social,
     icon: "social",
@@ -118,6 +135,12 @@ export const adminNavigation: readonly AdminNavItem[] = [
     label: "Contenidos",
     href: adminRoutes.contents,
     icon: "contents",
+    section: "main",
+  },
+  {
+    label: "Números por edición",
+    href: adminRoutes.editionResults,
+    icon: "finance",
     section: "main",
   },
   { label: "Mensajes", href: adminRoutes.messages, icon: "messages", section: "main" },

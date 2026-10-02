@@ -1,0 +1,65 @@
+{
+  "proyecto": "Personas, carpetas de fotos y números por edición",
+  "plataforma": "Clickatón",
+  "enUso": "parcial",
+  "usoNota": "Los números de la 1ª edición se empezaron a cargar el 29/09 (5 gastos y las comisiones de Mercado Pago); Personas y la carpeta de fotos no dejan rastro de uso en la base",
+  "etapas": [
+    {
+      "nombre": "Las personas",
+      "criterios": [
+        {
+          "que": "La organización ve una fila por persona con todas sus inscripciones, la filtra y la baja a CSV",
+          "implementado": { "pr": 273, "fecha": "2026-09-25" },
+          "probado": null
+        },
+        {
+          "que": "La ciudad de cada inscripto se normaliza sola y se ubica en el mapa",
+          "implementado": { "pr": 273, "fecha": "2026-09-25" },
+          "probado": {
+            "fecha": "2026-09-29",
+            "evidencia": "10 localidades en ClickatonLocality, las 10 en RESUELTA"
+          }
+        },
+        {
+          "que": "La fecha de nacimiento es obligatoria al inscribirse y al canjear un regalo",
+          "implementado": { "pr": 273, "fecha": "2026-09-25" },
+          "probado": {
+            "fecha": "2026-09-29",
+            "evidencia": "La única inscripción creada después del despliegue (25/09 17:00 UTC en adelante) tiene fecha de nacimiento"
+          }
+        },
+        {
+          "que": "Cada persona tiene su carpeta con todas sus fotos, su nota y su puesto, y se bajan los originales",
+          "implementado": { "pr": 273, "fecha": "2026-09-25" },
+          "probado": null,
+          "bloqueado": "La descarga redirige a un enlace firmado de R2 y no deja rastro: falta bajar un original desde el panel"
+        }
+      ]
+    },
+    {
+      "nombre": "Los números de cada edición",
+      "criterios": [
+        {
+          "que": "Se cargan los gastos de una edición y se ve lo que entró, lo que salió y lo que quedó",
+          "implementado": { "pr": 276, "fecha": "2026-09-29" },
+          "probado": {
+            "fecha": "2026-09-29",
+            "evidencia": "5 gastos cargados el 29/09 en la 1ª edición (ClickatonEditionExpense) y la configuración de comisiones guardada a las 11:49 UTC (3% por uso y 5% por retiro)"
+          }
+        },
+        {
+          "que": "El sobrante se cuenta a mano y, si pasa a otra edición, allá cuenta como mercadería recibida",
+          "implementado": { "pr": 276, "fecha": "2026-09-29" },
+          "probado": null,
+          "bloqueado": "0 filas en ClickatonEditionLeftoverItem"
+        },
+        {
+          "que": "Se comparan las ediciones una al lado de la otra",
+          "implementado": { "pr": 276, "fecha": "2026-09-29" },
+          "probado": null,
+          "bloqueado": "La 2ª edición todavía no tiene gastos cargados: no hay nada que comparar"
+        }
+      ]
+    }
+  ]
+}
