@@ -300,6 +300,7 @@ model User {
   fotorankRulesVersionsCreated          FotorankContestRulesVersion[]          @relation("FrRulesVersionAuthor")
   suiteMemberships                      Membership[]                           @relation("FrSuiteMembership")
   workspaceMembershipsUnified           WorkspaceMembership[]
+  workspaceRoleAssignments              WorkspaceRoleAssignment[]
   appAccessUnified                      WorkspaceAppAccess[]
   fotorankContestConfigurationVersions  FotorankContestConfigurationVersion[]
   fotorankContestRulesTemplates         FotorankContestRulesTemplate[]
@@ -7089,6 +7090,7 @@ model Workspace {
   students                    EvaluationStudent[]
   featureModules              WorkspaceFeatureModule[]
   workspaceMembershipsUnified WorkspaceMembership[]
+  customRoles                 WorkspaceCustomRole[]
   appAccessUnified            WorkspaceAppAccess[]
   institutionalMembers        Member[]
   memberCategories            MemberCategory[]
@@ -19365,4 +19367,70 @@ model ClickatonAffiliateCommission {
 
   @@index([affiliateId, status])
   @@index([editionId, status])
+}
+
+// ─── FOTOFFICE: roles personalizados (Comisión directiva) ───────────────────
+// Diseño: docs/superpowers/specs/2026-10-02-fotoffice-roles-comision-directiva-design.md
+
+/// Nivel de un rol sobre un módulo del catálogo de FOTOFFICE.
+enum ModulePermissionLevel {
+  NONE
+  VIEW
+  MANAGE
+}
+
+/// Rol definido por un workspace. El nombre y los módulos los elige cada institución.
+model WorkspaceCustomRole {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  description String?
+  color       String?
+  /// Plantilla de la que nació ("treasury", "secretary"…). Null si se creó de cero.
+  templateKey String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace   Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  permissions WorkspaceRolePermission[]
+  assignments WorkspaceRoleAssignment[]
+
+  @@unique([workspaceId, name])
+}
+
+/// Nivel de un rol sobre un módulo (`moduleKey` = clave de `lib/modules/registry.ts`).
+model WorkspaceRolePermission {
+  id        String                @id @default(cuid())
+  roleId    String
+  moduleKey String
+  level     ModulePermissionLevel
+  /// Etapa 5: acciones sensibles extra, p. ej. "membership-dues.manual_payment".
+  actions   String[]              @default([])
+
+  role WorkspaceCustomRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, moduleKey])
+}
+
+/// Persona ↔ rol en un workspace, con cargo y mandato opcionales.
+model WorkspaceRoleAssignment {
+  id            String    @id @default(cuid())
+  workspaceId   String
+  userId        Int
+  roleId        String
+  /// Cargo institucional ("Tesorera"). No da permisos por sí solo.
+  positionTitle String?
+  startsAt      DateTime?
+  /// Null = no vence.
+  endsAt        DateTime?
+  /// Quién hizo la asignación. Sin relación a propósito: no agrega otra back-relation a `User`.
+  assignedById  Int
+  revokedAt     DateTime?
+  createdAt     DateTime  @default(now())
+
+  user User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role WorkspaceCustomRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, userId])
+  @@index([roleId])
 }
