@@ -16,7 +16,7 @@ import { buscarAliadosAction } from "../actions-partners";
  * institución también pone premios propios.
  */
 
-type Aliado = { id: string; name: string; logoUrl: string | null };
+type Aliado = { id: string; name: string; logoUrl: string | null; email: string | null };
 
 export function PremioForm({
   raffleId,
@@ -96,6 +96,7 @@ export function PremioForm({
           placeholder="Escribí para buscar entre los aliados"
         />
         <input type="hidden" name="partnerId" value={elegido?.id ?? ""} />
+        <input type="hidden" name="partnerLogo" value={elegido?.logoUrl ?? ""} />
         <p className="fo-helper">
           Si la marca ya tiene ficha, elegila de la lista. Si no, escribí el nombre igual.
           También podés dejarlo vacío: hay premios que pone la institución.
@@ -109,13 +110,20 @@ export function PremioForm({
               <li key={a.id}>
                 <button
                   type="button"
-                  className="w-full px-3 py-2 text-left hover:bg-[var(--fo-surface-hover)]"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-[var(--fo-surface-hover)]"
                   onClick={() => {
                     setElegido(a);
                     setResultados([]);
                   }}
                 >
-                  {a.name}
+                  {a.logoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={a.logoUrl} alt="" className="size-6 rounded object-contain" />
+                  ) : null}
+                  <span>{a.name}</span>
+                  {!a.logoUrl ? (
+                    <span className="ml-auto text-xs text-[var(--fo-muted)]">sin logo</span>
+                  ) : null}
                 </button>
               </li>
             ))}
@@ -124,7 +132,8 @@ export function PremioForm({
 
         {elegido ? (
           <p className="fo-helper">
-            Ficha elegida: {elegido.name}.{" "}
+            Ficha elegida: {elegido.name}
+            {elegido.logoUrl ? " (con logo)" : " — sin logo cargado en DNX Partners"}.{" "}
             <button
               type="button"
               className="underline"
@@ -139,19 +148,61 @@ export function PremioForm({
         ) : null}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <fieldset className="fo-field-stack rounded-[var(--fo-radius)] border border-[var(--fo-border)] p-4">
+        <legend className="fo-label px-1">Dónde lo retira el ganador</legend>
+        <p className="fo-helper">
+          El premio se retira en el local del aliado. Estos datos viajan en el correo que le
+          llega al ganador, así que tienen que servirle para llegar hasta la puerta.
+        </p>
+
+        <div className="fo-field-stack">
+          <label className="fo-label" htmlFor="partnerEmail">
+            Correo del aliado
+          </label>
+          <input
+            id="partnerEmail"
+            name="partnerEmail"
+            type="email"
+            className="fo-input"
+            defaultValue={elegido?.email ?? ""}
+            key={elegido?.id ?? "sin-ficha"}
+          />
+          <p className="fo-helper">
+            Acá le avisamos a quién entregarle el premio y le pedimos el remito cuando el socio
+            lo retire. Sin este dato, el premio se queda sin respaldo.
+          </p>
+        </div>
+
+        <div className="fo-field-stack">
+          <label className="fo-label" htmlFor="partnerAddress">
+            Dirección
+          </label>
+          <input id="partnerAddress" name="partnerAddress" className="fo-input" />
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="fo-field-stack">
+            <label className="fo-label" htmlFor="partnerHours">
+              Horarios de atención
+            </label>
+            <input id="partnerHours" name="partnerHours" className="fo-input" />
+          </div>
+          <div className="fo-field-stack">
+            <label className="fo-label" htmlFor="partnerPhone">
+              Teléfono
+            </label>
+            <input id="partnerPhone" name="partnerPhone" className="fo-input" />
+          </div>
+        </div>
+      </fieldset>
+
+      <div className="fo-field-stack">
         <div className="fo-field-stack">
           <label className="fo-label" htmlFor="estimatedValue">
             Valor estimado
           </label>
           <input id="estimatedValue" name="estimatedValue" className="fo-input" inputMode="decimal" />
           <p className="fo-helper">Informativo. No se cobra nada.</p>
-        </div>
-        <div className="fo-field-stack">
-          <label className="fo-label" htmlFor="pickupDeadline">
-            Retirar hasta
-          </label>
-          <input id="pickupDeadline" name="pickupDeadline" type="date" className="fo-input" />
         </div>
       </div>
 
@@ -160,13 +211,6 @@ export function PremioForm({
           Condiciones
         </label>
         <input id="conditions" name="conditions" className="fo-input" />
-      </div>
-
-      <div className="fo-field-stack">
-        <label className="fo-label" htmlFor="pickupInstructions">
-          Dónde y cuándo se retira
-        </label>
-        <input id="pickupInstructions" name="pickupInstructions" className="fo-input" />
       </div>
 
       <div className="fo-form-actions">

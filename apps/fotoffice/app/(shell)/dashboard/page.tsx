@@ -2,6 +2,8 @@ import Link from "next/link";
 import { prisma } from "@repo/db";
 import { requireActiveWorkspace, isCoursesSalesEnabledForWorkspace } from "@/lib/workspace";
 import { isMissingCoursesSalesSchemaError } from "@/lib/courses-sales/prisma-errors";
+import { MisTareas } from "@/components/circuitos/mis-tareas";
+import { misTareasDelInicio } from "@/lib/circuitos/inicio";
 
 export default async function DashboardPage({
   searchParams,
@@ -16,6 +18,9 @@ export default async function DashboardPage({
   const memberships = await prisma.membership.count({ where: { userId: user.id } });
   const coursesOn =
     workspace !== null ? await isCoursesSalesEnabledForWorkspace(workspace.id) : false;
+
+  // Sólo con `operar` y Captación encendida; vacío o con error, no se muestra (nunca rompe el inicio).
+  const tareas = workspace !== null ? await misTareasDelInicio(user, workspace.id, new Date()) : null;
 
   let branding: { publicSlug: string; commercialName: string } | null = null;
   if (workspace !== null) {
@@ -63,6 +68,8 @@ export default async function DashboardPage({
           </p>
         </div>
       ) : null}
+
+      {tareas ? <MisTareas grupos={tareas} /> : null}
 
       {memberships === 0 ? (
         <div className="fo-card">

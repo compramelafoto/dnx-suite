@@ -13,6 +13,17 @@ import { cargoImpagoWhere } from "@/lib/membership/dues-overview";
 import type { ConsultaResuelta, ContextoListado, DefinicionListado, Opcion, ResultadoLote } from "@/lib/listado/tipos";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
+import {
+  aplicarEtiquetaEnLote,
+  buscarEtiquetasDelFiltro,
+  ChipsEtiquetas,
+  elegiblesPorExistencia,
+  opcionesDeEtiquetaEnLote,
+  SELECT_ETIQUETAS,
+  unirEtiquetasDeFila,
+  validarEtiquetaDelFiltro,
+} from "@/lib/ficha/etiquetas-listado";
+import { camposParaListado, conCampos, restriccionDeCampos } from "@/lib/campos/listado";
 import { auditActorFrom, type AuditActorUser } from "./audit";
 import { normalizeDocument } from "./documents";
 import { inviteOneMember } from "./invite-member";
@@ -38,6 +49,9 @@ const SELECT_FILA = {
   notes: true,
   userId: true,
   category: { select: { name: true } },
+  // Las etiquetas del socio y las del cliente vinculado (ahí viven las nuevas).
+  fotofficeTags: SELECT_ETIQUETAS,
+  clientLink: { select: { fotofficeTags: SELECT_ETIQUETAS } },
   // Sólo la última: de ella sale el estado de acceso de la fila, como en la pantalla anterior.
   invitations: {
     orderBy: { createdAt: "desc" },
@@ -81,6 +95,7 @@ function etiquetaAcceso(f: FilaSocio): string {
 /** Puro: lo que se le pide a Prisma. `workspaceId` va siempre, primero. */
 export function whereSocios(workspaceId: string, c: ConsultaResuelta): Prisma.MemberWhereInput {
   const where: Prisma.MemberWhereInput = { workspaceId };
+  const campos = restriccionDeCampos(c);
   const q = c.q.trim();
   if (q) {
     where.OR = [
@@ -89,6 +104,7 @@ export function whereSocios(workspaceId: string, c: ConsultaResuelta): Prisma.Me
       { memberNumber: { contains: q, mode: "insensitive" } },
       { email: { contains: q, mode: "insensitive" } },
       { documentNumber: { contains: q, mode: "insensitive" } },
+      ...(campos.buscar ? [campos.buscar] : []),
     ];
   }
   const estado = c.filtros.estado;
@@ -96,7 +112,13 @@ export function whereSocios(workspaceId: string, c: ConsultaResuelta): Prisma.Me
   if (c.filtros.categoria) where.categoryId = c.filtros.categoria;
   const acceso = c.filtros.acceso;
   // Dentro de un AND y no desparramado: "Sin email" es un OR y pisaría el de la búsqueda.
-  if (acceso && isMemberAccessFilter(acceso)) where.AND = [memberAccessWhere(acceso)];
+  const and: Prisma.MemberWhereInput[] = [];
+  if (acceso && isMemberAccessFilter(acceso)) and.push(memberAccessWhere(acceso));
+  // Las etiquetas viven en el socio o en su cliente vinculado; también dentro del AND por el OR de la búsqueda.
+  const etiqueta = c.filtros.etiqueta;
+  if (etiqueta) and.push({ OR: [{ fotofficeTags: { some: { tagId: etiqueta } } }, { clientLink: { fotofficeTags: { some: { tagId: etiqueta } } } }] });
+  if (campos.acotar) and.push(campos.acotar);
+  if (and.length > 0) where.AND = and;
   if (c.filtros.deuda === "si") where.charges = { some: cargoImpagoWhere(workspaceId) };
   else if (c.filtros.deuda === "no") where.charges = { none: cargoImpagoWhere(workspaceId) };
   return where;
@@ -305,11 +327,13 @@ export function listadoSocios(v: PersonVocabulary): DefinicionListado<FilaSocio>
       },
       { clave: "correo", titulo: "Correo", secundaria: true, celda: (f) => f.email ?? "—" },
       { clave: "acceso", titulo: "Acceso al portal", secundaria: true, celda: (f) => etiquetaAcceso(f) },
+      { clave: "etiquetas", titulo: "Etiquetas", secundaria: true, celda: (f) => <ChipsEtiquetas etiquetas={unirEtiquetasDeFila(f.fotofficeTags, f.clientLink?.fotofficeTags)} /> },
       { clave: "alta", titulo: "Alta", orden: "alta", secundaria: true, celda: (f) => diaUTC.format(f.joinedAt) },
     ],
     filtros: [
       { tipo: "opcion", clave: "estado", etiqueta: "Estado", opciones: ESTADOS.map((s) => ({ valor: s, etiqueta: ETIQUETA_ESTADO[s] })) },
       { tipo: "relacion", clave: "categoria", etiqueta: "Categoría" },
+      { tipo: "relacion", clave: "etiqueta", etiqueta: "Etiqueta", conBuscador: true },
       { tipo: "opcion", clave: "acceso", etiqueta: "Acceso al portal", opciones: ACCESOS.map((a) => ({ valor: a, etiqueta: MEMBER_ACCESS_FILTER_LABELS[a] })) },
       { tipo: "siNo", clave: "deuda", etiqueta: "Deuda", si: "Con deuda", no: "Al día" },
     ],
@@ -346,7 +370,9 @@ export function listadoSocios(v: PersonVocabulary): DefinicionListado<FilaSocio>
       });
       return cats.map((c) => ({ valor: c.id, etiqueta: c.name }));
     },
+    buscarRelacion: async (ctx, clave, texto) => (clave === "etiqueta" ? buscarEtiquetasDelFiltro(ctx, texto) : []),
     validarRelacion: async (ctx, clave, id) => {
+      if (clave === "etiqueta") return validarEtiquetaDelFiltro(ctx, id);
       if (clave !== "categoria" || !ID_VALIDO.test(id)) return null;
       const cat = await prisma.memberCategory.findFirst({ where: { id, workspaceId: ctx.workspaceId }, select: { name: true } });
       return cat?.name ?? null;
@@ -376,6 +402,27 @@ export function listadoSocios(v: PersonVocabulary): DefinicionListado<FilaSocio>
           return { elegibles, excluidos };
         },
         aplicar: cambiarCategoria,
+      },
+      {
+        clave: "etiqueta",
+        etiqueta: "Agregar o quitar etiqueta",
+        capacidad: "operar",
+        maximo: 1000,
+        confirmacion: aplicarVocabulario("Vas a aplicar el cambio de etiqueta ({parametro}) a {n} {personas}.", v),
+        parametro: { etiqueta: "Etiqueta", opciones: opcionesDeEtiquetaEnLote },
+        elegibles: async (ctx, ids) => {
+          const filas = await prisma.member.findMany({ where: { workspaceId: ctx.workspaceId, id: { in: ids } }, select: { id: true } });
+          return elegiblesPorExistencia(ids, filas.map((f) => f.id));
+        },
+        // Con cliente vinculado la etiqueta va sobre el cliente (el dueño); la lectura mira los dos lados.
+        aplicar: (ctx, ids, parametro) =>
+          aplicarEtiquetaEnLote(ctx, ids, parametro, async (aCargar) => {
+            const filas = await prisma.member.findMany({
+              where: { workspaceId: ctx.workspaceId, id: { in: aCargar } },
+              select: { id: true, clientLink: { select: { id: true } } },
+            });
+            return filas.map((f) => ({ id: f.id, persona: { clientId: f.clientLink?.id ?? null, memberId: f.id } }));
+          }),
       },
       {
         clave: "invitar",
@@ -429,4 +476,9 @@ export function listadoSocios(v: PersonVocabulary): DefinicionListado<FilaSocio>
     },
     panel: panelSocio,
   };
+}
+
+/** La lista con los campos personalizados del workspace (columnas, filtros, búsqueda y exportación). */
+export async function cargarListadoSocios(ctx: ContextoListado, v: PersonVocabulary) {
+  return conCampos(listadoSocios(v), await camposParaListado(ctx, "SOCIO"));
 }

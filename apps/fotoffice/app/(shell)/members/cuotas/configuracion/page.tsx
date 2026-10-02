@@ -7,9 +7,12 @@ import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
 import { getDuesSettings } from "@/lib/membership/settings";
 import { decimalArsToMinor, formatMinorArs } from "@/lib/membership/money";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
-import { DuesSettingsForm, FeeValueForm } from "./forms";
+import { sendDuesReminders } from "@/lib/membership/dues-reminder";
+import { DuesSettingsForm, FeeValueForm, SendReminderButton } from "./forms";
 
 export const dynamic = "force-dynamic";
+/** El recordatorio manual sale de esta página: unos 100 correos con pausa entre uno y otro. */
+export const maxDuration = 300;
 
 function fechaLegible(d: Date): string {
   const dia = String(d.getUTCDate()).padStart(2, "0");
@@ -29,7 +32,7 @@ export default async function ConfiguracionCuotasPage() {
   if (!(await canManageWorkspaceCollection(user.id, workspace.id))) redirect("/members/cuotas");
 
   const ahora = new Date();
-  const [settings, categorias, valores, vocab] = await Promise.all([
+  const [settings, categorias, valores, vocab, previa] = await Promise.all([
     getDuesSettings(workspace.id),
     prisma.memberCategory.findMany({
       where: { workspaceId: workspace.id, isActive: true },
@@ -50,6 +53,7 @@ export default async function ConfiguracionCuotasPage() {
       take: 30,
     }),
     loadPersonVocabulary(workspace.id),
+    sendDuesReminders({ workspaceId: workspace.id, mode: "MANUAL", dryRun: true }),
   ]);
 
   const hoy = `${ahora.getUTCFullYear()}-${String(ahora.getUTCMonth() + 1).padStart(2, "0")}-${String(ahora.getUTCDate()).padStart(2, "0")}`;
@@ -121,6 +125,22 @@ export default async function ConfiguracionCuotasPage() {
           </div>
         </section>
       ) : null}
+
+      <section className="fo-card space-y-3 p-5">
+        <h2 className="text-sm font-semibold">Recordatorio de cuota</h2>
+        <p className="text-xs text-[var(--fo-muted)] leading-relaxed">
+          {`Sale solo por correo el día ${settings.reminderDay} de cada mes, a las 9, a quien tenga la cuota del mes o cuotas anteriores sin pagar (la deuda anterior al sistema no se reclama). Si hay un sorteo anunciado con el padrón abierto, el correo lo cuenta: premios, logos de quien los dona y hasta cuándo hay tiempo de ponerse al día. Cada persona lo recibe una sola vez por mes.`}
+        </p>
+        <p className="text-sm">
+          {previa.enviados === 0
+            ? "Hoy no hay a quién mandárselo."
+            : `Hoy le llegaría a ${previa.enviados} ${previa.enviados === 1 ? "persona" : "personas"}.`}
+          {previa.yaRecordados > 0 ? ` Ya lo recibieron este mes: ${previa.yaRecordados}.` : ""}
+          {previa.sinEmail > 0 ? ` Sin email cargado: ${previa.sinEmail}.` : ""}
+          {previa.sorteo ? ` Incluye el sorteo «${previa.sorteo}».` : " No hay ningún sorteo anunciado para incluir."}
+        </p>
+        <SendReminderButton recipients={previa.enviados} />
+      </section>
 
       <section className="fo-card space-y-4 p-5">
         <h2 className="text-sm font-semibold">Calendario de cobranza</h2>

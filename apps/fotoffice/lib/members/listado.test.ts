@@ -7,6 +7,10 @@ const H = vi.hoisted(() => {
     categoryFindMany: vi.fn(),
     categoryFindFirst: vi.fn(),
     updateMember: vi.fn(),
+    tagFindFirst: vi.fn(),
+    tagFindMany: vi.fn(),
+    poner: vi.fn(),
+    quitar: vi.fn(),
     inviteOneMember: vi.fn(),
     MemberConcurrencyError,
   };
@@ -15,6 +19,7 @@ const H = vi.hoisted(() => {
 vi.mock("@repo/db", () => ({
   prisma: {
     member: { findMany: (...a: unknown[]) => H.memberFindMany(...a) },
+    fotofficeTag: { findFirst: (...a: unknown[]) => H.tagFindFirst(...a), findMany: (...a: unknown[]) => H.tagFindMany(...a) },
     memberCategory: {
       findMany: (...a: unknown[]) => H.categoryFindMany(...a),
       findFirst: (...a: unknown[]) => H.categoryFindFirst(...a),
@@ -24,6 +29,11 @@ vi.mock("@repo/db", () => ({
 vi.mock("@repo/db/fotoffice-members", () => ({
   updateMember: (...a: unknown[]) => H.updateMember(...a),
   MemberConcurrencyError: H.MemberConcurrencyError,
+}));
+vi.mock("@/lib/ficha/etiquetas", () => ({
+  ponerEtiqueta: (...a: unknown[]) => H.poner(...a),
+  quitarEtiqueta: (...a: unknown[]) => H.quitar(...a),
+  buscarEtiquetas: vi.fn(async () => []),
 }));
 vi.mock("@/lib/members/invite-member", () => ({ inviteOneMember: (...a: unknown[]) => H.inviteOneMember(...a) }));
 
@@ -69,7 +79,26 @@ describe("whereSocios", () => {
   });
 });
 
+describe("campos personalizados en el where", () => {
+  it("la búsqueda suma los ids de los campos al OR y los filtros acotan dentro del AND", () => {
+    const w = whereSocios("w1", { ...base, q: "x", filtros: { acceso: "SIN_EMAIL" }, campos: { soloIds: ["m1", "m2"], buscarIds: ["m1", "m3"] } });
+    expect(w.workspaceId).toBe("w1");
+    expect(w.OR).toContainEqual({ id: { in: ["m1"] } });
+    expect(w.AND).toContainEqual({ id: { in: ["m1", "m2"] } });
+  });
+  it("si filtros y búsqueda juntos pasan el presupuesto de ids, la lista queda vacía", () => {
+    const rango = (n: number) => Array.from({ length: n }, (_, i) => `m${i}`);
+    const w = whereSocios("w1", { ...base, q: "x", campos: { soloIds: rango(15_000), buscarIds: rango(18_000) } });
+    expect(w.AND).toContainEqual({ id: { in: [] } });
+    expect(w.OR).not.toContainEqual(expect.objectContaining({ id: expect.anything() }));
+  });
+});
+
 describe("definición", () => {
+  it("ninguna clave propia usa el prefijo de los campos personalizados", () => {
+    for (const f of def.filtros) expect(f.clave.startsWith("cf_")).toBe(false);
+    for (const c of def.columnas) expect(c.clave.startsWith("cf_")).toBe(false);
+  });
   it("usa el vocabulario del workspace", () => {
     expect(def.sustantivo).toEqual({ singular: "voluntario", plural: "voluntarios" });
     expect(def.titulo).toBe("Voluntarios");
@@ -86,9 +115,10 @@ describe("definición", () => {
     for (const c of def.columnas) if (c.orden) expect(def.ordenes).toContain(c.orden);
   });
 
-  it("invitar conserva el tope de la tanda; cambiar categoría llega a 5.000", () => {
+  it("invitar conserva el tope de la tanda; cambiar categoría llega a 5.000; etiquetar, a 1.000", () => {
     expect(accion("invitar").maximo).toBe(INVITE_BATCH_MAX);
     expect(accion("categoria").maximo).toBe(5000);
+    expect(accion("etiqueta").maximo).toBe(1000);
     expect(accion("invitar").capacidad).toBe("operar");
     expect(accion("categoria").capacidad).toBe("operar");
   });
@@ -233,5 +263,55 @@ describe("cambiar categoría", () => {
     expect(r.aplicados).toBe(0);
     expect(r.fallidos).toEqual([{ id: "a", error: "categoría no válida" }]);
     expect(H.updateMember).not.toHaveBeenCalled();
+  });
+});
+
+describe("etiquetas", () => {
+  const acc = () => accion("etiqueta");
+  const filtroEtiqueta = { OR: [{ fotofficeTags: { some: { tagId: "t1" } } }, { clientLink: { fotofficeTags: { some: { tagId: "t1" } } } }] };
+  beforeEach(() => {
+    H.memberFindMany.mockReset(); H.tagFindFirst.mockReset(); H.tagFindMany.mockReset(); H.poner.mockReset(); H.quitar.mockReset();
+  });
+
+  it("filtra por las etiquetas del socio o de su cliente vinculado", () => {
+    expect(whereSocios("w1", { ...base, filtros: { etiqueta: "t1" } }).AND).toEqual([filtroEtiqueta]);
+  });
+  it("la búsqueda y el acceso conviven con el filtro de etiqueta", () => {
+    const w = whereSocios("w1", { ...base, q: "ana", filtros: { etiqueta: "t1", acceso: "SIN_EMAIL" } });
+    expect(w.OR).toHaveLength(5);
+    expect(w.AND).toHaveLength(2);
+    expect(w.AND).toContainEqual(filtroEtiqueta);
+  });
+  it("el filtro es una relación con buscador y rechaza etiquetas de otro workspace", async () => {
+    expect(def.filtros.find((f) => f.clave === "etiqueta")).toMatchObject({ tipo: "relacion", conBuscador: true });
+    H.tagFindFirst.mockResolvedValue(null);
+    expect(await def.validarRelacion!(ctx, "etiqueta", "ajena")).toBeNull();
+    expect(H.tagFindFirst.mock.calls[0][0].where).toEqual({ id: "ajena", workspaceId: "w1" });
+  });
+  it("aplicar pone la etiqueta sobre el cliente vinculado y sobre el socio si no tiene cliente", async () => {
+    H.tagFindFirst.mockResolvedValue({ id: "t1" });
+    H.memberFindMany.mockResolvedValue([
+      { id: "a", clientLink: { id: "c1" } },
+      { id: "b", clientLink: null },
+    ]);
+    H.poner.mockResolvedValue({ ok: true });
+    const r = await acc().aplicar(ctx, ["a", "b"], "+t1");
+    expect(r.aplicados).toBe(2);
+    expect(H.poner.mock.calls[0][1]).toEqual({ clientId: "c1", memberId: "a" });
+    expect(H.poner.mock.calls[1][1]).toEqual({ clientId: null, memberId: "b" });
+  });
+  it("cuenta fallidos por fila sin abortar y no toca nada con una etiqueta ajena", async () => {
+    const consola = vi.spyOn(console, "error").mockImplementation(() => {});
+    H.tagFindFirst.mockResolvedValue({ id: "t1" });
+    H.memberFindMany.mockResolvedValue([{ id: "a", clientLink: null }, { id: "b", clientLink: null }]);
+    H.quitar.mockRejectedValueOnce(new Error("db")).mockResolvedValueOnce({ ok: true });
+    const r = await acc().aplicar(ctx, ["a", "b", "zz"], "-t1");
+    expect(r.aplicados).toBe(1);
+    expect(r.fallidos).toEqual([{ id: "a", error: "error inesperado" }, { id: "zz", error: "no encontrado" }]);
+    consola.mockRestore();
+    H.tagFindFirst.mockResolvedValue(null);
+    H.poner.mockReset();
+    expect((await acc().aplicar(ctx, ["a"], "+ajena")).aplicados).toBe(0);
+    expect(H.poner).not.toHaveBeenCalled();
   });
 });

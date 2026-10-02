@@ -6,6 +6,17 @@ import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import type { ConsultaResuelta, ContextoListado, DefinicionListado } from "@/lib/listado/tipos";
 import { CLIENT_KINDS, CLIENT_STATUSES, IVA_CONDITION_LABELS, type IvaCondition } from "./constants";
+import {
+  aplicarEtiquetaEnLote,
+  buscarEtiquetasDelFiltro,
+  ChipsEtiquetas,
+  elegiblesPorExistencia,
+  opcionesDeEtiquetaEnLote,
+  SELECT_ETIQUETAS,
+  unirEtiquetasDeFila,
+  validarEtiquetaDelFiltro,
+} from "@/lib/ficha/etiquetas-listado";
+import { camposParaListado, conCampos, restriccionDeCampos } from "@/lib/campos/listado";
 import { clientDisplayName } from "./display";
 
 const SELECT_FILA = {
@@ -25,6 +36,7 @@ const SELECT_FILA = {
   status: true,
   createdAt: true,
   member: { select: { memberNumber: true } },
+  fotofficeTags: SELECT_ETIQUETAS,
 } satisfies Prisma.ClientSelect;
 
 export type FilaCliente = Prisma.ClientGetPayload<{ select: typeof SELECT_FILA }>;
@@ -41,6 +53,7 @@ const etiquetaIva = (v: string) => IVA_CONDITION_LABELS[v as IvaCondition] ?? v;
 /** Puro: lo que se le pide a Prisma. `workspaceId` va siempre, primero. */
 export function whereClientes(workspaceId: string, c: ConsultaResuelta): Prisma.ClientWhereInput {
   const where: Prisma.ClientWhereInput = { workspaceId };
+  const campos = restriccionDeCampos(c);
   const q = c.q.trim();
   if (q) {
     const or: Prisma.ClientWhereInput[] = [
@@ -52,12 +65,15 @@ export function whereClientes(workspaceId: string, c: ConsultaResuelta): Prisma.
       { phone: { contains: q } },
     ];
     if (/^\d{1,9}$/.test(q)) or.push({ clientNumber: Number(q) });
+    if (campos.buscar) or.push(campos.buscar);
     where.OR = or;
   }
+  if (campos.acotar) where.AND = [campos.acotar];
   if (c.filtros.tipo) where.kind = c.filtros.tipo;
   if (c.filtros.estado) where.status = c.filtros.estado;
   const alta = c.periodos.alta;
   if (alta) where.createdAt = { gte: alta.desde, lte: alta.hasta };
+  if (c.filtros.etiqueta) where.fotofficeTags = { some: { tagId: c.filtros.etiqueta } };
   if (c.filtros.movimientos === "si") where.movements = { some: {} };
   else if (c.filtros.movimientos === "no") where.movements = { none: {} };
   return where;
@@ -182,11 +198,13 @@ export const listadoClientes: DefinicionListado<FilaCliente> = {
         </span>
       ),
     },
+    { clave: "etiquetas", titulo: "Etiquetas", secundaria: true, celda: (f) => <ChipsEtiquetas etiquetas={unirEtiquetasDeFila(f.fotofficeTags)} /> },
     { clave: "alta", titulo: "Alta", orden: "alta", secundaria: true, celda: (f) => fechaAR.format(f.createdAt) },
   ],
   filtros: [
     { tipo: "opcion", clave: "tipo", etiqueta: "Tipo", opciones: CLIENT_KINDS.map((v) => ({ valor: v, etiqueta: ETIQUETA_TIPO[v] })) },
     { tipo: "opcion", clave: "estado", etiqueta: "Estado", opciones: CLIENT_STATUSES.map((v) => ({ valor: v, etiqueta: ETIQUETA_ESTADO[v] })) },
+    { tipo: "relacion", clave: "etiqueta", etiqueta: "Etiqueta", conBuscador: true },
     { tipo: "periodo", clave: "alta", etiqueta: "Alta" },
     { tipo: "siNo", clave: "movimientos", etiqueta: "Movimientos", si: "Con movimientos", no: "Sin movimientos" },
   ],
@@ -216,7 +234,30 @@ export const listadoClientes: DefinicionListado<FilaCliente> = {
     const porId = new Map(filas.map((f) => [f.id, f]));
     return validos.flatMap((id) => porId.get(id) ?? []);
   },
-  acciones: [],
+  validarRelacion: async (ctx, clave, id) => (clave === "etiqueta" ? validarEtiquetaDelFiltro(ctx, id) : null),
+  buscarRelacion: async (ctx, clave, texto) => (clave === "etiqueta" ? buscarEtiquetasDelFiltro(ctx, texto) : []),
+  acciones: [
+    {
+      clave: "etiqueta",
+      etiqueta: "Agregar o quitar etiqueta",
+      capacidad: "operar",
+      maximo: 1000,
+      confirmacion: "Vas a aplicar el cambio de etiqueta ({parametro}) a {n} clientes.",
+      parametro: { etiqueta: "Etiqueta", opciones: opcionesDeEtiquetaEnLote },
+      elegibles: async (ctx, ids) => {
+        const filas = await prisma.client.findMany({ where: { workspaceId: ctx.workspaceId, id: { in: ids } }, select: { id: true } });
+        return elegiblesPorExistencia(ids, filas.map((f) => f.id));
+      },
+      aplicar: (ctx, ids, parametro) =>
+        aplicarEtiquetaEnLote(ctx, ids, parametro, async (aCargar) => {
+          const filas = await prisma.client.findMany({
+            where: { workspaceId: ctx.workspaceId, id: { in: aCargar } },
+            select: { id: true, memberId: true },
+          });
+          return filas.map((f) => ({ id: f.id, persona: { clientId: f.id, memberId: f.memberId } }));
+        }),
+    },
+  ],
   exportar: {
     columnas: [
       { titulo: "N°", tipo: "numero", valor: (f) => f.clientNumber },
@@ -237,3 +278,8 @@ export const listadoClientes: DefinicionListado<FilaCliente> = {
   },
   panel: panelCliente,
 };
+
+/** La lista con los campos personalizados del workspace (columnas, filtros, búsqueda y exportación). */
+export async function cargarListadoClientes(ctx: ContextoListado) {
+  return conCampos(listadoClientes, await camposParaListado(ctx, "CLIENTE"));
+}

@@ -21,7 +21,30 @@ export type WorkspaceEmailContext = {
    */
   organizationName: string;
   signature: RenderedEmailSignature | null;
+  /**
+   * Datos de contacto del branding, limpios (null si faltan). Los usan las plantillas de
+   * mensajes (variables de la organización y "responder a"). Sin branding, todo null.
+   * `loadWorkspaceEmailContext` siempre lo completa; es opcional sólo para que los contextos
+   * armados a mano (pruebas, otros llamadores) sigan siendo válidos.
+   */
+  contact?: WorkspaceContact;
 };
+
+export type WorkspaceContact = {
+  email: string | null;
+  phone: string | null;
+  whatsapp: string | null;
+  website: string | null;
+  instagram: string | null;
+  city: string | null;
+};
+
+const SIN_CONTACTO: WorkspaceContact = { email: null, phone: null, whatsapp: null, website: null, instagram: null, city: null };
+
+function limpio(v: string | null | undefined): string | null {
+  const t = v?.trim();
+  return t ? t : null;
+}
 
 /**
  * Igual que `loadWorkspaceSignature`, pero devuelve además el nombre de la organización.
@@ -52,9 +75,20 @@ export async function loadWorkspaceEmailContext(
 
   const workspaceName = workspace?.name ?? "";
   if (!branding) {
-    return { organizationName: workspaceName.trim() || "FotoOffice", signature: null };
+    return { organizationName: workspaceName.trim() || "FotoOffice", signature: null, contact: { ...SIN_CONTACTO } };
   }
 
   const data = toEmailSignatureData(branding, workspaceName);
-  return { organizationName: data.organizationName, signature: renderEmailSignature(data) };
+  return {
+    organizationName: data.organizationName,
+    signature: renderEmailSignature(data),
+    contact: {
+      email: limpio(branding.contactEmail),
+      phone: limpio(branding.phone),
+      whatsapp: limpio(branding.whatsapp),
+      website: limpio(branding.website),
+      instagram: limpio(branding.instagram),
+      city: limpio(branding.city),
+    },
+  };
 }

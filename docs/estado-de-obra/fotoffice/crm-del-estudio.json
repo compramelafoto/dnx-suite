@@ -1,0 +1,125 @@
+{
+  "proyecto": "CRM del estudio (reemplazo de Alboom)",
+  "plataforma": "FOTOFFICE",
+  "spec": "apps/fotoffice/docs/alboom/00-mapa-general-y-plan.md",
+  "enUso": "no",
+  "usoNota": "DNX Estudio sigue trabajando en Alboom hasta la migración final (etapa 8). El relevamiento completo de Alboom está en la rama docs/fotoffice-crm-alboom; la etapa 0.1 está programada en el PR 277, sin fusionar y con el SQL sin aplicar",
+  "etapas": [
+    {
+      "nombre": "0 · Cimientos",
+      "criterios": [
+        {
+          "que": "El dueño invita por correo a una persona del equipo y ella entra con su rol (Administrador o Equipo)",
+          "implementado": { "pr": 277, "fecha": "2026-09-29" },
+          "probado": null,
+          "bloqueado": "El PR 277 sigue abierto: primero hay que aplicar su SQL en las bases (packages/db/docs/MIGRACION-EQUIPO-Y-MODULOS.md), empezando por staging"
+        },
+        {
+          "que": "El equipo opera todo el sistema y no puede entrar a Configuración, Módulos ni Equipo",
+          "implementado": { "pr": 277, "fecha": "2026-09-29" },
+          "probado": null,
+          "bloqueado": "El PR 277 sigue abierto; se prueba invitando a Sabi o a Cami después de fusionarlo"
+        },
+        {
+          "que": "El dueño cambia roles y da de baja, y queda el historial con quién hizo qué",
+          "implementado": { "pr": 277, "fecha": "2026-09-29" },
+          "probado": null,
+          "bloqueado": "El PR 277 sigue abierto"
+        },
+        {
+          "que": "El dueño elige el tipo de organización y enciende sus módulos, con las dependencias a la vista",
+          "implementado": { "pr": 277, "fecha": "2026-09-29" },
+          "probado": null,
+          "bloqueado": "El PR 277 sigue abierto"
+        },
+        {
+          "que": "El menú se ordena según el tipo de organización (un estudio ve primero lo comercial; una sociedad, los socios)",
+          "implementado": { "pr": 277, "fecha": "2026-09-29" },
+          "probado": null,
+          "bloqueado": "El PR 277 sigue abierto"
+        },
+        {
+          "que": "Todas las listas se buscan, filtran y ordenan de la misma manera (listado estándar)",
+          "implementado": null,
+          "probado": null
+        },
+        {
+          "que": "Cada ficha muestra su historia en una línea de tiempo (ficha estándar)",
+          "implementado": null,
+          "probado": null
+        },
+        {
+          "que": "El estudio arma y reordena las etapas de sus circuitos sin programar (motor de etapas)",
+          "implementado": null,
+          "probado": null
+        },
+        {
+          "que": "El estudio agrega campos propios y la numeración sigue la de Alboom",
+          "implementado": null,
+          "probado": null
+        },
+        {
+          "que": "Los correos y mensajes de WhatsApp salen de plantillas completas, con variables",
+          "implementado": null,
+          "probado": null
+        }
+      ]
+    },
+    {
+      "nombre": "1 · Contactos y Consultas",
+      "criterios": [
+        { "que": "Una consulta entra por el formulario web y aparece en el tablero del circuito de venta", "implementado": null, "probado": null },
+        { "que": "La consulta avanza de etapa en el tablero y el sistema recuerda hacer el seguimiento", "implementado": null, "probado": null }
+      ]
+    },
+    {
+      "nombre": "2 · Catálogo y Presupuestos",
+      "criterios": [
+        { "que": "Se arma un presupuesto con servicios y productos del catálogo", "implementado": null, "probado": null },
+        { "que": "El cliente abre el presupuesto por un enlace y lo acepta", "implementado": null, "probado": null }
+      ]
+    },
+    {
+      "nombre": "3 · Pedidos y Cobranzas",
+      "criterios": [
+        { "que": "Un presupuesto aceptado se convierte en pedido con su plan de cuotas", "implementado": null, "probado": null },
+        { "que": "Se cobra una cuota, entra a Caja y el cliente recibe su recibo", "implementado": null, "probado": null }
+      ]
+    },
+    {
+      "nombre": "4 · Proyectos y Agenda",
+      "criterios": [
+        { "que": "El pedido crea su proyecto con las etapas y tareas del flujo que corresponde", "implementado": null, "probado": null },
+        { "que": "Las citas y fechas de los proyectos se ven en la agenda y en Google Calendar", "implementado": null, "probado": null }
+      ]
+    },
+    {
+      "nombre": "5 · Contratos",
+      "criterios": [
+        { "que": "El contrato sale de una plantilla con los datos del pedido y el cliente lo firma en línea", "implementado": null, "probado": null }
+      ]
+    },
+    {
+      "nombre": "6 · Informes",
+      "criterios": [
+        { "que": "El estudio ve ventas, resultados y flujo de caja proyectado", "implementado": null, "probado": null }
+      ]
+    },
+    {
+      "nombre": "7 · Galería FOTOFFICE y DNX FLUX",
+      "criterios": [
+        { "que": "DNX FLUX publica en la galería del proyecto las fotos elegidas en Aftershoot", "implementado": null, "probado": null },
+        { "que": "El cliente elige sus fotos en la galería y el estudio exporta la selección", "implementado": null, "probado": null },
+        { "que": "El cliente descarga sus fotos en alta resolución", "implementado": null, "probado": null }
+      ]
+    },
+    {
+      "nombre": "8 · Migración",
+      "criterios": [
+        { "que": "Un ensayo completo en una base de prueba concilia cantidades, totales y saldos con Alboom", "implementado": null, "probado": null },
+        { "que": "DNX Estudio trabaja sólo en FOTOFFICE y Alboom queda en sólo lectura", "implementado": null, "probado": null },
+        { "que": "Las galerías de Alboom Proof están en la galería FOTOFFICE y los enlaces viejos redirigen", "implementado": null, "probado": null }
+      ]
+    }
+  ]
+}

@@ -1,20 +1,27 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
-import { PageHeader } from "@/components/page-header";
+import { Ficha } from "@/components/ficha/ficha";
+import { DatosFicha } from "@/components/ficha/datos-ficha";
+import { MasDatos } from "@/components/campos/mas-datos";
+import { Mensaje } from "@/components/mensajes/mensaje";
+import type { InsigniaFicha } from "@/components/ficha/encabezado-ficha";
 import { requireClientsStaff } from "@/lib/clients/access";
 import { getClient, listMembersAvailableToLink } from "@/lib/clients/repository";
 import { clientDisplayName } from "@/lib/clients/display";
-import { CASH_MODULE_KEY } from "@/lib/cash/constants";
-import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
-import { listMovements } from "@/lib/cash/repository";
-import { MovementsTable } from "@/app/(shell)/caja/movements-table";
+import { resolverPersonaPorCliente } from "@/lib/ficha/persona";
 import { ClientForm } from "../client-form";
 import { linkClientToMemberAction } from "../actions";
 
-/** Cuántos movimientos recientes se muestran en la ficha: es un resumen, no el libro completo. */
-const MOVIMIENTOS_RECIENTES = 20;
-
 export const dynamic = "force-dynamic";
 
+const TIPO: Record<string, string> = { PERSONA: "Persona", EMPRESA: "Empresa" };
+
+/**
+ * Ficha del cliente sobre la ficha estándar: encabezado con contacto y etiquetas, notas y
+ * línea de tiempo al centro (los movimientos de caja aparecen ahí, como Plata), y a la
+ * derecha los datos editables, el enlace con el socio, las relaciones y los adjuntos.
+ * Las categorías de notas las asegura `<Ficha>` después de su propio control de acceso.
+ */
 export default async function ClientePage({
   params,
   searchParams,
@@ -26,72 +33,89 @@ export default async function ClientePage({
   const { clientId } = await params;
   const query = await searchParams;
 
+  const persona = await resolverPersonaPorCliente(workspace.id, clientId);
+  if (!persona) notFound();
   const cliente = await getClient(workspace.id, clientId);
   if (!cliente) notFound();
 
   const socios = await listMembersAvailableToLink(workspace.id, cliente.member?.id ?? null);
 
-  // El módulo de Caja es de otro workspace-feature: si está apagado acá, no hay libro que
-  // mostrar. Ocultar la sección entera evita el error de la Tarea 11 —un texto fijo de "no
-  // hay movimientos" que mentía incluso cuando sí los había— sin reemplazarlo por un cartel
-  // vacío igual de inútil cuando el módulo ni siquiera está encendido.
-  const cajaHabilitada = await isModuleEnabledForWorkspace(workspace.id, CASH_MODULE_KEY);
-  const movimientos = cajaHabilitada
-    ? await listMovements(workspace.id, { clientId: cliente.id, take: MOVIMIENTOS_RECIENTES })
+  const insignias: InsigniaFicha[] = cliente.member
+    ? [{ texto: `También es socio N° ${cliente.member.memberNumber}`, href: `/members/${cliente.member.id}` }]
     : [];
 
   return (
-    <div className="space-y-8">
-      <PageHeader
-        title={clientDisplayName(cliente)}
-        description={`Cliente N° ${cliente.clientNumber}${cliente.member ? ` — también es socio N° ${cliente.member.memberNumber}` : ""}.`}
-      />
+    <div className="space-y-4">
+      <Link href="/clientes" className="text-sm text-[var(--fo-muted)] hover:underline">
+        ← Volver a clientes
+      </Link>
 
       {query.ok ? (
         <p className="fo-card p-4 text-sm text-[var(--fo-success)]">Listo, se guardó.</p>
       ) : null}
-
-      <ClientForm client={cliente} error={query.error} />
-
-      <section className="fo-card space-y-4 p-5">
-        <h2 className="text-base font-semibold">¿Es socio?</h2>
-        <p className="text-sm text-[var(--fo-muted)]">
-          {cliente.member
-            ? `Esta ficha está enlazada con el socio N° ${cliente.member.memberNumber}.`
-            : "Si esta persona también es socio de la institución, elegilo acá para enlazar las dos fichas."}
+      {/* Arriba de todo (y no dentro del formulario, que ahora está en la columna lateral):
+          acá llegan los errores del formulario y los del enlace con el socio. */}
+      {query.error ? (
+        <p className="fo-card p-4 text-sm text-[var(--fo-danger)]" role="alert">
+          {query.error}
         </p>
-        <form action={linkClientToMemberAction} className="flex flex-wrap items-end gap-3">
-          <input type="hidden" name="clientId" value={cliente.id} />
-          <div className="fo-field-stack sm:max-w-xs">
-            <label className="fo-label" htmlFor="memberId">
-              Socio
-            </label>
-            <select
-              id="memberId"
-              name="memberId"
-              className="fo-input"
-              defaultValue={cliente.member?.id ?? ""}
-            >
-              <option value="">No es socio</option>
-              {socios.map((s) => (
-                <option key={s.id} value={s.id}>
-                  N° {s.memberNumber} — {s.fullName}
-                </option>
-              ))}
-            </select>
-          </div>
-          <button type="submit" className="fo-btn fo-btn-secondary text-sm">
-            Guardar enlace
-          </button>
-        </form>
-      </section>
-
-      {cajaHabilitada ? (
-        <section className="fo-card space-y-3 p-5">
-          <h2 className="text-base font-semibold">Consumo</h2>
-          <MovementsTable movements={movimientos} showAccount />
-        </section>
       ) : null}
+
+      <Ficha
+        persona={{ tipo: "CLIENTE", id: cliente.id }}
+        encabezado={{
+          titulo: clientDisplayName(cliente),
+          subtitulo: `Cliente N° ${cliente.clientNumber} · ${TIPO[cliente.kind] ?? cliente.kind}`,
+          insignias,
+          telefono: cliente.phone,
+          correo: cliente.email,
+        }}
+        datos={
+          <>
+            <Mensaje entityType="CLIENTE" entityId={cliente.id} />
+            <DatosFicha titulo="Datos">
+              <ClientForm client={cliente} enColumna />
+            </DatosFicha>
+            <MasDatos entityType="CLIENTE" entityId={cliente.id} />
+          </>
+        }
+        lateral={
+          <DatosFicha titulo="¿Es socio?">
+            <p className="text-sm text-[var(--fo-muted)]">
+              {cliente.member ? (
+                <>
+                  Esta ficha está enlazada con el{" "}
+                  <Link href={`/members/${cliente.member.id}`} className="hover:underline">
+                    socio N° {cliente.member.memberNumber}
+                  </Link>
+                  .
+                </>
+              ) : (
+                "Si esta persona también es socio de la institución, elegilo acá para enlazar las dos fichas."
+              )}
+            </p>
+            <form action={linkClientToMemberAction} className="space-y-3">
+              <input type="hidden" name="clientId" value={cliente.id} />
+              <div className="fo-field-stack">
+                <label className="fo-label" htmlFor="memberId">
+                  Socio
+                </label>
+                <select id="memberId" name="memberId" className="fo-input" defaultValue={cliente.member?.id ?? ""}>
+                  <option value="">No es socio</option>
+                  {socios.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      N° {s.memberNumber} — {s.fullName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button type="submit" className="fo-btn fo-btn-secondary text-sm">
+                Guardar enlace
+              </button>
+            </form>
+          </DatosFicha>
+        }
+      />
     </div>
   );
 }

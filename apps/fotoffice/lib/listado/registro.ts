@@ -1,3 +1,4 @@
+import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import type { ContextoListado, DefinicionListado } from "./tipos";
 
 /** Las filas de cada lista son de tipos distintos; el registro las trata de forma opaca. */
@@ -13,17 +14,24 @@ type EntradaLista = {
 };
 
 export const LISTAS: Record<string, EntradaLista> = {
-  clientes: { moduleKey: "clients", ruta: "/clientes", cargar: async () => (await import("@/lib/clients/listado")).listadoClientes },
+  // Clientes, Socios y Captación suman los campos personalizados del workspace (0.5).
+  clientes: { moduleKey: "clients", ruta: "/clientes", cargar: async (ctx) => (await import("@/lib/clients/listado")).cargarListadoClientes(ctx) },
   socios: {
     moduleKey: "members",
     ruta: "/members",
     cargar: async (ctx) => {
-      const [{ listadoSocios }, { loadPersonVocabulary }] = await Promise.all([
+      const [{ cargarListadoSocios }, { loadPersonVocabulary }] = await Promise.all([
         import("@/lib/members/listado"),
         import("@/lib/vocabulario/load"),
       ]);
-      return listadoSocios(await loadPersonVocabulary(ctx.workspaceId));
+      return cargarListadoSocios(ctx, await loadPersonVocabulary(ctx.workspaceId));
     },
+  },
+  captacion: {
+    moduleKey: SERVICE_LEADS_MODULE_KEY,
+    // La lista vive en su propia ruta: `vista` es parámetro reservado del motor (vistas guardadas).
+    ruta: "/captacion/lista",
+    cargar: async (ctx) => (await import("@/lib/service-leads/listado")).cargarListadoCaptacion(ctx),
   },
   "caja-movimientos": {
     moduleKey: "cash",

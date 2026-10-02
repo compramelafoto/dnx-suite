@@ -1,26 +1,61 @@
 "use server";
 
 import { Prisma, prisma } from "@repo/db";
+import { headers } from "next/headers";
 import { z } from "zod";
+import { notificarEvento } from "@/lib/circuitos/eventos";
+import { checkRateLimit, clientIp } from "@/lib/geocode/rate-limit";
+import { responderConsultaNueva } from "@/lib/plantillas/automaticos";
+import { numerarConsultaNueva } from "@/lib/service-leads/numero";
+
+/**
+ * Topes de largo del formulario público (es abierto: nadie tiene que iniciar sesión). Los mismos
+ * números valen para la respuesta automática, que repite algunos de estos datos.
+ */
+const MAX_NOMBRE = 120;
+const MAX_EMAIL = 254;
+const MAX_TELEFONO = 40;
+const MAX_MENSAJE = 4000;
+const MAX_CORTO = 200;
 
 const serviceLeadSchema = z.object({
-  workspaceSlug: z.string().min(1),
-  formId: z.string().optional().or(z.literal("")),
-  formSlug: z.string().optional().or(z.literal("")),
-  name: z.string().min(1),
+  workspaceSlug: z.string().min(1).max(MAX_CORTO),
+  formId: z.string().max(MAX_CORTO).optional().or(z.literal("")),
+  formSlug: z.string().max(MAX_CORTO).optional().or(z.literal("")),
+  name: z.string().min(1).max(MAX_NOMBRE, `El nombre puede tener hasta ${MAX_NOMBRE} caracteres.`),
   email: z
     .string()
+    .max(MAX_EMAIL, "Email inválido.")
     .email("Email inválido.")
     .optional()
     .or(z.literal("")),
-  phone: z.string().optional().or(z.literal("")),
-  eventType: z.string().min(1),
-  eventSubtype: z.string().optional().or(z.literal("")),
-  eventDate: z.string().optional().or(z.literal("")),
-  eventLocation: z.string().optional().or(z.literal("")),
-  message: z.string().optional().or(z.literal("")),
+  phone: z.string().max(MAX_TELEFONO, `El teléfono puede tener hasta ${MAX_TELEFONO} caracteres.`).optional().or(z.literal("")),
+  eventType: z.string().min(1).max(MAX_CORTO),
+  eventSubtype: z.string().max(MAX_CORTO).optional().or(z.literal("")),
+  eventDate: z.string().max(MAX_CORTO).optional().or(z.literal("")),
+  eventLocation: z.string().max(MAX_CORTO, `El lugar puede tener hasta ${MAX_CORTO} caracteres.`).optional().or(z.literal("")),
+  message: z.string().max(MAX_MENSAJE, `El mensaje puede tener hasta ${MAX_MENSAJE} caracteres.`).optional().or(z.literal("")),
   meta: z.record(z.string(), z.unknown()).nullable().optional(),
 });
+
+/**
+ * Freno por IP del formulario público: el de memoria del proxy de geocodificación (cada instancia
+ * de Vercel lleva su conteo, así que es "N por instancia"; no es un control de seguridad, sólo
+ * evita un bucle o un raspador). Sin IP conocida no se frena: agruparía a todos juntos.
+ */
+const FRENO_CONSULTAS = { limit: 10, windowMs: 10 * 60 * 1000 };
+const MENSAJE_FRENO = "Recibimos muchas consultas seguidas desde tu conexión. Probá de nuevo en unos minutos.";
+
+async function frenadoPorIp(): Promise<boolean> {
+  let ip: string;
+  try {
+    ip = clientIp(await headers());
+  } catch {
+    return false; // Fuera de un pedido (pruebas, scripts): no hay IP que contar.
+  }
+  if (ip === "desconocido") return false;
+  return !checkRateLimit({ key: `service-lead:${ip}`, ...FRENO_CONSULTAS }).allowed;
+}
 
 type CreateServiceLeadInput = {
   workspaceSlug: string;
@@ -78,13 +113,11 @@ export async function createServiceLead(
     }
 
     const data = parsed.data;
-    console.log("SLUG RECIBIDO:", data.workspaceSlug);
+    if (await frenadoPorIp()) return { success: false, error: MENSAJE_FRENO };
 
     const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
       where: { publicSlug: data.workspaceSlug },
     });
-    console.log("BRANDING:", branding);
-    console.log("WORKSPACE ID QUE SE USA:", branding?.workspaceId);
 
     if (!branding) {
       return { success: false, error: "Workspace no encontrado." };
@@ -95,7 +128,8 @@ export async function createServiceLead(
         : "";
     const resolvedEventSubtype = data.eventSubtype?.trim() || budgetTypeFromMeta || "";
 
-    await prisma.serviceSalesLead.create({
+    const creado = await prisma.serviceSalesLead.create({
+      select: { id: true, createdAt: true },
       data: {
         workspaceId: branding.workspaceId,
         formId: emptyToNull(data.formId),
@@ -113,9 +147,33 @@ export async function createServiceLead(
       },
     });
 
+    // La consulta ya quedó registrada: recibe su número en una transacción aparte, para que una
+    // falla de la numeración nunca deshaga el alta (numerarConsultaNueva no lanza; si falla, la
+    // numera el próximo enganche).
+    await numerarConsultaNueva(branding.workspaceId, creado.id, creado.createdAt);
+
+    // Respuesta automática por correo (0.6), sólo en este camino del formulario público: va después
+    // del número para que [consulta_numero] ya exista. Nunca hace fallar el alta (no lanza; si el
+    // correo falla, queda registrado como "Falló").
+    try {
+      await responderConsultaNueva(branding.workspaceId, creado.id);
+    } catch {
+      console.error("[plantillas] no se pudo enganchar la respuesta automática");
+    }
+
+    // El motor de etapas la pone en la primera etapa. Una falla
+    // del motor nunca hace fallar el alta (notificarEvento no lanza; esto es por las dudas).
+    try {
+      await notificarEvento(branding.workspaceId, { tipo: "CAPTACION", id: creado.id }, "CONSULTA_RECIBIDA", creado.id);
+    } catch {
+      console.error("[captacion] no se pudo enganchar la consulta nueva al embudo");
+    }
+
     return { success: true };
   } catch (error) {
-    console.error("Error al crear ServiceSalesLead:", error);
+    // Sólo el tipo y el código: el mensaje de Prisma puede repetir los datos de la persona.
+    const e = error as { name?: string; code?: string } | null;
+    console.error("Error al crear ServiceSalesLead:", { error: e?.name ?? "desconocido", codigo: e?.code ?? null });
     return { success: false, error: "No se pudo registrar el lead." };
   }
 }
