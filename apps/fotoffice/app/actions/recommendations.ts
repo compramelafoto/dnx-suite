@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { AuthUser } from "@/lib/auth";
 import { requireActiveWorkspace } from "@/lib/workspace";
-import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
+import { canOperateWorkspaceCollection } from "@/lib/payments/connect/authz";
 import { voidRecommendationBenefit } from "@/lib/membership/recommendation-store";
 
 export type RecommendationActionState = { error: string | null; ok: string | null };
@@ -17,7 +17,7 @@ async function requireSecretary(): Promise<
 > {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) return { ok: false, error: "No hay institución activa." };
-  if (!(await canManageWorkspaceCollection(user.id, workspace.id))) {
+  if (!(await canOperateWorkspaceCollection(user.id, workspace.id))) {
     return { ok: false, error: "No tenés permiso para anular bonificaciones." };
   }
   return { ok: true, workspaceId: workspace.id, user };

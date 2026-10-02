@@ -1,6 +1,7 @@
 import "server-only";
 import { redirect } from "next/navigation";
 import { requireActiveWorkspace } from "@/lib/workspace";
+import { puede } from "@/lib/access/policy";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
@@ -31,7 +32,7 @@ async function contextoBase() {
 
 export async function requireCashStaff() {
   const ctx = await contextoBase();
-  if (!ctx.role) redirect("/dashboard");
+  if (!puede(ctx.role, "operar")) redirect("/dashboard");
   return ctx;
 }
 

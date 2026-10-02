@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireActiveWorkspace } from "@/lib/workspace";
-import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
+import { canOperateWorkspaceCollection } from "@/lib/payments/connect/authz";
 import { getPlatformFeeBps } from "@/lib/platform-fee/store";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { FEE_SINCE_PERIOD } from "@/lib/platform-fee/debt";
@@ -23,8 +23,8 @@ const money = (minor: number) =>
 /**
  * Registra un pago cobrado en mano.
  *
- * Lo puede hacer quien administra los cobros de la institución: hoy el dueño y los
- * administradores, mañana Tesorería o Secretaría con el mismo permiso.
+ * Lo puede hacer quien opera los cobros de la institución: dueño, administradores y Equipo
+ * (capacidad `operar`).
  */
 export async function registerManualPaymentAction(
   _prev: ManualPaymentState,
@@ -32,8 +32,8 @@ export async function registerManualPaymentAction(
 ): Promise<ManualPaymentState> {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) return { error: "No hay una institución activa.", ok: null };
-  if (!(await canManageWorkspaceCollection(user.id, workspace.id))) {
-    return { error: "Solo quien administra los cobros puede registrar un pago.", ok: null };
+  if (!(await canOperateWorkspaceCollection(user.id, workspace.id))) {
+    return { error: "No tenés permiso para registrar un pago.", ok: null };
   }
 
   const vocabulary = await loadPersonVocabulary(workspace.id);

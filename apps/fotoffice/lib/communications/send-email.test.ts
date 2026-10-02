@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { sendTransactionalEmail } from "./send-email";
+import { RESEND_TIMEOUT_MS, buildFrom, sendTransactionalEmail } from "./send-email";
 
 const API_KEY = "re_supersecret_value_0123456789";
 const ENV = {
@@ -117,5 +117,55 @@ describe("sendTransactionalEmail", () => {
     const headers = init.headers as Record<string, string>;
     expect(headers.Authorization).toBe(`Bearer ${API_KEY}`);
     expect(String(init.body)).not.toContain(API_KEY);
+  });
+
+  it("sin nombre visible ni responder-a, el pedido no cambia (sin reply_to)", async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse(200, { id: "email_123" }));
+    await sendTransactionalEmail(MESSAGE, { env: ENV, fetchImpl });
+    const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).not.toHaveProperty("reply_to");
+  });
+
+  it("con nombre visible conserva la casilla del entorno y agrega reply_to", async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse(200, { id: "email_123" }));
+    await sendTransactionalEmail(
+      { ...MESSAGE, fromName: "Estudio DNX", replyTo: "hola@estudio.example" },
+      { env: ENV, fetchImpl },
+    );
+    const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(String(init.body));
+    expect(body.from).toBe('"Estudio DNX" <no-reply@mail.fotoffice.com>');
+    expect(body.reply_to).toBe("hola@estudio.example");
+  });
+});
+
+describe("buildFrom", () => {
+  it("toma la casilla pelada o entre <> y limpia el nombre", () => {
+    expect(buildFrom("no-reply@mail.example", "Club")).toBe('"Club" <no-reply@mail.example>');
+    expect(buildFrom("X <no-reply@mail.example>", 'Ma"la <otra@x.y>\r\nBcc: z')).toBe(
+      '"Ma la otra@x.y Bcc: z" <no-reply@mail.example>',
+    );
+    expect(buildFrom("X <no-reply@mail.example>", "   ")).toBe("X <no-reply@mail.example>");
+    expect(buildFrom("X <no-reply@mail.example>")).toBe("X <no-reply@mail.example>");
+  });
+});
+
+describe("tiempo de espera", () => {
+  it("el pedido a Resend lleva un corte de 10 s; si se cuelga, vuelve como error de conexión", async () => {
+    expect(RESEND_TIMEOUT_MS).toBe(10_000);
+    const corte = new AbortController();
+    const timeout = vi.spyOn(AbortSignal, "timeout").mockReturnValue(corte.signal);
+    // Un proveedor que nunca contesta: sólo termina cuando se corta la señal.
+    const fetchImpl = vi.fn(
+      (_url: string, init?: RequestInit) =>
+        new Promise<Response>((_ok, falla) => init?.signal?.addEventListener("abort", () => falla(init.signal!.reason))),
+    );
+    const pendiente = sendTransactionalEmail(MESSAGE, { env: ENV, fetchImpl: fetchImpl as unknown as typeof fetch });
+    expect(timeout).toHaveBeenCalledWith(10_000);
+    corte.abort(new DOMException("The operation was aborted due to timeout", "TimeoutError"));
+    const result = await pendiente;
+    expect(result).toEqual({ status: "INTERNAL_ERROR", detail: "Sin respuesta del proveedor en 10 s" });
+    expect(JSON.stringify(result)).not.toContain(API_KEY);
+    timeout.mockRestore();
   });
 });

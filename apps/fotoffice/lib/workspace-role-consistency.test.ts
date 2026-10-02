@@ -22,7 +22,7 @@ const appRoot = join(here, "..");
  */
 describe("resolución de rol de workspace — menú y páginas leen lo mismo", () => {
   const roleSrc = readFileSync(join(here, "workspace-role.ts"), "utf8");
-  const layoutSrc = readFileSync(join(appRoot, "app/(shell)/layout.tsx"), "utf8");
+  const layoutSrc = readFileSync(join(appRoot, "components/shell/admin-shell.tsx"), "utf8");
   const membersAccessSrc = readFileSync(join(here, "members/access.ts"), "utf8");
   const workspaceHomeSrc = readFileSync(join(appRoot, "app/workspace/page.tsx"), "utf8");
 

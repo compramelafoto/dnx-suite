@@ -50,7 +50,7 @@ export default async function PermisosCarnetsPage() {
               <p className="text-xs text-[var(--fo-muted)]">
                 {/* No se le ofrecen casillas: quitárselas no le sacaría nada, porque puede
                     todo por su rol, y mostrarlas desmarcadas haría creer lo contrario. */}
-                Administra la institución: puede todo
+                Puede imprimir y entregar por su rol
               </p>
             ) : (
               <OperatorRow

@@ -26,6 +26,10 @@ export const memberSchema = z.object({
   city: z.string().max(120).optional().nullable(),
   province: z.string().max(120).optional().nullable(),
   postalCode: z.string().max(20).optional().nullable(),
+  /**
+   * Sólo lo usa la importación por CSV (columna "notes"). El formulario de alta/edición ya no
+   * lo manda: las observaciones viven en las notas de la ficha. Si falta, la columna no se toca.
+   */
   notes: z.string().max(4000).optional().nullable(),
 });
 
@@ -70,7 +74,7 @@ export function formToMemberPayload(formData: FormData) {
     city: emptyToNull(formData.get("city")?.toString()),
     province: emptyToNull(formData.get("province")?.toString()),
     postalCode: emptyToNull(formData.get("postalCode")?.toString()),
-    notes: emptyToNull(formData.get("notes")?.toString()),
+    // `notes` no se lee del formulario: las observaciones se cargan como notas de la ficha.
   };
 }
 
@@ -100,7 +104,9 @@ export function memberValuesToRepositoryInput(d: MemberFormValues) {
     city: d.city ?? null,
     province: d.province ?? null,
     postalCode: d.postalCode ?? null,
-    notes: d.notes ?? null,
+    // Sólo si vino (importación por CSV). Del formulario nunca viene, y entonces la columna
+    // queda como está: nunca se pisa con null.
+    ...(d.notes !== undefined ? { notes: d.notes } : {}),
   };
 }
 

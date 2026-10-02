@@ -13,6 +13,7 @@ const ROLES: Record<string, string> = {
   WORKSPACE_OWNER: "Dueño",
   WORKSPACE_ADMIN: "Administrador",
   STAFF: "Equipo",
+  COLLABORATOR: "Colaborador",
 };
 
 /**

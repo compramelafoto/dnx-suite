@@ -10,6 +10,9 @@ import { canManageMembers } from "@/lib/members/role-policy";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
+import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
+import { puede } from "@/lib/access/policy";
+import { getOrganizationType } from "@/lib/workspace-type";
 import { loadWorkspaceHome } from "@/lib/workspace-home/load";
 import { WorkspaceHome } from "@/components/workspace-home/workspace-home";
 
@@ -46,6 +49,9 @@ export default async function WorkspaceHomePage() {
   const admin = canManageWorkspaceSettings(role);
   const modulos = resolveEnabledNavModules(enabled, vocabulary);
   const puedeAdministrarSocios = canManageMembers(role);
+  // Sin tipo elegido no se puede ordenar el menú ni sugerir módulos: se lo pedimos a quien puede decidirlo.
+  const faltaTipoDeOrganizacion =
+    puede(role, "configurar") && (await getOrganizationType(workspaceId)) === null;
 
   const nombre = (profile?.displayName ?? user.name ?? "").split(" ")[0] || "equipo";
   const institucion = branding?.commercialName?.trim() || activa?.name || "tu institución";
@@ -67,12 +73,20 @@ export default async function WorkspaceHomePage() {
       admin={admin}
       puedeCrearSocio={puedeAdministrarSocios && enabled.has(MEMBERS_MODULE_KEY)}
       faltaConfigurar={faltaConfigurar}
+      faltaTipoDeOrganizacion={faltaTipoDeOrganizacion}
       modulos={modulos.map((m) => ({
         ...m,
         // El permiso es por módulo: el de Socios no habilita nada en otro.
         pantallas: submodulesFor(
           m.key,
-          { canManage: m.key === MEMBERS_MODULE_KEY ? puedeAdministrarSocios : admin },
+          {
+            canManage:
+              m.key === MEMBERS_MODULE_KEY || m.key === COVERAGES_MODULE_KEY
+                ? puedeAdministrarSocios
+                : // Reservas, Caja y demás: sus pantallas "requiresManage" son de configuración.
+                  admin,
+            canConfigure: admin,
+          },
           vocabulary,
         ),
       }))}

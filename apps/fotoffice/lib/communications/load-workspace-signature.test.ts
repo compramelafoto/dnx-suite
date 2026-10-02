@@ -80,4 +80,16 @@ describe("contexto de email del workspace", () => {
     expect(ctx.organizationName).not.toContain("ws-abc123");
     expect(ctx.organizationName).toBe("FotoOffice");
   });
+
+  it("devuelve el contacto del branding limpio, o todo null sin branding", async () => {
+    brandingFindUniqueMock.mockResolvedValue({ ...BRANDING, phone: "  ", whatsapp: " +54 9 341 555 0000 ", city: "Rosario" });
+    workspaceFindUniqueMock.mockResolvedValue({ name: "W" });
+    expect((await loadWorkspaceEmailContext("ws-sfpr")).contact).toEqual({
+      email: "info@sfpr.test", phone: null, whatsapp: "+54 9 341 555 0000", website: null, instagram: null, city: "Rosario",
+    });
+    brandingFindUniqueMock.mockResolvedValue(null);
+    expect((await loadWorkspaceEmailContext("ws-sfpr")).contact).toEqual({
+      email: null, phone: null, whatsapp: null, website: null, instagram: null, city: null,
+    });
+  });
 });

@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@repo/db";
 import { countMembersByStatus } from "@repo/db/fotoffice-members";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
+import { puede } from "@/lib/access/policy";
 import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
@@ -89,6 +90,9 @@ export async function loadWorkspaceHome(input: {
   const { workspaceId, enabled, role } = input;
   const now = input.now ?? new Date();
   const admin = canManageWorkspaceSettings(role);
+  // Tener un rol no alcanza: el Colaborador tiene uno y no opera ni ve plata (lib/access/policy).
+  const opera = puede(role, "operar");
+  const veDinero = puede(role, "verDinero");
   const cobra =
     (enabled.has(MEMBERSHIP_DUES_MODULE_KEY) || enabled.has(MEMBERS_MODULE_KEY)) &&
     (await canManageWorkspaceCollection(input.userId, workspaceId));
@@ -96,7 +100,7 @@ export async function loadWorkspaceHome(input: {
 
   const [socios, cuotas, cobradoMes, altas, caja, reservas, sorteo, premios, coberturas, pedidos] =
     await Promise.all([
-      enabled.has(MEMBERS_MODULE_KEY)
+      enabled.has(MEMBERS_MODULE_KEY) && opera
         ? seguro("socios", async () => {
             const [conteo, padron] = await Promise.all([
               countMembersByStatus(workspaceId),
@@ -126,7 +130,7 @@ export async function loadWorkspaceHome(input: {
             return { pendientes, aprobadasSinPagar: impagas.length };
           })
         : null,
-      enabled.has(CASH_MODULE_KEY) && role
+      enabled.has(CASH_MODULE_KEY) && veDinero
         ? seguro("caja", async () => {
             const [cuentas, movimientos] = await Promise.all([
               listAccounts(workspaceId),
@@ -137,7 +141,7 @@ export async function loadWorkspaceHome(input: {
             return { cuentas: filas, totalMinor: filas.reduce((s, c) => s + c.saldoMinor, 0) };
           })
         : null,
-      enabled.has(BOOKINGS_MODULE_KEY) && role
+      enabled.has(BOOKINGS_MODULE_KEY) && opera
         ? seguro("reservas", async () => {
             const [filas, espacios] = await Promise.all([
               listBookingsInRange(workspaceId, { startAt: now, endAt: enUnaSemana }),
@@ -159,7 +163,7 @@ export async function loadWorkspaceHome(input: {
             };
           })
         : null,
-      enabled.has(RAFFLES_MODULE_KEY) && role
+      enabled.has(RAFFLES_MODULE_KEY) && opera
         ? seguro("sorteo", () =>
             prisma.raffle.findFirst({
               where: { workspaceId, status: { in: ["BORRADOR", "ANUNCIADO", "PADRON_SELLADO", "SORTEADO"] } },
@@ -168,10 +172,10 @@ export async function loadWorkspaceHome(input: {
             }),
           )
         : null,
-      enabled.has(RAFFLES_MODULE_KEY) && role
+      enabled.has(RAFFLES_MODULE_KEY) && opera
         ? seguro("premios", async () => (await listPendingAwards(workspaceId)).length)
         : null,
-      enabled.has(COVERAGES_MODULE_KEY) && role
+      enabled.has(COVERAGES_MODULE_KEY) && opera
         ? seguro("coberturas", () => countRequestsByFilter({ workspaceId, now }))
         : null,
       enabled.has(SERVICE_LEADS_MODULE_KEY) && admin

@@ -11,8 +11,11 @@ import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { canManageMembers } from "@/lib/members/role-policy";
+import { canCoordinateCoverages } from "@/lib/coverages/access-policy";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
+import { puede } from "@/lib/access/policy";
+import { getOrganizationType } from "@/lib/workspace-type";
 import { isFotofficePlatformAdmin } from "@/lib/platform-admin";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { personVocabulary } from "@/lib/vocabulario/personas";
@@ -66,7 +69,10 @@ export async function AdminShell({ user, children }: { user: PanelUser; children
   const activeRole = workspace !== null ? await resolveWorkspaceRole(user.id, workspace.id) : null;
   const canManageMembersFlag = canManageMembers(activeRole);
   const canManageWorkspaceSettingsFlag = canManageWorkspaceSettings(activeRole);
-  const platformAdmin = await isFotofficePlatformAdmin(user.id);
+  const [platformAdmin, organizationType] = await Promise.all([
+    isFotofficePlatformAdmin(user.id),
+    workspace !== null ? getOrganizationType(workspace.id) : Promise.resolve(null),
+  ]);
   // Sin workspace activo (recién invitado, todavía sin `ensure`) no hay fila que leer: el
   // vocabulario por omisión es lo correcto, ya que tampoco hay ningún módulo habilitado.
   const vocabulary =
@@ -107,7 +113,10 @@ export async function AdminShell({ user, children }: { user: PanelUser; children
           websiteEnabled={websiteOn}
           serviceLeadsEnabled={serviceLeadsOn}
           canManageMembers={canManageMembersFlag}
+          canCoordinateCoverages={canCoordinateCoverages(activeRole)}
           canManageWorkspaceSettings={canManageWorkspaceSettingsFlag}
+          canManageTeam={puede(activeRole, "gestionarEquipo")}
+          organizationType={organizationType}
           platformAdmin={platformAdmin}
           vocabulary={vocabulary}
         />

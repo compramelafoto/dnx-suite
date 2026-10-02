@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { requireMembersManageContext } from "@/lib/members/access";
+import { requireMembersConfigureContext } from "@/lib/members/access";
 import { PageHeader } from "@/components/page-header";
 import { CategoryForm } from "@/components/members/category-form";
 
 export default async function NewMemberCategoryPage() {
-  await requireMembersManageContext();
+  await requireMembersConfigureContext();
 
   return (
     <div className="space-y-10">

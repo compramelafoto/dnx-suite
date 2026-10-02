@@ -4,7 +4,7 @@ import { requireActiveWorkspace } from "@/lib/workspace";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { COVERAGES_MODULE_KEY } from "./constants";
-import { canCoordinateCoverages, canReviewCoverages } from "./access-policy";
+import { canConfigureCoverages, canCoordinateCoverages, canReviewCoverages } from "./access-policy";
 
 /**
  * Control de acceso en dos niveles y siempre en el servidor.
@@ -34,5 +34,12 @@ export async function requireCoveragesReviewer() {
 export async function requireCoveragesCoordinator() {
   const ctx = await contextoBase();
   if (!canCoordinateCoverages(ctx.role)) redirect("/coberturas?forbidden=coordinar");
+  return ctx;
+}
+
+/** Configuración del módulo (convocatoria, criterios, formulario). Sólo Dueño/Admin. */
+export async function requireCoveragesConfigurator() {
+  const ctx = await contextoBase();
+  if (!canConfigureCoverages(ctx.role)) redirect("/coberturas?forbidden=configurar");
   return ctx;
 }

@@ -229,8 +229,8 @@ export const BASE_DEL_SISTEMA: FichaModulo[] = [
     cuadro: "A6",
     nombre: "Equipo y permisos",
     resuelve:
-      "Sumás a quien te ayuda con el permiso justo. Quien administra los socios no toca por eso las reservas ni los cobros: el permiso es por módulo. Y una misma persona puede tener más de un espacio de trabajo y cambiar entre ellos.",
-    pantallas: ["Roles por módulo", "Varios espacios por persona", "Ingreso con Google"],
+      "Sumás a quien te ayuda con el rol justo: Administrador, Equipo o Colaborador. Cada uno ve y hace lo que le corresponde, y queda registrado quién hizo qué.",
+    pantallas: ["Invitar por correo", "Roles del equipo", "Historial de cambios"],
   },
 ];
 

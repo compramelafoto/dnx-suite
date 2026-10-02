@@ -35,9 +35,9 @@ describe("commonTransitions", () => {
 
   it("respeta los permisos de quien está mirando", () => {
     const impresor: FulfillmentCapability[] = ["PRODUCIR"];
-    expect(commonTransitions(["EN_COLA"], impresor)).toEqual(["IMPRESO"]);
-    // Anular pide ADMINISTRAR: el impresor no puede dar de baja pedidos ni de a uno ni en lote.
-    expect(commonTransitions(["EN_COLA"], impresor)).not.toContain("ANULADO");
+    expect(commonTransitions(["EN_COLA"], impresor)).toEqual(["IMPRESO", "ANULADO"]);
+    // 0.1: anular es operación, el impresor también puede.
+    expect(commonTransitions(["EN_COLA"], impresor)).toContain("ANULADO");
   });
 
   it("sin selección no ofrece nada", () => {

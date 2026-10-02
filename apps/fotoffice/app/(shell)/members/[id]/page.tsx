@@ -1,11 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getMember, listMemberAudits, listMemberInvitations } from "@repo/db/fotoffice-members";
+import { getMember, listMemberInvitations } from "@repo/db/fotoffice-members";
 import { prisma } from "@repo/db";
 import { requireMembersContext } from "@/lib/members/access";
-import { PageHeader } from "@/components/page-header";
+import { Ficha } from "@/components/ficha/ficha";
+import { DatosFicha } from "@/components/ficha/datos-ficha";
+import { MasDatos } from "@/components/campos/mas-datos";
+import { Mensaje } from "@/components/mensajes/mensaje";
+import type { InsigniaFicha } from "@/components/ficha/encabezado-ficha";
+import { resolverPersonaPorSocio } from "@/lib/ficha/persona";
 import { MemberStatusChanger } from "@/components/members/member-status-changer";
-import { MemberAuditLog } from "@/components/members/member-audit-log";
 import { formatDocumentForDisplay } from "@/lib/members/documents";
 import { MemberAccessPanel } from "@/components/members/member-access-panel";
 import { MEMBER_STATUS_LABELS } from "@/lib/members/status-labels";
@@ -14,7 +18,7 @@ import { PaymentHistoryList } from "@/components/membership/payment-history-list
 import { loadMemberPaymentHistory } from "@/lib/membership/payment-history";
 import { loadMemberBalance } from "@/lib/membership/balance";
 import { CreditCallout } from "@/components/membership/credit-callout";
-import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
+import { canOperateWorkspaceCollection } from "@/lib/payments/connect/authz";
 import { getPlatformFeeBps } from "@/lib/platform-fee/store";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { formatFeeBpsAsPercent } from "@/lib/platform-fee/fee";
@@ -33,25 +37,40 @@ function fmtDate(d: Date | null | undefined): string {
   return new Intl.DateTimeFormat("es-AR", { dateStyle: "long", timeZone: "UTC" }).format(d);
 }
 
+/**
+ * Ficha del socio sobre la ficha estándar. Al centro, notas y línea de tiempo (ahí están
+ * ahora las observaciones y el historial de cambios, estado y acceso). A la derecha, las
+ * tarjetas de siempre, con los mismos permisos de siempre: `canManage` para cambiar estado,
+ * gestionar el acceso, editar y anular bonificaciones; `canOperateWorkspaceCollection` para
+ * registrar y ver pagos.
+ */
 export default async function MemberDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { workspace, canManage, user } = await requireMembersContext();
   const { id } = await params;
+  const persona = await resolverPersonaPorSocio(workspace.id, id);
+  if (!persona) notFound();
   const member = await getMember(workspace.id, id);
   if (!member) notFound();
   const v = await loadPersonVocabulary(workspace.id);
 
-  // Solo se consulta si el rol puede verlo: STAFF ni siquiera dispara la query.
-  const audits = canManage ? await listMemberAudits(workspace.id, member.id) : [];
-  // Solo OWNER/ADMIN gestiona accesos; STAFF ni siquiera dispara estas consultas.
+  // Quien opera socios (Dueño, Admin y Equipo) gestiona accesos.
   const invitations = canManage ? await listMemberInvitations(workspace.id, member.id) : [];
   const linkedUser =
     canManage && member.userId
       ? await prisma.user.findUnique({ where: { id: member.userId }, select: { email: true } })
       : null;
 
+  // La ficha de cliente enlazada (si la hay), para ir de una a otra desde el encabezado.
+  const clienteVinculado = persona.clientId
+    ? await prisma.client.findFirst({
+        where: { id: persona.clientId, workspaceId: workspace.id },
+        select: { id: true, clientNumber: true },
+      })
+    : null;
+
   // Registrar un cobro es una atribución de quien maneja la plata, no de quien consulta el
   // padrón: se resuelve con el mismo permiso que gobierna los cobros del workspace.
-  const puedeCobrar = await canManageWorkspaceCollection(user.id, workspace.id);
+  const puedeCobrar = await canOperateWorkspaceCollection(user.id, workspace.id);
   const feePercent = puedeCobrar
     ? formatFeeBpsAsPercent(await getPlatformFeeBps(workspace.id, MEMBERS_MODULE_KEY))
     : "";
@@ -92,12 +111,25 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
   const pagos = puedeCobrar ? await loadMemberPaymentHistory(member.id, { limit: 50 }) : [];
   const cuenta = puedeCobrar ? await loadMemberBalance(member.id) : null;
 
+  const estado = MEMBER_STATUS_LABELS[member.status];
+  const subtitulo = [`${v.Singular} N° ${member.memberNumber}`, estado, member.category?.name]
+    .filter(Boolean)
+    .join(" · ");
+  const insignias: InsigniaFicha[] = clienteVinculado
+    ? [{ texto: `Cliente N° ${clienteVinculado.clientNumber}`, href: `/clientes/${clienteVinculado.id}` }]
+    : [];
+
   return (
-    <div className="space-y-10">
-      <PageHeader
-        title={`${member.lastName}, ${member.firstName}`}
-        description={`${v.Singular} N° ${member.memberNumber}`}
-        actions={
+    <Ficha
+      persona={{ tipo: "SOCIO", id: member.id }}
+      encabezado={{
+        titulo: `${member.lastName}, ${member.firstName}`,
+        subtitulo,
+        iniciales: initials(member.firstName, member.lastName),
+        insignias,
+        telefono: member.phone,
+        correo: member.email,
+        acciones: (
           <>
             <Link href="/members" className="fo-btn fo-btn-secondary text-sm">
               Volver al padrón
@@ -108,102 +140,53 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
               </Link>
             ) : null}
           </>
-        }
-      />
-
-      <div className="grid gap-6 lg:grid-cols-[auto_1fr] lg:items-start">
-        <div
-          className="flex size-20 items-center justify-center rounded-full bg-[var(--fo-accent-muted)] text-2xl font-semibold text-[var(--fo-accent)]"
-          aria-hidden
-        >
-          {initials(member.firstName, member.lastName)}
-        </div>
-
-        <div className="grid gap-6 sm:grid-cols-2">
-          <section className="fo-card space-y-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
-              Identidad
-            </h2>
-            <dl className="space-y-2 text-sm">
-              <div className="flex justify-between gap-4">
-                <dt className="text-[var(--fo-muted)]">Documento</dt>
-                <dd className="text-[var(--fo-text)] text-right">
-                  {formatDocumentForDisplay(member.documentType, member.documentNumber)}
-                </dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-[var(--fo-muted)]">Fecha de nacimiento</dt>
-                <dd className="text-[var(--fo-text)]">{fmtDate(member.birthDate)}</dd>
-              </div>
-            </dl>
-          </section>
-
-          <section className="fo-card space-y-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
-              Contacto
-            </h2>
-            <dl className="space-y-2 text-sm">
-              <div className="flex justify-between gap-4">
-                <dt className="text-[var(--fo-muted)]">Email</dt>
-                <dd className="text-[var(--fo-text)] text-right break-all">{member.email ?? "—"}</dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-[var(--fo-muted)]">Teléfono</dt>
-                <dd className="text-[var(--fo-text)]">{member.phone ?? "—"}</dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-[var(--fo-muted)]">Dirección</dt>
-                <dd className="text-[var(--fo-text)] text-right">
-                  {[member.address, member.city, member.province, member.postalCode]
-                    .filter(Boolean)
-                    .join(", ") || "—"}
-                </dd>
-              </div>
-            </dl>
-          </section>
-
-          <section className="fo-card space-y-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
-              Información societaria
-            </h2>
-            <dl className="space-y-2 text-sm">
-              <div className="flex justify-between gap-4">
-                <dt className="text-[var(--fo-muted)]">Número</dt>
-                <dd className="text-[var(--fo-text)] font-mono text-xs">{member.memberNumber}</dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-[var(--fo-muted)]">Categoría</dt>
-                <dd className="text-[var(--fo-text)]">{member.category?.name ?? "—"}</dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-[var(--fo-muted)]">Fecha de ingreso</dt>
-                <dd className="text-[var(--fo-text)]">{fmtDate(member.joinedAt)}</dd>
-              </div>
-              {member.leftAt ? (
-                <div className="flex justify-between gap-4">
-                  <dt className="text-[var(--fo-muted)]">Fecha de baja</dt>
-                  <dd className="text-[var(--fo-text)]">{fmtDate(member.leftAt)}</dd>
-                </div>
-              ) : null}
-              <div className="flex items-center justify-between gap-4 pt-2">
-                <dt className="text-[var(--fo-muted)]">Estado</dt>
-                <dd>
-                  {canManage ? (
-                    <MemberStatusChanger memberId={member.id} status={member.status} vocabulary={v} />
-                  ) : (
-                    <span className="text-[var(--fo-text)] font-medium">
-                      {MEMBER_STATUS_LABELS[member.status]}
-                    </span>
-                  )}
-                </dd>
-              </div>
-            </dl>
-          </section>
-
-          <section className="fo-card space-y-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
-              Acceso a FotoOffice
-            </h2>
+        ),
+      }}
+      datos={
+        <>
+          <Mensaje entityType="SOCIO" entityId={member.id} />
+          <DatosFicha
+            titulo="Identidad"
+            filas={[
+              { etiqueta: "Documento", valor: formatDocumentForDisplay(member.documentType, member.documentNumber) },
+              { etiqueta: "Fecha de nacimiento", valor: fmtDate(member.birthDate) },
+            ]}
+          />
+          <DatosFicha
+            titulo="Contacto"
+            filas={[
+              { etiqueta: "Email", valor: member.email ? <span className="break-all">{member.email}</span> : null },
+              { etiqueta: "Teléfono", valor: member.phone },
+              {
+                etiqueta: "Dirección",
+                valor: [member.address, member.city, member.province, member.postalCode].filter(Boolean).join(", "),
+              },
+            ]}
+          />
+          <DatosFicha
+            titulo="Información societaria"
+            filas={[
+              { etiqueta: "Número", valor: <span className="font-mono text-xs">{member.memberNumber}</span> },
+              { etiqueta: "Categoría", valor: member.category?.name },
+              { etiqueta: "Fecha de ingreso", valor: fmtDate(member.joinedAt) },
+              ...(member.leftAt ? [{ etiqueta: "Fecha de baja", valor: fmtDate(member.leftAt) }] : []),
+            ]}
+          >
+            <div className="flex items-center justify-between gap-4 pt-1 text-sm">
+              <span className="text-[var(--fo-muted)]">Estado</span>
+              {canManage ? (
+                <MemberStatusChanger memberId={member.id} status={member.status} vocabulary={v} />
+              ) : (
+                <span className="font-medium text-[var(--fo-text)]">{estado}</span>
+              )}
+            </div>
+          </DatosFicha>
+          <MasDatos entityType="SOCIO" entityId={member.id} />
+        </>
+      }
+      lateral={
+        <>
+          <DatosFicha titulo="Acceso a FotoOffice">
             {canManage ? (
               <MemberAccessPanel
                 memberId={member.id}
@@ -218,39 +201,26 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
                 {member.userId ? "Cuenta vinculada" : "Sin cuenta vinculada"}
               </p>
             )}
-          </section>
+          </DatosFicha>
 
           {puedeCobrar ? (
-            <section className="fo-card space-y-4 sm:col-span-2">
-              <div className="space-y-1">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
-                  Registrar un pago cobrado en mano
-                </h2>
-                <p className="text-xs text-[var(--fo-muted)]">
-                  Para lo que se cobró en efectivo o por transferencia. Lo que entra por Mercado
-                  Pago se acredita solo.
-                </p>
-              </div>
+            <DatosFicha titulo="Registrar un pago cobrado en mano">
+              <p className="text-xs text-[var(--fo-muted)]">
+                Para lo que se cobró en efectivo o por transferencia. Lo que entra por Mercado Pago se acredita
+                solo.
+              </p>
               <ManualPaymentForm memberId={member.id} feePercent={feePercent} />
-            </section>
+            </DatosFicha>
           ) : null}
 
           {puedeCobrar ? (
-            <section className="fo-card space-y-4 sm:col-span-2">
-              <div className="space-y-1">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
-                  Pagos
-                </h2>
-                <p className="text-xs text-[var(--fo-muted)]">
-                  {`Es la misma lista que ve el ${v.singular} en su portal. Sólo pagos acreditados.`}
-                </p>
-              </div>
+            <DatosFicha titulo="Pagos">
+              <p className="text-xs text-[var(--fo-muted)]">
+                {`Es la misma lista que ve el ${v.singular} en su portal. Sólo pagos acreditados.`}
+              </p>
               {cuenta ? <CreditCallout creditMinor={cuenta.creditMinor} tone="panel" /> : null}
-              <PaymentHistoryList
-                entries={pagos}
-                emptyText={`Este ${v.singular} no tiene pagos acreditados.`}
-              />
-            </section>
+              <PaymentHistoryList entries={pagos} emptyText={`Este ${v.singular} no tiene pagos acreditados.`} />
+            </DatosFicha>
           ) : null}
 
           {/*
@@ -258,18 +228,13 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
             «¿quién lo trajo?» aparece del lado de la Secretaría, cuando hay que revisar una
             atribución o explicar por qué una cuota salió más barata.
           */}
-          <section className="fo-card space-y-4 sm:col-span-2">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
-              Recomendaciones
-            </h2>
-
+          <DatosFicha titulo="Recomendaciones">
             <p className="text-sm text-[var(--fo-text)]">
               {recomendante ? (
                 <>
                   Lo recomendó{" "}
                   <Link href={`/members/${recomendante.id}`} className="hover:underline">
-                    N° {recomendante.memberNumber} · {recomendante.firstName}{" "}
-                    {recomendante.lastName}
+                    N° {recomendante.memberNumber} · {recomendante.firstName} {recomendante.lastName}
                   </Link>
                 </>
               ) : (
@@ -279,18 +244,14 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
 
             {recomendados.length > 0 ? (
               <div className="space-y-2">
-                <h3 className="text-xs font-semibold text-[var(--fo-muted)]">
-                  Se asociaron por su recomendación
-                </h3>
+                <h3 className="text-xs font-semibold text-[var(--fo-muted)]">Se asociaron por su recomendación</h3>
                 <ul className="divide-y divide-[var(--fo-border)]">
                   {recomendados.map((r) => (
                     <li key={r.id} className="flex items-center justify-between gap-3 py-2">
                       <Link href={`/members/${r.id}`} className="text-sm hover:underline">
                         N° {r.memberNumber} · {r.firstName} {r.lastName}
                       </Link>
-                      <span className="text-xs text-[var(--fo-muted-soft)]">
-                        {fmtDate(r.joinedAt)}
-                      </span>
+                      <span className="text-xs text-[var(--fo-muted-soft)]">{fmtDate(r.joinedAt)}</span>
                     </li>
                   ))}
                 </ul>
@@ -302,9 +263,7 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
                 <h3 className="text-xs font-semibold text-[var(--fo-muted)]">Bonificaciones</h3>
                 <ul className="divide-y divide-[var(--fo-border)]">
                   {bonificaciones.map((b) => {
-                    const saldo = b.appliedCharge
-                      ? decimalArsToMinor(b.appliedCharge.balanceArs)
-                      : null;
+                    const saldo = b.appliedCharge ? decimalArsToMinor(b.appliedCharge.balanceArs) : null;
                     const anulable = canVoidBenefit({
                       status: b.status as "PENDIENTE" | "APLICADA" | "ANULADA",
                       appliedChargeBalanceMinor: saldo,
@@ -312,17 +271,14 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
                     return (
                       <li key={b.id} className="space-y-1.5 py-2.5">
                         <p className="text-sm">
-                          {Number(b.percent)}% por {b.originMember.firstName}{" "}
-                          {b.originMember.lastName}
+                          {Number(b.percent)}% por {b.originMember.firstName} {b.originMember.lastName}
                         </p>
                         <p className="text-xs text-[var(--fo-muted-soft)]">
                           {b.status === "PENDIENTE"
                             ? "Pendiente: se aplica sobre su próxima cuota."
                             : b.status === "ANULADA"
                               ? `Anulada${b.voidReason ? ` · ${b.voidReason}` : ""}`
-                              : `Aplicada a ${chargePeriodLabel(
-                                  b.appliedCharge?.period ?? "",
-                                )} · −${formatMinorArs(
+                              : `Aplicada a ${chargePeriodLabel(b.appliedCharge?.period ?? "")} · −${formatMinorArs(
                                   b.appliedAmountArs ? decimalArsToMinor(b.appliedAmountArs) : 0,
                                 )}`}
                         </p>
@@ -335,30 +291,9 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
                 </ul>
               </div>
             ) : null}
-          </section>
-          {member.notes ? (
-            <section className="fo-card space-y-3 sm:col-span-2">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
-                Observaciones
-              </h2>
-              <p className="text-sm text-[var(--fo-text)] whitespace-pre-line leading-relaxed">
-                {member.notes}
-              </p>
-            </section>
-          ) : null}
-
-          {/* Historial solo para OWNER/ADMIN: incluye motivos de suspensión/baja y quién los
-              decidió. STAFF consulta el padrón pero no la trastienda de las decisiones. */}
-          {canManage ? (
-            <section className="fo-card space-y-4 sm:col-span-2">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
-                Historial
-              </h2>
-              <MemberAuditLog entries={audits} vocabulary={v} />
-            </section>
-          ) : null}
-        </div>
-      </div>
-    </div>
+          </DatosFicha>
+        </>
+      }
+    />
   );
 }

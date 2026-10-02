@@ -81,6 +81,31 @@ export const TIPOS: TipoDeOrganizacion[] = [
     proximo: "12",
   },
   {
+    id: "estudio",
+    label: "Tengo un estudio o productora con equipo",
+    resumen: "Hacemos eventos y sesiones, atendemos al público y somos varios trabajando a la vez.",
+    icono: "tipo-local",
+    destacados: [
+      {
+        key: "consultas",
+        porque:
+          "Cada consulta entra con el evento, la fecha y el lugar, y cualquiera del equipo la sigue desde donde la dejó el otro, sin preguntar por WhatsApp en qué quedó.",
+      },
+      {
+        key: "cash",
+        porque:
+          "La caja del mostrador con turnos y arqueo: quien atiende cobra, anota y cierra, y a fin de mes sabés qué entró por cada lado sin juntar papelitos.",
+      },
+      {
+        key: "equipo",
+        porque:
+          "Invitás a quien atiende con el rol justo: usa todo el sistema para trabajar pero no toca la configuración, y queda registrado quién hizo cada cosa.",
+      },
+    ],
+    ademas: ["clients", "cobros", "website", "correos", "bookings", "courses-sales"],
+    proximo: "12",
+  },
+  {
     id: "escuela",
     label: "Tengo una escuela o academia de fotografía",
     resumen: "Doy clases, cobro inscripciones y necesito saber quién cursó qué.",

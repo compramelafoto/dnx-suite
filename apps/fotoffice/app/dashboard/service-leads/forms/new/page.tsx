@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
-import { requireActiveWorkspace } from "@/lib/workspace";
+import { requireServiceLeadsStaff } from "@/lib/service-leads/access";
 import { createServiceLeadForm } from "../actions";
 
 export default async function NewServiceLeadFormPage() {
-  const { workspace } = await requireActiveWorkspace();
+  const { workspace } = await requireServiceLeadsStaff();
 
   return (
     <div className="space-y-10">

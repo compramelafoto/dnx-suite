@@ -27,6 +27,9 @@ vi.mock("@/lib/portal/profiles", async () => {
 vi.mock("@/lib/members/invitation-continuity-resolve", () => ({
   resolveInvitationContinuityPath: vi.fn(async () => null),
 }));
+vi.mock("@/lib/team/continuity", () => ({
+  resolveTeamInvitationContinuityPath: vi.fn(async () => null),
+}));
 
 vi.mock("@repo/db", () => ({ prisma: { user: { findUnique: userFindUniqueMock } } }));
 vi.mock("@/lib/ensure-workspace", () => ({ findFotofficeWorkspaceForUser: findMock }));

@@ -1,13 +1,13 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
 import { PageHeader } from "@/components/page-header";
-import { requireActiveWorkspace } from "@/lib/workspace";
+import { requireServiceLeadsStaff } from "@/lib/service-leads/access";
 import { ShareDetailsClient } from "./share-details-client";
 
 type Props = { params: Promise<{ formId: string }> };
 
 export default async function ShareServiceLeadFormPage({ params }: Props) {
-  const { workspace } = await requireActiveWorkspace();
+  const { workspace } = await requireServiceLeadsStaff();
   const { formId } = await params;
 
   if (!workspace) notFound();

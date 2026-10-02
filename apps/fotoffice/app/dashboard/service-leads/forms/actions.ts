@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { prisma, Prisma } from "@repo/db";
-import { requireActiveWorkspace } from "@/lib/workspace";
+import { requireServiceLeadsStaff } from "@/lib/service-leads/access";
 
 const FORM_MODES = new Set(["SPECIFIC", "GENERAL"]);
 const AUTO_REPLY_MODES = new Set(["EMAIL_TEXT", "EMAIL_WITH_LINK", "EMAIL_WITH_ATTACHMENT"]);
@@ -37,7 +37,7 @@ function getErrorCode(error: unknown): string {
 }
 
 export async function createServiceLeadForm(formData: FormData) {
-  const { workspace } = await requireActiveWorkspace();
+  const { workspace } = await requireServiceLeadsStaff();
   if (!workspace) {
     redirect("/dashboard/service-leads/forms");
   }
@@ -95,7 +95,7 @@ export async function createServiceLeadForm(formData: FormData) {
 }
 
 export async function updateServiceLeadForm(formData: FormData) {
-  const { workspace } = await requireActiveWorkspace();
+  const { workspace } = await requireServiceLeadsStaff();
   if (!workspace) {
     redirect("/dashboard/service-leads/forms");
   }

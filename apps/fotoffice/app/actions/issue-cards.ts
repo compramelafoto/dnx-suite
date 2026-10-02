@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireActiveWorkspace } from "@/lib/workspace";
-import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
+import { canOperateWorkspaceCollection } from "@/lib/payments/connect/authz";
 import { issueMissingDigitalCards } from "@/lib/carnet/issue";
 
 export type IssueCardsResult =
@@ -19,9 +19,9 @@ export async function issueDigitalCardsAction(): Promise<IssueCardsResult> {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) return { ok: false, error: "No hay una institución activa." };
 
-  const puede = await canManageWorkspaceCollection(user.id, workspace.id);
+  const puede = await canOperateWorkspaceCollection(user.id, workspace.id);
   if (!puede) {
-    return { ok: false, error: "Solo el dueño o un administrador puede emitir carnets." };
+    return { ok: false, error: "No tenés permiso para emitir carnets." };
   }
 
   const reporte = await issueMissingDigitalCards(workspace.id);

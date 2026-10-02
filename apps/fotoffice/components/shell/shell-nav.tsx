@@ -6,15 +6,21 @@ import {
   Building2,
   ClipboardCheck,
   FileText,
+  Hash,
   Globe,
   Plug,
   Inbox,
   LayoutDashboard,
+  LayoutGrid,
+  ListPlus,
+  MessageSquareText,
   Settings,
   Shield,
+  Tags,
   UserCog,
   Users,
   Wallet2,
+  Workflow,
 } from "lucide-react";
 import type { ComponentType } from "react";
 import { useShellNav } from "./shell-frame";
@@ -29,6 +35,9 @@ import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
+import { ordenarSecciones } from "@/lib/modules/nav-order";
+import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
+import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
 /**
@@ -77,9 +86,10 @@ function itemsDeModulo(
   moduleKey: string,
   canManage: boolean,
   vocabulary: PersonVocabulary,
+  canConfigure: boolean = canManage,
 ): Item[] {
   const reclamadas = claimedPrefixes(moduleKey);
-  return submodulesFor(moduleKey, { canManage }, vocabulary).map((sub: SubmoduleItem) => ({
+  return submodulesFor(moduleKey, { canManage, canConfigure }, vocabulary).map((sub: SubmoduleItem) => ({
     href: sub.href,
     label: sub.label,
     icon: ICONOS[sub.icon] ?? LayoutDashboard,
@@ -154,7 +164,10 @@ export function ShellNav({
   websiteEnabled,
   serviceLeadsEnabled,
   canManageMembers,
+  canCoordinateCoverages,
   canManageWorkspaceSettings,
+  canManageTeam,
+  organizationType,
   platformAdmin,
   vocabulary,
 }: {
@@ -167,7 +180,11 @@ export function ShellNav({
   websiteEnabled: boolean;
   serviceLeadsEnabled: boolean;
   canManageMembers: boolean;
+  canCoordinateCoverages: boolean;
   canManageWorkspaceSettings: boolean;
+  /** Puede ver Equipo (`gestionarEquipo`). Módulos usa `canManageWorkspaceSettings` (`configurar`). */
+  canManageTeam: boolean;
+  organizationType: string | null;
   platformAdmin: boolean;
   vocabulary: PersonVocabulary;
 }) {
@@ -175,7 +192,7 @@ export function ShellNav({
   const { closeDrawer } = useShellNav();
 
   const socios: Item[] = membersEnabled
-    ? itemsDeModulo(MEMBERS_MODULE_KEY, canManageMembers, vocabulary)
+    ? itemsDeModulo(MEMBERS_MODULE_KEY, canManageMembers, vocabulary, canManageWorkspaceSettings)
     : [];
 
   const reservas: Item[] = bookingsEnabled
@@ -191,7 +208,7 @@ export function ShellNav({
   // Grupo propio y no dentro de Socios: coberturas se le pide a cualquier institución con
   // actividad fotográfica, no sólo a las que tienen padrón de socios.
   const coberturas: Item[] = coveragesEnabled
-    ? itemsDeModulo(COVERAGES_MODULE_KEY, canManageWorkspaceSettings, vocabulary)
+    ? itemsDeModulo(COVERAGES_MODULE_KEY, canCoordinateCoverages, vocabulary, canManageWorkspaceSettings)
     : [];
 
   const cursos: Item[] = coursesEnabled
@@ -241,10 +258,10 @@ export function ShellNav({
           isActive: under("/dashboard/service-leads/forms"),
         },
         {
-          href: "/dashboard/service-leads",
-          label: "Leads",
+          href: "/captacion",
+          label: "Consultas",
           icon: Inbox,
-          isActive: exact("/dashboard/service-leads"),
+          isActive: under("/captacion"),
         },
       ]
     : [];
@@ -277,6 +294,52 @@ export function ShellNav({
         },
       ]
     : [];
+  if (canManageTeam) {
+    institucion.push({
+      href: "/workspace/configuracion/equipo",
+      label: "Equipo",
+      icon: Users,
+      isActive: under("/workspace/configuracion/equipo"),
+    });
+  }
+  if (canManageWorkspaceSettings) {
+    institucion.push({
+      href: "/workspace/configuracion/modulos",
+      label: "Módulos",
+      icon: LayoutGrid,
+      isActive: under("/workspace/configuracion/modulos"),
+    });
+    institucion.push({
+      href: "/workspace/configuracion/ficha",
+      label: "Ficha",
+      icon: Tags,
+      isActive: under("/workspace/configuracion/ficha"),
+    });
+    institucion.push({
+      href: "/workspace/configuracion/circuitos",
+      label: "Circuitos",
+      icon: Workflow,
+      isActive: under("/workspace/configuracion/circuitos"),
+    });
+    institucion.push({
+      href: "/workspace/configuracion/campos",
+      label: "Campos",
+      icon: ListPlus,
+      isActive: under("/workspace/configuracion/campos"),
+    });
+    institucion.push({
+      href: "/workspace/configuracion/plantillas",
+      label: "Plantillas",
+      icon: MessageSquareText,
+      isActive: under("/workspace/configuracion/plantillas"),
+    });
+    institucion.push({
+      href: "/workspace/configuracion/numeracion",
+      label: "Numeración",
+      icon: Hash,
+      isActive: under("/workspace/configuracion/numeracion"),
+    });
+  }
 
   const plataforma: Item[] = platformAdmin
     ? [
@@ -286,6 +349,21 @@ export function ShellNav({
         { href: "/admin/owners", label: "Dueños", icon: Users, isActive: under("/admin/owners") },
       ]
     : [];
+
+  // Las secciones con módulo se ordenan por la familia que le corresponde al tipo de
+  // organización; Inicio, Institución y Plataforma conservan su lugar.
+  const secciones = ordenarSecciones(
+    [
+      { id: "socios", title: vocabulary.Plural, items: socios, moduleKey: MEMBERS_MODULE_KEY },
+      { id: "sorteos", title: "Sorteos", items: sorteos, moduleKey: RAFFLES_MODULE_KEY },
+      { id: "coberturas", title: "Coberturas", items: coberturas, moduleKey: COVERAGES_MODULE_KEY },
+      { id: "cursos", title: "Cursos", items: cursosItems, moduleKey: COURSES_SALES_MODULE_KEY },
+      { id: "reservas", title: "Reservas", items: reservas, moduleKey: BOOKINGS_MODULE_KEY },
+      { id: "captacion", title: "Captación", items: captacion, moduleKey: SERVICE_LEADS_MODULE_KEY },
+      { id: "presencia", title: "Presencia pública", items: presencia, moduleKey: WEBSITE_MODULE_KEY },
+    ] as { id: string; title: string; items: Item[]; moduleKey: string | null }[],
+    organizationType,
+  );
 
   return (
     <nav className="flex flex-col gap-0.5" aria-label="Principal">
@@ -304,13 +382,9 @@ export function ShellNav({
           },
         ]}
       />
-      <Section title={vocabulary.Plural} items={socios} path={path} onNavigate={closeDrawer} />
-      <Section title="Sorteos" items={sorteos} path={path} onNavigate={closeDrawer} />
-      <Section title="Coberturas" items={coberturas} path={path} onNavigate={closeDrawer} />
-      <Section title="Cursos" items={cursosItems} path={path} onNavigate={closeDrawer} />
-      <Section title="Reservas" items={reservas} path={path} onNavigate={closeDrawer} />
-      <Section title="Captación" items={captacion} path={path} onNavigate={closeDrawer} />
-      <Section title="Presencia pública" items={presencia} path={path} onNavigate={closeDrawer} />
+      {secciones.map((sec) => (
+        <Section key={sec.id} title={sec.title} items={sec.items} path={path} onNavigate={closeDrawer} />
+      ))}
       <Section title="Institución" items={institucion} path={path} onNavigate={closeDrawer} />
       <Section title="Plataforma" items={plataforma} path={path} onNavigate={closeDrawer} />
     </nav>

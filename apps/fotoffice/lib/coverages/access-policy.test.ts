@@ -18,8 +18,8 @@ describe("canCoordinateCoverages", () => {
     expect(canCoordinateCoverages("ADMIN")).toBe(true);
   });
 
-  it("STAFF no coordina", () => {
-    expect(canCoordinateCoverages("STAFF")).toBe(false);
+  it("STAFF coordina (0.1: Equipo opera todo; sólo configurar queda para Dueño/Admin)", () => {
+    expect(canCoordinateCoverages("STAFF")).toBe(true);
   });
 
   it("sin rol, no", () => {

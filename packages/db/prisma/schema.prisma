@@ -40,6 +40,8 @@ model User {
   role                                  Role                                   @default(PHOTOGRAPHER)
   globalRole                            GlobalRole                             @default(USER)
   name                                  String?
+  fotofficeListViews                    FotofficeListView[]                    @relation("FotofficeListViewOwner")
+  fotofficeListActivity                 FotofficeListActivity[]                @relation("FotofficeListActivityActor")
   createdAt                             DateTime                               @default(now())
   handler                               String?                                @unique
   isPublicPageEnabled                   Boolean                                @default(false)
@@ -298,6 +300,8 @@ model User {
   fotorankRulesVersionsCreated          FotorankContestRulesVersion[]          @relation("FrRulesVersionAuthor")
   suiteMemberships                      Membership[]                           @relation("FrSuiteMembership")
   workspaceMembershipsUnified           WorkspaceMembership[]
+  workspaceInvitationsSent              WorkspaceInvitation[]                  @relation("WorkspaceInvitationInviter")
+  workspaceInvitationsAccepted          WorkspaceInvitation[]                  @relation("WorkspaceInvitationAcceptor")
   appAccessUnified                      WorkspaceAppAccess[]
   fotorankContestConfigurationVersions  FotorankContestConfigurationVersion[]
   fotorankContestRulesTemplates         FotorankContestRulesTemplate[]
@@ -328,6 +332,7 @@ model User {
   clickatonReferralCode               ClickatonReferralCode?
   clickatonReferralsMade              ClickatonReferralAttribution[]     @relation("ClickatonReferralReferrer")
   clickatonReferralReceived           ClickatonReferralAttribution?      @relation("ClickatonReferralReferred")
+  fotofficeNotes FotofficeNote[] @relation("FotofficeNoteAuthor")
 }
 
 /// Perfil financiero de ¿Cuánto Cobro? (wizard bloque A), 1:1 con User.
@@ -7067,6 +7072,8 @@ model Workspace {
   courseSalesTeachers         CourseSalesTeacher[]
   courseSalesSettings         CourseSalesWorkspaceSettings?
   fotofficeBranding           FotofficeWorkspaceBranding?
+  fotofficeListViews          FotofficeListView[]
+  fotofficeListActivity       FotofficeListActivity[]
   fotofficeWebsite            FotofficeWorkspaceWebsite?
   fotorankJudgeAccounts       FotorankJudgeAccount[]
   memberships                 Membership[]
@@ -7076,6 +7083,8 @@ model Workspace {
   students                    EvaluationStudent[]
   featureModules              WorkspaceFeatureModule[]
   workspaceMembershipsUnified WorkspaceMembership[]
+  workspaceInvitations        WorkspaceInvitation[]
+  adminEvents                 WorkspaceAdminEvent[]
   appAccessUnified            WorkspaceAppAccess[]
   institutionalMembers        Member[]
   memberCategories            MemberCategory[]
@@ -7114,6 +7123,26 @@ model Workspace {
   coverageCollaborators       CoverageCollaboratorProfile[]
   coverageEvents              CoverageEvent[]
   vocabulary                  WorkspaceVocabulary?
+  fotofficeNoteCategories FotofficeNoteCategory[]
+  fotofficeNotes FotofficeNote[]
+  fotofficeTags FotofficeTag[]
+  fotofficeTagAssignments FotofficeTagAssignment[]
+  fotofficeAttachments FotofficeAttachment[]
+  fotofficePersonRelations FotofficePersonRelation[]
+  fotofficeCircuits FotofficeCircuit[]
+  fotofficeLossReasons FotofficeLossReason[]
+  fotofficeJourneys FotofficeJourney[]
+  fotofficeTasks FotofficeTask[]
+  fotofficePersonEvents FotofficePersonEvent[]
+  fotofficeCustomFields FotofficeCustomField[]
+  fotofficeCustomValues FotofficeCustomValue[]
+  fotofficeCustomValueChanges FotofficeCustomValueChange[]
+  fotofficeSequences FotofficeSequence[]
+  fotofficeSequenceChanges FotofficeSequenceChange[]
+  fotofficeRecordNumbers FotofficeRecordNumber[]
+  fotofficeMessageTemplates FotofficeMessageTemplate[]
+  fotofficeMessages FotofficeMessage[]
+  clientAudits ClientAudit[]
 }
 
 model WorkspaceFeatureModule {
@@ -7152,6 +7181,8 @@ model FotofficeWorkspaceBranding {
   website               String?
   /// independent | studio | agency
   activityType          String?
+  /// Tipo de organización elegido en Configuración → Módulos (ids de lib/landing/tipos.ts). null = sin elegir.
+  organizationType      String?
   city                  String?
   province              String?
   country               String?
@@ -7166,6 +7197,229 @@ model FotofficeWorkspaceBranding {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
   workspace             Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+/// Filtros recordados (ULTIMA) y vistas guardadas (GUARDADA) de los listados de FOTOFFICE.
+model FotofficeListView {
+  id          String   @id @default(cuid())
+  workspaceId String
+  listKey     String
+  /// ULTIMA | GUARDADA
+  kind        String
+  /// Sólo en GUARDADA.
+  name        String?
+  /// Query string de la dirección, sin "?".
+  query       String   @default("")
+  ownerUserId Int
+  /// GUARDADA visible para todo el equipo del workspace.
+  shared      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  owner     User      @relation("FotofficeListViewOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  /// "Una sola ULTIMA por persona, lista y workspace" la impone el índice único parcial
+  /// `FotofficeListView_ultima_unica` (`("workspaceId", "listKey", "ownerUserId") WHERE
+  /// "kind" = 'ULTIMA'`), creado en la migración SQL 20261001120000_fotoffice_listado_estandar.
+  /// Prisma no sabe declarar índices parciales, así que no figura acá: un `migrate dev` lo
+  /// propondría borrar — no aceptes ese DROP. Tampoco lo agregues como @@unique normal: las
+  /// vistas GUARDADA necesitan varias filas por persona y lista. `guardarUltima` depende de él.
+
+  @@index([workspaceId, listKey, kind])
+  @@index([ownerUserId])
+}
+/// Catálogo de categorías de notas por workspace (etapa 0.3).
+model FotofficeNoteCategory {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  notes     FotofficeNote[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, isActive, order])
+}
+
+/// Nota sobre una persona: exactamente uno de clientId/memberId (CHECK en el SQL).
+model FotofficeNote {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  clientId     String?
+  memberId     String?
+  /// NULL = "Observaciones" convertidas desde Client.notes / Member.notes.
+  categoryId   String?
+  body         String
+  pinned       Boolean   @default(false)
+  authorUserId Int?
+  authorLabel  String
+  editedAt     DateTime?
+  deletedAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  workspace Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client    Client?                @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  member    Member?                @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  category  FotofficeNoteCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  author    User?                  @relation("FotofficeNoteAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, clientId, createdAt])
+  @@index([workspaceId, memberId, createdAt])
+}
+
+model FotofficeTag {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  /// name sin mayúsculas ni acentos: la unicidad se decide por acá.
+  nameKey     String
+  /// gris | rojo | naranja | amarillo | verde | azul | violeta | rosa
+  color       String   @default("gris")
+  createdAt   DateTime @default(now())
+
+  workspace   Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  assignments FotofficeTagAssignment[]
+
+  @@unique([workspaceId, nameKey])
+}
+
+/// Exactamente uno de clientId/memberId (CHECK en el SQL). Única por etiqueta + persona (índices parciales).
+model FotofficeTagAssignment {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  tagId           String
+  clientId        String?
+  memberId        String?
+  createdByUserId Int?
+  createdAt       DateTime @default(now())
+
+  workspace Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  tag       FotofficeTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  client    Client?      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  member    Member?      @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, tagId])
+  @@index([clientId])
+  @@index([memberId])
+}
+
+model FotofficeAttachment {
+  id               String    @id @default(cuid())
+  workspaceId      String
+  clientId         String?
+  memberId         String?
+  /// adjuntos/<workspaceId>/<uuid> — nunca sale al navegador.
+  storageKey       String    @unique
+  fileName         String
+  contentType      String
+  sizeBytes        Int
+  /// PENDIENTE | LISTO | BORRADO
+  status           String    @default("PENDIENTE")
+  uploadedByUserId Int?
+  uploadedByLabel  String
+  deletedAt        DateTime?
+  purgeAfter       DateTime?
+  createdAt        DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client    Client?   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  member    Member?   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, clientId, createdAt])
+  @@index([workspaceId, memberId, createdAt])
+  @@index([status, purgeAfter])
+}
+
+/// Vínculo entre dos personas del mismo workspace. `kind` es la clave del catálogo desde el lado "from".
+model FotofficePersonRelation {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  fromClientId    String?
+  fromMemberId    String?
+  toClientId      String?
+  toMemberId      String?
+  kind            String
+  customLabel     String?
+  note            String?
+  createdByUserId Int?
+  createdAt       DateTime @default(now())
+
+  workspace  Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  fromClient Client?   @relation("RelationFromClient", fields: [fromClientId], references: [id], onDelete: Cascade)
+  fromMember Member?   @relation("RelationFromMember", fields: [fromMemberId], references: [id], onDelete: Cascade)
+  toClient   Client?   @relation("RelationToClient", fields: [toClientId], references: [id], onDelete: Cascade)
+  toMember   Member?   @relation("RelationToMember", fields: [toMemberId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, fromClientId])
+  @@index([workspaceId, fromMemberId])
+  @@index([workspaceId, toClientId])
+  @@index([workspaceId, toMemberId])
+}
+
+/// Eventos de las piezas de la ficha (etiquetas, relaciones, notas borradas, adjuntos, vínculo cliente-socio).
+model FotofficePersonEvent {
+  id          String   @id @default(cuid())
+  workspaceId String
+  clientId    String?
+  memberId    String?
+  /// ETIQUETA_PUESTA | ETIQUETA_QUITADA | RELACION_CREADA | RELACION_BORRADA | NOTA_BORRADA |
+  /// ADJUNTO_SUBIDO | ADJUNTO_BORRADO | ADJUNTO_RESTAURADO | SOCIO_VINCULADO | SOCIO_DESVINCULADO
+  kind        String
+  detail      Json?
+  actorUserId Int?
+  actorLabel  String
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client    Client?   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  member    Member?   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, clientId, createdAt])
+  @@index([workspaceId, memberId, createdAt])
+}
+
+/// Historial de cambios de datos del cliente. Mismo formato que MemberAudit.
+model ClientAudit {
+  id          String   @id @default(cuid())
+  workspaceId String
+  clientId    String
+  /// CREATED | UPDATED
+  action      String
+  actorUserId Int?
+  actorLabel  String
+  /// { campo: { before, after } } — sólo los campos que cambiaron.
+  changesJson Json?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client    Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, clientId, createdAt])
+}
+
+
+/// Registro de exportaciones y acciones en lote hechas desde un listado.
+model FotofficeListActivity {
+  id          String   @id @default(cuid())
+  workspaceId String
+  listKey     String
+  /// EXPORT | BULK_ACTION
+  kind        String
+  action      String?
+  actorUserId Int?
+  actorLabel  String
+  rowCount    Int
+  query       String   @default("")
+  detail      Json?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor     User?     @relation("FotofficeListActivityActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, listKey, createdAt])
 }
 
 /// Configuración del sitio público del módulo "website" (Sitio web). Los datos de identidad
@@ -7439,6 +7693,12 @@ model Member {
   @@index([workspaceId, documentNumber])
   @@index([workspaceId, lastName, firstName])
   @@index([workspaceId, recommendedByMemberId])
+  fotofficeNotes FotofficeNote[]
+  fotofficeTags FotofficeTagAssignment[]
+  fotofficeAttachments FotofficeAttachment[]
+  fotofficeEvents FotofficePersonEvent[]
+  relationsFrom FotofficePersonRelation[] @relation("RelationFromMember")
+  relationsTo FotofficePersonRelation[] @relation("RelationToMember")
 }
 
 /// Invitación para que un socio acceda con su propia cuenta.
@@ -9143,6 +9403,52 @@ model Membership {
   @@index([workspaceId])
 }
 
+/// Invitación a sumarse al equipo de un workspace. Mismo patrón que MemberInvitation:
+/// el estado se deriva de las fechas; el token crudo nunca se guarda.
+model WorkspaceInvitation {
+  id               String        @id @default(cuid())
+  workspaceId      String
+  /// Normalizado en minúsculas. Aceptar exige el mismo email en la sesión.
+  email            String
+  role             WorkspaceRole
+  tokenHash        String        @unique
+  expiresAt        DateTime
+  acceptedAt       DateTime?
+  acceptedByUserId Int?
+  revokedAt        DateTime?
+  sentAt           DateTime?
+  sendFailedAt     DateTime?
+  invitedByUserId  Int?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  workspace        Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invitedBy        User?         @relation("WorkspaceInvitationInviter", fields: [invitedByUserId], references: [id], onDelete: SetNull)
+  acceptedBy       User?         @relation("WorkspaceInvitationAcceptor", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, email])
+  @@index([expiresAt])
+}
+
+/// Bitácora de cambios administrativos del workspace: equipo y módulos.
+model WorkspaceAdminEvent {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  /// null = sistema.
+  actorUserId  Int?
+  targetUserId Int?
+  targetEmail  String?
+  /// INVITED | INVITE_REVOKED | ACCEPTED | ROLE_CHANGED | REMOVED | MODULE_ON | MODULE_OFF | MODULE_REQUESTED | ORG_TYPE_SET
+  kind         String
+  fromRole     String?
+  toRole       String?
+  moduleKey    String?
+  detail       String?
+  createdAt    DateTime  @default(now())
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+}
+
 /// Vínculo canónico usuario-workspace para permisos de suite.
 model WorkspaceMembership {
   id          String        @id @default(cuid())
@@ -10214,6 +10520,7 @@ enum WorkspaceRole {
   WORKSPACE_OWNER
   WORKSPACE_ADMIN
   STAFF
+  COLLABORATOR
 }
 
 enum FotorankOrganizationRole {
@@ -17499,6 +17806,13 @@ model Client {
   @@index([workspaceId, status])
   @@index([workspaceId, docNumber])
   @@index([workspaceId, email])
+  fotofficeNotes FotofficeNote[]
+  fotofficeTags FotofficeTagAssignment[]
+  fotofficeAttachments FotofficeAttachment[]
+  fotofficeEvents FotofficePersonEvent[]
+  audits ClientAudit[]
+  relationsFrom FotofficePersonRelation[] @relation("RelationFromClient")
+  relationsTo FotofficePersonRelation[] @relation("RelationToClient")
 }
 
 /// Una cuenta de caja: dónde está la plata.
@@ -19045,6 +19359,366 @@ model ClickatonTestimonialInvite {
 
   @@unique([editionId, email])
   @@index([editionId, status])
+}
+
+/// Circuito de etapas (embudo de venta o flujo de trabajo). Etapa 0.4.
+model FotofficeCircuit {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  /// VENTA | TRABAJO
+  kind        String
+  isActive    Boolean  @default(true)
+  /// Uno por clase y workspace (índice único parcial en el SQL).
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  stages    FotofficeStage[]
+  journeys  FotofficeJourney[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, kind, isActive])
+}
+
+model FotofficeStage {
+  id           String    @id @default(cuid())
+  circuitId    String
+  name         String
+  color        String    @default("gris")
+  order        Int
+  /// 0 = sin vencimiento.
+  days         Int       @default(0)
+  requireTasks Boolean   @default(false)
+  /// Sólo circuitos de VENTA de Captación: NEW | CONTACTED | QUOTED | INTERESTED.
+  leadStatus   String?
+  archivedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  circuit   FotofficeCircuit             @relation(fields: [circuitId], references: [id], onDelete: Cascade)
+  templates FotofficeStageTaskTemplate[]
+  rules     FotofficeStageRule[]
+  journeys  FotofficeJourney[]
+  tasks     FotofficeTask[]
+  stepsFrom FotofficeJourneyStep[]       @relation("StepFrom")
+  stepsTo   FotofficeJourneyStep[]       @relation("StepTo")
+
+  @@index([circuitId, order])
+}
+
+model FotofficeStageTaskTemplate {
+  id       String  @id @default(cuid())
+  stageId  String
+  title    String
+  days     Int     @default(0)
+  required Boolean @default(false)
+  order    Int
+
+  stage FotofficeStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+
+  @@index([stageId, order])
+}
+
+model FotofficeStageRule {
+  id      String @id @default(cuid())
+  stageId String
+  event   String
+
+  stage FotofficeStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+
+  @@unique([stageId, event])
+}
+
+model FotofficeLossReason {
+  id          String  @id @default(cuid())
+  workspaceId String
+  name        String
+  order       Int     @default(0)
+  isActive    Boolean @default(true)
+
+  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  journeys  FotofficeJourney[]
+
+  @@unique([workspaceId, name])
+}
+
+/// El recorrido de un registro por un circuito.
+model FotofficeJourney {
+  id             String    @id @default(cuid())
+  workspaceId    String
+  circuitId      String
+  /// VENTA | TRABAJO — copia de la clase del circuito, para el índice único parcial.
+  kind           String
+  /// CAPTACION | CONSULTA | PROYECTO | COBERTURA
+  subjectType    String
+  subjectId      String
+  /// null cuando el recorrido terminó.
+  stageId        String?
+  /// GANADA | PERDIDA | TERMINADO | CANCELADO
+  outcome        String?
+  lossReasonId   String?
+  enteredStageAt DateTime  @default(now())
+  stageDueAt     DateTime?
+  ownerUserId    Int?
+  closedAt       DateTime?
+  createdAt      DateTime  @default(now())
+
+  workspace  Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  circuit    FotofficeCircuit     @relation(fields: [circuitId], references: [id], onDelete: Restrict)
+  stage      FotofficeStage?      @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  lossReason FotofficeLossReason? @relation(fields: [lossReasonId], references: [id], onDelete: SetNull)
+  steps      FotofficeJourneyStep[]
+  tasks      FotofficeTask[]
+  processed  FotofficeProcessedEvent[]
+
+  @@index([workspaceId, subjectType, subjectId])
+  @@index([circuitId, stageId])
+}
+
+model FotofficeJourneyStep {
+  id                     String   @id @default(cuid())
+  journeyId              String
+  fromStageId            String?
+  toStageId              String?
+  outcome                String?
+  note                   String?
+  auto                   Boolean  @default(false)
+  event                  String?
+  forcedWithPendingTasks Boolean  @default(false)
+  actorUserId            Int?
+  actorLabel             String
+  createdAt              DateTime @default(now())
+
+  journey   FotofficeJourney @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  fromStage FotofficeStage?  @relation("StepFrom", fields: [fromStageId], references: [id], onDelete: SetNull)
+  toStage   FotofficeStage?  @relation("StepTo", fields: [toStageId], references: [id], onDelete: SetNull)
+
+  @@index([journeyId, createdAt])
+}
+
+model FotofficeTask {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  journeyId       String?
+  stageId         String?
+  subjectType     String
+  subjectId       String
+  title           String
+  dueAt           DateTime?
+  assigneeUserId  Int?
+  required        Boolean   @default(false)
+  doneAt          DateTime?
+  doneByUserId    Int?
+  createdByUserId Int?
+  createdAt       DateTime  @default(now())
+
+  workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  journey   FotofficeJourney? @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  stage     FotofficeStage?   @relation(fields: [stageId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, assigneeUserId, doneAt, dueAt])
+  @@index([journeyId])
+}
+
+model FotofficeProcessedEvent {
+  id        String   @id @default(cuid())
+  journeyId String
+  event     String
+  sourceRef String
+  createdAt DateTime @default(now())
+
+  journey FotofficeJourney @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+
+  @@unique([journeyId, event, sourceRef])
+}
+
+/// Etapa 0.5: campo personalizado de una organización para un tipo de registro.
+model FotofficeCustomField {
+  id          String    @id @default(cuid())
+  workspaceId String
+  /// CLIENTE | SOCIO | CONSULTA (reservados: PRESUPUESTO | PEDIDO | CONTRATO | PROYECTO)
+  entityType  String
+  /// Estable: se genera del nombre al crear y nunca cambia.
+  key         String
+  name        String
+  /// TEXTO | TEXTO_LARGO | NUMERO | FECHA | SI_NO | LISTA | ENLACE
+  type        String
+  required    Boolean   @default(false)
+  showInList  Boolean   @default(false)
+  order       Int       @default(0)
+  archivedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  workspace Workspace                    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  options   FotofficeCustomFieldOption[]
+  values    FotofficeCustomValue[]
+
+  @@unique([workspaceId, entityType, key])
+  @@index([workspaceId, entityType, archivedAt, order])
+}
+
+model FotofficeCustomFieldOption {
+  id         String    @id @default(cuid())
+  fieldId    String
+  label      String
+  order      Int       @default(0)
+  archivedAt DateTime?
+
+  field  FotofficeCustomField   @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  values FotofficeCustomValue[]
+
+  @@index([fieldId, order])
+}
+
+/// Valor de un campo para un registro. Sin FK al registro (polimórfico): el código valida el workspace.
+model FotofficeCustomValue {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  fieldId         String
+  entityType      String
+  entityId        String
+  valueText       String?
+  valueNumber     Decimal?  @db.Decimal(18, 4)
+  valueDate       DateTime? @db.Date
+  valueBool       Boolean?
+  optionId        String?
+  updatedAt       DateTime  @updatedAt
+  updatedByUserId Int?
+
+  workspace Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  field     FotofficeCustomField        @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  option    FotofficeCustomFieldOption? @relation(fields: [optionId], references: [id], onDelete: SetNull)
+
+  @@unique([fieldId, entityId])
+  @@index([workspaceId, entityType, entityId])
+  @@index([fieldId, optionId])
+}
+
+/// Historial de cambios de valores, con antes y después como texto legible.
+model FotofficeCustomValueChange {
+  id          String   @id @default(cuid())
+  workspaceId String
+  entityType  String
+  entityId    String
+  fieldId     String
+  before      String?
+  after       String?
+  actorUserId Int?
+  actorLabel  String?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, entityType, entityId, createdAt])
+}
+
+/// Contador configurable. key: CONSULTA | PRESUPUESTO | PEDIDO | CONTRATO | PROYECTO
+model FotofficeSequence {
+  id          String  @id @default(cuid())
+  workspaceId String
+  key         String
+  prefix      String  @default("")
+  withYear    Boolean @default(false)
+  digits      Int     @default(1)
+  nextValue   Int     @default(1)
+  currentYear Int?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, key])
+}
+
+model FotofficeSequenceChange {
+  id          String   @id @default(cuid())
+  workspaceId String
+  key         String
+  before      Json?
+  after       Json?
+  actorUserId Int?
+  actorLabel  String?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, key, createdAt])
+}
+
+/// Número asignado a un registro. year es null si la secuencia no lleva año
+/// (en el SQL, dos índices únicos parciales cubren los dos casos).
+model FotofficeRecordNumber {
+  id          String   @id @default(cuid())
+  workspaceId String
+  sequenceKey String
+  entityType  String
+  entityId    String
+  year        Int?
+  value       Int
+  display     String
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([entityType, entityId])
+}
+
+/// Etapa 0.6: plantilla de mensaje (correo o WhatsApp) de una organización.
+/// En el SQL: índice único parcial (workspaceId, systemKey) donde systemKey no es null,
+/// y CHECKs de channel, entityType y asunto (obligatorio en EMAIL, nulo en WHATSAPP).
+model FotofficeMessageTemplate {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  /// EMAIL | WHATSAPP
+  channel         String
+  /// GENERAL | CLIENTE | SOCIO | CONSULTA
+  entityType      String
+  name            String
+  /// Sólo en EMAIL (obligatorio); null en WHATSAPP.
+  subject         String?
+  body            String    @db.Text
+  /// null en las plantillas comunes; CONSULTA_AUTORESPUESTA en la automática.
+  systemKey       String?
+  /// Sólo tiene sentido en las automáticas.
+  enabled         Boolean   @default(false)
+  order           Int       @default(0)
+  archivedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  updatedByUserId Int?
+
+  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  messages  FotofficeMessage[]
+
+  @@index([workspaceId, channel, archivedAt, order])
+}
+
+/// Etapa 0.6: registro de un mensaje enviado (o abierto en WhatsApp) desde una ficha.
+/// entityId es polimórfico y se valida en código. En el SQL: CHECKs de status y channel.
+model FotofficeMessage {
+  id          String   @id @default(cuid())
+  workspaceId String
+  /// EMAIL | WHATSAPP
+  channel     String
+  /// CLIENTE | SOCIO | CONSULTA
+  entityType  String
+  entityId    String
+  templateId  String?
+  toAddress   String
+  subject     String?
+  body        String   @db.Text
+  /// SENT | FAILED | OPENED_WHATSAPP
+  status      String
+  automatic   Boolean  @default(false)
+  providerId  String?
+  errorCode   String?
+  actorUserId Int?
+  actorLabel  String?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  template  FotofficeMessageTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, entityType, entityId, createdAt])
+  @@index([workspaceId, channel, createdAt])
 }
 
 // ---------------------------------------------------------------------------

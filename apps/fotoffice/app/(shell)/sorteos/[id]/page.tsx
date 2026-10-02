@@ -7,7 +7,7 @@ import { loadRaffle } from "@/lib/raffles/repository";
 import { fechaCorta, fechaHora, prizeStatusLabel, raffleStatusLabel } from "@/lib/raffles/labels";
 import { canCancel, canDraw, canEditPrizes, canSeal } from "@/lib/raffles/lifecycle";
 import { formatMinorArs } from "@/lib/membership/money";
-import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
+import { puede } from "@/lib/access/policy";
 import type { RaffleStatus } from "@/lib/raffles/constants";
 import {
   announceRaffleAction,
@@ -55,7 +55,7 @@ export default async function SorteoPage({
   const sorteo = await loadRaffle(workspace.id, id);
   if (!sorteo) notFound();
 
-  const admin = canManageWorkspaceSettings(role);
+  const admin = puede(role, "operar");
   const ahora = new Date();
   const estado = sorteo.status as RaffleStatus;
   const editable = canEditPrizes(estado);

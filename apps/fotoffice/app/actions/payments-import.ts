@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { requireActiveWorkspace } from "@/lib/workspace";
-import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
+import { canOperateWorkspaceCollection } from "@/lib/payments/connect/authz";
 import { importHistoricalPayments } from "@/lib/membership/history-import/import";
 import {
   parseAndValidatePaymentImport,
@@ -28,7 +28,7 @@ type ImportContext =
 async function contexto(): Promise<ImportContext> {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) return { ok: false, error: "No hay una institución activa." };
-  if (!(await canManageWorkspaceCollection(user.id, workspace.id))) {
+  if (!(await canOperateWorkspaceCollection(user.id, workspace.id))) {
     return { ok: false, error: "Solo quien administra los cobros puede importar pagos." };
   }
   return { ok: true, workspace: { id: workspace.id, name: workspace.name } };

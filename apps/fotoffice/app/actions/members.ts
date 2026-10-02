@@ -10,7 +10,7 @@ import {
   updateMember,
   updateMemberCategory,
 } from "@repo/db/fotoffice-members";
-import { requireMembersManageContext } from "@/lib/members/access";
+import { requireMembersConfigureContext, requireMembersManageContext } from "@/lib/members/access";
 import { auditActorFrom, normalizeReason, statusRequiresReason } from "@/lib/members/audit";
 import { documentChanged, normalizeDocument } from "@/lib/members/documents";
 import {
@@ -192,7 +192,7 @@ export async function createMemberCategoryAction(
   _prev: MemberFormState | undefined,
   formData: FormData,
 ): Promise<MemberFormState> {
-  const { workspace } = await requireMembersManageContext();
+  const { workspace } = await requireMembersConfigureContext();
   const parsed = memberCategorySchema.safeParse({
     name: formData.get("name")?.toString()?.trim() ?? "",
     description: formData.get("description")?.toString()?.trim() || null,
@@ -217,7 +217,7 @@ export async function updateMemberCategoryAction(
   _prev: MemberFormState | undefined,
   formData: FormData,
 ): Promise<MemberFormState> {
-  const { workspace } = await requireMembersManageContext();
+  const { workspace } = await requireMembersConfigureContext();
   const id = formData.get("id")?.toString()?.trim();
   if (!id) return { error: "Categoría inválida." };
 

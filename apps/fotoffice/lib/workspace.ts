@@ -6,6 +6,8 @@ import { COURSES_SALES_MODULE_KEY, FOTOFFICE_WORKSPACE_COOKIE } from "./courses-
 import { EVALUACIONES_MODULE_KEY } from "./evaluaciones/constants";
 import { WEBSITE_MODULE_KEY } from "./website/constants";
 import { isModuleEnabledForWorkspace } from "./modules/gating";
+import { puede, type Capacidad } from "./access/policy";
+import { resolveWorkspaceRole } from "./workspace-role";
 
 export type ActiveWorkspace = {
   id: string;
@@ -130,20 +132,24 @@ export async function requireActiveWorkspace(): Promise<{
 
 /**
  * Núcleo genérico: resuelve usuario + workspace activo (misma lógica de
- * siempre) y exige que `moduleKey` esté habilitado, redirigiendo a
- * `offRedirect` si no lo está. Los módulos futuros deberían llamar esto
- * directo en vez de agregar una función `requireXContext` nueva, salvo que
- * necesiten lógica adicional real (no solo un redirect distinto).
+ * siempre), exige que `moduleKey` esté habilitado —redirigiendo a
+ * `offRedirect` si no lo está— y que el rol tenga la `capacidad` pedida
+ * (por defecto `operar`: el Colaborador y quien no tiene rol quedan afuera).
+ * Los módulos futuros deberían llamar esto directo en vez de agregar una
+ * función `requireXContext` nueva, salvo que necesiten lógica adicional real.
  */
 async function requireModuleContext(
   moduleKey: string,
   offRedirect: string,
+  capacidad: Capacidad = "operar",
 ): Promise<{ user: AuthUser; workspace: ActiveWorkspace }> {
   const user = await requireAuth();
   const workspace = await resolveActiveWorkspace(user.id);
   if (!workspace) redirect("/dashboard");
   const on = await isModuleEnabledForWorkspace(workspace.id, moduleKey);
   if (!on) redirect(offRedirect);
+  const role = await resolveWorkspaceRole(user.id, workspace.id);
+  if (!puede(role, capacidad)) redirect("/dashboard");
   return { user, workspace };
 }
 
@@ -153,6 +159,14 @@ export async function requireCoursesSalesContext(): Promise<{
   workspace: ActiveWorkspace;
 }> {
   return requireModuleContext(COURSES_SALES_MODULE_KEY, "/dashboard?courses=off");
+}
+
+/** Configuración del módulo courses-sales: además exige Dueño o Administrador. */
+export async function requireCoursesSalesSettingsContext(): Promise<{
+  user: AuthUser;
+  workspace: ActiveWorkspace;
+}> {
+  return requireModuleContext(COURSES_SALES_MODULE_KEY, "/dashboard?courses=off", "configurar");
 }
 
 /** Exige módulo evaluaciones activo en el workspace actual. */

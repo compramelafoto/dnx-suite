@@ -1,6 +1,7 @@
 import "server-only";
 import { redirect } from "next/navigation";
 import { requireActiveWorkspace } from "@/lib/workspace";
+import { puede } from "@/lib/access/policy";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
@@ -26,7 +27,7 @@ async function contextoBase() {
 /** Ver la agenda. Cualquiera del equipo. */
 export async function requireBookingsStaff() {
   const ctx = await contextoBase();
-  if (!ctx.role) redirect("/dashboard");
+  if (!puede(ctx.role, "operar")) redirect("/dashboard");
   return ctx;
 }
 

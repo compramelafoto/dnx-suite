@@ -2,7 +2,7 @@ import "server-only";
 import { redirect } from "next/navigation";
 import { requireActiveWorkspace } from "@/lib/workspace";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
-import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
+import { puede } from "@/lib/access/policy";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { RAFFLES_MODULE_KEY } from "./constants";
 
@@ -28,13 +28,16 @@ async function contextoBase() {
 /** Ver los sorteos y entregar premios. Cualquiera del equipo. */
 export async function requireRafflesStaff() {
   const ctx = await contextoBase();
-  if (!ctx.role) redirect("/dashboard");
+  if (!puede(ctx.role, "operar")) redirect("/dashboard");
   return ctx;
 }
 
-/** Crear, anunciar, sellar, resolver, cancelar. Sólo dueño o administrador. */
+/**
+ * Crear, anunciar, sellar, resolver, cancelar. Desde 0.1 también Equipo (capacidad `operar`):
+ * el nombre de quien actúa sigue quedando en la historia del sorteo.
+ */
 export async function requireRafflesAdmin() {
   const ctx = await contextoBase();
-  if (!canManageWorkspaceSettings(ctx.role)) redirect("/sorteos");
+  if (!puede(ctx.role, "operar")) redirect("/sorteos");
   return ctx;
 }

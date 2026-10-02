@@ -54,7 +54,7 @@ export type AuthGuardsPrismaClient = {
       id: string;
       userId: number;
       workspaceId: string;
-      role: "WORKSPACE_OWNER" | "WORKSPACE_ADMIN" | "STAFF";
+      role: "WORKSPACE_OWNER" | "WORKSPACE_ADMIN" | "STAFF" | "COLLABORATOR";
       createdAt: Date;
       updatedAt: Date;
     } | null>;

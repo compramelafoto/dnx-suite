@@ -14,7 +14,7 @@ const KNOWN_WORKSPACE_COOKIE_NAMES = [
   "compramelafoto_workspace_id",
 ] as const;
 
-type WorkspaceRole = "WORKSPACE_OWNER" | "WORKSPACE_ADMIN" | "STAFF";
+type WorkspaceRole = "WORKSPACE_OWNER" | "WORKSPACE_ADMIN" | "STAFF" | "COLLABORATOR";
 
 export type CurrentUser = {
   id: number;

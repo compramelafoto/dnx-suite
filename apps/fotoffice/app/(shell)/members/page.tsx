@@ -1,62 +1,40 @@
 import Link from "next/link";
-import { countMembersByStatus, listMemberCategories, searchMembers } from "@repo/db/fotoffice-members";
-import { latestInvitationByMember } from "@repo/db/fotoffice-member-invitations";
-import {
-  isMemberAccessFilter,
-  MEMBER_ACCESS_FILTER_LABELS,
-} from "@repo/db/fotoffice-member-access-filter";
+import { countMembersByStatus, listMemberCategories } from "@repo/db/fotoffice-members";
 import { requireMembersContext } from "@/lib/members/access";
 import { PageHeader } from "@/components/page-header";
-import { MEMBER_STATUS_LABELS, isMemberStatus } from "@/lib/members/status-labels";
-import { MEMBER_ACCESS_LABELS, memberAccessStatus } from "@/lib/members/invitations";
-import { InviteBatchForm } from "@/components/members/invite-batch-form";
+import { Listado } from "@/components/listado/listado";
+import { cargarListadoSocios } from "@/lib/members/listado";
+import { etiquetaDeUsuario } from "@/lib/listado/acceso";
+import type { ContextoListado } from "@/lib/listado/tipos";
+import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { Users } from "lucide-react";
 
-function buildQuery(params: Record<string, string | undefined>, overrides: Record<string, string | undefined>) {
-  const merged = { ...params, ...overrides };
-  const sp = new URLSearchParams();
-  for (const [k, v] of Object.entries(merged)) {
-    if (v) sp.set(k, v);
-  }
-  const s = sp.toString();
-  return s ? `?${s}` : "";
-}
+export const dynamic = "force-dynamic";
+// Las acciones en lote (hasta 5.000 cambios de categoría, de a uno) corren como Server Actions
+// de esta página y heredan este tope.
+export const maxDuration = 300;
 
 export default async function MembersPage({
   searchParams,
 }: {
-  searchParams: Promise<{
-    q?: string;
-    status?: string;
-    categoryId?: string;
-    access?: string;
-    page?: string;
-  }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { workspace, canManage } = await requireMembersContext();
-  const v = await loadPersonVocabulary(workspace.id);
-  const sp = await searchParams;
-  const q = sp.q?.trim() || undefined;
-  const status = sp.status && isMemberStatus(sp.status) ? sp.status : undefined;
-  const categoryId = sp.categoryId || undefined;
-  const access = sp.access && isMemberAccessFilter(sp.access) ? sp.access : undefined;
-  const page = Number(sp.page) > 0 ? Number(sp.page) : 1;
-
-  const [result, counts, categories] = await Promise.all([
-    searchMembers(workspace.id, { search: q, status, categoryId, access, page }),
+  const { user, workspace, canManage } = await requireMembersContext();
+  const [v, counts, categories, role] = await Promise.all([
+    loadPersonVocabulary(workspace.id),
     countMembersByStatus(workspace.id),
     listMemberCategories(workspace.id),
+    resolveWorkspaceRole(user.id, workspace.id),
   ]);
+  const ctx: ContextoListado = {
+    workspaceId: workspace.id,
+    workspaceName: workspace.name,
+    userId: user.id,
+    userLabel: etiquetaDeUsuario(user),
+    role,
+  };
 
-  // Una consulta para toda la página: el estado de acceso se deriva de la última invitación
-  // de cada socio, y pedirla fila por fila serían 25 viajes más a la base.
-  const invitaciones = await latestInvitationByMember(
-    workspace.id,
-    result.items.map((m) => m.id),
-  );
-
-  const hasFilters = Boolean(q || status || categoryId || access);
   const noMembersAtAll = counts.total === 0;
 
   return (
@@ -70,21 +48,6 @@ export default async function MembersPage({
               <Link href="/members/categories" className="fo-btn fo-btn-secondary text-sm">
                 Categorías
               </Link>
-              {/* Descargas directas: el permiso se revalida en el servidor, el botón solo
-                  evita ofrecer algo que no se puede hacer. `prefetch={false}` porque son
-                  descargas, no páginas navegables. */}
-              <a href="/api/members/export" className="fo-btn fo-btn-secondary text-sm" download>
-                Exportar padrón completo
-              </a>
-              {hasFilters ? (
-                <a
-                  href={`/api/members/export${buildQuery({ q, status, categoryId, access }, {})}`}
-                  className="fo-btn fo-btn-secondary text-sm"
-                  download
-                >
-                  Exportar resultados actuales
-                </a>
-              ) : null}
               <Link href="/members/import" className="fo-btn fo-btn-secondary text-sm">
                 {`Importar ${v.plural}`}
               </Link>
@@ -144,195 +107,7 @@ export default async function MembersPage({
             </div>
           </div>
 
-          <form method="GET" className="fo-card !p-4 flex flex-wrap items-end gap-3">
-            <div className="fo-field-stack flex-1 min-w-[220px]">
-              <label className="fo-label" htmlFor="q">
-                Buscar
-              </label>
-              <input
-                id="q"
-                name="q"
-                defaultValue={q ?? ""}
-                className="fo-input"
-                placeholder="Nombre, apellido, número, email o documento"
-              />
-            </div>
-            <div className="fo-field-stack">
-              <label className="fo-label" htmlFor="categoryId">
-                Categoría
-              </label>
-              <select id="categoryId" name="categoryId" defaultValue={categoryId ?? ""} className="fo-input">
-                <option value="">Todas</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="fo-field-stack">
-              <label className="fo-label" htmlFor="status">
-                Estado
-              </label>
-              <select id="status" name="status" defaultValue={status ?? ""} className="fo-input">
-                <option value="">Todos</option>
-                {Object.entries(MEMBER_STATUS_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="fo-field-stack">
-              <label className="fo-label" htmlFor="access">
-                Acceso
-              </label>
-              <select id="access" name="access" defaultValue={access ?? ""} className="fo-input">
-                <option value="">Todos</option>
-                {Object.entries(MEMBER_ACCESS_FILTER_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex gap-2">
-              <button type="submit" className="fo-btn fo-btn-primary text-sm min-h-10">
-                Buscar
-              </button>
-              {hasFilters ? (
-                <Link href="/members" className="fo-btn fo-btn-ghost text-sm min-h-10">
-                  Limpiar
-                </Link>
-              ) : null}
-            </div>
-          </form>
-
-          {result.items.length === 0 ? (
-            <div className="fo-card flex flex-col items-center text-center py-12 px-6 gap-3">
-              {/* Reformulado: "Ningún socio" y "todos los socios" concuerdan en masculino con
-                  un artículo/cuantificador que no sabemos si le cabe a la palabra configurada. */}
-              <p className="text-sm font-medium text-[var(--fo-text)]">
-                {`No hay ${v.plural} que coincidan con esa búsqueda.`}
-              </p>
-              <Link href="/members" className="fo-btn fo-btn-secondary text-sm">
-                Ver todo el padrón
-              </Link>
-            </div>
-          ) : (
-            <>
-              <InviteBatchForm canManage={canManage} vocabulary={v}>
-              <div className="overflow-x-auto rounded-[var(--fo-radius)] border border-[var(--fo-border)]">
-                <table className="w-full text-sm text-left min-w-[860px]">
-                  <thead className="bg-[var(--fo-bg-elevated)] text-[var(--fo-muted)]">
-                    <tr>
-                      {canManage ? <th className="px-4 py-3 font-semibold w-10" /> : null}
-                      <th className="px-4 py-3 font-semibold">N°</th>
-                      <th className="px-4 py-3 font-semibold">Apellido y nombre</th>
-                      <th className="px-4 py-3 font-semibold">Categoría</th>
-                      <th className="px-4 py-3 font-semibold">Email</th>
-                      <th className="px-4 py-3 font-semibold">Teléfono</th>
-                      <th className="px-4 py-3 font-semibold">Ingreso</th>
-                      <th className="px-4 py-3 font-semibold">Estado</th>
-                      <th className="px-4 py-3 font-semibold">Acceso</th>
-                      <th className="px-4 py-3 font-semibold w-20" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--fo-border)] bg-[var(--fo-surface)]">
-                    {result.items.map((m) => {
-                      const acceso = memberAccessStatus(m, invitaciones.get(m.id));
-                      /*
-                        Solo se puede invitar a un socio activo, con email y sin cuenta
-                        vinculada. Deshabilitar la casilla en vez de esconderla deja ver por
-                        qué ese socio no entra en la tanda.
-                      */
-                      const invitable =
-                        m.status === "ACTIVE" && Boolean(m.email?.trim()) && m.userId === null;
-                      return (
-                      <tr key={m.id} className="hover:bg-[var(--fo-surface-hover)]/60">
-                        {canManage ? (
-                          <td className="px-4 py-3">
-                            <input
-                              type="checkbox"
-                              name="memberIds"
-                              value={m.id}
-                              disabled={!invitable}
-                              aria-label={`Invitar a ${m.lastName}, ${m.firstName}`}
-                              className="size-4 accent-[var(--fo-accent)] disabled:opacity-30"
-                            />
-                          </td>
-                        ) : null}
-                        <td className="px-4 py-3 text-[var(--fo-muted)] font-mono text-xs">
-                          {m.memberNumber}
-                        </td>
-                        <td className="px-4 py-3 font-medium text-[var(--fo-text)]">
-                          {m.lastName}, {m.firstName}
-                        </td>
-                        <td className="px-4 py-3 text-[var(--fo-muted)]">{m.category?.name ?? "—"}</td>
-                        <td className="px-4 py-3 text-[var(--fo-muted)]">{m.email ?? "—"}</td>
-                        <td className="px-4 py-3 text-[var(--fo-muted)]">{m.phone ?? "—"}</td>
-                        <td className="px-4 py-3 text-[var(--fo-muted)] whitespace-nowrap">
-                          {new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeZone: "UTC" }).format(m.joinedAt)}
-                        </td>
-                        <td className="px-4 py-3 text-[var(--fo-muted)]">
-                          {MEMBER_STATUS_LABELS[m.status]}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <span
-                            className={
-                              acceso === "ACTIVE_ACCESS"
-                                ? "text-[var(--fo-success)]"
-                                : acceso === "PENDING"
-                                  ? "text-[var(--fo-text)]"
-                                  : "text-[var(--fo-muted)]"
-                            }
-                          >
-                            {m.email?.trim() ? MEMBER_ACCESS_LABELS[acceso] : "Sin email"}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <Link
-                            href={`/members/${m.id}`}
-                            className="text-[var(--fo-accent)] font-medium hover:underline"
-                          >
-                            Ver
-                          </Link>
-                        </td>
-                      </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              </InviteBatchForm>
-
-              {result.pageCount > 1 ? (
-                <div className="flex items-center justify-between text-sm text-[var(--fo-muted)]">
-                  <p>
-                    {`Página ${result.page} de ${result.pageCount} — ${result.total} ${result.total === 1 ? v.singular : v.plural}`}
-                  </p>
-                  <div className="flex gap-2">
-                    {result.page > 1 ? (
-                      <Link
-                        href={`/members${buildQuery({ q, status, categoryId, access }, { page: String(result.page - 1) })}`}
-                        className="fo-btn fo-btn-secondary text-sm min-h-9"
-                      >
-                        Anterior
-                      </Link>
-                    ) : null}
-                    {result.page < result.pageCount ? (
-                      <Link
-                        href={`/members${buildQuery({ q, status, categoryId, access }, { page: String(result.page + 1) })}`}
-                        className="fo-btn fo-btn-secondary text-sm min-h-9"
-                      >
-                        Siguiente
-                      </Link>
-                    ) : null}
-                  </div>
-                </div>
-              ) : null}
-            </>
-          )}
+          <Listado def={await cargarListadoSocios(ctx, v)} ctx={ctx} ruta="/members" searchParams={searchParams} />
         </>
       )}
     </div>

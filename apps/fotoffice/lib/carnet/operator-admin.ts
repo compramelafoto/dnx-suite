@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
-import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
+import { puede } from "@/lib/access/policy";
 
 /**
  * Quiénes pueden recibir permisos sobre los carnets.
@@ -15,7 +15,7 @@ export type OperatorCandidate = {
   userId: number;
   label: string;
   email: string | null;
-  /** El dueño y los administradores pueden todo sin permiso otorgado. */
+  /** Quien opera (dueño, administrador o Equipo) puede todo sin permiso otorgado. */
   isAdmin: boolean;
   canProduce: boolean;
   canDeliver: boolean;
@@ -44,9 +44,9 @@ export async function listOperatorCandidates(workspaceId: string): Promise<Opera
   // una dejaría gente sin aparecer en la lista.
   for (const fila of [...unificadas, ...legado]) {
     const previo = porUsuario.get(fila.userId);
-    const esAdmin = canManageWorkspaceSettings(fila.role);
+    const esAdmin = puede(fila.role, "operar");
     if (previo) {
-      // Si figura en las dos, manda el rol más alto.
+      // Si figura en las dos, alcanza con que una de las dos filas opere.
       previo.isAdmin = previo.isAdmin || esAdmin;
       continue;
     }

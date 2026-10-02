@@ -14,8 +14,8 @@ describe("canManageMembers — N: política OWNER/ADMIN/STAFF", () => {
     expect(canManageMembers("ADMIN")).toBe(true);
   });
 
-  it("STAFF NO puede administrar (solo consulta)", () => {
-    expect(canManageMembers("STAFF")).toBe(false);
+  it("STAFF opera socios (0.1: Equipo opera todo)", () => {
+    expect(canManageMembers("STAFF")).toBe(true);
   });
 
   it("sin membership (null/undefined) NO puede administrar", () => {

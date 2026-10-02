@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireActiveWorkspace } from "@/lib/workspace";
-import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
+import { canOperateWorkspaceCollection } from "@/lib/payments/connect/authz";
 import { generateMonthlyCharges } from "@/lib/membership/generate-monthly";
 import { periodOf } from "@/lib/membership/monthly-plan";
 
@@ -21,8 +21,8 @@ const PERIODO = /^\d{4}-(0[1-9]|1[0-2])$/;
 export async function generateDuesAction(formData: FormData): Promise<GenerateDuesResult> {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) return { ok: false, error: "No hay una institución activa." };
-  if (!(await canManageWorkspaceCollection(user.id, workspace.id))) {
-    return { ok: false, error: "Solo el dueño o un administrador puede generar cuotas." };
+  if (!(await canOperateWorkspaceCollection(user.id, workspace.id))) {
+    return { ok: false, error: "No tenés permiso para generar cuotas." };
   }
 
   const pedido = String(formData.get("period") ?? "").trim();

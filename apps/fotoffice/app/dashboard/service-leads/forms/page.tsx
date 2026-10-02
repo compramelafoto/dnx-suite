@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { prisma } from "@repo/db";
 import { PageHeader } from "@/components/page-header";
-import { requireActiveWorkspace } from "@/lib/workspace";
+import { requireServiceLeadsStaff } from "@/lib/service-leads/access";
 
 export default async function ServiceLeadFormsPage() {
-  const { workspace } = await requireActiveWorkspace();
+  const { workspace } = await requireServiceLeadsStaff();
   const forms = workspace
     ? await prisma.serviceLeadForm.findMany({
         where: { workspaceId: workspace.id },
