@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
 import { requireAuth } from "@/lib/auth";
@@ -9,6 +10,7 @@ import { PortfolioStatusCard } from "@/components/portal/portfolio/portfolio-sta
 import { PortfolioUploader } from "@/components/portal/portfolio/portfolio-uploader";
 import { PortfolioPhotoGrid } from "@/components/portal/portfolio/portfolio-photo-grid";
 import { PortfolioPublishToggle } from "@/components/portal/portfolio/portfolio-publish-toggle";
+import { PortfolioInstagramForm } from "@/components/portal/portfolio/portfolio-instagram-form";
 
 export const metadata = { title: "Mi portfolio" };
 export const dynamic = "force-dynamic";
@@ -56,12 +58,27 @@ export default async function PortalPortfolioPage() {
 
   return (
     <main className="mx-auto max-w-4xl space-y-6 px-4 py-8">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Mi portfolio</h1>
-        <p className="text-sm text-[var(--fo-muted)]">
-          Tus fotos, publicadas en el sitio de la institución. Vos elegís cuáles, en qué orden y
-          cuándo se ven.
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight">Mi portfolio</h1>
+          <p className="text-sm text-[var(--fo-muted)]">
+            Tus fotos, publicadas en el sitio de la institución. Vos elegís cuáles, en qué orden y
+            cuándo se ven.
+          </p>
+        </div>
+
+        {/*
+          La vista previa se ofrece sólo cuando hay algo que ver. Un botón que lleva a una pantalla
+          vacía enseña a ignorar los botones.
+        */}
+        {portfolio.photos.length > 0 ? (
+          <Link
+            href="/portal/portfolio/vista-previa"
+            className="fo-btn fo-btn-secondary shrink-0 text-sm"
+          >
+            Ver cómo queda
+          </Link>
+        ) : null}
       </header>
 
       <PortfolioStatusCard visibility={portfolio.visibility} publicHref={publicHref} />
@@ -69,6 +86,11 @@ export default async function PortalPortfolioPage() {
       <PortfolioUploader photoCount={portfolio.photos.length} />
 
       <PortfolioPhotoGrid photos={portfolio.photos} />
+
+      <PortfolioInstagramForm
+        enabled={portfolio.instagramEnabled}
+        postUrls={portfolio.instagramPostUrls}
+      />
 
       <PortfolioPublishToggle
         published={portfolio.memberPublished}

@@ -8078,6 +8078,14 @@ model FotofficeMemberPortfolio {
   /// forma humana de contradecirla es una trampa.
   adminForcePublish Boolean @default(false)
 
+  /// Si la ficha pública muestra la franja de posteos de Instagram. Apagado por omisión: trae un
+  /// script de Meta al sitio de la institución, y eso se decide, no se hereda.
+  instagramEnabled  Boolean  @default(false)
+  /// Enlaces a posteos propios que el socio eligió mostrar, en orden. Tope de 6, validado en la
+  /// acción. No es el feed: leer el feed de alguien exige OAuth y una app aprobada por Meta desde
+  /// que cerró la Basic Display API, en diciembre de 2024.
+  instagramPostUrls String[] @default([])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

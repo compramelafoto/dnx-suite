@@ -23,6 +23,8 @@ function filaAlAire(overrides: Record<string, unknown> = {}) {
     hiddenByAdminAt: null,
     adminForcePublish: false,
     coverPhotoId: "f1",
+    instagramEnabled: true,
+    instagramPostUrls: ["https://www.instagram.com/p/AAAAAAAAAAA/"],
     member: {
       firstName: "Juan",
       lastName: "Pérez",
@@ -193,6 +195,26 @@ describe("el logo de la empresa", () => {
     portfolio.findMany.mockResolvedValue([filaAlAire()]);
     const [entrada] = await loadPublicDirectory("ws-1");
     expect(entrada).not.toHaveProperty("businessLogoUrl");
+  });
+});
+
+describe("la franja de Instagram", () => {
+  it("la ficha trae los posteos cuando está prendida", async () => {
+    portfolio.findFirst.mockResolvedValue(filaAlAire());
+    const r = await loadPublicPortfolio({ workspaceId: "ws-1", publicSlug: "juan-perez" });
+    expect(r?.instagramPosts).toEqual(["https://www.instagram.com/p/AAAAAAAAAAA/"]);
+  });
+
+  it("apagada no trae nada, aunque el socio tenga enlaces cargados", async () => {
+    portfolio.findFirst.mockResolvedValue(filaAlAire({ instagramEnabled: false }));
+    const r = await loadPublicPortfolio({ workspaceId: "ws-1", publicSlug: "juan-perez" });
+    expect(r?.instagramPosts).toEqual([]);
+  });
+
+  it("prendida pero sin enlaces no rompe", async () => {
+    portfolio.findFirst.mockResolvedValue(filaAlAire({ instagramPostUrls: [] }));
+    const r = await loadPublicPortfolio({ workspaceId: "ws-1", publicSlug: "juan-perez" });
+    expect(r?.instagramPosts).toEqual([]);
   });
 });
 
