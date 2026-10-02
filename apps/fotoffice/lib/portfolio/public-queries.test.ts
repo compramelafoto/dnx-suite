@@ -191,10 +191,21 @@ describe("el logo de la empresa", () => {
     expect(r?.businessLogoUrl).toBeNull();
   });
 
-  it("el directorio NO lo trae: la grilla es obra, no una pared de logos", async () => {
+  it("el directorio también lo trae, al lado del nombre", async () => {
+    // Al principio se dejó afuera para que la grilla fuera sólo obra. La institución pidió lo
+    // contrario: el estudio se reconoce por su logo, y en una grilla de autores eso ayuda a
+    // encontrar a alguien más rápido que leer el nombre.
     portfolio.findMany.mockResolvedValue([filaAlAire()]);
     const [entrada] = await loadPublicDirectory("ws-1");
-    expect(entrada).not.toHaveProperty("businessLogoUrl");
+    expect(entrada.businessLogoUrl).toBe("https://cdn.example/logo-perez.png");
+  });
+
+  it("quien no subió logo tampoco rompe la tarjeta del directorio", async () => {
+    portfolio.findMany.mockResolvedValue([
+      filaAlAire({ member: { ...filaAlAire().member, businessLogoUrl: null } }),
+    ]);
+    const [entrada] = await loadPublicDirectory("ws-1");
+    expect(entrada.businessLogoUrl).toBeNull();
   });
 });
 

@@ -84,7 +84,10 @@ export default async function PublicPortfolioPage({ params }: Props) {
         </Link>
       </p>
 
-      <PortfolioShowcase portfolio={datos.portfolio} />
+      <PortfolioShowcase
+        portfolio={datos.portfolio}
+        contactHref={`${volver}/${portfolioSlug}/contacto`}
+      />
     </main>
   );
 }

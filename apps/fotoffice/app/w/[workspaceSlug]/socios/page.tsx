@@ -32,7 +32,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!branding) return {};
   const vocabulario = await loadPersonVocabulary(branding.workspaceId);
   return {
-    title: `${vocabulario.Plural} · ${branding.commercialName}`,
+    title: `Portfolios de ${vocabulario.Plural} · ${branding.commercialName}`,
     description: `La obra de ${vocabulario.plural} de ${branding.commercialName}.`,
   };
 }
@@ -72,7 +72,13 @@ export default async function PublicDirectoryPage({ params, searchParams }: Prop
   return (
     <main className="mx-auto max-w-6xl space-y-8 px-4 py-12 md:px-8 md:py-16">
       <header className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">{vocabulario.Plural}</h1>
+        {/*
+          "Portfolios de X" y no sólo "X": la entrada del menú ya dice la palabra sola, y al entrar
+          hay que saber enseguida que esto es obra y no un listado del padrón.
+        */}
+        <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">
+          Portfolios de {vocabulario.Plural}
+        </h1>
         <p className="text-sm opacity-80">
           La obra de {vocabulario.plural} de {branding.commercialName}.
         </p>
@@ -167,7 +173,23 @@ function TarjetaDeSocio({ entrada, base }: { entrada: DirectoryEntry; base: stri
         </div>
 
         <div className="space-y-1">
-          <h2 className="font-medium">{entrada.displayName}</h2>
+          <div className="flex min-w-0 items-center gap-2">
+            <h2 className="min-w-0 truncate font-medium">{entrada.displayName}</h2>
+            {entrada.businessLogoUrl ? (
+              /*
+               * Fondo blanco: casi todos los logos son PNG con transparencia hechos para fondo
+               * claro, y sobre un sitio de paleta oscura desaparecerían. Alto chico para que
+               * acompañe al nombre sin taparlo — la foto sigue siendo lo que manda en la tarjeta.
+               */
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={entrada.businessLogoUrl}
+                alt={entrada.businessName ?? `Logo de ${entrada.displayName}`}
+                className="h-6 w-auto max-w-20 shrink-0 rounded bg-white object-contain"
+                loading="lazy"
+              />
+            ) : null}
+          </div>
           {entrada.businessName ? (
             <p className="text-sm opacity-70">{entrada.businessName}</p>
           ) : null}
