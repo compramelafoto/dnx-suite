@@ -25,6 +25,16 @@ const nextConfig: NextConfig = {
       "../../packages/db/prisma/**",
     ],
   },
+  /**
+   * El cliente de Prisma trae tipos (index.d.ts ≈ 80 MB) y motores que no se usan al ejecutar en
+   * Vercel (Linux). Sin excluirlos, "dashboard/concursos/[id]/diplomas" supera el tope de 250 MB.
+   */
+  outputFileTracingExcludes: {
+    "/**": [
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/*.d.ts",
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/libquery_engine-darwin*",
+    ],
+  },
   /** Playwright y otros clientes que usan 127.0.0.1 necesitan HMR; sin esto Next 16 bloquea el bundle y no hidrata. */
   allowedDevOrigins: ["127.0.0.1", "localhost"],
   turbopack: {

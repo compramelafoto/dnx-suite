@@ -308,7 +308,7 @@ describe("engancharConsultas", () => {
     }
     expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 0, quedan: 0 });
     expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 0, quedan: 0 });
-  });
+  }, 30_000); // arma 200 consultas en la base en memoria: en CI tarda más de 5 s
 
   it("lee sólo las consultas sin recorrido, en una consulta acotada y con parámetros", async () => {
     B.datos.serviceSalesLead = [];
