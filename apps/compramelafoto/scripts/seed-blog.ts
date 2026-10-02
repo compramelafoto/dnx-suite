@@ -92,7 +92,7 @@ const AUTHORS = [
 async function seedCategories() {
   for (const category of CATEGORIES) {
     await prisma.blogCategory.upsert({
-      where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: category.slug } },
+      where: { platform_workspaceKey_slug: { platform: CLF_CONTENT_PLATFORM, workspaceKey: "", slug: category.slug } },
       update: {
         name: category.name,
         description: category.description,
@@ -109,7 +109,7 @@ async function seedTags() {
   for (const name of TAGS) {
     const slug = slugFromName(name);
     await prisma.blogTag.upsert({
-      where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug } },
+      where: { platform_workspaceKey_slug: { platform: CLF_CONTENT_PLATFORM, workspaceKey: "", slug } },
       update: { name },
       create: { platform: CLF_CONTENT_PLATFORM, name, slug },
     });
@@ -120,7 +120,7 @@ async function seedTags() {
 async function seedAuthors() {
   for (const author of AUTHORS) {
     await prisma.blogAuthor.upsert({
-      where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: author.slug } },
+      where: { platform_workspaceKey_slug: { platform: CLF_CONTENT_PLATFORM, workspaceKey: "", slug: author.slug } },
       update: {
         name: author.name,
         role: author.role,
