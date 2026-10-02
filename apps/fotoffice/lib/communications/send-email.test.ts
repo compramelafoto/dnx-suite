@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { buildFrom, sendTransactionalEmail } from "./send-email";
+import { RESEND_TIMEOUT_MS, buildFrom, sendTransactionalEmail } from "./send-email";
 
 const API_KEY = "re_supersecret_value_0123456789";
 const ENV = {
@@ -147,5 +147,25 @@ describe("buildFrom", () => {
     );
     expect(buildFrom("X <no-reply@mail.example>", "   ")).toBe("X <no-reply@mail.example>");
     expect(buildFrom("X <no-reply@mail.example>")).toBe("X <no-reply@mail.example>");
+  });
+});
+
+describe("tiempo de espera", () => {
+  it("el pedido a Resend lleva un corte de 10 s; si se cuelga, vuelve como error de conexión", async () => {
+    expect(RESEND_TIMEOUT_MS).toBe(10_000);
+    const corte = new AbortController();
+    const timeout = vi.spyOn(AbortSignal, "timeout").mockReturnValue(corte.signal);
+    // Un proveedor que nunca contesta: sólo termina cuando se corta la señal.
+    const fetchImpl = vi.fn(
+      (_url: string, init?: RequestInit) =>
+        new Promise<Response>((_ok, falla) => init?.signal?.addEventListener("abort", () => falla(init.signal!.reason))),
+    );
+    const pendiente = sendTransactionalEmail(MESSAGE, { env: ENV, fetchImpl: fetchImpl as unknown as typeof fetch });
+    expect(timeout).toHaveBeenCalledWith(10_000);
+    corte.abort(new DOMException("The operation was aborted due to timeout", "TimeoutError"));
+    const result = await pendiente;
+    expect(result).toEqual({ status: "INTERNAL_ERROR", detail: "Sin respuesta del proveedor en 10 s" });
+    expect(JSON.stringify(result)).not.toContain(API_KEY);
+    timeout.mockRestore();
   });
 });

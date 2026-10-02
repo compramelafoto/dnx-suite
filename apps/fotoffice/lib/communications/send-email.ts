@@ -29,6 +29,9 @@ export type OutboundEmail = {
   replyTo?: string;
 };
 
+/** Cuánto se espera a Resend antes de cortar el pedido. */
+export const RESEND_TIMEOUT_MS = 10_000;
+
 export type SendOutcome =
   | { status: "SENT"; providerId: string | null }
   | { status: "CONFIGURATION_ERROR"; detail: string }
@@ -128,8 +131,14 @@ export async function sendTransactionalEmail(
         text: message.text,
         ...(message.replyTo ? { reply_to: message.replyTo } : {}),
       }),
+      // Un proveedor colgado no deja la acción esperando para siempre: a los 10 s se corta y
+      // queda como error de conexión.
+      signal: AbortSignal.timeout(RESEND_TIMEOUT_MS),
     });
   } catch (error) {
+    if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
+      return { status: "INTERNAL_ERROR", detail: `Sin respuesta del proveedor en ${RESEND_TIMEOUT_MS / 1000} s` };
+    }
     const reason = error instanceof Error ? error.message : "error desconocido";
     return { status: "INTERNAL_ERROR", detail: sanitizeDetail(reason, apiKey) };
   }
