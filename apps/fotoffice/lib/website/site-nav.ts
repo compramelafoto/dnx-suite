@@ -1,5 +1,6 @@
 import type { WebsiteBlock } from "./blocks";
 import { deriveHomeNavItems } from "./navigation";
+import { BLOG_PUBLIC_PAGE_KEY } from "./constants";
 import { publicModulePagesFor } from "./public-modules";
 
 /**
@@ -50,6 +51,11 @@ export function buildSiteNav(input: {
   enabledModuleKeys: ReadonlySet<string>;
   /** Sin versión publicada no hay secciones que anclar: Inicio va sin submenú. */
   hasPublishedSite: boolean;
+  /**
+   * Si la institución tiene al menos un artículo publicado (y el Sitio web habilitado). Un blog
+   * vacío no va al menú: sería un ítem que lleva a "todavía no hay artículos".
+   */
+  hasPublishedBlog?: boolean;
 }): SiteNavItem[] {
   const base = `/w/${input.workspaceSlug}`;
 
@@ -73,7 +79,13 @@ export function buildSiteNav(input: {
     children: secciones,
   };
 
-  const paginasDeModulo: SiteNavItem[] = publicModulePagesFor(input.enabledModuleKeys).map((pagina) => {
+  // El blog entra por la misma lista que los módulos (orden, segmento, etiqueta), "habilitado"
+  // con su llave propia cuando tiene artículos. Así no hay un segundo camino para armar el menú.
+  const paginasHabilitadas = input.hasPublishedBlog
+    ? new Set([...input.enabledModuleKeys, BLOG_PUBLIC_PAGE_KEY])
+    : input.enabledModuleKeys;
+
+  const paginasDeModulo: SiteNavItem[] = publicModulePagesFor(paginasHabilitadas).map((pagina) => {
     const href = `${base}/${pagina.segment}`;
     return { id: pagina.moduleKey, label: pagina.label, href, children: [] };
   });

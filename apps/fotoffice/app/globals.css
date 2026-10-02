@@ -8,6 +8,8 @@
  */
 @source "../../../packages/template-editor-ui/src";
 @source "../../../packages/template-editor-core/src";
+/* El editor del blog (`@repo/content-ui`): mismo motivo, sin esto el formulario sale sin estilos. */
+@source "../../../packages/content-ui/src";
 
 /**
  * Fotoffice — design system (modo claro)

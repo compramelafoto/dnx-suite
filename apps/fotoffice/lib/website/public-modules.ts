@@ -1,6 +1,7 @@
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
+import { BLOG_PUBLIC_PAGE_KEY } from "./constants";
 
 /**
  * Las páginas públicas que aporta cada módulo al sitio: qué segmento ocupan bajo
@@ -14,7 +15,8 @@ import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
  * `app/w/[workspaceSlug]/<segment>/`.
  */
 export type PublicModulePage = {
-  /** Mismo valor que `WorkspaceFeatureModule.moduleKey`. */
+  /** Mismo valor que `WorkspaceFeatureModule.moduleKey` — salvo el blog, que no es un módulo y
+   * usa una llave propia (`BLOG_PUBLIC_PAGE_KEY`, ver `buildSiteNav`). */
   moduleKey: string;
   /** Segmento bajo `/w/[slug]/`. Es también su entrada en el menú. */
   segment: string;
@@ -27,6 +29,7 @@ export const PUBLIC_MODULE_PAGES: readonly PublicModulePage[] = [
   { moduleKey: COURSES_SALES_MODULE_KEY, segment: "cursos", label: "Cursos", order: 10 },
   { moduleKey: BOOKINGS_MODULE_KEY, segment: "reservas", label: "Reservas", order: 20 },
   { moduleKey: MEMBERS_MODULE_KEY, segment: "asociarse", label: "Asociarse", order: 30 },
+  { moduleKey: BLOG_PUBLIC_PAGE_KEY, segment: "blog", label: "Blog", order: 40 },
 ] as const;
 
 /** Las páginas de los módulos habilitados, en su orden de presentación. */

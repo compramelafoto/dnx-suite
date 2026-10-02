@@ -51,6 +51,17 @@ describe("buildSiteNav", () => {
     const nav = buildSiteNav({ ...base, enabledModuleKeys: new Set([BOOKINGS_MODULE_KEY]) });
     expect(nav.map((i) => i.label)).not.toContain("Cursos");
   });
+
+  it("con artículos publicados, el blog aparece en el menú después de los módulos", () => {
+    const nav = buildSiteNav({ ...base, enabledModuleKeys: new Set([BOOKINGS_MODULE_KEY]), hasPublishedBlog: true });
+    expect(nav.map((i) => i.label)).toEqual(["Inicio", "Reservas", "Blog"]);
+    expect(nav[2].href).toBe("/w/mi-estudio/blog");
+  });
+
+  it("sin artículos publicados, el blog no va al menú", () => {
+    expect(buildSiteNav({ ...base, hasPublishedBlog: false }).map((i) => i.label)).toEqual(["Inicio"]);
+    expect(buildSiteNav(base).map((i) => i.label)).toEqual(["Inicio"]);
+  });
 });
 
 // `buildSiteNav` no marca ningún ítem como actual — corre en el servidor y no conoce la ruta
