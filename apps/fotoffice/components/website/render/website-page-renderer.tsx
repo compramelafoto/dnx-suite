@@ -3,6 +3,7 @@ import type { WebsitePageContent } from "@/lib/website/blocks";
 import type { WebsiteColors } from "@/lib/website/branding-defaults";
 import { DEFAULT_DESIGN_PRESETS, websiteDesignCssVars, type WebsiteDesignPresets } from "@/lib/website/design-presets";
 import { anchorMapForBlocks } from "@/lib/website/navigation";
+import type { WebsiteDynamicData } from "@/lib/website/dynamic-data";
 import { BlockErrorBoundary } from "./block-error-boundary";
 import { WebsiteBlockRenderer } from "./website-block-renderer";
 
@@ -13,15 +14,20 @@ import { WebsiteBlockRenderer } from "./website-block-renderer";
  *
  * `designPresets` es opcional (default = `DEFAULT_DESIGN_PRESETS`) para no romper ningún caller
  * viejo — pero todo caller nuevo debería pasarlo explícitamente.
+ *
+ * `dynamicData`: lo que los bloques dinámicos necesitan de otros módulos, ya leído en el
+ * servidor (ver `lib/website/dynamic-data.ts`). Sólo lo pasa el sitio público; el builder no.
  */
 export function WebsitePageRenderer({
   blocks,
   colors,
   designPresets = DEFAULT_DESIGN_PRESETS,
+  dynamicData,
 }: {
   blocks: WebsitePageContent;
   colors: WebsiteColors;
   designPresets?: WebsiteDesignPresets;
+  dynamicData?: WebsiteDynamicData;
 }) {
   const themeVars = {
     "--wsite-primary": colors.primaryColor,
@@ -59,7 +65,7 @@ export function WebsitePageRenderer({
               className={animationClass}
               style={animationClass ? { animationDelay: `${Math.min(i, 5) * 80}ms` } : undefined}
             >
-              <WebsiteBlockRenderer block={block} />
+              <WebsiteBlockRenderer block={block} data={dynamicData} />
             </div>
           </BlockErrorBoundary>
         ))

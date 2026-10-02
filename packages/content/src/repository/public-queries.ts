@@ -63,6 +63,20 @@ export type PublicContentPostDetail = Prisma.BlogPostGetPayload<{
 export type PublicBlogPostDetail = PublicContentPostDetail;
 
 /**
+ * En qué orden se listan los artículos. Por omisión, del más nuevo al más viejo por fecha de
+ * publicación. "createdAt" respeta el orden en que se cargaron, que es como ordenaba el blog
+ * de Alboom: una institución que migra su blog viejo lo ve igual que antes, aunque las fechas
+ * visibles no sigan ese orden.
+ */
+export type ContentListOrder = "publishedAt" | "createdAt";
+
+function orderByFor(order: ContentListOrder | undefined): Prisma.BlogPostOrderByWithRelationInput[] {
+  return order === "createdAt"
+    ? [{ createdAt: "desc" }, { id: "desc" }]
+    : [{ publishedAt: "desc" }, { id: "desc" }];
+}
+
+/**
  * Publicado y con la fecha de publicación ya alcanzada: un artículo con fecha futura está
  * programado, no publicado. Sin fecha cuenta como publicado, que es como estaban los viejos.
  */
@@ -93,6 +107,7 @@ export async function listPublishedPosts(input: {
   prisma: PrismaClient;
   platform: ContentPlatform;
   workspaceKey?: string | null;
+  order?: ContentListOrder;
   limit?: number;
   excludeId?: number;
 }): Promise<PublicContentPostListItem[]> {
@@ -102,7 +117,7 @@ export async function listPublishedPosts(input: {
       ...publishedWhereFor(platform, input.workspaceKey),
       ...(input.excludeId ? { id: { not: input.excludeId } } : {}),
     },
-    orderBy: { publishedAt: "desc" },
+    orderBy: orderByFor(input.order),
     take: input.limit ?? 9,
     select: publicPostListSelect,
   });
@@ -112,18 +127,19 @@ export async function getFeaturedPublishedPost(input: {
   prisma: PrismaClient;
   platform: ContentPlatform;
   workspaceKey?: string | null;
+  order?: ContentListOrder;
 }): Promise<PublicContentPostListItem | null> {
   const platform = assertContentPlatform(input.platform);
   const featured = await input.prisma.blogPost.findFirst({
     where: featuredWhereFor(platform, input.workspaceKey),
-    orderBy: { publishedAt: "desc" },
+    orderBy: orderByFor(input.order),
     select: publicPostListSelect,
   });
   if (featured) return featured;
 
   return input.prisma.blogPost.findFirst({
     where: publishedWhereFor(platform, input.workspaceKey),
-    orderBy: { publishedAt: "desc" },
+    orderBy: orderByFor(input.order),
     select: publicPostListSelect,
   });
 }
@@ -132,6 +148,7 @@ export async function getLatestPublishedPosts(input: {
   prisma: PrismaClient;
   platform: ContentPlatform;
   workspaceKey?: string | null;
+  order?: ContentListOrder;
   limit?: number;
   excludeId?: number;
 }): Promise<PublicContentPostListItem[]> {
@@ -142,11 +159,12 @@ export async function getAllPublishedPostsForHome(input: {
   prisma: PrismaClient;
   platform: ContentPlatform;
   workspaceKey?: string | null;
+  order?: ContentListOrder;
 }): Promise<PublicContentPostSearchItem[]> {
   const platform = assertContentPlatform(input.platform);
   return input.prisma.blogPost.findMany({
     where: publishedWhereFor(platform, input.workspaceKey),
-    orderBy: { publishedAt: "desc" },
+    orderBy: orderByFor(input.order),
     select: publicPostSearchSelect,
   });
 }
@@ -155,6 +173,7 @@ export async function getPublishedPostBySlug(input: {
   prisma: PrismaClient;
   platform: ContentPlatform;
   workspaceKey?: string | null;
+  order?: ContentListOrder;
   slug: string;
 }): Promise<PublicContentPostDetail | null> {
   const platform = assertContentPlatform(input.platform);
@@ -168,6 +187,7 @@ export async function getPublishedPostsByCategorySlug(input: {
   prisma: PrismaClient;
   platform: ContentPlatform;
   workspaceKey?: string | null;
+  order?: ContentListOrder;
   categorySlug: string;
   limit?: number;
 }): Promise<{
@@ -183,7 +203,7 @@ export async function getPublishedPostsByCategorySlug(input: {
 
   const posts = await input.prisma.blogPost.findMany({
     where: { ...indexablePublishedWhereFor(platform, input.workspaceKey), categoryId: category.id },
-    orderBy: { publishedAt: "desc" },
+    orderBy: orderByFor(input.order),
     take: input.limit ?? 50,
     select: publicPostListSelect,
   });
@@ -195,6 +215,7 @@ export async function getPublishedPostsByTagSlug(input: {
   prisma: PrismaClient;
   platform: ContentPlatform;
   workspaceKey?: string | null;
+  order?: ContentListOrder;
   tagSlug: string;
   limit?: number;
 }): Promise<{
@@ -213,7 +234,7 @@ export async function getPublishedPostsByTagSlug(input: {
       ...indexablePublishedWhereFor(platform, input.workspaceKey),
       tags: { some: { tagId: tag.id } },
     },
-    orderBy: { publishedAt: "desc" },
+    orderBy: orderByFor(input.order),
     take: input.limit ?? 50,
     select: publicPostListSelect,
   });
@@ -225,6 +246,7 @@ export async function listCategoriesForHome(input: {
   prisma: PrismaClient;
   platform: ContentPlatform;
   workspaceKey?: string | null;
+  order?: ContentListOrder;
 }) {
   const platform = assertContentPlatform(input.platform);
   const publishedWhere = publishedWhereFor(platform, input.workspaceKey);

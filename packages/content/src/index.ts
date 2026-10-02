@@ -181,6 +181,7 @@ export {
   getPublishedPostsByTagSlug,
   listCategoriesForHome,
   mapPublicPostTags,
+  type ContentListOrder,
   type PublicContentPostListItem,
   type PublicBlogPostListItem,
   type PublicContentPostSearchItem,

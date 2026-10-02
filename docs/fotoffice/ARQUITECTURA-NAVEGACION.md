@@ -232,13 +232,13 @@ existentes le apagaría el módulo a quien hoy lo usa.
 
 ### 4.4 · PRESENCIA PÚBLICA
 
-Módulo `website`. Sección propia desde ahora, aunque hoy tenga un solo ítem: es la que arregla
+Módulo `website`. Sección propia: es la que arregla
 el defecto de la captura (**P5**), y es donde aterrizan blog, portfolio y redes.
 
 | Orden | Etiqueta | Ruta | Ícono | Módulo | Rol | Estado |
 |---:|---|---|---|---|---|---|
 | 10 | Sitio web | `/website` | `Globe` | `website` | equipo | ✅ |
-| 20 | Blog | `/website/blog` | `Newspaper` | `website` | ADMIN+ | ⬜ |
+| 20 | Blog | `/website/blog` | `Newspaper` | `website` | ADMIN+ | ✅ |
 | 30 | Redes | `/redes` | `Share2` | `social` | ADMIN+ | ⬜ |
 | 40 | Portfolios | `/portfolios` | `Images` | `portfolio` | ADMIN+ | ⬜ |
 

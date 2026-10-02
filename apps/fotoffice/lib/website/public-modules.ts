@@ -1,6 +1,7 @@
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
+import { BLOG_PUBLIC_PAGE_KEY } from "./constants";
 import { PORTFOLIO_MODULE_KEY, PORTFOLIO_PUBLIC_SEGMENT } from "@/lib/portfolio/constants";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
@@ -16,7 +17,8 @@ import type { PersonVocabulary } from "@/lib/vocabulario/personas";
  * `app/w/[workspaceSlug]/<segment>/`.
  */
 export type PublicModulePage = {
-  /** Mismo valor que `WorkspaceFeatureModule.moduleKey`. */
+  /** Mismo valor que `WorkspaceFeatureModule.moduleKey` — salvo el blog, que no es un módulo y
+   * usa una llave propia (`BLOG_PUBLIC_PAGE_KEY`, ver `buildSiteNav`). */
   moduleKey: string;
   /** Segmento bajo `/w/[slug]/`. Es también su entrada en el menú. */
   segment: string;
@@ -45,6 +47,7 @@ export const PUBLIC_MODULE_PAGES: readonly PublicModulePage[] = [
     order: 25,
   },
   { moduleKey: MEMBERS_MODULE_KEY, segment: "asociarse", label: "Asociarse", order: 30 },
+  { moduleKey: BLOG_PUBLIC_PAGE_KEY, segment: "blog", label: "Blog", order: 40 },
 ] as const;
 
 /**

@@ -11,6 +11,9 @@ const nextConfig: NextConfig = {
   transpilePackages: [
     "@repo/auth",
     "@repo/auth-ui",
+    // El blog de cada institución: el motor compartido y su editor (los mismos de CLF y Clickatón).
+    "@repo/content",
+    "@repo/content-ui",
     "@repo/payments",
     "@repo/design-studio",
     // Sólo el selector de logos de los aliados de los sorteos (`lib/raffles/partners-live.ts`).

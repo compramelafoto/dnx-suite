@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
 import { loadPublicSite } from "@/lib/website/public-site";
+import { loadWebsiteDynamicData } from "@/lib/website/dynamic-data.server";
 import { WebsitePageRenderer } from "@/components/website/render/website-page-renderer";
 import { PresupuestoLanding } from "./presupuesto-landing";
 
@@ -20,9 +21,12 @@ export default async function PublicWorkspaceHomePage({ params }: Props) {
   if (!site) notFound();
 
   if (site.hasPublishedSite) {
+    // Los bloques dinámicos (hoy, "Últimos artículos") leen su contenido acá, al dibujar: no
+    // viven en la versión publicada, así un artículo nuevo aparece sin volver a publicar.
+    const dynamicData = await loadWebsiteDynamicData(site, site.homeBlocks);
     return (
       <main>
-        <WebsitePageRenderer blocks={site.homeBlocks} colors={site.colors} designPresets={site.designPresets} />
+        <WebsitePageRenderer blocks={site.homeBlocks} colors={site.colors} designPresets={site.designPresets} dynamicData={dynamicData} />
       </main>
     );
   }

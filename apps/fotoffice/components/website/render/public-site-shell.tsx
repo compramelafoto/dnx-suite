@@ -33,6 +33,7 @@ export function PublicSiteShell({
     homeBlocks: site.homeBlocks,
     enabledModuleKeys: site.enabledModuleKeys,
     hasPublishedSite: site.hasPublishedSite,
+    hasPublishedBlog: site.hasPublishedBlog,
     personVocabulary: site.personVocabulary,
   });
 

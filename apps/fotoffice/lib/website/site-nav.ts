@@ -1,5 +1,6 @@
 import type { WebsiteBlock } from "./blocks";
 import { deriveHomeNavItems } from "./navigation";
+import { BLOG_PUBLIC_PAGE_KEY } from "./constants";
 import { publicModulePagesFor, resolvePublicModuleLabel } from "./public-modules";
 import { personVocabulary, type PersonVocabulary } from "@/lib/vocabulario/personas";
 
@@ -52,6 +53,11 @@ export function buildSiteNav(input: {
   /** Sin versión publicada no hay secciones que anclar: Inicio va sin submenú. */
   hasPublishedSite: boolean;
   /**
+   * Si la institución tiene al menos un artículo publicado (y el Sitio web habilitado). Un blog
+   * vacío no va al menú: sería un ítem que lleva a "todavía no hay artículos".
+   */
+  hasPublishedBlog?: boolean;
+  /**
    * Cómo llama esta institución a la gente de su padrón. Las páginas de módulo que lo declaran
    * toman su etiqueta de acá; el resto conserva la fija. Omitirlo deja las palabras por omisión,
    * así ningún caller viejo cambia de comportamiento.
@@ -80,8 +86,14 @@ export function buildSiteNav(input: {
     children: secciones,
   };
 
+  // El blog entra por la misma lista que los módulos (orden, segmento, etiqueta), "habilitado"
+  // con su llave propia cuando tiene artículos. Así no hay un segundo camino para armar el menú.
+  const paginasHabilitadas = input.hasPublishedBlog
+    ? new Set([...input.enabledModuleKeys, BLOG_PUBLIC_PAGE_KEY])
+    : input.enabledModuleKeys;
+
   const vocabulario = input.personVocabulary ?? personVocabulary(null);
-  const paginasDeModulo: SiteNavItem[] = publicModulePagesFor(input.enabledModuleKeys).map((pagina) => {
+  const paginasDeModulo: SiteNavItem[] = publicModulePagesFor(paginasHabilitadas).map((pagina) => {
     const href = `${base}/${pagina.segment}`;
     return {
       id: pagina.moduleKey,

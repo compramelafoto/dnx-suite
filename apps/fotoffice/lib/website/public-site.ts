@@ -7,6 +7,7 @@ import { resolveWebsiteColors, type WebsiteColors } from "./branding-defaults";
 import { parseWebsiteDesignPresets, type WebsiteDesignPresets } from "./design-presets";
 import { WEBSITE_MODULE_KEY } from "./constants";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
+import { listBlogPosts } from "@/lib/blog/public";
 
 /**
  * Qué ve el visitante en la portada, según la tabla de la sección 4 del spec. Es la única
@@ -51,6 +52,8 @@ export type PublicSite = {
   designPresets: WebsiteDesignPresets;
   homeBlocks: WebsiteBlock[];
   hasPublishedSite: boolean;
+  /** Sitio web habilitado y al menos un artículo publicado: el blog va al menú. */
+  hasPublishedBlog: boolean;
   enabledModuleKeys: Set<string>;
   /** Cómo llama esta institución a la gente de su padrón. Lo usa el menú del sitio. */
   personVocabulary: PersonVocabulary;
@@ -113,6 +116,17 @@ export const loadPublicSite = cache(async function loadPublicSite(workspaceSlug:
     publishedSectionsJson: website?.publishedVersion?.sectionsJson ?? null,
   });
 
+  // Un artículo alcanza para saber si el blog va al menú. Sólo se pregunta con el Sitio web
+  // habilitado: sin él, el blog no existe (`loadPublicBlog` lo trata igual).
+  const hasPublishedBlog = websiteModuleEnabled
+    ? (
+        await listBlogPosts(
+          { workspaceId: branding.workspaceId, slug: workspaceSlug, nombre: branding.commercialName, logoUrl: branding.logoUrl },
+          { limit: 1 },
+        )
+      ).length > 0
+    : false;
+
   return {
     workspaceId: branding.workspaceId,
     workspaceSlug,
@@ -124,6 +138,7 @@ export const loadPublicSite = cache(async function loadPublicSite(workspaceSlug:
     designPresets: parseWebsiteDesignPresets(website?.publishedVersion?.designPresetsJson ?? null),
     homeBlocks,
     hasPublishedSite,
+    hasPublishedBlog,
     enabledModuleKeys,
     personVocabulary: vocabulario,
     contact: {
