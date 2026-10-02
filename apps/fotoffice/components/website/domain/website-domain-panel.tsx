@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, type ReactNode } from "react";
 import {
   checkWebsiteDomainAction,
   connectWebsiteDomainAction,
@@ -8,6 +8,7 @@ import {
   type WebsiteDomainState,
 } from "@/app/actions/website-domain";
 import type { DnsRecord, DomainStatus } from "@/lib/website/domain/dns-records";
+import type { DnsInspection } from "@/lib/website/domain/dns-inspect";
 
 const initial: WebsiteDomainState = { error: null };
 
@@ -25,12 +26,14 @@ export function WebsiteDomainPanel({
   vercelConnected,
   domain,
   records,
+  dns,
 }: {
   canEdit: boolean;
   currentUrl: string | null;
   vercelConnected: boolean;
   domain: DomainInfo | null;
   records: DnsRecord[];
+  dns: DnsInspection | null;
 }) {
   return (
     <div className="space-y-5">
@@ -51,7 +54,7 @@ export function WebsiteDomainPanel({
       </div>
 
       {domain ? (
-        <ConnectedDomain canEdit={canEdit} domain={domain} records={records} vercelConnected={vercelConnected} />
+        <ConnectedDomain canEdit={canEdit} domain={domain} records={records} vercelConnected={vercelConnected} dns={dns} />
       ) : (
         <ConnectForm canEdit={canEdit} />
       )}
@@ -63,6 +66,11 @@ function ConnectForm({ canEdit }: { canEdit: boolean }) {
   const [state, action, pending] = useActionState(connectWebsiteDomainAction, initial);
   return (
     <form action={action} className="fo-card space-y-4">
+      <ol className="list-decimal space-y-1 pl-5 text-sm text-[var(--fo-muted)]">
+        <li>Escribí tu dominio acá abajo y tocá «Conectar dominio».</li>
+        <li>Te mostramos qué cambiar y dónde: copiás dos datos en el lugar donde se administra tu dominio.</li>
+        <li>Volvés acá y tocás «Comprobar ahora». Cuando diga «Conectado», tu sitio ya se ve en tu dirección.</li>
+      </ol>
       <fieldset disabled={!canEdit} className="space-y-4 border-0">
         <label className="block space-y-2">
           <span className="fo-label">Tu dominio</span>
@@ -89,11 +97,13 @@ function ConnectedDomain({
   domain,
   records,
   vercelConnected,
+  dns,
 }: {
   canEdit: boolean;
   domain: DomainInfo;
   records: DnsRecord[];
   vercelConnected: boolean;
+  dns: DnsInspection | null;
 }) {
   const [checkState, checkAction, checking] = useActionState(checkWebsiteDomainAction, initial);
   const [removeState, removeAction, removing] = useActionState(removeWebsiteDomainAction, initial);
@@ -152,59 +162,114 @@ function ConnectedDomain({
         ) : null}
       </div>
 
-      {!connected ? <DnsInstructions domain={domain.domain} records={records} /> : null}
+      {!connected ? <DnsInstructions domain={domain.domain} records={records} dns={dns} /> : null}
     </>
   );
 }
 
-function DnsInstructions({ domain, records }: { domain: string; records: DnsRecord[] }) {
+function DnsInstructions({ domain, records, dns }: { domain: string; records: DnsRecord[]; dns: DnsInspection | null }) {
+  const provider = dns?.provider ?? null;
+  const where = provider?.name ?? dns?.providerDomain ?? null;
   return (
-    <div className="fo-card space-y-4">
-      <div className="space-y-1">
-        <h3 className="text-sm font-semibold text-[var(--fo-text)]">Qué cargar en el DNS de {domain}</h3>
-        <p className="text-sm text-[var(--fo-muted)]">
-          Entrá a donde administrás el dominio (NIC Argentina o tu proveedor de hosting) y cargá estos registros. Los cambios pueden
-          tardar desde unos minutos hasta unas horas en verse.
+    <div className="fo-card space-y-5">
+      <h3 className="text-base font-semibold text-[var(--fo-text)]">Paso a paso para conectar {domain}</h3>
+
+      <Step n={1} title="Averiguá dónde se administra tu dominio">
+        {where ? (
+          <p>
+            Lo detectamos: el DNS de {domain} se administra en <strong>{where}</strong>
+            {dns?.nameservers.length ? <span className="text-[var(--fo-muted)]"> ({dns.nameservers.join(", ")})</span> : null}. Ahí es
+            donde vas a hacer los cambios, aunque el dominio esté registrado en NIC Argentina.
+          </p>
+        ) : (
+          <p>
+            No pudimos detectarlo. Entrá a <a href="https://nic.ar" target="_blank" rel="noreferrer" className="underline">nic.ar</a> →
+            Mis dominios → {domain} → <strong>Delegaciones</strong>: ahí figura quién administra el DNS (por ejemplo Cloudflare,
+            DonWeb o tu proveedor de hosting). En NIC Argentina sólo se elige el proveedor; los registros se cargan en él.
+          </p>
+        )}
+      </Step>
+
+      <Step n={2} title={where ? `Entrá al panel de ${where}` : "Entrá al panel de ese proveedor"}>
+        <p>
+          {provider?.panelHint ?? "Buscá la sección «DNS», «Zona DNS» o «Registros» de tu dominio."}
+          {provider?.helpUrl ? (
+            <>
+              {" "}
+              <a href={provider.helpUrl} target="_blank" rel="noreferrer" className="underline">
+                Abrir {provider.name}
+              </a>
+            </>
+          ) : null}
         </p>
-      </div>
+      </Step>
 
-      <p className="rounded-md border border-[var(--fo-danger-border)] bg-[var(--fo-danger-soft)] px-3 py-2 text-sm text-[var(--fo-danger)]">
-        <strong>No borres ni cambies los registros MX ni TXT</strong> si usás correos @{domain}: son los del correo. Sólo hay que
-        tocar los de esta tabla.
-      </p>
-
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs text-[var(--fo-muted)]">
-              <th className="py-2 pr-3 font-medium">Tipo</th>
-              <th className="py-2 pr-3 font-medium">Nombre</th>
-              <th className="py-2 pr-3 font-medium">Valor</th>
-              <th className="py-2 font-medium" />
-            </tr>
-          </thead>
-          <tbody>
-            {records.map((r) => (
-              <tr key={`${r.type}-${r.name}-${r.value}`} className="border-t border-[var(--fo-border)] align-top">
-                <td className="py-2 pr-3 font-mono">{r.type}</td>
-                <td className="py-2 pr-3 font-mono">{r.name}</td>
-                <td className="py-2 pr-3">
-                  <span className="font-mono break-all">{r.value}</span>
-                  <p className="fo-helper mt-1">{r.note}</p>
-                </td>
-                <td className="py-2 text-right">
-                  <CopyButton value={r.value} />
-                </td>
+      <Step n={3} title="Cargá estos registros">
+        <p>
+          Si ya existe un registro con el mismo nombre (<code>@</code> o <code>www</code>), editalo y poné el valor nuevo; si hay dos,
+          dejá sólo uno. Usá el botón «Copiar» para no equivocarte.
+        </p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-[var(--fo-muted)]">
+                <th className="py-2 pr-3 font-medium">Tipo</th>
+                <th className="py-2 pr-3 font-medium">Nombre</th>
+                <th className="py-2 pr-3 font-medium">Valor</th>
+                <th className="py-2 font-medium" />
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {records.map((r) => (
+                <tr key={`${r.type}-${r.name}-${r.value}`} className="border-t border-[var(--fo-border)] align-top">
+                  <td className="py-2 pr-3 font-mono">{r.type}</td>
+                  <td className="py-2 pr-3 font-mono">{r.name}</td>
+                  <td className="py-2 pr-3">
+                    <span className="font-mono break-all">{r.value}</span>
+                    <p className="fo-helper mt-1">{r.note}</p>
+                  </td>
+                  <td className="py-2 text-right">
+                    <CopyButton value={r.value} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Step>
 
-      <p className="fo-helper">
-        Si tu dominio hoy muestra otra web, esa web deja de verse cuando cambies el registro A. Hacelo con tu sitio nuevo ya publicado.
-      </p>
+      <Step n={4} title="No toques nada más">
+        {dns && dns.mailRecords > 0 ? (
+          <p className="rounded-md border border-[var(--fo-danger-border)] bg-[var(--fo-danger-soft)] px-3 py-2 text-[var(--fo-danger)]">
+            <strong>Tu dominio recibe correo</strong> ({dns.mailRecords} {dns.mailRecords === 1 ? "registro MX" : "registros MX"}). No
+            borres ni cambies los registros MX ni TXT: son los de tus casillas @{domain}.
+          </p>
+        ) : (
+          <p>
+            No borres ni cambies los registros MX ni TXT: si algún día usás correos @{domain}, son los de esas casillas.
+          </p>
+        )}
+        <p>Si tu dominio hoy muestra otra web, esa web deja de verse cuando cambies el registro A. Hacelo con tu sitio nuevo ya publicado.</p>
+      </Step>
+
+      <Step n={5} title="Volvé acá y tocá «Comprobar ahora»">
+        <p>Los cambios pueden tardar desde unos minutos hasta unas horas. Cuando diga «✓ Conectado», tu sitio ya se ve en https://{domain}.</p>
+      </Step>
     </div>
+  );
+}
+
+function Step({ n, title, children }: { n: number; title: string; children: ReactNode }) {
+  return (
+    <section className="flex gap-3">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--fo-accent)] text-xs font-semibold text-white">
+        {n}
+      </span>
+      <div className="min-w-0 flex-1 space-y-2 text-sm text-[var(--fo-text)]">
+        <p className="font-medium">{title}</p>
+        {children}
+      </div>
+    </section>
   );
 }
 

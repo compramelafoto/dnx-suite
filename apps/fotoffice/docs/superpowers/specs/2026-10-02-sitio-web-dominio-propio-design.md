@@ -124,6 +124,22 @@ Sin esas variables, la pantalla igual guarda el dominio, muestra los registros D
 4. En la SFPR: Sitio web → Dominio → `sfpr.com.ar` → copiar los registros en NIC Argentina sin
    tocar los `MX` → "Comprobar ahora".
 
+### Paso a paso en la pantalla
+
+En NIC Argentina sólo se elige **quién** administra el DNS (la delegación); los registros se
+cargan en ese proveedor. La pantalla consulta el DNS público del dominio y arma un paso a paso:
+1. dónde se administra (detectado por los servidores NS: Cloudflare, DonWeb, Hostinger, GoDaddy,
+   Route 53…; si no lo reconoce, muestra el dominio del NS y explica cómo verlo en nic.ar);
+2. cómo llegar a la zona DNS en ese proveedor;
+3. la tabla de registros con «Copiar»;
+4. qué no tocar — si hay registros MX, avisa en rojo que el dominio recibe correo;
+5. volver y tocar «Comprobar ahora».
+
+**SFPR (consultado el 02/10/2026):** DNS en **Cloudflare** (`elma`/`ivan.ns.cloudflare.com`),
+**sin registros MX** (no recibe correo en el dominio), `A @ → 52.6.83.27` y
+`www → website.alboompro.com` (la web vieja de Alboom). En Cloudflare los dos registros nuevos
+tienen que quedar con la nube **gris** («Solo DNS»).
+
 ## 6. Pruebas
 
 - Unitarias: normalización del dominio, decisión del filtro de entrada (qué se reescribe, qué

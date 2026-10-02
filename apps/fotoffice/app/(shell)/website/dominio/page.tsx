@@ -5,6 +5,7 @@ import { WebsiteDomainPanel } from "@/components/website/domain/website-domain-p
 import { appUrl } from "@/lib/app-url";
 import { dnsRecordsFor, parseDomainStatus } from "@/lib/website/domain/dns-records";
 import { checkDomain, vercelConfig } from "@/lib/website/domain/vercel";
+import { inspectDomainDns } from "@/lib/website/domain/dns-inspect";
 
 /**
  * Sitio web → Dominio: conectar `sfpr.com.ar` (o el que sea) al sitio público.
@@ -29,6 +30,9 @@ export default async function WebsiteDomainPage() {
     if (check) records = [...dnsRecordsFor(row.domain, { apexIp: check.apexIp }), ...check.extraRecords];
   }
 
+  // Dónde se administra el DNS y si el dominio recibe correo: lo que necesita el paso a paso.
+  const dns = row && row.status !== "CONNECTED" ? await inspectDomainDns(row.domain) : null;
+
   return (
     <WebsiteShell status={status} canEdit={canEdit} draftUpdatedAt={draftUpdatedAtIso}>
       <WebsiteDomainPanel
@@ -47,6 +51,7 @@ export default async function WebsiteDomainPage() {
             : null
         }
         records={records}
+        dns={dns}
       />
     </WebsiteShell>
   );
