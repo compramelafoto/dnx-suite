@@ -50,7 +50,7 @@ export function WebsiteFooterView({
             <div className="space-y-3">
               {completo && logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element -- el logo vive en R2
-                <img src={logoUrl} alt="" style={{ height: "var(--wsite-logo-size, 40px)", width: "auto" }} />
+                <img src={logoUrl} alt="" style={{ height: "min(var(--wsite-logo-size, 40px), 56px)", width: "auto" }} />
               ) : null}
               <p className="text-base font-semibold" style={{ fontFamily: "var(--wsite-heading-font)" }}>
                 {commercialName}

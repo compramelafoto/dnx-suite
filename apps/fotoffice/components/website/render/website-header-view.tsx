@@ -40,8 +40,13 @@ export function WebsiteHeaderView({
   const logo = (
     <a href={homeHref} className="flex shrink-0 items-center gap-2" style={{ color: colorTexto }}>
       {logoUrl ? (
+        // En el teléfono se limita al 18% del ancho: un logo de 160 px taparía media pantalla.
         // eslint-disable-next-line @next/next/no-img-element -- el logo vive en R2
-        <img src={logoUrl} alt={workspaceName} style={{ height: "var(--wsite-logo-size, 40px)", width: "auto" }} />
+        <img
+          src={logoUrl}
+          alt={workspaceName}
+          style={{ height: "min(var(--wsite-logo-size, 40px), 18vw)", width: "auto" }}
+        />
       ) : (
         <span className="text-lg font-bold" style={{ fontFamily: "var(--wsite-heading-font)" }}>
           {workspaceName}
