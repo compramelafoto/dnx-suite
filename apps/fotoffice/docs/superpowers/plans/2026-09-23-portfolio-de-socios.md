@@ -2087,7 +2087,27 @@ git commit -m "El panel desde el que la institución mira y controla los portfol
 **Estado al cerrar la etapa:** 276 archivos de test, 3455 tests, 0 fallas. Tipos limpios. Build
 compilando.
 
-# ETAPA 5 — Encendido
+# ETAPA 5
+
+## Verificación de punta a punta — HECHA *(02/10/2026)*, antes del encendido
+
+Las 11 comprobaciones de la §11 de la spec corrieron contra **Postgres de verdad**, en una base
+descartable local, llamando a las mismas funciones que usan las páginas. **29 comprobaciones, todas
+pasando.** Quedaron automatizadas y reutilizables en `test/e2e-portfolio/` — con su README— para
+poder repetirlas antes y después del encendido.
+
+Eso es distinto de los 3455 tests de la batería: ahí Prisma está simulado, y por eso no vieron que
+`MemberAuditSource` no tenía `PANEL`. Acá la base contesta de verdad.
+
+**Dos cosas quedaron sin verificar, y son las que faltan:**
+
+1. **El dibujo en pantalla.** Ni `preview_start` ni la terminal de la sesión pueden levantar el
+   servidor del worktree: las dos están atadas al checkout principal, que tiene otro código y otra
+   base. Para mirarlo hay que levantarlo a mano contra la base de prueba.
+2. **La subida real a R2.** Necesita credenciales y CORS, y el bucket es compartido: no se escribe
+   en él desde una prueba local. Es el primer paso de esta etapa.
+
+— Encendido
 
 ## Task 18: Dejarlo andando
 
