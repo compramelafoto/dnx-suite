@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, ExternalLink, Eye, EyeOff, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { SelectField, TextField, ToggleField } from "@/components/website/inspector/inspector-fields";
 import type { WebsiteBlock } from "@/lib/website/blocks";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import {
   HEADER_PRESETS,
   MENU_LAYOUTS,
@@ -38,6 +39,7 @@ export function MenuPanel({
   presets,
   blocks,
   enabledModuleKeys,
+  personVocabulary,
   canEdit,
   onMenuChange,
   onPresetsChange,
@@ -46,12 +48,16 @@ export function MenuPanel({
   presets: WebsiteDesignPresets;
   blocks: WebsiteBlock[];
   enabledModuleKeys: ReadonlySet<string>;
+  personVocabulary: PersonVocabulary;
   canEdit: boolean;
   onMenuChange: (menu: SiteMenu | null) => void;
   onPresetsChange: (presets: WebsiteDesignPresets) => void;
 }) {
   const items = useMemo(() => materializeSiteMenu(menu, enabledModuleKeys).items, [menu, enabledModuleKeys]);
-  const paginas = useMemo(() => new Map(availableMenuPages(enabledModuleKeys).map((p) => [p.page, p])), [enabledModuleKeys]);
+  const paginas = useMemo(
+    () => new Map(availableMenuPages(enabledModuleKeys, personVocabulary).map((p) => [p.page, p])),
+    [enabledModuleKeys, personVocabulary],
+  );
   const secciones = useMemo(() => availableMenuSections(blocks), [blocks]);
   const seccionesPorId = useMemo(() => new Map(secciones.map((s) => [s.blockId, s])), [secciones]);
 
@@ -179,7 +185,7 @@ export function MenuPanel({
                 item={item}
                 defaultLabel={
                   item.kind === "page"
-                    ? (menuPageDefaultLabel(item.page) ?? item.page)
+                    ? (menuPageDefaultLabel(item.page, personVocabulary) ?? item.page)
                     : item.kind === "section"
                       ? (seccionesPorId.get(item.blockId)?.label ?? "Sección")
                       : item.label

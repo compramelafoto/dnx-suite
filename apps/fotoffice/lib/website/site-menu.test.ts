@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
+import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { createEmptyBlock, updateHeroSlide, type HeroBlock, type WebsiteBlock } from "./blocks";
 import { buildSiteNav } from "./site-nav";
@@ -154,6 +155,13 @@ describe("resolveSiteNav", () => {
       menu: menu({ id: "ig", kind: "link", label: "Instagram", url: "https://instagram.com/sfpr", newTab: true, hidden: false }),
     });
     expect(nav.find((i) => i.id === "ig")).toMatchObject({ href: "https://instagram.com/sfpr", newTab: true });
+  });
+
+  it("la página de portfolios usa la palabra de la institución, también en el menú editado", () => {
+    const vocabulario = { singular: "voluntario", plural: "voluntarios", Singular: "Voluntario", Plural: "Voluntarios" };
+    const comun = { ...base, enabledModuleKeys: new Set([PORTFOLIO_MODULE_KEY]), personVocabulary: vocabulario };
+    expect(resolveSiteNav({ ...comun, menu: null }).map((i) => i.label)).toContain("Voluntarios");
+    expect(resolveSiteNav({ ...comun, menu: menu(page("home")) }).map((i) => i.label)).toContain("Voluntarios");
   });
 
   it("Inicio se marca por igualdad exacta", () => {

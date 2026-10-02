@@ -5,7 +5,10 @@ export {
   isContentPlatform,
   assertContentPlatform,
   platformWhere,
+  resolveContentScope,
+  PER_WORKSPACE_CONTENT_PLATFORMS,
   type ContentPlatform,
+  type ContentScope,
 } from "./platform";
 
 // Errors

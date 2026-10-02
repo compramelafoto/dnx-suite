@@ -62,23 +62,28 @@ export type PublicContentPostDetail = Prisma.BlogPostGetPayload<{
 
 export type PublicBlogPostDetail = PublicContentPostDetail;
 
-function publishedWhereFor(platform: ContentPlatform): Prisma.BlogPostWhereInput {
+/**
+ * Publicado y con la fecha de publicación ya alcanzada: un artículo con fecha futura está
+ * programado, no publicado. Sin fecha cuenta como publicado, que es como estaban los viejos.
+ */
+function publishedWhereFor(platform: ContentPlatform, workspaceKey?: string | null): Prisma.BlogPostWhereInput {
   return {
-    ...platformWhere(platform),
+    ...platformWhere(platform, workspaceKey),
     status: BlogPostStatus.PUBLISHED,
+    AND: [{ OR: [{ publishedAt: null }, { publishedAt: { lte: new Date() } }] }],
   };
 }
 
-function indexablePublishedWhereFor(platform: ContentPlatform): Prisma.BlogPostWhereInput {
+function indexablePublishedWhereFor(platform: ContentPlatform, workspaceKey?: string | null): Prisma.BlogPostWhereInput {
   return {
-    ...publishedWhereFor(platform),
+    ...publishedWhereFor(platform, workspaceKey),
     noIndex: false,
   };
 }
 
-function featuredWhereFor(platform: ContentPlatform): Prisma.BlogPostWhereInput {
+function featuredWhereFor(platform: ContentPlatform, workspaceKey?: string | null): Prisma.BlogPostWhereInput {
   return {
-    ...publishedWhereFor(platform),
+    ...publishedWhereFor(platform, workspaceKey),
     isFeatured: true,
     OR: [{ featuredUntil: null }, { featuredUntil: { gte: new Date() } }],
   };
@@ -87,13 +92,14 @@ function featuredWhereFor(platform: ContentPlatform): Prisma.BlogPostWhereInput 
 export async function listPublishedPosts(input: {
   prisma: PrismaClient;
   platform: ContentPlatform;
+  workspaceKey?: string | null;
   limit?: number;
   excludeId?: number;
 }): Promise<PublicContentPostListItem[]> {
   const platform = assertContentPlatform(input.platform);
   return input.prisma.blogPost.findMany({
     where: {
-      ...publishedWhereFor(platform),
+      ...publishedWhereFor(platform, input.workspaceKey),
       ...(input.excludeId ? { id: { not: input.excludeId } } : {}),
     },
     orderBy: { publishedAt: "desc" },
@@ -105,17 +111,18 @@ export async function listPublishedPosts(input: {
 export async function getFeaturedPublishedPost(input: {
   prisma: PrismaClient;
   platform: ContentPlatform;
+  workspaceKey?: string | null;
 }): Promise<PublicContentPostListItem | null> {
   const platform = assertContentPlatform(input.platform);
   const featured = await input.prisma.blogPost.findFirst({
-    where: featuredWhereFor(platform),
+    where: featuredWhereFor(platform, input.workspaceKey),
     orderBy: { publishedAt: "desc" },
     select: publicPostListSelect,
   });
   if (featured) return featured;
 
   return input.prisma.blogPost.findFirst({
-    where: publishedWhereFor(platform),
+    where: publishedWhereFor(platform, input.workspaceKey),
     orderBy: { publishedAt: "desc" },
     select: publicPostListSelect,
   });
@@ -124,6 +131,7 @@ export async function getFeaturedPublishedPost(input: {
 export async function getLatestPublishedPosts(input: {
   prisma: PrismaClient;
   platform: ContentPlatform;
+  workspaceKey?: string | null;
   limit?: number;
   excludeId?: number;
 }): Promise<PublicContentPostListItem[]> {
@@ -133,10 +141,11 @@ export async function getLatestPublishedPosts(input: {
 export async function getAllPublishedPostsForHome(input: {
   prisma: PrismaClient;
   platform: ContentPlatform;
+  workspaceKey?: string | null;
 }): Promise<PublicContentPostSearchItem[]> {
   const platform = assertContentPlatform(input.platform);
   return input.prisma.blogPost.findMany({
-    where: publishedWhereFor(platform),
+    where: publishedWhereFor(platform, input.workspaceKey),
     orderBy: { publishedAt: "desc" },
     select: publicPostSearchSelect,
   });
@@ -145,11 +154,12 @@ export async function getAllPublishedPostsForHome(input: {
 export async function getPublishedPostBySlug(input: {
   prisma: PrismaClient;
   platform: ContentPlatform;
+  workspaceKey?: string | null;
   slug: string;
 }): Promise<PublicContentPostDetail | null> {
   const platform = assertContentPlatform(input.platform);
   return input.prisma.blogPost.findFirst({
-    where: { ...publishedWhereFor(platform), slug: input.slug },
+    where: { ...publishedWhereFor(platform, input.workspaceKey), slug: input.slug },
     select: publicPostDetailSelect,
   });
 }
@@ -157,6 +167,7 @@ export async function getPublishedPostBySlug(input: {
 export async function getPublishedPostsByCategorySlug(input: {
   prisma: PrismaClient;
   platform: ContentPlatform;
+  workspaceKey?: string | null;
   categorySlug: string;
   limit?: number;
 }): Promise<{
@@ -164,14 +175,14 @@ export async function getPublishedPostsByCategorySlug(input: {
   posts: PublicContentPostListItem[];
 } | null> {
   const platform = assertContentPlatform(input.platform);
-  const category = await input.prisma.blogCategory.findUnique({
-    where: { platform_slug: { platform, slug: input.categorySlug } },
+  const category = await input.prisma.blogCategory.findFirst({
+    where: { ...platformWhere(platform, input.workspaceKey), slug: input.categorySlug },
     select: { id: true, name: true, slug: true, description: true },
   });
   if (!category) return null;
 
   const posts = await input.prisma.blogPost.findMany({
-    where: { ...indexablePublishedWhereFor(platform), categoryId: category.id },
+    where: { ...indexablePublishedWhereFor(platform, input.workspaceKey), categoryId: category.id },
     orderBy: { publishedAt: "desc" },
     take: input.limit ?? 50,
     select: publicPostListSelect,
@@ -183,6 +194,7 @@ export async function getPublishedPostsByCategorySlug(input: {
 export async function getPublishedPostsByTagSlug(input: {
   prisma: PrismaClient;
   platform: ContentPlatform;
+  workspaceKey?: string | null;
   tagSlug: string;
   limit?: number;
 }): Promise<{
@@ -190,15 +202,15 @@ export async function getPublishedPostsByTagSlug(input: {
   posts: PublicContentPostListItem[];
 } | null> {
   const platform = assertContentPlatform(input.platform);
-  const tag = await input.prisma.blogTag.findUnique({
-    where: { platform_slug: { platform, slug: input.tagSlug } },
+  const tag = await input.prisma.blogTag.findFirst({
+    where: { ...platformWhere(platform, input.workspaceKey), slug: input.tagSlug },
     select: { id: true, name: true, slug: true },
   });
   if (!tag) return null;
 
   const posts = await input.prisma.blogPost.findMany({
     where: {
-      ...indexablePublishedWhereFor(platform),
+      ...indexablePublishedWhereFor(platform, input.workspaceKey),
       tags: { some: { tagId: tag.id } },
     },
     orderBy: { publishedAt: "desc" },
@@ -212,11 +224,12 @@ export async function getPublishedPostsByTagSlug(input: {
 export async function listCategoriesForHome(input: {
   prisma: PrismaClient;
   platform: ContentPlatform;
+  workspaceKey?: string | null;
 }) {
   const platform = assertContentPlatform(input.platform);
-  const publishedWhere = publishedWhereFor(platform);
+  const publishedWhere = publishedWhereFor(platform, input.workspaceKey);
   return input.prisma.blogCategory.findMany({
-    where: platformWhere(platform),
+    where: platformWhere(platform, input.workspaceKey),
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     include: {
       _count: {

@@ -37,6 +37,7 @@ export type ListAdminPostsFilters = {
 export async function listAdminPosts(input: {
   prisma: PrismaClient;
   platform: ContentPlatform;
+  workspaceKey?: string | null;
   filters?: ListAdminPostsFilters;
 }): Promise<AdminContentPostRow[]> {
   const platform = assertContentPlatform(input.platform);
@@ -45,7 +46,7 @@ export async function listAdminPosts(input: {
 
   const posts = await input.prisma.blogPost.findMany({
     where: {
-      ...platformWhere(platform),
+      ...platformWhere(platform, input.workspaceKey),
       ...(filters.status ? { status: filters.status as never } : {}),
       ...(filters.type ? { type: filters.type as never } : {}),
       ...(q
@@ -78,11 +79,12 @@ export async function listAdminPosts(input: {
 export async function getAdminPostById(input: {
   prisma: PrismaClient;
   platform: ContentPlatform;
+  workspaceKey?: string | null;
   id: number;
 }) {
   const platform = assertContentPlatform(input.platform);
   const post = await input.prisma.blogPost.findFirst({
-    where: { id: input.id, ...platformWhere(platform) },
+    where: { id: input.id, ...platformWhere(platform, input.workspaceKey) },
     include: contentPostInclude,
   });
   if (!post) return null;

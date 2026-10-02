@@ -8,6 +8,7 @@ import type { WebsiteColors } from "@/lib/website/branding-defaults";
 import type { WebsiteDesignPresets } from "@/lib/website/design-presets";
 import type { WebsiteTemplate } from "@/lib/website/templates";
 import type { SiteMenu } from "@/lib/website/site-menu";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import { useDraftAutosave, type AutosaveStatus } from "@/lib/website/use-draft-autosave";
 import type { WebsiteChangeStatus } from "@/lib/website/change-status";
 import type { FotofficeOrganizationTypeId } from "@/lib/onboarding-constants";
@@ -45,6 +46,7 @@ export function WebsiteBuilder({
   initialDesignPresets,
   initialMenu,
   enabledModuleKeys: enabledModuleKeyList,
+  personVocabulary,
   initialPanel,
   workspaceName,
   organizationType,
@@ -59,6 +61,7 @@ export function WebsiteBuilder({
   initialDesignPresets: WebsiteDesignPresets;
   initialMenu: SiteMenu | null;
   enabledModuleKeys: string[];
+  personVocabulary: PersonVocabulary;
   initialPanel?: BuilderMode;
   workspaceName: string;
   organizationType: FotofficeOrganizationTypeId | null;
@@ -219,6 +222,7 @@ export function WebsiteBuilder({
                 presets={presets}
                 blocks={blocks}
                 enabledModuleKeys={enabledModuleKeys}
+                personVocabulary={personVocabulary}
                 canEdit={canEdit}
                 onMenuChange={setMenu}
                 onPresetsChange={setPresets}
@@ -247,6 +251,7 @@ export function WebsiteBuilder({
             designPresets={presets}
             menu={menu}
             enabledModuleKeys={enabledModuleKeys}
+            personVocabulary={personVocabulary}
             logoUrl={logoUrl}
             workspaceName={workspaceName}
             device={device}

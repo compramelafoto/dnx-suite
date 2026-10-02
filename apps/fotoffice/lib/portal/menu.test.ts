@@ -98,3 +98,33 @@ describe("sorteos en el menú del socio", () => {
     expect(items.find((i) => i.href === "/portal/sorteos")?.state).toBe("PROXIMAMENTE");
   });
 });
+
+describe("Mi portfolio en el menú del socio", () => {
+  it("está, exige el módulo y ya está construido", () => {
+    const item = PORTAL_MENU.find((i) => i.href === "/portal/portfolio");
+    expect(item).toBeDefined();
+    expect(item?.requiresModule).toBe("portfolio");
+    expect(item?.built).toBe(true);
+  });
+
+  it("va después de Mi perfil, con el que está emparentado", () => {
+    const perfil = PORTAL_MENU.find((i) => i.href === "/portal/perfil")!;
+    const portfolio = PORTAL_MENU.find((i) => i.href === "/portal/portfolio")!;
+    expect(portfolio.order).toBeGreaterThan(perfil.order);
+  });
+
+  it("con el módulo apagado se muestra como Próximamente, no desaparece", () => {
+    const items = resolvePortalMenu(new Set());
+    expect(items.find((i) => i.href === "/portal/portfolio")?.state).toBe("PROXIMAMENTE");
+  });
+
+  it("con el módulo encendido está disponible", () => {
+    const items = resolvePortalMenu(new Set(["portfolio"]));
+    expect(items.find((i) => i.href === "/portal/portfolio")?.state).toBe("DISPONIBLE");
+  });
+
+  it("su etiqueta no dice 'socio': esa palabra la elige cada institución", () => {
+    const item = PORTAL_MENU.find((i) => i.href === "/portal/portfolio")!;
+    expect(`${item.label} ${item.description}`.toLowerCase()).not.toContain("socio");
+  });
+});

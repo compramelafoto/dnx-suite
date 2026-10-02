@@ -3,6 +3,8 @@ import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
+import { PORTFOLIO_MODULE_KEY, PORTFOLIO_PUBLIC_SEGMENT } from "@/lib/portfolio/constants";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
 /**
  * Las páginas públicas que aporta cada módulo al sitio: qué segmento ocupan bajo
@@ -20,16 +22,46 @@ export type PublicModulePage = {
   moduleKey: string;
   /** Segmento bajo `/w/[slug]/`. Es también su entrada en el menú. */
   segment: string;
-  /** Etiqueta visible. Ojo: el vocabulario por workspace todavía no se aplica acá. */
+  /** Etiqueta visible por omisión. La usa toda página que no declare `labelFromVocabulary`. */
   label: string;
+  /**
+   * Cuando está, la etiqueta sale del vocabulario del workspace en lugar de `label`. Una
+   * institución de voluntarios no puede tener un menú que diga "Socios".
+   *
+   * **El segmento nunca sigue al vocabulario, sólo la etiqueta.** Si la dirección cambiara al
+   * cambiar la palabra en Configuración, se romperían todos los enlaces ya publicados: la palabra
+   * es de cara al visitante, la dirección es un compromiso.
+   */
+  labelFromVocabulary?: "personPlural";
   order: number;
 };
 
 export const PUBLIC_MODULE_PAGES: readonly PublicModulePage[] = [
   { moduleKey: COURSES_SALES_MODULE_KEY, segment: "cursos", label: "Cursos", order: 10 },
   { moduleKey: BOOKINGS_MODULE_KEY, segment: "reservas", label: "Reservas", order: 20 },
+  {
+    moduleKey: PORTFOLIO_MODULE_KEY,
+    segment: PORTFOLIO_PUBLIC_SEGMENT,
+    label: "Socios",
+    labelFromVocabulary: "personPlural",
+    order: 25,
+  },
   { moduleKey: MEMBERS_MODULE_KEY, segment: "asociarse", label: "Asociarse", order: 30 },
 ] as const;
+
+/**
+ * La etiqueta que ve el visitante, ya resuelta contra el vocabulario de la institución.
+ *
+ * Las páginas que no declaran `labelFromVocabulary` devuelven su etiqueta fija, así agregar esto
+ * no cambió ninguna de las que ya existían.
+ */
+export function resolvePublicModuleLabel(
+  page: PublicModulePage,
+  vocabulary: PersonVocabulary,
+): string {
+  if (page.labelFromVocabulary === "personPlural") return vocabulary.Plural;
+  return page.label;
+}
 
 /** Las páginas de los módulos habilitados, en su orden de presentación. */
 export function publicModulePagesFor(enabledModuleKeys: ReadonlySet<string>): PublicModulePage[] {

@@ -38,4 +38,13 @@ describe("tiptap html", () => {
     assert.match(html, /data-youtube-video/);
     assert.match(html, /allowfullscreen/);
   });
+
+  it("descarta iframes que no son de YouTube o Vimeo", () => {
+    const html = sanitizeContentHtml(
+      `<iframe src="https://evil.example.com/page"></iframe>` +
+        `<iframe src="https://player.vimeo.com/video/1"></iframe>`
+    );
+    assert.doesNotMatch(html, /evil\.example\.com/);
+    assert.match(html, /player\.vimeo\.com/);
+  });
 });

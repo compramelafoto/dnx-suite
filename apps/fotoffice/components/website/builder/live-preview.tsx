@@ -3,6 +3,7 @@
 import type { CSSProperties } from "react";
 import type { WebsiteBlock } from "@/lib/website/blocks";
 import type { WebsiteColors } from "@/lib/website/branding-defaults";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import { websiteDesignCssVars, type WebsiteDesignPresets } from "@/lib/website/design-presets";
 import { resolveSiteNav, toPreviewNav, type SiteMenu } from "@/lib/website/site-menu";
 import { WebsitePageRenderer } from "@/components/website/render/website-page-renderer";
@@ -25,6 +26,7 @@ export function LivePreview({
   designPresets,
   menu,
   enabledModuleKeys,
+  personVocabulary,
   logoUrl,
   workspaceName,
   device,
@@ -34,12 +36,13 @@ export function LivePreview({
   designPresets: WebsiteDesignPresets;
   menu: SiteMenu | null;
   enabledModuleKeys: ReadonlySet<string>;
+  personVocabulary: PersonVocabulary;
   logoUrl: string | null;
   workspaceName: string;
   device: DeviceWidth;
 }) {
   const navItems = toPreviewNav(
-    resolveSiteNav({ workspaceSlug: "vista-previa", homeBlocks: blocks, enabledModuleKeys, hasPublishedSite: true, menu }),
+    resolveSiteNav({ workspaceSlug: "vista-previa", homeBlocks: blocks, enabledModuleKeys, hasPublishedSite: true, menu, personVocabulary }),
   );
   const themeVars = {
     "--wsite-primary": colors.primaryColor,

@@ -31,7 +31,7 @@ async function seedPhase8Articles() {
 
   for (const draft of PHASE7_ALL_ARTICLES) {
     const existing = await prisma.blogPost.findUnique({
-      where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: draft.slug } },
+      where: { platform_workspaceKey_slug: { platform: CLF_CONTENT_PLATFORM, workspaceKey: "", slug: draft.slug } },
       select: { id: true, status: true },
     });
 
@@ -44,7 +44,7 @@ async function seedPhase8Articles() {
     const prepared = await preparePhase8Article(draft);
 
     await prisma.blogPost.update({
-      where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: draft.slug } },
+      where: { platform_workspaceKey_slug: { platform: CLF_CONTENT_PLATFORM, workspaceKey: "", slug: draft.slug } },
       data: {
         title: prepared.title,
         excerpt: prepared.excerpt,

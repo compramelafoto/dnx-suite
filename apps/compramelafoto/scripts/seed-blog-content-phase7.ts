@@ -33,7 +33,7 @@ async function seedCategories() {
   console.log("Categorías Fase 7:");
   for (const category of PHASE7_CATEGORIES) {
     await prisma.blogCategory.upsert({
-      where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: category.slug } },
+      where: { platform_workspaceKey_slug: { platform: CLF_CONTENT_PLATFORM, workspaceKey: "", slug: category.slug } },
       update: {
         name: category.name,
         description: category.description,
@@ -51,7 +51,7 @@ async function seedTags() {
   for (const name of PHASE7_TAGS) {
     const slug = slugFromName(name);
     await prisma.blogTag.upsert({
-      where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug } },
+      where: { platform_workspaceKey_slug: { platform: CLF_CONTENT_PLATFORM, workspaceKey: "", slug } },
       update: { name },
       create: { platform: CLF_CONTENT_PLATFORM, name, slug },
     });
@@ -61,7 +61,7 @@ async function seedTags() {
 
 async function resolveAuthorId(): Promise<number | null> {
   const author =
-    (await prisma.blogAuthor.findUnique({ where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: "equipo-compramelafoto" } } })) ??
+    (await prisma.blogAuthor.findUnique({ where: { platform_workspaceKey_slug: { platform: CLF_CONTENT_PLATFORM, workspaceKey: "", slug: "equipo-compramelafoto" } } })) ??
     (await prisma.blogAuthor.findFirst({
       where: { platform: CLF_CONTENT_PLATFORM, isActive: true },
       orderBy: { id: "asc" },
@@ -100,12 +100,12 @@ async function seedArticles() {
       .filter((id): id is number => id != null);
 
     const existing = await prisma.blogPost.findUnique({
-      where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: draft.slug } },
+      where: { platform_workspaceKey_slug: { platform: CLF_CONTENT_PLATFORM, workspaceKey: "", slug: draft.slug } },
       select: { id: true },
     });
 
     const post = await prisma.blogPost.upsert({
-      where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: draft.slug } },
+      where: { platform_workspaceKey_slug: { platform: CLF_CONTENT_PLATFORM, workspaceKey: "", slug: draft.slug } },
       update: {
         title: prepared.title,
         excerpt: prepared.excerpt,

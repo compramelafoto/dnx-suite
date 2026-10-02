@@ -9,6 +9,7 @@ import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
+import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
 
 /**
  * Catálogo central de módulos de FotoOffice.
@@ -173,6 +174,16 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     category: "INSTITUTIONAL",
     order: 115,
     route: "/sorteos",
+    status: "AVAILABLE",
+  },
+  {
+    key: PORTFOLIO_MODULE_KEY,
+    label: "Portfolios",
+    description:
+      "Cada una de las {personas} arma su galería y la publica en el sitio de la institución, con su obra, su presentación y su contacto.",
+    category: "INSTITUTIONAL",
+    order: 118,
+    route: "/portfolios",
     status: "AVAILABLE",
   },
   {

@@ -1,7 +1,14 @@
 import { z } from "zod";
 import type { WebsiteBlock } from "./blocks";
 import { deriveHomeNavItems } from "./navigation";
-import { OPTIONAL_PUBLIC_PAGES, PUBLIC_MODULE_PAGES, optionalPublicPagesFor, publicModulePagesFor } from "./public-modules";
+import { personVocabulary, type PersonVocabulary } from "@/lib/vocabulario/personas";
+import {
+  OPTIONAL_PUBLIC_PAGES,
+  PUBLIC_MODULE_PAGES,
+  optionalPublicPagesFor,
+  publicModulePagesFor,
+  resolvePublicModuleLabel,
+} from "./public-modules";
 import { buildSiteNav, type SiteNavItem } from "./site-nav";
 
 /**
@@ -118,13 +125,20 @@ export type MenuPageOption = {
   automatic: boolean;
 };
 
-/** Las páginas que se pueden poner en el menú con los módulos habilitados hoy. */
-export function availableMenuPages(enabledModuleKeys: ReadonlySet<string>): MenuPageOption[] {
+/**
+ * Las páginas que se pueden poner en el menú con los módulos habilitados hoy. El nombre de
+ * siempre de las que dependen del vocabulario ("Socios") sale de `personVocabulary`; sin él,
+ * las palabras por omisión.
+ */
+export function availableMenuPages(
+  enabledModuleKeys: ReadonlySet<string>,
+  vocabulary: PersonVocabulary = personVocabulary(null),
+): MenuPageOption[] {
   return [
     { page: "home", label: "Inicio", path: "", automatic: true },
     ...publicModulePagesFor(enabledModuleKeys).map((p) => ({
       page: p.moduleKey,
-      label: p.label,
+      label: resolvePublicModuleLabel(p, vocabulary),
       path: p.segment,
       automatic: true,
     })),
@@ -138,12 +152,12 @@ export function availableMenuPages(enabledModuleKeys: ReadonlySet<string>): Menu
 }
 
 /** El nombre de siempre de una página, aunque su módulo esté apagado (para el editor). */
-export function menuPageDefaultLabel(page: string): string | null {
+export function menuPageDefaultLabel(page: string, vocabulary?: PersonVocabulary): string | null {
   const todos = new Set<string>([
     ...PUBLIC_MODULE_PAGES.map((p) => p.moduleKey),
     ...OPTIONAL_PUBLIC_PAGES.flatMap((p) => (p.moduleKey ? [p.moduleKey] : [])),
   ]);
-  return availableMenuPages(todos).find((p) => p.page === page)?.label ?? null;
+  return availableMenuPages(todos, vocabulary).find((p) => p.page === page)?.label ?? null;
 }
 
 export type MenuSectionOption = { blockId: string; label: string; anchor: string };
@@ -186,11 +200,13 @@ export function resolveSiteNav(input: {
   enabledModuleKeys: ReadonlySet<string>;
   hasPublishedSite: boolean;
   menu: SiteMenu | null;
+  /** Ver `buildSiteNav`: omitirlo deja las palabras por omisión. */
+  personVocabulary?: PersonVocabulary;
 }): SiteNavItem[] {
   if (!input.menu) return buildSiteNav(input);
 
   const base = `/w/${input.workspaceSlug}`;
-  const paginas = new Map(availableMenuPages(input.enabledModuleKeys).map((p) => [p.page, p]));
+  const paginas = new Map(availableMenuPages(input.enabledModuleKeys, input.personVocabulary).map((p) => [p.page, p]));
   const secciones = new Map(
     (input.hasPublishedSite ? availableMenuSections(input.homeBlocks) : []).map((s) => [s.blockId, s]),
   );

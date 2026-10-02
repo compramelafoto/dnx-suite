@@ -2,6 +2,7 @@ import { prisma } from "@repo/db";
 import { loadWebsiteCmsContext } from "@/lib/website/page-context";
 import { resolveWebsiteColors } from "@/lib/website/branding-defaults";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { normalizeFotofficeOrganizationType } from "@/lib/onboarding-constants";
 import { PageHeader } from "@/components/page-header";
 import { WebsiteBuilder } from "@/components/website/builder/website-builder";
@@ -12,7 +13,7 @@ export default async function WebsiteBuilderPage({ searchParams }: { searchParam
     searchParams,
   ]);
 
-  const [branding, enabledModuleKeys] = await Promise.all([
+  const [branding, enabledModuleKeys, personVocabulary] = await Promise.all([
     prisma.fotofficeWorkspaceBranding.findUnique({
       where: { workspaceId: workspace.id },
       select: {
@@ -28,6 +29,7 @@ export default async function WebsiteBuilderPage({ searchParams }: { searchParam
       },
     }),
     getEnabledModuleKeysForWorkspace(workspace.id),
+    loadPersonVocabulary(workspace.id),
   ]);
 
   return (
@@ -41,6 +43,7 @@ export default async function WebsiteBuilderPage({ searchParams }: { searchParam
         initialDesignPresets={designPresets}
         initialMenu={menu}
         enabledModuleKeys={[...enabledModuleKeys]}
+        personVocabulary={personVocabulary}
         initialPanel={panel === "menu" ? "MENU" : undefined}
         workspaceName={branding?.commercialName ?? workspace.name}
         organizationType={normalizeFotofficeOrganizationType(branding?.activityType) || null}
