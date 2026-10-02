@@ -165,6 +165,7 @@ async function main() {
         userId,
         directoryOptIn: caso.optIn,
         businessName: `Estudio ${caso.apellido}`,
+        businessLogoUrl: "https://placehold.co/240x80/0b1220/fff.png?text=" + caso.apellido,
         specialties: ESPECIALIDADES[indice],
         bio: `Trabajo en fotografía desde hace años. Esta es la presentación de ${caso.nombre}.`,
         website: "miestudio.com.ar",

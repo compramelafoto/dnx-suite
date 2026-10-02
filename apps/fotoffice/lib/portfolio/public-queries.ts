@@ -28,6 +28,8 @@ export type DirectoryEntry = {
   publicSlug: string;
   displayName: string;
   businessName: string | null;
+  /** Logo del estudio, al lado del nombre en la tarjeta. */
+  businessLogoUrl: string | null;
   specialties: string[];
   coverUrl: string | null;
   coverWidth: number | null;
@@ -182,6 +184,7 @@ export async function loadPublicDirectory(workspaceId: string): Promise<Director
       publicSlug: f.publicSlug,
       displayName: nombreVisible(f.member),
       businessName: f.member.businessName,
+      businessLogoUrl: f.member.businessLogoUrl,
       specialties: f.member.specialties,
       coverUrl: f.coverPhoto?.url ?? null,
       coverWidth: f.coverPhoto?.width ?? null,
