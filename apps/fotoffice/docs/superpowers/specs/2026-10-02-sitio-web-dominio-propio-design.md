@@ -52,14 +52,20 @@ Migración: `20261002180000_fotoffice_workspace_domain`. Se aplica a mano y se r
 
 ### 3.2 El filtro de entrada (`proxy.ts`)
 
-En Next 16 `middleware.ts` pasó a llamarse `proxy.ts` y corre en Node.js, así que puede leer la
-base. Se renombra y se amplía. Para cada visita:
+En Next 16 `middleware.ts` pasó a llamarse `proxy.ts`. Se renombra conservando lo que ya
+hacía (atajo `/sfpr` → `/w/sfpr` y protección del panel) y se amplía su `matcher` a todas las
+direcciones menos los recursos de Next, porque un dominio propio puede pedir cualquiera.
+
+**El proxy no carga Prisma.** Corre antes de cada visita: si fallara al cargar, se caería la
+aplicación entera. Para saber de quién es un dominio le pregunta a `/api/dominio-propio`
+(una ruta común, con Prisma), recuerda la respuesta 60 s y, ante cualquier falla, deja pasar la
+visita sin tocarla. Para cada visita:
 
 1. **¿Es un dominio de FOTOFFICE?** (el de `APP_URL`, `localhost`, `*.vercel.app`). Sí → sigue
    como siempre (protección de rutas del panel). La enorme mayoría de las visitas termina acá,
    sin consultar la base.
-2. **Si no, es un dominio propio.** Se busca a qué institución pertenece (con memoria de 60 s
-   para no consultar la base en cada visita). `www.sfpr.com.ar` → redirige a `sfpr.com.ar`.
+2. **Si no, es un dominio propio.** Se pregunta a qué institución pertenece (con memoria de
+   60 s para no consultar en cada visita). `www.sfpr.com.ar` → redirige a `sfpr.com.ar`.
 3. Con el dominio identificado (`slug` = `sfpr`):
    - `/_next/*`, `/api/*` y archivos estáticos pasan sin tocar.
    - `/w/sfpr/...` → **redirección 308** a `/...`. Así todos los enlaces que hoy arman
