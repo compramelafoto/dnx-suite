@@ -77,6 +77,7 @@ export const NOMBRES_DE_COLOR: Record<string, string> = {
 export const NOMBRES_DE_FILTRO: Record<TipoEvento, string> = {
   notas: "Notas",
   cambios: "Cambios",
+  mensajes: "Mensajes",
   plata: "Plata",
   portal: "Portal",
   carnets: "Carnets",
@@ -85,7 +86,7 @@ export const NOMBRES_DE_FILTRO: Record<TipoEvento, string> = {
 
 /** Los filtros que se ofrecen: "Plata" sólo a quien puede ver dinero. */
 export function filtrosVisibles(veDinero: boolean): { valor: TipoEvento | null; texto: string }[] {
-  const tipos: TipoEvento[] = ["notas", "cambios", "plata", "portal", "carnets", "adjuntos"];
+  const tipos: TipoEvento[] = ["notas", "cambios", "mensajes", "plata", "portal", "carnets", "adjuntos"];
   return [
     { valor: null, texto: "Todo" },
     ...tipos.filter((t) => veDinero || t !== "plata").map((t) => ({ valor: t, texto: NOMBRES_DE_FILTRO[t] })),

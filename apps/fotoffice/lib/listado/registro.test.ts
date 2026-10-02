@@ -3,11 +3,12 @@ import { definicionDe, entradaDeLista, LISTAS } from "./registro";
 import type { ContextoListado } from "./tipos";
 
 describe("registro de listas", () => {
-  it("tiene las tres listas de la etapa con su módulo", () => {
+  it("tiene las listas de la etapa con su módulo", () => {
     expect(Object.fromEntries(Object.entries(LISTAS).map(([k, v]) => [k, v.moduleKey]))).toEqual({
       clientes: "clients",
       socios: "members",
       "caja-movimientos": "cash",
+      captacion: "service-leads",
     });
   });
 
@@ -16,6 +17,7 @@ describe("registro de listas", () => {
       clientes: "/clientes",
       socios: "/members",
       "caja-movimientos": "/caja/movimientos",
+      captacion: "/captacion/lista",
     });
   });
 });

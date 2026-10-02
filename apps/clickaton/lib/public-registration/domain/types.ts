@@ -1,3 +1,4 @@
+import type { HomeDeliveryAddressInput, HomeDeliveryOfferDto } from "@/lib/home-delivery/domain";
 import type {
   ClickatonPaymentStatus,
   ClickatonRegistrationStatus,
@@ -152,6 +153,8 @@ export type PublicRegistrationContextDto = {
   passCredits: PublicPassCreditsDto | null;
   /** Beneficio por colegas traídos (si el email corresponde a un referidor). */
   referralBenefit: PublicReferralBenefitDto | null;
+  /** Envío del kit a domicilio (null si la edición no lo ofrece). */
+  homeDelivery: HomeDeliveryOfferDto | null;
   legal: {
     termsPath: string;
     privacyPath: string;
@@ -208,6 +211,8 @@ export type CreatePublicRegistrationInput = {
    * quien inició sesión, no de quien escribe un email ajeno.
    */
   sessionUserId?: number | null;
+  /** Domicilio para recibir el kit por correo; null/ausente = retira en sede. */
+  homeDelivery?: Partial<Record<keyof HomeDeliveryAddressInput, unknown>> | null;
 };
 
 export type PublicRegistrationSummaryDto = {
@@ -237,6 +242,13 @@ export type PublicRegistrationSummaryDto = {
   discountAmount: number;
   totalAmount: number;
   currency: string;
+  /** Envío del kit a domicilio; el monto ya está sumado en subtotal y total. */
+  homeDelivery?: {
+    feeAmount: number;
+    guaranteed: boolean;
+    city: string;
+    province: string;
+  } | null;
   items: Array<{
     nameSnapshot: string;
     variantNameSnapshot?: string | null;

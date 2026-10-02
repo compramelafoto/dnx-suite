@@ -111,7 +111,7 @@ export async function GET(
       selectedLab: { select: { id: true, name: true, city: true, province: true } },
       user: { select: { publicPageHandler: true } },
       ...(includePhotos
-        ? { photos: { orderBy: { createdAt: "desc" as const } } }
+        ? { photos: { where: { isRemoved: false }, orderBy: { createdAt: "desc" as const } } }
         : {}),
     };
 

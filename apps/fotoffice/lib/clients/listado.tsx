@@ -16,6 +16,7 @@ import {
   unirEtiquetasDeFila,
   validarEtiquetaDelFiltro,
 } from "@/lib/ficha/etiquetas-listado";
+import { camposParaListado, conCampos, restriccionDeCampos } from "@/lib/campos/listado";
 import { clientDisplayName } from "./display";
 
 const SELECT_FILA = {
@@ -52,6 +53,7 @@ const etiquetaIva = (v: string) => IVA_CONDITION_LABELS[v as IvaCondition] ?? v;
 /** Puro: lo que se le pide a Prisma. `workspaceId` va siempre, primero. */
 export function whereClientes(workspaceId: string, c: ConsultaResuelta): Prisma.ClientWhereInput {
   const where: Prisma.ClientWhereInput = { workspaceId };
+  const campos = restriccionDeCampos(c);
   const q = c.q.trim();
   if (q) {
     const or: Prisma.ClientWhereInput[] = [
@@ -63,8 +65,10 @@ export function whereClientes(workspaceId: string, c: ConsultaResuelta): Prisma.
       { phone: { contains: q } },
     ];
     if (/^\d{1,9}$/.test(q)) or.push({ clientNumber: Number(q) });
+    if (campos.buscar) or.push(campos.buscar);
     where.OR = or;
   }
+  if (campos.acotar) where.AND = [campos.acotar];
   if (c.filtros.tipo) where.kind = c.filtros.tipo;
   if (c.filtros.estado) where.status = c.filtros.estado;
   const alta = c.periodos.alta;
@@ -274,3 +278,8 @@ export const listadoClientes: DefinicionListado<FilaCliente> = {
   },
   panel: panelCliente,
 };
+
+/** La lista con los campos personalizados del workspace (columnas, filtros, búsqueda y exportación). */
+export async function cargarListadoClientes(ctx: ContextoListado) {
+  return conCampos(listadoClientes, await camposParaListado(ctx, "CLIENTE"));
+}

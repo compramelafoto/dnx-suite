@@ -1,0 +1,27 @@
+{
+  "proyecto": "Campañas de correo a la comunidad",
+  "plataforma": "CompraMeLaFoto",
+  "enUso": "si",
+  "usoNota": "El 21/09 salieron varias campañas desde el panel de CompraMeLaFoto, la mayor con 489 envíos, y no se creó ninguna más hasta el 29/09",
+  "etapas": [
+    {
+      "nombre": "Mandar una campaña",
+      "criterios": [
+        {
+          "que": "Una campaña grande sale entera, sin que el proveedor rechace envíos por ir demasiado rápido",
+          "implementado": { "pr": 211, "fecha": "2026-09-21" },
+          "probado": {
+            "fecha": "2026-09-29",
+            "evidencia": "Después del despliegue del arreglo (21/09 13:38 UTC) salieron dos campañas de 251 y 29 correos, todos en SENT y ninguno con «Too many requests»; antes del arreglo, 2 envíos del mismo día habían fallado por ese motivo"
+          }
+        },
+        {
+          "que": "Una campaña que falló entera queda abierta para corregir y reenviar, en vez de figurar como enviada",
+          "implementado": { "pr": 211, "fecha": "2026-09-21" },
+          "probado": null,
+          "bloqueado": "Desde el arreglo no hubo ninguna campaña que fallara entera, así que el cierre nuevo nunca tuvo que dejar una abierta"
+        }
+      ]
+    }
+  ]
+}

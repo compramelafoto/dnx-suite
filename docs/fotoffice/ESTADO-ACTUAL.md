@@ -97,6 +97,8 @@ Las ramas se nombran por la tarea del momento, **no por módulo ni por aplicaci�
 
 ## 4. Matriz de etapas
 
+> **Desactualizada.** La matriz vigente, punto por punto y con evidencia, es [MATRIZ-MODULOS.md](MATRIZ-MODULOS.md) (2026-09-30).
+
 Estados posibles: `CONSTRUIDO` / `PARCIAL` / `NO EXISTE` / `SIN VERIFICAR`.
 
 | Etapa del plan | Estado | Evidencia en el código |

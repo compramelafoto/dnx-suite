@@ -6,17 +6,21 @@ import {
   Building2,
   ClipboardCheck,
   FileText,
+  Hash,
   Globe,
   Plug,
   Inbox,
   LayoutDashboard,
   LayoutGrid,
+  ListPlus,
+  MessageSquareText,
   Settings,
   Shield,
   Tags,
   UserCog,
   Users,
   Wallet2,
+  Workflow,
 } from "lucide-react";
 import type { ComponentType } from "react";
 import { useShellNav } from "./shell-frame";
@@ -254,10 +258,10 @@ export function ShellNav({
           isActive: under("/dashboard/service-leads/forms"),
         },
         {
-          href: "/dashboard/service-leads",
-          label: "Leads",
+          href: "/captacion",
+          label: "Consultas",
           icon: Inbox,
-          isActive: exact("/dashboard/service-leads"),
+          isActive: under("/captacion"),
         },
       ]
     : [];
@@ -310,6 +314,30 @@ export function ShellNav({
       label: "Ficha",
       icon: Tags,
       isActive: under("/workspace/configuracion/ficha"),
+    });
+    institucion.push({
+      href: "/workspace/configuracion/circuitos",
+      label: "Circuitos",
+      icon: Workflow,
+      isActive: under("/workspace/configuracion/circuitos"),
+    });
+    institucion.push({
+      href: "/workspace/configuracion/campos",
+      label: "Campos",
+      icon: ListPlus,
+      isActive: under("/workspace/configuracion/campos"),
+    });
+    institucion.push({
+      href: "/workspace/configuracion/plantillas",
+      label: "Plantillas",
+      icon: MessageSquareText,
+      isActive: under("/workspace/configuracion/plantillas"),
+    });
+    institucion.push({
+      href: "/workspace/configuracion/numeracion",
+      label: "Numeración",
+      icon: Hash,
+      isActive: under("/workspace/configuracion/numeracion"),
     });
   }
 

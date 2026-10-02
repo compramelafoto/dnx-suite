@@ -97,7 +97,7 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
       "Formularios públicos para pedir presupuesto y la bandeja donde llegan esas consultas.",
     category: "GENERAL",
     order: 24,
-    route: "/dashboard/service-leads",
+    route: "/captacion",
     status: "AVAILABLE",
     family: "negocio",
   },

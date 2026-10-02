@@ -33,7 +33,15 @@ export type ConsultaResuelta = ConsultaListado & {
   periodos: Record<string, RangoFechas>;
   /** clave de filtro de relación → etiqueta legible (para los chips). */
   etiquetasRelacion: Record<string, string>;
+  /**
+   * Lo que suman los campos personalizados (lo pone `conCampos`, de `lib/campos/listado`), ya
+   * resuelto con subconsultas acotadas al workspace: `soloIds` acota el resultado (AND) y
+   * `buscarIds` se suma como una alternativa más al OR de la búsqueda general.
+   */
+  campos?: RestriccionCampos;
 };
+
+export type RestriccionCampos = { soloIds: string[] | null; buscarIds: string[] };
 
 export type ContextoListado = {
   workspaceId: string;
@@ -106,6 +114,8 @@ export type DefinicionListado<F> = {
   validarRelacion?: (ctx: ContextoListado, clave: string, id: string) => Promise<string | null>;
   opcionesRelacion?: (ctx: ContextoListado, clave: string) => Promise<Opcion[]>;
   buscarRelacion?: (ctx: ContextoListado, clave: string, texto: string) => Promise<Opcion[]>;
+  /** Aviso opcional sobre la consulta resuelta (p. ej. un filtro que no se pudo aplicar entero). */
+  aviso?: (ctx: ContextoListado, c: ConsultaResuelta) => Promise<string | null>;
   acciones: AccionLote[];
   exportar: { columnas: ColumnaExport<F>[] };
   panel?: (ctx: ContextoListado, id: string) => Promise<ReactNode | null>;

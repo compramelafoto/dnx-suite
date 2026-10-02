@@ -7099,6 +7099,8 @@ model Workspace {
   bookingResources            BookingResource[]
   bookingExtras               BookingExtra[]
   raffles                     Raffle[]
+  rafflePrizeCommitments      RafflePrizeCommitment[]
+  raffleSettings              RaffleSettings?
   clients                     Client[]
   cashAccounts                CashAccount[]
   cashCategories              CashCategory[]
@@ -7127,7 +7129,19 @@ model Workspace {
   fotofficeTagAssignments FotofficeTagAssignment[]
   fotofficeAttachments FotofficeAttachment[]
   fotofficePersonRelations FotofficePersonRelation[]
+  fotofficeCircuits FotofficeCircuit[]
+  fotofficeLossReasons FotofficeLossReason[]
+  fotofficeJourneys FotofficeJourney[]
+  fotofficeTasks FotofficeTask[]
   fotofficePersonEvents FotofficePersonEvent[]
+  fotofficeCustomFields FotofficeCustomField[]
+  fotofficeCustomValues FotofficeCustomValue[]
+  fotofficeCustomValueChanges FotofficeCustomValueChange[]
+  fotofficeSequences FotofficeSequence[]
+  fotofficeSequenceChanges FotofficeSequenceChange[]
+  fotofficeRecordNumbers FotofficeRecordNumber[]
+  fotofficeMessageTemplates FotofficeMessageTemplate[]
+  fotofficeMessages FotofficeMessage[]
   clientAudits ClientAudit[]
 }
 
@@ -7593,6 +7607,8 @@ model Member {
   /// Se pide desde el alta: pedirla después implica volver a contactar a cada socio uno por uno.
   /// Nombre del estudio o marca, si trabaja con uno distinto de su nombre.
   businessName   String?
+  /// Logo de ese estudio o marca. Se muestra en el portal junto al nombre; lo sube el socio.
+  businessLogoUrl String?
   /// Rubros en los que trabaja. Vocabulario cerrado, validado en lib/membership/specialties.ts.
   specialties    String[] @default([])
   /// Presentación breve, en palabras del socio.
@@ -8674,6 +8690,13 @@ model Raffle {
   entriesCloseAt DateTime
   /// El acto: se lee drand y se resuelven los premios.
   drawsAt        DateTime
+  /// Cuántos días tiene el ganador para retirar el premio en el local del aliado. El plazo
+  /// corre desde el sorteo, se le haya podido avisar o no: así el aliado sabe la fecha exacta
+  /// desde el día uno. Si el aviso falla, queda marcado y la Secretaría llama por teléfono.
+  pickupDays     Int      @default(15)
+  /// `YYYY-MM` que cubre este sorteo, cuando lo generó la tarea mensual. Único por institución:
+  /// es lo que impide que se creen dos sorteos para el mismo mes.
+  period         String?
 
   /// BORRADOR | ANUNCIADO | PADRON_SELLADO | SORTEADO | CERRADO | CANCELADO
   status String @default("BORRADOR")
@@ -8710,6 +8733,7 @@ model Raffle {
   awards    RafflePrizeAward[]
   events    RaffleEvent[]
 
+  @@unique([workspaceId, period])
   @@index([workspaceId, drawsAt])
   @@index([status, entriesCloseAt])
   @@index([status, drawsAt])
@@ -8760,14 +8784,32 @@ model RafflePrize {
   /// dominio Partners, que vive en su propia aplicación.
   partnerId           String?
   partnerNameSnapshot String?
+  /// Adónde se le pide el comprobante cuando el socio retira.
+  partnerEmailSnapshot   String?
+  /// El logo con el que se muestra el premio al socio. Instantánea como todo lo demás: la
+  /// tarjeta del sorteo de septiembre tiene que seguir viéndose igual dentro de dos años,
+  /// aunque el aliado cambie de marca.
+  partnerLogoSnapshot    String?
+  /// Los tres datos que viajan en el correo al ganador: adónde ir, cuándo y a quién llamar.
+  /// Son instantáneas porque el correo ya salió: si el aliado se muda después, el que se
+  /// mandó decía otra cosa, y la constancia tiene que coincidir con lo que la persona leyó.
+  partnerAddressSnapshot String?
+  partnerPhoneSnapshot   String?
+  partnerHoursSnapshot   String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  raffle Raffle            @relation(fields: [raffleId], references: [id], onDelete: Cascade)
-  award  RafflePrizeAward?
+  /// De qué compromiso salió, cuando salió de uno. Sirve para ver la serie completa y para no
+  /// duplicarlo si la tarea corre dos veces.
+  commitmentId String?
+
+  raffle     Raffle                 @relation(fields: [raffleId], references: [id], onDelete: Cascade)
+  commitment RafflePrizeCommitment? @relation(fields: [commitmentId], references: [id], onDelete: SetNull)
+  award      RafflePrizeAward?
 
   @@unique([raffleId, order])
+  @@unique([raffleId, commitmentId])
 }
 
 /// El resultado: quién ganó qué.
@@ -8788,11 +8830,26 @@ model RafflePrizeAward {
   /// GANADO | NOTIFICADO | RETIRADO | NO_RETIRADO | ANULADO
   status String @default("GANADO")
 
+  /// --- Los dos avisos que salen al resolver el sorteo ---
+  /// Al ganador: qué ganó, dónde retirarlo y hasta cuándo.
   notifiedAt        DateTime?
+  noticeError       String?
+  /// Al aliado: a quién entregarle, hasta cuándo, y el pedido del comprobante.
+  sponsorNotifiedAt DateTime?
+  sponsorNoticeError String?
+
   deliveredAt       DateTime?
   deliveredByUserId Int?
   deliveryNote      String?
   voidReason        String?
+
+  /// --- El respaldo de cómo llegó el premio a la institución ---
+  /// El aliado lo manda por correo cuando el socio retira: una foto o un PDF del remito, o una
+  /// factura por $0 con la leyenda «Sin valor comercial — Destinado a sorteo entre asociados».
+  /// Sin esto, la institución no puede justificar de dónde salió el premio.
+  receiptReceivedAt DateTime?
+  receiptFileUrl    String?
+  receiptNote       String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -8803,6 +8860,85 @@ model RafflePrizeAward {
 
   @@index([raffleId, status])
   @@index([memberId])
+}
+
+/// Lo que un aliado se comprometió a dar todos los meses.
+///
+/// No es un premio: es la razón por la que cada mes aparece uno. «Arte en Foco da 50% OFF en
+/// cursos seleccionados todos los meses hasta diciembre de 2026» es un compromiso; los cuatro
+/// premios que genera son copias independientes, con los datos del aliado congelados en cada
+/// una. Si el aliado se muda en noviembre, el premio de septiembre sigue diciendo dónde había
+/// que ir en septiembre.
+///
+/// `endPeriod` es INCLUSIVE: «hasta diciembre» incluye el sorteo de diciembre. Es como lo dice
+/// la gente y como se firma un acuerdo.
+model RafflePrizeCommitment {
+  id          String @id @default(cuid())
+  workspaceId String
+
+  title       String
+  description String?
+  conditions  String?
+  /// En centavos, sólo informativo.
+  estimatedValueMinor Int?
+
+  /// Orden sugerido dentro de cada sorteo. Si dos compromisos piden el mismo, se acomodan al
+  /// materializarse: el orden tiene que ser único dentro del sorteo porque entra en la cuenta.
+  order Int @default(1)
+
+  /// El aliado, con sus datos congelados igual que en el premio.
+  partnerId              String?
+  partnerNameSnapshot    String?
+  partnerEmailSnapshot   String?
+  partnerLogoSnapshot    String?
+  partnerAddressSnapshot String?
+  partnerPhoneSnapshot   String?
+  partnerHoursSnapshot   String?
+
+  /// `YYYY-MM` del primer sorteo que lo incluye y del último, inclusive. Sin fin = sigue.
+  startPeriod String
+  endPeriod   String?
+
+  cancelledAt  DateTime?
+  cancelReason String?
+
+  createdByUserId Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  prizes    RafflePrize[]
+
+  @@index([workspaceId, startPeriod])
+  @@index([workspaceId, cancelledAt])
+}
+
+/// Las reglas del sorteo mensual de una institución.
+///
+/// Existe para que el ciclo se sostenga solo: con esto, una tarea programada crea el sorteo de
+/// cada mes en borrador, con los premios comprometidos ya cargados. La Secretaría sólo revisa
+/// y anuncia.
+model RaffleSettings {
+  id          String @id @default(cuid())
+  workspaceId String @unique
+
+  /// Si se generan solos los sorteos de cada mes.
+  monthlyEnabled Boolean @default(false)
+  /// Día del mes del acto. Si el mes no llega a ese día, se usa el último.
+  drawDay        Int     @default(30)
+  /// Hora del acto, en hora argentina.
+  drawHour       Int     @default(20)
+  /// Cuántas horas antes cierra el padrón.
+  entriesCloseHoursBefore Int @default(24)
+  /// Días que tiene el ganador para retirar. Se copia a cada sorteo generado.
+  pickupDays     Int     @default(15)
+  /// Con cuántos días de anticipación se crea el sorteo del mes.
+  createDaysAhead Int    @default(10)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
 /// La historia del sorteo: quién anunció, quién selló, quién entregó cada premio.
@@ -12061,6 +12197,8 @@ enum ClickatonCheckInSource {
   PARTICIPANT_NUMBER
   DOCUMENT_SEARCH
   OFFLINE_SYNC
+  /// El participante que recibió el kit por correo escaneó el QR del instructivo.
+  KIT_SELF_CONFIRM
 }
 
 enum ClickatonAccreditationIdentityMode {
@@ -12181,6 +12319,15 @@ model ClickatonEdition {
   surveyResponses            ClickatonSurveyResponse[]
   testimonials               ClickatonTestimonial[]
   testimonialInvites         ClickatonTestimonialInvite[]
+  /// Números reales de la edición: gastos, sobrante contado y comisiones de MP.
+  financeExpenses            ClickatonEditionExpense[]
+  leftoverItems              ClickatonEditionLeftoverItem[]
+  leftoverItemsReceived      ClickatonEditionLeftoverItem[]        @relation("LeftoverCarriedToEdition")
+  resultSettings             ClickatonEditionResultSettings?
+  homeDelivery               ClickatonEditionHomeDelivery?
+  homeDeliveryShipments      ClickatonRegistrationShipping[]
+  /// Comisiones de fotógrafos afiliados por inscripciones de esta edición.
+  affiliateCommissions       ClickatonAffiliateCommission[]
 
   /// Habilita la compra de regalos en esta edición. Nace apagado.
   giftVouchersEnabled Boolean @default(false)
@@ -12655,6 +12802,8 @@ model ClickatonRegistration {
   stockHolds                         ClickatonStockHold[]
   credential                         ClickatonParticipantCredential?
   checkIns                           ClickatonCheckIn[]
+  shipping                           ClickatonRegistrationShipping?
+  affiliateCommission                ClickatonAffiliateCommission?
   kitDeliveries                      ClickatonKitDelivery[]
   statusHistory                      ClickatonRegistrationStatusHistory[]
   audits                             ClickatonRegistrationAudit[]
@@ -13061,10 +13210,10 @@ model ClickatonPhotoSubmissionAudit {
 /// teléfono si sus fotos guardan la ubicación y si el reloj está bien.
 /// La foto NUNCA se sube: acá sólo se guarda el veredicto.
 model ClickatonReadinessCheck {
-  id                String                @id @default(cuid())
+  id                String   @id @default(cuid())
   editionId         String
   registrationId    String
-  checkedAt         DateTime              @default(now())
+  checkedAt         DateTime @default(now())
   hasGps            Boolean
   /// Positivo = el teléfono va adelantado respecto del servidor.
   clockDeltaMinutes Int?
@@ -13074,7 +13223,7 @@ model ClickatonReadinessCheck {
   result            String
   /// Todos los problemas encontrados, no sólo el principal.
   detail            Json?
-  createdAt         DateTime              @default(now())
+  createdAt         DateTime @default(now())
 
   edition      ClickatonEdition      @relation(fields: [editionId], references: [id], onDelete: Cascade)
   registration ClickatonRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
@@ -14133,18 +14282,18 @@ model ClickatonReferralCode {
 /// deja además registro de a quién se le escribió y de quién pidió no recibir
 /// más, que es lo que hace responsable un envío a gente que no lo pidió.
 model ClickatonOutreachContact {
-  id        String    @id @default(cuid())
-  email     String    @unique
-  name      String?
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String?
   /// compramelafoto | fotoffice | fotorank
-  origen    String
+  origen       String
   /// Cuándo se le mandó el último correo, y de qué campaña.
   lastSentAt   DateTime?
   lastCampaign String?
   /// Pidió no recibir más. Nunca se le vuelve a escribir.
   optedOutAt   DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@index([origen])
   @@index([lastSentAt])
@@ -14204,24 +14353,24 @@ model ClickatonReferralClaim {
 /// Quién trajo a quién. `referredUserId` es único: cada persona cuenta una
 /// sola vez en su vida, aunque después se inscriba a diez ediciones.
 model ClickatonReferralAttribution {
-  id             String                             @id @default(cuid())
-  referrerUserId Int
-  referredUserId Int                                @unique
+  id                     String                             @id @default(cuid())
+  referrerUserId         Int
+  referredUserId         Int                                @unique
   /// Snapshot del email con el que se inscribió el referido.
-  referredEmail  String
-  referralCodeId String
+  referredEmail          String
+  referralCodeId         String
   /// Inscripción del referido que generó la atribución.
-  registrationId String                             @unique
-  editionId      String
-  status         ClickatonReferralAttributionStatus @default(EARNED)
-  earnedAt       DateTime                           @default(now())
-  revokedAt      DateTime?
-  revokedReason  String?
-  consumedAt     DateTime?
+  registrationId         String                             @unique
+  editionId              String
+  status                 ClickatonReferralAttributionStatus @default(EARNED)
+  earnedAt               DateTime                           @default(now())
+  revokedAt              DateTime?
+  revokedReason          String?
+  consumedAt             DateTime?
   /// Inscripción del REFERIDOR donde se usó el beneficio (Etapa 02).
   consumedRegistrationId String?
-  createdAt      DateTime                           @default(now())
-  updatedAt      DateTime                           @updatedAt
+  createdAt              DateTime                           @default(now())
+  updatedAt              DateTime                           @updatedAt
 
   referrer     User                  @relation("ClickatonReferralReferrer", fields: [referrerUserId], references: [id], onDelete: Cascade)
   referred     User                  @relation("ClickatonReferralReferred", fields: [referredUserId], references: [id], onDelete: Cascade)
@@ -18982,7 +19131,8 @@ model CoverageEvent {
   /// REQUEST | COVERAGE | CALL | APPLICATION | ASSIGNMENT | DELIVERABLE
   entityType String
   entityId   String
-  /// CREADA | ESTADO_CAMBIADO | NOTA | INFO_PEDIDA | INFO_RESPONDIDA | EMAIL_ENVIADO
+  /// CREADA | ESTADO_CAMBIADO | NOTA | INFO_PEDIDA | INFO_RESPONDIDA | EMAIL_ENVIADO |
+  /// ENLACE_REEMITIDO
   type       String
   fromStatus String?
   toStatus   String?
@@ -19125,15 +19275,15 @@ enum ClickatonTestimonialInviteStatus {
 
 /// Encuesta de satisfacción. PRIVADA: ninguna ruta pública la consulta.
 model ClickatonSurveyResponse {
-  id             String                         @id @default(cuid())
-  editionId      String
-  userId         Int
-  authorRole     ClickatonTestimonialAuthorRole
+  id                 String                         @id @default(cuid())
+  editionId          String
+  userId             Int
+  authorRole         ClickatonTestimonialAuthorRole
   /// Origen de la identidad (soft refs; sólo una está poblada).
-  registrationId String?
-  venueId        String?
+  registrationId     String?
+  venueId            String?
   /// 0..10 — "¿Qué tan probable es que lo recomiendes?"
-  npsScore       Int
+  npsScore           Int
   /// 1..5 cada una; null = "No aplica" y no promedia.
   scoreOrganization  Int?
   scorePrompts       Int?
@@ -19145,11 +19295,11 @@ model ClickatonSurveyResponse {
   wouldReturn        ClickatonSurveyWouldReturn?
   /// Crítica constructiva. NUNCA se publica ni se copia al testimonio.
   improvementNotes   String?
-  submittedAt        DateTime                   @default(now())
-  updatedAt          DateTime                   @updatedAt
+  submittedAt        DateTime                       @default(now())
+  updatedAt          DateTime                       @updatedAt
   auditIp            String?
   auditUserAgent     String?
-  edition            ClickatonEdition           @relation(fields: [editionId], references: [id], onDelete: Restrict)
+  edition            ClickatonEdition               @relation(fields: [editionId], references: [id], onDelete: Restrict)
   testimonial        ClickatonTestimonial?
 
   @@unique([editionId, userId])
@@ -19208,5 +19358,586 @@ model ClickatonTestimonialInvite {
   edition        ClickatonEdition                 @relation(fields: [editionId], references: [id], onDelete: Restrict)
 
   @@unique([editionId, email])
+  @@index([editionId, status])
+}
+
+/// Circuito de etapas (embudo de venta o flujo de trabajo). Etapa 0.4.
+model FotofficeCircuit {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  /// VENTA | TRABAJO
+  kind        String
+  isActive    Boolean  @default(true)
+  /// Uno por clase y workspace (índice único parcial en el SQL).
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  stages    FotofficeStage[]
+  journeys  FotofficeJourney[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, kind, isActive])
+}
+
+model FotofficeStage {
+  id           String    @id @default(cuid())
+  circuitId    String
+  name         String
+  color        String    @default("gris")
+  order        Int
+  /// 0 = sin vencimiento.
+  days         Int       @default(0)
+  requireTasks Boolean   @default(false)
+  /// Sólo circuitos de VENTA de Captación: NEW | CONTACTED | QUOTED | INTERESTED.
+  leadStatus   String?
+  archivedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  circuit   FotofficeCircuit             @relation(fields: [circuitId], references: [id], onDelete: Cascade)
+  templates FotofficeStageTaskTemplate[]
+  rules     FotofficeStageRule[]
+  journeys  FotofficeJourney[]
+  tasks     FotofficeTask[]
+  stepsFrom FotofficeJourneyStep[]       @relation("StepFrom")
+  stepsTo   FotofficeJourneyStep[]       @relation("StepTo")
+
+  @@index([circuitId, order])
+}
+
+model FotofficeStageTaskTemplate {
+  id       String  @id @default(cuid())
+  stageId  String
+  title    String
+  days     Int     @default(0)
+  required Boolean @default(false)
+  order    Int
+
+  stage FotofficeStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+
+  @@index([stageId, order])
+}
+
+model FotofficeStageRule {
+  id      String @id @default(cuid())
+  stageId String
+  event   String
+
+  stage FotofficeStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+
+  @@unique([stageId, event])
+}
+
+model FotofficeLossReason {
+  id          String  @id @default(cuid())
+  workspaceId String
+  name        String
+  order       Int     @default(0)
+  isActive    Boolean @default(true)
+
+  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  journeys  FotofficeJourney[]
+
+  @@unique([workspaceId, name])
+}
+
+/// El recorrido de un registro por un circuito.
+model FotofficeJourney {
+  id             String    @id @default(cuid())
+  workspaceId    String
+  circuitId      String
+  /// VENTA | TRABAJO — copia de la clase del circuito, para el índice único parcial.
+  kind           String
+  /// CAPTACION | CONSULTA | PROYECTO | COBERTURA
+  subjectType    String
+  subjectId      String
+  /// null cuando el recorrido terminó.
+  stageId        String?
+  /// GANADA | PERDIDA | TERMINADO | CANCELADO
+  outcome        String?
+  lossReasonId   String?
+  enteredStageAt DateTime  @default(now())
+  stageDueAt     DateTime?
+  ownerUserId    Int?
+  closedAt       DateTime?
+  createdAt      DateTime  @default(now())
+
+  workspace  Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  circuit    FotofficeCircuit     @relation(fields: [circuitId], references: [id], onDelete: Restrict)
+  stage      FotofficeStage?      @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  lossReason FotofficeLossReason? @relation(fields: [lossReasonId], references: [id], onDelete: SetNull)
+  steps      FotofficeJourneyStep[]
+  tasks      FotofficeTask[]
+  processed  FotofficeProcessedEvent[]
+
+  @@index([workspaceId, subjectType, subjectId])
+  @@index([circuitId, stageId])
+}
+
+model FotofficeJourneyStep {
+  id                     String   @id @default(cuid())
+  journeyId              String
+  fromStageId            String?
+  toStageId              String?
+  outcome                String?
+  note                   String?
+  auto                   Boolean  @default(false)
+  event                  String?
+  forcedWithPendingTasks Boolean  @default(false)
+  actorUserId            Int?
+  actorLabel             String
+  createdAt              DateTime @default(now())
+
+  journey   FotofficeJourney @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  fromStage FotofficeStage?  @relation("StepFrom", fields: [fromStageId], references: [id], onDelete: SetNull)
+  toStage   FotofficeStage?  @relation("StepTo", fields: [toStageId], references: [id], onDelete: SetNull)
+
+  @@index([journeyId, createdAt])
+}
+
+model FotofficeTask {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  journeyId       String?
+  stageId         String?
+  subjectType     String
+  subjectId       String
+  title           String
+  dueAt           DateTime?
+  assigneeUserId  Int?
+  required        Boolean   @default(false)
+  doneAt          DateTime?
+  doneByUserId    Int?
+  createdByUserId Int?
+  createdAt       DateTime  @default(now())
+
+  workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  journey   FotofficeJourney? @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  stage     FotofficeStage?   @relation(fields: [stageId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, assigneeUserId, doneAt, dueAt])
+  @@index([journeyId])
+}
+
+model FotofficeProcessedEvent {
+  id        String   @id @default(cuid())
+  journeyId String
+  event     String
+  sourceRef String
+  createdAt DateTime @default(now())
+
+  journey FotofficeJourney @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+
+  @@unique([journeyId, event, sourceRef])
+}
+
+/// Etapa 0.5: campo personalizado de una organización para un tipo de registro.
+model FotofficeCustomField {
+  id          String    @id @default(cuid())
+  workspaceId String
+  /// CLIENTE | SOCIO | CONSULTA (reservados: PRESUPUESTO | PEDIDO | CONTRATO | PROYECTO)
+  entityType  String
+  /// Estable: se genera del nombre al crear y nunca cambia.
+  key         String
+  name        String
+  /// TEXTO | TEXTO_LARGO | NUMERO | FECHA | SI_NO | LISTA | ENLACE
+  type        String
+  required    Boolean   @default(false)
+  showInList  Boolean   @default(false)
+  order       Int       @default(0)
+  archivedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  workspace Workspace                    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  options   FotofficeCustomFieldOption[]
+  values    FotofficeCustomValue[]
+
+  @@unique([workspaceId, entityType, key])
+  @@index([workspaceId, entityType, archivedAt, order])
+}
+
+model FotofficeCustomFieldOption {
+  id         String    @id @default(cuid())
+  fieldId    String
+  label      String
+  order      Int       @default(0)
+  archivedAt DateTime?
+
+  field  FotofficeCustomField   @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  values FotofficeCustomValue[]
+
+  @@index([fieldId, order])
+}
+
+/// Valor de un campo para un registro. Sin FK al registro (polimórfico): el código valida el workspace.
+model FotofficeCustomValue {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  fieldId         String
+  entityType      String
+  entityId        String
+  valueText       String?
+  valueNumber     Decimal?  @db.Decimal(18, 4)
+  valueDate       DateTime? @db.Date
+  valueBool       Boolean?
+  optionId        String?
+  updatedAt       DateTime  @updatedAt
+  updatedByUserId Int?
+
+  workspace Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  field     FotofficeCustomField        @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  option    FotofficeCustomFieldOption? @relation(fields: [optionId], references: [id], onDelete: SetNull)
+
+  @@unique([fieldId, entityId])
+  @@index([workspaceId, entityType, entityId])
+  @@index([fieldId, optionId])
+}
+
+/// Historial de cambios de valores, con antes y después como texto legible.
+model FotofficeCustomValueChange {
+  id          String   @id @default(cuid())
+  workspaceId String
+  entityType  String
+  entityId    String
+  fieldId     String
+  before      String?
+  after       String?
+  actorUserId Int?
+  actorLabel  String?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, entityType, entityId, createdAt])
+}
+
+/// Contador configurable. key: CONSULTA | PRESUPUESTO | PEDIDO | CONTRATO | PROYECTO
+model FotofficeSequence {
+  id          String  @id @default(cuid())
+  workspaceId String
+  key         String
+  prefix      String  @default("")
+  withYear    Boolean @default(false)
+  digits      Int     @default(1)
+  nextValue   Int     @default(1)
+  currentYear Int?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, key])
+}
+
+model FotofficeSequenceChange {
+  id          String   @id @default(cuid())
+  workspaceId String
+  key         String
+  before      Json?
+  after       Json?
+  actorUserId Int?
+  actorLabel  String?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, key, createdAt])
+}
+
+/// Número asignado a un registro. year es null si la secuencia no lleva año
+/// (en el SQL, dos índices únicos parciales cubren los dos casos).
+model FotofficeRecordNumber {
+  id          String   @id @default(cuid())
+  workspaceId String
+  sequenceKey String
+  entityType  String
+  entityId    String
+  year        Int?
+  value       Int
+  display     String
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([entityType, entityId])
+}
+
+/// Etapa 0.6: plantilla de mensaje (correo o WhatsApp) de una organización.
+/// En el SQL: índice único parcial (workspaceId, systemKey) donde systemKey no es null,
+/// y CHECKs de channel, entityType y asunto (obligatorio en EMAIL, nulo en WHATSAPP).
+model FotofficeMessageTemplate {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  /// EMAIL | WHATSAPP
+  channel         String
+  /// GENERAL | CLIENTE | SOCIO | CONSULTA
+  entityType      String
+  name            String
+  /// Sólo en EMAIL (obligatorio); null en WHATSAPP.
+  subject         String?
+  body            String    @db.Text
+  /// null en las plantillas comunes; CONSULTA_AUTORESPUESTA en la automática.
+  systemKey       String?
+  /// Sólo tiene sentido en las automáticas.
+  enabled         Boolean   @default(false)
+  order           Int       @default(0)
+  archivedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  updatedByUserId Int?
+
+  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  messages  FotofficeMessage[]
+
+  @@index([workspaceId, channel, archivedAt, order])
+}
+
+/// Etapa 0.6: registro de un mensaje enviado (o abierto en WhatsApp) desde una ficha.
+/// entityId es polimórfico y se valida en código. En el SQL: CHECKs de status y channel.
+model FotofficeMessage {
+  id          String   @id @default(cuid())
+  workspaceId String
+  /// EMAIL | WHATSAPP
+  channel     String
+  /// CLIENTE | SOCIO | CONSULTA
+  entityType  String
+  entityId    String
+  templateId  String?
+  toAddress   String
+  subject     String?
+  body        String   @db.Text
+  /// SENT | FAILED | OPENED_WHATSAPP
+  status      String
+  automatic   Boolean  @default(false)
+  providerId  String?
+  errorCode   String?
+  actorUserId Int?
+  actorLabel  String?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  template  FotofficeMessageTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, entityType, entityId, createdAt])
+  @@index([workspaceId, channel, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Números reales por edición (Clickatón)
+//
+// Separa gastos, sobrante y comisiones de cada edición para ver, edición sobre
+// edición, si se salió para atrás o no. Los ingresos NO se cargan: salen de las
+// inscripciones pagas. Importes en centavos, como el resto de Clickatón.
+// ---------------------------------------------------------------------------
+
+/// Gasto de una edición. Editable: muchos se cargan aproximados y se ajustan.
+model ClickatonEditionExpense {
+  id              String    @id @default(cuid())
+  editionId       String
+  concept         String
+  description     String?
+  /// PUBLICIDAD | MERCHANDISING | LOGISTICA | PREMIOS | OTRO (texto libre tipado en app).
+  category        String    @default("OTRO")
+  amountMinor     Int
+  /// Quién lo pagó (Tammy, Dani, Rodri, la caja…). Texto libre.
+  paidBy          String?
+  spentAt         DateTime?
+  /// "Aprox, después ajusto": el número todavía no es definitivo.
+  isEstimate      Boolean   @default(false)
+  createdByUserId Int?
+  updatedByUserId Int?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  edition ClickatonEdition @relation(fields: [editionId], references: [id], onDelete: Restrict)
+
+  @@index([editionId, createdAt])
+}
+
+/// Lo que sobró al terminar la edición, contado a mano. No toca el stock del
+/// catálogo (que es un número de venta, no un inventario físico).
+model ClickatonEditionLeftoverItem {
+  id                 String    @id @default(cuid())
+  editionId          String
+  itemName           String
+  /// Talle, color u otro detalle.
+  detail             String?
+  quantity           Int
+  /// Lo que costó cada unidad; null = todavía sin costo cargado.
+  unitCostMinor      Int?
+  countedAt          DateTime?
+  notes              String?
+  /// Si pasa a otra edición, allá cuenta como mercadería recibida.
+  carriedToEditionId String?
+  createdByUserId    Int?
+  updatedByUserId    Int?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  edition          ClickatonEdition  @relation(fields: [editionId], references: [id], onDelete: Restrict)
+  carriedToEdition ClickatonEdition? @relation("LeftoverCarriedToEdition", fields: [carriedToEditionId], references: [id], onDelete: SetNull)
+
+  @@index([editionId])
+  @@index([carriedToEditionId])
+}
+
+/// Comisiones de Mercado Pago de la edición. Los porcentajes se guardan en
+/// puntos básicos (761 = 7,61 %). Si se carga el monto real, manda sobre el %.
+model ClickatonEditionResultSettings {
+  editionId          String   @id
+  mpProcessingFeeBps Int?
+  mpWithdrawalFeeBps Int?
+  mpFeesActualMinor  Int?
+  notes              String?
+  updatedByUserId    Int?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  edition ClickatonEdition @relation(fields: [editionId], references: [id], onDelete: Restrict)
+}
+
+/// Envío del kit a domicilio, configurado por edición. Sin fila, la edición no
+/// ofrece envío. Quien vive en la ciudad de la edición no puede elegirlo.
+model ClickatonEditionHomeDelivery {
+  editionId       String    @id
+  enabled         Boolean   @default(false)
+  /// Costo fijo del envío, en centavos. Lo paga el participante.
+  feeAmount       Int
+  /// Hasta esta fecha se garantiza que el kit llega antes del evento. Después
+  /// se sigue vendiendo, avisando que puede no llegar a tiempo.
+  guaranteedUntil DateTime?
+  updatedByUserId Int?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  edition ClickatonEdition @relation(fields: [editionId], references: [id], onDelete: Restrict)
+}
+
+enum ClickatonHomeDeliveryStatus {
+  /// Pagado (o por pagar): falta despachar.
+  PENDING
+  DISPATCHED
+  /// El participante confirmó con el QR del instructivo que le llegó.
+  RECEIVED
+  RETURNED
+}
+
+/// Domicilio y seguimiento del kit de una inscripción que eligió envío.
+model ClickatonRegistrationShipping {
+  id                 String                      @id @default(cuid())
+  registrationId     String                      @unique
+  editionId          String
+  /// Lo que se cobró por el envío, en centavos (copia del precio de ese momento).
+  feeAmount          Int
+  /// Si al inscribirse todavía regía la fecha de llegada garantizada.
+  guaranteed         Boolean
+  recipientName      String
+  documentNumber     String
+  phone              String
+  street             String
+  streetNumber       String
+  floor              String?
+  city               String
+  province           String
+  postalCode         String
+  reference          String?
+  status             ClickatonHomeDeliveryStatus @default(PENDING)
+  carrier            String?
+  trackingNumber     String?
+  dispatchedAt       DateTime?
+  dispatchedByUserId Int?
+  receivedAt         DateTime?
+  returnedAt         DateTime?
+  notes              String?
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+
+  registration ClickatonRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  edition      ClickatonEdition      @relation(fields: [editionId], references: [id], onDelete: Restrict)
+
+  @@index([editionId, status])
+}
+
+/// Fotógrafo que comparte un código de descuento y cobra una comisión por cada
+/// inscripción que lo usa. Cobra por Split 1:N de Mercado Pago (si aceptó la
+/// invitación) o, si no se puede repartir, a mano.
+model ClickatonAffiliate {
+  id                 String    @id @default(cuid())
+  /// Usuario DNX del fotógrafo (para Mi cuenta). Sin FK: no toca `User`.
+  userId             Int?      @unique
+  displayName        String
+  /// Email de contacto.
+  email              String
+  /// Email de la cuenta de Mercado Pago a la que se le manda la invitación.
+  mpSellerEmail      String    @unique
+  /// `DnxPaymentRecipient.id` (tipo AFFILIATE) que espera el paquete de pagos.
+  paymentRecipientId String?
+  /// receiver_id de MP: es un UUID, no el id numérico de la cuenta.
+  consentReceiverId  String?
+  /// NONE | PENDING | ACTIVE | REJECTED | CANCELED | EXPIRED
+  consentStatus      String    @default("NONE")
+  consentInviteUrl   String?
+  consentCheckedAt   DateTime?
+  isActive           Boolean   @default(true)
+  notes              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  commissions ClickatonAffiliateCommission[]
+}
+
+enum ClickatonAffiliateCommissionMode {
+  /// Se le pagó en el mismo cobro, por Split 1:N.
+  SPLIT
+  /// Se cobró por Checkout Pro: se le transfiere a mano.
+  MANUAL
+}
+
+enum ClickatonAffiliateCommissionStatus {
+  /// Reservada al crear la inscripción; todavía no hay cobro.
+  PENDING
+  PAID_BY_SPLIT
+  /// Cobrada sin reparto: se le debe al fotógrafo.
+  OWED
+  /// Transferida a mano.
+  PAID_OUT
+  /// Reembolso, anulación o reserva vencida: el fotógrafo pierde la comisión.
+  REVERSED
+}
+
+/// Libro de comisiones: una por inscripción que usó un código con dueño.
+/// Montos en centavos.
+model ClickatonAffiliateCommission {
+  id                    String                             @id @default(cuid())
+  registrationId        String                             @unique
+  editionId             String
+  affiliateId           String
+  promotionId           String
+  promotionCodeSnapshot String
+  commissionBps         Int
+  /// Precio de lista de la inscripción, sin descuento ni envío.
+  baseAmount            Int
+  grossAmount           Int
+  mpFeeBps              Int
+  mpFeeShareAmount      Int
+  /// Lo que recibe el fotógrafo.
+  netAmount             Int
+  /// Se define al cobrar.
+  mode                  ClickatonAffiliateCommissionMode?
+  status                ClickatonAffiliateCommissionStatus @default(PENDING)
+  providerOrderId       String?
+  paidAt                DateTime?
+  paidOutAt             DateTime?
+  paidOutByUserId       Int?
+  paidOutReference      String?
+  reversedAt            DateTime?
+  reversalReason        String?
+  createdAt             DateTime                           @default(now())
+  updatedAt             DateTime                           @updatedAt
+
+  registration ClickatonRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  edition      ClickatonEdition      @relation(fields: [editionId], references: [id], onDelete: Restrict)
+  affiliate    ClickatonAffiliate    @relation(fields: [affiliateId], references: [id], onDelete: Restrict)
+
+  @@index([affiliateId, status])
   @@index([editionId, status])
 }

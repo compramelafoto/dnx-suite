@@ -2,7 +2,7 @@ import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { Listado } from "@/components/listado/listado";
 import { requireClientsStaff } from "@/lib/clients/access";
-import { listadoClientes } from "@/lib/clients/listado";
+import { cargarListadoClientes } from "@/lib/clients/listado";
 import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import type { ContextoListado } from "@/lib/listado/tipos";
 
@@ -35,7 +35,7 @@ export default async function ClientesPage({
           </Link>
         }
       />
-      <Listado def={listadoClientes} ctx={ctx} ruta="/clientes" searchParams={searchParams} />
+      <Listado def={await cargarListadoClientes(ctx)} ctx={ctx} ruta="/clientes" searchParams={searchParams} />
     </div>
   );
 }

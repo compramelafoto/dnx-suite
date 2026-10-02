@@ -30,6 +30,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ clav
     const { resuelta } = await resolverConsulta(def, ctx, consulta, hoyEnBuenosAires());
     const ids = await def.traerIds(ctx, resuelta, TOPE_EXPORTACION + 1);
     if (ids.length > TOPE_EXPORTACION) return tope();
+    // Sin filas y con aviso (p. ej. una subconsulta pasó su tope): se explica, no un archivo vacío.
+    if (ids.length === 0 && def.aviso) {
+      const aviso = await def.aviso(ctx, resuelta);
+      if (aviso) return rechazo(aviso);
+    }
     filas = await def.traerPorIds(ctx, ids);
   }
 
@@ -56,7 +61,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ clav
 }
 
 function tope() {
-  return new NextResponse(`Son más de ${TOPE_EXPORTACION} filas. Filtrá un poco más para exportar.`, {
+  return rechazo(`Son más de ${TOPE_EXPORTACION} filas. Filtrá un poco más para exportar.`);
+}
+
+function rechazo(texto: string) {
+  return new NextResponse(texto, {
     status: 422,
     headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" },
   });

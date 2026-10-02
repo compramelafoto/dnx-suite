@@ -19,6 +19,7 @@ import { useEffect, useRef, useState } from "react";
 export type BolilleroPremio = {
   prizeTitle: string;
   partnerName: string | null;
+  partnerLogoUrl: string | null;
   winnerPosition: number;
   winnerLabel: string;
 };
@@ -83,7 +84,15 @@ export function Bolillero({
   return (
     <div className="space-y-6">
       {!mostrarTodo && indice < prizes.length ? (
-        <div className="fo-card space-y-4 p-8 text-center">
+        <div className="fo-card flex flex-col items-center gap-4 p-8 text-center">
+          {prizes[indice].partnerLogoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={prizes[indice].partnerLogoUrl}
+              alt={prizes[indice].partnerName ?? ""}
+              className="size-16 rounded-[var(--fo-radius)] border border-[var(--fo-border)] bg-white object-contain p-1.5"
+            />
+          ) : null}
           <p className="text-sm text-[var(--fo-muted)]">{prizes[indice].prizeTitle}</p>
           <p
             className={`font-mono text-4xl tabular-nums transition-opacity ${
@@ -111,7 +120,16 @@ export function Bolillero({
       <ul className="space-y-3" aria-live="polite">
         {prizes.map((p, i) =>
           mostrarTodo || resueltos.includes(i) ? (
-            <li key={i} className="fo-card space-y-1 p-6">
+            <li key={i} className="fo-card flex items-start gap-3 p-6">
+              {p.partnerLogoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={p.partnerLogoUrl}
+                  alt={p.partnerName ?? ""}
+                  className="size-12 shrink-0 rounded-[var(--fo-radius)] border border-[var(--fo-border)] bg-white object-contain p-1"
+                />
+              ) : null}
+              <div className="space-y-1">
               <p className="text-sm text-[var(--fo-muted)]">
                 {p.prizeTitle}
                 {p.partnerName ? ` — lo dona ${p.partnerName}` : ""}
@@ -120,6 +138,7 @@ export function Bolillero({
               <p className="text-xs text-[var(--fo-muted)]">
                 Salió la posición {p.winnerPosition} del padrón.
               </p>
+              </div>
             </li>
           ) : null,
         )}
