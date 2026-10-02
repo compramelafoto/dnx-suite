@@ -1,4 +1,4 @@
-import { Globe, Instagram, Facebook, Linkedin, Youtube, Music2 } from "lucide-react";
+import { Globe, Instagram, Facebook, Linkedin, Youtube, Music2, MessageCircle } from "lucide-react";
 import { etiquetaEspecialidad } from "@/lib/membership/specialties";
 import type { PublicPortfolio } from "@/lib/portfolio/public-queries";
 import { PortfolioGallery } from "./portfolio-gallery";
@@ -13,7 +13,18 @@ import { InstagramStrip } from "./instagram-strip";
  *
  * Es un componente de servidor: lo único que necesita cliente son la galería y la franja.
  */
-export function PortfolioShowcase({ portfolio }: { portfolio: PublicPortfolio }) {
+export function PortfolioShowcase({
+  portfolio,
+  /**
+   * Dónde manda el botón de WhatsApp. Es una ruta nuestra que redirige, no un `wa.me` directo: así
+   * el teléfono no queda en el código fuente de la página. La vista previa no lo pasa, porque ahí
+   * el botón no tendría a dónde ir.
+   */
+  contactHref = null,
+}: {
+  portfolio: PublicPortfolio;
+  contactHref?: string | null;
+}) {
   const instagramHandle = portfolio.links.instagram
     ? limpiarUsuario(portfolio.links.instagram)
     : null;
@@ -83,6 +94,21 @@ export function PortfolioShowcase({ portfolio }: { portfolio: PublicPortfolio })
           {portfolio.bio ? (
             <p className="max-w-prose whitespace-pre-line leading-relaxed opacity-90">
               {portfolio.bio}
+            </p>
+          ) : null}
+
+          {contactHref && portfolio.canContactByWhatsapp ? (
+            <p className="pt-1">
+              <a
+                href={contactHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium transition-transform duration-200 hover:scale-[1.02]"
+                style={{ backgroundColor: "#25D366", color: "#07301c" }}
+              >
+                <MessageCircle size={17} aria-hidden />
+                Escribirle por WhatsApp
+              </a>
             </p>
           ) : null}
 

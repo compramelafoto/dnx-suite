@@ -3,6 +3,7 @@ import { prisma } from "@repo/db";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { PORTFOLIO_MODULE_KEY } from "./constants";
 import { portfolioVisibility } from "./visibility";
+import { normalizeArgentineWhatsappNumber } from "./whatsapp";
 
 /**
  * Las dos lecturas públicas: el directorio y la ficha de una persona.
@@ -63,6 +64,8 @@ export type PublicPortfolio = {
     linkedin: string | null;
   };
   coverUrl: string | null;
+  /** Si tiene un teléfono que se pudo normalizar. El número NO viaja: ver `SELECT_MIEMBRO`. */
+  canContactByWhatsapp: boolean;
   photos: PublicPortfolioPhoto[];
   /** Posteos que el socio eligió mostrar. Vacío si apagó la franja o no cargó ninguno. */
   instagramPosts: string[];
@@ -85,6 +88,12 @@ const SELECT_MIEMBRO = {
   youtube: true,
   linkedin: true,
   profilePhotoUrl: true,
+  /*
+   * Se lee para saber si se puede ofrecer WhatsApp, pero **nunca se devuelve en la ficha**: el
+   * número no entra al HTML de la página pública. El botón apunta a una ruta nuestra que redirige,
+   * así nadie puede cosechar los teléfonos de todo el padrón del código fuente del directorio.
+   */
+  phone: true,
 } as const;
 
 const SELECT_FOTO = {
@@ -263,6 +272,7 @@ function aPublicPortfolio(fila: FilaDeFicha): PublicPortfolio {
     facebook: string | null;
     youtube: string | null;
     linkedin: string | null;
+    phone: string | null;
   };
 
   return {
@@ -282,6 +292,7 @@ function aPublicPortfolio(fila: FilaDeFicha): PublicPortfolio {
       linkedin: m.linkedin,
     },
     coverUrl: fila.coverPhoto?.url ?? null,
+    canContactByWhatsapp: normalizeArgentineWhatsappNumber(m.phone) !== null,
     // El interruptor manda: apagarlo oculta la franja sin que el socio pierda los enlaces que cargó.
     instagramPosts: fila.instagramEnabled ? fila.instagramPostUrls : [],
     photos: fila.photos.map((f) => ({
@@ -323,4 +334,44 @@ export async function loadPortfolioPreview(params: {
   if (!fila) return null;
 
   return aPublicPortfolio(fila);
+}
+
+
+/**
+ * Sólo el teléfono y el nombre de quien SÍ está al aire.
+ *
+ * Existe aparte de `loadPublicPortfolio` porque el teléfono no entra en la ficha: esto lo usa la
+ * ruta de contacto, en el servidor, al momento del clic. Aplica las mismas siete condiciones.
+ */
+export async function loadPublicPortfolioContact(params: {
+  workspaceId: string;
+  publicSlug: string;
+}): Promise<{ phone: string; displayName: string } | null> {
+  if (!(await isModuleEnabledForWorkspace(params.workspaceId, PORTFOLIO_MODULE_KEY))) return null;
+
+  const fila = await prisma.fotofficeMemberPortfolio.findFirst({
+    where: { workspaceId: params.workspaceId, publicSlug: params.publicSlug },
+    select: {
+      memberId: true,
+      memberPublished: true,
+      hiddenByAdminAt: true,
+      adminForcePublish: true,
+      member: { select: SELECT_MIEMBRO },
+      _count: { select: { photos: true } },
+    },
+  });
+  if (!fila?.member.phone) return null;
+
+  const vencidos = await cargosVencidosPorMiembro(params.workspaceId, new Date());
+  const alAire = estaAlAire({
+    memberPublished: fila.memberPublished,
+    hiddenByAdminAt: fila.hiddenByAdminAt,
+    adminForcePublish: fila.adminForcePublish,
+    member: fila.member,
+    photoCount: fila._count.photos,
+    overdueCount: vencidos.get(fila.memberId) ?? 0,
+  });
+  if (!alAire) return null;
+
+  return { phone: fila.member.phone, displayName: nombreVisible(fila.member) };
 }

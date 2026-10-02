@@ -160,6 +160,8 @@ async function main() {
         email: `socio${caso.numero}@prueba.test`,
         documentType: "DNI",
         documentNumber: `3000000${caso.numero}`,
+        // Formato mayoritario real del padrón: 54 + 10 dígitos.
+        phone: `54341${caso.numero}0000`,
         status: caso.estado,
         joinedAt: new Date("2020-03-01"),
         userId,
