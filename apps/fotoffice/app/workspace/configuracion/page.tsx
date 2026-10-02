@@ -162,6 +162,21 @@ export default async function WorkspaceSettingsPage() {
 
       {membership?.role && puede(membership.role, "configurar") ? (
         <Link
+          href="/workspace/configuracion/plantillas"
+          className="fo-card flex items-center justify-between gap-4 p-4 transition hover:border-[var(--fo-accent,#1d4ed8)]"
+        >
+          <span className="space-y-0.5">
+            <span className="block text-sm font-semibold">Plantillas</span>
+            <span className="block text-xs text-[var(--fo-muted)]">
+              Textos de correo y WhatsApp listos para mandar desde las fichas, y la respuesta automática.
+            </span>
+          </span>
+          <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
+        </Link>
+      ) : null}
+
+      {membership?.role && puede(membership.role, "configurar") ? (
+        <Link
           href="/workspace/configuracion/numeracion"
           className="fo-card flex items-center justify-between gap-4 p-4 transition hover:border-[var(--fo-accent,#1d4ed8)]"
         >

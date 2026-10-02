@@ -1,19 +1,34 @@
 import { AVANZO_CON_PENDIENTES, type PasoVista } from "@/lib/circuitos/ficha-vista";
 import type { CambioVista } from "@/lib/campos/vista";
 import { fechaHoraBA } from "@/lib/ficha/formato";
+import type { MensajeVista } from "@/lib/plantillas/vista-mensaje";
+import { MensajeRegistrado } from "@/components/mensajes/mensaje-registrado";
 
-type Entrada = { tipo: "paso"; paso: PasoVista } | { tipo: "cambio"; cambio: CambioVista };
+type Entrada =
+  | { tipo: "paso"; paso: PasoVista }
+  | { tipo: "cambio"; cambio: CambioVista }
+  | { tipo: "mensaje"; mensaje: MensajeVista };
 
-const fechaDe = (e: Entrada) => (e.tipo === "paso" ? e.paso.fecha : e.cambio.fecha);
+const fechaDe = (e: Entrada) => (e.tipo === "paso" ? e.paso.fecha : e.tipo === "cambio" ? e.cambio.fecha : e.mensaje.fecha);
 
 /**
- * Qué pasó en la consulta, lo último primero: los pasos del recorrido y los cambios de
- * "Más datos", intercalados por fecha. Las fechas van en hora de Buenos Aires.
+ * Qué pasó en la consulta, lo último primero: los pasos del recorrido, los cambios de
+ * "Más datos" y los mensajes (correo o WhatsApp), intercalados por fecha. Las fechas van en
+ * hora de Buenos Aires.
  */
-export function Historial({ pasos, cambios = [] }: { pasos: PasoVista[]; cambios?: CambioVista[] }) {
+export function Historial({
+  pasos,
+  cambios = [],
+  mensajes = [],
+}: {
+  pasos: PasoVista[];
+  cambios?: CambioVista[];
+  mensajes?: MensajeVista[];
+}) {
   const entradas: Entrada[] = [
     ...pasos.map((paso) => ({ tipo: "paso" as const, paso })),
     ...cambios.map((cambio) => ({ tipo: "cambio" as const, cambio })),
+    ...mensajes.map((mensaje) => ({ tipo: "mensaje" as const, mensaje })),
   ].sort((a, b) => new Date(fechaDe(b)).getTime() - new Date(fechaDe(a)).getTime());
 
   return (
@@ -24,7 +39,11 @@ export function Historial({ pasos, cambios = [] }: { pasos: PasoVista[]; cambios
       {entradas.length === 0 ? <p className="text-sm text-[var(--fo-muted)]">Todavía no hay movimientos.</p> : null}
       <ol className="space-y-3">
         {entradas.map((e) =>
-          e.tipo === "cambio" ? (
+          e.tipo === "mensaje" ? (
+            <li key={`mensaje-${e.mensaje.id}`} className="border-l-2 border-[var(--fo-border)] pl-3 text-sm">
+              <MensajeRegistrado mensaje={e.mensaje} conEncabezado />
+            </li>
+          ) : e.tipo === "cambio" ? (
             <li key={`cambio-${e.cambio.id}`} className="border-l-2 border-[var(--fo-border)] pl-3 text-sm">
               <p className="text-xs text-[var(--fo-muted)]">
                 {fechaHoraBA(e.cambio.fecha)} · {e.cambio.quien} · Más datos

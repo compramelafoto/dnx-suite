@@ -44,6 +44,12 @@ import { CLICKATON_TERMS_VERSION } from "@/config/editions/argentina-2026";
 import { resolveShirtBenefitUiStatus } from "@/lib/catalog/domain/first-n-benefit";
 import { formatMarathonDateRange } from "@/lib/datetime";
 import { LocationConsentCheckboxes } from "@/components/participant/LocationConsentCheckboxes";
+import {
+  EMPTY_HOME_DELIVERY_VALUES,
+  RegistrationHomeDelivery,
+  type HomeDeliveryFieldKey,
+} from "@/components/public-registration/experience/RegistrationHomeDelivery";
+import { isInExcludedCity, parseHomeDeliveryAddress } from "@/lib/home-delivery/domain";
 
 type AppliedPromoQuote = Extract<PreviewPromotionActionResult, { ok: true }>["quote"];
 
@@ -162,6 +168,8 @@ export function PublicRegistrationWizard({
   const [appliedPromo, setAppliedPromo] = useState<AppliedPromoQuote | null>(null);
   const [promoError, setPromoError] = useState<string | null>(null);
   const [promoPending, setPromoPending] = useState(false);
+  const [homeDelivery, setHomeDelivery] = useState(false);
+  const [deliveryValues, setDeliveryValues] = useState(EMPTY_HOME_DELIVERY_VALUES);
 
   const ticketsForVenue = useMemo(() => {
     return context.tickets.filter((t) => {
@@ -295,6 +303,27 @@ export function PublicRegistrationWizard({
     };
   }, [baseCharge, appliedPromo, usePassCredit, referralPreview]);
 
+  // El envío no se combina con el canje de crédito del Pack (se coordina aparte).
+  const homeDeliveryOffer = usePassCredit ? null : context.homeDelivery;
+  const shippingFee = homeDelivery && homeDeliveryOffer ? homeDeliveryOffer.feeAmount : 0;
+  const totalCharge = displayCharge
+    ? { ...displayCharge, amount: displayCharge.amount + shippingFee }
+    : null;
+
+  function toggleHomeDelivery(on: boolean) {
+    setHomeDelivery(on);
+    if (!on) return;
+    // Se completa con lo que ya cargó; lo puede cambiar.
+    setDeliveryValues((prev) => ({
+      ...prev,
+      recipientName: prev.recipientName || `${firstName} ${lastName}`.trim(),
+      documentNumber: prev.documentNumber || documentNumber,
+      phone: prev.phone || phone,
+      city: prev.city || city,
+      province: prev.province || province,
+    }));
+  }
+
   const canUsePromo = Boolean(
     selectedTicket && !usePassCredit && baseCharge && baseCharge.amount > 0,
   );
@@ -418,6 +447,18 @@ export function PublicRegistrationWizard({
         else if (!(anio >= hoy - 110 && anio <= hoy - 5)) errs.birthDate = "Revisá la fecha de nacimiento.";
       }
       if (!profilePhotoAssetId) errs.profilePhotoAssetId = "Subí una foto de perfil.";
+      if (homeDelivery && homeDeliveryOffer) {
+        const parsed = parseHomeDeliveryAddress(deliveryValues);
+        if (!parsed.ok) Object.assign(errs, parsed.errors);
+        else if (
+          isInExcludedCity(parsed.address, {
+            excludedCity: homeDeliveryOffer.excludedCity,
+            excludedProvince: null,
+          })
+        ) {
+          errs["delivery.city"] = `El envío es para quienes viven fuera de ${homeDeliveryOffer.excludedCity}. Ahí el kit se retira en la sede.`;
+        }
+      }
       if (selectedTicket) {
         for (const p of selectedTicket.products) {
           if (p.requiresVariantChoice && !variantChoices[p.productId]) {
@@ -430,7 +471,9 @@ export function PublicRegistrationWizard({
         setError(
           errs[`variant_${shirtProducts[0]?.productId ?? ""}`]
             ? "Elegí el talle de la remera para continuar."
-            : "Completá los datos obligatorios y aceptá las bases y condiciones.",
+            : Object.keys(errs).some((k) => k.startsWith("delivery."))
+              ? "Revisá los datos del envío a domicilio."
+              : "Completá los datos obligatorios y aceptá las bases y condiciones.",
         );
         return;
       }
@@ -572,6 +615,12 @@ export function PublicRegistrationWizard({
     fd.set("consentVersion", "2026-08-social-v1");
     fd.set("termsVersion", CLICKATON_TERMS_VERSION);
     fd.set("idempotencyKey", idemRef.current || idemKey);
+    if (homeDelivery && homeDeliveryOffer) {
+      fd.set("homeDelivery", "true");
+      for (const [key, value] of Object.entries(deliveryValues)) {
+        fd.set(`delivery.${key}`, value);
+      }
+    }
 
     startTransition(async () => {
       const result = await createPublicRegistrationAction(undefined, fd);
@@ -958,6 +1007,19 @@ export function PublicRegistrationWizard({
                 error={fieldErrors.birthDate}
               />
             </div>
+            {homeDeliveryOffer ? (
+              <RegistrationHomeDelivery
+                offer={homeDeliveryOffer}
+                enabled={homeDelivery}
+                onEnabledChange={toggleHomeDelivery}
+                values={deliveryValues}
+                onChange={(key: HomeDeliveryFieldKey, v: string) =>
+                  setDeliveryValues((prev) => ({ ...prev, [key]: v }))
+                }
+                errors={fieldErrors}
+                currency={displayCharge?.currency ?? "ARS"}
+              />
+            ) : null}
             <div className="block text-sm">
               <span className="font-medium text-ck-text">Foto de perfil *</span>
               <input
@@ -1099,9 +1161,15 @@ export function PublicRegistrationWizard({
               <div>
                 <dt className="text-ck-text-secondary">Importe</dt>
                 <dd>
-                  {displayCharge
-                    ? formatPublicPrice(displayCharge.amount, displayCharge.currency)
+                  {totalCharge
+                    ? formatPublicPrice(totalCharge.amount, totalCharge.currency)
                     : "—"}
+                  {shippingFee > 0 && displayCharge ? (
+                    <span className="mt-1 block text-xs text-ck-text-muted">
+                      Inscripción {formatPublicPrice(displayCharge.amount, displayCharge.currency)}{" "}
+                      + envío a domicilio {formatPublicPrice(shippingFee, displayCharge.currency)}
+                    </span>
+                  ) : null}
                   {appliedPromo ? (
                     <span className="mt-1 block text-xs text-emerald-300">
                       Código {appliedPromo.code}: −{" "}
@@ -1214,8 +1282,10 @@ export function PublicRegistrationWizard({
       {showSticky ? (
         <RegistrationStickySummary
           productLabel={stickyProductLabel}
-          priceMinor={displayCharge?.amount ?? null}
-          compareAtMinor={entryPromo.compareAt}
+          priceMinor={totalCharge?.amount ?? null}
+          compareAtMinor={
+            entryPromo.compareAt != null ? entryPromo.compareAt + shippingFee : null
+          }
           savingsMinor={stickySavings}
           usingCredit={usePassCredit}
           includes={stickyIncludes}

@@ -6,6 +6,7 @@ import { requireMembersContext } from "@/lib/members/access";
 import { Ficha } from "@/components/ficha/ficha";
 import { DatosFicha } from "@/components/ficha/datos-ficha";
 import { MasDatos } from "@/components/campos/mas-datos";
+import { Mensaje } from "@/components/mensajes/mensaje";
 import type { InsigniaFicha } from "@/components/ficha/encabezado-ficha";
 import { resolverPersonaPorSocio } from "@/lib/ficha/persona";
 import { MemberStatusChanger } from "@/components/members/member-status-changer";
@@ -143,6 +144,7 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
       }}
       datos={
         <>
+          <Mensaje entityType="SOCIO" entityId={member.id} />
           <DatosFicha
             titulo="Identidad"
             filas={[

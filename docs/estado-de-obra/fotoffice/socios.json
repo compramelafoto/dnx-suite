@@ -90,6 +90,14 @@
           "implementado": { "commit": "63fe46ec", "fecha": "2026-09-05" },
           "probado": null,
           "bloqueado": "Sólo 2 de los 112 tienen cuenta: falta la invitación por tandas de esa institución"
+        },
+        {
+          "que": "El socio ve en su portal su número, su categoría y su estado, y corrige él mismo sus datos personales, con registro del cambio",
+          "implementado": { "pr": 233, "fecha": "2026-09-22" },
+          "probado": {
+            "fecha": "2026-09-29",
+            "evidencia": "El 23/09 a las 04:17 UTC un socio corrigió su tipo y número de documento desde el portal: quedó 1 fila UPDATED en MemberAudit cuyo autor es la cuenta del propio socio"
+          }
         }
       ]
     },

@@ -11,6 +11,7 @@ import { proveedorCuotas } from "./cuotas";
 import { proveedorEventosPersona } from "./eventos-persona";
 import { proveedorHistorialCliente } from "./historial-cliente";
 import { proveedorHistorialSocio } from "./historial-socio";
+import { proveedorMensajes } from "./mensajes";
 import { proveedorNotas } from "./notas";
 
 /** Todas las fuentes de la línea de tiempo de la ficha. */
@@ -20,6 +21,7 @@ export const PROVEEDORES_FICHA: Proveedor[] = [
   proveedorHistorialCliente,
   proveedorHistorialSocio,
   proveedorCampos,
+  proveedorMensajes,
   proveedorCaja,
   proveedorCuotas,
   proveedorCarnets,
