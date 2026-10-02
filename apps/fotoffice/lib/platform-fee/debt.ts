@@ -12,52 +12,18 @@ import { splitMinorByPlatformFee } from "./fee";
  * Todo en centavos y con enteros. El dinero no se calcula en coma flotante.
  */
 
-/** Cargo de apertura: el saldo traído del sistema anterior. Ver ANALISIS-PADRON-SFPR.md. */
-export const APERTURA_PERIOD = "APERTURA";
-
-/**
- * Desde qué período se cobra comisión.
- *
- * Decisión de Daniel: la comisión rige desde las cuotas de septiembre de 2026, que son las
- * primeras que genera FotOffice. Las anteriores y el cargo de apertura vienen del sistema
- * anterior; cobrar sobre eso sería cobrar por trabajo que FotOffice no hizo.
- *
- * Es una constante y no una configuración porque hoy hay una sola institución y una sola
- * fecha de corte. Cuando haya una segunda, esto pasa a la configuración del workspace.
- */
-export const FEE_SINCE_PERIOD = "2026-09";
-
-const PERIODO = /^\d{4}-(0[1-9]|1[0-2])$/;
-
-/**
- * ¿Este cargo devenga comisión?
- *
- * Solo las cuotas desde el período de corte. Quedan afuera las anteriores y el cargo de
- * apertura, que es deuda heredada del sistema anterior: cobrar comisión sobre eso sería
- * cobrar por trabajo que FotoOffice no hizo.
- *
- * Ante un período con formato inesperado devuelve `false`. Si no se puede afirmar que
- * corresponde cobrar, no se cobra.
- */
-export function chargeAccruesFee(period: string, sincePeriod: string): boolean {
-  if (!PERIODO.test(period) || !PERIODO.test(sincePeriod)) return false;
-  return period >= sincePeriod;
-}
-
 /**
  * Comisión que queda a deber por un pago manual.
  *
- * Se calcula solo sobre la parte imputada a cuotas que devengan comisión: un pago que solo
- * salda deuda vieja no genera deuda de fee.
+ * Se calcula sobre **todo lo cobrado**, sin mirar a qué cuota se imputa. Decisión de Daniel
+ * (02/10/2026): un cobro en efectivo, por transferencia o por el link de pago del sistema
+ * anterior es plata que la institución cobró sin que la plataforma pudiera retener nada, y
+ * eso vale igual si salda septiembre o el arrastre de apertura. Antes la comisión sólo corría
+ * sobre las cuotas desde 2026-09, y la imputación de la más vieja primero hacía que casi
+ * ningún cobro manual la generara.
  */
-export function accrualForManualPayment(
-  allocations: { period: string; amountMinor: number }[],
-  feeBps: number,
-  sincePeriod: string,
-): number {
-  const base = allocations
-    .filter((a) => chargeAccruesFee(a.period, sincePeriod))
-    .reduce((s, a) => s + (Number.isInteger(a.amountMinor) && a.amountMinor > 0 ? a.amountMinor : 0), 0);
+export function accrualForManualPayment(amountMinor: number, feeBps: number): number {
+  const base = Number.isInteger(amountMinor) && amountMinor > 0 ? amountMinor : 0;
   return splitMinorByPlatformFee(base, feeBps).feeMinor;
 }
 
