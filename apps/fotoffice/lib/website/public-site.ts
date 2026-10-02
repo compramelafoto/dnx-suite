@@ -3,6 +3,7 @@ import { prisma } from "@repo/db";
 import { parseWebsiteSections, type WebsiteBlock } from "./blocks";
 import { resolveWebsiteColors, type WebsiteColors } from "./branding-defaults";
 import { parseWebsiteDesignPresets, type WebsiteDesignPresets } from "./design-presets";
+import { parseSiteMenu, type SiteMenu } from "./site-menu";
 import { WEBSITE_MODULE_KEY } from "./constants";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 
@@ -49,6 +50,8 @@ export type PublicSite = {
   designPresets: WebsiteDesignPresets;
   homeBlocks: WebsiteBlock[];
   hasPublishedSite: boolean;
+  /** El menú editado de la versión publicada; `null` = el automático. */
+  menu: SiteMenu | null;
   enabledModuleKeys: Set<string>;
   contact: PublicSiteContact;
 };
@@ -97,7 +100,7 @@ export const loadPublicSite = cache(async function loadPublicSite(workspaceSlug:
     prisma.fotofficeWorkspaceWebsite.findUnique({
       where: { workspaceId: branding.workspaceId },
       select: {
-        publishedVersion: { select: { sectionsJson: true, designPresetsJson: true } },
+        publishedVersion: { select: { sectionsJson: true, designPresetsJson: true, navJson: true } },
       },
     }),
   ]);
@@ -119,6 +122,9 @@ export const loadPublicSite = cache(async function loadPublicSite(workspaceSlug:
     designPresets: parseWebsiteDesignPresets(website?.publishedVersion?.designPresetsJson ?? null),
     homeBlocks,
     hasPublishedSite,
+    // Igual que las secciones: sin sitio publicado (o con el módulo apagado) el menú es el
+    // automático, nunca uno editado que quedó de antes.
+    menu: hasPublishedSite ? parseSiteMenu(website?.publishedVersion?.navJson ?? null) : null,
     enabledModuleKeys,
     contact: {
       email: branding.contactEmail,

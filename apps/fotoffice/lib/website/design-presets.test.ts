@@ -40,8 +40,20 @@ describe("parseWebsiteDesignPresets", () => {
       buttonPreset: "pill",
       animationPreset: "dynamic",
       footerPreset: "simple",
+      menuLayout: "drawer",
+      menuSide: "left",
     };
     expect(parseWebsiteDesignPresets(full)).toEqual(full);
+  });
+
+  it("un sitio guardado antes de que existiera la disposición del menú sigue con la barra superior", () => {
+    const viejo = parseWebsiteDesignPresets({ headerPreset: "centered" });
+    expect(viejo.menuLayout).toBe("topbar");
+    expect(viejo.menuSide).toBe("right");
+  });
+
+  it("una disposición desconocida cae a la barra superior", () => {
+    expect(parseWebsiteDesignPresets({ menuLayout: "carrusel" }).menuLayout).toBe("topbar");
   });
 });
 

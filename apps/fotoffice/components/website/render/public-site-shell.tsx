@@ -1,9 +1,10 @@
 import type { CSSProperties, ReactNode } from "react";
 import { websiteDesignCssVars } from "@/lib/website/design-presets";
-import { buildSiteNav } from "@/lib/website/site-nav";
+import { resolveSiteNav } from "@/lib/website/site-menu";
 import type { PublicSite } from "@/lib/website/public-site";
 import { WebsiteHeaderView } from "./website-header-view";
 import { WebsiteFooterView } from "./website-footer-view";
+import { SiteFrame } from "./site-frame";
 
 /**
  * El armazón que envuelve TODAS las páginas de `/w/[slug]` — la portada del sitio y las
@@ -18,7 +19,7 @@ import { WebsiteFooterView } from "./website-footer-view";
  * los dos se envuelve en un límite de cliente acá. El pie no necesita saber la ruta actual (sólo
  * pinta `label`/`href`). El header sí, pero resuelve eso por dentro con un componente de cliente
  * chiquito acotado sólo al menú (`WebsiteHeaderNavClient`), con `usePathname()` — ver el
- * comentario en `website-header-view.tsx`. `buildSiteNav` no conoce la ruta actual: sólo arma
+ * comentario en `website-header-view.tsx`. `resolveSiteNav` no conoce la ruta actual: sólo arma
  * la lista de ítems, sin marcar ninguno.
  */
 export function PublicSiteShell({
@@ -28,11 +29,12 @@ export function PublicSiteShell({
   site: PublicSite;
   children: ReactNode;
 }) {
-  const navItems = buildSiteNav({
+  const navItems = resolveSiteNav({
     workspaceSlug: site.workspaceSlug,
     homeBlocks: site.homeBlocks,
     enabledModuleKeys: site.enabledModuleKeys,
     hasPublishedSite: site.hasPublishedSite,
+    menu: site.menu,
   });
 
   const themeVars = {
@@ -45,22 +47,30 @@ export function PublicSiteShell({
   } as CSSProperties;
 
   return (
-    <div style={{ ...themeVars, minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-      <WebsiteHeaderView
-        logoUrl={site.logoUrl}
-        workspaceName={site.commercialName}
-        navItems={navItems}
-        designPresets={site.designPresets}
-        homeHref={`/w/${site.workspaceSlug}`}
-      />
-      <div style={{ flex: 1 }}>{children}</div>
-      <WebsiteFooterView
-        commercialName={site.commercialName}
-        logoUrl={site.logoUrl}
-        contact={site.contact}
-        navItems={navItems}
-        designPresets={site.designPresets}
-      />
-    </div>
+    <SiteFrame
+      designPresets={site.designPresets}
+      style={themeVars}
+      minHeight="100vh"
+      header={
+        <WebsiteHeaderView
+          logoUrl={site.logoUrl}
+          workspaceName={site.commercialName}
+          navItems={navItems}
+          designPresets={site.designPresets}
+          homeHref={`/w/${site.workspaceSlug}`}
+        />
+      }
+      footer={
+        <WebsiteFooterView
+          commercialName={site.commercialName}
+          logoUrl={site.logoUrl}
+          contact={site.contact}
+          navItems={navItems}
+          designPresets={site.designPresets}
+        />
+      }
+    >
+      {children}
+    </SiteFrame>
   );
 }

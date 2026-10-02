@@ -1,27 +1,34 @@
 import { prisma } from "@repo/db";
 import { loadWebsiteCmsContext } from "@/lib/website/page-context";
 import { resolveWebsiteColors } from "@/lib/website/branding-defaults";
+import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { normalizeFotofficeOrganizationType } from "@/lib/onboarding-constants";
 import { PageHeader } from "@/components/page-header";
 import { WebsiteBuilder } from "@/components/website/builder/website-builder";
 
-export default async function WebsiteBuilderPage() {
-  const { workspace, canEdit, status, sections, designPresets, draftUpdatedAtIso } = await loadWebsiteCmsContext();
+export default async function WebsiteBuilderPage({ searchParams }: { searchParams: Promise<{ panel?: string }> }) {
+  const [{ workspace, canEdit, status, sections, designPresets, menu, draftUpdatedAtIso }, { panel }] = await Promise.all([
+    loadWebsiteCmsContext(),
+    searchParams,
+  ]);
 
-  const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
-    where: { workspaceId: workspace.id },
-    select: {
-      primaryColor: true,
-      secondaryColor: true,
-      backgroundColor: true,
-      textColor: true,
-      accentColor: true,
-      logoUrl: true,
-      faviconUrl: true,
-      activityType: true,
-      commercialName: true,
-    },
-  });
+  const [branding, enabledModuleKeys] = await Promise.all([
+    prisma.fotofficeWorkspaceBranding.findUnique({
+      where: { workspaceId: workspace.id },
+      select: {
+        primaryColor: true,
+        secondaryColor: true,
+        backgroundColor: true,
+        textColor: true,
+        accentColor: true,
+        logoUrl: true,
+        faviconUrl: true,
+        activityType: true,
+        commercialName: true,
+      },
+    }),
+    getEnabledModuleKeysForWorkspace(workspace.id),
+  ]);
 
   return (
     <div className="space-y-4">
@@ -32,6 +39,9 @@ export default async function WebsiteBuilderPage() {
         initialLogoUrl={branding?.logoUrl ?? null}
         initialFaviconUrl={branding?.faviconUrl ?? null}
         initialDesignPresets={designPresets}
+        initialMenu={menu}
+        enabledModuleKeys={[...enabledModuleKeys]}
+        initialPanel={panel === "menu" ? "MENU" : undefined}
         workspaceName={branding?.commercialName ?? workspace.name}
         organizationType={normalizeFotofficeOrganizationType(branding?.activityType) || null}
         canEdit={canEdit}

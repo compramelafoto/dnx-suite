@@ -1,6 +1,8 @@
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
+import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
+import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 
 /**
  * Las páginas públicas que aporta cada módulo al sitio: qué segmento ocupan bajo
@@ -37,6 +39,33 @@ export function publicModulePagesFor(enabledModuleKeys: ReadonlySet<string>): Pu
 }
 
 /**
+ * Páginas públicas que existen pero que NO entran solas al menú: el dueño las suma a mano desde
+ * la pestaña Menú del constructor. Están separadas de `PUBLIC_MODULE_PAGES` a propósito — si
+ * vivieran ahí, aparecerían de golpe en el menú de todos los sitios ya publicados.
+ *
+ * `moduleKey: null` es una página del sitio que no depende de ningún módulo.
+ */
+export type OptionalPublicPage = {
+  /** Identificador estable que se guarda en el menú (`navJson`). No cambiarlo nunca. */
+  key: string;
+  moduleKey: string | null;
+  /** Ruta bajo `/w/[slug]/`. */
+  path: string;
+  label: string;
+};
+
+export const OPTIONAL_PUBLIC_PAGES: readonly OptionalPublicPage[] = [
+  { key: "raffles", moduleKey: RAFFLES_MODULE_KEY, path: "sorteos", label: "Sorteos" },
+  { key: "coverages", moduleKey: COVERAGES_MODULE_KEY, path: "coberturas/solicitar", label: "Pedir cobertura" },
+  { key: "entrar", moduleKey: null, path: "entrar", label: "Ingresar" },
+] as const;
+
+/** Las páginas opcionales disponibles con los módulos habilitados. */
+export function optionalPublicPagesFor(enabledModuleKeys: ReadonlySet<string>): OptionalPublicPage[] {
+  return OPTIONAL_PUBLIC_PAGES.filter((p) => p.moduleKey === null || enabledModuleKeys.has(p.moduleKey));
+}
+
+/**
  * Segmentos que una página del dueño no puede ocupar, porque ya los usa el sitio. Los de
  * módulos se derivan de `PUBLIC_MODULE_PAGES`; los fijos son rutas propias del sitio que no
  * pertenecen a ningún módulo.
@@ -47,7 +76,11 @@ export function publicModulePagesFor(enabledModuleKeys: ReadonlySet<string>): Pu
 const SEGMENTOS_FIJOS = ["xv", "sitemap.xml", "robots.txt"] as const;
 
 export const SITE_RESERVED_SEGMENTS: readonly string[] = [
-  ...new Set([...PUBLIC_MODULE_PAGES.map((p) => p.segment), ...SEGMENTOS_FIJOS]),
+  ...new Set([
+    ...PUBLIC_MODULE_PAGES.map((p) => p.segment),
+    ...OPTIONAL_PUBLIC_PAGES.map((p) => p.path.split("/")[0]),
+    ...SEGMENTOS_FIJOS,
+  ]),
 ];
 
 export function isSiteSegmentReserved(segment: string): boolean {

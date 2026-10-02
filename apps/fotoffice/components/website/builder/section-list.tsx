@@ -212,7 +212,7 @@ function SectionRow({
   );
 }
 
-function RowIconButton({
+export function RowIconButton({
   label,
   onClick,
   disabled,

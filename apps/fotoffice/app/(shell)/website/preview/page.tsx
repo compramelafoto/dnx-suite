@@ -4,34 +4,33 @@ import { prisma } from "@repo/db";
 import { loadWebsiteCmsContext } from "@/lib/website/page-context";
 import { resolveWebsiteColors } from "@/lib/website/branding-defaults";
 import { websiteDesignCssVars } from "@/lib/website/design-presets";
-import { deriveHomeNavItems } from "@/lib/website/navigation";
-import type { SiteNavItem } from "@/lib/website/site-nav";
+import { resolveSiteNav, toPreviewNav } from "@/lib/website/site-menu";
+import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { WebsitePageRenderer } from "@/components/website/render/website-page-renderer";
 import { WebsiteHeaderView } from "@/components/website/render/website-header-view";
+import { SiteFrame } from "@/components/website/render/site-frame";
 
 /**
  * Vista previa del BORRADOR (nunca de la versión publicada) — ver Parte 11 del pedido. Ruta
  * protegida: hereda el gate de `(shell)/layout.tsx` (auth + acceso a la app) y además
  * `loadWebsiteCmsContext` exige el workspace activo con el módulo Website habilitado. No usa
- * `WebsiteShell` a propósito: debe parecerse al sitio, no al panel de administración. El sitio
- * público real (`/w/[slug]`) NO se toca en esta etapa — este renderer solo se usa acá.
+ * `WebsiteShell` a propósito: debe parecerse al sitio, no al panel de administración.
  */
 export default async function WebsitePreviewPage() {
-  const { workspace, sections, designPresets } = await loadWebsiteCmsContext();
+  const { workspace, sections, designPresets, menu } = await loadWebsiteCmsContext();
 
-  const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
-    where: { workspaceId: workspace.id },
-    select: { primaryColor: true, secondaryColor: true, backgroundColor: true, textColor: true, accentColor: true, logoUrl: true, commercialName: true },
-  });
+  const [branding, enabledModuleKeys] = await Promise.all([
+    prisma.fotofficeWorkspaceBranding.findUnique({
+      where: { workspaceId: workspace.id },
+      select: { primaryColor: true, secondaryColor: true, backgroundColor: true, textColor: true, accentColor: true, logoUrl: true, commercialName: true },
+    }),
+    getEnabledModuleKeysForWorkspace(workspace.id),
+  ]);
   const colors = resolveWebsiteColors(branding);
   const blocks = sections.pages.home ?? [];
-  const navItems: SiteNavItem[] = deriveHomeNavItems(blocks).map((item) => ({
-    id: item.id,
-    label: item.label,
-    href: item.anchor ? `#${item.anchor}` : "#",
-    current: false,
-    children: [],
-  }));
+  const navItems = toPreviewNav(
+    resolveSiteNav({ workspaceSlug: "vista-previa", homeBlocks: blocks, enabledModuleKeys, hasPublishedSite: true, menu }),
+  );
   const themeVars = {
     "--wsite-primary": colors.primaryColor,
     "--wsite-secondary": colors.secondaryColor,
@@ -49,15 +48,22 @@ export default async function WebsitePreviewPage() {
           Volver al editor
         </Link>
       </div>
-      <div className="relative" style={themeVars}>
-        <WebsiteHeaderView
-          logoUrl={branding?.logoUrl ?? null}
-          workspaceName={branding?.commercialName ?? workspace.name}
-          navItems={navItems}
+      <div className="relative">
+        <SiteFrame
           designPresets={designPresets}
-          homeHref="#"
-        />
-        <WebsitePageRenderer blocks={blocks} colors={colors} designPresets={designPresets} />
+          style={themeVars}
+          header={
+            <WebsiteHeaderView
+              logoUrl={branding?.logoUrl ?? null}
+              workspaceName={branding?.commercialName ?? workspace.name}
+              navItems={navItems}
+              designPresets={designPresets}
+              homeHref="#"
+            />
+          }
+        >
+          <WebsitePageRenderer blocks={blocks} colors={colors} designPresets={designPresets} />
+        </SiteFrame>
       </div>
     </div>
   );

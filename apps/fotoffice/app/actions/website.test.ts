@@ -28,6 +28,7 @@ const txDelegates = {
 };
 
 vi.mock("@repo/db", () => ({
+  Prisma: { JsonNull: "JsonNull" },
   prisma: {
     workspaceMembership: { findUnique: membershipFindUniqueMock },
     fotofficeWorkspaceWebsite: {
@@ -341,7 +342,7 @@ describe("saveWebsiteBlocksAction", () => {
     membershipFindUniqueMock.mockResolvedValueOnce({ role: "WORKSPACE_OWNER" });
     websiteUpdateManyMock.mockResolvedValueOnce({ count: 1 });
     websiteFindUniqueMock.mockResolvedValueOnce({ updatedAt: new Date("2026-08-19T10:00:05.000Z") });
-    const presets = { headerPreset: "centered", showLoginButton: true, loginButtonLabel: "Entrar", logoSizePx: 48, typographyPreset: "editorial", buttonPreset: "pill", animationPreset: "soft", footerPreset: "simple" };
+    const presets = { headerPreset: "centered", showLoginButton: true, loginButtonLabel: "Entrar", logoSizePx: 48, typographyPreset: "editorial", buttonPreset: "pill", animationPreset: "soft", footerPreset: "simple", menuLayout: "topbar", menuSide: "right" };
     const result = await saveWebsiteBlocksAction(
       undefined,
       buildFormData({ designPresetsJson: JSON.stringify(presets), draftUpdatedAt: "2026-08-19T10:00:00.000Z" }),
@@ -356,7 +357,7 @@ describe("saveWebsiteBlocksAction", () => {
     membershipFindUniqueMock.mockResolvedValueOnce({ role: "WORKSPACE_OWNER" });
     websiteUpdateManyMock.mockResolvedValueOnce({ count: 1 });
     websiteFindUniqueMock.mockResolvedValueOnce({ updatedAt: new Date("2026-08-19T10:00:05.000Z") });
-    const presets = { headerPreset: "minimal", showLoginButton: false, loginButtonLabel: "Iniciar sesión", logoSizePx: 40, typographyPreset: "modern", buttonPreset: "rounded", animationPreset: "none", footerPreset: "simple" };
+    const presets = { headerPreset: "minimal", showLoginButton: false, loginButtonLabel: "Iniciar sesión", logoSizePx: 40, typographyPreset: "modern", buttonPreset: "rounded", animationPreset: "none", footerPreset: "simple", menuLayout: "fullscreen", menuSide: "right" };
     await saveWebsiteBlocksAction(
       undefined,
       buildFormData({ blocksJson: JSON.stringify([VALID_BLOCK]), designPresetsJson: JSON.stringify(presets), draftUpdatedAt: "2026-08-19T10:00:00.000Z" }),
@@ -387,6 +388,53 @@ describe("saveWebsiteBlocksAction", () => {
       buildFormData({ designPresetsJson: "{esto no es json", draftUpdatedAt: "2026-08-19T10:00:00.000Z" }),
     );
     expect(result.error).toBe("Los presets de diseño enviados no tienen un formato válido.");
+    expect(websiteUpdateManyMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("saveWebsiteBlocksAction — menú", () => {
+  beforeEach(() => {
+    membershipFindUniqueMock.mockReset();
+    websiteUpdateManyMock.mockReset();
+    websiteFindUniqueMock.mockReset();
+  });
+
+  const MENU = {
+    version: 2,
+    items: [
+      { id: "page:home", kind: "page", page: "home", label: "Portada", hidden: false },
+      { id: "ig", kind: "link", label: "Instagram", url: "https://instagram.com/sfpr", newTab: true, hidden: false },
+    ],
+  };
+
+  it("guarda el menú editado sin tocar secciones ni diseño", async () => {
+    membershipFindUniqueMock.mockResolvedValueOnce({ role: "WORKSPACE_OWNER" });
+    websiteUpdateManyMock.mockResolvedValueOnce({ count: 1 });
+    websiteFindUniqueMock.mockResolvedValueOnce({ updatedAt: new Date("2026-08-19T10:00:05.000Z") });
+    const result = await saveWebsiteBlocksAction(
+      undefined,
+      buildFormData({ navJson: JSON.stringify(MENU), draftUpdatedAt: "2026-08-19T10:00:00.000Z" }),
+    );
+    expect(result.error).toBeNull();
+    expect(websiteUpdateManyMock.mock.calls[0][0].data).toEqual({ navJson: MENU });
+  });
+
+  it("null vuelve al menú automático", async () => {
+    membershipFindUniqueMock.mockResolvedValueOnce({ role: "WORKSPACE_OWNER" });
+    websiteUpdateManyMock.mockResolvedValueOnce({ count: 1 });
+    websiteFindUniqueMock.mockResolvedValueOnce({ updatedAt: new Date("2026-08-19T10:00:05.000Z") });
+    await saveWebsiteBlocksAction(undefined, buildFormData({ navJson: "null", draftUpdatedAt: "2026-08-19T10:00:00.000Z" }));
+    expect(websiteUpdateManyMock.mock.calls[0][0].data).toEqual({ navJson: "JsonNull" });
+  });
+
+  it("un link inseguro se rechaza sin llegar a la DB", async () => {
+    membershipFindUniqueMock.mockResolvedValueOnce({ role: "WORKSPACE_OWNER" });
+    const malo = { version: 2, items: [{ id: "x", kind: "link", label: "X", url: "javascript:alert(1)", newTab: false, hidden: false }] };
+    const result = await saveWebsiteBlocksAction(
+      undefined,
+      buildFormData({ navJson: JSON.stringify(malo), draftUpdatedAt: "2026-08-19T10:00:00.000Z" }),
+    );
+    expect(result.error).toContain("menú");
     expect(websiteUpdateManyMock).not.toHaveBeenCalled();
   });
 });
