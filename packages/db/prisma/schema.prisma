@@ -746,6 +746,11 @@ model BlogCategory {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   platform    String
+  /// A qué institución pertenece, dentro de la plataforma. "" = el blog de la plataforma entera
+  /// (CompraMeLaFoto, Clickatón). En FOTOFFICE es el id del workspace: cada institución tiene su
+  /// blog. Texto y no FK a propósito: "" tiene que poder entrar en el `@@unique`, y un NULL no
+  /// cuenta para la unicidad en Postgres.
+  workspaceKey String @default("")
   name        String
   slug        String
   description String?
@@ -753,7 +758,7 @@ model BlogCategory {
   isFeatured  Boolean    @default(false)
   posts       BlogPost[]
 
-  @@unique([platform, slug])
+  @@unique([platform, workspaceKey, slug])
   @@index([platform, sortOrder])
 }
 
@@ -762,11 +767,12 @@ model BlogCategory {
 model BlogTag {
   id       Int           @id @default(autoincrement())
   platform String
+  workspaceKey String @default("")
   name     String
   slug     String
   posts    BlogPostTag[]
 
-  @@unique([platform, slug])
+  @@unique([platform, workspaceKey, slug])
 }
 
 /// *
@@ -776,6 +782,7 @@ model BlogAuthor {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   platform  String
+  workspaceKey String @default("")
   name      String
   slug      String
   bio       String?
@@ -786,7 +793,7 @@ model BlogAuthor {
   user      User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
   posts     BlogPost[]
 
-  @@unique([platform, slug])
+  @@unique([platform, workspaceKey, slug])
   @@index([platform, isActive])
 }
 
@@ -796,6 +803,7 @@ model BlogMedia {
   id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
   platform  String
+  workspaceKey String @default("")
   title     String?
   altText   String?
   caption   String?
@@ -806,6 +814,7 @@ model BlogMedia {
   sizeBytes Int
 
   @@index([platform, createdAt])
+  @@index([platform, workspaceKey, createdAt])
 }
 
 /// *
@@ -815,6 +824,7 @@ model BlogPost {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
   platform       String
+  workspaceKey String @default("")
   title          String
   slug           String
   excerpt        String?
@@ -842,8 +852,9 @@ model BlogPost {
   tags           BlogPostTag[]
   views          BlogPostView[]
 
-  @@unique([platform, slug])
+  @@unique([platform, workspaceKey, slug])
   @@index([platform, status, publishedAt])
+  @@index([platform, workspaceKey, status, publishedAt])
   @@index([platform, status, isFeatured])
   @@index([platform, categoryId])
   @@index([platform, type])

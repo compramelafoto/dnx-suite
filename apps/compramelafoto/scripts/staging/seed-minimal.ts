@@ -208,7 +208,7 @@ async function ensureBlogPost(skipBlog: boolean) {
   }
 
   const category = await prisma.blogCategory.upsert({
-    where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: BLOG_CATEGORY_SLUG } },
+    where: { platform_workspaceKey_slug: { platform: CLF_CONTENT_PLATFORM, workspaceKey: "", slug: BLOG_CATEGORY_SLUG } },
     update: {
       name: "Staging CLF",
       description: "Categoría de prueba para preview staging.",
@@ -227,7 +227,7 @@ async function ensureBlogPost(skipBlog: boolean) {
   });
 
   const author = await prisma.blogAuthor.upsert({
-    where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: BLOG_AUTHOR_SLUG } },
+    where: { platform_workspaceKey_slug: { platform: CLF_CONTENT_PLATFORM, workspaceKey: "", slug: BLOG_AUTHOR_SLUG } },
     update: {
       name: "Equipo Staging CLF",
       role: "Preview",
@@ -261,7 +261,7 @@ async function ensureBlogPost(skipBlog: boolean) {
   };
 
   const post = await prisma.blogPost.upsert({
-    where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: BLOG_POST_SLUG } },
+    where: { platform_workspaceKey_slug: { platform: CLF_CONTENT_PLATFORM, workspaceKey: "", slug: BLOG_POST_SLUG } },
     update: {
       title,
       excerpt,
