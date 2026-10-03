@@ -60,6 +60,9 @@ function done(message?: string): CommissionActionState {
   return message ? { error: null, ok: true, message } : { error: null, ok: true };
 }
 
+/** Vigente o futuro: sin fin, o con fin todavía por llegar. */
+const stillInForce = (now: Date) => ({ OR: [{ endsAt: null }, { endsAt: { gt: now } }] });
+
 const insensitive = (name: string) => ({ equals: name, mode: "insensitive" as const });
 
 // ─────────────────────────────── Roles ───────────────────────────────
@@ -164,16 +167,22 @@ export async function duplicateRoleAction(
     role.name,
     existing.map((r) => r.name),
   );
-  await prisma.workspaceCustomRole.create({
-    data: {
-      workspaceId,
-      name,
-      description: role.description,
-      permissions: {
-        create: role.permissions.map((p) => ({ moduleKey: p.moduleKey, level: p.level, actions: [...p.actions] })),
+  try {
+    await prisma.workspaceCustomRole.create({
+      data: {
+        workspaceId,
+        name,
+        description: role.description,
+        permissions: {
+          create: role.permissions.map((p) => ({ moduleKey: p.moduleKey, level: p.level, actions: [...p.actions] })),
+        },
       },
-    },
-  });
+    });
+  } catch (e) {
+    // Otra pestaña duplicó el mismo rol entre la lectura de nombres y esta escritura.
+    if (isUniqueViolation(e)) return { error: ROLE_NAME_TAKEN };
+    throw e;
+  }
   return done();
 }
 
@@ -225,8 +234,9 @@ export async function archiveRoleAction(
       where: { id: role.id, workspaceId },
       data: { archivedAt: now, name: archivedName(role.name, now, names.map((r) => r.name)) },
     });
+    // Sólo lo vigente o futuro: lo ya vencido conserva su fecha real de fin en el historial.
     await tx.workspaceRoleAssignment.updateMany({
-      where: { workspaceId, roleId: role.id, revokedAt: null },
+      where: { workspaceId, roleId: role.id, revokedAt: null, ...stillInForce(now) },
       data: { revokedAt: now },
     });
   });
@@ -236,7 +246,8 @@ export async function archiveRoleAction(
     const uid = a.userId ?? a.member?.userId ?? null;
     if (uid !== null) userIds.add(uid);
   }
-  for (const uid of userIds) await releaseStaffMembershipIfNoRoles(workspaceId, uid);
+  // Todas estas personas tenían este rol: perderlo puede dejarlas sin ninguno.
+  for (const uid of userIds) await syncMembershipSafely(workspaceId, uid, false);
   return done();
 }
 
@@ -336,7 +347,7 @@ export async function archiveOfficeAction(
       data: { archivedAt: now, name: archivedName(office.name, now, names.map((o) => o.name)) },
     });
     await tx.workspaceOfficeTerm.updateMany({
-      where: { workspaceId, officeId: office.id, revokedAt: null },
+      where: { workspaceId, officeId: office.id, revokedAt: null, ...stillInForce(now) },
       data: { revokedAt: now },
     });
   });
@@ -647,7 +658,7 @@ export async function updateCommissionMemberAction(
   const now = new Date();
   const who = personWhere(person, workspaceId);
 
-  await prisma.$transaction(async (tx) => {
+  const revokedRoles = await prisma.$transaction(async (tx) => {
     const terms = await tx.workspaceOfficeTerm.findMany({
       where: { workspaceId, revokedAt: null, ...who },
       select: { id: true, startsAt: true, endsAt: true, revokedAt: true },
@@ -694,9 +705,14 @@ export async function updateCommissionMemberAction(
         })),
       });
     }
+    return toRevoke.length;
   });
 
-  if (person.userId !== null) await syncMembershipSafely(workspaceId, person.userId, roles.length > 0);
+  // Con roles: asegurar la membresía. Sin roles: liberarla sólo si esta edición le sacó alguno.
+  // Quien nunca tuvo roles (p. ej. personal con sólo un cargo) conserva la membresía que ya tenía.
+  if (person.userId !== null && (roles.length > 0 || revokedRoles > 0)) {
+    await syncMembershipSafely(workspaceId, person.userId, roles.length > 0);
+  }
   return done();
 }
 
@@ -711,11 +727,15 @@ export async function removeCommissionMemberAction(
 
   const now = new Date();
   const where = { workspaceId, revokedAt: null, ...personWhere(person, workspaceId) };
-  await prisma.$transaction(async (tx) => {
+  const revokedRoles = await prisma.$transaction(async (tx) => {
     await tx.workspaceOfficeTerm.updateMany({ where, data: { revokedAt: now } });
-    await tx.workspaceRoleAssignment.updateMany({ where, data: { revokedAt: now } });
+    const { count } = await tx.workspaceRoleAssignment.updateMany({ where, data: { revokedAt: now } });
+    return count;
   });
 
-  if (person.userId !== null) await syncMembershipSafely(workspaceId, person.userId, false);
+  // Sólo si se le quitó algún rol: a quien sólo tenía un cargo no se le toca la membresía.
+  if (person.userId !== null && revokedRoles > 0) {
+    await syncMembershipSafely(workspaceId, person.userId, false);
+  }
   return done();
 }

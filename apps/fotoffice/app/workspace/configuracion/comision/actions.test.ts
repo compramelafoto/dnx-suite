@@ -95,6 +95,8 @@ beforeEach(() => {
   H.db.workspaceRoleAssignment.findMany.mockResolvedValue([]);
   H.db.workspaceOfficeTerm.findMany.mockResolvedValue([]);
   H.db.workspaceOffice.findMany.mockResolvedValue([]);
+  H.db.workspaceRoleAssignment.updateMany.mockResolvedValue({ count: 0 });
+  H.db.workspaceOfficeTerm.updateMany.mockResolvedValue({ count: 0 });
   process.env.NEXT_PUBLIC_APP_URL = "https://app.fotoffice.test";
 });
 
@@ -198,6 +200,15 @@ describe("duplicateRoleAction", () => {
   });
 });
 
+describe("duplicateRoleAction ante un choque de nombre", () => {
+  it("P2002 → el mismo mensaje amable que crear o editar", async () => {
+    H.db.workspaceCustomRole.findFirst.mockResolvedValue({ ...ROLE, permissions: [] });
+    H.db.workspaceCustomRole.create.mockRejectedValue(Object.assign(new Error("unique"), { code: "P2002" }));
+    const res = await duplicateRoleAction(undefined, form({ roleId: "r1" }));
+    expect(res.error).toBe("Ya existe un rol con ese nombre.");
+  });
+});
+
 describe("archiveRoleAction", () => {
   const assignments = [
     { id: "a1", memberId: "m1", userId: null, startsAt: null, endsAt: null, revokedAt: null, member: { userId: 7 } },
@@ -226,11 +237,19 @@ describe("archiveRoleAction", () => {
     expect(upd.data.archivedAt).toBeInstanceOf(Date);
     expect(upd.data.name).toMatch(/^Tesorería \(archivado \d{2}\/\d{2}\/\d{4}\)$/);
     expect(H.db.workspaceRoleAssignment.updateMany).toHaveBeenCalledWith({
-      where: { workspaceId: "ws-1", roleId: "r1", revokedAt: null },
+      where: { workspaceId: "ws-1", roleId: "r1", revokedAt: null, OR: [{ endsAt: null }, { endsAt: { gt: expect.any(Date) } }] },
       data: { revokedAt: expect.any(Date) },
     });
     expect(H.releaseStaffMembershipIfNoRoles).toHaveBeenCalledTimes(1);
     expect(H.releaseStaffMembershipIfNoRoles).toHaveBeenCalledWith("ws-1", 7);
+  });
+
+  it("si liberar la membresía falla, el archivo ya guardado no tira error", async () => {
+    H.db.workspaceCustomRole.findFirst.mockResolvedValue(ROLE);
+    H.db.workspaceRoleAssignment.findMany.mockResolvedValue(assignments);
+    H.releaseStaffMembershipIfNoRoles.mockRejectedValue(new Error("base caída"));
+    const res = await archiveRoleAction(undefined, form({ roleId: "r1", confirm: "yes" }));
+    expect(res).toEqual({ error: null, ok: true });
   });
 });
 
@@ -257,7 +276,7 @@ describe("cargos", () => {
     const con = await archiveOfficeAction(undefined, form({ officeId: "o1", confirm: "yes" }));
     expect(con).toEqual({ error: null, ok: true });
     expect(H.db.workspaceOfficeTerm.updateMany).toHaveBeenCalledWith({
-      where: { workspaceId: "ws-1", officeId: "o1", revokedAt: null },
+      where: { workspaceId: "ws-1", officeId: "o1", revokedAt: null, OR: [{ endsAt: null }, { endsAt: { gt: expect.any(Date) } }] },
       data: { revokedAt: expect.any(Date) },
     });
   });
@@ -463,11 +482,23 @@ describe("updateCommissionMemberAction", () => {
     expect(H.releaseStaffMembershipIfNoRoles).toHaveBeenCalledWith("ws-1", 7);
     expect(H.ensureStaffMembership).not.toHaveBeenCalled();
   });
+
+  it("sin roles antes ni después (sólo cargo): no toca la membresía", async () => {
+    H.db.member.findFirst.mockResolvedValue({ ...SOCIA_SIN_CUENTA, userId: 7 });
+    H.db.workspaceOfficeTerm.findMany.mockResolvedValue([
+      { id: "t1", startsAt: null, endsAt: null, revokedAt: null },
+    ]);
+    const res = await updateCommissionMemberAction(undefined, form({ memberId: "m1", endsAt: "2027-12-31" }));
+    expect(res.ok).toBe(true);
+    expect(H.releaseStaffMembershipIfNoRoles).not.toHaveBeenCalled();
+    expect(H.ensureStaffMembership).not.toHaveBeenCalled();
+  });
 });
 
 describe("removeCommissionMemberAction", () => {
-  it("revoca mandatos y asignaciones y libera la membresía", async () => {
+  it("revoca mandatos y asignaciones y, si le sacó roles, libera la membresía", async () => {
     H.db.member.findFirst.mockResolvedValue({ ...SOCIA_SIN_CUENTA, userId: 7 });
+    H.db.workspaceRoleAssignment.updateMany.mockResolvedValue({ count: 2 });
     const res = await removeCommissionMemberAction(undefined, form({ memberId: "m1" }));
     expect(res).toEqual({ error: null, ok: true });
     const person = { OR: [{ memberId: "m1" }, { userId: 7 }] };
@@ -480,6 +511,16 @@ describe("removeCommissionMemberAction", () => {
       data: { revokedAt: expect.any(Date) },
     });
     expect(H.releaseStaffMembershipIfNoRoles).toHaveBeenCalledWith("ws-1", 7);
+  });
+
+  it("persona con sólo un cargo (personal sin roles): revoca el mandato y no toca la membresía", async () => {
+    H.db.member.findFirst.mockResolvedValue({ ...SOCIA_SIN_CUENTA, userId: 7 });
+    H.db.workspaceOfficeTerm.updateMany.mockResolvedValue({ count: 1 });
+    H.db.workspaceRoleAssignment.updateMany.mockResolvedValue({ count: 0 });
+    const res = await removeCommissionMemberAction(undefined, form({ memberId: "m1" }));
+    expect(res).toEqual({ error: null, ok: true });
+    expect(H.db.workspaceOfficeTerm.updateMany).toHaveBeenCalledTimes(1);
+    expect(H.releaseStaffMembershipIfNoRoles).not.toHaveBeenCalled();
   });
 
   it("un memberId de otro workspace → No encontrado.", async () => {
