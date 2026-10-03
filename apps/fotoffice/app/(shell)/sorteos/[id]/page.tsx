@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@repo/db";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
-import { requireRafflesStaff } from "@/lib/raffles/access";
+import { requireRafflesViewer } from "@/lib/raffles/access";
 import { loadRaffle } from "@/lib/raffles/repository";
 import { fechaCorta, fechaHora, prizeStatusLabel, raffleStatusLabel } from "@/lib/raffles/labels";
 import { canCancel, canDraw, canEditPrizes, canSeal } from "@/lib/raffles/lifecycle";
@@ -47,14 +47,14 @@ export default async function SorteoPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ error?: string; ok?: string }>;
 }) {
-  const { workspace, level } = await requireRafflesStaff();
+  const { workspace, canConduct } = await requireRafflesViewer();
   const { id } = await params;
   const q = await searchParams;
 
   const sorteo = await loadRaffle(workspace.id, id);
   if (!sorteo) notFound();
 
-  const admin = level === "MANAGE";
+  const admin = canConduct;
   const ahora = new Date();
   const estado = sorteo.status as RaffleStatus;
   const editable = canEditPrizes(estado);

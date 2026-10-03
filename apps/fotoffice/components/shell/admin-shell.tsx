@@ -1,17 +1,7 @@
 import { cookies } from "next/headers";
 import { prisma } from "@repo/db";
 import { resolveActiveWorkspace } from "@/lib/workspace";
-import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
-import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
-import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
-import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
-import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
-import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
-import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
-import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
-import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
-import { getModuleLevels } from "@/lib/permissions/module-access";
-import { manageFlagFor } from "@/lib/permissions/levels";
+import { getGrantedActions, getModuleLevels } from "@/lib/permissions/module-access";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { isFotofficePlatformAdmin } from "@/lib/platform-admin";
@@ -52,24 +42,15 @@ export async function AdminShell({ user, children }: { user: PanelUser; children
     orderBy: { createdAt: "asc" },
   });
   const workspace = await resolveActiveWorkspace(user.id);
-  const enabledModuleKeys =
-    workspace !== null ? await getEnabledModuleKeysForWorkspace(workspace.id) : new Set<string>();
-  const coursesOn = enabledModuleKeys.has(COURSES_SALES_MODULE_KEY);
-  const evaluacionesOn = enabledModuleKeys.has(EVALUACIONES_MODULE_KEY);
-  const membersOn = enabledModuleKeys.has(MEMBERS_MODULE_KEY);
-  const bookingsOn = enabledModuleKeys.has(BOOKINGS_MODULE_KEY);
-  const rafflesOn = enabledModuleKeys.has(RAFFLES_MODULE_KEY);
-  const coveragesOn = enabledModuleKeys.has(COVERAGES_MODULE_KEY);
-  const websiteOn = enabledModuleKeys.has(WEBSITE_MODULE_KEY);
-  const serviceLeadsOn = enabledModuleKeys.has(SERVICE_LEADS_MODULE_KEY);
-  // El rol sigue alimentando el encabezado y Configuración (que no se delega). Los permisos
-  // de cada módulo salen de un solo cálculo de niveles, el mismo que usan las páginas.
+  // El rol sigue alimentando el encabezado y la sección Institución (Configuración no se
+  // delega). Qué módulos y qué pantallas aparecen sale de un solo cálculo de niveles, el mismo
+  // que usan las páginas: un módulo apagado ya viene en NONE.
   const activeRole = workspace !== null ? await resolveWorkspaceRole(user.id, workspace.id) : null;
   const levels = workspace !== null ? await getModuleLevels(user.id, workspace.id) : {};
   const canManageWorkspaceSettingsFlag = canManageWorkspaceSettings(activeRole);
-  const canManageMembersFlag = manageFlagFor(levels, MEMBERS_MODULE_KEY, false);
-  const canManageBookingsFlag = manageFlagFor(levels, BOOKINGS_MODULE_KEY, false);
-  const canManageRafflesFlag = manageFlagFor(levels, RAFFLES_MODULE_KEY, false);
+  // Las acciones sensibles que alguna entrada del menú exige. Se calculan acá, en el servidor:
+  // el menú es un componente de cliente y sólo recibe la lista ya resuelta.
+  const actions = workspace !== null ? await getGrantedActions(user.id, workspace.id) : [];
   const platformAdmin = await isFotofficePlatformAdmin(user.id);
   // Sin workspace activo (recién invitado, todavía sin `ensure`) no hay fila que leer: el
   // vocabulario por omisión es lo correcto, ya que tampoco hay ningún módulo habilitado.
@@ -102,17 +83,8 @@ export async function AdminShell({ user, children }: { user: PanelUser; children
       sidebar={
         <ShellSidebar
           workspaceName={institucion}
-          coursesEnabled={coursesOn}
-          evaluacionesEnabled={evaluacionesOn}
-          membersEnabled={membersOn}
-          bookingsEnabled={bookingsOn}
-          rafflesEnabled={rafflesOn}
-          coveragesEnabled={coveragesOn}
-          websiteEnabled={websiteOn}
-          serviceLeadsEnabled={serviceLeadsOn}
-          canManageMembers={canManageMembersFlag}
-          canManageBookings={canManageBookingsFlag}
-          canManageRaffles={canManageRafflesFlag}
+          levels={levels}
+          actions={actions}
           canManageWorkspaceSettings={canManageWorkspaceSettingsFlag}
           platformAdmin={platformAdmin}
           vocabulary={vocabulary}

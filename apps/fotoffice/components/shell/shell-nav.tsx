@@ -24,6 +24,7 @@ import { ICONOS } from "./nav-icons";
 import {
   claimedPrefixes,
   submodulesFor,
+  type SubmoduleAccess,
   type SubmoduleItem,
 } from "@/lib/modules/submodules";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
@@ -31,6 +32,10 @@ import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
+import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
+import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
+import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
+import { hasLevel, type ModuleLevels } from "@/lib/permissions/levels";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import { isBlogNavActive, isDomainNavActive, isWebsiteNavActive } from "@/lib/blog/admin-nav";
 
@@ -41,7 +46,9 @@ import { isBlogNavActive, isDomainNavActive, isWebsiteNavActive } from "@/lib/bl
  * nivel: "Config. del módulo" al lado de "Socios" no decía de qué módulo era, y lo último
  * que se agregaba quedaba abajo de todo sin que nadie lo encontrara.
  *
- * Cada grupo aparece solo si el módulo está activo y la persona tiene permiso.
+ * Cada grupo aparece sólo si la persona tiene al menos `VIEW` en su módulo (un módulo apagado
+ * ya viene en NONE), y sus pantallas de gestión sólo con `MANAGE` o con la acción sensible que
+ * exija la página. Es la misma regla que aplican las páginas: el menú no ofrece lo que niegan.
  *
  * Toda sección con nombre lleva su encabezado, incluso con un solo elemento. La regla
  * anterior —"un grupo de uno no lleva título"— producía el defecto contrario: "Sitio web"
@@ -78,11 +85,11 @@ function under(href: string) {
  */
 function itemsDeModulo(
   moduleKey: string,
-  canManage: boolean,
+  access: SubmoduleAccess,
   vocabulary: PersonVocabulary,
 ): Item[] {
   const reclamadas = claimedPrefixes(moduleKey);
-  return submodulesFor(moduleKey, { canManage }, vocabulary).map((sub: SubmoduleItem) => ({
+  return submodulesFor(moduleKey, access, vocabulary).map((sub: SubmoduleItem) => ({
     href: sub.href,
     label: sub.label,
     icon: ICONOS[sub.icon] ?? LayoutDashboard,
@@ -148,69 +155,49 @@ function Section({
 }
 
 export function ShellNav({
-  coursesEnabled,
-  evaluacionesEnabled,
-  membersEnabled,
-  bookingsEnabled,
-  rafflesEnabled,
-  coveragesEnabled,
-  websiteEnabled,
-  serviceLeadsEnabled,
-  canManageMembers,
-  canManageBookings,
-  canManageRaffles,
+  levels,
+  actions,
   canManageWorkspaceSettings,
   platformAdmin,
   vocabulary,
 }: {
-  coursesEnabled: boolean;
-  evaluacionesEnabled: boolean;
-  membersEnabled: boolean;
-  bookingsEnabled: boolean;
-  rafflesEnabled: boolean;
-  coveragesEnabled: boolean;
-  websiteEnabled: boolean;
-  serviceLeadsEnabled: boolean;
-  canManageMembers: boolean;
-  canManageBookings: boolean;
-  canManageRaffles: boolean;
+  /** Nivel en cada módulo, de `getModuleLevels`. Un módulo apagado viene en NONE. */
+  levels: ModuleLevels;
+  /** Acciones sensibles vigentes, resueltas en el servidor con `hasModuleAction`. */
+  actions: readonly string[];
+  /** Sólo para la sección Institución: Configuración no se delega. */
   canManageWorkspaceSettings: boolean;
   platformAdmin: boolean;
   vocabulary: PersonVocabulary;
 }) {
   const path = usePathname() ?? "";
   const { closeDrawer } = useShellNav();
+  const access: SubmoduleAccess = { levels, actions };
+  const ve = (moduleKey: string) => hasLevel(levels[moduleKey] ?? "NONE", "VIEW");
+  const gestiona = (moduleKey: string) => hasLevel(levels[moduleKey] ?? "NONE", "MANAGE");
 
-  const socios: Item[] = membersEnabled
-    ? itemsDeModulo(MEMBERS_MODULE_KEY, canManageMembers, vocabulary)
-    : [];
+  // `itemsDeModulo` ya devuelve vacío sin VIEW en el módulo: la sección no se dibuja.
+  const socios: Item[] = itemsDeModulo(MEMBERS_MODULE_KEY, access, vocabulary);
 
-  const reservas: Item[] = bookingsEnabled
-    ? itemsDeModulo(BOOKINGS_MODULE_KEY, canManageBookings, vocabulary)
-    : [];
+  const reservas: Item[] = itemsDeModulo(BOOKINGS_MODULE_KEY, access, vocabulary);
 
   // Sorteos vive en el grupo Socios: es una de las cosas que la institución le da al socio
   // al día, y separarlo en su propia sección lo dejaría suelto al lado de Cuotas.
-  const sorteos: Item[] = rafflesEnabled
-    ? itemsDeModulo(RAFFLES_MODULE_KEY, canManageRaffles, vocabulary)
-    : [];
+  const sorteos: Item[] = itemsDeModulo(RAFFLES_MODULE_KEY, access, vocabulary);
 
   // Grupo propio y no dentro de Socios: coberturas se le pide a cualquier institución con
-  // actividad fotográfica, no sólo a las que tienen padrón de socios.
-  const coberturas: Item[] = coveragesEnabled
-    ? itemsDeModulo(COVERAGES_MODULE_KEY, canManageWorkspaceSettings, vocabulary)
-    : [];
+  // actividad fotográfica, no sólo a las que tienen padrón de socios. Colaboradores y
+  // Configuración exigen además coordinar (`coverages.coordinate`).
+  const coberturas: Item[] = itemsDeModulo(COVERAGES_MODULE_KEY, access, vocabulary);
 
-  const cursos: Item[] = coursesEnabled
-    ? itemsDeModulo(COURSES_SALES_MODULE_KEY, true, vocabulary)
-    : [];
+  const cursos: Item[] = itemsDeModulo(COURSES_SALES_MODULE_KEY, access, vocabulary);
 
   // Evaluaciones evalúa actividades de los cursos: es del mismo dominio, no un módulo suelto.
   // Tiene su propia llave, así que puede estar encendido sin cursos — en ese caso la sección
   // "Cursos" muestra solo este ítem, que sigue siendo cierto.
   const cursosItems: Item[] = [
     ...cursos,
-    ...(evaluacionesEnabled
+    ...(ve(EVALUACIONES_MODULE_KEY)
       ? [
           {
             href: "/evaluaciones",
@@ -220,7 +207,10 @@ export function ShellNav({
           },
         ]
       : []),
-    ...(coursesEnabled
+    // La configuración del módulo (moneda, texto de inscripción, comisión) la guarda sólo
+    // dueño/admin (`app/actions/settings.ts`): ofrecerla a un rol que no puede guardarla sería
+    // prometer algo que la pantalla niega.
+    ...(ve(COURSES_SALES_MODULE_KEY) && canManageWorkspaceSettings
       ? [
           {
             href: "/courses/settings",
@@ -239,7 +229,7 @@ export function ShellNav({
     mundo** usara o no la función —la deuda estaba anotada en este mismo lugar desde que se
     agregaron—. Ahora es un módulo como los demás y arranca apagado.
   */
-  const captacion: Item[] = serviceLeadsEnabled
+  const captacion: Item[] = ve(SERVICE_LEADS_MODULE_KEY)
     ? [
         {
           href: "/dashboard/service-leads/forms",
@@ -262,16 +252,16 @@ export function ShellNav({
   // El blog vive adentro de `/website` (es una sección del módulo Sitio web, con la misma
   // llave), pero tiene ítem propio porque se usa todas las semanas y el constructor no.
   // Por eso "Sitio web" deja de marcarse con `under("/website")`: adentro del blog quedaban
-  // los dos encendidos. Sólo lo ven quienes pueden escribir en él (dueño o administrador).
-  const presencia: Item[] = websiteEnabled
+  // los dos encendidos. Sólo lo ven quienes pueden escribir en él (`website` MANAGE).
+  const presencia: Item[] = ve(WEBSITE_MODULE_KEY)
     ? [
         { href: "/website", label: "Sitio web", icon: Globe, isActive: isWebsiteNavActive },
+        ...(gestiona(WEBSITE_MODULE_KEY)
+          ? [{ href: "/website/blog", label: "Blog", icon: Newspaper, isActive: isBlogNavActive }]
+          : []),
+        // Conectar el dominio propio (ej. sfpr.com.ar) es un dato de la institución: dueño o admin.
         ...(canManageWorkspaceSettings
-          ? [
-              { href: "/website/blog", label: "Blog", icon: Newspaper, isActive: isBlogNavActive },
-              // Conectar el dominio propio (ej. sfpr.com.ar). Mismo permiso que el blog.
-              { href: "/website/dominio", label: "Dominio", icon: Link2, isActive: isDomainNavActive },
-            ]
+          ? [{ href: "/website/dominio", label: "Dominio", icon: Link2, isActive: isDomainNavActive }]
           : []),
       ]
     : [];

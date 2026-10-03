@@ -6,8 +6,15 @@
  * propósito: cuando se encienda Gobierno, la Secretaría ya lo tiene, sin tocar nada.
  */
 
-/** Acción sensible de Caja: reservar, gastar e ingresar plata de proyectos (§12.1.2). */
-export const CASH_PROJECT_MONEY_ACTION = "cash.project_money";
+import {
+  BOOKINGS_CONFIGURE_ACTION,
+  CASH_CONFIGURE_ACTION,
+  CASH_PROJECT_MONEY_ACTION,
+  RAFFLES_CONDUCT_ACTION,
+} from "@/lib/permissions/actions";
+
+// Se movió al catálogo de acciones; se reexporta para no romper los imports existentes.
+export { CASH_PROJECT_MONEY_ACTION };
 
 export type RoleTemplate = {
   key: string;
@@ -58,7 +65,7 @@ export const ROLE_TEMPLATES: readonly RoleTemplate[] = [
     permissions: [
       { moduleKey: "members", level: V },
       { moduleKey: "membership-dues", level: M },
-      { moduleKey: "cash", level: M, actions: [CASH_PROJECT_MONEY_ACTION] },
+      { moduleKey: "cash", level: M, actions: [CASH_PROJECT_MONEY_ACTION, CASH_CONFIGURE_ACTION] },
       { moduleKey: "governance", level: V },
     ],
   },
@@ -101,7 +108,7 @@ export const ROLE_TEMPLATES: readonly RoleTemplate[] = [
     permissions: [
       { moduleKey: "events", level: M },
       { moduleKey: "exhibitions", level: M },
-      { moduleKey: "raffles", level: M },
+      { moduleKey: "raffles", level: M, actions: [RAFFLES_CONDUCT_ACTION] },
       { moduleKey: "members", level: V },
     ],
   },
@@ -109,7 +116,7 @@ export const ROLE_TEMPLATES: readonly RoleTemplate[] = [
     key: "spaces",
     name: "Espacios",
     description: "Reservas: agenda, espacios y tarifas.",
-    permissions: [{ moduleKey: "bookings", level: M }],
+    permissions: [{ moduleKey: "bookings", level: M, actions: [BOOKINGS_CONFIGURE_ACTION] }],
   },
   {
     key: "partnerships",

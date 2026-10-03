@@ -2,7 +2,7 @@ import Link from "next/link";
 import { DoorOpen } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { formatMinorArs } from "@/lib/membership/money";
-import { requireBookingsAdmin } from "@/lib/bookings/access";
+import { requireBookingsConfigurer } from "@/lib/bookings/access";
 import { listCompatibilities, listSpaces } from "@/lib/bookings/repository";
 import { compatibleSpaceIds } from "@/lib/bookings/conflicts";
 import { minuteOfDayToLabel } from "@/lib/bookings/time";
@@ -20,7 +20,7 @@ export default async function EspaciosPage({
 }: {
   searchParams: Promise<{ error?: string; ok?: string }>;
 }) {
-  const { workspace } = await requireBookingsAdmin();
+  const { workspace } = await requireBookingsConfigurer();
   const params = await searchParams;
 
   const [espacios, compatibilidades] = await Promise.all([

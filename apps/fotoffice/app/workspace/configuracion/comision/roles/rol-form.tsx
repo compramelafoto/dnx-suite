@@ -16,7 +16,7 @@ export type FilaGrilla = {
   actions: string[];
 };
 
-/** Una casilla extra que sólo aparece con "Gestionar" en un módulo (hoy: la plata de proyectos de Caja). */
+/** Una casilla por acción sensible del catálogo (`MODULE_ACTIONS`); sólo aparece con "Gestionar". */
 export type AccionExtra = { moduleKey: string; action: string; label: string; helper: string };
 
 const NIVELES: { value: NivelGrilla; label: string }[] = [

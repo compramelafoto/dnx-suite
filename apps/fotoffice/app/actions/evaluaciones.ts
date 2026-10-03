@@ -32,7 +32,7 @@ export async function createEvaluationContextAction(
   _prev: EvaluationContextFormState | undefined,
   formData: FormData,
 ): Promise<EvaluationContextFormState> {
-  const { workspace, user } = await requireEvaluacionesContext();
+  const { workspace, user } = await requireEvaluacionesContext("MANAGE");
   const parsed = createEvaluationContextSchema.safeParse({
     name: formData.get("name")?.toString()?.trim() ?? "",
     description: formData.get("description")?.toString()?.trim() ?? "",

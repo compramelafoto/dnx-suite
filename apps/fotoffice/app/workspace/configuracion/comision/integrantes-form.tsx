@@ -7,7 +7,6 @@ import {
   updateCommissionMemberAction,
   type CommissionActionState,
 } from "./actions";
-import { AvisoAccesoTransitorio } from "./aviso-acceso";
 import { EstadoAccion, enviarSinBorrar, useAlCambiar } from "./estado-accion";
 
 type Opcion = { id: string; name: string; description?: string | null };
@@ -93,7 +92,6 @@ export function SumarIntegrante({
   return (
     <form key={vuelta} onSubmit={enviarSinBorrar(dispatch)} className="fo-card space-y-5 p-4 sm:p-5">
       <h2 className="text-base font-semibold">Sumar integrante</h2>
-      <AvisoAccesoTransitorio />
 
       <fieldset className="space-y-3">
         <legend className="fo-label mb-2">¿Quién?</legend>

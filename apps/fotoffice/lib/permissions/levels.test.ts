@@ -6,13 +6,23 @@ import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import {
   hasLevel,
   isAssignmentActive,
+  isFullAccessRole,
   isModuleEffectivelyEnabled,
   legacyStaffLevel,
-  manageFlagFor,
   maxLevel,
+  resolveModuleAction,
   resolveModuleLevel,
   type RoleAssignmentForLevels,
 } from "./levels";
+
+import { CASH_MODULE_KEY } from "@/lib/cash/constants";
+import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
+import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
+import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
+import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
+import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
+import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
+import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
 
 const now = new Date("2026-10-03T12:00:00Z");
 const ayer = new Date("2026-10-02T12:00:00Z");
@@ -58,8 +68,16 @@ describe("compatibilidad: STAFF sin asignaciones conserva lo de hoy", () => {
   it.each([
     [MEMBERS_MODULE_KEY, "VIEW"],
     [MEMBERSHIP_DUES_MODULE_KEY, "NONE"],
-    [BOOKINGS_MODULE_KEY, "VIEW"],
-    [RAFFLES_MODULE_KEY, "VIEW"],
+    [BOOKINGS_MODULE_KEY, "MANAGE"],
+    [RAFFLES_MODULE_KEY, "MANAGE"],
+    [CASH_MODULE_KEY, "MANAGE"],
+    [CLIENTS_MODULE_KEY, "MANAGE"],
+    [COVERAGES_MODULE_KEY, "MANAGE"],
+    [WEBSITE_MODULE_KEY, "VIEW"],
+    [COURSES_SALES_MODULE_KEY, "MANAGE"],
+    [EVALUACIONES_MODULE_KEY, "MANAGE"],
+    [SERVICE_LEADS_MODULE_KEY, "MANAGE"],
+    [PORTFOLIO_MODULE_KEY, "NONE"],
     ["un-modulo-no-migrado", "NONE"],
   ])("%s → %s", (key, esperado) => {
     expect(legacyStaffLevel(key)).toBe(esperado);
@@ -129,13 +147,56 @@ describe("habilitación efectiva", () => {
   });
 });
 
-describe("manageFlagFor (menú)", () => {
-  it("en un módulo migrado decide el nivel", () => {
-    expect(manageFlagFor({ [RAFFLES_MODULE_KEY]: "VIEW" }, RAFFLES_MODULE_KEY, true)).toBe(false);
-    expect(manageFlagFor({ [RAFFLES_MODULE_KEY]: "MANAGE" }, RAFFLES_MODULE_KEY, false)).toBe(true);
+describe("resolveModuleAction", () => {
+  const ACCION = "cash.configure";
+  const conAccion = (level: "VIEW" | "MANAGE" = "MANAGE", actions: string[] = [ACCION]) => [
+    { moduleKey: CASH_MODULE_KEY, level, actions },
+  ];
+  function puede(input: Partial<Parameters<typeof resolveModuleAction>[0]>) {
+    return resolveModuleAction({
+      moduleKey: CASH_MODULE_KEY,
+      action: ACCION,
+      moduleEnabled: true,
+      workspaceRole: "STAFF",
+      assignments: [],
+      now,
+      ...input,
+    });
+  }
+  it("dueño y admin pueden siempre", () => {
+    expect(puede({ workspaceRole: "WORKSPACE_OWNER" })).toBe(true);
+    expect(puede({ workspaceRole: "WORKSPACE_ADMIN" })).toBe(true);
   });
-  it("en un módulo no migrado se usa el criterio de siempre", () => {
-    expect(manageFlagFor({}, "courses-sales", true)).toBe(true);
-    expect(manageFlagFor({}, "courses-sales", false)).toBe(false);
+  it("STAFF sin roles nunca tuvo acciones sensibles", () => {
+    expect(puede({})).toBe(false);
+  });
+  it("rol vigente con MANAGE y la acción: sí", () => {
+    expect(puede({ assignments: [asignacion(conAccion())] })).toBe(true);
+  });
+  it("con VIEW aunque liste la acción: no", () => {
+    expect(puede({ assignments: [asignacion(conAccion("VIEW"))] })).toBe(false);
+  });
+  it("MANAGE sin esa acción: no", () => {
+    expect(puede({ assignments: [asignacion(conAccion("MANAGE", ["cash.project_money"]))] })).toBe(false);
+  });
+  it("acción en un rol vencido, revocado o futuro: no", () => {
+    expect(puede({ assignments: [asignacion(conAccion(), { endsAt: ayer })] })).toBe(false);
+    expect(puede({ assignments: [asignacion(conAccion(), { revokedAt: ayer })] })).toBe(false);
+    expect(puede({ assignments: [asignacion(conAccion(), { startsAt: manana })] })).toBe(false);
+  });
+  it("módulo apagado o sin rol: no, ni al dueño", () => {
+    expect(puede({ moduleEnabled: false, workspaceRole: "WORKSPACE_OWNER" })).toBe(false);
+    expect(puede({ workspaceRole: null })).toBe(false);
+  });
+});
+
+describe("isFullAccessRole", () => {
+  it("dueño y admin tienen todo por su rol; el personal y nadie, no", () => {
+    expect(isFullAccessRole("WORKSPACE_OWNER")).toBe(true);
+    expect(isFullAccessRole("WORKSPACE_ADMIN")).toBe(true);
+    expect(isFullAccessRole("ADMIN")).toBe(true);
+    expect(isFullAccessRole("WORKSPACE_STAFF")).toBe(false);
+    expect(isFullAccessRole("MEMBER")).toBe(false);
+    expect(isFullAccessRole(null)).toBe(false);
   });
 });

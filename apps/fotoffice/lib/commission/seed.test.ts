@@ -40,7 +40,7 @@ describe("ensureCommissionSetup", () => {
         workspaceId: "ws-1",
         name: "Tesorería",
         templateKey: "treasury",
-        permissions: { create: expect.arrayContaining([expect.objectContaining({ moduleKey: "cash", level: "MANAGE", actions: ["cash.project_money"] })]) },
+        permissions: { create: expect.arrayContaining([expect.objectContaining({ moduleKey: "cash", level: "MANAGE", actions: ["cash.project_money", "cash.configure"] })]) },
       }),
     });
     expect(H.officeCreateMany).toHaveBeenCalledWith({

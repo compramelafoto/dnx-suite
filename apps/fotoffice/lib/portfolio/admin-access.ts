@@ -1,9 +1,8 @@
 import "server-only";
 import { getAuthUser, type AuthUser } from "@/lib/auth";
 import { resolveActiveWorkspace, type ActiveWorkspace } from "@/lib/workspace";
-import { resolveWorkspaceRole } from "@/lib/workspace-role";
-import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
-import { canManageMembers } from "@/lib/members/role-policy";
+import { getModuleLevel } from "@/lib/permissions/module-access";
+import { hasLevel } from "@/lib/permissions/levels";
 import { PORTFOLIO_MODULE_KEY } from "./constants";
 
 export type PortfolioAdminContext = {
@@ -12,11 +11,12 @@ export type PortfolioAdminContext = {
 };
 
 /**
- * Quién puede bajar un portfolio del sitio o publicarlo pese a la deuda.
+ * Quién puede bajar un portfolio del sitio o publicarlo pese a la deuda: `portfolio` MANAGE
+ * (roles etapa 2b). El nivel ya contempla el módulo apagado (NONE).
  *
- * Mismo criterio que el padrón: OWNER o ADMIN. **STAFF queda afuera**, aunque pueda consultar la
- * lista: sacar la obra de alguien de la web de su institución es una decisión de conducción, no
- * una tarea de mostrador.
+ * Dueño y admin lo tienen siempre. **STAFF sin roles queda afuera** (compatibilidad NONE), igual
+ * que antes: sacar la obra de alguien de la web de su institución es una decisión de conducción,
+ * no una tarea de mostrador. Ahora la comisión puede dársela a alguien más con un rol.
  *
  * Devuelve `null` en lugar de redirigir, porque lo usan las acciones: un `redirect` dentro de una
  * server action convierte un "no tenés permiso" en una navegación que nadie pidió.
@@ -28,10 +28,28 @@ export async function resolvePortfolioAdminContext(): Promise<PortfolioAdminCont
   const workspace = await resolveActiveWorkspace(user.id);
   if (!workspace) return null;
 
-  if (!(await isModuleEnabledForWorkspace(workspace.id, PORTFOLIO_MODULE_KEY))) return null;
-
-  const role = await resolveWorkspaceRole(user.id, workspace.id);
-  if (!canManageMembers(role)) return null;
+  const level = await getModuleLevel(user.id, workspace.id, PORTFOLIO_MODULE_KEY);
+  if (level !== "MANAGE") return null;
 
   return { user, workspace };
+}
+
+/**
+ * La pantalla `/portfolios`: alcanza con `portfolio` VIEW para mirar el estado de cada uno. Los
+ * botones de bajar y publicar se muestran sólo con `canManage`; las acciones igual vuelven a
+ * pedir MANAGE con `resolvePortfolioAdminContext`, que es el control de verdad.
+ */
+export async function resolvePortfolioViewerContext(): Promise<
+  (PortfolioAdminContext & { canManage: boolean }) | null
+> {
+  const user = await getAuthUser();
+  if (!user) return null;
+
+  const workspace = await resolveActiveWorkspace(user.id);
+  if (!workspace) return null;
+
+  const level = await getModuleLevel(user.id, workspace.id, PORTFOLIO_MODULE_KEY);
+  if (!hasLevel(level, "VIEW")) return null;
+
+  return { user, workspace, canManage: level === "MANAGE" };
 }

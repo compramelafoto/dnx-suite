@@ -1,8 +1,9 @@
 import "server-only";
 import { redirect } from "next/navigation";
 import { requireActiveWorkspace } from "@/lib/workspace";
-import { getModuleLevel } from "@/lib/permissions/module-access";
+import { getModuleLevel, hasModuleAction } from "@/lib/permissions/module-access";
 import { hasLevel } from "@/lib/permissions/levels";
+import { RAFFLES_CONDUCT_ACTION } from "@/lib/permissions/actions";
 import { RAFFLES_MODULE_KEY } from "./constants";
 
 /**
@@ -11,27 +12,44 @@ import { RAFFLES_MODULE_KEY } from "./constants";
  * El nivel sale de `getModuleLevel`, que ya incluye si el módulo está habilitado para ESE
  * workspace y qué rol tiene la persona. Esconder el link del menú es lo cosmético, nunca el control.
  *
- * Ver la lista y entregar premios pide VIEW. Crear, anunciar, sellar, resolver y cancelar pide
- * MANAGE: son los actos que definen el resultado, y quien los hace queda con nombre y apellido
- * en la historia del sorteo.
+ * Tres escalones:
+ * - VIEW: ver la lista, el detalle y las entregas pendientes, sin tocar nada.
+ * - MANAGE: operar las entregas — avanzar un premio, registrar el recibo y reintentar avisos.
+ *   El STAFF de antes (sin roles) queda acá por la compatibilidad de `levels.ts`.
+ * - MANAGE + `raffles.conduct`: crear, editar, anunciar, sellar, resolver y cancelar. Son los
+ *   actos que definen el resultado, y quien los hace queda con nombre y apellido en la historia
+ *   del sorteo. Dueño y admin la tienen siempre; el STAFF de antes, nunca (igual que hoy).
  */
 
 async function contextoBase() {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) redirect("/workspace");
-  const level = await getModuleLevel(user.id, workspace.id, RAFFLES_MODULE_KEY);
+  const [level, tieneAccion] = await Promise.all([
+    getModuleLevel(user.id, workspace.id, RAFFLES_MODULE_KEY),
+    hasModuleAction(user.id, workspace.id, RAFFLES_MODULE_KEY, RAFFLES_CONDUCT_ACTION),
+  ]);
   if (!hasLevel(level, "VIEW")) redirect("/dashboard");
-  return { user, workspace, level };
+  const canOperate = hasLevel(level, "MANAGE");
+  // La acción sólo vale con MANAGE: `resolveModuleAction` ya lo exige, esto lo repite por las dudas.
+  const canConduct = canOperate && tieneAccion;
+  return { user, workspace, level, canOperate, canConduct };
 }
 
-/** Ver los sorteos y entregar premios. */
-export async function requireRafflesStaff() {
+/** Ver: lista, detalle y entregas. */
+export async function requireRafflesViewer() {
   return contextoBase();
 }
 
-/** Crear, anunciar, sellar, resolver, cancelar. */
-export async function requireRafflesAdmin() {
+/** Operar entregas: avanzar un premio, registrar el recibo, reintentar avisos. */
+export async function requireRafflesOperator() {
   const ctx = await contextoBase();
-  if (!hasLevel(ctx.level, "MANAGE")) redirect("/sorteos");
+  if (!ctx.canOperate) redirect("/sorteos");
+  return ctx;
+}
+
+/** Conducir: crear, editar, premios, anunciar, sellar, resolver, cancelar y buscar aliados. */
+export async function requireRafflesConductor() {
+  const ctx = await contextoBase();
+  if (!ctx.canConduct) redirect("/sorteos");
   return ctx;
 }

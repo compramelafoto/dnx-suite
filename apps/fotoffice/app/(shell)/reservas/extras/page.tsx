@@ -1,6 +1,6 @@
 import { PageHeader } from "@/components/page-header";
 import { formatMinorArs } from "@/lib/membership/money";
-import { requireBookingsAdmin } from "@/lib/bookings/access";
+import { requireBookingsConfigurer } from "@/lib/bookings/access";
 import { listExtras, listResources, listSpaces } from "@/lib/bookings/repository";
 import {
   deleteResourceAction,
@@ -16,7 +16,7 @@ export default async function ExtrasPage({
 }: {
   searchParams: Promise<{ error?: string; ok?: string; editar?: string }>;
 }) {
-  const { workspace } = await requireBookingsAdmin();
+  const { workspace } = await requireBookingsConfigurer();
   const params = await searchParams;
 
   const [recursos, extras, espacios] = await Promise.all([

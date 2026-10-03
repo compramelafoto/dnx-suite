@@ -164,7 +164,7 @@ describe("updateRoleAction", () => {
       where: { roleId: "r1", moduleKey: { in: ["bookings", "members", "membership-dues"] } },
     });
     expect(H.db.workspaceRolePermission.createMany).toHaveBeenCalledWith({
-      data: [{ roleId: "r1", moduleKey: "members", level: "MANAGE", actions: ["export"] }],
+      data: [{ roleId: "r1", moduleKey: "members", level: "MANAGE", actions: [] }],
     });
     const deleted = H.db.workspaceRolePermission.deleteMany.mock.calls[0]?.[0] as {
       where: { moduleKey: { in: string[] } };

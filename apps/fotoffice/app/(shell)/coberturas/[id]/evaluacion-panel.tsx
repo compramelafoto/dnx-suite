@@ -15,9 +15,10 @@ const inicial: PanelState = { error: null, ok: null };
 /**
  * Lo que la coordinación puede hacer con una solicitud.
  *
- * `puedeCoordinar` esconde los botones de aprobar y rechazar para quien solo revisa. **No es
- * el control**: las acciones vuelven a verificar el rol en el servidor. Esto es cortesía, para
- * no ofrecer lo que después va a rebotar.
+ * `puedeCoordinar` esconde los botones de aprobar y rechazar para quien solo revisa, y
+ * `puedeRevisar` esconde todos los formularios para quien sólo puede mirar (nivel VIEW del
+ * módulo). **No es el control**: las acciones vuelven a verificar el nivel en el servidor. Esto
+ * es cortesía, para no ofrecer lo que después va a rebotar.
  *
  * **La pantalla dice en qué momento está el pedido antes de mostrar ningún botón.** Las acciones
  * cambian según el estado, y antes aparecían y desaparecían sin ninguna explicación: quien
@@ -37,6 +38,7 @@ const inicial: PanelState = { error: null, ok: null };
 export function EvaluacionPanel({
   id,
   status,
+  puedeRevisar,
   puedeCoordinar,
   infoRequested,
   advertenciaOtraCobertura,
@@ -45,6 +47,8 @@ export function EvaluacionPanel({
 }: {
   id: string;
   status: string;
+  /** Nivel MANAGE en Coberturas: anotar, pedir un dato, reenviar el enlace, pasar a evaluación. */
+  puedeRevisar: boolean;
   puedeCoordinar: boolean;
   /** Lo último que se pidió, para mostrarlo mientras el estado sigue en `REQUIERE_INFO`. */
   infoRequested?: string | null;
@@ -93,19 +97,38 @@ export function EvaluacionPanel({
   const paso = requestStatusStep(status);
   const decidiendo = !cerrada && status === "EN_EVALUACION" && puedeCoordinar;
 
+  const dondeEsta = paso ? (
+    <>
+      <p className="text-sm text-[var(--fo-text-secondary)]">{paso.donde}</p>
+      <p className="fo-helper">
+        <span className="font-semibold text-[var(--fo-text-secondary)]">Lo que sigue: </span>
+        {paso.queSigue}
+      </p>
+    </>
+  ) : null;
+
+  // Quien sólo puede mirar ve en qué momento está el pedido y nada más: ningún formulario que
+  // después rebotaría en el servidor.
+  if (!puedeRevisar) {
+    return (
+      <section className="fo-card space-y-5 p-5">
+        <header className="space-y-1">
+          <h2 className="text-base font-semibold">En qué está</h2>
+          {dondeEsta}
+          <p className="fo-helper">
+            Podés consultar este pedido, pero no trabajarlo: eso lo hace quien tiene a cargo las
+            coberturas.
+          </p>
+        </header>
+      </section>
+    );
+  }
+
   return (
     <section className="fo-card space-y-5 p-5">
       <header className="space-y-1">
         <h2 className="text-base font-semibold">Qué hacemos</h2>
-        {paso ? (
-          <>
-            <p className="text-sm text-[var(--fo-text-secondary)]">{paso.donde}</p>
-            <p className="fo-helper">
-              <span className="font-semibold text-[var(--fo-text-secondary)]">Lo que sigue: </span>
-              {paso.queSigue}
-            </p>
-          </>
-        ) : null}
+        {dondeEsta}
         {!cerrada && status === "EN_EVALUACION" && !puedeCoordinar ? (
           <p className="fo-helper">
             Esa decisión la toma una coordinadora. Vos podés pedirles un dato y dejar notas.
@@ -130,9 +153,9 @@ export function EvaluacionPanel({
 
       {/*
         Empezar a evaluar (RECIBIDA → EN_EVALUACION) no está detrás de `puedeCoordinar`: es
-        trabajo de secretaría, alcanza con revisar. Quien llegó a esta ficha ya pasó
-        `requireCoveragesReviewer` en el servidor, y `changeRequestStatusAction` vuelve a exigir
-        el guard que corresponde según el destino (ver `transitionNeedsCoordinator`).
+        trabajo de secretaría, alcanza con revisar (`puedeRevisar`, ya comprobado arriba), y
+        `changeRequestStatusAction` vuelve a exigir el guard que corresponde según el destino (ver
+        `transitionNeedsCoordinator`).
       */}
       {!cerrada && status === "RECIBIDA" ? (
         <form action={cambiarEstado}>

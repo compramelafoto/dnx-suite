@@ -36,27 +36,39 @@ describe("parseRoleForm", () => {
 });
 
 describe("parsePermissionGrid", () => {
-  const keys = ["members", "charges"] as const;
+  const keys = ["members", "charges", "cash"] as const;
   it("lee nivel y acciones con MANAGE", () => {
     const r = parsePermissionGrid(
-      fd({ "level:members": "MANAGE", "action:members:export": "on", "action:members:delete": "on" }),
+      fd({ "level:cash": "MANAGE", "action:cash:cash.configure": "on", "action:cash:cash.project_money": "on" }),
       keys,
     );
-    expect(r).toContainEqual({ moduleKey: "members", level: "MANAGE", actions: ["export", "delete"] });
+    expect(r).toContainEqual({ moduleKey: "cash", level: "MANAGE", actions: ["cash.configure", "cash.project_money"] });
+  });
+  it("descarta acciones que no están en el catálogo del módulo", () => {
+    const r = parsePermissionGrid(
+      fd({ "level:cash": "MANAGE", "action:cash:inventada": "on", "action:cash:cash.configure": "on" }),
+      keys,
+    );
+    expect(r.find((x) => x.moduleKey === "cash")?.actions).toEqual(["cash.configure"]);
+  });
+  it("descarta una acción de otro módulo", () => {
+    const r = parsePermissionGrid(fd({ "level:members": "MANAGE", "action:members:cash.configure": "on" }), keys);
+    expect(r.find((x) => x.moduleKey === "members")?.actions).toEqual([]);
   });
   it("descarta acciones si el nivel es VIEW", () => {
-    const r = parsePermissionGrid(fd({ "level:members": "VIEW", "action:members:export": "on" }), keys);
-    expect(r.find((x) => x.moduleKey === "members")).toEqual({ moduleKey: "members", level: "VIEW", actions: [] });
+    const r = parsePermissionGrid(fd({ "level:cash": "VIEW", "action:cash:cash.configure": "on" }), keys);
+    expect(r.find((x) => x.moduleKey === "cash")).toEqual({ moduleKey: "cash", level: "VIEW", actions: [] });
   });
   it("ignora módulos no editables", () => {
     const r = parsePermissionGrid(fd({ "level:secret": "MANAGE", "action:secret:x": "on" }), keys);
-    expect(r.map((x) => x.moduleKey)).toEqual(["members", "charges"]);
+    expect(r.map((x) => x.moduleKey)).toEqual(["members", "charges", "cash"]);
   });
   it("valor desconocido o ausente es NONE", () => {
     const r = parsePermissionGrid(fd({ "level:members": "ADMIN" }), keys);
     expect(r).toEqual([
       { moduleKey: "members", level: "NONE", actions: [] },
       { moduleKey: "charges", level: "NONE", actions: [] },
+      { moduleKey: "cash", level: "NONE", actions: [] },
     ]);
   });
 });

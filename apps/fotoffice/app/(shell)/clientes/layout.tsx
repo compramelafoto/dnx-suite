@@ -1,4 +1,4 @@
-import { requireClientsStaff } from "@/lib/clients/access";
+import { requireClientsViewer } from "@/lib/clients/access";
 
 /**
  * El guardia de la sección entera.
@@ -7,6 +7,6 @@ import { requireClientsStaff } from "@/lib/clients/access";
  * olvido. Cada pantalla vuelve a pedir lo suyo: son verificaciones que se suman.
  */
 export default async function ClientesLayout({ children }: { children: React.ReactNode }) {
-  await requireClientsStaff();
+  await requireClientsViewer();
   return <>{children}</>;
 }

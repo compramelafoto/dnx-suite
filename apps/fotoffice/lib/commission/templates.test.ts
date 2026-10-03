@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
+import { isKnownAction } from "@/lib/permissions/actions";
 import { CASH_PROJECT_MONEY_ACTION, OFFICE_TEMPLATES, ROLE_TEMPLATES } from "./templates";
 
 const keys = new Set(MODULE_REGISTRY.map((m) => m.key));
@@ -18,6 +19,7 @@ describe("plantillas de roles", () => {
     const caja = rol("treasury").permissions.find((p) => p.moduleKey === "cash");
     expect(caja).toMatchObject({ level: "MANAGE" });
     expect(caja?.actions).toContain(CASH_PROJECT_MONEY_ACTION);
+    expect(caja?.actions).toContain("cash.configure");
   });
   it("Presidencia y Secretaría gestionan Gobierno; el Revisor lo ve", () => {
     expect(nivel("president", "governance")).toBe("MANAGE");
@@ -27,6 +29,24 @@ describe("plantillas de roles", () => {
   it("Comunicación nunca ve plata", () => {
     expect(nivel("communication", "cash")).toBeUndefined();
     expect(nivel("communication", "membership-dues")).toBeUndefined();
+  });
+  it("Espacios gestiona Reservas y además las configura", () => {
+    const reservas = rol("spaces").permissions.find((p) => p.moduleKey === "bookings");
+    expect(reservas).toMatchObject({ level: "MANAGE" });
+    expect(reservas?.actions).toContain("bookings.configure");
+  });
+  it("Cultura y eventos gestiona Sorteos y además los conduce", () => {
+    const sorteos = rol("culture").permissions.find((p) => p.moduleKey === "raffles");
+    expect(sorteos).toMatchObject({ level: "MANAGE" });
+    expect(sorteos?.actions).toContain("raffles.conduct");
+  });
+  it("las acciones de cada plantilla son del catálogo y van sólo con MANAGE", () => {
+    for (const r of ROLE_TEMPLATES)
+      for (const p of r.permissions)
+        for (const a of p.actions ?? []) {
+          expect(isKnownAction(p.moduleKey, a)).toBe(true);
+          expect(p.level).toBe("MANAGE");
+        }
   });
   it("el Revisor de cuentas sólo lee", () => {
     for (const p of rol("auditor").permissions) expect(p.level).toBe("VIEW");

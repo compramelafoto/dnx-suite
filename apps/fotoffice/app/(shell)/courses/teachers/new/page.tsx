@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { TeacherForm } from "@/components/teacher-form";
+import { requireCoursesSalesContext } from "@/lib/workspace";
 
-export default function NewTeacherPage() {
+export default async function NewTeacherPage() {
+  // Formulario de alta: pide MANAGE en cursos (el layout de /courses sólo exige VIEW).
+  await requireCoursesSalesContext("MANAGE");
   return (
     <div className="space-y-10">
       <PageHeader

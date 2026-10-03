@@ -1,7 +1,7 @@
 import { prisma } from "@repo/db";
 import { Inbox } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
-import { requireActiveWorkspace } from "@/lib/workspace";
+import { requireServiceLeadsContext } from "@/lib/workspace";
 
 const statusLabel: Record<string, string> = {
   NEW: "Nuevo",
@@ -13,15 +13,13 @@ const statusLabel: Record<string, string> = {
 };
 
 export default async function ServiceLeadsPage() {
-  const { user, workspace } = await requireActiveWorkspace();
-  const currentWorkspaceId = workspace?.id ?? null;
+  // Módulo encendido + Captación VIEW; sin workspace o sin nivel, la puerta redirige.
+  const { user, workspace } = await requireServiceLeadsContext();
 
-  const leads = currentWorkspaceId
-    ? await prisma.serviceSalesLead.findMany({
-        where: { workspaceId: currentWorkspaceId },
-        orderBy: { createdAt: "desc" },
-      })
-    : [];
+  const leads = await prisma.serviceSalesLead.findMany({
+    where: { workspaceId: workspace.id },
+    orderBy: { createdAt: "desc" },
+  });
 
   return (
     <div className="space-y-10">
@@ -30,34 +28,24 @@ export default async function ServiceLeadsPage() {
         description="Consultas recibidas desde landings públicas para eventos y servicios."
       />
 
-      {workspace ? (
-        <div className="fo-card">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
-                Workspace activo
-              </p>
-              <p className="mt-1 text-sm font-medium text-[var(--fo-text)]">{workspace.name}</p>
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
-                Usuario administrador
-              </p>
-              <p className="mt-1 text-sm font-medium text-[var(--fo-text)]">{user.email}</p>
-            </div>
+      <div className="fo-card">
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
+              Workspace activo
+            </p>
+            <p className="mt-1 text-sm font-medium text-[var(--fo-text)]">{workspace.name}</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
+              Usuario administrador
+            </p>
+            <p className="mt-1 text-sm font-medium text-[var(--fo-text)]">{user.email}</p>
           </div>
         </div>
-      ) : null}
+      </div>
 
-      {!workspace ? (
-        <div className="fo-card">
-          <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
-            No hay workspace activo para este usuario.
-          </p>
-        </div>
-      ) : null}
-
-      {workspace && leads.length === 0 ? (
+      {leads.length === 0 ? (
         <div className="fo-card flex flex-col items-center text-center py-16 px-6 gap-4">
           <div className="flex size-14 items-center justify-center rounded-full bg-[var(--fo-accent-muted)] text-[var(--fo-accent)]">
             <Inbox className="size-7" aria-hidden />
@@ -68,7 +56,7 @@ export default async function ServiceLeadsPage() {
         </div>
       ) : null}
 
-      {workspace && leads.length > 0 ? (
+      {leads.length > 0 ? (
         <div className="overflow-x-auto rounded-[var(--fo-radius)] border border-[var(--fo-border)]">
           <table className="w-full text-sm text-left min-w-[920px]">
             <thead className="bg-[var(--fo-bg-elevated)] text-[var(--fo-muted)]">
