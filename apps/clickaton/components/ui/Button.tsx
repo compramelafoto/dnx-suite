@@ -42,6 +42,8 @@ type ButtonAsButton = CommonProps &
 type ButtonAsLink = CommonProps &
   Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "children" | "className"> & {
     href: string;
+    /** Pasa directo a `next/link`. Útil para no precargar una descarga (imagen, PDF). */
+    prefetch?: boolean;
   };
 
 export type ButtonProps = ButtonAsButton | ButtonAsLink;
@@ -80,9 +82,7 @@ export const Button = forwardRef<HTMLButtonElement | HTMLAnchorElement, ButtonPr
     } = props;
 
     if ("href" in props && typeof props.href === "string" && props.href.length > 0) {
-      const { href, ...linkRest } = rest as AnchorHTMLAttributes<HTMLAnchorElement> & {
-        href?: string;
-      };
+      const linkRest = rest as AnchorHTMLAttributes<HTMLAnchorElement>;
       const resolvedHref = props.href;
       return (
         <Link

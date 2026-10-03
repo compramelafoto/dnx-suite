@@ -34,6 +34,37 @@ describe("buildParticipantCardStorageKey", () => {
     assert.ok(!key.includes(" "));
     assert.ok(!key.includes("@"));
   });
+
+  it("da una carpeta distinta a cada tipo de pieza", () => {
+    const base = {
+      editionId: "ed_1",
+      registrationId: "reg_1",
+      templateVersion: 1,
+      renderHash: "hash1",
+    };
+    const welcome = buildParticipantCardStorageKey({ ...base, cardType: "welcome" });
+    const member = buildParticipantCardStorageKey({ ...base, cardType: "member" });
+    const diploma = buildParticipantCardStorageKey({ ...base, cardType: "diploma" });
+
+    assert.ok(welcome.includes("/welcome/"));
+    assert.ok(member.includes("/member/"));
+    assert.ok(diploma.includes("/diploma/"));
+    assert.equal(new Set([welcome, member, diploma]).size, 3);
+  });
+
+  it("rechaza un tipo de pieza desconocido", () => {
+    assert.throws(
+      () =>
+        buildParticipantCardStorageKey({
+          editionId: "ed_1",
+          registrationId: "reg_1",
+          templateVersion: 1,
+          renderHash: "hash1",
+          cardType: "certificado" as never,
+        }),
+      /UNKNOWN_CARD_TYPE/
+    );
+  });
 });
 
 describe("MemoryParticipantCardAssetStore", () => {

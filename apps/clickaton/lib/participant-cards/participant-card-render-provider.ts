@@ -28,6 +28,12 @@ export interface ParticipantCardRenderProvider {
   readonly id: string;
   render(input: {
     document: ResolvedTemplateDocument;
+    /**
+     * Los mismos datos con los que se resolvió `document`. Opcional: sólo lo usa
+     * `DesignStudioRenderProvider`, y sólo cuando la pieza tiene un bloque QR de variable —
+     * es el único dato que ese bloque no lleva ya incrustado.
+     */
+    templateData?: Record<string, unknown>;
   }): Promise<ParticipantCardRenderResult>;
 }
 

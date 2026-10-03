@@ -18,6 +18,7 @@ export {
   formatDateLong,
   formatDateLongUppercase,
   formatDateShort,
+  formatDateWithTime,
   formatParticipantNumber,
   toZonedCalendarParts,
 } from "./clickaton-formatters";

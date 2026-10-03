@@ -176,11 +176,17 @@ export function sanitizeParticipantCardFilenamePart(
 }
 
 export function buildParticipantCardFilename(
-  cardType: "welcome" | "member",
+  cardType: "welcome" | "member" | "diploma",
   registration: ParticipantCardRegistrationSnapshot
 ): string {
   const part = sanitizeParticipantCardFilenamePart(registration);
-  const prefix =
-    cardType === "welcome" ? "clickaton-bienvenida" : "clickaton-soy-parte";
+  let prefix: string;
+  if (cardType === "welcome") {
+    prefix = "clickaton-bienvenida";
+  } else if (cardType === "member") {
+    prefix = "clickaton-soy-parte";
+  } else {
+    prefix = "clickaton-diploma";
+  }
   return `${prefix}-${part}.png`;
 }

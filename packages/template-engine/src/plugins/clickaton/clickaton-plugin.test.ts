@@ -13,6 +13,7 @@ import {
   formatDateDayMonthUppercase,
   formatDateLongUppercase,
   formatDateShort,
+  formatDateWithTime,
   formatParticipantNumber,
   CLICKATON_DEFAULT_TIMEZONE,
 } from "./index";
@@ -121,6 +122,15 @@ describe("clickaton plugin", () => {
     assert.equal(edge, "18/09/2026");
   });
 
+  it("formatDateWithTime: 19:30 UTC = 16:30 Córdoba (trampa de zona horaria)", () => {
+    // 2026-09-19T19:30:00Z es 16:30 en Córdoba (UTC-3)
+    const result = formatDateWithTime(
+      new Date("2026-09-19T19:30:00.000Z"),
+      CLICKATON_DEFAULT_TIMEZONE
+    );
+    assert.equal(result, "19/09/2026, 16:30");
+  });
+
   it("example data ficticia y sin school keys", () => {
     const d = createClickatonTemplateExampleData();
     assert.equal((d.participant as { fullName: string }).fullName, "Daniel Fotógrafo");
@@ -141,5 +151,22 @@ describe("clickaton plugin", () => {
   it("producto desconocido: registry clickaton solo", () => {
     const reg = createTemplateVariableRegistry([clickatonTemplateVariablesPlugin]);
     assert.equal(reg.getVariableDefinition("student.fullName"), undefined);
+  });
+
+  describe("variables de diploma", () => {
+    it("expone las cuatro variables del diploma", () => {
+      const paths = new Set(CLICKATON_TEMPLATE_VARIABLE_DEFINITIONS.map((d) => d.path));
+      assert.ok(paths.has("diploma.code"));
+      assert.ok(paths.has("diploma.issuedAtFormatted"));
+      assert.ok(paths.has("diploma.accreditedAtFormatted"));
+      assert.ok(paths.has("diploma.verificationUrl"));
+    });
+
+    it("la URL de verificación es de tipo QR", () => {
+      const def = CLICKATON_TEMPLATE_VARIABLE_DEFINITIONS.find(
+        (d) => d.path === "diploma.verificationUrl"
+      );
+      assert.equal(def?.valueType, "qrUrl");
+    });
   });
 });
