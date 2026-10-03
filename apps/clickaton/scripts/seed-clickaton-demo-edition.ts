@@ -6,7 +6,7 @@
  * - Gratuita: una sola entrada con precio 0 (sin pasar por Mercado Pago).
  * - 3 consignas en vez de 10, con liberación programada.
  * - Jornada: 2026-09-02 de 10:00 a 12:00 (hora argentina), acreditación desde las 07:00.
- * - Abierta para pruebas tardías hasta 2026-09-05 23:00: inscripción, captura y carga.
+ * - Abierta para pruebas tardías hasta 2026-09-20 23:00: inscripción, captura y carga.
  *
  * Seguro de volver a correr con gente adentro:
  * - No re-bloquea una consigna ya liberada.
@@ -59,7 +59,7 @@ const JORNADA = {
    * captura cerrara antes, toda foto sacada después quedaría marcada como
    * tomada fuera de horario.
    */
-  abiertaHasta: "2026-09-05 23:00",
+  abiertaHasta: "2026-09-20 23:00",
 } as const;
 
 const START_AT = enHoraArgentina(JORNADA.inicio);
