@@ -55,7 +55,7 @@ export default async function WebsitePreviewPage() {
           workspaceName={branding?.commercialName ?? workspace.name}
           navItems={navItems}
           designPresets={designPresets}
-          homeHref="#"
+          homeHref="#" loginHref="#"
         />
         <WebsitePageRenderer blocks={blocks} colors={colors} designPresets={designPresets} />
       </div>
