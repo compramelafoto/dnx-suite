@@ -44,5 +44,9 @@ export async function savePortalProfileAction(
 
   revalidatePath("/portal");
   revalidatePath("/portal/perfil");
+  // Los mismos campos se editan desde "Mi portfolio", y se ven en su vista previa: sin esto, el
+  // socio guarda su presentación y la pantalla donde la escribió sigue mostrando la anterior.
+  revalidatePath("/portal/portfolio");
+  revalidatePath("/portal/portfolio/vista-previa");
   return { error: null, ok: "Listo, guardamos tus datos." };
 }

@@ -12,6 +12,9 @@ import { PortfolioPhotoGrid } from "@/components/portal/portfolio/portfolio-phot
 import { PortfolioPublishToggle } from "@/components/portal/portfolio/portfolio-publish-toggle";
 import { PortfolioInstagramForm } from "@/components/portal/portfolio/portfolio-instagram-form";
 import { PortfolioVideosForm } from "@/components/portal/portfolio/portfolio-videos-form";
+import { PortfolioPresentation } from "@/components/portal/portfolio/portfolio-presentation";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
+import { normalizeArgentineWhatsappNumber } from "@/lib/portfolio/whatsapp";
 
 export const metadata = { title: "Mi portfolio" };
 export const dynamic = "force-dynamic";
@@ -19,13 +22,17 @@ export const dynamic = "force-dynamic";
 /**
  * Donde una persona arma su portfolio.
  *
- * Cuatro bloques, en el orden en que importan:
+ * Los bloques, en el orden en que importan:
  *
  * 1. **El estado.** Si está al aire, y si no, cuál de las siete condiciones falta y qué hacer.
  *    Va primero porque es la pregunta que trae a alguien a esta pantalla.
- * 2. **Subir fotos.**
- * 3. **Las fotos**, para ordenar, destacar, titular y borrar.
- * 4. **El interruptor de publicar**, al final: se prende cuando lo demás ya está.
+ * 2. **Cómo te presentás**: foto, logo, presentación, rubros y redes. Son campos de la ficha del
+ *    socio —los mismos que "Mi perfil"—, no del portfolio, pero se ven arriba de las fotos en la
+ *    página pública, y no tenerlos acá obligaba a adivinar dónde vivían.
+ * 3. **Subir fotos.**
+ * 4. **Las fotos**, para ordenar, destacar, titular y borrar.
+ * 5. **Videos** y **la franja de Instagram.**
+ * 6. **El interruptor de publicar**, al final: se prende cuando lo demás ya está.
  *
  * El portfolio se crea recién cuando alguien entra acá — `loadPortfolioForMember` no lo crea, sólo
  * lo lee, y devuelve `id: null` mientras no exista. La fila nace en la primera acción real (subir
@@ -39,7 +46,7 @@ export default async function PortalPortfolioPage() {
     redirect("/portal");
   }
 
-  const [portfolio, branding] = await Promise.all([
+  const [portfolio, branding, vocabulario, presentacion] = await Promise.all([
     loadPortfolioForMember({
       workspaceId: context.workspace.id,
       memberId: context.member.id,
@@ -47,6 +54,28 @@ export default async function PortalPortfolioPage() {
     prisma.fotofficeWorkspaceBranding.findUnique({
       where: { workspaceId: context.workspace.id },
       select: { publicSlug: true },
+    }),
+    loadPersonVocabulary(context.workspace.id),
+    // Lo que se ve arriba de las fotos en la página pública. Vive en la ficha del socio, no en el
+    // portfolio: por eso hasta ahora sólo se editaba desde "Mi perfil".
+    prisma.member.findUnique({
+      where: { id: context.member.id },
+      select: {
+        phone: true,
+        avatarUrl: true,
+        profilePhotoUrl: true,
+        businessName: true,
+        businessLogoUrl: true,
+        bio: true,
+        specialties: true,
+        website: true,
+        instagram: true,
+        tiktok: true,
+        facebook: true,
+        youtube: true,
+        linkedin: true,
+        directoryOptIn: true,
+      },
     }),
   ]);
 
@@ -83,6 +112,34 @@ export default async function PortalPortfolioPage() {
       </header>
 
       <PortfolioStatusCard visibility={portfolio.visibility} publicHref={publicHref} />
+
+      {/*
+        Va antes de las fotos porque es el orden en que se lee la página pública: primero quién
+        sos, después tu obra. La sección se abre sola cuando falta algo.
+      */}
+      {presentacion ? (
+        <PortfolioPresentation
+          institutionName={context.workspace.name}
+          vocabulary={vocabulario}
+          displayName={`${context.member.firstName} ${context.member.lastName}`.trim()}
+          profilePhotoUrl={presentacion.profilePhotoUrl}
+          carnetPhotoUrl={presentacion.avatarUrl}
+          businessLogoUrl={presentacion.businessLogoUrl}
+          whatsappListo={normalizeArgentineWhatsappNumber(presentacion.phone) !== null}
+          defaults={{
+            businessName: presentacion.businessName,
+            bio: presentacion.bio,
+            specialties: presentacion.specialties,
+            website: presentacion.website,
+            instagram: presentacion.instagram,
+            tiktok: presentacion.tiktok,
+            facebook: presentacion.facebook,
+            youtube: presentacion.youtube,
+            linkedin: presentacion.linkedin,
+            directoryOptIn: presentacion.directoryOptIn,
+          }}
+        />
+      ) : null}
 
       <PortfolioUploader photoCount={portfolio.photos.length} />
 
