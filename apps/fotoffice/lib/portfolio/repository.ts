@@ -37,6 +37,10 @@ export type PortfolioView = {
   instagramEnabled: boolean;
   /** Los enlaces cargados. Se conservan aunque la franja esté apagada. */
   instagramPostUrls: string[];
+  /** Lo que el socio decidió sobre cómo se ve en Google. Vacío = se arma solo. */
+  seoTitle: string | null;
+  seoDescription: string | null;
+  seoImageChoice: string | null;
   /** Las direcciones de los videos, en orden, como las pegó el socio. */
   videoUrls: string[];
 };
@@ -143,6 +147,9 @@ export async function loadPortfolioForMember(params: {
         adminForcePublish: true,
         instagramEnabled: true,
         instagramPostUrls: true,
+        seoTitle: true,
+        seoDescription: true,
+        seoImageChoice: true,
         photos: { select: SELECT_FOTO, orderBy: { order: "asc" } },
         videos: { select: { url: true }, orderBy: { order: "asc" } },
       },
@@ -174,6 +181,9 @@ export async function loadPortfolioForMember(params: {
     visibility,
     instagramEnabled: fila?.instagramEnabled ?? false,
     instagramPostUrls: fila?.instagramPostUrls ?? [],
+    seoTitle: fila?.seoTitle ?? null,
+    seoDescription: fila?.seoDescription ?? null,
+    seoImageChoice: fila?.seoImageChoice ?? null,
     videoUrls: (fila?.videos ?? []).map((v) => v.url),
   };
 }

@@ -13,6 +13,9 @@ import { PortfolioPublishToggle } from "@/components/portal/portfolio/portfolio-
 import { PortfolioInstagramForm } from "@/components/portal/portfolio/portfolio-instagram-form";
 import { PortfolioVideosForm } from "@/components/portal/portfolio/portfolio-videos-form";
 import { PortfolioPresentation } from "@/components/portal/portfolio/portfolio-presentation";
+import { PortfolioSeoForm } from "@/components/portal/portfolio/portfolio-seo-form";
+import { etiquetaEspecialidad } from "@/lib/membership/specialties";
+import { appUrl } from "@/lib/app-url";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { normalizeArgentineWhatsappNumber } from "@/lib/portfolio/whatsapp";
 
@@ -166,6 +169,34 @@ export default async function PortalPortfolioPage() {
         enabled={portfolio.instagramEnabled}
         postUrls={portfolio.instagramPostUrls}
       />
+
+      {/*
+        Al final, antes del interruptor de publicar: es lo último que se ajusta, cuando las fotos
+        y la presentación ya están. Ponerlo arriba le pediría a alguien que escriba su título de
+        Google antes de tener una sola foto.
+      */}
+      {presentacion ? (
+        <PortfolioSeoForm
+          seoTitle={portfolio.seoTitle}
+          seoDescription={portfolio.seoDescription}
+          seoImageChoice={portfolio.seoImageChoice}
+          fuentes={{
+            displayName: `${context.member.firstName} ${context.member.lastName}`.trim(),
+            businessName: presentacion.businessName,
+            bio: presentacion.bio,
+            rubros: presentacion.specialties.map((id) => etiquetaEspecialidad(id)),
+            city: presentacion.studioCity,
+            province: presentacion.studioProvince,
+            institucion: context.workspace.name,
+            logoUrl: presentacion.businessLogoUrl,
+            coverUrl: portfolio.photos.find((f) => f.isCover)?.url ?? null,
+            profilePhotoUrl: presentacion.profilePhotoUrl,
+            urlVisible: publicHref
+              ? `${appUrl().replace(/^https?:\/\//, "").replace(/\/$/, "")}${publicHref}`
+              : "tu ficha, cuando se publique",
+          }}
+        />
+      ) : null}
 
       <PortfolioPublishToggle
         published={portfolio.memberPublished}

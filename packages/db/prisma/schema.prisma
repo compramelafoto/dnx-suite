@@ -8125,6 +8125,21 @@ model FotofficeMemberPortfolio {
   /// que cerró la Basic Display API, en diciembre de 2024.
   instagramPostUrls String[] @default([])
 
+  /// --- Cómo se ve esta ficha en Google y al compartirla ---
+  ///
+  /// Los tres son OPCIONALES y vacíos se comportan como antes de existir: el título se arma con
+  /// nombre, estudio y ciudad, la descripción es la presentación del socio, y la miniatura sigue
+  /// el orden logo → destacada → foto de perfil. Nadie empeora por no tocarlos.
+  ///
+  /// Existen porque la presentación y la descripción de Google tienen trabajos distintos: una
+  /// puede ser larga y en primera persona, la otra se corta a ~160 caracteres y conviene que sea
+  /// un resumen con las palabras que la gente busca.
+  seoTitle       String?
+  seoDescription String?
+  /// "LOGO" | "COVER" | "PROFILE". Texto y no enum: el conjunto cerrado vive en
+  /// `lib/portfolio/seo-fields.ts`, y agregarle una opción no debería ser una migración.
+  seoImageChoice String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

@@ -12,6 +12,12 @@ import { verifyUploadedImage } from "@/lib/images/r2-presign";
 import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
 import { ensurePortfolio } from "@/lib/portfolio/repository";
 import { canAcceptAnotherPhoto } from "@/lib/portfolio/upload-guard";
+import {
+  SEO_DESCRIPCION_MAX,
+  SEO_TITULO_MAX,
+  esOpcionMiniatura,
+  limpiarTextoSeo,
+} from "@/lib/portfolio/seo-fields";
 import { parseInstagramPostUrls } from "@/lib/portfolio/instagram";
 import { parsePortfolioVideoUrls } from "@/lib/portfolio/videos";
 
@@ -352,6 +358,35 @@ export async function setPortfolioPublishedAction(input: {
  * El interruptor y los enlaces se guardan juntos aunque sean dos cosas: apagar la franja **no**
  * borra lo cargado. Quien la apaga por un tiempo no tiene que volver a pegar seis direcciones.
  */
+/**
+ * Cómo se ve la ficha en Google y al compartirla.
+ *
+ * Los tres campos son opcionales y vacíos vuelven al comportamiento automático. Por eso se guarda
+ * `null` y no cadena vacía: "no elegí nada" y "elegí que diga nada" son cosas distintas, y la
+ * segunda dejaría la ficha sin título.
+ */
+export async function setPortfolioSeoAction(input: {
+  title: string;
+  description: string;
+  imageChoice: string;
+}): Promise<PortfolioActionResult> {
+  const ctx = await contextoDelPortfolio();
+  if (!ctx.ok) return ctx;
+
+  await prisma.fotofficeMemberPortfolio.update({
+    where: { id: ctx.portfolioId },
+    data: {
+      seoTitle: limpiarTextoSeo(input.title, SEO_TITULO_MAX),
+      seoDescription: limpiarTextoSeo(input.description, SEO_DESCRIPCION_MAX),
+      // Cualquier valor que no sea una de las tres opciones vuelve a "automático".
+      seoImageChoice: esOpcionMiniatura(input.imageChoice) ? input.imageChoice : null,
+    },
+  });
+
+  refrescarPantallas();
+  return { ok: true };
+}
+
 export async function setPortfolioInstagramAction(input: {
   enabled: boolean;
   postUrls: string[];

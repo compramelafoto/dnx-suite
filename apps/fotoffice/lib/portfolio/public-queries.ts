@@ -87,6 +87,10 @@ export type PublicPortfolio = {
   videos: PublicPortfolioVideo[];
   /** Posteos que el socio eligió mostrar. Vacío si apagó la franja o no cargó ninguno. */
   instagramPosts: string[];
+  /** Lo que el socio decidió sobre cómo se ve en Google. En null, se arma solo. */
+  seoTitle: string | null;
+  seoDescription: string | null;
+  seoImageChoice: string | null;
 };
 
 /** Lo único que se lee del socio. Todo lo demás queda del lado privado. */
@@ -261,6 +265,9 @@ export async function loadPublicPortfolio(params: {
       coverPhotoId: true,
       instagramEnabled: true,
       instagramPostUrls: true,
+      seoTitle: true,
+      seoDescription: true,
+      seoImageChoice: true,
       member: { select: SELECT_MIEMBRO },
       coverPhoto: { select: { url: true, width: true, height: true } },
       photos: { select: SELECT_FOTO, orderBy: { order: "asc" } },
@@ -287,6 +294,9 @@ export async function loadPublicPortfolio(params: {
 /** El armado de la ficha, en un solo lugar: lo comparten la página pública y la vista previa. */
 type FilaDeFicha = {
   publicSlug: string;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  seoImageChoice?: string | null;
   member: Record<string, unknown> & FilaMiembro;
   coverPhoto: { url: string } | null;
   instagramEnabled: boolean;
@@ -345,6 +355,9 @@ function aPublicPortfolio(fila: FilaDeFicha): PublicPortfolio {
     canContactByWhatsapp: normalizeArgentineWhatsappNumber(m.phone) !== null,
     // El interruptor manda: apagarlo oculta la franja sin que el socio pierda los enlaces que cargó.
     instagramPosts: fila.instagramEnabled ? fila.instagramPostUrls : [],
+    seoTitle: fila.seoTitle ?? null,
+    seoDescription: fila.seoDescription ?? null,
+    seoImageChoice: fila.seoImageChoice ?? null,
     videos: (fila.videos ?? []).map((v) => ({
       id: v.id,
       // Lo guardado es texto; el tipo cerrado vive en `videos.ts`, no en la base.
@@ -385,6 +398,9 @@ export async function loadPortfolioPreview(params: {
       publicSlug: true,
       instagramEnabled: true,
       instagramPostUrls: true,
+      seoTitle: true,
+      seoDescription: true,
+      seoImageChoice: true,
       member: { select: SELECT_MIEMBRO },
       coverPhoto: { select: { url: true } },
       photos: { select: SELECT_FOTO, orderBy: { order: "asc" } },
