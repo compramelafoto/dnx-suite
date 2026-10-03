@@ -100,10 +100,12 @@ describe("resolución de rol de workspace — menú y páginas leen lo mismo", (
       assert.ok(!navSrc.includes(viejo), `shell-nav todavía recibe ${viejo}`);
       assert.ok(!sidebarSrc.includes(viejo), `shell-sidebar todavía recibe ${viejo}`);
     }
-    // `canManageWorkspaceSettings` sólo decide la sección Institución: declararla y usarla ahí.
+    // `canManageWorkspaceSettings` sólo decide lo que es de Configuración: la sección
+    // Institución y la configuración de cursos (que guarda `app/actions/settings.ts`, dueño/admin).
     const usos = navSrc.match(/\bcanManageWorkspaceSettings\b/g) ?? [];
     assert.match(navSrc, /const institucion: Item\[\] = canManageWorkspaceSettings/);
-    assert.equal(usos.length, 3, "canManageWorkspaceSettings se usa en el menú fuera de Institución");
+    assert.match(navSrc, /ve\(COURSES_SALES_MODULE_KEY\) && canManageWorkspaceSettings/);
+    assert.equal(usos.length, 4, "canManageWorkspaceSettings se usa en el menú fuera de Configuración");
   });
 
   it("el inicio arma los números y las tarjetas por nivel, no por rol", () => {

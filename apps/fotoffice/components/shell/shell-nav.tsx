@@ -206,7 +206,10 @@ export function ShellNav({
           },
         ]
       : []),
-    ...(ve(COURSES_SALES_MODULE_KEY)
+    // La configuración del módulo (moneda, texto de inscripción, comisión) la guarda sólo
+    // dueño/admin (`app/actions/settings.ts`): ofrecerla a un rol que no puede guardarla sería
+    // prometer algo que la pantalla niega.
+    ...(ve(COURSES_SALES_MODULE_KEY) && canManageWorkspaceSettings
       ? [
           {
             href: "/courses/settings",
