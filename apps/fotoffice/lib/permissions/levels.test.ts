@@ -12,6 +12,7 @@ import {
   maxLevel,
   resolveModuleAction,
   resolveModuleLevel,
+  type ModuleLevel,
   type RoleAssignmentForLevels,
 } from "./levels";
 
@@ -28,11 +29,24 @@ const now = new Date("2026-10-03T12:00:00Z");
 const ayer = new Date("2026-10-02T12:00:00Z");
 const manana = new Date("2026-10-04T12:00:00Z");
 
+/**
+ * `actions` es opcional acá y se completa con la lista vacía.
+ *
+ * Estos tests miran el NIVEL (NONE/VIEW/MANAGE), no las acciones sensibles, y obligar a escribir
+ * `actions: []` en cada caso agrega ruido sin probar nada. Cuando se agregó ese campo al tipo,
+ * los catorce casos de este archivo dejaron de compilar por eso.
+ */
 function asignacion(
-  permisos: RoleAssignmentForLevels["permissions"],
+  permisos: readonly { moduleKey: string; level: ModuleLevel; actions?: readonly string[] }[],
   fechas: Partial<Pick<RoleAssignmentForLevels, "startsAt" | "endsAt" | "revokedAt">> = {},
 ): RoleAssignmentForLevels {
-  return { startsAt: null, endsAt: null, revokedAt: null, permissions: permisos, ...fechas };
+  return {
+    startsAt: null,
+    endsAt: null,
+    revokedAt: null,
+    permissions: permisos.map((p) => ({ ...p, actions: p.actions ?? [] })),
+    ...fechas,
+  };
 }
 
 function nivel(input: Partial<Parameters<typeof resolveModuleLevel>[0]>) {
