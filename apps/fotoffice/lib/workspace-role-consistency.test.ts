@@ -197,6 +197,10 @@ describe("nadie fuera de Configuración decide el acceso por el rol crudo", () =
       patron: /^app\/workspace\/page\.tsx$/,
       razon: "sólo el aviso 'Completar los datos de la institución', que lleva a Configuración",
     },
+    {
+      patron: /^app\/workspace\/layout\.tsx$/,
+      razon: "sólo el desvío al onboarding, que completa el dueño/admin; no decide el acceso al panel",
+    },
     // Las propias definiciones.
     { patron: /^lib\/workspace-settings-access\.ts$/, razon: "definición" },
   ];
