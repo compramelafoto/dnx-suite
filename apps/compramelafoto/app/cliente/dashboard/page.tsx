@@ -7,6 +7,7 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Tabs from "@/components/ui/Tabs";
 import { cn } from "@/lib/utils";
+import PasarAFotografoCard from "@/components/cliente/PasarAFotografoCard";
 
 type DigitalDownloadOrder = {
   orderId: number;
@@ -249,6 +250,7 @@ export default function ClientDashboardPage() {
                 </Link>
               </div>
             </div>
+            {stats && stats.totalOrders === 0 && <PasarAFotografoCard />}
             {stats && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
                 <Card className="p-4">
@@ -474,6 +476,7 @@ export default function ClientDashboardPage() {
           {activeTab === "cuenta" && (
             <Card className="p-6 space-y-6">
               <h2 className="text-xl font-medium text-[#1a1a1a]">Configuración de cuenta</h2>
+              <PasarAFotografoCard />
               <p className="text-sm text-[#6b7280]">
                 <Link href="/privacidad" className="text-[#c27b3d] hover:underline">
                   Ver Política de Privacidad
