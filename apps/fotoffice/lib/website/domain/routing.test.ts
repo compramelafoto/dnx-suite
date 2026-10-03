@@ -16,9 +16,15 @@ describe("decideCustomDomainRoute", () => {
     expect(decide("/sorteos/abc")).toEqual({ kind: "rewrite", pathname: "/w/sfpr/sorteos/abc" });
   });
 
-  it("los enlaces viejos con /w/<slug> saltan a la dirección limpia", () => {
-    expect(decide("/w/sfpr")).toEqual({ kind: "redirect", url: "/" });
-    expect(decide("/w/sfpr/cursos", "?x=1")).toEqual({ kind: "redirect", url: "/cursos?x=1" });
+  it("/w/<slug> se sirve tal cual: redirigirlo hace un bucle con la reescritura", () => {
+    expect(decide("/w/sfpr")).toEqual({ kind: "pass" });
+    expect(decide("/w/sfpr/cursos", "?x=1")).toEqual({ kind: "pass" });
+    // Lo que la reescritura produce, al volver a pasar por el proxy, no se toca.
+    for (const p of ["/", "/blog", "/socios/ana"]) {
+      const first = decide(p);
+      expect(first.kind).toBe("rewrite");
+      if (first.kind === "rewrite") expect(decide(first.pathname)).toEqual({ kind: "pass" });
+    }
     expect(decide("/w/sfprx/cursos")).toEqual({ kind: "redirect", url: `${ORIGIN}/w/sfprx/cursos` });
   });
 

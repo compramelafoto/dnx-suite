@@ -69,13 +69,16 @@ export function decideCustomDomainRoute(args: {
   const toFotoffice = (path: string): CustomDomainDecision =>
     fotofficeOrigin ? { kind: "redirect", url: `${fotofficeOrigin}${path}${search}` } : { kind: "pass" };
 
-  // Enlaces que ya arman `/w/<slug>/...` (hay decenas): un salto y quedan limpios.
+  // `/w/<slug>/...` se sirve tal cual, SIN redirigir a la dirección limpia. En Vercel el proxy
+  // vuelve a correr sobre la dirección ya reescrita: `/blog` → `/w/sfpr/blog` → (otra vez acá).
+  // Si esto redirigiera a `/blog`, el visitante quedaba en un bucle infinito (03/10/2026, la
+  // primera noche de sfpr.com.ar). Los enlaces viejos muestran `/w/sfpr/...`, pero funcionan.
   const ownPrefix = `/w/${slug}`;
   if (pathname === ownPrefix || pathname.startsWith(`${ownPrefix}/`)) {
     const rest = pathname.slice(ownPrefix.length) || "/";
     const first = rest.split("/")[1] ?? "";
     if (SITE_SEGMENTS_ON_FOTOFFICE.has(first)) return toFotoffice(pathname);
-    return { kind: "redirect", url: `${rest}${search}` };
+    return { kind: "pass" };
   }
   // El sitio de OTRA institución no se sirve bajo este dominio.
   if (pathname.startsWith("/w/")) return toFotoffice(pathname);
