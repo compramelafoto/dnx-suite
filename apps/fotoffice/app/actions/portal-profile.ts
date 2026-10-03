@@ -38,6 +38,11 @@ export async function savePortalProfileAction(
     youtube: texto("youtube"),
     linkedin: texto("linkedin"),
     directoryOptIn: formData.get("directoryOptIn") === "on",
+    studioStreet: texto("studioStreet"),
+    studioCity: texto("studioCity"),
+    studioProvince: texto("studioProvince"),
+    studioPostalCode: texto("studioPostalCode"),
+    studioMapsUrl: texto("studioMapsUrl"),
   });
 
   if (!r.ok) return { error: r.error, field: r.field, ok: null };

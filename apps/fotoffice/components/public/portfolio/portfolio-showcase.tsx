@@ -1,5 +1,7 @@
-import { Globe, Instagram, Facebook, Linkedin, Youtube, Music2, MessageCircle } from "lucide-react";
+import { Globe, Instagram, Facebook, Linkedin, Youtube, Music2, MapPin, MessageCircle } from "lucide-react";
 import { etiquetaEspecialidad } from "@/lib/membership/specialties";
+import { direccionEnUnaLinea, enlaceAlMapa } from "@/lib/membership/studio-location";
+import { enlacesDeRedes, limpiarUsuario } from "@/lib/portfolio/social-links";
 import type { PublicPortfolio } from "@/lib/portfolio/public-queries";
 import { PortfolioGallery } from "./portfolio-gallery";
 import { InstagramStrip } from "./instagram-strip";
@@ -29,6 +31,8 @@ export function PortfolioShowcase({
   const instagramHandle = portfolio.links.instagram
     ? limpiarUsuario(portfolio.links.instagram)
     : null;
+  const direccionVisible = direccionEnUnaLinea(portfolio.studio);
+  const enlaceMapa = enlaceAlMapa(portfolio.studio);
 
   return (
     <div className="space-y-14">
@@ -98,6 +102,29 @@ export function PortfolioShowcase({
             </p>
           ) : null}
 
+          {/*
+            Dónde atiende, con enlace al mapa. Va antes del botón de WhatsApp porque es la otra
+            pregunta que se hace quien está mirando: "¿y dónde queda?". Sin esto, el domicilio
+            sólo existiría para Google y no para la persona que entró.
+          */}
+          {direccionVisible ? (
+            <p className="flex items-start gap-2 text-sm opacity-80">
+              <MapPin size={16} aria-hidden className="mt-0.5 shrink-0" />
+              {enlaceMapa ? (
+                <a
+                  href={enlaceMapa}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline decoration-dotted underline-offset-4 hover:opacity-100"
+                >
+                  {direccionVisible}
+                </a>
+              ) : (
+                <span>{direccionVisible}</span>
+              )}
+            </p>
+          ) : null}
+
           {contactHref && portfolio.canContactByWhatsapp ? (
             <p className="pt-1">
               <a
@@ -144,18 +171,9 @@ const ICONOS = {
  * redirigir la nuestra.
  */
 function EnlacesDeContacto({ links }: { links: PublicPortfolio["links"] }) {
-  const items: { etiqueta: keyof typeof ICONOS; href: string }[] = [];
-  if (links.website) items.push({ etiqueta: "Sitio", href: normalizarUrl(links.website) });
-  if (links.instagram)
-    items.push({
-      etiqueta: "Instagram",
-      href: `https://instagram.com/${limpiarUsuario(links.instagram)}`,
-    });
-  if (links.tiktok)
-    items.push({ etiqueta: "TikTok", href: `https://tiktok.com/@${limpiarUsuario(links.tiktok)}` });
-  if (links.facebook) items.push({ etiqueta: "Facebook", href: normalizarUrl(links.facebook) });
-  if (links.youtube) items.push({ etiqueta: "YouTube", href: normalizarUrl(links.youtube) });
-  if (links.linkedin) items.push({ etiqueta: "LinkedIn", href: normalizarUrl(links.linkedin) });
+  // El mismo armador que usan los datos estructurados: lo que ve la persona y lo que lee Google
+  // no pueden decir cosas distintas.
+  const items = enlacesDeRedes(links);
 
   if (items.length === 0) return null;
 
@@ -182,17 +200,4 @@ function EnlacesDeContacto({ links }: { links: PublicPortfolio["links"] }) {
   );
 }
 
-/** Quien escribe "miestudio.com" sin `https://` igual tiene que terminar en su sitio. */
-function normalizarUrl(valor: string): string {
-  const limpio = valor.trim();
-  return /^https?:\/\//i.test(limpio) ? limpio : `https://${limpio}`;
-}
 
-/** Acepta "@usuario", "usuario" o la URL completa pegada en el campo. */
-export function limpiarUsuario(valor: string): string {
-  return valor
-    .trim()
-    .replace(/^https?:\/\/(www\.)?[^/]+\//i, "")
-    .replace(/^@/, "")
-    .replace(/\/+$/, "");
-}
