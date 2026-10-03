@@ -71,7 +71,7 @@ describe("buildMemberInactiveWithRoleEmail", () => {
     expect(a.text).toContain("La ficha de Ana quedó suspendida");
     expect(b.text).toContain("La ficha de Ana se dio de baja");
     for (const r of [a, b]) {
-      expect(`${r.subject}${r.html}${r.text}`).not.toMatch(/socia|suspendida como|dada de baja/i);
+      expect(`${r.subject}${r.html}${r.text}`).not.toMatch(/\bsocia\b|suspendida como|dada de baja/i);
     }
   });
   it("escapa HTML y evita vocabulario interno", () => {

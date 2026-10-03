@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import {
   createMember,
   createMemberCategory,
@@ -186,8 +187,10 @@ export async function changeMemberStatusAction(
 
   // Aviso a la dirección si quien queda inactivo tiene cargo o rol en la comisión. No se
   // revoca nada y no demora la respuesta: si el correo falla, el cambio de estado ya está hecho.
-  void notifyAdminsIfCommissionMemberInactive({ workspaceId: workspace.id, memberId: id, newStatus: status }).catch(
-    (e) => console.error("[fotoffice][comision] aviso de inactivo", e),
+  after(() =>
+    notifyAdminsIfCommissionMemberInactive({ workspaceId: workspace.id, memberId: id, newStatus: status }).catch(
+      (e) => console.error("[fotoffice][comision] aviso de inactivo", e),
+    ),
   );
 
   revalidatePath("/members");
