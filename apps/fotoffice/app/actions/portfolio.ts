@@ -12,6 +12,8 @@ import { verifyUploadedImage } from "@/lib/images/r2-presign";
 import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
 import { ensurePortfolio } from "@/lib/portfolio/repository";
 import { canAcceptAnotherPhoto } from "@/lib/portfolio/upload-guard";
+import { parseInstagramPostUrls } from "@/lib/portfolio/instagram";
+import { parsePortfolioVideoUrls } from "@/lib/portfolio/videos";
 
 /**
  * Todo lo que una persona puede hacer con su propio portfolio.
@@ -239,11 +241,21 @@ export async function reorderPortfolioPhotosAction(input: {
 /** El año más viejo admisible. Antes de eso no había fotografía. */
 const ANIO_MINIMO = 1826;
 
+/**
+ * Tope de la descripción de una foto.
+ *
+ * 180 no es un límite técnico: es hasta dónde un lector de pantalla lo dice de corrido sin que la
+ * persona pierda el hilo, y hasta donde Google le presta atención. Más largo no suma, estorba.
+ */
+const MAX_ALT = 180;
+
 /** Título y año de una foto. Los dos opcionales: una foto sin título es una foto válida. */
 export async function updatePortfolioPhotoAction(input: {
   photoId: string;
   title: string | null;
   year: number | null;
+  /** Descripción de lo que se ve. Va al `alt`: la lee Google y la escucha un lector de pantalla. */
+  altText?: string | null;
 }): Promise<PortfolioActionResult> {
   const ctx = await contextoDelPortfolio();
   if (!ctx.ok) return ctx;
@@ -262,9 +274,18 @@ export async function updatePortfolioPhotoAction(input: {
   // Un título vacío es nulo, no una cadena vacía: si no, la ficha pública muestra un renglón hueco.
   const title = (input.title ?? "").trim() || null;
 
+  /*
+   * El `alt` se recorta en vez de rechazarse. Un título se corrige y se sigue; una descripción de
+   * 300 caracteres es alguien escribiendo de más, y perderle el texto entero por eso sería peor que
+   * guardarle los primeros 180.
+   */
+  const altCrudo = (input.altText ?? "").replace(/\s+/g, " ").trim();
+  const altText = altCrudo ? altCrudo.slice(0, MAX_ALT) : null;
+
   await prisma.fotofficeMemberPortfolioPhoto.update({
     where: { id: foto.id },
-    data: { title, year: input.year },
+    // `altText` sólo si vino en la llamada: así un caller que no lo manda no lo borra.
+    data: { title, year: input.year, ...(input.altText !== undefined ? { altText } : {}) },
   });
 
   refrescarPantallas();
@@ -319,6 +340,69 @@ export async function setPortfolioPublishedAction(input: {
       // de cuándo esta persona se sumó al directorio.
       memberPublishedAt: new Date(),
     },
+  });
+
+  refrescarPantallas();
+  return { ok: true };
+}
+
+/**
+ * Los posteos de Instagram que el socio quiere mostrar, y si la franja se ve.
+ *
+ * El interruptor y los enlaces se guardan juntos aunque sean dos cosas: apagar la franja **no**
+ * borra lo cargado. Quien la apaga por un tiempo no tiene que volver a pegar seis direcciones.
+ */
+export async function setPortfolioInstagramAction(input: {
+  enabled: boolean;
+  postUrls: string[];
+}): Promise<PortfolioActionResult> {
+  const ctx = await contextoDelPortfolio();
+  if (!ctx.ok) return ctx;
+
+  const parsed = parseInstagramPostUrls(input.postUrls);
+  if (!parsed.ok) return { ok: false, error: parsed.error };
+
+  await prisma.fotofficeMemberPortfolio.update({
+    where: { id: ctx.portfolioId },
+    data: { instagramEnabled: input.enabled, instagramPostUrls: parsed.urls },
+  });
+
+  refrescarPantallas();
+  return { ok: true };
+}
+
+/**
+ * Los videos del portfolio, guardados de una.
+ *
+ * Reemplaza la lista entera en vez de agregar y borrar de a uno: el socio los pega como texto, y lo
+ * que ve en el cuadro **es** lo que queda. Reconciliar línea por línea sería más código para una
+ * lista de doce.
+ *
+ * La transacción importa: entre borrar los viejos y escribir los nuevos, una ficha pública leída en
+ * ese instante mostraría un portfolio sin videos.
+ */
+export async function setPortfolioVideosAction(input: {
+  urls: string[];
+}): Promise<PortfolioActionResult> {
+  const ctx = await contextoDelPortfolio();
+  if (!ctx.ok) return ctx;
+
+  const parsed = parsePortfolioVideoUrls(input.urls);
+  if (!parsed.ok) return { ok: false, error: parsed.error };
+
+  await prisma.$transaction(async (tx) => {
+    await tx.fotofficeMemberPortfolioVideo.deleteMany({ where: { portfolioId: ctx.portfolioId } });
+    if (parsed.videos.length > 0) {
+      await tx.fotofficeMemberPortfolioVideo.createMany({
+        data: parsed.videos.map((v, indice) => ({
+          portfolioId: ctx.portfolioId,
+          platform: v.platform,
+          url: v.url,
+          videoId: v.videoId,
+          order: indice,
+        })),
+      });
+    }
   });
 
   refrescarPantallas();

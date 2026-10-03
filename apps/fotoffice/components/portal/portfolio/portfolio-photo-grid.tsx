@@ -143,6 +143,7 @@ function FotoOrdenable({
   });
   const [titulo, setTitulo] = useState(foto.title ?? "");
   const [anio, setAnio] = useState(foto.year === null ? "" : String(foto.year));
+  const [alt, setAlt] = useState(foto.altText ?? "");
   const [confirmando, setConfirmando] = useState(false);
 
   async function guardarDatos() {
@@ -151,6 +152,7 @@ function FotoOrdenable({
       photoId: foto.id,
       title: titulo,
       year: anioLimpio === "" ? null : Number(anioLimpio),
+      altText: alt,
     });
     if (!r.ok) onError(r.error ?? "No pudimos guardar los datos de la foto.");
     else onError(null);
@@ -236,6 +238,29 @@ function FotoOrdenable({
           />
         </label>
       </div>
+
+      {/*
+        La descripción va DEBAJO de título y año, y ocupa el ancho completo: es la que más se
+        escribe de las tres y la que más texto lleva.
+      */}
+      <label className="block text-xs">
+        <span className="flex flex-wrap items-baseline justify-between gap-2">
+          <span className="text-[var(--fo-muted)]">Descripción para Google</span>
+          <span className="tabular-nums text-[var(--fo-muted)]">{alt.length}/180</span>
+        </span>
+        <textarea
+          value={alt}
+          onChange={(e) => setAlt(e.target.value.slice(0, 180))}
+          onBlur={() => void guardarDatos()}
+          rows={2}
+          placeholder="Novia entrando a la iglesia, Rosario"
+          className="mt-1 w-full rounded border border-[var(--fo-border)] bg-transparent px-2 py-1 text-sm"
+        />
+        <span className="mt-1 block text-[11px] leading-snug text-[var(--fo-muted)]">
+          Contá qué se ve en la foto. Es lo que Google lee para encontrarla, y lo que escucha quien
+          no puede verla.
+        </span>
+      </label>
 
       {confirmando ? (
         <div className="fo-alert-warning space-y-2 text-sm">

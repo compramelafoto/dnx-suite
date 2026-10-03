@@ -30,10 +30,18 @@ export function blogAdminSectionFor(pathname: string): BlogAdminSection | null {
   }
 }
 
-/** Para el menú lateral: "Sitio web" no se marca adentro del blog, que tiene su propio ítem. */
+/** Dominio propio del sitio: también tiene ítem propio en el menú lateral. */
+export const WEBSITE_DOMAIN_PATH = "/website/dominio";
+
+export function isDomainNavActive(pathname: string): boolean {
+  return pathname === WEBSITE_DOMAIN_PATH || pathname.startsWith(`${WEBSITE_DOMAIN_PATH}/`);
+}
+
+/** Para el menú lateral: "Sitio web" no se marca adentro del blog ni del dominio, que tienen su
+ * propio ítem. */
 export function isWebsiteNavActive(pathname: string): boolean {
   const enSitio = pathname === "/website" || pathname.startsWith("/website/");
-  return enSitio && blogAdminSectionFor(pathname) === null;
+  return enSitio && blogAdminSectionFor(pathname) === null && !isDomainNavActive(pathname);
 }
 
 export function isBlogNavActive(pathname: string): boolean {

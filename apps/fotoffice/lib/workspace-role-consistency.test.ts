@@ -101,11 +101,13 @@ describe("resolución de rol de workspace — menú y páginas leen lo mismo", (
       assert.ok(!sidebarSrc.includes(viejo), `shell-sidebar todavía recibe ${viejo}`);
     }
     // `canManageWorkspaceSettings` sólo decide lo que es de Configuración: la sección
-    // Institución y la configuración de cursos (que guarda `app/actions/settings.ts`, dueño/admin).
+    // Institución, la configuración de cursos (que guarda `app/actions/settings.ts`, dueño/admin)
+    // y el dominio propio del sitio (`app/actions/website-domain.ts`, dueño/admin).
     const usos = navSrc.match(/\bcanManageWorkspaceSettings\b/g) ?? [];
     assert.match(navSrc, /const institucion: Item\[\] = canManageWorkspaceSettings/);
     assert.match(navSrc, /ve\(COURSES_SALES_MODULE_KEY\) && canManageWorkspaceSettings/);
-    assert.equal(usos.length, 4, "canManageWorkspaceSettings se usa en el menú fuera de Configuración");
+    assert.match(navSrc, /canManageWorkspaceSettings\s*\?\s*\[\{ href: "\/website\/dominio"/);
+    assert.equal(usos.length, 5, "canManageWorkspaceSettings se usa en el menú fuera de Configuración");
   });
 
   it("el inicio arma los números y las tarjetas por nivel, no por rol", () => {
@@ -185,6 +187,7 @@ describe("nadie fuera de Configuración decide el acceso por el rol crudo", () =
     { patron: /^lib\/payments\/connect\/authz\.ts$/, razon: "conectar Mercado Pago es de Configuración" },
     { patron: /^lib\/commission\/access\.ts$/, razon: "la Comisión directiva es de Configuración" },
     { patron: /^app\/actions\/settings\.ts$/, razon: "ajustes del workspace y de venta de cursos" },
+    { patron: /^app\/actions\/website-domain\.ts$/, razon: "el dominio propio es un dato de la institución" },
     { patron: /^components\/shell\/admin-shell\.tsx$/, razon: "sólo la sección Institución del menú" },
     {
       patron: /^lib\/website\/identity-access\.ts$/,

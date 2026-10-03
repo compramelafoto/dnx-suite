@@ -7,6 +7,7 @@ import {
   ClipboardCheck,
   FileText,
   Globe,
+  Link2,
   Plug,
   Inbox,
   LayoutDashboard,
@@ -36,7 +37,7 @@ import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 import { hasLevel, type ModuleLevels } from "@/lib/permissions/levels";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
-import { isBlogNavActive, isWebsiteNavActive } from "@/lib/blog/admin-nav";
+import { isBlogNavActive, isDomainNavActive, isWebsiteNavActive } from "@/lib/blog/admin-nav";
 
 /**
  * Menú principal.
@@ -257,6 +258,10 @@ export function ShellNav({
         { href: "/website", label: "Sitio web", icon: Globe, isActive: isWebsiteNavActive },
         ...(gestiona(WEBSITE_MODULE_KEY)
           ? [{ href: "/website/blog", label: "Blog", icon: Newspaper, isActive: isBlogNavActive }]
+          : []),
+        // Conectar el dominio propio (ej. sfpr.com.ar) es un dato de la institución: dueño o admin.
+        ...(canManageWorkspaceSettings
+          ? [{ href: "/website/dominio", label: "Dominio", icon: Link2, isActive: isDomainNavActive }]
           : []),
       ]
     : [];
