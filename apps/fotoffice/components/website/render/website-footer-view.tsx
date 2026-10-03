@@ -61,7 +61,13 @@ export function WebsiteFooterView({
             {navItems.length > 1 ? (
               <nav className="space-y-2" aria-label="Pie del sitio">
                 {navItems.map((item) => (
-                  <a key={item.id} href={item.href} className="block text-sm opacity-80 hover:opacity-100">
+                  <a
+                    key={item.id}
+                    href={item.href}
+                    target={item.newTab ? "_blank" : undefined}
+                    rel={item.newTab ? "noopener noreferrer" : undefined}
+                    className="block text-sm opacity-80 hover:opacity-100"
+                  >
                     {item.label}
                   </a>
                 ))}

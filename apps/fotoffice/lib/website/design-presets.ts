@@ -101,11 +101,36 @@ export const FOOTER_PRESETS = [
 ] as const;
 export type FooterPresetId = (typeof FOOTER_PRESETS)[number]["id"];
 
+/** Dónde vive el menú. `topbar` es el de siempre y el único donde aplica `headerPreset`; en los
+ * demás el encabezado queda reducido a logo + botón de menú (salvo `sidebar`, que en pantallas
+ * grandes muestra el menú fijo al costado). En el celular, todas terminan en el botón de menú. */
+export const MENU_LAYOUTS = [
+  { id: "topbar", label: "Barra superior", description: "El menú en fila, arriba. Como hasta ahora." },
+  { id: "drawer", label: "Panel lateral", description: "Un botón abre el menú deslizándose desde un costado." },
+  { id: "sidebar", label: "Barra lateral fija", description: "El menú siempre visible a un costado, estilo portfolio." },
+  { id: "fullscreen", label: "Pantalla completa", description: "Un botón abre el menú tapando toda la página, con ítems grandes al centro." },
+  { id: "modal", label: "Panel central", description: "Un botón abre el menú en una tarjeta flotante al centro." },
+] as const;
+export type MenuLayoutId = (typeof MENU_LAYOUTS)[number]["id"];
+
+export const MENU_SIDES = [
+  { id: "left", label: "Izquierda" },
+  { id: "right", label: "Derecha" },
+] as const;
+export type MenuSideId = (typeof MENU_SIDES)[number]["id"];
+
+/** Sólo el panel lateral y la barra fija tienen un lado. */
+export function menuLayoutHasSide(layout: MenuLayoutId): boolean {
+  return layout === "drawer" || layout === "sidebar";
+}
+
 const HEADER_IDS = HEADER_PRESETS.map((p) => p.id) as [HeaderPresetId, ...HeaderPresetId[]];
 const BUTTON_IDS = BUTTON_PRESETS.map((p) => p.id) as [ButtonPresetId, ...ButtonPresetId[]];
 const TYPOGRAPHY_IDS = TYPOGRAPHY_PRESETS.map((p) => p.id) as [TypographyPresetId, ...TypographyPresetId[]];
 const ANIMATION_IDS = ANIMATION_PRESETS.map((p) => p.id) as [AnimationPresetId, ...AnimationPresetId[]];
 const FOOTER_IDS = FOOTER_PRESETS.map((p) => p.id) as [FooterPresetId, ...FooterPresetId[]];
+const MENU_LAYOUT_IDS = MENU_LAYOUTS.map((p) => p.id) as [MenuLayoutId, ...MenuLayoutId[]];
+const MENU_SIDE_IDS = MENU_SIDES.map((p) => p.id) as [MenuSideId, ...MenuSideId[]];
 
 export const DEFAULT_DESIGN_PRESETS: WebsiteDesignPresets = {
   headerPreset: "logo-left",
@@ -118,6 +143,9 @@ export const DEFAULT_DESIGN_PRESETS: WebsiteDesignPresets = {
   buttonPreset: "rounded",
   animationPreset: "none",
   footerPreset: "simple",
+  // Los sitios ya publicados no tenían estos campos: el default tiene que ser el menú de siempre.
+  menuLayout: "topbar",
+  menuSide: "right",
 };
 
 /** NULL/ausente en la DB debe equivaler exactamente a estos defaults — por eso cada campo usa
@@ -132,6 +160,8 @@ export const websiteDesignPresetsSchema = z.object({
   buttonPreset: z.enum(BUTTON_IDS).catch(DEFAULT_DESIGN_PRESETS.buttonPreset),
   animationPreset: z.enum(ANIMATION_IDS).catch(DEFAULT_DESIGN_PRESETS.animationPreset),
   footerPreset: z.enum(FOOTER_IDS).catch(DEFAULT_DESIGN_PRESETS.footerPreset),
+  menuLayout: z.enum(MENU_LAYOUT_IDS).catch(DEFAULT_DESIGN_PRESETS.menuLayout),
+  menuSide: z.enum(MENU_SIDE_IDS).catch(DEFAULT_DESIGN_PRESETS.menuSide),
 });
 
 export type WebsiteDesignPresets = {
@@ -143,6 +173,8 @@ export type WebsiteDesignPresets = {
   buttonPreset: ButtonPresetId;
   animationPreset: AnimationPresetId;
   footerPreset: FooterPresetId;
+  menuLayout: MenuLayoutId;
+  menuSide: MenuSideId;
 };
 
 /** Tolerante: `null`, `{}`, JSON corrupto o de un schema viejo — todos caen a defaults campo

@@ -5,6 +5,7 @@ import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import { parseWebsiteSections, type WebsiteBlock } from "./blocks";
 import { resolveWebsiteColors, type WebsiteColors } from "./branding-defaults";
 import { parseWebsiteDesignPresets, type WebsiteDesignPresets } from "./design-presets";
+import { parseSiteMenu, type SiteMenu } from "./site-menu";
 import { WEBSITE_MODULE_KEY } from "./constants";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { listBlogPosts } from "@/lib/blog/public";
@@ -52,6 +53,8 @@ export type PublicSite = {
   designPresets: WebsiteDesignPresets;
   homeBlocks: WebsiteBlock[];
   hasPublishedSite: boolean;
+  /** El menú editado de la versión publicada; `null` = el automático. */
+  menu: SiteMenu | null;
   /** Sitio web habilitado y al menos un artículo publicado: el blog va al menú. */
   hasPublishedBlog: boolean;
   enabledModuleKeys: Set<string>;
@@ -104,7 +107,7 @@ export const loadPublicSite = cache(async function loadPublicSite(workspaceSlug:
     prisma.fotofficeWorkspaceWebsite.findUnique({
       where: { workspaceId: branding.workspaceId },
       select: {
-        publishedVersion: { select: { sectionsJson: true, designPresetsJson: true } },
+        publishedVersion: { select: { sectionsJson: true, designPresetsJson: true, navJson: true } },
       },
     }),
     loadPersonVocabulary(branding.workspaceId),
@@ -138,6 +141,9 @@ export const loadPublicSite = cache(async function loadPublicSite(workspaceSlug:
     designPresets: parseWebsiteDesignPresets(website?.publishedVersion?.designPresetsJson ?? null),
     homeBlocks,
     hasPublishedSite,
+    // Igual que las secciones: sin sitio publicado (o con el módulo apagado) el menú es el
+    // automático, nunca uno editado que quedó de antes.
+    menu: hasPublishedSite ? parseSiteMenu(website?.publishedVersion?.navJson ?? null) : null,
     hasPublishedBlog,
     enabledModuleKeys,
     personVocabulary: vocabulario,

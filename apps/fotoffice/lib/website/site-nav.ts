@@ -15,13 +15,17 @@ import { personVocabulary, type PersonVocabulary } from "@/lib/vocabulario/perso
  * No calcula cuál ítem es "el actual": eso lo resuelve `WebsiteHeaderNavClient` en el navegador,
  * con `usePathname()` (ver el comentario ahí y `isPathCurrent` más abajo).
  *
- * `navJson` — el menú corregido a mano por el dueño — todavía no se lee: es la etapa 2. Cuando
- * llegue, se aplica ENCIMA de lo que devuelve esta función, nunca en lugar de.
+ * `navJson` — el menú corregido a mano por el dueño — se aplica en `resolveSiteNav`
+ * (`site-menu.ts`): si nunca se editó, el menú es exactamente lo que devuelve esta función.
  */
 export type SiteNavItem = {
   id: string;
   label: string;
   href: string;
+  /** Marca de "actual" por igualdad exacta y no por prefijo (Inicio; ver `isPathCurrent`). */
+  exact?: boolean;
+  /** Link externo que el dueño pidió abrir en otra pestaña. */
+  newTab?: boolean;
   children: SiteNavItem[];
 };
 
@@ -83,6 +87,7 @@ export function buildSiteNav(input: {
     id: "home",
     label: "Inicio",
     href: base,
+    exact: true,
     children: secciones,
   };
 

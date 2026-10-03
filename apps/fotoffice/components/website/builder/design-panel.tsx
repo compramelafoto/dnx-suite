@@ -1,12 +1,11 @@
 "use client";
 
 import { ImageUploadField } from "@/components/image-upload-field";
-import { SelectField, TextField } from "@/components/website/inspector/inspector-fields";
+import { SelectField } from "@/components/website/inspector/inspector-fields";
 import {
   ANIMATION_PRESETS,
   BUTTON_PRESETS,
   FOOTER_PRESETS,
-  HEADER_PRESETS,
   TYPOGRAPHY_PRESETS,
   type WebsiteDesignPresets,
 } from "@/lib/website/design-presets";
@@ -22,7 +21,7 @@ const COLOR_FIELDS: { key: keyof WebsiteColors; label: string }[] = [
 
 /**
  * Panel "Diseño". Todo lo de acá persiste de verdad ahora: colores/logo/favicon en
- * `FotofficeWorkspaceBranding` (misma fuente de verdad que Configuración), header/tipografía/
+ * `FotofficeWorkspaceBranding` (misma fuente de verdad que Configuración), tipografía/
  * botones/animación/tamaño de logo en `FotofficeWorkspaceWebsite.designPresetsJson` — y se
  * congela en la Version al publicar (ver informe de esta etapa).
  */
@@ -110,22 +109,6 @@ export function DesignPanel({
               </label>
             ))}
           </div>
-        </section>
-
-        <section className="space-y-3">
-          <p className="text-xs font-semibold text-[var(--fo-text)]">Encabezado / Menú</p>
-          <SelectField
-            label="Estilo"
-            value={presets.headerPreset}
-            onChange={(v) => onPresetsChange({ ...presets, headerPreset: v as WebsiteDesignPresets["headerPreset"] })}
-            options={HEADER_PRESETS.map((p) => ({ value: p.id, label: p.label }))}
-          />
-          <TextField
-            label="Texto del botón para entrar"
-            helper='Siempre está, a la derecha del menú: lleva a los socios a su panel. Vacío = "Ingresar".'
-            value={presets.loginButtonLabel}
-            onChange={(v) => onPresetsChange({ ...presets, loginButtonLabel: v })}
-          />
         </section>
 
         <section className="space-y-3">
