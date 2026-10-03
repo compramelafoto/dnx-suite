@@ -16,6 +16,9 @@ export const CASH_PROJECT_MONEY_ACTION = "cash.project_money";
 /** Acción sensible de Caja: cuentas, categorías y encender el módulo (etapa 2b). */
 export const CASH_CONFIGURE_ACTION = "cash.configure";
 
+/** Acción sensible de Coberturas: aprobar, rechazar, cerrar, asignar, convocar y ajustes (etapa 2b). */
+export const COVERAGES_COORDINATE_ACTION = "coverages.coordinate";
+
 export const MODULE_ACTIONS: Readonly<Record<string, readonly ModuleActionDef[]>> = {
   [CASH_MODULE_KEY]: [
     {
@@ -31,7 +34,7 @@ export const MODULE_ACTIONS: Readonly<Record<string, readonly ModuleActionDef[]>
   ],
   [COVERAGES_MODULE_KEY]: [
     {
-      key: "coverages.coordinate",
+      key: COVERAGES_COORDINATE_ACTION,
       label: "Coordinar coberturas",
       description: "Aprobar, rechazar, cerrar, asignar equipo, convocatorias y ajustes.",
     },
