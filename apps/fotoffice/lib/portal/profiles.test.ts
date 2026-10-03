@@ -17,7 +17,9 @@ const {
   profileKey,
   findProfileByKey,
   profileDestination,
-  needsProfileChoice,
+  resolveEntryProfile,
+  counterpartProfile,
+  hasProfilesInSeveralWorkspaces,
 } = await import("./profiles");
 
 const TEAM = { role: "WORKSPACE_OWNER", workspace: { id: "ws-dnx", name: "DNX Owner" } };
@@ -102,7 +104,7 @@ describe("clave del perfil", () => {
   });
 });
 
-describe("destino y necesidad de elegir", () => {
+describe("destino del perfil", () => {
   const team = { kind: "TEAM", workspaceId: "ws-a", workspaceName: "A", role: "WORKSPACE_OWNER" } as const;
   const socio = { kind: "MEMBER", workspaceId: "ws-b", workspaceName: "B", memberId: "m", memberNumber: "1" } as const;
 
@@ -110,13 +112,94 @@ describe("destino y necesidad de elegir", () => {
     expect(profileDestination(team)).toBe("/workspace");
     expect(profileDestination(socio)).toBe("/portal");
   });
+});
 
-  it("con un solo perfil no se pregunta nada", () => {
-    expect(needsProfileChoice([team])).toBe(false);
-    expect(needsProfileChoice([])).toBe(false);
+/**
+ * Con qué perfil se entra.
+ *
+ * Quien tiene equipo y socio en la MISMA institución no tiene nada que elegir entre
+ * instituciones: entra directo (por defecto al portal del socio) y cambia con un botón.
+ * Sólo se pregunta cuando los perfiles están repartidos en más de una institución.
+ */
+describe("resolveEntryProfile", () => {
+  const teamA = { kind: "TEAM", workspaceId: "ws-a", workspaceName: "A", role: "WORKSPACE_ADMIN" } as const;
+  const socioA = { kind: "MEMBER", workspaceId: "ws-a", workspaceName: "A", memberId: "m", memberNumber: "1" } as const;
+  const teamB = { kind: "TEAM", workspaceId: "ws-b", workspaceName: "B", role: "WORKSPACE_OWNER" } as const;
+
+  it("sin perfiles: none", () => {
+    expect(resolveEntryProfile([], null)).toEqual({ kind: "none" });
   });
 
-  it("con dos o más, sí", () => {
-    expect(needsProfileChoice([team, socio])).toBe(true);
+  it("sólo socio: entra como socio", () => {
+    expect(resolveEntryProfile([socioA], null)).toEqual({ kind: "go", profile: socioA });
+  });
+
+  it("sólo equipo: entra como equipo", () => {
+    expect(resolveEntryProfile([teamA], null)).toEqual({ kind: "go", profile: teamA });
+  });
+
+  it("equipo y socio de la misma institución, sin recordado: entra como socio", () => {
+    expect(resolveEntryProfile([teamA, socioA], null)).toEqual({ kind: "go", profile: socioA });
+  });
+
+  it("misma institución con recordado de equipo válido: entra como equipo", () => {
+    expect(resolveEntryProfile([teamA, socioA], "TEAM:ws-a")).toEqual({ kind: "go", profile: teamA });
+  });
+
+  it("recordado de otra institución que ya no tiene: entra como socio", () => {
+    expect(resolveEntryProfile([teamA, socioA], "TEAM:ws-b")).toEqual({ kind: "go", profile: socioA });
+  });
+
+  it("recordado manipulado: no se cree", () => {
+    expect(resolveEntryProfile([teamA, socioA], "ADMIN:ws-a")).toEqual({ kind: "go", profile: socioA });
+  });
+
+  it("dos instituciones sin recordado: pregunta", () => {
+    expect(resolveEntryProfile([teamB, socioA], null)).toEqual({ kind: "ask" });
+  });
+
+  it("dos instituciones con recordado inválido: pregunta", () => {
+    expect(resolveEntryProfile([teamB, socioA], "TEAM:ws-zzz")).toEqual({ kind: "ask" });
+  });
+
+  it("dos instituciones con recordado válido: entra con ese", () => {
+    expect(resolveEntryProfile([teamB, socioA, teamA], "TEAM:ws-b")).toEqual({ kind: "go", profile: teamB });
+  });
+});
+
+describe("counterpartProfile", () => {
+  const teamA = { kind: "TEAM", workspaceId: "ws-a", workspaceName: "A", role: "WORKSPACE_ADMIN" } as const;
+  const socioA = { kind: "MEMBER", workspaceId: "ws-a", workspaceName: "A", memberId: "m", memberNumber: "1" } as const;
+  const socioB = { kind: "MEMBER", workspaceId: "ws-b", workspaceName: "B", memberId: "m2", memberNumber: "2" } as const;
+
+  it("desde el portal encuentra el equipo de la misma institución", () => {
+    expect(counterpartProfile([teamA, socioA], { kind: "MEMBER", workspaceId: "ws-a" })).toBe(teamA);
+  });
+
+  it("desde el panel encuentra la ficha de socio de la misma institución", () => {
+    expect(counterpartProfile([teamA, socioA], { kind: "TEAM", workspaceId: "ws-a" })).toBe(socioA);
+  });
+
+  it("no cruza instituciones", () => {
+    expect(counterpartProfile([teamA, socioB], { kind: "TEAM", workspaceId: "ws-a" })).toBeNull();
+  });
+
+  it("sin contraparte: null", () => {
+    expect(counterpartProfile([socioA], { kind: "MEMBER", workspaceId: "ws-a" })).toBeNull();
+  });
+});
+
+describe("hasProfilesInSeveralWorkspaces", () => {
+  const teamA = { kind: "TEAM", workspaceId: "ws-a", workspaceName: "A", role: "WORKSPACE_ADMIN" } as const;
+  const socioA = { kind: "MEMBER", workspaceId: "ws-a", workspaceName: "A", memberId: "m", memberNumber: "1" } as const;
+  const socioB = { kind: "MEMBER", workspaceId: "ws-b", workspaceName: "B", memberId: "m2", memberNumber: "2" } as const;
+
+  it("ninguno o una sola institución: no", () => {
+    expect(hasProfilesInSeveralWorkspaces([])).toBe(false);
+    expect(hasProfilesInSeveralWorkspaces([teamA, socioA])).toBe(false);
+  });
+
+  it("dos instituciones: sí", () => {
+    expect(hasProfilesInSeveralWorkspaces([teamA, socioB])).toBe(true);
   });
 });

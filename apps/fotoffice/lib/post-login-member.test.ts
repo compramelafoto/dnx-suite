@@ -214,6 +214,65 @@ describe("selector de perfil", () => {
 });
 
 /**
+ * Equipo y socio de UNA misma institución: no hay nada que elegir entre instituciones. Entra
+ * directo —por defecto al portal del socio— y cambia al panel con un botón.
+ */
+describe("perfiles de una sola institución", () => {
+  const TEAM_SFPR = { kind: "TEAM", workspaceId: "ws-sfpr", workspaceName: "SFPR", role: "WORKSPACE_ADMIN" };
+  const SOCIO_SFPR = { kind: "MEMBER", workspaceId: "ws-sfpr", workspaceName: "SFPR", memberId: "m", memberNumber: "556" };
+
+  beforeEach(() => {
+    userKindMock.mockResolvedValue("TEAM");
+    listProfilesMock.mockResolvedValue([TEAM_SFPR, SOCIO_SFPR]);
+    readChoiceMock.mockResolvedValue(null);
+    findMock.mockResolvedValue({ workspaceId: "ws-sfpr", onboardingCompleted: true });
+  });
+
+  it("sin recordado ya no pregunta: va al portal", async () => {
+    const dest = await resolveFotofficePostLoginDestination({ userId: 4 });
+    expect(dest).toEqual({ path: "/portal", workspaceId: null });
+    expect(findMock).not.toHaveBeenCalled();
+  });
+
+  it("con el panel recordado va al panel de esa institución", async () => {
+    readChoiceMock.mockResolvedValue("TEAM:ws-sfpr");
+    const dest = await resolveFotofficePostLoginDestination({ userId: 4 });
+    expect(dest).toEqual({ path: "/workspace", workspaceId: "ws-sfpr" });
+  });
+});
+
+describe("perfil de equipo elegido entre varias instituciones", () => {
+  const TEAM_PROPIO = { kind: "TEAM", workspaceId: "ws-propio", workspaceName: "Estudio", role: "WORKSPACE_OWNER" };
+  const TEAM_SFPR = { kind: "TEAM", workspaceId: "ws-sfpr", workspaceName: "SFPR", role: "WORKSPACE_ADMIN" };
+
+  beforeEach(() => {
+    userKindMock.mockResolvedValue("TEAM");
+    listProfilesMock.mockResolvedValue([TEAM_PROPIO, TEAM_SFPR]);
+    // `find` prefiere la institución de la que es dueño: no es la elegida.
+    findMock.mockResolvedValue({ workspaceId: "ws-propio", onboardingCompleted: true });
+  });
+
+  it("la institución activa es la elegida, no la que prefiere `find`", async () => {
+    readChoiceMock.mockResolvedValue("TEAM:ws-sfpr");
+    const dest = await resolveFotofficePostLoginDestination({ userId: 4 });
+    expect(dest).toEqual({ path: "/workspace", workspaceId: "ws-sfpr" });
+  });
+
+  it("respeta un next seguro con la institución elegida", async () => {
+    readChoiceMock.mockResolvedValue("TEAM:ws-sfpr");
+    const dest = await resolveFotofficePostLoginDestination({ userId: 4, next: "/members" });
+    expect(dest).toEqual({ path: "/members", workspaceId: "ws-sfpr" });
+  });
+
+  it("el onboarding pendiente de OTRA institución no desvía a la elegida", async () => {
+    readChoiceMock.mockResolvedValue("TEAM:ws-sfpr");
+    findMock.mockResolvedValue({ workspaceId: "ws-propio", onboardingCompleted: false });
+    const dest = await resolveFotofficePostLoginDestination({ userId: 4 });
+    expect(dest).toEqual({ path: "/workspace", workspaceId: "ws-sfpr" });
+  });
+});
+
+/**
  * Entrar por la puerta de una institución.
  *
  * Quien entró por `/w/sfpr/entrar` ya dijo a dónde viene. El post-login no resuelve ese caso:

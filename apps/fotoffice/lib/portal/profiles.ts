@@ -78,7 +78,50 @@ export function profileDestination(profile: UserProfile): string {
   return profile.kind === "TEAM" ? "/workspace" : PORTAL_HOME;
 }
 
-/** Solo hay que preguntar cuando hay más de una forma real de entrar. */
-export function needsProfileChoice(profiles: UserProfile[]): boolean {
-  return profiles.length > 1;
+export type EntryDecision =
+  | { kind: "none" }
+  | { kind: "ask" }
+  | { kind: "go"; profile: UserProfile };
+
+/** ¿Los perfiles de la persona están repartidos en más de una institución? */
+export function hasProfilesInSeveralWorkspaces(profiles: UserProfile[]): boolean {
+  return new Set(profiles.map((p) => p.workspaceId)).size > 1;
+}
+
+/**
+ * Con qué perfil entra la persona al iniciar sesión.
+ *
+ * - Sin perfiles: `none` (sigue el camino de quien no se reconoce).
+ * - Todos en UNA institución: no hay nada que elegir entre instituciones. Entra con el perfil
+ *   recordado si sigue siendo suyo; si no, como socio (el caso más común); si no, como equipo.
+ *   Cambiar entre portal y panel es un botón, no una pregunta.
+ * - En más de una institución: entra con el recordado si sigue siendo suyo; si no, se pregunta.
+ *
+ * El recordado viene de una cookie y no se cree: tiene que aparecer en la lista real.
+ */
+export function resolveEntryProfile(
+  profiles: UserProfile[],
+  rememberedKey: string | null,
+): EntryDecision {
+  if (profiles.length === 0) return { kind: "none" };
+
+  const remembered = findProfileByKey(profiles, rememberedKey);
+  if (remembered) return { kind: "go", profile: remembered };
+
+  if (hasProfilesInSeveralWorkspaces(profiles)) return { kind: "ask" };
+
+  const member = profiles.find((p) => p.kind === "MEMBER");
+  const team = profiles.find((p) => p.kind === "TEAM");
+  return { kind: "go", profile: (member ?? team)! };
+}
+
+/** El perfil del otro tipo (equipo ⇄ socio) en la MISMA institución, si la persona lo tiene. */
+export function counterpartProfile(
+  profiles: UserProfile[],
+  current: { kind: "TEAM" | "MEMBER"; workspaceId: string },
+): UserProfile | null {
+  const otherKind = current.kind === "TEAM" ? "MEMBER" : "TEAM";
+  return (
+    profiles.find((p) => p.kind === otherKind && p.workspaceId === current.workspaceId) ?? null
+  );
 }
