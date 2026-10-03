@@ -14,7 +14,10 @@ import {
   personLabel,
   reorderOffices,
 } from "@/lib/commission/rules";
-import { ensureStaffMembership, releaseStaffMembershipIfNoRoles } from "@/lib/commission/team-membership";
+import {
+  releaseStaffMembershipIfNoRoles,
+  syncStaffMembershipWithRoles,
+} from "@/lib/commission/team-membership";
 import {
   parseOfficeForm,
   parsePermissionGrid,
@@ -39,6 +42,8 @@ const COMMISSION_PATH = "/workspace/configuracion/comision";
 const NOT_FOUND = "No encontrado.";
 const ROLE_NAME_TAKEN = "Ya existe un rol con ese nombre.";
 const OFFICE_NAME_TAKEN = "Ya existe un cargo con ese nombre.";
+const VOTING_OFFICE_NEEDS_ROLE =
+  "Un cargo que vota necesita al menos un rol, para que la persona pueda entrar al panel.";
 const NO_ACCOUNT =
   "No encontramos una cuenta con ese correo. Pedile que se registre en FOTOFFICE y volvé a intentar.";
 
@@ -247,7 +252,7 @@ export async function archiveRoleAction(
     if (uid !== null) userIds.add(uid);
   }
   // Todas estas personas tenían este rol: perderlo puede dejarlas sin ninguno.
-  for (const uid of userIds) await syncMembershipSafely(workspaceId, uid, false);
+  for (const uid of userIds) await syncMembershipSafely(workspaceId, uid, "release");
   return done();
 }
 
@@ -456,9 +461,18 @@ async function loadRoles(workspaceId: string, roleIds: string[]) {
   return roleIds.map((id) => byId.get(id) as { id: string; name: string });
 }
 
-async function syncMembershipSafely(workspaceId: string, userId: number, hasRoles: boolean): Promise<void> {
+/**
+ * `"roles"`: la persona tiene o tuvo roles; la membresía queda acorde a HOY (con alguno vigente se
+ * asegura; si todos empiezan más adelante o ya terminaron, no se crea y se libera).
+ * `"release"`: se le quitó algo; se libera sólo si no le queda ningún rol vigente.
+ */
+async function syncMembershipSafely(
+  workspaceId: string,
+  userId: number,
+  mode: "roles" | "release",
+): Promise<void> {
   try {
-    if (hasRoles) await ensureStaffMembership(workspaceId, userId);
+    if (mode === "roles") await syncStaffMembershipWithRoles(workspaceId, userId);
     else await releaseStaffMembershipIfNoRoles(workspaceId, userId);
   } catch (e) {
     // Los mandatos y roles ya quedaron guardados; la membresía se vuelve a sincronizar al iniciar sesión.
@@ -510,10 +524,12 @@ export async function addCommissionMemberAction(
   const office = officeId
     ? await prisma.workspaceOffice.findFirst({
         where: { id: officeId, workspaceId, archivedAt: null },
-        select: { id: true, name: true },
+        select: { id: true, name: true, votes: true },
       })
     : null;
   if (officeId && !office) return { error: NOT_FOUND };
+  // Sin rol, quien vota no podría entrar al panel a ver lo que vota.
+  if (office?.votes && roleIds.length === 0) return { error: VOTING_OFFICE_NEEDS_ROLE };
   const roles = await loadRoles(workspaceId, roleIds);
   if (!roles) return { error: NOT_FOUND };
 
@@ -568,8 +584,10 @@ export async function addCommissionMemberAction(
     return { officeCreated, newRoles };
   });
 
+  // Sólo da membresía un rol vigente HOY: uno que empieza más adelante la recibe al iniciar sesión
+  // cuando empiece, y uno con la fecha de fin ya pasada no la da.
   if (person.userId !== null && roles.length > 0) {
-    await syncMembershipSafely(workspaceId, person.userId, true);
+    await syncMembershipSafely(workspaceId, person.userId, "roles");
   }
 
   const skipped: string[] = [];
@@ -708,10 +726,11 @@ export async function updateCommissionMemberAction(
     return toRevoke.length;
   });
 
-  // Con roles: asegurar la membresía. Sin roles: liberarla sólo si esta edición le sacó alguno.
-  // Quien nunca tuvo roles (p. ej. personal con sólo un cargo) conserva la membresía que ya tenía.
+  // Con roles: la membresía queda acorde a las fechas (sólo un rol vigente hoy la da). Sin roles:
+  // liberarla sólo si esta edición le sacó alguno. Quien nunca tuvo roles (p. ej. personal con
+  // sólo un cargo) conserva la membresía que ya tenía.
   if (person.userId !== null && (roles.length > 0 || revokedRoles > 0)) {
-    await syncMembershipSafely(workspaceId, person.userId, roles.length > 0);
+    await syncMembershipSafely(workspaceId, person.userId, roles.length > 0 ? "roles" : "release");
   }
   return done();
 }
@@ -726,16 +745,22 @@ export async function removeCommissionMemberAction(
   if (!person) return { error: NOT_FOUND };
 
   const now = new Date();
-  const where = { workspaceId, revokedAt: null, ...personWhere(person, workspaceId) };
+  // Sólo lo vigente o futuro, igual que al archivar: lo ya vencido conserva su fecha real de fin.
+  const where = {
+    workspaceId,
+    revokedAt: null,
+    AND: [personWhere(person, workspaceId), stillInForce(now)],
+  };
   const revokedRoles = await prisma.$transaction(async (tx) => {
     await tx.workspaceOfficeTerm.updateMany({ where, data: { revokedAt: now } });
     const { count } = await tx.workspaceRoleAssignment.updateMany({ where, data: { revokedAt: now } });
     return count;
   });
 
-  // Sólo si se le quitó algún rol: a quien sólo tenía un cargo no se le toca la membresía.
+  // Sólo si se le quitó algún rol: a quien sólo tenía un cargo no se le toca la membresía. Si
+  // todos sus roles ya estaban vencidos, la membresía la libera el inicio de sesión.
   if (person.userId !== null && revokedRoles > 0) {
-    await syncMembershipSafely(workspaceId, person.userId, false);
+    await syncMembershipSafely(workspaceId, person.userId, "release");
   }
   return done();
 }

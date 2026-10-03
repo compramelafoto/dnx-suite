@@ -15,7 +15,7 @@ const H = vi.hoisted(() => {
     db,
     requireCommissionAdmin: vi.fn(),
     sendAndLogEmail: vi.fn(),
-    ensureStaffMembership: vi.fn(),
+    syncStaffMembershipWithRoles: vi.fn(),
     releaseStaffMembershipIfNoRoles: vi.fn(),
     findLinkableUserByEmail: vi.fn(),
     getEnabledModuleKeysForWorkspace: vi.fn(),
@@ -33,7 +33,7 @@ vi.mock("@/lib/communications/load-workspace-signature", () => ({
   loadWorkspaceEmailContext: H.loadWorkspaceEmailContext,
 }));
 vi.mock("@/lib/commission/team-membership", () => ({
-  ensureStaffMembership: H.ensureStaffMembership,
+  syncStaffMembershipWithRoles: H.syncStaffMembershipWithRoles,
   releaseStaffMembershipIfNoRoles: H.releaseStaffMembershipIfNoRoles,
 }));
 vi.mock("@/lib/modules/gating", () => ({
@@ -84,7 +84,7 @@ beforeEach(() => {
     .mockReset()
     .mockResolvedValue({ user: { id: 1, email: "owner@sfpr.test", name: "Owner" }, workspaceId: "ws-1" });
   H.sendAndLogEmail.mockReset().mockResolvedValue({ status: "SENT", providerId: "p-1" });
-  H.ensureStaffMembership.mockReset().mockResolvedValue("created");
+  H.syncStaffMembershipWithRoles.mockReset().mockResolvedValue("created");
   H.releaseStaffMembershipIfNoRoles.mockReset().mockResolvedValue("removed");
   H.findLinkableUserByEmail.mockReset().mockResolvedValue(null);
   H.getEnabledModuleKeysForWorkspace.mockReset().mockResolvedValue(new Set(["members", "bookings"]));
@@ -315,7 +315,7 @@ const SOCIA_SIN_CUENTA = {
 };
 
 function stubOfficeAndRoles() {
-  H.db.workspaceOffice.findFirst.mockResolvedValue({ id: "o1", name: "Tesorera" });
+  H.db.workspaceOffice.findFirst.mockResolvedValue({ id: "o1", name: "Tesorera", votes: false });
   H.db.workspaceCustomRole.findMany.mockResolvedValue([
     { id: "r1", name: "Tesorería" },
     { id: "r2", name: "Comunicación" },
@@ -349,7 +349,7 @@ describe("addCommissionMemberAction", () => {
     expect(asg.data.map((a) => a.roleId)).toEqual(["r1", "r2"]);
     for (const a of asg.data) expect(a).toMatchObject({ workspaceId: "ws-1", memberId: "m1", userId: null });
 
-    expect(H.ensureStaffMembership).not.toHaveBeenCalled();
+    expect(H.syncStaffMembershipWithRoles).not.toHaveBeenCalled();
     expect(H.sendAndLogEmail).toHaveBeenCalledTimes(1);
     const mail = H.sendAndLogEmail.mock.calls[0]?.[0] as { to: string; templateKey: string; userId: number | null };
     expect(mail.to).toBe("ana@socios.test");
@@ -390,7 +390,7 @@ describe("addCommissionMemberAction", () => {
     };
     expect(asg.data).toEqual([expect.objectContaining({ roleId: "r1", userId: 42, memberId: null })]);
     expect(H.db.workspaceOfficeTerm.create).not.toHaveBeenCalled();
-    expect(H.ensureStaffMembership).toHaveBeenCalledWith("ws-1", 42);
+    expect(H.syncStaffMembershipWithRoles).toHaveBeenCalledWith("ws-1", 42);
     expect(H.sendAndLogEmail.mock.calls[0]?.[0]).toMatchObject({ to: "contadora@x.test", userId: 42 });
   });
 
@@ -400,6 +400,56 @@ describe("addCommissionMemberAction", () => {
     const res = await addCommissionMemberAction(undefined, form({ memberId: "m1", roleIds: ["r1", "r-otro"] }));
     expect(res.error).toBe(NOT_FOUND);
     expect(H.db.workspaceRoleAssignment.createMany).not.toHaveBeenCalled();
+  });
+
+  it("cargo que vota sin roles → error y nada creado", async () => {
+    H.db.member.findFirst.mockResolvedValue(SOCIA_SIN_CUENTA);
+    H.db.workspaceOffice.findFirst.mockResolvedValue({ id: "o1", name: "Vocal", votes: true });
+    const res = await addCommissionMemberAction(undefined, form({ memberId: "m1", officeId: "o1" }));
+    expect(res.error).toBe(
+      "Un cargo que vota necesita al menos un rol, para que la persona pueda entrar al panel.",
+    );
+    expect(H.db.workspaceOfficeTerm.create).not.toHaveBeenCalled();
+    expect(H.db.workspaceRoleAssignment.createMany).not.toHaveBeenCalled();
+    expect(H.sendAndLogEmail).not.toHaveBeenCalled();
+  });
+
+  it("cargo que vota con un rol → se crea", async () => {
+    H.db.member.findFirst.mockResolvedValue(SOCIA_SIN_CUENTA);
+    stubOfficeAndRoles();
+    H.db.workspaceOffice.findFirst.mockResolvedValue({ id: "o1", name: "Vocal", votes: true });
+    const res = await addCommissionMemberAction(undefined, form({ memberId: "m1", officeId: "o1", roleIds: ["r1"] }));
+    expect(res).toEqual({ error: null, ok: true });
+    expect(H.db.workspaceOfficeTerm.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("cargo que no vota sin roles → se puede (p. ej. personal administrativo)", async () => {
+    H.db.member.findFirst.mockResolvedValue(SOCIA_SIN_CUENTA);
+    stubOfficeAndRoles();
+    const res = await addCommissionMemberAction(undefined, form({ memberId: "m1", officeId: "o1" }));
+    expect(res).toEqual({ error: null, ok: true });
+  });
+
+  it("con cuenta y roles: la membresía se resuelve según las fechas (no se asegura a ciegas)", async () => {
+    H.findLinkableUserByEmail.mockResolvedValue({ id: 42, email: "c@x.test", name: "C" });
+    H.db.member.findFirst.mockResolvedValue(null);
+    stubOfficeAndRoles();
+    const res = await addCommissionMemberAction(
+      undefined,
+      form({ email: "c@x.test", roleIds: ["r1"], startsAt: "2999-01-01" }),
+    );
+    expect(res.ok).toBe(true);
+    expect(H.syncStaffMembershipWithRoles).toHaveBeenCalledWith("ws-1", 42);
+  });
+
+  it("si sincronizar la membresía falla, el alta igual sale bien", async () => {
+    H.findLinkableUserByEmail.mockResolvedValue({ id: 42, email: "c@x.test", name: "C" });
+    H.db.member.findFirst.mockResolvedValue(null);
+    stubOfficeAndRoles();
+    H.syncStaffMembershipWithRoles.mockRejectedValue(new Error("base caída"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const res = await addCommissionMemberAction(undefined, form({ email: "c@x.test", roleIds: ["r1"] }));
+    expect(res.ok).toBe(true);
   });
 
   it("sin cargo ni roles → error", async () => {
@@ -469,7 +519,7 @@ describe("updateCommissionMemberAction", () => {
       data: Array<Record<string, unknown>>;
     };
     expect(asg.data).toEqual([expect.objectContaining({ roleId: "r2", memberId: "m1" })]);
-    expect(H.ensureStaffMembership).toHaveBeenCalledWith("ws-1", 7);
+    expect(H.syncStaffMembershipWithRoles).toHaveBeenCalledWith("ws-1", 7);
   });
 
   it("sin roles: libera la membresía si tiene cuenta", async () => {
@@ -480,7 +530,7 @@ describe("updateCommissionMemberAction", () => {
     const res = await updateCommissionMemberAction(undefined, form({ memberId: "m1" }));
     expect(res.ok).toBe(true);
     expect(H.releaseStaffMembershipIfNoRoles).toHaveBeenCalledWith("ws-1", 7);
-    expect(H.ensureStaffMembership).not.toHaveBeenCalled();
+    expect(H.syncStaffMembershipWithRoles).not.toHaveBeenCalled();
   });
 
   it("sin roles antes ni después (sólo cargo): no toca la membresía", async () => {
@@ -491,7 +541,7 @@ describe("updateCommissionMemberAction", () => {
     const res = await updateCommissionMemberAction(undefined, form({ memberId: "m1", endsAt: "2027-12-31" }));
     expect(res.ok).toBe(true);
     expect(H.releaseStaffMembershipIfNoRoles).not.toHaveBeenCalled();
-    expect(H.ensureStaffMembership).not.toHaveBeenCalled();
+    expect(H.syncStaffMembershipWithRoles).not.toHaveBeenCalled();
   });
 });
 
@@ -502,12 +552,14 @@ describe("removeCommissionMemberAction", () => {
     const res = await removeCommissionMemberAction(undefined, form({ memberId: "m1" }));
     expect(res).toEqual({ error: null, ok: true });
     const person = { OR: [{ memberId: "m1" }, { userId: 7 }] };
-    expect(H.db.workspaceOfficeTerm.updateMany).toHaveBeenCalledWith({
-      where: { workspaceId: "ws-1", revokedAt: null, ...person },
-      data: { revokedAt: expect.any(Date) },
-    });
+    const where = {
+      workspaceId: "ws-1",
+      revokedAt: null,
+      AND: [person, { OR: [{ endsAt: null }, { endsAt: { gt: expect.any(Date) } }] }],
+    };
+    expect(H.db.workspaceOfficeTerm.updateMany).toHaveBeenCalledWith({ where, data: { revokedAt: expect.any(Date) } });
     expect(H.db.workspaceRoleAssignment.updateMany).toHaveBeenCalledWith({
-      where: { workspaceId: "ws-1", revokedAt: null, ...person },
+      where,
       data: { revokedAt: expect.any(Date) },
     });
     expect(H.releaseStaffMembershipIfNoRoles).toHaveBeenCalledWith("ws-1", 7);
@@ -520,6 +572,23 @@ describe("removeCommissionMemberAction", () => {
     const res = await removeCommissionMemberAction(undefined, form({ memberId: "m1" }));
     expect(res).toEqual({ error: null, ok: true });
     expect(H.db.workspaceOfficeTerm.updateMany).toHaveBeenCalledTimes(1);
+    expect(H.releaseStaffMembershipIfNoRoles).not.toHaveBeenCalled();
+  });
+
+  it("con sólo roles ya vencidos sin revocar: no los toca (conservan su fecha real) y no libera", async () => {
+    H.db.member.findFirst.mockResolvedValue({ ...SOCIA_SIN_CUENTA, userId: 7 });
+    // La base no encuentra nada vigente o futuro: el filtro deja afuera lo vencido.
+    H.db.workspaceRoleAssignment.updateMany.mockResolvedValue({ count: 0 });
+    const res = await removeCommissionMemberAction(undefined, form({ memberId: "m1" }));
+    expect(res.ok).toBe(true);
+    const where = H.db.workspaceRoleAssignment.updateMany.mock.calls[0]?.[0].where as {
+      AND: Array<{ OR: Array<Record<string, unknown>> }>;
+    };
+    const inForce = where.AND[1].OR;
+    expect(inForce[0]).toEqual({ endsAt: null });
+    const gt = (inForce[1].endsAt as { gt: Date }).gt;
+    // Una asignación vencida ayer no cumple `endsAt > ahora`.
+    expect(new Date(Date.now() - 86_400_000) > gt).toBe(false);
     expect(H.releaseStaffMembershipIfNoRoles).not.toHaveBeenCalled();
   });
 
