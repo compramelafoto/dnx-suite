@@ -174,7 +174,7 @@ export async function listWorkspaceCourses() {
 }
 
 export async function createCourse(input: z.input<typeof courseSchema>) {
-  const { workspace } = await requireCoursesSalesContext();
+  const { workspace } = await requireCoursesSalesContext("MANAGE");
   const data = normalizeCourseInput(input);
   try {
     const created = await prisma.course.create({
@@ -194,7 +194,7 @@ export async function createCourse(input: z.input<typeof courseSchema>) {
 }
 
 export async function updateCourse(courseId: string, input: z.input<typeof courseSchema>) {
-  const { workspace } = await requireCoursesSalesContext();
+  const { workspace } = await requireCoursesSalesContext("MANAGE");
   if (!courseId?.trim()) throw new Error("courseId es obligatorio.");
   await assertWorkspaceCourse(workspace.id, courseId);
   const data = normalizeCourseInput(input);
@@ -216,7 +216,7 @@ export async function updateCourse(courseId: string, input: z.input<typeof cours
 }
 
 export async function duplicateCourse(courseId: string) {
-  const { workspace } = await requireCoursesSalesContext();
+  const { workspace } = await requireCoursesSalesContext("MANAGE");
   if (!courseId?.trim()) throw new Error("courseId es obligatorio.");
   const source = await prisma.course.findFirst({
     where: { id: courseId, workspaceId: workspace.id },
@@ -288,7 +288,7 @@ function ensureInstanceDateRange(startDateTime: Date, endDateTime: Date) {
 }
 
 export async function createCourseInstance(input: CourseInstanceInput) {
-  const { workspace } = await requireCoursesSalesContext();
+  const { workspace } = await requireCoursesSalesContext("MANAGE");
   const parsed = courseInstanceSchema.parse(input);
   await assertWorkspaceCourse(workspace.id, parsed.courseId);
   ensureInstanceDateRange(parsed.startDateTime, parsed.endDateTime);
@@ -315,7 +315,7 @@ export async function createCourseInstance(input: CourseInstanceInput) {
 }
 
 export async function updateCourseInstance(input: UpdateCourseInstanceInput) {
-  const { workspace } = await requireCoursesSalesContext();
+  const { workspace } = await requireCoursesSalesContext("MANAGE");
   const parsed = updateCourseInstanceSchema.parse(input);
   await assertWorkspaceCourseInstance(workspace.id, parsed.courseId, parsed.instanceId);
   ensureInstanceDateRange(parsed.startDateTime, parsed.endDateTime);

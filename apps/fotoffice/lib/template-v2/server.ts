@@ -19,6 +19,7 @@ import {
   uploadToFotofficeR2,
 } from "@/lib/images/r2-client";
 import { FOTOFFICE_R2_PREFIXES } from "@/lib/images/r2-key-policy";
+import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { canDesignTemplates } from "./access";
 
 /** Lo que la vista previa necesita de un socio para dibujar cualquier plantilla del producto. */
@@ -47,12 +48,11 @@ setTemplateV2Runtime({
     const workspace = await resolveActiveWorkspace(user.id);
     if (!workspace) throw new Error("No hay una institución activa");
 
-    const membership = await prisma.workspaceMembership.findUnique({
-      where: { userId_workspaceId: { userId: user.id, workspaceId: workspace.id } },
-      select: { role: true },
-    });
-    const role = membership?.role ? String(membership.role) : "";
-    if (!canDesignTemplates(role)) throw new Error("Sin permisos para diseñar plantillas");
+    // Diseñar pide `members` MANAGE; el rol sólo viaja como dato para el editor.
+    if (!(await canDesignTemplates(user.id, workspace.id))) {
+      throw new Error("Sin permisos para diseñar plantillas");
+    }
+    const role = (await resolveWorkspaceRole(user.id, workspace.id)) ?? "";
 
     return { id: user.id, role, email: user.email, workspaceId: workspace.id };
   },

@@ -44,13 +44,8 @@ export default async function PlantillasPage() {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) redirect("/workspace");
 
-  const membership = await prisma.workspaceMembership.findUnique({
-    where: { userId_workspaceId: { userId: user.id, workspaceId: workspace.id } },
-    select: { role: true },
-  });
-  // Diseñar la identidad visual es atribución de quien gobierna la institución, no de quien
-  // administra el día a día.
-  if (!canDesignTemplates(membership?.role)) redirect("/workspace");
+  // Diseñar la identidad visual pide gestionar Socios (members MANAGE), no sólo consultarlo.
+  if (!(await canDesignTemplates(user.id, workspace.id))) redirect("/workspace");
 
   const v = await loadPersonVocabulary(workspace.id);
 

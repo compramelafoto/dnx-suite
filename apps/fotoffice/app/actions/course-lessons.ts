@@ -50,7 +50,7 @@ export async function crearClase(
   formData: FormData,
 ): Promise<CourseLessonActionState> {
   try {
-    const { workspace } = await requireCoursesSalesContext();
+    const { workspace } = await requireCoursesSalesContext("MANAGE");
     const datos = claseSchema.parse({
       courseId: formData.get("courseId")?.toString()?.trim() ?? "",
       title: formData.get("title")?.toString()?.trim() ?? "",
@@ -95,7 +95,7 @@ export async function actualizarClase(
   formData: FormData,
 ): Promise<CourseLessonActionState> {
   try {
-    const { workspace } = await requireCoursesSalesContext();
+    const { workspace } = await requireCoursesSalesContext("MANAGE");
     const lessonId = formData.get("lessonId")?.toString()?.trim() ?? "";
     const clase = await asegurarClaseDelWorkspace(workspace.id, lessonId);
     const datos = claseSchema.parse({
@@ -122,7 +122,7 @@ export async function actualizarClase(
 
 export async function borrarClase(lessonId: string): Promise<CourseLessonActionState> {
   try {
-    const { workspace } = await requireCoursesSalesContext();
+    const { workspace } = await requireCoursesSalesContext("MANAGE");
     const clase = await asegurarClaseDelWorkspace(workspace.id, lessonId);
 
     await prisma.$transaction(async (tx) => {
@@ -156,7 +156,7 @@ export async function reordenarClases(
   destino: number,
 ): Promise<CourseLessonActionState> {
   try {
-    const { workspace } = await requireCoursesSalesContext();
+    const { workspace } = await requireCoursesSalesContext("MANAGE");
     await asegurarCursoDelWorkspace(workspace.id, courseId);
 
     const actuales = await prisma.courseLesson.findMany({
@@ -191,7 +191,7 @@ export async function reordenarClases(
  */
 export async function refrescarEstadoDeVideo(lessonId: string): Promise<CourseLessonActionState> {
   try {
-    const { workspace } = await requireCoursesSalesContext();
+    const { workspace } = await requireCoursesSalesContext("MANAGE");
     const clase = await asegurarClaseDelWorkspace(workspace.id, lessonId);
     if (!clase.videoUid) return { error: null, ok: true };
 
@@ -221,7 +221,7 @@ export async function refrescarEstadoDeVideo(lessonId: string): Promise<CourseLe
 export async function prepararSubidaDeVideo(
   lessonId: string,
 ): Promise<{ ok: true; uploadUrl: string } | { ok: false; error: string }> {
-  const { workspace } = await requireCoursesSalesContext();
+  const { workspace } = await requireCoursesSalesContext("MANAGE");
   const clase = await asegurarClaseDelWorkspace(workspace.id, lessonId);
 
   // Cuatro horas: una clase más larga que eso es, casi siempre, un archivo equivocado.

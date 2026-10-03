@@ -5,6 +5,7 @@ import { requireAuth, type AuthUser } from "./auth";
 import { COURSES_SALES_MODULE_KEY, FOTOFFICE_WORKSPACE_COOKIE } from "./courses-sales/constants";
 import { EVALUACIONES_MODULE_KEY } from "./evaluaciones/constants";
 import { WEBSITE_MODULE_KEY } from "./website/constants";
+import { SERVICE_LEADS_MODULE_KEY } from "./service-leads/constants";
 import { isModuleEnabledForWorkspace } from "./modules/gating";
 import { hasModuleLevel } from "./permissions/module-access";
 
@@ -129,50 +130,67 @@ export async function requireActiveWorkspace(): Promise<{
   return { user, workspace };
 }
 
+/** Nivel mínimo que pide una puerta: las páginas ven (VIEW), las acciones gestionan (MANAGE). */
+export type ModuleMinimum = "VIEW" | "MANAGE";
+
 /**
  * Núcleo genérico: resuelve usuario + workspace activo (misma lógica de
- * siempre) y exige que `moduleKey` esté habilitado, redirigiendo a
- * `offRedirect` si no lo está. Los módulos futuros deberían llamar esto
- * directo en vez de agregar una función `requireXContext` nueva, salvo que
- * necesiten lógica adicional real (no solo un redirect distinto).
+ * siempre), exige que `moduleKey` esté habilitado —redirigiendo a `offRedirect`
+ * si no lo está— y que la persona tenga al menos `minimum` en ese módulo; sin
+ * ese nivel vuelve al tablero (diseño de roles, §9).
+ *
+ * El encendido se mira antes que el nivel a propósito: con el módulo apagado el
+ * nivel es siempre NONE, y el aviso "módulo apagado" explica mejor qué pasa.
  */
 async function requireModuleContext(
   moduleKey: string,
   offRedirect: string,
+  minimum: ModuleMinimum = "VIEW",
 ): Promise<{ user: AuthUser; workspace: ActiveWorkspace }> {
   const user = await requireAuth();
   const workspace = await resolveActiveWorkspace(user.id);
   if (!workspace) redirect("/dashboard");
   const on = await isModuleEnabledForWorkspace(workspace.id, moduleKey);
   if (!on) redirect(offRedirect);
+  if (!(await hasModuleLevel(user.id, workspace.id, moduleKey, minimum))) redirect("/dashboard");
   return { user, workspace };
 }
 
-/** Exige módulo courses-sales activo en el workspace actual. */
-export async function requireCoursesSalesContext(): Promise<{
+/**
+ * Exige módulo courses-sales activo y el nivel pedido. Las páginas usan VIEW (omisión);
+ * toda acción que escribe pasa `"MANAGE"`.
+ */
+export async function requireCoursesSalesContext(minimum: ModuleMinimum = "VIEW"): Promise<{
   user: AuthUser;
   workspace: ActiveWorkspace;
 }> {
-  return requireModuleContext(COURSES_SALES_MODULE_KEY, "/dashboard?courses=off");
+  return requireModuleContext(COURSES_SALES_MODULE_KEY, "/dashboard?courses=off", minimum);
 }
 
-/** Exige módulo evaluaciones activo en el workspace actual. */
-export async function requireEvaluacionesContext(): Promise<{
+/** Exige módulo evaluaciones activo y el nivel pedido (páginas VIEW, acciones MANAGE). */
+export async function requireEvaluacionesContext(minimum: ModuleMinimum = "VIEW"): Promise<{
   user: AuthUser;
   workspace: ActiveWorkspace;
 }> {
-  return requireModuleContext(EVALUACIONES_MODULE_KEY, "/dashboard?evaluaciones=off");
+  return requireModuleContext(EVALUACIONES_MODULE_KEY, "/dashboard?evaluaciones=off", minimum);
 }
 
-/** Exige módulo website activo en el workspace actual. */
+/**
+ * Exige Captación (pedidos de servicio) activo y el nivel pedido: la bandeja y las pantallas
+ * de formularios piden VIEW; crear o editar un formulario, MANAGE. Hasta la etapa 2b sólo
+ * pedía sesión: cualquiera con membresía veía las consultas, con el módulo apagado o no.
+ */
+export async function requireServiceLeadsContext(minimum: ModuleMinimum = "VIEW"): Promise<{
+  user: AuthUser;
+  workspace: ActiveWorkspace;
+}> {
+  return requireModuleContext(SERVICE_LEADS_MODULE_KEY, "/dashboard?module=off", minimum);
+}
+
+/** Exige módulo website activo; ver las pantallas del CMS pide `website` VIEW. */
 export async function requireWebsiteContext(): Promise<{
   user: AuthUser;
   workspace: ActiveWorkspace;
 }> {
-  const ctx = await requireModuleContext(WEBSITE_MODULE_KEY, "/dashboard?website=off");
-  // Ver las pantallas del CMS pide `website` VIEW; quien no lo tiene vuelve al tablero.
-  if (!(await hasModuleLevel(ctx.user.id, ctx.workspace.id, WEBSITE_MODULE_KEY, "VIEW"))) {
-    redirect("/dashboard");
-  }
-  return ctx;
+  return requireModuleContext(WEBSITE_MODULE_KEY, "/dashboard?website=off", "VIEW");
 }
