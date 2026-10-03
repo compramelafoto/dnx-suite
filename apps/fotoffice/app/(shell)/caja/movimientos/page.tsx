@@ -1,5 +1,5 @@
 import { PageHeader } from "@/components/page-header";
-import { requireCashStaff } from "@/lib/cash/access";
+import { requireCashViewer } from "@/lib/cash/access";
 import { listAccounts, listCategories, listMovements } from "@/lib/cash/repository";
 import { listClients } from "@/lib/clients/repository";
 import { MOVEMENT_KINDS, type MovementKind } from "@/lib/cash/constants";
@@ -30,7 +30,7 @@ export default async function MovimientosPage({
     ok?: string;
   }>;
 }) {
-  const { workspace } = await requireCashStaff();
+  const { workspace, canOperate } = await requireCashViewer();
   const sp = await searchParams;
 
   const kindValido = sp.kind && MOVEMENT_KINDS.includes(sp.kind as MovementKind) ? (sp.kind as MovementKind) : undefined;
@@ -65,7 +65,9 @@ export default async function MovimientosPage({
         movimiento en este módulo—, repetido acá para no obligar a saltar de pantalla cuando
         ya estás mirando el libro filtrado: `returnTo` es lo único que cambia entre los dos.
       */}
-      <MovementForm accounts={cuentas} categories={categorias} clients={clientes} returnTo="/caja/movimientos" />
+      {canOperate ? (
+        <MovementForm accounts={cuentas} categories={categorias} clients={clientes} returnTo="/caja/movimientos" />
+      ) : null}
 
       <form method="GET" className="fo-card grid gap-4 !p-4 sm:grid-cols-3 lg:grid-cols-6">
         <div className="fo-field-stack">
@@ -142,7 +144,7 @@ export default async function MovimientosPage({
         </div>
       </form>
 
-      <MovementsTable movements={movimientos} showAccount showReverseAction />
+      <MovementsTable movements={movimientos} showAccount showReverseAction={canOperate} />
     </div>
   );
 }

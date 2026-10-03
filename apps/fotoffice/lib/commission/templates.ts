@@ -6,7 +6,7 @@
  * propósito: cuando se encienda Gobierno, la Secretaría ya lo tiene, sin tocar nada.
  */
 
-import { CASH_PROJECT_MONEY_ACTION } from "@/lib/permissions/actions";
+import { CASH_CONFIGURE_ACTION, CASH_PROJECT_MONEY_ACTION } from "@/lib/permissions/actions";
 
 // Se movió al catálogo de acciones; se reexporta para no romper los imports existentes.
 export { CASH_PROJECT_MONEY_ACTION };
@@ -60,7 +60,7 @@ export const ROLE_TEMPLATES: readonly RoleTemplate[] = [
     permissions: [
       { moduleKey: "members", level: V },
       { moduleKey: "membership-dues", level: M },
-      { moduleKey: "cash", level: M, actions: [CASH_PROJECT_MONEY_ACTION, "cash.configure"] },
+      { moduleKey: "cash", level: M, actions: [CASH_PROJECT_MONEY_ACTION, CASH_CONFIGURE_ACTION] },
       { moduleKey: "governance", level: V },
     ],
   },

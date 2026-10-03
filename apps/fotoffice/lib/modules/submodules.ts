@@ -253,7 +253,7 @@ const CLIENTES: SubmoduleItem[] = [
     label: "Nuevo cliente",
     icon: "UserPlus",
     description: "Dar de alta a alguien que compra por primera vez.",
-    requiresManage: false,
+    requiresManage: true,
     activeMatch: "under",
   },
 ];

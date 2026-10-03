@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma, Prisma } from "@repo/db";
 import { decimalArsToMinor, minorToDecimalString, parseArsToMinor } from "@/lib/membership/money";
-import { requireCashAdmin, requireCashStaff } from "@/lib/cash/access";
+import { requireCashConfigurer, requireCashOperator } from "@/lib/cash/access";
 import {
   canCloseShift,
   canOpenShift,
@@ -35,7 +35,7 @@ const CONFIGURACION = "/caja/configuracion";
  * impide que dos personas abriendo a la vez dejen dos turnos abiertos.
  */
 export async function openShiftAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireCashStaff();
+  const { workspace, user } = await requireCashOperator();
   const accountId = String(formData.get("accountId") ?? "").trim();
 
   const apertura = parseOpeningAmountMinor(String(formData.get("openingAmountArs") ?? ""));
@@ -86,7 +86,7 @@ export async function openShiftAction(formData: FormData): Promise<void> {
  * anule un movimiento de ese día.
  */
 export async function closeShiftAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireCashStaff();
+  const { workspace, user } = await requireCashOperator();
   const shiftId = String(formData.get("shiftId") ?? "").trim();
   const countedMinor = parseArsToMinor(String(formData.get("countedAmountArs") ?? ""));
   const note = String(formData.get("differenceNote") ?? "").trim() || null;
@@ -152,7 +152,7 @@ export async function closeShiftAction(formData: FormData): Promise<void> {
  * `lib/cash/return-to.ts`.
  */
 export async function createMovementAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireCashStaff();
+  const { workspace, user } = await requireCashOperator();
 
   const volver = sanitizeReturnTo(String(formData.get("returnTo") ?? ""), CAJA);
 
@@ -217,7 +217,7 @@ export async function createMovementAction(formData: FormData): Promise<void> {
  * porque el libro completo no viaja: sólo lo que la anulación necesita.
  */
 export async function reverseMovementAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireCashStaff();
+  const { workspace, user } = await requireCashOperator();
   const movementId = String(formData.get("movementId") ?? "").trim();
   const reason = String(formData.get("reverseReason") ?? "");
 
@@ -298,7 +298,7 @@ export async function reverseMovementAction(formData: FormData): Promise<void> {
  * acción.
  */
 export async function transferAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireCashStaff();
+  const { workspace, user } = await requireCashOperator();
   const fromAccountId = String(formData.get("fromAccountId") ?? "").trim();
   const toAccountId = String(formData.get("toAccountId") ?? "").trim();
   const amountMinor = parseArsToMinor(String(formData.get("amountArs") ?? ""));
@@ -365,7 +365,7 @@ export async function transferAction(formData: FormData): Promise<void> {
  * efectivo — en una digital quedan siempre en blanco.
  */
 export async function saveAccountAction(formData: FormData): Promise<void> {
-  const { workspace } = await requireCashAdmin();
+  const { workspace } = await requireCashConfigurer();
   const accountId = String(formData.get("accountId") ?? "").trim() || null;
 
   const parsed = parseAccountForm(formData);
@@ -402,7 +402,7 @@ export async function saveAccountAction(formData: FormData): Promise<void> {
 
 /** Alta y edición de una categoría. */
 export async function saveCategoryAction(formData: FormData): Promise<void> {
-  const { workspace } = await requireCashAdmin();
+  const { workspace } = await requireCashConfigurer();
   const categoryId = String(formData.get("categoryId") ?? "").trim() || null;
 
   const parsed = parseCategoryForm(formData);
@@ -439,7 +439,12 @@ export async function saveCategoryAction(formData: FormData): Promise<void> {
  * más barato que un estado "ya sembrado" que después hay que mantener.
  */
 export async function enableCashForWorkspaceAction(): Promise<void> {
-  const { workspace } = await requireCashAdmin();
+  // Esta acción NO enciende el módulo (eso es Módulos, en la configuración del workspace): sólo
+  // siembra cuentas y categorías cuando Caja ya está habilitada. Con el módulo apagado el nivel es
+  // NONE para todos —también para el dueño— y la guarda rebota a `/dashboard`, igual que hacía
+  // `requireCashAdmin` antes (también exigía el módulo habilitado). Por eso no hace falta un
+  // camino aparte para dueño/admin: con el módulo encendido, `cash.configure` ya los incluye.
+  const { workspace } = await requireCashConfigurer();
   const { accounts, categories } = seedRowsFor(workspace.id);
   await prisma.$transaction([
     prisma.cashAccount.createMany({ data: accounts, skipDuplicates: true }),

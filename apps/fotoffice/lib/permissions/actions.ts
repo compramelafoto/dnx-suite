@@ -13,10 +13,13 @@ export type ModuleActionDef = { key: string; label: string; description: string 
 /** Acción sensible de Caja: reservar, gastar e ingresar plata de proyectos (§12.1.2). */
 export const CASH_PROJECT_MONEY_ACTION = "cash.project_money";
 
+/** Acción sensible de Caja: cuentas, categorías y encender el módulo (etapa 2b). */
+export const CASH_CONFIGURE_ACTION = "cash.configure";
+
 export const MODULE_ACTIONS: Readonly<Record<string, readonly ModuleActionDef[]>> = {
   [CASH_MODULE_KEY]: [
     {
-      key: "cash.configure",
+      key: CASH_CONFIGURE_ACTION,
       label: "Configurar Caja",
       description: "Cuentas, categorías y encender el módulo.",
     },
