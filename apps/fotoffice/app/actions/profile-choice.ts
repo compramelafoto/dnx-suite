@@ -8,35 +8,11 @@ import { clearProfileChoice, readProfileChoice, setProfileChoice } from "@/lib/p
 import {
   counterpartProfile,
   entryProfileForInstitution,
-  findProfileByKey,
   listUserProfiles,
   profileDestination,
   profileKey,
 } from "@/lib/portal/profiles";
 import { setActiveWorkspaceCookie } from "@/lib/workspace-cookie";
-
-/**
- * Guarda con qué perfil eligió entrar la persona y la lleva ahí.
- *
- * La clave que manda el navegador NO se cree: se vuelve a armar la lista real de perfiles en
- * el servidor y se busca la clave dentro de ella. Una clave inventada, o de un perfil ajeno,
- * simplemente no aparece — y se vuelve a preguntar.
- *
- * Elegir no otorga permisos: cada ruta sigue autorizando por su cuenta.
- */
-export async function chooseProfileAction(formData: FormData): Promise<void> {
-  const user = await requireAuth();
-  const key = formData.get("profile")?.toString()?.trim() ?? "";
-
-  const profiles = await listUserProfiles(user.id);
-  const chosen = findProfileByKey(profiles, key);
-  if (!chosen) redirect("/elegir-perfil");
-
-  await setProfileChoice(profileKey(chosen));
-  // La cookie de institución activa manda en el panel: sin esto, una vieja abriría otra.
-  if (chosen.kind === "TEAM") await setActiveWorkspaceCookie(chosen.workspaceId);
-  redirect(profileDestination(chosen));
-}
 
 /**
  * Entra a una institución elegida en `/elegir-perfil` (una tarjeta por institución).

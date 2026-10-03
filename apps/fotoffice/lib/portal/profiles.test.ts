@@ -302,6 +302,12 @@ describe("institutionChoices", () => {
     ]);
   });
 
+  /** Dueño de la SFPR y socio de ella no es "su negocio": es la institución de la que es socio. */
+  it("dueño y socio de la misma institución: no es Tu negocio", () => {
+    const ownerSfpr = { ...adminSfpr, role: "WORKSPACE_OWNER" } as const;
+    expect(institutionChoices([ownerSfpr, socioSfpr])[0]?.ownBusiness).toBe(false);
+  });
+
   it("sin perfiles: ninguna", () => {
     expect(institutionChoices([])).toEqual([]);
   });

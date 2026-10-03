@@ -183,7 +183,7 @@ function teamRoleLabel(role: string): string {
 export type InstitutionChoice = {
   workspaceId: string;
   workspaceName: string;
-  /** Es SU negocio: la persona es dueña del workspace. */
+  /** Es SU negocio: la persona es dueña del workspace y no es socia de él. */
   ownBusiness: boolean;
   /** Su número de socio ahí, si lo es. */
   memberNumber: string | null;
@@ -208,6 +208,10 @@ export function institutionChoices(profiles: UserProfile[]): InstitutionChoice[]
     choice.profiles.push(p);
     if (p.kind === "TEAM" && p.role === "WORKSPACE_OWNER") choice.ownBusiness = true;
     if (p.kind === "MEMBER") choice.memberNumber = p.memberNumber;
+  }
+  // Dueño Y socio de la misma institución: no es "su negocio", es su institución.
+  for (const choice of byWorkspace.values()) {
+    if (choice.memberNumber !== null) choice.ownBusiness = false;
   }
   return [...byWorkspace.values()];
 }

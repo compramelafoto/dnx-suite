@@ -26,8 +26,10 @@ export function RoleSelector({
       </p>
       <div className="flex gap-1 rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] bg-[var(--fo-bg)] p-1">
         {selector.options.map((option) => {
+          // Angosto (cajón de 288 px, panel del portal de 240 px): "Administración" o una palabra
+          // larga del vocabulario parte en dos líneas en vez de cortarse o desbordar.
           const base =
-            "flex min-h-11 w-full items-center justify-center rounded-[var(--fo-radius-sm)] px-2 text-center text-xs font-semibold transition-colors";
+            "flex min-h-11 w-full min-w-0 items-center justify-center rounded-[var(--fo-radius-sm)] px-2 py-1 text-center text-xs font-semibold leading-tight break-words transition-colors";
           if (option.active) {
             return (
               <span
@@ -43,7 +45,7 @@ export function RoleSelector({
             <form
               key={option.kind}
               action={option.kind === "TEAM" ? switchToAdminAction : switchToPortalAction}
-              className="flex flex-1"
+              className="flex min-w-0 flex-1"
             >
               <input type="hidden" name="workspaceId" value={selector.workspaceId} />
               <button

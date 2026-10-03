@@ -40,7 +40,6 @@ vi.mock("@/lib/portal/profiles", async () => {
 });
 
 const {
-  chooseProfileAction,
   switchProfileAction,
   createOwnBusinessAction,
   switchToAdminAction,
@@ -50,12 +49,6 @@ const {
 
 const TEAM = { kind: "TEAM", workspaceId: "ws-dnx", workspaceName: "DNX Owner", role: "WORKSPACE_OWNER" };
 const SOCIO = { kind: "MEMBER", workspaceId: "ws-sfpr", workspaceName: "SFPR", memberId: "m", memberNumber: "556" };
-
-function form(profile: string) {
-  const fd = new FormData();
-  fd.set("profile", profile);
-  return fd;
-}
 
 /** Ejecuta la acción y devuelve a dónde redirigió. */
 async function destinationOf(run: () => Promise<void>): Promise<string> {
@@ -80,43 +73,7 @@ beforeEach(() => {
   readChoiceMock.mockReset().mockResolvedValue(null);
 });
 
-describe("elegir perfil", () => {
-  it("guarda la elección y lleva al destino del perfil de equipo", async () => {
-    expect(await destinationOf(() => chooseProfileAction(form("TEAM:ws-dnx")))).toBe("/workspace");
-    expect(setChoiceMock).toHaveBeenCalledWith("TEAM:ws-dnx");
-  });
-
-  /** La cookie de institución activa manda en el panel: una vieja abriría otra institución. */
-  it("elegir un perfil de equipo deja ESA institución activa", async () => {
-    await destinationOf(() => chooseProfileAction(form("TEAM:ws-dnx")));
-    expect(setWorkspaceCookieMock).toHaveBeenCalledWith("ws-dnx");
-  });
-
-  it("el perfil de socio lleva al portal", async () => {
-    expect(await destinationOf(() => chooseProfileAction(form("MEMBER:ws-sfpr")))).toBe("/portal");
-    expect(setChoiceMock).toHaveBeenCalledWith("MEMBER:ws-sfpr");
-    expect(setWorkspaceCookieMock).not.toHaveBeenCalled();
-  });
-
-  /**
-   * Lo que manda el navegador no se cree: la lista real se rearma en el servidor y la clave
-   * tiene que estar ahí. Si no, no se guarda nada y se vuelve a preguntar.
-   */
-  it.each([
-    ["de un workspace ajeno", "TEAM:ws-de-otro"],
-    ["con tipo inventado", "SUPERADMIN:ws-dnx"],
-    ["vacía", ""],
-    ["basura", "%%%"],
-  ])("una clave %s no se guarda y vuelve al selector", async (_label, key) => {
-    expect(await destinationOf(() => chooseProfileAction(form(key)))).toBe("/elegir-perfil");
-    expect(setChoiceMock).not.toHaveBeenCalled();
-  });
-
-  it("elegir no crea membresías ni workspaces", async () => {
-    await destinationOf(() => chooseProfileAction(form("MEMBER:ws-sfpr")));
-    expect(ensureMock).not.toHaveBeenCalled();
-  });
-
+describe("cambiar de perfil", () => {
   it("cambiar de perfil olvida la preferencia y vuelve al selector", async () => {
     expect(await destinationOf(() => switchProfileAction())).toBe("/elegir-perfil");
     expect(clearChoiceMock).toHaveBeenCalledTimes(1);

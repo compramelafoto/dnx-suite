@@ -1,4 +1,5 @@
 import { prisma } from "@repo/db";
+import { readProfileChoice } from "./profile-choice";
 
 /**
  * Autorización del portal del socio.
@@ -27,22 +28,50 @@ export type PortalContext = {
   workspace: { id: string; name: string };
 };
 
+const MEMBER_SELECT = {
+  id: true,
+  firstName: true,
+  lastName: true,
+  memberNumber: true,
+  joinedAt: true,
+  category: { select: { name: true } },
+  workspace: { select: { id: true, name: true } },
+} as const;
+
+/**
+ * La institución de socio que la persona eligió (cookie `MEMBER:<ws>`), o `null`.
+ *
+ * Es sólo una preferencia: se usa como filtro ADEMÁS de `userId` y `ACTIVE`, así que una
+ * cookie manipulada no abre nada ajeno. Fuera de una petición no hay cookies: `null`.
+ */
+async function rememberedMemberWorkspace(): Promise<string | null> {
+  let key: string | null;
+  try {
+    key = await readProfileChoice();
+  } catch {
+    return null;
+  }
+  if (!key?.startsWith("MEMBER:")) return null;
+  return key.slice("MEMBER:".length) || null;
+}
+
 export async function loadPortalContext(userId: number): Promise<PortalContext | null> {
-  const member = await prisma.member.findFirst({
-    where: { userId, status: "ACTIVE" },
-    select: {
-      id: true,
-      firstName: true,
-      lastName: true,
-      memberNumber: true,
-      joinedAt: true,
-      category: { select: { name: true } },
-      workspace: { select: { id: true, name: true } },
-    },
-    // Determinista si alguien es socio de más de una institución. El selector de institución
-    // llega cuando exista el segundo caso real; hoy inventarlo sería adivinar la interfaz.
-    orderBy: { createdAt: "asc" },
-  });
+  // Socio de varias instituciones: abre la elegida si sigue siendo una ficha ACTIVE suya.
+  const workspaceId = await rememberedMemberWorkspace();
+  const chosen = workspaceId
+    ? await prisma.member.findFirst({
+        where: { userId, status: "ACTIVE", workspaceId },
+        select: MEMBER_SELECT,
+      })
+    : null;
+  const member =
+    chosen ??
+    (await prisma.member.findFirst({
+      where: { userId, status: "ACTIVE" },
+      select: MEMBER_SELECT,
+      // Determinista sin elección: la ficha más antigua.
+      orderBy: { createdAt: "asc" },
+    }));
   if (!member) return null;
 
   return {
