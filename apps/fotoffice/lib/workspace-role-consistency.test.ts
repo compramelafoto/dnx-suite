@@ -168,8 +168,9 @@ describe("resolución de rol de workspace — menú y páginas leen lo mismo", (
  * cerrar.
  *
  * `canDesignTemplates` no está en la lista: desde la etapa 2b ES la decisión por nivel
- * (`members` MANAGE vía `hasModuleLevel`), no un chequeo de rol. `canCoordinateCoverages` se
- * borró en la etapa 2b; queda en la lista para que no vuelva.
+ * (`members` MANAGE vía `hasModuleLevel`), no un chequeo de rol. `canCoordinateCoverages` y
+ * `canManageMembers` se borraron en la etapa 2b (ya nadie las llamaba); quedan en la lista a
+ * propósito, para que ninguna vuelva con el mismo nombre.
  */
 describe("nadie fuera de Configuración decide el acceso por el rol crudo", () => {
   const PROHIBIDAS = ["canManageWorkspaceSettings", "canManageMembers", "canCoordinateCoverages"];
@@ -193,7 +194,6 @@ describe("nadie fuera de Configuración decide el acceso por el rol crudo", () =
     },
     // Las propias definiciones.
     { patron: /^lib\/workspace-settings-access\.ts$/, razon: "definición" },
-    { patron: /^lib\/members\/role-policy\.ts$/, razon: "definición" },
   ];
 
   it("la lista de archivos que llaman a un chequeo por rol es la permitida", () => {

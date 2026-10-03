@@ -17,9 +17,9 @@ import { prisma } from "@repo/db";
  * Todos los usuarios reales —SFPR, DNX Owner, QA— tienen su fila en `WorkspaceMembership`.
  *
  * `WorkspaceRole` es el enum nuevo (`WORKSPACE_OWNER` | `WORKSPACE_ADMIN` | `STAFF`).
- * `canManageMembers` y `canManageWorkspaceSettings` siguen aceptando además el `ADMIN`
- * legacy porque otros callers —`app/actions/settings.ts`, `lib/payments/connect/authz.ts`—
- * todavía les pasan roles de la tabla vieja.
+ * `canManageWorkspaceSettings` sigue aceptando además el `ADMIN` legacy porque otros
+ * callers —`app/actions/settings.ts`, `lib/payments/connect/authz.ts`— todavía le pasan roles
+ * de la tabla vieja.
  */
 export async function resolveWorkspaceRole(
   userId: number,
