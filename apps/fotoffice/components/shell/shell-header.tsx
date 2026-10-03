@@ -1,10 +1,10 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { LogOut, Repeat } from "lucide-react";
+import { LogOut, Repeat, UserRound } from "lucide-react";
 import { switchWorkspaceAction } from "@/app/actions/workspace";
 import { fotofficeLogoutAction } from "@/app/actions/auth";
-import { switchProfileAction } from "@/app/actions/profile-choice";
+import { switchProfileAction, switchToPortalAction } from "@/app/actions/profile-choice";
 import { NavToggle } from "./nav-toggle";
 import { useShellNav } from "./shell-frame";
 
@@ -29,6 +29,7 @@ export function ShellHeader({
   workspaceRole,
   workspaceLogoUrl,
   canSwitchProfile,
+  portalSwitch,
   memberships,
   activeWorkspaceId,
 }: {
@@ -38,6 +39,8 @@ export function ShellHeader({
   workspaceRole: string | null;
   workspaceLogoUrl: string | null;
   canSwitchProfile: boolean;
+  /** Si quien administra también es socio de esta institución: el botón directo a su portal. */
+  portalSwitch: { workspaceId: string; label: string } | null;
   memberships: { workspaceId: string; name: string }[];
   activeWorkspaceId: string | null;
 }) {
@@ -124,6 +127,20 @@ export function ShellHeader({
               {iniciales || "·"}
             </span>
           )}
+          {portalSwitch ? (
+            <form action={switchToPortalAction}>
+              <input type="hidden" name="workspaceId" value={portalSwitch.workspaceId} />
+              <button
+                type="submit"
+                className="inline-flex size-10 items-center justify-center rounded-full border border-[var(--fo-border)] text-[var(--fo-muted)] hover:border-[var(--fo-accent)] hover:text-[var(--fo-text)] md:w-auto md:gap-2 md:px-4"
+                aria-label={portalSwitch.label}
+                title={portalSwitch.label}
+              >
+                <UserRound className="size-4" aria-hidden />
+                <span className="hidden text-sm md:inline">{portalSwitch.label}</span>
+              </button>
+            </form>
+          ) : null}
           {canSwitchProfile ? (
             <form action={switchProfileAction}>
               <button

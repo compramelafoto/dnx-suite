@@ -136,3 +136,30 @@ export function counterpartProfile(
     profiles.find((p) => p.kind === otherKind && p.workspaceId === current.workspaceId) ?? null
   );
 }
+
+export type HeaderSwitches = {
+  /** El perfil del otro lado (panel ⇄ portal) en la misma institución: su botón directo. */
+  counterpart: UserProfile | null;
+  /** El botón general "Cambiar de perfil": sólo tiene sentido con más de una institución. */
+  showGeneralSwitch: boolean;
+};
+
+/**
+ * Qué botones de cambio muestra el encabezado de quien está en `current`.
+ *
+ * Pura a propósito: los encabezados sólo dibujan lo que esto decide, y la decisión se prueba
+ * sin montar componentes. Con todos los perfiles en una institución, ir y volver entre portal
+ * y panel es un botón directo; el selector general queda para quien tiene más de una.
+ */
+export function headerSwitches(
+  profiles: UserProfile[],
+  current: { kind: "TEAM" | "MEMBER"; workspaceId: string | null },
+): HeaderSwitches {
+  return {
+    counterpart:
+      current.workspaceId === null
+        ? null
+        : counterpartProfile(profiles, { kind: current.kind, workspaceId: current.workspaceId }),
+    showGeneralSwitch: hasProfilesInSeveralWorkspaces(profiles),
+  };
+}

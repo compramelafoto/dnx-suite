@@ -20,6 +20,7 @@ const {
   resolveEntryProfile,
   counterpartProfile,
   hasProfilesInSeveralWorkspaces,
+  headerSwitches,
 } = await import("./profiles");
 
 const TEAM = { role: "WORKSPACE_OWNER", workspace: { id: "ws-dnx", name: "DNX Owner" } };
@@ -222,5 +223,53 @@ describe("hasProfilesInSeveralWorkspaces", () => {
 
   it("dos instituciones: sí", () => {
     expect(hasProfilesInSeveralWorkspaces([teamA, socioB])).toBe(true);
+  });
+});
+
+describe("headerSwitches", () => {
+  const teamA = { kind: "TEAM", workspaceId: "ws-a", workspaceName: "A", role: "WORKSPACE_ADMIN" } as const;
+  const socioA = { kind: "MEMBER", workspaceId: "ws-a", workspaceName: "A", memberId: "m", memberNumber: "1" } as const;
+  const teamB = { kind: "TEAM", workspaceId: "ws-b", workspaceName: "B", role: "WORKSPACE_OWNER" } as const;
+
+  it("socio y admin de la misma institución, desde el portal: botón Administración, sin selector general", () => {
+    expect(headerSwitches([teamA, socioA], { kind: "MEMBER", workspaceId: "ws-a" })).toEqual({
+      counterpart: teamA,
+      showGeneralSwitch: false,
+    });
+  });
+
+  it("desde el panel: botón al portal, sin selector general", () => {
+    expect(headerSwitches([teamA, socioA], { kind: "TEAM", workspaceId: "ws-a" })).toEqual({
+      counterpart: socioA,
+      showGeneralSwitch: false,
+    });
+  });
+
+  it("panel de otra institución donde no es socio: sin botón directo, con selector general", () => {
+    expect(headerSwitches([teamA, socioA, teamB], { kind: "TEAM", workspaceId: "ws-b" })).toEqual({
+      counterpart: null,
+      showGeneralSwitch: true,
+    });
+  });
+
+  it("con dos instituciones y contraparte en la activa: los dos botones", () => {
+    expect(headerSwitches([teamA, socioA, teamB], { kind: "MEMBER", workspaceId: "ws-a" })).toEqual({
+      counterpart: teamA,
+      showGeneralSwitch: true,
+    });
+  });
+
+  it("un solo perfil: ningún botón", () => {
+    expect(headerSwitches([socioA], { kind: "MEMBER", workspaceId: "ws-a" })).toEqual({
+      counterpart: null,
+      showGeneralSwitch: false,
+    });
+  });
+
+  it("panel sin institución activa: sin botón directo", () => {
+    expect(headerSwitches([teamA, socioA], { kind: "TEAM", workspaceId: null })).toEqual({
+      counterpart: null,
+      showGeneralSwitch: false,
+    });
   });
 });

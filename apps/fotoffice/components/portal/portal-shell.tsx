@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { LayoutDashboard } from "lucide-react";
+import { switchToAdminAction } from "@/app/actions/profile-choice";
 import { type ResolvedPortalItem } from "@/lib/portal/menu";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import { PortalNav, PortalSidebar } from "./portal-nav";
@@ -19,12 +21,15 @@ export function PortalShell({
   member,
   institution,
   vocabulary,
+  adminSwitchWorkspaceId = null,
   children,
 }: {
   items: ResolvedPortalItem[];
   member: { fullName: string; memberNumber: string; category: string | null; photoUrl: string | null };
   institution: { name: string; logoUrl: string | null };
   vocabulary: PersonVocabulary;
+  /** Si el socio también administra esta institución: el botón directo a su panel. */
+  adminSwitchWorkspaceId?: string | null;
   children: ReactNode;
 }) {
   return (
@@ -57,6 +62,20 @@ export function PortalShell({
               </p>
             </div>
             <PortalAvatar name={member.fullName} src={member.photoUrl} className="h-10 w-10" />
+            {adminSwitchWorkspaceId ? (
+              <form action={switchToAdminAction} className="shrink-0">
+                <input type="hidden" name="workspaceId" value={adminSwitchWorkspaceId} />
+                <button
+                  type="submit"
+                  className="inline-flex size-10 items-center justify-center rounded-full border border-[var(--fo-border)] text-[var(--fo-muted)] hover:border-[var(--fo-accent)] hover:text-[var(--fo-text)] md:w-auto md:gap-2 md:px-4"
+                  aria-label="Administración"
+                  title="Administración"
+                >
+                  <LayoutDashboard className="size-4" aria-hidden />
+                  <span className="hidden text-sm md:inline">Administración</span>
+                </button>
+              </form>
+            ) : null}
           </div>
         </div>
       </header>
