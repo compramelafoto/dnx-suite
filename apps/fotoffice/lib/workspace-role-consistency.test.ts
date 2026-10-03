@@ -184,6 +184,10 @@ describe("nadie fuera de Configuración decide el acceso por el rol crudo", () =
     { patron: /^app\/actions\/settings\.ts$/, razon: "ajustes del workspace y de venta de cursos" },
     { patron: /^components\/shell\/admin-shell\.tsx$/, razon: "sólo la sección Institución del menú" },
     {
+      patron: /^lib\/website\/identity-access\.ts$/,
+      razon: "logo y favicon son la identidad de la institución (Datos de la institución), no del sitio",
+    },
+    {
       patron: /^app\/workspace\/page\.tsx$/,
       razon: "sólo el aviso 'Completar los datos de la institución', que lleva a Configuración",
     },

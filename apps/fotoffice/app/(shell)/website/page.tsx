@@ -4,9 +4,12 @@ import { resolveWebsiteColors } from "@/lib/website/branding-defaults";
 import { normalizeFotofficeOrganizationType } from "@/lib/onboarding-constants";
 import { PageHeader } from "@/components/page-header";
 import { WebsiteBuilder } from "@/components/website/builder/website-builder";
+import { canEditWebsiteIdentity } from "@/lib/website/identity-access";
 
 export default async function WebsiteBuilderPage() {
-  const { workspace, canEdit, status, sections, designPresets, draftUpdatedAtIso } = await loadWebsiteCmsContext();
+  const { workspace, user, canEdit, status, sections, designPresets, draftUpdatedAtIso } = await loadWebsiteCmsContext();
+  // El logo y el favicon son la identidad de la institución: sólo dueño/admin (ver la acción).
+  const canEditIdentity = canEdit && (await canEditWebsiteIdentity(user.id, workspace.id));
 
   const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
     where: { workspaceId: workspace.id },
@@ -35,6 +38,7 @@ export default async function WebsiteBuilderPage() {
         workspaceName={branding?.commercialName ?? workspace.name}
         organizationType={normalizeFotofficeOrganizationType(branding?.activityType) || null}
         canEdit={canEdit}
+        canEditIdentity={canEditIdentity}
         draftUpdatedAt={draftUpdatedAtIso}
         status={status}
       />

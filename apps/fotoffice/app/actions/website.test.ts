@@ -9,6 +9,8 @@ const {
   versionAggregateMock,
   versionCreateMock,
   brandingUpdateMock,
+  brandingFindUniqueMock,
+  canEditIdentityMock,
 } = vi.hoisted(() => ({
   hasModuleLevelMock: vi.fn(),
   websiteUpsertMock: vi.fn(),
@@ -18,6 +20,8 @@ const {
   versionAggregateMock: vi.fn(),
   versionCreateMock: vi.fn(),
   brandingUpdateMock: vi.fn(),
+  brandingFindUniqueMock: vi.fn(),
+  canEditIdentityMock: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -35,7 +39,7 @@ vi.mock("@repo/db", () => ({
       updateMany: websiteUpdateManyMock,
       findUnique: websiteFindUniqueMock,
     },
-    fotofficeWorkspaceBranding: { update: brandingUpdateMock },
+    fotofficeWorkspaceBranding: { update: brandingUpdateMock, findUnique: brandingFindUniqueMock },
     $transaction: vi.fn(async (fn: (tx: typeof txDelegates) => unknown) => fn(txDelegates)),
   },
 }));
@@ -43,6 +47,8 @@ vi.mock("@repo/db", () => ({
 vi.mock("@/lib/permissions/module-access", () => ({
   hasModuleLevel: hasModuleLevelMock,
 }));
+
+vi.mock("@/lib/website/identity-access", () => ({ canEditWebsiteIdentity: canEditIdentityMock }));
 
 vi.mock("@/lib/workspace", () => ({
   requireWebsiteContext: vi.fn(async () => ({
@@ -428,6 +434,11 @@ describe("saveWebsiteBrandingColorsAction", () => {
   beforeEach(() => {
     hasModuleLevelMock.mockReset();
     brandingUpdateMock.mockReset();
+    brandingFindUniqueMock.mockReset().mockResolvedValue({
+      logoUrl: "https://r2.example/viejo.png",
+      faviconUrl: null,
+    });
+    canEditIdentityMock.mockReset().mockResolvedValue(true);
   });
 
   it("OWNER guarda los 5 colores en FotofficeWorkspaceBranding (no en Website)", async () => {
@@ -482,5 +493,72 @@ describe("saveWebsiteBrandingColorsAction", () => {
     const result = await saveWebsiteBrandingColorsAction(undefined, buildFormData());
     expect(result.error).toBe("No tenés permiso para editar el sitio web.");
     expect(brandingUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("con website MANAGE pero sin ser dueño/admin: guarda los colores y deja el logo y el favicon como estaban", async () => {
+    hasModuleLevelMock.mockResolvedValueOnce(true);
+    canEditIdentityMock.mockResolvedValue(false);
+    brandingUpdateMock.mockResolvedValueOnce({});
+    const result = await saveWebsiteBrandingColorsAction(
+      undefined,
+      buildFormData({
+        primaryColor: "#112233",
+        secondaryColor: "",
+        backgroundColor: "",
+        textColor: "",
+        accentColor: "",
+        logoUrl: "https://r2.example/nuevo.png",
+        faviconUrl: "",
+      }),
+    );
+    expect(result.error).toBeNull();
+    expect(result.notice).toContain("logo");
+    const dataArg = brandingUpdateMock.mock.calls[0][0].data;
+    expect(dataArg.primaryColor).toBe("#112233");
+    expect("logoUrl" in dataArg).toBe(false);
+    expect("faviconUrl" in dataArg).toBe(false);
+    expect(canEditIdentityMock).toHaveBeenCalledWith(7, "ws-a");
+  });
+
+  it("sin ser dueño/admin, si el logo y el favicon llegan iguales no hay aviso", async () => {
+    hasModuleLevelMock.mockResolvedValueOnce(true);
+    canEditIdentityMock.mockResolvedValue(false);
+    brandingUpdateMock.mockResolvedValueOnce({});
+    const result = await saveWebsiteBrandingColorsAction(
+      undefined,
+      buildFormData({
+        primaryColor: "",
+        secondaryColor: "",
+        backgroundColor: "",
+        textColor: "",
+        accentColor: "",
+        logoUrl: "https://r2.example/viejo.png",
+        faviconUrl: "",
+      }),
+    );
+    expect(result).toEqual({ error: null, ok: true });
+    expect("logoUrl" in brandingUpdateMock.mock.calls[0][0].data).toBe(false);
+  });
+
+  it("dueño/admin cambia el logo y el favicon", async () => {
+    hasModuleLevelMock.mockResolvedValueOnce(true);
+    brandingUpdateMock.mockResolvedValueOnce({});
+    const result = await saveWebsiteBrandingColorsAction(
+      undefined,
+      buildFormData({
+        primaryColor: "",
+        secondaryColor: "",
+        backgroundColor: "",
+        textColor: "",
+        accentColor: "",
+        logoUrl: "https://r2.example/nuevo.png",
+        faviconUrl: "https://r2.example/fav.png",
+      }),
+    );
+    expect(result).toEqual({ error: null, ok: true });
+    expect(brandingUpdateMock.mock.calls[0][0].data).toMatchObject({
+      logoUrl: "https://r2.example/nuevo.png",
+      faviconUrl: "https://r2.example/fav.png",
+    });
   });
 });
