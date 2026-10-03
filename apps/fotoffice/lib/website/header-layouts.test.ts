@@ -3,6 +3,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { WebsiteHeaderView } from "@/components/website/render/website-header-view";
 import { SiteFrame } from "@/components/website/render/site-frame";
+import { TextBlockView } from "@/components/website/render/blocks/text-block-view";
+import type { TextBlockConfig } from "./blocks";
 import { DEFAULT_DESIGN_PRESETS, MENU_LAYOUTS, type MenuLayoutId, type WebsiteDesignPresets } from "./design-presets";
 import type { SiteNavItem } from "./site-nav";
 
@@ -53,6 +55,20 @@ describe("encabezado según la disposición del menú", () => {
     expect(dibujar({ menuLayout: "sidebar", menuSide: "left" })).toContain('@3xl:flex-row"');
     expect(dibujar({ menuLayout: "sidebar", menuSide: "right" })).toContain("@3xl:flex-row-reverse");
     expect(dibujar({ menuLayout: "topbar" })).not.toContain("@3xl:flex-row");
+  });
+
+  it("carga Google Fonts sólo si el diseño usa una letra de Google", () => {
+    expect(dibujar({})).not.toContain("fonts.googleapis.com");
+    expect(dibujar({ typographyLevels: { menu: { font: "montserrat" } } })).toContain(
+      'href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400&amp;display=swap"',
+    );
+  });
+
+  it("los títulos de sección leen su nivel, color incluido", () => {
+    const html = renderToStaticMarkup(createElement(TextBlockView, { config: { title: "Hola", content: "Texto", align: "left" } as TextBlockConfig }));
+    expect(html).toContain("font-family:var(--wsite-heading-font)");
+    expect(html).toContain("color:var(--wsite-heading-color)");
+    expect(html).toContain("font-size:var(--wsite-body-size)");
   });
 
   it("los estilos de barra sólo aplican a la barra superior", () => {

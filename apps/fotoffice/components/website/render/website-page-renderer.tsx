@@ -48,7 +48,7 @@ export function WebsitePageRenderer({
       style={{
         ...themeVars,
         backgroundColor: "var(--wsite-bg)",
-        color: "var(--wsite-text)",
+        color: "var(--wsite-body-color)",
         fontFamily: "var(--wsite-body-font)",
         lineHeight: "var(--wsite-line-height)",
       }}
