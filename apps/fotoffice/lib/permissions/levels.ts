@@ -42,7 +42,7 @@ const FULL_ACCESS_ROLES = new Set(["WORKSPACE_OWNER", "WORKSPACE_ADMIN", "ADMIN"
 
 /**
  * Lo que `STAFF` puede hoy en cada módulo ya migrado, copiado de los `access.ts` previos.
- * Es la red de seguridad de la etapa 1: mientras alguien no tenga roles asignados, sigue
+ * Es la red de seguridad de la etapa 1: mientras alguien nunca haya tenido roles asignados, sigue
  * exactamente igual que antes. Un módulo que no figura acá todavía no pregunta por niveles.
  */
 const LEGACY_STAFF_LEVELS: Readonly<Record<string, ModuleLevel>> = {
@@ -84,8 +84,8 @@ export function isAssignmentActive(
 /**
  * El orden importa (spec §9):
  * 1. módulo apagado → nada; 2. sin rol en el workspace → nada;
- * 3. dueño/admin → todo; 4. con asignaciones vigentes → el máximo entre sus roles;
- * 5. STAFF sin asignaciones → lo de hoy.
+ * 3. dueño/admin → todo; 4. con asignaciones (cualquiera) → el máximo entre las vigentes, o NONE;
+ * 5. STAFF que nunca tuvo asignaciones → lo de hoy.
  */
 export function resolveModuleLevel(input: {
   moduleKey: string;
@@ -98,8 +98,10 @@ export function resolveModuleLevel(input: {
   if (!input.workspaceRole) return "NONE";
   if (FULL_ACCESS_ROLES.has(input.workspaceRole)) return "MANAGE";
 
-  const active = input.assignments.filter((a) => isAssignmentActive(a, input.now));
-  if (active.length > 0) {
+  // Quien tuvo roles alguna vez (vigentes, vencidos, revocados o futuros) ya no usa la
+  // compatibilidad de STAFF: si no, un ex tesorero volvería a ver el padrón (diseño §12.3).
+  if (input.assignments.length > 0) {
+    const active = input.assignments.filter((a) => isAssignmentActive(a, input.now));
     return maxLevel(
       active.flatMap((a) =>
         a.permissions.filter((p) => p.moduleKey === input.moduleKey).map((p) => p.level),

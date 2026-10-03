@@ -24,7 +24,14 @@ async function loadAssignments(userId: number, workspaceId: string): Promise<Rol
   try {
     const rows = await prisma.workspaceRoleAssignment.findMany({
       // `role.workspaceId` además del de la asignación: un rol de otra institución nunca cuenta.
-      where: { userId, workspaceId, revokedAt: null, role: { workspaceId } },
+      // Sin filtrar revocadas: la regla necesita saber si la persona tuvo roles (§12.3).
+      // Por usuario directo o por su ficha de socio en ESTE workspace: un socio que recibió el
+      // rol antes de tener cuenta lo hereda al vincularla (§12.1.4).
+      where: {
+        workspaceId,
+        role: { workspaceId },
+        OR: [{ userId }, { member: { userId, workspaceId } }],
+      },
       select: {
         startsAt: true,
         endsAt: true,

@@ -34,9 +34,20 @@ describe("getModuleLevels", () => {
     await getModuleLevels(7, "ws-1");
     expect(H.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { userId: 7, workspaceId: "ws-1", revokedAt: null, role: { workspaceId: "ws-1" } },
+        where: {
+          workspaceId: "ws-1",
+          role: { workspaceId: "ws-1" },
+          OR: [{ userId: 7 }, { member: { userId: 7, workspaceId: "ws-1" } }],
+        },
       }),
     );
+  });
+
+  it("una asignación revocada llega a la regla (para no volver a la compatibilidad)", async () => {
+    H.findMany.mockResolvedValue([
+      { startsAt: null, endsAt: null, revokedAt: new Date("2026-01-01"), role: { permissions: [] } },
+    ]);
+    expect((await getModuleLevels(7, "ws-1")).members).toBe("NONE");
   });
 
   it("aplica las asignaciones que vienen de la base", async () => {
