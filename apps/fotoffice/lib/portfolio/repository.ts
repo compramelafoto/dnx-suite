@@ -21,6 +21,7 @@ export type PortfolioPhotoView = {
   order: number;
   title: string | null;
   year: number | null;
+  altText: string | null;
   /** Calculado acá para que la pantalla no tenga que comparar contra `coverPhotoId`. */
   isCover: boolean;
 };
@@ -48,6 +49,7 @@ const SELECT_FOTO = {
   order: true,
   title: true,
   year: true,
+  altText: true,
 } as const;
 
 /**

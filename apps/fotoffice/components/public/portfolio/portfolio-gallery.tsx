@@ -183,7 +183,7 @@ export function PortfolioGallery({
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={f.url}
-                  alt={f.title ?? `Obra de ${authorName}`}
+                  alt={f.altText ?? f.title ?? `Obra de ${authorName}`}
                   width={f.width}
                   height={f.height}
                   loading="lazy"
@@ -226,7 +226,7 @@ export function PortfolioGallery({
             <img
               key={foto.id}
               src={foto.url}
-              alt={foto.title ?? `Obra de ${authorName}`}
+              alt={foto.altText ?? foto.title ?? `Obra de ${authorName}`}
               width={foto.width}
               height={foto.height}
               className="max-h-full max-w-full object-contain"

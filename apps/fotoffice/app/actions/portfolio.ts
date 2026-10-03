@@ -241,11 +241,21 @@ export async function reorderPortfolioPhotosAction(input: {
 /** El año más viejo admisible. Antes de eso no había fotografía. */
 const ANIO_MINIMO = 1826;
 
+/**
+ * Tope de la descripción de una foto.
+ *
+ * 180 no es un límite técnico: es hasta dónde un lector de pantalla lo dice de corrido sin que la
+ * persona pierda el hilo, y hasta donde Google le presta atención. Más largo no suma, estorba.
+ */
+const MAX_ALT = 180;
+
 /** Título y año de una foto. Los dos opcionales: una foto sin título es una foto válida. */
 export async function updatePortfolioPhotoAction(input: {
   photoId: string;
   title: string | null;
   year: number | null;
+  /** Descripción de lo que se ve. Va al `alt`: la lee Google y la escucha un lector de pantalla. */
+  altText?: string | null;
 }): Promise<PortfolioActionResult> {
   const ctx = await contextoDelPortfolio();
   if (!ctx.ok) return ctx;
@@ -264,9 +274,18 @@ export async function updatePortfolioPhotoAction(input: {
   // Un título vacío es nulo, no una cadena vacía: si no, la ficha pública muestra un renglón hueco.
   const title = (input.title ?? "").trim() || null;
 
+  /*
+   * El `alt` se recorta en vez de rechazarse. Un título se corrige y se sigue; una descripción de
+   * 300 caracteres es alguien escribiendo de más, y perderle el texto entero por eso sería peor que
+   * guardarle los primeros 180.
+   */
+  const altCrudo = (input.altText ?? "").replace(/\s+/g, " ").trim();
+  const altText = altCrudo ? altCrudo.slice(0, MAX_ALT) : null;
+
   await prisma.fotofficeMemberPortfolioPhoto.update({
     where: { id: foto.id },
-    data: { title, year: input.year },
+    // `altText` sólo si vino en la llamada: así un caller que no lo manda no lo borra.
+    data: { title, year: input.year, ...(input.altText !== undefined ? { altText } : {}) },
   });
 
   refrescarPantallas();
