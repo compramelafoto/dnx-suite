@@ -4,13 +4,20 @@
  *
  * ── Estado al 02/10/2026 ──
  *
- * **Ya corrió en producción**: los siete portfolios están publicados con 116 fotos y sus
- * presentaciones. Pero corrió con `--fotos-externas`, así que **las fotos todavía viven en
- * Alboom**: las variables R2 están marcadas como sensibles en Vercel y no se pueden volver a leer,
- * así que no había credenciales a mano.
+ * **Ya corrió en producción**: los siete portfolios están publicados con sus presentaciones. Pero
+ * corrió con `--fotos-externas`, así que **las fotos todavía viven en Alboom**: las variables R2
+ * están marcadas como sensibles en Vercel y no se pueden volver a leer.
  *
- * Queda pendiente correr `--realojar` con las credenciales de Cloudflare para traerlas a nuestro
- * bucket. Hasta entonces, el día que SFPR deje esa cuenta de Alboom, las 116 fotos se caen.
+ * ── El error de la primera corrida (encontrado el 03/10/2026) ──
+ *
+ * La extracción se llevaba **cualquier** dirección de Alboom del HTML, y al pie de cada ficha hay
+ * una tira de "otros asociados". Resultado: a seis de los siete socios se les cargaron sus fotos
+ * **más tres de otro fotógrafo**, publicadas como si fueran suyas. Se arregló filtrando por el
+ * número de álbum, que está en el slug de la ficha (`lib/portfolio/alboom-scrape.ts`, con tests),
+ * y las 18 intrusas se sacan con `--sacar-ajenas`.
+ *
+ * **Conviene reparar ANTES de realojar:** realojar copia a nuestro bucket, y copiar una foto mal
+ * atribuida sólo multiplica el problema.
  *
  * ── Los cuatro modos ──
  *
@@ -19,6 +26,7 @@
  *   --apply --fotos-externas   migra guardando las direcciones de Alboom; no necesita R2
  *   --realojar         trae a nuestro bucket las fotos que quedaron apuntando afuera
  *   --arreglar-bios    rehace sólo las presentaciones, sin tocar las fotos
+ *   --sacar-ajenas     saca de cada portfolio las fotos que son de otro fotógrafo
  *
  * ── Cómo correrlo ──
  *
@@ -39,6 +47,11 @@ import {
 } from "../../../../apps/fotoffice/lib/images/r2-client";
 import { FOTOFFICE_R2_PREFIXES } from "../../../../apps/fotoffice/lib/images/r2-key-policy";
 import { slugify } from "../../../../apps/fotoffice/lib/slug";
+import {
+  albumIdDesdeSlug,
+  fotosAjenas,
+  fotosDeAlbum,
+} from "../../../../apps/fotoffice/lib/portfolio/alboom-scrape";
 
 const WORKSPACE = "ws_sfpr_seed";
 const BASE = "https://sfpr.com.ar/portfolio/fotografos-pofesionales/";
@@ -72,6 +85,7 @@ const aplicar = process.argv.includes("--apply");
 const fotosExternas = process.argv.includes("--fotos-externas");
 const realojar = process.argv.includes("--realojar");
 const arreglarBios = process.argv.includes("--arreglar-bios");
+const sacarAjenas = process.argv.includes("--sacar-ajenas");
 
 function log(...partes: unknown[]) {
   console.log(...partes);
@@ -89,8 +103,21 @@ async function leerFichaVieja(slug: string): Promise<{ fotos: string[]; bio: str
   if (!r.ok) throw new Error(`${r.status} al leer la ficha ${slug}`);
   const html = await r.text();
 
-  const crudas = html.match(/storage\.alboom\.ninja\/sites\/47869\/albuns\/\d+\/[^"'\s?)]+/g) ?? [];
-  const fotos = [...new Set(crudas)].map((u) => `https://${u}`);
+  /*
+   * SÓLO las fotos del álbum de ESTA ficha.
+   *
+   * La primera corrida se llevaba cualquier dirección de Alboom del HTML, y al pie de cada ficha
+   * hay una tira de "otros asociados": a cada socio se le cargaron sus fotos más tres de otro, y
+   * la obra de alguien se publicó como si fuera de otra persona. El número de álbum está en el
+   * slug, así que no hay nada que adivinar. Ver `lib/portfolio/alboom-scrape.ts`.
+   */
+  const albumId = albumIdDesdeSlug(slug);
+  if (!albumId) throw new Error(`La ficha ${slug} no empieza con un número de álbum.`);
+  const fotos = fotosDeAlbum(html, albumId);
+  const ajenas = fotosAjenas(html, albumId);
+  if (ajenas > 0) {
+    log(`   (${slug}: ${fotos.length} propias; se ignoraron ${ajenas} de otros álbumes)`);
+  }
 
   const parrafos = [...html.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/g)]
     .map((m) => m[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim())
@@ -182,15 +209,106 @@ async function rehacerPresentaciones() {
   }
 }
 
+/**
+ * Saca de cada portfolio las fotos que son de otro fotógrafo.
+ *
+ * Repara lo que dejó la primera corrida, cuando la extracción se llevaba cualquier dirección de
+ * Alboom del HTML y arrastraba la tira de "otros asociados". No baja nada: decide con el número de
+ * álbum que ya está guardado en la dirección de cada foto, comparado con el del slug de la ficha.
+ *
+ * Simula si no se le pasa `--apply`. Al borrar renumera el orden, que el modelo quiere denso.
+ */
+async function sacarFotosAjenas() {
+  log(aplicar ? "=== SACANDO FOTOS AJENAS ===" : "=== SIMULACIÓN: fotos ajenas (no borra nada) ===");
+
+  const albumDeLaFoto = (url: string) => url.split("/albuns/")[1]?.split("/")[0] ?? "";
+  let total = 0;
+
+  for (const ficha of FICHAS) {
+    const albumId = albumIdDesdeSlug(ficha.slug);
+    if (!albumId) {
+      log(`✗ ${ficha.nombreWeb}: la ficha no empieza con un número de álbum`);
+      continue;
+    }
+
+    const socio = await prisma.member.findFirst({
+      where: { workspaceId: WORKSPACE, memberNumber: ficha.memberNumber },
+      select: { id: true, firstName: true, lastName: true },
+    });
+    if (!socio) {
+      log(`✗ ${ficha.nombreWeb}: sin ficha de socio`);
+      continue;
+    }
+
+    const portfolio = await prisma.fotofficeMemberPortfolio.findFirst({
+      where: { memberId: socio.id },
+      select: { id: true, coverPhotoId: true },
+    });
+    if (!portfolio) continue;
+
+    const fotos = await prisma.fotofficeMemberPortfolioPhoto.findMany({
+      where: { portfolioId: portfolio.id },
+      select: { id: true, url: true, order: true },
+      orderBy: { order: "asc" },
+    });
+
+    const ajenas = fotos.filter((f) => albumDeLaFoto(f.url) !== albumId);
+    const propias = fotos.filter((f) => albumDeLaFoto(f.url) === albumId);
+    const nombre = `${socio.firstName} ${socio.lastName}`;
+
+    if (ajenas.length === 0) {
+      log(`✓ ${nombre}: ${propias.length} fotos, todas suyas`);
+      continue;
+    }
+
+    // Nunca dejar a alguien sin portfolio por una reparación: si todo lo que tiene es ajeno, algo
+    // está mal en el mapeo y hay que mirarlo a mano, no vaciarle la pantalla.
+    if (propias.length === 0) {
+      log(`✗ ${nombre}: TODAS sus ${ajenas.length} fotos son de otro álbum. No se toca: revisar el mapeo.`);
+      continue;
+    }
+
+    log(`${aplicar ? "✓" : "→"} ${nombre}: saco ${ajenas.length} ajenas, le quedan ${propias.length}`);
+    for (const f of ajenas) {
+      log(`     puesto ${f.order}: ${f.url.replace(/^.*\//, "")} (álbum ${albumDeLaFoto(f.url)})`);
+    }
+    total += ajenas.length;
+
+    if (!aplicar) continue;
+
+    await prisma.$transaction(async (tx) => {
+      // La destacada se repunta sólo si era una de las que se van; ninguna lo era al 03/10/2026,
+      // pero una reparación que puede dejar un `coverPhotoId` colgado no sirve para repetirla.
+      if (portfolio.coverPhotoId && ajenas.some((f) => f.id === portfolio.coverPhotoId)) {
+        await tx.fotofficeMemberPortfolio.update({
+          where: { id: portfolio.id },
+          data: { coverPhotoId: propias[0].id },
+        });
+      }
+      await tx.fotofficeMemberPortfolioPhoto.deleteMany({
+        where: { id: { in: ajenas.map((f) => f.id) } },
+      });
+      // Denso y arrancando en 0, como dice el modelo.
+      for (const [i, f] of propias.entries()) {
+        if (f.order === i) continue;
+        await tx.fotofficeMemberPortfolioPhoto.update({ where: { id: f.id }, data: { order: i } });
+      }
+    });
+  }
+
+  log(`=== ${aplicar ? "saqué" : "sacaría"} ${total} fotos ajenas ===`);
+}
+
 async function main() {
   // Sólo los modos que de verdad suben archivos necesitan credenciales.
-  const vaASubir = (aplicar && !fotosExternas && !arreglarBios) || realojar;
+  const vaASubir = (aplicar && !fotosExternas && !arreglarBios && !sacarAjenas) || realojar;
   if (vaASubir && !isFotofficeR2Configured()) {
     throw new Error(
       "R2 no está configurado. Cargá las variables R2_* en apps/fotoffice/.env.local y volvé a correr.",
     );
   }
 
+  if (sacarAjenas) return sacarFotosAjenas();
   if (realojar) return realojarFotosExternas();
   if (arreglarBios) return rehacerPresentaciones();
 
