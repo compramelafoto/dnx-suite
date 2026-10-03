@@ -40,7 +40,7 @@ export function ShellHeader({
   workspaceLogoUrl: string | null;
   canSwitchProfile: boolean;
   /** Si quien administra también es socio de esta institución: el botón directo a su portal. */
-  portalSwitch: { workspaceId: string; label: string } | null;
+  portalSwitch: { workspaceId: string; label: string; ariaLabel: string } | null;
   memberships: { workspaceId: string; name: string }[];
   activeWorkspaceId: string | null;
 }) {
@@ -133,8 +133,8 @@ export function ShellHeader({
               <button
                 type="submit"
                 className="inline-flex size-10 items-center justify-center rounded-full border border-[var(--fo-border)] text-[var(--fo-muted)] hover:border-[var(--fo-accent)] hover:text-[var(--fo-text)] md:w-auto md:gap-2 md:px-4"
-                aria-label={portalSwitch.label}
-                title={portalSwitch.label}
+                aria-label={portalSwitch.ariaLabel}
+                title={portalSwitch.ariaLabel}
               >
                 <UserRound className="size-4" aria-hidden />
                 <span className="hidden text-sm md:inline">{portalSwitch.label}</span>
@@ -145,7 +145,7 @@ export function ShellHeader({
             <form action={switchProfileAction}>
               <button
                 type="submit"
-                className="inline-flex size-10 items-center justify-center rounded-full border border-[var(--fo-border)] text-[var(--fo-muted)] hover:text-[var(--fo-text)]"
+                className="inline-flex size-10 items-center justify-center rounded-full border border-[var(--fo-border)] text-[var(--fo-muted)] hover:border-[var(--fo-accent)] hover:text-[var(--fo-text)]"
                 aria-label="Cambiar de perfil"
                 title="Cambiar de perfil"
               >

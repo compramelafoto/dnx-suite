@@ -163,3 +163,14 @@ export function headerSwitches(
     showGeneralSwitch: hasProfilesInSeveralWorkspaces(profiles),
   };
 }
+
+/**
+ * Los textos del botón que lleva del panel al portal.
+ *
+ * El visible es neutro ("Mi portal") porque la palabra es configurable: "Portal del socia" no
+ * se puede escribir bien sin saber el género. La palabra va sólo en el aria-label y el title,
+ * con "de", que sirve para cualquiera.
+ */
+export function portalSwitchTexts(singular: string): { label: string; ariaLabel: string } {
+  return { label: "Mi portal", ariaLabel: `Ir a mi portal de ${singular}` };
+}

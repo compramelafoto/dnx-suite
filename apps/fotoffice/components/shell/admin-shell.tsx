@@ -11,7 +11,7 @@ import { ShellSidebar } from "@/components/shell/shell-sidebar";
 import { ShellFrame } from "@/components/shell/shell-frame";
 import { ShellHeader } from "@/components/shell/shell-header";
 import { SHELL_NAV_COOKIE, parseShellNavPreference } from "@/lib/shell/nav-preference";
-import { headerSwitches, listUserProfiles } from "@/lib/portal/profiles";
+import { headerSwitches, listUserProfiles, portalSwitchTexts } from "@/lib/portal/profiles";
 
 type PanelUser = {
   id: number;
@@ -103,7 +103,7 @@ export async function AdminShell({ user, children }: { user: PanelUser; children
             cambios.counterpart
               ? {
                   workspaceId: cambios.counterpart.workspaceId,
-                  label: `Portal del ${vocabulary.singular}`,
+                  ...portalSwitchTexts(vocabulary.singular),
                 }
               : null
           }

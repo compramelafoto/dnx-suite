@@ -21,6 +21,7 @@ const {
   counterpartProfile,
   hasProfilesInSeveralWorkspaces,
   headerSwitches,
+  portalSwitchTexts,
 } = await import("./profiles");
 
 const TEAM = { role: "WORKSPACE_OWNER", workspace: { id: "ws-dnx", name: "DNX Owner" } };
@@ -271,5 +272,17 @@ describe("headerSwitches", () => {
       counterpart: null,
       showGeneralSwitch: false,
     });
+  });
+});
+
+describe("portalSwitchTexts", () => {
+  it("texto visible neutro y la palabra configurada sólo en el aria-label", () => {
+    expect(portalSwitchTexts("socio")).toEqual({ label: "Mi portal", ariaLabel: "Ir a mi portal de socio" });
+  });
+
+  it("con una palabra femenina no arma \"del socia\"", () => {
+    const t = portalSwitchTexts("socia");
+    expect(t.ariaLabel).toBe("Ir a mi portal de socia");
+    expect(`${t.label} ${t.ariaLabel}`).not.toContain("del socia");
   });
 });
