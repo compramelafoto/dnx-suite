@@ -1,5 +1,6 @@
 import { prisma } from "@repo/db";
 import { requireCommissionAdmin } from "@/lib/commission/access";
+import { ensureCommissionSetupOnce } from "@/lib/commission/seed";
 import { isCurrentOrUpcoming } from "@/lib/commission/rules";
 import { CargoFila, NuevoCargo } from "./cargos-form";
 
@@ -8,6 +9,8 @@ export const dynamic = "force-dynamic";
 /** Cargos de la comisión, en el orden en que se muestran (Presidencia primero). */
 export default async function CargosPage() {
   const { workspaceId } = await requireCommissionAdmin();
+  // Antes de leer: el layout siembra en paralelo y la primera visita podía verse vacía.
+  await ensureCommissionSetupOnce(workspaceId);
   const now = new Date();
 
   const offices = await prisma.workspaceOffice.findMany({

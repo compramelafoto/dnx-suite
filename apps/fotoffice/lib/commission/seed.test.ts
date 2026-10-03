@@ -55,4 +55,14 @@ describe("ensureCommissionSetup", () => {
     expect(H.roleCreate).not.toHaveBeenCalled();
     expect(H.officeCreateMany).not.toHaveBeenCalled();
   });
+
+  it("si otra pestaña sembró al mismo tiempo (choque de nombre único), sigue sin error", async () => {
+    H.roleCreate.mockRejectedValue(Object.assign(new Error("Unique constraint"), { code: "P2002" }));
+    expect(await ensureCommissionSetup("ws-1")).toEqual({ seeded: false });
+  });
+
+  it("cualquier otro error se propaga", async () => {
+    H.roleCreate.mockRejectedValue(new Error("se cayó la conexión"));
+    await expect(ensureCommissionSetup("ws-1")).rejects.toThrow("se cayó la conexión");
+  });
 });

@@ -1,6 +1,6 @@
 import { PageHeader } from "@/components/page-header";
 import { requireCommissionAdmin } from "@/lib/commission/access";
-import { ensureCommissionSetup } from "@/lib/commission/seed";
+import { ensureCommissionSetupOnce } from "@/lib/commission/seed";
 import { ComisionTabs } from "./comision-tabs";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function ComisionLayout({ children }: { children: React.ReactNode }) {
   const { workspaceId } = await requireCommissionAdmin();
-  await ensureCommissionSetup(workspaceId);
+  await ensureCommissionSetupOnce(workspaceId);
 
   return (
     <div className="max-w-3xl space-y-6">

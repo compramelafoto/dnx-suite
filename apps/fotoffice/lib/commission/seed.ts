@@ -1,5 +1,7 @@
 import "server-only";
+import { cache } from "react";
 import { prisma } from "@repo/db";
+import { isUniqueViolation } from "./rules";
 import { OFFICE_TEMPLATES, ROLE_TEMPLATES } from "./templates";
 
 /**
@@ -8,9 +10,25 @@ import { OFFICE_TEMPLATES, ROLE_TEMPLATES } from "./templates";
  * Sólo si no tiene NINGÚN rol ni cargo (archivados incluidos): si ya armó los suyos, o borró
  * plantillas a propósito, volver a sembrar le devolvería lo que sacó. Corre en una transacción
  * para que dos pestañas abiertas a la vez no siembren dos veces; si igual chocan, la clave única
- * (workspace, nombre) hace fallar a la segunda y la pantalla se recarga con lo de la primera.
+ * (workspace, nombre) frena a la segunda, que sigue con lo que sembró la primera.
  */
 export async function ensureCommissionSetup(workspaceId: string): Promise<{ seeded: boolean }> {
+  try {
+    return await seed(workspaceId);
+  } catch (e) {
+    if (isUniqueViolation(e)) return { seeded: false };
+    throw e;
+  }
+}
+
+/**
+ * Para layout y páginas: se renderizan en paralelo y las dos siembran. `cache` de React hace que
+ * dentro de un mismo pedido compartan una sola siembra, y la página espera a que termine antes de
+ * leer (si no, la primera visita podía mostrar las listas vacías).
+ */
+export const ensureCommissionSetupOnce = cache(ensureCommissionSetup);
+
+async function seed(workspaceId: string): Promise<{ seeded: boolean }> {
   return prisma.$transaction(async (tx) => {
     const [roles, offices] = await Promise.all([
       tx.workspaceCustomRole.count({ where: { workspaceId } }),

@@ -1,5 +1,6 @@
 import { prisma } from "@repo/db";
 import { requireCommissionAdmin } from "@/lib/commission/access";
+import { ensureCommissionSetupOnce } from "@/lib/commission/seed";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { fechaCorta, fechaParaInput, textoMandato } from "./fechas";
 import { EditarIntegrante, QuitarIntegrante, SumarIntegrante } from "./integrantes-form";
@@ -15,6 +16,9 @@ const ESTADO_FICHA: Record<string, string> = { INACTIVE: "Inactivo", SUSPENDED: 
  */
 export default async function IntegrantesPage() {
   const { workspaceId } = await requireCommissionAdmin();
+  // El layout también siembra, pero en paralelo con esta página: sin esperar acá, la primera
+  // visita podía mostrar las listas vacías. Comparten una sola siembra por pedido.
+  await ensureCommissionSetupOnce(workspaceId);
   const now = new Date();
 
   const [periodos, vocab, offices, roles, socios] = await Promise.all([
@@ -23,12 +27,12 @@ export default async function IntegrantesPage() {
     prisma.workspaceOffice.findMany({
       where: { workspaceId, archivedAt: null },
       orderBy: [{ order: "asc" }, { name: "asc" }],
-      select: { id: true, name: true },
+      select: { id: true, name: true, votes: true },
     }),
     prisma.workspaceCustomRole.findMany({
       where: { workspaceId, archivedAt: null },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, description: true },
+      select: { id: true, name: true, description: true, templateKey: true },
     }),
     prisma.member.findMany({
       where: { workspaceId, status: "ACTIVE" },
@@ -50,6 +54,7 @@ export default async function IntegrantesPage() {
         }))}
         offices={offices}
         roles={roles}
+        vocalRoleId={roles.find((r) => r.templateKey === "board-member")?.id ?? null}
       />
 
       {integrantes.length === 0 ? (

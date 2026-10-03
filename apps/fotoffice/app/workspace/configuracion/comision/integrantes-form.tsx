@@ -7,9 +7,11 @@ import {
   updateCommissionMemberAction,
   type CommissionActionState,
 } from "./actions";
+import { AvisoAccesoTransitorio } from "./aviso-acceso";
 import { EstadoAccion, enviarSinBorrar, useAlCambiar } from "./estado-accion";
 
 type Opcion = { id: string; name: string; description?: string | null };
+type Cargo = { id: string; name: string; votes: boolean };
 
 const MAX_RESULTADOS = 50;
 
@@ -22,17 +24,22 @@ function normalizar(s: string): string {
  * Alta en la comisión. La persona es un {socio} activo (se busca por nombre o número) o, si no
  * es {socio}, alguien con cuenta en FOTOFFICE que se busca por correo. Cargo opcional, roles con
  * casillas y el período del mandato.
+ *
+ * Un cargo que vota necesita al menos un rol (si no, la persona no podría entrar al panel): al
+ * elegirlo sin roles marcados se marca solo el rol Vocal (`vocalRoleId`), si existe.
  */
 export function SumarIntegrante({
   socioWord,
   socios,
   offices,
   roles,
+  vocalRoleId,
 }: {
   socioWord: string;
   socios: { id: string; label: string }[];
-  offices: Opcion[];
+  offices: Cargo[];
   roles: Opcion[];
+  vocalRoleId: string | null;
 }) {
   const [state, dispatch, pending] = useActionState(
     addCommissionMemberAction,
@@ -43,6 +50,8 @@ export function SumarIntegrante({
   const [busqueda, setBusqueda] = useState("");
   const [memberId, setMemberId] = useState("");
   const [vuelta, setVuelta] = useState(0);
+  const [officeId, setOfficeId] = useState("");
+  const [marcados, setMarcados] = useState<string[]>([]);
 
   const filtrados = useMemo(() => {
     const q = normalizar(busqueda.trim());
@@ -56,6 +65,8 @@ export function SumarIntegrante({
       setVuelta((v) => v + 1);
       setBusqueda("");
       setMemberId("");
+      setOfficeId("");
+      setMarcados([]);
     }
   });
 
@@ -71,20 +82,28 @@ export function SumarIntegrante({
   }
 
   const elegido = socios.find((s) => s.id === memberId);
+  const cargoVota = offices.find((o) => o.id === officeId)?.votes ?? false;
+
+  function elegirCargo(id: string) {
+    setOfficeId(id);
+    const vota = offices.find((o) => o.id === id)?.votes ?? false;
+    if (vota && marcados.length === 0 && vocalRoleId) setMarcados([vocalRoleId]);
+  }
 
   return (
     <form key={vuelta} onSubmit={enviarSinBorrar(dispatch)} className="fo-card space-y-5 p-4 sm:p-5">
       <h2 className="text-base font-semibold">Sumar integrante</h2>
+      <AvisoAccesoTransitorio />
 
       <fieldset className="space-y-3">
         <legend className="fo-label mb-2">¿Quién?</legend>
         <div className="flex flex-wrap gap-4 text-sm">
           <label className="flex min-h-11 items-center gap-2">
-            <input type="radio" checked={modo === "socio"} onChange={() => setModo("socio")} />
+            <input type="radio" name="modo" checked={modo === "socio"} onChange={() => setModo("socio")} />
             Es {socioWord}
           </label>
           <label className="flex min-h-11 items-center gap-2">
-            <input type="radio" checked={modo === "correo"} onChange={() => setModo("correo")} />
+            <input type="radio" name="modo" checked={modo === "correo"} onChange={() => setModo("correo")} />
             No es {socioWord}
           </label>
         </div>
@@ -108,7 +127,7 @@ export function SumarIntegrante({
               size={Math.min(6, Math.max(2, filtrados.length))}
               value={memberId}
               onChange={(e) => setMemberId(e.target.value)}
-              aria-label={`Elegí al ${socioWord}`}
+              aria-label="Buscá en el padrón"
             >
               {filtrados.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -136,7 +155,12 @@ export function SumarIntegrante({
 
       <label className="block space-y-1">
         <span className="fo-label">Cargo</span>
-        <select name="officeId" className="fo-input" defaultValue="">
+        <select
+          name="officeId"
+          className="fo-input"
+          value={officeId}
+          onChange={(e) => elegirCargo(e.target.value)}
+        >
           <option value="">Sin cargo (sólo roles)</option>
           {offices.map((o) => (
             <option key={o.id} value={o.id}>
@@ -146,7 +170,12 @@ export function SumarIntegrante({
         </select>
       </label>
 
-      <RolesCasillas roles={roles} />
+      <RolesCasillas roles={roles} seleccion={marcados} onCambiar={setMarcados} />
+      {cargoVota && marcados.length === 0 ? (
+        <p className="fo-helper">
+          Este cargo vota: elegí al menos un rol, para que la persona pueda entrar al panel.
+        </p>
+      ) : null}
       <Fechas />
 
       <EstadoAccion state={state} okText="Listo, ya es parte de la comisión." />
@@ -282,7 +311,22 @@ function IdentidadOculta({ memberId, userId }: { memberId: string | null; userId
   );
 }
 
-function RolesCasillas({ roles, marcados = [] }: { roles: Opcion[]; marcados?: string[] }) {
+/**
+ * Sin `seleccion`, las casillas arrancan con `marcados` y quedan libres. Con `seleccion` y
+ * `onCambiar`, las maneja quien la usa (para poder marcar un rol desde afuera).
+ */
+function RolesCasillas({
+  roles,
+  marcados = [],
+  seleccion,
+  onCambiar,
+}: {
+  roles: Opcion[];
+  marcados?: string[];
+  seleccion?: string[];
+  onCambiar?: (ids: string[]) => void;
+}) {
+  const controlado = seleccion !== undefined && onCambiar !== undefined;
   return (
     <fieldset className="space-y-2">
       <legend className="fo-label mb-1">Roles</legend>
@@ -297,7 +341,15 @@ function RolesCasillas({ roles, marcados = [] }: { roles: Opcion[]; marcados?: s
                 type="checkbox"
                 name="roleIds"
                 value={r.id}
-                defaultChecked={marcados.includes(r.id)}
+                {...(controlado
+                  ? {
+                      checked: seleccion.includes(r.id),
+                      onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
+                        onCambiar(
+                          e.target.checked ? [...seleccion, r.id] : seleccion.filter((id) => id !== r.id),
+                        ),
+                    }
+                  : { defaultChecked: marcados.includes(r.id) })}
                 className="mt-1"
               />
               <span>

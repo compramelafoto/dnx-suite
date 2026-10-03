@@ -40,25 +40,28 @@ export async function listActiveOfficeHolders(workspaceId: string, now: Date = n
     },
   });
 
+  // El orden del cargo sólo sirve para ordenar: va al lado del titular y no adentro.
   return rows
     .filter((r) => isAssignmentActive(r, now))
     .map((r) => ({
-      termId: r.id,
-      officeId: r.officeId,
-      officeName: r.office.name,
-      votes: r.office.votes,
-      memberId: r.memberId,
-      userId: r.userId ?? r.member?.userId ?? null,
-      displayName: r.member
-        ? `${r.member.firstName} ${r.member.lastName}`.trim()
-        : (r.user?.name?.trim() || r.user?.email || "Sin nombre"),
-      email: r.member?.email ?? r.user?.email ?? null,
-      startsAt: r.startsAt,
-      endsAt: r.endsAt,
       order: r.office.order,
+      holder: {
+        termId: r.id,
+        officeId: r.officeId,
+        officeName: r.office.name,
+        votes: r.office.votes,
+        memberId: r.memberId,
+        userId: r.userId ?? r.member?.userId ?? null,
+        displayName: r.member
+          ? `${r.member.firstName} ${r.member.lastName}`.trim()
+          : (r.user?.name?.trim() || r.user?.email || "Sin nombre"),
+        email: r.member?.email ?? r.user?.email ?? null,
+        startsAt: r.startsAt,
+        endsAt: r.endsAt,
+      } satisfies OfficeHolder,
     }))
-    .sort((a, b) => a.order - b.order || a.displayName.localeCompare(b.displayName, "es"))
-    .map(({ order: _order, ...holder }) => holder);
+    .sort((a, b) => a.order - b.order || a.holder.displayName.localeCompare(b.holder.displayName, "es"))
+    .map((x) => x.holder);
 }
 
 export async function canVote(userId: number, workspaceId: string, now: Date = new Date()): Promise<boolean> {
