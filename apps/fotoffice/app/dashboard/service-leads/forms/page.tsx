@@ -1,16 +1,14 @@
 import Link from "next/link";
 import { prisma } from "@repo/db";
 import { PageHeader } from "@/components/page-header";
-import { requireActiveWorkspace } from "@/lib/workspace";
+import { requireServiceLeadsContext } from "@/lib/workspace";
 
 export default async function ServiceLeadFormsPage() {
-  const { workspace } = await requireActiveWorkspace();
-  const forms = workspace
-    ? await prisma.serviceLeadForm.findMany({
-        where: { workspaceId: workspace.id },
-        orderBy: { createdAt: "desc" },
-      })
-    : [];
+  const { workspace } = await requireServiceLeadsContext();
+  const forms = await prisma.serviceLeadForm.findMany({
+    where: { workspaceId: workspace.id },
+    orderBy: { createdAt: "desc" },
+  });
 
   return (
     <div className="space-y-10">
@@ -19,15 +17,7 @@ export default async function ServiceLeadFormsPage() {
         description="Administrá los formularios públicos que capturan consultas para este workspace."
       />
 
-      {!workspace ? (
-        <div className="fo-card">
-          <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
-            No hay workspace activo para este usuario.
-          </p>
-        </div>
-      ) : null}
-
-      {workspace && forms.length === 0 ? (
+      {forms.length === 0 ? (
         <div className="fo-card">
           <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
             Todavía no tenés formularios creados.
@@ -35,7 +25,7 @@ export default async function ServiceLeadFormsPage() {
         </div>
       ) : null}
 
-      {workspace && forms.length > 0 ? (
+      {forms.length > 0 ? (
         <div className="overflow-x-auto rounded-[var(--fo-radius)] border border-[var(--fo-border)]">
           <table className="w-full text-sm text-left min-w-[920px]">
             <thead className="bg-[var(--fo-bg-elevated)] text-[var(--fo-muted)]">

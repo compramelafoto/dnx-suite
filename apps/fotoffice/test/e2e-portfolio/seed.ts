@@ -160,11 +160,14 @@ async function main() {
         email: `socio${caso.numero}@prueba.test`,
         documentType: "DNI",
         documentNumber: `3000000${caso.numero}`,
+        // Formato mayoritario real del padrón: 54 + 10 dígitos.
+        phone: `54341${caso.numero}0000`,
         status: caso.estado,
         joinedAt: new Date("2020-03-01"),
         userId,
         directoryOptIn: caso.optIn,
         businessName: `Estudio ${caso.apellido}`,
+        businessLogoUrl: "https://placehold.co/240x80/0b1220/fff.png?text=" + caso.apellido,
         specialties: ESPECIALIDADES[indice],
         bio: `Trabajo en fotografía desde hace años. Esta es la presentación de ${caso.nombre}.`,
         website: "miestudio.com.ar",
@@ -203,6 +206,15 @@ async function main() {
         memberPublished: caso.publicado,
         memberPublishedAt: caso.publicado ? new Date() : null,
         adminForcePublish: caso.perdonado ?? false,
+        // Para poder mirar la franja de Instagram en la vista previa.
+        instagramEnabled: caso.conSesion ?? false,
+        instagramPostUrls: caso.conSesion
+          ? [
+              "https://www.instagram.com/p/C1example0001/",
+              "https://www.instagram.com/p/C1example0002/",
+              "https://www.instagram.com/p/C1example0003/",
+            ]
+          : [],
       },
     });
 
@@ -235,6 +247,21 @@ async function main() {
         },
       });
       if (i === 0) primera = foto.id;
+    }
+
+    // Un video de cada clase, para poder mirar las cuatro formas de mostrarlos.
+    if (caso.conSesion) {
+      const VIDEOS = [
+        { platform: "YOUTUBE", url: "https://www.youtube.com/watch?v=aqz-KE-bpKQ", videoId: "aqz-KE-bpKQ" },
+        { platform: "VIMEO", url: "https://vimeo.com/76979871", videoId: "76979871" },
+        { platform: "INSTAGRAM", url: "https://www.instagram.com/reel/C1example0001/", videoId: null },
+        { platform: "OTRO", url: "https://miestudio.com.ar/demo-reel", videoId: null },
+      ];
+      for (const [i, v] of VIDEOS.entries()) {
+        await prisma.fotofficeMemberPortfolioVideo.create({
+          data: { portfolioId: portfolio.id, ...v, order: i },
+        });
+      }
     }
 
     if (primera) {

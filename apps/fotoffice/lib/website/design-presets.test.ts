@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_DESIGN_PRESETS,
   getFooterPreset,
+  loginButtonText,
   parseWebsiteDesignPresets,
   type FooterPresetId,
   websiteDesignCssVars,
@@ -86,5 +87,22 @@ describe("footerPreset", () => {
 
   it("getFooterPreset cae a la primera definición si el id no existe", () => {
     expect(getFooterPreset("no-existe" as FooterPresetId).id).toBe("simple");
+  });
+});
+
+describe("loginButtonText", () => {
+  it("sin texto elegido dice Ingresar", () => {
+    expect(loginButtonText(DEFAULT_DESIGN_PRESETS)).toBe("Ingresar");
+    expect(loginButtonText({ loginButtonLabel: "" })).toBe("Ingresar");
+    expect(loginButtonText({ loginButtonLabel: "   " })).toBe("Ingresar");
+  });
+
+  it('el viejo "Iniciar sesión" que quedó guardado por defecto pasa a Ingresar', () => {
+    expect(loginButtonText({ loginButtonLabel: "Iniciar sesión" })).toBe("Ingresar");
+  });
+
+  it("un texto propio se respeta", () => {
+    expect(loginButtonText({ loginButtonLabel: " Entrar " })).toBe("Entrar");
+    expect(loginButtonText({ loginButtonLabel: "Soy socio" })).toBe("Soy socio");
   });
 });

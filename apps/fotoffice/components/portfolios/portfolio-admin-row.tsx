@@ -28,12 +28,19 @@ const AYUDAS: Record<Exclude<Dialogo, null>, string> = {
 };
 
 /**
- * Una fila del listado, con sus dos acciones.
+ * Una fila del listado, con sus dos acciones. Sin `puedeGestionar` (portfolio VIEW) es sólo
+ * lectura: no hay columna de acciones.
  *
  * El motivo es obligatorio y el botón no se habilita sin él — la validación también está en el
  * servidor, pero pedirlo acá evita el viaje de ida y vuelta para recibir un "falta el motivo".
  */
-export function PortfolioAdminRow({ fila }: { fila: AdminPortfolioRow }) {
+export function PortfolioAdminRow({
+  fila,
+  puedeGestionar,
+}: {
+  fila: AdminPortfolioRow;
+  puedeGestionar: boolean;
+}) {
   const [dialogo, setDialogo] = useState<Dialogo>(null);
   const [motivo, setMotivo] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -86,69 +93,71 @@ export function PortfolioAdminRow({ fila }: { fila: AdminPortfolioRow }) {
         <EstadoDeLaFila fila={fila} />
       </td>
 
-      <td className="py-3">
-        {fila.portfolioId === null ? (
-          <span className="text-xs text-[var(--fo-muted)]">Todavía no lo armó</span>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {bajado ? (
-              <button type="button" onClick={() => abrir("restaurar")} className="fo-btn fo-btn-secondary text-sm">
-                Volver a publicar
-              </button>
-            ) : (
-              <button type="button" onClick={() => abrir("bajar")} className="fo-btn fo-btn-danger-outline text-sm">
-                Bajar del sitio
-              </button>
-            )}
+      {puedeGestionar ? (
+        <td className="py-3">
+          {fila.portfolioId === null ? (
+            <span className="text-xs text-[var(--fo-muted)]">Todavía no lo armó</span>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {bajado ? (
+                <button type="button" onClick={() => abrir("restaurar")} className="fo-btn fo-btn-secondary text-sm">
+                  Volver a publicar
+                </button>
+              ) : (
+                <button type="button" onClick={() => abrir("bajar")} className="fo-btn fo-btn-danger-outline text-sm">
+                  Bajar del sitio
+                </button>
+              )}
 
-            {trabadaPorDeuda ? (
-              <button type="button" onClick={() => abrir("perdonar")} className="fo-btn fo-btn-secondary text-sm">
-                Publicar igual
-              </button>
-            ) : null}
+              {trabadaPorDeuda ? (
+                <button type="button" onClick={() => abrir("perdonar")} className="fo-btn fo-btn-secondary text-sm">
+                  Publicar igual
+                </button>
+              ) : null}
 
-            {fila.adminForcePublish ? (
-              <button type="button" onClick={() => abrir("quitar-perdon")} className="fo-btn fo-btn-ghost text-sm">
-                Quitar el permiso por deuda
-              </button>
-            ) : null}
-          </div>
-        )}
-
-        {dialogo ? (
-          <div className="mt-3 space-y-2 rounded border border-[var(--fo-border)] p-3">
-            <p className="text-sm font-medium">{TITULOS[dialogo]}</p>
-            <p className="text-xs text-[var(--fo-muted)]">{AYUDAS[dialogo]}</p>
-
-            <label className="block text-xs">
-              <span className="text-[var(--fo-muted)]">Motivo (obligatorio)</span>
-              <textarea
-                value={motivo}
-                onChange={(e) => setMotivo(e.target.value)}
-                rows={2}
-                maxLength={500}
-                className="mt-1 w-full rounded border border-[var(--fo-border)] bg-transparent px-2 py-1 text-sm"
-              />
-            </label>
-
-            {error ? <p className="fo-alert-error text-sm">{error}</p> : null}
-
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => void confirmar()}
-                disabled={guardando || motivo.trim() === ""}
-                className="fo-btn fo-btn-primary text-sm"
-              >
-                {guardando ? "Guardando…" : "Confirmar"}
-              </button>
-              <button type="button" onClick={() => setDialogo(null)} className="fo-btn fo-btn-ghost text-sm">
-                Cancelar
-              </button>
+              {fila.adminForcePublish ? (
+                <button type="button" onClick={() => abrir("quitar-perdon")} className="fo-btn fo-btn-ghost text-sm">
+                  Quitar el permiso por deuda
+                </button>
+              ) : null}
             </div>
-          </div>
-        ) : null}
-      </td>
+          )}
+
+          {dialogo ? (
+            <div className="mt-3 space-y-2 rounded border border-[var(--fo-border)] p-3">
+              <p className="text-sm font-medium">{TITULOS[dialogo]}</p>
+              <p className="text-xs text-[var(--fo-muted)]">{AYUDAS[dialogo]}</p>
+
+              <label className="block text-xs">
+                <span className="text-[var(--fo-muted)]">Motivo (obligatorio)</span>
+                <textarea
+                  value={motivo}
+                  onChange={(e) => setMotivo(e.target.value)}
+                  rows={2}
+                  maxLength={500}
+                  className="mt-1 w-full rounded border border-[var(--fo-border)] bg-transparent px-2 py-1 text-sm"
+                />
+              </label>
+
+              {error ? <p className="fo-alert-error text-sm">{error}</p> : null}
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => void confirmar()}
+                  disabled={guardando || motivo.trim() === ""}
+                  className="fo-btn fo-btn-primary text-sm"
+                >
+                  {guardando ? "Guardando…" : "Confirmar"}
+                </button>
+                <button type="button" onClick={() => setDialogo(null)} className="fo-btn fo-btn-ghost text-sm">
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </td>
+      ) : null}
     </tr>
   );
 }

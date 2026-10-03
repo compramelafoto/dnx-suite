@@ -65,7 +65,7 @@ export function LivePreview({
             style={themeVars}
             minHeight="100%"
             header={
-              <WebsiteHeaderView logoUrl={logoUrl} workspaceName={workspaceName} navItems={navItems} designPresets={designPresets} homeHref="#" />
+              <WebsiteHeaderView logoUrl={logoUrl} workspaceName={workspaceName} navItems={navItems} designPresets={designPresets} homeHref="#" loginHref="#" />
             }
           >
             <WebsitePageRenderer blocks={blocks} colors={colors} designPresets={designPresets} />

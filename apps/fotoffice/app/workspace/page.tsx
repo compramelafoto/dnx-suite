@@ -6,7 +6,8 @@ import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { resolveEnabledNavModules } from "@/lib/modules/nav";
 import { submodulesFor } from "@/lib/modules/submodules";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
-import { canManageMembers } from "@/lib/members/role-policy";
+import { getGrantedActions, getModuleLevels } from "@/lib/permissions/module-access";
+import { hasLevel } from "@/lib/permissions/levels";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
@@ -35,17 +36,28 @@ export default async function WorkspaceHomePage() {
   const workspaceId = activa?.id ?? ensured.workspaceId;
   const now = new Date();
 
-  const [branding, profile, enabled, vocabulary, role] = await Promise.all([
+  const [branding, profile, enabled, vocabulary, role, levels] = await Promise.all([
     prisma.fotofficeWorkspaceBranding.findUnique({ where: { workspaceId } }),
     prisma.fotofficePhotographerProfile.findUnique({ where: { userId: user.id } }),
     getEnabledModuleKeysForWorkspace(workspaceId),
     loadPersonVocabulary(workspaceId),
     resolveWorkspaceRole(user.id, workspaceId),
+    getModuleLevels(user.id, workspaceId),
   ]);
-  const datos = await loadWorkspaceHome({ userId: user.id, workspaceId, role, enabled, now });
+  const [datos, actions] = await Promise.all([
+    loadWorkspaceHome({ workspaceId, levels, now }),
+    getGrantedActions(user.id, workspaceId),
+  ]);
+  // Las mismas acciones sensibles que usa el menú lateral (`AdminShell`), con la misma función.
+  const acceso = { levels, actions };
+  // Sólo para el aviso "Completar los datos de la institución", que lleva a Configuración.
   const admin = canManageWorkspaceSettings(role);
-  const modulos = resolveEnabledNavModules(enabled, vocabulary);
-  const puedeAdministrarSocios = canManageMembers(role);
+  // Una tarjeta por módulo que esta persona puede al menos ver: las de un módulo en NONE
+  // llevarían a un "no tenés permiso".
+  const modulos = resolveEnabledNavModules(enabled, vocabulary).filter((m) =>
+    hasLevel(levels[m.key] ?? "NONE", "VIEW"),
+  );
+  const puedeAdministrarSocios = levels[MEMBERS_MODULE_KEY] === "MANAGE";
 
   const nombre = (profile?.displayName ?? user.name ?? "").split(" ")[0] || "equipo";
   const institucion = branding?.commercialName?.trim() || activa?.name || "tu institución";
@@ -64,17 +76,12 @@ export default async function WorkspaceHomePage() {
       publicSlug={branding?.publicSlug ?? null}
       datos={datos}
       vocabulary={vocabulary}
-      admin={admin}
       puedeCrearSocio={puedeAdministrarSocios && enabled.has(MEMBERS_MODULE_KEY)}
       faltaConfigurar={faltaConfigurar}
       modulos={modulos.map((m) => ({
         ...m,
-        // El permiso es por módulo: el de Socios no habilita nada en otro.
-        pantallas: submodulesFor(
-          m.key,
-          { canManage: m.key === MEMBERS_MODULE_KEY ? puedeAdministrarSocios : admin },
-          vocabulary,
-        ),
+        // Las mismas pantallas, con la misma regla, que muestra el menú lateral.
+        pantallas: submodulesFor(m.key, acceso, vocabulary),
       }))}
     />
   );

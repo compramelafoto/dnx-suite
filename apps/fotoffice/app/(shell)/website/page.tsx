@@ -8,12 +8,15 @@ import { withBlogPage } from "@/lib/website/site-menu";
 import { normalizeFotofficeOrganizationType } from "@/lib/onboarding-constants";
 import { PageHeader } from "@/components/page-header";
 import { WebsiteBuilder } from "@/components/website/builder/website-builder";
+import { canEditWebsiteIdentity } from "@/lib/website/identity-access";
 
 export default async function WebsiteBuilderPage({ searchParams }: { searchParams: Promise<{ panel?: string }> }) {
-  const [{ workspace, canEdit, status, sections, designPresets, menu, draftUpdatedAtIso }, { panel }] = await Promise.all([
+  const [{ workspace, user, canEdit, status, sections, designPresets, menu, draftUpdatedAtIso }, { panel }] = await Promise.all([
     loadWebsiteCmsContext(),
     searchParams,
   ]);
+  // El logo y el favicon son la identidad de la institución: sólo dueño/admin (ver la acción).
+  const canEditIdentity = canEdit && (await canEditWebsiteIdentity(user.id, workspace.id));
 
   const [branding, enabledModuleKeys, personVocabulary, hasPublishedBlog] = await Promise.all([
     prisma.fotofficeWorkspaceBranding.findUnique({
@@ -52,6 +55,7 @@ export default async function WebsiteBuilderPage({ searchParams }: { searchParam
         workspaceName={branding?.commercialName ?? workspace.name}
         organizationType={normalizeFotofficeOrganizationType(branding?.activityType) || null}
         canEdit={canEdit}
+        canEditIdentity={canEditIdentity}
         draftUpdatedAt={draftUpdatedAtIso}
         status={status}
       />

@@ -1,5 +1,5 @@
 import { PageHeader } from "@/components/page-header";
-import { requireCashStaff } from "@/lib/cash/access";
+import { requireCashViewer } from "@/lib/cash/access";
 import { listAccounts, listTransfers, userDisplayNames } from "@/lib/cash/repository";
 import { formatMinorArs } from "@/lib/membership/money";
 import { transferAction } from "../actions";
@@ -22,7 +22,7 @@ export default async function PasesPage({
 }: {
   searchParams: Promise<{ error?: string; ok?: string }>;
 }) {
-  const { workspace } = await requireCashStaff();
+  const { workspace, canOperate } = await requireCashViewer();
   const params = await searchParams;
 
   const [cuentas, pases] = await Promise.all([listAccounts(workspace.id), listTransfers(workspace.id)]);
@@ -39,7 +39,7 @@ export default async function PasesPage({
       ) : null}
       {params.ok ? <p className="fo-card p-4 text-sm text-[var(--fo-success)]">Pase hecho.</p> : null}
 
-      {cuentas.length >= 2 ? (
+      {!canOperate ? null : cuentas.length >= 2 ? (
         <form action={transferAction} className="fo-card grid gap-4 p-5 sm:grid-cols-4">
           <input type="hidden" name="returnTo" value="/caja/pases" />
           <div className="fo-field-stack">

@@ -3,18 +3,12 @@ import { FotofficeLogo } from "@/components/fotoffice-logo";
 import { NavToggle } from "./nav-toggle";
 import { ShellNav } from "./shell-nav";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
+import type { ModuleLevels } from "@/lib/permissions/levels";
 
 export function ShellSidebar({
   workspaceName,
-  coursesEnabled,
-  evaluacionesEnabled,
-  membersEnabled,
-  bookingsEnabled,
-  rafflesEnabled,
-  coveragesEnabled,
-  websiteEnabled,
-  serviceLeadsEnabled,
-  canManageMembers,
+  levels,
+  actions,
   canManageWorkspaceSettings,
   platformAdmin,
   vocabulary,
@@ -25,15 +19,11 @@ export function ShellSidebar({
    * módulo que no tiene.
    */
   workspaceName: string | null;
-  coursesEnabled: boolean;
-  evaluacionesEnabled: boolean;
-  membersEnabled: boolean;
-  bookingsEnabled: boolean;
-  rafflesEnabled: boolean;
-  coveragesEnabled: boolean;
-  websiteEnabled: boolean;
-  serviceLeadsEnabled: boolean;
-  canManageMembers: boolean;
+  /** Nivel en cada módulo, de `getModuleLevels`. Un módulo apagado viene en NONE. */
+  levels: ModuleLevels;
+  /** Acciones sensibles vigentes que el menú necesita (`cash.configure`, `coverages.coordinate`). */
+  actions: readonly string[];
+  /** Sólo para la sección Institución: Configuración no se delega. */
   canManageWorkspaceSettings: boolean;
   platformAdmin: boolean;
   vocabulary: PersonVocabulary;
@@ -58,15 +48,8 @@ export function ShellSidebar({
         <NavToggle variant="sidebar" />
       </div>
       <ShellNav
-        coursesEnabled={coursesEnabled}
-        evaluacionesEnabled={evaluacionesEnabled}
-        membersEnabled={membersEnabled}
-        bookingsEnabled={bookingsEnabled}
-        rafflesEnabled={rafflesEnabled}
-        coveragesEnabled={coveragesEnabled}
-        websiteEnabled={websiteEnabled}
-        serviceLeadsEnabled={serviceLeadsEnabled}
-        canManageMembers={canManageMembers}
+        levels={levels}
+        actions={actions}
         canManageWorkspaceSettings={canManageWorkspaceSettings}
         platformAdmin={platformAdmin}
         vocabulary={vocabulary}

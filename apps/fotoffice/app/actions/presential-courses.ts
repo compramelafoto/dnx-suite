@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { Prisma, prisma } from "@repo/db";
 import { z } from "zod";
 import { requireCoursesSalesContext } from "@/lib/workspace";
@@ -174,7 +174,7 @@ export async function listWorkspaceCourses() {
 }
 
 export async function createCourse(input: z.input<typeof courseSchema>) {
-  const { workspace } = await requireCoursesSalesContext();
+  const { workspace } = await requireCoursesSalesContext("MANAGE");
   const data = normalizeCourseInput(input);
   try {
     const created = await prisma.course.create({
@@ -194,7 +194,7 @@ export async function createCourse(input: z.input<typeof courseSchema>) {
 }
 
 export async function updateCourse(courseId: string, input: z.input<typeof courseSchema>) {
-  const { workspace } = await requireCoursesSalesContext();
+  const { workspace } = await requireCoursesSalesContext("MANAGE");
   if (!courseId?.trim()) throw new Error("courseId es obligatorio.");
   await assertWorkspaceCourse(workspace.id, courseId);
   const data = normalizeCourseInput(input);
@@ -216,7 +216,7 @@ export async function updateCourse(courseId: string, input: z.input<typeof cours
 }
 
 export async function duplicateCourse(courseId: string) {
-  const { workspace } = await requireCoursesSalesContext();
+  const { workspace } = await requireCoursesSalesContext("MANAGE");
   if (!courseId?.trim()) throw new Error("courseId es obligatorio.");
   const source = await prisma.course.findFirst({
     where: { id: courseId, workspaceId: workspace.id },
@@ -288,7 +288,7 @@ function ensureInstanceDateRange(startDateTime: Date, endDateTime: Date) {
 }
 
 export async function createCourseInstance(input: CourseInstanceInput) {
-  const { workspace } = await requireCoursesSalesContext();
+  const { workspace } = await requireCoursesSalesContext("MANAGE");
   const parsed = courseInstanceSchema.parse(input);
   await assertWorkspaceCourse(workspace.id, parsed.courseId);
   ensureInstanceDateRange(parsed.startDateTime, parsed.endDateTime);
@@ -315,7 +315,7 @@ export async function createCourseInstance(input: CourseInstanceInput) {
 }
 
 export async function updateCourseInstance(input: UpdateCourseInstanceInput) {
-  const { workspace } = await requireCoursesSalesContext();
+  const { workspace } = await requireCoursesSalesContext("MANAGE");
   const parsed = updateCourseInstanceSchema.parse(input);
   await assertWorkspaceCourseInstance(workspace.id, parsed.courseId, parsed.instanceId);
   ensureInstanceDateRange(parsed.startDateTime, parsed.endDateTime);
@@ -402,6 +402,8 @@ export async function createPresentialCourseAction(
     revalidatePath("/dashboard/courses");
     redirect(`/dashboard/courses/${created.id}`);
   } catch (error) {
+    // Un `redirect` (el de la guarda, o el de éxito) no es un error: que llegue a Next.
+    unstable_rethrow(error);
     return { error: error instanceof Error ? error.message : "No se pudo crear el curso." };
   }
 }
@@ -440,6 +442,8 @@ export async function updatePresentialCourseAction(
     revalidatePath(`/dashboard/courses/${id}`);
     return { error: null, ok: true };
   } catch (error) {
+    // Un `redirect` (el de la guarda, o el de éxito) no es un error: que llegue a Next.
+    unstable_rethrow(error);
     return { error: error instanceof Error ? error.message : "No se pudo actualizar el curso." };
   }
 }
@@ -450,6 +454,8 @@ export async function duplicatePresentialCourseAction(courseId: string) {
     revalidatePath("/dashboard/courses");
     return { error: null };
   } catch (error) {
+    // Un `redirect` (el de la guarda, o el de éxito) no es un error: que llegue a Next.
+    unstable_rethrow(error);
     return { error: error instanceof Error ? error.message : "No se pudo duplicar el curso." };
   }
 }
@@ -480,6 +486,8 @@ export async function createCourseInstanceAction(
     }
     return { error: null, ok: true };
   } catch (error) {
+    // Un `redirect` (el de la guarda, o el de éxito) no es un error: que llegue a Next.
+    unstable_rethrow(error);
     return { error: error instanceof Error ? error.message : "No se pudo crear la edición." };
   }
 }
@@ -511,6 +519,8 @@ export async function updateCourseInstanceAction(
     }
     return { error: null, ok: true };
   } catch (error) {
+    // Un `redirect` (el de la guarda, o el de éxito) no es un error: que llegue a Next.
+    unstable_rethrow(error);
     return { error: error instanceof Error ? error.message : "No se pudo actualizar la edición." };
   }
 }

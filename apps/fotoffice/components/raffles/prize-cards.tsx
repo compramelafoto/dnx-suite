@@ -10,17 +10,34 @@ import type { PortalPrize } from "@/lib/raffles/portal";
  * Tocar la ficha abre el Instagram del aliado (o su sitio, si no tiene). Es el agradecimiento
  * concreto a quien dona: llevarle gente. Los datos salen de DNX Partners.
  *
- * `compacta` es la versión del inicio del portal: misma ficha, más chica.
+ * `compacta` es la versión del inicio del portal: misma ficha, más chica. El logo ocupa toda la
+ * franja blanca en las dos versiones: muchos logos traen aire propio alrededor y, si además se
+ * los encierra en una caja chica, quedan diminutos.
  */
 export function PrizeCards({ prizes, compacta = false }: { prizes: PortalPrize[]; compacta?: boolean }) {
+  /*
+   * Las columnas se ajustan a cuántos premios hay, y la grilla va centrada.
+   *
+   * Antes eran tres columnas fijas: con dos premios —el caso normal— las fichas quedaban pegadas
+   * a la izquierda y un hueco a la derecha, como si faltara algo. Con el ancho tope además se
+   * evita el otro extremo: un solo premio estirado de lado a lado.
+   */
+  const clasesGrid = compacta
+    ? "grid-cols-2"
+    : prizes.length === 1
+      ? "max-w-sm grid-cols-1"
+      : prizes.length === 2
+        ? "max-w-2xl sm:grid-cols-2"
+        : "sm:grid-cols-2 lg:grid-cols-3";
+
   return (
-    <ul className={`grid gap-4 ${compacta ? "grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-3"}`}>
+    <ul className={`mx-auto grid w-full gap-4 ${clasesGrid}`}>
       {prizes.map((p) => (
         <li key={p.id}>
           <Ficha href={p.partnerInstagramUrl ?? p.partnerWebsiteUrl}>
             <div
               className={`relative flex items-center justify-center border-b border-[var(--fo-border)] bg-white ${
-                compacta ? "h-24 px-4" : "h-40 px-6"
+                compacta ? "h-36 p-3 sm:h-40" : "h-52 p-4"
               }`}
             >
               {p.partnerLogoUrl ? (
@@ -92,11 +109,17 @@ function Ficha({ href, children }: { href: string | null; children: ReactNode })
  * —las instantáneas viejas— se muestran tal cual.
  */
 function LogoAliado({ src, alt, compacta }: { src: string; alt: string; compacta: boolean }) {
-  const caja = compacta ? "h-16 w-full max-w-36" : "h-28 w-full max-w-56";
+  const caja = "h-full w-full";
   if (src.startsWith("/")) {
     return (
       <span className={`relative block ${caja}`}>
-        <Image src={src} alt={alt} fill sizes="224px" className="object-contain" />
+        <Image
+          src={src}
+          alt={alt}
+          fill
+          sizes={compacta ? "(max-width: 640px) 45vw, 360px" : "(max-width: 640px) 90vw, 420px"}
+          className="object-contain"
+        />
       </span>
     );
   }

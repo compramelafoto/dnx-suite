@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
-import { requireCashStaff } from "@/lib/cash/access";
-import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
+import { requireCashViewer } from "@/lib/cash/access";
 import {
   listAccounts,
   listCategories,
@@ -40,17 +39,17 @@ export default async function CajaPage({
 }: {
   searchParams: Promise<{ error?: string; ok?: string }>;
 }) {
-  const { workspace, role } = await requireCashStaff();
+  const { workspace, canOperate, canConfigure } = await requireCashViewer();
   const params = await searchParams;
 
   const cuentas = await listAccounts(workspace.id);
 
   if (cuentas.length === 0) {
-    // `/caja/configuracion` es ADMIN+ (`requireCashAdmin`) y rebota a `/caja` para cualquier
-    // otro rol. Ofrecerle el botón a un STAFF sin ese permiso era un callejón sin salida: lo
+    // `/caja/configuracion` pide `cash.configure` (`requireCashConfigurer`) y rebota a `/caja`
+    // a quien no la tenga. Ofrecerle el botón sin ese permiso era un callejón sin salida: lo
     // clickeaba y volvía a esta misma pantalla vacía. El control de verdad sigue siendo el
     // servidor en `lib/cash/access.ts` — esto es sólo no mostrar un camino cerrado.
-    const puedeConfigurar = canManageWorkspaceSettings(role);
+    const puedeConfigurar = canConfigure;
     return (
       <div className="space-y-8">
         <PageHeader
@@ -120,9 +119,11 @@ export default async function CajaPage({
       {/*
         Siempre disponible y con selector de cuenta: cargar un ingreso o pagar algo no puede
         depender de que haya un turno abierto en ninguna cuenta, ni hoy ni en ningún otro
-        camino de la interfaz.
+        camino de la interfaz. Quien sólo ve (VIEW) no lo recibe: la acción lo rebotaría.
       */}
-      <MovementForm accounts={cuentas} categories={categorias} clients={clientes} returnTo="/caja" />
+      {canOperate ? (
+        <MovementForm accounts={cuentas} categories={categorias} clients={clientes} returnTo="/caja" />
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {cuentas.map((cuenta) => {
@@ -134,6 +135,7 @@ export default async function CajaPage({
               balanceMinor={saldos.get(cuenta.id) ?? 0}
               turno={info?.turno ?? null}
               expectedMinor={info?.expectedMinor ?? 0}
+              canOperate={canOperate}
             />
           );
         })}

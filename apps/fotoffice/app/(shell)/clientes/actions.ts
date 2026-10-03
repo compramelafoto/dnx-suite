@@ -6,7 +6,7 @@ import { prisma, Prisma } from "@repo/db";
 import { parseClientForm } from "@/lib/clients/client-form";
 import { nextClientNumber } from "@/lib/clients/client-number";
 import { lastClientNumber } from "@/lib/clients/repository";
-import { requireClientsStaff } from "@/lib/clients/access";
+import { requireClientsEditor } from "@/lib/clients/access";
 
 const LISTA = "/clientes";
 
@@ -20,7 +20,7 @@ const LISTA = "/clientes";
  * sobra para un mostrador.
  */
 export async function saveClientAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireClientsStaff();
+  const { workspace, user } = await requireClientsEditor();
 
   const clientId = String(formData.get("clientId") ?? "").trim() || null;
   const destinoError = clientId ? `${LISTA}/${clientId}` : `${LISTA}/nuevo`;
@@ -70,7 +70,7 @@ export async function saveClientAction(formData: FormData): Promise<void> {
  * historial es un error que después no se puede deshacer.
  */
 export async function linkClientToMemberAction(formData: FormData): Promise<void> {
-  const { workspace } = await requireClientsStaff();
+  const { workspace } = await requireClientsEditor();
   const clientId = String(formData.get("clientId") ?? "").trim();
   const memberId = String(formData.get("memberId") ?? "").trim() || null;
 

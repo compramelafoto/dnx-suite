@@ -24,6 +24,9 @@ const {
   memberFindFirstMock: vi.fn(async () => null),
 }));
 
+vi.mock("@/lib/commission/team-membership", () => ({
+  syncPendingTeamMemberships: vi.fn().mockResolvedValue(0),
+}));
 vi.mock("@/lib/portal/profile-choice", () => ({
   readProfileChoice: vi.fn(async () => null),
 }));

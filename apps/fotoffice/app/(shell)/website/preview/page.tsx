@@ -63,6 +63,7 @@ export default async function WebsitePreviewPage() {
               navItems={navItems}
               designPresets={designPresets}
               homeHref="#"
+              loginHref="#"
             />
           }
         >

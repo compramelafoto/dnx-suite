@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Users } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
-import { requireClientsStaff } from "@/lib/clients/access";
+import { requireClientsViewer } from "@/lib/clients/access";
 import { listClients } from "@/lib/clients/repository";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +11,7 @@ export default async function ClientesPage({
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
-  const { workspace } = await requireClientsStaff();
+  const { workspace, canEdit } = await requireClientsViewer();
   const sp = await searchParams;
   const q = sp.q?.trim() || undefined;
 
@@ -24,9 +24,11 @@ export default async function ClientesPage({
         title="Clientes"
         description="Padrón de clientes del negocio: ficha, contacto y datos fiscales."
         actions={
-          <Link href="/clientes/nuevo" className="fo-btn fo-btn-primary text-sm">
-            Nuevo cliente
-          </Link>
+          canEdit ? (
+            <Link href="/clientes/nuevo" className="fo-btn fo-btn-primary text-sm">
+              Nuevo cliente
+            </Link>
+          ) : undefined
         }
       />
 
@@ -42,9 +44,11 @@ export default async function ClientesPage({
               datos fiscales.
             </p>
           </div>
-          <Link href="/clientes/nuevo" className="fo-btn fo-btn-primary text-sm">
-            Crear el primer cliente
-          </Link>
+          {canEdit ? (
+            <Link href="/clientes/nuevo" className="fo-btn fo-btn-primary text-sm">
+              Crear el primer cliente
+            </Link>
+          ) : null}
         </div>
       ) : (
         <>

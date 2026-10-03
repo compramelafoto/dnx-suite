@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { websiteDesignCssVars } from "@/lib/website/design-presets";
 import { resolveSiteNav } from "@/lib/website/site-menu";
+import { doorPathFor } from "@/lib/entrada/institution-door";
 import type { PublicSite } from "@/lib/website/public-site";
 import { WebsiteHeaderView } from "./website-header-view";
 import { WebsiteFooterView } from "./website-footer-view";
@@ -60,6 +61,10 @@ export function PublicSiteShell({
           navItems={navItems}
           designPresets={site.designPresets}
           homeHref={`/w/${site.workspaceSlug}`}
+          // La puerta de la institución: muestra su nombre y logo, y al entrar manda al socio a su
+          // panel (`/portal`). En el dominio propio, el proxy la lleva al de FOTOFFICE, donde vive
+          // la sesión (ver `SITE_SEGMENTS_ON_FOTOFFICE` en `lib/website/domain/routing.ts`).
+          loginHref={doorPathFor(site.workspaceSlug)}
         />
       }
       footer={

@@ -37,9 +37,10 @@ describe("exportación del padrón — permisos y aislamiento (verificación de 
     assert.doesNotMatch(routeSrc, /status: 401|status: 403/);
   });
 
-  it("STAFF no puede exportar: el guard exige canManageMembers (OWNER/ADMIN)", () => {
+  it("STAFF no puede exportar: el guard exige nivel MANAGE en Socios", () => {
     const fn = accessSrc.slice(accessSrc.indexOf("export async function resolveMembersExportContext"));
-    assert.match(fn, /canManageMembers/);
+    assert.match(fn, /getModuleLevel/);
+    assert.match(fn, /!== "MANAGE"/);
     assert.match(fn, /return null/);
   });
 
