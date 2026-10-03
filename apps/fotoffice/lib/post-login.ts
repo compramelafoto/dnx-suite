@@ -9,7 +9,8 @@ import { safeFotofficeNextPath } from "@/lib/google-login";
 import { resolveInvitationContinuityPath } from "@/lib/members/invitation-continuity-resolve";
 import { resolvePortalDestination } from "@/lib/portal/destination";
 import { readProfileChoice } from "@/lib/portal/profile-choice";
-import { findProfileByKey, listUserProfiles, needsProfileChoice } from "@/lib/portal/profiles";
+import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
+import { listUserProfiles, resolveEntryProfile } from "@/lib/portal/profiles";
 import { resolveFotofficeUserKind } from "@/lib/portal/user-kind";
 
 /** Ruta de aceptación de invitación, validada como interna. `/invitacionfalsa` no cuenta. */
@@ -85,20 +86,19 @@ export async function resolveFotofficePostLoginDestination(params: {
   if (door) return { path: doorPathFor(door), workspaceId: null };
 
   /**
-   * Con más de un perfil hay que preguntar: la misma persona puede administrar su negocio y
-   * ser socia de una institución, y solo ella sabe a cuál de las dos viene hoy. Si ya eligió
-   * antes, se respeta esa elección y no se vuelve a preguntar.
+   * Con qué perfil entra. Sólo se pregunta cuando los perfiles están repartidos en más de una
+   * institución: equipo y socio de la MISMA institución entra directo (al panel si es dueño o
+   * admin; si no, al portal) y cambia con el botón del encabezado. Una elección recordada y válida se respeta siempre.
    */
   const profiles = await listUserProfiles(user.id);
-  if (needsProfileChoice(profiles)) {
-    const chosen = findProfileByKey(profiles, await readProfileChoice());
-    // Sin elección previa —o con una que ya no corresponde— se pregunta de nuevo.
-    if (!chosen) return { path: "/elegir-perfil", workspaceId: null };
-    if (chosen.kind === "MEMBER") {
-      return { path: resolvePortalDestination(params.next), workspaceId: null };
-    }
-    // Perfil de equipo: sigue por el camino normal, que prepara su workspace.
+  const entry = resolveEntryProfile(profiles, await readProfileChoice());
+  if (entry.kind === "ask") return { path: "/elegir-perfil", workspaceId: null };
+  if (entry.kind === "go" && entry.profile.kind === "MEMBER") {
+    return { path: resolvePortalDestination(params.next), workspaceId: null };
   }
+  // Perfil de equipo: sigue por el camino normal, pero con SU institución como activa.
+  const chosenTeamWorkspaceId =
+    entry.kind === "go" && entry.profile.kind === "TEAM" ? entry.profile.workspaceId : null;
 
   // Un socio no tiene panel administrativo ni workspace propio: nunca se llama a `ensure`.
   if (kind === "MEMBER") {
@@ -135,14 +135,28 @@ export async function resolveFotofficePostLoginDestination(params: {
   });
   if (!ensured) return { path: WELCOME_PATH, workspaceId: null };
 
-  if (!ensured.onboardingCompleted) {
-    return { path: "/onboarding", workspaceId: ensured.workspaceId };
+  /*
+    `find` prefiere la institución de la que la persona es dueña. Si eligió entrar al panel de
+    OTRA (por ejemplo, la sociedad donde es de la Comisión), esa es la activa: el onboarding
+    pendiente de su estudio propio no la desvía de ahí.
+  */
+  const workspaceId = chosenTeamWorkspaceId ?? ensured.workspaceId;
+
+  /*
+    El onboarding lo completa el dueño o un admin (`app/onboarding` lo exige). Un STAFF de una
+    institución con el onboarding pendiente entra al panel. Sin perfil de equipo en la lista
+    es el caso legacy que `find` acaba de promover a dueño: ése sí va al onboarding.
+  */
+  const teamProfile = profiles.find((p) => p.kind === "TEAM" && p.workspaceId === workspaceId);
+  const canOnboard = teamProfile?.kind === "TEAM" ? canManageWorkspaceSettings(teamProfile.role) : true;
+  if (workspaceId === ensured.workspaceId && !ensured.onboardingCompleted && canOnboard) {
+    return { path: "/onboarding", workspaceId };
   }
 
   const next = safeFotofficeNextPath(params.next);
   if (next && !next.startsWith("/login") && !next.startsWith("/api")) {
-    return { path: next, workspaceId: ensured.workspaceId };
+    return { path: next, workspaceId };
   }
 
-  return { path: "/workspace", workspaceId: ensured.workspaceId };
+  return { path: "/workspace", workspaceId };
 }
