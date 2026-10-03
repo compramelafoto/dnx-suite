@@ -17,6 +17,9 @@ const { userFindUniqueMock, findMock, userKindMock, listProfilesMock, readChoice
   readChoiceMock: vi.fn(),
 }));
 
+vi.mock("@/lib/commission/team-membership", () => ({
+  syncPendingTeamMemberships: vi.fn().mockResolvedValue(0),
+}));
 vi.mock("@/lib/portal/profile-choice", () => ({ readProfileChoice: readChoiceMock }));
 
 vi.mock("@/lib/portal/profiles", async () => {
