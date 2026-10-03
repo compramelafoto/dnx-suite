@@ -81,9 +81,16 @@ describe("elegir perfil", () => {
     expect(setChoiceMock).toHaveBeenCalledWith("TEAM:ws-dnx");
   });
 
+  /** La cookie de institución activa manda en el panel: una vieja abriría otra institución. */
+  it("elegir un perfil de equipo deja ESA institución activa", async () => {
+    await destinationOf(() => chooseProfileAction(form("TEAM:ws-dnx")));
+    expect(setWorkspaceCookieMock).toHaveBeenCalledWith("ws-dnx");
+  });
+
   it("el perfil de socio lleva al portal", async () => {
     expect(await destinationOf(() => chooseProfileAction(form("MEMBER:ws-sfpr")))).toBe("/portal");
     expect(setChoiceMock).toHaveBeenCalledWith("MEMBER:ws-sfpr");
+    expect(setWorkspaceCookieMock).not.toHaveBeenCalled();
   });
 
   /**
@@ -124,6 +131,7 @@ describe("crear mi negocio", () => {
     listProfilesMock.mockResolvedValue([TEAM, SOCIO]);
     expect(await destinationOf(() => createOwnBusinessAction())).toBe("/workspace");
     expect(ensureMock).not.toHaveBeenCalled();
+    expect(setWorkspaceCookieMock).toHaveBeenCalledWith("ws-dnx");
   });
 
   it("la creación es siempre explícita: exige sesión autenticada", async () => {

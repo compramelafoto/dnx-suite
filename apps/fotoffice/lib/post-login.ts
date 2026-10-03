@@ -9,6 +9,7 @@ import { safeFotofficeNextPath } from "@/lib/google-login";
 import { resolveInvitationContinuityPath } from "@/lib/members/invitation-continuity-resolve";
 import { resolvePortalDestination } from "@/lib/portal/destination";
 import { readProfileChoice } from "@/lib/portal/profile-choice";
+import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { listUserProfiles, resolveEntryProfile } from "@/lib/portal/profiles";
 import { resolveFotofficeUserKind } from "@/lib/portal/user-kind";
 
@@ -141,7 +142,14 @@ export async function resolveFotofficePostLoginDestination(params: {
   */
   const workspaceId = chosenTeamWorkspaceId ?? ensured.workspaceId;
 
-  if (workspaceId === ensured.workspaceId && !ensured.onboardingCompleted) {
+  /*
+    El onboarding lo completa el dueño o un admin (`app/onboarding` lo exige). Un STAFF de una
+    institución con el onboarding pendiente entra al panel. Sin perfil de equipo en la lista
+    es el caso legacy que `find` acaba de promover a dueño: ése sí va al onboarding.
+  */
+  const teamProfile = profiles.find((p) => p.kind === "TEAM" && p.workspaceId === workspaceId);
+  const canOnboard = teamProfile?.kind === "TEAM" ? canManageWorkspaceSettings(teamProfile.role) : true;
+  if (workspaceId === ensured.workspaceId && !ensured.onboardingCompleted && canOnboard) {
     return { path: "/onboarding", workspaceId };
   }
 

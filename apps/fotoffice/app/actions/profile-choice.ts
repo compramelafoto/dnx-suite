@@ -32,6 +32,8 @@ export async function chooseProfileAction(formData: FormData): Promise<void> {
   if (!chosen) redirect("/elegir-perfil");
 
   await setProfileChoice(profileKey(chosen));
+  // La cookie de institución activa manda en el panel: sin esto, una vieja abriría otra.
+  if (chosen.kind === "TEAM") await setActiveWorkspaceCookie(chosen.workspaceId);
   redirect(profileDestination(chosen));
 }
 
@@ -99,6 +101,7 @@ export async function createOwnBusinessAction(): Promise<void> {
   if (already) {
     // Ya tiene negocio: un clic repetido no puede crearle un segundo.
     await setProfileChoice(profileKey(already));
+    await setActiveWorkspaceCookie(already.workspaceId);
     redirect("/workspace");
   }
 

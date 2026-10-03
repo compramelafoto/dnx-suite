@@ -253,6 +253,26 @@ describe("perfiles de una sola institución", () => {
   });
 });
 
+describe("onboarding pendiente y rol", () => {
+  it("un STAFF de una institución con onboarding pendiente va al panel, no al onboarding", async () => {
+    listProfilesMock.mockResolvedValue([
+      { kind: "TEAM", workspaceId: "ws-1", workspaceName: "SFPR", role: "STAFF" },
+    ]);
+    findMock.mockResolvedValue({ workspaceId: "ws-1", onboardingCompleted: false });
+    const dest = await resolveFotofficePostLoginDestination({ userId: 7 });
+    expect(dest).toEqual({ path: "/workspace", workspaceId: "ws-1" });
+  });
+
+  it("el dueño con onboarding pendiente sigue yendo al onboarding", async () => {
+    listProfilesMock.mockResolvedValue([
+      { kind: "TEAM", workspaceId: "ws-1", workspaceName: "Estudio", role: "WORKSPACE_OWNER" },
+    ]);
+    findMock.mockResolvedValue({ workspaceId: "ws-1", onboardingCompleted: false });
+    const dest = await resolveFotofficePostLoginDestination({ userId: 7 });
+    expect(dest).toEqual({ path: "/onboarding", workspaceId: "ws-1" });
+  });
+});
+
 describe("perfil de equipo elegido entre varias instituciones", () => {
   const TEAM_PROPIO = { kind: "TEAM", workspaceId: "ws-propio", workspaceName: "Estudio", role: "WORKSPACE_OWNER" };
   const TEAM_SFPR = { kind: "TEAM", workspaceId: "ws-sfpr", workspaceName: "SFPR", role: "WORKSPACE_ADMIN" };

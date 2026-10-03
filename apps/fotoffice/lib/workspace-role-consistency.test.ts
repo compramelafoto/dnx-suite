@@ -201,6 +201,10 @@ describe("nadie fuera de Configuración decide el acceso por el rol crudo", () =
       patron: /^app\/workspace\/layout\.tsx$/,
       razon: "sólo el desvío al onboarding, que completa el dueño/admin; no decide el acceso al panel",
     },
+    {
+      patron: /^lib\/post-login\.ts$/,
+      razon: "sólo el desvío al onboarding después del login, igual que el layout del panel",
+    },
     // Las propias definiciones.
     { patron: /^lib\/workspace-settings-access\.ts$/, razon: "definición" },
   ];

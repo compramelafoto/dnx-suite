@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@repo/db";
 import { getAuthUser } from "@/lib/auth";
+import { readProfileChoice } from "@/lib/portal/profile-choice";
 import { listUserProfiles } from "@/lib/portal/profiles";
 import { doorPathFor, resolveDoorDestination } from "@/lib/entrada/institution-door";
 import { InstitutionDoorLogin } from "./institution-door-login";
@@ -50,9 +51,14 @@ export default async function PuertaInstitucionPage({
     const destino = resolveDoorDestination({
       workspaceId: branding.workspaceId,
       profiles: await listUserProfiles(user.id),
+      rememberedKey: await readProfileChoice(),
     });
 
-    if ("redirectTo" in destino) redirect(destino.redirectTo);
+    // Al panel se va por `entrar/panel`, que deja esta institución activa: una página no puede
+    // escribir cookies, y sin eso una cookie vieja abriría otra institución.
+    if ("redirectTo" in destino) {
+      redirect(destino.activateWorkspaceId ? `${doorPathFor(workspaceSlug)}/panel` : destino.redirectTo);
+    }
 
     /*
       Tiene sesión pero no es nada de esta institución. No se lo echa ni se lo manda en

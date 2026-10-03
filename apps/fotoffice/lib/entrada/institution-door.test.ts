@@ -31,7 +31,7 @@ describe("resolveDoorDestination", () => {
   it("el equipo de esa institución va a su panel", () => {
     expect(
       resolveDoorDestination({ workspaceId: "ws-sfpr", profiles: [equipoDe("ws-sfpr")] }),
-    ).toEqual({ redirectTo: "/workspace" });
+    ).toEqual({ redirectTo: "/workspace", activateWorkspaceId: "ws-sfpr" });
   });
 
   it("el socio de esa institución va a su portal", () => {
@@ -40,15 +40,57 @@ describe("resolveDoorDestination", () => {
     ).toEqual({ redirectTo: "/portal" });
   });
 
-  it("con los dos perfiles en la misma institución gana el panel", () => {
-    // Misma doctrina que `resolveFotofficeUserKind`: ser equipo gana. Quien administra SFPR y
-    // además es socio entra a administrar, y desde ahí puede cambiar de perfil.
+  /**
+   * Equipo y socio de la misma institución: el mismo criterio que la entrada general
+   * (`resolveEntryProfile`) — dueño o admin al panel, STAFF al portal, y una elección
+   * recordada válida manda.
+   */
+  it("dueño y socio de la institución: al panel, con esa institución activa", () => {
     expect(
       resolveDoorDestination({
         workspaceId: "ws-sfpr",
         profiles: [socioDe("ws-sfpr"), equipoDe("ws-sfpr")],
       }),
-    ).toEqual({ redirectTo: "/workspace" });
+    ).toEqual({ redirectTo: "/workspace", activateWorkspaceId: "ws-sfpr" });
+  });
+
+  it("STAFF y socio de la institución: al portal", () => {
+    expect(
+      resolveDoorDestination({
+        workspaceId: "ws-sfpr",
+        profiles: [socioDe("ws-sfpr"), { ...equipoDe("ws-sfpr"), role: "STAFF" } as UserProfile],
+      }),
+    ).toEqual({ redirectTo: "/portal" });
+  });
+
+  it("con el portal recordado, el dueño y socio va al portal", () => {
+    expect(
+      resolveDoorDestination({
+        workspaceId: "ws-sfpr",
+        profiles: [socioDe("ws-sfpr"), equipoDe("ws-sfpr")],
+        rememberedKey: "MEMBER:ws-sfpr",
+      }),
+    ).toEqual({ redirectTo: "/portal" });
+  });
+
+  it("con el panel recordado, el STAFF y socio va al panel", () => {
+    expect(
+      resolveDoorDestination({
+        workspaceId: "ws-sfpr",
+        profiles: [socioDe("ws-sfpr"), { ...equipoDe("ws-sfpr"), role: "STAFF" } as UserProfile],
+        rememberedKey: "TEAM:ws-sfpr",
+      }),
+    ).toEqual({ redirectTo: "/workspace", activateWorkspaceId: "ws-sfpr" });
+  });
+
+  it("una elección recordada de OTRA institución no cuenta en esta puerta", () => {
+    expect(
+      resolveDoorDestination({
+        workspaceId: "ws-sfpr",
+        profiles: [equipoDe("ws-propio"), socioDe("ws-sfpr")],
+        rememberedKey: "TEAM:ws-propio",
+      }),
+    ).toEqual({ redirectTo: "/portal" });
   });
 
   it("la puerta desempata: teniendo perfiles en dos lados, no se pregunta", () => {
