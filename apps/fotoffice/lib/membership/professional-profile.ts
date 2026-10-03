@@ -6,6 +6,7 @@ import {
   type RedPorUsuario,
 } from "./social";
 import { parsearEspecialidades } from "./specialties";
+import { parseStudioLocation } from "./studio-location";
 
 export type PerfilProfesionalInput = {
   businessName?: string | null;
@@ -18,6 +19,13 @@ export type PerfilProfesionalInput = {
   youtube?: string | null;
   linkedin?: string | null;
   directoryOptIn?: boolean;
+  /** Dónde atiende. Opcional: hay fotógrafos que trabajan a domicilio. */
+  studioStreet?: string | null;
+  studioCity?: string | null;
+  studioProvince?: string | null;
+  studioPostalCode?: string | null;
+  /** Enlace de Google Maps o "lat, lng". Ver `studio-location.ts`. */
+  studioMapsUrl?: string | null;
 };
 
 const MAX_BIO = 600;
@@ -60,6 +68,17 @@ export function parsePerfilProfesional(
   const rubros = parsearEspecialidades(raw.specialties);
   if (!rubros.ok) return { ok: false, error: rubros.error, field: "specialties" };
 
+  const estudioUbic = parseStudioLocation({
+    street: raw.studioStreet,
+    city: raw.studioCity,
+    province: raw.studioProvince,
+    postalCode: raw.studioPostalCode,
+    mapsUrlOrCoords: raw.studioMapsUrl,
+  });
+  if (!estudioUbic.ok) {
+    return { ok: false, error: estudioUbic.error, field: estudioUbic.field };
+  }
+
   return {
     ok: true,
     data: {
@@ -73,6 +92,7 @@ export function parsePerfilProfesional(
       youtube: redes.youtube ?? null,
       linkedin: redes.linkedin ?? null,
       directoryOptIn: Boolean(raw.directoryOptIn),
+      ...estudioUbic.data,
     },
   };
 }

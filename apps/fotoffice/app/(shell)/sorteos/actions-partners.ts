@@ -1,6 +1,6 @@
 "use server";
 
-import { requireRafflesAdmin } from "@/lib/raffles/access";
+import { requireRafflesConductor } from "@/lib/raffles/access";
 import { searchPartners } from "@/lib/raffles/repository";
 
 /**
@@ -12,6 +12,6 @@ import { searchPartners } from "@/lib/raffles/repository";
  * aunque se la llame desde un componente.
  */
 export async function buscarAliadosAction(texto: string) {
-  await requireRafflesAdmin();
+  await requireRafflesConductor();
   return searchPartners(texto);
 }

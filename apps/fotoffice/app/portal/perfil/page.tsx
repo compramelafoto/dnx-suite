@@ -59,6 +59,12 @@ export default async function PerfilPage() {
       youtube: true,
       linkedin: true,
       directoryOptIn: true,
+      studioStreet: true,
+      studioCity: true,
+      studioProvince: true,
+      studioPostalCode: true,
+      studioLat: true,
+      studioLng: true,
       avatarUrl: true,
       profilePhotoUrl: true,
       category: { select: { name: true } },
@@ -158,10 +164,22 @@ export default async function PerfilPage() {
           youtube: socio.youtube,
           linkedin: socio.linkedin,
           directoryOptIn: socio.directoryOptIn,
+          studioStreet: socio.studioStreet,
+          studioCity: socio.studioCity,
+          studioProvince: socio.studioProvince,
+          studioPostalCode: socio.studioPostalCode,
+          // Se devuelven las coordenadas guardadas, no el enlace original: el enlace no se guarda
+          // (es larguísimo y efímero) y "lat, lng" vuelve a entrar por el mismo campo.
+          studioMapsUrl: coordenadasComoTexto(socio.studioLat, socio.studioLng),
         }}
       />
     </div>
   );
+}
+
+/** Lo que se le muestra al socio de vuelta en el campo de ubicación. */
+function coordenadasComoTexto(lat: number | null, lng: number | null): string {
+  return lat !== null && lng !== null ? `${lat}, ${lng}` : "";
 }
 
 function Dato({ etiqueta, children }: { etiqueta: string; children: React.ReactNode }) {

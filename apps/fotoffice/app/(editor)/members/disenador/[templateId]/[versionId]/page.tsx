@@ -21,11 +21,7 @@ export default async function PlantillaEditorPage({ params }: Props) {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) redirect("/workspace");
 
-  const membership = await prisma.workspaceMembership.findUnique({
-    where: { userId_workspaceId: { userId: user.id, workspaceId: workspace.id } },
-    select: { role: true },
-  });
-  if (!canDesignTemplates(membership?.role)) redirect("/workspace");
+  if (!(await canDesignTemplates(user.id, workspace.id))) redirect("/workspace");
 
   const { templateId, versionId } = await params;
   const template = await prisma.templateV2.findFirst({

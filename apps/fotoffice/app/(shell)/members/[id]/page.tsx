@@ -14,7 +14,8 @@ import { PaymentHistoryList } from "@/components/membership/payment-history-list
 import { loadMemberPaymentHistory } from "@/lib/membership/payment-history";
 import { loadMemberBalance } from "@/lib/membership/balance";
 import { CreditCallout } from "@/components/membership/credit-callout";
-import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
+import { hasModuleLevel } from "@/lib/permissions/module-access";
+import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { getPlatformFeeBps } from "@/lib/platform-fee/store";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { formatFeeBpsAsPercent } from "@/lib/platform-fee/fee";
@@ -51,7 +52,7 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
 
   // Registrar un cobro es una atribución de quien maneja la plata, no de quien consulta el
   // padrón: se resuelve con el mismo permiso que gobierna los cobros del workspace.
-  const puedeCobrar = await canManageWorkspaceCollection(user.id, workspace.id);
+  const puedeCobrar = await hasModuleLevel(user.id, workspace.id, MEMBERSHIP_DUES_MODULE_KEY, "MANAGE");
   const feePercent = puedeCobrar
     ? formatFeeBpsAsPercent(await getPlatformFeeBps(workspace.id, MEMBERS_MODULE_KEY))
     : "";

@@ -10,6 +10,7 @@ import {
   unlinkMemberFromUser,
 } from "@repo/db/fotoffice-members";
 import { findLinkableUserByEmail } from "@repo/db/fotoffice-user-lookup";
+import { releaseAfterMemberUnlink, syncPendingTeamMemberships } from "@/lib/commission/team-membership";
 import { requireMembersManageContext } from "@/lib/members/access";
 import { inviteOneMember } from "@/lib/members/invite-member";
 import { auditActorFrom, normalizeReason } from "@/lib/members/audit";
@@ -134,6 +135,13 @@ export async function linkMemberUserAction(
     return { error: friendlyLinkError(e, vocabulary) };
   }
 
+  // Quien recibió un rol antes de tener cuenta pasa a ser equipo apenas se vincula (Roles §12.1.4).
+  try {
+    await syncPendingTeamMemberships(userId);
+  } catch (error) {
+    console.error("[member-access] No se pudo sincronizar la membresía de equipo", error);
+  }
+
   revalidatePath(`/members/${memberId}`);
   return { error: null, ok: true };
 }
@@ -255,6 +263,14 @@ export async function unlinkMemberUserAction(
     });
   } catch (e) {
     return { error: friendlyLinkError(e, vocabulary) };
+  }
+
+  // Si la ficha tenía roles, la cuenta los perdió al desvincularse: no vuelve a la compatibilidad
+  // de STAFF con la membresía de equipo que le habían dado. Nunca bloquea la desvinculación.
+  try {
+    await releaseAfterMemberUnlink(workspace.id, memberId, member.userId);
+  } catch (error) {
+    console.error("[member-access] No se pudo liberar la membresía de equipo tras desvincular", error);
   }
 
   revalidatePath(`/members/${memberId}`);

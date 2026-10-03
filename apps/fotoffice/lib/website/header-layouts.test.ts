@@ -21,7 +21,7 @@ function dibujar(presets: Partial<WebsiteDesignPresets>): string {
   return renderToStaticMarkup(
     createElement(SiteFrame, {
       designPresets,
-      header: createElement(WebsiteHeaderView, { logoUrl: null, workspaceName: "SFPR", navItems, designPresets, homeHref: "/w/sfpr" }),
+      header: createElement(WebsiteHeaderView, { logoUrl: null, workspaceName: "SFPR", navItems, designPresets, homeHref: "/w/sfpr", loginHref: "/w/sfpr/entrar" }),
       children: createElement("main", null, "contenido"),
     }),
   );

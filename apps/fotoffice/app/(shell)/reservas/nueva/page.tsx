@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
-import { requireBookingsStaff } from "@/lib/bookings/access";
+import { requireBookingsOperator } from "@/lib/bookings/access";
 import { listSpaces } from "@/lib/bookings/repository";
 import { createManualBookingAction } from "../actions";
 
@@ -18,7 +18,7 @@ export default async function NuevaReservaPage({
 }: {
   searchParams: Promise<{ error?: string }>;
 }) {
-  const { workspace } = await requireBookingsStaff();
+  const { workspace } = await requireBookingsOperator();
   const params = await searchParams;
   const espacios = await listSpaces(workspace.id);
 

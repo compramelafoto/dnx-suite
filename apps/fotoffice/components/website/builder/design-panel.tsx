@@ -31,6 +31,7 @@ export function DesignPanel({
   faviconUrl,
   presets,
   canEdit,
+  canEditIdentity,
   onColorsChange,
   onLogoChange,
   onFaviconChange,
@@ -41,6 +42,8 @@ export function DesignPanel({
   faviconUrl: string | null;
   presets: WebsiteDesignPresets;
   canEdit: boolean;
+  /** Logo y favicon son de dueño/admin (identidad de la institución); los colores, de `website` MANAGE. */
+  canEditIdentity: boolean;
   onColorsChange: (colors: WebsiteColors) => void;
   onLogoChange: (url: string | null) => void;
   onFaviconChange: (url: string | null) => void;
@@ -54,7 +57,14 @@ export function DesignPanel({
       <fieldset disabled={!canEdit} className="flex-1 overflow-y-auto p-4 space-y-6 border-0">
         <section className="space-y-3">
           <p className="text-xs font-semibold text-[var(--fo-text)]">Logo</p>
-          <ImageUploadField name="_logo" presetKey="workspaceLogo" label="" initialUrl={logoUrl} onUploaded={onLogoChange} />
+          <fieldset disabled={!canEditIdentity} className="space-y-2 border-0">
+            <ImageUploadField name="_logo" presetKey="workspaceLogo" label="" initialUrl={logoUrl} onUploaded={onLogoChange} />
+          </fieldset>
+          {canEdit && !canEditIdentity ? (
+            <p className="text-xs text-[var(--fo-muted)]">
+              El logo y el favicon los cambia el dueño o un admin de la institución.
+            </p>
+          ) : null}
           <label className="block space-y-1.5">
             <span className="fo-label text-xs">Tamaño en el header ({presets.logoSizePx}px)</span>
             <input
@@ -71,7 +81,9 @@ export function DesignPanel({
 
         <section className="space-y-3">
           <p className="text-xs font-semibold text-[var(--fo-text)]">Favicon</p>
-          <ImageUploadField name="_favicon" presetKey="favicon" label="" description="El ícono que se ve en la pestaña del navegador." initialUrl={faviconUrl} onUploaded={onFaviconChange} />
+          <fieldset disabled={!canEditIdentity} className="border-0">
+            <ImageUploadField name="_favicon" presetKey="favicon" label="" description="El ícono que se ve en la pestaña del navegador." initialUrl={faviconUrl} onUploaded={onFaviconChange} />
+          </fieldset>
         </section>
 
         <section className="space-y-3">

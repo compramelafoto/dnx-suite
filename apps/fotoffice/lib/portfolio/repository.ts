@@ -21,6 +21,7 @@ export type PortfolioPhotoView = {
   order: number;
   title: string | null;
   year: number | null;
+  altText: string | null;
   /** Calculado acá para que la pantalla no tenga que comparar contra `coverPhotoId`. */
   isCover: boolean;
 };
@@ -32,6 +33,16 @@ export type PortfolioView = {
   memberPublished: boolean;
   photos: PortfolioPhotoView[];
   visibility: PortfolioVisibility;
+  /** Si la ficha muestra la franja de posteos de Instagram. */
+  instagramEnabled: boolean;
+  /** Los enlaces cargados. Se conservan aunque la franja esté apagada. */
+  instagramPostUrls: string[];
+  /** Lo que el socio decidió sobre cómo se ve en Google. Vacío = se arma solo. */
+  seoTitle: string | null;
+  seoDescription: string | null;
+  seoImageChoice: string | null;
+  /** Las direcciones de los videos, en orden, como las pegó el socio. */
+  videoUrls: string[];
 };
 
 const SELECT_FOTO = {
@@ -42,6 +53,7 @@ const SELECT_FOTO = {
   order: true,
   title: true,
   year: true,
+  altText: true,
 } as const;
 
 /**
@@ -133,7 +145,13 @@ export async function loadPortfolioForMember(params: {
         coverPhotoId: true,
         hiddenByAdminAt: true,
         adminForcePublish: true,
+        instagramEnabled: true,
+        instagramPostUrls: true,
+        seoTitle: true,
+        seoDescription: true,
+        seoImageChoice: true,
         photos: { select: SELECT_FOTO, orderBy: { order: "asc" } },
+        videos: { select: { url: true }, orderBy: { order: "asc" } },
       },
     }),
     loadMemberBalance(params.memberId),
@@ -161,5 +179,11 @@ export async function loadPortfolioForMember(params: {
     memberPublished: fila?.memberPublished ?? false,
     photos,
     visibility,
+    instagramEnabled: fila?.instagramEnabled ?? false,
+    instagramPostUrls: fila?.instagramPostUrls ?? [],
+    seoTitle: fila?.seoTitle ?? null,
+    seoDescription: fila?.seoDescription ?? null,
+    seoImageChoice: fila?.seoImageChoice ?? null,
+    videoUrls: (fila?.videos ?? []).map((v) => v.url),
   };
 }

@@ -1,5 +1,5 @@
 import { PageHeader } from "@/components/page-header";
-import { requireBookingsAdmin } from "@/lib/bookings/access";
+import { requireBookingsConfigurer } from "@/lib/bookings/access";
 import { listSpaces } from "@/lib/bookings/repository";
 import { SpaceForm } from "../space-form";
 
@@ -10,7 +10,7 @@ export default async function NuevoEspacioPage({
 }: {
   searchParams: Promise<{ error?: string }>;
 }) {
-  const { workspace } = await requireBookingsAdmin();
+  const { workspace } = await requireBookingsConfigurer();
   const params = await searchParams;
   const espacios = await listSpaces(workspace.id, { includeInactive: true });
 

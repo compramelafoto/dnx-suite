@@ -316,6 +316,53 @@ describe("updatePortfolioPhotoAction", () => {
   });
 });
 
+describe("la descripción para Google y los lectores de pantalla", () => {
+  it("se guarda limpia de espacios de sobra", async () => {
+    photo.findFirst.mockResolvedValue({ id: "f1" });
+    photo.update.mockResolvedValue({});
+    await acciones.updatePortfolioPhotoAction({
+      photoId: "f1",
+      title: null,
+      year: null,
+      altText: "  Novia   entrando\n a la iglesia  ",
+    });
+    expect(photo.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ altText: "Novia entrando a la iglesia" }),
+      }),
+    );
+  });
+
+  it("vacía se guarda como nula, no como cadena vacía", async () => {
+    photo.findFirst.mockResolvedValue({ id: "f1" });
+    photo.update.mockResolvedValue({});
+    await acciones.updatePortfolioPhotoAction({ photoId: "f1", title: null, year: null, altText: "   " });
+    expect(photo.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ altText: null }) }),
+    );
+  });
+
+  it("una descripción larguísima se recorta en vez de perderse entera", async () => {
+    photo.findFirst.mockResolvedValue({ id: "f1" });
+    photo.update.mockResolvedValue({});
+    await acciones.updatePortfolioPhotoAction({
+      photoId: "f1",
+      title: null,
+      year: null,
+      altText: "x".repeat(400),
+    });
+    const guardada = photo.update.mock.calls[0][0].data.altText as string;
+    expect(guardada.length).toBe(180);
+  });
+
+  it("si no viene en la llamada, no se borra la que había", async () => {
+    photo.findFirst.mockResolvedValue({ id: "f1" });
+    photo.update.mockResolvedValue({});
+    await acciones.updatePortfolioPhotoAction({ photoId: "f1", title: "Retrato", year: 2024 });
+    expect(photo.update.mock.calls[0][0].data).not.toHaveProperty("altText");
+  });
+});
+
 describe("setPortfolioPublishedAction", () => {
   it("publicar sin consentimiento no prende el interruptor", async () => {
     member.findFirst.mockResolvedValue({ directoryOptIn: false });

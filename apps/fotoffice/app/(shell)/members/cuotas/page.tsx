@@ -2,7 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { requireActiveWorkspace } from "@/lib/workspace";
-import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
+import { hasModuleLevel } from "@/lib/permissions/module-access";
+import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { getWorkspaceCollectionStatus } from "@/lib/payments/connect/status";
 import { loadDuesOverview } from "@/lib/membership/dues-overview";
 import { formatMinorArs } from "@/lib/membership/money";
@@ -47,8 +48,9 @@ export default async function CuotasPage() {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) redirect("/workspace");
 
-  const puedeVer = await canManageWorkspaceCollection(user.id, workspace.id);
+  const puedeVer = await hasModuleLevel(user.id, workspace.id, MEMBERSHIP_DUES_MODULE_KEY, "VIEW");
   if (!puedeVer) redirect("/members");
+  const puedeGestionar = await hasModuleLevel(user.id, workspace.id, MEMBERSHIP_DUES_MODULE_KEY, "MANAGE");
 
   const [overview, cobros, v] = await Promise.all([
     loadDuesOverview(workspace.id),
@@ -70,7 +72,7 @@ export default async function CuotasPage() {
         <p className="text-xs text-[var(--fo-muted)] leading-relaxed">
           {`Crea la cuota del mes para cada ${v.singular} con estado activo, según su categoría y su escala. Correrlo de nuevo no duplica nada.`}
         </p>
-        <GenerateDuesButton defaultPeriod={periodOf(new Date())} />
+        {puedeGestionar ? <GenerateDuesButton defaultPeriod={periodOf(new Date())} /> : null}
         <Link href="/members/cuotas/configuracion" className="text-xs text-[var(--fo-muted)] hover:underline">
           Valores y calendario →
         </Link>

@@ -51,6 +51,7 @@ export function WebsiteBuilder({
   workspaceName,
   organizationType,
   canEdit,
+  canEditIdentity,
   draftUpdatedAt,
   status,
 }: {
@@ -66,6 +67,8 @@ export function WebsiteBuilder({
   workspaceName: string;
   organizationType: FotofficeOrganizationTypeId | null;
   canEdit: boolean;
+  /** Logo y favicon: dueño/admin. Sin esto, se ven pero no se cambian ni se mandan. */
+  canEditIdentity: boolean;
   draftUpdatedAt: string;
   status: WebsiteChangeStatus;
 }) {
@@ -107,8 +110,10 @@ export function WebsiteBuilder({
     save: async (value) => {
       const fd = new FormData();
       for (const [key, v] of Object.entries(value.colors)) fd.set(key, v);
-      fd.set("logoUrl", value.logoUrl ?? "");
-      fd.set("faviconUrl", value.faviconUrl ?? "");
+      if (canEditIdentity) {
+        fd.set("logoUrl", value.logoUrl ?? "");
+        fd.set("faviconUrl", value.faviconUrl ?? "");
+      }
       const res = await saveWebsiteBrandingColorsAction(undefined, fd);
       return { error: res.error };
     },
@@ -235,6 +240,7 @@ export function WebsiteBuilder({
                 faviconUrl={faviconUrl}
                 presets={presets}
                 canEdit={canEdit}
+                canEditIdentity={canEditIdentity}
                 onColorsChange={setColors}
                 onLogoChange={setLogoUrl}
                 onFaviconChange={setFaviconUrl}

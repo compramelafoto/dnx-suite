@@ -300,6 +300,8 @@ model User {
   fotorankRulesVersionsCreated          FotorankContestRulesVersion[]          @relation("FrRulesVersionAuthor")
   suiteMemberships                      Membership[]                           @relation("FrSuiteMembership")
   workspaceMembershipsUnified           WorkspaceMembership[]
+  workspaceRoleAssignments              WorkspaceRoleAssignment[]
+  workspaceOfficeTerms                  WorkspaceOfficeTerm[]
   appAccessUnified                      WorkspaceAppAccess[]
   fotorankContestConfigurationVersions  FotorankContestConfigurationVersion[]
   fotorankContestRulesTemplates         FotorankContestRulesTemplate[]
@@ -7081,6 +7083,7 @@ model Workspace {
   courseSalesSettings         CourseSalesWorkspaceSettings?
   fotofficeBranding           FotofficeWorkspaceBranding?
   fotofficeWebsite            FotofficeWorkspaceWebsite?
+  fotofficeDomain             FotofficeWorkspaceDomain?
   fotorankJudgeAccounts       FotorankJudgeAccount[]
   memberships                 Membership[]
   serviceLeadForms            ServiceLeadForm[]
@@ -7089,6 +7092,8 @@ model Workspace {
   students                    EvaluationStudent[]
   featureModules              WorkspaceFeatureModule[]
   workspaceMembershipsUnified WorkspaceMembership[]
+  customRoles                 WorkspaceCustomRole[]
+  offices                     WorkspaceOffice[]
   appAccessUnified            WorkspaceAppAccess[]
   institutionalMembers        Member[]
   memberCategories            MemberCategory[]
@@ -7214,6 +7219,28 @@ model FotofficeWorkspaceWebsite {
   workspace          Workspace                          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   publishedVersion   FotofficeWorkspaceWebsiteVersion?  @relation("WebsitePublishedVersion", fields: [publishedVersionId], references: [id])
   versions           FotofficeWorkspaceWebsiteVersion[] @relation("WebsiteVersionHistory")
+}
+
+/// Dominio propio del sitio público de una institución (ej. `sfpr.com.ar`). Tabla aparte y no
+/// columnas en `FotofficeWorkspaceWebsite`: el esquema se comparte con otras bases y una columna
+/// sin aplicar rompe todas las consultas del modelo. Spec:
+/// `apps/fotoffice/docs/superpowers/specs/2026-10-02-sitio-web-dominio-propio-design.md`.
+model FotofficeWorkspaceDomain {
+  id                 String    @id @default(cuid())
+  workspaceId        String    @unique
+  /// Dominio raíz, en minúsculas, sin `www.` ni protocolo. `www.<domain>` se atiende solo.
+  domain             String    @unique
+  /// PENDING (falta el DNS) · CONNECTED (apunta bien) · ERROR. Texto y no enum: agregar un
+  /// estado no obliga a migrar las otras bases que comparten el esquema.
+  status             String    @default("PENDING")
+  /// Cuándo se agregó al proyecto de Vercel. null = sin token configurado o falló.
+  vercelRegisteredAt DateTime?
+  lastCheckedAt      DateTime?
+  /// Último problema, en lenguaje claro para el dueño de la institución.
+  lastError          String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  workspace          Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
 /// Snapshot INMUTABLE de una publicación del sitio — nunca se edita después de creado. Solo
@@ -7373,6 +7400,22 @@ model Member {
   specialties    String[] @default([])
   /// Presentación breve, en palabras del socio.
   bio            String?
+
+  /// --- Dónde atiende: el domicilio del ESTUDIO, nunca el particular ---
+  ///
+  /// `address`, `city`, `province` y `postalCode` de más arriba son los datos personales del
+  /// socio y **no se publican**. Estos son los del local donde trabaja, y sí salen en su ficha
+  /// pública y en sus datos estructurados. Tener dos juegos de campos no es redundancia:
+  /// publicar por error el domicilio particular de alguien es un daño que no se deshace.
+  studioStreet     String?
+  studioCity       String?
+  studioProvince   String?
+  studioPostalCode String?
+  /// Coordenadas del local, para que Google lo ubique en el mapa. El socio pega un enlace de
+  /// Google Maps y se sacan de ahí: nadie anda con sus coordenadas a mano.
+  /// Ver `apps/fotoffice/lib/membership/studio-location.ts`.
+  studioLat        Float?
+  studioLng        Float?
   website        String?
   /// Instagram y TikTok se guardan como usuario, sin arroba. Facebook, YouTube y LinkedIn como
   /// dirección completa: en esas tres el perfil tiene varias formas válidas. Ver lib/membership/social.ts.
@@ -7443,6 +7486,8 @@ model Member {
   /// Su portfolio, si alguna vez entró a armarlo. La fila se crea recién cuando la persona
   /// abre la pantalla: no se le inventa un portfolio vacío a todo el padrón.
   portfolio                       FotofficeMemberPortfolio?
+  roleAssignments                 WorkspaceRoleAssignment[]
+  officeTerms                     WorkspaceOfficeTerm[]
 
   @@unique([workspaceId, memberNumber])
   @@unique([workspaceId, email])
@@ -8078,6 +8123,29 @@ model FotofficeMemberPortfolio {
   /// forma humana de contradecirla es una trampa.
   adminForcePublish Boolean @default(false)
 
+  /// Si la ficha pública muestra la franja de posteos de Instagram. Apagado por omisión: trae un
+  /// script de Meta al sitio de la institución, y eso se decide, no se hereda.
+  instagramEnabled  Boolean  @default(false)
+  /// Enlaces a posteos propios que el socio eligió mostrar, en orden. Tope de 6, validado en la
+  /// acción. No es el feed: leer el feed de alguien exige OAuth y una app aprobada por Meta desde
+  /// que cerró la Basic Display API, en diciembre de 2024.
+  instagramPostUrls String[] @default([])
+
+  /// --- Cómo se ve esta ficha en Google y al compartirla ---
+  ///
+  /// Los tres son OPCIONALES y vacíos se comportan como antes de existir: el título se arma con
+  /// nombre, estudio y ciudad, la descripción es la presentación del socio, y la miniatura sigue
+  /// el orden logo → destacada → foto de perfil. Nadie empeora por no tocarlos.
+  ///
+  /// Existen porque la presentación y la descripción de Google tienen trabajos distintos: una
+  /// puede ser larga y en primera persona, la otra se corta a ~160 caracteres y conviene que sea
+  /// un resumen con las palabras que la gente busca.
+  seoTitle       String?
+  seoDescription String?
+  /// "LOGO" | "COVER" | "PROFILE". Texto y no enum: el conjunto cerrado vive en
+  /// `lib/portfolio/seo-fields.ts`, y agregarle una opción no debería ser una migración.
+  seoImageChoice String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -8085,6 +8153,7 @@ model FotofficeMemberPortfolio {
   member       Member                          @relation(fields: [memberId], references: [id], onDelete: Cascade)
   hiddenByUser User?                           @relation("PortfolioHiddenBy", fields: [hiddenByAdminUserId], references: [id], onDelete: SetNull)
   photos       FotofficeMemberPortfolioPhoto[] @relation("PortfolioPhotos")
+  videos       FotofficeMemberPortfolioVideo[]
   coverPhoto   FotofficeMemberPortfolioPhoto?  @relation("PortfolioCoverPhoto", fields: [coverPhotoId], references: [id], onDelete: SetNull)
 
   /// Dos personas de la misma institución no pueden compartir dirección. Dos de instituciones
@@ -8112,11 +8181,45 @@ model FotofficeMemberPortfolioPhoto {
   order Int
   title String?
   year  Int?
+  /// Descripción de lo que se ve en la foto. Va al atributo `alt` de la imagen.
+  ///
+  /// Es lo que lee Google para encontrar la foto **y** lo que escucha quien usa un lector de
+  /// pantalla. Un solo texto para las dos cosas: separarlos produciría dos descripciones de la
+  /// misma foto que algún día se contradicen.
+  altText String?
 
   createdAt DateTime @default(now())
 
   portfolio FotofficeMemberPortfolio  @relation("PortfolioPhotos", fields: [portfolioId], references: [id], onDelete: Cascade)
   coverOf   FotofficeMemberPortfolio? @relation("PortfolioCoverPhoto")
+
+  @@index([portfolioId, order])
+}
+
+/// Un video del portfolio, agregado pegando su dirección.
+///
+/// No se guarda el archivo: un video pesa cientos de megas y ya está alojado donde el socio lo
+/// subió. Se guarda de dónde viene y cómo mostrarlo.
+model FotofficeMemberPortfolioVideo {
+  id          String @id @default(cuid())
+  portfolioId String
+
+  /// YOUTUBE, VIMEO, INSTAGRAM, TIKTOK u OTRO. Texto y no enum a propósito: agregar una plataforma
+  /// es cambiar `lib/portfolio/videos.ts`, no migrar la base.
+  platform String
+  /// La dirección canónica, ya normalizada por `parsePortfolioVideoUrl`.
+  url      String
+  /// Identificador del video. Sólo lo tienen YouTube y Vimeo, que se embeben por iframe.
+  videoId  String?
+  /// Título que puso el socio. Opcional: un video sin título es un video válido.
+  title    String?
+
+  /// El orden que eligió el socio. Denso dentro de un portfolio, arranca en 0.
+  order Int
+
+  createdAt DateTime @default(now())
+
+  portfolio FotofficeMemberPortfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
 
   @@index([portfolioId, order])
 }
@@ -19365,4 +19468,117 @@ model ClickatonAffiliateCommission {
 
   @@index([affiliateId, status])
   @@index([editionId, status])
+}
+
+// ─── FOTOFFICE: roles personalizados (Comisión directiva) ───────────────────
+// Diseño: docs/superpowers/specs/2026-10-02-fotoffice-roles-comision-directiva-design.md
+
+/// Nivel de un rol sobre un módulo del catálogo de FOTOFFICE.
+enum ModulePermissionLevel {
+  NONE
+  VIEW
+  MANAGE
+}
+
+/// Rol definido por un workspace. El nombre y los módulos los elige cada institución.
+model WorkspaceCustomRole {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  description String?
+  color       String?
+  /// Plantilla de la que nació ("treasury", "secretary"…). Null si se creó de cero.
+  templateKey String?
+  /// Archivado al "borrarlo" con personas asignadas. Nada se borra (diseño §12.2).
+  archivedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace   Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  permissions WorkspaceRolePermission[]
+  assignments WorkspaceRoleAssignment[]
+
+  @@unique([workspaceId, name])
+}
+
+/// Nivel de un rol sobre un módulo (`moduleKey` = clave de `lib/modules/registry.ts`).
+model WorkspaceRolePermission {
+  id        String                @id @default(cuid())
+  roleId    String
+  moduleKey String
+  level     ModulePermissionLevel
+  /// Etapa 5: acciones sensibles extra, p. ej. "membership-dues.manual_payment".
+  actions   String[]              @default([])
+
+  role WorkspaceCustomRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, moduleKey])
+}
+
+/// Persona ↔ rol en un workspace. Persona = usuario (`userId`) o ficha de socio (`memberId`);
+/// al menos uno. Un socio sin cuenta recibe el rol igual y entra cuando la active (§12.1.4).
+model WorkspaceRoleAssignment {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  userId       Int?
+  memberId     String?
+  roleId       String
+  startsAt     DateTime?
+  /// Null = no vence.
+  endsAt       DateTime?
+  /// Quién hizo la asignación. Sin relación a propósito: no agrega otra back-relation a `User`.
+  assignedById Int
+  revokedAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  user   User?               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  member Member?             @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  role   WorkspaceCustomRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, userId])
+  @@index([workspaceId, memberId])
+  @@index([roleId])
+}
+
+/// Cargo de la comisión, definido por cada institución ("Tesorero", "Vocal titular").
+model WorkspaceOffice {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  /// Integra la comisión y vota (diseño §12.1.1). Revisor de cuentas: false.
+  votes       Boolean  @default(true)
+  order       Int      @default(0)
+  /// Plantilla de la que nació ("president", "auditor"…). Null si se creó de cero.
+  templateKey String?
+  archivedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  terms     WorkspaceOfficeTerm[]
+
+  @@unique([workspaceId, name])
+}
+
+/// Mandato: una persona en un cargo por un período. Persona = socio o usuario (al menos uno).
+model WorkspaceOfficeTerm {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  officeId     String
+  memberId     String?
+  userId       Int?
+  startsAt     DateTime?
+  /// Null = sin vencimiento cargado.
+  endsAt       DateTime?
+  revokedAt    DateTime?
+  assignedById Int
+  createdAt    DateTime  @default(now())
+
+  office WorkspaceOffice @relation(fields: [officeId], references: [id], onDelete: Cascade)
+  member Member?         @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  user   User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, officeId])
+  @@index([workspaceId, memberId])
+  @@index([workspaceId, userId])
 }

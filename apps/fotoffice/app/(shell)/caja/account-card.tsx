@@ -26,11 +26,14 @@ export function AccountCard({
   balanceMinor,
   turno,
   expectedMinor,
+  canOperate,
 }: {
   cuenta: CashAccountRow;
   balanceMinor: number;
   turno: OpenShiftRow | null;
   expectedMinor: number;
+  /** Sin MANAGE se ve el turno, pero no se abre ni se cierra. */
+  canOperate: boolean;
 }) {
   const llevaTurno = cuenta.kind === "EFECTIVO" && !cuenta.isVault;
 
@@ -46,8 +49,8 @@ export function AccountCard({
 
       {llevaTurno ? (
         turno ? (
-          <ShiftBlock shift={turno} expectedMinor={expectedMinor} />
-        ) : (
+          <ShiftBlock shift={turno} expectedMinor={expectedMinor} canOperate={canOperate} />
+        ) : canOperate ? (
           <form
             action={openShiftAction}
             className="grid gap-3 rounded-[var(--fo-radius)] border border-dashed border-[var(--fo-border)] p-4 sm:grid-cols-[1fr_auto]"
@@ -71,7 +74,7 @@ export function AccountCard({
               </button>
             </div>
           </form>
-        )
+        ) : null
       ) : null}
     </section>
   );

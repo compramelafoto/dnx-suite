@@ -143,18 +143,12 @@ export function MenuPanel({
             />
           ) : null}
 
-          <ToggleField
-            label='Mostrar botón "Iniciar sesión"'
-            checked={presets.showLoginButton}
-            onChange={(v) => onPresetsChange({ ...presets, showLoginButton: v })}
+          <TextField
+            label="Texto del botón para entrar"
+            helper='Siempre está, a la derecha del menú: lleva a los socios a su panel. Vacío = "Ingresar".'
+            value={presets.loginButtonLabel}
+            onChange={(v) => onPresetsChange({ ...presets, loginButtonLabel: v })}
           />
-          {presets.showLoginButton ? (
-            <TextField
-              label="Texto del botón"
-              value={presets.loginButtonLabel}
-              onChange={(v) => onPresetsChange({ ...presets, loginButtonLabel: v })}
-            />
-          ) : null}
         </section>
 
         <section className="space-y-3">
