@@ -10,7 +10,7 @@ vi.mock("@/lib/auth", () => ({ getAuthUser: H.user }));
 vi.mock("@/lib/workspace", () => ({ resolveActiveWorkspace: H.workspace }));
 vi.mock("@/lib/permissions/module-access", () => ({ getModuleLevel: H.level }));
 
-const { resolvePortfolioAdminContext } = await import("./admin-access");
+const { resolvePortfolioAdminContext, resolvePortfolioViewerContext } = await import("./admin-access");
 
 beforeEach(() => {
   H.user.mockReset().mockResolvedValue({ id: 7, email: "sec@sfpr.test" });
@@ -44,5 +44,30 @@ describe("resolvePortfolioAdminContext: portfolio MANAGE", () => {
     H.workspace.mockResolvedValue(null);
     await expect(resolvePortfolioAdminContext()).resolves.toBeNull();
     expect(H.level).not.toHaveBeenCalled();
+  });
+});
+
+describe("resolvePortfolioViewerContext: la pantalla acepta VIEW, en sólo lectura", () => {
+  it("con MANAGE puede gestionar", async () => {
+    await expect(resolvePortfolioViewerContext()).resolves.toMatchObject({
+      workspace: { id: "ws-1" },
+      canManage: true,
+    });
+    expect(H.level).toHaveBeenCalledWith(7, "ws-1", "portfolio");
+  });
+
+  it("con VIEW entra pero no gestiona", async () => {
+    H.level.mockResolvedValue("VIEW");
+    await expect(resolvePortfolioViewerContext()).resolves.toMatchObject({ canManage: false });
+  });
+
+  it("sin nivel, sin sesión o sin workspace, null", async () => {
+    H.level.mockResolvedValue("NONE");
+    await expect(resolvePortfolioViewerContext()).resolves.toBeNull();
+    H.user.mockResolvedValue(null);
+    await expect(resolvePortfolioViewerContext()).resolves.toBeNull();
+    H.user.mockResolvedValue({ id: 7 });
+    H.workspace.mockResolvedValue(null);
+    await expect(resolvePortfolioViewerContext()).resolves.toBeNull();
   });
 });

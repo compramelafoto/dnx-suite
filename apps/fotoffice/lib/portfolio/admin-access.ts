@@ -2,6 +2,7 @@ import "server-only";
 import { getAuthUser, type AuthUser } from "@/lib/auth";
 import { resolveActiveWorkspace, type ActiveWorkspace } from "@/lib/workspace";
 import { getModuleLevel } from "@/lib/permissions/module-access";
+import { hasLevel } from "@/lib/permissions/levels";
 import { PORTFOLIO_MODULE_KEY } from "./constants";
 
 export type PortfolioAdminContext = {
@@ -31,4 +32,24 @@ export async function resolvePortfolioAdminContext(): Promise<PortfolioAdminCont
   if (level !== "MANAGE") return null;
 
   return { user, workspace };
+}
+
+/**
+ * La pantalla `/portfolios`: alcanza con `portfolio` VIEW para mirar el estado de cada uno. Los
+ * botones de bajar y publicar se muestran sólo con `canManage`; las acciones igual vuelven a
+ * pedir MANAGE con `resolvePortfolioAdminContext`, que es el control de verdad.
+ */
+export async function resolvePortfolioViewerContext(): Promise<
+  (PortfolioAdminContext & { canManage: boolean }) | null
+> {
+  const user = await getAuthUser();
+  if (!user) return null;
+
+  const workspace = await resolveActiveWorkspace(user.id);
+  if (!workspace) return null;
+
+  const level = await getModuleLevel(user.id, workspace.id, PORTFOLIO_MODULE_KEY);
+  if (!hasLevel(level, "VIEW")) return null;
+
+  return { user, workspace, canManage: level === "MANAGE" };
 }

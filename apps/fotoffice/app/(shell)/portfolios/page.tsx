@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
-import { resolvePortfolioAdminContext } from "@/lib/portfolio/admin-access";
+import { resolvePortfolioViewerContext } from "@/lib/portfolio/admin-access";
 import { loadPortfoliosForAdmin, summarizePortfolios } from "@/lib/portfolio/admin-queries";
 import { PortfolioAdminRow } from "@/components/portfolios/portfolio-admin-row";
 
@@ -18,7 +18,8 @@ export const metadata = { title: "Portfolios" };
  * La tabla lista a TODO el padrón, no sólo a quienes publicaron, por la misma razón.
  */
 export default async function PortfoliosPage() {
-  const ctx = await resolvePortfolioAdminContext();
+  // Con VIEW se mira en sólo lectura; bajar y publicar piden MANAGE (y la acción lo vuelve a pedir).
+  const ctx = await resolvePortfolioViewerContext();
   // Sin permiso, sin workspace o con el módulo apagado: la pantalla no existe.
   if (!ctx) redirect("/dashboard");
 
@@ -59,12 +60,12 @@ export default async function PortfoliosPage() {
                 <th className="pb-2 pr-4 font-medium">{vocabulario.Singular}</th>
                 <th className="pb-2 pr-4 font-medium">Fotos</th>
                 <th className="pb-2 pr-4 font-medium">Estado</th>
-                <th className="pb-2 font-medium">Acciones</th>
+                {ctx.canManage ? <th className="pb-2 font-medium">Acciones</th> : null}
               </tr>
             </thead>
             <tbody>
               {filas.map((fila) => (
-                <PortfolioAdminRow key={fila.memberId} fila={fila} />
+                <PortfolioAdminRow key={fila.memberId} fila={fila} puedeGestionar={ctx.canManage} />
               ))}
             </tbody>
           </table>
