@@ -14,7 +14,7 @@ vi.mock("@repo/db", async (importOriginal) => {
 vi.mock("@/lib/modules/gating", () => ({ getEnabledModuleKeysForWorkspace: H.enabled }));
 vi.mock("@/lib/workspace-role", () => ({ resolveWorkspaceRole: H.role }));
 
-const { getModuleLevel, getModuleLevels, hasModuleLevel } = await import("./module-access");
+const { getModuleLevel, getModuleLevels, hasModuleAction, hasModuleLevel } = await import("./module-access");
 
 beforeEach(() => {
   H.findMany.mockReset().mockResolvedValue([]);
@@ -101,5 +101,41 @@ describe("getModuleLevel y hasModuleLevel", () => {
   it("hasModuleLevel compara contra el nivel pedido", async () => {
     expect(await hasModuleLevel(7, "ws-1", "raffles", "VIEW")).toBe(true);
     expect(await hasModuleLevel(7, "ws-1", "raffles", "MANAGE")).toBe(false);
+  });
+});
+
+describe("hasModuleAction", () => {
+  const cashOn = () => H.enabled.mockResolvedValue(new Set(["cash"]));
+  it("pide `actions` a la base", async () => {
+    await hasModuleAction(7, "ws-1", "cash", "cash.configure");
+    expect(H.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: expect.objectContaining({
+          role: { select: { permissions: { select: { moduleKey: true, level: true, actions: true } } } },
+        }),
+      }),
+    );
+  });
+  it("dueño: sí; STAFF sin roles: no", async () => {
+    cashOn();
+    H.role.mockResolvedValue("WORKSPACE_OWNER");
+    expect(await hasModuleAction(7, "ws-1", "cash", "cash.configure")).toBe(true);
+    H.role.mockResolvedValue("STAFF");
+    expect(await hasModuleAction(7, "ws-1", "cash", "cash.configure")).toBe(false);
+  });
+  it("rol vigente con MANAGE y la acción: sí; módulo apagado: no", async () => {
+    H.findMany.mockResolvedValue([
+      {
+        startsAt: null,
+        endsAt: null,
+        revokedAt: null,
+        role: { permissions: [{ moduleKey: "cash", level: "MANAGE", actions: ["cash.configure"] }] },
+      },
+    ]);
+    cashOn();
+    expect(await hasModuleAction(7, "ws-1", "cash", "cash.configure")).toBe(true);
+    expect(await hasModuleAction(7, "ws-1", "cash", "cash.project_money")).toBe(false);
+    H.enabled.mockResolvedValue(new Set());
+    expect(await hasModuleAction(7, "ws-1", "cash", "cash.configure")).toBe(false);
   });
 });

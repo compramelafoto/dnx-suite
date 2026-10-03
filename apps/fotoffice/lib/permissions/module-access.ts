@@ -7,6 +7,7 @@ import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import {
   hasLevel,
   isModuleEffectivelyEnabled,
+  resolveModuleAction,
   resolveModuleLevel,
   type ModuleLevel,
   type ModuleLevels,
@@ -36,7 +37,7 @@ async function loadAssignments(userId: number, workspaceId: string): Promise<Rol
         startsAt: true,
         endsAt: true,
         revokedAt: true,
-        role: { select: { permissions: { select: { moduleKey: true, level: true } } } },
+        role: { select: { permissions: { select: { moduleKey: true, level: true, actions: true } } } },
       },
     });
     return rows.map((r) => ({
@@ -110,4 +111,22 @@ export async function hasModuleLevel(
   required: "VIEW" | "MANAGE",
 ): Promise<boolean> {
   return hasLevel(await getModuleLevel(userId, workspaceId, moduleKey), required);
+}
+
+/** Acción sensible dentro de un módulo (ver `actions.ts`). Mismo orden de reglas que el nivel. */
+export async function hasModuleAction(
+  userId: number,
+  workspaceId: string,
+  moduleKey: string,
+  action: string,
+): Promise<boolean> {
+  const { enabled, workspaceRole, assignments } = await loadLevelInputs(userId, workspaceId);
+  return resolveModuleAction({
+    moduleKey,
+    action,
+    moduleEnabled: isModuleEffectivelyEnabled(moduleKey, enabled),
+    workspaceRole,
+    assignments,
+    now: new Date(),
+  });
 }

@@ -18,6 +18,7 @@ describe("plantillas de roles", () => {
     const caja = rol("treasury").permissions.find((p) => p.moduleKey === "cash");
     expect(caja).toMatchObject({ level: "MANAGE" });
     expect(caja?.actions).toContain(CASH_PROJECT_MONEY_ACTION);
+    expect(caja?.actions).toContain("cash.configure");
   });
   it("Presidencia y Secretaría gestionan Gobierno; el Revisor lo ve", () => {
     expect(nivel("president", "governance")).toBe("MANAGE");

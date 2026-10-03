@@ -1,3 +1,11 @@
+import { CASH_MODULE_KEY } from "@/lib/cash/constants";
+import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
+import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
+import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
+import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
+import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
+import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
+import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
@@ -17,7 +25,7 @@ export type RoleAssignmentForLevels = {
   startsAt: Date | null;
   endsAt: Date | null;
   revokedAt: Date | null;
-  permissions: readonly { moduleKey: string; level: ModuleLevel }[];
+  permissions: readonly { moduleKey: string; level: ModuleLevel; actions: readonly string[] }[];
 };
 
 const RANK: Record<ModuleLevel, number> = { NONE: 0, VIEW: 1, MANAGE: 2 };
@@ -51,6 +59,22 @@ const LEGACY_STAFF_LEVELS: Readonly<Record<string, ModuleLevel>> = {
   [MEMBERSHIP_DUES_MODULE_KEY]: "NONE",
   [BOOKINGS_MODULE_KEY]: "VIEW",
   [RAFFLES_MODULE_KEY]: "VIEW",
+  // Caja: el personal ve el libro, carga y anula movimientos, pases, turnos y reportes (cuentas y categorías son del dueño/admin: acción cash.configure).
+  [CASH_MODULE_KEY]: "MANAGE",
+  // Clientes: el personal lista, crea, edita y desactiva.
+  [CLIENTS_MODULE_KEY]: "MANAGE",
+  // Coberturas: el personal opera la bandeja, notas y pasos a evaluación (aprobar, cerrar y asignar son coverages.coordinate).
+  [COVERAGES_MODULE_KEY]: "MANAGE",
+  // Sitio web: el personal ve las pantallas del CMS; publicar y editar era sólo de dueño/admin.
+  [WEBSITE_MODULE_KEY]: "VIEW",
+  // Venta de cursos: nunca tuvo control de rol, todo el equipo opera (la configuración de cursos sigue de dueño/admin).
+  [COURSES_SALES_MODULE_KEY]: "MANAGE",
+  // Evaluaciones: nunca tuvo control de rol, todo el equipo opera.
+  [EVALUACIONES_MODULE_KEY]: "MANAGE",
+  // Captación (pedidos de servicio): nunca tuvo control de rol, todo el equipo opera.
+  [SERVICE_LEADS_MODULE_KEY]: "MANAGE",
+  // Portfolio: ocultar o publicar portfolios era sólo de dueño/admin.
+  [PORTFOLIO_MODULE_KEY]: "NONE",
 };
 
 export function legacyStaffLevel(moduleKey: string): ModuleLevel {
@@ -109,6 +133,32 @@ export function resolveModuleLevel(input: {
     );
   }
   return legacyStaffLevel(input.moduleKey);
+}
+
+/**
+ * Misma regla que `resolveModuleLevel`, para una acción sensible: dueño/admin siempre; con
+ * asignaciones, sólo si una vigente da `MANAGE` en el módulo con la acción listada; quien nunca
+ * tuvo roles (STAFF de antes) no tiene acciones sensibles, igual que hoy.
+ */
+export function resolveModuleAction(input: {
+  moduleKey: string;
+  action: string;
+  moduleEnabled: boolean;
+  workspaceRole: string | null;
+  assignments: readonly RoleAssignmentForLevels[];
+  now: Date;
+}): boolean {
+  if (!input.moduleEnabled) return false;
+  if (!input.workspaceRole) return false;
+  if (FULL_ACCESS_ROLES.has(input.workspaceRole)) return true;
+  if (input.assignments.length === 0) return false;
+  return input.assignments.some(
+    (a) =>
+      isAssignmentActive(a, input.now) &&
+      a.permissions.some(
+        (p) => p.moduleKey === input.moduleKey && p.level === "MANAGE" && p.actions.includes(input.action),
+      ),
+  );
 }
 
 /**

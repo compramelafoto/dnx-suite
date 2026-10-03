@@ -2,6 +2,8 @@
  * Lectura y validación de los formularios de la Comisión directiva. Funciones PURAS.
  */
 
+import { isKnownAction } from "@/lib/permissions/actions";
+
 type Fail = { ok: false; error: string };
 
 function text(fd: FormData, key: string): string {
@@ -38,6 +40,7 @@ export function parsePermissionGrid(
         ? Array.from(fd.keys())
             .filter((k) => k.startsWith(prefix) && k.length > prefix.length)
             .map((k) => k.slice(prefix.length))
+            .filter((a) => isKnownAction(moduleKey, a))
         : [];
     return { moduleKey, level, actions: Array.from(new Set(actions)) };
   });

@@ -6,8 +6,10 @@
  * propósito: cuando se encienda Gobierno, la Secretaría ya lo tiene, sin tocar nada.
  */
 
-/** Acción sensible de Caja: reservar, gastar e ingresar plata de proyectos (§12.1.2). */
-export const CASH_PROJECT_MONEY_ACTION = "cash.project_money";
+import { CASH_PROJECT_MONEY_ACTION } from "@/lib/permissions/actions";
+
+// Se movió al catálogo de acciones; se reexporta para no romper los imports existentes.
+export { CASH_PROJECT_MONEY_ACTION };
 
 export type RoleTemplate = {
   key: string;
@@ -58,7 +60,7 @@ export const ROLE_TEMPLATES: readonly RoleTemplate[] = [
     permissions: [
       { moduleKey: "members", level: V },
       { moduleKey: "membership-dues", level: M },
-      { moduleKey: "cash", level: M, actions: [CASH_PROJECT_MONEY_ACTION] },
+      { moduleKey: "cash", level: M, actions: [CASH_PROJECT_MONEY_ACTION, "cash.configure"] },
       { moduleKey: "governance", level: V },
     ],
   },
