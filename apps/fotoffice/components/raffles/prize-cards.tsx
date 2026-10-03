@@ -15,8 +15,23 @@ import type { PortalPrize } from "@/lib/raffles/portal";
  * los encierra en una caja chica, quedan diminutos.
  */
 export function PrizeCards({ prizes, compacta = false }: { prizes: PortalPrize[]; compacta?: boolean }) {
+  /*
+   * Las columnas se ajustan a cuántos premios hay, y la grilla va centrada.
+   *
+   * Antes eran tres columnas fijas: con dos premios —el caso normal— las fichas quedaban pegadas
+   * a la izquierda y un hueco a la derecha, como si faltara algo. Con el ancho tope además se
+   * evita el otro extremo: un solo premio estirado de lado a lado.
+   */
+  const clasesGrid = compacta
+    ? "grid-cols-2"
+    : prizes.length === 1
+      ? "max-w-sm grid-cols-1"
+      : prizes.length === 2
+        ? "max-w-2xl sm:grid-cols-2"
+        : "sm:grid-cols-2 lg:grid-cols-3";
+
   return (
-    <ul className={`grid gap-4 ${compacta ? "grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-3"}`}>
+    <ul className={`mx-auto grid w-full gap-4 ${clasesGrid}`}>
       {prizes.map((p) => (
         <li key={p.id}>
           <Ficha href={p.partnerInstagramUrl ?? p.partnerWebsiteUrl}>
