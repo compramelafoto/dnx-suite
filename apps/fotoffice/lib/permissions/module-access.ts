@@ -48,7 +48,15 @@ async function loadAssignments(userId: number, workspaceId: string): Promise<Rol
   } catch (e) {
     // P2021: la tabla no existe. Pasa en una base donde todavía no se aplicó la migración;
     // sin asignaciones, todos siguen con la compatibilidad, que es lo que tenían.
-    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2021") return [];
+    // P2022: falta una columna. Pasa en una base con el SQL de la etapa 1 pero no el de la
+    // etapa 2 (`memberId`, que usa la relación `member`): sin esto, toda página con guarda
+    // daría error 500, incluso al dueño. Mismo criterio: compatibilidad hasta aplicar el SQL.
+    if (
+      e instanceof Prisma.PrismaClientKnownRequestError &&
+      (e.code === "P2021" || e.code === "P2022")
+    ) {
+      return [];
+    }
     throw e;
   }
 }

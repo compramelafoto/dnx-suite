@@ -74,6 +74,18 @@ describe("getModuleLevels", () => {
     expect((await getModuleLevels(7, "ws-1")).members).toBe("VIEW");
   });
 
+  it("si falta una columna de la etapa 2 (P2022), sigue con la compatibilidad en vez de dar 500", async () => {
+    H.findMany.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError(
+        "The column `WorkspaceRoleAssignment.memberId` does not exist in the current database.",
+        { code: "P2022", clientVersion: "6" },
+      ),
+    );
+    expect((await getModuleLevels(7, "ws-1")).members).toBe("VIEW");
+    H.role.mockResolvedValue("WORKSPACE_OWNER");
+    expect((await getModuleLevels(8, "ws-1")).members).toBe("MANAGE");
+  });
+
   it("cualquier otro error de base se propaga", async () => {
     H.findMany.mockRejectedValue(new Error("se cayó la conexión"));
     await expect(getModuleLevels(7, "ws-1")).rejects.toThrow("se cayó la conexión");
