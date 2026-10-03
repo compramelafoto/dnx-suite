@@ -24,7 +24,14 @@ async function loadAssignments(userId: number, workspaceId: string): Promise<Rol
   try {
     const rows = await prisma.workspaceRoleAssignment.findMany({
       // `role.workspaceId` además del de la asignación: un rol de otra institución nunca cuenta.
-      where: { userId, workspaceId, revokedAt: null, role: { workspaceId } },
+      // Sin filtrar revocadas: la regla necesita saber si la persona tuvo roles (§12.3).
+      // Por usuario directo o por su ficha de socio en ESTE workspace: un socio que recibió el
+      // rol antes de tener cuenta lo hereda al vincularla (§12.1.4).
+      where: {
+        workspaceId,
+        role: { workspaceId },
+        OR: [{ userId }, { member: { userId, workspaceId } }],
+      },
       select: {
         startsAt: true,
         endsAt: true,
@@ -41,7 +48,15 @@ async function loadAssignments(userId: number, workspaceId: string): Promise<Rol
   } catch (e) {
     // P2021: la tabla no existe. Pasa en una base donde todavía no se aplicó la migración;
     // sin asignaciones, todos siguen con la compatibilidad, que es lo que tenían.
-    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2021") return [];
+    // P2022: falta una columna. Pasa en una base con el SQL de la etapa 1 pero no el de la
+    // etapa 2 (`memberId`, que usa la relación `member`): sin esto, toda página con guarda
+    // daría error 500, incluso al dueño. Mismo criterio: compatibilidad hasta aplicar el SQL.
+    if (
+      e instanceof Prisma.PrismaClientKnownRequestError &&
+      (e.code === "P2021" || e.code === "P2022")
+    ) {
+      return [];
+    }
     throw e;
   }
 }

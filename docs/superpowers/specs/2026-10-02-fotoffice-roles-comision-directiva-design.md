@@ -252,3 +252,52 @@ Todo lo anterior describe **plantillas y valores por defecto**. Cada workspace p
 5. **Socio con rol que queda inactivo** (por ejemplo, por deuda): **mantiene el rol** y se **notifica al admin** del workspace.
 
 No quedan decisiones abiertas.
+
+## 12. Integración con Gobierno institucional (2026-10-03)
+
+El diseño de Gobierno (`apps/fotoffice/docs/superpowers/specs/2026-10-03-fotoffice-gobierno-proyectos-design.md`, rama `docs/fotoffice-gobierno-proyectos`) usa esta etapa 2 como su "etapa 0". De ahí salen estos cambios.
+
+### 12.1 Decisiones del 2026-10-03
+
+1. **Quién vota:** cada **cargo** tiene la casilla **"integra la comisión y vota"**. Presidente, Vicepresidente, Secretario, Tesorero y vocales la traen marcada; Revisor de cuentas, no. Cada institución la ajusta. Votan quienes tienen un mandato vigente en un cargo con esa casilla.
+2. **Plata de proyectos:** es un **permiso aparte** dentro de Caja (acción sensible `cash.project_money`), no un nivel nuevo. Tesorería lo trae marcado. El mostrador puede seguir cargando movimientos sin tocar la plata de proyectos.
+3. **Socio inactivo con cargo:** **sigue votando** (coherente con mantener el rol); el admin recibe el aviso.
+4. **Socio sin cuenta:** el cargo y los roles **se cargan igual** sobre la ficha del socio. Figura en la comisión, en las actas y en los avisos desde ese momento; entra al panel cuando active su cuenta.
+
+### 12.2 Cambios al modelo (sobre las tablas de la etapa 1)
+
+- **El cargo pasa a ser un dato propio**, con dos tablas nuevas:
+  - `WorkspaceOffice` (cargo definido por la institución): nombre, orden, `votes` (sí/no).
+  - `WorkspaceOfficeTerm` (mandato): cargo, socio (`memberId`) o usuario (`userId`), desde, hasta, revocado, quién lo cargó.
+  - Sale `positionTitle` de `WorkspaceRoleAssignment`: un vocal puede tener cargo sin rol y una empleada puede tener rol sin cargo.
+- **`WorkspaceRoleAssignment` admite socio sin cuenta:** `userId` pasa a opcional y se agrega `memberId`. Al menos uno de los dos es obligatorio. El nivel se calcula para el usuario directo o para el usuario vinculado a la ficha del socio.
+- **`WorkspaceCustomRole.archivedAt`:** borrar un rol con personas lo archiva y revoca sus asignaciones. Nada se borra (igual que en Gobierno).
+
+### 12.3 Corrección a la regla de la etapa 1
+
+La etapa 1 vuelve a la compatibilidad de STAFF cuando todas las asignaciones están vencidas o revocadas. Eso le devolvería a un ex tesorero el acceso de "personal" (ver el padrón). **Desde la etapa 2:** quien tuvo alguna asignación alguna vez ya no usa la compatibilidad: sin asignaciones vigentes, su nivel es `NONE`. Al quitar a alguien de la comisión, si su membresía es `STAFF`, se la quita también. A dueño y admin nunca se los toca.
+
+### 12.4 Plantillas ajustadas
+
+- **Presidencia** y **Secretaría** gestionan Gobierno (proyectos, reuniones y actas).
+- **Tesorería** gestiona Caja con `cash.project_money`.
+- **Revisor de cuentas** ve Gobierno.
+- **Cargos sembrados:** Presidente, Vicepresidente, Secretario, Prosecretario, Tesorero, Protesorero, Vocal titular, Vocal suplente (todos votan) y Revisor de cuentas (no vota).
+
+### 12.5 Orden de etapas actualizado
+
+| Etapa | Contenido |
+|---|---|
+| 2 | Cargos y mandatos, roles por workspace con plantillas, pantallas Roles · Cargos · Integrantes, correo "te sumaron", aviso al admin si un integrante queda inactivo, corrección §12.3 |
+| 2b | Caja y Clientes pasan a niveles, con la acción `cash.project_money` (antes de la etapa 3 de Gobierno) |
+| 3 | Selector "Portal ⇄ Administración" y menú filtrado por rol |
+| 4 | Resto de los módulos |
+| 5 | Resto de las acciones sensibles y registro de acciones |
+| 6 | Cargos públicos en Transparencia |
+
+### 12.6 Qué toma Gobierno de acá
+
+- `listActiveOfficeHolders(workspaceId)`: integrantes con mandato vigente, con su cargo y si votan (asistentes y avisos).
+- `canVote(userId, workspaceId)`: mandato vigente en un cargo que vota.
+- `getModuleLevel(…, "governance")` para Ver/Gestionar, y la acción `cash.project_money` para reservas, gastos e ingresos.
+- **El diseño de Gobierno tiene que ajustar dos frases.** §4.5 y §13: "cargo vigente" pasa a ser "cargo vigente que vota". §8.6: "Caja en Gestionar" pasa a ser "Caja con *Dinero de proyectos*".

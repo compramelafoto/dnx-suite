@@ -95,9 +95,27 @@ describe("resolveModuleLevel", () => {
     expect(nivel({ assignments: [a, b] })).toBe("MANAGE");
   });
 
-  it("si todas las asignaciones vencieron, vuelve a la compatibilidad", () => {
+  it("quien tuvo roles y ya no tiene ninguno vigente no vuelve a la compatibilidad (§12.3)", () => {
     const vencida = asignacion([{ moduleKey: MEMBERS_MODULE_KEY, level: "MANAGE" }], { endsAt: ayer });
-    expect(nivel({ assignments: [vencida] })).toBe("VIEW");
+    const revocada = asignacion([{ moduleKey: MEMBERS_MODULE_KEY, level: "MANAGE" }], { revokedAt: ayer });
+    expect(nivel({ assignments: [vencida] })).toBe("NONE");
+    expect(nivel({ assignments: [revocada] })).toBe("NONE");
+  });
+
+  it("una asignación que todavía no empezó cuenta como 'tuvo roles': nada hasta que empiece", () => {
+    const futura = asignacion([{ moduleKey: MEMBERS_MODULE_KEY, level: "MANAGE" }], { startsAt: manana });
+    expect(nivel({ assignments: [futura] })).toBe("NONE");
+  });
+
+  it("una asignación con inicio pasado y sin fin vale", () => {
+    const vigente = asignacion([{ moduleKey: MEMBERS_MODULE_KEY, level: "VIEW" }], { startsAt: ayer });
+    expect(nivel({ assignments: [vigente] })).toBe("VIEW");
+  });
+
+  it("si una de varias está revocada, valen las demás", () => {
+    const revocada = asignacion([{ moduleKey: MEMBERS_MODULE_KEY, level: "MANAGE" }], { revokedAt: ayer });
+    const vigente = asignacion([{ moduleKey: MEMBERS_MODULE_KEY, level: "VIEW" }]);
+    expect(nivel({ assignments: [revocada, vigente] })).toBe("VIEW");
   });
 });
 

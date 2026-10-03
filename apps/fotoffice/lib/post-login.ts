@@ -1,4 +1,5 @@
 import { prisma } from "@repo/db";
+import { syncPendingTeamMemberships } from "@/lib/commission/team-membership";
 import { findFotofficeWorkspaceForUser } from "@/lib/ensure-workspace";
 import { WELCOME_PATH } from "@/lib/entrada/welcome";
 import { doorPathFor, parseDoorPath } from "@/lib/entrada/institution-door";
@@ -48,6 +49,14 @@ export async function resolveFotofficePostLoginDestination(params: {
   if (isFotofficePlatformAdminRole(platformRole)) {
     const next = safeFotofficeNextPath(params.next);
     return { path: next?.startsWith("/admin") ? next : "/admin", workspaceId: null };
+  }
+
+  // Un socio que recibió cargo o rol antes de tener cuenta entra al panel desde su primer
+  // inicio de sesión con la cuenta vinculada (diseño de Roles §12.1.4). Si falla, no bloquea el login.
+  try {
+    await syncPendingTeamMemberships(user.id);
+  } catch (error) {
+    console.error("[post-login] No se pudo sincronizar la membresía de equipo", error);
   }
 
   const kind = await resolveFotofficeUserKind(user.id);

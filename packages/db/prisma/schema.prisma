@@ -301,6 +301,7 @@ model User {
   suiteMemberships                      Membership[]                           @relation("FrSuiteMembership")
   workspaceMembershipsUnified           WorkspaceMembership[]
   workspaceRoleAssignments              WorkspaceRoleAssignment[]
+  workspaceOfficeTerms                  WorkspaceOfficeTerm[]
   appAccessUnified                      WorkspaceAppAccess[]
   fotorankContestConfigurationVersions  FotorankContestConfigurationVersion[]
   fotorankContestRulesTemplates         FotorankContestRulesTemplate[]
@@ -7092,6 +7093,7 @@ model Workspace {
   featureModules              WorkspaceFeatureModule[]
   workspaceMembershipsUnified WorkspaceMembership[]
   customRoles                 WorkspaceCustomRole[]
+  offices                     WorkspaceOffice[]
   appAccessUnified            WorkspaceAppAccess[]
   institutionalMembers        Member[]
   memberCategories            MemberCategory[]
@@ -7484,6 +7486,8 @@ model Member {
   /// Su portfolio, si alguna vez entró a armarlo. La fila se crea recién cuando la persona
   /// abre la pantalla: no se le inventa un portfolio vacío a todo el padrón.
   portfolio                       FotofficeMemberPortfolio?
+  roleAssignments                 WorkspaceRoleAssignment[]
+  officeTerms                     WorkspaceOfficeTerm[]
 
   @@unique([workspaceId, memberNumber])
   @@unique([workspaceId, email])
@@ -19470,6 +19474,8 @@ model WorkspaceCustomRole {
   color       String?
   /// Plantilla de la que nació ("treasury", "secretary"…). Null si se creó de cero.
   templateKey String?
+  /// Archivado al "borrarlo" con personas asignadas. Nada se borra (diseño §12.2).
+  archivedAt  DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -19494,25 +19500,70 @@ model WorkspaceRolePermission {
   @@unique([roleId, moduleKey])
 }
 
-/// Persona ↔ rol en un workspace, con cargo y mandato opcionales.
+/// Persona ↔ rol en un workspace. Persona = usuario (`userId`) o ficha de socio (`memberId`);
+/// al menos uno. Un socio sin cuenta recibe el rol igual y entra cuando la active (§12.1.4).
 model WorkspaceRoleAssignment {
-  id            String    @id @default(cuid())
-  workspaceId   String
-  userId        Int
-  roleId        String
-  /// Cargo institucional ("Tesorera"). No da permisos por sí solo.
-  positionTitle String?
-  startsAt      DateTime?
+  id           String    @id @default(cuid())
+  workspaceId  String
+  userId       Int?
+  memberId     String?
+  roleId       String
+  startsAt     DateTime?
   /// Null = no vence.
-  endsAt        DateTime?
+  endsAt       DateTime?
   /// Quién hizo la asignación. Sin relación a propósito: no agrega otra back-relation a `User`.
-  assignedById  Int
-  revokedAt     DateTime?
-  createdAt     DateTime  @default(now())
+  assignedById Int
+  revokedAt    DateTime?
+  createdAt    DateTime  @default(now())
 
-  user User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role WorkspaceCustomRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user   User?               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  member Member?             @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  role   WorkspaceCustomRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, userId])
+  @@index([workspaceId, memberId])
   @@index([roleId])
+}
+
+/// Cargo de la comisión, definido por cada institución ("Tesorero", "Vocal titular").
+model WorkspaceOffice {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  /// Integra la comisión y vota (diseño §12.1.1). Revisor de cuentas: false.
+  votes       Boolean  @default(true)
+  order       Int      @default(0)
+  /// Plantilla de la que nació ("president", "auditor"…). Null si se creó de cero.
+  templateKey String?
+  archivedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  terms     WorkspaceOfficeTerm[]
+
+  @@unique([workspaceId, name])
+}
+
+/// Mandato: una persona en un cargo por un período. Persona = socio o usuario (al menos uno).
+model WorkspaceOfficeTerm {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  officeId     String
+  memberId     String?
+  userId       Int?
+  startsAt     DateTime?
+  /// Null = sin vencimiento cargado.
+  endsAt       DateTime?
+  revokedAt    DateTime?
+  assignedById Int
+  createdAt    DateTime  @default(now())
+
+  office WorkspaceOffice @relation(fields: [officeId], references: [id], onDelete: Cascade)
+  member Member?         @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  user   User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, officeId])
+  @@index([workspaceId, memberId])
+  @@index([workspaceId, userId])
 }
