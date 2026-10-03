@@ -72,4 +72,22 @@ describe("resolución de rol de workspace — menú y páginas leen lo mismo", (
     assert.match(workspaceHomeSrc, /getModuleLevels/);
     assert.doesNotMatch(workspaceHomeSrc, /prisma\.membership\b/);
   });
+
+  it("la Comisión directiva exige dueño/admin en el layout y en cada acción", () => {
+    // Las acciones son alcanzables por POST directo: esconder la pantalla no alcanza. Cada
+    // `export async function` del archivo tiene que pasar por `requireCommissionAdmin()`.
+    const comision = join(appRoot, "app/workspace/configuracion/comision");
+    const layoutComision = readFileSync(join(comision, "layout.tsx"), "utf8");
+    const actionsComision = readFileSync(join(comision, "actions.ts"), "utf8");
+
+    assert.match(layoutComision, /await requireCommissionAdmin\(\)/);
+
+    const exportadas = actionsComision.match(/export async function \w+/g) ?? [];
+    const guardias = actionsComision.match(/await requireCommissionAdmin\(\)/g) ?? [];
+    assert.ok(exportadas.length > 0, "actions.ts no exporta acciones");
+    assert.ok(
+      guardias.length >= exportadas.length,
+      `hay ${exportadas.length} acciones exportadas y sólo ${guardias.length} llamadas a requireCommissionAdmin()`,
+    );
+  });
 });

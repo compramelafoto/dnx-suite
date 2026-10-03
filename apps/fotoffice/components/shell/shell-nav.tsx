@@ -280,6 +280,12 @@ export function ShellNav({
           isActive: exact("/workspace/configuracion"),
         },
         {
+          href: "/workspace/configuracion/comision",
+          label: "Comisión directiva",
+          icon: Users,
+          isActive: under("/workspace/configuracion/comision"),
+        },
+        {
           href: "/workspace/configuracion/integraciones",
           label: "Integraciones",
           icon: Plug,
