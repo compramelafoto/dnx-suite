@@ -65,6 +65,15 @@ describe("buildMemberInactiveWithRoleEmail", () => {
     const b = buildMemberInactiveWithRoleEmail({ ...inactive, newStatus: "INACTIVE" }).text;
     expect(a).not.toEqual(b);
   });
+  it("redacta sin género: habla de la ficha, no de la socia", () => {
+    const a = buildMemberInactiveWithRoleEmail(inactive);
+    const b = buildMemberInactiveWithRoleEmail({ ...inactive, newStatus: "INACTIVE" });
+    expect(a.text).toContain("La ficha de Ana quedó suspendida");
+    expect(b.text).toContain("La ficha de Ana se dio de baja");
+    for (const r of [a, b]) {
+      expect(`${r.subject}${r.html}${r.text}`).not.toMatch(/socia|suspendida como|dada de baja/i);
+    }
+  });
   it("escapa HTML y evita vocabulario interno", () => {
     const r = buildMemberInactiveWithRoleEmail({ ...inactive, personName: "<script>", officeNames: ["<script>"] });
     expect(r.html).not.toContain("<script>");

@@ -102,14 +102,14 @@ export function buildMemberInactiveWithRoleEmail(input: {
   commissionUrl: string;
 }): { subject: string; html: string; text: string } {
   const subject = `${input.institution}: una persona de la Comisión directiva cambió de estado`;
-  const estado =
-    input.newStatus === "SUSPENDED" ? "quedó suspendida como socia" : "fue dada de baja como socia";
+  // Sin género: se habla de la ficha, no de "la socia" ni "el socio".
+  const estado = input.newStatus === "SUSPENDED" ? "quedó suspendida" : "se dio de baja";
 
   const plain: string[] = [
-    `${input.personName} ${estado} de ${input.institution}, pero todavía tiene responsabilidades en la Comisión directiva.`,
+    `La ficha de ${input.personName} ${estado} en ${input.institution}, pero la persona todavía tiene responsabilidades en la Comisión directiva.`,
   ];
   const rich: string[] = [
-    `<strong>${escapeHtml(input.personName)}</strong> ${estado} de ${escapeHtml(input.institution)}, pero todavía tiene responsabilidades en la Comisión directiva.`,
+    `La ficha de <strong>${escapeHtml(input.personName)}</strong> ${estado} en ${escapeHtml(input.institution)}, pero la persona todavía tiene responsabilidades en la Comisión directiva.`,
   ];
   if (input.officeNames.length > 0) {
     plain.push(`Cargos: ${lista(input.officeNames)}.`);

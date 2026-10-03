@@ -10,6 +10,7 @@ import {
   updateMember,
   updateMemberCategory,
 } from "@repo/db/fotoffice-members";
+import { notifyAdminsIfCommissionMemberInactive } from "@/lib/commission/inactive-notice";
 import { requireMembersManageContext } from "@/lib/members/access";
 import { auditActorFrom, normalizeReason, statusRequiresReason } from "@/lib/members/audit";
 import { documentChanged, normalizeDocument } from "@/lib/members/documents";
@@ -182,6 +183,12 @@ export async function changeMemberStatusAction(
     throw e;
   }
   if (!updated) return { error: mensajeDePadron("noEncontrado", vocabulary) };
+
+  // Aviso a la dirección si quien queda inactivo tiene cargo o rol en la comisión. No se
+  // revoca nada y no demora la respuesta: si el correo falla, el cambio de estado ya está hecho.
+  void notifyAdminsIfCommissionMemberInactive({ workspaceId: workspace.id, memberId: id, newStatus: status }).catch(
+    (e) => console.error("[fotoffice][comision] aviso de inactivo", e),
+  );
 
   revalidatePath("/members");
   revalidatePath(`/members/${id}`);
