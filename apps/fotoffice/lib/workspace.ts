@@ -6,6 +6,7 @@ import { COURSES_SALES_MODULE_KEY, FOTOFFICE_WORKSPACE_COOKIE } from "./courses-
 import { EVALUACIONES_MODULE_KEY } from "./evaluaciones/constants";
 import { WEBSITE_MODULE_KEY } from "./website/constants";
 import { isModuleEnabledForWorkspace } from "./modules/gating";
+import { hasModuleLevel } from "./permissions/module-access";
 
 export type ActiveWorkspace = {
   id: string;
@@ -168,5 +169,10 @@ export async function requireWebsiteContext(): Promise<{
   user: AuthUser;
   workspace: ActiveWorkspace;
 }> {
-  return requireModuleContext(WEBSITE_MODULE_KEY, "/dashboard?website=off");
+  const ctx = await requireModuleContext(WEBSITE_MODULE_KEY, "/dashboard?website=off");
+  // Ver las pantallas del CMS pide `website` VIEW; quien no lo tiene vuelve al tablero.
+  if (!(await hasModuleLevel(ctx.user.id, ctx.workspace.id, WEBSITE_MODULE_KEY, "VIEW"))) {
+    redirect("/dashboard");
+  }
+  return ctx;
 }

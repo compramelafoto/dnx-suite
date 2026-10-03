@@ -1,34 +1,24 @@
 import "server-only";
 import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
-import { prisma } from "@repo/db";
 import { getAuthUser, type AuthUser } from "@/lib/auth";
 import { requireWebsiteContext, resolveActiveWorkspace, type ActiveWorkspace } from "@/lib/workspace";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
-import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
+import { hasModuleLevel } from "@/lib/permissions/module-access";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 
 /**
  * Quién puede escribir en el blog de la institución.
  *
- * El blog es una sección del módulo Sitio web: misma llave de módulo y mismo permiso que editar
- * el sitio (dueño o administrador de la institución). El resto del equipo no edita lo que se
- * publica en nombre de la institución.
+ * El blog es una sección del módulo Sitio web: misma llave de módulo y mismo nivel que editar
+ * el sitio (`website` MANAGE: dueño, administrador o un rol con ese nivel).
  */
 export type BlogEditorContext = { user: AuthUser; workspace: ActiveWorkspace };
-
-async function rolEn(userId: number, workspaceId: string) {
-  const m = await prisma.workspaceMembership.findUnique({
-    where: { userId_workspaceId: { userId, workspaceId } },
-    select: { role: true },
-  });
-  return m?.role ?? null;
-}
 
 /** Para pantallas: sin módulo o sin permiso, afuera (con `redirect`). */
 export async function requireBlogEditor(): Promise<BlogEditorContext> {
   const { user, workspace } = await requireWebsiteContext();
-  if (!canManageWorkspaceSettings(await rolEn(user.id, workspace.id))) redirect("/website");
+  if (!(await hasModuleLevel(user.id, workspace.id, WEBSITE_MODULE_KEY, "MANAGE"))) redirect("/website");
   return { user, workspace };
 }
 
@@ -49,11 +39,11 @@ export async function requireBlogEditorApi(): Promise<BlogApiGuard> {
       response: NextResponse.json({ error: "El sitio web no está habilitado." }, { status: 403 }),
     };
   }
-  if (!canManageWorkspaceSettings(await rolEn(user.id, workspace.id))) {
+  if (!(await hasModuleLevel(user.id, workspace.id, WEBSITE_MODULE_KEY, "MANAGE"))) {
     return {
       ctx: null,
       response: NextResponse.json(
-        { error: "Sólo el dueño o un administrador de la institución edita el blog." },
+        { error: "No tenés permiso para editar el blog." },
         { status: 403 },
       ),
     };

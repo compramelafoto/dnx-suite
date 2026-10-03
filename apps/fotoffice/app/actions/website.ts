@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
 import { requireWebsiteContext } from "@/lib/workspace";
-import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
+import { hasModuleLevel } from "@/lib/permissions/module-access";
+import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 import { websitePageContentSchema, type WebsitePageContent } from "@/lib/website/blocks";
 import { websiteDesignPresetsSchema } from "@/lib/website/design-presets";
 
@@ -23,11 +24,9 @@ async function assertCanManageWebsite(
   userId: number,
   verb: "publicar" | "despublicar" | "editar",
 ): Promise<string | null> {
-  const membership = await prisma.workspaceMembership.findUnique({
-    where: { userId_workspaceId: { userId, workspaceId } },
-    select: { role: true },
-  });
-  return canManageWorkspaceSettings(membership?.role) ? null : `No tenés permiso para ${verb} el sitio web.`;
+  return (await hasModuleLevel(userId, workspaceId, WEBSITE_MODULE_KEY, "MANAGE"))
+    ? null
+    : `No tenés permiso para ${verb} el sitio web.`;
 }
 
 /**
