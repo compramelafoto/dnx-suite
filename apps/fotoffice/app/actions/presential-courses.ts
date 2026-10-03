@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { Prisma, prisma } from "@repo/db";
 import { z } from "zod";
 import { requireCoursesSalesContext } from "@/lib/workspace";
@@ -402,6 +402,8 @@ export async function createPresentialCourseAction(
     revalidatePath("/dashboard/courses");
     redirect(`/dashboard/courses/${created.id}`);
   } catch (error) {
+    // Un `redirect` (el de la guarda, o el de éxito) no es un error: que llegue a Next.
+    unstable_rethrow(error);
     return { error: error instanceof Error ? error.message : "No se pudo crear el curso." };
   }
 }
@@ -440,6 +442,8 @@ export async function updatePresentialCourseAction(
     revalidatePath(`/dashboard/courses/${id}`);
     return { error: null, ok: true };
   } catch (error) {
+    // Un `redirect` (el de la guarda, o el de éxito) no es un error: que llegue a Next.
+    unstable_rethrow(error);
     return { error: error instanceof Error ? error.message : "No se pudo actualizar el curso." };
   }
 }
@@ -450,6 +454,8 @@ export async function duplicatePresentialCourseAction(courseId: string) {
     revalidatePath("/dashboard/courses");
     return { error: null };
   } catch (error) {
+    // Un `redirect` (el de la guarda, o el de éxito) no es un error: que llegue a Next.
+    unstable_rethrow(error);
     return { error: error instanceof Error ? error.message : "No se pudo duplicar el curso." };
   }
 }
@@ -480,6 +486,8 @@ export async function createCourseInstanceAction(
     }
     return { error: null, ok: true };
   } catch (error) {
+    // Un `redirect` (el de la guarda, o el de éxito) no es un error: que llegue a Next.
+    unstable_rethrow(error);
     return { error: error instanceof Error ? error.message : "No se pudo crear la edición." };
   }
 }
@@ -511,6 +519,8 @@ export async function updateCourseInstanceAction(
     }
     return { error: null, ok: true };
   } catch (error) {
+    // Un `redirect` (el de la guarda, o el de éxito) no es un error: que llegue a Next.
+    unstable_rethrow(error);
     return { error: error instanceof Error ? error.message : "No se pudo actualizar la edición." };
   }
 }
