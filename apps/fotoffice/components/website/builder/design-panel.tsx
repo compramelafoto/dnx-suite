@@ -1,7 +1,7 @@
 "use client";
 
 import { ImageUploadField } from "@/components/image-upload-field";
-import { SelectField, TextField, ToggleField } from "@/components/website/inspector/inspector-fields";
+import { SelectField, TextField } from "@/components/website/inspector/inspector-fields";
 import {
   ANIMATION_PRESETS,
   BUTTON_PRESETS,
@@ -120,18 +120,12 @@ export function DesignPanel({
             onChange={(v) => onPresetsChange({ ...presets, headerPreset: v as WebsiteDesignPresets["headerPreset"] })}
             options={HEADER_PRESETS.map((p) => ({ value: p.id, label: p.label }))}
           />
-          <ToggleField
-            label='Mostrar botón "Iniciar sesión"'
-            checked={presets.showLoginButton}
-            onChange={(v) => onPresetsChange({ ...presets, showLoginButton: v })}
+          <TextField
+            label="Texto del botón para entrar"
+            helper='Siempre está, a la derecha del menú: lleva a los socios a su panel. Vacío = "Ingresar".'
+            value={presets.loginButtonLabel}
+            onChange={(v) => onPresetsChange({ ...presets, loginButtonLabel: v })}
           />
-          {presets.showLoginButton ? (
-            <TextField
-              label="Texto del botón"
-              value={presets.loginButtonLabel}
-              onChange={(v) => onPresetsChange({ ...presets, loginButtonLabel: v })}
-            />
-          ) : null}
         </section>
 
         <section className="space-y-3">

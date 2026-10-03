@@ -1,4 +1,4 @@
-import type { WebsiteDesignPresets } from "@/lib/website/design-presets";
+import { loginButtonText, type WebsiteDesignPresets } from "@/lib/website/design-presets";
 import type { SiteNavItem } from "@/lib/website/site-nav";
 import { WebsiteHeaderNavClient } from "./website-header-nav-client";
 
@@ -12,8 +12,11 @@ import { WebsiteHeaderNavClient } from "./website-header-nav-client";
  * marcarla, y `buildSiteNav` corre en el servidor sin esa información (ver el comentario ahí).
  * El resto del header — y el pie entero — siguen sin ningún JS.
  *
- * El botón "Iniciar sesión" apunta siempre a `/login` — nunca a una URL que el usuario escriba:
- * evita convertirlo sin querer en un vector de phishing.
+ * El botón para entrar ("Ingresar") está siempre, a la derecha de todo: es la puerta de los
+ * socios a su panel. Lleva a `loginHref`, que arma quien llama (en el sitio, la puerta de la
+ * institución, `/w/<slug>/entrar`) — nunca a una URL que el usuario escriba: evita convertirlo
+ * sin querer en un vector de phishing. Es un enlace fijo, sin leer la sesión, para que la página
+ * siga siendo pública y cacheable.
  */
 export function WebsiteHeaderView({
   logoUrl,
@@ -21,6 +24,7 @@ export function WebsiteHeaderView({
   navItems,
   designPresets,
   homeHref,
+  loginHref,
 }: {
   logoUrl: string | null;
   workspaceName: string;
@@ -28,6 +32,8 @@ export function WebsiteHeaderView({
   designPresets: WebsiteDesignPresets;
   /** A dónde lleva el logo. En la vista previa del panel no hay sitio público al que ir. */
   homeHref: string;
+  /** A dónde lleva el botón "Ingresar". En la vista previa del panel, a ningún lado ("#"). */
+  loginHref: string;
 }) {
   const preset = designPresets.headerPreset;
   const overlay = preset === "transparent-hero";
@@ -55,10 +61,10 @@ export function WebsiteHeaderView({
     </a>
   );
 
-  const botonLogin = designPresets.showLoginButton ? (
+  const botonLogin = (
     <a
-      href="/login"
-      className="shrink-0 text-sm"
+      href={loginHref}
+      className="shrink-0 whitespace-nowrap text-sm"
       style={{
         backgroundColor: "var(--wsite-accent)",
         color: "#ffffff",
@@ -68,9 +74,9 @@ export function WebsiteHeaderView({
         fontWeight: "var(--wsite-button-weight)",
       }}
     >
-      {designPresets.loginButtonLabel || "Iniciar sesión"}
+      {loginButtonText(designPresets)}
     </a>
-  ) : null;
+  );
 
   const wrapperClass = overlay ? "absolute inset-x-0 top-0 z-10" : floating ? "relative mx-4 mt-4 rounded-2xl shadow-md" : "relative";
   const wrapperStyle = overlay

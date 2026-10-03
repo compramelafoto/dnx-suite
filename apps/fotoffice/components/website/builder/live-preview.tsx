@@ -53,7 +53,7 @@ export function LivePreview({
         className="relative w-full overflow-hidden rounded-xl border border-[var(--fo-border)] bg-white shadow-sm transition-[max-width] duration-200"
         style={{ maxWidth: DEVICE_WIDTHS[device], ...themeVars }}
       >
-        <WebsiteHeaderView logoUrl={logoUrl} workspaceName={workspaceName} navItems={navItems} designPresets={designPresets} homeHref="#" />
+        <WebsiteHeaderView logoUrl={logoUrl} workspaceName={workspaceName} navItems={navItems} designPresets={designPresets} homeHref="#" loginHref="#" />
         <WebsitePageRenderer blocks={blocks} colors={colors} designPresets={designPresets} />
       </div>
     </div>

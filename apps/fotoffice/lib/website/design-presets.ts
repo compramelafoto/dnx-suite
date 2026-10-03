@@ -109,11 +109,10 @@ const FOOTER_IDS = FOOTER_PRESETS.map((p) => p.id) as [FooterPresetId, ...Footer
 
 export const DEFAULT_DESIGN_PRESETS: WebsiteDesignPresets = {
   headerPreset: "logo-left",
-  // La portada en producción (antes de este armazón) siempre mostró "Iniciar sesión": el default
-  // preserva ese comportamiento para que ninguna institución pierda su único enlace visible al
-  // panel al fusionar. Quien no lo quiera lo apaga desde Diseño global.
+  // Ya no se respeta: el botón para entrar se muestra siempre (ver `loginButtonText`). Queda en
+  // el tipo para que los JSON guardados sigan leyéndose igual.
   showLoginButton: true,
-  loginButtonLabel: "Iniciar sesión",
+  loginButtonLabel: "Ingresar",
   logoSizePx: 40,
   typographyPreset: "modern",
   buttonPreset: "rounded",
@@ -152,6 +151,26 @@ export function parseWebsiteDesignPresets(raw: unknown): WebsiteDesignPresets {
   if (raw === null || typeof raw !== "object") return DEFAULT_DESIGN_PRESETS;
   const parsed = websiteDesignPresetsSchema.safeParse(raw);
   return parsed.success ? parsed.data : DEFAULT_DESIGN_PRESETS;
+}
+
+/** El texto que traían guardado todas las instituciones antes de que el botón pasara a "Ingresar". */
+const LEGACY_LOGIN_LABEL = "Iniciar sesión";
+
+/**
+ * El texto del botón para entrar del encabezado del sitio.
+ *
+ * El botón ya no se puede apagar: es la puerta de los socios a su panel, y una institución que
+ * lo había apagado (SFPR, por ejemplo) los dejaba sin forma visible de entrar. Lo que sí se
+ * puede elegir es el texto.
+ *
+ * "Iniciar sesión" era el valor por defecto y quedó guardado en cada versión publicada aunque
+ * nadie lo eligiera; se trata como "sin elegir" y pasa a "Ingresar". Cualquier otro texto se
+ * respeta tal cual.
+ */
+export function loginButtonText(presets: Pick<WebsiteDesignPresets, "loginButtonLabel">): string {
+  const label = presets.loginButtonLabel.trim();
+  if (!label || label === LEGACY_LOGIN_LABEL) return DEFAULT_DESIGN_PRESETS.loginButtonLabel;
+  return label;
 }
 
 export function getHeaderPreset(id: HeaderPresetId) {
