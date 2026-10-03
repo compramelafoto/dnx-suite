@@ -49,6 +49,15 @@ export function hasLevel(actual: ModuleLevel, required: "VIEW" | "MANAGE"): bool
 const FULL_ACCESS_ROLES = new Set(["WORKSPACE_OWNER", "WORKSPACE_ADMIN", "ADMIN"]);
 
 /**
+ * Si el rol de alguien ya le da todo, sin roles de la comisión. Sirve para mostrar quién tiene
+ * acceso total (por ejemplo, en la lista de operadores de carnets), no para decidir un acceso:
+ * eso es `getModuleLevels` / `hasModuleLevel`.
+ */
+export function isFullAccessRole(role: string | null | undefined): boolean {
+  return role != null && FULL_ACCESS_ROLES.has(role);
+}
+
+/**
  * Lo que `STAFF` puede hoy en cada módulo ya migrado, copiado de los `access.ts` previos.
  * Es la red de seguridad de la etapa 1: mientras alguien nunca haya tenido roles asignados, sigue
  * exactamente igual que antes. Un módulo que no figura acá todavía no pregunta por niveles.

@@ -5,6 +5,9 @@ import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
+import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
+import { CASH_CONFIGURE_ACTION, COVERAGES_COORDINATE_ACTION } from "@/lib/permissions/actions";
+import { hasLevel, type ModuleLevels } from "@/lib/permissions/levels";
 import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
@@ -35,8 +38,16 @@ export type SubmoduleItem = {
   icon: string;
   /** Qué se hace ahí, en una línea. Solo lo usa el inicio. */
   description: string;
-  /** Si hace falta permiso de administración del módulo para verla. */
+  /** Si hace falta gestionar (`MANAGE`) para verla; si no, alcanza con ver (`VIEW`). */
   requiresManage: boolean;
+  /**
+   * El módulo cuyo nivel decide esta pantalla, cuando no es el del grupo donde se muestra.
+   * Cuotas vive en el menú de Socios pero su permiso es el de `membership-dues`: una Tesorería
+   * puede cobrar sin gestionar el padrón, y una Secretaría al revés.
+   */
+  levelModuleKey?: string;
+  /** Acción sensible (ver `lib/permissions/actions.ts`) que además hace falta tener. */
+  requiresAction?: string;
   activeMatch: ActiveMatch;
 };
 
@@ -62,7 +73,8 @@ const SOCIOS: SubmoduleItem[] = [
     label: "Cuotas",
     icon: "Wallet",
     description: "Qué se debe, qué se cobró y qué se generó.",
-    requiresManage: true,
+    requiresManage: false,
+    levelModuleKey: MEMBERSHIP_DUES_MODULE_KEY,
     activeMatch: "exact",
   },
   {
@@ -95,6 +107,7 @@ const SOCIOS: SubmoduleItem[] = [
     icon: "CalendarClock",
     description: "Cuánto vale la cuota y cuándo vence.",
     requiresManage: true,
+    levelModuleKey: MEMBERSHIP_DUES_MODULE_KEY,
     activeMatch: "under",
   },
 ];
@@ -235,6 +248,7 @@ const CAJA: SubmoduleItem[] = [
     icon: "Settings",
     description: "Dónde está la plata y cómo se clasifica lo que entra y sale.",
     requiresManage: true,
+    requiresAction: CASH_CONFIGURE_ACTION,
     activeMatch: "under",
   },
 ];
@@ -273,6 +287,7 @@ const COBERTURAS: SubmoduleItem[] = [
     icon: "UserCheck",
     description: "Quiénes del padrón están habilitados para anotarse a una convocatoria.",
     requiresManage: true,
+    requiresAction: COVERAGES_COORDINATE_ACTION,
     activeMatch: "under",
   },
   {
@@ -281,6 +296,7 @@ const COBERTURAS: SubmoduleItem[] = [
     icon: "Settings",
     description: "Las palabras, los plazos y quién decide en esta organización.",
     requiresManage: true,
+    requiresAction: COVERAGES_COORDINATE_ACTION,
     activeMatch: "under",
   },
 ];
@@ -296,7 +312,24 @@ const POR_MODULO: Record<string, SubmoduleItem[]> = {
 };
 
 /**
- * Las pantallas de un módulo que esta persona puede abrir.
+ * Lo que sabe el menú de quien mira: su nivel en cada módulo (`getModuleLevels`) y las acciones
+ * sensibles vigentes que alguna pantalla exige, calculadas en el servidor con `hasModuleAction`.
+ * Es serializable a propósito: viaja del servidor al menú, que es un componente de cliente.
+ */
+export type SubmoduleAccess = { levels: ModuleLevels; actions: readonly string[] };
+
+function puedeAbrir(moduleKey: string, item: SubmoduleItem, access: SubmoduleAccess): boolean {
+  const nivel = (key: string) => access.levels[key] ?? "NONE";
+  // Todo el grupo cuelga del layout de su módulo, que exige al menos verlo.
+  if (!hasLevel(nivel(moduleKey), "VIEW")) return false;
+  const decide = item.levelModuleKey ?? moduleKey;
+  if (!hasLevel(nivel(decide), item.requiresManage ? "MANAGE" : "VIEW")) return false;
+  if (item.requiresAction && !access.actions.includes(item.requiresAction)) return false;
+  return true;
+}
+
+/**
+ * Las pantallas de un módulo que esta persona puede abrir, con la misma regla que sus páginas.
  *
  * Devuelve vacío para un módulo de una sola pantalla o desconocido, y quien llama decide qué
  * hacer con eso — no se inventa una lista.
@@ -307,13 +340,13 @@ const POR_MODULO: Record<string, SubmoduleItem[]> = {
  */
 export function submodulesFor(
   moduleKey: string,
-  opts: { canManage: boolean },
+  access: SubmoduleAccess,
   vocabulary: PersonVocabulary,
 ): SubmoduleItem[] {
   const items = POR_MODULO[moduleKey];
   if (!items) return [];
   return items
-    .filter((i) => !i.requiresManage || opts.canManage)
+    .filter((i) => puedeAbrir(moduleKey, i, access))
     .map((i) => ({
       ...i,
       label: aplicarVocabulario(i.label, vocabulary),

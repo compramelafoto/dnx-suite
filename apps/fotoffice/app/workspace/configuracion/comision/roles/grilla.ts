@@ -1,7 +1,6 @@
 import "server-only";
-import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { listEditableModuleKeys } from "@/lib/commission/modules";
-import { CASH_PROJECT_MONEY_ACTION } from "@/lib/commission/templates";
+import { MODULE_ACTIONS } from "@/lib/permissions/actions";
 import { getModuleDefinition } from "@/lib/modules/registry";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
@@ -36,14 +35,11 @@ export async function armarGrilla(workspaceId: string, permisos: Permiso[]) {
     .map((p) => `${etiqueta(p.moduleKey)} (${NIVEL_TEXTO[p.level] ?? p.level.toLowerCase()})`)
     .sort((a, b) => a.localeCompare(b, "es"));
 
-  const extras: AccionExtra[] = [
-    {
-      moduleKey: CASH_MODULE_KEY,
-      action: CASH_PROJECT_MONEY_ACTION,
-      label: "Plata de proyectos",
-      helper: "Puede reservar, gastar e ingresar plata de los proyectos, no sólo los movimientos comunes.",
-    },
-  ];
+  // Una casilla por cada acción sensible del catálogo, con su etiqueta y su descripción: la
+  // grilla no inventa acciones ni se olvida de las que se agreguen al catálogo.
+  const extras: AccionExtra[] = Object.entries(MODULE_ACTIONS).flatMap(([moduleKey, acciones]) =>
+    acciones.map((a) => ({ moduleKey, action: a.key, label: a.label, helper: a.description })),
+  );
 
   return { filas, fueraDeLaGrilla, extras };
 }

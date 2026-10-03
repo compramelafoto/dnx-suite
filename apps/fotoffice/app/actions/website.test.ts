@@ -44,10 +44,6 @@ vi.mock("@/lib/permissions/module-access", () => ({
   hasModuleLevel: hasModuleLevelMock,
 }));
 
-vi.mock("@/lib/permissions/module-access", () => ({
-  hasModuleLevel: hasModuleLevelMock,
-}));
-
 vi.mock("@/lib/workspace", () => ({
   requireWebsiteContext: vi.fn(async () => ({
     workspace: { id: "ws-a", name: "Workspace A" },

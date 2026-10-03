@@ -6,6 +6,7 @@ import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import {
   hasLevel,
   isAssignmentActive,
+  isFullAccessRole,
   isModuleEffectivelyEnabled,
   legacyStaffLevel,
   manageFlagFor,
@@ -198,5 +199,16 @@ describe("resolveModuleAction", () => {
   it("módulo apagado o sin rol: no, ni al dueño", () => {
     expect(puede({ moduleEnabled: false, workspaceRole: "WORKSPACE_OWNER" })).toBe(false);
     expect(puede({ workspaceRole: null })).toBe(false);
+  });
+});
+
+describe("isFullAccessRole", () => {
+  it("dueño y admin tienen todo por su rol; el personal y nadie, no", () => {
+    expect(isFullAccessRole("WORKSPACE_OWNER")).toBe(true);
+    expect(isFullAccessRole("WORKSPACE_ADMIN")).toBe(true);
+    expect(isFullAccessRole("ADMIN")).toBe(true);
+    expect(isFullAccessRole("WORKSPACE_STAFF")).toBe(false);
+    expect(isFullAccessRole("MEMBER")).toBe(false);
+    expect(isFullAccessRole(null)).toBe(false);
   });
 });

@@ -3,7 +3,6 @@ import { prisma } from "@repo/db";
 import { requireCommissionAdmin } from "@/lib/commission/access";
 import { ensureCommissionSetupOnce } from "@/lib/commission/seed";
 import { isCurrentOrUpcoming } from "@/lib/commission/rules";
-import { AvisoAccesoTransitorio } from "../aviso-acceso";
 import { loadPeriodosComision } from "../personas";
 import { RolAcciones } from "./roles-list";
 
@@ -38,7 +37,6 @@ export default async function RolesPage() {
 
   return (
     <div className="space-y-6">
-      <AvisoAccesoTransitorio />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="max-w-xl text-sm leading-relaxed text-[var(--fo-muted)]">
           Un rol es un paquete de permisos: en qué partes del panel entra la persona y si sólo mira

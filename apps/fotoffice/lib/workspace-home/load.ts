@@ -1,15 +1,8 @@
 import "server-only";
 import { prisma } from "@repo/db";
 import { countMembersByStatus } from "@repo/db/fotoffice-members";
-import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
-import { hasModuleLevel } from "@/lib/permissions/module-access";
-import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
-import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
-import { CASH_MODULE_KEY } from "@/lib/cash/constants";
-import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
-import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
-import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
-import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
+import type { ModuleLevels } from "@/lib/permissions/levels";
+import { homeWidgetGates } from "./gates";
 import { loadDuesOverview } from "@/lib/membership/dues-overview";
 import { listAwaitingPayment } from "@/lib/membership/inbox";
 import { decimalArsToMinor } from "@/lib/membership/money";
@@ -29,8 +22,9 @@ import { countRequestsByFilter } from "@/lib/coverages/repository";
  * - Nada se recalcula acá: cada número sale de la misma función que usa la pantalla de su
  *   módulo. Si el inicio dijera "12 socios con deuda" y la pantalla de Cuotas 14, el inicio no
  *   serviría para nada. Lo único nuevo es lo cobrado en el mes, que no existía.
- * - Cada bloque aparece sólo si el módulo está prendido y quien mira tiene permiso para la
- *   pantalla a la que lleva. Un número que lleva a un "no tenés permiso" es peor que ninguno.
+ * - Cada bloque aparece sólo si quien mira tiene, en ese módulo, el nivel que exige la pantalla
+ *   a la que lleva (`homeWidgetGates`). Un número que lleva a un "no tenés permiso" es peor que
+ *   ninguno. Los niveles salen de `getModuleLevels`, la misma cuenta que usan menú y páginas.
  * - Cada bloque se calcula por separado y un error en uno no tumba el inicio: queda vacío y
  *   se registra. El inicio es la puerta de entrada; no puede caerse por la caja.
  */
@@ -80,23 +74,19 @@ export function inicioDelMesArgentina(now: Date): Date {
 }
 
 export async function loadWorkspaceHome(input: {
-  userId: number;
   workspaceId: string;
-  role: string | null;
-  enabled: ReadonlySet<string>;
+  levels: ModuleLevels;
   now?: Date;
 }): Promise<HomeData> {
-  const { workspaceId, enabled, role } = input;
+  const { workspaceId } = input;
   const now = input.now ?? new Date();
-  const admin = canManageWorkspaceSettings(role);
-  const cobra =
-    (enabled.has(MEMBERSHIP_DUES_MODULE_KEY) || enabled.has(MEMBERS_MODULE_KEY)) &&
-    (await hasModuleLevel(input.userId, workspaceId, MEMBERSHIP_DUES_MODULE_KEY, "MANAGE"));
+  const ver = homeWidgetGates(input.levels);
+  const cobra = ver.cuotas;
   const enUnaSemana = new Date(now.getTime() + 7 * 86_400_000);
 
   const [socios, cuotas, cobradoMes, altas, caja, reservas, sorteo, premios, coberturas, pedidos] =
     await Promise.all([
-      enabled.has(MEMBERS_MODULE_KEY)
+      ver.socios
         ? seguro("socios", async () => {
             const [conteo, padron] = await Promise.all([
               countMembersByStatus(workspaceId),
@@ -117,7 +107,7 @@ export async function loadWorkspaceHome(input: {
             }),
           )
         : null,
-      cobra && enabled.has(MEMBERS_MODULE_KEY)
+      ver.altas
         ? seguro("altas", async () => {
             const [pendientes, impagas] = await Promise.all([
               prisma.membershipApplication.count({ where: { workspaceId, status: "PENDIENTE" } }),
@@ -126,7 +116,7 @@ export async function loadWorkspaceHome(input: {
             return { pendientes, aprobadasSinPagar: impagas.length };
           })
         : null,
-      enabled.has(CASH_MODULE_KEY) && role
+      ver.caja
         ? seguro("caja", async () => {
             const [cuentas, movimientos] = await Promise.all([
               listAccounts(workspaceId),
@@ -137,7 +127,7 @@ export async function loadWorkspaceHome(input: {
             return { cuentas: filas, totalMinor: filas.reduce((s, c) => s + c.saldoMinor, 0) };
           })
         : null,
-      enabled.has(BOOKINGS_MODULE_KEY) && role
+      ver.reservas
         ? seguro("reservas", async () => {
             const [filas, espacios] = await Promise.all([
               listBookingsInRange(workspaceId, { startAt: now, endAt: enUnaSemana }),
@@ -159,7 +149,7 @@ export async function loadWorkspaceHome(input: {
             };
           })
         : null,
-      enabled.has(RAFFLES_MODULE_KEY) && role
+      ver.sorteos
         ? seguro("sorteo", () =>
             prisma.raffle.findFirst({
               where: { workspaceId, status: { in: ["BORRADOR", "ANUNCIADO", "PADRON_SELLADO", "SORTEADO"] } },
@@ -168,13 +158,13 @@ export async function loadWorkspaceHome(input: {
             }),
           )
         : null,
-      enabled.has(RAFFLES_MODULE_KEY) && role
+      ver.sorteos
         ? seguro("premios", async () => (await listPendingAwards(workspaceId)).length)
         : null,
-      enabled.has(COVERAGES_MODULE_KEY) && role
+      ver.coberturas
         ? seguro("coberturas", () => countRequestsByFilter({ workspaceId, now }))
         : null,
-      enabled.has(SERVICE_LEADS_MODULE_KEY) && admin
+      ver.pedidos
         ? seguro("pedidos", () => prisma.serviceSalesLead.count({ where: { workspaceId, status: "NEW" } }))
         : null,
     ]);
