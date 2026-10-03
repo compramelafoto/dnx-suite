@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const H = vi.hoisted(() => ({
   upsert: vi.fn(),
   findUnique: vi.fn(),
-  delete: vi.fn(),
+  deleteMany: vi.fn(),
   findMany: vi.fn(),
 }));
 
@@ -12,7 +12,7 @@ vi.mock("@repo/db", async (importOriginal) => {
   return {
     ...real,
     prisma: {
-      workspaceMembership: { upsert: H.upsert, findUnique: H.findUnique, delete: H.delete },
+      workspaceMembership: { upsert: H.upsert, findUnique: H.findUnique, deleteMany: H.deleteMany },
       workspaceRoleAssignment: { findMany: H.findMany },
     },
   };
@@ -33,7 +33,7 @@ const row = (over: Partial<Row> = {}): Row => ({
 beforeEach(() => {
   H.upsert.mockReset();
   H.findUnique.mockReset().mockResolvedValue(null);
-  H.delete.mockReset().mockResolvedValue({});
+  H.deleteMany.mockReset().mockResolvedValue({ count: 1 });
   H.findMany.mockReset().mockResolvedValue([]);
 });
 
@@ -61,28 +61,25 @@ describe("ensureStaffMembership", () => {
 
 describe("releaseStaffMembershipIfNoRoles", () => {
   it("libera: borra STAFF si no quedan asignaciones vigentes", async () => {
-    H.findUnique.mockResolvedValue({ role: "STAFF" });
     H.findMany.mockResolvedValue([row({ endsAt: new Date("2020-01-01") })]);
     expect(await releaseStaffMembershipIfNoRoles("ws-1", 7)).toBe("removed");
-    expect(H.delete).toHaveBeenCalledWith({
-      where: { userId_workspaceId: { userId: 7, workspaceId: "ws-1" } },
+    expect(H.deleteMany).toHaveBeenCalledWith({
+      where: { userId: 7, workspaceId: "ws-1", role: "STAFF" },
     });
   });
 
   it("libera: nunca borra dueño ni admin", async () => {
-    for (const role of ["WORKSPACE_OWNER", "WORKSPACE_ADMIN"]) {
-      H.findUnique.mockResolvedValue({ role });
-      H.findMany.mockResolvedValue([]);
-      expect(await releaseStaffMembershipIfNoRoles("ws-1", 7)).toBe("kept");
-    }
-    expect(H.delete).not.toHaveBeenCalled();
+    // La base sólo borra filas STAFF: con dueño/admin el filtro no encuentra nada.
+    H.findMany.mockResolvedValue([]);
+    H.deleteMany.mockResolvedValue({ count: 0 });
+    expect(await releaseStaffMembershipIfNoRoles("ws-1", 7)).toBe("kept");
+    expect(H.deleteMany.mock.calls[0][0].where.role).toBe("STAFF");
   });
 
   it("libera: conserva STAFF si queda alguna asignación vigente (por usuario o por ficha)", async () => {
-    H.findUnique.mockResolvedValue({ role: "STAFF" });
     H.findMany.mockResolvedValue([row()]);
     expect(await releaseStaffMembershipIfNoRoles("ws-1", 7)).toBe("kept");
-    expect(H.delete).not.toHaveBeenCalled();
+    expect(H.deleteMany).not.toHaveBeenCalled();
     expect(H.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {

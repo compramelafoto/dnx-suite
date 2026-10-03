@@ -51,6 +51,14 @@ export async function resolveFotofficePostLoginDestination(params: {
     return { path: next?.startsWith("/admin") ? next : "/admin", workspaceId: null };
   }
 
+  // Un socio que recibió cargo o rol antes de tener cuenta entra al panel desde su primer
+  // inicio de sesión con la cuenta vinculada (diseño de Roles §12.1.4). Si falla, no bloquea el login.
+  try {
+    await syncPendingTeamMemberships(user.id);
+  } catch (error) {
+    console.error("[post-login] No se pudo sincronizar la membresía de equipo", error);
+  }
+
   const kind = await resolveFotofficeUserKind(user.id);
 
   // Quien vuelve a completar una invitación va ahí, sea quien sea. Se resuelve ANTES de
@@ -81,14 +89,6 @@ export async function resolveFotofficePostLoginDestination(params: {
    * ser socia de una institución, y solo ella sabe a cuál de las dos viene hoy. Si ya eligió
    * antes, se respeta esa elección y no se vuelve a preguntar.
    */
-  // Un socio que recibió cargo o rol antes de tener cuenta entra al panel desde su primer
-  // inicio de sesión con la cuenta vinculada (diseño de Roles §12.1.4). Si falla, no bloquea el login.
-  try {
-    await syncPendingTeamMemberships(user.id);
-  } catch (error) {
-    console.error("[post-login] No se pudo sincronizar la membresía de equipo", error);
-  }
-
   const profiles = await listUserProfiles(user.id);
   if (needsProfileChoice(profiles)) {
     const chosen = findProfileByKey(profiles, await readProfileChoice());

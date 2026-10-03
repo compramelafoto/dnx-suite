@@ -10,6 +10,7 @@ import {
   unlinkMemberFromUser,
 } from "@repo/db/fotoffice-members";
 import { findLinkableUserByEmail } from "@repo/db/fotoffice-user-lookup";
+import { syncPendingTeamMemberships } from "@/lib/commission/team-membership";
 import { requireMembersManageContext } from "@/lib/members/access";
 import { inviteOneMember } from "@/lib/members/invite-member";
 import { auditActorFrom, normalizeReason } from "@/lib/members/audit";
@@ -132,6 +133,13 @@ export async function linkMemberUserAction(
     });
   } catch (e) {
     return { error: friendlyLinkError(e, vocabulary) };
+  }
+
+  // Quien recibió un rol antes de tener cuenta pasa a ser equipo apenas se vincula (Roles §12.1.4).
+  try {
+    await syncPendingTeamMemberships(userId);
+  } catch (error) {
+    console.error("[member-access] No se pudo sincronizar la membresía de equipo", error);
   }
 
   revalidatePath(`/members/${memberId}`);

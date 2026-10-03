@@ -40,12 +40,6 @@ export async function releaseStaffMembershipIfNoRoles(
   workspaceId: string,
   userId: number,
 ): Promise<"removed" | "kept"> {
-  const membership = await prisma.workspaceMembership.findUnique({
-    where: byTarget(workspaceId, userId),
-    select: { role: true },
-  });
-  if (!membership || membership.role !== "STAFF") return "kept";
-
   const rows = await prisma.workspaceRoleAssignment.findMany({
     where: {
       workspaceId,
@@ -57,8 +51,11 @@ export async function releaseStaffMembershipIfNoRoles(
   const now = new Date();
   if (rows.some((a) => isAssignmentActive(a, now))) return "kept";
 
-  await prisma.workspaceMembership.delete({ where: byTarget(workspaceId, userId) });
-  return "removed";
+  // Atómico y filtrado por rol: dueño/admin no coinciden nunca, ni siquiera si cambiaron entre medio.
+  const { count } = await prisma.workspaceMembership.deleteMany({
+    where: { userId, workspaceId, role: "STAFF" },
+  });
+  return count > 0 ? "removed" : "kept";
 }
 
 /** Asegura la membresía STAFF en cada workspace donde esta cuenta tiene una asignación vigente. Devuelve cuántas creó. */
