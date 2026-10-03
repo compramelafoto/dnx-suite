@@ -15,6 +15,8 @@ export function ShellSidebar({
   websiteEnabled,
   serviceLeadsEnabled,
   canManageMembers,
+  canManageBookings,
+  canManageRaffles,
   canManageWorkspaceSettings,
   platformAdmin,
   vocabulary,
@@ -34,6 +36,8 @@ export function ShellSidebar({
   websiteEnabled: boolean;
   serviceLeadsEnabled: boolean;
   canManageMembers: boolean;
+  canManageBookings: boolean;
+  canManageRaffles: boolean;
   canManageWorkspaceSettings: boolean;
   platformAdmin: boolean;
   vocabulary: PersonVocabulary;
@@ -67,6 +71,8 @@ export function ShellSidebar({
         websiteEnabled={websiteEnabled}
         serviceLeadsEnabled={serviceLeadsEnabled}
         canManageMembers={canManageMembers}
+        canManageBookings={canManageBookings}
+        canManageRaffles={canManageRaffles}
         canManageWorkspaceSettings={canManageWorkspaceSettings}
         platformAdmin={platformAdmin}
         vocabulary={vocabulary}

@@ -26,6 +26,7 @@ describe("resolución de rol de workspace — menú y páginas leen lo mismo", (
   // panel: `(shell)` y `/workspace`. Lo que hay que mirar es ese componente, no el layout.
   const layoutSrc = readFileSync(join(appRoot, "components/shell/admin-shell.tsx"), "utf8");
   const membersAccessSrc = readFileSync(join(here, "members/access.ts"), "utf8");
+  const permissionsSrc = readFileSync(join(here, "permissions/module-access.ts"), "utf8");
   const workspaceHomeSrc = readFileSync(join(appRoot, "app/workspace/page.tsx"), "utf8");
 
   it("hay UNA sola función que resuelve el rol, y consulta solo `workspaceMembership`", () => {
@@ -40,20 +41,26 @@ describe("resolución de rol de workspace — menú y páginas leen lo mismo", (
     assert.doesNotMatch(layoutSrc, /prisma\.membership\b/);
   });
 
-  it("los guards del módulo Socios usan esa misma función", () => {
-    assert.match(membersAccessSrc, /resolveWorkspaceRole/);
+  it("la función de niveles resuelve el rol con esa misma función", () => {
+    assert.match(permissionsSrc, /resolveWorkspaceRole/);
+    assert.doesNotMatch(permissionsSrc, /prisma\.membership\b/);
+  });
+
+  it("los guards del módulo Socios preguntan el nivel, no el rol por su cuenta", () => {
+    assert.match(membersAccessSrc, /getModuleLevel/);
     assert.doesNotMatch(membersAccessSrc, /prisma\.workspaceMembership/);
     assert.doesNotMatch(membersAccessSrc, /prisma\.membership\b/);
   });
 
-  it("los dos flags del menú (Socios y Configuración) salen del MISMO rol resuelto", () => {
-    // Un solo `const` con el rol: si mañana alguien resuelve uno de los dos flags por otro
-    // camino, esta línea deja de matchear y el test cae.
+  it("los permisos de módulo del menú salen de UN solo cálculo de niveles", () => {
     assert.match(
       layoutSrc,
-      /const activeRole = workspace !== null \? await resolveWorkspaceRole\(user\.id, workspace\.id\) : null;/,
+      /const levels = workspace !== null \? await getModuleLevels\(user\.id, workspace\.id\) : \{\};/,
     );
-    assert.match(layoutSrc, /canManageMembers\(activeRole\)/);
+    assert.match(layoutSrc, /manageFlagFor\(levels, MEMBERS_MODULE_KEY/);
+    assert.match(layoutSrc, /manageFlagFor\(levels, BOOKINGS_MODULE_KEY/);
+    assert.match(layoutSrc, /manageFlagFor\(levels, RAFFLES_MODULE_KEY/);
+    // Configuración sigue siendo de dueño/admin: no se delega (diseño de roles, §4).
     assert.match(layoutSrc, /canManageWorkspaceSettings\(activeRole\)/);
   });
 
@@ -62,6 +69,7 @@ describe("resolución de rol de workspace — menú y páginas leen lo mismo", (
     // `lib/modules/submodules.ts`: si resolviera el rol distinto, volvería la incoherencia
     // por otra puerta.
     assert.match(workspaceHomeSrc, /resolveWorkspaceRole/);
+    assert.match(workspaceHomeSrc, /getModuleLevels/);
     assert.doesNotMatch(workspaceHomeSrc, /prisma\.membership\b/);
   });
 });

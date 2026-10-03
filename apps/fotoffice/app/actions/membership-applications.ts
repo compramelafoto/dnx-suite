@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
 import { requireActiveWorkspace } from "@/lib/workspace";
 import type { AuthUser } from "@/lib/auth";
-import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
+import { hasModuleLevel } from "@/lib/permissions/module-access";
+import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { getWorkspaceCollectionStatus } from "@/lib/payments/connect/status";
 import { parseApplication } from "@/lib/membership/application";
 import { normalizeRecommendationCode } from "@/lib/membership/recommendation-code";
@@ -186,7 +187,7 @@ async function requireSecretary(): Promise<
 > {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) return { ok: false, error: "No hay institución activa." };
-  if (!(await canManageWorkspaceCollection(user.id, workspace.id))) {
+  if (!(await hasModuleLevel(user.id, workspace.id, MEMBERS_MODULE_KEY, "MANAGE"))) {
     return { ok: false, error: "No tenés permiso para resolver solicitudes." };
   }
   return { ok: true, workspaceId: workspace.id, user };

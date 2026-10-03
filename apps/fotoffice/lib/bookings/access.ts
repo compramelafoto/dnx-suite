@@ -1,38 +1,35 @@
 import "server-only";
 import { redirect } from "next/navigation";
 import { requireActiveWorkspace } from "@/lib/workspace";
-import { resolveWorkspaceRole } from "@/lib/workspace-role";
-import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
-import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
+import { getModuleLevel } from "@/lib/permissions/module-access";
+import { hasLevel } from "@/lib/permissions/levels";
 import { BOOKINGS_MODULE_KEY } from "./constants";
 
 /**
- * Control de acceso del módulo, en dos niveles y siempre en el servidor.
+ * Control de acceso del módulo, siempre en el servidor.
  *
- * Nivel 1: el módulo está habilitado para ESE workspace. Nivel 2: la persona tiene el rol.
- * Esconder el link del menú es el tercer nivel, el cosmético — nunca el control.
+ * El nivel sale de `getModuleLevel`, que ya incluye si el módulo está habilitado para ESE
+ * workspace y qué rol tiene la persona. Esconder el link del menú es lo cosmético, nunca el control.
  *
- * Agenda es STAFF+; Espacios, Extras y Tarifas son ADMIN+.
+ * Agenda pide VIEW; Espacios, Extras y Tarifas piden MANAGE.
  */
 
 async function contextoBase() {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) redirect("/workspace");
-  if (!(await isModuleEnabledForWorkspace(workspace.id, BOOKINGS_MODULE_KEY))) redirect("/dashboard");
-  const role = await resolveWorkspaceRole(user.id, workspace.id);
-  return { user, workspace, role };
+  const level = await getModuleLevel(user.id, workspace.id, BOOKINGS_MODULE_KEY);
+  if (!hasLevel(level, "VIEW")) redirect("/dashboard");
+  return { user, workspace, level };
 }
 
-/** Ver la agenda. Cualquiera del equipo. */
+/** Ver la agenda. */
 export async function requireBookingsStaff() {
-  const ctx = await contextoBase();
-  if (!ctx.role) redirect("/dashboard");
-  return ctx;
+  return contextoBase();
 }
 
-/** Configurar espacios, extras y tarifas. Solo dueño o administrador. */
+/** Configurar espacios, extras y tarifas. */
 export async function requireBookingsAdmin() {
   const ctx = await contextoBase();
-  if (!canManageWorkspaceSettings(ctx.role)) redirect("/reservas");
+  if (!hasLevel(ctx.level, "MANAGE")) redirect("/reservas");
   return ctx;
 }
