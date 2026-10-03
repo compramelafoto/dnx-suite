@@ -9,7 +9,7 @@ import { resolvePortalMenu } from "@/lib/portal/menu";
 import { getDuesSettings } from "@/lib/membership/settings";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { PortalShell } from "@/components/portal/portal-shell";
-import { headerSwitches, listUserProfiles } from "@/lib/portal/profiles";
+import { listUserProfiles, roleSelector } from "@/lib/portal/profiles";
 
 /**
  * El marco de todo el portal.
@@ -47,8 +47,8 @@ export default async function PortalLayout({ children }: { children: ReactNode }
     loadPersonVocabulary(context.workspace.id),
     listUserProfiles(user.id),
   ]);
-  // Si el socio también administra ESTA institución, el panel está a un botón.
-  const { counterpart } = headerSwitches(perfiles, { kind: "MEMBER", workspaceId: context.workspace.id });
+  // Si el socio también es equipo de ESTA institución, el selector de rol lo lleva al panel.
+  const selector = roleSelector(perfiles, { kind: "MEMBER", workspaceId: context.workspace.id }, vocabulary);
 
   return (
     <PortalShell
@@ -56,7 +56,7 @@ export default async function PortalLayout({ children }: { children: ReactNode }
         recommendationsEnabled: duesSettings.recommendationEnabled,
       })}
       vocabulary={vocabulary}
-      adminSwitchWorkspaceId={counterpart?.workspaceId ?? null}
+      roleSelector={selector}
       institution={{
         name: branding?.commercialName?.trim() || context.workspace.name,
         logoUrl: branding?.logoUrl ?? null,

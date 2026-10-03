@@ -4,9 +4,10 @@ import { redirect } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
 import { createFotofficeWorkspaceForUser } from "@/lib/ensure-workspace";
 import { PORTAL_HOME } from "@/lib/portal/destination";
-import { clearProfileChoice, setProfileChoice } from "@/lib/portal/profile-choice";
+import { clearProfileChoice, readProfileChoice, setProfileChoice } from "@/lib/portal/profile-choice";
 import {
   counterpartProfile,
+  entryProfileForInstitution,
   findProfileByKey,
   listUserProfiles,
   profileDestination,
@@ -33,6 +34,27 @@ export async function chooseProfileAction(formData: FormData): Promise<void> {
 
   await setProfileChoice(profileKey(chosen));
   // La cookie de institución activa manda en el panel: sin esto, una vieja abriría otra.
+  if (chosen.kind === "TEAM") await setActiveWorkspaceCookie(chosen.workspaceId);
+  redirect(profileDestination(chosen));
+}
+
+/**
+ * Entra a una institución elegida en `/elegir-perfil` (una tarjeta por institución).
+ *
+ * El `workspaceId` no se cree: se rearma la lista real de perfiles y se buscan los de esa
+ * institución. Ajena o vacía → vuelve al selector sin cambiar nada. Con perfiles ahí, entra a
+ * la vista por defecto (`resolveEntryProfile` sobre los de esa institución; el recordado manda
+ * si es de ella). Si va al panel, también fija la institución activa.
+ */
+export async function chooseInstitutionAction(formData: FormData): Promise<void> {
+  const user = await requireAuth();
+  const workspaceId = formData.get("workspaceId")?.toString()?.trim() ?? "";
+
+  const [profiles, remembered] = await Promise.all([listUserProfiles(user.id), readProfileChoice()]);
+  const chosen = workspaceId ? entryProfileForInstitution(profiles, workspaceId, remembered) : null;
+  if (!chosen) redirect("/elegir-perfil");
+
+  await setProfileChoice(profileKey(chosen));
   if (chosen.kind === "TEAM") await setActiveWorkspaceCookie(chosen.workspaceId);
   redirect(profileDestination(chosen));
 }

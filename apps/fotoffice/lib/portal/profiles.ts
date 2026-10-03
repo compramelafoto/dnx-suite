@@ -137,40 +137,93 @@ export function counterpartProfile(
   );
 }
 
-export type HeaderSwitches = {
-  /** El perfil del otro lado (panel ⇄ portal) en la misma institución: su botón directo. */
-  counterpart: UserProfile | null;
-  /** El botón general "Cambiar de perfil": sólo tiene sentido con más de una institución. */
-  showGeneralSwitch: boolean;
+export type RoleOption = {
+  kind: "TEAM" | "MEMBER";
+  /** "Socio" (palabra del vocabulario) o "Comisión" / "Administración" según el rol de equipo. */
+  label: string;
+  /** El activo sale de la pantalla en la que está la persona, no de un estado guardado. */
+  active: boolean;
 };
 
+export type RoleSelector = { workspaceId: string; options: RoleOption[] };
+
 /**
- * Qué botones de cambio muestra el encabezado de quien está en `current`.
+ * El selector de rol del menú lateral, como el de FotoRank.
  *
- * Pura a propósito: los encabezados sólo dibujan lo que esto decide, y la decisión se prueba
- * sin montar componentes. Con todos los perfiles en una institución, ir y volver entre portal
- * y panel es un botón directo; el selector general queda para quien tiene más de una.
+ * Sólo existe si la persona tiene los DOS perfiles (socio y equipo) en la institución que está
+ * viendo; perfiles en otras instituciones no cuentan. El equipo se llama "Comisión" cuando su
+ * rol es STAFF y "Administración" cuando es dueño o admin.
+ *
+ * Pura a propósito: los marcos sólo dibujan lo que esto decide.
  */
-export function headerSwitches(
+export function roleSelector(
   profiles: UserProfile[],
   current: { kind: "TEAM" | "MEMBER"; workspaceId: string | null },
-): HeaderSwitches {
+  vocabulary: { Singular: string },
+): RoleSelector | null {
+  if (current.workspaceId === null) return null;
+  const workspaceId = current.workspaceId;
+  const member = profiles.find((p) => p.kind === "MEMBER" && p.workspaceId === workspaceId);
+  const team = profiles.find((p) => p.kind === "TEAM" && p.workspaceId === workspaceId);
+  if (!member || !team || team.kind !== "TEAM") return null;
+
   return {
-    counterpart:
-      current.workspaceId === null
-        ? null
-        : counterpartProfile(profiles, { kind: current.kind, workspaceId: current.workspaceId }),
-    showGeneralSwitch: hasProfilesInSeveralWorkspaces(profiles),
+    workspaceId,
+    options: [
+      { kind: "MEMBER", label: vocabulary.Singular, active: current.kind === "MEMBER" },
+      { kind: "TEAM", label: teamRoleLabel(team.role), active: current.kind === "TEAM" },
+    ],
   };
 }
 
+function teamRoleLabel(role: string): string {
+  return PANEL_DAILY_ROLES.has(role) ? "Administración" : "Comisión";
+}
+
+export type InstitutionChoice = {
+  workspaceId: string;
+  workspaceName: string;
+  /** Es SU negocio: la persona es dueña del workspace. */
+  ownBusiness: boolean;
+  /** Su número de socio ahí, si lo es. */
+  memberNumber: string | null;
+  profiles: UserProfile[];
+};
+
+/** Una opción por institución (no por perfil), para el selector de entrada. */
+export function institutionChoices(profiles: UserProfile[]): InstitutionChoice[] {
+  const byWorkspace = new Map<string, InstitutionChoice>();
+  for (const p of profiles) {
+    let choice = byWorkspace.get(p.workspaceId);
+    if (!choice) {
+      choice = {
+        workspaceId: p.workspaceId,
+        workspaceName: p.workspaceName,
+        ownBusiness: false,
+        memberNumber: null,
+        profiles: [],
+      };
+      byWorkspace.set(p.workspaceId, choice);
+    }
+    choice.profiles.push(p);
+    if (p.kind === "TEAM" && p.role === "WORKSPACE_OWNER") choice.ownBusiness = true;
+    if (p.kind === "MEMBER") choice.memberNumber = p.memberNumber;
+  }
+  return [...byWorkspace.values()];
+}
+
 /**
- * Los textos del botón que lleva del panel al portal.
+ * Con qué perfil se entra al elegir una institución.
  *
- * El visible es neutro ("Mi portal") porque la palabra es configurable: "Portal del socia" no
- * se puede escribir bien sin saber el género. La palabra va sólo en el aria-label y el title,
- * con "de", que sirve para cualquiera.
+ * Es `resolveEntryProfile` sobre los perfiles de ESA institución: el recordado manda si es de
+ * ella; si no, dueño/admin → panel, comisión → portal. Institución ajena → `null`.
  */
-export function portalSwitchTexts(singular: string): { label: string; ariaLabel: string } {
-  return { label: "Mi portal", ariaLabel: `Ir a mi portal de ${singular}` };
+export function entryProfileForInstitution(
+  profiles: UserProfile[],
+  workspaceId: string,
+  rememberedKey: string | null,
+): UserProfile | null {
+  const own = profiles.filter((p) => p.workspaceId === workspaceId);
+  const decision = resolveEntryProfile(own, rememberedKey);
+  return decision.kind === "go" ? decision.profile : null;
 }

@@ -8,7 +8,9 @@ const {
   ensureMock,
   redirectMock,
   setWorkspaceCookieMock,
+  readChoiceMock,
 } = vi.hoisted(() => ({
+    readChoiceMock: vi.fn(),
     setWorkspaceCookieMock: vi.fn(),
     requireAuthMock: vi.fn(),
     listProfilesMock: vi.fn(),
@@ -30,6 +32,7 @@ vi.mock("@/lib/ensure-workspace", () => ({ createFotofficeWorkspaceForUser: ensu
 vi.mock("@/lib/portal/profile-choice", () => ({
   setProfileChoice: setChoiceMock,
   clearProfileChoice: clearChoiceMock,
+  readProfileChoice: readChoiceMock,
 }));
 vi.mock("@/lib/portal/profiles", async () => {
   const actual = await vi.importActual<typeof import("@/lib/portal/profiles")>("@/lib/portal/profiles");
@@ -42,6 +45,7 @@ const {
   createOwnBusinessAction,
   switchToAdminAction,
   switchToPortalAction,
+  chooseInstitutionAction,
 } = await import("./profile-choice");
 
 const TEAM = { kind: "TEAM", workspaceId: "ws-dnx", workspaceName: "DNX Owner", role: "WORKSPACE_OWNER" };
@@ -73,6 +77,7 @@ beforeEach(() => {
   ensureMock.mockReset().mockResolvedValue({ workspaceId: "ws-nuevo", onboardingCompleted: false });
   redirectMock.mockClear();
   setWorkspaceCookieMock.mockReset();
+  readChoiceMock.mockReset().mockResolvedValue(null);
 });
 
 describe("elegir perfil", () => {
@@ -201,5 +206,62 @@ describe("cambiar entre portal y panel", () => {
   it("exige sesión autenticada", async () => {
     await destinationOf(() => switchToAdminAction(wsForm("ws-sfpr")));
     expect(requireAuthMock).toHaveBeenCalled();
+  });
+});
+
+/**
+ * Elegir institución al entrar: una tarjeta por institución, no por perfil. Dentro de la
+ * institución, la vista por defecto sale de `resolveEntryProfile` sobre SUS perfiles.
+ */
+describe("elegir institución", () => {
+  const ADMIN_SFPR = { kind: "TEAM", workspaceId: "ws-sfpr", workspaceName: "SFPR", role: "WORKSPACE_ADMIN" };
+  const STAFF_SFPR = { kind: "TEAM", workspaceId: "ws-sfpr", workspaceName: "SFPR", role: "STAFF" };
+
+  function wsForm(workspaceId: string) {
+    const fd = new FormData();
+    fd.set("workspaceId", workspaceId);
+    return fd;
+  }
+
+  it("institución ajena: no cambia nada y vuelve al selector", async () => {
+    expect(await destinationOf(() => chooseInstitutionAction(wsForm("ws-de-otro")))).toBe("/elegir-perfil");
+    expect(setChoiceMock).not.toHaveBeenCalled();
+    expect(setWorkspaceCookieMock).not.toHaveBeenCalled();
+  });
+
+  it("sin workspaceId: no cambia nada", async () => {
+    expect(await destinationOf(() => chooseInstitutionAction(new FormData()))).toBe("/elegir-perfil");
+    expect(setChoiceMock).not.toHaveBeenCalled();
+  });
+
+  it("sólo su negocio: panel, con perfil e institución activa fijados", async () => {
+    expect(await destinationOf(() => chooseInstitutionAction(wsForm("ws-dnx")))).toBe("/workspace");
+    expect(setChoiceMock).toHaveBeenCalledWith("TEAM:ws-dnx");
+    expect(setWorkspaceCookieMock).toHaveBeenCalledWith("ws-dnx");
+  });
+
+  it("admin y socio de la institución: vista por defecto, el panel", async () => {
+    listProfilesMock.mockResolvedValue([TEAM, ADMIN_SFPR, SOCIO]);
+    expect(await destinationOf(() => chooseInstitutionAction(wsForm("ws-sfpr")))).toBe("/workspace");
+    expect(setChoiceMock).toHaveBeenCalledWith("TEAM:ws-sfpr");
+    expect(setWorkspaceCookieMock).toHaveBeenCalledWith("ws-sfpr");
+  });
+
+  it("comisión y socio: vista por defecto, el portal", async () => {
+    listProfilesMock.mockResolvedValue([TEAM, STAFF_SFPR, SOCIO]);
+    expect(await destinationOf(() => chooseInstitutionAction(wsForm("ws-sfpr")))).toBe("/portal");
+    expect(setChoiceMock).toHaveBeenCalledWith("MEMBER:ws-sfpr");
+    expect(setWorkspaceCookieMock).not.toHaveBeenCalled();
+  });
+
+  it("el recordado de esa institución manda", async () => {
+    listProfilesMock.mockResolvedValue([TEAM, ADMIN_SFPR, SOCIO]);
+    readChoiceMock.mockResolvedValue("MEMBER:ws-sfpr");
+    expect(await destinationOf(() => chooseInstitutionAction(wsForm("ws-sfpr")))).toBe("/portal");
+  });
+
+  it("no crea membresías ni workspaces", async () => {
+    await destinationOf(() => chooseInstitutionAction(wsForm("ws-sfpr")));
+    expect(ensureMock).not.toHaveBeenCalled();
   });
 });

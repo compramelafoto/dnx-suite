@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { LayoutDashboard } from "lucide-react";
-import { switchToAdminAction } from "@/app/actions/profile-choice";
+import { RoleSelector } from "@/components/shell/role-selector";
+import type { RoleSelector as RoleSelectorData } from "@/lib/portal/profiles";
 import { type ResolvedPortalItem } from "@/lib/portal/menu";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import { PortalNav, PortalSidebar } from "./portal-nav";
@@ -21,15 +21,15 @@ export function PortalShell({
   member,
   institution,
   vocabulary,
-  adminSwitchWorkspaceId = null,
+  roleSelector = null,
   children,
 }: {
   items: ResolvedPortalItem[];
   member: { fullName: string; memberNumber: string; category: string | null; photoUrl: string | null };
   institution: { name: string; logoUrl: string | null };
   vocabulary: PersonVocabulary;
-  /** Si el socio también administra esta institución: el botón directo a su panel. */
-  adminSwitchWorkspaceId?: string | null;
+  /** Si el socio también es equipo de esta institución: el selector de rol (socio activo). */
+  roleSelector?: RoleSelectorData | null;
   children: ReactNode;
 }) {
   return (
@@ -62,27 +62,21 @@ export function PortalShell({
               </p>
             </div>
             <PortalAvatar name={member.fullName} src={member.photoUrl} className="h-10 w-10" />
-            {adminSwitchWorkspaceId ? (
-              <form action={switchToAdminAction} className="shrink-0">
-                <input type="hidden" name="workspaceId" value={adminSwitchWorkspaceId} />
-                <button
-                  type="submit"
-                  className="inline-flex size-10 items-center justify-center rounded-full border border-[var(--fo-border)] text-[var(--fo-muted)] hover:border-[var(--fo-accent)] hover:text-[var(--fo-text)] md:w-auto md:gap-2 md:px-4"
-                  aria-label="Administración"
-                  title="Administración"
-                >
-                  <LayoutDashboard className="size-4" aria-hidden />
-                  <span className="hidden text-sm md:inline">Administración</span>
-                </button>
-              </form>
-            ) : null}
           </div>
         </div>
       </header>
 
       <div className="mx-auto flex max-w-7xl gap-8 md:px-6">
-        <PortalSidebar items={items} vocabulary={vocabulary} />
-        <main className="min-w-0 flex-1 px-4 py-5 md:px-0 md:py-6">{children}</main>
+        <PortalSidebar
+          items={items}
+          vocabulary={vocabulary}
+          top={<RoleSelector selector={roleSelector} className="mb-5" />}
+        />
+        <main className="min-w-0 flex-1 px-4 py-5 md:px-0 md:py-6">
+          {/* En el teléfono la navegación va abajo: el selector queda arriba del contenido. */}
+          <RoleSelector selector={roleSelector} className="mb-5 md:hidden" />
+          {children}
+        </main>
       </div>
 
       <PortalNav items={items} vocabulary={vocabulary} />

@@ -20,8 +20,9 @@ const {
   resolveEntryProfile,
   counterpartProfile,
   hasProfilesInSeveralWorkspaces,
-  headerSwitches,
-  portalSwitchTexts,
+  roleSelector,
+  institutionChoices,
+  entryProfileForInstitution,
 } = await import("./profiles");
 
 const TEAM = { role: "WORKSPACE_OWNER", workspace: { id: "ws-dnx", name: "DNX Owner" } };
@@ -227,62 +228,111 @@ describe("hasProfilesInSeveralWorkspaces", () => {
   });
 });
 
-describe("headerSwitches", () => {
+describe("roleSelector", () => {
   const teamA = { kind: "TEAM", workspaceId: "ws-a", workspaceName: "A", role: "WORKSPACE_ADMIN" } as const;
+  const ownerA = { kind: "TEAM", workspaceId: "ws-a", workspaceName: "A", role: "WORKSPACE_OWNER" } as const;
+  const staffA = { kind: "TEAM", workspaceId: "ws-a", workspaceName: "A", role: "STAFF" } as const;
   const socioA = { kind: "MEMBER", workspaceId: "ws-a", workspaceName: "A", memberId: "m", memberNumber: "1" } as const;
   const teamB = { kind: "TEAM", workspaceId: "ws-b", workspaceName: "B", role: "WORKSPACE_OWNER" } as const;
+  const socio = { Singular: "Socio" };
 
-  it("socio y admin de la misma institución, desde el portal: botón Administración, sin selector general", () => {
-    expect(headerSwitches([teamA, socioA], { kind: "MEMBER", workspaceId: "ws-a" })).toEqual({
-      counterpart: teamA,
-      showGeneralSwitch: false,
+  it("socio y admin de la misma institución, desde el portal: Socio activo", () => {
+    expect(roleSelector([teamA, socioA], { kind: "MEMBER", workspaceId: "ws-a" }, socio)).toEqual({
+      workspaceId: "ws-a",
+      options: [
+        { kind: "MEMBER", label: "Socio", active: true },
+        { kind: "TEAM", label: "Administración", active: false },
+      ],
     });
   });
 
-  it("desde el panel: botón al portal, sin selector general", () => {
-    expect(headerSwitches([teamA, socioA], { kind: "TEAM", workspaceId: "ws-a" })).toEqual({
-      counterpart: socioA,
-      showGeneralSwitch: false,
-    });
+  it("desde el panel: Administración activa", () => {
+    const r = roleSelector([teamA, socioA], { kind: "TEAM", workspaceId: "ws-a" }, socio);
+    expect(r?.options.map((o) => [o.kind, o.active])).toEqual([
+      ["MEMBER", false],
+      ["TEAM", true],
+    ]);
   });
 
-  it("panel de otra institución donde no es socio: sin botón directo, con selector general", () => {
-    expect(headerSwitches([teamA, socioA, teamB], { kind: "TEAM", workspaceId: "ws-b" })).toEqual({
-      counterpart: null,
-      showGeneralSwitch: true,
-    });
+  it("el dueño también ve Administración", () => {
+    const r = roleSelector([ownerA, socioA], { kind: "TEAM", workspaceId: "ws-a" }, socio);
+    expect(r?.options[1]?.label).toBe("Administración");
   });
 
-  it("con dos instituciones y contraparte en la activa: los dos botones", () => {
-    expect(headerSwitches([teamA, socioA, teamB], { kind: "MEMBER", workspaceId: "ws-a" })).toEqual({
-      counterpart: teamA,
-      showGeneralSwitch: true,
-    });
+  it("con rol STAFF el equipo se llama Comisión", () => {
+    const r = roleSelector([staffA, socioA], { kind: "MEMBER", workspaceId: "ws-a" }, socio);
+    expect(r?.options[1]).toEqual({ kind: "TEAM", label: "Comisión", active: false });
   });
 
-  it("un solo perfil: ningún botón", () => {
-    expect(headerSwitches([socioA], { kind: "MEMBER", workspaceId: "ws-a" })).toEqual({
-      counterpart: null,
-      showGeneralSwitch: false,
-    });
+  it("usa la palabra del vocabulario, también femenina", () => {
+    const r = roleSelector([teamA, socioA], { kind: "MEMBER", workspaceId: "ws-a" }, { Singular: "Socia" });
+    expect(r?.options[0]?.label).toBe("Socia");
   });
 
-  it("panel sin institución activa: sin botón directo", () => {
-    expect(headerSwitches([teamA, socioA], { kind: "TEAM", workspaceId: null })).toEqual({
-      counterpart: null,
-      showGeneralSwitch: false,
-    });
+  it("un solo perfil en esa institución: null", () => {
+    expect(roleSelector([socioA], { kind: "MEMBER", workspaceId: "ws-a" }, socio)).toBeNull();
+    expect(roleSelector([teamA], { kind: "TEAM", workspaceId: "ws-a" }, socio)).toBeNull();
+  });
+
+  it("los perfiles en otra institución no cuentan", () => {
+    expect(roleSelector([teamB, socioA], { kind: "MEMBER", workspaceId: "ws-a" }, socio)).toBeNull();
+    expect(roleSelector([teamA, socioA, teamB], { kind: "TEAM", workspaceId: "ws-b" }, socio)).toBeNull();
+  });
+
+  it("panel sin institución activa: null", () => {
+    expect(roleSelector([teamA, socioA], { kind: "TEAM", workspaceId: null }, socio)).toBeNull();
   });
 });
 
-describe("portalSwitchTexts", () => {
-  it("texto visible neutro y la palabra configurada sólo en el aria-label", () => {
-    expect(portalSwitchTexts("socio")).toEqual({ label: "Mi portal", ariaLabel: "Ir a mi portal de socio" });
+describe("institutionChoices", () => {
+  const ownerDnx = { kind: "TEAM", workspaceId: "ws-dnx", workspaceName: "DNX", role: "WORKSPACE_OWNER" } as const;
+  const adminSfpr = { kind: "TEAM", workspaceId: "ws-sfpr", workspaceName: "SFPR", role: "WORKSPACE_ADMIN" } as const;
+  const socioSfpr = { kind: "MEMBER", workspaceId: "ws-sfpr", workspaceName: "SFPR", memberId: "m", memberNumber: "556" } as const;
+
+  it("una tarjeta por institución, en el orden en que aparecen", () => {
+    expect(institutionChoices([ownerDnx, adminSfpr, socioSfpr])).toEqual([
+      { workspaceId: "ws-dnx", workspaceName: "DNX", ownBusiness: true, memberNumber: null, profiles: [ownerDnx] },
+      {
+        workspaceId: "ws-sfpr",
+        workspaceName: "SFPR",
+        ownBusiness: false,
+        memberNumber: "556",
+        profiles: [adminSfpr, socioSfpr],
+      },
+    ]);
   });
 
-  it("con una palabra femenina no arma \"del socia\"", () => {
-    const t = portalSwitchTexts("socia");
-    expect(t.ariaLabel).toBe("Ir a mi portal de socia");
-    expect(`${t.label} ${t.ariaLabel}`).not.toContain("del socia");
+  it("sin perfiles: ninguna", () => {
+    expect(institutionChoices([])).toEqual([]);
+  });
+});
+
+describe("entryProfileForInstitution", () => {
+  const ownerDnx = { kind: "TEAM", workspaceId: "ws-dnx", workspaceName: "DNX", role: "WORKSPACE_OWNER" } as const;
+  const adminSfpr = { kind: "TEAM", workspaceId: "ws-sfpr", workspaceName: "SFPR", role: "WORKSPACE_ADMIN" } as const;
+  const staffSfpr = { kind: "TEAM", workspaceId: "ws-sfpr", workspaceName: "SFPR", role: "STAFF" } as const;
+  const socioSfpr = { kind: "MEMBER", workspaceId: "ws-sfpr", workspaceName: "SFPR", memberId: "m", memberNumber: "556" } as const;
+
+  it("institución ajena: null", () => {
+    expect(entryProfileForInstitution([ownerDnx, socioSfpr], "ws-otra", null)).toBeNull();
+    expect(entryProfileForInstitution([ownerDnx, socioSfpr], "", null)).toBeNull();
+  });
+
+  it("admin y socio: entra al panel", () => {
+    expect(entryProfileForInstitution([ownerDnx, adminSfpr, socioSfpr], "ws-sfpr", null)).toBe(adminSfpr);
+  });
+
+  it("comisión y socio: entra al portal", () => {
+    expect(entryProfileForInstitution([ownerDnx, staffSfpr, socioSfpr], "ws-sfpr", null)).toBe(socioSfpr);
+  });
+
+  it("el recordado de esa institución manda", () => {
+    expect(entryProfileForInstitution([adminSfpr, socioSfpr, ownerDnx], "ws-sfpr", "MEMBER:ws-sfpr")).toBe(
+      socioSfpr,
+    );
+  });
+
+  it("un recordado de otra institución no cuenta", () => {
+    expect(entryProfileForInstitution([adminSfpr, socioSfpr, ownerDnx], "ws-sfpr", "TEAM:ws-dnx")).toBe(adminSfpr);
   });
 });

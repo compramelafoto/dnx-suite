@@ -11,7 +11,7 @@ import { ShellSidebar } from "@/components/shell/shell-sidebar";
 import { ShellFrame } from "@/components/shell/shell-frame";
 import { ShellHeader } from "@/components/shell/shell-header";
 import { SHELL_NAV_COOKIE, parseShellNavPreference } from "@/lib/shell/nav-preference";
-import { headerSwitches, listUserProfiles, portalSwitchTexts } from "@/lib/portal/profiles";
+import { hasProfilesInSeveralWorkspaces, listUserProfiles, roleSelector } from "@/lib/portal/profiles";
 
 type PanelUser = {
   id: number;
@@ -73,8 +73,9 @@ export async function AdminShell({ user, children }: { user: PanelUser; children
     listUserProfiles(user.id),
   ]);
   const institucion = branding?.commercialName?.trim() || workspace?.name || null;
-  // Si quien administra también es socio de ESTA institución, el portal está a un botón.
-  const cambios = headerSwitches(perfiles, { kind: "TEAM", workspaceId: workspace?.id ?? null });
+  // Si quien administra también es socio de ESTA institución, el selector de rol del menú
+  // lateral lo lleva a su portal. El "Cambiar de perfil" general queda para varias instituciones.
+  const selector = roleSelector(perfiles, { kind: "TEAM", workspaceId: workspace?.id ?? null }, vocabulary);
 
   const navHidden =
     parseShellNavPreference((await cookies()).get(SHELL_NAV_COOKIE)?.value) === "hidden";
@@ -90,6 +91,7 @@ export async function AdminShell({ user, children }: { user: PanelUser; children
           canManageWorkspaceSettings={canManageWorkspaceSettingsFlag}
           platformAdmin={platformAdmin}
           vocabulary={vocabulary}
+          roleSelector={selector}
         />
       }
       header={
@@ -98,15 +100,7 @@ export async function AdminShell({ user, children }: { user: PanelUser; children
           userAvatarUrl={perfil?.avatarUrl ?? null}
           workspaceRole={activeRole}
           workspaceLogoUrl={branding?.logoUrl ?? null}
-          canSwitchProfile={cambios.showGeneralSwitch}
-          portalSwitch={
-            cambios.counterpart
-              ? {
-                  workspaceId: cambios.counterpart.workspaceId,
-                  ...portalSwitchTexts(vocabulary.singular),
-                }
-              : null
-          }
+          canSwitchProfile={hasProfilesInSeveralWorkspaces(perfiles)}
           userEmail={user.email}
           memberships={memberships.map((m) => ({
             workspaceId: m.workspaceId,

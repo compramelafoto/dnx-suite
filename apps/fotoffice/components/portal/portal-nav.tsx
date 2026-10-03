@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { portalBottomBar, type ResolvedPortalItem } from "@/lib/portal/menu";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
@@ -32,9 +32,12 @@ export const PROXIMAS_TITULO = "Próximas funcionalidades";
 export function PortalSidebar({
   items,
   vocabulary,
+  top = null,
 }: {
   items: ResolvedPortalItem[];
   vocabulary: PersonVocabulary;
+  /** Lo que va arriba de las secciones: el selector de rol, si corresponde. */
+  top?: ReactNode;
 }) {
   const pathname = usePathname() ?? "";
   const disponibles = items.filter((i) => i.state === "DISPONIBLE");
@@ -42,6 +45,7 @@ export function PortalSidebar({
 
   return (
     <aside className="sticky top-24 hidden h-[calc(100vh-6rem)] w-60 shrink-0 flex-col overflow-y-auto py-5 md:flex">
+      {top}
       <nav aria-label="Secciones" className="space-y-0.5">
         {disponibles.map((i) => {
           const activa = esActiva(pathname, i.href);
