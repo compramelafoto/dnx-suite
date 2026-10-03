@@ -7396,6 +7396,22 @@ model Member {
   specialties    String[] @default([])
   /// Presentación breve, en palabras del socio.
   bio            String?
+
+  /// --- Dónde atiende: el domicilio del ESTUDIO, nunca el particular ---
+  ///
+  /// `address`, `city`, `province` y `postalCode` de más arriba son los datos personales del
+  /// socio y **no se publican**. Estos son los del local donde trabaja, y sí salen en su ficha
+  /// pública y en sus datos estructurados. Tener dos juegos de campos no es redundancia:
+  /// publicar por error el domicilio particular de alguien es un daño que no se deshace.
+  studioStreet     String?
+  studioCity       String?
+  studioProvince   String?
+  studioPostalCode String?
+  /// Coordenadas del local, para que Google lo ubique en el mapa. El socio pega un enlace de
+  /// Google Maps y se sacan de ahí: nadie anda con sus coordenadas a mano.
+  /// Ver `apps/fotoffice/lib/membership/studio-location.ts`.
+  studioLat        Float?
+  studioLng        Float?
   website        String?
   /// Instagram y TikTok se guardan como usuario, sin arroba. Facebook, YouTube y LinkedIn como
   /// dirección completa: en esas tres el perfil tiene varias formas válidas. Ver lib/membership/social.ts.

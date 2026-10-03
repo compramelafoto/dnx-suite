@@ -5,6 +5,7 @@ import { PORTFOLIO_MODULE_KEY } from "./constants";
 import { portfolioVisibility } from "./visibility";
 import { normalizeArgentineWhatsappNumber } from "./whatsapp";
 import type { PortfolioVideo, VideoPlatform } from "./videos";
+import type { StudioLocation } from "@/lib/membership/studio-location";
 
 /**
  * Las dos lecturas públicas: el directorio y la ficha de una persona.
@@ -74,6 +75,11 @@ export type PublicPortfolio = {
     linkedin: string | null;
   };
   coverUrl: string | null;
+  /**
+   * Dónde atiende. Es el domicilio del ESTUDIO, cargado a propósito para publicarse — nunca el
+   * particular del socio, que vive en otros campos y no sale de acá.
+   */
+  studio: StudioLocation;
   /** Si tiene un teléfono que se pudo normalizar. El número NO viaja: ver `SELECT_MIEMBRO`. */
   canContactByWhatsapp: boolean;
   photos: PublicPortfolioPhoto[];
@@ -87,6 +93,12 @@ export type PublicPortfolio = {
 const SELECT_MIEMBRO = {
   firstName: true,
   lastName: true,
+  studioStreet: true,
+  studioCity: true,
+  studioProvince: true,
+  studioPostalCode: true,
+  studioLat: true,
+  studioLng: true,
   status: true,
   directoryOptIn: true,
   businessName: true,
@@ -297,6 +309,12 @@ function aPublicPortfolio(fila: FilaDeFicha): PublicPortfolio {
     youtube: string | null;
     linkedin: string | null;
     phone: string | null;
+    studioStreet: string | null;
+    studioCity: string | null;
+    studioProvince: string | null;
+    studioPostalCode: string | null;
+    studioLat: number | null;
+    studioLng: number | null;
   };
 
   return {
@@ -316,6 +334,14 @@ function aPublicPortfolio(fila: FilaDeFicha): PublicPortfolio {
       linkedin: m.linkedin,
     },
     coverUrl: fila.coverPhoto?.url ?? null,
+    studio: {
+      street: m.studioStreet,
+      city: m.studioCity,
+      province: m.studioProvince,
+      postalCode: m.studioPostalCode,
+      lat: m.studioLat,
+      lng: m.studioLng,
+    },
     canContactByWhatsapp: normalizeArgentineWhatsappNumber(m.phone) !== null,
     // El interruptor manda: apagarlo oculta la franja sin que el socio pierda los enlaces que cargó.
     instagramPosts: fila.instagramEnabled ? fila.instagramPostUrls : [],

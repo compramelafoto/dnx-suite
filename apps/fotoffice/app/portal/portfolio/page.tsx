@@ -75,6 +75,12 @@ export default async function PortalPortfolioPage() {
         youtube: true,
         linkedin: true,
         directoryOptIn: true,
+        studioStreet: true,
+        studioCity: true,
+        studioProvince: true,
+        studioPostalCode: true,
+        studioLat: true,
+        studioLng: true,
       },
     }),
   ]);
@@ -137,6 +143,15 @@ export default async function PortalPortfolioPage() {
             youtube: presentacion.youtube,
             linkedin: presentacion.linkedin,
             directoryOptIn: presentacion.directoryOptIn,
+            studioStreet: presentacion.studioStreet,
+            studioCity: presentacion.studioCity,
+            studioProvince: presentacion.studioProvince,
+            studioPostalCode: presentacion.studioPostalCode,
+            // Las coordenadas guardadas vuelven por el mismo campo donde se pegó el enlace.
+            studioMapsUrl:
+              presentacion.studioLat !== null && presentacion.studioLng !== null
+                ? `${presentacion.studioLat}, ${presentacion.studioLng}`
+                : "",
           }}
         />
       ) : null}
