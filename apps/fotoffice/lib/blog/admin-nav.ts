@@ -6,10 +6,11 @@
  */
 export const BLOG_ADMIN_BASE = "/website/blog";
 
-export type BlogAdminSection = "posts" | "categorias" | "tags" | "autores" | "media";
+export type BlogAdminSection = "posts" | "estadisticas" | "categorias" | "tags" | "autores" | "media";
 
 export const BLOG_ADMIN_SECTIONS: readonly { key: BlogAdminSection; label: string; href: string }[] = [
   { key: "posts", label: "Artículos", href: BLOG_ADMIN_BASE },
+  { key: "estadisticas", label: "Estadísticas", href: `${BLOG_ADMIN_BASE}/estadisticas` },
   { key: "categorias", label: "Categorías", href: `${BLOG_ADMIN_BASE}/categorias` },
   { key: "tags", label: "Tags", href: `${BLOG_ADMIN_BASE}/tags` },
   { key: "autores", label: "Autores", href: `${BLOG_ADMIN_BASE}/autores` },
@@ -20,6 +21,7 @@ export function blogAdminSectionFor(pathname: string): BlogAdminSection | null {
   if (pathname !== BLOG_ADMIN_BASE && !pathname.startsWith(`${BLOG_ADMIN_BASE}/`)) return null;
   const segmento = pathname.slice(BLOG_ADMIN_BASE.length + 1).split("/")[0] ?? "";
   switch (segmento) {
+    case "estadisticas":
     case "categorias":
     case "tags":
     case "autores":
