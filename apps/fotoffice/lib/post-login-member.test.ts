@@ -215,7 +215,7 @@ describe("selector de perfil", () => {
 
 /**
  * Equipo y socio de UNA misma institución: no hay nada que elegir entre instituciones. Entra
- * directo —por defecto al portal del socio— y cambia al panel con un botón.
+ * directo —al panel si es dueño o admin; si no, al portal del socio— y cambia con un botón.
  */
 describe("perfiles de una sola institución", () => {
   const TEAM_SFPR = { kind: "TEAM", workspaceId: "ws-sfpr", workspaceName: "SFPR", role: "WORKSPACE_ADMIN" };
@@ -228,10 +228,22 @@ describe("perfiles de una sola institución", () => {
     findMock.mockResolvedValue({ workspaceId: "ws-sfpr", onboardingCompleted: true });
   });
 
-  it("sin recordado ya no pregunta: va al portal", async () => {
+  it("admin sin recordado ya no pregunta: va al panel de esa institución", async () => {
+    const dest = await resolveFotofficePostLoginDestination({ userId: 4 });
+    expect(dest).toEqual({ path: "/workspace", workspaceId: "ws-sfpr" });
+  });
+
+  it("staff sin recordado ya no pregunta: va al portal", async () => {
+    listProfilesMock.mockResolvedValue([{ ...TEAM_SFPR, role: "STAFF" }, SOCIO_SFPR]);
     const dest = await resolveFotofficePostLoginDestination({ userId: 4 });
     expect(dest).toEqual({ path: "/portal", workspaceId: null });
     expect(findMock).not.toHaveBeenCalled();
+  });
+
+  it("con el portal recordado va al portal aunque sea admin", async () => {
+    readChoiceMock.mockResolvedValue("MEMBER:ws-sfpr");
+    const dest = await resolveFotofficePostLoginDestination({ userId: 4 });
+    expect(dest).toEqual({ path: "/portal", workspaceId: null });
   });
 
   it("con el panel recordado va al panel de esa institución", async () => {

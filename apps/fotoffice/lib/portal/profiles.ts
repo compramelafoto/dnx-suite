@@ -93,7 +93,8 @@ export function hasProfilesInSeveralWorkspaces(profiles: UserProfile[]): boolean
  *
  * - Sin perfiles: `none` (sigue el camino de quien no se reconoce).
  * - Todos en UNA institución: no hay nada que elegir entre instituciones. Entra con el perfil
- *   recordado si sigue siendo suyo; si no, como socio (el caso más común); si no, como equipo.
+ *   recordado si sigue siendo suyo; si no, al panel si es dueño o admin (lo usa a diario); si
+ *   no, como socio; si no, como equipo (p. ej. STAFF sin ficha de socio).
  *   Cambiar entre portal y panel es un botón, no una pregunta.
  * - En más de una institución: entra con el recordado si sigue siendo suyo; si no, se pregunta.
  *
@@ -110,10 +111,20 @@ export function resolveEntryProfile(
 
   if (hasProfilesInSeveralWorkspaces(profiles)) return { kind: "ask" };
 
+  const runsThePanel = profiles.find(
+    (p) => p.kind === "TEAM" && PANEL_DAILY_ROLES.has(p.role),
+  );
+  if (runsThePanel) return { kind: "go", profile: runsThePanel };
+
   const member = profiles.find((p) => p.kind === "MEMBER");
-  const team = profiles.find((p) => p.kind === "TEAM");
-  return { kind: "go", profile: (member ?? team)! };
+  if (member) return { kind: "go", profile: member };
+
+  // Quedan sólo perfiles de equipo sin rol de administración (STAFF) — y hay al menos uno.
+  return { kind: "go", profile: profiles[0] };
 }
+
+/** Roles que administran la institución a diario: con ellos el panel es la entrada natural. */
+const PANEL_DAILY_ROLES = new Set(["WORKSPACE_OWNER", "WORKSPACE_ADMIN"]);
 
 /** El perfil del otro tipo (equipo ⇄ socio) en la MISMA institución, si la persona lo tiene. */
 export function counterpartProfile(

@@ -86,8 +86,8 @@ export async function resolveFotofficePostLoginDestination(params: {
 
   /**
    * Con qué perfil entra. Sólo se pregunta cuando los perfiles están repartidos en más de una
-   * institución: equipo y socio de la MISMA institución entra directo (por defecto al portal)
-   * y cambia con el botón del encabezado. Una elección recordada y válida se respeta siempre.
+   * institución: equipo y socio de la MISMA institución entra directo (al panel si es dueño o
+   * admin; si no, al portal) y cambia con el botón del encabezado. Una elección recordada y válida se respeta siempre.
    */
   const profiles = await listUserProfiles(user.id);
   const entry = resolveEntryProfile(profiles, await readProfileChoice());

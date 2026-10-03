@@ -118,7 +118,8 @@ describe("destino del perfil", () => {
  * Con qué perfil se entra.
  *
  * Quien tiene equipo y socio en la MISMA institución no tiene nada que elegir entre
- * instituciones: entra directo (por defecto al portal del socio) y cambia con un botón.
+ * instituciones: entra directo (al panel si lo administra a diario —dueño o admin—; si no,
+ * al portal del socio) y cambia con un botón.
  * Sólo se pregunta cuando los perfiles están repartidos en más de una institución.
  */
 describe("resolveEntryProfile", () => {
@@ -138,20 +139,40 @@ describe("resolveEntryProfile", () => {
     expect(resolveEntryProfile([teamA], null)).toEqual({ kind: "go", profile: teamA });
   });
 
-  it("equipo y socio de la misma institución, sin recordado: entra como socio", () => {
-    expect(resolveEntryProfile([teamA, socioA], null)).toEqual({ kind: "go", profile: socioA });
+  it("admin y socio de la misma institución, sin recordado: entra al panel", () => {
+    expect(resolveEntryProfile([teamA, socioA], null)).toEqual({ kind: "go", profile: teamA });
+  });
+
+  it("dueño y socio de la misma institución, sin recordado: entra al panel", () => {
+    const owner = { ...teamA, role: "WORKSPACE_OWNER" } as const;
+    expect(resolveEntryProfile([socioA, owner], null)).toEqual({ kind: "go", profile: owner });
+  });
+
+  it("staff y socio de la misma institución, sin recordado: entra como socio", () => {
+    const staff = { ...teamA, role: "STAFF" } as const;
+    expect(resolveEntryProfile([staff, socioA], null)).toEqual({ kind: "go", profile: socioA });
+  });
+
+  it("sólo staff: entra como equipo", () => {
+    const staff = { ...teamA, role: "STAFF" } as const;
+    expect(resolveEntryProfile([staff], null)).toEqual({ kind: "go", profile: staff });
+  });
+
+  it("con recordado de socio válido: entra como socio aunque sea admin", () => {
+    expect(resolveEntryProfile([teamA, socioA], "MEMBER:ws-a")).toEqual({ kind: "go", profile: socioA });
   });
 
   it("misma institución con recordado de equipo válido: entra como equipo", () => {
     expect(resolveEntryProfile([teamA, socioA], "TEAM:ws-a")).toEqual({ kind: "go", profile: teamA });
   });
 
-  it("recordado de otra institución que ya no tiene: entra como socio", () => {
-    expect(resolveEntryProfile([teamA, socioA], "TEAM:ws-b")).toEqual({ kind: "go", profile: socioA });
+  it("recordado de otra institución que ya no tiene: se descarta y vale el defecto", () => {
+    expect(resolveEntryProfile([teamA, socioA], "TEAM:ws-b")).toEqual({ kind: "go", profile: teamA });
   });
 
   it("recordado manipulado: no se cree", () => {
-    expect(resolveEntryProfile([teamA, socioA], "ADMIN:ws-a")).toEqual({ kind: "go", profile: socioA });
+    const staff = { ...teamA, role: "STAFF" } as const;
+    expect(resolveEntryProfile([staff, socioA], "ADMIN:ws-a")).toEqual({ kind: "go", profile: socioA });
   });
 
   it("dos instituciones sin recordado: pregunta", () => {
