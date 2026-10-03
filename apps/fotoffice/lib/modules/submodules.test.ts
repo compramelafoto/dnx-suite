@@ -7,7 +7,12 @@ import {
   submodulesFor,
   type SubmoduleAccess,
 } from "./submodules";
-import { CASH_CONFIGURE_ACTION, COVERAGES_COORDINATE_ACTION } from "@/lib/permissions/actions";
+import {
+  BOOKINGS_CONFIGURE_ACTION,
+  CASH_CONFIGURE_ACTION,
+  COVERAGES_COORDINATE_ACTION,
+  RAFFLES_CONDUCT_ACTION,
+} from "@/lib/permissions/actions";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { ICONOS } from "@/components/shell/nav-icons";
 import { personVocabulary } from "@/lib/vocabulario/personas";
@@ -29,7 +34,7 @@ const GESTIONA: SubmoduleAccess = {
     raffles: "MANAGE",
     "courses-sales": "MANAGE",
   },
-  actions: [CASH_CONFIGURE_ACTION, COVERAGES_COORDINATE_ACTION],
+  actions: [CASH_CONFIGURE_ACTION, COVERAGES_COORDINATE_ACTION, BOOKINGS_CONFIGURE_ACTION, RAFFLES_CONDUCT_ACTION],
 };
 
 /** Personal sin roles: ve el padrón y nada más. */
@@ -163,6 +168,21 @@ describe("submodulesFor — niveles y acciones sensibles", () => {
       "/coberturas",
       "/coberturas/colaboradores",
       "/coberturas/configuracion",
+    ]);
+  });
+
+  it("Reservas: espacios, extras y tarifas exigen bookings.configure; la agenda alcanza con ver", () => {
+    expect(hrefs("bookings", { levels: { bookings: "VIEW" }, actions: [] })).toEqual(["/reservas"]);
+    expect(hrefs("bookings", { levels: { bookings: "MANAGE" }, actions: [] })).toEqual(["/reservas"]);
+    expect(
+      hrefs("bookings", { levels: { bookings: "MANAGE" }, actions: [BOOKINGS_CONFIGURE_ACTION] }),
+    ).toEqual(["/reservas", "/reservas/espacios", "/reservas/extras", "/reservas/configuracion"]);
+  });
+
+  it("Sorteos: la lista y las entregas alcanzan con ver", () => {
+    expect(hrefs("raffles", { levels: { raffles: "VIEW" }, actions: [] })).toEqual([
+      "/sorteos",
+      "/sorteos/entregas",
     ]);
   });
 

@@ -6,11 +6,8 @@ import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { resolveEnabledNavModules } from "@/lib/modules/nav";
 import { submodulesFor } from "@/lib/modules/submodules";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
-import { getModuleLevels, hasModuleAction } from "@/lib/permissions/module-access";
+import { getGrantedActions, getModuleLevels } from "@/lib/permissions/module-access";
 import { hasLevel } from "@/lib/permissions/levels";
-import { CASH_CONFIGURE_ACTION, COVERAGES_COORDINATE_ACTION } from "@/lib/permissions/actions";
-import { CASH_MODULE_KEY } from "@/lib/cash/constants";
-import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
@@ -47,18 +44,12 @@ export default async function WorkspaceHomePage() {
     resolveWorkspaceRole(user.id, workspaceId),
     getModuleLevels(user.id, workspaceId),
   ]);
-  const [datos, puedeConfigurarCaja, puedeCoordinarCoberturas] = await Promise.all([
+  const [datos, actions] = await Promise.all([
     loadWorkspaceHome({ workspaceId, levels, now }),
-    hasModuleAction(user.id, workspaceId, CASH_MODULE_KEY, CASH_CONFIGURE_ACTION),
-    hasModuleAction(user.id, workspaceId, COVERAGES_MODULE_KEY, COVERAGES_COORDINATE_ACTION),
+    getGrantedActions(user.id, workspaceId),
   ]);
-  const acceso = {
-    levels,
-    actions: [
-      ...(puedeConfigurarCaja ? [CASH_CONFIGURE_ACTION] : []),
-      ...(puedeCoordinarCoberturas ? [COVERAGES_COORDINATE_ACTION] : []),
-    ],
-  };
+  // Las mismas acciones sensibles que usa el menú lateral (`AdminShell`), con la misma función.
+  const acceso = { levels, actions };
   // Sólo para el aviso "Completar los datos de la institución", que lleva a Configuración.
   const admin = canManageWorkspaceSettings(role);
   // Una tarjeta por módulo que esta persona puede al menos ver: las de un módulo en NONE
@@ -85,7 +76,6 @@ export default async function WorkspaceHomePage() {
       publicSlug={branding?.publicSlug ?? null}
       datos={datos}
       vocabulary={vocabulary}
-      admin={admin}
       puedeCrearSocio={puedeAdministrarSocios && enabled.has(MEMBERS_MODULE_KEY)}
       faltaConfigurar={faltaConfigurar}
       modulos={modulos.map((m) => ({

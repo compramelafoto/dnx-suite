@@ -15,7 +15,7 @@ import { createCalendarClient, isCalendarPermissionError } from "@/lib/bookings/
 import { pairsForSpace } from "@/lib/bookings/conflicts";
 import { cancelBooking, createBooking } from "@/lib/bookings/create";
 import { approveBooking, confirmTransferPayment } from "@/lib/bookings/lifecycle";
-import { requireBookingsAdmin, requireBookingsStaff } from "@/lib/bookings/access";
+import { requireBookingsConfigurer, requireBookingsOperator } from "@/lib/bookings/access";
 import { slugify } from "@/lib/slug";
 import { parseLocalDateTime } from "@/lib/bookings/local-datetime";
 import { BOOKINGS_TIME_ZONE } from "@/lib/bookings/time";
@@ -31,7 +31,7 @@ const ESPACIOS = "/reservas/espacios";
  * verificar— que un diff. Si algo falla, no queda un espacio a medio configurar.
  */
 export async function saveSpaceAction(formData: FormData): Promise<void> {
-  const { workspace } = await requireBookingsAdmin();
+  const { workspace } = await requireBookingsConfigurer();
 
   const spaceId = String(formData.get("spaceId") ?? "").trim() || null;
   const destinoError = spaceId ? `${ESPACIOS}/${spaceId}` : `${ESPACIOS}/nuevo`;
@@ -113,7 +113,7 @@ export async function saveSpaceAction(formData: FormData): Promise<void> {
  * la institución el registro de lo que alquiló.
  */
 export async function toggleSpaceActiveAction(formData: FormData): Promise<void> {
-  const { workspace } = await requireBookingsAdmin();
+  const { workspace } = await requireBookingsConfigurer();
   const spaceId = String(formData.get("spaceId") ?? "").trim();
   const activar = formData.get("active") === "on";
 
@@ -135,7 +135,7 @@ export async function toggleSpaceActiveAction(formData: FormData): Promise<void>
  * en el acto porque el dinero ya lo tiene la institución.
  */
 export async function createManualBookingAction(formData: FormData): Promise<void> {
-  const { user, workspace } = await requireBookingsStaff();
+  const { user, workspace } = await requireBookingsOperator();
   const NUEVA = "/reservas/nueva";
 
   const spaceId = String(formData.get("spaceId") ?? "").trim();
@@ -174,7 +174,7 @@ export async function createManualBookingAction(formData: FormData): Promise<voi
 
 /** Cancelar desde la agenda del equipo. */
 export async function cancelBookingAction(formData: FormData): Promise<void> {
-  const { user, workspace } = await requireBookingsStaff();
+  const { user, workspace } = await requireBookingsOperator();
   const bookingId = String(formData.get("bookingId") ?? "").trim();
   const reason = String(formData.get("reason") ?? "").trim() || "Cancelada por la institución";
 
@@ -194,7 +194,7 @@ const EXTRAS = "/reservas/extras";
 
 /** Plazos de la institución: cuánto vive un bloqueo y hasta cuándo se puede cancelar. */
 export async function saveBookingSettingsAction(formData: FormData): Promise<void> {
-  const { workspace } = await requireBookingsAdmin();
+  const { workspace } = await requireBookingsConfigurer();
   const holdHours = Math.max(1, Number(formData.get("holdHours") ?? 24) || 24);
   const cancelWindowHours = Math.max(0, Number(formData.get("cancelWindowHours") ?? 24) || 0);
 
@@ -210,7 +210,7 @@ export async function saveBookingSettingsAction(formData: FormData): Promise<voi
 
 /** Feriados, vacaciones, mantenimiento. Sin espacio = toda la institución. */
 export async function addClosureAction(formData: FormData): Promise<void> {
-  const { workspace } = await requireBookingsAdmin();
+  const { workspace } = await requireBookingsConfigurer();
   const startAt = parseLocalDateTime(String(formData.get("startAt") ?? ""), BOOKINGS_TIME_ZONE);
   const endAt = parseLocalDateTime(String(formData.get("endAt") ?? ""), BOOKINGS_TIME_ZONE);
   const reason = String(formData.get("reason") ?? "").trim();
@@ -238,7 +238,7 @@ export async function addClosureAction(formData: FormData): Promise<void> {
 }
 
 export async function deleteClosureAction(formData: FormData): Promise<void> {
-  const { workspace } = await requireBookingsAdmin();
+  const { workspace } = await requireBookingsConfigurer();
   await prisma.bookingClosure.deleteMany({
     where: { id: String(formData.get("closureId") ?? "").trim(), workspaceId: workspace.id },
   });
@@ -249,7 +249,7 @@ export async function deleteClosureAction(formData: FormData): Promise<void> {
 
 /** El inventario: qué hay y cuántos. */
 export async function saveResourceAction(formData: FormData): Promise<void> {
-  const { workspace } = await requireBookingsAdmin();
+  const { workspace } = await requireBookingsConfigurer();
   const name = String(formData.get("name") ?? "").trim();
   const quantity = Math.max(0, Number(formData.get("quantity") ?? 0) || 0);
   const resourceId = String(formData.get("resourceId") ?? "").trim() || null;
@@ -277,7 +277,7 @@ export async function saveResourceAction(formData: FormData): Promise<void> {
  * la pantalla lo avisa antes.
  */
 export async function deleteResourceAction(formData: FormData): Promise<void> {
-  const { workspace } = await requireBookingsAdmin();
+  const { workspace } = await requireBookingsConfigurer();
   await prisma.bookingResource.deleteMany({
     where: { id: String(formData.get("resourceId") ?? "").trim(), workspaceId: workspace.id },
   });
@@ -286,7 +286,7 @@ export async function deleteResourceAction(formData: FormData): Promise<void> {
 }
 
 export async function saveExtraAction(formData: FormData): Promise<void> {
-  const { workspace } = await requireBookingsAdmin();
+  const { workspace } = await requireBookingsConfigurer();
   const extraId = String(formData.get("extraId") ?? "").trim() || null;
 
   const parsed = parseExtraForm(formData);
@@ -344,7 +344,7 @@ export async function saveExtraAction(formData: FormData): Promise<void> {
 
 /** Un extra se desactiva, no se borra: hay reservas que lo contrataron. */
 export async function toggleExtraActiveAction(formData: FormData): Promise<void> {
-  const { workspace } = await requireBookingsAdmin();
+  const { workspace } = await requireBookingsConfigurer();
   await prisma.bookingExtra.updateMany({
     where: { id: String(formData.get("extraId") ?? "").trim(), workspaceId: workspace.id },
     data: { active: formData.get("active") === "on" },
@@ -355,7 +355,7 @@ export async function toggleExtraActiveAction(formData: FormData): Promise<void>
 
 /** La Secretaría confirma que la transferencia llegó. */
 export async function confirmTransferAction(formData: FormData): Promise<void> {
-  const { user, workspace } = await requireBookingsStaff();
+  const { user, workspace } = await requireBookingsOperator();
   const bookingId = String(formData.get("bookingId") ?? "").trim();
 
   const r = await confirmTransferPayment({
@@ -375,7 +375,7 @@ export async function confirmTransferAction(formData: FormData): Promise<void> {
  * baja antes de que salga el enlace de pago.
  */
 export async function approveBookingAction(formData: FormData): Promise<void> {
-  const { user, workspace } = await requireBookingsStaff();
+  const { user, workspace } = await requireBookingsOperator();
   const bookingId = String(formData.get("bookingId") ?? "").trim();
   const removeExtraLineIds = formData.getAll("removeExtraLineIds").map((v) => String(v));
 
@@ -392,7 +392,7 @@ export async function approveBookingAction(formData: FormData): Promise<void> {
 
 /** Rechazar es cancelar con un motivo. Reutiliza el mismo camino. */
 export async function rejectBookingAction(formData: FormData): Promise<void> {
-  const { user, workspace } = await requireBookingsStaff();
+  const { user, workspace } = await requireBookingsOperator();
   const bookingId = String(formData.get("bookingId") ?? "").trim();
   const reason = String(formData.get("reason") ?? "").trim() || "Rechazada por la institución";
 
@@ -417,7 +417,7 @@ export async function rejectBookingAction(formData: FormData): Promise<void> {
  * calendario y dejarían tapando horarios que ya no ocupa nadie.
  */
 export async function setSpaceCalendarAction(formData: FormData): Promise<void> {
-  const { workspace } = await requireBookingsAdmin();
+  const { workspace } = await requireBookingsConfigurer();
   const spaceId = String(formData.get("spaceId") ?? "").trim();
   const elegido = String(formData.get("calendarId") ?? "").trim();
 

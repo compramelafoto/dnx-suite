@@ -9,7 +9,6 @@ import {
   isFullAccessRole,
   isModuleEffectivelyEnabled,
   legacyStaffLevel,
-  manageFlagFor,
   maxLevel,
   resolveModuleAction,
   resolveModuleLevel,
@@ -69,8 +68,8 @@ describe("compatibilidad: STAFF sin asignaciones conserva lo de hoy", () => {
   it.each([
     [MEMBERS_MODULE_KEY, "VIEW"],
     [MEMBERSHIP_DUES_MODULE_KEY, "NONE"],
-    [BOOKINGS_MODULE_KEY, "VIEW"],
-    [RAFFLES_MODULE_KEY, "VIEW"],
+    [BOOKINGS_MODULE_KEY, "MANAGE"],
+    [RAFFLES_MODULE_KEY, "MANAGE"],
     [CASH_MODULE_KEY, "MANAGE"],
     [CLIENTS_MODULE_KEY, "MANAGE"],
     [COVERAGES_MODULE_KEY, "MANAGE"],
@@ -145,17 +144,6 @@ describe("habilitación efectiva", () => {
   it("los demás módulos sólo cuentan con su propia llave", () => {
     expect(isModuleEffectivelyEnabled(RAFFLES_MODULE_KEY, new Set([MEMBERS_MODULE_KEY]))).toBe(false);
     expect(isModuleEffectivelyEnabled(RAFFLES_MODULE_KEY, new Set([RAFFLES_MODULE_KEY]))).toBe(true);
-  });
-});
-
-describe("manageFlagFor (menú)", () => {
-  it("en un módulo migrado decide el nivel", () => {
-    expect(manageFlagFor({ [RAFFLES_MODULE_KEY]: "VIEW" }, RAFFLES_MODULE_KEY, true)).toBe(false);
-    expect(manageFlagFor({ [RAFFLES_MODULE_KEY]: "MANAGE" }, RAFFLES_MODULE_KEY, false)).toBe(true);
-  });
-  it("en un módulo no migrado se usa el criterio de siempre", () => {
-    expect(manageFlagFor({}, "un-modulo-no-migrado", true)).toBe(true);
-    expect(manageFlagFor({}, "un-modulo-no-migrado", false)).toBe(false);
   });
 });
 

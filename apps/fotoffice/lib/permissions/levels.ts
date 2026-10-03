@@ -66,8 +66,12 @@ const LEGACY_STAFF_LEVELS: Readonly<Record<string, ModuleLevel>> = {
   [MEMBERS_MODULE_KEY]: "VIEW",
   // Cuotas exigía `canManageWorkspaceCollection`: sólo dueño o admin.
   [MEMBERSHIP_DUES_MODULE_KEY]: "NONE",
-  [BOOKINGS_MODULE_KEY]: "VIEW",
-  [RAFFLES_MODULE_KEY]: "VIEW",
+  // Reservas: el personal ya cargaba, cancelaba, aprobaba y confirmaba reservas (espacios,
+  // extras, tarifas y reglas son del dueño/admin: acción bookings.configure).
+  [BOOKINGS_MODULE_KEY]: "MANAGE",
+  // Sorteos: el personal ya entregaba premios y reintentaba avisos (crear, anunciar, sellar,
+  // resolver y cancelar son del dueño/admin: acción raffles.conduct).
+  [RAFFLES_MODULE_KEY]: "MANAGE",
   // Caja: el personal ve el libro, carga y anula movimientos, pases, turnos y reportes (cuentas y categorías son del dueño/admin: acción cash.configure).
   [CASH_MODULE_KEY]: "MANAGE",
   // Clientes: el personal lista, crea, edita y desactiva.
@@ -168,13 +172,4 @@ export function resolveModuleAction(input: {
         (p) => p.moduleKey === input.moduleKey && p.level === "MANAGE" && p.actions.includes(input.action),
       ),
   );
-}
-
-/**
- * Bandera "puede gestionar" para el menú y el inicio. En los módulos migrados decide el
- * nivel; en el resto se mantiene el criterio de antes (`adminFallback`) hasta la etapa 4.
- */
-export function manageFlagFor(levels: ModuleLevels, moduleKey: string, adminFallback: boolean): boolean {
-  if (!(moduleKey in LEGACY_STAFF_LEVELS)) return adminFallback;
-  return levels[moduleKey] === "MANAGE";
 }

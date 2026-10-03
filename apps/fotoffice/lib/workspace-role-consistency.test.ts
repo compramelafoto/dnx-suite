@@ -84,8 +84,9 @@ describe("resolución de rol de workspace — menú y páginas leen lo mismo", (
     assert.match(layoutSrc, /levels=\{levels\}/);
     assert.doesNotMatch(layoutSrc, /manageFlagFor/);
     // Las acciones sensibles que el menú necesita se calculan en el servidor con la misma puerta.
-    assert.match(layoutSrc, /hasModuleAction\([^)]*CASH_CONFIGURE_ACTION/);
-    assert.match(layoutSrc, /hasModuleAction\([^)]*COVERAGES_COORDINATE_ACTION/);
+    // `getGrantedActions` recorre todo el catálogo: una acción nueva llega sola al menú.
+    assert.match(layoutSrc, /getGrantedActions\(user\.id, workspace\.id\)/);
+    assert.match(workspaceHomeSrc, /getGrantedActions\(user\.id, workspaceId\)/);
     // Configuración sigue siendo de dueño/admin: no se delega (diseño de roles, §4).
     assert.match(layoutSrc, /canManageWorkspaceSettings\(activeRole\)/);
   });

@@ -6,7 +6,11 @@ import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
-import { CASH_CONFIGURE_ACTION, COVERAGES_COORDINATE_ACTION } from "@/lib/permissions/actions";
+import {
+  BOOKINGS_CONFIGURE_ACTION,
+  CASH_CONFIGURE_ACTION,
+  COVERAGES_COORDINATE_ACTION,
+} from "@/lib/permissions/actions";
 import { hasLevel, type ModuleLevels } from "@/lib/permissions/levels";
 import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
@@ -162,6 +166,7 @@ const RESERVAS: SubmoduleItem[] = [
     icon: "DoorOpen",
     description: "Qué se alquila, cuándo, a qué precio y con qué otros espacios puede convivir.",
     requiresManage: true,
+    requiresAction: BOOKINGS_CONFIGURE_ACTION,
     activeMatch: "under",
   },
   {
@@ -170,6 +175,7 @@ const RESERVAS: SubmoduleItem[] = [
     icon: "PackagePlus",
     description: "El equipamiento que se alquila junto con un espacio, y cuánto hay de cada cosa.",
     requiresManage: true,
+    requiresAction: BOOKINGS_CONFIGURE_ACTION,
     activeMatch: "under",
   },
   {
@@ -178,6 +184,7 @@ const RESERVAS: SubmoduleItem[] = [
     icon: "CalendarClock",
     description: "Plazos de pago, cancelación y cierres por feriado.",
     requiresManage: true,
+    requiresAction: BOOKINGS_CONFIGURE_ACTION,
     activeMatch: "under",
   },
 ];

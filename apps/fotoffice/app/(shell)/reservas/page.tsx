@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { decimalArsToMinor, formatMinorArs } from "@/lib/membership/money";
-import { requireBookingsStaff } from "@/lib/bookings/access";
+import { requireBookingsViewer } from "@/lib/bookings/access";
 import { listBookingsInRange, listSpaces } from "@/lib/bookings/repository";
 import { BOOKINGS_TIME_ZONE, localMoment, minuteOfDayToLabel } from "@/lib/bookings/time";
 import { shiftWeeks, weekDays, weekRange } from "@/lib/bookings/week";
@@ -27,7 +27,8 @@ export default async function AgendaPage({
 }: {
   searchParams: Promise<{ semana?: string; error?: string; ok?: string }>;
 }) {
-  const { workspace } = await requireBookingsStaff();
+  // Con VIEW se ve la agenda; cargar, cancelar, aprobar y confirmar piden operar (MANAGE).
+  const { workspace, canOperate, canConfigure } = await requireBookingsViewer();
   const params = await searchParams;
 
   const ancla = params.semana ? new Date(params.semana) : new Date();
@@ -69,9 +70,11 @@ export default async function AgendaPage({
             >
               Semana siguiente
             </Link>
-            <Link href="/reservas/nueva" className="fo-btn fo-btn-primary text-sm">
-              Cargar reserva
-            </Link>
+            {canOperate ? (
+              <Link href="/reservas/nueva" className="fo-btn fo-btn-primary text-sm">
+                Cargar reserva
+              </Link>
+            ) : null}
           </>
         }
       />
@@ -88,9 +91,11 @@ export default async function AgendaPage({
           <p className="text-sm text-[var(--fo-muted)]">
             Todavía no hay espacios cargados, así que no hay nada que agendar.
           </p>
-          <Link href="/reservas/espacios/nuevo" className="fo-btn fo-btn-primary text-sm">
-            Cargar el primer espacio
-          </Link>
+          {canConfigure ? (
+            <Link href="/reservas/espacios/nuevo" className="fo-btn fo-btn-primary text-sm">
+              Cargar el primer espacio
+            </Link>
+          ) : null}
         </div>
       ) : (
         <div className="space-y-4">
@@ -132,7 +137,7 @@ export default async function AgendaPage({
                             <span className="text-sm">
                               {formatMinorArs(decimalArsToMinor(reserva.totalArs))}
                             </span>
-                            {inactiva ? null : (
+                            {inactiva || !canOperate ? null : (
                               <form action={cancelBookingAction}>
                                 <input type="hidden" name="bookingId" value={reserva.id} />
                                 <button
@@ -157,7 +162,8 @@ export default async function AgendaPage({
                             </p>
                           ) : null}
 
-                          {reserva.status === "HOLD" &&
+                          {canOperate &&
+                          reserva.status === "HOLD" &&
                           reserva.paymentMethod === "TRANSFERENCIA" ? (
                             <form action={confirmTransferAction} className="w-full">
                               <input type="hidden" name="bookingId" value={reserva.id} />
@@ -167,7 +173,7 @@ export default async function AgendaPage({
                             </form>
                           ) : null}
 
-                          {reserva.status === "PENDING_APPROVAL" ? (
+                          {canOperate && reserva.status === "PENDING_APPROVAL" ? (
                             <div className="w-full space-y-2 rounded-[var(--fo-radius)] border border-[var(--fo-border)] p-3">
                               <form action={approveBookingAction} className="space-y-2">
                                 <input type="hidden" name="bookingId" value={reserva.id} />

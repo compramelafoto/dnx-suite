@@ -57,7 +57,6 @@ export type WorkspaceHomeProps = {
   publicSlug: string | null;
   datos: HomeData;
   vocabulary: PersonVocabulary;
-  admin: boolean;
   puedeCrearSocio: boolean;
   /** Para "Completar los datos de la institución". Vacío si no falta nada o no es admin. */
   faltaConfigurar: string[];

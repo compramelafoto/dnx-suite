@@ -1,10 +1,7 @@
 import { cookies } from "next/headers";
 import { prisma } from "@repo/db";
 import { resolveActiveWorkspace } from "@/lib/workspace";
-import { CASH_MODULE_KEY } from "@/lib/cash/constants";
-import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
-import { getModuleLevels, hasModuleAction } from "@/lib/permissions/module-access";
-import { CASH_CONFIGURE_ACTION, COVERAGES_COORDINATE_ACTION } from "@/lib/permissions/actions";
+import { getGrantedActions, getModuleLevels } from "@/lib/permissions/module-access";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { isFotofficePlatformAdmin } from "@/lib/platform-admin";
@@ -53,17 +50,7 @@ export async function AdminShell({ user, children }: { user: PanelUser; children
   const canManageWorkspaceSettingsFlag = canManageWorkspaceSettings(activeRole);
   // Las acciones sensibles que alguna entrada del menú exige. Se calculan acá, en el servidor:
   // el menú es un componente de cliente y sólo recibe la lista ya resuelta.
-  const [puedeConfigurarCaja, puedeCoordinarCoberturas] =
-    workspace !== null
-      ? await Promise.all([
-          hasModuleAction(user.id, workspace.id, CASH_MODULE_KEY, CASH_CONFIGURE_ACTION),
-          hasModuleAction(user.id, workspace.id, COVERAGES_MODULE_KEY, COVERAGES_COORDINATE_ACTION),
-        ])
-      : [false, false];
-  const actions = [
-    ...(puedeConfigurarCaja ? [CASH_CONFIGURE_ACTION] : []),
-    ...(puedeCoordinarCoberturas ? [COVERAGES_COORDINATE_ACTION] : []),
-  ];
+  const actions = workspace !== null ? await getGrantedActions(user.id, workspace.id) : [];
   const platformAdmin = await isFotofficePlatformAdmin(user.id);
   // Sin workspace activo (recién invitado, todavía sin `ensure`) no hay fila que leer: el
   // vocabulario por omisión es lo correcto, ya que tampoco hay ningún módulo habilitado.

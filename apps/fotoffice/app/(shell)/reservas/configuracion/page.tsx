@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@repo/db";
 import { PageHeader } from "@/components/page-header";
-import { requireBookingsAdmin } from "@/lib/bookings/access";
+import { requireBookingsConfigurer } from "@/lib/bookings/access";
 import { getBookingSettings, listSpaces } from "@/lib/bookings/repository";
 import { BOOKINGS_TIME_ZONE } from "@/lib/bookings/time";
 import { GOOGLE_CALENDAR_INTEGRATION_KEY } from "@/lib/integrations/registry";
@@ -15,7 +15,7 @@ export default async function ReservasConfiguracionPage({
 }: {
   searchParams: Promise<{ error?: string; ok?: string }>;
 }) {
-  const { workspace } = await requireBookingsAdmin();
+  const { workspace } = await requireBookingsConfigurer();
   const params = await searchParams;
 
   const [settings, espacios, calendario, cierres] = await Promise.all([

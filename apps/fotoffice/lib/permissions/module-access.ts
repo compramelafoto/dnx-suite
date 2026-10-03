@@ -13,6 +13,7 @@ import {
   type ModuleLevels,
   type RoleAssignmentForLevels,
 } from "./levels";
+import { MODULE_ACTIONS } from "./actions";
 
 /**
  * La única puerta para saber qué puede hacer alguien en un módulo (diseño de roles, §9).
@@ -129,4 +130,31 @@ export async function hasModuleAction(
     assignments,
     now: new Date(),
   });
+}
+
+/**
+ * Todas las acciones sensibles del catálogo que esta persona tiene vigentes en este workspace.
+ *
+ * Es lo que necesitan el menú y el inicio para filtrar las pantallas con `requiresAction`: se
+ * calcula en el servidor con la misma regla que `hasModuleAction`, y así una acción nueva del
+ * catálogo llega al menú sin acordarse de sumarla a mano en cada lugar.
+ */
+export async function getGrantedActions(userId: number, workspaceId: string): Promise<string[]> {
+  const { enabled, workspaceRole, assignments } = await loadLevelInputs(userId, workspaceId);
+  const now = new Date();
+  const out: string[] = [];
+  for (const [moduleKey, defs] of Object.entries(MODULE_ACTIONS)) {
+    for (const def of defs) {
+      const ok = resolveModuleAction({
+        moduleKey,
+        action: def.key,
+        moduleEnabled: isModuleEffectivelyEnabled(moduleKey, enabled),
+        workspaceRole,
+        assignments,
+        now,
+      });
+      if (ok) out.push(def.key);
+    }
+  }
+  return out;
 }

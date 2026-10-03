@@ -14,7 +14,9 @@ vi.mock("@repo/db", async (importOriginal) => {
 vi.mock("@/lib/modules/gating", () => ({ getEnabledModuleKeysForWorkspace: H.enabled }));
 vi.mock("@/lib/workspace-role", () => ({ resolveWorkspaceRole: H.role }));
 
-const { getModuleLevel, getModuleLevels, hasModuleAction, hasModuleLevel } = await import("./module-access");
+const { getGrantedActions, getModuleLevel, getModuleLevels, hasModuleAction, hasModuleLevel } = await import(
+  "./module-access"
+);
 
 beforeEach(() => {
   H.findMany.mockReset().mockResolvedValue([]);
@@ -26,7 +28,7 @@ describe("getModuleLevels", () => {
   it("STAFF sin roles: lo de hoy", async () => {
     const levels = await getModuleLevels(7, "ws-1");
     expect(levels.members).toBe("VIEW");
-    expect(levels.raffles).toBe("VIEW");
+    expect(levels.raffles).toBe("MANAGE");
     expect(levels["membership-dues"]).toBe("NONE");
   });
 
@@ -99,8 +101,8 @@ describe("getModuleLevel y hasModuleLevel", () => {
   });
 
   it("hasModuleLevel compara contra el nivel pedido", async () => {
-    expect(await hasModuleLevel(7, "ws-1", "raffles", "VIEW")).toBe(true);
-    expect(await hasModuleLevel(7, "ws-1", "raffles", "MANAGE")).toBe(false);
+    expect(await hasModuleLevel(7, "ws-1", "members", "VIEW")).toBe(true);
+    expect(await hasModuleLevel(7, "ws-1", "members", "MANAGE")).toBe(false);
   });
 });
 
@@ -137,5 +139,39 @@ describe("hasModuleAction", () => {
     expect(await hasModuleAction(7, "ws-1", "cash", "cash.project_money")).toBe(false);
     H.enabled.mockResolvedValue(new Set());
     expect(await hasModuleAction(7, "ws-1", "cash", "cash.configure")).toBe(false);
+  });
+});
+
+describe("getGrantedActions", () => {
+  it("dueño: todas las acciones del catálogo de los módulos encendidos", async () => {
+    H.enabled.mockResolvedValue(new Set(["cash", "bookings", "raffles"]));
+    H.role.mockResolvedValue("WORKSPACE_OWNER");
+    expect([...(await getGrantedActions(7, "ws-1"))].sort()).toEqual([
+      "bookings.configure",
+      "cash.configure",
+      "cash.project_money",
+      "raffles.conduct",
+    ]);
+  });
+  it("STAFF sin roles: ninguna", async () => {
+    H.enabled.mockResolvedValue(new Set(["cash", "bookings", "raffles"]));
+    expect(await getGrantedActions(7, "ws-1")).toEqual([]);
+  });
+  it("con rol: sólo las que el rol vigente da con MANAGE", async () => {
+    H.enabled.mockResolvedValue(new Set(["bookings", "raffles"]));
+    H.findMany.mockResolvedValue([
+      {
+        startsAt: null,
+        endsAt: null,
+        revokedAt: null,
+        role: {
+          permissions: [
+            { moduleKey: "bookings", level: "MANAGE", actions: ["bookings.configure"] },
+            { moduleKey: "raffles", level: "VIEW", actions: ["raffles.conduct"] },
+          ],
+        },
+      },
+    ]);
+    expect(await getGrantedActions(7, "ws-1")).toEqual(["bookings.configure"]);
   });
 });
