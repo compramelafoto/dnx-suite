@@ -7,6 +7,7 @@ import {
 } from "@/lib/membership/studio-location";
 import { etiquetaEspecialidad } from "@/lib/membership/specialties";
 import { urlsDeRedes } from "./social-links";
+import { descripcionEfectiva, miniaturaEfectiva, tituloEfectivo } from "./seo-fields";
 import { PORTFOLIO_PUBLIC_SEGMENT } from "./constants";
 import type { PublicPortfolio } from "./public-queries";
 
@@ -46,29 +47,29 @@ export function portfolioPath(workspaceSlug: string, portfolioSlug: string): str
  * volver atrás.
  */
 export function miniaturaDeFicha(p: PublicPortfolio): string | null {
-  return p.businessLogoUrl ?? p.coverUrl ?? p.profilePhotoUrl ?? null;
+  return miniaturaEfectiva({
+    seoImageChoice: p.seoImageChoice,
+    logoUrl: p.businessLogoUrl,
+    coverUrl: p.coverUrl,
+    profilePhotoUrl: p.profilePhotoUrl,
+  });
 }
+
 
 /** Una descripción que sirva de resumen en Google, aunque el socio no haya escrito presentación. */
 export function descripcionDeFicha(p: PublicPortfolio, institucion: string): string {
-  const rubros = p.specialties.map((id) => etiquetaEspecialidad(id)).join(", ");
-  const donde = p.studio.city
-    ? `${p.studio.city}${p.studio.province ? `, ${p.studio.province}` : ""}`
-    : null;
-
-  const escrita = p.bio?.trim();
-  if (escrita) return escrita;
-
-  // Sin presentación, se arma una con lo que sí hay. Dejar la descripción vacía le entrega a
-  // Google la decisión de qué texto mostrar, y suele elegir mal.
-  const partes = [
-    p.businessName ?? p.displayName,
-    rubros || null,
-    donde ? `en ${donde}` : null,
-    `Socio de ${institucion}.`,
-  ].filter(Boolean);
-  return partes.join(" · ");
+  return descripcionEfectiva({
+    seoDescription: p.seoDescription,
+    bio: p.bio,
+    businessName: p.businessName,
+    displayName: p.displayName,
+    rubros: p.specialties.map((id) => etiquetaEspecialidad(id)),
+    city: p.studio.city,
+    province: p.studio.province,
+    institucion,
+  });
 }
+
 
 export function buildPortfolioMetadata(input: {
   portfolio: PublicPortfolio;
@@ -77,10 +78,15 @@ export function buildPortfolioMetadata(input: {
 }): Metadata {
   const { portfolio: p, institucion, workspaceSlug } = input;
   const url = absoluta(portfolioPath(workspaceSlug, p.publicSlug));
-  const descripcion = descripcionDeFicha(p, institucion).slice(0, 300);
+  // El tope ya lo aplica `descripcionEfectiva`; recortar acá otra vez sólo podría partir una palabra.
+  const descripcion = descripcionDeFicha(p, institucion);
   const imagen = miniaturaDeFicha(p);
-  const donde = p.studio.city ? ` · ${p.studio.city}` : "";
-  const titulo = `${p.displayName}${p.businessName ? ` · ${p.businessName}` : ""}${donde}`;
+  const titulo = tituloEfectivo({
+    seoTitle: p.seoTitle,
+    displayName: p.displayName,
+    businessName: p.businessName,
+    city: p.studio.city,
+  });
 
   return {
     title: titulo,
