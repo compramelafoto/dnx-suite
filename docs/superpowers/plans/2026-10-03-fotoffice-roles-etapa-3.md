@@ -61,3 +61,21 @@
 - [ ] Tests, build y eslint de lo tocado.
 - [ ] Push, PR contra `main`, fusionar (pedido explícito de Daniel: "aplicá todo directamente en producción") y verificar el deploy de producción en Vercel (`vercel ls fotoffice-dnxsuite --scope compramelafotos-projects`) hasta `Ready`, y que `https://fotoffice.com/login` responda 200.
 - [ ] Sin SQL en esta etapa.
+
+---
+
+### Task 4 (pedido de Daniel, 03/10): elegir institución al entrar y selector de rol en el menú lateral, como FotoRank
+
+Referencia visual y de código: `apps/fotorank/app/components/shell/SelectorDeRol.tsx` (bloque "ROL" arriba de la barra lateral, dos botones segmentados, el activo resaltado) y `menuDeLaCuenta.ts` (el rol activo sale de la pantalla en la que está la persona, no de un estado guardado).
+
+**Reglas:**
+- **Al iniciar sesión** con perfiles en más de una institución, `/elegir-perfil` ofrece **una tarjeta por institución** (no por perfil): "Tu negocio — <nombre>" → Administrar; "<SFPR> — <nombre>" → Entrar. Elegir una institución donde la persona tiene los dos perfiles la lleva a la vista por defecto de esa institución (`resolveEntryProfile` sobre los perfiles de esa institución: dueño/admin → panel; comisión → portal; recordado válido manda). Nueva acción `chooseInstitutionAction(formData)` con `workspaceId`; recalcula perfiles en el servidor; fija la cookie de perfil y, si va al panel, la de institución activa.
+- **Selector de rol en el menú lateral**, sólo si la persona tiene los dos perfiles (socio y equipo) en la institución que está viendo:
+  - Rótulo "Rol"; dos botones segmentados: **"{Socio}"** (palabra del vocabulario, singular con mayúscula) y **"Comisión"** si su rol de equipo es `STAFF`, **"Administración"** si es dueño o admin.
+  - El activo sale de dónde está: dentro del portal (`PortalShell`) el activo es Socio; dentro del panel (`AdminShell`/`ShellSidebar`) el activo es Comisión/Administración.
+  - Cada botón es un `<form>` con las acciones ya existentes `switchToPortalAction` / `switchToAdminAction` (con `workspaceId` oculto); el botón activo no hace nada (o es un `<span aria-current="page">`).
+  - Va arriba de la navegación del panel lateral del portal y del panel; en teléfono: en el panel, dentro del cajón del menú (ya contiene `ShellSidebar`); en el portal, arriba del contenido debajo del encabezado (el portal en teléfono usa barra inferior).
+  - Mismo estilo que el resto de FOTOFFICE (`--fo-*`, `fo-*`), sin colores nuevos: el activo con el color de acento del panel.
+- **Se quitan** los botones "Administración" (encabezado del portal) y "Mi portal" (encabezado del panel) de la Task 2; `headerSwitches` / `portalSwitchTexts` se reemplazan por una función pura `roleSelector(profiles, current, vocabulary)` → `null | { options: [{ kind, label, active }], workspaceId }` con tests (incluido: con un solo perfil en esa institución → `null`; perfiles en otra institución no cuentan; etiquetas por rol; palabra femenina del vocabulario).
+- "Cambiar de perfil" general (ícono) se mantiene sólo con perfiles en varias instituciones, ahora llevando a `/elegir-perfil` por institución.
+- Tests de `chooseInstitutionAction` (institución ajena → no cambia nada; institución con dos perfiles → vista por defecto; sólo negocio → panel con cookie).
