@@ -77,7 +77,7 @@ socio, transferencia, gift cards, facturación electrónica, combos, varias sucu
 
 ## 5. Modelo de datos
 
-Todo en `packages/db/prisma/schema.prisma`, migración nueva `20261004000000_store_base` (tablas nuevas +
+Todo en `packages/db/prisma/schema.prisma`, migración nueva `20261004200000_store_base` (tablas nuevas +
 dos columnas nulas). Se aplica a mano en las 4 bases con `Workspace`/`Client`, **antes** de
 desplegar el código, y se registra con su checksum.
 
