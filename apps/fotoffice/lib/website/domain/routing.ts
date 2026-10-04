@@ -22,6 +22,7 @@ export type CustomDomainDecision =
  */
 const FOTOFFICE_ONLY_SEGMENTS = new Set([
   "admin",
+  "aula",
   "bienvenida",
   "c",
   "caja",

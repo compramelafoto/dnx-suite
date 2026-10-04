@@ -31,6 +31,11 @@ describe("decideCustomDomainRoute", () => {
     expect(decide("/w/otra")).toEqual({ kind: "redirect", url: `${ORIGIN}/w/otra` });
   });
 
+  it("el aula del alumno y su recuperación van al dominio de FOTOFFICE", () => {
+    expect(decide("/aula/tok-123")).toEqual({ kind: "redirect", url: `${ORIGIN}/aula/tok-123` });
+    expect(decide("/aula/recuperar")).toEqual({ kind: "redirect", url: `${ORIGIN}/aula/recuperar` });
+  });
+
   it("no toca recursos de Next, la API ni archivos", () => {
     expect(decide("/_next/data/x.json")).toEqual({ kind: "pass" });
     expect(decide("/api/w/sfpr/blog/views")).toEqual({ kind: "pass" });

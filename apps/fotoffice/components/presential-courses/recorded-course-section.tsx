@@ -14,13 +14,15 @@ type Clase = {
  * La parte de venta de un curso grabado: qué clases trae, cuánto cuesta y el formulario.
  *
  * La muestra gratuita abre en el dominio de FOTOFFICE (`appUrl`) y no en el de la institución:
- * los videos sólo se reproducen desde fotoffice.com.
+ * los videos sólo se reproducen desde fotoffice.com. Sólo se ofrece con el curso publicado:
+ * la página de muestra exige PUBLISHED y un curso "Próximamente" daría un 404.
  */
 export function RecordedCourseSection({
   workspaceSlug,
   courseSlug,
   appUrl,
   precioArs,
+  accessMonths,
   publicado,
   clases,
 }: {
@@ -28,16 +30,18 @@ export function RecordedCourseSection({
   courseSlug: string;
   appUrl: string;
   precioArs: string | null;
+  accessMonths: number;
   publicado: boolean;
   clases: Clase[];
 }) {
   const total = clases.reduce((s, c) => s + (c.durationSeconds ?? 0), 0);
+  const plazo = accessMonths === 1 ? "1 mes" : `${accessMonths} meses`;
   return (
     <section className="fo-card space-y-4">
       <h2 className="text-xl font-semibold">Clases</h2>
       <p className="text-sm text-[var(--fo-muted)]">
         {clases.length} {clases.length === 1 ? "clase" : "clases"}
-        {total > 0 ? ` · ${duracionLegible(total)} en total` : ""} · Lo mirás a tu ritmo, durante 12 meses.
+        {total > 0 ? ` · ${duracionLegible(total)} en total` : ""} · Lo mirás a tu ritmo, durante {plazo}.
       </p>
       <ol className="space-y-2">
         {clases.map((clase, i) => (
@@ -55,7 +59,7 @@ export function RecordedCourseSection({
             </div>
             <div className="shrink-0 text-right text-sm text-[var(--fo-muted)]">
               <p>{duracionLegible(clase.durationSeconds)}</p>
-              {clase.isPreview && appUrl ? (
+              {clase.isPreview && publicado && appUrl ? (
                 <a
                   href={`${appUrl}/w/${workspaceSlug}/cursos/${courseSlug}/muestra/${clase.id}`}
                   className="text-[var(--fo-accent)] underline"

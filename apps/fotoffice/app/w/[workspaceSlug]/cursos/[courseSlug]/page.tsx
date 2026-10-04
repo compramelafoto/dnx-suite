@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { formatMoney } from "@/lib/format";
+import { appUrl as direccionDeLaApp } from "@/lib/app-url";
 import { computeAvailableSpots, getApprovedEnrollmentCountsByInstanceIds } from "@/lib/presential-courses/availability";
 import { RecordedCourseSection } from "@/components/presential-courses/recorded-course-section";
 import { PublicCourseEnrollmentForm } from "@/components/presential-courses/public-course-enrollment-form";
@@ -74,7 +75,7 @@ export default async function PublicCourseLandingPage({ params }: Props) {
   });
   if (!presentialCourse) notFound();
   const esCursoGrabado = presentialCourse.deliveryMode === "RECORDED";
-  const appUrl = (process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/+$/, "");
+  const appUrl = direccionDeLaApp();
   const approvedCounts = await getApprovedEnrollmentCountsByInstanceIds(
     presentialCourse.instances.map((instance) => instance.id),
   );
@@ -126,6 +127,7 @@ export default async function PublicCourseLandingPage({ params }: Props) {
           courseSlug={courseSlug}
           appUrl={appUrl}
           precioArs={presentialCourse.priceArs?.toString() ?? null}
+          accessMonths={presentialCourse.accessMonths}
           publicado={presentialCourse.status === "PUBLISHED"}
           clases={presentialCourse.lessons}
         />
