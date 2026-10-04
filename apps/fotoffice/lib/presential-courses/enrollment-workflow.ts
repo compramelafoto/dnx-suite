@@ -1,5 +1,6 @@
 import { Prisma, prisma } from "@repo/db";
 import { logCourseEvent } from "./log";
+import { avisarAccesoAlAula } from "@/lib/course-classroom/grant";
 import { sendEnrollmentApprovedEmail } from "./email";
 import { loadWorkspaceSignature } from "@/lib/communications/load-workspace-signature";
 import { computeAvailableSpots, getApprovedEnrollmentCountsByInstanceIds } from "./availability";
@@ -169,14 +170,15 @@ export async function approveCourseEnrollment(args: {
   });
 
   // El correo de confirmación cuenta cuándo y dónde es el curso: sin edición no tiene qué
-  // decir. El aviso del curso grabado es otro —lleva el acceso al aula, no una dirección— y
-  // se escribe en la etapa del alumno. Hasta entonces, se aprueba sin mandar nada y queda
-  // registrado, que es mejor que mandar un correo con fechas inventadas.
+  // decir. El curso grabado no tiene edición: su aviso lleva el enlace al aula y lo arma
+  // `lib/course-classroom/grant.ts`.
   if (!instancia) {
-    logCourseEvent("aprobada_sin_aviso_por_ser_grabado", {
+    await avisarAccesoAlAula({
       enrollmentId: enrollment.id,
       workspaceId: enrollment.workspaceId,
-      courseId: enrollment.courseId,
+      to: enrollment.email,
+      studentName: enrollment.name,
+      courseTitle: enrollment.course.title,
     });
     return { ok: true, alreadyApproved: false as const };
   }

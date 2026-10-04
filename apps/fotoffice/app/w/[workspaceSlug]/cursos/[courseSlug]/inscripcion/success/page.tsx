@@ -66,6 +66,18 @@ export default async function CourseEnrollmentSuccessPage({ params, searchParams
           Curso: <strong className="text-[var(--fo-text)]">{enrollment.course.title}</strong>
         </p>
         <p className="text-sm text-[var(--fo-muted)]">{statusMessage}</p>
+        {approved && enrollment.course.deliveryMode === "RECORDED" ? (
+          <div className="space-y-2 rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] p-4">
+            <h2 className="font-semibold">Tu aula</h2>
+            <p className="text-sm text-[var(--fo-muted)]">
+              Te mandamos a <strong className="text-[var(--fo-text)]">{enrollment.email}</strong> el
+              enlace para entrar. Si no lo ves, revisá el correo no deseado.
+            </p>
+            <Link href="/aula/recuperar" className="text-sm text-[var(--fo-accent)] underline">
+              No me llegó el correo
+            </Link>
+          </div>
+        ) : null}
         {canShowClassroom ? (
           <div className="space-y-3 rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] p-4">
             <h2 className="font-semibold">Acceso al aula</h2>
