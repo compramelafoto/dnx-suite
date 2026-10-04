@@ -71,6 +71,8 @@ describe("reenviar el enlace del aula", () => {
     to: "ana@example.com",
     studentName: "Ana",
     courseTitle: `Curso ${id}`,
+    tokenHash: `hash-viejo-${id}`,
+    ultimaRotacion: new Date(Date.UTC(2026, 8, 1)),
   });
 
   function depsReenvio(parcial: Partial<ReenvioDeps> = {}): ReenvioDeps {
@@ -107,6 +109,57 @@ describe("reenviar el enlace del aula", () => {
   it("un correo que no parece correo ni consulta", async () => {
     const d = depsReenvio();
     expect(await reenviarEnlaces("hola", d, ahora)).toEqual({ enviados: 0 });
+    expect(d.buscar).not.toHaveBeenCalled();
+  });
+
+  it("si el envío falla restaura el hash viejo y sigue con el siguiente", async () => {
+    const enviar = vi
+      .fn()
+      .mockResolvedValueOnce({ sent: false, reason: "resend caído" })
+      .mockResolvedValueOnce({ sent: true });
+    const d = depsReenvio({ enviar });
+    expect(await reenviarEnlaces("ana@example.com", d, ahora)).toEqual({ enviados: 1 });
+    expect(d.guardarHash).toHaveBeenCalledWith("a1", "hash-viejo-a1");
+    expect(d.guardarHash).not.toHaveBeenCalledWith("a2", "hash-viejo-a2");
+    expect(enviar).toHaveBeenCalledTimes(2);
+  });
+
+  it("si enviar lanza restaura el hash viejo y sigue con el siguiente", async () => {
+    const enviar = vi.fn().mockRejectedValueOnce(new Error("boom")).mockResolvedValueOnce({ sent: true });
+    const d = depsReenvio({ enviar });
+    expect(await reenviarEnlaces("ana@example.com", d, ahora)).toEqual({ enviados: 1 });
+    expect(d.guardarHash).toHaveBeenCalledWith("a1", "hash-viejo-a1");
+    expect(enviar).toHaveBeenCalledTimes(2);
+  });
+
+  it("si cargarFirma lanza también restaura el hash viejo", async () => {
+    const d = depsReenvio({ cargarFirma: vi.fn().mockRejectedValue(new Error("firma")) });
+    expect(await reenviarEnlaces("ana@example.com", d, ahora)).toEqual({ enviados: 0 });
+    expect(d.guardarHash).toHaveBeenCalledWith("a1", "hash-viejo-a1");
+    expect(d.guardarHash).toHaveBeenCalledWith("a2", "hash-viejo-a2");
+  });
+
+  it("un acceso rotado hace 2 minutos se saltea y otro de hace 10 se procesa", async () => {
+    const d = depsReenvio({
+      buscar: vi.fn().mockResolvedValue([
+        { ...acceso("reciente"), ultimaRotacion: new Date(ahora.getTime() - 2 * 60 * 1000) },
+        { ...acceso("viejo"), ultimaRotacion: new Date(ahora.getTime() - 10 * 60 * 1000) },
+      ]),
+    });
+    expect(await reenviarEnlaces("ana@example.com", d, ahora)).toEqual({ enviados: 1 });
+    expect(d.guardarHash).toHaveBeenCalledTimes(1);
+    expect(d.guardarHash).toHaveBeenCalledWith("viejo", expect.any(String));
+  });
+
+  it("el reenvío sale marcado como reenvío", async () => {
+    const d = depsReenvio();
+    await reenviarEnlaces("ana@example.com", d, ahora);
+    expect(d.enviar).toHaveBeenCalledWith(expect.objectContaining({ reenvio: true }));
+  });
+
+  it("sin APP_URL no hace nada", async () => {
+    const d = depsReenvio({ base: "" });
+    expect(await reenviarEnlaces("ana@example.com", d, ahora)).toEqual({ enviados: 0 });
     expect(d.buscar).not.toHaveBeenCalled();
   });
 });

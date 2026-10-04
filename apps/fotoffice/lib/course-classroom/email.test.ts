@@ -41,4 +41,16 @@ describe("correo con el enlace al aula", () => {
   it("escaparHtml cubre comillas", () => {
     expect(escaparHtml(`"a" & 'b'`)).toBe("&quot;a&quot; &amp; &#39;b&#39;");
   });
+
+  it("el reenvío no dice que el pago fue aprobado y avisa que el enlace anterior no sirve", () => {
+    const { html, text } = buildClassroomAccessEmailBody({ ...input, courseTitle: "Retrato <i>", reenvio: true }, null);
+    expect(html).toContain("Te mandamos un enlace nuevo para entrar a <strong>Retrato &lt;i&gt;</strong>. El anterior ya no funciona.");
+    expect(text).toContain("Te mandamos un enlace nuevo para entrar a Retrato <i>. El anterior ya no funciona.");
+    expect(html).not.toContain("Tu pago fue aprobado");
+    expect(text).not.toContain("Tu pago fue aprobado");
+  });
+
+  it("sin reenvío sigue diciendo que el pago fue aprobado", () => {
+    expect(buildClassroomAccessEmailBody(input, null).text).toContain("Tu pago fue aprobado");
+  });
 });

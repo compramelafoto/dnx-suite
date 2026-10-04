@@ -29,6 +29,8 @@ type CuerpoInput = {
   courseTitle: string;
   enlace: string;
   expiresAt: Date;
+  /** Es un enlace nuevo pedido por el alumno, no el primer aviso de pago. */
+  reenvio?: boolean;
 };
 
 export function buildClassroomAccessEmailBody(
@@ -43,10 +45,17 @@ export function buildClassroomAccessEmailBody(
     ? `\n  <div id="fo-signature" style="margin-top:16px;">${signature.html}</div>`
     : "";
 
+  const intro = input.reenvio
+    ? `Te mandamos un enlace nuevo para entrar a <strong>${curso}</strong>. El anterior ya no funciona.`
+    : `Tu pago fue aprobado. Ya podés entrar a <strong>${curso}</strong>.`;
+  const introTexto = input.reenvio
+    ? `Te mandamos un enlace nuevo para entrar a ${input.courseTitle}. El anterior ya no funciona.`
+    : `Tu pago fue aprobado. Ya podés entrar a ${input.courseTitle}.`;
+
   const html = `
 <div>
   <p>Hola ${nombre},</p>
-  <p>Tu pago fue aprobado. Ya podés entrar a <strong>${curso}</strong>.</p>
+  <p>${intro}</p>
   <p><a href="${enlace}">Entrar al aula</a></p>
   <p>Ese enlace es personal: es tu llave del curso. No lo compartas.</p>
   <p>Tenés acceso hasta el ${vence}.</p>
@@ -57,7 +66,7 @@ export function buildClassroomAccessEmailBody(
   const text = [
     `Hola ${input.studentName},`,
     "",
-    `Tu pago fue aprobado. Ya podés entrar a ${input.courseTitle}.`,
+    introTexto,
     "",
     `Entrar al aula: ${input.enlace}`,
     "",
@@ -77,7 +86,7 @@ export async function sendClassroomAccessEmail(
   const { html, text } = buildClassroomAccessEmailBody(input, input.signature ?? null);
   const outcome = await sendTransactionalEmail({
     to: input.to,
-    subject: `Tu acceso a ${input.courseTitle}`,
+    subject: input.reenvio ? `Tu nuevo enlace a ${input.courseTitle}` : `Tu acceso a ${input.courseTitle}`,
     html,
     text,
   });

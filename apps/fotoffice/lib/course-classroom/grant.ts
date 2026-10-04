@@ -121,12 +121,26 @@ export async function avisarAccesoAlAula(
   }
 }
 
+/** Un acceso rotado hace menos que esto no se vuelve a rotar: frena a quien pide enlaces en bucle. */
+export const ENFRIAMIENTO_REENVIO_MS = 5 * 60 * 1000;
+
 export type ReenvioDeps = {
   buscar: (
     email: string,
     ahora: Date,
   ) => Promise<
-    Array<{ id: string; workspaceId: string; expiresAt: Date; to: string; studentName: string; courseTitle: string }>
+    Array<{
+      id: string;
+      workspaceId: string;
+      expiresAt: Date;
+      to: string;
+      studentName: string;
+      courseTitle: string;
+      /** El hash actual: se restaura si el correo no sale. */
+      tokenHash: string;
+      /** El `updatedAt` del acceso. */
+      ultimaRotacion: Date;
+    }>
   >;
   guardarHash: (accessId: string, tokenHash: string) => Promise<void>;
   enviar: typeof sendClassroomAccessEmail;
@@ -148,6 +162,8 @@ function depsReenvioPorDefecto(): ReenvioDeps {
           id: true,
           workspaceId: true,
           expiresAt: true,
+          tokenHash: true,
+          updatedAt: true,
           enrollment: { select: { email: true, name: true } },
           course: { select: { title: true } },
         },
@@ -159,6 +175,8 @@ function depsReenvioPorDefecto(): ReenvioDeps {
         to: a.enrollment.email,
         studentName: a.enrollment.name,
         courseTitle: a.course.title,
+        tokenHash: a.tokenHash,
+        ultimaRotacion: a.updatedAt,
       }));
     },
     guardarHash: async (accessId, tokenHash) => {
@@ -174,9 +192,11 @@ function depsReenvioPorDefecto(): ReenvioDeps {
 /**
  * Manda un enlace nuevo por cada curso vigente de ese correo.
  *
- * El enlace viejo deja de funcionar: en la base sólo hay un hash por acceso. El correo va
- * **siempre a la dirección de la inscripción**, nunca a otra, así que pedirlo por otro no le da
- * nada a quien lo pide. El resultado no se muestra: la pantalla dice lo mismo haya o no cursos.
+ * El enlace viejo deja de funcionar: en la base sólo hay un hash por acceso. Si el correo no
+ * sale, se restaura el hash anterior para que el alumno no se quede sin enlace válido. Un
+ * acceso rotado hace menos de 5 minutos se saltea. El correo va **siempre a la dirección de la
+ * inscripción**, nunca a otra. El resultado no se muestra: la pantalla dice lo mismo haya o no
+ * cursos.
  */
 export async function reenviarEnlaces(
   email: string,
@@ -184,23 +204,54 @@ export async function reenviarEnlaces(
   ahora: Date = new Date(),
 ): Promise<{ enviados: number }> {
   const normalizado = email.trim().toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizado) || !deps.base) return { enviados: 0 };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizado)) return { enviados: 0 };
+  if (!deps.base) {
+    logCourseEvent("aula_reenvio_sin_app_url", {});
+    return { enviados: 0 };
+  }
 
   const accesos = await deps.buscar(normalizado, ahora);
   let enviados = 0;
   for (const acceso of accesos) {
-    const token = deps.generarToken();
-    await deps.guardarHash(acceso.id, hashInvitationToken(token));
-    const envio = await deps.enviar({
-      to: acceso.to,
-      studentName: acceso.studentName,
-      courseTitle: acceso.courseTitle,
-      enlace: enlaceDelAula(deps.base, token),
-      expiresAt: acceso.expiresAt,
-      signature: await deps.cargarFirma(acceso.workspaceId),
-    });
-    if (envio.sent) enviados++;
-    else logCourseEvent("aula_reenvio_no_enviado", { accessId: acceso.id, motivo: envio.reason });
+    if (ahora.getTime() - acceso.ultimaRotacion.getTime() < ENFRIAMIENTO_REENVIO_MS) {
+      logCourseEvent("aula_reenvio_enfriando", { accessId: acceso.id });
+      continue;
+    }
+    let rotado = false;
+    try {
+      const token = deps.generarToken();
+      await deps.guardarHash(acceso.id, hashInvitationToken(token));
+      rotado = true;
+      const envio = await deps.enviar({
+        to: acceso.to,
+        studentName: acceso.studentName,
+        courseTitle: acceso.courseTitle,
+        enlace: enlaceDelAula(deps.base, token),
+        expiresAt: acceso.expiresAt,
+        signature: await deps.cargarFirma(acceso.workspaceId),
+        reenvio: true,
+      });
+      if (envio.sent) {
+        enviados++;
+        continue;
+      }
+      logCourseEvent("aula_reenvio_no_enviado", { accessId: acceso.id, motivo: envio.reason });
+    } catch (error) {
+      logCourseEvent("aula_reenvio_fallo", {
+        accessId: acceso.id,
+        motivo: error instanceof Error ? error.message : "error",
+      });
+    }
+    if (rotado) {
+      try {
+        await deps.guardarHash(acceso.id, acceso.tokenHash);
+      } catch (error) {
+        console.error("[fotoffice][cursos] no se pudo restaurar el enlace del aula", {
+          accessId: acceso.id,
+          error,
+        });
+      }
+    }
   }
   return { enviados };
 }
