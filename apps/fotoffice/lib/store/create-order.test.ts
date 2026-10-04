@@ -310,6 +310,7 @@ describe("createStoreOrder — idempotencia", () => {
       publicId: "ped_existente",
       status: "PENDING_PAYMENT",
       holdExpiresAt: new Date("2026-10-04T15:10:00.000Z"),
+      buyerEmail: "ana@example.com",
       items: [{ productId: "p1", variantId: null, qty: 1 }],
     });
 
@@ -335,6 +336,7 @@ describe("createStoreOrder — idempotencia", () => {
       publicId: "ped_existente",
       status: "PAID",
       holdExpiresAt: null,
+      buyerEmail: "ana@example.com",
       items: [{ productId: "p1", variantId: null, qty: 1 }],
     });
     const r = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: checkoutBase, now: NOW });
@@ -347,6 +349,7 @@ describe("createStoreOrder — idempotencia", () => {
       publicId: "ped_existente",
       status: "PENDING_PAYMENT",
       holdExpiresAt: new Date("2026-10-04T14:59:00.000Z"),
+      buyerEmail: "ana@example.com",
       items: [{ productId: "p1", variantId: null, qty: 1 }],
     });
     const r = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: checkoutBase, now: NOW });
@@ -361,12 +364,29 @@ describe("createStoreOrder — idempotencia", () => {
       publicId: "ped_existente",
       status: "PENDING_PAYMENT",
       holdExpiresAt: new Date("2026-10-04T15:10:00.000Z"),
+      buyerEmail: "ana@example.com",
       items: [{ productId: "p1", variantId: null, qty: 3 }],
     });
     const r = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: checkoutBase, now: NOW });
     expect(r.ok).toBe(false);
     if (r.ok) return;
     expect(r.renewKey).toBe(true);
+  });
+
+  it("si el email no es el de ese pedido → error y pide una clave nueva (no se devuelve el pedido de otra persona)", async () => {
+    prismaMock.storeOrder.findUnique.mockResolvedValue({
+      id: "ord-existente",
+      publicId: "ped_existente",
+      status: "PENDING_PAYMENT",
+      holdExpiresAt: new Date("2026-10-04T15:10:00.000Z"),
+      buyerEmail: "otra@example.com",
+      items: [{ productId: "p1", variantId: null, qty: 1 }],
+    });
+    const r = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: checkoutBase, now: NOW });
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.renewKey).toBe(true);
+    expect(JSON.stringify(r)).not.toContain("ped_existente");
   });
 
   it("si la clave choca dentro de la transacción (otro pedido con la misma clave), devuelve ese pedido", async () => {
@@ -377,6 +397,7 @@ describe("createStoreOrder — idempotencia", () => {
       publicId: "ped_gemelo",
       status: "PENDING_PAYMENT",
       holdExpiresAt: new Date("2026-10-04T15:15:00.000Z"),
+      buyerEmail: "ana@example.com",
       items: [{ productId: "p1", variantId: null, qty: 1 }],
     });
 

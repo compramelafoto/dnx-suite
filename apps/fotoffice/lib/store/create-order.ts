@@ -71,6 +71,7 @@ const SELECT_EXISTENTE = {
   publicId: true,
   status: true,
   holdExpiresAt: true,
+  buyerEmail: true,
   items: { select: { productId: true, variantId: true, qty: true } },
 } satisfies Prisma.StoreOrderSelect;
 
@@ -84,7 +85,12 @@ function buscarPorClave(workspaceId: string, clientIdempotencyKey: string) {
 }
 
 /** La respuesta a una clave que ya nombra a un pedido: el mismo pedido si todavía sirve. */
-function repetir(existente: Existente, lines: readonly Linea[], key: string, now: Date): CreateStoreOrderResult {
+function repetir(
+  existente: Existente,
+  compra: { lines: readonly Linea[]; buyerEmail: string },
+  key: string,
+  now: Date,
+): CreateStoreOrderResult {
   if (existente.status !== "PENDING_PAYMENT") return { ok: false, error: YA_PROCESADO, renewKey: true };
   if (!existente.holdExpiresAt || existente.holdExpiresAt.getTime() <= now.getTime()) {
     return {
@@ -94,7 +100,11 @@ function repetir(existente: Existente, lines: readonly Linea[], key: string, now
     };
   }
   // La clave se genera por carrito: si el contenido no coincide, no se cobra otro carrito con ella.
-  if (!mismaCompra(existente.items, lines)) return { ok: false, error: CAMBIO_EL_CARRITO, renewKey: true };
+  if (!mismaCompra(existente.items, compra.lines)) return { ok: false, error: CAMBIO_EL_CARRITO, renewKey: true };
+  // Tampoco con otro email: el pedido (y el aviso de pago) es de quien lo hizo.
+  if (existente.buyerEmail !== compra.buyerEmail) {
+    return { ok: false, error: "Cambiaste tus datos. Volvé a confirmar para crear el pedido.", renewKey: true };
+  }
   return {
     ok: true,
     orderId: existente.id,
@@ -127,7 +137,7 @@ export async function createStoreOrder(input: {
   const lines = mergeCheckoutLines(checkout.lines);
 
   const existente = await buscarPorClave(workspaceId, checkout.clientIdempotencyKey);
-  if (existente) return repetir(existente, lines, key, now);
+  if (existente) return repetir(existente, { lines, buyerEmail: checkout.buyerEmail }, key, now);
 
   const pendientes = await prisma.storeOrder.count({
     where: {
@@ -249,7 +259,7 @@ export async function createStoreOrder(input: {
     // el otro envío ganó y su pedido es la respuesta.
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       const otro = await buscarPorClave(workspaceId, checkout.clientIdempotencyKey);
-      if (otro) return repetir(otro, lines, key, now);
+      if (otro) return repetir(otro, { lines, buyerEmail: checkout.buyerEmail }, key, now);
     }
     throw error;
   }
@@ -264,7 +274,7 @@ export async function createStoreOrder(input: {
   if (resultado.kind === "duplicado") {
     const otro = await buscarPorClave(workspaceId, checkout.clientIdempotencyKey);
     if (!otro) return { ok: false, error: "No pudimos crear el pedido. Probá de nuevo." };
-    return repetir(otro, lines, key, now);
+    return repetir(otro, { lines, buyerEmail: checkout.buyerEmail }, key, now);
   }
   return { ok: true, orderId: resultado.orderId, publicId: resultado.publicId, accessToken };
 }

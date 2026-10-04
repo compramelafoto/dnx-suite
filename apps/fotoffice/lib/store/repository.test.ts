@@ -99,7 +99,7 @@ describe("loadOpenStore", () => {
     branding.findUnique.mockResolvedValueOnce(null);
     expect(await loadOpenStore("nada")).toBeNull();
 
-    branding.findUnique.mockResolvedValue({ workspaceId: "ws-1", commercialName: "SFPR" });
+    branding.findUnique.mockResolvedValue({ workspaceId: "ws-1", publicSlug: "sfpr", commercialName: "SFPR" });
     moduleEnabledMock.mockResolvedValueOnce(false);
     expect(await loadOpenStore("sfpr")).toBeNull();
 
@@ -117,7 +117,7 @@ describe("loadOpenStore", () => {
   });
 
   it("abierta: devuelve la institución y la configuración", async () => {
-    branding.findUnique.mockResolvedValue({ workspaceId: "ws-1", commercialName: "SFPR" });
+    branding.findUnique.mockResolvedValue({ workspaceId: "ws-1", publicSlug: "sfpr", commercialName: "SFPR" });
     moduleEnabledMock.mockResolvedValue(true);
     const s = { isOpen: true, pickupAddress: "Calle 1" };
     settings.findUnique.mockResolvedValueOnce(s);

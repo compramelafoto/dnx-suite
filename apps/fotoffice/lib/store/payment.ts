@@ -16,7 +16,7 @@ import { storeExternalReference } from "./external-reference";
  * El cobro de un pedido de la tienda. Es el MISMO circuito que las reservas
  * (`lib/bookings/checkout.ts`): Checkout Pro con el token de la institución y `marketplace_fee`
  * retenido en la misma operación; el dinero no pasa por DNX. La comisión sigue el mismo criterio
- * (propia + deuda arrastrada) y se congela en el pedido ANTES de ir a Mercado Pago.
+ * (propia + deuda arrastrada) y se congela en el pedido ANTES de ir a Mercado Pago, una sola vez.
  *
  * El webhook es propio (`/api/payments/mp/tienda-webhook`) por el mismo motivo que el de reservas:
  * un error de la tienda no puede romper el cobro de las cuotas.
@@ -72,6 +72,9 @@ export async function startStoreCheckout(input: {
       holdExpiresAt: true,
       totalArs: true,
       buyerEmail: true,
+      feeBps: true,
+      feeArs: true,
+      mpPreferenceId: true,
       workspace: { select: { name: true, fotofficeBranding: { select: { commercialName: true } } } },
     },
   });
@@ -93,16 +96,29 @@ export async function startStoreCheckout(input: {
     return { ok: false, error: "La institución todavía no tiene los cobros habilitados. Escribile a la institución." };
   }
 
-  const feeBps = await getPlatformFeeBps(input.workspaceId, STORE_MODULE_KEY);
-  const deuda = await pendingFeeDebtMinor(input.workspaceId);
-  const reparto = feeForBooking({ totalMinor, feeBps, pendingDebtMinor: deuda });
+  // La comisión se congela UNA vez por pedido. Si ya se abrió un pago antes (hay preferencia),
+  // esa preferencia puede seguir pagable con lo que se retuvo entonces: la nueva retiene lo mismo
+  // y no se recalcula con la deuda de este momento (si no, lo congelado no coincidiría con lo
+  // retenido por una de las dos).
+  const congelada = pedido.mpPreferenceId !== null;
+  let feeBps: number;
+  let withholdMinor: number;
+  if (congelada) {
+    feeBps = pedido.feeBps;
+    withholdMinor = decimalArsToMinor(pedido.feeArs);
+  } else {
+    feeBps = await getPlatformFeeBps(input.workspaceId, STORE_MODULE_KEY);
+    const deuda = await pendingFeeDebtMinor(input.workspaceId);
+    withholdMinor = feeForBooking({ totalMinor, feeBps, pendingDebtMinor: deuda }).withholdMinor;
+  }
 
-  // Se congela ANTES de ir a Mercado Pago: lo retenido tiene que quedar escrito aunque después
-  // cambie la configuración. Sólo si sigue esperando el pago (no se pisa un pedido ya acreditado).
-  await prisma.storeOrder.updateMany({
+  // Se escribe ANTES de ir a Mercado Pago y SÓLO si sigue esperando el pago: si en el medio se
+  // acreditó, venció o se canceló, no se abre otro pago.
+  const escrito = await prisma.storeOrder.updateMany({
     where: { id: pedido.id, workspaceId: input.workspaceId, status: "PENDING_PAYMENT" },
-    data: { feeBps, feeArs: minorToDecimalString(reparto.withholdMinor) },
+    data: { feeBps, feeArs: minorToDecimalString(withholdMinor) },
   });
+  if (escrito.count === 0) return { ok: false, error: "Ese pedido ya no está esperando el pago." };
 
   const nombre = pedido.workspace.fotofficeBranding?.commercialName ?? pedido.workspace.name;
 
@@ -117,7 +133,7 @@ export async function startStoreCheckout(input: {
       ...storeReturnUrls(base, input.returnPath),
       notificationUrl: `${base}/api/payments/mp/tienda-webhook`,
       accessTokenOverride: collector.collector.accessToken,
-      marketplaceFeeMinor: reparto.withholdMinor,
+      marketplaceFeeMinor: withholdMinor,
       itemId: `pedido-${pedido.id}`,
       sourceApp: "FOTOFFICE",
       metadata: { storeOrderId: pedido.id, workspaceId: input.workspaceId },

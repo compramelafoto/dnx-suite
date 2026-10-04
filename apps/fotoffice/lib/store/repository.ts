@@ -48,7 +48,7 @@ export type OpenStore = { workspace: { id: string; slug: string; name: string };
 export const loadOpenStore = cache(async function loadOpenStore(workspaceSlug: string): Promise<OpenStore | null> {
   const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
     where: { publicSlug: workspaceSlug },
-    select: { workspaceId: true, commercialName: true },
+    select: { workspaceId: true, publicSlug: true, commercialName: true },
   });
   if (!branding) return null;
   // La tienda vende el catálogo y el stock de Ventas: sin Ventas no hay tienda (ver `access.ts`).
@@ -72,7 +72,7 @@ export const loadOpenStore = cache(async function loadOpenStore(workspaceSlug: s
   if (!settings?.isOpen) return null;
 
   return {
-    workspace: { id: branding.workspaceId, slug: workspaceSlug, name: branding.commercialName },
+    workspace: { id: branding.workspaceId, slug: branding.publicSlug, name: branding.commercialName },
     settings,
   };
 });

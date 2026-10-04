@@ -51,6 +51,8 @@ export async function placeOrderAction(workspaceSlug: unknown, raw: unknown): Pr
   const store = await loadOpenStore(workspaceSlug);
   if (!store) return { ok: false, error: "La tienda no está disponible en este momento." };
   const workspaceId = store.workspace.id;
+  // El slug de la base, no el que mandó el navegador: con él se arma la cookie y la vuelta del pago.
+  const slug = store.workspace.slug;
 
   const parsed = parseCheckoutInput(raw);
   if (!parsed.ok) {
@@ -64,7 +66,7 @@ export async function placeOrderAction(workspaceSlug: unknown, raw: unknown): Pr
     return { ok: false, error: pedido.error, problems: pedido.problems, renewKey: pedido.renewKey };
   }
 
-  const base = `/w/${workspaceSlug}/${STORE_PUBLIC_SEGMENT}`;
+  const base = `/w/${slug}/${STORE_PUBLIC_SEGMENT}`;
   (await cookies()).set(nombreCookie(pedido.publicId), pedido.accessToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
