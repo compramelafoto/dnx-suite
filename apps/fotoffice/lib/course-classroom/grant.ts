@@ -120,3 +120,87 @@ export async function avisarAccesoAlAula(
     return { avisado: false, motivo: "error" };
   }
 }
+
+export type ReenvioDeps = {
+  buscar: (
+    email: string,
+    ahora: Date,
+  ) => Promise<
+    Array<{ id: string; workspaceId: string; expiresAt: Date; to: string; studentName: string; courseTitle: string }>
+  >;
+  guardarHash: (accessId: string, tokenHash: string) => Promise<void>;
+  enviar: typeof sendClassroomAccessEmail;
+  cargarFirma: (workspaceId: string) => Promise<RenderedEmailSignature | null>;
+  base: string;
+  generarToken: () => string;
+};
+
+function depsReenvioPorDefecto(): ReenvioDeps {
+  return {
+    buscar: async (email, ahora) => {
+      const accesos = await prisma.courseAccess.findMany({
+        where: {
+          revokedAt: null,
+          expiresAt: { gt: ahora },
+          enrollment: { email: { equals: email, mode: "insensitive" } },
+        },
+        select: {
+          id: true,
+          workspaceId: true,
+          expiresAt: true,
+          enrollment: { select: { email: true, name: true } },
+          course: { select: { title: true } },
+        },
+      });
+      return accesos.map((a) => ({
+        id: a.id,
+        workspaceId: a.workspaceId,
+        expiresAt: a.expiresAt,
+        to: a.enrollment.email,
+        studentName: a.enrollment.name,
+        courseTitle: a.course.title,
+      }));
+    },
+    guardarHash: async (accessId, tokenHash) => {
+      await prisma.courseAccess.update({ where: { id: accessId }, data: { tokenHash } });
+    },
+    enviar: sendClassroomAccessEmail,
+    cargarFirma: loadWorkspaceSignature,
+    base: (process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "").trim(),
+    generarToken: generateInvitationToken,
+  };
+}
+
+/**
+ * Manda un enlace nuevo por cada curso vigente de ese correo.
+ *
+ * El enlace viejo deja de funcionar: en la base sólo hay un hash por acceso. El correo va
+ * **siempre a la dirección de la inscripción**, nunca a otra, así que pedirlo por otro no le da
+ * nada a quien lo pide. El resultado no se muestra: la pantalla dice lo mismo haya o no cursos.
+ */
+export async function reenviarEnlaces(
+  email: string,
+  deps: ReenvioDeps = depsReenvioPorDefecto(),
+  ahora: Date = new Date(),
+): Promise<{ enviados: number }> {
+  const normalizado = email.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizado) || !deps.base) return { enviados: 0 };
+
+  const accesos = await deps.buscar(normalizado, ahora);
+  let enviados = 0;
+  for (const acceso of accesos) {
+    const token = deps.generarToken();
+    await deps.guardarHash(acceso.id, hashInvitationToken(token));
+    const envio = await deps.enviar({
+      to: acceso.to,
+      studentName: acceso.studentName,
+      courseTitle: acceso.courseTitle,
+      enlace: enlaceDelAula(deps.base, token),
+      expiresAt: acceso.expiresAt,
+      signature: await deps.cargarFirma(acceso.workspaceId),
+    });
+    if (envio.sent) enviados++;
+    else logCourseEvent("aula_reenvio_no_enviado", { accessId: acceso.id, motivo: envio.reason });
+  }
+  return { enviados };
+}

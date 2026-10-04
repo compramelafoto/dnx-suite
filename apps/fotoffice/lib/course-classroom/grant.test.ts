@@ -1,6 +1,7 @@
 // lib/course-classroom/grant.test.ts
 import { describe, expect, it, vi } from "vitest";
-import { avisarAccesoAlAula, type AvisoDeps } from "./grant";
+import { hashInvitationToken } from "@/lib/members/invitation-tokens";
+import { avisarAccesoAlAula, reenviarEnlaces, type AvisoDeps, type ReenvioDeps } from "./grant";
 
 const input = {
   enrollmentId: "insc-1",
@@ -58,5 +59,54 @@ describe("avisar el acceso al aula", () => {
   it("si otorgar explota tampoco lanza", async () => {
     const d = deps({ otorgar: vi.fn().mockRejectedValue(new Error("base caída")) });
     await expect(avisarAccesoAlAula(input, d)).resolves.toEqual({ avisado: false, motivo: "error" });
+  });
+});
+
+describe("reenviar el enlace del aula", () => {
+  const ahora = new Date(Date.UTC(2026, 9, 3));
+  const acceso = (id: string) => ({
+    id,
+    workspaceId: "ws-1",
+    expiresAt: new Date(Date.UTC(2027, 9, 3)),
+    to: "ana@example.com",
+    studentName: "Ana",
+    courseTitle: `Curso ${id}`,
+  });
+
+  function depsReenvio(parcial: Partial<ReenvioDeps> = {}): ReenvioDeps {
+    let n = 0;
+    return {
+      buscar: vi.fn().mockResolvedValue([acceso("a1"), acceso("a2")]),
+      guardarHash: vi.fn().mockResolvedValue(undefined),
+      enviar: vi.fn().mockResolvedValue({ sent: true }),
+      cargarFirma: vi.fn().mockResolvedValue(null),
+      base: "https://fotoffice.com",
+      generarToken: () => `tok-${++n}`,
+      ...parcial,
+    };
+  }
+
+  it("un enlace nuevo por cada curso vigente, y el viejo deja de servir", async () => {
+    const d = depsReenvio();
+    const r = await reenviarEnlaces(" Ana@Example.com ", d, ahora);
+    expect(r).toEqual({ enviados: 2 });
+    expect(d.buscar).toHaveBeenCalledWith("ana@example.com", ahora);
+    expect(d.guardarHash).toHaveBeenCalledWith("a1", hashInvitationToken("tok-1"));
+    expect(d.guardarHash).toHaveBeenCalledWith("a2", hashInvitationToken("tok-2"));
+    expect(d.enviar).toHaveBeenCalledWith(
+      expect.objectContaining({ enlace: "https://fotoffice.com/aula/tok-1", courseTitle: "Curso a1" }),
+    );
+  });
+
+  it("sin cursos para ese correo no hace nada", async () => {
+    const d = depsReenvio({ buscar: vi.fn().mockResolvedValue([]) });
+    expect(await reenviarEnlaces("nadie@example.com", d, ahora)).toEqual({ enviados: 0 });
+    expect(d.enviar).not.toHaveBeenCalled();
+  });
+
+  it("un correo que no parece correo ni consulta", async () => {
+    const d = depsReenvio();
+    expect(await reenviarEnlaces("hola", d, ahora)).toEqual({ enviados: 0 });
+    expect(d.buscar).not.toHaveBeenCalled();
   });
 });
