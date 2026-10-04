@@ -53,6 +53,10 @@ describe("duración para mostrar", () => {
     expect(duracionLegible(3900)).toBe("1 h 05 min");
   });
 
+  it("menos de un minuto se muestra como 1 min, no como 0", () => {
+    expect(duracionLegible(20)).toBe("1 min");
+  });
+
   it("sin dato", () => {
     expect(duracionLegible(null)).toBe("");
   });

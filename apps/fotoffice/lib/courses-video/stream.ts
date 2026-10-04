@@ -165,6 +165,9 @@ export function signPlaybackToken(
   deps: Deps = {},
 ): string {
   const config = resolverConfig(deps);
+  if (!Number.isInteger(input.ttlSeconds) || input.ttlSeconds <= 0) {
+    throw new StreamError("Duración de permiso inválida.", 0);
+  }
   const ahora = Math.floor((input.ahora ?? new Date()).getTime() / 1000);
   const header = { alg: "RS256", kid: config.signingKeyId };
   const payload = {
@@ -175,7 +178,13 @@ export function signPlaybackToken(
     nbf: ahora - 60,
   };
   const firmado = `${base64url(JSON.stringify(header))}.${base64url(JSON.stringify(payload))}`;
-  const firma = createSign("RSA-SHA256").update(firmado).sign(pemLegible(config.signingKeyPem));
+  let firma: Buffer;
+  try {
+    firma = createSign("RSA-SHA256").update(firmado).sign(pemLegible(config.signingKeyPem));
+  } catch {
+    // Sin el mensaje original: el error de OpenSSL puede traer datos de la clave.
+    throw new StreamError("La clave de firma de video no es válida.", 0);
+  }
   return `${firmado}.${base64url(firma)}`;
 }
 

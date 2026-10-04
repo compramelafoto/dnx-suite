@@ -25,7 +25,7 @@ describe("cuánto suma un reporte", () => {
       ahora: t0,
       duracionSegundos: 600,
     });
-    expect(r.secondsWatched).toBe(20); // intervalo + tolerancia, nunca más
+    expect(r.secondsWatched).toBe(35); // intervalo a 2x + tolerancia, nunca más
     expect(r.completedAt).toBeNull();
   });
 
@@ -42,7 +42,7 @@ describe("cuánto suma un reporte", () => {
       ahora: mas(1),
       duracionSegundos: 600,
     });
-    expect(r.secondsWatched).toBe(106); // 1 segundo real + 5 de tolerancia
+    expect(r.secondsWatched).toBe(107); // 1 segundo real a 2x + 5 de tolerancia
   });
 
   it("valores negativos o rotos no restan ni rompen", () => {
@@ -88,6 +88,20 @@ describe("cuánto suma un reporte", () => {
     });
     expect(r.completedAt).toEqual(t0);
     expect(r.secondsWatched).toBe(600); // tope en la duración
+  });
+
+  it("mirar una clase entera a 2x la completa", () => {
+    let avance: AvanceGuardado | null = null;
+    for (let i = 0; i < 20; i++) {
+      avance = aplicarReporte({
+        previo: avance,
+        reporte: { positionSeconds: (i + 1) * 30, watchedSinceLastReport: 30 },
+        ahora: mas((i + 1) * 15),
+        duracionSegundos: 600,
+      });
+    }
+    expect(avance!.secondsWatched).toBe(600);
+    expect(avance!.completedAt).not.toBeNull();
   });
 
   it("sin duración conocida suma pero no completa", () => {

@@ -9,7 +9,7 @@
  * Menos de un mes no tiene sentido: un acceso que vence al comprarlo es plata cobrada por nada.
  */
 export function calcularVencimiento(desde: Date, meses: number): Date {
-  const cantidad = Math.max(1, Math.floor(meses));
+  const cantidad = Number.isFinite(meses) ? Math.max(1, Math.floor(meses)) : 1;
   const resultado = new Date(desde.getTime());
   const dia = resultado.getUTCDate();
   resultado.setUTCDate(1);

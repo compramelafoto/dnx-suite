@@ -21,6 +21,12 @@ describe("vencimiento del acceso", () => {
     const desde = new Date(Date.UTC(2026, 9, 3));
     expect(calcularVencimiento(desde, 0).toISOString()).toBe("2026-11-03T00:00:00.000Z");
   });
+
+  it("meses que no son un número finito se toman como un mes, no como fecha inválida", () => {
+    const desde = new Date(Date.UTC(2026, 9, 3));
+    expect(calcularVencimiento(desde, Number.NaN).toISOString()).toBe("2026-11-03T00:00:00.000Z");
+    expect(calcularVencimiento(desde, Infinity).toISOString()).toBe("2026-11-03T00:00:00.000Z");
+  });
 });
 
 describe("estado del acceso", () => {

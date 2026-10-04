@@ -2,14 +2,18 @@
  * Cuánto vio un alumno de una clase.
  *
  * El reproductor informa cada `INTERVALO_REPORTE_SEGUNDOS` cuánto miró desde el reporte
- * anterior. El servidor **no le cree de más**: nunca suma más que el intervalo más una
- * tolerancia, ni más que el tiempo real que pasó desde el último reporte. Así arrastrar la
- * barra hasta el final, o mandar reportes a mano, no marca una clase como vista.
+ * anterior. El servidor **no le cree de más**: se admite mirar hasta a `VELOCIDAD_MAXIMA`
+ * (2x), así que cada reporte suma como mucho el intervalo por esa velocidad más una
+ * tolerancia fija, y como mucho el tiempo real transcurrido desde el último reporte por esa
+ * velocidad más la misma tolerancia. Así arrastrar la barra hasta el final, o mandar
+ * reportes a mano, no marca una clase como vista, y quien mira a 2x sí la completa.
  */
 
 export const INTERVALO_REPORTE_SEGUNDOS = 15;
 /** Margen para la red y para el reloj del navegador. */
 const TOLERANCIA_SEGUNDOS = 5;
+/** La velocidad de reproducción más alta que se admite como mirada real. */
+const VELOCIDAD_MAXIMA = 2;
 /** Una clase está vista al 90% de su duración: nadie mira los créditos. */
 export const UMBRAL_CLASE_COMPLETA = 0.9;
 
@@ -41,13 +45,13 @@ export function aplicarReporte(input: {
     lastReportAt: null,
     completedAt: null,
   };
-  const tope = INTERVALO_REPORTE_SEGUNDOS + TOLERANCIA_SEGUNDOS;
+  const tope = INTERVALO_REPORTE_SEGUNDOS * VELOCIDAD_MAXIMA + TOLERANCIA_SEGUNDOS;
   const transcurrido = previo.lastReportAt
     ? Math.max(0, (input.ahora.getTime() - previo.lastReportAt.getTime()) / 1000)
-    : tope;
+    : INTERVALO_REPORTE_SEGUNDOS;
 
   const suma = Math.floor(
-    Math.min(numeroSano(input.reporte.watchedSinceLastReport), tope, transcurrido + TOLERANCIA_SEGUNDOS),
+    Math.min(numeroSano(input.reporte.watchedSinceLastReport), tope, transcurrido * VELOCIDAD_MAXIMA + TOLERANCIA_SEGUNDOS),
   );
 
   const duracion = input.duracionSegundos && input.duracionSegundos > 0 ? input.duracionSegundos : null;

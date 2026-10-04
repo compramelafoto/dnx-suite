@@ -50,7 +50,7 @@ export function armarAula(
 
 export function duracionLegible(segundos: number | null): string {
   if (!segundos || segundos <= 0) return "";
-  const minutos = Math.round(segundos / 60);
+  const minutos = Math.max(1, Math.round(segundos / 60));
   if (minutos < 60) return `${minutos} min`;
   const horas = Math.floor(minutos / 60);
   return `${horas} h ${String(minutos % 60).padStart(2, "0")} min`;
