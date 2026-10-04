@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { lineKey, type CartLine } from "@/lib/store/cart";
 import type { CartProblem } from "@/lib/store/storefront";
-import { validateCartAction } from "@/app/w/[workspaceSlug]/tienda/carrito/actions";
+import { validateCartAction } from "@/app/w/[workspaceSlug]/tienda/(abierta)/carrito/actions";
 import { useCart } from "./cart-provider";
 
 /** Todo lo que el servidor puede corregir de una línea. Si cambia, hay que volver a validar. */

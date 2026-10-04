@@ -21,6 +21,26 @@ export function isApprovedMpPayment(pago: { status: string; rawSanitized: Record
   return pago.status === "APPROVED";
 }
 
+/**
+ * Lo que la acreditación necesita de un pago leído en Mercado Pago: id, monto, moneda y cuándo
+ * se aprobó (`date_approved`; null si no viene o no se entiende). Módulo PURO.
+ */
+export function storePaymentFacts(pago: {
+  providerPaymentId: string;
+  amountMinor: number;
+  currency: string;
+  rawSanitized: Record<string, unknown>;
+}): { providerPaymentId: string; amountMinor: number; currency: string; paidAt: Date | null } {
+  const crudo = pago.rawSanitized.date_approved;
+  const fecha = typeof crudo === "string" ? new Date(crudo) : null;
+  return {
+    providerPaymentId: pago.providerPaymentId,
+    amountMinor: pago.amountMinor,
+    currency: pago.currency,
+    paidAt: fecha && !Number.isNaN(fecha.getTime()) ? fecha : null,
+  };
+}
+
 export type StorePaymentCheck =
   | { outcome: "credited"; result: CreditStorePaymentResult }
   /** Hay pago de este pedido, pero no aprobado (pendiente, rechazado…). */
@@ -30,7 +50,9 @@ export type StorePaymentCheck =
   /** La institución no tiene los cobros habilitados: no hay a quién preguntarle. */
   | { outcome: "no_collector" }
   /** Mercado Pago no respondió (o no reconoce el pago con el token de esta institución). */
-  | { outcome: "unavailable" };
+  | { outcome: "unavailable" }
+  /** El pago está APROBADO pero acreditarlo falló: la plata entró y el pedido no lo dice. */
+  | { outcome: "credit_failed" };
 
 export async function checkStoreOrderPayment(input: {
   workspaceId: string;
@@ -59,6 +81,14 @@ export async function checkStoreOrderPayment(input: {
   if (parseStoreExternalReference(pago.externalReference) !== input.orderId) return { outcome: "no_payment" };
   if (!isApprovedMpPayment(pago)) return { outcome: "not_approved" };
 
-  const result = await creditStorePayment({ orderId: input.orderId, providerPaymentId: pago.providerPaymentId });
-  return { outcome: "credited", result };
+  try {
+    const result = await creditStorePayment({ orderId: input.orderId, ...storePaymentFacts(pago) });
+    return { outcome: "credited", result };
+  } catch (error) {
+    console.error("[fotoffice][tienda] falló la acreditación de un pago aprobado", {
+      storeOrderId: input.orderId,
+      detalle: sanitizeError(error),
+    });
+    return { outcome: "credit_failed" };
+  }
 }

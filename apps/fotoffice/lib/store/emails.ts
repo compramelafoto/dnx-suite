@@ -32,6 +32,11 @@ export async function sendDuplicatePaymentAlert(
   void input;
 }
 
+/** A la institución: Mercado Pago aprobó un pago que no se pudo acreditar. Hay que revisarlo. */
+export async function sendCreditFailureAlert(input: StoreOrderEmailInput): Promise<void> {
+  void input;
+}
+
 /** Al comprador: el pedido está listo para retirar. */
 export async function sendOrderReadyEmail(input: StoreOrderEmailInput): Promise<void> {
   void input;

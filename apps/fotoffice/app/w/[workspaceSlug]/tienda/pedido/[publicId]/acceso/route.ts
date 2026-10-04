@@ -3,7 +3,7 @@ import { appUrl } from "@/lib/app-url";
 import { hostWithoutPort } from "@/lib/website/domain/normalize";
 import { keptReturnParams, storeOrderCookieName, storeVisibleBase } from "@/lib/store/order-access";
 import { findStoreOrderForPage, tokenOpensOrder } from "@/lib/store/order-page";
-import { loadOpenStore } from "@/lib/store/repository";
+import { loadStoreWorkspace } from "@/lib/store/repository";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +23,8 @@ export async function GET(request: NextRequest, { params }: Params) {
   const { workspaceSlug, publicId } = await params;
   const noEncontrado = new NextResponse("No encontrado", { status: 404, headers: { "Referrer-Policy": "no-referrer" } });
 
-  const store = await loadOpenStore(workspaceSlug);
+  // Sin exigir la tienda abierta: un pedido pagado se ve aunque la tienda se cierre.
+  const store = await loadStoreWorkspace(workspaceSlug);
   if (!store) return noEncontrado;
   const pedido = await findStoreOrderForPage(store.workspace.id, publicId);
   const token = request.nextUrl.searchParams.get("t");

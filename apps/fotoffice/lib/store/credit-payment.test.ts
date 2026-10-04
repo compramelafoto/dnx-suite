@@ -111,11 +111,13 @@ beforeEach(() => {
 });
 
 const fechaPago = new Date("2026-10-04T15:00:00Z");
+/** Lo que Mercado Pago dice que se cobró: el total exacto del pedido, en pesos. */
+const cobro = { amountMinor: 25_000_00, currency: "ARS" };
 
 describe("creditStorePayment — pedido esperando el pago", () => {
   it("con stock: pasa a PAID y crea UNA venta con Mercado Pago, renglones con talle y el cliente nuevo", async () => {
     preparar(pedido());
-    const r = await creditStorePayment({ orderId: "ord1", providerPaymentId: "mp1", paidAt: fechaPago });
+    const r = await creditStorePayment({ ...cobro, orderId: "ord1", providerPaymentId: "mp1", paidAt: fechaPago });
 
     expect(r).toEqual({ applied: true, status: "PAID" });
     expect(h.recordSale).toHaveBeenCalledTimes(1);
@@ -166,7 +168,7 @@ describe("creditStorePayment — pedido esperando el pago", () => {
 
   it("bloquea el pedido y el stock, y calcula lo retenido sin contar este pedido", async () => {
     preparar(pedido());
-    await creditStorePayment({ orderId: "ord1", providerPaymentId: "mp1" });
+    await creditStorePayment({ ...cobro, orderId: "ord1", providerPaymentId: "mp1" });
 
     expect(tx.$queryRaw).toHaveBeenCalled();
     expect(h.lockStockRows).toHaveBeenCalledWith(tx, { workspaceId: "ws1", productIds: ["p1", "p2"], variantIds: ["v1"] });
@@ -177,14 +179,14 @@ describe("creditStorePayment — pedido esperando el pago", () => {
 
   it("asienta la deuda cobrada: lo retenido menos la comisión propia", async () => {
     preparar(pedido());
-    await creditStorePayment({ orderId: "ord1", providerPaymentId: "mp1" });
+    await creditStorePayment({ ...cobro, orderId: "ord1", providerPaymentId: "mp1" });
     // 5% de $25.000 = $1.250 propios; se retuvieron $1.500: $250 eran deuda.
     expect(h.recordDischarge).toHaveBeenCalledWith(tx, expect.objectContaining({ workspaceId: "ws1", amountMinor: 250_00 }));
   });
 
   it("avisa al comprador y a la institución DESPUÉS de la transacción", async () => {
     preparar(pedido());
-    await creditStorePayment({ orderId: "ord1", providerPaymentId: "mp1" });
+    await creditStorePayment({ ...cobro, orderId: "ord1", providerPaymentId: "mp1" });
     expect(h.emails.sendOrderPaidEmail).toHaveBeenCalledWith({ workspaceId: "ws1", orderId: "ord1" });
     expect(h.emails.sendNewOrderNotice).toHaveBeenCalledWith({ workspaceId: "ws1", orderId: "ord1" });
     expect(h.emails.sendOrderPaidEmail.mock.invocationCallOrder[0]).toBeGreaterThan(
@@ -195,7 +197,7 @@ describe("creditStorePayment — pedido esperando el pago", () => {
   it("si otros pedidos retienen lo que queda, no alcanza: PAID_NO_STOCK sin venta", async () => {
     preparar(pedido(), { v1: 3 });
     h.reservedQtyByKey.mockResolvedValue(new Map([["p1:v1", 2]]));
-    const r = await creditStorePayment({ orderId: "ord1", providerPaymentId: "mp1" });
+    const r = await creditStorePayment({ ...cobro, orderId: "ord1", providerPaymentId: "mp1" });
     expect(r).toEqual({ applied: true, status: "PAID_NO_STOCK" });
     expect(h.recordSale).not.toHaveBeenCalled();
   });
@@ -204,7 +206,7 @@ describe("creditStorePayment — pedido esperando el pago", () => {
 describe("creditStorePayment — avisos repetidos y pagos dobles", () => {
   it("el mismo pago sobre un pedido ya pagado: aviso repetido, sin segunda venta", async () => {
     preparar(pedido({ status: "PAID", mpPaymentId: "mp1" }));
-    const r = await creditStorePayment({ orderId: "ord1", providerPaymentId: "mp1" });
+    const r = await creditStorePayment({ ...cobro, orderId: "ord1", providerPaymentId: "mp1" });
     expect(r).toEqual({ applied: false, status: "PAID", motivo: "aviso repetido" });
     expect(h.recordSale).not.toHaveBeenCalled();
     expect(tx.storeOrder.updateMany).not.toHaveBeenCalled();
@@ -215,7 +217,7 @@ describe("creditStorePayment — avisos repetidos y pagos dobles", () => {
     "OTRO pago sobre un pedido %s: no cambia nada, deja constancia y alerta a la institución",
     async (status) => {
       preparar(pedido({ status, mpPaymentId: "mp1" }));
-      const r = await creditStorePayment({ orderId: "ord1", providerPaymentId: "mp2" });
+      const r = await creditStorePayment({ ...cobro, orderId: "ord1", providerPaymentId: "mp2" });
       expect(r).toEqual({ applied: false, status, motivo: "pago duplicado" });
       expect(h.recordSale).not.toHaveBeenCalled();
       expect(tx.storeOrder.updateMany).not.toHaveBeenCalled();
@@ -232,7 +234,7 @@ describe("creditStorePayment — avisos repetidos y pagos dobles", () => {
 
   it("el aviso repetido de un pago doble no vuelve a alertar", async () => {
     preparar(pedido({ status: "PAID", mpPaymentId: "mp1" }), {}, { eventoDuplicado: true });
-    const r = await creditStorePayment({ orderId: "ord1", providerPaymentId: "mp2" });
+    const r = await creditStorePayment({ ...cobro, orderId: "ord1", providerPaymentId: "mp2" });
     expect(r).toEqual({ applied: false, status: "PAID", motivo: "aviso repetido" });
     expect(tx.storeOrderEvent.create).not.toHaveBeenCalled();
     expect(h.emails.sendDuplicatePaymentAlert).not.toHaveBeenCalled();
@@ -240,23 +242,80 @@ describe("creditStorePayment — avisos repetidos y pagos dobles", () => {
 
   it("un pedido que no existe no acredita nada", async () => {
     h.prisma.storeOrder.findUnique.mockResolvedValue(null);
-    const r = await creditStorePayment({ orderId: "nada", providerPaymentId: "mp1" });
+    const r = await creditStorePayment({ ...cobro, orderId: "nada", providerPaymentId: "mp1" });
     expect(r).toEqual({ applied: false, status: null, motivo: "el pedido no existe" });
     expect(h.prisma.$transaction).not.toHaveBeenCalled();
+  });
+});
+
+describe("creditStorePayment — la idempotencia la decide el pago, no el estado", () => {
+  it("cancelado DESPUÉS de pagarse, mismo pago: aviso repetido (no resucita el pedido)", async () => {
+    preparar(pedido({ status: "CANCELLED", mpPaymentId: "mp1" }));
+    const r = await creditStorePayment({ ...cobro, orderId: "ord1", providerPaymentId: "mp1" });
+    expect(r).toEqual({ applied: false, status: "CANCELLED", motivo: "aviso repetido" });
+    expect(tx.storeOrder.updateMany).not.toHaveBeenCalled();
+    expect(tx.storeOrderEvent.create).not.toHaveBeenCalled();
+    expect(h.emails.sendPaidNoStockAlert).not.toHaveBeenCalled();
+  });
+
+  it("cancelado después de pagarse, OTRO pago: pago duplicado, sin pisar el primer id", async () => {
+    preparar(pedido({ status: "CANCELLED", mpPaymentId: "mp1" }));
+    const r = await creditStorePayment({ ...cobro, orderId: "ord1", providerPaymentId: "mp2" });
+    expect(r).toEqual({ applied: false, status: "CANCELLED", motivo: "pago duplicado" });
+    expect(tx.storeOrder.updateMany).not.toHaveBeenCalled();
+    expect(tx.storeOrderEvent.create).toHaveBeenCalledWith({
+      data: { orderId: "ord1", fromStatus: "CANCELLED", toStatus: "CANCELLED", note: "Pago duplicado mp2: hay que devolverlo" },
+    });
+    expect(h.emails.sendDuplicatePaymentAlert).toHaveBeenCalled();
+  });
+});
+
+describe("creditStorePayment — monto y moneda", () => {
+  it.each([
+    ["menos que el total", { amountMinor: 24_999_99, currency: "ARS" }],
+    ["otra moneda", { amountMinor: 25_000_00, currency: "USD" }],
+  ])("%s: PAID_NO_STOCK sin venta, con constancia y alerta", async (_caso, pagoMp) => {
+    preparar(pedido());
+    const r = await creditStorePayment({ ...pagoMp, orderId: "ord1", providerPaymentId: "mp1" });
+    expect(r).toEqual({ applied: true, status: "PAID_NO_STOCK" });
+    expect(h.recordSale).not.toHaveBeenCalled();
+    expect(h.lockStockRows).not.toHaveBeenCalled();
+    expect(tx.storeOrder.updateMany).toHaveBeenCalledWith({
+      where: { id: "ord1", workspaceId: "ws1" },
+      data: expect.objectContaining({ status: "PAID_NO_STOCK", mpPaymentId: "mp1" }),
+    });
+    expect(tx.storeOrderEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ toStatus: "PAID_NO_STOCK", note: "Pago con monto distinto: revisar" }),
+    });
+    expect(h.emails.sendPaidNoStockAlert).toHaveBeenCalledWith({ workspaceId: "ws1", orderId: "ord1" });
+  });
+
+  it("de más, en pesos: se acredita (cubre el pedido; Checkout Pro cobra el total de la preferencia)", async () => {
+    preparar(pedido());
+    const r = await creditStorePayment({ amountMinor: 26_000_00, currency: "ARS", orderId: "ord1", providerPaymentId: "mp1" });
+    expect(r.status).toBe("PAID");
+  });
+
+  it("sin fecha de aprobación, la venta lleva la fecha de ahora", async () => {
+    preparar(pedido());
+    const antes = Date.now();
+    await creditStorePayment({ ...cobro, orderId: "ord1", providerPaymentId: "mp1", paidAt: null });
+    const occurredAt = (h.recordSale.mock.calls[0][1] as { occurredAt: Date }).occurredAt;
+    expect(occurredAt.getTime()).toBeGreaterThanOrEqual(antes);
   });
 });
 
 describe("creditStorePayment — pagos tardíos", () => {
   it("vencido con stock: igual pasa a PAID con su venta", async () => {
     preparar(pedido({ status: "EXPIRED" }));
-    const r = await creditStorePayment({ orderId: "ord1", providerPaymentId: "mp1" });
+    const r = await creditStorePayment({ ...cobro, orderId: "ord1", providerPaymentId: "mp1" });
     expect(r).toEqual({ applied: true, status: "PAID" });
     expect(h.recordSale).toHaveBeenCalledTimes(1);
   });
 
   it("vencido sin stock: PAID_NO_STOCK, sin venta, y alerta a la institución", async () => {
     preparar(pedido({ status: "EXPIRED" }), { v1: 1 });
-    const r = await creditStorePayment({ orderId: "ord1", providerPaymentId: "mp1" });
+    const r = await creditStorePayment({ ...cobro, orderId: "ord1", providerPaymentId: "mp1" });
     expect(r).toEqual({ applied: true, status: "PAID_NO_STOCK" });
     expect(h.recordSale).not.toHaveBeenCalled();
     expect(h.recordDischarge).not.toHaveBeenCalled();
@@ -270,7 +329,7 @@ describe("creditStorePayment — pagos tardíos", () => {
 
   it("cancelado, aunque haya stock: PAID_NO_STOCK (la plata está, el pedido no)", async () => {
     preparar(pedido({ status: "CANCELLED" }));
-    const r = await creditStorePayment({ orderId: "ord1", providerPaymentId: "mp1" });
+    const r = await creditStorePayment({ ...cobro, orderId: "ord1", providerPaymentId: "mp1" });
     expect(r).toEqual({ applied: true, status: "PAID_NO_STOCK" });
     expect(h.recordSale).not.toHaveBeenCalled();
   });

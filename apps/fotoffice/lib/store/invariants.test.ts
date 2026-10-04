@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -55,5 +55,20 @@ describe("tienda — invariantes", () => {
     // (`lib/bookings/webhook-payload`), que es puro y no sabe de reservas.
     expect(src).not.toMatch(/\bbooking\b/i);
     expect(src).not.toMatch(/BookingPayment|BookingExternalReference/);
+  });
+
+  it("la página del pedido no depende de que la tienda esté abierta", () => {
+    // Ningún layout entre `tienda/` y `tienda/pedido/` puede exigir la tienda abierta (el de la
+    // vitrina vive en el grupo `(abierta)`, que no contiene al pedido).
+    const tienda = join(appRoot, "app/w/[workspaceSlug]/tienda");
+    expect(existsSync(join(tienda, "layout.tsx"))).toBe(false);
+    expect(existsSync(join(tienda, "(abierta)/layout.tsx"))).toBe(true);
+    for (const rel of ["pedido/layout.tsx", "pedido/[publicId]/acceso/route.ts"]) {
+      expect(sinComentarios(readFileSync(join(tienda, rel), "utf8"))).not.toMatch(/loadOpenStore/);
+    }
+    // La página sólo la usa para ofrecer "Volver a pagar", nunca para decidir si se ve.
+    const pagina = sinComentarios(readFileSync(join(tienda, "pedido/[publicId]/page.tsx"), "utf8"));
+    expect(pagina).toMatch(/await loadStoreWorkspace\(workspaceSlug\);\s*if \(!store\) notFound\(\);/);
+    expect(pagina).not.toMatch(/loadOpenStore\(workspaceSlug\);\s*if \(!\w+\) notFound/);
   });
 });

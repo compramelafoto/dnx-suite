@@ -6,7 +6,7 @@ import { sanitizeError } from "@/lib/payments/connect/log";
 import { extractPaymentId } from "@/lib/bookings/webhook-payload";
 import { creditStorePayment } from "@/lib/store/credit-payment";
 import { parseStoreExternalReference } from "@/lib/store/external-reference";
-import { isApprovedMpPayment } from "@/lib/store/mp-payment";
+import { isApprovedMpPayment, storePaymentFacts } from "@/lib/store/mp-payment";
 
 export const dynamic = "force-dynamic";
 
@@ -97,7 +97,12 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true, applied: false, motivo: "pago no aprobado" });
       }
 
-      const r = await creditStorePayment({ orderId, providerPaymentId: pago.providerPaymentId || providerPaymentId });
+      const hechos = storePaymentFacts(pago);
+      const r = await creditStorePayment({
+        orderId,
+        ...hechos,
+        providerPaymentId: hechos.providerPaymentId || providerPaymentId,
+      });
       return NextResponse.json({ ok: true, ...r });
     }
 

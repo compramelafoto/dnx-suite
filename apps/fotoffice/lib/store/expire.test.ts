@@ -13,13 +13,15 @@ const h = vi.hoisted(() => {
   return {
     tx,
     prisma: {
-      storeOrder: { findMany: vi.fn() },
+      storeOrder: { findMany: vi.fn(), findFirst: vi.fn() },
+      storeOrderEvent: { create: vi.fn() },
       $transaction: vi.fn(async (fn: (t: typeof tx) => unknown) => fn(tx)),
     },
     resolveWorkspaceCollector: vi.fn(),
     searchPaymentsByExternalReference: vi.fn(),
     getPayment: vi.fn(),
     creditStorePayment: vi.fn(),
+    sendCreditFailureAlert: vi.fn(),
   };
 });
 vi.mock("@repo/db", () => ({ prisma: h.prisma }));
@@ -31,6 +33,7 @@ vi.mock("@repo/payments/mercado-pago", () => ({
 }));
 vi.mock("@/lib/payments/connect/collector", () => ({ resolveWorkspaceCollector: h.resolveWorkspaceCollector }));
 vi.mock("./credit-payment", () => ({ creditStorePayment: h.creditStorePayment }));
+vi.mock("./emails", () => ({ sendCreditFailureAlert: h.sendCreditFailureAlert }));
 
 const { reconcilePendingOrders } = await import("./expire");
 const { checkStoreOrderPayment, isApprovedMpPayment } = await import("./mp-payment");
@@ -46,7 +49,7 @@ function pago(over: { status?: string; externalReference?: string } = {}) {
     currency: "ARS",
     externalReference: over.externalReference ?? "store:ord1",
     liveMode: true,
-    rawSanitized: { status },
+    rawSanitized: { status, date_approved: "2026-10-04T11:58:00.000-03:00" },
   };
 }
 
@@ -63,6 +66,7 @@ beforeEach(() => {
   h.tx.storeOrder.updateMany.mockResolvedValue({ count: 1 });
   h.creditStorePayment.mockResolvedValue({ applied: true, status: "PAID" });
   vi.spyOn(console, "warn").mockImplementation(() => {});
+  vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
 describe("reconcilePendingOrders", () => {
@@ -72,7 +76,7 @@ describe("reconcilePendingOrders", () => {
 
     const r = await reconcilePendingOrders({ now });
 
-    expect(r).toEqual({ checked: 1, credited: 0, expired: 1 });
+    expect(r).toEqual({ checked: 1, credited: 0, expired: 1, failed: 0 });
     expect(h.searchPaymentsByExternalReference).toHaveBeenCalledWith("store:ord1");
     expect(h.tx.storeOrder.updateMany).toHaveBeenCalledWith({
       where: { id: "ord1", workspaceId: "ws1", status: "PENDING_PAYMENT" },
@@ -90,8 +94,14 @@ describe("reconcilePendingOrders", () => {
 
     const r = await reconcilePendingOrders({ now });
 
-    expect(r).toEqual({ checked: 1, credited: 1, expired: 0 });
-    expect(h.creditStorePayment).toHaveBeenCalledWith({ orderId: "ord1", providerPaymentId: "mp1" });
+    expect(r).toEqual({ checked: 1, credited: 1, expired: 0, failed: 0 });
+    expect(h.creditStorePayment).toHaveBeenCalledWith({
+      orderId: "ord1",
+      providerPaymentId: "mp1",
+      amountMinor: 25_000_00,
+      currency: "ARS",
+      paidAt: new Date("2026-10-04T14:58:00Z"),
+    });
     expect(h.tx.storeOrder.updateMany).not.toHaveBeenCalled();
   });
 
@@ -99,14 +109,14 @@ describe("reconcilePendingOrders", () => {
     pedidos([{ id: "ord1", workspaceId: "ws1", holdExpiresAt: new Date("2026-10-04T14:50:00Z") }]);
     h.searchPaymentsByExternalReference.mockResolvedValue(pago({ status: "pending" }));
     const r = await reconcilePendingOrders({ now });
-    expect(r).toEqual({ checked: 1, credited: 0, expired: 1 });
+    expect(r).toEqual({ checked: 1, credited: 0, expired: 1, failed: 0 });
   });
 
   it("si Mercado Pago no responde, no lo vence: lo intenta la próxima corrida", async () => {
     pedidos([{ id: "ord1", workspaceId: "ws1", holdExpiresAt: new Date("2026-10-04T14:50:00Z") }]);
     h.searchPaymentsByExternalReference.mockRejectedValue(new Error("timeout"));
     const r = await reconcilePendingOrders({ now });
-    expect(r).toEqual({ checked: 1, credited: 0, expired: 0 });
+    expect(r).toEqual({ checked: 1, credited: 0, expired: 0, failed: 0 });
     expect(h.tx.storeOrder.updateMany).not.toHaveBeenCalled();
   });
 
@@ -114,21 +124,21 @@ describe("reconcilePendingOrders", () => {
     pedidos([{ id: "ord1", workspaceId: "ws1", holdExpiresAt: new Date("2026-10-02T14:00:00Z") }]);
     h.searchPaymentsByExternalReference.mockRejectedValue(new Error("timeout"));
     const r = await reconcilePendingOrders({ now });
-    expect(r).toEqual({ checked: 1, credited: 0, expired: 1 });
+    expect(r).toEqual({ checked: 1, credited: 0, expired: 1, failed: 0 });
   });
 
   it("si la institución no tiene cobros habilitados, vence igual: no hay pago que buscar", async () => {
     pedidos([{ id: "ord1", workspaceId: "ws1", holdExpiresAt: new Date("2026-10-04T14:50:00Z") }]);
     h.resolveWorkspaceCollector.mockResolvedValue({ ok: false });
     const r = await reconcilePendingOrders({ now });
-    expect(r).toEqual({ checked: 1, credited: 0, expired: 1 });
+    expect(r).toEqual({ checked: 1, credited: 0, expired: 1, failed: 0 });
   });
 
   it("los vencidos de las últimas 48 h sin pago se vuelven a consultar y, si apareció el pago, se acreditan", async () => {
     pedidos([], [{ id: "ord1", workspaceId: "ws1", holdExpiresAt: new Date("2026-10-04T14:50:00Z") }]);
     h.searchPaymentsByExternalReference.mockResolvedValue(pago());
     const r = await reconcilePendingOrders({ now });
-    expect(r).toEqual({ checked: 1, credited: 1, expired: 0 });
+    expect(r).toEqual({ checked: 1, credited: 1, expired: 0, failed: 0 });
 
     const consultaVencidos = h.prisma.storeOrder.findMany.mock.calls.find(
       (c) => (c[0] as { where: { status: string } }).where.status === "EXPIRED",
@@ -138,6 +148,66 @@ describe("reconcilePendingOrders", () => {
       mpPaymentId: null,
       holdExpiresAt: { gte: new Date("2026-10-02T15:00:00Z") },
     });
+    // Los más recientes primero.
+    expect((consultaVencidos as unknown as { orderBy: unknown }).orderBy).toEqual({ updatedAt: "desc" });
+  });
+
+  it("un pedido que falla no frena a los demás", async () => {
+    const hold = new Date("2026-10-04T14:50:00Z");
+    pedidos([
+      { id: "ord1", workspaceId: "ws1", holdExpiresAt: hold },
+      { id: "ord2", workspaceId: "ws1", holdExpiresAt: hold },
+    ]);
+    h.resolveWorkspaceCollector.mockRejectedValueOnce(new Error("base caída"));
+    h.searchPaymentsByExternalReference.mockResolvedValue(null);
+
+    const r = await reconcilePendingOrders({ now });
+
+    expect(r).toEqual({ checked: 2, credited: 0, expired: 1, failed: 1 });
+    expect(h.tx.storeOrder.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ id: "ord2" }) }),
+    );
+  });
+
+  it("un pago aprobado que no se puede acreditar: no se vence, se anota UNA vez y se alerta", async () => {
+    const hold = new Date("2026-10-04T14:50:00Z");
+    pedidos([
+      { id: "ord1", workspaceId: "ws1", holdExpiresAt: hold },
+      { id: "ord2", workspaceId: "ws1", holdExpiresAt: hold },
+    ]);
+    h.searchPaymentsByExternalReference.mockImplementation(async (ref: string) =>
+      pago({ externalReference: ref }),
+    );
+    h.creditStorePayment.mockImplementation(async ({ orderId }: { orderId: string }) => {
+      if (orderId === "ord1") throw new Error("se rompió");
+      return { applied: true, status: "PAID" };
+    });
+    h.prisma.storeOrder.findFirst.mockResolvedValue({ status: "PENDING_PAYMENT", events: [{ note: "Pedido creado" }] });
+
+    const r = await reconcilePendingOrders({ now });
+
+    expect(r).toEqual({ checked: 2, credited: 1, expired: 0, failed: 1 });
+    expect(h.tx.storeOrder.updateMany).not.toHaveBeenCalled();
+    expect(h.prisma.storeOrderEvent.create).toHaveBeenCalledWith({
+      data: {
+        orderId: "ord1",
+        fromStatus: "PENDING_PAYMENT",
+        toStatus: "PENDING_PAYMENT",
+        note: "Pago aprobado que no se pudo acreditar: revisar",
+      },
+    });
+    expect(h.sendCreditFailureAlert).toHaveBeenCalledWith({ workspaceId: "ws1", orderId: "ord1" });
+
+    // Próxima corrida: el último evento ya lo dice, no se repite la constancia ni la alerta.
+    vi.clearAllMocks();
+    h.resolveWorkspaceCollector.mockResolvedValue({ ok: true, collector: { accessToken: "tok" } });
+    h.prisma.storeOrder.findFirst.mockResolvedValue({
+      status: "PENDING_PAYMENT",
+      events: [{ note: "Pago aprobado que no se pudo acreditar: revisar" }],
+    });
+    await reconcilePendingOrders({ now });
+    expect(h.prisma.storeOrderEvent.create).not.toHaveBeenCalled();
+    expect(h.sendCreditFailureAlert).not.toHaveBeenCalled();
   });
 
   it("busca sólo pendientes con la retención vencida, hasta el límite", async () => {
@@ -164,6 +234,20 @@ describe("checkStoreOrderPayment", () => {
     const r = await checkStoreOrderPayment({ workspaceId: "ws1", orderId: "ord1", providerPaymentId: "mp1" });
     expect(h.getPayment).toHaveBeenCalledWith("mp1");
     expect(r).toMatchObject({ outcome: "credited" });
+  });
+});
+
+describe("storePaymentFacts", () => {
+  it("toma monto, moneda y la fecha de aprobación; sin fecha, null", async () => {
+    const { storePaymentFacts } = await import("./mp-payment");
+    expect(storePaymentFacts(pago())).toEqual({
+      providerPaymentId: "mp1",
+      amountMinor: 25_000_00,
+      currency: "ARS",
+      paidAt: new Date("2026-10-04T14:58:00Z"),
+    });
+    expect(storePaymentFacts({ ...pago(), rawSanitized: { status: "approved" } }).paidAt).toBeNull();
+    expect(storePaymentFacts({ ...pago(), rawSanitized: { date_approved: "cualquiera" } }).paidAt).toBeNull();
   });
 });
 

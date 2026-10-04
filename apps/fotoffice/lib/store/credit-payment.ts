@@ -207,7 +207,11 @@ type Resultado =
 export async function creditStorePayment(input: {
   orderId: string;
   providerPaymentId: string;
-  paidAt?: Date;
+  /** Lo que Mercado Pago dice que se cobró. Se compara con el total del pedido. */
+  amountMinor: number;
+  currency: string;
+  /** `date_approved` de Mercado Pago; si no viene, ahora. Es la fecha de la venta. */
+  paidAt?: Date | null;
 }): Promise<CreditStorePaymentResult> {
   const paidAt = input.paidAt ?? new Date();
   const cabecera = await prisma.storeOrder.findUnique({
@@ -229,10 +233,13 @@ export async function creditStorePayment(input: {
       });
       if (!order) return { kind: "invalido", status: null, motivo: "el pedido no existe" };
 
-      if (YA_PAGADO.includes(order.status)) {
+      // La idempotencia la decide el PAGO, no el estado: un pedido que ya tiene un pago guardado
+      // (pagado, listo, entregado, sin stock… o cancelado después de pagarse) no vuelve a
+      // acreditarse. El mismo pago es un aviso repetido; otro pago es un pago doble.
+      if (order.mpPaymentId !== null || YA_PAGADO.includes(order.status)) {
         if (order.mpPaymentId === input.providerPaymentId) return { kind: "repetido", status: order.status };
-        // OTRO pago para un pedido ya pagado: la persona pagó dos veces. No se toca el pedido
-        // (`mpPaymentId` es único y es el del primer pago); queda la constancia para devolverlo.
+        // No se toca el pedido (`mpPaymentId` es único y es el del primer pago); queda la
+        // constancia para devolver el segundo.
         const nota = `Pago duplicado ${input.providerPaymentId}: hay que devolverlo`;
         const yaAnotado = await tx.storeOrderEvent.findFirst({
           where: { orderId: order.id, note: nota },
@@ -243,6 +250,13 @@ export async function creditStorePayment(input: {
           data: { orderId: order.id, fromStatus: order.status, toStatus: order.status, note: nota },
         });
         return { kind: "duplicado", status: order.status };
+      }
+
+      // Se cobró otra cosa que el total del pedido (o en otra moneda): la plata está, pero no se
+      // da por pagado sin que una persona lo mire. Sin venta.
+      if (!montoCubre(input, decimalArsToMinor(order.totalArs))) {
+        await pasarASinStock(tx, order, input.providerPaymentId, paidAt, "Pago con monto distinto: revisar");
+        return { kind: "aplicado", status: "PAID_NO_STOCK" };
       }
 
       await lockStockRows(tx, {
@@ -296,21 +310,15 @@ export async function creditStorePayment(input: {
 
       // La plata está y el stock no (o el pedido se había cancelado): sin venta. La institución
       // decide si repone (→ PAID, con su venta) o devuelve el dinero.
-      await tx.storeOrder.updateMany({
-        where: { id: order.id, workspaceId },
-        data: { status: "PAID_NO_STOCK", paidAt, mpPaymentId: input.providerPaymentId, holdExpiresAt: null },
-      });
-      await tx.storeOrderEvent.create({
-        data: {
-          orderId: order.id,
-          fromStatus: order.status,
-          toStatus: "PAID_NO_STOCK",
-          note:
-            order.status === "CANCELLED"
-              ? `Pago ${input.providerPaymentId} aprobado sobre un pedido cancelado`
-              : `Pago ${input.providerPaymentId} aprobado sin stock suficiente`,
-        },
-      });
+      await pasarASinStock(
+        tx,
+        order,
+        input.providerPaymentId,
+        paidAt,
+        order.status === "CANCELLED"
+          ? `Pago ${input.providerPaymentId} aprobado sobre un pedido cancelado`
+          : `Pago ${input.providerPaymentId} aprobado sin stock suficiente`,
+      );
       return { kind: "aplicado", status: "PAID_NO_STOCK" };
     },
     { isolationLevel: "ReadCommitted" },
@@ -336,6 +344,27 @@ export async function creditStorePayment(input: {
     case "invalido":
       return { applied: false, status: resultado.status, motivo: resultado.motivo };
   }
+}
+
+/** ¿El pago cubre el pedido? En pesos y por lo menos el total. Módulo puro. */
+export function montoCubre(pago: { amountMinor: number; currency: string }, totalMinor: number): boolean {
+  return pago.currency === "ARS" && Number.isInteger(pago.amountMinor) && pago.amountMinor >= totalMinor;
+}
+
+async function pasarASinStock(
+  tx: Tx,
+  order: OrderToFinalize,
+  providerPaymentId: string,
+  paidAt: Date,
+  note: string,
+): Promise<void> {
+  await tx.storeOrder.updateMany({
+    where: { id: order.id, workspaceId: order.workspaceId },
+    data: { status: "PAID_NO_STOCK", paidAt, mpPaymentId: providerPaymentId, holdExpiresAt: null },
+  });
+  await tx.storeOrderEvent.create({
+    data: { orderId: order.id, fromStatus: order.status, toStatus: "PAID_NO_STOCK", note },
+  });
 }
 
 async function avisar(enviar: () => Promise<void>): Promise<void> {

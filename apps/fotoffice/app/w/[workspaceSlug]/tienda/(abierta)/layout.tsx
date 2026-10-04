@@ -14,6 +14,8 @@ type Props = { children: ReactNode; params: Promise<{ workspaceSlug: string }> }
  * carrito— y una barra con el acceso al carrito y su contador.
  *
  * Tienda cerrada o módulo apagado: 404 en todas sus páginas, igual que el menú, que la esconde.
+ * La página de un pedido (`../pedido`) queda fuera de este grupo a propósito: quien pagó tiene
+ * que poder verla aunque la tienda se cierre.
  */
 export default async function StoreLayout({ children, params }: Props) {
   const { workspaceSlug } = await params;

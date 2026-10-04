@@ -8,7 +8,7 @@ import { decimalArsToMinor } from "@/lib/membership/money";
 import { checkStoreOrderPayment } from "@/lib/store/mp-payment";
 import { keptReturnParams, storeOrderCookieName, storeVisibleBase } from "@/lib/store/order-access";
 import { findStoreOrderForPage, tokenOpensOrder, type StoreOrderPageRow } from "@/lib/store/order-page";
-import { loadOpenStore } from "@/lib/store/repository";
+import { loadOpenStore, loadStoreWorkspace } from "@/lib/store/repository";
 import { hostWithoutPort } from "@/lib/website/domain/normalize";
 import { Price } from "@/components/store/price";
 import { ClearCartWhenPaid, RetryPaymentButton } from "./order-client";
@@ -63,7 +63,8 @@ function horaArgentina(d: Date): string {
 export default async function StoreOrderPage({ params, searchParams }: Props) {
   const { workspaceSlug, publicId } = await params;
   const sp = await searchParams;
-  const store = await loadOpenStore(workspaceSlug);
+  // Sin exigir la tienda abierta: un pedido pagado se ve aunque la tienda se cierre.
+  const store = await loadStoreWorkspace(workspaceSlug);
   if (!store) notFound();
 
   let pedido = await findStoreOrderForPage(store.workspace.id, publicId);
@@ -103,7 +104,11 @@ export default async function StoreOrderPage({ params, searchParams }: Props) {
   const esperando =
     pedido.status === "PENDING_PAYMENT" && pedido.holdExpiresAt !== null && pedido.holdExpiresAt.getTime() > ahora.getTime();
   const pagado = PAGADO.includes(pedido.status);
-  const { pickupAddress, pickupHours, pickupInstructions } = store.settings;
+  const pickupAddress = store.pickup?.pickupAddress ?? null;
+  const pickupHours = store.pickup?.pickupHours ?? null;
+  const pickupInstructions = store.pickup?.pickupInstructions ?? null;
+  // Volver a pagar sí exige la tienda abierta: con la tienda cerrada no se cobra nada nuevo.
+  const abierta = esperando ? (await loadOpenStore(workspaceSlug)) !== null : false;
 
   return (
     <main className="mx-auto max-w-3xl space-y-6 px-4 py-8 md:px-8 md:py-12">
@@ -117,7 +122,7 @@ export default async function StoreOrderPage({ params, searchParams }: Props) {
       <EstadoDelPedido pedido={pedido} esperando={esperando} pago={pago} />
 
       {/* Volviendo de pagar (aprobado o pendiente, p. ej. en efectivo) no se ofrece pagar otra vez: sería un pago doble. */}
-      {esperando && pago !== "ok" && pago !== "pendiente" ? <RetryPaymentButton workspaceSlug={store.workspace.slug} publicId={pedido.publicId} /> : null}
+      {esperando && abierta && pago !== "ok" && pago !== "pendiente" ? <RetryPaymentButton workspaceSlug={store.workspace.slug} publicId={pedido.publicId} /> : null}
 
       <section className="fo-card space-y-4 p-6">
         <h2 className="text-lg font-semibold">Tu compra</h2>

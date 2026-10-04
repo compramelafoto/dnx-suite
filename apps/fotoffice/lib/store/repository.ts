@@ -77,6 +77,34 @@ export const loadOpenStore = cache(async function loadOpenStore(workspaceSlug: s
   };
 });
 
+export type StoreWorkspace = {
+  workspace: { id: string; slug: string; name: string };
+  pickup: { pickupAddress: string | null; pickupHours: string | null; pickupInstructions: string | null } | null;
+};
+
+/**
+ * La institución de una dirección pública, SIN exigir que la tienda esté abierta. La usa sólo la
+ * página de un pedido: quien pagó tiene que poder ver su pedido aunque la tienda después se
+ * cierre o se apague el módulo. Vender sí exige `loadOpenStore`.
+ */
+export const loadStoreWorkspace = cache(async function loadStoreWorkspace(
+  workspaceSlug: string,
+): Promise<StoreWorkspace | null> {
+  const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
+    where: { publicSlug: workspaceSlug },
+    select: { workspaceId: true, publicSlug: true, commercialName: true },
+  });
+  if (!branding) return null;
+  const pickup = await prisma.storeSettings.findUnique({
+    where: { workspaceId: branding.workspaceId },
+    select: { pickupAddress: true, pickupHours: true, pickupInstructions: true },
+  });
+  return {
+    workspace: { id: branding.workspaceId, slug: branding.publicSlug, name: branding.commercialName },
+    pickup,
+  };
+});
+
 /**
  * Unidades retenidas por pedidos que esperan el pago, por clave de línea (`lineKey`).
  *
