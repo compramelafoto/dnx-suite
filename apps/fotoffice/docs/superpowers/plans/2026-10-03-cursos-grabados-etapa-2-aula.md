@@ -2967,6 +2967,23 @@ Si el sitio se sirve también como `www.fotoffice.com`, agregarlo a `ORIGENES_PE
 `lib/courses-video/stream.ts` **y** actualizar los videos ya creados
 (`POST /stream/<uid>` con `allowedOrigins`), porque el valor se fija al crear cada video.
 
+- [ ] **Step 5b: Comprobaciones de despliegue del enlace del aula**
+
+El enlace `/aula/<token>` **es la credencial** del alumno. Antes de la prueba de punta a punta:
+
+1. **Seguimiento de clics de Resend apagado** en el dominio desde el que salen los correos
+   (Resend → Domains → el dominio → Click tracking: off). Si está prendido, Resend reescribe
+   cada enlace por un redireccionamiento suyo y el enlace con el token queda guardado en su
+   panel y en sus registros.
+2. **`APP_URL` y `NEXT_PUBLIC_APP_URL` valen lo mismo** en Vercel producción. Las dos se usan
+   (`lib/app-url.ts` toma primero `NEXT_PUBLIC_APP_URL`) y una diferencia manda enlaces a un
+   dominio y reproduce el video desde otro. Confirmar también cuál es el canónico:
+   `https://fotoffice.com` o `https://www.fotoffice.com` (debe coincidir con el Step 5 y con
+   `ORIGENES_PERMITIDOS`).
+3. **Queda asumido:** los registros de Vercel muestran la ruta pedida, `/aula/<token>`. Es
+   inherente a que el enlace sea la credencial; quien tenga acceso a esos registros podría
+   entrar al aula. No se corrige en esta etapa: se deja escrito.
+
 - [ ] **Step 6: Prueba de punta a punta (criterio de la etapa 2 en la spec)**
 
 1. En una institución de prueba con Mercado Pago conectado: un curso grabado publicado, precio
