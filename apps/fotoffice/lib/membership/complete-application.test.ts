@@ -34,6 +34,9 @@ vi.mock("@repo/db", async () => {
 vi.mock("@/lib/carnet/issue", () => ({ issueDigitalCard: H.issueCard }));
 vi.mock("@/lib/carnet/prepaid-card", () => ({ issuePrepaidPrintedCard: H.issuePrepaid }));
 vi.mock("@/lib/communications/send-and-log", () => ({ sendAndLogEmail: H.sendAndLog }));
+vi.mock("./settings", () => ({
+  getDuesSettings: async () => ({ communityWhatsappUrl: "https://chat.whatsapp.com/CpeHaezJTKkEDkwaMjAbcA" }),
+}));
 vi.mock("@/lib/communications/load-workspace-signature", () => ({
   loadWorkspaceEmailContext: H.emailContext,
 }));
@@ -77,6 +80,11 @@ describe("cierre del ingreso", () => {
     expect(H.sendAndLog).toHaveBeenCalledWith(
       expect.objectContaining({ to: "ana@test.com", userId: 42 }),
     );
+    // La bienvenida trae el grupo de WhatsApp de los socios.
+    const cuerpo = H.sendAndLog.mock.calls[0][0].body;
+    expect(cuerpo.html).toContain("https://chat.whatsapp.com/CpeHaezJTKkEDkwaMjAbcA");
+    expect(cuerpo.html).toContain("whatsapp-blanco.png");
+    expect(cuerpo.text).toContain("grupo de WhatsApp");
   });
 
   it("mientras quede un peso, no cierra nada", async () => {
