@@ -1,5 +1,12 @@
+import { createVerify, generateKeyPairSync } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import { createDirectUpload, getVideoStatus, StreamError } from "./stream";
+import {
+  createDirectUpload,
+  getVideoStatus,
+  playbackIframeUrl,
+  signPlaybackToken,
+  StreamError,
+} from "./stream";
 
 const config = {
   accountId: "cuenta",
@@ -90,5 +97,62 @@ describe("estado del video", () => {
       .mockResolvedValue(respuesta({ result: { status: { state: "error" } } }));
     const r = await getVideoStatus("video-1", { config, fetchImpl: fetchSimulado });
     expect(r.status).toBe("ERROR");
+  });
+});
+
+describe("permiso de reproducción", () => {
+  const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+  const pem = privateKey.export({ type: "pkcs8", format: "pem" }).toString();
+  const configFirma = { ...config, signingKeyId: "clave-firma", signingKeyPem: pem };
+  const ahora = new Date(Date.UTC(2026, 9, 3, 12));
+
+  function partes(token: string) {
+    const [h, p, f] = token.split(".");
+    return {
+      header: JSON.parse(Buffer.from(h, "base64url").toString()),
+      payload: JSON.parse(Buffer.from(p, "base64url").toString()),
+      firmado: `${h}.${p}`,
+      firma: Buffer.from(f, "base64url"),
+    };
+  }
+
+  it("firma un token para un solo video, que vence", () => {
+    const token = signPlaybackToken(
+      { videoUid: "video-1", ttlSeconds: 7200, ahora },
+      { config: configFirma },
+    );
+    const { header, payload, firmado, firma } = partes(token);
+    expect(header).toEqual({ alg: "RS256", kid: "clave-firma" });
+    expect(payload.sub).toBe("video-1");
+    expect(payload.kid).toBe("clave-firma");
+    expect(payload.exp).toBe(Math.floor(ahora.getTime() / 1000) + 7200);
+    expect(createVerify("RSA-SHA256").update(firmado).verify(publicKey, firma)).toBe(true);
+  });
+
+  it("acepta la clave tal como la entrega Cloudflare, en base64", () => {
+    const enBase64 = Buffer.from(pem).toString("base64");
+    const token = signPlaybackToken(
+      { videoUid: "video-1", ttlSeconds: 60, ahora },
+      { config: { ...configFirma, signingKeyPem: enBase64 } },
+    );
+    const { firmado, firma } = partes(token);
+    expect(createVerify("RSA-SHA256").update(firmado).verify(publicKey, firma)).toBe(true);
+  });
+
+  it("sin configuración lanza StreamError, sin datos de la clave en el mensaje", () => {
+    const previo = process.env.STREAM_SIGNING_KEY_PEM;
+    delete process.env.STREAM_SIGNING_KEY_PEM;
+    try {
+      expect(() => signPlaybackToken({ videoUid: "v", ttlSeconds: 60 })).toThrow(StreamError);
+    } finally {
+      if (previo !== undefined) process.env.STREAM_SIGNING_KEY_PEM = previo;
+    }
+  });
+
+  it("la dirección del reproductor lleva el token y desde dónde arrancar", () => {
+    expect(playbackIframeUrl("tok")).toBe("https://iframe.videodelivery.net/tok");
+    expect(playbackIframeUrl("tok", { startSeconds: 140.7 })).toBe(
+      "https://iframe.videodelivery.net/tok?startTime=140s",
+    );
   });
 });
