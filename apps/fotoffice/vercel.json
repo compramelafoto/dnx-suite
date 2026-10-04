@@ -29,6 +29,10 @@
       "schedule": "*/10 * * * *"
     },
     {
+      "path": "/api/cron/contactos-sync",
+      "schedule": "0 7 * * *"
+    },
+    {
       "path": "/api/cron/sorteos",
       "schedule": "*/15 * * * *"
     },
