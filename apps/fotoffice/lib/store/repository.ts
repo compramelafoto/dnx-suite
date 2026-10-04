@@ -192,6 +192,25 @@ export async function getStoreProduct(workspaceId: string, slug: string): Promis
 }
 
 /**
+ * Los productos comprables de una lista de ids, por id: activos, con ficha online y que se pueden
+ * vender (`isSellableOnline`). Lo que falta del mapa es, para el carrito, "ya no está a la venta".
+ * La usan la revalidación del carrito y la creación del pedido (dentro de su transacción).
+ */
+export async function loadCartCatalog(
+  workspaceId: string,
+  productIds: readonly string[],
+  db: Db = prisma,
+): Promise<Map<string, StorefrontProductRow>> {
+  const ids = [...new Set(productIds)];
+  if (ids.length === 0) return new Map();
+  const filas = await db.productStoreListing.findMany({
+    where: { workspaceId, sellOnline: true, productId: { in: ids }, product: productoPublico(workspaceId) },
+    select: SELECT_FILA,
+  });
+  return new Map(filas.map(aFila).filter(isSellableOnline).map((r) => [r.id, r]));
+}
+
+/**
  * Revalida un carrito: precio, existencia, canal y disponibilidad. No retiene nada (eso lo hace el
  * checkout al crear el pedido). La usan el carrito, para avisar antes, y el checkout.
  */
@@ -201,15 +220,13 @@ export async function validateCartLines(
   db: Db = prisma,
 ): Promise<{ lines: ValidatedLine[]; problems: CartProblem[] }> {
   if (lines.length === 0) return { lines: [], problems: [] };
-  const ids = [...new Set(lines.map((l) => l.productId))];
-  const [filas, reserved] = await Promise.all([
-    db.productStoreListing.findMany({
-      where: { workspaceId, sellOnline: true, productId: { in: ids }, product: productoPublico(workspaceId) },
-      select: SELECT_FILA,
-    }),
+  const [catalogo, reserved] = await Promise.all([
+    loadCartCatalog(
+      workspaceId,
+      lines.map((l) => l.productId),
+      db,
+    ),
     reservedQtyByKey(workspaceId, db),
   ]);
-  // Lo que no es comprable no entra al catálogo: `checkCartLines` lo trata como "ya no está a la venta".
-  const catalogo = new Map(filas.map(aFila).filter(isSellableOnline).map((r) => [r.id, r]));
   return checkCartLines(catalogo, lines, reserved);
 }

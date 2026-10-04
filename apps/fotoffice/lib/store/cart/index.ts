@@ -6,3 +6,4 @@ export * from "./reducer";
 export * from "./schema";
 export * from "./storage";
 export * from "./totals";
+export * from "./checkout-key";
