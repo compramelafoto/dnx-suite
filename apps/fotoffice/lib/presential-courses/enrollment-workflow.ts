@@ -108,71 +108,15 @@ export async function approveCourseEnrollment(args: {
     paymentMethodId: args.paymentMethodId ?? null,
   });
 
-  const crmPayload: Prisma.InputJsonValue = {
-    source: "CURSO_PRESENCIAL",
-    courseId: enrollment.courseId,
-    courseTitle: enrollment.course.title,
-    courseInstanceId: enrollment.courseInstanceId,
-    courseInstanceTitle: instancia?.title ?? null,
-    amountArs: decimalToNumber(amount),
-    paidAt: new Date().toISOString(),
-  };
-  const existingContact = await prisma.serviceSalesLead.findFirst({
-    where: {
-      workspaceId: enrollment.workspaceId,
-      OR: [
-        { email: enrollment.email },
-        { phone: enrollment.whatsapp },
-      ],
-    },
-    orderBy: { createdAt: "desc" },
-  });
-  if (existingContact) {
-    await prisma.serviceSalesLead.update({
-      where: { id: existingContact.id },
-      data: {
-        status: "WON",
-        eventType: "CURSO_PRESENCIAL",
-        eventSubtype: enrollment.course.slug,
-        message: `Inscripción aprobada para ${enrollment.course.title}`,
-        metaJson: crmPayload,
-      },
-    });
-    logCourseEvent("crm_contact_updated", {
-      workspaceId: enrollment.workspaceId,
-      enrollmentId: enrollment.id,
-      leadId: existingContact.id,
-    });
-  } else {
-    await prisma.serviceSalesLead.create({
-      data: {
-        workspaceId: enrollment.workspaceId,
-        name: enrollment.name,
-        email: enrollment.email,
-        phone: enrollment.whatsapp,
-        eventType: "CURSO_PRESENCIAL",
-        eventSubtype: enrollment.course.slug,
-        message: `Inscripción aprobada para ${enrollment.course.title}`,
-        status: "WON",
-        metaJson: crmPayload as Prisma.InputJsonValue,
-      },
-    });
-    logCourseEvent("crm_contact_created", {
-      workspaceId: enrollment.workspaceId,
-      enrollmentId: enrollment.id,
-    });
-  }
-
-  logCourseEvent("classroom_access_available", {
-    enrollmentId: enrollment.id,
-    workspaceId: enrollment.workspaceId,
-    courseId: enrollment.courseId,
-  });
-
-  // El correo de confirmación cuenta cuándo y dónde es el curso: sin edición no tiene qué
-  // decir. El curso grabado no tiene edición: su aviso lleva el enlace al aula y lo arma
-  // `lib/course-classroom/grant.ts`.
+  // Curso grabado: el acceso se da ANTES del CRM. Si algo de lo que sigue fallara, el pago ya
+  // está APPROVED y el próximo aviso de Mercado Pago entra como repetido: un acceso que no se
+  // creó acá no se crearía nunca. `avisarAccesoAlAula` nunca lanza.
   if (!instancia) {
+    logCourseEvent("classroom_access_available", {
+      enrollmentId: enrollment.id,
+      workspaceId: enrollment.workspaceId,
+      courseId: enrollment.courseId,
+    });
     await avisarAccesoAlAula({
       enrollmentId: enrollment.id,
       workspaceId: enrollment.workspaceId,
@@ -180,8 +124,83 @@ export async function approveCourseEnrollment(args: {
       studentName: enrollment.name,
       courseTitle: enrollment.course.title,
     });
+  }
+
+  // El CRM es un registro comercial: si falla, la inscripción aprobada, el acceso y el correo
+  // siguen su curso.
+  try {
+    const crmPayload: Prisma.InputJsonValue = {
+      source: "CURSO_PRESENCIAL",
+      courseId: enrollment.courseId,
+      courseTitle: enrollment.course.title,
+      courseInstanceId: enrollment.courseInstanceId,
+      courseInstanceTitle: instancia?.title ?? null,
+      amountArs: decimalToNumber(amount),
+      paidAt: new Date().toISOString(),
+    };
+    const existingContact = await prisma.serviceSalesLead.findFirst({
+      where: {
+        workspaceId: enrollment.workspaceId,
+        OR: [
+          { email: enrollment.email },
+          { phone: enrollment.whatsapp },
+        ],
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    if (existingContact) {
+      await prisma.serviceSalesLead.update({
+        where: { id: existingContact.id },
+        data: {
+          status: "WON",
+          eventType: "CURSO_PRESENCIAL",
+          eventSubtype: enrollment.course.slug,
+          message: `Inscripción aprobada para ${enrollment.course.title}`,
+          metaJson: crmPayload,
+        },
+      });
+      logCourseEvent("crm_contact_updated", {
+        workspaceId: enrollment.workspaceId,
+        enrollmentId: enrollment.id,
+        leadId: existingContact.id,
+      });
+    } else {
+      await prisma.serviceSalesLead.create({
+        data: {
+          workspaceId: enrollment.workspaceId,
+          name: enrollment.name,
+          email: enrollment.email,
+          phone: enrollment.whatsapp,
+          eventType: "CURSO_PRESENCIAL",
+          eventSubtype: enrollment.course.slug,
+          message: `Inscripción aprobada para ${enrollment.course.title}`,
+          status: "WON",
+          metaJson: crmPayload as Prisma.InputJsonValue,
+        },
+      });
+      logCourseEvent("crm_contact_created", {
+        workspaceId: enrollment.workspaceId,
+        enrollmentId: enrollment.id,
+      });
+    }
+  } catch (error) {
+    console.error("[fotoffice_courses] crm_update_failed", {
+      enrollmentId: enrollment.id,
+      error: error instanceof Error ? error.message : "error",
+    });
+  }
+
+  // El correo de confirmación cuenta cuándo y dónde es el curso: sin edición no tiene qué
+  // decir. El aviso del curso grabado, con el enlace al aula, ya salió arriba.
+  if (!instancia) {
     return { ok: true, alreadyApproved: false as const };
   }
+
+  logCourseEvent("classroom_access_available", {
+    enrollmentId: enrollment.id,
+    workspaceId: enrollment.workspaceId,
+    courseId: enrollment.courseId,
+  });
 
   // Firma institucional del workspace. Si el branding no está cargado, el email sale sin
   // firma en vez de fallar: confirmar una inscripción no puede depender de esto.
