@@ -243,6 +243,40 @@ export type ProductDetail = {
   supplierName: string | null;
   imageUrl: string | null;
   isActive: boolean;
+  /** null = sin ficha online: se vende sólo en el mostrador, como siempre (D2). */
+  storeListing: ProductStoreListingDetail | null;
+  /** Galería de la tienda, en orden: la primera es la principal. */
+  images: ProductImageRow[];
+  /** Todos los talles, activos e inactivos, en orden. */
+  variants: ProductVariantDetail[];
+};
+
+export type ProductStoreListingDetail = {
+  sellOnline: boolean;
+  sellAtCounter: boolean;
+  slug: string;
+  onlineTitle: string | null;
+  onlineDescription: string | null;
+  sizeChartImageUrl: string | null;
+  weightGrams: number | null;
+  lengthCm: number | null;
+  widthCm: number | null;
+  heightCm: number | null;
+  maxPerOrder: number | null;
+};
+
+export type ProductImageRow = { id: string; url: string; alt: string | null };
+
+/** Un talle tal como se edita en la ficha (a diferencia de `ProductVariantRow`, el del mostrador). */
+export type ProductVariantDetail = {
+  id: string;
+  name: string;
+  sku: string | null;
+  barcode: string | null;
+  /** null = hereda el precio del producto. */
+  priceMinor: number | null;
+  stockQty: number;
+  isActive: boolean;
 };
 
 /** La ficha. Devuelve null si no existe o si es de otro workspace. */
@@ -270,6 +304,33 @@ export async function getProduct(
       supplierName: true,
       imageUrl: true,
       isActive: true,
+      storeListing: {
+        select: {
+          sellOnline: true,
+          sellAtCounter: true,
+          slug: true,
+          onlineTitle: true,
+          onlineDescription: true,
+          sizeChartImageUrl: true,
+          weightGrams: true,
+          lengthCm: true,
+          widthCm: true,
+          heightCm: true,
+          maxPerOrder: true,
+        },
+      },
+      // Las relaciones no tienen restricción que las ate al workspace del producto: se filtra
+      // igual, para que una fila mal cargada de otro negocio nunca aparezca en esta ficha.
+      images: {
+        where: { workspaceId },
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        select: { id: true, url: true, alt: true },
+      },
+      variants: {
+        where: { workspaceId },
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        select: { id: true, name: true, sku: true, barcode: true, priceArs: true, stockQty: true, isActive: true },
+      },
     },
   });
   if (!r) return null;
@@ -292,6 +353,17 @@ export async function getProduct(
     supplierName: r.supplierName,
     imageUrl: r.imageUrl,
     isActive: r.isActive,
+    storeListing: r.storeListing,
+    images: r.images,
+    variants: r.variants.map((v) => ({
+      id: v.id,
+      name: v.name,
+      sku: v.sku,
+      barcode: v.barcode,
+      priceMinor: v.priceArs === null ? null : decimalArsToMinor(v.priceArs),
+      stockQty: v.stockQty,
+      isActive: v.isActive,
+    })),
   };
 }
 

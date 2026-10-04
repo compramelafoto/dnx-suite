@@ -23,6 +23,8 @@ describe("el respaldo oculto de cada casilla", () => {
   const CASILLAS = [
     { archivo: "app/(shell)/ventas/product-form.tsx", campo: "tracksStock" },
     { archivo: "app/(shell)/ventas/category-form.tsx", campo: "isActive" },
+    { archivo: "app/(shell)/ventas/catalogo/[productId]/store-sections.tsx", campo: "sellAtCounter" },
+    { archivo: "app/(shell)/ventas/catalogo/[productId]/store-sections.tsx", campo: "sellOnline" },
   ];
 
   it.each(CASILLAS)("$archivo manda el respaldo de $campo después de la casilla", ({ archivo, campo }) => {

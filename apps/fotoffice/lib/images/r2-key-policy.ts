@@ -23,6 +23,10 @@ export const FOTOFFICE_R2_PREFIXES = {
   favicon: "fotoffice/favicons",
   templateImage: "fotoffice/template-images",
   productPhoto: "fotoffice/product-photos",
+  /** Galería de la ficha online (tienda). */
+  productGallery: "fotoffice/product-gallery",
+  /** Imagen de la tabla de talles de un producto (tienda). */
+  sizeChart: "fotoffice/size-charts",
   memberPortfolioPhoto: "fotoffice/member-portfolio",
 } as const;
 
