@@ -4,6 +4,7 @@ import { prisma } from "@repo/db";
 import { getAuthUser } from "@/lib/auth";
 import { listUserProfiles } from "@/lib/portal/profiles";
 import { doorPathFor, resolveDoorDestination } from "@/lib/entrada/institution-door";
+import { PORTAL_HOME } from "@/lib/portal/destination";
 import { InstitutionDoorLogin } from "./institution-door-login";
 
 export const dynamic = "force-dynamic";
@@ -27,10 +28,19 @@ export const dynamic = "force-dynamic";
  */
 export default async function PuertaInstitucionPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ workspaceSlug: string }>;
+  searchParams: Promise<{ espacio?: string; fecha?: string }>;
 }) {
   const { workspaceSlug } = await params;
+  const query = await searchParams;
+  // Si se llegó desde una reserva, la puerta la recuerda (y descarta lo que no sea un id o un
+  // día: ver `doorPathFor`).
+  const puerta = query.espacio
+    ? doorPathFor(workspaceSlug, { spaceId: query.espacio, ymd: query.fecha })
+    : doorPathFor(workspaceSlug);
+  const reserva = puerta.includes("?") ? puerta.slice(puerta.indexOf("?")) : "";
 
   const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
     where: { publicSlug: workspaceSlug },
@@ -52,7 +62,11 @@ export default async function PuertaInstitucionPage({
       profiles: await listUserProfiles(user.id),
     });
 
-    if ("redirectTo" in destino) redirect(destino.redirectTo);
+    if ("redirectTo" in destino) {
+      // El socio que venía de reservar vuelve a esa reserva, ahora con su precio.
+      if (reserva && destino.redirectTo === PORTAL_HOME) redirect(`/portal/reservas${reserva}`);
+      redirect(destino.redirectTo);
+    }
 
     /*
       Tiene sesión pero no es nada de esta institución. No se lo echa ni se lo manda en
@@ -101,7 +115,7 @@ export default async function PuertaInstitucionPage({
       logoUrl={branding.logoUrl}
       // Volver acá después de entrar es lo que hace que la puerta signifique algo: es el dato
       // de "vengo a esta institución" viajando por el `next` que ya existía.
-      doorPath={doorPathFor(workspaceSlug)}
+      doorPath={puerta}
     />
   );
 }

@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { prisma } from "@repo/db";
-import { getAuthUser } from "@/lib/auth";
+import { loadPublicBookingViewer } from "@/lib/bookings/public-member";
+import { doorPathFor } from "@/lib/entrada/institution-door";
 import { formatMinorArs } from "@/lib/membership/money";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
@@ -62,7 +63,11 @@ export default async function PublicSpaceBookingPage({ params, searchParams }: P
   const { ymd } = parseCalendarParams(query, ahora, BOOKINGS_TIME_ZONE);
   const semana = viewInterval("semana", ymd, BOOKINGS_TIME_ZONE);
 
-  const [oferta, todos, user, vocabulary] = await Promise.all([
+  const { user, isMemberHere } = await loadPublicBookingViewer(branding.workspaceId);
+  // El socio con sesión reserva desde su portal: ahí tiene su precio y sus horas bonificadas.
+  if (isMemberHere) redirect(`/portal/reservas?espacio=${encodeURIComponent(spaceId)}&fecha=${ymd}`);
+
+  const [oferta, todos, vocabulary] = await Promise.all([
     loadPortalOffer({
       workspaceId: branding.workspaceId,
       memberId: null,
@@ -72,7 +77,6 @@ export default async function PublicSpaceBookingPage({ params, searchParams }: P
       now: ahora,
     }),
     listSpaces(branding.workspaceId),
-    getAuthUser(),
     loadPersonVocabulary(branding.workspaceId),
   ]);
   if (!oferta || !oferta.space.allowsNonMembers) notFound();
@@ -128,6 +132,14 @@ export default async function PublicSpaceBookingPage({ params, searchParams }: P
           de nuevo.
         </p>
       ) : null}
+
+      <MemberPriceBanner
+        singular={vocabulary.singular}
+        institution={branding.commercialName}
+        priceLabel={spacePriceLabel(space, "MEMBER")}
+        freeHoursPerMonth={space.memberFreeHoursPerMonth}
+        loginHref={doorPathFor(workspaceSlug, { spaceId: space.id, ymd })}
+      />
 
       <ReservarForm
         key={`${space.id}-${semana.startAt.toISOString()}`}
@@ -186,7 +198,7 @@ export default async function PublicSpaceBookingPage({ params, searchParams }: P
           id: e.id,
           name: e.name,
           color: spaceColor(i),
-          priceLabel: spacePriceLabel(e, "NON_MEMBER"),
+          priceLabel: `${spacePriceLabel(e, "NON_MEMBER")} · ${vocabulary.plural} ${spacePriceLabel(e, "MEMBER")}`,
           href: calendarHref(`${base}/${e.id}`, { ymd }),
         }))}
         pricing={space}
@@ -197,6 +209,11 @@ export default async function PublicSpaceBookingPage({ params, searchParams }: P
         nowMinute={localMoment(ahora, BOOKINGS_TIME_ZONE).minuteOfDay}
         canGoBack={semanaPasada.endAt > ahora}
         mine={[]}
+        memberHint={{
+          priceLabel: spacePriceLabel(space, "MEMBER"),
+          freeHoursPerMonth: space.memberFreeHoursPerMonth,
+          loginHref: doorPathFor(workspaceSlug, { spaceId: space.id, ymd }),
+        }}
         vocabulary={vocabulary}
         extras={oferta.extras.map((o) => ({
           id: o.extra.id,
@@ -207,10 +224,44 @@ export default async function PublicSpaceBookingPage({ params, searchParams }: P
         }))}
       />
 
-      <p className="text-xs leading-relaxed text-[var(--fo-muted-soft)]">
-        ¿Sos {vocabulary.singular} de {branding.commercialName}? Entrá a tu portal: el precio es
-        menor y tenés horas bonificadas.
-      </p>
     </main>
+  );
+}
+
+/**
+ * El aviso para el socio que todavía no entró: la página muestra la tarifa plena, y sin esto
+ * nadie se entera de que siendo socio paga menos y tiene horas gratis.
+ */
+function MemberPriceBanner({
+  singular,
+  institution,
+  priceLabel,
+  freeHoursPerMonth,
+  loginHref,
+}: {
+  singular: string;
+  institution: string;
+  priceLabel: string;
+  freeHoursPerMonth: number;
+  loginHref: string;
+}) {
+  return (
+    <div className="flex flex-col gap-3 rounded-[var(--fo-radius)] border border-[var(--fo-accent)] bg-[var(--fo-accent-soft)] p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="space-y-0.5">
+        <p className="text-sm font-semibold text-[var(--fo-text)]">
+          ¿Sos {singular} de {institution}? Pagás menos.
+        </p>
+        <p className="text-sm text-[var(--fo-text-secondary)]">
+          Como {singular}: {priceLabel}
+          {freeHoursPerMonth > 0
+            ? `, y además tenés ${freeHoursPerMonth} ${freeHoursPerMonth === 1 ? "hora gratis" : "horas gratis"} por mes.`
+            : "."}{" "}
+          Ingresá para reservar con tu precio.
+        </p>
+      </div>
+      <Link href={loginHref} className="fo-btn fo-btn-primary shrink-0 text-sm">
+        Ingresar como {singular}
+      </Link>
+    </div>
   );
 }
