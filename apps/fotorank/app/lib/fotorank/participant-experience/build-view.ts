@@ -118,6 +118,7 @@ export function buildParticipantParticipationView(
       maxFiles: input.maxFiles,
       entryStatus: input.entry?.status,
       manualReviewStatus: input.entry?.manualReviewStatus,
+      admissionStatus: input.entry?.admissionStatus,
       publicRejectionReason: input.entry?.publicRejectionReason,
       upload,
       timezone: input.contest.timezone,
