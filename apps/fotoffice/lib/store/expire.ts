@@ -45,12 +45,28 @@ export async function reconcilePendingOrders(
     orderBy: { updatedAt: "desc" },
     take: limit,
   });
-  const vencidos = await prisma.storeOrder.findMany({
-    where: { status: "PENDING_PAYMENT", holdExpiresAt: { lt: now } },
+  // Un pedido con un pago aprobado que no se pudo acreditar NO se vence: queda esperando, ya
+  // anotado y con la alerta mandada, y se reintenta en cada corrida. Si entraran todos en la
+  // misma tanda que los demás, por antigüedad, con `limit` de ésos atascados la cola no
+  // avanzaría nunca y los vencidos nuevos no se consultarían ni se vencerían. Por eso van en dos
+  // tandas: primero los que nunca fallaron, y con el lugar que sobre, los reintentos.
+  const falloAnotado = { note: { startsWith: STORE_NOTE_CREDIT_FAILURE_PREFIX } };
+  const nuevos = await prisma.storeOrder.findMany({
+    where: { status: "PENDING_PAYMENT", holdExpiresAt: { lt: now }, events: { none: falloAnotado } },
     select: { id: true, workspaceId: true, holdExpiresAt: true },
     orderBy: { holdExpiresAt: "asc" },
     take: limit,
   });
+  const reintentos =
+    nuevos.length >= limit
+      ? []
+      : await prisma.storeOrder.findMany({
+          where: { status: "PENDING_PAYMENT", holdExpiresAt: { lt: now }, events: { some: falloAnotado } },
+          select: { id: true, workspaceId: true, holdExpiresAt: true },
+          orderBy: { holdExpiresAt: "asc" },
+          take: limit - nuevos.length,
+        });
+  const vencidos = [...nuevos, ...reintentos];
 
   for (const pedido of vencidos) {
     reporte.checked++;

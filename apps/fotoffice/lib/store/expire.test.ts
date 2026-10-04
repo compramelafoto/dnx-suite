@@ -53,11 +53,22 @@ function pago(over: { status?: string; externalReference?: string } = {}) {
   };
 }
 
-/** Los vencidos que esperaban el pago (1ª consulta) y los ya vencidos de las últimas 48 h (2ª). */
-function pedidos(pendientes: unknown[], vencidos: unknown[] = []) {
-  h.prisma.storeOrder.findMany.mockImplementation(async ({ where }: { where: { status: string } }) =>
-    where.status === "PENDING_PAYMENT" ? pendientes : vencidos,
-  );
+type ConsultaPedidos = { where: { status: string; events?: { none?: unknown; some?: unknown } }; take: number };
+
+/**
+ * Los vencidos que esperaban el pago y los ya vencidos de las últimas 48 h. Los que esperaban se
+ * piden en dos tandas: los que nunca fallaron (`events.none`) y los reintentos de un pago que no
+ * se pudo acreditar (`events.some`, `conFallo`). Cada tanda respeta su `take`, como la base.
+ */
+function pedidos(pendientes: unknown[], vencidos: unknown[] = [], conFallo: unknown[] = []) {
+  h.prisma.storeOrder.findMany.mockImplementation(async ({ where, take }: ConsultaPedidos) => {
+    if (where.status !== "PENDING_PAYMENT") return vencidos.slice(0, take);
+    if (where.events?.some) return conFallo.slice(0, take);
+    if (where.events?.none) return pendientes.slice(0, take);
+    // Una consulta sin filtrar por fallo ve todos, los más viejos primero (como `orderBy`).
+    const porVencimiento = (x: unknown) => (x as { holdExpiresAt: Date }).holdExpiresAt.getTime();
+    return [...conFallo, ...pendientes].sort((a, b) => porVencimiento(a) - porVencimiento(b)).slice(0, take);
+  });
 }
 
 beforeEach(() => {
@@ -208,6 +219,49 @@ describe("reconcilePendingOrders", () => {
     await reconcilePendingOrders({ now });
     expect(h.prisma.storeOrderEvent.create).not.toHaveBeenCalled();
     expect(h.sendCreditFailureAlert).not.toHaveBeenCalled();
+  });
+
+  it("tantos atascados (pago que no se pudo acreditar) como el límite no frenan a un vencido nuevo", async () => {
+    const viejo = new Date("2026-10-01T10:00:00Z");
+    const atascados = Array.from({ length: 3 }, (_, i) => ({ id: `fallo${i}`, workspaceId: "ws1", holdExpiresAt: viejo }));
+    pedidos([{ id: "nuevo", workspaceId: "ws1", holdExpiresAt: new Date("2026-10-04T14:50:00Z") }], [], atascados);
+    h.searchPaymentsByExternalReference.mockResolvedValue(null);
+
+    // Límite chico (3) en lugar de 100: hay tantos atascados como el límite.
+    const r = await reconcilePendingOrders({ now, limit: 3 });
+
+    expect(h.searchPaymentsByExternalReference).toHaveBeenCalledWith("store:nuevo");
+    expect(h.tx.storeOrder.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ id: "nuevo" }) }),
+    );
+    // Con el lugar que sobra (2) se reintentan los atascados más viejos.
+    expect(r.checked).toBe(3);
+    const consultas = h.prisma.storeOrder.findMany.mock.calls.map((c) => c[0] as ConsultaPedidos);
+    const deReintento = consultas.find((c) => c.where.events?.some);
+    expect(deReintento?.take).toBe(2);
+    expect(consultas.find((c) => c.where.events?.none)).toMatchObject({
+      where: { events: { none: { note: { startsWith: "Pago aprobado que no se pudo acreditar" } } } },
+      take: 3,
+    });
+  });
+
+  it("si los nuevos llenan el límite, esa corrida no pide reintentos", async () => {
+    const hold = new Date("2026-10-04T14:50:00Z");
+    pedidos(
+      [
+        { id: "a", workspaceId: "ws1", holdExpiresAt: hold },
+        { id: "b", workspaceId: "ws1", holdExpiresAt: hold },
+      ],
+      [],
+      [{ id: "fallo", workspaceId: "ws1", holdExpiresAt: hold }],
+    );
+    h.searchPaymentsByExternalReference.mockResolvedValue(null);
+
+    await reconcilePendingOrders({ now, limit: 2 });
+
+    const consultas = h.prisma.storeOrder.findMany.mock.calls.map((c) => c[0] as ConsultaPedidos);
+    expect(consultas.some((c) => c.where.events?.some)).toBe(false);
+    expect(h.searchPaymentsByExternalReference).not.toHaveBeenCalledWith("store:fallo");
   });
 
   it("busca sólo pendientes con la retención vencida, hasta el límite", async () => {

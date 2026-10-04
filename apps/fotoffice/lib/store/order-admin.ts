@@ -5,6 +5,7 @@ import {
   STORE_NOTE_AMOUNT_MISMATCH,
   STORE_NOTE_CREDIT_FAILURE_PREFIX,
   STORE_NOTE_DUPLICATE_PREFIX,
+  STORE_NOTE_REGRET,
 } from "./constants";
 import { finalizePaidOrder, lockAndCheckOrderStock, SELECT_PEDIDO_A_ACREDITAR } from "./credit-payment";
 import { sendOrderPaidEmail, sendOrderReadyEmail } from "./emails";
@@ -45,15 +46,30 @@ const CON_PLATA: readonly StoreOrderStatus[] = ["PAID", "READY", "PAID_NO_STOCK"
 /** Lo que deja `markOrderReviewed`. Sólo cuenta si lo escribió una persona. */
 export const STORE_NOTE_REVIEWED_PREFIX = "Revisado:";
 
+/**
+ * Las constancias que convierten un pedido en "problema" hasta que una persona lo marque como
+ * revisado. Una sola lista para la regla pura (`isProblemOrder`) y para la consulta que junta
+ * los candidatos (`problemOrderIds`): si se agregara una nota sólo en un lado, el pedido nunca
+ * llegaría a la pestaña o nunca saldría de ella.
+ *
+ * El arrepentimiento (`STORE_NOTE_REGRET`) está acá porque la ley da un plazo para responderlo:
+ * si sólo quedara en el historial del pedido, nadie se enteraría desde el panel.
+ */
+const PREFIJOS_DE_PROBLEMA = [
+  STORE_NOTE_DUPLICATE_PREFIX,
+  STORE_NOTE_CREDIT_FAILURE_PREFIX,
+  STORE_NOTE_REGRET,
+] as const;
+
 function esNotaDeProblema(note: string | null): boolean {
   const n = note ?? "";
-  return n.startsWith(STORE_NOTE_DUPLICATE_PREFIX) || n.startsWith(STORE_NOTE_CREDIT_FAILURE_PREFIX);
+  return PREFIJOS_DE_PROBLEMA.some((prefijo) => n.startsWith(prefijo));
 }
 
 /**
  * ¿Hay que mirar este pedido? Pagado sin stock (hasta que se resuelva cambiando de estado), o
- * con una constancia del sistema —un pago duplicado o un pago aprobado que no se pudo
- * acreditar— que nadie marcó como revisada DESPUÉS. Prepararlo o entregarlo no la resuelve: el
+ * con una constancia —un pago duplicado, un pago aprobado que no se pudo acreditar, o un pedido
+ * de arrepentimiento del comprador— que nadie marcó como revisada DESPUÉS. Prepararlo o entregarlo no la resuelve: el
  * segundo pago sigue sin devolverse. `events` va en orden cronológico.
  */
 export function isProblemOrder(input: {
@@ -290,10 +306,9 @@ export function parseStoreOrderTab(raw: string | undefined): StoreOrderTab {
 
 /** Los pedidos con problemas (ver `isProblemOrder`). Pocos por naturaleza: se filtran acá. */
 async function problemOrderIds(workspaceId: string): Promise<string[]> {
-  const notaDeProblema: Prisma.StoreOrderEventWhereInput[] = [
-    { note: { startsWith: STORE_NOTE_DUPLICATE_PREFIX } },
-    { note: { startsWith: STORE_NOTE_CREDIT_FAILURE_PREFIX } },
-  ];
+  const notaDeProblema: Prisma.StoreOrderEventWhereInput[] = PREFIJOS_DE_PROBLEMA.map((prefijo) => ({
+    note: { startsWith: prefijo },
+  }));
   const candidatos = await prisma.storeOrder.findMany({
     where: { workspaceId, OR: [{ status: "PAID_NO_STOCK" }, { events: { some: { OR: notaDeProblema } } }] },
     // El tope se queda con los más recientes.

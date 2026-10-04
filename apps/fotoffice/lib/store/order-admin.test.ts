@@ -5,7 +5,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * `credit-payment.test.ts`): se mira QUÉ se escribe, en qué orden y qué se anula.
  */
 const h = vi.hoisted(() => ({
-  prisma: { $transaction: vi.fn() },
+  prisma: {
+    $transaction: vi.fn(),
+    storeOrder: { findMany: vi.fn(), groupBy: vi.fn(), count: vi.fn() },
+  },
   voidSale: vi.fn(),
   finalizePaidOrder: vi.fn(),
   lockAndCheckOrderStock: vi.fn(),
@@ -27,7 +30,7 @@ vi.mock("./credit-payment", () => ({
 }));
 vi.mock("./emails", () => h.emails);
 
-const { changeOrderStatus, markOrderReviewed, isProblemOrder, staffTargets, cancelNeedsNote } = await import(
+const { changeOrderStatus, markOrderReviewed, isProblemOrder, staffTargets, cancelNeedsNote, listStoreOrders } = await import(
   "./order-admin"
 );
 
@@ -314,6 +317,16 @@ describe("reglas puras del panel", () => {
     expect(isProblemOrder({ status: "PAID_NO_STOCK", events: [persona("Revisado: x")] })).toBe(true);
   });
 
+  it("un arrepentimiento del comprador es problema hasta que una persona lo marque revisado", () => {
+    const ARREPENTIMIENTO = "Arrepentimiento solicitado: me equivoqué de talle";
+    expect(isProblemOrder({ status: "PAID", events: [sistema("Arrepentimiento solicitado")] })).toBe(true);
+    expect(isProblemOrder({ status: "DELIVERED", events: [sistema(ARREPENTIMIENTO)] })).toBe(true);
+    expect(isProblemOrder({ status: "PAID", events: [sistema(ARREPENTIMIENTO), persona("Revisado: devuelto")] })).toBe(
+      false,
+    );
+    expect(isProblemOrder({ status: "PAID", events: [persona("Revisado: x"), sistema(ARREPENTIMIENTO)] })).toBe(true);
+  });
+
   it("botones: los de canTransition, sin PAID cuando el monto no coincide", () => {
     expect(staffTargets("PAID", { amountMismatch: false })).toEqual(["READY", "DELIVERED", "CANCELLED"]);
     expect(staffTargets("PAID_NO_STOCK", { amountMismatch: false })).toEqual(["PAID", "CANCELLED"]);
@@ -326,5 +339,41 @@ describe("reglas puras del panel", () => {
     expect(cancelNeedsNote("READY")).toBe(true);
     expect(cancelNeedsNote("PAID_NO_STOCK")).toBe(true);
     expect(cancelNeedsNote("PENDING_PAYMENT")).toBe(false);
+  });
+});
+
+describe("listStoreOrders — pestaña Problemas", () => {
+  it("busca candidatos también por arrepentimiento, y los cuenta como problema", async () => {
+    h.prisma.storeOrder.findMany
+      // 1) candidatos a problema
+      .mockResolvedValueOnce([
+        { id: "ordA", status: "PAID", events: [{ note: "Arrepentimiento solicitado", actorUserId: null }] },
+        {
+          id: "ordB",
+          status: "DELIVERED",
+          events: [
+            { note: "Arrepentimiento solicitado: no lo quiero", actorUserId: null },
+            { note: "Revisado: ya devuelto", actorUserId: 42 },
+          ],
+        },
+      ])
+      // 2) filas de la pestaña
+      .mockResolvedValueOnce([]);
+    h.prisma.storeOrder.groupBy.mockResolvedValue([]);
+    h.prisma.storeOrder.count.mockResolvedValue(2);
+
+    const r = await listStoreOrders("ws1", "problemas");
+
+    const consulta = h.prisma.storeOrder.findMany.mock.calls[0]![0] as {
+      where: { workspaceId: string; OR: [unknown, { events: { some: { OR: unknown[] } } }] };
+      select: { events: { where: { OR: unknown[] } } };
+    };
+    expect(consulta.where.workspaceId).toBe("ws1");
+    expect(consulta.where.OR[1].events.some.OR).toContainEqual({ note: { startsWith: "Arrepentimiento solicitado" } });
+    expect(consulta.select.events.where.OR).toContainEqual({ note: { startsWith: "Arrepentimiento solicitado" } });
+    expect(r.counts.problemas).toBe(1);
+    expect(h.prisma.storeOrder.findMany.mock.calls[1]![0]).toMatchObject({
+      where: { workspaceId: "ws1", id: { in: ["ordA"] } },
+    });
   });
 });

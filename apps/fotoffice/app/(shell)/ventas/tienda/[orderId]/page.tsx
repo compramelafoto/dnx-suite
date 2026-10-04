@@ -52,7 +52,7 @@ export default async function PedidoOnlinePage({ params }: { params: Promise<{ o
         </p>
       ) : pedido.problem ? (
         <p className="fo-card p-4 text-sm text-[var(--fo-danger)]" role="alert">
-          Hay algo con el pago para revisar: mirá el último movimiento del historial.
+          Hay algo para revisar —un pago o un pedido de arrepentimiento del comprador—: mirá el historial. Cuando lo resuelvas, marcalo como revisado.
         </p>
       ) : null}
 
