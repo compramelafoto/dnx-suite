@@ -7662,6 +7662,9 @@ model MembershipDuesSettings {
   /// Porcentaje de la cuota que se bonifica por cada recomendado que termina de pagar su
   /// ingreso. 100 = una cuota entera.
   recommendationBenefitPercent Decimal @default(100) @db.Decimal(5, 2)
+  /// Enlace de invitación al grupo de WhatsApp de los socios (`https://chat.whatsapp.com/...`).
+  /// Va en el correo de bienvenida y como botón en el inicio del portal. `null` = no hay grupo.
+  communityWhatsappUrl String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

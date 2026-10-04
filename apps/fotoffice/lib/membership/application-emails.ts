@@ -298,6 +298,10 @@ export function buildMembershipWelcomeEmail(input: {
    * carnet" lo dejaría frente a un login que no sabe pasar. A ese se le dice qué hacer.
    */
   hasAccount: boolean;
+  /** El grupo de WhatsApp de los socios, si la institución cargó uno. */
+  whatsappGroupUrl?: string | null;
+  /** Dirección de FOTOFFICE, para el logo de WhatsApp del botón (Gmail no muestra SVG). */
+  appBaseUrl?: string;
   signature: RenderedEmailSignature | null;
 }): EmailBody {
   const parrafos = [
@@ -317,6 +321,29 @@ export function buildMembershipWelcomeEmail(input: {
     greetingName: input.firstName,
     paragraphs: parrafos,
     cta: { label: "Ver mi carnet", url: input.cardUrl },
+    blocks: input.whatsappGroupUrl
+      ? [whatsappGroupBlock(input.whatsappGroupUrl, input.appBaseUrl ?? "")]
+      : undefined,
     signature: input.signature,
   });
+}
+
+/**
+ * El botón verde para sumarse al grupo de WhatsApp de los socios.
+ *
+ * Con estilos en línea y una tabla, porque es lo único que respetan todos los clientes de
+ * correo; el logo va como PNG por la misma razón.
+ */
+export function whatsappGroupBlock(url: string, appBaseUrl: string): { html: string; text: string } {
+  const href = escapeHtml(url);
+  const logo = appBaseUrl
+    ? `<img src="${escapeHtml(`${appBaseUrl}/brand/whatsapp-blanco.png`)}" width="20" height="20" alt="" style="display:inline-block;vertical-align:middle;border:0;margin-right:8px;">`
+    : "";
+  return {
+    html: `<div style="margin:24px 0;padding:16px;border:1px solid #d1fae5;border-radius:10px;background:#f0fdf4;">
+    <p style="margin:0 0 12px;font-weight:600;">Sumate al grupo de WhatsApp de los socios</p>
+    <a href="${href}" style="background:#25D366;color:#ffffff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600;">${logo}<span style="vertical-align:middle;">Unite al grupo de WhatsApp</span></a>
+  </div>`,
+    text: `Sumate al grupo de WhatsApp de los socios:\n${url}`,
+  };
 }
