@@ -26,7 +26,7 @@ const h = vi.hoisted(() => ({
 vi.mock("@repo/db", () => ({ prisma: h.prisma }));
 vi.mock("@/lib/sales/record-sale", () => ({ recordSale: h.recordSale }));
 vi.mock("@/lib/platform-fee/ledger", () => ({ recordDischarge: h.recordDischarge }));
-vi.mock("./stock-lock", () => ({ lockStockRows: h.lockStockRows }));
+vi.mock("@/lib/sales/stock-lock", () => ({ lockStockRows: h.lockStockRows }));
 vi.mock("./repository", () => ({ reservedQtyByKey: h.reservedQtyByKey }));
 vi.mock("./emails", () => h.emails);
 

@@ -46,6 +46,8 @@ function voidTx(over: {
   storeOrder?: Partial<{ findFirst: ReturnType<typeof vi.fn> }>;
 } = {}) {
   return {
+    // `lockStockRows` (el bloqueo de filas de stock) pasa por acá: no devuelve nada útil.
+    $queryRaw: vi.fn(async () => []),
     storeOrder: { findFirst: vi.fn(async () => null), ...over.storeOrder },
     sale: {
       findFirst: vi.fn(async () => ({
@@ -486,5 +488,40 @@ describe("voidSale — talles (variantes)", () => {
       data: { stockQty: { increment: 2 } },
     });
     expect(tx.product.update).toHaveBeenCalledWith({ where: { id: "p1" }, data: { stockQty: { increment: 2 } } });
+  });
+});
+
+describe("voidSale — orden de bloqueo (mismo que la tienda)", () => {
+  it("bloquea los productos y talles de la venta ANTES de devolver stock", async () => {
+    const tx = voidTx({
+      saleItem: {
+        findMany: vi.fn(async () => [
+          { productId: "p2", variantId: "v1", qty: 2 },
+          { productId: "p1", variantId: null, qty: 1 },
+        ]),
+      },
+      product: {
+        findMany: vi.fn(async () => [
+          { id: "p1", tracksStock: true },
+          { id: "p2", tracksStock: true },
+        ]),
+        update: vi.fn(async () => ({})),
+      },
+    });
+
+    const resultado = await voidSale(tx as never, inputBase);
+
+    expect(resultado).toEqual({ ok: true, saleNumber: 5 });
+    const consultas = tx.$queryRaw.mock.calls.map((c) => (c as unknown as [{ sql: string; values: unknown[] }])[0]);
+    expect(consultas).toHaveLength(2);
+    expect(consultas[0].sql).toMatch(/FROM "Product"[\s\S]*FOR UPDATE/);
+    expect(consultas[0].values).toEqual([["p1", "p2"], "ws1"]);
+    expect(consultas[1].sql).toMatch(/FROM "ProductVariant"[\s\S]*FOR UPDATE/);
+    expect(consultas[1].values).toEqual([["v1"], "ws1"]);
+
+    const ultimoBloqueo = Math.max(...tx.$queryRaw.mock.invocationCallOrder);
+    expect(ultimoBloqueo).toBeLessThan(tx.productVariant.updateMany.mock.invocationCallOrder[0]);
+    expect(ultimoBloqueo).toBeLessThan(tx.product.update.mock.invocationCallOrder[0]);
+    expect(ultimoBloqueo).toBeLessThan(tx.stockMovement.create.mock.invocationCallOrder[0]);
   });
 });

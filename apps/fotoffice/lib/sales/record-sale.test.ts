@@ -43,6 +43,8 @@ function tablaAusente(nombre: string) {
  */
 function saleTx(over: Record<string, unknown> = {}) {
   return {
+    // `lockStockRows` (el bloqueo de filas de stock) pasa por acá: no devuelve nada útil.
+    $queryRaw: vi.fn(async () => []),
     sale: {
       findFirst: vi.fn(async () => null),
       createMany: vi.fn(async () => ({ count: 1 })),
@@ -394,5 +396,45 @@ describe("recordSale — talles (variantes)", () => {
     expect(tx.productVariant.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({ data: { stockQty: { decrement: 99 } } }),
     );
+  });
+});
+
+describe("recordSale — orden de bloqueo (mismo que la tienda)", () => {
+  it("bloquea productos y talles ANTES de la primera escritura de stock", async () => {
+    moduleState({ cash: false, clients: false });
+    const tx = saleTx({
+      product: {
+        findMany: vi.fn(async () => [{ id: "p1", tracksStock: true }]),
+        update: vi.fn(async () => ({})),
+      },
+    });
+    const input: RecordSaleInput = {
+      ...inputBase,
+      lines: [{ ...inputBase.lines[0], variantId: "v1" }],
+    };
+
+    await recordSale(tx as never, input);
+
+    const consultas = tx.$queryRaw.mock.calls.map((c) => (c as unknown as [{ sql: string; values: unknown[] }])[0]);
+    expect(consultas).toHaveLength(2);
+    expect(consultas[0].sql).toMatch(/FROM "Product"[\s\S]*FOR UPDATE/);
+    expect(consultas[0].values).toEqual([["p1"], "ws1"]);
+    expect(consultas[1].sql).toMatch(/FROM "ProductVariant"[\s\S]*FOR UPDATE/);
+    expect(consultas[1].values).toEqual([["v1"], "ws1"]);
+
+    // El último bloqueo pedido va antes que cualquier escritura de stock (talle o producto).
+    const ultimoBloqueo = Math.max(...tx.$queryRaw.mock.invocationCallOrder);
+    expect(ultimoBloqueo).toBeLessThan(tx.productVariant.updateMany.mock.invocationCallOrder[0]);
+    expect(ultimoBloqueo).toBeLessThan(tx.product.update.mock.invocationCallOrder[0]);
+    expect(ultimoBloqueo).toBeLessThan(tx.stockMovement.create.mock.invocationCallOrder[0]);
+  });
+
+  it("un ticket sólo con renglones sueltos (sin producto) no bloquea nada", async () => {
+    moduleState({ cash: false, clients: false });
+    const tx = saleTx();
+
+    await recordSale(tx as never, { ...inputBase, lines: [{ ...inputBase.lines[0], productId: null }] });
+
+    expect(tx.$queryRaw).not.toHaveBeenCalled();
   });
 });

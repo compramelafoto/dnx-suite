@@ -24,6 +24,7 @@ import { voidSale } from "@/lib/sales/void-sale";
 import { SALE_PAYMENT_METHODS, type SalePaymentMethod } from "@/lib/sales/constants";
 import { adjustmentQty, validateAdjustment, validateStockEntry } from "@/lib/sales/stock";
 import { applyStockMovement } from "@/lib/sales/variant-stock";
+import { lockStockRows } from "@/lib/sales/stock-lock";
 
 const CATALOGO = "/ventas/catalogo";
 const STOCK = "/ventas/stock";
@@ -369,8 +370,14 @@ export async function recordStockEntryAction(formData: FormData): Promise<void> 
   const destino = await resolverDestinoDeStock(workspace.id, productId, formData);
   if (!destino.ok) redirect(`${STOCK}?error=${encodeURIComponent(destino.error)}`);
 
-  await prisma.$transaction((tx) =>
-    applyStockMovement(tx, {
+  await prisma.$transaction(async (tx) => {
+    // Mismo orden de bloqueo que la tienda y que vender (ver `lib/sales/stock-lock.ts`).
+    await lockStockRows(tx, {
+      workspaceId: workspace.id,
+      productIds: [productId],
+      variantIds: destino.variantId === null ? [] : [destino.variantId],
+    });
+    await applyStockMovement(tx, {
       workspaceId: workspace.id,
       productId,
       variantId: destino.variantId,
@@ -381,8 +388,8 @@ export async function recordStockEntryAction(formData: FormData): Promise<void> 
       note: null,
       unitCostArs: unitCostMinor === null ? null : minorToDecimalString(unitCostMinor),
       createdByUserId: user.id,
-    }),
-  );
+    });
+  });
 
   revalidatePath(STOCK);
   redirect(`${STOCK}?ok=1`);
@@ -451,8 +458,14 @@ export async function recordAdjustmentAction(formData: FormData): Promise<void> 
 
   const qty = adjustmentQty({ currentQty: destino.currentQty, countedQty });
 
-  await prisma.$transaction((tx) =>
-    applyStockMovement(tx, {
+  await prisma.$transaction(async (tx) => {
+    // Mismo orden de bloqueo que la tienda y que vender (ver `lib/sales/stock-lock.ts`).
+    await lockStockRows(tx, {
+      workspaceId: workspace.id,
+      productIds: [productId],
+      variantIds: destino.variantId === null ? [] : [destino.variantId],
+    });
+    await applyStockMovement(tx, {
       workspaceId: workspace.id,
       productId,
       variantId: destino.variantId,
@@ -463,8 +476,8 @@ export async function recordAdjustmentAction(formData: FormData): Promise<void> 
       note,
       unitCostArs: null,
       createdByUserId: user.id,
-    }),
-  );
+    });
+  });
 
   revalidatePath(STOCK);
   redirect(`${STOCK}?ok=1`);

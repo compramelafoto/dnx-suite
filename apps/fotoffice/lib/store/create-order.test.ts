@@ -30,7 +30,7 @@ vi.mock("@repo/db", async (importOriginal) => {
   const real = await importOriginal<typeof import("@repo/db")>();
   return { Prisma: real.Prisma, prisma: prismaMock };
 });
-vi.mock("./stock-lock", () => ({ lockStockRows }));
+vi.mock("@/lib/sales/stock-lock", () => ({ lockStockRows }));
 vi.mock("./repository", () => ({ loadCartCatalog, reservedQtyByKey }));
 
 const { createStoreOrder } = await import("./create-order");

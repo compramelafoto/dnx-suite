@@ -15,7 +15,7 @@ import {
   sendPaidNoStockAlert,
 } from "./emails";
 import { reservedQtyByKey } from "./repository";
-import { lockStockRows } from "./stock-lock";
+import { lockStockRows } from "@/lib/sales/stock-lock";
 import { canTransition } from "./transitions";
 
 /**

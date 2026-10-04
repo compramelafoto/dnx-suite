@@ -10,6 +10,7 @@ import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { lineTotalMinor, ticketTotals, type TicketLine } from "./ticket";
 import { nextSaleNumber } from "./sale-number";
 import { applyStockMovement } from "./variant-stock";
+import { lockStockRows } from "./stock-lock";
 import { SALES_CASH_CATEGORY_NAME, type SalePaymentMethod } from "./constants";
 import type { CheckoutClientResolution } from "./checkout";
 
@@ -212,6 +213,18 @@ export async function recordSale(
   input: RecordSaleInput,
 ): Promise<{ saleId: string; saleNumber: number; deposited: boolean }> {
   const totals = ticketTotals(input.lines, input.discountMinor);
+
+  // Lo PRIMERO es bloquear las filas de stock del ticket, en el mismo orden que la tienda
+  // (productos y después talles, por id — ver `stock-lock.ts`). `applyStockMovement` escribe
+  // el talle antes que el producto: si el mostrador tomara los bloqueos en ese orden mientras
+  // un pedido online los toma al revés, cada uno podía quedar esperando al otro (interbloqueo).
+  // Cuando la venta sale de un pedido, quien llama ya bloqueó estas filas: volver a pedirlas en
+  // la misma transacción no espera a nadie.
+  await lockStockRows(tx, {
+    workspaceId: input.workspaceId,
+    productIds: input.lines.map((l) => l.productId).filter((id): id is string => id !== null),
+    variantIds: input.lines.map((l) => l.variantId).filter((id): id is string => id !== null),
+  });
 
   const clientId = await resolveSaleClient(tx, input.workspaceId, input.createdByUserId, input.client);
 

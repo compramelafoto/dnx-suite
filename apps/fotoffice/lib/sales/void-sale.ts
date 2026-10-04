@@ -5,6 +5,7 @@ import { buildReversal, type ReversalValues } from "@/lib/cash/reverse";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { applyStockMovement } from "./variant-stock";
+import { lockStockRows } from "./stock-lock";
 
 /**
  * Anular una venta. Espejo de `record-sale.ts`, en sentido contrario.
@@ -260,6 +261,15 @@ async function devolverStock(
 
   const productIds = [...new Set(items.map((i) => i.productId).filter((id): id is string => id !== null))];
   if (productIds.length === 0) return;
+
+  // Antes de devolver nada, los bloqueos en el orden de toda la suite (productos y después
+  // talles, por id — ver `stock-lock.ts`): la cancelación de un pedido online pasa por acá, y
+  // el mostrador también; el mismo orden en los dos evita que se esperen mutuamente.
+  await lockStockRows(tx, {
+    workspaceId,
+    productIds,
+    variantIds: items.map((i) => i.variantId).filter((id): id is string => id !== null && id !== undefined),
+  });
 
   const productos = await tx.product.findMany({
     where: { id: { in: productIds }, workspaceId },

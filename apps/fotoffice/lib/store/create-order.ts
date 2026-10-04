@@ -6,7 +6,7 @@ import { lineKey } from "./cart/line-key";
 import type { CheckoutInput } from "./checkout-input";
 import { STORE_HOLD_MINUTES, STORE_LEGAL_VERSION, STORE_MAX_PENDING_PER_EMAIL } from "./constants";
 import { loadCartCatalog, reservedQtyByKey } from "./repository";
-import { lockStockRows } from "./stock-lock";
+import { lockStockRows } from "@/lib/sales/stock-lock";
 import { checkCartLines, type CartProblem } from "./storefront";
 
 /**
@@ -19,7 +19,7 @@ import { checkCartLines, type CartProblem } from "./storefront";
  *    podría dejar la tienda "agotada" sin pagar nada.
  * 3. **Disponibilidad bajo bloqueo**, dentro de la transacción: se bloquean las filas de stock y
  *    recién después se suma lo retenido por otros pedidos. Es lo que hace imposible que dos
- *    compradores se lleven la última unidad (ver `stock-lock.ts`).
+ *    compradores se lleven la última unidad (ver `lib/sales/stock-lock.ts`).
  *
  * Precios, nombres, talles e imagen salen SIEMPRE del servidor (D14): del navegador sólo se usan
  * qué producto, qué talle y cuántos.
