@@ -7137,6 +7137,8 @@ model Workspace {
   coverageCollaborators       CoverageCollaboratorProfile[]
   coverageEvents              CoverageEvent[]
   vocabulary                  WorkspaceVocabulary?
+  contactSyncSettings         WorkspaceContactSyncSetting[]
+  contactLinks                WorkspaceContactLink[]
 }
 
 model WorkspaceFeatureModule {
@@ -8299,6 +8301,10 @@ model WorkspaceIntegration {
   connectedByUserId Int?
   connectedAt       DateTime  @default(now())
   lastUsedAt        DateTime?
+  /// Marca de "dame solo lo que cambió" del proveedor. En Contacts es el syncToken de la
+  /// People API, que es por CUENTA y no por módulo — por eso vive acá y no en el interruptor.
+  /// Vence a los 7 días aunque nadie toque nada; cuando eso pasa se borra y se recarga todo.
+  syncCursor        String?
   revokedAt         DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
@@ -8323,6 +8329,77 @@ model WorkspaceIntegrationOAuthState {
 
   @@index([expiresAt])
   @@index([workspaceId])
+}
+
+/// El interruptor de "agendar en Google" de UN módulo. Genérico a propósito: sumar Reservas
+/// o Cursos no migra nada, solo agrega una fila.
+model WorkspaceContactSyncSetting {
+  id          String  @id @default(cuid())
+  workspaceId String
+  /// Clave de `lib/modules/registry.ts`, p. ej. "members".
+  moduleKey   String
+  enabled     Boolean @default(false)
+
+  /// El grupo de Google de ESTE módulo ("people/c123..."). Se crea al encender por primera vez.
+  googleGroupResourceName String?
+
+  /// Para la pantalla: qué pasó en la última corrida, en el idioma del dueño.
+  lastSyncAt      DateTime?
+  lastSyncOk      Boolean?
+  lastSyncMessage String?
+  syncedContacts  Int       @default(0)
+
+  /// Auditoría: encender esto sube datos personales de terceros a una cuenta de Google.
+  enabledByUserId Int?
+  enabledAt       DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, moduleKey])
+  @@index([enabled])
+}
+
+/// El puente entre una persona de FOTOFFICE y su contacto en Google.
+model WorkspaceContactLink {
+  id          String @id @default(cuid())
+  workspaceId String
+  moduleKey   String
+  /// Lo declara la fuente del módulo. "MEMBER" para el padrón.
+  sourceType  String
+  /// El id del registro local. String para no atarse al tipo de id de cada módulo.
+  sourceId    String
+
+  /// El contacto en Google: "people/c123456789".
+  resourceName String
+  /// Versión del recurso. La People API la exige para actualizar sin pisar a otro.
+  etag         String?
+
+  /// Cómo quedaron los datos de cada lado en la última corrida. Es lo que permite saber QUÉ
+  /// LADO cambió en vez de adivinarlo por fechas, que es el error clásico de estas
+  /// sincronizaciones: los relojes no coinciden y alguien pierde trabajo en silencio.
+  localFingerprint  String
+  remoteFingerprint String
+
+  /// LINKED         — vigente, se sincroniza.
+  /// UNGROUPED      — la persona dejó de estar vigente: salió del grupo y el contacto sigue
+  ///                  en la agenda. Si vuelve a estar vigente, vuelve al grupo sin crear nada.
+  /// REMOTE_DELETED — alguien borró el contacto en Google. No se recrea: recrearlo sería
+  ///                  desobedecer a quien lo borró.
+  status String @default("LINKED")
+
+  lastPushedAt DateTime?
+  lastPulledAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, sourceType, sourceId])
+  @@unique([workspaceId, resourceName])
+  @@index([workspaceId, moduleKey, status])
 }
 
 /// ─────────────────────────────────────────────────────────────────────────────

@@ -11,7 +11,25 @@ import { MEMBER_STATUS_LABELS, isMemberStatus } from "@/lib/members/status-label
 import { MEMBER_ACCESS_LABELS, memberAccessStatus } from "@/lib/members/invitations";
 import { InviteBatchForm } from "@/components/members/invite-batch-form";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
+import { GoogleContactsCard } from "@/components/members/google-contacts-card";
+import { getContactSyncSetting } from "@/lib/contacts/settings";
+import { getIntegrationSummary } from "@/lib/integrations/store";
+import { GOOGLE_CONTACTS_INTEGRATION_KEY } from "@/lib/integrations/registry";
+import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { Users } from "lucide-react";
+
+// Mensajes de `toggleGoogleContactsAction` (contactos-actions.ts). Igual criterio que
+// `lib/integrations/messages.ts`: nada de detalle técnico, solo lo que el dueño puede hacer.
+const CONTACTOS_ERRORES: Record<string, string> = {
+  sin_permiso: "No tenés permiso para cambiar esto.",
+  sin_cuenta_google:
+    "Todavía no hay una cuenta de Google conectada. Conectala en Integraciones antes de empezar a agendar.",
+};
+
+const CONTACTOS_OK: Record<string, string> = {
+  contactos_encendido: "Listo. Los socios se van a empezar a agendar en Google.",
+  contactos_apagado: "Listo. Se dejó de agendar a los socios en Google. Lo ya agendado no se borró.",
+};
 
 function buildQuery(params: Record<string, string | undefined>, overrides: Record<string, string | undefined>) {
   const merged = { ...params, ...overrides };
@@ -23,6 +41,10 @@ function buildQuery(params: Record<string, string | undefined>, overrides: Recor
   return s ? `?${s}` : "";
 }
 
+
+/** Encender el agendado en Google dispara la primera carga, que tarda unos minutos. */
+export const maxDuration = 300;
+
 export default async function MembersPage({
   searchParams,
 }: {
@@ -32,6 +54,8 @@ export default async function MembersPage({
     categoryId?: string;
     access?: string;
     page?: string;
+    error?: string;
+    ok?: string;
   }>;
 }) {
   const { workspace, canManage } = await requireMembersContext();
@@ -42,11 +66,15 @@ export default async function MembersPage({
   const categoryId = sp.categoryId || undefined;
   const access = sp.access && isMemberAccessFilter(sp.access) ? sp.access : undefined;
   const page = Number(sp.page) > 0 ? Number(sp.page) : 1;
+  const contactosError = sp.error ? (CONTACTOS_ERRORES[sp.error] ?? null) : null;
+  const contactosOk = sp.ok ? (CONTACTOS_OK[sp.ok] ?? null) : null;
 
-  const [result, counts, categories] = await Promise.all([
+  const [result, counts, categories, contactSync, cuentaGoogle] = await Promise.all([
     searchMembers(workspace.id, { search: q, status, categoryId, access, page }),
     countMembersByStatus(workspace.id),
     listMemberCategories(workspace.id),
+    getContactSyncSetting(workspace.id, MEMBERS_MODULE_KEY),
+    getIntegrationSummary(workspace.id, GOOGLE_CONTACTS_INTEGRATION_KEY),
   ]);
 
   // Una consulta para toda la página: el estado de acceso se deriva de la última invitación
@@ -95,6 +123,16 @@ export default async function MembersPage({
           ) : undefined
         }
       />
+
+      {contactosOk ? (
+        <p className="fo-card p-4 text-sm text-[var(--fo-success)]">{contactosOk}</p>
+      ) : null}
+
+      {contactosError ? (
+        <p className="fo-card p-4 text-sm text-[var(--fo-danger)]" role="alert">
+          {contactosError}
+        </p>
+      ) : null}
 
       {noMembersAtAll ? (
         <div className="fo-card flex flex-col items-center text-center py-16 px-6 gap-4">
@@ -335,6 +373,19 @@ export default async function MembersPage({
           )}
         </>
       )}
+
+      {canManage ? (
+        <GoogleContactsCard
+          enabled={contactSync?.enabled ?? false}
+          account={
+            cuentaGoogle ? { email: cuentaGoogle.accountEmail, status: cuentaGoogle.status } : null
+          }
+          lastSyncAt={contactSync?.lastSyncAt ?? null}
+          lastSyncOk={contactSync?.lastSyncOk ?? null}
+          lastSyncMessage={contactSync?.lastSyncMessage ?? null}
+          syncedContacts={contactSync?.syncedContacts ?? 0}
+        />
+      ) : null}
     </div>
   );
 }

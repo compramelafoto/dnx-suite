@@ -5,12 +5,13 @@ import { requireActiveWorkspace } from "@/lib/workspace";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { getModuleDefinition } from "@/lib/modules/registry";
-import { listIntegrations } from "@/lib/integrations/registry";
+import { listIntegrations, GOOGLE_CONTACTS_INTEGRATION_KEY } from "@/lib/integrations/registry";
 import { listIntegrationSummaries } from "@/lib/integrations/store";
 import { integrationErrorMessage, integrationOkMessage } from "@/lib/integrations/messages";
 import { readIntegrationsGoogleCredentials } from "@/lib/integrations/credentials";
 import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
+import { listContactSyncSettings } from "@/lib/contacts/settings";
 import { DisconnectButton } from "./disconnect-button";
 
 export const dynamic = "force-dynamic";
@@ -34,10 +35,11 @@ export default async function IntegracionesPage({
   if (!workspace) redirect("/workspace");
 
   const params = await searchParams;
-  const [role, conectadas, vocabulary] = await Promise.all([
+  const [role, conectadas, vocabulary, contactSync] = await Promise.all([
     resolveWorkspaceRole(user.id, workspace.id),
     listIntegrationSummaries(workspace.id),
     loadPersonVocabulary(workspace.id),
+    listContactSyncSettings(workspace.id),
   ]);
   if (!canManageWorkspaceSettings(role)) redirect("/workspace/configuracion");
 
@@ -100,6 +102,17 @@ export default async function IntegracionesPage({
                   {modulos.length > 0 ? (
                     <p className="text-xs text-[var(--fo-muted-soft)]">
                       La usa: {modulos.join(", ")}.
+                    </p>
+                  ) : null}
+                  {integration.key === GOOGLE_CONTACTS_INTEGRATION_KEY &&
+                  conectada?.status === "ACTIVE" ? (
+                    <p className="text-xs text-[var(--fo-muted-soft)]">
+                      {contactSync.filter((s) => s.enabled).length > 0
+                        ? `Agendando: ${contactSync
+                            .filter((s) => s.enabled)
+                            .map((s) => getModuleDefinition(s.moduleKey)?.label ?? s.moduleKey)
+                            .join(", ")}. El interruptor de cada módulo vive en su pantalla.`
+                        : "Ningún módulo la está usando todavía. El interruptor vive en la pantalla de cada módulo — para el padrón, en Socios."}
                     </p>
                   ) : null}
                 </div>
