@@ -12,6 +12,7 @@ import {
   CASH_CONFIGURE_ACTION,
   COVERAGES_COORDINATE_ACTION,
   RAFFLES_CONDUCT_ACTION,
+  STORE_CONFIGURE_ACTION,
 } from "@/lib/permissions/actions";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { ICONOS } from "@/components/shell/nav-icons";
@@ -184,6 +185,18 @@ describe("submodulesFor — niveles y acciones sensibles", () => {
       "/sorteos",
       "/sorteos/entregas",
     ]);
+  });
+
+  it("Ventas: la configuración de la tienda sólo aparece con la tienda encendida y store.configure", () => {
+    const sinTienda = hrefs("sales", { levels: { sales: "MANAGE" }, actions: [STORE_CONFIGURE_ACTION] });
+    expect(sinTienda).not.toContain("/ventas/tienda/configuracion");
+    const sinAccion = hrefs("sales", { levels: { sales: "MANAGE", store: "MANAGE" }, actions: [] });
+    expect(sinAccion).not.toContain("/ventas/tienda/configuracion");
+    const conTodo = hrefs("sales", {
+      levels: { sales: "MANAGE", store: "MANAGE" },
+      actions: [STORE_CONFIGURE_ACTION],
+    });
+    expect(conTodo).toContain("/ventas/tienda/configuracion");
   });
 
   it("una acción sin el nivel no abre nada: el módulo en NONE no muestra pantallas", () => {

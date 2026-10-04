@@ -12,6 +12,7 @@ import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
 import { SALES_MODULE_KEY } from "@/lib/sales/constants";
+import { STORE_MODULE_KEY } from "@/lib/store/constants";
 import {
   MODULE_REGISTRY,
   findDuplicateModuleKeys,
@@ -35,7 +36,7 @@ describe("MODULE_REGISTRY", () => {
     }
   });
 
-  it("los módulos AVAILABLE hoy son exactamente courses-sales, evaluaciones, website, reservas, coberturas, members, membership-dues, sorteos, portfolios, caja, clientes y captación y ventas", () => {
+  it("los módulos AVAILABLE hoy son exactamente courses-sales, evaluaciones, website, reservas, coberturas, members, membership-dues, sorteos, portfolios, caja, clientes, captación, ventas y tienda online", () => {
     expect(listAvailableModuleKeys().sort()).toEqual(
       [
         COURSES_SALES_MODULE_KEY,
@@ -51,6 +52,7 @@ describe("MODULE_REGISTRY", () => {
         CLIENTS_MODULE_KEY,
         SERVICE_LEADS_MODULE_KEY,
         SALES_MODULE_KEY,
+        STORE_MODULE_KEY,
       ].sort(),
     );
   });
@@ -123,5 +125,14 @@ describe("portfolios", () => {
 
   it("no duplica ninguna clave del catálogo", () => {
     expect(findDuplicateModuleKeys()).toEqual([]);
+  });
+});
+
+describe("tienda online", () => {
+  it("avisa en su descripción que necesita Ventas y el Sitio web", () => {
+    const tienda = getModuleDefinition(STORE_MODULE_KEY);
+    expect(tienda?.status).toBe("AVAILABLE");
+    expect(tienda?.description).toContain("Ventas");
+    expect(tienda?.description).toContain("Sitio web");
   });
 });

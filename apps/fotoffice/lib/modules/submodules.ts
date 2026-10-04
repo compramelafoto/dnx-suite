@@ -6,11 +6,13 @@ import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { SALES_MODULE_KEY } from "@/lib/sales/constants";
+import { STORE_MODULE_KEY } from "@/lib/store/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import {
   BOOKINGS_CONFIGURE_ACTION,
   CASH_CONFIGURE_ACTION,
   COVERAGES_COORDINATE_ACTION,
+  STORE_CONFIGURE_ACTION,
 } from "@/lib/permissions/actions";
 import { hasLevel, type ModuleLevels } from "@/lib/permissions/levels";
 import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
@@ -340,6 +342,18 @@ const VENTAS: SubmoduleItem[] = [
     icon: "ReceiptText",
     description: "Lo vendido, con su detalle y su anulación.",
     requiresManage: false,
+    activeMatch: "under",
+  },
+  {
+    // Decide el nivel en `store`, que ya incluye si la tienda está encendida para el
+    // workspace: con el módulo apagado el nivel es NONE y la entrada no aparece.
+    href: "/ventas/tienda/configuracion",
+    label: "Tienda",
+    icon: "Store",
+    description: "Abrir o cerrar la tienda online, el retiro, la política de devoluciones y los avisos.",
+    requiresManage: true,
+    levelModuleKey: STORE_MODULE_KEY,
+    requiresAction: STORE_CONFIGURE_ACTION,
     activeMatch: "under",
   },
 ];

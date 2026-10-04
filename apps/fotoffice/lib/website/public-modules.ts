@@ -5,6 +5,7 @@ import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { BLOG_PUBLIC_PAGE_KEY } from "./constants";
 import { PORTFOLIO_MODULE_KEY, PORTFOLIO_PUBLIC_SEGMENT } from "@/lib/portfolio/constants";
+import { STORE_MODULE_KEY, STORE_PUBLIC_SEGMENT } from "@/lib/store/constants";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
 /**
@@ -49,6 +50,9 @@ export const PUBLIC_MODULE_PAGES: readonly PublicModulePage[] = [
     order: 25,
   },
   { moduleKey: MEMBERS_MODULE_KEY, segment: "asociarse", label: "Asociarse", order: 30 },
+  // Entra al menú sólo con la tienda ABIERTA, no alcanza con el módulo encendido: ver
+  // `withStoreOpenState`, que aplica `loadPublicSite`.
+  { moduleKey: STORE_MODULE_KEY, segment: STORE_PUBLIC_SEGMENT, label: "Tienda", order: 35 },
   { moduleKey: BLOG_PUBLIC_PAGE_KEY, segment: "blog", label: "Blog", order: 40 },
 ] as const;
 
@@ -71,6 +75,18 @@ export function publicModulePagesFor(enabledModuleKeys: ReadonlySet<string>): Pu
   return PUBLIC_MODULE_PAGES.filter((p) => enabledModuleKeys.has(p.moduleKey))
     .slice()
     .sort((a, b) => a.order - b.order);
+}
+
+/**
+ * La tienda es el único módulo cuya página pública no alcanza con tenerlo encendido: el dueño
+ * la abre y la cierra desde su configuración (`StoreSettings.isOpen`), y una tienda cerrada no
+ * puede quedar en el menú llevando a una vidriera vacía. Saca la clave de la tienda de los
+ * módulos habilitados cuando está cerrada; el resto queda intacto.
+ */
+export function withStoreOpenState(enabledModuleKeys: ReadonlySet<string>, storeOpen: boolean): Set<string> {
+  const claves = new Set(enabledModuleKeys);
+  if (!storeOpen) claves.delete(STORE_MODULE_KEY);
+  return claves;
 }
 
 /**
