@@ -43,6 +43,16 @@ const nextConfig: NextConfig = {
       // alcanzaba: el problema no era que faltaran, era que Node no sabía dónde buscarlos.
     ],
   },
+  // La página de un pedido de la tienda se abre con un token en la dirección (la vuelta de
+  // Mercado Pago, los correos): no se manda esa dirección a ningún sitio que se abra desde ahí.
+  // Dos formas porque en el dominio propio de la institución la tienda vive en `/tienda`.
+  async headers() {
+    const noReferrer = [{ key: "Referrer-Policy", value: "no-referrer" }];
+    return [
+      { source: "/w/:slug/tienda/pedido/:path*", headers: noReferrer },
+      { source: "/tienda/pedido/:path*", headers: noReferrer },
+    ];
+  },
   images: {
     remotePatterns: [{ protocol: "https", hostname: "lh3.googleusercontent.com" }],
   },

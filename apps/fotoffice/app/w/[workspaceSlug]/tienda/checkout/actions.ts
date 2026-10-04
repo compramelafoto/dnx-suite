@@ -1,15 +1,18 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { appUrl } from "@/lib/app-url";
 import { getAuthUser } from "@/lib/auth";
 import { listUserProfiles } from "@/lib/portal/profiles";
 import { parseCheckoutInput } from "@/lib/store/checkout-input";
 import { STORE_PUBLIC_SEGMENT } from "@/lib/store/constants";
 import { createStoreOrder } from "@/lib/store/create-order";
+import { storeOrderCookieName, storeVisibleBase } from "@/lib/store/order-access";
 import { startStoreCheckout } from "@/lib/store/payment";
 import { loadOpenStore } from "@/lib/store/repository";
 import type { CartProblem } from "@/lib/store/storefront";
+import { hostWithoutPort } from "@/lib/website/domain/normalize";
 
 export type PlaceOrderResult = {
   ok: false;
@@ -21,11 +24,6 @@ export type PlaceOrderResult = {
 };
 
 const COOKIE_DIAS = 30;
-
-/** El nombre de la cookie que abre un pedido en este navegador sin pedir el enlace del correo. */
-function nombreCookie(publicId: string): string {
-  return `fo_ped_${publicId}`;
-}
 
 /** Si quien compra tiene sesión y es socio activo de ESTA institución, su ficha; si no, null. */
 async function socioDeEstaInstitucion(workspaceId: string): Promise<string | null> {
@@ -67,12 +65,16 @@ export async function placeOrderAction(workspaceSlug: unknown, raw: unknown): Pr
   }
 
   const base = `/w/${slug}/${STORE_PUBLIC_SEGMENT}`;
-  (await cookies()).set(nombreCookie(pedido.publicId), pedido.accessToken, {
+  // La cookie se ata a la ruta que VE el navegador: en el dominio propio de la institución la
+  // tienda está en `/tienda`, no en `/w/<slug>/tienda` (ver `storeVisibleBase`).
+  const h = await headers();
+  const host = hostWithoutPort(h.get("x-forwarded-host") ?? h.get("host") ?? "");
+  (await cookies()).set(storeOrderCookieName(pedido.publicId), pedido.accessToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     maxAge: COOKIE_DIAS * 24 * 60 * 60,
-    path: base,
+    path: storeVisibleBase({ slug, host, fotofficeOrigin: appUrl() }),
   });
 
   // La vuelta lleva el token además de la cookie: Mercado Pago devuelve al dominio de FOTOFFICE,
