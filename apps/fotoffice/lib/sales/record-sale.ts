@@ -9,6 +9,7 @@ import { resolveDepositTarget } from "@/lib/cash/auto-deposit";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { lineTotalMinor, ticketTotals, type TicketLine } from "./ticket";
 import { nextSaleNumber } from "./sale-number";
+import { applyStockMovement } from "./variant-stock";
 import { SALES_CASH_CATEGORY_NAME, type SalePaymentMethod } from "./constants";
 import type { CheckoutClientResolution } from "./checkout";
 
@@ -105,21 +106,20 @@ async function descontarStock(
     if (line.productId === null) continue;
     if (!controlaExistencia.get(line.productId)) continue;
 
-    await tx.stockMovement.create({
-      data: {
-        workspaceId,
-        productId: line.productId,
-        // Firmado: la venta resta.
-        qty: -line.qty,
-        reason: "VENTA",
-        sourceModule: "sales",
-        sourceRef: saleId,
-        createdByUserId,
-      },
-    });
-    await tx.product.update({
-      where: { id: line.productId },
-      data: { stockQty: { decrement: line.qty } },
+    // Con talle, `applyStockMovement` resta de la variante Y del producto (D4: el stock del
+    // producto es la suma de sus talles). Sin talle, sólo del producto, como siempre.
+    await applyStockMovement(tx, {
+      workspaceId,
+      productId: line.productId,
+      variantId: line.variantId,
+      // Firmado: la venta resta.
+      qty: -line.qty,
+      reason: "VENTA",
+      sourceModule: "sales",
+      sourceRef: saleId,
+      note: null,
+      unitCostArs: null,
+      createdByUserId,
     });
   }
 }
@@ -288,6 +288,7 @@ export async function recordSale(
     data: input.lines.map((line) => ({
       saleId,
       productId: line.productId,
+      variantId: line.variantId,
       description: line.description,
       qty: line.qty,
       unitPriceArs: minorToDecimalString(line.unitPriceMinor),

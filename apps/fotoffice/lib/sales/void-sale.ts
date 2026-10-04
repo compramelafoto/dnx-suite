@@ -4,6 +4,7 @@ import { decimalArsToMinor, minorToDecimalString } from "@/lib/membership/money"
 import { buildReversal, type ReversalValues } from "@/lib/cash/reverse";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
+import { applyStockMovement } from "./variant-stock";
 
 /**
  * Anular una venta. Espejo de `record-sale.ts`, en sentido contrario.
@@ -238,7 +239,7 @@ async function devolverStock(
 ): Promise<void> {
   const items = await tx.saleItem.findMany({
     where: { saleId },
-    select: { productId: true, qty: true },
+    select: { productId: true, variantId: true, qty: true },
   });
 
   const productIds = [...new Set(items.map((i) => i.productId).filter((id): id is string => id !== null))];
@@ -254,20 +255,19 @@ async function devolverStock(
     if (item.productId === null) continue;
     if (!controlaExistencia.get(item.productId)) continue;
 
-    await tx.stockMovement.create({
-      data: {
-        workspaceId,
-        productId: item.productId,
-        qty: item.qty,
-        reason: "DEVOLUCION",
-        sourceModule: "sales",
-        sourceRef: saleId,
-        createdByUserId: userId,
-      },
-    });
-    await tx.product.update({
-      where: { id: item.productId },
-      data: { stockQty: { increment: item.qty } },
+    // Vuelve al mismo talle del que salió. Si el talle se borró después de la venta, el
+    // `SaleItem` quedó con `variantId` nulo (`onDelete: SetNull`) y vuelve sólo al producto.
+    await applyStockMovement(tx, {
+      workspaceId,
+      productId: item.productId,
+      variantId: item.variantId ?? null,
+      qty: item.qty,
+      reason: "DEVOLUCION",
+      sourceModule: "sales",
+      sourceRef: saleId,
+      note: null,
+      unitCostArs: null,
+      createdByUserId: userId,
     });
   }
 }

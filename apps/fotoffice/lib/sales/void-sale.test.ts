@@ -40,6 +40,7 @@ function voidTx(over: {
   saleItem?: Partial<{ findMany: ReturnType<typeof vi.fn> }>;
   product?: Partial<{ findMany: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> }>;
   stockMovement?: Partial<{ create: ReturnType<typeof vi.fn> }>;
+  productVariant?: Partial<{ updateMany: ReturnType<typeof vi.fn> }>;
   cashMovement?: Partial<{ findFirst: ReturnType<typeof vi.fn>; create: ReturnType<typeof vi.fn> }>;
   cashShift?: Partial<{ findFirst: ReturnType<typeof vi.fn> }>;
 } = {}) {
@@ -61,6 +62,7 @@ function voidTx(over: {
       ...over.product,
     },
     stockMovement: { create: vi.fn(async () => ({})), ...over.stockMovement },
+    productVariant: { updateMany: vi.fn(async () => ({ count: 1 })), ...over.productVariant },
     cashMovement: {
       findFirst: tablaAusente("cash_movement"),
       create: tablaAusente("cash_movement"),
@@ -289,6 +291,9 @@ describe("voidSale — el contramovimiento ya estaba anulado a mano", () => {
         sourceModule: "sales",
         sourceRef: "sale1",
         createdByUserId: 7,
+        variantId: null,
+        note: null,
+        unitCostArs: null,
       },
     });
     expect(tx.product.update).toHaveBeenCalledWith({
@@ -412,11 +417,41 @@ describe("voidSale — devolución de stock", () => {
         sourceModule: "sales",
         sourceRef: "sale1",
         createdByUserId: 7,
+        variantId: null,
+        note: null,
+        unitCostArs: null,
       },
     });
     expect(tx.product.update).toHaveBeenCalledWith({
       where: { id: "p1" },
       data: { stockQty: { increment: 4 } },
     });
+  });
+});
+
+describe("voidSale — talles (variantes)", () => {
+  it("anular una venta de un talle le devuelve el stock a ese talle y al producto", async () => {
+    const tx = voidTx({
+      saleItem: { findMany: vi.fn(async () => [{ productId: "p1", variantId: "v1", qty: 2 }]) },
+      product: {
+        findMany: vi.fn(async () => [{ id: "p1", tracksStock: true }]),
+        update: vi.fn(async () => ({})),
+      },
+    });
+
+    const resultado = await voidSale(tx as never, inputBase);
+
+    expect(resultado).toEqual({ ok: true, saleNumber: 5 });
+    expect(tx.saleItem.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ select: { productId: true, variantId: true, qty: true } }),
+    );
+    expect(tx.stockMovement.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ productId: "p1", variantId: "v1", qty: 2, reason: "DEVOLUCION" }),
+    });
+    expect(tx.productVariant.updateMany).toHaveBeenCalledWith({
+      where: { id: "v1", productId: "p1", workspaceId: "ws1" },
+      data: { stockQty: { increment: 2 } },
+    });
+    expect(tx.product.update).toHaveBeenCalledWith({ where: { id: "p1" }, data: { stockQty: { increment: 2 } } });
   });
 });

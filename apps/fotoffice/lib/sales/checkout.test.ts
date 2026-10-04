@@ -24,6 +24,7 @@ describe("buildTicketLines", () => {
         unitPriceMinor: 1_500_00,
         unitCostMinor: 800_00,
         priceWasOverridden: false,
+        variantId: null,
       },
     ]);
   });
@@ -62,6 +63,7 @@ describe("buildTicketLines", () => {
       unitPriceMinor: 500_00,
       unitCostMinor: null,
       priceWasOverridden: false,
+      variantId: null,
     });
   });
 
@@ -78,6 +80,80 @@ describe("buildTicketLines", () => {
   it("un ticket vacío da una lista vacía, no un error", () => {
     const r = buildTicketLines([], productos);
     expect(r).toEqual({ ok: true, lines: [] });
+  });
+});
+
+describe("buildTicketLines — talles (variantes)", () => {
+  const remera = {
+    id: "r1",
+    name: "Remera",
+    priceMinor: 10_000_00,
+    costMinor: 4_000_00,
+    variants: new Map([
+      ["vS", { id: "vS", name: "S", variantPriceMinor: null }],
+      ["vXL", { id: "vXL", name: "XL", variantPriceMinor: 12_000_00 }],
+    ]),
+  };
+  const conRemera = new Map([...productos, ["r1", remera]]);
+  const renglonRemera = (over: Partial<RawCheckoutLine> = {}): RawCheckoutLine => ({
+    productId: "r1",
+    variantId: "vXL",
+    description: "lo que mandó el navegador",
+    qty: 1,
+    unitPriceMinor: 12_000_00,
+    ...over,
+  });
+
+  it("propaga el variantId y arma la descripción con el talle", () => {
+    const r = buildTicketLines([renglonRemera()], conRemera);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.lines[0]).toEqual({
+      productId: "r1",
+      variantId: "vXL",
+      description: "Remera — XL",
+      qty: 1,
+      unitPriceMinor: 12_000_00,
+      unitCostMinor: 4_000_00,
+      priceWasOverridden: false,
+    });
+  });
+
+  it("el precio de referencia es el de la variante cuando tiene uno propio", () => {
+    const r = buildTicketLines([renglonRemera({ unitPriceMinor: 10_000_00 })], conRemera);
+    expect(r.ok && r.lines[0].priceWasOverridden).toBe(true);
+  });
+
+  it("una variante sin precio propio hereda el del producto", () => {
+    const r = buildTicketLines([renglonRemera({ variantId: "vS", unitPriceMinor: 10_000_00 })], conRemera);
+    expect(r.ok && r.lines[0].priceWasOverridden).toBe(false);
+    expect(r.ok && r.lines[0].description).toBe("Remera — S");
+  });
+
+  it("un talle que no es de ese producto (o ya no está activo) rechaza el ticket entero", () => {
+    const r = buildTicketLines([renglonRemera({ variantId: "otro" })], conRemera);
+    expect(r).toEqual({
+      ok: false,
+      error: "Alguno de los talles del ticket ya no está disponible. Actualizá la pantalla e intentá de nuevo.",
+    });
+  });
+
+  it("un producto con talles exige elegir uno", () => {
+    const r = buildTicketLines([renglonRemera({ variantId: null })], conRemera);
+    expect(r).toEqual({ ok: false, error: "Elegí el talle de Remera." });
+  });
+
+  it("un talle en un producto sin talles rechaza el ticket", () => {
+    const r = buildTicketLines([renglonProducto({ variantId: "vXL" })], conRemera);
+    expect(r.ok).toBe(false);
+  });
+
+  it("un renglón suelto ignora cualquier variantId que mande el navegador", () => {
+    const r = buildTicketLines(
+      [{ productId: null, variantId: "vXL", description: "Suelto", qty: 1, unitPriceMinor: 100 }],
+      conRemera,
+    );
+    expect(r.ok && r.lines[0].variantId).toBe(null);
   });
 });
 

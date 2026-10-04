@@ -9,11 +9,13 @@ import { parseCategoryForm } from "@/lib/sales/category-form";
 import { findGlobalByBarcode, upsertGlobalProduct } from "@/lib/sales/global-catalog";
 import { globalFieldsFromProduct, prefillFromGlobal, type ProductPrefill } from "@/lib/sales/global-catalog-fields";
 import { requireSalesAdmin, requireSalesStaff } from "@/lib/sales/access";
-import { findProductByCode, listProducts, type ProductRow } from "@/lib/sales/repository";
+import { findProductByCode, listProducts, type ProductByCode, type ProductRow } from "@/lib/sales/repository";
 import { validateTicket } from "@/lib/sales/ticket";
 import {
   buildTicketLines,
   resolveCheckoutClientInput,
+  type CheckoutProductInfo,
+  type CheckoutVariantInfo,
   type RawCheckoutClient,
   type RawCheckoutLine,
 } from "@/lib/sales/checkout";
@@ -21,6 +23,7 @@ import { recordSale } from "@/lib/sales/record-sale";
 import { voidSale } from "@/lib/sales/void-sale";
 import { SALE_PAYMENT_METHODS, type SalePaymentMethod } from "@/lib/sales/constants";
 import { adjustmentQty, validateAdjustment, validateStockEntry } from "@/lib/sales/stock";
+import { applyStockMovement } from "@/lib/sales/variant-stock";
 
 const CATALOGO = "/ventas/catalogo";
 const STOCK = "/ventas/stock";
@@ -200,7 +203,7 @@ export async function lookupGlobalProductAction(formData: FormData): Promise<Pro
  * que la pantalla llama sólo cuando de verdad hace falta (no encontró nada localmente), no un
  * endpoint nuevo ni un cambio de arquitectura.
  */
-export async function findProductByCodeAction(code: string): Promise<ProductRow | null> {
+export async function findProductByCodeAction(code: string): Promise<ProductByCode | null> {
   const { workspace } = await requireSalesStaff();
   return findProductByCode(workspace.id, code);
 }
@@ -222,6 +225,7 @@ export async function searchProductsAction(input: {
     search: input.search,
     categoryId: input.categoryId || undefined,
     onlyActive: true,
+    onlyCounter: true,
   });
 }
 
@@ -271,7 +275,27 @@ export async function checkoutAction(input: CheckoutInput): Promise<CheckoutResu
           select: { id: true, name: true, priceArs: true, costArs: true },
         })
       : [];
-  const productMap = new Map(
+  // Los talles activos de esos productos, también filtrados por workspace: un `variantId`
+  // que no vuelva acá (de otro producto, de otro negocio, o desactivado) hace que
+  // `buildTicketLines` rechace el ticket entero, igual que un `productId` ajeno.
+  const talles =
+    productIds.length > 0
+      ? await prisma.productVariant.findMany({
+          where: { productId: { in: productIds }, workspaceId: workspace.id, isActive: true },
+          select: { id: true, productId: true, name: true, priceArs: true },
+        })
+      : [];
+  const tallesPorProducto = new Map<string, Map<string, CheckoutVariantInfo>>();
+  for (const t of talles) {
+    const delProducto = tallesPorProducto.get(t.productId) ?? new Map<string, CheckoutVariantInfo>();
+    delProducto.set(t.id, {
+      id: t.id,
+      name: t.name,
+      variantPriceMinor: t.priceArs === null ? null : decimalArsToMinor(t.priceArs),
+    });
+    tallesPorProducto.set(t.productId, delProducto);
+  }
+  const productMap = new Map<string, CheckoutProductInfo>(
     productos.map((p) => [
       p.id,
       {
@@ -279,6 +303,7 @@ export async function checkoutAction(input: CheckoutInput): Promise<CheckoutResu
         name: p.name,
         priceMinor: decimalArsToMinor(p.priceArs),
         costMinor: p.costArs === null ? null : decimalArsToMinor(p.costArs),
+        variants: tallesPorProducto.get(p.id),
       },
     ]),
   );
@@ -341,23 +366,23 @@ export async function recordStockEntryAction(formData: FormData): Promise<void> 
   // El mismo `count` contra el workspace que ya usa `saveProductAction`: la fuga de
   // aislamiento que se coló en la Tarea 6 con una categoría ajena no se repite acá con un
   // producto ajeno.
-  const propio = await prisma.product.count({ where: { id: productId, workspaceId: workspace.id } });
-  if (propio === 0) redirect(`${STOCK}?error=${encodeURIComponent("Ese producto no existe.")}`);
+  const destino = await resolverDestinoDeStock(workspace.id, productId, formData);
+  if (!destino.ok) redirect(`${STOCK}?error=${encodeURIComponent(destino.error)}`);
 
-  await prisma.$transaction(async (tx) => {
-    await tx.stockMovement.create({
-      data: {
-        workspaceId: workspace.id,
-        productId,
-        qty,
-        reason: "ENTRADA",
-        unitCostArs: unitCostMinor === null ? null : minorToDecimalString(unitCostMinor),
-        sourceModule: "sales",
-        createdByUserId: user.id,
-      },
-    });
-    await tx.product.update({ where: { id: productId }, data: { stockQty: { increment: qty } } });
-  });
+  await prisma.$transaction((tx) =>
+    applyStockMovement(tx, {
+      workspaceId: workspace.id,
+      productId,
+      variantId: destino.variantId,
+      qty,
+      reason: "ENTRADA",
+      sourceModule: "sales",
+      sourceRef: null,
+      note: null,
+      unitCostArs: unitCostMinor === null ? null : minorToDecimalString(unitCostMinor),
+      createdByUserId: user.id,
+    }),
+  );
 
   revalidatePath(STOCK);
   redirect(`${STOCK}?ok=1`);
@@ -418,31 +443,63 @@ export async function recordAdjustmentAction(formData: FormData): Promise<void> 
   const check = validateAdjustment({ countedQty, note });
   if (!check.ok) redirect(`${STOCK}?error=${encodeURIComponent(check.error)}`);
 
-  // `findFirst`, no `count`: además de confirmar que el producto es de ESTE workspace, hace
-  // falta la existencia actual para calcular cuánto mover.
-  const producto = await prisma.product.findFirst({
-    where: { id: productId, workspaceId: workspace.id },
-    select: { stockQty: true },
-  });
-  if (!producto) redirect(`${STOCK}?error=${encodeURIComponent("Ese producto no existe.")}`);
+  // Además de confirmar que el producto (y el talle, si tiene) es de ESTE workspace, hace
+  // falta la existencia actual para calcular cuánto mover: la del talle cuando el producto
+  // tiene talles —lo que se contó es ese talle—, la del producto si no.
+  const destino = await resolverDestinoDeStock(workspace.id, productId, formData);
+  if (!destino.ok) redirect(`${STOCK}?error=${encodeURIComponent(destino.error)}`);
 
-  const qty = adjustmentQty({ currentQty: producto.stockQty, countedQty });
+  const qty = adjustmentQty({ currentQty: destino.currentQty, countedQty });
 
-  await prisma.$transaction(async (tx) => {
-    await tx.stockMovement.create({
-      data: {
-        workspaceId: workspace.id,
-        productId,
-        qty,
-        reason: "AJUSTE",
-        note,
-        sourceModule: "sales",
-        createdByUserId: user.id,
-      },
-    });
-    await tx.product.update({ where: { id: productId }, data: { stockQty: { increment: qty } } });
-  });
+  await prisma.$transaction((tx) =>
+    applyStockMovement(tx, {
+      workspaceId: workspace.id,
+      productId,
+      variantId: destino.variantId,
+      qty,
+      reason: "AJUSTE",
+      sourceModule: "sales",
+      sourceRef: null,
+      note,
+      unitCostArs: null,
+      createdByUserId: user.id,
+    }),
+  );
 
   revalidatePath(STOCK);
   redirect(`${STOCK}?ok=1`);
+}
+
+/**
+ * A dónde va una entrada o un ajuste: al producto, o a uno de sus talles.
+ *
+ * Con talles activos, el stock vive en los talles (D4): una entrada "al producto" sumaría a
+ * `Product.stockQty` sin que ningún talle la tenga, y la suma dejaría de cuadrar. Por eso se
+ * exige elegir talle. El talle se verifica contra el producto Y el workspace —la misma fuga de
+ * aislamiento que ya se cuidó con el producto— antes de escribir nada. Un talle desactivado
+ * todavía se puede ajustar (por ejemplo, para dejarlo en cero antes de olvidarlo).
+ */
+async function resolverDestinoDeStock(
+  workspaceId: string,
+  productId: string,
+  formData: FormData,
+): Promise<{ ok: true; variantId: string | null; currentQty: number } | { ok: false; error: string }> {
+  const producto = await prisma.product.findFirst({
+    where: { id: productId, workspaceId },
+    select: { stockQty: true, variants: { where: { isActive: true }, select: { id: true }, take: 1 } },
+  });
+  if (!producto) return { ok: false, error: "Ese producto no existe." };
+
+  const variantId = String(formData.get("variantId") ?? "").trim() || null;
+  if (variantId === null) {
+    if (producto.variants.length > 0) return { ok: false, error: "Elegí el talle." };
+    return { ok: true, variantId: null, currentQty: producto.stockQty };
+  }
+
+  const talle = await prisma.productVariant.findFirst({
+    where: { id: variantId, productId, workspaceId },
+    select: { id: true, stockQty: true },
+  });
+  if (!talle) return { ok: false, error: "Ese talle no existe." };
+  return { ok: true, variantId: talle.id, currentQty: talle.stockQty };
 }
