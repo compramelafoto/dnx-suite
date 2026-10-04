@@ -9,6 +9,7 @@ import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
+import { SALES_MODULE_KEY } from "@/lib/sales/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 
 /**
@@ -189,6 +190,20 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
       "Bandeja de consultas",
     ],
   },
+  {
+    key: SALES_MODULE_KEY,
+    cuadro: "12",
+    nombre: "Ventas",
+    resuelve:
+      "El mostrador: buscás el producto por nombre o lo pasás por el lector de código de barras, armás el ticket y cobrás. Cada venta descuenta la existencia y entra sola a la caja del turno. Los productos con código de barras se comparten con el resto del sistema, así que el que alguien ya cargó no hay que volver a cargarlo.",
+    pantallas: [
+      "Mostrador con lector de código de barras",
+      "Catálogo de productos y servicios con foto",
+      "Existencias y reposición",
+      "Ventas hechas y anulaciones",
+      "Margen por producto",
+    ],
+  },
 ];
 
 /** Lo que está siempre, se encienda lo que se encienda. No son módulos con interruptor. */
@@ -257,38 +272,38 @@ export const EN_CONSTRUCCION: {
   icono: string;
 }[] = [
   {
-    cuadro: "12",
+    cuadro: "13",
     icono: "presupuestos",
     nombre: "Presupuestos",
     resuelve:
       "Armar el presupuesto con tus precios, mandárselo al cliente y seguir si lo aceptó. La consulta ya te llega con todos los datos del evento —eso es Captación—; falta ponerle precio y mandarlo desde acá.",
   },
   {
-    cuadro: "13",
+    cuadro: "14",
     icono: "comunicacion",
     nombre: "Comunicación",
     resuelve: "Mandar un mensaje a todos los socios o a un grupo, desde adentro.",
   },
   {
-    cuadro: "14",
+    cuadro: "15",
     icono: "eventos",
     nombre: "Eventos",
     resuelve: "Salidas, charlas y encuentros con inscripción y lista de asistencia.",
   },
   {
-    cuadro: "15",
+    cuadro: "16",
     icono: "gobierno",
     nombre: "Gobierno institucional",
     resuelve: "Actas, votaciones y resoluciones de la comisión directiva.",
   },
   {
-    cuadro: "16",
+    cuadro: "17",
     icono: "muestras",
     nombre: "Muestras",
     resuelve: "Las muestras de la institución, con sus obras y sus autores.",
   },
   {
-    cuadro: "17",
+    cuadro: "18",
     icono: "transparencia",
     nombre: "Transparencia",
     resuelve: "Publicar el balance y la rendición para que el socio vea en qué se usó su cuota.",
