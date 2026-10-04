@@ -7,6 +7,7 @@ import {
 } from "@/lib/onboarding-constants";
 import { EMAIL_SIGNATURE_NOTE_MAX } from "@/lib/communications/constants";
 import { ImageUploadField } from "@/components/image-upload-field";
+import { SHORT_DESCRIPTION_MAX } from "@/lib/website/site-metadata";
 import { updateWorkspaceSettingsAction, type SettingsState } from "./actions";
 
 type Initial = {
@@ -21,6 +22,7 @@ type Initial = {
   website: string;
   instagram: string;
   emailSignatureNote: string;
+  shortDescription: string;
   activityType: string;
   specialties: string[];
   logoUrl: string | null;
@@ -70,6 +72,21 @@ export function WorkspaceSettingsForm({ initial, canEdit }: { initial: Initial; 
             ))}
           </select>
         </label>
+        <label className="block space-y-3">
+          <span className="text-sm font-semibold">Descripción breve</span>
+          <textarea
+            name="shortDescription"
+            defaultValue={initial.shortDescription}
+            rows={3}
+            maxLength={SHORT_DESCRIPTION_MAX}
+            placeholder="Ej.: Sociedad de Fotógrafos Profesionales de Rosario. Cursos, concursos y comunidad desde 1990."
+            className="w-full rounded-xl border border-[var(--fo-border)] bg-[var(--fo-bg)] px-4 py-3 text-sm"
+          />
+          <p className="text-xs text-[var(--fo-muted)] leading-relaxed">
+            Una o dos oraciones sobre tu institución. Es lo que aparece en Google y debajo del logo cuando
+            alguien comparte tu sitio por WhatsApp o redes. Máximo {SHORT_DESCRIPTION_MAX} caracteres.
+          </p>
+        </label>
         <Field label="Email de contacto" name="contactEmail" defaultValue={initial.contactEmail} />
         <Field label="Teléfono" name="phone" defaultValue={initial.phone} />
         <Field label="WhatsApp" name="whatsapp" defaultValue={initial.whatsapp} />
@@ -97,7 +114,7 @@ export function WorkspaceSettingsForm({ initial, canEdit }: { initial: Initial; 
           <ImageUploadField
             name="logoUrl"
             presetKey="workspaceLogo"
-            label="Logo"
+            label="Logo (también es la imagen al compartir tu sitio)"
             initialUrl={initial.logoUrl}
           />
           <ImageUploadField
