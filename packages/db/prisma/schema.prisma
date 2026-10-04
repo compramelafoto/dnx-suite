@@ -7077,6 +7077,7 @@ model Workspace {
   updatedAt                   DateTime                          @updatedAt
   courses                     Course[]
   courseEnrollments           CourseEnrollment[]
+  courseAccesses              CourseAccess[]
   courseSalesCourses          CourseSalesCourse[]
   courseSalesLeads            CourseSalesLead[]
   courseSalesTeachers         CourseSalesTeacher[]
@@ -9073,6 +9074,7 @@ model Course {
   instances             CourseInstance[]
   lessons               CourseLesson[]
   enrollments           CourseEnrollment[]
+  accesses              CourseAccess[]
 
   @@unique([workspaceId, slug])
   @@index([workspaceId, status])
@@ -9100,6 +9102,7 @@ model CourseLesson {
   updatedAt       DateTime                 @updatedAt
   course          Course                   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   attachments     CourseLessonAttachment[]
+  progress        CourseLessonProgress[]
 
   @@index([courseId, sortOrder])
 }
@@ -9116,6 +9119,55 @@ model CourseLessonAttachment {
   createdAt  DateTime     @default(now())
   lesson     CourseLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 
+  @@index([lessonId])
+}
+
+/// Quién compró un curso grabado y hasta cuándo puede verlo.
+///
+/// El enlace del aula es la única credencial del alumno: no tiene cuenta ni contraseña. Por eso
+/// en la base queda sólo el SHA-256 del token (`tokenHash`); el crudo viaja una sola vez, en el
+/// correo. Mismo patrón que la invitación del socio.
+model CourseAccess {
+  id           String                 @id @default(cuid())
+  workspaceId  String
+  courseId     String
+  /// Una inscripción pagada da un solo acceso. El único evita duplicarlo si el aviso de Mercado
+  /// Pago y la vuelta del checkout llegan a la vez.
+  enrollmentId String                 @unique
+  grantedAt    DateTime               @default(now())
+  expiresAt    DateTime
+  tokenHash    String                 @unique
+  revokedAt    DateTime?
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+  workspace    Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  course       Course                 @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  enrollment   CourseEnrollment       @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  progress     CourseLessonProgress[]
+
+  @@index([workspaceId, courseId])
+}
+
+/// Cuánto vio un alumno de una clase.
+///
+/// `secondsWatched` es tiempo **mirado**, no la posición: arrastrar la barra al final no suma.
+/// La regla vive en `lib/course-classroom/progress-rules.ts`, con test.
+model CourseLessonProgress {
+  id                  String       @id @default(cuid())
+  accessId            String
+  lessonId            String
+  secondsWatched      Int          @default(0)
+  /// Para retomar donde quedó.
+  lastPositionSeconds Int          @default(0)
+  /// Cuándo llegó el último reporte. Con esto el servidor sabe cuánto pudo mirar de verdad.
+  lastReportAt        DateTime?
+  completedAt         DateTime?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  access              CourseAccess @relation(fields: [accessId], references: [id], onDelete: Cascade)
+  lesson              CourseLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([accessId, lessonId])
   @@index([lessonId])
 }
 
@@ -9165,6 +9217,7 @@ model CourseEnrollment {
   workspace              Workspace                     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   course                 Course                        @relation(fields: [courseId], references: [id], onDelete: Cascade)
   courseInstance         CourseInstance?               @relation(fields: [courseInstanceId], references: [id], onDelete: Cascade)
+  access                 CourseAccess?
 
   @@index([workspaceId, paymentStatus])
   @@index([courseId, paymentStatus])
