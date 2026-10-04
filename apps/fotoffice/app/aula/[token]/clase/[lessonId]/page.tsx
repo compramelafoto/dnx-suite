@@ -72,8 +72,9 @@ export default async function ClasePage({
     console.error("[fotoffice][cursos] no se pudo firmar la reproducción", { lessonId, motivo: error.message });
   }
 
-  // Registro de reproducciones (spec, sección 4, capa 4). El origen va hasheado: sirve para ver
-  // un mismo acceso desde muchos lugares a la vez sin guardar direcciones IP.
+  // Registro de reproducciones (spec, sección 4, capa 4). El origen va hasheado para no escribir
+  // la IP en claro en el log; sirve para contar lugares distintos, no es anonimización fuerte
+  // (SHA-256 sin sal).
   const origen = createHash("sha256").update(clientIp(new Headers(await headers()))).digest("hex").slice(0, 12);
   logCourseEvent("aula_reproduccion_autorizada", {
     accessId: acceso.id,
@@ -115,14 +116,14 @@ export default async function ClasePage({
 
       <nav className="flex justify-between gap-3">
         {anterior ? (
-          <Link href={`/aula/${token}/clase/${anterior.id}`} className="fo-btn fo-btn-secondary text-sm">
+          <Link href={`/aula/${token}/clase/${anterior.id}`} prefetch={false} className="fo-btn fo-btn-secondary text-sm">
             ← {anterior.title}
           </Link>
         ) : (
           <span />
         )}
         {siguiente ? (
-          <Link href={`/aula/${token}/clase/${siguiente.id}`} className="fo-btn fo-btn-primary text-sm">
+          <Link href={`/aula/${token}/clase/${siguiente.id}`} prefetch={false} className="fo-btn fo-btn-primary text-sm">
             {siguiente.title} →
           </Link>
         ) : null}

@@ -22,8 +22,9 @@ declare global {
  * El video de una clase.
  *
  * - La marca de agua va **encima** del iframe, en un contenedor propio. Por eso la pantalla
- *   completa es la del contenedor (botón propio) y el iframe no la permite, ni tampoco
- *   picture-in-picture: las dos dejarían la marca afuera.
+ *   completa es la del contenedor (botón propio) y el iframe niega de forma explícita tanto
+ *   la pantalla completa como picture-in-picture (omitirlos en `allow` no alcanza: su valor por
+ *   defecto es `*`). Las dos dejarían la marca afuera.
  * - El avance cuenta sólo la reproducción normal: un salto de la barra no suma. Igual el
  *   servidor desconfía (ver `progress-rules.ts`).
  * - `reporte` en null = clase de muestra: no se informa nada.
@@ -43,6 +44,7 @@ export function LessonPlayer({
   const iframe = useRef<HTMLIFrameElement>(null);
   const jugador = useRef<StreamPlayer | null>(null);
   const ultimoTiempo = useRef<number | null>(null);
+  const ultimaPosicion = useRef(0);
   const acumulado = useRef(0);
   const [sdkListo, setSdkListo] = useState(false);
   const [paso, setPaso] = useState(0);
@@ -64,7 +66,7 @@ export function LessonPlayer({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         lessonId: reporte.lessonId,
-        positionSeconds: Math.floor(jugador.current.currentTime),
+        positionSeconds: Math.floor(ultimaPosicion.current),
         watchedSinceLastReport: visto,
       }),
     }).catch(() => {});
@@ -75,10 +77,12 @@ export function LessonPlayer({
     const p = window.Stream(iframe.current);
     jugador.current = p;
     ultimoTiempo.current = null;
+    ultimaPosicion.current = 0;
     acumulado.current = 0;
 
     const alAvanzar = () => {
       const t = p.currentTime;
+      ultimaPosicion.current = t;
       const previo = ultimoTiempo.current;
       ultimoTiempo.current = t;
       if (previo === null || p.paused) return;
@@ -125,7 +129,7 @@ export function LessonPlayer({
           ref={iframe}
           src={iframeUrl}
           className="absolute inset-0 h-full w-full border-0"
-          allow="accelerometer; gyroscope; autoplay; encrypted-media"
+          allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture 'none'; fullscreen 'none'"
           title="Video de la clase"
         />
         {marca ? (
