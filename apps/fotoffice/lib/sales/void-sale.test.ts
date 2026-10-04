@@ -43,8 +43,10 @@ function voidTx(over: {
   productVariant?: Partial<{ updateMany: ReturnType<typeof vi.fn> }>;
   cashMovement?: Partial<{ findFirst: ReturnType<typeof vi.fn>; create: ReturnType<typeof vi.fn> }>;
   cashShift?: Partial<{ findFirst: ReturnType<typeof vi.fn> }>;
+  storeOrder?: Partial<{ findFirst: ReturnType<typeof vi.fn> }>;
 } = {}) {
   return {
+    storeOrder: { findFirst: vi.fn(async () => null), ...over.storeOrder },
     sale: {
       findFirst: vi.fn(async () => ({
         id: "sale1",
@@ -94,6 +96,37 @@ describe("voidSale — motivo", () => {
 
     expect(resultado).toEqual({ ok: false, error: "Escribí por qué se anula la venta." });
     expect(tx.sale.findFirst).not.toHaveBeenCalled();
+  });
+});
+
+describe("voidSale — venta de un pedido online", () => {
+  it("desde el historial no se anula: vuelve un error antes de escribir nada", async () => {
+    const tx = voidTx({ storeOrder: { findFirst: vi.fn(async () => ({ id: "ord1" })) } });
+
+    const resultado = await voidSale(tx as never, inputBase);
+
+    expect(resultado).toEqual({
+      ok: false,
+      error: "Esta venta es de un pedido online: cancelala desde Pedidos online.",
+    });
+    expect(tx.storeOrder.findFirst).toHaveBeenCalledWith({
+      where: { saleId: "sale1", workspaceId: inputBase.workspaceId },
+      select: { id: true },
+    });
+    expect(tx.sale.update).not.toHaveBeenCalled();
+    expect(tx.stockMovement.create).not.toHaveBeenCalled();
+    expect(tx.saleItem.findMany).not.toHaveBeenCalled();
+  });
+
+  it("la cancelación del pedido sí la anula (y ni pregunta por el pedido)", async () => {
+    isModuleEnabledForWorkspace.mockResolvedValue(false);
+    const tx = voidTx({ storeOrder: { findFirst: vi.fn(async () => ({ id: "ord1" })) } });
+
+    const resultado = await voidSale(tx as never, { ...inputBase, fromStoreOrder: true });
+
+    expect(resultado).toEqual({ ok: true, saleNumber: 5 });
+    expect(tx.storeOrder.findFirst).not.toHaveBeenCalled();
+    expect(tx.sale.update).toHaveBeenCalled();
   });
 });
 

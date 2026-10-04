@@ -42,15 +42,31 @@ const CON_PLATA: readonly StoreOrderStatus[] = ["PAID", "READY", "PAID_NO_STOCK"
 
 // ── Reglas puras ────────────────────────────────────────────────────────────
 
+/** Lo que deja `markOrderReviewed`. Sólo cuenta si lo escribió una persona. */
+export const STORE_NOTE_REVIEWED_PREFIX = "Revisado:";
+
+function esNotaDeProblema(note: string | null): boolean {
+  const n = note ?? "";
+  return n.startsWith(STORE_NOTE_DUPLICATE_PREFIX) || n.startsWith(STORE_NOTE_CREDIT_FAILURE_PREFIX);
+}
+
 /**
- * ¿Hay que mirar este pedido? Pagado sin stock, o con una constancia del sistema como último
- * movimiento: un pago duplicado o un pago aprobado que no se pudo acreditar. Cuando alguien
- * del personal actúa (cambia el estado o lo marca revisado), deja de ser el último movimiento.
+ * ¿Hay que mirar este pedido? Pagado sin stock (hasta que se resuelva cambiando de estado), o
+ * con una constancia del sistema —un pago duplicado o un pago aprobado que no se pudo
+ * acreditar— que nadie marcó como revisada DESPUÉS. Prepararlo o entregarlo no la resuelve: el
+ * segundo pago sigue sin devolverse. `events` va en orden cronológico.
  */
-export function isProblemOrder(input: { status: StoreOrderStatus; lastNote: string | null }): boolean {
+export function isProblemOrder(input: {
+  status: StoreOrderStatus;
+  events: readonly { note: string | null; actorUserId: number | null }[];
+}): boolean {
   if (input.status === "PAID_NO_STOCK") return true;
-  const nota = input.lastNote ?? "";
-  return nota.startsWith(STORE_NOTE_DUPLICATE_PREFIX) || nota.startsWith(STORE_NOTE_CREDIT_FAILURE_PREFIX);
+  let pendiente = false;
+  for (const e of input.events) {
+    if (esNotaDeProblema(e.note)) pendiente = true;
+    else if (e.actorUserId !== null && (e.note ?? "").startsWith(STORE_NOTE_REVIEWED_PREFIX)) pendiente = false;
+  }
+  return pendiente;
 }
 
 /** ¿El pedido quedó sin stock porque se cobró un monto distinto? Entonces sólo se puede devolver. */
@@ -155,13 +171,22 @@ export async function changeOrderStatus(input: {
               throw new Rechazo("Escribí por qué se cancela el pedido.");
             }
             if ((from === "PAID" || from === "READY") && order.saleId) {
-              const anulada = await voidSale(tx, {
-                workspaceId: input.workspaceId,
-                saleId: order.saleId,
-                reason: `Pedido online #${order.orderNumber} cancelado: ${nota ?? ""}`,
-                userId: input.userId,
+              // Una venta ya anulada (de antes de que el historial lo prohibiera) no frena la
+              // cancelación: la plata y el stock ya volvieron por ese camino.
+              const venta = await tx.sale.findFirst({
+                where: { id: order.saleId, workspaceId: input.workspaceId },
+                select: { status: true },
               });
-              if (!anulada.ok) throw new Rechazo(anulada.error);
+              if (venta && venta.status !== "ANULADA") {
+                const anulada = await voidSale(tx, {
+                  workspaceId: input.workspaceId,
+                  saleId: order.saleId,
+                  reason: `Pedido online #${order.orderNumber} cancelado: ${nota ?? ""}`,
+                  userId: input.userId,
+                  fromStoreOrder: true,
+                });
+                if (!anulada.ok) throw new Rechazo(anulada.error);
+              }
             }
             // Sin tocar `mpPaymentId`: el pago existió y hay que devolverlo.
             await tx.storeOrder.updateMany({
@@ -232,7 +257,7 @@ export async function markOrderReviewed(input: {
           fromStatus: order.status,
           toStatus: order.status,
           actorUserId: input.userId,
-          note: `Revisado: ${nota}`,
+          note: `${STORE_NOTE_REVIEWED_PREFIX} ${nota}`,
         },
       });
     });
@@ -263,37 +288,29 @@ export function parseStoreOrderTab(raw: string | undefined): StoreOrderTab {
   return (STORE_ORDER_TABS as readonly string[]).includes(raw ?? "") ? (raw as StoreOrderTab) : "preparar";
 }
 
-const ULTIMO_EVENTO = {
-  orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-  take: 1,
-  select: { note: true },
-} satisfies Prisma.StoreOrder$eventsArgs;
-
 /** Los pedidos con problemas (ver `isProblemOrder`). Pocos por naturaleza: se filtran acá. */
 async function problemOrderIds(workspaceId: string): Promise<string[]> {
+  const notaDeProblema: Prisma.StoreOrderEventWhereInput[] = [
+    { note: { startsWith: STORE_NOTE_DUPLICATE_PREFIX } },
+    { note: { startsWith: STORE_NOTE_CREDIT_FAILURE_PREFIX } },
+  ];
   const candidatos = await prisma.storeOrder.findMany({
-    where: {
-      workspaceId,
-      OR: [
-        { status: "PAID_NO_STOCK" },
-        {
-          events: {
-            some: {
-              OR: [
-                { note: { startsWith: STORE_NOTE_DUPLICATE_PREFIX } },
-                { note: { startsWith: STORE_NOTE_CREDIT_FAILURE_PREFIX } },
-              ],
-            },
-          },
-        },
-      ],
-    },
-    select: { id: true, status: true, events: ULTIMO_EVENTO },
+    where: { workspaceId, OR: [{ status: "PAID_NO_STOCK" }, { events: { some: { OR: notaDeProblema } } }] },
+    // El tope se queda con los más recientes.
+    orderBy: { updatedAt: "desc" },
     take: 500,
+    select: {
+      id: true,
+      status: true,
+      // Sólo las notas que deciden: las de problema y las de "revisado".
+      events: {
+        where: { OR: [...notaDeProblema, { note: { startsWith: STORE_NOTE_REVIEWED_PREFIX } }] },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        select: { note: true, actorUserId: true },
+      },
+    },
   });
-  return candidatos
-    .filter((c) => isProblemOrder({ status: c.status, lastNote: c.events[0]?.note ?? null }))
-    .map((c) => c.id);
+  return candidatos.filter((c) => isProblemOrder({ status: c.status, events: c.events })).map((c) => c.id);
 }
 
 export type StoreOrderListRow = {
@@ -406,13 +423,12 @@ export async function loadStoreOrderDetail(workspaceId: string, orderId: string)
       : prisma.user.findMany({ where: { id: { in: actorIds } }, select: { id: true, name: true, email: true } }),
   ]);
 
-  const ultimo = order.events.at(-1);
   const entradaSinStock = order.events.filter((e) => e.toStatus === "PAID_NO_STOCK" && e.fromStatus !== "PAID_NO_STOCK").at(-1);
   return {
     ...order,
     sale,
     actorNames: Object.fromEntries(actores.map((u) => [u.id, u.name ?? u.email])),
-    problem: isProblemOrder({ status: order.status, lastNote: ultimo?.note ?? null }),
+    problem: isProblemOrder({ status: order.status, events: order.events }),
     amountMismatch: order.status === "PAID_NO_STOCK" && isAmountMismatchNote(entradaSinStock?.note),
   };
 }

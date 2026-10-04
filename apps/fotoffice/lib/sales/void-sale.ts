@@ -37,6 +37,12 @@ export type VoidSaleInput = {
   saleId: string;
   reason: string;
   userId: number | null;
+  /**
+   * Sólo la cancelación de un pedido online (`lib/store/order-admin.ts`) lo pone en true. Una
+   * venta que salió de un pedido de la tienda no se anula suelta desde el historial: el pedido
+   * quedaría "pagado" con su venta anulada, y al cancelarlo después no habría nada que anular.
+   */
+  fromStoreOrder?: boolean;
 };
 
 export type VoidSaleResult = { ok: true; saleNumber: number } | { ok: false; error: string };
@@ -54,6 +60,16 @@ export async function voidSale(tx: Tx, input: VoidSaleInput): Promise<VoidSaleRe
     select: { id: true, saleNumber: true, status: true, cashMovementId: true },
   });
   if (!venta) return { ok: false, error: "Esa venta no existe." };
+
+  if (!input.fromStoreOrder) {
+    const pedido = await tx.storeOrder.findFirst({
+      where: { saleId: venta.id, workspaceId: input.workspaceId },
+      select: { id: true },
+    });
+    if (pedido) {
+      return { ok: false, error: "Esta venta es de un pedido online: cancelala desde Pedidos online." };
+    }
+  }
 
   // Una venta anulada no se vuelve a anular. El estado se verifica antes de tocar cualquier
   // otra tabla: ni el stock ni Caja se rozan si esto corta acá.

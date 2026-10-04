@@ -54,6 +54,7 @@ function pedido(status: Status, over: { saleId?: string | null; paidAt?: Date | 
 
 function crearTx(order: ReturnType<typeof pedido> | null, ultimaSinStock: string | null = null) {
   return {
+    sale: { findFirst: vi.fn(async (): Promise<{ status: string } | null> => ({ status: "COMPLETADA" })) },
     $queryRaw: vi.fn(async () => []),
     storeOrder: {
       findFirst: vi.fn(async () => order),
@@ -181,7 +182,9 @@ describe("changeOrderStatus — cancelar", () => {
       saleId: "sale1",
       reason: "Pedido online #7 cancelado: No lo vino a buscar",
       userId: 42,
+      fromStoreOrder: true,
     });
+    expect(tx.sale.findFirst).toHaveBeenCalledWith({ where: { id: "sale1", workspaceId: "ws1" }, select: { status: true } });
     const data = datosDelUpdate();
     expect(data).toMatchObject({ status: "CANCELLED", cancelledAt: expect.any(Date) });
     expect(data).not.toHaveProperty("mpPaymentId");
@@ -195,6 +198,16 @@ describe("changeOrderStatus — cancelar", () => {
     expect(r).toEqual({ ok: false, error: "Esa venta ya está anulada." });
     expect(tx.storeOrder.updateMany).not.toHaveBeenCalled();
     expect(tx.storeOrderEvent.create).not.toHaveBeenCalled();
+  });
+
+  it("si la venta ya estaba anulada, cancela igual sin volver a anularla", async () => {
+    preparar(pedido("PAID"));
+    tx.sale.findFirst.mockResolvedValue({ status: "ANULADA" });
+    const r = await changeOrderStatus({ ...base, to: "CANCELLED", note: "Ya se había anulado la venta" });
+    expect(r).toEqual({ ok: true });
+    expect(h.voidSale).not.toHaveBeenCalled();
+    expect(datosDelUpdate()).toMatchObject({ status: "CANCELLED" });
+    expect(datosDelEvento()).toMatchObject({ fromStatus: "PAID", toStatus: "CANCELLED" });
   });
 
   it("cancelar un pedido pagado sin stock exige nota y no anula nada (no hay venta)", async () => {
@@ -274,12 +287,31 @@ describe("markOrderReviewed", () => {
 });
 
 describe("reglas puras del panel", () => {
+  const sistema = (note: string) => ({ note, actorUserId: null });
+  const persona = (note: string) => ({ note, actorUserId: 42 });
+  const DUP = "Pago duplicado mp2: hay que devolverlo";
+  const FALLO = "Pago aprobado que no se pudo acreditar: revisar";
+
   it("problemas: sin stock, pago duplicado o pago que no se pudo acreditar", () => {
-    expect(isProblemOrder({ status: "PAID_NO_STOCK", lastNote: null })).toBe(true);
-    expect(isProblemOrder({ status: "PAID", lastNote: "Pago duplicado mp2: hay que devolverlo" })).toBe(true);
-    expect(isProblemOrder({ status: "PENDING_PAYMENT", lastNote: "Pago aprobado que no se pudo acreditar: revisar" })).toBe(true);
-    expect(isProblemOrder({ status: "PAID", lastNote: "Revisado: Pago duplicado devuelto" })).toBe(false);
-    expect(isProblemOrder({ status: "PAID", lastNote: null })).toBe(false);
+    expect(isProblemOrder({ status: "PAID_NO_STOCK", events: [] })).toBe(true);
+    expect(isProblemOrder({ status: "PAID", events: [sistema(DUP)] })).toBe(true);
+    expect(isProblemOrder({ status: "PENDING_PAYMENT", events: [sistema(FALLO)] })).toBe(true);
+    expect(isProblemOrder({ status: "PAID", events: [sistema("Venta #3 registrada")] })).toBe(false);
+  });
+
+  it("preparar o entregar después del problema NO lo resuelve", () => {
+    const events = [sistema(DUP), persona("Pedido listo"), { note: null, actorUserId: 42 }];
+    expect(isProblemOrder({ status: "DELIVERED", events })).toBe(true);
+  });
+
+  it("sólo lo resuelve un 'Revisado:' de una persona POSTERIOR al último problema", () => {
+    expect(isProblemOrder({ status: "PAID", events: [sistema(DUP), persona("Revisado: devuelto")] })).toBe(false);
+    // Revisado antes de un segundo duplicado: vuelve a ser problema.
+    expect(isProblemOrder({ status: "PAID", events: [sistema(DUP), persona("Revisado: ok"), sistema(DUP)] })).toBe(true);
+    // Un "Revisado:" sin persona no cuenta.
+    expect(isProblemOrder({ status: "PAID", events: [sistema(DUP), sistema("Revisado: x")] })).toBe(true);
+    // Sin stock sigue siendo problema aunque se haya anotado como revisado.
+    expect(isProblemOrder({ status: "PAID_NO_STOCK", events: [persona("Revisado: x")] })).toBe(true);
   });
 
   it("botones: los de canTransition, sin PAID cuando el monto no coincide", () => {
