@@ -8,11 +8,13 @@ import { ImageBlockView } from "@/components/website/render/blocks/image-block-v
 import { CtaBlockView } from "@/components/website/render/blocks/cta-block-view";
 import { SpacerBlockView } from "@/components/website/render/blocks/spacer-block-view";
 import { BlogLatestBlockView } from "@/components/website/render/blocks/blog-latest-block-view";
+import { MemberOfWeekBlockView } from "@/components/website/render/blocks/member-of-week-block-view";
 import type { WebsiteDynamicData } from "./dynamic-data";
 import {
   WEBSITE_BLOCK_DEFINITIONS,
   type BlogLatestBlockConfig,
   type CtaBlockConfig,
+  type MemberOfWeekBlockConfig,
   type ImageBlockConfig,
   type SpacerBlockConfig,
   type TextBlockConfig,
@@ -137,6 +139,18 @@ export const WEBSITE_BLOCK_REGISTRY: { [K in WebsiteBlockType]: BlockRegistryEnt
         <ToggleField label="Mostrar el extracto" checked={config.showExcerpt} onChange={(v) => onChange({ ...config, showExcerpt: v })} />
         <p className="text-xs text-[var(--fo-muted)]">
           Se muestran solos los últimos artículos publicados en el blog. Si todavía no hay ninguno, la sección no aparece en el sitio.
+        </p>
+      </div>
+    ),
+  },
+  MEMBER_OF_WEEK: {
+    View: MemberOfWeekBlockView,
+    Inspector: ({ config, onChange }: { config: MemberOfWeekBlockConfig; onChange: (c: MemberOfWeekBlockConfig) => void }) => (
+      <div className="space-y-4">
+        <TextField label="Título" value={config.title ?? ""} onChange={(v) => onChange({ ...config, title: v })} />
+        <TextAreaField label="Texto de presentación (opcional)" value={config.intro ?? ""} onChange={(v) => onChange({ ...config, intro: v })} />
+        <p className="text-xs text-[var(--fo-muted)]">
+          Muestra solo al socio destacado de esta semana. Si ese socio no dio permiso para aparecer en el sitio público, esa semana la sección no aparece. Nunca se muestran su teléfono ni su correo.
         </p>
       </div>
     ),

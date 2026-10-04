@@ -24,7 +24,7 @@ const fecha = (v: Date) =>
 
 const PARA_QUE: Record<(typeof PLACA_KINDS)[number], string> = {
   bienvenida: "Se arma sola para cada socio nuevo cuando paga su primera cuota.",
-  "socio-semana": "La del socio destacado cada viernes. Llega con el Socio de la semana.",
+  "socio-semana": "La del socio destacado de cada viernes.",
 };
 
 /**
