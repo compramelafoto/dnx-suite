@@ -11,6 +11,7 @@ import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
+import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
 import {
   MODULE_REGISTRY,
   findDuplicateModuleKeys,
@@ -34,7 +35,7 @@ describe("MODULE_REGISTRY", () => {
     }
   });
 
-  it("los módulos AVAILABLE hoy son exactamente courses-sales, evaluaciones, website, reservas, coberturas, members, membership-dues, sorteos, portfolios, caja, clientes y captación", () => {
+  it("los módulos AVAILABLE hoy son exactamente courses-sales, evaluaciones, website, reservas, coberturas, members, membership-dues, sorteos, portfolios, caja, clientes, captación y comunicación", () => {
     expect(listAvailableModuleKeys().sort()).toEqual(
       [
         COURSES_SALES_MODULE_KEY,
@@ -49,6 +50,7 @@ describe("MODULE_REGISTRY", () => {
         CASH_MODULE_KEY,
         CLIENTS_MODULE_KEY,
         SERVICE_LEADS_MODULE_KEY,
+        COMMUNICATIONS_MODULE_KEY,
       ].sort(),
     );
   });

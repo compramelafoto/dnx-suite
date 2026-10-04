@@ -6,6 +6,7 @@ import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
+import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
 import {
   BOOKINGS_CONFIGURE_ACTION,
   CASH_CONFIGURE_ACTION,
@@ -308,6 +309,25 @@ const COBERTURAS: SubmoduleItem[] = [
   },
 ];
 
+const COMUNICACION: SubmoduleItem[] = [
+  {
+    href: "/comunicacion/placas",
+    label: "Bienvenidas",
+    icon: "PartyPopper",
+    description: "La placa de bienvenida de cada {persona} nuevo, lista para descargar y publicar.",
+    requiresManage: false,
+    activeMatch: "rest",
+  },
+  {
+    href: "/comunicacion/plantillas",
+    label: "Plantillas",
+    icon: "Palette",
+    description: "El diseño de las placas, con el mismo diseñador del carnet.",
+    requiresManage: true,
+    activeMatch: "under",
+  },
+];
+
 const POR_MODULO: Record<string, SubmoduleItem[]> = {
   [MEMBERS_MODULE_KEY]: SOCIOS,
   [COURSES_SALES_MODULE_KEY]: CURSOS,
@@ -316,6 +336,7 @@ const POR_MODULO: Record<string, SubmoduleItem[]> = {
   [CASH_MODULE_KEY]: CAJA,
   [CLIENTS_MODULE_KEY]: CLIENTES,
   [COVERAGES_MODULE_KEY]: COBERTURAS,
+  [COMMUNICATIONS_MODULE_KEY]: COMUNICACION,
 };
 
 /**
