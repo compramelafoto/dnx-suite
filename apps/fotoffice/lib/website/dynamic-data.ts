@@ -31,6 +31,11 @@ export type BlogLatestData = {
 
 export type WebsiteDynamicData = {
   blogLatest?: BlogLatestData;
+  /**
+   * Los artículos que destacan las placas del banner, por id. Solo los publicados: si una placa
+   * apunta a uno que ya no está (borrado o despublicado), no aparece acá y la placa no se dibuja.
+   */
+  heroBlogPosts?: Record<number, BlogCardItem>;
 };
 
 /**

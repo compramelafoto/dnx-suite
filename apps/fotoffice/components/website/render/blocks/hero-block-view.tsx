@@ -6,6 +6,8 @@ import type { HeroBlockConfig, HeroContentPosition, HeroHeightPreset, HeroImageF
 import { useHeroEditingSlideId } from "@/lib/website/hero-editing-context";
 import { enlaceDeBoton } from "@/lib/website/button-href";
 import { levelStyle } from "@/lib/website/typography";
+import type { WebsiteDynamicData } from "@/lib/website/dynamic-data";
+import { resolveHeroSlides, type ResolvedHeroSlide } from "@/lib/website/hero-slides";
 
 const HEIGHT_CLASS: Record<HeroHeightPreset, string> = {
   compact: "min-h-[240px] sm:min-h-[320px]",
@@ -47,8 +49,10 @@ function usePrefersReducedMotion(): boolean {
  * en cualquier otro árbol (incluida esta etapa, que todavía no conecta el sitio público) es un
  * no-op y el carrusel se comporta con su autoplay normal.
  */
-export function HeroBlockView({ config, blockId }: { config: HeroBlockConfig; blockId?: string }) {
-  const slides = config.slides;
+export function HeroBlockView({ config, blockId, data }: { config: HeroBlockConfig; blockId?: string; data?: WebsiteDynamicData }) {
+  // Las placas que destacan un artículo que ya no está publicado se saltean (ver `resolveHeroSlides`).
+  const resolved = resolveHeroSlides(config.slides, data);
+  const slides = resolved.map((r) => r.slide);
   const forcedSlideId = useHeroEditingSlideId(blockId ?? "");
   const reducedMotion = usePrefersReducedMotion();
   const [activeIndex, setActiveIndex] = useState(0);
@@ -142,56 +146,18 @@ export function HeroBlockView({ config, blockId }: { config: HeroBlockConfig; bl
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
-      {slides.map((slide, index) => {
+      {resolved.map((item, index) => {
         const isActive = index === effectiveIndex;
         const style: CSSProperties = useSlideEffect
           ? { transform: `translateX(${(index - effectiveIndex) * 100}%)`, transition: `transform ${transitionMs}ms ease` }
           : { opacity: isActive ? 1 : 0, transition: `opacity ${transitionMs}ms ease` };
         return (
-          <div key={slide.id} className="absolute inset-0" style={style} aria-hidden={!isActive}>
-            <div
-              className="absolute inset-0"
-              style={{
-                backgroundColor: "var(--wsite-secondary)",
-                backgroundImage: slide.imageUrl ? `url(${slide.imageUrl})` : undefined,
-                backgroundSize: "cover",
-                backgroundPosition: OBJECT_POSITION[slide.imageFocus],
-              }}
-            />
-            <div className="absolute inset-0" style={{ background: `rgba(15, 23, 42, ${OVERLAY_ALPHA[slide.overlay]})` }} />
-            <div
-              className={`relative flex h-full flex-col gap-4 px-6 py-16 sm:py-20 max-w-4xl mx-auto ${CONTENT_JUSTIFY[slide.contentPosition]} ${ALIGN_CLASS[slide.align]}`}
-            >
-              {/* Sobre la foto, título y subtítulo van siempre en blanco: no toman el color del nivel. */}
-              <h1
-                className="text-white"
-                style={{ ...levelStyle("title", { color: false }), textWrap: "balance", letterSpacing: "var(--wsite-letter-spacing)" }}
-              >
-                {slide.title || "Título principal"}
-              </h1>
-              {slide.subtitle ? (
-                <p className="max-w-2xl leading-relaxed text-white/90" style={levelStyle("subtitle", { color: false })}>
-                  {slide.subtitle}
-                </p>
-              ) : null}
-              {slide.showButton && slide.buttonLabel && enlaceDeBoton(slide.buttonUrl) ? (
-                <a
-                  href={enlaceDeBoton(slide.buttonUrl) ?? undefined}
-                  className="inline-flex mt-2 transition-transform hover:scale-[1.02]"
-                  style={{
-                    ...levelStyle("button", { color: false }),
-                    borderRadius: "var(--wsite-button-radius)",
-                    paddingInline: "var(--wsite-button-padding-x)",
-                    paddingBlock: "var(--wsite-button-padding-y)",
-                    ...(slide.buttonStyle === "solid"
-                      ? { backgroundColor: "var(--wsite-accent)", color: "#ffffff" }
-                      : { border: "2px solid #ffffff", color: "#ffffff" }),
-                  }}
-                >
-                  {slide.buttonLabel}
-                </a>
-              ) : null}
-            </div>
+          <div key={item.slide.id} className="absolute inset-0" style={style} aria-hidden={!isActive}>
+            {item.kind === "blogPost" ? (
+              <BlogPostSlide item={item} isActive={isActive} withIndicators={isCarousel && config.showIndicators} />
+            ) : (
+              <ManualSlide slide={item.slide} />
+            )}
           </div>
         );
       })}
@@ -235,5 +201,125 @@ export function HeroBlockView({ config, blockId }: { config: HeroBlockConfig; bl
         </div>
       ) : null}
     </section>
+  );
+}
+
+function SlideBackground({ imageUrl, focus }: { imageUrl: string | null | undefined; focus: HeroImageFocus }) {
+  return (
+    <div
+      className="absolute inset-0"
+      style={{
+        backgroundColor: "var(--wsite-secondary)",
+        backgroundImage: imageUrl ? `url(${imageUrl})` : undefined,
+        backgroundSize: "cover",
+        backgroundPosition: OBJECT_POSITION[focus],
+      }}
+    />
+  );
+}
+
+function ManualSlide({ slide }: { slide: ResolvedHeroSlide["slide"] }) {
+  return (
+    <>
+      <SlideBackground imageUrl={slide.imageUrl} focus={slide.imageFocus} />
+      <div className="absolute inset-0" style={{ background: `rgba(15, 23, 42, ${OVERLAY_ALPHA[slide.overlay]})` }} />
+      <div
+        className={`relative flex h-full flex-col gap-4 px-6 py-16 sm:py-20 max-w-4xl mx-auto ${CONTENT_JUSTIFY[slide.contentPosition]} ${ALIGN_CLASS[slide.align]}`}
+      >
+        {/* Sobre la foto, título y subtítulo van siempre en blanco: no toman el color del nivel. */}
+        <h1
+          className="text-white"
+          style={{ ...levelStyle("title", { color: false }), textWrap: "balance", letterSpacing: "var(--wsite-letter-spacing)" }}
+        >
+          {slide.title || "Título principal"}
+        </h1>
+        {slide.subtitle ? (
+          <p className="max-w-2xl leading-relaxed text-white/90" style={levelStyle("subtitle", { color: false })}>
+            {slide.subtitle}
+          </p>
+        ) : null}
+        {slide.showButton && slide.buttonLabel && enlaceDeBoton(slide.buttonUrl) ? (
+          <a
+            href={enlaceDeBoton(slide.buttonUrl) ?? undefined}
+            className="inline-flex mt-2 transition-transform hover:scale-[1.02]"
+            style={{
+              ...levelStyle("button", { color: false }),
+              borderRadius: "var(--wsite-button-radius)",
+              paddingInline: "var(--wsite-button-padding-x)",
+              paddingBlock: "var(--wsite-button-padding-y)",
+              ...(slide.buttonStyle === "solid"
+                ? { backgroundColor: "var(--wsite-accent)", color: "#ffffff" }
+                : { border: "2px solid #ffffff", color: "#ffffff" }),
+            }}
+          >
+            {slide.buttonLabel}
+          </a>
+        ) : null}
+      </div>
+    </>
+  );
+}
+
+/**
+ * Corta el texto en N renglones con "…". Va en el `style` y después de `levelStyle`, que define su
+ * propio `display` y le ganaría a la clase `line-clamp` de Tailwind: así pasaba, y el extracto
+ * quedaba cortado por la mitad de un renglón.
+ */
+function recortarEnLineas(lineas: number): CSSProperties {
+  return { display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: lineas, overflow: "hidden" };
+}
+
+/**
+ * Placa que destaca un artículo del blog: la portada de fondo y, abajo, el título y el extracto
+ * sobre un degradé que asegura que se lean con cualquier foto. La placa entera es el enlace al
+ * artículo — un botón aparte sería un segundo lugar donde apuntar para lo mismo. El margen lateral
+ * es más ancho que el de la placa manual porque el texto va alineado a la izquierda, justo donde
+ * caen las flechas del carrusel.
+ */
+function BlogPostSlide({
+  item,
+  isActive,
+  withIndicators,
+}: {
+  item: Extract<ResolvedHeroSlide, { kind: "blogPost" }>;
+  isActive: boolean;
+  withIndicators: boolean;
+}) {
+  const contenido = (
+    <>
+      <SlideBackground imageUrl={item.imageUrl} focus={item.slide.imageFocus} />
+      <div
+        className="absolute inset-0"
+        style={{ background: "linear-gradient(to top, rgba(15,23,42,0.88) 0%, rgba(15,23,42,0.55) 35%, rgba(15,23,42,0) 70%)" }}
+      />
+      <div className={`relative mx-auto flex h-full max-w-4xl flex-col justify-end gap-3 px-12 pt-16 text-left sm:px-16 ${withIndicators ? "pb-14" : "pb-10"} sm:pb-14`}>
+        <h2
+          className="shrink-0 text-white"
+          style={{
+            ...levelStyle("title", { color: false }),
+            ...recortarEnLineas(3),
+            textWrap: "balance",
+            letterSpacing: "var(--wsite-letter-spacing)",
+          }}
+        >
+          {item.title}
+        </h2>
+        {item.excerpt ? (
+          <p className="max-w-2xl shrink-0 leading-relaxed text-white/90" style={{ ...levelStyle("subtitle", { color: false }), ...recortarEnLineas(3) }}>
+            {item.excerpt}
+          </p>
+        ) : null}
+        {item.href ? (
+          <span className="mt-1 text-sm font-semibold text-white underline-offset-4 group-hover:underline">Leer artículo →</span>
+        ) : null}
+      </div>
+    </>
+  );
+
+  if (!item.href) return <div className="absolute inset-0">{contenido}</div>;
+  return (
+    <a href={item.href} className="group absolute inset-0 block" tabIndex={isActive ? undefined : -1} aria-label={`Leer el artículo: ${item.title}`}>
+      {contenido}
+    </a>
   );
 }

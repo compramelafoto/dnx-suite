@@ -61,8 +61,33 @@ const heroIntervalMsSchema = z.union([z.literal(3000), z.literal(5000), z.litera
 export const HERO_MIN_SLIDES = 1;
 export const HERO_MAX_SLIDES = 10;
 
+/**
+ * De dónde sale el contenido de una placa. `manual`: imagen, título y botón cargados a mano (lo
+ * de siempre). `blogPost`: un artículo del blog elegido para destacar — portada, título y
+ * extracto salen del artículo al dibujar el sitio, y la placa entera lleva a él. Una placa
+ * guardada antes de esto no trae el campo y cae en `manual`.
+ */
+export const HERO_SLIDE_SOURCE = ["manual", "blogPost"] as const;
+export type HeroSlideSource = (typeof HERO_SLIDE_SOURCE)[number];
+
+/**
+ * Copia de lo que se vio del artículo al elegirlo. Sirve SOLO para la vista previa del builder,
+ * que no tiene acceso a la base; el sitio publicado dibuja siempre el artículo vivo (ver
+ * `dynamic-data.server.ts`), así un cambio de título o de portada aparece sin republicar.
+ */
+export const heroSlideBlogPreviewSchema = z.object({
+  title: z.string().max(400),
+  excerpt: z.string().max(2000).nullable(),
+  imageUrl: z.string().max(2000).nullable(),
+  href: z.string().max(2000),
+});
+export type HeroSlideBlogPreview = z.infer<typeof heroSlideBlogPreviewSchema>;
+
 export const heroSlideSchema = z.object({
   id: z.string().min(1),
+  source: z.enum(HERO_SLIDE_SOURCE).catch("manual"),
+  blogPostId: z.number().int().positive().optional().catch(undefined),
+  blogPreview: heroSlideBlogPreviewSchema.optional().catch(undefined),
   imageUrl: z.string().max(2000).optional(),
   imageAlt: z.string().max(300).optional(),
   imageFocus: z.enum(HERO_IMAGE_FOCUS).catch("center"),
@@ -81,6 +106,7 @@ export type HeroSlide = z.infer<typeof heroSlideSchema>;
 export function createEmptyHeroSlide(): HeroSlide {
   return {
     id: generateLocalId(),
+    source: "manual",
     imageFocus: "center",
     showButton: false,
     buttonStyle: "solid",
@@ -118,6 +144,7 @@ function normalizeHeroConfig(raw: unknown): unknown {
         slides: [
           {
             id: "legacy",
+            source: "manual",
             imageUrl,
             imageFocus: "center",
             title,
@@ -162,9 +189,9 @@ export const heroConfigSchema = z.preprocess(
 
 /** Helpers puros de edición de placas — los usa el inspector del Hero; viven acá (no en el
  * componente) para poder testearlos sin renderizar React. Ninguno muta el config recibido. */
-export function addHeroSlide(config: HeroBlockConfig): HeroBlockConfig {
+export function addHeroSlide(config: HeroBlockConfig, source: HeroSlideSource = "manual"): HeroBlockConfig {
   if (config.slides.length >= HERO_MAX_SLIDES) return config;
-  return { ...config, slides: [...config.slides, createEmptyHeroSlide()] };
+  return { ...config, slides: [...config.slides, { ...createEmptyHeroSlide(), source }] };
 }
 
 export function duplicateHeroSlide(config: HeroBlockConfig, slideId: string): HeroBlockConfig {
@@ -191,6 +218,25 @@ export function moveHeroSlide(config: HeroBlockConfig, slideId: string, directio
 
 export function updateHeroSlide(config: HeroBlockConfig, slideId: string, patch: Partial<HeroSlide>): HeroBlockConfig {
   return { ...config, slides: config.slides.map((s) => (s.id === slideId ? { ...s, ...patch } : s)) };
+}
+
+/** El título con el que se reconoce una placa en listas y menús: el del artículo si destaca uno. */
+export function heroSlideTitle(slide: HeroSlide | undefined): string {
+  if (!slide) return "";
+  if (slide.source === "blogPost") return slide.blogPreview?.title ?? "";
+  return slide.title ?? "";
+}
+
+/** Los artículos que destacan las placas visibles de la página, sin repetir. */
+export function heroBlogPostIdsFor(blocks: readonly WebsiteBlock[]): number[] {
+  const ids = new Set<number>();
+  for (const block of blocks) {
+    if (block.type !== "HERO" || !block.visible) continue;
+    for (const slide of block.config.slides) {
+      if (slide.source === "blogPost" && slide.blogPostId) ids.add(slide.blogPostId);
+    }
+  }
+  return [...ids];
 }
 
 export const textConfigSchema = z.object({
@@ -365,7 +411,7 @@ export const WEBSITE_BLOCK_DEFINITIONS: {
     // Ojo: este mismo label alimenta el menú de navegación público (`deriveHomeNavItems` en
     // navigation.ts) además del listado de "Secciones" del builder — nunca le agregues acá texto
     // de administración (ej. "· N placas"), terminaría como texto de un item real del menú.
-    previewLabel: (c) => c.slides[0]?.title || "Sin título todavía",
+    previewLabel: (c) => heroSlideTitle(c.slides[0]) || "Sin título todavía",
   },
   TEXT: {
     type: "TEXT",
