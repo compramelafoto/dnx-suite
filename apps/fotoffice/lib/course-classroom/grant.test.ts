@@ -14,7 +14,7 @@ const vence = new Date(Date.UTC(2027, 9, 3));
 
 function deps(parcial: Partial<AvisoDeps> = {}): AvisoDeps {
   return {
-    otorgar: vi.fn().mockResolvedValue({ ok: true, creado: true, token: "tok-crudo", expiresAt: vence }),
+    otorgar: vi.fn().mockResolvedValue({ ok: true, creado: true, accessId: "acc-1", token: "tok-crudo", expiresAt: vence }),
     enviar: vi.fn().mockResolvedValue({ sent: true }),
     cargarFirma: vi.fn().mockResolvedValue(null),
     base: "https://fotoffice.com",
@@ -78,6 +78,7 @@ describe("reenviar el enlace del aula", () => {
   function depsReenvio(parcial: Partial<ReenvioDeps> = {}): ReenvioDeps {
     let n = 0;
     return {
+      otorgarFaltantes: vi.fn().mockResolvedValue([]),
       buscar: vi.fn().mockResolvedValue([acceso("a1"), acceso("a2")]),
       guardarHash: vi.fn().mockResolvedValue(undefined),
       enviar: vi.fn().mockResolvedValue({ sent: true }),
@@ -155,6 +156,40 @@ describe("reenviar el enlace del aula", () => {
     const d = depsReenvio();
     await reenviarEnlaces("ana@example.com", d, ahora);
     expect(d.enviar).toHaveBeenCalledWith(expect.objectContaining({ reenvio: true }));
+  });
+
+  it("antes de buscar otorga los accesos que faltan para ese correo", async () => {
+    const d = depsReenvio();
+    await reenviarEnlaces(" Ana@Example.com ", d, ahora);
+    expect(d.otorgarFaltantes).toHaveBeenCalledWith("ana@example.com", ahora);
+    expect(vi.mocked(d.otorgarFaltantes).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(d.buscar).mock.invocationCallOrder[0],
+    );
+  });
+
+  it("un acceso recién otorgado recibe su enlace aunque su updatedAt sea ahora", async () => {
+    const d = depsReenvio({
+      otorgarFaltantes: vi.fn().mockResolvedValue(["nuevo"]),
+      buscar: vi.fn().mockResolvedValue([
+        { ...acceso("nuevo"), ultimaRotacion: ahora },
+        { ...acceso("reciente"), ultimaRotacion: new Date(ahora.getTime() - 60 * 1000) },
+      ]),
+    });
+    expect(await reenviarEnlaces("ana@example.com", d, ahora)).toEqual({ enviados: 1 });
+    expect(d.guardarHash).toHaveBeenCalledTimes(1);
+    expect(d.guardarHash).toHaveBeenCalledWith("nuevo", expect.any(String));
+    expect(d.enviar).toHaveBeenCalledWith(expect.objectContaining({ courseTitle: "Curso nuevo" }));
+  });
+
+  it("si otorgar los faltantes falla, igual reenvía los accesos que ya había", async () => {
+    const d = depsReenvio({ otorgarFaltantes: vi.fn().mockRejectedValue(new Error("base caída")) });
+    expect(await reenviarEnlaces("ana@example.com", d, ahora)).toEqual({ enviados: 2 });
+  });
+
+  it("un correo inválido no otorga nada", async () => {
+    const d = depsReenvio();
+    await reenviarEnlaces("hola", d, ahora);
+    expect(d.otorgarFaltantes).not.toHaveBeenCalled();
   });
 
   it("sin APP_URL no hace nada", async () => {

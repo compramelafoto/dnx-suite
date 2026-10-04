@@ -5,11 +5,12 @@ import type { RenderedEmailSignature } from "@repo/communications/signature";
 import { generateInvitationToken, hashInvitationToken } from "@/lib/members/invitation-tokens";
 import { loadWorkspaceSignature } from "@/lib/communications/load-workspace-signature";
 import { logCourseEvent } from "@/lib/presential-courses/log";
+import { appUrl } from "@/lib/app-url";
 import { calcularVencimiento } from "./access-rules";
 import { enlaceDelAula, sendClassroomAccessEmail } from "./email";
 
 export type OtorgarResultado =
-  | { ok: true; creado: true; token: string; expiresAt: Date }
+  | { ok: true; creado: true; accessId: string; token: string; expiresAt: Date }
   | { ok: true; creado: false }
   | { ok: false; reason: "inscripcion_no_encontrada" | "inscripcion_no_aprobada" | "no_es_grabado" };
 
@@ -42,8 +43,9 @@ export async function otorgarAccesoAlAula(
 
   const token = generateInvitationToken();
   const expiresAt = calcularVencimiento(ahora, inscripcion.course.accessMonths);
+  let accessId: string;
   try {
-    await prisma.courseAccess.create({
+    const creado = await prisma.courseAccess.create({
       data: {
         workspaceId: inscripcion.workspaceId,
         courseId: inscripcion.courseId,
@@ -52,14 +54,16 @@ export async function otorgarAccesoAlAula(
         expiresAt,
         tokenHash: hashInvitationToken(token),
       },
+      select: { id: true },
     });
+    accessId = creado.id;
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       return { ok: true, creado: false };
     }
     throw error;
   }
-  return { ok: true, creado: true, token, expiresAt };
+  return { ok: true, creado: true, accessId, token, expiresAt };
 }
 
 export type AvisoDeps = {
@@ -74,7 +78,7 @@ function depsPorDefecto(): AvisoDeps {
     otorgar: (id) => otorgarAccesoAlAula(id),
     enviar: sendClassroomAccessEmail,
     cargarFirma: loadWorkspaceSignature,
-    base: (process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "").trim(),
+    base: appUrl(),
   };
 }
 
@@ -125,6 +129,11 @@ export async function avisarAccesoAlAula(
 export const ENFRIAMIENTO_REENVIO_MS = 5 * 60 * 1000;
 
 export type ReenvioDeps = {
+  /**
+   * Da el acceso a las inscripciones pagadas de cursos grabados de ese correo que todavía no lo
+   * tienen (un pago aprobado cuyo aviso falló). Devuelve los ids de los accesos creados.
+   */
+  otorgarFaltantes: (email: string, ahora: Date) => Promise<string[]>;
   buscar: (
     email: string,
     ahora: Date,
@@ -151,6 +160,26 @@ export type ReenvioDeps = {
 
 function depsReenvioPorDefecto(): ReenvioDeps {
   return {
+    otorgarFaltantes: async (email, ahora) => {
+      const pendientes = await prisma.courseEnrollment.findMany({
+        where: {
+          email: { equals: email, mode: "insensitive" },
+          paymentStatus: "APPROVED",
+          course: { deliveryMode: "RECORDED" },
+          access: { is: null },
+        },
+        select: { id: true },
+      });
+      const creados: string[] = [];
+      for (const pendiente of pendientes) {
+        const r = await otorgarAccesoAlAula(pendiente.id, ahora);
+        if (r.ok && r.creado) {
+          logCourseEvent("aula_acceso_otorgado_al_reenviar", { enrollmentId: pendiente.id });
+          creados.push(r.accessId);
+        }
+      }
+      return creados;
+    },
     buscar: async (email, ahora) => {
       const accesos = await prisma.courseAccess.findMany({
         where: {
@@ -184,7 +213,7 @@ function depsReenvioPorDefecto(): ReenvioDeps {
     },
     enviar: sendClassroomAccessEmail,
     cargarFirma: loadWorkspaceSignature,
-    base: (process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "").trim(),
+    base: appUrl(),
     generarToken: generateInvitationToken,
   };
 }
@@ -194,7 +223,9 @@ function depsReenvioPorDefecto(): ReenvioDeps {
  *
  * El enlace viejo deja de funcionar: en la base sólo hay un hash por acceso. Si el correo no
  * sale, se restaura el hash anterior para que el alumno no se quede sin enlace válido. Un
- * acceso rotado hace menos de 5 minutos se saltea. El correo va **siempre a la dirección de la
+ * acceso rotado hace menos de 5 minutos se saltea, salvo que se haya creado en esta misma
+ * llamada: antes de buscar se otorgan los accesos que faltan (un pago aprobado cuyo acceso no
+ * llegó a crearse), y ése tiene que recibir su enlace ya. El correo va **siempre a la dirección de la
  * inscripción**, nunca a otra. El resultado no se muestra: la pantalla dice lo mismo haya o no
  * cursos.
  */
@@ -210,10 +241,22 @@ export async function reenviarEnlaces(
     return { enviados: 0 };
   }
 
+  let recienCreados = new Set<string>();
+  try {
+    recienCreados = new Set(await deps.otorgarFaltantes(normalizado, ahora));
+  } catch (error) {
+    logCourseEvent("aula_reenvio_otorgar_fallo", {
+      motivo: error instanceof Error ? error.message : "error",
+    });
+  }
+
   const accesos = await deps.buscar(normalizado, ahora);
   let enviados = 0;
   for (const acceso of accesos) {
-    if (ahora.getTime() - acceso.ultimaRotacion.getTime() < ENFRIAMIENTO_REENVIO_MS) {
+    if (
+      !recienCreados.has(acceso.id) &&
+      ahora.getTime() - acceso.ultimaRotacion.getTime() < ENFRIAMIENTO_REENVIO_MS
+    ) {
       logCourseEvent("aula_reenvio_enfriando", { accessId: acceso.id });
       continue;
     }
