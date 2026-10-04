@@ -2,6 +2,7 @@ import { loginButtonText, type WebsiteDesignPresets } from "@/lib/website/design
 import type { SiteNavItem } from "@/lib/website/site-nav";
 import { levelStyle } from "@/lib/website/typography";
 import { WebsiteHeaderNavClient } from "./website-header-nav-client";
+import { WebsiteLoginButton } from "./website-login-button";
 import { WebsiteMenuOverlay } from "./website-menu-overlay";
 
 /**
@@ -71,9 +72,11 @@ export function WebsiteHeaderView({
     </a>
   );
 
+  // Con sesión iniciada se convierte en el menú de la persona (ver `WebsiteLoginButton`).
   const botonLogin = (
-    <a
+    <WebsiteLoginButton
       href={loginHref}
+      label={loginButtonText(designPresets)}
       className="inline-block shrink-0 whitespace-nowrap"
       style={{
         ...levelStyle("button", { color: false }),
@@ -83,9 +86,7 @@ export function WebsiteHeaderView({
         paddingInline: "var(--wsite-button-padding-x)",
         paddingBlock: "var(--wsite-button-padding-y)",
       }}
-    >
-      {loginButtonText(designPresets)}
-    </a>
+    />
   );
 
   const borde = "1px solid rgba(127,127,127,0.15)";

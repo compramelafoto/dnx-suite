@@ -67,6 +67,7 @@ export function ReservarForm({
   mine,
   extras,
   vocabulary,
+  memberHint,
 }: {
   /** La acción del servidor que crea la reserva. */
   action: (formData: FormData) => Promise<void>;
@@ -92,6 +93,8 @@ export function ReservarForm({
   mine: MiReserva[];
   extras: ExtraVista[];
   vocabulary: PersonVocabulary;
+  /** Para el no socio: cuánto pagaría siendo socio y dónde ingresar para eso. */
+  memberHint?: { priceLabel: string; freeHoursPerMonth: number; loginHref: string };
 }) {
   const [primero, setPrimero] = useState<string | null>(null);
   const [segundo, setSegundo] = useState<string | null>(null);
@@ -156,6 +159,17 @@ export function ReservarForm({
     freeMinutesAvailable: freeHours.availableMinutes,
   });
   const porBloque = quote.mode === "BLOCK";
+  // Lo mismo, pero como socio: sin bonificación y usando las horas gratis del mes.
+  const comoSocio = memberHint
+    ? {
+        sinBonificar: quoteForSpace(pricing, { minutes: minutos, customerType: "MEMBER", freeMinutesAvailable: 0 }).totalMinor,
+        conBonificacion: quoteForSpace(pricing, {
+          minutes: minutos,
+          customerType: "MEMBER",
+          freeMinutesAvailable: memberHint.freeHoursPerMonth * 60,
+        }).totalMinor,
+      }
+    : null;
   const nombrePaquete = pricing.blockMinutes ? `paquete de ${pricing.blockMinutes / 60} h` : "jornada";
   const nombrePaquetes = pricing.blockMinutes
     ? `paquetes de ${pricing.blockMinutes / 60} h`
@@ -510,6 +524,22 @@ export function ReservarForm({
                   </>
                 )}
               </div>
+
+              {memberHint && comoSocio && comoSocio.sinBonificar < quote.totalMinor ? (
+                <p className="mt-3 rounded-[var(--fo-radius-sm)] bg-[var(--fo-accent-soft)] px-3 py-2 text-sm text-[var(--fo-text-secondary)] sm:ml-[1.625rem]">
+                  Como {vocabulary.singular} pagarías{" "}
+                  <strong className="text-[var(--fo-text)]">{formatMinorArs(comoSocio.sinBonificar)}</strong>
+                  {comoSocio.conBonificacion < comoSocio.sinBonificar
+                    ? comoSocio.conBonificacion === 0
+                      ? `, o nada si usás tus ${memberHint.freeHoursPerMonth} h gratis del mes`
+                      : `, o ${formatMinorArs(comoSocio.conBonificacion)} usando tus ${memberHint.freeHoursPerMonth} h gratis del mes`
+                    : ""}
+                  .{" "}
+                  <a href={memberHint.loginHref} className="font-semibold text-[var(--fo-accent-hover)] underline underline-offset-4">
+                    Ingresar
+                  </a>
+                </p>
+              ) : null}
 
               {contactFields ? (
                 <div className="mt-3 space-y-3 border-t border-[var(--fo-border)] pl-[1.625rem] pt-3">
