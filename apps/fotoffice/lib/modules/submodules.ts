@@ -345,6 +345,17 @@ const VENTAS: SubmoduleItem[] = [
     activeMatch: "under",
   },
   {
+    // Decide el nivel en `store` (con la tienda apagada es NONE y no aparece). Operar los
+    // pedidos alcanza con gestionar la tienda; no hace falta poder configurarla.
+    href: "/ventas/tienda",
+    label: "Pedidos online",
+    icon: "PackageCheck",
+    description: "Los pedidos de la tienda online: preparar, entregar, cancelar y resolver problemas.",
+    requiresManage: true,
+    levelModuleKey: STORE_MODULE_KEY,
+    activeMatch: "under",
+  },
+  {
     // Decide el nivel en `store`, que ya incluye si la tienda está encendida para el
     // workspace: con el módulo apagado el nivel es NONE y la entrada no aparece.
     href: "/ventas/tienda/configuracion",

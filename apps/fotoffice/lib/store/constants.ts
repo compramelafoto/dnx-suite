@@ -24,5 +24,14 @@ export const STORE_ORDER_STATUS_LABELS: Record<StoreOrderStatus, string> = {
   PAID_NO_STOCK: "Pagado sin stock — resolver",
 };
 
+/**
+ * Comienzos de las notas que deja el sistema en el historial de un pedido cuando algo con la
+ * plata necesita que una persona lo mire. El panel las usa para la pestaña "Problemas": quien
+ * escribe la nota y quien la busca leen la misma constante.
+ */
+export const STORE_NOTE_AMOUNT_MISMATCH = "Pago con monto distinto: revisar";
+export const STORE_NOTE_DUPLICATE_PREFIX = "Pago duplicado";
+export const STORE_NOTE_CREDIT_FAILURE_PREFIX = "Pago aprobado que no se pudo acreditar";
+
 export const DEFAULT_RETURNS_POLICY =
   "Podés arrepentirte de la compra dentro de los 10 días corridos desde que retirás el producto, sin dar explicaciones, usando el botón de arrepentimiento. El producto tiene que estar sin uso y en su empaque. Te devolvemos el dinero por el mismo medio de pago.";

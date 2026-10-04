@@ -199,6 +199,15 @@ describe("submodulesFor — niveles y acciones sensibles", () => {
     expect(conTodo).toContain("/ventas/tienda/configuracion");
   });
 
+  it("Ventas: los pedidos online aparecen con la tienda encendida, sin hacer falta configurarla", () => {
+    expect(hrefs("sales", { levels: { sales: "MANAGE" }, actions: [] })).not.toContain("/ventas/tienda");
+    expect(hrefs("sales", { levels: { sales: "VIEW", store: "VIEW" }, actions: [] })).not.toContain("/ventas/tienda");
+    const operador = hrefs("sales", { levels: { sales: "MANAGE", store: "MANAGE" }, actions: [] });
+    expect(operador).toContain("/ventas/tienda");
+    expect(operador).not.toContain("/ventas/tienda/configuracion");
+    expect(existsSync(pageDe("/ventas/tienda"))).toBe(true);
+  });
+
   it("una acción sin el nivel no abre nada: el módulo en NONE no muestra pantallas", () => {
     expect(hrefs("cash", { levels: { cash: "NONE" }, actions: [CASH_CONFIGURE_ACTION] })).toEqual([]);
     expect(hrefs("coverages", { levels: {}, actions: [COVERAGES_COORDINATE_ACTION] })).toEqual([]);

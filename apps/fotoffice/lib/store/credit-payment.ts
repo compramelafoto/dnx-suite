@@ -6,6 +6,7 @@ import { recordDischarge } from "@/lib/platform-fee/ledger";
 import { recordSale } from "@/lib/sales/record-sale";
 import type { TicketLine } from "@/lib/sales/ticket";
 import { availableQty } from "./availability";
+import { STORE_NOTE_AMOUNT_MISMATCH, STORE_NOTE_DUPLICATE_PREFIX } from "./constants";
 import { lineKey } from "./cart/line-key";
 import {
   sendDuplicatePaymentAlert,
@@ -192,6 +193,46 @@ export async function finalizePaidOrder(
   return { saleId: venta.saleId, saleNumber: venta.saleNumber };
 }
 
+/**
+ * Bloquea el stock del pedido (después del pedido, que quien llama ya bloqueó) y responde si
+ * alcanza para entregarlo entero, sin contar la retención del propio pedido. La usan la
+ * acreditación y la reposición de stock desde el panel (`order-admin.ts`).
+ */
+export async function lockAndCheckOrderStock(tx: Tx, order: OrderToFinalize): Promise<boolean> {
+  const workspaceId = order.workspaceId;
+  await lockStockRows(tx, {
+    workspaceId,
+    productIds: order.items.flatMap((i) => (i.productId ? [i.productId] : [])),
+    variantIds: order.items.flatMap((i) => (i.variantId ? [i.variantId] : [])),
+  });
+  // Recién con el stock bloqueado. Este pedido no compite contra su propia retención.
+  const reservado = await reservedQtyByKey(workspaceId, tx, { excludeOrderId: order.id });
+
+  const productIds = [...new Set(order.items.flatMap((i) => (i.productId ? [i.productId] : [])))];
+  const variantIds = [...new Set(order.items.flatMap((i) => (i.variantId ? [i.variantId] : [])))];
+  const [productos, talles] = await Promise.all([
+    productIds.length === 0
+      ? []
+      : tx.product.findMany({
+          where: { id: { in: productIds }, workspaceId },
+          select: { id: true, tracksStock: true, stockQty: true },
+        }),
+    variantIds.length === 0
+      ? []
+      : tx.productVariant.findMany({
+          where: { id: { in: variantIds }, workspaceId },
+          select: { id: true, stockQty: true },
+        }),
+  ]);
+
+  return hasStockForOrder(
+    order.items,
+    new Map(productos.map((p) => [p.id, p])),
+    new Map(talles.map((v) => [v.id, v.stockQty])),
+    reservado,
+  );
+}
+
 export type CreditStorePaymentResult = { applied: boolean; status: StoreOrderStatus | null; motivo?: string };
 
 type Resultado =
@@ -240,7 +281,7 @@ export async function creditStorePayment(input: {
         if (order.mpPaymentId === input.providerPaymentId) return { kind: "repetido", status: order.status };
         // No se toca el pedido (`mpPaymentId` es único y es el del primer pago); queda la
         // constancia para devolver el segundo.
-        const nota = `Pago duplicado ${input.providerPaymentId}: hay que devolverlo`;
+        const nota = `${STORE_NOTE_DUPLICATE_PREFIX} ${input.providerPaymentId}: hay que devolverlo`;
         const yaAnotado = await tx.storeOrderEvent.findFirst({
           where: { orderId: order.id, note: nota },
           select: { id: true },
@@ -255,43 +296,14 @@ export async function creditStorePayment(input: {
       // Se cobró otra cosa que el total del pedido (o en otra moneda): la plata está, pero no se
       // da por pagado sin que una persona lo mire. Sin venta.
       if (!montoCubre(input, decimalArsToMinor(order.totalArs))) {
-        await pasarASinStock(tx, order, input.providerPaymentId, paidAt, "Pago con monto distinto: revisar");
+        await pasarASinStock(tx, order, input.providerPaymentId, paidAt, STORE_NOTE_AMOUNT_MISMATCH);
         return { kind: "aplicado", status: "PAID_NO_STOCK" };
       }
 
-      await lockStockRows(tx, {
-        workspaceId,
-        productIds: order.items.flatMap((i) => (i.productId ? [i.productId] : [])),
-        variantIds: order.items.flatMap((i) => (i.variantId ? [i.variantId] : [])),
-      });
-      // Recién con el stock bloqueado. Este pedido no compite contra su propia retención.
-      const reservado = await reservedQtyByKey(workspaceId, tx, { excludeOrderId: order.id });
-
-      const productIds = [...new Set(order.items.flatMap((i) => (i.productId ? [i.productId] : [])))];
-      const variantIds = [...new Set(order.items.flatMap((i) => (i.variantId ? [i.variantId] : [])))];
-      const [productos, talles] = await Promise.all([
-        productIds.length === 0
-          ? []
-          : tx.product.findMany({
-              where: { id: { in: productIds }, workspaceId },
-              select: { id: true, tracksStock: true, stockQty: true },
-            }),
-        variantIds.length === 0
-          ? []
-          : tx.productVariant.findMany({
-              where: { id: { in: variantIds }, workspaceId },
-              select: { id: true, stockQty: true },
-            }),
-      ]);
-
-      const alcanza =
-        order.status !== "CANCELLED" &&
-        hasStockForOrder(
-          order.items,
-          new Map(productos.map((p) => [p.id, p])),
-          new Map(talles.map((v) => [v.id, v.stockQty])),
-          reservado,
-        );
+      // Siempre se bloquea el stock (aunque el pedido esté cancelado): el orden de los bloqueos
+      // es el mismo en todos los caminos.
+      const hayStock = await lockAndCheckOrderStock(tx, order);
+      const alcanza = order.status !== "CANCELLED" && hayStock;
       const destino: StoreOrderStatus = alcanza ? "PAID" : "PAID_NO_STOCK";
       if (!canTransition(order.status, destino, "system")) {
         return { kind: "invalido", status: order.status, motivo: `no se puede pasar de ${order.status} a ${destino}` };

@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@repo/db";
 import { sanitizeError } from "@/lib/payments/connect/log";
+import { STORE_NOTE_CREDIT_FAILURE_PREFIX } from "./constants";
 import { sendCreditFailureAlert } from "./emails";
 import { checkStoreOrderPayment, type StorePaymentCheck } from "./mp-payment";
 
@@ -23,7 +24,7 @@ import { checkStoreOrderPayment, type StorePaymentCheck } from "./mp-payment";
 
 const VENTANA_TARDIOS_MS = 48 * 60 * 60 * 1000;
 
-export const NOTA_FALLO_ACREDITACION = "Pago aprobado que no se pudo acreditar: revisar";
+export const NOTA_FALLO_ACREDITACION = `${STORE_NOTE_CREDIT_FAILURE_PREFIX}: revisar`;
 
 export async function reconcilePendingOrders(
   opts: { now?: Date; limit?: number } = {},
