@@ -1,15 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronDown, ChevronUp, Copy, ImageOff, Pencil, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Copy, ImageOff, Newspaper, Pencil, Plus, Trash2 } from "lucide-react";
 import { ImageUploadField } from "@/components/image-upload-field";
 import { SelectField, TextAreaField, TextField, ToggleField } from "@/components/website/inspector/inspector-fields";
+import { BlogPostPicker } from "@/components/website/builder/blog-post-picker";
 import {
   addHeroSlide,
   duplicateHeroSlide,
   moveHeroSlide,
   removeHeroSlide,
   updateHeroSlide,
+  heroSlideTitle,
   HERO_INTERVAL_MS_OPTIONS,
   HERO_MAX_SLIDES,
   HERO_MIN_SLIDES,
@@ -65,85 +67,129 @@ export function HeroSlideEditor({
           Placa {index + 1} de {config.slides.length}
         </p>
 
-        <ImageUploadField
-          name="_hero_slide_image"
-          presetKey="websiteHeroImage"
-          label="Imagen"
-          initialUrl={editingSlide.imageUrl ?? null}
-          onUploaded={(url) => onChange(updateHeroSlide(config, editingSlide.id, { imageUrl: url ?? undefined }))}
-        />
-        <TextField
-          label="Texto alternativo de la imagen"
-          value={editingSlide.imageAlt ?? ""}
-          onChange={(v) => onChange(updateHeroSlide(config, editingSlide.id, { imageAlt: v }))}
-          helper="Para lectores de pantalla y buscadores."
-        />
         <SelectField
-          label="Foco de la imagen"
-          value={editingSlide.imageFocus}
-          onChange={(v) => onChange(updateHeroSlide(config, editingSlide.id, { imageFocus: v as HeroSlide["imageFocus"] }))}
+          label="Contenido de la placa"
+          value={editingSlide.source}
+          onChange={(v) => onChange(updateHeroSlide(config, editingSlide.id, { source: v as HeroSlide["source"] }))}
           options={[
-            { value: "center", label: "Centro" },
-            { value: "top", label: "Arriba" },
-            { value: "bottom", label: "Abajo" },
-            { value: "left", label: "Izquierda" },
-            { value: "right", label: "Derecha" },
+            { value: "manual", label: "Imagen y texto propios" },
+            { value: "blogPost", label: "Artículo del blog" },
           ]}
         />
 
-        <TextField label="Título" value={editingSlide.title ?? ""} onChange={(v) => onChange(updateHeroSlide(config, editingSlide.id, { title: v }))} />
-        <TextAreaField label="Subtítulo" value={editingSlide.subtitle ?? ""} onChange={(v) => onChange(updateHeroSlide(config, editingSlide.id, { subtitle: v }))} rows={2} />
-
-        <ToggleField label="Mostrar botón" checked={editingSlide.showButton} onChange={(v) => onChange(updateHeroSlide(config, editingSlide.id, { showButton: v }))} />
-        {editingSlide.showButton ? (
+        {editingSlide.source === "blogPost" ? (
           <>
-            <div className="grid grid-cols-2 gap-3">
-              <TextField label="Texto del botón" value={editingSlide.buttonLabel ?? ""} onChange={(v) => onChange(updateHeroSlide(config, editingSlide.id, { buttonLabel: v }))} />
-              <TextField label="Enlace del botón" value={editingSlide.buttonUrl ?? ""} onChange={(v) => onChange(updateHeroSlide(config, editingSlide.id, { buttonUrl: v }))} />
-            </div>
+            <BlogPostPicker
+              selectedId={editingSlide.blogPostId}
+              onSelect={(post) =>
+                onChange(
+                  updateHeroSlide(config, editingSlide.id, {
+                    blogPostId: post.id,
+                    blogPreview: { title: post.title, excerpt: post.excerpt, imageUrl: post.imageUrl, href: post.href },
+                  }),
+                )
+              }
+            />
+            <p className="fo-helper">
+              La placa muestra la portada del artículo con su título y su descripción abajo, y al hacer clic lleva al artículo. Si después
+              cambiás el título o la portada en el blog, la placa se actualiza sola.
+            </p>
             <SelectField
-              label="Estilo del botón"
-              value={editingSlide.buttonStyle}
-              onChange={(v) => onChange(updateHeroSlide(config, editingSlide.id, { buttonStyle: v as HeroSlide["buttonStyle"] }))}
+              label="Foco de la portada"
+              value={editingSlide.imageFocus}
+              onChange={(v) => onChange(updateHeroSlide(config, editingSlide.id, { imageFocus: v as HeroSlide["imageFocus"] }))}
               options={[
-                { value: "solid", label: "Sólido" },
-                { value: "outline", label: "Contorno" },
+                { value: "center", label: "Centro" },
+                { value: "top", label: "Arriba" },
+                { value: "bottom", label: "Abajo" },
+                { value: "left", label: "Izquierda" },
+                { value: "right", label: "Derecha" },
               ]}
             />
           </>
-        ) : null}
+        ) : (
+          <>
+            <ImageUploadField
+              name="_hero_slide_image"
+              presetKey="websiteHeroImage"
+              label="Imagen"
+              initialUrl={editingSlide.imageUrl ?? null}
+              onUploaded={(url) => onChange(updateHeroSlide(config, editingSlide.id, { imageUrl: url ?? undefined }))}
+            />
+            <TextField
+              label="Texto alternativo de la imagen"
+              value={editingSlide.imageAlt ?? ""}
+              onChange={(v) => onChange(updateHeroSlide(config, editingSlide.id, { imageAlt: v }))}
+              helper="Para lectores de pantalla y buscadores."
+            />
+            <SelectField
+              label="Foco de la imagen"
+              value={editingSlide.imageFocus}
+              onChange={(v) => onChange(updateHeroSlide(config, editingSlide.id, { imageFocus: v as HeroSlide["imageFocus"] }))}
+              options={[
+                { value: "center", label: "Centro" },
+                { value: "top", label: "Arriba" },
+                { value: "bottom", label: "Abajo" },
+                { value: "left", label: "Izquierda" },
+                { value: "right", label: "Derecha" },
+              ]}
+            />
 
-        <SelectField
-          label="Alineación del texto"
-          value={editingSlide.align}
-          onChange={(v) => onChange(updateHeroSlide(config, editingSlide.id, { align: v as HeroSlide["align"] }))}
-          options={[
-            { value: "left", label: "Izquierda" },
-            { value: "center", label: "Centro" },
-            { value: "right", label: "Derecha" },
-          ]}
-        />
-        <SelectField
-          label="Posición vertical del contenido"
-          value={editingSlide.contentPosition}
-          onChange={(v) => onChange(updateHeroSlide(config, editingSlide.id, { contentPosition: v as HeroSlide["contentPosition"] }))}
-          options={[
-            { value: "top", label: "Arriba" },
-            { value: "center", label: "Centro" },
-            { value: "bottom", label: "Abajo" },
-          ]}
-        />
-        <SelectField
-          label="Oscurecer imagen (legibilidad del texto)"
-          value={editingSlide.overlay}
-          onChange={(v) => onChange(updateHeroSlide(config, editingSlide.id, { overlay: v as HeroSlide["overlay"] }))}
-          options={[
-            { value: "none", label: "Ninguno" },
-            { value: "soft", label: "Suave" },
-            { value: "medium", label: "Medio" },
-            { value: "dark", label: "Oscuro" },
-          ]}
-        />
+            <TextField label="Título" value={editingSlide.title ?? ""} onChange={(v) => onChange(updateHeroSlide(config, editingSlide.id, { title: v }))} />
+            <TextAreaField label="Subtítulo" value={editingSlide.subtitle ?? ""} onChange={(v) => onChange(updateHeroSlide(config, editingSlide.id, { subtitle: v }))} rows={2} />
+
+            <ToggleField label="Mostrar botón" checked={editingSlide.showButton} onChange={(v) => onChange(updateHeroSlide(config, editingSlide.id, { showButton: v }))} />
+            {editingSlide.showButton ? (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <TextField label="Texto del botón" value={editingSlide.buttonLabel ?? ""} onChange={(v) => onChange(updateHeroSlide(config, editingSlide.id, { buttonLabel: v }))} />
+                  <TextField label="Enlace del botón" value={editingSlide.buttonUrl ?? ""} onChange={(v) => onChange(updateHeroSlide(config, editingSlide.id, { buttonUrl: v }))} />
+                </div>
+                <SelectField
+                  label="Estilo del botón"
+                  value={editingSlide.buttonStyle}
+                  onChange={(v) => onChange(updateHeroSlide(config, editingSlide.id, { buttonStyle: v as HeroSlide["buttonStyle"] }))}
+                  options={[
+                    { value: "solid", label: "Sólido" },
+                    { value: "outline", label: "Contorno" },
+                  ]}
+                />
+              </>
+            ) : null}
+
+            <SelectField
+              label="Alineación del texto"
+              value={editingSlide.align}
+              onChange={(v) => onChange(updateHeroSlide(config, editingSlide.id, { align: v as HeroSlide["align"] }))}
+              options={[
+                { value: "left", label: "Izquierda" },
+                { value: "center", label: "Centro" },
+                { value: "right", label: "Derecha" },
+              ]}
+            />
+            <SelectField
+              label="Posición vertical del contenido"
+              value={editingSlide.contentPosition}
+              onChange={(v) => onChange(updateHeroSlide(config, editingSlide.id, { contentPosition: v as HeroSlide["contentPosition"] }))}
+              options={[
+                { value: "top", label: "Arriba" },
+                { value: "center", label: "Centro" },
+                { value: "bottom", label: "Abajo" },
+              ]}
+            />
+            <SelectField
+              label="Oscurecer imagen (legibilidad del texto)"
+              value={editingSlide.overlay}
+              onChange={(v) => onChange(updateHeroSlide(config, editingSlide.id, { overlay: v as HeroSlide["overlay"] }))}
+              options={[
+                { value: "none", label: "Ninguno" },
+                { value: "soft", label: "Suave" },
+                { value: "medium", label: "Medio" },
+                { value: "dark", label: "Oscuro" },
+              ]}
+            />
+          </>
+        )}
       </div>
     );
   }
@@ -178,13 +224,28 @@ export function HeroSlideEditor({
           ))}
         </div>
         {config.slides.length < HERO_MAX_SLIDES ? (
-          <button
-            type="button"
-            className="fo-btn fo-btn-secondary mt-2 w-full justify-center gap-2 text-sm"
-            onClick={() => onChange(addHeroSlide(config))}
-          >
-            <Plus className="h-4 w-4" /> Agregar placa
-          </button>
+          <div className="mt-2 space-y-2">
+            <button
+              type="button"
+              className="fo-btn fo-btn-secondary w-full justify-center gap-2 text-sm"
+              onClick={() => onChange(addHeroSlide(config))}
+            >
+              <Plus className="h-4 w-4" /> Agregar placa
+            </button>
+            <button
+              type="button"
+              className="fo-btn fo-btn-secondary w-full justify-center gap-2 text-sm"
+              onClick={() => {
+                // Se abre directo para elegir el artículo: una placa de artículo sin artículo no sirve.
+                const next = addHeroSlide(config, "blogPost");
+                onChange(next);
+                const nueva = next.slides[next.slides.length - 1];
+                if (nueva && next !== config) openSlide(nueva.id);
+              }}
+            >
+              <Newspaper className="h-4 w-4" /> Destacar un artículo del blog
+            </button>
+          </div>
         ) : (
           <p className="fo-helper mt-2">Podés agregar hasta {HERO_MAX_SLIDES} placas.</p>
         )}
@@ -264,20 +325,25 @@ function HeroSlideRow({
   onCancelDelete: () => void;
   onConfirmDelete: () => void;
 }) {
+  const esArticulo = slide.source === "blogPost";
+  const thumbUrl = esArticulo ? slide.blogPreview?.imageUrl : slide.imageUrl;
   return (
     <div className="rounded-lg border border-[var(--fo-border)] p-2">
       <button type="button" className="flex w-full items-center gap-3 text-left" onClick={onEdit}>
         <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-[var(--fo-border)] bg-[var(--fo-bg)]">
-          {slide.imageUrl ? (
+          {thumbUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={slide.imageUrl} alt="" className="h-full w-full object-cover" />
+            <img src={thumbUrl} alt="" className="h-full w-full object-cover" />
           ) : (
             <ImageOff className="h-4 w-4 text-[var(--fo-muted-soft)]" aria-hidden="true" />
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--fo-accent)]">Placa {index + 1}</p>
-          <p className="truncate text-sm text-[var(--fo-text)]">{slide.title || "Sin título todavía"}</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--fo-accent)]">
+            Placa {index + 1}
+            {esArticulo ? " · Artículo del blog" : ""}
+          </p>
+          <p className="truncate text-sm text-[var(--fo-text)]">{heroSlideTitle(slide) || (esArticulo ? "Sin artículo elegido" : "Sin título todavía")}</p>
         </div>
       </button>
 
