@@ -46,4 +46,18 @@ describe("resolveOrderTokenKey", () => {
   it("devuelve null si no hay ninguna", () => {
     expect(resolveOrderTokenKey({})).toBeNull();
   });
+  it("recorta espacios y trata un valor de puros espacios como vacío", () => {
+    expect(resolveOrderTokenKey({ STORE_ORDER_TOKEN_SECRET: "  a  ", CRON_SECRET: "c" })).toBe("a");
+    expect(resolveOrderTokenKey({ STORE_ORDER_TOKEN_SECRET: "   ", FOTOFFICE_CRON_SECRET: " b " })).toBe("b");
+    expect(resolveOrderTokenKey({ STORE_ORDER_TOKEN_SECRET: " \t\n" })).toBeNull();
+  });
+  it("en producción sólo vale STORE_ORDER_TOKEN_SECRET: el secreto del cron no la reemplaza", () => {
+    const prod = { VERCEL_ENV: "production" };
+    expect(resolveOrderTokenKey({ ...prod, STORE_ORDER_TOKEN_SECRET: "a", CRON_SECRET: "c" })).toBe("a");
+    expect(resolveOrderTokenKey({ ...prod, FOTOFFICE_CRON_SECRET: "b", CRON_SECRET: "c" })).toBeNull();
+    expect(resolveOrderTokenKey({ ...prod, STORE_ORDER_TOKEN_SECRET: "  ", CRON_SECRET: "c" })).toBeNull();
+  });
+  it("en preview sigue aceptando el secreto del cron como reemplazo", () => {
+    expect(resolveOrderTokenKey({ VERCEL_ENV: "preview", CRON_SECRET: "c" })).toBe("c");
+  });
 });
