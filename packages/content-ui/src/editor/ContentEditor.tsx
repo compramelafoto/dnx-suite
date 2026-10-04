@@ -263,6 +263,13 @@ export function ContentEditor({
           height: auto;
           border-radius: 0.5rem;
         }
+        .content-ui-tiptap-editor .ProseMirror .blog-instagram-embed iframe {
+          display: block;
+          width: 100%;
+          max-width: 400px;
+          aspect-ratio: 400 / 690;
+          border: 0;
+        }
         .content-ui-tiptap-editor .ProseMirror .blog-youtube-embed {
           margin: 1rem 0;
         }
