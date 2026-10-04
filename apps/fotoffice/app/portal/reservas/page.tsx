@@ -21,7 +21,8 @@ import { loadPortalOffer } from "@/lib/bookings/portal";
 import { canCancelByCustomer } from "@/lib/bookings/lifecycle";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { ReservarForm } from "./reservar-form";
-import { cancelPortalBookingAction } from "./actions";
+import { cancelPortalBookingAction, createPortalBookingAction } from "./actions";
+import { spacePriceLabel } from "@/lib/bookings/pricing";
 
 export const dynamic = "force-dynamic";
 
@@ -180,6 +181,10 @@ export default async function PortalReservasPage({
           {elegido && oferta && grid ? (
             <ReservarForm
               key={`${elegido.id}-${semana.startAt.toISOString()}`}
+              action={createPortalBookingAction}
+              basePath="/portal/reservas"
+              customerType="MEMBER"
+              pricing={elegido}
               spaceId={elegido.id}
               spaceName={elegido.name}
               spaceColor={spaceColor(espacios.findIndex((e) => e.id === elegido.id))}
@@ -188,11 +193,10 @@ export default async function PortalReservasPage({
                 id: e.id,
                 name: e.name,
                 color: spaceColor(i),
-                priceLabel: `${formatMinorArs(e.memberHourlyPriceMinor)}/h`,
+                priceLabel: spacePriceLabel(e, "MEMBER"),
                 href: calendarHref("/portal/reservas", { ymd }, { espacio: e.id }),
               }))}
               vocabulary={v}
-              memberHourlyPriceMinor={elegido.memberHourlyPriceMinor}
               freeHours={oferta.freeHours}
               grid={grid}
               ymd={ymd}

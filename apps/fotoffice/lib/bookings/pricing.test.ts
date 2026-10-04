@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeQuote, etiquetaDePrecio, quoteBooking } from "./pricing";
+import { describeQuote, etiquetaDePrecio, quoteBooking, quoteForSpace, spacePriceLabel } from "./pricing";
 
 const precios = { memberHourlyPriceMinor: 300_000, nonMemberHourlyPriceMinor: 500_000 };
 
@@ -268,5 +268,40 @@ describe("el desglose en modo bloque", () => {
     const lineas = describeQuote(q, 300, null);
     expect(lineas.join(" ")).toContain("Jornada");
     expect(lineas.join(" ")).not.toContain("por hora");
+  });
+});
+
+describe("el precio según cómo cobra el espacio (SFPR)", () => {
+  const estudio = {
+    pricingMode: "BLOCK" as const,
+    blockMinutes: 120,
+    memberHourlyPriceMinor: 1_000_000,
+    nonMemberHourlyPriceMinor: 2_500_000,
+    memberBlockPriceMinor: 3_000_000,
+    nonMemberBlockPriceMinor: 4_000_000,
+  };
+  const salon = { ...estudio, blockMinutes: null, memberBlockPriceMinor: 14_000_000, nonMemberBlockPriceMinor: 20_000_000 };
+
+  it("el socio con sus 2 h del mes no paga las primeras 2 horas del estudio", () => {
+    expect(quoteForSpace(estudio, { minutes: 120, customerType: "MEMBER", freeMinutesAvailable: 120 }).totalMinor).toBe(0);
+  });
+
+  it("el socio sin bonificación paga $30.000 el paquete, no el precio por hora viejo", () => {
+    expect(quoteForSpace(estudio, { minutes: 120, customerType: "MEMBER", freeMinutesAvailable: 0 }).totalMinor).toBe(3_000_000);
+  });
+
+  it("el no socio paga $40.000 aunque use una sola hora", () => {
+    expect(quoteForSpace(estudio, { minutes: 60, customerType: "NON_MEMBER", freeMinutesAvailable: 120 }).totalMinor).toBe(4_000_000);
+  });
+
+  it("el salón por una hora cobra la jornada entera", () => {
+    expect(quoteForSpace(salon, { minutes: 60, customerType: "MEMBER", freeMinutesAvailable: 0 }).totalMinor).toBe(14_000_000);
+    expect(quoteForSpace(salon, { minutes: 480, customerType: "NON_MEMBER", freeMinutesAvailable: 0 }).totalMinor).toBe(20_000_000);
+  });
+
+  it("la etiqueta nunca dice 'por hora' en un espacio por bloque", () => {
+    expect(spacePriceLabel(estudio, "MEMBER")).toMatch(/30\.000.*cada 2 h/);
+    expect(spacePriceLabel(salon, "NON_MEMBER")).toMatch(/200\.000.*por jornada/);
+    expect(spacePriceLabel(estudio, "MEMBER")).not.toMatch(/hora/);
   });
 });

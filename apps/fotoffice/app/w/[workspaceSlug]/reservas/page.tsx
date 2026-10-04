@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
-import { formatMinorArs } from "@/lib/membership/money";
+import { spacePriceLabel } from "@/lib/bookings/pricing";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { listSpaces } from "@/lib/bookings/repository";
@@ -19,8 +19,7 @@ const DIAS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 /**
  * Los espacios que la institución alquila a quien no es socio.
  *
- * Reservar exige cuenta: sin ella no se puede reconocer a quien ocupó el espacio ni avisarle
- * si algo cambia. El botón lleva al login y vuelve acá.
+ * Reservar no exige cuenta: el correo identifica la reserva (ver `[spaceId]/page.tsx`).
  */
 export default async function PublicBookingsPage({ params, searchParams }: Props) {
   const { workspaceSlug } = await params;
@@ -82,10 +81,10 @@ export default async function PublicBookingsPage({ params, searchParams }: Props
                 </div>
                 <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
                   <span className="text-sm font-medium">
-                    {formatMinorArs(espacio.nonMemberHourlyPriceMinor)} por hora
+                    {spacePriceLabel(espacio, "NON_MEMBER")}
                   </span>
                   <Link
-                    href={`/login?next=${encodeURIComponent(`/w/${workspaceSlug}/reservas/${espacio.id}`)}`}
+                    href={`/w/${workspaceSlug}/reservas/${espacio.id}`}
                     className="fo-btn fo-btn-primary text-sm"
                   >
                     Reservar
@@ -98,8 +97,7 @@ export default async function PublicBookingsPage({ params, searchParams }: Props
       )}
 
       <p className="text-xs leading-relaxed text-[var(--fo-muted-soft)]">
-        Para reservar hace falta una cuenta. El horario queda reservado cuando se acredita el
-        pago por Mercado Pago.
+        El horario queda reservado cuando se acredita el pago por Mercado Pago.
       </p>
     </main>
   );

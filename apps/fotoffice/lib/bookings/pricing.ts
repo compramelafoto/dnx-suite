@@ -228,3 +228,48 @@ export function describeQuote(
 
   return lineas;
 }
+
+/** Cómo cobra un espacio: lo que el cálculo necesita saber de él, y nada más. */
+export type SpacePricing = {
+  pricingMode: PricingMode;
+  blockMinutes: number | null;
+  memberHourlyPriceMinor: number;
+  nonMemberHourlyPriceMinor: number;
+  memberBlockPriceMinor: number;
+  nonMemberBlockPriceMinor: number;
+};
+
+/**
+ * El precio de una reserva en un espacio, según su modo.
+ *
+ * Es la única puerta de entrada para quien cotiza una reserva real —el portal, la página
+ * pública, la carga manual y `createBooking`—: si cada uno armara el `QuoteInput` a mano,
+ * bastaría con que uno se olvide del modo para cobrar por hora un espacio que va por bloque.
+ */
+export function quoteForSpace(
+  space: SpacePricing,
+  input: { minutes: number; customerType: CustomerType; freeMinutesAvailable: number },
+): Quote {
+  return quoteBooking({
+    minutes: input.minutes,
+    customerType: input.customerType,
+    freeMinutesAvailable: input.freeMinutesAvailable,
+    mode: space.pricingMode,
+    blockMinutes: space.blockMinutes,
+    memberHourlyPriceMinor: space.memberHourlyPriceMinor,
+    nonMemberHourlyPriceMinor: space.nonMemberHourlyPriceMinor,
+    memberBlockPriceMinor: space.memberBlockPriceMinor,
+    nonMemberBlockPriceMinor: space.nonMemberBlockPriceMinor,
+  });
+}
+
+/** El precio de un espacio en una línea, para el tipo de cliente que mira. */
+export function spacePriceLabel(space: SpacePricing, customerType: CustomerType): string {
+  const socio = customerType === "MEMBER";
+  return etiquetaDePrecio({
+    mode: space.pricingMode,
+    hourlyPriceMinor: socio ? space.memberHourlyPriceMinor : space.nonMemberHourlyPriceMinor,
+    blockPriceMinor: socio ? space.memberBlockPriceMinor : space.nonMemberBlockPriceMinor,
+    blockMinutes: space.blockMinutes,
+  });
+}

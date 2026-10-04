@@ -81,6 +81,10 @@ export async function saveSpaceAction(formData: FormData): Promise<void> {
         requiresApproval: v.requiresApproval,
         memberHourlyPriceArs: minorToDecimalString(v.memberHourlyPriceMinor),
         nonMemberHourlyPriceArs: minorToDecimalString(v.nonMemberHourlyPriceMinor),
+        pricingMode: v.pricingMode,
+        blockMinutes: v.blockMinutes,
+        memberBlockPriceArs: minorToDecimalString(v.memberBlockPriceMinor),
+        nonMemberBlockPriceArs: minorToDecimalString(v.nonMemberBlockPriceMinor),
         memberFreeHoursPerMonth: v.memberFreeHoursPerMonth,
         allowsNonMembers: v.allowsNonMembers,
       };

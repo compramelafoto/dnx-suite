@@ -1,30 +1,55 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
-import { requireAuth } from "@/lib/auth";
+import { getAuthUser } from "@/lib/auth";
 import { formatMinorArs } from "@/lib/membership/money";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
-import { BOOKINGS_TIME_ZONE } from "@/lib/bookings/time";
-import { shiftWeeks, weekDays, weekRange } from "@/lib/bookings/week";
+import { BOOKINGS_TIME_ZONE, localMoment } from "@/lib/bookings/time";
 import { buildWeekGrid } from "@/lib/bookings/week-grid";
 import { loadPortalOffer } from "@/lib/bookings/portal";
-import { PublicBookingForm } from "./public-form";
+import { listSpaces } from "@/lib/bookings/repository";
+import { spacePriceLabel } from "@/lib/bookings/pricing";
+import {
+  calendarHref,
+  parseCalendarParams,
+  shiftYmd,
+  spaceColor,
+  viewInterval,
+  ymdOf,
+} from "@/lib/bookings/calendar-view";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
+import { ReservarForm } from "@/app/portal/reservas/reservar-form";
+import { createPublicBookingAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
 type Props = {
   params: Promise<{ workspaceSlug: string; spaceId: string }>;
-  searchParams: Promise<{ semana?: string; error?: string; ok?: string; enviada?: string; pago?: string }>;
+  searchParams: Promise<{
+    fecha?: string;
+    semana?: string;
+    error?: string;
+    ok?: string;
+    enviada?: string;
+    pago?: string;
+  }>;
 };
 
+/**
+ * La reserva de quien no es socio, desde el sitio de la institución.
+ *
+ * No pide cuenta: el correo identifica la reserva y recibe el aviso, igual que en cualquier
+ * reserva por internet, y el horario se confirma recién cuando Mercado Pago acredita el pago.
+ * Pedir cuenta dejaba afuera justo a quien no es de la casa —un no socio nunca llegaba a esta
+ * pantalla—. Si la persona ya tiene sesión, se usa su correo como sugerencia.
+ *
+ * Es el mismo calendario que el del portal del socio (`ReservarForm`): cambian la tarifa, que
+ * acá es la plena y sin horas bonificadas, y los datos de contacto que se piden al final.
+ */
 export default async function PublicSpaceBookingPage({ params, searchParams }: Props) {
   const { workspaceSlug, spaceId } = await params;
   const query = await searchParams;
-
-  // Reservar exige cuenta: sin ella no se puede reconocer a quien ocupó el espacio ni
-  // avisarle si algo cambia.
-  const user = await requireAuth();
 
   const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
     where: { publicSlug: workspaceSlug },
@@ -34,82 +59,145 @@ export default async function PublicSpaceBookingPage({ params, searchParams }: P
   if (!(await isModuleEnabledForWorkspace(branding.workspaceId, BOOKINGS_MODULE_KEY))) notFound();
 
   const ahora = new Date();
-  const ancla = query.semana ? new Date(query.semana) : ahora;
-  const referencia = Number.isNaN(ancla.getTime()) ? ahora : ancla;
-  const semana = weekRange(referencia, BOOKINGS_TIME_ZONE);
-  const diasDeLaSemana = weekDays(semana, BOOKINGS_TIME_ZONE);
+  const { ymd } = parseCalendarParams(query, ahora, BOOKINGS_TIME_ZONE);
+  const semana = viewInterval("semana", ymd, BOOKINGS_TIME_ZONE);
 
-  const oferta = await loadPortalOffer({
-    workspaceId: branding.workspaceId,
-    memberId: null,
-    spaceId,
-    range: semana,
-    customerType: "NON_MEMBER",
-    now: ahora,
-  });
+  const [oferta, todos, user, vocabulary] = await Promise.all([
+    loadPortalOffer({
+      workspaceId: branding.workspaceId,
+      memberId: null,
+      spaceId,
+      range: semana,
+      customerType: "NON_MEMBER",
+      now: ahora,
+    }),
+    listSpaces(branding.workspaceId),
+    getAuthUser(),
+    loadPersonVocabulary(branding.workspaceId),
+  ]);
   if (!oferta || !oferta.space.allowsNonMembers) notFound();
+
+  const espacios = todos.filter((e) => e.allowsNonMembers);
+  const space = oferta.space;
 
   const grid = buildWeekGrid({
     weekStart: semana.startAt,
-    weeklyHours: oferta.space.weeklyHours,
+    weeklyHours: space.weeklyHours,
     freeSlots: oferta.slots,
     now: ahora,
     timeZone: BOOKINGS_TIME_ZONE,
-    slotMinutes: oferta.space.rules.slotMinutes,
-    minAdvanceHours: oferta.space.rules.minAdvanceHours,
+    slotMinutes: space.rules.slotMinutes,
+    minAdvanceHours: space.rules.minAdvanceHours,
+    maxAdvanceDays: space.rules.maxAdvanceDays,
   });
 
-  const semanaPasada = weekRange(shiftWeeks(referencia, -1), BOOKINGS_TIME_ZONE);
-  const hayAnterior = semanaPasada.endAt > ahora;
-
+  const semanaPasada = viewInterval("semana", shiftYmd("semana", ymd, -1), BOOKINGS_TIME_ZONE);
+  const base = `/w/${workspaceSlug}/reservas`;
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 px-4 py-12 md:px-8 md:py-16">
+    <main className="mx-auto max-w-6xl space-y-6 px-4 py-12 md:px-8 md:py-16">
       <header className="space-y-2">
-        <Link
-          href={`/w/${workspaceSlug}/reservas`}
-          className="text-sm text-[var(--fo-muted)] underline underline-offset-4"
-        >
+        <Link href={base} className="text-sm text-[var(--fo-muted)] underline underline-offset-4">
           Volver a los espacios
         </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">{oferta.space.name}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Reservá en {branding.commercialName}</h1>
         <p className="text-sm text-[var(--fo-muted)]">
-          {formatMinorArs(oferta.space.nonMemberHourlyPriceMinor)} por hora ·{" "}
-          {branding.commercialName}
+          Elegí el día y el horario. La reserva queda confirmada cuando se acredita el pago.
         </p>
       </header>
 
       {query.error ? (
-        <p className="fo-card p-4 text-sm text-[var(--fo-danger)]" role="alert">
+        <p className="fo-alert-error rounded-[var(--fo-radius-sm)] p-4 text-sm text-[var(--fo-danger)]" role="alert">
           {query.error}
         </p>
       ) : null}
       {query.enviada ? (
-        <p className="fo-card p-4 text-sm text-[var(--fo-success)]">
+        <p className="fo-alert-success rounded-[var(--fo-radius-sm)] p-4 text-sm text-[var(--fo-success)]">
           Tu pedido quedó enviado. La institución tiene que confirmar lo que pediste antes de
           cobrarte.
         </p>
       ) : null}
       {query.ok || query.pago === "ok" ? (
-        <p className="fo-card p-4 text-sm text-[var(--fo-success)]">
-          Listo, tu reserva quedó hecha.
+        <p className="fo-alert-success rounded-[var(--fo-radius-sm)] p-4 text-sm text-[var(--fo-success)]">
+          Listo, tu reserva quedó hecha. Te llega la confirmación por correo.
         </p>
       ) : null}
       {query.pago === "error" ? (
-        <p className="fo-card p-4 text-sm text-[var(--fo-danger)]">
-          El pago no se pudo completar. Tu horario sigue reservado un rato más.
+        <p className="fo-alert-error rounded-[var(--fo-radius-sm)] p-4 text-sm text-[var(--fo-danger)]">
+          El pago no se pudo completar. Tu horario sigue reservado un rato más: podés intentar
+          de nuevo.
         </p>
       ) : null}
 
-      <PublicBookingForm
-        workspaceSlug={workspaceSlug}
-        spaceId={spaceId}
-        hourlyPriceMinor={oferta.space.nonMemberHourlyPriceMinor}
-        defaultEmail={user.email ?? ""}
+      <ReservarForm
+        key={`${space.id}-${semana.startAt.toISOString()}`}
+        action={createPublicBookingAction}
+        basePath={`${base}/${space.id}`}
+        hiddenFields={<input type="hidden" name="workspaceSlug" value={workspaceSlug} />}
+        contactFields={
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="fo-field-stack">
+              <label className="fo-label" htmlFor="contactName">
+                Tu nombre
+              </label>
+              <input
+                id="contactName"
+                name="contactName"
+                className="fo-input"
+                autoComplete="name"
+                defaultValue={user?.name ?? ""}
+                required
+              />
+            </div>
+            <div className="fo-field-stack">
+              <label className="fo-label" htmlFor="contactEmail">
+                Correo
+              </label>
+              <input
+                id="contactEmail"
+                name="contactEmail"
+                type="email"
+                className="fo-input"
+                autoComplete="email"
+                defaultValue={user?.email ?? ""}
+                required
+              />
+            </div>
+            <div className="fo-field-stack">
+              <label className="fo-label" htmlFor="contactPhone">
+                Teléfono
+              </label>
+              <input
+                id="contactPhone"
+                name="contactPhone"
+                type="tel"
+                className="fo-input"
+                autoComplete="tel"
+              />
+            </div>
+          </div>
+        }
+        customerType="NON_MEMBER"
+        spaceId={space.id}
+        spaceName={space.name}
+        spaceColor={spaceColor(espacios.findIndex((e) => e.id === space.id))}
+        description={space.description}
+        spaces={espacios.map((e, i) => ({
+          id: e.id,
+          name: e.name,
+          color: spaceColor(i),
+          priceLabel: spacePriceLabel(e, "NON_MEMBER"),
+          href: calendarHref(`${base}/${e.id}`, { ymd }),
+        }))}
+        pricing={space}
+        freeHours={oferta.freeHours}
         grid={grid}
-        tituloSemana={`Semana del ${diasDeLaSemana[0].label} al ${diasDeLaSemana[6].label}`}
-        semanaAnterior={hayAnterior ? shiftWeeks(referencia, -1).toISOString() : null}
-        semanaSiguiente={shiftWeeks(referencia, 1).toISOString()}
+        ymd={ymd}
+        todayYmd={ymdOf(ahora, BOOKINGS_TIME_ZONE)}
+        nowMinute={localMoment(ahora, BOOKINGS_TIME_ZONE).minuteOfDay}
+        canGoBack={semanaPasada.endAt > ahora}
+        mine={[]}
+        vocabulary={vocabulary}
         extras={oferta.extras.map((o) => ({
           id: o.extra.id,
           name: o.extra.name,
@@ -120,9 +208,8 @@ export default async function PublicSpaceBookingPage({ params, searchParams }: P
       />
 
       <p className="text-xs leading-relaxed text-[var(--fo-muted-soft)]">
-        El horario queda reservado cuando se acredita el pago. Si sos socio de{" "}
-        {branding.commercialName}, entrá a tu portal: el precio es menor y tenés horas
-        bonificadas.
+        ¿Sos {vocabulary.singular} de {branding.commercialName}? Entrá a tu portal: el precio es
+        menor y tenés horas bonificadas.
       </p>
     </main>
   );
