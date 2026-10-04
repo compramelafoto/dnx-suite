@@ -7137,6 +7137,9 @@ model Workspace {
   coverageCollaborators       CoverageCollaboratorProfile[]
   coverageEvents              CoverageEvent[]
   vocabulary                  WorkspaceVocabulary?
+  productStoreListings ProductStoreListing[]
+  storeSettings StoreSettings?
+  storeOrders StoreOrder[]
 }
 
 model WorkspaceFeatureModule {
@@ -17739,6 +17742,7 @@ model Client {
   @@index([workspaceId, status])
   @@index([workspaceId, docNumber])
   @@index([workspaceId, email])
+  storeOrders StoreOrder[]
 }
 
 /// Una cuenta de caja: dónde está la plata.
@@ -19718,6 +19722,10 @@ model Product {
   globalProduct  GlobalProduct?   @relation(fields: [globalProductId], references: [id], onDelete: SetNull)
   stockMovements StockMovement[]
   saleItems      SaleItem[]
+  storeListing   ProductStoreListing?
+  images         ProductImage[]
+  variants       ProductVariant[]
+  storeOrderItems StoreOrderItem[]
 
   @@unique([workspaceId, sku])
   @@index([workspaceId, isActive])
@@ -19744,6 +19752,9 @@ model StockMovement {
   sourceRef    String?
   /// Obligatoria de hecho en los ajustes: un ajuste sin explicar no se entiende después.
   note         String?
+  /// Talle vendido / movido. Nulo en productos sin variantes y en todo lo anterior a la tienda.
+  variantId String?
+  variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
 
   createdByUserId Int?
   createdAt       DateTime @default(now())
@@ -19753,6 +19764,7 @@ model StockMovement {
 
   @@index([workspaceId, createdAt])
   @@index([productId, createdAt])
+  @@index([variantId])
 }
 
 /// Una venta de mostrador.
@@ -19816,6 +19828,9 @@ model SaleItem {
   lineTotalArs Decimal  @db.Decimal(12, 2)
   /// Si el precio se pisó a mano. Para poder explicarlo meses después.
   priceWasOverridden Boolean @default(false)
+  /// Talle vendido / movido. Nulo en productos sin variantes y en todo lo anterior a la tienda.
+  variantId String?
+  variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
 
@@ -19824,4 +19839,181 @@ model SaleItem {
 
   @@index([saleId])
   @@index([productId])
+  @@index([variantId])
+}
+
+/// Ficha online de un producto. Sin fila = se vende sólo en mostrador (el comportamiento de
+/// siempre). Tabla aparte y no columnas en `Product` para no tocar las filas existentes.
+model ProductStoreListing {
+  id                String   @id @default(cuid())
+  workspaceId       String
+  productId         String   @unique
+  sellOnline        Boolean  @default(false)
+  sellAtCounter     Boolean  @default(true)
+  slug              String
+  onlineTitle       String?
+  onlineDescription String?
+  sizeChartImageUrl String?
+  weightGrams       Int?
+  lengthCm          Int?
+  widthCm           Int?
+  heightCm          Int?
+  maxPerOrder       Int?
+  sortOrder         Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, slug])
+  @@index([workspaceId, sellOnline])
+}
+
+/// Galería del producto. La de menor `sortOrder` es la principal en la tienda.
+model ProductImage {
+  id          String   @id @default(cuid())
+  workspaceId String
+  productId   String
+  url         String
+  alt         String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, sortOrder])
+}
+
+/// Talle (o variante) de un producto. Si un producto tiene variantes activas, su stock vive
+/// acá y `Product.stockQty` es la suma, mantenida en la misma transacción.
+model ProductVariant {
+  id          String   @id @default(cuid())
+  workspaceId String
+  productId   String
+  name        String
+  sku         String?
+  barcode     String?
+  /// null = hereda `Product.priceArs`.
+  priceArs    Decimal? @db.Decimal(12, 2)
+  stockQty    Int      @default(0)
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  product        Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  saleItems      SaleItem[]
+  stockMovements StockMovement[]
+  orderItems     StoreOrderItem[]
+
+  @@unique([workspaceId, sku])
+  @@unique([workspaceId, barcode])
+  @@index([productId, sortOrder])
+}
+
+model StoreSettings {
+  id                 String   @id @default(cuid())
+  workspaceId        String   @unique
+  isOpen             Boolean  @default(false)
+  pickupAddress      String?
+  pickupHours        String?
+  pickupInstructions String?
+  returnsPolicy      String?
+  notifyEmail        String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+enum StoreOrderStatus {
+  PENDING_PAYMENT
+  PAID
+  READY
+  DELIVERED
+  CANCELLED
+  EXPIRED
+  PAID_NO_STOCK
+}
+
+model StoreOrder {
+  id                   String           @id @default(cuid())
+  workspaceId          String
+  publicId             String           @unique
+  orderNumber          Int
+  accessTokenHash      String
+  status               StoreOrderStatus @default(PENDING_PAYMENT)
+  buyerName            String
+  buyerEmail           String
+  buyerPhone           String?
+  clientId             String?
+  memberId             String?
+  deliveryMethod       String           @default("PICKUP")
+  subtotalArs          Decimal          @db.Decimal(12, 2)
+  shippingArs          Decimal          @default(0) @db.Decimal(12, 2)
+  totalArs             Decimal          @db.Decimal(12, 2)
+  feeBps               Int              @default(0)
+  feeArs               Decimal          @default(0) @db.Decimal(12, 2)
+  holdExpiresAt        DateTime?
+  mpPreferenceId       String?
+  mpPaymentId          String?          @unique
+  paidAt               DateTime?
+  readyAt              DateTime?
+  deliveredAt          DateTime?
+  cancelledAt          DateTime?
+  saleId               String?          @unique
+  legalAcceptedAt      DateTime
+  legalVersion         String
+  clientIdempotencyKey String
+  internalNote         String?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client    Client?            @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  items     StoreOrderItem[]
+  events    StoreOrderEvent[]
+
+  @@unique([workspaceId, orderNumber])
+  @@unique([workspaceId, clientIdempotencyKey])
+  @@index([workspaceId, status, createdAt])
+  @@index([status, holdExpiresAt])
+  @@index([workspaceId, buyerEmail, status])
+}
+
+model StoreOrderItem {
+  id           String  @id @default(cuid())
+  orderId      String
+  productId    String?
+  variantId    String?
+  productName  String
+  variantName  String?
+  productSlug  String
+  imageUrl     String?
+  qty          Int
+  unitPriceArs Decimal @db.Decimal(12, 2)
+  lineTotalArs Decimal @db.Decimal(12, 2)
+
+  order   StoreOrder      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([productId])
+  @@index([variantId])
+}
+
+model StoreOrderEvent {
+  id          String            @id @default(cuid())
+  orderId     String
+  fromStatus  StoreOrderStatus?
+  toStatus    StoreOrderStatus
+  actorUserId Int?
+  note        String?
+  createdAt   DateTime          @default(now())
+
+  order StoreOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
 }
