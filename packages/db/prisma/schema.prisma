@@ -8348,8 +8348,25 @@ model BookingSpace {
   requiresApproval  Boolean @default(false)
 
   /// Tarifas por hora. El precio de socio ES el precio promocional.
+  /// Sólo se usan con `pricingMode = "HOURLY"`.
   memberHourlyPriceArs    Decimal @default(0) @db.Decimal(12, 2)
   nonMemberHourlyPriceArs Decimal @default(0) @db.Decimal(12, 2)
+
+  /// --- Cómo se cobra este espacio ---
+  ///
+  /// `"HOURLY"`: precio por hora, prorrateado por minuto. Es como nació el módulo.
+  ///
+  /// `"BLOCK"`: se cobra por bloque, no por hora. Existe porque así se vende de verdad:
+  /// el estudio va en paquetes de 2 horas a un precio, y el salón tiene precio plano por
+  /// jornada. Ninguno de los dos se puede escribir como tarifa horaria —no hay número por hora
+  /// que dé el mismo total para 3, 4 y 5 horas— y fingir que sí obligaba a mostrarle a la gente
+  /// un precio por hora que no es el que paga.
+  pricingMode String @default("HOURLY")
+  /// Tamaño del bloque, en minutos. **`null` = un solo bloque por reserva** (la "jornada"):
+  /// se cobra lo mismo dure lo que dure, y el piso lo pone `minBookingMinutes`.
+  blockMinutes Int?
+  memberBlockPriceArs    Decimal @default(0) @db.Decimal(12, 2)
+  nonMemberBlockPriceArs Decimal @default(0) @db.Decimal(12, 2)
   /// Horas bonificadas por mes para socios. 0 = este espacio no bonifica.
   memberFreeHoursPerMonth Int     @default(0)
   allowsNonMembers        Boolean @default(true)
@@ -8449,7 +8466,14 @@ model Booking {
   /// Dinero, todo congelado en el momento de reservar.
   billedMinutes   Int
   freeMinutesUsed Int     @default(0)
+  /// El precio por hora que se aplicó. Sólo tiene sentido con `pricingModeSnapshot = "HOURLY"`.
   hourlyPriceArs  Decimal @db.Decimal(12, 2)
+  /// Cómo se cobró ESTA reserva. Congelado: si mañana el espacio cambia de modo o de precio,
+  /// lo que se cobró no se reescribe.
+  pricingModeSnapshot String  @default("HOURLY")
+  /// Con `"BLOCK"`: cuánto salía cada bloque y cuántos se cobraron.
+  blockPriceArs       Decimal? @db.Decimal(12, 2)
+  blocksBilled        Int?
   totalArs        Decimal @db.Decimal(12, 2)
   /// Puntos básicos: 500 = 5%. Entero, nunca porcentaje decimal.
   feeBps          Int     @default(0)

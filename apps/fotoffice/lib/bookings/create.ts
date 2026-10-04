@@ -5,7 +5,7 @@ import { sanitizeError } from "@/lib/payments/connect/log";
 import { ACTIVE_BOOKING_STATUSES, type BookingStatus } from "./constants";
 import { checkRange, rejectionMessage } from "./availability";
 import { blockingSpaceIds } from "./conflicts";
-import { quoteBooking, type CustomerType, type Quote } from "./pricing";
+import { quoteForSpace, type CustomerType, type Quote } from "./pricing";
 import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { getBookingSettings, getSpace, listCompatibilities, listSpaces } from "./repository";
@@ -127,11 +127,9 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
   );
 
   const minutos = (input.range.endAt.getTime() - input.range.startAt.getTime()) / 60_000;
-  const quote = quoteBooking({
+  const quote = quoteForSpace(espacio, {
     minutes: minutos,
     customerType: input.customerType,
-    memberHourlyPriceMinor: espacio.memberHourlyPriceMinor,
-    nonMemberHourlyPriceMinor: espacio.nonMemberHourlyPriceMinor,
     freeMinutesAvailable: input.freeMinutesAvailable,
   });
 
@@ -216,6 +214,10 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
           billedMinutes: quote.billedMinutes,
           freeMinutesUsed: quote.freeMinutesUsed,
           hourlyPriceArs: minorToDecimalString(quote.hourlyPriceMinor),
+          // Cómo se cobró, congelado: si el espacio cambia de modo o de precio, esto no cambia.
+          pricingModeSnapshot: quote.mode,
+          blockPriceArs: quote.mode === "BLOCK" ? minorToDecimalString(quote.blockPriceMinor) : null,
+          blocksBilled: quote.mode === "BLOCK" ? quote.blocksBilled : null,
           totalArs: minorToDecimalString(totalMinor),
           paymentMethod: sinCargo ? "SIN_CARGO" : input.paymentMethod,
           paymentStatus: sinCargo ? "NOT_REQUIRED" : "PENDING",
