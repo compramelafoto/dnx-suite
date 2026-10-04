@@ -109,6 +109,7 @@ export default async function WorkspaceSettingsPage() {
           website: branding?.website ?? "",
           instagram: branding?.instagram ?? "",
           emailSignatureNote: branding?.emailSignatureNote ?? "",
+          shortDescription: branding?.shortDescription ?? "",
           activityType: normalizeFotofficeOrganizationType(branding?.activityType),
           specialties: branding?.specialties ?? [],
           logoUrl: branding?.logoUrl ?? null,
