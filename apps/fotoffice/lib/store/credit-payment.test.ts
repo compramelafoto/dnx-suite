@@ -30,7 +30,7 @@ vi.mock("@/lib/sales/stock-lock", () => ({ lockStockRows: h.lockStockRows }));
 vi.mock("./repository", () => ({ reservedQtyByKey: h.reservedQtyByKey }));
 vi.mock("./emails", () => h.emails);
 
-const { creditStorePayment, hasStockForOrder } = await import("./credit-payment");
+const { creditStorePayment, hasStockForOrder, lockAndCheckOrderStock } = await import("./credit-payment");
 
 type Status = "PENDING_PAYMENT" | "PAID" | "READY" | "DELIVERED" | "CANCELLED" | "EXPIRED" | "PAID_NO_STOCK";
 
@@ -71,7 +71,7 @@ function pedido(over: { status?: Status; mpPaymentId?: string | null } = {}) {
 function crearTx(
   order: ReturnType<typeof pedido>,
   stock: { p1?: number; v1?: number; p2?: number } = {},
-  over: { eventoDuplicado?: boolean } = {},
+  over: { eventoDuplicado?: boolean; p2Talles?: boolean } = {},
 ) {
   return {
     $queryRaw: vi.fn(async () => []),
@@ -85,8 +85,15 @@ function crearTx(
     },
     product: {
       findMany: vi.fn(async () => [
-        { id: "p1", tracksStock: true, stockQty: stock.p1 ?? 10, costArs: "4000.00" },
-        { id: "p2", tracksStock: true, stockQty: stock.p2 ?? 10, costArs: null },
+        { id: "p1", tracksStock: true, stockQty: stock.p1 ?? 10, costArs: "4000.00", variants: [{ id: "v1" }] },
+        {
+          id: "p2",
+          tracksStock: true,
+          stockQty: stock.p2 ?? 10,
+          costArs: null,
+          // La taza no tenía talles cuando se hizo el pedido; `p2Talles` simula que se le cargaron después.
+          variants: over.p2Talles ? [{ id: "v7" }] : [],
+        },
       ]),
     },
     productVariant: {
@@ -200,6 +207,32 @@ describe("creditStorePayment — pedido esperando el pago", () => {
     const r = await creditStorePayment({ ...cobro, orderId: "ord1", providerPaymentId: "mp1" });
     expect(r).toEqual({ applied: true, status: "PAID_NO_STOCK" });
     expect(h.recordSale).not.toHaveBeenCalled();
+  });
+
+  it("un renglón sin talle de un producto que DESPUÉS tuvo talles no alcanza: PAID_NO_STOCK sin venta", async () => {
+    preparar(pedido(), {}, { p2Talles: true });
+    const r = await creditStorePayment({ ...cobro, orderId: "ord1", providerPaymentId: "mp1" });
+    expect(r).toEqual({ applied: true, status: "PAID_NO_STOCK" });
+    expect(h.recordSale).not.toHaveBeenCalled();
+    // Se pregunta si el producto tiene talles hoy, filtrando por workspace.
+    expect(tx.product.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: { in: ["p1", "p2"] }, workspaceId: "ws1" },
+        select: expect.objectContaining({ variants: { where: { workspaceId: "ws1" }, select: { id: true }, take: 1 } }),
+      }),
+    );
+  });
+});
+
+describe("lockAndCheckOrderStock (también lo usa reponer: PAID_NO_STOCK → PAID)", () => {
+  it("con el producto todavía sin talles, el renglón sin talle alcanza", async () => {
+    const t = crearTx(pedido());
+    expect(await lockAndCheckOrderStock(t as never, pedido() as never)).toBe(true);
+  });
+
+  it("si al producto le cargaron talles después del pedido, el renglón sin talle no alcanza", async () => {
+    const t = crearTx(pedido(), {}, { p2Talles: true });
+    expect(await lockAndCheckOrderStock(t as never, pedido() as never)).toBe(false);
   });
 });
 
@@ -355,6 +388,13 @@ describe("hasStockForOrder", () => {
   it("un producto que no controla stock siempre alcanza", () => {
     const sinControl = new Map([...productos, ["p2", { tracksStock: false, stockQty: 0 }]]);
     expect(hasStockForOrder(items, sinControl, talles, new Map([["p2:-", 5]]))).toBe(true);
+  });
+  it("un renglón sin talle de un producto que ahora tiene talles no alcanza (D4)", () => {
+    const conTalles = new Map([...productos, ["p2", { tracksStock: true, stockQty: 50, hasVariants: true }]]);
+    expect(hasStockForOrder(items, conTalles, talles, new Map())).toBe(false);
+    // Con talle sigue funcionando igual: p1 tiene talles y su renglón trae el talle.
+    const p1ConTalles = new Map([...productos, ["p1", { tracksStock: true, stockQty: 10, hasVariants: true }]]);
+    expect(hasStockForOrder(items, p1ConTalles, talles, new Map())).toBe(true);
   });
   it("un producto o talle borrado no alcanza: alguien tiene que mirarlo", () => {
     expect(hasStockForOrder([{ productId: null, variantId: null, qty: 1 }], productos, talles, new Map())).toBe(false);

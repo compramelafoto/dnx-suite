@@ -62,10 +62,15 @@ export type OrderToFinalize = Prisma.StoreOrderGetPayload<{ select: typeof SELEC
  * ¿Alcanza el stock para entregar el pedido entero? `reserved` son las unidades que retienen
  * OTROS pedidos (no éste). Un producto o talle que ya no existe no alcanza: la plata entró por
  * algo que no se puede entregar sin que alguien lo mire.
+ *
+ * Tampoco alcanza un renglón SIN talle de un producto que HOY tiene talles (`hasVariants`): el
+ * pedido se hizo antes de que se le cargaran talles. Desde ese momento su stock vive en los
+ * talles (D4) y `Product.stockQty` es la suma; vender "el producto" sin talle restaría de la
+ * suma sin que ningún talle baje, y dejaría de cuadrar. Que alguien elija el talle a mano.
  */
 export function hasStockForOrder(
   items: readonly { productId: string | null; variantId: string | null; qty: number }[],
-  products: ReadonlyMap<string, { tracksStock: boolean; stockQty: number }>,
+  products: ReadonlyMap<string, { tracksStock: boolean; stockQty: number; hasVariants?: boolean }>,
   variantStock: ReadonlyMap<string, number>,
   reserved: ReadonlyMap<string, number>,
 ): boolean {
@@ -82,6 +87,7 @@ export function hasStockForOrder(
   for (const [key, linea] of pedidoPorClave) {
     const producto = products.get(linea.productId);
     if (!producto) return false;
+    if (!linea.variantId && producto.hasVariants) return false;
     let stockQty = producto.stockQty;
     if (linea.variantId) {
       const deTalle = variantStock.get(linea.variantId);
@@ -215,7 +221,14 @@ export async function lockAndCheckOrderStock(tx: Tx, order: OrderToFinalize): Pr
       ? []
       : tx.product.findMany({
           where: { id: { in: productIds }, workspaceId },
-          select: { id: true, tracksStock: true, stockQty: true },
+          // Un talle cualquiera alcanza para saber si el producto tiene talles HOY (activos o
+          // no: el stock de un talle desactivado también vive en el talle).
+          select: {
+            id: true,
+            tracksStock: true,
+            stockQty: true,
+            variants: { where: { workspaceId }, select: { id: true }, take: 1 },
+          },
         }),
     variantIds.length === 0
       ? []
@@ -227,7 +240,12 @@ export async function lockAndCheckOrderStock(tx: Tx, order: OrderToFinalize): Pr
 
   return hasStockForOrder(
     order.items,
-    new Map(productos.map((p) => [p.id, p])),
+    new Map(
+      productos.map((p) => [
+        p.id,
+        { tracksStock: p.tracksStock, stockQty: p.stockQty, hasVariants: p.variants.length > 0 },
+      ]),
+    ),
     new Map(talles.map((v) => [v.id, v.stockQty])),
     reservado,
   );
