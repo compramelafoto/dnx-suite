@@ -9,6 +9,7 @@ import {
   FOTOFFICE_SPECIALTY_IDS,
 } from "@/lib/onboarding-constants";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
+import { SHORT_DESCRIPTION_MAX } from "@/lib/website/site-metadata";
 import { loadWorkspaceEmailContext } from "@/lib/communications/load-workspace-signature";
 import { buildTestEmailBody } from "@/lib/communications/test-email";
 import { sendTransactionalEmail } from "@/lib/communications/send-email";
@@ -135,6 +136,9 @@ export async function updateWorkspaceSettingsAction(
   // Las etiquetas que pegue el administrador se guardan como texto — el escapado es del
   // renderer, no de acá.
   const emailSignatureNote = formData.get("emailSignatureNote")?.toString()?.trim() || null;
+  // Una sola línea: es lo que muestran Google y WhatsApp, que no respetan saltos de línea.
+  const shortDescription =
+    formData.get("shortDescription")?.toString()?.replace(/\s+/g, " ").trim() || null;
   const activityType = formData.get("activityType")?.toString()?.trim() || "";
   const logoUrl = formData.get("logoUrl")?.toString()?.trim() || null;
   const coverImageUrl = formData.get("coverImageUrl")?.toString()?.trim() || null;
@@ -148,6 +152,9 @@ export async function updateWorkspaceSettingsAction(
     return {
       error: `La nota del pie de los emails no puede superar los ${EMAIL_SIGNATURE_NOTE_MAX} caracteres.`,
     };
+  }
+  if (shortDescription && shortDescription.length > SHORT_DESCRIPTION_MAX) {
+    return { error: `La descripción breve no puede superar los ${SHORT_DESCRIPTION_MAX} caracteres.` };
   }
   if (!ACTIVITY_IDS.has(activityType)) return { error: "Tipo de organización inválido." };
   if (publicSlug.length < 2 || publicSlug.length > 80 || !PUBLIC_SLUG_RE.test(publicSlug)) {
@@ -176,6 +183,7 @@ export async function updateWorkspaceSettingsAction(
       website,
       instagram,
       emailSignatureNote,
+      shortDescription,
       activityType,
       specialties,
       logoUrl,

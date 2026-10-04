@@ -7180,6 +7180,10 @@ model FotofficeWorkspaceBranding {
   /// El resto de la firma (nombre, logo, contacto, redes) sale de los campos de arriba: una
   /// sola fuente de verdad entre el sitio público y los emails.
   emailSignatureNote    String?
+  /// Descripción breve de la institución (texto plano, hasta 300 caracteres). Es lo que muestran
+  /// Google y la vista previa al compartir el sitio (WhatsApp, Facebook) si en Sitio web → SEO no
+  /// se cargó una descripción propia.
+  shortDescription      String?
   /// null = onboarding incompleto; set cuando el fotógrafo termina o saltea
   onboardingCompletedAt DateTime?
   createdAt             DateTime  @default(now())
