@@ -6,6 +6,7 @@ import { Prisma, prisma } from "@repo/db";
 import { z } from "zod";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { computeAvailableSpots, getApprovedEnrollmentCountsByInstanceIds } from "@/lib/presential-courses/availability";
+import { resolverObjetivoDeInscripcion } from "@/lib/presential-courses/enrollment-target";
 import { logCourseEvent } from "@/lib/presential-courses/log";
 import { splitByPlatformFee } from "@/lib/platform-fee/fee";
 import { getPlatformFeeBps } from "@/lib/platform-fee/store";
@@ -17,7 +18,7 @@ const enrollmentSchema = z.object({
   dni: z.string().min(5).max(24),
   city: z.string().max(120).optional().nullable(),
   instagram: z.string().max(120).optional().nullable(),
-  courseInstanceId: z.string().min(1),
+  courseInstanceId: z.string().min(1).optional(),
 });
 
 function emptyToNull(value: string | undefined | null) {
@@ -40,7 +41,7 @@ export async function createPublicCourseEnrollmentAction(
     dni: formData.get("dni")?.toString()?.trim() ?? "",
     city: emptyToNull(formData.get("city")?.toString()),
     instagram: emptyToNull(formData.get("instagram")?.toString()),
-    courseInstanceId: formData.get("courseInstanceId")?.toString()?.trim() ?? "",
+    courseInstanceId: emptyToNull(formData.get("courseInstanceId")?.toString()) ?? undefined,
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
 
@@ -64,27 +65,35 @@ export async function createPublicCourseEnrollmentAction(
       status: "PUBLISHED",
     },
     include: {
-      instances: {
-        where: { id: parsed.data.courseInstanceId },
-      },
+      instances: parsed.data.courseInstanceId
+        ? { where: { id: parsed.data.courseInstanceId } }
+        : { where: { id: "" } }, // sin edición elegida: no trae ninguna
     },
   });
   if (!course) return { error: "Curso no disponible para inscripción." };
-  const instance = course.instances[0];
-  if (!instance) return { error: "La edición seleccionada no es válida." };
-  if (instance.status !== "ACTIVE") return { error: "La edición no está disponible para inscripción." };
-
-  const counts = await getApprovedEnrollmentCountsByInstanceIds([instance.id]);
-  const approvedCount = counts.get(instance.id) ?? 0;
-  const availableSpots = computeAvailableSpots(instance.capacity, approvedCount);
-  if (availableSpots <= 0) {
-    return { error: "No hay cupos disponibles para esta edición." };
+  const instance = course.instances[0] ?? null;
+  if (parsed.data.courseInstanceId && !instance) {
+    return { error: "La edición seleccionada no es válida." };
   }
+
+  let cuposLibres: number | null = null;
+  if (instance) {
+    const counts = await getApprovedEnrollmentCountsByInstanceIds([instance.id]);
+    cuposLibres = computeAvailableSpots(instance.capacity, counts.get(instance.id) ?? 0);
+  }
+
+  const objetivo = resolverObjetivoDeInscripcion({
+    deliveryMode: course.deliveryMode,
+    precioDelCurso: course.priceArs,
+    instancia: instance,
+    cuposLibres,
+  });
+  if (!objetivo.ok) return { error: objetivo.error };
 
   // La comisión sale de WorkspaceModuleFee (default 5%), no de coursesFeePercent, que el
   // dueño del workspace podía editar y quedó deprecado.
   const feeBps = await getPlatformFeeBps(branding.workspaceId, COURSES_SALES_MODULE_KEY);
-  const amount = instance.priceArs;
+  const amount = objetivo.monto;
   const { fee, net } = splitByPlatformFee(amount, feeBps);
   const feePercent = new Prisma.Decimal(feeBps).div(100);
 
@@ -92,7 +101,7 @@ export async function createPublicCourseEnrollmentAction(
     data: {
       workspaceId: branding.workspaceId,
       courseId: course.id,
-      courseInstanceId: instance.id,
+      courseInstanceId: objetivo.courseInstanceId,
       name: parsed.data.name,
       email: parsed.data.email,
       whatsapp: parsed.data.whatsapp,
