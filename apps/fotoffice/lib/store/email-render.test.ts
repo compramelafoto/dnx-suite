@@ -7,6 +7,7 @@ import {
   renderOrderPaid,
   renderOrderReady,
   renderPaidNoStockAlert,
+  renderRegretNotice,
   type StoreEmailOrder,
 } from "./email-render";
 
@@ -130,6 +131,25 @@ describe("avisos a la institución", () => {
     expect(r.text).toMatch(/dos veces/);
     expect(r.text).toMatch(/devolv/i);
     expect(r.text).not.toMatch(JERGA);
+  });
+
+  it("arrepentimiento: código de trámite, motivo escapado, comprador y el plazo para responder", () => {
+    const r = renderRegretNotice(pedido, { code: "PED_ABCDEFGH", reason: "No me <queda> bien" });
+    expect(r.subject).toContain("#42");
+    expect(r.subject).toMatch(/arrepenti/i);
+    expect(r.text).toContain("PED_ABCDEFGH");
+    expect(r.text).toContain("No me <queda> bien");
+    expect(r.html).toContain("No me &lt;queda&gt; bien");
+    expect(r.html).not.toContain("<queda>");
+    expect(r.text).toContain("ana@example.com");
+    expect(r.text).toContain(pedido.panelUrl!);
+    expect(r.text).not.toContain("?t=");
+    expect(r.text).not.toMatch(JERGA);
+  });
+
+  it("arrepentimiento sin motivo: no inventa uno", () => {
+    const r = renderRegretNotice(pedido, { code: "PED_ABCDEFGH", reason: null });
+    expect(r.text).not.toMatch(/Motivo/);
   });
 
   it("pago que no se pudo registrar: pide revisarlo", () => {

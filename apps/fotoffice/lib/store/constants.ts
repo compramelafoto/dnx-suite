@@ -32,6 +32,13 @@ export const STORE_ORDER_STATUS_LABELS: Record<StoreOrderStatus, string> = {
 export const STORE_NOTE_AMOUNT_MISMATCH = "Pago con monto distinto: revisar";
 export const STORE_NOTE_DUPLICATE_PREFIX = "Pago duplicado";
 export const STORE_NOTE_CREDIT_FAILURE_PREFIX = "Pago aprobado que no se pudo acreditar";
+/**
+ * La constancia del botón de arrepentimiento (`regret.ts`). No es un "problema" del panel: queda
+ * en el historial del pedido para que el personal la vea. Le sigue `: <motivo>` si lo hubo.
+ */
+export const STORE_NOTE_REGRET = "Arrepentimiento solicitado";
+/** Hasta cuánto del motivo del arrepentimiento se guarda (el formulario no deja escribir más). */
+export const STORE_REGRET_REASON_MAX = 500;
 
 export const DEFAULT_RETURNS_POLICY =
   "Podés arrepentirte de la compra dentro de los 10 días corridos desde que retirás el producto, sin dar explicaciones, usando el botón de arrepentimiento. El producto tiene que estar sin uso y en su empaque. Te devolvemos el dinero por el mismo medio de pago.";

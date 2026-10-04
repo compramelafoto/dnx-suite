@@ -80,12 +80,15 @@ export const loadOpenStore = cache(async function loadOpenStore(workspaceSlug: s
 export type StoreWorkspace = {
   workspace: { id: string; slug: string; name: string };
   pickup: { pickupAddress: string | null; pickupHours: string | null; pickupInstructions: string | null } | null;
+  /** La propia de la institución, o `null` (= `DEFAULT_RETURNS_POLICY`, ver `effectiveReturnsPolicy`). */
+  returnsPolicy: string | null;
 };
 
 /**
- * La institución de una dirección pública, SIN exigir que la tienda esté abierta. La usa sólo la
- * página de un pedido: quien pagó tiene que poder ver su pedido aunque la tienda después se
- * cierre o se apague el módulo. Vender sí exige `loadOpenStore`.
+ * La institución de una dirección pública, SIN exigir que la tienda esté abierta. La usan la
+ * página de un pedido, el botón de arrepentimiento y los términos: quien compró tiene que poder
+ * ver su pedido, arrepentirse y leer las condiciones aunque la tienda después se cierre o se
+ * apague el módulo. Vender sí exige `loadOpenStore`.
  */
 export const loadStoreWorkspace = cache(async function loadStoreWorkspace(
   workspaceSlug: string,
@@ -95,13 +98,20 @@ export const loadStoreWorkspace = cache(async function loadStoreWorkspace(
     select: { workspaceId: true, publicSlug: true, commercialName: true },
   });
   if (!branding) return null;
-  const pickup = await prisma.storeSettings.findUnique({
+  const settings = await prisma.storeSettings.findUnique({
     where: { workspaceId: branding.workspaceId },
-    select: { pickupAddress: true, pickupHours: true, pickupInstructions: true },
+    select: { pickupAddress: true, pickupHours: true, pickupInstructions: true, returnsPolicy: true },
   });
   return {
     workspace: { id: branding.workspaceId, slug: branding.publicSlug, name: branding.commercialName },
-    pickup,
+    pickup: settings
+      ? {
+          pickupAddress: settings.pickupAddress,
+          pickupHours: settings.pickupHours,
+          pickupInstructions: settings.pickupInstructions,
+        }
+      : null,
+    returnsPolicy: settings?.returnsPolicy ?? null,
   };
 });
 

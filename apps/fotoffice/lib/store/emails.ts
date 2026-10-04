@@ -12,6 +12,7 @@ import {
   renderOrderPaid,
   renderOrderReady,
   renderPaidNoStockAlert,
+  renderRegretNotice,
   type RenderedEmail,
   type StoreEmailOrder,
 } from "./email-render";
@@ -27,7 +28,7 @@ import {
 
 export type StoreOrderEmailInput = { workspaceId: string; orderId: string };
 
-type Cargado = { order: StoreEmailOrder; buyerEmail: string; notifyEmail: string | null };
+type Cargado = { order: StoreEmailOrder; publicId: string; buyerEmail: string; notifyEmail: string | null };
 
 async function cargar(input: StoreOrderEmailInput): Promise<Cargado | null> {
   const order = await prisma.storeOrder.findFirst({
@@ -66,6 +67,7 @@ async function cargar(input: StoreOrderEmailInput): Promise<Cargado | null> {
   const origen = appUrl();
   const clave = resolveOrderTokenKey();
   return {
+    publicId: order.publicId,
     buyerEmail: order.buyerEmail,
     notifyEmail: settings?.notifyEmail?.trim() || null,
     order: {
@@ -104,7 +106,7 @@ async function enviar(
   input: StoreOrderEmailInput,
   templateKey: string,
   destino: Destino,
-  render: (o: StoreEmailOrder) => RenderedEmail,
+  render: (o: StoreEmailOrder, datos: Cargado) => RenderedEmail,
 ): Promise<void> {
   try {
     const datos = await cargar(input);
@@ -118,7 +120,7 @@ async function enviar(
       });
       return;
     }
-    await sendAndLogEmail({ to, templateKey, body: render(datos.order) });
+    await sendAndLogEmail({ to, templateKey, body: render(datos.order, datos) });
   } catch (error) {
     console.error("[fotoffice][tienda] no se pudo armar un correo", {
       templateKey,
@@ -160,4 +162,14 @@ export async function sendCreditFailureAlert(input: StoreOrderEmailInput): Promi
 /** Al comprador: el pedido está listo para retirar. */
 export async function sendOrderReadyEmail(input: StoreOrderEmailInput): Promise<void> {
   await enviar(input, "store.order_ready", "comprador", renderOrderReady);
+}
+
+/**
+ * A la institución: alguien usó el botón de arrepentimiento. El código del trámite es el
+ * `publicId` en mayúsculas, el mismo que vio quien compró (ver `regret.ts`).
+ */
+export async function sendRegretNotice(input: StoreOrderEmailInput & { reason: string | null }): Promise<void> {
+  await enviar(input, "store.regret", "institucion", (o, datos) =>
+    renderRegretNotice(o, { code: datos.publicId.toUpperCase(), reason: input.reason }),
+  );
 }

@@ -255,3 +255,29 @@ export function renderCreditFailureAlert(o: StoreEmailOrder): RenderedEmail {
     { label: "Ver el pedido", url: o.panelUrl },
   );
 }
+
+/**
+ * El botón de arrepentimiento (Res. SCI 424/2020). La ley pide responder con el código del
+ * trámite: va en el asunto y en el cuerpo para que la institución lo cite al contestar.
+ */
+export function renderRegretNotice(
+  o: StoreEmailOrder,
+  input: { code: string; reason: string | null },
+): RenderedEmail {
+  return armar(
+    o.institution,
+    `Pedido online #${o.orderNumber}: pidieron arrepentirse de la compra (trámite ${input.code})`,
+    [
+      parrafo(
+        `Quien compró el pedido #${o.orderNumber} usó el botón de arrepentimiento de la tienda. El código del trámite es ${input.code}.`,
+      ),
+      input.reason ? parrafo(`Motivo que escribió: ${input.reason}`) : null,
+      parrafo(
+        `Comunicate con la persona para coordinar la devolución del producto y del dinero. El pedido no cambió de estado: cuando lo resuelvas, actualizalo desde el panel.`,
+      ),
+      comprador(o),
+      detalle(o),
+    ],
+    { label: "Ver el pedido", url: o.panelUrl },
+  );
+}

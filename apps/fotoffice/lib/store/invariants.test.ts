@@ -71,4 +71,21 @@ describe("tienda — invariantes", () => {
     expect(pagina).toMatch(/await loadStoreWorkspace\(workspaceSlug\);\s*if \(!store\) notFound\(\);/);
     expect(pagina).not.toMatch(/loadOpenStore\(workspaceSlug\);\s*if \(!\w+\) notFound/);
   });
+
+  it("arrepentirse y leer los términos no depende de que la tienda esté abierta", () => {
+    // Quien compró puede arrepentirse después de que la tienda se cierre (Res. SCI 424/2020).
+    const tienda = join(appRoot, "app/w/[workspaceSlug]/tienda");
+    for (const rel of ["arrepentimiento/page.tsx", "arrepentimiento/actions.ts", "terminos/page.tsx"]) {
+      const src = sinComentarios(readFileSync(join(tienda, rel), "utf8"));
+      expect(src, rel).not.toMatch(/loadOpenStore/);
+      expect(src, rel).toMatch(/loadStoreWorkspace\(/);
+    }
+  });
+
+  it("todas las páginas públicas de la tienda muestran el pie con el arrepentimiento y los términos", () => {
+    const tienda = join(appRoot, "app/w/[workspaceSlug]/tienda");
+    for (const rel of ["(abierta)/layout.tsx", "pedido/layout.tsx", "arrepentimiento/page.tsx", "terminos/page.tsx"]) {
+      expect(sinComentarios(readFileSync(join(tienda, rel), "utf8")), rel).toMatch(/<StoreLegalFooter\b/);
+    }
+  });
 });

@@ -5,6 +5,7 @@ import { STORE_PUBLIC_SEGMENT } from "@/lib/store/constants";
 import { loadOpenStore } from "@/lib/store/repository";
 import { CartProvider } from "@/components/store/cart-provider";
 import { CartBadge } from "@/components/store/cart-badge";
+import { StoreLegalFooter } from "@/components/store/store-legal-footer";
 
 type Props = { children: ReactNode; params: Promise<{ workspaceSlug: string }> };
 
@@ -33,6 +34,7 @@ export default async function StoreLayout({ children, params }: Props) {
         </div>
       </div>
       {children}
+      <StoreLegalFooter workspaceSlug={workspaceSlug} />
     </CartProvider>
   );
 }
