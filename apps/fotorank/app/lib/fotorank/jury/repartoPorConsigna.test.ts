@@ -169,6 +169,50 @@ test("una excepción de otra vacante no se cuela", () => {
   assert.equal(suyas.has("consigna-9"), false);
 });
 
+/**
+ * El jurado sentado que no avanza: parte de su lote pasa a otra vacante y a él
+ * se le saca, para que no califique fotos que ya está calificando otra persona.
+ */
+test("una excepción que quita le saca la consigna a la vacante", () => {
+  const sinTocar = consignasDeLaVacante({ consignas: ONCE, vacantes: 5, miradasPorObra: 3, seatNumber: 3 });
+  assert.ok(sinTocar.has("consigna-2"));
+
+  const suyas = consignasDeLaVacante({
+    consignas: ONCE,
+    vacantes: 5,
+    miradasPorObra: 3,
+    seatNumber: 3,
+    excepciones: [{ seatNumber: 3, promptExternalId: "consigna-2", quita: true }],
+  });
+  assert.equal(suyas.has("consigna-2"), false);
+  assert.equal(suyas.size, sinTocar.size - 1);
+});
+
+test("quitar le gana a sumar en la misma vacante", () => {
+  const suyas = consignasDeLaVacante({
+    consignas: ONCE,
+    vacantes: 5,
+    miradasPorObra: 3,
+    seatNumber: 2,
+    excepciones: [
+      { seatNumber: 2, promptExternalId: "consigna-9", quita: true },
+      { seatNumber: 2, promptExternalId: "consigna-9" },
+    ],
+  });
+  assert.equal(suyas.has("consigna-9"), false);
+});
+
+test("quitarle a una vacante no le saca nada a otra", () => {
+  const suyas = consignasDeLaVacante({
+    consignas: ONCE,
+    vacantes: 5,
+    miradasPorObra: 3,
+    seatNumber: 1,
+    excepciones: [{ seatNumber: 3, promptExternalId: "consigna-1", quita: true }],
+  });
+  assert.ok(suyas.has("consigna-1"));
+});
+
 test("una vacante fuera de rango no recibe nada", () => {
   for (const seatNumber of [0, 6, -1]) {
     assert.equal(

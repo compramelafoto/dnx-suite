@@ -14997,6 +14997,8 @@ model FotorankJurySeatPromptOverride {
   seatNumber       Int
   promptExternalId String
   motivo           String
+  /// Verdadero = le saca la consigna a la vacante en lugar de sumársela.
+  quita            Boolean  @default(false)
   createdByUserId  Int?
   createdAt        DateTime @default(now())
 
