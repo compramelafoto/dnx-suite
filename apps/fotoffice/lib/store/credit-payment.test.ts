@@ -373,7 +373,7 @@ describe("hasStockForOrder", () => {
     { productId: "p1", variantId: "v1", qty: 2 },
     { productId: "p2", variantId: null, qty: 1 },
   ];
-  const productos = new Map([
+  const productos = new Map<string, { tracksStock: boolean; stockQty: number; hasVariants?: boolean }>([
     ["p1", { tracksStock: true, stockQty: 10 }],
     ["p2", { tracksStock: true, stockQty: 1 }],
   ]);
