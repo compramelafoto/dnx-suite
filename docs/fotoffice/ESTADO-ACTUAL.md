@@ -276,6 +276,35 @@ Esos 10 archivos usan Checkout Pro con `marketplace_fee` y el consentimiento OAu
    **sin quitar** la del login (`/api/auth/google/callback`). Habilitar además la Google
    Calendar API en el proyecto.
 
+### Google Contacts — 2026-09-16
+
+El motor de sincronización del padrón de socios con Google Contacts está construido: el cron
+`/api/cron/contactos-sync` corre cada 15 minutos, el interruptor de agendar vive dentro de
+Padrón (§4.1 de [ARQUITECTURA-NAVEGACION.md](ARQUITECTURA-NAVEGACION.md)), y la pantalla de
+Integraciones (§4.10) refleja, dentro de la tarjeta de la cuenta, qué módulos la tienen
+encendida. Queda pendiente:
+
+1. **La verificación del scope ante Google.** El permiso `auth/contacts` es "sensible": con el
+   cliente sin verificar, conectar falla con "Acceso bloqueado" salvo para usuarios de prueba.
+   Hay que habilitar la People API en el proyecto de Google de FotoOffice, sumar el scope a la
+   pantalla de consentimiento y mandar a verificar. Los tiempos los pone Google.
+2. **Aplicar la migración `20260916120000_google_contacts` a mano en las cinco bases de Neon**
+   y registrarla con su checksum: el deploy de FotoOffice no corre `prisma migrate deploy`.
+3. **La verificación de punta a punta** con una cuenta de Google real: los diez pasos que están
+   al final de [`docs/superpowers/plans/2026-09-16-google-contacts.md`](../../apps/fotoffice/docs/superpowers/plans/2026-09-16-google-contacts.md).
+4. **La etapa 2**: sumar Reservas y Cursos como fuentes. Cada una es un archivo de fuente y un
+   interruptor, siguiendo el mismo patrón que Socios.
+
+Tres limitaciones conocidas, para no volver a descubrirlas:
+
+- Las etiquetas del contacto (Nº de socio, Categoría, Estado) no se actualizan solas: recién
+  cambian cuando algún dato de contacto del socio también cambia y dispara una corrida.
+- Un segundo teléfono o mail agregado a mano en un contacto ya sincronizado se pierde en el
+  próximo empuje, porque FotoOffice reemplaza esos campos enteros en lugar de fusionarlos.
+- Cuando en el futuro se sumen campos nuevos al conjunto sincronizado, la primera corrida con el
+  campo nuevo no puede atribuirlo a nadie y gana FotoOffice. Conviene dejar el campo nuevo fuera
+  de `pullableFields` un ciclo, o hacer una corrida de adopción antes de sumarlo.
+
 ## 8.bis Base de datos de producción — verificada el 2026-08-27
 
 Consulta de solo lectura sobre la base de Neon de producción. Solo agregados: no se leyeron datos personales.

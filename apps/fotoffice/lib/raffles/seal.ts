@@ -122,7 +122,12 @@ export async function sealRaffle(input: {
  */
 export async function sealDueRaffles(
   now: Date = new Date(),
-): Promise<{ sellados: number; fallados: { raffleId: string; error: string }[] }> {
+): Promise<{
+  sellados: number;
+  fallados: { raffleId: string; error: string }[];
+  /** Las instituciones que sellaron algo en esta pasada (sin repetir). */
+  workspacesSellados: string[];
+}> {
   const pendientes = await prisma.raffle.findMany({
     where: { status: "ANUNCIADO", entriesCloseAt: { lte: now } },
     select: { id: true, workspaceId: true },
@@ -130,12 +135,15 @@ export async function sealDueRaffles(
 
   let sellados = 0;
   const fallados: { raffleId: string; error: string }[] = [];
+  const workspacesSellados = new Set<string>();
 
   for (const p of pendientes) {
     const r = await sealRaffle({ workspaceId: p.workspaceId, raffleId: p.id, now });
-    if (r.ok) sellados += 1;
-    else fallados.push({ raffleId: p.id, error: r.error });
+    if (r.ok) {
+      sellados += 1;
+      workspacesSellados.add(p.workspaceId);
+    } else fallados.push({ raffleId: p.id, error: r.error });
   }
 
-  return { sellados, fallados };
+  return { sellados, fallados, workspacesSellados: [...workspacesSellados] };
 }
