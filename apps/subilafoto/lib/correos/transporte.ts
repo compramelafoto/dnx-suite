@@ -1,5 +1,5 @@
 /**
- * Cómo salen los correos de Subí la Foto.
+ * Cómo salen los correos de SubiLaFoto.
  *
  * **No usa el runtime controlado de `@repo/communications`, a propósito.** Ese runtime
  * exige `RESEND_ALLOWED_RECIPIENTS` con una lista explícita de direcciones —sin comodines

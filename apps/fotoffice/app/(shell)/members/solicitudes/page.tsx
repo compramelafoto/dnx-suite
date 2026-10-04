@@ -3,7 +3,8 @@ import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { ApplicationCard } from "@/components/membership/application-card";
 import { requireActiveWorkspace } from "@/lib/workspace";
-import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
+import { hasModuleLevel } from "@/lib/permissions/module-access";
+import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { getWorkspaceCollectionStatus } from "@/lib/payments/connect/status";
 import { listAwaitingPayment, listPendingApplications } from "@/lib/membership/inbox";
 import { getActiveFeeValue } from "@/lib/membership/settings";
@@ -11,6 +12,7 @@ import { prisma } from "@repo/db";
 import { appUrl } from "@/lib/app-url";
 import { ApplicationFormShare } from "@/components/membership/application-form-share";
 import { AwaitingPaymentList } from "@/components/membership/awaiting-payment-list";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 
 export const dynamic = "force-dynamic";
 
@@ -25,10 +27,10 @@ export default async function SolicitudesPage() {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) redirect("/workspace");
 
-  const puedeResolver = await canManageWorkspaceCollection(user.id, workspace.id);
+  const puedeResolver = await hasModuleLevel(user.id, workspace.id, MEMBERS_MODULE_KEY, "MANAGE");
   if (!puedeResolver) redirect("/members");
 
-  const [items, esperandoPago, cobros, valorCuota, branding] = await Promise.all([
+  const [items, esperandoPago, cobros, valorCuota, branding, v] = await Promise.all([
     listPendingApplications(workspace.id),
     listAwaitingPayment(workspace.id),
     getWorkspaceCollectionStatus(workspace.id),
@@ -37,6 +39,7 @@ export default async function SolicitudesPage() {
       where: { workspaceId: workspace.id },
       select: { publicSlug: true },
     }),
+    loadPersonVocabulary(workspace.id),
   ]);
 
   // Solo se ofrece compartir si el formulario efectivamente abre. Repartir un enlace que
@@ -51,7 +54,7 @@ export default async function SolicitudesPage() {
     <div className="space-y-8">
       <PageHeader
         title="Solicitudes de asociación"
-        description="Revisá y resolvé los pedidos de ingreso. Al aprobar se crea el socio, se generan sus cuotas y se le envía por email el acceso para activarlas y pagarlas."
+        description={`Revisá y resolvé los pedidos de ingreso. Al aprobar se crea el ${v.singular}, se generan sus cuotas y se le envía por email el acceso para activarlas y pagarlas.`}
       />
 
       {publicUrl ? <ApplicationFormShare publicUrl={publicUrl} /> : null}
@@ -84,12 +87,12 @@ export default async function SolicitudesPage() {
             {items.length} {items.length === 1 ? "solicitud pendiente" : "solicitudes pendientes"}
           </p>
           {items.map((item) => (
-            <ApplicationCard key={item.id} item={item} />
+            <ApplicationCard key={item.id} item={item} vocabulary={v} />
           ))}
         </div>
       )}
 
-      <AwaitingPaymentList items={esperandoPago} />
+      <AwaitingPaymentList items={esperandoPago} vocabulary={v} />
     </div>
   );
 }

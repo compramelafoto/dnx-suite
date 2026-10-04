@@ -12,6 +12,8 @@ export type JuryErrorCode =
   | "PREVIEW_MISSING"
   | "ORIGINAL_FORBIDDEN"
   | "CONFLICT_EXISTS"
+  /** Compite en esa categoría: no la puede juzgar. No se declara, se deduce. */
+  | "COMPITE_EN_LA_CATEGORIA"
   | "CONFLICT_BLOCKS_SUBMIT"
   | "INVALID_INPUT"
   | "SESSION_CLOSED"
@@ -36,6 +38,8 @@ export type JuryErrorCode =
   | "INVALID_SCORE"
   | "WEIGHT_SUM"
   | "TERMS_REQUIRED"
+  /** Elegir con cupo: ya eligió el máximo de fotos en esa categoría y consigna. */
+  | "QUOTA_EXCEEDED"
   | "NO_ASSIGNMENT"
   | "REASSIGN_TARGET_INVALID"
   | "JUDGE_REVOKED";

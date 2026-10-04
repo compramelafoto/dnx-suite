@@ -66,7 +66,8 @@ describe("sellar el padrón", () => {
   it("sin ningún socio al día no se sella, y el aviso lo dice", () => {
     expect(canSeal({ ...base, entrantCount: 0 })).toEqual({
       ok: false,
-      error: "Ningún socio quedó al día al cerrar el padrón. El sorteo no se puede sellar.",
+      // Con el marcador sin resolver: la palabra la pone la acción, que conoce el workspace.
+      error: "Ningún {persona} quedó al día al cerrar el padrón. El sorteo no se puede sellar.",
     });
   });
 

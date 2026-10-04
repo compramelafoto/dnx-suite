@@ -116,3 +116,256 @@ describe("parseCoverageRequest", () => {
     if (r.ok) expect(r.data.documentationLinks).toEqual(["https://ok.org"]);
   });
 });
+
+/**
+ * La validación sale de la configuración del workspace.
+ *
+ * Es el punto que sostiene todo lo demás: si la obligatoriedad viviera escrita acá, apagar un
+ * campo en la pantalla de configuración sería puro maquillaje y el servidor seguiría exigiendo
+ * lo mismo.
+ */
+describe("parseCoverageRequest con la configuración del workspace", () => {
+  it("sin configuración se comporta igual que hoy", () => {
+    // `contactName` es obligatorio desde el primer día. Que las listas por omisión lo digan es
+    // lo que garantiza que ninguna institución vea cambiar su formulario sin haberlo tocado.
+    expect(parseCoverageRequest(base({ contactName: "" })).ok).toBe(false);
+    expect(parseCoverageRequest(base({ city: "" })).ok).toBe(true);
+  });
+
+  it("un campo puesto como obligatorio se exige, y lo dice con la etiqueta que la persona vio", () => {
+    const r = parseCoverageRequest(base({ contactPhone: "" }), {
+      hidden: [],
+      required: ["contactPhone"],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toContain("WhatsApp o teléfono");
+  });
+
+  it("el mismo campo, si no es obligatorio, puede faltar", () => {
+    expect(parseCoverageRequest(base({ contactPhone: "" }), { hidden: [], required: [] }).ok).toBe(
+      true,
+    );
+  });
+
+  it("un campo oculto se descarta aunque llegue: esconderlo no era el control", () => {
+    // Una pestaña vieja, un formulario copiado o un `curl` pueden mandar lo que quieran.
+    const r = parseCoverageRequest(base({ city: "Rosario", orgTaxId: "30-12345678-9" }), {
+      hidden: ["city", "orgTaxId"],
+      required: [],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.data.city).toBe(null);
+      expect(r.data.orgTaxId).toBe(null);
+    }
+  });
+
+  it("un campo oculto con un valor inválido no frena el envío", () => {
+    // Si no se mira, no se valida: rechazar por un dato que la institución decidió no pedir
+    // dejaría a la ONG con un error que no puede arreglar, porque el campo ni se ve.
+    const r = parseCoverageRequest(base({ expectedAttendees: "muchísimos" }), {
+      hidden: ["expectedAttendees"],
+      required: [],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.data.expectedAttendees).toBe(null);
+  });
+
+  it("oculto gana sobre obligatorio: no se exige lo que no se muestra", () => {
+    const r = parseCoverageRequest(base({ contactPhone: "" }), {
+      hidden: ["contactPhone"],
+      required: ["contactPhone"],
+    });
+    expect(r.ok).toBe(true);
+  });
+
+  it("un campo fijo no se puede esconder ni dejar de exigir", () => {
+    const r = parseCoverageRequest(base({ orgName: "" }), {
+      hidden: ["orgName", "contactEmail", "startsAt"],
+      required: [],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toContain("organización");
+
+    const conFecha = parseCoverageRequest(base(), {
+      hidden: ["startsAt", "endsAt"],
+      required: [],
+    });
+    expect(conFecha.ok).toBe(true);
+    if (conFecha.ok) expect(conFecha.data.durationMinutes).toBe(270);
+  });
+
+  it("una fecha obligatoria e ilegible cuenta como campo sin completar", () => {
+    const r = parseCoverageRequest(base({ expectedDeliveryAt: "el mes que viene" }), {
+      hidden: [],
+      required: ["expectedDeliveryAt"],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toContain("Para cuándo las necesitan");
+  });
+
+  it("enlaces obligatorios que no son http lo dicen con claridad", () => {
+    const r = parseCoverageRequest(base({ documentationLinks: "instagram.com/ong" }), {
+      hidden: [],
+      required: ["documentationLinks"],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toContain("http");
+  });
+
+  it("sin nombre de contacto la solicitud sigue siendo válida si la institución no lo pide", () => {
+    const r = parseCoverageRequest(base({ contactName: "" }), { hidden: ["contactName"], required: [] });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.data.contactName).toBe("");
+  });
+});
+
+/**
+ * Los campos de elección.
+ *
+ * Los botones del formulario son una comodidad para quien completa; el control es este. El
+ * `FormData` lo arma el navegador y puede decir cualquier cosa, así que lo que no está en la
+ * lista de opciones del catálogo se rechaza en vez de guardarse crudo.
+ */
+describe("parseCoverageRequest con campos de elección", () => {
+  it("una respuesta del catálogo se guarda", () => {
+    const r = parseCoverageRequest(base({ venueKind: "INTERIOR" }));
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.data.venueKind).toBe("INTERIOR");
+  });
+
+  it("una respuesta que no está en la lista se rechaza: no se guarda cruda", () => {
+    const r = parseCoverageRequest(base({ venueKind: "<script>alert(1)</script>" }));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toContain("lugar cerrado");
+  });
+
+  it("no elegir nada es válido cuando el campo no es obligatorio", () => {
+    const r = parseCoverageRequest(base());
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.data.venueKind).toBe(null);
+      expect(r.data.otherCoverage).toBe(null);
+      expect(r.data.showcaseScope).toBe(null);
+    }
+  });
+
+  it("«Otros» guarda la opción con el texto libre detrás", () => {
+    const r = parseCoverageRequest(
+      base({ venueKind: "OTROS", venueKind__otro: "patio con media sombra" }),
+    );
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.data.venueKind).toBe("OTROS: patio con media sombra");
+  });
+
+  it("el texto libre sin una opción válida adelante no entra por su cuenta", () => {
+    const r = parseCoverageRequest(base({ venueKind__otro: "patio con media sombra" }));
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.data.venueKind).toBe(null);
+  });
+
+  it("un campo de elección oculto se descarta aunque llegue, con texto libre y todo", () => {
+    const r = parseCoverageRequest(
+      base({ showcaseScope: "TODO", showcaseScope__otro: "lo que quieran" }),
+      { hidden: ["showcaseScope"], required: [] },
+    );
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.data.showcaseScope).toBe(null);
+  });
+
+  it("un campo de elección oculto con un valor inventado tampoco frena el envío", () => {
+    // Si se descarta antes de mirarlo, no hay nada que validar: la institución decidió no
+    // preguntarlo y nadie tiene por qué quedarse sin mandar el pedido por eso.
+    const r = parseCoverageRequest(base({ venueKind: "cualquier cosa" }), {
+      hidden: ["venueKind"],
+      required: [],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.data.venueKind).toBe(null);
+  });
+
+  it("obligatorio y sin elegir, lo dice con la pregunta que la persona leyó", () => {
+    const r = parseCoverageRequest(base(), { hidden: [], required: ["otherCoverage"] });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toContain("otro fotógrafo");
+  });
+
+  it("las tres preguntas nuevas se guardan juntas", () => {
+    const r = parseCoverageRequest(
+      base({
+        venueKind: "AMBOS",
+        otherCoverage: "HAY_OTRA_COBERTURA",
+        showcaseScope: "SIN_PERSONAS",
+      }),
+    );
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.data.venueKind).toBe("AMBOS");
+      expect(r.data.otherCoverage).toBe("HAY_OTRA_COBERTURA");
+      expect(r.data.showcaseScope).toBe("SIN_PERSONAS");
+    }
+  });
+});
+
+/**
+ * El punto del mapa.
+ *
+ * Lo que importa verificar acá no es que las coordenadas se guarden —eso es una línea— sino las
+ * tres reglas que hacen que este campo no pueda frenar un pedido: es opcional, lo inválido se
+ * descarta en silencio, y con la dirección apagada no se guarda aunque llegue.
+ */
+describe("la georreferencia de la dirección", () => {
+  it("un punto válido se guarda con su geohash", () => {
+    const r = parseCoverageRequest(
+      base({ addressLine: "Ricchieri 426", latitude: "-32.9468", longitude: "-60.6393" }),
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.data.latitude).toBeCloseTo(-32.9468, 4);
+    expect(r.data.longitude).toBeCloseTo(-60.6393, 4);
+    // Precisión 7 es la que usa `@repo/geo` por omisión. No se verifica el valor exacto del
+    // geohash: eso ya lo prueba el paquete. Sí que exista y tenga el largo esperado.
+    expect(r.data.geohash).toHaveLength(7);
+  });
+
+  it("sin punto el pedido se manda igual: la dirección alcanza", () => {
+    const r = parseCoverageRequest(base({ addressLine: "Al lado de la plaza, en Villa Elisa" }));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.data.addressLine).toBe("Al lado de la plaza, en Villa Elisa");
+    expect(r.data.latitude).toBeNull();
+    expect(r.data.longitude).toBeNull();
+    expect(r.data.geohash).toBeNull();
+  });
+
+  it("un punto imposible se descarta sin frenar el envío", () => {
+    for (const malo of [
+      { latitude: "99", longitude: "-60" },
+      { latitude: "-32.9", longitude: "500" },
+      { latitude: "ahí nomás", longitude: "-60" },
+      // 0,0 casi nunca es el golfo de Guinea: es un campo vacío que se volvió cero.
+      { latitude: "0", longitude: "0" },
+      // Media coordenada no es una coordenada.
+      { latitude: "-32.9468", longitude: "" },
+    ]) {
+      const r = parseCoverageRequest(base({ addressLine: "Ricchieri 426", ...malo }));
+      expect(r.ok).toBe(true);
+      if (!r.ok) continue;
+      expect(r.data.latitude).toBeNull();
+      expect(r.data.longitude).toBeNull();
+      expect(r.data.geohash).toBeNull();
+    }
+  });
+
+  it("con la dirección oculta no se guarda el punto, aunque llegue en el formulario", () => {
+    const r = parseCoverageRequest(
+      base({ addressLine: "Ricchieri 426", latitude: "-32.9468", longitude: "-60.6393" }),
+      { hidden: ["addressLine"], required: [] },
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.data.addressLine).toBeNull();
+    expect(r.data.latitude).toBeNull();
+    expect(r.data.geohash).toBeNull();
+  });
+});

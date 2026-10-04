@@ -276,7 +276,7 @@ async function registrarConsentimientos(
 }
 
 function notaDeOrigen(posibles: string[] | undefined, seCorto: boolean): string | null {
-  const partes = ["Alta desde el enlace de proveedores de un evento de Subí la Foto."];
+  const partes = ["Alta desde el enlace de proveedores de un evento de SubiLaFoto."];
   if (posibles?.length) partes.push(`Posibles duplicados a revisar: ${posibles.join(", ")}.`);
   if (seCorto) {
     partes.push(

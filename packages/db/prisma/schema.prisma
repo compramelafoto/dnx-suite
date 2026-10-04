@@ -146,6 +146,8 @@ model User {
   dashboardNotifications                DashboardNotification[]
   fotofficePhotographerProfile          FotofficePhotographerProfile?
   fotofficeInstitutionalMemberships     Member[]
+  /// Portfolios que bajó del sitio. SetNull: borrar su usuario no borra lo que hizo.
+  fotofficePortfoliosHidden             FotofficeMemberPortfolio[]             @relation("PortfolioHiddenBy")
   clickatonRegistrations                ClickatonRegistration[]                @relation("ClickatonRegistrationParticipant")
   clickatonCheckInsOperated             ClickatonCheckIn[]                     @relation("ClickatonCheckInOperator")
   clickatonCheckInsReversed             ClickatonCheckIn[]                     @relation("ClickatonCheckInReverser")
@@ -298,6 +300,8 @@ model User {
   fotorankRulesVersionsCreated          FotorankContestRulesVersion[]          @relation("FrRulesVersionAuthor")
   suiteMemberships                      Membership[]                           @relation("FrSuiteMembership")
   workspaceMembershipsUnified           WorkspaceMembership[]
+  workspaceRoleAssignments              WorkspaceRoleAssignment[]
+  workspaceOfficeTerms                  WorkspaceOfficeTerm[]
   appAccessUnified                      WorkspaceAppAccess[]
   fotorankContestConfigurationVersions  FotorankContestConfigurationVersion[]
   fotorankContestRulesTemplates         FotorankContestRulesTemplate[]
@@ -325,6 +329,9 @@ model User {
   subilafotoSellerProfiles            SubilafotoSellerProfile[]
   subilafotoCollaborations            SubilafotoCollaborator[]
   coverageEvents                      CoverageEvent[]
+  clickatonReferralCode               ClickatonReferralCode?
+  clickatonReferralsMade              ClickatonReferralAttribution[]     @relation("ClickatonReferralReferrer")
+  clickatonReferralReceived           ClickatonReferralAttribution?      @relation("ClickatonReferralReferred")
 }
 
 /// Perfil financiero de ¿Cuánto Cobro? (wizard bloque A), 1:1 con User.
@@ -741,6 +748,11 @@ model BlogCategory {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   platform    String
+  /// A qué institución pertenece, dentro de la plataforma. "" = el blog de la plataforma entera
+  /// (CompraMeLaFoto, Clickatón). En FOTOFFICE es el id del workspace: cada institución tiene su
+  /// blog. Texto y no FK a propósito: "" tiene que poder entrar en el `@@unique`, y un NULL no
+  /// cuenta para la unicidad en Postgres.
+  workspaceKey String @default("")
   name        String
   slug        String
   description String?
@@ -748,7 +760,7 @@ model BlogCategory {
   isFeatured  Boolean    @default(false)
   posts       BlogPost[]
 
-  @@unique([platform, slug])
+  @@unique([platform, workspaceKey, slug])
   @@index([platform, sortOrder])
 }
 
@@ -757,11 +769,12 @@ model BlogCategory {
 model BlogTag {
   id       Int           @id @default(autoincrement())
   platform String
+  workspaceKey String @default("")
   name     String
   slug     String
   posts    BlogPostTag[]
 
-  @@unique([platform, slug])
+  @@unique([platform, workspaceKey, slug])
 }
 
 /// *
@@ -771,6 +784,7 @@ model BlogAuthor {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   platform  String
+  workspaceKey String @default("")
   name      String
   slug      String
   bio       String?
@@ -781,7 +795,7 @@ model BlogAuthor {
   user      User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
   posts     BlogPost[]
 
-  @@unique([platform, slug])
+  @@unique([platform, workspaceKey, slug])
   @@index([platform, isActive])
 }
 
@@ -791,6 +805,7 @@ model BlogMedia {
   id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
   platform  String
+  workspaceKey String @default("")
   title     String?
   altText   String?
   caption   String?
@@ -801,6 +816,7 @@ model BlogMedia {
   sizeBytes Int
 
   @@index([platform, createdAt])
+  @@index([platform, workspaceKey, createdAt])
 }
 
 /// *
@@ -810,6 +826,7 @@ model BlogPost {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
   platform       String
+  workspaceKey String @default("")
   title          String
   slug           String
   excerpt        String?
@@ -837,8 +854,9 @@ model BlogPost {
   tags           BlogPostTag[]
   views          BlogPostView[]
 
-  @@unique([platform, slug])
+  @@unique([platform, workspaceKey, slug])
   @@index([platform, status, publishedAt])
+  @@index([platform, workspaceKey, status, publishedAt])
   @@index([platform, status, isFeatured])
   @@index([platform, categoryId])
   @@index([platform, type])
@@ -5516,6 +5534,8 @@ model PackDefinition {
   /// Si está definido, al pagar la preventa se copia a PackPurchaseEntitlement.expiresAt
   redemptionDeadlineAt         DateTime?
   displayOrder                 Int                    @default(0)
+  /// Marca el pack destacado del álbum en el catálogo público ("Recomendado"). Como mucho uno por álbum: encender uno apaga los demás.
+  isRecommended                Boolean                @default(false)
   /// Precio base del fotógrafo (ARS enteros). El cliente paga este monto + fee de plataforma (mismo criterio que el checkout del álbum). Nombre histórico: priceClientArs.
   priceClientArs               Int                    @default(0)
   currency                     String                 @default("ARS")
@@ -6914,6 +6934,10 @@ enum EmailQueueStatus {
 enum TokenPurpose {
   VERIFY_EMAIL
   CREATE_ACCOUNT
+  /// Recuperar la contraseña de un jurado de FotoRank, que no tiene `User`
+  /// y por eso no puede usar `PasswordResetToken`. Es un propósito propio
+  /// para que un enlace de confirmar correo no sirva para cambiar la clave.
+  PASSWORD_RESET
 }
 
 enum ZipJobType {
@@ -7059,6 +7083,7 @@ model Workspace {
   courseSalesSettings         CourseSalesWorkspaceSettings?
   fotofficeBranding           FotofficeWorkspaceBranding?
   fotofficeWebsite            FotofficeWorkspaceWebsite?
+  fotofficeDomain             FotofficeWorkspaceDomain?
   fotorankJudgeAccounts       FotorankJudgeAccount[]
   memberships                 Membership[]
   serviceLeadForms            ServiceLeadForm[]
@@ -7067,10 +7092,13 @@ model Workspace {
   students                    EvaluationStudent[]
   featureModules              WorkspaceFeatureModule[]
   workspaceMembershipsUnified WorkspaceMembership[]
+  customRoles                 WorkspaceCustomRole[]
+  offices                     WorkspaceOffice[]
   appAccessUnified            WorkspaceAppAccess[]
   institutionalMembers        Member[]
   memberCategories            MemberCategory[]
   memberAudits                MemberAudit[]
+  memberPortfolios            FotofficeMemberPortfolio[]
   memberInvitations           MemberInvitation[]
   moduleFees                  WorkspaceModuleFee[]
   integrations                WorkspaceIntegration[]
@@ -7081,6 +7109,8 @@ model Workspace {
   bookingResources            BookingResource[]
   bookingExtras               BookingExtra[]
   raffles                     Raffle[]
+  rafflePrizeCommitments      RafflePrizeCommitment[]
+  raffleSettings              RaffleSettings?
   clients                     Client[]
   cashAccounts                CashAccount[]
   cashCategories              CashCategory[]
@@ -7106,6 +7136,7 @@ model Workspace {
   coverageCalls               CoverageCall[]
   coverageCollaborators       CoverageCollaboratorProfile[]
   coverageEvents              CoverageEvent[]
+  vocabulary                  WorkspaceVocabulary?
 }
 
 model WorkspaceFeatureModule {
@@ -7153,6 +7184,10 @@ model FotofficeWorkspaceBranding {
   /// El resto de la firma (nombre, logo, contacto, redes) sale de los campos de arriba: una
   /// sola fuente de verdad entre el sitio público y los emails.
   emailSignatureNote    String?
+  /// Descripción breve de la institución (texto plano, hasta 300 caracteres). Es lo que muestran
+  /// Google y la vista previa al compartir el sitio (WhatsApp, Facebook) si en Sitio web → SEO no
+  /// se cargó una descripción propia.
+  shortDescription      String?
   /// null = onboarding incompleto; set cuando el fotógrafo termina o saltea
   onboardingCompletedAt DateTime?
   createdAt             DateTime  @default(now())
@@ -7192,6 +7227,28 @@ model FotofficeWorkspaceWebsite {
   workspace          Workspace                          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   publishedVersion   FotofficeWorkspaceWebsiteVersion?  @relation("WebsitePublishedVersion", fields: [publishedVersionId], references: [id])
   versions           FotofficeWorkspaceWebsiteVersion[] @relation("WebsiteVersionHistory")
+}
+
+/// Dominio propio del sitio público de una institución (ej. `sfpr.com.ar`). Tabla aparte y no
+/// columnas en `FotofficeWorkspaceWebsite`: el esquema se comparte con otras bases y una columna
+/// sin aplicar rompe todas las consultas del modelo. Spec:
+/// `apps/fotoffice/docs/superpowers/specs/2026-10-02-sitio-web-dominio-propio-design.md`.
+model FotofficeWorkspaceDomain {
+  id                 String    @id @default(cuid())
+  workspaceId        String    @unique
+  /// Dominio raíz, en minúsculas, sin `www.` ni protocolo. `www.<domain>` se atiende solo.
+  domain             String    @unique
+  /// PENDING (falta el DNS) · CONNECTED (apunta bien) · ERROR. Texto y no enum: agregar un
+  /// estado no obliga a migrar las otras bases que comparten el esquema.
+  status             String    @default("PENDING")
+  /// Cuándo se agregó al proyecto de Vercel. null = sin token configurado o falló.
+  vercelRegisteredAt DateTime?
+  lastCheckedAt      DateTime?
+  /// Último problema, en lenguaje claro para el dueño de la institución.
+  lastError          String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  workspace          Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
 /// Snapshot INMUTABLE de una publicación del sitio — nunca se edita después de creado. Solo
@@ -7345,10 +7402,28 @@ model Member {
   /// Se pide desde el alta: pedirla después implica volver a contactar a cada socio uno por uno.
   /// Nombre del estudio o marca, si trabaja con uno distinto de su nombre.
   businessName   String?
+  /// Logo de ese estudio o marca. Se muestra en el portal junto al nombre; lo sube el socio.
+  businessLogoUrl String?
   /// Rubros en los que trabaja. Vocabulario cerrado, validado en lib/membership/specialties.ts.
   specialties    String[] @default([])
   /// Presentación breve, en palabras del socio.
   bio            String?
+
+  /// --- Dónde atiende: el domicilio del ESTUDIO, nunca el particular ---
+  ///
+  /// `address`, `city`, `province` y `postalCode` de más arriba son los datos personales del
+  /// socio y **no se publican**. Estos son los del local donde trabaja, y sí salen en su ficha
+  /// pública y en sus datos estructurados. Tener dos juegos de campos no es redundancia:
+  /// publicar por error el domicilio particular de alguien es un daño que no se deshace.
+  studioStreet     String?
+  studioCity       String?
+  studioProvince   String?
+  studioPostalCode String?
+  /// Coordenadas del local, para que Google lo ubique en el mapa. El socio pega un enlace de
+  /// Google Maps y se sacan de ahí: nadie anda con sus coordenadas a mano.
+  /// Ver `apps/fotoffice/lib/membership/studio-location.ts`.
+  studioLat        Float?
+  studioLng        Float?
   website        String?
   /// Instagram y TikTok se guardan como usuario, sin arroba. Facebook, YouTube y LinkedIn como
   /// dirección completa: en esas tres el perfil tiene varias formas válidas. Ver lib/membership/social.ts.
@@ -7416,6 +7491,11 @@ model Member {
   coverageApplications            CoverageApplication[]
   coverageAssignments             CoverageAssignment[]
   coverageDeliverables            CoverageDeliverable[]
+  /// Su portfolio, si alguna vez entró a armarlo. La fila se crea recién cuando la persona
+  /// abre la pantalla: no se le inventa un portfolio vacío a todo el padrón.
+  portfolio                       FotofficeMemberPortfolio?
+  roleAssignments                 WorkspaceRoleAssignment[]
+  officeTerms                     WorkspaceOfficeTerm[]
 
   @@unique([workspaceId, memberNumber])
   @@unique([workspaceId, email])
@@ -7909,6 +7989,10 @@ enum MemberAuditAction {
   INVITE_SEND_FAILED
   INVITE_REVOKED
   INVITE_ACCEPTED
+  /// La institución bajó el portfolio del sitio. Exige motivo, como la suspensión y la baja.
+  PORTFOLIO_HIDDEN
+  /// La institución lo volvió a publicar, o lo publicó pese a la deuda.
+  PORTFOLIO_RESTORED
 }
 
 /// De dónde vino la operación. `SYSTEM` queda para procesos automáticos futuros
@@ -8010,6 +8094,142 @@ model MemberAudit {
   @@index([workspaceId, createdAt])
   /// Recuperar un lote de importación completo.
   @@index([batchId])
+}
+
+/// El portfolio de una persona del padrón: una galería, con una foto destacada.
+///
+/// NO guarda la presencia profesional (presentación, especialidades, redes, sitio): eso vive en
+/// `Member` desde el alta y se lee de ahí. Duplicarlo sería garantizar que algún día digan
+/// cosas distintas.
+model FotofficeMemberPortfolio {
+  id          String @id @default(cuid())
+  workspaceId String
+  memberId    String @unique
+
+  /// Dirección pública: `/w/{slug}/socios/{publicSlug}`. Se calcula al crear y NO se recalcula
+  /// si la persona cambia de apellido — una dirección publicada que deja de funcionar es un
+  /// enlace roto en el sitio de otro.
+  publicSlug String
+
+  /// El interruptor de la persona. Arranca apagado: tener un portfolio y publicarlo son dos
+  /// actos distintos.
+  memberPublished   Boolean   @default(false)
+  memberPublishedAt DateTime?
+
+  /// La foto que la representa en el directorio. SetNull: si se borra esa foto el portfolio
+  /// sigue existiendo y la destacada pasa a ser la primera que quede.
+  coverPhotoId String? @unique
+
+  /// La bajada de la institución. Los tres campos van juntos: nunca se baja sin motivo.
+  hiddenByAdminAt     DateTime?
+  hiddenByAdminUserId Int?
+  hiddenReason        String?
+
+  /// El perdón de deuda. Saltea SOLO la condición de cargos vencidos, ninguna otra — ver
+  /// `apps/fotoffice/lib/portfolio/visibility.ts`. Existe porque la migración del historial de
+  /// pagos está incompleta y hay gente al día que figura debiendo: una regla automática sin
+  /// forma humana de contradecirla es una trampa.
+  adminForcePublish Boolean @default(false)
+
+  /// Si la ficha pública muestra la franja de posteos de Instagram. Apagado por omisión: trae un
+  /// script de Meta al sitio de la institución, y eso se decide, no se hereda.
+  instagramEnabled  Boolean  @default(false)
+  /// Enlaces a posteos propios que el socio eligió mostrar, en orden. Tope de 6, validado en la
+  /// acción. No es el feed: leer el feed de alguien exige OAuth y una app aprobada por Meta desde
+  /// que cerró la Basic Display API, en diciembre de 2024.
+  instagramPostUrls String[] @default([])
+
+  /// --- Cómo se ve esta ficha en Google y al compartirla ---
+  ///
+  /// Los tres son OPCIONALES y vacíos se comportan como antes de existir: el título se arma con
+  /// nombre, estudio y ciudad, la descripción es la presentación del socio, y la miniatura sigue
+  /// el orden logo → destacada → foto de perfil. Nadie empeora por no tocarlos.
+  ///
+  /// Existen porque la presentación y la descripción de Google tienen trabajos distintos: una
+  /// puede ser larga y en primera persona, la otra se corta a ~160 caracteres y conviene que sea
+  /// un resumen con las palabras que la gente busca.
+  seoTitle       String?
+  seoDescription String?
+  /// "LOGO" | "COVER" | "PROFILE". Texto y no enum: el conjunto cerrado vive en
+  /// `lib/portfolio/seo-fields.ts`, y agregarle una opción no debería ser una migración.
+  seoImageChoice String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace    Workspace                       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member       Member                          @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  hiddenByUser User?                           @relation("PortfolioHiddenBy", fields: [hiddenByAdminUserId], references: [id], onDelete: SetNull)
+  photos       FotofficeMemberPortfolioPhoto[] @relation("PortfolioPhotos")
+  videos       FotofficeMemberPortfolioVideo[]
+  coverPhoto   FotofficeMemberPortfolioPhoto?  @relation("PortfolioCoverPhoto", fields: [coverPhotoId], references: [id], onDelete: SetNull)
+
+  /// Dos personas de la misma institución no pueden compartir dirección. Dos de instituciones
+  /// distintas sí: las direcciones viven bajo `/w/{slug}/`.
+  @@unique([workspaceId, publicSlug])
+  @@index([workspaceId])
+}
+
+/// Una foto del portfolio de una persona.
+model FotofficeMemberPortfolioPhoto {
+  id          String @id @default(cuid())
+  portfolioId String
+
+  /// Key dentro del bucket compartido del monorepo, bajo `fotoffice/member-portfolio/`.
+  r2Key       String
+  url         String
+  contentType String
+  sizeBytes   Int
+  /// Se guardan para reservar el espacio de cada foto antes de que cargue: sin esto la galería
+  /// salta mientras se arma.
+  width       Int
+  height      Int
+
+  /// El orden que eligió la persona. Denso dentro de un portfolio, arranca en 0.
+  order Int
+  title String?
+  year  Int?
+  /// Descripción de lo que se ve en la foto. Va al atributo `alt` de la imagen.
+  ///
+  /// Es lo que lee Google para encontrar la foto **y** lo que escucha quien usa un lector de
+  /// pantalla. Un solo texto para las dos cosas: separarlos produciría dos descripciones de la
+  /// misma foto que algún día se contradicen.
+  altText String?
+
+  createdAt DateTime @default(now())
+
+  portfolio FotofficeMemberPortfolio  @relation("PortfolioPhotos", fields: [portfolioId], references: [id], onDelete: Cascade)
+  coverOf   FotofficeMemberPortfolio? @relation("PortfolioCoverPhoto")
+
+  @@index([portfolioId, order])
+}
+
+/// Un video del portfolio, agregado pegando su dirección.
+///
+/// No se guarda el archivo: un video pesa cientos de megas y ya está alojado donde el socio lo
+/// subió. Se guarda de dónde viene y cómo mostrarlo.
+model FotofficeMemberPortfolioVideo {
+  id          String @id @default(cuid())
+  portfolioId String
+
+  /// YOUTUBE, VIMEO, INSTAGRAM, TIKTOK u OTRO. Texto y no enum a propósito: agregar una plataforma
+  /// es cambiar `lib/portfolio/videos.ts`, no migrar la base.
+  platform String
+  /// La dirección canónica, ya normalizada por `parsePortfolioVideoUrl`.
+  url      String
+  /// Identificador del video. Sólo lo tienen YouTube y Vimeo, que se embeben por iframe.
+  videoId  String?
+  /// Título que puso el socio. Opcional: un video sin título es un video válido.
+  title    String?
+
+  /// El orden que eligió el socio. Denso dentro de un portfolio, arranca en 0.
+  order Int
+
+  createdAt DateTime @default(now())
+
+  portfolio FotofficeMemberPortfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+
+  @@index([portfolioId, order])
 }
 
 model CourseSalesWorkspaceSettings {
@@ -8132,8 +8352,25 @@ model BookingSpace {
   requiresApproval  Boolean @default(false)
 
   /// Tarifas por hora. El precio de socio ES el precio promocional.
+  /// Sólo se usan con `pricingMode = "HOURLY"`.
   memberHourlyPriceArs    Decimal @default(0) @db.Decimal(12, 2)
   nonMemberHourlyPriceArs Decimal @default(0) @db.Decimal(12, 2)
+
+  /// --- Cómo se cobra este espacio ---
+  ///
+  /// `"HOURLY"`: precio por hora, prorrateado por minuto. Es como nació el módulo.
+  ///
+  /// `"BLOCK"`: se cobra por bloque, no por hora. Existe porque así se vende de verdad:
+  /// el estudio va en paquetes de 2 horas a un precio, y el salón tiene precio plano por
+  /// jornada. Ninguno de los dos se puede escribir como tarifa horaria —no hay número por hora
+  /// que dé el mismo total para 3, 4 y 5 horas— y fingir que sí obligaba a mostrarle a la gente
+  /// un precio por hora que no es el que paga.
+  pricingMode String @default("HOURLY")
+  /// Tamaño del bloque, en minutos. **`null` = un solo bloque por reserva** (la "jornada"):
+  /// se cobra lo mismo dure lo que dure, y el piso lo pone `minBookingMinutes`.
+  blockMinutes Int?
+  memberBlockPriceArs    Decimal @default(0) @db.Decimal(12, 2)
+  nonMemberBlockPriceArs Decimal @default(0) @db.Decimal(12, 2)
   /// Horas bonificadas por mes para socios. 0 = este espacio no bonifica.
   memberFreeHoursPerMonth Int     @default(0)
   allowsNonMembers        Boolean @default(true)
@@ -8233,7 +8470,14 @@ model Booking {
   /// Dinero, todo congelado en el momento de reservar.
   billedMinutes   Int
   freeMinutesUsed Int     @default(0)
+  /// El precio por hora que se aplicó. Sólo tiene sentido con `pricingModeSnapshot = "HOURLY"`.
   hourlyPriceArs  Decimal @db.Decimal(12, 2)
+  /// Cómo se cobró ESTA reserva. Congelado: si mañana el espacio cambia de modo o de precio,
+  /// lo que se cobró no se reescribe.
+  pricingModeSnapshot String  @default("HOURLY")
+  /// Con `"BLOCK"`: cuánto salía cada bloque y cuántos se cobraron.
+  blockPriceArs       Decimal? @db.Decimal(12, 2)
+  blocksBilled        Int?
   totalArs        Decimal @db.Decimal(12, 2)
   /// Puntos básicos: 500 = 5%. Entero, nunca porcentaje decimal.
   feeBps          Int     @default(0)
@@ -8420,6 +8664,13 @@ model Raffle {
   entriesCloseAt DateTime
   /// El acto: se lee drand y se resuelven los premios.
   drawsAt        DateTime
+  /// Cuántos días tiene el ganador para retirar el premio en el local del aliado. El plazo
+  /// corre desde el sorteo, se le haya podido avisar o no: así el aliado sabe la fecha exacta
+  /// desde el día uno. Si el aviso falla, queda marcado y la Secretaría llama por teléfono.
+  pickupDays     Int      @default(15)
+  /// `YYYY-MM` que cubre este sorteo, cuando lo generó la tarea mensual. Único por institución:
+  /// es lo que impide que se creen dos sorteos para el mismo mes.
+  period         String?
 
   /// BORRADOR | ANUNCIADO | PADRON_SELLADO | SORTEADO | CERRADO | CANCELADO
   status String @default("BORRADOR")
@@ -8456,6 +8707,7 @@ model Raffle {
   awards    RafflePrizeAward[]
   events    RaffleEvent[]
 
+  @@unique([workspaceId, period])
   @@index([workspaceId, drawsAt])
   @@index([status, entriesCloseAt])
   @@index([status, drawsAt])
@@ -8506,14 +8758,32 @@ model RafflePrize {
   /// dominio Partners, que vive en su propia aplicación.
   partnerId           String?
   partnerNameSnapshot String?
+  /// Adónde se le pide el comprobante cuando el socio retira.
+  partnerEmailSnapshot   String?
+  /// El logo con el que se muestra el premio al socio. Instantánea como todo lo demás: la
+  /// tarjeta del sorteo de septiembre tiene que seguir viéndose igual dentro de dos años,
+  /// aunque el aliado cambie de marca.
+  partnerLogoSnapshot    String?
+  /// Los tres datos que viajan en el correo al ganador: adónde ir, cuándo y a quién llamar.
+  /// Son instantáneas porque el correo ya salió: si el aliado se muda después, el que se
+  /// mandó decía otra cosa, y la constancia tiene que coincidir con lo que la persona leyó.
+  partnerAddressSnapshot String?
+  partnerPhoneSnapshot   String?
+  partnerHoursSnapshot   String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  raffle Raffle            @relation(fields: [raffleId], references: [id], onDelete: Cascade)
-  award  RafflePrizeAward?
+  /// De qué compromiso salió, cuando salió de uno. Sirve para ver la serie completa y para no
+  /// duplicarlo si la tarea corre dos veces.
+  commitmentId String?
+
+  raffle     Raffle                 @relation(fields: [raffleId], references: [id], onDelete: Cascade)
+  commitment RafflePrizeCommitment? @relation(fields: [commitmentId], references: [id], onDelete: SetNull)
+  award      RafflePrizeAward?
 
   @@unique([raffleId, order])
+  @@unique([raffleId, commitmentId])
 }
 
 /// El resultado: quién ganó qué.
@@ -8534,11 +8804,26 @@ model RafflePrizeAward {
   /// GANADO | NOTIFICADO | RETIRADO | NO_RETIRADO | ANULADO
   status String @default("GANADO")
 
+  /// --- Los dos avisos que salen al resolver el sorteo ---
+  /// Al ganador: qué ganó, dónde retirarlo y hasta cuándo.
   notifiedAt        DateTime?
+  noticeError       String?
+  /// Al aliado: a quién entregarle, hasta cuándo, y el pedido del comprobante.
+  sponsorNotifiedAt DateTime?
+  sponsorNoticeError String?
+
   deliveredAt       DateTime?
   deliveredByUserId Int?
   deliveryNote      String?
   voidReason        String?
+
+  /// --- El respaldo de cómo llegó el premio a la institución ---
+  /// El aliado lo manda por correo cuando el socio retira: una foto o un PDF del remito, o una
+  /// factura por $0 con la leyenda «Sin valor comercial — Destinado a sorteo entre asociados».
+  /// Sin esto, la institución no puede justificar de dónde salió el premio.
+  receiptReceivedAt DateTime?
+  receiptFileUrl    String?
+  receiptNote       String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -8549,6 +8834,85 @@ model RafflePrizeAward {
 
   @@index([raffleId, status])
   @@index([memberId])
+}
+
+/// Lo que un aliado se comprometió a dar todos los meses.
+///
+/// No es un premio: es la razón por la que cada mes aparece uno. «Arte en Foco da 50% OFF en
+/// cursos seleccionados todos los meses hasta diciembre de 2026» es un compromiso; los cuatro
+/// premios que genera son copias independientes, con los datos del aliado congelados en cada
+/// una. Si el aliado se muda en noviembre, el premio de septiembre sigue diciendo dónde había
+/// que ir en septiembre.
+///
+/// `endPeriod` es INCLUSIVE: «hasta diciembre» incluye el sorteo de diciembre. Es como lo dice
+/// la gente y como se firma un acuerdo.
+model RafflePrizeCommitment {
+  id          String @id @default(cuid())
+  workspaceId String
+
+  title       String
+  description String?
+  conditions  String?
+  /// En centavos, sólo informativo.
+  estimatedValueMinor Int?
+
+  /// Orden sugerido dentro de cada sorteo. Si dos compromisos piden el mismo, se acomodan al
+  /// materializarse: el orden tiene que ser único dentro del sorteo porque entra en la cuenta.
+  order Int @default(1)
+
+  /// El aliado, con sus datos congelados igual que en el premio.
+  partnerId              String?
+  partnerNameSnapshot    String?
+  partnerEmailSnapshot   String?
+  partnerLogoSnapshot    String?
+  partnerAddressSnapshot String?
+  partnerPhoneSnapshot   String?
+  partnerHoursSnapshot   String?
+
+  /// `YYYY-MM` del primer sorteo que lo incluye y del último, inclusive. Sin fin = sigue.
+  startPeriod String
+  endPeriod   String?
+
+  cancelledAt  DateTime?
+  cancelReason String?
+
+  createdByUserId Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  prizes    RafflePrize[]
+
+  @@index([workspaceId, startPeriod])
+  @@index([workspaceId, cancelledAt])
+}
+
+/// Las reglas del sorteo mensual de una institución.
+///
+/// Existe para que el ciclo se sostenga solo: con esto, una tarea programada crea el sorteo de
+/// cada mes en borrador, con los premios comprometidos ya cargados. La Secretaría sólo revisa
+/// y anuncia.
+model RaffleSettings {
+  id          String @id @default(cuid())
+  workspaceId String @unique
+
+  /// Si se generan solos los sorteos de cada mes.
+  monthlyEnabled Boolean @default(false)
+  /// Día del mes del acto. Si el mes no llega a ese día, se usa el último.
+  drawDay        Int     @default(30)
+  /// Hora del acto, en hora argentina.
+  drawHour       Int     @default(20)
+  /// Cuántas horas antes cierra el padrón.
+  entriesCloseHoursBefore Int @default(24)
+  /// Días que tiene el ganador para retirar. Se copia a cada sorteo generado.
+  pickupDays     Int     @default(15)
+  /// Con cuántos días de anticipación se crea el sorteo del mes.
+  createDaysAhead Int    @default(10)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
 /// La historia del sorteo: quién anunció, quién selló, quién entregó cada premio.
@@ -8721,14 +9085,66 @@ model Course {
   classroomCode         String?
   classroomInstructions String?
   status                CourseStatus       @default(DRAFT)
+  /// Cómo se dicta. De esto depende qué le cuelga: ediciones con fecha y lugar, o clases
+  /// grabadas. Nace en PRESENCIAL para que ningún curso existente cambie de comportamiento.
+  deliveryMode          CourseDeliveryMode @default(PRESENCIAL)
+  /// Precio del curso grabado, que no tiene ediciones donde guardarlo. Null en los demás.
+  priceArs              Decimal?           @db.Decimal(12, 2)
+  /// Meses de acceso desde la compra, sólo para grabados. Vitalicio suena generoso hasta que
+  /// el video sigue costando almacenamiento cinco años después.
+  accessMonths          Int                @default(12)
+  /// Porcentaje de clases vistas que da el curso por terminado y emite el certificado.
+  completionPercent     Int                @default(80)
   createdAt             DateTime           @default(now())
   updatedAt             DateTime           @updatedAt
   workspace             Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   instances             CourseInstance[]
+  lessons               CourseLesson[]
   enrollments           CourseEnrollment[]
 
   @@unique([workspaceId, slug])
   @@index([workspaceId, status])
+}
+
+/// Una clase de un curso grabado.
+///
+/// El video **no vive acá**: `videoUid` apunta a Cloudflare Stream, que lo sirve troceado y
+/// sólo con un permiso firmado por alumno. En la base queda el identificador y nada más.
+model CourseLesson {
+  id              String                   @id @default(cuid())
+  courseId        String
+  title           String
+  description     String?
+  sortOrder       Int                      @default(0)
+  /// La informa el proveedor cuando termina de procesar. Null mientras tanto.
+  durationSeconds Int?
+  videoProvider   String                   @default("cloudflare_stream")
+  videoUid        String?                  @unique
+  videoStatus     CourseLessonVideoStatus  @default(PENDING)
+  thumbnailUrl    String?
+  /// Clase de muestra: se ve sin pagar. Es la mejor herramienta de venta de un curso grabado.
+  isPreview       Boolean                  @default(false)
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+  course          Course                   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  attachments     CourseLessonAttachment[]
+
+  @@index([courseId, sortOrder])
+}
+
+/// Material de una clase: PDF, presets, fotos de ejemplo. Descargable a propósito — acá la
+/// protección no tiene sentido, y el alumno lo necesita para practicar.
+model CourseLessonAttachment {
+  id         String       @id @default(cuid())
+  lessonId   String
+  fileName   String
+  /// Clave en R2, el mismo bucket que ya usa FotoOffice.
+  storageKey String
+  sizeBytes  Int?
+  createdAt  DateTime     @default(now())
+  lesson     CourseLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@index([lessonId])
 }
 
 model CourseInstance {
@@ -8754,7 +9170,9 @@ model CourseEnrollment {
   id                     String                        @id @default(cuid())
   workspaceId            String
   courseId               String
-  courseInstanceId       String
+  /// Null en un curso grabado: no tiene ediciones. La regla vive en la aplicación
+  /// (lib/presential-courses/delivery-mode.ts), con test.
+  courseInstanceId       String?
   name                   String
   email                  String
   whatsapp               String
@@ -8774,7 +9192,7 @@ model CourseEnrollment {
   updatedAt              DateTime                      @updatedAt
   workspace              Workspace                     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   course                 Course                        @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  courseInstance         CourseInstance                @relation(fields: [courseInstanceId], references: [id], onDelete: Cascade)
+  courseInstance         CourseInstance?               @relation(fields: [courseInstanceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, paymentStatus])
   @@index([courseId, paymentStatus])
@@ -9524,6 +9942,8 @@ model FotorankJudgeAccount {
   passwordHash                 String
   accountStatus                FotorankJudgeAccountStatus            @default(INVITED)
   lastLoginAt                  DateTime?
+  /// El token vive en EmailVerificationToken (purpose VERIFY_EMAIL), como en el resto de la suite.
+  emailVerifiedAt              DateTime?
   createdAt                    DateTime                              @default(now())
   updatedAt                    DateTime                              @updatedAt
   diplomasIssued               FotorankDiplomaIssued[]
@@ -9546,8 +9966,8 @@ model FotorankJudgeAccount {
 }
 
 model FotorankJudgeProfile {
-  id                              String                        @id @default(cuid())
-  judgeAccountId                  String                        @unique
+  id                              String                             @id @default(cuid())
+  judgeAccountId                  String                             @unique
   firstName                       String
   lastName                        String
   phone                           String?
@@ -9559,8 +9979,8 @@ model FotorankJudgeProfile {
   website                         String?
   instagram                       String?
   otherLinksJson                  Json?
-  publicSlug                      String                        @unique
-  isPublic                        Boolean                       @default(true)
+  publicSlug                      String                             @unique
+  isPublic                        Boolean                            @default(true)
   /// Nombre para mostrar en directorio (opcional; si null se usa firstName + lastName).
   displayNameOverride             String?
   professionalHeadline            String?
@@ -9569,35 +9989,68 @@ model FotorankJudgeProfile {
   languagesJson                   Json?
   region                          String?
   portfolioUrl                    String?
-  isAvailableForJuryWork          Boolean                       @default(true)
+  isAvailableForJuryWork          Boolean                            @default(true)
   availabilityNotes               String?
-  availableRemote                 Boolean                       @default(true)
-  availableInPerson               Boolean                       @default(false)
+  availableRemote                 Boolean                            @default(true)
+  availableInPerson               Boolean                            @default(false)
   preferredContestScopes          String?
-  compensationMode                FotorankJudgeCompensationMode @default(VOLUNTEER)
-  pricingMode                     FotorankJudgePricingMode      @default(NOT_SHOWN)
+  compensationMode                FotorankJudgeCompensationMode      @default(VOLUNTEER)
+  pricingMode                     FotorankJudgePricingMode           @default(NOT_SHOWN)
   priceAmount                     Float?
   priceCurrency                   String?
   priceNotes                      String?
   priceUnit                       FotorankJudgePriceUnit?
   /// Opt-in al directorio profesional (organizadores solo ven perfiles con este flag).
-  isListedInProfessionalDirectory Boolean                       @default(false)
-  showPricingPublicly             Boolean                       @default(false)
-  showLocationPublicly            Boolean                       @default(true)
-  showWebsitePublicly             Boolean                       @default(true)
-  showInstagramPublicly           Boolean                       @default(true)
-  isVerifiedByPlatform            Boolean                       @default(false)
-  completedJuryAssignmentsCount   Int                           @default(0)
+  isListedInProfessionalDirectory Boolean                            @default(false)
+  showPricingPublicly             Boolean                            @default(false)
+  showLocationPublicly            Boolean                            @default(true)
+  showWebsitePublicly             Boolean                            @default(true)
+  showInstagramPublicly           Boolean                            @default(true)
+  isVerifiedByPlatform            Boolean                            @default(false)
+  /// De dónde salió el alta. Un alta pública nace PENDING; una del organizador, APPROVED.
+  signupSource                    FotorankJudgeSignupSource          @default(ORGANIZER_CREATED)
+  directoryReviewStatus           FotorankJudgeDirectoryReviewStatus @default(PENDING)
+  directoryReviewedAt             DateTime?
+  directoryReviewedByUserId       Int?
+  directoryReviewNotes            String?
+  /// Lo que el jurado PIDE. Lo que está publicado lo escribe la aprobación.
+  wantsDirectoryListing           Boolean                            @default(false)
+  completedJuryAssignmentsCount   Int                                @default(0)
   responseRate                    Float?
   avgResponseTimeHours            Float?
   completionScore                 Float?
   lastActiveAt                    DateTime?
-  createdAt                       DateTime                      @default(now())
-  updatedAt                       DateTime                      @updatedAt
-  judgeAccount                    FotorankJudgeAccount          @relation(fields: [judgeAccountId], references: [id], onDelete: Cascade)
+  createdAt                       DateTime                           @default(now())
+  updatedAt                       DateTime                           @updatedAt
+  judgeAccount                    FotorankJudgeAccount               @relation(fields: [judgeAccountId], references: [id], onDelete: Cascade)
+  portfolioImages                 FotorankJudgePortfolioImage[]
 
   @@index([isPublic])
   @@index([isListedInProfessionalDirectory])
+  @@index([directoryReviewStatus])
+}
+
+/// Las fotos que el jurado sube para mostrar su trabajo. Tope de 12, controlado
+/// en el servidor. Los archivos viven en el bucket privado: borrar la fila NO
+/// borra el objeto, hay que hacerlo explícitamente.
+model FotorankJudgePortfolioImage {
+  id             String   @id @default(cuid())
+  judgeProfileId String
+  storageKey     String
+  /// Va en la URL pública: si cambia la imagen, cambia la ruta.
+  contentHash    String
+  contentType    String
+  sizeBytes      Int
+  width          Int?
+  height         Int?
+  title          String?
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  judgeProfile FotorankJudgeProfile @relation(fields: [judgeProfileId], references: [id], onDelete: Cascade)
+
+  @@index([judgeProfileId, sortOrder])
 }
 
 model FotorankJudgeOrganizationMembership {
@@ -9701,6 +10154,8 @@ model FotorankJudgeAssignment {
   votes                         FotorankJudgeVote[]
   admissionBatchId              String?
   promptExternalId              String?
+  /// Qué vacante de jurado ocupa. Nulo = asignación sin reparto.
+  seatNumber                    Int?
   admissionBatch                FotorankAdmissionBatch?       @relation(fields: [admissionBatchId], references: [id], onDelete: SetNull)
   juryEvaluations               FotorankJuryEvaluation[]
 
@@ -9860,7 +10315,8 @@ model FotorankJudgeVoteHistory {
 
 model FotorankJudgeAuditEvent {
   id             String                 @id @default(cuid())
-  organizationId String
+  /// Nulo para los hechos de plataforma: un alta pública no pertenece a ninguna organización.
+  organizationId String?
   contestId      String?
   actorType      FotorankJudgeActorType
   actorUserId    Int?
@@ -9873,7 +10329,7 @@ model FotorankJudgeAuditEvent {
   actorJudge     FotorankJudgeAccount?  @relation("FrAuditActorJudge", fields: [actorJudgeId], references: [id])
   actorUser      User?                  @relation("FrJudgeAuditActorUser", fields: [actorUserId], references: [id])
   contest        FotorankContest?       @relation(fields: [contestId], references: [id])
-  organization   ContestOrganization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization   ContestOrganization?   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, createdAt])
   @@index([contestId])
@@ -10381,6 +10837,18 @@ enum FotorankJudgePriceUnit {
   CUSTOM
 }
 
+enum FotorankJudgeDirectoryReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum FotorankJudgeSignupSource {
+  ORGANIZER_CREATED
+  ORGANIZER_INVITATION
+  PUBLIC_SIGNUP
+}
+
 enum FotorankJudgeDirectoryInviteStatus {
   PENDING
   ACCEPTED
@@ -10430,6 +10898,20 @@ enum TeacherApplicationStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+enum CourseDeliveryMode {
+  PRESENCIAL
+  LIVE
+  RECORDED
+}
+
+enum CourseLessonVideoStatus {
+  PENDING
+  UPLOADING
+  PROCESSING
+  READY
+  ERROR
 }
 
 enum CourseStatus {
@@ -11583,6 +12065,8 @@ enum ClickatonRegistrationStatus {
   /// Segunda oportunidad no usada → expirada (sin tercera edición).
   EXPIRED
   REFUND_REQUESTED
+  /// Regalo pagado, esperando que quien lo recibe lo active.
+  GIFT_AWAITING_REDEMPTION
 }
 
 /// Estado de cobro desacoplado (mirror / puente hacia DNX Payments).
@@ -11640,6 +12124,8 @@ enum ClickatonCheckInSource {
   PARTICIPANT_NUMBER
   DOCUMENT_SEARCH
   OFFLINE_SYNC
+  /// El participante que recibió el kit por correo escaneó el QR del instructivo.
+  KIT_SELF_CONFIRM
 }
 
 enum ClickatonAccreditationIdentityMode {
@@ -11754,9 +12240,37 @@ model ClickatonEdition {
   socialVotingRounds         ClickatonSocialVotingRound[]
   photographerRoyalties      ClickatonPhotographerRoyaltyLedger[]
   homeBanners                ClickatonHomeBanner[]
+  readinessChecks            ClickatonReadinessCheck[]
+  giftVouchers               ClickatonGiftVoucher[]
+  giftVouchersCarriedOver    ClickatonGiftVoucher[]                @relation("GiftVoucherCarriedOverEdition")
+  surveyResponses            ClickatonSurveyResponse[]
+  testimonials               ClickatonTestimonial[]
+  testimonialInvites         ClickatonTestimonialInvite[]
+  /// Números reales de la edición: gastos, sobrante contado y comisiones de MP.
+  financeExpenses            ClickatonEditionExpense[]
+  leftoverItems              ClickatonEditionLeftoverItem[]
+  leftoverItemsReceived      ClickatonEditionLeftoverItem[]        @relation("LeftoverCarriedToEdition")
+  resultSettings             ClickatonEditionResultSettings?
+  homeDelivery               ClickatonEditionHomeDelivery?
+  homeDeliveryShipments      ClickatonRegistrationShipping[]
+  /// Comisiones de fotógrafos afiliados por inscripciones de esta edición.
+  affiliateCommissions       ClickatonAffiliateCommission[]
+
+  /// Habilita la compra de regalos en esta edición. Nace apagado.
+  giftVouchersEnabled Boolean @default(false)
+
+  /// Encuesta de satisfacción y testimonios públicos. Nace apagado.
+  testimonialsEnabled Boolean @default(false)
+
+  /// Días después de `endAt` en que sale la invitación a testimoniar.
+  testimonialInviteDelayDays Int @default(2)
 
   /// Edición ops/fixture: nunca comercial. Cleanup solo permitido si true.
   isOpsFixture Boolean @default(false)
+
+  /// WhatsApp de soporte técnico y asistencia al participante, tal como lo
+  /// carga la organización. Se normaliza al armar el enlace; vacío = sin botón.
+  supportWhatsappPhone String?
 
   @@index([status])
   @@index([isPublished])
@@ -12160,6 +12674,14 @@ model ClickatonRegistration {
   socialPublicationConsent           Boolean                              @default(false)
   consentAcceptedAt                  DateTime?
   consentVersion                     String?
+  /// Centro de Transmisión — consentimientos de ubicación (versión propia,
+  /// separada de las Bases). Null = no consintió.
+  locationConsentAt                  DateTime?
+  locationPublicConsentAt            DateTime?
+  interviewConsentAt                 DateTime?
+  locationConsentVersion             String?
+  /// Declaración de mayoría de edad incrustada en la casilla del mapa público.
+  locationConsentDeclaredAdult       Boolean                              @default(false)
   /// Bases versionadas (10F.0) — separado de consent social.
   termsVersion                       String?
   termsAcceptedAt                    DateTime?
@@ -12174,7 +12696,12 @@ model ClickatonRegistration {
   adultResponsibleContact            String?
   adultAuthorizationAcceptedAt       DateTime?
   accompanimentConfirmed             Boolean                              @default(false)
+  /// El participante declaró que terminó de subir sus fotos. No reemplaza al
+  /// cierre por horario: distingue a quien cerró de quien sigue subiendo.
+  submissionFinalizedAt              DateTime?
   minorLegalFieldsStatus             String?
+  /// true si esta inscripción nació como regalo de otra persona.
+  isGift                             Boolean                              @default(false)
   /// Traslado inscripción individual (máx. 1).
   transferredFromRegistrationId      String?
   transferredToRegistrationId        String?
@@ -12202,6 +12729,8 @@ model ClickatonRegistration {
   stockHolds                         ClickatonStockHold[]
   credential                         ClickatonParticipantCredential?
   checkIns                           ClickatonCheckIn[]
+  shipping                           ClickatonRegistrationShipping?
+  affiliateCommission                ClickatonAffiliateCommission?
   kitDeliveries                      ClickatonKitDelivery[]
   statusHistory                      ClickatonRegistrationStatusHistory[]
   audits                             ClickatonRegistrationAudit[]
@@ -12211,6 +12740,8 @@ model ClickatonRegistration {
   mediaAssets                        DnxMediaAsset[]
   photoSubmissions                   ClickatonPhotoSubmission[]
   promptNotes                        ClickatonPromptNote[]
+  readinessChecks                    ClickatonReadinessCheck[]
+  giftVoucher                        ClickatonGiftVoucher?
 
   @@unique([editionId, visibleCode])
   @@unique([editionId, sequenceNumber])
@@ -12379,6 +12910,9 @@ model ClickatonPrompt {
   allowReplacement             Boolean                    @default(true)
   replacementDeadline          DateTime?
   required                     Boolean                    @default(false)
+  /// `false` = consigna fuera de puntaje (p. ej. la sorpresa extra): se entrega y se
+  /// preselecciona, pero no entra en la calificación ni en el ranking de la edición.
+  countsForScoring             Boolean                    @default(true)
   captureClockToleranceMinutes Int?
   gpsMode                      ClickatonPromptGpsMode     @default(OPTIONAL)
   deviceCategoryHint           String?
@@ -12597,6 +13131,32 @@ model ClickatonPhotoSubmissionAudit {
 
   @@index([submissionId, createdAt])
   @@index([action])
+}
+
+/// Prueba técnica previa al evento: el participante comprueba desde su
+/// teléfono si sus fotos guardan la ubicación y si el reloj está bien.
+/// La foto NUNCA se sube: acá sólo se guarda el veredicto.
+model ClickatonReadinessCheck {
+  id                String   @id @default(cuid())
+  editionId         String
+  registrationId    String
+  checkedAt         DateTime @default(now())
+  hasGps            Boolean
+  /// Positivo = el teléfono va adelantado respecto del servidor.
+  clockDeltaMinutes Int?
+  imageWidth        Int?
+  imageHeight       Int?
+  /// READY | NO_GPS | CLOCK_OFF | TOO_SMALL | NO_CAPTURE_DATE | FAILED
+  result            String
+  /// Todos los problemas encontrados, no sólo el principal.
+  detail            Json?
+  createdAt         DateTime @default(now())
+
+  edition      ClickatonEdition      @relation(fields: [editionId], references: [id], onDelete: Cascade)
+  registration ClickatonRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+
+  @@index([editionId, result])
+  @@index([registrationId, checkedAt])
 }
 
 /// Configuración de admisión técnica por edición (deshabilitada por defecto).
@@ -13600,6 +14160,178 @@ model ClickatonContactMessage {
 }
 
 // ---------------------------------------------------------------------------
+// CLICKATÓN REFERIDOS (Etapa 01) — atribución "quién trajo a quién"
+//
+// El premio es volver, no cobrar: NO se reutiliza el programa de comisiones de
+// CompraMeLaFoto (`ReferralCode` / `ReferralEarning` / `ReferralPayoutRequest`),
+// que paga dinero y vive en otra app.
+//
+// El contador de colegas traídos NO es una columna: es
+// `count(atribuciones con status = EARNED)`. Al canjear, esas N pasan a
+// CONSUMED. Así hay auditoría completa, no hay saldo mutable que reconciliar,
+// y "lo que no se usó se conserva" sale solo.
+// ---------------------------------------------------------------------------
+
+enum ClickatonReferralAttributionStatus {
+  /// Colega traído y pagado: cuenta para la escalera.
+  EARNED
+  /// Tomado por una inscripción que todavía no se pagó. Sin este estado, dos
+  /// inscripciones simultáneas usarían los mismos colegas y las dos entrarían
+  /// con descuento.
+  RESERVED
+  /// Ya se canjeó en una inscripción con descuento pagada.
+  CONSUMED
+  /// El pago del referido se cayó (reembolso, contracargo, cancelación).
+  REVOKED
+}
+
+/// Código del link de invitación (`/i/<code>`). Uno por usuario, creado
+/// on-demand la primera vez que entra a su panel.
+model ClickatonReferralCode {
+  id        String   @id @default(cuid())
+  userId    Int      @unique
+  code      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User                           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attributions ClickatonReferralAttribution[]
+
+  @@index([code])
+}
+
+/// Fotógrafos de otras plataformas de la casa (CompraMeLaFoto, FOTOFFICE,
+/// FotoRank) a los que se les quiere contar que existe Clickatón.
+///
+/// Los contactos se copian acá en vez de leerse en vivo porque las cuentas no
+/// se comparten entre plataformas y cada una vive en su propia base. Copiarlos
+/// deja además registro de a quién se le escribió y de quién pidió no recibir
+/// más, que es lo que hace responsable un envío a gente que no lo pidió.
+model ClickatonOutreachContact {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String?
+  /// compramelafoto | fotoffice | fotorank
+  origen       String
+  /// Cuándo se le mandó el último correo, y de qué campaña.
+  lastSentAt   DateTime?
+  lastCampaign String?
+  /// Pidió no recibir más. Nunca se le vuelve a escribir.
+  optedOutAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([origen])
+  @@index([lastSentAt])
+  @@index([optedOutAt])
+}
+
+/// Una localidad escrita por participantes, normalizada y ubicada en el mapa.
+///
+/// La inscripción guarda la ciudad como texto libre ("ROSARIO", "rosario",
+/// "Rosario (Santa Fe - CP 2000)"). Esta tabla junta todas las variantes bajo
+/// una `clave` normalizada y le pone coordenadas. La inscripción no cambia: se
+/// une por la clave, calculada con `claveDeLocalidad()`.
+///
+/// Tabla aparte a propósito: una columna nueva en ClickatonRegistration rompe
+/// toda lectura de inscripciones en cualquier base donde falte la migración.
+model ClickatonLocality {
+  id         String    @id @default(cuid())
+  /// ciudad|provincia normalizadas (minúsculas, sin tildes ni código postal).
+  clave      String    @unique
+  /// Nombre canónico para mostrar.
+  ciudad     String
+  provincia  String?
+  pais       String    @default("AR")
+  lat        Float?
+  lng        Float?
+  /// GEOREF (API oficial de localidades) | MANUAL (corregida en el panel)
+  origen     String
+  /// RESUELTA | DUDOSA | NO_ENCONTRADA
+  estado     String
+  /// Opciones que devolvió el geocodificador cuando no hubo una sola.
+  candidatos Json?
+  revisadaAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([estado])
+}
+
+/// Puente entre la inscripción y la confirmación del pago.
+///
+/// La cookie `ck_ref` existe cuando la persona se inscribe, pero `confirmPaid`
+/// corre en el webhook, sin navegador. Acá queda anotado el código con el que
+/// llegó, para leerlo cuando el pago se aprueba.
+///
+/// Es una tabla propia y no una columna en `ClickatonRegistration` a propósito:
+/// una columna nueva sin aplicar rompe TODA lectura del modelo, no sólo lo
+/// nuevo. Así, si el SQL no llegó, sólo falla el programa de referidos.
+model ClickatonReferralClaim {
+  id             String   @id @default(cuid())
+  registrationId String   @unique
+  code           String
+  createdAt      DateTime @default(now())
+
+  @@index([code])
+}
+
+/// Quién trajo a quién. `referredUserId` es único: cada persona cuenta una
+/// sola vez en su vida, aunque después se inscriba a diez ediciones.
+model ClickatonReferralAttribution {
+  id                     String                             @id @default(cuid())
+  referrerUserId         Int
+  referredUserId         Int                                @unique
+  /// Snapshot del email con el que se inscribió el referido.
+  referredEmail          String
+  referralCodeId         String
+  /// Inscripción del referido que generó la atribución.
+  registrationId         String                             @unique
+  editionId              String
+  status                 ClickatonReferralAttributionStatus @default(EARNED)
+  earnedAt               DateTime                           @default(now())
+  revokedAt              DateTime?
+  revokedReason          String?
+  consumedAt             DateTime?
+  /// Inscripción del REFERIDOR donde se usó el beneficio (Etapa 02).
+  consumedRegistrationId String?
+  createdAt              DateTime                           @default(now())
+  updatedAt              DateTime                           @updatedAt
+
+  referrer     User                  @relation("ClickatonReferralReferrer", fields: [referrerUserId], references: [id], onDelete: Cascade)
+  referred     User                  @relation("ClickatonReferralReferred", fields: [referredUserId], references: [id], onDelete: Cascade)
+  referralCode ClickatonReferralCode @relation(fields: [referralCodeId], references: [id], onDelete: Restrict)
+
+  @@index([referrerUserId, status])
+  @@index([referralCodeId])
+  @@index([editionId])
+  @@index([consumedRegistrationId])
+}
+
+/// Todo intento de atribución, incluido el que NO prosperó. En CompraMeLaFoto
+/// estos casos se descartaban en silencio y fue imposible auditarlos o
+/// recuperarlos.
+model ClickatonReferralAttributionAttempt {
+  id             String   @id @default(cuid())
+  code           String
+  referrerUserId Int?
+  referredUserId Int?
+  referredEmail  String?
+  registrationId String?
+  /// CREATED | CODE_NOT_FOUND | CODE_INACTIVE | SELF_REFERRAL | SAME_EMAIL |
+  /// ALREADY_ATTRIBUTED | REFERRER_NOT_ELIGIBLE | ERROR
+  outcome        String
+  detail         String?
+  createdAt      DateTime @default(now())
+
+  @@index([outcome, createdAt])
+  @@index([code])
+  @@index([registrationId])
+  @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
 // DNX Notifications Engine (Etapa 18) — campañas / outbox / preferencias
 // Reutiliza DashboardNotification (CLF) para bandeja in-app; no duplica inbox.
 // ---------------------------------------------------------------------------
@@ -14223,6 +14955,9 @@ model FotorankJuryScoringSession {
   submittedEvaluationsCount  Int                              @default(0)
   incompleteEntriesCount     Int                              @default(0)
   assignmentSeed             String?
+  /// Cuántas vacantes de jurado abre esta sesión. Nulo = todavía no se declaró,
+  /// no se aplica reparto y cada jurado ve todas las obras de sus categorías.
+  plannedSeats               Int?
   openedByUserId             Int?
   closedByUserId             Int?
   openedAt                   DateTime?
@@ -14237,6 +14972,7 @@ model FotorankJuryScoringSession {
   evaluations                   FotorankJuryEvaluation[]
   aggregates                    FotorankJuryPreliminaryAggregate[]
   resultBatches                 FotorankResultBatch[]
+  seatOverrides                 FotorankJurySeatPromptOverride[]
   /// ETAPA 16A — recomendación de carga (no bloqueante); default 500 fotos evaluadas/jurado.
   recommendedMaxEntriesPerJudge Int                                @default(500)
   /// ETAPA 16A — Clickatón exige enteros; otros concursos pueden habilitar decimales.
@@ -14252,6 +14988,28 @@ model FotorankJuryScoringSession {
   @@index([admissionBatchId, status])
   @@index([contestId, status])
   @@index([rubricId])
+}
+
+/// Excepción al reparto por vacantes.
+///
+/// El reparto se calcula, no se guarda. Esta tabla es lo único que se escribe, y
+/// sólo cuando el organizador redistribuye a mano el lote de una vacante que
+/// nunca se llenó: queda dicho qué consigna pasó a quién, por qué y quién lo hizo.
+model FotorankJurySeatPromptOverride {
+  id               String   @id @default(cuid())
+  scoringSessionId String
+  seatNumber       Int
+  promptExternalId String
+  motivo           String
+  /// Verdadero = le saca la consigna a la vacante en lugar de sumársela.
+  quita            Boolean  @default(false)
+  createdByUserId  Int?
+  createdAt        DateTime @default(now())
+
+  scoringSession FotorankJuryScoringSession @relation(fields: [scoringSessionId], references: [id], onDelete: Cascade)
+
+  @@unique([scoringSessionId, seatNumber, promptExternalId], map: "FotorankJurySeatPromptOverride_unico")
+  @@index([scoringSessionId], map: "FotorankJurySeatPromptOverride_sesion")
 }
 
 model FotorankMinorAuthorization {
@@ -17655,21 +18413,25 @@ model SubilafotoPackage {
 /// Latido de cada tarea automática. Una fila por cron, actualizada en el lugar.
 /// Solicitud de arrepentimiento (Res. 424/2020 y art. 34 de la Ley 24.240).
 model SubilafotoRetractionRequest {
-  id         String    @id @default(cuid())
+  id           String    @id @default(cuid())
   /// Lo que escribió la persona para identificar su compra: código de evento o número.
-  reference  String
-  email      String
-  reason     String?
+  reference    String
+  email        String
+  reason       String?
   /// El número que se le mostró. Se deriva del id, así que un reintento no da otro.
-  receipt    String    @unique
-  status     String    @default("RECEIVED")
+  receipt      String    @unique
+  status       String    @default("RECEIVED")
   /// Se completa cuando alguien encuentra la orden y resuelve.
-  orderId    String?
-  resolvedAt DateTime?
-  resolution String?
-  ipHash     String?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  orderId      String?
+  resolvedAt   DateTime?
+  resolution   String?
+  /// Cuándo salió la constancia por correo. Nulo mientras no haya salido.
+  noticeSentAt DateTime?
+  /// Por qué no salió, si falló. La solicitud vale igual: la constancia se mostró en pantalla.
+  noticeError  String?
+  ipHash       String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@index([status, createdAt])
   @@index([email])
@@ -17891,6 +18653,19 @@ model CoverageSettings {
   /// Si el formulario público está abierto.
   publicFormEnabled Boolean @default(false)
   publicFormIntro   String?
+  /// Lo que se lee al pie del formulario, antes del botón, y otra vez en la pantalla de
+  /// "listo, lo recibimos": el agradecimiento y lo que conviene decir cuando quien completa
+  /// ya hizo su parte. Nulo = no se muestra nada.
+  publicFormOutro   String?
+
+  /// Qué campos del formulario público no se preguntan y cuáles son obligatorios. Claves del
+  /// catálogo de `apps/fotoffice/lib/coverages/request-fields.ts`. Lo que no está en ninguna de
+  /// las dos listas es opcional, y los cinco campos fijos (orgName, contactEmail, eventTitle,
+  /// startsAt, endsAt) las ignoran: sin ellos no hay solicitud ni cobertura que generar.
+  /// `contactName` viene en `requestFormRequired` por omisión porque hoy ya es obligatorio: así
+  /// ninguna institución ve cambiar su formulario sin haber configurado nada.
+  requestFormHidden   String[] @default([])
+  requestFormRequired String[] @default(["contactName"])
 
   /// Versión del texto de consentimientos vigente. Se copia en cada consentimiento firmado.
   consentTextVersion  String   @default("v1")
@@ -17928,9 +18703,23 @@ model CoverageRequest {
   endsAt            DateTime
   addressLine       String?
   city              String?
+  /// El punto que la organización confirmó en el mapa del formulario público. Opcional y
+  /// siempre opcional: si Nominatim no encuentra el lugar —pasa en pueblos chicos— el pedido se
+  /// manda igual con la dirección escrita a mano. La dirección es el dato; el punto, la
+  /// precisión. Se valida con `validateCoordinates` de `@repo/geo` (rango, finitos, y el 0,0
+  /// que casi siempre es un campo vacío disfrazado de coordenada).
+  latitude          Float?
+  longitude         Float?
+  /// Geohash de `@repo/geo` (precisión 7 ≈ 150 m). Se guarda además de lat/lon porque es lo que
+  /// hace barata la búsqueda por cercanía: un prefijo de texto con índice, en vez de calcular la
+  /// distancia a cada fila. Se recalcula cada vez que cambia el punto; nunca se escribe solo.
+  geohash           String?
   activityKind      String?
   expectedAttendees Int?
-  /// INTERIOR | EXTERIOR | AMBOS
+  /// INTERIOR | EXTERIOR | AMBOS | OTROS. Cuando la respuesta es "Otros", el texto libre va
+  /// detrás del valor: `OTROS: con carpa` (ver `formatChoiceValue` en
+  /// `apps/fotoffice/lib/coverages/request-fields.ts`). Lo que no está en el catálogo se
+  /// rechaza en el servidor y nunca llega a esta columna.
   venueKind         String?
   onSiteContactName String?
   onSitePhone       String?
@@ -17950,6 +18739,15 @@ model CoverageRequest {
   purpose                String?
   keyMoments             String?
   requestedPhotographers Int?
+  /// SIN_OTRA_COBERTURA | NO_LO_SE | HAY_OTRA_COBERTURA | OTROS. Si ya hay otro fotógrafo o
+  /// equipo de video cubriendo la actividad. Es un criterio de priorización: una organización
+  /// que ya tiene cobertura puede esperar a que se resuelvan las que no tienen ninguna.
+  otherCoverage          String?
+  /// TODO | CON_RESTRICCIONES | SIN_PERSONAS | NADA | OTROS. Hasta dónde autorizan a difundir
+  /// material del evento. Cuando esta pregunta se hace, el consentimiento USO_INSTITUCIONAL no
+  /// se tilda: se deduce de acá (ver `deriveShowcaseConsent`) y se guarda igual, con su texto y
+  /// su versión. Nulo en las solicitudes anteriores a la pregunta.
+  showcaseScope          String?
   equipmentNotes         String?
   needsLighting          Boolean   @default(false)
   expectedDeliveryAt     DateTime?
@@ -17986,6 +18784,7 @@ model CoverageRequest {
   @@index([workspaceId, status])
   @@index([workspaceId, startsAt])
   @@index([workspaceId, createdAt])
+  @@index([geohash])
   @@index([clientId])
   @@index([tokenExpiresAt])
 }
@@ -18029,6 +18828,12 @@ model Coverage {
   endsAt       DateTime
   addressLine  String?
   city         String?
+  /// El mismo punto de la solicitud, copiado al generar la cobertura. Viaja con la dirección y
+  /// no se deduce por join: la coordinación puede corregirlo acá sin tocar lo que pidió la
+  /// organización, igual que ya puede corregir la dirección y el horario.
+  latitude     Float?
+  longitude    Float?
+  geohash      String?
   instructions String?
 
   /// PLANIFICADA | BUSCANDO_EQUIPO | EQUIPO_CONFIRMADO | REALIZADA | ENTREGADA | CERRADA |
@@ -18048,6 +18853,7 @@ model Coverage {
   @@index([workspaceId, status])
   @@index([workspaceId, startsAt])
   @@index([requestId])
+  @@index([geohash])
 }
 
 /// Un rol con sus cupos dentro de una cobertura. No se asume que todo trabajo necesita un
@@ -18248,7 +19054,8 @@ model CoverageEvent {
   /// REQUEST | COVERAGE | CALL | APPLICATION | ASSIGNMENT | DELIVERABLE
   entityType String
   entityId   String
-  /// CREADA | ESTADO_CAMBIADO | NOTA | INFO_PEDIDA | INFO_RESPONDIDA | EMAIL_ENVIADO
+  /// CREADA | ESTADO_CAMBIADO | NOTA | INFO_PEDIDA | INFO_RESPONDIDA | EMAIL_ENVIADO |
+  /// ENLACE_REEMITIDO
   type       String
   fromStatus String?
   toStatus   String?
@@ -18264,6 +19071,551 @@ model CoverageEvent {
 
   @@index([workspaceId, entityType, entityId, createdAt])
   @@index([workspaceId, createdAt])
+}
+
+/// Cómo se llama la gente del padrón en este workspace.
+///
+/// El módulo de Socios se escribió para la SFPR, que tiene socios de verdad, y la palabra
+/// quedó escrita en 48 archivos. Foto Positiva tiene voluntarios; una agencia, colaboradores;
+/// una escuela, alumnos. Sin esto, FotoOffice le habla a toda institución en el idioma de otra.
+///
+/// Tabla propia y no dos columnas en `FotofficeWorkspaceBranding`, a propósito: el esquema lo
+/// comparten cinco bases que se migran a mano, y agregar una columna a una tabla existente
+/// puede romper las escrituras de las otras aplicaciones. Una tabla nueva no rompe nada.
+///
+/// Guarda dos formas y no cuatro: las mayúsculas se derivan en `lib/vocabulario/personas.ts`.
+/// Pedir "socio", "socios", "Socio" y "Socios" es pedir que una de las cuatro quede mal.
+model WorkspaceVocabulary {
+  id          String @id @default(cuid())
+  workspaceId String @unique
+
+  /// "voluntario/a", "colaborador", "alumno". Vacío = "socio".
+  personSingular String?
+  /// "voluntarios/as", "colaboradores", "alumnos". Vacío = "socios".
+  personPlural   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
+// CLICKATÓN — regalo de inscripción (voucher)
+// ---------------------------------------------------------------------------
+
+enum ClickatonGiftVoucherStatus {
+  PENDING_PAYMENT
+  ACTIVE
+  REDEEMED
+  CARRIED_OVER
+  CANCELLED
+  REFUNDED
+}
+
+/// Regalo de una inscripción de Clickatón. 1:1 con la inscripción "a designar"
+/// que el comprador paga y que quien lo recibe completa al activarlo.
+model ClickatonGiftVoucher {
+  id             String                     @id @default(cuid())
+  /// Código humano único: REGALO-XXXX-XXXX.
+  code           String                     @unique
+  status         ClickatonGiftVoucherStatus @default(PENDING_PAYMENT)
+  editionId      String
+  /// Inscripción "a designar" que el voucher representa (1:1).
+  registrationId String                     @unique
+
+  buyerUserId    Int?
+  buyerFirstName String
+  buyerLastName  String
+  buyerEmail     String
+  buyerPhone     String?
+
+  recipientName  String?
+  recipientEmail String?
+  /// Dedicatoria libre (texto plano, máx. 500).
+  giftMessage    String?
+
+  paidAt                 DateTime?
+  /// Cierre de inscripción de la edición comprada.
+  redeemableUntil        DateTime?
+  redeemedAt             DateTime?
+  cancelledAt            DateTime?
+  carriedOverToEditionId String?
+  carriedOverAt          DateTime?
+
+  reissueCount         Int       @default(0)
+  recipientEmailSentAt DateTime?
+  recipientEmailCount  Int       @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  edition              ClickatonEdition      @relation(fields: [editionId], references: [id], onDelete: Restrict)
+  registration         ClickatonRegistration @relation(fields: [registrationId], references: [id], onDelete: Restrict)
+  carriedOverToEdition ClickatonEdition?     @relation("GiftVoucherCarriedOverEdition", fields: [carriedOverToEditionId], references: [id], onDelete: SetNull)
+
+  @@index([editionId, status])
+  @@index([buyerEmail])
+  @@index([recipientEmail])
+  @@index([status, redeemableUntil])
+}
+
+// ---------------------------------------------------------------------------
+// Testimonios y relación de calidad (Clickatón)
+//
+// La encuesta y el testimonio viven en tablas separadas a propósito: la crítica
+// constructiva está en `ClickatonSurveyResponse`, que no tiene ninguna ruta
+// pública de lectura, y el texto publicable está en `ClickatonTestimonial`.
+// Un `select` equivocado no puede filtrar la crítica al sitio público.
+// ---------------------------------------------------------------------------
+
+/// Desde qué lugar habla quien responde.
+enum ClickatonTestimonialAuthorRole {
+  PARTICIPANT
+  JUROR
+  VENUE
+}
+
+/// Moderación del testimonio. Nace PENDING: nada se publica solo.
+enum ClickatonTestimonialStatus {
+  PENDING
+  PUBLISHED
+  REJECTED
+}
+
+enum ClickatonSurveyWouldReturn {
+  YES
+  MAYBE
+  NO
+}
+
+enum ClickatonTestimonialInviteStatus {
+  PENDING
+  SENT
+  FAILED
+  RESPONDED
+}
+
+/// Encuesta de satisfacción. PRIVADA: ninguna ruta pública la consulta.
+model ClickatonSurveyResponse {
+  id                 String                         @id @default(cuid())
+  editionId          String
+  userId             Int
+  authorRole         ClickatonTestimonialAuthorRole
+  /// Origen de la identidad (soft refs; sólo una está poblada).
+  registrationId     String?
+  venueId            String?
+  /// 0..10 — "¿Qué tan probable es que lo recomiendes?"
+  npsScore           Int
+  /// 1..5 cada una; null = "No aplica" y no promedia.
+  scoreOrganization  Int?
+  scorePrompts       Int?
+  scoreVenue         Int?
+  scoreKit           Int?
+  scoreAccreditation Int?
+  scoreCommunication Int?
+  scoreValueForMoney Int?
+  wouldReturn        ClickatonSurveyWouldReturn?
+  /// Crítica constructiva. NUNCA se publica ni se copia al testimonio.
+  improvementNotes   String?
+  submittedAt        DateTime                       @default(now())
+  updatedAt          DateTime                       @updatedAt
+  auditIp            String?
+  auditUserAgent     String?
+  edition            ClickatonEdition               @relation(fields: [editionId], references: [id], onDelete: Restrict)
+  testimonial        ClickatonTestimonial?
+
+  @@unique([editionId, userId])
+  @@index([editionId, authorRole])
+  @@index([editionId, npsScore])
+}
+
+/// El texto publicable y la identidad congelada de quien lo escribió.
+model ClickatonTestimonial {
+  id                 String                         @id @default(cuid())
+  surveyResponseId   String                         @unique
+  editionId          String
+  userId             Int
+  authorRole         ClickatonTestimonialAuthorRole
+  /// Lo que escribió el autor (≤400). El admin no lo reescribe.
+  quote              String
+  /// El recorte que sale en el sitio (≤240). Lo elige el admin.
+  highlightedExcerpt String?
+  status             ClickatonTestimonialStatus     @default(PENDING)
+  publicationConsent Boolean                        @default(false)
+  consentAcceptedAt  DateTime?
+  /// Foto de la identidad al responder: cambiar el perfil no reescribe lo publicado.
+  authorName         String
+  authorPhotoAssetId String?
+  authorLinkUrl      String?
+  displayOrder       Int                            @default(0)
+  isFeatured         Boolean                        @default(false)
+  publishedAt        DateTime?
+  moderatedByUserId  Int?
+  moderationNotes    String?
+  createdAt          DateTime                       @default(now())
+  updatedAt          DateTime                       @updatedAt
+  surveyResponse     ClickatonSurveyResponse        @relation(fields: [surveyResponseId], references: [id], onDelete: Cascade)
+  edition            ClickatonEdition               @relation(fields: [editionId], references: [id], onDelete: Restrict)
+
+  @@index([editionId, status])
+  @@index([status, displayOrder])
+}
+
+/// A quién se invitó a testimoniar. Hace medible la tasa de respuesta.
+model ClickatonTestimonialInvite {
+  id             String                           @id @default(cuid())
+  editionId      String
+  authorRole     ClickatonTestimonialAuthorRole
+  email          String
+  userId         Int?
+  registrationId String?
+  venueId        String?
+  status         ClickatonTestimonialInviteStatus @default(PENDING)
+  sentAt         DateTime?
+  respondedAt    DateTime?
+  emailQueueId   Int?
+  idempotencyKey String                           @unique
+  createdAt      DateTime                         @default(now())
+  updatedAt      DateTime                         @updatedAt
+  edition        ClickatonEdition                 @relation(fields: [editionId], references: [id], onDelete: Restrict)
+
+  @@unique([editionId, email])
+  @@index([editionId, status])
+}
+
+// ---------------------------------------------------------------------------
+// Números reales por edición (Clickatón)
+//
+// Separa gastos, sobrante y comisiones de cada edición para ver, edición sobre
+// edición, si se salió para atrás o no. Los ingresos NO se cargan: salen de las
+// inscripciones pagas. Importes en centavos, como el resto de Clickatón.
+// ---------------------------------------------------------------------------
+
+/// Gasto de una edición. Editable: muchos se cargan aproximados y se ajustan.
+model ClickatonEditionExpense {
+  id              String    @id @default(cuid())
+  editionId       String
+  concept         String
+  description     String?
+  /// PUBLICIDAD | MERCHANDISING | LOGISTICA | PREMIOS | OTRO (texto libre tipado en app).
+  category        String    @default("OTRO")
+  amountMinor     Int
+  /// Quién lo pagó (Tammy, Dani, Rodri, la caja…). Texto libre.
+  paidBy          String?
+  spentAt         DateTime?
+  /// "Aprox, después ajusto": el número todavía no es definitivo.
+  isEstimate      Boolean   @default(false)
+  createdByUserId Int?
+  updatedByUserId Int?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  edition ClickatonEdition @relation(fields: [editionId], references: [id], onDelete: Restrict)
+
+  @@index([editionId, createdAt])
+}
+
+/// Lo que sobró al terminar la edición, contado a mano. No toca el stock del
+/// catálogo (que es un número de venta, no un inventario físico).
+model ClickatonEditionLeftoverItem {
+  id                 String    @id @default(cuid())
+  editionId          String
+  itemName           String
+  /// Talle, color u otro detalle.
+  detail             String?
+  quantity           Int
+  /// Lo que costó cada unidad; null = todavía sin costo cargado.
+  unitCostMinor      Int?
+  countedAt          DateTime?
+  notes              String?
+  /// Si pasa a otra edición, allá cuenta como mercadería recibida.
+  carriedToEditionId String?
+  createdByUserId    Int?
+  updatedByUserId    Int?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  edition          ClickatonEdition  @relation(fields: [editionId], references: [id], onDelete: Restrict)
+  carriedToEdition ClickatonEdition? @relation("LeftoverCarriedToEdition", fields: [carriedToEditionId], references: [id], onDelete: SetNull)
+
+  @@index([editionId])
+  @@index([carriedToEditionId])
+}
+
+/// Comisiones de Mercado Pago de la edición. Los porcentajes se guardan en
+/// puntos básicos (761 = 7,61 %). Si se carga el monto real, manda sobre el %.
+model ClickatonEditionResultSettings {
+  editionId          String   @id
+  mpProcessingFeeBps Int?
+  mpWithdrawalFeeBps Int?
+  mpFeesActualMinor  Int?
+  notes              String?
+  updatedByUserId    Int?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  edition ClickatonEdition @relation(fields: [editionId], references: [id], onDelete: Restrict)
+}
+
+/// Envío del kit a domicilio, configurado por edición. Sin fila, la edición no
+/// ofrece envío. Quien vive en la ciudad de la edición no puede elegirlo.
+model ClickatonEditionHomeDelivery {
+  editionId       String    @id
+  enabled         Boolean   @default(false)
+  /// Costo fijo del envío, en centavos. Lo paga el participante.
+  feeAmount       Int
+  /// Hasta esta fecha se garantiza que el kit llega antes del evento. Después
+  /// se sigue vendiendo, avisando que puede no llegar a tiempo.
+  guaranteedUntil DateTime?
+  updatedByUserId Int?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  edition ClickatonEdition @relation(fields: [editionId], references: [id], onDelete: Restrict)
+}
+
+enum ClickatonHomeDeliveryStatus {
+  /// Pagado (o por pagar): falta despachar.
+  PENDING
+  DISPATCHED
+  /// El participante confirmó con el QR del instructivo que le llegó.
+  RECEIVED
+  RETURNED
+}
+
+/// Domicilio y seguimiento del kit de una inscripción que eligió envío.
+model ClickatonRegistrationShipping {
+  id                 String                      @id @default(cuid())
+  registrationId     String                      @unique
+  editionId          String
+  /// Lo que se cobró por el envío, en centavos (copia del precio de ese momento).
+  feeAmount          Int
+  /// Si al inscribirse todavía regía la fecha de llegada garantizada.
+  guaranteed         Boolean
+  recipientName      String
+  documentNumber     String
+  phone              String
+  street             String
+  streetNumber       String
+  floor              String?
+  city               String
+  province           String
+  postalCode         String
+  reference          String?
+  status             ClickatonHomeDeliveryStatus @default(PENDING)
+  carrier            String?
+  trackingNumber     String?
+  dispatchedAt       DateTime?
+  dispatchedByUserId Int?
+  receivedAt         DateTime?
+  returnedAt         DateTime?
+  notes              String?
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+
+  registration ClickatonRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  edition      ClickatonEdition      @relation(fields: [editionId], references: [id], onDelete: Restrict)
+
+  @@index([editionId, status])
+}
+
+/// Fotógrafo que comparte un código de descuento y cobra una comisión por cada
+/// inscripción que lo usa. Cobra por Split 1:N de Mercado Pago (si aceptó la
+/// invitación) o, si no se puede repartir, a mano.
+model ClickatonAffiliate {
+  id                 String    @id @default(cuid())
+  /// Usuario DNX del fotógrafo (para Mi cuenta). Sin FK: no toca `User`.
+  userId             Int?      @unique
+  displayName        String
+  /// Email de contacto.
+  email              String
+  /// Email de la cuenta de Mercado Pago a la que se le manda la invitación.
+  mpSellerEmail      String    @unique
+  /// `DnxPaymentRecipient.id` (tipo AFFILIATE) que espera el paquete de pagos.
+  paymentRecipientId String?
+  /// receiver_id de MP: es un UUID, no el id numérico de la cuenta.
+  consentReceiverId  String?
+  /// NONE | PENDING | ACTIVE | REJECTED | CANCELED | EXPIRED
+  consentStatus      String    @default("NONE")
+  consentInviteUrl   String?
+  consentCheckedAt   DateTime?
+  isActive           Boolean   @default(true)
+  notes              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  commissions ClickatonAffiliateCommission[]
+}
+
+enum ClickatonAffiliateCommissionMode {
+  /// Se le pagó en el mismo cobro, por Split 1:N.
+  SPLIT
+  /// Se cobró por Checkout Pro: se le transfiere a mano.
+  MANUAL
+}
+
+enum ClickatonAffiliateCommissionStatus {
+  /// Reservada al crear la inscripción; todavía no hay cobro.
+  PENDING
+  PAID_BY_SPLIT
+  /// Cobrada sin reparto: se le debe al fotógrafo.
+  OWED
+  /// Transferida a mano.
+  PAID_OUT
+  /// Reembolso, anulación o reserva vencida: el fotógrafo pierde la comisión.
+  REVERSED
+}
+
+/// Libro de comisiones: una por inscripción que usó un código con dueño.
+/// Montos en centavos.
+model ClickatonAffiliateCommission {
+  id                    String                             @id @default(cuid())
+  registrationId        String                             @unique
+  editionId             String
+  affiliateId           String
+  promotionId           String
+  promotionCodeSnapshot String
+  commissionBps         Int
+  /// Precio de lista de la inscripción, sin descuento ni envío.
+  baseAmount            Int
+  grossAmount           Int
+  mpFeeBps              Int
+  mpFeeShareAmount      Int
+  /// Lo que recibe el fotógrafo.
+  netAmount             Int
+  /// Se define al cobrar.
+  mode                  ClickatonAffiliateCommissionMode?
+  status                ClickatonAffiliateCommissionStatus @default(PENDING)
+  providerOrderId       String?
+  paidAt                DateTime?
+  paidOutAt             DateTime?
+  paidOutByUserId       Int?
+  paidOutReference      String?
+  reversedAt            DateTime?
+  reversalReason        String?
+  createdAt             DateTime                           @default(now())
+  updatedAt             DateTime                           @updatedAt
+
+  registration ClickatonRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  edition      ClickatonEdition      @relation(fields: [editionId], references: [id], onDelete: Restrict)
+  affiliate    ClickatonAffiliate    @relation(fields: [affiliateId], references: [id], onDelete: Restrict)
+
+  @@index([affiliateId, status])
+  @@index([editionId, status])
+}
+
+// ─── FOTOFFICE: roles personalizados (Comisión directiva) ───────────────────
+// Diseño: docs/superpowers/specs/2026-10-02-fotoffice-roles-comision-directiva-design.md
+
+/// Nivel de un rol sobre un módulo del catálogo de FOTOFFICE.
+enum ModulePermissionLevel {
+  NONE
+  VIEW
+  MANAGE
+}
+
+/// Rol definido por un workspace. El nombre y los módulos los elige cada institución.
+model WorkspaceCustomRole {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  description String?
+  color       String?
+  /// Plantilla de la que nació ("treasury", "secretary"…). Null si se creó de cero.
+  templateKey String?
+  /// Archivado al "borrarlo" con personas asignadas. Nada se borra (diseño §12.2).
+  archivedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace   Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  permissions WorkspaceRolePermission[]
+  assignments WorkspaceRoleAssignment[]
+
+  @@unique([workspaceId, name])
+}
+
+/// Nivel de un rol sobre un módulo (`moduleKey` = clave de `lib/modules/registry.ts`).
+model WorkspaceRolePermission {
+  id        String                @id @default(cuid())
+  roleId    String
+  moduleKey String
+  level     ModulePermissionLevel
+  /// Etapa 5: acciones sensibles extra, p. ej. "membership-dues.manual_payment".
+  actions   String[]              @default([])
+
+  role WorkspaceCustomRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, moduleKey])
+}
+
+/// Persona ↔ rol en un workspace. Persona = usuario (`userId`) o ficha de socio (`memberId`);
+/// al menos uno. Un socio sin cuenta recibe el rol igual y entra cuando la active (§12.1.4).
+model WorkspaceRoleAssignment {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  userId       Int?
+  memberId     String?
+  roleId       String
+  startsAt     DateTime?
+  /// Null = no vence.
+  endsAt       DateTime?
+  /// Quién hizo la asignación. Sin relación a propósito: no agrega otra back-relation a `User`.
+  assignedById Int
+  revokedAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  user   User?               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  member Member?             @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  role   WorkspaceCustomRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, userId])
+  @@index([workspaceId, memberId])
+  @@index([roleId])
+}
+
+/// Cargo de la comisión, definido por cada institución ("Tesorero", "Vocal titular").
+model WorkspaceOffice {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  /// Integra la comisión y vota (diseño §12.1.1). Revisor de cuentas: false.
+  votes       Boolean  @default(true)
+  order       Int      @default(0)
+  /// Plantilla de la que nació ("president", "auditor"…). Null si se creó de cero.
+  templateKey String?
+  archivedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  terms     WorkspaceOfficeTerm[]
+
+  @@unique([workspaceId, name])
+}
+
+/// Mandato: una persona en un cargo por un período. Persona = socio o usuario (al menos uno).
+model WorkspaceOfficeTerm {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  officeId     String
+  memberId     String?
+  userId       Int?
+  startsAt     DateTime?
+  /// Null = sin vencimiento cargado.
+  endsAt       DateTime?
+  revokedAt    DateTime?
+  assignedById Int
+  createdAt    DateTime  @default(now())
+
+  office WorkspaceOffice @relation(fields: [officeId], references: [id], onDelete: Cascade)
+  member Member?         @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  user   User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, officeId])
+  @@index([workspaceId, memberId])
+  @@index([workspaceId, userId])
 }
 
 /// Catálogo maestro de productos, por código de barras. **Compartido por toda la suite.**

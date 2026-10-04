@@ -1,0 +1,111 @@
+{
+  "proyecto": "Caja",
+  "plataforma": "FOTOFFICE",
+  "spec": "apps/fotoffice/docs/superpowers/plans/2026-09-13-caja-y-clientes.md",
+  "enUso": "no",
+  "usoNota": "Encendida en la SFPR con sus 3 cuentas y 10 categorías, y 0 movimientos registrados en toda su historia: el único turno se abrió y se cerró vacío",
+  "etapas": [
+    {
+      "nombre": "Encender la caja y configurarla",
+      "criterios": [
+        {
+          "que": "Un dueño enciende Caja y el módulo nace con sus cuentas y sus categorías listas para usar",
+          "implementado": { "commit": "9a92252a", "fecha": "2026-09-13" },
+          "probado": {
+            "fecha": "2026-09-20",
+            "evidencia": "Módulo cash encendido en la SFPR; la semilla dejó 3 cuentas (Caja diaria y Caja fuerte en efectivo, Mercado Pago digital) y 10 categorías"
+          }
+        },
+        {
+          "que": "El dueño agrega una cuenta o una categoría propia, distinta de las que vienen de fábrica",
+          "implementado": { "commit": "241268a5", "fecha": "2026-09-13" },
+          "probado": null,
+          "bloqueado": "Las 3 cuentas y las 10 categorías son exactamente las de la semilla: nadie creó ninguna"
+        },
+        {
+          "que": "Quien no tiene permiso de administración no ve ni alcanza la configuración de Caja",
+          "implementado": { "commit": "ba3971b7", "fecha": "2026-09-13" },
+          "probado": null,
+          "bloqueado": "Falta recorrerlo con una cuenta de rol STAFF"
+        }
+      ]
+    },
+    {
+      "nombre": "El dinero del día",
+      "criterios": [
+        {
+          "que": "Un encargado abre el turno de la caja del mostrador y lo cierra con arqueo, y la diferencia queda anotada",
+          "implementado": { "commit": "fa70e6b9", "fecha": "2026-09-13" },
+          "probado": {
+            "fecha": "2026-09-13",
+            "evidencia": "Un turno de «Caja diaria» abierto y cerrado el 13/09 en cuatro minutos: arqueo en $0, sin diferencia. Es el único turno que existió"
+          }
+        },
+        {
+          "que": "Se registra un ingreso o un egreso en efectivo y queda dentro del turno abierto",
+          "implementado": { "commit": "1f27c0d7", "fecha": "2026-09-13" },
+          "probado": null,
+          "bloqueado": "0 movimientos registrados en producción"
+        },
+        {
+          "que": "Un movimiento equivocado se anula con su contramovimiento y su motivo, sin borrar nada",
+          "implementado": { "commit": "1f27c0d7", "fecha": "2026-09-13" },
+          "probado": null,
+          "bloqueado": "No hay ningún movimiento que anular: la tabla está vacía"
+        },
+        {
+          "que": "Se pasa plata del mostrador a la caja fuerte y los dos saldos quedan bien",
+          "implementado": { "commit": "15b5c8ba", "fecha": "2026-09-13" },
+          "probado": null,
+          "bloqueado": "0 pases registrados"
+        }
+      ]
+    },
+    {
+      "nombre": "Que lo que cobran los otros módulos caiga solo en la caja",
+      "criterios": [
+        {
+          "que": "Una cuota cobrada por Mercado Pago aparece sola como ingreso en la cuenta digital",
+          "implementado": { "commit": "af4b8c8f", "fecha": "2026-09-13" },
+          "probado": null,
+          "bloqueado": "Los 12 cobros por Mercado Pago son del 28/08 al 13/09, anteriores o simultáneos al enganche: en Caja no quedó ni un movimiento"
+        },
+        {
+          "que": "Un cobro en mano nunca cae en la caja fuerte, siempre en la caja del mostrador",
+          "implementado": { "commit": "d4a85b5a", "fecha": "2026-09-13" },
+          "probado": null,
+          "bloqueado": "El único cobro manual registrado (1 transferencia, 31/08) es anterior al enganche con Caja"
+        },
+        {
+          "que": "Una reserva cobrada aparece sola en la caja, con la ficha del cliente resuelta",
+          "implementado": { "commit": "6b000543", "fecha": "2026-09-13" },
+          "probado": null,
+          "bloqueado": "Las 4 reservas que existen están canceladas: nunca se cobró una"
+        }
+      ]
+    },
+    {
+      "nombre": "Mirar la caja",
+      "criterios": [
+        {
+          "que": "La Secretaría filtra el libro de movimientos por fecha, cuenta, categoría, tipo o cliente",
+          "implementado": { "commit": "50f27a47", "fecha": "2026-09-13" },
+          "probado": null,
+          "bloqueado": "El libro está vacío; además corta en 200 filas sin paginación"
+        },
+        {
+          "que": "Un reporte del período dice qué entró, qué salió y en qué categorías, sin contar los pases",
+          "implementado": { "commit": "caae83b9", "fecha": "2026-09-13" },
+          "probado": null,
+          "bloqueado": "Sin movimientos, todo reporte da cero"
+        },
+        {
+          "que": "Los movimientos y los reportes se pueden bajar a una planilla",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "No hay exportación en ninguna pantalla de Caja"
+        }
+      ]
+    }
+  ]
+}

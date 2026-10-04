@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
-import { requireBookingsAdmin } from "@/lib/bookings/access";
+import { requireBookingsConfigurer } from "@/lib/bookings/access";
 import { getSpace, listCompatibilities, listSpaces } from "@/lib/bookings/repository";
 import { compatibleSpaceIds } from "@/lib/bookings/conflicts";
 import { SpaceForm } from "../space-form";
@@ -14,7 +14,7 @@ export default async function EditarEspacioPage({
   params: Promise<{ spaceId: string }>;
   searchParams: Promise<{ error?: string }>;
 }) {
-  const { workspace } = await requireBookingsAdmin();
+  const { workspace } = await requireBookingsConfigurer();
   const { spaceId } = await params;
   const query = await searchParams;
 

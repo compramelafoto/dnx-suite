@@ -8,6 +8,7 @@
     "start": "next start --port 3002",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "test:instructivos": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.test.json --test lib/instructivos/album-instructivo-profile.test.ts lib/instructivos/album-instructivo-steps.test.ts lib/instructivos/instructivo-qr.test.ts lib/instructivos/instructivo-pdf.test.ts lib/albums/album-dashboard-nav.instructivos.test.ts lib/instructivos/cartel-qr-pdf.test.ts lib/instructivos/tarjetas-pdf.test.ts",
     "test:analysis": "../../services/dnx-mcp/node_modules/.bin/vitest run --config vitest.analysis.config.ts",
     "test:social": "../../services/dnx-mcp/node_modules/.bin/vitest run --config vitest.social.config.ts",
     "test:theme-scale": "../../packages/payments/node_modules/.bin/tsx --test styles/design-system/theme-scale.test.ts",
@@ -31,7 +32,7 @@
     "test:template-v2:render": "pnpm --filter @repo/template-editor-core test:render",
     "test:album-cover": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/album/album-list-cover.test.ts",
     "test:school-design": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/school-render/ensure-school-design-for-preventa-order-item.test.ts",
-    "test:preventa-copy": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/preventa-canjeable/benefit-copy.test.ts lib/albums/album-share-image.test.ts",
+    "test:preventa-copy": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/preventa-canjeable/benefit-copy.test.ts lib/preventa-canjeable/pack-savings.test.ts lib/albums/album-share-image.test.ts",
     "test:video-cleanup": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.test.json --test lib/videos/video-cleanup.test.ts",
     "test:video-frames": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.test.json --test lib/videos/video-frame-matching.test.ts"
   },

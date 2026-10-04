@@ -55,3 +55,31 @@ export function nombreDeCategoria(clave: string): string {
 export function esCategoriaValida(clave: string): boolean {
   return POR_CLAVE.has(clave);
 }
+
+/**
+ * El enlace por categoría.
+ *
+ * El capítulo 14 pide poder generar un enlace por rubro además del general: mandarle al
+ * salón uno que ya diga "salón" le ahorra un paso y, sobre todo, evita que el catering se
+ * anote como fotografía por elegir mal en una lista de treinta.
+ *
+ * La categoría viaja en la etiqueta del enlace y no en una columna nueva: es un dato del
+ * enlace, no del evento, y `SubilafotoAccessLink` ya tiene dónde ponerlo.
+ */
+const PREFIJO = "categoria:";
+
+export function etiquetaDeCategoria(clave: string): string {
+  return `${PREFIJO}${clave}`;
+}
+
+/**
+ * Qué categoría trae un enlace, o `null` si es el general.
+ *
+ * Una categoría que ya no está en la lista devuelve `null` y el enlace se comporta como
+ * general: sacar una categoría no puede romper los enlaces que alguien ya repartió.
+ */
+export function categoriaDelEnlace(etiqueta: string | null | undefined): string | null {
+  if (!etiqueta?.startsWith(PREFIJO)) return null;
+  const clave = etiqueta.slice(PREFIJO.length);
+  return esCategoriaValida(clave) ? clave : null;
+}

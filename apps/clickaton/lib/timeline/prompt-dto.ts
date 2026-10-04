@@ -96,6 +96,7 @@ export function toPromptPublicDto(
       prompt.videoAssetId ? { kind: "video", assetId: prompt.videoAssetId } : null,
       prompt.audioAssetId ? { kind: "audio", assetId: prompt.audioAssetId } : null,
     ].filter((a): a is { kind: string; assetId: string } => Boolean(a)),
+    countsForScoring: prompt.countsForScoring,
     serverNow,
   };
 }

@@ -37,6 +37,44 @@ export function assertContentPlatform(value: unknown): ContentPlatform {
   return value;
 }
 
-export function platformWhere(platform: ContentPlatform): { platform: ContentPlatform } {
-  return { platform: assertContentPlatform(platform) };
+/**
+ * Plataformas donde cada institución tiene su propio blog. En las demás hay uno solo por
+ * plataforma y `workspaceKey` es siempre "".
+ */
+export const PER_WORKSPACE_CONTENT_PLATFORMS: readonly ContentPlatform[] = ["fotoffice"];
+
+export type ContentScope = { platform: ContentPlatform; workspaceKey: string };
+
+/**
+ * El alcance de una operación: plataforma + institución.
+ *
+ * Falla en los dos sentidos a propósito. En FOTOFFICE sin institución, una consulta leería los
+ * blogs de todas a la vez; en CompraMeLaFoto o Clickatón con institución, no encontraría nada
+ * de lo que ya tienen. Las dos son errores de quien llama, no algo que convenga adivinar.
+ */
+export function resolveContentScope(platform: unknown, workspaceKey?: string | null): ContentScope {
+  const p = assertContentPlatform(platform);
+  const key = (workspaceKey ?? "").trim();
+  const porInstitucion = PER_WORKSPACE_CONTENT_PLATFORMS.includes(p);
+  if (porInstitucion && !key) {
+    throw new ContentError(
+      "CONTENT_WORKSPACE_REQUIRED",
+      `workspaceKey is required for content operations on ${p}`
+    );
+  }
+  if (!porInstitucion && key) {
+    throw new ContentError(
+      "CONTENT_WORKSPACE_NOT_ALLOWED",
+      `workspaceKey is not allowed for content operations on ${p}`
+    );
+  }
+  return { platform: p, workspaceKey: key };
+}
+
+/** El filtro de alcance para Prisma. Sin `workspaceKey`, el blog de la plataforma entera. */
+export function platformWhere(
+  platform: ContentPlatform,
+  workspaceKey?: string | null
+): ContentScope {
+  return resolveContentScope(platform, workspaceKey);
 }

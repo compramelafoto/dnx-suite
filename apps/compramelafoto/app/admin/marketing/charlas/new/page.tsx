@@ -79,7 +79,7 @@ export default function AdminTalkNewPage() {
         <p className="text-sm text-gray-500">Cargá los datos principales para empezar.</p>
       </div>
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 dnx-grid-2">
           <div>
             <label className="text-sm font-medium text-gray-700">Título</label>
             <input
@@ -107,7 +107,7 @@ export default function AdminTalkNewPage() {
             className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
           />
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 dnx-grid-2">
           <div>
             <label className="text-sm font-medium text-gray-700">Fecha</label>
             <input
@@ -127,7 +127,7 @@ export default function AdminTalkNewPage() {
             />
           </div>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 dnx-grid-2">
           <div>
             <label className="text-sm font-medium text-gray-700">Calendar URL</label>
             <input
@@ -145,7 +145,7 @@ export default function AdminTalkNewPage() {
             />
           </div>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 dnx-grid-2">
           <div>
             <label className="text-sm font-medium text-gray-700">CTA principal</label>
             <input

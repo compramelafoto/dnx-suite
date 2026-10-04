@@ -140,7 +140,7 @@ FotoRank pone su franja en escala de grises y acá **no**. No es un descuido.
 
 Son dos productos que muestran cosas distintas. FotoRank es un concurso de
 fotografía: el gris saca de en medio el color para que se mire la composición,
-que es lo que se juzga. Subí la Foto vende otra cosa —el clima de una fiesta— y
+que es lo que se juzga. SubiLaFoto vende otra cosa —el clima de una fiesta— y
 eso vive justamente en las luces de colores, el vestido, la torta. En gris, diez
 fotos de fiesta parecen un archivo histórico.
 

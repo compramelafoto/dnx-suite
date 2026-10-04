@@ -1,42 +1,43 @@
 import "server-only";
 import { redirect } from "next/navigation";
 import { requireActiveWorkspace } from "@/lib/workspace";
-import { resolveWorkspaceRole } from "@/lib/workspace-role";
-import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
-import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
+import { getModuleLevel, hasModuleAction } from "@/lib/permissions/module-access";
+import { hasLevel } from "@/lib/permissions/levels";
+import { SALES_CATALOG_ACTION } from "@/lib/permissions/actions";
 import { SALES_MODULE_KEY } from "./constants";
 
 /**
- * Control de acceso del módulo, en dos niveles y siempre en el servidor.
+ * Control de acceso del módulo, siempre en el servidor.
  *
- * Nivel 1: el módulo está habilitado para ESE workspace. Nivel 2: la persona tiene rol.
- * Esconder un link del menú es cosmético, nunca control.
+ * El nivel sale de `getModuleLevel`, que ya incluye si el módulo está habilitado para ESE
+ * workspace y qué rol tiene la persona. Esconder un link del menú es cosmético, nunca control.
  *
- * Vender es STAFF+: es lo que hace el mostrador todo el día, y exigir un administrador para
- * cobrar sería absurdo. Editar el catálogo —dar de alta un producto, tocar su precio o su
- * costo— es ADMIN+: cambia lo que se cobra y el margen del negocio entero, y no es algo que
- * deba poder hacer cualquiera desde el mostrador.
+ * - MANAGE: vender, cargar stock y anular. Es lo que hace el mostrador todo el día, y exigir
+ *   un administrador para cobrar sería absurdo. El STAFF de antes (sin roles) queda acá por la
+ *   compatibilidad de `levels.ts`.
+ * - MANAGE + `sales.catalog`: dar de alta un producto, tocar su precio o su costo. Cambia lo que
+ *   se cobra y el margen del negocio entero. Dueño y admin la tienen siempre; el STAFF de antes,
+ *   nunca (igual que cuando esto exigía ADMIN+).
  */
 async function contextoBase() {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) redirect("/workspace");
-  if (!(await isModuleEnabledForWorkspace(workspace.id, SALES_MODULE_KEY))) {
-    redirect("/dashboard");
-  }
-  const role = await resolveWorkspaceRole(user.id, workspace.id);
-  return { user, workspace, role };
+  const [level, tieneAccion] = await Promise.all([
+    getModuleLevel(user.id, workspace.id, SALES_MODULE_KEY),
+    hasModuleAction(user.id, workspace.id, SALES_MODULE_KEY, SALES_CATALOG_ACTION),
+  ]);
+  if (!hasLevel(level, "MANAGE")) redirect("/dashboard");
+  const canEditCatalog = tieneAccion;
+  return { user, workspace, level, canEditCatalog };
 }
 
 export async function requireSalesStaff() {
-  const ctx = await contextoBase();
-  if (!ctx.role) redirect("/dashboard");
-  return ctx;
+  return contextoBase();
 }
 
 export async function requireSalesAdmin() {
   const ctx = await contextoBase();
-  // "/ventas" todavía no tiene pantalla propia: mandar ahí a quien no es admin da un 404,
-  // no un mensaje de permiso. "/ventas/catalogo" sí existe y es donde el STAFF puede estar.
-  if (!canManageWorkspaceSettings(ctx.role)) redirect("/ventas/catalogo");
+  // "/ventas/catalogo" es donde puede estar quien vende pero no edita el catálogo.
+  if (!ctx.canEditCatalog) redirect("/ventas/catalogo");
   return ctx;
 }

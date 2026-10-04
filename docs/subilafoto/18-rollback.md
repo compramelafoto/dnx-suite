@@ -102,7 +102,7 @@ Se hizo el 2026-09-15 sobre el proyecto de producción:
    Production* en cada despliegue viejo.
 3. Se confirmó que **sacar `CRON_SECRET` frena las cinco tareas**: las rutas devuelven 503
    —no 401— justamente para distinguir "no está configurado" de "no estás autorizado".
-4. Se confirmó que ninguna migración de Subí la Foto borró columnas hasta hoy, así que
+4. Se confirmó que ninguna migración de SubiLaFoto borró columnas hasta hoy, así que
    cualquier rollback de código actual es seguro.
 
 Lo que **no** se ensayó, porque implicaba romper producción a propósito: promover de verdad

@@ -410,85 +410,81 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Cards de métricas principales */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="p-6">
-          <div className="flex items-center justify-between">
-            <div className="min-w-0 flex-1">
-              <p className="text-sm text-gray-600">Ventas Hoy</p>
-              <p className="text-2xl font-bold text-green-600 mt-1">
-                {stats ? formatARS(stats.salesTodayConfirmed ?? stats.salesToday) : "$0"}
-              </p>
-              <p className="text-xs text-gray-500 mt-1">Confirmadas</p>
-              <p className="text-xs text-amber-600 mt-0.5">
-                Pendientes: {formatARS(stats?.salesTodayPending ?? 0)}
-              </p>
-              <p className="text-xs text-red-600 mt-0.5">
-                Con error: {formatARS(stats?.salesTodayFailed ?? 0)}
-              </p>
-            </div>
-            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center shrink-0 ml-2">
-              <span className="text-green-600 text-xl">💰</span>
+      <div className="grid dnx-grid-4 gap-4">
+        <Card className="p-5 md:p-5">
+          {/* Título e icono arriba: el importe ocupa el ancho completo y no queda tapado. */}
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-sm text-gray-600 min-w-0">Ventas Hoy</p>
+            <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center shrink-0">
+              <span className="text-green-600 text-lg">💰</span>
             </div>
           </div>
+          <p className="text-2xl font-bold text-green-600 mt-1 break-words">
+            {stats ? formatARS(stats.salesTodayConfirmed ?? stats.salesToday) : "$0"}
+          </p>
+          <p className="text-xs text-gray-500 mt-1">Confirmadas</p>
+          <p className="text-xs text-amber-600 mt-0.5">
+            Pendientes: {formatARS(stats?.salesTodayPending ?? 0)}
+          </p>
+          <p className="text-xs text-red-600 mt-0.5">
+            Con error: {formatARS(stats?.salesTodayFailed ?? 0)}
+          </p>
         </Card>
 
-        <Card className="p-6">
-          <div className="flex items-center justify-between">
-            <div className="min-w-0 flex-1">
-              <p className="text-sm text-gray-600">Ventas Semana</p>
-              <p className="text-2xl font-bold text-green-600 mt-1">
-                {stats ? formatARS(stats.salesWeekConfirmed ?? stats.salesWeek) : "$0"}
-              </p>
-              <p className="text-xs text-gray-500 mt-1">Confirmadas</p>
-              <p className="text-xs text-amber-600 mt-0.5">
-                Pendientes: {formatARS(stats?.salesWeekPending ?? 0)}
-              </p>
-              <p className="text-xs text-red-600 mt-0.5">
-                Con error: {formatARS(stats?.salesWeekFailed ?? 0)}
-              </p>
-            </div>
-            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center shrink-0 ml-2">
-              <span className="text-blue-600 text-xl">📊</span>
+        <Card className="p-5 md:p-5">
+          {/* Título e icono arriba: el importe ocupa el ancho completo y no queda tapado. */}
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-sm text-gray-600 min-w-0">Ventas Semana</p>
+            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center shrink-0">
+              <span className="text-blue-600 text-lg">📊</span>
             </div>
           </div>
+          <p className="text-2xl font-bold text-green-600 mt-1 break-words">
+            {stats ? formatARS(stats.salesWeekConfirmed ?? stats.salesWeek) : "$0"}
+          </p>
+          <p className="text-xs text-gray-500 mt-1">Confirmadas</p>
+          <p className="text-xs text-amber-600 mt-0.5">
+            Pendientes: {formatARS(stats?.salesWeekPending ?? 0)}
+          </p>
+          <p className="text-xs text-red-600 mt-0.5">
+            Con error: {formatARS(stats?.salesWeekFailed ?? 0)}
+          </p>
         </Card>
 
-        <Card className="p-6">
-          <div className="flex items-center justify-between">
-            <div className="min-w-0 flex-1">
-              <p className="text-sm text-gray-600">Ventas Mes</p>
-              <p className="text-2xl font-bold text-green-600 mt-1">
-                {stats ? formatARS(stats.salesMonthConfirmed ?? stats.salesMonth) : "$0"}
-              </p>
-              <p className="text-xs text-gray-500 mt-1">Confirmadas</p>
-              <p className="text-xs text-amber-600 mt-0.5">
-                Pendientes: {formatARS(stats?.salesMonthPending ?? 0)}
-              </p>
-              <p className="text-xs text-red-600 mt-0.5">
-                Con error: {formatARS(stats?.salesMonthFailed ?? 0)}
-              </p>
-            </div>
-            <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center shrink-0 ml-2">
-              <span className="text-purple-600 text-xl">📈</span>
+        <Card className="p-5 md:p-5">
+          {/* Título e icono arriba: el importe ocupa el ancho completo y no queda tapado. */}
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-sm text-gray-600 min-w-0">Ventas Mes</p>
+            <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center shrink-0">
+              <span className="text-purple-600 text-lg">📈</span>
             </div>
           </div>
+          <p className="text-2xl font-bold text-green-600 mt-1 break-words">
+            {stats ? formatARS(stats.salesMonthConfirmed ?? stats.salesMonth) : "$0"}
+          </p>
+          <p className="text-xs text-gray-500 mt-1">Confirmadas</p>
+          <p className="text-xs text-amber-600 mt-0.5">
+            Pendientes: {formatARS(stats?.salesMonthPending ?? 0)}
+          </p>
+          <p className="text-xs text-red-600 mt-0.5">
+            Con error: {formatARS(stats?.salesMonthFailed ?? 0)}
+          </p>
         </Card>
 
-        <Card className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Pedidos Hoy</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">
-                {stats?.ordersToday || 0}
-              </p>
-              <p className="text-xs text-gray-500 mt-1">
-                {stats?.ordersPaidToday ?? 0} efectivos
-              </p>
-            </div>
-            <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
-              <span className="text-yellow-600 text-xl">📦</span>
+        <Card className="p-5 md:p-5">
+          {/* Título e icono arriba: el importe ocupa el ancho completo y no queda tapado. */}
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-sm text-gray-600 min-w-0">Pedidos Hoy</p>
+            <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center shrink-0">
+              <span className="text-yellow-600 text-lg">📦</span>
             </div>
           </div>
+          <p className="text-2xl font-bold text-gray-900 mt-1 break-words">
+            {stats?.ordersToday || 0}
+          </p>
+          <p className="text-xs text-gray-500 mt-1">
+            {stats?.ordersPaidToday ?? 0} efectivos
+          </p>
         </Card>
       </div>
 
@@ -497,7 +493,7 @@ export default function AdminDashboardPage() {
         <p className="text-sm text-gray-600 mb-4">
           Conteo de vistas y visitantes distintos (cookie httpOnly anónima). Incluye usuarios no logueados.
         </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
+        <div className="grid dnx-grid-3 gap-3 text-sm">
           {[
             "ORDER_CONFIG_VIEW",
             "ORDER_FINAL_VIEW",
@@ -667,7 +663,7 @@ export default function AdminDashboardPage() {
           </p>
         ) : (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+            <div className="grid dnx-grid-4 gap-3 mb-6">
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
                 <p className="text-xs font-medium text-slate-600 uppercase tracking-wide">
                   Demora promedio (con ventas)
@@ -969,7 +965,7 @@ export default function AdminDashboardPage() {
       {/* Pedidos por estado (30 días) */}
       <Card className="p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Pedidos por estado (últimos 30 días)</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid dnx-grid-3 gap-4">
           <Link
             href="/admin/pedidos?paymentStatus=PAID"
             className="p-4 bg-green-50 rounded-lg border border-green-200 hover:bg-green-100 transition-colors block"
@@ -1004,64 +1000,64 @@ export default function AdminDashboardPage() {
       </Card>
 
       {/* Cards de métricas secundarias */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="p-6">
+      <div className="grid dnx-grid-4 gap-4">
+        <Card className="p-5 md:p-5">
           <p className="text-sm text-gray-600">Pedidos Impresión (30d)</p>
           <p className="text-xl font-semibold text-gray-900 mt-1">
             {stats?.ordersPrint || 0}
           </p>
         </Card>
 
-        <Card className="p-6">
+        <Card className="p-5 md:p-5">
           <p className="text-sm text-gray-600">Pedidos Digitales (30d)</p>
           <p className="text-xl font-semibold text-gray-900 mt-1">
             {stats?.ordersDigital || 0}
           </p>
         </Card>
 
-        <Card className="p-6">
+        <Card className="p-5 md:p-5">
           <p className="text-sm text-gray-600">Pedidos Álbum (30d)</p>
           <p className="text-xl font-semibold text-gray-900 mt-1">
             {stats?.ordersAlbum || 0}
           </p>
         </Card>
 
-        <Card className="p-6">
+        <Card className="p-5 md:p-5">
           <p className="text-sm text-gray-600">Laboratorios Activos</p>
           <p className="text-xl font-semibold text-gray-900 mt-1">
             {stats?.labsActive || 0}
           </p>
         </Card>
 
-        <Card className="p-6">
+        <Card className="p-5 md:p-5">
           <p className="text-sm text-gray-600">Fotógrafos Activos</p>
           <p className="text-xl font-semibold text-gray-900 mt-1">
             {stats?.photographersActive || 0}
           </p>
         </Card>
 
-        <Card className="p-6">
+        <Card className="p-5 md:p-5">
           <p className="text-sm text-gray-600">Clientes Activos</p>
           <p className="text-xl font-semibold text-gray-900 mt-1">
             {stats?.clientsActive || 0}
           </p>
         </Card>
 
-        <Card className="p-6">
+        <Card className="p-5 md:p-5">
           <p className="text-sm text-gray-600">Pagos Pendientes (7d)</p>
           <p className="text-xl font-semibold text-gray-900 mt-1">
             {stats?.pendingPayments || 0}
           </p>
         </Card>
 
-        <Card className="p-6">
+        <Card className="p-5 md:p-5">
           <p className="text-sm text-gray-600">Labs Pendientes</p>
           <p className="text-xl font-semibold text-gray-900 mt-1">
             {stats?.labsPending || 0}
           </p>
         </Card>
 
-        <Card className="p-6">
+        <Card className="p-5 md:p-5">
           <p className="text-sm text-gray-600">Pedidos Trabados</p>
           <p className="text-xl font-semibold text-gray-900 mt-1">
             {stats?.stuckOrders || 0}
@@ -1189,7 +1185,7 @@ export default function AdminDashboardPage() {
           <p className="text-sm text-gray-500">Sin pedidos pagados en el período.</p>
         ) : (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+            <div className="grid dnx-grid-4 gap-3 mb-6">
               <div className="rounded-lg border border-emerald-200 bg-emerald-50/80 px-4 py-3">
                 <p className="text-xs font-medium text-emerald-800 uppercase tracking-wide">Día con más ventas</p>
                 <p className="text-lg font-semibold text-emerald-900 mt-1">{salesPeakHoursStudy.peakDay.label}</p>
@@ -1222,7 +1218,7 @@ export default function AdminDashboardPage() {
                 </p>
               </div>
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="grid dnx-grid-2 gap-8">
               <div>
                 <h3 className="text-sm font-medium text-gray-800 mb-2">Ventas por día de la semana</h3>
                 <div className="h-72 w-full min-w-0">
@@ -1311,10 +1307,10 @@ export default function AdminDashboardPage() {
       {stats && (stats.totalPhotosUploaded !== undefined || stats.totalPhotosSold !== undefined) && (
         <Card className="p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Estadísticas de Fotos</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid dnx-grid-4 gap-4">
             <div>
               <p className="text-sm text-gray-600">Fotos subidas (histórico)</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">
+              <p className="text-2xl font-bold text-gray-900 mt-1 break-words">
                 {stats.totalPhotosUploaded?.toLocaleString("es-AR") || 0}
               </p>
               <p className="text-xs text-gray-500 mt-1">
@@ -1346,7 +1342,7 @@ export default function AdminDashboardPage() {
             </div>
             <div>
               <p className="text-sm text-gray-600">Fotos Vendidas (Total)</p>
-              <p className="text-2xl font-bold text-green-600 mt-1">
+              <p className="text-2xl font-bold text-green-600 mt-1 break-words">
                 {stats.totalPhotosSold?.toLocaleString("es-AR") || 0}
               </p>
             </div>
@@ -1403,7 +1399,7 @@ export default function AdminDashboardPage() {
       )}
 
       {/* Rankings últimos 90 días */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid dnx-grid-2 gap-6">
         <Card className="p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
             Top fotógrafos por facturación (últimos 90 días)
@@ -1581,7 +1577,7 @@ export default function AdminDashboardPage() {
       )}
 
       {/* Gráficas y tablas */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid dnx-grid-2 gap-6">
         {/* Pedidos últimos 14 días */}
         {ordersByDay.length > 0 && (
           <Card className="p-6">

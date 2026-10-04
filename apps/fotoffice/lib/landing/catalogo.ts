@@ -3,9 +3,11 @@ import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
+import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
+import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { SALES_MODULE_KEY } from "@/lib/sales/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
@@ -74,6 +76,19 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
     resuelve:
       "Sorteás entre los socios que están al día, con premios de las marcas aliadas. El número ganador no lo elige el sistema: sale de una baliza pública de azar que se consulta en varios servidores a la vez. Cualquier socio puede rehacer la cuenta después y comprobar que salió así.",
     pantallas: ["Sorteos y participantes", "Entregas de premios", "Comprobación pública del resultado"],
+  },
+  {
+    key: PORTFOLIO_MODULE_KEY,
+    cuadro: "03b",
+    nombre: "Portfolios",
+    resuelve:
+      "Cada socio arma su galería desde su propio portal y queda publicada en el sitio de la institución, con su obra, su presentación y su contacto. Nadie de la Secretaría toca una foto. La institución decide si se muestra y puede bajar un portfolio cuando haga falta, pero no edita la obra de nadie.",
+    pantallas: [
+      "Mi portfolio, en el portal del socio",
+      "Directorio público de socios",
+      "La ficha de cada socio, con su galería",
+      "Control de publicación desde el panel",
+    ],
   },
   {
     key: BOOKINGS_MODULE_KEY,
@@ -164,8 +179,20 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
     ],
   },
   {
-    key: SALES_MODULE_KEY,
+    key: SERVICE_LEADS_MODULE_KEY,
     cuadro: "11",
+    nombre: "Captación de presupuestos",
+    resuelve:
+      "Un formulario público por tipo de evento —casamiento, quince, lo que arme— que compartís por donde quieras. La consulta entra con todos los datos que pediste y queda en una bandeja, con su historial, en vez de perderse entre mensajes de WhatsApp. El precio todavía lo ponés vos por afuera.",
+    pantallas: [
+      "Formularios por tipo de evento",
+      "Enlace para compartir",
+      "Bandeja de consultas",
+    ],
+  },
+  {
+    key: SALES_MODULE_KEY,
+    cuadro: "12",
     nombre: "Ventas",
     resuelve:
       "El mostrador: buscás el producto por nombre o lo pasás por el lector de código de barras, armás el ticket y cobrás. Cada venta descuenta la existencia y entra sola a la caja del turno. Los productos con código de barras se comparten con el resto del sistema, así que el que alguien ya cargó no hay que volver a cargarlo.",
@@ -245,38 +272,38 @@ export const EN_CONSTRUCCION: {
   icono: string;
 }[] = [
   {
-    cuadro: "11",
+    cuadro: "13",
     icono: "presupuestos",
     nombre: "Presupuestos",
     resuelve:
-      "Armar el presupuesto con tus precios, mandárselo al cliente y seguir si lo aceptó. Hoy la consulta te llega con todos los datos del evento; el precio todavía lo ponés vos por afuera.",
+      "Armar el presupuesto con tus precios, mandárselo al cliente y seguir si lo aceptó. La consulta ya te llega con todos los datos del evento —eso es Captación—; falta ponerle precio y mandarlo desde acá.",
   },
   {
-    cuadro: "12",
+    cuadro: "14",
     icono: "comunicacion",
     nombre: "Comunicación",
     resuelve: "Mandar un mensaje a todos los socios o a un grupo, desde adentro.",
   },
   {
-    cuadro: "13",
+    cuadro: "15",
     icono: "eventos",
     nombre: "Eventos",
     resuelve: "Salidas, charlas y encuentros con inscripción y lista de asistencia.",
   },
   {
-    cuadro: "14",
+    cuadro: "16",
     icono: "gobierno",
     nombre: "Gobierno institucional",
     resuelve: "Actas, votaciones y resoluciones de la comisión directiva.",
   },
   {
-    cuadro: "15",
+    cuadro: "17",
     icono: "muestras",
     nombre: "Muestras",
     resuelve: "Las muestras de la institución, con sus obras y sus autores.",
   },
   {
-    cuadro: "16",
+    cuadro: "18",
     icono: "transparencia",
     nombre: "Transparencia",
     resuelve: "Publicar el balance y la rendición para que el socio vea en qué se usó su cuota.",

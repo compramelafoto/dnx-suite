@@ -1,11 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@repo/db";
+import { Prisma, prisma } from "@repo/db";
 import { requireWebsiteContext } from "@/lib/workspace";
-import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
+import { hasModuleLevel } from "@/lib/permissions/module-access";
+import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
+import { canEditWebsiteIdentity } from "@/lib/website/identity-access";
 import { websitePageContentSchema, type WebsitePageContent } from "@/lib/website/blocks";
 import { websiteDesignPresetsSchema } from "@/lib/website/design-presets";
+import { siteMenuSchema } from "@/lib/website/site-menu";
 
 /** `updatedAt` (ISO) del borrador tras publicar/despublicar — Publicar/Despublicar también
  * escriben la fila `FotofficeWorkspaceWebsite`, así que el autosave de secciones/diseño (que
@@ -23,11 +26,9 @@ async function assertCanManageWebsite(
   userId: number,
   verb: "publicar" | "despublicar" | "editar",
 ): Promise<string | null> {
-  const membership = await prisma.workspaceMembership.findUnique({
-    where: { userId_workspaceId: { userId, workspaceId } },
-    select: { role: true },
-  });
-  return canManageWorkspaceSettings(membership?.role) ? null : `No tenés permiso para ${verb} el sitio web.`;
+  return (await hasModuleLevel(userId, workspaceId, WEBSITE_MODULE_KEY, "MANAGE"))
+    ? null
+    : `No tenés permiso para ${verb} el sitio web.`;
 }
 
 /**
@@ -160,7 +161,7 @@ async function saveDraftFields(
 }
 
 /**
- * Guarda bloques y/o presets de diseño (pestañas Secciones y Diseño del builder) en una sola
+ * Guarda bloques, presets de diseño y/o menú (pestañas Secciones, Diseño y Menú) en una sola
  * escritura atómica. Combinadas a propósito: ambas viven en la misma fila
  * (`FotofficeWorkspaceWebsite`) y comparten el mismo `updatedAt` de concurrencia — si cada una
  * tuviera su propio autosave independiente, el segundo guardado chocaría con un falso conflicto
@@ -199,6 +200,25 @@ export async function saveWebsiteBlocksAction(
     data.designPresetsJson = parsed.data;
   }
 
+  // El menú editado a mano (pestaña Menú). `null` = volver al menú automático.
+  if (formData.has("navJson")) {
+    let raw: unknown;
+    try {
+      raw = JSON.parse(formData.get("navJson")!.toString());
+    } catch {
+      return { error: "El menú enviado no tiene un formato válido." };
+    }
+    if (raw === null) {
+      data.navJson = Prisma.JsonNull;
+    } else {
+      // Estricto, a diferencia de los presets: un link inseguro no se "corrige" a otro valor,
+      // se rechaza — el constructor ya valida antes de mandar, así que esto sólo frena trampas.
+      const parsed = siteMenuSchema.safeParse(raw);
+      if (!parsed.success) return { error: "El menú tiene un ítem inválido. Revisá los links." };
+      data.navJson = parsed.data;
+    }
+  }
+
   const result = await saveDraftFields(workspace.id, formData.get("draftUpdatedAt")?.toString(), data);
   if (result.error) return result;
 
@@ -231,12 +251,21 @@ export async function saveWebsiteSeoAction(
   return result;
 }
 
-export type WebsiteBrandingColorsState = { error: string | null; ok?: boolean };
+/** `notice`: se guardó, pero algo del pedido se ignoró (el logo o el favicon sin ser dueño/admin). */
+export type WebsiteBrandingColorsState = { error: string | null; ok?: boolean; notice?: string };
+
+const AVISO_IDENTIDAD =
+  "Se guardaron los colores. El logo y el favicon los cambia el dueño o un admin de la institución.";
 
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 
 /** Guarda los 5 colores del sitio — misma fuente de verdad que Configuración
- * (`FotofficeWorkspaceBranding`), Website solo la edita, no la duplica. */
+ * (`FotofficeWorkspaceBranding`), Website solo la edita, no la duplica.
+ *
+ * Los colores piden `website` MANAGE. El logo y el favicon, además, dueño/admin
+ * (`canEditWebsiteIdentity`): son la identidad de la institución en todo el sistema. Si alguien
+ * sin ese permiso los manda cambiados, se guardan los colores, el logo y el favicon quedan como
+ * estaban y se devuelve `notice` para explicarlo (no un error: el resto sí se guardó). */
 export async function saveWebsiteBrandingColorsAction(
   _prev: WebsiteBrandingColorsState | undefined,
   formData: FormData,
@@ -257,11 +286,29 @@ export async function saveWebsiteBrandingColorsAction(
   // logoUrl/faviconUrl son opcionales en este form — el mismo Diseño global también los edita,
   // pero cada campo solo viaja cuando el caller lo incluye (evita pisarlos con null en un
   // submit que únicamente cambia colores).
+  const identidad: Partial<Record<"logoUrl" | "faviconUrl", string | null>> = {};
   if (formData.has("logoUrl")) {
-    data.logoUrl = formData.get("logoUrl")?.toString()?.trim() || null;
+    identidad.logoUrl = formData.get("logoUrl")?.toString()?.trim() || null;
   }
   if (formData.has("faviconUrl")) {
-    data.faviconUrl = formData.get("faviconUrl")?.toString()?.trim() || null;
+    identidad.faviconUrl = formData.get("faviconUrl")?.toString()?.trim() || null;
+  }
+
+  let notice: string | undefined;
+  if (Object.keys(identidad).length > 0) {
+    if (await canEditWebsiteIdentity(user.id, workspace.id)) {
+      Object.assign(data, identidad);
+    } else {
+      // El constructor manda siempre los dos campos: sólo hay que avisar si de verdad cambiaron.
+      const actual = await prisma.fotofficeWorkspaceBranding.findUnique({
+        where: { workspaceId: workspace.id },
+        select: { logoUrl: true, faviconUrl: true },
+      });
+      const cambio = (["logoUrl", "faviconUrl"] as const).some(
+        (k) => k in identidad && (identidad[k] ?? null) !== (actual?.[k] ?? null),
+      );
+      if (cambio) notice = AVISO_IDENTIDAD;
+    }
   }
 
   try {
@@ -273,5 +320,5 @@ export async function saveWebsiteBrandingColorsAction(
   // Diseño dejó de ser una ruta propia (`/website/diseno`) y pasó a ser una pestaña del builder.
   revalidatePath("/website");
   revalidatePath("/website/preview");
-  return { error: null, ok: true };
+  return notice ? { error: null, ok: true, notice } : { error: null, ok: true };
 }

@@ -2,12 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { requireActiveWorkspace } from "@/lib/workspace";
-import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
+import { hasModuleLevel } from "@/lib/permissions/module-access";
+import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { getPlatformFeeBps } from "@/lib/platform-fee/store";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
-import { FEE_SINCE_PERIOD } from "@/lib/platform-fee/debt";
 import { MANUAL_METHODS, registerManualPayment, type ManualMethod } from "@/lib/membership/manual-payment";
 import { parseArsToMinor } from "@/lib/membership/money";
+import { mensajeDePadron } from "@/lib/members/mensajes";
+import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 
 export type ManualPaymentState = {
   error: string | null;
@@ -29,12 +32,13 @@ export async function registerManualPaymentAction(
 ): Promise<ManualPaymentState> {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) return { error: "No hay una institución activa.", ok: null };
-  if (!(await canManageWorkspaceCollection(user.id, workspace.id))) {
+  if (!(await hasModuleLevel(user.id, workspace.id, MEMBERSHIP_DUES_MODULE_KEY, "MANAGE"))) {
     return { error: "Solo quien administra los cobros puede registrar un pago.", ok: null };
   }
 
+  const vocabulary = await loadPersonVocabulary(workspace.id);
   const memberId = String(formData.get("memberId") ?? "").trim();
-  if (!memberId) return { error: "Elegí a qué socio corresponde el pago.", ok: null };
+  if (!memberId) return { error: mensajeDePadron("elegiUno", vocabulary), ok: null };
 
   // El parser compartido (lib/membership/money.ts) acepta más de dos decimales y los
   // redondea al centavo en vez de rechazarlos —es el mismo comportamiento que ya tenía
@@ -47,7 +51,7 @@ export async function registerManualPaymentAction(
 
   const method = String(formData.get("method") ?? "") as ManualMethod;
   if (!MANUAL_METHODS.includes(method)) {
-    return { error: "Elegí si fue en efectivo o por transferencia.", ok: null };
+    return { error: "Elegí cómo pagó: efectivo, transferencia o Mercado Pago.", ok: null };
   }
 
   const fechaCruda = String(formData.get("paidAt") ?? "").trim();
@@ -68,7 +72,6 @@ export async function registerManualPaymentAction(
     paidAt,
     reference,
     feeBps,
-    feeSincePeriod: FEE_SINCE_PERIOD,
   });
   if (!r.ok) return { error: r.error, ok: null };
 
@@ -78,7 +81,12 @@ export async function registerManualPaymentAction(
 
   const partes = [`Pago de ${money(amountMinor)} registrado.`];
   if (r.unappliedMinor > 0) {
-    partes.push(`Quedaron ${money(r.unappliedMinor)} a favor del socio, sin cuota a la que imputar.`);
+    partes.push(
+      aplicarVocabulario(
+        `Quedaron ${money(r.unappliedMinor)} a favor del {persona}, sin cuota a la que imputar.`,
+        vocabulary,
+      ),
+    );
   }
   if (r.accruedFeeMinor > 0) {
     partes.push(

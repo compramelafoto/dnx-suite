@@ -42,6 +42,7 @@ import {
   ClickatonCardError,
 } from "./participant-card-errors";
 import { checkParticipantCardRateLimit } from "./participant-card-rate-limit";
+import { codigoConMotivo } from "./participant-card-motivo-del-fallo";
 import { resolveParticipantCardTemplate } from "./participant-card-template-source";
 import {
   getClickatonParticipantCardPreset,
@@ -1135,11 +1136,15 @@ export async function getOrGenerateClickatonParticipantCard(
     });
   } catch (err) {
     const failedAt = deps.now();
+    const codigo =
+      err instanceof ClickatonCardError ? err.code : "CLICKATON_CARD_RENDER_FAILED";
+    const motivo = err instanceof Error ? err.message : String(err);
     await deps.repository.updateRecord(record.id, {
       status: "FAILED",
       failedAt,
-      errorCode:
-        err instanceof ClickatonCardError ? err.code : "CLICKATON_CARD_RENDER_FAILED",
+      // El motivo va pegado al código: los registros del servidor duran minutos y sin esto
+      // averiguar por qué falló una placa cuesta un despliegue.
+      errorCode: codigoConMotivo(codigo, motivo),
       lockExpiresAt: null,
       updatedAt: failedAt,
     });
@@ -1148,11 +1153,10 @@ export async function getOrGenerateClickatonParticipantCard(
       cardType: ctx.cardType,
       renderHashPrefix: renderHashPrefix(ctx.renderHash),
       actorKind: input.actor.kind,
-      errorCode:
-        err instanceof ClickatonCardError ? err.code : "CLICKATON_CARD_RENDER_FAILED",
+      errorCode: codigo,
       // El código sólo dice "el render falló". Sin el motivo, un fallo en producción obliga a
       // desplegar de nuevo únicamente para averiguar qué pasó.
-      errorMessage: err instanceof Error ? err.message : String(err),
+      errorMessage: motivo,
       recordId: record.id,
     });
     throw err;

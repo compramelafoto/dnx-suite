@@ -14,6 +14,25 @@ export type NormalizedCheckoutStatus =
   | "REFUNDED"
   | "CHARGEBACK";
 
+/**
+ * Reparto al fotógrafo afiliado (dueño del cupón) en el mismo cobro con tarjeta
+ * (Orders 1:N productivo). El dueño (cuenta cobradora DNX) se lleva el resto.
+ */
+export type ClickatonAffiliateSplitRequest = {
+  /** `DnxPaymentRecipient` del afiliado. */
+  recipientId: string;
+  /** `receiver_id` UUID del permiso de Split ACTIVO en Mercado Pago. */
+  receiverId: string;
+  /** Monto fijo para el afiliado (minor units). 0 < monto < total. */
+  partnerAmountMinor: number;
+};
+
+/** Nombre del pagador (señal antifraude opcional para Orders). */
+export type ClickatonCheckoutPayerName = {
+  firstName?: string;
+  lastName?: string;
+};
+
 export type CreateClickatonCheckoutOrderInput = {
   sourceApp: "CLICKATON";
   sourceType: "REGISTRATION" | "STORE_ORDER";
@@ -47,6 +66,13 @@ export type CreateClickatonCheckoutOrderInput = {
    * Token + deviceSessionId only — never trust browser amounts for charging.
    */
   cardPayment?: CardPaymentSubmission;
+  /**
+   * Reparto al afiliado (sólo junto con `cardPayment`). Con esto la orden va por
+   * Orders 1:N productivo y el external_reference usa guiones.
+   */
+  affiliateSplit?: ClickatonAffiliateSplitRequest;
+  /** Nombre del pagador; sólo se usa en Orders (antifraude). */
+  payerName?: ClickatonCheckoutPayerName;
 };
 
 /** Bridge opcional: fake manual, Checkout Pro TEST/LIVE, o Orders 1:N TEST. */
@@ -79,6 +105,9 @@ export type ClickatonCheckoutProviderBridge = {
     editionFinanceModality?: string;
     /** Brick → Orders 1:N card token path. */
     cardPayment?: CardPaymentSubmission;
+    /** Reparto al afiliado (Orders 1:N productivo). */
+    affiliateSplit?: ClickatonAffiliateSplitRequest;
+    payerName?: ClickatonCheckoutPayerName;
   }): Promise<{
     checkoutUrl: string;
     providerOrderId: string;

@@ -5,7 +5,7 @@ import {
   isValidPromotionCodeFormat,
   normalizePromotionCode,
 } from "@repo/promotions";
-import { prisma } from "@repo/db";
+import { prisma, type Prisma } from "@repo/db";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
 import { withClickatonDb } from "@/lib/admin/db";
 import { parseDateTimeInput } from "@/lib/admin/datetime-input";
@@ -13,6 +13,8 @@ import { CatalogValidationError } from "@/lib/admin-catalog/domain/errors";
 import { pesosInputToMinorUnits } from "@/lib/admin-catalog/ui/money-ui";
 import { adminRoutes } from "@/config/admin/navigation";
 import { CLICKATON_PROMOTION_PLATFORM } from "@/lib/promotions/prisma-promotions-adapter";
+import { withCouponAffiliate } from "@/lib/affiliates/domain/coupon-affiliate";
+import { parseCouponAffiliateForm } from "@/lib/affiliates/ui/presentation";
 
 export type PromotionActionState = {
   ok: boolean;
@@ -110,8 +112,66 @@ export async function createPromotionFormAction(
     errors.perUserUsageLimit = "Límite por usuario inválido.";
   }
 
+  // Condición de elegibilidad (opcional). Se guarda en metadata: no hay columna.
+  const eligibilityKind = (formData.get("eligibilityKind")?.toString() ?? "").trim();
+  const eligibilityEditionId = (
+    formData.get("eligibilityEditionId")?.toString() ?? ""
+  ).trim();
+  const eligibilityRequireCheckIn =
+    formData.get("eligibilityRequireCheckIn") === "on" ||
+    formData.get("eligibilityRequireCheckIn") === "true";
+
+  let metadata:
+    | {
+        eligibility: {
+          kind: "PARTICIPATED_IN_EDITION";
+          editionIds: string[];
+          requireCheckIn: boolean;
+        };
+      }
+    | undefined;
+  if (eligibilityKind === "PARTICIPATED_IN_EDITION") {
+    if (!eligibilityEditionId) {
+      errors.eligibilityEditionId =
+        "Elegí la edición en la que tienen que haber participado.";
+    } else {
+      metadata = {
+        eligibility: {
+          kind: "PARTICIPATED_IN_EDITION",
+          editionIds: [eligibilityEditionId],
+          requireCheckIn: eligibilityRequireCheckIn,
+        },
+      };
+    }
+  }
+
+  // Código de fotógrafo (opcional): dueño + comisión, los dos o ninguno.
+  const affiliateForm = parseCouponAffiliateForm({
+    affiliateId: formData.get("affiliateId")?.toString(),
+    percent: formData.get("affiliateCommissionPercent")?.toString(),
+  });
+  if (!affiliateForm.ok) {
+    errors.affiliateId = affiliateForm.error;
+  }
+
   if (Object.keys(errors).length || !startsAt || !endsAt) {
     throw new Error(Object.values(errors)[0] ?? "Datos inválidos.");
+  }
+
+  let finalMetadata: Record<string, unknown> | undefined = metadata;
+  if (affiliateForm.ok && affiliateForm.value) {
+    const affiliateId = affiliateForm.value.affiliateId;
+    const affiliate = await withClickatonDb(async () =>
+      prisma.clickatonAffiliate.findUnique({
+        where: { id: affiliateId },
+        select: { isActive: true },
+      }),
+    );
+    if (!affiliate.ok || !affiliate.data?.isActive) {
+      throw new Error("Ese fotógrafo no existe o está desactivado.");
+    }
+    // Conserva `eligibility` si la hay.
+    finalMetadata = withCouponAffiliate(metadata ?? null, affiliateForm.value);
   }
 
   const result = await withClickatonDb(async () => {
@@ -131,6 +191,7 @@ export async function createPromotionFormAction(
         isActive,
         platform: CLICKATON_PROMOTION_PLATFORM,
         editionId,
+        ...(finalMetadata ? { metadata: finalMetadata as Prisma.InputJsonValue } : {}),
       },
     });
   });

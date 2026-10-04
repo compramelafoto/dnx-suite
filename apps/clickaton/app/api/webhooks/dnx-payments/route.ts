@@ -41,6 +41,22 @@ export async function POST(request: Request) {
       queryTopic: url.searchParams.get("topic"),
     });
     if (!mp.ok) {
+      // Un aviso rechazado NO llega al inbox: sin esta línea, Mercado Pago puede
+      // estar golpeando la puerta durante semanas sin que quede rastro en ningún
+      // lado. Pasó: la firma falló desde el 2026-08-08 y nadie se enteró.
+      console.warn(
+        JSON.stringify({
+          event: "mp_webhook_rejected",
+          code: mp.code,
+          dataId: url.searchParams.get("data.id"),
+          type: url.searchParams.get("type") ?? url.searchParams.get("topic"),
+          requestId: headers["x-request-id"] ?? null,
+          hasSignature: true,
+          mercadoPagoSecretConfigured: Boolean(
+            process.env.MERCADOPAGO_WEBHOOK_SECRET?.trim(),
+          ),
+        }),
+      );
       const status =
         mp.code === "WEBHOOK_INVALID_SIGNATURE" ||
         mp.code === "LIVE_MODE_FORBIDDEN" ||

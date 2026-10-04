@@ -17,6 +17,7 @@ const H = vi.hoisted(() => ({
   inviteOne: vi.fn(),
   sendAndLog: vi.fn(),
   emailContext: vi.fn(),
+  vocabulary: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -25,7 +26,7 @@ vi.mock("@repo/db", async () => {
   return { ...actual, prisma: { fotofficeWorkspaceBranding: { findUnique: vi.fn() } } };
 });
 vi.mock("@/lib/workspace", () => ({ requireActiveWorkspace: H.requireWorkspace }));
-vi.mock("@/lib/payments/connect/authz", () => ({ canManageWorkspaceCollection: H.canManage }));
+vi.mock("@/lib/permissions/module-access", () => ({ hasModuleLevel: H.canManage }));
 vi.mock("@/lib/payments/connect/status", () => ({ getWorkspaceCollectionStatus: vi.fn() }));
 vi.mock("@/lib/membership/repository", () => ({
   approveApplication: H.approve,
@@ -36,10 +37,13 @@ vi.mock("@/lib/communications/send-and-log", () => ({ sendAndLogEmail: H.sendAnd
 vi.mock("@/lib/communications/load-workspace-signature", () => ({
   loadWorkspaceEmailContext: H.emailContext,
 }));
+// Cómo llama esta institución a la gente de su padrón: el resumen del alta la nombra.
+vi.mock("@/lib/vocabulario/load", () => ({ loadPersonVocabulary: H.vocabulary }));
 
 const { approveApplicationAction, rejectApplicationAction } = await import(
   "./membership-applications"
 );
+const { personVocabulary } = await import("@/lib/vocabulario/personas");
 
 const USUARIO = { id: 7, email: "secretaria@sfpr.test", name: "Secretaría" };
 
@@ -55,6 +59,7 @@ beforeEach(() => {
     workspace: { id: "ws-sfpr", name: "Club SFPR" },
   });
   H.canManage.mockReset().mockResolvedValue(true);
+  H.vocabulary.mockReset().mockResolvedValue(personVocabulary(null));
   H.approve.mockReset().mockResolvedValue({
     memberId: "m-1",
     memberNumber: "735",

@@ -1,0 +1,254 @@
+{
+  "proyecto": "Bolsa y contratación de jurados",
+  "plataforma": "FotoRank",
+  "spec": "docs/superpowers/specs/2026-09-19-fotorank-bolsa-de-jurados-design.md",
+  "enUso": "si",
+  "usoNota": "7 jurados se postularon solos entre el 21/09 y el 26/09 y los 7 están aprobados y en el directorio. 3 de ellos ya enviaron 423 evaluaciones de la 1ª Clickatón (27/09 a 29/09), y el 28 y 29/09 un organizador de FotoRank convocó a 2 desde el directorio para «Retratos del mundo 2026»",
+  "etapas": [
+    {
+      "nombre": "El padrón único para las dos plataformas",
+      "criterios": [
+        {
+          "que": "Un jurado se registra una vez y sirve para Clickatón y para FotoRank",
+          "implementado": { "pr": 202, "fecha": "2026-09-20" },
+          "probado": {
+            "fecha": "2026-09-29",
+            "evidencia": "El padrón de FotoRank tiene 7 cuentas de jurado; en la base de Clickatón hay 6 fichas espejo y 5 asignaciones a la 1ª edición, y 3 de esos jurados enviaron 423 evaluaciones entrando con su cuenta de FotoRank"
+          }
+        },
+        {
+          "que": "El portal de jurado muestra la foto a evaluar, con enlaces firmados que vencen",
+          "implementado": { "pr": 263, "fecha": "2026-09-24" },
+          "probado": {
+            "fecha": "2026-09-29",
+            "evidencia": "423 evaluaciones enviadas sobre las 270 obras congeladas de la 1ª Clickatón: la foto sale del bucket de Clickatón por /api/jurado/media con firma que vence. Hasta el PR 263 el visor mostraba la imagen rota"
+          }
+        },
+        {
+          "que": "Desde Clickatón se asigna a un jurado del padrón único a una maratón",
+          "implementado": { "pr": 234, "fecha": "2026-09-22" },
+          "probado": {
+            "fecha": "2026-09-29",
+            "evidencia": "5 asignaciones en la base de Clickatón, en las vacantes 1 a 5 de la 1ª edición, todas contra cuentas del padrón de FotoRank"
+          }
+        },
+        {
+          "que": "La migración del alta de jurados está aplicada en las bases",
+          "implementado": { "fecha": "2026-09-21" },
+          "probado": {
+            "fecha": "2026-09-21",
+            "evidencia": "20260920120000_fotorank_judge_public_signup y 20260921120000_fotorank_judge_portfolio registradas a mano en las cinco bases del schema compartido; en la base de FotoRank quedaron con finished_at del 21/09 a las 02:33 y 06:54 UTC"
+          }
+        },
+        {
+          "que": "Un jurado que olvidó su contraseña la recupera por correo",
+          "implementado": { "pr": 223, "fecha": "2026-09-22" },
+          "probado": {
+            "fecha": "2026-09-29",
+            "evidencia": "2 enlaces PASSWORD_RESET emitidos en la base de FotoRank, 1 de ellos usado"
+          }
+        },
+        {
+          "que": "El jurado entra con la misma contraseña del sitio: al postularse se le crea también la cuenta de FotoRank",
+          "implementado": { "pr": 228, "fecha": "2026-09-22" },
+          "probado": {
+            "fecha": "2026-09-29",
+            "evidencia": "Las 7 cuentas de jurado tienen su cuenta del sitio con el mismo correo; 5 de ellas se crearon después del despliegue del 22/09 03:40 UTC"
+          }
+        }
+      ]
+    },
+    {
+      "nombre": "El alta por cuenta propia",
+      "criterios": [
+        {
+          "que": "Un fotógrafo se postula solo, sin que nadie lo invite",
+          "implementado": { "pr": 205, "fecha": "2026-09-21" },
+          "probado": {
+            "fecha": "2026-09-29",
+            "evidencia": "7 fichas en FotorankJudgeProfile, todas con signupSource PUBLIC_SIGNUP, creadas entre el 21/09 18:06 UTC y el 26/09 00:04 UTC; antes del 21/09 había 0"
+          }
+        },
+        {
+          "que": "Confirma su correo desde el enlace que recibe",
+          "implementado": { "pr": 205, "fecha": "2026-09-21" },
+          "probado": {
+            "fecha": "2026-09-29",
+            "evidencia": "Las 7 cuentas de jurado tienen emailVerifiedAt cargado y están ACTIVE"
+          }
+        },
+        {
+          "que": "El jurado carga su foto, su web, su Instagram y su teléfono, y elige qué se ve en público",
+          "implementado": { "pr": 205, "fecha": "2026-09-21" },
+          "probado": {
+            "fecha": "2026-09-21",
+            "evidencia": "Las 2 fichas tienen retrato, Instagram y teléfono; una cargó además su web y la muestra, la otra dejó su web vacía y su Instagram visible. El teléfono no aparece en la página pública de ninguna de las dos"
+          }
+        },
+        {
+          "que": "La cola de fichas por revisar se ve, y alguien las aprueba",
+          "implementado": { "pr": 217, "fecha": "2026-09-21" },
+          "probado": {
+            "fecha": "2026-09-29",
+            "evidencia": "Las 7 fichas están APPROVED y la cola quedó en 0 pendientes; las 2 primeras se aprobaron el 22/09 a las 02:21 UTC"
+          }
+        },
+        {
+          "que": "Las páginas públicas de jurado se ven dentro del sitio, con su cabecera y su pie",
+          "implementado": { "pr": 215, "fecha": "2026-09-21" },
+          "probado": {
+            "fecha": "2026-09-21",
+            "evidencia": "fotorank.dnxsuite.com/jurados/postulacion y /jurados/publico/daniel-caurt-81a5 responden con <header> y <footer> del sitio; el título ya dice «Postulate como jurado» y la ficha pública muestra nombre, ciudad, biografía, web e Instagram"
+          }
+        },
+        {
+          "que": "Una ficha aprobada entra y sale del directorio cuando su dueño lo pide",
+          "implementado": { "pr": 230, "fecha": "2026-09-22" },
+          "probado": {
+            "fecha": "2026-09-29",
+            "evidencia": "Los 7 jurados piden aparecer y los 7 están publicados en el directorio (wantsDirectoryListing = isListedInProfessionalDirectory); antes una jurado aprobada lo pedía y no aparecía"
+          }
+        }
+      ]
+    },
+    {
+      "nombre": "El portfolio y la galería",
+      "criterios": [
+        {
+          "que": "Un jurado sube hasta doce fotos de su trabajo y las ordena",
+          "implementado": { "pr": 207, "fecha": "2026-09-21" },
+          "probado": {
+            "fecha": "2026-09-29",
+            "evidencia": "26 fotos en FotorankJudgePortfolioImage de 3 jurados distintos; la última subida el 26/09"
+          }
+        },
+        {
+          "que": "El directorio muestra a cada jurado con su retrato y una tira de su trabajo",
+          "implementado": { "pr": 207, "fecha": "2026-09-21" },
+          "probado": null,
+          "bloqueado": "El directorio exige sesión de organizador: falta mirarlo con una. Ahora hay material: 7 jurados publicados y 3 con portfolio"
+        },
+        {
+          "que": "Un organizador de FotoRank convoca a un jurado desde el directorio y el jurado acepta",
+          "implementado": { "pr": 207, "fecha": "2026-09-21" },
+          "probado": {
+            "fecha": "2026-09-29",
+            "evidencia": "2 invitaciones de directorio ACCEPTED (28/09 y 29/09) para «Retratos del mundo 2026», que dejaron 3 asignaciones ACCEPTED con calificación por criterios en la base de FotoRank"
+          }
+        }
+      ]
+    },
+    {
+      "nombre": "Jurado y participante a la vez",
+      "criterios": [
+        {
+          "que": "Quien también participa llega a su panel de jurado desde el menú",
+          "implementado": { "pr": 217, "fecha": "2026-09-21" },
+          "probado": null,
+          "bloqueado": "Ninguno de los 7 jurados figura como participante de un concurso (0 coincidencias por correo en FotorankContestParticipant): el caso que el menú resuelve no existe todavía en producción"
+        },
+        {
+          "que": "Nadie califica la categoría donde compite",
+          "implementado": { "pr": 217, "fecha": "2026-09-21" },
+          "probado": null,
+          "bloqueado": "Ninguno de los 7 jurados participa en un concurso: las compuertas están escritas y probadas con pruebas automáticas, pero nunca frenaron a nadie de verdad"
+        }
+      ]
+    },
+    {
+      "nombre": "El visor donde el jurado califica",
+      "criterios": [
+        {
+          "que": "El jurado califica una consigna por vez con la rúbrica de cuatro criterios, todo con el teclado",
+          "implementado": { "pr": 259, "fecha": "2026-09-24" },
+          "probado": {
+            "fecha": "2026-09-29",
+            "evidencia": "423 evaluaciones SUBMITTED con 1692 notas por criterio: exactamente 4 por obra"
+          }
+        },
+        {
+          "que": "El jurado deja un comentario privado sobre una obra, y lo puede borrar",
+          "implementado": { "pr": 266, "fecha": "2026-09-25" },
+          "probado": {
+            "fecha": "2026-09-29",
+            "evidencia": "1 de las 423 evaluaciones tiene comentario privado"
+          }
+        },
+        {
+          "que": "El jurado recibe el correo de que el juzgamiento abrió, con cuántas obras le tocaron",
+          "implementado": { "pr": 271, "fecha": "2026-09-25" },
+          "probado": null,
+          "bloqueado": "No quedó registro del envío en EmailQueue ni en FotorankTransactionalEmailOutbox de ninguna de las dos bases. Es indicio, no prueba: 3 de los 5 jurados empezaron a calificar el 27/09, dos días después del arreglo"
+        },
+        {
+          "que": "Desde el teléfono, parado o acostado, se califica con el dedo sin que nada tape la obra",
+          "implementado": { "pr": 274, "fecha": "2026-09-25" },
+          "probado": null,
+          "bloqueado": "El aparato desde el que se califica no queda en la base: falta preguntarle a un jurado o calificar una obra de prueba desde un teléfono"
+        },
+        {
+          "que": "Una calificación no se pierde si se corta internet: queda en el aparato y se manda sola",
+          "implementado": { "pr": 270, "fecha": "2026-09-25" },
+          "probado": null,
+          "bloqueado": "Sólo se prueba cortando la conexión a mitad de una calificación"
+        },
+        {
+          "que": "Cada jurado ve cuánto le falta según su ritmo de pantalla activa",
+          "implementado": { "pr": 259, "fecha": "2026-09-24" },
+          "probado": null,
+          "bloqueado": "0 filas en FotorankJuryActivityHeartbeat y 0 segundos activos en las 423 evaluaciones: la medición no está guardando nada. El PR 275, que la lleva a la base del concurso, sigue abierto"
+        }
+      ]
+    },
+    {
+      "nombre": "El panel de FotoRank",
+      "criterios": [
+        {
+          "que": "Cada persona ve un solo menú, armado según sea participante, jurado, organizador o super admin",
+          "implementado": { "pr": 267, "fecha": "2026-09-25" },
+          "probado": null,
+          "bloqueado": "El PR dice que no se probó con una sesión real; el menú no deja rastro en la base"
+        },
+        {
+          "que": "Los organizadores comunes no ven el circuito «Próximamente»",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "El PR 278 sigue abierto"
+        },
+        {
+          "que": "Los cuatro paneles comparten el mismo armazón y los formularios terminados",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "El PR 214 sigue abierto: el PR 267 trajo sólo su armazón y dejó afuera los formularios"
+        }
+      ]
+    },
+    {
+      "nombre": "Juzgar y cobrar",
+      "criterios": [
+        {
+          "que": "El jurado lee que el cobro por la plataforma está en camino",
+          "implementado": { "pr": 216, "fecha": "2026-09-21" },
+          "probado": {
+            "fecha": "2026-09-21",
+            "evidencia": "El anuncio se lee en producción, arriba del descargo de pagos externos, en fotorank.dnxsuite.com/jurados/postulacion"
+          }
+        },
+        {
+          "que": "Hay al menos un jurado evaluando de verdad en una convocatoria",
+          "implementado": { "pr": 259, "fecha": "2026-09-24" },
+          "probado": {
+            "fecha": "2026-09-29",
+            "evidencia": "3 jurados enviaron 423 evaluaciones de la 1ª Clickatón entre el 27/09 06:31 UTC y el 29/09 09:39 UTC"
+          }
+        },
+        {
+          "que": "El organizador le paga al jurado por la plataforma",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Diseñado y sin construir: el reparto de Mercado Pago sigue en sandbox (productionWritesAllowed: false, verificado el 21/09). El cartel provisorio hay que borrarlo el día que esto se encienda"
+        }
+      ]
+    }
+  ]
+}

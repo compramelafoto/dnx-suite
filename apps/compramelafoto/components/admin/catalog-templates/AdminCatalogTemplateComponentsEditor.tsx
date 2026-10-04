@@ -83,7 +83,7 @@ export default function AdminCatalogTemplateComponentsEditor({
                     Quitar
                   </Button>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-3 dnx-grid-2">
                   <DsField label="Nombre">
                     <Input
                       value={row.name}
@@ -91,7 +91,7 @@ export default function AdminCatalogTemplateComponentsEditor({
                       placeholder="Ej. 10 fotos digitales"
                     />
                   </DsField>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid dnx-grid-2 gap-3">
                     <CatalogComponentQuantityField
                       idPrefix={`admin-tpl-${index}`}
                       compact

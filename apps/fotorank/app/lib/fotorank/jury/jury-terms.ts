@@ -1,11 +1,17 @@
 /**
- * Aceptación de términos de jurado (staging).
- * Persistencia genérica vía methodConfigJson de asignaciones + audit event.
- * BORRADOR — LEGAL REVIEW REQUIRED — NO PUBLICAR
+ * La aceptación de los términos del jurado.
+ *
+ * Se guarda en el `methodConfigJson` de sus asignaciones, más un evento de
+ * auditoría: no hay tabla propia y no hace falta, porque lo que importa es
+ * poder demostrar quién aceptó qué versión y cuándo.
+ *
+ * Lee y escribe en la base del concurso. Para una maratón de Clickatón eso es
+ * la base de Clickatón, y preguntando en casa daba "concurso no encontrado"
+ * justo cuando el jurado quería empezar.
  */
-import { prisma } from "@repo/db";
+import { baseDelConcurso } from "./baseDelConcurso";
 import { JuryError } from "./errors";
-import { SANTA_FE_JURY_TERMS_VERSION } from "./santa-fe-en-foco-rubric";
+import { versionDeTerminos } from "./terminosDelJurado";
 
 export type JuryTermsAcceptance = {
   juryTermsVersion: string;
@@ -25,8 +31,9 @@ export async function hasAcceptedJuryTerms(input: {
   contestId: string;
   termsVersion?: string;
 }): Promise<boolean> {
-  const version = input.termsVersion ?? SANTA_FE_JURY_TERMS_VERSION;
-  const assignments = await prisma.fotorankJudgeAssignment.findMany({
+  const { db, esDeClickaton } = await baseDelConcurso(input.contestId);
+  const version = input.termsVersion ?? versionDeTerminos(esDeClickaton);
+  const assignments = await db.fotorankJudgeAssignment.findMany({
     where: { judgeAccountId: input.judgeAccountId, contestId: input.contestId },
     select: { methodConfigJson: true },
     take: 20,
@@ -45,14 +52,15 @@ export async function acceptJuryTerms(input: {
   locale?: string;
   termsVersion?: string;
 }) {
-  const version = input.termsVersion ?? SANTA_FE_JURY_TERMS_VERSION;
-  const contest = await prisma.fotorankContest.findUnique({
+  const { db, esDeClickaton } = await baseDelConcurso(input.contestId);
+  const version = input.termsVersion ?? versionDeTerminos(esDeClickaton);
+  const contest = await db.fotorankContest.findUnique({
     where: { id: input.contestId },
     select: { id: true, organizationId: true, slug: true },
   });
   if (!contest) throw new JuryError("CONTEST_NOT_FOUND", "Concurso no encontrado.", 404);
 
-  const assignments = await prisma.fotorankJudgeAssignment.findMany({
+  const assignments = await db.fotorankJudgeAssignment.findMany({
     where: {
       judgeAccountId: input.judgeAccountId,
       contestId: input.contestId,
@@ -73,7 +81,7 @@ export async function acceptJuryTerms(input: {
 
   for (const a of assignments) {
     const cfg = asConfig(a.methodConfigJson);
-    await prisma.fotorankJudgeAssignment.update({
+    await db.fotorankJudgeAssignment.update({
       where: { id: a.id },
       data: {
         methodConfigJson: {
@@ -84,7 +92,7 @@ export async function acceptJuryTerms(input: {
     });
   }
 
-  await prisma.fotorankJudgeAuditEvent.create({
+  await db.fotorankJudgeAuditEvent.create({
     data: {
       organizationId: contest.organizationId,
       contestId: contest.id,

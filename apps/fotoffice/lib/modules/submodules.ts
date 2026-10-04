@@ -6,6 +6,15 @@ import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { SALES_MODULE_KEY } from "@/lib/sales/constants";
+import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
+import {
+  BOOKINGS_CONFIGURE_ACTION,
+  CASH_CONFIGURE_ACTION,
+  COVERAGES_COORDINATE_ACTION,
+} from "@/lib/permissions/actions";
+import { hasLevel, type ModuleLevels } from "@/lib/permissions/levels";
+import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
 /**
  * Las pantallas de cada módulo, en un solo lugar.
@@ -34,8 +43,16 @@ export type SubmoduleItem = {
   icon: string;
   /** Qué se hace ahí, en una línea. Solo lo usa el inicio. */
   description: string;
-  /** Si hace falta permiso de administración del módulo para verla. */
+  /** Si hace falta gestionar (`MANAGE`) para verla; si no, alcanza con ver (`VIEW`). */
   requiresManage: boolean;
+  /**
+   * El módulo cuyo nivel decide esta pantalla, cuando no es el del grupo donde se muestra.
+   * Cuotas vive en el menú de Socios pero su permiso es el de `membership-dues`: una Tesorería
+   * puede cobrar sin gestionar el padrón, y una Secretaría al revés.
+   */
+  levelModuleKey?: string;
+  /** Acción sensible (ver `lib/permissions/actions.ts`) que además hace falta tener. */
+  requiresAction?: string;
   activeMatch: ActiveMatch;
 };
 
@@ -44,7 +61,7 @@ const SOCIOS: SubmoduleItem[] = [
     href: "/members",
     label: "Padrón",
     icon: "Users",
-    description: "Todos los socios, su estado y su ficha.",
+    description: "Todos los {personas}, su estado y su ficha.",
     requiresManage: false,
     activeMatch: "rest",
   },
@@ -61,7 +78,8 @@ const SOCIOS: SubmoduleItem[] = [
     label: "Cuotas",
     icon: "Wallet",
     description: "Qué se debe, qué se cobró y qué se generó.",
-    requiresManage: true,
+    requiresManage: false,
+    levelModuleKey: MEMBERSHIP_DUES_MODULE_KEY,
     activeMatch: "exact",
   },
   {
@@ -94,6 +112,7 @@ const SOCIOS: SubmoduleItem[] = [
     icon: "CalendarClock",
     description: "Cuánto vale la cuota y cuándo vence.",
     requiresManage: true,
+    levelModuleKey: MEMBERSHIP_DUES_MODULE_KEY,
     activeMatch: "under",
   },
 ];
@@ -148,6 +167,7 @@ const RESERVAS: SubmoduleItem[] = [
     icon: "DoorOpen",
     description: "Qué se alquila, cuándo, a qué precio y con qué otros espacios puede convivir.",
     requiresManage: true,
+    requiresAction: BOOKINGS_CONFIGURE_ACTION,
     activeMatch: "under",
   },
   {
@@ -156,6 +176,7 @@ const RESERVAS: SubmoduleItem[] = [
     icon: "PackagePlus",
     description: "El equipamiento que se alquila junto con un espacio, y cuánto hay de cada cosa.",
     requiresManage: true,
+    requiresAction: BOOKINGS_CONFIGURE_ACTION,
     activeMatch: "under",
   },
   {
@@ -164,6 +185,7 @@ const RESERVAS: SubmoduleItem[] = [
     icon: "CalendarClock",
     description: "Plazos de pago, cancelación y cierres por feriado.",
     requiresManage: true,
+    requiresAction: BOOKINGS_CONFIGURE_ACTION,
     activeMatch: "under",
   },
 ];
@@ -173,7 +195,7 @@ const SORTEOS: SubmoduleItem[] = [
     href: "/sorteos",
     label: "Sorteos",
     icon: "Ticket",
-    description: "Los sorteos entre socios al día, con premios de las marcas aliadas.",
+    description: "Los sorteos entre {personas} al día, con premios de las marcas aliadas.",
     requiresManage: false,
     activeMatch: "rest",
   },
@@ -234,6 +256,7 @@ const CAJA: SubmoduleItem[] = [
     icon: "Settings",
     description: "Dónde está la plata y cómo se clasifica lo que entra y sale.",
     requiresManage: true,
+    requiresAction: CASH_CONFIGURE_ACTION,
     activeMatch: "under",
   },
 ];
@@ -252,7 +275,7 @@ const CLIENTES: SubmoduleItem[] = [
     label: "Nuevo cliente",
     icon: "UserPlus",
     description: "Dar de alta a alguien que compra por primera vez.",
-    requiresManage: false,
+    requiresManage: true,
     activeMatch: "under",
   },
 ];
@@ -267,11 +290,21 @@ const COBERTURAS: SubmoduleItem[] = [
     activeMatch: "rest",
   },
   {
+    href: "/coberturas/colaboradores",
+    label: "Colaboradores",
+    icon: "UserCheck",
+    description: "Quiénes del padrón están habilitados para anotarse a una convocatoria.",
+    requiresManage: true,
+    requiresAction: COVERAGES_COORDINATE_ACTION,
+    activeMatch: "under",
+  },
+  {
     href: "/coberturas/configuracion",
     label: "Configuración",
     icon: "Settings",
     description: "Las palabras, los plazos y quién decide en esta organización.",
     requiresManage: true,
+    requiresAction: COVERAGES_COORDINATE_ACTION,
     activeMatch: "under",
   },
 ];
@@ -323,18 +356,46 @@ const POR_MODULO: Record<string, SubmoduleItem[]> = {
 };
 
 /**
- * Las pantallas de un módulo que esta persona puede abrir.
+ * Lo que sabe el menú de quien mira: su nivel en cada módulo (`getModuleLevels`) y las acciones
+ * sensibles vigentes que alguna pantalla exige, calculadas en el servidor con `hasModuleAction`.
+ * Es serializable a propósito: viaja del servidor al menú, que es un componente de cliente.
+ */
+export type SubmoduleAccess = { levels: ModuleLevels; actions: readonly string[] };
+
+function puedeAbrir(moduleKey: string, item: SubmoduleItem, access: SubmoduleAccess): boolean {
+  const nivel = (key: string) => access.levels[key] ?? "NONE";
+  // Todo el grupo cuelga del layout de su módulo, que exige al menos verlo.
+  if (!hasLevel(nivel(moduleKey), "VIEW")) return false;
+  const decide = item.levelModuleKey ?? moduleKey;
+  if (!hasLevel(nivel(decide), item.requiresManage ? "MANAGE" : "VIEW")) return false;
+  if (item.requiresAction && !access.actions.includes(item.requiresAction)) return false;
+  return true;
+}
+
+/**
+ * Las pantallas de un módulo que esta persona puede abrir, con la misma regla que sus páginas.
  *
  * Devuelve vacío para un módulo de una sola pantalla o desconocido, y quien llama decide qué
  * hacer con eso — no se inventa una lista.
+ *
+ * `vocabulary` resuelve los marcadores ({persona}, {personas}, etc.) del bloque `SOCIOS`, que
+ * este catálogo deja sin resolver a propósito por ser global. Un workspace real pasa
+ * `loadPersonVocabulary(id)`; una pantalla sin workspace pasa `personVocabulary(null)`.
  */
 export function submodulesFor(
   moduleKey: string,
-  opts: { canManage: boolean },
+  access: SubmoduleAccess,
+  vocabulary: PersonVocabulary,
 ): SubmoduleItem[] {
   const items = POR_MODULO[moduleKey];
   if (!items) return [];
-  return items.filter((i) => !i.requiresManage || opts.canManage);
+  return items
+    .filter((i) => puedeAbrir(moduleKey, i, access))
+    .map((i) => ({
+      ...i,
+      label: aplicarVocabulario(i.label, vocabulary),
+      description: aplicarVocabulario(i.description, vocabulary),
+    }));
 }
 
 /** Las rutas que reclama una entrada propia. Sirve para resolver `activeMatch: "rest"`. */

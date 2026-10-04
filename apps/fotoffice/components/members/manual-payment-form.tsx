@@ -49,6 +49,7 @@ export function ManualPaymentForm({
           <select name="method" required defaultValue="EFECTIVO" className="fo-input w-full">
             <option value="EFECTIVO">Efectivo</option>
             <option value="TRANSFERENCIA">Transferencia</option>
+            <option value="MERCADO_PAGO">Mercado Pago (link anterior)</option>
           </select>
         </label>
 
@@ -67,9 +68,8 @@ export function ManualPaymentForm({
 
       <p className="text-xs text-[var(--fo-muted)] leading-relaxed">
         El importe se imputa a las cuotas impagas, de la más vieja a la más nueva. Como el cobro
-        no pasa por Mercado Pago, la comisión del {feePercent} no se puede retener: queda a deber
-        y se cobra del próximo pago que sí entre por Mercado Pago. Los saldos traídos del sistema
-        anterior no pagan comisión.
+        no pasa por el checkout de FotOffice, la comisión del {feePercent} sobre lo cobrado no se
+        puede retener: queda a deber y se cobra del próximo pago que sí entre por FotOffice.
       </p>
 
       {state.error ? (

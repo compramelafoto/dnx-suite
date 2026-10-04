@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@repo/db";
 import { requireActiveWorkspace } from "@/lib/workspace";
 import { createCarnetTemplate } from "@/lib/carnet/template-store";
 import { canDesignTemplates } from "@/lib/template-v2/access";
@@ -18,12 +17,8 @@ export async function createCarnetTemplateAction(): Promise<CarnetTemplateState>
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) return { error: "No hay una institución activa.", ok: null };
 
-  const membership = await prisma.workspaceMembership.findUnique({
-    where: { userId_workspaceId: { userId: user.id, workspaceId: workspace.id } },
-    select: { role: true },
-  });
-  if (!canDesignTemplates(membership?.role)) {
-    return { error: "Solo el dueño o un administrador puede crear plantillas.", ok: null };
+  if (!(await canDesignTemplates(user.id, workspace.id))) {
+    return { error: "No tenés permiso para crear plantillas: hace falta gestionar Socios.", ok: null };
   }
 
   const r = await createCarnetTemplate({ workspaceId: workspace.id, userId: user.id });

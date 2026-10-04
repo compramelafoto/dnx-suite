@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   CONSENT_KINDS,
   CONSENT_TEXT_VERSION_VIGENTE,
+  DERIVED_SHOWCASE_CONSENT,
   REQUIRED_CONSENTS,
   consentTexts,
+  deriveShowcaseConsent,
   hashConsentText,
   parseConsents,
 } from "./consents";
+import { formatChoiceValue } from "./request-fields";
 
 /**
  * Los permisos, uno por uno y con la versión del texto que la persona leyó.
@@ -110,5 +113,102 @@ describe("parseConsents", () => {
     const r = parseConsents(formularioCompleto(), "v1");
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.data).toHaveLength(CONSENT_KINDS.length);
+  });
+});
+
+/**
+ * El permiso de difusión, deducido de la pregunta por el alcance.
+ *
+ * "¿Nos autorizan a compartir material del evento?" y el tilde de USO_INSTITUCIONAL son la
+ * misma pregunta: una con cuatro niveles y la otra con un sí o un no. Cuando la institución
+ * hace la primera, la segunda no se muestra y el permiso sale de la respuesta. Lo que **no**
+ * cambia es el registro: se guarda igual la fila con su texto, su versión y su hash.
+ */
+describe("deriveShowcaseConsent", () => {
+  it("«pueden compartir lo que quieran» es un sí", () => {
+    expect(deriveShowcaseConsent("TODO")).toBe(true);
+  });
+
+  it("«con restricciones» y «sin personas» son un sí con condiciones", () => {
+    // La organización autoriza a difundir y aclara hasta dónde; la aclaración vive en el campo,
+    // a la vista de quien prepara la publicación.
+    expect(deriveShowcaseConsent("CON_RESTRICCIONES")).toBe(true);
+    expect(deriveShowcaseConsent("SIN_PERSONAS")).toBe(true);
+  });
+
+  it("«no suban ninguna foto» es el único no de las cuatro", () => {
+    expect(deriveShowcaseConsent("NADA")).toBe(false);
+  });
+
+  it("sin responder no hay permiso", () => {
+    expect(deriveShowcaseConsent(null)).toBe(false);
+    expect(deriveShowcaseConsent(undefined)).toBe(false);
+    expect(deriveShowcaseConsent("")).toBe(false);
+  });
+
+  it("«Otros» no otorga: un permiso que hay que interpretar no es un permiso", () => {
+    expect(deriveShowcaseConsent(formatChoiceValue("OTROS", "hablémoslo antes"))).toBe(false);
+  });
+
+  it("un valor que no está en el catálogo no otorga", () => {
+    expect(deriveShowcaseConsent("UNA_QUE_YA_NO_ESTA")).toBe(false);
+  });
+
+  it("lee la opción y no el texto libre que venga detrás", () => {
+    expect(deriveShowcaseConsent("CON_RESTRICCIONES: nada de menores")).toBe(true);
+    expect(deriveShowcaseConsent("NADA: es una causa sensible")).toBe(false);
+  });
+});
+
+describe("parseConsents con el permiso de difusión deducido", () => {
+  const obligatorios: Record<string, string> = {};
+  for (const kind of REQUIRED_CONSENTS) obligatorios[`consent_${kind}`] = "on";
+
+  const difusion = (r: ReturnType<typeof parseConsents>) => {
+    if (!r.ok) throw new Error(r.error);
+    return r.data.find((c) => c.kind === DERIVED_SHOWCASE_CONSENT)!;
+  };
+
+  it("sin deducción, el tilde manda como siempre", () => {
+    expect(difusion(parseConsents(obligatorios, "v1")).granted).toBe(false);
+    expect(
+      difusion(parseConsents({ ...obligatorios, consent_USO_INSTITUCIONAL: "on" }, "v1")).granted,
+    ).toBe(true);
+  });
+
+  it("con deducción, el tilde que igual llegue se ignora: nadie lo vio", () => {
+    const r = parseConsents({ ...obligatorios, consent_USO_INSTITUCIONAL: "on" }, "v1", false);
+    expect(difusion(r).granted).toBe(false);
+  });
+
+  it("deducido en sí, queda otorgado aunque no haya llegado ningún tilde", () => {
+    expect(difusion(parseConsents(obligatorios, "v1", true)).granted).toBe(true);
+  });
+
+  it("el registro legal no cambia: misma versión y mismo hash que el texto de siempre", () => {
+    const { version, texts } = consentTexts("v1");
+    const fila = difusion(parseConsents(obligatorios, "v1", true));
+    expect(fila.textVersion).toBe(version);
+    expect(fila.textHash).toBe(hashConsentText(texts.USO_INSTITUCIONAL));
+  });
+
+  it("la deducción no toca a los otros permisos", () => {
+    const r = parseConsents({ ...obligatorios, consent_MENORES_PRESENTES: "on" }, "v1", false);
+    if (!r.ok) throw new Error(r.error);
+    expect(r.data.find((c) => c.kind === "MENORES_PRESENTES")?.granted).toBe(true);
+    for (const kind of REQUIRED_CONSENTS) {
+      expect(r.data.find((c) => c.kind === kind)?.granted).toBe(true);
+    }
+  });
+
+  it("los obligatorios siguen siendo obligatorios aunque la difusión se deduzca", () => {
+    const r = parseConsents({ consent_TERMINOS: "on" }, "v1", true);
+    expect(r.ok).toBe(false);
+  });
+
+  it("se sigue guardando una fila por cada permiso, también por el deducido", () => {
+    const r = parseConsents(obligatorios, "v1", true);
+    if (!r.ok) throw new Error(r.error);
+    expect(r.data).toHaveLength(CONSENT_KINDS.length);
   });
 });

@@ -143,7 +143,7 @@ export default function EquipmentDetailModal({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-5 border-t border-[#ebe8e4]">
+            <div className="grid dnx-grid-4 dnx-grid-compacta gap-3 mt-5 pt-5 border-t border-[#ebe8e4]">
               <div className="text-center sm:text-left">
                 <p className="text-2xl font-bold text-gray-900 m-0">
                   {detail.photosCount.toLocaleString("es-AR")}
@@ -167,7 +167,7 @@ export default function EquipmentDetailModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid dnx-grid-3 gap-3">
             <InfoTile
               label="Número de serie"
               value={detail.serialNumber?.trim() || "No disponible"}
@@ -300,7 +300,7 @@ export default function EquipmentDetailModal({
           {detail.recentPhotos.length > 0 ? (
             <section>
               <SectionTitle>Fotos recientes</SectionTitle>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+              <div className="grid dnx-grid-6 dnx-grid-compacta gap-3">
                 {detail.recentPhotos.map((photo) => (
                   <figure key={photo.id} className="m-0 min-w-0 group">
                     <div className="aspect-square rounded-xl overflow-hidden bg-gray-100 border border-[#ebe8e4] shadow-sm">

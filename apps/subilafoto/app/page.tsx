@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Cabecera } from "./components/cabecera";
 import { FranjaFotos } from "./components/franja-fotos";
+import { PieLegal } from "./components/pie-legal";
 import { estiloBotonDnx } from "@/lib/boton-dnx";
 
 /** Lo que pasa la noche del evento, en orden. */
@@ -72,7 +73,7 @@ export default function Home() {
       >
         <Image
           src="/brand/subilafoto-logo-vertical-negativo.png"
-          alt="Subí la Foto"
+          alt="SubiLaFoto"
           width={320}
           height={400}
           priority
@@ -238,7 +239,7 @@ export default function Home() {
               >
                 Tu cliente ve tu logo y el nombre de tu empresa. En la pantalla
                 del salón, en el álbum digital y en los carteles impresos de las
-                mesas. Subí la Foto no aparece en ningún lado: para tu cliente,
+                mesas. SubiLaFoto no aparece en ningún lado: para tu cliente,
                 el servicio es tuyo.
               </p>
             </div>
@@ -270,7 +271,7 @@ export default function Home() {
       <section className="sobre-claro px-6 py-20 sm:py-24">
         <div className="mx-auto max-w-5xl">
           <p className="max-w-[52ch] text-lg leading-relaxed">
-            Estamos terminando de construirla. Subí la Foto abre en{" "}
+            Estamos terminando de construirla. SubiLaFoto abre en{" "}
             <strong className="font-extrabold" style={{ color: "var(--slf-violeta)" }}>
               octubre de 2026
             </strong>
@@ -283,31 +284,7 @@ export default function Home() {
         </div>
       </section>
 
-      <footer
-        className="sobre-claro px-6 pb-16"
-        style={{ color: "var(--slf-tinta-suave)" }}
-      >
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-6 gap-y-3 text-sm">
-          <span>Subí la Foto es parte de DNX Suite.</span>
-          <Link href="/terminos" className="underline underline-offset-4">
-            Términos y condiciones
-          </Link>
-          <Link href="/privacidad" className="underline underline-offset-4">
-            Política de privacidad
-          </Link>
-          <Link href="/arrepentimiento" className="underline underline-offset-4">
-            Botón de arrepentimiento
-          </Link>
-          <a
-            href="https://autogestion.produccion.gob.ar/consumidores"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline underline-offset-4"
-          >
-            Libro de Quejas Online
-          </a>
-        </div>
-      </footer>
+      <PieLegal />
     </main>
   );
 }

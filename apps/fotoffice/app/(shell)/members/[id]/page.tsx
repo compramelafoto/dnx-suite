@@ -14,7 +14,8 @@ import { PaymentHistoryList } from "@/components/membership/payment-history-list
 import { loadMemberPaymentHistory } from "@/lib/membership/payment-history";
 import { loadMemberBalance } from "@/lib/membership/balance";
 import { CreditCallout } from "@/components/membership/credit-callout";
-import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
+import { hasModuleLevel } from "@/lib/permissions/module-access";
+import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { getPlatformFeeBps } from "@/lib/platform-fee/store";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { formatFeeBpsAsPercent } from "@/lib/platform-fee/fee";
@@ -22,6 +23,7 @@ import { canVoidBenefit } from "@/lib/membership/recommendation";
 import { decimalArsToMinor, formatMinorArs } from "@/lib/membership/money";
 import { chargePeriodLabel } from "@/lib/membership/charge-labels";
 import { RecommendationVoidForm } from "@/components/members/recommendation-void-form";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 
 function initials(firstName: string, lastName: string): string {
   return `${firstName[0] ?? ""}${lastName[0] ?? ""}`.toUpperCase() || "?";
@@ -37,6 +39,7 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
   const { id } = await params;
   const member = await getMember(workspace.id, id);
   if (!member) notFound();
+  const v = await loadPersonVocabulary(workspace.id);
 
   // Solo se consulta si el rol puede verlo: STAFF ni siquiera dispara la query.
   const audits = canManage ? await listMemberAudits(workspace.id, member.id) : [];
@@ -49,7 +52,7 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
 
   // Registrar un cobro es una atribución de quien maneja la plata, no de quien consulta el
   // padrón: se resuelve con el mismo permiso que gobierna los cobros del workspace.
-  const puedeCobrar = await canManageWorkspaceCollection(user.id, workspace.id);
+  const puedeCobrar = await hasModuleLevel(user.id, workspace.id, MEMBERSHIP_DUES_MODULE_KEY, "MANAGE");
   const feePercent = puedeCobrar
     ? formatFeeBpsAsPercent(await getPlatformFeeBps(workspace.id, MEMBERS_MODULE_KEY))
     : "";
@@ -94,7 +97,7 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
     <div className="space-y-10">
       <PageHeader
         title={`${member.lastName}, ${member.firstName}`}
-        description={`Socio N° ${member.memberNumber}`}
+        description={`${v.Singular} N° ${member.memberNumber}`}
         actions={
           <>
             <Link href="/members" className="fo-btn fo-btn-secondary text-sm">
@@ -187,7 +190,7 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
                 <dt className="text-[var(--fo-muted)]">Estado</dt>
                 <dd>
                   {canManage ? (
-                    <MemberStatusChanger memberId={member.id} status={member.status} />
+                    <MemberStatusChanger memberId={member.id} status={member.status} vocabulary={v} />
                   ) : (
                     <span className="text-[var(--fo-text)] font-medium">
                       {MEMBER_STATUS_LABELS[member.status]}
@@ -209,6 +212,7 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
                 linkedUserEmail={linkedUser?.email ?? null}
                 isLinked={member.userId !== null}
                 invitations={invitations}
+                vocabulary={v}
               />
             ) : (
               <p className="text-sm text-[var(--fo-text)]">
@@ -239,13 +243,13 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
                   Pagos
                 </h2>
                 <p className="text-xs text-[var(--fo-muted)]">
-                  Es la misma lista que ve el socio en su portal. Sólo pagos acreditados.
+                  {`Es la misma lista que ve el ${v.singular} en su portal. Sólo pagos acreditados.`}
                 </p>
               </div>
               {cuenta ? <CreditCallout creditMinor={cuenta.creditMinor} tone="panel" /> : null}
               <PaymentHistoryList
                 entries={pagos}
-                emptyText="Este socio no tiene pagos acreditados."
+                emptyText={`Este ${v.singular} no tiene pagos acreditados.`}
               />
             </section>
           ) : null}
@@ -351,7 +355,7 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
               <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
                 Historial
               </h2>
-              <MemberAuditLog entries={audits} />
+              <MemberAuditLog entries={audits} vocabulary={v} />
             </section>
           ) : null}
         </div>

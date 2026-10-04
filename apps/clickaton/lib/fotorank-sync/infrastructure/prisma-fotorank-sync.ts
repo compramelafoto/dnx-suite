@@ -9,6 +9,10 @@ import {
   type FotoRankValidationStatus,
 } from "../domain/types";
 import { assertNoFinancialLeak, buildRegistrationPaidEvent } from "../application/fotorank-sync-service";
+import {
+  motivoSinParticipante,
+  tieneParticipanteDefinido,
+} from "@/lib/registration/domain/participante-definido";
 
 function idempotencyKeyFor(registrationId: string, contestId: string): string {
   return `fr_sync:${registrationId}:${contestId}`;
@@ -118,8 +122,10 @@ export async function enqueueFotoRankSyncAfterPaid(input: {
       select: { id: true, paymentStatus: true, status: true },
     });
     if (!reg) return { ok: false, reason: "REGISTRATION_NOT_FOUND" };
-    if (reg.paymentStatus !== "APPROVED" && reg.status !== "CONFIRMED") {
-      return { ok: false, reason: "NOT_PAID" };
+    // Un regalo pagado y sin activar pasaba este filtro —el `&&` sólo corta
+    // si fallan las dos— y se sincronizaba con los datos de quien lo compró.
+    if (!tieneParticipanteDefinido(reg)) {
+      return { ok: false, reason: motivoSinParticipante(reg) };
     }
 
     await prisma.clickatonIntegrationOutboxEvent.upsert({
@@ -212,8 +218,13 @@ export async function processFotoRankSyncById(syncId: string): Promise<{
       where: { id: sync.registrationId },
     });
     if (!reg) throw new FotoRankSyncError("REGISTRATION_MISSING", "Inscripción no encontrada.");
-    if (reg.paymentStatus !== "APPROVED") {
-      throw new FotoRankSyncError("NOT_PAID", "Inscripción no PAID.");
+    if (!tieneParticipanteDefinido(reg)) {
+      throw new FotoRankSyncError(
+        "NOT_PAID",
+        reg.status === "GIFT_AWAITING_REDEMPTION"
+          ? "El regalo todavía no fue activado: no hay participante que sincronizar."
+          : "Inscripción no PAID.",
+      );
     }
 
     // Identidad: userId compartido DNX; email como verificación.

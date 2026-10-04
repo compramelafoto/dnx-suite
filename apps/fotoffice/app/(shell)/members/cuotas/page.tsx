@@ -2,11 +2,13 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { requireActiveWorkspace } from "@/lib/workspace";
-import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
+import { hasModuleLevel } from "@/lib/permissions/module-access";
+import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { getWorkspaceCollectionStatus } from "@/lib/payments/connect/status";
 import { loadDuesOverview } from "@/lib/membership/dues-overview";
 import { formatMinorArs } from "@/lib/membership/money";
 import { periodOf } from "@/lib/membership/monthly-plan";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { GenerateDuesButton } from "./generate-button";
 
 export const dynamic = "force-dynamic";
@@ -46,12 +48,14 @@ export default async function CuotasPage() {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) redirect("/workspace");
 
-  const puedeVer = await canManageWorkspaceCollection(user.id, workspace.id);
+  const puedeVer = await hasModuleLevel(user.id, workspace.id, MEMBERSHIP_DUES_MODULE_KEY, "VIEW");
   if (!puedeVer) redirect("/members");
+  const puedeGestionar = await hasModuleLevel(user.id, workspace.id, MEMBERSHIP_DUES_MODULE_KEY, "MANAGE");
 
-  const [overview, cobros] = await Promise.all([
+  const [overview, cobros, v] = await Promise.all([
     loadDuesOverview(workspace.id),
     getWorkspaceCollectionStatus(workspace.id),
+    loadPersonVocabulary(workspace.id),
   ]);
 
   return (
@@ -63,11 +67,12 @@ export default async function CuotasPage() {
 
       <div className="fo-card space-y-3 p-5">
         <h2 className="text-sm font-semibold">Generar cuotas</h2>
+        {/* Reformulado: "socio activo" hacía concordar el adjetivo en masculino con la
+            palabra configurada; "con estado activo" saca el adjetivo de encima del sustantivo. */}
         <p className="text-xs text-[var(--fo-muted)] leading-relaxed">
-          Crea la cuota del mes para cada socio activo, según su categoría y su escala.
-          Correrlo de nuevo no duplica nada.
+          {`Crea la cuota del mes para cada ${v.singular} con estado activo, según su categoría y su escala. Correrlo de nuevo no duplica nada.`}
         </p>
-        <GenerateDuesButton defaultPeriod={periodOf(new Date())} />
+        {puedeGestionar ? <GenerateDuesButton defaultPeriod={periodOf(new Date())} /> : null}
         <Link href="/members/cuotas/configuracion" className="text-xs text-[var(--fo-muted)] hover:underline">
           Valores y calendario →
         </Link>
@@ -76,8 +81,7 @@ export default async function CuotasPage() {
       <div className="fo-card space-y-3 p-5">
         <h2 className="text-sm font-semibold">Pagos anteriores al sistema</h2>
         <p className="text-xs text-[var(--fo-muted)] leading-relaxed">
-          Cargá por planilla el registro de cobros previo a FotoOffice para que cada socio vea
-          su historial completo en el portal. No da de alta socios ni modifica ninguna deuda.
+          {`Cargá por planilla el registro de cobros previo a FotoOffice para que cada ${v.singular} vea su historial completo en el portal. No da de alta ${v.plural} ni modifica ninguna deuda.`}
         </p>
         <Link href="/members/cuotas/historial" className="fo-btn fo-btn-secondary inline-flex text-sm">
           Importar pagos anteriores
@@ -86,8 +90,7 @@ export default async function CuotasPage() {
 
       {!cobros.canCharge ? (
         <p className="fo-card p-4 text-sm text-[var(--fo-danger)]">
-          El cobro en línea no está habilitado, así que los socios no pueden pagar desde el
-          portal.{" "}
+          {`El cobro en línea no está habilitado, así que los ${v.plural} no pueden pagar desde el portal.`}{" "}
           <Link href="/workspace/configuracion/cobros" className="underline">
             Configurar cobros
           </Link>
@@ -102,8 +105,8 @@ export default async function CuotasPage() {
           </p>
           <p className="text-xs text-[var(--fo-muted)]">
             {overview.debtors.length === 1
-              ? "1 socio con saldo"
-              : `${overview.debtors.length} socios con saldo`}
+              ? `1 ${v.singular} con saldo`
+              : `${overview.debtors.length} ${v.plural} con saldo`}
           </p>
         </div>
         <div className="fo-card space-y-1 p-4">
@@ -124,7 +127,7 @@ export default async function CuotasPage() {
       </section>
 
       <section className="fo-card space-y-3 p-5">
-        <h2 className="text-sm font-semibold">Socios con saldo</h2>
+        <h2 className="text-sm font-semibold">{`${v.Plural} con saldo`}</h2>
         {overview.debtors.length === 0 ? (
           <p className="text-sm text-[var(--fo-muted)]">
             Nadie debe cuotas. Toda la institución está al día.
@@ -134,7 +137,7 @@ export default async function CuotasPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-[var(--fo-muted-soft)]">
-                  <th className="py-2 pr-3 font-medium">Socio</th>
+                  <th className="py-2 pr-3 font-medium">{v.Singular}</th>
                   <th className="py-2 pr-3 font-medium">Desde</th>
                   <th className="py-2 pr-3 font-medium">Cuotas</th>
                   <th className="py-2 text-right font-medium">Saldo</th>
@@ -183,7 +186,7 @@ export default async function CuotasPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-[var(--fo-muted-soft)]">
-                  <th className="py-2 pr-3 font-medium">Socio</th>
+                  <th className="py-2 pr-3 font-medium">{v.Singular}</th>
                   <th className="py-2 pr-3 font-medium">Fecha</th>
                   <th className="py-2 pr-3 font-medium">Estado</th>
                   <th className="py-2 pr-3 text-right font-medium">Cobrado</th>

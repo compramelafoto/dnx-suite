@@ -1,4 +1,5 @@
 import type { WeeklyHour } from "./availability";
+import type { PricingMode } from "./pricing";
 
 // Se reexporta porque `lib/bookings/extra-form.ts` importa `parseArsToMinor` desde acá, y
 // `parseSpaceForm` (más abajo) también lo usa: un `export ... from` puro no deja un
@@ -25,6 +26,11 @@ export type SpaceFormValues = {
   requiresApproval: boolean;
   memberHourlyPriceMinor: number;
   nonMemberHourlyPriceMinor: number;
+  pricingMode: PricingMode;
+  /** Con `BLOCK`: minutos del bloque, o `null` = precio plano por jornada. */
+  blockMinutes: number | null;
+  memberBlockPriceMinor: number;
+  nonMemberBlockPriceMinor: number;
   memberFreeHoursPerMonth: number;
   allowsNonMembers: boolean;
   weeklyHours: WeeklyHour[];
@@ -52,15 +58,39 @@ export function parseSpaceForm(formData: FormData): SpaceFormResult {
   const name = String(formData.get("name") ?? "").trim();
   if (name.length < 2) return { ok: false, error: "Poné un nombre para el espacio." };
 
-  const memberHourlyPriceMinor = parseArsToMinor(String(formData.get("memberHourlyPriceArs") ?? ""));
+  const pricingMode: PricingMode = formData.get("pricingMode") === "BLOCK" ? "BLOCK" : "HOURLY";
+  const porBloque = pricingMode === "BLOCK";
+
+  // Un precio que no se usa en el modo elegido puede quedar vacío: vale cero.
+  const precio = (campo: string): number | null => {
+    const crudo = String(formData.get(campo) ?? "").trim();
+    return crudo === "" ? 0 : parseArsToMinor(crudo);
+  };
+
+  const memberHourlyPriceMinor = porBloque
+    ? (precio("memberHourlyPriceArs") ?? 0)
+    : parseArsToMinor(String(formData.get("memberHourlyPriceArs") ?? ""));
   if (memberHourlyPriceMinor === null) {
-    return { ok: false, error: "El precio por hora para socios no se entiende." };
+    return { ok: false, error: "El precio por hora para {personas} no se entiende." };
   }
-  const nonMemberHourlyPriceMinor = parseArsToMinor(
-    String(formData.get("nonMemberHourlyPriceArs") ?? ""),
-  );
+  const nonMemberHourlyPriceMinor = porBloque
+    ? (precio("nonMemberHourlyPriceArs") ?? 0)
+    : parseArsToMinor(String(formData.get("nonMemberHourlyPriceArs") ?? ""));
   if (nonMemberHourlyPriceMinor === null) {
-    return { ok: false, error: "El precio por hora para no socios no se entiende." };
+    return { ok: false, error: "El precio por hora para no {personas} no se entiende." };
+  }
+
+  const memberBlockPriceMinor = porBloque
+    ? parseArsToMinor(String(formData.get("memberBlockPriceArs") ?? ""))
+    : (precio("memberBlockPriceArs") ?? 0);
+  if (memberBlockPriceMinor === null) {
+    return { ok: false, error: "El precio del bloque para {personas} no se entiende." };
+  }
+  const nonMemberBlockPriceMinor = porBloque
+    ? parseArsToMinor(String(formData.get("nonMemberBlockPriceArs") ?? ""))
+    : (precio("nonMemberBlockPriceArs") ?? 0);
+  if (nonMemberBlockPriceMinor === null) {
+    return { ok: false, error: "El precio del bloque para no {personas} no se entiende." };
   }
 
   const slotMinutes = entero(formData.get("slotMinutes") as string | null, 60);
@@ -75,6 +105,13 @@ export function parseSpaceForm(formData: FormData): SpaceFormResult {
   const maxBookingMinutes = maxCrudo === "" ? null : entero(maxCrudo, 0);
   if (maxBookingMinutes !== null && maxBookingMinutes < minBookingMinutes) {
     return { ok: false, error: "La duración máxima no puede ser menor que la mínima." };
+  }
+
+  // Vacío = un solo bloque por reserva, la "jornada".
+  const bloqueCrudo = String(formData.get("blockMinutes") ?? "").trim();
+  const blockMinutes = !porBloque || bloqueCrudo === "" ? null : entero(bloqueCrudo, 0);
+  if (blockMinutes !== null && (blockMinutes <= 0 || blockMinutes % slotMinutes !== 0)) {
+    return { ok: false, error: "El largo del bloque tiene que ser múltiplo de la grilla." };
   }
 
   const weeklyHours: WeeklyHour[] = [];
@@ -134,6 +171,10 @@ export function parseSpaceForm(formData: FormData): SpaceFormResult {
       requiresApproval: formData.get("requiresApproval") === "on",
       memberHourlyPriceMinor,
       nonMemberHourlyPriceMinor,
+      pricingMode,
+      blockMinutes,
+      memberBlockPriceMinor,
+      nonMemberBlockPriceMinor,
       memberFreeHoursPerMonth: entero(formData.get("memberFreeHoursPerMonth") as string | null, 0),
       allowsNonMembers: formData.get("allowsNonMembers") !== "off",
       weeklyHours,

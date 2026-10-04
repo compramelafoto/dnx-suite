@@ -12,6 +12,7 @@ export function SidebarOrgIdentityHeader({
   activeOrgError,
   suiteWorkspaces,
   activeSuiteWorkspaceId,
+  esSuperAdmin = false,
 }: {
   organizationProfile: ContestOrganizationProfileDTO | null;
   organizations: OrgOption[];
@@ -19,6 +20,11 @@ export function SidebarOrgIdentityHeader({
   activeOrgError: string | null;
   suiteWorkspaces: { id: string; name: string }[];
   activeSuiteWorkspaceId: string | null;
+  /**
+   * El super admin ve todas las organizaciones, no las suyas: para él el
+   * selector es "sobre cuál estoy operando", y se lo decimos con esas palabras.
+   */
+  esSuperAdmin?: boolean;
 }) {
   return (
     <header className="border-b border-fr-border px-4 pb-4 pt-4">
@@ -54,9 +60,6 @@ export function SidebarOrgIdentityHeader({
         ) : (
           <span className="text-sm text-fr-muted">Configurá tu organización</span>
         )}
-        <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-fr-muted-soft">
-          Plataforma FotoRank
-        </span>
       </div>
 
       <div className="mt-4 space-y-2">
@@ -68,16 +71,20 @@ export function SidebarOrgIdentityHeader({
           <JuradosOrganizationSwitcher
             organizations={organizations}
             currentOrganizationId={currentOrganizationId}
-            label="Organización activa"
+            label={esSuperAdmin ? "Operando sobre" : "Trabajando en"}
           />
         ) : null}
-        {organizationProfile ? (
-          <Link
-            href="/dashboard/settings"
-            className="block text-center text-xs font-medium text-gold hover:text-gold-hover hover:underline"
-          >
-            Perfil institucional
-          </Link>
+        {/*
+         * Una persona puede organizar concursos en más de una institución. Todo
+         * lo que muestra este panel —concursos, jurados, resultados— es de la
+         * elegida acá. Con una sola organización el selector no aparece.
+         */}
+        {organizations.length > 1 ? (
+          <p className="text-center text-[11px] leading-snug text-fr-muted-soft">
+            {esSuperAdmin
+              ? "Como super admin ves todas las organizaciones."
+              : "Los concursos y jurados que ves son de esta organización."}
+          </p>
         ) : null}
       </div>
     </header>

@@ -1,12 +1,12 @@
 import Link from "next/link";
+import { prisma } from "@repo/db";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
-import { requireRafflesStaff } from "@/lib/raffles/access";
+import { requireRafflesViewer } from "@/lib/raffles/access";
 import { loadRaffle } from "@/lib/raffles/repository";
 import { fechaCorta, fechaHora, prizeStatusLabel, raffleStatusLabel } from "@/lib/raffles/labels";
 import { canCancel, canDraw, canEditPrizes, canSeal } from "@/lib/raffles/lifecycle";
 import { formatMinorArs } from "@/lib/membership/money";
-import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import type { RaffleStatus } from "@/lib/raffles/constants";
 import {
   announceRaffleAction,
@@ -47,14 +47,14 @@ export default async function SorteoPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ error?: string; ok?: string }>;
 }) {
-  const { workspace, role } = await requireRafflesStaff();
+  const { workspace, canConduct } = await requireRafflesViewer();
   const { id } = await params;
   const q = await searchParams;
 
   const sorteo = await loadRaffle(workspace.id, id);
   if (!sorteo) notFound();
 
-  const admin = canManageWorkspaceSettings(role);
+  const admin = canConduct;
   const ahora = new Date();
   const estado = sorteo.status as RaffleStatus;
   const editable = canEditPrizes(estado);
@@ -73,15 +73,38 @@ export default async function SorteoPage({
   const puedeSortear = admin && canDraw({ status: estado, drawsAt: sorteo.drawsAt, now: ahora }).ok;
   const puedeCancelar = admin && canCancel(estado).ok;
 
+  // La página pública existe desde el anuncio: es la que se comparte y la que se proyecta en el
+  // acto. En borrador no hay nada que mostrar afuera.
+  const slug = estado === "BORRADOR"
+    ? null
+    : (
+        await prisma.fotofficeWorkspaceBranding.findUnique({
+          where: { workspaceId: workspace.id },
+          select: { publicSlug: true },
+        })
+      )?.publicSlug ?? null;
+
   return (
     <div className="space-y-8">
       <PageHeader
         title={sorteo.title}
         description={sorteo.description ?? undefined}
         actions={
-          <Link href="/sorteos" className="fo-btn fo-btn-ghost text-sm">
-            Volver
-          </Link>
+          <>
+            {slug ? (
+              <a
+                href={`/w/${slug}/sorteos/${sorteo.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="fo-btn fo-btn-secondary text-sm"
+              >
+                Página pública (para proyectar)
+              </a>
+            ) : null}
+            <Link href="/sorteos" className="fo-btn fo-btn-ghost text-sm">
+              Volver
+            </Link>
+          </>
         }
       />
 

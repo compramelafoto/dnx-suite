@@ -1,0 +1,7 @@
+{
+  "//": "Sólo para los selfcheck que renderizan componentes con tsx: el tsconfig de Next deja el JSX sin transformar (lo resuelve el compilador de Next) y fuera de Next hay que pedir el runtime automático.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "jsx": "react-jsx"
+  }
+}

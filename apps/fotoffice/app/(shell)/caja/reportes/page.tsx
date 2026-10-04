@@ -1,5 +1,5 @@
 import { PageHeader } from "@/components/page-header";
-import { requireCashStaff } from "@/lib/cash/access";
+import { requireCashViewer } from "@/lib/cash/access";
 import { listAccounts, listCategories, movementsForBalance, movementsForReport } from "@/lib/cash/repository";
 import { balancesByAccountMinor, periodSummary, topClients, totalsByCategory } from "@/lib/cash/balance";
 import { categoryReportRows, type CategoryReportRow } from "@/lib/cash/category-report";
@@ -105,7 +105,7 @@ export default async function ReportesPage({
 }: {
   searchParams: Promise<{ shortcut?: string; from?: string; to?: string; accountId?: string }>;
 }) {
-  const { workspace } = await requireCashStaff();
+  const { workspace } = await requireCashViewer();
   const sp = await searchParams;
 
   // Un rango libre (`from` y `to` en la URL) manda por sobre cualquier atajo: es lo que la

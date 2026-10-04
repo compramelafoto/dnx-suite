@@ -10,7 +10,7 @@ import { BOOKINGS_TIME_ZONE } from "@/lib/bookings/time";
 import { parseLocalDateTime } from "@/lib/bookings/local-datetime";
 import { loadPortalOffer, totalForBooking } from "@/lib/bookings/portal";
 import { anyRequiresConfirmation, extrasTotalMinor } from "@/lib/bookings/extras";
-import { quoteBooking } from "@/lib/bookings/pricing";
+import { quoteForSpace } from "@/lib/bookings/pricing";
 import { createBooking, type BookingExtraLineInput } from "@/lib/bookings/create";
 import { startBookingCheckout } from "@/lib/bookings/checkout";
 import { cancelBooking } from "@/lib/bookings/create";
@@ -61,11 +61,9 @@ export async function createPortalBookingAction(formData: FormData): Promise<voi
   const { space, freeHours, extras } = oferta as NonNullable<typeof oferta>;
 
   const minutos = (range.endAt.getTime() - range.startAt.getTime()) / 60_000;
-  const quote = quoteBooking({
+  const quote = quoteForSpace(space, {
     minutes: minutos,
     customerType: "MEMBER",
-    memberHourlyPriceMinor: space.memberHourlyPriceMinor,
-    nonMemberHourlyPriceMinor: space.nonMemberHourlyPriceMinor,
     freeMinutesAvailable: freeHours.availableMinutes,
   });
 
@@ -161,7 +159,7 @@ export async function cancelPortalBookingAction(formData: FormData): Promise<voi
     workspaceId: context.workspace.id,
     bookingId: reserva.id,
     byUserId: user.id,
-    reason: "Cancelada por el socio",
+    reason: "Cancelada desde el portal",
   });
 
   revalidatePath(PORTAL);

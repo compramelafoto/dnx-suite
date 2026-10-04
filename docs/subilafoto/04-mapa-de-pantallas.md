@@ -64,7 +64,7 @@ secundario 9,9:1 y el borde del control 3,4:1 —este último obligó a subir el
 violeta del borde a `#8358c7`, porque el mínimo para que algo se lea como
 control es 3:1.
 
-**Subí la Foto es la única plataforma de la suite que entra sólo con Google.**
+**SubiLaFoto es la única plataforma de la suite que entra sólo con Google.**
 No hay ingreso con contraseña, ni registro, ni recuperación: el profesional ya
 tiene su Cuenta DNX y el invitado nunca inicia sesión. El selfcheck del paquete
 verifica esas tres banderas en falso, para que nadie las encienda sin querer y
@@ -178,7 +178,7 @@ impreso al salón, y es la primera cosa que ve un invitado del producto.
 
 **Cada pieza lleva el logo de quien vende el evento** — fotógrafo, DJ, salón, productora o
 quien sea. El capítulo 18 no lo decía; es un requisito agregado el 2026-09-11. La marca que
-el invitado ve en la mesa es la de quien contrató, no la de Subí la Foto.
+el invitado ve en la mesa es la de quien contrató, no la de SubiLaFoto.
 
 Piezas del lanzamiento:
 
@@ -216,7 +216,7 @@ cargó ninguno, la pieza sale sin logo y limpia — nunca con un espacio vacío 
 - **Móvil primero de verdad.** La pantalla 6 (subir) se diseña para un pulgar en un salón
   oscuro con una mano ocupada sosteniendo una copa. Botón grande, un solo paso, sin menús.
 - **La pantalla 11 no tiene interfaz.** Ni barras, ni logos de la plataforma, ni cursor.
-  Sólo la foto y, cuando el operador lo decide, el QR. La marca Subí la Foto no se
+  Sólo la foto y, cuando el operador lo decide, el QR. La marca SubiLaFoto no se
   proyecta en el casamiento de nadie salvo que el fotógrafo lo elija.
 - **Cada plantilla cambia las pantallas 5, 8 y 11**, que son las que ve el invitado. El
   panel del profesional no se tematiza: es una herramienta de trabajo.

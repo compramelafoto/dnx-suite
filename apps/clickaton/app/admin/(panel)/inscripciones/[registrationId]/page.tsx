@@ -34,6 +34,7 @@ import {
   presentAdminResendClassification,
   presentAdminWelcomeCardStatus,
 } from "@/lib/admin-registration/ui/admin-status-presentation";
+import { esFilaDeRegaloSinActivar } from "@/lib/admin-registration/ui/gift-row-presentation";
 import {
   displayRegistrationAmount,
   formatArDateTime,
@@ -57,6 +58,7 @@ import {
 } from "@/lib/welcome-card/admin-actions";
 import { adminResendConfirmationEmailAction } from "@/lib/registration/notifications/admin-resend-confirmation-action";
 import { classifyResendStatus } from "@/lib/registration/notifications/resend-delivery-status";
+import { inviteOneRegistrationAction } from "@/lib/testimonials/admin/invite-action";
 
 type Props = {
   params: Promise<{ registrationId: string }>;
@@ -136,6 +138,7 @@ export default async function AdminRegistrationDetailPage({ params, searchParams
   const canAssign = ["DRAFT", "PENDING_PAYMENT", "WAITLISTED"].includes(reg.status);
   const internalNotes = reg.audits.filter((a) => a.action === "INTERNAL_NOTE");
 
+  const esRegaloSinActivar = esFilaDeRegaloSinActivar(reg);
   const summary = presentAdminOperationalSummary({
     registrationStatus: reg.status,
     paymentStatus: reg.paymentStatus,
@@ -243,8 +246,16 @@ export default async function AdminRegistrationDetailPage({ params, searchParams
   return (
     <div className="min-w-0 space-y-10">
       <AdminPageHeader
-        title={`Inscripción de ${reg.firstName} ${reg.lastName}`}
-        description="Revisá el estado del pago, la acreditación y los datos necesarios para participar."
+        title={
+          esRegaloSinActivar
+            ? "Regalo sin activar"
+            : `Inscripción de ${reg.firstName} ${reg.lastName}`
+        }
+        description={
+          esRegaloSinActivar
+            ? "El lugar está pago y reservado. Falta que la persona que lo recibió active su invitación y cargue sus datos."
+            : "Revisá el estado del pago, la acreditación y los datos necesarios para participar."
+        }
         breadcrumbs={[
           { label: "Inscripciones", href: listHref },
           { label: reg.visibleCode ? `N.º ${reg.visibleCode}` : "Detalle" },
@@ -271,6 +282,18 @@ export default async function AdminRegistrationDetailPage({ params, searchParams
       />
 
       <AdminFlashMessage flash={flash} />
+
+      {esRegaloSinActivar ? (
+        <aside
+          className="rounded-[var(--ck-radius-card)] border border-ck-border bg-ck-accent-soft px-4 py-3 text-sm leading-relaxed"
+          role="note"
+        >
+          <strong className="font-semibold">Ojo: los datos de abajo son de quien compró el regalo.</strong>{" "}
+          Esta inscripción todavía no tiene participante. Cuando la persona que lo
+          recibió active su invitación, estos datos se reemplazan por los de ella.
+          Hasta entonces no la confirmes a mano: quedaría a nombre equivocado.
+        </aside>
+      ) : null}
 
       {/* 1. Resumen del estado */}
       <section
@@ -315,7 +338,7 @@ export default async function AdminRegistrationDetailPage({ params, searchParams
         aria-labelledby="participant-heading"
       >
         <h2 id="participant-heading" className="text-lg font-semibold">
-          Datos del participante
+          {esRegaloSinActivar ? "Datos de quien compró el regalo" : "Datos del participante"}
         </h2>
         <dl className="grid gap-4 sm:grid-cols-2">
           <Field label="Nombre y apellido">
@@ -787,15 +810,26 @@ export default async function AdminRegistrationDetailPage({ params, searchParams
             </p>
           </div>
           {reg.status === "CONFIRMED" ? (
-            <form action={adminResendConfirmationEmailAction.bind(null, reg.id)}>
-              <ConfirmSubmitButton
-                confirmMessage={`${SOCIAL_SENSITIVE_CONFIRM.resendEmail}\n\nDestinatario: ${latestEmail?.to ?? reg.email}`}
-                variant="secondary"
-                className="min-h-11 w-full sm:w-auto"
-              >
-                Reenviar correo
-              </ConfirmSubmitButton>
-            </form>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <form action={adminResendConfirmationEmailAction.bind(null, reg.id)}>
+                <ConfirmSubmitButton
+                  confirmMessage={`${SOCIAL_SENSITIVE_CONFIRM.resendEmail}\n\nDestinatario: ${latestEmail?.to ?? reg.email}`}
+                  variant="secondary"
+                  className="min-h-11 w-full sm:w-auto"
+                >
+                  Reenviar correo
+                </ConfirmSubmitButton>
+              </form>
+              <form action={inviteOneRegistrationAction.bind(null, reg.id)}>
+                <ConfirmSubmitButton
+                  confirmMessage={`¿Invitar a esta persona a dejar su testimonio? Se le manda un correo con el enlace a la encuesta.\n\nDestinatario: ${reg.email}\n\nSi ya la invitaron antes, no se manda de nuevo.`}
+                  variant="outline"
+                  className="min-h-11 w-full sm:w-auto"
+                >
+                  Invitar a testimoniar
+                </ConfirmSubmitButton>
+              </form>
+            </div>
           ) : null}
         </div>
         <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

@@ -33,7 +33,8 @@ export type AdminOperationalSummary = {
     | "incomplete"
     | "cancelled"
     | "waitlisted"
-    | "payment_review";
+    | "payment_review"
+    | "gift_awaiting";
   label: string;
   description: string;
   tone: PublicStatusTone;
@@ -79,6 +80,11 @@ const REG_ADMIN_EXTRA: Partial<
   },
   TRANSFERRED_TO_NEXT_EDITION: {
     description: "La inscripción fue trasladada a otra edición.",
+  },
+  GIFT_AWAITING_REDEMPTION: {
+    description:
+      "El lugar está pago y reservado, pero todavía no se sabe quién lo va a usar: los datos son de quien lo regaló.",
+    nextAction: "Gestionalo desde Regalos, en la edición.",
   },
 };
 
@@ -374,6 +380,21 @@ export function presentAdminOperationalSummary(input: {
       description: "Esta inscripción ya no está activa para operar en sede.",
       tone: "danger",
       attention: "blocked",
+    };
+  }
+
+  // Antes de los estados "incompletos": un regalo sin activar está pago y en
+  // regla. Lo único que falta es que la persona que lo recibió lo active, y
+  // eso no se resuelve desde el detalle de la inscripción.
+  if (reg === "GIFT_AWAITING_REDEMPTION") {
+    return {
+      key: "gift_awaiting",
+      label: "Regalo sin activar",
+      description:
+        "Alguien compró este lugar para regalarlo y todavía nadie lo activó. Los datos que ves son de quien lo compró, no de quien va a participar.",
+      tone: "info",
+      attention: "watch",
+      nextAction: "Seguilo en Regalos: podés reenviar la invitación o anularlo.",
     };
   }
 

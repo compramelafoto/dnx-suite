@@ -39,13 +39,22 @@ export type MemberForRaffle = {
 
 export type Eligibility = {
   eligible: boolean;
-  /** En castellano y listo para mostrarle al socio. `null` cuando participa. */
+  /**
+   * Por qué no participa, en castellano y con los **marcadores de vocabulario sin resolver**
+   * (`{persona}`). `null` cuando participa.
+   *
+   * Sale con marcadores y no con la palabra puesta porque esta función es pura y no sabe en
+   * qué institución está parada: `selectEntrants`, que arma el padrón, no tiene ni necesita
+   * el workspace. Quien muestra el motivo sí lo sabe, y lo pasa por `aplicarVocabulario`
+   * —igual que el catálogo de módulos—. Mostrarlo crudo se nota en la primera mirada, porque
+   * las llaves quedan a la vista.
+   */
   reason: string | null;
 };
 
 export function isEligible(member: MemberForRaffle, closeAt: Date): Eligibility {
   if (member.status !== "ACTIVE") {
-    return { eligible: false, reason: "Tu ficha de socio no está activa." };
+    return { eligible: false, reason: "Tu ficha de {persona} no está activa." };
   }
 
   const vencidas = member.charges

@@ -84,7 +84,7 @@ export default function OrganizerCommissionFinancialCommandCenter({
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 min-w-0">
+      <div className="grid dnx-grid-3 gap-3 sm:gap-4 min-w-0">
         <MetricCard
           title="Comisiones generadas"
           value={formatMoney(c.totalGenerated)}
@@ -104,7 +104,7 @@ export default function OrganizerCommissionFinancialCommandCenter({
         />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 min-w-0">
+      <div className="grid dnx-grid-3 gap-3 sm:gap-4 min-w-0">
         <MetricCard
           title="Pendiente de pago"
           value={formatMoney(c.pendingOwed)}
@@ -124,7 +124,7 @@ export default function OrganizerCommissionFinancialCommandCenter({
         />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 min-w-0">
+      <div className="grid dnx-grid-4 gap-3 sm:gap-4 min-w-0">
         <MetricCard
           title="Retenido (período de espera)"
           value={formatMoney(c.heldRetained)}
@@ -149,7 +149,7 @@ export default function OrganizerCommissionFinancialCommandCenter({
         />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid dnx-grid-3 gap-3 sm:gap-4">
         <MetricCard
           title="Solicitudes pendientes"
           value={`${w.pendingCount}`}
@@ -170,7 +170,7 @@ export default function OrganizerCommissionFinancialCommandCenter({
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid dnx-grid-2 gap-4">
         <Card className="p-4 sm:p-5 border border-gray-200 shadow-sm ds-card min-w-0">
           <h3 className="text-sm font-semibold text-gray-900 m-0 mb-4">Comisiones generadas por mes</h3>
           <div className="h-64 w-full min-w-0">

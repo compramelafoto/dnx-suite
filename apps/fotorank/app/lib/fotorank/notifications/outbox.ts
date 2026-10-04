@@ -5,6 +5,8 @@
  */
 import { prisma } from "@repo/db";
 
+import { componerCorreo } from "./plantillaInstitucional";
+
 export type TransactionalEmailKind =
   | "REGISTRATION_CONFIRMED"
   | "PHOTO_RECEIVED"
@@ -12,10 +14,16 @@ export type TransactionalEmailKind =
   | "REPLACEMENT_REQUESTED"
   | "JURY_INVITATION"
   | "JURY_INVITE_REMINDER"
+  | "JURY_INVITATION_ANSWERED"
+  | "JURY_RECRUIT_INVITATION"
   | "JURY_SCORING_OPEN"
   | "JURY_SCORING_CLOSING_SOON"
   | "JURY_ASSIGNMENT_NEW"
-  | "JURY_SESSION_CLOSED";
+  | "JURY_SESSION_CLOSED"
+  | "JUDGE_SIGNUP_VERIFY_EMAIL"
+  | "JUDGE_DIRECTORY_REVIEWED"
+  | "JUDGE_SIGNUP_PENDING_REVIEW"
+  | "JUDGE_PASSWORD_RESET";
 
 export type OutboxMessage = {
   kind: TransactionalEmailKind;
@@ -109,16 +117,9 @@ export async function enqueueTransactionalEmail(msg: OutboxMessage): Promise<{ q
         process.env.RESEND_FROM?.trim() ||
         process.env.FOTORANK_EMAIL_FROM?.trim() ||
         "FotoRank <noreply@fotorank.com>";
-      const tpl = TRANSACTIONAL_EMAIL_TEMPLATES[msg.kind];
-      let subject = tpl.subject;
-      const bodyLines: string[] = [`Evento: ${msg.kind}`];
-      for (const [k, v] of Object.entries(msg.payload)) {
-        if (v == null) continue;
-        if (/argra|password|token|secret|gps/i.test(k)) continue;
-        const s = String(v);
-        subject = subject.split(`{{${k}}}`).join(s);
-        bodyLines.push(`${k}: ${s}`);
-      }
+      // Hasta el 2026-09-25 el cuerpo era "Evento: <tipo>" y cada dato con su
+      // nombre de variable. Ahora cada tipo tiene su texto y el marco con el logo.
+      const correo = componerCorreo(msg.kind, msg.payload);
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
@@ -128,8 +129,9 @@ export async function enqueueTransactionalEmail(msg: OutboxMessage): Promise<{ q
         body: JSON.stringify({
           from,
           to: [to],
-          subject,
-          text: bodyLines.join("\n"),
+          subject: correo.asunto,
+          html: correo.html,
+          text: correo.texto,
         }),
       });
       if (!res.ok) {
@@ -174,6 +176,16 @@ export const TRANSACTIONAL_EMAIL_TEMPLATES: Record<
     subject: "Recordatorio: invitación a jurado — {{contestTitle}}",
     requiredVars: ["contestTitle"],
   },
+  /** Va al organizador que invitó, cuando el jurado responde desde el directorio. */
+  JURY_INVITATION_ANSWERED: {
+    subject: "{{nombre}} respondió tu invitación — {{contestTitle}}",
+    requiredVars: ["nombre", "respuesta", "contestTitle"],
+  },
+  /** Convocatoria a sumarse al padrón de jurados, sin concurso de por medio. */
+  JURY_RECRUIT_INVITATION: {
+    subject: "Te invitamos a sumarte como jurado de FotoRank",
+    requiredVars: ["organizationName", "postulacionUrl"],
+  },
   JURY_SCORING_OPEN: {
     subject: "Evaluación abierta — {{contestTitle}}",
     requiredVars: ["contestTitle"],
@@ -189,5 +201,29 @@ export const TRANSACTIONAL_EMAIL_TEMPLATES: Record<
   JURY_SESSION_CLOSED: {
     subject: "Sesión de evaluación cerrada — {{contestTitle}}",
     requiredVars: ["contestTitle"],
+  },
+  JUDGE_SIGNUP_VERIFY_EMAIL: {
+    subject: "Confirmá tu correo para completar tu ficha de jurado",
+    requiredVars: ["firstName", "verifyUrl"],
+  },
+  JUDGE_DIRECTORY_REVIEWED: {
+    subject: "Novedades sobre tu ficha de jurado en FotoRank",
+    requiredVars: ["firstName", "resultado"],
+  },
+  /**
+   * Va a quien revisa, no al postulante. Sin este aviso, enterarse de una
+   * ficha nueva depende de que alguien entre a mirar la cola.
+   */
+  JUDGE_SIGNUP_PENDING_REVIEW: {
+    subject: "Una ficha de jurado espera revisión — {{nombre}}",
+    requiredVars: ["nombre", "colaUrl"],
+  },
+  /**
+   * El único camino de vuelta para un jurado que perdió su contraseña: su
+   * cuenta no está en `User`, así que el `/recuperar` del sitio no lo ve.
+   */
+  JUDGE_PASSWORD_RESET: {
+    subject: "Cambiá tu contraseña de jurado en FotoRank",
+    requiredVars: ["resetUrl", "horas"],
   },
 };

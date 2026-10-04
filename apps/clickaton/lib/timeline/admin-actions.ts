@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { adminRoutes } from "@/config/admin/navigation";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
 import { prisma } from "@/lib/admin/db";
+import { parseDateTimeInput } from "@/lib/admin/datetime-input";
+import { ZONA_ARGENTINA } from "@/lib/fecha-ar";
 import {
   CAPABILITY_MANAGE_TIMELINE,
   CAPABILITY_RELEASE_PROMPTS,
@@ -16,6 +18,21 @@ import {
   releaseAllPromptsForEdition,
   shiftFutureEventsAsNewVersion,
 } from "./prisma-timeline";
+
+/**
+ * Zona de la edición para leer las horas que llegan de los formularios.
+ *
+ * Los campos `datetime-local` no llevan zona: lo que se escribe es hora de
+ * pared del evento. Sin esto, el runtime de Vercel las tomaba como UTC y el
+ * cronograma quedaba grabado 3 horas antes de lo cargado.
+ */
+async function zonaDeLaEdicion(editionId: string): Promise<string> {
+  const edition = await prisma.clickatonEdition.findUnique({
+    where: { id: editionId },
+    select: { timezone: true },
+  });
+  return edition?.timezone ?? ZONA_ARGENTINA;
+}
 
 async function requireCapability(
   editionId: string,
@@ -50,6 +67,7 @@ export async function updateTimelineEventAction(editionId: string, formData: For
   const eventId = String(formData.get("eventId") ?? "");
   const startsAtRaw = String(formData.get("startsAt") ?? "").trim();
   const endsAtRaw = String(formData.get("endsAt") ?? "").trim();
+  const zona = await zonaDeLaEdicion(editionId);
   const event = await prisma.clickatonTimelineEvent.findUniqueOrThrow({
     where: { id: eventId },
     include: { timeline: true },
@@ -60,8 +78,8 @@ export async function updateTimelineEventAction(editionId: string, formData: For
   await prisma.clickatonTimelineEvent.update({
     where: { id: eventId },
     data: {
-      startsAt: startsAtRaw ? new Date(startsAtRaw) : null,
-      endsAt: endsAtRaw ? new Date(endsAtRaw) : null,
+      startsAt: parseDateTimeInput(startsAtRaw, zona),
+      endsAt: parseDateTimeInput(endsAtRaw, zona),
       name: String(formData.get("name") ?? event.name),
     },
   });
@@ -93,6 +111,7 @@ export async function updateTimelineRangeAction(editionId: string, formData: For
   }
   if (pares.length === 0) return;
 
+  const zona = await zonaDeLaEdicion(editionId);
   const eventos = await prisma.clickatonTimelineEvent.findMany({
     where: { id: { in: pares.map((p) => p.eventId) } },
     include: { timeline: true },
@@ -107,7 +126,7 @@ export async function updateTimelineRangeAction(editionId: string, formData: For
     pares.map((par) =>
       prisma.clickatonTimelineEvent.update({
         where: { id: par.eventId },
-        data: { startsAt: par.startsAt ? new Date(par.startsAt) : null },
+        data: { startsAt: parseDateTimeInput(par.startsAt, zona) },
       }),
     ),
   );
@@ -194,6 +213,8 @@ export async function upsertPromptAction(editionId: string, formData: FormData) 
     title: String(formData.get("title") ?? "").trim() || null,
     instructions: String(formData.get("instructions") ?? "").trim() || null,
     status: (String(formData.get("status") ?? "DRAFT") as "DRAFT" | "READY" | "LOCKED") || "DRAFT",
+    // Sorpresa extra: sólo el valor explícito "false" saca la consigna del puntaje.
+    countsForScoring: String(formData.get("countsForScoring") ?? "true") !== "false",
     createdByUserId: user.id,
   };
   if (id) {

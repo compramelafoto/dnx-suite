@@ -3,6 +3,7 @@ import { prisma } from "@repo/db";
 import { condicionDePublicadas } from "@/lib/album";
 import { resolverTema } from "@/lib/tema";
 import { DURACION, SELECT_DE_VARIANTES, enlacesDeVariantes } from "@/lib/moderacion/vista";
+import { nombreDeCategoria } from "@/lib/proveedores/categorias";
 
 /**
  * El álbum del evento: lo que subieron todos y ya está aprobado.
@@ -35,6 +36,25 @@ export async function AlbumDelEvento({
     .map((foto, i) => ({ foto, enlace: enlaces[i] }))
     .filter((x): x is { foto: (typeof fotos)[number]; enlace: string } => Boolean(x.enlace));
   const tema = resolverTema(evento.themeTokens);
+
+  /*
+    Quiénes trabajaron esa noche. Es lo que se le prometió a cada proveedor cuando
+    completó su ficha —que el evento le sirviera para que lo vieran— y es uno de los
+    argumentos con los que el fotógrafo vende el servicio.
+
+    Se muestra abajo de las fotos, no arriba: el que abre el álbum viene a ver las fotos.
+  */
+  const vendors = await prisma.subilafotoEventVendor.findMany({
+    where: { eventId: evento.id },
+    orderBy: { category: "asc" },
+    select: { id: true, partnerId: true, category: true },
+  });
+
+  const empresas = await prisma.dnxPartner.findMany({
+    where: { id: { in: vendors.map((v) => v.partnerId) }, archivedAt: null },
+    select: { id: true, name: true, instagram: true, websiteUrl: true },
+  });
+  const porId = new Map(empresas.map((e) => [e.id, e]));
 
   return (
     <main
@@ -99,6 +119,42 @@ export async function AlbumDelEvento({
           ))}
         </ul>
       )}
+
+      {vendors.length > 0 ? (
+        <section className="mx-auto mt-20 max-w-3xl border-t pt-10" style={{ borderColor: "currentColor" }}>
+          <h2 className="text-center text-sm font-extrabold uppercase tracking-wide" style={{ opacity: 0.7 }}>
+            Quiénes hicieron esta noche
+          </h2>
+          <ul className="mt-6 flex flex-wrap justify-center gap-x-8 gap-y-4 text-center">
+            {vendors.map((v) => {
+              const empresa = porId.get(v.partnerId);
+              if (!empresa) return null;
+              return (
+                <li key={v.id}>
+                  <p className="font-extrabold">
+                    {empresa.websiteUrl ? (
+                      <a
+                        href={empresa.websiteUrl}
+                        target="_blank"
+                        rel="noopener noreferrer nofollow"
+                        className="underline underline-offset-4"
+                      >
+                        {empresa.name}
+                      </a>
+                    ) : (
+                      empresa.name
+                    )}
+                  </p>
+                  <p className="mt-1 text-sm" style={{ opacity: 0.7 }}>
+                    {nombreDeCategoria(v.category)}
+                    {empresa.instagram ? ` · ${empresa.instagram}` : ""}
+                  </p>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
 
       <p className="mt-16 text-center text-sm" style={{ opacity: 0.62 }}>
         {/* Relleno para llegar a los 44 píxeles de alto: es un enlace suelto, no uno

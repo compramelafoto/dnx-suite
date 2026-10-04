@@ -1,8 +1,11 @@
 "use server";
 
 import { createHash, randomBytes } from "node:crypto";
-import { Prisma, prisma } from "@repo/db";
+import { prisma } from "@repo/db";
+import { getClickatonJuryPrisma } from "@repo/db/clickaton-jury-client";
+import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
+import { landingSignOutAction } from "./landing-session";
 import { redirect } from "next/navigation";
 import { requireAuth } from "../lib/auth";
 import {
@@ -15,22 +18,19 @@ import type { UserOrganization } from "../lib/fotorank/organizations";
 import { resolveActiveOrganizationForUser } from "../lib/fotorank/dashboard-org-context";
 import { hashPassword, verifyPassword } from "../lib/security/password";
 import { routes } from "../lib/routes";
+import { eligibilityForLoadedAssignment } from "../lib/fotorank/judgeEvaluationGate";
 import {
-  eligibilityForLoadedAssignment,
-  gateJudgeEvaluationForJudge,
-} from "../lib/fotorank/judgeEvaluationGate";
-import { rawVoteInputFromFormData, validateVotePayloadForMethod } from "../lib/fotorank/judgeVotePayload";
+  platformForContest,
+  platformLabel,
+} from "../lib/fotorank/jury/assignment-source";
 import {
-  filterFotorankEntriesEvaluableForJudging,
-  isEvaluableFotorankContestEntry,
-} from "../lib/fotorank/fotorankContestEntryDomain";
+  categoriasDondeCompiteElJurado,
+  MENSAJE_COMPITE_EN_TODAS,
+  type ClienteParaConflicto,
+} from "../lib/fotorank/jury/competir-y-juzgar";
 import { validateMethodConfig } from "../lib/fotorank/judges/contracts";
 import { DEFAULT_CRITERIA_BASED_METHOD_CONFIG } from "../lib/fotorank/judges/criteriaBased";
 import {
-  extensionForJudgeAvatarMime,
-  isManagedJudgeAvatarPublicUrl,
-  JUDGE_AVATAR_ALLOWED_MIME,
-  JUDGE_AVATAR_MAX_BYTES,
   normalizeJudgeInstagram,
   normalizeJudgeWebsite,
   normalizeStoredJudgeAvatarRef,
@@ -41,11 +41,12 @@ import {
   parseAndValidateJudgeBioDocument,
   parseAndValidateJudgeOtherLinks,
 } from "../lib/fotorank/judges/judgeBioRich";
-import { getJudgeAvatarStorage } from "../lib/fotorank/judges/judgeAvatarStorage";
-import {
-  buildJudgeInvitationRegistrationUrl,
-  logInvitationBaseUrlMisconfigurationIfNeeded,
-} from "../lib/fotorank/judges/invitationLinks";
+import { judgeAvatarSrc } from "../lib/fotorank/judges/judgeAvatarSrc";
+import { resultadoDeAceptarInvitacion } from "../lib/fotorank/judges/inviteAcceptance";
+import { buildPublicSlug } from "../lib/fotorank/judges/publicSlug";
+import { recortarPerfilParaElPublico } from "../lib/fotorank/judges/publicProfileVisibility";
+import { portfolioImageSrc } from "../lib/fotorank/judges/portfolioSrc";
+import { saveJudgeAvatar, deleteJudgeAvatarByKey } from "../lib/fotorank/judges/judgeAssetStorage";
 
 export type JudgeMethodType =
   | "SCORE_1_5"
@@ -60,28 +61,12 @@ export type JudgeActionResult<T = undefined> =
   | { ok: true; data?: T }
   | { ok: false; error: string };
 
-function buildPublicSlug(firstName: string, lastName: string) {
-  return `${firstName}-${lastName}`
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "") || `jurado-${randomBytes(4).toString("hex")}`;
-}
+
 
 type OrganizationScope =
   | { ok: false; error: string }
   | { ok: true; user: Awaited<ReturnType<typeof requireAuth>>; org: UserOrganization };
 
-
-async function resolveWorkspaceIdForUser(userId: number): Promise<string | null> {
-  const membership = await prisma.membership.findFirst({
-    where: { userId },
-    select: { workspaceId: true },
-    orderBy: { id: "asc" },
-  });
-  return membership?.workspaceId ?? null;
-}
 
 
 /**
@@ -114,33 +99,51 @@ async function requireOrganizationScope(): Promise<OrganizationScope> {
 }
 
 
-export async function uploadJudgeAvatarImage(formData: FormData): Promise<JudgeActionResult<{ url: string }>> {
+export async function uploadJudgeAvatarImage(
+  formData: FormData,
+): Promise<JudgeActionResult<{ key: string }>> {
   const scope = await requireOrganizationScope();
   if (!scope.ok) return { ok: false, error: scope.error };
+
+  // La clave lleva la cuenta del jurado. En el alta todavía no existe, así que
+  // el formulario manda un identificador temporal y la clave se rearma al
+  // guardar el perfil.
+  const judgeAccountId = String(formData.get("judgeAccountId") ?? "").trim() || `nuevo-${randomBytes(8).toString("hex")}`;
 
   const file = formData.get("file");
   if (!file || typeof file !== "object" || !("arrayBuffer" in file)) {
     return { ok: false, error: "No se recibió ningún archivo." };
   }
   const f = file as File;
-  const mime = f.type || "";
-  if (!JUDGE_AVATAR_ALLOWED_MIME.has(mime)) {
-    return { ok: false, error: "Formato no permitido. Usá JPEG, PNG o WebP." };
-  }
-  const buf = Buffer.from(await f.arrayBuffer());
-  if (buf.length > JUDGE_AVATAR_MAX_BYTES) {
-    return { ok: false, error: "El archivo supera el tamaño máximo (2 MB)." };
-  }
-  const ext = extensionForJudgeAvatarMime(mime);
-  if (!ext) return { ok: false, error: "Tipo de imagen no soportado." };
+  const body = new Uint8Array(await f.arrayBuffer());
 
-  const storage = getJudgeAvatarStorage();
-  const { publicUrl } = await storage.save(buf, ext as "jpg" | "png" | "webp");
-  return { ok: true, data: { url: publicUrl } };
+  const saved = await saveJudgeAvatar({ judgeAccountId, body, mime: f.type || "" });
+  if (!saved.ok) return { ok: false, error: saved.error };
+  return { ok: true, data: { key: saved.key } };
 }
 
 
-export async function listJudgesForOrg(): Promise<JudgeActionResult<Array<Record<string, unknown>>>> {
+/** Una fila de la lista de jurados de la organización. */
+export type JudgeListRow = {
+  membershipId: string;
+  judgeId: string;
+  email: string;
+  accountStatus: string;
+  membershipStatus: string;
+  lastLoginAt: Date | null;
+  profile: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    professionalHeadline: string | null;
+    avatarUrl: string | null;
+  } | null;
+  assignmentsCount: number;
+  activeContests: string[];
+  categories: string[];
+};
+
+export async function listJudgesForOrg(): Promise<JudgeActionResult<JudgeListRow[]>> {
   const scope = await requireOrganizationScope();
   if (!scope.ok) return { ok: false, error: scope.error };
 
@@ -205,12 +208,21 @@ export async function listJudgesForOrg(): Promise<JudgeActionResult<Array<Record
       accountStatus: m.judgeAccount.accountStatus,
       membershipStatus: m.membershipStatus,
       lastLoginAt: m.judgeAccount.lastLoginAt,
-      profile: m.judgeAccount.profile,
+      profile: m.judgeAccount.profile
+        ? {
+            id: m.judgeAccount.profile.id,
+            firstName: m.judgeAccount.profile.firstName,
+            lastName: m.judgeAccount.profile.lastName,
+            professionalHeadline: m.judgeAccount.profile.professionalHeadline,
+            avatarUrl: m.judgeAccount.profile.avatarUrl,
+          }
+        : null,
       assignmentsCount: m.judgeAccount.assignments.length,
       activeContests: [...new Set(m.judgeAccount.assignments.map((a) => a.contest.title))],
       categories: m.judgeAccount.assignments.map((a) =>
-        categoryNameById.get(a.categoryId) ??
-          `(categoría ausente · assignment ${a.id} · categoryId ${a.categoryId})`,
+        // Una categoría huérfana ya se avisó por consola arriba. En pantalla
+        // no se muestran identificadores: no le dicen nada a quien la lee.
+        categoryNameById.get(a.categoryId) ?? "categoría eliminada",
       ),
     })),
   };
@@ -267,7 +279,7 @@ export async function listJudgeRosterForContest(contestId: string): Promise<Judg
           email: m.judgeAccount.email,
           firstName: p.firstName,
           lastName: p.lastName,
-          avatarUrl: p.avatarUrl,
+          avatarUrl: judgeAvatarSrc({ id: p.id, avatarUrl: p.avatarUrl }),
           specialities: Array.isArray(p.specialtiesJson) ? (p.specialtiesJson as string[]) : [],
           city: p.city,
           country: p.country,
@@ -278,151 +290,6 @@ export async function listJudgeRosterForContest(contestId: string): Promise<Judg
         };
       }),
   };
-}
-
-export async function listJudgeInvitationsForContest(
-  contestId: string
-): Promise<
-  JudgeActionResult<
-    Array<{
-      id: string;
-      email: string;
-      invitationStatus: string;
-      expiresAt: string;
-      acceptedAt: string | null;
-      createdAt: string;
-      judgeLabel: string | null;
-    }>
-  >
-> {
-  const scope = await requireOrganizationScope();
-  if (!scope.ok) return { ok: false, error: scope.error };
-  const rows = await prisma.fotorankJudgeInvitation.findMany({
-    where: { organizationId: scope.org.id, contestId },
-    orderBy: { createdAt: "desc" },
-    take: 200,
-    include: {
-      judgeAccount: { include: { profile: { select: { firstName: true, lastName: true } } } },
-    },
-  });
-  return {
-    ok: true,
-    data: rows.map((r) => ({
-      id: r.id,
-      email: r.email,
-      invitationStatus: r.invitationStatus,
-      expiresAt: r.expiresAt.toISOString(),
-      acceptedAt: r.acceptedAt?.toISOString() ?? null,
-      createdAt: r.createdAt.toISOString(),
-      judgeLabel: r.judgeAccount?.profile
-        ? `${r.judgeAccount.profile.firstName} ${r.judgeAccount.profile.lastName}`.trim()
-        : null,
-    })),
-  };
-}
-
-export async function createJudgeAccount(input: {
-  email: string;
-  password: string;
-  firstName: string;
-  lastName: string;
-  phone?: string;
-  avatarUrl?: string;
-  shortBio?: string;
-  fullBioRichJson?: unknown;
-  city?: string;
-  country?: string;
-  website?: string;
-  instagram?: string;
-  otherLinksJson?: unknown;
-  isPublic?: boolean;
-}): Promise<JudgeActionResult<{ judgeId: string }>> {
-  const scope = await requireOrganizationScope();
-  if (!scope.ok) return { ok: false, error: scope.error };
-
-  if (!input.email?.trim()) return { ok: false, error: "Email obligatorio." };
-  if (!input.password || input.password.length < 8) return { ok: false, error: "La contraseña debe tener al menos 8 caracteres." };
-  if (!input.firstName?.trim() || !input.lastName?.trim()) return { ok: false, error: "Nombre y apellido son obligatorios." };
-
-  const email = input.email.trim().toLowerCase();
-  const existing = await prisma.fotorankJudgeAccount.findUnique({ where: { email } });
-  if (existing) return { ok: false, error: "Ya existe un jurado con ese email." };
-
-  const avatarRef = normalizeStoredJudgeAvatarRef(input.avatarUrl);
-  if (input.avatarUrl?.trim() && !avatarRef) {
-    return { ok: false, error: "La URL o ruta del avatar no es válida." };
-  }
-
-  const bioDoc = parseAndValidateJudgeBioDocument(input.fullBioRichJson ?? emptyJudgeBioDocument());
-  if (!bioDoc.ok) return { ok: false, error: bioDoc.error };
-
-  const otherLinks = parseAndValidateJudgeOtherLinks(input.otherLinksJson ?? emptyJudgeOtherLinksDocument());
-  if (!otherLinks.ok) return { ok: false, error: otherLinks.error };
-
-  const websiteNorm = normalizeJudgeWebsite(input.website);
-  if (input.website?.trim() && !websiteNorm) {
-    return { ok: false, error: "El sitio web no es una URL válida." };
-  }
-
-  const instagramNorm = normalizeJudgeInstagram(input.instagram);
-  if (input.instagram?.trim() && !instagramNorm) {
-    return { ok: false, error: "Instagram: valor no válido (sin caracteres < o >, máx. 120)." };
-  }
-
-  const baseSlug = buildPublicSlug(input.firstName, input.lastName);
-  let publicSlug = baseSlug;
-  let idx = 1;
-  while (await prisma.fotorankJudgeProfile.findUnique({ where: { publicSlug } })) {
-    idx += 1;
-    publicSlug = `${baseSlug}-${idx}`;
-  }
-
-  const judge = await prisma.fotorankJudgeAccount.create({
-    data: {
-      workspaceId: (await resolveWorkspaceIdForUser(scope.user.id)) ?? (() => { throw new Error("No workspace linked to current admin user."); })(),
-      email,
-      passwordHash: hashPassword(input.password),
-      accountStatus: "ACTIVE",
-      profile: {
-        create: {
-          firstName: input.firstName.trim(),
-          lastName: input.lastName.trim(),
-          phone: input.phone?.trim() || null,
-          avatarUrl: avatarRef,
-          shortBio: input.shortBio?.trim() || null,
-          fullBioRichJson: bioDoc.doc as never,
-          city: input.city?.trim() || null,
-          country: input.country?.trim() || null,
-          website: websiteNorm,
-          instagram: instagramNorm,
-          otherLinksJson: otherLinks.doc as never,
-          publicSlug,
-          isPublic: input.isPublic ?? true,
-        },
-      },
-      organizationMemberships: {
-        create: {
-          organizationId: scope.org.id,
-          membershipStatus: "ACTIVE",
-        },
-      },
-    },
-  });
-
-  await prisma.fotorankJudgeAuditEvent.create({
-    data: {
-      organizationId: scope.org.id,
-      actorType: "ADMIN",
-      actorUserId: scope.user.id,
-      eventType: "JUDGE_CREATED",
-      entityType: "FotorankJudgeAccount",
-      entityId: judge.id,
-      payloadJson: { email },
-    },
-  });
-
-  revalidatePath("/jurados");
-  return { ok: true, data: { judgeId: judge.id } };
 }
 
 export async function updateJudgeProfileByAdmin(judgeId: string, input: {
@@ -512,12 +379,10 @@ export async function updateJudgeProfileByAdmin(judgeId: string, input: {
     },
   });
 
-  if (
-    previousAvatarUrl &&
-    previousAvatarUrl !== avatarRef &&
-    isManagedJudgeAvatarPublicUrl(previousAvatarUrl)
-  ) {
-    await getJudgeAvatarStorage().deleteIfManagedPublicUrl(previousAvatarUrl);
+  if (previousAvatarUrl && previousAvatarUrl !== avatarRef) {
+    // deleteJudgeAvatarByKey ignora lo que no sea una clave del bucket, así que
+    // una URL externa cargada a mano no se toca.
+    await deleteJudgeAvatarByKey(previousAvatarUrl);
   }
 
   await prisma.fotorankJudgeAuditEvent.create({
@@ -549,100 +414,6 @@ export async function updateJudgeProfileByAdmin(judgeId: string, input: {
   return { ok: true };
 }
 
-export async function createJudgeAssignment(input: {
-  judgeAccountId: string;
-  contestId: string;
-  categoryId: string;
-  assignmentType: "PRIMARY" | "BACKUP";
-  evaluationStartsAt?: string;
-  evaluationEndsAt?: string;
-  methodType: JudgeMethodType;
-  methodConfigJson: unknown;
-  allowVoteEdit?: boolean;
-  commentsVisibleToParticipants?: boolean;
-  sendInvitationNow?: boolean;
-}): Promise<JudgeActionResult<{ assignmentId: string }>> {
-  const scope = await requireOrganizationScope();
-  if (!scope.ok) return { ok: false, error: scope.error };
-
-  let methodConfigJson: unknown = input.methodConfigJson ?? {};
-  if (input.methodType === "CRITERIA_BASED") {
-    const raw = methodConfigJson;
-    const criteria =
-      raw && typeof raw === "object" && !Array.isArray(raw) && Array.isArray((raw as { criteria?: unknown }).criteria)
-        ? (raw as { criteria: unknown[] }).criteria
-        : [];
-    if (criteria.length === 0) {
-      methodConfigJson = DEFAULT_CRITERIA_BASED_METHOD_CONFIG;
-    }
-  }
-
-  const methodConfigCheck = validateMethodConfig(input.methodType, methodConfigJson);
-  if (!methodConfigCheck.valid) {
-    return { ok: false, error: methodConfigCheck.error };
-  }
-
-  const contestId = input.contestId.trim();
-  const categoryId = input.categoryId.trim();
-  if (!contestId) {
-    return { ok: false, error: "Seleccioná un concurso." };
-  }
-  if (!categoryId) {
-    return { ok: false, error: "Seleccioná una categoría." };
-  }
-
-  const contest = await prisma.fotorankContest.findFirst({
-    where: { id: contestId, organizationId: scope.org.id },
-    select: { id: true },
-  });
-  if (!contest) {
-    return { ok: false, error: "Concurso no encontrado en tu organización." };
-  }
-
-  const category = await prisma.fotorankContestCategory.findFirst({
-    where: { id: categoryId, contestId: contest.id, status: "ACTIVE" },
-    select: { id: true },
-  });
-  if (!category) {
-    return { ok: false, error: "La categoría no está activa o no pertenece al concurso seleccionado." };
-  }
-
-  const assignment = await prisma.fotorankJudgeAssignment.create({
-    data: {
-      judgeAccountId: input.judgeAccountId,
-      organizationId: scope.org.id,
-      contestId,
-      categoryId,
-      assignmentType: input.assignmentType,
-      assignmentStatus: input.sendInvitationNow ? "INVITATION_SENT" : "ASSIGNED",
-      evaluationStartsAt: input.evaluationStartsAt ? new Date(input.evaluationStartsAt) : null,
-      evaluationEndsAt: input.evaluationEndsAt ? new Date(input.evaluationEndsAt) : null,
-      methodType: input.methodType,
-      methodConfigJson: methodConfigJson as never,
-      allowVoteEdit: input.allowVoteEdit ?? true,
-      commentsVisibleToParticipants: input.commentsVisibleToParticipants ?? false,
-      createdByUserId: scope.user.id,
-    },
-  });
-
-  await prisma.fotorankJudgeAuditEvent.create({
-    data: {
-      organizationId: scope.org.id,
-      contestId,
-      actorType: "ADMIN",
-      actorUserId: scope.user.id,
-      eventType: "JUDGE_ASSIGNMENT_CREATED",
-      entityType: "FotorankJudgeAssignment",
-      entityId: assignment.id,
-      payloadJson: { categoryId, assignmentType: input.assignmentType },
-    },
-  });
-
-  revalidatePath("/jurados/asignaciones");
-  revalidatePath(routes.dashboard.concursos.detalle(contestId));
-  return { ok: true, data: { assignmentId: assignment.id } };
-}
-
 export type CreateJudgeAssignmentsBatchInput = {
   judgeAccountId: string;
   contestId: string;
@@ -663,10 +434,21 @@ export type CreateJudgeAssignmentsBatchInput = {
 /**
  * Crea una fila `FotorankJudgeAssignment` por categoría (misma config). Omite duplicados
  * (mismo jurado + concurso + categoría ya existente). Auditoría: un evento por asignación creada.
+ *
+ * También omite las categorías donde el jurado compite: asignarlas crearía
+ * filas que las compuertas le van a bloquear igual. Se cuentan aparte de los
+ * duplicados porque el motivo es otro y el organizador tiene que saberlo.
  */
 export async function createJudgeAssignmentsBatch(
   input: CreateJudgeAssignmentsBatchInput,
-): Promise<JudgeActionResult<{ created: number; skippedExisting: number }>> {
+): Promise<
+  JudgeActionResult<{
+    created: number;
+    skippedExisting: number;
+    /** Categorías salteadas porque el jurado compite en ellas. */
+    skippedCompite: number;
+  }>
+> {
   const scope = await requireOrganizationScope();
   if (!scope.ok) return { ok: false, error: scope.error };
 
@@ -745,15 +527,23 @@ export async function createJudgeAssignmentsBatch(
     select: { categoryId: true },
   });
   const existingSet = new Set(existing.map((e) => e.categoryId));
-  const toCreate = categoryIdsToAssign.filter((id) => !existingSet.has(id));
-  const skippedExisting = categoryIdsToAssign.length - toCreate.length;
+  const sinRepetir = categoryIdsToAssign.filter((id) => !existingSet.has(id));
+  const skippedExisting = categoryIdsToAssign.length - sinRepetir.length;
+
+  // Nadie juzga la categoría donde compite: esas se saltean como los duplicados.
+  const enConflicto = await categoriasDondeCompiteElJurado({
+    judgeAccountId,
+    contestId: contest.id,
+  });
+  const toCreate = sinRepetir.filter((id) => !enConflicto.has(id));
+  const skippedCompite = sinRepetir.length - toCreate.length;
 
   if (toCreate.length === 0) {
     revalidatePath("/jurados/asignaciones");
     revalidatePath(routes.dashboard.concursos.detalle(contestId));
     return {
       ok: true,
-      data: { created: 0, skippedExisting },
+      data: { created: 0, skippedExisting, skippedCompite },
     };
   }
 
@@ -799,241 +589,8 @@ export async function createJudgeAssignmentsBatch(
   revalidatePath(routes.dashboard.concursos.detalle(contestId));
   return {
     ok: true,
-    data: { created: toCreate.length, skippedExisting },
+    data: { created: toCreate.length, skippedExisting, skippedCompite },
   };
-}
-
-export async function sendJudgeInvitation(input: {
-  email: string;
-  contestId: string;
-  categoryId?: string;
-  judgeAccountId?: string;
-  expiresInDays?: number;
-}): Promise<JudgeActionResult<{ invitationId: string; registrationUrl: string }>> {
-  const scope = await requireOrganizationScope();
-  if (!scope.ok) return { ok: false, error: scope.error };
-
-  const email = input.email?.trim().toLowerCase();
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return { ok: false, error: "Ingresá un email válido." };
-  }
-  if (!input.contestId?.trim()) {
-    return { ok: false, error: "Seleccioná un concurso." };
-  }
-
-  const contest = await prisma.fotorankContest.findFirst({
-    where: { id: input.contestId.trim(), organizationId: scope.org.id },
-    select: { id: true },
-  });
-  if (!contest) {
-    return { ok: false, error: "Concurso no encontrado en tu organización." };
-  }
-
-  if (input.categoryId?.trim()) {
-    const cat = await prisma.fotorankContestCategory.findFirst({
-      where: { id: input.categoryId.trim(), contestId: contest.id, status: "ACTIVE" },
-      select: { id: true },
-    });
-    if (!cat) {
-      return { ok: false, error: "La categoría no está activa o no pertenece al concurso seleccionado." };
-    }
-  }
-
-  const plainToken = randomBytes(24).toString("hex");
-  const tokenHash = createHash("sha256").update(plainToken).digest("hex");
-  const expiresInDays = Math.max(1, input.expiresInDays ?? 7);
-  const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000);
-
-  const invitation = await prisma.fotorankJudgeInvitation.create({
-    data: {
-      organizationId: scope.org.id,
-      contestId: input.contestId,
-      categoryId: input.categoryId?.trim() || null,
-      judgeAccountId: input.judgeAccountId || null,
-      email,
-      tokenHash,
-      expiresAt,
-      invitationStatus: "SENT",
-      sentByUserId: scope.user.id,
-    },
-  });
-
-  await prisma.fotorankJudgeAuditEvent.create({
-    data: {
-      organizationId: scope.org.id,
-      contestId: input.contestId,
-      actorType: "ADMIN",
-      actorUserId: scope.user.id,
-      eventType: "JUDGE_INVITATION_SENT",
-      entityType: "FotorankJudgeInvitation",
-      entityId: invitation.id,
-      // sin token / sin PII extra
-      payloadJson: {
-        emailDomain: invitation.email.split("@")[1] ?? null,
-        expiresAt: invitation.expiresAt.toISOString(),
-      },
-    },
-  });
-
-  // Intent durable (sin email real si el outbox no tiene proveedor).
-  try {
-    const { enqueueJuryNotificationIntent } = await import(
-      "../lib/fotorank/jury/notification-intents"
-    );
-    await enqueueJuryNotificationIntent({
-      contestId: input.contestId,
-      kind: "JURY_INVITATION",
-      metadata: { invitationId: invitation.id, channel: "secure_panel_link" },
-    });
-  } catch {
-    // no bloquear invitación
-  }
-
-  revalidatePath("/jurados/invitaciones");
-  logInvitationBaseUrlMisconfigurationIfNeeded("sendJudgeInvitation");
-  const registrationUrl = buildJudgeInvitationRegistrationUrl(plainToken);
-  return { ok: true, data: { invitationId: invitation.id, registrationUrl } };
-}
-
-export async function listJudgeInvitationsForOrg(): Promise<
-  JudgeActionResult<
-    Array<{
-      id: string;
-      email: string;
-      contestId: string;
-      contestTitle: string;
-      categoryId: string | null;
-      categoryName: string | null;
-      invitationStatus: string;
-      expiresAt: string;
-      createdAt: string;
-      acceptedAt: string | null;
-      judgeLabel: string | null;
-    }>
-  >
-> {
-  const scope = await requireOrganizationScope();
-  if (!scope.ok) return { ok: false, error: scope.error };
-
-  const rows = await prisma.fotorankJudgeInvitation.findMany({
-    where: { organizationId: scope.org.id },
-    orderBy: { createdAt: "desc" },
-    take: 200,
-    include: {
-      contest: { select: { title: true } },
-      category: { select: { name: true } },
-      judgeAccount: { include: { profile: { select: { firstName: true, lastName: true } } } },
-    },
-  });
-
-  return {
-    ok: true,
-    data: rows.map((r) => ({
-      id: r.id,
-      email: r.email,
-      contestId: r.contestId,
-      contestTitle: r.contest.title,
-      categoryId: r.categoryId,
-      categoryName: r.category?.name ?? null,
-      invitationStatus: r.invitationStatus,
-      expiresAt: r.expiresAt.toISOString(),
-      createdAt: r.createdAt.toISOString(),
-      acceptedAt: r.acceptedAt?.toISOString() ?? null,
-      judgeLabel: r.judgeAccount?.profile
-        ? `${r.judgeAccount.profile.firstName} ${r.judgeAccount.profile.lastName}`.trim()
-        : null,
-    })),
-  };
-}
-
-export async function revokeJudgeInvitation(invitationId: string): Promise<JudgeActionResult> {
-  const scope = await requireOrganizationScope();
-  if (!scope.ok) return { ok: false, error: scope.error };
-
-  const inv = await prisma.fotorankJudgeInvitation.findFirst({
-    where: { id: invitationId, organizationId: scope.org.id },
-  });
-  if (!inv) return { ok: false, error: "Invitación no encontrada." };
-  if (inv.invitationStatus === "ACCEPTED") {
-    return { ok: false, error: "No se puede revocar una invitación ya aceptada." };
-  }
-  if (inv.invitationStatus === "REVOKED") {
-    return { ok: false, error: "La invitación ya está revocada." };
-  }
-
-  await prisma.fotorankJudgeInvitation.update({
-    where: { id: inv.id },
-    data: { invitationStatus: "REVOKED" },
-  });
-
-  await prisma.fotorankJudgeAuditEvent.create({
-    data: {
-      organizationId: scope.org.id,
-      contestId: inv.contestId,
-      actorType: "ADMIN",
-      actorUserId: scope.user.id,
-      eventType: "JUDGE_INVITATION_REVOKED",
-      entityType: "FotorankJudgeInvitation",
-      entityId: inv.id,
-      payloadJson: { email: inv.email },
-    },
-  });
-
-  revalidatePath("/jurados/invitaciones");
-  return { ok: true };
-}
-
-/**
- * Genera un nuevo token (invalida el anterior). Solo invitaciones pendientes.
- * Devuelve la URL de registro una vez para copiar / enviar por canal seguro (p. ej. email futuro).
- */
-export async function regenerateJudgeInvitationLink(
-  invitationId: string
-): Promise<JudgeActionResult<{ registrationUrl: string }>> {
-  const scope = await requireOrganizationScope();
-  if (!scope.ok) return { ok: false, error: scope.error };
-
-  const inv = await prisma.fotorankJudgeInvitation.findFirst({
-    where: { id: invitationId, organizationId: scope.org.id },
-  });
-  if (!inv) return { ok: false, error: "Invitación no encontrada." };
-  if (inv.invitationStatus === "ACCEPTED") {
-    return { ok: false, error: "La invitación ya fue aceptada." };
-  }
-  if (inv.invitationStatus === "REVOKED") {
-    return { ok: false, error: "La invitación está revocada. Creá una nueva invitación." };
-  }
-  if (!["SENT", "OPENED", "DRAFT"].includes(inv.invitationStatus)) {
-    return { ok: false, error: "No se puede regenerar el enlace en el estado actual." };
-  }
-  if (inv.expiresAt < new Date()) {
-    return { ok: false, error: "La invitación está vencida. Creá una nueva con fecha válida." };
-  }
-
-  const plainToken = randomBytes(24).toString("hex");
-  const tokenHash = createHash("sha256").update(plainToken).digest("hex");
-
-  await prisma.fotorankJudgeInvitation.update({
-    where: { id: inv.id },
-    data: { tokenHash, invitationStatus: "SENT" },
-  });
-
-  await prisma.fotorankJudgeAuditEvent.create({
-    data: {
-      organizationId: scope.org.id,
-      contestId: inv.contestId,
-      actorType: "ADMIN",
-      actorUserId: scope.user.id,
-      eventType: "JUDGE_INVITATION_TOKEN_ROTATED",
-      entityType: "FotorankJudgeInvitation",
-      entityId: inv.id,
-      payloadJson: { email: inv.email },
-    },
-  });
-
-  revalidatePath("/jurados/invitaciones");
-  logInvitationBaseUrlMisconfigurationIfNeeded("rotateJudgeInvitationToken");
-  return { ok: true, data: { registrationUrl: buildJudgeInvitationRegistrationUrl(plainToken) } };
 }
 
 /**
@@ -1177,30 +734,30 @@ export async function registerJudgeFromInvitation(input: {
   });
 
   const pendingAssignmentsCount = await prisma.fotorankJudgeAssignment.count({ where: assignmentWhere });
-  if (pendingAssignmentsCount === 0) {
-    return {
-      ok: false,
-      error:
-        invitationCategoryId !== null
-          ? "No hay una asignación pendiente (ASSIGNED o INVITATION_SENT) para esta categoría, concurso y tu cuenta. Pedí al administrador que revise la invitación o la asignación."
-          : "No hay asignaciones pendientes (ASSIGNED o INVITATION_SENT) para este concurso y tu cuenta. Pedí al administrador que revise la invitación o las asignaciones.",
-    };
-  }
+  const resultado = resultadoDeAceptarInvitacion({ pendingAssignmentsCount });
 
-  await prisma.$transaction([
-    prisma.fotorankJudgeInvitation.update({
-      where: { id: invitation.id },
-      data: {
-        invitationStatus: "ACCEPTED",
-        acceptedAt: new Date(),
-        judgeAccountId: judgeId,
-      },
-    }),
-    prisma.fotorankJudgeAssignment.updateMany({
-      where: assignmentWhere,
-      data: { assignmentStatus: "ACCEPTED" },
-    }),
-  ]);
+  // La invitación se acepta siempre. Que el organizador todavía no haya creado
+  // la asignación es cosa suya, no motivo para dejar al jurado afuera.
+  const aceptarInvitacion = prisma.fotorankJudgeInvitation.update({
+    where: { id: invitation.id },
+    data: {
+      invitationStatus: "ACCEPTED" as const,
+      acceptedAt: new Date(),
+      judgeAccountId: judgeId,
+    },
+  });
+
+  if (resultado.aceptaAsignaciones) {
+    await prisma.$transaction([
+      aceptarInvitacion,
+      prisma.fotorankJudgeAssignment.updateMany({
+        where: assignmentWhere,
+        data: { assignmentStatus: "ACCEPTED" },
+      }),
+    ]);
+  } else {
+    await prisma.$transaction([aceptarInvitacion]);
+  }
 
   await createJudgeSessionForJudge(judgeId);
   redirect("/jurado/panel");
@@ -1255,27 +812,112 @@ export async function judgeLoginAction(
   redirect("/jurado/panel");
 }
 
+/**
+ * Salir del panel de jurado.
+ *
+ * Quien entró por el puente no tiene sesión de jurado propia: la suya es la
+ * del sitio. Si sólo se borrara la de jurado, apretar "Cerrar sesión" no
+ * haría nada visible y seguiría adentro. Por eso, cuando no hay sesión
+ * propia que cerrar, se cierra la del sitio, que es la única que tiene.
+ */
 export async function judgeLogoutAction(): Promise<void> {
+  const cookieStore = await cookies();
+  const teniaSesionPropia = Boolean(cookieStore.get("dnx_judge_session")?.value);
+
   await destroyCurrentJudgeSession();
+
+  if (!teniaSesionPropia) {
+    await landingSignOutAction();
+  }
 }
 
-export async function listJudgeAssignmentsForCurrentJudge(): Promise<JudgeActionResult<Array<Record<string, unknown>>>> {
+/**
+ * Todas las asignaciones del jurado, de las dos plataformas, en una sola lista.
+ *
+ * Si la base de Clickatón no responde se devuelven igual las propias y se avisa
+ * con `clickatonUnavailable`: una caída no puede parecerse a "no tenés trabajo
+ * asignado".
+ */
+export async function listJudgeAssignmentsForCurrentJudge(): Promise<
+  JudgeActionResult<{
+    assignments: Array<Record<string, unknown>>;
+    clickatonUnavailable: boolean;
+  }>
+> {
   const judge = await requireJudgeAuth();
   const now = new Date();
 
-  const assignments = await prisma.fotorankJudgeAssignment.findMany({
+  const includeShape = {
+    contest: true,
+    category: true,
+    votes: true,
+  } as const;
+
+  const own = await prisma.fotorankJudgeAssignment.findMany({
     where: { judgeAccountId: judge.id },
-    include: {
-      contest: true,
-      category: true,
-      votes: true,
-    },
+    include: includeShape,
     orderBy: { updatedAt: "desc" },
   });
 
+  let external: typeof own = [];
+  let clickatonUnavailable = false;
+  const clickatonPrisma = getClickatonJuryPrisma();
+  if (clickatonPrisma) {
+    try {
+      external = (await clickatonPrisma.fotorankJudgeAssignment.findMany({
+        where: { judgeAccountId: judge.id },
+        include: includeShape,
+        orderBy: { updatedAt: "desc" },
+      })) as typeof own;
+    } catch {
+      clickatonUnavailable = true;
+    }
+  }
+
+  const assignments = [...own, ...external].sort(
+    (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime(),
+  );
+
+  /*
+   * Nadie juzga la categoría donde compite.
+   *
+   * Las dos compuertas ya lo impiden; esto es para que el panel no ofrezca lo
+   * que después va a rechazar. Se consulta una vez por concurso y no una por
+   * asignación: un jurado con seis categorías del mismo concurso haría seis
+   * veces la misma pregunta.
+   */
+  const conflictosPorConcurso = new Map<string, Set<string>>();
+  const concursosVistos = new Set<string>();
+  for (const a of assignments) {
+    const esExterna = external.some((e) => e.id === a.id);
+    const clave = `${esExterna ? "ck" : "fr"}:${a.contestId}`;
+    if (concursosVistos.has(clave)) continue;
+    concursosVistos.add(clave);
+
+    const db = esExterna
+      ? (clickatonPrisma as unknown as ClienteParaConflicto | null)
+      : (prisma as unknown as ClienteParaConflicto);
+    if (!db) continue;
+
+    try {
+      conflictosPorConcurso.set(
+        clave,
+        await categoriasDondeCompiteElJurado({
+          judgeAccountId: judge.id,
+          contestId: a.contestId,
+          cliente: db,
+        }),
+      );
+    } catch {
+      // El panel se sigue mostrando: quien intente entrar igual choca con las
+      // compuertas, que sí fallan cerrado.
+    }
+  }
+
   return {
     ok: true,
-    data: assignments.map((a) => {
+    data: {
+      assignments: assignments.map((a) => {
       const eligibility = eligibilityForLoadedAssignment(
         {
           id: a.id,
@@ -1290,16 +932,28 @@ export async function listJudgeAssignmentsForCurrentJudge(): Promise<JudgeAction
           evaluationStartsAt: a.evaluationStartsAt,
           evaluationEndsAt: a.evaluationEndsAt,
           extendedEndsAt: a.extendedEndsAt,
-          contest: { status: a.contest.status },
+          contest: {
+            status: a.contest.status,
+            distributionChannel: a.contest.distributionChannel,
+            title: a.contest.title,
+          },
         },
         judge,
         now,
       );
+      const platform = platformForContest({
+        distributionChannel: a.contest.distributionChannel,
+      });
+      const claveConcurso = `${external.some((e) => e.id === a.id) ? "ck" : "fr"}:${a.contestId}`;
+      const compiteAca =
+        conflictosPorConcurso.get(claveConcurso)?.has(a.categoryId) ?? false;
       return {
         id: a.id,
         contestId: a.contestId,
         contestTitle: a.contest.title,
         categoryName: a.category.name,
+        platform,
+        platformLabel: platformLabel(platform),
         assignmentStatus: a.assignmentStatus,
         assignmentType: a.assignmentType,
         methodType: a.methodType,
@@ -1307,276 +961,22 @@ export async function listJudgeAssignmentsForCurrentJudge(): Promise<JudgeAction
         evaluationEndsAt: a.extendedEndsAt ?? a.evaluationEndsAt,
         votesCount: a.votes.length,
         contestStatus: a.contest.status,
-        evaluationAllowed: eligibility.allowed,
-        evaluationBlockCode: eligibility.allowed ? null : eligibility.code,
-        evaluationBlockMessage: eligibility.allowed ? null : eligibility.message,
+        evaluationAllowed: eligibility.allowed && !compiteAca,
+        evaluationBlockCode: compiteAca
+          ? "COMPITE_EN_LA_CATEGORIA"
+          : eligibility.allowed
+            ? null
+            : eligibility.code,
+        evaluationBlockMessage: compiteAca
+          ? MENSAJE_COMPITE_EN_TODAS
+          : eligibility.allowed
+            ? null
+            : eligibility.message,
       };
     }),
+      clickatonUnavailable,
+    },
   };
-}
-
-export async function listEntriesForAssignment(assignmentId: string): Promise<JudgeActionResult<Array<Record<string, unknown>>>> {
-  const judge = await requireJudgeAuth();
-
-  const gate = await gateJudgeEvaluationForJudge(assignmentId, judge, new Date());
-  if (!gate.ok) {
-    return { ok: false, error: gate.error };
-  }
-  const assignment = gate.assignment;
-
-  const entriesRaw = await prisma.fotorankContestEntry.findMany({
-    where: {
-      contestId: assignment.contestId,
-      categoryId: assignment.categoryId,
-      status: "CONFIRMED",
-      withdrawnAt: null,
-      entryNumber: { not: null },
-    },
-    include: {
-      votes: {
-        where: { assignmentId: assignment.id },
-      },
-      assets: {
-        where: { isActive: true, kind: "JURY_PREVIEW" },
-        take: 1,
-      },
-      checks: { select: { status: true } },
-    },
-    orderBy: { entryNumber: "asc" },
-  });
-
-  const entries = filterFotorankEntriesEvaluableForJudging(entriesRaw);
-
-  return {
-    ok: true,
-    data: entries.map((entry) => ({
-      id: entry.id,
-      anonymousCode: entry.entryNumber,
-      // P0-07: no imageUrl pública ni title/description identificatorios
-      hasJuryPreview: entry.assets.length > 0,
-      technicalSummaryStatus: entry.technicalSummaryStatus,
-      warningCount: entry.checks.filter((c) => c.status === "WARNING" || c.status === "REQUIRES_REVIEW").length,
-      evaluationMessage: "Evaluación aún no habilitada (rúbricas pendientes).",
-      currentVote: entry.votes[0]
-        ? {
-            id: entry.votes[0].id,
-            valueNumeric: entry.votes[0].valueNumeric,
-            valueBoolean: entry.votes[0].valueBoolean,
-            isFavorite: entry.votes[0].isFavorite,
-            selectedRank: entry.votes[0].selectedRank,
-            version: entry.votes[0].version,
-          }
-        : null,
-    })),
-  };
-}
-
-export async function saveJudgeVote(input: {
-  assignmentId: string;
-  entryId: string;
-  valueNumeric?: number | null;
-  valueBoolean?: boolean | null;
-  isFavorite?: boolean | null;
-  selectedRank?: number | null;
-  criteriaScoresJson?: unknown;
-  comment?: string | null;
-}): Promise<JudgeActionResult> {
-  const judge = await requireJudgeAuth();
-
-  const gate = await gateJudgeEvaluationForJudge(input.assignmentId, judge, new Date());
-  if (!gate.ok) {
-    return { ok: false, error: gate.error };
-  }
-  const assignment = gate.assignment;
-
-  const entry = await prisma.fotorankContestEntry.findUnique({
-    where: { id: input.entryId },
-    select: {
-      id: true,
-      contestId: true,
-      categoryId: true,
-      imageUrl: true,
-      status: true,
-      entryNumber: true,
-      withdrawnAt: true,
-    },
-  });
-  if (!entry) {
-    return { ok: false, error: "Obra no encontrada." };
-  }
-  if (entry.contestId !== assignment.contestId) {
-    return { ok: false, error: "La obra no pertenece al concurso asignado." };
-  }
-  if (entry.categoryId !== assignment.categoryId) {
-    return { ok: false, error: "La obra no pertenece a la categoría asignada." };
-  }
-
-  if (!isEvaluableFotorankContestEntry(entry)) {
-    return { ok: false, error: "Esta obra no está confirmada o no está disponible para evaluación." };
-  }
-
-  let existing = await prisma.fotorankJudgeVote.findUnique({
-    where: {
-      assignmentId_entryId: {
-        assignmentId: input.assignmentId,
-        entryId: input.entryId,
-      },
-    },
-  });
-
-  if (existing && !assignment.allowVoteEdit) {
-    return { ok: false, error: "Esta asignación no permite editar votos." };
-  }
-
-  const payloadCheck = validateVotePayloadForMethod(assignment.methodType, assignment.methodConfigJson, {
-    valueNumeric: input.valueNumeric,
-    valueBoolean: input.valueBoolean,
-    isFavorite: input.isFavorite,
-    selectedRank: input.selectedRank,
-    criteriaScoresJson: input.criteriaScoresJson,
-  });
-  if (!payloadCheck.ok) {
-    return { ok: false, error: payloadCheck.error };
-  }
-  const voteData = payloadCheck.data;
-
-  let createdNow = false;
-
-  if (!existing) {
-    try {
-      await prisma.fotorankJudgeVote.create({
-        data: {
-          assignmentId: input.assignmentId,
-          entryId: input.entryId,
-          valueNumeric: voteData.valueNumeric,
-          valueBoolean: voteData.valueBoolean,
-          isFavorite: voteData.isFavorite,
-          selectedRank: voteData.selectedRank,
-          criteriaScoresJson: voteData.criteriaScoresJson as never,
-          comment: input.comment?.trim() || null,
-        },
-      });
-      createdNow = true;
-    } catch (e) {
-      const isUnique =
-        e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
-      if (!isUnique) throw e;
-      existing = await prisma.fotorankJudgeVote.findUnique({
-        where: {
-          assignmentId_entryId: {
-            assignmentId: input.assignmentId,
-            entryId: input.entryId,
-          },
-        },
-      });
-      if (!existing) {
-        throw e instanceof Error ? e : new Error("Conflicto al guardar el voto; reintentá.");
-      }
-    }
-  }
-
-  if (!createdNow && existing) {
-    if (!assignment.allowVoteEdit) {
-      return { ok: false, error: "Esta asignación no permite editar votos." };
-    }
-    const prevPayload = {
-      valueNumeric: existing.valueNumeric,
-      valueBoolean: existing.valueBoolean,
-      isFavorite: existing.isFavorite,
-      selectedRank: existing.selectedRank,
-      criteriaScoresJson: existing.criteriaScoresJson,
-      comment: existing.comment,
-      version: existing.version,
-    };
-
-    const updated = await prisma.fotorankJudgeVote.update({
-      where: { id: existing.id },
-      data: {
-        valueNumeric: voteData.valueNumeric,
-        valueBoolean: voteData.valueBoolean,
-        isFavorite: voteData.isFavorite,
-        selectedRank: voteData.selectedRank,
-        criteriaScoresJson: voteData.criteriaScoresJson as never,
-        comment: input.comment?.trim() || null,
-        version: { increment: 1 },
-      },
-    });
-
-    await prisma.fotorankJudgeVoteHistory.create({
-      data: {
-        voteId: existing.id,
-        assignmentId: input.assignmentId,
-        entryId: input.entryId,
-        previousPayloadJson: prevPayload as never,
-        newPayloadJson: {
-          valueNumeric: updated.valueNumeric,
-          valueBoolean: updated.valueBoolean,
-          isFavorite: updated.isFavorite,
-          selectedRank: updated.selectedRank,
-          criteriaScoresJson: updated.criteriaScoresJson,
-          comment: updated.comment,
-          version: updated.version,
-        } as never,
-        changedByJudgeId: judge.id,
-      },
-    });
-  }
-
-  await prisma.fotorankJudgeAuditEvent.create({
-    data: {
-      organizationId: assignment.organizationId,
-      contestId: assignment.contestId,
-      actorType: "JUDGE",
-      actorJudgeId: judge.id,
-      eventType: "JUDGE_VOTE_SAVED",
-      entityType: "FotorankJudgeVote",
-      entityId: `${input.assignmentId}:${input.entryId}`,
-      payloadJson: { methodType: assignment.methodType },
-    },
-  });
-
-  revalidatePath("/jurado/panel");
-  revalidatePath(`/jurado/asignaciones/${input.assignmentId}/evaluar`);
-  revalidatePath(`/dashboard/concursos/${assignment.contestId}/resultados`);
-  return { ok: true };
-}
-
-/** Estado del formulario de voto (jurado / evaluación) vía `useFormState`. */
-export type JudgeEvaluationVoteFormState = { error: string | null; okMessage: string | null };
-
-/**
- * Server action ligada al `<form>` de evaluación: evita depender de onClick en cliente
- * (en E2E / algunos entornos el envío nativo + action es más fiable que handlers React).
- */
-export async function judgeEvaluationVoteAction(
-  _prev: JudgeEvaluationVoteFormState | undefined,
-  formData: FormData,
-): Promise<JudgeEvaluationVoteFormState> {
-  const assignmentId = String(formData.get("assignmentId") ?? "").trim();
-  const entryId = String(formData.get("entryId") ?? "").trim();
-  if (!assignmentId || !entryId) {
-    return { error: "Datos de envío incompletos.", okMessage: null };
-  }
-
-  const judge = await requireJudgeAuth();
-  const gate = await gateJudgeEvaluationForJudge(assignmentId, judge, new Date());
-  if (!gate.ok) {
-    return { error: gate.error, okMessage: null };
-  }
-
-  const raw = rawVoteInputFromFormData(formData, gate.assignment.methodType, gate.assignment.methodConfigJson);
-  const input = {
-    assignmentId,
-    entryId,
-    comment: String(formData.get("comment") ?? "").trim() || null,
-    ...raw,
-  };
-
-  const result = await saveJudgeVote(input);
-  if (!result.ok) {
-    return { error: result.error, okMessage: null };
-  }
-  return { error: null, okMessage: "Voto guardado" };
 }
 
 export async function listJudgeAuditEvents(filters?: { contestId?: string; judgeId?: string }): Promise<JudgeActionResult<Array<Record<string, unknown>>>> {
@@ -1617,7 +1017,9 @@ export async function listJudgeAuditEvents(filters?: { contestId?: string; judge
 
 export async function getJudgePublicProfile(publicSlug: string): Promise<JudgeActionResult<Record<string, unknown>>> {
   const profile = await prisma.fotorankJudgeProfile.findFirst({
-    where: { publicSlug, isPublic: true },
+    // Sólo fichas aprobadas: una cuenta creada fuera de la revisión nacía con
+    // `isPublic` en true y su perfil se veía sin que nadie la hubiera mirado.
+    where: { publicSlug, isPublic: true, directoryReviewStatus: "APPROVED" },
     include: {
       judgeAccount: {
         include: {
@@ -1627,10 +1029,25 @@ export async function getJudgePublicProfile(publicSlug: string): Promise<JudgeAc
           },
         },
       },
+      portfolioImages: { orderBy: { sortOrder: "asc" } },
     },
   });
 
   if (!profile) return { ok: false, error: "Perfil no encontrado." };
+
+  // Se recorta acá: un dato que el jurado apagó no sale de la capa de datos,
+  // así ninguna pantalla lo muestra por descuido.
+  const visible = recortarPerfilParaElPublico({
+    website: profile.website,
+    instagram: profile.instagram,
+    otherLinksJson: profile.otherLinksJson,
+    city: profile.city,
+    country: profile.country,
+    phone: profile.phone,
+    showWebsitePublicly: profile.showWebsitePublicly,
+    showInstagramPublicly: profile.showInstagramPublicly,
+    showLocationPublicly: profile.showLocationPublicly,
+  });
 
   return {
     ok: true,
@@ -1638,20 +1055,21 @@ export async function getJudgePublicProfile(publicSlug: string): Promise<JudgeAc
       id: profile.id,
       firstName: profile.firstName,
       lastName: profile.lastName,
-      avatarUrl: profile.avatarUrl,
+      avatarUrl: judgeAvatarSrc({ id: profile.id, avatarUrl: profile.avatarUrl }),
+      professionalHeadline: profile.professionalHeadline,
       shortBio: profile.shortBio,
       fullBioRichJson: profile.fullBioRichJson,
-      city: profile.city,
-      country: profile.country,
-      website: profile.website,
-      instagram: profile.instagram,
-      otherLinksJson: profile.otherLinksJson,
+      ...visible,
       assignments: profile.judgeAccount.assignments.map((a) => ({
         contestId: a.contestId,
         contestTitle: a.contest.title,
         categoryName: a.category.name,
         assignmentType: a.assignmentType,
       })),
+      portfolio: profile.portfolioImages
+        .map((img) => ({ id: img.id, src: portfolioImageSrc(img), title: img.title }))
+        // Una imagen cuya clave no se puede interpretar no se muestra rota.
+        .filter((img): img is { id: string; src: string; title: string | null } => img.src !== null),
     },
   };
 }
@@ -1691,8 +1109,9 @@ export async function listPublicJudgesForContestBySlug(contestSlug: string): Pro
     data: [...byJudge.values()].map((v) => ({
       firstName: v.profile.firstName,
       lastName: v.profile.lastName,
-      avatarUrl: v.profile.avatarUrl,
+      avatarUrl: judgeAvatarSrc({ id: v.profile.id, avatarUrl: v.profile.avatarUrl }),
       publicSlug: v.profile.publicSlug,
+      professionalHeadline: v.profile.professionalHeadline,
       shortBio: v.profile.shortBio,
       categories: [...new Set(v.categories)],
     })),

@@ -2,19 +2,16 @@ import Link from "next/link";
 import { FotofficeLogo } from "@/components/fotoffice-logo";
 import { NavToggle } from "./nav-toggle";
 import { ShellNav } from "./shell-nav";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
+import type { ModuleLevels } from "@/lib/permissions/levels";
 
 export function ShellSidebar({
   workspaceName,
-  coursesEnabled,
-  evaluacionesEnabled,
-  membersEnabled,
-  bookingsEnabled,
-  rafflesEnabled,
-  coveragesEnabled,
-  websiteEnabled,
-  canManageMembers,
+  levels,
+  actions,
   canManageWorkspaceSettings,
   platformAdmin,
+  vocabulary,
 }: {
   /**
    * Nombre de la organización activa. Antes acá decía "Venta de cursos", fijo en el código:
@@ -22,25 +19,23 @@ export function ShellSidebar({
    * módulo que no tiene.
    */
   workspaceName: string | null;
-  coursesEnabled: boolean;
-  evaluacionesEnabled: boolean;
-  membersEnabled: boolean;
-  bookingsEnabled: boolean;
-  rafflesEnabled: boolean;
-  coveragesEnabled: boolean;
-  websiteEnabled: boolean;
-  canManageMembers: boolean;
+  /** Nivel en cada módulo, de `getModuleLevels`. Un módulo apagado viene en NONE. */
+  levels: ModuleLevels;
+  /** Acciones sensibles vigentes que el menú necesita (`cash.configure`, `coverages.coordinate`). */
+  actions: readonly string[];
+  /** Sólo para la sección Institución: Configuración no se delega. */
   canManageWorkspaceSettings: boolean;
   platformAdmin: boolean;
+  vocabulary: PersonVocabulary;
 }) {
   return (
     <aside className="min-h-full md:min-h-screen border-b md:border-b-0 md:border-r border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] p-4 md:p-5">
       <div className="mb-8 flex items-start justify-between gap-2">
         <Link
-          href="/dashboard"
+          href="/workspace"
           className="block min-w-0 rounded-[var(--fo-radius-sm)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--fo-accent)]"
         >
-          <span className="sr-only">Fotoffice — ir al panel</span>
+          <span className="sr-only">Fotoffice — ir al inicio</span>
           <div className="px-0 py-1 md:py-2">
             <FotofficeLogo variant="sidebar" />
           </div>
@@ -53,16 +48,11 @@ export function ShellSidebar({
         <NavToggle variant="sidebar" />
       </div>
       <ShellNav
-        coursesEnabled={coursesEnabled}
-        evaluacionesEnabled={evaluacionesEnabled}
-        membersEnabled={membersEnabled}
-        bookingsEnabled={bookingsEnabled}
-        rafflesEnabled={rafflesEnabled}
-        coveragesEnabled={coveragesEnabled}
-        websiteEnabled={websiteEnabled}
-        canManageMembers={canManageMembers}
+        levels={levels}
+        actions={actions}
         canManageWorkspaceSettings={canManageWorkspaceSettings}
         platformAdmin={platformAdmin}
+        vocabulary={vocabulary}
       />
     </aside>
   );

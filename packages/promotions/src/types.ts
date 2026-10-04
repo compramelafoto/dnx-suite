@@ -18,6 +18,26 @@ export const PROMOTION_REDEMPTION_STATUSES = [
 ] as const;
 export type PromotionRedemptionStatus = (typeof PROMOTION_REDEMPTION_STATUSES)[number];
 
+export const PROMOTION_ELIGIBILITY_KINDS = ["PARTICIPATED_IN_EDITION"] as const;
+export type PromotionEligibilityKind = (typeof PROMOTION_ELIGIBILITY_KINDS)[number];
+
+/** Condición opcional guardada en `DnxPromotion.metadata.eligibility`. */
+export type PromotionEligibilityRule = {
+  kind: PromotionEligibilityKind;
+  /** Ediciones cuya participación habilita el cupón. Al menos una. */
+  editionIds: string[];
+  /** true = además hay que haberse acreditado el día del evento. */
+  requireCheckIn: boolean;
+};
+
+/**
+ * Elegibilidad ya resuelta por el adaptador de la plataforma.
+ * El motor es puro: no consulta la base.
+ */
+export type PromotionEligibilityResolution = {
+  isEligible: boolean;
+};
+
 /** Promoción persistida (vista de dominio; sin secretos). */
 export type PromotionRecord = {
   id: string;
@@ -59,6 +79,11 @@ export type PreviewPromotionInput = {
   platform: string;
   editionId?: string | null;
   userId?: number | null;
+  /**
+   * Resultado de evaluar `metadata.eligibility`. Obligatorio cuando el cupón
+   * tiene condición: si falta, el motor rechaza (fail-closed).
+   */
+  eligibility?: PromotionEligibilityResolution | null;
   now?: Date;
 };
 
@@ -81,6 +106,7 @@ export type PromotionRejectionCode =
   | "CODE_EXPIRED"
   | "PLATFORM_MISMATCH"
   | "EDITION_MISMATCH"
+  | "NOT_ELIGIBLE"
   | "MINIMUM_NOT_MET"
   | "TOTAL_LIMIT_REACHED"
   | "USER_LIMIT_REACHED"

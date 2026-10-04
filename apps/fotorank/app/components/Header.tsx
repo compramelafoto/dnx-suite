@@ -38,18 +38,15 @@ export interface HeaderProps {
   onMobileSidebarClose: () => void;
   onDesktopSidebarOpen: () => void;
   onDesktopSidebarClose: () => void;
+  /**
+   * El menú a pantalla completa. Lo arma `FotorankShell` a partir de las mismas secciones
+   * que dibuja la barra lateral: hasta el 2026-09-21 esta lista vivía acá escrita a mano y
+   * había quedado con siete entradas mientras la barra tenía catorce.
+   */
+  menuLinks: Array<{ href: string; label: string; primary?: boolean }>;
+  /** A dónde vuelve el logo. Cada área del panel tiene su casa. */
+  homeHref?: string;
 }
-
-const dashboardMenuLinks = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/concursos", label: "Concursos" },
-  { href: "/categorias", label: "Categorías" },
-  { href: "/participaciones", label: "Participaciones" },
-  { href: "/jurados", label: "Jurados" },
-  { href: "/ranking", label: "Ranking" },
-  { href: "/diplomas", label: "Diplomas" },
-  { href: "/", label: "Ir al inicio", primary: true },
-];
 
 export function Header({
   mobileSidebarOpen,
@@ -58,6 +55,8 @@ export function Header({
   onMobileSidebarClose,
   onDesktopSidebarOpen,
   onDesktopSidebarClose,
+  menuLinks,
+  homeHref = "/dashboard",
 }: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -70,7 +69,7 @@ export function Header({
           left={
             <>
               <Link
-                href="/dashboard"
+                href={homeHref}
                 className="flex min-w-0 items-center justify-center"
                 aria-label="FotoRank"
               >
@@ -134,7 +133,7 @@ export function Header({
         />
       </HeaderContainer>
 
-      <FullscreenMenu isOpen={menuOpen} onClose={() => setMenuOpen(false)} links={dashboardMenuLinks} logoHref="/dashboard" />
+      <FullscreenMenu isOpen={menuOpen} onClose={() => setMenuOpen(false)} links={menuLinks} logoHref={homeHref} />
     </>
   );
 }

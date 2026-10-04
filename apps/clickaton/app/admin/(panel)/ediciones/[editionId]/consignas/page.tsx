@@ -181,6 +181,21 @@ export default async function EditionPromptsAdminPage({ params }: Props) {
               <option value="LOCKED">Programada · oculta</option>
             </select>
           </label>
+          <label className="text-sm">
+            ¿Puntúa para el concurso?
+            <span className="mt-1 block text-xs text-ck-text-muted">
+              Una consigna sorpresa extra se entrega y se preselecciona, pero queda fuera de la
+              calificación y del ranking.
+            </span>
+            <select
+              name="countsForScoring"
+              defaultValue="true"
+              className="mt-2 min-h-11 w-full rounded border border-ck-border bg-transparent px-3 py-2"
+            >
+              <option value="true">Sí, puntúa</option>
+              <option value="false">No · sorpresa extra</option>
+            </select>
+          </label>
           <label className="text-sm md:col-span-2">
             Título de la consigna
             <span className="mt-1 block text-xs text-ck-text-muted">
@@ -258,6 +273,9 @@ export default async function EditionPromptsAdminPage({ params }: Props) {
                         <Badge variant={timelineToneToBadgeVariant(visibility.tone)}>
                           {visibility.label}
                         </Badge>
+                        {p.countsForScoring ? null : (
+                          <Badge variant="warning">Sorpresa extra · no puntúa</Badge>
+                        )}
                       </div>
                       <p className="text-sm text-ck-text-secondary">{adminStatus.description}</p>
                       <p className="text-sm text-ck-text-secondary">{visibility.description}</p>

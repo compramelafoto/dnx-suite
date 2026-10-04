@@ -20,15 +20,70 @@ export type InboxFilterKey =
   | "cerradas"
   | "canceladas";
 
-export const INBOX_FILTERS: readonly { key: InboxFilterKey; label: string }[] = [
-  { key: "nuevas", label: "Nuevas" },
-  { key: "evaluacion", label: "En evaluación" },
-  { key: "incompletas", label: "Esperando información" },
-  { key: "proximas", label: "Próximas" },
-  { key: "urgentes", label: "Urgentes" },
-  { key: "cerradas", label: "Cerradas" },
-  { key: "canceladas", label: "Canceladas" },
+/**
+ * Las dos mitades de la bandeja.
+ *
+ * `pendientes` es trabajo: algo tiene que pasar con esos pedidos. `archivo` es historia: están
+ * ahí para consultarlos. La distinción no es decorativa — una institución que viene usando esto
+ * hace tiempo tiene sesenta y pico de pedidos cerrados y uno vivo, y con las siete pestañas
+ * mezcladas en una fila el que importa se busca entre los que no.
+ */
+export type InboxFilterGroup = "pendientes" | "archivo";
+
+export const INBOX_FILTERS: readonly {
+  key: InboxFilterKey;
+  label: string;
+  grupo: InboxFilterGroup;
+  /** Qué se lee cuando esa pestaña no tiene nada. Decir dónde mirar vale más que «no hay nada». */
+  vacio: string;
+}[] = [
+  {
+    key: "nuevas",
+    label: "Nuevas",
+    grupo: "pendientes",
+    vacio: "Ningún pedido sin abrir. Los que ya se están evaluando están en «En evaluación».",
+  },
+  {
+    key: "evaluacion",
+    label: "En evaluación",
+    grupo: "pendientes",
+    vacio: "No hay ningún pedido en evaluación ahora mismo.",
+  },
+  {
+    key: "incompletas",
+    label: "Esperando información",
+    grupo: "pendientes",
+    vacio: "No estamos esperando ningún dato de nadie.",
+  },
+  {
+    key: "proximas",
+    label: "Próximas",
+    grupo: "pendientes",
+    vacio: "No hay actividades tomadas por delante.",
+  },
+  {
+    key: "urgentes",
+    label: "Urgentes",
+    grupo: "pendientes",
+    vacio: "Nada ocurre dentro de los próximos siete días.",
+  },
+  {
+    key: "cerradas",
+    label: "Cerradas",
+    grupo: "archivo",
+    vacio: "Todavía no se cerró ni se rechazó ningún pedido.",
+  },
+  {
+    key: "canceladas",
+    label: "Canceladas",
+    grupo: "archivo",
+    vacio: "Nadie canceló ningún pedido.",
+  },
 ];
+
+export function inboxFilterByKey(key: string) {
+  return INBOX_FILTERS.find((f) => f.key === key) ?? null;
+}
 
 export function isInboxFilter(value: unknown): value is InboxFilterKey {
   return typeof value === "string" && INBOX_FILTERS.some((f) => f.key === value);

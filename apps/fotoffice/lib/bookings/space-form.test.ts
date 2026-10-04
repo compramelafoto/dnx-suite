@@ -93,7 +93,8 @@ describe("el formulario de un espacio", () => {
   it("un precio ilegible se rechaza y dice cuál", () => {
     const r = parseSpaceForm(form({ ...completo, memberHourlyPriceArs: "tres mil" }));
     expect(r.ok).toBe(false);
-    expect(!r.ok && r.error).toContain("socios");
+    // Con marcador: la palabra la pone la acción, que conoce el workspace.
+    expect(!r.ok && r.error).toContain("{personas}");
   });
 
   it("una duración mínima que no cae en la grilla se rechaza", () => {
@@ -129,5 +130,69 @@ describe("el formulario de un espacio", () => {
   it("sin compatibilidades declaradas, la lista queda vacía y el espacio bloquea a todos", () => {
     const r = parseSpaceForm(form(completo));
     expect(r.ok && r.values.compatibleWith).toEqual([]);
+  });
+});
+
+describe("cobro por bloque", () => {
+  it("un espacio de siempre sigue cobrando por hora", () => {
+    const r = parseSpaceForm(form(completo));
+    expect(r.ok && r.values.pricingMode).toBe("HOURLY");
+    expect(r.ok && r.values.blockMinutes).toBeNull();
+  });
+
+  it("el estudio: paquetes de 2 horas, sin precio por hora", () => {
+    const r = parseSpaceForm(
+      form({
+        ...completo,
+        pricingMode: "BLOCK",
+        blockMinutes: "120",
+        memberHourlyPriceArs: "",
+        nonMemberHourlyPriceArs: "",
+        memberBlockPriceArs: "30.000",
+        nonMemberBlockPriceArs: "40000",
+      }),
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.values.blockMinutes).toBe(120);
+    expect(r.values.memberBlockPriceMinor).toBe(3_000_000);
+    expect(r.values.nonMemberBlockPriceMinor).toBe(4_000_000);
+    expect(r.values.memberHourlyPriceMinor).toBe(0);
+  });
+
+  it("el salón: sin largo de bloque es precio por jornada", () => {
+    const r = parseSpaceForm(
+      form({
+        ...completo,
+        pricingMode: "BLOCK",
+        blockMinutes: "",
+        memberBlockPriceArs: "140.000",
+        nonMemberBlockPriceArs: "200.000",
+      }),
+    );
+    expect(r.ok && r.values.blockMinutes).toBeNull();
+  });
+
+  it("por bloque, el precio del bloque es obligatorio", () => {
+    const r = parseSpaceForm(form({ ...completo, pricingMode: "BLOCK", memberBlockPriceArs: "" }));
+    expect(r.ok).toBe(false);
+  });
+
+  it("un bloque que no cae en la grilla se rechaza", () => {
+    const r = parseSpaceForm(
+      form({
+        ...completo,
+        pricingMode: "BLOCK",
+        blockMinutes: "90",
+        memberBlockPriceArs: "1",
+        nonMemberBlockPriceArs: "1",
+      }),
+    );
+    expect(r.ok).toBe(false);
+  });
+
+  it("destildar 'se alquila a no socios' se respeta", () => {
+    const r = parseSpaceForm(form({ ...completo, allowsNonMembers: "off" }));
+    expect(r.ok && r.values.allowsNonMembers).toBe(false);
   });
 });

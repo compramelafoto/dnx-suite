@@ -62,9 +62,19 @@ export async function saveCoverageRequest(input: {
         // del correo, al que sí le manda el enlace) dejaría que un tercero que conozca el
         // teléfono o el CUIT de un cliente del workspace dirija correos de la institución hacia
         // alguien que no pidió nada.
-        const espacio = input.parsed.contactName.indexOf(" ");
-        const firstName = espacio === -1 ? input.parsed.contactName : input.parsed.contactName.slice(0, espacio);
-        const lastName = espacio === -1 ? null : input.parsed.contactName.slice(espacio + 1).trim() || null;
+        //
+        // Puede venir vacío: `contactName` es configurable, y una institución puede decidir no
+        // preguntar con quién habla. En ese caso el padrón guarda sólo la razón social, sin un
+        // nombre inventado — `contactGreetingName` ya cae en el nombre de la organización.
+        const nombreContacto = input.parsed.contactName.trim();
+        const espacio = nombreContacto.indexOf(" ");
+        const firstName = !nombreContacto
+          ? null
+          : espacio === -1
+            ? nombreContacto
+            : nombreContacto.slice(0, espacio);
+        const lastName =
+          !nombreContacto || espacio === -1 ? null : nombreContacto.slice(espacio + 1).trim() || null;
 
         const cliente = await findOrCreateClient(tx, {
           workspaceId: input.workspaceId,
@@ -108,6 +118,12 @@ export async function saveCoverageRequest(input: {
             endsAt: input.parsed.endsAt,
             addressLine: input.parsed.addressLine,
             city: input.parsed.city,
+            // El punto que confirmó la organización en el mapa, si lo confirmó. Los tres van o
+            // no van juntos: `parseCoverageRequest` no devuelve un geohash sin coordenadas ni
+            // coordenadas a medias.
+            latitude: input.parsed.latitude,
+            longitude: input.parsed.longitude,
+            geohash: input.parsed.geohash,
             activityKind: input.parsed.activityKind,
             expectedAttendees: input.parsed.expectedAttendees,
             venueKind: input.parsed.venueKind,
@@ -118,6 +134,8 @@ export async function saveCoverageRequest(input: {
             purpose: input.parsed.purpose,
             keyMoments: input.parsed.keyMoments,
             requestedPhotographers: input.parsed.requestedPhotographers,
+            otherCoverage: input.parsed.otherCoverage,
+            showcaseScope: input.parsed.showcaseScope,
             equipmentNotes: input.parsed.equipmentNotes,
             needsLighting: input.parsed.needsLighting,
             expectedDeliveryAt: input.parsed.expectedDeliveryAt,

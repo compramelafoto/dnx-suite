@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { enviarFichaDeProveedorAction, type EstadoFicha } from "@/app/actions/proveedores";
-import type { Categoria } from "@/lib/proveedores/categorias";
+import { nombreDeCategoria, type Categoria } from "@/lib/proveedores/categorias";
 
 const ETIQUETA = "block text-sm font-extrabold";
 const CAMPO =
@@ -13,9 +13,12 @@ const OPCIONAL = <span className="font-medium opacity-60">(opcional)</span>;
 export function FormularioProveedor({
   token,
   categorias,
+  categoriaFija,
 }: {
   token: string;
   categorias: readonly Categoria[];
+  /** Si el enlace es de un rubro, viene acá y no se pregunta. */
+  categoriaFija: string | null;
 }) {
   const [estado, accion, enviando] = useActionState<EstadoFicha, FormData>(
     enviarFichaDeProveedorAction,
@@ -58,19 +61,26 @@ export function FormularioProveedor({
         />
       </div>
 
-      <div>
-        <label htmlFor="categoria" className={ETIQUETA}>
-          ¿A qué te dedicás?
-        </label>
-        <select id="categoria" name="categoria" required className={CAMPO} style={BORDE}>
-          <option value="">Elegí una</option>
-          {categorias.map((c) => (
-            <option key={c.clave} value={c.clave}>
-              {c.nombre}
-            </option>
-          ))}
-        </select>
-      </div>
+      {categoriaFija ? (
+        <p className="text-sm" style={{ color: "var(--slf-tinta-suave)" }}>
+          Te anotamos como <strong>{nombreDeCategoria(categoriaFija)}</strong>. Si no es lo
+          tuyo, pedile a quien te pasó el enlace el que corresponde.
+        </p>
+      ) : (
+        <div>
+          <label htmlFor="categoria" className={ETIQUETA}>
+            ¿A qué te dedicás?
+          </label>
+          <select id="categoria" name="categoria" required className={CAMPO} style={BORDE}>
+            <option value="">Elegí una</option>
+            {categorias.map((c) => (
+              <option key={c.clave} value={c.clave}>
+                {c.nombre}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="grid gap-7 sm:grid-cols-2">
         <div>

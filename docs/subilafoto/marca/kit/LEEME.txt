@@ -1,8 +1,8 @@
-SUBÍ LA FOTO - KIT DE MARCA INICIAL
+SubiLaFoto - KIT DE MARCA INICIAL
 
 Incluye versiones horizontal, vertical, isotipo, fondos claro/oscuro, monocromáticas, avatar y tamaños digitales.
 
-Marca visible: Subí la Foto
+Marca visible: SubiLaFoto
 Dominio: subilafoto.com
 Color principal: #7C2BFF
 Color de acción: #FFD51F

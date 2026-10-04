@@ -4,7 +4,11 @@ import { totalForBooking } from "./portal";
 const quote = {
   freeMinutesUsed: 120,
   billedMinutes: 120,
+  mode: "HOURLY" as const,
   hourlyPriceMinor: 300_000,
+  blockPriceMinor: 0,
+  blocksBilled: 0,
+  blocksFree: 0,
   totalMinor: 600_000,
 };
 

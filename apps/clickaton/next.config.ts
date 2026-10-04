@@ -6,12 +6,24 @@ const appDir = path.dirname(fileURLToPath(import.meta.url));
 
 const monorepoRoot = path.join(appDir, "../..");
 
+/**
+ * React en modo desarrollo evalúa cadenas como JavaScript para rearmar las
+ * pilas de llamadas. Sin este permiso el navegador corta esa evaluación y la
+ * página NO hidrata: los formularios se dibujan pero ningún botón responde,
+ * sin un solo error a la vista. Nunca se agrega en producción.
+ */
+const devUnsafeEval = process.env.NODE_ENV === "production" ? "" : " 'unsafe-eval'";
+
 /** CSP for Card Payment Brick / MercadoPago.js — official origins only (no wildcards). */
 const clickatonCsp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://sdk.mercadopago.com https://www.mercadopago.com https://www.mercadopago.com.ar https://http2.mlstatic.com https://vercel.live",
-  "script-src-elem 'self' 'unsafe-inline' https://sdk.mercadopago.com https://www.mercadopago.com https://www.mercadopago.com.ar https://http2.mlstatic.com https://vercel.live",
-  "connect-src 'self' https://api.mercadopago.com https://api.mercadolibre.com https://www.mercadopago.com https://www.mercadopago.com.ar https://events.mercadopago.com https://sdk.mercadopago.com https://http2.mlstatic.com https://vercel.live wss://vercel.live",
+  `script-src 'self' 'unsafe-inline'${devUnsafeEval} https://sdk.mercadopago.com https://www.mercadopago.com https://www.mercadopago.com.ar https://http2.mlstatic.com https://vercel.live`,
+  `script-src-elem 'self' 'unsafe-inline'${devUnsafeEval} https://sdk.mercadopago.com https://www.mercadopago.com https://www.mercadopago.com.ar https://http2.mlstatic.com https://vercel.live`,
+  // El bucket va acá porque la foto de una consigna se sube directo desde el
+  // navegador: la plataforma corta en 4,5 MB el cuerpo de cualquier petición al
+  // servidor, y una foto de cámara pesa más. Sin este permiso, el navegador
+  // bloquea el envío antes de hacerlo y la entrega falla sin llegar a la red.
+  "connect-src 'self' https://*.r2.cloudflarestorage.com https://api.mercadopago.com https://api.mercadolibre.com https://www.mercadopago.com https://www.mercadopago.com.ar https://events.mercadopago.com https://sdk.mercadopago.com https://http2.mlstatic.com https://vercel.live wss://vercel.live",
   "frame-src https://www.mercadopago.com https://www.mercadopago.com.ar https://sdk.mercadopago.com https://http2.mlstatic.com https://vercel.live",
   "img-src 'self' data: blob: https:",
   "style-src 'self' 'unsafe-inline' https:",
@@ -35,6 +47,7 @@ const nextConfig: NextConfig = {
     "@repo/auth",
     "@repo/content",
     "@repo/content-ui",
+    "@repo/jury-ranking",
     "@repo/payments",
     "@repo/template-editor-core",
     "@repo/template-editor-ui",
@@ -51,6 +64,18 @@ const nextConfig: NextConfig = {
     "@repo/db",
     "mupdf",
   ],
+  // El chequeo de tipos NO corre acá: `tsc` sobre esta app necesita más memoria
+  // de la que tiene la máquina de Vercel y el build muere con SIGKILL por OOM,
+  // aunque el código compile bien. Apagarlo no afloja el control, lo mueve: el
+  // workflow `.github/workflows/chequeos.yml` corre `check-types` de Clickatón
+  // en cada pull request contra main, así un error de tipos frena el merge en
+  // vez de frenar el despliegue.
+  //
+  // Si alguna vez se saca ese paso del workflow, hay que volver a prender esto
+  // o nadie estaría chequeando los tipos de Clickatón en ningún lado.
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   outputFileTracingRoot: monorepoRoot,
   outputFileTracingIncludes: {
     "/**": [
@@ -106,6 +131,17 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
+      // Los dominios clickaton.* son alternativos: todo se redirige al canónico
+      // (maratonfotografica.com). Sin esto, la sesión y los links de pago quedan
+      // partidos entre varios dominios, porque NEXT_PUBLIC_APP_URL apunta al canónico.
+      ...["clickaton.com.ar", "clickaton.store", "clickaton.online"]
+        .flatMap((dominio) => [dominio, `www.${dominio}`])
+        .map((host) => ({
+          source: "/:path*",
+          has: [{ type: "host" as const, value: host }],
+          destination: "https://maratonfotografica.com/:path*",
+          permanent: true,
+        })),
       {
         source: "/organizar-sede",
         destination: "/organizar",

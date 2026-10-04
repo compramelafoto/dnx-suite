@@ -13,6 +13,8 @@ import {
 import { stateLabel, type FulfillmentState } from "@/lib/carnet/fulfillment";
 import { isPdfDownloadEvent } from "@/lib/carnet/print-log";
 import { canViewCards, resolveCardCapabilities } from "@/lib/carnet/operators";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
+import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
 import { CardsTable, type CardRowView, type TimelineEntry } from "./cards-table";
 import { IssueButton } from "./issue-button";
 
@@ -65,7 +67,10 @@ export default async function CarnetsPage({
   const params = await searchParams;
   const grupo = params.grupo ? groupStates(params.grupo) : null;
 
-  const board = await loadCardBoard(workspace.id, grupo ? { states: grupo } : {});
+  const [board, v] = await Promise.all([
+    loadCardBoard(workspace.id, grupo ? { states: grupo } : {}),
+    loadPersonVocabulary(workspace.id),
+  ]);
   const ahora = new Date();
 
   const rows: CardRowView[] = board.rows.map((c) => ({
@@ -99,7 +104,7 @@ export default async function CarnetsPage({
 
       {capabilities.includes("ADMINISTRAR") ? (
         <div className="flex flex-wrap items-start gap-3">
-          <Link href="/members/carnets/permisos" className="fo-btn text-xs inline-flex">
+          <Link href="/members/carnets/permisos" className="fo-btn fo-btn-secondary text-xs inline-flex">
             Permisos de carnets
           </Link>
           <IssueButton />
@@ -109,7 +114,7 @@ export default async function CarnetsPage({
       <nav className="flex flex-wrap gap-1.5">
         <Link
           href="/members/carnets"
-          className={`fo-btn text-xs ${!grupo ? "fo-btn-primary" : ""}`}
+          className={`fo-btn text-xs ${!grupo ? "fo-btn-primary" : "fo-btn-secondary"}`}
         >
           Todos
           <span className="ml-1.5 tabular-nums opacity-70">
@@ -120,8 +125,8 @@ export default async function CarnetsPage({
           <Link
             key={g.id}
             href={`/members/carnets?grupo=${g.id}`}
-            title={g.description}
-            className={`fo-btn text-xs ${params.grupo === g.id ? "fo-btn-primary" : ""}`}
+            title={aplicarVocabulario(g.description, v)}
+            className={`fo-btn text-xs ${params.grupo === g.id ? "fo-btn-primary" : "fo-btn-secondary"}`}
           >
             {g.label}
             <span className="ml-1.5 tabular-nums opacity-70">{totalPorGrupo(g.states)}</span>
@@ -136,7 +141,7 @@ export default async function CarnetsPage({
             : "Todavía no se pidió ninguna tarjeta impresa."}
         </p>
       ) : (
-        <CardsTable rows={rows} capabilities={[...capabilities]} />
+        <CardsTable rows={rows} capabilities={[...capabilities]} vocabulary={v} />
       )}
     </div>
   );

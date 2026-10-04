@@ -2,6 +2,18 @@ type Props = {
   editionName: string;
   cityHint?: string | null;
   dateHint?: string | null;
+  /**
+   * Portada propia de la edición (`ClickatonEdition.coverImageUrl`).
+   * Cuando existe, se muestra entera y sin texto encima: esas placas suelen
+   * traer su propio título y su propia marca, y escribirles arriba deja dos
+   * títulos peleando en la misma zona.
+   */
+  coverImageUrl?: string | null;
+  /**
+   * Nota breve de la edición, para lo que la fecha sola no dice: por qué ese
+   * día, qué esperar. Va junto al título, donde alguien decide si sigue leyendo.
+   */
+  nota?: string | null;
 };
 
 const HERO_IMAGE = "/images/hero-city-photographer.jpg";
@@ -13,11 +25,71 @@ const QUICK = [
   { icon: "🎯", label: "Consignas sorpresa" },
 ] as const;
 
+function ChipsRapidos() {
+  return (
+    <ul className="flex flex-wrap gap-2 md:gap-3">
+      {QUICK.map((item) => (
+        <li
+          key={item.label}
+          className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/35 px-3 py-2 text-sm text-white backdrop-blur-sm"
+        >
+          <span aria-hidden>{item.icon}</span>
+          <span>{item.label}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function Nota({ texto }: { texto: string }) {
+  return (
+    <p className="max-w-[60ch] border-l-2 border-ck-yellow/60 pl-4 text-[15px] leading-relaxed text-neutral-300">
+      {texto}
+    </p>
+  );
+}
+
 export function RegistrationExperienceHero({
   editionName,
   cityHint,
   dateHint,
+  coverImageUrl,
+  nota,
 }: Props) {
+  const subtitulo =
+    [cityHint, dateHint].filter(Boolean).join(" · ") || "Experiencia fotográfica";
+  const portada = coverImageUrl?.trim();
+
+  if (portada) {
+    return (
+      <section
+        className="overflow-hidden rounded-[var(--ck-radius-card)] border border-ck-border bg-black"
+        aria-labelledby="registration-experience-hero-title"
+      >
+        {/* Relación 16:9, sin recorte: la placa se ve completa en cualquier ancho. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={portada}
+          alt={editionName}
+          className="block aspect-[16/9] w-full object-contain"
+        />
+        <div className="space-y-5 p-6 md:p-8 lg:px-10">
+          <div className="space-y-2">
+            <h2
+              id="registration-experience-hero-title"
+              className="font-sans text-2xl font-semibold leading-[1.15] tracking-tight text-white sm:text-3xl"
+            >
+              {editionName}
+            </h2>
+            <p className="text-base text-neutral-200 md:text-lg">{subtitulo}</p>
+          </div>
+          {nota ? <Nota texto={nota} /> : null}
+          <ChipsRapidos />
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section
       className="relative overflow-hidden rounded-[var(--ck-radius-card)] border border-ck-border"
@@ -40,21 +112,10 @@ export function RegistrationExperienceHero({
           >
             {editionName}
           </h2>
-          <p className="text-base text-neutral-200 md:text-lg">
-            {[cityHint, dateHint].filter(Boolean).join(" · ") || "Experiencia fotográfica"}
-          </p>
+          <p className="text-base text-neutral-200 md:text-lg">{subtitulo}</p>
         </div>
-        <ul className="flex flex-wrap gap-2 md:gap-3">
-          {QUICK.map((item) => (
-            <li
-              key={item.label}
-              className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/35 px-3 py-2 text-sm text-white backdrop-blur-sm"
-            >
-              <span aria-hidden>{item.icon}</span>
-              <span>{item.label}</span>
-            </li>
-          ))}
-        </ul>
+        {nota ? <Nota texto={nota} /> : null}
+        <ChipsRapidos />
       </div>
     </section>
   );

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeQuote, quoteBooking } from "./pricing";
+import { describeQuote, etiquetaDePrecio, quoteBooking, quoteForSpace, spacePriceLabel } from "./pricing";
 
 const precios = { memberHourlyPriceMinor: 300_000, nonMemberHourlyPriceMinor: 500_000 };
 
@@ -139,5 +139,169 @@ describe("el desglose que lee la persona", () => {
       freeMinutesAvailable: 120,
     });
     expect(describeQuote(q, 120).join(" ")).toContain("Sin cargo");
+  });
+});
+
+/*
+ * El modo por bloque, con los dos casos reales de SFPR:
+ *   estudio → paquetes de 2 h a $30.000 socio / $40.000 no socio, con 2 h bonificadas al mes
+ *   salón   → precio plano por jornada, $140.000 socio / $200.000 no socio, mínimo 3 h
+ */
+const ESTUDIO = {
+  mode: "BLOCK" as const,
+  blockMinutes: 120,
+  memberBlockPriceMinor: 3_000_000,
+  nonMemberBlockPriceMinor: 4_000_000,
+  memberHourlyPriceMinor: 0,
+  nonMemberHourlyPriceMinor: 0,
+};
+
+const SALON = {
+  mode: "BLOCK" as const,
+  blockMinutes: null,
+  memberBlockPriceMinor: 14_000_000,
+  nonMemberBlockPriceMinor: 20_000_000,
+  memberHourlyPriceMinor: 0,
+  nonMemberHourlyPriceMinor: 0,
+};
+
+describe("cobro por bloque: el estudio", () => {
+  it("el socio usa sus 2 horas bonificadas y no paga nada", () => {
+    const q = quoteBooking({ ...ESTUDIO, minutes: 120, customerType: "MEMBER", freeMinutesAvailable: 120 });
+    expect(q.blocksFree).toBe(1);
+    expect(q.blocksBilled).toBe(0);
+    expect(q.totalMinor).toBe(0);
+  });
+
+  it("cuatro horas con la bonificación intacta: un bloque gratis y uno a $30.000", () => {
+    const q = quoteBooking({ ...ESTUDIO, minutes: 240, customerType: "MEMBER", freeMinutesAvailable: 120 });
+    expect(q.blocksFree).toBe(1);
+    expect(q.blocksBilled).toBe(1);
+    expect(q.totalMinor).toBe(3_000_000);
+  });
+
+  it("el socio que ya gastó la bonificación paga el paquete entero", () => {
+    const q = quoteBooking({ ...ESTUDIO, minutes: 120, customerType: "MEMBER", freeMinutesAvailable: 0 });
+    expect(q.totalMinor).toBe(3_000_000);
+  });
+
+  it("el no socio paga $40.000 las dos horas, y no tiene bonificación aunque se la pasen", () => {
+    const q = quoteBooking({ ...ESTUDIO, minutes: 120, customerType: "NON_MEMBER", freeMinutesAvailable: 999 });
+    expect(q.blocksFree).toBe(0);
+    expect(q.totalMinor).toBe(4_000_000);
+  });
+
+  it("una hora y media ocupa un paquete entero: no se cobra medio bloque", () => {
+    const q = quoteBooking({ ...ESTUDIO, minutes: 90, customerType: "NON_MEMBER", freeMinutesAvailable: 0 });
+    expect(q.blocksBilled).toBe(1);
+    expect(q.totalMinor).toBe(4_000_000);
+  });
+
+  it("media hora bonificada no alcanza para cubrir un paquete de dos", () => {
+    const q = quoteBooking({ ...ESTUDIO, minutes: 120, customerType: "MEMBER", freeMinutesAvailable: 30 });
+    expect(q.blocksFree).toBe(0);
+    expect(q.totalMinor).toBe(3_000_000);
+  });
+
+  it("seis horas son tres paquetes", () => {
+    const q = quoteBooking({ ...ESTUDIO, minutes: 360, customerType: "NON_MEMBER", freeMinutesAvailable: 0 });
+    expect(q.blocksBilled).toBe(3);
+    expect(q.totalMinor).toBe(12_000_000);
+  });
+
+  it("en modo bloque no hay precio por hora que mostrar", () => {
+    const q = quoteBooking({ ...ESTUDIO, minutes: 120, customerType: "MEMBER", freeMinutesAvailable: 0 });
+    expect(q.hourlyPriceMinor).toBe(0);
+    expect(q.mode).toBe("BLOCK");
+  });
+});
+
+describe("cobro por bloque: el salón, precio por jornada", () => {
+  it("tres horas o cinco, el socio paga lo mismo", () => {
+    const tres = quoteBooking({ ...SALON, minutes: 180, customerType: "MEMBER", freeMinutesAvailable: 0 });
+    const cinco = quoteBooking({ ...SALON, minutes: 300, customerType: "MEMBER", freeMinutesAvailable: 0 });
+    expect(tres.totalMinor).toBe(14_000_000);
+    expect(cinco.totalMinor).toBe(14_000_000);
+  });
+
+  it("ocho horas tampoco suman: es por jornada", () => {
+    const q = quoteBooking({ ...SALON, minutes: 480, customerType: "NON_MEMBER", freeMinutesAvailable: 0 });
+    expect(q.blocksBilled).toBe(1);
+    expect(q.totalMinor).toBe(20_000_000);
+  });
+
+  it("el no socio paga $200.000", () => {
+    const q = quoteBooking({ ...SALON, minutes: 180, customerType: "NON_MEMBER", freeMinutesAvailable: 0 });
+    expect(q.totalMinor).toBe(20_000_000);
+  });
+});
+
+describe("cómo se anuncia el precio", () => {
+  it("por bloque dice el paquete, nunca un precio por hora", () => {
+    const t = etiquetaDePrecio({ mode: "BLOCK", hourlyPriceMinor: 0, blockPriceMinor: 4_000_000, blockMinutes: 120 });
+    expect(t).toContain("cada 2 h");
+    expect(t).not.toContain("por hora");
+  });
+
+  it("sin tamaño de bloque, habla de jornada", () => {
+    const t = etiquetaDePrecio({ mode: "BLOCK", hourlyPriceMinor: 0, blockPriceMinor: 20_000_000, blockMinutes: null });
+    expect(t).toContain("por jornada");
+  });
+
+  it("por hora sigue diciendo por hora", () => {
+    const t = etiquetaDePrecio({ mode: "HOURLY", hourlyPriceMinor: 1_000_000, blockPriceMinor: 0, blockMinutes: null });
+    expect(t).toContain("por hora");
+  });
+});
+
+describe("el desglose en modo bloque", () => {
+  it("nombra el bloque bonificado y el que se cobra", () => {
+    const q = quoteBooking({ ...ESTUDIO, minutes: 240, customerType: "MEMBER", freeMinutesAvailable: 120 });
+    const lineas = describeQuote(q, 240, 120);
+    expect(lineas[0]).toContain("bonificado por ser socio");
+    expect(lineas[1]).toContain("1 × 2 h");
+    expect(lineas[2]).toContain("Total");
+  });
+
+  it("la jornada no inventa un precio por hora", () => {
+    const q = quoteBooking({ ...SALON, minutes: 300, customerType: "NON_MEMBER", freeMinutesAvailable: 0 });
+    const lineas = describeQuote(q, 300, null);
+    expect(lineas.join(" ")).toContain("Jornada");
+    expect(lineas.join(" ")).not.toContain("por hora");
+  });
+});
+
+describe("el precio según cómo cobra el espacio (SFPR)", () => {
+  const estudio = {
+    pricingMode: "BLOCK" as const,
+    blockMinutes: 120,
+    memberHourlyPriceMinor: 1_000_000,
+    nonMemberHourlyPriceMinor: 2_500_000,
+    memberBlockPriceMinor: 3_000_000,
+    nonMemberBlockPriceMinor: 4_000_000,
+  };
+  const salon = { ...estudio, blockMinutes: null, memberBlockPriceMinor: 14_000_000, nonMemberBlockPriceMinor: 20_000_000 };
+
+  it("el socio con sus 2 h del mes no paga las primeras 2 horas del estudio", () => {
+    expect(quoteForSpace(estudio, { minutes: 120, customerType: "MEMBER", freeMinutesAvailable: 120 }).totalMinor).toBe(0);
+  });
+
+  it("el socio sin bonificación paga $30.000 el paquete, no el precio por hora viejo", () => {
+    expect(quoteForSpace(estudio, { minutes: 120, customerType: "MEMBER", freeMinutesAvailable: 0 }).totalMinor).toBe(3_000_000);
+  });
+
+  it("el no socio paga $40.000 aunque use una sola hora", () => {
+    expect(quoteForSpace(estudio, { minutes: 60, customerType: "NON_MEMBER", freeMinutesAvailable: 120 }).totalMinor).toBe(4_000_000);
+  });
+
+  it("el salón por una hora cobra la jornada entera", () => {
+    expect(quoteForSpace(salon, { minutes: 60, customerType: "MEMBER", freeMinutesAvailable: 0 }).totalMinor).toBe(14_000_000);
+    expect(quoteForSpace(salon, { minutes: 480, customerType: "NON_MEMBER", freeMinutesAvailable: 0 }).totalMinor).toBe(20_000_000);
+  });
+
+  it("la etiqueta nunca dice 'por hora' en un espacio por bloque", () => {
+    expect(spacePriceLabel(estudio, "MEMBER")).toMatch(/30\.000.*cada 2 h/);
+    expect(spacePriceLabel(salon, "NON_MEMBER")).toMatch(/200\.000.*por jornada/);
+    expect(spacePriceLabel(estudio, "MEMBER")).not.toMatch(/hora/);
   });
 });

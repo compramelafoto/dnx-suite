@@ -9,6 +9,8 @@ import { documentDedupKey } from "@/lib/members/documents";
 import { memberValuesToRepositoryInput } from "@/lib/members/schema";
 import { normalizeEmail, parseAndValidateMemberImport, type ImportRowResult } from "@/lib/members/import/parse";
 import { MEMBER_IMPORT_MAX_ROWS } from "@/lib/members/import/columns";
+import { mensajeDePadron } from "@/lib/members/mensajes";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 
 export type MemberImportValidationState =
   | { ok: false; error: string }
@@ -42,7 +44,16 @@ async function loadWorkspaceLookups(workspaceId: string) {
   const existingEmails = new Set(
     identifiers.emails.map((e) => normalizeEmail(e)).filter((e): e is string => e !== null),
   );
-  return { categoriesByName, existingMemberNumbers, existingDocuments, existingEmails };
+  // El vocabulario viaja con los demás datos del workspace: así los dos pasos —validar y
+  // confirmar— hablan con la misma palabra sin que cada uno tenga que acordarse de pedirlo.
+  const vocabulary = await loadPersonVocabulary(workspaceId);
+  return {
+    categoriesByName,
+    existingMemberNumbers,
+    existingDocuments,
+    existingEmails,
+    vocabulary,
+  };
 }
 
 /** PASO "Validar datos": parsea y valida, NO inserta nada en la base. */
@@ -102,7 +113,7 @@ export async function confirmMemberImportAction(rawCsv: string): Promise<MemberI
     // No exponer el error crudo de Prisma; la transacción ya revirtió todo.
     return {
       ok: false,
-      error: "No pudimos importar (algún dato choca con otro socio existente). No se creó ningún socio.",
+      error: mensajeDePadron("choqueAlImportar", lookups.vocabulary),
     };
   }
 }

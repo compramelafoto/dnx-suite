@@ -13,6 +13,7 @@ import {
   resolveByShortCode,
   reverseCheckIn,
   searchParticipants,
+  setAccreditationEnabled,
   syncOfflineEvents,
   verifyIdentity,
 } from "./service";
@@ -97,6 +98,23 @@ export async function verifyIdentityAction(editionId: string, formData: FormData
     status: String(formData.get("status") ?? "VERIFIED") as "VERIFIED" | "MISMATCH" | "EXCEPTION_GRANTED",
     notes: String(formData.get("notes") ?? ""),
   });
+  revalidatePath(`${adminRoutes.editions}/${editionId}/acreditacion`);
+}
+
+/**
+ * Enciende o apaga el módulo de acreditación desde el panel.
+ *
+ * El escáner mira dos cosas: este interruptor y la ventana horaria del
+ * cronograma. La ventana se abre sola; el interruptor, hasta ahora, no se
+ * podía tocar desde ninguna pantalla.
+ */
+export async function toggleAccreditationAction(
+  editionId: string,
+  formData: FormData,
+): Promise<void> {
+  const user = await requireClickatonAdmin();
+  const enabled = String(formData.get("enabled") ?? "") === "true";
+  await setAccreditationEnabled({ editionId, enabled, actor: actorFrom(user) });
   revalidatePath(`${adminRoutes.editions}/${editionId}/acreditacion`);
 }
 

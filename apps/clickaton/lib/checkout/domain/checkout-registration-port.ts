@@ -18,6 +18,19 @@ export type ConfirmPaidInput = {
   editionPrefix: string;
 };
 
+/**
+ * Pago acreditado de un REGALO. No confirma ni numera: la inscripción queda
+ * esperando que quien la recibe la active. El cupo sigue reservado hasta
+ * `redeemableUntil` (el cierre de inscripción de la edición).
+ */
+export type ConfirmGiftPaidInput = {
+  registrationId: string;
+  paymentOrderId: string;
+  source: string;
+  requestId: string;
+  redeemableUntil: Date | null;
+};
+
 export type MarkPaymentStatusInput = {
   registrationId: string;
   paymentStatus: ClickatonRegistrationRecord["paymentStatus"];
@@ -44,6 +57,10 @@ export interface CheckoutRegistrationPort {
   getEditionPrefix(editionId: string): Promise<string>;
   attachPaymentRefs(input: AttachPaymentRefsInput): Promise<ClickatonRegistrationRecord>;
   confirmPaid(input: ConfirmPaidInput): Promise<ClickatonRegistrationRecord>;
+  /** Pago acreditado de un regalo: espera el canje en vez de confirmar. */
+  confirmGiftPaid(input: ConfirmGiftPaidInput): Promise<ClickatonRegistrationRecord>;
+  /** Cierre de inscripción de la edición: hasta cuándo dura el cupo del regalo. */
+  getEditionRegistrationCloseAt(editionId: string): Promise<Date | null>;
   markPaymentStatus(input: MarkPaymentStatusInput): Promise<ClickatonRegistrationRecord>;
   /**
    * Liberación por orden cancelada/expirada.
@@ -62,6 +79,15 @@ export interface CheckoutRegistrationPort {
     capacityHoldActive: boolean;
     stockHoldsActive: number;
   }>;
+  /**
+   * Cupo del venue de la inscripción. `capacity: null` significa sin tope.
+   * Lo usa el rescate de pagos para decidir si puede confirmar un pago
+   * aprobado cuya reserva ya venció, sin sobrevender.
+   */
+  getCapacitySnapshot(registrationId: string): Promise<{
+    capacity: number | null;
+    confirmed: number;
+  }>;
 }
 
 export type CheckoutRegistrationPortDeps = {
@@ -73,11 +99,17 @@ export type CheckoutRegistrationPortDeps = {
 export type CheckoutRegistrationMutations = {
   attachPaymentRefs(input: AttachPaymentRefsInput): Promise<ClickatonRegistrationRecord>;
   confirmPaid(input: ConfirmPaidInput): Promise<ClickatonRegistrationRecord>;
+  confirmGiftPaid(input: ConfirmGiftPaidInput): Promise<ClickatonRegistrationRecord>;
+  getEditionRegistrationCloseAt(editionId: string): Promise<Date | null>;
   markPaymentStatus(input: MarkPaymentStatusInput): Promise<ClickatonRegistrationRecord>;
   releaseForPaymentTerminal(
     input: ReleaseForPaymentTerminalInput,
   ): Promise<ClickatonRegistrationRecord>;
   getEditionPrefix(editionId: string): Promise<string>;
+  getCapacitySnapshot(registrationId: string): Promise<{
+    capacity: number | null;
+    confirmed: number;
+  }>;
 };
 
 export function createCheckoutRegistrationPort(
@@ -89,10 +121,14 @@ export function createCheckoutRegistrationPort(
     getEditionPrefix: (editionId) => mutations.getEditionPrefix(editionId),
     attachPaymentRefs: (input) => mutations.attachPaymentRefs(input),
     confirmPaid: (input) => mutations.confirmPaid(input),
+    confirmGiftPaid: (input) => mutations.confirmGiftPaid(input),
+    getEditionRegistrationCloseAt: (editionId) =>
+      mutations.getEditionRegistrationCloseAt(editionId),
     markPaymentStatus: (input) => mutations.markPaymentStatus(input),
     releaseForPaymentTerminal: (input) => mutations.releaseForPaymentTerminal(input),
     expireRegistration: (input) =>
       publicRepo.expireRegistration({ ...input, dryRun: false }),
     getHoldSnapshot: (id) => publicRepo.getHoldSnapshot(id),
+    getCapacitySnapshot: (id) => mutations.getCapacitySnapshot(id),
   };
 }

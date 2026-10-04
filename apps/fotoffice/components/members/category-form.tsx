@@ -39,7 +39,7 @@ export function CategoryForm({ category }: { category?: CategoryInitial }) {
             required
             defaultValue={category?.name}
             className="fo-input"
-            placeholder="Ej. Socio activo"
+            placeholder="Ej. Activo"
           />
           {fe?.name ? <p className="text-xs text-[var(--fo-danger)]">{fe.name}</p> : null}
         </div>
@@ -80,9 +80,12 @@ export function CategoryForm({ category }: { category?: CategoryInitial }) {
           />
           <span>
             <span className="fo-label !inline">Activa</span>
+            {/* Reformulado: "socios nuevos" concordaba "nuevos" en masculino con la palabra
+                configurada, y "los socios" con el mismo problema en el artículo. "altas
+                nuevas" y "quienes" no dependen del género de la palabra elegida. */}
             <span className="fo-helper block mt-1">
-              Una categoría desactivada no se ofrece para socios nuevos, pero los socios que ya la
-              tienen la conservan.
+              Una categoría desactivada no se ofrece en altas nuevas, pero quienes ya la tienen
+              la conservan.
             </span>
           </span>
         </label>

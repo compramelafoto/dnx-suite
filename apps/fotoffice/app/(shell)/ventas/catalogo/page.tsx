@@ -3,7 +3,6 @@ import { Package } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { requireSalesStaff } from "@/lib/sales/access";
 import { listProducts, listProductCategories } from "@/lib/sales/repository";
-import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { PRODUCT_KIND_LABELS, type ProductKind } from "@/lib/sales/constants";
 import { formatMinorArs } from "@/lib/membership/money";
 import { CategoryForm } from "../category-form";
@@ -15,14 +14,14 @@ export default async function CatalogoPage({
 }: {
   searchParams: Promise<{ q?: string; categoryId?: string; inactivos?: string; error?: string; ok?: string }>;
 }) {
-  const { workspace, role } = await requireSalesStaff();
+  const { workspace, canEditCatalog } = await requireSalesStaff();
   const sp = await searchParams;
   const q = sp.q?.trim() || undefined;
   const categoryId = sp.categoryId?.trim() || undefined;
   const verInactivos = sp.inactivos === "1";
   // Editar el catálogo es ADMIN+: esconder acá el alta y la administración de categorías es
   // sólo cosmético, el control de verdad vuelve a pedirse en cada pantalla y cada acción.
-  const puedeEditar = canManageWorkspaceSettings(role);
+  const puedeEditar = canEditCatalog;
 
   const [productos, categorias] = await Promise.all([
     listProducts(workspace.id, { search: q, categoryId, onlyActive: !verInactivos }),

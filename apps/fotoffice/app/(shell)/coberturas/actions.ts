@@ -1,7 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
+import { encodeGeohash, validateCoordinates } from "@repo/geo";
 import { appUrl } from "@/lib/app-url";
 import { COVERAGE_EMAIL_KEYS } from "@/lib/communications/constants";
 import { loadWorkspaceEmailContext } from "@/lib/communications/load-workspace-signature";
@@ -12,11 +14,16 @@ import {
   buildInfoRequestedEmail,
   buildRequestApprovedEmail,
   buildRequestRejectedEmail,
+  buildTrackingLinkEmail,
   contactGreetingName,
 } from "@/lib/coverages/emails";
+import { puedeReemitirEnlace } from "@/lib/coverages/reenvio-enlace";
 import { recordEvent } from "@/lib/coverages/events";
-import { loadSettings } from "@/lib/coverages/repository";
+import { planGenerarCobertura } from "@/lib/coverages/generar-cobertura";
+import { loadRequest, loadSettings } from "@/lib/coverages/repository";
+import { parseRequestFieldStates } from "@/lib/coverages/request-fields";
 import { acotarEntero, normalizarAssignmentMode } from "@/lib/coverages/settings";
+import { requestStatusDoneMessage } from "@/lib/coverages/states";
 import { planStatusChange } from "@/lib/coverages/status-change-plan";
 import {
   generateTrackingToken,
@@ -143,6 +150,7 @@ export async function changeRequestStatusAction(
       };
     }
 
+    // aislamiento: por `solicitud`, leída arriba con `workspaceId` en su where.
     await tx.coverageRequest.update({
       where: { id: solicitud.id },
       data: {
@@ -198,7 +206,13 @@ export async function changeRequestStatusAction(
 
   revalidatePath("/coberturas");
   revalidatePath(`/coberturas/${solicitud.id}`);
-  return { error: null, ok: "Listo.", warn };
+  // Qué pasó, y si la organización se enteró: «avisada» sólo es cierto cuando había a quién
+  // escribirle y el correo salió. Ver `requestStatusDoneMessage`.
+  return {
+    error: null,
+    ok: requestStatusDoneMessage(plan.to, { avisada: Boolean(destino) && warn === null }),
+    warn,
+  };
 }
 
 /** Pedirle un dato a la organización. Lo ve en su enlace y puede responder desde ahí. */
@@ -251,6 +265,7 @@ export async function requestInfoAction(
         tokenExpiresAt: trackingExpiryFrom(settings.trackingLinkTtlDays),
       };
     }
+    // aislamiento: por `solicitud`, leída arriba con `workspaceId` en su where.
     await tx.coverageRequest.update({
       where: { id: solicitud.id },
       data: {
@@ -298,6 +313,113 @@ export async function requestInfoAction(
   return { error: null, ok: "Se lo pedimos.", warn };
 }
 
+/**
+ * Emitirle un enlace de seguimiento nuevo y mandárselo.
+ *
+ * Existe porque el enlace **no se puede recuperar**: el token crudo viaja una sola vez, en el
+ * correo, y en la base queda sólo su SHA-256. Si ese correo no llega —una casilla mal escrita,
+ * el proveedor caído, el mensaje en el correo no deseado— la organización se queda sin enlace
+ * vivo y nadie, ni la coordinación ni el equipo técnico, puede leerle el que tenía. Eso es por
+ * diseño y está bien. Lo que faltaba era poder emitir otro.
+ *
+ * `requireCoveragesReviewer` y no coordinador, con el mismo criterio que `requestInfoAction`:
+ * esa acción ya rota el enlace y le escribe a la organización con permiso de revisar, y ésta
+ * hace estrictamente menos —ni cambia de estado ni pide nada—. Además es la reparación de un
+ * fallo que quien revisa puede haber provocado: el aviso de «el correo no salió» aparece en la
+ * pantalla de quien apretó, y tiene que poder arreglarlo sin salir a buscar a una coordinadora.
+ *
+ * **Emitir uno nuevo mata el anterior**, así que la pantalla lo dice antes de ofrecer el botón
+ * (ver `evaluacion-panel.tsx`). Acá se vuelve a decidir con `puedeReemitirEnlace`, que consulta
+ * a `debeRotarEnlace` igual que el resto del módulo: sin destinatario o sin `appUrl()` no se
+ * rota nada, porque rotar sin poder avisar deja a la organización sin enlace y sin manera de
+ * enterarse.
+ *
+ * El correo sale **fuera de la transacción**, y que falle no deja nada a medias: el token nuevo
+ * ya quedó guardado y el historial ya lo dice. Lo único que cambia es el `warn` de la pantalla,
+ * que invita a volver a intentarlo.
+ *
+ * **El token crudo no se registra en ningún lado**: no entra en la nota del evento, y
+ * `SentEmailLog` guarda destinatario y asunto pero nunca el cuerpo (ver `sendAndLogEmail`). El
+ * asunto no lo lleva.
+ */
+export async function resendTrackingLinkAction(
+  _prev: PanelState | undefined,
+  formData: FormData,
+): Promise<PanelState> {
+  const { user, workspace } = await requireCoveragesReviewer();
+  const id = formData.get("id")?.toString() ?? "";
+
+  const solicitud = await prisma.coverageRequest.findFirst({
+    where: { id, workspaceId: workspace.id },
+    include: { client: { select: { email: true, businessName: true, firstName: true, lastName: true } } },
+  });
+  if (!solicitud) return { error: "No encontramos esa solicitud.", ok: null };
+
+  const destino = solicitud.client.email?.trim() || null;
+  const base = appUrl();
+  const permiso = puedeReemitirEnlace({
+    status: solicitud.status,
+    tieneDestinatario: Boolean(destino),
+    tieneAppUrl: Boolean(base),
+  });
+  if (!permiso.ok) return { error: permiso.error, ok: null };
+  // `puedeReemitirEnlace` ya garantiza las dos, pero el tipo no lo sabe.
+  if (!destino || !base) return { error: "No se puede emitir el enlace ahora.", ok: null };
+
+  const settings = await loadSettings(workspace.id);
+  const rawToken = generateTrackingToken();
+
+  await prisma.$transaction(async (tx) => {
+    // `updateMany` con el workspace en el `where` y no un `update` por id: es la escritura que
+    // pisa la credencial de la organización, y el aislamiento viaja con ella.
+    await tx.coverageRequest.updateMany({
+      where: { id: solicitud.id, workspaceId: workspace.id },
+      data: {
+        tokenHash: hashTrackingToken(rawToken),
+        tokenExpiresAt: trackingExpiryFrom(settings.trackingLinkTtlDays),
+        // Un enlace recién emitido tiene que servir. Si el anterior estaba revocado y la marca
+        // quedara puesta, el enlace nuevo nacería muerto (ver `isTrackingLinkUsable`).
+        tokenRevokedAt: null,
+      },
+    });
+    await recordEvent(tx, {
+      workspaceId: workspace.id,
+      entityType: "REQUEST",
+      entityId: solicitud.id,
+      type: "ENLACE_REEMITIDO",
+      actorUserId: user.id,
+      actorLabel: user.name ?? user.email,
+      // Sin el enlace: el historial no guarda credenciales.
+      note: "El enlace anterior dejó de funcionar.",
+    });
+  });
+
+  const contexto = await loadWorkspaceEmailContext(workspace.id);
+  const resultado = await sendAndLogEmail({
+    to: destino,
+    templateKey: COVERAGE_EMAIL_KEYS.TRACKING_LINK,
+    body: buildTrackingLinkEmail({
+      context: contexto,
+      publicCode: solicitud.publicCode,
+      eventTitle: solicitud.eventTitle,
+      contactName: contactGreetingName(solicitud.client),
+      trackingUrl: `${base}/sc/${rawToken}`,
+    }),
+  });
+
+  revalidatePath(`/coberturas/${solicitud.id}`);
+
+  if (resultado.status !== "SENT") {
+    return {
+      error: null,
+      ok: null,
+      warn: `El enlace nuevo quedó emitido, pero el correo a ${destino} no salió. El anterior ya dejó de funcionar: probá de nuevo, o revisá que la dirección esté bien escrita.`,
+    };
+  }
+
+  return { error: null, ok: `Se lo mandamos a ${destino}. El enlace anterior dejó de funcionar.` };
+}
+
 /** Una nota interna. La organización nunca la ve. */
 export async function addNoteAction(
   _prev: PanelState | undefined,
@@ -325,7 +447,7 @@ export async function addNoteAction(
   });
 
   revalidatePath(`/coberturas/${existe.id}`);
-  return { error: null, ok: "Anotado." };
+  return { error: null, ok: "Quedó anotado en el historial. La organización no la ve." };
 }
 
 /**
@@ -355,6 +477,13 @@ export async function saveCoverageSettingsAction(
       .map((s) => s.trim())
       .filter(Boolean);
 
+  // Los estados de los 23 campos del formulario público llegan como un control por campo
+  // (`campo_<clave>`). `parseRequestFieldStates` los convierte en las dos listas y descarta
+  // solo los cinco campos fijos, que no se configuran.
+  const crudo: Record<string, string> = {};
+  for (const [k, v] of formData.entries()) if (typeof v === "string") crudo[k] = v;
+  const campos = parseRequestFieldStates(crudo);
+
   const datos = {
     moduleLabel: texto("moduleLabel"),
     termRequest: texto("termRequest"),
@@ -369,6 +498,9 @@ export async function saveCoverageSettingsAction(
     recommendedCollaborators: entero("recommendedCollaborators", 1, 20, 2),
     publicFormEnabled: formData.get("publicFormEnabled") === "on",
     publicFormIntro: texto("publicFormIntro"),
+    publicFormOutro: texto("publicFormOutro"),
+    requestFormHidden: campos.hidden,
+    requestFormRequired: campos.required,
     notifyEmails: lista("notifyEmails"),
     zones: lista("zones"),
     specialties: lista("specialties"),
@@ -384,4 +516,111 @@ export async function saveCoverageSettingsAction(
   revalidatePath("/coberturas/configuracion");
   revalidatePath("/coberturas");
   return { error: null, ok: "Guardado." };
+}
+
+export type GenerarCoberturaState = { error: string | null; ok: string | null };
+
+/**
+ * De una solicitud aprobada, generar una cobertura con sus roles.
+ *
+ * `requireCoveragesCoordinator()` de nuevo acá: el botón para generar una cobertura ya está
+ * escondido en la pantalla para quien solo revisa (ver el cuidado del plan sobre esconder
+ * botones), pero eso no reemplaza el control del servidor.
+ *
+ * Los roles llegan como dos listas paralelas (`roleName[]`, `roleVacancies[]`) en vez de un
+ * único campo por fila: el formulario permite agregar y quitar filas del lado del cliente, y
+ * `FormData.getAll` devuelve cada clave en el orden en que aparece en el documento, así que
+ * emparejar por índice alcanza sin inventar una convención de nombres por fila.
+ */
+export async function crearCoberturaAction(
+  _prev: GenerarCoberturaState | undefined,
+  formData: FormData,
+): Promise<GenerarCoberturaState> {
+  const { user, workspace } = await requireCoveragesCoordinator();
+
+  const requestId = formData.get("requestId")?.toString() ?? "";
+  const title = formData.get("title")?.toString()?.trim();
+  if (!title) return { error: "Ponele un título a la cobertura.", ok: null };
+
+  const startsAt = new Date(formData.get("startsAt")?.toString() ?? "");
+  const endsAt = new Date(formData.get("endsAt")?.toString() ?? "");
+  if (Number.isNaN(startsAt.getTime())) return { error: "Falta cuándo empieza.", ok: null };
+  if (Number.isNaN(endsAt.getTime())) return { error: "Falta cuándo termina.", ok: null };
+  if (endsAt.getTime() <= startsAt.getTime()) {
+    return { error: "Termina antes de empezar. Revisá los horarios.", ok: null };
+  }
+
+  const addressLine = formData.get("addressLine")?.toString()?.trim() || null;
+  const city = formData.get("city")?.toString()?.trim() || null;
+  const instructions = formData.get("instructions")?.toString()?.trim() || null;
+
+  /*
+    El punto que marcó la organización viaja con la dirección (ver `sugerirCobertura`). Se
+    revalida acá igual que en el formulario público, con la misma función del DNX GEO ENGINE: el
+    panel lo manda en dos campos ocultos, y un campo oculto es tan editable como cualquier otro.
+
+    Un punto que no pase la validación deja la cobertura sin punto, no la frena: es un dato
+    opcional, y la dirección escrita sigue estando. El geohash se calcula acá y no se recibe,
+    para que nunca pueda dejar de corresponder a las coordenadas que lo acompañan.
+  */
+  const puntoCrudo = validateCoordinates(
+    formData.get("latitude")?.toString() ?? null,
+    formData.get("longitude")?.toString() ?? null,
+  );
+  const punto = puntoCrudo.ok
+    ? {
+        latitude: puntoCrudo.coordinates.latitude,
+        longitude: puntoCrudo.coordinates.longitude,
+        geohash: encodeGeohash(
+          puntoCrudo.coordinates.latitude,
+          puntoCrudo.coordinates.longitude,
+        ),
+      }
+    : { latitude: null, longitude: null, geohash: null };
+
+  const roleNames = formData.getAll("roleName").map((v) => v.toString());
+  const roleVacancies = formData.getAll("roleVacancies").map((v) => v.toString());
+  const roles = roleNames
+    .map((name, i) => ({ name: name.trim(), vacancies: Math.trunc(Number(roleVacancies[i])) }))
+    .filter((r) => r.name.length > 0);
+
+  const solicitud = await loadRequest({ workspaceId: workspace.id, id: requestId });
+
+  const plan = planGenerarCobertura({ solicitud, workspaceId: workspace.id, roles });
+  if (!plan.ok) return { error: plan.error, ok: null };
+  if (!solicitud) return { error: "No encontramos esa solicitud.", ok: null };
+
+  const cobertura = await prisma.$transaction(async (tx) => {
+    const creada = await tx.coverage.create({
+      data: {
+        workspaceId: workspace.id,
+        requestId: solicitud.id,
+        title,
+        startsAt,
+        endsAt,
+        addressLine,
+        city,
+        latitude: punto.latitude,
+        longitude: punto.longitude,
+        geohash: punto.geohash,
+        instructions,
+        status: "PLANIFICADA",
+        roles: { create: roles.map((r) => ({ name: r.name, vacancies: r.vacancies })) },
+      },
+      select: { id: true },
+    });
+    await recordEvent(tx, {
+      workspaceId: workspace.id,
+      entityType: "COVERAGE",
+      entityId: creada.id,
+      type: "CREADA",
+      toStatus: "PLANIFICADA",
+      actorUserId: user.id,
+      actorLabel: user.name ?? user.email,
+    });
+    return creada;
+  });
+
+  revalidatePath(`/coberturas/${solicitud.id}`);
+  redirect(`/coberturas/c/${cobertura.id}`);
 }

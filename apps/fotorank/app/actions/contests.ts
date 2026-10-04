@@ -9,6 +9,9 @@ import { normalizeSlug } from "../lib/fotorank/slug";
 import { canBulkReplaceContestCategories } from "../lib/fotorank/contestCategoryPolicy";
 import { autoMapNewContestCategory, countContestJudgeAssignments } from "../lib/fotorank/contestCategoryService";
 import { routes } from "../lib/routes";
+import { decidirBasesAlPublicar } from "../lib/fotorank/registration/basesAlPublicar";
+import { getCurrentPublishedRules, publishRulesVersion } from "../lib/fotorank/registration/rules-service";
+import { isFotorankProductionEnvironment } from "../lib/fotorank/registration/production-gate";
 import {
   incoherentExperienceChannelMessage,
   isIncoherentExperienceChannelCombo,
@@ -439,6 +442,17 @@ export async function updateFotorankContest(
     }
   }
 
+  // La inscripción exige una versión oficial de bases: publicar sin ella dejaba el concurso trabado.
+  const decisionBases = decidirBasesAlPublicar({
+    estadoAnterior: contest.status,
+    estadoNuevo: input.status ?? contest.status,
+    tieneVersionPublicada: (await getCurrentPublishedRules(contestId)) !== null,
+    textoDeBases: input.rulesText !== undefined ? input.rulesText : contest.rulesText,
+    produccion: isFotorankProductionEnvironment(),
+    exigeBases: nextDistributionChannel !== "CLICKATON",
+  });
+  if (decisionBases.accion === "bloquear") return { ok: false, error: decisionBases.error };
+
   await prisma.$transaction(async (tx) => {
     const updateData: Record<string, unknown> = {};
     if (input.title !== undefined) updateData.title = input.title.trim();
@@ -525,6 +539,23 @@ export async function updateFotorankContest(
       }
     }
   });
+
+  if (decisionBases.accion === "publicar") {
+    try {
+      await publishRulesVersion({
+        contestId,
+        title: `Bases y condiciones · ${input.title?.trim() || contest.title}`,
+        content: decisionBases.contenido,
+        createdByUserId: user.id,
+      });
+    } catch (err) {
+      console.error("[fotorank] no se pudo publicar la versión de bases al publicar el concurso", err);
+      return {
+        ok: false,
+        error: "El concurso se guardó, pero no se pudieron publicar las bases. Volvé a intentar.",
+      };
+    }
+  }
 
   revalidatePath(routes.concursos.index());
   revalidatePath(routes.dashboard.concursos.detalle(contestId));

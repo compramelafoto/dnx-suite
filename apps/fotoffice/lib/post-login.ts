@@ -1,7 +1,8 @@
 import { prisma } from "@repo/db";
+import { syncPendingTeamMemberships } from "@/lib/commission/team-membership";
 import { findFotofficeWorkspaceForUser } from "@/lib/ensure-workspace";
 import { WELCOME_PATH } from "@/lib/entrada/welcome";
-import { doorPathFor, parseDoorPath } from "@/lib/entrada/institution-door";
+import { doorReturnPath } from "@/lib/entrada/institution-door";
 import { findClaimableMembership } from "@/lib/portal/claim";
 import { isFotofficePlatformAdminRole, resolvePlatformRole } from "@/lib/fotoffice-roles";
 import { safeFotofficeNextPath } from "@/lib/google-login";
@@ -50,6 +51,14 @@ export async function resolveFotofficePostLoginDestination(params: {
     return { path: next?.startsWith("/admin") ? next : "/admin", workspaceId: null };
   }
 
+  // Un socio que recibió cargo o rol antes de tener cuenta entra al panel desde su primer
+  // inicio de sesión con la cuenta vinculada (diseño de Roles §12.1.4). Si falla, no bloquea el login.
+  try {
+    await syncPendingTeamMemberships(user.id);
+  } catch (error) {
+    console.error("[post-login] No se pudo sincronizar la membresía de equipo", error);
+  }
+
   const kind = await resolveFotofficeUserKind(user.id);
 
   // Quien vuelve a completar una invitación va ahí, sea quien sea. Se resuelve ANTES de
@@ -72,8 +81,8 @@ export async function resolveFotofficePostLoginDestination(params: {
     a qué workspace corresponde ese slug. `parseDoorPath` es estricto: cualquier `next` que no
     sea exactamente esa forma sigue el camino de siempre.
   */
-  const door = parseDoorPath(params.next);
-  if (door) return { path: doorPathFor(door), workspaceId: null };
+  const door = doorReturnPath(params.next);
+  if (door) return { path: door, workspaceId: null };
 
   /**
    * Con más de un perfil hay que preguntar: la misma persona puede administrar su negocio y

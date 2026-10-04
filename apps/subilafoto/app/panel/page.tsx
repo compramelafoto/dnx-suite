@@ -187,7 +187,7 @@ export default async function Panel() {
       )}
 
       {esAdmin ? (
-        <p className="mt-12">
+        <nav className="mt-12 flex flex-wrap gap-6">
           <Link
             href="/panel/salud"
             className="inline-flex min-h-[44px] items-center font-extrabold underline underline-offset-4"
@@ -195,7 +195,14 @@ export default async function Panel() {
           >
             Cómo va la noche
           </Link>
-        </p>
+          <Link
+            href="/panel/arrepentimientos"
+            className="inline-flex min-h-[44px] items-center font-extrabold underline underline-offset-4"
+            style={{ color: "var(--slf-violeta)" }}
+          >
+            Arrepentimientos
+          </Link>
+        </nav>
       ) : null}
     </main>
   );

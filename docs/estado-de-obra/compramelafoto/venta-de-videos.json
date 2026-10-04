@@ -1,0 +1,27 @@
+{
+  "proyecto": "Venta de videos",
+  "plataforma": "CompraMeLaFoto",
+  "enUso": "si",
+  "usoNota": "Encendida en producción y verificada de punta a punta el 2026-09-15",
+  "etapas": [
+    {
+      "nombre": "Comprar y descargar un video",
+      "criterios": [
+        {
+          "que": "Un cliente compra un video y lo descarga",
+          "implementado": { "fecha": "2026-09-14" },
+          "probado": {
+            "fecha": "2026-09-15",
+            "evidencia": "Recorrido completo en producción; se corrigieron el 206 del CDN y el correo de pedidos de sólo video"
+          }
+        },
+        {
+          "que": "El reparto llega a quien corresponde cuando el evento tiene organizador",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Falta implementar el reparto con organizador"
+        }
+      ]
+    }
+  ]
+}

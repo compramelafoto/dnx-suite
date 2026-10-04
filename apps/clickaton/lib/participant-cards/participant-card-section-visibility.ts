@@ -29,8 +29,15 @@ export function decideParticipantCardsSections(input: {
    * para que el único motivo de ocultarla sea pedirlo expresamente.
    */
   publicUiEnabled?: boolean;
+  /**
+   * Si el generador viejo sigue en pie. Cuando se apaga, su placa deja de ofrecerse: es el
+   * único caso en que quien pagó puede no ver ninguna sección, y es preferible a mostrarle un
+   * botón que ya no genera nada.
+   */
+  legacyEnabled?: boolean;
 }): ParticipantCardsSectionsVisibility {
   if (!input.paid) return { v2: false, legacy: false };
   const mostrarV2 = input.v2Available && (input.publicUiEnabled ?? true);
-  return { v2: mostrarV2, legacy: !mostrarV2 };
+  const hayViejo = input.legacyEnabled ?? true;
+  return { v2: mostrarV2, legacy: !mostrarV2 && hayViejo };
 }

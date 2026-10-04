@@ -252,7 +252,7 @@ export default function CommunityProfileEditForm({ profileId, type, backHref, ba
             <label htmlFor="featured" className="text-sm text-gray-700">Destacado</label>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid dnx-grid-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Provincia</label>
               <Input value={province} onChange={(e) => setProvince(e.target.value)} />
@@ -304,7 +304,7 @@ export default function CommunityProfileEditForm({ profileId, type, backHref, ba
             <Input value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://..." />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid dnx-grid-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Instagram</label>
               <Input value={instagram} onChange={(e) => setInstagram(e.target.value)} />
@@ -315,7 +315,7 @@ export default function CommunityProfileEditForm({ profileId, type, backHref, ba
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid dnx-grid-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">TikTok</label>
               <Input value={tiktok} onChange={(e) => setTiktok(e.target.value)} />

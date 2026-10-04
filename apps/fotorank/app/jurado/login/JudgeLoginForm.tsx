@@ -31,7 +31,7 @@ export function JudgeLoginForm() {
         label="Email"
         required
         layout="auth"
-        microcopy="El mismo correo con el que te invitaron."
+        microcopy="El correo con el que te postulaste o con el que te invitaron."
       >
         <input
           id="judge-login-email"

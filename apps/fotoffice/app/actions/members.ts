@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import {
   createMember,
   createMemberCategory,
@@ -10,6 +11,7 @@ import {
   updateMember,
   updateMemberCategory,
 } from "@repo/db/fotoffice-members";
+import { notifyAdminsIfCommissionMemberInactive } from "@/lib/commission/inactive-notice";
 import { requireMembersManageContext } from "@/lib/members/access";
 import { auditActorFrom, normalizeReason, statusRequiresReason } from "@/lib/members/audit";
 import { documentChanged, normalizeDocument } from "@/lib/members/documents";
@@ -21,7 +23,9 @@ import {
   memberSchema,
   memberValuesToRepositoryInput,
 } from "@/lib/members/schema";
+import { mensajeDePadron } from "@/lib/members/mensajes";
 import { isMemberStatus } from "@/lib/members/status-labels";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 
 export type MemberFormState = { error: string | null; fieldErrors?: Record<string, string> };
 
@@ -55,6 +59,7 @@ export async function createMemberAction(
   formData: FormData,
 ): Promise<MemberFormState> {
   const { workspace, user } = await requireMembersManageContext();
+  const vocabulary = await loadPersonVocabulary(workspace.id);
   const parsed = memberSchema.safeParse(formToMemberPayload(formData));
   if (!parsed.success) {
     return { error: "Revisá los campos marcados.", fieldErrors: issuesToFieldErrors(parsed.error.issues) };
@@ -72,7 +77,7 @@ export async function createMemberAction(
       auditActorFrom(user),
     );
   } catch (e) {
-    return { error: friendlyMemberError(e) };
+    return { error: friendlyMemberError(e, vocabulary) };
   }
 
   revalidatePath("/members");
@@ -84,8 +89,9 @@ export async function updateMemberAction(
   formData: FormData,
 ): Promise<MemberFormState> {
   const { workspace, user } = await requireMembersManageContext();
+  const vocabulary = await loadPersonVocabulary(workspace.id);
   const id = formData.get("id")?.toString()?.trim();
-  if (!id) return { error: "Socio inválido." };
+  if (!id) return { error: mensajeDePadron("invalido", vocabulary) };
 
   const parsed = memberSchema.safeParse(formToMemberPayload(formData));
   if (!parsed.success) {
@@ -97,7 +103,7 @@ export async function updateMemberAction(
   // tiene uno) se puede seguir editando —teléfono, categoría, domicilio— sin quedar bloqueado
   // por un dato que nadie tocó.
   const current = await getMember(workspace.id, id);
-  if (!current) return { error: "Socio no encontrado." };
+  if (!current) return { error: mensajeDePadron("noEncontrado", vocabulary) };
 
   if (
     documentChanged(
@@ -125,11 +131,11 @@ export async function updateMemberAction(
     });
   } catch (e) {
     if (e instanceof MemberConcurrencyError) {
-      return { error: "Otra persona modificó este socio mientras lo editabas. Recargá la ficha e intentá de nuevo." };
+      return { error: mensajeDePadron("modificadoMientrasEditabas", vocabulary) };
     }
-    return { error: friendlyMemberError(e) };
+    return { error: friendlyMemberError(e, vocabulary) };
   }
-  if (!updated) return { error: "Socio no encontrado." };
+  if (!updated) return { error: mensajeDePadron("noEncontrado", vocabulary) };
 
   revalidatePath("/members");
   revalidatePath(`/members/${id}`);
@@ -145,9 +151,10 @@ export async function changeMemberStatusAction(
   formData: FormData,
 ): Promise<ChangeStatusState> {
   const { workspace, user } = await requireMembersManageContext();
+  const vocabulary = await loadPersonVocabulary(workspace.id);
   const id = formData.get("id")?.toString()?.trim();
   const status = formData.get("status")?.toString()?.trim() ?? "";
-  if (!id) return { error: "Socio inválido." };
+  if (!id) return { error: mensajeDePadron("invalido", vocabulary) };
   if (!isMemberStatus(status)) return { error: "Estado inválido." };
 
   // Suspender o dar de baja exige justificar: son las operaciones que le sacan derechos al
@@ -155,10 +162,10 @@ export async function changeMemberStatusAction(
   const reason = normalizeReason(formData.get("reason")?.toString());
   if (statusRequiresReason(status) && !reason) {
     return {
-      error:
-        status === "SUSPENDED"
-          ? "Escribí el motivo de la suspensión: queda registrado en el historial del socio."
-          : "Escribí el motivo de la baja: queda registrado en el historial del socio.",
+      error: mensajeDePadron(
+        status === "SUSPENDED" ? "motivoDeSuspension" : "motivoDeBaja",
+        vocabulary,
+      ),
     };
   }
 
@@ -172,11 +179,19 @@ export async function changeMemberStatusAction(
     );
   } catch (e) {
     if (e instanceof MemberConcurrencyError) {
-      return { error: "Otra persona modificó este socio mientras tanto. Recargá la ficha e intentá de nuevo." };
+      return { error: mensajeDePadron("modificadoMientrasTanto", vocabulary) };
     }
     throw e;
   }
-  if (!updated) return { error: "Socio no encontrado." };
+  if (!updated) return { error: mensajeDePadron("noEncontrado", vocabulary) };
+
+  // Aviso a la dirección si quien queda inactivo tiene cargo o rol en la comisión. No se
+  // revoca nada y no demora la respuesta: si el correo falla, el cambio de estado ya está hecho.
+  after(() =>
+    notifyAdminsIfCommissionMemberInactive({ workspaceId: workspace.id, memberId: id, newStatus: status }).catch(
+      (e) => console.error("[fotoffice][comision] aviso de inactivo", e),
+    ),
+  );
 
   revalidatePath("/members");
   revalidatePath(`/members/${id}`);

@@ -7,6 +7,7 @@ import {
   submitApplicationAction,
   type ApplicationFormState,
 } from "@/app/actions/membership-applications";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
 const initial: ApplicationFormState = { error: null, ok: null };
 
@@ -18,6 +19,7 @@ export function MembershipApplicationForm({
   monthlyAmountLabel,
   initialDuesCount,
   recommendation,
+  vocabulary,
 }: {
   workspaceSlug: string;
   institutionName: string;
@@ -26,6 +28,7 @@ export function MembershipApplicationForm({
   initialDuesCount: number;
   /** Socio que lo recomienda, si entró por su enlace. Ya validado contra el padrón. */
   recommendation: { code: string; displayName: string } | null;
+  vocabulary: PersonVocabulary;
 }) {
   const action = submitApplicationAction.bind(null, workspaceSlug);
   const [state, submit, pending] = useActionState(action, initial);
@@ -226,7 +229,7 @@ export function MembershipApplicationForm({
         ) : null}
       </section>
 
-      <ProfessionalPresenceFields institutionName={institutionName} />
+      <ProfessionalPresenceFields institutionName={institutionName} vocabulary={vocabulary} />
 
       {monthlyAmountLabel ? (
         <section className="fo-card space-y-1 p-5">
@@ -248,7 +251,7 @@ export function MembershipApplicationForm({
         archivos a internet solo para esto no compensa: se sube desde el portal, ya como socio.
       */}
       <section className="fo-card space-y-3 p-5">
-        <h2 className="text-sm font-semibold">La credencial de socio</h2>
+        <h2 className="text-sm font-semibold">{`La credencial de ${vocabulary.singular}`}</h2>
         <label className="flex items-start gap-3 text-sm leading-relaxed">
           <input
             type="checkbox"
@@ -268,9 +271,9 @@ export function MembershipApplicationForm({
           </span>
         </label>
         <p className="text-xs text-[var(--fo-muted)] leading-relaxed">
-          La credencial digital la tenés siempre, sin costo, en tu portal de socio. La impresa es
-          opcional y <strong>no se paga ahora</strong>: primero subís tu foto desde el portal y
-          recién ahí la pedís y la abonás.
+          {`La credencial digital la tenés siempre, sin costo, en tu portal de ${vocabulary.singular}. `}
+          La impresa es opcional y <strong>no se paga ahora</strong>: primero subís tu foto
+          desde el portal y recién ahí la pedís y la abonás.
         </p>
 
         {/*
@@ -301,8 +304,8 @@ export function MembershipApplicationForm({
               <li>Buena luz, sin reflejos y bien enfocada.</li>
             </ul>
             <p className="text-xs text-[var(--fo-muted)] leading-relaxed">
-              <strong>No la subas ahora.</strong> Una vez que la Secretaría apruebe tu solicitud
-              vas a poder cargarla desde tu portal de socio. Podés ir teniéndola lista.
+              <strong>No la subas ahora.</strong>{" "}
+              {`Una vez que la Secretaría apruebe tu solicitud vas a poder cargarla desde tu portal de ${vocabulary.singular}. Podés ir teniéndola lista.`}
             </p>
           </div>
         ) : null}

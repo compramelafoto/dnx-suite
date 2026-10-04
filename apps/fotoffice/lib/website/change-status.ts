@@ -1,4 +1,5 @@
 import { parseWebsiteDesignPresets } from "./design-presets";
+import { parseSiteMenu } from "./site-menu";
 
 /**
  * Determina si el borrador tiene cambios respecto de la versión publicada. Deliberadamente NO
@@ -52,7 +53,8 @@ function contentEquals(a: ComparableContent, b: ComparableContent): boolean {
     a.heroSubtitle === b.heroSubtitle &&
     a.seoTitle === b.seoTitle &&
     a.seoDescription === b.seoDescription &&
-    deepEqualJson(a.navJson, b.navJson) &&
+    // Normalizado: la forma vieja que sembraba el borrador y `null` son el mismo "menú sin editar".
+    deepEqualJson(parseSiteMenu(a.navJson), parseSiteMenu(b.navJson)) &&
     deepEqualJson(a.sectionsJson, b.sectionsJson) &&
     deepEqualJson(parseWebsiteDesignPresets(a.designPresetsJson ?? null), parseWebsiteDesignPresets(b.designPresetsJson ?? null))
   );

@@ -63,13 +63,19 @@ export function computeCardStatus(facts: CardFacts): CardStatus {
   return { enabled: reason === null, reason, expired, revoked };
 }
 
-/** Texto para el propio socio y para la institución. Nunca para el nivel 1. */
+/**
+ * Texto para la propia persona y para la institución. Nunca para el nivel 1.
+ *
+ * Devuelve los marcadores de vocabulario sin resolver (`{persona}`): esta función es pura y
+ * no sabe en qué institución está parada. Quien lo muestra —`loadMyCard`, que sí conoce el
+ * workspace— lo pasa por `aplicarVocabulario`.
+ */
 export function explainDisabled(reason: DisabledReason): string {
   switch (reason) {
     case "NOT_A_MEMBER":
-      return "Ya no figurás como socio de la institución.";
+      return "Ya no figurás como {persona} de la institución.";
     case "SUSPENDED":
-      return "Tu condición de socio está suspendida. Comunicate con la Secretaría.";
+      return "Tu condición de {persona} está suspendida. Comunicate con la Secretaría.";
     case "CARD_REVOKED":
       return "Este carnet fue dado de baja. Pedí uno nuevo a la Secretaría.";
     case "CARD_EXPIRED":

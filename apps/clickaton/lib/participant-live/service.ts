@@ -3,6 +3,7 @@ import "server-only";
 import { prisma } from "@repo/db";
 import { getEditionPromptGate } from "@/lib/timeline/prisma-timeline";
 import { systemClock, type EditionClock } from "@/lib/timeline/clock";
+import { puedeVerLaPantallaDelParticipante } from "./acceso";
 
 /**
  * Estado mínimo de la pantalla única del participante ("ya estás participando").
@@ -16,7 +17,28 @@ import { systemClock, type EditionClock } from "@/lib/timeline/clock";
 export type ParticipantLiveActor = {
   id: number;
   email: string;
+  /**
+   * Administrador de Clickatón. Sólo le sirve para mirar la pantalla del
+   * participante ficticio de un ensayo; sobre inscripciones reales no cambia
+   * nada.
+   */
+  esAdmin?: boolean;
 };
+
+/**
+ * Una foto cuenta como entregada cuando terminó de subir y no fue descartada.
+ * Quedan afuera las que están a mitad de subida (UPLOAD_PENDING, UPLOADING),
+ * las que fallaron y las reemplazadas o retiradas. REJECTED sí cuenta: se
+ * entregó, aunque la admisión técnica la haya dejado afuera.
+ */
+export const ESTADOS_ENTREGADA = [
+  "UPLOADED",
+  "PROCESSING",
+  "READY_FOR_REVIEW",
+  "PENDING_CONFIRMATION",
+  "CONFIRMED",
+  "REJECTED",
+] as const;
 
 export type ParticipantLiveState = {
   registrationId: string;
@@ -35,6 +57,12 @@ export type ParticipantLiveState = {
     opensAt: string | null;
     isOpen: boolean;
   };
+  /** WhatsApp de soporte de la edición, sin normalizar. Vacío = sin botón de ayuda. */
+  supportWhatsappPhone: string | null;
+  /** El participante declaró que terminó de subir. */
+  submissionFinalizedAt: string | null;
+  /** Fotos efectivamente entregadas (no borradores). */
+  fotosEnviadas: number;
   serverNow: string;
 };
 
@@ -62,7 +90,16 @@ export async function loadParticipantLiveState(input: {
       status: true,
       paymentStatus: true,
       editionId: true,
-      edition: { select: { slug: true, name: true, timezone: true } },
+      submissionFinalizedAt: true,
+      edition: {
+        select: {
+          slug: true,
+          name: true,
+          timezone: true,
+          isOpsFixture: true,
+          supportWhatsappPhone: true,
+        },
+      },
       credential: { select: { publicCode: true } },
       checkIns: {
         where: { reversedAt: null },
@@ -75,9 +112,18 @@ export async function loadParticipantLiveState(input: {
 
   if (!registration) return { ok: false, reason: "NOT_FOUND" };
 
-  const owns =
-    registration.userId === input.actor.id ||
-    registration.email.toLowerCase() === input.actor.email.toLowerCase();
+  const owns = puedeVerLaPantallaDelParticipante(
+    {
+      actorId: input.actor.id,
+      actorEmail: input.actor.email,
+      esAdmin: input.actor.esAdmin === true,
+    },
+    {
+      userId: registration.userId,
+      email: registration.email,
+      edicionEsCopiaDeEnsayo: registration.edition.isOpsFixture === true,
+    },
+  );
   if (!owns) return { ok: false, reason: "NOT_FOUND" };
 
   const active =
@@ -93,6 +139,9 @@ export async function loadParticipantLiveState(input: {
   ]);
 
   const checkIn = registration.checkIns[0] ?? null;
+  const fotosEnviadas = await prisma.clickatonPhotoSubmission.count({
+    where: { registrationId: registration.id, status: { in: [...ESTADOS_ENTREGADA] } },
+  });
 
   return {
     ok: true,
@@ -112,6 +161,9 @@ export async function loadParticipantLiveState(input: {
         opensAt: gate.opensAt?.toISOString() ?? null,
         isOpen: gate.isOpen,
       },
+      supportWhatsappPhone: registration.edition.supportWhatsappPhone ?? null,
+      submissionFinalizedAt: registration.submissionFinalizedAt?.toISOString() ?? null,
+      fotosEnviadas,
       serverNow: clock.now().toISOString(),
     },
   };

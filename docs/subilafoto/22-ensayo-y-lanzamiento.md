@@ -21,11 +21,10 @@ ensayo del 8 no se puede hacer** y hay que decidir si se mueve la fecha.
 | Un usuario con `globalRole = 'SUPER_ADMIN'` para ver `/panel/salud` | Titular |
 | Un teléfono iPhone y uno Android a mano | Titular |
 | Un televisor o proyector con navegador | Titular |
-| Revisión legal de `/terminos` y `/privacidad` | Abogado |
-| Botón de arrepentimiento y Libro de Quejas Online (Res. 424/2020) | Abogado |
 
-Las cuatro últimas no son opcionales: **una tienda argentina sin botón de arrepentimiento
-está incumpliendo**, y eso no se arregla después del lanzamiento.
+Lo legal ya está: el botón de arrepentimiento, el Libro de Quejas y los datos del
+responsable están publicados, y los textos quedaron **revisados y aprobados sin cambios**
+el 16 de septiembre.
 
 ---
 
@@ -161,7 +160,5 @@ sufre al mismo tiempo.
 Está anotado y no bloquea:
 
 - El panel del profesional no tiene la estética del resto de la suite.
-- Enlaces de proveedor **por categoría** (hoy hay uno general).
 - Panel de administración para fusionar empresas duplicadas.
-- Que los invitados vean los proveedores en el álbum, no sólo el cliente.
 - Partes 2 y 3 de la prueba de moderación con fotos reales de eventos.

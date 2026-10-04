@@ -30,7 +30,16 @@ describe("los textos de los avisos", () => {
     // marca rompería la marca blanca que le prometimos al fotógrafo.
     const c = textoDelAviso({ ...BASE, aviso });
     expect(c.texto).toContain("Estudio Norte");
-    expect(`${c.asunto} ${c.texto}`).not.toMatch(/subí la foto/i);
+    /*
+      Se quitan las direcciones antes de mirar: el enlace al panel vive en nuestro
+      dominio y no hay forma de evitarlo. Lo que no puede aparecer es **el nombre**.
+
+      Se buscan las dos grafías: la marca se escribe "SubiLaFoto" desde el 16/9 y un
+      texto viejo podría haber quedado con la anterior.
+    */
+    const sinEnlaces = `${c.asunto} ${c.texto}`.replace(/https?:\/\/\S+/g, "");
+    expect(sinEnlaces).not.toMatch(/subi\s?la\s?foto/i);
+    expect(sinEnlaces).not.toMatch(/subí\s?la\s?foto/i);
   });
 
   test("a quien ya tiene la descarga no se le ofrece comprarla", () => {

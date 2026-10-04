@@ -22,7 +22,7 @@ const cormorant = Cormorant_Garamond({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://subilafoto.com"),
-  title: "Subí la Foto",
+  title: "SubiLaFoto",
   description:
     "Todas las miradas de tu evento, en un solo lugar. Los invitados escanean un código, suben sus fotos y aparecen en la pantalla y en el álbum.",
   icons: {
@@ -33,10 +33,10 @@ export const metadata: Metadata = {
     apple: "/brand/subilafoto-icon-512.png",
   },
   openGraph: {
-    title: "Subí la Foto",
+    title: "SubiLaFoto",
     description: "Todas las miradas de tu evento, en un solo lugar.",
     url: "https://subilafoto.com",
-    siteName: "Subí la Foto",
+    siteName: "SubiLaFoto",
     locale: "es_AR",
     type: "website",
     images: [{ url: "/brand/subilafoto-avatar-1080.png", width: 1080, height: 1080 }],

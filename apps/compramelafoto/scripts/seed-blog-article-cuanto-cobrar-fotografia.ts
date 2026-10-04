@@ -26,7 +26,7 @@ async function main() {
   }
 
   const category = await prisma.blogCategory.upsert({
-    where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: CATEGORY_SLUG } },
+    where: { platform_workspaceKey_slug: { platform: CLF_CONTENT_PLATFORM, workspaceKey: "", slug: CATEGORY_SLUG } },
     update: {
       name: "Herramientas para Fotógrafos",
       description:
@@ -46,7 +46,7 @@ async function main() {
 
   const author =
     (await prisma.blogAuthor.upsert({
-      where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: AUTHOR_SLUG } },
+      where: { platform_workspaceKey_slug: { platform: CLF_CONTENT_PLATFORM, workspaceKey: "", slug: AUTHOR_SLUG } },
       update: { name: "Comprame la Foto" },
       create: {
         platform: CLF_CONTENT_PLATFORM,
@@ -72,7 +72,7 @@ async function main() {
   for (const name of draft.tags) {
     const tagSlug = slugifyBlogFromName(name);
     const tag = await prisma.blogTag.upsert({
-      where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: tagSlug } },
+      where: { platform_workspaceKey_slug: { platform: CLF_CONTENT_PLATFORM, workspaceKey: "", slug: tagSlug } },
       update: { name },
       create: { platform: CLF_CONTENT_PLATFORM, name, slug: tagSlug },
     });
@@ -82,7 +82,7 @@ async function main() {
   const now = new Date();
 
   const post = await prisma.blogPost.upsert({
-    where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: SLUG } },
+    where: { platform_workspaceKey_slug: { platform: CLF_CONTENT_PLATFORM, workspaceKey: "", slug: SLUG } },
     update: {
       title: prepared.title,
       excerpt: prepared.excerpt,

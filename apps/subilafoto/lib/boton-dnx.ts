@@ -2,7 +2,7 @@ import { radius, spacing } from "@repo/design-system/tokens";
 import { themeSubiLaFoto } from "@repo/design-system/themes";
 
 /**
- * El botón de DNX, con los colores de Subí la Foto.
+ * El botón de DNX, con los colores de SubiLaFoto.
  *
  * La geometría —radio, relleno, peso, tamaño de letra— sale de los mismos
  * tokens que usa el `Button` de `@repo/design-system`, así que un botón de esta

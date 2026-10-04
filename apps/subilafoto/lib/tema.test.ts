@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { resolverTema, TEMA_BASE } from "./tema";
 
 describe("el tema visual del evento", () => {
-  test("sin plantilla elegida, queda la identidad de Subí la Foto", () => {
+  test("sin plantilla elegida, queda la identidad de SubiLaFoto", () => {
     const t = resolverTema(null);
     expect(t).toEqual(TEMA_BASE);
   });

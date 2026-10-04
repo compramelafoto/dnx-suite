@@ -521,7 +521,7 @@ export default function AdminIAPage() {
 
       {/* Estadísticas */}
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid dnx-grid-4 gap-4">
           <Card className="p-6">
             <p className="text-sm text-gray-600">Total de Fotos</p>
             <p className="text-2xl font-bold text-gray-900 mt-1">{stats.totalPhotos}</p>
@@ -956,7 +956,7 @@ export default function AdminIAPage() {
               {errorDiagnostics.errorTypesSummary && (
                 <div className="bg-white p-4 rounded-md border-2 border-red-200">
                   <h3 className="text-sm font-semibold text-gray-900 mb-3">📊 Resumen de Tipos de Error</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                  <div className="grid dnx-grid-4 dnx-grid-compacta gap-3 text-sm">
                     {errorDiagnostics.errorTypesSummary.AUTH_ERROR > 0 && (
                       <div className="bg-red-50 p-2 rounded border border-red-200">
                         <p className="font-semibold text-red-800">🔐 Autenticación</p>

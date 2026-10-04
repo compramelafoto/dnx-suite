@@ -1,6 +1,6 @@
 # Botón de arrepentimiento y Libro de Quejas
 
-*Implementado el 2026-09-15. **Los textos están pendientes de revisión legal.***
+*Implementado el 2026-09-15. Textos revisados y aprobados sin cambios el 2026-09-16.*
 
 ## Qué exige la norma
 
@@ -15,7 +15,7 @@ venda por internet en Argentina a tener:
 El derecho de fondo es el **artículo 34 de la Ley 24.240**: diez días corridos para
 revocar, sin tener que explicar por qué y sin costo.
 
-No lo tenía ninguna plataforma de la suite. Ahora lo tiene Subí la Foto.
+No lo tenía ninguna plataforma de la suite. Ahora lo tiene SubiLaFoto.
 
 ## Dónde están los enlaces
 
@@ -46,17 +46,104 @@ dos casos.
 Se deriva del identificador de la solicitud, no es al azar: **un reintento da el mismo
 número** en vez de generar una constancia nueva para el mismo pedido.
 
+## Resolverlas: `/panel/arrepentimientos`
+
+Sólo para usuarios administradores: son solicitudes de toda la plataforma, no de un
+vendedor.
+
+### Ordenadas por lo que falta para vencer, no por fecha
+
+La norma da **24 horas para contestar**. Lo que importa no es cuál llegó primero sino cuál
+se está por vencer, así que la lista se ordena por eso y cada una dice "Quedan 8 horas" o
+"Vencida hace 3 horas" en vez de una fecha.
+
+Las horas se redondean **hacia abajo**: decir "quedan 3" cuando quedan 3 y monedas es
+preferible a que alguien crea que tiene una hora más de la que tiene.
+
+### Busca la compra sola
+
+Ese era el único trabajo real de resolver una solicitud, y se hacía abriendo la base. Quien
+escribe no tiene el identificador de la orden: tiene su correo y, con suerte, el código del
+evento anotado en algún lado.
+
+La pantalla busca por correo, por código de evento y por número de orden, y muestra las
+candidatas **diciendo por qué apareció cada una**. Sin eso, una coincidencia por código con
+otro correo parece un error del buscador en vez de un dato para mirar con atención.
+
+Son candidatas, no una respuesta: dos personas comparten un correo y los códigos se
+escriben mal.
+
+### Hay que escribir qué se hizo
+
+No alcanza con apretar un botón. Dentro de seis meses lo que hace falta saber es **qué se
+resolvió**, no que alguien lo marcó. Queda registrado con el correo de quien lo hizo.
+
+Y la condición `status: RECEIVED` va en el `where` del `updateMany`: si dos personas la
+resuelven a la vez, la segunda cambia cero filas en vez de pisar lo que escribió la
+primera. Lo que se pisaría es el registro de una obligación legal.
+
+### La constancia también va por correo
+
+Mostrarla en pantalla es la mitad: si la persona cierra la pestaña, pierde el número. El
+correo es lo que le queda.
+
+Salen dos: uno a quien pidió, con la constancia en el **asunto** —que es lo que va a buscar
+en su bandeja dentro de un mes— y otro al titular, con todo lo necesario para encontrar la
+compra.
+
+**Acá sí firmamos nosotros**, al revés que los avisos posteriores al evento. Aquellos son
+del fotógrafo; el arrepentimiento es contra la plataforma, y quien lo pide tiene que saber
+con quién está hablando.
+
+El correo a quien pide **no dice que ya está cancelado**: recibir la solicitud no es
+resolverla, y hay un test que lo fija.
+
+Los dos salen **después de responder**, con `after()`. Quien mira la pantalla ya tiene su
+número: hacerlo esperar a que Resend conteste sería cobrarle la latencia de un correo que
+no necesita ver salir. Y si fallan, la solicitud ya está guardada — perder el correo es
+molesto, perder el pedido sería negarle un derecho a alguien por un problema de
+infraestructura.
+
+Queda registrado si salió (`noticeSentAt`) y, si no, por qué (`noticeError`). El panel lo
+muestra: una constancia que no salió por correo es algo que conviene mandar a mano.
+
+> **Mientras `SUBILAFOTO_CORREOS_EN_VIVO` esté en `false`, no sale ninguno** y queda
+> anotado el motivo. La constancia se sigue mostrando en pantalla y la solicitud se guarda
+> igual.
+
+### El panel de salud avisa
+
+Una solicitud sin resolver aparece como aviso; pasadas las 24 horas, como **grave**.
+Pasado ese plazo no es una demora, es un incumplimiento.
+
+Con vencidas, no se avisa además de las que están en plazo: dos alertas del mismo tema
+empujan hacia abajo lo demás sin agregar nada.
+
 ## Lo que falta
 
-| Falta | Quién |
-|---|---|
-| Revisión legal de estos textos, de `/terminos` y de `/privacidad` | Abogado |
-| Que la solicitud avise por correo a quien la hizo y al titular | Espera a que estén los correos |
-| Pantalla para resolver las solicitudes | Hoy se miran en la base |
-| Datos de la empresa —razón social, CUIT, domicilio— en el pie | Titular |
+Nada. La constancia sale por correo desde el 2026-09-17 y el envío se verificó contra
+producción.
 
-Ese último punto también lo pide la norma y no lo puedo completar yo: son los datos
-fiscales reales de la empresa.
+## Quién vende, en el pie de todas las páginas
+
+Cargado el 2026-09-16. Lo piden la Resolución 424/2020 y el artículo 4 de la Ley 24.240:
+el consumidor tiene que poder saber **con quién contrató** sin buscarlo.
+
+| | |
+|---|---|
+| Responsable | Daniel Andrés Cuart |
+| CUIT | 20-31973378-8 |
+| Domicilio | San José 1672, Local 5, Funes (CP 2132), Santa Fe |
+
+Dice **"Responsable"** y no "Razón social" porque el CUIT empieza con 20: es una persona
+física, no una sociedad.
+
+El dígito verificador se comprobó antes de escribirlo. Un CUIT mal tipeado en un pie legal
+es peor que no ponerlo: parece cumplimiento y no lo es.
+
+El pie vive en un solo componente —`PieLegal`— y lo usan la portada, las dos páginas
+legales y la del arrepentimiento. Repetirlo en cada pantalla garantizaba que alguna quedara
+con los datos viejos.
 
 ```sql
 SELECT receipt, email, reference, status, "createdAt"

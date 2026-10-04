@@ -33,6 +33,7 @@ export function SpaceForm({
   const [minBookingMinutes, setMinBookingMinutes] = useState(
     space?.rules.minBookingMinutes ?? 60,
   );
+  const [modo, setModo] = useState<"HOURLY" | "BLOCK">(space?.pricingMode ?? "HOURLY");
 
   return (
     <form action={saveSpaceAction} className="space-y-6">
@@ -181,8 +182,101 @@ export function SpaceForm({
 
       <section className="fo-card space-y-4 p-5">
         <h2 className="text-base font-semibold">Tarifas</h2>
+
+        <fieldset className="space-y-2">
+          <legend className="fo-label">Cómo se cobra</legend>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {(
+              [
+                ["HOURLY", "Por hora", "Cada hora se cobra igual. Ej.: coworking a $3.000 la hora."],
+                [
+                  "BLOCK",
+                  "Por paquete o jornada",
+                  "Un precio fijo por bloque de horas, o uno solo por día. Ej.: estudio $30.000 cada 2 h.",
+                ],
+              ] as const
+            ).map(([valor, titulo, ayuda]) => (
+              <label
+                key={valor}
+                className={`flex cursor-pointer gap-3 rounded-[var(--fo-radius-sm)] border p-3 text-sm transition-colors ${
+                  modo === valor
+                    ? "border-[var(--fo-accent)] bg-[var(--fo-accent-soft)]"
+                    : "border-[var(--fo-border)] hover:bg-[var(--fo-surface-hover)]"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="pricingMode"
+                  value={valor}
+                  checked={modo === valor}
+                  onChange={() => setModo(valor)}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="block font-semibold text-[var(--fo-text)]">{titulo}</span>
+                  <span className="block text-xs text-[var(--fo-muted)]">{ayuda}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
+        {modo === "BLOCK" ? (
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="fo-field-stack">
+              <label className="fo-label" htmlFor="blockMinutes">
+                Largo del paquete
+              </label>
+              <select
+                id="blockMinutes"
+                name="blockMinutes"
+                className="fo-input"
+                defaultValue={space?.blockMinutes ? String(space.blockMinutes) : ""}
+              >
+                <option value="">Jornada (un precio, dure lo que dure)</option>
+                {[60, 120, 180, 240, 300, 360]
+                  .filter((m) => m % slotMinutes === 0)
+                  .map((m) => (
+                    <option key={m} value={m}>
+                      {m / 60} {m === 60 ? "hora" : "horas"}
+                    </option>
+                  ))}
+              </select>
+              <p className="fo-helper">
+                Si alguien reserva menos, paga el paquete entero.
+              </p>
+            </div>
+            <div className="fo-field-stack">
+              <label className="fo-label" htmlFor="memberBlockPriceArs">
+                Precio del paquete — socios
+              </label>
+              <input
+                id="memberBlockPriceArs"
+                name="memberBlockPriceArs"
+                className="fo-input"
+                defaultValue={space ? pesos(space.memberBlockPriceMinor) : ""}
+                placeholder="30.000"
+                required
+              />
+            </div>
+            <div className="fo-field-stack">
+              <label className="fo-label" htmlFor="nonMemberBlockPriceArs">
+                Precio del paquete — no socios
+              </label>
+              <input
+                id="nonMemberBlockPriceArs"
+                name="nonMemberBlockPriceArs"
+                className="fo-input"
+                defaultValue={space ? pesos(space.nonMemberBlockPriceMinor) : ""}
+                placeholder="40.000"
+                required
+              />
+            </div>
+          </div>
+        ) : null}
+
         <div className="grid gap-4 sm:grid-cols-3">
-          <div className="fo-field-stack">
+          <div className={`fo-field-stack ${modo === "BLOCK" ? "hidden" : ""}`}>
             <label className="fo-label" htmlFor="memberHourlyPriceArs">
               Precio por hora — socios
             </label>
@@ -192,10 +286,10 @@ export function SpaceForm({
               className="fo-input"
               defaultValue={space ? pesos(space.memberHourlyPriceMinor) : ""}
               placeholder="3.000"
-              required
+              required={modo === "HOURLY"}
             />
           </div>
-          <div className="fo-field-stack">
+          <div className={`fo-field-stack ${modo === "BLOCK" ? "hidden" : ""}`}>
             <label className="fo-label" htmlFor="nonMemberHourlyPriceArs">
               Precio por hora — no socios
             </label>
@@ -205,7 +299,7 @@ export function SpaceForm({
               className="fo-input"
               defaultValue={space ? pesos(space.nonMemberHourlyPriceMinor) : ""}
               placeholder="5.000"
-              required
+              required={modo === "HOURLY"}
             />
           </div>
           <div className="fo-field-stack">
@@ -220,7 +314,10 @@ export function SpaceForm({
               className="fo-input"
               defaultValue={space?.memberFreeHoursPerMonth ?? 0}
             />
-            <p className="fo-helper">Para socios. No se acumulan de un mes al otro.</p>
+            <p className="fo-helper">
+              Para socios. No se acumulan de un mes al otro.
+              {modo === "BLOCK" ? " Cubren paquetes enteros: 2 h bonificadas pagan un paquete de 2 h." : ""}
+            </p>
           </div>
         </div>
         <label className="flex items-center gap-2 text-sm">
@@ -231,6 +328,9 @@ export function SpaceForm({
           />
           Se puede alquilar a no socios
         </label>
+        {/* Va después de la casilla: destildada, el navegador no la manda y queda sólo este
+            "off"; tildada, el "on" llega primero y es el que se lee. */}
+        <input type="hidden" name="allowsNonMembers" value="off" />
       </section>
 
       <section className="fo-card space-y-4 p-5">

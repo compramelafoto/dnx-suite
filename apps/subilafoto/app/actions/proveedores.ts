@@ -8,6 +8,7 @@ import { prisma } from "@repo/db";
 import { hashDeIp } from "@/lib/consentimiento";
 import { ipDelPedido } from "@/lib/consentimiento-db";
 import { registrarProveedor } from "@/lib/proveedores/registrar";
+import { categoriaDelEnlace, esCategoriaValida, etiquetaDeCategoria } from "@/lib/proveedores/categorias";
 
 /**
  * Las dos acciones de la captación de proveedores: crear el enlace y recibir la ficha.
@@ -56,6 +57,54 @@ export async function crearEnlaceDeProveedoresAction(
   return {};
 }
 
+/**
+ * Crea un enlace para una categoría concreta.
+ *
+ * Mandarle al salón uno que ya diga "salón" le ahorra un paso y, sobre todo, evita que el
+ * catering se anote como fotografía por elegir mal en una lista de treinta.
+ */
+export async function crearEnlaceDeCategoriaAction(
+  _previo: EstadoEnlace,
+  formData: FormData,
+): Promise<EstadoEnlace> {
+  const eventoId = String(formData.get("eventoId") ?? "");
+  const categoria = String(formData.get("categoria") ?? "");
+
+  if (!esCategoriaValida(categoria)) return { error: "Elegí una categoría." };
+
+  const almacen = await cookies();
+  const cookie = almacen.get(DNX_SESSION_COOKIE)?.value;
+  const usuario = cookie ? await getSessionUserByRawToken(cookie) : null;
+  if (!usuario) return { error: "Tenés que iniciar sesión otra vez." };
+
+  const evento = await prisma.subilafotoEvent.findFirst({
+    where: { id: eventoId, sellerProfile: { userId: usuario.id } },
+    select: { id: true },
+  });
+  if (!evento) return { error: "No encontramos ese evento." };
+
+  const etiqueta = etiquetaDeCategoria(categoria);
+
+  // Uno por categoría y por evento: generar el mismo dos veces deja dos enlaces vivos y
+  // después nadie sabe cuál repartió.
+  const yaHay = await prisma.subilafotoAccessLink.count({
+    where: { eventId: evento.id, kind: "VENDOR", label: etiqueta, revokedAt: null },
+  });
+  if (yaHay > 0) return {};
+
+  await prisma.subilafotoAccessLink.create({
+    data: {
+      eventId: evento.id,
+      kind: "VENDOR",
+      token: randomBytes(24).toString("base64url"),
+      label: etiqueta,
+    },
+  });
+
+  revalidatePath(`/panel/eventos/${eventoId}/proveedores`);
+  return {};
+}
+
 export type EstadoFicha = { error?: string; listo?: boolean; yaEstaba?: boolean };
 
 /**
@@ -72,7 +121,7 @@ export async function enviarFichaDeProveedorAction(
 
   const enlace = await prisma.subilafotoAccessLink.findUnique({
     where: { token },
-    select: { eventId: true, revokedAt: true, expiresAt: true, kind: true },
+    select: { eventId: true, revokedAt: true, expiresAt: true, kind: true, label: true },
   });
 
   if (!enlace || enlace.kind !== "VENDOR" || enlace.revokedAt) {
@@ -93,7 +142,12 @@ export async function enviarFichaDeProveedorAction(
       nombre: texto("nombre") ?? "",
       razonSocial: texto("razonSocial"),
       cuit: texto("cuit"),
-      categoria: texto("categoria") ?? "",
+      /*
+        Si el enlace es de una categoría, manda esa. No es sólo comodidad: el formulario
+        de un enlace por rubro no muestra el selector, así que confiar en lo que llega
+        dejaría entrar cualquier cosa escrita a mano.
+      */
+      categoria: categoriaDelEnlace(enlace.label) ?? texto("categoria") ?? "",
       descripcion: texto("descripcion"),
       contactoNombre: texto("contactoNombre"),
       contactoRol: texto("contactoRol"),

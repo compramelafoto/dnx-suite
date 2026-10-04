@@ -1,3 +1,6 @@
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
+import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
+
 /**
  * Texto del canal de ayuda por un cobro que el socio no reconoce.
  *
@@ -17,8 +20,14 @@ export const DUES_HELP_INVITE =
  * de ida y vuelta antes de poder mirar la ficha. Sin número disponible el mensaje se acorta
  * en vez de quedar cortado a la mitad.
  */
-export function buildDuesHelpMessage(input: { memberNumber: string | null | undefined }): string {
+export function buildDuesHelpMessage(input: {
+  memberNumber: string | null | undefined;
+  vocabulary: PersonVocabulary;
+}): string {
   const numero = input.memberNumber?.trim();
   if (!numero) return "Hola, tengo una consulta sobre el cobro de mi cuota.";
-  return `Hola, soy el socio N° ${numero}. Tengo una consulta sobre el cobro de mi cuota.`;
+  return aplicarVocabulario(
+    `Hola, soy el {persona} N° ${numero}. Tengo una consulta sobre el cobro de mi cuota.`,
+    input.vocabulary,
+  );
 }

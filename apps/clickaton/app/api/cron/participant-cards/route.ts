@@ -3,6 +3,13 @@ import { processDueParticipantCards } from "@/lib/participant-cards/participant-
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+/*
+ * Rasterizar carga un WebAssembly de 10 MB y dibuja a 1080×1920. Veinticinco placas en una sola
+ * invocación agotan el tiempo o la memoria de la función: las primeras salen y las últimas
+ * fallan. De a seis entra holgado, y como el cron corre cada cinco minutos, el backlog igual se
+ * despacha solo.
+ */
+export const maxDuration = 300;
 
 export async function GET(request: Request) {
   const secret =
@@ -15,8 +22,8 @@ export async function GET(request: Request) {
   }
 
   const limitParam = new URL(request.url).searchParams.get("limit");
-  const limit = limitParam ? Number.parseInt(limitParam, 10) : 25;
+  const limit = limitParam ? Number.parseInt(limitParam, 10) : 6;
 
-  const result = await processDueParticipantCards(Number.isFinite(limit) ? limit : 25);
+  const result = await processDueParticipantCards(Number.isFinite(limit) ? limit : 6);
   return NextResponse.json({ ok: true, ...result });
 }

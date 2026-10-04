@@ -10,10 +10,18 @@ import { completeApplicationIfPaid } from "./complete-application";
 import { resolveDepositTarget } from "@/lib/cash/auto-deposit";
 import { recordCashMovement } from "@/lib/cash/record-movement";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
+import { mensajeDePadron } from "@/lib/members/mensajes";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 
-/** Medios que la Secretaría puede registrar a mano. Mercado Pago entra solo, por webhook. */
-export const MANUAL_METHODS = ["EFECTIVO", "TRANSFERENCIA"] as const;
+/**
+ * Medios que la Secretaría puede registrar a mano.
+ *
+ * Los pagos por el checkout de FotOffice entran solos, por webhook. `MERCADO_PAGO` es otra
+ * cosa: el cobro que el socio hizo por un link de pago propio de la institución (el del sistema
+ * anterior), que llega a su cuenta sin pasar por FotOffice y hay que cargar a mano.
+ */
+export const MANUAL_METHODS = ["EFECTIVO", "TRANSFERENCIA", "MERCADO_PAGO"] as const;
 export type ManualMethod = (typeof MANUAL_METHODS)[number];
 
 export type ManualPaymentResult =
@@ -36,8 +44,8 @@ export type ManualPaymentResult =
  * operación. Esa comisión queda asentada como deuda y se cobra de los siguientes pagos que sí
  * entren por Mercado Pago.
  *
- * Solo devenga comisión la parte imputada a cuotas que la cobran: un pago que salda el cargo
- * de apertura —deuda traída del sistema anterior— no genera deuda de fee.
+ * La comisión corre sobre todo lo cobrado, salde la cuota que salde. Ver
+ * `accrualForManualPayment`.
  *
  * Todo pasa en una sola transacción. Un pago registrado sin bajar la deuda dejaría al socio
  * figurando como deudor de algo que ya pagó.
@@ -50,7 +58,6 @@ export async function registerManualPayment(input: {
   paidAt: Date;
   reference: string | null;
   feeBps: number;
-  feeSincePeriod: string;
 }): Promise<ManualPaymentResult> {
   if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) {
     return { ok: false, error: "El importe tiene que ser mayor que cero." };
@@ -60,7 +67,10 @@ export async function registerManualPayment(input: {
     where: { id: input.memberId, workspaceId: input.workspaceId },
     select: { id: true, memberNumber: true },
   });
-  if (!socio) return { ok: false, error: "Ese socio no pertenece a esta institución." };
+  if (!socio) {
+    const vocabulary = await loadPersonVocabulary(input.workspaceId);
+    return { ok: false, error: mensajeDePadron("noPerteneceAEstaInstitucion", vocabulary) };
+  }
 
   const resultado = await prisma.$transaction(async (tx) => {
     // La deuda se lee dentro de la transacción: entre que se abrió el formulario y se confirmó
@@ -76,19 +86,11 @@ export async function registerManualPayment(input: {
       dueDate: f.dueDate,
       balanceMinor: decimalArsToMinor(f.balanceArs),
     }));
-    const periodoDe = new Map(abiertos.map((c) => [c.id, c.period]));
 
     const plan = allocatePayment({ amountMinor: input.amountMinor, charges: abiertos });
     const imputado = plan.allocations.reduce((s, a) => s + a.principalMinor, 0);
 
-    const feeMinor = accrualForManualPayment(
-      plan.allocations.map((a) => ({
-        period: periodoDe.get(a.chargeId) ?? "",
-        amountMinor: a.principalMinor,
-      })),
-      input.feeBps,
-      input.feeSincePeriod,
-    );
+    const feeMinor = accrualForManualPayment(input.amountMinor, input.feeBps);
 
     const pago = await tx.membershipPayment.create({
       data: {

@@ -28,16 +28,52 @@ Si alguna vez hay credenciales guardadas, **cambiar esta clave las vuelve ilegib
 todos los vendedores tienen que volver a conectar Mercado Pago. Son 32 bytes en base64;
 otro largo hace fallar el arranque con `INVALID_MASTER_KEY`.
 
-## Faltan
+### Las cuatro credenciales, cargadas el 2026-09-16
 
-Todas son secretos o acciones en una consola externa. **Ninguna la puedo cargar yo.**
+| Variable | Verificada |
+|---|---|
+| `SUBILAFOTO_MP_CLIENT_ID` | Sí |
+| `SUBILAFOTO_MP_CLIENT_SECRET` | Sí |
+| `SUBILAFOTO_MP_ACCESS_TOKEN` | **Sí, contra la API de Mercado Pago** |
+| `RESEND_API_KEY` | **Sí, contra la API de Resend** |
 
-| Variable | De dónde sale | Sin ella |
-|---|---|---|
-| `SUBILAFOTO_MP_CLIENT_ID` | App **"DNX Suite"** de Mercado Pago | El fotógrafo no puede conectar su cuenta |
-| `SUBILAFOTO_MP_CLIENT_SECRET` | Ídem | Ídem |
-| `SUBILAFOTO_MP_ACCESS_TOKEN` | Cuenta de Mercado Pago de DNX | No se leen los pagos ni se cobra el adicional |
-| `RESEND_API_KEY` | Panel de Resend | Los cinco avisos salen en seco |
+`/api/salud` responde `configuracion.completa: true`.
+
+**El token apunta a la cuenta real**, no a un usuario de prueba:
+
+```
+cuentaId: 97484805 · nickname: DNXESTUDIO · esDePrueba: false
+```
+
+Esa comprobación no es opcional. Un token de prueba **también empieza con `APP_USR-`**, así
+que mirar el prefijo no alcanza: hay que preguntarle a la API de quién es. Con credenciales
+de prueba el checkout abre, el pago se aprueba y el dinero no existe.
+
+**La clave de Resend es válida y de sólo envío**, que es como conviene que esté: no puede
+listar dominios ni tocar nada más. El costo es que el estado del dominio hay que mirarlo en
+el panel.
+
+### El dominio está verificado, y se comprobó mandando un correo de verdad
+
+*2026-09-17.* Con los correos ya encendidos, se mandó una constancia de arrepentimiento a
+`delivered@resend.dev` —la dirección de descarte de Resend, que no es una persona— desde el
+formulario público.
+
+```
+receipt: AR-VAWFSH · noticeSentAt: 2026-09-17T16:22:46Z · noticeError: null
+```
+
+**Salió.** Si el dominio no estuviera verificado, Resend habría devuelto 403 y el motivo
+estaría en `noticeError`. Con eso queda probada la cadena entera: formulario → base →
+constancia → `after()` → Resend → entregado.
+
+La solicitud de prueba se borró.
+
+## Lo que todavía no se puede dar por hecho
+
+| Qué | Cómo se comprueba |
+|---|---|
+| La URL de retorno bien escrita en Mercado Pago | Sólo haciendo el OAuth completo. Una barra de más falla con un error opaco |
 
 Y dos que no son variables:
 

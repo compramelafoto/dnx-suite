@@ -4,7 +4,7 @@ import { themeSubiLaFoto } from "@repo/design-system/themes";
 import { estiloBotonDnx, tintaSobre } from "./boton-dnx";
 import { contraste } from "./contraste";
 
-describe("botón DNX con colores de Subí la Foto", () => {
+describe("botón DNX con colores de SubiLaFoto", () => {
   test("usa el radio de botón del design system, no una píldora", () => {
     // El botón de la suite tiene esquinas de 8px. Una píldora se ve de otra
     // familia aunque el color sea el correcto.

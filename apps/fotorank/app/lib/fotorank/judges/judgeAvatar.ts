@@ -7,6 +7,32 @@ export const JUDGE_AVATAR_ALLOWED_MIME = new Set(["image/jpeg", "image/png", "im
 
 const AVATAR_URL_MAX_LEN = 2048;
 
+export type JudgeAvatarExtension = "jpg" | "png" | "webp";
+
+const JUDGE_AVATAR_KEY_RE =
+  /^fotorank\/judges\/([A-Za-z0-9_-]+)\/avatar\/([a-f0-9]+)\.(jpg|png|webp)$/;
+
+export function buildJudgeAvatarKey(
+  judgeAccountId: string,
+  hash: string,
+  ext: JudgeAvatarExtension,
+): string {
+  return `fotorank/judges/${judgeAccountId}/avatar/${hash}.${ext}`;
+}
+
+export function parseJudgeAvatarKey(
+  key: string,
+): { judgeAccountId: string; hash: string; ext: string } | null {
+  const m = JUDGE_AVATAR_KEY_RE.exec(key);
+  if (!m) return null;
+  return { judgeAccountId: m[1]!, hash: m[2]!, ext: m[3]! };
+}
+
+export function isJudgeAvatarKey(value: string | null | undefined): boolean {
+  return !!value && parseJudgeAvatarKey(value.trim()) !== null;
+}
+
+
 export function extensionForJudgeAvatarMime(mime: string): string | null {
   switch (mime) {
     case "image/jpeg":
@@ -38,32 +64,11 @@ export function normalizeJudgeAvatarUrl(raw: string | null | undefined): string 
   return url.toString();
 }
 
-/**
- * Nombre de archivo seguro bajo uploads/judges (sin path traversal), o null si no es un avatar gestionado localmente.
- * No usa fs (seguro de importar en cliente).
- */
-export function managedJudgeAvatarFilenameFromPublicUrl(publicUrl: string | null | undefined): string | null {
-  const s = publicUrl?.trim();
-  if (!s || !s.startsWith("/uploads/judges/")) return null;
-  const rest = s.slice("/uploads/judges/".length);
-  if (!rest || rest.includes("..") || rest.includes("/") || rest.includes("\\")) return null;
-  if (!/^[a-f0-9]{32}\.(jpg|png|webp)$/.test(rest)) return null;
-  return rest;
-}
-
-export function isManagedJudgeAvatarPublicUrl(publicUrl: string | null | undefined): boolean {
-  return managedJudgeAvatarFilenameFromPublicUrl(publicUrl) !== null;
-}
-
-/** Acepta URL absoluta http(s) o ruta local segura de avatar subido por admin. */
+/** Acepta una clave del bucket privado o una URL absoluta http(s). */
 export function normalizeStoredJudgeAvatarRef(raw: string | null | undefined): string | null {
   const s = raw?.trim();
   if (!s) return null;
-  if (s.startsWith("/uploads/judges/")) {
-    const filename = managedJudgeAvatarFilenameFromPublicUrl(s);
-    if (!filename) return null;
-    return `/uploads/judges/${filename}`;
-  }
+  if (parseJudgeAvatarKey(s)) return s;
   return normalizeJudgeAvatarUrl(s);
 }
 

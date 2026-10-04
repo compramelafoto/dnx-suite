@@ -14,6 +14,7 @@ import {
   type RegistrationPaidEvent,
   type SyncRecordView,
 } from "../domain/types";
+import { tieneParticipanteDefinido } from "@/lib/registration/domain/participante-definido";
 
 export type SyncEditionConfig = {
   id: string;
@@ -216,7 +217,9 @@ export function createFotoRankSyncService(store: InMemoryFotoRankSyncStore) {
     } {
       const reg = store.registrations.get(event.registrationId);
       if (!reg) return { enqueued: false, syncId: null, reason: "REGISTRATION_NOT_FOUND" };
-      if (reg.paymentStatus !== "APPROVED" && reg.status !== "CONFIRMED") {
+      // Mismo agujero que en el adaptador: con `&&`, un regalo pagado sin
+      // activar pasaba y se sincronizaba con el nombre de quien lo compró.
+      if (!tieneParticipanteDefinido(reg)) {
         return { enqueued: false, syncId: null, reason: "NOT_PAID" };
       }
       const edition = store.editions.get(event.editionId);

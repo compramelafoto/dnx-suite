@@ -80,6 +80,17 @@ export const MEMBERSHIP_EMAIL_KEYS = {
 } as const;
 
 /**
+ * Claves del recordatorio de cuota en `SentEmailLog`.
+ *
+ * Dos claves y no una para poder contestar «¿lo mandó la tarea del día del recordatorio o
+ * alguien apretó el botón?». Para no repetir el correo en el mes se miran las dos.
+ */
+export const DUES_EMAIL_KEYS = {
+  REMINDER: "fotoffice.membership.dues-reminder",
+  REMINDER_MANUAL: "fotoffice.membership.dues-reminder-manual",
+} as const;
+
+/**
  * Claves de las comunicaciones del módulo de coberturas en `SentEmailLog`.
  *
  * Se registran todos —también los que fallan— por el mismo motivo que en el alta de socios:
@@ -92,4 +103,21 @@ export const COVERAGE_EMAIL_KEYS = {
   INFO_REQUESTED: "fotoffice.coverages.request-info-requested",
   APPROVED: "fotoffice.coverages.request-approved",
   REJECTED: "fotoffice.coverages.request-rejected",
+  /**
+   * Se le emitió un enlace de seguimiento nuevo porque el anterior no llegó. Sale a la
+   * organización solicitante.
+   *
+   * Tiene su propia clave y no reusa la del acuse de recibo: la pregunta que hay que poder
+   * contestar mirando `SentEmailLog` es «¿le reenviamos el enlace o no?», y mezclada con el
+   * correo de recepción no se distingue.
+   */
+  TRACKING_LINK: "fotoffice.coverages.tracking-link",
+  /** Se publicó una convocatoria. Sale a cada colaborador activo, por separado. */
+  CALL_PUBLISHED: "fotoffice.coverages.call-published",
+  /** Alguien quedó seleccionado o se lo invitó directo. Sale a esa persona. */
+  ASSIGNMENT_INVITED: "fotoffice.coverages.assignment-invited",
+  /** Alguien confirmó su lugar. Sale a la coordinación. */
+  ASSIGNMENT_CONFIRMED: "fotoffice.coverages.assignment-confirmed",
+  /** Se completaron todos los roles. Sale a la organización solicitante. */
+  TEAM_COMPLETE: "fotoffice.coverages.team-complete",
 } as const;

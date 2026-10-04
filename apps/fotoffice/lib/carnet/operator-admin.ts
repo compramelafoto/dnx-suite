@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
-import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
+import { isFullAccessRole } from "@/lib/permissions/levels";
 
 /**
  * Quiénes pueden recibir permisos sobre los carnets.
@@ -44,7 +44,7 @@ export async function listOperatorCandidates(workspaceId: string): Promise<Opera
   // una dejaría gente sin aparecer en la lista.
   for (const fila of [...unificadas, ...legado]) {
     const previo = porUsuario.get(fila.userId);
-    const esAdmin = canManageWorkspaceSettings(fila.role);
+    const esAdmin = isFullAccessRole(fila.role);
     if (previo) {
       // Si figura en las dos, manda el rol más alto.
       previo.isAdmin = previo.isAdmin || esAdmin;

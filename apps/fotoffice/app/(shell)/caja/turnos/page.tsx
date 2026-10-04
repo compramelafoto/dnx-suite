@@ -1,6 +1,6 @@
 import { prisma } from "@repo/db";
 import { PageHeader } from "@/components/page-header";
-import { requireCashStaff } from "@/lib/cash/access";
+import { requireCashViewer } from "@/lib/cash/access";
 import { listShifts, userDisplayNames } from "@/lib/cash/repository";
 import { decimalArsToMinor, formatMinorArs } from "@/lib/membership/money";
 import { suggestedDropMinor } from "@/lib/cash/transfer";
@@ -17,7 +17,7 @@ export default async function TurnosPage({
 }: {
   searchParams: Promise<{ error?: string; ok?: string; shiftId?: string }>;
 }) {
-  const { workspace } = await requireCashStaff();
+  const { workspace, canOperate } = await requireCashViewer();
   const params = await searchParams;
 
   const turnos = await listShifts(workspace.id);
@@ -27,7 +27,7 @@ export default async function TurnosPage({
   // redirige a esta pantalla, no a `/caja`. Sólo se ofrece cuando el negocio tiene una caja
   // fuerte a la que pasar — si no existe, no hay a dónde.
   const cajaFuerte =
-    params.ok === "1"
+    params.ok === "1" && canOperate
       ? await prisma.cashAccount.findFirst({
           where: { workspaceId: workspace.id, isVault: true, isActive: true },
           select: { id: true, name: true },

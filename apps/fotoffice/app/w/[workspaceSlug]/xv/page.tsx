@@ -40,7 +40,7 @@ export default async function PublicXvLandingPage({ params }: Props) {
   } catch (error) {
     if (isPrismaDbUnavailableError(error)) {
       return (
-        <div className="min-h-screen bg-[var(--fo-bg)] text-[var(--fo-text)]">
+        <div className="bg-[var(--fo-bg)] text-[var(--fo-text)]">
           <main className="max-w-3xl mx-auto px-4 md:px-8 py-16">
             <section className="fo-card fo-alert-warning space-y-3 text-center">
               <h1 className="text-2xl font-semibold tracking-tight">Estamos reconectando</h1>
@@ -66,7 +66,7 @@ export default async function PublicXvLandingPage({ params }: Props) {
   });
 
   return (
-    <div className="min-h-screen bg-[var(--fo-bg)] text-[var(--fo-text)]">
+    <div className="bg-[var(--fo-bg)] text-[var(--fo-text)]">
       <header className="border-b border-[var(--fo-border)] bg-[var(--fo-bg-elevated)]/90 backdrop-blur-md">
         <div className="max-w-3xl mx-auto px-4 md:px-8 py-4 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">

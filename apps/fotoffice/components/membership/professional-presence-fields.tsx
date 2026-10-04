@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { especialidadesPorGrupo, MAX_ESPECIALIDADES } from "@/lib/membership/specialties";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
 /**
  * Presencia profesional del aspirante: rubros, estudio, redes y sitio.
@@ -21,19 +22,28 @@ export type PresenciaDefaults = {
   youtube?: string | null;
   linkedin?: string | null;
   directoryOptIn?: boolean;
+  studioStreet?: string | null;
+  studioCity?: string | null;
+  studioProvince?: string | null;
+  studioPostalCode?: string | null;
+  studioMapsUrl?: string | null;
 };
 
 export function ProfessionalPresenceFields({
   institutionName,
   defaults,
   intro,
+  vocabulary,
 }: {
   institutionName: string;
   /** Valores actuales, cuando el socio edita su perfil desde el portal. */
   defaults?: PresenciaDefaults;
   /** Texto de encabezado. El alta explica para qué se piden; el portal ya no hace falta. */
   intro?: string;
+  /** El vocabulario del workspace: sus dos callers (alta pública y portal) ya lo cargan. */
+  vocabulary: PersonVocabulary;
 }) {
+  const v = vocabulary;
   const [elegidas, setElegidas] = useState<string[]>([
     ...(defaults?.specialties ?? []),
   ]);
@@ -173,6 +183,97 @@ export function ProfessionalPresenceFields({
         <p className="fo-helper">Hasta 600 caracteres.</p>
       </div>
 
+      {/*
+        Dónde atiende. Va DESPUÉS de la presentación y antes de las redes: primero quién sos y qué
+        hacés, después dónde encontrarte.
+
+        El domicilio del estudio es distinto del particular, que vive en "Mis datos personales" y
+        no se publica nunca. Acá se dice explícitamente, porque la confusión entre los dos termina
+        con el domicilio de alguien publicado en internet.
+      */}
+      <fieldset className="space-y-3">
+        <legend className="fo-label">Dónde atiende tu estudio</legend>
+        <p className="fo-helper">
+          Opcional, y se publica. Es lo que le permite a Google mostrarte cuando alguien busca un
+          fotógrafo en tu zona. <strong>No es tu domicilio particular</strong>, que nunca se
+          muestra.
+        </p>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="fo-field-stack sm:col-span-2">
+            <label className="fo-label" htmlFor="studioStreet">
+              Calle y número
+            </label>
+            <input
+              id="studioStreet"
+              name="studioStreet"
+              className="fo-input"
+              maxLength={120}
+              defaultValue={defaults?.studioStreet ?? ""}
+              placeholder="San Martín 1234, Local 5"
+            />
+          </div>
+          <div className="fo-field-stack">
+            <label className="fo-label" htmlFor="studioCity">
+              Ciudad
+            </label>
+            <input
+              id="studioCity"
+              name="studioCity"
+              className="fo-input"
+              maxLength={120}
+              defaultValue={defaults?.studioCity ?? ""}
+              placeholder="Rosario"
+            />
+          </div>
+          <div className="fo-field-stack">
+            <label className="fo-label" htmlFor="studioProvince">
+              Provincia
+            </label>
+            <input
+              id="studioProvince"
+              name="studioProvince"
+              className="fo-input"
+              maxLength={120}
+              defaultValue={defaults?.studioProvince ?? ""}
+              placeholder="Santa Fe"
+            />
+          </div>
+          <div className="fo-field-stack">
+            <label className="fo-label" htmlFor="studioPostalCode">
+              Código postal
+            </label>
+            <input
+              id="studioPostalCode"
+              name="studioPostalCode"
+              className="fo-input"
+              maxLength={20}
+              defaultValue={defaults?.studioPostalCode ?? ""}
+              placeholder="2000"
+            />
+          </div>
+          <div className="fo-field-stack sm:col-span-2">
+            <label className="fo-label" htmlFor="studioMapsUrl">
+              Enlace de Google Maps
+            </label>
+            <input
+              id="studioMapsUrl"
+              name="studioMapsUrl"
+              className="fo-input"
+              defaultValue={defaults?.studioMapsUrl ?? ""}
+              placeholder="https://www.google.com/maps/@-32.9174,-60.6505,17z"
+            />
+            <p className="fo-helper">
+              Buscá tu local en Google Maps y copiá la dirección de la barra del navegador. Con
+              esto Google sabe exactamente dónde queda y te muestra en las búsquedas de
+              &ldquo;fotógrafo cerca mío&rdquo;. Si pegás un enlace corto
+              (<code>maps.app.goo.gl</code>), abrilo primero y copiá el largo. Si ya lo cargaste,
+              acá vas a ver las coordenadas que guardamos.
+            </p>
+          </div>
+        </div>
+      </fieldset>
+
       <div className="space-y-3">
         <p className="fo-label">Tus redes</p>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -219,7 +320,7 @@ export function ProfessionalPresenceFields({
         />
         <span className="space-y-1">
           <span className="block text-sm font-medium">
-            Autorizo a publicar estos datos en el directorio de socios
+            {`Autorizo a publicar estos datos en el directorio de ${v.plural}`}
           </span>
           <span className="fo-helper block">
             Se publicarían tu nombre, tu estudio, tus rubros, tu presentación, tu sitio y tus

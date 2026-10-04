@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getJudgeByIdForOrg } from "../../../../actions/judges";
 import { EditJudgePageClient } from "./EditJudgePageClient";
+import { judgeAvatarSrc } from "../../../../lib/fotorank/judges/judgeAvatarSrc";
 
 export default async function EditJudgePage({ params }: { params: Promise<{ judgeId: string }> }) {
   const { judgeId } = await params;
@@ -10,6 +11,7 @@ export default async function EditJudgePage({ params }: { params: Promise<{ judg
   const data = result.data as {
     email: string;
     profile: {
+      id?: string | null;
       firstName?: string | null;
       lastName?: string | null;
       phone?: string | null;
@@ -38,6 +40,9 @@ export default async function EditJudgePage({ params }: { params: Promise<{ judg
           lastName: String(profile?.lastName ?? ""),
           phone: profile?.phone ?? "",
           avatarUrl: profile?.avatarUrl ?? "",
+          avatarPreviewSrc: profile?.id
+            ? judgeAvatarSrc({ id: String(profile.id), avatarUrl: profile.avatarUrl ?? null })
+            : null,
           shortBio: profile?.shortBio ?? "",
           city: profile?.city ?? "",
           country: profile?.country ?? "",

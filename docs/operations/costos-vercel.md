@@ -70,5 +70,5 @@ El ahorro se ve recién en la factura del 2 de octubre. Vale la pena mirar enton
 Build CPU Minutes bajaron de verdad, y no darlo por hecho.
 
 Y una advertencia de calendario: **la próxima factura llega el 2 de octubre, ocho días
-antes del lanzamiento de Subí la Foto.** Con la cuenta ya en mora, una suspensión en esa
+antes del lanzamiento de SubiLaFoto.** Con la cuenta ya en mora, una suspensión en esa
 ventana se lleva puestas las seis aplicaciones y el lanzamiento.

@@ -16,6 +16,7 @@ const {
   sendMock,
   requireManageMock,
   duesCalloutMock,
+  vocabularyMock,
 } = vi.hoisted(() => ({
   getMemberMock: vi.fn(),
   createInvitationMock: vi.fn(),
@@ -25,6 +26,7 @@ const {
   sendMock: vi.fn(),
   requireManageMock: vi.fn(),
   duesCalloutMock: vi.fn(),
+  vocabularyMock: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -52,10 +54,13 @@ vi.mock("@/lib/communications/load-workspace-signature", () => ({
 }));
 vi.mock("@/lib/communications/send-email", () => ({ sendTransactionalEmail: sendMock }));
 vi.mock("@/lib/membership/dues-callout", () => ({ loadDuesCallout: duesCalloutMock }));
+// Las palabras de la institución: la acción las lee para redactar sus errores.
+vi.mock("@/lib/vocabulario/load", () => ({ loadPersonVocabulary: vocabularyMock }));
 
 const { inviteMemberAction, inviteMembersBatchAction, revokeMemberInvitationAction } =
   await import("./member-access");
 const { INVITE_BATCH_MAX } = await import("@/lib/members/invitations");
+const { personVocabulary } = await import("@/lib/vocabulario/personas");
 
 const SIGNATURE = { html: "<table>marca-de-firma</table>", text: "marca-de-firma" };
 
@@ -68,6 +73,7 @@ function form(memberId = "mem-1") {
 beforeEach(() => {
   vi.stubEnv("APP_URL", "https://fotoffice.com");
   duesCalloutMock.mockReset().mockResolvedValue(null);
+  vocabularyMock.mockReset().mockResolvedValue(personVocabulary(null));
   requireManageMock.mockReset().mockResolvedValue({
     workspace: { id: "ws-sfpr", name: "Club SFPR" },
     user: { id: 7, email: "admin@sfpr.test", name: "Admin" },
@@ -203,6 +209,18 @@ describe("guardas previas", () => {
     const state = await inviteMemberAction(undefined, form());
     expect(state.error).toContain("ya tiene una cuenta");
     expect(createInvitationMock).not.toHaveBeenCalled();
+  });
+
+  it("en una institución de voluntarios, el error habla de voluntarios", async () => {
+    // La costura que importa: la acción pide las palabras del workspace y las usa para
+    // redactar el error. Si alguien vuelve a escribir "socio" a mano, este test lo dice.
+    vocabularyMock.mockResolvedValue(
+      personVocabulary({ singular: "voluntario/a", plural: "voluntarios/as" }),
+    );
+    getMemberMock.mockResolvedValue({ id: "mem-1", email: "s@x.test", status: "ACTIVE", userId: 5 });
+    const state = await inviteMemberAction(undefined, form());
+    expect(state.error).toBe("Este voluntario/a ya tiene una cuenta vinculada.");
+    expect(state.error).not.toMatch(/socio/i);
   });
 
   /** La autorización vive en `requireMembersManageContext`, que STAFF no supera. */

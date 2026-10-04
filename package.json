@@ -9,6 +9,7 @@
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
+    "estado": "node scripts/estado-de-obra.mjs",
     "dnx:create-director": "pnpm --filter @repo/auth create-director",
     "dnx-mcp:dev": "pnpm --filter @dnx/dnx-mcp dev",
     "dnx-mcp:build": "pnpm --filter @dnx/dnx-mcp build",

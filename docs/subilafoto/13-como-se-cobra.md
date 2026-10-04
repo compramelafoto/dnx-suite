@@ -152,7 +152,7 @@ avisos: insistir es la forma más rápida de que marque el correo como spam.
 ### Sin nuestra marca
 
 El texto firma con el vendedor. Para el cliente el servicio es de quien se lo
-vendió, y que apareciera Subí la Foto rompería la marca blanca. Hay un test que
+vendió, y que apareciera SubiLaFoto rompería la marca blanca. Hay un test que
 verifica que nuestro nombre no aparezca en ninguno de los cinco.
 
 ### Sale en seco hasta que se habilite

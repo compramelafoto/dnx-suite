@@ -8,7 +8,17 @@ const nextConfig: NextConfig = {
   // @repo/db NO se transpila: se externaliza para conservar el Query Engine de Prisma.
   // Mismo criterio que apps/clickaton. Transpilarlo funcionaba con Turbopack, pero con
   // webpack el motor nativo no llega al bundle y toda consulta falla en runtime.
-  transpilePackages: ["@repo/auth", "@repo/auth-ui", "@repo/payments", "@repo/design-studio"],
+  transpilePackages: [
+    "@repo/auth",
+    "@repo/auth-ui",
+    // El blog de cada institución: el motor compartido y su editor (los mismos de CLF y Clickatón).
+    "@repo/content",
+    "@repo/content-ui",
+    "@repo/payments",
+    "@repo/design-studio",
+    // Sólo el selector de logos de los aliados de los sorteos (`lib/raffles/partners-live.ts`).
+    "@repo/partners",
+  ],
   serverExternalPackages: [
     "@prisma/client",
     "@repo/db",

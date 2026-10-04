@@ -1,5 +1,5 @@
 import { prisma } from "@repo/db";
-import { getCheckoutService } from "@/lib/checkout/actions/runtime";
+import { getCheckoutServiceReady } from "@/lib/checkout/actions/runtime";
 
 export type PaymentsReconciliationBatchResult = {
   ok: true;
@@ -8,21 +8,112 @@ export type PaymentsReconciliationBatchResult = {
   repaired: number;
   manualReview: number;
   errors: number;
+  /** Inscripciones abandonadas que se revisaron contra el proveedor. */
+  rescueScanned: number;
+  /** Inscripciones cuyo pago estaba realmente cobrado y se confirmaron. */
+  rescued: number;
+  rescuedIds: string[];
   registrationIds: string[];
   startedAt: string;
   finishedAt: string;
 };
 
 /**
- * Durable batch: PENDING/PROCESSING paid registrations with a paymentOrderId.
- * Never marks PAID without provider consult (delegates to reconcile use case).
+ * Ventana de rescate: cuántos días hacia atrás se le vuelve a preguntar al
+ * proveedor por una inscripción abandonada. Acotada para no barrer la historia
+ * entera en cada corrida.
+ */
+const RESCUE_WINDOW_DAYS = Number(process.env.CLICKATON_RESCUE_WINDOW_DAYS ?? "30");
+
+/**
+ * Durable batch en dos pasadas:
+ *
+ *  1. RESCATE — inscripciones con orden de pago que el sistema dio por perdidas
+ *     (reserva vencida, cancelada, revisión manual). Le PREGUNTA a Mercado Pago
+ *     si el pago existe y, si está aprobado, confirma.
+ *  2. RECONCILIACIÓN — inscripciones vivas: chequeo de consistencia.
+ *
+ * Por qué la pasada 1: hasta ahora el cron sólo miraba PENDING/PROCESSING, así
+ * que una vez vencida la reserva nadie volvía a preguntar nunca. Con el webhook
+ * de Mercado Pago rechazado por firma, eso dejaba plata cobrada sin impactar.
  */
 export async function runPaymentsReconciliationBatch(opts?: {
   limit?: number;
   cursorId?: string | null;
+  /** Permite desactivar la pasada de rescate (diagnóstico). */
+  rescue?: boolean;
 }): Promise<PaymentsReconciliationBatchResult> {
   const limit = Math.min(Math.max(opts?.limit ?? 25, 1), 100);
   const startedAt = new Date();
+
+  // getCheckoutServiceReady (no getCheckoutService): calienta el token OAuth del
+  // cobrador desde el vault. Sin él la consulta S2S al proveedor no tiene con qué
+  // autenticarse y el rescate sería ciego.
+  const checkout = await getCheckoutServiceReady();
+
+  let rescueScanned = 0;
+  let rescued = 0;
+  const rescuedIds: string[] = [];
+
+  if (opts?.rescue !== false) {
+    const desde = new Date(startedAt.getTime() - RESCUE_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+    const abandonadas = await prisma.clickatonRegistration.findMany({
+      where: {
+        paymentOrderId: { not: null },
+        createdAt: { gte: desde },
+        status: { in: ["PENDING_PAYMENT", "CANCELLED", "DRAFT"] },
+        paymentStatus: { in: ["EXPIRED", "CANCELLED", "MANUAL_REVIEW", "PENDING", "PROCESSING"] },
+      },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      select: { id: true },
+    });
+
+    for (const row of abandonadas) {
+      rescueScanned += 1;
+      try {
+        const res = await checkout.rescueRegistrationPayment({
+          registrationId: row.id,
+          source: "payments_rescue_cron",
+        });
+        if (res.outcome === "RESCUED") {
+          rescued += 1;
+          rescuedIds.push(row.id);
+        }
+        // Sólo se audita cuando hubo algo que contar: un "no pagó" por
+        // inscripción cada 10 minutos inundaría la auditoría.
+        if (res.outcome !== "NOT_PAID" && res.outcome !== "ALREADY_CONFIRMED") {
+          await prisma.clickatonRegistrationAudit.create({
+            data: {
+              registrationId: row.id,
+              action: "PAYMENT_RESCUE_CRON",
+              source: "payments_rescue_cron",
+              metadata: {
+                outcome: res.outcome,
+                paymentOrderId: res.paymentOrderId,
+                detail: res.detail ?? null,
+              },
+            },
+          });
+        }
+      } catch (err) {
+        try {
+          await prisma.clickatonRegistrationAudit.create({
+            data: {
+              registrationId: row.id,
+              action: "PAYMENT_RESCUE_CRON_ERROR",
+              source: "payments_rescue_cron",
+              metadata: {
+                error: err instanceof Error ? err.message.slice(0, 120) : "rescue_threw",
+              },
+            },
+          });
+        } catch {
+          // ignore audit failure
+        }
+      }
+    }
+  }
 
   const rows = await prisma.clickatonRegistration.findMany({
     where: {
@@ -36,7 +127,6 @@ export async function runPaymentsReconciliationBatch(opts?: {
     select: { id: true },
   });
 
-  const checkout = getCheckoutService();
   let reconciled = 0;
   let repaired = 0;
   let manualReview = 0;
@@ -88,6 +178,9 @@ export async function runPaymentsReconciliationBatch(opts?: {
     repaired,
     manualReview,
     errors,
+    rescueScanned,
+    rescued,
+    rescuedIds,
     registrationIds,
     startedAt: startedAt.toISOString(),
     finishedAt: finishedAt.toISOString(),

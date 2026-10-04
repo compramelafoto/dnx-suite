@@ -1,5 +1,5 @@
 /**
- * Los textos legales de Subí la Foto.
+ * Los textos legales de SubiLaFoto.
  *
  * Viven acá y no dentro de las pantallas porque se revisan por su contenido, no
  * por su maquetado, y porque los lee más de una página. Cada sección es un
@@ -11,13 +11,41 @@
  * otro producto es peor que no tener ninguno.
  */
 
-export const ULTIMA_ACTUALIZACION = "13 de septiembre de 2026";
+export const ULTIMA_ACTUALIZACION = "16 de septiembre de 2026";
 
 /** A dónde escribe alguien que quiere ejercer sus derechos o pedir que bajemos una foto. */
 export const EMAIL_LEGAL = "dnxfotografia@gmail.com";
 
-/** Se guarda en cada consentimiento aceptado. Cambiala cuando cambie el texto. */
-export const VERSION_DE_TERMINOS = "2026-09-13";
+/**
+ * Quién vende.
+ *
+ * No es un dato de contacto más: la Resolución 424/2020 y el artículo 4 de la Ley 24.240
+ * exigen que el consumidor pueda saber **con quién contrató** sin tener que buscarlo. Por
+ * eso va en el pie de todas las páginas y no en una sección de "quiénes somos".
+ *
+ * El CUIT empieza con 20, así que es una persona física: el responsable es Daniel Andrés
+ * Cuart, no una sociedad. Por eso dice "Responsable" y no "Razón social".
+ */
+export const RESPONSABLE = {
+  nombre: "Daniel Andrés Cuart",
+  cuit: "20-31973378-8",
+  domicilio: "San José 1672, Local 5, Funes (CP 2132), Santa Fe, Argentina",
+} as const;
+
+/**
+ * Se guarda en cada consentimiento aceptado. Cambiala cuando cambie el texto.
+ *
+ * Subió a `2026-09-16` por el renombre de la marca dentro de los textos. El fondo no
+ * cambió, pero el texto guardado sí, y un consentimiento tiene que poder mostrar
+ * exactamente lo que la persona aceptó.
+ *
+ * No costó nada hacerlo: al 16/9 no había ningún consentimiento registrado. Si los
+ * hubiera, subir la versión obliga a todos a volver a aceptar — por eso se sube cuando el
+ * texto cambia y no cuando a uno le parece.
+ *
+ * **Revisados y aprobados sin cambios**, según confirmó el titular el 2026-09-16.
+ */
+export const VERSION_DE_TERMINOS = "2026-09-16";
 
 export type SeccionLegal = {
   titulo: string;
@@ -35,7 +63,7 @@ export const SECCIONES_PRIVACIDAD: readonly SeccionLegal[] = [
   {
     titulo: "Quién trata tus datos",
     parrafos: [
-      "Subí la Foto es una plataforma de DNX Suite. Un profesional —un fotógrafo, un DJ, un salón, una productora— la contrata y se la vende a quien organiza el evento. Por eso, en la pantalla y en el álbum vas a ver la marca de ese profesional y no la nuestra.",
+      "SubiLaFoto es una plataforma de DNX Suite. Un profesional —un fotógrafo, un DJ, un salón, una productora— la contrata y se la vende a quien organiza el evento. Por eso, en la pantalla y en el álbum vas a ver la marca de ese profesional y no la nuestra.",
       "Quien organiza el evento decide qué evento es, quién entra, qué se proyecta y quién recibe el álbum: es el responsable de esos datos. Nosotros los tratamos por encargo suyo y no los usamos para ningún fin propio.",
       `Si querés ejercer alguno de tus derechos, escribinos a ${EMAIL_LEGAL}. Si el pedido le corresponde a quien organizó el evento, te ponemos en contacto.`,
     ],
@@ -123,7 +151,7 @@ export const SECCIONES_PRIVACIDAD: readonly SeccionLegal[] = [
 
 export const SECCIONES_TERMINOS: readonly SeccionLegal[] = [
   {
-    titulo: "Qué es Subí la Foto",
+    titulo: "Qué es SubiLaFoto",
     parrafos: [
       "Un servicio para que los invitados de un evento suban sus fotos desde el celular, sin instalar nada y sin crearse una cuenta, y para que esas fotos aparezcan en la pantalla del salón y en un álbum digital.",
       "Lo contrata un profesional —fotógrafo, DJ, salón, productora, organizador— y se lo vende a su cliente con su propia marca.",

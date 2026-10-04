@@ -84,7 +84,7 @@ export async function pdfDelCentroDeMesa(datos: DatosDelImpreso): Promise<Uint8A
   const { modulos } = await qrVerificado(datos.url);
 
   const pdf = await PDFDocument.create();
-  pdf.setTitle(`Subí la Foto — ${datos.nombreDelEvento}`);
+  pdf.setTitle(`SubiLaFoto — ${datos.nombreDelEvento}`);
   pdf.setSubject("Centro de mesa para imprimir");
 
   const negrita = await pdf.embedFont(StandardFonts.HelveticaBold);

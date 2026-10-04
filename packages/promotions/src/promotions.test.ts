@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { buildPromotionQuote, calculateDiscountAmount } from "./calculate";
+import { readEligibilityRule } from "./eligibility";
 import { buildRedeemCommand, previewPromotion } from "./engine";
 import { isValidPromotionCodeFormat, normalizePromotionCode } from "./normalize";
 import type { PromotionRecord, PromotionUsageCounters } from "./types";
@@ -253,5 +254,118 @@ describe("buildRedeemCommand", () => {
       assert.equal(r.command.idempotencyKey, "promo:reg_1:CLICKATON50");
       assert.equal(r.command.discountAmount, 1_250_000);
     }
+  });
+});
+
+describe("readEligibilityRule", () => {
+  it("devuelve null cuando no hay metadata", () => {
+    assert.equal(readEligibilityRule(null), null);
+  });
+  it("devuelve null cuando metadata no tiene eligibility", () => {
+    assert.equal(readEligibilityRule({ otraCosa: 1 }), null);
+  });
+  it("lee una regla válida", () => {
+    const rule = readEligibilityRule({
+      eligibility: {
+        kind: "PARTICIPATED_IN_EDITION",
+        editionIds: ["ed1"],
+        requireCheckIn: true,
+      },
+    });
+    assert.deepEqual(rule, {
+      kind: "PARTICIPATED_IN_EDITION",
+      editionIds: ["ed1"],
+      requireCheckIn: true,
+    });
+  });
+  it("requireCheckIn es false por defecto", () => {
+    const rule = readEligibilityRule({
+      eligibility: { kind: "PARTICIPATED_IN_EDITION", editionIds: ["ed1"] },
+    });
+    assert.equal(rule?.requireCheckIn, false);
+  });
+  it("ignora una regla malformada en vez de romper", () => {
+    assert.equal(readEligibilityRule({ eligibility: { kind: "OTRA_COSA" } }), null);
+    assert.equal(readEligibilityRule({ eligibility: { kind: "PARTICIPATED_IN_EDITION" } }), null);
+    assert.equal(
+      readEligibilityRule({ eligibility: { kind: "PARTICIPATED_IN_EDITION", editionIds: [] } }),
+      null,
+    );
+    assert.equal(readEligibilityRule({ eligibility: "texto" }), null);
+  });
+});
+
+describe("previewPromotion — elegibilidad", () => {
+  const conCondicion = promo({
+    id: "p-elig",
+    code: "VOLVI50",
+    discountType: "PERCENTAGE",
+    discountValue: 50,
+    metadata: {
+      eligibility: {
+        kind: "PARTICIPATED_IN_EDITION",
+        editionIds: ["ed0"],
+        requireCheckIn: true,
+      },
+    },
+  });
+
+  it("acepta cuando la persona es elegible", () => {
+    const res = previewPromotion({
+      promotion: conCondicion,
+      usage: usageZero,
+      originalAmount: 3_000_000,
+      currency: "ARS",
+      platform: "CLICKATON",
+      editionId: "ed1",
+      eligibility: { isEligible: true },
+    });
+    assert.equal(res.ok, true);
+    if (res.ok) assert.equal(res.quote.discountAmount, 1_500_000);
+  });
+
+  it("rechaza cuando la persona no es elegible", () => {
+    const res = previewPromotion({
+      promotion: conCondicion,
+      usage: usageZero,
+      originalAmount: 3_000_000,
+      currency: "ARS",
+      platform: "CLICKATON",
+      editionId: "ed1",
+      eligibility: { isEligible: false },
+    });
+    assert.equal(res.ok, false);
+    if (!res.ok) assert.equal(res.code, "NOT_ELIGIBLE");
+  });
+
+  it("rechaza cuando la elegibilidad no fue resuelta (fail-closed)", () => {
+    const res = previewPromotion({
+      promotion: conCondicion,
+      usage: usageZero,
+      originalAmount: 3_000_000,
+      currency: "ARS",
+      platform: "CLICKATON",
+      editionId: "ed1",
+    });
+    assert.equal(res.ok, false);
+    if (!res.ok) assert.equal(res.code, "NOT_ELIGIBLE");
+  });
+
+  it("un cupón sin condición no se ve afectado", () => {
+    const sinCondicion = promo({
+      id: "p-libre",
+      code: "ABIERTO10",
+      discountType: "PERCENTAGE",
+      discountValue: 10,
+    });
+    const res = previewPromotion({
+      promotion: sinCondicion,
+      usage: usageZero,
+      originalAmount: 3_000_000,
+      currency: "ARS",
+      platform: "CLICKATON",
+      editionId: "ed1",
+    });
+    assert.equal(res.ok, true);
   });
 });

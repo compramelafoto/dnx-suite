@@ -4,17 +4,15 @@ import { requireAuth } from "@/lib/auth";
 import { loadPortalContext } from "@/lib/portal/access";
 import { resolveFotofficeUserKind } from "@/lib/portal/user-kind";
 import { listUserProfiles } from "@/lib/portal/profiles";
-import Link from "next/link";
-import { createOwnBusinessAction, switchProfileAction } from "@/app/actions/profile-choice";
 import { loadMemberBalance } from "@/lib/membership/balance";
 import { getDuesSettings } from "@/lib/membership/settings";
-import { formatMinorArs } from "@/lib/membership/money";
-import { recommendationBenefitPhrase } from "@/lib/membership/recommendation-labels";
 import { describeSeniority } from "@/lib/portal/identity";
 import { pendingPrintedCard } from "@/lib/carnet/pending-print";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { resolvePortalMenu } from "@/lib/portal/menu";
-import { PortalSections } from "@/components/portal/portal-sections";
+import { PortalHome } from "@/components/portal/portal-home";
+import { loadPortalRaffles } from "@/lib/raffles/portal";
 
 export const dynamic = "force-dynamic";
 
@@ -24,8 +22,9 @@ export const dynamic = "force-dynamic";
  * Destino real de quien activa su acceso, y frontera con el panel administrativo: acá se
  * entra por tener ficha de socio propia, no por un rol de equipo.
  *
- * Muestra las cuotas cuando hay algo que decir. El resto de los módulos —comprobantes,
- * beneficios— sigue sin anunciarse: prometer algo que no existe es peor que no mencionarlo.
+ * Es un tablero: indicadores arriba (cuenta, carnet, categoría, antigüedad), las cuotas y los
+ * atajos a la izquierda, el carnet y los avisos a la derecha. La navegación vive en el marco
+ * (panel lateral o barra inferior), no en la portada.
  */
 export default async function PortalPage() {
   const user = await requireAuth();
@@ -41,11 +40,12 @@ export default async function PortalPage() {
   const profiles = await listUserProfiles(user.id);
   const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
     where: { workspaceId: context.workspace.id },
-    select: { commercialName: true, logoUrl: true },
+    select: { commercialName: true },
   });
   const institution = branding?.commercialName?.trim() || context.workspace.name;
   const cuenta = await loadMemberBalance(context.member.id);
   const antiguedad = describeSeniority(context.member.joinedAt, new Date());
+  const v = await loadPersonVocabulary(context.workspace.id);
 
   // Un pendiente que el socio no ve es un pendiente que no existe: la subida de la foto vive
   // en la pantalla del carnet y nadie llegaba sola hasta ahí.
@@ -56,7 +56,7 @@ export default async function PortalPage() {
   const perfil = await prisma.member.findUnique({
     where: { id: context.member.id },
     select: {
-      businessName: true, bio: true, specialties: true, instagram: true, website: true,
+      businessName: true, businessLogoUrl: true, bio: true, specialties: true, instagram: true, website: true,
       avatarUrl: true, profilePhotoUrl: true,
     },
   });
@@ -79,190 +79,40 @@ export default async function PortalPage() {
     (s) => s.href === "/portal/recomendados" && s.state === "DISPONIBLE",
   );
 
+  // El sorteo del mes, si el módulo está prendido: estar al día tiene premio, y el inicio es
+  // donde el socio se entera.
+  const sorteosDisponibles = secciones.some(
+    (s) => s.href === "/portal/sorteos" && s.state === "DISPONIBLE",
+  );
+  const sorteo = sorteosDisponibles
+    ? (await loadPortalRaffles({ workspaceId: context.workspace.id, memberId: context.member.id }))
+        .current
+    : null;
+
   return (
-    <>
-      <main className="mx-auto max-w-lg px-4 py-16">
-        <section className="fo-card space-y-6">
-          <div className="flex items-center gap-3">
-            {branding?.logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element -- el logo es una URL externa de R2
-              <img
-                src={branding.logoUrl}
-                alt=""
-                className="h-12 w-12 rounded-lg object-contain"
-              />
-            ) : null}
-            <p className="text-sm font-semibold">{institution}</p>
-          </div>
-
-          {/*
-            Identidad antes que trámite. El socio abre el portal y lo primero que ve es que la
-            institución sabe quién es: su número, su categoría y desde cuándo pertenece. Son
-            datos que ya existen en la ficha, así que nunca quedan desactualizados.
-          */}
-          <div className="space-y-3">
-            <h1 className="text-xl font-semibold tracking-tight">
-              Hola, {context.member.firstName}
-            </h1>
-            <div className="rounded-lg border border-[var(--fo-border)] px-4 py-3">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                <p className="text-sm font-medium">
-                  Socio N° <span className="tabular-nums">{context.member.memberNumber}</span>
-                </p>
-                {context.member.categoryName ? (
-                  <p className="text-xs text-[var(--fo-muted)]">{context.member.categoryName}</p>
-                ) : null}
-              </div>
-              {antiguedad.desde ? (
-                <p className="mt-1 text-xs text-[var(--fo-muted)]">
-                  Desde {antiguedad.desde}
-                  {antiguedad.anios
-                    ? ` · ${antiguedad.anios} ${antiguedad.anios === 1 ? "año" : "años"} en la institución`
-                    : ""}
-                </p>
-              ) : null}
-            </div>
-          </div>
-
-          <Link
-            href="/portal/carnet"
-            className={
-              "block space-y-1 rounded-lg border p-4 " +
-              (impresa.pedida && impresa.faltaFoto
-                ? "border-[var(--fo-accent)] hover:border-[var(--fo-text)]"
-                : "border-[var(--fo-border)] hover:border-[var(--fo-text)]")
-            }
-          >
-            <p className="text-sm font-medium">
-              {impresa.pedida && impresa.faltaFoto ? "Te falta subir tu foto" : "Tu carnet de socio"}
-            </p>
-            <p className="text-xs text-[var(--fo-muted)]">
-              {impresa.pedida && impresa.faltaFoto
-                ? "Ya pagaste tu credencial impresa. Sin tu foto no la podemos emitir."
-                : "Mostralo para que verifiquen tu condición de socio."}
-            </p>
-          </Link>
-
-          {cuenta.charges.length > 0 ? (
-            <div className="space-y-2 rounded-lg border border-[var(--fo-border)] p-4">
-              <div className="flex items-baseline justify-between gap-3">
-                <p className="text-sm font-medium">Cuotas pendientes</p>
-                <p className="text-lg font-semibold tabular-nums">
-                  {formatMinorArs(cuenta.dueMinor)}
-                </p>
-              </div>
-              {cuenta.overdueCount > 0 ? (
-                <p className="text-xs text-[var(--fo-danger)]">
-                  {cuenta.overdueCount === 1
-                    ? "Tenés 1 cuota vencida."
-                    : `Tenés ${cuenta.overdueCount} cuotas vencidas.`}
-                </p>
-              ) : null}
-              <Link href="/portal/cuotas" className="fo-btn fo-btn-primary inline-flex text-sm">
-                Ver y pagar
-              </Link>
-            </div>
-          ) : (
-            <div className="space-y-2 rounded-lg border border-[var(--fo-border)] p-4">
-              <p className="text-sm font-medium text-[var(--fo-success)]">Estás al día</p>
-              <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
-                No tenés cuotas pendientes con {institution}.
-              </p>
-              <Link href="/portal/cuotas" className="text-xs text-[var(--fo-muted)] hover:underline">
-                Ver el detalle
-              </Link>
-            </div>
-          )}
-
-          {/*
-            Va pegado a las cuotas y no en el menú de abajo a propósito: el premio por recomendar
-            ES una cuota, así que se entiende leyéndolo justo después de lo que el socio debe. En
-            la lista de secciones era el último renglón de diez y nadie llegaba hasta ahí.
-
-            Solo se muestra cuando la sección está realmente disponible: los dos interruptores
-            —módulo de socios y beneficio resuelto por la comisión— ya los resolvió el menú, así
-            que se pregunta por él y no se vuelve a decidir acá.
-          */}
-          {recomendar ? (
-            <div className="space-y-2 rounded-lg border border-[var(--fo-accent)] bg-[var(--fo-accent-soft)] p-4">
-              <p className="text-sm font-medium">Recomendá a un fotógrafo amigo</p>
-              <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
-                Por cada colega que se asocie a {institution} con tu enlace y pague su ingreso,
-                ganás {recommendationBenefitPhrase(duesSettings.recommendationBenefitPercent)}.
-                Sin tope: una por cada amigo que se suma.
-              </p>
-              <Link
-                href="/portal/recomendados"
-                className="fo-btn fo-btn-primary inline-flex text-sm"
-              >
-                Recomendar a un amigo
-              </Link>
-            </div>
-          ) : null}
-
-          <div className="flex flex-wrap gap-2">
-            <Link href="/portal/perfil" className="fo-btn fo-btn-secondary text-sm">
-              Mi perfil profesional
-            </Link>
-            <form action="/api/auth/logout" method="post">
-              <button type="submit" className="fo-btn fo-btn-secondary text-sm">
-                Cerrar sesión
-              </button>
-            </form>
-            {profiles.length > 1 ? (
-              <form action={switchProfileAction}>
-                <button type="submit" className="fo-btn text-sm">
-                  Cambiar de perfil
-                </button>
-              </form>
-            ) : null}
-          </div>
-        </section>
-
-        {/* Todo lo que el portal ofrece, incluido lo que todavía se está construyendo. */}
-        <div className="mt-6">
-          <PortalSections items={secciones} />
-        </div>
-
-        {perfilVacio ? (
-          <section className="fo-card mt-6 space-y-3 p-5">
-            <h2 className="text-sm font-semibold">Completá tu perfil profesional</h2>
-            <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
-              Contanos a qué te dedicás y dónde se ve tu trabajo. Es lo que {institution} usa
-              para recomendarte y difundir lo que hacés. Se publica solo si lo autorizás.
-            </p>
-            <Link href="/portal/perfil" className="fo-btn fo-btn-primary text-sm">
-              Completar mi perfil
-            </Link>
-          </section>
-        ) : null}
-
-        {/*
-          El socio que todavía no tiene negocio se entera acá de que puede usar FotoOffice para
-          administrarlo. La creación es siempre explícita: nunca ocurre por visitar una ruta.
-
-          Va al pie y en tono menor a propósito: es una posibilidad, no una tarea pendiente. Como
-          tarjeta competía en peso visual con las cuotas y el carnet, que sí son lo que el socio
-          viene a hacer.
-        */}
-        {!profiles.some((p) => p.kind === "TEAM") ? (
-          <footer className="mt-10 border-t border-[var(--fo-border)] pt-4">
-            <form
-              action={createOwnBusinessAction}
-              className="text-xs leading-relaxed text-[var(--fo-muted)]"
-            >
-              ¿Tenés tu propio estudio? Podés usar FotoOffice para administrar tu negocio
-              fotográfico, aparte de tu ficha de socio.{" "}
-              <button
-                type="submit"
-                className="underline underline-offset-2 hover:text-[var(--fo-text)]"
-              >
-                Crear mi negocio
-              </button>
-            </form>
-          </footer>
-        ) : null}
-      </main>
-    </>
+    <PortalHome
+      institution={institution}
+      member={{
+        firstName: context.member.firstName,
+        fullName: `${context.member.firstName} ${context.member.lastName}`.trim(),
+        memberNumber: context.member.memberNumber,
+        categoryName: context.member.categoryName ?? null,
+        photoUrl: perfil?.profilePhotoUrl ?? perfil?.avatarUrl ?? null,
+        businessName: perfil?.businessName?.trim() || null,
+        businessLogoUrl: perfil?.businessLogoUrl ?? null,
+      }}
+      antiguedad={antiguedad}
+      cuenta={cuenta}
+      faltaFoto={impresa.pedida && impresa.faltaFoto}
+      secciones={secciones}
+      vocabulary={v}
+      recommendationBenefitPercent={
+        recomendar ? duesSettings.recommendationBenefitPercent : null
+      }
+      perfilVacio={perfilVacio}
+      puedeCambiarPerfil={profiles.length > 1}
+      tieneNegocio={profiles.some((p) => p.kind === "TEAM")}
+      sorteo={sorteo}
+    />
   );
 }

@@ -78,3 +78,22 @@ describe("isInboxFilter", () => {
     expect(isInboxFilter(null)).toBe(false);
   });
 });
+
+/**
+ * La bandeja dibuja un contador por pestaña leyendo `countRequestsByFilter`, que arma una cuenta
+ * por cada entrada de `INBOX_FILTERS` usando `whereForFilter`. Este test cuida la unión: una
+ * pestaña nueva cuyo criterio nadie contemple contaría **todos** los pedidos del workspace
+ * —`whereForFilter` devuelve `{}` para lo que no reconoce— y mostraría 66 donde debería decir 0.
+ */
+describe("cada pestaña tiene su criterio", () => {
+  it("ninguna clave cae en el criterio vacío", () => {
+    for (const f of INBOX_FILTERS) {
+      expect(Object.keys(whereForFilter(f.key, ahora)).length).toBeGreaterThan(0);
+    }
+  });
+
+  it("las claves no se repiten", () => {
+    const claves = INBOX_FILTERS.map((f) => f.key);
+    expect(new Set(claves).size).toBe(claves.length);
+  });
+});

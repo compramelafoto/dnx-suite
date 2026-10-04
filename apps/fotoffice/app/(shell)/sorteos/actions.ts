@@ -3,23 +3,27 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
-import { requireRafflesAdmin, requireRafflesStaff } from "@/lib/raffles/access";
+import { requireRafflesConductor, requireRafflesOperator } from "@/lib/raffles/access";
 import { parseRaffleForm } from "@/lib/raffles/raffle-form";
 import { parsePrizeForm } from "@/lib/raffles/prize-form";
 import { announceRaffle } from "@/lib/raffles/announce";
 import { sealRaffle } from "@/lib/raffles/seal";
+import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { resolveRaffle } from "@/lib/raffles/resolve";
 import { recordRaffleEvent } from "@/lib/raffles/events";
 import { canCancel, canEditPrizes } from "@/lib/raffles/lifecycle";
-import { advancePrizeAward } from "@/lib/raffles/delivery";
+import { advancePrizeAward, registerPrizeReceipt } from "@/lib/raffles/delivery";
+import { notifyPendingAwards } from "@/lib/raffles/notify";
 import type { RafflePrizeStatus } from "@/lib/raffles/constants";
 import type { RaffleStatus } from "@/lib/raffles/constants";
 
 /**
  * Las acciones del panel de sorteos.
  *
- * Todas empiezan por `requireRafflesAdmin()`: el control está acá, en el servidor, y no en
- * que el botón se muestre o no. Ninguna decide si algo es válido — eso lo resuelven los
+ * Todas empiezan por una guarda de `lib/raffles/access.ts`: `requireRafflesConductor()` para
+ * crear, editar, anunciar, sellar, resolver y cancelar; `requireRafflesOperator()` para las
+ * entregas. El control está acá, en el servidor, y no en que el botón se muestre o no. Ninguna decide si algo es válido — eso lo resuelven los
  * módulos puros, que se pueden probar sin base.
  */
 
@@ -36,7 +40,7 @@ function etiquetaActor(user: { name?: string | null; email?: string | null }): s
 }
 
 export async function createRaffleAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireRafflesAdmin();
+  const { workspace, user } = await requireRafflesConductor();
   const parsed = parseRaffleForm(formData);
   if (!parsed.ok) conError(`${LISTA}/nuevo`, parsed.error);
 
@@ -71,7 +75,7 @@ export async function createRaffleAction(formData: FormData): Promise<void> {
  * sentido el margen entre el cierre del padrón y el acto.
  */
 export async function updateRaffleAction(formData: FormData): Promise<void> {
-  const { workspace } = await requireRafflesAdmin();
+  const { workspace } = await requireRafflesConductor();
   const raffleId = String(formData.get("raffleId") ?? "");
 
   const actual = await prisma.raffle.findFirst({
@@ -92,7 +96,7 @@ export async function updateRaffleAction(formData: FormData): Promise<void> {
 }
 
 export async function savePrizeAction(formData: FormData): Promise<void> {
-  const { workspace } = await requireRafflesAdmin();
+  const { workspace } = await requireRafflesConductor();
   const raffleId = String(formData.get("raffleId") ?? "");
   const prizeId = String(formData.get("prizeId") ?? "").trim() || null;
 
@@ -130,7 +134,7 @@ export async function savePrizeAction(formData: FormData): Promise<void> {
 }
 
 export async function deletePrizeAction(formData: FormData): Promise<void> {
-  const { workspace } = await requireRafflesAdmin();
+  const { workspace } = await requireRafflesConductor();
   const raffleId = String(formData.get("raffleId") ?? "");
   const prizeId = String(formData.get("prizeId") ?? "");
 
@@ -148,7 +152,7 @@ export async function deletePrizeAction(formData: FormData): Promise<void> {
 }
 
 export async function announceRaffleAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireRafflesAdmin();
+  const { workspace, user } = await requireRafflesConductor();
   const raffleId = String(formData.get("raffleId") ?? "");
 
   const r = await announceRaffle({
@@ -164,7 +168,7 @@ export async function announceRaffleAction(formData: FormData): Promise<void> {
 }
 
 export async function sealRaffleAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireRafflesAdmin();
+  const { workspace, user } = await requireRafflesConductor();
   const raffleId = String(formData.get("raffleId") ?? "");
 
   const r = await sealRaffle({
@@ -173,14 +177,19 @@ export async function sealRaffleAction(formData: FormData): Promise<void> {
     actorUserId: user.id,
     actorLabel: etiquetaActor(user),
   });
-  if (!r.ok) conError(detalle(raffleId), r.error);
+  if (!r.ok) {
+    // El motivo viene de una función pura del ciclo de vida: sale con los marcadores sin
+    // resolver y acá sí se sabe en qué institución estamos.
+    const vocabulary = await loadPersonVocabulary(workspace.id);
+    conError(detalle(raffleId), aplicarVocabulario(r.error, vocabulary));
+  }
 
   revalidatePath(detalle(raffleId));
   redirect(`${detalle(raffleId)}?ok=sellado`);
 }
 
 export async function resolveRaffleAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireRafflesAdmin();
+  const { workspace, user } = await requireRafflesConductor();
   const raffleId = String(formData.get("raffleId") ?? "");
 
   const r = await resolveRaffle({
@@ -196,7 +205,7 @@ export async function resolveRaffleAction(formData: FormData): Promise<void> {
 }
 
 export async function cancelRaffleAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireRafflesAdmin();
+  const { workspace, user } = await requireRafflesConductor();
   const raffleId = String(formData.get("raffleId") ?? "");
   const motivo = String(formData.get("cancelReason") ?? "").trim();
 
@@ -235,7 +244,7 @@ export async function cancelRaffleAction(formData: FormData): Promise<void> {
  * el mostrador tiene que poder anotarlo.
  */
 export async function advanceAwardAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireRafflesStaff();
+  const { workspace, user } = await requireRafflesOperator();
   const awardId = String(formData.get("awardId") ?? "");
   const to = String(formData.get("to") ?? "") as RafflePrizeStatus;
   const note = String(formData.get("note") ?? "").trim() || null;
@@ -252,4 +261,40 @@ export async function advanceAwardAction(formData: FormData): Promise<void> {
 
   revalidatePath("/sorteos/entregas");
   redirect("/sorteos/entregas?ok=premio");
+}
+
+/**
+ * Carga el remito que mandó el aliado. Es el respaldo de cómo llegó el premio a la institución.
+ */
+export async function registerReceiptAction(formData: FormData): Promise<void> {
+  const { workspace, user } = await requireRafflesOperator();
+  const awardId = String(formData.get("awardId") ?? "");
+  const fileUrl = String(formData.get("fileUrl") ?? "").trim() || null;
+  const note = String(formData.get("note") ?? "").trim() || null;
+
+  const r = await registerPrizeReceipt({
+    workspaceId: workspace.id,
+    awardId,
+    fileUrl,
+    note,
+    actorUserId: user.id,
+    actorLabel: etiquetaActor(user),
+  });
+  if (!r.ok) conError("/sorteos/entregas", r.error);
+
+  revalidatePath("/sorteos/entregas");
+  redirect("/sorteos/entregas?ok=remito");
+}
+
+/**
+ * Reintenta los avisos que no salieron.
+ *
+ * La tarea programada ya lo hace sola cada quince minutos; este botón existe para cuando
+ * alguien acaba de cargar el correo que faltaba y no quiere esperar.
+ */
+export async function retryNoticesAction(): Promise<void> {
+  await requireRafflesOperator();
+  await notifyPendingAwards();
+  revalidatePath("/sorteos/entregas");
+  redirect("/sorteos/entregas?ok=avisos");
 }

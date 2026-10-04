@@ -1,3 +1,4 @@
+import { readEligibilityRule } from "@repo/promotions";
 import { AdminMigrationNotice } from "@/components/admin/AdminMigrationNotice";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { AdminTechnicalInfo } from "@/components/admin/AdminTechnicalInfo";
@@ -29,9 +30,19 @@ import {
   listClickatonPromotions,
 } from "@/lib/promotions/prisma-promotions-adapter";
 import { withClickatonDb } from "@/lib/admin/db";
+import { ActionResultMessage } from "@/components/admin/affiliates/ActionResultMessage";
+import { setCouponAffiliateAction } from "@/lib/affiliates/admin/actions";
+import { listAffiliateNames } from "@/lib/affiliates/admin/queries";
+import { readCouponAffiliate } from "@/lib/affiliates/domain/coupon-affiliate";
+import { formatCommissionBps } from "@/lib/affiliates/domain/labels";
 
-export default async function AdminPromotionsPage() {
+type Props = {
+  searchParams: Promise<{ ok?: string; error?: string }>;
+};
+
+export default async function AdminPromotionsPage({ searchParams }: Props) {
   await requireClickatonAdmin();
+  const flash = await searchParams;
 
   const listResult = await withClickatonDb(async () => listClickatonPromotions());
   if (!listResult.ok) {
@@ -45,6 +56,12 @@ export default async function AdminPromotionsPage() {
   const editions = await listEditionOptions();
   const editionOptions = editions.ok ? editions.data : [];
   const editionNameById = new Map(editionOptions.map((e) => [e.id, e.name]));
+
+  // Best-effort: si la tabla de afiliados no está, los cupones se siguen viendo.
+  const affiliatesResult = await withClickatonDb(async () => listAffiliateNames());
+  const affiliates = affiliatesResult.ok ? affiliatesResult.data : [];
+  const activeAffiliates = affiliates.filter((a) => a.isActive);
+  const affiliateNameById = new Map(affiliates.map((a) => [a.id, a.displayName]));
 
   const rows = await Promise.all(
     listResult.data.map(async (p) => ({
@@ -60,6 +77,8 @@ export default async function AdminPromotionsPage() {
         description="Creá descuentos para campañas, sponsors, invitados o acciones especiales."
         breadcrumbs={[{ label: "Códigos promocionales" }]}
       />
+
+      <ActionResultMessage ok={flash.ok} error={flash.error} />
 
       <Card variant="outlined" className="space-y-2 p-5 text-sm text-ck-text-muted">
         <p>
@@ -100,6 +119,18 @@ export default async function AdminPromotionsPage() {
               const editionLabel = promo.editionId
                 ? (editionNameById.get(promo.editionId) ?? "Edición específica")
                 : "Todas las ediciones Clickatón";
+              const eligibilityRule = readEligibilityRule(
+                promo.metadata as Record<string, unknown> | null,
+              );
+              const conditionLabel = eligibilityRule
+                ? `${eligibilityRule.requireCheckIn ? "Acreditados" : "Inscriptos"} en ${eligibilityRule.editionIds
+                    .map((id) => editionNameById.get(id) ?? "otra edición")
+                    .join(", ")}`
+                : "Abierto a cualquiera";
+              const couponAffiliate = readCouponAffiliate(promo.metadata);
+              const affiliateLabel = couponAffiliate
+                ? `${affiliateNameById.get(couponAffiliate.affiliateId) ?? "fotógrafo desconocido"} · ${formatCommissionBps(couponAffiliate.commissionBps)}`
+                : null;
 
               return (
                 <li
@@ -150,6 +181,20 @@ export default async function AdminPromotionsPage() {
                           </dt>
                           <dd>{editionLabel}</dd>
                         </div>
+                        <div>
+                          <dt className="text-xs uppercase tracking-wide text-ck-text-muted">
+                            Quién puede usarlo
+                          </dt>
+                          <dd>{conditionLabel}</dd>
+                        </div>
+                        {affiliateLabel ? (
+                          <div>
+                            <dt className="text-xs uppercase tracking-wide text-ck-text-muted">
+                              Código de fotógrafo
+                            </dt>
+                            <dd>Fotógrafo: {affiliateLabel}</dd>
+                          </div>
+                        ) : null}
                       </dl>
                     </div>
                     <form
@@ -171,6 +216,70 @@ export default async function AdminPromotionsPage() {
                       </ConfirmSubmitButton>
                     </form>
                   </div>
+                  {affiliatesResult.ok ? (
+                    <details className="rounded-[var(--ck-radius-card)] border border-ck-border px-3 py-2 text-sm">
+                      <summary className="cursor-pointer text-ck-text-secondary">
+                        {couponAffiliate
+                          ? "Cambiar o quitar el fotógrafo de este código"
+                          : "Convertir en código de fotógrafo"}
+                      </summary>
+                      <p className="mt-2 text-xs text-ck-text-muted">
+                        Afecta sólo a las inscripciones nuevas. Las comisiones ya anotadas no
+                        cambian.
+                      </p>
+                      <form
+                        action={setCouponAffiliateAction}
+                        className="mt-3 flex flex-wrap items-end gap-3"
+                      >
+                        <input type="hidden" name="promotionId" value={promo.id} />
+                        <label className="text-sm">
+                          <span className="ck-label text-ck-text-secondary">Fotógrafo</span>
+                          <Select
+                            name="affiliateId"
+                            defaultValue={couponAffiliate?.affiliateId ?? ""}
+                            className="mt-1 min-h-11"
+                          >
+                            <option value="">—</option>
+                            {activeAffiliates.map((a) => (
+                              <option key={a.id} value={a.id}>
+                                {a.displayName}
+                              </option>
+                            ))}
+                          </Select>
+                        </label>
+                        <label className="text-sm">
+                          <span className="ck-label text-ck-text-secondary">Comisión (%)</span>
+                          <Input
+                            name="commissionPercent"
+                            inputMode="decimal"
+                            defaultValue={
+                              couponAffiliate
+                                ? String(couponAffiliate.commissionBps / 100).replace(".", ",")
+                                : ""
+                            }
+                            placeholder="10"
+                            className="mt-1 min-h-11 w-28"
+                          />
+                        </label>
+                        <Button type="submit" variant="secondary" className="min-h-11">
+                          Guardar
+                        </Button>
+                      </form>
+                      {couponAffiliate ? (
+                        <form action={setCouponAffiliateAction} className="mt-3">
+                          <input type="hidden" name="promotionId" value={promo.id} />
+                          <input type="hidden" name="remove" value="true" />
+                          <ConfirmSubmitButton
+                            variant="text"
+                            className="min-h-11"
+                            confirmMessage="¿Quitar el fotógrafo de este código? Sigue funcionando como descuento, pero las inscripciones nuevas no le generan comisión."
+                          >
+                            Quitar fotógrafo
+                          </ConfirmSubmitButton>
+                        </form>
+                      ) : null}
+                    </details>
+                  ) : null}
                   <AdminTechnicalInfo
                     title="Información técnica del código"
                     rows={[
@@ -287,6 +396,81 @@ export default async function AdminPromotionsPage() {
               ))}
             </Select>
           </Field>
+          <Field
+            id="eligibilityKind"
+            label="¿Quién puede usarlo?"
+            hint="Restringe el cupón a participantes de una edición anterior"
+          >
+            <Select name="eligibilityKind" defaultValue="" className="min-h-11">
+              <option value="">Cualquiera</option>
+              <option value="PARTICIPATED_IN_EDITION">
+                Sólo quienes participaron de…
+              </option>
+            </Select>
+          </Field>
+          <Field id="eligibilityEditionId" label="…de esta edición">
+            <Select name="eligibilityEditionId" defaultValue="" className="min-h-11">
+              <option value="">—</option>
+              {editionOptions.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <label className="flex min-h-11 items-center gap-2 text-sm text-ck-text md:col-span-2">
+            <input
+              type="checkbox"
+              name="eligibilityRequireCheckIn"
+              className="size-4 rounded border-ck-border"
+            />
+            Sólo quienes además se acreditaron el día del evento
+          </label>
+          {affiliatesResult.ok ? (
+            <fieldset className="space-y-4 rounded-[var(--ck-radius-card)] border border-ck-border p-4 md:col-span-2">
+              <legend className="px-1 text-sm font-semibold text-ck-text">
+                Código de fotógrafo (opcional)
+              </legend>
+              <p className="text-sm text-ck-text-muted">
+                Si este código lo comparte un fotógrafo, elegilo y poné su comisión. La comisión
+                se calcula sobre el precio de la inscripción antes del descuento (sin el envío
+                del kit). Dejá los dos vacíos si es un código común.{" "}
+                {activeAffiliates.length === 0 ? (
+                  <>
+                    Todavía no hay fotógrafos activos: dalos de alta en{" "}
+                    <a className="underline" href={adminRoutes.affiliates}>
+                      Fotógrafos con código
+                    </a>
+                    .
+                  </>
+                ) : null}
+              </p>
+              <div className="grid gap-6 md:grid-cols-2">
+                <Field id="affiliateId" label="Fotógrafo">
+                  <Select name="affiliateId" defaultValue="" className="min-h-11">
+                    <option value="">Ninguno (código común)</option>
+                    {activeAffiliates.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.displayName}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field
+                  id="affiliateCommissionPercent"
+                  label="Comisión para el fotógrafo (%)"
+                  hint="Admite decimales, por ejemplo 7,5"
+                >
+                  <Input
+                    name="affiliateCommissionPercent"
+                    inputMode="decimal"
+                    placeholder="10"
+                    className="min-h-11"
+                  />
+                </Field>
+              </div>
+            </fieldset>
+          ) : null}
           <label className="flex min-h-11 items-center gap-2 text-sm text-ck-text md:col-span-2">
             <input
               type="checkbox"

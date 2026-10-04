@@ -162,7 +162,7 @@ export default function AdminAuditoriaSelfiesPage() {
       </div>
 
       <Card className="p-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+        <div className="grid dnx-grid-4 gap-4 mb-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Álbum ID</label>
             <Input

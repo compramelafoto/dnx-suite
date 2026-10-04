@@ -6,7 +6,7 @@ Responde a los capítulos 31 y 36.
 
 Cuatro frenaban la Etapa 1. **Tres quedaron resueltas el 2026-09-11**; falta la cuarta.
 
-### 1. ¿En qué base vive Subí la Foto? — RESUELTA
+### 1. ¿En qué base vive SubiLaFoto? — RESUELTA
 
 **Rama `production` de CompraMeLaFoto (`divine-hall-10689679` / `br-autumn-rain-ad18wq7y`).**
 Los 272 fotógrafos con Mercado Pago ya conectado pueden vender desde el día uno.
@@ -85,7 +85,7 @@ Lo que sí decide son dos hechos:
    `@aws-sdk/client-rekognition ^3.985.0` está instalado y con credenciales vivas en
    CompraMeLaFoto. Cambia la operación, no la integración.
 
-Google Cloud **sí se usa** en Subí la Foto: es el cliente OAuth del inicio de sesión,
+Google Cloud **sí se usa** en SubiLaFoto: es el cliente OAuth del inicio de sesión,
 compartido con el resto de la suite. Son dos servicios distintos del mismo proveedor y sólo
 uno estaba disponible.
 
@@ -113,7 +113,7 @@ justamente para permitir el cambio.
 
 Estas no las puede tomar el código y ninguna puede faltar el 10 de octubre:
 
-- **Términos y condiciones y política de privacidad** de Subí la Foto. Hay fotos de
+- **Términos y condiciones y política de privacidad** de SubiLaFoto. Hay fotos de
   invitados que no firmaron nada con nadie.
 - **Menores.** Un cumpleaños de quince está lleno de chicos de catorce años subiendo fotos
   de otros chicos de catorce años. Hay que decidir qué se pide y qué se guarda.
@@ -151,18 +151,18 @@ Cosas que sabemos que están mal y decidimos no arreglar todavía, con el motivo
 **Asumida por el titular el 2026-09-11:** «el panel no es igual o parecido al resto de las
 plataformas… pero bueno, dejalo como una deuda».
 
-El panel de Subí la Foto se construyó con los tokens de su propio manual de marca
+El panel de SubiLaFoto se construyó con los tokens de su propio manual de marca
 (`--slf-*`, Montserrat y Cormorant), mientras CompraMeLaFoto, FOTOFFICE y FotoRank comparten
 otra estética de panel. Un fotógrafo que use dos plataformas ve dos productos distintos.
 
 **Por qué se deja:** unificar el panel es rehacer la navegación, no cambiar colores, y no
 entra antes del 10/10. Además la parte que ve el invitado —que es la que decide si la
-plataforma se vende— sí tiene que verse como Subí la Foto y no como otra cosa.
+plataforma se vende— sí tiene que verse como SubiLaFoto y no como otra cosa.
 
 **Cuándo se paga:** después del lanzamiento, y junto con el buscador ⌘K del menú DNX, que
 toca los mismos cinco formatos de menú. Hacer las dos cosas por separado es pagar dos veces.
 
-### D2. Los textos legales están escritos y sin revisar — RESUELTA A MEDIAS
+### D2. Los textos legales están escritos y sin revisar — RESUELTA
 
 `/privacidad` y `/terminos` existen desde el 2026-09-13. El texto vive en
 `apps/subilafoto/lib/legal/contenido.ts` y **está atado a lo que la plataforma
@@ -175,10 +175,15 @@ de moderación o dónde se guardan los archivos, hay que cambiar el texto **el
 mismo día**: un texto legal que describe otro producto es peor que no tener
 ninguno.
 
-**Falta que los apruebe un asesor legal.** El titular lo va a hacer. Lo que hay
-es un borrador informado, no un documento validado.
+**Aprobados sin cambios el 2026-09-16**, según confirmó el titular. Dejaron de
+ser un borrador informado.
 
-### D2b. Dos obligaciones de comercio electrónico que todavía no están
+La versión guardada en los consentimientos subió a `2026-09-16` por el renombre
+de la marca dentro de los textos: el fondo no cambió pero el texto sí, y un
+consentimiento tiene que poder mostrar exactamente lo que la persona aceptó. Al
+16/9 no había ninguno registrado, así que no costó nada.
+
+### D2b. Dos obligaciones de comercio electrónico — RESUELTAS
 
 Aparecieron al redactar los términos y **hay que resolverlas antes de vender el
 primer evento**, no antes del lanzamiento técnico:
@@ -191,15 +196,28 @@ primer evento**, no antes del lanzamiento técnico:
   visible al formulario de la Ventanilla Única Federal de Defensa del
   Consumidor. Tampoco está.
 
-Las dos son enlaces en la portada, no desarrollo. Pero las controla Defensa del
-Consumidor y su ausencia es sancionable.
+**Resueltas el 2026-09-15.** El botón de arrepentimiento no era sólo un enlace: la
+norma pide un formulario directo y una constancia, así que hay tabla, pantalla,
+número de constancia y correo. El Libro de Quejas sí es un enlace, y está en la
+cabecera y en el pie.
 
-### D3. `/api/diagnostico` está abierto en producción
+Se sumaron además los datos del responsable —nombre, CUIT y domicilio— que pide
+el artículo 4 de la Ley 24.240 y tampoco estaban.
 
-Ruta temporal que informa si la base, R2 y Rekognition responden. No expone credenciales
-—sólo el hostname de la base y tiempos de respuesta— pero **hay que borrarla antes del
-lanzamiento**. Existe porque sin ella el `P2021` de las dos filas de `DATABASE_URL` habría
-costado mucho más que media hora.
+### D3. `/api/diagnostico` estaba abierto en producción — RESUELTA, pero no como decía
+
+Ruta que informa si la base, R2, Rekognition, Mercado Pago y Resend responden.
+
+**Estaba abierta a cualquiera**, y era peor de lo que este documento decía: publicaba el
+host de la base y el nombre del bucket, y **cada visita escribía y borraba un archivo en R2
+y llamaba a Rekognition** — un endpoint que cualquiera podía poner en un bucle y que se
+factura.
+
+La decisión original era borrarla antes del lanzamiento. **Se cerró con la llave de
+servicio en vez de borrarla**, y creció: hoy es lo que dice a qué cuenta de Mercado Pago
+apunta el token —el error más caro y más silencioso que puede tener esto— y si la clave de
+Resend sirve. Borrarla sería perder el diagnóstico que más falta va a hacer el 10 de
+octubre a las dos de la mañana.
 
 ## Lo que dejo dicho por escrito
 

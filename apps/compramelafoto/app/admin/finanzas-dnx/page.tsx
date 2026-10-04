@@ -109,7 +109,7 @@ export default function FinanzasDnxResumenPage() {
         </div>
       ) : summary ? (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="grid dnx-grid-4 gap-4">
             <Card className="p-6">
               <p className="text-sm text-gray-600">Facturado del mes</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">

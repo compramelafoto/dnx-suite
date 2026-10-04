@@ -23,14 +23,17 @@ export function IssueButton() {
               setError(r.error);
               return;
             }
+            // Reformulado para no depender del género: "socios activos" hacía concordar el
+            // adjetivo en masculino con la palabra que configure cada workspace. "Padrón" es
+            // un concepto fijo, no la palabra configurada, así que no tiene ese problema.
             setMensaje(
               r.emitidos === 0
-                ? `Todos los socios activos ya tenían carnet (${r.yaTenian}).`
+                ? `Todo el padrón activo ya tenía carnet (${r.yaTenian}).`
                 : `Se emitieron ${r.emitidos} carnets. Ya tenían: ${r.yaTenian}.`,
             );
           })
         }
-        className="fo-btn text-xs disabled:opacity-60"
+        className="fo-btn fo-btn-primary text-xs disabled:opacity-60"
       >
         {pendiente ? "Emitiendo…" : "Emitir carnets digitales que falten"}
       </button>

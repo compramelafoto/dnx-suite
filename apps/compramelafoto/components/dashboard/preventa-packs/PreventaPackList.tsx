@@ -40,6 +40,8 @@ export default function PreventaPackList({
   onDuplicate,
   onTogglePublish,
   togglingPackId = null,
+  onToggleRecommended,
+  recommendingPackId = null,
   albumPublicSlug,
   onReorderPacks,
   reordering,
@@ -58,6 +60,9 @@ export default function PreventaPackList({
   onDuplicate: (p: PackRow) => void;
   onTogglePublish: (p: PackRow) => void;
   togglingPackId?: number | null;
+  /** Marca el pack destacado del catálogo público; uno solo por álbum. */
+  onToggleRecommended?: (p: PackRow) => void;
+  recommendingPackId?: number | null;
   albumPublicSlug?: string | null;
   onReorderPacks?: (orderedIds: number[]) => Promise<void>;
   reordering?: boolean;
@@ -234,6 +239,27 @@ export default function PreventaPackList({
                     disabled={reordering}
                     onToggle={() => onTogglePublish(p)}
                   />
+                  {onToggleRecommended ? (
+                    <button
+                      type="button"
+                      onClick={() => onToggleRecommended(p)}
+                      disabled={recommendingPackId === p.id || reordering}
+                      aria-pressed={p.isRecommended === true}
+                      title={
+                        p.isRecommended
+                          ? "Sacarle el cartel de Recomendado"
+                          : "Mostrarlo como Recomendado en la página pública"
+                      }
+                      className={`inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50 ${
+                        p.isRecommended
+                          ? "border-[#c27b3d] bg-[#fef7f3] text-[#c27b3d]"
+                          : "border-[#e5e7eb] bg-white text-[#6b7280] hover:bg-[#fafafa]"
+                      }`}
+                    >
+                      <span aria-hidden>{p.isRecommended ? "★" : "☆"}</span>
+                      {p.isRecommended ? "Recomendado" : "Destacar"}
+                    </button>
+                  ) : null}
                   <div className="flex flex-wrap gap-2">
                   <button
                     type="button"

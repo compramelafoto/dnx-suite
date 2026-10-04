@@ -2,15 +2,17 @@ import Link from "next/link";
 import { prisma } from "@repo/db";
 import { requireActiveWorkspace, isCoursesSalesEnabledForWorkspace } from "@/lib/workspace";
 import { isMissingCoursesSalesSchemaError } from "@/lib/courses-sales/prisma-errors";
+import { moduleOffNotice } from "@/lib/dashboard/module-off-notice";
 
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ courses?: string; forbidden?: string }>;
+  searchParams: Promise<{ courses?: string; module?: string; evaluaciones?: string; forbidden?: string }>;
 }) {
   const { user, workspace } = await requireActiveWorkspace();
   const sp = await searchParams;
-  const coursesOff = sp.courses === "off";
+  // Una guarda rebotó porque el módulo está apagado (cursos, socios, captación, evaluaciones).
+  const avisoModuloApagado = moduleOffNotice(sp);
   const forbiddenAdmin = sp.forbidden === "admin";
 
   const memberships = await prisma.membership.count({ where: { userId: user.id } });
@@ -51,16 +53,13 @@ export default async function DashboardPage({
         </div>
       ) : null}
 
-      {coursesOff ? (
+      {avisoModuloApagado ? (
         <div
           className="fo-card fo-alert-warning"
           role="status"
         >
           <p className="text-sm text-[var(--fo-text)] font-medium">Módulo desactivado</p>
-          <p className="text-sm text-[var(--fo-muted)] mt-2 leading-relaxed">
-            El módulo «Venta de cursos» no está habilitado para este workspace. Contactá al
-            administrador de la plataforma o elegí otro workspace.
-          </p>
+          <p className="text-sm text-[var(--fo-muted)] mt-2 leading-relaxed">{avisoModuloApagado}</p>
         </div>
       ) : null}
 

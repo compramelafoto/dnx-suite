@@ -373,6 +373,7 @@ export default async function EditionSubmissionsAdminPage({ params, searchParams
                     </header>
 
                     <SubmissionPhotoPreview
+                      submissionId={s.id}
                       participantName={participantName}
                       promptLabel={promptLabel}
                       hasPreview={Boolean(s.previewStorageKey)}

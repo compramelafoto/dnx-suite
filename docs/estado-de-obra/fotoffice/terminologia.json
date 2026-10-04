@@ -1,0 +1,40 @@
+{
+  "proyecto": "Terminología por institución",
+  "plataforma": "FOTOFFICE",
+  "spec": "docs/superpowers/specs/",
+  "enUso": "no",
+  "usoNota": "Nadie configuró sus palabras todavía: la tabla tiene cero filas",
+  "etapas": [
+    {
+      "nombre": "Que cada institución elija cómo llamar a su gente",
+      "criterios": [
+        {
+          "que": "Un dueño configura el singular y el plural desde Configuración → Palabras y ve cómo va a quedar antes de guardar",
+          "implementado": { "pr": 158, "fecha": "2026-09-16" },
+          "probado": null,
+          "bloqueado": "Nadie abrió esa pantalla todavía"
+        },
+        {
+          "que": "La palabra elegida aparece en el menú, el padrón, el portal y los mensajes de error",
+          "implementado": { "pr": 158, "fecha": "2026-09-16" },
+          "probado": null,
+          "bloqueado": "Depende de configurarla primero"
+        },
+        {
+          "que": "Una institución que no configura nada sigue viendo exactamente lo de siempre",
+          "implementado": { "pr": 158, "fecha": "2026-09-16" },
+          "probado": {
+            "fecha": "2026-09-16",
+            "evidencia": "La tabla WorkspaceVocabulary quedó con cero filas tras la migración y la SFPR siguió diciendo «socios»"
+          }
+        },
+        {
+          "que": "El género acompaña a la palabra elegida",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Decidido no resolverlo: las frases se reformularon para no depender del género"
+        }
+      ]
+    }
+  ]
+}

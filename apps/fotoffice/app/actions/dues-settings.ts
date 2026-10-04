@@ -3,10 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
 import { requireActiveWorkspace } from "@/lib/workspace";
-import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
+import { hasModuleLevel } from "@/lib/permissions/module-access";
+import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { parseFeeValue, validateDuesSettings } from "@/lib/membership/fee-value-rules";
 import { parseRecommendationPercent } from "@/lib/membership/settings";
 import { minorToDecimalString } from "@/lib/membership/money";
+import { sendDuesReminders } from "@/lib/membership/dues-reminder";
 
 export type SettingsResult = { ok: true } | { ok: false; error: string };
 
@@ -19,7 +21,7 @@ export type SettingsResult = { ok: true } | { ok: false; error: string };
 export async function saveDuesSettingsAction(formData: FormData): Promise<SettingsResult> {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) return { ok: false, error: "No hay una institución activa." };
-  if (!(await canManageWorkspaceCollection(user.id, workspace.id))) {
+  if (!(await hasModuleLevel(user.id, workspace.id, MEMBERSHIP_DUES_MODULE_KEY, "MANAGE"))) {
     return { ok: false, error: "Solo el dueño o un administrador puede cambiar esto." };
   }
 
@@ -66,7 +68,7 @@ export async function saveDuesSettingsAction(formData: FormData): Promise<Settin
 export async function saveFeeValueAction(formData: FormData): Promise<SettingsResult> {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) return { ok: false, error: "No hay una institución activa." };
-  if (!(await canManageWorkspaceCollection(user.id, workspace.id))) {
+  if (!(await hasModuleLevel(user.id, workspace.id, MEMBERSHIP_DUES_MODULE_KEY, "MANAGE"))) {
     return { ok: false, error: "Solo el dueño o un administrador puede cambiar esto." };
   }
 
@@ -115,4 +117,29 @@ export async function saveFeeValueAction(formData: FormData): Promise<SettingsRe
   revalidatePath("/members/cuotas/configuracion");
   revalidatePath("/members/cuotas");
   return { ok: true };
+}
+
+/**
+ * Manda el recordatorio de cuota ahora, sin esperar el día configurado.
+ *
+ * Mismo permiso que la configuración: es un correo a todo el padrón que debe. A quien ya lo
+ * recibió este mes no se le repite, así que apretarlo dos veces no duplica nada.
+ */
+export async function sendDuesReminderNowAction(): Promise<
+  { ok: true; message: string } | { ok: false; error: string }
+> {
+  const { user, workspace } = await requireActiveWorkspace();
+  if (!workspace) return { ok: false, error: "No hay una institución activa." };
+  if (!(await hasModuleLevel(user.id, workspace.id, MEMBERSHIP_DUES_MODULE_KEY, "MANAGE"))) {
+    return { ok: false, error: "Solo el dueño o un administrador puede mandar el recordatorio." };
+  }
+
+  const r = await sendDuesReminders({ workspaceId: workspace.id, mode: "MANUAL" });
+  revalidatePath("/members/cuotas/configuracion");
+
+  const partes = [`Enviados: ${r.enviados}.`];
+  if (r.yaRecordados > 0) partes.push(`Ya lo habían recibido este mes: ${r.yaRecordados}.`);
+  if (r.sinEmail > 0) partes.push(`Sin email cargado: ${r.sinEmail}.`);
+  if (r.fallidos > 0) partes.push(`No salieron: ${r.fallidos} (quedaron registrados; volvé a apretar para reintentar).`);
+  return { ok: true, message: partes.join(" ") };
 }

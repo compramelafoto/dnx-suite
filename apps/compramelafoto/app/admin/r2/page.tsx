@@ -180,7 +180,7 @@ export default function AdminR2Page() {
         {statsLoading ? (
           <p className="text-gray-500">Cargando...</p>
         ) : stats ? (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid dnx-grid-4 dnx-grid-compacta gap-4">
             <div>
               <p className="text-sm text-gray-500">Objetos</p>
               <p className="text-xl font-bold text-gray-900">

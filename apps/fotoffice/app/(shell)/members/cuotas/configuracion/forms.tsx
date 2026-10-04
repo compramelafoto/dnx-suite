@@ -1,7 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { saveDuesSettingsAction, saveFeeValueAction } from "@/app/actions/dues-settings";
+import {
+  saveDuesSettingsAction,
+  saveFeeValueAction,
+  sendDuesReminderNowAction,
+} from "@/app/actions/dues-settings";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
 function Estado({ ok, error }: { ok: string | null; error: string | null }) {
   if (error) {
@@ -17,6 +22,7 @@ function Estado({ ok, error }: { ok: string | null; error: string | null }) {
 
 export function DuesSettingsForm({
   defaults,
+  vocabulary,
 }: {
   defaults: {
     generationDay: number;
@@ -27,6 +33,7 @@ export function DuesSettingsForm({
     recommendationEnabled: boolean;
     recommendationBenefitPercent: number;
   };
+  vocabulary: PersonVocabulary;
 }) {
   const [ok, setOk] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -83,7 +90,7 @@ export function DuesSettingsForm({
             type="checkbox"
             defaultChecked={defaults.recommendationEnabled}
           />
-          <span>Los socios pueden recomendar colegas desde su portal</span>
+          <span>{`Los ${vocabulary.plural} pueden recomendar colegas desde su portal`}</span>
         </label>
         <label className="space-y-1 text-xs sm:max-w-xs">
           <span className="text-[var(--fo-muted-soft)]">Cuota que se bonifica (%)</span>
@@ -166,5 +173,38 @@ export function FeeValueForm({
       </button>
       <Estado ok={ok} error={error} />
     </form>
+  );
+}
+
+/**
+ * El botón del recordatorio manual. Pide confirmación porque sale a personas reales y un
+ * correo enviado no se puede retirar.
+ */
+export function SendReminderButton({ recipients }: { recipients: number }) {
+  const [ok, setOk] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pendiente, startTransition] = useTransition();
+
+  return (
+    <div className="space-y-2">
+      <button
+        type="button"
+        disabled={pendiente || recipients === 0}
+        className="fo-btn fo-btn-primary text-sm disabled:opacity-60"
+        onClick={() => {
+          if (!window.confirm(`Se va a enviar el recordatorio a ${recipients} personas. ¿Seguimos?`)) return;
+          startTransition(async () => {
+            setOk(null);
+            setError(null);
+            const r = await sendDuesReminderNowAction();
+            if (r.ok) setOk(r.message);
+            else setError(r.error);
+          });
+        }}
+      >
+        {pendiente ? "Enviando… (puede tardar un par de minutos)" : "Enviar recordatorio ahora"}
+      </button>
+      <Estado ok={ok} error={error} />
+    </div>
   );
 }

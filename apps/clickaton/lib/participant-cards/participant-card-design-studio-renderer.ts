@@ -38,13 +38,38 @@ export type DesignStudioRenderResult = {
 };
 
 /**
+ * La dirección pública del sitio, para completar las relativas.
+ *
+ * Una plantilla del editor guarda las imágenes que se suben como `/api/media/…`. En un
+ * navegador esa dirección se completa sola; en el servidor no apunta a ningún lado.
+ */
+function direccionPublica(): string {
+  const raw =
+    // eslint-disable-next-line turbo/no-undeclared-env-vars -- mismas que usa la placa de sponsors
+    process.env.NEXT_PUBLIC_CLICKATON_URL?.trim() ||
+    process.env.CLICKATON_PUBLIC_URL?.trim() ||
+    process.env.APP_URL?.trim() ||
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+    "";
+  return raw.replace(/\/$/, "");
+}
+
+export type ParticipantCardResourceDeps = {
+  fetchImpl?: typeof fetch;
+};
+
+/**
  * Entrega los bytes de las imágenes que el diseño referencia.
  *
- * `design-studio` no sabe de red a propósito: recibe bytes. Acepta dos formas, porque las dos
- * aparecen en una placa: la foto del participante llega como dirección de R2, y los adornos
- * del diseño —el logo, una textura— vienen incrustados como `data:`.
+ * `design-studio` no sabe de red a propósito: recibe bytes. Acepta tres formas, porque las tres
+ * aparecen en una placa: la foto del participante llega incrustada como `data:`, el logo
+ * también, y lo que alguien sube a una plantilla queda con dirección relativa.
  */
-export function createParticipantCardResourceResolver(): ResourceResolver {
+export function createParticipantCardResourceResolver(
+  deps: ParticipantCardResourceDeps = {}
+): ResourceResolver {
+  const pedir = deps.fetchImpl ?? fetch;
+
   return {
     async read(ref: string): Promise<Uint8Array | null> {
       const embebida = /^data:[^;,]*;base64,(.*)$/s.exec(ref);
@@ -55,9 +80,17 @@ export function createParticipantCardResourceResolver(): ResourceResolver {
           return null;
         }
       }
-      if (!/^https?:\/\//.test(ref)) return null;
+
+      /*
+       * Las imágenes que alguien sube a una plantilla quedan guardadas con dirección relativa.
+       * Sin completarlas, la placa falla con "No se encontró la imagen" aunque el archivo esté
+       * subido y accesible.
+       */
+      const url = ref.startsWith("/") ? `${direccionPublica()}${ref}` : ref;
+      if (!/^https?:\/\//.test(url)) return null;
+
       try {
-        const respuesta = await fetch(ref);
+        const respuesta = await pedir(url);
         if (!respuesta.ok) return null;
         return new Uint8Array(await respuesta.arrayBuffer());
       } catch {

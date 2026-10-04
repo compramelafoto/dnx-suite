@@ -33,6 +33,7 @@ export default function PreventaPackDashboardSection({
   const [packSaving, setPackSaving] = useState(false);
   const [benefitsPack, setBenefitsPack] = useState<PackRow | null>(null);
   const [togglingPackId, setTogglingPackId] = useState<number | null>(null);
+  const [recommendingPackId, setRecommendingPackId] = useState<number | null>(null);
 
   const loadPacks = useCallback(async () => {
     setLoading(true);
@@ -182,6 +183,31 @@ export default function PreventaPackDashboardSection({
     }
   }
 
+  /** "Recomendado" es uno solo por álbum: el backend apaga los demás. */
+  async function togglePackRecommended(p: PackRow) {
+    const nextRecommended = !p.isRecommended;
+    setRecommendingPackId(p.id);
+    onError(null);
+    try {
+      const res = await fetch(`/api/dashboard/albums/${albumId}/preventa-packs/${p.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isRecommended: nextRecommended }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(
+          typeof data?.error === "string" ? data.error : "No se pudo destacar el pack"
+        );
+      }
+      await loadPacks();
+    } catch (e: unknown) {
+      onError(e instanceof Error ? e.message : "Error al destacar el pack");
+    } finally {
+      setRecommendingPackId(null);
+    }
+  }
+
   async function deletePack(p: PackRow) {
     if (!confirm(`¿Eliminar el pack «${p.name}» y todos los productos incluidos?`)) return;
     onError(null);
@@ -230,6 +256,8 @@ export default function PreventaPackDashboardSection({
           onManageBenefits={(p) => setBenefitsPack(p)}
           onTogglePublish={togglePackPublish}
           togglingPackId={togglingPackId}
+          onToggleRecommended={togglePackRecommended}
+          recommendingPackId={recommendingPackId}
           onReorderPacks={handleReorderPacks}
           reordering={packsReordering}
         />

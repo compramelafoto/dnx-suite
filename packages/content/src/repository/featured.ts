@@ -4,17 +4,18 @@ import { assertContentPlatform, platformWhere, type ContentPlatform } from "../p
 type PrismaLike = Pick<PrismaClient, "blogPost">;
 
 /**
- * Desmarca `isFeatured` en todos los demás posts de la misma plataforma.
+ * Desmarca `isFeatured` en todos los demás posts del mismo blog (plataforma + institución).
  */
 export async function unsetOtherFeaturedPosts(input: {
   prisma: PrismaLike;
   platform: ContentPlatform;
+  workspaceKey?: string | null;
   featuredPostId: number;
 }): Promise<number> {
   const platform = assertContentPlatform(input.platform);
   const result = await input.prisma.blogPost.updateMany({
     where: {
-      ...platformWhere(platform),
+      ...platformWhere(platform, input.workspaceKey),
       id: { not: input.featuredPostId },
       isFeatured: true,
     },
@@ -28,6 +29,7 @@ export async function unsetOtherFeaturedPosts(input: {
 export async function ensureSingleFeaturedPost(input: {
   prisma: PrismaLike;
   platform: ContentPlatform;
+  workspaceKey?: string | null;
   postId: number;
   isFeatured: boolean;
 }): Promise<void> {
@@ -35,6 +37,7 @@ export async function ensureSingleFeaturedPost(input: {
   await unsetOtherFeaturedPosts({
     prisma: input.prisma,
     platform: input.platform,
+    workspaceKey: input.workspaceKey,
     featuredPostId: input.postId,
   });
 }

@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, ty
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { HeroBlockConfig, HeroContentPosition, HeroHeightPreset, HeroImageFocus, HeroOverlayPreset, HeroSlideAlign } from "@/lib/website/blocks";
 import { useHeroEditingSlideId } from "@/lib/website/hero-editing-context";
+import { enlaceDeBoton } from "@/lib/website/button-href";
+import { levelStyle } from "@/lib/website/typography";
 
 const HEIGHT_CLASS: Record<HeroHeightPreset, string> = {
   compact: "min-h-[240px] sm:min-h-[320px]",
@@ -160,22 +162,27 @@ export function HeroBlockView({ config, blockId }: { config: HeroBlockConfig; bl
             <div
               className={`relative flex h-full flex-col gap-4 px-6 py-16 sm:py-20 max-w-4xl mx-auto ${CONTENT_JUSTIFY[slide.contentPosition]} ${ALIGN_CLASS[slide.align]}`}
             >
+              {/* Sobre la foto, título y subtítulo van siempre en blanco: no toman el color del nivel. */}
               <h1
-                className="text-3xl sm:text-5xl text-white"
-                style={{ textWrap: "balance", fontFamily: "var(--wsite-heading-font)", fontWeight: "var(--wsite-heading-weight)", letterSpacing: "var(--wsite-letter-spacing)" }}
+                className="text-white"
+                style={{ ...levelStyle("title", { color: false }), textWrap: "balance", letterSpacing: "var(--wsite-letter-spacing)" }}
               >
                 {slide.title || "Título principal"}
               </h1>
-              {slide.subtitle ? <p className="text-lg sm:text-xl max-w-2xl leading-relaxed text-white/90">{slide.subtitle}</p> : null}
-              {slide.showButton && slide.buttonLabel && slide.buttonUrl ? (
+              {slide.subtitle ? (
+                <p className="max-w-2xl leading-relaxed text-white/90" style={levelStyle("subtitle", { color: false })}>
+                  {slide.subtitle}
+                </p>
+              ) : null}
+              {slide.showButton && slide.buttonLabel && enlaceDeBoton(slide.buttonUrl) ? (
                 <a
-                  href={slide.buttonUrl}
-                  className="inline-flex mt-2 text-sm transition-transform hover:scale-[1.02]"
+                  href={enlaceDeBoton(slide.buttonUrl) ?? undefined}
+                  className="inline-flex mt-2 transition-transform hover:scale-[1.02]"
                   style={{
+                    ...levelStyle("button", { color: false }),
                     borderRadius: "var(--wsite-button-radius)",
                     paddingInline: "var(--wsite-button-padding-x)",
                     paddingBlock: "var(--wsite-button-padding-y)",
-                    fontWeight: "var(--wsite-button-weight)",
                     ...(slide.buttonStyle === "solid"
                       ? { backgroundColor: "var(--wsite-accent)", color: "#ffffff" }
                       : { border: "2px solid #ffffff", color: "#ffffff" }),

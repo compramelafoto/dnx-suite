@@ -74,3 +74,39 @@ describe("generar y mostrar se encienden por separado", () => {
     assert.ok(visible.legacy, "quien pagó no puede quedarse sin placa");
   });
 });
+
+/**
+ * Cuando el generador viejo se apaga, su placa deja de ofrecerse aunque el sistema nuevo no
+ * esté disponible. Es el único caso en que quien pagó puede no ver ninguna sección: ya no hay
+ * nada viejo que mostrar, y mostrar un botón que no genera nada es peor que no mostrar nada.
+ */
+describe("con el generador viejo apagado", () => {
+  it("no ofrece la placa de siempre", () => {
+    assert.deepEqual(
+      decideParticipantCardsSections({
+        paid: true,
+        v2Available: false,
+        legacyEnabled: false,
+      }),
+      { v2: false, legacy: false }
+    );
+  });
+
+  it("el sistema nuevo se sigue mostrando normalmente", () => {
+    assert.deepEqual(
+      decideParticipantCardsSections({
+        paid: true,
+        v2Available: true,
+        legacyEnabled: false,
+      }),
+      { v2: true, legacy: false }
+    );
+  });
+
+  it("mientras siga encendido, nada cambia", () => {
+    assert.deepEqual(
+      decideParticipantCardsSections({ paid: true, v2Available: false, legacyEnabled: true }),
+      { v2: false, legacy: true }
+    );
+  });
+});

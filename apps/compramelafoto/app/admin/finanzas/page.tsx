@@ -138,7 +138,7 @@ export default function AdminFinanzasPage() {
 
       {/* Contenido de tabs */}
       {activeTab === "summary" && summary && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid dnx-grid-3 gap-4">
           <Card className="p-6">
             <p className="text-sm text-gray-600">Ventas Totales</p>
             <p className="text-2xl font-bold text-gray-900 mt-1">

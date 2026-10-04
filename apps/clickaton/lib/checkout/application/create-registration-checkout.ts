@@ -1,3 +1,9 @@
+import { createHash } from "node:crypto";
+import type { AffiliateSplit } from "@/lib/affiliates/domain/affiliate-split";
+import { decideAffiliateSplit } from "@/lib/affiliates/domain/affiliate-split";
+import { isAffiliateSplitActive } from "@/lib/affiliates/infrastructure/affiliate-split-flag";
+import { DNX_COLLECTOR_PAYMENT_ACCOUNT_ID } from "@/lib/affiliates/infrastructure/split-consent";
+import type { AffiliateSplitCheckoutPort } from "@/lib/affiliates/infrastructure/affiliate-split-checkout";
 import { createCheckoutEligibilityUseCase } from "@/lib/public-registration/application/checkout-eligibility";
 import type { PublicRegistrationRepository } from "@/lib/public-registration/domain/repository";
 import { PublicRegistrationError } from "@/lib/public-registration/domain/errors";
@@ -10,8 +16,12 @@ import type { CheckoutRegistrationPort } from "../domain/checkout-registration-p
 import type { CheckoutRedirectDto, CreatePaymentOrderInput } from "../domain/types";
 import type { DnxPaymentsClient } from "../infrastructure/dnx-payments-client";
 
-function buildCheckoutDescription(code: string): string {
-  const base = `Inscripción Clickatón — ${code}`;
+function buildCheckoutDescription(code: string, isGift = false): string {
+  // Quien regala ve este texto en el resumen de su tarjeta. Sin la palabra
+  // "regalo" parece que se inscribió él, y a los 40 días no se acuerda.
+  const base = isGift
+    ? `Regalo de inscripción Clickatón — ${code}`
+    : `Inscripción Clickatón — ${code}`;
   // Checkout Pro TEST adapter requires "TEST" in the preference title (sandbox safety).
   const mode = resolveClickatonPaymentsProviderMode(
     process.env.CLICKATON_DNX_PAYMENTS_PROVIDER ?? "manual",
@@ -61,12 +71,61 @@ function mapEligibilityReason(reason: string | null): CheckoutError {
   }
 }
 
+/**
+ * Clave de idempotencia del cobro con reparto: una por token de tarjeta (el
+ * token es de un solo uso). Así un reintento con otra tarjeta, tras un
+ * rechazo, no reutiliza la orden rechazada, y un doble clic con el mismo token
+ * sí reutiliza la orden en curso.
+ */
+export function splitCheckoutIdempotencyKey(baseKey: string, cardToken: string): string {
+  const tokenHash = createHash("sha256").update(cardToken).digest("hex").slice(0, 16);
+  return `${baseKey}:split:${tokenHash}`;
+}
+
+function sameOrigin(url: string, base: string): boolean {
+  try {
+    const a = new URL(url);
+    return a.protocol === "https:" || a.hostname === "localhost"
+      ? a.origin === new URL(base).origin
+      : false;
+  } catch {
+    return false;
+  }
+}
+
+/** Estados con los que el cobro con reparto sigue vivo (no rechazado). */
+const SPLIT_ORDER_ALIVE = new Set(["CREATED", "PENDING", "PROCESSING", "APPROVED"]);
+
+export type AffiliateSplitCheckoutDeps = {
+  /** Interruptor + modo producción. */
+  isActive: () => boolean;
+  /** Se pide sólo si está activo (la implementación Prisma se carga perezosa). */
+  getPort: () => Promise<AffiliateSplitCheckoutPort>;
+  /**
+   * Collector que debe cobrar (dueño del permiso). Por defecto la cuenta DNX;
+   * `null` sólo en tests sin snapshot financiero.
+   */
+  expectedCollectorPaymentAccountId?: string | null;
+};
+
+const defaultAffiliateSplitDeps: AffiliateSplitCheckoutDeps = {
+  isActive: () => isAffiliateSplitActive(),
+  getPort: async () => {
+    const { createPrismaAffiliateSplitCheckoutPort } = await import(
+      "@/lib/affiliates/infrastructure/affiliate-split-checkout"
+    );
+    return createPrismaAffiliateSplitCheckoutPort();
+  },
+};
+
 export function createRegistrationCheckoutUseCase(deps: {
   publicRepo: PublicRegistrationRepository;
   payments: DnxPaymentsClient;
   registrationPort: CheckoutRegistrationPort;
   log?: CheckoutLogSink;
+  affiliateSplit?: AffiliateSplitCheckoutDeps;
 }) {
+  const splitDeps = deps.affiliateSplit ?? defaultAffiliateSplitDeps;
   const eligibility = createCheckoutEligibilityUseCase({ repo: deps.publicRepo });
   const log = deps.log;
 
@@ -245,15 +304,63 @@ export function createRegistrationCheckoutUseCase(deps: {
         });
       }
 
+      // Cobro con tarjeta que reparte al fotógrafo afiliado (Orders 1:N
+      // productivo). Sólo con el interruptor encendido; si no, nada cambia.
+      let affiliateSplit: AffiliateSplit | null = null;
+      let splitPort: AffiliateSplitCheckoutPort | null = null;
+      if (input.cardPayment && splitDeps.isActive()) {
+        splitPort = await splitDeps.getPort();
+        const commission = await splitPort.loadCommission(registration.id);
+        const receiver =
+          commission?.status === "PENDING"
+            ? await splitPort.getActiveReceiver(commission.affiliateId)
+            : null;
+        const decision = decideAffiliateSplit({
+          flagEnabled: true,
+          hasCardPayment: true,
+          commission,
+          receiver,
+          totalAmountMinor: eligible.amountMinor,
+          ...(splitDeps.expectedCollectorPaymentAccountId === null
+            ? {}
+            : {
+                collector: {
+                  paymentAccountId:
+                    editionFinance?.snapshot.allocations[0]?.paymentAccountId ?? null,
+                  expectedPaymentAccountId:
+                    splitDeps.expectedCollectorPaymentAccountId ??
+                    DNX_COLLECTOR_PAYMENT_ACCOUNT_ID,
+                },
+              }),
+        });
+        if (!decision.split) {
+          log?.({
+            event: "affiliate_split_skipped",
+            registrationId: registration.id,
+            meta: { reason: decision.reason },
+          });
+          // En producción la tarjeta sólo existe para el cobro con reparto.
+          throw new CheckoutError(
+            "CHECKOUT_NOT_AVAILABLE",
+            "El pago con tarjeta no está disponible para esta inscripción. Recargá la página para pagar con Mercado Pago.",
+          );
+        }
+        affiliateSplit = decision.split;
+      }
+
       const orderInput: CreatePaymentOrderInput = {
         sourceApp: "CLICKATON",
         sourceType: "REGISTRATION",
         sourceId: registration.id,
-        idempotencyKey,
+        idempotencyKey:
+          affiliateSplit && input.cardPayment
+            ? splitCheckoutIdempotencyKey(idempotencyKey, input.cardPayment.token)
+            : idempotencyKey,
         amountMinor: eligible.amountMinor,
         currency: "ARS",
         description: buildCheckoutDescription(
           eligible.publicCode ?? registration.id.slice(0, 8),
+          registration.isGift ?? false,
         ),
         payer: {
           email: registration.participant.email,
@@ -281,6 +388,7 @@ export function createRegistrationCheckoutUseCase(deps: {
               },
             }
           : {}),
+        ...(affiliateSplit ? { affiliateSplit } : {}),
       };
 
       const result = await deps.payments.createOrder(orderInput);
@@ -294,10 +402,37 @@ export function createRegistrationCheckoutUseCase(deps: {
       }
 
       const order = result.order;
+
+      // Antes de cualquier confirmación (que llega después, por refresh): la
+      // comisión queda en modo SPLIT para que al pagar pase a PAID_BY_SPLIT y
+      // no a OWED (que sería pagarle dos veces).
+      if (
+        affiliateSplit &&
+        splitPort &&
+        order.providerOrderId &&
+        /^ord/i.test(order.providerOrderId) &&
+        SPLIT_ORDER_ALIVE.has(order.status)
+      ) {
+        const marked = await splitPort.markSplit(registration.id, order.providerOrderId);
+        log?.({
+          event: marked ? "affiliate_split_marked" : "affiliate_split_mark_failed",
+          registrationId: registration.id,
+          orderId: order.id,
+          meta: { partnerAmountMinor: affiliateSplit.partnerAmountMinor },
+        });
+      }
+
       if (!order.checkoutUrl) {
         throw new CheckoutError("PROVIDER_UNAVAILABLE", "No hay URL de checkout.");
       }
-      const urlCheck = assertSafeCheckoutUrl(order.checkoutUrl);
+      // Cobro con reparto (tarjeta, Orders): la "URL de checkout" es nuestra
+      // propia página de resultado (éxito/pendiente/error), no un host de MP.
+      // El cobro ya ocurrió: rechazarla dejaría el pago sin vincular.
+      const isOwnReturnUrl =
+        affiliateSplit !== null && sameOrigin(order.checkoutUrl, input.publicBaseUrl);
+      const urlCheck = isOwnReturnUrl
+        ? ({ ok: true } as const)
+        : assertSafeCheckoutUrl(order.checkoutUrl);
       if (!urlCheck.ok) {
         throw new CheckoutError(urlCheck.code, urlCheck.message);
       }

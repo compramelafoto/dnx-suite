@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
  * Aviso de pago de Mercado Pago.
  *
  * En Checkout Pro la URL de aviso viaja en cada preferencia, así que esta ruta recibe sólo
- * los pagos de Subí la Foto. Igual se verifica el prefijo de la referencia: la cuenta de
+ * los pagos de SubiLaFoto. Igual se verifica el prefijo de la referencia: la cuenta de
  * Mercado Pago es la misma para toda la suite.
  *
  * **La idempotencia vive en la base.** `mpPaymentId` es único y el cambio de estado es un

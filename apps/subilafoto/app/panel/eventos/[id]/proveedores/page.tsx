@@ -3,8 +3,8 @@ import { cookies } from "next/headers";
 import { DNX_SESSION_COOKIE, getSessionUserByRawToken } from "@repo/auth";
 import { prisma } from "@repo/db";
 import { qrDelEvento } from "@/lib/qr";
-import { nombreDeCategoria } from "@/lib/proveedores/categorias";
-import { BotonDeEnlace } from "./boton";
+import { categoriaDelEnlace, nombreDeCategoria } from "@/lib/proveedores/categorias";
+import { BotonDeCategoria, BotonDeEnlace } from "./boton";
 
 export const dynamic = "force-dynamic";
 
@@ -44,8 +44,8 @@ export default async function ProveedoresDelEvento({ params }: Props) {
       name: true,
       links: {
         where: { kind: "VENDOR", revokedAt: null },
-        select: { token: true, usageCount: true },
-        take: 1,
+        orderBy: { createdAt: "asc" },
+        select: { id: true, token: true, usageCount: true, label: true },
       },
       vendors: {
         orderBy: { createdAt: "desc" },
@@ -55,7 +55,11 @@ export default async function ProveedoresDelEvento({ params }: Props) {
   });
   if (!evento) notFound();
 
-  const enlace = evento.links[0];
+  // El general es el que no tiene rubro; el resto son los de categoría.
+  const enlace = evento.links.find((l) => !categoriaDelEnlace(l.label));
+  const porCategoria = evento.links
+    .map((l) => ({ ...l, categoria: categoriaDelEnlace(l.label) }))
+    .filter((l): l is typeof l & { categoria: string } => l.categoria !== null);
   const url = enlace ? `${baseUrl()}/p/${enlace.token}` : null;
   const svg = url ? await qrDelEvento(url) : null;
 
@@ -95,6 +99,38 @@ export default async function ProveedoresDelEvento({ params }: Props) {
       ) : (
         <BotonDeEnlace eventoId={evento.id} />
       )}
+
+      {enlace ? (
+        <section className="mt-10">
+          <h2 className="text-xl font-extrabold">Enlaces por rubro</h2>
+          <p className="mt-2 text-sm" style={{ color: "var(--slf-tinta-suave)" }}>
+            El de arriba sirve para todos. Estos ya vienen con el rubro puesto, así que
+            quien lo abre no tiene que elegirlo de una lista de treinta.
+          </p>
+
+          {porCategoria.length > 0 ? (
+            <ul className="mt-5 space-y-2">
+              {porCategoria.map((l) => (
+                <li
+                  key={l.id}
+                  className="rounded-xl border px-5 py-3"
+                  style={{ borderColor: "var(--slf-borde)", background: "white" }}
+                >
+                  <p className="font-extrabold">{nombreDeCategoria(l.categoria)}</p>
+                  <p className="mt-1 break-all text-sm" style={{ color: "var(--slf-tinta-suave)" }}>
+                    {`${baseUrl()}/p/${l.token}`.replace(/^https?:\/\//, "")}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
+          <BotonDeCategoria
+            eventoId={evento.id}
+            yaCreadas={porCategoria.map((l) => l.categoria)}
+          />
+        </section>
+      ) : null}
 
       <h2 className="mt-12 text-xl font-extrabold">
         Anotados ({evento.vendors.length})

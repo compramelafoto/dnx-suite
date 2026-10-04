@@ -178,14 +178,19 @@ export function SiteHeader({ authUser = null }: Props) {
           {authUser ? (
             <AccountMenu user={authUser} />
           ) : (
-            <Button
-              href={loginHref}
-              variant="secondary"
-              size="sm"
-              className="whitespace-nowrap"
-            >
-              Iniciar sesión
-            </Button>
+            /* Abajo de sm el botón empujaba la hamburguesa fuera de la pantalla:
+               ahí se entra por el panel de navegación. El envoltorio hace de
+               interruptor porque `hidden` no le gana al `inline-flex` de Button. */
+            <span className="hidden sm:inline-flex">
+              <Button
+                href={loginHref}
+                variant="secondary"
+                size="sm"
+                className="whitespace-nowrap"
+              >
+                Iniciar sesión
+              </Button>
+            </span>
           )}
 
           <Button

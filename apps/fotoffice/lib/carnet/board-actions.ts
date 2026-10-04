@@ -62,7 +62,7 @@ export const STATE_GROUPS: readonly StateGroup[] = [
   {
     id: "por-cobrar",
     label: "Por cobrar",
-    description: "Pedidos que esperan que el socio pague. Todavía no son trabajo del taller.",
+    description: "Pedidos que esperan que el {persona} pague. Todavía no son trabajo del taller.",
     states: ["PENDIENTE_PAGO"],
   },
   {

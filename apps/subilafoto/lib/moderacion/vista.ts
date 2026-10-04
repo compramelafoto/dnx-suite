@@ -31,15 +31,37 @@ export const DURACION = {
   panel: 60,
   /** Álbum y pantalla del salón: lo que dura un evento, con margen. */
   proyeccion: 6 * 60 * 60,
+  /**
+   * Bajar el paquete.
+   *
+   * Una hora y no un minuto: un ZIP de varios gigas con mala conexión se corta y el
+   * navegador reintenta con la misma dirección. Si para entonces la firma venció, la
+   * descarga falla a la mitad y el cliente cree que el enlace está roto.
+   */
+  descarga: 60 * 60,
 } as const;
 
 export async function enlaceParaMirar(
   clave: string,
   segundos: number = DURACION.panel,
+  /**
+   * Nombre con el que se guarda el archivo, si es una descarga y no una vista.
+   *
+   * Va **dentro** de lo que se firma. Pegarlo a la dirección ya firmada invalida la firma:
+   * SigV4 cubre los parámetros de la consulta, y R2 responde `SignatureDoesNotMatch`.
+   * Así estuvo hasta el 2026-09-20 y por eso ninguna descarga funcionaba.
+   */
+  descargarComo?: string,
 ): Promise<string> {
   return getSignedUrl(
     almacenamiento(),
-    new GetObjectCommand({ Bucket: bucket(), Key: clave }),
+    new GetObjectCommand({
+      Bucket: bucket(),
+      Key: clave,
+      ...(descargarComo
+        ? { ResponseContentDisposition: `attachment; filename="${descargarComo}"` }
+        : {}),
+    }),
     { expiresIn: segundos },
   );
 }

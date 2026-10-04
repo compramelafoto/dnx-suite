@@ -9,15 +9,19 @@ import { requireClickatonAdmin } from "@/lib/admin/auth";
 import { prisma, withClickatonDb } from "@/lib/admin/db";
 // El import registra el runtime del editor (base, sesión y almacenamiento).
 import "@/lib/template-v2/server";
+import { formatearEnAr } from "@/lib/fecha-ar";
 
 export const dynamic = "force-dynamic";
 
 function formatDate(value: Date | null): string {
-  if (!value) return "—";
-  return new Intl.DateTimeFormat("es-AR", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(value);
+  return formatearEnAr(value, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
 }
 
 export default async function ClickatonTemplatesPage() {

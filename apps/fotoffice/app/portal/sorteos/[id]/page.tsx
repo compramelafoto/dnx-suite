@@ -7,7 +7,9 @@ import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { resolveRaffle } from "@/lib/raffles/resolve";
 import { fechaHora } from "@/lib/raffles/labels";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { Bolillero, type BolilleroPremio } from "@/components/raffles/bolillero";
+import { resolveLogoUrl } from "@/lib/raffles/logo-url";
 
 export const dynamic = "force-dynamic";
 
@@ -58,12 +60,15 @@ export default async function ResultadoPage({ params }: { params: Promise<{ id: 
         select: {
           title: true,
           partnerNameSnapshot: true,
+          partnerLogoSnapshot: true,
           award: { select: { winnerPosition: true } },
         },
       },
     },
   });
   if (!sorteo) notFound();
+
+  const v = await loadPersonVocabulary(context.workspace.id);
 
   const porPosicion = new Map(sorteo.entries.map((e) => [e.position, e]));
   const premios: BolilleroPremio[] = sorteo.prizes
@@ -73,6 +78,7 @@ export default async function ResultadoPage({ params }: { params: Promise<{ id: 
       return {
         prizeTitle: p.title,
         partnerName: p.partnerNameSnapshot,
+        partnerLogoUrl: resolveLogoUrl(p.partnerLogoSnapshot, process.env.PARTNERS_PUBLIC_URL ?? null),
         winnerPosition: p.award.winnerPosition,
         winnerLabel: g ? `${g.memberNumberSnapshot} · ${g.fullNameSnapshot}` : "—",
       };
@@ -83,7 +89,7 @@ export default async function ResultadoPage({ params }: { params: Promise<{ id: 
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold">{sorteo.title}</h1>
         <p className="text-sm text-[var(--fo-muted)]">
-          Sorteado el {fechaHora(sorteo.drawsAt)} entre {sorteo.entrantsCount} socios al día.
+          {`Sorteado el ${fechaHora(sorteo.drawsAt)} entre ${sorteo.entrantsCount} ${v.plural} al día.`}
         </p>
       </header>
 

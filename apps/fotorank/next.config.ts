@@ -16,7 +16,7 @@ const nextConfig: NextConfig = {
     "@prisma/client",
     "@repo/db",
   ],
-  transpilePackages: ["@repo/auth", "@repo/payments"],
+  transpilePackages: ["@repo/auth", "@repo/jury-ranking", "@repo/payments"],
   outputFileTracingRoot: monorepoRoot,
   outputFileTracingIncludes: {
     "/**": [

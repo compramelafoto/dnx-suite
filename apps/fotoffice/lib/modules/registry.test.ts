@@ -8,7 +8,9 @@ import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
+import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
+import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
 import { SALES_MODULE_KEY } from "@/lib/sales/constants";
 import {
   MODULE_REGISTRY,
@@ -33,7 +35,7 @@ describe("MODULE_REGISTRY", () => {
     }
   });
 
-  it("los módulos AVAILABLE hoy son exactamente courses-sales, evaluaciones, website, reservas, coberturas, members, membership-dues, sorteos, caja, clientes y ventas", () => {
+  it("los módulos AVAILABLE hoy son exactamente courses-sales, evaluaciones, website, reservas, coberturas, members, membership-dues, sorteos, portfolios, caja, clientes y captación y ventas", () => {
     expect(listAvailableModuleKeys().sort()).toEqual(
       [
         COURSES_SALES_MODULE_KEY,
@@ -44,8 +46,10 @@ describe("MODULE_REGISTRY", () => {
         MEMBERS_MODULE_KEY,
         MEMBERSHIP_DUES_MODULE_KEY,
         RAFFLES_MODULE_KEY,
+        PORTFOLIO_MODULE_KEY,
         CASH_MODULE_KEY,
         CLIENTS_MODULE_KEY,
+        SERVICE_LEADS_MODULE_KEY,
         SALES_MODULE_KEY,
       ].sort(),
     );
@@ -96,6 +100,25 @@ describe("sorteos", () => {
     expect(m?.status).toBe("AVAILABLE");
     expect(m?.route).toBe("/sorteos");
     expect(m?.category).toBe("INSTITUTIONAL");
+  });
+
+  it("no duplica ninguna clave del catálogo", () => {
+    expect(findDuplicateModuleKeys()).toEqual([]);
+  });
+});
+
+describe("portfolios", () => {
+  it("está en el catálogo, disponible, con su ruta y en el grupo institucional", () => {
+    const def = getModuleDefinition(PORTFOLIO_MODULE_KEY);
+    expect(def).toBeDefined();
+    expect(def?.status).toBe("AVAILABLE");
+    expect(def?.route).toBe("/portfolios");
+    expect(def?.category).toBe("INSTITUTIONAL");
+  });
+
+  it("su descripción usa el vocabulario de la institución, no la palabra fija", () => {
+    const def = getModuleDefinition(PORTFOLIO_MODULE_KEY);
+    expect(def?.description).toContain("{personas}");
   });
 
   it("no duplica ninguna clave del catálogo", () => {

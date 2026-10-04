@@ -1,7 +1,7 @@
-# SUBÍ LA FOTO — Documento maestro de producto e implementación
+# SubiLaFoto — Documento maestro de producto e implementación
 
 **Proyecto:** nueva aplicación de DNX Suite  
-**Nombre comercial:** Subí la Foto  
+**Nombre comercial:** SubiLaFoto  
 **Dominio deseado:** `subilafoto.com`  
 **Fecha objetivo de lanzamiento:** 10 de octubre de 2026  
 **Estado:** definición funcional integral para análisis e implementación progresiva  
@@ -10,7 +10,7 @@
 
 ## 1. Instrucción general para Claude Cowork y Claude Code
 
-Usar este documento como fuente inicial de verdad para analizar, planificar y desarrollar una nueva aplicación de DNX Suite llamada **Subí la Foto**.
+Usar este documento como fuente inicial de verdad para analizar, planificar y desarrollar una nueva aplicación de DNX Suite llamada **SubiLaFoto**.
 
 Antes de escribir código:
 
@@ -42,7 +42,7 @@ Este documento describe el producto completo. No significa que todas las funcion
 
 ## 2. Visión del producto
 
-**Subí la Foto** es una plataforma web para eventos sociales, congresos y encuentros empresariales que permite reunir, moderar, proyectar y conservar las fotografías, videos y mensajes producidos por invitados, asistentes, organizadores y fotógrafos.
+**SubiLaFoto** es una plataforma web para eventos sociales, congresos y encuentros empresariales que permite reunir, moderar, proyectar y conservar las fotografías, videos y mensajes producidos por invitados, asistentes, organizadores y fotógrafos.
 
 La experiencia principal debe ser extremadamente sencilla:
 
@@ -50,7 +50,7 @@ La experiencia principal debe ser extremadamente sencilla:
 
 El invitado no debe instalar una aplicación ni crear una cuenta. Accede mediante un código QR o enlace, acepta las condiciones necesarias, elige o toma fotografías y las carga en pocos pasos. Según la configuración del evento, el contenido puede pasar por moderación y aparecer en tiempo real en una pantalla principal y en el álbum digital.
 
-Subí la Foto debe ser también una herramienta comercial para fotógrafos, productoras, salones y organizadores. Ellos podrán crear eventos, personalizarlos, fijar su propio precio, enviarlos a sus clientes y pagar una comisión solamente cuando concretan una venta.
+SubiLaFoto debe ser también una herramienta comercial para fotógrafos, productoras, salones y organizadores. Ellos podrán crear eventos, personalizarlos, fijar su propio precio, enviarlos a sus clientes y pagar una comisión solamente cuando concretan una venta.
 
 La aplicación será una nueva unidad de DNX Suite, conectada con servicios compartidos cuando sea conveniente, pero con identidad comercial propia y posibilidad futura de operar como producto autónomo o marca blanca.
 
@@ -65,7 +65,7 @@ La aplicación será una nueva unidad de DNX Suite, conectada con servicios comp
 5. **Control del organizador:** nada se proyecta sin respetar la modalidad de moderación elegida.
 6. **Diseño emocional:** cada evento debe sentirse único mediante plantillas, portada, colores y tipografías.
 7. **Privacidad configurable:** no todos los eventos requieren la misma visibilidad ni permisos.
-8. **Negocio alineado:** Subí la Foto gana cuando el fotógrafo u organizador vende.
+8. **Negocio alineado:** SubiLaFoto gana cuando el fotógrafo u organizador vende.
 9. **Reutilización responsable:** aprovechar la infraestructura de DNX Suite sin acoplar innecesariamente las aplicaciones.
 10. **Escalabilidad progresiva:** comenzar con un núcleo excelente y agregar capacidades sin rehacer el producto.
 11. **Trazabilidad:** pagos, moderación, eliminaciones, consentimientos y cambios importantes deben quedar auditados.
@@ -153,7 +153,7 @@ Antes del pago no deben existir tareas de diseño, selección de plantilla, carg
 
 ### 6.2 Precio libre con protección de costos
 
-El vendedor define el precio final del evento. Subí la Foto cobra una comisión inicial propuesta del **15%** sobre la venta.
+El vendedor define el precio final del evento. SubiLaFoto cobra una comisión inicial propuesta del **15%** sobre la venta.
 
 Debe existir una configuración global para:
 
@@ -220,10 +220,10 @@ Ejemplo:
 - adicional de descarga: 15% = $15.000;
 - total si se compra junto con el evento: $115.000.
 
-Este **15% adicional por descarga** no debe confundirse con la **comisión del 15% de Subí la Foto**. Son conceptos diferentes:
+Este **15% adicional por descarga** no debe confundirse con la **comisión del 15% de SubiLaFoto**. Son conceptos diferentes:
 
 - adicional de descarga: precio comercial que paga el cliente por recibir el paquete completo;
-- comisión de plataforma: porcentaje que Subí la Foto retiene sobre la venta principal del evento.
+- comisión de plataforma: porcentaje que SubiLaFoto retiene sobre la venta principal del evento.
 
 El adicional debe poder ofrecerse:
 
@@ -241,7 +241,7 @@ La recomendación inicial es que el fotógrafo pueda elegir entre tres modalidad
 La distribución económica queda confirmada de esta manera:
 
 - venta principal del evento: se distribuye conforme a la comisión configurada entre fotógrafo y plataforma;
-- adicional de descarga y entrega: **100% del ingreso corresponde a Subí la Foto**;
+- adicional de descarga y entrega: **100% del ingreso corresponde a SubiLaFoto**;
 - el fotógrafo no recibe participación sobre este adicional;
 - impuestos, costos del medio de pago, devoluciones y contracargos deben contabilizarse separadamente para determinar el ingreso neto real de la plataforma.
 
@@ -249,7 +249,7 @@ La página de compra debe explicar con claridad qué incluye el servicio princip
 
 ### 6.6 Recuperación comercial de la descarga
 
-Si el cliente no compra el adicional inicialmente, Subí la Foto podrá ofrecérselo después del evento mediante una secuencia automática de emails. El objetivo es recordarle que el contenido está disponible temporalmente y que puede adquirir la preparación y entrega del paquete completo antes de su eliminación.
+Si el cliente no compra el adicional inicialmente, SubiLaFoto podrá ofrecérselo después del evento mediante una secuencia automática de emails. El objetivo es recordarle que el contenido está disponible temporalmente y que puede adquirir la preparación y entrega del paquete completo antes de su eliminación.
 
 Secuencia inicial propuesta:
 
@@ -397,7 +397,7 @@ La DEMO no habilita el evento para invitados reales ni modifica la hora contrata
 
 ## 8. Sistema de plantillas y personalización visual
 
-Subí la Foto debe ofrecer una biblioteca amplia de plantillas, comparable o superior a la de Selpix, pero con diseño propio y sin copiar recursos protegidos.
+SubiLaFoto debe ofrecer una biblioteca amplia de plantillas, comparable o superior a la de Selpix, pero con diseño propio y sin copiar recursos protegidos.
 
 ### 8.1 Categorías iniciales de plantillas
 
@@ -541,7 +541,7 @@ Estos importes son orientativos, deben validarse al implementar y no incluyen al
 5. Se genera, si corresponde, una versión reducida y segura para el análisis.
 6. Un trabajo asíncrono e idempotente envía la imagen al proveedor de moderación.
 7. Se almacenan proveedor, versión, etiquetas, puntajes, fecha, duración, decisión y política aplicada.
-8. El motor de reglas de Subí la Foto traduce el resultado a una decisión de negocio.
+8. El motor de reglas de SubiLaFoto traduce el resultado a una decisión de negocio.
 9. Si es segura, pasa automáticamente a `APPROVED` y puede publicarse.
 10. Si es dudosa, pasa a `REVIEW_REQUIRED`, queda retenida y no se muestra.
 11. Si presenta riesgo alto, pasa a `BLOCKED` o `REJECTED` y no se muestra.
@@ -718,7 +718,7 @@ Claude debe diferenciar claramente entre:
 - exportar todos los originales;
 - adquirir el paquete final del cliente.
 
-Si el paquete completo es un adicional cuyo ingreso corresponde a Subí la Foto, los permisos del fotógrafo no deben permitir que el flujo comercial sea evitado accidentalmente mediante una descarga masiva equivalente. Debe definirse qué acceso operativo necesita realmente el profesional y qué derecho adquiere el cliente. Esta regla debe ser visible, coherente y aceptada antes de vender el servicio.
+Si el paquete completo es un adicional cuyo ingreso corresponde a SubiLaFoto, los permisos del fotógrafo no deben permitir que el flujo comercial sea evitado accidentalmente mediante una descarga masiva equivalente. Debe definirse qué acceso operativo necesita realmente el profesional y qué derecho adquiere el cliente. Esta regla debe ser visible, coherente y aceptada antes de vender el servicio.
 
 ---
 
@@ -862,7 +862,7 @@ Estas posibilidades futuras no autorizan a utilizar los datos para publicidad si
 
 ## 15. Congresos y eventos empresariales
 
-Subí la Foto debe contemplar necesidades más formales:
+SubiLaFoto debe contemplar necesidades más formales:
 
 - identidad corporativa;
 - agenda o programa básico;
@@ -1193,7 +1193,7 @@ La fecha objetivo está muy próxima. La excelencia requiere limitar el lanzamie
 
 ### 26.1 Debe funcionar
 
-- identidad Subí la Foto;
+- identidad SubiLaFoto;
 - aplicación integrada correctamente en DNX Suite;
 - registro e inicio de sesión del profesional;
 - panel básico;
@@ -1223,7 +1223,7 @@ La fecha objetivo está muy próxima. La excelencia requiere limitar el lanzamie
 - permisos de descarga diferenciados, sin permitir que una exportación operativa evite el adicional del cliente;
 - registro obligatorio del email del cliente comprador;
 - adicional de descarga configurable, sugerido inicialmente en 15% del precio base;
-- asignación del 100% del adicional de descarga a Subí la Foto;
+- asignación del 100% del adicional de descarga a SubiLaFoto;
 - preparación asíncrona de archivos compactados;
 - entrega mediante enlace seguro por email al día siguiente;
 - recordatorios automáticos si no se compró la descarga;
@@ -1357,7 +1357,7 @@ La fecha objetivo está muy próxima. La excelencia requiere limitar el lanzamie
 - soporte preparado;
 - lanzamiento controlado.
 
-**Salida:** Subí la Foto funcionando con excelencia el 10 de octubre de 2026.
+**Salida:** SubiLaFoto funcionando con excelencia el 10 de octubre de 2026.
 
 ---
 
@@ -1547,11 +1547,11 @@ Estas funciones deberán diseñarse en una fase propia y conectarse posteriormen
 
 ### Nombre
 
-**Subí la Foto**
+**SubiLaFoto**
 
 ### Escritura
 
-- Marca visible: **Subí la Foto**
+- Marca visible: **SubiLaFoto**
 - Dominio: `subilafoto.com`
 - Identificador técnico: definir después de revisar convenciones del repositorio.
 
@@ -1575,7 +1575,7 @@ Simple, cercano, festivo, confiable y profesional. Evitar explicaciones técnica
 
 ## 35. Decisiones confirmadas
 
-- El nombre elegido es **Subí la Foto**.
+- El nombre elegido es **SubiLaFoto**.
 - El dominio deseado es `subilafoto.com`.
 - Será una nueva app de DNX Suite.
 - El profesional podrá crear y vender eventos.
@@ -1586,7 +1586,7 @@ Simple, cercano, festivo, confiable y profesional. Evitar explicaciones técnica
 - Antes de la activación existirá un modo DEMO separado del evento real.
 - El email del cliente comprador será obligatorio para confirmaciones y entrega.
 - La descarga final podrá venderse como adicional, inicialmente sugerido en 15% del precio base.
-- El 100% del ingreso por el adicional de descarga corresponderá a Subí la Foto.
+- El 100% del ingreso por el adicional de descarga corresponderá a SubiLaFoto.
 - Si el adicional fue comprado, el paquete se enviará mediante enlace seguro al día siguiente.
 - Si no fue comprado, se enviarán recordatorios en los días 1, 3, 7, 15 y 30.
 - Sin compra, el contenido tendrá inicialmente una conservación comercial de 30 días y luego se eliminará de manera controlada.
@@ -1647,7 +1647,7 @@ Para cada decisión abierta, Claude debe ofrecer opciones, ventajas, riesgos, co
 
 Después de inspeccionar el proyecto, producir dentro de la documentación del repositorio:
 
-1. `README` funcional de Subí la Foto.
+1. `README` funcional de SubiLaFoto.
 2. Especificación de arquitectura real.
 3. Mapa de módulos reutilizados y nuevos.
 4. Modelo de datos propuesto.

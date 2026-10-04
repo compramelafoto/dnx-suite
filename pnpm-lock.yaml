@@ -50,6 +50,9 @@ importers:
       '@repo/design-system':
         specifier: workspace:*
         version: link:../../packages/design-system
+      '@repo/jury-ranking':
+        specifier: workspace:*
+        version: link:../../packages/jury-ranking
       '@repo/media-composition':
         specifier: workspace:*
         version: link:../../packages/media-composition
@@ -77,6 +80,9 @@ importers:
       '@repo/template-engine-renderer':
         specifier: workspace:*
         version: link:../../packages/template-engine-renderer
+      archiver:
+        specifier: ^7.0.1
+        version: 7.0.1
       exifr:
         specifier: ^7.1.3
         version: 7.1.3
@@ -120,6 +126,9 @@ importers:
       '@tailwindcss/postcss':
         specifier: ^4.2.2
         version: 4.2.2
+      '@types/archiver':
+        specifier: ^6.0.3
+        version: 6.0.4
       '@types/node':
         specifier: ^22.15.3
         version: 22.20.1
@@ -559,6 +568,9 @@ importers:
       '@aws-sdk/client-s3':
         specifier: ^3.972.0
         version: 3.1079.0
+      '@aws-sdk/s3-request-presigner':
+        specifier: ^3.972.0
+        version: 3.1079.0
       '@dnd-kit/core':
         specifier: ^6.3.1
         version: 6.3.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -577,12 +589,21 @@ importers:
       '@repo/communications':
         specifier: workspace:*
         version: link:../../packages/communications
+      '@repo/content':
+        specifier: workspace:*
+        version: link:../../packages/content
+      '@repo/content-ui':
+        specifier: workspace:*
+        version: link:../../packages/content-ui
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
       '@repo/design-studio':
         specifier: workspace:*
         version: link:../../packages/design-studio
+      '@repo/geo':
+        specifier: workspace:*
+        version: link:../../packages/geo
       '@repo/partners':
         specifier: workspace:*
         version: link:../../packages/partners
@@ -604,6 +625,9 @@ importers:
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3
+      leaflet:
+        specifier: ^1.9.4
+        version: 1.9.4
       lucide-react:
         specifier: ^0.544.0
         version: 0.544.0(react@19.2.4)
@@ -622,6 +646,9 @@ importers:
       react-dom:
         specifier: 19.2.4
         version: 19.2.4(react@19.2.4)
+      react-leaflet:
+        specifier: ^5.0.0
+        version: 5.0.0(leaflet@1.9.4)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       zod:
         specifier: ^3.25.76
         version: 3.25.76
@@ -632,6 +659,9 @@ importers:
       '@types/bcryptjs':
         specifier: ^2.4.6
         version: 2.4.6
+      '@types/leaflet':
+        specifier: ^1.9.21
+        version: 1.9.21
       '@types/node':
         specifier: ^20
         version: 20.19.37
@@ -746,6 +776,9 @@ importers:
       '@repo/design-system':
         specifier: workspace:*
         version: link:../../packages/design-system
+      '@repo/jury-ranking':
+        specifier: workspace:*
+        version: link:../../packages/jury-ranking
       '@repo/partners':
         specifier: workspace:*
         version: link:../../packages/partners
@@ -1569,6 +1602,15 @@ importers:
       tsx:
         specifier: ^4.21.0
         version: 4.23.0
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+
+  packages/jury-ranking:
+    devDependencies:
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
       typescript:
         specifier: 5.9.2
         version: 5.9.2

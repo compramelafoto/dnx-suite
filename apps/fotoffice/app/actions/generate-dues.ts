@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { requireActiveWorkspace } from "@/lib/workspace";
-import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
+import { hasModuleLevel } from "@/lib/permissions/module-access";
+import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { generateMonthlyCharges } from "@/lib/membership/generate-monthly";
 import { periodOf } from "@/lib/membership/monthly-plan";
 
@@ -21,7 +22,7 @@ const PERIODO = /^\d{4}-(0[1-9]|1[0-2])$/;
 export async function generateDuesAction(formData: FormData): Promise<GenerateDuesResult> {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) return { ok: false, error: "No hay una institución activa." };
-  if (!(await canManageWorkspaceCollection(user.id, workspace.id))) {
+  if (!(await hasModuleLevel(user.id, workspace.id, MEMBERSHIP_DUES_MODULE_KEY, "MANAGE"))) {
     return { ok: false, error: "Solo el dueño o un administrador puede generar cuotas." };
   }
 

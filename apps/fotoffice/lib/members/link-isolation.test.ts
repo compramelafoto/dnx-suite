@@ -87,7 +87,10 @@ describe("vínculo socio↔usuario — permisos, unicidad y atomicidad (código 
   it("desvincular exige motivo", () => {
     const fn = actionsSrc.slice(actionsSrc.indexOf("export async function unlinkMemberUserAction"));
     assert.match(fn, /normalizeReason/);
-    assert.match(fn, /Escribí el motivo/);
+    // El texto ya no está escrito acá: vive en `lib/members/mensajes.ts` porque nombra a la
+    // gente del padrón y cada institución la llama distinto. Lo que este test cuida es que
+    // la acción siga exigiendo el motivo, no dónde está guardada la frase.
+    assert.match(fn, /mensajeDePadron\("motivoDeDesvinculacion"/);
   });
 
   it("NUNCA se vincula automáticamente por coincidencia de email", () => {

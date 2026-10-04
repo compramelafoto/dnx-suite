@@ -1,5 +1,8 @@
 import { prisma } from "@repo/db";
 import { getAuthUser, type AuthUser } from "@/lib/auth";
+import { getModuleLevel } from "@/lib/permissions/module-access";
+import { hasLevel, type ModuleLevel } from "@/lib/permissions/levels";
+import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 import { resolveActiveWorkspace, type ActiveWorkspace } from "@/lib/workspace";
 
 /**
@@ -9,6 +12,17 @@ import { resolveActiveWorkspace, type ActiveWorkspace } from "@/lib/workspace";
  */
 export function canManageWorkspaceImages(role: string | null | undefined): boolean {
   return role === "WORKSPACE_OWNER" || role === "WORKSPACE_ADMIN" || role === "ADMIN";
+}
+
+/**
+ * Subir imágenes: dueño/administrador (logo de la institución, Configuración) o un rol con
+ * Sitio web en MANAGE (imágenes del sitio y del blog).
+ */
+export function canUploadWorkspaceImages(
+  role: string | null | undefined,
+  websiteLevel: ModuleLevel,
+): boolean {
+  return canManageWorkspaceImages(role) || hasLevel(websiteLevel, "MANAGE");
 }
 
 export type ImageUploadContext = { user: AuthUser; workspace: ActiveWorkspace };
@@ -30,7 +44,8 @@ export async function requireImageUploadContext(): Promise<ImageUploadContext | 
     where: { userId_workspaceId: { userId: user.id, workspaceId: workspace.id } },
     select: { role: true },
   });
-  if (!canManageWorkspaceImages(membership?.role)) return null;
+  const websiteLevel = await getModuleLevel(user.id, workspace.id, WEBSITE_MODULE_KEY);
+  if (!canUploadWorkspaceImages(membership?.role, websiteLevel)) return null;
 
   return { user, workspace };
 }

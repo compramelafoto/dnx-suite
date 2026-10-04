@@ -45,7 +45,7 @@ El cálculo se hace **sobre el fee efectivo**, no sobre el precio de venta:
 `referralAmountCents = Math.floor(feeEfectivo * 0.5)`. Importa la distinción, porque el fee
 efectivo ya descuenta promociones y descuentos aplicados a la comisión.
 
-Al enum `ReferralProgram` habría que sumarle un valor para Subí la Foto, o reutilizar
+Al enum `ReferralProgram` habría que sumarle un valor para SubiLaFoto, o reutilizar
 `PHOTOGRAPHER_REFERRAL` si el reparto es el mismo. **Recomiendo un valor propio**
 (`SUBILAFOTO_REFERRAL`, también al 0.5): permite cambiar el porcentaje de una plataforma sin
 tocar la otra, y las dos comparten la misma tabla de ganancias.
@@ -99,7 +99,7 @@ Cómo se implementa:
 Para el fotógrafo el mensaje queda en una frase: **doce meses desde que el programa arranca**.
 
 Cuidado al implementarlo: `ReferralAttribution` en el schema tiene `startsAt` y `endsAt`
-como obligatorios, porque CompraMeLaFoto los fija en el alta. Para Subí la Foto hay que
+como obligatorios, porque CompraMeLaFoto los fija en el alta. Para SubiLaFoto hay que
 hacerlos opcionales o guardar la atribución en una tabla propia hasta activarla. Es una
 decisión de modelo a tomar cuando se implemente, no ahora.
 

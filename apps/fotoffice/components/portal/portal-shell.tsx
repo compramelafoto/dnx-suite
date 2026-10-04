@@ -1,16 +1,15 @@
 import type { ReactNode } from "react";
 import { type ResolvedPortalItem } from "@/lib/portal/menu";
-import { PortalNav, PortalTabs } from "./portal-nav";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
+import { PortalNav, PortalSidebar } from "./portal-nav";
 
 /**
- * El marco del portal: identidad arriba, contenido en el medio, navegación abajo.
+ * El marco del portal: identidad arriba, navegación al costado (computadora) o abajo
+ * (teléfono), contenido en el medio.
  *
- * La navegación va abajo y no en un menú lateral porque el portal se usa desde el teléfono, con
- * una mano. Un menú lateral copiado del panel obliga a estirar el pulgar hasta la esquina más
- * lejana de la pantalla para lo que se hace todo el tiempo.
- *
- * En pantalla grande la barra pasa a ser horizontal arriba: abajo del todo, en un monitor, es
- * el lugar donde nadie mira.
+ * En el teléfono la navegación va abajo porque el portal se usa con una mano: estirar el pulgar
+ * hasta la esquina más lejana para lo que se hace todo el tiempo no sirve. En computadora va en
+ * un panel lateral con todas las secciones a la vista, y el contenido aprovecha el ancho.
  *
  * Lo monta el layout de `/portal`, no cada pantalla. Así ninguna se lo puede olvidar y el socio
  * nunca queda en una pantalla sin saber quién es ni cómo volver.
@@ -19,50 +18,55 @@ export function PortalShell({
   items,
   member,
   institution,
+  vocabulary,
   children,
 }: {
   items: ResolvedPortalItem[];
   member: { fullName: string; memberNumber: string; category: string | null; photoUrl: string | null };
   institution: { name: string; logoUrl: string | null };
+  vocabulary: PersonVocabulary;
   children: ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-[var(--fo-bg)] pb-20 text-[var(--fo-text)] sm:pb-0">
+    <div className="min-h-screen bg-[var(--fo-bg)] pb-20 text-[var(--fo-text)] md:pb-0">
       {/*
-        Pegado arriba: la identidad del socio y el acceso a las secciones tienen que estar a
-        mano en cualquier punto de una lista larga de cuotas, no solo al principio.
+        Pegado arriba: la identidad del socio tiene que estar a mano en cualquier punto de una
+        lista larga de cuotas, no solo al principio. Mide 5rem en el teléfono y 6rem desde
+        pantalla mediana: el panel lateral se engancha justo debajo con `top-24`.
       */}
-      <header className="sticky top-0 z-30 border-b border-[var(--fo-border)] bg-[var(--fo-surface)]">
-        <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
-          <PortalAvatar name={member.fullName} src={member.photoUrl} />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold leading-tight">{member.fullName}</p>
-            <p className="truncate text-xs text-[var(--fo-muted)]">
-              Socio N° <span className="tabular-nums">{member.memberNumber}</span>
-              {member.category ? ` · ${member.category}` : ""}
-            </p>
+      <header className="sticky top-0 z-30 h-20 border-b border-[var(--fo-border)] md:h-24 bg-[var(--fo-surface)]">
+        <div className="mx-auto flex h-full max-w-7xl items-center gap-3 px-4 md:px-6">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            {institution.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={institution.logoUrl}
+                alt={institution.name}
+                className="h-14 w-auto max-w-40 shrink-0 object-contain md:h-20 md:max-w-64"
+              />
+            ) : null}
+            <span className="hidden truncate text-sm font-semibold sm:block">{institution.name}</span>
           </div>
-          {institution.logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={institution.logoUrl}
-              alt={institution.name}
-              className="h-16 w-auto max-w-48 shrink-0 object-contain"
-            />
-          ) : (
-            <span className="shrink-0 text-xs font-medium text-[var(--fo-muted)]">
-              {institution.name}
-            </span>
-          )}
-        </div>
 
-        {/* En pantalla grande la navegación vive acá arriba; en el teléfono, abajo. */}
-        <PortalTabs items={items} />
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="min-w-0 text-right">
+              <p className="truncate text-sm font-semibold leading-tight">{member.fullName}</p>
+              <p className="truncate text-xs text-[var(--fo-muted)]">
+                {vocabulary.Singular} N° <span className="tabular-nums">{member.memberNumber}</span>
+                {member.category ? <span className="hidden sm:inline"> · {member.category}</span> : null}
+              </p>
+            </div>
+            <PortalAvatar name={member.fullName} src={member.photoUrl} className="h-10 w-10" />
+          </div>
+        </div>
       </header>
 
-      <main className="mx-auto max-w-3xl px-4 py-5">{children}</main>
+      <div className="mx-auto flex max-w-7xl gap-8 md:px-6">
+        <PortalSidebar items={items} vocabulary={vocabulary} />
+        <main className="min-w-0 flex-1 px-4 py-5 md:px-0 md:py-6">{children}</main>
+      </div>
 
-      <PortalNav items={items} />
+      <PortalNav items={items} vocabulary={vocabulary} />
     </div>
   );
 }

@@ -379,7 +379,7 @@ function AdminPedidoDetailContent() {
         </Card>
 
         <Card className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid dnx-grid-2 gap-4">
             <div>
               <p className="text-sm text-gray-500">Estado</p>
               <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeColor(digitalOrder.status)}`}>
@@ -580,7 +580,7 @@ function AdminPedidoDetailContent() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid dnx-grid-3 gap-6">
         {/* Información principal */}
         <div className="lg:col-span-2 space-y-6">
           {/* Datos del cliente */}

@@ -6,7 +6,8 @@ import { CourseFormWizard } from "@/components/course-form-wizard";
 import { GraduationCap } from "lucide-react";
 
 export default async function NewCoursePage() {
-  const { workspace } = await requireCoursesSalesContext();
+  // Formulario de alta: pide MANAGE en cursos (el layout de /courses sólo exige VIEW).
+  const { workspace } = await requireCoursesSalesContext("MANAGE");
   const teachers = await prisma.courseSalesTeacher.findMany({
     where: { workspaceId: workspace.id },
     orderBy: { fullName: "asc" },

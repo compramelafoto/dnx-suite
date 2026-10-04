@@ -1,14 +1,14 @@
 "use client";
 
 import { ImageUploadField } from "@/components/image-upload-field";
-import { SelectField, TextField, ToggleField } from "@/components/website/inspector/inspector-fields";
+import { SelectField } from "@/components/website/inspector/inspector-fields";
 import {
   ANIMATION_PRESETS,
   BUTTON_PRESETS,
-  HEADER_PRESETS,
-  TYPOGRAPHY_PRESETS,
+  FOOTER_PRESETS,
   type WebsiteDesignPresets,
 } from "@/lib/website/design-presets";
+import { TypographyPanel } from "./typography-panel";
 import { WEBSITE_DEFAULT_COLORS, type WebsiteColors } from "@/lib/website/branding-defaults";
 
 const COLOR_FIELDS: { key: keyof WebsiteColors; label: string }[] = [
@@ -21,7 +21,7 @@ const COLOR_FIELDS: { key: keyof WebsiteColors; label: string }[] = [
 
 /**
  * Panel "Diseño". Todo lo de acá persiste de verdad ahora: colores/logo/favicon en
- * `FotofficeWorkspaceBranding` (misma fuente de verdad que Configuración), header/tipografía/
+ * `FotofficeWorkspaceBranding` (misma fuente de verdad que Configuración), tipografía/
  * botones/animación/tamaño de logo en `FotofficeWorkspaceWebsite.designPresetsJson` — y se
  * congela en la Version al publicar (ver informe de esta etapa).
  */
@@ -31,6 +31,7 @@ export function DesignPanel({
   faviconUrl,
   presets,
   canEdit,
+  canEditIdentity,
   onColorsChange,
   onLogoChange,
   onFaviconChange,
@@ -41,6 +42,8 @@ export function DesignPanel({
   faviconUrl: string | null;
   presets: WebsiteDesignPresets;
   canEdit: boolean;
+  /** Logo y favicon son de dueño/admin (identidad de la institución); los colores, de `website` MANAGE. */
+  canEditIdentity: boolean;
   onColorsChange: (colors: WebsiteColors) => void;
   onLogoChange: (url: string | null) => void;
   onFaviconChange: (url: string | null) => void;
@@ -54,13 +57,20 @@ export function DesignPanel({
       <fieldset disabled={!canEdit} className="flex-1 overflow-y-auto p-4 space-y-6 border-0">
         <section className="space-y-3">
           <p className="text-xs font-semibold text-[var(--fo-text)]">Logo</p>
-          <ImageUploadField name="_logo" presetKey="workspaceLogo" label="" initialUrl={logoUrl} onUploaded={onLogoChange} />
+          <fieldset disabled={!canEditIdentity} className="space-y-2 border-0">
+            <ImageUploadField name="_logo" presetKey="workspaceLogo" label="" initialUrl={logoUrl} onUploaded={onLogoChange} />
+          </fieldset>
+          {canEdit && !canEditIdentity ? (
+            <p className="text-xs text-[var(--fo-muted)]">
+              El logo y el favicon los cambia el dueño o un admin de la institución.
+            </p>
+          ) : null}
           <label className="block space-y-1.5">
             <span className="fo-label text-xs">Tamaño en el header ({presets.logoSizePx}px)</span>
             <input
               type="range"
               min={24}
-              max={96}
+              max={160}
               step={4}
               value={presets.logoSizePx}
               onChange={(e) => onPresetsChange({ ...presets, logoSizePx: Number(e.target.value) })}
@@ -71,7 +81,9 @@ export function DesignPanel({
 
         <section className="space-y-3">
           <p className="text-xs font-semibold text-[var(--fo-text)]">Favicon</p>
-          <ImageUploadField name="_favicon" presetKey="favicon" label="" description="El ícono que se ve en la pestaña del navegador." initialUrl={faviconUrl} onUploaded={onFaviconChange} />
+          <fieldset disabled={!canEditIdentity} className="border-0">
+            <ImageUploadField name="_favicon" presetKey="favicon" label="" description="El ícono que se ve en la pestaña del navegador." initialUrl={faviconUrl} onUploaded={onFaviconChange} />
+          </fieldset>
         </section>
 
         <section className="space-y-3">
@@ -99,37 +111,7 @@ export function DesignPanel({
           </div>
         </section>
 
-        <section className="space-y-3">
-          <p className="text-xs font-semibold text-[var(--fo-text)]">Encabezado / Menú</p>
-          <SelectField
-            label="Estilo"
-            value={presets.headerPreset}
-            onChange={(v) => onPresetsChange({ ...presets, headerPreset: v as WebsiteDesignPresets["headerPreset"] })}
-            options={HEADER_PRESETS.map((p) => ({ value: p.id, label: p.label }))}
-          />
-          <ToggleField
-            label='Mostrar botón "Iniciar sesión"'
-            checked={presets.showLoginButton}
-            onChange={(v) => onPresetsChange({ ...presets, showLoginButton: v })}
-          />
-          {presets.showLoginButton ? (
-            <TextField
-              label="Texto del botón"
-              value={presets.loginButtonLabel}
-              onChange={(v) => onPresetsChange({ ...presets, loginButtonLabel: v })}
-            />
-          ) : null}
-        </section>
-
-        <section className="space-y-3">
-          <p className="text-xs font-semibold text-[var(--fo-text)]">Tipografía</p>
-          <SelectField
-            label="Estilo"
-            value={presets.typographyPreset}
-            onChange={(v) => onPresetsChange({ ...presets, typographyPreset: v as WebsiteDesignPresets["typographyPreset"] })}
-            options={TYPOGRAPHY_PRESETS.map((p) => ({ value: p.id, label: p.label }))}
-          />
-        </section>
+        <TypographyPanel presets={presets} colors={colors} onPresetsChange={onPresetsChange} />
 
         <section className="space-y-3">
           <p className="text-xs font-semibold text-[var(--fo-text)]">Botones</p>
@@ -148,6 +130,16 @@ export function DesignPanel({
             value={presets.animationPreset}
             onChange={(v) => onPresetsChange({ ...presets, animationPreset: v as WebsiteDesignPresets["animationPreset"] })}
             options={ANIMATION_PRESETS.map((p) => ({ value: p.id, label: p.label }))}
+          />
+        </section>
+
+        <section className="space-y-3">
+          <p className="text-xs font-semibold text-[var(--fo-text)]">Pie</p>
+          <SelectField
+            label="Estilo"
+            value={presets.footerPreset}
+            onChange={(v) => onPresetsChange({ ...presets, footerPreset: v as WebsiteDesignPresets["footerPreset"] })}
+            options={FOOTER_PRESETS.map((p) => ({ value: p.id, label: p.label }))}
           />
         </section>
       </fieldset>

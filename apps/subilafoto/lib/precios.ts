@@ -4,7 +4,7 @@
  * Son dos cosas distintas que se parecen y conviene no mezclar:
  *  - la **comisión de la plataforma** (15%) sale de la venta del evento;
  *  - el **adicional de descarga** (15% sugerido) es un precio que paga el cliente aparte,
- *    y su ingreso es 100% de Subí la Foto.
+ *    y su ingreso es 100% de SubiLaFoto.
  *
  * Todo en centavos enteros. Un `Float` acá es plata mal contada.
  */

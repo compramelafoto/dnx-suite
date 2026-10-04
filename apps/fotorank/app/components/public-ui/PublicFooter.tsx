@@ -46,6 +46,11 @@ export function PublicFooter({ organizationName, supportEmail }: Props) {
               </Link>
             </li>
             <li>
+              <Link href="/jurados/galeria" className="hover:text-[var(--primary)]">
+                Jurados · postulate
+              </Link>
+            </li>
+            <li>
               <Link href="/login" className="hover:text-[var(--primary)]">
                 Iniciar sesión
               </Link>

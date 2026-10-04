@@ -10,7 +10,7 @@ import type { Aviso } from "./calendario";
  * compró es la forma más rápida de que marque el correo como spam — y de que deje de
  * abrir los que sí importan.
  *
- * El texto va sin marca de Subí la Foto: para el cliente el servicio es de quien se lo
+ * El texto va sin marca de SubiLaFoto: para el cliente el servicio es de quien se lo
  * vendió. La única marca que aparece es la del vendedor.
  */
 

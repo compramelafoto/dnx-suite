@@ -1,10 +1,12 @@
 "use server";
 
+import { after } from "next/server";
 import { headers } from "next/headers";
 import { prisma } from "@repo/db";
 import { hashDeIp } from "@/lib/consentimiento";
 import { ipDelPedido } from "@/lib/consentimiento-db";
 import { constanciaDesde, revisarSolicitud } from "@/lib/legal/arrepentimiento";
+import { enviarConstancia } from "@/lib/legal/enviar-constancia";
 
 /**
  * Recibe una solicitud de arrepentimiento.
@@ -49,6 +51,23 @@ export async function pedirArrepentimientoAction(
   await prisma.subilafotoRetractionRequest.update({
     where: { id: creada.id },
     data: { receipt: constancia },
+  });
+
+  /*
+    Los correos salen **después de responder**. Quien está mirando la pantalla ya tiene su
+    número; hacerlo esperar a que Resend conteste sería cobrarle a él la latencia de un
+    correo que no necesita ver salir.
+
+    Y si fallan, la solicitud ya está guardada: perder el correo es molesto, perder el
+    pedido sería negarle un derecho a alguien por un problema de infraestructura.
+  */
+  after(async () => {
+    await enviarConstancia(creada.id, {
+      constancia,
+      referencia: revision.datos.referencia,
+      email: revision.datos.email,
+      motivo: revision.datos.motivo,
+    });
   });
 
   return { constancia };

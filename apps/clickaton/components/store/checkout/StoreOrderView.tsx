@@ -7,6 +7,7 @@ import { formatPublicPrice } from "@/lib/public-registration/ui/format";
 import { routes } from "@/config/navigation";
 import type { PublicStoreOrderView } from "@/lib/public-store/checkout/types";
 import { useStoreCart } from "@/components/store/cart/StoreCartProvider";
+import { fechaHoraAr } from "@/lib/fecha-ar";
 
 type Props = {
   order: PublicStoreOrderView;
@@ -31,7 +32,7 @@ export function StoreOrderView({ order }: Props) {
           <p className="ck-eyebrow text-ck-yellow">Pedido</p>
           <h1 className="ck-display-md text-ck-text">{order.publicId}</h1>
           <p className="ck-body-sm text-ck-text-muted">
-            {new Date(order.createdAt).toLocaleString("es-AR")}
+            {fechaHoraAr(order.createdAt)}
           </p>
         </div>
         <dl className="grid gap-4 sm:grid-cols-2">

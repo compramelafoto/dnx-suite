@@ -2,10 +2,12 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { requireActiveWorkspace } from "@/lib/workspace";
-import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
+import { hasModuleLevel } from "@/lib/permissions/module-access";
+import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { buildPaymentImportPrompt } from "@/lib/membership/history-import/prompt";
 import { PAYMENT_IMPORT_HEADER_ROW } from "@/lib/membership/history-import/columns";
 import { PaymentImportWizard } from "@/components/membership/payment-import-wizard";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 
 export const dynamic = "force-dynamic";
 
@@ -19,13 +21,14 @@ export const dynamic = "force-dynamic";
 export default async function ImportarHistorialPage() {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) redirect("/workspace");
-  if (!(await canManageWorkspaceCollection(user.id, workspace.id))) redirect("/members/cuotas");
+  if (!(await hasModuleLevel(user.id, workspace.id, MEMBERSHIP_DUES_MODULE_KEY, "MANAGE"))) redirect("/members/cuotas");
+  const v = await loadPersonVocabulary(workspace.id);
 
   return (
     <div className="space-y-8">
       <PageHeader
         title="Importar pagos anteriores"
-        description="El registro de cobros previo a FotoOffice, para que cada socio vea su historial completo. No da de alta socios ni modifica deudas."
+        description={`El registro de cobros previo a FotoOffice, para que cada ${v.singular} vea su historial completo. No da de alta ${v.plural} ni modifica deudas.`}
         actions={
           <Link href="/members/cuotas" className="fo-btn fo-btn-secondary text-sm">
             Volver a Cuotas
@@ -35,6 +38,7 @@ export default async function ImportarHistorialPage() {
       <PaymentImportWizard
         prompt={buildPaymentImportPrompt({ workspaceName: workspace.name })}
         csvHeaderExample={PAYMENT_IMPORT_HEADER_ROW}
+        vocabulary={v}
       />
     </div>
   );

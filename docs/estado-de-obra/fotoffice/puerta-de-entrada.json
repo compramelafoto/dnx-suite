@@ -1,0 +1,47 @@
+{
+  "proyecto": "Puerta de entrada e instituciones",
+  "plataforma": "FOTOFFICE",
+  "enUso": "si",
+  "usoNota": "Toda cuenta que inicia sesión pasa por acá",
+  "spec": "docs/superpowers/specs/",
+  "etapas": [
+    {
+      "nombre": "Que iniciar sesión no fabrique instituciones",
+      "criterios": [
+        {
+          "que": "Iniciar sesión nunca crea un workspace: sólo se crea cuando alguien lo pide expresamente",
+          "implementado": { "pr": 110, "fecha": "2026-09-15" },
+          "probado": {
+            "fecha": "2026-09-15",
+            "evidencia": "Se detectaron 4 fotógrafos de la SFPR con workspace fantasma; tras el arreglo no aparecieron nuevos"
+          }
+        },
+        {
+          "que": "Cada institución tiene su propia dirección de ingreso y ahí se inicia sesión sobre esa institución",
+          "implementado": { "pr": 110, "fecha": "2026-09-15" },
+          "probado": null,
+          "bloqueado": "Falta recorrerla con una cuenta que pertenezca a dos instituciones"
+        },
+        {
+          "que": "Quien entra sin pertenecer a ninguna institución ve una bienvenida y no una pantalla rota",
+          "implementado": { "pr": 110, "fecha": "2026-09-15" },
+          "probado": null,
+          "bloqueado": "Requiere una cuenta nueva sin institución"
+        }
+      ]
+    },
+    {
+      "nombre": "Limpieza de lo que ya se había creado mal",
+      "criterios": [
+        {
+          "que": "Los workspaces fantasma existentes quedaron resueltos, con respaldo previo",
+          "implementado": { "pr": 110, "fecha": "2026-09-15" },
+          "probado": {
+            "fecha": "2026-09-15",
+            "evidencia": "Barrido de las 57 tablas con workspaceId antes de borrar; el de Emeveph se conservó a propósito"
+          }
+        }
+      ]
+    }
+  ]
+}

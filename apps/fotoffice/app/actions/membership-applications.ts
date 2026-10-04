@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
 import { requireActiveWorkspace } from "@/lib/workspace";
 import type { AuthUser } from "@/lib/auth";
-import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
+import { hasModuleLevel } from "@/lib/permissions/module-access";
+import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { getWorkspaceCollectionStatus } from "@/lib/payments/connect/status";
 import { parseApplication } from "@/lib/membership/application";
 import { normalizeRecommendationCode } from "@/lib/membership/recommendation-code";
@@ -18,6 +19,8 @@ import {
   buildApplicationRejectedEmail,
 } from "@/lib/membership/application-emails";
 import { fechaLegible } from "@/lib/membership/charge-labels";
+import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { decimalArsToMinor, formatMinorArs } from "@/lib/membership/money";
 import { loadWorkspaceEmailContext } from "@/lib/communications/load-workspace-signature";
 import { sendAndLogEmail } from "@/lib/communications/send-and-log";
@@ -184,7 +187,7 @@ async function requireSecretary(): Promise<
 > {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) return { ok: false, error: "No hay institución activa." };
-  if (!(await canManageWorkspaceCollection(user.id, workspace.id))) {
+  if (!(await hasModuleLevel(user.id, workspace.id, MEMBERS_MODULE_KEY, "MANAGE"))) {
     return { ok: false, error: "No tenés permiso para resolver solicitudes." };
   }
   return { ok: true, workspaceId: workspace.id, user };
@@ -218,7 +221,11 @@ export async function approveApplicationAction(
   revalidatePath("/members");
   revalidatePath(`/members/${r.memberId}`);
 
-  const resumen = `Socio N° ${r.memberNumber} creado. Se generaron ${r.chargeCount} cuotas por $${r.totalArs}.`;
+  const vocabulary = await loadPersonVocabulary(guard.workspaceId);
+  const resumen = aplicarVocabulario(
+    `{Persona} N° ${r.memberNumber} creado. Se generaron ${r.chargeCount} cuotas por $${r.totalArs}.`,
+    vocabulary,
+  );
 
   /*
    * El acceso se da acá, con la aprobación, y no como un trámite aparte.
@@ -257,7 +264,10 @@ export async function approveApplicationAction(
     return {
       error: null,
       ok: resumen,
-      warn: `El email con el acceso no salió: ${invitacion.error} Reenviálo desde la ficha del socio; sin acceso no puede pagar su ingreso.`,
+      warn: aplicarVocabulario(
+        `El email con el acceso no salió: ${invitacion.error} Reenviálo desde la ficha del {persona}; sin acceso no puede pagar su ingreso.`,
+        vocabulary,
+      ),
     };
   }
 

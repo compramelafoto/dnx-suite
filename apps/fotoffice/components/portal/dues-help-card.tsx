@@ -1,5 +1,6 @@
 import { buildWhatsappUrl } from "@/lib/contact/whatsapp";
 import { buildDuesHelpMessage, DUES_HELP_INVITE } from "@/lib/portal/dues-help";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
 /**
  * Salida visible para el socio que no reconoce lo que se le cobra.
@@ -14,12 +15,14 @@ export function DuesHelpCard({
   memberNumber,
   whatsapp,
   contactEmail,
+  vocabulary,
 }: {
   memberNumber: string | null;
   whatsapp: string | null;
   contactEmail: string | null;
+  vocabulary: PersonVocabulary;
 }) {
-  const message = buildDuesHelpMessage({ memberNumber });
+  const message = buildDuesHelpMessage({ memberNumber, vocabulary });
   const whatsappUrl = buildWhatsappUrl(whatsapp, message);
 
   if (!whatsappUrl && !contactEmail) return null;

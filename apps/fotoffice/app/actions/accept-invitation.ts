@@ -4,11 +4,14 @@ import { redirect } from "next/navigation";
 import { MemberLinkError } from "@repo/db/fotoffice-members";
 import { acceptMemberInvitation } from "@repo/db/fotoffice-member-invitations";
 import { prisma } from "@repo/db";
+import { syncPendingTeamMemberships } from "@/lib/commission/team-membership";
 import { getAuthUser } from "@/lib/auth";
 import { auditActorFrom } from "@/lib/members/audit";
 import { canMemberUseInvitations, emailsMatch, invitationState } from "@/lib/members/invitations";
 import { clearInvitationContinuity } from "@/lib/members/invitation-continuity";
 import { resolvePortalDestination } from "@/lib/portal/destination";
+import { mensajeDePadron } from "@/lib/members/mensajes";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 
 export type AcceptInvitationState = { error: string | null };
 
@@ -35,7 +38,7 @@ export async function acceptInvitationAction(
       expiresAt: true,
       acceptedAt: true,
       revokedAt: true,
-      member: { select: { status: true } },
+      member: { select: { status: true, workspaceId: true } },
     },
   });
   if (!invitation) return { error: "La invitación ya no es válida." };
@@ -53,16 +56,26 @@ export async function acceptInvitationAction(
     await acceptMemberInvitation(invitationId, user.id, auditActorFrom(user));
   } catch (e) {
     if (e instanceof MemberLinkError) {
+      // La institución se conoce por la ficha invitada, no por la sesión: quien acepta
+      // todavía no pertenece a ningún workspace.
+      const vocabulary = await loadPersonVocabulary(invitation.member.workspaceId);
       switch (e.reason) {
         case "ALREADY_LINKED":
-          return { error: "Este socio ya tiene una cuenta vinculada." };
+          return { error: mensajeDePadron("yaVinculado", vocabulary) };
         case "USER_TAKEN":
-          return { error: "Tu cuenta ya está vinculada a otro socio de esta institución." };
+          return { error: mensajeDePadron("cuentaTomadaEnEstaInstitucion", vocabulary) };
         default:
           return { error: "La invitación ya no es válida." };
       }
     }
     return { error: "No pudimos completar la vinculación. Intentá de nuevo." };
+  }
+
+  // Quien recibió un rol antes de tener cuenta pasa a ser equipo apenas se vincula (Roles §12.1.4).
+  try {
+    await syncPendingTeamMemberships(user.id);
+  } catch (error) {
+    console.error("[accept-invitation] No se pudo sincronizar la membresía de equipo", error);
   }
 
   // La continuidad ya cumplió su función: se borra apenas la vinculación quedó firme.

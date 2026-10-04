@@ -6,6 +6,7 @@ import { blockingSpaceIds, type CompatibilityPair } from "./conflicts";
 import type { AvailabilityInput, SpaceRules, WeeklyHour } from "./availability";
 import type { Commitment, ExtraDefinition } from "./extras";
 import { BOOKINGS_TIME_ZONE, type Interval } from "./time";
+import { esPricingMode, type PricingMode } from "./pricing";
 
 /**
  * Única puerta a las tablas de reservas.
@@ -29,6 +30,12 @@ export type SpaceRecord = {
   requiresApproval: boolean;
   memberHourlyPriceMinor: number;
   nonMemberHourlyPriceMinor: number;
+  /** Cómo cobra: por hora o por bloque. Ver `lib/bookings/pricing.ts`. */
+  pricingMode: PricingMode;
+  /** Con `BLOCK`: minutos del bloque, o `null` para precio plano por jornada. */
+  blockMinutes: number | null;
+  memberBlockPriceMinor: number;
+  nonMemberBlockPriceMinor: number;
   memberFreeHoursPerMonth: number;
   allowsNonMembers: boolean;
   googleCalendarId: string | null;
@@ -52,6 +59,10 @@ type FilaEspacio = {
   requiresApproval: boolean;
   memberHourlyPriceArs: { toString(): string };
   nonMemberHourlyPriceArs: { toString(): string };
+  pricingMode: string;
+  blockMinutes: number | null;
+  memberBlockPriceArs: { toString(): string };
+  nonMemberBlockPriceArs: { toString(): string };
   memberFreeHoursPerMonth: number;
   allowsNonMembers: boolean;
   googleCalendarId: string | null;
@@ -83,6 +94,11 @@ function toRecord(fila: FilaEspacio): SpaceRecord {
     // A centavos apenas sale de la base: adentro del módulo el dinero no vuelve a ser decimal.
     memberHourlyPriceMinor: decimalArsToMinor(fila.memberHourlyPriceArs),
     nonMemberHourlyPriceMinor: decimalArsToMinor(fila.nonMemberHourlyPriceArs),
+    // Un valor desconocido en la base cobra por hora, que es como nació el módulo.
+    pricingMode: esPricingMode(fila.pricingMode) ? fila.pricingMode : "HOURLY",
+    blockMinutes: fila.blockMinutes,
+    memberBlockPriceMinor: decimalArsToMinor(fila.memberBlockPriceArs),
+    nonMemberBlockPriceMinor: decimalArsToMinor(fila.nonMemberBlockPriceArs),
     memberFreeHoursPerMonth: fila.memberFreeHoursPerMonth,
     allowsNonMembers: fila.allowsNonMembers,
     googleCalendarId: fila.googleCalendarId,

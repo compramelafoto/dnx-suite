@@ -8,7 +8,16 @@ import { closeShiftAction } from "./actions";
  * el detalle del turno ya tienen su lugar (el botón siempre visible del panorama y
  * `/caja/movimientos` filtrado por cuenta), así que este bloque no los repite.
  */
-export function ShiftBlock({ shift, expectedMinor }: { shift: OpenShiftRow; expectedMinor: number }) {
+export function ShiftBlock({
+  shift,
+  expectedMinor,
+  canOperate,
+}: {
+  shift: OpenShiftRow;
+  expectedMinor: number;
+  /** Sin MANAGE se ve lo esperado, pero no se cierra. */
+  canOperate: boolean;
+}) {
   return (
     <div className="space-y-3 rounded-[var(--fo-radius)] border border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -25,26 +34,28 @@ export function ShiftBlock({ shift, expectedMinor }: { shift: OpenShiftRow; expe
         </div>
       </div>
 
-      <form action={closeShiftAction} className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
-        <input type="hidden" name="shiftId" value={shift.id} />
-        <div className="fo-field-stack">
-          <label className="fo-label" htmlFor={`contado-${shift.id}`}>
-            Cuánto contaste
-          </label>
-          <input id={`contado-${shift.id}`} name="countedAmountArs" className="fo-input" placeholder="47.300" required />
-        </div>
-        <div className="fo-field-stack">
-          <label className="fo-label" htmlFor={`diferencia-${shift.id}`}>
-            Si no cuadra, explicá por qué
-          </label>
-          <input id={`diferencia-${shift.id}`} name="differenceNote" className="fo-input" placeholder="Vuelto de más" />
-        </div>
-        <div className="self-end">
-          <button type="submit" className="fo-btn fo-btn-primary text-sm">
-            Cerrar turno
-          </button>
-        </div>
-      </form>
+      {canOperate ? (
+        <form action={closeShiftAction} className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+          <input type="hidden" name="shiftId" value={shift.id} />
+          <div className="fo-field-stack">
+            <label className="fo-label" htmlFor={`contado-${shift.id}`}>
+              Cuánto contaste
+            </label>
+            <input id={`contado-${shift.id}`} name="countedAmountArs" className="fo-input" placeholder="47.300" required />
+          </div>
+          <div className="fo-field-stack">
+            <label className="fo-label" htmlFor={`diferencia-${shift.id}`}>
+              Si no cuadra, explicá por qué
+            </label>
+            <input id={`diferencia-${shift.id}`} name="differenceNote" className="fo-input" placeholder="Vuelto de más" />
+          </div>
+          <div className="self-end">
+            <button type="submit" className="fo-btn fo-btn-primary text-sm">
+              Cerrar turno
+            </button>
+          </div>
+        </form>
+      ) : null}
     </div>
   );
 }
