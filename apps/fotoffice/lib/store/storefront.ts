@@ -9,7 +9,8 @@ import type { CartLine } from "./cart/types";
  * PURO: las consultas viven en `repository.ts`, y acá sólo se decide qué se muestra.
  *
  * Reglas que se repiten en todo el archivo:
- * - Un producto con talles activos se vende SÓLO por sus talles (su stock vive en cada talle).
+ * - Un producto con talles activos se vende SÓLO por sus talles (su stock vive en cada talle); si
+ *   tiene talles y ninguno activo, no se vende (`isSellableOnline`).
  * - Lo disponible es el stock menos lo que retienen los pedidos esperando el pago
  *   (`reserved`, clave `lineKey`). `null` = el producto no controla stock: sin límite.
  * - El precio del talle manda; si no tiene, hereda el del producto.
@@ -27,6 +28,8 @@ export type StorefrontProductRow = {
   stockQty: number;
   imageUrl: string | null;
   category: { id: string; name: string } | null;
+  /** Cuántos talles tiene en total, activos o no. */
+  variantCount: number;
   listing: {
     slug: string;
     onlineTitle: string | null;
@@ -87,6 +90,14 @@ export type ValidatedLine = CartLine & {
 };
 
 export type CartProblem = { key: string; message: string };
+
+/**
+ * Si el producto se puede comprar online. Uno que tiene talles pero ninguno activo NO: su stock
+ * vive en los talles, y venderlo como producto suelto descontaría un stock que no existe.
+ */
+export function isSellableOnline(row: StorefrontProductRow): boolean {
+  return row.variantCount === 0 || row.variants.length > 0;
+}
 
 /** Suma las cantidades retenidas por clave de línea. Los ítems de productos borrados no cuentan. */
 export function sumReserved(
@@ -229,8 +240,8 @@ export function checkCartLines(
   for (const l of unidas) {
     const key = lineKey(l);
     const row = catalog.get(l.productId);
-    if (!row) {
-      problems.push({ key, message: `${limpio(l.name) ?? "Un producto"} ya no está a la venta.` });
+    if (!row || !isSellableOnline(row)) {
+      problems.push({ key, message: `${row ? titulo(row) : (limpio(l.name) ?? "Un producto")} ya no está a la venta.` });
       continue;
     }
     const nombre = titulo(row);

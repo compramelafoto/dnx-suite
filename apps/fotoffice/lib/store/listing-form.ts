@@ -1,4 +1,4 @@
-import { slugify } from "./slug";
+import { isReservedSlug, slugify } from "./slug";
 
 /**
  * La ficha online de un producto (`ProductStoreListing`): dónde se vende y cómo se muestra en
@@ -62,6 +62,7 @@ export function parseListingForm(fd: FormData): ListingFormResult {
   if (slugCrudo !== "" && slug === "") {
     return { ok: false, error: "La dirección tiene que tener al menos una letra o un número." };
   }
+  if (isReservedSlug(slug)) return { ok: false, error: "Esa dirección está reservada por la tienda. Elegí otra." };
 
   const onlineTitle = texto(fd, "onlineTitle") || null;
   if (onlineTitle !== null && onlineTitle.length > MAX_ONLINE_TITLE) {

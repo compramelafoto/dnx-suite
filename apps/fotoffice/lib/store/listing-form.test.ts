@@ -13,6 +13,21 @@ function form(campos: Record<string, string | string[]>): FormData {
 const base = { sellOnline: ["on", "off"], sellAtCounter: ["on", "off"] };
 
 describe("parseListingForm", () => {
+  it.each(["carrito", "Carrito", " checkout ", "pedido", "arrepentimiento", "términos"])(
+    "rechaza la dirección reservada %j",
+    (slug) => {
+      expect(parseListingForm(form({ ...base, slug }))).toEqual({
+        ok: false,
+        error: "Esa dirección está reservada por la tienda. Elegí otra.",
+      });
+    },
+  );
+
+  it("una dirección que sólo empieza como una reservada sí vale", () => {
+    const r = parseListingForm(form({ ...base, slug: "carrito-de-compras" }));
+    expect(r.ok && r.values.slug).toBe("carrito-de-compras");
+  });
+
   it("sin ningún canal tildado → error", () => {
     const r = parseListingForm(form({ sellOnline: "off", sellAtCounter: "off" }));
     expect(r).toEqual({ ok: false, error: "Elegí al menos un lugar donde se vende." });

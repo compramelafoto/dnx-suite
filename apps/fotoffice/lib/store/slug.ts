@@ -6,7 +6,14 @@
  * después sólo cambia si la persona lo cambia a mano.
  */
 
+import { STORE_RESERVED_SLUGS } from "./constants";
+
 export const MAX_SLUG_LENGTH = 80;
+
+/** Una dirección reservada por la tienda (ver `STORE_RESERVED_SLUGS`). */
+export function isReservedSlug(slug: string): boolean {
+  return STORE_RESERVED_SLUGS.includes(slug);
+}
 
 /** Lo que se usa cuando el nombre no tiene ni una letra ni un número. */
 const SLUG_DE_RESPALDO = "producto";
@@ -23,14 +30,18 @@ export function slugify(name: string): string {
   return recortar(base, MAX_SLUG_LENGTH);
 }
 
-/** `remera`, y si ya existe `remera-2`, `remera-3`, … sin pasar nunca de 80. */
+/**
+ * `remera`, y si ya existe `remera-2`, `remera-3`, … sin pasar nunca de 80. Las direcciones
+ * reservadas por la tienda cuentan como tomadas: un producto "Carrito" queda en `carrito-2`.
+ */
 export function uniqueSlug(base: string, taken: ReadonlySet<string>): string {
   const raiz = base === "" ? SLUG_DE_RESPALDO : base;
-  if (!taken.has(raiz)) return raiz;
+  const ocupado = (s: string) => taken.has(s) || isReservedSlug(s);
+  if (!ocupado(raiz)) return raiz;
   for (let n = 2; ; n++) {
     const sufijo = `-${n}`;
     const candidato = `${recortar(raiz, MAX_SLUG_LENGTH - sufijo.length)}${sufijo}`;
-    if (!taken.has(candidato)) return candidato;
+    if (!ocupado(candidato)) return candidato;
   }
 }
 

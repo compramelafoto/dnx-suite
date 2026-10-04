@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MAX_SLUG_LENGTH, slugify, uniqueSlug } from "./slug";
+import { STORE_RESERVED_SLUGS } from "./constants";
 
 describe("slugify", () => {
   it("minúsculas y guiones", () => {
@@ -29,6 +30,12 @@ describe("slugify", () => {
 });
 
 describe("uniqueSlug", () => {
+  it("las direcciones reservadas por la tienda cuentan como tomadas", () => {
+    expect(uniqueSlug("carrito", new Set())).toBe("carrito-2");
+    expect(uniqueSlug("checkout", new Set(["checkout-2"]))).toBe("checkout-3");
+    for (const r of STORE_RESERVED_SLUGS) expect(uniqueSlug(r, new Set())).not.toBe(r);
+  });
+
   it("si está libre, queda igual", () => {
     expect(uniqueSlug("remera", new Set())).toBe("remera");
   });

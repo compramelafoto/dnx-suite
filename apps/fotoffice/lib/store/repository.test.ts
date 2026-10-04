@@ -41,6 +41,7 @@ const fila = (o: Record<string, unknown> = {}) => ({
     stockQty: 3,
     imageUrl: null,
     category: null,
+    _count: { variants: 0 },
     images: [],
     variants: [],
   },
@@ -102,6 +103,12 @@ describe("loadOpenStore", () => {
     moduleEnabledMock.mockResolvedValueOnce(false);
     expect(await loadOpenStore("sfpr")).toBeNull();
 
+    // Tienda encendida pero Ventas apagado: la tienda no tiene qué vender.
+    moduleEnabledMock.mockImplementation(async (_ws: string, key: string) => key === "store");
+    expect(await loadOpenStore("sfpr")).toBeNull();
+    expect(settings.findUnique).not.toHaveBeenCalled();
+
+    moduleEnabledMock.mockReset();
     moduleEnabledMock.mockResolvedValue(true);
     settings.findUnique.mockResolvedValueOnce(null);
     expect(await loadOpenStore("sfpr")).toBeNull();
@@ -119,6 +126,7 @@ describe("loadOpenStore", () => {
       settings: s,
     });
     expect(moduleEnabledMock).toHaveBeenCalledWith("ws-1", "store");
+    expect(moduleEnabledMock).toHaveBeenCalledWith("ws-1", "sales");
   });
 });
 
@@ -136,6 +144,16 @@ describe("consultas del catálogo público", () => {
     });
     expect(args.orderBy).toEqual([{ sortOrder: "asc" }, { product: { name: "asc" } }]);
     expect(args.select.product.select.variants.where).toEqual({ isActive: true });
+  });
+
+  it("listStoreProducts deja afuera un producto con talles todos inactivos", async () => {
+    listing.findMany.mockResolvedValueOnce([fila({ product: { ...fila().product, _count: { variants: 2 } } })]);
+    expect(await listStoreProducts("ws-1")).toEqual([]);
+  });
+
+  it("getStoreProduct: null si todos sus talles están inactivos", async () => {
+    listing.findFirst.mockResolvedValueOnce(fila({ product: { ...fila().product, _count: { variants: 1 } } }));
+    expect(await getStoreProduct("ws-1", "remera")).toBeNull();
   });
 
   it("getStoreProduct: null si no existe; si existe, la ficha con reservas", async () => {

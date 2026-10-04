@@ -6,6 +6,7 @@ import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { BLOG_PUBLIC_PAGE_KEY } from "./constants";
 import { PORTFOLIO_MODULE_KEY, PORTFOLIO_PUBLIC_SEGMENT } from "@/lib/portfolio/constants";
 import { STORE_MODULE_KEY, STORE_PUBLIC_SEGMENT } from "@/lib/store/constants";
+import { SALES_MODULE_KEY } from "@/lib/sales/constants";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
 /**
@@ -85,7 +86,8 @@ export function publicModulePagesFor(enabledModuleKeys: ReadonlySet<string>): Pu
  */
 export function withStoreOpenState(enabledModuleKeys: ReadonlySet<string>, storeOpen: boolean): Set<string> {
   const claves = new Set(enabledModuleKeys);
-  if (!storeOpen) claves.delete(STORE_MODULE_KEY);
+  // La tienda vende el catálogo de Ventas: sin Ventas encendido no hay tienda (igual que `loadOpenStore`).
+  if (!storeOpen || !enabledModuleKeys.has(SALES_MODULE_KEY)) claves.delete(STORE_MODULE_KEY);
   return claves;
 }
 

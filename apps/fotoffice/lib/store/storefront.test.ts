@@ -3,6 +3,7 @@ import {
   buildStoreProductCard,
   buildStoreProductDetail,
   checkCartLines,
+  isSellableOnline,
   maxAddableQty,
   sumReserved,
   type StorefrontProductRow,
@@ -19,6 +20,7 @@ const row = (o: Partial<StorefrontProductRow> = {}): StorefrontProductRow => ({
   stockQty: 5,
   imageUrl: "https://img/legacy.jpg",
   category: { id: "c1", name: "Indumentaria" },
+  variantCount: 0,
   listing: {
     slug: "remera",
     onlineTitle: null,
@@ -34,6 +36,7 @@ const row = (o: Partial<StorefrontProductRow> = {}): StorefrontProductRow => ({
 const conTalles = (o: Partial<StorefrontProductRow> = {}) =>
   row({
     stockQty: 7,
+    variantCount: 3,
     variants: [
       { id: "vS", name: "S", priceArs: null, stockQty: 0 },
       { id: "vM", name: "M", priceArs: dec("14000.50"), stockQty: 3 },
@@ -58,6 +61,16 @@ describe("sumReserved", () => {
         ["p1:v1", 4],
       ]),
     );
+  });
+});
+
+describe("isSellableOnline", () => {
+  it("sin talles o con algún talle activo, sí", () => {
+    expect(isSellableOnline(row())).toBe(true);
+    expect(isSellableOnline(conTalles({ variantCount: 5 }))).toBe(true);
+  });
+  it("con talles pero ninguno activo, no (no se vende como producto suelto)", () => {
+    expect(isSellableOnline(row({ variantCount: 2, variants: [] }))).toBe(false);
   });
 });
 
@@ -227,6 +240,16 @@ describe("checkCartLines", () => {
     );
     expect(r.lines).toEqual([]);
     expect(r.problems.map((p) => p.key)).toEqual(["p1:-", "p1:vXL"]);
+  });
+
+  it("producto con talles todos inactivos: la línea se rechaza aunque haya stock", () => {
+    const r = checkCartLines(
+      catalogo(row({ variantCount: 2, variants: [], stockQty: 10 })),
+      [{ productId: "p1", variantId: null, qty: 1 }],
+      sinReservas,
+    );
+    expect(r.lines).toEqual([]);
+    expect(r.problems).toEqual([{ key: "p1:-", message: "Remera interna ya no está a la venta." }]);
   });
 
   it("producto sin talles pedido con talle: se quita", () => {

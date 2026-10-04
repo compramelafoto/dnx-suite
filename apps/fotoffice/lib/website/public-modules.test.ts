@@ -1,3 +1,4 @@
+import { SALES_MODULE_KEY } from "@/lib/sales/constants";
 import { describe, expect, it } from "vitest";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
@@ -123,16 +124,21 @@ describe("la página pública de la tienda", () => {
   });
 
   it("módulo encendido y tienda abierta → entra al menú", () => {
-    const claves = withStoreOpenState(new Set([STORE_MODULE_KEY]), true);
+    const claves = withStoreOpenState(new Set([STORE_MODULE_KEY, SALES_MODULE_KEY]), true);
     expect(publicModulePagesFor(claves).map((p) => p.segment)).toEqual(["tienda"]);
   });
 
   it("módulo encendido pero tienda cerrada → no entra al menú, y el resto sigue igual", () => {
-    const claves = withStoreOpenState(new Set([STORE_MODULE_KEY, BOOKINGS_MODULE_KEY]), false);
+    const claves = withStoreOpenState(new Set([STORE_MODULE_KEY, SALES_MODULE_KEY, BOOKINGS_MODULE_KEY]), false);
     expect(publicModulePagesFor(claves).map((p) => p.segment)).toEqual(["reservas"]);
   });
 
   it("abierta pero con el módulo apagado → tampoco", () => {
-    expect(publicModulePagesFor(withStoreOpenState(new Set(), true))).toEqual([]);
+    expect(publicModulePagesFor(withStoreOpenState(new Set([SALES_MODULE_KEY]), true))).toEqual([]);
+  });
+
+  it("abierta y encendida pero con Ventas apagado → tampoco (la tienda vende el catálogo de Ventas)", () => {
+    const claves = withStoreOpenState(new Set([STORE_MODULE_KEY, BOOKINGS_MODULE_KEY]), true);
+    expect(publicModulePagesFor(claves).map((p) => p.segment)).toEqual(["reservas"]);
   });
 });

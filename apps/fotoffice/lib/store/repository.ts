@@ -2,6 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { Prisma, prisma } from "@repo/db";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
+import { SALES_MODULE_KEY } from "@/lib/sales/constants";
 import { STORE_MODULE_KEY } from "./constants";
 import {
   buildStoreProductCard,
@@ -12,6 +13,7 @@ import {
   type CartProblem,
   type StoreProductCard,
   type StoreProductDetail,
+  isSellableOnline,
   type StorefrontProductRow,
   type ValidatedLine,
 } from "./storefront";
@@ -49,7 +51,12 @@ export const loadOpenStore = cache(async function loadOpenStore(workspaceSlug: s
     select: { workspaceId: true, commercialName: true },
   });
   if (!branding) return null;
-  if (!(await isModuleEnabledForWorkspace(branding.workspaceId, STORE_MODULE_KEY))) return null;
+  // La tienda vende el catálogo y el stock de Ventas: sin Ventas no hay tienda (ver `access.ts`).
+  const [tienda, ventas] = await Promise.all([
+    isModuleEnabledForWorkspace(branding.workspaceId, STORE_MODULE_KEY),
+    isModuleEnabledForWorkspace(branding.workspaceId, SALES_MODULE_KEY),
+  ]);
+  if (!tienda || !ventas) return null;
 
   const settings = await prisma.storeSettings.findUnique({
     where: { workspaceId: branding.workspaceId },
@@ -115,6 +122,8 @@ const SELECT_FILA = {
       stockQty: true,
       imageUrl: true,
       category: { select: { id: true, name: true } },
+      // Todos los talles, activos o no: con talles y ninguno activo, el producto no se vende.
+      _count: { select: { variants: true } },
       images: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }], select: { url: true, alt: true } },
       variants: {
         where: { isActive: true },
@@ -129,7 +138,8 @@ type FilaListado = Prisma.ProductStoreListingGetPayload<{ select: typeof SELECT_
 
 function aFila(f: FilaListado): StorefrontProductRow {
   const { product, ...listing } = f;
-  return { ...product, listing };
+  const { _count, ...resto } = product;
+  return { ...resto, variantCount: _count.variants, listing };
 }
 
 /** La vitrina: orden elegido por el negocio (`sortOrder`) y, a igualdad, por nombre. */
@@ -149,7 +159,10 @@ export async function listStoreProducts(
     }),
     reservedQtyByKey(workspaceId),
   ]);
-  return filas.map((f) => buildStoreProductCard(aFila(f), reserved));
+  return filas
+    .map(aFila)
+    .filter(isSellableOnline)
+    .map((f) => buildStoreProductCard(f, reserved));
 }
 
 /** Las categorías que tienen al menos un producto público, para el filtro de la vitrina. */
@@ -172,8 +185,10 @@ export async function getStoreProduct(workspaceId: string, slug: string): Promis
     select: SELECT_FILA,
   });
   if (!fila) return null;
+  const row = aFila(fila);
+  if (!isSellableOnline(row)) return null;
   const reserved = await reservedQtyByKey(workspaceId);
-  return buildStoreProductDetail(aFila(fila), reserved);
+  return buildStoreProductDetail(row, reserved);
 }
 
 /**
@@ -194,6 +209,7 @@ export async function validateCartLines(
     }),
     reservedQtyByKey(workspaceId, db),
   ]);
-  const catalogo = new Map(filas.map((f) => [f.product.id, aFila(f)]));
+  // Lo que no es comprable no entra al catálogo: `checkCartLines` lo trata como "ya no está a la venta".
+  const catalogo = new Map(filas.map(aFila).filter(isSellableOnline).map((r) => [r.id, r]));
   return checkCartLines(catalogo, lines, reserved);
 }

@@ -10,6 +10,7 @@ import { WEBSITE_MODULE_KEY } from "./constants";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { listBlogPosts } from "@/lib/blog/public";
 import { STORE_MODULE_KEY } from "@/lib/store/constants";
+import { SALES_MODULE_KEY } from "@/lib/sales/constants";
 import { withStoreOpenState } from "./public-modules";
 
 /**
@@ -118,7 +119,7 @@ export const loadPublicSite = cache(async function loadPublicSite(workspaceSlug:
 
   // La tienda sólo va al menú abierta. Sin fila de configuración, está cerrada. Se pregunta
   // únicamente con el módulo encendido, así un sitio sin tienda no paga la consulta.
-  const storeOpen = modulosEncendidos.has(STORE_MODULE_KEY)
+  const storeOpen = modulosEncendidos.has(STORE_MODULE_KEY) && modulosEncendidos.has(SALES_MODULE_KEY)
     ? Boolean(
         (
           await prisma.storeSettings.findUnique({
