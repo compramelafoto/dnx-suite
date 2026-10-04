@@ -122,6 +122,82 @@ function aplicarTransformacion(
   return texto;
 }
 
+/**
+ * Hasta qué fracción del cuerpo declarado se puede achicar un texto que no entra. Por debajo
+ * de esto deja de leerse, y es preferible que el desborde se vea y alguien agrande la caja.
+ */
+const ACHIQUE_MINIMO = 0.4;
+/** De a cuánto se baja el cuerpo al buscar el que entra. Un cuarto de punto no se nota. */
+const PASO_ACHIQUE_PT = 0.25;
+
+/**
+ * Corta el texto y, si no entra en su caja, lo achica hasta que entre.
+ *
+ * Existe por los nombres largos: "Iván Xavier Martínez Dufour" no cabía en el renglón del
+ * carnet, saltaba a un segundo renglón y se encimaba con el DNI. Con un dato variable, quien
+ * diseña no puede dejar la caja a la medida de cada socio; el texto se tiene que adaptar.
+ *
+ * Solo se achica lo que **desborda**: más renglones de los que caben en el alto (o en
+ * `maxLines`), o un renglón más ancho que la caja. Un texto que hoy entra se dibuja con el
+ * cuerpo que eligió quien diseñó, aunque la caja quede justa.
+ */
+function ajustarTexto(entrada: {
+  texto: string;
+  anchoPt: number;
+  altoPt: number;
+  maxLines: number | undefined;
+  cuerpoPt: number;
+  medir: (t: string, cuerpoPt: number) => number;
+}): { sizePt: number; lineHeightPt: number; lines: string[]; overflow: boolean } {
+  const medirCon = (cuerpo: number) => {
+    const lineHeightPt = cuerpo * LINE_HEIGHT_RATIO;
+    const lines = wrapText(
+      entrada.texto,
+      entrada.anchoPt,
+      (t) => entrada.medir(t, cuerpo),
+      entrada.maxLines,
+    );
+    // Al menos un renglón siempre "cabe": una caja apenas más baja que el interlineado es
+    // una caja de un renglón, no un error.
+    const caben = Math.min(
+      entrada.maxLines ?? Number.POSITIVE_INFINITY,
+      Math.max(1, Math.floor((entrada.altoPt + 0.01) / lineHeightPt)),
+    );
+    const desborda =
+      lines.length > caben || lines.some((l) => entrada.medir(l, cuerpo) > entrada.anchoPt + 0.01);
+    return { sizePt: cuerpo, lineHeightPt, lines, desborda };
+  };
+
+  const declarado = medirCon(entrada.cuerpoPt);
+  let elegido = declarado;
+  if (declarado.desborda) {
+    const minimo = entrada.cuerpoPt * ACHIQUE_MINIMO;
+    for (
+      let cuerpo = entrada.cuerpoPt - PASO_ACHIQUE_PT;
+      cuerpo >= minimo;
+      cuerpo -= PASO_ACHIQUE_PT
+    ) {
+      const prueba = medirCon(cuerpo);
+      if (!prueba.desborda) {
+        elegido = prueba;
+        break;
+      }
+    }
+  }
+
+  // Si ni achicado entra, se dibuja con el cuerpo declarado y se informa: un texto ilegible
+  // de tan chico esconde el problema en vez de mostrarlo.
+  if (elegido.desborda) elegido = declarado;
+  const excedeLineas = entrada.maxLines !== undefined && elegido.lines.length > entrada.maxLines;
+  const excedeAlto = elegido.lines.length * elegido.lineHeightPt > entrada.altoPt + 0.01;
+  return {
+    sizePt: elegido.sizePt,
+    lineHeightPt: elegido.lineHeightPt,
+    lines: elegido.lines,
+    overflow: elegido.desborda || excedeLineas || excedeAlto,
+  };
+}
+
 export function buildLayoutPlan(
   doc: DesignDocument,
   resolved: ResolvedVariables,
@@ -181,16 +257,15 @@ export function buildLayoutPlan(
         // El cuerpo tipográfico se declara SIEMPRE en puntos, en los dos medios: nadie
         // diseña texto en milímetros, y así el mismo valor significa lo mismo en una
         // tarjeta impresa y en una placa de pantalla.
-        const sizePt = bloque.fontSize;
-        const lineHeightPt = sizePt * LINE_HEIGHT_RATIO;
-        const lines = wrapText(
+        const ajuste = ajustarTexto({
           texto,
-          base.widthPt,
-          (t) => options.measurer.widthOf(t, fontId, slot, sizePt),
-          bloque.maxLines,
-        );
-        const excedeLineas = bloque.maxLines !== undefined && lines.length > bloque.maxLines;
-        const excedeAlto = lines.length * lineHeightPt > base.heightPt + 0.01;
+          anchoPt: base.widthPt,
+          altoPt: base.heightPt,
+          maxLines: bloque.maxLines,
+          cuerpoPt: bloque.fontSize,
+          medir: (t, cuerpo) => options.measurer.widthOf(t, fontId, slot, cuerpo),
+        });
+        const { sizePt, lineHeightPt, lines } = ajuste;
         items.push({
           ...base,
           kind: "text",
@@ -201,7 +276,7 @@ export function buildLayoutPlan(
           color: bloque.color,
           align: bloque.align ?? "left",
           lines,
-          overflow: excedeLineas || excedeAlto,
+          overflow: ajuste.overflow,
         });
         continue;
       }

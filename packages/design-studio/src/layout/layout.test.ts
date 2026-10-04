@@ -101,7 +101,7 @@ test("el bloque QR toma su contenido de la variable declarada", () => {
   assert.equal(qr.payload, "https://fotoffice.com/c/AB12CD34");
 });
 
-test("marca desbordado el texto que no entra en las lineas permitidas", () => {
+test("achica el nombre largo hasta que entra en su caja en vez de desbordar", () => {
   const largo = {
     ...resueltas,
     values: { ...resueltas.values, fullName: "Daniel Alejandro Cuart de la Fuente y Martínez" },
@@ -110,7 +110,36 @@ test("marca desbordado el texto que no entra en las lineas permitidas", () => {
   assert.equal(r.ok, true);
   if (!r.ok) return;
   const nombre = r.value.pages[0]?.items.find((i) => i.id === "nombre");
+  assert.ok(nombre && nombre.kind === "text");
+  if (!nombre || nombre.kind !== "text") return;
+  assert.equal(nombre.overflow, false);
+  // La caja de ejemplo admite dos renglones: achicado, el nombre entra en ellos sin pasarse.
+  assert.ok(nombre.lines.length <= 2);
+  assert.ok(nombre.lines.length * nombre.lineHeightPt <= nombre.heightPt + 0.01);
+  assert.ok(nombre.sizePt < 11, `quedó en ${nombre.sizePt}`);
+  assert.ok(nombre.sizePt >= 11 * 0.4);
+});
+
+test("el texto que ya entra conserva el cuerpo que eligio quien diseno", () => {
+  const r = buildLayoutPlan(carnet(), resueltas, { measurer: medidor, includeBleed: false });
+  assert.equal(r.ok, true);
+  if (!r.ok) return;
+  const nombre = r.value.pages[0]?.items.find((i) => i.id === "nombre");
+  assert.ok(nombre && nombre.kind === "text" && nombre.sizePt === 11);
+});
+
+test("marca desbordado el texto que ni achicado al minimo entra", () => {
+  const largo = {
+    ...resueltas,
+    values: { ...resueltas.values, fullName: "Daniel Alejandro ".repeat(12).trim() },
+  };
+  const r = buildLayoutPlan(carnet(), largo, { measurer: medidor, includeBleed: false });
+  assert.equal(r.ok, true);
+  if (!r.ok) return;
+  const nombre = r.value.pages[0]?.items.find((i) => i.id === "nombre");
   assert.ok(nombre && nombre.kind === "text" && nombre.overflow === true);
+  // No se dibuja ilegible: queda con el cuerpo declarado para que el problema se vea.
+  assert.ok(nombre && nombre.kind === "text" && nombre.sizePt === 11);
 });
 
 test("omite los bloques ocultos", () => {
