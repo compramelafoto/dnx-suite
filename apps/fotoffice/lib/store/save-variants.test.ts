@@ -17,15 +17,22 @@ function variantesTx(opts: {
   creadas?: number;
 } = {}) {
   const producto = opts.producto === undefined ? { id: "p1", stockQty: 0 } : opts.producto;
+  // Orden en que se tocan las tablas: el bloqueo del producto tiene que ir antes de leer talles.
+  const orden: string[] = [];
   return {
+    orden,
+    $queryRaw: vi.fn(async () => {
+      orden.push("bloqueo");
+      return producto ? [producto] : [];
+    }),
     product: {
-      findFirst: vi.fn(async () => producto),
       update: vi.fn(async () => ({})),
     },
     productVariant: {
-      findMany: vi.fn(async (args: { where: { productId?: string } }) =>
-        args.where.productId ? (opts.existentes ?? []) : (opts.ajenas ?? []),
-      ),
+      findMany: vi.fn(async (args: { where: { productId?: string } }) => {
+        orden.push(args.where.productId ? "talles" : "codigos");
+        return args.where.productId ? (opts.existentes ?? []) : (opts.ajenas ?? []);
+      }),
       findFirst: vi.fn(async () => ({ id: "nueva1" })),
       updateMany: vi.fn(async () => ({ count: 1 })),
       createMany: vi.fn(async (args: { data: unknown[] }) => ({ count: opts.creadas ?? args.data.length })),
@@ -48,6 +55,18 @@ describe("saveVariants", () => {
     expect(tx.productVariant.createMany).not.toHaveBeenCalled();
   });
 
+  it("bloquea la fila del producto (FOR UPDATE, filtrado por workspace) ANTES de leer los talles existentes", async () => {
+    const tx = variantesTx();
+    await saveVariants(tx as never, { ...base, variants: [talle({ name: "S" })] });
+    expect(tx.orden[0]).toBe("bloqueo");
+    expect(tx.orden.indexOf("bloqueo")).toBeLessThan(tx.orden.indexOf("talles"));
+    const sql = (tx.$queryRaw.mock.calls[0] as unknown[])[0] as { sql: string; values: unknown[] };
+    expect(sql.sql).toMatch(/FROM "Product"/);
+    expect(sql.sql).toMatch(/"workspaceId"/);
+    expect(sql.sql).toMatch(/FOR UPDATE/);
+    expect(sql.values).toEqual(["p1", "ws1"]);
+  });
+
   it("un id de talle que no es de este producto se trata como inexistente", async () => {
     const tx = variantesTx({ existentes: [{ id: "v1", name: "S", stockQty: 0, isActive: true }] });
     const r = await saveVariants(tx as never, { ...base, variants: [talle({ id: "ajeno", name: "S" })] });
@@ -62,9 +81,7 @@ describe("saveVariants", () => {
       variants: [talle({ name: "S", sku: "R-S", priceMinor: 150000 }), talle({ name: "M", sortOrder: 1 })],
     });
     expect(r).toEqual({ ok: true });
-    expect(tx.product.findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: "p1", workspaceId: "ws1" } }),
-    );
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
     expect(tx.productVariant.createMany).toHaveBeenCalledWith({
       data: [
         { workspaceId: "ws1", productId: "p1", name: "S", sku: "R-S", barcode: null, priceArs: "1500.00", isActive: true, sortOrder: 0 },

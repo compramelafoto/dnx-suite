@@ -1,5 +1,5 @@
 import "server-only";
-import type { Prisma, PrismaClient } from "@repo/db";
+import { Prisma, type PrismaClient } from "@repo/db";
 import { minorToDecimalString } from "@/lib/membership/money";
 import { applyStockMovement } from "@/lib/sales/variant-stock";
 import type { VariantInput } from "./variant-form";
@@ -39,10 +39,16 @@ export const NOTA_PASO_DE_STOCK = "Paso del stock al primer talle";
 export async function saveVariants(tx: Tx, input: SaveVariantsInput): Promise<SaveVariantsResult> {
   const { workspaceId, productId } = input;
 
-  const producto = await tx.product.findFirst({
-    where: { id: productId, workspaceId },
-    select: { id: true, stockQty: true },
-  });
+  // Se BLOQUEA la fila del producto antes de leer sus talles. Sin esto, dos primeros
+  // guardados simultáneos (READ COMMITTED) ven los dos "sin talles", crean los dos "M" (no hay
+  // único por producto+nombre) y pasan los dos el stock: el producto queda en 10 y sus talles
+  // suman 20, en silencio, rompiendo D4. Con el `FOR UPDATE` el segundo espera a que el primero
+  // confirme y recién ahí lee: ya ve los talles creados y no es "primera vez".
+  // Parámetros como texto (los ids son cuid): ver la nota de SQL crudo y bigint de Prisma.
+  const bloqueado = await tx.$queryRaw<{ id: string; stockQty: number }[]>(
+    Prisma.sql`SELECT "id", "stockQty" FROM "Product" WHERE "id" = ${productId} AND "workspaceId" = ${workspaceId} FOR UPDATE`,
+  );
+  const producto = bloqueado[0];
   if (!producto) return { ok: false, error: "Ese producto no existe." };
 
   const existentes = await tx.productVariant.findMany({
