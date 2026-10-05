@@ -38,7 +38,7 @@ export function LessonPlayer({
 }: {
   iframeUrl: string;
   marca: string | null;
-  reporte: { url: string; lessonId: string; courseId?: string } | null;
+  reporte: { url: string; lessonId: string; courseId: string } | null;
 }) {
   const contenedor = useRef<HTMLDivElement>(null);
   const iframe = useRef<HTMLIFrameElement>(null);

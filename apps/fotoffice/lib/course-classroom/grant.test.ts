@@ -49,6 +49,12 @@ describe("avisar el acceso", () => {
     expect(d.enviarCursoListo).toHaveBeenCalledWith(expect.objectContaining({ invitacion: null }));
   });
 
+  it("si la firma falla, el correo sale igual sin ella", async () => {
+    const d = deps({ cargarFirma: vi.fn().mockRejectedValue(new Error("base caída")) });
+    expect(await avisarAccesoAlAula(input, d)).toEqual({ avisado: true });
+    expect(d.enviarCursoListo).toHaveBeenCalledWith(expect.objectContaining({ signature: null }));
+  });
+
   it("lleva la invitación a asociarse cuando corresponde", async () => {
     const invitacion = { institucion: "SFPR", url: "https://fotoffice.com/w/sfpr/asociarse" };
     const d = deps({ invitacionASociarse: vi.fn().mockResolvedValue(invitacion) });

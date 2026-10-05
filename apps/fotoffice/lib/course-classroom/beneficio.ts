@@ -1,3 +1,4 @@
+import "server-only";
 import { Prisma, prisma } from "@repo/db";
 import { loadPortalContext } from "@/lib/portal/access";
 import { logCourseEvent } from "@/lib/presential-courses/log";

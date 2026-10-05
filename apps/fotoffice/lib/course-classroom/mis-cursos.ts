@@ -1,3 +1,4 @@
+import "server-only";
 // lib/course-classroom/mis-cursos.ts
 import { prisma } from "@repo/db";
 import { estadoDeAccesoAlCurso, type OrigenAcceso } from "./access-rules";
