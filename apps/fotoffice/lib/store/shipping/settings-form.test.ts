@@ -4,7 +4,9 @@ import {
   bpsToPercentText,
   minorToEditableText,
   parsePercentToBps,
+  parseShippingArsToMinor,
   parseShippingSettingsForm,
+  settingsAfterCorreoDisconnect,
 } from "./settings-form";
 
 function form(campos: Record<string, string | string[]>): FormData {
@@ -36,8 +38,8 @@ const base = {
   handlingNote: "  Despachamos en 48 h hábiles ",
 };
 
-const sinCorreo = { correoActive: false };
-const conCorreo = { correoActive: true };
+const sinCorreo = { correoActive: false, previous: null };
+const conCorreo = { correoActive: true, previous: null };
 
 describe("parseShippingSettingsForm", () => {
   it("todo completo → valores normalizados", () => {
@@ -198,5 +200,62 @@ describe("textos para volver a editar", () => {
     expect(minorToEditableText(150050)).toBe("1500,50");
     expect(minorToEditableText(150000)).toBe("1500");
     expect(minorToEditableText(5)).toBe("0,05");
+  });
+});
+
+describe("conexión de Correo vencida (NEEDS_RECONSENT)", () => {
+  const vencida = { correoActive: false, previous: { source: "CORREO_ARGENTINO" as const, branchDeliveryEnabled: true } };
+
+  it("si Correo y sucursal ya estaban guardados, se puede cambiar lo demás", () => {
+    const r = parseShippingSettingsForm(
+      form({ ...base, source: "CORREO_ARGENTINO", branchDeliveryEnabled: ON, handlingNote: "Nuevo aviso" }),
+      vencida,
+    );
+    expect(r.ok && r.values.handlingNote).toBe("Nuevo aviso");
+  });
+
+  it("pasar a Correo sin conexión activa → error", () => {
+    const antes = { correoActive: false, previous: { source: "TABLE" as const, branchDeliveryEnabled: false } };
+    expect(parseShippingSettingsForm(form({ ...base, source: "CORREO_ARGENTINO" }), antes).ok).toBe(false);
+  });
+
+  it("prender sucursal sin conexión activa → error aunque la fuente ya fuera Correo", () => {
+    const antes = { correoActive: false, previous: { source: "CORREO_ARGENTINO" as const, branchDeliveryEnabled: false } };
+    const r = parseShippingSettingsForm(form({ ...base, source: "CORREO_ARGENTINO", branchDeliveryEnabled: ON }), antes);
+    expect(r.ok).toBe(false);
+  });
+});
+
+describe("parseShippingArsToMinor", () => {
+  it("punto + 1 o 2 dígitos al final es decimal; punto + 3 dígitos es miles", () => {
+    expect(parseShippingArsToMinor("3500.50")).toBe(350050);
+    expect(parseShippingArsToMinor("3500.5")).toBe(350050);
+    expect(parseShippingArsToMinor("3.500")).toBe(350000);
+    expect(parseShippingArsToMinor("3.500.50")).toBe(350050);
+    expect(parseShippingArsToMinor("$ 1.500,50")).toBe(150050);
+    expect(parseShippingArsToMinor("1500")).toBe(150000);
+    expect(parseShippingArsToMinor("")).toBe(null);
+  });
+
+  it("el recargo fijo lo usa", () => {
+    const r = parseShippingSettingsForm(form({ ...base, surchargeKind: "FIXED", surchargeValue: "3500.50" }), sinCorreo);
+    expect(r.ok && r.values.surchargeValue).toBe(350050);
+  });
+});
+
+describe("settingsAfterCorreoDisconnect", () => {
+  it("sin Correo ni sucursal no toca nada", () => {
+    expect(
+      settingsAfterCorreoDisconnect({ source: "TABLE", branchDeliveryEnabled: false, pickupEnabled: false, homeDeliveryEnabled: true }),
+    ).toBe(null);
+  });
+
+  it("vuelve a la tabla y apaga sucursal; si queda todo apagado, prende el retiro", () => {
+    expect(
+      settingsAfterCorreoDisconnect({ source: "CORREO_ARGENTINO", branchDeliveryEnabled: true, pickupEnabled: false, homeDeliveryEnabled: false }),
+    ).toEqual({ data: { source: "TABLE", branchDeliveryEnabled: false, pickupEnabled: true }, pickupForced: true });
+    expect(
+      settingsAfterCorreoDisconnect({ source: "CORREO_ARGENTINO", branchDeliveryEnabled: true, pickupEnabled: false, homeDeliveryEnabled: true }),
+    ).toEqual({ data: { source: "TABLE", branchDeliveryEnabled: false }, pickupForced: false });
   });
 });

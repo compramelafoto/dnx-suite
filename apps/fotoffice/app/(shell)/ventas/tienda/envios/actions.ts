@@ -3,7 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
 import { requireStoreConfigurer } from "@/lib/store/access";
-import { parseShippingSettingsForm, SHIPPING_SETTINGS_DEFAULTS } from "@/lib/store/shipping/settings-form";
+import {
+  parseShippingSettingsForm,
+  settingsAfterCorreoDisconnect,
+  SHIPPING_SETTINGS_DEFAULTS,
+} from "@/lib/store/shipping/settings-form";
 import { parseZoneForm } from "@/lib/store/shipping/zone-form";
 import { buildPackage } from "@/lib/store/shipping/package";
 import { loadShippingSettings } from "@/lib/store/shipping/repository";
@@ -32,6 +36,9 @@ export type ShippingActionResult = { ok: true; message?: string } | { ok: false;
 
 const RUTA = "/ventas/tienda/envios";
 
+/** La zona se borró entre la verificación y la transacción. Se traduce a un mensaje, no a un 500. */
+class ZonaInexistente extends Error {}
+
 async function correoActivo(workspaceId: string): Promise<boolean> {
   const resumen = await getIntegrationSummary(workspaceId, CORREO_ARGENTINO_INTEGRATION_KEY);
   return resumen?.status === "ACTIVE";
@@ -46,7 +53,22 @@ function texto(fd: FormData, campo: string): string {
 
 export async function saveShippingSettingsAction(formData: FormData): Promise<ShippingActionResult> {
   const { workspace } = await requireStoreConfigurer();
-  const parsed = parseShippingSettingsForm(formData, { correoActive: await correoActivo(workspace.id) });
+  const [activo, previa] = await Promise.all([
+    correoActivo(workspace.id),
+    prisma.storeShippingSettings.findUnique({
+      where: { workspaceId: workspace.id },
+      select: { source: true, branchDeliveryEnabled: true },
+    }),
+  ]);
+  const parsed = parseShippingSettingsForm(formData, {
+    correoActive: activo,
+    previous: previa
+      ? {
+          source: previa.source === "CORREO_ARGENTINO" ? "CORREO_ARGENTINO" : "TABLE",
+          branchDeliveryEnabled: previa.branchDeliveryEnabled,
+        }
+      : null,
+  });
   if (!parsed.ok) return parsed;
 
   await prisma.storeShippingSettings.upsert({
@@ -91,26 +113,36 @@ export async function saveShippingZoneAction(formData: FormData): Promise<Shippi
 
   // Los escalones ya vienen sin pesos repetidos (`parseZoneForm`), así que el único de
   // (zona, peso) no puede saltar acá adentro.
-  await prisma.$transaction(async (tx) => {
-    let id = zoneId;
-    if (id) {
-      await tx.storeShippingZone.updateMany({ where: { id, workspaceId: workspace.id }, data: zona });
-    } else {
-      const ultimo = await tx.storeShippingZone.aggregate({
-        where: { workspaceId: workspace.id },
-        _max: { sortOrder: true },
+  try {
+    await prisma.$transaction(async (tx) => {
+      let id = zoneId;
+      if (id) {
+        const actualizadas = await tx.storeShippingZone.updateMany({
+          where: { id, workspaceId: workspace.id },
+          data: zona,
+        });
+        // Sin esto, el `createMany` de abajo fallaría por la clave foránea con un error crudo.
+        if (actualizadas.count === 0) throw new ZonaInexistente();
+      } else {
+        const ultimo = await tx.storeShippingZone.aggregate({
+          where: { workspaceId: workspace.id },
+          _max: { sortOrder: true },
+        });
+        const creada = await tx.storeShippingZone.create({
+          data: { workspaceId: workspace.id, ...zona, sortOrder: (ultimo._max.sortOrder ?? -1) + 1 },
+          select: { id: true },
+        });
+        id = creada.id;
+      }
+      await tx.storeShippingRate.deleteMany({ where: { zoneId: id } });
+      await tx.storeShippingRate.createMany({
+        data: rates.map((r) => ({ zoneId: id, maxGrams: r.maxGrams, priceArs: minorToDecimalString(r.priceMinor) })),
       });
-      const creada = await tx.storeShippingZone.create({
-        data: { workspaceId: workspace.id, ...zona, sortOrder: (ultimo._max.sortOrder ?? -1) + 1 },
-        select: { id: true },
-      });
-      id = creada.id;
-    }
-    await tx.storeShippingRate.deleteMany({ where: { zoneId: id } });
-    await tx.storeShippingRate.createMany({
-      data: rates.map((r) => ({ zoneId: id, maxGrams: r.maxGrams, priceArs: minorToDecimalString(r.priceMinor) })),
     });
-  });
+  } catch (error) {
+    if (error instanceof ZonaInexistente) return { ok: false, error: "Esa zona ya no existe. Recargá la página." };
+    throw error;
+  }
 
   revalidatePath(RUTA);
   return { ok: true };
@@ -172,21 +204,30 @@ export async function disconnectCorreoAction(): Promise<ShippingActionResult> {
   const { workspace } = await requireStoreConfigurer();
 
   // Sin Correo no puede quedar como fuente ni el envío a sucursal prendido: se vuelve a la
-  // tabla propia antes de borrar la credencial.
-  const cambiados = await prisma.storeShippingSettings.updateMany({
-    where: { workspaceId: workspace.id, OR: [{ source: "CORREO_ARGENTINO" }, { branchDeliveryEnabled: true }] },
-    data: { source: "TABLE", branchDeliveryEnabled: false },
+  // tabla propia antes de borrar la credencial. Si así no quedara ninguna forma de entrega,
+  // se prende el retiro en la sede (en la misma escritura).
+  const previa = await prisma.storeShippingSettings.findUnique({
+    where: { workspaceId: workspace.id },
+    select: { source: true, branchDeliveryEnabled: true, pickupEnabled: true, homeDeliveryEnabled: true },
   });
+  const cambio = previa
+    ? settingsAfterCorreoDisconnect({
+        ...previa,
+        source: previa.source === "CORREO_ARGENTINO" ? "CORREO_ARGENTINO" : "TABLE",
+      })
+    : null;
+  if (cambio) {
+    await prisma.storeShippingSettings.update({ where: { workspaceId: workspace.id }, data: cambio.data });
+  }
   await deleteCorreoArgentinoCredentials(workspace.id);
 
   revalidatePath(RUTA);
-  return {
-    ok: true,
-    message:
-      cambiados.count > 0
-        ? "Se desconectó. El precio del envío ahora sale de tu tabla y el envío a sucursal quedó apagado."
-        : "Se desconectó Correo Argentino.",
-  };
+  let message = "Se desconectó Correo Argentino.";
+  if (cambio) {
+    message = "Se desconectó. El precio del envío ahora sale de tu tabla y el envío a sucursal quedó apagado.";
+    if (cambio.pickupForced) message += " Activamos el retiro en la sede para que la tienda siga teniendo una forma de entrega.";
+  }
+  return { ok: true, message };
 }
 
 /**

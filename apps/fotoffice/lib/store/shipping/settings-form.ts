@@ -8,12 +8,14 @@ import type { Surcharge } from "./surcharge";
  *
  * Las reglas viven acá y no en el componente: una acción del servidor se puede llamar a mano y
  * tiene que quedar igual de protegida. Si Correo Argentino está conectado lo sabe la acción
- * (necesita la base), y lo pasa en `ctx.correoActive`.
+ * (necesita la base), y lo pasa en `ctx.correoActive` junto con lo guardado antes (`ctx.previous`).
  *
  * - Al menos una forma de entrega activa (retiro, domicilio o sucursal).
  * - Domicilio o sucursal exigen el código postal de origen.
- * - Sucursal sólo con Correo Argentino como fuente (E9), y Correo como fuente exige la
- *   conexión activa.
+ * - Sucursal sólo con Correo Argentino como fuente (E9).
+ * - La conexión activa se exige sólo al CAMBIAR a Correo o al PRENDER sucursal. Si ya estaba así
+ *   guardado y la conexión pide reconexión, se puede seguir guardando lo demás (la cotización
+ *   cae en el respaldo mientras tanto); si no, una credencial vencida bloquearía toda la pantalla.
  * - Recargo (E3): el porcentaje se escribe como "10" o "10,5" y se guarda en bps; el monto fijo
  *   se escribe en pesos y se guarda en centavos.
  */
@@ -56,6 +58,40 @@ function casilla(fd: FormData, campo: string): boolean {
   return fd.get(campo) === "on";
 }
 
+/**
+ * Pesos → centavos para los importes de envíos. Igual que `parseArsToMinor` ("1.500,50",
+ * "$ 1500"), salvo un caso: sin coma, un punto seguido de 1 o 2 dígitos al final es la coma
+ * decimal ("3500.50" → 350050, como lo escribe mucha gente). "3.500" (punto + 3 dígitos)
+ * sigue siendo separador de miles. No se toca `parseArsToMinor`, que se usa en otros módulos.
+ */
+export function parseShippingArsToMinor(raw: string): number | null {
+  let s = raw.replace(/[$\s]/g, "");
+  if (!s.includes(",") && /\.\d{1,2}$/.test(s)) {
+    const i = s.lastIndexOf(".");
+    s = `${s.slice(0, i).replace(/\./g, "")},${s.slice(i + 1)}`;
+  }
+  return parseArsToMinor(s);
+}
+
+/**
+ * Qué cambiar en la configuración al desconectar Correo Argentino: fuente a la tabla y sucursal
+ * apagada. Si así quedaran las tres formas de entrega apagadas, se prende el retiro.
+ * `null` = no hace falta tocar nada.
+ */
+export function settingsAfterCorreoDisconnect(prev: {
+  source: ShippingSource;
+  branchDeliveryEnabled: boolean;
+  pickupEnabled: boolean;
+  homeDeliveryEnabled: boolean;
+}): { data: { source: "TABLE"; branchDeliveryEnabled: false; pickupEnabled?: true }; pickupForced: boolean } | null {
+  if (prev.source !== "CORREO_ARGENTINO" && !prev.branchDeliveryEnabled) return null;
+  const pickupForced = !prev.pickupEnabled && !prev.homeDeliveryEnabled;
+  return {
+    data: { source: "TABLE", branchDeliveryEnabled: false, ...(pickupForced ? { pickupEnabled: true as const } : {}) },
+    pickupForced,
+  };
+}
+
 /** Entero escrito sólo con dígitos, dentro de [min, max]. */
 function entero(raw: string, min: number, max: number): number | null {
   if (!/^\d+$/.test(raw)) return null;
@@ -85,9 +121,15 @@ const ENTEROS = [
   ["boxHeightCm", 1, CORREO_MAX_SIDE_CM, "El alto de la caja tiene que ser un número entero de 1 a 150 cm."],
 ] as const;
 
+export type ShippingSettingsFormContext = {
+  correoActive: boolean;
+  /** Lo guardado hasta ahora, o `null` si la institución nunca guardó la configuración. */
+  previous: { source: ShippingSource; branchDeliveryEnabled: boolean } | null;
+};
+
 export function parseShippingSettingsForm(
   fd: FormData,
-  ctx: { correoActive: boolean },
+  ctx: ShippingSettingsFormContext,
 ): ShippingSettingsFormResult {
   const pickupEnabled = casilla(fd, "pickupEnabled");
   const homeDeliveryEnabled = casilla(fd, "homeDeliveryEnabled");
@@ -119,7 +161,9 @@ export function parseShippingSettingsForm(
   if (branchDeliveryEnabled && source !== "CORREO_ARGENTINO") {
     return { ok: false, error: "El envío a sucursal sólo funciona con Correo Argentino como fuente." };
   }
-  if (source === "CORREO_ARGENTINO" && !ctx.correoActive) {
+  const pasaACorreo = source === "CORREO_ARGENTINO" && ctx.previous?.source !== "CORREO_ARGENTINO";
+  const prendeSucursal = branchDeliveryEnabled && !ctx.previous?.branchDeliveryEnabled;
+  if ((pasaACorreo || prendeSucursal) && !ctx.correoActive) {
     return {
       ok: false,
       error: "Para usar Correo Argentino (y el envío a sucursal) primero conectá Correo Argentino más abajo.",
@@ -138,7 +182,7 @@ export function parseShippingSettingsForm(
     }
     surchargeValue = bps;
   } else if (kindRaw === "FIXED") {
-    const minor = parseArsToMinor(texto(fd, "surchargeValue"));
+    const minor = parseShippingArsToMinor(texto(fd, "surchargeValue"));
     if (minor === null || minor > MAX_FIXED_MINOR) {
       return { ok: false, error: "El recargo fijo tiene que ser un monto en pesos, por ejemplo 1500 o 1.500,50." };
     }

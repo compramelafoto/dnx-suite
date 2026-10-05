@@ -31,8 +31,16 @@ export function CorreoConnectionCard({ connection }: { connection: CorreoConnect
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const verFormulario = !activa || mostrarFormulario;
 
-  function correr(accion: () => Promise<ShippingActionResult>, alTerminar?: (r: ShippingActionResult) => void) {
+  // Qué se está haciendo, para el texto de espera.
+  const [enCurso, setEnCurso] = useState("");
+
+  function correr(
+    accion: () => Promise<ShippingActionResult>,
+    textoEspera: string,
+    alTerminar?: (r: ShippingActionResult) => void,
+  ) {
     setResultado(null);
+    setEnCurso(textoEspera);
     startTransition(async () => {
       const r = await accion();
       setResultado(r);
@@ -67,7 +75,7 @@ export function CorreoConnectionCard({ connection }: { connection: CorreoConnect
                 type="button"
                 className="fo-btn fo-btn-secondary text-sm"
                 disabled={pendiente}
-                onClick={() => correr(testCorreoConnectionAction)}
+                onClick={() => correr(testCorreoConnectionAction, "Probando con Correo Argentino…")}
               >
                 Probar conexión
               </button>
@@ -83,7 +91,7 @@ export function CorreoConnectionCard({ connection }: { connection: CorreoConnect
               disabled={pendiente}
               onClick={() => {
                 if (!window.confirm("¿Desconectar Correo Argentino? Se borran las credenciales guardadas.")) return;
-                correr(disconnectCorreoAction);
+                correr(disconnectCorreoAction, "Desconectando…");
               }}
             >
               Desconectar
@@ -106,6 +114,7 @@ export function CorreoConnectionCard({ connection }: { connection: CorreoConnect
             const fd = new FormData(e.currentTarget);
             correr(
               () => connectCorreoAction(fd),
+              "Conectando con Correo Argentino…",
               (r) => {
                 if (r.ok) {
                   formRef.current?.reset();
@@ -143,7 +152,7 @@ export function CorreoConnectionCard({ connection }: { connection: CorreoConnect
           </p>
           <div className="flex flex-wrap gap-2">
             <button type="submit" className="fo-btn fo-btn-primary text-sm" disabled={pendiente}>
-              {pendiente ? "Conectando…" : connection ? "Volver a conectar" : "Conectar"}
+              {connection ? "Volver a conectar" : "Conectar"}
             </button>
             {activa ? (
               <button
@@ -159,7 +168,7 @@ export function CorreoConnectionCard({ connection }: { connection: CorreoConnect
         </form>
       ) : null}
 
-      {pendiente ? <p className="text-sm text-[var(--fo-muted)]">Hablando con Correo Argentino…</p> : null}
+      {pendiente ? <p className="text-sm text-[var(--fo-muted)]">{enCurso}</p> : null}
       <Resultado resultado={resultado} />
     </section>
   );

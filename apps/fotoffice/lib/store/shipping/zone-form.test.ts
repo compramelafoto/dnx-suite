@@ -35,6 +35,13 @@ describe("parseZoneForm", () => {
     });
   });
 
+  it("precio con punto decimal: '3500.50' → 350050; '3.500' → 350000", () => {
+    const a = parseZoneForm(form({ ...base, rateMaxGrams: ["1000"], ratePrice: ["3500.50"] }));
+    expect(a.ok && a.values.rates).toEqual([{ maxGrams: 1000, priceMinor: 350050 }]);
+    const b = parseZoneForm(form({ ...base, rateMaxGrams: ["1000"], ratePrice: ["3.500"] }));
+    expect(b.ok && b.values.rates).toEqual([{ maxGrams: 1000, priceMinor: 350000 }]);
+  });
+
   it("sin nombre o con nombre largo → error", () => {
     expect(parseZoneForm(form({ ...base, name: " " })).ok).toBe(false);
     expect(parseZoneForm(form({ ...base, name: "x".repeat(MAX_ZONE_NAME + 1) })).ok).toBe(false);

@@ -1,6 +1,6 @@
-import { parseArsToMinor } from "@/lib/membership/money";
 import { normalizePostalCode } from "./package";
 import { isProvinceCode } from "./provinces";
+import { parseShippingArsToMinor } from "./settings-form";
 
 /**
  * El formulario de una zona de la tabla de envíos con sus escalones. Módulo PURO.
@@ -102,7 +102,7 @@ export function parseZoneForm(fd: FormData): ZoneFormResult {
     if (!Number.isSafeInteger(maxGrams) || maxGrams < 1 || maxGrams > MAX_RATE_GRAMS) {
       return { ok: false, error: "Cada escalón necesita un peso en gramos, un número entero mayor que 0." };
     }
-    const priceMinor = precioRaw === "" ? null : parseArsToMinor(precioRaw);
+    const priceMinor = precioRaw === "" ? null : parseShippingArsToMinor(precioRaw);
     if (priceMinor === null || priceMinor > MAX_RATE_MINOR) {
       return { ok: false, error: `Falta un precio válido para el escalón de hasta ${maxGrams} g.` };
     }
