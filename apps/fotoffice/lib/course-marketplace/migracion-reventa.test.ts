@@ -9,17 +9,17 @@ import { describe, expect, it } from "vitest";
  */
 const RAIZ = join(import.meta.dirname, "..", "..", "..", "..");
 const MIGRACIONES = join(RAIZ, "packages", "db", "prisma", "migrations");
-const CARPETA = "20261011120000_mercado_cursos_reventa";
+const CARPETA = "20261013120000_mercado_cursos_reventa";
 const SQL = join(MIGRACIONES, CARPETA, "migration.sql");
 
 describe("migración de la reventa de cursos", () => {
   it("existe y va después de la última que había en main", () => {
     expect(existsSync(SQL)).toBe(true);
-    expect(CARPETA > "20261010120000_fotoffice_correo_fechas").toBe(true);
+    expect(CARPETA > "20261012120000_fotoffice_correo_ciclo").toBe(true);
   });
 
   it("su marca de tiempo no la comparte ninguna otra carpeta", () => {
-    const mismas = readdirSync(MIGRACIONES).filter((n) => n.startsWith("20261011120000_"));
+    const mismas = readdirSync(MIGRACIONES).filter((n) => n.startsWith("20261013120000_"));
     expect(mismas).toEqual([CARPETA]);
   });
 
