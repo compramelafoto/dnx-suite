@@ -8,7 +8,9 @@
  * los tests de ambas apps avisa si se separan.
  *
  * La firma es HMAC-SHA256 (base64url) sobre `entryId|variant|exp|wm`, donde `exp` son
- * segundos unix y `wm` el texto de la marca de agua (vacío si no hay).
+ * segundos unix y `wm` el texto de la marca de agua (vacío si no hay). Como `|` es el
+ * separador, no se acepta dentro de `entryId` ni de `wm` (firmar tira `BAD_PARAMS`;
+ * verificar devuelve `BAD_PARAMS`): así dos combinaciones distintas nunca dan el mismo texto.
  */
 
 import { createHmac, timingSafeEqual } from "node:crypto";
@@ -31,6 +33,12 @@ function esVariante(v: string): v is EntryImageVariant {
   return v === "preview" || v === "original";
 }
 
+const SEPARADOR = "|";
+
+function tieneSeparador(v: string | null | undefined): boolean {
+  return typeof v === "string" && v.includes(SEPARADOR);
+}
+
 function firmar(entryId: string, variant: string, exp: number, wm: string | null | undefined, secret: string): string {
   const payload = `${entryId}|${variant}|${exp}|${wm ?? ""}`;
   return createHmac("sha256", secret).update(payload).digest("base64url");
@@ -44,6 +52,9 @@ export function signEntryImageUrl(input: {
   secret: string;
   wm?: string | null;
 }): string {
+  if (tieneSeparador(input.entryId) || tieneSeparador(input.wm)) {
+    throw new Error("BAD_PARAMS: entryId y wm no pueden contener «|».");
+  }
   const exp = Math.floor(input.expiresAt.getTime() / 1000);
   const wm = input.wm ?? "";
   const sig = firmar(input.entryId, input.variant, exp, wm, input.secret);
@@ -68,6 +79,8 @@ export function verifyEntryImageSignature(
     !secret ||
     !params.entryId ||
     !params.sig ||
+    tieneSeparador(params.entryId) ||
+    tieneSeparador(params.wm) ||
     !esVariante(params.variant) ||
     !Number.isInteger(params.exp)
   ) {

@@ -40,4 +40,19 @@ describe("firma de imágenes de obras", () => {
     expect(verifyEntryImageSignature({ ...base, sig: "" }, SECRET, antes)).toEqual({ ok: false, reason: "BAD_PARAMS" });
     expect(verifyEntryImageSignature({ ...base, sig: "corta" }, SECRET, antes)).toEqual({ ok: false, reason: "BAD_SIGNATURE" });
   });
+  it("el separador «|» no puede aparecer en entryId ni en wm", () => {
+    const firmar = (cambio: { entryId?: string; wm?: string }) =>
+      signEntryImageUrl({
+        baseUrl: "https://fotorank.com",
+        entryId: cambio.entryId ?? "entry-123",
+        variant: "preview",
+        expiresAt: new Date(EXP * 1000),
+        secret: SECRET,
+        wm: cambio.wm ?? "Daniel Cuart",
+      });
+    expect(() => firmar({ entryId: "a|b" })).toThrow(/BAD_PARAMS/);
+    expect(() => firmar({ wm: "a|b" })).toThrow(/BAD_PARAMS/);
+    expect(verifyEntryImageSignature({ ...base, entryId: "entry|123" }, SECRET, antes)).toEqual({ ok: false, reason: "BAD_PARAMS" });
+    expect(verifyEntryImageSignature({ ...base, wm: "Daniel|Cuart" }, SECRET, antes)).toEqual({ ok: false, reason: "BAD_PARAMS" });
+  });
 });

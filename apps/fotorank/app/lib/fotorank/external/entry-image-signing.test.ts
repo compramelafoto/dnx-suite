@@ -46,3 +46,19 @@ test("parámetros malos", () => {
   assert.deepEqual(verifyEntryImageSignature({ ...base, sig: "" }, SECRET, antes), { ok: false, reason: "BAD_PARAMS" });
   assert.deepEqual(verifyEntryImageSignature({ ...base, sig: "corta" }, SECRET, antes), { ok: false, reason: "BAD_SIGNATURE" });
 });
+
+test("el separador «|» no puede aparecer en entryId ni en wm", () => {
+  const firmar = (cambio: { entryId?: string; wm?: string }) =>
+    signEntryImageUrl({
+      baseUrl: "https://fotorank.com",
+      entryId: cambio.entryId ?? "entry-123",
+      variant: "preview",
+      expiresAt: new Date(EXP * 1000),
+      secret: SECRET,
+      wm: cambio.wm ?? "Daniel Cuart",
+    });
+  assert.throws(() => firmar({ entryId: "a|b" }), /BAD_PARAMS/);
+  assert.throws(() => firmar({ wm: "a|b" }), /BAD_PARAMS/);
+  assert.deepEqual(verifyEntryImageSignature({ ...base, entryId: "entry|123" }, SECRET, antes), { ok: false, reason: "BAD_PARAMS" });
+  assert.deepEqual(verifyEntryImageSignature({ ...base, wm: "Daniel|Cuart" }, SECRET, antes), { ok: false, reason: "BAD_PARAMS" });
+});
