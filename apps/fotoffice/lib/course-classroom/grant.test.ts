@@ -43,6 +43,12 @@ describe("avisar el acceso", () => {
     );
   });
 
+  it("si la invitación falla, el correo sale igual sin ella", async () => {
+    const d = deps({ invitacionASociarse: vi.fn().mockRejectedValue(new Error("base caída")) });
+    expect(await avisarAccesoAlAula(input, d)).toEqual({ avisado: true });
+    expect(d.enviarCursoListo).toHaveBeenCalledWith(expect.objectContaining({ invitacion: null }));
+  });
+
   it("lleva la invitación a asociarse cuando corresponde", async () => {
     const invitacion = { institucion: "SFPR", url: "https://fotoffice.com/w/sfpr/asociarse" };
     const d = deps({ invitacionASociarse: vi.fn().mockResolvedValue(invitacion) });

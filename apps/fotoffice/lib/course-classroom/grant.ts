@@ -155,7 +155,8 @@ export async function avisarAccesoAlAula(
     }
 
     const [invitacion, firma] = await Promise.all([
-      deps.invitacionASociarse(input.workspaceId, cuenta.userId),
+      // La invitación es opcional: si falla, el correo sale igual, sin ella.
+      deps.invitacionASociarse(input.workspaceId, cuenta.userId).catch(() => null),
       deps.cargarFirma(input.workspaceId),
     ]);
     const comun = {

@@ -19,7 +19,26 @@ export function asociarseAbierto(input: { moduloSocios: boolean; puedeCobrar: bo
   return input.moduloSocios && input.puedeCobrar && input.hayValorCuota;
 }
 
+/**
+ * La invitación es opcional: si algo falla al decidirla, no se invita y se sigue. Nunca lanza,
+ * para que un error acá no tire el portal ni deje sin correo a quien ya pagó.
+ */
 async function decidir(workspaceId: string, userId: number): Promise<{ ruta: string; institucion: string } | null> {
+  try {
+    return await decidirSinProteger(workspaceId, userId);
+  } catch (error) {
+    console.error("[fotoffice][cursos] no se pudo resolver la invitación a asociarse", {
+      workspaceId,
+      motivo: error instanceof Error ? error.name : "desconocido",
+    });
+    return null;
+  }
+}
+
+async function decidirSinProteger(
+  workspaceId: string,
+  userId: number,
+): Promise<{ ruta: string; institucion: string } | null> {
   const [socio, branding, moduloSocios, cobros, valorCuota] = await Promise.all([
     prisma.member.findFirst({ where: { userId, workspaceId, status: "ACTIVE" }, select: { id: true } }),
     prisma.fotofficeWorkspaceBranding.findUnique({
