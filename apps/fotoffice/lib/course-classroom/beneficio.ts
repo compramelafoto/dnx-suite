@@ -8,19 +8,40 @@ import { logCourseEvent } from "@/lib/presential-courses/log";
  * ser socio activo (spec §8).
  */
 
+export type CodigoDeBeneficio = "no-socio" | "no-disponible" | "no-gratis" | "otra-institucion" | "ya-lo-tiene";
+
+/**
+ * Textos fijos que la página de Mis cursos muestra según el `?aviso=` de la URL. La URL nunca
+ * aporta texto: sólo se muestra lo que está en este mapa.
+ */
+export const MENSAJES_DE_BENEFICIO: Record<CodigoDeBeneficio, string> = {
+  "no-socio": "Sólo para socios activos.",
+  "no-disponible": "Este curso no está disponible.",
+  "no-gratis": "Este curso no es gratis para socios.",
+  "otra-institucion": "Este curso es de otra institución.",
+  "ya-lo-tiene": "Ya tenés este curso.",
+};
+
+export function mensajeDeBeneficio(codigo: string | undefined): string | null {
+  if (!codigo || !Object.prototype.hasOwnProperty.call(MENSAJES_DE_BENEFICIO, codigo)) return null;
+  return MENSAJES_DE_BENEFICIO[codigo as CodigoDeBeneficio];
+}
+
+type ResultadoBeneficio = { ok: true } | { ok: false; codigo: CodigoDeBeneficio; motivo: string };
+
 export function puedeAnotarseGratis(input: {
   esSocioActivo: boolean;
   curso: { freeForMembers: boolean; status: string; deliveryMode: string; workspaceId: string } | null;
   workspaceDelSocio: string | null;
   yaTieneAcceso: boolean;
-}): { ok: true } | { ok: false; motivo: string } {
-  if (!input.esSocioActivo || !input.workspaceDelSocio) return { ok: false, motivo: "Sólo para socios activos." };
+}): ResultadoBeneficio {
+  if (!input.esSocioActivo || !input.workspaceDelSocio) return { ok: false, codigo: "no-socio", motivo: MENSAJES_DE_BENEFICIO["no-socio"] };
   if (!input.curso || input.curso.status !== "PUBLISHED" || input.curso.deliveryMode !== "RECORDED") {
-    return { ok: false, motivo: "Este curso no está disponible." };
+    return { ok: false, codigo: "no-disponible", motivo: MENSAJES_DE_BENEFICIO["no-disponible"] };
   }
-  if (!input.curso.freeForMembers) return { ok: false, motivo: "Este curso no es gratis para socios." };
-  if (input.curso.workspaceId !== input.workspaceDelSocio) return { ok: false, motivo: "Este curso es de otra institución." };
-  if (input.yaTieneAcceso) return { ok: false, motivo: "Ya tenés este curso." };
+  if (!input.curso.freeForMembers) return { ok: false, codigo: "no-gratis", motivo: MENSAJES_DE_BENEFICIO["no-gratis"] };
+  if (input.curso.workspaceId !== input.workspaceDelSocio) return { ok: false, codigo: "otra-institucion", motivo: MENSAJES_DE_BENEFICIO["otra-institucion"] };
+  if (input.yaTieneAcceso) return { ok: false, codigo: "ya-lo-tiene", motivo: MENSAJES_DE_BENEFICIO["ya-lo-tiene"] };
   return { ok: true };
 }
 
@@ -46,7 +67,7 @@ export async function cursosGratisParaSocio(workspaceId: string, userId: number)
 export async function anotarseGratis(input: {
   userId: number;
   courseId: string;
-}): Promise<{ ok: true } | { ok: false; motivo: string }> {
+}): Promise<ResultadoBeneficio> {
   const [socio, curso, user, existente] = await Promise.all([
     loadPortalContext(input.userId),
     prisma.course.findUnique({
@@ -106,7 +127,13 @@ export async function anotarseGratis(input: {
     });
   } catch (error) {
     // Doble clic: el otro pedido ya lo anotó.
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return { ok: true };
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      const yaAnotado = await prisma.courseAccess.findUnique({
+        where: { userId_courseId: { userId: input.userId, courseId: input.courseId } },
+        select: { id: true },
+      });
+      if (yaAnotado) return { ok: true };
+    }
     throw error;
   }
   logCourseEvent("beneficio_socio_anotado", { courseId: curso!.id, memberId: socio!.member.id });

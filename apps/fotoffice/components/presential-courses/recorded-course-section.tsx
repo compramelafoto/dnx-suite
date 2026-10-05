@@ -73,7 +73,7 @@ export function RecordedCourseSection({
           </li>
         ))}
       </ol>
-      {gratisParaSocios ? (
+      {gratisParaSocios && publicado ? (
         <p className="rounded-[var(--fo-radius-sm)] border border-[var(--fo-accent)]/40 p-3 text-sm">
           <strong>Gratis para socios de {gratisParaSocios.institucion}.</strong>{" "}
           <a href={`${appUrl}/login?next=/portal/cursos`} className="text-[var(--fo-accent)] underline">

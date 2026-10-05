@@ -5,7 +5,7 @@ import { requireAuth } from "@/lib/auth";
 import { cargarMisCursos } from "@/lib/course-classroom/mis-cursos";
 import { otorgarAccesosPendientes } from "@/lib/course-classroom/alumno";
 import { fechaLegibleArgentina } from "@/lib/course-classroom/access-rules";
-import { cursosGratisParaSocio } from "@/lib/course-classroom/beneficio";
+import { cursosGratisParaSocio, mensajeDeBeneficio } from "@/lib/course-classroom/beneficio";
 import { loadPortalContext } from "@/lib/portal/access";
 import { anotarmeGratisAction } from "./actions";
 
@@ -25,6 +25,7 @@ export const metadata: Metadata = {
  */
 export default async function MisCursosPage({ searchParams }: { searchParams: Promise<{ aviso?: string }> }) {
   const { aviso } = await searchParams;
+  const textoDelAviso = mensajeDeBeneficio(aviso);
   const user = await requireAuth();
   await otorgarAccesosPendientes(user.id);
   const grupos = await cargarMisCursos(user.id);
@@ -37,7 +38,7 @@ export default async function MisCursosPage({ searchParams }: { searchParams: Pr
         <h1 className="text-2xl font-semibold tracking-tight">Mis cursos</h1>
       </header>
 
-      {aviso ? <p className="fo-card text-sm">{aviso}</p> : null}
+      {textoDelAviso ? <p className="fo-card text-sm">{textoDelAviso}</p> : null}
 
       {grupos.length === 0 ? (
         <section className="fo-card text-sm text-[var(--fo-muted)]">Todavía no tenés cursos.</section>
