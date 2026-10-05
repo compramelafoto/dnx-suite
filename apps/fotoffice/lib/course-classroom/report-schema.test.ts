@@ -3,10 +3,18 @@ import { leerReporte } from "./report-schema";
 
 describe("leer el reporte de avance", () => {
   it("acepta un reporte bien formado", () => {
-    expect(leerReporte({ lessonId: "c1", positionSeconds: 30.5, watchedSinceLastReport: 15 })).toEqual({
+    expect(leerReporte({ courseId: "k1", lessonId: "c1", positionSeconds: 30.5, watchedSinceLastReport: 15 })).toEqual({
       ok: true,
-      reporte: { lessonId: "c1", positionSeconds: 30.5, watchedSinceLastReport: 15 },
+      reporte: { courseId: "k1", lessonId: "c1", positionSeconds: 30.5, watchedSinceLastReport: 15 },
     });
+  });
+
+  it("acepta y exige el curso", () => {
+    expect(leerReporte({ courseId: "k1", lessonId: "c1", positionSeconds: 1, watchedSinceLastReport: 1 })).toEqual({
+      ok: true,
+      reporte: { courseId: "k1", lessonId: "c1", positionSeconds: 1, watchedSinceLastReport: 1 },
+    });
+    expect(leerReporte({ lessonId: "c1", positionSeconds: 1, watchedSinceLastReport: 1 }).ok).toBe(false);
   });
 
   it("rechaza lo que no es un reporte", () => {

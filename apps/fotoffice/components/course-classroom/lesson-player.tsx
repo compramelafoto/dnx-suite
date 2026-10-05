@@ -38,7 +38,7 @@ export function LessonPlayer({
 }: {
   iframeUrl: string;
   marca: string | null;
-  reporte: { url: string; lessonId: string } | null;
+  reporte: { url: string; lessonId: string; courseId?: string } | null;
 }) {
   const contenedor = useRef<HTMLDivElement>(null);
   const iframe = useRef<HTMLIFrameElement>(null);
@@ -65,6 +65,7 @@ export function LessonPlayer({
       keepalive: true,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        courseId: reporte.courseId,
         lessonId: reporte.lessonId,
         positionSeconds: Math.floor(ultimaPosicion.current),
         watchedSinceLastReport: visto,
