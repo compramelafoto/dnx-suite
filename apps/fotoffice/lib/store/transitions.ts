@@ -16,10 +16,11 @@ const SISTEMA: Record<StoreOrderStatus, readonly StoreOrderStatus[]> = {
   READY: [],
   DELIVERED: [],
   PAID_NO_STOCK: [],
-  // Las transiciones desde y hacia SHIPPED se definen con el despacho (tarea 8).
   SHIPPED: [],
 };
-const PERSONAL: Record<StoreOrderStatus, readonly StoreOrderStatus[]> = {
+
+/** Pedido para retirar: se prepara, queda listo y se entrega. Nunca se despacha. */
+const PERSONAL_RETIRO: Record<StoreOrderStatus, readonly StoreOrderStatus[]> = {
   PENDING_PAYMENT: ["CANCELLED"],
   PAID: ["READY", "DELIVERED", "CANCELLED"],
   READY: ["DELIVERED", "CANCELLED"],
@@ -30,10 +31,40 @@ const PERSONAL: Record<StoreOrderStatus, readonly StoreOrderStatus[]> = {
   SHIPPED: [],
 };
 
+/**
+ * Pedido con envío: se despacha y después se entrega. "Listo para retirar" no existe (nadie lo
+ * pasa a buscar) y no se da por entregado sin despacharlo antes. `READY` queda con salida por si
+ * un pedido viejo llegara ahí: no se ofrece, pero tampoco se queda trabado.
+ */
+const PERSONAL_ENVIO: Record<StoreOrderStatus, readonly StoreOrderStatus[]> = {
+  PENDING_PAYMENT: ["CANCELLED"],
+  PAID: ["SHIPPED", "CANCELLED"],
+  SHIPPED: ["DELIVERED", "CANCELLED"],
+  READY: ["DELIVERED", "CANCELLED"],
+  PAID_NO_STOCK: ["PAID", "CANCELLED"],
+  DELIVERED: [],
+  CANCELLED: [],
+  EXPIRED: [],
+};
+
+/**
+ * El personal necesita la forma de entrega del pedido (`StoreOrder.deliveryMethod`): lo que se
+ * puede hacer con un envío no es lo mismo que con un retiro. Cualquier valor que no sea
+ * `"SHIPPING"` se trata como retiro (los pedidos de la etapa 1 son todos retiro).
+ */
+export function canTransition(from: StoreOrderStatus, to: StoreOrderStatus, actor: "system"): boolean;
+export function canTransition(
+  from: StoreOrderStatus,
+  to: StoreOrderStatus,
+  actor: "staff",
+  deliveryMethod: string,
+): boolean;
 export function canTransition(
   from: StoreOrderStatus,
   to: StoreOrderStatus,
   actor: "system" | "staff",
+  deliveryMethod?: string,
 ): boolean {
-  return (actor === "system" ? SISTEMA : PERSONAL)[from].includes(to);
+  const tabla = actor === "system" ? SISTEMA : deliveryMethod === "SHIPPING" ? PERSONAL_ENVIO : PERSONAL_RETIRO;
+  return tabla[from].includes(to);
 }

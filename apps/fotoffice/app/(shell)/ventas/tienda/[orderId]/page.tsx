@@ -5,6 +5,8 @@ import { decimalArsToMinor, formatMinorArs } from "@/lib/membership/money";
 import { requireStoreOperator } from "@/lib/store/access";
 import { STORE_ORDER_STATUS_LABELS } from "@/lib/store/constants";
 import { cancelNeedsNote, loadStoreOrderDetail, staffTargets } from "@/lib/store/order-admin";
+import { orderQuoteSummary, orderShippingView } from "@/lib/store/shipping/order-destination";
+import { trackingUrl } from "@/lib/store/shipping/tracking";
 import { OrderActions } from "./order-actions";
 
 export const dynamic = "force-dynamic";
@@ -27,8 +29,18 @@ export default async function PedidoOnlinePage({ params }: { params: Promise<{ o
   const pedido = await loadStoreOrderDetail(workspace.id, orderId);
   if (!pedido) notFound();
 
-  const targets = staffTargets(pedido.status, { amountMismatch: pedido.amountMismatch });
-  const entroPlata = pedido.status === "PAID" || pedido.status === "READY" || pedido.status === "PAID_NO_STOCK";
+  const targets = staffTargets(pedido.status, {
+    amountMismatch: pedido.amountMismatch,
+    deliveryMethod: pedido.deliveryMethod,
+  });
+  const entroPlata =
+    pedido.status === "PAID" ||
+    pedido.status === "READY" ||
+    pedido.status === "SHIPPED" ||
+    pedido.status === "PAID_NO_STOCK";
+  const envio = orderShippingView(pedido);
+  const cotizacion = envio ? orderQuoteSummary(pedido.shippingQuoteJson) : null;
+  const enlaceSeguimiento = trackingUrl(pedido.shippingSource, pedido.trackingNumber);
 
   return (
     <div className="space-y-6">
@@ -83,6 +95,14 @@ export default async function PedidoOnlinePage({ params }: { params: Promise<{ o
                 ))}
               </tbody>
               <tfoot>
+                {envio ? (
+                  <tr className="border-t border-[var(--fo-border)]">
+                    <td className="py-1" colSpan={3}>
+                      {envio.label}
+                    </td>
+                    <td className="py-1 text-right">{formatMinorArs(decimalArsToMinor(pedido.shippingArs))}</td>
+                  </tr>
+                ) : null}
                 <tr className="border-t border-[var(--fo-border)] font-semibold">
                   <td className="py-2" colSpan={3}>
                     Total
@@ -125,6 +145,59 @@ export default async function PedidoOnlinePage({ params }: { params: Promise<{ o
         </section>
       </div>
 
+      <section className="fo-card space-y-2 p-5 text-sm">
+        <h2 className="text-base font-semibold">Entrega</h2>
+        {envio ? (
+          <>
+            <p className="font-medium">{envio.label}</p>
+            {envio.lines.map((l, i) => (
+              <p key={i}>{l}</p>
+            ))}
+            {cotizacion ? (
+              <dl className="grid gap-x-4 gap-y-1 pt-2 text-[var(--fo-muted)] sm:grid-cols-[auto_1fr]">
+                {cotizacion.sourceLabel ? (
+                  <>
+                    <dt>Precio del envío</dt>
+                    <dd>
+                      {cotizacion.sourceLabel}
+                      {cotizacion.serviceName ? ` · ${cotizacion.serviceName}` : ""}
+                    </dd>
+                  </>
+                ) : null}
+                {cotizacion.packageLine ? (
+                  <>
+                    <dt>Paquete cotizado</dt>
+                    <dd>{cotizacion.packageLine}</dd>
+                  </>
+                ) : null}
+              </dl>
+            ) : null}
+            {pedido.status === "SHIPPED" || pedido.shippedAt ? (
+              <div className="space-y-1 border-t border-[var(--fo-border)] pt-2">
+                {pedido.shippedAt ? <p>Despachado el {fecha(pedido.shippedAt)}</p> : null}
+                {pedido.trackingNumber ? (
+                  <p>
+                    Número de seguimiento: <span className="font-medium">{pedido.trackingNumber}</span>
+                    {enlaceSeguimiento ? (
+                      <>
+                        {" · "}
+                        <a href={enlaceSeguimiento} target="_blank" rel="noopener noreferrer" className="underline">
+                          Seguir en Correo Argentino
+                        </a>
+                      </>
+                    ) : null}
+                  </p>
+                ) : (
+                  <p className="text-[var(--fo-muted)]">Se despachó sin número de seguimiento.</p>
+                )}
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <p>Retiro en la institución.</p>
+        )}
+      </section>
+
       <OrderActions
         orderId={pedido.id}
         targets={targets}
@@ -132,6 +205,7 @@ export default async function PedidoOnlinePage({ params }: { params: Promise<{ o
         moneyIn={entroPlata}
         hasSale={Boolean(pedido.sale && pedido.sale.status !== "ANULADA")}
         canMarkReviewed={pedido.problem && pedido.status !== "PAID_NO_STOCK"}
+        shipped={pedido.status === "SHIPPED"}
       />
 
       <section className="fo-card space-y-3 p-5">

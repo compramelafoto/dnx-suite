@@ -7,6 +7,7 @@ import { changeOrderStatusAction, markOrderReviewedAction } from "./actions";
 
 const BOTON: Partial<Record<StoreOrderStatus, string>> = {
   READY: "Marcar listo para retirar",
+  SHIPPED: "Marcar despachado",
   DELIVERED: "Marcar entregado",
   PAID: "Ya hay stock: confirmar la venta",
   CANCELLED: "Cancelar el pedido",
@@ -14,6 +15,7 @@ const BOTON: Partial<Record<StoreOrderStatus, string>> = {
 
 const CONFIRMAR: Partial<Record<StoreOrderStatus, string>> = {
   READY: "Le vamos a avisar por correo a quien compró que ya puede retirarlo.",
+  SHIPPED: "Le vamos a avisar por correo a quien compró que su pedido está en camino, con el número de seguimiento si lo cargás.",
   DELIVERED: "El pedido queda como entregado.",
   PAID: "Se registra la venta, se descuenta el stock y le avisamos a quien compró.",
   CANCELLED: "El pedido se cancela.",
@@ -30,6 +32,7 @@ export function OrderActions({
   moneyIn,
   hasSale,
   canMarkReviewed,
+  shipped,
 }: {
   orderId: string;
   targets: StoreOrderStatus[];
@@ -38,10 +41,13 @@ export function OrderActions({
   moneyIn: boolean;
   hasSale: boolean;
   canMarkReviewed: boolean;
+  /** El pedido ya se despachó: cancelar implica también recuperar el paquete. */
+  shipped: boolean;
 }) {
   const router = useRouter();
   const [elegido, setElegido] = useState<StoreOrderStatus | "REVIEW" | null>(null);
   const [nota, setNota] = useState("");
+  const [seguimiento, setSeguimiento] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [guardando, startTransition] = useTransition();
 
@@ -56,13 +62,19 @@ export function OrderActions({
       const r =
         elegido === "REVIEW"
           ? await markOrderReviewedAction({ orderId, note: nota })
-          : await changeOrderStatusAction({ orderId, to: elegido, note: nota });
+          : await changeOrderStatusAction({
+              orderId,
+              to: elegido,
+              note: nota,
+              ...(elegido === "SHIPPED" ? { trackingNumber: seguimiento } : {}),
+            });
       if (!r.ok) {
         setError(r.error);
         return;
       }
       setElegido(null);
       setNota("");
+      setSeguimiento("");
       router.refresh();
     });
   }
@@ -112,7 +124,23 @@ export function OrderActions({
             <p className="rounded-md border border-[var(--fo-danger)] p-3 text-sm text-[var(--fo-danger)]" role="note">
               Devolvé el dinero desde Mercado Pago: cancelar acá no lo devuelve solo.
               {hasSale ? " La venta asociada se anula y el stock vuelve." : ""}
+              {shipped ? " Si el paquete ya salió, coordiná la devolución con el correo." : ""}
             </p>
+          ) : null}
+          {elegido === "SHIPPED" ? (
+            <label className="block space-y-1 text-sm">
+              <span className="text-[var(--fo-muted)]">Número de seguimiento (opcional, recomendado)</span>
+              <input
+                type="text"
+                className="fo-input w-full"
+                maxLength={60}
+                autoComplete="off"
+                spellCheck={false}
+                value={seguimiento}
+                onChange={(e) => setSeguimiento(e.target.value)}
+                placeholder="Letras, números y guiones"
+              />
+            </label>
           ) : null}
           <label className="block space-y-1 text-sm">
             <span className="text-[var(--fo-muted)]">

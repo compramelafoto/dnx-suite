@@ -21,6 +21,8 @@ const SELECT_PAGINA = {
   shippingMethod: true,
   shippingAddressJson: true,
   shippingAgencyJson: true,
+  shippingSource: true,
+  trackingNumber: true,
   createdAt: true,
   items: {
     orderBy: { id: "asc" },

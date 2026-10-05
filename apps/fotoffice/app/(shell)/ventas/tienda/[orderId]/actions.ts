@@ -11,7 +11,7 @@ import { changeOrderStatus, markOrderReviewed, type OrderAdminResult } from "@/l
  * escribió la persona no se pierde si algo sale mal.
  */
 
-const DESTINOS: readonly StoreOrderStatus[] = ["PAID", "READY", "DELIVERED", "CANCELLED"];
+const DESTINOS: readonly StoreOrderStatus[] = ["PAID", "READY", "SHIPPED", "DELIVERED", "CANCELLED"];
 
 function refrescar(orderId: string) {
   revalidatePath("/ventas/tienda");
@@ -24,6 +24,7 @@ export async function changeOrderStatusAction(input: {
   orderId: string;
   to: string;
   note: string;
+  trackingNumber?: string;
 }): Promise<OrderAdminResult> {
   const { workspace, user } = await requireStoreOperator();
   const to = DESTINOS.find((d) => d === input.to);
@@ -35,6 +36,7 @@ export async function changeOrderStatusAction(input: {
     to,
     userId: user.id,
     note: typeof input.note === "string" ? input.note : null,
+    trackingNumber: typeof input.trackingNumber === "string" ? input.trackingNumber : null,
   });
   if (r.ok) refrescar(input.orderId);
   return r;

@@ -34,7 +34,7 @@ import { canTransition } from "./transitions";
 
 type Tx = Prisma.TransactionClient;
 
-const YA_PAGADO: readonly StoreOrderStatus[] = ["PAID", "READY", "DELIVERED", "PAID_NO_STOCK"];
+const YA_PAGADO: readonly StoreOrderStatus[] = ["PAID", "READY", "SHIPPED", "DELIVERED", "PAID_NO_STOCK"];
 
 export const SELECT_PEDIDO_A_ACREDITAR = {
   id: true,

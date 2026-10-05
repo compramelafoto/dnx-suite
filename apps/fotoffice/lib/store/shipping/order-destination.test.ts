@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { orderShippingView } from "./order-destination";
+import { orderQuoteSummary, orderShippingView } from "./order-destination";
 
 describe("orderShippingView", () => {
   it("retiro (o pedido de la etapa 1): null", () => {
@@ -55,5 +55,36 @@ describe("orderShippingView", () => {
     expect(
       orderShippingView({ deliveryMethod: "SHIPPING", shippingMethod: "BRANCH", shippingAddressJson: null, shippingAgencyJson: "basura" }),
     ).toEqual({ label: "Envío a sucursal", lines: [] });
+  });
+});
+
+describe("orderQuoteSummary", () => {
+  it("fuente, servicio y paquete de la cotización guardada", () => {
+    expect(
+      orderQuoteSummary({
+        method: "HOME",
+        source: "CORREO_ARGENTINO",
+        serviceName: "Correo Argentino a domicilio",
+        package: { weightGrams: 600, lengthCm: 30, widthCm: 20, heightCm: 10 },
+        raw: { x: 1 },
+      }),
+    ).toEqual({
+      sourceLabel: "Correo Argentino (cotización en el momento)",
+      serviceName: "Correo Argentino a domicilio",
+      packageLine: "600 g · 30 × 20 × 10 cm",
+    });
+  });
+
+  it("tabla propia y datos incompletos: muestra lo que hay", () => {
+    expect(orderQuoteSummary({ source: "TABLE", package: { weightGrams: 1500 } })).toEqual({
+      sourceLabel: "Tabla de precios propia",
+      serviceName: null,
+      packageLine: "1500 g",
+    });
+  });
+
+  it("sin cotización (retiro o pedido viejo): null", () => {
+    expect(orderQuoteSummary(null)).toBeNull();
+    expect(orderQuoteSummary("x")).toBeNull();
   });
 });

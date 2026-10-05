@@ -19,6 +19,8 @@ export type StoreEmailOrder = {
   pickup: { address: string | null; hours: string | null; instructions: string | null };
   /** Con envío: qué tipo, cuánto y a dónde (ya en renglones). Sin envío (retiro): ausente o null. */
   shipping?: { label: string; amountMinor: number; lines: string[] } | null;
+  /** Al despachar: el número de seguimiento y, si se conoce, el enlace para seguirlo. */
+  tracking?: { number: string; url: string | null } | null;
   /** Enlace a la página del pedido para el comprador (con su token). null = sin enlace. */
   orderUrl: string | null;
   /** Enlace al pedido en el panel, para la institución. null = sin enlace. */
@@ -194,6 +196,7 @@ export function renderOrderPaid(o: StoreEmailOrder): RenderedEmail {
   );
 }
 
+/** Sólo para pedidos que se RETIRAN: un envío nunca queda "listo para retirar". */
 export function renderOrderReady(o: StoreEmailOrder): RenderedEmail {
   return armar(
     o.institution,
@@ -204,6 +207,44 @@ export function renderOrderReady(o: StoreEmailOrder): RenderedEmail {
       retiro(o),
       detalle(o),
       parrafo(`Te esperamos.`),
+    ],
+    { label: "Ver mi pedido", url: o.orderUrl },
+  );
+}
+
+function seguimiento(o: StoreEmailOrder): Bloque[] {
+  const t = o.tracking ?? null;
+  if (!t) return [];
+  const bloques = [
+    parrafo(
+      `Número de seguimiento: ${t.number}`,
+      `Número de seguimiento: <strong>${escapeHtml(t.number)}</strong>`,
+    ),
+  ];
+  if (t.url) {
+    const url = escapeHtml(t.url);
+    bloques.push(
+      parrafo(
+        `Podés seguirlo en Correo Argentino: ${t.url}`,
+        `Podés seguirlo en Correo Argentino: <a href="${url}" style="color:${C.acentoFuerte};">${url}</a>`,
+      ),
+    );
+  }
+  return bloques;
+}
+
+/** Al comprador: el pedido salió por correo. */
+export function renderOrderShipped(o: StoreEmailOrder): RenderedEmail {
+  return armar(
+    o.institution,
+    `${o.institution}: tu pedido #${o.orderNumber} está en camino`,
+    [
+      parrafo(`Hola ${o.buyerName},`),
+      parrafo(`Tu pedido está en camino: ya lo despachamos.`),
+      ...seguimiento(o),
+      envio(o),
+      detalle(o),
+      parrafo(`Gracias por tu compra.`),
     ],
     { label: "Ver mi pedido", url: o.orderUrl },
   );

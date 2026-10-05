@@ -47,3 +47,34 @@ export function orderShippingView(o: OrderShippingFields): OrderShippingView | n
     lines: [[calle, piso].filter(Boolean).join(", "), localidad(d), recibe ? `Recibe: ${recibe}` : ""].filter(Boolean),
   };
 }
+
+export type OrderQuoteSummary = { sourceLabel: string | null; serviceName: string | null; packageLine: string | null };
+
+function entero(json: unknown, key: string): number | null {
+  if (typeof json !== "object" || json === null) return null;
+  const v = (json as Record<string, unknown>)[key];
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+
+const FUENTE: Record<string, string> = {
+  CORREO_ARGENTINO: "Correo Argentino (cotización en el momento)",
+  TABLE: "Tabla de precios propia",
+};
+
+/**
+ * De dónde salió el precio del envío y qué paquete se cotizó, para el PANEL del personal (lee
+ * `shippingQuoteJson`, que nunca va al comprador). `null` si el pedido no tiene cotización.
+ */
+export function orderQuoteSummary(json: unknown): OrderQuoteSummary | null {
+  if (typeof json !== "object" || json === null) return null;
+  const pkg = (json as Record<string, unknown>).package;
+  const peso = entero(pkg, "weightGrams");
+  const [l, a, h] = [entero(pkg, "lengthCm"), entero(pkg, "widthCm"), entero(pkg, "heightCm")];
+  const partes = [peso !== null ? `${peso} g` : "", l !== null && a !== null && h !== null ? `${l} × ${a} × ${h} cm` : ""];
+  const fuente = texto(json, "source");
+  return {
+    sourceLabel: FUENTE[fuente] ?? (fuente || null),
+    serviceName: texto(json, "serviceName") || null,
+    packageLine: partes.filter(Boolean).join(" · ") || null,
+  };
+}

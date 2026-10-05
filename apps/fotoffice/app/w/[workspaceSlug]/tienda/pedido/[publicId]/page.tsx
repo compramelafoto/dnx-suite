@@ -10,6 +10,7 @@ import { keptReturnParams, storeOrderCookieName, storeVisibleBase } from "@/lib/
 import { findStoreOrderForPage, tokenOpensOrder, type StoreOrderPageRow } from "@/lib/store/order-page";
 import { loadOpenStore, loadStoreWorkspace } from "@/lib/store/repository";
 import { orderShippingView } from "@/lib/store/shipping/order-destination";
+import { trackingUrl } from "@/lib/store/shipping/tracking";
 import { hostWithoutPort } from "@/lib/website/domain/normalize";
 import { Price } from "@/components/store/price";
 import { ClearCartWhenPaid, RetryPaymentButton } from "./order-client";
@@ -40,6 +41,12 @@ const TITULO: Record<StoreOrderStatus, string> = {
   PAID_NO_STOCK: "Recibimos tu pago",
   SHIPPED: "Tu pedido está en camino",
 };
+
+/** Un envío no queda "listo para retirar": si un pedido viejo estuviera ahí, no se lo dice. */
+function titulo(status: StoreOrderStatus, conEnvio: boolean): string {
+  if (conEnvio && status === "READY") return TITULO.PAID;
+  return TITULO[status];
+}
 
 function uno(v: string | string[] | undefined): string | null {
   return typeof v === "string" ? v : null;
@@ -119,7 +126,7 @@ export default async function StoreOrderPage({ params, searchParams }: Props) {
 
       <header className="space-y-1">
         <p className="text-sm text-[var(--fo-muted)]">Pedido #{pedido.orderNumber}</p>
-        <h1 className="text-3xl font-semibold tracking-tight">{TITULO[pedido.status]}</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">{titulo(pedido.status, envio !== null)}</h1>
       </header>
 
       <EstadoDelPedido pedido={pedido} esperando={esperando} pago={pago} conEnvio={envio !== null} />
@@ -199,13 +206,34 @@ function EstadoDelPedido({
     case "PAID":
       return texto(
         conEnvio
-          ? "Recibimos tu pago. Te avisamos por correo cuando despachemos tu pedido."
+          ? "Recibimos tu pago. Estamos preparando tu envío: te avisamos por correo cuando lo despachemos."
           : "Recibimos tu pago. Te avisamos por correo cuando tu pedido esté listo para retirar.",
       );
     case "READY":
-      return texto("Tu pedido está listo. Podés pasar a retirarlo.");
+      return texto(conEnvio ? "Estamos preparando tu envío." : "Tu pedido está listo. Podés pasar a retirarlo.");
+    case "SHIPPED": {
+      const enlace = trackingUrl(pedido.shippingSource, pedido.trackingNumber);
+      return (
+        <div className="space-y-1">
+          {texto("Tu pedido está en camino.")}
+          {pedido.trackingNumber ? (
+            <p>
+              Número de seguimiento: <span className="font-medium">{pedido.trackingNumber}</span>
+              {enlace ? (
+                <>
+                  {" · "}
+                  <a href={enlace} target="_blank" rel="noopener noreferrer" className="underline">
+                    Seguilo en Correo Argentino
+                  </a>
+                </>
+              ) : null}
+            </p>
+          ) : null}
+        </div>
+      );
+    }
     case "DELIVERED":
-      return texto("Ya retiraste este pedido. ¡Gracias por tu compra!");
+      return texto(conEnvio ? "Entregado. ¡Gracias por tu compra!" : "Ya retiraste este pedido. ¡Gracias por tu compra!");
     case "PAID_NO_STOCK":
       return texto(
         "Recibimos tu pago, pero nos quedamos sin stock de algo de tu pedido. La institución se va a comunicar con vos para resolverlo.",
