@@ -10,6 +10,7 @@ import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
+import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
 import { SALES_MODULE_KEY } from "@/lib/sales/constants";
 import { STORE_MODULE_KEY } from "@/lib/store/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
@@ -90,6 +91,19 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
       "Directorio público de socios",
       "La ficha de cada socio, con su galería",
       "Control de publicación desde el panel",
+    ],
+  },
+  {
+    key: GOVERNANCE_MODULE_KEY,
+    cuadro: "03c",
+    nombre: "Proyectos de la comisión",
+    resuelve:
+      "Lo que hoy se pierde en el grupo de WhatsApp queda en un solo lugar: cada proyecto con sus etapas, sus tareas repartidas con responsable y fecha, los archivos y un historial de todo lo que se decidió. Los proyectos que ya estaban en marcha se cargan como aprobados, sin hacerlos votar de nuevo.",
+    pantallas: [
+      "Proyectos ordenados por urgencia",
+      "Ficha del proyecto con etapas, tareas y archivos",
+      "Tablero de tareas: quién tiene qué y qué está vencido",
+      "Tipos de proyecto con sus etapas armadas",
     ],
   },
   {
