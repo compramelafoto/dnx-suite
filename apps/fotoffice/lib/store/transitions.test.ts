@@ -46,6 +46,9 @@ describe("canTransition — personal, pedido con envío", () => {
     ["SHIPPED", "CANCELLED", true],
     ["PAID_NO_STOCK", "PAID", true],
     ["PAID_NO_STOCK", "CANCELLED", true],
+    // Un envío viejo que quedó en "listo" se puede despachar (datos de antes de la etapa 2).
+    ["READY", "SHIPPED", true],
+    ["READY", "CANCELLED", true],
     // "Listo para retirar" no existe para un envío; y no se entrega sin despachar.
     ["PAID", "READY", false],
     ["PAID", "DELIVERED", false],

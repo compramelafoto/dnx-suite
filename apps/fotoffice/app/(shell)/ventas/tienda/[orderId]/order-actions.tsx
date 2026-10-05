@@ -133,7 +133,6 @@ export function OrderActions({
               <input
                 type="text"
                 className="fo-input w-full"
-                maxLength={60}
                 autoComplete="off"
                 spellCheck={false}
                 value={seguimiento}

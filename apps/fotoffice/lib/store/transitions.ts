@@ -34,13 +34,13 @@ const PERSONAL_RETIRO: Record<StoreOrderStatus, readonly StoreOrderStatus[]> = {
 /**
  * Pedido con envío: se despacha y después se entrega. "Listo para retirar" no existe (nadie lo
  * pasa a buscar) y no se da por entregado sin despacharlo antes. `READY` queda con salida por si
- * un pedido viejo llegara ahí: no se ofrece, pero tampoco se queda trabado.
+ * un pedido viejo llegara ahí: no se ofrece, pero tampoco se queda trabado (se puede despachar).
  */
 const PERSONAL_ENVIO: Record<StoreOrderStatus, readonly StoreOrderStatus[]> = {
   PENDING_PAYMENT: ["CANCELLED"],
   PAID: ["SHIPPED", "CANCELLED"],
   SHIPPED: ["DELIVERED", "CANCELLED"],
-  READY: ["DELIVERED", "CANCELLED"],
+  READY: ["SHIPPED", "DELIVERED", "CANCELLED"],
   PAID_NO_STOCK: ["PAID", "CANCELLED"],
   DELIVERED: [],
   CANCELLED: [],

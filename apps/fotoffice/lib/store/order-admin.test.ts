@@ -211,12 +211,31 @@ describe("changeOrderStatus — despachar (pedidos con envío)", () => {
     expect(h.emails.sendOrderShippedEmail).toHaveBeenCalledTimes(1);
   });
 
-  it("número con caracteres raros → error, sin abrir la transacción ni mandar nada", async () => {
+  it("número con caracteres raros → error, sin escribir ni mandar nada", async () => {
     preparar(envio("PAID"));
     const r = await changeOrderStatus({ ...base, to: "SHIPPED", note: null, trackingNumber: "CP 12/34" });
     expect(r).toEqual({ ok: false, error: "Revisá el número de seguimiento." });
-    expect(h.prisma.$transaction).not.toHaveBeenCalled();
+    expect(tx.storeOrder.updateMany).not.toHaveBeenCalled();
+    expect(tx.storeOrderEvent.create).not.toHaveBeenCalled();
     expect(h.emails.sendOrderShippedEmail).not.toHaveBeenCalled();
+  });
+
+  it("primero el cambio de estado: si ya no se puede despachar, lo dice aunque el número esté mal", async () => {
+    preparar(envio("DELIVERED"));
+    const r = await changeOrderStatus({ ...base, to: "SHIPPED", note: null, trackingNumber: "CP 12/34" });
+    expect(r).toEqual({
+      ok: false,
+      error: "Ese cambio ya no se puede hacer: el pedido cambió de estado. Recargá la página.",
+    });
+    expect(tx.storeOrder.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("un envío viejo que quedó en 'listo' se puede despachar", async () => {
+    preparar(envio("READY"));
+    const r = await changeOrderStatus({ ...base, to: "SHIPPED", note: null, trackingNumber: "CP1" });
+    expect(r).toEqual({ ok: true });
+    expect(datosDelUpdate()).toEqual({ status: "SHIPPED", shippedAt: expect.any(Date), trackingNumber: "CP1" });
+    expect(h.emails.sendOrderShippedEmail).toHaveBeenCalledTimes(1);
   });
 
   it("un pedido para retirar no se despacha, ni uno con envío se marca listo para retirar", async () => {

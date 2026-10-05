@@ -22,7 +22,7 @@ export const MICORREO_BASE_URLS: Record<MiCorreoEnv, string> = {
   PROD: "https://api.correoargentino.com.ar/micorreo/v1",
 };
 
-const TIMEOUT_MS = 8_000;
+const TIMEOUT_MS = 5_000;
 /** Se renueva el token este tiempo antes de que venza. */
 const TOKEN_MARGIN_MS = 60_000;
 /** Si `expires` no se entiende (o ya pasó), el token se usa este tiempo. */
@@ -160,13 +160,15 @@ function mensajeDeCorreo(body: unknown): string | null {
 }
 
 function errorPorStatus(status: number, body: unknown): MiCorreoError {
-  if (status === 401 || status === 403) {
+  // Sólo el 401 (después del único reintento) es una credencial que dejó de valer. Un 403 puede
+  // ser un firewall o un permiso de la cuenta: no se marca la integración para reconectar.
+  if (status === 401) {
     return new MiCorreoError("AUTH", "MiCorreo rechazó las credenciales.", status);
   }
   if (status === 429) {
     return new MiCorreoError("RATE_LIMIT", "MiCorreo pidió esperar antes de reintentar.", status);
   }
-  if ([400, 402, 404, 409].includes(status)) {
+  if ([400, 402, 403, 404, 409].includes(status)) {
     const mensaje = mensajeDeCorreo(body);
     return new MiCorreoError(
       "BUSINESS",

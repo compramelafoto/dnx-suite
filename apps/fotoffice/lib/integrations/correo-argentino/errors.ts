@@ -1,11 +1,12 @@
 /**
  * Errores del cliente de MiCorreo, con un `kind` que dice QUÉ HACER, no qué pasó por dentro:
  *
- * - `AUTH`: las credenciales ya no sirven (401/403). Hace falta que una persona reconecte.
- * - `BUSINESS`: Correo entendió el pedido y lo rechazó (400/402/404/409 con `{code, message}`);
+ * - `AUTH`: las credenciales ya no sirven (401, después del único reintento). Hace falta que una persona reconecte.
+ * - `BUSINESS`: Correo entendió el pedido y lo rechazó (400/402/403/404/409 con `{code, message}`;
+ *   un 403 también puede ser un firewall: no pide reconectar);
  *   `message` trae el texto de Correo, que suele ser útil ("Usuario no valido o inexistente").
  * - `RATE_LIMIT`: 429. Reintentar más tarde.
- * - `NETWORK`: no hubo respuesta (fetch rechazado o pasaron los 8 s).
+ * - `NETWORK`: no hubo respuesta (fetch rechazado o pasaron los 5 s).
  * - `UNEXPECTED`: cualquier otra cosa (50x, cuerpo que no se entiende, precio inválido).
  *
  * Regla: el mensaje NUNCA incluye credenciales (usuario/clave de la API, contraseña de la

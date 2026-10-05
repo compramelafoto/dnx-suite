@@ -161,12 +161,6 @@ export async function changeOrderStatus(input: {
   trackingNumber?: string | null;
 }): Promise<OrderAdminResult> {
   const nota = limpiarNota(input.note);
-  let seguimiento: string | null = null;
-  if (input.to === "SHIPPED") {
-    const t = normalizeTrackingNumber(input.trackingNumber);
-    if (!t.ok) return { ok: false, error: t.error };
-    seguimiento = t.value;
-  }
   let aviso: "listo" | "pagado" | "despachado" | null = null;
 
   try {
@@ -176,6 +170,14 @@ export async function changeOrderStatus(input: {
         const from = order.status;
         if (!canTransition(from, input.to, "staff", order.deliveryMethod)) {
           throw new Rechazo("Ese cambio ya no se puede hacer: el pedido cambió de estado. Recargá la página.");
+        }
+        // El número de seguimiento se revisa DESPUÉS del cambio de estado: si el pedido ya no se
+        // puede despachar, eso es lo que la persona tiene que saber primero.
+        let seguimiento: string | null = null;
+        if (input.to === "SHIPPED") {
+          const t = normalizeTrackingNumber(input.trackingNumber);
+          if (!t.ok) throw new Rechazo(t.error);
+          seguimiento = t.value;
         }
         const ahora = new Date();
         const donde = { id: order.id, workspaceId: input.workspaceId };

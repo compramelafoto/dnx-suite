@@ -481,8 +481,10 @@ describe("errores", () => {
       .catch((e) => e)) as MiCorreoError;
   }
 
-  it("403 → AUTH", async () => {
-    expect((await errorPara(() => json(403, { code: "403", message: "Forbidden" }))).kind).toBe("AUTH");
+  it("403 → BUSINESS: un firewall que rechaza no es una credencial vencida (no pide reconectar)", async () => {
+    const e = await errorPara(() => json(403, { code: "403", message: "Forbidden" }));
+    expect(e.kind).toBe("BUSINESS");
+    expect(e.status).toBe(403);
   });
 
   it.each([400, 402, 404, 409])("%s con code y message → BUSINESS", async (status) => {
@@ -516,7 +518,7 @@ describe("errores", () => {
     expect(e.kind).toBe("NETWORK");
   });
 
-  it("corta a los 8 segundos → NETWORK", async () => {
+  it("corta a los 5 segundos → NETWORK", async () => {
     vi.useFakeTimers();
     let signal: AbortSignal | undefined;
     const impl = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
@@ -534,7 +536,7 @@ describe("errores", () => {
       now: () => NOW_ANTES,
     });
     const promesa = client.agencies({ customerId: "1", provinceCode: "B" }).catch((e) => e);
-    await vi.advanceTimersByTimeAsync(7_999);
+    await vi.advanceTimersByTimeAsync(4_999);
     expect(signal?.aborted).toBe(false);
     await vi.advanceTimersByTimeAsync(1);
     const e = (await promesa) as MiCorreoError;

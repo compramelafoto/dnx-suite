@@ -34,6 +34,21 @@ export type PlaceOrderResult = {
 
 const COOKIE_DIAS = 30;
 
+const FRENO_LIMITE = 30;
+/** Pedidos con envío por IP en la ventana: menos que las consultas, cada uno re-cotiza. */
+const FRENO_PEDIDOS_LIMITE = 20;
+const FRENO_VENTANA_MS = 5 * 60 * 1000;
+const FRENO_MENSAJE = "Hiciste muchas consultas seguidas. Esperá unos minutos y probá de nuevo.";
+
+/**
+ * El freno de memoria por IP (el de `lib/geocode/rate-limit.ts`): por omisión, 30 consultas cada
+ * 5 minutos. Como ese, es por instancia de Vercel.
+ */
+async function frenado(accion: string, limite: number = FRENO_LIMITE): Promise<boolean> {
+  const ip = clientIp(await headers());
+  return !checkRateLimit({ key: `tienda-${accion}:${ip}`, limit: limite, windowMs: FRENO_VENTANA_MS }).allowed;
+}
+
 /** Si quien compra tiene sesión y es socio activo de ESTA institución, su ficha; si no, null. */
 async function socioDeEstaInstitucion(workspaceId: string): Promise<string | null> {
   const user = await getAuthUser();
@@ -64,6 +79,12 @@ export async function placeOrderAction(workspaceSlug: unknown, raw: unknown): Pr
   const parsed = parseCheckoutInput(raw);
   if (!parsed.ok) {
     return { ok: false, error: "Revisá los datos marcados.", fieldErrors: parsed.errors };
+  }
+
+  // Un pedido con envío se vuelve a cotizar en el servidor (y puede pegarle a Correo): se frena
+  // por IP como cotizar. El retiro no cotiza nada.
+  if (parsed.value.delivery.method !== "PICKUP" && (await frenado("crear-pedido", FRENO_PEDIDOS_LIMITE))) {
+    return { ok: false, error: FRENO_MENSAJE };
   }
 
   // El retiro, sólo si la institución lo ofrece. Que el envío elegido esté habilitado (y su
@@ -109,16 +130,6 @@ export async function placeOrderAction(workspaceSlug: unknown, raw: unknown): Pr
 
   // Fuera de cualquier try: `redirect` lanza a propósito.
   redirect(checkout.checkoutUrl);
-}
-
-const FRENO_LIMITE = 30;
-const FRENO_VENTANA_MS = 5 * 60 * 1000;
-const FRENO_MENSAJE = "Hiciste muchas consultas seguidas. Esperá unos minutos y probá de nuevo.";
-
-/** El freno de memoria por IP (el de `lib/geocode/rate-limit.ts`): 30 consultas cada 5 minutos. */
-async function frenado(accion: string): Promise<boolean> {
-  const ip = clientIp(await headers());
-  return !checkRateLimit({ key: `tienda-${accion}:${ip}`, limit: FRENO_LIMITE, windowMs: FRENO_VENTANA_MS }).allowed;
 }
 
 function slugValido(workspaceSlug: unknown): workspaceSlug is string {
