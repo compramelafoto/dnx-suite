@@ -132,7 +132,9 @@ export function describeEvent(type: string, data: EventData): string {
         ? `Editó ${(d.fields as string[]).join(", ")}`
         : "Editó los datos del proyecto";
     case "STATUS_CHANGED":
-      return `Pasó de «${projectStatusLabel(s(d.from))}» a «${projectStatusLabel(s(d.to))}»`;
+      return d.meetingTitle
+        ? `Pasó de «${projectStatusLabel(s(d.from))}» a «${projectStatusLabel(s(d.to))}» en «${s(d.meetingTitle)}»`
+        : `Pasó de «${projectStatusLabel(s(d.from))}» a «${projectStatusLabel(s(d.to))}»`;
     case "STAGE_ADDED":
       return `Agregó la etapa «${s(d.title)}»`;
     case "STAGE_RENAMED":
@@ -161,6 +163,10 @@ export function describeEvent(type: string, data: EventData): string {
         : `Dejó como interno «${s(d.filename)}»`;
     case "NOTE":
       return "Dejó una nota";
+    case "VOTED":
+      return d.value === "FOR"
+        ? d.changed ? "Cambió su voto: a favor" : "Votó a favor"
+        : d.changed ? "Cambió su voto: en contra" : "Votó en contra";
     default:
       return type;
   }

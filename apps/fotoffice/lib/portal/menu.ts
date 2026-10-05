@@ -4,6 +4,7 @@ import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
+import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
 
 /**
  * El menú del socio, en un solo lugar.
@@ -67,7 +68,8 @@ export type PortalIconName =
   | "school"
   | "institution"
   | "share"
-  | "camera";
+  | "camera"
+  | "tasks";
 
 /**
  * El mapa del §5 del documento de navegación, con su orden.
@@ -169,12 +171,21 @@ export const PORTAL_MENU: PortalMenuItem[] = [
   },
   {
     order: 90,
-    label: "Institucional",
-    href: "/portal/institucional",
-    description: "Novedades, actas y en qué se usa la cuota.",
+    label: "Mis proyectos",
+    href: "/portal/proyectos",
+    description: "Proponé un proyecto a la comisión, mirá en qué quedó y seguí los proyectos de la institución.",
     icon: "institution",
-    requiresModule: "governance",
-    built: false,
+    requiresModule: GOVERNANCE_MODULE_KEY,
+    built: true,
+  },
+  {
+    order: 95,
+    label: "Mis tareas",
+    href: "/portal/tareas",
+    description: "Lo que te encargaron en un proyecto: para cuándo es, contar cómo va y darlo por hecho.",
+    icon: "tasks",
+    requiresModule: GOVERNANCE_MODULE_KEY,
+    built: true,
   },
   {
     order: 100,

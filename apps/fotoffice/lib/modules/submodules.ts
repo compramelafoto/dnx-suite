@@ -231,6 +231,14 @@ const GOBIERNO: SubmoduleItem[] = [
     activeMatch: "under",
   },
   {
+    href: "/gobierno/reuniones",
+    label: "Reuniones",
+    icon: "CalendarClock",
+    description: "Reuniones de comisión: el temario se arma solo, lo resuelto cambia cada proyecto y queda el acta.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
     href: "/gobierno/tipos",
     label: "Tipos de proyecto",
     icon: "LayoutTemplate",

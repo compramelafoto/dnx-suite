@@ -7122,6 +7122,7 @@ model Workspace {
   raffleSettings              RaffleSettings?
   govProjectTypes             GovProjectType[]
   govProjects                 GovProject[]
+  govMeetings                 GovMeeting[]
   clients                     Client[]
   cashAccounts                CashAccount[]
   cashCategories              CashCategory[]
@@ -20673,6 +20674,8 @@ model GovProject {
   tasks       GovProjectTask[]
   attachments GovAttachment[]
   events      GovProjectEvent[]
+  votes       GovVote[]
+  meetingItems GovMeetingItem[]
 
   @@index([workspaceId, status])
   @@index([workspaceId, deadlineAt])
@@ -20778,4 +20781,97 @@ model GovProjectEvent {
   project GovProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId, createdAt])
+}
+
+/// Voto de un integrante con cargo vigente sobre un proyecto. Mide apoyo; la aprobación formal se
+/// registra en reunión. Se puede cambiar mientras la votación está abierta.
+model GovVote {
+  id          String   @id @default(cuid())
+  projectId   String
+  voterUserId Int
+  /// FOR | AGAINST
+  value       String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project GovProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, voterUserId])
+}
+
+/// Reunión de comisión: temario, tratamiento de cada tema y acta.
+model GovMeeting {
+  id          String    @id @default(cuid())
+  workspaceId String
+  title       String
+  scheduledAt DateTime
+  /// Lugar físico o enlace de la videollamada.
+  location    String?
+  /// PLANNED | HELD | MINUTES_APPROVED
+  status      String    @default("PLANNED")
+  heldAt      DateTime?
+  /// Al aprobar el acta queda fija; lo posterior son notas agregadas.
+  minutesApprovedAt       DateTime?
+  minutesApprovedByUserId Int?
+  createdByUserId         Int?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  workspace Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  items     GovMeetingItem[]
+  attendees GovMeetingAttendee[]
+  notes     GovMeetingNote[]
+
+  @@index([workspaceId, scheduledAt])
+}
+
+/// Quién estuvo. Instantánea del nombre y el cargo: el acta se lee igual aunque cambie la comisión.
+model GovMeetingAttendee {
+  id         String  @id @default(cuid())
+  meetingId  String
+  memberId   String?
+  userId     Int?
+  name       String
+  officeName String?
+
+  meeting GovMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId])
+}
+
+/// Un tema del temario: un proyecto o un tema suelto.
+model GovMeetingItem {
+  id           String    @id @default(cuid())
+  meetingId    String
+  projectId    String?
+  title        String
+  order        Int       @default(0)
+  /// Lo decidido, en texto.
+  decisionText String?
+  /// Sólo para proyectos: APPROVED | REJECTED | POSTPONED | CONTINUES
+  outcome      String?
+  /// Foto de la votación al decidir: a favor, en contra, sin votar, habilitados.
+  voteSnapshot Json?
+  treatedAt    DateTime?
+  treatedByUserId Int?
+
+  meeting GovMeeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  project GovProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([meetingId, order])
+  @@index([projectId])
+}
+
+/// Nota agregada a un acta ya aprobada: la corrección no reescribe, se suma.
+model GovMeetingNote {
+  id           String   @id @default(cuid())
+  meetingId    String
+  body         String
+  authorUserId Int?
+  authorLabel  String
+  createdAt    DateTime @default(now())
+
+  meeting GovMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId, createdAt])
 }
