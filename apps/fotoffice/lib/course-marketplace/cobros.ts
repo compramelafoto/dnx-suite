@@ -17,6 +17,17 @@ export function centavosDeDecimal(valor: string | null | undefined): number {
   return negativo ? -c : c;
 }
 
+/**
+ * Un intento de Checkout Pro abandonado queda PENDING para siempre: "Pendiente" sólo cuenta las
+ * inscripciones pendientes creadas dentro de esta ventana.
+ */
+export const HORAS_PENDIENTE_VIGENTE = 48;
+
+/** Desde cuándo una inscripción PENDING todavía cuenta como pendiente. */
+export function desdePendientesVigentes(ahora: Date = new Date()): Date {
+  return new Date(ahora.getTime() - HORAS_PENDIENTE_VIGENTE * 60 * 60 * 1000);
+}
+
 /** Lo que devuelve la base agrupado por curso y estado de pago (sólo las partes de este negocio). */
 export type GrupoCobro = { cursoId: string; curso: string; estado: string; ventas: number; montoCentavos: number };
 

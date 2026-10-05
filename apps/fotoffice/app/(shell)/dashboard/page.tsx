@@ -3,6 +3,7 @@ import { prisma } from "@repo/db";
 import { requireActiveWorkspace, isCoursesSalesEnabledForWorkspace } from "@/lib/workspace";
 import { isMissingCoursesSalesSchemaError } from "@/lib/courses-sales/prisma-errors";
 import { invitacionesPendientesWhere } from "@/lib/course-marketplace/access";
+import { puedePedirReventa } from "@/lib/course-marketplace/mercado";
 import { moduleOffNotice } from "@/lib/dashboard/module-off-notice";
 
 export default async function DashboardPage({
@@ -47,9 +48,12 @@ export default async function DashboardPage({
   let pedidosDeReventa = 0;
   if (workspace !== null) {
     try {
-      pedidosDeReventa = await prisma.courseResaleAgreement.count({
-        where: { status: "PENDIENTE", course: { workspaceId: workspace.id } },
-      });
+      // Sólo quien puede responder (cursos MANAGE + dueño o admin) ve el aviso.
+      if (await puedePedirReventa(user.id, workspace.id)) {
+        pedidosDeReventa = await prisma.courseResaleAgreement.count({
+          where: { status: "PENDIENTE", course: { workspaceId: workspace.id } },
+        });
+      }
     } catch {
       console.error("[dashboard] no se pudieron contar los pedidos de reventa");
     }

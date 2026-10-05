@@ -26,6 +26,17 @@ export async function existeCursoPropio(workspaceId: string, courseSlug: string)
   return propio !== null;
 }
 
+/**
+ * Un curso ajeno sólo se revende si se puede vender: publicado, grabado, con precio, y con el
+ * módulo de cursos del dueño encendido (misma regla que `cargarMercado`).
+ */
+export const CURSO_REVENDIBLE = {
+  status: "PUBLISHED",
+  deliveryMode: "RECORDED",
+  priceArs: { gt: 0 },
+  workspace: { featureModules: { some: { moduleKey: COURSES_SALES_MODULE_KEY, enabled: true } } },
+} as const;
+
 export type AcuerdoDeVitrina = { id: string; courseId: string; shareBps: number; memberDiscountBps: number };
 
 /**
@@ -38,7 +49,7 @@ export async function buscarAcuerdoDeVitrina(workspaceId: string, courseSlug: st
     where: {
       resellerWorkspaceId: workspaceId,
       status: "ACTIVO",
-      course: { slug: courseSlug, status: "PUBLISHED", deliveryMode: "RECORDED" },
+      course: { slug: courseSlug, ...CURSO_REVENDIBLE },
     },
     orderBy: { createdAt: "asc" },
     select: { id: true, courseId: true, shareBps: true, memberDiscountBps: true },
@@ -47,7 +58,7 @@ export async function buscarAcuerdoDeVitrina(workspaceId: string, courseSlug: st
 
 export async function cursosRevendidosDe(workspaceId: string) {
   return prisma.courseResaleAgreement.findMany({
-    where: { resellerWorkspaceId: workspaceId, status: "ACTIVO", course: { status: "PUBLISHED", deliveryMode: "RECORDED" } },
+    where: { resellerWorkspaceId: workspaceId, status: "ACTIVO", course: { ...CURSO_REVENDIBLE } },
     orderBy: { createdAt: "asc" },
     select: {
       id: true,

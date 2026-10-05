@@ -1,6 +1,6 @@
 // lib/course-marketplace/cobros.test.ts
 import { describe, expect, it } from "vitest";
-import { centavosDeDecimal, resumirGrupos, type GrupoCobro } from "./cobros";
+import { HORAS_PENDIENTE_VIGENTE, centavosDeDecimal, desdePendientesVigentes, resumirGrupos, type GrupoCobro } from "./cobros";
 
 const grupo = (p: Partial<GrupoCobro>): GrupoCobro => ({
   cursoId: "c1",
@@ -56,5 +56,13 @@ describe("centavosDeDecimal", () => {
     expect(centavosDeDecimal("100")).toBe(10_000);
     expect(centavosDeDecimal("-5.05")).toBe(-505);
     expect(centavosDeDecimal(null)).toBe(0);
+  });
+});
+
+describe("pendientes vigentes", () => {
+  it("sólo cuentan las inscripciones pendientes de las últimas 48 horas", () => {
+    expect(HORAS_PENDIENTE_VIGENTE).toBe(48);
+    const ahora = new Date("2026-10-05T12:00:00.000Z");
+    expect(desdePendientesVigentes(ahora).toISOString()).toBe("2026-10-03T12:00:00.000Z");
   });
 });

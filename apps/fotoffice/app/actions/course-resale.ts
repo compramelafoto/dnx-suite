@@ -9,6 +9,7 @@ import { appUrl } from "@/lib/app-url";
 import { sendTransactionalEmail } from "@/lib/communications/send-email";
 import { cargarDueno } from "@/lib/course-marketplace/cargar";
 import { correosDeDuenos } from "@/lib/course-marketplace/correos";
+import { CURSO_REVENDIBLE } from "@/lib/course-marketplace/vitrina";
 import { formatoPorcentaje } from "@/lib/course-marketplace/reparto";
 import { buildAvisoPedidoDeReventaEmail, buildAvisoRespuestaReventaEmail } from "@/lib/course-marketplace/aviso-reventa";
 import {
@@ -93,7 +94,7 @@ export async function pedirReventaAction(courseId: string, _prev: EstadoFormular
   const ctx = await gestion();
   if (!ctx) return { error: "Sólo el dueño o un administrador del negocio puede pedir una reventa.", ok: null };
   const curso = await prisma.course.findFirst({
-    where: { id: courseId, status: "PUBLISHED", deliveryMode: "RECORDED" },
+    where: { id: courseId, ...CURSO_REVENDIBLE },
     select: {
       id: true,
       title: true,

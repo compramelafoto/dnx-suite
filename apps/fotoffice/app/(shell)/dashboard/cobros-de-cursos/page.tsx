@@ -6,6 +6,7 @@ import {
   ESTADO_DE_PAGO,
   ROTULO_DE_PARTE,
   centavosDeDecimal,
+  desdePendientesVigentes,
   resumirGrupos,
   type FilaCobro,
   type GrupoCobro,
@@ -22,6 +23,7 @@ const LIMITE_DE_DETALLE = 200;
 type Cobros = { r: ResumenCobros; filas: FilaCobro[]; total: number };
 
 async function cargarCobros(workspaceId: string): Promise<Cobros> {
+  const pendientesDesde = desdePendientesVigentes();
   const [grupos, vendido, total, detalle] = await Promise.all([
     // Lo de este negocio, por curso y estado, sobre TODAS sus partes. Montos como texto: sin float.
     prisma.$queryRaw<Array<{ cursoId: string; curso: string; estado: string; ventas: number; monto: string }>>`
@@ -31,6 +33,7 @@ async function cargarCobros(workspaceId: string): Promise<Cobros> {
       JOIN "CourseEnrollment" e ON e.id = s."enrollmentId"
       JOIN "Course" c ON c.id = e."courseId"
       WHERE s."workspaceId" = ${workspaceId}
+        AND (e."paymentStatus"::text <> 'PENDING' OR e."createdAt" >= ${pendientesDesde})
       GROUP BY e."courseId", c.title, e."paymentStatus"`,
     // Lo que pagaron los alumnos en las ventas hechas por este negocio (cada venta una vez).
     prisma.courseEnrollment.aggregate({
