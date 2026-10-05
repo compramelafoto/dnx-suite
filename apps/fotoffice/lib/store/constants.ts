@@ -5,7 +5,7 @@ export const STORE_EXTERNAL_REFERENCE_PREFIX = "store:";
 export const STORE_HOLD_MINUTES = 15;
 export const STORE_MAX_PENDING_PER_EMAIL = 3;
 /** Cambia cuando cambian los términos que acepta el comprador. */
-export const STORE_LEGAL_VERSION = "2026-10-04";
+export const STORE_LEGAL_VERSION = "2026-10-05";
 /** Segmento de la tienda bajo `/w/[slug]/`. Es un compromiso público: no cambia. */
 export const STORE_PUBLIC_SEGMENT = "tienda";
 /**

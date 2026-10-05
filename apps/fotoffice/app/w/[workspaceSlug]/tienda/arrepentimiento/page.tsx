@@ -33,7 +33,7 @@ export default async function RegretPage({ params }: Props) {
           <h1 className="text-3xl font-semibold tracking-tight">Botón de arrepentimiento</h1>
           <p className="text-sm leading-relaxed text-[var(--fo-muted)]">
             Si compraste en la tienda online de {store.workspace.name}, podés arrepentirte de la compra dentro de los 10
-            días corridos desde que retiraste el producto, sin dar explicaciones. Completá tu número de pedido y el email
+            días corridos desde que recibiste o retiraste el producto, sin dar explicaciones. Completá tu número de pedido y el email
             con el que compraste: te damos un código de trámite y la institución se comunica con vos para coordinar la
             devolución.
           </p>

@@ -14,7 +14,14 @@ import { Price } from "./price";
  * Cada vez que el carrito cambia se revalida en el servidor (`useCartRevalidation`), que deja las
  * líneas comprables con precio y nombre actuales y los avisos de lo que cambió.
  */
-export function CartView({ pickupAddress }: { pickupAddress: string | null }) {
+export function CartView({
+  pickupAddress,
+  shippingAvailable,
+}: {
+  pickupAddress: string | null;
+  /** La institución ofrece algún envío: el costo se ve recién en el checkout. */
+  shippingAvailable: boolean;
+}) {
   const cart = useCart();
   const { workspaceSlug, state, hydrated } = cart;
   const { problems, maxPorLinea, validando, error } = useCartRevalidation();
@@ -133,7 +140,9 @@ export function CartView({ pickupAddress }: { pickupAddress: string | null }) {
           </span>
           <Price minor={cart.subtotalMinor} className="text-xl font-semibold" />
         </div>
-        {pickupAddress ? (
+        {shippingAvailable ? (
+          <p className="text-xs text-[var(--fo-muted)]">El envío se calcula en el siguiente paso.</p>
+        ) : pickupAddress ? (
           <p className="text-xs text-[var(--fo-muted)]">Retirás en {pickupAddress}. Sin costo de envío.</p>
         ) : null}
         {validando || error ? (

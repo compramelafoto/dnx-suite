@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { STORE_HOLD_MINUTES, STORE_LEGAL_VERSION, STORE_PUBLIC_SEGMENT } from "@/lib/store/constants";
 import { loadStoreWorkspace } from "@/lib/store/repository";
 import { effectiveReturnsPolicy } from "@/lib/store/settings-form";
+import { loadCheckoutDeliveryOptions } from "@/lib/store/shipping/checkout-server";
+import { deliveryTermsParagraphs } from "@/lib/store/shipping/terms";
 import { StoreLegalFooter } from "@/components/store/store-legal-footer";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +29,8 @@ function fechaDeVersion(version: string): string {
 /**
  * Los términos que acepta quien compra (versión `STORE_LEGAL_VERSION`, la que se guarda en cada
  * pedido). FUERA del grupo `(abierta)`: se leen aunque la tienda esté cerrada. Sin configuración
- * de la tienda, la política de devoluciones por omisión.
+ * de la tienda, la política de devoluciones por omisión. La entrega dice las mismas formas que
+ * ofrece el checkout (sin envíos configurados, sólo retiro).
  */
 export default async function StoreTermsPage({ params }: Props) {
   const { workspaceSlug } = await params;
@@ -35,7 +38,8 @@ export default async function StoreTermsPage({ params }: Props) {
   if (!store) notFound();
   const base = `/w/${store.workspace.slug}/${STORE_PUBLIC_SEGMENT}`;
   const name = store.workspace.name;
-  const { pickupAddress, pickupHours } = store.pickup ?? { pickupAddress: null, pickupHours: null };
+  const pickup = store.pickup ?? { pickupAddress: null, pickupHours: null };
+  const entrega = deliveryTermsParagraphs(await loadCheckoutDeliveryOptions(store.workspace.id), pickup);
 
   return (
     <>
@@ -66,11 +70,11 @@ export default async function StoreTermsPage({ params }: Props) {
 
         <section className="space-y-2">
           <h2 className="text-lg font-semibold">Entrega</h2>
-          <p className="text-sm leading-relaxed">
-            Los pedidos se retiran en la sede, sin costo de envío
-            {pickupAddress ? `: ${pickupAddress}` : ""}
-            {pickupHours ? ` (${pickupHours})` : ""}. Te avisamos por email cuando tu pedido está listo para retirar.
-          </p>
+          {entrega.map((parrafo, i) => (
+            <p key={i} className="text-sm leading-relaxed">
+              {parrafo}
+            </p>
+          ))}
         </section>
 
         <section className="space-y-2">

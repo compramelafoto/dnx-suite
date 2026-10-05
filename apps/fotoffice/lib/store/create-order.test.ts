@@ -299,7 +299,7 @@ describe("createStoreOrder — el pedido creado", () => {
       totalArs: "25000.00",
       holdExpiresAt: new Date("2026-10-04T15:15:00.000Z"),
       legalAcceptedAt: NOW,
-      legalVersion: "2026-10-04",
+      legalVersion: "2026-10-05",
       clientIdempotencyKey: "clave-idempotencia-0001",
       publicId: r.publicId,
       accessTokenHash: hashAccessToken(r.accessToken),
