@@ -45,7 +45,7 @@ function pendientesDepsPorDefecto(): PendientesDeps {
         where: {
           email: { equals: email, mode: "insensitive" },
           paymentStatus: "APPROVED",
-          course: { deliveryMode: "RECORDED" },
+          course: { deliveryMode: "RECORDED", accesses: { none: { userId } } },
           access: { is: null },
           // Una inscripción de beneficio nunca queda pendiente: se otorga en el mismo acto.
           paymentMethod: "MERCADO_PAGO",

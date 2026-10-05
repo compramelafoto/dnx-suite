@@ -22,12 +22,14 @@ vi.mock("@repo/db", async () => {
 
 const { otorgarAccesoPorCompra } = await import("./grant");
 
+const anterior = new Date(Date.UTC(2026, 8, 1));
 const ahora = new Date(Date.UTC(2026, 9, 4, 12));
 const inscripcion = {
   id: "insc-1",
   workspaceId: "ws-1",
   courseId: "curso-1",
   paymentStatus: "APPROVED",
+  createdAt: new Date(Date.UTC(2026, 9, 1)),
   course: { deliveryMode: "RECORDED", accessMonths: 12 },
 };
 
@@ -62,7 +64,7 @@ describe("otorgar el acceso por una compra", () => {
   });
 
   it("el mismo aviso de pago dos veces no duplica nada", async () => {
-    m.accessFindUnique.mockResolvedValue({ id: "acc-1", enrollmentId: "insc-1", origin: "PURCHASE", expiresAt: new Date(Date.UTC(2027, 9, 4, 12)) });
+    m.accessFindUnique.mockResolvedValue({ id: "acc-1", enrollmentId: "insc-1", origin: "PURCHASE", expiresAt: new Date(Date.UTC(2027, 9, 4, 12)), enrollment: { createdAt: anterior } });
     const r = await otorgarAccesoPorCompra({ enrollmentId: "insc-1", userId: 7 }, ahora);
     expect(r).toMatchObject({ ok: true, nuevo: false });
     expect(m.accessCreate).not.toHaveBeenCalled();
@@ -70,7 +72,7 @@ describe("otorgar el acceso por una compra", () => {
   });
 
   it("si lo tenía de beneficio y lo compra, pasa a comprado con vencimiento", async () => {
-    m.accessFindUnique.mockResolvedValue({ id: "acc-1", enrollmentId: "insc-gratis", origin: "MEMBER_BENEFIT", expiresAt: null });
+    m.accessFindUnique.mockResolvedValue({ id: "acc-1", enrollmentId: "insc-gratis", origin: "MEMBER_BENEFIT", expiresAt: null, enrollment: { createdAt: anterior } });
     const r = await otorgarAccesoPorCompra({ enrollmentId: "insc-1", userId: 7 }, ahora);
     expect(r).toMatchObject({ ok: true, accessId: "acc-1", nuevo: true });
     expect(m.accessUpdate.mock.calls[0][0].data).toMatchObject({
@@ -81,11 +83,20 @@ describe("otorgar el acceso por una compra", () => {
     });
   });
 
-  it("si lo vuelve a comprar antes de que venza, gana el vencimiento más lejano", async () => {
-    const masLejos = new Date(Date.UTC(2028, 0, 1));
-    m.accessFindUnique.mockResolvedValue({ id: "acc-1", enrollmentId: "insc-0", origin: "PURCHASE", expiresAt: masLejos });
-    await otorgarAccesoPorCompra({ enrollmentId: "insc-1", userId: 7 }, ahora);
-    expect(m.accessUpdate.mock.calls[0][0].data.expiresAt).toEqual(masLejos);
+  it("renovar una compra vigente extiende desde el vencimiento actual", async () => {
+    const vigente = new Date(Date.UTC(2027, 0, 1));
+    m.accessFindUnique.mockResolvedValue({ id: "acc-1", enrollmentId: "insc-0", origin: "PURCHASE", expiresAt: vigente, enrollment: { createdAt: anterior } });
+    const r = await otorgarAccesoPorCompra({ enrollmentId: "insc-1", userId: 7 }, ahora);
+    expect(r).toMatchObject({ ok: true, nuevo: true, expiresAt: new Date(Date.UTC(2028, 0, 1)) });
+    expect(m.accessUpdate.mock.calls[0][0].data.expiresAt).toEqual(new Date(Date.UTC(2028, 0, 1)));
+  });
+
+  it("una inscripción más vieja que la que tiene el acceso no lo mueve ni lo renueva", async () => {
+    const vigente = new Date(Date.UTC(2027, 0, 1));
+    m.accessFindUnique.mockResolvedValue({ id: "acc-1", enrollmentId: "insc-nueva", origin: "PURCHASE", expiresAt: vigente, enrollment: { createdAt: new Date(Date.UTC(2026, 9, 3)) } });
+    const r = await otorgarAccesoPorCompra({ enrollmentId: "insc-1", userId: 7 }, ahora);
+    expect(r).toEqual({ ok: true, accessId: "acc-1", expiresAt: vigente, nuevo: false });
+    expect(m.accessUpdate).not.toHaveBeenCalled();
   });
 
   it("si otro pedido lo creó al mismo tiempo (P2002), lo toma como existente", async () => {

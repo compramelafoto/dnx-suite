@@ -19,7 +19,7 @@ export type OtorgarResultado =
  * Idempotente por inscripción: el mismo aviso de pago dos veces no duplica nada. Si la persona
  * ya tenía el curso —de beneficio de socio, o de una compra anterior— el acceso existente pasa
  * a esta compra (`@@unique([userId, courseId])`): no se parte el avance. Lo pagado no depende
- * de ser socio, y el vencimiento nunca se acorta.
+ * de ser socio, y renovar extiende desde el vencimiento vigente.
  */
 export async function otorgarAccesoPorCompra(
   input: { enrollmentId: string; userId: number },
@@ -31,6 +31,7 @@ export async function otorgarAccesoPorCompra(
       id: true,
       workspaceId: true,
       courseId: true,
+      createdAt: true,
       paymentStatus: true,
       course: { select: { deliveryMode: true, accessMonths: true } },
     },
@@ -43,17 +44,30 @@ export async function otorgarAccesoPorCompra(
   const vence = calcularVencimiento(ahora, inscripcion.course.accessMonths);
   const existente = await prisma.courseAccess.findUnique({
     where: clave,
-    select: { id: true, enrollmentId: true, origin: true, expiresAt: true },
+    select: {
+      id: true,
+      enrollmentId: true,
+      origin: true,
+      expiresAt: true,
+      enrollment: { select: { createdAt: true } },
+    },
   });
 
   if (existente) {
     if (existente.enrollmentId === inscripcion.id) {
       return { ok: true, accessId: existente.id, expiresAt: existente.expiresAt, nuevo: false };
     }
-    const expiresAt =
-      existente.origin === "PURCHASE" && existente.expiresAt && existente.expiresAt > vence
+    // Una compra más vieja que la que ya tiene el acceso no lo mueve ni lo renueva: si no, el
+    // acceso rebotaría entre dos inscripciones y el vencimiento se renovaría solo.
+    if (existente.origin === "PURCHASE" && inscripcion.createdAt <= existente.enrollment.createdAt) {
+      return { ok: true, accessId: existente.id, expiresAt: existente.expiresAt, nuevo: false };
+    }
+    // Renovar una compra vigente extiende desde el vencimiento actual; si no, desde hoy.
+    const desde =
+      existente.origin === "PURCHASE" && existente.expiresAt && existente.expiresAt > ahora
         ? existente.expiresAt
-        : vence;
+        : ahora;
+    const expiresAt = calcularVencimiento(desde, inscripcion.course.accessMonths);
     await prisma.courseAccess.update({
       where: { id: existente.id },
       data: { origin: "PURCHASE", enrollmentId: inscripcion.id, expiresAt, revokedAt: null },
