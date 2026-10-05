@@ -20,7 +20,8 @@ export type StoreEmailOrder = {
   /** Con envío: qué tipo, cuánto y a dónde (ya en renglones). Sin envío (retiro): ausente o null. */
   shipping?: { label: string; amountMinor: number; lines: string[] } | null;
   /** Al despachar: el número de seguimiento y, si se conoce, el enlace para seguirlo. */
-  tracking?: { number: string; url: string | null } | null;
+  /** `carrier`: el nombre del correo del enlace; sin él, Correo Argentino (como antes de Andreani). */
+  tracking?: { number: string; url: string | null; carrier?: string | null } | null;
   /** Enlace a la página del pedido para el comprador (con su token). null = sin enlace. */
   orderUrl: string | null;
   /** Enlace al pedido en el panel, para la institución. null = sin enlace. */
@@ -224,10 +225,11 @@ function seguimiento(o: StoreEmailOrder): Bloque[] {
   ];
   if (t.url) {
     const url = escapeHtml(t.url);
+    const correo = t.carrier || "Correo Argentino";
     bloques.push(
       parrafo(
-        `Podés seguirlo en Correo Argentino: ${t.url}`,
-        `Podés seguirlo en Correo Argentino: <a href="${url}" style="color:${C.acentoFuerte};">${url}</a>`,
+        `Podés seguirlo en ${correo}: ${t.url}`,
+        `Podés seguirlo en ${escapeHtml(correo)}: <a href="${url}" style="color:${C.acentoFuerte};">${url}</a>`,
       ),
     );
   }

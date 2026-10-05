@@ -58,6 +58,7 @@ function entero(json: unknown, key: string): number | null {
 
 const FUENTE: Record<string, string> = {
   CORREO_ARGENTINO: "Correo Argentino (cotización en el momento)",
+  ANDREANI: "Andreani (cotización en el momento)",
   TABLE: "Tabla de precios propia",
 };
 

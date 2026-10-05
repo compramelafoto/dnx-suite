@@ -645,6 +645,50 @@ describe("createStoreOrder — envío a sucursal", () => {
   });
 });
 
+describe("createStoreOrder — sucursal de Andreani (por código postal)", () => {
+  const aAndreani = (id = "101"): CheckoutInput => ({
+    ...checkoutBase,
+    shownShippingMinor: 3_000_00,
+    delivery: {
+      method: "BRANCH",
+      provinceCode: null,
+      postalCode: "5000",
+      agency: { id, name: "Nombre inventado", address: "Dirección inventada" },
+    },
+  });
+  const ANDREANI_SUC = { id: "101", name: "Córdoba Centro", address: "Colón 100", city: "Córdoba", postalCode: "5000" };
+
+  it("busca la lista con el CP, toma la sucursal del servidor y cotiza a su CP", async () => {
+    loadAgenciesForOrder.mockResolvedValue({ ok: true, agencies: [ANDREANI_SUC] });
+    quoteShipping.mockResolvedValue({
+      ok: true,
+      quote: { ...COTIZACION, method: "BRANCH", source: "ANDREANI", serviceName: "Andreani a sucursal", totalMinor: 3_000_00 },
+    });
+    const r = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: aAndreani(), now: NOW });
+
+    expect(r.ok).toBe(true);
+    expect(loadAgenciesForOrder).toHaveBeenCalledWith({ workspaceId: "ws1", provinceCode: null, postalCode: "5000" });
+    expect(quoteShipping).toHaveBeenCalledWith(
+      expect.objectContaining({ method: "BRANCH", destination: { postalCode: "5000", provinceCode: "" } }),
+    );
+    const pedido = primerPedido();
+    expect(pedido).toMatchObject({
+      shippingMethod: "BRANCH",
+      shippingSource: "ANDREANI",
+      shippingAgencyJson: { id: "101", name: "Córdoba Centro", address: "Colón 100", city: "Córdoba", postalCode: "5000" },
+    });
+    expect(JSON.stringify(pedido)).not.toContain("inventad");
+  });
+
+  it("un id que no está en la lista de ese CP → error, sin cotizar ni crear", async () => {
+    loadAgenciesForOrder.mockResolvedValue({ ok: true, agencies: [ANDREANI_SUC] });
+    const r = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: aAndreani("999"), now: NOW });
+    expect(r).toEqual({ ok: false, error: "Esa sucursal ya no está disponible. Elegí otra." });
+    expect(quoteShipping).not.toHaveBeenCalled();
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+});
+
 describe("createStoreOrder — sucursales cuando Correo falla", () => {
   it("si no se pudo traer la lista (Correo caído), no dice que la sucursal no existe", async () => {
     loadAgenciesForOrder.mockResolvedValue({ ok: false });

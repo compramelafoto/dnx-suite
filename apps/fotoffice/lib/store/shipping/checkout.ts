@@ -43,6 +43,7 @@ export function publicQuoteResult(
 export type QuoteRequest = {
   method: ShippingMethod;
   postalCode: string;
+  /** A sucursal puede venir vacía (Andreani lista y cotiza por CP); `quoteShipping` decide si hace falta. */
   provinceCode: string;
   lines: QuoteShippingItem[];
 };
@@ -55,7 +56,8 @@ export function parseQuoteRequest(raw: unknown): { ok: true; value: QuoteRequest
   const postalCode = typeof r.postalCode === "string" ? normalizePostalCode(r.postalCode) : null;
   if (!postalCode) return { ok: false, message: "Ingresá un código postal válido (4 números, ej. 2000)." };
   const provinceCode = typeof r.provinceCode === "string" ? r.provinceCode.trim().toUpperCase() : "";
-  if (!isProvinceCode(provinceCode)) return { ok: false, message: "Elegí la provincia." };
+  const sucursalSinProvincia = r.method === "BRANCH" && provinceCode === "";
+  if (!sucursalSinProvincia && !isProvinceCode(provinceCode)) return { ok: false, message: "Elegí la provincia." };
   const lines = parseCartLinesInput(r.lines);
   if (!lines || lines.length === 0) return { ok: false, message: "El carrito es inválido." };
   return {
@@ -74,7 +76,17 @@ export function parseQuoteRequest(raw: unknown): { ok: true; value: QuoteRequest
   };
 }
 
-export type DeliveryOptions = { pickup: boolean; home: boolean; branch: boolean; handlingNote: string | null };
+export type DeliveryOptions = {
+  pickup: boolean;
+  home: boolean;
+  branch: boolean;
+  handlingNote: string | null;
+  /**
+   * Sólo cuando el correo es Andreani: la sucursal se busca por código postal y los textos lo
+   * nombran. Sin él, la sucursal es de Correo Argentino (por provincia), como siempre.
+   */
+  carrier?: "ANDREANI";
+};
 
 export type DeliverySettingsRow = {
   pickupEnabled: boolean;
@@ -87,24 +99,31 @@ export type DeliverySettingsRow = {
 
 /**
  * Qué formas de entrega ve el comprador. Sin configuración de envíos, sólo retiro (la etapa 1).
- * Sólo se ofrece lo que se puede cotizar: sucursal, sólo con Correo Argentino (E9) y la conexión
- * activa (`correoActive`); domicilio con Correo como fuente, sólo con la conexión activa o la
- * tabla propia de respaldo. Si por lo que sea no queda ninguna, vuelve el retiro: el panel no lo
- * permite, pero un checkout sin salida sería peor.
+ * Sólo se ofrece lo que se puede cotizar: sucursal, sólo con un correo como fuente (Correo
+ * Argentino, E9, o Andreani) y su conexión activa (`carrierActive`); domicilio con un correo como
+ * fuente, sólo con la conexión activa o la tabla propia de respaldo. Con Andreani, la sucursal
+ * además exige el contrato de sucursal (`branchContract`). Si por lo que sea no queda ninguna,
+ * vuelve el retiro: el panel no lo permite, pero un checkout sin salida sería peor.
  */
-export function deliveryOptionsFromSettings(row: DeliverySettingsRow | null, correoActive: boolean): DeliveryOptions {
+export function deliveryOptionsFromSettings(
+  row: DeliverySettingsRow | null,
+  carrierActive: boolean,
+  opts: { branchContract?: boolean } = {},
+): DeliveryOptions {
   if (!row) return { pickup: true, home: false, branch: false, handlingNote: null };
-  const conCorreo = row.source === "CORREO_ARGENTINO";
-  const home = row.homeDeliveryEnabled && (!conCorreo || correoActive || row.tableAsFallback);
-  const branch = row.branchDeliveryEnabled && conCorreo && correoActive;
+  const andreani = row.source === "ANDREANI";
+  const conCorreo = row.source === "CORREO_ARGENTINO" || andreani;
+  const home = row.homeDeliveryEnabled && (!conCorreo || carrierActive || row.tableAsFallback);
+  const branch =
+    row.branchDeliveryEnabled && conCorreo && carrierActive && (!andreani || opts.branchContract !== false);
   const pickup = row.pickupEnabled || (!home && !branch);
   const handlingNote = row.handlingNote?.trim() ? row.handlingNote.trim() : null;
-  return { pickup, home, branch, handlingNote };
+  return { pickup, home, branch, handlingNote, ...(andreani ? { carrier: "ANDREANI" as const } : {}) };
 }
 
 /**
  * Una sucursal tal como la ve el comprador. El código postal es el de la sucursal (dato público
- * de Correo) y es el destino con el que se cotiza el envío a sucursal.
+ * del correo) y es el destino con el que se cotiza el envío a sucursal.
  */
 export type PublicAgency = { id: string; name: string; address: string; city: string; postalCode: string };
 

@@ -5,7 +5,15 @@ import {
   markCorreoNeedsReconsent,
 } from "@/lib/integrations/correo-argentino/credentials";
 import { isMiCorreoError } from "@/lib/integrations/correo-argentino/errors";
-import { buildPackage, exceedsCorreoLimits, normalizePostalCode, type ShippingPackage } from "./package";
+import { loadAndreaniClient, markAndreaniNeedsReconsent } from "@/lib/integrations/andreani/credentials";
+import { isAndreaniError } from "@/lib/integrations/andreani/errors";
+import {
+  buildPackage,
+  exceedsAndreaniLimits,
+  exceedsCorreoLimits,
+  normalizePostalCode,
+  type ShippingPackage,
+} from "./package";
 import { isProvinceCode } from "./provinces";
 import {
   loadShippingListings,
@@ -20,9 +28,9 @@ import { applySurcharge } from "./surcharge";
 import { pickRate, pickZone } from "./table";
 
 /**
- * La única puerta para cotizar un envío (E1). Fuentes: tabla propia o Correo Argentino, con la
- * tabla como respaldo si la institución lo dejó así (E14). Nunca lanza por la red: cualquier
- * falla de MiCorreo termina en el respaldo o en `UNAVAILABLE`.
+ * La única puerta para cotizar un envío (E1). Fuentes: tabla propia, Correo Argentino o Andreani,
+ * con la tabla como respaldo a domicilio si la institución lo dejó así (E14). Nunca lanza por la
+ * red: cualquier falla del correo termina en el respaldo o en `UNAVAILABLE`.
  *
  * El precio sale siempre de acá, en el servidor: el navegador no manda precios (E10).
  */
@@ -47,6 +55,8 @@ export type QuoteShippingResult = { ok: true; quote: ShippingQuote } | { ok: fal
 export type QuoteShippingDeps = {
   loadCorreo?: typeof loadCorreoArgentinoClient;
   markNeedsReconsent?: typeof markCorreoNeedsReconsent;
+  loadAndreani?: typeof loadAndreaniClient;
+  markAndreaniNeedsReconsent?: typeof markAndreaniNeedsReconsent;
   now?: () => Date;
 };
 
@@ -61,6 +71,10 @@ export type QuoteShippingItem =
 export type QuoteShippingInput = {
   workspaceId: string;
   method: ShippingMethod;
+  /**
+   * La provincia hace falta para la tabla y para Correo. A sucursal de Andreani se cotiza sólo con
+   * el CP (el de la sucursal elegida), así que ahí puede venir vacía.
+   */
   destination: { postalCode: string; provinceCode: string };
   items: QuoteShippingItem[];
   db?: ShippingDb;
@@ -75,8 +89,8 @@ function fail(reason: ShippingQuoteFailure): QuoteShippingResult {
 
 function methodEnabled(settings: ShippingSettingsRow, method: ShippingMethod): boolean {
   if (method === "HOME") return settings.homeDeliveryEnabled;
-  // Sucursal sólo existe con Correo Argentino (E9).
-  return settings.branchDeliveryEnabled && settings.source === "CORREO_ARGENTINO";
+  // Sucursal sólo existe con un correo como fuente: Correo Argentino (E9) o Andreani.
+  return settings.branchDeliveryEnabled && settings.source !== "TABLE";
 }
 
 async function quoteFromTable(
@@ -147,6 +161,61 @@ async function quoteFromCorreo(
   }
 }
 
+/** El contrato de sucursal no está cargado: la institución no puede enviar a sucursal de Andreani. */
+const SIN_CONTRATO_SUCURSAL = "SIN_CONTRATO_SUCURSAL" as const;
+
+/**
+ * Cotiza con Andreani. `null` si no se pudo (no conectado, error, precio inválido). El contrato
+ * define la modalidad: domicilio o sucursal. Un solo bulto, con el peso en kilos.
+ */
+async function quoteFromAndreani(
+  workspaceId: string,
+  method: ShippingMethod,
+  destPostalCode: string,
+  pkg: ShippingPackage,
+  declaredValueMinor: number,
+  deps: QuoteShippingDeps,
+): Promise<BasePrice | null | typeof SIN_CONTRATO_SUCURSAL> {
+  const loadAndreani = deps.loadAndreani ?? loadAndreaniClient;
+  const markNeedsReconsent = deps.markAndreaniNeedsReconsent ?? markAndreaniNeedsReconsent;
+  try {
+    const conexion = await loadAndreani(workspaceId);
+    if (!conexion) return null;
+    const contract = method === "HOME" ? conexion.contractHome : conexion.contractBranch;
+    if (!contract) return SIN_CONTRATO_SUCURSAL;
+    const r = await conexion.client.quote({
+      clientCode: conexion.clientCode,
+      contract,
+      postalCodeDestination: destPostalCode,
+      originBranch: conexion.originBranch,
+      packages: [
+        {
+          weightKg: pkg.weightGrams / 1000,
+          lengthCm: pkg.lengthCm,
+          widthCm: pkg.widthCm,
+          heightCm: pkg.heightCm,
+          declaredValueMinor,
+        },
+      ],
+    });
+    return {
+      source: "ANDREANI",
+      baseMinor: r.priceMinor,
+      serviceName: method === "HOME" ? "Andreani a domicilio" : "Andreani a sucursal",
+      raw: r.raw,
+    };
+  } catch (error) {
+    // Sólo `kind` y `status`: el mensaje puede traer datos de la cuenta (ver errors.ts).
+    if (isAndreaniError(error)) {
+      console.warn("[shipping] Andreani no cotizó", { kind: error.kind, status: error.status });
+      if (error.kind === "AUTH") await markNeedsReconsent(workspaceId).catch(() => undefined);
+    } else {
+      console.warn("[shipping] Andreani no cotizó por un error inesperado");
+    }
+    return null;
+  }
+}
+
 export async function quoteShipping(input: QuoteShippingInput): Promise<QuoteShippingResult> {
   const { workspaceId, method } = input;
   const db = input.db ?? prisma;
@@ -157,7 +226,9 @@ export async function quoteShipping(input: QuoteShippingInput): Promise<QuoteShi
 
   const postalCode = normalizePostalCode(input.destination.postalCode ?? "");
   const provinceCode = (input.destination.provinceCode ?? "").trim().toUpperCase();
-  if (!postalCode || !isProvinceCode(provinceCode)) return fail("NO_COVERAGE");
+  // A sucursal de Andreani no hay tabla de respaldo ni hace falta la provincia: sólo el CP.
+  const sinProvincia = method === "BRANCH" && settings.source === "ANDREANI";
+  if (!postalCode || (!sinProvincia && !isProvinceCode(provinceCode))) return fail("NO_COVERAGE");
   const dest = { postalCode, provinceCode };
 
   const items = input.items.filter((i) => Number.isFinite(i.qty) && i.qty > 0);
@@ -181,18 +252,25 @@ export async function quoteShipping(input: QuoteShippingInput): Promise<QuoteShi
       : new Map<string, never>(),
   ]);
   const paqueteItems = [];
+  // Valor declarado para Andreani: lo que vale lo que va en el paquete (productos y obras), sin el
+  // envío. Un precio que no se pudo leer suma 0: el seguro es opcional, la cotización no.
+  let declaredValueMinor = 0;
   for (const it of items) {
     if (it.kind === "artwork") {
       const f = formatos.get(it.printFormatId);
       if (!f) return fail("UNAVAILABLE");
       // Sin peso, el de por defecto (lo hace `buildPackage`); las medidas cuentan si están las tres.
       paqueteItems.push({ qty: it.qty, weightGrams: f.weightGrams, lengthCm: f.packLengthCm, widthCm: f.packWidthCm, heightCm: f.packHeightCm });
+      declaredValueMinor += it.qty * Math.max(0, f.priceMinor ?? 0);
       continue;
     }
     const l = listados.get(it.productId);
     if (!l) return fail("UNAVAILABLE");
     paqueteItems.push({ qty: it.qty, weightGrams: l.weightGrams, lengthCm: l.lengthCm, widthCm: l.widthCm, heightCm: l.heightCm });
+    const unitario = (it.variantId ? l.variantPricesMinor?.get(it.variantId) : undefined) ?? l.priceMinor ?? 0;
+    declaredValueMinor += it.qty * Math.max(0, unitario);
   }
+  if (!Number.isSafeInteger(declaredValueMinor)) declaredValueMinor = 0;
   const pkg = buildPackage(paqueteItems, settings.packageConfig);
 
   // La tabla responde a domicilio solamente: sucursal no tiene respaldo.
@@ -201,12 +279,19 @@ export async function quoteShipping(input: QuoteShippingInput): Promise<QuoteShi
   if (settings.source === "TABLE") {
     base = await quoteFromTable(workspaceId, db, dest, pkg);
     if (!base) return fail("NO_COVERAGE");
-  } else if (exceedsCorreoLimits(pkg)) {
+  } else if (settings.source === "ANDREANI" ? exceedsAndreaniLimits(pkg) : exceedsCorreoLimits(pkg)) {
     if (!tablaDeRespaldo) return fail("TOO_BIG");
     base = await quoteFromTable(workspaceId, db, dest, pkg);
     if (!base) return fail("NO_COVERAGE");
   } else {
-    base = await quoteFromCorreo(workspaceId, method, settings.originPostalCode, postalCode, pkg, deps);
+    if (settings.source === "ANDREANI") {
+      const andreani = await quoteFromAndreani(workspaceId, method, postalCode, pkg, declaredValueMinor, deps);
+      // Sin contrato de sucursal, la sucursal de Andreani no existe para esta institución.
+      if (andreani === SIN_CONTRATO_SUCURSAL) return fail("DISABLED");
+      base = andreani;
+    } else {
+      base = await quoteFromCorreo(workspaceId, method, settings.originPostalCode, postalCode, pkg, deps);
+    }
     if (!base) {
       if (!tablaDeRespaldo) return fail("UNAVAILABLE");
       base = await quoteFromTable(workspaceId, db, dest, pkg);

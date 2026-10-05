@@ -12,7 +12,12 @@ import type { ShippingZoneInput } from "./table";
 
 export type ShippingDb = Prisma.TransactionClient | typeof prisma;
 
-export type ShippingSource = "TABLE" | "CORREO_ARGENTINO";
+export type ShippingSource = "TABLE" | "CORREO_ARGENTINO" | "ANDREANI";
+
+/** Lo que dice la columna (texto) → la fuente. Un valor desconocido es la tabla (el default del esquema). */
+export function toShippingSource(value: string | null | undefined): ShippingSource {
+  return value === "CORREO_ARGENTINO" || value === "ANDREANI" ? value : "TABLE";
+}
 
 export type ShippingSettingsRow = {
   homeDeliveryEnabled: boolean;
@@ -35,7 +40,20 @@ export type ShippingListingRow = {
   lengthCm: number | null;
   widthCm: number | null;
   heightCm: number | null;
+  /** Precio del producto (centavos), para el valor declarado de Andreani. `null` si no se leyó. */
+  priceMinor: number | null;
+  /** Precio propio de cada talle ACTIVO que lo tiene (centavos); el resto hereda el del producto. */
+  variantPricesMinor: Map<string, number>;
 };
+
+type Decimalish = { toString(): string } | null | undefined;
+
+/** Decimal de la base → centavos; `null` si no vino (los tests que no lo cargan). */
+function aMinor(value: Decimalish): number | null {
+  if (value === null || value === undefined) return null;
+  const minor = decimalArsToMinor(value);
+  return Number.isSafeInteger(minor) ? minor : null;
+}
 
 function aSurchargeKind(value: string): Surcharge["kind"] {
   return value === "PERCENT" || value === "FIXED" ? value : "NONE";
@@ -66,8 +84,7 @@ export async function loadShippingSettings(
   return {
     homeDeliveryEnabled: s.homeDeliveryEnabled,
     branchDeliveryEnabled: s.branchDeliveryEnabled,
-    // Un valor desconocido en la base se trata como la tabla (el default del esquema).
-    source: s.source === "CORREO_ARGENTINO" ? "CORREO_ARGENTINO" : "TABLE",
+    source: toShippingSource(s.source),
     tableAsFallback: s.tableAsFallback,
     originPostalCode: s.originPostalCode,
     surcharge: { kind: aSurchargeKind(s.surchargeKind), value: s.surchargeValue },
@@ -121,13 +138,34 @@ export async function loadShippingListings(
       productId: { in: ids },
       product: { workspaceId, isActive: true },
     },
-    select: { productId: true, weightGrams: true, lengthCm: true, widthCm: true, heightCm: true },
+    select: {
+      productId: true,
+      weightGrams: true,
+      lengthCm: true,
+      widthCm: true,
+      heightCm: true,
+      product: {
+        select: { priceArs: true, variants: { where: { isActive: true }, select: { id: true, priceArs: true } } },
+      },
+    },
   });
-  return new Map(filas.map((f) => [f.productId, f]));
+  return new Map(
+    filas.map((f) => {
+      const { product, ...resto } = f as typeof f & { product?: { priceArs?: Decimalish; variants?: { id: string; priceArs: Decimalish }[] } | null };
+      const variantPricesMinor = new Map<string, number>();
+      for (const v of product?.variants ?? []) {
+        const precio = aMinor(v.priceArs);
+        if (precio !== null) variantPricesMinor.set(v.id, precio);
+      }
+      return [f.productId, { ...resto, priceMinor: aMinor(product?.priceArs), variantPricesMinor }];
+    }),
+  );
 }
 
 export type ShippingPrintFormatRow = {
   id: string;
+  /** Precio del formato (centavos), para el valor declarado de Andreani. `null` si no se leyó. */
+  priceMinor: number | null;
   weightGrams: number | null;
   packLengthCm: number | null;
   packWidthCm: number | null;
@@ -144,7 +182,12 @@ export async function loadShippingPrintFormats(
   if (ids.length === 0) return new Map();
   const filas = await db.printFormat.findMany({
     where: { workspaceId, isActive: true, id: { in: ids } },
-    select: { id: true, weightGrams: true, packLengthCm: true, packWidthCm: true, packHeightCm: true },
+    select: { id: true, weightGrams: true, packLengthCm: true, packWidthCm: true, packHeightCm: true, priceArs: true },
   });
-  return new Map(filas.map((f) => [f.id, f]));
+  return new Map(
+    filas.map((f) => {
+      const { priceArs, ...resto } = f as typeof f & { priceArs?: Decimalish };
+      return [f.id, { ...resto, priceMinor: aMinor(priceArs) }];
+    }),
+  );
 }

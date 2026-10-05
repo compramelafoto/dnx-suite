@@ -16,6 +16,8 @@ export type DeliveryState = {
   homeProvince: string;
   homePostalCode: string;
   branchProvince: string;
+  /** Con Andreani las sucursales se buscan por código postal: el que escribió el comprador. */
+  branchPostalCode: string;
   agency: PublicAgency | null;
 };
 
@@ -40,7 +42,9 @@ function destino(d: DeliveryState): { method: "HOME" | "BRANCH"; postalCode: str
     const postalCode = normalizePostalCode(d.homePostalCode);
     return postalCode && d.homeProvince ? { method: "HOME", postalCode, provinceCode: d.homeProvince } : null;
   }
-  if (d.method === "BRANCH" && d.agency && d.branchProvince) {
+  // Se cotiza al CP de la sucursal. Con Correo la sucursal sólo existe después de elegir la
+  // provincia; con Andreani se buscó por CP y la provincia va vacía (no hace falta).
+  if (d.method === "BRANCH" && d.agency) {
     return { method: "BRANCH", postalCode: d.agency.postalCode, provinceCode: d.branchProvince };
   }
   return null;
@@ -137,6 +141,13 @@ const ETIQUETAS: Record<DeliveryMethod, { titulo: string; detalle: string }> = {
   BRANCH: { titulo: "Envío a sucursal de Correo Argentino", detalle: "Lo retirás en la sucursal que elijas" },
 };
 
+function etiqueta(m: DeliveryMethod, options: DeliveryOptions): { titulo: string; detalle: string } {
+  if (options.carrier !== "ANDREANI") return ETIQUETAS[m];
+  if (m === "HOME") return { titulo: "Envío a domicilio por Andreani", detalle: ETIQUETAS.HOME.detalle };
+  if (m === "BRANCH") return { titulo: "Envío a sucursal de Andreani", detalle: ETIQUETAS.BRANCH.detalle };
+  return ETIQUETAS[m];
+}
+
 /**
  * Cómo recibir la compra: retiro, domicilio o sucursal (sólo las formas que la institución dejó
  * activas). La dirección se lee del formulario al enviar; CP, provincia y sucursal viven en el
@@ -157,7 +168,9 @@ export function DeliverySection({
   const metodos = (["PICKUP", "HOME", "BRANCH"] as const).filter((m) =>
     m === "PICKUP" ? options.pickup : m === "HOME" ? options.home : options.branch,
   );
-  const [agencias, setAgencias] = useState<{ province: string; list: PublicAgency[]; error: string | null } | null>(null);
+  const porCP = options.carrier === "ANDREANI";
+  // `key`: la provincia (Correo) o el CP normalizado (Andreani) con que se buscó la lista.
+  const [agencias, setAgencias] = useState<{ key: string; list: PublicAgency[]; error: string | null } | null>(null);
   const [buscando, startBuscar] = useTransition();
   const pedidoSucursales = useRef(0);
 
@@ -172,33 +185,48 @@ export function DeliverySection({
     "aria-describedby": fieldErrors[name] ? `${name}-error` : undefined,
   });
 
-  function elegirProvinciaSucursal(province: string) {
-    onChange({ ...delivery, branchProvince: province, agency: null });
-    if (!province) {
-      setAgencias(null);
-      return;
-    }
+  /** Pide la lista: por provincia (Correo) o por CP (Andreani). La última pedida es la que vale. */
+  function buscarSucursales(key: string, pedir: () => ReturnType<typeof listAgenciesAction>) {
     const numero = ++pedidoSucursales.current;
     startBuscar(async () => {
-      const r = await listAgenciesAction(workspaceSlug, province).catch(() => null);
+      const r = await pedir().catch(() => null);
       if (numero !== pedidoSucursales.current) return;
       if (!r) {
         setAgencias({
-          province,
+          key,
           list: [],
           error: options.pickup
             ? "No pudimos traer las sucursales. Probá de nuevo o elegí retiro en la sede."
             : "No pudimos traer las sucursales. Probá de nuevo en unos minutos.",
         });
       } else if (!r.ok) {
-        setAgencias({ province, list: [], error: r.message });
+        setAgencias({ key, list: [], error: r.message });
       } else {
-        setAgencias({ province, list: r.agencies, error: null });
+        setAgencias({ key, list: r.agencies, error: null });
       }
     });
   }
 
-  const listaActual = agencias && agencias.province === delivery.branchProvince ? agencias : null;
+  function elegirProvinciaSucursal(province: string) {
+    onChange({ ...delivery, branchProvince: province, agency: null });
+    if (!province) {
+      setAgencias(null);
+      return;
+    }
+    buscarSucursales(province, () => listAgenciesAction(workspaceSlug, province));
+  }
+
+  function escribirCPSucursal(raw: string) {
+    const cp = normalizePostalCode(raw);
+    const anterior = normalizePostalCode(delivery.branchPostalCode);
+    // La sucursal elegida es de la búsqueda anterior: si cambia el CP, se vuelve a elegir.
+    onChange({ ...delivery, branchPostalCode: raw, agency: cp && cp === anterior ? delivery.agency : null });
+    if (!cp || cp === anterior) return;
+    buscarSucursales(cp, () => listAgenciesAction(workspaceSlug, "", cp));
+  }
+
+  const claveBusqueda = porCP ? (normalizePostalCode(delivery.branchPostalCode) ?? "") : delivery.branchProvince;
+  const listaActual = agencias && claveBusqueda && agencias.key === claveBusqueda ? agencias : null;
 
   return (
     <fieldset className="space-y-4" disabled={disabled}>
@@ -222,8 +250,8 @@ export function DeliverySection({
                 className="mt-1 h-4 w-4 shrink-0"
               />
               <span>
-                <span className="block font-medium">{ETIQUETAS[m].titulo}</span>
-                <span className="text-[var(--fo-muted)]">{ETIQUETAS[m].detalle}</span>
+                <span className="block font-medium">{etiqueta(m, options).titulo}</span>
+                <span className="text-[var(--fo-muted)]">{etiqueta(m, options).detalle}</span>
               </span>
             </label>
           ))}
@@ -242,7 +270,7 @@ export function DeliverySection({
 
       {delivery.method === "HOME" ? (
         <div className="space-y-4">
-          {metodos.length === 1 ? <h3 className="font-semibold">Envío a domicilio</h3> : null}
+          {metodos.length === 1 ? <h3 className="font-semibold">{etiqueta("HOME", options).titulo}</h3> : null}
           <div className="grid gap-4 sm:grid-cols-[1fr_8rem]">
             <label className="fo-field-stack">
               <span className="fo-label">Calle</span>
@@ -309,25 +337,44 @@ export function DeliverySection({
 
       {delivery.method === "BRANCH" ? (
         <div className="space-y-4">
-          {metodos.length === 1 ? <h3 className="font-semibold">Envío a sucursal de Correo Argentino</h3> : null}
-          <label className="fo-field-stack">
-            <span className="fo-label">Provincia</span>
-            <select
-              className="fo-input text-base"
-              value={delivery.branchProvince}
-              onChange={(e) => elegirProvinciaSucursal(e.target.value)}
-              {...aria("delivery.provinceCode")}
-            >
-              <option value="">Elegí la provincia</option>
-              {PROVINCES.map((p) => (
-                <option key={p.code} value={p.code}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-            {error("delivery.provinceCode")}
-          </label>
-          {delivery.branchProvince ? (
+          {metodos.length === 1 ? <h3 className="font-semibold">{etiqueta("BRANCH", options).titulo}</h3> : null}
+          {porCP ? (
+            <label className="fo-field-stack">
+              <span className="fo-label">Código postal donde querés retirar</span>
+              <input
+                inputMode="numeric"
+                autoComplete="postal-code"
+                maxLength={8}
+                placeholder="Ej. 2000"
+                className="fo-input max-w-[12rem] text-base"
+                value={delivery.branchPostalCode}
+                onChange={(e) => escribirCPSucursal(e.target.value)}
+                {...aria("delivery.postalCode")}
+              />
+              <span className="text-xs text-[var(--fo-muted)]">Te mostramos las sucursales de Andreani de ese código postal.</span>
+              {error("delivery.postalCode")}
+              {error("delivery.provinceCode")}
+            </label>
+          ) : (
+            <label className="fo-field-stack">
+              <span className="fo-label">Provincia</span>
+              <select
+                className="fo-input text-base"
+                value={delivery.branchProvince}
+                onChange={(e) => elegirProvinciaSucursal(e.target.value)}
+                {...aria("delivery.provinceCode")}
+              >
+                <option value="">Elegí la provincia</option>
+                {PROVINCES.map((p) => (
+                  <option key={p.code} value={p.code}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+              {error("delivery.provinceCode")}
+            </label>
+          )}
+          {claveBusqueda ? (
             buscando || !listaActual ? (
               <p className="text-sm text-[var(--fo-muted)]" role="status">
                 Buscando sucursales…
@@ -338,7 +385,9 @@ export function DeliverySection({
               </p>
             ) : listaActual.list.length === 0 ? (
               <p className="text-sm text-[var(--fo-muted)]">
-                No encontramos sucursales en esa provincia. Probá con otra forma de entrega.
+                {porCP
+                  ? "No encontramos sucursales de Andreani en ese código postal. Probá con uno cercano o con otra forma de entrega."
+                  : "No encontramos sucursales en esa provincia. Probá con otra forma de entrega."}
               </p>
             ) : (
               <label className="fo-field-stack">
@@ -373,7 +422,9 @@ export function DeliverySection({
             <p className="text-[var(--fo-muted)]">
               {delivery.method === "HOME"
                 ? "Completá la provincia y el código postal para calcular el envío."
-                : "Elegí la provincia y la sucursal para calcular el envío."}
+                : porCP
+                  ? "Escribí el código postal y elegí la sucursal para calcular el envío."
+                  : "Elegí la provincia y la sucursal para calcular el envío."}
             </p>
           ) : null}
           {quote.status === "ok" ? (

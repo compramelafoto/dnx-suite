@@ -25,8 +25,9 @@ export function deliveryTermsParagraphs(
     const sede = [pickupAddress, pickupHours].filter(Boolean).join(", ");
     formas.push(`retiro en la sede${sede ? ` (${sede})` : ""}, sin costo`);
   }
-  if (options.home) formas.push("envío a domicilio");
-  if (options.branch) formas.push("envío a una sucursal de Correo Argentino");
+  const andreani = options.carrier === "ANDREANI";
+  if (options.home) formas.push(andreani ? "envío a domicilio por Andreani" : "envío a domicilio");
+  if (options.branch) formas.push(andreani ? "envío a una sucursal de Andreani" : "envío a una sucursal de Correo Argentino");
 
   const parrafos = [
     `Podés recibir tu pedido por ${enumerar(formas)}. La forma de entrega se elige al finalizar la compra.`,

@@ -206,3 +206,52 @@ describe("publicAgencies", () => {
     ]);
   });
 });
+
+describe("Andreani en el checkout", () => {
+  const row = {
+    pickupEnabled: true,
+    homeDeliveryEnabled: true,
+    branchDeliveryEnabled: true,
+    source: "ANDREANI",
+    tableAsFallback: false,
+    handlingNote: null,
+  };
+
+  it("con la conexión activa ofrece domicilio y sucursal, y marca el correo", () => {
+    expect(deliveryOptionsFromSettings(row, true, { branchContract: true })).toEqual({
+      pickup: true,
+      home: true,
+      branch: true,
+      handlingNote: null,
+      carrier: "ANDREANI",
+    });
+  });
+
+  it("sin contrato de sucursal no ofrece sucursal", () => {
+    expect(deliveryOptionsFromSettings(row, true, { branchContract: false })).toMatchObject({ home: true, branch: false });
+  });
+
+  it("desconectado: sucursal nunca; domicilio sólo con la tabla de respaldo", () => {
+    expect(deliveryOptionsFromSettings(row, false, { branchContract: true })).toMatchObject({ home: false, branch: false });
+    expect(deliveryOptionsFromSettings({ ...row, tableAsFallback: true }, false, { branchContract: true })).toMatchObject({
+      home: true,
+      branch: false,
+    });
+  });
+
+  it("cotizar a sucursal sin provincia (se busca por CP); domicilio sigue pidiéndola", () => {
+    expect(parseQuoteRequest({ method: "BRANCH", postalCode: "5000", provinceCode: "", lines })).toEqual({
+      ok: true,
+      value: { method: "BRANCH", postalCode: "5000", provinceCode: "", lines },
+    });
+    expect(parseQuoteRequest({ method: "BRANCH", postalCode: "5000", lines }).ok).toBe(true);
+    expect(parseQuoteRequest({ method: "HOME", postalCode: "5000", provinceCode: "", lines })).toEqual({
+      ok: false,
+      message: "Elegí la provincia.",
+    });
+    expect(parseQuoteRequest({ method: "BRANCH", postalCode: "5000", provinceCode: "Ñ", lines })).toEqual({
+      ok: false,
+      message: "Elegí la provincia.",
+    });
+  });
+});

@@ -37,7 +37,8 @@ import { quoteShipping, type QuoteShippingItem, type ShippingQuote } from "./shi
  *
  * Con envío, el precio del envío también: se vuelve a cotizar acá (E10), ANTES de abrir la
  * transacción (cotizar puede ir a la red de Correo y no se hace con el stock bloqueado). De una
- * sucursal, del navegador sólo se usa el id: nombre, dirección y CP salen de la lista de Correo.
+ * sucursal, del navegador sólo se usa el id: nombre, dirección y CP salen de la lista del correo
+ * (Correo Argentino por provincia, Andreani por código postal).
  *
  * Obras de concursos (etapa 3, O9): del navegador sólo valen qué obra, qué formato y cuántas
  * copias. Se validan con las reglas de la vidriera (publicada, de un concurso vinculado, con el
@@ -291,12 +292,19 @@ async function resolverEnvio(
         },
       };
     } else {
-      const lista = await loadAgenciesForOrder({ workspaceId, provinceCode: delivery.provinceCode });
-      // Correo caído no es "la sucursal no existe": no se le pide que elija otra.
+      // La lista se vuelve a pedir con lo mismo que buscó el comprador: la provincia (Correo) o
+      // el CP (Andreani). Cuál vale lo decide la fuente guardada, no el navegador.
+      const lista = await loadAgenciesForOrder({
+        workspaceId,
+        provinceCode: delivery.provinceCode,
+        ...(delivery.postalCode ? { postalCode: delivery.postalCode } : {}),
+      });
+      // El correo caído no es "la sucursal no existe": no se le pide que elija otra.
       if (!lista.ok) return { ok: false, error: noSePudoCotizar(ofreceRetiro) };
       const sucursal = lista.agencies.find((s) => s.id === delivery.agency.id);
       if (!sucursal) return { ok: false, error: SUCURSAL_NO_DISPONIBLE };
-      destino = { postalCode: sucursal.postalCode, provinceCode: delivery.provinceCode };
+      // Se cotiza al CP de la sucursal (dato del correo). La provincia sólo la usa Correo.
+      destino = { postalCode: sucursal.postalCode, provinceCode: delivery.provinceCode ?? "" };
       lugar = {
         shippingAgencyJson: {
           id: sucursal.id,

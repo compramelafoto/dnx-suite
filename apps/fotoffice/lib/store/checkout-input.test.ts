@@ -202,6 +202,17 @@ describe("parseCheckoutInput: entrega", () => {
     expect(errs({ ...ok(), delivery: { ...s, provinceCode: "Ñ" } })["delivery.provinceCode"]).toBeTruthy();
   });
 
+  it("sucursal de Andreani: se buscó por código postal, sin provincia", () => {
+    const agency = { id: "101", name: "Rosario Centro", address: "Sarmiento 1100" };
+    const r = parseCheckoutInput({ ...ok(), delivery: { method: "BRANCH", postalCode: " s2000abc ", agency } });
+    expect(r.ok && r.value.delivery).toEqual({ method: "BRANCH", provinceCode: null, postalCode: "2000", agency });
+    const conVacia = parseCheckoutInput({ ...ok(), delivery: { method: "BRANCH", provinceCode: "", postalCode: "2000", agency } });
+    expect(conVacia.ok && conVacia.value.delivery).toEqual({ method: "BRANCH", provinceCode: null, postalCode: "2000", agency });
+    expect(errs({ ...ok(), delivery: { method: "BRANCH", postalCode: "abc", agency } })["delivery.postalCode"]).toBeTruthy();
+    // Sin provincia ni CP no hay búsqueda posible.
+    expect(errs({ ...ok(), delivery: { method: "BRANCH", agency } })).toEqual({ "delivery.provinceCode": "Elegí la provincia." });
+  });
+
   it("método desconocido", () => {
     expect(errs({ ...ok(), delivery: { method: "DRONE" } })["delivery.method"]).toBeTruthy();
     expect(errs({ ...ok(), delivery: "HOME" })["delivery.method"]).toBeTruthy();

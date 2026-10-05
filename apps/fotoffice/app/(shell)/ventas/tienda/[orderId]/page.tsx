@@ -7,7 +7,7 @@ import { artworkProductionInfo, canDownloadOriginal } from "@/lib/store/artworks
 import { STORE_ORDER_STATUS_LABELS } from "@/lib/store/constants";
 import { cancelNeedsNote, loadStoreOrderDetail, staffTargets } from "@/lib/store/order-admin";
 import { orderQuoteSummary, orderShippingView } from "@/lib/store/shipping/order-destination";
-import { trackingUrl } from "@/lib/store/shipping/tracking";
+import { trackingCarrierName, trackingUrl } from "@/lib/store/shipping/tracking";
 import { DownloadOriginalButton } from "./download-original-button";
 import { OrderActions } from "./order-actions";
 
@@ -199,7 +199,7 @@ export default async function PedidoOnlinePage({ params }: { params: Promise<{ o
                       <>
                         {" · "}
                         <a href={enlaceSeguimiento} target="_blank" rel="noopener noreferrer" className="underline">
-                          Seguir en Correo Argentino
+                          Seguir en {trackingCarrierName(pedido.shippingSource) ?? "el correo"}
                         </a>
                       </>
                     ) : null}

@@ -10,7 +10,7 @@ import { keptReturnParams, storeOrderCookieName, storeVisibleBase } from "@/lib/
 import { findStoreOrderForPage, tokenOpensOrder, type StoreOrderPageRow } from "@/lib/store/order-page";
 import { loadOpenStore, loadStoreWorkspace } from "@/lib/store/repository";
 import { orderShippingView } from "@/lib/store/shipping/order-destination";
-import { trackingUrl } from "@/lib/store/shipping/tracking";
+import { trackingCarrierName, trackingUrl } from "@/lib/store/shipping/tracking";
 import { hostWithoutPort } from "@/lib/website/domain/normalize";
 import { Price } from "@/components/store/price";
 import { ClearCartWhenPaid, RetryPaymentButton } from "./order-client";
@@ -228,7 +228,7 @@ function EstadoDelPedido({
                 <>
                   {" · "}
                   <a href={enlace} target="_blank" rel="noopener noreferrer" className="underline">
-                    Seguilo en Correo Argentino
+                    Seguilo en {trackingCarrierName(pedido.shippingSource) ?? "el correo"}
                   </a>
                 </>
               ) : null}

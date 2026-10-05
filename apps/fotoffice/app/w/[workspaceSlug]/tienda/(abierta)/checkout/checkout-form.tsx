@@ -72,6 +72,7 @@ export function CheckoutForm({
     homeProvince: "",
     homePostalCode: "",
     branchProvince: "",
+    branchPostalCode: "",
     agency: null,
   }));
   // Productos y obras van al mismo pedido y al mismo envío (la obra pesa lo de su formato).
@@ -119,6 +120,8 @@ export function CheckoutForm({
       entrega = {
         method: "BRANCH",
         provinceCode: delivery.branchProvince,
+        // Con Andreani la sucursal se buscó por CP: el servidor la vuelve a buscar con éste.
+        postalCode: delivery.branchPostalCode,
         agency: delivery.agency
           ? { id: delivery.agency.id, name: delivery.agency.name, address: delivery.agency.address }
           : null,
