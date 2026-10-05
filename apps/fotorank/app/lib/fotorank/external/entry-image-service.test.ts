@@ -4,6 +4,7 @@ import sharp from "sharp";
 
 import { signEntryImageUrl } from "./entry-image-signing";
 import { serveEntryImage, type EntryImageRecord, type EntryImageDeps } from "./entry-image-service";
+import { buildWatermarkOverlay, watermarkFontPath, watermarkText } from "./entry-image-watermark";
 
 const SECRET = "secreto-de-prueba-de-la-ruta";
 const AHORA = new Date("2026-10-05T12:00:00Z");
@@ -63,7 +64,7 @@ test("preview: usa el JURY_PREVIEW, achica a 1600 px, JPEG sin metadatos y con m
   const { d, leidas } = deps({ "k/jury": jury, "k/original": await imagenDePrueba(10, 10) });
   const r = await serveEntryImage(query({ variant: "preview", wm: "Muestra · Sociedad Fotográfica" }), d);
   assert.equal(r.ok, true);
-  if (!r.ok) return;
+  if (!r.ok || r.kind !== "bytes") return assert.fail("esperaba bytes");
   assert.deepEqual(leidas, ["k/jury"]);
   assert.equal(r.headers["Content-Type"], "image/jpeg");
   assert.equal(r.headers["Cache-Control"], "private, max-age=300");
@@ -77,15 +78,33 @@ test("preview: usa el JURY_PREVIEW, achica a 1600 px, JPEG sin metadatos y con m
   assert.ok(stats.channels[0]!.stdev > 3, `stdev ${stats.channels[0]!.stdev}`);
 });
 
-test("preview sin marca de agua no dibuja nada", async () => {
-  const { d } = deps({ "k/jury": await imagenDePrueba(800, 600) });
-  const r = await serveEntryImage(query({ variant: "preview" }), d);
-  assert.equal(r.ok, true);
-  if (!r.ok) return;
-  const meta = await sharp(r.body).metadata();
-  assert.equal(meta.width, 800); // no agranda
-  const stats = await sharp(r.body).stats();
-  assert.ok(stats.channels[0]!.stdev < 3);
+test("preview sin marca utilizable (vacía, espacios o sólo caracteres no aptos): 404", async () => {
+  const { d, leidas } = deps({ "k/jury": await imagenDePrueba(800, 600) });
+  for (const wm of [undefined, "", "   ", "\u{1F600}\u{1F4F7}"]) {
+    assert.deepEqual(await serveEntryImage(query({ variant: "preview", wm }), d), { ok: false }, String(wm));
+  }
+  assert.deepEqual(leidas, []);
+});
+
+test("la marca se dibuja con el archivo de fuente del repo (Pango + fontfile), con tildes", async () => {
+  assert.match(watermarkFontPath(), /assets\/fonts\/Roboto-Regular\.ttf$/);
+  assert.equal(watermarkText("  Muestra · Sociedad  Fotográfica | Ñandú 😀 "), "Muestra · Sociedad Fotográfica | Ñandú");
+  const capa = await buildWatermarkOverlay("Muestra · Sociedad Fotográfica", 1600, 1066);
+  const meta = await sharp(capa).metadata();
+  assert.equal(meta.hasAlpha, true);
+  assert.equal(meta.width, 1600);
+  assert.equal(meta.height, 1066);
+  // La marca cubre toda la imagen: hay texto en cada cuadrante.
+  const { data, info } = await sharp(capa).raw().toBuffer({ resolveWithObject: true });
+  const porCuadrante = [0, 0, 0, 0];
+  for (let y = 0; y < info.height; y++) {
+    for (let x = 0; x < info.width; x++) {
+      if (data[(y * info.width + x) * info.channels + 3]! > 0) {
+        porCuadrante[(y < info.height / 2 ? 0 : 2) + (x < info.width / 2 ? 0 : 1)]!++;
+      }
+    }
+  }
+  for (const n of porCuadrante) assert.ok(n > 2000, `píxeles por cuadrante: ${porCuadrante.join(",")}`);
 });
 
 test("preview: sin JURY_PREVIEW usa el ORIGINAL", async () => {
@@ -100,7 +119,7 @@ test("original: bytes intactos, descarga con el número de obra y sin caché", a
   const { d } = deps({ "k/original": original });
   const r = await serveEntryImage(query({ variant: "original" }), d);
   assert.equal(r.ok, true);
-  if (!r.ok) return;
+  if (!r.ok || r.kind !== "bytes") return assert.fail("esperaba bytes");
   assert.ok(r.body.equals(original));
   assert.equal(r.headers["Content-Type"], "image/jpeg");
   assert.equal(r.headers["Cache-Control"], "private, no-store");
@@ -114,26 +133,56 @@ test("original sin número de obra usa el id y la extensión guardada", async ()
   );
   const r = await serveEntryImage(query({ variant: "original" }), d);
   assert.equal(r.ok, true);
-  if (!r.ok) return;
+  if (!r.ok || r.kind !== "bytes") return assert.fail("esperaba bytes");
   assert.equal(r.headers["Content-Disposition"], 'attachment; filename="entry-1.tif"');
   assert.equal(r.headers["Content-Type"], "image/tiff");
+});
+
+test("original con storage que firma descargas: redirección a un enlace de 120 s, sin leer bytes", async () => {
+  const pedidos: unknown[] = [];
+  const { d, leidas } = deps({}, registro(), {
+    async presignDownload(key, opts) {
+      pedidos.push({ key, ...opts });
+      return "https://r2.example/firmado";
+    },
+  });
+  const r = await serveEntryImage(query({ variant: "original" }), d);
+  assert.deepEqual(r, {
+    ok: true,
+    kind: "redirect",
+    location: "https://r2.example/firmado",
+    headers: { "Cache-Control": "private, no-store" },
+  });
+  assert.deepEqual(pedidos, [
+    { key: "k/original", fileName: "SFE-E-000123.jpg", contentType: "image/jpeg", expiresInSeconds: 120 },
+  ]);
+  assert.deepEqual(leidas, []);
+});
+
+test("si firmar la descarga falla: 404", async () => {
+  const { d } = deps({}, registro(), {
+    async presignDownload() {
+      throw new Error("R2 caído");
+    },
+  });
+  assert.deepEqual(await serveEntryImage(query({ variant: "original" }), d), { ok: false });
 });
 
 test("cualquier falla es un 404 genérico", async () => {
   const objetos = { "k/jury": await imagenDePrueba(100, 100), "k/original": await imagenDePrueba(100, 100) };
   const casos: [string, URLSearchParams, EntryImageDeps][] = [
-    ["sin secreto", query({ variant: "preview" }), deps(objetos, registro(), { secret: undefined }).d],
-    ["secreto vacío", query({ variant: "preview" }), deps(objetos, registro(), { secret: "" }).d],
-    ["firma de otro secreto", query({ variant: "preview", secret: "otro" }), deps(objetos).d],
-    ["vencida", query({ variant: "preview", expiresAt: new Date(AHORA.getTime() - 1000) }), deps(objetos).d],
-    ["obra inexistente", query({ variant: "preview", entryId: "otra" }), deps(objetos).d],
+    ["sin secreto", query({ variant: "preview", wm: "Muestra" }), deps(objetos, registro(), { secret: undefined }).d],
+    ["secreto vacío", query({ variant: "preview", wm: "Muestra" }), deps(objetos, registro(), { secret: "" }).d],
+    ["firma de otro secreto", query({ variant: "preview", wm: "Muestra", secret: "otro" }), deps(objetos).d],
+    ["vencida", query({ variant: "preview", wm: "Muestra", expiresAt: new Date(AHORA.getTime() - 1000) }), deps(objetos).d],
+    ["obra inexistente", query({ variant: "preview", wm: "Muestra", entryId: "otra" }), deps(objetos).d],
     ["retirada", query({ variant: "original" }), deps(objetos, registro({ status: "WITHDRAWN" })).d],
-    ["rechazada", query({ variant: "preview" }), deps(objetos, registro({ status: "REJECTED" })).d],
-    ["retirada con fecha", query({ variant: "preview" }), deps(objetos, registro({ withdrawnAt: new Date() })).d],
+    ["rechazada", query({ variant: "preview", wm: "Muestra" }), deps(objetos, registro({ status: "REJECTED" })).d],
+    ["retirada con fecha", query({ variant: "preview", wm: "Muestra" }), deps(objetos, registro({ withdrawnAt: new Date() })).d],
     ["sin original", query({ variant: "original" }), deps(objetos, registro({ original: null })).d],
-    ["sin ningún archivo", query({ variant: "preview" }), deps(objetos, registro({ original: null, juryPreview: null })).d],
-    ["storage falla", query({ variant: "preview" }), deps({}).d],
-    ["no es imagen", query({ variant: "preview" }), deps({ "k/jury": Buffer.from("basura") }).d],
+    ["sin ningún archivo", query({ variant: "preview", wm: "Muestra" }), deps(objetos, registro({ original: null, juryPreview: null })).d],
+    ["storage falla", query({ variant: "preview", wm: "Muestra" }), deps({}).d],
+    ["no es imagen", query({ variant: "preview", wm: "Muestra" }), deps({ "k/jury": Buffer.from("basura") }).d],
   ];
   for (const [nombre, q, d] of casos) {
     const r = await serveEntryImage(q, d);
@@ -146,7 +195,7 @@ test("parámetro alterado después de firmar: 404", async () => {
   const q = query({ variant: "preview", wm: "Muestra" });
   q.set("wm", "");
   assert.deepEqual(await serveEntryImage(q, d), { ok: false });
-  const q2 = query({ variant: "preview" });
+  const q2 = query({ variant: "preview", wm: "Muestra" });
   q2.set("variant", "original");
   assert.deepEqual(await serveEntryImage(q2, d), { ok: false });
 });

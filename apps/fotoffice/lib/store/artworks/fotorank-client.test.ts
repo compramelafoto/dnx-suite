@@ -36,10 +36,10 @@ afterEach(() => {
 });
 
 describe("enlaces firmados a FotoRank", () => {
-  it("preview: firmado, 10 minutos, con la marca de agua, contra fotorank.com por omisión", () => {
+  it("preview: firmado, 10 minutos, con la marca de agua, contra el dominio canónico por omisión", () => {
     const url = buildPreviewUrl("entry-1", "Muestra · SFPR", { now: AHORA });
     const p = params(url);
-    expect(p.origin).toBe("https://fotorank.com");
+    expect(p.origin).toBe("https://fotorank.dnxsuite.com");
     expect(p.path).toBe("/api/fotorank/external/entry-image");
     expect(p.variant).toBe("preview");
     expect(p.wm).toBe("Muestra · SFPR");
@@ -52,9 +52,9 @@ describe("enlaces firmados a FotoRank", () => {
   });
 
   it("original: sin marca de agua y con la base configurada", () => {
-    vi.stubEnv("FOTORANK_PUBLIC_BASE_URL", "https://fotorank.dnxsuite.com/");
+    vi.stubEnv("FOTORANK_PUBLIC_BASE_URL", "https://fotorank.example/");
     const p = params(buildOriginalUrl("entry-1", { now: AHORA }));
-    expect(p.origin).toBe("https://fotorank.dnxsuite.com");
+    expect(p.origin).toBe("https://fotorank.example");
     expect(p.variant).toBe("original");
     expect(p.wm).toBe("");
     expect(verifyEntryImageSignature(p, SECRET, AHORA)).toEqual({ ok: true });
@@ -64,6 +64,14 @@ describe("enlaces firmados a FotoRank", () => {
     const p = params(buildPreviewUrl("entry-1", "Foto | Club", { now: AHORA }));
     expect(p.wm).toBe("Foto - Club");
     expect(verifyEntryImageSignature(p, SECRET, AHORA)).toEqual({ ok: true });
+  });
+
+  it("marca vacía o sin caracteres dibujables, o entryId con «|»: BAD_PARAMS tipado", () => {
+    for (const wm of ["", "   ", "\u200B", "\u{1F600}"]) {
+      expect(() => buildPreviewUrl("entry-1", wm)).toThrow(expect.objectContaining({ code: "BAD_PARAMS" }));
+    }
+    expect(() => buildOriginalUrl("a|b")).toThrow(expect.objectContaining({ code: "BAD_PARAMS" }));
+    expect(() => buildPreviewUrl("a|b", "Muestra")).toThrow(ArtworkImageError);
   });
 
   it("sin secreto: ARTWORKS_NOT_CONFIGURED", () => {
@@ -82,7 +90,10 @@ describe("fetchPreview", () => {
     const llamadas: string[] = [];
     const fetchFalso = vi.fn(async (url: string | URL | Request) => {
       llamadas.push(String(url));
-      return new Response(new Uint8Array([1, 2, 3]), { status: 200, headers: { "Content-Type": "image/jpeg" } });
+      return new Response(new Uint8Array([1, 2, 3]), {
+        status: 200,
+        headers: { "Content-Type": "image/jpeg; charset=binary" },
+      });
     });
     const buf = await fetchPreview("entry-1", "Muestra", { fetch: fetchFalso as unknown as typeof fetch, now: AHORA });
     expect(Buffer.isBuffer(buf)).toBe(true);
@@ -90,10 +101,14 @@ describe("fetchPreview", () => {
     expect(params(llamadas[0]!).variant).toBe("preview");
   });
 
-  it("404, cuerpo vacío o error de red: FETCH_FAILED", async () => {
+  it("404, otro tipo, demasiado grande, cuerpo vacío o error de red: FETCH_FAILED", async () => {
+    const jpeg = { "Content-Type": "image/jpeg" };
     const casos = [
       async () => new Response("Not found", { status: 404 }),
-      async () => new Response(new Uint8Array([]), { status: 200 }),
+      async () => new Response("<html>", { status: 200, headers: { "Content-Type": "text/html" } }),
+      async () => new Response(new Uint8Array([1]), { status: 200, headers: { ...jpeg, "Content-Length": String(11 * 1024 * 1024) } }),
+      async () => new Response(new Uint8Array(10 * 1024 * 1024 + 1), { status: 200, headers: jpeg }),
+      async () => new Response(new Uint8Array([]), { status: 200, headers: jpeg }),
       async () => {
         throw new Error("red caída");
       },

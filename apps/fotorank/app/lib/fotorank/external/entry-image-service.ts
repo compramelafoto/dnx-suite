@@ -8,12 +8,16 @@
  * Cualquier falla devuelve `{ ok: false }` sin detalle: la ruta responde 404 y no deja
  * saber si la obra existe.
  *
+ * El original puede pesar 25 MB y Vercel corta las respuestas en 4,5 MB: si el storage sabe
+ * firmar una descarga directa (R2), se responde con una redirección a un enlace de 120 s;
+ * si no (storage local, en desarrollo), se devuelven los bytes.
+ *
  * Base y storage entran inyectados para poder probarlo sin red ni base.
  */
 import sharp from "sharp";
 
 import { verifyEntryImageSignature } from "./entry-image-signing";
-import { buildWatermarkSvg } from "./entry-image-watermark";
+import { buildWatermarkOverlay, watermarkText } from "./entry-image-watermark";
 
 export type EntryImageRecord = {
   entryId: string;
@@ -31,14 +35,21 @@ export type EntryImageDeps = {
   now: Date;
   loadEntry(entryId: string): Promise<EntryImageRecord | null>;
   readObject(key: string): Promise<Uint8Array>;
+  /** Enlace directo y temporal de descarga (R2). Sin esto, el original se sirve en bytes. */
+  presignDownload?(
+    key: string,
+    opts: { fileName: string; contentType: string; expiresInSeconds: number },
+  ): Promise<string>;
 };
 
 export type EntryImageResult =
-  | { ok: true; body: Buffer; headers: Record<string, string> }
+  | { ok: true; kind: "bytes"; body: Buffer; headers: Record<string, string> }
+  | { ok: true; kind: "redirect"; location: string; headers: Record<string, string> }
   | { ok: false };
 
 const NO = { ok: false } as const;
 const LADO_MAYOR_PREVIEW = 1600;
+export const ORIGINAL_LINK_TTL_SECONDS = 120;
 const ESTADOS_EXCLUIDOS = new Set(["WITHDRAWN", "REJECTED"]);
 
 /** Sólo caracteres seguros para el nombre del archivo descargado. */
@@ -54,7 +65,9 @@ function extensionDe(original: NonNullable<EntryImageRecord["original"]>): strin
   return "jpg";
 }
 
+/** JPEG de 1600 px con la marca en diagonal. Tira error si la marca no se puede dibujar. */
 export async function renderWatermarkedPreview(input: Uint8Array, watermark: string): Promise<Buffer> {
+  if (!watermarkText(watermark)) throw new Error("Marca de agua vacía.");
   const achicada = await sharp(input, { failOn: "none" })
     .rotate()
     .resize({ width: LADO_MAYOR_PREVIEW, height: LADO_MAYOR_PREVIEW, fit: "inside", withoutEnlargement: true })
@@ -63,11 +76,14 @@ export async function renderWatermarkedPreview(input: Uint8Array, watermark: str
     .raw()
     .toBuffer({ resolveWithObject: true });
   const { width, height, channels } = achicada.info;
-  let img = sharp(achicada.data, { raw: { width, height, channels } });
-  const svg = buildWatermarkSvg(watermark, width, height);
-  if (svg) img = img.composite([{ input: Buffer.from(svg), top: 0, left: 0 }]);
+
+  const marca = await buildWatermarkOverlay(watermark, width, height);
+
   // Sin `withMetadata`: sharp no copia EXIF/IPTC/XMP al JPEG de salida.
-  return img.jpeg({ quality: 82, mozjpeg: true }).toBuffer();
+  return sharp(achicada.data, { raw: { width, height, channels } })
+    .composite([{ input: marca, top: 0, left: 0 }])
+    .jpeg({ quality: 82, mozjpeg: true })
+    .toBuffer();
 }
 
 export async function serveEntryImage(query: URLSearchParams, deps: EntryImageDeps): Promise<EntryImageResult> {
@@ -82,20 +98,32 @@ export async function serveEntryImage(query: URLSearchParams, deps: EntryImageDe
 
     const v = verifyEntryImageSignature({ entryId, variant, exp, wm, sig }, deps.secret, deps.now);
     if (!v.ok) return NO;
+    // La vista previa siempre lleva marca: sin texto utilizable no hay imagen.
+    if (variant === "preview" && !watermarkText(wm)) return NO;
 
     const rec = await deps.loadEntry(entryId);
     if (!rec || ESTADOS_EXCLUIDOS.has(rec.status) || rec.withdrawnAt) return NO;
 
     if (variant === "original") {
       if (!rec.original) return NO;
+      const fileName = `${nombreSeguro(rec.entryNumber || rec.entryId)}.${extensionDe(rec.original)}`;
+      const contentType = rec.original.mimeType || "application/octet-stream";
+      if (deps.presignDownload) {
+        const location = await deps.presignDownload(rec.original.storageKey, {
+          fileName,
+          contentType,
+          expiresInSeconds: ORIGINAL_LINK_TTL_SECONDS,
+        });
+        return { ok: true, kind: "redirect", location, headers: { "Cache-Control": "private, no-store" } };
+      }
       const bytes = Buffer.from(await deps.readObject(rec.original.storageKey));
-      const nombre = `${nombreSeguro(rec.entryNumber || rec.entryId)}.${extensionDe(rec.original)}`;
       return {
         ok: true,
+        kind: "bytes",
         body: bytes,
         headers: {
-          "Content-Type": rec.original.mimeType || "application/octet-stream",
-          "Content-Disposition": `attachment; filename="${nombre}"`,
+          "Content-Type": contentType,
+          "Content-Disposition": `attachment; filename="${fileName}"`,
           "Cache-Control": "private, no-store",
         },
       };
@@ -106,6 +134,7 @@ export async function serveEntryImage(query: URLSearchParams, deps: EntryImageDe
     const body = await renderWatermarkedPreview(await deps.readObject(fuente), wm);
     return {
       ok: true,
+      kind: "bytes",
       body,
       headers: { "Content-Type": "image/jpeg", "Cache-Control": "private, max-age=300" },
     };

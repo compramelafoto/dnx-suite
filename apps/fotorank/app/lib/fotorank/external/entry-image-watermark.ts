@@ -1,20 +1,21 @@
 /**
  * Marca de agua de la vista previa que FotoRank le entrega a FOTOFFICE: el texto firmado
- * (`wm`, p. ej. "Muestra - Sociedad Fotográfica") repetido en diagonal, semitransparente.
+ * (`wm`, p. ej. "Muestra · Sociedad Fotográfica") repetido en diagonal, semitransparente.
  *
- * El SVG lo rasteriza sharp (librsvg). En Vercel no hay fuentes del sistema: sin una fuente
- * embebida el texto sale vacío o en cuadraditos. Por eso se embebe Roboto (`assets/fonts`,
- * la misma que usa CompraMeLaFoto) como `@font-face` en base64 y el texto se reduce a ASCII
- * imprimible (el archivo de la fuente es un subconjunto). La ruta incluye el archivo en el
- * paquete de la función con `outputFileTracingIncludes` (next.config.ts).
+ * El texto lo dibuja sharp con Pango (`sharp({ text })`) usando **el archivo de fuente del
+ * repo** (`assets/fonts/Roboto-Regular.ttf`, vía `fontfile`): en Vercel no hay fuentes del
+ * sistema, y librsvg ignora `@font-face` dentro de un SVG, así que un `<text>` en SVG puede
+ * salir vacío. La ruta incluye el archivo en el paquete de la función con
+ * `outputFileTracingIncludes` (next.config.ts).
  *
- * Si no se encuentra la fuente se lanza un error: mejor no servir la vista previa que
- * servirla sin marca de agua.
+ * **Falla cerrada:** si no hay texto utilizable, no se encuentra la fuente o el texto
+ * dibujado no tiene píxeles visibles, se lanza un error (la ruta responde 404). Nunca se
+ * sirve una vista previa sin marca.
  */
 import fs from "node:fs";
 import path from "node:path";
+import sharp from "sharp";
 
-const FAMILIA = "FotorankWatermark";
 const ARCHIVO = path.join("assets", "fonts", "Roboto-Regular.ttf");
 /** `process.cwd()` es apps/fotorank en Next y en Vercel; los tests corren desde packages/db. */
 const CANDIDATOS = [
@@ -23,37 +24,39 @@ const CANDIDATOS = [
   path.join(process.cwd(), "..", "..", "apps", "fotorank", ARCHIVO),
 ];
 
-let fuenteBase64: string | null = null;
+let rutaFuente: string | null = null;
 
-function fuente(): string {
-  if (fuenteBase64) return fuenteBase64;
+export function watermarkFontPath(): string {
+  if (rutaFuente) return rutaFuente;
   for (const ruta of CANDIDATOS) {
-    try {
-      const buf = fs.readFileSync(ruta);
-      if (buf.length > 12) {
-        fuenteBase64 = buf.toString("base64");
-        return fuenteBase64;
-      }
-    } catch {
-      /* siguiente */
+    if (fs.existsSync(ruta)) {
+      rutaFuente = ruta;
+      return ruta;
     }
   }
   throw new Error("Falta la fuente de la marca de agua (assets/fonts/Roboto-Regular.ttf).");
 }
 
-/** ASCII imprimible: saca tildes y cambia separadores tipográficos por "-". */
-export function watermarkAscii(text: string): string {
-  return text
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[•·▪►–—]/g, "-")
-    .replace(/[^\x20-\x7E]/g, "")
+/**
+ * Texto apto para la marca: NFC, sólo ASCII imprimible, Latin-1 (tildes, ñ, ·) y guiones
+ * tipográficos; espacios colapsados; hasta 80 caracteres. Vacío = no hay marca posible.
+ */
+function esDibujable(c: string): boolean {
+  const n = c.codePointAt(0) ?? 0;
+  return (n >= 0x20 && n <= 0x7e) || (n >= 0xa0 && n <= 0xff) || n === 0x2013 || n === 0x2014;
+}
+
+export function watermarkText(text: string): string {
+  return Array.from(text.normalize("NFC"))
+    .filter(esDibujable)
+    .join("")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 80);
 }
 
-export function escapeXml(s: string): string {
+/** Escapa para el markup de Pango (mismas entidades que XML). */
+export function escapeMarkup(s: string): string {
   return s
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -62,31 +65,90 @@ export function escapeXml(s: string): string {
     .replace(/'/g, "&apos;");
 }
 
-/** SVG del tamaño de la imagen con el texto en mosaico diagonal; `null` si no hay texto. */
-export function buildWatermarkSvg(text: string, width: number, height: number): string | null {
-  const limpio = watermarkAscii(text);
-  if (!limpio) return null;
+const OPACIDAD_TEXTO = 0.42;
+const OPACIDAD_SOMBRA = 0.25;
+/** Mínimo de píxeles con alfa para dar por dibujado el texto. */
+const MIN_PIXELES_VISIBLES = 20;
+
+/**
+ * Capa RGBA de exactamente `width`×`height`: el texto (blanco con sombra oscura) en filas
+ * corridas en ladrillo, giradas −30°, que cubren toda la imagen.
+ */
+export async function buildWatermarkOverlay(text: string, width: number, height: number): Promise<Buffer> {
+  const limpio = watermarkText(text);
+  if (!limpio) throw new Error("Marca de agua vacía.");
   const tam = Math.max(14, Math.round(Math.min(width, height) / 22));
-  // Ancho aproximado del texto en Roboto (~0,5 em por carácter) más un respiro.
-  const ancho = Math.round(limpio.length * tam * 0.5 + tam * 2);
-  const fila = Math.round(tam * 2.8);
-  const t = escapeXml(limpio);
-  const trazo = Math.max(1, Math.round(tam / 24));
-  const texto = (x: number, y: number) =>
-    `<text x="${x}" y="${y}" font-family="'${FAMILIA}', sans-serif" font-size="${tam}" fill="#ffffff" fill-opacity="0.38" stroke="#000000" stroke-opacity="0.22" stroke-width="${trazo}">${t}</text>`;
-  // Celda de dos filas en ladrillo: la segunda va corrida media celda (y su mitad cortada se
-  // completa con la copia de la izquierda), así no quedan franjas vacías.
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-<defs>
-<style type="text/css"><![CDATA[
-@font-face { font-family: '${FAMILIA}'; src: url('data:font/truetype;charset=utf-8;base64,${fuente()}') format('truetype'); }
-]]></style>
-<pattern id="wm" patternUnits="userSpaceOnUse" width="${ancho}" height="${fila * 2}" patternTransform="rotate(-30)">
-${texto(0, tam)}
-${texto(Math.round(ancho / 2), fila + tam)}
-${texto(-Math.round(ancho / 2), fila + tam)}
-</pattern>
-</defs>
-<rect x="0" y="0" width="${width}" height="${height}" fill="url(#wm)"/>
-</svg>`;
+
+  const glifos = await sharp({
+    text: {
+      text: escapeMarkup(limpio),
+      font: `Roboto ${tam}px`,
+      fontfile: watermarkFontPath(),
+      rgba: true,
+      dpi: 72,
+    },
+  })
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const { width: tw, height: th } = glifos.info;
+  const alfa = new Uint8Array(tw * th);
+  let visibles = 0;
+  for (let i = 0; i < tw * th; i++) {
+    const a = glifos.data[i * 4 + 3]!;
+    alfa[i] = a;
+    if (a > 32) visibles++;
+  }
+  if (visibles < MIN_PIXELES_VISIBLES) throw new Error("La marca de agua no se dibujó.");
+
+  // Texto blanco y sombra negra a partir del mismo alfa, con su opacidad ya aplicada.
+  const capa = (rgb: number, opacidad: number) => {
+    const out = Buffer.alloc(tw * th * 4);
+    for (let i = 0; i < tw * th; i++) {
+      out[i * 4] = rgb;
+      out[i * 4 + 1] = rgb;
+      out[i * 4 + 2] = rgb;
+      out[i * 4 + 3] = Math.round(alfa[i]! * opacidad);
+    }
+    return { input: out, raw: { width: tw, height: th, channels: 4 as const } };
+  };
+  const sombra = capa(0, OPACIDAD_SOMBRA);
+  const blanco = capa(255, OPACIDAD_TEXTO);
+  const desplazamiento = Math.max(1, Math.round(tam / 16));
+
+  // Lienzo cuadrado del tamaño de la diagonal (más una celda), así al girarlo y recortar
+  // el centro no quedan esquinas vacías.
+  const paso = tw + tam * 3;
+  const fila = Math.round(th * 2.6);
+  const lado = Math.ceil(Math.hypot(width, height)) + paso;
+  const capas: sharp.OverlayOptions[] = [];
+  for (let y = 0, n = 0; y + th + desplazamiento <= lado; y += fila, n++) {
+    for (let x = n % 2 === 0 ? 0 : Math.round(paso / 2); x + tw + desplazamiento <= lado; x += paso) {
+      capas.push({ ...sombra, left: x + desplazamiento, top: y + desplazamiento });
+      capas.push({ ...blanco, left: x, top: y });
+    }
+  }
+  const lienzo = await sharp({
+    create: { width: lado, height: lado, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+  })
+    .composite(capas)
+    .png()
+    .toBuffer();
+
+  const girado = await sharp(lienzo)
+    .rotate(-30, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const gw = girado.info.width;
+  const gh = girado.info.height;
+  return sharp(girado.data, { raw: { width: gw, height: gh, channels: 4 } })
+    .extract({
+      left: Math.floor((gw - width) / 2),
+      top: Math.floor((gh - height) / 2),
+      width,
+      height,
+    })
+    .png()
+    .toBuffer();
 }
