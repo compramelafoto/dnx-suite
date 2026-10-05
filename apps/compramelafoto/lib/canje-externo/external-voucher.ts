@@ -58,9 +58,14 @@ export type ExternalVoucherLookup =
   | { ok: true; voucher: ExternalVoucher }
   | { ok: false; error: "invalid" | "expired" | "revoked" | "other_album" };
 
+/**
+ * `albumId` se exige cuando el pedido llega desde una galería concreta (cotizar, comprar):
+ * un link de otro álbum no tiene que aplicar crédito ahí. La página de canje lo omite,
+ * porque es el link el que dice de qué álbum es.
+ */
 export async function loadExternalVoucherByToken(
   token: string,
-  albumId: number
+  albumId?: number
 ): Promise<ExternalVoucherLookup> {
   const lookup = await getOrderIdForPackAccessToken(token);
   if (!lookup.ok) {
@@ -81,7 +86,7 @@ export async function loadExternalVoucherByToken(
   if (!order || !refs || order.origin !== "PREVENTA_PACK" || order.status !== "PAID") {
     return { ok: false, error: "invalid" };
   }
-  if (order.albumId !== albumId) return { ok: false, error: "other_album" };
+  if (albumId != null && order.albumId !== albumId) return { ok: false, error: "other_album" };
 
   let redeemed = false;
   if (order.redemptionOrderId != null) {
