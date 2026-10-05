@@ -9,6 +9,7 @@ import { SALES_MODULE_KEY } from "@/lib/sales/constants";
 import { STORE_MODULE_KEY } from "@/lib/store/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
+import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
 import {
   BOOKINGS_CONFIGURE_ACTION,
   CASH_CONFIGURE_ACTION,
@@ -208,6 +209,33 @@ const SORTEOS: SubmoduleItem[] = [
     icon: "PackageCheck",
     description: "Los premios ganados que todavía hay que avisar o entregar.",
     requiresManage: false,
+    activeMatch: "under",
+  },
+];
+
+const GOBIERNO: SubmoduleItem[] = [
+  {
+    href: "/gobierno",
+    label: "Proyectos",
+    icon: "FolderKanban",
+    description: "Cada proyecto con sus etapas, tareas, archivos e historial, ordenados por urgencia.",
+    requiresManage: false,
+    activeMatch: "rest",
+  },
+  {
+    href: "/gobierno/tareas",
+    label: "Tareas",
+    icon: "ListTodo",
+    description: "Todas las tareas delegadas: quién tiene qué, para cuándo y qué está vencido.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
+    href: "/gobierno/tipos",
+    label: "Tipos de proyecto",
+    icon: "LayoutTemplate",
+    description: "Las plantillas de etapas y tareas con que arranca cada proyecto nuevo.",
+    requiresManage: true,
     activeMatch: "under",
   },
 ];
@@ -413,6 +441,7 @@ const POR_MODULO: Record<string, SubmoduleItem[]> = {
   [COURSES_SALES_MODULE_KEY]: CURSOS,
   [BOOKINGS_MODULE_KEY]: RESERVAS,
   [RAFFLES_MODULE_KEY]: SORTEOS,
+  [GOVERNANCE_MODULE_KEY]: GOBIERNO,
   [CASH_MODULE_KEY]: CAJA,
   [CLIENTS_MODULE_KEY]: CLIENTES,
   [COVERAGES_MODULE_KEY]: COBERTURAS,
