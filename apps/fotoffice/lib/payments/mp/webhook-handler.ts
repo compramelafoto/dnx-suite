@@ -68,6 +68,9 @@ export async function handleMercadoPagoWebhook(request: Request, origen: string)
         throw error;
       }
       const r = await syncMpPayment(workspaceId, hechos);
+      // El token pudo leer el pago, pero lo que nombra no es de esta institución (dos
+      // instituciones con la misma cuenta de Mercado Pago): se sigue probando.
+      if (r.module === "unknown" && r.action === "referencia desconocida") continue;
       return NextResponse.json({ ok: true, ...r });
     }
     return NextResponse.json({ ok: true, applied: false, motivo: "ninguna institución reconoce el pago" });
