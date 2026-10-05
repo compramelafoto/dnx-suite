@@ -14,9 +14,11 @@ export async function ensureDefaultProjectTypes(workspaceId: string): Promise<vo
   const existentes = await prisma.govProjectType.count({ where: { workspaceId } });
   if (existentes > 0) return;
   try {
-    await prisma.$transaction(async (tx) => {
-      for (const [i, plantilla] of DEFAULT_PROJECT_TEMPLATES.entries()) {
-        await tx.govProjectType.create({
+    // Lote y no transacción interactiva: cada tipo con sus etapas y tareas es un solo INSERT
+    // anidado, y el lote los aplica todos o ninguno sin el límite de 5 s de las interactivas.
+    await prisma.$transaction(
+      DEFAULT_PROJECT_TEMPLATES.map((plantilla, i) =>
+        prisma.govProjectType.create({
           data: {
             workspaceId,
             name: plantilla.name,
@@ -25,9 +27,9 @@ export async function ensureDefaultProjectTypes(workspaceId: string): Promise<vo
             order: i,
             stages: { create: stagesCreateInput(plantilla.stages) },
           },
-        });
-      }
-    });
+        }),
+      ),
+    );
   } catch (e) {
     // Dos pestañas abiertas a la vez: la otra ya sembró. El nombre es único por institución.
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return;

@@ -135,7 +135,7 @@ export async function createProjectAction(fd: FormData): Promise<void> {
       data: { initialStatus: v.initialStatus, type: tipo?.name ?? null },
     });
     return p;
-  });
+  }, { timeout: 20_000 });
 
   revalidatePath(LISTA);
   redirect(detalle(proyecto.id));
@@ -598,7 +598,7 @@ export async function registerProjectFilesAction(input: { projectId: string; fil
       actor: actorLabel(user),
       verificados: v.verificados,
     });
-  });
+  }, { timeout: 20_000 });
   revalidatePath(detalle(proyecto.id));
   return { ok: true };
 }
@@ -642,7 +642,7 @@ export async function addTaskProgressAction(input: {
       actor: actorLabel(user),
       verificados: v.verificados,
     });
-  });
+  }, { timeout: 20_000 });
   revalidatePath(tarea(actual.project.id, actual.id));
   revalidatePath(detalle(actual.project.id));
   return { ok: true };
