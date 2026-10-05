@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { requireStoreConfigurer } from "@/lib/store/access";
 import { OrganizationLinksSection } from "./organization-links-section";
@@ -18,6 +19,12 @@ export default async function TiendaObrasPage() {
         title="Obras"
         description="Vendé copias impresas y cuadros de las obras de tus concursos de FotoRank, con permiso de cada autor y pagándole una regalía."
       />
+
+      <p className="text-sm">
+        <Link href="/ventas/tienda/obras/formatos" className="underline">
+          Formatos de impresión y calidad mínima →
+        </Link>
+      </p>
 
       <OrganizationLinksSection userId={user.id} workspaceId={workspace.id} />
     </div>
