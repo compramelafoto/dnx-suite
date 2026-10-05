@@ -107,7 +107,9 @@ export async function pedirReventaAction(courseId: string, _prev: EstadoFormular
   if (!curso) return { error: "Curso no encontrado.", ok: null };
 
   const pedidoBps = porcentajeABps(formData.get("porcentaje")?.toString());
-  const descuentoBps = porcentajeABps(formData.get("descuento")?.toString()) ?? 0;
+  const textoDescuento = formData.get("descuento")?.toString().trim() ?? "";
+  const descuentoBps = textoDescuento === "" ? 0 : porcentajeABps(textoDescuento);
+  if (descuentoBps === null) return { error: "El descuento para tus socios no es un porcentaje válido (por ejemplo 10 o 7,5).", ok: null };
   const previo = curso.resaleAgreements[0] ?? null;
   const errores = validarPedidoDeReventa({
     pedidoBps,
@@ -136,8 +138,13 @@ export async function pedirReventaAction(courseId: string, _prev: EstadoFormular
   };
   try {
     // Un acuerdo rechazado o terminado se reabre en la misma fila: un curso, un acuerdo por institución.
-    if (previo) await prisma.courseResaleAgreement.update({ where: { id: previo.id }, data });
-    else await prisma.courseResaleAgreement.create({ data: { courseId: curso.id, resellerWorkspaceId: ctx.workspace.id, ...data } });
+    if (previo) {
+      const { count } = await prisma.courseResaleAgreement.updateMany({
+        where: { id: previo.id, status: { in: ["RECHAZADO", "TERMINADO"] } },
+        data,
+      });
+      if (count === 0) return { error: "Ya tenés un acuerdo para este curso. Lo ves en tus acuerdos.", ok: null };
+    } else await prisma.courseResaleAgreement.create({ data: { courseId: curso.id, resellerWorkspaceId: ctx.workspace.id, ...data } });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       return { error: "Ya tenés un acuerdo para este curso. Lo ves en tus acuerdos.", ok: null };
@@ -184,7 +191,15 @@ export async function cambiarEstadoDeReventaAction(agreementId: string, accion: 
       status: true,
       pausedByWorkspaceId: true,
       resellerWorkspaceId: true,
-      course: { select: { id: true, title: true, workspaceId: true } },
+      course: {
+        select: {
+          id: true,
+          title: true,
+          workspaceId: true,
+          offeredToResellers: true,
+          beneficiaries: { select: { workspaceId: true } },
+        },
+      },
     },
   });
   const lado: LadoReventa | null = !acuerdo
@@ -200,6 +215,16 @@ export async function cambiarEstadoDeReventaAction(agreementId: string, accion: 
     acuerdo.pausedByWorkspaceId === null ? null : acuerdo.pausedByWorkspaceId === acuerdo.course.workspaceId ? "DUENO" : "REVENDEDOR";
   const r = aplicarAccion({ status: acuerdo.status as EstadoReventa, pausadoPor }, accion, lado);
   if (!r.ok) redirect(`${RUTA_ACUERDOS}?r=${r.codigo}`);
+
+  // Entre el pedido y la respuesta el curso pudo dejar de ofrecerse o el revendedor pasar a cobrar como beneficiario.
+  if (accion === "APROBAR" || accion === "REANUDAR") {
+    if (!acuerdo.course.offeredToResellers) {
+      redirect(`${RUTA_ACUERDOS}?r=curso-no-ofrecido`);
+    }
+    if (acuerdo.course.beneficiaries.some((b) => b.workspaceId === acuerdo.resellerWorkspaceId)) {
+      redirect(`${RUTA_ACUERDOS}?r=ya-es-beneficiario`);
+    }
+  }
 
   const ahora = new Date();
   // Atómico: sólo cambia si el estado sigue siendo el que se leyó (doble clic, los dos lados a la vez).
@@ -242,9 +267,17 @@ export async function cambiarDescuentoDeReventaAction(agreementId: string, formD
     select: { id: true, shareBps: true, status: true },
   });
   if (!acuerdo || !ESTADOS_VIGENTES.includes(acuerdo.status as EstadoReventa)) redirect(`${RUTA_ACUERDOS}?r=no-encontrado`);
-  const descuentoBps = porcentajeABps(formData.get("descuento")?.toString()) ?? 0;
-  if (validarDescuentoDeSocios(descuentoBps, acuerdo.shareBps).length > 0) redirect(`${RUTA_ACUERDOS}?r=descuento-invalido`);
-  await prisma.courseResaleAgreement.update({ where: { id: acuerdo.id }, data: { memberDiscountBps: descuentoBps } });
+  const textoDescuento = formData.get("descuento")?.toString().trim() ?? "";
+  const descuentoBps = textoDescuento === "" ? 0 : porcentajeABps(textoDescuento);
+  if (descuentoBps === null || validarDescuentoDeSocios(descuentoBps, acuerdo.shareBps).length > 0) {
+    redirect(`${RUTA_ACUERDOS}?r=descuento-invalido`);
+  }
+  // Guardado contra un cambio de % en el medio: si cambió, el tope de arriba ya no vale.
+  const { count } = await prisma.courseResaleAgreement.updateMany({
+    where: { id: acuerdo.id, resellerWorkspaceId: ctx.workspace.id, shareBps: acuerdo.shareBps, status: { in: ["PENDIENTE", "ACTIVO", "PAUSADO"] } },
+    data: { memberDiscountBps: descuentoBps },
+  });
+  if (count === 0) redirect(`${RUTA_ACUERDOS}?r=descuento-reintentar`);
   revalidatePath(RUTA_ACUERDOS);
   redirect(`${RUTA_ACUERDOS}?r=descuento`);
 }
