@@ -11,6 +11,8 @@ import type { IncidentsPort, JobHealth, QueueHealth } from "@repo/ops-daily-repo
 import { loadPlatformHealthSnapshot } from "@/lib/admin/platform-health";
 
 const MS_PER_HOUR = 60 * 60 * 1000;
+const ZIP_FAILED_WINDOW_HOURS = 24;
+const ZIP_STUCK_WINDOW_HOURS = 7 * 24;
 
 export function createPrismaIncidentsPort(client: PrismaClient): IncidentsPort {
   return {
@@ -83,14 +85,39 @@ export function createPrismaIncidentsPort(client: PrismaClient): IncidentsPort {
     },
 
     async jobHealth(): Promise<JobHealth[]> {
-      const health = await loadPlatformHealthSnapshot();
+      const now = Date.now();
+
+      // El panel de salud cuenta los ZIP fallidos y trabados de toda la
+      // historia. En un informe diario eso es ruido: el 03/10 marcaba 131
+      // fallas, todas de febrero a junio (118 de un mismo minuto del 17/03).
+      // Acá sólo cuenta lo que pasó en la ventana del informe. Un pedido
+      // pagado que se quedó sin su ZIP no se pierde: lo sigue mostrando
+      // `unreconciledPaidOrders`.
+      const [health, zipFailed, zipStuck] = await Promise.all([
+        loadPlatformHealthSnapshot(),
+        client.zipGenerationJob.count({
+          where: {
+            status: "FAILED",
+            updatedAt: { gte: new Date(now - ZIP_FAILED_WINDOW_HOURS * MS_PER_HOUR) },
+          },
+        }),
+        client.zipGenerationJob.count({
+          where: {
+            status: "PROCESSING",
+            startedAt: {
+              lte: new Date(now - MS_PER_HOUR),
+              gte: new Date(now - ZIP_STUCK_WINDOW_HOURS * MS_PER_HOUR),
+            },
+          },
+        }),
+      ]);
 
       return [
         {
           label: "Generación de ZIP",
           pending: health.zip.byStatus.PENDING ?? 0,
-          failed: health.zip.byStatus.FAILED ?? 0,
-          stuck: health.zip.stuckOver1h,
+          failed: zipFailed,
+          stuck: zipStuck,
           oldestPendingAt: null,
         },
         {
