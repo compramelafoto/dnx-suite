@@ -1,6 +1,6 @@
 name: Chequeos
 
-# Chequea tipos y corre las pruebas de CompraMeLaFoto y Clickatón antes de mergear.
+# Chequea tipos y corre las pruebas de CompraMeLaFoto, Clickatón y FOTOFFICE antes de mergear.
 #
 # Por qué existe: el chequeo de tipos lo hacía `next build` en la máquina de
 # Vercel, y ahí se quedaba sin memoria y mataba el deploy — la app tiene 250
@@ -59,6 +59,18 @@ jobs:
         run: pnpm --filter clickaton check-types
         env:
           NODE_OPTIONS: --max-old-space-size=8192
+
+      # FOTOFFICE, lo mismo: el 05/10/2026 su build en Vercel se quedó sin memoria en el paso de
+      # tipos (PR #368) y se apagó allá (`typescript.ignoreBuildErrors` en su next.config.ts).
+      # Sus pruebas incluyen archivos de test en el chequeo de tipos (`tsconfig` toma `**/*.ts`):
+      # un error en un test frena el merge igual que uno en una pantalla.
+      - name: Chequear tipos de FOTOFFICE
+        run: pnpm --filter fotoffice typecheck
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+
+      - name: Pruebas de FOTOFFICE
+        run: pnpm --filter fotoffice test
 
       - name: Pruebas del Ensayo de edición
         run: pnpm --filter clickaton selfcheck:edition-rehearsal
