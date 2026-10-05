@@ -13,6 +13,7 @@ import { SALES_MODULE_KEY } from "@/lib/sales/constants";
 import { STORE_MODULE_KEY } from "@/lib/store/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
+import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
 
 /**
  * Catálogo central de módulos de FotoOffice.
@@ -216,12 +217,14 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     status: "AVAILABLE",
   },
   {
-    key: "governance",
-    label: "Gobierno institucional",
-    description: "Actas, votaciones y resoluciones institucionales.",
+    key: GOVERNANCE_MODULE_KEY,
+    label: "Proyectos de la comisión",
+    description:
+      "Los proyectos de la comisión directiva: etapas, tareas delegadas con responsable y fecha, archivos e historial de todo lo que pasó.",
     category: "INSTITUTIONAL",
     order: 120,
-    status: "PLANNED",
+    route: "/gobierno",
+    status: "AVAILABLE",
   },
   {
     key: "exhibitions",

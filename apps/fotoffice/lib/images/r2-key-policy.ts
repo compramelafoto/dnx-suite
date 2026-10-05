@@ -30,6 +30,11 @@ export const FOTOFFICE_R2_PREFIXES = {
   memberPortfolioPhoto: "fotoffice/member-portfolio",
   /** Fotos que el socio sube sólo para su placa de Socio de la semana («Más sobre mí»). */
   memberFeaturedPhoto: "fotoffice/member-featured",
+  /**
+   * Archivos de proyectos de la comisión (Gobierno): cualquier tipo, privados. Nunca se muestran
+   * por la dirección pública: se descargan por una ruta que verifica permiso y firma la URL.
+   */
+  governanceFile: "fotoffice/governance",
 } as const;
 
 export const FOTOFFICE_R2_DELETABLE_PREFIXES = Object.values(FOTOFFICE_R2_PREFIXES).map(

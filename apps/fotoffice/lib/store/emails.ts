@@ -138,7 +138,7 @@ async function enviar(
       });
       return;
     }
-    await sendAndLogEmail({ to, templateKey, body: render(datos.order, datos) });
+    await sendAndLogEmail({ workspaceId: input.workspaceId, to, templateKey, body: render(datos.order, datos) });
   } catch (error) {
     console.error("[fotoffice][tienda] no se pudo armar un correo", {
       templateKey,
