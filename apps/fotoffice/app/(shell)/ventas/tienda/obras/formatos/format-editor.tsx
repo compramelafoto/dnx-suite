@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import {
   deletePrintFormatAction,
   movePrintFormatAction,
@@ -32,6 +32,7 @@ function FormatForm({ formato, onDone }: { formato: PrintFormatView | null; onDo
   const [resultado, setResultado] = useState<FormatsActionResult | null>(null);
   const [pendiente, startTransition] = useTransition();
   const f = formato;
+  const uid = useId();
   return (
     <form
       onSubmit={(e) => {
@@ -53,35 +54,35 @@ function FormatForm({ formato, onDone }: { formato: PrintFormatView | null; onDo
       {f ? <input type="hidden" name="id" value={f.id} /> : null}
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="fo-field-stack">
-          <label className="fo-label">Nombre</label>
-          <input name="name" className="fo-input" defaultValue={f?.name ?? ""} placeholder="Copia 20x30" required maxLength={80} />
+          <label className="fo-label" htmlFor={`${uid}-name`}>Nombre</label>
+          <input id={`${uid}-name`} name="name" className="fo-input" defaultValue={f?.name ?? ""} placeholder="Copia 20x30" required maxLength={80} />
         </div>
         <div className="fo-field-stack">
-          <label className="fo-label">Tipo</label>
-          <select name="kind" className="fo-input" defaultValue={f?.kind ?? "PRINT"}>
+          <label className="fo-label" htmlFor={`${uid}-kind`}>Tipo</label>
+          <select id={`${uid}-kind`} name="kind" className="fo-input" defaultValue={f?.kind ?? "PRINT"}>
             <option value="PRINT">Impresión</option>
             <option value="FRAME">Cuadro</option>
           </select>
         </div>
         <div className="fo-field-stack">
-          <label className="fo-label">Ancho (cm)</label>
-          <input name="widthCm" type="number" min={5} max={200} step={1} className="fo-input" defaultValue={f?.widthCm ?? ""} required />
+          <label className="fo-label" htmlFor={`${uid}-widthCm`}>Ancho (cm)</label>
+          <input id={`${uid}-widthCm`} name="widthCm" type="number" min={5} max={200} step={1} className="fo-input" defaultValue={f?.widthCm ?? ""} required />
         </div>
         <div className="fo-field-stack">
-          <label className="fo-label">Alto (cm)</label>
-          <input name="heightCm" type="number" min={5} max={200} step={1} className="fo-input" defaultValue={f?.heightCm ?? ""} required />
+          <label className="fo-label" htmlFor={`${uid}-heightCm`}>Alto (cm)</label>
+          <input id={`${uid}-heightCm`} name="heightCm" type="number" min={5} max={200} step={1} className="fo-input" defaultValue={f?.heightCm ?? ""} required />
         </div>
         <div className="fo-field-stack">
-          <label className="fo-label">Precio de venta ($)</label>
-          <input name="price" inputMode="decimal" className="fo-input" defaultValue={f?.price ?? ""} placeholder="12500" required />
+          <label className="fo-label" htmlFor={`${uid}-price`}>Precio de venta ($)</label>
+          <input id={`${uid}-price`} name="price" inputMode="decimal" className="fo-input" defaultValue={f?.price ?? ""} placeholder="12500" required />
         </div>
         <div className="fo-field-stack">
-          <label className="fo-label">Costo ($, opcional)</label>
-          <input name="cost" inputMode="decimal" className="fo-input" defaultValue={f?.cost ?? ""} placeholder="4000" />
+          <label className="fo-label" htmlFor={`${uid}-cost`}>Costo ($, opcional)</label>
+          <input id={`${uid}-cost`} name="cost" inputMode="decimal" className="fo-input" defaultValue={f?.cost ?? ""} placeholder="4000" />
         </div>
         <div className="fo-field-stack">
-          <label className="fo-label">Peso (gramos, opcional)</label>
-          <input name="weightGrams" type="number" min={1} max={30000} step={1} className="fo-input" defaultValue={f?.weightGrams ?? ""} />
+          <label className="fo-label" htmlFor={`${uid}-weightGrams`}>Peso (gramos, opcional)</label>
+          <input id={`${uid}-weightGrams`} name="weightGrams" type="number" min={1} max={30000} step={1} className="fo-input" defaultValue={f?.weightGrams ?? ""} />
           <p className="fo-helper">Si lo dejás vacío, el envío usa el peso por defecto de la configuración de envíos.</p>
         </div>
       </div>

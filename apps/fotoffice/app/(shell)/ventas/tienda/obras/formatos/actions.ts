@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
 import { requireStoreConfigurer } from "@/lib/store/access";
 import { minorToDecimalString } from "@/lib/membership/money";
+import { deleteOrDeactivatePrintFormat } from "@/lib/store/artworks/format-delete";
 import { parseMinDpi, parsePrintFormatForm } from "@/lib/store/artworks/format-form";
 
 /**
@@ -72,20 +73,15 @@ export async function deletePrintFormatAction(formatId: string): Promise<Formats
   const { workspace } = await requireStoreConfigurer();
   const id = idDe(formatId);
   if (!id) return { ok: false, error: "Falta el formato." };
-  const formato = await prisma.printFormat.findFirst({ where: { id, workspaceId: workspace.id }, select: { id: true } });
-  if (!formato) return { ok: false, error: "No encontramos ese formato." };
-
-  const usos = await prisma.storeOrderItem.count({ where: { printFormatId: id } });
-  if (usos > 0) {
-    await prisma.printFormat.updateMany({ where: { id, workspaceId: workspace.id }, data: { isActive: false } });
-    revalidatePath(RUTA);
+  const resultado = await deleteOrDeactivatePrintFormat(workspace.id, id);
+  if (resultado === "not_found") return { ok: false, error: "No encontramos ese formato." };
+  revalidatePath(RUTA);
+  if (resultado === "deactivated") {
     return {
       ok: true,
       message: "Este formato ya se usó en pedidos, así que no se puede borrar. Lo dejamos desactivado.",
     };
   }
-  await prisma.printFormat.deleteMany({ where: { id, workspaceId: workspace.id } });
-  revalidatePath(RUTA);
   return { ok: true, message: "Formato borrado." };
 }
 
