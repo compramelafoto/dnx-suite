@@ -92,7 +92,9 @@ del CRM como ya quedó en la etapa 2):
    - con cuenta que ya tiene forma de entrar (contraseña o Google): "Tu curso ya está en tu
      portal", con botón a `/portal/cursos`;
    - con cuenta nueva o sin contraseña: "Bienvenido", con botón **Crear mi contraseña** (enlace de
-     `PasswordResetToken` a `/recuperar/<token>`) y la alternativa de entrar con Google;
+     `PasswordResetToken` a `/recuperar/<token>`, creado desde FOTOFFICE con **7 días** de validez:
+     el de `requestPasswordReset` vence en una hora y manda su propio correo) y la alternativa de
+     entrar con Google;
    - en los dos, si no es socio de esa institución y Asociarse está publicado, una línea "Hacete
      socio de <institución>".
 
@@ -110,8 +112,9 @@ reenvío de la etapa 2, que desaparece).
 
 El portal reconoce dos tipos de persona:
 
-- **Socio**: tiene `Member` `ACTIVE`. Ve el portal de siempre y, si tiene algún curso, el ítem
-  **Mis cursos** en el menú.
+- **Socio**: tiene `Member` `ACTIVE`. Ve el portal de siempre, con la sección **Cursos** del menú
+  encendida cuando la institución tiene el módulo de cursos (ya existía como "Próximamente"): el
+  socio tiene que encontrar los cursos gratis antes de tener uno.
 - **Alumno**: no es socio activo, pero tiene al menos un acceso que vale, o una inscripción
   aprobada a un curso grabado. Ve sólo **Mis cursos** y **Hacete socio**.
 
