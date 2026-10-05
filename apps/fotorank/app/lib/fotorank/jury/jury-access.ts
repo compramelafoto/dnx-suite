@@ -56,7 +56,7 @@ async function consignasSegunLaVacante(input: {
     }),
     input.db.fotorankJurySeatPromptOverride.findMany({
       where: { scoringSessionId: sesion.id },
-      select: { seatNumber: true, promptExternalId: true },
+      select: { seatNumber: true, promptExternalId: true, quita: true },
     }),
   ]);
 

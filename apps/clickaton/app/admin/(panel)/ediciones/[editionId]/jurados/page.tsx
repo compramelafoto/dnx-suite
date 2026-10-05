@@ -169,7 +169,7 @@ export default async function JuradosDeLaEdicionPage({
     ? await Promise.all([
         prisma.fotorankJurySeatPromptOverride.findMany({
           where: { scoringSessionId: sesion.id },
-          select: { seatNumber: true, promptExternalId: true },
+          select: { seatNumber: true, promptExternalId: true, quita: true },
         }),
         prisma.fotorankJuryEvaluation.count({
           where: { scoringSessionId: sesion.id, status: { in: ["SUBMITTED", "LOCKED"] } },

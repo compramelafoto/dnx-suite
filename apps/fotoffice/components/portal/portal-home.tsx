@@ -16,6 +16,7 @@ import { PortalAvatar } from "./portal-shell";
 import type { PortalRaffleView } from "@/lib/raffles/portal";
 import { fechaHora } from "@/lib/raffles/labels";
 import { PrizeCards } from "@/components/raffles/prize-cards";
+import { WhatsappGroupButton } from "@/components/brand/whatsapp-group-button";
 
 export type PortalHomeProps = {
   institution: string;
@@ -42,6 +43,8 @@ export type PortalHomeProps = {
   tieneNegocio: boolean;
   /** El sorteo abierto, si hay uno y el módulo está prendido. */
   sorteo: PortalRaffleView | null;
+  /** El grupo de WhatsApp de los socios, si la institución cargó uno. */
+  whatsappGroupUrl?: string | null;
 };
 
 /**
@@ -64,6 +67,7 @@ export function PortalHome({
   puedeCambiarPerfil,
   tieneNegocio,
   sorteo,
+  whatsappGroupUrl,
 }: PortalHomeProps) {
   const cuotasPendientes = cuenta.charges.filter((c) => !isOpeningBalance(c.period));
   const alDia = cuenta.charges.length === 0;
@@ -105,6 +109,22 @@ export function PortalHome({
           )}
         </div>
       </div>
+
+      {/*
+        El grupo va arriba de todo: es lo primero que busca quien recién se asocia, y quien ya
+        está en el grupo lo pasa de largo sin costo.
+      */}
+      {whatsappGroupUrl ? (
+        <div className="fo-card flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between md:p-5">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-[var(--fo-text)]">{`El grupo de ${v.plural} de ${institution}`}</p>
+            <p className="text-sm text-[var(--fo-muted)]">
+              {`Novedades, convocatorias y charlas entre ${v.plural}, en WhatsApp.`}
+            </p>
+          </div>
+          <WhatsappGroupButton href={whatsappGroupUrl} className="shrink-0" />
+        </div>
+      ) : null}
 
       {/*
         Identidad antes que trámite: lo primero que ve el socio es que la institución sabe quién

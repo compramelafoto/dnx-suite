@@ -5,6 +5,7 @@ import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
+import { SALES_MODULE_KEY } from "@/lib/sales/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
 import {
@@ -309,6 +310,41 @@ const COBERTURAS: SubmoduleItem[] = [
   },
 ];
 
+const VENTAS: SubmoduleItem[] = [
+  {
+    href: "/ventas",
+    label: "Mostrador",
+    icon: "ShoppingCart",
+    description: "Buscá, sumá al ticket y cobrá.",
+    requiresManage: false,
+    activeMatch: "rest",
+  },
+  {
+    href: "/ventas/catalogo",
+    label: "Catálogo",
+    icon: "Package",
+    description: "Los productos y servicios, con su precio, su costo y su foto.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
+    href: "/ventas/stock",
+    label: "Stock",
+    icon: "Boxes",
+    description: "Qué queda, qué entró y qué hay que reponer.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
+    href: "/ventas/historial",
+    label: "Ventas hechas",
+    icon: "ReceiptText",
+    description: "Lo vendido, con su detalle y su anulación.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+];
+
 const COMUNICACION: SubmoduleItem[] = [
   {
     href: "/comunicacion/placas",
@@ -336,6 +372,7 @@ const POR_MODULO: Record<string, SubmoduleItem[]> = {
   [CASH_MODULE_KEY]: CAJA,
   [CLIENTS_MODULE_KEY]: CLIENTES,
   [COVERAGES_MODULE_KEY]: COBERTURAS,
+  [SALES_MODULE_KEY]: VENTAS,
   [COMMUNICATIONS_MODULE_KEY]: COMUNICACION,
 };
 

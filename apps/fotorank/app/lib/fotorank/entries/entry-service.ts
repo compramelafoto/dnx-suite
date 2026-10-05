@@ -389,7 +389,7 @@ export async function processStagedUpload(input: {
 
   if (buffer.length === 0) {
     await storage.deleteObject(key).catch(() => null);
-    throw new EntryError("INVALID_FILE", "El archivo llegó vacío. Reintentá el envío.", 400);
+    throw emptyFileError();
   }
   // Redundante con `headObject` cuando el adapter lo implementa; obligatorio
   // cuando no, porque entonces este es el único control de peso.
@@ -415,7 +415,15 @@ export async function processStagedUpload(input: {
   }
 }
 
-export async function processUploadedFile(input: {
+function emptyFileError() {
+  return new EntryError(
+    "EMPTY_FILE",
+    "La foto llegó vacía. Volvé a elegirla desde tu galería y enviala de nuevo.",
+    400,
+  );
+}
+
+type ProcessUploadInput = {
   contestId: string;
   entryId: string;
   participantUserId: number;
@@ -424,14 +432,32 @@ export async function processUploadedFile(input: {
   declaredMime: string;
   isReplace?: boolean;
   eligibility?: EntryEligibilityFormInput | null;
-}): Promise<{
+};
+
+type ProcessUploadResult = {
   entryId: string;
   status: string;
   technicalSummaryStatus: string;
   versionNumber: number;
   checklistSummary: ReturnType<typeof summarizeChecklist>;
   warnings: string[];
-}> {
+};
+
+type UploadEntry = Prisma.FotorankContestEntryGetPayload<{
+  include: { registration: true; category: true; contest: true };
+}> & {
+  registration: NonNullable<Prisma.FotorankContestEntryGetPayload<{ include: { registration: true } }>["registration"]>;
+};
+
+export async function processUploadedFile(input: ProcessUploadInput): Promise<ProcessUploadResult> {
+  /**
+   * Un archivo de 0 bytes no es una foto rota: es una foto que nunca llegó
+   * (en iPhone el navegador pierde acceso al archivo elegido y manda el cuerpo
+   * vacío). Antes se procesaba igual, fallaban los controles bloqueantes y la
+   * obra quedaba “No admitida” sin que el participante supiera por qué.
+   */
+  if (input.buffer.length === 0) throw emptyFileError();
+
   const entry = await prisma.fotorankContestEntry.findUnique({
     where: { id: input.entryId },
     include: {
@@ -494,12 +520,42 @@ export async function processUploadedFile(input: {
     }
   }
 
+  /**
+   * PROCESSING es una marca transitoria mientras corre el pipeline. Si el
+   * pipeline corta antes de escribir el estado final —un error de validación,
+   * o la rama de idempotencia—, hay que devolver la obra a su estado anterior:
+   * si no, queda “procesando” para siempre y la tarjeta del participante
+   * ofrece “Continuar carga” sobre una obra que ya tiene veredicto.
+   */
+  const previousStatus = entry.status;
   await prisma.fotorankContestEntry.update({
     where: { id: entry.id },
     data: { status: "PROCESSING" },
   });
 
-  const ext = (input.originalFileName.split(".").pop() || "jpg").toLowerCase().replace(/^\./, "");
+  try {
+    const outcome = await runUploadPipeline({ ...entry, registration: entry.registration }, policy, input);
+    if (outcome.restoreStatus) {
+      await prisma.fotorankContestEntry.update({
+        where: { id: entry.id },
+        data: { status: previousStatus },
+      });
+    }
+    return outcome.result;
+  } catch (err) {
+    await prisma.fotorankContestEntry
+      .update({ where: { id: entry.id }, data: { status: previousStatus } })
+      .catch(() => null);
+    throw err;
+  }
+}
+
+async function runUploadPipeline(
+  entry: UploadEntry,
+  policy: ReturnType<typeof parseUploadPolicy>,
+  input: ProcessUploadInput,
+): Promise<{ result: ProcessUploadResult; restoreStatus: boolean }> {
+  const ext =(input.originalFileName.split(".").pop() || "jpg").toLowerCase().replace(/^\./, "");
   const mime = input.declaredMime || "application/octet-stream";
   // MIME real aproximado por magic bytes JPEG
   const isJpegMagic = input.buffer.length > 3 && input.buffer[0] === 0xff && input.buffer[1] === 0xd8;
@@ -522,12 +578,15 @@ export async function processUploadedFile(input: {
   if (existingSame && !input.isReplace) {
     const summary = (entry.technicalSummaryJson as ReturnType<typeof summarizeChecklist> | null) ?? summarizeChecklist([]);
     return {
-      entryId: entry.id,
-      status: entry.status,
-      technicalSummaryStatus: entry.technicalSummaryStatus,
-      versionNumber: existingSame.versionNumber,
-      checklistSummary: summary,
-      warnings: ["El archivo ya estaba cargado (idempotencia)."],
+      restoreStatus: true,
+      result: {
+        entryId: entry.id,
+        status: entry.status,
+        technicalSummaryStatus: entry.technicalSummaryStatus,
+        versionNumber: existingSame.versionNumber,
+        checklistSummary: summary,
+        warnings: ["El archivo ya estaba cargado (idempotencia)."],
+      },
     };
   }
 
@@ -989,12 +1048,15 @@ export async function processUploadedFile(input: {
   const warnings = checks.filter((c) => c.status === "WARNING" || c.status === "REQUIRES_REVIEW").map((c) => c.message);
 
   return {
-    entryId: entry.id,
-    status: result.updated.status,
-    technicalSummaryStatus: result.updated.technicalSummaryStatus,
-    versionNumber: result.versionNumber,
-    checklistSummary: summary,
-    warnings,
+    restoreStatus: false,
+    result: {
+      entryId: entry.id,
+      status: result.updated.status,
+      technicalSummaryStatus: result.updated.technicalSummaryStatus,
+      versionNumber: result.versionNumber,
+      checklistSummary: summary,
+      warnings,
+    },
   };
 }
 

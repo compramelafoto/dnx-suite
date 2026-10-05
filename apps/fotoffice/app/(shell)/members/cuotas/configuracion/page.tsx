@@ -9,7 +9,7 @@ import { getDuesSettings } from "@/lib/membership/settings";
 import { decimalArsToMinor, formatMinorArs } from "@/lib/membership/money";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { sendDuesReminders } from "@/lib/membership/dues-reminder";
-import { DuesSettingsForm, FeeValueForm, SendReminderButton } from "./forms";
+import { CommunityLinkForm, DuesSettingsForm, FeeValueForm, SendReminderButton } from "./forms";
 
 export const dynamic = "force-dynamic";
 /** El recordatorio manual sale de esta página: unos 100 correos con pausa entre uno y otro. */
@@ -141,6 +141,11 @@ export default async function ConfiguracionCuotasPage() {
           {previa.sorteo ? ` Incluye el sorteo «${previa.sorteo}».` : " No hay ningún sorteo anunciado para incluir."}
         </p>
         <SendReminderButton recipients={previa.enviados} />
+      </section>
+
+      <section className="fo-card space-y-3 p-5">
+        <h2 className="text-sm font-semibold">{`Grupo de WhatsApp de los ${vocab.plural}`}</h2>
+        <CommunityLinkForm defaultUrl={settings.communityWhatsappUrl} vocabulary={vocab} />
       </section>
 
       <section className="fo-card space-y-4 p-5">
