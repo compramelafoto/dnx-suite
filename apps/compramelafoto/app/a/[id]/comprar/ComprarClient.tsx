@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import CanjeComboBanner from "@/components/canje-externo/CanjeComboBanner";
 import { resolveAvailableFormats } from "@/lib/albums/available-formats";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import OrderItem from "@/components/order/OrderItem";
@@ -1503,6 +1504,11 @@ export default function ComprarClient() {
                 ? "Estás seleccionando las fotos incluidas en tu pack. No hay pago: al confirmar se registra el canje."
                 : "Elegí tamaño, acabado y cantidad para cada foto. El precio se calcula automáticamente."}
             </p>
+            {!redeemMode && Number.isFinite(Number(albumId)) ? (
+              <div className="w-full max-w-5xl mx-auto text-left">
+                <CanjeComboBanner albumId={Number(albumId)} />
+              </div>
+            ) : null}
             {!redeemMode && isFaceBulkCheckout && (
               <p
                 className="mb-4 w-full max-w-5xl mx-auto rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 text-left leading-normal"

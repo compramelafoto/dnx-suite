@@ -56,6 +56,73 @@ function parseExternalReferenceOrderId(externalRef: string | undefined): number 
  * Marca un pedido de álbum como PAID y dispara entrega digital, emails y efectos colaterales,
  * validando el pago en Mercado Pago. Usado por webhook y por reconciliación de pendientes.
  */
+/**
+ * Avisos y entregas de un pedido de álbum recién pagado: comprobante al comprador, entrega
+ * por WhatsApp, espejo de impresión en PAID y aviso al fotógrafo. Lo usa la aprobación de
+ * Mercado Pago y también el pedido que queda en $0 porque un combo pagado por fuera cubrió
+ * todo (`lib/canje-externo`): los dos tienen que avisar exactamente igual.
+ */
+export async function runAlbumOrderPaidSideEffects(params: {
+  orderId: number;
+  origin: OrderOrigin;
+  items: Array<{ productType: string }>;
+  /** Id de pago de Mercado Pago, o la referencia del canje cuando no hubo pago. */
+  paymentRef: string | null;
+}): Promise<void> {
+  const suppressClientDeliveryForPreventaPackOnly =
+    params.origin === OrderOrigin.PREVENTA_PACK && params.items.length === 0;
+  if (!suppressClientDeliveryForPreventaPackOnly) {
+    queueOrderConfirmationEmail(params.orderId).catch((err) =>
+      console.error("Error encolando email de confirmación de pedido:", err)
+    );
+    deliverOrderByWhatsApp(params.orderId).catch((err) =>
+      console.error("Error en entrega WhatsApp post-compra:", err)
+    );
+  }
+
+  const { hasDigitalItems, hasPrintItems: hasFulfillmentPrintItems } =
+    getAlbumOrderFulfillmentFromItems(params.items);
+
+  try {
+    const tag = `ALBUM_ORDER:${params.orderId}`;
+    await prisma.printOrder.updateMany({
+      where: { tags: { has: tag } },
+      data: {
+        paymentStatus: "PAID",
+        mpPaymentId: params.paymentRef,
+        statusUpdatedAt: new Date(),
+      },
+    });
+
+    if (!hasFulfillmentPrintItems) {
+      queuePhotographerOrderNotification(params.orderId).catch((err) =>
+        console.error("Error encolando email al fotógrafo (nuevo pedido):", err)
+      );
+    } else if (hasDigitalItems) {
+      // Mixto: un solo mail con contexto digital + impresión (no duplicar mail de PrintOrder)
+      queuePhotographerOrderNotification(params.orderId).catch((err) =>
+        console.error("Error encolando email al fotógrafo (pedido mixto álbum):", err)
+      );
+    } else {
+      const mirror = await prisma.printOrder.findFirst({
+        where: { tags: { has: tag } },
+        select: { id: true },
+      });
+      if (mirror?.id) {
+        queuePhotographerPrintOrderNotification(mirror.id).catch((err) =>
+          console.error("Error encolando email al fotógrafo (pedido impresión):", err)
+        );
+      } else {
+        queuePhotographerOrderNotification(params.orderId).catch((err) =>
+          console.error("Error encolando email al fotógrafo (nuevo pedido, sin espejo impresión):", err)
+        );
+      }
+    }
+  } catch (err: unknown) {
+    console.error("Error actualizando PrintOrder espejo (PAID):", err);
+  }
+}
+
 export async function finalizeAlbumOrderMercadoPagoApproved(
   orderId: number,
   paymentId: string,
@@ -379,58 +446,12 @@ export async function finalizeAlbumOrderMercadoPagoApproved(
     console.error("[event-organizer-commission] ensure_failed", err);
   }
 
-  const suppressClientDeliveryForPreventaPackOnly =
-    order.origin === OrderOrigin.PREVENTA_PACK && order.items.length === 0;
-  if (!suppressClientDeliveryForPreventaPackOnly) {
-    queueOrderConfirmationEmail(orderId).catch((err) =>
-      console.error("Error encolando email de confirmación de pedido:", err)
-    );
-    deliverOrderByWhatsApp(orderId).catch((err) =>
-      console.error("Error en entrega WhatsApp post-compra:", err)
-    );
-  }
-
-  const { hasDigitalItems, hasPrintItems: hasFulfillmentPrintItems } =
-    getAlbumOrderFulfillmentFromItems(order.items ?? []);
-
-  try {
-    const tag = `ALBUM_ORDER:${orderId}`;
-    await prisma.printOrder.updateMany({
-      where: { tags: { has: tag } },
-      data: {
-        paymentStatus: "PAID",
-        mpPaymentId: String(paymentId),
-        statusUpdatedAt: new Date(),
-      },
-    });
-
-    if (!hasFulfillmentPrintItems) {
-      queuePhotographerOrderNotification(orderId).catch((err) =>
-        console.error("Error encolando email al fotógrafo (nuevo pedido):", err)
-      );
-    } else if (hasDigitalItems) {
-      // Mixto: un solo mail con contexto digital + impresión (no duplicar mail de PrintOrder)
-      queuePhotographerOrderNotification(orderId).catch((err) =>
-        console.error("Error encolando email al fotógrafo (pedido mixto álbum):", err)
-      );
-    } else {
-      const mirror = await prisma.printOrder.findFirst({
-        where: { tags: { has: tag } },
-        select: { id: true },
-      });
-      if (mirror?.id) {
-        queuePhotographerPrintOrderNotification(mirror.id).catch((err) =>
-          console.error("Error encolando email al fotógrafo (pedido impresión):", err)
-        );
-      } else {
-        queuePhotographerOrderNotification(orderId).catch((err) =>
-          console.error("Error encolando email al fotógrafo (nuevo pedido, sin espejo impresión):", err)
-        );
-      }
-    }
-  } catch (err: unknown) {
-    console.error("Error actualizando PrintOrder espejo (PAID):", err);
-  }
+  await runAlbumOrderPaidSideEffects({
+    orderId,
+    origin: order.origin,
+    items: order.items ?? [],
+    paymentRef: String(paymentId),
+  });
 
   try {
     await prisma.webhookEvent.create({

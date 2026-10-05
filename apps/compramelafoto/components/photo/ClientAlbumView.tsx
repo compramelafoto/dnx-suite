@@ -13,6 +13,7 @@ import PhotoSlideViewer from "./PhotoSlideViewer";
 import HiddenAlbumVerificationGate from "./HiddenAlbumVerificationGate";
 import AlbumReactivationBanner from "./AlbumReactivationBanner";
 import PendingOrderAlbumBanner from "./PendingOrderAlbumBanner";
+import CanjeComboBanner from "@/components/canje-externo/CanjeComboBanner";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { DsField } from "@/components/ui/DsField";
@@ -2185,6 +2186,7 @@ export default function ClientAlbumView({
       {salesReadyToSell && !testClientPreview ? (
         <PendingOrderAlbumBanner albumId={album.id} />
       ) : null}
+      <CanjeComboBanner albumId={album.id} />
       {album.hiddenPhotosEnabled && photographerBypassGrant && !simulateClientView ? (
         <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
           <p className="m-0 font-medium">Vista de fotógrafo</p>
