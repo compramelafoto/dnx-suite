@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   calcularVencimiento,
+  estadoDeAccesoAlCurso,
   estadoDelAcceso,
   fechaLegibleArgentina,
   numeroDeInscripcion,
@@ -56,5 +57,43 @@ describe("número de inscripción para la marca de agua", () => {
 describe("fecha para el alumno", () => {
   it("en hora argentina: las 2 de la mañana UTC del 4 son todavía el 3", () => {
     expect(fechaLegibleArgentina(new Date(Date.UTC(2027, 9, 4, 2)))).toBe("3 de octubre de 2027");
+  });
+});
+
+describe("cuándo vale un acceso al curso", () => {
+  const ahora = new Date(Date.UTC(2026, 9, 4));
+  const vence = new Date(Date.UTC(2027, 9, 4));
+
+  it("comprado y no vencido: vale, sea socio o no", () => {
+    const acceso = { origin: "PURCHASE" as const, expiresAt: vence, revokedAt: null };
+    expect(estadoDeAccesoAlCurso(acceso, { esSocioActivo: false }, ahora)).toBe("VIGENTE");
+    expect(estadoDeAccesoAlCurso(acceso, { esSocioActivo: true }, ahora)).toBe("VIGENTE");
+  });
+
+  it("comprado y vencido: no vale aunque sea socio", () => {
+    const acceso = { origin: "PURCHASE" as const, expiresAt: ahora, revokedAt: null };
+    expect(estadoDeAccesoAlCurso(acceso, { esSocioActivo: true }, ahora)).toBe("VENCIDO");
+  });
+
+  it("de beneficio: vale sólo mientras es socio activo, sin vencimiento por fecha", () => {
+    const acceso = { origin: "MEMBER_BENEFIT" as const, expiresAt: null, revokedAt: null };
+    expect(estadoDeAccesoAlCurso(acceso, { esSocioActivo: true }, ahora)).toBe("VIGENTE");
+    expect(estadoDeAccesoAlCurso(acceso, { esSocioActivo: false }, ahora)).toBe("SIN_SOCIO");
+  });
+
+  it("revocado gana sobre todo", () => {
+    const revokedAt = new Date(Date.UTC(2026, 9, 1));
+    expect(
+      estadoDeAccesoAlCurso({ origin: "PURCHASE", expiresAt: vence, revokedAt }, { esSocioActivo: true }, ahora),
+    ).toBe("REVOCADO");
+    expect(
+      estadoDeAccesoAlCurso({ origin: "MEMBER_BENEFIT", expiresAt: null, revokedAt }, { esSocioActivo: true }, ahora),
+    ).toBe("REVOCADO");
+  });
+
+  it("una compra sin fecha de vencimiento (dato roto) no castiga a quien pagó", () => {
+    expect(
+      estadoDeAccesoAlCurso({ origin: "PURCHASE", expiresAt: null, revokedAt: null }, { esSocioActivo: false }, ahora),
+    ).toBe("VIGENTE");
   });
 });
