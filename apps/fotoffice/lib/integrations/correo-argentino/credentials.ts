@@ -142,6 +142,36 @@ export async function loadCorreoArgentinoClient(
   return { client, customerId: secret.customerId };
 }
 
+export type CorreoArgentinoConnectionInfo = {
+  status: "ACTIVE" | "REVOKED" | "NEEDS_RECONSENT";
+  accountEmail: string;
+  connectedAt: Date;
+  /** `null` si la credencial no se pudo descifrar. */
+  env: MiCorreoEnv | null;
+  /** El número de cliente entero; quien lo muestre tiene que enmascararlo. */
+  customerId: string | null;
+};
+
+/**
+ * Para la pantalla de configuración: estado, cuenta, ambiente y número de cliente. NUNCA el
+ * usuario ni las contraseñas de la API. `null` si la institución no conectó MiCorreo.
+ */
+export async function describeCorreoArgentinoConnection(
+  workspaceId: string,
+): Promise<CorreoArgentinoConnectionInfo | null> {
+  const resumen = await getIntegrationSummary(workspaceId, CORREO_ARGENTINO_INTEGRATION_KEY);
+  if (!resumen) return null;
+  const texto = await readRefreshToken(workspaceId, CORREO_ARGENTINO_INTEGRATION_KEY).catch(() => null);
+  const secret = texto ? parseSecret(texto) : null;
+  return {
+    status: resumen.status,
+    accountEmail: resumen.accountEmail,
+    connectedAt: resumen.connectedAt,
+    env: secret?.env ?? null,
+    customerId: secret?.customerId ?? null,
+  };
+}
+
 /**
  * Las credenciales dejaron de valer (MiCorreo contestó `AUTH`). No se borra la fila: el
  * panel tiene que mostrar que hay que reconectar. Si ya no existe, no hay nada que marcar.

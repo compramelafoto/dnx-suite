@@ -368,6 +368,17 @@ const VENTAS: SubmoduleItem[] = [
     requiresAction: STORE_CONFIGURE_ACTION,
     activeMatch: "under",
   },
+  {
+    // Mismo permiso que la configuración de la tienda (`requireStoreConfigurer`).
+    href: "/ventas/tienda/envios",
+    label: "Envíos",
+    icon: "Truck",
+    description: "Retiro, envío a domicilio y a sucursal: precios por zona, Correo Argentino y recargo.",
+    requiresManage: true,
+    levelModuleKey: STORE_MODULE_KEY,
+    requiresAction: STORE_CONFIGURE_ACTION,
+    activeMatch: "under",
+  },
 ];
 
 const COMUNICACION: SubmoduleItem[] = [
