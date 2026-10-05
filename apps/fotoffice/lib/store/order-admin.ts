@@ -504,7 +504,19 @@ const SELECT_DETALLE = {
   cancelledAt: true,
   items: {
     orderBy: { id: "asc" },
-    select: { id: true, productName: true, variantName: true, qty: true, unitPriceArs: true, lineTotalArs: true },
+    select: {
+      id: true,
+      productName: true,
+      variantName: true,
+      qty: true,
+      unitPriceArs: true,
+      lineTotalArs: true,
+      // Producción de obras (spec O12): formato congelado, medidas y píxeles del original.
+      artworkListingId: true,
+      printFormatName: true,
+      printFormat: { select: { name: true, widthCm: true, heightCm: true } },
+      artworkListing: { select: { originalWidth: true, originalHeight: true } },
+    },
   },
   events: {
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],

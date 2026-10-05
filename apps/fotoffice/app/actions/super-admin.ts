@@ -55,25 +55,39 @@ export async function createWorkspaceAction(
  * - Member: socios/personas reales de una institución.
  * - ServiceLeadForm: sin `onDelete` en el schema (RESTRICT por default de
  *   Postgres) — Workspace.delete() fallaría en la DB si hay filas acá.
+ * - ArtworkRoyalty: regalías de autores de FotoRank (plata de terceros, devengada
+ *   o ya pagada); además referencian el pedido con `onDelete: Restrict`.
+ * - ArtworkListing PUBLISHED: obras de autores a la venta en la tienda pública.
  * No se decide una política de soft-delete/archivado: se bloquea explícitamente
  * y se informa qué lo bloquea, para que la decisión de negocio quede en manos
  * de un humano.
  */
 async function findWorkspaceDeletionBlockers(workspaceId: string): Promise<string[]> {
-  const [enrollments, courseSalesLeads, serviceSalesLeads, members, serviceLeadForms] =
-    await Promise.all([
-      prisma.courseEnrollment.count({ where: { workspaceId } }),
-      prisma.courseSalesLead.count({ where: { workspaceId } }),
-      prisma.serviceSalesLead.count({ where: { workspaceId } }),
-      prisma.member.count({ where: { workspaceId } }),
-      prisma.serviceLeadForm.count({ where: { workspaceId } }),
-    ]);
+  const [
+    enrollments,
+    courseSalesLeads,
+    serviceSalesLeads,
+    members,
+    serviceLeadForms,
+    artworkRoyalties,
+    publishedArtworks,
+  ] = await Promise.all([
+    prisma.courseEnrollment.count({ where: { workspaceId } }),
+    prisma.courseSalesLead.count({ where: { workspaceId } }),
+    prisma.serviceSalesLead.count({ where: { workspaceId } }),
+    prisma.member.count({ where: { workspaceId } }),
+    prisma.serviceLeadForm.count({ where: { workspaceId } }),
+    prisma.artworkRoyalty.count({ where: { workspaceId } }),
+    prisma.artworkListing.count({ where: { workspaceId, status: "PUBLISHED" } }),
+  ]);
   const blockers: string[] = [];
   if (enrollments > 0) blockers.push(`${enrollments} inscripción(es) a cursos con datos de pago`);
   if (courseSalesLeads > 0) blockers.push(`${courseSalesLeads} lead(s) de venta de cursos`);
   if (serviceSalesLeads > 0) blockers.push(`${serviceSalesLeads} lead(s) de servicios`);
   if (members > 0) blockers.push(`${members} socio(s) registrado(s)`);
   if (serviceLeadForms > 0) blockers.push(`${serviceLeadForms} formulario(s) de captación`);
+  if (artworkRoyalties > 0) blockers.push(`${artworkRoyalties} regalía(s) de autores de obras`);
+  if (publishedArtworks > 0) blockers.push(`${publishedArtworks} obra(s) publicada(s) en la tienda`);
   return blockers;
 }
 

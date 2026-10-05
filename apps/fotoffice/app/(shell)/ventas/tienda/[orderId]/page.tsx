@@ -3,10 +3,12 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { decimalArsToMinor, formatMinorArs } from "@/lib/membership/money";
 import { requireStoreOperator } from "@/lib/store/access";
+import { artworkProductionInfo, canDownloadOriginal } from "@/lib/store/artworks/production";
 import { STORE_ORDER_STATUS_LABELS } from "@/lib/store/constants";
 import { cancelNeedsNote, loadStoreOrderDetail, staffTargets } from "@/lib/store/order-admin";
 import { orderQuoteSummary, orderShippingView } from "@/lib/store/shipping/order-destination";
 import { trackingUrl } from "@/lib/store/shipping/tracking";
+import { DownloadOriginalButton } from "./download-original-button";
 import { OrderActions } from "./order-actions";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +43,7 @@ export default async function PedidoOnlinePage({ params }: { params: Promise<{ o
   const envio = orderShippingView(pedido);
   const cotizacion = envio ? orderQuoteSummary(pedido.shippingQuoteJson) : null;
   const enlaceSeguimiento = trackingUrl(pedido.shippingSource, pedido.trackingNumber);
+  const originalDisponible = canDownloadOriginal(pedido.status);
 
   return (
     <div className="space-y-6">
@@ -82,17 +85,31 @@ export default async function PedidoOnlinePage({ params }: { params: Promise<{ o
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--fo-border)]">
-                {pedido.items.map((i) => (
-                  <tr key={i.id}>
-                    <td className="py-1">
-                      {i.productName}
-                      {i.variantName ? <span className="text-[var(--fo-muted)]"> — {i.variantName}</span> : null}
-                    </td>
-                    <td className="py-1 text-right">{i.qty}</td>
-                    <td className="py-1 text-right">{formatMinorArs(decimalArsToMinor(i.unitPriceArs))}</td>
-                    <td className="py-1 text-right">{formatMinorArs(decimalArsToMinor(i.lineTotalArs))}</td>
-                  </tr>
-                ))}
+                {pedido.items.map((i) => {
+                  const obra = artworkProductionInfo(i);
+                  return (
+                    <tr key={i.id} className="align-top">
+                      <td className="py-1">
+                        {i.productName}
+                        {i.variantName ? <span className="text-[var(--fo-muted)]"> — {i.variantName}</span> : null}
+                        {obra ? (
+                          <div className="mt-1 space-y-1 text-xs text-[var(--fo-muted)]">
+                            <p>
+                              {obra.formatLabel}
+                              {obra.sizeLabel ? ` · ${obra.sizeLabel}` : ""}
+                              {obra.pixelsLabel ? ` · original de ${obra.pixelsLabel}` : ""}
+                            </p>
+                            {obra.borders ? <p className="font-medium text-[var(--fo-text)]">Se imprime con bordes</p> : null}
+                            {originalDisponible && i.artworkListingId ? <DownloadOriginalButton orderId={pedido.id} itemId={i.id} /> : null}
+                          </div>
+                        ) : null}
+                      </td>
+                      <td className="py-1 text-right">{i.qty}</td>
+                      <td className="py-1 text-right">{formatMinorArs(decimalArsToMinor(i.unitPriceArs))}</td>
+                      <td className="py-1 text-right">{formatMinorArs(decimalArsToMinor(i.lineTotalArs))}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
               <tfoot>
                 {envio ? (

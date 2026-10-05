@@ -21,9 +21,12 @@ export default async function TiendaObrasPage() {
         description="Vendé copias impresas y cuadros de las obras de tus concursos de FotoRank, con permiso de cada autor y pagándole una regalía."
       />
 
-      <p className="text-sm">
+      <p className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
         <Link href="/ventas/tienda/obras/formatos" className="underline">
           Formatos de impresión y calidad mínima →
+        </Link>
+        <Link href="/ventas/tienda/obras/regalias" className="underline">
+          Regalías de los autores →
         </Link>
       </p>
 
