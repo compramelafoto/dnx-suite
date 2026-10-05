@@ -1238,14 +1238,22 @@ export default function DashboardAlbumDetailPage() {
     setDeletingSelected(true);
     setError(null);
     try {
+      // Un pedido por tanda: el servidor retira las fotos al instante y borra los archivos
+      // en segundo plano, así que no hay que esperar foto por foto.
       let retiredCount = 0;
-      for (const id of toDelete) {
-        const res = await fetch(`/api/dashboard/albums/${albumId}/photos/${id}`, { method: "DELETE" });
+      const TANDA = 2000;
+      for (let i = 0; i < toDelete.length; i += TANDA) {
+        const photoIds = toDelete.slice(i, i + TANDA).map((id) => Number(id));
+        const res = await fetch(`/api/dashboard/albums/${albumId}/photos/bulk-delete`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ photoIds }),
+        });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          throw new Error(data.error || "Error eliminando foto");
+          throw new Error(data.error || "Error eliminando fotos");
         }
-        if (data.retiredBecauseOrdered) retiredCount++;
+        retiredCount += typeof data.retiredBecauseOrdered === "number" ? data.retiredBecauseOrdered : 0;
       }
       setSelectedPhotoIds(new Set());
       setSelectedPhotoMeta(new Map());

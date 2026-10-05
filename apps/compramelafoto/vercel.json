@@ -63,6 +63,10 @@
       "schedule": "0 2 * * *"
     },
     {
+      "path": "/api/cron/purge-deleted-photos",
+      "schedule": "17 * * * *"
+    },
+    {
       "path": "/api/cron/cleanup-preventa-mockups",
       "schedule": "0 3 * * *"
     },
