@@ -16,6 +16,7 @@ const {
   loadPublicArtworks,
   PUBLIC_ARTWORKS_PAGE_SIZE,
   publicArtworkFormats,
+  storeShowsArtworks,
 } = await import("./storefront");
 type Ctx = import("./storefront").PublicArtworkContext;
 type Row = import("./storefront").ArtworkListingRow;
@@ -265,7 +266,7 @@ function baseFalsa(opts: {
   minDpi?: number | null;
   consents?: { workspaceId: string; entryId: string; basis: string; status: string; notifiedAt: Date | null }[];
 }) {
-  const calls: Record<string, unknown[]> = { listing: [], consent: [], format: [], settings: [], link: [] };
+  const calls: Record<string, unknown[]> = { listing: [], consent: [], format: [], settings: [], link: [], first: [] };
   const db = {
     workspaceContestOrganizationLink: {
       findMany: async (a: { where: { workspaceId: string } }) => {
@@ -274,6 +275,15 @@ function baseFalsa(opts: {
       },
     },
     artworkListing: {
+      findFirst: async (a: { where: { workspaceId: string; status: string; contest: { organizationId: { in: string[] } } } }) => {
+        calls.first.push(a);
+        const w = a.where;
+        return (
+          (opts.listings ?? []).find(
+            (l) => l.workspaceId === w.workspaceId && l.status === w.status && w.contest.organizationId.in.includes(l.contest.organizationId),
+          ) ?? null
+        );
+      },
       findMany: async (a: {
         where: { workspaceId: string; status: string; slug?: string; id?: { in: string[] }; contest: { organizationId: { in: string[] } } };
       }) => {
@@ -290,6 +300,10 @@ function baseFalsa(opts: {
       },
     },
     printFormat: {
+      findFirst: async (a: { where: { workspaceId: string; isActive: boolean } }) => {
+        calls.first.push(a);
+        return (opts.formats ?? []).find((f) => f.workspaceId === a.where.workspaceId && f.isActive === a.where.isActive) ?? null;
+      },
       findMany: async (a: { where: { workspaceId: string; isActive: boolean } }) => {
         calls.format.push(a);
         return (opts.formats ?? []).filter((f) => f.workspaceId === a.where.workspaceId && f.isActive === a.where.isActive);
@@ -374,6 +388,51 @@ describe("loadPublicArtworks / getPublicArtwork / hasPublicArtworks / loadArtwor
   it("hasPublicArtworks", async () => {
     expect(await hasPublicArtworks(WS, escenario().db)).toBe(true);
     expect(await hasPublicArtworks("vacío", escenario().db)).toBe(false);
+  });
+
+  it("hasPublicArtworks corta barato: sin formatos activos o sin obras publicadas no carga el resto", async () => {
+    const sinFormatos = baseFalsa({
+      links: [{ workspaceId: WS, organizationId: "org1" }],
+      listings: [listingDb("a")],
+      consents: [consentOk("e-a")],
+    });
+    expect(await hasPublicArtworks(WS, sinFormatos.db)).toBe(false);
+    expect(sinFormatos.calls.listing).toHaveLength(0);
+    expect(sinFormatos.calls.consent).toHaveLength(0);
+
+    const sinPublicadas = baseFalsa({
+      links: [{ workspaceId: WS, organizationId: "org1" }],
+      listings: [listingDb("a", { status: "WITHDRAWN" })],
+      formats: [{ ...formato("f1"), workspaceId: WS, sortOrder: 0 }],
+      consents: [consentOk("e-a")],
+    });
+    expect(await hasPublicArtworks(WS, sinPublicadas.db)).toBe(false);
+    expect(sinPublicadas.calls.listing).toHaveLength(0);
+    for (const c of sinPublicadas.calls.first) expect((c as { where: { workspaceId: string } }).where.workspaceId).toBe(WS);
+  });
+
+  it("hasPublicArtworks: publicada pero sin permiso vigente, false", async () => {
+    const { db } = baseFalsa({
+      links: [{ workspaceId: WS, organizationId: "org1" }],
+      listings: [listingDb("e")],
+      formats: [{ ...formato("f1"), workspaceId: WS, sortOrder: 0 }],
+      consents: [{ ...consentOk("e-e"), status: "WITHDRAWN" }],
+    });
+    expect(await hasPublicArtworks(WS, db)).toBe(false);
+  });
+
+  it("storeShowsArtworks: si la consulta falla, false y log sin datos personales (no tira la tienda)", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const falla = async () => {
+      const e = new Error("relation \"ArtworkListing\" does not exist — ana@example.com");
+      e.name = "PrismaClientKnownRequestError";
+      throw e;
+    };
+    expect(await storeShowsArtworks(WS, falla)).toBe(false);
+    expect(log).toHaveBeenCalledWith(expect.any(String), { workspaceId: WS, error: "PrismaClientKnownRequestError" });
+    expect(JSON.stringify(log.mock.calls)).not.toContain("ana@example.com");
+    log.mockRestore();
+    expect(await storeShowsArtworks(WS, async () => true)).toBe(true);
   });
 
   it("getPublicArtwork: la pública; la despublicada, ajena o sin permiso, null", async () => {

@@ -18,6 +18,8 @@
  */
 import "server-only";
 
+import { cache } from "react";
+
 import { prisma, type Prisma } from "@repo/db";
 
 import { decimalArsToMinor, formatMinorArs } from "@/lib/membership/money";
@@ -326,7 +328,7 @@ const FORMAT_SELECT = {
  */
 async function publicArtworks(
   workspaceId: string,
-  filtro: { slug?: string; ids?: readonly string[] },
+  filtro: { slug?: string; ids?: readonly string[]; /** Corta en la primera obra pública. */ primera?: boolean },
   db: Db,
 ): Promise<{ artwork: PublicArtworkDetail; contest: ArtworkListingRow["contest"] }[]> {
   const vinculos = await db.workspaceContestOrganizationLink.findMany({
@@ -367,10 +369,14 @@ async function publicArtworks(
     minDpi: ajustes?.minDpi ?? DEFAULT_DPI,
     consents: new Map(consents.map((c) => [c.entryId, c])),
   };
-  return filas.flatMap((f) => {
+  const out: { artwork: PublicArtworkDetail; contest: ArtworkListingRow["contest"] }[] = [];
+  for (const f of filas) {
     const r = decidePublicArtwork(f, ctx);
-    return r ? [r] : [];
-  });
+    if (!r) continue;
+    out.push(r);
+    if (filtro.primera) break;
+  }
+  return out;
 }
 
 /** La vidriera de obras: una página de 24, con el filtro por concurso (`contest` = clave pública). */
@@ -382,9 +388,54 @@ export async function loadPublicArtworks(
   return buildPublicArtworksPage(await publicArtworks(workspaceId, {}, db), opts);
 }
 
-/** Si hay al menos una obra pública: el menú de la tienda muestra "Obras" sólo entonces. */
-export async function hasPublicArtworks(workspaceId: string, db: Db = prisma): Promise<boolean> {
-  return (await publicArtworks(workspaceId, {}, db)).length > 0;
+/**
+ * Si hay al menos una obra pública: el menú de la tienda muestra "Obras" sólo entonces. Corre en
+ * cada página de la tienda, así que primero descarta lo barato (sin vínculos, sin formatos
+ * activos, sin ninguna obra publicada de un concurso vinculado) y recién después decide obra por
+ * obra, hasta la primera pública. `cache`: una sola vez por request.
+ */
+export const hasPublicArtworks = cache(async function hasPublicArtworks(
+  workspaceId: string,
+  db: Db = prisma,
+): Promise<boolean> {
+  const vinculos = await db.workspaceContestOrganizationLink.findMany({
+    where: { workspaceId },
+    select: { organizationId: true },
+  });
+  if (vinculos.length === 0) return false;
+  const [formato, obra] = await Promise.all([
+    db.printFormat.findFirst({ where: { workspaceId, isActive: true }, select: { id: true } }),
+    db.artworkListing.findFirst({
+      where: {
+        workspaceId,
+        status: "PUBLISHED",
+        contest: { organizationId: { in: vinculos.map((v) => v.organizationId) } },
+      },
+      select: { id: true },
+    }),
+  ]);
+  if (!formato || !obra) return false;
+  return (await publicArtworks(workspaceId, { primera: true }, db)).length > 0;
+});
+
+/**
+ * `hasPublicArtworks` para el marco de la tienda: si falla (la migración de obras sin aplicar, la
+ * base que no responde), las obras no se ofrecen pero la tienda de productos —y el checkout—
+ * siguen andando. El log no lleva datos personales: el workspace y el tipo de error.
+ */
+export async function storeShowsArtworks(
+  workspaceId: string,
+  check: (workspaceId: string) => Promise<boolean> = (id) => hasPublicArtworks(id),
+): Promise<boolean> {
+  try {
+    return await check(workspaceId);
+  } catch (error) {
+    console.error("[fotoffice][tienda] no se pudo decidir si hay obras a la venta", {
+      workspaceId,
+      error: error instanceof Error ? error.name : "desconocido",
+    });
+    return false;
+  }
 }
 
 /** La ficha de una obra por su dirección; `null` si no existe o no es pública (sin decir por qué). */
