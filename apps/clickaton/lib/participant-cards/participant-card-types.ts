@@ -1,4 +1,4 @@
-export type ClickatonParticipantCardType = "welcome" | "member";
+export type ClickatonParticipantCardType = "welcome" | "member" | "diploma";
 
 export type ParticipantCardActorKind = "participant" | "admin";
 
@@ -74,7 +74,7 @@ export type ParticipantCardRegistrationSnapshot = {
 
 export type GenerateClickatonParticipantCardInput = {
   registrationId: string;
-  cardType: ClickatonParticipantCardType | "WELCOME" | "MEMBER";
+  cardType: ClickatonParticipantCardType | "WELCOME" | "MEMBER" | "DIPLOMA";
   actor: ParticipantCardActor;
   mode?: ParticipantCardMode;
   disposition?: ParticipantCardDisposition;

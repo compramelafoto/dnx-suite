@@ -131,6 +131,50 @@ export function formatDateDayMonthUppercase(
   return `${p.day} DE ${month}`;
 }
 
+export function formatDateWithTime(
+  value: unknown,
+  timeZone: string = CLICKATON_DEFAULT_TIMEZONE
+): string {
+  if (value == null || value === "") return "";
+
+  const date =
+    value instanceof Date
+      ? value
+      : typeof value === "string" || typeof value === "number"
+        ? new Date(value)
+        : null;
+  if (!date || Number.isNaN(date.getTime())) {
+    return value == null ? "" : String(value);
+  }
+
+  // Formatear con Intl.DateTimeFormat en la zona horaria especificada
+  const formatter = new Intl.DateTimeFormat("es-AR", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+
+  const parts = formatter.formatToParts(date);
+  const map: Record<string, string> = {};
+  for (const part of parts) {
+    if (part.type !== "literal") {
+      map[part.type] = part.value;
+    }
+  }
+
+  const day = map.day ?? "00";
+  const month = map.month ?? "00";
+  const year = map.year ?? "0000";
+  const hour = map.hour ?? "00";
+  const minute = map.minute ?? "00";
+
+  return `${day}/${month}/${year}, ${hour}:${minute}`;
+}
+
 export function formatParticipantNumber(value: unknown, digits = 4): string {
   const n =
     typeof value === "number"

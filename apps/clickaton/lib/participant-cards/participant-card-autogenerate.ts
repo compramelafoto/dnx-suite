@@ -9,6 +9,7 @@ import { prisma } from "@/lib/admin/db";
 import {
   getOrGenerateClickatonParticipantCard,
   loadParticipantCardRegistration,
+  toDbCardType,
 } from "./participant-card-persistence";
 import {
   isParticipantCardsV2Enabled,
@@ -241,7 +242,7 @@ export function filtroDeInscripcionesPendientes(
       participantCards: {
         none: {
           status: "READY" as const,
-          cardType: (cardType === "member" ? "MEMBER" : "WELCOME") as "WELCOME" | "MEMBER",
+          cardType: toDbCardType(cardType),
         },
       },
     })),

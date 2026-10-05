@@ -33,6 +33,13 @@ describe("getClickatonParticipantCardPreset", () => {
     assert.equal(preset.presetId, CLICKATON_MEMBER_STORY_V1.presetId);
     assert.equal(preset.meta.templateKey, "CLICKATON_MEMBER_STORY_V1");
   });
+
+  it("throws NO_PRESET_FOR_DIPLOMA when type is diploma", () => {
+    assert.throws(
+      () => getClickatonParticipantCardPreset("diploma"),
+      /NO_PRESET_FOR_DIPLOMA/
+    );
+  });
 });
 
 describe("instantiatePresetPayload", () => {

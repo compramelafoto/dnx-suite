@@ -74,11 +74,20 @@ export type ParticipantCardDbStatus =
 
 export type ParticipantCardCacheStatus = "HIT" | "MISS" | "REGENERATED";
 
+/**
+ * Valor real de `cardType` en la base (enum `ClickatonParticipantCardType`
+ * de Prisma). El diploma ya existe en el enum desde la migración de
+ * diplomas; este repositorio todavía no lo lee ni lo escribe, pero cualquier
+ * traducción tipo-a-base tiene que poder representarlo para no mentir sobre
+ * a qué pieza se refiere.
+ */
+export type DbCardType = "WELCOME" | "MEMBER" | "DIPLOMA";
+
 export type ParticipantCardRecord = {
   id: string;
   registrationId: string;
   editionId: string;
-  cardType: "WELCOME" | "MEMBER";
+  cardType: DbCardType;
   templateKey: string;
   templateVersion: number;
   rendererVersion: string;
@@ -114,21 +123,21 @@ export class ParticipantCardUniqueViolationError extends Error {
 export interface ParticipantCardRepository {
   findByRegistrationCardTypeHash(input: {
     registrationId: string;
-    cardType: "WELCOME" | "MEMBER";
+    cardType: DbCardType;
     renderHash: string;
   }): Promise<ParticipantCardRecord | null>;
   findReadyByHash(input: {
     registrationId: string;
-    cardType: "WELCOME" | "MEMBER";
+    cardType: DbCardType;
     renderHash: string;
   }): Promise<ParticipantCardRecord | null>;
   findLatestForRegistrationCardType(input: {
     registrationId: string;
-    cardType: "WELCOME" | "MEMBER";
+    cardType: DbCardType;
   }): Promise<ParticipantCardRecord | null>;
   listByRegistrationCardType(input: {
     registrationId: string;
-    cardType: "WELCOME" | "MEMBER";
+    cardType: DbCardType;
   }): Promise<ParticipantCardRecord[]>;
   createGenerating(input: Omit<
     ParticipantCardRecord,
@@ -140,21 +149,23 @@ export interface ParticipantCardRepository {
   ): Promise<ParticipantCardRecord>;
   markOtherReadyAsStale(input: {
     registrationId: string;
-    cardType: "WELCOME" | "MEMBER";
+    cardType: DbCardType;
     exceptId: string;
     now: Date;
   }): Promise<number>;
   markAllReadyAsStale(input: {
     registrationId: string;
-    cardType: "WELCOME" | "MEMBER";
+    cardType: DbCardType;
     now: Date;
   }): Promise<number>;
   listForCleanup(): Promise<ParticipantCardRecord[]>;
   deleteRecord(id: string): Promise<void>;
 }
 
-function toDbCardType(cardType: ClickatonParticipantCardType): "WELCOME" | "MEMBER" {
-  return cardType === "member" ? "MEMBER" : "WELCOME";
+export function toDbCardType(cardType: ClickatonParticipantCardType): DbCardType {
+  if (cardType === "member") return "MEMBER";
+  if (cardType === "diploma") return "DIPLOMA";
+  return "WELCOME";
 }
 
 function cloneRecord(r: ParticipantCardRecord): ParticipantCardRecord {
@@ -172,7 +183,7 @@ export class InMemoryParticipantCardRepository implements ParticipantCardReposit
 
   private uniqueKey(input: {
     registrationId: string;
-    cardType: "WELCOME" | "MEMBER";
+    cardType: DbCardType;
     renderHash: string;
   }): string {
     return `${input.registrationId}:${input.cardType}:${input.renderHash}`;
@@ -180,7 +191,7 @@ export class InMemoryParticipantCardRepository implements ParticipantCardReposit
 
   async findByRegistrationCardTypeHash(input: {
     registrationId: string;
-    cardType: "WELCOME" | "MEMBER";
+    cardType: DbCardType;
     renderHash: string;
   }): Promise<ParticipantCardRecord | null> {
     const id = this.uniqueIndex.get(this.uniqueKey(input));
@@ -192,7 +203,7 @@ export class InMemoryParticipantCardRepository implements ParticipantCardReposit
 
   async findReadyByHash(input: {
     registrationId: string;
-    cardType: "WELCOME" | "MEMBER";
+    cardType: DbCardType;
     renderHash: string;
   }): Promise<ParticipantCardRecord | null> {
     const row = await this.findByRegistrationCardTypeHash(input);
@@ -201,7 +212,7 @@ export class InMemoryParticipantCardRepository implements ParticipantCardReposit
 
   async findLatestForRegistrationCardType(input: {
     registrationId: string;
-    cardType: "WELCOME" | "MEMBER";
+    cardType: DbCardType;
   }): Promise<ParticipantCardRecord | null> {
     const rows = [...this.records.values()]
       .filter(
@@ -216,7 +227,7 @@ export class InMemoryParticipantCardRepository implements ParticipantCardReposit
 
   async listByRegistrationCardType(input: {
     registrationId: string;
-    cardType: "WELCOME" | "MEMBER";
+    cardType: DbCardType;
   }): Promise<ParticipantCardRecord[]> {
     return [...this.records.values()]
       .filter(
@@ -284,7 +295,7 @@ export class InMemoryParticipantCardRepository implements ParticipantCardReposit
 
   async markOtherReadyAsStale(input: {
     registrationId: string;
-    cardType: "WELCOME" | "MEMBER";
+    cardType: DbCardType;
     exceptId: string;
     now: Date;
   }): Promise<number> {
@@ -306,7 +317,7 @@ export class InMemoryParticipantCardRepository implements ParticipantCardReposit
 
   async markAllReadyAsStale(input: {
     registrationId: string;
-    cardType: "WELCOME" | "MEMBER";
+    cardType: DbCardType;
     now: Date;
   }): Promise<number> {
     let count = 0;
@@ -347,7 +358,7 @@ function mapPrismaRecord(row: {
   id: string;
   registrationId: string;
   editionId: string;
-  cardType: "WELCOME" | "MEMBER";
+  cardType: DbCardType;
   templateKey: string;
   templateVersion: number;
   rendererVersion: string;
@@ -520,7 +531,14 @@ export type ParticipantCardPersistenceDeps = {
   persistAsset?: typeof persistParticipantCardMediaAsset;
 };
 
-const REGISTRATION_SELECT = {
+/**
+ * Campos de la inscripción que necesita `buildClickatonParticipantTemplateData`
+ * para completar las ~40 variables de plantilla (más los del consentimiento y
+ * la elegibilidad). Se exporta para que el diploma cargue exactamente lo mismo
+ * que las placas: dos listas separadas se desincronizan y el diploma termina
+ * imprimiendo variables en blanco.
+ */
+export const PARTICIPANT_CARD_REGISTRATION_SELECT = {
   id: true,
   editionId: true,
   userId: true,
@@ -559,6 +577,8 @@ const REGISTRATION_SELECT = {
   },
   venue: { select: { name: true, city: true } },
 } as const;
+
+const REGISTRATION_SELECT = PARTICIPANT_CARD_REGISTRATION_SELECT;
 
 async function defaultLoadRegistration(registrationId: string) {
   return defaultPrisma.clickatonRegistration.findUnique({
@@ -647,7 +667,7 @@ async function sleep(ms: number): Promise<void> {
 async function waitForReadyOrGenerating(input: {
   repository: ParticipantCardRepository;
   registrationId: string;
-  cardType: "WELCOME" | "MEMBER";
+  cardType: DbCardType;
   renderHash: string;
   now: () => Date;
 }): Promise<ParticipantCardRecord | null> {
@@ -685,7 +705,7 @@ async function prepareGenerationContext(
   preset: ReturnType<typeof getClickatonParticipantCardPreset>;
   templateOrigin: "preset" | "template_v2";
   renderHash: string;
-  dbCardType: "WELCOME" | "MEMBER";
+  dbCardType: DbCardType;
   photoContentHash: string | null;
   photoAssetId: string | null;
 }> {
@@ -1248,7 +1268,7 @@ export async function forceRegenerateClickatonParticipantCard(
 export async function getClickatonParticipantCardStatus(
   input: {
     registrationId: string;
-    cardType: ClickatonParticipantCardType | "WELCOME" | "MEMBER";
+    cardType: ClickatonParticipantCardType | "WELCOME" | "MEMBER" | "DIPLOMA";
     actor: ParticipantCardActor;
   },
   depsArg?: ParticipantCardPersistenceDeps
@@ -1284,6 +1304,140 @@ export async function getClickatonParticipantCardStatus(
     recordId: latest.id,
     errorCode: latest.errorCode,
   };
+}
+
+export type ReadyClickatonDiplomaCardRow = {
+  id: string;
+  registrationId: string;
+  editionId: string;
+  assetId: string | null;
+  storageKey: string | null;
+  pdfAssetId: string | null;
+  pdfStorageKey: string | null;
+  generatedAt: Date | null;
+};
+
+export type ReadyClickatonDiplomaCard = ReadyClickatonDiplomaCardRow & {
+  registration: ParticipantCardRegistrationSnapshot & { editionId: string };
+};
+
+export type GetReadyClickatonDiplomaCardDeps = {
+  loadRegistration?: (
+    registrationId: string
+  ) => Promise<(ParticipantCardRegistrationSnapshot & { editionId: string }) | null>;
+  /**
+   * El diploma "vigente" de una inscripción es el de su emisor sin revocar
+   * (`ClickatonDiplomaIssue.revokedAt IS NULL`) — mismo criterio que ya usa
+   * `defaultFindExistingIssue` en `diploma-service.ts`. Devuelve el
+   * `cardId` de ese emisor, o `null` si no hay ninguno vigente (nunca se
+   * emitió, o el único emisor está revocado).
+   */
+  findCurrentDiplomaCardId?: (registrationId: string) => Promise<string | null>;
+  /** Pieza READY de tipo diploma, ya resuelta al `cardId` del emisor vigente. */
+  findReadyDiplomaCardById?: (input: {
+    cardId: string;
+    registrationId: string;
+  }) => Promise<ReadyClickatonDiplomaCardRow | null>;
+};
+
+async function defaultFindCurrentDiplomaCardId(
+  registrationId: string
+): Promise<string | null> {
+  const issue = await defaultPrisma.clickatonDiplomaIssue.findFirst({
+    where: { registrationId, revokedAt: null },
+    select: { cardId: true },
+  });
+  return issue?.cardId ?? null;
+}
+
+async function defaultFindReadyDiplomaCardById(input: {
+  cardId: string;
+  registrationId: string;
+}): Promise<ReadyClickatonDiplomaCardRow | null> {
+  const row = await defaultPrisma.clickatonParticipantCard.findFirst({
+    where: {
+      id: input.cardId,
+      registrationId: input.registrationId,
+      cardType: "DIPLOMA",
+      status: "READY",
+    },
+    select: {
+      id: true,
+      registrationId: true,
+      editionId: true,
+      assetId: true,
+      storageKey: true,
+      pdfAssetId: true,
+      pdfStorageKey: true,
+      generatedAt: true,
+    },
+  });
+  return row ?? null;
+}
+
+/**
+ * Lee (sin generar) el diploma ya emitido de una inscripción. El diploma lo
+ * emite el admin con su propio servicio (`lib/diplomas/diploma-service.ts`,
+ * Tarea 12): esa pieza no pasa por `getOrGenerateClickatonParticipantCard`
+ * porque el diploma no tiene preset de respaldo (ver
+ * `getClickatonParticipantCardPreset` en `participant-card-presets.ts`).
+ * Acá se busca primero el emisor vigente (sin revocar) y, sólo si hay uno,
+ * la pieza READY que le corresponde — un diploma revocado no se puede
+ * descargar aunque su pieza siga READY en la base (misma regla que ya
+ * respeta la página pública de verificación). Se devuelve cruda, para que
+ * la ruta HTTP sirva el PNG (`assetId`/`storageKey`) o el PDF
+ * (`pdfAssetId`/`pdfStorageKey`) que ya están guardados.
+ *
+ * Misma autorización que el resto de las piezas del participante: dueño
+ * (por `userId` o email) o admin; para un participante ajeno, 404 — no
+ * revela si el diploma existe.
+ */
+export async function getReadyClickatonDiplomaCard(
+  input: { registrationId: string; actor: ParticipantCardActor },
+  depsArg?: GetReadyClickatonDiplomaCardDeps
+): Promise<ReadyClickatonDiplomaCard | null> {
+  const loadRegistration = depsArg?.loadRegistration ?? defaultLoadRegistration;
+  const findCurrentDiplomaCardId =
+    depsArg?.findCurrentDiplomaCardId ?? defaultFindCurrentDiplomaCardId;
+  const findReadyDiplomaCardById =
+    depsArg?.findReadyDiplomaCardById ?? defaultFindReadyDiplomaCardById;
+
+  const registration = await loadRegistration(input.registrationId);
+  if (!registration) throw cardNotFound();
+  requireParticipantCardReadAccess(registration, input.actor);
+
+  const cardId = await findCurrentDiplomaCardId(registration.id);
+  if (!cardId) return null;
+
+  const row = await findReadyDiplomaCardById({
+    cardId,
+    registrationId: registration.id,
+  });
+  if (!row) return null;
+  return { ...row, registration };
+}
+
+/**
+ * Bytes de una pieza ya guardada, PNG o PDF da igual: primero por
+ * `storageKey` en el backend de storage activo (mismo camino que
+ * `loadPngForRecord`); si falla o no hay `storageKey`, cae al `assetId`
+ * como respaldo.
+ */
+export async function loadClickatonParticipantCardAssetBytes(
+  input: { assetId: string | null; storageKey: string | null },
+  store: ParticipantCardAssetStore
+): Promise<Buffer> {
+  if (input.storageKey) {
+    try {
+      return await store.get(input.storageKey);
+    } catch {
+      /* cae al asset de respaldo */
+    }
+  }
+  if (input.assetId) {
+    return loadParticipantCardPngFromAsset(input.assetId);
+  }
+  throw new Error("PARTICIPANT_CARD_BYTES_MISSING");
 }
 
 export type CleanupStaleCardsResult = {

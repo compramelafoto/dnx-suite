@@ -100,6 +100,8 @@ export {
   getOrGenerateClickatonParticipantCard,
   forceRegenerateClickatonParticipantCard,
   getClickatonParticipantCardStatus,
+  getReadyClickatonDiplomaCard,
+  loadClickatonParticipantCardAssetBytes,
   cleanupStaleClickatonParticipantCards,
   loadParticipantCardRegistration,
   InMemoryParticipantCardRepository,
@@ -108,6 +110,9 @@ export {
 export type {
   GetOrGenerateClickatonParticipantCardInput,
   GetOrGenerateClickatonParticipantCardResult,
+  GetReadyClickatonDiplomaCardDeps,
+  ReadyClickatonDiplomaCard,
+  ReadyClickatonDiplomaCardRow,
   ParticipantCardCacheStatus,
   ParticipantCardDbStatus,
   ParticipantCardPersistenceDeps,

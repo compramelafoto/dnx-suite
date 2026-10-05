@@ -18,6 +18,7 @@ import {
   toggleCardTemplateFormAction,
 } from "@/lib/admin/editions/card-template-mutations";
 import { getEditionById } from "@/lib/admin/editions/queries";
+import { normalizeParticipantCardType } from "@/lib/participant-cards/participant-card-presets";
 import { validateClickatonCardTemplate } from "@/lib/participant-cards/participant-card-template-source";
 
 type Props = {
@@ -37,6 +38,13 @@ const CARDS = [
     dbType: "MEMBER" as const,
     title: "Soy parte",
     description: "Placa de pertenencia que el participante puede compartir.",
+  },
+  {
+    key: "diploma" as const,
+    dbType: "DIPLOMA" as const,
+    title: "Diploma de participación",
+    description:
+      "Se genera a pedido, para los que se acreditaron. Sin plantilla asignada no se emite ninguno.",
   },
 ];
 
@@ -79,7 +87,10 @@ export default async function EditionCardTemplatesPage({ params, searchParams }:
           cardType: a.cardType,
           name: template.templateName,
           version: template.versionNumber,
-          problems: validateClickatonCardTemplate(template.payload).map((i) => i.message),
+          problems: validateClickatonCardTemplate(
+            template.payload,
+            normalizeParticipantCardType(a.cardType)
+          ).map((i) => i.message),
         };
       })
     );

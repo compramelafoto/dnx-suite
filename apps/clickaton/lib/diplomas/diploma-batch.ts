@@ -1,0 +1,934 @@
+/**
+ * Lote de diplomas por edición.
+ *
+ * Dos pasos separados a propósito:
+ *
+ * 1. `enqueueEditionDiplomas` — dispara el botón del panel. Sólo lee y crea
+ *    filas en estado `GENERATING`; nunca renderiza ni llama a `issueDiploma`.
+ *    Una edición con 29 acreditados responde en milisegundos.
+ * 2. `processDueDiplomas` — lo corre el cron cada cinco minutos y procesa de
+ *    a `limit` piezas por invocación, para no agotar el tiempo de la función
+ *    en Vercel (ver `app/api/cron/diplomas/route.ts`, calcado del cron de
+ *    placas).
+ *
+ * La pieza que representa "encolado" es un `ClickatonParticipantCard` con
+ * `cardType: DIPLOMA` y `status: GENERATING` (el mismo modelo que welcome/member,
+ * con su mismo lock por TTL). No lleva plantilla real todavía —eso lo resuelve
+ * `issueDiploma` recién al procesarla— así que sus `templateKey`/`templateVersion`/
+ * `rendererVersion` son un placeholder fijo y su `renderHash` es determinístico
+ * por inscripción: eso es lo que evita que un doble clic en "encolar" (o dos
+ * ciclos de cron pisándose) cree una segunda fila para la misma persona. La
+ * base rechaza la segunda con P2002 y `enqueueDiplomaQueueRow` decide qué
+ * hacer con eso: si la fila que ya estaba es una que fracasó todas sus
+ * veces, la revive (si no, ese diploma queda sin dueño para siempre); si
+ * sigue en curso, no hace nada más.
+ */
+import { createHash } from "node:crypto";
+import { sendIdentityEmail, type IdentityEmailResult } from "@repo/auth";
+import { Prisma, isMissingTableError, prisma } from "@/lib/admin/db";
+import { isClickatonProductionAudience } from "@/lib/site/public-origin";
+import { DIPLOMA_CANDIDATE_QUERY, selectDiplomaCandidates } from "./diploma-eligibility";
+import {
+  DIPLOMA_EMAIL_OUTBOX_EVENT_TYPE,
+  buildDiplomaEmail,
+  classifyDiplomaEmailSendFailure,
+  resolveDiplomaAccountUrl,
+  resolveDiplomaEmailRecipient,
+  resolveDiplomaImageUrl,
+} from "./diploma-email";
+import { issueDiploma, type IssueDiplomaResult } from "./diploma-service";
+import type { DiplomaErrorCode } from "./diploma-types";
+
+/**
+ * Lock de la pieza encolada. Tiene que vivir más que `maxDuration` de la
+ * ruta del cron (300s, ver `app/api/cron/diplomas/route.ts`): si el lock
+ * expirase antes de que termine una tanda larga, la vuelta siguiente podría
+ * volver a tomar una fila que todavía se está dibujando. No duplicaría el
+ * diploma (`issueDiploma` es idempotente) pero desperdiciaría el trabajo.
+ */
+const DIPLOMA_QUEUE_LOCK_TTL_MS = 360_000;
+
+/** Placeholder de la fila encolada: todavía no se resolvió ninguna plantilla real. */
+const DIPLOMA_QUEUE_TEMPLATE_KEY = "PENDING";
+const DIPLOMA_QUEUE_TEMPLATE_VERSION = 0;
+const DIPLOMA_QUEUE_RENDERER_VERSION = "PENDING";
+
+/**
+ * Tope de reintentos **por ronda de encolado**, no de por vida: cada llamada
+ * a `enqueueEditionDiplomas` que revive una fila fallida (ver
+ * `enqueueDiplomaQueueRow`) le reinicia el contador a cero. Una edición con
+ * la plantilla rota no puede monopolizar la tanda para siempre —
+ * `defaultLoadPending` ordena por antigüedad, así que si sus filas son las
+ * más viejas y superan `limit`, las de otras ediciones nunca se tomarían—,
+ * pero tampoco puede dejar a alguien sin diploma de forma permanente sólo
+ * porque la plantilla estuvo rota un rato.
+ */
+export const DIPLOMA_QUEUE_MAX_ATTEMPTS = 5;
+
+const DIPLOMA_BATCH_LIMIT_DEFAULT = 25;
+const DIPLOMA_BATCH_LIMIT_MAX = 100;
+
+function sanitizeBatchLimit(limit: number): number {
+  return Math.max(1, Math.min(DIPLOMA_BATCH_LIMIT_MAX, Math.trunc(limit) || DIPLOMA_BATCH_LIMIT_DEFAULT));
+}
+
+/**
+ * Mensaje único para los dos procesos automáticos cuando la base todavía no
+ * tiene la migración de diplomas aplicada.
+ */
+export const DIPLOMA_MIGRATION_PENDING_MESSAGE =
+  "La base todavía no tiene la migración de diplomas aplicada (tabla, columna o valor de enum ausente). El proceso automático no hace nada hasta que se aplique.";
+
+/**
+ * Carga la cola tolerando el único fallo esperable antes de aplicar el SQL.
+ * Cualquier otro error de base se propaga: un corte real tiene que verse.
+ */
+async function cargarColaTolerandoMigracion<T>(
+  cargar: () => Promise<T[]>
+): Promise<{ ok: true; filas: T[] } | { ok: false; message: string }> {
+  try {
+    return { ok: true, filas: await cargar() };
+  } catch (err) {
+    if (!isMissingTableError(err)) throw err;
+    console.error("[clickaton-diplomas] migración pendiente:", err);
+    return { ok: false, message: DIPLOMA_MIGRATION_PENDING_MESSAGE };
+  }
+}
+
+function isPrismaUniqueViolation(err: unknown): boolean {
+  return Boolean(
+    err &&
+      typeof err === "object" &&
+      "code" in err &&
+      (err as { code: unknown }).code === "P2002"
+  );
+}
+
+/** Hash determinístico por inscripción: misma inscripción, misma fila encolada. */
+export function buildDiplomaQueueRenderHash(registrationId: string): string {
+  return createHash("sha256").update(`diploma-queue:${registrationId}`).digest("hex");
+}
+
+export type EnqueueDiplomaQueueRowDeps = {
+  create?: (data: {
+    registrationId: string;
+    editionId: string;
+    cardType: "DIPLOMA";
+    templateKey: string;
+    templateVersion: number;
+    rendererVersion: string;
+    renderHash: string;
+    status: "GENERATING";
+  }) => Promise<unknown>;
+  /**
+   * Ante P2002, revive la fila si (y sólo si) está `FAILED`: la vuelve a
+   * `GENERATING` con el contador de intentos en cero. Devuelve `true` si
+   * revivió algo, `false` si la fila que ya estaba sigue en curso (no hay
+   * nada para revivir ni para duplicar).
+   */
+  reviveFailed?: (input: { registrationId: string; editionId: string }) => Promise<boolean>;
+};
+
+async function defaultCreateQueueRow(data: {
+  registrationId: string;
+  editionId: string;
+  cardType: "DIPLOMA";
+  templateKey: string;
+  templateVersion: number;
+  rendererVersion: string;
+  renderHash: string;
+  status: "GENERATING";
+}): Promise<unknown> {
+  return prisma.clickatonParticipantCard.create({ data });
+}
+
+async function defaultReviveFailedQueueRow(input: {
+  registrationId: string;
+  editionId: string;
+}): Promise<boolean> {
+  // Mismo patrón que `participant-card-persistence.ts` con STALE/FAILED: no
+  // se crea una fila nueva, se revive la que ya existe (contador de
+  // intentos a cero, motivo y fecha de fallo limpios). El `where` exige
+  // `status: FAILED`: si la fila existente sigue `GENERATING`, esto no
+  // matchea nada y `count` da 0 — correcto, ahí no hay nada que revivir.
+  const updated = await prisma.clickatonParticipantCard.updateMany({
+    where: {
+      registrationId: input.registrationId,
+      editionId: input.editionId,
+      cardType: "DIPLOMA",
+      renderHash: buildDiplomaQueueRenderHash(input.registrationId),
+      status: "FAILED",
+    },
+    data: {
+      status: "GENERATING",
+      attemptCount: 0,
+      errorCode: null,
+      failedAt: null,
+      lockExpiresAt: null,
+      startedAt: new Date(),
+    },
+  });
+  return updated.count === 1;
+}
+
+/**
+ * Crea la fila `GENERATING` de una inscripción. Devuelve `true` si creó una
+ * fila nueva o revivió una que había fracasado, `false` si ya había una en
+ * curso y no hizo falta tocar nada — esto es lo que de verdad frena el
+ * duplicado, no el chequeo previo contra `loadIssuedRegistrationIds` (ese
+ * sólo filtra a quien ya tiene el diploma terminado, no a quien ya está
+ * encolado).
+ */
+export async function enqueueDiplomaQueueRow(
+  input: { registrationId: string; editionId: string },
+  deps: EnqueueDiplomaQueueRowDeps = {}
+): Promise<boolean> {
+  const create = deps.create ?? defaultCreateQueueRow;
+  const reviveFailed = deps.reviveFailed ?? defaultReviveFailedQueueRow;
+  try {
+    await create({
+      registrationId: input.registrationId,
+      editionId: input.editionId,
+      cardType: "DIPLOMA",
+      templateKey: DIPLOMA_QUEUE_TEMPLATE_KEY,
+      templateVersion: DIPLOMA_QUEUE_TEMPLATE_VERSION,
+      rendererVersion: DIPLOMA_QUEUE_RENDERER_VERSION,
+      renderHash: buildDiplomaQueueRenderHash(input.registrationId),
+      status: "GENERATING",
+    });
+    return true;
+  } catch (err) {
+    if (!isPrismaUniqueViolation(err)) throw err;
+    // Ya había una fila para esta inscripción. Si fracasó todas sus veces,
+    // revivirla (si no, ese diploma queda sin dueño para siempre apenas se
+    // arregla lo que la hacía fallar). Si sigue en curso, no hay nada para
+    // hacer — no es un duplicado, es la misma fila haciendo su trabajo.
+    return reviveFailed(input);
+  }
+}
+
+export type EnqueueDiplomaCandidate = {
+  registrationId: string;
+  fullName: string;
+  accreditedAt: Date;
+};
+
+export type EnqueueEditionDiplomasDeps = {
+  loadCandidates?: (editionId: string) => Promise<EnqueueDiplomaCandidate[]>;
+  loadIssuedRegistrationIds?: (editionId: string) => Promise<Set<string>>;
+  /** `true` = se encoló (nueva o revivida). `false` = ya había una en curso. */
+  enqueue?: (registrationId: string) => Promise<boolean>;
+};
+
+export type EnqueueEditionDiplomasResult = {
+  queued: number;
+  alreadyIssued: number;
+  notEligible: number;
+};
+
+async function defaultLoadCandidatesWithEligibility(
+  editionId: string
+): Promise<{ candidates: EnqueueDiplomaCandidate[]; notEligible: number }> {
+  const rows = await prisma.clickatonRegistration.findMany({
+    where: { editionId },
+    ...DIPLOMA_CANDIDATE_QUERY,
+  });
+  const candidates = selectDiplomaCandidates(rows).map((c) => ({
+    registrationId: c.registrationId,
+    fullName: c.fullName,
+    accreditedAt: c.accreditedAt,
+  }));
+  // La consulta ya trajo todas las inscripciones de la edición y
+  // `selectDiplomaCandidates` descartó a quien no está acreditado: la resta
+  // es gratis, no hace falta otra consulta.
+  return { candidates, notEligible: rows.length - candidates.length };
+}
+
+async function defaultLoadIssuedRegistrationIds(editionId: string): Promise<Set<string>> {
+  const rows = await prisma.clickatonDiplomaIssue.findMany({
+    where: { editionId, revokedAt: null },
+    select: { registrationId: true },
+  });
+  return new Set(rows.map((r) => r.registrationId));
+}
+
+/** `enqueue` por defecto necesita `editionId`, que sólo conoce quien lo arma. */
+function buildDefaultEnqueue(editionId: string): (registrationId: string) => Promise<boolean> {
+  return (registrationId: string) => enqueueDiplomaQueueRow({ registrationId, editionId });
+}
+
+/**
+ * Encola los diplomas pendientes de una edición. No renderiza nada: sólo
+ * decide quién falta y crea (o revive) su fila `GENERATING`. El
+ * procesamiento real lo hace `processDueDiplomas`, de a tandas, desde el cron.
+ */
+export async function enqueueEditionDiplomas(
+  editionId: string,
+  deps: EnqueueEditionDiplomasDeps = {}
+): Promise<EnqueueEditionDiplomasResult> {
+  const loadIssuedRegistrationIds =
+    deps.loadIssuedRegistrationIds ?? defaultLoadIssuedRegistrationIds;
+  const enqueue = deps.enqueue ?? buildDefaultEnqueue(editionId);
+
+  // `notEligible` sólo se puede calcular gratis cuando se usa la consulta
+  // real (trae todas las inscripciones, no sólo las elegibles). Con un
+  // `loadCandidates` inyectado —los tests, o cualquier otro consumidor que
+  // ya filtró por su cuenta— no hay de dónde sacarlo, y queda en 0.
+  const [{ candidates, notEligible }, issuedIds] = await Promise.all([
+    deps.loadCandidates
+      ? deps.loadCandidates(editionId).then((candidates) => ({ candidates, notEligible: 0 }))
+      : defaultLoadCandidatesWithEligibility(editionId),
+    loadIssuedRegistrationIds(editionId),
+  ]);
+
+  let queued = 0;
+  let alreadyIssued = 0;
+
+  for (const candidate of candidates) {
+    if (issuedIds.has(candidate.registrationId)) {
+      alreadyIssued += 1;
+      continue;
+    }
+    const created = await enqueue(candidate.registrationId);
+    if (created) queued += 1;
+  }
+
+  return { queued, alreadyIssued, notEligible };
+}
+
+export type DiplomaPendingRow = { registrationId: string };
+
+export type ProcessDueDiplomasDeps = {
+  loadPending?: (limit: number) => Promise<DiplomaPendingRow[]>;
+  issue?: (input: { registrationId: string }) => Promise<IssueDiplomaResult>;
+};
+
+export type ProcessDueDiplomasResult = {
+  scanned: number;
+  issued: number;
+  failed: number;
+  /**
+   * Presente sólo cuando el proceso no pudo ni mirar la cola porque la base
+   * todavía no tiene la migración de diplomas (tabla, columna o valor de
+   * enum ausente). Es un aviso, no un fallo: el cron corre cada 5 minutos y
+   * sin esto devolvía 500 en cada vuelta hasta que alguien aplicara el SQL.
+   */
+  unavailable?: string;
+};
+
+/**
+ * Toma hasta `limit` piezas `GENERATING` de tipo `DIPLOMA` con el lock
+ * vencido. La reserva es condicionada: cada fila se reclama con su propio
+ * `updateMany`, cuyo `WHERE` vuelve a exigir el lock libre en el momento de
+ * escribir (no sólo en el momento de leer). Con tandas de hasta 300s (ver
+ * `maxDuration` de la ruta) el solape entre ciclos de cron de cinco minutos
+ * es esperable, no hipotético: si dos ciclos leen la misma fila, sólo el que
+ * escribe primero se la queda — el segundo pierde esa fila (su `updateMany`
+ * no matchea nada, `count === 0`) y sigue con las demás.
+ */
+async function defaultLoadPending(limit: number): Promise<DiplomaPendingRow[]> {
+  const now = new Date();
+  const lockExpiresAt = new Date(now.getTime() + DIPLOMA_QUEUE_LOCK_TTL_MS);
+
+  const candidates = await prisma.clickatonParticipantCard.findMany({
+    where: {
+      cardType: "DIPLOMA",
+      status: "GENERATING",
+      OR: [{ lockExpiresAt: null }, { lockExpiresAt: { lte: now } }],
+    },
+    orderBy: { startedAt: "asc" },
+    take: limit,
+    select: { id: true, registrationId: true },
+  });
+
+  if (candidates.length === 0) return [];
+
+  const claims = await Promise.all(
+    candidates.map(async (c) => {
+      const { count } = await prisma.clickatonParticipantCard.updateMany({
+        where: {
+          id: c.id,
+          OR: [{ lockExpiresAt: null }, { lockExpiresAt: { lte: now } }],
+        },
+        data: { lockExpiresAt },
+      });
+      return count === 1 ? { registrationId: c.registrationId } : null;
+    })
+  );
+
+  return claims.filter((c): c is DiplomaPendingRow => c !== null);
+}
+
+export type DiplomaAttemptClosure =
+  | { status: "GENERATING"; attemptCount: number; errorCode: DiplomaErrorCode }
+  | { status: "FAILED"; attemptCount: number; errorCode: DiplomaErrorCode };
+
+/**
+ * Decisión pura ante un fallo de `issueDiploma`: cuántos intentos lleva la
+ * pieza y qué motivo tuvo, nada más — ni fecha ni acceso a la base. Antes
+ * del tope, sigue disponible para el próximo ciclo (`GENERATING`); al
+ * llegar, se cierra (`FAILED`) y deja de tomarse hasta que alguien la
+ * reviva (ver `enqueueDiplomaQueueRow`). El motivo (`errorCode`) siempre se
+ * conserva: es lo que explica, en el panel, por qué esa persona no tiene
+ * diploma todavía.
+ */
+export function decidirCierreDeIntento(
+  attemptCount: number,
+  errorCode: DiplomaErrorCode
+): DiplomaAttemptClosure {
+  const nextAttemptCount = attemptCount + 1;
+  if (nextAttemptCount >= DIPLOMA_QUEUE_MAX_ATTEMPTS) {
+    return { status: "FAILED", attemptCount: nextAttemptCount, errorCode };
+  }
+  return { status: "GENERATING", attemptCount: nextAttemptCount, errorCode };
+}
+
+async function defaultIssue(input: { registrationId: string }): Promise<IssueDiplomaResult> {
+  const result = await issueDiploma(
+    { registrationId: input.registrationId, actor: { kind: "admin" } },
+    {
+      // No-op a propósito: `issueDiploma` sólo admite un admin de sesión
+      // real (`requireParticipantCardAdminAccess`), pero este camino no
+      // tiene sesión — ya se autorizó a nivel de RUTA (`CRON_SECRET` /
+      // `x-vercel-cron`, ver `app/api/cron/diplomas/route.ts`). Se declara
+      // acá, en la misma pantalla que el actor de marcador, en vez de
+      // fabricar un rol (`globalRole: "SUPER_ADMIN"`) que nadie tiene: no
+      // copiar este atajo fuera de este proceso automático.
+      checkAccess: () => {},
+    }
+  );
+
+  if (result.ok) {
+    // `issueDiploma` ya guardó la pieza real (con su propio renderHash) vía
+    // `upsertCard`. La fila encolada era sólo un lugar en la fila: se borra
+    // para no dejar un `GENERATING` fantasma que el próximo cron recoja de nuevo.
+    await prisma.clickatonParticipantCard.deleteMany({
+      where: { registrationId: input.registrationId, cardType: "DIPLOMA", status: "GENERATING" },
+    });
+    return result;
+  }
+
+  // No corta el lote (ver módulo).
+  const row = await prisma.clickatonParticipantCard.findFirst({
+    where: { registrationId: input.registrationId, cardType: "DIPLOMA", status: "GENERATING" },
+    select: { id: true, attemptCount: true },
+  });
+  if (row) {
+    const decision = decidirCierreDeIntento(row.attemptCount, result.code);
+    await prisma.clickatonParticipantCard.update({
+      where: { id: row.id },
+      data:
+        decision.status === "FAILED"
+          ? {
+              status: "FAILED",
+              failedAt: new Date(),
+              attemptCount: decision.attemptCount,
+              errorCode: decision.errorCode,
+              lockExpiresAt: null,
+            }
+          : {
+              attemptCount: decision.attemptCount,
+              errorCode: decision.errorCode,
+              lockExpiresAt: null,
+            },
+    });
+  }
+
+  return result;
+}
+
+/**
+ * Procesa hasta `limit` diplomas pendientes, uno por uno. Un fallo —incluida
+ * una excepción cruda de `issue`, no sólo un `{ok:false}`— se cuenta y no
+ * corta el resto del lote.
+ */
+export async function processDueDiplomas(
+  limit = DIPLOMA_BATCH_LIMIT_DEFAULT,
+  deps: ProcessDueDiplomasDeps = {}
+): Promise<ProcessDueDiplomasResult> {
+  const loadPending = deps.loadPending ?? defaultLoadPending;
+  const issue = deps.issue ?? defaultIssue;
+
+  const cargada = await cargarColaTolerandoMigracion(() =>
+    loadPending(sanitizeBatchLimit(limit))
+  );
+  if (!cargada.ok) {
+    return { scanned: 0, issued: 0, failed: 0, unavailable: cargada.message };
+  }
+  const pending = cargada.filas;
+
+  let issued = 0;
+  let failed = 0;
+
+  for (const row of pending) {
+    try {
+      const result = await issue({ registrationId: row.registrationId });
+      if (result.ok) {
+        issued += 1;
+      } else {
+        failed += 1;
+      }
+    } catch {
+      // Un fallo — de `issueDiploma` o de la actualización de la pieza en
+      // `defaultIssue` — nunca corta el lote: se cuenta y se sigue.
+      failed += 1;
+    }
+  }
+
+  return { scanned: pending.length, issued, failed };
+}
+
+// ---------------------------------------------------------------------------
+// Correo del diploma — procesa lo que `enqueueEditionDiplomaEmails` dejó en
+// el buzón de salida (`ClickatonIntegrationOutboxEvent`, ver diploma-email.ts).
+//
+// Dos capas, como el resto de este archivo:
+// - `processDiplomaEmailEvent` es el "despachador" de un evento ya
+//   reclamado: decide (revocado / ya resuelto / sin dirección / manda /
+//   rebota / reintenta) y hace las escrituras correspondientes, todas por
+//   dependencias inyectables — es lo que se testea sin base ni red.
+// - `processDueDiplomaEmails` es el lote: reclama hasta `limit` eventos y le
+//   pasa cada uno al despachador, sin cortar el resto ante un fallo.
+// ---------------------------------------------------------------------------
+
+const DIPLOMA_EMAIL_BATCH_LIMIT_DEFAULT = 25;
+
+/**
+ * Un evento reclamado y no cerrado en menos de esto se considera trabado
+ * (la función que lo tenía se cortó a mitad de camino: timeout de Vercel, un
+ * deploy, lo que sea) y el próximo ciclo lo vuelve a tomar. Un envío HTTP a
+ * Resend nunca debería tardar minutos; 15 sobra de sobra sin arriesgar
+ * reclamar un evento que en realidad sigue en curso.
+ *
+ * Ojo con la ventana que esto deja abierta, a propósito: si el corte ocurre
+ * justo DESPUÉS de que Resend aceptó el envío pero ANTES de que
+ * `markSent`/`closeEvent` lleguen a escribir, el evento queda `PROCESSING`
+ * con el correo ya afuera. Cuando venza el TTL, el próximo ciclo lo va a
+ * reclamar y mandar de nuevo — un segundo correo para la misma persona. Es
+ * el precio de "al menos una vez" en vez de "como máximo una vez" (la
+ * alternativa sería arriesgar perder correos para siempre ante cualquier
+ * corte), y es la decisión correcta acá: un diploma repetido en la bandeja
+ * de entrada es mucho menos grave que uno que nunca llega. No hay
+ * deduplicación del lado del destinatario para esto.
+ */
+const DIPLOMA_EMAIL_LOCK_TTL_MS = 15 * 60_000;
+
+/**
+ * Tope de reintentos automáticos de un fallo transitorio (red, 5xx de
+ * Resend). Pasado esto, el evento pasa a `"DEAD"` y deja de tomarse solo —
+ * a propósito, para no golpear Resend cada 5 minutos por años si algo quedó
+ * mal configurado. `requeueDiplomaEmail` (diploma-email.ts) es el camino
+ * para revivirlo a mano una vez resuelta la causa.
+ */
+export const DIPLOMA_EMAIL_RETRY_MAX_ATTEMPTS = 8;
+
+/**
+ * Mismo backoff creciente que `lib/welcome-card/process.ts:118` (tope de una
+ * hora), con un piso: si Resend mandó un `Retry-After` explícito (típico de
+ * un 429 de límite de tasa), nunca se espera menos que eso — el backoff
+ * propio puede alargar la espera, pero no acortar la que pidió el
+ * proveedor.
+ */
+function diplomaEmailRetryAt(attempt: number, retryAfterMs?: number): Date {
+  const backoffMs = Math.min(60 * 60_000, 30_000 * 2 ** Math.min(attempt, 7));
+  const delayMs =
+    retryAfterMs !== undefined ? Math.max(backoffMs, retryAfterMs) : backoffMs;
+  return new Date(Date.now() + delayMs);
+}
+
+export type DiplomaEmailRetryDecision =
+  | { status: "FAILED"; availableAt: Date }
+  | { status: "DEAD" };
+
+/**
+ * Decisión pura ante una falla transitoria: ¿todavía vale la pena
+ * reintentar, o ya se agotó el tope? Separada de `defaultRetryEventLater`
+ * (que sí escribe en la base) por el mismo motivo que `decidirCierreDeIntento`
+ * está separada de `defaultIssue` más arriba: para poder probar el umbral y
+ * el backoff sin tocar Prisma.
+ */
+export function decidirReintentoDeCorreo(
+  attempt: number,
+  retryAfterMs?: number
+): DiplomaEmailRetryDecision {
+  if (attempt >= DIPLOMA_EMAIL_RETRY_MAX_ATTEMPTS) return { status: "DEAD" };
+  return { status: "FAILED", availableAt: diplomaEmailRetryAt(attempt, retryAfterMs) };
+}
+
+export type DiplomaEmailPendingRow = {
+  eventId: string;
+  diplomaId: string;
+  /** Nº de intento después de esta reclamación (arranca en 1). Alimenta el backoff. */
+  attempt: number;
+};
+
+export type ProcessDiplomaEmailOutcome =
+  | { ok: true; status: "SENT" }
+  | { ok: false; status: "SKIPPED_NO_EMAIL" | "SKIPPED_REVOKED" | "SKIPPED_ALREADY_RESOLVED" }
+  /** Falla que puede resolverse sola (red, 5xx, falta la imagen todavía): el evento se reintenta con backoff, o pasa a "DEAD" si agotó el tope. */
+  | { ok: false; status: "RETRY"; reason: string }
+  /** El proveedor rechazó el envío en sí (4xx explícito): terminal, no se reintenta solo. */
+  | { ok: false; status: "BOUNCED"; reason: string };
+
+export type ProcessDueDiplomaEmailsDeps = {
+  loadPending?: (limit: number) => Promise<DiplomaEmailPendingRow[]>;
+  processOne?: (row: DiplomaEmailPendingRow) => Promise<ProcessDiplomaEmailOutcome>;
+};
+
+export type ProcessDueDiplomaEmailsResult = {
+  scanned: number;
+  sent: number;
+  failed: number;
+  /** Igual que en `ProcessDueDiplomasResult`: la migración todavía no está aplicada. */
+  unavailable?: string;
+};
+
+
+/**
+ * Reclama hasta `limit` eventos: los `PENDING`/`FAILED` de siempre, MÁS
+ * cualquier `PROCESSING` cuyo `lockedAt` ya venció
+ * (`DIPLOMA_EMAIL_LOCK_TTL_MS`) — un evento trabado por un corte a mitad de
+ * camino (ver comentario del módulo) no se puede quedar `PROCESSING` para
+ * siempre. Mismo patrón de reserva condicionada que `defaultLoadPending`
+ * (arriba): cada evento se marca con su propio `updateMany`, que vuelve a
+ * exigir esa misma condición en el momento de escribir.
+ */
+async function defaultLoadPendingDiplomaEmails(limit: number): Promise<DiplomaEmailPendingRow[]> {
+  const now = new Date();
+  const staleBefore = new Date(now.getTime() - DIPLOMA_EMAIL_LOCK_TTL_MS);
+  const claimable: Prisma.ClickatonIntegrationOutboxEventWhereInput[] = [
+    { status: { in: ["PENDING", "FAILED"] } },
+    { status: "PROCESSING", lockedAt: { lte: staleBefore } },
+  ];
+
+  const events = await prisma.clickatonIntegrationOutboxEvent.findMany({
+    where: { eventType: DIPLOMA_EMAIL_OUTBOX_EVENT_TYPE, availableAt: { lte: now }, OR: claimable },
+    orderBy: { availableAt: "asc" },
+    take: limit,
+    select: { id: true, aggregateId: true, attempts: true },
+  });
+
+  if (events.length === 0) return [];
+
+  const claims = await Promise.all(
+    events.map(async (event) => {
+      const { count } = await prisma.clickatonIntegrationOutboxEvent.updateMany({
+        where: { id: event.id, OR: claimable },
+        data: { status: "PROCESSING", lockedAt: now, attempts: { increment: 1 } },
+      });
+      return count === 1
+        ? { eventId: event.id, diplomaId: event.aggregateId, attempt: event.attempts + 1 }
+        : null;
+    })
+  );
+
+  return claims.filter((c): c is DiplomaEmailPendingRow => c !== null);
+}
+
+async function defaultCloseEvent(eventId: string, lastError: string | null = null): Promise<void> {
+  await prisma.clickatonIntegrationOutboxEvent.update({
+    where: { id: eventId },
+    data: { status: "PROCESSED", processedAt: new Date(), lastError },
+  });
+}
+
+/**
+ * Reintenta más tarde con backoff creciente — o, si `attempt` ya llegó al
+ * tope, cierra el evento como `"DEAD"` (no `"FAILED"`: `"FAILED"` sigue
+ * siendo tomado por `defaultLoadPendingDiplomaEmails`, `"DEAD"` no).
+ * `retryAfterMs`, si Resend lo mandó (un 429), pone un piso a la espera.
+ */
+async function defaultRetryEventLater(
+  eventId: string,
+  attempt: number,
+  reason: string,
+  retryAfterMs?: number
+): Promise<void> {
+  const lastError = reason.slice(0, 300);
+  const decision = decidirReintentoDeCorreo(attempt, retryAfterMs);
+  await prisma.clickatonIntegrationOutboxEvent.update({
+    where: { id: eventId },
+    data:
+      decision.status === "DEAD"
+        ? { status: "DEAD", lastError }
+        : { status: "FAILED", lastError, availableAt: decision.availableAt },
+  });
+}
+
+/** Lo que necesita el despachador de un diploma — ya aplanado, sin la forma cruda de Prisma. */
+export type DiplomaEmailRecord = {
+  id: string;
+  emailStatus: string;
+  revokedAt: Date | null;
+  registrationId: string;
+  email: string | null;
+  participantName: string;
+  editionName: string;
+  cardStorageKey: string | null;
+};
+
+async function defaultLoadDiplomaForEmail(diplomaId: string): Promise<DiplomaEmailRecord | null> {
+  const diploma = await prisma.clickatonDiplomaIssue.findUnique({
+    where: { id: diplomaId },
+    select: {
+      id: true,
+      emailStatus: true,
+      revokedAt: true,
+      registrationId: true,
+      registration: { select: { firstName: true, lastName: true, email: true } },
+      edition: { select: { name: true } },
+      card: { select: { storageKey: true } },
+    },
+  });
+  if (!diploma) return null;
+  return {
+    id: diploma.id,
+    emailStatus: diploma.emailStatus,
+    revokedAt: diploma.revokedAt,
+    registrationId: diploma.registrationId,
+    email: diploma.registration.email,
+    participantName: [diploma.registration.firstName, diploma.registration.lastName]
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .join(" "),
+    editionName: diploma.edition.name,
+    cardStorageKey: diploma.card?.storageKey ?? null,
+  };
+}
+
+/** El despachador real: la llamada de red a Resend. Inyectable a propósito — ver `processDiplomaEmailEvent`. */
+async function defaultSendEmail(input: {
+  to: string;
+  subject: string;
+  text: string;
+  html: string;
+}): Promise<IdentityEmailResult> {
+  return sendIdentityEmail({ ...input, templateKey: "clickaton_diploma_email" });
+}
+
+async function defaultMarkSent(diplomaId: string, providerMessageId: string | null): Promise<void> {
+  await prisma.clickatonDiplomaIssue.update({
+    where: { id: diplomaId },
+    data: {
+      emailStatus: "SENT",
+      emailSentAt: new Date(),
+      emailLastError: null,
+      // Sin esto no hay forma de correlacionar un rebote real (webhook, hoy
+      // apagado) con este diploma: "enviado" hoy sólo significa "se lo
+      // entregamos a Resend", no "le llegó".
+      emailProviderMessageId: providerMessageId,
+    },
+  });
+}
+
+async function defaultMarkBounced(diplomaId: string, reason: string): Promise<void> {
+  await prisma.clickatonDiplomaIssue.update({
+    where: { id: diplomaId },
+    data: { emailStatus: "BOUNCED", emailLastError: reason.slice(0, 300) },
+  });
+}
+
+async function defaultMarkDiplomaNoEmail(diplomaId: string): Promise<void> {
+  await prisma.clickatonDiplomaIssue.update({
+    where: { id: diplomaId },
+    data: { emailStatus: "NO_EMAIL" },
+  });
+}
+
+export type DiplomaEmailDispatchDeps = {
+  loadDiploma?: (diplomaId: string) => Promise<DiplomaEmailRecord | null>;
+  /** El despachador en sí — la llamada a Resend. Es lo que los tests reemplazan para cubrir enviado/rebotado/reintento sin red. */
+  sendEmail?: (input: {
+    to: string;
+    subject: string;
+    text: string;
+    html: string;
+  }) => Promise<IdentityEmailResult>;
+  markSent?: (diplomaId: string, providerMessageId: string | null) => Promise<void>;
+  markBounced?: (diplomaId: string, reason: string) => Promise<void>;
+  markNoEmail?: (diplomaId: string) => Promise<void>;
+  closeEvent?: (eventId: string, lastError?: string | null) => Promise<void>;
+  retryEventLater?: (
+    eventId: string,
+    attempt: number,
+    reason: string,
+    retryAfterMs?: number
+  ) => Promise<void>;
+};
+
+/**
+ * Procesa un evento ya reclamado: arma el correo con `buildDiplomaEmail` y
+ * lo despacha con `sendEmail`. Anota `emailStatus: "SENT"` (con fecha y el
+ * `messageId` que devuelve el proveedor) si se mandó; si no, distingue dos
+ * casos con `classifyDiplomaEmailSendFailure` — un rechazo explícito de
+ * Resend (4xx) es `"BOUNCED"` y termina ahí; cualquier otra cosa (timeout,
+ * DNS, un 5xx) es transitoria y se reintenta con `retryEventLater`. Una
+ * falla que no es del envío en sí (todavía no hay `storageKey` válida para
+ * la imagen) tampoco se cuenta como rebote: mismo camino de reintento.
+ */
+export async function processDiplomaEmailEvent(
+  row: DiplomaEmailPendingRow,
+  deps: DiplomaEmailDispatchDeps = {}
+): Promise<ProcessDiplomaEmailOutcome> {
+  const loadDiploma = deps.loadDiploma ?? defaultLoadDiplomaForEmail;
+  const sendEmail = deps.sendEmail ?? defaultSendEmail;
+  const markSent = deps.markSent ?? defaultMarkSent;
+  const markBounced = deps.markBounced ?? defaultMarkBounced;
+  const markNoEmail = deps.markNoEmail ?? defaultMarkDiplomaNoEmail;
+  const closeEvent = deps.closeEvent ?? defaultCloseEvent;
+  const retryEventLater = deps.retryEventLater ?? defaultRetryEventLater;
+
+  const diploma = await loadDiploma(row.diplomaId);
+
+  if (!diploma) {
+    await closeEvent(row.eventId, "DIPLOMA_NOT_FOUND");
+    return { ok: false, status: "SKIPPED_ALREADY_RESOLVED" };
+  }
+
+  // Diploma revocado después de encolarse: no se manda un correo por algo
+  // que ya no es válido. El emisor no vuelve a "NOT_SENT" —revocar no es
+  // este módulo— así que si alguna vez se reemite, el flujo de reemisión es
+  // quien decide si corresponde un nuevo envío.
+  if (diploma.revokedAt) {
+    await closeEvent(row.eventId, "DIPLOMA_REVOKED");
+    return { ok: false, status: "SKIPPED_REVOKED" };
+  }
+
+  // Ya se resolvió por otro intento (otro ciclo de cron ganó la carrera):
+  // no se manda dos veces.
+  if (diploma.emailStatus !== "QUEUED") {
+    await closeEvent(row.eventId);
+    return { ok: false, status: "SKIPPED_ALREADY_RESOLVED" };
+  }
+
+  const email = diploma.email?.trim();
+  if (!email) {
+    await markNoEmail(diploma.id);
+    await closeEvent(row.eventId, "NO_EMAIL");
+    return { ok: false, status: "SKIPPED_NO_EMAIL" };
+  }
+
+  const diplomaImageUrl = resolveDiplomaImageUrl(diploma.cardStorageKey);
+  if (!diplomaImageUrl) {
+    // Dos causas bien distintas detrás del mismo "no hay URL", y conviene
+    // que el motivo guardado (`lastError` del evento) diga cuál: si no hay
+    // `storageKey` todavía, el diploma sencillamente no terminó de
+    // generarse (se va a resolver solo apenas eso pase). Si SÍ hay
+    // `storageKey` pero no matchea la lista blanca —el caso real: un
+    // prefijo de key distinto al de producción, por ejemplo
+    // `CLICKATON_PARTICIPANT_CARDS_KEY_PREFIX` en un ambiente de prueba—,
+    // eso no se va a arreglar solo reintentando: sin este detalle, el
+    // evento reintenta 8 veces y muere en `DEAD` sin que quede registrado
+    // por qué.
+    const reason = diploma.cardStorageKey
+      ? `DIPLOMA_IMAGE_URL_UNAVAILABLE: la storageKey no matchea la lista blanca de /api/media (${diploma.cardStorageKey})`
+      : "DIPLOMA_IMAGE_URL_UNAVAILABLE: el diploma todavía no tiene una pieza (storageKey) asociada";
+    await retryEventLater(row.eventId, row.attempt, reason);
+    return { ok: false, status: "RETRY", reason };
+  }
+
+  const accountUrl = resolveDiplomaAccountUrl(diploma.registrationId);
+  const built = buildDiplomaEmail({
+    participantName: diploma.participantName,
+    editionName: diploma.editionName,
+    accountUrl,
+    diplomaImageUrl,
+  });
+  const recipient = resolveDiplomaEmailRecipient(email);
+  const subject = isClickatonProductionAudience() ? built.subject : `[TEST] ${built.subject}`;
+
+  const result = await sendEmail({ to: recipient, subject, text: built.text, html: built.html });
+
+  if (result.sent) {
+    await markSent(diploma.id, result.messageId ?? null);
+    await closeEvent(row.eventId);
+    return { ok: true, status: "SENT" };
+  }
+
+  if (result.skipped) {
+    // No es un rechazo del proveedor — típicamente falta `RESEND_API_KEY`
+    // en este ambiente. No es un rebote: se reintenta como cualquier falla
+    // transitoria.
+    const reason = result.reason ?? "EMAIL_SEND_SKIPPED";
+    await retryEventLater(row.eventId, row.attempt, reason);
+    return { ok: false, status: "RETRY", reason };
+  }
+
+  const reason = result.reason ?? "EMAIL_SEND_FAILED";
+  if (classifyDiplomaEmailSendFailure(result.reason) === "REJECTED") {
+    await markBounced(diploma.id, reason);
+    await closeEvent(row.eventId, reason.slice(0, 300));
+    return { ok: false, status: "BOUNCED", reason };
+  }
+
+  // Transitorio (timeout, DNS, un 5xx de Resend, o un 429 de límite de
+  // tasa): un hipo de red no puede dejar a alguien sin su diploma para
+  // siempre. Se reintenta, respetando el `Retry-After` de Resend si vino.
+  await retryEventLater(row.eventId, row.attempt, reason, result.retryAfterMs);
+  return { ok: false, status: "RETRY", reason };
+}
+
+async function defaultProcessDiplomaEmail(
+  row: DiplomaEmailPendingRow
+): Promise<ProcessDiplomaEmailOutcome> {
+  return processDiplomaEmailEvent(row);
+}
+
+/**
+ * Pausa entre un envío y el siguiente dentro de la misma tanda. Resend
+ * limita por defecto a 2 pedidos por segundo (500ms de piso): sin ninguna
+ * pausa, una tanda de hasta 25 correos seguidos —en una edición de 29
+ * diplomas, el caso normal, no el raro— pisa ese límite y varios terminan en
+ * 429. `classifyDiplomaEmailSendFailure` ya evita que un 429 se trate como
+ * rebote definitivo, pero es mejor no generarlos de entrada. 600ms deja
+ * margen sobre el piso de 500ms.
+ */
+const DIPLOMA_EMAIL_SEND_PACING_MS = 600;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Procesa hasta `limit` correos de diploma pendientes, uno por uno, con una
+ * pausa entre cada uno (`DIPLOMA_EMAIL_SEND_PACING_MS`) para no pisar el
+ * límite de tasa de Resend. Un fallo —incluida una excepción cruda— se
+ * cuenta y no corta el resto del lote, igual criterio que `processDueDiplomas`.
+ */
+export async function processDueDiplomaEmails(
+  limit = DIPLOMA_EMAIL_BATCH_LIMIT_DEFAULT,
+  deps: ProcessDueDiplomaEmailsDeps & { wait?: (ms: number) => Promise<void> } = {}
+): Promise<ProcessDueDiplomaEmailsResult> {
+  const loadPending = deps.loadPending ?? defaultLoadPendingDiplomaEmails;
+  const processOne = deps.processOne ?? defaultProcessDiplomaEmail;
+  const wait = deps.wait ?? sleep;
+
+  const cargada = await cargarColaTolerandoMigracion(() =>
+    loadPending(sanitizeBatchLimit(limit))
+  );
+  if (!cargada.ok) {
+    return { scanned: 0, sent: 0, failed: 0, unavailable: cargada.message };
+  }
+  const pending = cargada.filas;
+
+  let sent = 0;
+  let failed = 0;
+
+  for (let i = 0; i < pending.length; i += 1) {
+    const row = pending[i];
+    if (!row) continue;
+    if (i > 0) await wait(DIPLOMA_EMAIL_SEND_PACING_MS);
+    try {
+      const outcome = await processOne(row);
+      if (outcome.ok) {
+        sent += 1;
+      } else if (outcome.status !== "SKIPPED_NO_EMAIL" && outcome.status !== "SKIPPED_REVOKED" && outcome.status !== "SKIPPED_ALREADY_RESOLVED") {
+        failed += 1;
+      }
+    } catch {
+      failed += 1;
+    }
+  }
+
+  return { scanned: pending.length, sent, failed };
+}

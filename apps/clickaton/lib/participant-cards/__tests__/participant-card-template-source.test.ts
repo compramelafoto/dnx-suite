@@ -40,54 +40,85 @@ function loadResult(over: Partial<TemplateV2LoadResult> = {}): TemplateV2LoadRes
 
 describe("validateClickatonCardTemplate", () => {
   it("acepta una plantilla con variables de Clickatón", () => {
-    assert.deepEqual(validateClickatonCardTemplate(loadResult().payload), []);
+    assert.deepEqual(validateClickatonCardTemplate(loadResult().payload, "welcome"), []);
   });
 
   it("rechaza variables que Clickatón no conoce", () => {
-    const issues = validateClickatonCardTemplate({
-      canvas: { width: 1080, height: 1920 },
-      blocks: [block({ configJson: { variableKey: "student.fullName" } })],
-    });
+    const issues = validateClickatonCardTemplate(
+      {
+        canvas: { width: 1080, height: 1920 },
+        blocks: [block({ configJson: { variableKey: "student.fullName" } })],
+      },
+      "welcome"
+    );
     assert.equal(issues.length, 1);
     assert.equal(issues[0]!.code, "UNKNOWN_VARIABLE");
     assert.match(issues[0]!.message, /student\.fullName/);
   });
 
   it("rechaza tipos de bloque que el motor no dibuja", () => {
-    const issues = validateClickatonCardTemplate({
-      canvas: { width: 1080, height: 1920 },
-      blocks: [block({ type: "QR_CODE", configJson: {} })],
-    });
+    const issues = validateClickatonCardTemplate(
+      {
+        canvas: { width: 1080, height: 1920 },
+        blocks: [block({ type: "QR_CODE", configJson: {} })],
+      },
+      "welcome"
+    );
     assert.equal(issues[0]!.code, "UNSUPPORTED_BLOCK");
   });
 
   it("rechaza plantillas vacías o con lienzo inválido", () => {
     assert.equal(
-      validateClickatonCardTemplate({ canvas: { width: 1080, height: 1920 }, blocks: [] })[0]!.code,
+      validateClickatonCardTemplate(
+        { canvas: { width: 1080, height: 1920 }, blocks: [] },
+        "welcome"
+      )[0]!.code,
       "NO_BLOCKS"
     );
-    const issues = validateClickatonCardTemplate({
-      canvas: { width: 0, height: 0 },
-      blocks: [block()],
-    });
+    const issues = validateClickatonCardTemplate(
+      {
+        canvas: { width: 0, height: 0 },
+        blocks: [block()],
+      },
+      "welcome"
+    );
     assert.ok(issues.some((i) => i.code === "CANVAS_INVALID"));
   });
 
   it("mira también las variables de imagen y los bindings", () => {
-    const issues = validateClickatonCardTemplate({
-      canvas: { width: 1080, height: 1920 },
-      blocks: [
-        block({
-          type: "PHOTO",
-          configJson: { source: { variableKey: "participant.photoUrl" } },
-        }),
-      ],
-      variableBindings: [
-        { blockId: "b1", targetPath: "variableKey", variableKey: "inventada.x" },
-      ],
-    });
+    const issues = validateClickatonCardTemplate(
+      {
+        canvas: { width: 1080, height: 1920 },
+        blocks: [
+          block({
+            type: "PHOTO",
+            configJson: { source: { variableKey: "participant.photoUrl" } },
+          }),
+        ],
+        variableBindings: [
+          { blockId: "b1", targetPath: "variableKey", variableKey: "inventada.x" },
+        ],
+      },
+      "welcome"
+    );
     assert.equal(issues.length, 1);
     assert.match(issues[0]!.message, /inventada\.x/);
+  });
+
+  it("un bloque QR es inválido para una placa, pero válido para un diploma", () => {
+    const conBloqueQr = {
+      canvas: { width: 1080, height: 1920 },
+      blocks: [block({ type: "QR", configJson: {} })],
+    };
+
+    const paraPlaca = validateClickatonCardTemplate(conBloqueQr, "welcome");
+    assert.ok(paraPlaca.some((i) => i.code === "UNSUPPORTED_BLOCK"));
+
+    const paraSoyParte = validateClickatonCardTemplate(conBloqueQr, "member");
+    assert.ok(paraSoyParte.some((i) => i.code === "UNSUPPORTED_BLOCK"));
+
+    const paraDiploma = validateClickatonCardTemplate(conBloqueQr, "diploma");
+    assert.ok(!paraDiploma.some((i) => i.code === "UNSUPPORTED_BLOCK"));
   });
 });
 
@@ -98,6 +129,7 @@ describe("templateV2ToCardPreset", () => {
     assert.equal(preset.payload.blocks.length, 1);
     assert.equal(preset.meta.templateVersion, 3);
     assert.match(preset.presetId, /^template-v2:tpl_1:ver_1$/);
+    assert.equal(preset.meta.purpose, "participant_welcome");
   });
 
   it("completa los valores de layout que la base deja opcionales", () => {
@@ -106,6 +138,11 @@ describe("templateV2ToCardPreset", () => {
     assert.equal(layout.rotation, 0);
     assert.equal(layout.opacity, 1);
     assert.equal(layout.visible, true);
+  });
+
+  it("usa participant_member para las placas de socio, sin mezclarse con welcome", () => {
+    const preset = templateV2ToCardPreset(loadResult(), "member");
+    assert.equal(preset.meta.purpose, "participant_member");
   });
 });
 
