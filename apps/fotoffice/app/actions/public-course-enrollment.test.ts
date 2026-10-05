@@ -21,6 +21,11 @@ const {
   }),
 }));
 
+const txMock = {
+  courseEnrollment: { create: (...args: unknown[]) => enrollmentCreateMock(...args) },
+  courseSaleShare: { createMany: vi.fn() },
+};
+vi.mock("@/lib/auth", () => ({ getAuthUser: vi.fn().mockResolvedValue(null) }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: redirectMock }));
 vi.mock("@repo/db", async () => {
@@ -28,6 +33,8 @@ vi.mock("@repo/db", async () => {
   return {
     ...actual,
     prisma: {
+      $transaction: async (fn: (tx: unknown) => unknown) => fn(txMock),
+      courseResaleAgreement: { findFirst: vi.fn().mockResolvedValue(null) },
       fotofficeWorkspaceBranding: { findUnique: brandingFindUniqueMock },
       workspaceFeatureModule: { findUnique: moduleFindUniqueMock },
       course: { findFirst: courseFindFirstMock },
