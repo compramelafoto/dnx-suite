@@ -16,6 +16,8 @@ const SISTEMA: Record<StoreOrderStatus, readonly StoreOrderStatus[]> = {
   READY: [],
   DELIVERED: [],
   PAID_NO_STOCK: [],
+  // Las transiciones desde y hacia SHIPPED se definen con el despacho (tarea 8).
+  SHIPPED: [],
 };
 const PERSONAL: Record<StoreOrderStatus, readonly StoreOrderStatus[]> = {
   PENDING_PAYMENT: ["CANCELLED"],
@@ -25,6 +27,7 @@ const PERSONAL: Record<StoreOrderStatus, readonly StoreOrderStatus[]> = {
   DELIVERED: [],
   CANCELLED: [],
   EXPIRED: [],
+  SHIPPED: [],
 };
 
 export function canTransition(

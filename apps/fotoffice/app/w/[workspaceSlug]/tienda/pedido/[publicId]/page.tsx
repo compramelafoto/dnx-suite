@@ -26,7 +26,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: "Tu pedido", robots: { index: false, follow: false }, referrer: "no-referrer" };
 }
 
-const PAGADO: readonly StoreOrderStatus[] = ["PAID", "READY", "DELIVERED", "PAID_NO_STOCK"];
+const PAGADO: readonly StoreOrderStatus[] = ["PAID", "READY", "DELIVERED", "PAID_NO_STOCK", "SHIPPED"];
 
 /** Los títulos para quien compró (los del panel, `STORE_ORDER_STATUS_LABELS`, son para el personal). */
 const TITULO: Record<StoreOrderStatus, string> = {
@@ -37,6 +37,7 @@ const TITULO: Record<StoreOrderStatus, string> = {
   CANCELLED: "Pedido cancelado",
   EXPIRED: "Reserva vencida",
   PAID_NO_STOCK: "Recibimos tu pago",
+  SHIPPED: "Tu pedido está en camino",
 };
 
 function uno(v: string | string[] | undefined): string | null {

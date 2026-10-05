@@ -22,6 +22,7 @@ export const STORE_ORDER_STATUS_LABELS: Record<StoreOrderStatus, string> = {
   CANCELLED: "Cancelado",
   EXPIRED: "Vencido sin pago",
   PAID_NO_STOCK: "Pagado sin stock — resolver",
+  SHIPPED: "Despachado",
 };
 
 /**
