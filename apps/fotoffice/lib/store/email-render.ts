@@ -53,9 +53,10 @@ export function buildStoreOrderUrl(input: {
 
 // ── Piezas ──────────────────────────────────────────────────────────────────
 
-type Bloque = { text: string[]; html: string };
+/** Un tramo del correo: sus renglones de texto plano y su HTML. Lo usan también otros correos de la tienda. */
+export type Bloque = { text: string[]; html: string };
 
-function parrafo(texto: string, rico = escapeHtml(texto)): Bloque {
+export function parrafo(texto: string, rico = escapeHtml(texto)): Bloque {
   return {
     text: [texto],
     html: `<p class="cuerpo" style="margin:0 0 14px;font-size:15px;line-height:1.62;color:${C.cuerpo};">${rico}</p>`,
@@ -127,7 +128,7 @@ function comprador(o: StoreEmailOrder): Bloque {
   };
 }
 
-function armar(
+export function armar(
   institution: string,
   subject: string,
   bloques: (Bloque | null)[],
