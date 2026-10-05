@@ -6,6 +6,7 @@ import { loadWorkspaceSignature } from "@/lib/communications/load-workspace-sign
 import { logCourseEvent } from "@/lib/presential-courses/log";
 import { appUrl } from "@/lib/app-url";
 import { calcularVencimiento } from "./access-rules";
+import { invitacionASociarse } from "./asociarse";
 import { asegurarCuentaDelAlumno, crearEnlaceParaContrasena } from "./account";
 import { sendBienvenidaAlumnoEmail, sendCursoEnTuPortalEmail, type InvitacionASociarse } from "./email";
 
@@ -116,8 +117,7 @@ function depsPorDefecto(): AvisoDeps {
   return {
     asegurarCuenta: (email) => asegurarCuentaDelAlumno(email),
     otorgar: (input) => otorgarAccesoPorCompra(input),
-    // La Task 8 conecta la invitación real. Hasta entonces, sin invitación.
-    invitacionASociarse: async () => null,
+    invitacionASociarse: (workspaceId, userId) => invitacionASociarse(workspaceId, userId),
     crearEnlaceContrasena: (userId, base) => crearEnlaceParaContrasena(userId, base),
     enviarCursoListo: sendCursoEnTuPortalEmail,
     enviarBienvenida: sendBienvenidaAlumnoEmail,

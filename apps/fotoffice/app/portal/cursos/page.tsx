@@ -6,6 +6,7 @@ import { cargarMisCursos } from "@/lib/course-classroom/mis-cursos";
 import { otorgarAccesosPendientes } from "@/lib/course-classroom/alumno";
 import { fechaLegibleArgentina } from "@/lib/course-classroom/access-rules";
 import { cursosGratisParaSocio, mensajeDeBeneficio } from "@/lib/course-classroom/beneficio";
+import { cursosGratisDeLaInstitucion, rutaAsociarse } from "@/lib/course-classroom/asociarse";
 import { loadPortalContext } from "@/lib/portal/access";
 import { anotarmeGratisAction } from "./actions";
 
@@ -31,6 +32,16 @@ export default async function MisCursosPage({ searchParams }: { searchParams: Pr
   const grupos = await cargarMisCursos(user.id);
   const socio = await loadPortalContext(user.id);
   const gratis = socio ? await cursosGratisParaSocio(socio.workspace.id, user.id) : [];
+  // Quien todavía no es socia recibe, por institución, la invitación a asociarse (si el
+  // formulario está abierto) con los cursos que le saldrían gratis. Paralelo a `grupos`.
+  const invitaciones = await Promise.all(
+    grupos.map(async (grupo) => {
+      if (socio) return null;
+      const ruta = await rutaAsociarse(grupo.workspace.id, user.id);
+      if (!ruta) return null;
+      return { ruta, gratisDeLaInstitucion: await cursosGratisDeLaInstitucion(grupo.workspace.id) };
+    }),
+  );
 
   return (
     <div className="space-y-6">
@@ -43,9 +54,31 @@ export default async function MisCursosPage({ searchParams }: { searchParams: Pr
       {grupos.length === 0 ? (
         <section className="fo-card text-sm text-[var(--fo-muted)]">Todavía no tenés cursos.</section>
       ) : (
-        grupos.map((grupo) => (
+        grupos.map((grupo, i) => {
+          const invitacion = invitaciones[i];
+          return (
           <section key={grupo.workspace.id} className="space-y-3">
             {grupos.length > 1 ? <h2 className="text-lg font-semibold">{grupo.workspace.name}</h2> : null}
+            {invitacion ? (
+              <aside className="fo-card space-y-2 border-[var(--fo-accent)]/40">
+                <p className="font-semibold">Hacete socio de {grupo.workspace.name}</p>
+                {invitacion.gratisDeLaInstitucion.length > 0 ? (
+                  <>
+                    <p className="text-sm text-[var(--fo-muted)]">Y estos cursos te salen gratis:</p>
+                    <ul className="list-disc pl-5 text-sm">
+                      {invitacion.gratisDeLaInstitucion.map((c) => (
+                        <li key={c.id}>{c.title}</li>
+                      ))}
+                    </ul>
+                  </>
+                ) : (
+                  <p className="text-sm text-[var(--fo-muted)]">Sumate a la institución y accedé a sus beneficios.</p>
+                )}
+                <a href={invitacion.ruta} className="fo-btn fo-btn-primary inline-flex text-sm">
+                  Quiero ser socio
+                </a>
+              </aside>
+            ) : null}
             <ul className="grid gap-3 md:grid-cols-2">
               {grupo.cursos.map((curso) => (
                 <li key={curso.accessId} className="fo-card space-y-3">
@@ -77,7 +110,8 @@ export default async function MisCursosPage({ searchParams }: { searchParams: Pr
               ))}
             </ul>
           </section>
-        ))
+          );
+        })
       )}
 
       {gratis.length > 0 ? (

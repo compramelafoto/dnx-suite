@@ -8,6 +8,7 @@ import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { resolvePortalMenu, resolveStudentPortalMenu } from "@/lib/portal/menu";
 import { getDuesSettings } from "@/lib/membership/settings";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
+import { rutaAsociarse } from "@/lib/course-classroom/asociarse";
 import { PortalShell } from "@/components/portal/portal-shell";
 
 /**
@@ -42,8 +43,7 @@ export default async function PortalLayout({ children }: { children: ReactNode }
     ]);
     return (
       <PortalShell
-        // La Task 8 conecta "Hacete socio".
-        items={resolveStudentPortalMenu({ asociarseHref: null })}
+        items={resolveStudentPortalMenu({ asociarseHref: await rutaAsociarse(viewer.workspace.id, viewer.userId) })}
         vocabulary={vocabulary}
         institution={{
           name: branding?.commercialName?.trim() || viewer.workspace.name,
