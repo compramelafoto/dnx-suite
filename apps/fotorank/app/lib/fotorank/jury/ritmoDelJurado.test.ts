@@ -3,9 +3,15 @@ import assert from "node:assert/strict";
 
 import {
   FOTOS_MINIMAS_PARA_ESTIMAR,
+  FOTOS_POR_LATIDO,
+  TOPE_POR_FOTO_POR_LATIDO,
   UMBRAL_DE_INACTIVIDAD_SEGUNDOS,
+  descontarLoAnotado,
+  limpiarTiempoPorFoto,
   loQueFalta,
   ritmoDelJurado,
+  segundosQueCuentan,
+  sumarALaFoto,
   sumarAlLatido,
 } from "./ritmoDelJurado";
 
@@ -122,4 +128,88 @@ test("un tiempo negativo entre latidos no descuenta lo acumulado", () => {
     huboInteraccion: true,
   });
   assert.equal(r, 100);
+});
+
+/* ---------- el tiempo de cada foto ---------- */
+
+test("un tic con pantalla a la vista y actividad reciente cuenta entero", () => {
+  assert.equal(
+    segundosQueCuentan({ desdeElTicAnterior: 5, desdeLaUltimaInteraccion: 40, pantallaVisible: true }),
+    5,
+  );
+});
+
+/** Mirar una foto sin mover el mouse también es trabajar, hasta el umbral. */
+test("sin tocar nada hace más que el umbral, el tic no cuenta", () => {
+  assert.equal(
+    segundosQueCuentan({ desdeElTicAnterior: 5, desdeLaUltimaInteraccion: 76, pantallaVisible: true }),
+    0,
+  );
+});
+
+test("con la pantalla oculta el tic no cuenta", () => {
+  assert.equal(
+    segundosQueCuentan({ desdeElTicAnterior: 5, desdeLaUltimaInteraccion: 1, pantallaVisible: false }),
+    0,
+  );
+});
+
+test("un tic atrasado por la computadora dormida se recorta al umbral", () => {
+  assert.equal(
+    segundosQueCuentan({ desdeElTicAnterior: 3600, desdeLaUltimaInteraccion: 1, pantallaVisible: true }),
+    UMBRAL_DE_INACTIVIDAD_SEGUNDOS,
+  );
+});
+
+test("el tiempo se suma a la foto que está en pantalla", () => {
+  let t = sumarALaFoto({}, "a", 5);
+  t = sumarALaFoto(t, "a", 5);
+  t = sumarALaFoto(t, "b", 3);
+  assert.deepEqual(t, { a: 10, b: 3 });
+});
+
+/** Una foto recién mirada todavía no tiene fila: su tiempo tiene que esperar. */
+test("lo que no se pudo anotar queda para el latido siguiente", () => {
+  const t = descontarLoAnotado(
+    { a: 12, b: 20 },
+    [
+      { snapshotId: "a", segundos: 10 },
+      { snapshotId: "b", segundos: 20 },
+    ],
+    ["a"],
+  );
+  assert.deepEqual(t, { a: 2, b: 20 });
+});
+
+test("lo anotado entero sale de la lista", () => {
+  assert.deepEqual(
+    descontarLoAnotado({ a: 10 }, [{ snapshotId: "a", segundos: 10 }], ["a"]),
+    {},
+  );
+});
+
+test("el servidor descarta basura y junta la misma foto repetida", () => {
+  const r = limpiarTiempoPorFoto([
+    { snapshotId: "a", segundos: 10.4 },
+    { snapshotId: "a", segundos: 5 },
+    { snapshotId: "", segundos: 5 },
+    { snapshotId: "b", segundos: -3 },
+    { snapshotId: "c", segundos: Number.NaN },
+    { snapshotId: 7, segundos: 5 },
+  ]);
+  assert.deepEqual(r, [{ snapshotId: "a", segundos: 15 }]);
+});
+
+test("un pedido armado a mano no le escribe horas a una foto", () => {
+  const r = limpiarTiempoPorFoto([{ snapshotId: "a", segundos: 99999 }]);
+  assert.equal(r[0]?.segundos, TOPE_POR_FOTO_POR_LATIDO);
+});
+
+test("un latido anota como mucho una cantidad acotada de fotos", () => {
+  const muchas = Array.from({ length: 100 }, (_, i) => ({ snapshotId: `f${i}`, segundos: 1 }));
+  assert.equal(limpiarTiempoPorFoto(muchas).length, FOTOS_POR_LATIDO);
+});
+
+test("sin lista no hay nada que anotar", () => {
+  assert.deepEqual(limpiarTiempoPorFoto(undefined), []);
 });
