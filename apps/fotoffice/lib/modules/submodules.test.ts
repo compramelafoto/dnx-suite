@@ -15,6 +15,7 @@ import {
   STORE_CONFIGURE_ACTION,
 } from "@/lib/permissions/actions";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
+import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { ICONOS } from "@/components/shell/nav-icons";
 import { personVocabulary } from "@/lib/vocabulario/personas";
 
@@ -47,6 +48,12 @@ function pageDe(href: string): string {
 }
 
 describe("submodulesFor", () => {
+  it("Cursos: el Mercado de cursos está entre sus pantallas y tiene su archivo", () => {
+    const hrefs = submodulesFor(COURSES_SALES_MODULE_KEY, GESTIONA, SOCIO).map((s) => s.href);
+    expect(hrefs).toContain("/dashboard/mercado-de-cursos");
+    expect(existsSync(pageDe("/dashboard/mercado-de-cursos")), "falta la pantalla del Mercado").toBe(true);
+  });
+
   it("el Diseñador está entre las pantallas de Socios", () => {
     const hrefs = submodulesFor(MEMBERS_MODULE_KEY, GESTIONA, SOCIO).map(
       (s) => s.href,

@@ -3,7 +3,7 @@ import { prisma } from "@repo/db";
 import { resolveWorkspaceCollector } from "@/lib/payments/connect/collector";
 import type { BeneficiarioRegistrado } from "./beneficiarios";
 
-async function nombresDeNegocios(ids: string[]): Promise<Map<string, string>> {
+export async function nombresDeNegocios(ids: string[]): Promise<Map<string, string>> {
   if (ids.length === 0) return new Map();
   const [marcas, workspaces] = await Promise.all([
     prisma.fotofficeWorkspaceBranding.findMany({ where: { workspaceId: { in: ids } }, select: { workspaceId: true, commercialName: true } }),

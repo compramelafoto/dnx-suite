@@ -131,6 +131,14 @@ const CURSOS: SubmoduleItem[] = [
     activeMatch: "under",
   },
   {
+    href: "/dashboard/mercado-de-cursos",
+    label: "Mercado de cursos",
+    icon: "Store",
+    description: "Cursos de otros negocios que podés vender, y tus acuerdos de reventa.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
     href: "/dashboard/sales",
     label: "Ventas",
     icon: "LayoutGrid",
