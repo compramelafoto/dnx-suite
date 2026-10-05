@@ -60,6 +60,9 @@ export function PublicCourseEnrollmentForm({
             Gmail/email
           </label>
           <input id="enroll-email" name="email" type="email" required className="fo-input" />
+          <p className="text-xs text-[var(--fo-muted)]">
+            Si ya entrás al portal, usá el mismo correo: el curso va a aparecer en tu cuenta.
+          </p>
         </div>
         <div className="fo-field-stack">
           <label className="fo-label" htmlFor="enroll-whatsapp">

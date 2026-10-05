@@ -25,6 +25,7 @@ export function RecordedCourseSection({
   accessMonths,
   publicado,
   clases,
+  gratisParaSocios,
 }: {
   workspaceSlug: string;
   courseSlug: string;
@@ -33,6 +34,7 @@ export function RecordedCourseSection({
   accessMonths: number;
   publicado: boolean;
   clases: Clase[];
+  gratisParaSocios: { institucion: string } | null;
 }) {
   const total = clases.reduce((s, c) => s + (c.durationSeconds ?? 0), 0);
   const plazo = accessMonths === 1 ? "1 mes" : `${accessMonths} meses`;
@@ -71,6 +73,15 @@ export function RecordedCourseSection({
           </li>
         ))}
       </ol>
+      {gratisParaSocios ? (
+        <p className="rounded-[var(--fo-radius-sm)] border border-[var(--fo-accent)]/40 p-3 text-sm">
+          <strong>Gratis para socios de {gratisParaSocios.institucion}.</strong>{" "}
+          <a href={`${appUrl}/login?next=/portal/cursos`} className="text-[var(--fo-accent)] underline">
+            Entrá a tu portal
+          </a>{" "}
+          y anotate sin pagar.
+        </p>
+      ) : null}
       {precioArs ? (
         <p className="text-lg font-semibold">{formatMoney(Number(precioArs), "ARS")}</p>
       ) : null}

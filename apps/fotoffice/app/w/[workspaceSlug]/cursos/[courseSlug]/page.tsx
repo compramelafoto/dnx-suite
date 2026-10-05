@@ -130,6 +130,7 @@ export default async function PublicCourseLandingPage({ params }: Props) {
           accessMonths={presentialCourse.accessMonths}
           publicado={presentialCourse.status === "PUBLISHED"}
           clases={presentialCourse.lessons}
+          gratisParaSocios={presentialCourse.freeForMembers ? { institucion: branding.commercialName } : null}
         />
       ) : (
       <section className="fo-card space-y-4">
