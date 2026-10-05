@@ -27,9 +27,9 @@ export function OfertaReventaForm({
   const accionDelCurso = useMemo(() => guardarOfertaAction.bind(null, courseId), [courseId]);
   const [estado, accion, enviando] = useActionState(accionDelCurso, INICIAL);
   const [sugerido, setSugerido] = useState(sugeridoBps === null ? "20" : String(sugeridoBps / 100).replace(".", ","));
-  const bps = porcentajeABps(sugerido) ?? 0;
+  const bps = porcentajeABps(sugerido);
   const sim = useMemo(
-    () => simularReventa({ listaCentavos, comisionPlataformaBps, beneficiarios, pedidoBps: bps, descuentoBps: 0 }),
+    () => (bps === null ? null : simularReventa({ listaCentavos, comisionPlataformaBps, beneficiarios, pedidoBps: bps, descuentoBps: 0 })),
     [listaCentavos, comisionPlataformaBps, beneficiarios, bps],
   );
 
@@ -43,7 +43,11 @@ export function OfertaReventaForm({
         % sugerido para revendedores{" "}
         <input name="sugerido" value={sugerido} onChange={(e) => setSugerido(e.target.value)} inputMode="decimal" className="fo-input inline-block w-20" />
       </label>
-      {sim.ok ? (
+      {sim === null ? (
+        <p className="text-sm text-[var(--fo-danger)]" role="alert">
+          Escribí un porcentaje válido, por ejemplo 20 o 12,5.
+        </p>
+      ) : sim.ok ? (
         <p className="text-sm text-[var(--fo-muted)]">
           Con ese %, quien lo revende cobra {pesos(sim.parteCentavos)} por venta y el resto se reparte entre los beneficiarios. Hasta ese %, los pedidos se aprueban solos; por encima, te llegan para aprobar.
         </p>

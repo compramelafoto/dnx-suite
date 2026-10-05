@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { requireCoursesSalesContext } from "@/lib/workspace";
+import { puedePedirReventa } from "@/lib/course-marketplace/mercado";
 import { cargarAcuerdos, type AcuerdoVista } from "@/lib/course-marketplace/acuerdos";
 import { ESTADOS_VIGENTES, mensajeDeAcuerdos, type AccionReventa } from "@/lib/course-marketplace/reventa";
 import { formatoPorcentaje, BPS_TOTAL } from "@/lib/course-marketplace/reparto";
@@ -28,14 +29,15 @@ function Resumen({ a, rotulo }: { a: AcuerdoVista; rotulo: string }) {
       <p className="font-medium">{a.curso.titulo}</p>
       <p className="text-sm text-[var(--fo-muted)]">
         {rotulo} {a.otraParte} · {formatoPorcentaje(a.shareBps)} por venta ({pesos(Math.round((a.curso.listaCentavos * a.shareBps) / BPS_TOTAL))}) ·
-        Descuento para socios {formatoPorcentaje(a.memberDiscountBps)} · {ESTADOS[a.status]} desde el {fechaLegibleArgentina(a.desde)}
+        Descuento para socios {formatoPorcentaje(a.memberDiscountBps)} · {ESTADOS[a.status]} · {a.fechaRotulo} {fechaLegibleArgentina(a.fecha)}
       </p>
     </div>
   );
 }
 
 export default async function AcuerdosDeReventaPage({ searchParams }: { searchParams: Promise<{ r?: string }> }) {
-  const { workspace } = await requireCoursesSalesContext("VIEW");
+  const { user, workspace } = await requireCoursesSalesContext("VIEW");
+  const puedeGestionar = await puedePedirReventa(user.id, workspace.id);
   const { r } = await searchParams;
   const mensaje = mensajeDeAcuerdos(r);
   const { comoDueno, comoRevendedor } = await cargarAcuerdos(workspace.id);
@@ -51,6 +53,11 @@ export default async function AcuerdosDeReventaPage({ searchParams }: { searchPa
           </Link>
         }
       />
+      {!puedeGestionar ? (
+        <p className="fo-card text-sm text-[var(--fo-muted)]">
+          Sólo el dueño o un administrador del negocio puede responder pedidos o cambiar un acuerdo. Acá los ves en modo lectura.
+        </p>
+      ) : null}
       {mensaje ? (
         <p className="fo-card text-sm" role="status">
           {mensaje}
@@ -66,7 +73,7 @@ export default async function AcuerdosDeReventaPage({ searchParams }: { searchPa
             {comoDueno.map((a) => (
               <li key={a.id} className="fo-card space-y-3">
                 <Resumen a={a} rotulo="Lo vende" />
-                <div className="flex flex-wrap gap-2">
+                {puedeGestionar ? <div className="flex flex-wrap gap-2">
                   {a.status === "PENDIENTE" ? (
                     <>
                       <Boton id={a.id} accion="APROBAR" texto="Aprobar" primario />
@@ -76,7 +83,7 @@ export default async function AcuerdosDeReventaPage({ searchParams }: { searchPa
                   {a.status === "ACTIVO" ? <Boton id={a.id} accion="PAUSAR" texto="Pausar" /> : null}
                   {a.status === "PAUSADO" && a.pausadoPorMi ? <Boton id={a.id} accion="REANUDAR" texto="Reanudar" /> : null}
                   {a.status === "ACTIVO" || a.status === "PAUSADO" ? <Boton id={a.id} accion="TERMINAR" texto="Terminar" /> : null}
-                </div>
+                </div> : null}
               </li>
             ))}
           </ul>
@@ -94,7 +101,7 @@ export default async function AcuerdosDeReventaPage({ searchParams }: { searchPa
             {comoRevendedor.map((a) => (
               <li key={a.id} className="fo-card space-y-3">
                 <Resumen a={a} rotulo="De" />
-                {ESTADOS_VIGENTES.includes(a.status) ? (
+                {puedeGestionar && ESTADOS_VIGENTES.includes(a.status) ? (
                   <form action={cambiarDescuentoDeReventaAction.bind(null, a.id)} className="flex flex-wrap items-end gap-2">
                     <label className="text-sm">
                       Descuento para tus socios (%, hasta {formatoPorcentaje(a.shareBps)}){" "}
@@ -105,11 +112,11 @@ export default async function AcuerdosDeReventaPage({ searchParams }: { searchPa
                     </button>
                   </form>
                 ) : null}
-                <div className="flex flex-wrap gap-2">
+                {puedeGestionar ? <div className="flex flex-wrap gap-2">
                   {a.status === "ACTIVO" ? <Boton id={a.id} accion="PAUSAR" texto="Pausar" /> : null}
                   {a.status === "PAUSADO" && a.pausadoPorMi ? <Boton id={a.id} accion="REANUDAR" texto="Reanudar" /> : null}
                   {ESTADOS_VIGENTES.includes(a.status) ? <Boton id={a.id} accion="TERMINAR" texto={a.status === "PENDIENTE" ? "Cancelar pedido" : "Terminar"} /> : null}
-                </div>
+                </div> : null}
               </li>
             ))}
           </ul>
