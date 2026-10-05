@@ -8,6 +8,8 @@ import { fecha, projectStatusLabel, tamanioArchivo, taskStatusLabel } from "@/li
 import { isVotingOpen, tallyLabel } from "@/lib/governance/votes";
 import { ProgressBar } from "@/components/governance/badges";
 import type { ProjectStatus } from "@/lib/governance/constants";
+import { isCashOn, loadProjectMoney } from "@/lib/governance/money-server";
+import { formatMinorArs } from "@/lib/membership/money";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +31,7 @@ export default async function ProyectoPortalPage({
   const archivos = p.attachments.filter((a) => (esMia && a.taskUpdateId === null) || a.visibleToMembers);
   const verDetalle = p.visibleToMembers && p.status !== "MEMBER_PROPOSAL" && p.status !== "ARCHIVED";
   const votacion = verDetalle ? await loadVoting(workspace.id, [p.id]) : null;
+  const plata = verDetalle && (await isCashOn(workspace.id)) ? await loadProjectMoney(workspace.id, p.id) : null;
   const avance = progressOf(p.stages.flatMap((s) => s.tasks.map((t) => ({ status: t.status as "PENDING" }))));
 
   return (
@@ -52,6 +55,22 @@ export default async function ProyectoPortalPage({
       </header>
 
       {p.description ? <p className="whitespace-pre-line text-sm leading-relaxed">{p.description}</p> : null}
+
+      {plata && (plata.numeros.neededMinor > 0 || plata.numeros.assignedMinor > 0) ? (
+        <section className="grid gap-3 sm:grid-cols-4">
+          {[
+            ["Necesario", plata.numeros.neededMinor],
+            ["Asignado", plata.numeros.assignedMinor],
+            ["Gastado", plata.numeros.spentMinor],
+            ["Restante", plata.numeros.remainingMinor],
+          ].map(([rotulo, valor]) => (
+            <div key={rotulo as string} className="fo-card space-y-1 p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--fo-muted)]">{rotulo}</p>
+              <p className="text-lg font-semibold tabular-nums">{formatMinorArs(valor as number)}</p>
+            </div>
+          ))}
+        </section>
+      ) : null}
 
       {verDetalle && p.stages.length > 0 ? (
         <section className="space-y-3">

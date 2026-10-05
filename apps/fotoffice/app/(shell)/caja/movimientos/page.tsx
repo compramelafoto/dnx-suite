@@ -5,6 +5,7 @@ import { listClients } from "@/lib/clients/repository";
 import { MOVEMENT_KINDS, type MovementKind } from "@/lib/cash/constants";
 import { MovementsTable } from "../movements-table";
 import { MovementForm } from "../movement-form";
+import { canHandleProjectMoney, listMoneyProjects } from "@/lib/governance/money-server";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +31,9 @@ export default async function MovimientosPage({
     ok?: string;
   }>;
 }) {
-  const { workspace, canOperate } = await requireCashViewer();
+  const { workspace, canOperate, user } = await requireCashViewer();
+  const proyectosConPlata =
+    canOperate && (await canHandleProjectMoney(user.id, workspace.id)) ? await listMoneyProjects(workspace.id) : [];
   const sp = await searchParams;
 
   const kindValido = sp.kind && MOVEMENT_KINDS.includes(sp.kind as MovementKind) ? (sp.kind as MovementKind) : undefined;
@@ -66,7 +69,7 @@ export default async function MovimientosPage({
         ya estás mirando el libro filtrado: `returnTo` es lo único que cambia entre los dos.
       */}
       {canOperate ? (
-        <MovementForm accounts={cuentas} categories={categorias} clients={clientes} returnTo="/caja/movimientos" />
+        <MovementForm accounts={cuentas} categories={categorias} clients={clientes} returnTo="/caja/movimientos" projects={proyectosConPlata} />
       ) : null}
 
       <form method="GET" className="fo-card grid gap-4 !p-4 sm:grid-cols-3 lg:grid-cols-6">

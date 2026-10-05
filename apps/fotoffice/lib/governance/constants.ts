@@ -67,4 +67,10 @@ export type ProjectEventType =
   | "FILE_ADDED"
   | "FILE_VISIBILITY"
   | "NOTE"
-  | "VOTED";
+  | "VOTED"
+  | "QUOTE_ADDED"
+  | "QUOTE_STATUS"
+  | "STAGE_ESTIMATE"
+  | "RESERVATION"
+  | "MOVEMENT_LINKED"
+  | "OPENING_SET";

@@ -3,7 +3,9 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma, Prisma } from "@repo/db";
-import { decimalArsToMinor, minorToDecimalString, parseArsToMinor } from "@/lib/membership/money";
+import { decimalArsToMinor, formatMinorArs, minorToDecimalString, parseArsToMinor } from "@/lib/membership/money";
+import { canHandleProjectMoney } from "@/lib/governance/money-server";
+import { recordProjectEvent } from "@/lib/governance/events";
 import { requireCashConfigurer, requireCashOperator } from "@/lib/cash/access";
 import {
   canCloseShift,
@@ -186,23 +188,52 @@ export async function createMovementAction(formData: FormData): Promise<void> {
     select: { id: true },
   });
 
-  await prisma.cashMovement.create({
-    data: {
-      workspaceId: workspace.id,
-      accountId: v.accountId,
-      shiftId: turno?.id ?? null,
-      kind: v.kind,
-      amountArs: minorToDecimalString(v.amountMinor),
-      occurredAt: v.occurredAt,
-      categoryId: v.categoryId,
-      paymentMethod: v.paymentMethod,
-      clientId: v.clientId,
-      description: v.description,
-      receiptRef: v.receiptRef,
-      sourceModule: "manual",
-      createdByUserId: user.id,
-    },
+  // Imputarlo a un proyecto de la comisión (Gobierno §8.4): sólo quien maneja esa plata, y sólo
+  // a un proyecto aprobado o en ejecución de esta institución.
+  const govProjectId = String(formData.get("govProjectId") ?? "").trim() || null;
+  let proyecto: { id: string; title: string } | null = null;
+  if (govProjectId) {
+    if (!(await canHandleProjectMoney(user.id, workspace.id))) {
+      redirect(`${volver}?error=${encodeURIComponent("Para imputar a un proyecto hace falta «Plata de proyectos».")}`);
+    }
+    proyecto = await prisma.govProject.findFirst({
+      where: { id: govProjectId, workspaceId: workspace.id, status: { in: ["APPROVED", "IN_PROGRESS"] } },
+      select: { id: true, title: true },
+    });
+    if (!proyecto) redirect(`${volver}?error=${encodeURIComponent("Ese proyecto no existe o no está aprobado.")}`);
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const mov = await tx.cashMovement.create({
+      data: {
+        workspaceId: workspace.id,
+        accountId: v.accountId,
+        shiftId: turno?.id ?? null,
+        kind: v.kind,
+        amountArs: minorToDecimalString(v.amountMinor),
+        occurredAt: v.occurredAt,
+        categoryId: v.categoryId,
+        paymentMethod: v.paymentMethod,
+        clientId: v.clientId,
+        description: v.description,
+        receiptRef: v.receiptRef,
+        sourceModule: "manual",
+        createdByUserId: user.id,
+      },
+      select: { id: true },
+    });
+    if (proyecto) {
+      await tx.govProjectMovement.create({ data: { projectId: proyecto.id, cashMovementId: mov.id } });
+      await recordProjectEvent(tx, {
+        projectId: proyecto.id,
+        type: "MOVEMENT_LINKED",
+        actorUserId: user.id,
+        actorLabel: user.name?.trim() || user.email || "Equipo",
+        data: { kind: v.kind, amount: formatMinorArs(v.amountMinor), account: "Caja", description: v.description },
+      });
+    }
   });
+  if (proyecto) revalidatePath(`/gobierno/${proyecto.id}`);
 
   revalidatePath(CAJA);
   revalidatePath(MOVIMIENTOS);

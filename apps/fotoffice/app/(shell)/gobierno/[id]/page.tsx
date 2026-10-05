@@ -10,6 +10,9 @@ import { getProject, listMemberOptions, loadVoting } from "@/lib/governance/repo
 import { isVotingOpen, tallyLabel } from "@/lib/governance/votes";
 import { decimalArsToMinor, formatMinorArs } from "@/lib/membership/money";
 import { castVoteAction } from "../reuniones/actions";
+import { ProjectMoneySection } from "@/components/governance/project-money";
+import { canHandleProjectMoney, isCashOn, loadProjectMoney } from "@/lib/governance/money-server";
+import { listAccounts, listCategories } from "@/lib/cash/repository";
 import {
   canCloseTasks,
   canEditStructure,
@@ -59,6 +62,13 @@ export default async function ProyectoPage({
     canManage ? listMemberOptions(workspace.id) : Promise.resolve({ commission: [], others: [] }),
     loadVoting(workspace.id, [proyecto.id]),
   ]);
+  const [money, cashOn, puedePlata] = await Promise.all([
+    loadProjectMoney(workspace.id, proyecto.id),
+    isCashOn(workspace.id),
+    canHandleProjectMoney(ctx.user.id, workspace.id),
+  ]);
+  const [cuentas, categorias] =
+    cashOn && puedePlata ? await Promise.all([listAccounts(workspace.id), listCategories(workspace.id)]) : [[], []];
   const recuento = votacion.tallyOf(proyecto.id);
   const votos = votacion.votesOf(proyecto.id);
   const miVoto = votos.find((v) => v.voterUserId === ctx.user.id)?.value ?? null;
@@ -72,7 +82,8 @@ export default async function ProyectoPage({
   const editable = canManage && canEditStructure(proyecto.status);
   const todasLasTareas = proyecto.stages.flatMap((s) => s.tasks);
   const avance = progressOf(todasLasTareas);
-  const archivosDelProyecto = proyecto.attachments.filter((a) => a.taskUpdateId === null);
+  // Los archivos de cotizaciones se ven en su cotización, no acá: nunca se hacen visibles.
+  const archivosDelProyecto = proyecto.attachments.filter((a) => a.taskUpdateId === null && a.quoteId === null);
   const archivosDeAvances = proyecto.attachments.filter((a) => a.taskUpdateId !== null);
   const aqui = `/gobierno/${proyecto.id}`;
   const responsableActual = proyecto.responsible
@@ -405,6 +416,20 @@ export default async function ProyectoPage({
         ) : null}
       </section>
 
+      {money ? (
+        <ProjectMoneySection
+          projectId={proyecto.id}
+          money={money}
+          canManage={canManage}
+          canEditQuotes={canManage && canEditStructure(proyecto.status)}
+          cashOn={cashOn}
+          canHandleMoney={puedePlata}
+          acceptsMoney={proyecto.status === "APPROVED" || proyecto.status === "IN_PROGRESS"}
+          accounts={cuentas}
+          categories={categorias}
+        />
+      ) : null}
+
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -413,7 +438,7 @@ export default async function ProyectoPage({
           </div>
           {canManage ? <ProjectFileUploader projectId={proyecto.id} /> : null}
         </div>
-        {proyecto.attachments.length === 0 ? (
+        {archivosDelProyecto.length + archivosDeAvances.length === 0 ? (
           <p className="fo-card p-6 text-sm text-[var(--fo-muted)]">Todavía no hay archivos.</p>
         ) : (
           <ul className="fo-card divide-y divide-[var(--fo-border-muted)]">

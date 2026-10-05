@@ -18320,6 +18320,8 @@ model CashMovement {
   transfer   CashTransfer? @relation(fields: [transferId], references: [id], onDelete: SetNull)
   reverses   CashMovement? @relation("CashMovementReversal", fields: [reversesMovementId], references: [id], onDelete: SetNull)
   reversedBy CashMovement? @relation("CashMovementReversal")
+  /// Proyecto de la comisión al que pertenece (Gobierno). Vive en la tabla de enlace: esta tabla no cambia.
+  govLink    GovProjectMovement?
 
   /// Lo que hace idempotente al depósito automático: una reserva no puede entrar dos veces.
   /// Los manuales no chocan entre sí porque `sourceRef` es nulo y Postgres no considera
@@ -20719,6 +20721,9 @@ model GovProject {
   events      GovProjectEvent[]
   votes       GovVote[]
   meetingItems GovMeetingItem[]
+  quotes       GovQuote[]
+  reservations GovReservation[]
+  movements    GovProjectMovement[]
 
   @@index([workspaceId, status])
   @@index([workspaceId, deadlineAt])
@@ -20735,6 +20740,8 @@ model GovProjectStage {
 
   project GovProject       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   tasks   GovProjectTask[]
+  quotes    GovQuote[]
+  movements GovProjectMovement[]
 
   @@index([projectId, order])
 }
@@ -20790,6 +20797,8 @@ model GovAttachment {
   workspaceId      String
   projectId        String
   taskUpdateId     String?
+  /// Archivo de una cotización: nunca visible para socios (puede tener datos del proveedor).
+  quoteId          String?
   r2Key            String   @unique
   filename         String
   contentType      String
@@ -20801,6 +20810,7 @@ model GovAttachment {
 
   project    GovProject     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   taskUpdate GovTaskUpdate? @relation(fields: [taskUpdateId], references: [id], onDelete: SetNull)
+  quote      GovQuote?      @relation(fields: [quoteId], references: [id], onDelete: SetNull)
 
   @@index([projectId, createdAt])
   @@index([taskUpdateId])
@@ -20917,4 +20927,64 @@ model GovMeetingNote {
   meeting GovMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
 
   @@index([meetingId, createdAt])
+}
+
+/// Cotización recibida de un proveedor para una etapa. Se llama así para no confundirla con el
+/// módulo Presupuestos (lo que el fotógrafo le manda a su cliente).
+model GovQuote {
+  id           String    @id @default(cuid())
+  projectId    String
+  stageId      String
+  supplier     String
+  amountArs    Decimal   @db.Decimal(12, 2)
+  quotedAt     DateTime
+  validUntil   DateTime?
+  note         String?
+  /// RECEIVED | CHOSEN | DISCARDED. A lo sumo una CHOSEN por etapa.
+  status       String    @default("RECEIVED")
+  discardReason String?
+  createdByUserId Int?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  project     GovProject           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  stage       GovProjectStage      @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  attachments GovAttachment[]
+  movements   GovProjectMovement[]
+
+  @@index([projectId, stageId])
+}
+
+/// Plata reservada para un proyecto sin moverla de su cuenta. Positivo reserva, negativo libera.
+model GovReservation {
+  id              String   @id @default(cuid())
+  projectId       String
+  amountArs       Decimal  @db.Decimal(12, 2)
+  reason          String
+  meetingId       String?
+  createdByUserId Int?
+  actorLabel      String
+  createdAt       DateTime @default(now())
+
+  project GovProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+}
+
+/// Un movimiento de Caja que pertenece a un proyecto. Tabla de enlace a propósito: agregar
+/// columnas a `CashMovement` obligaría a tocar esa tabla en todas las bases que la comparten.
+model GovProjectMovement {
+  id             String   @id @default(cuid())
+  projectId      String
+  stageId        String?
+  quoteId        String?
+  cashMovementId String   @unique
+  createdAt      DateTime @default(now())
+
+  project      GovProject       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  stage        GovProjectStage? @relation(fields: [stageId], references: [id], onDelete: SetNull)
+  quote        GovQuote?        @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  cashMovement CashMovement     @relation(fields: [cashMovementId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
 }
