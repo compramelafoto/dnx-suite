@@ -698,9 +698,10 @@ export async function POST(
         where: { id: order.id },
         data: { status: "PAID", platformCommissionCents: 0 },
       });
-      await completePrepaidAlbumOrder(order.id, voucher.orderId);
+      const baseUrl = (process.env.APP_URL || req.nextUrl.origin).replace(/\/+$/, "");
+      const { downloadUrl } = await completePrepaidAlbumOrder(order.id, voucher.orderId, baseUrl);
       return NextResponse.json(
-        { id: order.id, totalCents: 0, paid: true, coveredByVoucher: true },
+        { id: order.id, totalCents: 0, paid: true, coveredByVoucher: true, downloadUrl },
         { status: 201 }
       );
     }
