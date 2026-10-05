@@ -29,11 +29,16 @@ export function SimuladorReparto({
   destacarId?: string;
   reventaInicialBps?: number;
 }) {
-  const [reventaBps, setReventaBps] = useState(reventaInicialBps);
+  const [reventaTexto, setReventaTexto] = useState(String(reventaInicialBps / 100));
+  const reventaBps = Math.round((Number(reventaTexto.replace(",", ".")) || 0) * 100);
   const escenarios = useMemo(
     () => armarEscenarios({ listaCentavos, comisionPlataformaBps, beneficiarios, vendedorId, reventaBps }),
     [listaCentavos, comisionPlataformaBps, beneficiarios, vendedorId, reventaBps],
   );
+
+  // Si los tres escenarios fallan por lo mismo, se dice una sola vez.
+  const fallas = escenarios.map((e) => (e.ok ? null : e.errores.join("\n")));
+  const erroresComunes = fallas.every((f) => f !== null && f === fallas[0]) && !escenarios[0].ok ? escenarios[0].errores : null;
 
   return (
     <section className="fo-card space-y-4" aria-label="Cómo se reparte">
@@ -45,13 +50,20 @@ export function SimuladorReparto({
             type="number"
             min={1}
             max={90}
-            value={reventaBps / 100}
-            onChange={(e) => setReventaBps(Math.round(Number(e.target.value || 0) * 100))}
+            value={reventaTexto}
+            onChange={(e) => setReventaTexto(e.target.value)}
             className="fo-input inline-block w-20"
           />
         </label>
       </div>
-      <div className="grid gap-4 lg:grid-cols-3">
+      {erroresComunes ? (
+        <ul className="list-disc pl-5 text-sm text-[var(--fo-danger)]">
+          {erroresComunes.map((e) => (
+            <li key={e}>{e}</li>
+          ))}
+        </ul>
+      ) : null}
+      <div className={erroresComunes ? "hidden" : "grid gap-4 lg:grid-cols-3"}>
         {escenarios.map((esc) => (
           <article key={esc.clave} className="space-y-2 rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] p-3">
             <p className="text-sm font-semibold">{esc.titulo}</p>

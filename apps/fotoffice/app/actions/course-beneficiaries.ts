@@ -38,7 +38,10 @@ async function correosDeDuenos(workspaceId: string): Promise<string[]> {
 export async function guardarBeneficiariosAction(
   courseId: string,
   filas: FilaBeneficiario[],
-): Promise<{ ok: true; aviso?: string } | { ok: false; errores: string[] }> {
+): Promise<
+  | { ok: true; aviso?: string; filas: Array<FilaBeneficiario & { id: string; status: "INVITADO" | "ACEPTADO" | "RECHAZADO" }> }
+  | { ok: false; errores: string[] }
+> {
   const { workspace } = await requireCoursesSalesContext("MANAGE");
   const curso = await prisma.course.findFirst({
     where: { id: courseId, workspaceId: workspace.id },
@@ -117,7 +120,20 @@ export async function guardarBeneficiariosAction(
   }
 
   revalidatePath(`/dashboard/courses/${courseId}`);
-  return { ok: true, aviso };
+  const guardadas = await prisma.courseBeneficiary.findMany({ where: { courseId }, orderBy: { createdAt: "asc" } });
+  return {
+    ok: true,
+    aviso,
+    filas: guardadas.map((g) => ({
+      id: g.id,
+      workspaceId: g.workspaceId,
+      invitedEmail: g.invitedEmail,
+      role: g.role,
+      shareBps: g.shareBps,
+      absorbsProcessorFee: g.absorbsProcessorFee,
+      status: g.status,
+    })),
+  };
 }
 
 /** Busca negocios de FOTOFFICE por nombre o dirección pública, para sumarlos como beneficiarios. */

@@ -59,6 +59,7 @@ export default async function DashboardCourseDetailPage({
         getPlatformFeeBps(course.workspaceId, COURSES_SALES_MODULE_KEY),
       ])
     : [[], null, 500];
+  const precioCentavos = Math.round(Number(course.priceArs ?? 0) * 100);
   const estado = dueno ? estadoDeVenta(dueno.workspaceId, beneficiarios) : null;
 
   return (
@@ -176,13 +177,18 @@ export default async function DashboardCourseDetailPage({
               ) : null}
             </div>
           ) : null}
+          {precioCentavos > 0 ? (
           <BeneficiariosEditor
+            key={beneficiarios.map((b) => `${b.id}:${b.shareBps}:${b.status}`).join("|")}
             courseId={course.id}
             dueno={dueno}
-            listaCentavos={Math.round(Number(course.priceArs ?? 0) * 100)}
+            listaCentavos={precioCentavos}
             comisionPlataformaBps={feeBps}
             iniciales={beneficiarios}
           />
+          ) : (
+            <p className="fo-card text-sm">Cargá el precio del curso para armar el reparto.</p>
+          )}
         </section>
       ) : null}
     </div>

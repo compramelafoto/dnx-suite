@@ -24,13 +24,21 @@ const ESTADOS: Record<BeneficiarioRegistrado["status"], string> = {
   RECHAZADO: "Rechazado",
 };
 
-type Fila = FilaBeneficiario & {
+type Fila = Omit<FilaBeneficiario, "shareBps"> & {
+  /** Texto del campo de % tal como lo escribe la persona (puede estar vacío). */
+  porcentaje: string;
   clave: string;
   nombre: string;
   status: BeneficiarioRegistrado["status"] | null;
 };
 
 type Resultado = { ok: true; aviso?: string } | { ok: false; errores: string[] } | null;
+
+/** Convierte el texto de un campo de % a puntos básicos; vacío o inválido cuenta como 0. */
+function aBps(texto: string): number {
+  const n = Number(texto.replace(",", "."));
+  return Number.isFinite(n) ? Math.round(n * 100) : 0;
+}
 
 let contador = 0;
 const nuevaClave = () => `nueva-${++contador}`;
@@ -42,7 +50,7 @@ function desdeRegistrado(r: BeneficiarioRegistrado): Fila {
     workspaceId: r.workspaceId,
     invitedEmail: r.invitedEmail,
     role: r.role,
-    shareBps: r.shareBps,
+    porcentaje: String(r.shareBps / 100),
     absorbsProcessorFee: r.absorbsProcessorFee,
     nombre: r.nombre,
     status: r.status,
@@ -71,7 +79,7 @@ export function BeneficiariosEditor({
             workspaceId: dueno.workspaceId,
             invitedEmail: null,
             role: "INSTITUCION",
-            shareBps: BPS_TOTAL,
+            porcentaje: String(BPS_TOTAL / 100),
             absorbsProcessorFee: true,
             nombre: dueno.nombre,
             status: "ACEPTADO",
@@ -90,18 +98,18 @@ export function BeneficiariosEditor({
     workspaceId: f.workspaceId,
     invitedEmail: f.invitedEmail,
     role: f.role,
-    shareBps: f.shareBps,
+    shareBps: aBps(f.porcentaje),
     absorbsProcessorFee: f.absorbsProcessorFee,
   }));
   const errores = useMemo(() => validarFilas(filasParaGuardar), [filas]); // eslint-disable-line react-hooks/exhaustive-deps
-  const suma = filas.reduce((s, f) => s + (Number.isFinite(f.shareBps) ? f.shareBps : 0), 0);
+  const suma = filasParaGuardar.reduce((s, f) => s + f.shareBps, 0);
 
   const paraMotor: BeneficiarioEntrada[] = useMemo(
     () =>
       filas.map((f) => ({
         id: f.workspaceId ?? f.invitedEmail ?? f.clave,
         nombre: f.nombre,
-        bps: f.shareBps,
+        bps: aBps(f.porcentaje),
         absorbeMp: f.absorbsProcessorFee,
       })),
     [filas],
@@ -142,7 +150,7 @@ export function BeneficiariosEditor({
         workspaceId: n.workspaceId,
         invitedEmail: null,
         role: "OTRO",
-        shareBps: 0,
+        porcentaje: "",
         absorbsProcessorFee: false,
         nombre: n.nombre,
         status: null,
@@ -163,7 +171,7 @@ export function BeneficiariosEditor({
         workspaceId: null,
         invitedEmail: valor,
         role: "OTRO",
-        shareBps: 0,
+        porcentaje: "",
         absorbsProcessorFee: false,
         nombre: valor,
         status: null,
@@ -175,7 +183,25 @@ export function BeneficiariosEditor({
 
   function guardar() {
     iniciarGuardado(async () => {
-      setResultado(await guardarBeneficiariosAction(courseId, filasParaGuardar));
+      const r = await guardarBeneficiariosAction(courseId, filasParaGuardar);
+      setResultado(r);
+      if (r.ok) {
+        // Se reemplaza el estado con lo guardado: así el próximo Guardar conserva los id y las aceptaciones.
+        setFilas((prev) => {
+          const nombres = new Map(prev.map((f) => [f.workspaceId ?? f.invitedEmail ?? "", f.nombre]));
+          return r.filas.map((g) => ({
+            clave: g.id,
+            id: g.id,
+            workspaceId: g.workspaceId,
+            invitedEmail: g.invitedEmail,
+            role: g.role,
+            porcentaje: String(g.shareBps / 100),
+            absorbsProcessorFee: g.absorbsProcessorFee,
+            nombre: nombres.get(g.workspaceId ?? g.invitedEmail ?? "") ?? g.invitedEmail ?? "Negocio",
+            status: g.status,
+          }));
+        });
+      }
     });
   }
 
@@ -227,8 +253,8 @@ export function BeneficiariosEditor({
                       max={100}
                       step={0.01}
                       className="fo-input w-24"
-                      value={f.shareBps / 100}
-                      onChange={(e) => cambiar(f.clave, { shareBps: Math.round(Number(e.target.value || 0) * 100) })}
+                      value={f.porcentaje}
+                      onChange={(e) => cambiar(f.clave, { porcentaje: e.target.value })}
                       aria-label={`Porcentaje de ${f.nombre}`}
                     />
                   </td>
