@@ -1,4 +1,5 @@
 import { BrandPillars } from "@/components/home/BrandPillars";
+import { ClickatonerOfTheWeek } from "@/components/home/ClickatonerOfTheWeek";
 import { Community } from "@/components/home/Community";
 import { ExperienceSteps } from "@/components/home/ExperienceSteps";
 import { FAQList } from "@/components/home/FAQList";
@@ -15,12 +16,19 @@ import { WhatIsClickaton } from "@/components/home/WhatIsClickaton";
 import { listPublicMarathons } from "@/data/public-marathons/service";
 import { buildHomeSpotlightSlides } from "@/lib/home/build-spotlight-slides";
 import { listPublishedTestimonials } from "@/lib/testimonials/public/list-published";
+import { loadCurrentClickatoner } from "@/lib/clickatoner/repository";
 
 export default async function HomePage() {
   // Fallos de DB/fuente no se disfrazan como agenda vacía: van al error boundary.
   const editions = await listPublicMarathons();
   const spotlight = await buildHomeSpotlightSlides(editions);
   const testimonials = await listPublishedTestimonials({ limit: 24 });
+  // La portada no elige al clickatoner (eso lo hace la tarea horaria): sólo lo muestra. Un
+  // problema acá no puede tirar la portada.
+  const clickatoner = await loadCurrentClickatoner().catch((error: unknown) => {
+    console.error("[clickaton][clickatoner] no se pudo leer para la portada:", error);
+    return null;
+  });
 
   return (
     <>
@@ -35,6 +43,7 @@ export default async function HomePage() {
       <LearningSection />
       <Community />
       <ParticipantVoices testimonials={testimonials} />
+      <ClickatonerOfTheWeek clickatoner={clickatoner} />
       <VenueProgramSection />
       <PartnershipSection />
       <ManifestoBlock />

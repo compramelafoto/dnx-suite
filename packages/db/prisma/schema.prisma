@@ -20173,3 +20173,52 @@ model MemberSpotlight {
   @@index([workspaceId, weekStart])
   @@index([workspaceId, round])
 }
+
+/// Clickatón: una edición con resultados anunciados. Su existencia es el interruptor
+/// "Resultados publicados" del panel: recién entonces sus participantes entran en la rotación
+/// del Clickatoner de la semana y sus obras se pueden ver en público. Sin FK a propósito, como
+/// las demás tablas que esta función agrega: no toca ninguna tabla existente.
+model ClickatonEditionResultsPublication {
+  editionId         String   @id
+  publishedAt       DateTime @default(now())
+  publishedByUserId Int?
+}
+
+/// Clickatón: personas que pidieron no aparecer como Clickatoner de la semana.
+/// La persona es el email en minúsculas, que es como Clickatón une a alguien entre ediciones.
+model ClickatonClickatonerOptOut {
+  email     String   @id
+  userId    Int?
+  createdAt DateTime @default(now())
+}
+
+/// Clickatón: la página pública de un clickatoner (`/clickatoners/<slug>`). Nace la primera vez
+/// que la persona sale como Clickatoner de la semana.
+model ClickatonPublicProfile {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  slug      String   @unique
+  createdAt DateTime @default(now())
+}
+
+/// Clickatón: quién salió como Clickatoner de la semana (viernes 00:00 a jueves 23:59, hora
+/// argentina). Una fila por elección; un salteo deja `skippedAt` y se elige otro.
+model ClickatonClickatoner {
+  id              String    @id @default(cuid())
+  /// Viernes 00:00 hora argentina, como instante UTC.
+  weekStart       DateTime
+  round           Int
+  /// La persona (email en minúsculas): nadie se repite dentro de una vuelta.
+  email           String
+  /// La inscripción con la que se la muestra (nombre, ciudad, foto, Instagram).
+  registrationId  String
+  /// La obra destacada: la premiada o la mejor ubicada, elegida al momento de salir.
+  submissionId    String?
+  skippedAt       DateTime?
+  skippedByUserId Int?
+  skipReason      String?
+  createdAt       DateTime  @default(now())
+
+  @@index([weekStart])
+  @@index([round])
+}
