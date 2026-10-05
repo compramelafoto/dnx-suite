@@ -32,6 +32,11 @@ export type CheckoutInput = {
   clientIdempotencyKey: string;
   lines: { productId: string; variantId: string | null; qty: number }[];
   delivery: CheckoutDelivery;
+  /**
+   * El envío que el navegador le MOSTRÓ (centavos), sólo para comparar: si el que se re-cotiza en
+   * el servidor es mayor, no se crea el pedido y se le muestra el nuevo. Nunca se usa para cobrar.
+   */
+  shownShippingMinor: number | null;
 };
 
 const phone = z
@@ -146,6 +151,11 @@ const schema = z.object({
     .min(1, "El carrito está vacío.")
     .max(30, "El carrito tiene demasiados productos (máximo 30)."),
   delivery,
+  // Basura (negativo, decimal, texto) cuenta como no mandado: no rompe la compra, sólo obliga a
+  // mostrar el precio del envío de nuevo.
+  shownShippingMinor: z
+    .unknown()
+    .transform((v) => (typeof v === "number" && Number.isSafeInteger(v) && v >= 0 ? v : null)),
 });
 
 /**

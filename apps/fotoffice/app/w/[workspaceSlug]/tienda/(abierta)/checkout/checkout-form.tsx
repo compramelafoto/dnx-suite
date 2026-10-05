@@ -60,7 +60,7 @@ export function CheckoutForm({
     () => state.lines.map((l) => ({ productId: l.productId, variantId: l.variantId, qty: l.qty })),
     [state.lines],
   );
-  const quote = useShippingQuote(workspaceSlug, delivery, quoteLines);
+  const { view: quote, replace: reemplazarCotizacion } = useShippingQuote(workspaceSlug, delivery, quoteLines);
 
   if (!hydrated) return <p className="text-sm text-[var(--fo-muted)]">Cargando el carrito…</p>;
 
@@ -120,11 +120,15 @@ export function CheckoutForm({
         clientIdempotencyKey,
         lines,
         delivery: entrega,
+        // Sólo para comparar: el servidor vuelve a cotizar y cobra lo suyo.
+        shownShippingMinor: delivery.method !== "PICKUP" && quote.status === "ok" ? quote.totalMinor : null,
       });
       if (!r) return;
       if (r.renewKey) renewCheckoutKey(workspaceSlug, sig);
       setError(r.error);
       setFieldErrors(r.fieldErrors ?? {});
+      // El envío subió desde que lo vio: se muestra el precio nuevo y vuelve a confirmar.
+      if (r.shippingChanged) reemplazarCotizacion(r.shippingChanged);
       if (r.problems && r.problems.length > 0) {
         setFrenos(r.problems);
         // Algo se agotó o cambió mientras completaba los datos: se corrige el carrito a la vista.

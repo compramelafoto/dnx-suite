@@ -49,12 +49,14 @@ function destino(d: DeliveryState): { method: "HOME" | "BRANCH"; postalCode: str
  * Cotiza en vivo, medio segundo después del último cambio de CP, provincia, sucursal o carrito.
  * El resultado se guarda con la clave de lo que se cotizó: si la clave actual no coincide, se
  * está calculando (y una respuesta vieja nunca pisa a una nueva).
+ *
+ * `replace` pone a la vista la cotización que devolvió el servidor al confirmar (el envío cambió).
  */
 export function useShippingQuote(
   workspaceSlug: string,
   delivery: DeliveryState,
   lines: { productId: string; variantId: string | null; qty: number }[],
-): QuoteView {
+): { view: QuoteView; replace: (q: { totalMinor: number; serviceName: string }) => void } {
   const dest = destino(delivery);
   const clave = dest ? JSON.stringify([dest.method, dest.postalCode, dest.provinceCode, lines]) : null;
   const [resultado, setResultado] = useState<{ clave: string; view: QuoteView } | null>(null);
@@ -86,10 +88,16 @@ export function useShippingQuote(
     return () => clearTimeout(t);
   }, [clave, workspaceSlug]);
 
-  if (delivery.method === "PICKUP") return { status: "none" };
-  if (!clave) return { status: "missing" };
-  if (!resultado || resultado.clave !== clave) return { status: "loading" };
-  return resultado.view;
+  const replace = (q: { totalMinor: number; serviceName: string }) => {
+    if (clave) setResultado({ clave, view: { status: "ok", totalMinor: q.totalMinor, serviceName: q.serviceName } });
+  };
+
+  let view: QuoteView;
+  if (delivery.method === "PICKUP") view = { status: "none" };
+  else if (!clave) view = { status: "missing" };
+  else if (!resultado || resultado.clave !== clave) view = { status: "loading" };
+  else view = resultado.view;
+  return { view, replace };
 }
 
 type Props = {

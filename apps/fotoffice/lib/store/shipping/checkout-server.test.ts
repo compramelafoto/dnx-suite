@@ -10,7 +10,7 @@ vi.mock("@/lib/integrations/correo-argentino/credentials", () => ({
   markCorreoNeedsReconsent: vi.fn(async () => undefined),
 }));
 
-const { listAgenciesForCheckout, loadCheckoutDeliveryOptions, quoteForCheckout, resetAgenciesCacheForTests } =
+const { listAgenciesForCheckout, loadAgenciesForOrder, loadCheckoutDeliveryOptions, quoteForCheckout, resetAgenciesCacheForTests } =
   await import("./checkout-server");
 
 const lines = [{ productId: "p1", variantId: null, qty: 1 }];
@@ -171,5 +171,22 @@ describe("listAgenciesForCheckout", () => {
     falla = false;
     expect(await listAgenciesForCheckout({ workspaceId: "w1", provinceCode: "S", deps: { loadCorreo } })).toHaveLength(1);
     expect(agencies).toHaveBeenCalledTimes(2);
+  });
+
+  it("para el pedido distingue la falla (Correo caído o desconectado) de la lista", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    findUnique.mockResolvedValue(settings());
+    const caido = correo(async () => {
+      throw new Error("caído");
+    });
+    expect(await loadAgenciesForOrder({ workspaceId: "w1", provinceCode: "S", deps: { loadCorreo: caido.loadCorreo } })).toEqual({ ok: false });
+    expect(
+      await loadAgenciesForOrder({ workspaceId: "w1", provinceCode: "S", deps: { loadCorreo: vi.fn(async () => null) } }),
+    ).toEqual({ ok: false });
+    const bien = correo(async () => agencias);
+    expect(await loadAgenciesForOrder({ workspaceId: "w1", provinceCode: "S", deps: { loadCorreo: bien.loadCorreo } })).toEqual({
+      ok: true,
+      agencies: [{ id: "A1", name: "Centro", address: "Córdoba 721", city: "Rosario", postalCode: "2000" }],
+    });
   });
 });

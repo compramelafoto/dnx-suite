@@ -28,6 +28,8 @@ export type PlaceOrderResult = {
   problems?: CartProblem[];
   /** La clave de compra ya no sirve (su pedido se pagó, venció o era de otro carrito): generar otra. */
   renewKey?: boolean;
+  /** El envío re-cotizado es más caro que el que vio: mostrar éste y volver a confirmar. */
+  shippingChanged?: { totalMinor: number; serviceName: string };
 };
 
 const COOKIE_DIAS = 30;
@@ -74,7 +76,13 @@ export async function placeOrderAction(workspaceSlug: unknown, raw: unknown): Pr
 
   const pedido = await createStoreOrder({ workspaceId, memberId, checkout: parsed.value });
   if (!pedido.ok) {
-    return { ok: false, error: pedido.error, problems: pedido.problems, renewKey: pedido.renewKey };
+    return {
+      ok: false,
+      error: pedido.error,
+      problems: pedido.problems,
+      renewKey: pedido.renewKey,
+      shippingChanged: pedido.shippingChanged,
+    };
   }
 
   const base = `/w/${slug}/${STORE_PUBLIC_SEGMENT}`;

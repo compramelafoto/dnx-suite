@@ -190,3 +190,22 @@ describe("parseCheckoutInput: entrega", () => {
     expect(errs({ ...ok(), delivery: "HOME" })["delivery.method"]).toBeTruthy();
   });
 });
+
+describe("parseCheckoutInput: envío que vio el comprador", () => {
+  it("opcional: sin él queda en null", () => {
+    const r = parseCheckoutInput(ok());
+    expect(r.ok && r.value.shownShippingMinor).toBeNull();
+  });
+  it("entero no negativo, en centavos", () => {
+    const r = parseCheckoutInput({ ...ok(), shownShippingMinor: 4_500_00 });
+    expect(r.ok && r.value.shownShippingMinor).toBe(4_500_00);
+    const cero = parseCheckoutInput({ ...ok(), shownShippingMinor: 0 });
+    expect(cero.ok && cero.value.shownShippingMinor).toBe(0);
+  });
+  it("basura (negativo, decimal, texto): se ignora como si no lo hubiera mandado", () => {
+    for (const v of [-1, 1.5, "4500", Number.NaN]) {
+      const r = parseCheckoutInput({ ...ok(), shownShippingMinor: v });
+      expect(r.ok && r.value.shownShippingMinor).toBeNull();
+    }
+  });
+});

@@ -53,6 +53,7 @@ describe.skipIf(!URL)("createStoreOrder contra Postgres — concurrencia", () =>
           clientIdempotencyKey: `concurrencia-${Date.now()}-${n}`,
           lines: [{ productId: producto.id, variantId: null, qty: 1 }],
           delivery: { method: "PICKUP" },
+          shownShippingMinor: null,
         },
       });
 

@@ -1,6 +1,6 @@
 import "server-only";
 import { Prisma, prisma } from "@repo/db";
-import { minorToDecimalString } from "@/lib/membership/money";
+import { formatMinorArs, minorToDecimalString } from "@/lib/membership/money";
 import { hashAccessToken, newPublicId, orderAccessToken, resolveOrderTokenKey } from "./access-token";
 import { lineKey } from "./cart/line-key";
 import type { CheckoutDelivery, CheckoutInput } from "./checkout-input";
@@ -9,7 +9,7 @@ import { loadCartCatalog, reservedQtyByKey } from "./repository";
 import { lockStockRows } from "@/lib/sales/stock-lock";
 import { checkCartLines, type CartProblem } from "./storefront";
 import { SHIPPING_FAILURE_MESSAGES } from "./shipping/checkout";
-import { listAgenciesForCheckout, loadCheckoutDeliveryOptions } from "./shipping/checkout-server";
+import { loadAgenciesForOrder, loadCheckoutDeliveryOptions } from "./shipping/checkout-server";
 import { quoteShipping, type ShippingQuote } from "./shipping/quote";
 
 /**
@@ -40,6 +40,8 @@ export type CreateStoreOrderResult =
       problems?: CartProblem[];
       /** La clave de compra ya nombra a otro pedido que no sirve: el navegador tiene que generar otra. */
       renewKey?: boolean;
+      /** El envío re-cotizado es más caro que el que vio (o no vio ninguno): mostrar éste y volver a confirmar. */
+      shippingChanged?: { totalMinor: number; serviceName: string };
     };
 
 const SIN_CLAVE = "La tienda no está lista para cobrar. Escribile a la institución.";
@@ -86,7 +88,7 @@ function destinoDeLaEntrega(delivery: CheckoutDelivery): string {
       return "PICKUP";
     case "HOME": {
       const a = delivery.address;
-      return ["HOME", a.postalCode, a.provinceCode, a.street, a.number].join("|");
+      return ["HOME", a.postalCode, a.provinceCode, a.city, a.street, a.number, a.floorApt ?? ""].join("|");
     }
     case "BRANCH":
       return ["BRANCH", delivery.agency.id].join("|");
@@ -108,7 +110,15 @@ function destinoGuardado(o: {
   if (o.deliveryMethod !== "SHIPPING") return "PICKUP";
   if (o.shippingMethod === "HOME") {
     const a = o.shippingAddressJson;
-    return ["HOME", campo(a, "postalCode"), campo(a, "provinceCode"), campo(a, "street"), campo(a, "number")].join("|");
+    return [
+      "HOME",
+      campo(a, "postalCode"),
+      campo(a, "provinceCode"),
+      campo(a, "city"),
+      campo(a, "street"),
+      campo(a, "number"),
+      campo(a, "floorApt"),
+    ].join("|");
   }
   if (o.shippingMethod === "BRANCH") return ["BRANCH", campo(o.shippingAgencyJson, "id")].join("|");
   // Un envío sin método conocido no coincide con nada: mejor una clave nueva que el pedido equivocado.
@@ -182,7 +192,9 @@ type EnvioDelPedido = {
   };
 };
 
-type EnvioResuelto = { ok: true; envio: EnvioDelPedido | null } | { ok: false; error: string };
+type EnvioResuelto =
+  | { ok: true; envio: EnvioDelPedido | null }
+  | { ok: false; error: string; shippingChanged?: { totalMinor: number; serviceName: string } };
 
 /** La cotización entera (base, recargo, paquete y respuesta cruda) como JSON: sólo para el servidor. */
 function cotizacionComoJson(quote: ShippingQuote): Prisma.InputJsonValue {
@@ -222,8 +234,10 @@ async function resolverEnvio(
         },
       };
     } else {
-      const sucursales = await listAgenciesForCheckout({ workspaceId, provinceCode: delivery.provinceCode });
-      const sucursal = sucursales.find((s) => s.id === delivery.agency.id);
+      const lista = await loadAgenciesForOrder({ workspaceId, provinceCode: delivery.provinceCode });
+      // Correo caído no es "la sucursal no existe": no se le pide que elija otra.
+      if (!lista.ok) return { ok: false, error: NO_SE_PUDO_COTIZAR };
+      const sucursal = lista.agencies.find((s) => s.id === delivery.agency.id);
       if (!sucursal) return { ok: false, error: SUCURSAL_NO_DISPONIBLE };
       destino = { postalCode: sucursal.postalCode, provinceCode: delivery.provinceCode };
       lugar = {
@@ -250,8 +264,19 @@ async function resolverEnvio(
       return { ok: false, error: NO_SE_PUDO_COTIZAR };
     }
     const q = r.quote;
-    // Nunca se vende un envío sin precio (E14).
-    if (!Number.isInteger(q.totalMinor) || q.totalMinor <= 0) return { ok: false, error: NO_SE_PUDO_COTIZAR };
+    // Nunca se vende un envío sin precio (E14). En la tabla, $0 es una zona gratis que cargó la
+    // institución; de Correo, un $0 es un error.
+    const minimo = q.source === "TABLE" ? 0 : 1;
+    if (!Number.isInteger(q.totalMinor) || q.totalMinor < minimo) return { ok: false, error: NO_SE_PUDO_COTIZAR };
+    // Se cobra lo re-cotizado, pero si es más de lo que vio (o no vio ningún precio), primero se
+    // le muestra: nadie paga un envío más caro sin enterarse. Si bajó, se sigue con el menor.
+    if (checkout.shownShippingMinor === null || q.totalMinor > checkout.shownShippingMinor) {
+      return {
+        ok: false,
+        error: `El envío cambió: ahora cuesta ${formatMinorArs(q.totalMinor)}. Revisalo y volvé a confirmar.`,
+        shippingChanged: { totalMinor: q.totalMinor, serviceName: q.serviceName },
+      };
+    }
     return {
       ok: true,
       envio: {
@@ -312,7 +337,11 @@ export async function createStoreOrder(input: {
 
   // Fuera de la transacción: cotizar puede tardar (la red de Correo) y no se hace con el stock bloqueado.
   const resuelto = await resolverEnvio(workspaceId, checkout, lines);
-  if (!resuelto.ok) return { ok: false, error: resuelto.error };
+  if (!resuelto.ok) {
+    return resuelto.shippingChanged
+      ? { ok: false, error: resuelto.error, shippingChanged: resuelto.shippingChanged }
+      : { ok: false, error: resuelto.error };
+  }
   const envio = resuelto.envio;
   const shippingMinor = envio?.shippingMinor ?? 0;
 

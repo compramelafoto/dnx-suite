@@ -94,6 +94,46 @@ function guardar(clave: string, agencies: PublicAgency[], ahora: number) {
   agenciesCache.set(clave, { at: ahora, agencies });
 }
 
+export type AgenciesResult = { ok: true; agencies: PublicAgency[] } | { ok: false };
+
+/**
+ * Sucursales de Correo Argentino de una provincia. `ok: false` si no se pudieron traer (Correo
+ * falló o la institución no está conectada): eso NO es "la sucursal no existe". Lista vacía si
+ * la institución no ofrece sucursal o no cotiza con Correo, o la provincia no es válida.
+ */
+export async function loadAgenciesForOrder(input: {
+  workspaceId: string;
+  provinceCode: string;
+  deps?: { loadCorreo?: typeof loadCorreoArgentinoClient };
+}): Promise<AgenciesResult> {
+  const provinceCode = (input.provinceCode ?? "").trim().toUpperCase();
+  if (!isProvinceCode(provinceCode)) return { ok: true, agencies: [] };
+  const clave = `${input.workspaceId}:${provinceCode}`;
+  const ahora = Date.now();
+  const enMemoria = agenciesCache.get(clave);
+  if (enMemoria && ahora - enMemoria.at < AGENCIES_TTL_MS) return { ok: true, agencies: enMemoria.agencies };
+
+  const loadCorreo = input.deps?.loadCorreo ?? loadCorreoArgentinoClient;
+  try {
+    const settings = await loadShippingSettings(input.workspaceId);
+    if (!settings || !settings.branchDeliveryEnabled || settings.source !== "CORREO_ARGENTINO") return { ok: true, agencies: [] };
+    const conexion = await loadCorreo(input.workspaceId);
+    if (!conexion) return { ok: false };
+    const agencias = publicAgencies(await conexion.client.agencies({ customerId: conexion.customerId, provinceCode }));
+    guardar(clave, agencias, ahora);
+    return { ok: true, agencies: agencias };
+  } catch (error) {
+    // Sólo `kind` y `status`: el mensaje puede traer datos de la cuenta (ver errors.ts).
+    if (isMiCorreoError(error)) {
+      console.warn("[shipping] MiCorreo no listó sucursales", { kind: error.kind, status: error.status });
+      if (error.kind === "AUTH") await markCorreoNeedsReconsent(input.workspaceId).catch(() => undefined);
+    } else {
+      console.warn("[shipping] no se pudieron listar sucursales", { error: error instanceof Error ? error.name : typeof error });
+    }
+    return { ok: false };
+  }
+}
+
 /**
  * Sucursales de Correo Argentino de una provincia, para elegir dónde retirar. Vacía si la
  * institución no ofrece sucursal, no cotiza con Correo, no está conectada o Correo falló.
@@ -103,30 +143,6 @@ export async function listAgenciesForCheckout(input: {
   provinceCode: string;
   deps?: { loadCorreo?: typeof loadCorreoArgentinoClient };
 }): Promise<PublicAgency[]> {
-  const provinceCode = (input.provinceCode ?? "").trim().toUpperCase();
-  if (!isProvinceCode(provinceCode)) return [];
-  const clave = `${input.workspaceId}:${provinceCode}`;
-  const ahora = Date.now();
-  const enMemoria = agenciesCache.get(clave);
-  if (enMemoria && ahora - enMemoria.at < AGENCIES_TTL_MS) return enMemoria.agencies;
-
-  const loadCorreo = input.deps?.loadCorreo ?? loadCorreoArgentinoClient;
-  try {
-    const settings = await loadShippingSettings(input.workspaceId);
-    if (!settings || !settings.branchDeliveryEnabled || settings.source !== "CORREO_ARGENTINO") return [];
-    const conexion = await loadCorreo(input.workspaceId);
-    if (!conexion) return [];
-    const agencias = publicAgencies(await conexion.client.agencies({ customerId: conexion.customerId, provinceCode }));
-    guardar(clave, agencias, ahora);
-    return agencias;
-  } catch (error) {
-    // Sólo `kind` y `status`: el mensaje puede traer datos de la cuenta (ver errors.ts).
-    if (isMiCorreoError(error)) {
-      console.warn("[shipping] MiCorreo no listó sucursales", { kind: error.kind, status: error.status });
-      if (error.kind === "AUTH") await markCorreoNeedsReconsent(input.workspaceId).catch(() => undefined);
-    } else {
-      console.warn("[shipping] no se pudieron listar sucursales", { error: error instanceof Error ? error.name : typeof error });
-    }
-    return [];
-  }
+  const r = await loadAgenciesForOrder(input);
+  return r.ok ? r.agencies : [];
 }
