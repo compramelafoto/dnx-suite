@@ -48,6 +48,12 @@ function pageDe(href: string): string {
 }
 
 describe("submodulesFor", () => {
+  it("Cursos: Cobros está entre sus pantallas, pide gestionar y tiene su archivo", () => {
+    const cobros = submodulesFor(COURSES_SALES_MODULE_KEY, GESTIONA, SOCIO).find((s) => s.href === "/dashboard/cobros-de-cursos");
+    expect(cobros?.requiresManage).toBe(true);
+    expect(existsSync(pageDe("/dashboard/cobros-de-cursos"))).toBe(true);
+  });
+
   it("Cursos: el Mercado de cursos está entre sus pantallas y tiene su archivo", () => {
     const hrefs = submodulesFor(COURSES_SALES_MODULE_KEY, GESTIONA, SOCIO).map((s) => s.href);
     expect(hrefs).toContain("/dashboard/mercado-de-cursos");

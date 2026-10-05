@@ -4,6 +4,8 @@ import { testActivePartnerConsent } from "@repo/payments/mercado-pago";
 import { calcularReparto } from "@/lib/course-marketplace/reparto";
 import {
   armarOrdenDeCursoConReparto,
+  armarOrdenSinLlave,
+  consentimientoDeCuenta,
   evidenciaDeConsentimiento,
   prepararOrdenDeCursoConReparto,
   type EntradaOrdenDeCurso,
@@ -59,7 +61,7 @@ function entrada(cambios: Partial<EntradaOrdenDeCurso> = {}): EntradaOrdenDeCurs
 
 describe("orden de Mercado Pago con reparto para un curso (spec, sección 5.2)", () => {
   it("quien absorbe la comisión es el dueño de la orden; el resto, socios; montos fijos del motor", () => {
-    const r = armarOrdenDeCursoConReparto(entrada());
+    const r = armarOrdenSinLlave(entrada());
     if (!r.ok) throw new Error(r.detalle);
     expect(r.ownerReceiverId).toBe(UUID.doc);
     expect(r.body.total_amount).toBe("105000.00");
@@ -74,7 +76,7 @@ describe("orden de Mercado Pago con reparto para un curso (spec, sección 5.2)",
   });
 
   it("una parte en cero no viaja (el socio con todo el descuento del revendedor)", () => {
-    const r = armarOrdenDeCursoConReparto(entrada({ partes: partes(2500) }));
+    const r = armarOrdenSinLlave(entrada({ partes: partes(2500) }));
     if (!r.ok) throw new Error(r.detalle);
     expect(r.body.total_amount).toBe("80000.00");
     expect(r.body.splits.some((s) => s.receiver_id === UUID.club)).toBe(false);
@@ -83,26 +85,47 @@ describe("orden de Mercado Pago con reparto para un curso (spec, sección 5.2)",
   it("sin consentimiento ACTIVE de algún receptor, no se arma", () => {
     const receptores = entrada().receptores;
     receptores.set("ws-prod", { receiverId: UUID.prod, consentimiento: { ...testActivePartnerConsent(UUID.prod), status: "PENDING" } });
-    expect(armarOrdenDeCursoConReparto(entrada({ receptores }))).toMatchObject({ ok: false, codigo: "SIN_CONSENTIMIENTO" });
+    expect(armarOrdenSinLlave(entrada({ receptores }))).toMatchObject({ ok: false, codigo: "SIN_CONSENTIMIENTO" });
     receptores.set("ws-prod", { receiverId: UUID.prod, consentimiento: null });
-    expect(armarOrdenDeCursoConReparto(entrada({ receptores }))).toMatchObject({ ok: false, codigo: "SIN_CONSENTIMIENTO" });
+    expect(armarOrdenSinLlave(entrada({ receptores }))).toMatchObject({ ok: false, codigo: "SIN_CONSENTIMIENTO" });
   });
 
   it("el dueño de la orden también necesita su consentimiento", () => {
     const receptores = entrada().receptores;
     receptores.set("ws-doc", { receiverId: UUID.doc, consentimiento: null });
-    expect(armarOrdenDeCursoConReparto(entrada({ receptores }))).toMatchObject({ ok: false, codigo: "SIN_CONSENTIMIENTO" });
+    expect(armarOrdenSinLlave(entrada({ receptores }))).toMatchObject({ ok: false, codigo: "SIN_CONSENTIMIENTO" });
   });
 
   it("sin cuenta de un beneficiario o de la plataforma, no se arma", () => {
     const receptores = entrada().receptores;
     receptores.delete("ws-sfpr");
-    expect(armarOrdenDeCursoConReparto(entrada({ receptores }))).toMatchObject({ ok: false, codigo: "SIN_RECEPTOR" });
-    expect(armarOrdenDeCursoConReparto(entrada({ plataforma: null }))).toMatchObject({ ok: false, codigo: "SIN_PLATAFORMA" });
+    expect(armarOrdenSinLlave(entrada({ receptores }))).toMatchObject({ ok: false, codigo: "SIN_RECEPTOR" });
+    expect(armarOrdenSinLlave(entrada({ plataforma: null }))).toMatchObject({ ok: false, codigo: "SIN_PLATAFORMA" });
   });
 
   it("un consentimiento de prueba no pasa sin el permiso explícito de los tests", () => {
-    expect(armarOrdenDeCursoConReparto(entrada({ permitirFixturesDePrueba: false }))).toMatchObject({ ok: false, codigo: "INVALIDA" });
+    expect(armarOrdenSinLlave(entrada({ permitirFixturesDePrueba: false }))).toMatchObject({ ok: false, codigo: "INVALIDA" });
+  });
+
+  it("el armado exportado tampoco funciona con la llave apagada", () => {
+    expect(armarOrdenDeCursoConReparto(entrada())).toMatchObject({ ok: false, codigo: "SPLIT_APAGADO" });
+  });
+
+  it("un negocio que es revendedor y beneficiario va en un solo receptor con la suma", () => {
+    const base = partes();
+    const club = base.find((p) => p.id === "ws-club")!;
+    const prod = base.find((p) => p.id === "ws-prod")!;
+    const dup = base.map((p) => (p === club ? { ...club, id: "ws-prod" } : p));
+    const r = armarOrdenSinLlave(entrada({ partes: dup }));
+    if (!r.ok) throw new Error(r.detalle);
+    const delProd = r.body.splits.filter((s) => s.receiver_id === UUID.prod);
+    expect(delProd).toHaveLength(1);
+    expect(delProd[0]!.amount).toBe(((prod.centavos + club.centavos) / 100).toFixed(2));
+  });
+
+  it("si quien absorbe la comisión tiene $0, no se arma", () => {
+    const p = partes().map((x) => (x.id === "ws-doc" ? { ...x, centavos: 0 } : x));
+    expect(armarOrdenSinLlave(entrada({ partes: p }))).toMatchObject({ ok: false, codigo: "INVALIDA" });
   });
 
   it("con la llave apagada no se arma nada, aunque el guard general esté encendido", () => {
@@ -123,5 +146,22 @@ describe("consentimiento guardado → receptor", () => {
       consentimiento: { receiverId: UUID.sfpr, status: "ACTIVE", provider: "mercadopago" },
     });
     expect(evidenciaDeConsentimiento({ providerReceiverId: UUID.sfpr, status: "LO_QUE_SEA" })?.consentimiento?.status).toBe("PENDING");
+  });
+});
+
+describe("consentimiento guardado de una cuenta (formas reales)", () => {
+  const numerico = "1234567890";
+  it("usa el receiver_id UUID, no el user_id numérico de la cuenta", () => {
+    const r = consentimientoDeCuenta([
+      { providerReceiverId: numerico, status: "ACTIVE" },
+      { providerReceiverId: UUID.sfpr, status: "active" },
+    ]);
+    expect(r?.receiverId).toBe(UUID.sfpr);
+    expect(r?.consentimiento?.status).toBe("ACTIVE");
+  });
+
+  it("si sólo hay una fila con id numérico, no hay receptor", () => {
+    expect(consentimientoDeCuenta([{ providerReceiverId: numerico, status: "ACTIVE" }])).toBeNull();
+    expect(consentimientoDeCuenta([])).toBeNull();
   });
 });

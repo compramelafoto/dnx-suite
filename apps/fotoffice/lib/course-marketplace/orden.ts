@@ -3,6 +3,7 @@ import "server-only";
 import { prisma } from "@repo/db";
 import { workspaceOrganizationRef } from "@/lib/payments/connect/constants";
 import {
+  consentimientoDeCuenta,
   evidenciaDeConsentimiento,
   prepararOrdenDeCursoConReparto,
   type PagoConTarjeta,
@@ -30,12 +31,13 @@ export async function cargarReceptores(workspaceIds: string[]): Promise<Map<stri
       orderBy: { updatedAt: "desc" },
     });
     if (!cuenta?.providerUserId) continue;
-    const consentimiento = await prisma.dnxSplitConsent.findFirst({
-      where: { provider: "MERCADOPAGO", environment: "PRODUCTION", providerReceiverId: cuenta.providerUserId },
+    // Se busca por la cuenta (user_id numérico de MP) y se usa el receiver_id UUID guardado en la fila.
+    const filas = await prisma.dnxSplitConsent.findMany({
+      where: { provider: "MERCADOPAGO", environment: "PRODUCTION", primaryProviderAccountReference: cuenta.providerUserId },
       select: { providerReceiverId: true, status: true },
       orderBy: { updatedAt: "desc" },
     });
-    const r = evidenciaDeConsentimiento(consentimiento ? { providerReceiverId: consentimiento.providerReceiverId, status: String(consentimiento.status) } : null);
+    const r = consentimientoDeCuenta(filas.map((f) => ({ providerReceiverId: f.providerReceiverId, status: String(f.status) })));
     if (r) receptores.set(workspaceId, r);
   }
   return receptores;

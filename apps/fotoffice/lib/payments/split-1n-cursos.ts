@@ -70,19 +70,48 @@ export function evidenciaDeConsentimiento(fila: { providerReceiverId: string | n
   };
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/**
+ * De las filas de `DnxSplitConsent` de una cuenta (buscadas por `primaryProviderAccountReference`,
+ * el user_id numérico de MP) elige la que sirve para una orden: la más reciente cuyo
+ * `providerReceiverId` es el receiver_id UUID que informó Mercado Pago. Una fila con el id numérico
+ * (la que deja `refreshSplitConsent`) no sirve como receptor del split y se ignora. `filas` viene
+ * ordenada de la más nueva a la más vieja.
+ */
+export function consentimientoDeCuenta(filas: Array<{ providerReceiverId: string | null; status: string }>): ReceptorDeSplit | null {
+  const fila = filas.find((f) => f.providerReceiverId && UUID_RE.test(f.providerReceiverId));
+  return evidenciaDeConsentimiento(fila ?? null);
+}
+
 function consentimientoActivo(r: ReceptorDeSplit): boolean {
   return r.consentimiento?.status === "ACTIVE" && r.consentimiento.receiverId === r.receiverId;
 }
 
-export function armarOrdenDeCursoConReparto(e: EntradaOrdenDeCurso): ResultadoOrdenDeCurso {
+export function armarOrdenDeCursoConReparto(e: EntradaOrdenDeCurso, env: NodeJS.ProcessEnv = process.env): ResultadoOrdenDeCurso {
+  if (!cobroConRepartoHabilitado(env)) return ordenDeshabilitada();
+  return armarOrdenSinLlave(e);
+}
+
+function ordenDeshabilitada(): ResultadoOrdenDeCurso {
+  return { ok: false, codigo: "SPLIT_APAGADO", detalle: "El reparto automático de Mercado Pago está apagado para FOTOFFICE." };
+}
+
+/**
+ * Sólo para los tests del armado (la llave está apagada y no se puede encender desde afuera).
+ * Nadie más debe llamarla: el camino de la app es `prepararOrdenDeCursoConReparto`.
+ * @internal
+ */
+export function armarOrdenSinLlave(e: EntradaOrdenDeCurso): ResultadoOrdenDeCurso {
   const dueno = e.partes.find((p) => p.tipo === "BENEFICIARIO" && p.absorbeMp);
   if (!dueno) return { ok: false, codigo: "SIN_DUENO", detalle: "Ninguna parte absorbe la comisión de Mercado Pago." };
 
-  const entries: Entradas = [];
-  const partnerReceiverIds = new Map<string, string>();
-  const consentimientos = new Map<string, PartnerConsentEvidence>();
-  let ownerReceiverId = "";
+  if (dueno.centavos <= 0) {
+    return { ok: false, codigo: "INVALIDA", detalle: `${dueno.nombre} absorbe la comisión de Mercado Pago pero su parte es de $0: no puede ser el dueño de la orden.` };
+  }
 
+  // Un mismo negocio puede aparecer dos veces (revendedor y beneficiario): se junta en un solo receptor.
+  const montos = new Map<string, { parte: ParteDelReparto; receptor: ReceptorDeSplit; centavos: number }>();
   for (const p of e.partes) {
     if (p !== dueno && p.centavos <= 0) continue;
     const receptor = p.tipo === "PLATAFORMA" ? e.plataforma : (e.receptores.get(p.id) ?? null);
@@ -96,14 +125,28 @@ export function armarOrdenDeCursoConReparto(e: EntradaOrdenDeCurso): ResultadoOr
     if (!consentimientoActivo(receptor)) {
       return { ok: false, codigo: "SIN_CONSENTIMIENTO", detalle: `${p.nombre} no tiene activo su consentimiento de Mercado Pago.` };
     }
-    const amount = money("ARS", p.centavos);
-    if (p === dueno) {
+    const previo = montos.get(receptor.receiverId);
+    if (previo) {
+      previo.centavos += p.centavos;
+      if (p === dueno) previo.parte = p;
+    } else {
+      montos.set(receptor.receiverId, { parte: p, receptor, centavos: p.centavos });
+    }
+  }
+
+  const entries: Entradas = [];
+  const partnerReceiverIds = new Map<string, string>();
+  const consentimientos = new Map<string, PartnerConsentEvidence>();
+  let ownerReceiverId = "";
+  for (const { parte, receptor, centavos } of montos.values()) {
+    const amount = money("ARS", centavos);
+    if (parte === dueno) {
       ownerReceiverId = receptor.receiverId;
       entries.unshift({ receiverType: "owner", receiverId: receptor.receiverId, amount });
     } else {
       entries.push({ receiverType: "partner", receiverId: receptor.receiverId, consentStatus: "ACTIVE", amount });
-      partnerReceiverIds.set(p.id, receptor.receiverId);
-      consentimientos.set(p.id, receptor.consentimiento!);
+      partnerReceiverIds.set(parte.id, receptor.receiverId);
+      consentimientos.set(parte.id, receptor.consentimiento!);
     }
   }
 
@@ -154,8 +197,6 @@ export function armarOrdenDeCursoConReparto(e: EntradaOrdenDeCurso): ResultadoOr
 
 /** La única entrada que usa el resto de la app: primero la llave del guard, después la orden. */
 export function prepararOrdenDeCursoConReparto(e: EntradaOrdenDeCurso, env: NodeJS.ProcessEnv = process.env): ResultadoOrdenDeCurso {
-  if (!cobroConRepartoHabilitado(env)) {
-    return { ok: false, codigo: "SPLIT_APAGADO", detalle: "El reparto automático de Mercado Pago está apagado para FOTOFFICE." };
-  }
-  return armarOrdenDeCursoConReparto(e);
+  if (!cobroConRepartoHabilitado(env)) return ordenDeshabilitada();
+  return armarOrdenSinLlave(e);
 }
