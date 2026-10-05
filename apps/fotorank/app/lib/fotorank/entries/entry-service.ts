@@ -14,7 +14,7 @@ import {
 import { evaluateAdmissionAutoMatrix } from "../admission/auto-matrix";
 import { ADMISSION_RULES_VERSION } from "../admission/types";
 import { EntryError } from "./errors";
-import { canCreateEntry } from "./entry-quota";
+import { canCreateEntry, isEmptyDraftEntry, resolvePolicyMaxEntries } from "./entry-quota";
 import { buildChecklist, CHECKLIST_RULE_VERSION, entryStatusFromSummary, summarizeChecklist } from "./checklist";
 import { generateEntryDerivatives, readImageDimensions } from "./derivatives";
 import { assessDeviceCompatibility, extractEntryExif } from "./exif";
@@ -128,19 +128,28 @@ async function findDuplicate(input: {
 }
 
 /**
- * Obtiene o crea una obra de la inscripción.
+ * Obtiene o crea la obra sobre la que va a caer una carga.
  *
- * El cupo lo define el concurso (`maxEntriesPerRegistration`) y, si hubo pago
- * por paquete, `purchasedEntriesCount`. Con el default de 1 obra el
- * comportamiento es idéntico al anterior: devuelve la obra existente.
+ * - Con `targetEntryId`, el participante eligió una obra suya (reemplazo o
+ *   reintento): se devuelve esa, después de verificar que es de esta inscripción.
+ * - Sin él, quiere una obra nueva. Primero se reusa un borrador vacío —el que
+ *   deja un envío que falló antes de llegar el archivo—, para que un intento
+ *   fallido no ocupe un lugar del cupo. Recién si no hay, se crea una.
+ *
+ * El cupo lo define el concurso (`resolvePolicyMaxEntries`: política o, si no
+ * hay, el "Máx. archivos" de la categoría) y, si hubo pago por paquete,
+ * `purchasedEntriesCount`. Con 1 obra el comportamiento es idéntico al
+ * anterior: sin cupo se devuelve la obra existente en lugar de fallar.
  */
 export async function ensureEntryForRegistration(input: {
   contestId: string;
   registrationId: string;
   participantUserId: number;
+  targetEntryId?: string | null;
 }): Promise<{ entryId: string; created: boolean }> {
   const reg = await prisma.fotorankContestRegistration.findUnique({
     where: { id: input.registrationId },
+    include: { category: { select: { maxFiles: true } } },
   });
   if (!reg || reg.contestId !== input.contestId) {
     throw new EntryError("REGISTRATION_REQUIRED", "Inscripción no encontrada.", 404);
@@ -154,24 +163,38 @@ export async function ensureEntryForRegistration(input: {
 
   const existing = await prisma.fotorankContestEntry.findMany({
     where: { registrationId: reg.id },
-    select: { id: true },
+    select: {
+      id: true,
+      status: true,
+      assets: { where: { kind: "ORIGINAL" }, select: { id: true }, take: 1 },
+    },
     orderBy: { createdAt: "asc" },
   });
+
+  if (input.targetEntryId) {
+    const target = existing.find((e) => e.id === input.targetEntryId);
+    if (!target) throw new EntryError("ENTRY_NOT_FOUND", "Obra no encontrada.", 404);
+    return { entryId: target.id, created: false };
+  }
+
+  const emptyDraft = existing.find((e) => isEmptyDraftEntry({ status: e.status, hasOriginal: e.assets.length > 0 }));
+  if (emptyDraft) return { entryId: emptyDraft.id, created: false };
 
   const contest = await prisma.fotorankContest.findUnique({
     where: { id: reg.contestId },
     select: { uploadPolicyJson: true },
   });
   const quota = canCreateEntry({
-    policyMaxEntries: parseUploadPolicy(contest?.uploadPolicyJson).maxEntriesPerRegistration,
+    policyMaxEntries: resolvePolicyMaxEntries(contest?.uploadPolicyJson, reg.category?.maxFiles),
     purchasedEntriesCount: reg.purchasedEntriesCount,
     currentEntryCount: existing.length,
   });
 
   if (!quota.allowed) {
-    // Sin cupo para una obra más. Con límite 1 esto reproduce el comportamiento
-    // histórico: se devuelve la obra ya existente en lugar de fallar.
-    if (existing.length > 0) {
+    // Con límite 1 se reproduce el comportamiento histórico: se devuelve la
+    // obra ya existente en lugar de fallar. Con más de una, devolver la primera
+    // haría que "agregar otra foto" pise una obra ya enviada.
+    if (quota.quota.limit === 1 && existing.length > 0) {
       return { entryId: existing[0]!.id, created: false };
     }
     throw new EntryError("ENTRY_QUOTA_EXCEEDED", quota.message, 409);
@@ -208,6 +231,8 @@ export async function createUploadIntent(input: {
   participantUserId: number;
   /** MIME que el navegador va a mandar en el PUT; debe coincidir con el firmado. */
   contentType?: string | null;
+  /** Obra existente a reemplazar o reintentar. Ausente = obra nueva. */
+  entryId?: string | null;
 }): Promise<{
   entryId: string;
   registrationId: string;
@@ -250,6 +275,7 @@ export async function createUploadIntent(input: {
     contestId: input.contestId,
     registrationId: reg.id,
     participantUserId: input.participantUserId,
+    targetEntryId: input.entryId,
   });
 
   return {
@@ -1169,6 +1195,33 @@ export async function getMyEntry(contestId: string, participantUserId: number) {
     },
   });
   return entry;
+}
+
+/**
+ * Todas las obras del participante en el concurso, en orden de creación.
+ * Excluye los borradores vacíos: no son obras, son intentos de carga que no
+ * llegaron (ver `isEmptyDraftEntry`).
+ */
+export async function getMyEntries(contestId: string, participantUserId: number) {
+  const reg = await prisma.fotorankContestRegistration.findUnique({
+    where: { contestId_participantUserId: { contestId, participantUserId } },
+  });
+  if (!reg) return [];
+  const entries = await prisma.fotorankContestEntry.findMany({
+    where: { registrationId: reg.id },
+    orderBy: { createdAt: "asc" },
+    include: {
+      checks: { orderBy: { checkGroup: "asc" } },
+      assets: {
+        where: { isActive: true },
+        orderBy: { versionNumber: "desc" },
+      },
+      category: { select: { id: true, name: true, slug: true } },
+    },
+  });
+  return entries.filter(
+    (e) => !isEmptyDraftEntry({ status: e.status, hasOriginal: e.assets.some((a) => a.kind === "ORIGINAL") }),
+  );
 }
 
 export async function listContestEntriesForOrganizer(input: {

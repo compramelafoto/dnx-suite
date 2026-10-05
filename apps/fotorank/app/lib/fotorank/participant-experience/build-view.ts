@@ -22,6 +22,8 @@ export type BuildParticipationInput = {
   registeredAt: Date | null;
   confirmedAt: Date | null;
   entry: ParticipantEntrySlice | null;
+  /** Obras reales de la inscripción. Ausente = se infiere de `entry` (0 o 1). */
+  uploadedCount?: number;
   acceptedRulesVersionId: string;
   currentRulesVersionId: string | null;
   contest: UploadWindowInput & {
@@ -51,6 +53,8 @@ export function buildParticipantParticipationView(
     currentPublishedRulesVersionId: input.currentRulesVersionId,
   });
 
+  const uploadedCount = input.uploadedCount ?? (input.entry ? 1 : 0);
+
   const actionInput = {
     registrationId: input.id,
     contestSlug: input.contestSlug,
@@ -62,6 +66,7 @@ export function buildParticipantParticipationView(
     resultsPublished,
     needsRulesReacceptance,
     surface: input.surface ?? "list",
+    remainingEntries: Math.max(0, input.maxFiles - uploadedCount),
   };
 
   const primaryStatus = presentPrimaryParticipationStatus({
@@ -70,8 +75,6 @@ export function buildParticipantParticipationView(
     manualReviewStatus: input.entry?.manualReviewStatus,
     admissionStatus: input.entry?.admissionStatus,
   });
-
-  const uploadedCount = input.entry ? 1 : 0;
 
   return {
     id: input.id,

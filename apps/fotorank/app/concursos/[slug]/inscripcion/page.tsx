@@ -21,6 +21,7 @@ import {
   presentRegistrationStatus,
   resolveUploadWindow,
 } from "../../../lib/fotorank/participant-experience";
+import { resolveRegistrationEntryLimit } from "../../../lib/fotorank/entries/entry-quota";
 import { buildUploadRequirementsSummary } from "../../../lib/fotorank/participant-upload";
 import { toStatusBadgeTone } from "../../../lib/fotorank/public-ux/status-tone-bridge";
 import {
@@ -101,7 +102,11 @@ export default async function ContestInscriptionPage({ params }: Props) {
           contestSlug: slug,
           categoryName: existing.categoryName,
           categorySlug: category.slug,
-          maxFiles: category.maxFiles,
+          maxFiles: resolveRegistrationEntryLimit({
+            uploadPolicyJson: contest.uploadPolicyJson,
+            categoryMaxFiles: category.maxFiles,
+            purchasedEntriesCount: existing.purchasedEntriesCount,
+          }),
           uploadPolicyJson: contest.uploadPolicyJson,
           uploadWindow,
           basesHref: `/concursos/${slug}#bases`,
