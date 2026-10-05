@@ -6,7 +6,7 @@ import { loadWorkspaceSender } from "@/lib/communications/load-workspace-sender"
 import { sendBatchEmails, type OutboundEmail } from "@/lib/communications/send-email";
 import { DETAIL_MAX } from "@/lib/communications/constants";
 import { FOTOFFICE_BLOG_PLATFORM } from "@/lib/blog/scope";
-import { buildAudience, type Recipient } from "./audience";
+import { buildAudience, type AudienceMember, type Recipient } from "./audience";
 import { buildBlogDigestEmail, buildBlogPostEmail, blogDigestSubject, blogPostSubject, type BlogEmailPost, type EmailBody } from "./blog-email";
 import { blogUrl, loadMailingContext, postUrl, unsubscribeHeaders, type MailingContext } from "./context";
 import { campaignStatusFor, isPermanentFailure } from "./delivery-plan";
@@ -19,6 +19,19 @@ import {
 } from "./constants";
 import { getMailingSettings } from "./settings";
 import { DIGEST_LOOKBACK_MS, isoWeekKey } from "./schedule";
+import {
+  anniversariesToday,
+  argentinaToday,
+  birthdaysToday,
+  buildOccasionEmail,
+  efemeridesForToday,
+  isOccasionWindow,
+  yearsSince,
+  ymdKey,
+  type Ymd,
+} from "./occasions";
+import { topicForOccasion, type OccasionConfig } from "./occasions-catalog";
+import { loadOccasion, loadOccasions } from "./occasions-store";
 
 /**
  * Envíos a muchos socios: crear el envío, mandarlo de a tandas y retomarlo si se corta.
@@ -69,13 +82,24 @@ function toEmailPost(ctx: MailingContext, p: PostRow): BlogEmailPost | null {
 }
 
 /** Socios que recibirían un envío del tema, y cuántos quedan afuera por haberse dado de baja. */
-export async function loadAudience(workspaceId: string, topic: string) {
+export async function loadAudience(
+  workspaceId: string,
+  topic: string,
+  opts: { specialties?: string[]; members?: AudienceMember[] } = {},
+) {
+  const especialidades = opts.specialties?.filter(Boolean) ?? [];
   const [members, optOuts] = await Promise.all([
-    prisma.member.findMany({
-      where: { workspaceId, status: "ACTIVE", email: { not: null } },
-      select: { id: true, email: true, firstName: true },
-      orderBy: { createdAt: "asc" },
-    }),
+    opts.members ??
+      prisma.member.findMany({
+        where: {
+          workspaceId,
+          status: "ACTIVE",
+          email: { not: null },
+          ...(especialidades.length > 0 ? { specialties: { hasSome: especialidades } } : {}),
+        },
+        select: { id: true, email: true, firstName: true },
+        orderBy: { createdAt: "asc" },
+      }),
     prisma.fotofficeEmailOptOut.findMany({ where: { workspaceId }, select: { email: true, topic: true } }),
   ]);
   return buildAudience(members, optOuts, topic);
@@ -83,7 +107,10 @@ export async function loadAudience(workspaceId: string, topic: string) {
 
 // ─── Armado del correo de cada destinatario ────────────────────────────────────────────────
 
-type Renderer = (r: { email: string; firstName: string | null }) => { body: EmailBody; oneClickUrl: string };
+type Renderer = (r: { email: string; firstName: string | null; memberId: string | null }) => {
+  body: EmailBody;
+  oneClickUrl: string;
+};
 
 async function rendererFor(campaign: {
   workspaceId: string;
@@ -91,6 +118,8 @@ async function rendererFor(campaign: {
   blogPostId: number | null;
   blogPostIds: number[];
   topic: string;
+  occasionKey: string | null;
+  id: string;
 }): Promise<Renderer> {
   const ctx = await loadMailingContext(campaign.workspaceId);
   const unsubscribe = ctx.unsubscribe;
@@ -140,6 +169,43 @@ async function rendererFor(campaign: {
     };
   }
 
+  if (
+    campaign.kind === CAMPAIGN_KINDS.OCCASION ||
+    campaign.kind === CAMPAIGN_KINDS.BIRTHDAY ||
+    campaign.kind === CAMPAIGN_KINDS.ANNIVERSARY
+  ) {
+    const occasion = campaign.occasionKey ? await loadOccasion(campaign.workspaceId, campaign.occasionKey) : null;
+    if (!occasion) throw new Error("La fecha de este saludo ya no existe.");
+    // Aniversario: los años de cada socio, al día en que se armó el envío.
+    let anios = new Map<string, number>();
+    if (campaign.kind === CAMPAIGN_KINDS.ANNIVERSARY) {
+      const filas = await prisma.fotofficeEmailDelivery.findMany({
+        where: { campaignId: campaign.id, memberId: { not: null } },
+        select: { memberId: true, createdAt: true },
+      });
+      const socios = await prisma.member.findMany({
+        where: { id: { in: filas.map((f) => f.memberId as string) } },
+        select: { id: true, joinedAt: true },
+      });
+      const creado = filas[0]?.createdAt ?? new Date();
+      const hoy = argentinaToday(creado);
+      anios = new Map(socios.map((m) => [m.id, yearsSince(m.joinedAt, hoy)]));
+    }
+    return (r) => {
+      const links = unsubscribe(r.email, campaign.topic);
+      return {
+        body: buildOccasionEmail({
+          brand: ctx.brand,
+          occasion,
+          vars: { nombre: r.firstName, institucion: ctx.brand.name, anios: r.memberId ? (anios.get(r.memberId) ?? null) : null },
+          signature: ctx.signature,
+          footer: { reason: ctx.reason, unsubscribeUrl: links.pageUrl },
+        }),
+        oneClickUrl: links.oneClickUrl,
+      };
+    };
+  }
+
   throw new Error(`Tipo de envío desconocido: ${campaign.kind}`);
 }
 
@@ -157,9 +223,16 @@ async function createCampaign(input: {
   subject: string;
   blogPostId?: number | null;
   blogPostIds?: number[];
+  occasionKey?: string | null;
   createdByUserId?: number | null;
+  /** Candidatos ya elegidos (cumpleaños de hoy). Sin esto: todos los socios activos. */
+  members?: AudienceMember[];
+  specialties?: string[];
 }): Promise<CreateCampaignResult> {
-  const { recipients, optedOut } = await loadAudience(input.workspaceId, input.topic);
+  const { recipients, optedOut } = await loadAudience(input.workspaceId, input.topic, {
+    members: input.members,
+    specialties: input.specialties,
+  });
   if (recipients.length === 0) return { ok: false, reason: "NO_RECIPIENTS" };
   try {
     const campaign = await prisma.$transaction(async (tx) => {
@@ -172,6 +245,7 @@ async function createCampaign(input: {
           subject: input.subject,
           blogPostId: input.blogPostId ?? null,
           blogPostIds: input.blogPostIds ?? [],
+          occasionKey: input.occasionKey ?? null,
           recipientsTotal: recipients.length,
           optedOutCount: optedOut,
           createdByUserId: input.createdByUserId ?? null,
@@ -223,7 +297,16 @@ export async function processCampaign(campaignId: string, opts: { deadline?: num
 
   const campaign = await prisma.fotofficeEmailCampaign.findUnique({
     where: { id: campaignId },
-    select: { id: true, workspaceId: true, kind: true, topic: true, blogPostId: true, blogPostIds: true, status: true },
+    select: {
+      id: true,
+      workspaceId: true,
+      kind: true,
+      topic: true,
+      blogPostId: true,
+      blogPostIds: true,
+      occasionKey: true,
+      status: true,
+    },
   });
   if (!campaign) return { ...report, done: true };
 
@@ -268,7 +351,7 @@ export async function processCampaign(campaignId: string, opts: { deadline?: num
     });
     const tomadas = await prisma.fotofficeEmailDelivery.findMany({
       where: { id: { in: ids }, status: "SENDING", claimedAt: stamp },
-      select: { id: true, email: true, firstName: true },
+      select: { id: true, email: true, firstName: true, memberId: true },
       orderBy: { createdAt: "asc" },
     });
     if (tomadas.length === 0) continue;
@@ -277,7 +360,7 @@ export async function processCampaign(campaignId: string, opts: { deadline?: num
     primero = false;
 
     const mensajes: OutboundEmail[] = tomadas.map((d) => {
-      const { body, oneClickUrl } = render({ email: d.email, firstName: d.firstName });
+      const { body, oneClickUrl } = render({ email: d.email, firstName: d.firstName, memberId: d.memberId });
       return { to: d.email, ...body, sender, headers: unsubscribeHeaders(oneClickUrl) };
     });
     const clave = createHash("sha256")
@@ -475,4 +558,130 @@ export async function sendWeeklyDigest(workspaceId: string, now: Date, deadline:
   if (!creado.ok) return { status: creado.reason };
   const r = await processCampaign(creado.campaignId, { deadline });
   return { status: "CREATED" as const, sent: r.sent };
+}
+
+// ─── Fechas especiales, cumpleaños y aniversario ───────────────────────────────────────────
+
+const KIND_FOR: Record<OccasionConfig["kind"], string> = {
+  EFEMERIDE: CAMPAIGN_KINDS.OCCASION,
+  BIRTHDAY: CAMPAIGN_KINDS.BIRTHDAY,
+  ANNIVERSARY: CAMPAIGN_KINDS.ANNIVERSARY,
+};
+
+async function datedMembers(workspaceId: string, field: "birthDate" | "joinedAt") {
+  const filas = await prisma.member.findMany({
+    where: { workspaceId, status: "ACTIVE", email: { not: null }, ...(field === "birthDate" ? { birthDate: { not: null } } : {}) },
+    select: { id: true, email: true, firstName: true, birthDate: true, joinedAt: true },
+    orderBy: { createdAt: "asc" },
+  });
+  return filas.map((f) => ({
+    id: f.id,
+    email: f.email,
+    firstName: f.firstName,
+    date: (field === "birthDate" ? f.birthDate : f.joinedAt) as Date,
+  }));
+}
+
+/** El asunto que se guarda en el historial (sin datos de ningún socio en particular). */
+function historySubject(o: OccasionConfig): string {
+  if (o.kind === "BIRTHDAY") return "Saludos de cumpleaños";
+  if (o.kind === "ANNIVERSARY") return "Saludos de aniversario de ingreso";
+  return o.title;
+}
+
+async function launchOccasion(workspaceId: string, o: OccasionConfig, today: Ymd, deadline: number) {
+  let members: AudienceMember[] | undefined;
+  let dedupeKey: string;
+  if (o.kind === "BIRTHDAY") {
+    members = birthdaysToday(await datedMembers(workspaceId, "birthDate"), today);
+    dedupeKey = `birthday:${workspaceId}:${ymdKey(today)}`;
+  } else if (o.kind === "ANNIVERSARY") {
+    members = anniversariesToday(await datedMembers(workspaceId, "joinedAt"), today, o.milestonesOnly);
+    dedupeKey = `anniversary:${workspaceId}:${ymdKey(today)}`;
+  } else {
+    dedupeKey = `occasion:${workspaceId}:${o.key}:${today.y}`;
+  }
+  if (members && members.length === 0) return "NOBODY";
+
+  const creado = await createCampaign({
+    workspaceId,
+    kind: KIND_FOR[o.kind],
+    topic: topicForOccasion(o.kind),
+    dedupeKey,
+    subject: historySubject(o),
+    occasionKey: o.key,
+    members,
+    specialties: o.kind === "EFEMERIDE" ? o.specialties : undefined,
+  });
+  if (!creado.ok) return creado.reason;
+  await processCampaign(creado.campaignId, { deadline });
+  return "SENT";
+}
+
+/**
+ * Lo que toca hoy en una institución: fechas del año, cumpleaños y aniversarios. Desde las 9 de
+ * Argentina; cada uno sale una sola vez por día (claves únicas).
+ */
+export async function sendOccasionsForToday(workspaceId: string, now: Date, deadline: number) {
+  if (!isOccasionWindow(now)) return {};
+  const settings = await getMailingSettings(workspaceId);
+  if (!settings.bulkEnabled) return {};
+  const ctx = await loadMailingContext(workspaceId);
+  if (!ctx.unsubscribe) return { config: "NOT_CONFIGURED" };
+
+  const today = argentinaToday(now);
+  const todas = await loadOccasions(workspaceId);
+  const deHoy = [
+    ...todas.filter((o) => (o.kind === "BIRTHDAY" || o.kind === "ANNIVERSARY") && o.enabled),
+    ...efemeridesForToday(todas, today),
+  ];
+  const resultado: Record<string, string> = {};
+  for (const o of deHoy) {
+    if (Date.now() >= deadline) break;
+    try {
+      resultado[o.key] = await launchOccasion(workspaceId, o, today, deadline);
+    } catch (error) {
+      resultado[o.key] = "ERROR";
+      console.error("[fotoffice][correo] falló un saludo", {
+        workspaceId,
+        key: o.key,
+        detalle: error instanceof Error ? error.message : "error desconocido",
+      });
+    }
+  }
+  return resultado;
+}
+
+/** Prueba de un saludo a quien está mirando, con su nombre (y 10 años de ejemplo en el aniversario). */
+export async function sendOccasionTest(input: {
+  workspaceId: string;
+  occasion: OccasionConfig;
+  to: string;
+  firstName: string | null;
+  userId: number;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await loadMailingContext(input.workspaceId);
+  if (!ctx.unsubscribe) return { ok: false, error: "Falta configuración del sistema para el enlace de baja. Avisale al equipo técnico." };
+  const body = buildOccasionEmail({
+    brand: ctx.brand,
+    occasion: input.occasion,
+    vars: { nombre: input.firstName, institucion: ctx.brand.name, anios: input.occasion.kind === "ANNIVERSARY" ? 10 : null },
+    signature: ctx.signature,
+    footer: { reason: ctx.reason, unsubscribeUrl: ctx.unsubscribe(input.to, topicForOccasion(input.occasion.kind)).pageUrl },
+  });
+  const salida = await sendAndLogEmail({
+    to: input.to,
+    templateKey: MAILING_TEST_TEMPLATE_KEY,
+    body: { ...body, subject: `[Prueba] ${body.subject}` },
+    userId: input.userId,
+    workspaceId: input.workspaceId,
+  });
+  return salida.status === "SENT" ? { ok: true } : { ok: false, error: "No se pudo enviar la prueba. Quedó registrado para revisarlo." };
+}
+
+/** Cuántos socios recibirían un saludo de fecha del año (para mostrarlo al configurarlo). */
+export async function countOccasionAudience(workspaceId: string, o: OccasionConfig): Promise<number> {
+  if (o.kind !== "EFEMERIDE") return 0;
+  const { recipients } = await loadAudience(workspaceId, topicForOccasion(o.kind), { specialties: o.specialties });
+  return recipients.length;
 }
