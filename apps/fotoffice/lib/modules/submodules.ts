@@ -427,6 +427,14 @@ const COMUNICACION: SubmoduleItem[] = [
     activeMatch: "under",
   },
   {
+    href: "/comunicacion/campanas",
+    label: "Campañas",
+    icon: "Send",
+    description: "Correos propios a todos los {personas} o a una parte: redactar, programar, aprobar y ver aperturas.",
+    requiresManage: true,
+    activeMatch: "under",
+  },
+  {
     href: "/comunicacion/fechas",
     label: "Fechas y saludos",
     icon: "CalendarDays",

@@ -121,7 +121,7 @@ export function renderTemplate(text: string, vars: TemplateVars): string {
   return out;
 }
 
-function parrafosHtml(text: string): string {
+export function paragraphsHtml(text: string): string {
   return text
     .split(/\n{2,}/)
     .map((p) => p.trim())
@@ -147,7 +147,7 @@ export function buildOccasionEmail(input: {
     imagen
       ? `<img src="${escapeHtml(imagen)}" alt="${escapeHtml(input.occasion.title)}" width="536" style="display:block;width:100%;max-width:536px;height:auto;border:0;border-radius:8px;margin:0 0 20px;">`
       : "",
-    `<div style="font-family:${FUENTE};font-size:16px;line-height:1.6;color:${C.cuerpo};">${parrafosHtml(cuerpo)}</div>`,
+    `<div style="font-family:${FUENTE};font-size:16px;line-height:1.6;color:${C.cuerpo};">${paragraphsHtml(cuerpo)}</div>`,
   ].join("\n");
 
   const html = wrapMailing({

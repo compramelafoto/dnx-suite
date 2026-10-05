@@ -32,6 +32,7 @@ import {
 } from "./occasions";
 import { topicForOccasion, type OccasionConfig } from "./occasions-catalog";
 import { loadOccasion, loadOccasions } from "./occasions-store";
+import { buildCustomEmail } from "./custom-email";
 
 /**
  * Envíos a muchos socios: crear el envío, mandarlo de a tandas y retomarlo si se corta.
@@ -85,9 +86,10 @@ function toEmailPost(ctx: MailingContext, p: PostRow): BlogEmailPost | null {
 export async function loadAudience(
   workspaceId: string,
   topic: string,
-  opts: { specialties?: string[]; members?: AudienceMember[] } = {},
+  opts: { specialties?: string[]; categoryIds?: string[]; members?: AudienceMember[] } = {},
 ) {
   const especialidades = opts.specialties?.filter(Boolean) ?? [];
+  const categorias = opts.categoryIds?.filter(Boolean) ?? [];
   const [members, optOuts] = await Promise.all([
     opts.members ??
       prisma.member.findMany({
@@ -96,6 +98,7 @@ export async function loadAudience(
           status: "ACTIVE",
           email: { not: null },
           ...(especialidades.length > 0 ? { specialties: { hasSome: especialidades } } : {}),
+          ...(categorias.length > 0 ? { categoryId: { in: categorias } } : {}),
         },
         select: { id: true, email: true, firstName: true },
         orderBy: { createdAt: "asc" },
@@ -119,6 +122,7 @@ async function rendererFor(campaign: {
   blogPostIds: number[];
   topic: string;
   occasionKey: string | null;
+  messageId: string | null;
   id: string;
 }): Promise<Renderer> {
   const ctx = await loadMailingContext(campaign.workspaceId);
@@ -206,6 +210,29 @@ async function rendererFor(campaign: {
     };
   }
 
+  if (campaign.kind === CAMPAIGN_KINDS.CUSTOM) {
+    const mensaje = campaign.messageId
+      ? await prisma.fotofficeMailingMessage.findFirst({
+          where: { id: campaign.messageId, workspaceId: campaign.workspaceId },
+          select: { subject: true, body: true, imageUrl: true, ctaLabel: true, ctaUrl: true },
+        })
+      : null;
+    if (!mensaje) throw new Error("La campaña ya no existe.");
+    return (r) => {
+      const links = unsubscribe(r.email, campaign.topic);
+      return {
+        body: buildCustomEmail({
+          brand: ctx.brand,
+          content: mensaje,
+          vars: { nombre: r.firstName, institucion: ctx.brand.name },
+          signature: ctx.signature,
+          footer: { reason: ctx.reason, unsubscribeUrl: links.pageUrl },
+        }),
+        oneClickUrl: links.oneClickUrl,
+      };
+    };
+  }
+
   throw new Error(`Tipo de envío desconocido: ${campaign.kind}`);
 }
 
@@ -215,7 +242,7 @@ export type CreateCampaignResult =
   | { ok: true; campaignId: string; recipients: number; optedOut: number }
   | { ok: false; reason: "DUPLICATE" | "NO_RECIPIENTS" };
 
-async function createCampaign(input: {
+export async function createCampaign(input: {
   workspaceId: string;
   kind: string;
   topic: string;
@@ -224,14 +251,17 @@ async function createCampaign(input: {
   blogPostId?: number | null;
   blogPostIds?: number[];
   occasionKey?: string | null;
+  messageId?: string | null;
   createdByUserId?: number | null;
   /** Candidatos ya elegidos (cumpleaños de hoy). Sin esto: todos los socios activos. */
   members?: AudienceMember[];
   specialties?: string[];
+  categoryIds?: string[];
 }): Promise<CreateCampaignResult> {
   const { recipients, optedOut } = await loadAudience(input.workspaceId, input.topic, {
     members: input.members,
     specialties: input.specialties,
+    categoryIds: input.categoryIds,
   });
   if (recipients.length === 0) return { ok: false, reason: "NO_RECIPIENTS" };
   try {
@@ -246,6 +276,7 @@ async function createCampaign(input: {
           blogPostId: input.blogPostId ?? null,
           blogPostIds: input.blogPostIds ?? [],
           occasionKey: input.occasionKey ?? null,
+          messageId: input.messageId ?? null,
           recipientsTotal: recipients.length,
           optedOutCount: optedOut,
           createdByUserId: input.createdByUserId ?? null,
@@ -305,6 +336,7 @@ export async function processCampaign(campaignId: string, opts: { deadline?: num
       blogPostId: true,
       blogPostIds: true,
       occasionKey: true,
+      messageId: true,
       status: true,
     },
   });
