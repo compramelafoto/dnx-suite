@@ -21,6 +21,7 @@ import Cropper, { Area, Point } from "react-easy-crop";
 import PhotographerDashboardHeader from "@/components/photographer/PhotographerDashboardHeader";
 import PreventaPackDashboardSection from "@/components/dashboard/preventa-packs/PreventaPackDashboardSection";
 import AlbumUpsellConfigCard from "@/components/dashboard/preventa-packs/AlbumUpsellConfigCard";
+import PreventaAvisoFamiliasCard from "@/components/dashboard/preventa-packs/PreventaAvisoFamiliasCard";
 import AlbumStudentRosterSection from "@/components/dashboard/album-school/AlbumStudentRosterSection";
 import AlbumSchoolOperationsSection from "@/components/dashboard/album-school/AlbumSchoolOperationsSection";
 import AlbumPacksSection from "@/components/dashboard/album-packs/AlbumPacksSection";
@@ -2363,6 +2364,8 @@ export default function DashboardAlbumDetailPage() {
                     elige las imágenes después.
                   </p>
                 </div>
+
+                <PreventaAvisoFamiliasCard albumId={album.id} hasPhotos={albumPhotoStats.total > 0} />
 
                 <PreventaPackDashboardSection
                   albumId={album.id}
