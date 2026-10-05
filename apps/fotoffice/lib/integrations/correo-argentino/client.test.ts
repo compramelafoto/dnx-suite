@@ -107,6 +107,31 @@ describe("token", () => {
     expect(f.calls).toHaveLength(3);
   });
 
+  it("otra clave con el mismo usuario NO reutiliza el token: va a /token y recibe AUTH", async () => {
+    const f = fakeFetch({
+      "POST /token": (call) =>
+        call.headers.authorization === `Basic ${Buffer.from("api-user:api-secreta").toString("base64")}`
+          ? TOKEN_OK()
+          : json(401, { code: "401", message: "Unauthorized" }),
+    });
+    const opts = { fetchImpl: f.impl, now: () => NOW_ANTES };
+    expect(await createMiCorreoClient({ ...base, ...opts }).getToken()).toBe("jwt-1");
+    const otra = createMiCorreoClient({ ...base, apiPassword: "cualquiera", ...opts });
+    await expect(otra.getToken()).rejects.toMatchObject({ kind: "AUTH" });
+    expect(f.calls).toHaveLength(2);
+  });
+
+  it("getToken({ fresh: true }) ignora la caché y la renueva", async () => {
+    const f = fakeFetch({
+      "POST /token": [TOKEN_OK, () => json(200, { token: "jwt-2", expires: "2022-04-26 21:16:20" })],
+    });
+    const client = createMiCorreoClient({ ...base, fetchImpl: f.impl, now: () => NOW_ANTES });
+    await client.getToken();
+    expect(await client.getToken({ fresh: true })).toBe("jwt-2");
+    expect(await client.getToken()).toBe("jwt-2");
+    expect(f.calls).toHaveLength(2);
+  });
+
   it("si `expires` no se entiende, cachea 10 minutos", async () => {
     let now = NOW_ANTES;
     const f = fakeFetch({ "POST /token": () => json(200, { token: "jwt-x", expires: "mañana" }) });
@@ -308,6 +333,15 @@ describe("rates", () => {
     }
   });
 
+  it("precio 0 → UNEXPECTED: nunca se vende un envío a $0 por accidente", async () => {
+    const f = fakeFetch({
+      "POST /token": TOKEN_OK,
+      "POST /rates": () => json(200, { rates: [{ deliveredType: "D", productName: "P", price: 0 }] }),
+    });
+    const client = createMiCorreoClient({ ...base, fetchImpl: f.impl, now: () => NOW_ANTES });
+    await expect(client.rates(pedido)).rejects.toMatchObject({ kind: "UNEXPECTED" });
+  });
+
   it("sin arreglo `rates` → UNEXPECTED", async () => {
     const f = fakeFetch({ "POST /token": TOKEN_OK, "POST /rates": () => json(200, { hola: 1 }) });
     const client = createMiCorreoClient({ ...base, fetchImpl: f.impl, now: () => NOW_ANTES });
@@ -457,8 +491,10 @@ describe("errores", () => {
     expect(e.message).toContain("Algo de negocio");
   });
 
-  it("402 sin cuerpo entendible → UNEXPECTED", async () => {
-    expect((await errorPara(() => new Response("<html>", { status: 402 }))).kind).toBe("UNEXPECTED");
+  it.each([400, 402, 404, 409])("%s sin cuerpo entendible → BUSINESS con mensaje genérico", async (status) => {
+    const e = await errorPara(() => new Response("<html>", { status }));
+    expect(e.kind).toBe("BUSINESS");
+    expect(e.message).toBe("MiCorreo rechazó el pedido.");
   });
 
   it("429 → RATE_LIMIT", async () => {

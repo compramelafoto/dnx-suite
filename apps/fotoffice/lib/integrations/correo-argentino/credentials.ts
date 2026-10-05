@@ -76,7 +76,8 @@ export async function saveCorreoArgentinoCredentials(
     apiPassword: input.apiPassword,
     ...deps,
   });
-  await client.getToken();
+  // Siempre un token nuevo: uno en caché no prueba que ESTA clave sea correcta.
+  await client.getToken({ fresh: true });
   const { customerId } = await client.validateUser(accountEmail, input.accountPassword);
 
   const secret: StoredSecret = { env: input.env, apiUser, apiPassword: input.apiPassword, customerId };

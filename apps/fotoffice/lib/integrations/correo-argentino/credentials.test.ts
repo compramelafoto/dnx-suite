@@ -121,6 +121,13 @@ describe("credenciales de Correo Argentino", () => {
     expect(guardado).not.toContain("api-user");
   });
 
+  it("al guardar siempre pide un token nuevo, aunque haya uno en caché", async () => {
+    const f = fakeFetch();
+    await saveCorreoArgentinoCredentials("ws-1", 7, entrada, { fetchImpl: f.impl, now: NOW });
+    await saveCorreoArgentinoCredentials("ws-2", 8, entrada, { fetchImpl: f.impl, now: NOW });
+    expect(f.calls.filter((c) => c.url.endsWith("/token"))).toHaveLength(2);
+  });
+
   it("si MiCorreo rechaza la cuenta, no guarda nada y propaga el error", async () => {
     const f = fakeFetch(() => json(404, { code: "404", message: "Usuario no valido o inexistente" }));
     const error = await saveCorreoArgentinoCredentials("ws-1", 7, entrada, {

@@ -15,6 +15,11 @@
 
 export type MiCorreoErrorKind = "AUTH" | "BUSINESS" | "RATE_LIMIT" | "NETWORK" | "UNEXPECTED";
 
+/**
+ * Para loguear: sólo `kind` y `status`, NUNCA `message`. El mensaje puede repetir texto de
+ * Correo con datos de la cuenta (customerId, email); sirve para mostrárselo a la institución,
+ * no para los logs.
+ */
 export class MiCorreoError extends Error {
   readonly kind: MiCorreoErrorKind;
   /** Código HTTP de la respuesta, si la hubo. */

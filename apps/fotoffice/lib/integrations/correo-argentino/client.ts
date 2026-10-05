@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { decimalArsToMinor } from "@/lib/membership/money";
 import { MiCorreoError } from "./errors";
 
@@ -55,7 +56,8 @@ export type MiCorreoRatesInput = {
 };
 
 export type MiCorreoClient = {
-  getToken(): Promise<string>;
+  /** `fresh: true` ignora la caché (para validar credenciales recién cargadas). */
+  getToken(options?: { fresh?: boolean }): Promise<string>;
   validateUser(email: string, password: string): Promise<{ customerId: string }>;
   rates(input: MiCorreoRatesInput): Promise<MiCorreoRate[]>;
   agencies(input: { customerId: string; provinceCode: string }): Promise<MiCorreoAgency[]>;
@@ -72,9 +74,10 @@ export type MiCorreoClientOptions = {
 // --- Caché del token -----------------------------------------------------------------------
 
 /**
- * Por instancia del servidor, compartida entre clientes: la clave es ambiente + usuario de
- * la API, nunca la contraseña. Si la institución cambia la contraseña, el token viejo
- * sigue valiendo hasta que venza o Correo conteste 401 (y ahí se pide otro).
+ * Por instancia del servidor, compartida entre clientes. La clave es ambiente + usuario +
+ * SHA-256 de la contraseña (nunca la contraseña en sí): si la clave no participara, otra
+ * institución con el mismo usuario y cualquier contraseña usaría el token de la primera sin
+ * que MiCorreo la valide nunca.
  */
 const tokenCache = new Map<string, { token: string; expiresAt: number }>();
 
@@ -165,7 +168,11 @@ function errorPorStatus(status: number, body: unknown): MiCorreoError {
   }
   if ([400, 402, 404, 409].includes(status)) {
     const mensaje = mensajeDeCorreo(body);
-    if (mensaje) return new MiCorreoError("BUSINESS", `MiCorreo: ${mensaje}`, status);
+    return new MiCorreoError(
+      "BUSINESS",
+      mensaje ? `MiCorreo: ${mensaje}` : "MiCorreo rechazó el pedido.",
+      status,
+    );
   }
   return new MiCorreoError("UNEXPECTED", `MiCorreo respondió ${status}.`, status);
 }
@@ -183,7 +190,8 @@ export function createMiCorreoClient(options: MiCorreoClientOptions): MiCorreoCl
   if (!baseUrl) throw new MiCorreoError("UNEXPECTED", "Ambiente de MiCorreo desconocido.");
   const fetchImpl = options.fetchImpl ?? fetch;
   const now = options.now ?? (() => new Date());
-  const cacheKey = `${options.env}:${options.apiUser}`;
+  const passwordHash = createHash("sha256").update(options.apiPassword, "utf8").digest("hex");
+  const cacheKey = `${options.env}:${options.apiUser}:${passwordHash}`;
 
   async function send(spec: RequestSpec): Promise<{ status: number; body: unknown }> {
     const url = new URL(`${baseUrl}${spec.path}`);
@@ -226,10 +234,11 @@ export function createMiCorreoClient(options: MiCorreoClientOptions): MiCorreoCl
     return { status, body };
   }
 
-  async function getToken(): Promise<string> {
-    const cached = tokenCache.get(cacheKey);
+  async function getToken(tokenOptions?: { fresh?: boolean }): Promise<string> {
+    const cached = tokenOptions?.fresh ? undefined : tokenCache.get(cacheKey);
     const ahora = now().getTime();
     if (cached && ahora < cached.expiresAt - TOKEN_MARGIN_MS) return cached.token;
+    if (tokenOptions?.fresh) tokenCache.delete(cacheKey);
 
     const basic = Buffer.from(`${options.apiUser}:${options.apiPassword}`, "utf8").toString("base64");
     const { body } = await send({ method: "POST", path: "/token", authorization: `Basic ${basic}` });
@@ -307,8 +316,8 @@ export function createMiCorreoClient(options: MiCorreoClientOptions): MiCorreoCl
       // SUPUESTO: puede haber otros productos; sólo interesan las modalidades conocidas.
       if (r.deliveredType !== "D" && r.deliveredType !== "S") continue;
       const priceMinor = parseMiCorreoPriceToMinor(r.price);
-      if (priceMinor === null) {
-        // Nunca se vende un envío con un precio que no entendimos (E14).
+      if (priceMinor === null || priceMinor === 0) {
+        // Nunca se vende un envío con un precio que no entendimos (E14), ni a $0 por accidente.
         throw new MiCorreoError("UNEXPECTED", "MiCorreo devolvió un precio inválido.");
       }
       const productName =
