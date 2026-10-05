@@ -32,7 +32,12 @@ const courseSchema = z.object({
   status: courseStatusSchema.default("DRAFT"),
   deliveryMode: deliveryModeSchema.default("PRESENCIAL"),
   /// Sólo el grabado los usa: no tiene ediciones donde guardar el precio.
-  priceArs: z.coerce.number().min(0).optional().nullable(),
+  priceArs: z.coerce
+    .number()
+    .finite("El precio no es válido: escribilo como 45000 o 45.000,50")
+    .min(0)
+    .optional()
+    .nullable(),
   accessMonths: z.coerce.number().int().min(1).max(120).default(12),
   completionPercent: z.coerce.number().int().min(1).max(100).default(80),
   freeForMembers: z.boolean().default(false),

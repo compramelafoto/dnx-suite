@@ -26,4 +26,13 @@ describe("los campos de venta del curso", () => {
   it("un precio con coma decimal se entiende", () => {
     expect(leerCamposDeVenta(form({ priceArs: "45000,50" })).priceArs).toBe(45000.5);
   });
+
+  it("entiende el formato argentino y rechaza lo ambiguo", () => {
+    const precio = (v: string) => leerCamposDeVenta(form({ priceArs: v })).priceArs;
+    expect(precio("45.000")).toBe(45000);
+    expect(precio("45.000,50")).toBe(45000.5);
+    expect(precio("45000.5")).toBe(45000.5);
+    expect(precio("1.234.567")).toBe(1234567);
+    for (const malo of ["abc", "Infinity", "-5", "45.00.0", "1e5"]) expect(precio(malo)).toBeNaN();
+  });
 });
