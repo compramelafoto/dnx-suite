@@ -17,6 +17,15 @@ export function getInstagramEmbedUrl(url: string | null | undefined): string | n
   return `https://www.instagram.com/${match[1]}/${match[2]}/embed/`;
 }
 
+declare module "@tiptap/core" {
+  interface Commands<ReturnType> {
+    instagramEmbed: {
+      /** Inserta la publicación; no hace nada si el enlace no es de una publicación de Instagram. */
+      setInstagramEmbed: (options: { src: string }) => ReturnType;
+    };
+  }
+}
+
 export const InstagramEmbed = Node.create({
   name: "instagramEmbed",
   group: "block",
@@ -26,6 +35,17 @@ export const InstagramEmbed = Node.create({
   addAttributes() {
     return {
       src: { default: null },
+    };
+  },
+
+  addCommands() {
+    return {
+      setInstagramEmbed:
+        ({ src }) =>
+        ({ commands }) => {
+          if (!getInstagramEmbedUrl(src)) return false;
+          return commands.insertContent({ type: this.name, attrs: { src: src.trim() } });
+        },
     };
   },
 

@@ -71,6 +71,8 @@ export type ContentUiLabels = {
   editorHint: string;
   editorLinkPrompt: string;
   editorYoutubePrompt: string;
+  editorInstagramPrompt: string;
+  editorInstagramInvalid: string;
   editorImageUrlPrompt: string;
   editorImageAltPrompt: string;
   toolbarH2: string;
@@ -84,6 +86,7 @@ export type ContentUiLabels = {
   toolbarImageLibrary: string;
   toolbarImageUrl: string;
   toolbarYoutube: string;
+  toolbarInstagram: string;
   toolbarTable: string;
   toolbarUndo: string;
   toolbarRedo: string;
@@ -165,6 +168,9 @@ export const DEFAULT_CONTENT_UI_LABELS: ContentUiLabels = {
     "Usá H2–H6 para títulos dentro del artículo. El título principal de la página es el H1 del artículo.",
   editorLinkPrompt: "URL del enlace",
   editorYoutubePrompt: "URL de YouTube",
+  editorInstagramPrompt: "Enlace de la publicación o reel de Instagram (por ejemplo https://www.instagram.com/p/…)",
+  editorInstagramInvalid:
+    "Ese enlace no es de una publicación de Instagram. Copiá el enlace del posteo o reel (tiene /p/ o /reel/).",
   editorImageUrlPrompt: "URL de la imagen",
   editorImageAltPrompt: "Texto alternativo (alt)",
   toolbarH2: "Título H2",
@@ -178,6 +184,7 @@ export const DEFAULT_CONTENT_UI_LABELS: ContentUiLabels = {
   toolbarImageLibrary: "Imagen desde biblioteca",
   toolbarImageUrl: "Imagen por URL",
   toolbarYoutube: "YouTube",
+  toolbarInstagram: "Publicación de Instagram",
   toolbarTable: "Tabla",
   toolbarUndo: "Deshacer",
   toolbarRedo: "Rehacer",
