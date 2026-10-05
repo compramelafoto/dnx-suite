@@ -3,7 +3,7 @@ import { parseContentPostStatusFilter } from "@repo/content";
 import { BlogShell } from "@/components/website/blog/blog-shell";
 import { requireBlogEditor } from "@/lib/blog/access";
 import { listBlogAdminPosts, loadPublicSlug } from "@/lib/blog/admin-queries";
-import { BLOG_STATUS_FILTERS, BLOG_STATUS_LABELS, formatBlogDate } from "@/lib/blog/admin-labels";
+import { BLOG_STATUS_FILTERS, BLOG_STATUS_LABELS, blogDisplayStatus, formatBlogDate } from "@/lib/blog/admin-labels";
 import { BLOG_ADMIN_BASE } from "@/lib/blog/admin-nav";
 import { postPath } from "@/lib/blog/public";
 import { countExternalBlogImages } from "@/lib/blog/localize-images";
@@ -17,6 +17,7 @@ const STATUS_PILL: Record<string, string> = {
   PUBLISHED: "bg-[var(--fo-success-soft)] text-[var(--fo-success)] border-[var(--fo-success-border)]",
   DRAFT: "bg-[var(--fo-border-muted)] text-[var(--fo-muted)] border-[var(--fo-border)]",
   ARCHIVED: "bg-[var(--fo-warning-soft)] text-[var(--fo-warning)] border-[var(--fo-warning-border)]",
+  SCHEDULED: "bg-[var(--fo-accent-soft)] text-[var(--fo-accent)] border-[var(--fo-accent)]",
 };
 
 export default async function BlogPostsPage({ searchParams }: Props) {
@@ -107,7 +108,9 @@ export default async function BlogPostsPage({ searchParams }: Props) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--fo-border)] bg-[var(--fo-surface)]">
-                {posts.map((post) => (
+                {posts.map((post) => {
+                  const estado = blogDisplayStatus(post.status, post.publishedAt);
+                  return (
                   <tr key={post.id}>
                     <td className="px-4 py-3">
                       <Link
@@ -122,9 +125,9 @@ export default async function BlogPostsPage({ searchParams }: Props) {
                     </td>
                     <td className="px-4 py-3">
                       <span
-                        className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${STATUS_PILL[post.status] ?? STATUS_PILL.DRAFT}`}
+                        className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${STATUS_PILL[estado] ?? STATUS_PILL.DRAFT}`}
                       >
-                        {BLOG_STATUS_LABELS[post.status] ?? post.status}
+                        {BLOG_STATUS_LABELS[estado] ?? estado}
                       </span>
                     </td>
                     <td className="hidden px-4 py-3 text-[var(--fo-muted)] md:table-cell">{post.category?.name ?? "—"}</td>
@@ -133,7 +136,7 @@ export default async function BlogPostsPage({ searchParams }: Props) {
                       {post.viewCount.toLocaleString("es-AR")}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      {post.status === "PUBLISHED" && publicSlug ? (
+                      {estado === "PUBLISHED" && publicSlug ? (
                         <a
                           href={postPath(publicSlug, post.slug)}
                           target="_blank"
@@ -145,7 +148,8 @@ export default async function BlogPostsPage({ searchParams }: Props) {
                       ) : null}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

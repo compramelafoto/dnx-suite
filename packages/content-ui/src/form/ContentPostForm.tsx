@@ -25,6 +25,7 @@ import type {
   ContentPostSubmitResult,
 } from "../types";
 import { buildContentPostSubmitPayload, toDatetimeLocal } from "./buildSubmitPayload";
+import { isScheduledPublication, publishedAtFor, type ContentPublishAction } from "./schedule";
 import { syncContentPostImageFields } from "./syncImages";
 
 export type ContentPostFormProps = {
@@ -103,6 +104,7 @@ export function ContentPostForm({
   const canArchive = capabilities?.canArchive !== false;
   const canDelete = capabilities?.canDelete !== false;
   const canManageMedia = capabilities?.canManageMedia !== false;
+  const canSchedule = capabilities?.canSchedule === true;
 
   const [form, setForm] = useState<ContentPostFormValue>(() =>
     defaultFormValue(createEmptyContent, initialValue)
@@ -114,6 +116,10 @@ export function ContentPostForm({
   const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
   const [pendingImage, setPendingImage] = useState<{ url: string; alt: string } | null>(null);
   const pendingImageKey = useRef(0);
+  // El aviso "Programado para…" formatea la fecha con la zona del navegador: en el servidor
+  // daría otra hora y React se quejaría al hidratar. Se dibuja recién montado.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (!initialValue) return;
@@ -127,6 +133,7 @@ export function ContentPostForm({
       featuredUntil: initialValue.featuredUntil
         ? toDatetimeLocal(initialValue.featuredUntil)
         : prev.featuredUntil,
+      publishedAt: initialValue.publishedAt ? toDatetimeLocal(initialValue.publishedAt) : prev.publishedAt,
     }));
   }, [initialValue]);
 
@@ -139,11 +146,17 @@ export function ContentPostForm({
   }, [form.status, form.isFeatured]);
 
   const save = useCallback(
-    async (statusOverride?: ContentPostFormValue["status"]) => {
+    async (statusOverride?: ContentPostFormValue["status"], action: ContentPublishAction = "save") => {
+      const publishedAt = canSchedule ? publishedAtFor(action, form) : undefined;
+      if (action === "schedule" && !publishedAt) {
+        setSuccess(null);
+        setError({ field: "publishedAt", message: labels.scheduleNeedsFutureDate });
+        return;
+      }
       setSaving(true);
       setError(null);
       setSuccess(null);
-      const data = buildContentPostSubmitPayload(form, statusOverride);
+      const data = buildContentPostSubmitPayload(form, statusOverride, publishedAt);
       try {
         const result = await onSubmit({ statusOverride, data });
         if (mode === "create") {
@@ -153,9 +166,12 @@ export function ContentPostForm({
           return;
         }
         onSaved?.({ status: result.status, slug: result.slug });
-        setSuccess(labels.savedSuccess);
+        setSuccess(action === "schedule" ? labels.scheduledSuccess : labels.savedSuccess);
         if (statusOverride) {
           setForm((f) => ({ ...f, status: statusOverride, isFeatured: data.isFeatured }));
+        }
+        if (publishedAt) {
+          setForm((f) => ({ ...f, publishedAt: toDatetimeLocal(publishedAt) }));
         }
       } catch (e) {
         setError(toContentFormError(e, labels.saveError));
@@ -163,7 +179,18 @@ export function ContentPostForm({
         setSaving(false);
       }
     },
-    [form, labels.saveError, labels.savedSuccess, mode, onCreated, onSaved, onSubmit]
+    [
+      canSchedule,
+      form,
+      labels.saveError,
+      labels.savedSuccess,
+      labels.scheduleNeedsFutureDate,
+      labels.scheduledSuccess,
+      mode,
+      onCreated,
+      onSaved,
+      onSubmit,
+    ]
   );
 
   async function handleDelete() {
@@ -368,6 +395,33 @@ export function ContentPostForm({
         </div>
       </section>
 
+      {canSchedule ? (
+        <section className="space-y-3 rounded-xl border border-gray-200 bg-white p-4">
+          <h2 className="font-semibold text-gray-900">{labels.scheduleTitle}</h2>
+          {mounted && isScheduledPublication(form.status, form.publishedAt) ? (
+            <div className="rounded-lg bg-sky-50 px-3 py-2 text-sm text-sky-800">
+              {labels.scheduledNotice.replace(
+                "{fecha}",
+                new Date(form.publishedAt ?? "").toLocaleString("es-AR", { dateStyle: "full", timeStyle: "short" })
+              )}
+            </div>
+          ) : null}
+          <div>
+            <label className="mb-1 block text-sm text-gray-600" htmlFor="content-post-published-at">
+              {labels.scheduleDateLabel}
+            </label>
+            <input
+              id="content-post-published-at"
+              type="datetime-local"
+              value={form.publishedAt ?? ""}
+              onChange={(e) => setForm((f) => ({ ...f, publishedAt: e.target.value }))}
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+            />
+            <p className="mt-1 text-xs text-gray-500">{labels.scheduleHint}</p>
+          </div>
+        </section>
+      ) : null}
+
       <section className="space-y-4 rounded-xl border border-gray-200 bg-white p-4">
         <h2 className="font-semibold text-gray-900">{labels.publishSectionTitle}</h2>
         {!canFeature && form.isFeatured ? (
@@ -402,8 +456,23 @@ export function ContentPostForm({
           {saving ? labels.saving : labels.saveDraft}
         </button>
         {canPublish ? (
-          <button type="button" disabled={saving} onClick={() => void save("PUBLISHED")} className={btnPrimary}>
-            {labels.publish}
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => void save("PUBLISHED", "publishNow")}
+            className={btnPrimary}
+          >
+            {canSchedule ? labels.publishNow : labels.publish}
+          </button>
+        ) : null}
+        {canPublish && canSchedule ? (
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => void save("PUBLISHED", "schedule")}
+            className={btnPrimary}
+          >
+            {labels.scheduleButton}
           </button>
         ) : null}
         {mode === "edit" ? (
