@@ -14,6 +14,7 @@ const ROW_SELECT = {
   imageUrl: true,
   specialties: true,
   milestonesOnly: true,
+  offsetDays: true,
 } as const;
 
 /** Todas las fechas de la institución: el catálogo con sus cambios, más las propias. */
@@ -42,6 +43,7 @@ export async function saveOccasion(workspaceId: string, o: OccasionRow): Promise
     imageUrl: o.imageUrl,
     specialties: o.specialties,
     milestonesOnly: o.milestonesOnly,
+    offsetDays: o.offsetDays,
   };
   await prisma.fotofficeMailingOccasion.upsert({
     where: { workspaceId_key: { workspaceId, key: o.key } },

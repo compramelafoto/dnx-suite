@@ -19,6 +19,8 @@ export type MailingContext = {
   /** null si falta la URL de la app o la clave: sin enlace de baja no sale ningún envío masivo. */
   unsubscribe: ((email: string, topic: string) => { pageUrl: string; oneClickUrl: string }) | null;
   reason: string;
+  /** Dirección pública de FOTOFFICE (para el botón «Entrar al portal»). */
+  appBase: string | null;
 };
 
 export async function loadMailingContext(workspaceId: string): Promise<MailingContext> {
@@ -65,6 +67,7 @@ export async function loadMailingContext(workspaceId: string): Promise<MailingCo
     siteBase,
     unsubscribe,
     reason: `Recibís este correo porque sos socio de ${ctx.organizationName}.`,
+    appBase: app || null,
   };
 }
 
@@ -82,4 +85,10 @@ export function unsubscribeHeaders(oneClickUrl: string): Record<string, string> 
     "List-Unsubscribe": `<${oneClickUrl}>`,
     "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
   };
+}
+
+/** A dónde lleva el botón de un correo del ciclo del socio. */
+export function ctaUrlFor(ctx: MailingContext, target: "portal" | "sitio"): string | null {
+  if (target === "portal") return ctx.appBase ? `${ctx.appBase}/portal` : null;
+  return ctx.siteBase;
 }

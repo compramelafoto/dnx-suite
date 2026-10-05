@@ -7389,7 +7389,7 @@ model FotofficeMailingOccasion {
   workspaceId    String
   /// Clave del catálogo ("navidad", "birthday"…) o "propia-<id>" para las que agrega la institución.
   key            String
-  /// EFEMERIDE · BIRTHDAY · ANNIVERSARY
+  /// EFEMERIDE · BIRTHDAY · ANNIVERSARY · LIFECYCLE
   kind           String
   enabled        Boolean  @default(false)
   /// Día del año en las efemérides. Nulos en los saludos personales y en fechas sin confirmar.
@@ -7403,6 +7403,8 @@ model FotofficeMailingOccasion {
   specialties    String[] @default([])
   /// Aniversario: sólo en 1, 5, 10, 15… años.
   milestonesOnly Boolean  @default(false)
+  /// Ciclo del socio: cuántos días después del ingreso, de la baja o del último ingreso al portal.
+  offsetDays     Int?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
