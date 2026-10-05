@@ -1,5 +1,6 @@
 import type { WebsiteBlock } from "./blocks";
 import type { SpotlightCardView } from "@/lib/spotlight/view";
+import type { HeroBlogSlide } from "./blog-banner";
 
 /**
  * Datos que los bloques `dynamic` necesitan y que NO viven en `sectionsJson`: se leen en el
@@ -36,9 +37,16 @@ export type MemberOfWeekData = {
   weekLabel: string;
 };
 
+/** Artículos destacados desde el blog, para el banner principal (`blockId`). Ver `blog-banner.ts`. */
+export type HeroBlogData = {
+  blockId: string;
+  slides: HeroBlogSlide[];
+};
+
 export type WebsiteDynamicData = {
   blogLatest?: BlogLatestData;
   memberOfWeek?: MemberOfWeekData;
+  heroBlog?: HeroBlogData;
 };
 
 export function hasVisibleMemberOfWeek(blocks: readonly WebsiteBlock[]): boolean {
