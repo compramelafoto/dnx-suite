@@ -252,7 +252,7 @@ export async function loadMemberProjects(workspaceId: string, memberId: string) 
         statusReason: true,
         visibleToMembers: true,
         createdAt: true,
-        attachments: { where: { taskUpdateId: null }, select: { id: true, filename: true, sizeBytes: true } },
+        attachments: { where: { taskUpdateId: null, quoteId: null }, select: { id: true, filename: true, sizeBytes: true } },
       },
     }),
     prisma.govProject.findMany({
@@ -293,6 +293,7 @@ export async function getVisibleProject(workspaceId: string, projectId: string, 
         select: { id: true, title: true, tasks: { orderBy: { order: "asc" }, select: { id: true, title: true, status: true } } },
       },
       attachments: {
+        where: { quoteId: null },
         orderBy: { createdAt: "desc" },
         select: { id: true, filename: true, sizeBytes: true, visibleToMembers: true, taskUpdateId: true },
       },
