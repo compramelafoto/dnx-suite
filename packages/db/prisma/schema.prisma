@@ -7269,6 +7269,85 @@ model FotofficeWorkspaceDomain {
   workspace          Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
+/// Correo a socios (Comunicación → Correo): interruptores por institución.
+/// Spec: apps/fotoffice/docs/superpowers/specs/2026-10-05-correo-a-socios-etapas-1-2-design.md
+model FotofficeMailingSettings {
+  id               String   @id @default(cuid())
+  workspaceId      String   @unique
+  /// Interruptor general de los envíos a muchos socios. Apagado: sólo se mandan pruebas.
+  bulkEnabled      Boolean  @default(false)
+  /// Resumen semanal del blog (lunes 9:00, hora argentina).
+  weeklyBlogDigest Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+/// Un envío a muchos socios (un artículo del blog, el resumen semanal…).
+model FotofficeEmailCampaign {
+  id              String                   @id @default(cuid())
+  workspaceId     String
+  /// BLOG_POST · BLOG_DIGEST. Texto y no enum: sumar tipos no obliga a migrar las otras bases.
+  kind            String
+  /// Tema de baja que respeta este envío ("blog"). Ver FotofficeEmailOptOut.
+  topic           String
+  /// Evita repetir: un artículo se manda una vez; un resumen por semana.
+  dedupeKey       String                   @unique
+  subject         String
+  blogPostId      Int?
+  /// Ids de los artículos del resumen semanal.
+  blogPostIds     Int[]                    @default([])
+  /// Clave de la fecha (FotofficeMailingOccasion.key) en los saludos de fechas especiales.
+  occasionKey     String?
+  /// SENDING · SENT · FAILED
+  status          String                   @default("SENDING")
+  recipientsTotal Int                      @default(0)
+  sentCount       Int                      @default(0)
+  failedCount     Int                      @default(0)
+  /// Socios que no lo reciben porque se dieron de baja.
+  optedOutCount   Int                      @default(0)
+  createdByUserId Int?
+  createdAt       DateTime                 @default(now())
+  finishedAt      DateTime?
+  deliveries      FotofficeEmailDelivery[]
+
+  @@index([workspaceId, createdAt])
+  @@index([status])
+}
+
+/// Un destinatario de un envío a muchos.
+model FotofficeEmailDelivery {
+  id         String                 @id @default(cuid())
+  campaignId String
+  memberId   String?
+  /// En minúsculas.
+  email      String
+  firstName  String?
+  /// PENDING · SENDING · SENT · FAILED
+  status     String                 @default("PENDING")
+  claimedAt  DateTime?
+  resendId   String?
+  error      String?
+  sentAt     DateTime?
+  createdAt  DateTime               @default(now())
+  campaign   FotofficeEmailCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, email])
+  @@index([campaignId, status])
+}
+
+/// Bajas de los correos a socios. `topic = "all"`: ningún correo masivo de la institución.
+/// Los avisos transaccionales (cuotas, alta, reservas) no se cortan con esto.
+model FotofficeEmailOptOut {
+  id          String   @id @default(cuid())
+  workspaceId String
+  /// En minúsculas.
+  email       String
+  topic       String
+  createdAt   DateTime @default(now())
+
+  @@unique([workspaceId, email, topic])
+}
+
 /// Un artículo del blog destacado como placa del banner principal del sitio, por un tiempo.
 /// Se elige desde el editor del artículo ("en la placa 2, por 15 días") y el sitio público lo
 /// lee en vivo: no hace falta republicar, y al pasar `endsAt` la placa deja de mostrarse sola.
@@ -7290,6 +7369,33 @@ model FotofficeBlogBannerSlot {
   post         BlogPost  @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, endsAt])
+}
+
+/// Una fecha de saludo configurada por la institución (Comunicación → Fechas). Sin fila rige el
+/// valor por defecto del catálogo en código (`lib/mailing/occasions-catalog.ts`).
+model FotofficeMailingOccasion {
+  id             String   @id @default(cuid())
+  workspaceId    String
+  /// Clave del catálogo ("navidad", "birthday"…) o "propia-<id>" para las que agrega la institución.
+  key            String
+  /// EFEMERIDE · BIRTHDAY · ANNIVERSARY
+  kind           String
+  enabled        Boolean  @default(false)
+  /// Día del año en las efemérides. Nulos en los saludos personales y en fechas sin confirmar.
+  month          Int?
+  day            Int?
+  title          String
+  subject        String
+  message        String   @db.Text
+  imageUrl       String?
+  /// Especialidades a las que va (vacío = a todos los socios).
+  specialties    String[] @default([])
+  /// Aniversario: sólo en 1, 5, 10, 15… años.
+  milestonesOnly Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([workspaceId, key])
 }
 
 /// Snapshot INMUTABLE de una publicación del sitio — nunca se edita después de creado. Solo

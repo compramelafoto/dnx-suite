@@ -427,6 +427,22 @@ const COMUNICACION: SubmoduleItem[] = [
     activeMatch: "under",
   },
   {
+    href: "/comunicacion/fechas",
+    label: "Fechas y saludos",
+    icon: "CalendarDays",
+    description: "Cumpleaños, aniversarios de ingreso, fiestas, fechas patrias y días del oficio: cada saludo por correo, con su interruptor.",
+    requiresManage: true,
+    activeMatch: "under",
+  },
+  {
+    href: "/comunicacion/correo",
+    label: "Correo",
+    icon: "Mail",
+    description: "Los correos a los {personas}: interruptores, resumen semanal del blog e historial de envíos.",
+    requiresManage: true,
+    activeMatch: "under",
+  },
+  {
     href: "/comunicacion/plantillas",
     label: "Plantillas",
     icon: "Palette",

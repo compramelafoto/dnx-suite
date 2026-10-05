@@ -160,6 +160,7 @@ async function notificarBonificacion(input: {
   const base = appUrl();
 
   await sendAndLogEmail({
+    workspaceId: input.workspaceId,
     to: recomendante.email,
     templateKey: MEMBERSHIP_EMAIL_KEYS.RECOMMENDATION_EARNED,
     userId: recomendante.userId,

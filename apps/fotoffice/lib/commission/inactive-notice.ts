@@ -69,6 +69,7 @@ export async function notifyAdminsIfCommissionMemberInactive(input: {
   for (const { user } of recipients) {
     if (!user.email) continue;
     const outcome = await sendAndLogEmail({
+      workspaceId: input.workspaceId,
       to: user.email,
       templateKey: "commission-member-inactive",
       body,

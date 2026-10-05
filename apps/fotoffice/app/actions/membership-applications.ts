@@ -149,6 +149,7 @@ async function notifyApplicationReceived(input: {
     const { organizationName, signature } = await loadWorkspaceEmailContext(input.workspaceId);
 
     await sendAndLogEmail({
+      workspaceId: input.workspaceId,
       to: input.applicant.email,
       templateKey: MEMBERSHIP_EMAIL_KEYS.RECEIVED,
       body: buildApplicationReceivedEmail({
@@ -164,6 +165,7 @@ async function notifyApplicationReceived(input: {
     if (!input.contactEmail?.trim() || !base) return;
 
     await sendAndLogEmail({
+      workspaceId: input.workspaceId,
       to: input.contactEmail.trim(),
       templateKey: MEMBERSHIP_EMAIL_KEYS.ALERT,
       body: buildApplicationAlertEmail({
@@ -306,6 +308,7 @@ export async function rejectApplicationAction(
   // exigencia en papeleo.
   const { organizationName, signature } = await loadWorkspaceEmailContext(guard.workspaceId);
   const salida = await sendAndLogEmail({
+    workspaceId: guard.workspaceId,
     to: rechazada.applicant.email,
     templateKey: MEMBERSHIP_EMAIL_KEYS.REJECTED,
     body: buildApplicationRejectedEmail({

@@ -144,6 +144,7 @@ export async function sendSpotlightNudge(input: {
 
     const { organizationName, signature } = await loadWorkspaceEmailContext(input.workspaceId);
     const outcome = await sendAndLogEmail({
+      workspaceId: input.workspaceId,
       to: email,
       templateKey: SPOTLIGHT_NUDGE_EMAIL_KEY,
       userId: h.socio.userId,
