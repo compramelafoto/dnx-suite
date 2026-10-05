@@ -47,7 +47,7 @@ de la sección 8). La etapa 1 está en producción; su plan es
 - Typecheck: `NODE_OPTIONS=--max-old-space-size=8192 pnpm --filter fotoffice exec tsc --noEmit`.
   Puede morir por memoria y devolver 0: desconfiá si termina en segundos sin salida. Antes, el
   cliente de Prisma tiene que estar regenerado (Task 1), si no el typecheck miente.
-- **Una sola migración nueva**, `packages/db/prisma/migrations/20261010120000_mercado_cursos_reventa/migration.sql`,
+- **Una sola migración nueva**, `packages/db/prisma/migrations/20261011120000_mercado_cursos_reventa/migration.sql`,
   escrita a mano, **sólo aditiva** (ningún `DROP`, `ALTER COLUMN` ni `RENAME`). **Ninguna tarea la
   aplica en ninguna base**: la aplica el controlador después, a mano. Hasta que esté aplicada, el
   código nuevo rompe toda consulta de `Course` (una columna sin aplicar rompe todo el modelo): no se
@@ -70,7 +70,7 @@ de la sección 8). La etapa 1 está en producción; su plan es
 
 | Archivo | Responsabilidad |
 |---|---|
-| `packages/db/prisma/migrations/20261010120000_mercado_cursos_reventa/migration.sql` (raíz del repo) | Enum, tabla `CourseResaleAgreement`, columnas nuevas |
+| `packages/db/prisma/migrations/20261011120000_mercado_cursos_reventa/migration.sql` (raíz del repo) | Enum, tabla `CourseResaleAgreement`, columnas nuevas |
 | `lib/course-marketplace/migracion-reventa.test.ts` | Barrera: la migración existe, es aditiva y coincide con el esquema |
 | `lib/course-marketplace/reventa.ts` (+ test) | Reglas puras de la reventa: oferta, pedido, descuento, transiciones, simulación |
 | `lib/course-marketplace/aviso-reventa.ts` (+ test) | Correos: pedido de reventa al dueño, respuesta al revendedor |
@@ -114,7 +114,7 @@ de la sección 8). La etapa 1 está en producción; su plan es
   `courseSaleShares`), `model Course` (≈ 9192, después de `freeForMembers` y de `beneficiaries`),
   `model CourseEnrollment` (≈ 9394, después de `discountArs`, `saleShares` y los `@@index`), enums
   (≈ 11166, después de `enum CourseSaleShareKind`).
-- Create: `packages/db/prisma/migrations/20261010120000_mercado_cursos_reventa/migration.sql`
+- Create: `packages/db/prisma/migrations/20261011120000_mercado_cursos_reventa/migration.sql`
 - Test: `apps/fotoffice/lib/course-marketplace/migracion-reventa.test.ts`
 
 **Interfaces:**
@@ -140,7 +140,7 @@ import { describe, expect, it } from "vitest";
  */
 const RAIZ = join(import.meta.dirname, "..", "..", "..", "..");
 const MIGRACIONES = join(RAIZ, "packages", "db", "prisma", "migrations");
-const CARPETA = "20261010120000_mercado_cursos_reventa";
+const CARPETA = "20261011120000_mercado_cursos_reventa";
 const SQL = join(MIGRACIONES, CARPETA, "migration.sql");
 
 describe("migración de la reventa de cursos", () => {
@@ -150,7 +150,7 @@ describe("migración de la reventa de cursos", () => {
   });
 
   it("su marca de tiempo no la comparte ninguna otra carpeta", () => {
-    const mismas = readdirSync(MIGRACIONES).filter((n) => n.startsWith("20261010120000_"));
+    const mismas = readdirSync(MIGRACIONES).filter((n) => n.startsWith("20261011120000_"));
     expect(mismas).toEqual([CARPETA]);
   });
 
@@ -267,7 +267,7 @@ En `model Workspace`, después de `courseSaleShares`: `courseResaleAgreements   
 - [ ] **Step 4: La migración, a mano**
 
 ```sql
--- packages/db/prisma/migrations/20261010120000_mercado_cursos_reventa/migration.sql
+-- packages/db/prisma/migrations/20261011120000_mercado_cursos_reventa/migration.sql
 -- CreateEnum
 CREATE TYPE "CourseResaleAgreementStatus" AS ENUM ('PENDIENTE', 'ACTIVO', 'PAUSADO', 'RECHAZADO', 'TERMINADO');
 
@@ -343,7 +343,7 @@ Expected: PASS (5 tests).
 - [ ] **Step 7: Commit**
 
 ```bash
-git add packages/db/prisma/schema.prisma packages/db/prisma/migrations/20261010120000_mercado_cursos_reventa apps/fotoffice/lib/course-marketplace/migracion-reventa.test.ts
+git add packages/db/prisma/schema.prisma packages/db/prisma/migrations/20261011120000_mercado_cursos_reventa apps/fotoffice/lib/course-marketplace/migracion-reventa.test.ts
 git commit -m "Mercado de cursos: acuerdos de reventa en el esquema y su migración (sin aplicar)"
 ```
 
@@ -3572,7 +3572,7 @@ Expected: sin errores. Si termina en segundos sin salida, repetilo: puede haber 
 cd /Users/danielcuart/Desktop/PROGRAMACIONES/dnx-suite-wt-cursos-e2
 grep -n "FOTOFFICE_SPLIT_1N_ENABLED = " apps/fotoffice/lib/payments/split-1n.ts   # debe decir: false as const
 grep -rn "split_rules\|receiver_type\|buildMercadoPagoSplitOrderRequest\|DNX_MP_ORDERS_1N_" apps/fotoffice/app apps/fotoffice/components apps/fotoffice/lib --include='*.ts' --include='*.tsx' | grep -v "apps/fotoffice/lib/payments/[^/]*$"   # debe salir vacío
-grep -n "DROP\|RENAME\|ALTER COLUMN" packages/db/prisma/migrations/20261010120000_mercado_cursos_reventa/migration.sql   # debe salir vacío
+grep -n "DROP\|RENAME\|ALTER COLUMN" packages/db/prisma/migrations/20261011120000_mercado_cursos_reventa/migration.sql   # debe salir vacío
 git diff --stat origin/main -- apps | grep -v "apps/fotoffice" # debe salir vacío: no se tocaron otras apps
 ```
 
