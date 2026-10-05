@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { MAILING_TOPIC_LABEL } from "@/lib/mailing/constants";
+import { MAILING_TOPIC_PHRASE } from "@/lib/mailing/constants";
 import { institutionName, listOptOutTopics, parseTopic, readUnsubscribeToken } from "@/lib/mailing/opt-out";
 import { updateSubscriptionAction } from "./actions";
 
@@ -70,15 +70,15 @@ export default async function BajaDeCorreosPage({ searchParams }: Props) {
               sinTema ? (
                 <Fila
                   token={token}
-                  texto={`No recibís: ${MAILING_TOPIC_LABEL[tema].toLowerCase()}.`}
+                  texto={`No recibís ${MAILING_TOPIC_PHRASE[tema]}.`}
                   topic={tema}
                   op="resubscribe"
-                  boton="Volver a recibirlas"
+                  boton="Volver a recibirlos"
                 />
               ) : (
                 <Fila
                   token={token}
-                  texto={`Dejar de recibir sólo las ${MAILING_TOPIC_LABEL[tema].toLowerCase()}.`}
+                  texto={`Dejar de recibir sólo ${MAILING_TOPIC_PHRASE[tema]}.`}
                   topic={tema}
                   op="unsubscribe"
                   boton="Darme de baja"

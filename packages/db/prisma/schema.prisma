@@ -7292,6 +7292,8 @@ model FotofficeEmailCampaign {
   blogPostId      Int?
   /// Ids de los artículos del resumen semanal.
   blogPostIds     Int[]                    @default([])
+  /// Clave de la fecha (FotofficeMailingOccasion.key) en los saludos de fechas especiales.
+  occasionKey     String?
   /// SENDING · SENT · FAILED
   status          String                   @default("SENDING")
   recipientsTotal Int                      @default(0)
@@ -7340,6 +7342,33 @@ model FotofficeEmailOptOut {
   createdAt   DateTime @default(now())
 
   @@unique([workspaceId, email, topic])
+}
+
+/// Una fecha de saludo configurada por la institución (Comunicación → Fechas). Sin fila rige el
+/// valor por defecto del catálogo en código (`lib/mailing/occasions-catalog.ts`).
+model FotofficeMailingOccasion {
+  id             String   @id @default(cuid())
+  workspaceId    String
+  /// Clave del catálogo ("navidad", "birthday"…) o "propia-<id>" para las que agrega la institución.
+  key            String
+  /// EFEMERIDE · BIRTHDAY · ANNIVERSARY
+  kind           String
+  enabled        Boolean  @default(false)
+  /// Día del año en las efemérides. Nulos en los saludos personales y en fechas sin confirmar.
+  month          Int?
+  day            Int?
+  title          String
+  subject        String
+  message        String   @db.Text
+  imageUrl       String?
+  /// Especialidades a las que va (vacío = a todos los socios).
+  specialties    String[] @default([])
+  /// Aniversario: sólo en 1, 5, 10, 15… años.
+  milestonesOnly Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([workspaceId, key])
 }
 
 /// Snapshot INMUTABLE de una publicación del sitio — nunca se edita después de creado. Solo
