@@ -21,6 +21,11 @@ import {
   EXTERNAL_VOUCHER_KIND,
   type ExternalVoucherRefs,
 } from "@/lib/canje-externo/external-voucher";
+import {
+  buildCanjeWhatsAppMessage,
+  buildWhatsAppUrl,
+  telefonoWhatsAppArgentina,
+} from "@/lib/canje-externo/canje-whatsapp";
 
 type Familia = { student: string; parent: string; phone: string };
 
@@ -29,11 +34,10 @@ function arg(name: string): string | null {
   return i >= 0 ? process.argv[i + 1] ?? null : null;
 }
 
-/** Celular de Argentina para wa.me: 54 9 + área + número, sin el 15 ni el 0. */
 function telefonoWhatsApp(phone: string): string {
-  const digits = phone.replace(/\D/g, "").replace(/^0/, "");
-  if (digits.length !== 10) throw new Error(`Teléfono con ${digits.length} dígitos: ${phone}`);
-  return `549${digits}`;
+  const tel = telefonoWhatsAppArgentina(phone);
+  if (!tel) throw new Error(`Teléfono inválido (tiene que tener 10 dígitos con el código de área): ${phone}`);
+  return tel;
 }
 
 async function main() {
@@ -74,7 +78,6 @@ async function main() {
 
   const salida = [];
   for (const f of familias) {
-    const firstName = f.student.trim().split(/\s+/)[0];
     const refs: ExternalVoucherRefs = {
       kind: EXTERNAL_VOUCHER_KIND,
       printUnits: unidades,
@@ -105,12 +108,14 @@ async function main() {
     // Página propia del canje: guía a la familia paso a paso y respeta las reglas de acceso
     // del álbum (selfie en álbumes de fotos ocultas, links de álbumes no listados).
     const link = `${baseUrl}/canje/${token.token}`;
-    const mensaje =
-      `¡Hola ${f.parent.trim()}! Te paso el link para elegir las fotos de ${firstName} ` +
-      `de "${album.title}".\n\n` +
-      `El combo de ${descripcion} ya está pago. Entrá al link y elegí ` +
-      `${unidades === 1 ? "la foto" : `las ${unidades} fotos`} del combo. Después, si querés, podés sumar más fotos (esas se pagan aparte).` +
-      `\n\n${link}`;
+    const mensaje = buildCanjeWhatsAppMessage({
+      parentName: f.parent,
+      studentName: f.student,
+      albumTitle: album.title,
+      comboLabel: descripcion,
+      printUnits: unidades,
+      link,
+    });
     salida.push({
       comboOrderId: order.id,
       student: f.student.trim(),
@@ -118,7 +123,7 @@ async function main() {
       phone: f.phone,
       link,
       expiresAt: token.expiresAt,
-      whatsapp: `https://wa.me/${telefonoWhatsApp(f.phone)}?text=${encodeURIComponent(mensaje)}`,
+      whatsapp: buildWhatsAppUrl(f.phone, mensaje),
       mensaje,
     });
     console.log(` ✓ combo ${order.id} · ${f.student}`);
