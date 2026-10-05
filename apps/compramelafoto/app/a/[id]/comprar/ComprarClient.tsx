@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import CanjeComboBanner from "@/components/canje-externo/CanjeComboBanner";
 import { resolveAvailableFormats } from "@/lib/albums/available-formats";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import OrderItem from "@/components/order/OrderItem";
@@ -29,6 +30,7 @@ import {
   writeFaceBulkPackPhotoIds,
 } from "@/lib/album-checkout-selection";
 import { stripCartCopySuffix } from "@/lib/album-photo-ref";
+import { appendPreventaRedeemParams } from "@/lib/preventa-canjeable/preventa-redeem-url";
 import {
   buildRedeemSelectionsFromCheckoutItems,
   photosPerUnitForRedeem,
@@ -307,6 +309,17 @@ export default function ComprarClient() {
   }, [searchParams]);
 
   const redeemMode = preventaPackOrderIdParam != null || preventaPackTokenParam != null;
+
+  /** Galería en modo canje: ahí se eligen las fotos del pack. */
+  const albumGalleryHref = useMemo(() => {
+    const params = new URLSearchParams();
+    appendPreventaRedeemParams(params, {
+      preventaPackOrderId: preventaPackOrderIdParam ?? undefined,
+      preventaPackToken: preventaPackTokenParam ?? undefined,
+    });
+    const qs = params.toString();
+    return `/a/${albumId}${qs ? `?${qs}` : ""}`;
+  }, [albumId, preventaPackOrderIdParam, preventaPackTokenParam]);
 
   type RedeemPackLoaded = {
     packOrderId: number;
@@ -625,6 +638,12 @@ export default function ComprarClient() {
 
     const raw = searchParams.get("photoIds");
     if (raw == null || raw.trim() === "") {
+      // Un canje sin fotos elegidas todavía (links viejos del correo de preventa apuntan
+      // acá): se elige en la galería, así que se lo manda ahí en vez de mostrar un error.
+      if (redeemMode) {
+        router.replace(albumGalleryHref);
+        return;
+      }
       setError("No se especificaron fotos para comprar");
       return;
     }
@@ -886,7 +905,7 @@ export default function ComprarClient() {
     }
 
     loadAlbumPhotos();
-  }, [albumId, searchParams, router, checkoutDebugEnabled, checkoutLoadAttempt]);
+  }, [albumId, searchParams, router, checkoutDebugEnabled, checkoutLoadAttempt, redeemMode, albumGalleryHref]);
 
   useEffect(() => {
     if (!redeemMode || (preventaPackOrderIdParam == null && !preventaPackTokenParam)) {
@@ -948,6 +967,35 @@ export default function ComprarClient() {
       cancelled = true;
     };
   }, [redeemMode, preventaPackOrderIdParam, preventaPackTokenParam, albumId]);
+
+  /**
+   * Formato único del pack, si lo tiene: un pack de sólo impresas (o sólo digitales) no
+   * deja nada que elegir. Las fotos llegaban marcadas "Digital" y la familia tenía que
+   * pasarlas una por una a "Impresa" o el canje no se podía confirmar.
+   */
+  const redeemSingleTipo = useMemo<"impresa" | "digital" | null>(() => {
+    if (!redeemPackMeta) return null;
+    const kinds = new Set(redeemPackMeta.snapshotBenefits.map((b) => b.kind));
+    if (kinds.size !== 1) return null;
+    return kinds.has("PHYSICAL") ? "impresa" : "digital";
+  }, [redeemPackMeta]);
+
+  useEffect(() => {
+    if (!redeemMode || !redeemSingleTipo) return;
+    setItems((prev) => {
+      let changed = false;
+      const next = prev.map((item) => {
+        const allowed =
+          redeemSingleTipo === "impresa" ? item.sellPrint !== false : item.sellDigital !== false;
+        if (!allowed || item.tipo === redeemSingleTipo) return item;
+        changed = true;
+        return redeemSingleTipo === "digital"
+          ? { ...item, tipo: "digital" as const, quantity: 1 }
+          : { ...item, tipo: "impresa" as const };
+      });
+      return changed ? next : prev;
+    });
+  }, [redeemMode, redeemSingleTipo, items.length]);
 
   // Restaurar fotógrafo desde sessionStorage si existe
   useEffect(() => {
@@ -1310,7 +1358,7 @@ export default function ComprarClient() {
 
   function handleVolverAlAlbum() {
     persistCheckoutPhotoSelectionForAlbum();
-    router.push(`/a/${albumId}`);
+    router.push(albumGalleryHref);
   }
 
   function handleContinue() {
@@ -1503,6 +1551,11 @@ export default function ComprarClient() {
                 ? "Estás seleccionando las fotos incluidas en tu pack. No hay pago: al confirmar se registra el canje."
                 : "Elegí tamaño, acabado y cantidad para cada foto. El precio se calcula automáticamente."}
             </p>
+            {!redeemMode && Number.isFinite(Number(albumId)) ? (
+              <div className="w-full max-w-5xl mx-auto text-left">
+                <CanjeComboBanner albumId={Number(albumId)} />
+              </div>
+            ) : null}
             {!redeemMode && isFaceBulkCheckout && (
               <p
                 className="mb-4 w-full max-w-5xl mx-auto rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 text-left leading-normal"
@@ -2345,7 +2398,7 @@ export default function ComprarClient() {
           }
 
           const showTipoChoice = redeemMode
-            ? (item.sellDigital ?? true) || (item.sellPrint ?? true)
+            ? !redeemSingleTipo && ((item.sellDigital ?? true) || (item.sellPrint ?? true))
             : ((item.sellDigital ?? true) || (item.sellPrint ?? true)) &&
               (albumPricing?.enableDigitalPhotos || albumPricing?.enablePrintedPhotos) &&
               ((albumPricing?.digitalPhotoPriceCents ?? 0) > 0 || albumPricing?.enablePrintedPhotos);
@@ -2353,10 +2406,17 @@ export default function ComprarClient() {
           if (redeemMode) {
             return (
               <div className="w-full max-w-sm mx-auto px-2 py-2 rounded-lg bg-black/55 text-white backdrop-blur-sm">
+                {redeemSingleTipo ? (
+                  <p className="text-xs text-center text-white m-0">
+                    {redeemSingleTipo === "impresa" ? "Impresa" : "Digital"} · incluida en tu pack
+                  </p>
+                ) : null}
+                {!redeemSingleTipo ? (
                 <p className="text-[10px] text-center text-white/90 mb-2 leading-snug">
                   Canje: no elegís producto ni tamaño acá; solo <strong>Digital</strong> o <strong>Impresa</strong>.
                 </p>
-                {showTipoChoice ? (
+                ) : null}
+                {redeemSingleTipo ? null : showTipoChoice ? (
                   <div className="flex flex-wrap items-center justify-center gap-2">
                     {(item.sellPrint ?? true) && (
                       <button

@@ -19,6 +19,8 @@ import { PrizeCards } from "@/components/raffles/prize-cards";
 import { WhatsappGroupButton } from "@/components/brand/whatsapp-group-button";
 import { SpotlightCard } from "@/components/spotlight/spotlight-card";
 import type { SpotlightCardView } from "@/lib/spotlight/view";
+import { BirthdaysCard } from "@/components/birthdays/birthdays-card";
+import type { BirthdayView } from "@/lib/birthdays/week";
 
 export type PortalHomeProps = {
   institution: string;
@@ -49,6 +51,8 @@ export type PortalHomeProps = {
   whatsappGroupUrl?: string | null;
   /** El Socio de la semana, si Comunicación está prendido y hay uno. */
   socioDeLaSemana?: { card: SpotlightCardView; weekLabel: string } | null;
+  /** Los socios que cumplen años esta semana (lunes a domingo). */
+  cumpleanos?: BirthdayView[];
 };
 
 /**
@@ -73,6 +77,7 @@ export function PortalHome({
   sorteo,
   whatsappGroupUrl,
   socioDeLaSemana,
+  cumpleanos = [],
 }: PortalHomeProps) {
   const cuotasPendientes = cuenta.charges.filter((c) => !isOpeningBalance(c.period));
   const alDia = cuenta.charges.length === 0;
@@ -179,6 +184,8 @@ export function PortalHome({
               audience="portal"
             />
           ) : null}
+
+          <BirthdaysCard birthdays={cumpleanos} />
 
           {sorteo ? <TarjetaSorteo sorteo={sorteo} /> : null}
 

@@ -11,6 +11,8 @@
 export type InstructivoEntrada = "abierta" | "selfie_obligatoria" | "no_listada";
 export type InstructivoBusqueda = "cara" | "dorsal" | "palabra" | "navegar";
 export type InstructivoMomento = "preventa" | "postventa" | "simple";
+/** A quién le habla el instructivo: en un colegio la cara que se busca es la del alumno. */
+export type InstructivoPublico = "escolar" | "general";
 
 export type AlbumInstructivoProfileInput = {
   album: {
@@ -26,7 +28,16 @@ export type AlbumInstructivoProfileInput = {
     includeDigitalWithPrint: boolean;
     deliveryType: string | null;
     pickupBy: string | null;
-    expiresAt: Date | null;
+    /** Álbum escolar: modo SCHOOL, atado a una escuela o con tipo de evento SCHOOL. */
+    escolar: boolean;
+    /** `Album.type`. Decide si tiene sentido hablar de dorsales. */
+    tipoEvento: string | null;
+    /**
+     * Hasta cuándo se ve la galería, calculado como lo calcula la limpieza
+     * (`computeAlbumHideAt`). No es `Album.expiresAt`: ese campo quedó en el pasado en la
+     * mayoría de los álbumes visibles y anunciaba como borradas galerías vivas.
+     */
+    disponibleHasta: Date | null;
   };
   fotografo: {
     nombre: string | null;
@@ -49,6 +60,7 @@ export type AlbumInstructivoProfileInput = {
 };
 
 export type AlbumInstructivoProfile = {
+  publico: InstructivoPublico;
   entrada: InstructivoEntrada;
   busqueda: InstructivoBusqueda[];
   momento: InstructivoMomento;
@@ -82,7 +94,32 @@ function resolveEntrada(album: AlbumInstructivoProfileInput["album"]): Instructi
   return "abierta";
 }
 
+/**
+ * Tipos de evento donde nadie lleva dorsal. El OCR encuentra números en cualquier foto
+ * (carteles, guardapolvos, fechas), así que contar tokens numéricos no alcanza: en un acto
+ * escolar el instructivo le pedía a los padres "tu número de dorsal o pechera".
+ */
+const EVENTOS_SIN_DORSAL = new Set([
+  "WEDDING",
+  "BIRTHDAY",
+  "GRADUATION",
+  "SCHOOL",
+  "RELIGIOUS",
+  "CORPORATE",
+  "CONFERENCE",
+  "PRIVATE_SESSION",
+  "PUBLIC_SESSION",
+  "THEMATIC_SESSIONS",
+  "COMMERCIAL_SESSIONS",
+]);
+
+function admiteDorsal(album: AlbumInstructivoProfileInput["album"]): boolean {
+  if (album.escolar) return false;
+  return album.tipoEvento == null || !EVENTOS_SIN_DORSAL.has(album.tipoEvento);
+}
+
 function resolveBusqueda(
+  album: AlbumInstructivoProfileInput["album"],
   entrada: InstructivoEntrada,
   senales: AlbumInstructivoProfileInput["senales"]
 ): InstructivoBusqueda[] {
@@ -95,7 +132,7 @@ function resolveBusqueda(
   // el cartel y el instructivo se imprimen justo después de subir, así que esperarlo los
   // hacía callar la selfie en los álbumes recién cargados.
   const metodos: InstructivoBusqueda[] = ["cara"];
-  if (senales.tokensNumericos > 0) metodos.push("dorsal");
+  if (senales.tokensNumericos > 0 && admiteDorsal(album)) metodos.push("dorsal");
   if (senales.tokensDeTexto > 0) metodos.push("palabra");
   if (senales.fotosCargadas > 0) metodos.push("navegar");
   return metodos;
@@ -119,9 +156,17 @@ export function resolveAlbumInstructivoProfile(
   const { album, fotografo, senales, baseUrl, ahora } = input;
   const entrada = resolveEntrada(album);
 
+  // Una fecha ya pasada no se anuncia: si la galería se sigue viendo, decirle al cliente
+  // que "las fotos se borraron" lo espanta de una compra que todavía puede hacer.
+  const vencimiento =
+    album.disponibleHasta && album.disponibleHasta.getTime() > ahora.getTime()
+      ? album.disponibleHasta
+      : null;
+
   return {
+    publico: album.escolar ? "escolar" : "general",
     entrada,
-    busqueda: resolveBusqueda(entrada, senales),
+    busqueda: resolveBusqueda(album, entrada, senales),
     momento: resolveMomento(album, senales, ahora),
     venta: {
       digital: album.enableDigitalPhotos,
@@ -138,7 +183,7 @@ export function resolveAlbumInstructivoProfile(
       envio: album.enablePrintedPhotos && album.deliveryType != null && album.pickupBy == null,
       laboratorio: album.enablePrintedPhotos ? senales.laboratorio : null,
     },
-    vencimiento: album.expiresAt,
+    vencimiento,
     listo: senales.listo,
     fotografo: {
       nombre: fotografo.nombre?.trim() || "Tu fotógrafo",

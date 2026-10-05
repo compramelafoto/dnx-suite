@@ -34,7 +34,32 @@ export const BLOG_STATUS_LABELS: Record<string, string> = {
   DRAFT: "Borrador",
   PUBLISHED: "Publicado",
   ARCHIVED: "Archivado",
+  SCHEDULED: "Programado",
 };
+
+/**
+ * El estado que se muestra en el panel. Un artículo publicado con fecha futura está
+ * "Programado": el blog público lo oculta hasta esa hora y después aparece solo.
+ */
+export function blogDisplayStatus(
+  status: string,
+  publishedAt: string | Date | null | undefined,
+  now: Date = new Date(),
+): string {
+  if (status !== "PUBLISHED" || !publishedAt) return status;
+  const date = publishedAt instanceof Date ? publishedAt : new Date(publishedAt);
+  return date.getTime() > now.getTime() ? "SCHEDULED" : status;
+}
+
+/** "lunes, 12 de octubre de 2026, 10:00", siempre en hora argentina. */
+export function formatBlogDateTime(value: string | Date): string {
+  const date = value instanceof Date ? value : new Date(value);
+  return date.toLocaleString("es-AR", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    dateStyle: "full",
+    timeStyle: "short",
+  });
+}
 
 export const BLOG_STATUS_FILTERS = [
   { value: "", label: "Todos" },

@@ -3,7 +3,9 @@ import { syncContentPostImageFields } from "./syncImages";
 
 export function buildContentPostSubmitPayload(
   form: ContentPostFormValue,
-  statusOverride?: ContentPostFormValue["status"]
+  statusOverride?: ContentPostFormValue["status"],
+  /** `undefined` = no se manda y el servidor conserva o pone la fecha (lo de siempre). */
+  publishedAt?: string | null
 ): ContentPostFormSubmitPayload {
   const images = syncContentPostImageFields({
     heroImageUrl: form.heroImageUrl,
@@ -30,6 +32,7 @@ export function buildContentPostSubmitPayload(
     lastReviewedAt: form.lastReviewedAt ? new Date(form.lastReviewedAt).toISOString() : null,
     isFeatured: status === "PUBLISHED" ? form.isFeatured : false,
     featuredUntil: form.featuredUntil ? new Date(form.featuredUntil).toISOString() : null,
+    ...(publishedAt !== undefined ? { publishedAt } : {}),
   };
 }
 

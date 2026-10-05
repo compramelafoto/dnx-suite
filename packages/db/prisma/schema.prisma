@@ -854,6 +854,7 @@ model BlogPost {
   author         BlogAuthor?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
   tags           BlogPostTag[]
   views          BlogPostView[]
+  bannerSlot     FotofficeBlogBannerSlot?
 
   @@unique([platform, workspaceKey, slug])
   @@index([platform, status, publishedAt])
@@ -7088,6 +7089,7 @@ model Workspace {
   fotofficeBranding           FotofficeWorkspaceBranding?
   fotofficeWebsite            FotofficeWorkspaceWebsite?
   fotofficeDomain             FotofficeWorkspaceDomain?
+  fotofficeBlogBannerSlots    FotofficeBlogBannerSlot[]
   fotorankJudgeAccounts       FotorankJudgeAccount[]
   memberships                 Membership[]
   serviceLeadForms            ServiceLeadForm[]
@@ -7265,6 +7267,29 @@ model FotofficeWorkspaceDomain {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
   workspace          Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+/// Un artículo del blog destacado como placa del banner principal del sitio, por un tiempo.
+/// Se elige desde el editor del artículo ("en la placa 2, por 15 días") y el sitio público lo
+/// lee en vivo: no hace falta republicar, y al pasar `endsAt` la placa deja de mostrarse sola.
+/// Tabla aparte y no columnas en `BlogPost`: ese modelo lo comparten otras plataformas y una
+/// columna sin aplicar rompe todas sus consultas.
+model FotofficeBlogBannerSlot {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  /// Un artículo ocupa a lo sumo una placa.
+  postId       Int       @unique
+  /// Número de placa, desde 1. Si el banner tiene menos placas, va al final.
+  position     Int
+  durationDays Int
+  startsAt     DateTime  @default(now())
+  endsAt       DateTime
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  post         BlogPost  @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, endsAt])
 }
 
 /// Snapshot INMUTABLE de una publicación del sitio — nunca se edita después de creado. Solo
