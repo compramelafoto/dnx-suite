@@ -230,7 +230,28 @@ export async function POST(
 
     const authUser = await getAuthUser();
 
-    if (!isAlbumPubliclyAccessible(album)) {
+    // El link de canje lo da el fotógrafo: alcanza para comprar aunque el álbum no esté
+    // listado (si no, la familia que entra con su link quedaba en "Álbum no disponible").
+    const canjeToken = typeof body.canjeToken === "string" ? body.canjeToken.trim() : "";
+    let canjeVoucher: ExternalVoucher | null = null;
+    if (canjeToken) {
+      const lookup = await loadExternalVoucherByToken(canjeToken, albumId);
+      if (!lookup.ok) {
+        return NextResponse.json(
+          { error: EXTERNAL_VOUCHER_ERROR_MESSAGES[lookup.error], code: "CANJE_INVALIDO" },
+          { status: 400 }
+        );
+      }
+      if (lookup.voucher.redeemed) {
+        return NextResponse.json(
+          { error: EXTERNAL_VOUCHER_ERROR_MESSAGES.redeemed, code: "CANJE_USADO" },
+          { status: 409 }
+        );
+      }
+      canjeVoucher = lookup.voucher;
+    }
+
+    if (!isAlbumPubliclyAccessible(album) && !canjeVoucher) {
       const isOwner = authUser?.id === album.userId;
       const hasAccess = authUser
         ? await prisma.albumAccess.findUnique({
@@ -276,24 +297,10 @@ export async function POST(
     // Canje de un combo cobrado por fuera (link único de la familia): las impresas del
     // combo y su digital salen en $0 y el resto se cobra normal. Ver lib/canje-externo.
     let voucher: ExternalVoucher | null = null;
-    const canjeToken = typeof body.canjeToken === "string" ? body.canjeToken.trim() : "";
-    if (canjeToken) {
-      const lookup = await loadExternalVoucherByToken(canjeToken, albumId);
-      if (!lookup.ok) {
-        return NextResponse.json(
-          { error: EXTERNAL_VOUCHER_ERROR_MESSAGES[lookup.error], code: "CANJE_INVALIDO" },
-          { status: 400 }
-        );
-      }
-      if (lookup.voucher.redeemed) {
-        return NextResponse.json(
-          { error: EXTERNAL_VOUCHER_ERROR_MESSAGES.redeemed, code: "CANJE_USADO" },
-          { status: 409 }
-        );
-      }
-      const applied = applyPrepaidPrintCredit(totals, normalizedItems, lookup.voucher.refs);
+    if (canjeVoucher) {
+      const applied = applyPrepaidPrintCredit(totals, normalizedItems, canjeVoucher.refs);
       if (applied.creditedPrintUnits > 0) {
-        voucher = lookup.voucher;
+        voucher = canjeVoucher;
         totals = applied.totals;
       }
     }
