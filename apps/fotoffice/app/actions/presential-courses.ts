@@ -6,6 +6,7 @@ import { Prisma, prisma } from "@repo/db";
 import { z } from "zod";
 import { requireCoursesSalesContext } from "@/lib/workspace";
 import { slugify } from "@/lib/slug";
+import { leerCamposDeVenta } from "./course-sale-fields";
 import { logCourseEvent } from "@/lib/presential-courses/log";
 import {
   computeAvailableSpots,
@@ -34,6 +35,7 @@ const courseSchema = z.object({
   priceArs: z.coerce.number().min(0).optional().nullable(),
   accessMonths: z.coerce.number().int().min(1).max(120).default(12),
   completionPercent: z.coerce.number().int().min(1).max(100).default(80),
+  freeForMembers: z.boolean().default(false),
   classroomLink: z.string().url().optional().nullable().or(z.literal("")),
   classroomCode: z.string().max(200).optional().nullable(),
   classroomInstructions: z.string().max(5000).optional().nullable(),
@@ -105,6 +107,7 @@ function normalizeCourseInput(input: z.input<typeof courseSchema>) {
     priceArs: parsed.priceArs ?? null,
     accessMonths: parsed.accessMonths,
     completionPercent: parsed.completionPercent,
+    freeForMembers: parsed.freeForMembers,
     classroomLink: emptyToNull(parsed.classroomLink ?? undefined),
     classroomCode: emptyToNull(parsed.classroomCode ?? undefined),
     classroomInstructions: emptyToNull(parsed.classroomInstructions ?? undefined),
@@ -253,6 +256,7 @@ export async function duplicateCourse(courseId: string) {
       priceArs: source.priceArs,
       accessMonths: source.accessMonths,
       completionPercent: source.completionPercent,
+      freeForMembers: source.freeForMembers,
       status: "DRAFT",
     },
     select: { id: true },
@@ -389,11 +393,7 @@ export async function createPresentialCourseAction(
       deliveryMode:
         (formData.get("deliveryMode")?.toString() as z.infer<typeof deliveryModeSchema>) ??
         "PRESENCIAL",
-      priceArs: formData.get("priceArs")?.toString()?.trim()
-        ? Number(formData.get("priceArs")?.toString())
-        : null,
-      accessMonths: Number(formData.get("accessMonths")?.toString() || 12),
-      completionPercent: Number(formData.get("completionPercent")?.toString() || 80),
+      ...leerCamposDeVenta(formData),
       classroomLink: emptyToNull(formData.get("classroomLink")?.toString()),
       classroomCode: emptyToNull(formData.get("classroomCode")?.toString()),
       classroomInstructions: emptyToNull(formData.get("classroomInstructions")?.toString()),
@@ -428,11 +428,7 @@ export async function updatePresentialCourseAction(
       deliveryMode:
         (formData.get("deliveryMode")?.toString() as z.infer<typeof deliveryModeSchema>) ??
         "PRESENCIAL",
-      priceArs: formData.get("priceArs")?.toString()?.trim()
-        ? Number(formData.get("priceArs")?.toString())
-        : null,
-      accessMonths: Number(formData.get("accessMonths")?.toString() || 12),
-      completionPercent: Number(formData.get("completionPercent")?.toString() || 80),
+      ...leerCamposDeVenta(formData),
       classroomLink: emptyToNull(formData.get("classroomLink")?.toString()),
       classroomCode: emptyToNull(formData.get("classroomCode")?.toString()),
       classroomInstructions: emptyToNull(formData.get("classroomInstructions")?.toString()),
