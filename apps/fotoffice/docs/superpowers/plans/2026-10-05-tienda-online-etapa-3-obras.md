@@ -65,3 +65,15 @@ Detalle del pedido: por renglón de obra, formato, medidas, aviso de bordes y "D
 
 ### Task 12: Verificación final
 Suites de FOTOFFICE y FotoRank, typecheck de ambas, `pnpm --filter fotoffice build` y `pnpm --filter fotorank build` (con `DATABASE_URL` ficticia; si el build de FotoRank necesita base para prerender, documentarlo y confiar en el check de Vercel). No abrir PR.
+
+---
+
+## Agregado (pedido de Daniel, 2026-10-05): Andreani como proveedor de envío
+
+Referencia: `apps/fotoffice/docs/integraciones/andreani-api.md` (separa lo oficial de lo inferido; validar con credenciales QA).
+
+### Task 13: Cliente de Andreani y credenciales cifradas
+`apps/fotoffice/lib/integrations/andreani/{client.ts,credentials.ts,errors.ts}` + tests, con el mismo diseño que `lib/integrations/correo-argentino/*`: ambiente QA (`https://apisqa.andreani.com`) / PROD (`https://apis.andreani.com`); `GET /login` con Basic → token en header `x-authorization-token` (24 h; caché por `env:usuario:sha256(clave)`, renovar 60 s antes; un reintento ante 401); `quote({ contract, clientCode, originBranch?, postalCodeDestination, packages: [{ weightKg, lengthCm, widthCm, heightCm, declaredValueMinor }] })` → `GET /v1/tarifas` con los parámetros `bultos[0][...]` de la referencia, devuelve `tarifaConIva.total` en centavos (rechaza ≤ 0 o no numérico); `branches({ postalCode })` → `GET /v2/sucursales?codigoPostal=&canal=B2C` (sólo las que `entregaEnvios`), id, nombre, dirección, CP. Errores tipados igual que MiCorreo (401 AUTH tras reintento; 400/402/404/409/403 BUSINESS; 429 RATE_LIMIT; red/timeout 5 s NETWORK). Credenciales en `WorkspaceIntegration` (provider `ANDREANI`, integrationKey `andreani`): `{ env, user, password, clientCode, contractHome, contractBranch?, originBranch? }` cifrado; al guardar se valida con un token nuevo y una cotización de prueba al CP de origen. Registro de integraciones con proveedor ANDREANI (las pantallas de Google siguen filtrando por GOOGLE). Commit "Tienda: cliente de Andreani y credenciales cifradas".
+
+### Task 14: Andreani en el cotizador, la configuración y el checkout
+`StoreShippingSettings.source` admite `ANDREANI` (columna texto, sin migración). `quoteShipping`: fuente ANDREANI → HOME con `contractHome`, BRANCH con `contractBranch` (si falta, BRANCH deshabilitado); peso en kg desde el paquete; valor declarado = subtotal de la línea (o 0); respaldo a la tabla igual que Correo; AUTH marca NEEDS_RECONSENT. Configuración: tarjeta "Andreani" en Ventas → Tienda → Envíos (formulario como Correo: ambiente, usuario, clave, código de cliente, contrato domicilio, contrato sucursal opcional, sucursal de origen opcional; Probar conexión; Desconectar) y opción de fuente "Andreani" (exige conexión ACTIVE al pasar a ella, como Correo). Checkout: para BRANCH con Andreani las sucursales se listan por **código postal** (no por provincia) — `listAgenciesAction` y la resolución en `createStoreOrder` despachan por fuente; despacho: enlace de seguimiento de Andreani `https://www.andreani.com/#!/informacionEnvio/<n>` (verificar en QA; si no, sólo número). Tests. Commit "Tienda: Andreani en envíos".
