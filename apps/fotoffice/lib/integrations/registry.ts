@@ -12,10 +12,12 @@
 
 /**
  * `GOOGLE` se conecta por OAuth (botón "Conectar" → pantalla de Google). `CORREO_ARGENTINO`
- * NO: se conecta con un formulario de usuario y clave (en la configuración de envíos de la
- * tienda). Toda pantalla o ruta del ida y vuelta con Google tiene que filtrar por proveedor.
+ * y `ANDREANI` NO: se conectan con un formulario de usuario y clave (en la configuración de
+ * envíos de la tienda). Toda pantalla o ruta del ida y vuelta con Google tiene que filtrar por
+ * proveedor: la credencial cifrada de un transportista es usuario y clave, y mandarla a
+ * Google sería filtrarla.
  */
-export type IntegrationProvider = "GOOGLE" | "CORREO_ARGENTINO";
+export type IntegrationProvider = "GOOGLE" | "CORREO_ARGENTINO" | "ANDREANI";
 export type IntegrationStatus = "AVAILABLE" | "PLANNED";
 
 export type IntegrationDefinition = {
@@ -35,6 +37,7 @@ export type IntegrationDefinition = {
 export const GOOGLE_CALENDAR_INTEGRATION_KEY = "google-calendar";
 export const GOOGLE_CONTACTS_INTEGRATION_KEY = "google-contacts";
 export const CORREO_ARGENTINO_INTEGRATION_KEY = "correo-argentino";
+export const ANDREANI_INTEGRATION_KEY = "andreani";
 
 export const INTEGRATION_REGISTRY: readonly IntegrationDefinition[] = [
   {
@@ -83,6 +86,19 @@ export const INTEGRATION_REGISTRY: readonly IntegrationDefinition[] = [
     // de envíos de la tienda, no en la pantalla de Integraciones.
     scopes: [],
     // La tienda funciona sin Correo (tabla propia o retiro en sede): ningún módulo la exige.
+    requiredByModules: [],
+    status: "AVAILABLE",
+  },
+  {
+    key: ANDREANI_INTEGRATION_KEY,
+    provider: "ANDREANI",
+    label: "Andreani",
+    description:
+      "Cotiza los envíos de la tienda con los contratos de Andreani de la institución y lista las sucursales para retirar.",
+    // No es OAuth: usuario, clave, código de cliente y contratos que da el ejecutivo comercial
+    // de Andreani. Se cargan en la configuración de envíos de la tienda.
+    scopes: [],
+    // La tienda funciona sin Andreani: ningún módulo la exige.
     requiredByModules: [],
     status: "AVAILABLE",
   },

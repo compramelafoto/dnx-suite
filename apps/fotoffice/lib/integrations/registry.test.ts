@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  ANDREANI_INTEGRATION_KEY,
   CORREO_ARGENTINO_INTEGRATION_KEY,
   GOOGLE_CALENDAR_INTEGRATION_KEY,
   GOOGLE_CONTACTS_INTEGRATION_KEY,
@@ -15,18 +16,20 @@ describe("catálogo de integraciones", () => {
     expect(findDuplicateIntegrationKeys()).toEqual([]);
   });
 
-  it("Google Calendar, Contacts y Correo Argentino son las implementadas hoy", () => {
+  it("Google Calendar, Contacts, Correo Argentino y Andreani son las implementadas hoy", () => {
     expect(listAvailableIntegrationKeys()).toEqual([
       GOOGLE_CALENDAR_INTEGRATION_KEY,
       GOOGLE_CONTACTS_INTEGRATION_KEY,
       CORREO_ARGENTINO_INTEGRATION_KEY,
+      ANDREANI_INTEGRATION_KEY,
     ]);
   });
 
-  it("se puede filtrar por proveedor: la pantalla de Google no ofrece Correo", () => {
+  it("se puede filtrar por proveedor: la pantalla de Google no ofrece Correo ni Andreani", () => {
     const google = listIntegrations({ status: "AVAILABLE", provider: "GOOGLE" }).map((i) => i.key);
     expect(google).toEqual([GOOGLE_CALENDAR_INTEGRATION_KEY, GOOGLE_CONTACTS_INTEGRATION_KEY]);
     expect(google).not.toContain(CORREO_ARGENTINO_INTEGRATION_KEY);
+    expect(google).not.toContain(ANDREANI_INTEGRATION_KEY);
   });
 
   it("Calendar pide permiso de eventos y la necesita el módulo de reservas", () => {
@@ -87,5 +90,16 @@ describe("Correo Argentino", () => {
     expect(correo?.status).toBe("AVAILABLE");
     expect(correo?.scopes).toEqual([]);
     expect(correo?.requiredByModules).toEqual([]);
+  });
+});
+
+describe("Andreani", () => {
+  it("se ofrece, sin permisos OAuth y sin módulos que la exijan", () => {
+    const andreani = getIntegrationDefinition(ANDREANI_INTEGRATION_KEY);
+    expect(andreani?.key).toBe("andreani");
+    expect(andreani?.provider).toBe("ANDREANI");
+    expect(andreani?.status).toBe("AVAILABLE");
+    expect(andreani?.scopes).toEqual([]);
+    expect(andreani?.requiredByModules).toEqual([]);
   });
 });
