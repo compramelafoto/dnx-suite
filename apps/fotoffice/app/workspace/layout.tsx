@@ -5,6 +5,7 @@ import { hasAppAccess, requireAuth } from "@/lib/auth";
 import { requireOwnWorkspace } from "@/lib/entrada/require-own-workspace";
 import { PORTAL_HOME } from "@/lib/portal/destination";
 import { resolveFotofficeUserKind } from "@/lib/portal/user-kind";
+import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 
 export default async function WorkspaceLayout({ children }: { children: React.ReactNode }) {
   const user = await requireAuth();
@@ -35,7 +36,9 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
     select: { onboardingCompletedAt: true },
   });
 
-  if (!branding?.onboardingCompletedAt) {
+  // Sólo quien puede completar el onboarding (dueño o admin) va a completarlo. Un STAFF de una
+  // institución con el onboarding pendiente entra igual: `/onboarding` lo devolvería acá.
+  if (!branding?.onboardingCompletedAt && canManageWorkspaceSettings(membership?.role)) {
     redirect("/onboarding");
   }
 

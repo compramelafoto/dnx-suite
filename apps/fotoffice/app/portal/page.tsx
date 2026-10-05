@@ -4,7 +4,7 @@ import { requireAuth } from "@/lib/auth";
 import { loadPortalContext } from "@/lib/portal/access";
 import { tieneCursos } from "@/lib/course-classroom/alumno";
 import { resolveFotofficeUserKind } from "@/lib/portal/user-kind";
-import { listUserProfiles } from "@/lib/portal/profiles";
+import { hasProfilesInSeveralWorkspaces, listUserProfiles } from "@/lib/portal/profiles";
 import { loadMemberBalance } from "@/lib/membership/balance";
 import { getDuesSettings } from "@/lib/membership/settings";
 import { describeSeniority } from "@/lib/portal/identity";
@@ -149,7 +149,7 @@ export default async function PortalPage() {
         recomendar ? duesSettings.recommendationBenefitPercent : null
       }
       perfilVacio={perfilVacio}
-      puedeCambiarPerfil={profiles.length > 1}
+      puedeCambiarPerfil={hasProfilesInSeveralWorkspaces(profiles)}
       tieneNegocio={profiles.some((p) => p.kind === "TEAM")}
       sorteo={sorteo}
       whatsappGroupUrl={duesSettings.communityWhatsappUrl}

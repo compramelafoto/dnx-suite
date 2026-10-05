@@ -29,20 +29,18 @@ export type ActiveWorkspace = {
  *   (`./entrada/require-own-workspace.ts`): **tampoco crea**. Es la fuente para
  *   `resolveFotofficePostLoginDestination`, `/workspace/*` y `/onboarding`, donde
  *   todavía no hay garantía de que el usuario tenga workspace; cuando no lo tiene,
- *   se le pregunta en `/bienvenida` en vez de fabricárselo. NO lee
- *   `FOTOFFICE_WORKSPACE_COOKIE`: siempre prioriza el workspace donde el usuario es
+ *   se le pregunta en `/bienvenida` en vez de fabricárselo. No lee la cookie por sí
+ *   misma: `requireOwnWorkspace` se la pasa como preferencia.
+ *   Sin preferencia válida, prioriza el workspace donde el usuario es
  *   `WORKSPACE_OWNER` (o el más antiguo).
  *
  * Hasta el 2026-09-14 esa segunda función creaba el workspace si faltaba, y de ahí
  * salieron dos instituciones fantasma en producción. Crear quedó separado en
  * `createFotofficeWorkspaceForUser`, con un solo llamador autorizado.
  *
- * Pendiente real (no resuelto en esta etapa): si un usuario cambia de workspace
- * activo desde `(shell)` vía el switcher del header y después navega a `/workspace`,
- * va a ver el workspace por defecto (OWNER-first), no el que acaba de elegir —
- * porque ese camino no consulta la cookie. No importa hoy (nadie tiene más de un
- * workspace en la práctica), pero va a importar el día que una institución tenga
- * varios administradores con acceso a varios workspaces.
+ * Desde la etapa 3 de Roles (2026-10-03) las dos respetan la cookie de institución
+ * activa cuando la persona es miembro de esa institución, así `/workspace` y el
+ * encabezado muestran la misma institución que eligió.
  */
 
 export async function getMembershipWorkspaceIds(userId: number): Promise<string[]> {
@@ -76,6 +74,15 @@ export async function resolveActiveWorkspace(userId: number): Promise<ActiveWork
         });
   if (effectiveMemberships.length === 0) return null;
 
+  // La institución que la persona eligió (selector de institución, botón "Administración")
+  // manda, siempre que sea miembro de ella. Una cookie ajena no encuentra membresía y se ignora.
+  const cookieStore = await cookies();
+  const fromCookie = cookieStore.get(FOTOFFICE_WORKSPACE_COOKIE)?.value;
+  if (fromCookie) {
+    const hit = effectiveMemberships.find((m) => m.workspaceId === fromCookie);
+    if (hit) return { id: hit.workspace.id, name: hit.workspace.name };
+  }
+
   const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
     where: { publicSlug: "dnx-estudio" },
     select: { workspaceId: true },
@@ -89,12 +96,6 @@ export async function resolveActiveWorkspace(userId: number): Promise<ActiveWork
     }
   }
 
-  const cookieStore = await cookies();
-  const fromCookie = cookieStore.get(FOTOFFICE_WORKSPACE_COOKIE)?.value;
-  if (fromCookie) {
-    const hit = effectiveMemberships.find((m) => m.workspaceId === fromCookie);
-    if (hit) return { id: hit.workspace.id, name: hit.workspace.name };
-  }
   const first = effectiveMemberships[0];
   return first ? { id: first.workspace.id, name: first.workspace.name } : null;
 }
