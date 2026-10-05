@@ -49,6 +49,7 @@ export {
   DNX_PASSWORD_RESET_TTL_MS,
   requestPasswordReset,
   resetPasswordWithToken,
+  type PasswordResetOutcome,
 } from "./password-reset";
 
 export {
