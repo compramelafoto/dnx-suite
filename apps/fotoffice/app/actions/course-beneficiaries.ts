@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@repo/db";
+import { redirect } from "next/navigation";
+import { Prisma, prisma } from "@repo/db";
 import { requireCoursesSalesContext } from "@/lib/workspace";
 import { appUrl } from "@/lib/app-url";
 import { sendTransactionalEmail } from "@/lib/communications/send-email";
@@ -9,6 +10,7 @@ import { esSinReparto, estadoTrasGuardar, validarFilas, type FilaBeneficiario } 
 import { formatoPorcentaje } from "@/lib/course-marketplace/reparto";
 import { buildAvisoBeneficiarioEmail } from "@/lib/course-marketplace/aviso-beneficiario";
 import { cargarDueno } from "@/lib/course-marketplace/cargar";
+import { invitacionesPendientesWhere, requireDuenoOAdminDelNegocio } from "@/lib/course-marketplace/access";
 
 const ROLES: Record<FilaBeneficiario["role"], string> = {
   DOCENTE: "Docente",
@@ -155,4 +157,32 @@ export async function buscarNegociosAction(
     orderBy: { commercialName: "asc" },
   });
   return filas.map((f) => ({ workspaceId: f.workspaceId, nombre: f.commercialName, slug: f.publicSlug }));
+}
+
+/** El negocio invitado acepta o rechaza ser beneficiario de un curso. */
+export async function responderInvitacionAction(beneficiaryId: string, acepta: boolean): Promise<void> {
+  const { user, workspace } = await requireDuenoOAdminDelNegocio();
+  const fila = await prisma.courseBeneficiary.findFirst({
+    where: { id: beneficiaryId, ...invitacionesPendientesWhere(workspace.id, user.email) },
+    select: { id: true, courseId: true, workspaceId: true },
+  });
+  if (!fila) redirect("/dashboard/cursos-compartidos?r=no-encontrada");
+  try {
+    await prisma.courseBeneficiary.update({
+      where: { id: fila.id },
+      data: {
+        status: acepta ? "ACEPTADO" : "RECHAZADO",
+        respondedAt: new Date(),
+        // Una invitación por correo pasa a ser de este negocio al responder.
+        workspaceId: fila.workspaceId ?? workspace.id,
+      },
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      redirect("/dashboard/cursos-compartidos?r=ya-sos-beneficiario");
+    }
+    throw error;
+  }
+  revalidatePath(`/dashboard/courses/${fila.courseId}`);
+  redirect(`/dashboard/cursos-compartidos?r=${acepta ? "aceptada" : "rechazada"}`);
 }
