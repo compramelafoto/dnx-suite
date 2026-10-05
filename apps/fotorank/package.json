@@ -129,7 +129,8 @@
     "test:fechas-publicas": "TZ=UTC pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/contest-public-presentation/registration-close.test.ts",
     "test:mensaje-de-asignacion": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/judges/mensajeDeAsignacion.test.ts",
     "test:entry-image-signing": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/external/entry-image-signing.test.ts",
-    "test:entry-image": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/external/entry-image-service.test.ts"
+    "test:entry-image": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/external/entry-image-service.test.ts",
+    "test:contest-store-usage": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/external/contest-store-usage.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.972.0",
