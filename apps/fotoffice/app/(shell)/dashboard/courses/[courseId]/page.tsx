@@ -15,6 +15,9 @@ import { prisma } from "@repo/db";
 import { CourseLessonsSection } from "@/components/presential-courses/course-lessons-section";
 import { explicarConfiguracionFaltante, readStreamConfig } from "@/lib/courses-video/config";
 import { esGrabado } from "@/lib/presential-courses/delivery-mode";
+import { cargarBeneficiarios, cargarDueno } from "@/lib/course-marketplace/cargar";
+import { estadoDeVenta } from "@/lib/course-marketplace/beneficiarios";
+import { BeneficiariosEditor } from "@/components/course-marketplace/beneficiarios-editor";
 
 export default async function DashboardCourseDetailPage({
   params,
@@ -49,6 +52,14 @@ export default async function DashboardCourseDetailPage({
       })
     : [];
   const configVideo = readStreamConfig();
+  const [beneficiarios, dueno, feeBps] = grabado
+    ? await Promise.all([
+        cargarBeneficiarios(course.id),
+        cargarDueno(course.workspaceId),
+        getPlatformFeeBps(course.workspaceId, COURSES_SALES_MODULE_KEY),
+      ])
+    : [[], null, 500];
+  const estado = dueno ? estadoDeVenta(dueno.workspaceId, beneficiarios) : null;
 
   return (
     <div className="space-y-10">
@@ -145,6 +156,35 @@ export default async function DashboardCourseDetailPage({
         )}
       </section>
       )}
+
+      {grabado && dueno ? (
+        <section className="space-y-4">
+          <h2 className="text-lg font-semibold">Beneficiarios y reparto</h2>
+          {estado?.tipo === "CON_REPARTO" ? (
+            <div className="fo-card text-sm">
+              <p className="font-medium">
+                {estado.listo
+                  ? "Todos aceptaron. Se va a poder vender cuando Mercado Pago habilite el reparto automático."
+                  : "Para vender con reparto falta:"}
+              </p>
+              {!estado.listo ? (
+                <ul className="list-disc pl-5">
+                  {estado.faltantes.map((f) => (
+                    <li key={f}>{f}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
+          <BeneficiariosEditor
+            courseId={course.id}
+            dueno={dueno}
+            listaCentavos={Math.round(Number(course.priceArs ?? 0) * 100)}
+            comisionPlataformaBps={feeBps}
+            iniciales={beneficiarios}
+          />
+        </section>
+      ) : null}
     </div>
   );
 }
