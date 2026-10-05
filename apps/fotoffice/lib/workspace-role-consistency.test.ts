@@ -186,6 +186,10 @@ describe("nadie fuera de Configuración decide el acceso por el rol crudo", () =
     { patron: /^app\/onboarding\//, razon: "el alta de la institución la hace el dueño" },
     { patron: /^lib\/payments\/connect\/authz\.ts$/, razon: "conectar Mercado Pago es de Configuración" },
     { patron: /^lib\/commission\/access\.ts$/, razon: "la Comisión directiva es de Configuración" },
+    {
+      patron: /^lib\/store\/artworks\/links\.ts$/,
+      razon: "vincular una organización de FotoRank a la tienda exige dueño/admin en los dos lados (spec etapa 3, O1)",
+    },
     { patron: /^app\/actions\/settings\.ts$/, razon: "ajustes del workspace y de venta de cursos" },
     { patron: /^app\/actions\/website-domain\.ts$/, razon: "el dominio propio es un dato de la institución" },
     { patron: /^components\/shell\/admin-shell\.tsx$/, razon: "sólo la sección Institución del menú" },
