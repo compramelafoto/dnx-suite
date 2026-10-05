@@ -20,6 +20,8 @@ import { placaDesignDocument } from "./designs";
 import { pruneEmptyBlocks } from "./prune";
 import { placaValues, type PlacaExtras } from "./values";
 import { prepararImagen, type ImagenLista } from "./images";
+import { loadAboutMe } from "@/lib/spotlight/repository";
+import { placaAboutPhrase } from "@/lib/spotlight/about";
 
 /**
  * Dibuja una placa de Comunicación como PNG.
@@ -125,13 +127,20 @@ export async function renderPlaca(input: {
     fallbackCanvas: PLACA_FORMAT_PX[input.format],
   });
 
+  // La del socio de la semana lleva lo que el socio contó y eligió en «Más sobre mí».
+  let extras = input.extras;
+  if (!extras && input.kind === "socio-semana") {
+    const about = await loadAboutMe(input.memberId);
+    extras = { aboutPhrase: placaAboutPhrase(about), featuredPhotos: about?.featuredPhotoUrls ?? [] };
+  }
+
   const values: Record<string, unknown> = placaValues({
     member: socio,
     institution: {
       name: branding?.commercialName?.trim() || socio.workspace.name,
       logoUrl: branding?.logoUrl ?? null,
     },
-    extras: input.extras,
+    extras,
   });
 
   // Un QR de dirección fija no sale de ningún dato del socio: el puente le inventa una variable.

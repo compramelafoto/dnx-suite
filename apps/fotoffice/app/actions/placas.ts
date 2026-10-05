@@ -21,6 +21,7 @@ import {
   removeWelcome,
   setWelcomePublished,
 } from "@/lib/placas/welcomes";
+import { setSpotlightPublished, skipCurrentSpotlight } from "@/lib/spotlight/repository";
 
 /**
  * Las acciones de Comunicación → Placas.
@@ -104,4 +105,38 @@ export async function removeWelcomeAction(formData: FormData): Promise<void> {
   if (welcomeId) await removeWelcome({ workspaceId: workspace.id, welcomeId });
   revalidatePath(LISTA);
   volver(LISTA, { ok: "La quitamos de la lista." });
+}
+
+const SEMANA = "/comunicacion/placas/socio-de-la-semana";
+
+/** Marca o desmarca "ya publicada" la placa del socio de la semana. */
+export async function setSpotlightPublishedAction(formData: FormData): Promise<void> {
+  const { user, workspace, level } = await nivel();
+  if (!hasLevel(level, "VIEW")) redirect("/dashboard");
+  const spotlightId = String(formData.get("spotlightId") ?? "");
+  const published = formData.get("published") === "1";
+  if (spotlightId) {
+    await setSpotlightPublished({ workspaceId: workspace.id, spotlightId, userId: user.id, published });
+  }
+  revalidatePath(SEMANA);
+}
+
+/** Saltea al socio de esta semana (pidió no salir, dejó de estar activo) y elige otro al azar. */
+export async function skipSpotlightAction(formData: FormData): Promise<void> {
+  const { user, workspace, level } = await nivel();
+  if (!hasLevel(level, "MANAGE")) {
+    volver(SEMANA, { error: "Para saltear a un socio hace falta gestionar Comunicación." });
+  }
+  const spotlightId = String(formData.get("spotlightId") ?? "");
+  const reason = String(formData.get("reason") ?? "");
+  const r = await skipCurrentSpotlight({ workspaceId: workspace.id, spotlightId, userId: user.id, reason });
+  revalidatePath(SEMANA);
+  revalidatePath("/portal");
+  if (!r.ok) volver(SEMANA, { error: r.error });
+  volver(
+    SEMANA,
+    r.replacementMemberId
+      ? { ok: "Listo. Elegimos a otro socio al azar para esta semana." }
+      : { ok: "Lo salteamos. No quedan socios para elegir esta semana." },
+  );
 }

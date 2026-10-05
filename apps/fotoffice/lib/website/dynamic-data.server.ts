@@ -2,7 +2,8 @@ import "server-only";
 import { blogPath, listBlogPosts, postPath } from "@/lib/blog/public";
 import { toBlogCard } from "@/lib/blog/public-format";
 import type { PublicSite } from "./public-site";
-import { blogLatestLimitFor, type WebsiteDynamicData } from "./dynamic-data";
+import { blogLatestLimitFor, hasVisibleMemberOfWeek, type WebsiteDynamicData } from "./dynamic-data";
+import { loadPublicMemberOfWeek } from "@/lib/spotlight/public";
 
 /**
  * Lee lo que piden los bloques dinámicos de una página publicada, y nada más: si la página no
@@ -26,6 +27,16 @@ export async function loadWebsiteDynamicData(site: PublicSite, blocks: PublicSit
       blogHref: blogPath(site.workspaceSlug),
       posts: posts.map((p) => toBlogCard(p, postPath(site.workspaceSlug, p.slug))),
     };
+  }
+
+  if (hasVisibleMemberOfWeek(blocks)) {
+    data.memberOfWeek = await loadPublicMemberOfWeek({
+      workspaceId: site.workspaceId,
+      institution: site.commercialName,
+    }).catch((err: unknown) => {
+      console.error("[fotoffice][website] no se pudo leer el socio de la semana:", err);
+      return { card: null, weekLabel: "" };
+    });
   }
 
   return data;

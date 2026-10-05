@@ -24,6 +24,8 @@ export const FOTOFFICE_R2_PREFIXES = {
   templateImage: "fotoffice/template-images",
   productPhoto: "fotoffice/product-photos",
   memberPortfolioPhoto: "fotoffice/member-portfolio",
+  /** Fotos que el socio sube sólo para su placa de Socio de la semana («Más sobre mí»). */
+  memberFeaturedPhoto: "fotoffice/member-featured",
 } as const;
 
 export const FOTOFFICE_R2_DELETABLE_PREFIXES = Object.values(FOTOFFICE_R2_PREFIXES).map(

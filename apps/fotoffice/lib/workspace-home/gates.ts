@@ -6,6 +6,7 @@ import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
+import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
 
 export type HomeWidgetGates = {
   socios: boolean;
@@ -16,6 +17,7 @@ export type HomeWidgetGates = {
   sorteos: boolean;
   coberturas: boolean;
   pedidos: boolean;
+  comunicacion: boolean;
 };
 
 /**
@@ -39,5 +41,7 @@ export function homeWidgetGates(levels: ModuleLevels): HomeWidgetGates {
     sorteos: al(RAFFLES_MODULE_KEY, "VIEW"),
     coberturas: al(COVERAGES_MODULE_KEY, "VIEW"),
     pedidos: al(SERVICE_LEADS_MODULE_KEY, "VIEW"),
+    // Placas por publicar: lo que ve quien lleva las redes.
+    comunicacion: al(COMMUNICATIONS_MODULE_KEY, "VIEW"),
   };
 }
