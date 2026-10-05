@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  CORREO_ARGENTINO_INTEGRATION_KEY,
   GOOGLE_CALENDAR_INTEGRATION_KEY,
   GOOGLE_CONTACTS_INTEGRATION_KEY,
   findDuplicateIntegrationKeys,
@@ -14,11 +15,18 @@ describe("catálogo de integraciones", () => {
     expect(findDuplicateIntegrationKeys()).toEqual([]);
   });
 
-  it("Google Calendar y Contacts son las implementadas hoy", () => {
+  it("Google Calendar, Contacts y Correo Argentino son las implementadas hoy", () => {
     expect(listAvailableIntegrationKeys()).toEqual([
       GOOGLE_CALENDAR_INTEGRATION_KEY,
       GOOGLE_CONTACTS_INTEGRATION_KEY,
+      CORREO_ARGENTINO_INTEGRATION_KEY,
     ]);
+  });
+
+  it("se puede filtrar por proveedor: la pantalla de Google no ofrece Correo", () => {
+    const google = listIntegrations({ status: "AVAILABLE", provider: "GOOGLE" }).map((i) => i.key);
+    expect(google).toEqual([GOOGLE_CALENDAR_INTEGRATION_KEY, GOOGLE_CONTACTS_INTEGRATION_KEY]);
+    expect(google).not.toContain(CORREO_ARGENTINO_INTEGRATION_KEY);
   });
 
   it("Calendar pide permiso de eventos y la necesita el módulo de reservas", () => {
@@ -44,8 +52,8 @@ describe("catálogo de integraciones", () => {
     expect(integrationsRequiredByModule("members-inexistente")).toEqual([]);
   });
 
-  it("toda integración declara al menos un permiso", () => {
-    for (const integration of listIntegrations()) {
+  it("toda integración de Google declara al menos un permiso", () => {
+    for (const integration of listIntegrations({ provider: "GOOGLE" })) {
       expect(integration.scopes.length).toBeGreaterThan(0);
     }
   });
@@ -68,5 +76,16 @@ describe("Google Contacts", () => {
   it("declara que la usa Socios, para que la pantalla lo muestre", () => {
     const contacts = getIntegrationDefinition(GOOGLE_CONTACTS_INTEGRATION_KEY);
     expect(contacts?.requiredByModules).toContain("members");
+  });
+});
+
+describe("Correo Argentino", () => {
+  it("se ofrece, sin permisos OAuth y sin módulos que la exijan", () => {
+    const correo = getIntegrationDefinition(CORREO_ARGENTINO_INTEGRATION_KEY);
+    expect(correo?.key).toBe("correo-argentino");
+    expect(correo?.provider).toBe("CORREO_ARGENTINO");
+    expect(correo?.status).toBe("AVAILABLE");
+    expect(correo?.scopes).toEqual([]);
+    expect(correo?.requiredByModules).toEqual([]);
   });
 });

@@ -44,7 +44,7 @@ export default async function IntegracionesPage({
   if (!canManageWorkspaceSettings(role)) redirect("/workspace/configuracion");
 
   const porClave = new Map(conectadas.map((c) => [c.integrationKey, c]));
-  const disponibles = listIntegrations({ status: "AVAILABLE" });
+  const disponibles = listIntegrations({ status: "AVAILABLE", provider: "GOOGLE" });
 
   const errorMessage = integrationErrorMessage(params.error ?? null);
   const okMessage = integrationOkMessage(params.ok ?? null);
