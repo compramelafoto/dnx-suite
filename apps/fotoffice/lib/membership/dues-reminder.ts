@@ -131,6 +131,7 @@ export async function sendDuesReminders(input: {
     primero = false;
 
     const salida = await sendAndLogEmail({
+      workspaceId: input.workspaceId,
       to: email,
       templateKey,
       userId: socio.userId,

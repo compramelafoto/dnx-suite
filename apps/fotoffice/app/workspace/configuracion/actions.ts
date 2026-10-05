@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { loadWorkspaceSender } from "@/lib/communications/load-workspace-sender";
 import { prisma } from "@repo/db";
 import { requireAuth } from "@/lib/auth";
 import { requireOwnWorkspace } from "@/lib/entrada/require-own-workspace";
@@ -90,7 +91,13 @@ export async function sendTestEmailAction(
     sentAt: new Date(),
   });
 
-  const outcome = await sendTransactionalEmail({ to, subject, html, text });
+  const outcome = await sendTransactionalEmail({
+    to,
+    subject,
+    html,
+    text,
+    sender: await loadWorkspaceSender(ensured.workspaceId),
+  });
 
   await recordTestEmailAttempt({
     userId: user.id,

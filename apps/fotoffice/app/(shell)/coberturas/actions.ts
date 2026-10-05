@@ -189,6 +189,7 @@ export async function changeRequestStatusAction(
       trackingUrl: rawToken && base ? `${base}/sc/${rawToken}` : "",
     };
     const resultado = await sendAndLogEmail({
+      workspaceId: workspace.id,
       to: destino,
       templateKey:
         plan.to === "APROBADA" ? COVERAGE_EMAIL_KEYS.APPROVED : COVERAGE_EMAIL_KEYS.REJECTED,
@@ -291,6 +292,7 @@ export async function requestInfoAction(
   if (destino) {
     const contexto = await loadWorkspaceEmailContext(workspace.id);
     const r = await sendAndLogEmail({
+      workspaceId: workspace.id,
       to: destino,
       templateKey: COVERAGE_EMAIL_KEYS.INFO_REQUESTED,
       body: buildInfoRequestedEmail({
@@ -396,6 +398,7 @@ export async function resendTrackingLinkAction(
 
   const contexto = await loadWorkspaceEmailContext(workspace.id);
   const resultado = await sendAndLogEmail({
+    workspaceId: workspace.id,
     to: destino,
     templateKey: COVERAGE_EMAIL_KEYS.TRACKING_LINK,
     body: buildTrackingLinkEmail({

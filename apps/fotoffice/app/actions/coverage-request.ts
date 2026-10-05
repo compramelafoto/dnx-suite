@@ -178,6 +178,7 @@ export async function submitCoverageRequestAction(
   // Los avisos salen después del hecho consumado y no pueden voltearlo: `sendAndLogEmail`
   // nunca lanza, y el resultado queda registrado para poder responder «¿le avisamos?».
   await sendAndLogEmail({
+    workspaceId: branding.workspaceId,
     to: parsed.data.contactEmail,
     templateKey: COVERAGE_EMAIL_KEYS.RECEIVED,
     body: buildRequestReceivedEmail({
@@ -210,6 +211,7 @@ export async function submitCoverageRequestAction(
 
   for (const destino of destinatarios) {
     await sendAndLogEmail({
+      workspaceId: branding.workspaceId,
       to: destino,
       templateKey: COVERAGE_EMAIL_KEYS.ALERT,
       body: buildCoordinatorAlertEmail({

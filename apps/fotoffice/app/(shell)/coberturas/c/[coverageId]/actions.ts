@@ -445,6 +445,7 @@ async function avisarConvocatoriaPublicada(input: {
     const resultados = await Promise.all(
       tanda.map((destino) =>
         sendAndLogEmail({
+          workspaceId: input.workspaceId,
           to: destino,
           templateKey: COVERAGE_EMAIL_KEYS.CALL_PUBLISHED,
           body: cuerpoPara(destino),
@@ -537,6 +538,7 @@ async function avisarInvitacion(
   const base = appUrl();
 
   const r = await sendAndLogEmail({
+    workspaceId: workspaceId,
     to: datos.destinatario,
     templateKey: COVERAGE_EMAIL_KEYS.ASSIGNMENT_INVITED,
     body: buildAssignmentInvitedEmail({
