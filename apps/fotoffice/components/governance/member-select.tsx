@@ -56,6 +56,11 @@ const AVISOS: Record<string, string> = {
   tipo: "Tipo de proyecto guardado.",
   archivado: "Tipo archivado: ya no se ofrece para proyectos nuevos.",
   restaurado: "Tipo restaurado.",
+  realizada: "La reunión figura como realizada. Cuando todo esté tratado, aprobá el acta.",
+  acta: "Acta aprobada: ya no se modifica; lo posterior va como nota.",
+  asistentes: "Asistentes guardados.",
+  voto: "Tu voto quedó registrado. Lo podés cambiar mientras la votación esté abierta.",
+  propuesta: "Tu propuesta llegó a la comisión.",
 };
 
 export function Flash({ error, ok }: { error?: string; ok?: string }) {

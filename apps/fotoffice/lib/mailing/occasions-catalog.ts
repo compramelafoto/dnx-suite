@@ -11,7 +11,12 @@
  * Variables del texto: {nombre} (nombre de pila), {institucion} y, en el aniversario, {años}.
  */
 
-export const OCCASION_KINDS = { EFEMERIDE: "EFEMERIDE", BIRTHDAY: "BIRTHDAY", ANNIVERSARY: "ANNIVERSARY" } as const;
+export const OCCASION_KINDS = {
+  EFEMERIDE: "EFEMERIDE",
+  BIRTHDAY: "BIRTHDAY",
+  ANNIVERSARY: "ANNIVERSARY",
+  LIFECYCLE: "LIFECYCLE",
+} as const;
 export type OccasionKind = (typeof OCCASION_KINDS)[keyof typeof OCCASION_KINDS];
 
 export type OccasionConfig = {
@@ -26,21 +31,81 @@ export type OccasionConfig = {
   imageUrl: string | null;
   specialties: string[];
   milestonesOnly: boolean;
+  /** Ciclo del socio: días después del hecho que lo dispara (ingreso, baja, último ingreso al portal). */
+  offsetDays: number | null;
+  /** Ciclo del socio: botón fijo del correo. Lo define el catálogo, no se edita. */
+  cta?: { label: string; target: "portal" | "sitio" };
+  /** Ciclo del socio: qué dispara el correo, para explicarlo en pantalla. */
+  trigger?: "JOINED" | "LEFT" | "NO_LOGIN";
   /** Viene del catálogo (no se puede borrar) o la agregó la institución. */
   builtIn: boolean;
   /** Nota para quien la configura («Confirmá la fecha con la comisión»). */
   hint?: string;
 };
 
-type Semilla = Omit<OccasionConfig, "enabled" | "imageUrl" | "builtIn" | "milestonesOnly" | "specialties"> & {
+type Semilla = Omit<OccasionConfig, "enabled" | "imageUrl" | "builtIn" | "milestonesOnly" | "specialties" | "offsetDays"> & {
   specialties?: string[];
   milestonesOnly?: boolean;
+  offsetDays?: number;
   hint?: string;
 };
 
 const SIN_FECHA = "Hay versiones distintas de esta fecha según la fuente: confirmala con la comisión y cargala antes de encenderla.";
 
 const SEMILLAS: Semilla[] = [
+  {
+    key: "bienvenida-semana",
+    kind: "LIFECYCLE",
+    month: null,
+    day: null,
+    title: "Bienvenida: completá tu perfil",
+    trigger: "JOINED",
+    offsetDays: 7,
+    cta: { label: "Entrar al portal", target: "portal" },
+    subject: "{nombre}, ¿ya armaste tu perfil en {institucion}?",
+    message:
+      "¡Hola, {nombre}!\n\nHace unos días te sumaste a {institucion} y queremos que aproveches todo desde el principio.\n\nEn el portal de socios podés completar tu perfil con tu foto, tus especialidades y tus redes: así tus colegas te conocen, te recomiendan y te pueden contactar. También vas a encontrar tu carnet, tus cuotas y las actividades de la institución.\n\nLleva unos minutos. ¡Te esperamos!",
+  },
+  {
+    key: "bienvenida-mes",
+    kind: "LIFECYCLE",
+    month: null,
+    day: null,
+    title: "Bienvenida: tus beneficios",
+    trigger: "JOINED",
+    offsetDays: 30,
+    cta: { label: "Ver mis beneficios", target: "portal" },
+    subject: "Tu primer mes en {institucion}: todo lo que tenés como socio",
+    message:
+      "¡Hola, {nombre}!\n\nYa cumpliste tu primer mes en {institucion}. Gracias por sumarte.\n\nTe recordamos lo que tenés como socio: los descuentos de nuestros aliados, los sorteos, los cursos y actividades, la reserva del estudio y, sobre todo, una comunidad de colegas con quienes compartir trabajo, consejos y oportunidades.\n\nSi tenés una idea, una propuesta o necesitás una mano, respondé este correo: nos llega directo.",
+  },
+  {
+    key: "sin-portal",
+    kind: "LIFECYCLE",
+    month: null,
+    day: null,
+    title: "Hace tiempo que no entrás",
+    trigger: "NO_LOGIN",
+    offsetDays: 60,
+    cta: { label: "Entrar al portal", target: "portal" },
+    subject: "{nombre}, te extrañamos en el portal de {institucion}",
+    message:
+      "¡Hola, {nombre}!\n\nHace un tiempo que no pasás por el portal de socios de {institucion}, y hay novedades: actividades, sorteos, beneficios de nuestros aliados y colegas que se sumaron.\n\nEntrá cuando quieras para ponerte al día. Y si algo no te funciona o no te resulta útil, contanos respondiendo este correo: nos ayuda a mejorar.",
+  },
+  {
+    key: "ex-socio",
+    kind: "LIFECYCLE",
+    month: null,
+    day: null,
+    title: "Te extrañamos (ex socios)",
+    trigger: "LEFT",
+    offsetDays: 60,
+    cta: { label: "Volver a asociarme", target: "sitio" },
+    subject: "{nombre}, en {institucion} te extrañamos",
+    message:
+      "¡Hola, {nombre}!\n\nHace un tiempo dejaste de ser socio de {institucion} y queríamos decirte que la puerta sigue abierta.\n\nSeguimos creciendo: hay actividades nuevas, beneficios con nuestros aliados y una comunidad de colegas que se acompaña. Si querés volver, desde el sitio podés hacerlo en unos minutos.\n\nY si te fuiste por algo que podemos mejorar, nos encantaría saberlo: respondé este correo, lo lee la comisión.",
+    hint: "Nunca se manda a quienes se dio de baja por sanción. Sale una sola vez por persona, el día en que se cumplen los días elegidos desde la baja.",
+  },
   {
     key: "birthday",
     kind: "BIRTHDAY",
@@ -245,19 +310,22 @@ export const OCCASION_CATALOG: OccasionConfig[] = SEMILLAS.map((s) => ({
   imageUrl: null,
   specialties: s.specialties ?? [],
   milestonesOnly: s.milestonesOnly ?? false,
+  offsetDays: s.offsetDays ?? null,
   builtIn: true,
 }));
 
 export const CUSTOM_OCCASION_PREFIX = "propia-";
 
-export type OccasionRow = Omit<OccasionConfig, "builtIn" | "hint">;
+export type OccasionRow = Omit<OccasionConfig, "builtIn" | "hint" | "cta" | "trigger">;
 
 /** Une el catálogo con lo que guardó la institución, más sus fechas propias. */
 export function mergeOccasions(rows: OccasionRow[]): OccasionConfig[] {
   const porClave = new Map(rows.map((r) => [r.key, r]));
   const delCatalogo = OCCASION_CATALOG.map((c) => {
     const r = porClave.get(c.key);
-    return r ? { ...c, ...r, kind: c.kind, builtIn: true, hint: c.hint } : c;
+    return r
+      ? { ...c, ...r, kind: c.kind, builtIn: true, hint: c.hint, cta: c.cta, trigger: c.trigger, offsetDays: r.offsetDays ?? c.offsetDays }
+      : c;
   });
   const propias = rows
     .filter((r) => r.key.startsWith(CUSTOM_OCCASION_PREFIX))
@@ -265,6 +333,7 @@ export function mergeOccasions(rows: OccasionRow[]): OccasionConfig[] {
   return [...delCatalogo, ...propias];
 }
 
-export function topicForOccasion(kind: OccasionKind): "efemerides" | "saludos" {
+export function topicForOccasion(kind: OccasionKind): "efemerides" | "saludos" | "novedades" {
+  if (kind === "LIFECYCLE") return "novedades";
   return kind === "EFEMERIDE" ? "efemerides" : "saludos";
 }

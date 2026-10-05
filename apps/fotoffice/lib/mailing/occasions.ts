@@ -1,6 +1,6 @@
 import type { RenderedEmailSignature } from "@repo/communications/signature";
 import { C, FUENTE, escapeHtml } from "@/lib/communications/html";
-import { safeHttpsUrl, textFooter, wrapMailing, type MailingBrand, type MailingFooter } from "./layout";
+import { button, safeAccent, safeHttpsUrl, textFooter, wrapMailing, type MailingBrand, type MailingFooter } from "./layout";
 import type { OccasionConfig } from "./occasions-catalog";
 
 /**
@@ -121,7 +121,7 @@ export function renderTemplate(text: string, vars: TemplateVars): string {
   return out;
 }
 
-function parrafosHtml(text: string): string {
+export function paragraphsHtml(text: string): string {
   return text
     .split(/\n{2,}/)
     .map((p) => p.trim())
@@ -138,16 +138,20 @@ export function buildOccasionEmail(input: {
   vars: TemplateVars;
   signature: RenderedEmailSignature | null;
   footer: MailingFooter;
+  /** Botón (ciclo del socio): al portal o al sitio. Sin dirección https no se dibuja. */
+  cta?: { label: string; url: string | null } | null;
 }): OccasionEmailBody {
   const subject = renderTemplate(input.occasion.subject, input.vars).replace(/\s+/g, " ").trim().slice(0, 150);
   const cuerpo = renderTemplate(input.occasion.message, input.vars);
   const imagen = safeHttpsUrl(input.occasion.imageUrl);
+  const ctaUrl = safeHttpsUrl(input.cta?.url ?? null);
 
   const contentHtml = [
     imagen
       ? `<img src="${escapeHtml(imagen)}" alt="${escapeHtml(input.occasion.title)}" width="536" style="display:block;width:100%;max-width:536px;height:auto;border:0;border-radius:8px;margin:0 0 20px;">`
       : "",
-    `<div style="font-family:${FUENTE};font-size:16px;line-height:1.6;color:${C.cuerpo};">${parrafosHtml(cuerpo)}</div>`,
+    `<div style="font-family:${FUENTE};font-size:16px;line-height:1.6;color:${C.cuerpo};">${paragraphsHtml(cuerpo)}</div>`,
+    ctaUrl && input.cta ? button(input.cta.label, ctaUrl, safeAccent(input.brand.accentColor)) : "",
   ].join("\n");
 
   const html = wrapMailing({
@@ -157,6 +161,86 @@ export function buildOccasionEmail(input: {
     signature: input.signature,
     footer: input.footer,
   });
-  const text = [cuerpo.trim(), ...(input.signature ? ["", input.signature.text] : []), "", textFooter(input.footer)].join("\n");
+  const text = [
+    cuerpo.trim(),
+    ...(ctaUrl && input.cta ? ["", `${input.cta.label}: ${ctaUrl}`] : []),
+    ...(input.signature ? ["", input.signature.text] : []),
+    "",
+    textFooter(input.footer),
+  ].join("\n");
   return { subject, html, text };
 }
+
+// ─── Ciclo del socio ───────────────────────────────────────────────────────────────────────
+
+/**
+ * La fecha de un hecho en días argentinos. Las fechas cargadas a mano (ingreso importado, baja)
+ * son fechas sin hora a medianoche UTC: se leen en UTC. Las que guardó la aplicación al momento
+ * (un alta aprobada a las 22 h) tienen hora: se pasan a la fecha argentina.
+ */
+export function eventDay(date: Date): Ymd {
+  const esFechaSola =
+    date.getUTCHours() === 0 && date.getUTCMinutes() === 0 && date.getUTCSeconds() === 0 && date.getUTCMilliseconds() === 0;
+  return esFechaSola
+    ? { y: date.getUTCFullYear(), m: date.getUTCMonth() + 1, d: date.getUTCDate() }
+    : argentinaToday(date);
+}
+
+/** `today` menos `days` días. */
+export function daysBefore(today: Ymd, days: number): Ymd {
+  const d = new Date(Date.UTC(today.y, today.m - 1, today.d - days));
+  return { y: d.getUTCFullYear(), m: d.getUTCMonth() + 1, d: d.getUTCDate() };
+}
+
+function mismoDia(a: Ymd, b: Ymd): boolean {
+  return a.y === b.y && a.m === b.m && a.d === b.d;
+}
+
+export type LifecycleMember = {
+  id: string;
+  email: string | null;
+  firstName: string | null;
+  status: "ACTIVE" | "SUSPENDED" | "INACTIVE";
+  joinedAt: Date;
+  leftAt: Date | null;
+  leftReason: string | null;
+  lastLoginAt: Date | null;
+};
+
+/** Socios activos que entraron hace exactamente `days` días. */
+export function joinedDaysAgo<T extends LifecycleMember>(members: T[], today: Ymd, days: number): T[] {
+  const objetivo = daysBefore(today, days);
+  return members.filter((m) => m.status === "ACTIVE" && mismoDia(eventDay(m.joinedAt), objetivo));
+}
+
+/** Ex socios dados de baja hace exactamente `days` días. Nunca los dados de baja por sanción. */
+export function leftDaysAgo<T extends LifecycleMember>(members: T[], today: Ymd, days: number): T[] {
+  const objetivo = daysBefore(today, days);
+  return members.filter(
+    (m) => m.status === "INACTIVE" && m.leftAt !== null && m.leftReason !== "SANCION" && mismoDia(eventDay(m.leftAt), objetivo),
+  );
+}
+
+/**
+ * Socios activos con cuenta que no entran al portal hace `days` días o más, menos los que ya
+ * recibieron este aviso en los últimos `cooldownDays` (casillas en minúsculas).
+ * Quien nunca activó la cuenta no entra: para eso está la invitación.
+ */
+export function inactiveForDays<T extends LifecycleMember>(
+  members: T[],
+  now: Date,
+  days: number,
+  recentlyNotified: Set<string>,
+): T[] {
+  const limite = now.getTime() - days * 86400000;
+  return members.filter(
+    (m) =>
+      m.status === "ACTIVE" &&
+      m.lastLoginAt !== null &&
+      m.lastLoginAt.getTime() <= limite &&
+      !recentlyNotified.has((m.email ?? "").trim().toLowerCase()),
+  );
+}
+
+export const NO_LOGIN_COOLDOWN_DAYS = 90;
+export const LIFECYCLE_DAYS_RANGE = { min: 1, max: 730 } as const;

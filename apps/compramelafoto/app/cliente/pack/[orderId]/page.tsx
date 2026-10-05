@@ -170,6 +170,9 @@ export default function ClientePackPage({
 
   const redeemEntryHref = useMemo(() => {
     if (!data?.order.album) return null;
+    // Con el link del correo (token) se canjea en el recorrido guiado por pasos. Quien entra
+    // logueado por número de pedido sigue con la galería en modo canje.
+    if (!isNumericId) return `/canje/preventa/${encodeURIComponent(rawId)}`;
     return buildPreventaRedeemGalleryUrl({
       albumId: data.order.album.id,
       preventaPackOrderId: isNumericId ? data.order.id : undefined,
@@ -469,7 +472,7 @@ export default function ClientePackPage({
               href={redeemEntryHref}
               className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-black text-white text-sm font-medium hover:bg-gray-900"
             >
-              Elegir fotos en el álbum
+              Elegir las fotos de mi pack
             </Link>
           </>
         ) : null}

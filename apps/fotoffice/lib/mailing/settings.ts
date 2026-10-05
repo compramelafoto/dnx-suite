@@ -1,16 +1,16 @@
 import "server-only";
 import { prisma } from "@repo/db";
 
-export type MailingSettings = { bulkEnabled: boolean; weeklyBlogDigest: boolean };
+export type MailingSettings = { bulkEnabled: boolean; weeklyBlogDigest: boolean; requireApproval: boolean };
 
-const DEFAULTS: MailingSettings = { bulkEnabled: false, weeklyBlogDigest: false };
+const DEFAULTS: MailingSettings = { bulkEnabled: false, weeklyBlogDigest: false, requireApproval: false };
 
 /** Interruptores de la institución. Sin fila (o si la tabla todavía no existe): todo apagado. */
 export async function getMailingSettings(workspaceId: string): Promise<MailingSettings> {
   try {
     const row = await prisma.fotofficeMailingSettings.findUnique({
       where: { workspaceId },
-      select: { bulkEnabled: true, weeklyBlogDigest: true },
+      select: { bulkEnabled: true, weeklyBlogDigest: true, requireApproval: true },
     });
     return row ?? DEFAULTS;
   } catch (error) {
@@ -27,7 +27,7 @@ export async function updateMailingSettings(workspaceId: string, patch: Partial<
     where: { workspaceId },
     create: { workspaceId, ...DEFAULTS, ...patch },
     update: patch,
-    select: { bulkEnabled: true, weeklyBlogDigest: true },
+    select: { bulkEnabled: true, weeklyBlogDigest: true, requireApproval: true },
   });
   return row;
 }

@@ -8,7 +8,7 @@ import { DETAIL_MAX } from "@/lib/communications/constants";
 import { FOTOFFICE_BLOG_PLATFORM } from "@/lib/blog/scope";
 import { buildAudience, type AudienceMember, type Recipient } from "./audience";
 import { buildBlogDigestEmail, buildBlogPostEmail, blogDigestSubject, blogPostSubject, type BlogEmailPost, type EmailBody } from "./blog-email";
-import { blogUrl, loadMailingContext, postUrl, unsubscribeHeaders, type MailingContext } from "./context";
+import { blogUrl, ctaUrlFor, loadMailingContext, postUrl, unsubscribeHeaders, type MailingContext } from "./context";
 import { campaignStatusFor, isPermanentFailure } from "./delivery-plan";
 import {
   CAMPAIGN_KINDS,
@@ -25,13 +25,18 @@ import {
   birthdaysToday,
   buildOccasionEmail,
   efemeridesForToday,
+  inactiveForDays,
   isOccasionWindow,
+  joinedDaysAgo,
+  leftDaysAgo,
+  NO_LOGIN_COOLDOWN_DAYS,
   yearsSince,
   ymdKey,
   type Ymd,
 } from "./occasions";
 import { topicForOccasion, type OccasionConfig } from "./occasions-catalog";
 import { loadOccasion, loadOccasions } from "./occasions-store";
+import { buildCustomEmail } from "./custom-email";
 
 /**
  * Envíos a muchos socios: crear el envío, mandarlo de a tandas y retomarlo si se corta.
@@ -85,9 +90,10 @@ function toEmailPost(ctx: MailingContext, p: PostRow): BlogEmailPost | null {
 export async function loadAudience(
   workspaceId: string,
   topic: string,
-  opts: { specialties?: string[]; members?: AudienceMember[] } = {},
+  opts: { specialties?: string[]; categoryIds?: string[]; members?: AudienceMember[] } = {},
 ) {
   const especialidades = opts.specialties?.filter(Boolean) ?? [];
+  const categorias = opts.categoryIds?.filter(Boolean) ?? [];
   const [members, optOuts] = await Promise.all([
     opts.members ??
       prisma.member.findMany({
@@ -96,6 +102,7 @@ export async function loadAudience(
           status: "ACTIVE",
           email: { not: null },
           ...(especialidades.length > 0 ? { specialties: { hasSome: especialidades } } : {}),
+          ...(categorias.length > 0 ? { categoryId: { in: categorias } } : {}),
         },
         select: { id: true, email: true, firstName: true },
         orderBy: { createdAt: "asc" },
@@ -119,6 +126,7 @@ async function rendererFor(campaign: {
   blogPostIds: number[];
   topic: string;
   occasionKey: string | null;
+  messageId: string | null;
   id: string;
 }): Promise<Renderer> {
   const ctx = await loadMailingContext(campaign.workspaceId);
@@ -172,7 +180,8 @@ async function rendererFor(campaign: {
   if (
     campaign.kind === CAMPAIGN_KINDS.OCCASION ||
     campaign.kind === CAMPAIGN_KINDS.BIRTHDAY ||
-    campaign.kind === CAMPAIGN_KINDS.ANNIVERSARY
+    campaign.kind === CAMPAIGN_KINDS.ANNIVERSARY ||
+    campaign.kind === CAMPAIGN_KINDS.LIFECYCLE
   ) {
     const occasion = campaign.occasionKey ? await loadOccasion(campaign.workspaceId, campaign.occasionKey) : null;
     if (!occasion) throw new Error("La fecha de este saludo ya no existe.");
@@ -191,6 +200,7 @@ async function rendererFor(campaign: {
       const hoy = argentinaToday(creado);
       anios = new Map(socios.map((m) => [m.id, yearsSince(m.joinedAt, hoy)]));
     }
+    const cta = occasion.cta ? { label: occasion.cta.label, url: ctaUrlFor(ctx, occasion.cta.target) } : null;
     return (r) => {
       const links = unsubscribe(r.email, campaign.topic);
       return {
@@ -198,6 +208,30 @@ async function rendererFor(campaign: {
           brand: ctx.brand,
           occasion,
           vars: { nombre: r.firstName, institucion: ctx.brand.name, anios: r.memberId ? (anios.get(r.memberId) ?? null) : null },
+          signature: ctx.signature,
+          footer: { reason: ctx.reason, unsubscribeUrl: links.pageUrl },
+          cta,
+        }),
+        oneClickUrl: links.oneClickUrl,
+      };
+    };
+  }
+
+  if (campaign.kind === CAMPAIGN_KINDS.CUSTOM) {
+    const mensaje = campaign.messageId
+      ? await prisma.fotofficeMailingMessage.findFirst({
+          where: { id: campaign.messageId, workspaceId: campaign.workspaceId },
+          select: { subject: true, body: true, imageUrl: true, ctaLabel: true, ctaUrl: true },
+        })
+      : null;
+    if (!mensaje) throw new Error("La campaña ya no existe.");
+    return (r) => {
+      const links = unsubscribe(r.email, campaign.topic);
+      return {
+        body: buildCustomEmail({
+          brand: ctx.brand,
+          content: mensaje,
+          vars: { nombre: r.firstName, institucion: ctx.brand.name },
           signature: ctx.signature,
           footer: { reason: ctx.reason, unsubscribeUrl: links.pageUrl },
         }),
@@ -215,7 +249,7 @@ export type CreateCampaignResult =
   | { ok: true; campaignId: string; recipients: number; optedOut: number }
   | { ok: false; reason: "DUPLICATE" | "NO_RECIPIENTS" };
 
-async function createCampaign(input: {
+export async function createCampaign(input: {
   workspaceId: string;
   kind: string;
   topic: string;
@@ -224,14 +258,17 @@ async function createCampaign(input: {
   blogPostId?: number | null;
   blogPostIds?: number[];
   occasionKey?: string | null;
+  messageId?: string | null;
   createdByUserId?: number | null;
   /** Candidatos ya elegidos (cumpleaños de hoy). Sin esto: todos los socios activos. */
   members?: AudienceMember[];
   specialties?: string[];
+  categoryIds?: string[];
 }): Promise<CreateCampaignResult> {
   const { recipients, optedOut } = await loadAudience(input.workspaceId, input.topic, {
     members: input.members,
     specialties: input.specialties,
+    categoryIds: input.categoryIds,
   });
   if (recipients.length === 0) return { ok: false, reason: "NO_RECIPIENTS" };
   try {
@@ -246,6 +283,7 @@ async function createCampaign(input: {
           blogPostId: input.blogPostId ?? null,
           blogPostIds: input.blogPostIds ?? [],
           occasionKey: input.occasionKey ?? null,
+          messageId: input.messageId ?? null,
           recipientsTotal: recipients.length,
           optedOutCount: optedOut,
           createdByUserId: input.createdByUserId ?? null,
@@ -305,6 +343,7 @@ export async function processCampaign(campaignId: string, opts: { deadline?: num
       blogPostId: true,
       blogPostIds: true,
       occasionKey: true,
+      messageId: true,
       status: true,
     },
   });
@@ -566,7 +605,59 @@ const KIND_FOR: Record<OccasionConfig["kind"], string> = {
   EFEMERIDE: CAMPAIGN_KINDS.OCCASION,
   BIRTHDAY: CAMPAIGN_KINDS.BIRTHDAY,
   ANNIVERSARY: CAMPAIGN_KINDS.ANNIVERSARY,
+  LIFECYCLE: CAMPAIGN_KINDS.LIFECYCLE,
 };
+
+/** Socios (activos y ex socios) con lo que necesita el ciclo: ingreso, baja y último ingreso al portal. */
+async function lifecycleMembers(workspaceId: string) {
+  const filas = await prisma.member.findMany({
+    where: { workspaceId, email: { not: null } },
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      status: true,
+      joinedAt: true,
+      leftAt: true,
+      leftReason: true,
+      user: { select: { lastLoginAt: true } },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+  return filas.map((f) => ({
+    id: f.id,
+    email: f.email,
+    firstName: f.firstName,
+    status: f.status,
+    joinedAt: f.joinedAt,
+    leftAt: f.leftAt,
+    leftReason: f.leftReason,
+    lastLoginAt: f.user?.lastLoginAt ?? null,
+  }));
+}
+
+/** Casillas que recibieron «Hace tiempo que no entrás» en los últimos 90 días. */
+async function recentlyNotifiedNoLogin(workspaceId: string, now: Date): Promise<Set<string>> {
+  const filas = await prisma.fotofficeEmailDelivery.findMany({
+    where: {
+      status: "SENT",
+      sentAt: { gte: new Date(now.getTime() - NO_LOGIN_COOLDOWN_DAYS * 86400000) },
+      campaign: { workspaceId, occasionKey: "sin-portal" },
+    },
+    select: { email: true },
+  });
+  return new Set(filas.map((f) => f.email));
+}
+
+async function lifecycleAudience(workspaceId: string, o: OccasionConfig, today: Ymd, now: Date): Promise<AudienceMember[]> {
+  const dias = o.offsetDays ?? 0;
+  if (dias < 1) return [];
+  const socios = await lifecycleMembers(workspaceId);
+  if (o.trigger === "JOINED") return joinedDaysAgo(socios, today, dias);
+  if (o.trigger === "LEFT") return leftDaysAgo(socios, today, dias);
+  if (o.trigger === "NO_LOGIN") return inactiveForDays(socios, now, dias, await recentlyNotifiedNoLogin(workspaceId, now));
+  return [];
+}
 
 async function datedMembers(workspaceId: string, field: "birthDate" | "joinedAt") {
   const filas = await prisma.member.findMany({
@@ -589,7 +680,7 @@ function historySubject(o: OccasionConfig): string {
   return o.title;
 }
 
-async function launchOccasion(workspaceId: string, o: OccasionConfig, today: Ymd, deadline: number) {
+async function launchOccasion(workspaceId: string, o: OccasionConfig, today: Ymd, now: Date, deadline: number) {
   let members: AudienceMember[] | undefined;
   let dedupeKey: string;
   if (o.kind === "BIRTHDAY") {
@@ -598,6 +689,9 @@ async function launchOccasion(workspaceId: string, o: OccasionConfig, today: Ymd
   } else if (o.kind === "ANNIVERSARY") {
     members = anniversariesToday(await datedMembers(workspaceId, "joinedAt"), today, o.milestonesOnly);
     dedupeKey = `anniversary:${workspaceId}:${ymdKey(today)}`;
+  } else if (o.kind === "LIFECYCLE") {
+    members = await lifecycleAudience(workspaceId, o, today, now);
+    dedupeKey = `lifecycle:${workspaceId}:${o.key}:${ymdKey(today)}`;
   } else {
     dedupeKey = `occasion:${workspaceId}:${o.key}:${today.y}`;
   }
@@ -632,14 +726,14 @@ export async function sendOccasionsForToday(workspaceId: string, now: Date, dead
   const today = argentinaToday(now);
   const todas = await loadOccasions(workspaceId);
   const deHoy = [
-    ...todas.filter((o) => (o.kind === "BIRTHDAY" || o.kind === "ANNIVERSARY") && o.enabled),
+    ...todas.filter((o) => (o.kind === "BIRTHDAY" || o.kind === "ANNIVERSARY" || o.kind === "LIFECYCLE") && o.enabled),
     ...efemeridesForToday(todas, today),
   ];
   const resultado: Record<string, string> = {};
   for (const o of deHoy) {
     if (Date.now() >= deadline) break;
     try {
-      resultado[o.key] = await launchOccasion(workspaceId, o, today, deadline);
+      resultado[o.key] = await launchOccasion(workspaceId, o, today, now, deadline);
     } catch (error) {
       resultado[o.key] = "ERROR";
       console.error("[fotoffice][correo] falló un saludo", {
@@ -668,6 +762,7 @@ export async function sendOccasionTest(input: {
     vars: { nombre: input.firstName, institucion: ctx.brand.name, anios: input.occasion.kind === "ANNIVERSARY" ? 10 : null },
     signature: ctx.signature,
     footer: { reason: ctx.reason, unsubscribeUrl: ctx.unsubscribe(input.to, topicForOccasion(input.occasion.kind)).pageUrl },
+    cta: input.occasion.cta ? { label: input.occasion.cta.label, url: ctaUrlFor(ctx, input.occasion.cta.target) } : null,
   });
   const salida = await sendAndLogEmail({
     to: input.to,

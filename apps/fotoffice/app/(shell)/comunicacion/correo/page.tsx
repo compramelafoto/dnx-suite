@@ -6,6 +6,8 @@ import { getMailingSettings } from "@/lib/mailing/settings";
 import { loadAudience } from "@/lib/mailing/campaigns";
 import { CAMPAIGN_KIND_LABEL, CAMPAIGN_STATUS_LABEL } from "@/lib/mailing/constants";
 import { setMailingSwitchAction } from "@/app/actions/mailing";
+import { metricsByCampaign } from "@/lib/mailing/messages";
+import { percent } from "@/lib/mailing/webhook-events";
 
 export const dynamic = "force-dynamic";
 
@@ -40,12 +42,13 @@ export default async function CorreoPage({ searchParams }: { searchParams: Promi
     if (!esTablaAusente(error)) throw error;
     faltaMigracion = true;
   }
+  const metricas = await metricsByCampaign(envios.map((e) => e.id)).catch(() => new Map());
 
   return (
     <div className="space-y-8">
       <PageHeader
         title="Correo a socios"
-        description="Los correos que la institución les manda a sus socios: los artículos del blog y el resumen semanal. Pronto, también las fechas especiales y los cumpleaños."
+        description="Los correos que la institución les manda a sus socios: artículos del blog, resumen semanal, fechas y saludos, y campañas propias."
       />
 
       {params.error ? (
@@ -98,6 +101,12 @@ export default async function CorreoPage({ searchParams }: { searchParams: Promi
           titulo="Resumen semanal del blog"
           detalle="Los lunes a las 9 sale un correo con los artículos de la semana que no se mandaron solos. Si no hubo artículos nuevos, no sale nada."
         />
+        <Interruptor
+          campo="requireApproval"
+          encendido={settings.requireApproval}
+          titulo="Las campañas necesitan aprobación"
+          detalle="Una campaña de Comunicación → Campañas no sale hasta que la apruebe otra persona que gestione Comunicación (no quien la escribió)."
+        />
         <p className="text-xs text-[var(--fo-muted)]">
           Para mandar un artículo, abrilo en Sitio web → Blog: cuando está publicado aparece la tarjeta «Enviar a socios
           por email».
@@ -116,6 +125,8 @@ export default async function CorreoPage({ searchParams }: { searchParams: Promi
                   <th className="px-4 py-2 font-medium">Fecha</th>
                   <th className="px-4 py-2 font-medium">Correo</th>
                   <th className="px-4 py-2 text-right font-medium">Enviados</th>
+                  <th className="px-4 py-2 text-right font-medium">Abiertos</th>
+                  <th className="px-4 py-2 text-right font-medium">Clics</th>
                   <th className="px-4 py-2 text-right font-medium">Fallidos</th>
                   <th className="px-4 py-2 text-right font-medium">Bajas</th>
                   <th className="px-4 py-2 font-medium">Estado</th>
@@ -132,6 +143,8 @@ export default async function CorreoPage({ searchParams }: { searchParams: Promi
                     <td className="px-4 py-2 text-right tabular-nums">
                       {e.sentCount} / {e.recipientsTotal}
                     </td>
+                    <td className="px-4 py-2 text-right tabular-nums">{percent(metricas.get(e.id)?.opened ?? 0, e.sentCount)}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{percent(metricas.get(e.id)?.clicked ?? 0, e.sentCount)}</td>
                     <td className="px-4 py-2 text-right tabular-nums">{e.failedCount}</td>
                     <td className="px-4 py-2 text-right tabular-nums">{e.optedOutCount}</td>
                     <td className="px-4 py-2">{CAMPAIGN_STATUS_LABEL[e.status] ?? e.status}</td>

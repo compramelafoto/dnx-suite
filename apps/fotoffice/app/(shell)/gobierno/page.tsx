@@ -4,7 +4,8 @@ import { PageHeader } from "@/components/page-header";
 import { Flash } from "@/components/governance/member-select";
 import { ProgressBar, ProjectStatusBadge, UrgencyDot } from "@/components/governance/badges";
 import { requireGovernanceViewer } from "@/lib/governance/access";
-import { listProjects } from "@/lib/governance/repository";
+import { listProjects, loadVoting } from "@/lib/governance/repository";
+import { isVotingOpen, tallyLabel } from "@/lib/governance/votes";
 import { ensureDefaultProjectTypes } from "@/lib/governance/seed";
 import { isClosed } from "@/lib/governance/lifecycle";
 import { progressOf, sortByPriority, urgencyFor } from "@/lib/governance/urgency";
@@ -27,7 +28,9 @@ export default async function ProyectosPage({
   const params = await searchParams;
   await ensureDefaultProjectTypes(workspace.id);
   const ahora = new Date();
-  const todos = sortByPriority(await listProjects(workspace.id), ahora);
+  const lista = await listProjects(workspace.id);
+  const votacion = await loadVoting(workspace.id, lista.map((p) => p.id));
+  const todos = sortByPriority(lista, ahora, (p) => votacion.tallyOf(p.id).percentFor);
   const ver = FILTROS.some((f) => f.key === params.ver) ? params.ver! : "activos";
   const proyectos = todos.filter((p) =>
     ver === "todos" ? true : ver === "cerrados" ? isClosed(p.status) : !isClosed(p.status),
@@ -38,7 +41,7 @@ export default async function ProyectosPage({
     <div className="space-y-8">
       <PageHeader
         title="Proyectos"
-        description="Cada proyecto de la comisión con sus etapas, tareas, archivos e historial. Ordenados por urgencia: primero lo que vence antes."
+        description="Cada proyecto de la comisión con sus etapas, tareas, archivos e historial. Ordenados por prioridad: primero lo que vence antes y, dentro de cada color, lo que tiene más apoyo."
         actions={
           canManage ? (
             <Link href="/gobierno/nuevo" className="fo-btn fo-btn-primary text-sm">
@@ -52,7 +55,8 @@ export default async function ProyectosPage({
 
       {propuestas > 0 ? (
         <p className="fo-alert-warning p-4 text-sm">
-          {propuestas === 1 ? "Hay una propuesta de socio esperando respuesta." : `Hay ${propuestas} propuestas de socios esperando respuesta.`}
+          {propuestas === 1 ? "Hay una propuesta de socio esperando respuesta." : `Hay ${propuestas} propuestas de socios esperando respuesta.`}{" "}
+          Abrila para aceptarla (pasa al temario de la próxima reunión) o archivarla con el motivo.
         </p>
       ) : null}
 
@@ -98,6 +102,7 @@ export default async function ProyectosPage({
                 <th className="px-4 py-3 font-medium">Estado</th>
                 <th className="px-4 py-3 font-medium">Fecha límite</th>
                 <th className="px-4 py-3 font-medium">Responsable</th>
+                <th className="px-4 py-3 font-medium">Apoyo</th>
                 <th className="px-4 py-3 font-medium">Avance</th>
               </tr>
             </thead>
@@ -125,6 +130,9 @@ export default async function ProyectosPage({
                       </div>
                     </td>
                     <td className="px-4 py-3 text-[var(--fo-text-secondary)]">{p.responsibleName ?? "—"}</td>
+                    <td className="px-4 py-3 text-xs text-[var(--fo-muted)]">
+                      {isVotingOpen(p.status) ? tallyLabel(votacion.tallyOf(p.id)) : "—"}
+                    </td>
                     <td className="px-4 py-3">
                       {avance.total > 0 ? <ProgressBar {...avance} /> : <span className="text-xs text-[var(--fo-muted)]">Sin tareas</span>}
                     </td>

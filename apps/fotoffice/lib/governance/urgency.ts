@@ -24,11 +24,13 @@ const PESO: Record<Urgency, number> = { red: 0, yellow: 1, green: 2, gray: 3 };
 
 /**
  * Lista de prioridades: primero lo abierto, después por urgencia y, dentro del mismo color, por la
- * fecha más cercana. La votación (etapa 2) suma el porcentaje a favor como segundo criterio.
+ * fecha más cercana. Con votación, el porcentaje a favor desempata dentro de cada color.
  */
 export function sortByPriority<T extends { status: ProjectStatus; deadlineAt: Date | null; createdAt: Date }>(
   projects: readonly T[],
   now: Date,
+  /** Porcentaje a favor de cada proyecto: dentro del mismo color, más apoyo va primero. */
+  supportOf?: (p: T) => number,
 ): T[] {
   return projects.slice().sort((a, b) => {
     const cerradoA = isClosed(a.status) ? 1 : 0;
@@ -37,6 +39,11 @@ export function sortByPriority<T extends { status: ProjectStatus; deadlineAt: Da
     const ua = PESO[urgencyFor(a.deadlineAt, now)];
     const ub = PESO[urgencyFor(b.deadlineAt, now)];
     if (ua !== ub) return ua - ub;
+    if (supportOf) {
+      const sa = supportOf(a);
+      const sb = supportOf(b);
+      if (sa !== sb) return sb - sa;
+    }
     if (a.deadlineAt && b.deadlineAt && a.deadlineAt.getTime() !== b.deadlineAt.getTime()) {
       return a.deadlineAt.getTime() - b.deadlineAt.getTime();
     }

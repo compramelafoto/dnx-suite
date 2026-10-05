@@ -5,6 +5,14 @@ import { fileURLToPath } from "node:url";
 const appDir = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
+  // Los tipos NO se chequean en el build de Vercel: el 05/10/2026 ese paso se quedó sin memoria y
+  // mató el deploy de producción (PR #368), aunque el código compilaba. Se chequean en GitHub
+  // Actions (`.github/workflows/chequeos.yml`, «Chequear tipos de FOTOFFICE»), que frena el PR
+  // antes del merge. Mismo criterio que CompraMeLaFoto y Clickatón.
+  // Si alguna vez se saca ese paso del workflow, hay que volver a prender esto.
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   // @repo/db NO se transpila: se externaliza para conservar el Query Engine de Prisma.
   // Mismo criterio que apps/clickaton. Transpilarlo funcionaba con Turbopack, pero con
   // webpack el motor nativo no llega al bundle y toda consulta falla en runtime.

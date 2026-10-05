@@ -2,11 +2,12 @@
  * Crea combos pagados por fuera para un álbum y genera el link único de cada familia.
  *
  * Uso:
- *   tsx scripts/canje-externo/crear-combos.ts --album 1045 --input familias.json --out links.json [--dry-run]
+ *   tsx scripts/canje-externo/crear-combos.ts --album 1045 --input familias.json --out links.json \
+ *     [--unidades 3] [--tamano "15x21 cm"] [--sin-digital] [--dry-run]
  *
  * `familias.json`: [{ "student": "Josefina Altamirano", "parent": "María Jimena", "phone": "3415320475" }]
  *
- * El combo es fijo para este primer uso: 3 impresas 15x21 con su digital. Cada familia
+ * Por defecto el combo es de 3 impresas 15x21 con su digital. Cada familia
  * queda como un Order PREVENTA_PACK pagado en $0 (ver lib/canje-externo/external-voucher.ts).
  * El token sólo existe en la salida de este script: en la base queda su hash. Guardá el
  * archivo de salida fuera del repo.
@@ -20,6 +21,11 @@ import {
   EXTERNAL_VOUCHER_KIND,
   type ExternalVoucherRefs,
 } from "@/lib/canje-externo/external-voucher";
+import {
+  buildCanjeWhatsAppMessage,
+  buildWhatsAppUrl,
+  telefonoWhatsAppArgentina,
+} from "@/lib/canje-externo/canje-whatsapp";
 
 type Familia = { student: string; parent: string; phone: string };
 
@@ -28,11 +34,10 @@ function arg(name: string): string | null {
   return i >= 0 ? process.argv[i + 1] ?? null : null;
 }
 
-/** Celular de Argentina para wa.me: 54 9 + área + número, sin el 15 ni el 0. */
 function telefonoWhatsApp(phone: string): string {
-  const digits = phone.replace(/\D/g, "").replace(/^0/, "");
-  if (digits.length !== 10) throw new Error(`Teléfono con ${digits.length} dígitos: ${phone}`);
-  return `549${digits}`;
+  const tel = telefonoWhatsAppArgentina(phone);
+  if (!tel) throw new Error(`Teléfono inválido (tiene que tener 10 dígitos con el código de área): ${phone}`);
+  return tel;
 }
 
 async function main() {
@@ -40,6 +45,14 @@ async function main() {
   const input = arg("input");
   const out = arg("out");
   const dryRun = process.argv.includes("--dry-run");
+  const unidades = Number(arg("unidades") ?? 3);
+  const tamano = (arg("tamano") ?? "15x21 cm").trim();
+  const conDigital = !process.argv.includes("--sin-digital");
+  if (!Number.isInteger(unidades) || unidades < 1) throw new Error("--unidades tiene que ser un entero ≥ 1");
+  const tamanoCorto = tamano.replace(/\s*cm$/i, "");
+  const descripcion = `${unidades} ${unidades === 1 ? "foto impresa" : "fotos impresas"} ${tamanoCorto}${
+    conDigital ? " con su digital" : ""
+  }`;
   const baseUrl = (process.env.CANJE_BASE_URL || "https://www.compramelafoto.com").replace(/\/+$/, "");
   if (!Number.isInteger(albumId) || !input || !out) {
     throw new Error("Faltan --album, --input o --out");
@@ -65,15 +78,14 @@ async function main() {
 
   const salida = [];
   for (const f of familias) {
-    const firstName = f.student.trim().split(/\s+/)[0];
     const refs: ExternalVoucherRefs = {
       kind: EXTERNAL_VOUCHER_KIND,
-      printUnits: 3,
-      size: "15x21 cm",
-      includesDigital: true,
+      printUnits: unidades,
+      size: tamano,
+      includesDigital: conDigital,
       studentName: f.student.trim(),
       parentName: f.parent.trim(),
-      label: "3 fotos impresas 15x21 con su digital",
+      label: descripcion,
     };
     const order = await prisma.order.create({
       data: {
@@ -93,14 +105,17 @@ async function main() {
     });
     const token = await createPackAccessTokenForOrder(order.id, { ttlDays: 60 });
     if (!token) throw new Error(`No se pudo crear el link del combo ${order.id}`);
-    // URL canónica de la galería: `/a/[id]` redirige acá y en la redirección se pierde `?canje`.
-    const link = `${baseUrl}/album/${album.publicSlug}?canje=${token.token}`;
-    const mensaje =
-      `¡Hola ${f.parent.trim()}! Te paso el link para elegir las fotos de ${firstName} ` +
-      `de "${album.title}".\n\n` +
-      `El combo de 3 fotos impresas 15x21 con su digital ya está pago. Entrá, elegí las fotos ` +
-      `y pedí 3 como impresa 15x21: esas salen sin costo. Si querés más fotos, las sumás y ` +
-      `pagás sólo las extra.\n\n${link}`;
+    // Página propia del canje: guía a la familia paso a paso y respeta las reglas de acceso
+    // del álbum (selfie en álbumes de fotos ocultas, links de álbumes no listados).
+    const link = `${baseUrl}/canje/${token.token}`;
+    const mensaje = buildCanjeWhatsAppMessage({
+      parentName: f.parent,
+      studentName: f.student,
+      albumTitle: album.title,
+      comboLabel: descripcion,
+      printUnits: unidades,
+      link,
+    });
     salida.push({
       comboOrderId: order.id,
       student: f.student.trim(),
@@ -108,7 +123,7 @@ async function main() {
       phone: f.phone,
       link,
       expiresAt: token.expiresAt,
-      whatsapp: `https://wa.me/${telefonoWhatsApp(f.phone)}?text=${encodeURIComponent(mensaje)}`,
+      whatsapp: buildWhatsAppUrl(f.phone, mensaje),
       mensaje,
     });
     console.log(` ✓ combo ${order.id} · ${f.student}`);

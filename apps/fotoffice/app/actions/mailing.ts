@@ -40,6 +40,8 @@ export async function setMailingSwitchAction(formData: FormData): Promise<void> 
   if (campo === "bulkEnabled") {
     // Apagar el general apaga también el resumen: sin envíos a socios no hay resumen.
     await updateMailingSettings(workspace.id, valor ? { bulkEnabled: true } : { bulkEnabled: false, weeklyBlogDigest: false });
+  } else if (campo === "requireApproval") {
+    await updateMailingSettings(workspace.id, { requireApproval: valor });
   } else if (campo === "weeklyBlogDigest") {
     await updateMailingSettings(workspace.id, valor ? { bulkEnabled: true, weeklyBlogDigest: true } : { weeklyBlogDigest: false });
   } else {

@@ -66,4 +66,5 @@ export type ProjectEventType =
   | "TASK_REMOVED"
   | "FILE_ADDED"
   | "FILE_VISIBILITY"
-  | "NOTE";
+  | "NOTE"
+  | "VOTED";

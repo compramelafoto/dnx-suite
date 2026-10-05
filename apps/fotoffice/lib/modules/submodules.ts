@@ -254,6 +254,14 @@ const GOBIERNO: SubmoduleItem[] = [
     activeMatch: "under",
   },
   {
+    href: "/gobierno/reuniones",
+    label: "Reuniones",
+    icon: "CalendarClock",
+    description: "Reuniones de comisión: el temario se arma solo, lo resuelto cambia cada proyecto y queda el acta.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
     href: "/gobierno/tipos",
     label: "Tipos de proyecto",
     icon: "LayoutTemplate",
@@ -447,6 +455,14 @@ const COMUNICACION: SubmoduleItem[] = [
     icon: "Star",
     description: "El {persona} destacado de cada viernes, con su placa y su texto para redes.",
     requiresManage: false,
+    activeMatch: "under",
+  },
+  {
+    href: "/comunicacion/campanas",
+    label: "Campañas",
+    icon: "Send",
+    description: "Correos propios a todos los {personas} o a una parte: redactar, programar, aprobar y ver aperturas.",
+    requiresManage: true,
     activeMatch: "under",
   },
   {

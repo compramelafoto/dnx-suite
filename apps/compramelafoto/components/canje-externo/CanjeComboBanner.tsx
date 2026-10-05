@@ -13,6 +13,7 @@ type Estado =
   | { kind: "none" }
   | {
       kind: "ok";
+      token: string;
       printUnits: number;
       size: string;
       includesDigital: boolean;
@@ -58,6 +59,7 @@ export default function CanjeComboBanner({ albumId }: { albumId: number }) {
         }
         setEstado({
           kind: "ok",
+          token,
           printUnits: Number(data.printUnits) || 0,
           size: String(data.size || ""),
           includesDigital: data.includesDigital === true,
@@ -91,29 +93,20 @@ export default function CanjeComboBanner({ albumId }: { albumId: number }) {
     );
   }
 
-  const tamano = estado.size.replace(/\s*cm$/i, "");
   return (
-    <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
-      <p className="m-0 font-semibold">
-        {estado.studentName
-          ? `El combo de ${estado.studentName} ya está pago`
-          : "Tu combo ya está pago"}
-      </p>
-      <p className="m-0 mt-1">
-        Incluye {estado.printUnits} fotos impresas {tamano}
-        {estado.includesDigital ? " con su versión digital" : ""}.
-      </p>
-      <ol className="m-0 mt-2 list-decimal pl-5 space-y-0.5">
-        <li>Seleccioná las fotos que quieras.</li>
-        <li>
-          En el paso siguiente pedí {estado.printUnits} como <strong>impresa {tamano}</strong>: esas
-          salen sin costo.
-        </li>
-        <li>Si sumás más fotos, sólo pagás las que pasan del combo.</li>
-      </ol>
-      <p className="m-0 mt-2 text-emerald-900">
-        No hace falta comprar ningún pack de la galería: tu combo ya está pago.
-      </p>
+    <div className="mb-4 flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p className="m-0 font-semibold">
+          {estado.studentName ? `El combo de ${estado.studentName} ya está pago` : "Tu combo ya está pago"}
+        </p>
+        <p className="m-0 mt-0.5">Te guiamos para elegir las fotos del combo y, si querés, sumar más.</p>
+      </div>
+      <a
+        href={`/canje/${encodeURIComponent(estado.token)}`}
+        className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg bg-[#2f7d5b] px-4 font-semibold text-white"
+      >
+        Elegir las fotos de mi combo
+      </a>
     </div>
   );
 }
