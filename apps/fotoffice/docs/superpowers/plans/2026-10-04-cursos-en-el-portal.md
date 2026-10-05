@@ -2820,13 +2820,14 @@ Nada de esta tarea se hace sin que Daniel lo apruebe en el momento.
   grabado; el panel borraba el precio) y esta lista de verificación.
 - [ ] **Step 3: Migración** en las cinco bases, antes del despliegue, con
   `packages/db/scripts/migraciones-cinco-bases.mts --bases <json fuera del repo>` (primero sin
-  `--aplicar`, después `--aplicar --solo 20261004120000_cursos_aula_alumno`).
+  `--aplicar`, después `--aplicar --solo 20261007120000_cursos_aula_alumno`). Confirmar antes cuántas bases comparten el esquema: el script dice cinco y una auditoría anterior dijo tres.
 - [ ] **Step 4: Variables y servicios** (la lista de la etapa 2, Task 12, Steps 4-5b): las
   cuatro `STREAM_*`, el seguimiento de clics de Resend **apagado** (el correo de bienvenida lleva
   un enlace para crear contraseña), `APP_URL` = `NEXT_PUBLIC_APP_URL`, y el dominio canónico
   dentro de `allowedOrigins`.
 - [ ] **Step 5: Prueba de punta a punta**, con un curso grabado de prueba (precio bajo,
   "Gratis para socios" encendido, una clase de muestra y una normal en "Lista"):
+  0. Confirmar que el módulo `courses-sales` está encendido en la institución de prueba (y en SFPR antes de anunciar).
   1. Desde el panel, cargar el precio y guardar dos veces: el precio sigue ahí.
   2. **Un no socio** (correo sin cuenta) compra con pago real → le llega "Bienvenido" con
      "Crear mi contraseña" → la crea → entra a Mis cursos → ve el curso, la clase reproduce con
