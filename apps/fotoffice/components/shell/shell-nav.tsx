@@ -30,6 +30,7 @@ import {
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
+import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
 import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
@@ -189,6 +190,10 @@ export function ShellNav({
   // al día, y separarlo en su propia sección lo dejaría suelto al lado de Cuotas.
   const sorteos: Item[] = itemsDeModulo(RAFFLES_MODULE_KEY, access, vocabulary);
 
+  // Comisión: los proyectos de la comisión directiva y sus tareas. Grupo propio: lo usa la
+  // comisión, que no necesariamente gestiona el padrón.
+  const comision: Item[] = itemsDeModulo(GOVERNANCE_MODULE_KEY, access, vocabulary);
+
   // Comunicación: las placas para redes. Grupo propio porque lo usa un área —quien lleva las
   // redes de la institución—, que puede no tener nada que ver con el padrón.
   const comunicacion: Item[] = itemsDeModulo(COMMUNICATIONS_MODULE_KEY, access, vocabulary);
@@ -331,6 +336,7 @@ export function ShellNav({
       />
       <Section title={vocabulary.Plural} items={socios} path={path} onNavigate={closeDrawer} />
       <Section title="Sorteos" items={sorteos} path={path} onNavigate={closeDrawer} />
+      <Section title="Comisión" items={comision} path={path} onNavigate={closeDrawer} />
       <Section title="Comunicación" items={comunicacion} path={path} onNavigate={closeDrawer} />
       <Section title="Coberturas" items={coberturas} path={path} onNavigate={closeDrawer} />
       <Section title="Cursos" items={cursosItems} path={path} onNavigate={closeDrawer} />

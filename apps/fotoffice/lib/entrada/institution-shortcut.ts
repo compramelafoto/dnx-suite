@@ -40,6 +40,7 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "dashboard",
   "elegir-perfil",
   "evaluaciones",
+  "gobierno",
   "invitacion",
   "login",
   "members",
