@@ -32,6 +32,8 @@ export function sanitizeMercadoPagoPaymentResponse(
     transaction_amount:
       typeof transactionAmount === "number" ? transactionAmount : null,
     live_mode: body.live_mode === true,
+    // Cuándo se aprobó (la fecha de la venta en FOTOFFICE). No es un dato personal.
+    date_approved: typeof body.date_approved === "string" ? body.date_approved : null,
     // omit payer, card, token, phone, email
   };
 }

@@ -11,6 +11,7 @@ import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { SALES_MODULE_KEY } from "@/lib/sales/constants";
+import { STORE_MODULE_KEY } from "@/lib/store/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 
 /**
@@ -218,6 +219,20 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
       "Plantillas con tus colores y tu logo",
     ],
   },
+  {
+    key: STORE_MODULE_KEY,
+    cuadro: "14",
+    nombre: "Tienda online",
+    resuelve:
+      "Los mismos productos del mostrador, a la venta en tu sitio. El comprador elige, paga con Mercado Pago y pasa a retirar por el local; el stock es uno solo, así que lo que se vende online no se vende dos veces en el mostrador. Vos decidís cuándo abrir la tienda y cuándo cerrarla.",
+    pantallas: [
+      "Vidriera en tu sitio con fotos y talles",
+      "Cobro con Mercado Pago",
+      "Retiro en el local",
+      "Pedidos online",
+      "Abrir y cerrar la tienda",
+    ],
+  },
 ];
 
 /** Lo que está siempre, se encienda lo que se encienda. No son módulos con interruptor. */
@@ -286,32 +301,32 @@ export const EN_CONSTRUCCION: {
   icono: string;
 }[] = [
   {
-    cuadro: "14",
+    cuadro: "15",
     icono: "presupuestos",
     nombre: "Presupuestos",
     resuelve:
       "Armar el presupuesto con tus precios, mandárselo al cliente y seguir si lo aceptó. La consulta ya te llega con todos los datos del evento —eso es Captación—; falta ponerle precio y mandarlo desde acá.",
   },
   {
-    cuadro: "15",
+    cuadro: "16",
     icono: "eventos",
     nombre: "Eventos",
     resuelve: "Salidas, charlas y encuentros con inscripción y lista de asistencia.",
   },
   {
-    cuadro: "16",
+    cuadro: "17",
     icono: "gobierno",
     nombre: "Gobierno institucional",
     resuelve: "Actas, votaciones y resoluciones de la comisión directiva.",
   },
   {
-    cuadro: "17",
+    cuadro: "18",
     icono: "muestras",
     nombre: "Muestras",
     resuelve: "Las muestras de la institución, con sus obras y sus autores.",
   },
   {
-    cuadro: "18",
+    cuadro: "19",
     icono: "transparencia",
     nombre: "Transparencia",
     resuelve: "Publicar el balance y la rendición para que el socio vea en qué se usó su cuota.",

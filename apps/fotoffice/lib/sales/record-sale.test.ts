@@ -43,6 +43,8 @@ function tablaAusente(nombre: string) {
  */
 function saleTx(over: Record<string, unknown> = {}) {
   return {
+    // `lockStockRows` (el bloqueo de filas de stock) pasa por acá: no devuelve nada útil.
+    $queryRaw: vi.fn(async () => []),
     sale: {
       findFirst: vi.fn(async () => null),
       createMany: vi.fn(async () => ({ count: 1 })),
@@ -57,6 +59,7 @@ function saleTx(over: Record<string, unknown> = {}) {
     saleItem: { createMany: vi.fn(async () => ({ count: 1 })) },
     product: { findMany: vi.fn(async () => []), update: vi.fn(async () => ({})) },
     stockMovement: { create: vi.fn(async () => ({})) },
+    productVariant: { updateMany: vi.fn(async () => ({ count: 1 })) },
     client: { count: tablaAusente("Client") },
     cashAccount: { findMany: tablaAusente("cash_account") },
     cashCategory: { findMany: tablaAusente("cash_category") },
@@ -90,6 +93,7 @@ const inputBase: RecordSaleInput = {
       unitPriceMinor: 1_000_00,
       unitCostMinor: 500_00,
       priceWasOverridden: false,
+      variantId: null,
     },
   ],
 };
@@ -322,5 +326,115 @@ describe("recordSale — stock", () => {
       expect.objectContaining({ select: { id: true, tracksStock: true } }),
     );
     expect(tx.product.update).toHaveBeenCalledWith({ where: { id: "p1" }, data: { stockQty: { decrement: 500 } } });
+  });
+});
+
+describe("recordSale — talles (variantes)", () => {
+  it("un renglón con talle descuenta de la variante y del producto, y lo deja escrito en el renglón y el movimiento", async () => {
+    moduleState({ cash: false, clients: false });
+    const tx = saleTx({
+      product: {
+        findMany: vi.fn(async () => [{ id: "p1", tracksStock: true }]),
+        update: vi.fn(async () => ({})),
+      },
+    });
+    const input: RecordSaleInput = {
+      ...inputBase,
+      lines: [{ ...inputBase.lines[0], description: "Remera — M", variantId: "v1" }],
+    };
+
+    await recordSale(tx as never, input);
+
+    expect(tx.saleItem.createMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ productId: "p1", variantId: "v1", description: "Remera — M", qty: 2 })],
+    });
+    expect(tx.stockMovement.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ productId: "p1", variantId: "v1", qty: -2, reason: "VENTA", sourceRef: "sale1" }),
+    });
+    expect(tx.productVariant.updateMany).toHaveBeenCalledWith({
+      where: { id: "v1", productId: "p1", workspaceId: "ws1" },
+      data: { stockQty: { decrement: 2 } },
+    });
+    expect(tx.product.update).toHaveBeenCalledWith({ where: { id: "p1" }, data: { stockQty: { decrement: 2 } } });
+  });
+
+  it("un renglón sin talle no toca ninguna variante y guarda variantId nulo", async () => {
+    moduleState({ cash: false, clients: false });
+    const tx = saleTx({
+      product: {
+        findMany: vi.fn(async () => [{ id: "p1", tracksStock: true }]),
+        update: vi.fn(async () => ({})),
+      },
+    });
+
+    await recordSale(tx as never, inputBase);
+
+    expect(tx.productVariant.updateMany).not.toHaveBeenCalled();
+    expect(tx.saleItem.createMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ variantId: null })],
+    });
+    expect(tx.stockMovement.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ variantId: null, qty: -2 }),
+    });
+  });
+
+  it("vender un talle sin stock no se bloquea: la variante puede quedar negativa", async () => {
+    moduleState({ cash: false, clients: false });
+    const tx = saleTx({
+      product: {
+        findMany: vi.fn(async () => [{ id: "p1", tracksStock: true }]),
+        update: vi.fn(async () => ({})),
+      },
+    });
+    const input: RecordSaleInput = {
+      ...inputBase,
+      lines: [{ ...inputBase.lines[0], qty: 99, variantId: "v1" }],
+    };
+
+    await recordSale(tx as never, input);
+
+    expect(tx.productVariant.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { stockQty: { decrement: 99 } } }),
+    );
+  });
+});
+
+describe("recordSale — orden de bloqueo (mismo que la tienda)", () => {
+  it("bloquea productos y talles ANTES de la primera escritura de stock", async () => {
+    moduleState({ cash: false, clients: false });
+    const tx = saleTx({
+      product: {
+        findMany: vi.fn(async () => [{ id: "p1", tracksStock: true }]),
+        update: vi.fn(async () => ({})),
+      },
+    });
+    const input: RecordSaleInput = {
+      ...inputBase,
+      lines: [{ ...inputBase.lines[0], variantId: "v1" }],
+    };
+
+    await recordSale(tx as never, input);
+
+    const consultas = tx.$queryRaw.mock.calls.map((c) => (c as unknown as [{ sql: string; values: unknown[] }])[0]);
+    expect(consultas).toHaveLength(2);
+    expect(consultas[0].sql).toMatch(/FROM "Product"[\s\S]*FOR UPDATE/);
+    expect(consultas[0].values).toEqual([["p1"], "ws1"]);
+    expect(consultas[1].sql).toMatch(/FROM "ProductVariant"[\s\S]*FOR UPDATE/);
+    expect(consultas[1].values).toEqual([["v1"], "ws1"]);
+
+    // El último bloqueo pedido va antes que cualquier escritura de stock (talle o producto).
+    const ultimoBloqueo = Math.max(...tx.$queryRaw.mock.invocationCallOrder);
+    expect(ultimoBloqueo).toBeLessThan(tx.productVariant.updateMany.mock.invocationCallOrder[0]);
+    expect(ultimoBloqueo).toBeLessThan(tx.product.update.mock.invocationCallOrder[0]);
+    expect(ultimoBloqueo).toBeLessThan(tx.stockMovement.create.mock.invocationCallOrder[0]);
+  });
+
+  it("un ticket sólo con renglones sueltos (sin producto) no bloquea nada", async () => {
+    moduleState({ cash: false, clients: false });
+    const tx = saleTx();
+
+    await recordSale(tx as never, { ...inputBase, lines: [{ ...inputBase.lines[0], productId: null }] });
+
+    expect(tx.$queryRaw).not.toHaveBeenCalled();
   });
 });

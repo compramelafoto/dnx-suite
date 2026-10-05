@@ -4,6 +4,8 @@ import { decimalArsToMinor, minorToDecimalString } from "@/lib/membership/money"
 import { buildReversal, type ReversalValues } from "@/lib/cash/reverse";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
+import { applyStockMovement } from "./variant-stock";
+import { lockStockRows } from "./stock-lock";
 
 /**
  * Anular una venta. Espejo de `record-sale.ts`, en sentido contrario.
@@ -36,6 +38,12 @@ export type VoidSaleInput = {
   saleId: string;
   reason: string;
   userId: number | null;
+  /**
+   * Sólo la cancelación de un pedido online (`lib/store/order-admin.ts`) lo pone en true. Una
+   * venta que salió de un pedido de la tienda no se anula suelta desde el historial: el pedido
+   * quedaría "pagado" con su venta anulada, y al cancelarlo después no habría nada que anular.
+   */
+  fromStoreOrder?: boolean;
 };
 
 export type VoidSaleResult = { ok: true; saleNumber: number } | { ok: false; error: string };
@@ -53,6 +61,16 @@ export async function voidSale(tx: Tx, input: VoidSaleInput): Promise<VoidSaleRe
     select: { id: true, saleNumber: true, status: true, cashMovementId: true },
   });
   if (!venta) return { ok: false, error: "Esa venta no existe." };
+
+  if (!input.fromStoreOrder) {
+    const pedido = await tx.storeOrder.findFirst({
+      where: { saleId: venta.id, workspaceId: input.workspaceId },
+      select: { id: true },
+    });
+    if (pedido) {
+      return { ok: false, error: "Esta venta es de un pedido online: cancelala desde Pedidos online." };
+    }
+  }
 
   // Una venta anulada no se vuelve a anular. El estado se verifica antes de tocar cualquier
   // otra tabla: ni el stock ni Caja se rozan si esto corta acá.
@@ -238,11 +256,20 @@ async function devolverStock(
 ): Promise<void> {
   const items = await tx.saleItem.findMany({
     where: { saleId },
-    select: { productId: true, qty: true },
+    select: { productId: true, variantId: true, qty: true },
   });
 
   const productIds = [...new Set(items.map((i) => i.productId).filter((id): id is string => id !== null))];
   if (productIds.length === 0) return;
+
+  // Antes de devolver nada, los bloqueos en el orden de toda la suite (productos y después
+  // talles, por id — ver `stock-lock.ts`): la cancelación de un pedido online pasa por acá, y
+  // el mostrador también; el mismo orden en los dos evita que se esperen mutuamente.
+  await lockStockRows(tx, {
+    workspaceId,
+    productIds,
+    variantIds: items.map((i) => i.variantId).filter((id): id is string => id !== null && id !== undefined),
+  });
 
   const productos = await tx.product.findMany({
     where: { id: { in: productIds }, workspaceId },
@@ -254,20 +281,19 @@ async function devolverStock(
     if (item.productId === null) continue;
     if (!controlaExistencia.get(item.productId)) continue;
 
-    await tx.stockMovement.create({
-      data: {
-        workspaceId,
-        productId: item.productId,
-        qty: item.qty,
-        reason: "DEVOLUCION",
-        sourceModule: "sales",
-        sourceRef: saleId,
-        createdByUserId: userId,
-      },
-    });
-    await tx.product.update({
-      where: { id: item.productId },
-      data: { stockQty: { increment: item.qty } },
+    // Vuelve al mismo talle del que salió. Si el talle se borró después de la venta, el
+    // `SaleItem` quedó con `variantId` nulo (`onDelete: SetNull`) y vuelve sólo al producto.
+    await applyStockMovement(tx, {
+      workspaceId,
+      productId: item.productId,
+      variantId: item.variantId ?? null,
+      qty: item.qty,
+      reason: "DEVOLUCION",
+      sourceModule: "sales",
+      sourceRef: saleId,
+      note: null,
+      unitCostArs: null,
+      createdByUserId: userId,
     });
   }
 }

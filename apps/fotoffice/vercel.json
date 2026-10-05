@@ -37,6 +37,10 @@
       "schedule": "*/15 * * * *"
     },
     {
+      "path": "/api/cron/tienda",
+      "schedule": "*/15 * * * *"
+    },
+    {
       "path": "/api/cron/socio-de-la-semana",
       "schedule": "5 * * * *"
     }

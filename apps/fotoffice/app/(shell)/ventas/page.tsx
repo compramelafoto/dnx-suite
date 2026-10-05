@@ -25,7 +25,7 @@ export default async function VentasPage() {
   const cashEnabled = await isModuleEnabledForWorkspace(workspace.id, CASH_MODULE_KEY);
 
   const [productos, categorias, clientes] = await Promise.all([
-    listProducts(workspace.id, { onlyActive: true }),
+    listProducts(workspace.id, { onlyActive: true, onlyCounter: true }),
     listProductCategories(workspace.id),
     clientsEnabled ? listClients(workspace.id) : Promise.resolve([]),
   ]);

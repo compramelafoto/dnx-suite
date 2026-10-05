@@ -29,6 +29,11 @@ export function StockForm({ product, destacado }: { product: ProductRow; destaca
           {product.categoryName ? (
             <p className="text-xs text-[var(--fo-muted)]">{product.categoryName}</p>
           ) : null}
+          {product.variants.length > 0 ? (
+            <p className="text-xs text-[var(--fo-muted)]">
+              {product.variants.map((v) => `${v.name}: ${v.stockQty}`).join(" · ")}
+            </p>
+          ) : null}
         </div>
 
         <div className="flex items-center gap-4 text-sm">
@@ -62,6 +67,7 @@ export function StockForm({ product, destacado }: { product: ProductRow; destaca
           className="grid gap-3 border-t border-[var(--fo-border)] pt-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end"
         >
           <input type="hidden" name="productId" value={product.id} />
+          <SelectorDeTalle product={product} idPrefix="entrada" />
           <div className="fo-field-stack">
             <label className="fo-label" htmlFor={`entrada-qty-${product.id}`}>
               Cantidad que entró
@@ -99,6 +105,7 @@ export function StockForm({ product, destacado }: { product: ProductRow; destaca
           className="grid gap-3 border-t border-[var(--fo-border)] pt-3 sm:grid-cols-[1fr_2fr_auto] sm:items-end"
         >
           <input type="hidden" name="productId" value={product.id} />
+          <SelectorDeTalle product={product} idPrefix="ajuste" />
           <div className="fo-field-stack">
             <label className="fo-label" htmlFor={`ajuste-qty-${product.id}`}>
               Contaste
@@ -130,6 +137,33 @@ export function StockForm({ product, destacado }: { product: ProductRow; destaca
           </button>
         </form>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * Con talles, el stock vive en cada talle (D4): la entrada o el ajuste tiene que decir a cuál
+ * va. El servidor lo vuelve a exigir (`resolverDestinoDeStock` en `actions.ts`); esto sólo
+ * evita que la persona se entere recién después de mandar.
+ */
+function SelectorDeTalle({ product, idPrefix }: { product: ProductRow; idPrefix: string }) {
+  if (product.variants.length === 0) return null;
+  const id = `${idPrefix}-talle-${product.id}`;
+  return (
+    <div className="fo-field-stack sm:col-span-full">
+      <label className="fo-label" htmlFor={id}>
+        Talle
+      </label>
+      <select id={id} name="variantId" required defaultValue="" className="fo-input">
+        <option value="" disabled>
+          Elegí el talle
+        </option>
+        {product.variants.map((v) => (
+          <option key={v.id} value={v.id}>
+            {v.name} (hay {v.stockQty})
+          </option>
+        ))}
+      </select>
     </div>
   );
 }

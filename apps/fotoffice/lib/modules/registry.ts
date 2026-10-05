@@ -10,6 +10,7 @@ import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { SALES_MODULE_KEY } from "@/lib/sales/constants";
+import { STORE_MODULE_KEY } from "@/lib/store/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
 
@@ -131,6 +132,20 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     category: "GENERAL",
     order: 35,
     route: "/ventas",
+    status: "AVAILABLE",
+  },
+  {
+    // El registro no tiene un campo de dependencias: que la tienda necesita Ventas (vende el
+    // mismo catálogo y el mismo stock) lo hace cumplir `lib/store/access.ts`, y que necesita
+    // el Sitio web para verse lo resuelve el sitio público, que sin él no existe.
+    // Sin `route` a propósito: no es una entrada más del menú lateral, sus pantallas cuelgan
+    // del submenú de Ventas (`lib/modules/submodules.ts`).
+    key: STORE_MODULE_KEY,
+    label: "Tienda online",
+    description:
+      "Los productos del catálogo de Ventas a la venta en el sitio público, con cobro por Mercado Pago y retiro en el local. Necesita Ventas y el Sitio web encendidos.",
+    category: "GENERAL",
+    order: 36,
     status: "AVAILABLE",
   },
   {

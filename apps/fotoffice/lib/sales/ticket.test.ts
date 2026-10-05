@@ -3,7 +3,7 @@ import { lineTotalMinor, ticketTotals, validateTicket } from "./ticket";
 
 const renglon = (qty: number, precio: number, over = false) => ({
   productId: "p1", description: "Trípode", qty, unitPriceMinor: precio,
-  unitCostMinor: null, priceWasOverridden: over,
+  unitCostMinor: null, priceWasOverridden: over, variantId: null,
 });
 
 describe("lineTotalMinor", () => {

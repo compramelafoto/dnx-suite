@@ -7,6 +7,7 @@
  */
 
 import type { TicketLine } from "./ticket";
+import { effectiveUnitPriceMinor } from "@/lib/store/availability";
 
 /**
  * Un renglón tal cual lo arma la pantalla, antes de cruzarlo contra la base.
@@ -19,6 +20,8 @@ import type { TicketLine } from "./ticket";
  */
 export type RawCheckoutLine = {
   productId: string | null;
+  /** El talle elegido en el mostrador. Ausente o null en un producto sin talles. */
+  variantId?: string | null;
   description: string;
   qty: number;
   unitPriceMinor: number;
@@ -36,6 +39,17 @@ export type CheckoutProductInfo = {
   name: string;
   priceMinor: number;
   costMinor: number | null;
+  /**
+   * Los talles ACTIVOS del producto, por id, recién leídos del workspace. Ausente o vacío =
+   * el producto no tiene talles. `variantPriceMinor` null = el talle hereda `priceMinor`.
+   */
+  variants?: ReadonlyMap<string, CheckoutVariantInfo>;
+};
+
+export type CheckoutVariantInfo = {
+  id: string;
+  name: string;
+  variantPriceMinor: number | null;
 };
 
 export type BuildTicketLinesResult = { ok: true; lines: TicketLine[] } | { ok: false; error: string };
@@ -74,9 +88,11 @@ export function buildTicketLines(
     }
 
     if (raw.productId === null) {
-      // Renglón suelto: no hay producto que cruzar, la descripción es la que se tipeó.
+      // Renglón suelto: no hay producto que cruzar, la descripción es la que se tipeó. Un
+      // `variantId` que mande el navegador acá no significa nada y se descarta.
       lines.push({
         productId: null,
+        variantId: null,
         description: raw.description.trim(),
         qty: raw.qty,
         unitPriceMinor: raw.unitPriceMinor,
@@ -94,13 +110,38 @@ export function buildTicketLines(
       };
     }
 
+    // Talles (D4). Con talles, el stock vive en cada talle: un renglón sin talle descontaría
+    // sólo del producto y la suma dejaría de cuadrar, por eso se exige elegir uno. Y el talle
+    // tiene que ser uno de los que el servidor acaba de leer para ESTE producto — mismo
+    // criterio que con el `productId`: lo que no aparece, no existe.
+    const talles = producto.variants;
+    const variantId = raw.variantId ?? null;
+    let talle: CheckoutVariantInfo | null = null;
+    if (variantId !== null) {
+      talle = talles?.get(variantId) ?? null;
+      if (!talle) {
+        return {
+          ok: false,
+          error: "Alguno de los talles del ticket ya no está disponible. Actualizá la pantalla e intentá de nuevo.",
+        };
+      }
+    } else if (talles && talles.size > 0) {
+      return { ok: false, error: `Elegí el talle de ${producto.name}.` };
+    }
+
+    // El precio de referencia para saber si se pisó es el del talle cuando tiene uno propio.
+    const precioCatalogo = talle
+      ? effectiveUnitPriceMinor(producto.priceMinor, talle.variantPriceMinor)
+      : producto.priceMinor;
+
     lines.push({
       productId: producto.id,
-      description: producto.name,
+      variantId: talle ? talle.id : null,
+      description: talle ? `${producto.name} — ${talle.name}` : producto.name,
       qty: raw.qty,
       unitPriceMinor: raw.unitPriceMinor,
       unitCostMinor: producto.costMinor,
-      priceWasOverridden: raw.unitPriceMinor !== producto.priceMinor,
+      priceWasOverridden: raw.unitPriceMinor !== precioCatalogo,
     });
   }
 

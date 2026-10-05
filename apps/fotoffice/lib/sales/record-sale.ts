@@ -9,6 +9,8 @@ import { resolveDepositTarget } from "@/lib/cash/auto-deposit";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { lineTotalMinor, ticketTotals, type TicketLine } from "./ticket";
 import { nextSaleNumber } from "./sale-number";
+import { applyStockMovement } from "./variant-stock";
+import { lockStockRows } from "./stock-lock";
 import { SALES_CASH_CATEGORY_NAME, type SalePaymentMethod } from "./constants";
 import type { CheckoutClientResolution } from "./checkout";
 
@@ -105,21 +107,20 @@ async function descontarStock(
     if (line.productId === null) continue;
     if (!controlaExistencia.get(line.productId)) continue;
 
-    await tx.stockMovement.create({
-      data: {
-        workspaceId,
-        productId: line.productId,
-        // Firmado: la venta resta.
-        qty: -line.qty,
-        reason: "VENTA",
-        sourceModule: "sales",
-        sourceRef: saleId,
-        createdByUserId,
-      },
-    });
-    await tx.product.update({
-      where: { id: line.productId },
-      data: { stockQty: { decrement: line.qty } },
+    // Con talle, `applyStockMovement` resta de la variante Y del producto (D4: el stock del
+    // producto es la suma de sus talles). Sin talle, sólo del producto, como siempre.
+    await applyStockMovement(tx, {
+      workspaceId,
+      productId: line.productId,
+      variantId: line.variantId,
+      // Firmado: la venta resta.
+      qty: -line.qty,
+      reason: "VENTA",
+      sourceModule: "sales",
+      sourceRef: saleId,
+      note: null,
+      unitCostArs: null,
+      createdByUserId,
     });
   }
 }
@@ -213,6 +214,18 @@ export async function recordSale(
 ): Promise<{ saleId: string; saleNumber: number; deposited: boolean }> {
   const totals = ticketTotals(input.lines, input.discountMinor);
 
+  // Lo PRIMERO es bloquear las filas de stock del ticket, en el mismo orden que la tienda
+  // (productos y después talles, por id — ver `stock-lock.ts`). `applyStockMovement` escribe
+  // el talle antes que el producto: si el mostrador tomara los bloqueos en ese orden mientras
+  // un pedido online los toma al revés, cada uno podía quedar esperando al otro (interbloqueo).
+  // Cuando la venta sale de un pedido, quien llama ya bloqueó estas filas: volver a pedirlas en
+  // la misma transacción no espera a nadie.
+  await lockStockRows(tx, {
+    workspaceId: input.workspaceId,
+    productIds: input.lines.map((l) => l.productId).filter((id): id is string => id !== null),
+    variantIds: input.lines.map((l) => l.variantId).filter((id): id is string => id !== null),
+  });
+
   const clientId = await resolveSaleClient(tx, input.workspaceId, input.createdByUserId, input.client);
 
   // El número correlativo se calcula leyendo el último y sumando uno, con reintento ante
@@ -288,6 +301,7 @@ export async function recordSale(
     data: input.lines.map((line) => ({
       saleId,
       productId: line.productId,
+      variantId: line.variantId,
       description: line.description,
       qty: line.qty,
       unitPriceArs: minorToDecimalString(line.unitPriceMinor),

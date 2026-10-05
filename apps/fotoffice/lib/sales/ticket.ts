@@ -13,6 +13,8 @@ export type TicketLine = {
   unitPriceMinor: number;
   unitCostMinor: number | null;
   priceWasOverridden: boolean;
+  /** El talle vendido. Nulo en un renglón suelto y en un producto sin talles. */
+  variantId: string | null;
 };
 
 /** Cantidad por precio. Todo en centavos enteros: nada de punto flotante en la cuenta. */

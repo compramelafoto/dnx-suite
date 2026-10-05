@@ -6,7 +6,7 @@ import { formatMinorArs, parseArsToMinor } from "@/lib/membership/money";
 import { ticketTotals, validateTicket, type TicketLine } from "@/lib/sales/ticket";
 import { normalizeBarcode } from "@/lib/sales/barcode";
 import { SALE_PAYMENT_METHODS, type SalePaymentMethod } from "@/lib/sales/constants";
-import type { ProductCategoryRow, ProductRow } from "@/lib/sales/repository";
+import type { ProductCategoryRow, ProductRow, ProductVariantRow } from "@/lib/sales/repository";
 import type { ClientRow } from "@/lib/clients/repository";
 import { checkoutAction, findProductByCodeAction, searchProductsAction, type CheckoutInput } from "./actions";
 
@@ -75,6 +75,9 @@ export function Pos({
   const [clientPhone, setClientPhone] = useState("");
   const [clientEmail, setClientEmail] = useState("");
 
+  // El producto con talles al que se le está eligiendo el talle, antes de agregarlo.
+  const [eligiendoTalle, setEligiendoTalle] = useState<ProductRow | null>(null);
+
   const [mostrarSuelto, setMostrarSuelto] = useState(false);
   const [sueltoDescripcion, setSueltoDescripcion] = useState("");
   const [sueltoPrecio, setSueltoPrecio] = useState("");
@@ -133,10 +136,23 @@ export function Pos({
     setUltimaVenta(null);
   }
 
-  function agregarProducto(p: ProductRow) {
+  /**
+   * Agrega un producto al ticket. Si tiene talles y todavía no se sabe cuál (el clic en la
+   * grilla, o un código que era el del producto y no el de un talle), primero se abre el
+   * selector de talle: con talles, el stock vive en cada talle (D4) y el servidor rechaza un
+   * renglón sin talle. Cada talle es su propio renglón: "Remera — M" y "Remera — L" no se suman.
+   */
+  function agregarProducto(p: ProductRow, talle: ProductVariantRow | null = null) {
     limpiarAviso();
+    if (talle === null && p.variants.length > 0) {
+      setEligiendoTalle(p);
+      return;
+    }
+    setEligiendoTalle(null);
+    const variantId = talle?.id ?? null;
+    const precio = talle?.priceMinor ?? p.priceMinor;
     setRows((prev) => {
-      const existente = prev.find((r) => r.productId === p.id);
+      const existente = prev.find((r) => r.productId === p.id && r.variantId === variantId);
       if (existente) {
         return prev.map((r) => (r.key === existente.key ? { ...r, qty: r.qty + 1 } : r));
       }
@@ -145,14 +161,15 @@ export function Pos({
         {
           key: nuevaKey(),
           productId: p.id,
-          description: p.name,
+          variantId,
+          description: talle ? `${p.name} — ${talle.name}` : p.name,
           qty: 1,
-          unitPriceMinor: p.priceMinor,
+          unitPriceMinor: precio,
           unitCostMinor: null,
           priceWasOverridden: false,
-          catalogPriceMinor: p.priceMinor,
+          catalogPriceMinor: precio,
           tracksStock: p.tracksStock,
-          stockQty: p.stockQty,
+          stockQty: talle?.stockQty ?? p.stockQty,
         },
       ];
     });
@@ -196,7 +213,11 @@ export function Pos({
     startSearchTransition(async () => {
       const encontrado = await findProductByCodeAction(texto);
       if (encontrado) {
-        agregarProducto(encontrado);
+        // Si el código era el de un talle, ese talle se agrega directo, sin preguntar.
+        const talle = encontrado.variant
+          ? (encontrado.variants.find((v) => v.id === encontrado.variant?.id) ?? null)
+          : null;
+        agregarProducto(encontrado, talle);
         setSearch("");
       }
       searchRef.current?.focus();
@@ -234,6 +255,7 @@ export function Pos({
       {
         key: nuevaKey(),
         productId: null,
+        variantId: null,
         description: descripcion,
         qty: 1,
         unitPriceMinor: precio,
@@ -277,6 +299,7 @@ export function Pos({
       // ya llegó cargado — no la fuente de verdad de la auditoría.
       lines: rows.map((r) => ({
         productId: r.productId,
+        variantId: r.variantId,
         description: r.description,
         qty: r.qty,
         unitPriceMinor: r.unitPriceMinor,
@@ -337,6 +360,20 @@ export function Pos({
           ) : null}
         </div>
 
+        {eligiendoTalle ? (
+          <SelectorDeTalle
+            product={eligiendoTalle}
+            onElegir={(talle) => {
+              agregarProducto(eligiendoTalle, talle);
+              searchRef.current?.focus();
+            }}
+            onCancelar={() => {
+              setEligiendoTalle(null);
+              searchRef.current?.focus();
+            }}
+          />
+        ) : null}
+
         {filtrados.length === 0 ? (
           <div className="fo-card flex flex-col items-center gap-3 px-6 py-12 text-center">
             <Package className="size-8 text-[var(--fo-muted)]" aria-hidden />
@@ -369,6 +406,11 @@ export function Pos({
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-[var(--fo-text)]">{p.name}</p>
                     <p className="text-sm font-semibold text-[var(--fo-accent)]">{formatMinorArs(p.priceMinor)}</p>
+                    {p.variants.length > 0 ? (
+                      <p className="truncate text-xs text-[var(--fo-muted)]">
+                        Talles: {p.variants.map((v) => v.name).join(", ")}
+                      </p>
+                    ) : null}
                     {p.tracksStock ? (
                       <p className={`text-xs ${sinStock ? "font-semibold text-[var(--fo-danger)]" : "text-[var(--fo-muted)]"}`}>
                         {sinStock ? "Sin existencia" : `Existencia: ${p.stockQty}`}
@@ -583,6 +625,63 @@ export function Pos({
           {procesando ? "Cobrando…" : `Cobrar ${formatMinorArs(totals.totalMinor)}`}
         </button>
       </section>
+    </div>
+  );
+}
+
+/**
+ * Elegir el talle antes de agregar un producto que tiene talles. Un botón por talle con su
+ * precio y su existencia. Un talle sin existencia se puede elegir igual —vender nunca se
+ * bloquea por stock en el mostrador (D6)—, sólo se marca.
+ */
+function SelectorDeTalle({
+  product,
+  onElegir,
+  onCancelar,
+}: {
+  product: ProductRow;
+  onElegir: (talle: ProductVariantRow) => void;
+  onCancelar: () => void;
+}) {
+  return (
+    <div
+      role="dialog"
+      aria-label={`Elegí el talle de ${product.name}`}
+      className="fo-card space-y-3 border-2 border-[var(--fo-accent)] p-4"
+      onKeyDown={(e) => {
+        if (e.key === "Escape") onCancelar();
+      }}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-semibold text-[var(--fo-text)]">Elegí el talle de {product.name}</p>
+        <button type="button" onClick={onCancelar} className="fo-btn fo-btn-ghost text-xs">
+          Cancelar
+        </button>
+      </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
+        {product.variants.map((v, i) => {
+          const sinStock = product.tracksStock && v.stockQty <= 0;
+          return (
+            <button
+              key={v.id}
+              type="button"
+              autoFocus={i === 0}
+              onClick={() => onElegir(v)}
+              className="fo-card flex flex-col items-start gap-0.5 p-3 text-left transition hover:border-[var(--fo-accent)]"
+            >
+              <span className="text-base font-semibold text-[var(--fo-text)]">{v.name}</span>
+              <span className="text-sm text-[var(--fo-accent)]">{formatMinorArs(v.priceMinor)}</span>
+              {product.tracksStock ? (
+                <span
+                  className={`text-xs ${sinStock ? "font-semibold text-[var(--fo-danger)]" : "text-[var(--fo-muted)]"}`}
+                >
+                  {sinStock ? "Sin existencia" : `Existencia: ${v.stockQty}`}
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

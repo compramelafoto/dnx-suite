@@ -40,10 +40,15 @@ function voidTx(over: {
   saleItem?: Partial<{ findMany: ReturnType<typeof vi.fn> }>;
   product?: Partial<{ findMany: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> }>;
   stockMovement?: Partial<{ create: ReturnType<typeof vi.fn> }>;
+  productVariant?: Partial<{ updateMany: ReturnType<typeof vi.fn> }>;
   cashMovement?: Partial<{ findFirst: ReturnType<typeof vi.fn>; create: ReturnType<typeof vi.fn> }>;
   cashShift?: Partial<{ findFirst: ReturnType<typeof vi.fn> }>;
+  storeOrder?: Partial<{ findFirst: ReturnType<typeof vi.fn> }>;
 } = {}) {
   return {
+    // `lockStockRows` (el bloqueo de filas de stock) pasa por acá: no devuelve nada útil.
+    $queryRaw: vi.fn(async () => []),
+    storeOrder: { findFirst: vi.fn(async () => null), ...over.storeOrder },
     sale: {
       findFirst: vi.fn(async () => ({
         id: "sale1",
@@ -61,6 +66,7 @@ function voidTx(over: {
       ...over.product,
     },
     stockMovement: { create: vi.fn(async () => ({})), ...over.stockMovement },
+    productVariant: { updateMany: vi.fn(async () => ({ count: 1 })), ...over.productVariant },
     cashMovement: {
       findFirst: tablaAusente("cash_movement"),
       create: tablaAusente("cash_movement"),
@@ -92,6 +98,37 @@ describe("voidSale — motivo", () => {
 
     expect(resultado).toEqual({ ok: false, error: "Escribí por qué se anula la venta." });
     expect(tx.sale.findFirst).not.toHaveBeenCalled();
+  });
+});
+
+describe("voidSale — venta de un pedido online", () => {
+  it("desde el historial no se anula: vuelve un error antes de escribir nada", async () => {
+    const tx = voidTx({ storeOrder: { findFirst: vi.fn(async () => ({ id: "ord1" })) } });
+
+    const resultado = await voidSale(tx as never, inputBase);
+
+    expect(resultado).toEqual({
+      ok: false,
+      error: "Esta venta es de un pedido online: cancelala desde Pedidos online.",
+    });
+    expect(tx.storeOrder.findFirst).toHaveBeenCalledWith({
+      where: { saleId: "sale1", workspaceId: inputBase.workspaceId },
+      select: { id: true },
+    });
+    expect(tx.sale.update).not.toHaveBeenCalled();
+    expect(tx.stockMovement.create).not.toHaveBeenCalled();
+    expect(tx.saleItem.findMany).not.toHaveBeenCalled();
+  });
+
+  it("la cancelación del pedido sí la anula (y ni pregunta por el pedido)", async () => {
+    isModuleEnabledForWorkspace.mockResolvedValue(false);
+    const tx = voidTx({ storeOrder: { findFirst: vi.fn(async () => ({ id: "ord1" })) } });
+
+    const resultado = await voidSale(tx as never, { ...inputBase, fromStoreOrder: true });
+
+    expect(resultado).toEqual({ ok: true, saleNumber: 5 });
+    expect(tx.storeOrder.findFirst).not.toHaveBeenCalled();
+    expect(tx.sale.update).toHaveBeenCalled();
   });
 });
 
@@ -289,6 +326,9 @@ describe("voidSale — el contramovimiento ya estaba anulado a mano", () => {
         sourceModule: "sales",
         sourceRef: "sale1",
         createdByUserId: 7,
+        variantId: null,
+        note: null,
+        unitCostArs: null,
       },
     });
     expect(tx.product.update).toHaveBeenCalledWith({
@@ -412,11 +452,76 @@ describe("voidSale — devolución de stock", () => {
         sourceModule: "sales",
         sourceRef: "sale1",
         createdByUserId: 7,
+        variantId: null,
+        note: null,
+        unitCostArs: null,
       },
     });
     expect(tx.product.update).toHaveBeenCalledWith({
       where: { id: "p1" },
       data: { stockQty: { increment: 4 } },
     });
+  });
+});
+
+describe("voidSale — talles (variantes)", () => {
+  it("anular una venta de un talle le devuelve el stock a ese talle y al producto", async () => {
+    const tx = voidTx({
+      saleItem: { findMany: vi.fn(async () => [{ productId: "p1", variantId: "v1", qty: 2 }]) },
+      product: {
+        findMany: vi.fn(async () => [{ id: "p1", tracksStock: true }]),
+        update: vi.fn(async () => ({})),
+      },
+    });
+
+    const resultado = await voidSale(tx as never, inputBase);
+
+    expect(resultado).toEqual({ ok: true, saleNumber: 5 });
+    expect(tx.saleItem.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ select: { productId: true, variantId: true, qty: true } }),
+    );
+    expect(tx.stockMovement.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ productId: "p1", variantId: "v1", qty: 2, reason: "DEVOLUCION" }),
+    });
+    expect(tx.productVariant.updateMany).toHaveBeenCalledWith({
+      where: { id: "v1", productId: "p1", workspaceId: "ws1" },
+      data: { stockQty: { increment: 2 } },
+    });
+    expect(tx.product.update).toHaveBeenCalledWith({ where: { id: "p1" }, data: { stockQty: { increment: 2 } } });
+  });
+});
+
+describe("voidSale — orden de bloqueo (mismo que la tienda)", () => {
+  it("bloquea los productos y talles de la venta ANTES de devolver stock", async () => {
+    const tx = voidTx({
+      saleItem: {
+        findMany: vi.fn(async () => [
+          { productId: "p2", variantId: "v1", qty: 2 },
+          { productId: "p1", variantId: null, qty: 1 },
+        ]),
+      },
+      product: {
+        findMany: vi.fn(async () => [
+          { id: "p1", tracksStock: true },
+          { id: "p2", tracksStock: true },
+        ]),
+        update: vi.fn(async () => ({})),
+      },
+    });
+
+    const resultado = await voidSale(tx as never, inputBase);
+
+    expect(resultado).toEqual({ ok: true, saleNumber: 5 });
+    const consultas = tx.$queryRaw.mock.calls.map((c) => (c as unknown as [{ sql: string; values: unknown[] }])[0]);
+    expect(consultas).toHaveLength(2);
+    expect(consultas[0].sql).toMatch(/FROM "Product"[\s\S]*FOR UPDATE/);
+    expect(consultas[0].values).toEqual([["p1", "p2"], "ws1"]);
+    expect(consultas[1].sql).toMatch(/FROM "ProductVariant"[\s\S]*FOR UPDATE/);
+    expect(consultas[1].values).toEqual([["v1"], "ws1"]);
+
+    const ultimoBloqueo = Math.max(...tx.$queryRaw.mock.invocationCallOrder);
+    expect(ultimoBloqueo).toBeLessThan(tx.productVariant.updateMany.mock.invocationCallOrder[0]);
+    expect(ultimoBloqueo).toBeLessThan(tx.product.update.mock.invocationCallOrder[0]);
+    expect(ultimoBloqueo).toBeLessThan(tx.stockMovement.create.mock.invocationCallOrder[0]);
   });
 });

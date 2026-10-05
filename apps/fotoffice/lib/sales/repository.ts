@@ -1,8 +1,9 @@
 import "server-only";
-import { prisma } from "@repo/db";
+import { prisma, type Prisma } from "@repo/db";
 import { decimalArsToMinor } from "@/lib/membership/money";
 import { clientDisplayName } from "@/lib/clients/display";
 import { normalizeBarcode } from "./barcode";
+import { effectiveUnitPriceMinor } from "@/lib/store/availability";
 
 /**
  * Las consultas del catálogo.
@@ -28,6 +29,23 @@ export type ProductRow = {
   isActive: boolean;
   categoryId: string | null;
   categoryName: string | null;
+  /**
+   * Los talles ACTIVOS, en el orden configurado. Vacío = el producto no tiene talles.
+   * `priceMinor` es el precio efectivo del talle (el propio o, si no tiene, el del producto).
+   */
+  variants: ProductVariantRow[];
+};
+
+export type ProductVariantRow = {
+  id: string;
+  name: string;
+  priceMinor: number;
+  stockQty: number;
+};
+
+/** Lo que aparece en el mostrador: sin ficha de tienda, o con ficha que dice "se vende en mostrador" (D3). */
+const VISIBLE_EN_MOSTRADOR: Prisma.ProductWhereInput = {
+  OR: [{ storeListing: null }, { storeListing: { sellAtCounter: true } }],
 };
 
 const PRODUCT_ROW_SELECT = {
@@ -45,6 +63,11 @@ const PRODUCT_ROW_SELECT = {
   isActive: true,
   categoryId: true,
   category: { select: { name: true } },
+  variants: {
+    where: { isActive: true },
+    orderBy: { sortOrder: "asc" },
+    select: { id: true, name: true, priceArs: true, stockQty: true },
+  },
 } as const;
 
 type ProductRowRecord = {
@@ -62,9 +85,11 @@ type ProductRowRecord = {
   isActive: boolean;
   categoryId: string | null;
   category: { name: string } | null;
+  variants: { id: string; name: string; priceArs: { toString(): string } | null; stockQty: number }[];
 };
 
 function toProductRow(r: ProductRowRecord): ProductRow {
+  const priceMinor = decimalArsToMinor(r.priceArs);
   return {
     id: r.id,
     kind: r.kind,
@@ -72,7 +97,7 @@ function toProductRow(r: ProductRowRecord): ProductRow {
     barcode: r.barcode,
     name: r.name,
     brand: r.brand,
-    priceMinor: decimalArsToMinor(r.priceArs),
+    priceMinor,
     tracksStock: r.tracksStock,
     stockQty: r.stockQty,
     minStockQty: r.minStockQty,
@@ -80,6 +105,12 @@ function toProductRow(r: ProductRowRecord): ProductRow {
     isActive: r.isActive,
     categoryId: r.categoryId,
     categoryName: r.category?.name ?? null,
+    variants: r.variants.map((v) => ({
+      id: v.id,
+      name: v.name,
+      priceMinor: effectiveUnitPriceMinor(priceMinor, v.priceArs === null ? null : decimalArsToMinor(v.priceArs)),
+      stockQty: v.stockQty,
+    })),
   };
 }
 
@@ -92,16 +123,26 @@ function toProductRow(r: ProductRowRecord): ProductRow {
  * mayúsculas distintas dos veces, pero tampoco tiene sentido que "1" encuentre "10001"—.
  *
  * Por omisión trae también los inactivos: es la pantalla de catálogo completo, no la del
- * mostrador. `onlyActive` es para quien sí necesite ocultarlos.
+ * mostrador. `onlyActive` es para quien sí necesite ocultarlos. `onlyCounter` deja afuera
+ * lo que se vende sólo online (ficha con `sellAtCounter = false`): es el listado del
+ * mostrador. El catálogo y el stock lo siguen viendo todo.
  */
 export async function listProducts(
   workspaceId: string,
-  opts: { search?: string; categoryId?: string; onlyActive?: boolean; tracksStock?: boolean } = {},
+  opts: {
+    search?: string;
+    categoryId?: string;
+    onlyActive?: boolean;
+    tracksStock?: boolean;
+    onlyCounter?: boolean;
+  } = {},
 ): Promise<ProductRow[]> {
   const q = opts.search?.trim();
   const rows = await prisma.product.findMany({
     where: {
       workspaceId,
+      // `AND` y no un `OR` suelto: el buscador de abajo ya ocupa el `OR` de este nivel.
+      ...(opts.onlyCounter ? { AND: [VISIBLE_EN_MOSTRADOR] } : {}),
       ...(opts.onlyActive ? { isActive: true } : {}),
       ...(opts.tracksStock ? { tracksStock: true } : {}),
       ...(opts.categoryId ? { categoryId: opts.categoryId } : {}),
@@ -123,6 +164,11 @@ export async function listProducts(
   return rows.map(toProductRow);
 }
 
+/** Lo que devuelve el lector: el producto y, si el código era el de un talle, ese talle. */
+export type ProductByCode = ProductRow & {
+  variant: { id: string; name: string; priceMinor: number } | null;
+};
+
 /**
  * Busca un producto cuyo código interno o código de barras coincida EXACTO con el texto.
  *
@@ -130,14 +176,20 @@ export async function listProducts(
  * mostrador sin pasar por la lista. El código interno se compara tal cual lo escribió el
  * negocio —puede tener letras o guiones—; el de barras se normaliza antes de comparar,
  * porque en la base siempre queda guardado sólo con dígitos (ver `barcode.ts`).
+ *
+ * Si ningún producto tiene ese código, se busca entre los talles (D4: "el lector encuentra la
+ * variante directo si tiene su propio código"): ahí vuelve el producto con `variant` puesto,
+ * y el mostrador agrega ese talle sin preguntar. Sólo talles activos de productos activos y
+ * visibles en el mostrador — las mismas reglas que el producto.
  */
 export async function findProductByCode(
   workspaceId: string,
   code: string,
-): Promise<ProductRow | null> {
+): Promise<ProductByCode | null> {
   const texto = code.trim();
   if (texto === "") return null;
   const codigoBarras = normalizeBarcode(texto);
+  const coincideCodigo = [{ sku: texto }, ...(codigoBarras ? [{ barcode: codigoBarras }] : [])];
 
   const row = await prisma.product.findFirst({
     where: {
@@ -146,11 +198,31 @@ export async function findProductByCode(
       // dado de baja no aparece para vender. Sin este filtro, el lector lo agregaba igual al
       // ticket aunque la propia ficha le dijera a la persona que ya no está disponible.
       isActive: true,
-      OR: [{ sku: texto }, ...(codigoBarras ? [{ barcode: codigoBarras }] : [])],
+      AND: [VISIBLE_EN_MOSTRADOR, { OR: coincideCodigo }],
     },
     select: PRODUCT_ROW_SELECT,
   });
-  return row ? toProductRow(row) : null;
+  if (row) return { ...toProductRow(row), variant: null };
+
+  const talle = await prisma.productVariant.findFirst({
+    where: {
+      workspaceId,
+      isActive: true,
+      OR: coincideCodigo,
+      product: { workspaceId, isActive: true, ...VISIBLE_EN_MOSTRADOR },
+    },
+    select: { id: true, product: { select: PRODUCT_ROW_SELECT } },
+  });
+  if (!talle) return null;
+
+  const producto = toProductRow(talle.product);
+  const elegido = producto.variants.find((v) => v.id === talle.id);
+  // `elegido` siempre aparece (es un talle activo de este producto y `variants` trae los
+  // activos), pero si no estuviera, se devuelve el producto sin talle y el mostrador pregunta.
+  return {
+    ...producto,
+    variant: elegido ? { id: elegido.id, name: elegido.name, priceMinor: elegido.priceMinor } : null,
+  };
 }
 
 export type ProductDetail = {
@@ -170,6 +242,40 @@ export type ProductDetail = {
   categoryId: string | null;
   supplierName: string | null;
   imageUrl: string | null;
+  isActive: boolean;
+  /** null = sin ficha online: se vende sólo en el mostrador, como siempre (D2). */
+  storeListing: ProductStoreListingDetail | null;
+  /** Galería de la tienda, en orden: la primera es la principal. */
+  images: ProductImageRow[];
+  /** Todos los talles, activos e inactivos, en orden. */
+  variants: ProductVariantDetail[];
+};
+
+export type ProductStoreListingDetail = {
+  sellOnline: boolean;
+  sellAtCounter: boolean;
+  slug: string;
+  onlineTitle: string | null;
+  onlineDescription: string | null;
+  sizeChartImageUrl: string | null;
+  weightGrams: number | null;
+  lengthCm: number | null;
+  widthCm: number | null;
+  heightCm: number | null;
+  maxPerOrder: number | null;
+};
+
+export type ProductImageRow = { id: string; url: string; alt: string | null };
+
+/** Un talle tal como se edita en la ficha (a diferencia de `ProductVariantRow`, el del mostrador). */
+export type ProductVariantDetail = {
+  id: string;
+  name: string;
+  sku: string | null;
+  barcode: string | null;
+  /** null = hereda el precio del producto. */
+  priceMinor: number | null;
+  stockQty: number;
   isActive: boolean;
 };
 
@@ -198,6 +304,33 @@ export async function getProduct(
       supplierName: true,
       imageUrl: true,
       isActive: true,
+      storeListing: {
+        select: {
+          sellOnline: true,
+          sellAtCounter: true,
+          slug: true,
+          onlineTitle: true,
+          onlineDescription: true,
+          sizeChartImageUrl: true,
+          weightGrams: true,
+          lengthCm: true,
+          widthCm: true,
+          heightCm: true,
+          maxPerOrder: true,
+        },
+      },
+      // Las relaciones no tienen restricción que las ate al workspace del producto: se filtra
+      // igual, para que una fila mal cargada de otro negocio nunca aparezca en esta ficha.
+      images: {
+        where: { workspaceId },
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        select: { id: true, url: true, alt: true },
+      },
+      variants: {
+        where: { workspaceId },
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        select: { id: true, name: true, sku: true, barcode: true, priceArs: true, stockQty: true, isActive: true },
+      },
     },
   });
   if (!r) return null;
@@ -220,6 +353,17 @@ export async function getProduct(
     supplierName: r.supplierName,
     imageUrl: r.imageUrl,
     isActive: r.isActive,
+    storeListing: r.storeListing,
+    images: r.images,
+    variants: r.variants.map((v) => ({
+      id: v.id,
+      name: v.name,
+      sku: v.sku,
+      barcode: v.barcode,
+      priceMinor: v.priceArs === null ? null : decimalArsToMinor(v.priceArs),
+      stockQty: v.stockQty,
+      isActive: v.isActive,
+    })),
   };
 }
 

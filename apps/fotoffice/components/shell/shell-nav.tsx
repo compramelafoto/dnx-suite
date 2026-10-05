@@ -98,7 +98,10 @@ function itemsDeModulo(
       sub.activeMatch === "exact"
         ? exact(sub.href)
         : sub.activeMatch === "under"
-          ? under(sub.href)
+          ? // Si otra entrada cuelga de ésta (Pedidos online y su Configuración), la hija gana.
+            (path: string) =>
+              under(sub.href)(path) &&
+              !reclamadas.some((r) => r.startsWith(`${sub.href}/`) && under(r)(path))
           : // "rest": el resto del módulo, lo que no reclama ninguna otra entrada. Si abarcara
             // todo, quedaría iluminado mientras mirás Cuotas y no sabrías dónde estás parado.
             (path: string) =>
