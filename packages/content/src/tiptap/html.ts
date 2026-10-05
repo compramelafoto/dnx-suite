@@ -71,6 +71,7 @@ const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
     "youtube.com",
     "www.youtube-nocookie.com",
     "player.vimeo.com",
+    "www.instagram.com",
   ],
   allowIframeRelativeUrls: false,
 };

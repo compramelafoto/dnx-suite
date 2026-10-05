@@ -11,7 +11,7 @@ import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import { CalendarToolbar } from "@/components/bookings/calendar/calendar-toolbar";
 import { MiniMonth } from "@/components/bookings/calendar/mini-month";
 import { TimeGrid, minuteToPx } from "@/components/bookings/calendar/time-grid";
-import { createPortalBookingAction } from "./actions";
+import { quoteForSpace, type CustomerType, type SpacePricing } from "@/lib/bookings/pricing";
 
 type ExtraVista = {
   id: string;
@@ -34,7 +34,9 @@ type MiReserva = {
 const ALTO_HORA = 48;
 
 /**
- * Elegir horario y extras, con la forma de Google Calendar.
+ * Elegir horario y extras, con la forma de Google Calendar. La usan el portal del socio y la
+ * página pública de reservas del no socio: cambian la acción, el tipo de cliente y los datos
+ * de contacto, no la forma de elegir.
  *
  * Dos toques: uno en la hora de inicio y otro en la de fin. Todo lo del medio se pinta del
  * color del espacio, como el evento que Google dibuja mientras lo creás. Funciona con el
@@ -45,12 +47,17 @@ const ALTO_HORA = 48;
  * rechaza con su motivo.
  */
 export function ReservarForm({
+  action,
+  basePath,
+  hiddenFields,
+  contactFields,
+  customerType,
   spaceId,
   spaceName,
   spaceColor,
   description,
   spaces,
-  memberHourlyPriceMinor,
+  pricing,
   freeHours,
   grid,
   ymd,
@@ -60,13 +67,23 @@ export function ReservarForm({
   mine,
   extras,
   vocabulary,
+  memberHint,
 }: {
+  /** La acción del servidor que crea la reserva. */
+  action: (formData: FormData) => Promise<void>;
+  /** Dónde vive la pantalla, para las flechas y el mes en miniatura. */
+  basePath: string;
+  /** Campos ocultos propios de quien usa el formulario (p. ej. el slug de la institución). */
+  hiddenFields?: React.ReactNode;
+  /** Nombre, correo y teléfono, para quien no tiene ficha de socio. Van en la tarjeta final. */
+  contactFields?: React.ReactNode;
+  customerType: CustomerType;
   spaceId: string;
   spaceName: string;
   spaceColor: string;
   description: string | null;
   spaces: EspacioVista[];
-  memberHourlyPriceMinor: number;
+  pricing: SpacePricing;
   freeHours: FreeHoursBalance;
   grid: WeekGrid;
   ymd: string;
@@ -76,6 +93,8 @@ export function ReservarForm({
   mine: MiReserva[];
   extras: ExtraVista[];
   vocabulary: PersonVocabulary;
+  /** Para el no socio: cuánto pagaría siendo socio y dónde ingresar para eso. */
+  memberHint?: { priceLabel: string; freeHoursPerMonth: number; loginHref: string };
 }) {
   const [primero, setPrimero] = useState<string | null>(null);
   const [segundo, setSegundo] = useState<string | null>(null);
@@ -133,9 +152,34 @@ export function ReservarForm({
   }
 
   const minutos = seleccion?.minutes ?? 0;
-  const bonificados = Math.min(minutos, freeHours.availableMinutes);
-  const cobrados = minutos - bonificados;
-  const espacioMinor = Math.round((memberHourlyPriceMinor * cobrados) / 60);
+  // El mismo cálculo que hace el servidor al recibir: lo que se muestra es lo que se cobra.
+  const quote = quoteForSpace(pricing, {
+    minutes: minutos,
+    customerType,
+    freeMinutesAvailable: freeHours.availableMinutes,
+  });
+  const porBloque = quote.mode === "BLOCK";
+  // Lo mismo, pero como socio: sin bonificación y usando las horas gratis del mes.
+  const comoSocio = memberHint
+    ? {
+        sinBonificar: quoteForSpace(pricing, { minutes: minutos, customerType: "MEMBER", freeMinutesAvailable: 0 }).totalMinor,
+        conBonificacion: quoteForSpace(pricing, {
+          minutes: minutos,
+          customerType: "MEMBER",
+          freeMinutesAvailable: memberHint.freeHoursPerMonth * 60,
+        }).totalMinor,
+      }
+    : null;
+  const nombrePaquete = pricing.blockMinutes ? `paquete de ${pricing.blockMinutes / 60} h` : "jornada";
+  const nombrePaquetes = pricing.blockMinutes
+    ? `paquetes de ${pricing.blockMinutes / 60} h`
+    : "jornadas";
+  // Reservar menos de lo que dura el paquete paga el paquete entero: hay que decirlo.
+  const cubre = porBloque
+    ? pricing.blockMinutes
+      ? (quote.blocksBilled + quote.blocksFree) * pricing.blockMinutes
+      : null
+    : null;
 
   const horas = (m: number) => {
     const h = m / 60;
@@ -174,11 +218,12 @@ export function ReservarForm({
 
   return (
     <form
-      action={createPortalBookingAction}
+      action={action}
       className="overflow-hidden rounded-[var(--fo-radius)] border border-[var(--fo-border)] bg-[var(--fo-surface)] shadow-[var(--fo-shadow-sm)] lg:grid lg:grid-cols-[15rem_minmax(0,1fr)]"
     >
       <input type="hidden" name="spaceId" value={spaceId} />
       <input type="hidden" name="paymentMethod" value="MERCADO_PAGO" />
+      {hiddenFields}
       {seleccion ? (
         <>
           <input type="hidden" name="startAt" value={toLocalInput(seleccion.startISO)} />
@@ -191,7 +236,7 @@ export function ReservarForm({
           selectedYmd={ymd}
           todayYmd={todayYmd}
           view="semana"
-          basePath="/portal/reservas"
+          basePath={basePath}
           keep={{ espacio: spaceId }}
         />
 
@@ -207,16 +252,18 @@ export function ReservarForm({
                   <Link
                     href={s.href}
                     aria-current={activo ? "page" : undefined}
-                    className={`flex items-center gap-2.5 rounded-full px-3 py-2 text-sm transition-colors ${
+                    className={`flex items-center gap-2.5 rounded-[var(--fo-radius-sm)] px-3 py-2 text-sm transition-colors ${
                       activo
                         ? "bg-[var(--fo-accent-soft)] font-semibold text-[var(--fo-text)]"
                         : "text-[var(--fo-text-secondary)] hover:bg-[var(--fo-surface-hover)]"
                     }`}
                   >
                     <span className="size-2.5 flex-none rounded-full" style={{ background: s.color }} />
-                    <span className="min-w-0 flex-1 truncate">{s.name}</span>
-                    <span className="text-[11px] font-normal tabular-nums text-[var(--fo-muted)]">
-                      {s.priceLabel}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">{s.name}</span>
+                      <span className="block text-[11px] font-normal tabular-nums text-[var(--fo-muted)]">
+                        {s.priceLabel}
+                      </span>
                     </span>
                   </Link>
                 </li>
@@ -240,10 +287,12 @@ export function ReservarForm({
             <span className="inline-block size-3 rounded-sm bg-[var(--fo-surface-muted)]" />
             Cerrado o ya pasó
           </li>
-          <li className="flex items-center gap-2">
-            <span className="inline-block size-3 rounded-sm bg-[var(--fo-accent)]" />
-            Tus reservas
-          </li>
+          {customerType === "MEMBER" ? (
+            <li className="flex items-center gap-2">
+              <span className="inline-block size-3 rounded-sm bg-[var(--fo-accent)]" />
+              Tus reservas
+            </li>
+          ) : null}
         </ul>
       </aside>
 
@@ -252,7 +301,7 @@ export function ReservarForm({
           view="semana"
           ymd={ymd}
           todayYmd={todayYmd}
-          basePath="/portal/reservas"
+          basePath={basePath}
           keep={{ espacio: spaceId }}
           views={["semana"]}
           canGoBack={canGoBack}
@@ -431,18 +480,72 @@ export function ReservarForm({
               </div>
 
               <div className="mt-3 space-y-1 pl-[1.625rem] text-sm">
-                {bonificados > 0 ? (
-                  <p className="text-[var(--fo-success)]">
-                    {`${horas(bonificados)} bonificadas por ser ${vocabulary.singular} — sin cargo`}
-                  </p>
-                ) : null}
-                {cobrados > 0 ? (
-                  <p className="text-[var(--fo-text-secondary)]">
-                    {horas(cobrados)} × {formatMinorArs(memberHourlyPriceMinor)} por hora —{" "}
-                    {formatMinorArs(espacioMinor)}
-                  </p>
-                ) : null}
+                {porBloque ? (
+                  <>
+                    {quote.blocksFree > 0 ? (
+                      <p className="text-[var(--fo-success)]">
+                        {quote.blocksFree === 1
+                          ? `1 ${nombrePaquete} ${pricing.blockMinutes ? "bonificado" : "bonificada"} por ser ${vocabulary.singular} — sin cargo`
+                          : `${quote.blocksFree} ${nombrePaquetes} bonificados por ser ${vocabulary.singular} — sin cargo`}
+                      </p>
+                    ) : null}
+                    {quote.blocksBilled > 0 ? (
+                      <p className="text-[var(--fo-text-secondary)]">
+                        {pricing.blockMinutes
+                          ? `${quote.blocksBilled} × ${nombrePaquete} a ${formatMinorArs(quote.blockPriceMinor)} — ${formatMinorArs(quote.totalMinor)}`
+                          : `Jornada — ${formatMinorArs(quote.totalMinor)}`}
+                      </p>
+                    ) : null}
+                    {cubre !== null && cubre > minutos ? (
+                      <p className="text-xs text-[var(--fo-muted)]">
+                        Se cobra el {nombrePaquete} completo: si querés, tocá otra hora del mismo
+                        día y usás hasta {horas(cubre)} por el mismo precio.
+                      </p>
+                    ) : null}
+                    {!pricing.blockMinutes && quote.blocksBilled > 0 ? (
+                      <p className="text-xs text-[var(--fo-muted)]">
+                        Se cobra por jornada: el precio es el mismo dure lo que dure.
+                      </p>
+                    ) : null}
+                  </>
+                ) : (
+                  <>
+                    {quote.freeMinutesUsed > 0 ? (
+                      <p className="text-[var(--fo-success)]">
+                        {`${horas(quote.freeMinutesUsed)} bonificadas por ser ${vocabulary.singular} — sin cargo`}
+                      </p>
+                    ) : null}
+                    {quote.billedMinutes > 0 ? (
+                      <p className="text-[var(--fo-text-secondary)]">
+                        {horas(quote.billedMinutes)} × {formatMinorArs(quote.hourlyPriceMinor)} por hora —{" "}
+                        {formatMinorArs(quote.totalMinor)}
+                      </p>
+                    ) : null}
+                  </>
+                )}
               </div>
+
+              {memberHint && comoSocio && comoSocio.sinBonificar < quote.totalMinor ? (
+                <p className="mt-3 rounded-[var(--fo-radius-sm)] bg-[var(--fo-accent-soft)] px-3 py-2 text-sm text-[var(--fo-text-secondary)] sm:ml-[1.625rem]">
+                  Como {vocabulary.singular} pagarías{" "}
+                  <strong className="text-[var(--fo-text)]">{formatMinorArs(comoSocio.sinBonificar)}</strong>
+                  {comoSocio.conBonificacion < comoSocio.sinBonificar
+                    ? comoSocio.conBonificacion === 0
+                      ? `, o nada si usás tus ${memberHint.freeHoursPerMonth} h gratis del mes`
+                      : `, o ${formatMinorArs(comoSocio.conBonificacion)} usando tus ${memberHint.freeHoursPerMonth} h gratis del mes`
+                    : ""}
+                  .{" "}
+                  <a href={memberHint.loginHref} className="font-semibold text-[var(--fo-accent-hover)] underline underline-offset-4">
+                    Ingresar
+                  </a>
+                </p>
+              ) : null}
+
+              {contactFields ? (
+                <div className="mt-3 space-y-3 border-t border-[var(--fo-border)] pl-[1.625rem] pt-3">
+                  {contactFields}
+                </div>
+              ) : null}
 
               {extras.length > 0 ? (
                 <div className="mt-3 space-y-2 border-t border-[var(--fo-border)] pl-[1.625rem] pt-3">
@@ -491,10 +594,12 @@ export function ReservarForm({
 
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3 pl-[1.625rem]">
                 <p className="text-base font-semibold tabular-nums text-[var(--fo-text)]">
-                  {extrasElegidos.length > 0 ? "Espacio" : "Total"} {formatMinorArs(espacioMinor)}
+                  {extrasElegidos.length > 0 ? "Espacio" : "Total"} {formatMinorArs(quote.totalMinor)}
                 </p>
                 <button type="submit" className="fo-btn fo-btn-primary text-sm">
-                  Reservar {horas(minutos)}
+                  {quote.totalMinor > 0 || extrasElegidos.length > 0
+                    ? "Reservar y pagar"
+                    : `Reservar ${horas(minutos)}`}
                 </button>
               </div>
             </div>

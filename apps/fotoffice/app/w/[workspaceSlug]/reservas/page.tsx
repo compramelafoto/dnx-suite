@@ -1,7 +1,10 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { loadPublicBookingViewer } from "@/lib/bookings/public-member";
+import { doorPathFor } from "@/lib/entrada/institution-door";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { prisma } from "@repo/db";
-import { formatMinorArs } from "@/lib/membership/money";
+import { spacePriceLabel } from "@/lib/bookings/pricing";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { listSpaces } from "@/lib/bookings/repository";
@@ -19,8 +22,7 @@ const DIAS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 /**
  * Los espacios que la institución alquila a quien no es socio.
  *
- * Reservar exige cuenta: sin ella no se puede reconocer a quien ocupó el espacio ni avisarle
- * si algo cambia. El botón lleva al login y vuelve acá.
+ * Reservar no exige cuenta: el correo identifica la reserva (ver `[spaceId]/page.tsx`).
  */
 export default async function PublicBookingsPage({ params, searchParams }: Props) {
   const { workspaceSlug } = await params;
@@ -34,7 +36,14 @@ export default async function PublicBookingsPage({ params, searchParams }: Props
 
   if (!(await isModuleEnabledForWorkspace(branding.workspaceId, BOOKINGS_MODULE_KEY))) notFound();
 
-  const espacios = (await listSpaces(branding.workspaceId)).filter((e) => e.allowsNonMembers);
+  // El socio con sesión reserva desde su portal, con su precio.
+  if ((await loadPublicBookingViewer(branding.workspaceId)).isMemberHere) redirect("/portal/reservas");
+
+  const [todos, vocabulary] = await Promise.all([
+    listSpaces(branding.workspaceId),
+    loadPersonVocabulary(branding.workspaceId),
+  ]);
+  const espacios = todos.filter((e) => e.allowsNonMembers);
 
   return (
     <main className="mx-auto max-w-5xl space-y-8 px-4 py-12 md:px-8 md:py-16">
@@ -82,10 +91,17 @@ export default async function PublicBookingsPage({ params, searchParams }: Props
                 </div>
                 <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
                   <span className="text-sm font-medium">
-                    {formatMinorArs(espacio.nonMemberHourlyPriceMinor)} por hora
+                    {spacePriceLabel(espacio, "NON_MEMBER")}
+                  </span>
+                  <span className="text-xs text-[var(--fo-accent-hover)]">
+                    {vocabulary.Plural}:{" "}
+                    {spacePriceLabel(espacio, "MEMBER")}
+                    {espacio.memberFreeHoursPerMonth > 0
+                      ? ` + ${espacio.memberFreeHoursPerMonth} h gratis por mes`
+                      : ""}
                   </span>
                   <Link
-                    href={`/login?next=${encodeURIComponent(`/w/${workspaceSlug}/reservas/${espacio.id}`)}`}
+                    href={`/w/${workspaceSlug}/reservas/${espacio.id}`}
                     className="fo-btn fo-btn-primary text-sm"
                   >
                     Reservar
@@ -98,8 +114,12 @@ export default async function PublicBookingsPage({ params, searchParams }: Props
       )}
 
       <p className="text-xs leading-relaxed text-[var(--fo-muted-soft)]">
-        Para reservar hace falta una cuenta. El horario queda reservado cuando se acredita el
-        pago por Mercado Pago.
+        El horario queda reservado cuando se acredita el pago por Mercado Pago. ¿Sos{" "}
+        {vocabulary.singular}?{" "}
+        <Link href={doorPathFor(workspaceSlug)} className="underline underline-offset-4">
+          Ingresá
+        </Link>{" "}
+        y reservá con tu precio.
       </p>
     </main>
   );

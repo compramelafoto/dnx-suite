@@ -12,7 +12,6 @@ describe("decideCustomDomainRoute", () => {
     expect(decide("/blog/mi-articulo")).toEqual({ kind: "rewrite", pathname: "/w/sfpr/blog/mi-articulo" });
     expect(decide("/blog/rss.xml")).toEqual({ kind: "rewrite", pathname: "/w/sfpr/blog/rss.xml" });
     // En el panel son pantallas de gestión; en el dominio propio, secciones del sitio.
-    expect(decide("/reservas")).toEqual({ kind: "rewrite", pathname: "/w/sfpr/reservas" });
     expect(decide("/sorteos/abc")).toEqual({ kind: "rewrite", pathname: "/w/sfpr/sorteos/abc" });
   });
 
@@ -31,9 +30,13 @@ describe("decideCustomDomainRoute", () => {
     expect(decide("/w/otra")).toEqual({ kind: "redirect", url: `${ORIGIN}/w/otra` });
   });
 
-  it("el aula del alumno y su recuperación van al dominio de FOTOFFICE", () => {
-    expect(decide("/aula/tok-123")).toEqual({ kind: "redirect", url: `${ORIGIN}/aula/tok-123` });
-    expect(decide("/aula/recuperar")).toEqual({ kind: "redirect", url: `${ORIGIN}/aula/recuperar` });
+  it("las reservas se abren en FOTOFFICE, donde se reconoce al socio", () => {
+    expect(decide("/reservas")).toEqual({ kind: "redirect", url: `${ORIGIN}/w/sfpr/reservas` });
+    expect(decide("/reservas/abc", "?fecha=2026-10-05")).toEqual({
+      kind: "redirect",
+      url: `${ORIGIN}/w/sfpr/reservas/abc?fecha=2026-10-05`,
+    });
+    expect(decide("/w/sfpr/reservas/abc")).toEqual({ kind: "redirect", url: `${ORIGIN}/w/sfpr/reservas/abc` });
   });
 
   it("no toca recursos de Next, la API ni archivos", () => {

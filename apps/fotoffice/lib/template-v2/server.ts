@@ -20,7 +20,32 @@ import {
 } from "@/lib/images/r2-client";
 import { FOTOFFICE_R2_PREFIXES } from "@/lib/images/r2-key-policy";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
-import { canDesignTemplates } from "./access";
+import { canDesignPlacas, canDesignTemplates } from "./access";
+import { listKeyedTemplates } from "./keyed-template";
+import { isPlacaTemplateKey } from "@/lib/placas/constants";
+import {
+  placaInitials,
+  placaInstagram,
+  placaPhoto,
+  placaSpecialty,
+  placaZone,
+} from "@/lib/placas/values";
+
+/**
+ * Rol con el que viaja quien diseña **sólo** placas: tiene Comunicación en "Gestionar" pero no
+ * Socios. Puede abrir y guardar las plantillas de placa, y ninguna otra —el carnet incluido—.
+ */
+const ROL_SOLO_PLACAS = "FOTOFFICE_PLACAS_ONLY";
+
+/**
+ * Las plantillas que puede tocar cada persona con `ROL_SOLO_PLACAS`, por id de usuario.
+ *
+ * La política del paquete decide plantilla por plantilla con una función sincrónica (`owns`), y
+ * a esa altura ya no se puede consultar la base. Por eso `requireUser` —que corre primero en
+ * cada pedido— deja anotado acá qué plantillas son placas, y `owns` lo lee. Se recalcula en
+ * cada pedido, así que una placa recién creada entra en el siguiente.
+ */
+const plantillasDePlacasPorUsuario = new Map<number, Set<string>>();
 
 /** Lo que la vista previa necesita de un socio para dibujar cualquier plantilla del producto. */
 const SOCIO_DE_MUESTRA = {
@@ -35,6 +60,13 @@ const SOCIO_DE_MUESTRA = {
   phone: true,
   city: true,
   category: { select: { name: true } },
+  // Las de las placas de Comunicación.
+  profilePhotoUrl: true,
+  province: true,
+  studioCity: true,
+  studioProvince: true,
+  specialties: true,
+  instagram: true,
 } as const;
 
 setTemplateV2Runtime({
@@ -48,8 +80,17 @@ setTemplateV2Runtime({
     const workspace = await resolveActiveWorkspace(user.id);
     if (!workspace) throw new Error("No hay una institución activa");
 
-    // Diseñar pide `members` MANAGE; el rol sólo viaja como dato para el editor.
-    if (!(await canDesignTemplates(user.id, workspace.id))) {
+    // Diseñar pide `members` MANAGE (todas las plantillas) o `communications` MANAGE (sólo
+    // las placas). El rol sólo viaja como dato para el editor, salvo el de "sólo placas".
+    if (await canDesignTemplates(user.id, workspace.id)) {
+      plantillasDePlacasPorUsuario.delete(user.id);
+    } else if (await canDesignPlacas(user.id, workspace.id)) {
+      const placas = (await listKeyedTemplates(workspace.id))
+        .filter((t) => isPlacaTemplateKey(t.templateKey))
+        .map((t) => t.templateId);
+      plantillasDePlacasPorUsuario.set(user.id, new Set(placas));
+      return { id: user.id, role: ROL_SOLO_PLACAS, email: user.email, workspaceId: workspace.id };
+    } else {
       throw new Error("Sin permisos para diseñar plantillas");
     }
     const role = (await resolveWorkspaceRole(user.id, workspace.id)) ?? "";
@@ -126,6 +167,12 @@ setTemplateV2Runtime({
       validUntil: carnet?.validUntil ?? null,
       institutionName: branding?.commercialName?.trim() || workspace.name,
       institutionLogo: branding?.logoUrl ?? null,
+      // Las de las placas, con las mismas reglas con que se emiten (`lib/placas/values.ts`).
+      profilePhoto: placaPhoto(socio),
+      initials: placaInitials(socio.firstName, socio.lastName),
+      zone: placaZone(socio),
+      specialty: placaSpecialty(socio.specialties),
+      instagramHandle: placaInstagram(socio.instagram),
       /*
        * La dirección de verificación no se muestra real: cada credencial lleva su propio código
        * y publicarlo acá lo dejaría a la vista de quien esté diseñando. El QR se ve, y lleva a
@@ -151,10 +198,18 @@ setTemplateV2Runtime({
      * Una plantilla sin workspace no es de nadie: se cae al dueño original, que es la regla
      * del paquete.
      */
-    owns: (user, template) =>
-      template.workspaceId != null && user.workspaceId != null
+    owns: (user, template) => {
+      if (user.role === ROL_SOLO_PLACAS) {
+        return (
+          template.workspaceId != null &&
+          template.workspaceId === user.workspaceId &&
+          (plantillasDePlacasPorUsuario.get(user.id)?.has(template.id) ?? false)
+        );
+      }
+      return template.workspaceId != null && user.workspaceId != null
         ? template.workspaceId === user.workspaceId
-        : template.ownerUserId === user.id,
+        : template.ownerUserId === user.id;
+    },
   },
 });
 

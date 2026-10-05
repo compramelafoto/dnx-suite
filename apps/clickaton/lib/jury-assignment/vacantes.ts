@@ -28,7 +28,7 @@ export function armarVacantes(input: {
   consignas: Array<{ id: string; sequence: number; titulo: string }>;
   miradasPorObra: number;
   ocupantes: Ocupante[];
-  excepciones?: Array<{ seatNumber: number; promptExternalId: string }>;
+  excepciones?: Array<{ seatNumber: number; promptExternalId: string; quita?: boolean }>;
 }): Vacante[] {
   if (!Number.isFinite(input.plannedSeats) || input.plannedSeats < 1) return [];
 

@@ -15,6 +15,7 @@ describe("homeWidgetGates — cada número del inicio, por el nivel de su módul
       sorteos: false,
       coberturas: false,
       pedidos: false,
+      comunicacion: false,
     });
   });
 
@@ -27,6 +28,7 @@ describe("homeWidgetGates — cada número del inicio, por el nivel de su módul
       raffles: "VIEW",
       coverages: "VIEW",
       "service-leads": "VIEW",
+      communications: "VIEW",
     });
     expect(g).toEqual({
       socios: true,
@@ -37,6 +39,7 @@ describe("homeWidgetGates — cada número del inicio, por el nivel de su módul
       sorteos: true,
       coberturas: true,
       pedidos: true,
+      comunicacion: true,
     });
   });
 

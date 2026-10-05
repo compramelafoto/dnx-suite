@@ -14,10 +14,23 @@ import type { UserProfile } from "../portal/profiles";
  * paquete de autenticación compartido con las otras aplicaciones.
  */
 
-/** La dirección de la puerta de una institución. */
-export function doorPathFor(slug: string): string {
-  return `/w/${slug}/entrar`;
+/**
+ * La dirección de la puerta de una institución.
+ *
+ * Con `reserva`, la puerta además recuerda qué espacio y qué semana estaba mirando la persona:
+ * así quien toca "Ingresar" desde la página de reservas vuelve a esa misma reserva, ya
+ * reconocida como socia, en vez de aterrizar en el inicio del portal.
+ */
+export function doorPathFor(slug: string, reserva?: { spaceId: string; ymd?: string }): string {
+  const base = `/w/${slug}/entrar`;
+  if (!reserva || !ID_RESERVA.test(reserva.spaceId)) return base;
+  const fecha = reserva.ymd && FECHA.test(reserva.ymd) ? `&fecha=${reserva.ymd}` : "";
+  return `${base}?espacio=${reserva.spaceId}${fecha}`;
 }
+
+const ID_RESERVA = /^[a-z0-9]{1,40}$/;
+const FECHA = /^\d{4}-\d{2}-\d{2}$/;
+const PUERTA = /^\/w\/([a-z0-9][a-z0-9-]*)\/entrar(?:\?espacio=[a-z0-9]{1,40}(?:&fecha=\d{4}-\d{2}-\d{2})?)?$/;
 
 /**
  * El slug de la institución si este `next` es una puerta, o `null`.
@@ -28,8 +41,17 @@ export function doorPathFor(slug: string): string {
  */
 export function parseDoorPath(next: string | null | undefined): string | null {
   if (typeof next !== "string") return null;
-  const match = /^\/w\/([a-z0-9][a-z0-9-]*)\/entrar$/.exec(next.trim());
+  const match = PUERTA.exec(next.trim());
   return match?.[1] ?? null;
+}
+
+/**
+ * La dirección exacta a la que se vuelve después de entrar por una puerta, con la reserva
+ * que recordaba si la tenía, o `null` si `next` no es una puerta. Mismo filtro estricto que
+ * `parseDoorPath`: sólo `espacio` (un id) y `fecha` (un día), en ese orden.
+ */
+export function doorReturnPath(next: string | null | undefined): string | null {
+  return parseDoorPath(next) ? (next as string).trim() : null;
 }
 
 export type DoorDestination =

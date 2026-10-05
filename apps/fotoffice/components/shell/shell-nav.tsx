@@ -30,6 +30,7 @@ import {
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
+import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
@@ -97,7 +98,10 @@ function itemsDeModulo(
       sub.activeMatch === "exact"
         ? exact(sub.href)
         : sub.activeMatch === "under"
-          ? under(sub.href)
+          ? // Si otra entrada cuelga de ésta (Pedidos online y su Configuración), la hija gana.
+            (path: string) =>
+              under(sub.href)(path) &&
+              !reclamadas.some((r) => r.startsWith(`${sub.href}/`) && under(r)(path))
           : // "rest": el resto del módulo, lo que no reclama ninguna otra entrada. Si abarcara
             // todo, quedaría iluminado mientras mirás Cuotas y no sabrías dónde estás parado.
             (path: string) =>
@@ -184,6 +188,10 @@ export function ShellNav({
   // Sorteos vive en el grupo Socios: es una de las cosas que la institución le da al socio
   // al día, y separarlo en su propia sección lo dejaría suelto al lado de Cuotas.
   const sorteos: Item[] = itemsDeModulo(RAFFLES_MODULE_KEY, access, vocabulary);
+
+  // Comunicación: las placas para redes. Grupo propio porque lo usa un área —quien lleva las
+  // redes de la institución—, que puede no tener nada que ver con el padrón.
+  const comunicacion: Item[] = itemsDeModulo(COMMUNICATIONS_MODULE_KEY, access, vocabulary);
 
   // Grupo propio y no dentro de Socios: coberturas se le pide a cualquier institución con
   // actividad fotográfica, no sólo a las que tienen padrón de socios. Colaboradores y
@@ -323,6 +331,7 @@ export function ShellNav({
       />
       <Section title={vocabulary.Plural} items={socios} path={path} onNavigate={closeDrawer} />
       <Section title="Sorteos" items={sorteos} path={path} onNavigate={closeDrawer} />
+      <Section title="Comunicación" items={comunicacion} path={path} onNavigate={closeDrawer} />
       <Section title="Coberturas" items={coberturas} path={path} onNavigate={closeDrawer} />
       <Section title="Cursos" items={cursosItems} path={path} onNavigate={closeDrawer} />
       <Section title="Reservas" items={reservas} path={path} onNavigate={closeDrawer} />

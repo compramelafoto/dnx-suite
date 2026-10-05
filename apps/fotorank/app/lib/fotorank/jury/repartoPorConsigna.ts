@@ -71,7 +71,12 @@ export function leTocaLaConsigna(
   return consignas.has(promptExternalId);
 }
 
-export type Excepcion = { seatNumber: number; promptExternalId: string };
+/**
+ * `quita` en verdadero saca la consigna en lugar de sumarla. Existe para el
+ * jurado que se sentó pero no avanza: su lote se le pasa a otro y, si no se le
+ * quita, lo sigue viendo y puede calificar fotos que ya califica otra persona.
+ */
+export type Excepcion = { seatNumber: number; promptExternalId: string; quita?: boolean };
 
 /**
  * Qué consignas le tocan a una vacante.
@@ -79,7 +84,8 @@ export type Excepcion = { seatNumber: number; promptExternalId: string };
  * El reparto no se guarda: se calcula acá cada vez, con la misma rotación
  * determinista. Guardarlo crearía un estado que algún día no coincide con el
  * cálculo. Lo único que se persiste son las excepciones, y sólo existen cuando
- * alguien redistribuyó a mano el lote de una vacante que quedó vacía.
+ * alguien redistribuyó a mano el lote de una vacante: las que suman y las que
+ * quitan. Las que quitan se aplican al final, así ganan sobre cualquier suma.
  */
 export function consignasDeLaVacante(input: {
   consignas: string[];
@@ -101,8 +107,12 @@ export function consignasDeLaVacante(input: {
   for (const par of pares) {
     if (par.juradoId === String(input.seatNumber)) suyas.add(par.consignaId);
   }
-  for (const e of input.excepciones ?? []) {
-    if (e.seatNumber === input.seatNumber) suyas.add(e.promptExternalId);
+  const deLaVacante = (input.excepciones ?? []).filter((e) => e.seatNumber === input.seatNumber);
+  for (const e of deLaVacante) {
+    if (!e.quita) suyas.add(e.promptExternalId);
+  }
+  for (const e of deLaVacante) {
+    if (e.quita) suyas.delete(e.promptExternalId);
   }
   return suyas;
 }

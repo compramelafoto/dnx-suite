@@ -7,6 +7,9 @@ import { CreateCarnetTemplate } from "@/components/members/create-carnet-templat
 import { PageHeader } from "@/components/page-header";
 import { requireActiveWorkspace } from "@/lib/workspace";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
+import { listKeyedTemplates } from "@/lib/template-v2/keyed-template";
+import { isPlacaTemplateKey } from "@/lib/placas/constants";
+import { CARNET_TEMPLATE_KEY } from "@/lib/carnet/template";
 // El import registra el runtime del editor: base, sesión y almacenamiento de esta app.
 import "@/lib/template-v2/server";
 
@@ -54,8 +57,16 @@ export default async function PlantillasPage() {
   // vez de explicar qué falta. Mismo criterio que `withClickatonDb`.
   let templates: Plantilla[] = [];
   let faltaMigracion = false;
+  let tieneCarnet = false;
   try {
-    templates = await prisma.templateV2.findMany({
+    // Las placas de Comunicación se diseñan con este mismo editor, pero son de otra área y
+    // tienen su propia lista (Comunicación → Plantillas). Acá no se mezclan.
+    const conMarca = await listKeyedTemplates(workspace.id);
+    const placas = new Set(
+      conMarca.filter((t) => isPlacaTemplateKey(t.templateKey)).map((t) => t.templateId),
+    );
+    tieneCarnet = conMarca.some((t) => t.templateKey === CARNET_TEMPLATE_KEY);
+    const todas = await prisma.templateV2.findMany({
       where: { workspaceId: workspace.id, status: { not: "ARCHIVED" } },
       orderBy: { updatedAt: "desc" },
       take: 100,
@@ -68,6 +79,7 @@ export default async function PlantillasPage() {
         updatedAt: true,
       },
     });
+    templates = todas.filter((t) => !placas.has(t.id));
   } catch (error) {
     if (!esTablaAusente(error)) throw error;
     faltaMigracion = true;
@@ -89,7 +101,7 @@ export default async function PlantillasPage() {
             pendiente, no un error de esta pantalla.
           </p>
         </section>
-      ) : templates.length === 0 ? (
+      ) : !tieneCarnet && templates.length === 0 ? (
         <section className="fo-card space-y-3 p-8">
           <p className="text-sm">Todavía no hay plantillas.</p>
           <p className="text-xs text-[var(--fo-muted)] leading-relaxed">
@@ -99,6 +111,13 @@ export default async function PlantillasPage() {
           <CreateCarnetTemplate />
         </section>
       ) : (
+        <>
+        {!tieneCarnet ? (
+          <section className="fo-card space-y-3 p-6">
+            <p className="text-sm">El carnet todavía usa el diseño de fábrica.</p>
+            <CreateCarnetTemplate />
+          </section>
+        ) : null}
         <section className="fo-card overflow-x-auto p-0">
           <table className="min-w-full text-left text-sm">
             <thead className="border-b border-[var(--fo-border)] text-[var(--fo-muted-soft)]">
@@ -139,6 +158,7 @@ export default async function PlantillasPage() {
             </tbody>
           </table>
         </section>
+        </>
       )}
     </div>
   );

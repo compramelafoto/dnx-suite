@@ -17,12 +17,12 @@ export type CustomDomainDecision =
  * FOTOFFICE. En el dominio propio redirigen al de FOTOFFICE, porque la cookie de sesión es de
  * ese dominio y acá el navegador no la manda.
  *
- * `reservas`, `sorteos`, `cursos` y `coberturas` NO están: en el panel son pantallas de gestión,
- * pero en el dominio propio son secciones del sitio (`/w/<slug>/reservas`).
+ * `sorteos`, `cursos` y `coberturas` NO están: en el panel son pantallas de gestión, pero en el
+ * dominio propio son secciones del sitio. `reservas` tampoco está acá, pero sí en
+ * `SITE_SEGMENTS_ON_FOTOFFICE`: es del sitio, y se abre en el dominio de FOTOFFICE.
  */
 const FOTOFFICE_ONLY_SEGMENTS = new Set([
   "admin",
-  "aula",
   "bienvenida",
   "c",
   "caja",
@@ -48,9 +48,14 @@ const FOTOFFICE_ONLY_SEGMENTS = new Set([
 
 /**
  * Segmentos del sitio que tienen que abrirse en el dominio de FOTOFFICE aunque vivan bajo
- * `/w/<slug>`: `entrar` inicia sesión, y la sesión sólo existe allá.
+ * `/w/<slug>`, porque necesitan saber quién es la persona y la sesión sólo existe allá:
+ *
+ * - `entrar` inicia sesión.
+ * - `reservas` cobra distinto al socio que al que no lo es. En el dominio propio el navegador
+ *   no manda la cookie de FOTOFFICE, así que ahí todo socio se vería como no socio y pagaría
+ *   la tarifa plena. Allá se lo reconoce y se lo lleva a su portal.
  */
-const SITE_SEGMENTS_ON_FOTOFFICE = new Set(["entrar"]);
+const SITE_SEGMENTS_ON_FOTOFFICE = new Set(["entrar", "reservas"]);
 
 const STATIC_FILE = /\.(?:png|jpe?g|gif|webp|avif|svg|ico|mp4|webm|woff2?|ttf|css|js|map|pdf)$/i;
 

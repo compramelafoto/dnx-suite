@@ -28,6 +28,7 @@ export type IntegrationDefinition = {
 };
 
 export const GOOGLE_CALENDAR_INTEGRATION_KEY = "google-calendar";
+export const GOOGLE_CONTACTS_INTEGRATION_KEY = "google-contacts";
 
 export const INTEGRATION_REGISTRY: readonly IntegrationDefinition[] = [
   {
@@ -53,6 +54,19 @@ export const INTEGRATION_REGISTRY: readonly IntegrationDefinition[] = [
     requiredByModules: ["bookings"],
     status: "AVAILABLE",
   },
+  {
+    key: GOOGLE_CONTACTS_INTEGRATION_KEY,
+    provider: "GOOGLE",
+    label: "Google Contacts",
+    description:
+      "Agenda a los socios en los contactos de la institución y trae de vuelta las correcciones que se hagan desde el celular.",
+    // Alcanza con este permiso: crea y edita contactos y grupos. `contacts.readonly` no
+    // suma nada —`contacts` ya incluye la lectura— y sumarlo solo complicaría la
+    // verificación ante Google, que clasifica este scope como sensible.
+    scopes: ["https://www.googleapis.com/auth/contacts"],
+    requiredByModules: ["members"],
+    status: "AVAILABLE",
+  },
 
   // --- Reservadas para etapas futuras. Claves fijadas, SIN implementar. ---
   {
@@ -74,15 +88,6 @@ export const INTEGRATION_REGISTRY: readonly IntegrationDefinition[] = [
     description: "Guarda documentación institucional en la unidad de la institución.",
     scopes: ["https://www.googleapis.com/auth/drive.file"],
     requiredByModules: [],
-    status: "PLANNED",
-  },
-  {
-    key: "google-contacts",
-    provider: "GOOGLE",
-    label: "Google Contacts",
-    description: "Agenda a cada {persona} nuevo en los contactos de la institución.",
-    scopes: ["https://www.googleapis.com/auth/contacts"],
-    requiredByModules: ["members"],
     status: "PLANNED",
   },
 ] as const;

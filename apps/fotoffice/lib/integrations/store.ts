@@ -172,3 +172,40 @@ export async function deleteIntegration(
   });
   return refreshToken;
 }
+
+/**
+ * La marca de "dame solo lo que cambió" del proveedor.
+ *
+ * No es una credencial —no sirve para actuar en nombre de nadie—, así que sale y entra por
+ * su propia función en vez de mezclarse con el resumen o con el refresh token. Lleva
+ * `workspaceId` como todo lo de este archivo: la marca de una institución no es legible ni
+ * pisable desde otra.
+ */
+export async function readSyncCursor(
+  workspaceId: string,
+  integrationKey: string,
+): Promise<string | null> {
+  const row = await prisma.workspaceIntegration.findUnique({
+    where: { workspaceId_integrationKey: { workspaceId, integrationKey } },
+    select: { syncCursor: true },
+  });
+  return row?.syncCursor ?? null;
+}
+
+/**
+ * Guardar la marca es decirle al proveedor "ya tengo todo lo que me mandaste hasta acá", así
+ * que sólo la guarda quien efectivamente aplicó lo que vino. `null` la borra, que es lo que
+ * corresponde cuando el proveedor la rechaza por vencida.
+ */
+export async function writeSyncCursor(
+  workspaceId: string,
+  integrationKey: string,
+  syncCursor: string | null,
+): Promise<void> {
+  // `updateMany` y no `update`: si la institución desconectó la cuenta mientras corría la
+  // sincronización, la fila ya no está y esto no tiene por qué lanzar.
+  await prisma.workspaceIntegration.updateMany({
+    where: { workspaceId, integrationKey },
+    data: { syncCursor },
+  });
+}
