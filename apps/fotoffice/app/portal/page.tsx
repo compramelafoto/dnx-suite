@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
 import { requireAuth } from "@/lib/auth";
 import { loadPortalContext } from "@/lib/portal/access";
+import { tieneCursos } from "@/lib/course-classroom/alumno";
 import { resolveFotofficeUserKind } from "@/lib/portal/user-kind";
 import { hasProfilesInSeveralWorkspaces, listUserProfiles } from "@/lib/portal/profiles";
 import { loadMemberBalance } from "@/lib/membership/balance";
@@ -13,6 +14,13 @@ import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { resolvePortalMenu } from "@/lib/portal/menu";
 import { PortalHome } from "@/components/portal/portal-home";
 import { loadPortalRaffles } from "@/lib/raffles/portal";
+import {
+  ensureCurrentSpotlightSafe,
+  isSpotlightEnabled,
+  loadCurrentSpotlight,
+} from "@/lib/spotlight/repository";
+import { buildSpotlightCard } from "@/lib/spotlight/view";
+import { spotlightWeekLabel } from "@/lib/spotlight/week";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +39,9 @@ export default async function PortalPage() {
   const context = await loadPortalContext(user.id);
 
   if (!context) {
+    // Un alumno que entra a una pantalla de socios (todas redirigen a `/portal`) termina en
+    // Mis cursos, que es lo suyo.
+    if (await tieneCursos(user.id)) redirect("/portal/cursos");
     // Quien no es socio no tiene nada que hacer acá. Si administra una institución se lo
     // devuelve a su panel; si no, al inicio de sesión.
     const kind = await resolveFotofficeUserKind(user.id);
@@ -89,6 +100,34 @@ export default async function PortalPage() {
         .current
     : null;
 
+  // El Socio de la semana. Si la tarea de los viernes no corrió, esta visita lo elige: nunca queda
+  // una semana vacía. Cualquier falla deja el panel sin la tarjeta, nunca sin panel.
+  let socioDeLaSemana: { card: NonNullable<ReturnType<typeof buildSpotlightCard>>; weekLabel: string } | null =
+    null;
+  try {
+    if (await isSpotlightEnabled(context.workspace.id)) {
+      await ensureCurrentSpotlightSafe(context.workspace.id);
+      const destacado = await loadCurrentSpotlight(context.workspace.id);
+      const card = destacado
+        ? buildSpotlightCard({
+            member: destacado.member,
+            about: destacado.about,
+            portfolioPath: destacado.portfolioPath,
+            institution,
+            audience: "portal",
+            viewerMemberId: context.member.id,
+          })
+        : null;
+      if (destacado && card) {
+        socioDeLaSemana = { card, weekLabel: spotlightWeekLabel(destacado.weekStart) };
+      }
+    }
+  } catch (error) {
+    console.error("[fotoffice][socio-de-la-semana] no se pudo mostrar la tarjeta", {
+      detalle: error instanceof Error ? error.message : "error desconocido",
+    });
+  }
+
   return (
     <PortalHome
       institution={institution}
@@ -113,6 +152,8 @@ export default async function PortalPage() {
       puedeCambiarPerfil={hasProfilesInSeveralWorkspaces(profiles)}
       tieneNegocio={profiles.some((p) => p.kind === "TEAM")}
       sorteo={sorteo}
+      whatsappGroupUrl={duesSettings.communityWhatsappUrl}
+      socioDeLaSemana={socioDeLaSemana}
     />
   );
 }

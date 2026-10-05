@@ -24,6 +24,19 @@ const AGENDA = "/reservas";
 const ESPACIOS = "/reservas/espacios";
 
 /**
+ * A dónde vuelve la agenda después de operar sobre una reserva.
+ *
+ * El formulario manda la vista que se estaba mirando (`volver`), así quien aprueba una
+ * reserva de dentro de tres semanas no aterriza de nuevo en la semana actual. Sólo se acepta
+ * una dirección de la propia agenda: nunca una redirección a otro sitio.
+ */
+function volverAAgenda(formData: FormData, aviso: string): string {
+  const pedido = String(formData.get("volver") ?? "");
+  const base = pedido === AGENDA || pedido.startsWith(`${AGENDA}?`) ? pedido : AGENDA;
+  return `${base}${base.includes("?") ? "&" : "?"}${aviso}`;
+}
+
+/**
  * Alta y edición de un espacio, con sus horarios y sus convivencias.
  *
  * Los horarios y las compatibilidades se reemplazan enteros en cada guardado: son listas
@@ -68,6 +81,10 @@ export async function saveSpaceAction(formData: FormData): Promise<void> {
         requiresApproval: v.requiresApproval,
         memberHourlyPriceArs: minorToDecimalString(v.memberHourlyPriceMinor),
         nonMemberHourlyPriceArs: minorToDecimalString(v.nonMemberHourlyPriceMinor),
+        pricingMode: v.pricingMode,
+        blockMinutes: v.blockMinutes,
+        memberBlockPriceArs: minorToDecimalString(v.memberBlockPriceMinor),
+        nonMemberBlockPriceArs: minorToDecimalString(v.nonMemberBlockPriceMinor),
         memberFreeHoursPerMonth: v.memberFreeHoursPerMonth,
         allowsNonMembers: v.allowsNonMembers,
       };
@@ -186,7 +203,9 @@ export async function cancelBookingAction(formData: FormData): Promise<void> {
   });
 
   revalidatePath(AGENDA);
-  redirect(r.ok ? `${AGENDA}?ok=cancelada` : `${AGENDA}?error=${encodeURIComponent(r.error ?? "")}`);
+  redirect(
+    volverAAgenda(formData, r.ok ? "ok=cancelada" : `error=${encodeURIComponent(r.error ?? "")}`),
+  );
 }
 
 const CONFIGURACION = "/reservas/configuracion";
@@ -365,7 +384,9 @@ export async function confirmTransferAction(formData: FormData): Promise<void> {
   });
 
   revalidatePath(AGENDA);
-  redirect(r.ok ? `${AGENDA}?ok=confirmada` : `${AGENDA}?error=${encodeURIComponent(r.error ?? "")}`);
+  redirect(
+    volverAAgenda(formData, r.ok ? "ok=confirmada" : `error=${encodeURIComponent(r.error ?? "")}`),
+  );
 }
 
 /**
@@ -387,7 +408,9 @@ export async function approveBookingAction(formData: FormData): Promise<void> {
   });
 
   revalidatePath(AGENDA);
-  redirect(r.ok ? `${AGENDA}?ok=aprobada` : `${AGENDA}?error=${encodeURIComponent(r.error ?? "")}`);
+  redirect(
+    volverAAgenda(formData, r.ok ? "ok=aprobada" : `error=${encodeURIComponent(r.error ?? "")}`),
+  );
 }
 
 /** Rechazar es cancelar con un motivo. Reutiliza el mismo camino. */
@@ -404,7 +427,9 @@ export async function rejectBookingAction(formData: FormData): Promise<void> {
   });
 
   revalidatePath(AGENDA);
-  redirect(r.ok ? `${AGENDA}?ok=rechazada` : `${AGENDA}?error=${encodeURIComponent(r.error ?? "")}`);
+  redirect(
+    volverAAgenda(formData, r.ok ? "ok=rechazada" : `error=${encodeURIComponent(r.error ?? "")}`),
+  );
 }
 
 /**

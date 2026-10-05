@@ -70,6 +70,7 @@ export {
   getContentTiptapExtensions,
   getBlogTiptapExtensions,
 } from "./tiptap/extensions";
+export { getInstagramEmbedUrl } from "./tiptap/instagram";
 export {
   sanitizeContentHtml,
   sanitizeBlogHtml,

@@ -25,7 +25,7 @@ export function PortalShell({
   children,
 }: {
   items: ResolvedPortalItem[];
-  member: { fullName: string; memberNumber: string; category: string | null; photoUrl: string | null };
+  member: { fullName: string; memberNumber: string | null; category: string | null; photoUrl: string | null };
   institution: { name: string; logoUrl: string | null };
   vocabulary: PersonVocabulary;
   /** Si el socio también es equipo de esta institución: el selector de rol (socio activo). */
@@ -57,7 +57,13 @@ export function PortalShell({
             <div className="min-w-0 text-right">
               <p className="truncate text-sm font-semibold leading-tight">{member.fullName}</p>
               <p className="truncate text-xs text-[var(--fo-muted)]">
-                {vocabulary.Singular} N° <span className="tabular-nums">{member.memberNumber}</span>
+                {member.memberNumber !== null ? (
+                  <>
+                    {vocabulary.Singular} N° <span className="tabular-nums">{member.memberNumber}</span>
+                  </>
+                ) : (
+                  "Alumno"
+                )}
                 {member.category ? <span className="hidden sm:inline"> · {member.category}</span> : null}
               </p>
             </div>

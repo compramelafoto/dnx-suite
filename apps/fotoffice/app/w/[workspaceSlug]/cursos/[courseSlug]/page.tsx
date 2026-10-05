@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { formatMoney } from "@/lib/format";
+import { appUrl as direccionDeLaApp } from "@/lib/app-url";
 import { computeAvailableSpots, getApprovedEnrollmentCountsByInstanceIds } from "@/lib/presential-courses/availability";
+import { RecordedCourseSection } from "@/components/presential-courses/recorded-course-section";
 import { PublicCourseEnrollmentForm } from "@/components/presential-courses/public-course-enrollment-form";
 
 type Props = { params: Promise<{ workspaceSlug: string; courseSlug: string }> };
@@ -64,9 +66,16 @@ export default async function PublicCourseLandingPage({ params }: Props) {
         where: { status: "ACTIVE" },
         orderBy: { startDateTime: "asc" },
       },
+      lessons: {
+        where: { videoStatus: "READY" },
+        orderBy: { sortOrder: "asc" },
+        select: { id: true, title: true, description: true, durationSeconds: true, isPreview: true },
+      },
     },
   });
   if (!presentialCourse) notFound();
+  const esCursoGrabado = presentialCourse.deliveryMode === "RECORDED";
+  const appUrl = direccionDeLaApp();
   const approvedCounts = await getApprovedEnrollmentCountsByInstanceIds(
     presentialCourse.instances.map((instance) => instance.id),
   );
@@ -80,7 +89,7 @@ export default async function PublicCourseLandingPage({ params }: Props) {
     <main className="max-w-5xl mx-auto px-4 md:px-8 py-12 md:py-16 space-y-10">
       <header className="space-y-4">
         <p className="text-xs font-semibold uppercase tracking-widest text-[var(--fo-accent)]">
-          {presentialCourse.status === "UPCOMING" ? "Próximamente" : "Cursos presenciales"}
+          {presentialCourse.status === "UPCOMING" ? "Próximamente" : esCursoGrabado ? "Curso grabado" : "Cursos presenciales"}
         </p>
         <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">{presentialCourse.title}</h1>
         {presentialCourse.shortDescription ? (
@@ -112,6 +121,18 @@ export default async function PublicCourseLandingPage({ params }: Props) {
         </section>
       ) : null}
 
+      {esCursoGrabado ? (
+        <RecordedCourseSection
+          workspaceSlug={workspaceSlug}
+          courseSlug={courseSlug}
+          appUrl={appUrl}
+          precioArs={presentialCourse.priceArs?.toString() ?? null}
+          accessMonths={presentialCourse.accessMonths}
+          publicado={presentialCourse.status === "PUBLISHED"}
+          clases={presentialCourse.lessons}
+          gratisParaSocios={presentialCourse.freeForMembers ? { institucion: branding.commercialName } : null}
+        />
+      ) : (
       <section className="fo-card space-y-4">
         <h2 className="text-xl font-semibold">Ediciones activas</h2>
         {presentialCourse.instances.length === 0 ? (
@@ -170,6 +191,7 @@ export default async function PublicCourseLandingPage({ params }: Props) {
           <p className="text-sm text-[var(--fo-muted)]">Precio desde {formatMoney(minPrice, "ARS")}.</p>
         ) : null}
       </section>
+      )}
 
       {faqItems.length > 0 ? (
         <section className="fo-card space-y-4">
@@ -188,6 +210,7 @@ export default async function PublicCourseLandingPage({ params }: Props) {
         </section>
       ) : null}
 
+      {esCursoGrabado ? null : (
       <section className="fo-card space-y-4 border-[var(--fo-accent)]/40">
         <h2 className="text-xl font-semibold">Inscripción</h2>
         {presentialCourse.status === "UPCOMING" ? (
@@ -207,6 +230,7 @@ export default async function PublicCourseLandingPage({ params }: Props) {
           </div>
         )}
       </section>
+      )}
     </main>
   );
 }

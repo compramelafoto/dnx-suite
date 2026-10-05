@@ -11,6 +11,7 @@ const {
   membershipCountMock,
   legacyCountMock,
   memberFindFirstMock,
+  tieneCursosMock,
 } = vi.hoisted(() => ({
   userFindUniqueMock: vi.fn(),
   workspaceMembershipFindManyMock: vi.fn(),
@@ -22,7 +23,10 @@ const {
   membershipCountMock: vi.fn(async () => 0),
   legacyCountMock: vi.fn(async () => 0),
   memberFindFirstMock: vi.fn(async () => null),
+  tieneCursosMock: vi.fn(async () => false),
 }));
+
+vi.mock("@/lib/course-classroom/alumno", () => ({ tieneCursos: tieneCursosMock }));
 
 vi.mock("@/lib/commission/team-membership", () => ({
   syncPendingTeamMemberships: vi.fn().mockResolvedValue(0),
@@ -71,6 +75,7 @@ function resetMocks() {
   workspaceCreateMock.mockReset();
   brandingFindUniqueMock.mockReset();
   brandingCreateMock.mockReset();
+  tieneCursosMock.mockReset().mockResolvedValue(false);
 }
 
 describe("resolveFotofficePostLoginDestination — A: post-login apunta al shell correcto", () => {
@@ -194,5 +199,17 @@ describe("resolveFotofficePostLoginDestination — B: resolución de workspace a
 
     expect(workspaceCreateMock).not.toHaveBeenCalled();
     expect(dest).toEqual({ path: "/bienvenida", workspaceId: null });
+  });
+});
+
+describe("resolveFotofficePostLoginDestination — alumno", () => {
+  beforeEach(resetMocks);
+
+  it("quien sólo tiene cursos va a Mis cursos, no a la bienvenida", async () => {
+    userFindUniqueMock.mockResolvedValueOnce({ id: 3, email: "ana@example.com", name: "Ana", role: "CUSTOMER", globalRole: "USER" });
+    workspaceMembershipFindManyMock.mockResolvedValue([]);
+    tieneCursosMock.mockResolvedValue(true);
+    const dest = await resolveFotofficePostLoginDestination({ userId: 3 });
+    expect(dest).toEqual({ path: "/portal/cursos", workspaceId: null });
   });
 });

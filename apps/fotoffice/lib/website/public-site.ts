@@ -5,9 +5,13 @@ import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import { parseWebsiteSections, type WebsiteBlock } from "./blocks";
 import { resolveWebsiteColors, type WebsiteColors } from "./branding-defaults";
 import { parseWebsiteDesignPresets, type WebsiteDesignPresets } from "./design-presets";
+import { parseSiteMenu, type SiteMenu } from "./site-menu";
 import { WEBSITE_MODULE_KEY } from "./constants";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { listBlogPosts } from "@/lib/blog/public";
+import { STORE_MODULE_KEY } from "@/lib/store/constants";
+import { SALES_MODULE_KEY } from "@/lib/sales/constants";
+import { withStoreOpenState } from "./public-modules";
 
 /**
  * Qué ve el visitante en la portada, según la tabla de la sección 4 del spec. Es la única
@@ -52,8 +56,11 @@ export type PublicSite = {
   designPresets: WebsiteDesignPresets;
   homeBlocks: WebsiteBlock[];
   hasPublishedSite: boolean;
+  /** El menú editado de la versión publicada; `null` = el automático. */
+  menu: SiteMenu | null;
   /** Sitio web habilitado y al menos un artículo publicado: el blog va al menú. */
   hasPublishedBlog: boolean;
+  /** Los módulos encendidos con página pública visible: la tienda cuenta sólo si está abierta. */
   enabledModuleKeys: Set<string>;
   /** Cómo llama esta institución a la gente de su padrón. Lo usa el menú del sitio. */
   personVocabulary: PersonVocabulary;
@@ -99,16 +106,30 @@ export const loadPublicSite = cache(async function loadPublicSite(workspaceSlug:
   });
   if (!branding) return null;
 
-  const [enabledModuleKeys, website, vocabulario] = await Promise.all([
+  const [modulosEncendidos, website, vocabulario] = await Promise.all([
     getEnabledModuleKeysForWorkspace(branding.workspaceId),
     prisma.fotofficeWorkspaceWebsite.findUnique({
       where: { workspaceId: branding.workspaceId },
       select: {
-        publishedVersion: { select: { sectionsJson: true, designPresetsJson: true } },
+        publishedVersion: { select: { sectionsJson: true, designPresetsJson: true, navJson: true } },
       },
     }),
     loadPersonVocabulary(branding.workspaceId),
   ]);
+
+  // La tienda sólo va al menú abierta. Sin fila de configuración, está cerrada. Se pregunta
+  // únicamente con el módulo encendido, así un sitio sin tienda no paga la consulta.
+  const storeOpen = modulosEncendidos.has(STORE_MODULE_KEY) && modulosEncendidos.has(SALES_MODULE_KEY)
+    ? Boolean(
+        (
+          await prisma.storeSettings.findUnique({
+            where: { workspaceId: branding.workspaceId },
+            select: { isOpen: true },
+          })
+        )?.isOpen,
+      )
+    : false;
+  const enabledModuleKeys = withStoreOpenState(modulosEncendidos, storeOpen);
 
   const websiteModuleEnabled = enabledModuleKeys.has(WEBSITE_MODULE_KEY);
   const { homeBlocks, hasPublishedSite } = pickPublishedHomeBlocks({
@@ -138,6 +159,9 @@ export const loadPublicSite = cache(async function loadPublicSite(workspaceSlug:
     designPresets: parseWebsiteDesignPresets(website?.publishedVersion?.designPresetsJson ?? null),
     homeBlocks,
     hasPublishedSite,
+    // Igual que las secciones: sin sitio publicado (o con el módulo apagado) el menú es el
+    // automático, nunca uno editado que quedó de antes.
+    menu: hasPublishedSite ? parseSiteMenu(website?.publishedVersion?.navJson ?? null) : null,
     hasPublishedBlog,
     enabledModuleKeys,
     personVocabulary: vocabulario,

@@ -96,4 +96,15 @@ describe("token de acceso para los consumidores", () => {
     });
     expect(readRefreshToken).not.toHaveBeenCalled();
   });
+
+  it("Correo Argentino no es de Google: no se intenta refrescar con Google", async () => {
+    // Su "credencial" cifrada son usuario y clave de MiCorreo; mandarla a Google sería filtrarla.
+    readRefreshToken.mockResolvedValue('{"apiUser":"u"}');
+    expect(await getGoogleAccessToken("ws-1", "correo-argentino")).toEqual({
+      ok: false,
+      reason: "NOT_CONNECTED",
+    });
+    expect(readRefreshToken).not.toHaveBeenCalled();
+    expect(refreshIntegrationAccessToken).not.toHaveBeenCalled();
+  });
 });

@@ -1,6 +1,7 @@
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
+import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
@@ -9,6 +10,8 @@ import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
+import { SALES_MODULE_KEY } from "@/lib/sales/constants";
+import { STORE_MODULE_KEY } from "@/lib/store/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 
 /**
@@ -189,6 +192,47 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
       "Bandeja de consultas",
     ],
   },
+  {
+    key: SALES_MODULE_KEY,
+    cuadro: "12",
+    nombre: "Ventas",
+    resuelve:
+      "El mostrador: buscás el producto por nombre o lo pasás por el lector de código de barras, armás el ticket y cobrás. Cada venta descuenta la existencia y entra sola a la caja del turno. Los productos con código de barras se comparten con el resto del sistema, así que el que alguien ya cargó no hay que volver a cargarlo.",
+    pantallas: [
+      "Mostrador con lector de código de barras",
+      "Catálogo de productos y servicios con foto",
+      "Existencias y reposición",
+      "Ventas hechas y anulaciones",
+      "Margen por producto",
+    ],
+  },
+  {
+    key: COMMUNICATIONS_MODULE_KEY,
+    cuadro: "13",
+    nombre: "Comunicación",
+    resuelve:
+      "Las placas para redes, listas para descargar: cada socio nuevo que paga su primera cuota aparece con su placa de bienvenida, en formato publicación e historia, y un texto sugerido con su Instagram para etiquetarlo. Las plantillas las diseña tu área de comunicación, con el mismo diseñador del carnet.",
+    pantallas: [
+      "Bienvenidas a socios nuevos",
+      "Placa cuadrada y para historias",
+      "Texto sugerido para copiar",
+      "Plantillas con tus colores y tu logo",
+    ],
+  },
+  {
+    key: STORE_MODULE_KEY,
+    cuadro: "14",
+    nombre: "Tienda online",
+    resuelve:
+      "Los mismos productos del mostrador, a la venta en tu sitio. El comprador elige, paga con Mercado Pago y pasa a retirar por el local; el stock es uno solo, así que lo que se vende online no se vende dos veces en el mostrador. Vos decidís cuándo abrir la tienda y cuándo cerrarla.",
+    pantallas: [
+      "Vidriera en tu sitio con fotos y talles",
+      "Cobro con Mercado Pago",
+      "Retiro en el local",
+      "Pedidos online",
+      "Abrir y cerrar la tienda",
+    ],
+  },
 ];
 
 /** Lo que está siempre, se encienda lo que se encienda. No son módulos con interruptor. */
@@ -257,38 +301,32 @@ export const EN_CONSTRUCCION: {
   icono: string;
 }[] = [
   {
-    cuadro: "12",
+    cuadro: "15",
     icono: "presupuestos",
     nombre: "Presupuestos",
     resuelve:
       "Armar el presupuesto con tus precios, mandárselo al cliente y seguir si lo aceptó. La consulta ya te llega con todos los datos del evento —eso es Captación—; falta ponerle precio y mandarlo desde acá.",
   },
   {
-    cuadro: "13",
-    icono: "comunicacion",
-    nombre: "Comunicación",
-    resuelve: "Mandar un mensaje a todos los socios o a un grupo, desde adentro.",
-  },
-  {
-    cuadro: "14",
+    cuadro: "16",
     icono: "eventos",
     nombre: "Eventos",
     resuelve: "Salidas, charlas y encuentros con inscripción y lista de asistencia.",
   },
   {
-    cuadro: "15",
+    cuadro: "17",
     icono: "gobierno",
     nombre: "Gobierno institucional",
     resuelve: "Actas, votaciones y resoluciones de la comisión directiva.",
   },
   {
-    cuadro: "16",
+    cuadro: "18",
     icono: "muestras",
     nombre: "Muestras",
     resuelve: "Las muestras de la institución, con sus obras y sus autores.",
   },
   {
-    cuadro: "17",
+    cuadro: "19",
     icono: "transparencia",
     nombre: "Transparencia",
     resuelve: "Publicar el balance y la rendición para que el socio vea en qué se usó su cuota.",

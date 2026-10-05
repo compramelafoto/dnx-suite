@@ -162,10 +162,10 @@ export const PORTAL_MENU: PortalMenuItem[] = [
     order: 80,
     label: "Cursos",
     href: "/portal/cursos",
-    description: "Los cursos de la institución y cómo anotarte.",
+    description: "Tus cursos y los que te tocan gratis por ser {persona}.",
     icon: "school",
     requiresModule: COURSES_SALES_MODULE_KEY,
-    built: false,
+    built: true,
   },
   {
     order: 90,
@@ -220,4 +220,36 @@ export function resolvePortalMenu(
 /** Las que van en la barra inferior del teléfono, ya resueltas. */
 export function portalBottomBar(items: ResolvedPortalItem[]): ResolvedPortalItem[] {
   return items.filter((i) => i.primary).slice(0, 4);
+}
+
+/**
+ * El menú de quien tiene cursos y no es socio: sólo lo suyo y la invitación a asociarse.
+ * Ninguna sección de socios aparece, ni siquiera como "Próximamente": no le corresponde.
+ */
+export function resolveStudentPortalMenu(opciones: { asociarseHref: string | null }): ResolvedPortalItem[] {
+  const items: ResolvedPortalItem[] = [
+    {
+      order: 80,
+      label: "Mis cursos",
+      href: "/portal/cursos",
+      description: "Tus cursos y tu avance.",
+      icon: "school",
+      built: true,
+      primary: true,
+      state: "DISPONIBLE",
+    },
+  ];
+  if (opciones.asociarseHref) {
+    items.push({
+      order: 90,
+      label: "Hacete socio",
+      href: opciones.asociarseHref,
+      description: "Sumate a la institución.",
+      icon: "institution",
+      built: true,
+      primary: true,
+      state: "DISPONIBLE",
+    });
+  }
+  return items;
 }

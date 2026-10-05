@@ -8,6 +8,7 @@ import { ProfessionalProfileForm } from "@/components/portal/professional-profil
 import { MemberPhotoUpload } from "@/components/portal/member-photo-upload";
 import { BusinessLogoUpload } from "@/components/portal/business-logo-upload";
 import { PersonalDataForm } from "@/components/portal/personal-data-form";
+import { ProfileTabs } from "@/components/portal/profile-tabs";
 
 export const metadata = { title: "Mi perfil" };
 
@@ -84,6 +85,7 @@ export default async function PerfilPage() {
           Estos datos son tuyos. Se publican solo si lo autorizás.
         </p>
       </header>
+      <ProfileTabs active="datos" />
 
       {/*
         Modo lectura y separado a propósito. Mezclar el número o el estado entre los campos

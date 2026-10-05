@@ -6,6 +6,7 @@ import {
   isKnownAction,
   MODULE_ACTIONS,
   RAFFLES_CONDUCT_ACTION,
+  STORE_CONFIGURE_ACTION,
 } from "./actions";
 
 describe("catálogo de acciones sensibles", () => {
@@ -14,6 +15,15 @@ describe("catálogo de acciones sensibles", () => {
     expect(MODULE_ACTIONS.coverages.map((a) => a.key)).toEqual(["coverages.coordinate"]);
     expect(MODULE_ACTIONS.bookings.map((a) => a.key)).toEqual([BOOKINGS_CONFIGURE_ACTION]);
     expect(MODULE_ACTIONS.raffles.map((a) => a.key)).toEqual([RAFFLES_CONDUCT_ACTION]);
+    expect(MODULE_ACTIONS.sales.map((a) => a.key)).toEqual(["sales.catalog"]);
+    expect(MODULE_ACTIONS.store).toEqual([
+      {
+        key: "store.configure",
+        label: "Configurar la tienda",
+        description: "Abrir o cerrar la tienda, retiro, políticas y avisos.",
+      },
+    ]);
+    expect(STORE_CONFIGURE_ACTION).toBe("store.configure");
     expect(BOOKINGS_CONFIGURE_ACTION).toBe("bookings.configure");
     expect(RAFFLES_CONDUCT_ACTION).toBe("raffles.conduct");
   });

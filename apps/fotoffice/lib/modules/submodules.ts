@@ -5,11 +5,15 @@ import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
+import { SALES_MODULE_KEY } from "@/lib/sales/constants";
+import { STORE_MODULE_KEY } from "@/lib/store/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
+import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
 import {
   BOOKINGS_CONFIGURE_ACTION,
   CASH_CONFIGURE_ACTION,
   COVERAGES_COORDINATE_ACTION,
+  STORE_CONFIGURE_ACTION,
 } from "@/lib/permissions/actions";
 import { hasLevel, type ModuleLevels } from "@/lib/permissions/levels";
 import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
@@ -308,6 +312,102 @@ const COBERTURAS: SubmoduleItem[] = [
   },
 ];
 
+const VENTAS: SubmoduleItem[] = [
+  {
+    href: "/ventas",
+    label: "Mostrador",
+    icon: "ShoppingCart",
+    description: "Buscá, sumá al ticket y cobrá.",
+    requiresManage: false,
+    activeMatch: "rest",
+  },
+  {
+    href: "/ventas/catalogo",
+    label: "Catálogo",
+    icon: "Package",
+    description: "Los productos y servicios, con su precio, su costo y su foto.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
+    href: "/ventas/stock",
+    label: "Stock",
+    icon: "Boxes",
+    description: "Qué queda, qué entró y qué hay que reponer.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
+    href: "/ventas/historial",
+    label: "Ventas hechas",
+    icon: "ReceiptText",
+    description: "Lo vendido, con su detalle y su anulación.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
+    // Decide el nivel en `store` (con la tienda apagada es NONE y no aparece). Operar los
+    // pedidos alcanza con gestionar la tienda; no hace falta poder configurarla.
+    href: "/ventas/tienda",
+    label: "Pedidos online",
+    icon: "PackageCheck",
+    description: "Los pedidos de la tienda online: preparar, entregar, cancelar y resolver problemas.",
+    requiresManage: true,
+    levelModuleKey: STORE_MODULE_KEY,
+    activeMatch: "under",
+  },
+  {
+    // Decide el nivel en `store`, que ya incluye si la tienda está encendida para el
+    // workspace: con el módulo apagado el nivel es NONE y la entrada no aparece.
+    href: "/ventas/tienda/configuracion",
+    label: "Tienda",
+    icon: "Store",
+    description: "Abrir o cerrar la tienda online, el retiro, la política de devoluciones y los avisos.",
+    requiresManage: true,
+    levelModuleKey: STORE_MODULE_KEY,
+    requiresAction: STORE_CONFIGURE_ACTION,
+    activeMatch: "under",
+  },
+  {
+    // Mismo permiso que la configuración de la tienda (`requireStoreConfigurer`).
+    href: "/ventas/tienda/envios",
+    label: "Envíos",
+    icon: "Truck",
+    description: "Retiro, envío a domicilio y a sucursal: precios por zona, Correo Argentino y recargo.",
+    requiresManage: true,
+    levelModuleKey: STORE_MODULE_KEY,
+    requiresAction: STORE_CONFIGURE_ACTION,
+    activeMatch: "under",
+  },
+];
+
+const COMUNICACION: SubmoduleItem[] = [
+  {
+    href: "/comunicacion/placas",
+    label: "Bienvenidas",
+    icon: "PartyPopper",
+    description: "La placa de bienvenida de cada {persona} nuevo, lista para descargar y publicar.",
+    requiresManage: false,
+    activeMatch: "rest",
+  },
+  {
+    href: "/comunicacion/placas/socio-de-la-semana",
+    label: "Socio de la semana",
+    icon: "Star",
+    description: "El {persona} destacado de cada viernes, con su placa y su texto para redes.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
+    href: "/comunicacion/plantillas",
+    label: "Plantillas",
+    icon: "Palette",
+    description: "El diseño de las placas, con el mismo diseñador del carnet.",
+    requiresManage: true,
+    activeMatch: "under",
+  },
+];
+
 const POR_MODULO: Record<string, SubmoduleItem[]> = {
   [MEMBERS_MODULE_KEY]: SOCIOS,
   [COURSES_SALES_MODULE_KEY]: CURSOS,
@@ -316,6 +416,8 @@ const POR_MODULO: Record<string, SubmoduleItem[]> = {
   [CASH_MODULE_KEY]: CAJA,
   [CLIENTS_MODULE_KEY]: CLIENTES,
   [COVERAGES_MODULE_KEY]: COBERTURAS,
+  [SALES_MODULE_KEY]: VENTAS,
+  [COMMUNICATIONS_MODULE_KEY]: COMUNICACION,
 };
 
 /**

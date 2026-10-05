@@ -3,7 +3,7 @@
 import { useCallback, useEffect } from "react";
 import type { JSONContent } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
-import { getContentTiptapExtensions } from "@repo/content";
+import { getContentTiptapExtensions, getInstagramEmbedUrl } from "@repo/content";
 import { DEFAULT_CONTENT_UI_LABELS, type ContentUiLabels } from "../labels";
 import { ToolbarButton } from "./ToolbarButton";
 
@@ -24,6 +24,8 @@ export type ContentEditorProps = {
     | "editorHint"
     | "editorLinkPrompt"
     | "editorYoutubePrompt"
+    | "editorInstagramPrompt"
+    | "editorInstagramInvalid"
     | "editorImageUrlPrompt"
     | "editorImageAltPrompt"
     | "toolbarH2"
@@ -37,6 +39,7 @@ export type ContentEditorProps = {
     | "toolbarImageLibrary"
     | "toolbarImageUrl"
     | "toolbarYoutube"
+    | "toolbarInstagram"
     | "toolbarTable"
     | "toolbarUndo"
     | "toolbarRedo"
@@ -113,6 +116,17 @@ export function ContentEditor({
     if (!url) return;
     editor.chain().focus().setYoutubeVideo({ src: url }).run();
   }, [editor, labels.editorYoutubePrompt]);
+
+  const addInstagram = useCallback(() => {
+    if (!editor) return;
+    const url = window.prompt(labels.editorInstagramPrompt);
+    if (!url) return;
+    if (!getInstagramEmbedUrl(url)) {
+      window.alert(labels.editorInstagramInvalid);
+      return;
+    }
+    editor.chain().focus().setInstagramEmbed({ src: url }).run();
+  }, [editor, labels.editorInstagramInvalid, labels.editorInstagramPrompt]);
 
   const insertTable = useCallback(() => {
     if (!editor) return;
@@ -208,6 +222,9 @@ export function ContentEditor({
         <ToolbarButton title={labels.toolbarYoutube} disabled={disabled} onClick={addYoutube}>
           YouTube
         </ToolbarButton>
+        <ToolbarButton title={labels.toolbarInstagram} disabled={disabled} onClick={addInstagram}>
+          Instagram
+        </ToolbarButton>
         <ToolbarButton title={labels.toolbarTable} disabled={disabled} onClick={insertTable}>
           Tabla
         </ToolbarButton>
@@ -262,6 +279,13 @@ export function ContentEditor({
           max-width: 100%;
           height: auto;
           border-radius: 0.5rem;
+        }
+        .content-ui-tiptap-editor .ProseMirror .blog-instagram-embed iframe {
+          display: block;
+          width: 100%;
+          max-width: 400px;
+          aspect-ratio: 400 / 690;
+          border: 0;
         }
         .content-ui-tiptap-editor .ProseMirror .blog-youtube-embed {
           margin: 1rem 0;

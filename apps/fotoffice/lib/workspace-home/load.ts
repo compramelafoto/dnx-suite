@@ -1,3 +1,4 @@
+import { ensureCurrentSpotlightSafe, loadCurrentSpotlight } from "@/lib/spotlight/repository";
 import "server-only";
 import { prisma } from "@repo/db";
 import { countMembersByStatus } from "@repo/db/fotoffice-members";
@@ -48,6 +49,8 @@ export type HomeData = {
   premiosPorEntregar: number | null;
   coberturas: { nuevas: number; urgentes: number } | null;
   pedidosNuevos: number | null;
+  /** Placas por publicar en redes (Comunicación). */
+  comunicacion: { socioDeLaSemana: string | null; bienvenidasSinPublicar: number } | null;
 };
 
 async function seguro<T>(nombre: string, fn: () => Promise<T>): Promise<T | null> {
@@ -84,7 +87,7 @@ export async function loadWorkspaceHome(input: {
   const cobra = ver.cuotas;
   const enUnaSemana = new Date(now.getTime() + 7 * 86_400_000);
 
-  const [socios, cuotas, cobradoMes, altas, caja, reservas, sorteo, premios, coberturas, pedidos] =
+  const [socios, cuotas, cobradoMes, altas, caja, reservas, sorteo, premios, coberturas, pedidos, comunicacion] =
     await Promise.all([
       ver.socios
         ? seguro("socios", async () => {
@@ -167,6 +170,23 @@ export async function loadWorkspaceHome(input: {
       ver.pedidos
         ? seguro("pedidos", () => prisma.serviceSalesLead.count({ where: { workspaceId, status: "NEW" } }))
         : null,
+      ver.comunicacion
+        ? seguro("comunicacion", async () => {
+            // Si la tarea de los viernes no corrió, abrir el inicio elige al socio de la semana.
+            await ensureCurrentSpotlightSafe(workspaceId, now);
+            const [destacado, bienvenidas] = await Promise.all([
+              loadCurrentSpotlight(workspaceId, now),
+              prisma.memberWelcome.count({ where: { workspaceId, publishedAt: null } }),
+            ]);
+            return {
+              socioDeLaSemana:
+                destacado && !destacado.publishedAt
+                  ? `${destacado.member.firstName} ${destacado.member.lastName}`.trim()
+                  : null,
+              bienvenidasSinPublicar: bienvenidas,
+            };
+          })
+        : null,
     ]);
 
   return {
@@ -204,5 +224,6 @@ export async function loadWorkspaceHome(input: {
     premiosPorEntregar: premios,
     coberturas: coberturas ? { nuevas: coberturas.nuevas, urgentes: coberturas.urgentes } : null,
     pedidosNuevos: pedidos,
+    comunicacion,
   };
 }

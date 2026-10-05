@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_DESIGN_PRESETS,
   getFooterPreset,
+  loginButtonText,
   parseWebsiteDesignPresets,
   type FooterPresetId,
   websiteDesignCssVars,
@@ -40,8 +41,21 @@ describe("parseWebsiteDesignPresets", () => {
       buttonPreset: "pill",
       animationPreset: "dynamic",
       footerPreset: "simple",
+      menuLayout: "drawer",
+      menuSide: "left",
+      typographyLevels: { title: { font: "playfair-display", size: "xl" }, body: { color: "#112233" } },
     };
     expect(parseWebsiteDesignPresets(full)).toEqual(full);
+  });
+
+  it("un sitio guardado antes de que existiera la disposición del menú sigue con la barra superior", () => {
+    const viejo = parseWebsiteDesignPresets({ headerPreset: "centered" });
+    expect(viejo.menuLayout).toBe("topbar");
+    expect(viejo.menuSide).toBe("right");
+  });
+
+  it("una disposición desconocida cae a la barra superior", () => {
+    expect(parseWebsiteDesignPresets({ menuLayout: "carrusel" }).menuLayout).toBe("topbar");
   });
 });
 
@@ -73,5 +87,22 @@ describe("footerPreset", () => {
 
   it("getFooterPreset cae a la primera definición si el id no existe", () => {
     expect(getFooterPreset("no-existe" as FooterPresetId).id).toBe("simple");
+  });
+});
+
+describe("loginButtonText", () => {
+  it("sin texto elegido dice Ingresar", () => {
+    expect(loginButtonText(DEFAULT_DESIGN_PRESETS)).toBe("Ingresar");
+    expect(loginButtonText({ loginButtonLabel: "" })).toBe("Ingresar");
+    expect(loginButtonText({ loginButtonLabel: "   " })).toBe("Ingresar");
+  });
+
+  it('el viejo "Iniciar sesión" que quedó guardado por defecto pasa a Ingresar', () => {
+    expect(loginButtonText({ loginButtonLabel: "Iniciar sesión" })).toBe("Ingresar");
+  });
+
+  it("un texto propio se respeta", () => {
+    expect(loginButtonText({ loginButtonLabel: " Entrar " })).toBe("Entrar");
+    expect(loginButtonText({ loginButtonLabel: "Soy socio" })).toBe("Soy socio");
   });
 });

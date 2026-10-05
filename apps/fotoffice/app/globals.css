@@ -388,3 +388,36 @@ select.fo-input {
     transform: translateY(0) scale(1);
   }
 }
+
+/* ---------- Agenda con forma de calendario (reservas) ---------- */
+
+/* Lo ocupado por otros: rayado, para que se distinga de lo cerrado (gris liso) sin color. */
+.fo-cal-hatch {
+  background-color: var(--fo-surface-muted);
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0,
+    transparent 5px,
+    rgba(100, 116, 139, 0.14) 5px,
+    rgba(100, 116, 139, 0.14) 10px
+  );
+}
+
+/* Al cambiar de semana o de mes la grilla entra con un fundido corto: se nota que algo
+   cambió sin hacer esperar. Sin animación si el sistema pide menos movimiento. */
+@media (prefers-reduced-motion: no-preference) {
+  .fo-cal-fade {
+    animation: fo-cal-fade 0.22s ease-out both;
+  }
+}
+
+@keyframes fo-cal-fade {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

@@ -1,4 +1,5 @@
 import type { WebsiteBlock } from "./blocks";
+import type { SpotlightCardView } from "@/lib/spotlight/view";
 
 /**
  * Datos que los bloques `dynamic` necesitan y que NO viven en `sectionsJson`: se leen en el
@@ -29,9 +30,20 @@ export type BlogLatestData = {
   posts: BlogCardItem[];
 };
 
+/** El socio de esta semana, ya filtrado por permiso de publicación (ver `buildSpotlightCard`). */
+export type MemberOfWeekData = {
+  card: SpotlightCardView | null;
+  weekLabel: string;
+};
+
 export type WebsiteDynamicData = {
   blogLatest?: BlogLatestData;
+  memberOfWeek?: MemberOfWeekData;
 };
+
+export function hasVisibleMemberOfWeek(blocks: readonly WebsiteBlock[]): boolean {
+  return blocks.some((b) => b.type === "MEMBER_OF_WEEK" && b.visible);
+}
 
 /**
  * Cuántos artículos hay que leer para los bloques "Últimos artículos" de la página: el mayor

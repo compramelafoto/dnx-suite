@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { DoorOpen } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
-import { formatMinorArs } from "@/lib/membership/money";
 import { requireBookingsConfigurer } from "@/lib/bookings/access";
 import { listCompatibilities, listSpaces } from "@/lib/bookings/repository";
 import { compatibleSpaceIds } from "@/lib/bookings/conflicts";
 import { minuteOfDayToLabel } from "@/lib/bookings/time";
+import { spacePriceLabel } from "@/lib/bookings/pricing";
 import { setSpaceCalendarAction, toggleSpaceActiveAction } from "../actions";
 import { getGoogleAccessToken } from "@/lib/integrations/access-token";
 import { GOOGLE_CALENDAR_INTEGRATION_KEY } from "@/lib/integrations/registry";
@@ -159,10 +159,10 @@ export default async function EspaciosPage({
 
                   <div className="flex shrink-0 flex-col items-start gap-1 sm:items-end">
                     <span className="text-sm font-medium">
-                      Socios {formatMinorArs(espacio.memberHourlyPriceMinor)} / hora
+                      Socios {spacePriceLabel(espacio, "MEMBER")}
                     </span>
                     <span className="text-sm text-[var(--fo-muted)]">
-                      No socios {formatMinorArs(espacio.nonMemberHourlyPriceMinor)} / hora
+                      No socios {spacePriceLabel(espacio, "NON_MEMBER")}
                     </span>
                     {espacio.memberFreeHoursPerMonth > 0 ? (
                       <span className="text-xs text-[var(--fo-success)]">

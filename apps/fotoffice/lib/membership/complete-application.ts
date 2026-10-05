@@ -3,6 +3,7 @@ import { prisma } from "@repo/db";
 import { PRINTED_CARD_PERIOD } from "./approve";
 import { decimalArsToMinor } from "./money";
 import { buildMembershipWelcomeEmail } from "./application-emails";
+import { getDuesSettings } from "./settings";
 import { issueDigitalCard } from "@/lib/carnet/issue";
 import { issuePrepaidPrintedCard } from "@/lib/carnet/prepaid-card";
 import { loadWorkspaceEmailContext } from "@/lib/communications/load-workspace-signature";
@@ -10,6 +11,7 @@ import { sendAndLogEmail } from "@/lib/communications/send-and-log";
 import { MEMBERSHIP_EMAIL_KEYS } from "@/lib/communications/constants";
 import { appUrl } from "@/lib/app-url";
 import { awardRecommendationBenefit } from "./recommendation-store";
+import { recordWelcome } from "@/lib/placas/welcomes";
 
 /**
  * Cierra el ingreso de un socio cuando termina de pagarlo.
@@ -69,6 +71,23 @@ async function completar(memberId: string): Promise<{ completed: boolean }> {
     data: { status: "COMPLETADA" },
   });
   if (cerradas.count === 0) return { completed: false };
+
+  /*
+   * El socio entra a la lista de bienvenidas de Comunicación → Placas. Va acá, después de que la
+   * solicitud quedó COMPLETADA, porque recién ahora es socio: dar la bienvenida en redes a
+   * alguien que después no paga sería anunciar un alta que no existió.
+   *
+   * Con su propio try/catch: una placa no puede impedir que se emita el carnet ni que salga el
+   * email de bienvenida.
+   */
+  try {
+    await recordWelcome({ workspaceId: solicitud.workspaceId, memberId, source: "AUTO" });
+  } catch (error) {
+    console.error("[fotoffice][placas] no se pudo anotar la bienvenida", {
+      memberId,
+      detalle: error instanceof Error ? error.message : "error desconocido",
+    });
+  }
 
   const socio = await prisma.member.findUnique({
     where: { id: memberId },
@@ -141,10 +160,21 @@ async function completar(memberId: string): Promise<{ completed: boolean }> {
         // subió, este es el mejor momento para pedírsela.
         needsPhotoForPrintedCard: solicitud.wantsPrintedCard && !socio.avatarUrl,
         hasAccount: socio.userId !== null,
+        whatsappGroupUrl: await grupoDeWhatsapp(solicitud.workspaceId),
+        appBaseUrl: base,
         signature,
       }),
     });
   }
 
   return { completed: true };
+}
+
+/** El grupo de WhatsApp para la bienvenida. Si no se puede leer, la bienvenida sale igual. */
+async function grupoDeWhatsapp(workspaceId: string): Promise<string | null> {
+  try {
+    return (await getDuesSettings(workspaceId)).communityWhatsappUrl;
+  } catch {
+    return null;
+  }
 }

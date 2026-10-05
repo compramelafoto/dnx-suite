@@ -321,7 +321,7 @@ export async function redistribuirVacanteAction(
     }),
     prisma.fotorankJurySeatPromptOverride.findMany({
       where: { scoringSessionId: sesion.id },
-      select: { seatNumber: true, promptExternalId: true },
+      select: { seatNumber: true, promptExternalId: true, quita: true },
     }),
   ]);
 

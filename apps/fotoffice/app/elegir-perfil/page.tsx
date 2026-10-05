@@ -1,6 +1,8 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
 import { findClaimableMembership } from "@/lib/portal/claim";
+import { tieneCursos } from "@/lib/course-classroom/alumno";
 import {
   entryProfileForInstitution,
   institutionChoices,
@@ -54,6 +56,7 @@ export default async function ChooseProfilePage() {
   const vocabularies = await Promise.all(
     institutions.map((i) => (i.memberNumber ? loadPersonVocabulary(i.workspaceId) : null)),
   );
+  const conCursos = await tieneCursos(user.id);
   const hasBusiness = profiles.some((p) => p.kind === "TEAM");
 
   return (
@@ -104,6 +107,16 @@ export default async function ChooseProfilePage() {
               </form>
             );
           })}
+          {conCursos ? (
+            <Link
+              href="/portal/cursos"
+              className="fo-card block space-y-2 p-5 text-left transition hover:border-[var(--fo-accent,#1d4ed8)]"
+            >
+              <p className="text-base font-semibold">Mis cursos</p>
+              <p className="text-xs text-[var(--fo-muted)]">Los cursos que compraste o tomaste.</p>
+              <p className="pt-1 text-sm font-medium text-[var(--fo-accent,#1d4ed8)]">Entrar →</p>
+            </Link>
+          ) : null}
         </div>
 
         {!hasBusiness ? (

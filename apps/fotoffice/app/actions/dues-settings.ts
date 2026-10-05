@@ -7,6 +7,7 @@ import { hasModuleLevel } from "@/lib/permissions/module-access";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { parseFeeValue, validateDuesSettings } from "@/lib/membership/fee-value-rules";
 import { parseRecommendationPercent } from "@/lib/membership/settings";
+import { parseWhatsappGroupUrl } from "@/lib/membership/community-link";
 import { minorToDecimalString } from "@/lib/membership/money";
 import { sendDuesReminders } from "@/lib/membership/dues-reminder";
 
@@ -55,6 +56,33 @@ export async function saveDuesSettingsAction(formData: FormData): Promise<Settin
   });
 
   revalidatePath("/members/cuotas/configuracion");
+  return { ok: true };
+}
+
+/**
+ * El grupo de WhatsApp de los socios.
+ *
+ * Va por separado del calendario de cobranza: es otro formulario en la misma pantalla, y
+ * guardar uno no tiene por qué tocar lo del otro.
+ */
+export async function saveCommunityLinkAction(formData: FormData): Promise<SettingsResult> {
+  const { user, workspace } = await requireActiveWorkspace();
+  if (!workspace) return { ok: false, error: "No hay una institución activa." };
+  if (!(await hasModuleLevel(user.id, workspace.id, MEMBERSHIP_DUES_MODULE_KEY, "MANAGE"))) {
+    return { ok: false, error: "Solo el dueño o un administrador puede cambiar esto." };
+  }
+
+  const enlace = parseWhatsappGroupUrl(formData.get("communityWhatsappUrl"));
+  if (!enlace.ok) return enlace;
+
+  await prisma.membershipDuesSettings.upsert({
+    where: { workspaceId: workspace.id },
+    create: { workspaceId: workspace.id, communityWhatsappUrl: enlace.value },
+    update: { communityWhatsappUrl: enlace.value },
+  });
+
+  revalidatePath("/members/cuotas/configuracion");
+  revalidatePath("/portal");
   return { ok: true };
 }
 

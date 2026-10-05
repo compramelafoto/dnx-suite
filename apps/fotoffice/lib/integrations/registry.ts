@@ -10,7 +10,12 @@
  * la documentación y las dependencias entre módulos sean legibles, nunca como botón.
  */
 
-export type IntegrationProvider = "GOOGLE";
+/**
+ * `GOOGLE` se conecta por OAuth (botón "Conectar" → pantalla de Google). `CORREO_ARGENTINO`
+ * NO: se conecta con un formulario de usuario y clave (en la configuración de envíos de la
+ * tienda). Toda pantalla o ruta del ida y vuelta con Google tiene que filtrar por proveedor.
+ */
+export type IntegrationProvider = "GOOGLE" | "CORREO_ARGENTINO";
 export type IntegrationStatus = "AVAILABLE" | "PLANNED";
 
 export type IntegrationDefinition = {
@@ -20,7 +25,7 @@ export type IntegrationDefinition = {
   label: string;
   /** Qué habilita, en una línea, en el idioma del dueño del workspace. */
   description: string;
-  /** Permisos que se le piden a Google. Se piden todos juntos o ninguno. */
+  /** Permisos que se le piden a Google. Se piden todos juntos o ninguno. Vacío si no es OAuth. */
   scopes: readonly string[];
   /** Claves de `lib/modules/registry.ts` que no funcionan sin esta integración. */
   requiredByModules: readonly string[];
@@ -28,6 +33,8 @@ export type IntegrationDefinition = {
 };
 
 export const GOOGLE_CALENDAR_INTEGRATION_KEY = "google-calendar";
+export const GOOGLE_CONTACTS_INTEGRATION_KEY = "google-contacts";
+export const CORREO_ARGENTINO_INTEGRATION_KEY = "correo-argentino";
 
 export const INTEGRATION_REGISTRY: readonly IntegrationDefinition[] = [
   {
@@ -53,6 +60,32 @@ export const INTEGRATION_REGISTRY: readonly IntegrationDefinition[] = [
     requiredByModules: ["bookings"],
     status: "AVAILABLE",
   },
+  {
+    key: GOOGLE_CONTACTS_INTEGRATION_KEY,
+    provider: "GOOGLE",
+    label: "Google Contacts",
+    description:
+      "Agenda a los socios en los contactos de la institución y trae de vuelta las correcciones que se hagan desde el celular.",
+    // Alcanza con este permiso: crea y edita contactos y grupos. `contacts.readonly` no
+    // suma nada —`contacts` ya incluye la lectura— y sumarlo solo complicaría la
+    // verificación ante Google, que clasifica este scope como sensible.
+    scopes: ["https://www.googleapis.com/auth/contacts"],
+    requiredByModules: ["members"],
+    status: "AVAILABLE",
+  },
+  {
+    key: CORREO_ARGENTINO_INTEGRATION_KEY,
+    provider: "CORREO_ARGENTINO",
+    label: "Correo Argentino (MiCorreo)",
+    description:
+      "Cotiza los envíos de la tienda con la cuenta MiCorreo de la institución y lista las sucursales para retirar.",
+    // No es OAuth: no hay permisos que pedir. Las credenciales se cargan en la configuración
+    // de envíos de la tienda, no en la pantalla de Integraciones.
+    scopes: [],
+    // La tienda funciona sin Correo (tabla propia o retiro en sede): ningún módulo la exige.
+    requiredByModules: [],
+    status: "AVAILABLE",
+  },
 
   // --- Reservadas para etapas futuras. Claves fijadas, SIN implementar. ---
   {
@@ -76,28 +109,27 @@ export const INTEGRATION_REGISTRY: readonly IntegrationDefinition[] = [
     requiredByModules: [],
     status: "PLANNED",
   },
-  {
-    key: "google-contacts",
-    provider: "GOOGLE",
-    label: "Google Contacts",
-    description: "Agenda a cada {persona} nuevo en los contactos de la institución.",
-    scopes: ["https://www.googleapis.com/auth/contacts"],
-    requiredByModules: ["members"],
-    status: "PLANNED",
-  },
 ] as const;
 
 export function getIntegrationDefinition(key: string): IntegrationDefinition | undefined {
   return INTEGRATION_REGISTRY.find((i) => i.key === key);
 }
 
-export function listIntegrations(options?: { status?: IntegrationStatus }): IntegrationDefinition[] {
+export function listIntegrations(options?: {
+  status?: IntegrationStatus;
+  provider?: IntegrationProvider;
+}): IntegrationDefinition[] {
   return INTEGRATION_REGISTRY.filter(
-    (i) => options?.status === undefined || i.status === options.status,
+    (i) =>
+      (options?.status === undefined || i.status === options.status) &&
+      (options?.provider === undefined || i.provider === options.provider),
   ).slice();
 }
 
-/** Claves ofrecibles hoy. Es la whitelist real de las rutas de conexión. */
+/**
+ * Claves ofrecibles hoy, de cualquier proveedor. Las rutas de OAuth de Google además
+ * tienen que exigir `provider === "GOOGLE"`.
+ */
 export function listAvailableIntegrationKeys(): string[] {
   return listIntegrations({ status: "AVAILABLE" }).map((i) => i.key);
 }

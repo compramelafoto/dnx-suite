@@ -2,12 +2,13 @@ import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
 import { requireAuth } from "@/lib/auth";
-import { loadPortalContext } from "@/lib/portal/access";
+import { resolvePortalViewer } from "@/lib/portal/viewer";
 import { resolveFotofficeUserKind } from "@/lib/portal/user-kind";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
-import { resolvePortalMenu } from "@/lib/portal/menu";
+import { resolvePortalMenu, resolveStudentPortalMenu } from "@/lib/portal/menu";
 import { getDuesSettings } from "@/lib/membership/settings";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
+import { rutaAsociarse } from "@/lib/course-classroom/asociarse";
 import { PortalShell } from "@/components/portal/portal-shell";
 import { listUserProfiles, roleSelector } from "@/lib/portal/profiles";
 
@@ -24,14 +25,41 @@ import { listUserProfiles, roleSelector } from "@/lib/portal/profiles";
  */
 export default async function PortalLayout({ children }: { children: ReactNode }) {
   const user = await requireAuth();
-  const context = await loadPortalContext(user.id);
+  const viewer = await resolvePortalViewer(user.id);
 
-  if (!context) {
-    // Quien no es socio no tiene nada que hacer acá. Si administra una institución se lo
+  if (!viewer) {
+    // Ni socio ni alumno: no tiene nada que hacer acá. Si administra una institución se lo
     // devuelve a su panel; si no, al inicio de sesión.
     const kind = await resolveFotofficeUserKind(user.id);
     redirect(kind === "TEAM" ? "/workspace" : "/login");
   }
+
+  // El alumno no lleva selector de rol: sin ficha de socio activa, `roleSelector` no tiene
+  // nada entre qué alternar (exige socio Y equipo en la misma institución).
+  if (viewer.kind === "STUDENT") {
+    const [branding, vocabulary] = await Promise.all([
+      prisma.fotofficeWorkspaceBranding.findUnique({
+        where: { workspaceId: viewer.workspace.id },
+        select: { commercialName: true, logoUrl: true },
+      }),
+      loadPersonVocabulary(viewer.workspace.id),
+    ]);
+    return (
+      <PortalShell
+        items={resolveStudentPortalMenu({ asociarseHref: await rutaAsociarse(viewer.workspace.id, viewer.userId) })}
+        vocabulary={vocabulary}
+        institution={{
+          name: branding?.commercialName?.trim() || viewer.workspace.name,
+          logoUrl: branding?.logoUrl ?? null,
+        }}
+        member={{ fullName: viewer.fullName, memberNumber: null, category: null, photoUrl: null }}
+      >
+        {children}
+      </PortalShell>
+    );
+  }
+
+  const context = viewer.context;
 
   const [branding, foto, enabledModuleKeys, duesSettings, vocabulary, perfiles] = await Promise.all([
     prisma.fotofficeWorkspaceBranding.findUnique({

@@ -28,6 +28,7 @@ export const adminRoutes = {
   messages: "/admin/mensajes",
   /** Encuesta de satisfacción y moderación de testimonios públicos. */
   testimonials: "/admin/testimonios",
+  clickatoner: "/admin/clickatoner",
   /** Programa "invitá a tus amigos": quién trajo a quién, y el envío del link. */
   referrals: "/admin/referidos",
   settings: "/admin/configuracion",
@@ -148,6 +149,12 @@ export const adminNavigation: readonly AdminNavItem[] = [
     label: "Testimonios y calidad",
     href: adminRoutes.testimonials,
     icon: "messages",
+    section: "main",
+  },
+  {
+    label: "Clickatoner de la semana",
+    href: adminRoutes.clickatoner,
+    icon: "social",
     section: "main",
   },
   {

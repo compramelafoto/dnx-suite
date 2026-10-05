@@ -1,12 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { LayoutTemplate, Palette, Rows3 } from "lucide-react";
+import { LayoutTemplate, Menu, Palette, Rows3 } from "lucide-react";
 import { saveWebsiteBlocksAction, saveWebsiteBrandingColorsAction } from "@/app/actions/website";
 import { createEmptyBlock, type WebsiteBlock, type WebsiteBlockType } from "@/lib/website/blocks";
 import type { WebsiteColors } from "@/lib/website/branding-defaults";
 import type { WebsiteDesignPresets } from "@/lib/website/design-presets";
 import type { WebsiteTemplate } from "@/lib/website/templates";
+import type { SiteMenu } from "@/lib/website/site-menu";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import { useDraftAutosave, type AutosaveStatus } from "@/lib/website/use-draft-autosave";
 import type { WebsiteChangeStatus } from "@/lib/website/change-status";
 import type { FotofficeOrganizationTypeId } from "@/lib/onboarding-constants";
@@ -15,12 +17,13 @@ import { BuilderTopBar } from "./builder-top-bar";
 import { SectionList } from "./section-list";
 import { TemplatePickerPanel } from "./template-picker-panel";
 import { DesignPanel } from "./design-panel";
+import { MenuPanel } from "./menu-panel";
 import { BlockInspectorPanel } from "./block-inspector-panel";
 import { LivePreview } from "./live-preview";
 import type { DeviceWidth } from "./device-toggle";
 import { AddBlockPicker } from "../editor/add-block-picker";
 
-type BuilderMode = "PLANTILLAS" | "SECCIONES" | "DISENO";
+export type BuilderMode = "PLANTILLAS" | "SECCIONES" | "MENU" | "DISENO";
 
 function reorder(blocks: WebsiteBlock[]): WebsiteBlock[] {
   return blocks.map((b, i) => ({ ...b, order: i }) as WebsiteBlock);
@@ -41,6 +44,10 @@ export function WebsiteBuilder({
   initialLogoUrl,
   initialFaviconUrl,
   initialDesignPresets,
+  initialMenu,
+  enabledModuleKeys: enabledModuleKeyList,
+  personVocabulary,
+  initialPanel,
   workspaceName,
   organizationType,
   canEdit,
@@ -53,6 +60,10 @@ export function WebsiteBuilder({
   initialLogoUrl: string | null;
   initialFaviconUrl: string | null;
   initialDesignPresets: WebsiteDesignPresets;
+  initialMenu: SiteMenu | null;
+  enabledModuleKeys: string[];
+  personVocabulary: PersonVocabulary;
+  initialPanel?: BuilderMode;
   workspaceName: string;
   organizationType: FotofficeOrganizationTypeId | null;
   canEdit: boolean;
@@ -61,9 +72,11 @@ export function WebsiteBuilder({
   draftUpdatedAt: string;
   status: WebsiteChangeStatus;
 }) {
-  const [mode, setMode] = useState<BuilderMode>(initialBlocks.length === 0 ? "PLANTILLAS" : "SECCIONES");
+  const [mode, setMode] = useState<BuilderMode>(initialPanel ?? (initialBlocks.length === 0 ? "PLANTILLAS" : "SECCIONES"));
   const [blocks, setBlocks] = useState<WebsiteBlock[]>(initialBlocks);
   const [presets, setPresets] = useState<WebsiteDesignPresets>(initialDesignPresets);
+  const [menu, setMenu] = useState<SiteMenu | null>(initialMenu);
+  const enabledModuleKeys = useMemo(() => new Set(enabledModuleKeyList), [enabledModuleKeyList]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [device, setDevice] = useState<DeviceWidth>("desktop");
   const [colors, setColors] = useState<WebsiteColors>(initialColors);
@@ -71,17 +84,18 @@ export function WebsiteBuilder({
   const [faviconUrl, setFaviconUrl] = useState<string | null>(initialFaviconUrl);
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  // Secciones + diseño global viven en la MISMA fila (FotofficeWorkspaceWebsite) y comparten
-  // updatedAt — por eso es UN SOLO autosave combinado, no dos compitiendo por la misma
-  // referencia de concurrencia (ver comentario en saveWebsiteBlocksAction).
+  // Secciones + diseño global + menú viven en la MISMA fila (FotofficeWorkspaceWebsite) y
+  // comparten updatedAt — por eso es UN SOLO autosave combinado, no varios compitiendo por la
+  // misma referencia de concurrencia (ver comentario en saveWebsiteBlocksAction).
   const draftAutosave = useDraftAutosave({
-    value: { blocks, presets },
+    value: { blocks, presets, menu },
     initialUpdatedAt: draftUpdatedAt,
     enabled: canEdit,
     save: async (value, expectedUpdatedAt) => {
       const fd = new FormData();
       fd.set("blocksJson", JSON.stringify(value.blocks));
       fd.set("designPresetsJson", JSON.stringify(value.presets));
+      fd.set("navJson", JSON.stringify(value.menu));
       fd.set("draftUpdatedAt", expectedUpdatedAt);
       return saveWebsiteBlocksAction(undefined, fd);
     },
@@ -169,7 +183,8 @@ export function WebsiteBuilder({
       setBlocks(reorder(template.seedSections()));
       setMode("SECCIONES");
     }
-    setPresets(template.designPreset);
+    // La disposición del menú se elige en su propia pestaña: una plantilla no la pisa.
+    setPresets((prev) => ({ ...template.designPreset, menuLayout: prev.menuLayout, menuSide: prev.menuSide }));
   }
 
   return (
@@ -206,6 +221,18 @@ export function WebsiteBuilder({
             {mode === "PLANTILLAS" ? (
               <TemplatePickerPanel hasContent={hasContent} canEdit={canEdit} organizationType={organizationType} onApply={handleApplyTemplate} />
             ) : null}
+            {mode === "MENU" ? (
+              <MenuPanel
+                menu={menu}
+                presets={presets}
+                blocks={blocks}
+                enabledModuleKeys={enabledModuleKeys}
+                personVocabulary={personVocabulary}
+                canEdit={canEdit}
+                onMenuChange={setMenu}
+                onPresetsChange={setPresets}
+              />
+            ) : null}
             {mode === "DISENO" ? (
               <DesignPanel
                 colors={colors}
@@ -224,7 +251,17 @@ export function WebsiteBuilder({
         </div>
 
         <div className="min-w-0 flex-1">
-          <LivePreview blocks={blocks} colors={colors} designPresets={presets} logoUrl={logoUrl} workspaceName={workspaceName} device={device} />
+          <LivePreview
+            blocks={blocks}
+            colors={colors}
+            designPresets={presets}
+            menu={menu}
+            enabledModuleKeys={enabledModuleKeys}
+            personVocabulary={personVocabulary}
+            logoUrl={logoUrl}
+            workspaceName={workspaceName}
+            device={device}
+          />
         </div>
 
         {mode === "SECCIONES" && selectedBlock ? (
@@ -246,6 +283,7 @@ function ModeSwitcher({ mode, onChange }: { mode: BuilderMode; onChange: (m: Bui
       [
         { id: "PLANTILLAS" as const, label: "Plantillas", Icon: LayoutTemplate },
         { id: "SECCIONES" as const, label: "Secciones", Icon: Rows3 },
+        { id: "MENU" as const, label: "Menú", Icon: Menu },
         { id: "DISENO" as const, label: "Diseño", Icon: Palette },
       ] satisfies { id: BuilderMode; label: string; Icon: typeof Rows3 }[],
     [],
