@@ -71,6 +71,7 @@ const checkoutBase: CheckoutInput = {
   acceptsTerms: true,
   clientIdempotencyKey: "clave-idempotencia-0001",
   lines: [{ productId: "p1", variantId: null, qty: 1 }],
+  delivery: { method: "PICKUP" },
 };
 
 function orderTx(over: Record<string, unknown> = {}) {

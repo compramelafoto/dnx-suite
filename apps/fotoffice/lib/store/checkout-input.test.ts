@@ -71,3 +71,122 @@ describe("parseCheckoutInput", () => {
     expect(Object.keys(e).sort()).toEqual(["acceptsTerms", "buyerEmail", "buyerName", "clientIdempotencyKey", "lines"]);
   });
 });
+
+describe("parseCheckoutInput: entrega", () => {
+  const domicilio = () => ({
+    method: "HOME",
+    address: {
+      street: " Av. Pellegrini ",
+      number: "1234",
+      floorApt: "",
+      city: "Rosario",
+      provinceCode: "s",
+      postalCode: "S2000ABC",
+      recipientPhone: "",
+    },
+  });
+  const sucursal = () => ({
+    method: "BRANCH",
+    provinceCode: "S",
+    agency: { id: "AG01", name: "Rosario Centro", address: "Córdoba 721" },
+  });
+
+  it("sin entrega es retiro en la sede (carritos de la etapa 1)", () => {
+    for (const delivery of [undefined, null]) {
+      const r = parseCheckoutInput({ ...ok(), delivery });
+      expect(r.ok && r.value.delivery).toEqual({ method: "PICKUP" });
+    }
+    const r = parseCheckoutInput({ ...ok(), delivery: { method: "PICKUP" } });
+    expect(r.ok && r.value.delivery).toEqual({ method: "PICKUP" });
+  });
+
+  it("domicilio: normaliza y el teléfono de quien recibe cae en el de quien compra", () => {
+    const r = parseCheckoutInput({ ...ok(), delivery: domicilio() });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.delivery).toEqual({
+      method: "HOME",
+      address: {
+        street: "Av. Pellegrini",
+        number: "1234",
+        floorApt: null,
+        city: "Rosario",
+        provinceCode: "S",
+        postalCode: "2000",
+        recipientPhone: "341 555-1234",
+      },
+    });
+  });
+
+  it("domicilio: teléfono propio de quien recibe y piso/depto", () => {
+    const d = domicilio();
+    const r = parseCheckoutInput({
+      ...ok(),
+      buyerPhone: "",
+      delivery: { ...d, address: { ...d.address, floorApt: " 3° B ", recipientPhone: "341 444 5555" } },
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok || r.value.delivery.method !== "HOME") throw new Error("debía ser domicilio");
+    expect(r.value.delivery.address.floorApt).toBe("3° B");
+    expect(r.value.delivery.address.recipientPhone).toBe("341 444 5555");
+  });
+
+  it("domicilio sin teléfono de nadie queda en null", () => {
+    const r = parseCheckoutInput({ ...ok(), buyerPhone: null, delivery: domicilio() });
+    if (!r.ok || r.value.delivery.method !== "HOME") throw new Error("debía ser domicilio");
+    expect(r.value.delivery.address.recipientPhone).toBe(null);
+  });
+
+  it("domicilio: marca cada campo inválido por separado", () => {
+    const d = domicilio();
+    const e = errs({
+      ...ok(),
+      delivery: {
+        ...d,
+        address: { street: "", number: "1".repeat(21), floorApt: "x".repeat(41), city: "", provinceCode: "I", postalCode: "0123", recipientPhone: "12" },
+      },
+    });
+    expect(Object.keys(e).sort()).toEqual([
+      "delivery.city",
+      "delivery.floorApt",
+      "delivery.number",
+      "delivery.postalCode",
+      "delivery.provinceCode",
+      "delivery.recipientPhone",
+      "delivery.street",
+    ]);
+  });
+
+  it("domicilio: límites de largo", () => {
+    const d = domicilio();
+    expect(errs({ ...ok(), delivery: { ...d, address: { ...d.address, street: "x".repeat(121) } } })["delivery.street"]).toBeTruthy();
+    expect(errs({ ...ok(), delivery: { ...d, address: { ...d.address, city: "x".repeat(81) } } })["delivery.city"]).toBeTruthy();
+    expect(parseCheckoutInput({ ...ok(), delivery: { ...d, address: { ...d.address, street: "x".repeat(120) } } }).ok).toBe(true);
+  });
+
+  it("domicilio sin dirección", () => {
+    expect(errs({ ...ok(), delivery: { method: "HOME" } })["delivery.address"]).toBeTruthy();
+  });
+
+  it("sucursal: acepta la forma y normaliza la provincia", () => {
+    const r = parseCheckoutInput({ ...ok(), delivery: { ...sucursal(), provinceCode: " s " } });
+    expect(r.ok && r.value.delivery).toEqual({
+      method: "BRANCH",
+      provinceCode: "S",
+      agency: { id: "AG01", name: "Rosario Centro", address: "Córdoba 721" },
+    });
+  });
+
+  it("sucursal: exige una sucursal con forma válida", () => {
+    expect(errs({ ...ok(), delivery: { method: "BRANCH", provinceCode: "S" } })["delivery.agency"]).toBeTruthy();
+    const s = sucursal();
+    expect(errs({ ...ok(), delivery: { ...s, agency: { ...s.agency, id: "" } } })["delivery.agency"]).toBeTruthy();
+    expect(errs({ ...ok(), delivery: { ...s, agency: { ...s.agency, name: "x".repeat(201) } } })["delivery.agency"]).toBeTruthy();
+    expect(errs({ ...ok(), delivery: { ...s, provinceCode: "Ñ" } })["delivery.provinceCode"]).toBeTruthy();
+  });
+
+  it("método desconocido", () => {
+    expect(errs({ ...ok(), delivery: { method: "DRONE" } })["delivery.method"]).toBeTruthy();
+    expect(errs({ ...ok(), delivery: "HOME" })["delivery.method"]).toBeTruthy();
+  });
+});

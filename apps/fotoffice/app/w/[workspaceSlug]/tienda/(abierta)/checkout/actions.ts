@@ -4,6 +4,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { appUrl } from "@/lib/app-url";
 import { getAuthUser } from "@/lib/auth";
+import { checkRateLimit, clientIp } from "@/lib/geocode/rate-limit";
 import { listUserProfiles } from "@/lib/portal/profiles";
 import { parseCheckoutInput } from "@/lib/store/checkout-input";
 import { STORE_PUBLIC_SEGMENT } from "@/lib/store/constants";
@@ -11,6 +12,12 @@ import { createStoreOrder } from "@/lib/store/create-order";
 import { storeOrderCookieName, storeVisibleBase } from "@/lib/store/order-access";
 import { startStoreCheckout } from "@/lib/store/payment";
 import { loadOpenStore } from "@/lib/store/repository";
+import type { PublicAgency, PublicQuoteResult } from "@/lib/store/shipping/checkout";
+import {
+  listAgenciesForCheckout,
+  loadCheckoutDeliveryOptions,
+  quoteForCheckout,
+} from "@/lib/store/shipping/checkout-server";
 import type { CartProblem } from "@/lib/store/storefront";
 import { hostWithoutPort } from "@/lib/website/domain/normalize";
 
@@ -57,6 +64,16 @@ export async function placeOrderAction(workspaceSlug: unknown, raw: unknown): Pr
     return { ok: false, error: "Revisá los datos marcados.", fieldErrors: parsed.errors };
   }
 
+  // El pedido todavía no sabe cobrar ni guardar un envío: hasta que lo haga, sólo se acepta el
+  // retiro (nunca se vende un envío sin precio). Y el retiro, sólo si la institución lo ofrece.
+  const opciones = await loadCheckoutDeliveryOptions(workspaceId);
+  if (parsed.value.delivery.method !== "PICKUP") {
+    return { ok: false, error: "Por ahora sólo podés retirar tu compra en la sede." };
+  }
+  if (!opciones.pickup) {
+    return { ok: false, error: "El retiro en la sede no está disponible. Elegí otra forma de entrega." };
+  }
+
   const memberId = await socioDeEstaInstitucion(workspaceId);
 
   const pedido = await createStoreOrder({ workspaceId, memberId, checkout: parsed.value });
@@ -88,4 +105,43 @@ export async function placeOrderAction(workspaceSlug: unknown, raw: unknown): Pr
 
   // Fuera de cualquier try: `redirect` lanza a propósito.
   redirect(checkout.checkoutUrl);
+}
+
+const FRENO_LIMITE = 30;
+const FRENO_VENTANA_MS = 5 * 60 * 1000;
+const FRENO_MENSAJE = "Hiciste muchas consultas seguidas. Esperá unos minutos y probá de nuevo.";
+
+/** El freno de memoria por IP (el de `lib/geocode/rate-limit.ts`): 30 consultas cada 5 minutos. */
+async function frenado(accion: string): Promise<boolean> {
+  const ip = clientIp(await headers());
+  return !checkRateLimit({ key: `tienda-${accion}:${ip}`, limit: FRENO_LIMITE, windowMs: FRENO_VENTANA_MS }).allowed;
+}
+
+function slugValido(workspaceSlug: unknown): workspaceSlug is string {
+  return typeof workspaceSlug === "string" && workspaceSlug.length > 0 && workspaceSlug.length <= 100;
+}
+
+/**
+ * Cotiza el envío mientras el comprador completa el checkout. Pública, con freno por IP. Sólo
+ * devuelve el total y el nombre del servicio: el precio que vale es el que se vuelve a cotizar
+ * en el servidor al crear el pedido (E10).
+ */
+export async function quoteShippingAction(workspaceSlug: unknown, raw: unknown): Promise<PublicQuoteResult> {
+  if (!slugValido(workspaceSlug)) return { ok: false, message: "La tienda no existe." };
+  if (await frenado("cotizar-envio")) return { ok: false, message: FRENO_MENSAJE };
+  const store = await loadOpenStore(workspaceSlug);
+  if (!store) return { ok: false, message: "La tienda no está disponible en este momento." };
+  return quoteForCheckout({ workspaceId: store.workspace.id, raw });
+}
+
+export type ListAgenciesResult = { ok: true; agencies: PublicAgency[] } | { ok: false; message: string };
+
+/** Sucursales de Correo Argentino de una provincia. Pública, con freno por IP. */
+export async function listAgenciesAction(workspaceSlug: unknown, provinceCode: unknown): Promise<ListAgenciesResult> {
+  if (!slugValido(workspaceSlug)) return { ok: false, message: "La tienda no existe." };
+  if (typeof provinceCode !== "string" || provinceCode.length > 5) return { ok: false, message: "Elegí la provincia." };
+  if (await frenado("sucursales")) return { ok: false, message: FRENO_MENSAJE };
+  const store = await loadOpenStore(workspaceSlug);
+  if (!store) return { ok: false, message: "La tienda no está disponible en este momento." };
+  return { ok: true, agencies: await listAgenciesForCheckout({ workspaceId: store.workspace.id, provinceCode }) };
 }

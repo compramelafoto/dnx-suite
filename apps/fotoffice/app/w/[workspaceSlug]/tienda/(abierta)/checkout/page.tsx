@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { STORE_PUBLIC_SEGMENT } from "@/lib/store/constants";
 import { loadOpenStore } from "@/lib/store/repository";
+import { loadCheckoutDeliveryOptions } from "@/lib/store/shipping/checkout-server";
 import { CheckoutForm } from "./checkout-form";
 
 export const dynamic = "force-dynamic";
@@ -15,14 +16,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 /**
- * El checkout. El carrito vive en el navegador; esta página pone lo que sabe el servidor: dónde y
- * cuándo se retira, y a dónde están los términos (`/tienda/terminos`).
+ * El checkout. El carrito vive en el navegador; esta página pone lo que sabe el servidor: qué
+ * formas de entrega ofrece la institución, dónde y cuándo se retira, y a dónde están los términos
+ * (`/tienda/terminos`).
  */
 export default async function CheckoutPage({ params }: Props) {
   const { workspaceSlug } = await params;
   const store = await loadOpenStore(workspaceSlug);
   if (!store) notFound();
 
+  const deliveryOptions = await loadCheckoutDeliveryOptions(store.workspace.id);
   const base = `/w/${workspaceSlug}/${STORE_PUBLIC_SEGMENT}`;
   const { pickupAddress, pickupHours, pickupInstructions } = store.settings;
   const pickupLine = pickupAddress
@@ -40,6 +43,7 @@ export default async function CheckoutPage({ params }: Props) {
         termsHref={`${base}/terminos`}
         pickupLine={pickupLine}
         pickupInstructions={pickupInstructions}
+        deliveryOptions={deliveryOptions}
       />
     </main>
   );
