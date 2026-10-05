@@ -162,3 +162,10 @@ simulan, pero su página dice "Disponible próximamente" y el checkout no los co
    webhook de órdenes (no están hechos).
 5. `FOTOFFICE_SPLIT_1N_ENABLED = true` en un cambio revisado, con su test, y
    `DNX_MP_ORDERS_1N_PRODUCTION_ENABLED=true`.
+
+**Nota sobre el dueño de la orden:** en `@repo/payments` el dueño es el usuario de Mercado Pago cuyo
+token crea la orden (`ownerUserId`); el adaptador no envía un cuerpo ya armado, recalcula las
+entradas. Por eso el paso 4 no puede descartar sin más `body` ni `ownerReceiverId`: para que el
+dueño sea el beneficiario que absorbe la comisión, el POST tiene que hacerse con el token de ese
+beneficiario. Esa correspondencia (dueño = quien absorbe la comisión de MP) **hay que confirmarla en
+la homologación** antes de encender nada.
