@@ -91,6 +91,9 @@ jobs:
       - name: Pruebas de Personas y Resultados
         run: pnpm --filter clickaton test:personas
 
+      - name: Pruebas del Clickatoner de la semana
+        run: pnpm --filter clickaton test:clickatoner
+
       # El visor donde el jurado califica. Estas pruebas existían desde que se
       # construyó, registradas en package.json, y no las corría nadie: se
       # escribieron, pasaron una vez en la máquina de quien las escribió y
