@@ -9,14 +9,14 @@ import {
   checkoutLinesSignature,
   lineKey,
   renewCheckoutKey,
-  type ProductCartLine,
+  type CartLine,
 } from "@/lib/store/cart";
 import { STORE_HOLD_MINUTES } from "@/lib/store/constants";
 import type { CartProblem } from "@/lib/store/storefront";
 import { useCart } from "@/components/store/cart-provider";
 import { useCartRevalidation } from "@/components/store/use-cart-revalidation";
 import { Price } from "@/components/store/price";
-import type { CheckoutDelivery } from "@/lib/store/checkout-input";
+import type { CheckoutDelivery, CheckoutLine } from "@/lib/store/checkout-input";
 import type { DeliveryOptions } from "@/lib/store/shipping/checkout";
 import { placeOrderAction } from "./actions";
 import { DeliverySection, firstMethod, useShippingQuote, type DeliveryState } from "./delivery-section";
@@ -29,6 +29,16 @@ type Props = {
   pickupInstructions: string | null;
   deliveryOptions: DeliveryOptions;
 };
+
+/**
+ * Lo que viaja al servidor de cada línea: qué producto y talle, o qué obra y formato, y cuántos.
+ * Precio, nombre e imagen no: los pone el servidor.
+ */
+function lineaDelPedido(l: CartLine): CheckoutLine {
+  return l.kind === "artwork"
+    ? { kind: "artwork", artworkListingId: l.artworkListingId, printFormatId: l.printFormatId, qty: l.qty }
+    : { productId: l.productId, variantId: l.variantId, qty: l.qty };
+}
 
 function texto(datos: FormData, nombre: string): string {
   return String(datos.get(nombre) ?? "");
@@ -64,22 +74,13 @@ export function CheckoutForm({
     branchProvince: "",
     agency: null,
   }));
-  // Por ahora el pedido y el envío se arman sólo con productos: las obras entran al checkout en
-  // la etapa siguiente (Task 9). Mientras tanto, con obras en el carrito no se puede pagar.
-  const productLines = useMemo(
-    () => state.lines.filter((l): l is ProductCartLine => l.kind === "product"),
-    [state.lines],
-  );
-  const hayObras = productLines.length !== state.lines.length;
-  const quoteLines = useMemo(
-    () => productLines.map((l) => ({ productId: l.productId, variantId: l.variantId, qty: l.qty })),
-    [productLines],
-  );
+  // Productos y obras van al mismo pedido y al mismo envío (la obra pesa lo de su formato).
+  const orderLines = useMemo(() => state.lines.map(lineaDelPedido), [state.lines]);
   const {
     view: quote,
     replace: reemplazarCotizacion,
     retry: reintentarCotizacion,
-  } = useShippingQuote(workspaceSlug, delivery, quoteLines, deliveryOptions.pickup);
+  } = useShippingQuote(workspaceSlug, delivery, orderLines, deliveryOptions.pickup);
 
   if (!hydrated) return <p className="text-sm text-[var(--fo-muted)]">Cargando el carrito…</p>;
 
@@ -97,8 +98,7 @@ export function CheckoutForm({
   function enviar(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const datos = new FormData(e.currentTarget);
-    if (hayObras) return;
-    const lines = productLines.map((l) => ({ productId: l.productId, variantId: l.variantId, qty: l.qty }));
+    const lines = orderLines;
     const sig = checkoutLinesSignature(lines);
     const clientIdempotencyKey = checkoutKeyFor(workspaceSlug, sig);
     let entrega: CheckoutDelivery | Record<string, unknown>;
@@ -161,7 +161,7 @@ export function CheckoutForm({
   // Retiro no se cotiza; con envío hace falta una cotización buena para pagar.
   const faltaEnvio = delivery.method !== "PICKUP" && quote.status !== "ok";
   const envioMinor = quote.status === "ok" ? quote.totalMinor : 0;
-  const bloqueado = enviando || revision.validando || revision.error !== null || faltaEnvio || hayObras;
+  const bloqueado = enviando || revision.validando || revision.error !== null || faltaEnvio;
   const campo = (name: string) =>
     fieldErrors[name] ? (
       <span id={`${name}-error`} className="text-sm text-[var(--fo-danger)]">
@@ -261,7 +261,7 @@ export function CheckoutForm({
           <div className="space-y-2 border-t border-[var(--fo-border)] pt-3 text-sm">
             <div className="flex items-baseline justify-between gap-3">
               <span className="text-[var(--fo-muted)]">
-                Productos ({itemsCount} {itemsCount === 1 ? "unidad" : "unidades"})
+                Subtotal ({itemsCount} {itemsCount === 1 ? "unidad" : "unidades"})
               </span>
               <Price minor={subtotalMinor} />
             </div>
@@ -303,11 +303,6 @@ export function CheckoutForm({
               {error}
             </p>
           ) : null}
-          {hayObras ? (
-            <p role="status" className="text-sm text-[var(--fo-danger)]">
-              Todavía no se pueden pagar online las copias de obras. Quitalas del carrito para comprar el resto.
-            </p>
-          ) : null}
 
           <button type="submit" className="fo-btn fo-btn-primary w-full" disabled={bloqueado}>
             {enviando
@@ -319,7 +314,7 @@ export function CheckoutForm({
                   : "Pagar con Mercado Pago"}
           </button>
           <p className="text-xs text-[var(--fo-muted)]">
-            Al confirmar te reservamos los productos durante {STORE_HOLD_MINUTES} minutos mientras pagás.
+            Al confirmar te reservamos el pedido durante {STORE_HOLD_MINUTES} minutos mientras pagás.
           </p>
           <Link href={cartHref} className="block text-center text-sm underline underline-offset-4 opacity-80 hover:opacity-100">
             Volver al carrito

@@ -68,7 +68,17 @@ type Listing = {
   heightCm: number | null;
 };
 
-function fakeDb(opts: { settings?: Settings | null; zones?: unknown[]; listings?: Listing[] } = {}) {
+type Format = {
+  id: string;
+  workspaceId: string;
+  isActive: boolean;
+  weightGrams: number | null;
+  packLengthCm: number | null;
+  packWidthCm: number | null;
+  packHeightCm: number | null;
+};
+
+function fakeDb(opts: { settings?: Settings | null; zones?: unknown[]; listings?: Listing[]; formats?: Format[] } = {}) {
   const settings = opts.settings === undefined ? baseSettings() : opts.settings;
   const listings = opts.listings ?? [
     { productId: "p1", weightGrams: 300, lengthCm: null, widthCm: null, heightCm: null },
@@ -79,6 +89,13 @@ function fakeDb(opts: { settings?: Settings | null; zones?: unknown[]; listings?
     productStoreListing: {
       findMany: vi.fn(async (args: { where: { productId: { in: string[] } } }) =>
         listings.filter((l) => args.where.productId.in.includes(l.productId)),
+      ),
+    },
+    printFormat: {
+      findMany: vi.fn(async (args: { where: { workspaceId: string; isActive: boolean; id: { in: string[] } } }) =>
+        (opts.formats ?? []).filter(
+          (f) => f.workspaceId === args.where.workspaceId && f.isActive === args.where.isActive && args.where.id.in.includes(f.id),
+        ),
       ),
     },
   };
@@ -475,5 +492,87 @@ describe("quoteShipping — Correo Argentino", () => {
       });
       expect(r).toEqual({ ok: false, reason: "TOO_BIG" });
     });
+  });
+});
+
+describe("quoteShipping — obras (peso y embalaje del formato)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const marco: Format = {
+    id: "f1",
+    workspaceId: "ws1",
+    isActive: true,
+    weightGrams: 800,
+    packLengthCm: 50,
+    packWidthCm: 40,
+    packHeightCm: 6,
+  };
+
+  it("una obra usa el peso y las medidas de embalaje de su formato", async () => {
+    const db = fakeDb({ formats: [marco] });
+    const r = await quoteShipping({
+      workspaceId: "ws1",
+      method: "HOME",
+      destination: ROSARIO,
+      items: [{ kind: "artwork", printFormatId: "f1", qty: 2 }],
+      db: db as never,
+    });
+    // 100 de embalaje + 2 × 800; largo y ancho del formato; alto 2 × 6.
+    expect(r.ok && r.quote.package).toEqual({ weightGrams: 1700, lengthCm: 50, widthCm: 40, heightCm: 12 });
+    expect(r.ok && r.quote.baseMinor).toBe(300000);
+    expect(db.printFormat.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { workspaceId: "ws1", isActive: true, id: { in: ["f1"] } } }),
+    );
+    // Sin productos no se leen listados.
+    expect(db.productStoreListing.findMany).not.toHaveBeenCalled();
+  });
+
+  it("formato sin peso → el peso por defecto; sin las tres medidas → la caja por defecto", async () => {
+    const db = fakeDb({ formats: [{ ...marco, weightGrams: null, packHeightCm: null }] });
+    const r = await quoteShipping({
+      workspaceId: "ws1",
+      method: "HOME",
+      destination: ROSARIO,
+      items: [{ kind: "artwork", printFormatId: "f1", qty: 1 }],
+      db: db as never,
+    });
+    expect(r.ok && r.quote.package).toEqual({ weightGrams: 600, lengthCm: 30, widthCm: 20, heightCm: 10 });
+  });
+
+  it("carrito mixto: suma productos y obras", async () => {
+    const db = fakeDb({ formats: [marco] });
+    const r = await quoteShipping({
+      workspaceId: "ws1",
+      method: "HOME",
+      destination: ROSARIO,
+      items: [
+        { productId: "p1", variantId: null, qty: 2 },
+        { kind: "artwork", printFormatId: "f1", qty: 1 },
+      ],
+      db: db as never,
+    });
+    // 100 + 2 × 300 + 800.
+    expect(r.ok && r.quote.package.weightGrams).toBe(1500);
+    expect(r.ok && r.quote.package.heightCm).toBe(10);
+  });
+
+  it("formato inexistente, inactivo o de otra institución → UNAVAILABLE", async () => {
+    for (const formats of [[], [{ ...marco, isActive: false }], [{ ...marco, workspaceId: "otro" }]]) {
+      const db = fakeDb({ formats });
+      const r = await quoteShipping({
+        workspaceId: "ws1",
+        method: "HOME",
+        destination: ROSARIO,
+        items: [{ kind: "artwork", printFormatId: "f1", qty: 1 }],
+        db: db as never,
+      });
+      expect(r).toEqual({ ok: false, reason: "UNAVAILABLE" });
+    }
+  });
+
+  it("sólo productos: no lee formatos (sin cambios)", async () => {
+    const db = fakeDb({ formats: [marco] });
+    await quoteShipping({ workspaceId: "ws1", method: "HOME", destination: ROSARIO, items: ITEMS, db: db as never });
+    expect(db.printFormat.findMany).not.toHaveBeenCalled();
   });
 });

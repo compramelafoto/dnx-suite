@@ -31,8 +31,10 @@ import {
   newConsentToken,
 } from "./consent-token";
 import { assertContestLinked, isContestLinked } from "./links";
+import { DEFAULT_ROYALTY_BPS } from "./royalty";
 
-export const DEFAULT_ROYALTY_BPS = 2000;
+export { DEFAULT_ROYALTY_BPS };
+
 /** Obras por llamada: cada una es un correo. Las que sobran vuelven en `skipped` con "LIMIT". */
 export const MAX_ENTRIES_PER_REQUEST = 100;
 

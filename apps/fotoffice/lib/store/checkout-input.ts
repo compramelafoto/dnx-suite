@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CART_MAX_ARTWORK_QTY } from "./cart/constants";
 import { normalizePostalCode } from "./shipping/package";
 import { isProvinceCode } from "./shipping/provinces";
 
@@ -24,13 +25,23 @@ export type CheckoutDelivery =
   | { method: "HOME"; address: CheckoutAddress }
   | { method: "BRANCH"; provinceCode: string; agency: { id: string; name: string; address: string } };
 
+/** Un producto (con o sin talle). Sin `kind`: así compraban los carritos de antes de las obras. */
+export type CheckoutProductLine = { kind?: "product"; productId: string; variantId: string | null; qty: number };
+/** Una obra de concurso en un formato de impresión. Precio, título y formato los pone el servidor. */
+export type CheckoutArtworkLine = { kind: "artwork"; artworkListingId: string; printFormatId: string; qty: number };
+export type CheckoutLine = CheckoutProductLine | CheckoutArtworkLine;
+
+export function isCheckoutArtworkLine(l: CheckoutLine): l is CheckoutArtworkLine {
+  return l.kind === "artwork";
+}
+
 export type CheckoutInput = {
   buyerName: string;
   buyerEmail: string;
   buyerPhone: string | null;
   acceptsTerms: true;
   clientIdempotencyKey: string;
-  lines: { productId: string; variantId: string | null; qty: number }[];
+  lines: CheckoutLine[];
   delivery: CheckoutDelivery;
   /**
    * El envío que el navegador le MOSTRÓ (centavos), sólo para comparar: si el que se re-cotiza en
@@ -141,11 +152,20 @@ const schema = z.object({
     .max(64, "La clave de la compra es inválida."),
   lines: z
     .array(
-      z.object({
-        productId: z.string().min(1),
-        variantId: z.string().min(1).nullable(),
-        qty: z.number().int().min(1).max(99),
-      }),
+      z.union([
+        z.object({
+          kind: z.literal("artwork"),
+          artworkListingId: z.string().min(1).max(64),
+          printFormatId: z.string().min(1).max(64),
+          qty: z.number().int().min(1).max(CART_MAX_ARTWORK_QTY),
+        }),
+        z.object({
+          kind: z.literal("product").optional(),
+          productId: z.string().min(1),
+          variantId: z.string().min(1).nullable(),
+          qty: z.number().int().min(1).max(99),
+        }),
+      ]),
       { message: "El carrito es inválido." },
     )
     .min(1, "El carrito está vacío.")

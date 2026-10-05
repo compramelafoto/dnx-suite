@@ -3,14 +3,22 @@ import { Prisma, prisma } from "@repo/db";
 import { formatMinorArs, minorToDecimalString } from "@/lib/membership/money";
 import { hashAccessToken, newPublicId, orderAccessToken, resolveOrderTokenKey } from "./access-token";
 import { lineKey } from "./cart/line-key";
-import type { CheckoutDelivery, CheckoutInput } from "./checkout-input";
+import { artworkOrderItemData, lockArtworkOrderRows, type ArtworkOrderMeta } from "./artworks/order-lines";
+import { checkArtworkCartLines, loadArtworkCartCatalog } from "./artworks/storefront";
+import {
+  isCheckoutArtworkLine,
+  type CheckoutArtworkLine,
+  type CheckoutDelivery,
+  type CheckoutInput,
+  type CheckoutProductLine,
+} from "./checkout-input";
 import { STORE_HOLD_MINUTES, STORE_LEGAL_VERSION, STORE_MAX_PENDING_PER_EMAIL } from "./constants";
 import { loadCartCatalog, reservedQtyByKey } from "./repository";
 import { lockStockRows } from "@/lib/sales/stock-lock";
 import { checkCartLines, type CartProblem } from "./storefront";
 import { SHIPPING_FAILURE_MESSAGES, shippingFailureMessage } from "./shipping/checkout";
 import { loadAgenciesForOrder, loadCheckoutDeliveryOptions } from "./shipping/checkout-server";
-import { quoteShipping, type ShippingQuote } from "./shipping/quote";
+import { quoteShipping, type QuoteShippingItem, type ShippingQuote } from "./shipping/quote";
 
 /**
  * Crea el pedido de la tienda y RETIENE el stock mientras se paga (§6.1, D7).
@@ -30,6 +38,12 @@ import { quoteShipping, type ShippingQuote } from "./shipping/quote";
  * Con envío, el precio del envío también: se vuelve a cotizar acá (E10), ANTES de abrir la
  * transacción (cotizar puede ir a la red de Correo y no se hace con el stock bloqueado). De una
  * sucursal, del navegador sólo se usa el id: nombre, dirección y CP salen de la lista de Correo.
+ *
+ * Obras de concursos (etapa 3, O9): del navegador sólo valen qué obra, qué formato y cuántas
+ * copias. Se validan con las reglas de la vidriera (publicada, de un concurso vinculado, con el
+ * permiso del autor vigente, formato activo y que la resolución alcanza) antes de cotizar, y otra
+ * vez dentro de la transacción con los permisos bloqueados (`artworks/order-lines.ts`). El precio
+ * es el del formato. No tienen stock: no se bloquea ni se retiene nada por ellas.
  */
 
 export type CreateStoreOrderResult =
@@ -56,31 +70,66 @@ function noSePudoCotizar(ofreceRetiro: boolean): string {
     : shippingFailureMessage("UNAVAILABLE", false);
 }
 const SUCURSAL_NO_DISPONIBLE = "Esa sucursal ya no está disponible. Elegí otra.";
+const OBRA_NO_DISPONIBLE = "Una de las obras ya no está disponible.";
 
 type Linea = CheckoutInput["lines"][number];
 
-/** Une las líneas repetidas (mismo producto y talle) sumando cantidades, en el orden en que llegaron. */
+/**
+ * Une las líneas repetidas (mismo producto y talle, o misma obra y formato) sumando cantidades,
+ * en el orden en que llegaron.
+ */
 export function mergeCheckoutLines(lines: readonly Linea[]): Linea[] {
   const porClave = new Map<string, Linea>();
   for (const l of lines) {
     const key = lineKey(l);
     const previa = porClave.get(key);
     if (previa) previa.qty += l.qty;
-    else porClave.set(key, { productId: l.productId, variantId: l.variantId, qty: l.qty });
+    else if (isCheckoutArtworkLine(l)) {
+      porClave.set(key, { kind: "artwork", artworkListingId: l.artworkListingId, printFormatId: l.printFormatId, qty: l.qty });
+    } else porClave.set(key, { productId: l.productId, variantId: l.variantId, qty: l.qty });
   }
   return [...porClave.values()];
 }
 
-function mismaCompra(
-  a: readonly { productId: string | null; variantId: string | null; qty: number }[],
-  b: readonly Linea[],
-): boolean {
-  const firma = (ls: readonly { productId: string | null; variantId: string | null; qty: number }[]) =>
-    ls
-      .map((l) => `${l.productId ?? "?"}:${l.variantId ?? "-"}=${l.qty}`)
-      .sort()
-      .join("|");
-  return firma(a) === firma(b);
+type RenglonGuardado = {
+  productId: string | null;
+  variantId: string | null;
+  artworkListingId: string | null;
+  printFormatId: string | null;
+  qty: number;
+};
+
+/**
+ * ¿El pedido guardado es esta misma compra? Productos por producto y talle; obras por ficha y
+ * formato (con `lineKey`, así una obra nunca se confunde con un producto). Un renglón cuyo
+ * producto u obra se borró no coincide con nada: mejor una clave nueva que el pedido equivocado.
+ */
+function mismaCompra(a: readonly RenglonGuardado[], b: readonly Linea[]): boolean {
+  const guardado = a
+    .map((l) => {
+      const key =
+        l.artworkListingId && l.printFormatId
+          ? lineKey({ kind: "artwork", artworkListingId: l.artworkListingId, printFormatId: l.printFormatId })
+          : `${l.productId ?? "?"}:${l.variantId ?? "-"}`;
+      return `${key}=${l.qty}`;
+    })
+    .sort()
+    .join("|");
+  const pedido = b
+    .map((l) => `${lineKey(l)}=${l.qty}`)
+    .sort()
+    .join("|");
+  return guardado === pedido;
+}
+
+function separar(lines: readonly Linea[]): { productos: CheckoutProductLine[]; obras: CheckoutArtworkLine[] } {
+  const productos: CheckoutProductLine[] = [];
+  const obras: CheckoutArtworkLine[] = [];
+  for (const l of lines) {
+    if (isCheckoutArtworkLine(l)) obras.push(l);
+    else productos.push(l);
+  }
+  return { productos, obras };
 }
 
 /**
@@ -140,7 +189,7 @@ const SELECT_EXISTENTE = {
   shippingMethod: true,
   shippingAddressJson: true,
   shippingAgencyJson: true,
-  items: { select: { productId: true, variantId: true, qty: true } },
+  items: { select: { productId: true, variantId: true, artworkListingId: true, printFormatId: true, qty: true } },
 } satisfies Prisma.StoreOrderSelect;
 
 type Existente = Prisma.StoreOrderGetPayload<{ select: typeof SELECT_EXISTENTE }>;
@@ -264,7 +313,12 @@ async function resolverEnvio(
       workspaceId,
       method: delivery.method,
       destination: destino,
-      items: lines.map((l) => ({ productId: l.productId, variantId: l.variantId, qty: l.qty })),
+      items: lines.map(
+        (l): QuoteShippingItem =>
+          isCheckoutArtworkLine(l)
+            ? { kind: "artwork", printFormatId: l.printFormatId, qty: l.qty }
+            : { productId: l.productId, variantId: l.variantId, qty: l.qty },
+      ),
     });
     if (!r.ok) {
       if (r.reason === "DISABLED") return { ok: false, error: ENVIO_NO_DISPONIBLE };
@@ -309,6 +363,7 @@ async function resolverEnvio(
 type ResultadoTx =
   | { kind: "creado"; orderId: string; publicId: string }
   | { kind: "problemas"; problems: CartProblem[] }
+  | { kind: "obras"; problems: CartProblem[] }
   | { kind: "duplicado" };
 
 export async function createStoreOrder(input: {
@@ -328,6 +383,7 @@ export async function createStoreOrder(input: {
   }
 
   const lines = mergeCheckoutLines(checkout.lines);
+  const { productos, obras } = separar(lines);
   const compra = { lines, buyerEmail: checkout.buyerEmail, delivery: checkout.delivery };
 
   const existente = await buscarPorClave(workspaceId, checkout.clientIdempotencyKey);
@@ -342,6 +398,21 @@ export async function createStoreOrder(input: {
     },
   });
   if (pendientes >= STORE_MAX_PENDING_PER_EMAIL) return { ok: false, error: DEMASIADOS_PENDIENTES };
+
+  // Las obras, antes de cotizar: no se cotiza (ni se le pide a Correo) un envío para una obra que
+  // ya no se vende. Dentro de la transacción se vuelve a mirar, con los permisos bloqueados.
+  if (obras.length > 0) {
+    const previa = checkArtworkCartLines(
+      await loadArtworkCartCatalog(
+        workspaceId,
+        obras.map((l) => l.artworkListingId),
+      ),
+      obras,
+    );
+    if (previa.problems.length > 0 || previa.lines.length !== obras.length) {
+      return { ok: false, error: OBRA_NO_DISPONIBLE, problems: previa.problems };
+    }
+  }
 
   // Fuera de la transacción: cotizar puede tardar (la red de Correo) y no se hace con el stock bloqueado.
   const resuelto = await resolverEnvio(workspaceId, checkout, lines);
@@ -361,29 +432,51 @@ export async function createStoreOrder(input: {
   try {
     resultado = await prisma.$transaction(
       async (tx): Promise<ResultadoTx> => {
-        await lockStockRows(tx, {
-          workspaceId,
-          productIds: lines.map((l) => l.productId),
-          variantIds: lines.flatMap((l) => (l.variantId ? [l.variantId] : [])),
-        });
-
-        // Recién con las filas bloqueadas: lo retenido incluye a quien acaba de confirmar antes.
-        const [catalogo, reservado] = await Promise.all([
-          loadCartCatalog(
+        let revisado: ReturnType<typeof checkCartLines> = { lines: [], problems: [] };
+        if (productos.length > 0) {
+          await lockStockRows(tx, {
             workspaceId,
-            lines.map((l) => l.productId),
-            tx,
-          ),
-          reservedQtyByKey(workspaceId, tx, { now }),
-        ]);
-        const revisado = checkCartLines(catalogo, lines, reservado);
-        // Cualquier ajuste (agotado, menos cantidad, talle inactivo, máximo por compra) frena la
-        // compra: se cobra exactamente lo que la persona vio y aceptó, o nada.
-        if (revisado.problems.length > 0 || revisado.lines.length === 0) {
-          return { kind: "problemas", problems: revisado.problems };
+            productIds: productos.map((l) => l.productId),
+            variantIds: productos.flatMap((l) => (l.variantId ? [l.variantId] : [])),
+          });
+
+          // Recién con las filas bloqueadas: lo retenido incluye a quien acaba de confirmar antes.
+          const [catalogo, reservado] = await Promise.all([
+            loadCartCatalog(
+              workspaceId,
+              productos.map((l) => l.productId),
+              tx,
+            ),
+            reservedQtyByKey(workspaceId, tx, { now }),
+          ]);
+          revisado = checkCartLines(catalogo, productos, reservado);
+          // Cualquier ajuste (agotado, menos cantidad, talle inactivo, máximo por compra) frena la
+          // compra: se cobra exactamente lo que la persona vio y aceptó, o nada.
+          if (revisado.problems.length > 0 || revisado.lines.length === 0) {
+            return { kind: "problemas", problems: revisado.problems };
+          }
         }
 
-        const subtotalMinor = revisado.lines.reduce((s, l) => s + l.unitPriceMinor * l.qty, 0);
+        // Obras: permisos y fichas bloqueados (en ese orden), y recién ahí se decide otra vez si
+        // se venden, con el precio del formato que vale en este momento.
+        let obrasRevisadas: ReturnType<typeof checkArtworkCartLines> = { lines: [], problems: [] };
+        let datosDeObras = new Map<string, ArtworkOrderMeta>();
+        if (obras.length > 0) {
+          const listingIds = obras.map((l) => l.artworkListingId);
+          datosDeObras = await lockArtworkOrderRows(tx, { workspaceId, listingIds });
+          obrasRevisadas = checkArtworkCartLines(await loadArtworkCartCatalog(workspaceId, listingIds, tx), obras);
+          const completas =
+            obrasRevisadas.lines.length === obras.length &&
+            obrasRevisadas.lines.every((l) => datosDeObras.has(l.artworkListingId));
+          if (obrasRevisadas.problems.length > 0 || !completas) {
+            return { kind: "obras", problems: obrasRevisadas.problems };
+          }
+        }
+
+        // Base de la comisión de DNX y del total: productos y obras, sin envío.
+        const subtotalMinor =
+          revisado.lines.reduce((s, l) => s + l.unitPriceMinor * l.qty, 0) +
+          obrasRevisadas.lines.reduce((s, l) => s + l.unitPriceMinor * l.qty, 0);
 
         // Número correlativo: mismo patrón que `recordSale` (createMany + skipDuplicates + relectura).
         // NO un `create` con `catch` de P2002: un error dentro de la transacción la aborta entera.
@@ -438,18 +531,21 @@ export async function createStoreOrder(input: {
         const orderId = creado.id;
 
         await tx.storeOrderItem.createMany({
-          data: revisado.lines.map((l) => ({
-            orderId,
-            productId: l.productId,
-            variantId: l.variantId,
-            productName: l.name,
-            variantName: l.variantName,
-            productSlug: l.slug,
-            imageUrl: l.imageUrl,
-            qty: l.qty,
-            unitPriceArs: minorToDecimalString(l.unitPriceMinor),
-            lineTotalArs: minorToDecimalString(l.unitPriceMinor * l.qty),
-          })),
+          data: [
+            ...revisado.lines.map((l) => ({
+              orderId,
+              productId: l.productId,
+              variantId: l.variantId,
+              productName: l.name,
+              variantName: l.variantName,
+              productSlug: l.slug,
+              imageUrl: l.imageUrl,
+              qty: l.qty,
+              unitPriceArs: minorToDecimalString(l.unitPriceMinor),
+              lineTotalArs: minorToDecimalString(l.unitPriceMinor * l.qty),
+            })),
+            ...obrasRevisadas.lines.map((l) => artworkOrderItemData(orderId, l, datosDeObras.get(l.artworkListingId)!)),
+          ],
         });
         await tx.storeOrderEvent.create({
           data: { orderId, fromStatus: null, toStatus: "PENDING_PAYMENT", note: "Pedido creado en la tienda online" },
@@ -475,6 +571,9 @@ export async function createStoreOrder(input: {
       error: "Tu carrito cambió mientras comprabas. Revisá los avisos y volvé a confirmar.",
       problems: resultado.problems,
     };
+  }
+  if (resultado.kind === "obras") {
+    return { ok: false, error: OBRA_NO_DISPONIBLE, problems: resultado.problems };
   }
   if (resultado.kind === "duplicado") {
     const otro = await buscarPorClave(workspaceId, checkout.clientIdempotencyKey);

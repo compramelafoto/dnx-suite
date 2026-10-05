@@ -58,6 +58,23 @@ describe("parseCheckoutInput", () => {
     expect(errs({ ...ok(), lines: [{ productId: "p", variantId: null, qty: 1.5 }] }).lines).toBeTruthy();
     expect(errs({ ...ok(), lines: [{ productId: "", variantId: null, qty: 1 }] }).lines).toBeTruthy();
   });
+  it("líneas de obra: listing, formato y 1–20 copias; sin kind sigue siendo producto", () => {
+    const obra = { kind: "artwork", artworkListingId: "al1", printFormatId: "f1", qty: 2 };
+    const r = parseCheckoutInput({ ...ok(), lines: [{ productId: "p1", variantId: null, qty: 1 }, { ...obra, unitPriceMinor: 1, name: "x" }] });
+    expect(r.ok && r.value.lines).toEqual([
+      { productId: "p1", variantId: null, qty: 1 },
+      { kind: "artwork", artworkListingId: "al1", printFormatId: "f1", qty: 2 },
+    ]);
+    expect(parseCheckoutInput({ ...ok(), lines: [{ kind: "product", productId: "p1", variantId: null, qty: 1 }] }).ok).toBe(true);
+    expect(errs({ ...ok(), lines: [{ ...obra, qty: 21 }] }).lines).toBeTruthy();
+    expect(errs({ ...ok(), lines: [{ ...obra, qty: 0 }] }).lines).toBeTruthy();
+    expect(errs({ ...ok(), lines: [{ ...obra, printFormatId: "" }] }).lines).toBeTruthy();
+    expect(errs({ ...ok(), lines: [{ ...obra, artworkListingId: undefined }] }).lines).toBeTruthy();
+    // Una obra sin `kind` no es nada: ni producto ni obra.
+    expect(errs({ ...ok(), lines: [{ artworkListingId: "al1", printFormatId: "f1", qty: 1 }] }).lines).toBeTruthy();
+    const muchas = Array.from({ length: 31 }, (_, i) => ({ ...obra, artworkListingId: `al${i}` }));
+    expect(errs({ ...ok(), lines: muchas }).lines).toBeTruthy();
+  });
   it("clave de idempotencia 16–64", () => {
     expect(errs({ ...ok(), clientIdempotencyKey: "corta" }).clientIdempotencyKey).toBeTruthy();
     expect(errs({ ...ok(), clientIdempotencyKey: "k".repeat(65) }).clientIdempotencyKey).toBeTruthy();

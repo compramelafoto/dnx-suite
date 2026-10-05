@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Price } from "@/components/store/price";
+import type { CheckoutLine } from "@/lib/store/checkout-input";
 import type { DeliveryOptions, PublicAgency } from "@/lib/store/shipping/checkout";
 import { normalizePostalCode } from "@/lib/store/shipping/package";
 import { PROVINCES } from "@/lib/store/shipping/provinces";
@@ -56,7 +57,7 @@ function destino(d: DeliveryState): { method: "HOME" | "BRANCH"; postalCode: str
 export function useShippingQuote(
   workspaceSlug: string,
   delivery: DeliveryState,
-  lines: { productId: string; variantId: string | null; qty: number }[],
+  lines: CheckoutLine[],
   pickupEnabled: boolean,
 ): {
   view: QuoteView;

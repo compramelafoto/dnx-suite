@@ -82,6 +82,29 @@ describe("parseQuoteRequest", () => {
     expect(r.ok && r.value.lines).toEqual([{ productId: "p1", variantId: "v1", qty: 1 }]);
   });
 
+  it("las obras se cotizan con su formato (el listing no hace falta para el peso)", () => {
+    const r = parseQuoteRequest({
+      method: "HOME",
+      postalCode: "2000",
+      provinceCode: "S",
+      lines: [
+        { productId: "p1", variantId: null, qty: 1 },
+        { kind: "artwork", artworkListingId: "al1", printFormatId: "f1", qty: 2, unitPriceMinor: 5, name: "x" },
+      ],
+    });
+    expect(r.ok && r.value.lines).toEqual([
+      { productId: "p1", variantId: null, qty: 1 },
+      { kind: "artwork", printFormatId: "f1", qty: 2 },
+    ]);
+    const soloObras = parseQuoteRequest({
+      method: "HOME",
+      postalCode: "2000",
+      provinceCode: "S",
+      lines: [{ kind: "artwork", artworkListingId: "al1", printFormatId: "f1", qty: 1 }],
+    });
+    expect(soloObras.ok).toBe(true);
+  });
+
   it("rechaza con un mensaje para mostrar", () => {
     expect(parseQuoteRequest({ method: "PICKUP", postalCode: "2000", provinceCode: "S", lines })).toEqual({
       ok: false,

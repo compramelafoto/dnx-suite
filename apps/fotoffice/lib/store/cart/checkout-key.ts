@@ -1,3 +1,4 @@
+import { lineKey, type LineKeyInput } from "./line-key";
 import { cartStorageKey } from "./storage";
 
 /**
@@ -13,11 +14,10 @@ export type StoredCheckoutKey = { key: string; sig: string };
 const LARGO_MINIMO = 16;
 
 /** Qué se compra, sin importar el orden. Precios y nombres no: los pone el servidor. */
-export function checkoutLinesSignature(
-  lines: readonly { productId: string; variantId: string | null; qty: number }[],
-): string {
+export function checkoutLinesSignature(lines: readonly (LineKeyInput & { qty: number })[]): string {
+  // `lineKey`: un producto sigue firmando `<productId>:<variantId|->` (las claves guardadas valen).
   return lines
-    .map((l) => `${l.productId}:${l.variantId ?? "-"}=${l.qty}`)
+    .map((l) => `${lineKey(l)}=${l.qty}`)
     .sort()
     .join("|");
 }

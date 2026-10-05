@@ -125,3 +125,26 @@ export async function loadShippingListings(
   });
   return new Map(filas.map((f) => [f.productId, f]));
 }
+
+export type ShippingPrintFormatRow = {
+  id: string;
+  weightGrams: number | null;
+  packLengthCm: number | null;
+  packWidthCm: number | null;
+  packHeightCm: number | null;
+};
+
+/** Peso y embalaje de los formatos de impresión ACTIVOS de la institución (las obras se envían así). */
+export async function loadShippingPrintFormats(
+  workspaceId: string,
+  printFormatIds: readonly string[],
+  db: ShippingDb = prisma,
+): Promise<Map<string, ShippingPrintFormatRow>> {
+  const ids = [...new Set(printFormatIds)];
+  if (ids.length === 0) return new Map();
+  const filas = await db.printFormat.findMany({
+    where: { workspaceId, isActive: true, id: { in: ids } },
+    select: { id: true, weightGrams: true, packLengthCm: true, packWidthCm: true, packHeightCm: true },
+  });
+  return new Map(filas.map((f) => [f.id, f]));
+}

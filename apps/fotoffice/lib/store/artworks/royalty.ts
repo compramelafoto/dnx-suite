@@ -1,5 +1,8 @@
 /** Regalía del autor, en centavos enteros. Módulo PURO. */
 
+/** La regalía de un concurso sin ajustes propios (`ContestStoreSettings`): 20 %. */
+export const DEFAULT_ROYALTY_BPS = 2000;
+
 /** `bps` en puntos básicos (2000 = 20 %). La base es el total de la línea sin envío. */
 export function royaltyMinor(lineTotalMinor: number, bps: number): number {
   if (!Number.isInteger(bps) || bps < 0 || bps > 10000) {

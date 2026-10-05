@@ -9,6 +9,7 @@ import { buildPackage, exceedsCorreoLimits, normalizePostalCode, type ShippingPa
 import { isProvinceCode } from "./provinces";
 import {
   loadShippingListings,
+  loadShippingPrintFormats,
   loadShippingSettings,
   loadShippingZones,
   type ShippingDb,
@@ -49,11 +50,19 @@ export type QuoteShippingDeps = {
   now?: () => Date;
 };
 
+/**
+ * Lo que va en el paquete. Un producto (sin `kind`, como siempre) pesa lo de su ficha online; una
+ * obra, lo de su formato de impresión (peso y medidas de embalaje).
+ */
+export type QuoteShippingItem =
+  | { kind?: "product"; productId: string; variantId: string | null; qty: number }
+  | { kind: "artwork"; printFormatId: string; qty: number };
+
 export type QuoteShippingInput = {
   workspaceId: string;
   method: ShippingMethod;
   destination: { postalCode: string; provinceCode: string };
-  items: { productId: string; variantId: string | null; qty: number }[];
+  items: QuoteShippingItem[];
   db?: ShippingDb;
   deps?: QuoteShippingDeps;
 };
@@ -153,13 +162,33 @@ export async function quoteShipping(input: QuoteShippingInput): Promise<QuoteShi
 
   const items = input.items.filter((i) => Number.isFinite(i.qty) && i.qty > 0);
   if (items.length === 0) return fail("UNAVAILABLE");
-  const listados = await loadShippingListings(
-    workspaceId,
-    items.map((i) => i.productId),
-    db,
-  );
+  const productos = items.flatMap((i) => (i.kind === "artwork" ? [] : [i]));
+  const obras = items.flatMap((i) => (i.kind === "artwork" ? [i] : []));
+  const [listados, formatos] = await Promise.all([
+    productos.length > 0
+      ? loadShippingListings(
+          workspaceId,
+          productos.map((i) => i.productId),
+          db,
+        )
+      : new Map<string, never>(),
+    obras.length > 0
+      ? loadShippingPrintFormats(
+          workspaceId,
+          obras.map((i) => i.printFormatId),
+          db,
+        )
+      : new Map<string, never>(),
+  ]);
   const paqueteItems = [];
   for (const it of items) {
+    if (it.kind === "artwork") {
+      const f = formatos.get(it.printFormatId);
+      if (!f) return fail("UNAVAILABLE");
+      // Sin peso, el de por defecto (lo hace `buildPackage`); las medidas cuentan si están las tres.
+      paqueteItems.push({ qty: it.qty, weightGrams: f.weightGrams, lengthCm: f.packLengthCm, widthCm: f.packWidthCm, heightCm: f.packHeightCm });
+      continue;
+    }
     const l = listados.get(it.productId);
     if (!l) return fail("UNAVAILABLE");
     paqueteItems.push({ qty: it.qty, weightGrams: l.weightGrams, lengthCm: l.lengthCm, widthCm: l.widthCm, heightCm: l.heightCm });

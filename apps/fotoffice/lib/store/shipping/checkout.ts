@@ -1,8 +1,7 @@
 import { parseCartLinesInput } from "../cart-lines-input";
-import { isProductLineInput } from "../storefront";
 import { normalizePostalCode } from "./package";
 import { isProvinceCode } from "./provinces";
-import type { QuoteShippingResult, ShippingMethod, ShippingQuoteFailure } from "./quote";
+import type { QuoteShippingItem, QuoteShippingResult, ShippingMethod, ShippingQuoteFailure } from "./quote";
 
 /**
  * Lo que el checkout le muestra al comprador sobre el envío. Módulo PURO.
@@ -45,7 +44,7 @@ export type QuoteRequest = {
   method: ShippingMethod;
   postalCode: string;
   provinceCode: string;
-  lines: { productId: string; variantId: string | null; qty: number }[];
+  lines: QuoteShippingItem[];
 };
 
 /** Valida lo que manda el navegador para cotizar. El mensaje de error se muestra tal cual. */
@@ -57,8 +56,7 @@ export function parseQuoteRequest(raw: unknown): { ok: true; value: QuoteRequest
   if (!postalCode) return { ok: false, message: "Ingresá un código postal válido (4 números, ej. 2000)." };
   const provinceCode = typeof r.provinceCode === "string" ? r.provinceCode.trim().toUpperCase() : "";
   if (!isProvinceCode(provinceCode)) return { ok: false, message: "Elegí la provincia." };
-  // Por ahora se cotizan sólo productos: las obras (con el peso de su formato) llegan con Task 9.
-  const lines = parseCartLinesInput(r.lines)?.filter(isProductLineInput) ?? null;
+  const lines = parseCartLinesInput(r.lines);
   if (!lines || lines.length === 0) return { ok: false, message: "El carrito es inválido." };
   return {
     ok: true,
@@ -66,7 +64,12 @@ export function parseQuoteRequest(raw: unknown): { ok: true; value: QuoteRequest
       method: r.method,
       postalCode,
       provinceCode,
-      lines: lines.map((l) => ({ productId: l.productId, variantId: l.variantId, qty: l.qty })),
+      // Una obra pesa lo que su formato: el listing no cambia el paquete.
+      lines: lines.map((l) =>
+        l.kind === "artwork"
+          ? { kind: "artwork" as const, printFormatId: l.printFormatId, qty: l.qty }
+          : { productId: l.productId, variantId: l.variantId, qty: l.qty },
+      ),
     },
   };
 }

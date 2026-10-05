@@ -141,7 +141,12 @@ export default async function StoreOrderPage({ params, searchParams }: Props) {
             <li key={it.id} className="flex items-start justify-between gap-4 py-3">
               <div className="min-w-0">
                 <p className="font-medium">{it.productName}</p>
-                {it.variantName ? <p className="text-xs text-[var(--fo-muted)]">Talle {it.variantName}</p> : null}
+                {/* Una obra lleva su formato de impresión; un producto, su talle. */}
+                {it.printFormatName ? (
+                  <p className="text-xs text-[var(--fo-muted)]">{it.printFormatName}</p>
+                ) : it.variantName ? (
+                  <p className="text-xs text-[var(--fo-muted)]">Talle {it.variantName}</p>
+                ) : null}
                 <p className="text-xs text-[var(--fo-muted)]">
                   {it.qty} × <Price minor={decimalArsToMinor(it.unitPriceArs)} />
                 </p>
