@@ -167,9 +167,11 @@ export async function responderInvitacionAction(beneficiaryId: string, acepta: b
     select: { id: true, courseId: true, workspaceId: true },
   });
   if (!fila) redirect("/dashboard/cursos-compartidos?r=no-encontrada");
+  let actualizadas = 0;
   try {
-    await prisma.courseBeneficiary.update({
-      where: { id: fila.id },
+    // Atómico: sólo actualiza si la invitación sigue pendiente en este momento.
+    const r = await prisma.courseBeneficiary.updateMany({
+      where: { id: fila.id, ...invitacionesPendientesWhere(workspace.id, user.email) },
       data: {
         status: acepta ? "ACEPTADO" : "RECHAZADO",
         respondedAt: new Date(),
@@ -177,12 +179,14 @@ export async function responderInvitacionAction(beneficiaryId: string, acepta: b
         workspaceId: fila.workspaceId ?? workspace.id,
       },
     });
+    actualizadas = r.count;
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       redirect("/dashboard/cursos-compartidos?r=ya-sos-beneficiario");
     }
     throw error;
   }
+  if (actualizadas === 0) redirect("/dashboard/cursos-compartidos?r=no-encontrada");
   revalidatePath(`/dashboard/courses/${fila.courseId}`);
   redirect(`/dashboard/cursos-compartidos?r=${acepta ? "aceptada" : "rechazada"}`);
 }

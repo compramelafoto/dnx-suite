@@ -32,10 +32,17 @@ export default async function DashboardPage({
     }
   }
 
-  const invitacionesPendientes =
-    workspace !== null
-      ? await prisma.courseBeneficiary.count({ where: invitacionesPendientesWhere(workspace.id, user.email) })
-      : 0;
+  // Si la tabla todavía no existe en la base, el aviso no debe tumbar el tablero.
+  let invitacionesPendientes = 0;
+  if (workspace !== null) {
+    try {
+      invitacionesPendientes = await prisma.courseBeneficiary.count({
+        where: invitacionesPendientesWhere(workspace.id, user.email),
+      });
+    } catch {
+      console.error("[dashboard] no se pudieron contar las invitaciones de cursos compartidos");
+    }
+  }
 
   return (
     <div className="space-y-10">

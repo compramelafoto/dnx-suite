@@ -19,10 +19,4 @@ export async function requireDuenoOAdminDelNegocio() {
   return { user, workspace };
 }
 
-/** Las invitaciones de un negocio: a su nombre, o a un correo suyo que todavía no tenía negocio. */
-export function invitacionesPendientesWhere(workspaceId: string, email: string) {
-  return {
-    status: "INVITADO" as const,
-    OR: [{ workspaceId }, { workspaceId: null, invitedEmail: email.trim().toLowerCase() }],
-  };
-}
+export { invitacionesPendientesWhere } from "./invitaciones";

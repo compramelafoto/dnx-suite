@@ -40,19 +40,28 @@ export default async function CursosCompartidosPage({
   const { r } = await searchParams;
   const mensaje = r && Object.hasOwn(MENSAJES, r) ? MENSAJES[r] : null;
 
-  const [pendientes, aceptadas, collector] = await Promise.all([
-    prisma.courseBeneficiary.findMany({
-      where: invitacionesPendientesWhere(workspace.id, user.email),
-      include: { course: { select: { id: true, title: true, workspaceId: true, priceArs: true } } },
-      orderBy: { createdAt: "asc" },
-    }),
-    prisma.courseBeneficiary.findMany({
-      where: { workspaceId: workspace.id, status: "ACEPTADO", course: { workspaceId: { not: workspace.id } } },
-      include: { course: { select: { id: true, title: true, workspaceId: true } } },
-      orderBy: { createdAt: "asc" },
+  // Si la tabla todavía no existe en la base, la pantalla se muestra vacía en vez de caerse.
+  let tablaFaltante = false;
+  const [consultaInvitaciones, collector] = await Promise.all([
+    Promise.all([
+      prisma.courseBeneficiary.findMany({
+        where: invitacionesPendientesWhere(workspace.id, user.email),
+        include: { course: { select: { id: true, title: true, workspaceId: true, priceArs: true } } },
+        orderBy: { createdAt: "asc" },
+      }),
+      prisma.courseBeneficiary.findMany({
+        where: { workspaceId: workspace.id, status: "ACEPTADO", course: { workspaceId: { not: workspace.id } } },
+        include: { course: { select: { id: true, title: true, workspaceId: true } } },
+        orderBy: { createdAt: "asc" },
+      }),
+    ]).catch(() => {
+      tablaFaltante = true;
+      console.error("[cursos-compartidos] no se pudieron leer las invitaciones");
+      return null;
     }),
     resolveWorkspaceCollector(workspace.id),
   ]);
+  const [pendientes, aceptadas] = consultaInvitaciones ?? [[], []];
 
   const tarjetas = await Promise.all(
     pendientes.map(async (fila) => {
@@ -109,7 +118,7 @@ export default async function CursosCompartidosPage({
       <section className="space-y-4" aria-label="Invitaciones pendientes">
         <h2 className="text-lg font-semibold">Invitaciones pendientes</h2>
         {tarjetas.length === 0 ? (
-          <p className="text-sm text-[var(--fo-muted)]">No tenés invitaciones pendientes.</p>
+          <p className="text-sm text-[var(--fo-muted)]">{tablaFaltante ? "Todavía no hay invitaciones." : "No tenés invitaciones pendientes."}</p>
         ) : (
           tarjetas.map(({ fila, dueno, paraMotor, feeBps, listaCentavos, destacarId, miParte }) => (
             <article key={fila.id} className="fo-card space-y-4">
@@ -119,7 +128,7 @@ export default async function CursosCompartidosPage({
                   Lo ofrece {dueno.nombre} · Tu rol: {ROLES[fila.role] ?? fila.role} · Tu parte: {formatoPorcentaje(fila.shareBps)}
                   {fila.absorbsProcessorFee ? " · Absorbés la comisión de Mercado Pago" : ""}
                 </p>
-                {miParte !== null ? (
+                {miParte !== null && listaCentavos > 0 ? (
                   <p className="text-sm">
                     Por cada venta de {pesos(listaCentavos)} a precio de lista recibís <strong>{pesos(miParte)}</strong>.
                   </p>
