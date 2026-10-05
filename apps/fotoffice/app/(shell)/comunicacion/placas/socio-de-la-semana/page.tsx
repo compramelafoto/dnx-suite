@@ -13,7 +13,9 @@ import {
   roundProgress,
 } from "@/lib/spotlight/repository";
 import { spotlightWeekLabel } from "@/lib/spotlight/week";
-import { setSpotlightPublishedAction, skipSpotlightAction } from "@/app/actions/placas";
+import { sendSpotlightNudgeAction, setSpotlightPublishedAction, skipSpotlightAction } from "@/app/actions/placas";
+import { spotlightProfileGaps } from "@/lib/spotlight/nudge";
+import { MISSING_ITEM_LABEL } from "@/lib/spotlight/nudge-email";
 import type { PlacaFormat } from "@/lib/placas/constants";
 
 export const dynamic = "force-dynamic";
@@ -100,7 +102,12 @@ export default async function SocioDeLaSemanaPage({
           </p>
         </section>
       ) : actual ? (
-        <Actual actual={actual} institucion={institucion} canManage={canManage} />
+        <Actual
+          actual={actual}
+          institucion={institucion}
+          canManage={canManage}
+          faltan={(await spotlightProfileGaps(workspace.id, actual.member.id).catch(() => null))?.missing ?? []}
+        />
       ) : (
         <div className="fo-card flex items-center gap-3 p-6 text-sm text-[var(--fo-muted)]">
           <Star className="h-5 w-5" aria-hidden />
@@ -174,10 +181,12 @@ function Actual({
   actual,
   institucion,
   canManage,
+  faltan,
 }: {
   actual: NonNullable<Awaited<ReturnType<typeof loadCurrentSpotlight>>>;
   institucion: string;
   canManage: boolean;
+  faltan: (keyof typeof MISSING_ITEM_LABEL)[];
 }) {
   const m = actual.member;
   const foto = placaPhoto(m);
@@ -262,6 +271,30 @@ function Actual({
           {texto}
         </p>
       </div>
+
+      {faltan.length > 0 ? (
+        <div className="space-y-2 rounded-lg border border-[var(--fo-warning-border)] bg-[var(--fo-warning-soft)] p-4">
+          <p className="text-sm font-medium">A su tarjeta le falta:</p>
+          <ul className="list-disc space-y-1 pl-5 text-xs">
+            {faltan.map((f) => (
+              <li key={f}>{MISSING_ITEM_LABEL[f]}</li>
+            ))}
+          </ul>
+          <p className="text-xs text-[var(--fo-muted)]">
+            {actual.nudgeSentAt
+              ? `Le avisamos por correo el ${fecha(actual.nudgeSentAt)}.`
+              : "Todavía no le avisamos. El sistema le escribe solo cuando su perfil está incompleto."}
+          </p>
+          {canManage ? (
+            <form action={sendSpotlightNudgeAction}>
+              <input type="hidden" name="spotlightId" value={actual.id} />
+              <button type="submit" className="fo-btn fo-btn-secondary text-xs">
+                {actual.nudgeSentAt ? "Volver a mandarle el aviso" : "Mandarle el aviso ahora"}
+              </button>
+            </form>
+          ) : null}
+        </div>
+      ) : null}
 
       {canManage ? (
         <details>

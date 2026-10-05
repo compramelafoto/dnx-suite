@@ -20233,6 +20233,8 @@ model MemberSpotlight {
   /// Marca "ya publicada" de Comunicación.
   publishedAt       DateTime?
   publishedByUserId Int?
+  /// Cuándo se le mandó el aviso para completar su perfil. Null = todavía no (o no hizo falta).
+  nudgeSentAt       DateTime?
   createdAt         DateTime  @default(now())
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)

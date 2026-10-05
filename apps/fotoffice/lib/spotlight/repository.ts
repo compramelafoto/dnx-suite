@@ -143,6 +143,8 @@ export type SpotlightDetail = {
   round: number;
   publishedAt: Date | null;
   publishedByName: string | null;
+  /** Cuándo se le avisó que complete su perfil. */
+  nudgeSentAt: Date | null;
   member: SpotlightMember;
   about: AboutMe | null;
   /** Ruta de su portfolio público, sólo si está al aire. */
@@ -229,6 +231,7 @@ async function detalle(
     round: number;
     publishedAt: Date | null;
     publishedByUserId: number | null;
+    nudgeSentAt: Date | null;
     member: SpotlightMember;
   },
 ): Promise<SpotlightDetail> {
@@ -243,6 +246,7 @@ async function detalle(
     round: fila.round,
     publishedAt: fila.publishedAt,
     publishedByName: fila.publishedByUserId ? (nombres.get(fila.publishedByUserId) ?? null) : null,
+    nudgeSentAt: fila.nudgeSentAt,
     member: fila.member,
     about,
     portfolioPath: ruta,
@@ -267,6 +271,7 @@ export async function loadCurrentSpotlight(
       round: true,
       publishedAt: true,
       publishedByUserId: true,
+      nudgeSentAt: true,
       member: { select: SELECT_SOCIO },
     },
   });

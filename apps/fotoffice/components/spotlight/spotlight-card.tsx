@@ -94,6 +94,13 @@ export function SpotlightCard({
         </dl>
       ) : null}
 
+      {audience === "portal" && !card.isViewer && card.aboutEmpty && !card.whatsappUrl && card.links.length === 0 && !card.portfolioPath ? (
+        <p className="text-sm text-[var(--fo-muted)]">
+          {card.firstName} todavía no completó su perfil. Ya le avisamos: en unos días vas a poder
+          conocer más de su trabajo.
+        </p>
+      ) : null}
+
       {audience === "portal" ? (
         <div className="space-y-3 rounded-lg border border-[var(--fo-border)] p-4">
           {card.colleaguePhrase ? <p className="text-sm font-medium">{card.colleaguePhrase}</p> : null}
