@@ -5,6 +5,7 @@ import {
   FOTOFFICE_SPLIT_1N_ENABLED,
   FOTOFFICE_SPLIT_1N_STATUS,
   assertFotofficeSplit1nAllowed,
+  cobroConRepartoHabilitado,
   isFotofficeSplit1nEnabled,
 } from "./split-1n";
 
@@ -47,6 +48,11 @@ function collectSourceFiles(dir: string, acc: string[] = []): string[] {
 }
 
 describe("FotOffice — Split de Pagos (1 a N) desactivado", () => {
+  it("la venta con reparto sigue apagada aunque el guard general de producción esté encendido", () => {
+    expect(cobroConRepartoHabilitado({} as NodeJS.ProcessEnv)).toBe(false);
+    expect(cobroConRepartoHabilitado({ DNX_MP_ORDERS_1N_PRODUCTION_ENABLED: "true" } as unknown as NodeJS.ProcessEnv)).toBe(false);
+  });
+
   it("el interruptor está en OFF", () => {
     expect(FOTOFFICE_SPLIT_1N_ENABLED).toBe(false);
     expect(isFotofficeSplit1nEnabled()).toBe(false);

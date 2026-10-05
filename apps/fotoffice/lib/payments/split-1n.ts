@@ -51,3 +51,14 @@ export function assertFotofficeSplit1nAllowed(): FotofficeSplit1nGuard {
   }
   return { ok: true };
 }
+
+/**
+ * ¿Se puede vender un curso con reparto (split 1:N)? Dos llaves, las dos tienen que estar:
+ * el interruptor de FOTOFFICE (constante, cambio de código revisado) y el guard general de
+ * producción de la suite (`DNX_MP_ORDERS_1N_PRODUCTION_ENABLED`). Hoy: siempre false.
+ */
+export function cobroConRepartoHabilitado(env: NodeJS.ProcessEnv = process.env): boolean {
+  if (!isFotofficeSplit1nEnabled()) return false;
+  const flag = (env.DNX_MP_ORDERS_1N_PRODUCTION_ENABLED ?? "").trim().toLowerCase();
+  return flag === "1" || flag === "true" || flag === "yes" || flag === "on";
+}
