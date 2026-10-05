@@ -8,7 +8,7 @@ import { STORE_HOLD_MINUTES, STORE_LEGAL_VERSION, STORE_MAX_PENDING_PER_EMAIL } 
 import { loadCartCatalog, reservedQtyByKey } from "./repository";
 import { lockStockRows } from "@/lib/sales/stock-lock";
 import { checkCartLines, type CartProblem } from "./storefront";
-import { SHIPPING_FAILURE_MESSAGES } from "./shipping/checkout";
+import { SHIPPING_FAILURE_MESSAGES, shippingFailureMessage } from "./shipping/checkout";
 import { loadAgenciesForOrder, loadCheckoutDeliveryOptions } from "./shipping/checkout-server";
 import { quoteShipping, type ShippingQuote } from "./shipping/quote";
 
@@ -49,7 +49,12 @@ const DEMASIADOS_PENDIENTES = "Tenés varios pedidos esperando el pago. Terminá
 const YA_PROCESADO = "Ese pedido ya se procesó.";
 const CAMBIO_EL_CARRITO = "Algo de tu carrito cambió. Revisalo y volvé a confirmar.";
 const ENVIO_NO_DISPONIBLE = SHIPPING_FAILURE_MESSAGES.DISABLED;
-const NO_SE_PUDO_COTIZAR = "No pudimos calcular el envío. Probá de nuevo o elegí retiro.";
+/** "No pudimos calcular": sólo sugiere el retiro si la institución lo ofrece. */
+function noSePudoCotizar(ofreceRetiro: boolean): string {
+  return ofreceRetiro
+    ? "No pudimos calcular el envío. Probá de nuevo o elegí retiro."
+    : shippingFailureMessage("UNAVAILABLE", false);
+}
 const SUCURSAL_NO_DISPONIBLE = "Esa sucursal ya no está disponible. Elegí otra.";
 
 type Linea = CheckoutInput["lines"][number];
@@ -212,8 +217,11 @@ async function resolverEnvio(
 ): Promise<EnvioResuelto> {
   const delivery = checkout.delivery;
   if (delivery.method === "PICKUP") return { ok: true, envio: null };
+  // Ante la duda (si falla antes de leer las opciones), se sugiere el retiro como siempre.
+  let ofreceRetiro = true;
   try {
     const opciones = await loadCheckoutDeliveryOptions(workspaceId);
+    ofreceRetiro = opciones.pickup;
     if (delivery.method === "HOME" ? !opciones.home : !opciones.branch) return { ok: false, error: ENVIO_NO_DISPONIBLE };
 
     let destino: { postalCode: string; provinceCode: string };
@@ -236,7 +244,7 @@ async function resolverEnvio(
     } else {
       const lista = await loadAgenciesForOrder({ workspaceId, provinceCode: delivery.provinceCode });
       // Correo caído no es "la sucursal no existe": no se le pide que elija otra.
-      if (!lista.ok) return { ok: false, error: NO_SE_PUDO_COTIZAR };
+      if (!lista.ok) return { ok: false, error: noSePudoCotizar(ofreceRetiro) };
       const sucursal = lista.agencies.find((s) => s.id === delivery.agency.id);
       if (!sucursal) return { ok: false, error: SUCURSAL_NO_DISPONIBLE };
       destino = { postalCode: sucursal.postalCode, provinceCode: delivery.provinceCode };
@@ -260,14 +268,14 @@ async function resolverEnvio(
     });
     if (!r.ok) {
       if (r.reason === "DISABLED") return { ok: false, error: ENVIO_NO_DISPONIBLE };
-      if (r.reason === "NO_COVERAGE" || r.reason === "TOO_BIG") return { ok: false, error: SHIPPING_FAILURE_MESSAGES[r.reason] };
-      return { ok: false, error: NO_SE_PUDO_COTIZAR };
+      if (r.reason === "NO_COVERAGE" || r.reason === "TOO_BIG") return { ok: false, error: shippingFailureMessage(r.reason, ofreceRetiro) };
+      return { ok: false, error: noSePudoCotizar(ofreceRetiro) };
     }
     const q = r.quote;
     // Nunca se vende un envío sin precio (E14). En la tabla, $0 es una zona gratis que cargó la
     // institución; de Correo, un $0 es un error.
     const minimo = q.source === "TABLE" ? 0 : 1;
-    if (!Number.isInteger(q.totalMinor) || q.totalMinor < minimo) return { ok: false, error: NO_SE_PUDO_COTIZAR };
+    if (!Number.isInteger(q.totalMinor) || q.totalMinor < minimo) return { ok: false, error: noSePudoCotizar(ofreceRetiro) };
     // Se cobra lo re-cotizado, pero si es más de lo que vio (o no vio ningún precio), primero se
     // le muestra: nadie paga un envío más caro sin enterarse. Si bajó, se sigue con el menor.
     if (checkout.shownShippingMinor === null || q.totalMinor > checkout.shownShippingMinor) {
@@ -294,7 +302,7 @@ async function resolverEnvio(
       workspaceId,
       error: error instanceof Error ? error.name : typeof error,
     });
-    return { ok: false, error: NO_SE_PUDO_COTIZAR };
+    return { ok: false, error: noSePudoCotizar(ofreceRetiro) };
   }
 }
 

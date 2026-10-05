@@ -147,5 +147,6 @@ export async function listAgenciesAction(workspaceSlug: unknown, provinceCode: u
   if (await frenado("sucursales")) return { ok: false, message: FRENO_MENSAJE };
   const store = await loadOpenStore(workspaceSlug);
   if (!store) return { ok: false, message: "La tienda no está disponible en este momento." };
-  return { ok: true, agencies: await listAgenciesForCheckout({ workspaceId: store.workspace.id, provinceCode }) };
+  // Si Correo falló o no está conectado vuelve `ok: false` con el mensaje: no es "no hay sucursales".
+  return listAgenciesForCheckout({ workspaceId: store.workspace.id, provinceCode });
 }

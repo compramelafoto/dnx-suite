@@ -60,7 +60,11 @@ export function CheckoutForm({
     () => state.lines.map((l) => ({ productId: l.productId, variantId: l.variantId, qty: l.qty })),
     [state.lines],
   );
-  const { view: quote, replace: reemplazarCotizacion } = useShippingQuote(workspaceSlug, delivery, quoteLines);
+  const {
+    view: quote,
+    replace: reemplazarCotizacion,
+    retry: reintentarCotizacion,
+  } = useShippingQuote(workspaceSlug, delivery, quoteLines, deliveryOptions.pickup);
 
   if (!hydrated) return <p className="text-sm text-[var(--fo-muted)]">Cargando el carrito…</p>;
 
@@ -201,6 +205,7 @@ export function CheckoutForm({
           delivery={delivery}
           onChange={setDelivery}
           quote={quote}
+          onRetryQuote={reintentarCotizacion}
           disabled={enviando}
           pickupLine={pickupLine}
           pickupInstructions={pickupInstructions}

@@ -5,6 +5,7 @@ import {
   publicAgencies,
   publicQuoteResult,
   SHIPPING_FAILURE_MESSAGES,
+  shippingFailureMessage,
 } from "./checkout";
 
 const lines = [{ productId: "p1", variantId: null, qty: 2 }];
@@ -45,6 +46,19 @@ describe("publicQuoteResult", () => {
       message: "No pudimos calcular el envío. Probá de nuevo o elegí retiro en la sede.",
     });
     expect(Object.keys(SHIPPING_FAILURE_MESSAGES).sort()).toEqual(["DISABLED", "NO_COVERAGE", "TOO_BIG", "UNAVAILABLE"]);
+  });
+
+  it("sin retiro en la sede no lo sugiere", () => {
+    expect(publicQuoteResult({ ok: false, reason: "UNAVAILABLE" }, { pickupEnabled: false })).toEqual({
+      ok: false,
+      message: "No pudimos calcular el envío. Probá de nuevo en unos minutos.",
+    });
+    expect(shippingFailureMessage("TOO_BIG", false)).toBe("El paquete es demasiado grande para enviar.");
+    expect(shippingFailureMessage("NO_COVERAGE", false)).toBe("Todavía no hacemos envíos a ese código postal.");
+    expect(shippingFailureMessage("UNAVAILABLE", true)).toBe(SHIPPING_FAILURE_MESSAGES.UNAVAILABLE);
+    for (const r of ["DISABLED", "NO_COVERAGE", "TOO_BIG", "UNAVAILABLE"] as const) {
+      expect(shippingFailureMessage(r, false)).not.toMatch(/retir/i);
+    }
   });
 });
 
@@ -96,21 +110,22 @@ describe("deliveryOptionsFromSettings", () => {
     homeDeliveryEnabled: true,
     branchDeliveryEnabled: true,
     source: "CORREO_ARGENTINO",
+    tableAsFallback: false,
     handlingNote: "Despachamos en 48 h hábiles",
   };
 
   it("sin configuración de envíos: sólo retiro (como en la etapa 1)", () => {
-    expect(deliveryOptionsFromSettings(null)).toEqual({ pickup: true, home: false, branch: false, handlingNote: null });
+    expect(deliveryOptionsFromSettings(null, false)).toEqual({ pickup: true, home: false, branch: false, handlingNote: null });
   });
 
   it("refleja lo activo", () => {
-    expect(deliveryOptionsFromSettings(row)).toEqual({
+    expect(deliveryOptionsFromSettings(row, true)).toEqual({
       pickup: true,
       home: true,
       branch: true,
       handlingNote: "Despachamos en 48 h hábiles",
     });
-    expect(deliveryOptionsFromSettings({ ...row, pickupEnabled: false, branchDeliveryEnabled: false })).toMatchObject({
+    expect(deliveryOptionsFromSettings({ ...row, pickupEnabled: false, branchDeliveryEnabled: false }, true)).toMatchObject({
       pickup: false,
       home: true,
       branch: false,
@@ -118,17 +133,36 @@ describe("deliveryOptionsFromSettings", () => {
   });
 
   it("sucursal sólo con Correo Argentino", () => {
-    expect(deliveryOptionsFromSettings({ ...row, source: "TABLE" }).branch).toBe(false);
+    expect(deliveryOptionsFromSettings({ ...row, source: "TABLE" }, true).branch).toBe(false);
   });
 
   it("si no queda ninguna forma, vuelve el retiro: nunca un checkout sin salida", () => {
     expect(
-      deliveryOptionsFromSettings({ ...row, pickupEnabled: false, homeDeliveryEnabled: false, source: "TABLE" }),
+      deliveryOptionsFromSettings({ ...row, pickupEnabled: false, homeDeliveryEnabled: false, source: "TABLE" }, true),
     ).toMatchObject({ pickup: true, home: false, branch: false });
   });
 
+  it("sucursal sólo con la conexión de Correo activa: si no, no se puede cotizar", () => {
+    expect(deliveryOptionsFromSettings(row, false).branch).toBe(false);
+  });
+
+  it("domicilio con Correo desconectado: sólo si la tabla propia hace de respaldo", () => {
+    expect(deliveryOptionsFromSettings(row, false).home).toBe(false);
+    expect(deliveryOptionsFromSettings({ ...row, tableAsFallback: true }, false).home).toBe(true);
+    // Con la tabla como fuente, la conexión de Correo no importa.
+    expect(deliveryOptionsFromSettings({ ...row, source: "TABLE" }, false).home).toBe(true);
+  });
+
+  it("si Correo se desconecta y no había retiro, vuelve el retiro", () => {
+    expect(deliveryOptionsFromSettings({ ...row, pickupEnabled: false }, false)).toMatchObject({
+      pickup: true,
+      home: false,
+      branch: false,
+    });
+  });
+
   it("aviso vacío es null", () => {
-    expect(deliveryOptionsFromSettings({ ...row, handlingNote: "   " }).handlingNote).toBe(null);
+    expect(deliveryOptionsFromSettings({ ...row, handlingNote: "   " }, true).handlingNote).toBe(null);
   });
 });
 

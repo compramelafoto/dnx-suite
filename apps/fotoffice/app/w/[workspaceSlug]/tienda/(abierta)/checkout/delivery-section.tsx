@@ -51,16 +51,27 @@ function destino(d: DeliveryState): { method: "HOME" | "BRANCH"; postalCode: str
  * está calculando (y una respuesta vieja nunca pisa a una nueva).
  *
  * `replace` pone a la vista la cotización que devolvió el servidor al confirmar (el envío cambió).
+ * `retry` descarta el resultado de la clave actual (un error, típicamente) y vuelve a cotizar.
  */
 export function useShippingQuote(
   workspaceSlug: string,
   delivery: DeliveryState,
   lines: { productId: string; variantId: string | null; qty: number }[],
-): { view: QuoteView; replace: (q: { totalMinor: number; serviceName: string }) => void } {
+  pickupEnabled: boolean,
+): {
+  view: QuoteView;
+  replace: (q: { totalMinor: number; serviceName: string }) => void;
+  retry: () => void;
+} {
   const dest = destino(delivery);
   const clave = dest ? JSON.stringify([dest.method, dest.postalCode, dest.provinceCode, lines]) : null;
   const [resultado, setResultado] = useState<{ clave: string; view: QuoteView } | null>(null);
+  // Cada "Reintentar" suma uno: cambia las dependencias del efecto y vuelve a cotizar la misma clave.
+  const [intento, setIntento] = useState(0);
   const ultima = useRef<string | null>(null);
+  const mensajeDeFalla = pickupEnabled
+    ? "No pudimos calcular el envío. Probá de nuevo o elegí retiro en la sede."
+    : "No pudimos calcular el envío. Probá de nuevo en unos minutos.";
 
   useEffect(() => {
     if (!clave) return;
@@ -81,15 +92,21 @@ export function useShippingQuote(
           if (ultima.current !== clave) return;
           setResultado({
             clave,
-            view: { status: "error", message: "No pudimos calcular el envío. Probá de nuevo o elegí retiro en la sede." },
+            view: { status: "error", message: mensajeDeFalla },
           });
         });
     }, DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [clave, workspaceSlug]);
+  }, [clave, workspaceSlug, intento, mensajeDeFalla]);
 
   const replace = (q: { totalMinor: number; serviceName: string }) => {
     if (clave) setResultado({ clave, view: { status: "ok", totalMinor: q.totalMinor, serviceName: q.serviceName } });
+  };
+
+  const retry = () => {
+    if (!clave) return;
+    setResultado((r) => (r && r.clave === clave ? null : r));
+    setIntento((n) => n + 1);
   };
 
   let view: QuoteView;
@@ -97,7 +114,7 @@ export function useShippingQuote(
   else if (!clave) view = { status: "missing" };
   else if (!resultado || resultado.clave !== clave) view = { status: "loading" };
   else view = resultado.view;
-  return { view, replace };
+  return { view, replace, retry };
 }
 
 type Props = {
@@ -106,6 +123,7 @@ type Props = {
   delivery: DeliveryState;
   onChange: (next: DeliveryState) => void;
   quote: QuoteView;
+  onRetryQuote: () => void;
   disabled: boolean;
   pickupLine: string | null;
   pickupInstructions: string | null;
@@ -129,6 +147,7 @@ export function DeliverySection({
   delivery,
   onChange,
   quote,
+  onRetryQuote,
   disabled,
   pickupLine,
   pickupInstructions,
@@ -163,7 +182,13 @@ export function DeliverySection({
       const r = await listAgenciesAction(workspaceSlug, province).catch(() => null);
       if (numero !== pedidoSucursales.current) return;
       if (!r) {
-        setAgencias({ province, list: [], error: "No pudimos traer las sucursales. Probá de nuevo." });
+        setAgencias({
+          province,
+          list: [],
+          error: options.pickup
+            ? "No pudimos traer las sucursales. Probá de nuevo o elegí retiro en la sede."
+            : "No pudimos traer las sucursales. Probá de nuevo en unos minutos.",
+        });
       } else if (!r.ok) {
         setAgencias({ province, list: [], error: r.message });
       } else {
@@ -356,9 +381,14 @@ export function DeliverySection({
             </p>
           ) : null}
           {quote.status === "error" ? (
-            <p className="text-[var(--fo-danger)]" role="alert">
-              {quote.message}
-            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-[var(--fo-danger)]" role="alert">
+                {quote.message}
+              </p>
+              <button type="button" className="fo-btn fo-btn-secondary" onClick={onRetryQuote}>
+                Reintentar
+              </button>
+            </div>
           ) : null}
           {options.handlingNote ? <p className="text-[var(--fo-muted)]">{options.handlingNote}</p> : null}
         </div>

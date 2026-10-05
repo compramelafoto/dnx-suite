@@ -18,10 +18,25 @@ export const SHIPPING_FAILURE_MESSAGES: Record<ShippingQuoteFailure, string> = {
   UNAVAILABLE: "No pudimos calcular el envío. Probá de nuevo o elegí retiro en la sede.",
 };
 
+/** Los mismos textos para una institución que no ofrece retiro: no se le sugiere lo que no hay. */
+const SHIPPING_FAILURE_MESSAGES_SIN_RETIRO: Record<ShippingQuoteFailure, string> = {
+  ...SHIPPING_FAILURE_MESSAGES,
+  TOO_BIG: "El paquete es demasiado grande para enviar.",
+  UNAVAILABLE: "No pudimos calcular el envío. Probá de nuevo en unos minutos.",
+};
+
+/** El texto de una falla de envío; sólo sugiere el retiro en la sede si la institución lo ofrece. */
+export function shippingFailureMessage(reason: ShippingQuoteFailure, pickupEnabled: boolean): string {
+  return (pickupEnabled ? SHIPPING_FAILURE_MESSAGES : SHIPPING_FAILURE_MESSAGES_SIN_RETIRO)[reason];
+}
+
 export type PublicQuoteResult = { ok: true; totalMinor: number; serviceName: string } | { ok: false; message: string };
 
-export function publicQuoteResult(r: QuoteShippingResult): PublicQuoteResult {
-  if (!r.ok) return { ok: false, message: SHIPPING_FAILURE_MESSAGES[r.reason] };
+export function publicQuoteResult(
+  r: QuoteShippingResult,
+  opts: { pickupEnabled: boolean } = { pickupEnabled: true },
+): PublicQuoteResult {
+  if (!r.ok) return { ok: false, message: shippingFailureMessage(r.reason, opts.pickupEnabled) };
   return { ok: true, totalMinor: r.quote.totalMinor, serviceName: r.quote.serviceName };
 }
 
@@ -61,18 +76,22 @@ export type DeliverySettingsRow = {
   homeDeliveryEnabled: boolean;
   branchDeliveryEnabled: boolean;
   source: string;
+  tableAsFallback: boolean;
   handlingNote: string | null;
 };
 
 /**
  * Qué formas de entrega ve el comprador. Sin configuración de envíos, sólo retiro (la etapa 1).
- * Sucursal sólo con Correo Argentino (E9). Si por lo que sea no queda ninguna, vuelve el retiro:
- * el panel no lo permite, pero un checkout sin salida sería peor.
+ * Sólo se ofrece lo que se puede cotizar: sucursal, sólo con Correo Argentino (E9) y la conexión
+ * activa (`correoActive`); domicilio con Correo como fuente, sólo con la conexión activa o la
+ * tabla propia de respaldo. Si por lo que sea no queda ninguna, vuelve el retiro: el panel no lo
+ * permite, pero un checkout sin salida sería peor.
  */
-export function deliveryOptionsFromSettings(row: DeliverySettingsRow | null): DeliveryOptions {
+export function deliveryOptionsFromSettings(row: DeliverySettingsRow | null, correoActive: boolean): DeliveryOptions {
   if (!row) return { pickup: true, home: false, branch: false, handlingNote: null };
-  const home = row.homeDeliveryEnabled;
-  const branch = row.branchDeliveryEnabled && row.source === "CORREO_ARGENTINO";
+  const conCorreo = row.source === "CORREO_ARGENTINO";
+  const home = row.homeDeliveryEnabled && (!conCorreo || correoActive || row.tableAsFallback);
+  const branch = row.branchDeliveryEnabled && conCorreo && correoActive;
   const pickup = row.pickupEnabled || (!home && !branch);
   const handlingNote = row.handlingNote?.trim() ? row.handlingNote.trim() : null;
   return { pickup, home, branch, handlingNote };

@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@repo/db";
 import {
+  isCorreoArgentinoActive,
   loadCorreoArgentinoClient,
   markCorreoNeedsReconsent,
 } from "@/lib/integrations/correo-argentino/credentials";
@@ -10,7 +11,7 @@ import {
   parseQuoteRequest,
   publicAgencies,
   publicQuoteResult,
-  SHIPPING_FAILURE_MESSAGES,
+  shippingFailureMessage,
   type DeliveryOptions,
   type PublicAgency,
   type PublicQuoteResult,
@@ -24,7 +25,10 @@ import { loadShippingSettings } from "./repository";
  * sucursales. Lo que sale de acá va al navegador, así que pasa por los recortes de `checkout.ts`.
  */
 
-/** Formas de entrega que ve el comprador y el aviso de despacho de la institución. */
+/**
+ * Formas de entrega que ve el comprador y el aviso de despacho de la institución. Sólo las que
+ * se pueden cotizar: si cotiza con Correo, se mira además si la conexión está activa.
+ */
 export async function loadCheckoutDeliveryOptions(workspaceId: string): Promise<DeliveryOptions> {
   const row = await prisma.storeShippingSettings.findUnique({
     where: { workspaceId },
@@ -33,10 +37,24 @@ export async function loadCheckoutDeliveryOptions(workspaceId: string): Promise<
       homeDeliveryEnabled: true,
       branchDeliveryEnabled: true,
       source: true,
+      tableAsFallback: true,
       handlingNote: true,
     },
   });
-  return deliveryOptionsFromSettings(row);
+  const correoActive =
+    row !== null && row.source === "CORREO_ARGENTINO" && (row.homeDeliveryEnabled || row.branchDeliveryEnabled)
+      ? await isCorreoArgentinoActive(workspaceId)
+      : false;
+  return deliveryOptionsFromSettings(row, correoActive);
+}
+
+/** ¿La institución ofrece retiro? Para no sugerirlo en los mensajes de falla si no. Ante la duda, sí. */
+async function ofreceRetiro(workspaceId: string): Promise<boolean> {
+  try {
+    return (await loadCheckoutDeliveryOptions(workspaceId)).pickup;
+  } catch {
+    return true;
+  }
 }
 
 /**
@@ -58,10 +76,11 @@ export async function quoteForCheckout(input: {
       destination: { postalCode: pedido.value.postalCode, provinceCode: pedido.value.provinceCode },
       items: pedido.value.lines,
     });
-    return publicQuoteResult(r);
+    if (r.ok) return publicQuoteResult(r);
+    return publicQuoteResult(r, { pickupEnabled: await ofreceRetiro(input.workspaceId) });
   } catch (error) {
     console.warn("[shipping] el checkout no pudo cotizar", { error: error instanceof Error ? error.name : typeof error });
-    return { ok: false, message: SHIPPING_FAILURE_MESSAGES.UNAVAILABLE };
+    return { ok: false, message: shippingFailureMessage("UNAVAILABLE", await ofreceRetiro(input.workspaceId)) };
   }
 }
 
@@ -110,13 +129,18 @@ export async function loadAgenciesForOrder(input: {
   if (!isProvinceCode(provinceCode)) return { ok: true, agencies: [] };
   const clave = `${input.workspaceId}:${provinceCode}`;
   const ahora = Date.now();
-  const enMemoria = agenciesCache.get(clave);
-  if (enMemoria && ahora - enMemoria.at < AGENCIES_TTL_MS) return { ok: true, agencies: enMemoria.agencies };
 
   const loadCorreo = input.deps?.loadCorreo ?? loadCorreoArgentinoClient;
   try {
+    // La configuración y la conexión se miran ANTES de la memoria: si la institución apagó la
+    // sucursal o Correo se desconectó, lo guardado ya no se ofrece.
     const settings = await loadShippingSettings(input.workspaceId);
     if (!settings || !settings.branchDeliveryEnabled || settings.source !== "CORREO_ARGENTINO") return { ok: true, agencies: [] };
+    if (!(await isCorreoArgentinoActive(input.workspaceId))) return { ok: false };
+
+    const enMemoria = agenciesCache.get(clave);
+    if (enMemoria && ahora - enMemoria.at < AGENCIES_TTL_MS) return { ok: true, agencies: enMemoria.agencies };
+
     const conexion = await loadCorreo(input.workspaceId);
     if (!conexion) return { ok: false };
     const agencias = publicAgencies(await conexion.client.agencies({ customerId: conexion.customerId, provinceCode }));
@@ -134,15 +158,19 @@ export async function loadAgenciesForOrder(input: {
   }
 }
 
+export type CheckoutAgenciesResult = { ok: true; agencies: PublicAgency[] } | { ok: false; message: string };
+
 /**
  * Sucursales de Correo Argentino de una provincia, para elegir dónde retirar. Vacía si la
- * institución no ofrece sucursal, no cotiza con Correo, no está conectada o Correo falló.
+ * institución no ofrece sucursal o no cotiza con Correo. Si Correo falló o no está conectado,
+ * `ok: false` con el mensaje para el comprador: eso no es "no hay sucursales en esa provincia".
  */
 export async function listAgenciesForCheckout(input: {
   workspaceId: string;
   provinceCode: string;
   deps?: { loadCorreo?: typeof loadCorreoArgentinoClient };
-}): Promise<PublicAgency[]> {
+}): Promise<CheckoutAgenciesResult> {
   const r = await loadAgenciesForOrder(input);
-  return r.ok ? r.agencies : [];
+  if (r.ok) return r;
+  return { ok: false, message: shippingFailureMessage("UNAVAILABLE", await ofreceRetiro(input.workspaceId)) };
 }

@@ -142,6 +142,15 @@ export async function loadCorreoArgentinoClient(
   return { client, customerId: secret.customerId };
 }
 
+/**
+ * ¿La institución tiene MiCorreo conectado y activo? Sólo mira el estado (no descifra nada): es
+ * lo que decide si el checkout ofrece envíos que se cotizan con Correo.
+ */
+export async function isCorreoArgentinoActive(workspaceId: string): Promise<boolean> {
+  const resumen = await getIntegrationSummary(workspaceId, CORREO_ARGENTINO_INTEGRATION_KEY);
+  return resumen?.status === "ACTIVE";
+}
+
 export type CorreoArgentinoConnectionInfo = {
   status: "ACTIVE" | "REVOKED" | "NEEDS_RECONSENT";
   accountEmail: string;

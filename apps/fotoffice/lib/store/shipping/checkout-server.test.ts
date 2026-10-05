@@ -2,12 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MiCorreoAgency } from "@/lib/integrations/correo-argentino/client";
 
 const findUnique = vi.fn();
+const isCorreoArgentinoActive = vi.fn<(workspaceId: string) => Promise<boolean>>(async () => true);
 vi.mock("@repo/db", () => ({ prisma: { storeShippingSettings: { findUnique } } }));
 vi.mock("@/lib/integrations/correo-argentino/credentials", () => ({
   loadCorreoArgentinoClient: vi.fn(async () => {
     throw new Error("no debe usarse en los tests");
   }),
   markCorreoNeedsReconsent: vi.fn(async () => undefined),
+  isCorreoArgentinoActive,
 }));
 
 const { listAgenciesForCheckout, loadAgenciesForOrder, loadCheckoutDeliveryOptions, quoteForCheckout, resetAgenciesCacheForTests } =
@@ -37,6 +39,7 @@ function settings(over: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   findUnique.mockReset();
+  isCorreoArgentinoActive.mockReset().mockResolvedValue(true);
   resetAgenciesCacheForTests();
 });
 afterEach(() => {
@@ -89,6 +92,14 @@ describe("quoteForCheckout", () => {
     expect(r).toEqual({ ok: false, message: "No pudimos calcular el envío. Probá de nuevo o elegí retiro en la sede." });
     expect(JSON.stringify(warn.mock.calls)).not.toContain("ana@example.com");
   });
+
+  it("sin retiro en la sede, la falla no lo sugiere", async () => {
+    findUnique.mockResolvedValue(settings({ pickupEnabled: false }));
+    const quote = vi.fn(async () => ({ ok: false as const, reason: "UNAVAILABLE" as const }));
+    const r = await quoteForCheckout({ workspaceId: "w1", raw: { method: "HOME", postalCode: "2000", provinceCode: "S", lines }, quote });
+    expect(r).toEqual({ ok: false, message: "No pudimos calcular el envío. Probá de nuevo en unos minutos." });
+    expect(findUnique.mock.calls[0][0].where).toEqual({ workspaceId: "w1" });
+  });
 });
 
 describe("loadCheckoutDeliveryOptions", () => {
@@ -100,6 +111,19 @@ describe("loadCheckoutDeliveryOptions", () => {
   it("con fila", async () => {
     findUnique.mockResolvedValue(settings({ handlingNote: "48 h" }));
     expect(await loadCheckoutDeliveryOptions("w1")).toEqual({ pickup: true, home: true, branch: true, handlingNote: "48 h" });
+    expect(isCorreoArgentinoActive).toHaveBeenCalledWith("w1");
+  });
+  it("con Correo desconectado no ofrece lo que no se puede cotizar", async () => {
+    isCorreoArgentinoActive.mockResolvedValue(false);
+    findUnique.mockResolvedValue(settings());
+    expect(await loadCheckoutDeliveryOptions("w1")).toEqual({ pickup: true, home: false, branch: false, handlingNote: null });
+    findUnique.mockResolvedValue(settings({ tableAsFallback: true }));
+    expect(await loadCheckoutDeliveryOptions("w1")).toMatchObject({ home: true, branch: false });
+  });
+  it("con la tabla como fuente no consulta la conexión de Correo", async () => {
+    findUnique.mockResolvedValue(settings({ source: "TABLE" }));
+    expect(await loadCheckoutDeliveryOptions("w1")).toMatchObject({ pickup: true, home: true, branch: false });
+    expect(isCorreoArgentinoActive).not.toHaveBeenCalled();
   });
 });
 
@@ -125,7 +149,10 @@ describe("listAgenciesForCheckout", () => {
     const pedir = (provinceCode: string, workspaceId = "w1") =>
       listAgenciesForCheckout({ workspaceId, provinceCode, deps: { loadCorreo } });
 
-    expect(await pedir("s")).toEqual([{ id: "A1", name: "Centro", address: "Córdoba 721", city: "Rosario", postalCode: "2000" }]);
+    expect(await pedir("s")).toEqual({
+      ok: true,
+      agencies: [{ id: "A1", name: "Centro", address: "Córdoba 721", city: "Rosario", postalCode: "2000" }],
+    });
     expect(agencies).toHaveBeenCalledWith({ customerId: "c1", provinceCode: "S" });
     await pedir("S");
     expect(agencies).toHaveBeenCalledTimes(1);
@@ -138,28 +165,52 @@ describe("listAgenciesForCheckout", () => {
     expect(agencies).toHaveBeenCalledTimes(4);
   });
 
-  it("vacía si sucursal está apagada, la fuente no es Correo o Correo no está conectado", async () => {
+  const vacia = { ok: true, agencies: [] };
+  const NO_SE_PUDO = "No pudimos calcular el envío. Probá de nuevo o elegí retiro en la sede.";
+
+  it("vacía si sucursal está apagada o la fuente no es Correo", async () => {
     const { agencies, loadCorreo } = correo(async () => agencias);
     findUnique.mockResolvedValue(settings({ branchDeliveryEnabled: false }));
-    expect(await listAgenciesForCheckout({ workspaceId: "w1", provinceCode: "S", deps: { loadCorreo } })).toEqual([]);
+    expect(await listAgenciesForCheckout({ workspaceId: "w1", provinceCode: "S", deps: { loadCorreo } })).toEqual(vacia);
     findUnique.mockResolvedValue(settings({ source: "TABLE" }));
-    expect(await listAgenciesForCheckout({ workspaceId: "w1", provinceCode: "S", deps: { loadCorreo } })).toEqual([]);
+    expect(await listAgenciesForCheckout({ workspaceId: "w1", provinceCode: "S", deps: { loadCorreo } })).toEqual(vacia);
     findUnique.mockResolvedValue(null);
-    expect(await listAgenciesForCheckout({ workspaceId: "w1", provinceCode: "S", deps: { loadCorreo } })).toEqual([]);
+    expect(await listAgenciesForCheckout({ workspaceId: "w1", provinceCode: "S", deps: { loadCorreo } })).toEqual(vacia);
     expect(agencies).not.toHaveBeenCalled();
+  });
 
+  it("Correo no conectado es una falla con mensaje, no 'no hay sucursales'", async () => {
     findUnique.mockResolvedValue(settings());
     expect(
       await listAgenciesForCheckout({ workspaceId: "w1", provinceCode: "S", deps: { loadCorreo: vi.fn(async () => null) } }),
-    ).toEqual([]);
+    ).toEqual({ ok: false, message: NO_SE_PUDO });
+    findUnique.mockResolvedValue(settings({ pickupEnabled: false }));
+    expect(
+      await listAgenciesForCheckout({ workspaceId: "w1", provinceCode: "S", deps: { loadCorreo: vi.fn(async () => null) } }),
+    ).toEqual({ ok: false, message: "No pudimos calcular el envío. Probá de nuevo en unos minutos." });
+  });
+
+  it("revisa la configuración y la conexión ANTES de la memoria", async () => {
+    findUnique.mockResolvedValue(settings());
+    const { agencies, loadCorreo } = correo(async () => agencias);
+    const pedir = () => loadAgenciesForOrder({ workspaceId: "w1", provinceCode: "S", deps: { loadCorreo } });
+    expect((await pedir()).ok).toBe(true);
+    // La institución apagó la sucursal: lo guardado en memoria ya no se ofrece.
+    findUnique.mockResolvedValue(settings({ branchDeliveryEnabled: false }));
+    expect(await pedir()).toEqual(vacia);
+    // Correo se desconectó: tampoco.
+    findUnique.mockResolvedValue(settings());
+    isCorreoArgentinoActive.mockResolvedValue(false);
+    expect(await pedir()).toEqual({ ok: false });
+    expect(agencies).toHaveBeenCalledTimes(1);
   });
 
   it("provincia inválida: vacía sin ir a la base", async () => {
-    expect(await listAgenciesForCheckout({ workspaceId: "w1", provinceCode: "Ñ" })).toEqual([]);
+    expect(await listAgenciesForCheckout({ workspaceId: "w1", provinceCode: "Ñ" })).toEqual(vacia);
     expect(findUnique).not.toHaveBeenCalled();
   });
 
-  it("una falla de Correo da vacía y no queda en memoria", async () => {
+  it("una falla de Correo da el mensaje y no queda en memoria", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
     findUnique.mockResolvedValue(settings());
     let falla = true;
@@ -167,9 +218,13 @@ describe("listAgenciesForCheckout", () => {
       if (falla) throw new Error("caído");
       return agencias;
     });
-    expect(await listAgenciesForCheckout({ workspaceId: "w1", provinceCode: "S", deps: { loadCorreo } })).toEqual([]);
+    expect(await listAgenciesForCheckout({ workspaceId: "w1", provinceCode: "S", deps: { loadCorreo } })).toEqual({
+      ok: false,
+      message: NO_SE_PUDO,
+    });
     falla = false;
-    expect(await listAgenciesForCheckout({ workspaceId: "w1", provinceCode: "S", deps: { loadCorreo } })).toHaveLength(1);
+    const r = await listAgenciesForCheckout({ workspaceId: "w1", provinceCode: "S", deps: { loadCorreo } });
+    expect(r.ok && r.agencies).toHaveLength(1);
     expect(agencies).toHaveBeenCalledTimes(2);
   });
 

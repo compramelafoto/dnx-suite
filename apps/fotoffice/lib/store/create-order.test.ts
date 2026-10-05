@@ -543,6 +543,16 @@ describe("createStoreOrder — envío a domicilio", () => {
     expect(prismaMock.$transaction).not.toHaveBeenCalled();
   });
 
+  it("sin retiro en la sede, la falla no lo sugiere", async () => {
+    loadCheckoutDeliveryOptions.mockResolvedValue({ pickup: false, home: true, branch: true, handlingNote: null });
+    quoteShipping.mockResolvedValue({ ok: false, reason: "UNAVAILABLE" });
+    const r = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: conTelefono, now: NOW });
+    expect(r).toEqual({ ok: false, error: "No pudimos calcular el envío. Probá de nuevo en unos minutos." });
+    quoteShipping.mockResolvedValue({ ok: false, reason: "TOO_BIG" });
+    const r2 = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: conTelefono, now: NOW });
+    expect(r2).toEqual({ ok: false, error: "El paquete es demasiado grande para enviar." });
+  });
+
   it("si cotizar lanza (la base, por ejemplo) → el mismo error, sin pedido y sin datos en el log", async () => {
     quoteShipping.mockRejectedValue(new Error("ana@example.com timeout"));
     const r = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: conTelefono, now: NOW });
