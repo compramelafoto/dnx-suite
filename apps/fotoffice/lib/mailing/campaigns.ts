@@ -8,7 +8,7 @@ import { DETAIL_MAX } from "@/lib/communications/constants";
 import { FOTOFFICE_BLOG_PLATFORM } from "@/lib/blog/scope";
 import { buildAudience, type AudienceMember, type Recipient } from "./audience";
 import { buildBlogDigestEmail, buildBlogPostEmail, blogDigestSubject, blogPostSubject, type BlogEmailPost, type EmailBody } from "./blog-email";
-import { blogUrl, loadMailingContext, postUrl, unsubscribeHeaders, type MailingContext } from "./context";
+import { blogUrl, ctaUrlFor, loadMailingContext, postUrl, unsubscribeHeaders, type MailingContext } from "./context";
 import { campaignStatusFor, isPermanentFailure } from "./delivery-plan";
 import {
   CAMPAIGN_KINDS,
@@ -25,7 +25,11 @@ import {
   birthdaysToday,
   buildOccasionEmail,
   efemeridesForToday,
+  inactiveForDays,
   isOccasionWindow,
+  joinedDaysAgo,
+  leftDaysAgo,
+  NO_LOGIN_COOLDOWN_DAYS,
   yearsSince,
   ymdKey,
   type Ymd,
@@ -176,7 +180,8 @@ async function rendererFor(campaign: {
   if (
     campaign.kind === CAMPAIGN_KINDS.OCCASION ||
     campaign.kind === CAMPAIGN_KINDS.BIRTHDAY ||
-    campaign.kind === CAMPAIGN_KINDS.ANNIVERSARY
+    campaign.kind === CAMPAIGN_KINDS.ANNIVERSARY ||
+    campaign.kind === CAMPAIGN_KINDS.LIFECYCLE
   ) {
     const occasion = campaign.occasionKey ? await loadOccasion(campaign.workspaceId, campaign.occasionKey) : null;
     if (!occasion) throw new Error("La fecha de este saludo ya no existe.");
@@ -195,6 +200,7 @@ async function rendererFor(campaign: {
       const hoy = argentinaToday(creado);
       anios = new Map(socios.map((m) => [m.id, yearsSince(m.joinedAt, hoy)]));
     }
+    const cta = occasion.cta ? { label: occasion.cta.label, url: ctaUrlFor(ctx, occasion.cta.target) } : null;
     return (r) => {
       const links = unsubscribe(r.email, campaign.topic);
       return {
@@ -204,6 +210,7 @@ async function rendererFor(campaign: {
           vars: { nombre: r.firstName, institucion: ctx.brand.name, anios: r.memberId ? (anios.get(r.memberId) ?? null) : null },
           signature: ctx.signature,
           footer: { reason: ctx.reason, unsubscribeUrl: links.pageUrl },
+          cta,
         }),
         oneClickUrl: links.oneClickUrl,
       };
@@ -598,7 +605,59 @@ const KIND_FOR: Record<OccasionConfig["kind"], string> = {
   EFEMERIDE: CAMPAIGN_KINDS.OCCASION,
   BIRTHDAY: CAMPAIGN_KINDS.BIRTHDAY,
   ANNIVERSARY: CAMPAIGN_KINDS.ANNIVERSARY,
+  LIFECYCLE: CAMPAIGN_KINDS.LIFECYCLE,
 };
+
+/** Socios (activos y ex socios) con lo que necesita el ciclo: ingreso, baja y último ingreso al portal. */
+async function lifecycleMembers(workspaceId: string) {
+  const filas = await prisma.member.findMany({
+    where: { workspaceId, email: { not: null } },
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      status: true,
+      joinedAt: true,
+      leftAt: true,
+      leftReason: true,
+      user: { select: { lastLoginAt: true } },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+  return filas.map((f) => ({
+    id: f.id,
+    email: f.email,
+    firstName: f.firstName,
+    status: f.status,
+    joinedAt: f.joinedAt,
+    leftAt: f.leftAt,
+    leftReason: f.leftReason,
+    lastLoginAt: f.user?.lastLoginAt ?? null,
+  }));
+}
+
+/** Casillas que recibieron «Hace tiempo que no entrás» en los últimos 90 días. */
+async function recentlyNotifiedNoLogin(workspaceId: string, now: Date): Promise<Set<string>> {
+  const filas = await prisma.fotofficeEmailDelivery.findMany({
+    where: {
+      status: "SENT",
+      sentAt: { gte: new Date(now.getTime() - NO_LOGIN_COOLDOWN_DAYS * 86400000) },
+      campaign: { workspaceId, occasionKey: "sin-portal" },
+    },
+    select: { email: true },
+  });
+  return new Set(filas.map((f) => f.email));
+}
+
+async function lifecycleAudience(workspaceId: string, o: OccasionConfig, today: Ymd, now: Date): Promise<AudienceMember[]> {
+  const dias = o.offsetDays ?? 0;
+  if (dias < 1) return [];
+  const socios = await lifecycleMembers(workspaceId);
+  if (o.trigger === "JOINED") return joinedDaysAgo(socios, today, dias);
+  if (o.trigger === "LEFT") return leftDaysAgo(socios, today, dias);
+  if (o.trigger === "NO_LOGIN") return inactiveForDays(socios, now, dias, await recentlyNotifiedNoLogin(workspaceId, now));
+  return [];
+}
 
 async function datedMembers(workspaceId: string, field: "birthDate" | "joinedAt") {
   const filas = await prisma.member.findMany({
@@ -621,7 +680,7 @@ function historySubject(o: OccasionConfig): string {
   return o.title;
 }
 
-async function launchOccasion(workspaceId: string, o: OccasionConfig, today: Ymd, deadline: number) {
+async function launchOccasion(workspaceId: string, o: OccasionConfig, today: Ymd, now: Date, deadline: number) {
   let members: AudienceMember[] | undefined;
   let dedupeKey: string;
   if (o.kind === "BIRTHDAY") {
@@ -630,6 +689,9 @@ async function launchOccasion(workspaceId: string, o: OccasionConfig, today: Ymd
   } else if (o.kind === "ANNIVERSARY") {
     members = anniversariesToday(await datedMembers(workspaceId, "joinedAt"), today, o.milestonesOnly);
     dedupeKey = `anniversary:${workspaceId}:${ymdKey(today)}`;
+  } else if (o.kind === "LIFECYCLE") {
+    members = await lifecycleAudience(workspaceId, o, today, now);
+    dedupeKey = `lifecycle:${workspaceId}:${o.key}:${ymdKey(today)}`;
   } else {
     dedupeKey = `occasion:${workspaceId}:${o.key}:${today.y}`;
   }
@@ -664,14 +726,14 @@ export async function sendOccasionsForToday(workspaceId: string, now: Date, dead
   const today = argentinaToday(now);
   const todas = await loadOccasions(workspaceId);
   const deHoy = [
-    ...todas.filter((o) => (o.kind === "BIRTHDAY" || o.kind === "ANNIVERSARY") && o.enabled),
+    ...todas.filter((o) => (o.kind === "BIRTHDAY" || o.kind === "ANNIVERSARY" || o.kind === "LIFECYCLE") && o.enabled),
     ...efemeridesForToday(todas, today),
   ];
   const resultado: Record<string, string> = {};
   for (const o of deHoy) {
     if (Date.now() >= deadline) break;
     try {
-      resultado[o.key] = await launchOccasion(workspaceId, o, today, deadline);
+      resultado[o.key] = await launchOccasion(workspaceId, o, today, now, deadline);
     } catch (error) {
       resultado[o.key] = "ERROR";
       console.error("[fotoffice][correo] falló un saludo", {
@@ -700,6 +762,7 @@ export async function sendOccasionTest(input: {
     vars: { nombre: input.firstName, institucion: ctx.brand.name, anios: input.occasion.kind === "ANNIVERSARY" ? 10 : null },
     signature: ctx.signature,
     footer: { reason: ctx.reason, unsubscribeUrl: ctx.unsubscribe(input.to, topicForOccasion(input.occasion.kind)).pageUrl },
+    cta: input.occasion.cta ? { label: input.occasion.cta.label, url: ctaUrlFor(ctx, input.occasion.cta.target) } : null,
   });
   const salida = await sendAndLogEmail({
     to: input.to,

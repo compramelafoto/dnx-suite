@@ -76,7 +76,7 @@ describe("a quién le toca hoy", () => {
     const todas = mergeOccasions([
       { ...OCCASION_CATALOG.find((o) => o.key === "navidad")!, enabled: true },
       { ...OCCASION_CATALOG.find((o) => o.key === "dia-camarografo")!, enabled: true }, // sin fecha
-      { key: "propia-x", kind: "EFEMERIDE", enabled: true, month: 12, day: 24, title: "Propia", subject: "s", message: "m", imageUrl: null, specialties: [], milestonesOnly: false },
+      { key: "propia-x", kind: "EFEMERIDE", enabled: true, month: 12, day: 24, title: "Propia", subject: "s", message: "m", imageUrl: null, specialties: [], milestonesOnly: false, offsetDays: null },
     ]);
     expect(efemeridesForToday(todas, { y: 2026, m: 12, d: 24 }).map((o) => o.key)).toEqual(["navidad", "propia-x"]);
     expect(efemeridesForToday(todas, { y: 2026, m: 12, d: 25 })).toEqual([]);
@@ -127,7 +127,9 @@ describe("catálogo", () => {
     expect(new Set(OCCASION_CATALOG.map((o) => o.key)).size).toBe(OCCASION_CATALOG.length);
   });
   it("lo guardado pisa al catálogo pero no su tipo", () => {
-    const [nav] = mergeOccasions([{ ...OCCASION_CATALOG.find((o) => o.key === "birthday")!, enabled: true, kind: "EFEMERIDE" }]);
+    const nav = mergeOccasions([{ ...OCCASION_CATALOG.find((o) => o.key === "birthday")!, enabled: true, kind: "EFEMERIDE" }]).find(
+      (o) => o.key === "birthday",
+    )!;
     expect(nav.key).toBe("birthday");
     expect(nav.enabled).toBe(true);
     expect(nav.kind).toBe("BIRTHDAY");

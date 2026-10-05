@@ -1,5 +1,5 @@
 import { ESPECIALIDADES } from "@/lib/membership/specialties";
-import { isValidMonthDay } from "./occasions";
+import { isValidMonthDay, LIFECYCLE_DAYS_RANGE } from "./occasions";
 import type { OccasionConfig, OccasionRow } from "./occasions-catalog";
 import { safeHttpsUrl } from "./layout";
 
@@ -55,6 +55,15 @@ export function parseOccasionForm(base: OccasionConfig, form: FormData): Occasio
     specialties = [...new Set(form.getAll("specialties").map((v) => String(v)).filter((v) => IDS.has(v)))];
   }
 
+  let offsetDays: number | null = base.offsetDays;
+  if (base.kind === "LIFECYCLE") {
+    const n = entero(form.get("offsetDays"));
+    if (n === null || Number.isNaN(n) || n < LIFECYCLE_DAYS_RANGE.min || n > LIFECYCLE_DAYS_RANGE.max) {
+      return { ok: false, error: `Los días tienen que ser un número entre ${LIFECYCLE_DAYS_RANGE.min} y ${LIFECYCLE_DAYS_RANGE.max}.` };
+    }
+    offsetDays = n;
+  }
+
   return {
     ok: true,
     row: {
@@ -69,6 +78,7 @@ export function parseOccasionForm(base: OccasionConfig, form: FormData): Occasio
       imageUrl,
       specialties,
       milestonesOnly: base.kind === "ANNIVERSARY" && (form.get("milestonesOnly") === "on" || form.get("milestonesOnly") === "1"),
+      offsetDays,
     },
   };
 }
