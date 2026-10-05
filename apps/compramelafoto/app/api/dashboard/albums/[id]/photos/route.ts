@@ -173,6 +173,24 @@ export async function GET(
             : { folderId: folderFilter }),
     };
 
+    // `?idsOnly=1`: todas las fotos de la vista, sin paginar, para "Seleccionar todas".
+    // La grilla carga de a 200; sin esto el fotógrafo sólo podía seleccionar lo cargado.
+    if (req.nextUrl.searchParams.get("idsOnly") === "1") {
+      const isOwnerForIds = album.userId === user.id;
+      const all = await prisma.photo.findMany({
+        where: folderWhere,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: { id: true, userId: true },
+      });
+      return NextResponse.json({
+        photos: all.map((p) => ({
+          id: p.id,
+          canDelete: p.userId === user.id || (p.userId == null && isOwnerForIds),
+        })),
+        totalCount: all.length,
+      });
+    }
+
     const totalCount = await prisma.photo.count({ where: folderWhere });
 
     const photos = await prisma.photo.findMany({
