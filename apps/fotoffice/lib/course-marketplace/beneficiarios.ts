@@ -79,6 +79,36 @@ export function esSinReparto(
   return registrados.length === 1 && registrados[0].workspaceId === ownerWorkspaceId && registrados[0].shareBps === BPS_TOTAL;
 }
 
+type EstadoBeneficiario = "INVITADO" | "ACEPTADO" | "RECHAZADO";
+
+/**
+ * Estado de una fila al guardar la lista. El dueño siempre acepta; una fila nueva, o cualquier
+ * cambio que le mueva plata o condiciones (%, rol, negocio, correo, quién absorbe la comisión de
+ * Mercado Pago), vuelve a pedir su aceptación. Sin cambios conserva el estado.
+ */
+export function estadoTrasGuardar(
+  previo: {
+    status: EstadoBeneficiario;
+    shareBps: number;
+    role: string;
+    workspaceId: string | null;
+    invitedEmail: string | null;
+    absorbsProcessorFee: boolean;
+  } | null,
+  fila: FilaBeneficiario,
+  esDueno: boolean,
+): { status: EstadoBeneficiario; cambiaron: boolean } {
+  const cambiaron =
+    !previo ||
+    previo.shareBps !== fila.shareBps ||
+    previo.role !== fila.role ||
+    previo.workspaceId !== fila.workspaceId ||
+    previo.invitedEmail !== fila.invitedEmail ||
+    previo.absorbsProcessorFee !== fila.absorbsProcessorFee;
+  if (esDueno) return { status: "ACEPTADO", cambiaron };
+  return { status: cambiaron ? "INVITADO" : previo!.status, cambiaron };
+}
+
 export function beneficiariosParaMotor(
   owner: { workspaceId: string; nombre: string },
   registrados: Array<Pick<BeneficiarioRegistrado, "id" | "workspaceId" | "nombre" | "shareBps" | "absorbsProcessorFee">>,

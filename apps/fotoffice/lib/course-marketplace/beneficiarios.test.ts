@@ -3,6 +3,7 @@ import {
   beneficiariosParaMotor,
   esSinReparto,
   estadoDeVenta,
+  estadoTrasGuardar,
   validarFilas,
   type BeneficiarioRegistrado,
   type FilaBeneficiario,
@@ -122,5 +123,33 @@ describe("qué falta para vender con reparto", () => {
     expect(texto).toMatch(/a todavía no aceptó/);
     expect(texto).toMatch(/b no conectó Mercado Pago/);
     expect(texto).toMatch(/c rechazó/);
+  });
+});
+
+describe("estado de un beneficiario al guardar la lista", () => {
+  const fila: FilaBeneficiario = { workspaceId: "ws-a", invitedEmail: null, role: "DOCENTE", shareBps: 5000, absorbsProcessorFee: false };
+  const previo = (status: "INVITADO" | "ACEPTADO" | "RECHAZADO") => ({ status, ...fila });
+
+  it("una fila nueva queda invitada", () => {
+    expect(estadoTrasGuardar(null, fila, false)).toEqual({ status: "INVITADO", cambiaron: true });
+  });
+
+  it("el dueño queda aceptado siempre", () => {
+    expect(estadoTrasGuardar(null, fila, true).status).toBe("ACEPTADO");
+    expect(estadoTrasGuardar(previo("INVITADO"), { ...fila, shareBps: 4000 }, true).status).toBe("ACEPTADO");
+  });
+
+  it.each([
+    ["el porcentaje", { shareBps: 4000 }],
+    ["el rol", { role: "PRODUCTOR" as const }],
+    ["quién absorbe la comisión de MP", { absorbsProcessorFee: true }],
+    ["el negocio", { workspaceId: "ws-b" }],
+    ["el correo", { workspaceId: null, invitedEmail: "x@y.com" }],
+  ])("si cambia %s, el aceptado vuelve a invitado", (_n, cambio) => {
+    expect(estadoTrasGuardar(previo("ACEPTADO"), { ...fila, ...cambio }, false)).toEqual({ status: "INVITADO", cambiaron: true });
+  });
+
+  it.each(["ACEPTADO", "RECHAZADO"] as const)("sin cambios conserva %s", (status) => {
+    expect(estadoTrasGuardar(previo(status), fila, false)).toEqual({ status, cambiaron: false });
   });
 });

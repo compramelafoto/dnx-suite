@@ -5,7 +5,7 @@ import { prisma } from "@repo/db";
 import { requireCoursesSalesContext } from "@/lib/workspace";
 import { appUrl } from "@/lib/app-url";
 import { sendTransactionalEmail } from "@/lib/communications/send-email";
-import { esSinReparto, validarFilas, type FilaBeneficiario } from "@/lib/course-marketplace/beneficiarios";
+import { esSinReparto, estadoTrasGuardar, validarFilas, type FilaBeneficiario } from "@/lib/course-marketplace/beneficiarios";
 import { formatoPorcentaje } from "@/lib/course-marketplace/reparto";
 import { buildAvisoBeneficiarioEmail } from "@/lib/course-marketplace/aviso-beneficiario";
 import { cargarDueno } from "@/lib/course-marketplace/cargar";
@@ -54,9 +54,17 @@ export async function guardarBeneficiariosAction(
   const errores = validarFilas(limpias);
   if (errores.length) return { ok: false, errores };
 
+  const ids = [...new Set(limpias.map((f) => f.workspaceId).filter((id): id is string => Boolean(id)))];
+  if (ids.length > 0) {
+    const existen = await prisma.workspace.findMany({ where: { id: { in: ids } }, select: { id: true } });
+    if (existen.length !== ids.length) {
+      return { ok: false, errores: ["Uno de los negocios elegidos ya no existe. Volvé a buscarlo."] };
+    }
+  }
+
   const existentes = await prisma.courseBeneficiary.findMany({ where: { courseId } });
   const porId = new Map(existentes.map((e) => [e.id, e]));
-  const avisar: Array<{ correos: string[]; porcentaje: string; rol: string }> = [];
+  const avisar: Array<{ workspaceId: string | null; correo: string | null; porcentaje: string; rol: string }> = [];
 
   await prisma.$transaction(async (tx) => {
     const conservados = limpias.map((f) => f.id).filter((id): id is string => Boolean(id));
@@ -64,13 +72,7 @@ export async function guardarBeneficiariosAction(
     for (const f of limpias) {
       const previo = f.id ? porId.get(f.id) : undefined;
       const esDueno = f.workspaceId === curso.workspaceId;
-      const cambiaron =
-        !previo ||
-        previo.shareBps !== f.shareBps ||
-        previo.role !== f.role ||
-        previo.workspaceId !== f.workspaceId ||
-        previo.invitedEmail !== f.invitedEmail;
-      const status = esDueno ? "ACEPTADO" : cambiaron ? "INVITADO" : previo!.status;
+      const { status, cambiaron } = estadoTrasGuardar(previo ?? null, f, esDueno);
       const data = {
         workspaceId: f.workspaceId,
         invitedEmail: f.invitedEmail,
@@ -84,7 +86,8 @@ export async function guardarBeneficiariosAction(
       else await tx.courseBeneficiary.create({ data: { courseId, ...data } });
       if (!esDueno && cambiaron) {
         avisar.push({
-          correos: f.workspaceId ? await correosDeDuenos(f.workspaceId) : [f.invitedEmail!],
+          workspaceId: f.workspaceId,
+          correo: f.workspaceId ? null : f.invitedEmail,
           porcentaje: formatoPorcentaje(f.shareBps),
           rol: ROLES[f.role],
         });
@@ -104,7 +107,8 @@ export async function guardarBeneficiariosAction(
     const enlace = `${appUrl()}/dashboard/cursos-compartidos`;
     for (const a of avisar) {
       const correo = buildAvisoBeneficiarioEmail({ dueno: dueno.nombre, curso: curso.title, porcentaje: a.porcentaje, rol: a.rol, enlace });
-      for (const to of a.correos) {
+      const correos = a.workspaceId ? await correosDeDuenos(a.workspaceId) : a.correo ? [a.correo] : [];
+      for (const to of correos) {
         await sendTransactionalEmail({ to, subject: correo.subject, html: correo.html, text: correo.text }).catch(() => null);
       }
     }
