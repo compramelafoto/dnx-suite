@@ -5,6 +5,7 @@ import { sanitizeError } from "@/lib/payments/connect/log";
 import { resumePendingCampaigns, sendOccasionsForToday, sendWeeklyDigest } from "@/lib/mailing/campaigns";
 import { isDigestWindow } from "@/lib/mailing/schedule";
 import { isOccasionWindow } from "@/lib/mailing/occasions";
+import { sendDueMessages } from "@/lib/mailing/messages";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -18,6 +19,7 @@ export const maxDuration = 300;
  *    que lo tenga encendido. Uno por semana: lo garantiza la clave única del envío.
  * 3. Todos los días desde las 9:00: fechas especiales, cumpleaños y aniversarios de ingreso
  *    (Comunicación → Fechas). Uno por día cada uno, por la misma razón.
+ * 4. Las campañas programadas cuya hora ya llegó (Comunicación → Campañas).
  *
  * Una institución que falla no frena a las demás.
  */
@@ -40,6 +42,13 @@ export async function POST(request: Request) {
     retomados = await resumePendingCampaigns(deadline);
   } catch (error) {
     console.error("[fotoffice][correo] falló la retoma de envíos", { detalle: sanitizeError(error) });
+  }
+
+  let programadas: Record<string, string> = {};
+  try {
+    programadas = await sendDueMessages(now, deadline);
+  } catch (error) {
+    console.error("[fotoffice][correo] fallaron las campañas programadas", { detalle: sanitizeError(error) });
   }
 
   const resumenes: Record<string, string> = {};
@@ -77,7 +86,7 @@ export async function POST(request: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, retomados, resumenes, saludos });
+  return NextResponse.json({ ok: true, retomados, programadas, resumenes, saludos });
 }
 
 /** Vercel Cron usa GET. Mismo camino, misma autorización. */

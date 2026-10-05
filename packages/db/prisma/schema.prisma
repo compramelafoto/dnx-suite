@@ -7278,6 +7278,8 @@ model FotofficeMailingSettings {
   bulkEnabled      Boolean  @default(false)
   /// Resumen semanal del blog (lunes 9:00, hora argentina).
   weeklyBlogDigest Boolean  @default(false)
+  /// Las campañas libres necesitan la aprobación de otra persona con gestión en Comunicación.
+  requireApproval  Boolean  @default(false)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }
@@ -7298,6 +7300,8 @@ model FotofficeEmailCampaign {
   blogPostIds     Int[]                    @default([])
   /// Clave de la fecha (FotofficeMailingOccasion.key) en los saludos de fechas especiales.
   occasionKey     String?
+  /// Campaña libre (FotofficeMailingMessage) que originó este envío.
+  messageId       String?
   /// SENDING · SENT · FAILED
   status          String                   @default("SENDING")
   recipientsTotal Int                      @default(0)
@@ -7328,11 +7332,18 @@ model FotofficeEmailDelivery {
   resendId   String?
   error      String?
   sentAt     DateTime?
+  /// Métricas que informa Resend por webhook (primer evento de cada tipo).
+  deliveredAt  DateTime?
+  openedAt     DateTime?
+  clickedAt    DateTime?
+  bouncedAt    DateTime?
+  complainedAt DateTime?
   createdAt  DateTime               @default(now())
   campaign   FotofficeEmailCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
   @@unique([campaignId, email])
   @@index([campaignId, status])
+  @@index([resendId])
 }
 
 /// Bajas de los correos a socios. `topic = "all"`: ningún correo masivo de la institución.
@@ -7396,6 +7407,38 @@ model FotofficeMailingOccasion {
   updatedAt      DateTime @updatedAt
 
   @@unique([workspaceId, key])
+}
+
+/// Una campaña libre redactada en Comunicación → Campañas. Al lanzarse crea un
+/// FotofficeEmailCampaign (kind CUSTOM) que hace el envío.
+model FotofficeMailingMessage {
+  id                  String    @id @default(cuid())
+  workspaceId         String
+  /// Nombre interno, para reconocerla en la lista.
+  name                String
+  subject             String
+  body                String    @db.Text
+  imageUrl            String?
+  ctaLabel            String?
+  ctaUrl              String?
+  /// Filtros (vacío = todos los socios activos). Si hay de los dos, tiene que cumplir ambos.
+  categoryIds         String[]  @default([])
+  specialties         String[]  @default([])
+  /// DRAFT · PENDING_APPROVAL · SCHEDULED · SENT
+  status              String    @default("DRAFT")
+  /// null = enviar apenas esté aprobada (o al apretar «Enviar ahora»).
+  scheduledAt         DateTime?
+  createdByUserId     Int?
+  approvalRequestedAt DateTime?
+  approvedByUserId    Int?
+  approvedAt          DateTime?
+  campaignId          String?
+  sentAt              DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([workspaceId, createdAt])
+  @@index([status, scheduledAt])
 }
 
 /// Snapshot INMUTABLE de una publicación del sitio — nunca se edita después de creado. Solo

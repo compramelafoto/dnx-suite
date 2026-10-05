@@ -5,10 +5,11 @@
  */
 
 /** Temas de baja. "all" = ningún correo masivo de la institución. */
-export const MAILING_TOPICS = ["blog", "efemerides", "saludos", "all"] as const;
+export const MAILING_TOPICS = ["novedades", "blog", "efemerides", "saludos", "all"] as const;
 export type MailingTopic = (typeof MAILING_TOPICS)[number];
 
 export const MAILING_TOPIC_LABEL: Record<MailingTopic, string> = {
+  novedades: "Novedades de la institución",
   blog: "Novedades del blog",
   efemerides: "Saludos por fechas especiales",
   saludos: "Saludos de cumpleaños y aniversario",
@@ -17,6 +18,7 @@ export const MAILING_TOPIC_LABEL: Record<MailingTopic, string> = {
 
 /** Cómo se nombra cada tema dentro de una frase («dejar de recibir …»). */
 export const MAILING_TOPIC_PHRASE: Record<MailingTopic, string> = {
+  novedades: "las novedades de la institución",
   blog: "las novedades del blog",
   efemerides: "los saludos por fechas especiales",
   saludos: "los saludos de cumpleaños y aniversario",
@@ -29,6 +31,7 @@ export const CAMPAIGN_KINDS = {
   OCCASION: "OCCASION",
   BIRTHDAY: "BIRTHDAY",
   ANNIVERSARY: "ANNIVERSARY",
+  CUSTOM: "CUSTOM",
 } as const;
 export type CampaignKind = (typeof CAMPAIGN_KINDS)[keyof typeof CAMPAIGN_KINDS];
 
@@ -38,6 +41,15 @@ export const CAMPAIGN_KIND_LABEL: Record<string, string> = {
   OCCASION: "Fecha especial",
   BIRTHDAY: "Cumpleaños",
   ANNIVERSARY: "Aniversario de ingreso",
+  CUSTOM: "Campaña",
+};
+
+/** Estados de una campaña libre (FotofficeMailingMessage). */
+export const MESSAGE_STATUS_LABEL: Record<string, string> = {
+  DRAFT: "Borrador",
+  PENDING_APPROVAL: "Esperando aprobación",
+  SCHEDULED: "Programada",
+  SENT: "Enviada",
 };
 
 export const CAMPAIGN_STATUS_LABEL: Record<string, string> = {
