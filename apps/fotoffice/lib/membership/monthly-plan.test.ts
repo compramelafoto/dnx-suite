@@ -143,4 +143,13 @@ describe("periodOf", () => {
     expect(periodOf(new Date("2026-09-05T23:30:00.000Z"))).toBe("2026-09");
     expect(periodOf(new Date(Date.UTC(2026, 0, 1)))).toBe("2026-01");
   });
+
+  it("no cobra la mensual de un mes que ya cubre la cuota de ingreso", () => {
+    const r = planMonthlyCharges({
+      ...base,
+      members: [socio({ id: "nuevo", coveredByIngreso: true }), socio({ id: "viejo" })],
+    });
+    expect(r.charges.map((c) => c.memberId)).toEqual(["viejo"]);
+    expect(r.skipped).toEqual([{ memberId: "nuevo", reason: "ya la cubre la cuota de ingreso" }]);
+  });
 });
