@@ -6,6 +6,7 @@ import type { AlbumInstructivoProfile } from "./album-instructivo-profile";
 
 function perfil(over: Partial<AlbumInstructivoProfile> = {}): AlbumInstructivoProfile {
   return {
+    publico: "general",
     entrada: "abierta",
     busqueda: ["cara", "navegar"],
     momento: "postventa",
@@ -83,7 +84,7 @@ describe("buildInstructivoSteps", () => {
   });
 
   it("el vencimiento aparece como nota del último paso, en hora argentina", () => {
-    // `expiresAt` se guarda en UTC. 2026-11-01T00:00:00Z es el 31 de octubre a las 21 en
+    // La fecha se guarda en UTC. 2026-11-01T00:00:00Z es el 31 de octubre a las 21 en
     // Buenos Aires, y eso es lo que le sirve saber al cliente: el día que para él se acaba.
     const pasos = buildInstructivoSteps(perfil());
     assert.match(String(pasos[pasos.length - 1].nota), /31 de octubre de 2026/);
@@ -147,5 +148,78 @@ describe("buildInstructivoSteps", () => {
         assert.ok(paso.detalle.length > 0, `detalle vacío en ${momento}: ${paso.titulo}`);
       }
     }
+  });
+
+  it("ningún instructivo manda a resolver algo por fuera de la página", () => {
+    for (const momento of ["simple", "postventa", "preventa"] as const) {
+      for (const publico of ["general", "escolar"] as const) {
+        const texto = JSON.stringify(
+          buildInstructivoSteps(perfil({ momento, publico }))
+        ).toLowerCase();
+        assert.ok(!texto.includes("whatsapp"), `${momento}/${publico}`);
+        assert.ok(!texto.includes("captura"), `${momento}/${publico}`);
+      }
+    }
+  });
+
+  it("en un álbum escolar la selfie es la cara de la hija o el hijo", () => {
+    const texto = JSON.stringify(buildInstructivoSteps(perfil({ publico: "escolar" })));
+    assert.ok(texto.includes("cara de tu hija o hijo"));
+    assert.ok(!texto.includes("sacate"));
+  });
+
+  it("elegir fotos dice qué botón tocar, no sólo qué se vende", () => {
+    const elegir = buildInstructivoSteps(perfil()).find((s) => s.titulo === "Elegí tus fotos");
+    assert.ok(elegir?.detalle[0].includes("\"Seleccionar\""));
+  });
+
+  it("con packs explica cómo se completa un pack", () => {
+    const pasos = buildInstructivoSteps(
+      perfil({
+        venta: {
+          digital: true,
+          impreso: true,
+          packs: true,
+          video: false,
+          digitalIncluidoConImpreso: true,
+        },
+      })
+    );
+    const texto = JSON.stringify(pasos);
+    assert.ok(texto.includes("Elegir fotos para este pack"));
+    assert.ok(texto.includes("en papel y, además, el archivo digital"));
+  });
+
+  it("avisa que la marca de agua es sólo para elegir", () => {
+    const elegir = buildInstructivoSteps(perfil()).find((s) => s.titulo === "Elegí tus fotos");
+    assert.match(String(elegir?.nota), /sin marca de agua/);
+  });
+
+  it("no dice que imprime 'el laboratorio' cuando no se sabe cuál", () => {
+    const pasos = buildInstructivoSteps(
+      perfil({
+        venta: {
+          digital: true,
+          impreso: true,
+          packs: false,
+          video: false,
+          digitalIncluidoConImpreso: true,
+        },
+        entrega: { descarga: true, retiro: true, envio: false, laboratorio: null },
+      })
+    );
+    assert.ok(!JSON.stringify(pasos).toLowerCase().includes("laboratorio"));
+  });
+
+  it("preventa: se vuelve por el enlace del correo antes de buscar las fotos", () => {
+    const t = titulos(perfil({ momento: "preventa" }));
+    assert.ok(t.indexOf("Abrí tu compra") > t.indexOf("Esperá a que se publiquen las fotos"));
+    assert.ok(t.indexOf("Abrí tu compra") < t.indexOf("Encontrá tus fotos"));
+  });
+
+  it("preventa: aclara que las fotos ya pagadas no se vuelven a cobrar", () => {
+    const texto = JSON.stringify(buildInstructivoSteps(perfil({ momento: "preventa" })));
+    assert.ok(texto.includes("no se vuelven a cobrar"));
+    assert.ok(texto.includes("/cliente/recuperar-pack"));
   });
 });
