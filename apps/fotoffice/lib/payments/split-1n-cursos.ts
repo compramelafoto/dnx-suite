@@ -74,23 +74,29 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-
 
 /**
  * De las filas de `DnxSplitConsent` de una cuenta (buscadas por `primaryProviderAccountReference`,
- * el user_id numérico de MP) elige la que sirve para una orden: la más reciente cuyo
- * `providerReceiverId` es el receiver_id UUID que informó Mercado Pago. Una fila con el id numérico
- * (la que deja `refreshSplitConsent`) no sirve como receptor del split y se ignora. `filas` viene
- * ordenada de la más nueva a la más vieja.
+ * el user_id numérico de MP) saca el receptor de una orden. Así se guardan de verdad:
+ * - `inviteSplitConsent` guarda una fila con el receiver_id UUID de MP y el estado del momento de
+ *   la invitación (normalmente PENDING);
+ * - `refreshSplitConsent` registra la aceptación (o la baja) en OTRA fila, la del id numérico.
+ * Por eso:
+ * - el receiver_id es el UUID de la fila de invitación (el único que acepta el validador); sin
+ *   fila UUID no hay receptor (la orden da SIN_RECEPTOR);
+ * - el estado es el de la fila más reciente de la cuenta, sea cual sea: un CANCELED/EXPIRED
+ *   posterior a un ACTIVE gana, y un estado desconocido nunca es ACTIVE.
+ *
+ * Clickatón (lib/affiliates/infrastructure/split-consent.ts) consulta y guarda siempre por el
+ * UUID, así que le alcanza con leer la fila UUID. Acá no: el refresh de FOTOFFICE escribe en la
+ * fila numérica, y leer sólo la UUID dejaría todo consentimiento aceptado en PENDING.
+ * `filas` viene ordenada de la más nueva a la más vieja (`updatedAt desc`).
  */
 export function consentimientoDeCuenta(filas: Array<{ providerReceiverId: string | null; status: string }>): ReceptorDeSplit | null {
-  const fila = filas.find((f) => f.providerReceiverId && UUID_RE.test(f.providerReceiverId));
-  return evidenciaDeConsentimiento(fila ?? null);
+  const invitacion = filas.find((f) => f.providerReceiverId && UUID_RE.test(f.providerReceiverId));
+  if (!invitacion) return null;
+  return evidenciaDeConsentimiento({ providerReceiverId: invitacion.providerReceiverId, status: filas[0].status });
 }
 
 function consentimientoActivo(r: ReceptorDeSplit): boolean {
   return r.consentimiento?.status === "ACTIVE" && r.consentimiento.receiverId === r.receiverId;
-}
-
-export function armarOrdenDeCursoConReparto(e: EntradaOrdenDeCurso, env: NodeJS.ProcessEnv = process.env): ResultadoOrdenDeCurso {
-  if (!cobroConRepartoHabilitado(env)) return ordenDeshabilitada();
-  return armarOrdenSinLlave(e);
 }
 
 function ordenDeshabilitada(): ResultadoOrdenDeCurso {

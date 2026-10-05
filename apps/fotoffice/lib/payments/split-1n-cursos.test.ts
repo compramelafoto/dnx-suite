@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import { testActivePartnerConsent } from "@repo/payments/mercado-pago";
 import { calcularReparto } from "@/lib/course-marketplace/reparto";
 import {
-  armarOrdenDeCursoConReparto,
   armarOrdenSinLlave,
   consentimientoDeCuenta,
   evidenciaDeConsentimiento,
@@ -108,7 +107,7 @@ describe("orden de Mercado Pago con reparto para un curso (spec, sección 5.2)",
   });
 
   it("el armado exportado tampoco funciona con la llave apagada", () => {
-    expect(armarOrdenDeCursoConReparto(entrada())).toMatchObject({ ok: false, codigo: "SPLIT_APAGADO" });
+    expect(prepararOrdenDeCursoConReparto(entrada(), {} as unknown as NodeJS.ProcessEnv)).toMatchObject({ ok: false, codigo: "SPLIT_APAGADO" });
   });
 
   it("un negocio que es revendedor y beneficiario va en un solo receptor con la suma", () => {
@@ -149,19 +148,53 @@ describe("consentimiento guardado → receptor", () => {
   });
 });
 
-describe("consentimiento guardado de una cuenta (formas reales)", () => {
+describe("consentimiento guardado de una cuenta (dos filas reales)", () => {
+  // Como quedan en la base: la invitación (fila UUID, estado de ese momento) y el refresh
+  // (fila con el user_id numérico, upsert por providerReceiverId). Más nueva primero.
   const numerico = "1234567890";
-  it("usa el receiver_id UUID, no el user_id numérico de la cuenta", () => {
-    const r = consentimientoDeCuenta([
-      { providerReceiverId: numerico, status: "ACTIVE" },
-      { providerReceiverId: UUID.sfpr, status: "active" },
-    ]);
+  const invitacion = { providerReceiverId: UUID.sfpr, status: "PENDING" };
+
+  it("invitación UUID PENDING + aceptación numérica ACTIVE: activo, con el UUID", () => {
+    const r = consentimientoDeCuenta([{ providerReceiverId: numerico, status: "ACTIVE" }, invitacion]);
     expect(r?.receiverId).toBe(UUID.sfpr);
-    expect(r?.consentimiento?.status).toBe("ACTIVE");
+    expect(r?.consentimiento).toEqual({ receiverId: UUID.sfpr, status: "ACTIVE", provider: "mercadopago" });
   });
 
-  it("si sólo hay una fila con id numérico, no hay receptor", () => {
+  it("ACTIVE y después dado de baja: no está activo", () => {
+    for (const baja of ["CANCELED", "EXPIRED", "REJECTED", "REVOKED"]) {
+      // El refresh pisa la misma fila numérica que antes decía ACTIVE.
+      const r = consentimientoDeCuenta([{ providerReceiverId: numerico, status: baja }, invitacion]);
+      expect(r?.receiverId).toBe(UUID.sfpr);
+      expect(r?.consentimiento?.status).not.toBe("ACTIVE");
+    }
+    // Un estado posterior en la fila UUID (por ejemplo, una nueva invitación) también gana.
+    const r = consentimientoDeCuenta([{ providerReceiverId: UUID.sfpr, status: "CANCELED" }, { providerReceiverId: numerico, status: "ACTIVE" }]);
+    expect(r?.consentimiento?.status).toBe("CANCELED");
+  });
+
+  it("sólo la invitación: pendiente; sin fila UUID o sin filas: no hay receptor", () => {
+    expect(consentimientoDeCuenta([invitacion])?.consentimiento?.status).toBe("PENDING");
     expect(consentimientoDeCuenta([{ providerReceiverId: numerico, status: "ACTIVE" }])).toBeNull();
     expect(consentimientoDeCuenta([])).toBeNull();
+  });
+
+  it("con las filas reales de cada negocio la orden se arma sin fixtures; sin fila UUID, SIN_RECEPTOR", () => {
+    const deCuenta = (uuid: string, n: string) =>
+      consentimientoDeCuenta([{ providerReceiverId: n, status: "ACTIVE" }, { providerReceiverId: uuid, status: "PENDING" }])!;
+    const receptores = new Map([
+      ["ws-sfpr", deCuenta(UUID.sfpr, "101")],
+      ["ws-prod", deCuenta(UUID.prod, "102")],
+      ["ws-doc", deCuenta(UUID.doc, "103")],
+      ["ws-club", deCuenta(UUID.club, "104")],
+    ]);
+    const plataforma = evidenciaDeConsentimiento({ providerReceiverId: UUID.plataforma, status: "ACTIVE" });
+    const r = armarOrdenSinLlave(entrada({ receptores, plataforma, permitirFixturesDePrueba: false }));
+    if (!r.ok) throw new Error(r.detalle);
+    expect(r.ownerReceiverId).toBe(UUID.doc);
+
+    const sinUuid = consentimientoDeCuenta([{ providerReceiverId: "102", status: "ACTIVE" }]);
+    expect(sinUuid).toBeNull();
+    receptores.delete("ws-prod");
+    expect(armarOrdenSinLlave(entrada({ receptores, plataforma, permitirFixturesDePrueba: false }))).toMatchObject({ ok: false, codigo: "SIN_RECEPTOR" });
   });
 });

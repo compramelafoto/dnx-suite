@@ -31,7 +31,8 @@ export async function cargarReceptores(workspaceIds: string[]): Promise<Map<stri
       orderBy: { updatedAt: "desc" },
     });
     if (!cuenta?.providerUserId) continue;
-    // Se busca por la cuenta (user_id numérico de MP) y se usa el receiver_id UUID guardado en la fila.
+    // Se busca por la cuenta (user_id numérico de MP): el receiver_id sale de la fila UUID de la
+    // invitación y el estado, de la fila más reciente (el refresh guarda la aceptación en la numérica).
     const filas = await prisma.dnxSplitConsent.findMany({
       where: { provider: "MERCADOPAGO", environment: "PRODUCTION", primaryProviderAccountReference: cuenta.providerUserId },
       select: { providerReceiverId: true, status: true },
