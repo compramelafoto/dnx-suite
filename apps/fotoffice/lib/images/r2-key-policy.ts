@@ -28,6 +28,8 @@ export const FOTOFFICE_R2_PREFIXES = {
   /** Imagen de la tabla de talles de un producto (tienda). */
   sizeChart: "fotoffice/size-charts",
   memberPortfolioPhoto: "fotoffice/member-portfolio",
+  /** Fotos que el socio sube sólo para su placa de Socio de la semana («Más sobre mí»). */
+  memberFeaturedPhoto: "fotoffice/member-featured",
 } as const;
 
 export const FOTOFFICE_R2_DELETABLE_PREFIXES = Object.values(FOTOFFICE_R2_PREFIXES).map(

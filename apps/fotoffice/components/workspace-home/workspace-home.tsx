@@ -128,6 +128,20 @@ export function WorkspaceHome({
       href: "/dashboard/service-leads",
     });
   }
+  if (datos.comunicacion?.socioDeLaSemana) {
+    pendientes.push({
+      texto: `Ya está el Socio de la semana: ${datos.comunicacion.socioDeLaSemana}. Su placa está lista para publicar`,
+      href: "/comunicacion/placas/socio-de-la-semana",
+      tono: "warning",
+    });
+  }
+  if (datos.comunicacion?.bienvenidasSinPublicar) {
+    pendientes.push({
+      cantidad: datos.comunicacion.bienvenidasSinPublicar,
+      texto: `${datos.comunicacion.bienvenidasSinPublicar === 1 ? "Bienvenida" : "Bienvenidas"} a socios nuevos sin publicar`,
+      href: "/comunicacion/placas",
+    });
+  }
   if (faltaConfigurar.length > 0) {
     pendientes.push({ texto: `Completar los datos de la institución: ${faltaConfigurar.join(", ")}`, href: "/workspace/configuracion" });
   }

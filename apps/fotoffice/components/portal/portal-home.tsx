@@ -17,6 +17,8 @@ import type { PortalRaffleView } from "@/lib/raffles/portal";
 import { fechaHora } from "@/lib/raffles/labels";
 import { PrizeCards } from "@/components/raffles/prize-cards";
 import { WhatsappGroupButton } from "@/components/brand/whatsapp-group-button";
+import { SpotlightCard } from "@/components/spotlight/spotlight-card";
+import type { SpotlightCardView } from "@/lib/spotlight/view";
 
 export type PortalHomeProps = {
   institution: string;
@@ -45,6 +47,8 @@ export type PortalHomeProps = {
   sorteo: PortalRaffleView | null;
   /** El grupo de WhatsApp de los socios, si la institución cargó uno. */
   whatsappGroupUrl?: string | null;
+  /** El Socio de la semana, si Comunicación está prendido y hay uno. */
+  socioDeLaSemana?: { card: SpotlightCardView; weekLabel: string } | null;
 };
 
 /**
@@ -68,6 +72,7 @@ export function PortalHome({
   tieneNegocio,
   sorteo,
   whatsappGroupUrl,
+  socioDeLaSemana,
 }: PortalHomeProps) {
   const cuotasPendientes = cuenta.charges.filter((c) => !isOpeningBalance(c.period));
   const alDia = cuenta.charges.length === 0;
@@ -167,6 +172,14 @@ export function PortalHome({
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
+          {socioDeLaSemana ? (
+            <SpotlightCard
+              card={socioDeLaSemana.card}
+              weekLabel={socioDeLaSemana.weekLabel}
+              audience="portal"
+            />
+          ) : null}
+
           {sorteo ? <TarjetaSorteo sorteo={sorteo} /> : null}
 
           <section className="fo-card space-y-4 p-5">

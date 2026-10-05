@@ -380,6 +380,14 @@ const COMUNICACION: SubmoduleItem[] = [
     activeMatch: "rest",
   },
   {
+    href: "/comunicacion/placas/socio-de-la-semana",
+    label: "Socio de la semana",
+    icon: "Star",
+    description: "El {persona} destacado de cada viernes, con su placa y su texto para redes.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
     href: "/comunicacion/plantillas",
     label: "Plantillas",
     icon: "Palette",

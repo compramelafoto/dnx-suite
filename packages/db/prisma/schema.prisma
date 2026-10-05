@@ -7095,6 +7095,8 @@ model Workspace {
   customRoles                 WorkspaceCustomRole[]
   offices                     WorkspaceOffice[]
   memberWelcomes              MemberWelcome[]
+  memberAboutMes              MemberAboutMe[]
+  memberSpotlights            MemberSpotlight[]
   appAccessUnified            WorkspaceAppAccess[]
   institutionalMembers        Member[]
   memberCategories            MemberCategory[]
@@ -7503,6 +7505,8 @@ model Member {
   roleAssignments                 WorkspaceRoleAssignment[]
   officeTerms                     WorkspaceOfficeTerm[]
   welcome                         MemberWelcome?
+  aboutMe                         MemberAboutMe?
+  spotlights                      MemberSpotlight[]
 
   @@unique([workspaceId, memberNumber])
   @@unique([workspaceId, email])
@@ -20115,4 +20119,57 @@ model MemberWelcome {
   member    Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, createdAt])
+}
+
+/// «Más sobre mí»: lo que el socio cuenta para que los colegas lo conozcan (Socio de la semana).
+/// Todo opcional: sólo se muestra lo que contestó. Una fila por socio.
+model MemberAboutMe {
+  memberId          String   @id
+  workspaceId       String
+  howStarted        String?
+  passion           String?
+  inspiration       String?
+  gear              String?
+  proudPhotoText    String?
+  proudPhotoUrl     String?
+  canHelpWith       String?
+  wantsToLearn      String?
+  beyondPhotography String?
+  /// Acepta que los colegas le escriban por WhatsApp (sólo dentro del portal).
+  whatsappOptIn     Boolean  @default(false)
+  /// Sabe que en algún momento va a salir como Socio de la semana.
+  spotlightNoticeAt DateTime?
+  /// Hasta 3 fotos para su placa, en orden.
+  featuredPhotoUrls String[] @default([])
+  updatedAt         DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member    Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+}
+
+/// Socio de la semana: quién salió cada semana (viernes 00:00 a jueves 23:59, hora argentina).
+/// Una fila por elección. Un salteo deja la fila con `skippedAt` y se elige otra para esa semana.
+model MemberSpotlight {
+  id                String    @id @default(cuid())
+  workspaceId       String
+  memberId          String
+  /// Viernes 00:00 hora argentina, como instante UTC.
+  weekStart         DateTime
+  /// Vuelta: nadie se repite dentro de una vuelta.
+  round             Int
+  skippedAt         DateTime?
+  skippedByUserId   Int?
+  skipReason        String?
+  /// Marca "ya publicada" de Comunicación.
+  publishedAt       DateTime?
+  publishedByUserId Int?
+  createdAt         DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member    Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, weekStart])
+  @@index([workspaceId, round])
 }

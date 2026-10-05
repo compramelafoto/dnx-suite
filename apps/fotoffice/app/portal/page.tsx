@@ -13,6 +13,13 @@ import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { resolvePortalMenu } from "@/lib/portal/menu";
 import { PortalHome } from "@/components/portal/portal-home";
 import { loadPortalRaffles } from "@/lib/raffles/portal";
+import {
+  ensureCurrentSpotlightSafe,
+  isSpotlightEnabled,
+  loadCurrentSpotlight,
+} from "@/lib/spotlight/repository";
+import { buildSpotlightCard } from "@/lib/spotlight/view";
+import { spotlightWeekLabel } from "@/lib/spotlight/week";
 
 export const dynamic = "force-dynamic";
 
@@ -89,6 +96,34 @@ export default async function PortalPage() {
         .current
     : null;
 
+  // El Socio de la semana. Si la tarea de los viernes no corrió, esta visita lo elige: nunca queda
+  // una semana vacía. Cualquier falla deja el panel sin la tarjeta, nunca sin panel.
+  let socioDeLaSemana: { card: NonNullable<ReturnType<typeof buildSpotlightCard>>; weekLabel: string } | null =
+    null;
+  try {
+    if (await isSpotlightEnabled(context.workspace.id)) {
+      await ensureCurrentSpotlightSafe(context.workspace.id);
+      const destacado = await loadCurrentSpotlight(context.workspace.id);
+      const card = destacado
+        ? buildSpotlightCard({
+            member: destacado.member,
+            about: destacado.about,
+            portfolioPath: destacado.portfolioPath,
+            institution,
+            audience: "portal",
+            viewerMemberId: context.member.id,
+          })
+        : null;
+      if (destacado && card) {
+        socioDeLaSemana = { card, weekLabel: spotlightWeekLabel(destacado.weekStart) };
+      }
+    }
+  } catch (error) {
+    console.error("[fotoffice][socio-de-la-semana] no se pudo mostrar la tarjeta", {
+      detalle: error instanceof Error ? error.message : "error desconocido",
+    });
+  }
+
   return (
     <PortalHome
       institution={institution}
@@ -114,6 +149,7 @@ export default async function PortalPage() {
       tieneNegocio={profiles.some((p) => p.kind === "TEAM")}
       sorteo={sorteo}
       whatsappGroupUrl={duesSettings.communityWhatsappUrl}
+      socioDeLaSemana={socioDeLaSemana}
     />
   );
 }

@@ -205,6 +205,25 @@ mí", un botón para completarlo.
 - El viernes ve un aviso en su tablero: *"Ya está el Socio de la semana: María López. Su placa
   está lista."*
 
+### Cómo quedó programado (04/10)
+
+- Tablas `MemberAboutMe` (una fila por socio) y `MemberSpotlight` (una fila por elección, con
+  `round`, salteo y marca de publicada). Migración `20261006000000_fotoffice_socio_de_la_semana`.
+- La rotación vive dentro del módulo Comunicación: con el módulo apagado no se elige a nadie.
+- Elige la tarea `/api/cron/socio-de-la-semana`, que corre cada hora a los 5 minutos (la pasada
+  del viernes 00:05 elige; las demás no hacen nada). La primera visita al panel del socio, a
+  Comunicación o al inicio de la institución también elige, si la tarea no corrió. Un candado de
+  Postgres por institución (`pg_advisory_xact_lock`) impide que dos elecciones simultáneas elijan
+  a dos socios distintos. El sitio público **no** elige: no queremos que un robot de búsqueda
+  mueva la rotación.
+- Las fotos que el socio sube sólo para la placa van a `fotoffice/member-featured/<institución>/
+  <socio>/`, con subida directa a R2 como el portfolio. Sólo se aceptan esas y las de su portfolio.
+- La placa del socio de la semana toma sola la frase (lo que más le apasiona) y las fotos elegidas.
+- En el sitio público, el bloque "Socio de la semana" está en la categoría **Socios** del
+  constructor.
+- El inicio de la institución avisa a Comunicación cuando la placa de la semana está sin publicar
+  y cuántas bienvenidas faltan publicar.
+
 ### Fuera de alcance por ahora
 
 - Avisar por correo o WhatsApp a todos los socios cuando sale uno nuevo.

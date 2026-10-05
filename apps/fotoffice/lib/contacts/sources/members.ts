@@ -71,6 +71,8 @@ export function toSyncablePerson(
     values,
     organization: limpio(member.businessName),
     labels,
+    // En las Notas, que sí se ven en el iPhone. Sólo el número: es lo que no cambia.
+    note: `Nº de socio: ${member.memberNumber}`,
     updatedAt: member.updatedAt,
   };
 }
