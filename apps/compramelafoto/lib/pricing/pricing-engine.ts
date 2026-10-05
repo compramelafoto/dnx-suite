@@ -26,6 +26,7 @@ import {
 } from "@/lib/pricing/album-extension-surcharge";
 import { PriceMode } from "@/lib/prisma";
 import { expandAlbumCheckoutItemsWithPrintDigitalBundle } from "@/lib/pricing/album-checkout-print-digital-bundle";
+import { resolveAlbumDigitalBasePesos } from "@/lib/pricing/album-digital-base-price";
 
 export type PricingMode =
   | "FIXED_MARKUP_TABLE"
@@ -239,47 +240,6 @@ function resolveLabBasePrice(
   return { basePriceCents: Math.round(basePriceCents || 0), pricingMode };
 }
 
-/**
- * Paso 13D: mismo criterio de “legacy servidor” por foto que `/order-photos` antes de política organizer
- * (dueño usa precio de álbum si está cargado (>0); colaboradores/uso default del map).
- */
-function serverLegacyDigitalBasePesosForAlbumCheckout(params: {
-  uploaderId: number | null;
-  albumOwnerUserId: number;
-  albumDigitalStoredRaw: number | null | undefined;
-  uploaderDigitalMap: Map<number, number>;
-  albumDigitalNormalizedFallback: number;
-  photographerDigitalFallback: number | null;
-}): number {
-  const raw = params.albumDigitalStoredRaw;
-  const albumHasCollaborativeStored =
-    raw != null &&
-    typeof raw === "number" &&
-    Number.isFinite(raw) &&
-    raw > 0;
-  const uid = params.uploaderId;
-  let legacy = 0;
-  if (
-    uid != null &&
-    uid === params.albumOwnerUserId &&
-    albumHasCollaborativeStored
-  ) {
-    legacy = Math.round(Number(raw));
-  } else if (uid != null && params.uploaderDigitalMap.has(uid)) {
-    legacy = params.uploaderDigitalMap.get(uid)!;
-  } else {
-    legacy = Math.round(Number(params.albumDigitalNormalizedFallback || 0));
-  }
-  if (
-    (!legacy || legacy <= 0) &&
-    params.photographerDigitalFallback != null &&
-    params.photographerDigitalFallback > 0
-  ) {
-    legacy = Math.round(Number(params.photographerDigitalFallback));
-  }
-  return legacy;
-}
-
 export async function computeCheckoutTotals(params: {
   flow: CheckoutFlow;
   albumId?: number | null;
@@ -390,7 +350,7 @@ export async function computeCheckoutTotals(params: {
         items
           .map((item) => {
             const fk = stripCartCopySuffix(String(item.fileKey || ""));
-            return item.uploaderId ?? fileKeyToPhoto.get(fk)?.uploaderId ?? null;
+            return fileKeyToPhoto.get(fk)?.uploaderId ?? item.uploaderId ?? null;
           })
           .filter((id) => Number.isFinite(id as number))
       )
@@ -528,7 +488,8 @@ export async function computeCheckoutTotals(params: {
       const resolvedFileKey = stripCartCopySuffix(String(item.fileKey || ""));
       if (isDigital || item.includedWithPrint) {
         const photo = fileKeyToPhoto.get(resolvedFileKey);
-        const uploaderId = item.uploaderId ?? photo?.uploaderId ?? resolvedPhotographerId ?? null;
+        /** El dueño real de la foto sale de la base; `item.uploaderId` del cliente sólo si la foto no se encontró. */
+        const uploaderId = photo?.uploaderId ?? item.uploaderId ?? resolvedPhotographerId ?? null;
 
         /** Face-bulk usa precio único aparte en el mismo carrito: no pisar líneas digitales incluidas en el pack con política organizer. */
         const inFaceBulkPackEarly =
@@ -536,28 +497,13 @@ export async function computeCheckoutTotals(params: {
           Boolean(photo?.id && packPhotoIdSet.has(photo.id)) &&
           !item.includedWithPrint;
 
-        /** Paso 13D: hint cliente solo si > 0 (0/null = ignorar y resolver en servidor). */
-        const clientDigitalHint =
-          typeof item.uploaderDigitalPriceCents === "number" &&
-          Number.isFinite(item.uploaderDigitalPriceCents) &&
-          item.uploaderDigitalPriceCents > 0
-            ? Math.round(item.uploaderDigitalPriceCents)
-            : null;
-        let baseDigitalWithClientTrust =
-          clientDigitalHint ??
-          (uploaderId ? uploaderDigitalMap.get(uploaderId) : null) ??
-          albumDigitalPriceCents ??
-          0;
-        if (
-          baseDigitalWithClientTrust === 0 &&
-          photographerDigitalFallback != null &&
-          photographerDigitalFallback > 0
-        ) {
-          baseDigitalWithClientTrust = photographerDigitalFallback;
-        }
-        const digitalBaseDefault = Math.round(baseDigitalWithClientTrust);
-
-        const legacyServerRounded = serverLegacyDigitalBasePesosForAlbumCheckout({
+        /**
+         * Precio base resuelto en servidor (dueño con precio de álbum → álbum; colaborador → su default).
+         * El `uploaderDigitalPriceCents` que manda el navegador se ignora: antes tenía prioridad, así que
+         * sin él se cobraba el default del usuario aunque el álbum tuviera otro precio, y con él el
+         * cliente podía fijar cualquier monto.
+         */
+        const legacyServerRounded = resolveAlbumDigitalBasePesos({
           uploaderId,
           albumOwnerUserId: album.user?.id ?? album.userId,
           albumDigitalStoredRaw: album.digitalPhotoPriceCents ?? null,
@@ -565,6 +511,7 @@ export async function computeCheckoutTotals(params: {
           albumDigitalNormalizedFallback: albumDigitalPriceCents,
           photographerDigitalFallback,
         });
+        const digitalBaseDefault = legacyServerRounded;
 
         let digitalBase = digitalBaseDefault;
         let organizerResolutionResult:
