@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { MENSAJES_DE_BENEFICIO, mensajeDeBeneficio, puedeAnotarseGratis } from "./beneficio";
 
-const curso = { freeForMembers: true, status: "PUBLISHED", deliveryMode: "RECORDED", workspaceId: "ws-1" };
+const curso = { freeForMembers: true, status: "PUBLISHED", deliveryMode: "RECORDED", workspaceId: "ws-1", unicoBeneficiario: true };
 const base = { esSocioActivo: true, curso, workspaceDelSocio: "ws-1", yaTieneAcceso: false };
 
 describe("quién se anota gratis", () => {
@@ -12,6 +12,7 @@ describe("quién se anota gratis", () => {
   it.each([
     ["no es socio activo", { esSocioActivo: false }, "no-socio"],
     ["el curso no es gratis para socios", { curso: { ...curso, freeForMembers: false } }, "no-gratis"],
+    ["el curso tiene otros beneficiarios", { curso: { ...curso, unicoBeneficiario: false } }, "no-gratis"],
     ["el curso no está publicado", { curso: { ...curso, status: "DRAFT" } }, "no-disponible"],
     ["el curso no es grabado", { curso: { ...curso, deliveryMode: "PRESENCIAL" } }, "no-disponible"],
     ["es de otra institución", { workspaceDelSocio: "ws-2" }, "otra-institucion"],

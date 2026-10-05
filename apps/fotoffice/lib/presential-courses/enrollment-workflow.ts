@@ -24,11 +24,18 @@ function decimalToNumber(value: Prisma.Decimal) {
 export function recalcularReparto(input: {
   montoCobrado: Prisma.Decimal;
   feePercentCongelado: Prisma.Decimal;
+  /**
+   * Curso grabado: el 5% va encima de la lista, así que la comisión es un monto ya congelado y
+   * no un porcentaje del total cobrado. El neto es lo cobrado menos esa comisión.
+   */
+  comisionFijaArs?: Prisma.Decimal;
 }): { fee: Prisma.Decimal; net: Prisma.Decimal } {
-  const fee = input.montoCobrado
-    .mul(input.feePercentCongelado)
-    .div(100)
-    .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+  const fee = input.comisionFijaArs
+    ? input.comisionFijaArs.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP)
+    : input.montoCobrado
+        .mul(input.feePercentCongelado)
+        .div(100)
+        .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
   return {
     fee,
     net: input.montoCobrado.minus(fee).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP),
@@ -80,6 +87,7 @@ export async function approveCourseEnrollment(args: {
   const { fee, net } = recalcularReparto({
     montoCobrado: amount,
     feePercentCongelado: enrollment.platformFeePercent,
+    comisionFijaArs: enrollment.listPriceArs ? enrollment.platformFeeArs : undefined,
   });
 
   const updateResult = await prisma.courseEnrollment.updateMany({

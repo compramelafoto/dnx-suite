@@ -1,5 +1,6 @@
 import "server-only";
 import { Prisma, prisma } from "@repo/db";
+import { esSinReparto } from "@/lib/course-marketplace/beneficiarios";
 import { loadPortalContext } from "@/lib/portal/access";
 import { logCourseEvent } from "@/lib/presential-courses/log";
 
@@ -32,7 +33,7 @@ type ResultadoBeneficio = { ok: true } | { ok: false; codigo: CodigoDeBeneficio;
 
 export function puedeAnotarseGratis(input: {
   esSocioActivo: boolean;
-  curso: { freeForMembers: boolean; status: string; deliveryMode: string; workspaceId: string } | null;
+  curso: { freeForMembers: boolean; status: string; deliveryMode: string; workspaceId: string; unicoBeneficiario: boolean } | null;
   workspaceDelSocio: string | null;
   yaTieneAcceso: boolean;
 }): ResultadoBeneficio {
@@ -41,6 +42,7 @@ export function puedeAnotarseGratis(input: {
     return { ok: false, codigo: "no-disponible", motivo: MENSAJES_DE_BENEFICIO["no-disponible"] };
   }
   if (!input.curso.freeForMembers) return { ok: false, codigo: "no-gratis", motivo: MENSAJES_DE_BENEFICIO["no-gratis"] };
+  if (!input.curso.unicoBeneficiario) return { ok: false, codigo: "no-gratis", motivo: MENSAJES_DE_BENEFICIO["no-gratis"] };
   if (input.curso.workspaceId !== input.workspaceDelSocio) return { ok: false, codigo: "otra-institucion", motivo: MENSAJES_DE_BENEFICIO["otra-institucion"] };
   if (input.yaTieneAcceso) return { ok: false, codigo: "ya-lo-tiene", motivo: MENSAJES_DE_BENEFICIO["ya-lo-tiene"] };
   return { ok: true };
@@ -51,6 +53,8 @@ export async function cursosGratisParaSocio(workspaceId: string, userId: number)
     where: {
       workspaceId,
       freeForMembers: true,
+      // Sin beneficiarios ajenos: regalarlo dejaría sin cobrar a los demás.
+      beneficiaries: { every: { workspaceId } },
       status: "PUBLISHED",
       deliveryMode: "RECORDED",
       accesses: { none: { userId } },
@@ -73,7 +77,7 @@ export async function anotarseGratis(input: {
     loadPortalContext(input.userId),
     prisma.course.findUnique({
       where: { id: input.courseId },
-      select: { id: true, title: true, workspaceId: true, freeForMembers: true, status: true, deliveryMode: true },
+      select: { id: true, title: true, workspaceId: true, freeForMembers: true, status: true, deliveryMode: true, beneficiaries: { select: { workspaceId: true, shareBps: true } } },
     }),
     prisma.user.findUnique({ where: { id: input.userId }, select: { email: true } }),
     prisma.courseAccess.findUnique({
@@ -84,7 +88,7 @@ export async function anotarseGratis(input: {
 
   const regla = puedeAnotarseGratis({
     esSocioActivo: socio !== null,
-    curso,
+    curso: curso ? { ...curso, unicoBeneficiario: esSinReparto(curso.workspaceId, curso.beneficiaries) } : null,
     workspaceDelSocio: socio?.workspace.id ?? null,
     yaTieneAcceso: existente !== null,
   });

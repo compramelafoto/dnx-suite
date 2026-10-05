@@ -148,6 +148,7 @@ async function completar(memberId: string): Promise<{ completed: boolean }> {
     const { organizationName, signature } = await loadWorkspaceEmailContext(solicitud.workspaceId);
     const base = appUrl();
     await sendAndLogEmail({
+      workspaceId: solicitud.workspaceId,
       to: socio.email,
       templateKey: MEMBERSHIP_EMAIL_KEYS.WELCOME,
       userId: socio.userId,

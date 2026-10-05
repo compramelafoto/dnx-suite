@@ -43,5 +43,7 @@ export function mapBlogPostToFormValues(post: AdminContentPostDetail): Partial<C
     lastReviewedAt: toDateInputValueAr(post.lastReviewedAt),
     isFeatured: post.isFeatured,
     featuredUntil: toDateInputValueAr(post.featuredUntil),
+    // ISO: el formulario la pasa a la hora del navegador al montar (`toDatetimeLocal`).
+    publishedAt: post.publishedAt ? new Date(post.publishedAt).toISOString() : "",
   };
 }

@@ -228,6 +228,7 @@ async function expireApplication(
   if (socio.email) {
     const { organizationName, signature } = await loadWorkspaceEmailContext(solicitud.workspaceId);
     await sendAndLogEmail({
+      workspaceId: solicitud.workspaceId,
       to: socio.email,
       templateKey: MEMBERSHIP_EMAIL_KEYS.EXPIRED,
       body: buildApplicationExpiredEmail({
@@ -278,6 +279,7 @@ async function remindApplication(solicitud: Solicitud, now: Date): Promise<boole
     const base = appUrl();
     if (!base) return false;
     const salida = await sendAndLogEmail({
+      workspaceId: solicitud.workspaceId,
       to: socio.email,
       templateKey: MEMBERSHIP_EMAIL_KEYS.REMINDER,
       userId: socio.userId,

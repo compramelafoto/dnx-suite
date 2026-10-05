@@ -1,7 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireAuthMock, listProfilesMock, setChoiceMock, clearChoiceMock, ensureMock, redirectMock } =
-  vi.hoisted(() => ({
+const {
+  requireAuthMock,
+  listProfilesMock,
+  setChoiceMock,
+  clearChoiceMock,
+  ensureMock,
+  redirectMock,
+  setWorkspaceCookieMock,
+  readChoiceMock,
+} = vi.hoisted(() => ({
+    readChoiceMock: vi.fn(),
+    setWorkspaceCookieMock: vi.fn(),
     requireAuthMock: vi.fn(),
     listProfilesMock: vi.fn(),
     setChoiceMock: vi.fn(),
@@ -17,28 +27,28 @@ const { requireAuthMock, listProfilesMock, setChoiceMock, clearChoiceMock, ensur
 
 vi.mock("next/navigation", () => ({ redirect: redirectMock }));
 vi.mock("@/lib/auth", () => ({ requireAuth: requireAuthMock }));
+vi.mock("@/lib/workspace-cookie", () => ({ setActiveWorkspaceCookie: setWorkspaceCookieMock }));
 vi.mock("@/lib/ensure-workspace", () => ({ createFotofficeWorkspaceForUser: ensureMock }));
 vi.mock("@/lib/portal/profile-choice", () => ({
   setProfileChoice: setChoiceMock,
   clearProfileChoice: clearChoiceMock,
+  readProfileChoice: readChoiceMock,
 }));
 vi.mock("@/lib/portal/profiles", async () => {
   const actual = await vi.importActual<typeof import("@/lib/portal/profiles")>("@/lib/portal/profiles");
   return { ...actual, listUserProfiles: listProfilesMock };
 });
 
-const { chooseProfileAction, switchProfileAction, createOwnBusinessAction } = await import(
-  "./profile-choice"
-);
+const {
+  switchProfileAction,
+  createOwnBusinessAction,
+  switchToAdminAction,
+  switchToPortalAction,
+  chooseInstitutionAction,
+} = await import("./profile-choice");
 
 const TEAM = { kind: "TEAM", workspaceId: "ws-dnx", workspaceName: "DNX Owner", role: "WORKSPACE_OWNER" };
 const SOCIO = { kind: "MEMBER", workspaceId: "ws-sfpr", workspaceName: "SFPR", memberId: "m", memberNumber: "556" };
-
-function form(profile: string) {
-  const fd = new FormData();
-  fd.set("profile", profile);
-  return fd;
-}
 
 /** Ejecuta la acción y devuelve a dónde redirigió. */
 async function destinationOf(run: () => Promise<void>): Promise<string> {
@@ -59,38 +69,11 @@ beforeEach(() => {
   clearChoiceMock.mockReset();
   ensureMock.mockReset().mockResolvedValue({ workspaceId: "ws-nuevo", onboardingCompleted: false });
   redirectMock.mockClear();
+  setWorkspaceCookieMock.mockReset();
+  readChoiceMock.mockReset().mockResolvedValue(null);
 });
 
-describe("elegir perfil", () => {
-  it("guarda la elección y lleva al destino del perfil de equipo", async () => {
-    expect(await destinationOf(() => chooseProfileAction(form("TEAM:ws-dnx")))).toBe("/workspace");
-    expect(setChoiceMock).toHaveBeenCalledWith("TEAM:ws-dnx");
-  });
-
-  it("el perfil de socio lleva al portal", async () => {
-    expect(await destinationOf(() => chooseProfileAction(form("MEMBER:ws-sfpr")))).toBe("/portal");
-    expect(setChoiceMock).toHaveBeenCalledWith("MEMBER:ws-sfpr");
-  });
-
-  /**
-   * Lo que manda el navegador no se cree: la lista real se rearma en el servidor y la clave
-   * tiene que estar ahí. Si no, no se guarda nada y se vuelve a preguntar.
-   */
-  it.each([
-    ["de un workspace ajeno", "TEAM:ws-de-otro"],
-    ["con tipo inventado", "SUPERADMIN:ws-dnx"],
-    ["vacía", ""],
-    ["basura", "%%%"],
-  ])("una clave %s no se guarda y vuelve al selector", async (_label, key) => {
-    expect(await destinationOf(() => chooseProfileAction(form(key)))).toBe("/elegir-perfil");
-    expect(setChoiceMock).not.toHaveBeenCalled();
-  });
-
-  it("elegir no crea membresías ni workspaces", async () => {
-    await destinationOf(() => chooseProfileAction(form("MEMBER:ws-sfpr")));
-    expect(ensureMock).not.toHaveBeenCalled();
-  });
-
+describe("cambiar de perfil", () => {
   it("cambiar de perfil olvida la preferencia y vuelve al selector", async () => {
     expect(await destinationOf(() => switchProfileAction())).toBe("/elegir-perfil");
     expect(clearChoiceMock).toHaveBeenCalledTimes(1);
@@ -110,6 +93,7 @@ describe("crear mi negocio", () => {
     listProfilesMock.mockResolvedValue([TEAM, SOCIO]);
     expect(await destinationOf(() => createOwnBusinessAction())).toBe("/workspace");
     expect(ensureMock).not.toHaveBeenCalled();
+    expect(setWorkspaceCookieMock).toHaveBeenCalledWith("ws-dnx");
   });
 
   it("la creación es siempre explícita: exige sesión autenticada", async () => {
@@ -126,5 +110,115 @@ describe("crear mi negocio", () => {
       email: "a@b.test",
       name: "Daniel",
     });
+  });
+});
+
+/**
+ * Cambiar entre el portal del socio y el panel de Administración de la MISMA institución.
+ *
+ * El `workspaceId` del formulario no se cree: se rearma la lista real de perfiles y se busca
+ * ahí el del tipo pedido. Si la persona no lo tiene, vuelve a donde estaba sin cambiar nada.
+ */
+describe("cambiar entre portal y panel", () => {
+  const TEAM_SFPR = { kind: "TEAM", workspaceId: "ws-sfpr", workspaceName: "SFPR", role: "WORKSPACE_ADMIN" };
+
+  function wsForm(workspaceId: string) {
+    const fd = new FormData();
+    fd.set("workspaceId", workspaceId);
+    return fd;
+  }
+
+  beforeEach(() => listProfilesMock.mockResolvedValue([TEAM_SFPR, SOCIO]));
+
+  it("a Administración: fija perfil e institución activa y va al panel", async () => {
+    expect(await destinationOf(() => switchToAdminAction(wsForm("ws-sfpr")))).toBe("/workspace");
+    expect(setChoiceMock).toHaveBeenCalledWith("TEAM:ws-sfpr");
+    expect(setWorkspaceCookieMock).toHaveBeenCalledWith("ws-sfpr");
+  });
+
+  it("al portal: fija el perfil de socio y va al portal", async () => {
+    expect(await destinationOf(() => switchToPortalAction(wsForm("ws-sfpr")))).toBe("/portal");
+    expect(setChoiceMock).toHaveBeenCalledWith("MEMBER:ws-sfpr");
+    expect(setWorkspaceCookieMock).not.toHaveBeenCalled();
+  });
+
+  it("a Administración de una institución ajena: no cambia nada y sigue en el portal", async () => {
+    expect(await destinationOf(() => switchToAdminAction(wsForm("ws-de-otro")))).toBe("/portal");
+    expect(setChoiceMock).not.toHaveBeenCalled();
+    expect(setWorkspaceCookieMock).not.toHaveBeenCalled();
+  });
+
+  it("al portal de una institución donde no es socio: no cambia nada y sigue en el panel", async () => {
+    listProfilesMock.mockResolvedValue([TEAM, SOCIO]);
+    expect(await destinationOf(() => switchToPortalAction(wsForm("ws-dnx")))).toBe("/workspace");
+    expect(setChoiceMock).not.toHaveBeenCalled();
+    expect(setWorkspaceCookieMock).not.toHaveBeenCalled();
+  });
+
+  it("sin workspaceId: no cambia nada", async () => {
+    expect(await destinationOf(() => switchToAdminAction(new FormData()))).toBe("/portal");
+    expect(setChoiceMock).not.toHaveBeenCalled();
+  });
+
+  it("exige sesión autenticada", async () => {
+    await destinationOf(() => switchToAdminAction(wsForm("ws-sfpr")));
+    expect(requireAuthMock).toHaveBeenCalled();
+  });
+});
+
+/**
+ * Elegir institución al entrar: una tarjeta por institución, no por perfil. Dentro de la
+ * institución, la vista por defecto sale de `resolveEntryProfile` sobre SUS perfiles.
+ */
+describe("elegir institución", () => {
+  const ADMIN_SFPR = { kind: "TEAM", workspaceId: "ws-sfpr", workspaceName: "SFPR", role: "WORKSPACE_ADMIN" };
+  const STAFF_SFPR = { kind: "TEAM", workspaceId: "ws-sfpr", workspaceName: "SFPR", role: "STAFF" };
+
+  function wsForm(workspaceId: string) {
+    const fd = new FormData();
+    fd.set("workspaceId", workspaceId);
+    return fd;
+  }
+
+  it("institución ajena: no cambia nada y vuelve al selector", async () => {
+    expect(await destinationOf(() => chooseInstitutionAction(wsForm("ws-de-otro")))).toBe("/elegir-perfil");
+    expect(setChoiceMock).not.toHaveBeenCalled();
+    expect(setWorkspaceCookieMock).not.toHaveBeenCalled();
+  });
+
+  it("sin workspaceId: no cambia nada", async () => {
+    expect(await destinationOf(() => chooseInstitutionAction(new FormData()))).toBe("/elegir-perfil");
+    expect(setChoiceMock).not.toHaveBeenCalled();
+  });
+
+  it("sólo su negocio: panel, con perfil e institución activa fijados", async () => {
+    expect(await destinationOf(() => chooseInstitutionAction(wsForm("ws-dnx")))).toBe("/workspace");
+    expect(setChoiceMock).toHaveBeenCalledWith("TEAM:ws-dnx");
+    expect(setWorkspaceCookieMock).toHaveBeenCalledWith("ws-dnx");
+  });
+
+  it("admin y socio de la institución: vista por defecto, el panel", async () => {
+    listProfilesMock.mockResolvedValue([TEAM, ADMIN_SFPR, SOCIO]);
+    expect(await destinationOf(() => chooseInstitutionAction(wsForm("ws-sfpr")))).toBe("/workspace");
+    expect(setChoiceMock).toHaveBeenCalledWith("TEAM:ws-sfpr");
+    expect(setWorkspaceCookieMock).toHaveBeenCalledWith("ws-sfpr");
+  });
+
+  it("comisión y socio: vista por defecto, el portal", async () => {
+    listProfilesMock.mockResolvedValue([TEAM, STAFF_SFPR, SOCIO]);
+    expect(await destinationOf(() => chooseInstitutionAction(wsForm("ws-sfpr")))).toBe("/portal");
+    expect(setChoiceMock).toHaveBeenCalledWith("MEMBER:ws-sfpr");
+    expect(setWorkspaceCookieMock).not.toHaveBeenCalled();
+  });
+
+  it("el recordado de esa institución manda", async () => {
+    listProfilesMock.mockResolvedValue([TEAM, ADMIN_SFPR, SOCIO]);
+    readChoiceMock.mockResolvedValue("MEMBER:ws-sfpr");
+    expect(await destinationOf(() => chooseInstitutionAction(wsForm("ws-sfpr")))).toBe("/portal");
+  });
+
+  it("no crea membresías ni workspaces", async () => {
+    await destinationOf(() => chooseInstitutionAction(wsForm("ws-sfpr")));
+    expect(ensureMock).not.toHaveBeenCalled();
   });
 });

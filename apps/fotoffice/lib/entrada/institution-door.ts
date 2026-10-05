@@ -1,5 +1,5 @@
 import { PORTAL_HOME } from "../portal/destination";
-import type { UserProfile } from "../portal/profiles";
+import { resolveEntryProfile, type UserProfile } from "../portal/profiles";
 
 /**
  * La puerta propia de cada institución.
@@ -55,7 +55,12 @@ export function doorReturnPath(next: string | null | undefined): string | null {
 }
 
 export type DoorDestination =
-  | { redirectTo: string }
+  /**
+   * `activateWorkspaceId` viene cuando el destino es el panel: hay que dejar esa institución
+   * activa antes de abrirlo (lo hace `app/w/[workspaceSlug]/entrar/panel/route.ts`, porque la
+   * página de la puerta no puede escribir cookies).
+   */
+  | { redirectTo: string; activateWorkspaceId?: string }
   /** No es nada de esta institución. La puerta se aparta y decide el camino normal. */
   | { unknownHere: true };
 
@@ -70,12 +75,17 @@ export type DoorDestination =
 export function resolveDoorDestination(input: {
   workspaceId: string;
   profiles: UserProfile[];
+  /** La elección recordada (`fotoffice_perfil`). Sólo cuenta si es de esta institución. */
+  rememberedKey?: string | null;
 }): DoorDestination {
   const aca = input.profiles.filter((p) => p.workspaceId === input.workspaceId);
   if (aca.length === 0) return { unknownHere: true };
 
-  // Ser equipo gana, igual que en `resolveFotofficeUserKind`: quien administra la institución
-  // y además es socio entra a administrar, y desde ahí puede cambiar de perfil.
-  const esEquipo = aca.some((p) => p.kind === "TEAM");
-  return { redirectTo: esEquipo ? "/workspace" : PORTAL_HOME };
+  // Todos los perfiles de `aca` son de UNA institución: el mismo criterio que la entrada
+  // general — elección recordada válida; si no, dueño/admin al panel; si no, socio al portal;
+  // si no, equipo (STAFF sin ficha) al panel.
+  const entry = resolveEntryProfile(aca, input.rememberedKey ?? null);
+  if (entry.kind !== "go") return { unknownHere: true };
+  if (entry.profile.kind === "MEMBER") return { redirectTo: PORTAL_HOME };
+  return { redirectTo: "/workspace", activateWorkspaceId: entry.profile.workspaceId };
 }

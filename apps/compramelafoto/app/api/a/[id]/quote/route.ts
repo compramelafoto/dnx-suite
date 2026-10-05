@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { computeCheckoutTotals } from "@/lib/pricing/pricing-engine";
 import { denyIfTestAlbumNotOwnerPreview } from "@/lib/public-album-test-access";
+import { applyPrepaidPrintCredit } from "@/lib/canje-externo/prepaid-print-credit";
+import {
+  EXTERNAL_VOUCHER_ERROR_MESSAGES,
+  loadExternalVoucherByToken,
+} from "@/lib/canje-externo/external-voucher";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -54,12 +59,40 @@ export async function POST(
       return NextResponse.json({ error: "Items inválidos para cotizar." }, { status: 400 });
     }
 
-    const totals = await computeCheckoutTotals({
+    let totals = await computeCheckoutTotals({
       flow: "ALBUM_ORDER",
       albumId,
       items: normalized,
       faceBulkPackPhotoIds,
     });
+
+    // Mismo cálculo que al crear el pedido (`POST /orders`): lo que ve la familia es lo
+    // que se cobra. Un link inválido no rompe la cotización: se informa y se cotiza normal.
+    let canje: {
+      ok: boolean;
+      error?: string;
+      creditedPrintUnits?: number;
+      discountArs?: number;
+      discountDigitalArs?: number;
+    } | null = null;
+    const canjeToken = typeof body.canjeToken === "string" ? body.canjeToken.trim() : "";
+    if (canjeToken) {
+      const lookup = await loadExternalVoucherByToken(canjeToken, albumId);
+      if (!lookup.ok) {
+        canje = { ok: false, error: EXTERNAL_VOUCHER_ERROR_MESSAGES[lookup.error] };
+      } else if (lookup.voucher.redeemed) {
+        canje = { ok: false, error: EXTERNAL_VOUCHER_ERROR_MESSAGES.redeemed };
+      } else {
+        const applied = applyPrepaidPrintCredit(totals, normalized, lookup.voucher.refs);
+        totals = applied.totals;
+        canje = {
+          ok: true,
+          creditedPrintUnits: applied.creditedPrintUnits,
+          discountArs: applied.discountArs,
+          discountDigitalArs: applied.discountDigitalArs,
+        };
+      }
+    }
 
     return NextResponse.json(
       {
@@ -71,6 +104,7 @@ export async function POST(
         },
         items: totals.items,
         snapshot: totals.snapshot,
+        ...(canje ? { canje } : {}),
       },
       { status: 200 }
     );

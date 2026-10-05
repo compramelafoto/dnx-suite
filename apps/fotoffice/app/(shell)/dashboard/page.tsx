@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@repo/db";
 import { requireActiveWorkspace, isCoursesSalesEnabledForWorkspace } from "@/lib/workspace";
 import { isMissingCoursesSalesSchemaError } from "@/lib/courses-sales/prisma-errors";
+import { invitacionesPendientesWhere } from "@/lib/course-marketplace/access";
 import { moduleOffNotice } from "@/lib/dashboard/module-off-notice";
 
 export default async function DashboardPage({
@@ -31,6 +32,18 @@ export default async function DashboardPage({
     }
   }
 
+  // Si la tabla todavía no existe en la base, el aviso no debe tumbar el tablero.
+  let invitacionesPendientes = 0;
+  if (workspace !== null) {
+    try {
+      invitacionesPendientes = await prisma.courseBeneficiary.count({
+        where: invitacionesPendientesWhere(workspace.id, user.email),
+      });
+    } catch {
+      console.error("[dashboard] no se pudieron contar las invitaciones de cursos compartidos");
+    }
+  }
+
   return (
     <div className="space-y-10">
       <header className="space-y-2">
@@ -42,6 +55,19 @@ export default async function DashboardPage({
           activo.
         </p>
       </header>
+
+      {invitacionesPendientes > 0 ? (
+        <div className="fo-card" role="status">
+          <p className="text-sm font-medium text-[var(--fo-text)]">
+            Te sumaron como beneficiario de {invitacionesPendientes} {invitacionesPendientes === 1 ? "curso" : "cursos"}
+          </p>
+          <p className="mt-2 text-sm">
+            <Link href="/dashboard/cursos-compartidos" className="text-[var(--fo-accent)] underline">
+              Ver invitaciones
+            </Link>
+          </p>
+        </div>
+      ) : null}
 
       {forbiddenAdmin ? (
         <div className="fo-card fo-alert-error" role="alert">

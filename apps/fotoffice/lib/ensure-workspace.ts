@@ -52,6 +52,12 @@ export async function findFotofficeWorkspaceForUser(params: {
   userId: number;
   email: string;
   name?: string | null;
+  /**
+   * Institución activa elegida (cookie ya leída por el llamador). Sólo se usa si la persona
+   * es miembro de ella Y ya tiene branding: acá no se le completa el branding a una
+   * institución ajena a la propia. Si no cumple, se ignora y vale la preferencia de siempre.
+   */
+  preferredWorkspaceId?: string | null;
 }): Promise<EnsuredWorkspace | null> {
   const existing = await prisma.workspaceMembership.findMany({
     where: { userId: params.userId },
@@ -69,6 +75,17 @@ export async function findFotofficeWorkspaceForUser(params: {
   });
 
   if (existing.length > 0) {
+    const preferred = params.preferredWorkspaceId
+      ? existing.find((m) => m.workspaceId === params.preferredWorkspaceId)
+      : undefined;
+    if (preferred?.workspace.fotofficeBranding) {
+      return {
+        workspaceId: preferred.workspaceId,
+        created: false,
+        onboardingCompleted: preferred.workspace.fotofficeBranding.onboardingCompletedAt != null,
+      };
+    }
+
     const owner =
       existing.find((m) => m.role === "WORKSPACE_OWNER") ?? existing[0]!;
     const branding = owner.workspace.fotofficeBranding;

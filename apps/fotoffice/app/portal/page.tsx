@@ -4,7 +4,7 @@ import { requireAuth } from "@/lib/auth";
 import { loadPortalContext } from "@/lib/portal/access";
 import { tieneCursos } from "@/lib/course-classroom/alumno";
 import { resolveFotofficeUserKind } from "@/lib/portal/user-kind";
-import { listUserProfiles } from "@/lib/portal/profiles";
+import { hasProfilesInSeveralWorkspaces, listUserProfiles } from "@/lib/portal/profiles";
 import { loadMemberBalance } from "@/lib/membership/balance";
 import { getDuesSettings } from "@/lib/membership/settings";
 import { describeSeniority } from "@/lib/portal/identity";
@@ -21,6 +21,8 @@ import {
 } from "@/lib/spotlight/repository";
 import { buildSpotlightCard } from "@/lib/spotlight/view";
 import { spotlightWeekLabel } from "@/lib/spotlight/week";
+import { loadBirthdaysOfWeek } from "@/lib/birthdays/repository";
+import type { BirthdayView } from "@/lib/birthdays/week";
 
 export const dynamic = "force-dynamic";
 
@@ -128,6 +130,19 @@ export default async function PortalPage() {
     });
   }
 
+  // Los cumpleaños de la semana. Igual que la tarjeta de arriba: si falla, el panel sigue.
+  let cumpleanos: BirthdayView[] = [];
+  try {
+    cumpleanos = await loadBirthdaysOfWeek({
+      workspaceId: context.workspace.id,
+      viewerMemberId: context.member.id,
+    });
+  } catch (error) {
+    console.error("[fotoffice][cumpleanos] no se pudieron cargar los cumpleaños", {
+      detalle: error instanceof Error ? error.message : "error desconocido",
+    });
+  }
+
   return (
     <PortalHome
       institution={institution}
@@ -149,11 +164,12 @@ export default async function PortalPage() {
         recomendar ? duesSettings.recommendationBenefitPercent : null
       }
       perfilVacio={perfilVacio}
-      puedeCambiarPerfil={profiles.length > 1}
+      puedeCambiarPerfil={hasProfilesInSeveralWorkspaces(profiles)}
       tieneNegocio={profiles.some((p) => p.kind === "TEAM")}
       sorteo={sorteo}
       whatsappGroupUrl={duesSettings.communityWhatsappUrl}
       socioDeLaSemana={socioDeLaSemana}
+      cumpleanos={cumpleanos}
     />
   );
 }

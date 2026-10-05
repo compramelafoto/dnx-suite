@@ -5,6 +5,7 @@ import { redirect, unstable_rethrow } from "next/navigation";
 import { Prisma, prisma } from "@repo/db";
 import { z } from "zod";
 import { requireCoursesSalesContext } from "@/lib/workspace";
+import { esSinReparto } from "@/lib/course-marketplace/beneficiarios";
 import { slugify } from "@/lib/slug";
 import { leerCamposDeVenta } from "./course-sale-fields";
 import { logCourseEvent } from "@/lib/presential-courses/log";
@@ -206,6 +207,16 @@ export async function updateCourse(courseId: string, input: z.input<typeof cours
   if (!courseId?.trim()) throw new Error("courseId es obligatorio.");
   await assertWorkspaceCourse(workspace.id, courseId);
   const data = normalizeCourseInput(input);
+  if (data.freeForMembers) {
+    // "Gratis para socios" regala el curso: sólo vale si el negocio es el único beneficiario.
+    const beneficiarios = await prisma.courseBeneficiary.findMany({
+      where: { courseId },
+      select: { workspaceId: true, shareBps: true },
+    });
+    if (!esSinReparto(workspace.id, beneficiarios)) {
+      throw new Error('"Gratis para socios" sólo se puede activar si tu negocio es el único beneficiario del curso.');
+    }
+  }
   try {
     const updated = await prisma.course.update({
       where: { id: courseId },
