@@ -1,3 +1,4 @@
+import { validarFechaNacimiento } from "@/lib/registration/domain/fecha-nacimiento";
 import { normalizeGiftVoucherCode } from "../domain/code";
 import type { GiftVoucherRepository } from "../domain/repository";
 import { evaluateGiftRedeemEligibility } from "../domain/status";
@@ -111,6 +112,10 @@ export function redeemGiftVoucherUseCase(deps: RedeemGiftVoucherDeps) {
       const email = (input.participant.email ?? "").trim().toLowerCase();
       if (!EMAIL_RE.test(email)) {
         throw new GiftRedeemError("VALIDATION", "Ingresá un email válido.");
+      }
+      const nacimiento = validarFechaNacimiento(input.participant.birthDate, now);
+      if (!nacimiento.ok) {
+        throw new GiftRedeemError("VALIDATION", nacimiento.error);
       }
 
       // El voucher se marca canjeado DESPUÉS de completar la inscripción: si

@@ -40,6 +40,7 @@ function inscribir(esc: Escenario, homeDelivery?: Record<string, unknown> | null
       lastName: "Pérez",
       email: `ana+${newIdempotencyKey()}@example.com`,
       country: "AR",
+      birthDate: "1990-04-12",
     },
     acceptTerms: true,
     acceptPrivacy: true,

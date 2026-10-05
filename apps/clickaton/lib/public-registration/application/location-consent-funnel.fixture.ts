@@ -96,7 +96,7 @@ export async function inscribir(
       city: "Santa Fe",
       province: "Santa Fe",
       country: "AR",
-      birthDate: participantOverrides?.birthDate,
+      birthDate: participantOverrides?.birthDate ?? "1990-04-12",
     },
     acceptTerms: true,
     acceptPrivacy: true,

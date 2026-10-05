@@ -11,11 +11,20 @@ import { siteConfig } from "@/config/site";
 import { formatAdminDateTime } from "@/lib/admin/datetime-input";
 import { getEditionDashboardMetrics } from "@/lib/admin/editions/queries";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
+import { BirthdaysOfWeekCard } from "@/components/admin/BirthdaysOfWeekCard";
+import { cargarCumpleanosDeLaSemana } from "@/lib/people/cargar-cumpleanos";
 
 export default async function AdminDashboardPage() {
   const user = await requireClickatonAdmin();
   const integrations = getAdminIntegrations();
-  const metricsResult = await getEditionDashboardMetrics();
+  const [metricsResult, cumpleanos] = await Promise.all([
+    getEditionDashboardMetrics(),
+    // Si falla, el inicio sigue andando: sólo falta la tarjeta.
+    cargarCumpleanosDeLaSemana().catch((error: unknown) => {
+      console.error("[clickaton] no se pudieron cargar los cumpleaños:", error);
+      return null;
+    }),
+  ]);
 
   return (
     <div className="space-y-8">
@@ -38,6 +47,8 @@ export default async function AdminDashboardPage() {
           sede en esta etapa.
         </p>
       </Card>
+
+      {cumpleanos ? <BirthdaysOfWeekCard data={cumpleanos} /> : null}
 
       {!metricsResult.ok ? (
         <AdminMigrationNotice message={metricsResult.message} />
