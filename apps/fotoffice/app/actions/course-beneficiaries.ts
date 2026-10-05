@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { Prisma, prisma } from "@repo/db";
 import { requireCoursesSalesContext } from "@/lib/workspace";
+import { isFullAccessRole } from "@/lib/permissions/levels";
 import { appUrl } from "@/lib/app-url";
 import { sendTransactionalEmail } from "@/lib/communications/send-email";
 import { esSinReparto, estadoTrasGuardar, validarFilas, type FilaBeneficiario } from "@/lib/course-marketplace/beneficiarios";
@@ -44,12 +45,22 @@ export async function guardarBeneficiariosAction(
   | { ok: true; aviso?: string; filas: Array<FilaBeneficiario & { id: string; status: "INVITADO" | "ACEPTADO" | "RECHAZADO" }> }
   | { ok: false; errores: string[] }
 > {
-  const { workspace } = await requireCoursesSalesContext("MANAGE");
+  const { user, workspace } = await requireCoursesSalesContext("MANAGE");
+  const membresia = await prisma.workspaceMembership.findUnique({
+    where: { userId_workspaceId: { userId: user.id, workspaceId: workspace.id } },
+    select: { role: true },
+  });
+  if (!isFullAccessRole(membresia?.role)) {
+    return { ok: false, errores: ["Sólo el dueño o un administrador del negocio puede definir quién cobra."] };
+  }
   const curso = await prisma.course.findFirst({
     where: { id: courseId, workspaceId: workspace.id },
-    select: { id: true, title: true, workspaceId: true, freeForMembers: true },
+    select: { id: true, title: true, workspaceId: true, freeForMembers: true, deliveryMode: true, priceArs: true },
   });
   if (!curso) return { ok: false, errores: ["Curso no encontrado."] };
+  if (curso.deliveryMode !== "RECORDED" || !(Number(curso.priceArs ?? 0) > 0)) {
+    return { ok: false, errores: ["El reparto sólo se arma en cursos grabados con precio."] };
+  }
 
   const limpias = filas.map((f) => ({
     ...f,
@@ -114,7 +125,12 @@ export async function guardarBeneficiariosAction(
       const correo = buildAvisoBeneficiarioEmail({ dueno: dueno.nombre, curso: curso.title, porcentaje: a.porcentaje, rol: a.rol, enlace });
       const correos = a.workspaceId ? await correosDeDuenos(a.workspaceId) : a.correo ? [a.correo] : [];
       for (const to of correos) {
-        await sendTransactionalEmail({ to, subject: correo.subject, html: correo.html, text: correo.text }).catch(() => null);
+        const r = await sendTransactionalEmail({ to, subject: correo.subject, html: correo.html, text: correo.text }).catch(
+          (): { status: string } => ({ status: "INTERNAL_ERROR" }),
+        );
+        if (r.status !== "SENT") {
+          console.error("[fotoffice][mercado-cursos] no salió el aviso de beneficiario", { courseId, motivo: r.status });
+        }
       }
     }
   } catch {
