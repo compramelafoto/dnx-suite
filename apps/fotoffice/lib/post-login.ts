@@ -120,6 +120,10 @@ export async function resolveFotofficePostLoginDestination(params: {
     return { path: "/soy-socio", workspaceId: null };
   }
 
+  // Alguien que compró un curso y no es socio ni equipo: su lugar es Mis cursos. Va después
+  // de `/soy-socio` a propósito: si además es un socio sin vincular, eso se resuelve primero.
+  if (kind === "STUDENT") return { path: "/portal/cursos", workspaceId: null };
+
   /*
     Hasta acá no se reconoció a nadie: ni equipo, ni socio, ni invitación pendiente. Antes el
     paso siguiente le creaba una institución con esta persona de dueña, y así aparecieron las

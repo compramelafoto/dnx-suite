@@ -14,12 +14,16 @@ vi.mock("@repo/db", () => ({
   },
 }));
 
+const { tieneCursosMock } = vi.hoisted(() => ({ tieneCursosMock: vi.fn() }));
+vi.mock("@/lib/course-classroom/alumno", () => ({ tieneCursos: tieneCursosMock }));
+
 const { resolveFotofficeUserKind } = await import("./user-kind");
 
 beforeEach(() => {
   membershipCountMock.mockReset().mockResolvedValue(0);
   legacyCountMock.mockReset().mockResolvedValue(0);
   memberFindFirstMock.mockReset().mockResolvedValue(null);
+  tieneCursosMock.mockReset().mockResolvedValue(false);
 });
 
 describe("clasificación de usuario", () => {
@@ -36,6 +40,23 @@ describe("clasificación de usuario", () => {
   it("sin membresía pero con ficha de socio es socio", async () => {
     memberFindFirstMock.mockResolvedValue({ id: "mem-1" });
     expect(await resolveFotofficeUserKind(7)).toBe("MEMBER");
+  });
+
+  it("sin equipo ni ficha pero con cursos es alumno", async () => {
+    tieneCursosMock.mockResolvedValue(true);
+    expect(await resolveFotofficeUserKind(7)).toBe("STUDENT");
+  });
+
+  it("el socio con cursos sigue siendo socio", async () => {
+    memberFindFirstMock.mockResolvedValue({ id: "mem-1" });
+    tieneCursosMock.mockResolvedValue(true);
+    expect(await resolveFotofficeUserKind(7)).toBe("MEMBER");
+  });
+
+  it("el equipo con cursos sigue siendo equipo", async () => {
+    membershipCountMock.mockResolvedValue(1);
+    tieneCursosMock.mockResolvedValue(true);
+    expect(await resolveFotofficeUserKind(7)).toBe("TEAM");
   });
 
   it("sin nada es un usuario nuevo", async () => {

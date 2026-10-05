@@ -1,4 +1,5 @@
 import { prisma } from "@repo/db";
+import { tieneCursos } from "@/lib/course-classroom/alumno";
 
 /**
  * Para qué lado de FotoOffice es esta persona.
@@ -18,6 +19,8 @@ export type FotofficeUserKind =
   | "TEAM"
   /** Es socio de una institución, sin rol de equipo. Va al portal del socio. */
   | "MEMBER"
+  /** No es equipo ni socio activo, pero tiene cursos. Va a Mis cursos en el portal. */
+  | "STUDENT"
   /** No es ninguna de las dos cosas: fotógrafo nuevo, se le prepara su workspace. */
   | "NEW";
 
@@ -33,5 +36,6 @@ export async function resolveFotofficeUserKind(userId: number): Promise<Fotoffic
     where: { userId, status: "ACTIVE" },
     select: { id: true },
   });
-  return member ? "MEMBER" : "NEW";
+  if (member) return "MEMBER";
+  return (await tieneCursos(userId)) ? "STUDENT" : "NEW";
 }
