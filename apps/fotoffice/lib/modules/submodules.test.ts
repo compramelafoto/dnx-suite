@@ -199,6 +199,17 @@ describe("submodulesFor — niveles y acciones sensibles", () => {
     expect(conTodo).toContain("/ventas/tienda/configuracion");
   });
 
+  it("Ventas: Envíos aparece con el mismo permiso que la configuración de la tienda", () => {
+    const sinAccion = hrefs("sales", { levels: { sales: "MANAGE", store: "MANAGE" }, actions: [] });
+    expect(sinAccion).not.toContain("/ventas/tienda/envios");
+    const conTodo = hrefs("sales", {
+      levels: { sales: "MANAGE", store: "MANAGE" },
+      actions: [STORE_CONFIGURE_ACTION],
+    });
+    expect(conTodo).toContain("/ventas/tienda/envios");
+    expect(existsSync(pageDe("/ventas/tienda/envios"))).toBe(true);
+  });
+
   it("Ventas: los pedidos online aparecen con la tienda encendida, sin hacer falta configurarla", () => {
     expect(hrefs("sales", { levels: { sales: "MANAGE" }, actions: [] })).not.toContain("/ventas/tienda");
     expect(hrefs("sales", { levels: { sales: "VIEW", store: "VIEW" }, actions: [] })).not.toContain("/ventas/tienda");

@@ -4,6 +4,8 @@ import { appUrl } from "@/lib/app-url";
 import { sendAndLogEmail } from "@/lib/communications/send-and-log";
 import { decimalArsToMinor } from "@/lib/membership/money";
 import { orderAccessToken, resolveOrderTokenKey } from "./access-token";
+import { orderShippingView } from "./shipping/order-destination";
+import { trackingUrl } from "./shipping/tracking";
 import {
   buildStoreOrderUrl,
   renderCreditFailureAlert,
@@ -11,6 +13,7 @@ import {
   renderNewOrderNotice,
   renderOrderPaid,
   renderOrderReady,
+  renderOrderShipped,
   renderPaidNoStockAlert,
   renderRegretNotice,
   type RenderedEmail,
@@ -41,6 +44,13 @@ async function cargar(input: StoreOrderEmailInput): Promise<Cargado | null> {
       buyerEmail: true,
       buyerPhone: true,
       totalArs: true,
+      deliveryMethod: true,
+      shippingMethod: true,
+      shippingSource: true,
+      shippingArs: true,
+      shippingAddressJson: true,
+      shippingAgencyJson: true,
+      trackingNumber: true,
       items: {
         orderBy: { id: "asc" },
         select: { productName: true, variantName: true, qty: true, lineTotalArs: true },
@@ -66,6 +76,7 @@ async function cargar(input: StoreOrderEmailInput): Promise<Cargado | null> {
 
   const origen = appUrl();
   const clave = resolveOrderTokenKey();
+  const destino = orderShippingView(order);
   return {
     publicId: order.publicId,
     buyerEmail: order.buyerEmail,
@@ -87,6 +98,12 @@ async function cargar(input: StoreOrderEmailInput): Promise<Cargado | null> {
         hours: settings?.pickupHours ?? null,
         instructions: settings?.pickupInstructions ?? null,
       },
+      shipping: destino
+        ? { label: destino.label, amountMinor: decimalArsToMinor(order.shippingArs), lines: destino.lines }
+        : null,
+      tracking: order.trackingNumber
+        ? { number: order.trackingNumber, url: trackingUrl(order.shippingSource, order.trackingNumber) }
+        : null,
       // El mismo token que se dio al crear el pedido (es determinista): no invalida la cookie.
       orderUrl: buildStoreOrderUrl({
         customDomain: dominio?.status === "CONNECTED" ? dominio.domain : null,
@@ -107,10 +124,11 @@ async function enviar(
   templateKey: string,
   destino: Destino,
   render: (o: StoreEmailOrder, datos: Cargado) => RenderedEmail,
+  corresponde: (o: StoreEmailOrder) => boolean = () => true,
 ): Promise<void> {
   try {
     const datos = await cargar(input);
-    if (!datos) return;
+    if (!datos || !corresponde(datos.order)) return;
     const to = destino === "comprador" ? datos.buyerEmail : datos.notifyEmail;
     if (!to) {
       // Sin datos personales: qué aviso y de qué pedido.
@@ -159,9 +177,14 @@ export async function sendCreditFailureAlert(input: StoreOrderEmailInput): Promi
   await enviar(input, "store.credit_failure", "institucion", renderCreditFailureAlert);
 }
 
-/** Al comprador: el pedido está listo para retirar. */
+/** Al comprador: el pedido está listo para retirar. Nunca para un pedido con envío. */
 export async function sendOrderReadyEmail(input: StoreOrderEmailInput): Promise<void> {
-  await enviar(input, "store.order_ready", "comprador", renderOrderReady);
+  await enviar(input, "store.order_ready", "comprador", renderOrderReady, (o) => !o.shipping);
+}
+
+/** Al comprador: el pedido salió por correo, con el número de seguimiento si se cargó. */
+export async function sendOrderShippedEmail(input: StoreOrderEmailInput): Promise<void> {
+  await enviar(input, "store.order_shipped", "comprador", renderOrderShipped);
 }
 
 /**

@@ -34,7 +34,7 @@ import { canTransition } from "./transitions";
 
 type Tx = Prisma.TransactionClient;
 
-const YA_PAGADO: readonly StoreOrderStatus[] = ["PAID", "READY", "DELIVERED", "PAID_NO_STOCK"];
+const YA_PAGADO: readonly StoreOrderStatus[] = ["PAID", "READY", "SHIPPED", "DELIVERED", "PAID_NO_STOCK"];
 
 export const SELECT_PEDIDO_A_ACREDITAR = {
   id: true,
@@ -45,6 +45,9 @@ export const SELECT_PEDIDO_A_ACREDITAR = {
   buyerName: true,
   buyerEmail: true,
   buyerPhone: true,
+  subtotalArs: true,
+  shippingArs: true,
+  shippingMethod: true,
   totalArs: true,
   feeArs: true,
   feeBps: true,
@@ -108,6 +111,24 @@ function descripcion(item: { productName: string; variantName: string | null }):
   return item.productName + (item.variantName ? ` — ${item.variantName}` : "");
 }
 
+/**
+ * El envío como renglón suelto de la venta (E12): sin producto ni costo, así la venta (y Caja)
+ * suman lo mismo que se cobró. `null` si el pedido no lleva envío.
+ */
+export function shippingTicketLine(order: { shippingArs: OrderToFinalize["shippingArs"]; shippingMethod: string | null }): TicketLine | null {
+  const envioMinor = decimalArsToMinor(order.shippingArs);
+  if (envioMinor <= 0) return null;
+  return {
+    productId: null,
+    variantId: null,
+    description: order.shippingMethod === "BRANCH" ? "Envío a sucursal" : "Envío a domicilio",
+    qty: 1,
+    unitPriceMinor: envioMinor,
+    unitCostMinor: null,
+    priceWasOverridden: false,
+  };
+}
+
 // ── Con base ────────────────────────────────────────────────────────────────
 
 /**
@@ -147,6 +168,8 @@ export async function finalizePaidOrder(
     unitCostMinor: i.productId ? (costos.get(i.productId) ?? null) : null,
     priceWasOverridden: false,
   }));
+  const envio = shippingTicketLine(order);
+  if (envio) lines.push(envio);
 
   const venta = await recordSale(tx, {
     workspaceId: order.workspaceId,
@@ -170,9 +193,10 @@ export async function finalizePaidOrder(
 
   // La comisión ya la retuvo Mercado Pago en la operación. Igual que en `creditBookingPayment`:
   // lo retenido por encima de la comisión PROPIA (con el `feeBps` congelado en el pedido) era
-  // deuda arrastrada, y el asiento negativo la cancela.
+  // deuda arrastrada, y el asiento negativo la cancela. La comisión propia es sobre los productos
+  // (E11), igual que al abrir el pago (`payment.ts`): el envío no la paga.
   const retenido = decimalArsToMinor(order.feeArs);
-  const propio = splitMinorByPlatformFee(decimalArsToMinor(order.totalArs), order.feeBps).feeMinor;
+  const propio = splitMinorByPlatformFee(decimalArsToMinor(order.subtotalArs), order.feeBps).feeMinor;
   const aDeuda = Math.max(0, retenido - propio);
   if (aDeuda > 0) {
     await recordDischarge(tx, {

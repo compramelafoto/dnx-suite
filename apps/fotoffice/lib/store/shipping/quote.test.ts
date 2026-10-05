@@ -1,0 +1,479 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MiCorreoError } from "@/lib/integrations/correo-argentino/errors";
+import type { MiCorreoRate, MiCorreoRatesInput } from "@/lib/integrations/correo-argentino/client";
+
+vi.mock("@repo/db", () => ({ prisma: {} }));
+vi.mock("@/lib/integrations/correo-argentino/credentials", () => ({
+  loadCorreoArgentinoClient: vi.fn(async () => {
+    throw new Error("no debe usarse en los tests");
+  }),
+  markCorreoNeedsReconsent: vi.fn(async () => {
+    throw new Error("no debe usarse en los tests");
+  }),
+}));
+
+const { quoteShipping } = await import("./quote");
+
+const dec = (s: string) => ({ toString: () => s });
+
+type Settings = Record<string, unknown>;
+
+function baseSettings(over: Settings = {}): Settings {
+  return {
+    homeDeliveryEnabled: true,
+    branchDeliveryEnabled: false,
+    source: "TABLE",
+    tableAsFallback: true,
+    originPostalCode: "2000",
+    surchargeKind: "NONE",
+    surchargeValue: 0,
+    packagingGrams: 100,
+    defaultUnitGrams: 500,
+    boxLengthCm: 30,
+    boxWidthCm: 20,
+    boxHeightCm: 10,
+    ...over,
+  };
+}
+
+const ZONAS = [
+  {
+    id: "z-rosario",
+    name: "Rosario",
+    postalCodes: ["2000"],
+    provinceCodes: [],
+    isRestOfCountry: false,
+    sortOrder: 0,
+    rates: [
+      { maxGrams: 1000, priceArs: dec("1500.00") },
+      { maxGrams: 5000, priceArs: dec("3000.00") },
+    ],
+  },
+  {
+    id: "z-resto",
+    name: "Resto del país",
+    postalCodes: [],
+    provinceCodes: [],
+    isRestOfCountry: true,
+    sortOrder: 1,
+    rates: [{ maxGrams: 2000, priceArs: dec("5000.00") }],
+  },
+];
+
+type Listing = {
+  productId: string;
+  weightGrams: number | null;
+  lengthCm: number | null;
+  widthCm: number | null;
+  heightCm: number | null;
+};
+
+function fakeDb(opts: { settings?: Settings | null; zones?: unknown[]; listings?: Listing[] } = {}) {
+  const settings = opts.settings === undefined ? baseSettings() : opts.settings;
+  const listings = opts.listings ?? [
+    { productId: "p1", weightGrams: 300, lengthCm: null, widthCm: null, heightCm: null },
+  ];
+  return {
+    storeShippingSettings: { findUnique: vi.fn(async () => settings) },
+    storeShippingZone: { findMany: vi.fn(async () => opts.zones ?? ZONAS) },
+    productStoreListing: {
+      findMany: vi.fn(async (args: { where: { productId: { in: string[] } } }) =>
+        listings.filter((l) => args.where.productId.in.includes(l.productId)),
+      ),
+    },
+  };
+}
+
+function correoDeps(rates: MiCorreoRate[] | Error) {
+  const ratesFn = vi.fn(async (_input: MiCorreoRatesInput) => {
+    if (rates instanceof Error) throw rates;
+    return rates;
+  });
+  const loadCorreo = vi.fn(async () => ({
+    client: { rates: ratesFn, getToken: vi.fn(), validateUser: vi.fn(), agencies: vi.fn() },
+    customerId: "0090000025",
+  }));
+  const markNeedsReconsent = vi.fn(async () => undefined);
+  return { ratesFn, loadCorreo, markNeedsReconsent, deps: { loadCorreo, markNeedsReconsent } };
+}
+
+const ROSARIO = { postalCode: "2000", provinceCode: "S" };
+const ITEMS = [{ productId: "p1", variantId: null, qty: 2 }];
+
+describe("quoteShipping — tabla", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("cotiza por la zona más específica y el escalón de peso", async () => {
+    const db = fakeDb();
+    const r = await quoteShipping({ workspaceId: "ws1", method: "HOME", destination: ROSARIO, items: ITEMS, db: db as never });
+    expect(r).toEqual({
+      ok: true,
+      quote: expect.objectContaining({
+        method: "HOME",
+        source: "TABLE",
+        baseMinor: 150000,
+        surchargeMinor: 0,
+        totalMinor: 150000,
+        serviceName: "Envío a Rosario",
+        package: { weightGrams: 700, lengthCm: 30, widthCm: 20, heightCm: 10 },
+      }),
+    });
+    // Todas las lecturas filtran por institución.
+    expect(db.storeShippingSettings.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { workspaceId: "ws1" } }),
+    );
+    expect(db.storeShippingZone.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { workspaceId: "ws1" } }),
+    );
+    expect(db.productStoreListing.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          workspaceId: "ws1",
+          sellOnline: true,
+          product: { workspaceId: "ws1", isActive: true },
+        }),
+      }),
+    );
+  });
+
+  it("aplica el recargo sobre el precio base", async () => {
+    const db = fakeDb({ settings: baseSettings({ surchargeKind: "PERCENT", surchargeValue: 1000 }) });
+    const r = await quoteShipping({ workspaceId: "ws1", method: "HOME", destination: ROSARIO, items: ITEMS, db: db as never });
+    expect(r.ok && r.quote).toMatchObject({ baseMinor: 150000, surchargeMinor: 15000, totalMinor: 165000 });
+  });
+
+  it("usa el peso por defecto si el producto no lo tiene y descarta cantidades en cero", async () => {
+    const db = fakeDb({
+      listings: [
+        { productId: "p1", weightGrams: null, lengthCm: null, widthCm: null, heightCm: null },
+        { productId: "p2", weightGrams: 9000, lengthCm: null, widthCm: null, heightCm: null },
+      ],
+    });
+    const r = await quoteShipping({
+      workspaceId: "ws1",
+      method: "HOME",
+      destination: ROSARIO,
+      items: [
+        { productId: "p1", variantId: "v1", qty: 3 },
+        { productId: "p2", variantId: null, qty: 0 },
+      ],
+      db: db as never,
+    });
+    // 3 × 500 + 100 de embalaje = 1600 → segundo escalón.
+    expect(r.ok && r.quote).toMatchObject({ baseMinor: 300000, package: { weightGrams: 1600 } });
+  });
+
+  it("sin zona que cubra el destino → NO_COVERAGE", async () => {
+    const db = fakeDb({ zones: [ZONAS[0]] });
+    const r = await quoteShipping({
+      workspaceId: "ws1",
+      method: "HOME",
+      destination: { postalCode: "5000", provinceCode: "X" },
+      items: ITEMS,
+      db: db as never,
+    });
+    expect(r).toEqual({ ok: false, reason: "NO_COVERAGE" });
+  });
+
+  it("peso por encima del último escalón → NO_COVERAGE", async () => {
+    const db = fakeDb({
+      listings: [{ productId: "p1", weightGrams: 3000, lengthCm: null, widthCm: null, heightCm: null }],
+    });
+    const r = await quoteShipping({ workspaceId: "ws1", method: "HOME", destination: ROSARIO, items: ITEMS, db: db as never });
+    expect(r).toEqual({ ok: false, reason: "NO_COVERAGE" });
+  });
+
+  it.each([
+    [{ postalCode: "abc", provinceCode: "S" }],
+    [{ postalCode: "2000", provinceCode: "I" }],
+    [{ postalCode: "0999", provinceCode: "S" }],
+  ])("destino inválido %j → NO_COVERAGE", async (destination) => {
+    const db = fakeDb();
+    const r = await quoteShipping({ workspaceId: "ws1", method: "HOME", destination, items: ITEMS, db: db as never });
+    expect(r).toEqual({ ok: false, reason: "NO_COVERAGE" });
+  });
+
+  it("acepta el CP en formato CPA", async () => {
+    const db = fakeDb();
+    const r = await quoteShipping({
+      workspaceId: "ws1",
+      method: "HOME",
+      destination: { postalCode: " s2000abc ", provinceCode: "S" },
+      items: ITEMS,
+      db: db as never,
+    });
+    expect(r.ok && r.quote.serviceName).toBe("Envío a Rosario");
+  });
+});
+
+describe("quoteShipping — método apagado o datos faltantes", () => {
+  it("sin configuración → DISABLED", async () => {
+    const db = fakeDb({ settings: null });
+    const r = await quoteShipping({ workspaceId: "ws1", method: "HOME", destination: ROSARIO, items: ITEMS, db: db as never });
+    expect(r).toEqual({ ok: false, reason: "DISABLED" });
+  });
+
+  it("domicilio apagado → DISABLED", async () => {
+    const db = fakeDb({ settings: baseSettings({ homeDeliveryEnabled: false }) });
+    const r = await quoteShipping({ workspaceId: "ws1", method: "HOME", destination: ROSARIO, items: ITEMS, db: db as never });
+    expect(r).toEqual({ ok: false, reason: "DISABLED" });
+  });
+
+  it("sucursal con la tabla como fuente → DISABLED aunque esté prendida", async () => {
+    const db = fakeDb({ settings: baseSettings({ branchDeliveryEnabled: true, source: "TABLE" }) });
+    const r = await quoteShipping({ workspaceId: "ws1", method: "BRANCH", destination: ROSARIO, items: ITEMS, db: db as never });
+    expect(r).toEqual({ ok: false, reason: "DISABLED" });
+  });
+
+  it("sucursal apagada → DISABLED", async () => {
+    const db = fakeDb({ settings: baseSettings({ source: "CORREO_ARGENTINO", branchDeliveryEnabled: false }) });
+    const r = await quoteShipping({ workspaceId: "ws1", method: "BRANCH", destination: ROSARIO, items: ITEMS, db: db as never });
+    expect(r).toEqual({ ok: false, reason: "DISABLED" });
+  });
+
+  it("un producto que no es de la institución o no se vende online → UNAVAILABLE", async () => {
+    const db = fakeDb();
+    const r = await quoteShipping({
+      workspaceId: "ws1",
+      method: "HOME",
+      destination: ROSARIO,
+      items: [...ITEMS, { productId: "ajeno", variantId: null, qty: 1 }],
+      db: db as never,
+    });
+    expect(r).toEqual({ ok: false, reason: "UNAVAILABLE" });
+  });
+
+  it("carrito vacío (o todo en cero) → UNAVAILABLE", async () => {
+    const db = fakeDb();
+    const r = await quoteShipping({
+      workspaceId: "ws1",
+      method: "HOME",
+      destination: ROSARIO,
+      items: [{ productId: "p1", variantId: null, qty: 0 }],
+      db: db as never,
+    });
+    expect(r).toEqual({ ok: false, reason: "UNAVAILABLE" });
+  });
+});
+
+describe("quoteShipping — Correo Argentino", () => {
+  const correoSettings = (over: Settings = {}) =>
+    baseSettings({ source: "CORREO_ARGENTINO", branchDeliveryEnabled: true, ...over });
+
+  const RATES: MiCorreoRate[] = [
+    { deliveredType: "D", productName: "Correo Argentino Clasico", priceMinor: 498006, raw: { a: 1 } },
+    { deliveredType: "D", productName: "Correo Argentino Expreso", priceMinor: 300000, raw: { a: 2 } },
+    { deliveredType: "S", productName: "Correo Argentino Clasico", priceMinor: 250000, raw: { a: 3 } },
+  ];
+
+  it("domicilio: pide D y elige la tarifa más barata de ese tipo, con recargo fijo", async () => {
+    const db = fakeDb({ settings: correoSettings({ surchargeKind: "FIXED", surchargeValue: 5000 }) });
+    const c = correoDeps(RATES);
+    const r = await quoteShipping({
+      workspaceId: "ws1",
+      method: "HOME",
+      destination: ROSARIO,
+      items: ITEMS,
+      db: db as never,
+      deps: c.deps,
+    });
+    expect(c.loadCorreo).toHaveBeenCalledWith("ws1");
+    expect(c.ratesFn).toHaveBeenCalledWith({
+      customerId: "0090000025",
+      postalCodeOrigin: "2000",
+      postalCodeDestination: "2000",
+      deliveredType: "D",
+      dimensions: { weight: 700, length: 30, width: 20, height: 10 },
+    });
+    expect(r).toEqual({
+      ok: true,
+      quote: {
+        method: "HOME",
+        source: "CORREO_ARGENTINO",
+        baseMinor: 300000,
+        surchargeMinor: 5000,
+        totalMinor: 305000,
+        serviceName: "Correo Argentino Expreso",
+        package: { weightGrams: 700, lengthCm: 30, widthCm: 20, heightCm: 10 },
+        raw: { a: 2 },
+      },
+    });
+  });
+
+  it("sucursal: pide S", async () => {
+    const db = fakeDb({ settings: correoSettings() });
+    const c = correoDeps(RATES);
+    const r = await quoteShipping({
+      workspaceId: "ws1",
+      method: "BRANCH",
+      destination: ROSARIO,
+      items: ITEMS,
+      db: db as never,
+      deps: c.deps,
+    });
+    expect(c.ratesFn.mock.calls[0][0].deliveredType).toBe("S");
+    expect(r.ok && r.quote).toMatchObject({ method: "BRANCH", source: "CORREO_ARGENTINO", baseMinor: 250000 });
+  });
+
+  it("credenciales vencidas (AUTH): marca reconexión y cae a la tabla", async () => {
+    const db = fakeDb({ settings: correoSettings() });
+    const c = correoDeps(new MiCorreoError("AUTH", "x", 401));
+    const r = await quoteShipping({
+      workspaceId: "ws1",
+      method: "HOME",
+      destination: ROSARIO,
+      items: ITEMS,
+      db: db as never,
+      deps: c.deps,
+    });
+    expect(c.markNeedsReconsent).toHaveBeenCalledWith("ws1");
+    expect(r.ok && r.quote).toMatchObject({ source: "TABLE", baseMinor: 150000 });
+  });
+
+  it("correo caído sin respaldo → UNAVAILABLE, sin marcar reconexión", async () => {
+    const db = fakeDb({ settings: correoSettings({ tableAsFallback: false }) });
+    const c = correoDeps(new MiCorreoError("NETWORK", "x"));
+    const r = await quoteShipping({
+      workspaceId: "ws1",
+      method: "HOME",
+      destination: ROSARIO,
+      items: ITEMS,
+      db: db as never,
+      deps: c.deps,
+    });
+    expect(c.markNeedsReconsent).not.toHaveBeenCalled();
+    expect(r).toEqual({ ok: false, reason: "UNAVAILABLE" });
+  });
+
+  it("sucursal no tiene respaldo de tabla → UNAVAILABLE", async () => {
+    const db = fakeDb({ settings: correoSettings() });
+    const c = correoDeps(new MiCorreoError("UNEXPECTED", "x", 500));
+    const r = await quoteShipping({
+      workspaceId: "ws1",
+      method: "BRANCH",
+      destination: ROSARIO,
+      items: ITEMS,
+      db: db as never,
+      deps: c.deps,
+    });
+    expect(r).toEqual({ ok: false, reason: "UNAVAILABLE" });
+  });
+
+  it("un error que no es de MiCorreo tampoco hace lanzar", async () => {
+    const db = fakeDb({ settings: correoSettings() });
+    const c = correoDeps(new Error("boom"));
+    const r = await quoteShipping({
+      workspaceId: "ws1",
+      method: "HOME",
+      destination: ROSARIO,
+      items: ITEMS,
+      db: db as never,
+      deps: c.deps,
+    });
+    expect(r.ok && r.quote.source).toBe("TABLE");
+  });
+
+  it("MiCorreo no conectado → respaldo a la tabla", async () => {
+    const db = fakeDb({ settings: correoSettings() });
+    const loadCorreo = vi.fn(async () => null);
+    const r = await quoteShipping({
+      workspaceId: "ws1",
+      method: "HOME",
+      destination: ROSARIO,
+      items: ITEMS,
+      db: db as never,
+      deps: { loadCorreo, markNeedsReconsent: vi.fn() },
+    });
+    expect(r.ok && r.quote.source).toBe("TABLE");
+  });
+
+  it("sin CP de origen → no llama a MiCorreo y usa el respaldo", async () => {
+    const db = fakeDb({ settings: correoSettings({ originPostalCode: null }) });
+    const c = correoDeps(RATES);
+    const r = await quoteShipping({
+      workspaceId: "ws1",
+      method: "HOME",
+      destination: ROSARIO,
+      items: ITEMS,
+      db: db as never,
+      deps: c.deps,
+    });
+    expect(c.loadCorreo).not.toHaveBeenCalled();
+    expect(r.ok && r.quote.source).toBe("TABLE");
+  });
+
+  it("MiCorreo no devuelve tarifas del tipo pedido → respaldo", async () => {
+    const db = fakeDb({ settings: correoSettings({ tableAsFallback: false }) });
+    const c = correoDeps([RATES[2]]);
+    const r = await quoteShipping({
+      workspaceId: "ws1",
+      method: "HOME",
+      destination: ROSARIO,
+      items: ITEMS,
+      db: db as never,
+      deps: c.deps,
+    });
+    expect(r).toEqual({ ok: false, reason: "UNAVAILABLE" });
+  });
+
+  describe("paquete demasiado grande para Correo", () => {
+    const pesado = [{ productId: "p1", weightGrams: 26000, lengthCm: null, widthCm: null, heightCm: null }];
+
+    it("sin respaldo → TOO_BIG y no llama a MiCorreo", async () => {
+      const db = fakeDb({ settings: correoSettings({ tableAsFallback: false }), listings: pesado });
+      const c = correoDeps(RATES);
+      const r = await quoteShipping({
+        workspaceId: "ws1",
+        method: "HOME",
+        destination: ROSARIO,
+        items: [{ productId: "p1", variantId: null, qty: 1 }],
+        db: db as never,
+        deps: c.deps,
+      });
+      expect(c.loadCorreo).not.toHaveBeenCalled();
+      expect(r).toEqual({ ok: false, reason: "TOO_BIG" });
+    });
+
+    it("con respaldo → la tabla, si tiene un escalón que lo cubra", async () => {
+      const zonas = [{ ...ZONAS[0], rates: [{ maxGrams: 30000, priceArs: dec("9000.50") }] }];
+      const db = fakeDb({ settings: correoSettings(), listings: pesado, zones: zonas });
+      const c = correoDeps(RATES);
+      const r = await quoteShipping({
+        workspaceId: "ws1",
+        method: "HOME",
+        destination: ROSARIO,
+        items: [{ productId: "p1", variantId: null, qty: 1 }],
+        db: db as never,
+        deps: c.deps,
+      });
+      expect(c.loadCorreo).not.toHaveBeenCalled();
+      expect(r.ok && r.quote).toMatchObject({ source: "TABLE", baseMinor: 900050 });
+    });
+
+    it("con respaldo pero la tabla tampoco lo cubre → NO_COVERAGE", async () => {
+      const db = fakeDb({ settings: correoSettings(), listings: pesado });
+      const r = await quoteShipping({
+        workspaceId: "ws1",
+        method: "HOME",
+        destination: ROSARIO,
+        items: [{ productId: "p1", variantId: null, qty: 1 }],
+        db: db as never,
+        deps: correoDeps(RATES).deps,
+      });
+      expect(r).toEqual({ ok: false, reason: "NO_COVERAGE" });
+    });
+
+    it("sucursal → TOO_BIG", async () => {
+      const db = fakeDb({ settings: correoSettings(), listings: pesado });
+      const r = await quoteShipping({
+        workspaceId: "ws1",
+        method: "BRANCH",
+        destination: ROSARIO,
+        items: [{ productId: "p1", variantId: null, qty: 1 }],
+        db: db as never,
+        deps: correoDeps(RATES).deps,
+      });
+      expect(r).toEqual({ ok: false, reason: "TOO_BIG" });
+    });
+  });
+});

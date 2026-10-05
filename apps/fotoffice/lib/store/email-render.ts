@@ -17,6 +17,10 @@ export type StoreEmailOrder = {
   totalMinor: number;
   items: { description: string; qty: number; lineTotalMinor: number }[];
   pickup: { address: string | null; hours: string | null; instructions: string | null };
+  /** Con envío: qué tipo, cuánto y a dónde (ya en renglones). Sin envío (retiro): ausente o null. */
+  shipping?: { label: string; amountMinor: number; lines: string[] } | null;
+  /** Al despachar: el número de seguimiento y, si se conoce, el enlace para seguirlo. */
+  tracking?: { number: string; url: string | null } | null;
   /** Enlace a la página del pedido para el comprador (con su token). null = sin enlace. */
   orderUrl: string | null;
   /** Enlace al pedido en el panel, para la institución. null = sin enlace. */
@@ -58,18 +62,23 @@ function parrafo(texto: string, rico = escapeHtml(texto)): Bloque {
   };
 }
 
+function fila(etiqueta: string, montoMinor: number): string {
+  return (
+    `<tr><td style="padding:6px 0;border-bottom:1px solid ${C.borde};font-size:14px;color:${C.cuerpo};">${escapeHtml(etiqueta)}</td>` +
+    `<td align="right" style="padding:6px 0;border-bottom:1px solid ${C.borde};font-size:14px;color:${C.cuerpo};white-space:nowrap;">${formatMinorArs(montoMinor)}</td></tr>`
+  );
+}
+
 function detalle(o: StoreEmailOrder): Bloque {
-  const filas = o.items
-    .map(
-      (i) =>
-        `<tr><td style="padding:6px 0;border-bottom:1px solid ${C.borde};font-size:14px;color:${C.cuerpo};">${i.qty} × ${escapeHtml(i.description)}</td>` +
-        `<td align="right" style="padding:6px 0;border-bottom:1px solid ${C.borde};font-size:14px;color:${C.cuerpo};white-space:nowrap;">${formatMinorArs(i.lineTotalMinor)}</td></tr>`,
-    )
-    .join("");
+  const envio = o.shipping ?? null;
+  const filas =
+    o.items.map((i) => fila(`${i.qty} × ${i.description}`, i.lineTotalMinor)).join("") +
+    (envio ? fila(envio.label, envio.amountMinor) : "");
   return {
     text: [
       `Pedido #${o.orderNumber}`,
       ...o.items.map((i) => `- ${i.qty} × ${i.description}: ${formatMinorArs(i.lineTotalMinor)}`),
+      ...(envio ? [`- ${envio.label}: ${formatMinorArs(envio.amountMinor)}`] : []),
       `Total: ${formatMinorArs(o.totalMinor)}`,
     ],
     html: `<p style="margin:8px 0 6px;font-size:13px;font-weight:700;color:${C.tinta};">Pedido #${o.orderNumber}</p>
@@ -93,6 +102,19 @@ ${lineas
     ([k, v]) =>
       `<p class="cuerpo" style="margin:0 0 6px;font-size:14px;line-height:1.5;color:${C.cuerpo};"><strong>${k}:</strong> ${escapeHtml(v).replace(/\n/g, "<br>")}</p>`,
   )
+  .join("\n")}`,
+  };
+}
+
+/** A dónde va el envío. `null` si el pedido es para retirar. */
+function envio(o: StoreEmailOrder): Bloque | null {
+  const e = o.shipping ?? null;
+  if (!e) return null;
+  return {
+    text: [e.label, ...e.lines],
+    html: `<p style="margin:8px 0 6px;font-size:13px;font-weight:700;color:${C.tinta};">${escapeHtml(e.label)}</p>
+${e.lines
+  .map((l) => `<p class="cuerpo" style="margin:0 0 6px;font-size:14px;line-height:1.5;color:${C.cuerpo};">${escapeHtml(l)}</p>`)
   .join("\n")}`,
   };
 }
@@ -162,16 +184,19 @@ export function renderOrderPaid(o: StoreEmailOrder): RenderedEmail {
     [
       parrafo(`Hola ${o.buyerName},`),
       parrafo(
-        `Recibimos tu pago. Ahora preparamos tu pedido y te escribimos de nuevo cuando esté listo para retirar.`,
+        o.shipping
+          ? `Recibimos tu pago. Ahora preparamos tu pedido y te escribimos de nuevo cuando lo despachemos.`
+          : `Recibimos tu pago. Ahora preparamos tu pedido y te escribimos de nuevo cuando esté listo para retirar.`,
       ),
       detalle(o),
-      retiro(o),
+      o.shipping ? envio(o) : retiro(o),
       parrafo(`Gracias por tu compra.`),
     ],
     { label: "Ver mi pedido", url: o.orderUrl },
   );
 }
 
+/** Sólo para pedidos que se RETIRAN: un envío nunca queda "listo para retirar". */
 export function renderOrderReady(o: StoreEmailOrder): RenderedEmail {
   return armar(
     o.institution,
@@ -187,6 +212,44 @@ export function renderOrderReady(o: StoreEmailOrder): RenderedEmail {
   );
 }
 
+function seguimiento(o: StoreEmailOrder): Bloque[] {
+  const t = o.tracking ?? null;
+  if (!t) return [];
+  const bloques = [
+    parrafo(
+      `Número de seguimiento: ${t.number}`,
+      `Número de seguimiento: <strong>${escapeHtml(t.number)}</strong>`,
+    ),
+  ];
+  if (t.url) {
+    const url = escapeHtml(t.url);
+    bloques.push(
+      parrafo(
+        `Podés seguirlo en Correo Argentino: ${t.url}`,
+        `Podés seguirlo en Correo Argentino: <a href="${url}" style="color:${C.acentoFuerte};">${url}</a>`,
+      ),
+    );
+  }
+  return bloques;
+}
+
+/** Al comprador: el pedido salió por correo. */
+export function renderOrderShipped(o: StoreEmailOrder): RenderedEmail {
+  return armar(
+    o.institution,
+    `${o.institution}: tu pedido #${o.orderNumber} está en camino`,
+    [
+      parrafo(`Hola ${o.buyerName},`),
+      parrafo(`Tu pedido está en camino: ya lo despachamos.`),
+      ...seguimiento(o),
+      envio(o),
+      detalle(o),
+      parrafo(`Gracias por tu compra.`),
+    ],
+    { label: "Ver mi pedido", url: o.orderUrl },
+  );
+}
+
 // ── A la institución ────────────────────────────────────────────────────────
 
 export function renderNewOrderNotice(o: StoreEmailOrder): RenderedEmail {
@@ -197,7 +260,12 @@ export function renderNewOrderNotice(o: StoreEmailOrder): RenderedEmail {
       parrafo(`Entró un pedido de la tienda online, ya pagado con Mercado Pago. Hay que prepararlo.`),
       comprador(o),
       detalle(o),
-      parrafo(`Cuando esté listo, marcalo así en el panel y le avisamos a quien compró para que lo retire.`),
+      envio(o),
+      parrafo(
+        o.shipping
+          ? `Cuando lo despaches, cargalo en el panel y le avisamos a quien compró.`
+          : `Cuando esté listo, marcalo así en el panel y le avisamos a quien compró para que lo retire.`,
+      ),
     ],
     { label: "Ver el pedido", url: o.panelUrl },
   );

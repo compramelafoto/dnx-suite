@@ -7144,6 +7144,8 @@ model Workspace {
   vocabulary                  WorkspaceVocabulary?
   productStoreListings ProductStoreListing[]
   storeSettings StoreSettings?
+  storeShippingSettings StoreShippingSettings?
+  storeShippingZones StoreShippingZone[]
   storeOrders StoreOrder[]
   contactSyncSettings         WorkspaceContactSyncSetting[]
   contactLinks                WorkspaceContactLink[]
@@ -20078,6 +20080,68 @@ model StoreSettings {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
+/// Configuración de envíos de la tienda online. Una por espacio de trabajo.
+model StoreShippingSettings {
+  id                    String   @id @default(cuid())
+  workspaceId           String   @unique
+  homeDeliveryEnabled   Boolean  @default(false)
+  /// Envío a sucursal: sólo disponible con Correo Argentino.
+  branchDeliveryEnabled Boolean  @default(false)
+  pickupEnabled         Boolean  @default(true)
+  /// Fuente de la cotización: TABLE | CORREO_ARGENTINO.
+  source                String   @default("TABLE")
+  /// Si Correo falla, usar la tabla propia.
+  tableAsFallback       Boolean  @default(true)
+  originPostalCode      String?
+  /// Recargo sobre el envío: NONE | PERCENT | FIXED.
+  surchargeKind         String   @default("NONE")
+  /// bps si es PERCENT, centavos si es FIXED.
+  surchargeValue        Int      @default(0)
+  packagingGrams        Int      @default(0)
+  defaultUnitGrams      Int      @default(500)
+  boxLengthCm           Int      @default(30)
+  boxWidthCm            Int      @default(20)
+  boxHeightCm           Int      @default(10)
+  /// Aviso para el comprador, ej. "Despachamos en 48 h hábiles".
+  handlingNote          String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+/// Zona de la tabla de envíos propia: códigos postales y/o provincias con sus escalones de precio.
+model StoreShippingZone {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  name            String
+  /// Códigos postales exactos, ej. ["2000","2001"].
+  postalCodes     String[]
+  /// Códigos de provincia de Correo Argentino (A..Z).
+  provinceCodes   String[]
+  isRestOfCountry Boolean  @default(false)
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  workspace Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  rates     StoreShippingRate[]
+
+  @@index([workspaceId, sortOrder])
+}
+
+/// Escalón de precio de una zona: hasta maxGrams gramos cuesta priceArs.
+model StoreShippingRate {
+  id       String  @id @default(cuid())
+  zoneId   String
+  maxGrams Int
+  priceArs Decimal @db.Decimal(12, 2)
+
+  zone StoreShippingZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  @@unique([zoneId, maxGrams])
+}
+
 enum StoreOrderStatus {
   PENDING_PAYMENT
   PAID
@@ -20086,6 +20150,7 @@ enum StoreOrderStatus {
   CANCELLED
   EXPIRED
   PAID_NO_STOCK
+  SHIPPED
 }
 
 model StoreOrder {
@@ -20118,6 +20183,19 @@ model StoreOrder {
   legalVersion         String
   clientIdempotencyKey String
   internalNote         String?
+  /// Método de envío elegido: HOME (a domicilio) o BRANCH (a sucursal). Nulo = retiro.
+  shippingMethod       String?
+  /// Fuente de la cotización: TABLE (tabla propia) o CORREO_ARGENTINO.
+  shippingSource       String?
+  /// Dirección de entrega: nombre, calle, número, piso/depto, localidad, provincia, CP y teléfono.
+  shippingAddressJson  Json?
+  /// Sucursal elegida: id, nombre y dirección.
+  shippingAgencyJson   Json?
+  /// Lo que devolvió la fuente, más recargo, peso y medidas usados.
+  shippingQuoteJson    Json?
+  /// Número de seguimiento cargado al despachar.
+  trackingNumber       String?
+  shippedAt            DateTime?
   createdAt            DateTime         @default(now())
   updatedAt            DateTime         @updatedAt
 

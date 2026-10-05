@@ -38,7 +38,7 @@ export async function GET(req: Request) {
   if (!transito) return volver("error=estado_vencido");
 
   const definition = getIntegrationDefinition(transito.integrationKey);
-  if (!definition || definition.status !== "AVAILABLE") {
+  if (!definition || definition.status !== "AVAILABLE" || definition.provider !== "GOOGLE") {
     return volver("error=integracion_desconocida");
   }
 

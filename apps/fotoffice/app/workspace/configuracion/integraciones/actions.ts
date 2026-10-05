@@ -30,11 +30,14 @@ export async function disconnectIntegrationAction(formData: FormData): Promise<v
   if (!canManageWorkspaceSettings(role)) redirect(`${PANTALLA}?error=sin_permiso`);
 
   const key = String(formData.get("integrationKey") ?? "").trim();
-  if (!getIntegrationDefinition(key)) redirect(`${PANTALLA}?error=integracion_desconocida`);
+  const definition = getIntegrationDefinition(key);
+  if (!definition) redirect(`${PANTALLA}?error=integracion_desconocida`);
 
   try {
     const refreshToken = await deleteIntegration(workspace.id, key);
-    if (refreshToken) await revokeIntegrationToken(refreshToken);
+    // Sólo se revoca contra Google lo que es de Google: la credencial cifrada de Correo
+    // Argentino es usuario y clave de MiCorreo, y mandarla a Google sería filtrarla.
+    if (refreshToken && definition.provider === "GOOGLE") await revokeIntegrationToken(refreshToken);
   } catch (error) {
     console.error("[fotoffice][integraciones] falló la desconexión", {
       workspaceId: workspace.id,

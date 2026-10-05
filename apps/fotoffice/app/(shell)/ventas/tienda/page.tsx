@@ -9,7 +9,9 @@ export const dynamic = "force-dynamic";
 
 const PESTANAS: { tab: StoreOrderTab; label: string }[] = [
   { tab: "preparar", label: "Por preparar" },
+  { tab: "despachar", label: "Para despachar" },
   { tab: "listos", label: "Listos" },
+  { tab: "despachados", label: "Despachados" },
   { tab: "entregados", label: "Entregados" },
   { tab: "esperando", label: "Esperando pago" },
   { tab: "problemas", label: "Problemas" },
@@ -17,8 +19,10 @@ const PESTANAS: { tab: StoreOrderTab; label: string }[] = [
 ];
 
 const VACIO: Record<StoreOrderTab, string> = {
-  preparar: "No hay pedidos pagados esperando que los prepares.",
+  preparar: "No hay pedidos para retirar esperando que los prepares.",
+  despachar: "No hay pedidos con envío esperando que los despaches.",
   listos: "No hay pedidos listos esperando que los retiren.",
+  despachados: "No hay pedidos en camino.",
   entregados: "Todavía no se entregó ningún pedido.",
   esperando: "No hay pedidos esperando el pago.",
   problemas: "No hay pedidos con problemas.",
@@ -50,7 +54,7 @@ export default async function PedidosOnlinePage({ searchParams }: { searchParams
     <div className="space-y-6">
       <PageHeader
         title="Pedidos online"
-        description="Lo que entró por la tienda online: qué hay que preparar, qué está listo para retirar y qué hay que resolver."
+        description="Lo que entró por la tienda online: qué hay que preparar o despachar, qué está listo para retirar y qué hay que resolver."
         actions={
           canConfigure ? (
             <Link href="/ventas/tienda/configuracion" className="fo-btn fo-btn-ghost text-sm">
@@ -123,6 +127,9 @@ export default async function PedidosOnlinePage({ searchParams }: { searchParams
                     {r.problem && r.status !== "PAID_NO_STOCK" ? (
                       <span className="ml-2 text-xs text-[var(--fo-danger)]">· hay algo para revisar</span>
                     ) : null}
+                    <div className="text-xs text-[var(--fo-muted)]">
+                      {r.deliveryMethod === "SHIPPING" ? "Con envío" : "Para retirar"}
+                    </div>
                   </td>
                 </tr>
               ))}

@@ -18,6 +18,7 @@ const h = vi.hoisted(() => ({
     sendPaidNoStockAlert: vi.fn(),
     sendDuplicatePaymentAlert: vi.fn(),
     sendOrderReadyEmail: vi.fn(),
+    sendOrderShippedEmail: vi.fn(),
     sendCreditFailureAlert: vi.fn(),
   },
 }));
@@ -34,16 +35,26 @@ const { changeOrderStatus, markOrderReviewed, isProblemOrder, staffTargets, canc
   "./order-admin"
 );
 
-type Status = "PENDING_PAYMENT" | "PAID" | "READY" | "DELIVERED" | "CANCELLED" | "EXPIRED" | "PAID_NO_STOCK";
+type Status = "PENDING_PAYMENT" | "PAID" | "READY" | "SHIPPED" | "DELIVERED" | "CANCELLED" | "EXPIRED" | "PAID_NO_STOCK";
 
-function pedido(status: Status, over: { saleId?: string | null; paidAt?: Date | null } = {}) {
+function pedido(
+  status: Status,
+  over: { saleId?: string | null; paidAt?: Date | null; deliveryMethod?: "PICKUP" | "SHIPPING" } = {},
+) {
   return {
     id: "ord1",
     workspaceId: "ws1",
     orderNumber: 7,
     status,
     mpPaymentId: status === "PENDING_PAYMENT" ? null : "mp1",
-    saleId: over.saleId === undefined ? (status === "PAID" || status === "READY" ? "sale1" : null) : over.saleId,
+    saleId:
+      over.saleId === undefined
+        ? status === "PAID" || status === "READY" || status === "SHIPPED"
+          ? "sale1"
+          : null
+        : over.saleId,
+    deliveryMethod: over.deliveryMethod ?? (status === "SHIPPED" ? "SHIPPING" : "PICKUP"),
+    shippingSource: null as string | null,
     paidAt: over.paidAt === undefined ? new Date("2026-10-04T15:00:00Z") : over.paidAt,
     buyerName: "Ana Pérez",
     buyerEmail: "ana@example.com",
@@ -164,6 +175,102 @@ describe("changeOrderStatus — preparar y entregar", () => {
     const r = await changeOrderStatus({ ...base, to: "READY", note: null });
     expect(r.ok).toBe(false);
     expect(h.emails.sendOrderReadyEmail).not.toHaveBeenCalled();
+  });
+});
+
+describe("changeOrderStatus — despachar (pedidos con envío)", () => {
+  const envio = (status: Status) => pedido(status, { deliveryMethod: "SHIPPING" });
+
+  it("con número: guarda seguimiento y fecha, deja 'Despachado — seguimiento' y avisa DESPUÉS de confirmar", async () => {
+    preparar(envio("PAID"));
+    h.emails.sendOrderShippedEmail.mockImplementation(async () => {
+      expect(h.prisma.$transaction).toHaveBeenCalledTimes(1);
+    });
+    const r = await changeOrderStatus({ ...base, to: "SHIPPED", note: null, trackingNumber: "  CP123456789AR " });
+    expect(r).toEqual({ ok: true });
+    expect(tx.storeOrder.updateMany).toHaveBeenCalledWith({
+      where: { id: "ord1", workspaceId: "ws1" },
+      data: { status: "SHIPPED", shippedAt: expect.any(Date), trackingNumber: "CP123456789AR" },
+    });
+    expect(datosDelEvento()).toMatchObject({
+      fromStatus: "PAID",
+      toStatus: "SHIPPED",
+      actorUserId: 42,
+      note: "Despachado — seguimiento CP123456789AR",
+    });
+    expect(h.emails.sendOrderShippedEmail).toHaveBeenCalledWith({ workspaceId: "ws1", orderId: "ord1" });
+    expect(h.emails.sendOrderReadyEmail).not.toHaveBeenCalled();
+  });
+
+  it("sin número también se despacha (es opcional); la nota de la persona se suma", async () => {
+    preparar(envio("PAID"));
+    const r = await changeOrderStatus({ ...base, to: "SHIPPED", note: "Va en dos cajas", trackingNumber: "" });
+    expect(r).toEqual({ ok: true });
+    expect(datosDelUpdate()).toEqual({ status: "SHIPPED", shippedAt: expect.any(Date), trackingNumber: null });
+    expect(datosDelEvento()).toMatchObject({ note: "Despachado · Va en dos cajas" });
+    expect(h.emails.sendOrderShippedEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("número con caracteres raros → error, sin escribir ni mandar nada", async () => {
+    preparar(envio("PAID"));
+    const r = await changeOrderStatus({ ...base, to: "SHIPPED", note: null, trackingNumber: "CP 12/34" });
+    expect(r).toEqual({ ok: false, error: "Revisá el número de seguimiento." });
+    expect(tx.storeOrder.updateMany).not.toHaveBeenCalled();
+    expect(tx.storeOrderEvent.create).not.toHaveBeenCalled();
+    expect(h.emails.sendOrderShippedEmail).not.toHaveBeenCalled();
+  });
+
+  it("primero el cambio de estado: si ya no se puede despachar, lo dice aunque el número esté mal", async () => {
+    preparar(envio("DELIVERED"));
+    const r = await changeOrderStatus({ ...base, to: "SHIPPED", note: null, trackingNumber: "CP 12/34" });
+    expect(r).toEqual({
+      ok: false,
+      error: "Ese cambio ya no se puede hacer: el pedido cambió de estado. Recargá la página.",
+    });
+    expect(tx.storeOrder.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("un envío viejo que quedó en 'listo' se puede despachar", async () => {
+    preparar(envio("READY"));
+    const r = await changeOrderStatus({ ...base, to: "SHIPPED", note: null, trackingNumber: "CP1" });
+    expect(r).toEqual({ ok: true });
+    expect(datosDelUpdate()).toEqual({ status: "SHIPPED", shippedAt: expect.any(Date), trackingNumber: "CP1" });
+    expect(h.emails.sendOrderShippedEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("un pedido para retirar no se despacha, ni uno con envío se marca listo para retirar", async () => {
+    preparar(pedido("PAID", { deliveryMethod: "PICKUP" }));
+    expect((await changeOrderStatus({ ...base, to: "SHIPPED", note: null, trackingNumber: null })).ok).toBe(false);
+    preparar(envio("PAID"));
+    expect((await changeOrderStatus({ ...base, to: "READY", note: null })).ok).toBe(false);
+    expect(tx.storeOrder.updateMany).not.toHaveBeenCalled();
+    expect(h.emails.sendOrderReadyEmail).not.toHaveBeenCalled();
+  });
+
+  it("despachado → entregado marca la fecha y no manda correos", async () => {
+    preparar(envio("SHIPPED"));
+    const r = await changeOrderStatus({ ...base, to: "DELIVERED", note: null });
+    expect(r).toEqual({ ok: true });
+    expect(datosDelUpdate()).toMatchObject({ status: "DELIVERED", deliveredAt: expect.any(Date) });
+    expect(h.emails.sendOrderShippedEmail).not.toHaveBeenCalled();
+  });
+
+  it("cancelar un despachado exige nota y anula la venta como desde pagado", async () => {
+    preparar(envio("SHIPPED"));
+    expect((await changeOrderStatus({ ...base, to: "CANCELLED", note: " " })).ok).toBe(false);
+    expect(h.voidSale).not.toHaveBeenCalled();
+    const r = await changeOrderStatus({ ...base, to: "CANCELLED", note: "Volvió al remitente" });
+    expect(r).toEqual({ ok: true });
+    expect(h.voidSale).toHaveBeenCalledWith(tx, {
+      workspaceId: "ws1",
+      saleId: "sale1",
+      reason: "Pedido online #7 cancelado: Volvió al remitente",
+      userId: 42,
+      fromStoreOrder: true,
+    });
+    expect(datosDelUpdate()).toMatchObject({ status: "CANCELLED", cancelledAt: expect.any(Date) });
+    expect(datosDelUpdate()).not.toHaveProperty("mpPaymentId");
+    expect(datosDelEvento()).toMatchObject({ fromStatus: "SHIPPED", toStatus: "CANCELLED" });
   });
 });
 
@@ -328,16 +435,25 @@ describe("reglas puras del panel", () => {
   });
 
   it("botones: los de canTransition, sin PAID cuando el monto no coincide", () => {
-    expect(staffTargets("PAID", { amountMismatch: false })).toEqual(["READY", "DELIVERED", "CANCELLED"]);
-    expect(staffTargets("PAID_NO_STOCK", { amountMismatch: false })).toEqual(["PAID", "CANCELLED"]);
-    expect(staffTargets("PAID_NO_STOCK", { amountMismatch: true })).toEqual(["CANCELLED"]);
-    expect(staffTargets("DELIVERED", { amountMismatch: false })).toEqual([]);
+    const retiro = { amountMismatch: false, deliveryMethod: "PICKUP" };
+    expect(staffTargets("PAID", retiro)).toEqual(["READY", "DELIVERED", "CANCELLED"]);
+    expect(staffTargets("PAID_NO_STOCK", retiro)).toEqual(["PAID", "CANCELLED"]);
+    expect(staffTargets("PAID_NO_STOCK", { ...retiro, amountMismatch: true })).toEqual(["CANCELLED"]);
+    expect(staffTargets("DELIVERED", retiro)).toEqual([]);
+  });
+
+  it("botones de un pedido con envío: despachar en vez de listo para retirar", () => {
+    const envio = { amountMismatch: false, deliveryMethod: "SHIPPING" };
+    expect(staffTargets("PAID", envio)).toEqual(["SHIPPED", "CANCELLED"]);
+    expect(staffTargets("SHIPPED", envio)).toEqual(["DELIVERED", "CANCELLED"]);
+    expect(staffTargets("SHIPPED", { ...envio, deliveryMethod: "PICKUP" })).toEqual([]);
   });
 
   it("cancelar pide nota sólo si entró plata", () => {
     expect(cancelNeedsNote("PAID")).toBe(true);
     expect(cancelNeedsNote("READY")).toBe(true);
     expect(cancelNeedsNote("PAID_NO_STOCK")).toBe(true);
+    expect(cancelNeedsNote("SHIPPED")).toBe(true);
     expect(cancelNeedsNote("PENDING_PAYMENT")).toBe(false);
   });
 });
@@ -374,6 +490,43 @@ describe("listStoreOrders — pestaña Problemas", () => {
     expect(r.counts.problemas).toBe(1);
     expect(h.prisma.storeOrder.findMany.mock.calls[1]![0]).toMatchObject({
       where: { workspaceId: "ws1", id: { in: ["ordA"] } },
+    });
+  });
+});
+
+describe("listStoreOrders — envíos", () => {
+  function sinProblemas() {
+    h.prisma.storeOrder.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    h.prisma.storeOrder.count.mockResolvedValue(9);
+    h.prisma.storeOrder.groupBy.mockResolvedValue([
+      { status: "PAID", deliveryMethod: "PICKUP", _count: { _all: 2 } },
+      { status: "PAID", deliveryMethod: "SHIPPING", _count: { _all: 3 } },
+      { status: "SHIPPED", deliveryMethod: "SHIPPING", _count: { _all: 4 } },
+    ]);
+  }
+
+  it("'Para despachar' son los pagados con envío; 'Por preparar', los pagados para retirar", async () => {
+    sinProblemas();
+    const r = await listStoreOrders("ws1", "despachar");
+    expect(h.prisma.storeOrder.findMany.mock.calls[1]![0]).toMatchObject({
+      where: { workspaceId: "ws1", status: "PAID", deliveryMethod: "SHIPPING" },
+    });
+    expect(r.counts).toMatchObject({ preparar: 2, despachar: 3, despachados: 4, todos: 9 });
+  });
+
+  it("'Por preparar' deja afuera los envíos", async () => {
+    sinProblemas();
+    await listStoreOrders("ws1", "preparar");
+    expect(h.prisma.storeOrder.findMany.mock.calls[1]![0]).toMatchObject({
+      where: { workspaceId: "ws1", status: "PAID", deliveryMethod: { not: "SHIPPING" } },
+    });
+  });
+
+  it("'Despachados' son los que están en camino", async () => {
+    sinProblemas();
+    await listStoreOrders("ws1", "despachados");
+    expect(h.prisma.storeOrder.findMany.mock.calls[1]![0]).toMatchObject({
+      where: { workspaceId: "ws1", status: "SHIPPED" },
     });
   });
 });

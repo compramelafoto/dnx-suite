@@ -10,10 +10,13 @@ import { hashAccessToken, orderAccessToken } from "./access-token";
  *
  * `checkCartLines` (puro) NO se mockea: es la regla de disponibilidad que importa de verdad.
  */
-const { prismaMock, lockStockRows, loadCartCatalog, reservedQtyByKey, orden } = vi.hoisted(() => {
+const { prismaMock, lockStockRows, loadCartCatalog, reservedQtyByKey, orden, quoteShipping, loadAgenciesForOrder, loadCheckoutDeliveryOptions } = vi.hoisted(() => {
   const orden: string[] = [];
   return {
     orden,
+    quoteShipping: vi.fn(),
+    loadAgenciesForOrder: vi.fn(),
+    loadCheckoutDeliveryOptions: vi.fn(),
     prismaMock: {
       storeOrder: { findUnique: vi.fn(), count: vi.fn() },
       $transaction: vi.fn(),
@@ -32,6 +35,8 @@ vi.mock("@repo/db", async (importOriginal) => {
 });
 vi.mock("@/lib/sales/stock-lock", () => ({ lockStockRows }));
 vi.mock("./repository", () => ({ loadCartCatalog, reservedQtyByKey }));
+vi.mock("./shipping/quote", () => ({ quoteShipping }));
+vi.mock("./shipping/checkout-server", () => ({ loadAgenciesForOrder, loadCheckoutDeliveryOptions }));
 
 const { createStoreOrder } = await import("./create-order");
 
@@ -71,6 +76,8 @@ const checkoutBase: CheckoutInput = {
   acceptsTerms: true,
   clientIdempotencyKey: "clave-idempotencia-0001",
   lines: [{ productId: "p1", variantId: null, qty: 1 }],
+  delivery: { method: "PICKUP" },
+  shownShippingMinor: null,
 };
 
 function orderTx(over: Record<string, unknown> = {}) {
@@ -90,6 +97,38 @@ function orderTx(over: Record<string, unknown> = {}) {
     ...over,
   };
 }
+
+const COTIZACION = {
+  method: "HOME",
+  source: "CORREO_ARGENTINO",
+  baseMinor: 4_000_00,
+  surchargeMinor: 500_00,
+  totalMinor: 4_500_00,
+  serviceName: "Correo Argentino a domicilio",
+  package: { weightGrams: 600, lengthCm: 30, widthCm: 20, heightCm: 10 },
+  raw: { productName: "Clasico", price: 4000 },
+};
+
+const SUCURSAL = {
+  id: "SUC-77",
+  name: "Sucursal Centro",
+  address: "Córdoba 1234",
+  city: "Rosario",
+  postalCode: "2000",
+};
+
+const domicilio: CheckoutInput["delivery"] = {
+  method: "HOME",
+  address: {
+    street: "San Martín",
+    number: "1500",
+    floorApt: "3 B",
+    city: "Rosario",
+    provinceCode: "S",
+    postalCode: "2000",
+    recipientPhone: null,
+  },
+};
 
 let tx: ReturnType<typeof orderTx>;
 let warnSpy: ReturnType<typeof vi.spyOn>;
@@ -111,6 +150,12 @@ beforeEach(() => {
     return new Map();
   });
   warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+  quoteShipping.mockReset().mockImplementation(async () => {
+    orden.push("cotizacion");
+    return { ok: true, quote: COTIZACION };
+  });
+  loadAgenciesForOrder.mockReset().mockResolvedValue({ ok: true, agencies: [SUCURSAL] });
+  loadCheckoutDeliveryOptions.mockReset().mockResolvedValue({ pickup: true, home: true, branch: true, handlingNote: null });
 });
 
 afterEach(() => {
@@ -254,7 +299,7 @@ describe("createStoreOrder — el pedido creado", () => {
       totalArs: "25000.00",
       holdExpiresAt: new Date("2026-10-04T15:15:00.000Z"),
       legalAcceptedAt: NOW,
-      legalVersion: "2026-10-04",
+      legalVersion: "2026-10-05",
       clientIdempotencyKey: "clave-idempotencia-0001",
       publicId: r.publicId,
       accessTokenHash: hashAccessToken(r.accessToken),
@@ -433,5 +478,334 @@ describe("createStoreOrder — límite por email", () => {
     prismaMock.storeOrder.count.mockResolvedValue(2);
     const r = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: checkoutBase, now: NOW });
     expect(r.ok).toBe(true);
+  });
+});
+
+describe("createStoreOrder — envío a domicilio", () => {
+  const conTelefono: CheckoutInput = { ...checkoutBase, buyerPhone: "341 555 1234", delivery: domicilio, shownShippingMinor: 4_500_00 };
+
+  it("re-cotiza en el servidor ANTES de la transacción y guarda envío, total y destino", async () => {
+    const r = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: conTelefono, now: NOW });
+
+    expect(r.ok).toBe(true);
+    expect(orden[0]).toBe("cotizacion");
+    expect(quoteShipping).toHaveBeenCalledWith({
+      workspaceId: "ws1",
+      method: "HOME",
+      destination: { postalCode: "2000", provinceCode: "S" },
+      items: [{ productId: "p1", variantId: null, qty: 1 }],
+    });
+    const pedido = primerPedido();
+    expect(pedido).toMatchObject({
+      deliveryMethod: "SHIPPING",
+      shippingMethod: "HOME",
+      shippingSource: "CORREO_ARGENTINO",
+      subtotalArs: "10000.00",
+      shippingArs: "4500.00",
+      totalArs: "14500.00",
+      shippingAddressJson: {
+        recipientName: "Ana Pérez",
+        street: "San Martín",
+        number: "1500",
+        floorApt: "3 B",
+        city: "Rosario",
+        provinceCode: "S",
+        postalCode: "2000",
+        recipientPhone: "341 555 1234",
+      },
+      shippingQuoteJson: {
+        method: "HOME",
+        source: "CORREO_ARGENTINO",
+        baseMinor: 4_000_00,
+        surchargeMinor: 500_00,
+        totalMinor: 4_500_00,
+        serviceName: "Correo Argentino a domicilio",
+        package: { weightGrams: 600, lengthCm: 30, widthCm: 20, heightCm: 10 },
+        raw: { productName: "Clasico", price: 4000 },
+      },
+    });
+    expect(pedido).not.toHaveProperty("shippingAgencyJson");
+  });
+
+  it("si la persona puso otro teléfono para quien recibe, se guarda ése", async () => {
+    const otro = {
+      ...conTelefono,
+      delivery: { method: "HOME" as const, address: { ...domicilio.address, recipientPhone: "11 4444 5555" } },
+    } as CheckoutInput;
+    await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: otro, now: NOW });
+    expect(primerPedido().shippingAddressJson).toMatchObject({ recipientPhone: "11 4444 5555" });
+  });
+
+  it("si la cotización falla → error, sin abrir la transacción ni crear el pedido", async () => {
+    quoteShipping.mockResolvedValue({ ok: false, reason: "UNAVAILABLE" });
+    const r = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: conTelefono, now: NOW });
+    expect(r).toEqual({ ok: false, error: "No pudimos calcular el envío. Probá de nuevo o elegí retiro." });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("sin retiro en la sede, la falla no lo sugiere", async () => {
+    loadCheckoutDeliveryOptions.mockResolvedValue({ pickup: false, home: true, branch: true, handlingNote: null });
+    quoteShipping.mockResolvedValue({ ok: false, reason: "UNAVAILABLE" });
+    const r = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: conTelefono, now: NOW });
+    expect(r).toEqual({ ok: false, error: "No pudimos calcular el envío. Probá de nuevo en unos minutos." });
+    quoteShipping.mockResolvedValue({ ok: false, reason: "TOO_BIG" });
+    const r2 = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: conTelefono, now: NOW });
+    expect(r2).toEqual({ ok: false, error: "El paquete es demasiado grande para enviar." });
+  });
+
+  it("si cotizar lanza (la base, por ejemplo) → el mismo error, sin pedido y sin datos en el log", async () => {
+    quoteShipping.mockRejectedValue(new Error("ana@example.com timeout"));
+    const r = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: conTelefono, now: NOW });
+    expect(r).toEqual({ ok: false, error: "No pudimos calcular el envío. Probá de nuevo o elegí retiro." });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    expect(JSON.stringify(warnSpy.mock.calls)).not.toContain("ana@example.com");
+  });
+
+  it("sin cobertura → el motivo concreto, sin pedido", async () => {
+    quoteShipping.mockResolvedValue({ ok: false, reason: "NO_COVERAGE" });
+    const r = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: conTelefono, now: NOW });
+    expect(r).toEqual({ ok: false, error: "Todavía no hacemos envíos a ese código postal." });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("si la institución no ofrece envío a domicilio → error, sin cotizar ni crear", async () => {
+    loadCheckoutDeliveryOptions.mockResolvedValue({ pickup: true, home: false, branch: true, handlingNote: null });
+    const r = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: conTelefono, now: NOW });
+    expect(r).toEqual({ ok: false, error: "Ese tipo de envío no está disponible." });
+    expect(quoteShipping).not.toHaveBeenCalled();
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("si la cotización dice que el tipo está apagado → el mismo error", async () => {
+    quoteShipping.mockResolvedValue({ ok: false, reason: "DISABLED" });
+    const r = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: conTelefono, now: NOW });
+    expect(r).toEqual({ ok: false, error: "Ese tipo de envío no está disponible." });
+  });
+});
+
+describe("createStoreOrder — envío a sucursal", () => {
+  const aSucursal = (id = "SUC-77"): CheckoutInput => ({
+    ...checkoutBase,
+    shownShippingMinor: 3_000_00,
+    delivery: {
+      method: "BRANCH",
+      provinceCode: "S",
+      // Lo que manda el navegador NO se usa: se toma la sucursal de la lista de Correo.
+      agency: { id, name: "Nombre inventado", address: "Dirección inventada" },
+    },
+  });
+
+  it("resuelve la sucursal en el servidor, cotiza con su CP y guarda los datos de Correo", async () => {
+    quoteShipping.mockResolvedValue({ ok: true, quote: { ...COTIZACION, method: "BRANCH", totalMinor: 3_000_00 } });
+    const r = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: aSucursal(), now: NOW });
+
+    expect(r.ok).toBe(true);
+    expect(loadAgenciesForOrder).toHaveBeenCalledWith({ workspaceId: "ws1", provinceCode: "S" });
+    expect(quoteShipping).toHaveBeenCalledWith(
+      expect.objectContaining({ method: "BRANCH", destination: { postalCode: "2000", provinceCode: "S" } }),
+    );
+    const pedido = primerPedido();
+    expect(pedido).toMatchObject({
+      deliveryMethod: "SHIPPING",
+      shippingMethod: "BRANCH",
+      shippingArs: "3000.00",
+      totalArs: "13000.00",
+      shippingAgencyJson: {
+        id: "SUC-77",
+        name: "Sucursal Centro",
+        address: "Córdoba 1234",
+        city: "Rosario",
+        postalCode: "2000",
+        provinceCode: "S",
+      },
+    });
+    expect(pedido).not.toHaveProperty("shippingAddressJson");
+    expect(JSON.stringify(pedido)).not.toContain("inventad");
+  });
+
+  it("una sucursal que no está en la lista de Correo → error, sin cotizar ni crear", async () => {
+    const r = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: aSucursal("SUC-FALSA"), now: NOW });
+    expect(r).toEqual({ ok: false, error: "Esa sucursal ya no está disponible. Elegí otra." });
+    expect(quoteShipping).not.toHaveBeenCalled();
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("si la institución no ofrece sucursal → error, sin listar ni crear", async () => {
+    loadCheckoutDeliveryOptions.mockResolvedValue({ pickup: true, home: true, branch: false, handlingNote: null });
+    const r = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: aSucursal(), now: NOW });
+    expect(r).toEqual({ ok: false, error: "Ese tipo de envío no está disponible." });
+    expect(loadAgenciesForOrder).not.toHaveBeenCalled();
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+});
+
+describe("createStoreOrder — sucursales cuando Correo falla", () => {
+  it("si no se pudo traer la lista (Correo caído), no dice que la sucursal no existe", async () => {
+    loadAgenciesForOrder.mockResolvedValue({ ok: false });
+    const r = await createStoreOrder({
+      workspaceId: "ws1",
+      memberId: null,
+      checkout: {
+        ...checkoutBase,
+        shownShippingMinor: 3_000_00,
+        delivery: { method: "BRANCH", provinceCode: "S", agency: { id: "SUC-77", name: "x", address: "y" } },
+      },
+      now: NOW,
+    });
+    expect(r).toEqual({ ok: false, error: "No pudimos calcular el envío. Probá de nuevo o elegí retiro." });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+});
+
+describe("createStoreOrder — el envío cambió desde que lo vio", () => {
+  const conPrecio = (shown: number | null): CheckoutInput => ({ ...checkoutBase, delivery: domicilio, shownShippingMinor: shown });
+
+  it("si subió: sin pedido, con el precio nuevo para mostrarlo", async () => {
+    const r = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: conPrecio(4_000_00), now: NOW });
+    expect(r).toEqual({
+      ok: false,
+      error: "El envío cambió: ahora cuesta $ 4.500,00. Revisalo y volvé a confirmar.",
+      shippingChanged: { totalMinor: 4_500_00, serviceName: "Correo Argentino a domicilio" },
+    });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("si no lo mandó (envío sin precio visto): se le muestra el precio, sin pedido", async () => {
+    const r = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: conPrecio(null), now: NOW });
+    expect(r).toMatchObject({ ok: false, shippingChanged: { totalMinor: 4_500_00 } });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("si es igual o bajó: sigue y cobra lo re-cotizado (nunca lo que mandó el navegador)", async () => {
+    const r = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: conPrecio(5_000_00), now: NOW });
+    expect(r.ok).toBe(true);
+    expect(primerPedido()).toMatchObject({ shippingArs: "4500.00", totalArs: "14500.00" });
+  });
+});
+
+describe("createStoreOrder — envío gratis de la tabla", () => {
+  it("una zona de la tabla en $0 se acepta: envío 0, total = subtotal, sigue siendo envío", async () => {
+    quoteShipping.mockResolvedValue({ ok: true, quote: { ...COTIZACION, source: "TABLE", baseMinor: 0, surchargeMinor: 0, totalMinor: 0 } });
+    const r = await createStoreOrder({
+      workspaceId: "ws1",
+      memberId: null,
+      checkout: { ...checkoutBase, delivery: domicilio, shownShippingMinor: 0 },
+      now: NOW,
+    });
+    expect(r.ok).toBe(true);
+    expect(primerPedido()).toMatchObject({ deliveryMethod: "SHIPPING", shippingSource: "TABLE", shippingArs: "0.00", totalArs: "10000.00" });
+  });
+
+  it("Correo en $0 no: no se vende un envío sin precio", async () => {
+    quoteShipping.mockResolvedValue({ ok: true, quote: { ...COTIZACION, totalMinor: 0, baseMinor: 0, surchargeMinor: 0 } });
+    const r = await createStoreOrder({
+      workspaceId: "ws1",
+      memberId: null,
+      checkout: { ...checkoutBase, delivery: domicilio, shownShippingMinor: 0 },
+      now: NOW,
+    });
+    expect(r).toEqual({ ok: false, error: "No pudimos calcular el envío. Probá de nuevo o elegí retiro." });
+  });
+});
+
+describe("createStoreOrder — retiro sigue igual", () => {
+  it("no cotiza, envío en cero, total = subtotal y sin datos de envío", async () => {
+    await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: checkoutBase, now: NOW });
+    expect(quoteShipping).not.toHaveBeenCalled();
+    expect(loadAgenciesForOrder).not.toHaveBeenCalled();
+    const pedido = primerPedido();
+    expect(pedido).toMatchObject({ deliveryMethod: "PICKUP", shippingArs: "0.00", totalArs: "10000.00" });
+    for (const k of ["shippingMethod", "shippingSource", "shippingAddressJson", "shippingAgencyJson", "shippingQuoteJson"]) {
+      expect(pedido).not.toHaveProperty(k);
+    }
+  });
+});
+
+describe("createStoreOrder — idempotencia con envío", () => {
+  const existenteDomicilio = (over: Record<string, unknown> = {}) => ({
+    id: "ord-existente",
+    publicId: "ped_existente",
+    status: "PENDING_PAYMENT",
+    holdExpiresAt: new Date("2026-10-04T15:10:00.000Z"),
+    buyerEmail: "ana@example.com",
+    items: [{ productId: "p1", variantId: null, qty: 1 }],
+    deliveryMethod: "SHIPPING",
+    shippingMethod: "HOME",
+    shippingAddressJson: { street: "San Martín", number: "1500", floorApt: "3 B", city: "Rosario", provinceCode: "S", postalCode: "2000" },
+    shippingAgencyJson: null,
+    ...over,
+  });
+
+  it("mismo destino → el mismo pedido, sin volver a cotizar", async () => {
+    prismaMock.storeOrder.findUnique.mockResolvedValue(existenteDomicilio());
+    const r = await createStoreOrder({
+      workspaceId: "ws1",
+      memberId: null,
+      checkout: { ...checkoutBase, delivery: domicilio },
+      now: NOW,
+    });
+    expect(r).toMatchObject({ ok: true, orderId: "ord-existente" });
+    expect(quoteShipping).not.toHaveBeenCalled();
+  });
+
+  it("otra dirección → pide una clave nueva", async () => {
+    prismaMock.storeOrder.findUnique.mockResolvedValue(
+      existenteDomicilio({ shippingAddressJson: { street: "San Martín", number: "900", provinceCode: "S", postalCode: "2000" } }),
+    );
+    const r = await createStoreOrder({
+      workspaceId: "ws1",
+      memberId: null,
+      checkout: { ...checkoutBase, delivery: domicilio },
+      now: NOW,
+    });
+    expect(r).toMatchObject({ ok: false, renewKey: true });
+    expect(JSON.stringify(r)).not.toContain("ped_existente");
+  });
+
+  it("otro piso o depto (o localidad) → pide una clave nueva", async () => {
+    for (const cambio of [{ floorApt: "4 C" }, { city: "Funes" }]) {
+      prismaMock.storeOrder.findUnique.mockResolvedValue(
+        existenteDomicilio({
+          shippingAddressJson: { street: "San Martín", number: "1500", floorApt: "3 B", city: "Rosario", provinceCode: "S", postalCode: "2000", ...cambio },
+        }),
+      );
+      const r = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: { ...checkoutBase, delivery: domicilio }, now: NOW });
+      expect(r).toMatchObject({ ok: false, renewKey: true });
+    }
+  });
+
+  it("antes retiro y ahora envío → pide una clave nueva", async () => {
+    prismaMock.storeOrder.findUnique.mockResolvedValue(
+      existenteDomicilio({ deliveryMethod: "PICKUP", shippingMethod: null, shippingAddressJson: null }),
+    );
+    const r = await createStoreOrder({
+      workspaceId: "ws1",
+      memberId: null,
+      checkout: { ...checkoutBase, delivery: domicilio },
+      now: NOW,
+    });
+    expect(r).toMatchObject({ ok: false, renewKey: true });
+  });
+
+  it("otra sucursal → pide una clave nueva", async () => {
+    prismaMock.storeOrder.findUnique.mockResolvedValue(
+      existenteDomicilio({ shippingMethod: "BRANCH", shippingAddressJson: null, shippingAgencyJson: { id: "SUC-1" } }),
+    );
+    const r = await createStoreOrder({
+      workspaceId: "ws1",
+      memberId: null,
+      checkout: {
+        ...checkoutBase,
+        delivery: { method: "BRANCH", provinceCode: "S", agency: { id: "SUC-2", name: "x", address: "y" } },
+      },
+      now: NOW,
+    });
+    expect(r).toMatchObject({ ok: false, renewKey: true });
+  });
+
+  it("antes envío y ahora retiro → pide una clave nueva", async () => {
+    prismaMock.storeOrder.findUnique.mockResolvedValue(existenteDomicilio());
+    const r = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: checkoutBase, now: NOW });
+    expect(r).toMatchObject({ ok: false, renewKey: true });
   });
 });

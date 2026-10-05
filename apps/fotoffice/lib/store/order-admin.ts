@@ -8,12 +8,14 @@ import {
   STORE_NOTE_REGRET,
 } from "./constants";
 import { finalizePaidOrder, lockAndCheckOrderStock, SELECT_PEDIDO_A_ACREDITAR } from "./credit-payment";
-import { sendOrderPaidEmail, sendOrderReadyEmail } from "./emails";
+import { sendOrderPaidEmail, sendOrderReadyEmail, sendOrderShippedEmail } from "./emails";
+import { normalizeTrackingNumber } from "./shipping/tracking";
 import { canTransition } from "./transitions";
 
 /**
  * Lo que hace el personal con los pedidos online desde el panel (`/ventas/tienda`): prepararlos,
- * entregarlos, cancelarlos y reponer el stock de uno que se pagó sin stock.
+ * despacharlos (los que van con envío), entregarlos, cancelarlos y reponer el stock de uno que se
+ * pagó sin stock.
  *
  * Mismas reglas que la acreditación (`credit-payment.ts`):
  * - El pedido se bloquea (`FOR UPDATE`) ANTES de leer su estado, y el stock después. Dos
@@ -33,13 +35,16 @@ const ESTADOS: readonly StoreOrderStatus[] = [
   "PENDING_PAYMENT",
   "PAID",
   "READY",
+  "SHIPPED",
   "DELIVERED",
   "CANCELLED",
   "EXPIRED",
   "PAID_NO_STOCK",
 ];
 /** Estados en los que la plata ya entró: cancelar exige explicar por qué (y devolverla). */
-const CON_PLATA: readonly StoreOrderStatus[] = ["PAID", "READY", "PAID_NO_STOCK"];
+const CON_PLATA: readonly StoreOrderStatus[] = ["PAID", "READY", "SHIPPED", "PAID_NO_STOCK"];
+/** Estados con venta registrada: cancelar la anula. */
+const CON_VENTA: readonly StoreOrderStatus[] = ["PAID", "READY", "SHIPPED"];
 
 // ── Reglas puras ────────────────────────────────────────────────────────────
 
@@ -93,9 +98,9 @@ export function isAmountMismatchNote(note: string | null | undefined): boolean {
 /** Los estados a los que el personal puede llevar el pedido, en el orden de los botones. */
 export function staffTargets(
   from: StoreOrderStatus,
-  opts: { amountMismatch: boolean },
+  opts: { amountMismatch: boolean; deliveryMethod: string },
 ): StoreOrderStatus[] {
-  return ESTADOS.filter((to) => canTransition(from, to, "staff")).filter(
+  return ESTADOS.filter((to) => canTransition(from, to, "staff", opts.deliveryMethod)).filter(
     (to) => !(from === "PAID_NO_STOCK" && to === "PAID" && opts.amountMismatch),
   );
 }
@@ -122,6 +127,7 @@ const SELECT_PEDIDO_PANEL = {
   ...SELECT_PEDIDO_A_ACREDITAR,
   saleId: true,
   paidAt: true,
+  deliveryMethod: true,
 } satisfies Prisma.StoreOrderSelect;
 
 async function bloquearYLeer(tx: Tx, workspaceId: string, orderId: string) {
@@ -151,17 +157,27 @@ export async function changeOrderStatus(input: {
   to: StoreOrderStatus;
   userId: number;
   note: string | null;
+  /** Sólo al despachar (`to: "SHIPPED"`). Opcional. */
+  trackingNumber?: string | null;
 }): Promise<OrderAdminResult> {
   const nota = limpiarNota(input.note);
-  let aviso: "listo" | "pagado" | null = null;
+  let aviso: "listo" | "pagado" | "despachado" | null = null;
 
   try {
     await prisma.$transaction(
       async (tx) => {
         const order = await bloquearYLeer(tx, input.workspaceId, input.orderId);
         const from = order.status;
-        if (!canTransition(from, input.to, "staff")) {
+        if (!canTransition(from, input.to, "staff", order.deliveryMethod)) {
           throw new Rechazo("Ese cambio ya no se puede hacer: el pedido cambió de estado. Recargá la página.");
+        }
+        // El número de seguimiento se revisa DESPUÉS del cambio de estado: si el pedido ya no se
+        // puede despachar, eso es lo que la persona tiene que saber primero.
+        let seguimiento: string | null = null;
+        if (input.to === "SHIPPED") {
+          const t = normalizeTrackingNumber(input.trackingNumber);
+          if (!t.ok) throw new Rechazo(t.error);
+          seguimiento = t.value;
         }
         const ahora = new Date();
         const donde = { id: order.id, workspaceId: input.workspaceId };
@@ -177,6 +193,18 @@ export async function changeOrderStatus(input: {
             aviso = "listo";
             return;
 
+          case "SHIPPED": {
+            // Sólo llega acá un pedido con envío y pagado (lo garantiza `canTransition`).
+            await tx.storeOrder.updateMany({
+              where: donde,
+              data: { status: "SHIPPED", shippedAt: ahora, trackingNumber: seguimiento },
+            });
+            const constancia = seguimiento ? `Despachado — seguimiento ${seguimiento}` : "Despachado";
+            await evento(nota ? `${constancia} · ${nota}` : constancia);
+            aviso = "despachado";
+            return;
+          }
+
           case "DELIVERED":
             await tx.storeOrder.updateMany({ where: donde, data: { status: "DELIVERED", deliveredAt: ahora } });
             await evento(nota);
@@ -186,7 +214,7 @@ export async function changeOrderStatus(input: {
             if (cancelNeedsNote(from) && !nota) {
               throw new Rechazo("Escribí por qué se cancela el pedido.");
             }
-            if ((from === "PAID" || from === "READY") && order.saleId) {
+            if (CON_VENTA.includes(from) && order.saleId) {
               // Una venta ya anulada (de antes de que el historial lo prohibiera) no frena la
               // cancelación: la plata y el stock ya volvieron por ese camino.
               const venta = await tx.sale.findFirst({
@@ -249,6 +277,7 @@ export async function changeOrderStatus(input: {
   const ref = { workspaceId: input.workspaceId, orderId: input.orderId };
   if (aviso === "listo") await sendOrderReadyEmail(ref);
   if (aviso === "pagado") await sendOrderPaidEmail(ref);
+  if (aviso === "despachado") await sendOrderShippedEmail(ref);
   return { ok: true };
 }
 
@@ -290,14 +319,30 @@ export async function markOrderReviewed(input: {
 
 // ── Lecturas del panel ──────────────────────────────────────────────────────
 
-export const STORE_ORDER_TABS = ["preparar", "listos", "entregados", "esperando", "problemas", "todos"] as const;
+export const STORE_ORDER_TABS = [
+  "preparar",
+  "despachar",
+  "listos",
+  "despachados",
+  "entregados",
+  "esperando",
+  "problemas",
+  "todos",
+] as const;
 export type StoreOrderTab = (typeof STORE_ORDER_TABS)[number];
 
-const ESTADO_DE_PESTANA: Partial<Record<StoreOrderTab, StoreOrderStatus>> = {
-  preparar: "PAID",
-  listos: "READY",
-  entregados: "DELIVERED",
-  esperando: "PENDING_PAYMENT",
+/**
+ * Qué junta cada pestaña (salvo "problemas" y "todos"). Los pagados se separan por forma de
+ * entrega: "Por preparar" son los que se retiran y "Para despachar" los que van con envío. Un
+ * pedido de la etapa 1 no tiene otra forma que retiro.
+ */
+const FILTRO_DE_PESTANA: Partial<Record<StoreOrderTab, Prisma.StoreOrderWhereInput>> = {
+  preparar: { status: "PAID", deliveryMethod: { not: "SHIPPING" } },
+  despachar: { status: "PAID", deliveryMethod: "SHIPPING" },
+  listos: { status: "READY" },
+  despachados: { status: "SHIPPED" },
+  entregados: { status: "DELIVERED" },
+  esperando: { status: "PENDING_PAYMENT" },
 };
 
 export function parseStoreOrderTab(raw: string | undefined): StoreOrderTab {
@@ -336,6 +381,7 @@ export type StoreOrderListRow = {
   buyerEmail: string;
   totalArs: Prisma.Decimal;
   status: StoreOrderStatus;
+  deliveryMethod: string;
   problem: boolean;
 };
 
@@ -345,17 +391,20 @@ export async function listStoreOrders(
 ): Promise<{ rows: StoreOrderListRow[]; counts: Record<StoreOrderTab, number> }> {
   const [problemas, porEstado, total] = await Promise.all([
     problemOrderIds(workspaceId),
-    prisma.storeOrder.groupBy({ by: ["status"], where: { workspaceId }, _count: { _all: true } }),
+    prisma.storeOrder.groupBy({ by: ["status", "deliveryMethod"], where: { workspaceId }, _count: { _all: true } }),
     prisma.storeOrder.count({ where: { workspaceId } }),
   ]);
-  const deEstado = (s: StoreOrderStatus) => porEstado.find((g) => g.status === s)?._count._all ?? 0;
+  const contar = (s: StoreOrderStatus, envio?: boolean) =>
+    porEstado
+      .filter((g) => g.status === s && (envio === undefined || (g.deliveryMethod === "SHIPPING") === envio))
+      .reduce((n, g) => n + g._count._all, 0);
 
-  const estado = ESTADO_DE_PESTANA[tab];
+  const filtro = FILTRO_DE_PESTANA[tab];
   const where: Prisma.StoreOrderWhereInput =
     tab === "problemas"
       ? { workspaceId, id: { in: problemas } }
-      : estado
-        ? { workspaceId, status: estado }
+      : filtro
+        ? { workspaceId, ...filtro }
         : { workspaceId };
 
   const filas = await prisma.storeOrder.findMany({
@@ -370,6 +419,7 @@ export async function listStoreOrders(
       buyerEmail: true,
       totalArs: true,
       status: true,
+      deliveryMethod: true,
     },
   });
   const esProblema = new Set(problemas);
@@ -377,10 +427,12 @@ export async function listStoreOrders(
   return {
     rows: filas.map((f) => ({ ...f, problem: esProblema.has(f.id) })),
     counts: {
-      preparar: deEstado("PAID"),
-      listos: deEstado("READY"),
-      entregados: deEstado("DELIVERED"),
-      esperando: deEstado("PENDING_PAYMENT"),
+      preparar: contar("PAID", false),
+      despachar: contar("PAID", true),
+      listos: contar("READY"),
+      despachados: contar("SHIPPED"),
+      entregados: contar("DELIVERED"),
+      esperando: contar("PENDING_PAYMENT"),
       problemas: problemas.length,
       todos: total,
     },
@@ -398,10 +450,20 @@ const SELECT_DETALLE = {
   saleId: true,
   mpPaymentId: true,
   subtotalArs: true,
+  shippingArs: true,
   totalArs: true,
+  deliveryMethod: true,
+  shippingMethod: true,
+  shippingSource: true,
+  shippingAddressJson: true,
+  shippingAgencyJson: true,
+  // Va al panel del personal (servidor): el comprador nunca ve la cotización cruda.
+  shippingQuoteJson: true,
+  trackingNumber: true,
   createdAt: true,
   paidAt: true,
   readyAt: true,
+  shippedAt: true,
   deliveredAt: true,
   cancelledAt: true,
   items: {

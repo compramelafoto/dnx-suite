@@ -12,7 +12,8 @@ const h = vi.hoisted(() => ({
 vi.mock("@repo/db", () => ({ prisma: h.prisma }));
 vi.mock("@/lib/communications/send-and-log", () => ({ sendAndLogEmail: h.sendAndLogEmail }));
 
-const { sendOrderPaidEmail, sendPaidNoStockAlert, sendDuplicatePaymentAlert } = await import("./emails");
+const { sendOrderPaidEmail, sendPaidNoStockAlert, sendDuplicatePaymentAlert, sendOrderReadyEmail, sendOrderShippedEmail } =
+  await import("./emails");
 
 const ref = { workspaceId: "ws1", orderId: "ord1" };
 
@@ -97,5 +98,53 @@ describe("emails de la tienda", () => {
     await expect(sendOrderPaidEmail(ref)).resolves.toBeUndefined();
     expect(JSON.stringify(err.mock.calls)).not.toContain("ana@example.com");
     err.mockRestore();
+  });
+});
+
+describe("correos de envío", () => {
+  function conEnvio(over: Record<string, unknown> = {}) {
+    h.prisma.storeOrder.findFirst.mockResolvedValue({
+      id: "ord1",
+      publicId: "ped_abcdefgh",
+      orderNumber: 3,
+      buyerName: "Ana",
+      buyerEmail: "ana@example.com",
+      buyerPhone: null,
+      totalArs: "150.00",
+      deliveryMethod: "SHIPPING",
+      shippingMethod: "HOME",
+      shippingSource: "CORREO_ARGENTINO",
+      shippingArs: "50.00",
+      shippingAddressJson: { street: "Mitre", number: "10", city: "Rosario", provinceCode: "S", postalCode: "2000" },
+      shippingAgencyJson: null,
+      trackingNumber: "CP123AR",
+      items: [{ productName: "Taza", variantName: null, qty: 1, lineTotalArs: "100.00" }],
+      ...over,
+    });
+  }
+
+  it("despachado por Correo Argentino: al comprador, con número y enlace de seguimiento", async () => {
+    conEnvio();
+    await sendOrderShippedEmail(ref);
+    const llamada = h.sendAndLogEmail.mock.calls[0]![0];
+    expect(llamada.to).toBe("ana@example.com");
+    expect(llamada.templateKey).toBe("store.order_shipped");
+    expect(llamada.body.text).toContain("CP123AR");
+    expect(llamada.body.text).toContain("https://www.correoargentino.com.ar/formularios/e-commerce?id=CP123AR");
+    expect(llamada.body.text).toContain("Mitre 10");
+  });
+
+  it("despachado con tabla propia: el número sin enlace", async () => {
+    conEnvio({ shippingSource: "TABLE" });
+    await sendOrderShippedEmail(ref);
+    const texto = h.sendAndLogEmail.mock.calls[0]![0].body.text as string;
+    expect(texto).toContain("CP123AR");
+    expect(texto).not.toContain("correoargentino");
+  });
+
+  it("'listo para retirar' nunca sale para un pedido con envío", async () => {
+    conEnvio();
+    await sendOrderReadyEmail(ref);
+    expect(h.sendAndLogEmail).not.toHaveBeenCalled();
   });
 });

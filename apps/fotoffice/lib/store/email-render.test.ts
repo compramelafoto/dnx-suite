@@ -6,6 +6,7 @@ import {
   renderNewOrderNotice,
   renderOrderPaid,
   renderOrderReady,
+  renderOrderShipped,
   renderPaidNoStockAlert,
   renderRegretNotice,
   type StoreEmailOrder,
@@ -163,5 +164,105 @@ describe("avisos a la institución", () => {
   it("sin dirección del panel: el aviso sale igual, sin botón", () => {
     const r = renderPaidNoStockAlert({ ...pedido, panelUrl: null });
     expect(r.html).not.toContain("<a ");
+  });
+});
+
+describe("pedido con envío", () => {
+  const conEnvio: StoreEmailOrder = {
+    ...pedido,
+    totalMinor: 29_500_00,
+    shipping: {
+      label: "Envío a domicilio",
+      amountMinor: 4_500_00,
+      lines: ["Mitre 10, 2 A", "Rosario, Santa Fe (CP 2000)", "Recibe: Ana Pérez · 341 555 1234"],
+    },
+  };
+
+  it("pagado: renglón de envío, total con envío y la dirección en vez del retiro", () => {
+    const m = renderOrderPaid(conEnvio);
+    for (const salida of [m.text, m.html]) {
+      expect(salida).toContain("Envío a domicilio");
+      expect(salida).toContain("4.500");
+      expect(salida).toContain("29.500");
+      expect(salida).toContain("Mitre 10, 2 A");
+      expect(salida).not.toContain("Dónde retirarlo");
+      expect(salida).not.toContain("Tocá timbre 2");
+    }
+    expect(m.text).not.toMatch(/para retirar/);
+    expect(m.text).not.toMatch(JERGA);
+  });
+
+  it("aviso a la institución: a dónde mandarlo", () => {
+    const m = renderNewOrderNotice(conEnvio);
+    expect(m.text).toContain("Envío a domicilio");
+    expect(m.text).toContain("Rosario, Santa Fe (CP 2000)");
+    expect(m.text).not.toMatch(/lo retire/);
+  });
+
+  it("escapa el HTML de la dirección", () => {
+    const m = renderOrderPaid({ ...conEnvio, shipping: { ...conEnvio.shipping!, lines: ["<b>calle</b>"] } });
+    expect(m.html).not.toContain("<b>calle</b>");
+    expect(m.html).toContain("&lt;b&gt;calle&lt;/b&gt;");
+  });
+
+  it("sin envío: el detalle no muestra renglón de envío", () => {
+    expect(renderOrderPaid(pedido).text).not.toContain("Envío");
+  });
+});
+
+describe("despachado: tu pedido está en camino", () => {
+  const conEnvio: StoreEmailOrder = {
+    ...pedido,
+    totalMinor: 29_500_00,
+    shipping: {
+      label: "Envío a sucursal",
+      amountMinor: 4_500_00,
+      lines: ["Sucursal Centro", "Córdoba 1000", "Rosario, Santa Fe (CP 2000)"],
+    },
+  };
+
+  it("número, enlace de Correo Argentino, a dónde va y el enlace al pedido", () => {
+    const r = renderOrderShipped({
+      ...conEnvio,
+      tracking: { number: "CP123456789AR", url: "https://www.correoargentino.com.ar/formularios/e-commerce?id=CP123456789AR" },
+    });
+    expect(r.subject).toContain("#42");
+    expect(r.subject).toMatch(/en camino/i);
+    for (const salida of [r.text, r.html]) {
+      expect(salida).toMatch(/Tu pedido está en camino/);
+      expect(salida).toContain("CP123456789AR");
+      expect(salida).toContain("https://www.correoargentino.com.ar/formularios/e-commerce?id=CP123456789AR");
+      expect(salida).toContain("Envío a sucursal");
+      expect(salida).toContain("Sucursal Centro");
+      expect(salida).toContain("29.500");
+      expect(salida).not.toContain("Dónde retirarlo");
+    }
+    expect(r.text).toContain(pedido.orderUrl!);
+    expect(r.text).not.toMatch(JERGA);
+  });
+
+  it("sin enlace de seguimiento (otra fuente): sólo el número", () => {
+    const r = renderOrderShipped({ ...conEnvio, tracking: { number: "ABC-1", url: null } });
+    expect(r.text).toContain("ABC-1");
+    expect(r.text).not.toContain("correoargentino");
+    expect(r.html).not.toContain("correoargentino");
+  });
+
+  it("sin número: no inventa uno", () => {
+    const r = renderOrderShipped({ ...conEnvio, tracking: null });
+    expect(r.text).toMatch(/en camino/i);
+    expect(r.text).not.toMatch(/seguimiento/i);
+  });
+
+  it("escapa el número, el enlace y la dirección", () => {
+    const r = renderOrderShipped({
+      ...conEnvio,
+      shipping: { ...conEnvio.shipping!, lines: ["<i>calle</i>"] },
+      tracking: { number: "<b>1</b>", url: "https://x.test/?a=1&b=\"><script>" },
+    });
+    expect(r.html).not.toContain("<b>1</b>");
+    expect(r.html).toContain("&lt;b&gt;1&lt;/b&gt;");
+    expect(r.html).not.toContain("<i>calle</i>");
+    expect(r.html).not.toContain('"><script>');
   });
 });
