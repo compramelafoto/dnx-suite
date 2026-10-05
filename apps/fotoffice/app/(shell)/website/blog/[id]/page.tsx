@@ -3,10 +3,12 @@ import { BlogShell } from "@/components/website/blog/blog-shell";
 import { BlogPostForm } from "@/components/website/blog/blog-post-form";
 import { parseRouteId, requireBlogEditor } from "@/lib/blog/access";
 import { mapBlogPostToFormValues } from "@/lib/blog/admin-form";
-import { BLOG_STATUS_LABELS } from "@/lib/blog/admin-labels";
+import { BLOG_STATUS_LABELS, blogDisplayStatus, formatBlogDateTime } from "@/lib/blog/admin-labels";
 import { getBlogAdminPost, loadPublicSlug } from "@/lib/blog/admin-queries";
 import { postPath } from "@/lib/blog/public";
 import { BlogSendToMembersCard } from "@/components/website/blog/blog-send-to-members-card";
+import { loadBlogBannerPanel } from "@/lib/blog/banner-slot";
+import { BlogBannerPanel } from "@/components/website/blog/blog-banner-panel";
 
 export const dynamic = "force-dynamic";
 // El envío a socios corre dentro de la acción de esta página: hasta unos 45 s de tandas.
@@ -23,19 +25,30 @@ export default async function EditBlogPostPage({ params, searchParams }: Props) 
   if (!postId) notFound();
 
   // Con el filtro de la institución: el id de un artículo de otra institución da 404.
-  const [post, publicSlug] = await Promise.all([getBlogAdminPost(workspace.id, postId), loadPublicSlug(workspace.id)]);
+  const [post, publicSlug, banner] = await Promise.all([
+    getBlogAdminPost(workspace.id, postId),
+    loadPublicSlug(workspace.id),
+    // Si falla (por ejemplo, la tabla todavía no está en la base), el editor sigue andando sin el panel.
+    loadBlogBannerPanel(workspace.id, postId).catch((err: unknown) => {
+      console.error("[fotoffice][blog] no se pudo leer el banner del artículo:", err);
+      return null;
+    }),
+  ]);
   if (!post) notFound();
 
-  const estado = BLOG_STATUS_LABELS[post.status] ?? post.status;
+  const clave = blogDisplayStatus(post.status, post.publishedAt);
+  const estado =
+    clave === "SCHEDULED" && post.publishedAt
+      ? `Programado para el ${formatBlogDateTime(post.publishedAt)} (hora argentina)`
+      : (BLOG_STATUS_LABELS[clave] ?? clave);
   const sp = await searchParams;
-  const publicado = post.status === "PUBLISHED" && (!post.publishedAt || post.publishedAt <= new Date());
 
   return (
     <BlogShell
       title={post.title}
       description={`Estado: ${estado}. Los cambios se ven en el blog en cuanto el artículo está publicado.`}
       actions={
-        post.status === "PUBLISHED" && publicSlug ? (
+        clave === "PUBLISHED" && publicSlug ? (
           <a href={postPath(publicSlug, post.slug)} target="_blank" rel="noreferrer" className="fo-btn fo-btn-secondary">
             Ver publicado
           </a>
@@ -46,11 +59,12 @@ export default async function EditBlogPostPage({ params, searchParams }: Props) 
         <BlogSendToMembersCard
           workspaceId={workspace.id}
           postId={post.id}
-          published={publicado}
+          published={clave === "PUBLISHED"}
           okMessage={sp.correo_ok}
           errorMessage={sp.correo_error}
         />
         <BlogPostForm mode="edit" postId={post.id} initialValues={mapBlogPostToFormValues(post)} />
+        {banner ? <BlogBannerPanel postId={post.id} published={post.status === "PUBLISHED"} data={banner} /> : null}
       </div>
     </BlogShell>
   );
