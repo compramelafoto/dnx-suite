@@ -24,6 +24,12 @@ describe("storePaymentDescription", () => {
   it("nombra la institución y el número de pedido", () => {
     expect(storePaymentDescription("Sociedad Fotográfica", 42)).toBe("Compra en Sociedad Fotográfica — pedido #42");
   });
+
+  it("si el pedido lleva envío, lo dice", () => {
+    expect(storePaymentDescription("Sociedad Fotográfica", 42, true)).toBe(
+      "Compra en Sociedad Fotográfica — pedido #42 (incluye envío)",
+    );
+  });
 });
 
 describe("storeReturnUrls", () => {
@@ -72,7 +78,9 @@ describe("startStoreCheckout — la comisión se congela una sola vez", () => {
     orderNumber: 7,
     status: "PENDING_PAYMENT",
     holdExpiresAt: new Date("2026-10-04T15:10:00Z"),
+    subtotalArs: dec("10000.00"),
     totalArs: dec("10000.00"),
+    shippingArs: dec("0.00"),
     buyerEmail: "ana@example.com",
     feeBps: 0,
     feeArs: dec("0.00"),
@@ -131,5 +139,37 @@ describe("startStoreCheckout — la comisión se congela una sola vez", () => {
 
     expect(r).toEqual({ ok: false, error: "Ese pedido ya no está esperando el pago." });
     expect(createPreference).not.toHaveBeenCalled();
+  });
+
+  it("con envío: cobra el total y la comisión (y la deuda) sale sólo de los productos (E11)", async () => {
+    pendingFeeDebtMinor.mockResolvedValue(300_00);
+    storeOrder.findFirst.mockResolvedValue(
+      pedido({ subtotalArs: dec("10000.00"), shippingArs: dec("4500.00"), totalArs: dec("14500.00") }),
+    );
+
+    const r = await startStoreCheckout(entrada);
+
+    expect(r.ok).toBe(true);
+    // 5% de $10.000 = $500 propios + $300 de deuda; nada sobre los $4.500 del envío.
+    expect(storeOrder.updateMany).toHaveBeenNthCalledWith(1, {
+      where: { id: "ord1", workspaceId: "ws1", status: "PENDING_PAYMENT" },
+      data: { feeBps: 500, feeArs: "800.00" },
+    });
+    expect(createPreference).toHaveBeenCalledWith(
+      expect.objectContaining({
+        amountMinor: 14_500_00,
+        marketplaceFeeMinor: 800_00,
+        description: "Compra en Sociedad — pedido #7 (incluye envío)",
+      }),
+    );
+  });
+
+  it("la deuda arrastrada no se cobra del envío: tope en el subtotal de productos", async () => {
+    pendingFeeDebtMinor.mockResolvedValue(50_000_00);
+    storeOrder.findFirst.mockResolvedValue(
+      pedido({ subtotalArs: dec("10000.00"), shippingArs: dec("4500.00"), totalArs: dec("14500.00") }),
+    );
+    await startStoreCheckout(entrada);
+    expect(createPreference).toHaveBeenCalledWith(expect.objectContaining({ amountMinor: 14_500_00, marketplaceFeeMinor: 10_000_00 }));
   });
 });

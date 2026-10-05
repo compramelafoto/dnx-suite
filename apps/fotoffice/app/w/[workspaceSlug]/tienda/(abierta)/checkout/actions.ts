@@ -44,8 +44,8 @@ async function socioDeEstaInstitucion(workspaceId: string): Promise<string | nul
 /**
  * "Pagar con Mercado Pago". Pública: no exige cuenta (si hay sesión de socio, el pedido queda
  * asociado a su ficha). Lo que manda el navegador es basura hasta que pasa `parseCheckoutInput`,
- * y de él sólo se usan los datos del comprador, qué productos y cuántos: precios y nombres los
- * pone el servidor.
+ * y de él sólo se usan los datos del comprador, qué productos y cuántos, y a dónde va: precios
+ * (también el del envío), nombres y datos de la sucursal los pone el servidor.
  *
  * Si sale bien no vuelve: redirige a Mercado Pago. Si falla, devuelve el motivo para mostrarlo.
  */
@@ -64,13 +64,9 @@ export async function placeOrderAction(workspaceSlug: unknown, raw: unknown): Pr
     return { ok: false, error: "Revisá los datos marcados.", fieldErrors: parsed.errors };
   }
 
-  // El pedido todavía no sabe cobrar ni guardar un envío: hasta que lo haga, sólo se acepta el
-  // retiro (nunca se vende un envío sin precio). Y el retiro, sólo si la institución lo ofrece.
-  const opciones = await loadCheckoutDeliveryOptions(workspaceId);
-  if (parsed.value.delivery.method !== "PICKUP") {
-    return { ok: false, error: "Por ahora sólo podés retirar tu compra en la sede." };
-  }
-  if (!opciones.pickup) {
+  // El retiro, sólo si la institución lo ofrece. Que el envío elegido esté habilitado (y su
+  // precio) lo comprueba `createStoreOrder`, que además lo vuelve a cotizar en el servidor.
+  if (parsed.value.delivery.method === "PICKUP" && !(await loadCheckoutDeliveryOptions(workspaceId)).pickup) {
     return { ok: false, error: "El retiro en la sede no está disponible. Elegí otra forma de entrega." };
   }
 

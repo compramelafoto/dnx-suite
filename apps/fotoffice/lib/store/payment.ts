@@ -18,14 +18,17 @@ import { storeExternalReference } from "./external-reference";
  * retenido en la misma operación; el dinero no pasa por DNX. La comisión sigue el mismo criterio
  * (propia + deuda arrastrada) y se congela en el pedido ANTES de ir a Mercado Pago, una sola vez.
  *
+ * Con envío, Mercado Pago cobra el total (productos + envío), pero la comisión se calcula sobre
+ * los productos solamente (E11): el envío es plata que va al correo.
+ *
  * El webhook es propio (`/api/payments/mp/tienda-webhook`) por el mismo motivo que el de reservas:
  * un error de la tienda no puede romper el cobro de las cuotas.
  */
 
 // ── Reglas puras (probadas en payment.test.ts) ─────────────────────────────
 
-export function storePaymentDescription(storeName: string, orderNumber: number): string {
-  return `Compra en ${storeName} — pedido #${orderNumber}`;
+export function storePaymentDescription(storeName: string, orderNumber: number, withShipping = false): string {
+  return `Compra en ${storeName} — pedido #${orderNumber}${withShipping ? " (incluye envío)" : ""}`;
 }
 
 /** Las tres vueltas de Mercado Pago. `returnPath` puede traer ya parámetros (el token del pedido). */
@@ -70,6 +73,8 @@ export async function startStoreCheckout(input: {
       orderNumber: true,
       status: true,
       holdExpiresAt: true,
+      subtotalArs: true,
+      shippingArs: true,
       totalArs: true,
       buyerEmail: true,
       feeBps: true,
@@ -109,7 +114,9 @@ export async function startStoreCheckout(input: {
   } else {
     feeBps = await getPlatformFeeBps(input.workspaceId, STORE_MODULE_KEY);
     const deuda = await pendingFeeDebtMinor(input.workspaceId);
-    withholdMinor = feeForBooking({ totalMinor, feeBps, pendingDebtMinor: deuda }).withholdMinor;
+    // Sobre los productos (E11): ni la comisión ni la deuda arrastrada salen del envío.
+    const subtotalMinor = decimalArsToMinor(pedido.subtotalArs);
+    withholdMinor = feeForBooking({ totalMinor: subtotalMinor, feeBps, pendingDebtMinor: deuda }).withholdMinor;
   }
 
   // Se escribe ANTES de ir a Mercado Pago y SÓLO si sigue esperando el pago: si en el medio se
@@ -127,7 +134,7 @@ export async function startStoreCheckout(input: {
     const preferencia = await adapter.createPreference({
       amountMinor: totalMinor,
       currency: "ARS",
-      description: storePaymentDescription(nombre, pedido.orderNumber),
+      description: storePaymentDescription(nombre, pedido.orderNumber, decimalArsToMinor(pedido.shippingArs) > 0),
       externalReference: storeExternalReference(pedido.id),
       idempotencyKey: randomUUID(),
       ...storeReturnUrls(base, input.returnPath),

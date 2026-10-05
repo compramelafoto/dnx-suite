@@ -165,3 +165,46 @@ describe("avisos a la institución", () => {
     expect(r.html).not.toContain("<a ");
   });
 });
+
+describe("pedido con envío", () => {
+  const conEnvio: StoreEmailOrder = {
+    ...pedido,
+    totalMinor: 29_500_00,
+    shipping: {
+      label: "Envío a domicilio",
+      amountMinor: 4_500_00,
+      lines: ["Mitre 10, 2 A", "Rosario, Santa Fe (CP 2000)", "Recibe: Ana Pérez · 341 555 1234"],
+    },
+  };
+
+  it("pagado: renglón de envío, total con envío y la dirección en vez del retiro", () => {
+    const m = renderOrderPaid(conEnvio);
+    for (const salida of [m.text, m.html]) {
+      expect(salida).toContain("Envío a domicilio");
+      expect(salida).toContain("4.500");
+      expect(salida).toContain("29.500");
+      expect(salida).toContain("Mitre 10, 2 A");
+      expect(salida).not.toContain("Dónde retirarlo");
+      expect(salida).not.toContain("Tocá timbre 2");
+    }
+    expect(m.text).not.toMatch(/para retirar/);
+    expect(m.text).not.toMatch(JERGA);
+  });
+
+  it("aviso a la institución: a dónde mandarlo", () => {
+    const m = renderNewOrderNotice(conEnvio);
+    expect(m.text).toContain("Envío a domicilio");
+    expect(m.text).toContain("Rosario, Santa Fe (CP 2000)");
+    expect(m.text).not.toMatch(/lo retire/);
+  });
+
+  it("escapa el HTML de la dirección", () => {
+    const m = renderOrderPaid({ ...conEnvio, shipping: { ...conEnvio.shipping!, lines: ["<b>calle</b>"] } });
+    expect(m.html).not.toContain("<b>calle</b>");
+    expect(m.html).toContain("&lt;b&gt;calle&lt;/b&gt;");
+  });
+
+  it("sin envío: el detalle no muestra renglón de envío", () => {
+    expect(renderOrderPaid(pedido).text).not.toContain("Envío");
+  });
+});

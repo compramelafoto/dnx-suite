@@ -15,7 +15,12 @@ const SELECT_PAGINA = {
   accessTokenHash: true,
   holdExpiresAt: true,
   subtotalArs: true,
+  shippingArs: true,
   totalArs: true,
+  deliveryMethod: true,
+  shippingMethod: true,
+  shippingAddressJson: true,
+  shippingAgencyJson: true,
   createdAt: true,
   items: {
     orderBy: { id: "asc" },

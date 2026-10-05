@@ -4,6 +4,7 @@ import { appUrl } from "@/lib/app-url";
 import { sendAndLogEmail } from "@/lib/communications/send-and-log";
 import { decimalArsToMinor } from "@/lib/membership/money";
 import { orderAccessToken, resolveOrderTokenKey } from "./access-token";
+import { orderShippingView } from "./shipping/order-destination";
 import {
   buildStoreOrderUrl,
   renderCreditFailureAlert,
@@ -41,6 +42,11 @@ async function cargar(input: StoreOrderEmailInput): Promise<Cargado | null> {
       buyerEmail: true,
       buyerPhone: true,
       totalArs: true,
+      deliveryMethod: true,
+      shippingMethod: true,
+      shippingArs: true,
+      shippingAddressJson: true,
+      shippingAgencyJson: true,
       items: {
         orderBy: { id: "asc" },
         select: { productName: true, variantName: true, qty: true, lineTotalArs: true },
@@ -66,6 +72,7 @@ async function cargar(input: StoreOrderEmailInput): Promise<Cargado | null> {
 
   const origen = appUrl();
   const clave = resolveOrderTokenKey();
+  const destino = orderShippingView(order);
   return {
     publicId: order.publicId,
     buyerEmail: order.buyerEmail,
@@ -87,6 +94,9 @@ async function cargar(input: StoreOrderEmailInput): Promise<Cargado | null> {
         hours: settings?.pickupHours ?? null,
         instructions: settings?.pickupInstructions ?? null,
       },
+      shipping: destino
+        ? { label: destino.label, amountMinor: decimalArsToMinor(order.shippingArs), lines: destino.lines }
+        : null,
       // El mismo token que se dio al crear el pedido (es determinista): no invalida la cookie.
       orderUrl: buildStoreOrderUrl({
         customDomain: dominio?.status === "CONNECTED" ? dominio.domain : null,

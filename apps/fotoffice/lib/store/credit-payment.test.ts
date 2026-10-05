@@ -36,6 +36,9 @@ type Status = "PENDING_PAYMENT" | "PAID" | "READY" | "DELIVERED" | "CANCELLED" |
 
 function pedido(over: { status?: Status; mpPaymentId?: string | null } = {}) {
   return {
+    subtotalArs: "25000.00",
+    shippingArs: "0.00",
+    shippingMethod: null as string | null,
     id: "ord1",
     workspaceId: "ws1",
     orderNumber: 7,
@@ -300,6 +303,66 @@ describe("creditStorePayment — la idempotencia la decide el pago, no el estado
       data: { orderId: "ord1", fromStatus: "CANCELLED", toStatus: "CANCELLED", note: "Pago duplicado mp2: hay que devolverlo" },
     });
     expect(h.emails.sendDuplicatePaymentAlert).toHaveBeenCalled();
+  });
+});
+
+describe("creditStorePayment — pedido con envío (E12)", () => {
+  /** $25.000 de productos + $4.500 de envío a domicilio = $29.500. */
+  const conEnvio = (shippingMethod: "HOME" | "BRANCH" = "HOME") => ({
+    ...pedido(),
+    shippingArs: "4500.00",
+    totalArs: "29500.00",
+    shippingMethod,
+    // 5% de $25.000 = $1.250 propios + $250 de deuda: la comisión no toca el envío.
+    feeArs: "1500.00",
+  });
+  const cobroTotal = { amountMinor: 29_500_00, currency: "ARS" };
+
+  it("agrega el renglón suelto del envío y la venta suma el total del pedido", async () => {
+    preparar(conEnvio());
+    const r = await creditStorePayment({ ...cobroTotal, orderId: "ord1", providerPaymentId: "mp1", paidAt: fechaPago });
+
+    expect(r).toEqual({ applied: true, status: "PAID" });
+    const [, input] = h.recordSale.mock.calls[0] as [unknown, { lines: { qty: number; unitPriceMinor: number }[] }];
+    expect(input.lines).toHaveLength(3);
+    expect(input.lines[2]).toEqual({
+      productId: null,
+      variantId: null,
+      description: "Envío a domicilio",
+      qty: 1,
+      unitPriceMinor: 4_500_00,
+      unitCostMinor: null,
+      priceWasOverridden: false,
+    });
+    const totalVenta = input.lines.reduce((s, l) => s + l.qty * l.unitPriceMinor, 0);
+    expect(totalVenta).toBe(29_500_00);
+  });
+
+  it("a sucursal, el renglón lo dice", async () => {
+    preparar(conEnvio("BRANCH"));
+    await creditStorePayment({ ...cobroTotal, orderId: "ord1", providerPaymentId: "mp1" });
+    const [, input] = h.recordSale.mock.calls[0] as [unknown, { lines: { description: string }[] }];
+    expect(input.lines.at(-1)?.description).toBe("Envío a sucursal");
+  });
+
+  it("la deuda cobrada se calcula contra la comisión de los productos, no del total", async () => {
+    preparar(conEnvio());
+    await creditStorePayment({ ...cobroTotal, orderId: "ord1", providerPaymentId: "mp1" });
+    expect(h.recordDischarge).toHaveBeenCalledWith(tx, expect.objectContaining({ amountMinor: 250_00 }));
+  });
+
+  it("el control de monto usa el total con envío: pagar sólo los productos no alcanza", async () => {
+    preparar(conEnvio());
+    const r = await creditStorePayment({ ...cobro, orderId: "ord1", providerPaymentId: "mp1" });
+    expect(r).toEqual({ applied: true, status: "PAID_NO_STOCK" });
+    expect(h.recordSale).not.toHaveBeenCalled();
+  });
+
+  it("sin envío no se agrega ningún renglón suelto", async () => {
+    preparar(pedido());
+    await creditStorePayment({ ...cobro, orderId: "ord1", providerPaymentId: "mp1" });
+    const [, input] = h.recordSale.mock.calls[0] as [unknown, { lines: { productId: string | null }[] }];
+    expect(input.lines.every((l) => l.productId !== null)).toBe(true);
   });
 });
 

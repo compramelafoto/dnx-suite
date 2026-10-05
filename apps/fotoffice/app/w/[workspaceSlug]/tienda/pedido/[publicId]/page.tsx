@@ -9,6 +9,7 @@ import { checkStoreOrderPayment } from "@/lib/store/mp-payment";
 import { keptReturnParams, storeOrderCookieName, storeVisibleBase } from "@/lib/store/order-access";
 import { findStoreOrderForPage, tokenOpensOrder, type StoreOrderPageRow } from "@/lib/store/order-page";
 import { loadOpenStore, loadStoreWorkspace } from "@/lib/store/repository";
+import { orderShippingView } from "@/lib/store/shipping/order-destination";
 import { hostWithoutPort } from "@/lib/website/domain/normalize";
 import { Price } from "@/components/store/price";
 import { ClearCartWhenPaid, RetryPaymentButton } from "./order-client";
@@ -105,6 +106,7 @@ export default async function StoreOrderPage({ params, searchParams }: Props) {
   const esperando =
     pedido.status === "PENDING_PAYMENT" && pedido.holdExpiresAt !== null && pedido.holdExpiresAt.getTime() > ahora.getTime();
   const pagado = PAGADO.includes(pedido.status);
+  const envio = orderShippingView(pedido);
   const pickupAddress = store.pickup?.pickupAddress ?? null;
   const pickupHours = store.pickup?.pickupHours ?? null;
   const pickupInstructions = store.pickup?.pickupInstructions ?? null;
@@ -120,7 +122,7 @@ export default async function StoreOrderPage({ params, searchParams }: Props) {
         <h1 className="text-3xl font-semibold tracking-tight">{TITULO[pedido.status]}</h1>
       </header>
 
-      <EstadoDelPedido pedido={pedido} esperando={esperando} pago={pago} />
+      <EstadoDelPedido pedido={pedido} esperando={esperando} pago={pago} conEnvio={envio !== null} />
 
       {/* Volviendo de pagar (aprobado o pendiente, p. ej. en efectivo) no se ofrece pagar otra vez: sería un pago doble. */}
       {esperando && abierta && pago !== "ok" && pago !== "pendiente" ? <RetryPaymentButton workspaceSlug={store.workspace.slug} publicId={pedido.publicId} /> : null}
@@ -140,6 +142,12 @@ export default async function StoreOrderPage({ params, searchParams }: Props) {
               <Price minor={decimalArsToMinor(it.lineTotalArs)} className="shrink-0 font-medium" />
             </li>
           ))}
+          {envio ? (
+            <li className="flex items-start justify-between gap-4 py-3">
+              <p className="font-medium">{envio.label}</p>
+              <Price minor={decimalArsToMinor(pedido.shippingArs)} className="shrink-0 font-medium" />
+            </li>
+          ) : null}
         </ul>
         <div className="flex items-center justify-between border-t border-[var(--fo-border)] pt-4 text-lg font-semibold">
           <span>Total</span>
@@ -147,7 +155,16 @@ export default async function StoreOrderPage({ params, searchParams }: Props) {
         </div>
       </section>
 
-      {pickupAddress || pickupHours || pickupInstructions ? (
+      {envio ? (
+        <section className="fo-card space-y-2 p-6">
+          <h2 className="text-lg font-semibold">{envio.label}</h2>
+          {envio.lines.map((l, i) => (
+            <p key={i} className={i === 0 ? undefined : "text-sm text-[var(--fo-muted)]"}>
+              {l}
+            </p>
+          ))}
+        </section>
+      ) : pickupAddress || pickupHours || pickupInstructions ? (
         <section className="fo-card space-y-2 p-6">
           <h2 className="text-lg font-semibold">Retiro</h2>
           {pickupAddress ? <p>{pickupAddress}</p> : null}
@@ -169,16 +186,22 @@ function EstadoDelPedido({
   pedido,
   esperando,
   pago,
+  conEnvio,
 }: {
   pedido: StoreOrderPageRow;
   esperando: boolean;
   pago: string | null;
+  conEnvio: boolean;
 }) {
   const texto = (t: string) => <p className="text-[var(--fo-muted)]">{t}</p>;
 
   switch (pedido.status) {
     case "PAID":
-      return texto("Recibimos tu pago. Te avisamos por correo cuando tu pedido esté listo para retirar.");
+      return texto(
+        conEnvio
+          ? "Recibimos tu pago. Te avisamos por correo cuando despachemos tu pedido."
+          : "Recibimos tu pago. Te avisamos por correo cuando tu pedido esté listo para retirar.",
+      );
     case "READY":
       return texto("Tu pedido está listo. Podés pasar a retirarlo.");
     case "DELIVERED":
