@@ -144,7 +144,13 @@ export async function listMemberOptions(workspaceId: string): Promise<{
   }
   const commission: MemberOption[] = [];
   const others: MemberOption[] = [];
-  for (const m of members) {
+  // Orden alfabético en castellano: la base ordena por bytes y deja "robledo" después de "Woelflin".
+  const ordenados = members.slice().sort(
+    (a, b) =>
+      a.lastName.localeCompare(b.lastName, "es", { sensitivity: "base" }) ||
+      a.firstName.localeCompare(b.firstName, "es", { sensitivity: "base" }),
+  );
+  for (const m of ordenados) {
     const base = `${m.lastName}, ${m.firstName}`.trim();
     const cargo = cargoPorSocio.get(m.id);
     if (cargo) commission.push({ id: m.id, label: `${base} — ${cargo}` });
