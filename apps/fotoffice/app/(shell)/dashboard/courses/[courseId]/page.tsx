@@ -79,6 +79,7 @@ export default async function DashboardCourseDetailPage({
           priceArs: course.priceArs?.toString() ?? null,
           accessMonths: course.accessMonths,
           completionPercent: course.completionPercent,
+          freeForMembers: course.freeForMembers,
           faqJson: course.faqJson,
           classroomLink: course.classroomLink,
           classroomCode: course.classroomCode,

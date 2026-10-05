@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
 import { requireAuth } from "@/lib/auth";
 import { loadPortalContext } from "@/lib/portal/access";
+import { tieneCursos } from "@/lib/course-classroom/alumno";
 import { resolveFotofficeUserKind } from "@/lib/portal/user-kind";
 import { listUserProfiles } from "@/lib/portal/profiles";
 import { loadMemberBalance } from "@/lib/membership/balance";
@@ -38,6 +39,9 @@ export default async function PortalPage() {
   const context = await loadPortalContext(user.id);
 
   if (!context) {
+    // Un alumno que entra a una pantalla de socios (todas redirigen a `/portal`) termina en
+    // Mis cursos, que es lo suyo.
+    if (await tieneCursos(user.id)) redirect("/portal/cursos");
     // Quien no es socio no tiene nada que hacer acá. Si administra una institución se lo
     // devuelve a su panel; si no, al inicio de sesión.
     const kind = await resolveFotofficeUserKind(user.id);

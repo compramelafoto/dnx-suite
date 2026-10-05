@@ -8,6 +8,7 @@ import { resolveRecommender } from "@/lib/membership/recommendation-link";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
+import { asociarseAbierto } from "@/lib/course-classroom/asociarse";
 
 export const dynamic = "force-dynamic";
 
@@ -73,7 +74,8 @@ export default async function AsociarsePage({ params, searchParams }: Props) {
   const institutionName = branding.commercialName?.trim() || workspace?.name || "la institución";
 
   // Sin cobros conectados o sin valor de cuota, aprobar generaría cuotas impagables.
-  const abierto = cobros.canCharge && Boolean(valorCuota);
+  // El módulo ya se exigió arriba con `notFound`. El criterio vive en un solo lugar.
+  const abierto = asociarseAbierto({ moduloSocios: true, puedeCobrar: cobros.canCharge, hayValorCuota: Boolean(valorCuota) });
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-12 space-y-8">

@@ -329,6 +329,7 @@ model User {
   subilafotoSellerProfiles            SubilafotoSellerProfile[]
   subilafotoCollaborations            SubilafotoCollaborator[]
   coverageEvents                      CoverageEvent[]
+  courseAccesses                      CourseAccess[]
   clickatonReferralCode               ClickatonReferralCode?
   clickatonReferralsMade              ClickatonReferralAttribution[]     @relation("ClickatonReferralReferrer")
   clickatonReferralReceived           ClickatonReferralAttribution?      @relation("ClickatonReferralReferred")
@@ -7077,6 +7078,7 @@ model Workspace {
   updatedAt                   DateTime                          @updatedAt
   courses                     Course[]
   courseEnrollments           CourseEnrollment[]
+  courseAccesses              CourseAccess[]
   courseSalesCourses          CourseSalesCourse[]
   courseSalesLeads            CourseSalesLead[]
   courseSalesTeachers         CourseSalesTeacher[]
@@ -9184,12 +9186,15 @@ model Course {
   accessMonths          Int                @default(12)
   /// Porcentaje de clases vistas que da el curso por terminado y emite el certificado.
   completionPercent     Int                @default(80)
+  /// El socio activo de la institución lo toma gratis desde su portal; el público lo paga.
+  freeForMembers        Boolean            @default(false)
   createdAt             DateTime           @default(now())
   updatedAt             DateTime           @updatedAt
   workspace             Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   instances             CourseInstance[]
   lessons               CourseLesson[]
   enrollments           CourseEnrollment[]
+  accesses              CourseAccess[]
 
   @@unique([workspaceId, slug])
   @@index([workspaceId, status])
@@ -9217,6 +9222,7 @@ model CourseLesson {
   updatedAt       DateTime                 @updatedAt
   course          Course                   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   attachments     CourseLessonAttachment[]
+  progress        CourseLessonProgress[]
 
   @@index([courseId, sortOrder])
 }
@@ -9233,6 +9239,61 @@ model CourseLessonAttachment {
   createdAt  DateTime     @default(now())
   lesson     CourseLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 
+  @@index([lessonId])
+}
+
+/// El acceso de una persona a un curso grabado.
+///
+/// Es de la **cuenta** (`userId`): el curso se ve en el portal con usuario y contraseña. Puede
+/// venir de una compra (`PURCHASE`, vence según `Course.accessMonths`) o de ser socio
+/// (`MEMBER_BENEFIT`, sin vencimiento: vale mientras sea socio activo). La regla vive en
+/// `lib/course-classroom/access-rules.ts` (`estadoDeAccesoAlCurso`).
+model CourseAccess {
+  id           String                 @id @default(cuid())
+  workspaceId  String
+  courseId     String
+  /// La inscripción que lo originó. Si una persona compra un curso que tenía de beneficio, el
+  /// acceso pasa a la inscripción paga.
+  enrollmentId String                 @unique
+  userId       Int
+  origin       CourseAccessOrigin     @default(PURCHASE)
+  grantedAt    DateTime               @default(now())
+  /// Null en los de beneficio de socio.
+  expiresAt    DateTime?
+  revokedAt    DateTime?
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+  workspace    Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  course       Course                 @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  enrollment   CourseEnrollment       @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  user         User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  progress     CourseLessonProgress[]
+
+  /// Una persona, un acceso por curso: su avance no se parte en dos.
+  @@unique([userId, courseId])
+  @@index([workspaceId, courseId])
+}
+
+/// Cuánto vio un alumno de una clase.
+///
+/// `secondsWatched` es tiempo **mirado**, no la posición: arrastrar la barra al final no suma.
+/// La regla vive en `lib/course-classroom/progress-rules.ts`, con test.
+model CourseLessonProgress {
+  id                  String       @id @default(cuid())
+  accessId            String
+  lessonId            String
+  secondsWatched      Int          @default(0)
+  /// Para retomar donde quedó.
+  lastPositionSeconds Int          @default(0)
+  /// Cuándo llegó el último reporte. Con esto el servidor sabe cuánto pudo mirar de verdad.
+  lastReportAt        DateTime?
+  completedAt         DateTime?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  access              CourseAccess @relation(fields: [accessId], references: [id], onDelete: Cascade)
+  lesson              CourseLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([accessId, lessonId])
   @@index([lessonId])
 }
 
@@ -9282,6 +9343,7 @@ model CourseEnrollment {
   workspace              Workspace                     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   course                 Course                        @relation(fields: [courseId], references: [id], onDelete: Cascade)
   courseInstance         CourseInstance?               @relation(fields: [courseInstanceId], references: [id], onDelete: Cascade)
+  access                 CourseAccess?
 
   @@index([workspaceId, paymentStatus])
   @@index([courseId, paymentStatus])
@@ -11003,6 +11065,11 @@ enum CourseLessonVideoStatus {
   ERROR
 }
 
+enum CourseAccessOrigin {
+  PURCHASE
+  MEMBER_BENEFIT
+}
+
 enum CourseStatus {
   DRAFT
   PUBLISHED
@@ -11025,6 +11092,7 @@ enum CourseEnrollmentPaymentStatus {
 
 enum CourseEnrollmentPaymentMethod {
   MERCADO_PAGO
+  MEMBER_BENEFIT
 }
 
 enum ServiceLeadStatus {
