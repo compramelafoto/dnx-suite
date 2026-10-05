@@ -8,6 +8,9 @@ import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { computeAvailableSpots, getApprovedEnrollmentCountsByInstanceIds } from "@/lib/presential-courses/availability";
 import { resolverObjetivoDeInscripcion } from "@/lib/presential-courses/enrollment-target";
 import { logCourseEvent } from "@/lib/presential-courses/log";
+import { estadoDeVenta } from "@/lib/course-marketplace/beneficiarios";
+import { cargarBeneficiarios, cargarDueno } from "@/lib/course-marketplace/cargar";
+import { montosDeCompraSinReparto } from "@/lib/course-marketplace/compra";
 import { splitByPlatformFee } from "@/lib/platform-fee/fee";
 import { getPlatformFeeBps } from "@/lib/platform-fee/store";
 
@@ -93,8 +96,27 @@ export async function createPublicCourseEnrollmentAction(
   // La comisión sale de WorkspaceModuleFee (default 5%), no de coursesFeePercent, que el
   // dueño del workspace podía editar y quedó deprecado.
   const feeBps = await getPlatformFeeBps(branding.workspaceId, COURSES_SALES_MODULE_KEY);
-  const amount = objetivo.monto;
-  const { fee, net } = splitByPlatformFee(amount, feeBps);
+
+  // Curso grabado: un curso con varios beneficiarios no se vende mientras el split de Mercado
+  // Pago esté apagado, y el 5% de la plataforma va ENCIMA del precio de lista.
+  let montos: ReturnType<typeof montosDeCompraSinReparto> | null = null;
+  if (objetivo.courseInstanceId === null) {
+    const beneficiarios = await cargarBeneficiarios(course.id);
+    if (estadoDeVenta(course.workspaceId, beneficiarios).tipo !== "SIN_REPARTO") {
+      return { error: "Este curso todavía no está a la venta." };
+    }
+    montos = montosDeCompraSinReparto({
+      listaArs: objetivo.monto.toString(),
+      comisionPlataformaBps: feeBps,
+      owner: await cargarDueno(course.workspaceId),
+    });
+    if (!montos.ok) return { error: montos.error };
+  }
+
+  const amount = montos?.ok ? new Prisma.Decimal(montos.amountArs) : objetivo.monto;
+  const { fee, net } = montos?.ok
+    ? { fee: new Prisma.Decimal(montos.platformFeeArs), net: new Prisma.Decimal(montos.netAmountArs) }
+    : splitByPlatformFee(amount, feeBps);
   const feePercent = new Prisma.Decimal(feeBps).div(100);
 
   const enrollment = await prisma.courseEnrollment.create({
@@ -115,6 +137,9 @@ export async function createPublicCourseEnrollmentAction(
       platformFeePercent: feePercent,
       platformFeeArs: fee,
       netAmountArs: net,
+      // Sólo el curso grabado guarda el precio de lista; el presencial queda en null.
+      listPriceArs: montos?.ok ? new Prisma.Decimal(montos.listPriceArs) : null,
+      discountArs: montos?.ok ? new Prisma.Decimal(montos.discountArs) : null,
     },
     select: { id: true },
   });
