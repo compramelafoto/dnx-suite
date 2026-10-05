@@ -21,6 +21,8 @@ import {
 } from "@/lib/spotlight/repository";
 import { buildSpotlightCard } from "@/lib/spotlight/view";
 import { spotlightWeekLabel } from "@/lib/spotlight/week";
+import { loadBirthdaysOfWeek } from "@/lib/birthdays/repository";
+import type { BirthdayView } from "@/lib/birthdays/week";
 
 export const dynamic = "force-dynamic";
 
@@ -128,6 +130,19 @@ export default async function PortalPage() {
     });
   }
 
+  // Los cumpleaños de la semana. Igual que la tarjeta de arriba: si falla, el panel sigue.
+  let cumpleanos: BirthdayView[] = [];
+  try {
+    cumpleanos = await loadBirthdaysOfWeek({
+      workspaceId: context.workspace.id,
+      viewerMemberId: context.member.id,
+    });
+  } catch (error) {
+    console.error("[fotoffice][cumpleanos] no se pudieron cargar los cumpleaños", {
+      detalle: error instanceof Error ? error.message : "error desconocido",
+    });
+  }
+
   return (
     <PortalHome
       institution={institution}
@@ -154,6 +169,7 @@ export default async function PortalPage() {
       sorteo={sorteo}
       whatsappGroupUrl={duesSettings.communityWhatsappUrl}
       socioDeLaSemana={socioDeLaSemana}
+      cumpleanos={cumpleanos}
     />
   );
 }
