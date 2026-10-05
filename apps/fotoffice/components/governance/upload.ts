@@ -5,8 +5,10 @@
 export async function uploadGovernanceFile(
   file: File,
   target: { projectId: string; taskId?: string },
+  /** El panel usa la ruta del equipo; el portal, la del socio (otra regla de quién puede subir). */
+  endpoint: string = "/api/gobierno/upload-url",
 ): Promise<{ ok: true; key: string; filename: string } | { ok: false; error: string }> {
-  const permiso = await fetch("/api/gobierno/upload-url", {
+  const permiso = await fetch(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
