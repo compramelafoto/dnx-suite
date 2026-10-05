@@ -390,7 +390,7 @@ export function PortalHome({
         ) : null}
         {!tieneNegocio ? (
           <form action={createOwnBusinessAction} className="leading-relaxed">
-            {`¿Tenés tu propio estudio? Podés usar FotoOffice para administrar tu negocio fotográfico, aparte de tu ficha de ${v.singular}.`}{" "}
+            {`¿Tenés tu propio estudio o querés enseñar? Creá tu espacio en FotoOffice para administrar tu negocio o subir tus cursos y que las instituciones los vendan, aparte de tu ficha de ${v.singular}.`}{" "}
             <button type="submit" className="underline underline-offset-2 hover:text-[var(--fo-text)]">
               Crear mi negocio
             </button>

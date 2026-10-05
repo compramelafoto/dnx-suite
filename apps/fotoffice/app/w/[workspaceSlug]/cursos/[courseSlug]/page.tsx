@@ -11,6 +11,7 @@ import { decidirVenta, montosDeVenta } from "@/lib/course-marketplace/venta";
 import { cobroConRepartoHabilitado } from "@/lib/payments/split-1n";
 import { appUrl as direccionDeLaApp } from "@/lib/app-url";
 import { computeAvailableSpots, getApprovedEnrollmentCountsByInstanceIds } from "@/lib/presential-courses/availability";
+import { InvitacionAEnsenar } from "@/components/course-marketplace/invitacion-a-ensenar";
 import { RecordedCourseSection } from "@/components/presential-courses/recorded-course-section";
 import { PublicCourseEnrollmentForm } from "@/components/presential-courses/public-course-enrollment-form";
 
@@ -290,6 +291,8 @@ export default async function PublicCourseLandingPage({ params }: Props) {
         )}
       </section>
       )}
+
+      {appUrl ? <InvitacionAEnsenar modo="publico" appUrl={appUrl} /> : null}
     </main>
   );
 }

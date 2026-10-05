@@ -8,6 +8,9 @@ import { fechaLegibleArgentina } from "@/lib/course-classroom/access-rules";
 import { cursosGratisParaSocio, mensajeDeBeneficio } from "@/lib/course-classroom/beneficio";
 import { cursosGratisDeLaInstitucion, rutaAsociarse } from "@/lib/course-classroom/asociarse";
 import { loadPortalContext } from "@/lib/portal/access";
+import { listUserProfiles } from "@/lib/portal/profiles";
+import { InvitacionAEnsenar } from "@/components/course-marketplace/invitacion-a-ensenar";
+import { debeInvitarAEnsenar } from "@/lib/course-marketplace/invitacion-ensenar";
 import { cursosRevendidosParaSocios } from "@/lib/course-marketplace/vitrina";
 import { formatMoney } from "@/lib/format";
 import { anotarmeGratisAction } from "./actions";
@@ -33,6 +36,7 @@ export default async function MisCursosPage({ searchParams }: { searchParams: Pr
   await otorgarAccesosPendientes(user.id);
   const grupos = await cargarMisCursos(user.id);
   const socio = await loadPortalContext(user.id);
+  const tieneNegocio = (await listUserProfiles(user.id)).some((p) => p.kind === "TEAM");
   const gratis = socio ? await cursosGratisParaSocio(socio.workspace.id, user.id) : [];
   const yaTiene = new Set(grupos.flatMap((g) => g.cursos.map((c) => c.courseId)));
   const revendidos = socio ? (await cursosRevendidosParaSocios(socio.workspace.id)).filter((c) => !yaTiene.has(c.courseId)) : [];
@@ -168,6 +172,8 @@ export default async function MisCursosPage({ searchParams }: { searchParams: Pr
           </ul>
         </section>
       ) : null}
+
+      {debeInvitarAEnsenar({ tieneNegocio }) ? <InvitacionAEnsenar modo="portal" /> : null}
     </div>
   );
 }
