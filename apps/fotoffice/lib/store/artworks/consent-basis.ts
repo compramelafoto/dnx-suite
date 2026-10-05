@@ -11,12 +11,18 @@ export function consentBasisFromRights(
   return rights && rights.allowPrint && rights.allowCommercial ? "RULES" : "EXPLICIT";
 }
 
-export function isSellable(consent: { basis: ConsentBasis; status: ConsentStatus } | null): boolean {
+/**
+ * ¿Se puede vender (publicar, cobrar) la obra? Una sola regla para publicar y para el checkout:
+ * - RULES: avisado y sin retirar. "Avisado" quiere decir que el correo SALIÓ (`notifiedAt`); si
+ *   el correo falló, el autor no se enteró y todavía no se puede vender.
+ * - EXPLICIT: el autor aceptó.
+ */
+export function isSellable(
+  consent: { basis: ConsentBasis | string; status: ConsentStatus | string; notifiedAt: Date | null } | null,
+): boolean {
   if (!consent) return false;
-  return (
-    (consent.basis === "RULES" && consent.status === "NOTIFIED") ||
-    (consent.basis === "EXPLICIT" && consent.status === "GRANTED")
-  );
+  if (consent.basis === "RULES") return consent.status === "NOTIFIED" && consent.notifiedAt !== null;
+  return consent.basis === "EXPLICIT" && consent.status === "GRANTED";
 }
 
 export function applyAuthorAction(

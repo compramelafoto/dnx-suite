@@ -29,10 +29,17 @@ describe("consentimiento", () => {
   });
   it("vendible", () => {
     expect(isSellable(null)).toBe(false);
-    expect(isSellable({ basis: "RULES", status: "NOTIFIED" })).toBe(true);
-    expect(isSellable({ basis: "RULES", status: "WITHDRAWN" })).toBe(false);
-    expect(isSellable({ basis: "EXPLICIT", status: "GRANTED" })).toBe(true);
-    expect(isSellable({ basis: "EXPLICIT", status: "PENDING" })).toBe(false);
+    const avisado = new Date("2026-10-05T12:00:00Z");
+    expect(isSellable({ basis: "RULES", status: "NOTIFIED", notifiedAt: avisado })).toBe(true);
+    // Correo que no salió: el autor no se enteró.
+    expect(isSellable({ basis: "RULES", status: "NOTIFIED", notifiedAt: null })).toBe(false);
+    expect(isSellable({ basis: "RULES", status: "WITHDRAWN", notifiedAt: avisado })).toBe(false);
+    expect(isSellable({ basis: "EXPLICIT", status: "GRANTED", notifiedAt: avisado })).toBe(true);
+    // Aceptó: vale aunque el último reenvío haya fallado.
+    expect(isSellable({ basis: "EXPLICIT", status: "GRANTED", notifiedAt: null })).toBe(true);
+    expect(isSellable({ basis: "EXPLICIT", status: "PENDING", notifiedAt: avisado })).toBe(false);
+    expect(isSellable({ basis: "RULES", status: "GRANTED", notifiedAt: avisado })).toBe(false);
+    expect(isSellable({ basis: "OTRA", status: "GRANTED", notifiedAt: avisado })).toBe(false);
   });
   it("transiciones del autor", () => {
     expect(applyAuthorAction({ basis: "RULES", status: "NOTIFIED" }, "withdraw")).toEqual({ ok: true, status: "WITHDRAWN" });

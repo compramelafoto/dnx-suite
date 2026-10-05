@@ -33,14 +33,14 @@ import {
 import { assertContestLinked, isContestLinked } from "./links";
 
 export const DEFAULT_ROYALTY_BPS = 2000;
-const MAX_ENTRIES_PER_REQUEST = 500;
+/** Obras por llamada: cada una es un correo. Las que sobran vuelven en `skipped` con "LIMIT". */
+export const MAX_ENTRIES_PER_REQUEST = 100;
 
 type Db = Pick<
   typeof prisma,
   | "$transaction"
   | "fotorankContest"
   | "fotorankContestEntry"
-  | "fotorankContestRulesVersion"
   | "user"
   | "artworkConsent"
   | "artworkListing"
@@ -63,33 +63,42 @@ export type ConsentDeps = {
   random?: (n: number) => Buffer;
 };
 
-// ── Bases del concurso ──────────────────────────────────────────────────────
+// ── Bases que aceptó cada autor ─────────────────────────────────────────────
 
-type Rights = { allowPrint: boolean; allowCommercial: boolean };
+export type Rights = { allowPrint: boolean; allowCommercial: boolean; attributionRequired: boolean };
 
 /** `rights` de la configuración versionada, o null si falta o no tiene la forma esperada. */
 export function rightsFromConfigurationJson(json: unknown): Rights | null {
   if (!json || typeof json !== "object") return null;
   const rights = (json as { rights?: unknown }).rights;
   if (!rights || typeof rights !== "object") return null;
-  const { allowPrint, allowCommercial } = rights as Record<string, unknown>;
+  const { allowPrint, allowCommercial, attributionRequired } = rights as Record<string, unknown>;
   if (typeof allowPrint !== "boolean" || typeof allowCommercial !== "boolean") return null;
-  return { allowPrint, allowCommercial };
+  return { allowPrint, allowCommercial, attributionRequired: attributionRequired === true };
 }
 
+/** Lo que hace falta de la obra para saber qué bases aceptó su autor (select de Prisma). */
+export const ENTRY_RULES_SELECT = {
+  registration: {
+    select: { rulesVersion: { select: { configurationVersion: { select: { configurationJson: true } } } } },
+  },
+} as const;
+
+type EntryWithRules = {
+  registration?: {
+    rulesVersion: { configurationVersion: { configurationJson: unknown } | null } | null;
+  } | null;
+};
+
 /**
- * Los derechos que dan las bases VIGENTES: la última versión PUBLISHED de las bases y la
- * configuración con la que se generó (lo que el autor aceptó al inscribirse). Igual que lee
- * FotoRank (`registration/rules-service.ts`), sin importar código de FotoRank. Sin bases
- * publicadas o sin configuración → null (y entonces se pide permiso explícito).
+ * Los derechos que dan las bases que ESTE autor aceptó al inscribirse: la versión de las bases
+ * de su inscripción (`FotorankContestRegistration.rulesVersionId`) y la configuración con la que
+ * se generó. No las bases vigentes: si el concurso cambió las bases después, al autor lo obliga
+ * lo que firmó. Sin inscripción, sin configuración o con `rights` ilegible → null (y entonces se
+ * pide permiso explícito).
  */
-export async function readContestRights(contestId: string, db: Db = prisma): Promise<Rights | null> {
-  const bases = await db.fotorankContestRulesVersion.findFirst({
-    where: { contestId, status: "PUBLISHED" },
-    orderBy: { versionNumber: "desc" },
-    select: { configurationVersion: { select: { configurationJson: true } } },
-  });
-  return rightsFromConfigurationJson(bases?.configurationVersion?.configurationJson ?? null);
+export function rightsAcceptedByAuthor(entry: EntryWithRules): Rights | null {
+  return rightsFromConfigurationJson(entry.registration?.rulesVersion?.configurationVersion?.configurationJson ?? null);
 }
 
 // ── Pedir permiso / avisar ──────────────────────────────────────────────────
@@ -103,7 +112,8 @@ export type ConsentSkipReason =
   | "ALREADY_GRANTED"
   | "RECENTLY_SENT"
   | "IN_PROGRESS"
-  | "EMAIL_FAILED";
+  | "EMAIL_FAILED"
+  | "LIMIT";
 
 export type RequestConsentsResult = {
   /** Correos de aviso (RULES) enviados. */
@@ -146,28 +156,37 @@ export async function requestConsents(
 
   await assertContestLinked(workspaceId, contestId, db);
 
-  const ids = [...new Set(entryIds.filter((id) => typeof id === "string" && id.length > 0))].slice(
-    0,
-    MAX_ENTRIES_PER_REQUEST,
-  );
-  const result: RequestConsentsResult = { notified: 0, requested: 0, skipped: [] };
+  const todos = [...new Set(entryIds.filter((id) => typeof id === "string" && id.length > 0))];
+  const ids = todos.slice(0, MAX_ENTRIES_PER_REQUEST);
+  const result: RequestConsentsResult = {
+    notified: 0,
+    requested: 0,
+    skipped: todos.slice(MAX_ENTRIES_PER_REQUEST).map((entryId) => ({ entryId, reason: "LIMIT" as const })),
+  };
   if (ids.length === 0) return result;
 
   const contexto = await cargarContexto(workspaceId, contestId, db, deps.appOrigin ?? appUrl());
   // El enlace se arma igual para todos: si no hay dirección pública, no se escribe nada.
   if (!buildConsentUrl({ ...contexto.sitio, token: "x" })) throw new ConsentSetupError();
 
-  const [entries, existentes, listings, basisDeLasBases] = await Promise.all([
+  const [entries, existentes, listings] = await Promise.all([
     db.fotorankContestEntry.findMany({
       where: { id: { in: ids }, contestId },
-      select: { id: true, status: true, withdrawnAt: true, authorUserId: true, title: true, entryNumber: true },
+      select: {
+        id: true,
+        status: true,
+        withdrawnAt: true,
+        authorUserId: true,
+        title: true,
+        entryNumber: true,
+        ...ENTRY_RULES_SELECT,
+      },
     }),
     db.artworkConsent.findMany({
       where: { workspaceId, entryId: { in: ids } },
       select: { id: true, entryId: true, basis: true, status: true, notifiedAt: true },
     }),
     db.artworkListing.findMany({ where: { workspaceId, entryId: { in: ids } }, select: { entryId: true, previewUrl: true } }),
-    readContestRights(contestId, db).then(consentBasisFromRights),
   ]);
   const autoresIds = [...new Set(entries.map((e) => e.authorUserId).filter((x): x is number => x !== null))];
   const autores = autoresIds.length
@@ -230,7 +249,7 @@ export async function requestConsents(
       basis = previo.basis === "RULES" ? "RULES" : "EXPLICIT";
       consentId = previo.id;
     } else {
-      basis = basisDeLasBases;
+      basis = consentBasisFromRights(rightsAcceptedByAuthor(entry));
       // `createMany` con `skipDuplicates`: si otra pestaña lo creó recién, no hay error que atrapar.
       const { count } = await db.artworkConsent.createMany({
         data: [

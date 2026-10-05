@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { requireStoreConfigurer } from "@/lib/store/access";
+import { ContestsSection } from "./contests-section";
 import { OrganizationLinksSection } from "./organization-links-section";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +26,8 @@ export default async function TiendaObrasPage() {
           Formatos de impresión y calidad mínima →
         </Link>
       </p>
+
+      <ContestsSection workspaceId={workspace.id} />
 
       <OrganizationLinksSection userId={user.id} workspaceId={workspace.id} />
     </div>

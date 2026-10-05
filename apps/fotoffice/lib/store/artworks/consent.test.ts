@@ -10,7 +10,8 @@ vi.mock("@/lib/workspace-role", () => ({ resolveWorkspaceRole: vi.fn() }));
 
 const { hashConsentToken } = await import("./consent-token");
 const { ContestNotLinkedError } = await import("./links");
-const { ConsentSetupError, loadConsentView, readContestRights, requestConsents, respondConsent } = await import("./consent");
+const { ConsentSetupError, loadConsentView, MAX_ENTRIES_PER_REQUEST, rightsAcceptedByAuthor, requestConsents, respondConsent } =
+  await import("./consent");
 
 const WS = "ws1";
 const OTRO_WS = "ws2";
@@ -40,6 +41,8 @@ type Entry = {
   authorUserId: number | null;
   title: string | null;
   entryNumber: string | null;
+  /** Bases que aceptó el autor al inscribirse (`rights` de su versión). undefined = las de `opts.rights`. */
+  rights?: unknown;
 };
 
 function cumple(row: Record<string, unknown>, where: Record<string, unknown>): boolean {
@@ -93,14 +96,18 @@ function baseFalsa(
         opts.vinculado === false || where.workspaceId !== WS ? null : { id: "l1" },
       ),
     },
-    fotorankContestRulesVersion: {
-      findFirst: vi.fn(async () =>
-        opts.rights === undefined ? null : { configurationVersion: { configurationJson: { rights: opts.rights } } },
-      ),
-    },
     fotorankContestEntry: {
       findMany: vi.fn(async ({ where }: { where: { id: { in: string[] }; contestId: string } }) =>
-        entries.filter((e) => where.id.in.includes(e.id) && e.contestId === where.contestId),
+        entries
+          .filter((e) => where.id.in.includes(e.id) && e.contestId === where.contestId)
+          .map((e) => {
+            const rights = e.rights === undefined ? opts.rights : e.rights;
+            return {
+              ...e,
+              registration:
+                rights === undefined ? null : { rulesVersion: { configurationVersion: { configurationJson: { rights } } } },
+            };
+          }),
       ),
       findUnique: vi.fn(async ({ where }: { where: { id: string } }) => entries.find((e) => e.id === where.id) ?? null),
     },
@@ -168,17 +175,25 @@ function deps(db: unknown, send: unknown = sentOk(), now = AHORA) {
   return { db: db as never, send: send as never, now, appOrigin: "https://fo.test", random };
 }
 
-describe("bases del concurso", () => {
-  it("lee rights de la configuración de las bases publicadas", async () => {
-    const { db } = baseFalsa({ rights: { allowPrint: true, allowCommercial: true } });
-    expect(await readContestRights(CONCURSO, db as never)).toEqual({ allowPrint: true, allowCommercial: true });
-    expect(db.fotorankContestRulesVersion.findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { contestId: CONCURSO, status: "PUBLISHED" }, orderBy: { versionNumber: "desc" } }),
-    );
+describe("bases que aceptó el autor", () => {
+  const conBases = (json: unknown) => ({ registration: { rulesVersion: { configurationVersion: { configurationJson: json } } } });
+  it("lee rights de la configuración de la versión de bases de su inscripción", () => {
+    expect(rightsAcceptedByAuthor(conBases({ rights: { allowPrint: true, allowCommercial: true, attributionRequired: true } }))).toEqual({
+      allowPrint: true,
+      allowCommercial: true,
+      attributionRequired: true,
+    });
+    expect(rightsAcceptedByAuthor(conBases({ rights: { allowPrint: true, allowCommercial: false } }))).toEqual({
+      allowPrint: true,
+      allowCommercial: false,
+      attributionRequired: false,
+    });
   });
-  it("sin bases publicadas o con rights malformado → null", async () => {
-    expect(await readContestRights(CONCURSO, baseFalsa().db as never)).toBeNull();
-    expect(await readContestRights(CONCURSO, baseFalsa({ rights: { allowPrint: "si" } }).db as never)).toBeNull();
+  it("sin inscripción, sin configuración o con rights malformado → null", () => {
+    expect(rightsAcceptedByAuthor({ registration: null })).toBeNull();
+    expect(rightsAcceptedByAuthor({})).toBeNull();
+    expect(rightsAcceptedByAuthor({ registration: { rulesVersion: { configurationVersion: null } } })).toBeNull();
+    expect(rightsAcceptedByAuthor(conBases({ rights: { allowPrint: "si" } }))).toBeNull();
   });
 });
 
@@ -213,6 +228,48 @@ describe("requestConsents", () => {
     expect(arg.templateKey).toBe("store.artwork_consent_request");
     expect(arg.body.subject).toContain("«Obra SFE-2»");
     expect(arg.body.text).toContain("15 %");
+  });
+
+  it("la base sale de las bases que aceptó CADA autor, no de las vigentes", async () => {
+    const { db, consents } = baseFalsa({
+      entries: [
+        // Se inscribió con bases que permitían vender.
+        { id: "e1", contestId: CONCURSO, status: "CONFIRMED", withdrawnAt: null, authorUserId: 10, title: "a", entryNumber: "1",
+          rights: { allowPrint: true, allowCommercial: true } },
+        // Se inscribió antes, con bases que no lo preveían.
+        { id: "e2", contestId: CONCURSO, status: "CONFIRMED", withdrawnAt: null, authorUserId: 11, title: "b", entryNumber: "2",
+          rights: { allowPrint: true, allowCommercial: false } },
+        // Sin inscripción (obra cargada por otra vía): no hay bases que leer.
+        { id: "e3", contestId: CONCURSO, status: "CONFIRMED", withdrawnAt: null, authorUserId: 10, title: "c", entryNumber: "3",
+          rights: null },
+      ],
+    });
+    const r = await requestConsents(WS, CONCURSO, ["e1", "e2", "e3"], 1, deps(db));
+    expect(r).toEqual({ notified: 1, requested: 2, skipped: [] });
+    expect(consents.map((c) => [c.entryId, c.basis, c.status])).toEqual([
+      ["e1", "RULES", "NOTIFIED"],
+      ["e2", "EXPLICIT", "PENDING"],
+      ["e3", "EXPLICIT", "PENDING"],
+    ]);
+  });
+
+  it("como mucho 100 obras por llamada; las demás vuelven con LIMIT", async () => {
+    expect(MAX_ENTRIES_PER_REQUEST).toBe(100);
+    const entries: Entry[] = Array.from({ length: 103 }, (_, i) => ({
+      id: `e${i}`, contestId: CONCURSO, status: "CONFIRMED", withdrawnAt: null, authorUserId: 10, title: `t${i}`, entryNumber: `${i}`,
+    }));
+    const { db, consents } = baseFalsa({ entries });
+    const send = sentOk();
+    // Repetidas no cuentan dos veces.
+    const r = await requestConsents(WS, CONCURSO, ["e0", ...entries.map((e) => e.id)], 1, deps(db, send));
+    expect(r.requested).toBe(100);
+    expect(r.skipped).toEqual([
+      { entryId: "e100", reason: "LIMIT" },
+      { entryId: "e101", reason: "LIMIT" },
+      { entryId: "e102", reason: "LIMIT" },
+    ]);
+    expect(consents).toHaveLength(100);
+    expect(send).toHaveBeenCalledTimes(100);
   });
 
   it("usa el dominio propio conectado y la vista previa ya guardada", async () => {
