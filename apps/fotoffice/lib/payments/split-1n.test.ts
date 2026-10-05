@@ -19,6 +19,9 @@ const APP_ROOT = path.resolve(__dirname, "../..");
  * cuando entraron las cuotas de socios, que usan Checkout Pro con `marketplace_fee` y
  * el consentimiento OAuth del cobrador — modelo marketplace clásico, no Orders API.
  * Lo que se vigila ahora son los símbolos propios de Split (1 a N).
+ *
+ * Desde el 2026-10-05 la orden de cursos con reparto vive en `lib/payments/split-1n-cursos.ts`:
+ * esta carpeta es la única exenta, y la orden sólo se arma pasando por la llave del guard.
  */
 const FORBIDDEN_SPLIT_SYMBOLS = [
   "buildMercadoPagoSplitOrderRequest",
@@ -51,6 +54,11 @@ describe("FotOffice — Split de Pagos (1 a N) desactivado", () => {
   it("la venta con reparto sigue apagada aunque el guard general de producción esté encendido", () => {
     expect(cobroConRepartoHabilitado({} as NodeJS.ProcessEnv)).toBe(false);
     expect(cobroConRepartoHabilitado({ DNX_MP_ORDERS_1N_PRODUCTION_ENABLED: "true" } as unknown as NodeJS.ProcessEnv)).toBe(false);
+  });
+
+  it("la orden de cursos con reparto pasa siempre por la llave del guard", () => {
+    const fuente = readFileSync(path.join(__dirname, "split-1n-cursos.ts"), "utf8");
+    expect(fuente).toContain("cobroConRepartoHabilitado(");
   });
 
   it("el interruptor está en OFF", () => {

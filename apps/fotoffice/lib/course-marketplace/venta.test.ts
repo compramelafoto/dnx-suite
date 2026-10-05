@@ -1,6 +1,6 @@
 // lib/course-marketplace/venta.test.ts
 import { describe, expect, it } from "vitest";
-import { decidirVenta, filasDeReparto, montosDeVenta } from "./venta";
+import { decidirVenta, filasDeReparto, montosDeVenta, partesDesdeReparto } from "./venta";
 
 const benef = [
   { id: "ws-sfpr", nombre: "SFPR", bps: 3000, absorbeMp: false },
@@ -72,5 +72,23 @@ describe("las filas del reparto congelado", () => {
     const filas = filasDeReparto(m.partes);
     expect(filas[0]).toEqual({ workspaceId: "ws-club", kind: "REVENDEDOR", label: "Fotoclub Norte", amountArs: "250.00", absorbsProcessorFee: false });
     expect(filas.at(-1)).toEqual({ workspaceId: null, kind: "PLATAFORMA", label: "Plataforma", amountArs: "50.00", absorbsProcessorFee: false });
+  });
+});
+
+describe("partes desde el reparto congelado", () => {
+  it("vuelve a centavos y conserva quién es quién", () => {
+    expect(
+      partesDesdeReparto([
+        { workspaceId: "ws-club", kind: "REVENDEDOR", label: "Fotoclub", amountArs: "25000.00", absorbsProcessorFee: false },
+        { workspaceId: "ws-doc", kind: "BENEFICIARIO", label: "Docente", amountArs: "37500.00", absorbsProcessorFee: true },
+        { workspaceId: null, kind: "PLATAFORMA", label: "Plataforma", amountArs: "5000.00", absorbsProcessorFee: false },
+        { workspaceId: null, kind: "BENEFICIARIO", label: "Borrado", amountArs: "1.00", absorbsProcessorFee: false },
+      ]),
+    ).toEqual([
+      { id: "ws-club", nombre: "Fotoclub", tipo: "REVENDEDOR", centavos: 2_500_000, absorbeMp: false },
+      { id: "ws-doc", nombre: "Docente", tipo: "BENEFICIARIO", centavos: 3_750_000, absorbeMp: true },
+      { id: "plataforma", nombre: "Plataforma", tipo: "PLATAFORMA", centavos: 500_000, absorbeMp: false },
+      { id: "sin-negocio-3", nombre: "Borrado", tipo: "BENEFICIARIO", centavos: 100, absorbeMp: false },
+    ]);
   });
 });

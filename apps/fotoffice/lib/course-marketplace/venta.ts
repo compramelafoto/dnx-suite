@@ -77,3 +77,17 @@ export function filasDeReparto(partes: ParteDelReparto[]) {
     absorbsProcessorFee: p.absorbeMp,
   }));
 }
+
+/** Del reparto congelado (`CourseSaleShare`) de vuelta a partes del motor, para armar la orden. */
+export function partesDesdeReparto(
+  filas: Array<{ workspaceId: string | null; kind: ParteDelReparto["tipo"]; label: string; amountArs: { toString(): string } | string; absorbsProcessorFee: boolean }>,
+): ParteDelReparto[] {
+  return filas.map((f, i) => ({
+    // Un negocio borrado (SetNull) no puede cobrar: queda sin receptor y la orden no se arma.
+    id: f.kind === "PLATAFORMA" ? "plataforma" : (f.workspaceId ?? `sin-negocio-${i}`),
+    nombre: f.label,
+    tipo: f.kind,
+    centavos: Math.round(Number(f.amountArs.toString()) * 100),
+    absorbeMp: f.absorbsProcessorFee,
+  }));
+}

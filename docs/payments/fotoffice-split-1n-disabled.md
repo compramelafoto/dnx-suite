@@ -1,7 +1,7 @@
 # FotOffice — Split de Pagos (1 a N): DESACTIVADO
 
 **Fecha de la decisión:** 2026-08-26
-**Estado:** `DISABLED / NOT CURRENTLY REQUIRED`
+**Estado:** `DISABLED` — caso productivo definido (mercado de cursos), esperando la habilitación de Mercado Pago
 **Alcance:** únicamente Split (1 a N). **No afecta ningún otro cobro de FotOffice.**
 
 ---
@@ -77,6 +77,9 @@ El test `apps/fotoffice/lib/payments/split-1n.test.ts` falla si alguien:
   `receiver_type`, los flags `DNX_MP_ORDERS_1N_*`, etc.);
 - rompe el cobro convencional de cursos.
 
+Excepción: los archivos que están directamente en `apps/fotoffice/lib/payments/` (el guard, su test
+y `split-1n-cursos.ts`) pueden nombrar esos símbolos.
+
 ---
 
 ## 4. Lo que NO cambió (crítico)
@@ -128,5 +131,34 @@ eliminaron contratos reutilizables, no se rompió `@repo/payments`, no se perdi�
    FotoOffice usa esa app, **no** la suya (`5350262556971123`).
 2. Definir el caso de negocio: quién es owner, quiénes son partners, qué se reparte.
 3. Poner `FOTOFFICE_SPLIT_1N_ENABLED = true` y actualizar el test del guard.
-4. Agregar `@repo/payments` a las dependencias de la app.
+4. ~~Agregar `@repo/payments` a las dependencias de la app.~~ Ya está desde las cuotas de socios.
 5. Gestionar los consentimientos de partners (deben quedar `ACTIVE` antes de la Order).
+
+---
+
+## 7. Actualización 2026-10-05: el mercado de cursos es el caso productivo
+
+Spec: `apps/fotoffice/docs/superpowers/specs/2026-10-05-mercado-de-cursos-design.md` (sección 5).
+
+**Qué está programado (apagado):**
+
+| Pieza | Dónde |
+| --- | --- |
+| Llave: interruptor de FOTOFFICE **y** `DNX_MP_ORDERS_1N_PRODUCTION_ENABLED` | `apps/fotoffice/lib/payments/split-1n.ts` → `cobroConRepartoHabilitado()` |
+| Orden con montos fijos del motor: dueño = beneficiario que absorbe la comisión de MP; socios = demás beneficiarios, revendedor y plataforma | `apps/fotoffice/lib/payments/split-1n-cursos.ts` (usa `validateMercadoPagoSplitOrder` y `buildMercadoPagoSplitOrderRequest` de `@repo/payments`) |
+| Consentimiento ACTIVE de cada receptor, desde `DnxSplitConsent` | `apps/fotoffice/lib/course-marketplace/orden.ts` |
+| Reparto congelado por venta | `CourseSaleShare` |
+
+**Mientras tanto:** los cursos con varios beneficiarios o revendidos se arman, se acuerdan y se
+simulan, pero su página dice "Disponible próximamente" y el checkout no los cobra.
+
+**Para encender, en este orden:**
+1. Mercado Pago habilita el split en producción para la aplicación de la suite.
+2. La homologación confirma que MP cobra su comisión sobre el dueño de la orden (si no, el motor
+   descuenta una estimación de esa parte).
+3. Configurar `FOTOFFICE_CURSOS_PLATAFORMA_MP_RECEIVER_ID` (el receptor de la comisión de la
+   plataforma) con su consentimiento ACTIVE.
+4. Construir el Card Brick en la página del curso, el POST con `MercadoPagoOrdersAdapter` y el
+   webhook de órdenes (no están hechos).
+5. `FOTOFFICE_SPLIT_1N_ENABLED = true` en un cambio revisado, con su test, y
+   `DNX_MP_ORDERS_1N_PRODUCTION_ENABLED=true`.
