@@ -13,6 +13,7 @@ import { BOOKINGS_MODULE_KEY } from "./constants";
 import { getPlatformFeeBps } from "@/lib/platform-fee/store";
 import { BOOKINGS_TIME_ZONE } from "./time";
 import { depositBookingPayment } from "./cash-deposit";
+import { recordCollectionFees } from "@/lib/cash/collection";
 
 /**
  * Cobro de una reserva. Es el MISMO circuito que las cuotas: Checkout Pro con el token de
@@ -136,10 +137,23 @@ export async function startBookingCheckout(input: {
 /**
  * Acredita un pago de reserva. **Idempotente**: un aviso repetido no acredita dos veces ni
  * escribe dos asientos en el libro de comisiones.
+ *
+ * Usa lo que informa Mercado Pago —importe cobrado, fecha de aprobación y comisiones—, no lo
+ * que la reserva esperaba: Caja tiene que coincidir con la cuenta real.
+ *
+ * Si la reserva ya venció o se canceló cuando llega el pago, el horario NO se revive (otra
+ * persona pudo haberlo tomado), pero la plata sí entró a Mercado Pago: se registra en Caja y
+ * la reserva queda marcada como pagada fuera de término, para devolver o reprogramar.
  */
 export async function creditBookingPayment(input: {
   bookingId: string;
   providerPaymentId: string;
+  /** Lo que cobró Mercado Pago, en centavos. Sin dato, el total de la reserva. */
+  paidAmountMinor?: number;
+  /** Fecha de aprobación según Mercado Pago. Sin dato, ahora. */
+  paidAt?: Date;
+  mpFeeMinor?: number;
+  platformFeeMinor?: number;
 }): Promise<{ applied: boolean; motivo?: string }> {
   return prisma.$transaction(async (tx) => {
     const reserva = await tx.booking.findUnique({
@@ -156,28 +170,44 @@ export async function creditBookingPayment(input: {
         contactName: true,
         contactEmail: true,
         contactPhone: true,
+        notes: true,
         space: { select: { name: true } },
       },
     });
     if (!reserva) return { applied: false, motivo: "la reserva no existe" };
     if (reserva.paymentStatus === "PAID") return { applied: false, motivo: "aviso repetido" };
-    if (reserva.status === "CANCELLED" || reserva.status === "EXPIRED") {
-      // El horario ya se liberó. No se revive la reserva: otra persona pudo haberlo tomado.
-      return { applied: false, motivo: "la reserva ya no está activa" };
-    }
 
-    const pagadaAt = new Date();
+    const fueraDeTermino = reserva.status === "CANCELLED" || reserva.status === "EXPIRED";
+    const pagadaAt = input.paidAt ?? new Date();
+    const cobradoMinor =
+      input.paidAmountMinor && input.paidAmountMinor > 0
+        ? input.paidAmountMinor
+        : decimalArsToMinor(reserva.totalArs);
 
+    const aviso = "Pago recibido con la reserva vencida o cancelada: devolver o reprogramar.";
     await tx.booking.update({
       where: { id: reserva.id },
-      data: {
-        status: "CONFIRMED",
-        paymentStatus: "PAID",
-        mpPaymentId: input.providerPaymentId,
-        paidAt: pagadaAt,
-        holdExpiresAt: null,
-      },
+      data: fueraDeTermino
+        ? {
+            paymentStatus: "PAID",
+            mpPaymentId: input.providerPaymentId,
+            paidAt: pagadaAt,
+            notes: reserva.notes ? `${reserva.notes}\n${aviso}` : aviso,
+          }
+        : {
+            status: "CONFIRMED",
+            paymentStatus: "PAID",
+            mpPaymentId: input.providerPaymentId,
+            paidAt: pagadaAt,
+            holdExpiresAt: null,
+          },
     });
+    if (fueraDeTermino) {
+      console.warn("[fotoffice][reservas] pago recibido para una reserva inactiva", {
+        bookingId: reserva.id,
+        status: reserva.status,
+      });
+    }
 
     // La comisión ya la retuvo Mercado Pago en la operación. El asiento negativo del libro
     // es lo que cancela la deuda arrastrada que venía incluida en esa retención.
@@ -200,8 +230,8 @@ export async function creditBookingPayment(input: {
       });
     }
 
-    // Depositar el TOTAL cobrado, no la comisión: el dinero de Mercado Pago entra entero a la
-    // cuenta digital, la comisión ya se restó en el libro de comisiones, no en Caja.
+    // Se deposita el bruto y las comisiones van como egresos aparte (decisión del 2026-10-03):
+    // la cuenta queda en el neto, igual que en Mercado Pago.
     await depositBookingPayment(tx, {
       workspaceId: reserva.workspaceId,
       bookingId: reserva.id,
@@ -209,12 +239,19 @@ export async function creditBookingPayment(input: {
       contactName: reserva.contactName,
       contactEmail: reserva.contactEmail,
       contactPhone: reserva.contactPhone,
-      spaceName: reserva.space.name,
-      amountMinor: decimalArsToMinor(reserva.totalArs),
+      spaceName: fueraDeTermino ? `${reserva.space.name} (pago fuera de término)` : reserva.space.name,
+      amountMinor: cobradoMinor,
       occurredAt: pagadaAt,
       paymentMethod: "MERCADO_PAGO",
     });
+    await recordCollectionFees(tx, {
+      workspaceId: reserva.workspaceId,
+      sourceModule: "bookings",
+      sourceRef: reserva.id,
+      mpFeeMinor: input.mpFeeMinor ?? 0,
+      platformFeeMinor: input.platformFeeMinor ?? 0,
+    });
 
-    return { applied: true };
+    return { applied: true, motivo: fueraDeTermino ? "pago fuera de término" : undefined };
   });
 }

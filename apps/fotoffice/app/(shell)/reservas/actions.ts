@@ -14,7 +14,12 @@ import { GOOGLE_CALENDAR_INTEGRATION_KEY } from "@/lib/integrations/registry";
 import { createCalendarClient, isCalendarPermissionError } from "@/lib/bookings/calendar/client";
 import { pairsForSpace } from "@/lib/bookings/conflicts";
 import { cancelBooking, createBooking } from "@/lib/bookings/create";
-import { approveBooking, confirmTransferPayment } from "@/lib/bookings/lifecycle";
+import {
+  approveBooking,
+  MANUAL_BOOKING_PAYMENT_METHODS,
+  registerBookingPayment,
+  type ManualBookingPaymentMethod,
+} from "@/lib/bookings/lifecycle";
 import { requireBookingsConfigurer, requireBookingsOperator } from "@/lib/bookings/access";
 import { slugify } from "@/lib/slug";
 import { parseLocalDateTime } from "@/lib/bookings/local-datetime";
@@ -372,15 +377,20 @@ export async function toggleExtraActiveAction(formData: FormData): Promise<void>
   redirect(`${EXTRAS}?ok=extra`);
 }
 
-/** La Secretaría confirma que la transferencia llegó. */
-export async function confirmTransferAction(formData: FormData): Promise<void> {
+/** La Secretaría registra el cobro: transferencia que llegó, efectivo o tarjeta. */
+export async function registerBookingPaymentAction(formData: FormData): Promise<void> {
   const { user, workspace } = await requireBookingsOperator();
   const bookingId = String(formData.get("bookingId") ?? "").trim();
+  const medio = String(formData.get("paymentMethod") ?? "TRANSFERENCIA");
+  if (!(MANUAL_BOOKING_PAYMENT_METHODS as readonly string[]).includes(medio)) {
+    redirect(volverAAgenda(formData, `error=${encodeURIComponent("Elegí cómo se cobró.")}`));
+  }
 
-  const r = await confirmTransferPayment({
+  const r = await registerBookingPayment({
     workspaceId: workspace.id,
     bookingId,
     byUserId: user.id,
+    paymentMethod: medio as ManualBookingPaymentMethod,
   });
 
   revalidatePath(AGENDA);

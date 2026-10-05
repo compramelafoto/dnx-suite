@@ -50,10 +50,19 @@ export function canCancelByCustomer(input: {
  * anota como deuda de la institución y se cobra de los próximos cobros que sí entren por
  * ahí. Es exactamente lo que ya pasa con las cuotas cobradas en efectivo.
  */
-export async function confirmTransferPayment(input: {
+export const MANUAL_BOOKING_PAYMENT_METHODS = ["EFECTIVO", "TRANSFERENCIA", "TARJETA"] as const;
+export type ManualBookingPaymentMethod = (typeof MANUAL_BOOKING_PAYMENT_METHODS)[number];
+
+/**
+ * Registrar que una reserva se cobró por fuera de Mercado Pago: transferencia que llegó,
+ * efectivo o tarjeta en el mostrador. Sirve también para las reservas cargadas como
+ * presenciales, que antes no tenían forma de quedar pagas ni de llegar a Caja.
+ */
+export async function registerBookingPayment(input: {
   workspaceId: string;
   bookingId: string;
   byUserId: number;
+  paymentMethod: ManualBookingPaymentMethod;
 }): Promise<{ ok: boolean; error?: string }> {
   try {
     const feeBps = await getPlatformFeeBps(input.workspaceId, BOOKINGS_MODULE_KEY);
@@ -100,7 +109,7 @@ export async function confirmTransferPayment(input: {
         workspaceId: input.workspaceId,
         bookingId: reserva.id,
         amountMinor: feeMinor,
-        note: `Comisión de la reserva ${reserva.id}, cobrada por transferencia`,
+        note: `Comisión de la reserva ${reserva.id}, cobrada por fuera de Mercado Pago (${input.paymentMethod})`,
       });
 
       await depositBookingPayment(tx, {
@@ -113,7 +122,7 @@ export async function confirmTransferPayment(input: {
         spaceName: reserva.space.name,
         amountMinor: totalMinor,
         occurredAt: pagadaAt,
-        paymentMethod: "TRANSFERENCIA",
+        paymentMethod: input.paymentMethod,
       });
 
       return { ok: true };
