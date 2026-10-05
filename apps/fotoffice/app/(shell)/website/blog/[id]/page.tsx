@@ -3,7 +3,7 @@ import { BlogShell } from "@/components/website/blog/blog-shell";
 import { BlogPostForm } from "@/components/website/blog/blog-post-form";
 import { parseRouteId, requireBlogEditor } from "@/lib/blog/access";
 import { mapBlogPostToFormValues } from "@/lib/blog/admin-form";
-import { BLOG_STATUS_LABELS } from "@/lib/blog/admin-labels";
+import { BLOG_STATUS_LABELS, blogDisplayStatus, formatBlogDateTime } from "@/lib/blog/admin-labels";
 import { getBlogAdminPost, loadPublicSlug } from "@/lib/blog/admin-queries";
 import { postPath } from "@/lib/blog/public";
 
@@ -20,14 +20,18 @@ export default async function EditBlogPostPage({ params }: Props) {
   const [post, publicSlug] = await Promise.all([getBlogAdminPost(workspace.id, postId), loadPublicSlug(workspace.id)]);
   if (!post) notFound();
 
-  const estado = BLOG_STATUS_LABELS[post.status] ?? post.status;
+  const clave = blogDisplayStatus(post.status, post.publishedAt);
+  const estado =
+    clave === "SCHEDULED" && post.publishedAt
+      ? `Programado para el ${formatBlogDateTime(post.publishedAt)} (hora argentina)`
+      : (BLOG_STATUS_LABELS[clave] ?? clave);
 
   return (
     <BlogShell
       title={post.title}
       description={`Estado: ${estado}. Los cambios se ven en el blog en cuanto el artículo está publicado.`}
       actions={
-        post.status === "PUBLISHED" && publicSlug ? (
+        clave === "PUBLISHED" && publicSlug ? (
           <a href={postPath(publicSlug, post.slug)} target="_blank" rel="noreferrer" className="fo-btn fo-btn-secondary">
             Ver publicado
           </a>
