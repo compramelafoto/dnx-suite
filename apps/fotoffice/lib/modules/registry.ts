@@ -1,3 +1,4 @@
+import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
@@ -133,12 +134,14 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     status: "AVAILABLE",
   },
   {
-    key: "communications",
+    key: COMMUNICATIONS_MODULE_KEY,
     label: "Comunicación",
-    description: "Envío de comunicaciones/email a clientes o {personas} del workspace.",
+    description:
+      "Placas para redes: la bienvenida a cada {persona} nuevo y el {persona} de la semana, con plantillas que diseña la institución.",
     category: "GENERAL",
     order: 40,
-    status: "PLANNED",
+    route: "/comunicacion/placas",
+    status: "AVAILABLE",
   },
   {
     key: "events",

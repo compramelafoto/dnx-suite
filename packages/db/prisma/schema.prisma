@@ -7094,6 +7094,7 @@ model Workspace {
   workspaceMembershipsUnified WorkspaceMembership[]
   customRoles                 WorkspaceCustomRole[]
   offices                     WorkspaceOffice[]
+  memberWelcomes              MemberWelcome[]
   appAccessUnified            WorkspaceAppAccess[]
   institutionalMembers        Member[]
   memberCategories            MemberCategory[]
@@ -7498,6 +7499,7 @@ model Member {
   portfolio                       FotofficeMemberPortfolio?
   roleAssignments                 WorkspaceRoleAssignment[]
   officeTerms                     WorkspaceOfficeTerm[]
+  welcome                         MemberWelcome?
 
   @@unique([workspaceId, memberNumber])
   @@unique([workspaceId, email])
@@ -19901,4 +19903,24 @@ model SaleItem {
 
   @@index([saleId])
   @@index([productId])
+}
+
+/// Bienvenida en redes a un socio nuevo (FOTOFFICE, Comunicación → Placas).
+/// Una por socio: se recibe una sola vez. La placa no se guarda: se dibuja al pedirla con la
+/// plantilla vigente (diseño 2026-10-04-socio-de-la-semana-y-placas).
+model MemberWelcome {
+  id                String    @id @default(cuid())
+  workspaceId       String
+  memberId          String    @unique
+  /// AUTO: al pagar la primera cuota. MANUAL: la sumó alguien de Comunicación.
+  source            String    @default("AUTO")
+  /// Marca "ya publicada" de Comunicación. Null = pendiente.
+  publishedAt       DateTime?
+  publishedByUserId Int?
+  createdAt         DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member    Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
 }

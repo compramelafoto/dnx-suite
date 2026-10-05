@@ -84,7 +84,15 @@ test("la vista previa trae un valor para cada variable obligatoria", () => {
 test("FotoOffice puede insertar la foto del socio y el logo de la institución", () => {
   const claves = getInsertableImageVariablesForProduct("fotoffice").map((v) => v.key);
   // La regresión concreta: el editor ofrecía "Logo escuela" y ninguna forma de poner la foto.
-  assert.deepEqual(claves.sort(), ["institutionLogo", "photo"]);
+  // Las placas de Comunicación suman la foto de perfil y las tres destacadas.
+  assert.deepEqual(claves.sort(), [
+    "featuredPhoto1",
+    "featuredPhoto2",
+    "featuredPhoto3",
+    "institutionLogo",
+    "photo",
+    "profilePhoto",
+  ]);
 });
 
 test("cada producto ofrece sus imágenes, no las de otro", () => {

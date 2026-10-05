@@ -1,6 +1,7 @@
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
+import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
@@ -204,6 +205,19 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
       "Margen por producto",
     ],
   },
+  {
+    key: COMMUNICATIONS_MODULE_KEY,
+    cuadro: "13",
+    nombre: "Comunicación",
+    resuelve:
+      "Las placas para redes, listas para descargar: cada socio nuevo que paga su primera cuota aparece con su placa de bienvenida, en formato publicación e historia, y un texto sugerido con su Instagram para etiquetarlo. Las plantillas las diseña tu área de comunicación, con el mismo diseñador del carnet.",
+    pantallas: [
+      "Bienvenidas a socios nuevos",
+      "Placa cuadrada y para historias",
+      "Texto sugerido para copiar",
+      "Plantillas con tus colores y tu logo",
+    ],
+  },
 ];
 
 /** Lo que está siempre, se encienda lo que se encienda. No son módulos con interruptor. */
@@ -272,17 +286,11 @@ export const EN_CONSTRUCCION: {
   icono: string;
 }[] = [
   {
-    cuadro: "13",
+    cuadro: "14",
     icono: "presupuestos",
     nombre: "Presupuestos",
     resuelve:
       "Armar el presupuesto con tus precios, mandárselo al cliente y seguir si lo aceptó. La consulta ya te llega con todos los datos del evento —eso es Captación—; falta ponerle precio y mandarlo desde acá.",
-  },
-  {
-    cuadro: "14",
-    icono: "comunicacion",
-    nombre: "Comunicación",
-    resuelve: "Mandar un mensaje a todos los socios o a un grupo, desde adentro.",
   },
   {
     cuadro: "15",

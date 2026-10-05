@@ -17,6 +17,7 @@ const H = vi.hoisted(() => ({
   issuePrepaid: vi.fn(),
   sendAndLog: vi.fn(),
   emailContext: vi.fn(),
+  recordWelcome: vi.fn(),
 }));
 
 vi.mock("@repo/db", async () => {
@@ -40,6 +41,7 @@ vi.mock("./settings", () => ({
 vi.mock("@/lib/communications/load-workspace-signature", () => ({
   loadWorkspaceEmailContext: H.emailContext,
 }));
+vi.mock("@/lib/placas/welcomes", () => ({ recordWelcome: H.recordWelcome }));
 
 const { completeApplicationIfPaid } = await import("./complete-application");
 
@@ -64,8 +66,34 @@ beforeEach(() => {
   H.issuePrepaid.mockReset().mockResolvedValue({ emitida: true });
   H.sendAndLog.mockReset().mockResolvedValue({ status: "SENT", providerId: "re_1" });
   H.emailContext.mockReset().mockResolvedValue({ organizationName: "Club SFPR", signature: null });
+  H.recordWelcome.mockReset().mockResolvedValue({ created: true });
   process.env.APP_URL = "https://fotoffice.test";
   process.env.NEXT_PUBLIC_APP_URL = "https://fotoffice.test";
+});
+
+describe("la bienvenida en redes (Comunicación → Placas)", () => {
+  it("al cerrar el alta, el socio entra a la lista de bienvenidas", async () => {
+    await completeApplicationIfPaid("m-1");
+    expect(H.recordWelcome).toHaveBeenCalledWith({
+      workspaceId: "ws-sfpr",
+      memberId: "m-1",
+      source: "AUTO",
+    });
+  });
+
+  it("mientras quede saldo, no entra: todavía no es socio", async () => {
+    H.chargeFindMany.mockResolvedValue([saldado, { balanceArs: "100.00" }]);
+    await completeApplicationIfPaid("m-1");
+    expect(H.recordWelcome).not.toHaveBeenCalled();
+  });
+
+  it("si anotarla falla, el carnet y el email de bienvenida salen igual", async () => {
+    H.recordWelcome.mockRejectedValue(new Error('relation "MemberWelcome" does not exist'));
+    const r = await completeApplicationIfPaid("m-1");
+    expect(r.completed).toBe(true);
+    expect(H.issueCard).toHaveBeenCalled();
+    expect(H.sendAndLog).toHaveBeenCalled();
+  });
 });
 
 describe("cierre del ingreso", () => {
