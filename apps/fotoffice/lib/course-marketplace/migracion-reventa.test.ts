@@ -15,7 +15,7 @@ const SQL = join(MIGRACIONES, CARPETA, "migration.sql");
 describe("migración de la reventa de cursos", () => {
   it("existe y va después de la última que había en main", () => {
     expect(existsSync(SQL)).toBe(true);
-    expect(CARPETA > "20261009120000_fotoffice_blog_banner_slot").toBe(true);
+    expect(CARPETA > "20261010120000_fotoffice_correo_fechas").toBe(true);
   });
 
   it("su marca de tiempo no la comparte ninguna otra carpeta", () => {
