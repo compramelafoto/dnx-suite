@@ -250,12 +250,13 @@ describe("quote", () => {
     await expect(client.quote(cotizacion)).rejects.toMatchObject({ kind: "UNEXPECTED" });
   });
 
-  it("401 con un token que creíamos vigente: pide uno nuevo y reintenta una vez", async () => {
+  it("401 con un token de la caché: pide uno nuevo y reintenta una vez", async () => {
     const f = fakeFetch({
       "GET /login": [login("tok-1"), login("tok-2")],
       "GET /v1/tarifas": [() => json(401, { message: "Unauthorized" }), TARIFA_OK],
     });
     const client = createAndreaniClient({ ...base, fetchImpl: f.impl, now: () => NOW });
+    await client.getToken();
     expect((await client.quote(cotizacion)).priceMinor).toBe(704121);
     expect(f.calls.map((c) => `${new URL(c.url).pathname} ${c.headers["x-authorization-token"] ?? ""}`)).toEqual([
       "/login ",
@@ -265,14 +266,82 @@ describe("quote", () => {
     ]);
   });
 
-  it("dos 401 seguidos → AUTH", async () => {
+  it("400 con un token de la caché (Andreani no distingue token vencido): renueva y reintenta", async () => {
+    const f = fakeFetch({
+      "GET /login": [login("tok-1"), login("tok-2")],
+      "GET /v1/tarifas": [() => json(400, { title: "Error", detail: "No se pudo obtener la tarifa" }), TARIFA_OK],
+    });
+    const client = createAndreaniClient({ ...base, fetchImpl: f.impl, now: () => NOW });
+    await client.getToken();
+    expect((await client.quote(cotizacion)).priceMinor).toBe(704121);
+    expect(f.calls.filter((c) => c.url.endsWith("/login"))).toHaveLength(2);
+    // El token nuevo queda en caché para los siguientes.
+    expect(await client.getToken()).toBe("tok-2");
+  });
+
+  it("400 de nuevo con el token recién pedido → BUSINESS (no reintenta más)", async () => {
+    const f = fakeFetch({
+      "GET /login": [login("tok-1"), login("tok-2")],
+      "GET /v1/tarifas": () => json(400, { detail: "El código postal es incorrecto" }),
+    });
+    const client = createAndreaniClient({ ...base, fetchImpl: f.impl, now: () => NOW });
+    await client.getToken();
+    const e = (await client.quote(cotizacion).catch((x) => x)) as AndreaniError;
+    expect(e).toMatchObject({ kind: "BUSINESS", status: 400 });
+    expect(f.calls.filter((c) => c.url.includes("/v1/tarifas"))).toHaveLength(2);
+  });
+
+  it("401 con un token recién pedido → AUTH sin reintentar", async () => {
+    const f = fakeFetch({
+      "GET /login": [login("tok-1"), login("tok-2")],
+      "GET /v1/tarifas": [() => json(401, {}), TARIFA_OK],
+    });
+    const client = createAndreaniClient({ ...base, fetchImpl: f.impl, now: () => NOW });
+    await expect(client.quote(cotizacion)).rejects.toMatchObject({ kind: "AUTH", status: 401 });
+    expect(f.calls).toHaveLength(2);
+  });
+
+  it("token de la caché: 401 y después 401 con el nuevo → AUTH", async () => {
     const f = fakeFetch({
       "GET /login": [login("tok-1"), login("tok-2")],
       "GET /v1/tarifas": () => json(401, { message: "Unauthorized" }),
     });
     const client = createAndreaniClient({ ...base, fetchImpl: f.impl, now: () => NOW });
+    await client.getToken();
     await expect(client.quote(cotizacion)).rejects.toMatchObject({ kind: "AUTH", status: 401 });
     expect(f.calls.filter((c) => c.url.includes("/v1/tarifas"))).toHaveLength(2);
+  });
+
+  it("cotizaciones en paralelo sin token comparten un solo /login", async () => {
+    let soltar: () => void = () => undefined;
+    const espera = new Promise<void>((r) => (soltar = r));
+    const f = fakeFetch({
+      "GET /login": async () => {
+        await espera;
+        return login("tok-1")();
+      },
+      "GET /v1/tarifas": TARIFA_OK,
+    });
+    const client = createAndreaniClient({ ...base, fetchImpl: f.impl, now: () => NOW });
+    const otro = createAndreaniClient({ ...base, fetchImpl: f.impl, now: () => NOW });
+    const promesas = [client.quote(cotizacion), client.quote(cotizacion), otro.quote(cotizacion)];
+    await Promise.resolve();
+    soltar();
+    const res = await Promise.all(promesas);
+    expect(res.map((r) => r.priceMinor)).toEqual([704121, 704121, 704121]);
+    expect(f.calls.filter((c) => c.url.endsWith("/login"))).toHaveLength(1);
+  });
+
+  it("varias cotizaciones con el mismo token vencido renuevan una sola vez", async () => {
+    const f = fakeFetch({
+      "GET /login": [login("tok-1"), login("tok-2"), login("tok-3")],
+      "GET /v1/tarifas": (call) =>
+        call.headers["x-authorization-token"] === "tok-1" ? json(400, { title: "x" }) : TARIFA_OK(),
+    });
+    const client = createAndreaniClient({ ...base, fetchImpl: f.impl, now: () => NOW });
+    await client.getToken();
+    await Promise.all([client.quote(cotizacion), client.quote(cotizacion), client.quote(cotizacion)]);
+    expect(f.calls.filter((c) => c.url.endsWith("/login"))).toHaveLength(2);
   });
 
   it("400 ProblemDetails → BUSINESS con detail, sin reintentar", async () => {

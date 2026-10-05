@@ -94,9 +94,15 @@ export type AndreaniClientOptions = {
  * que Andreani la valide nunca.
  */
 const tokenCache = new Map<string, { token: string; expiresAt: number }>();
+/**
+ * Logins en curso, por la misma clave: si varias cotizaciones salen juntas sin token, comparten
+ * un único `/login` en vez de pedir uno cada una.
+ */
+const loginsEnCurso = new Map<string, Promise<string>>();
 
 export function resetAndreaniTokenCacheForTests(): void {
   tokenCache.clear();
+  loginsEnCurso.clear();
 }
 
 // --- Precio --------------------------------------------------------------------------------
@@ -250,13 +256,8 @@ export function createAndreaniClient(options: AndreaniClientOptions): AndreaniCl
     return null;
   }
 
-  async function getToken(tokenOptions?: { fresh?: boolean }): Promise<string> {
-    if (!tokenOptions?.fresh) {
-      const cached = tokenEnCache();
-      if (cached) return cached;
-    }
+  async function login(): Promise<string> {
     tokenCache.delete(cacheKey);
-
     const basic = Buffer.from(`${options.user}:${options.password}`, "utf8").toString("base64");
     const r = await send({ path: "/login", headers: { Authorization: `Basic ${basic}` } });
     if (r.status < 200 || r.status >= 300) {
@@ -274,19 +275,47 @@ export function createAndreaniClient(options: AndreaniClientOptions): AndreaniCl
     return token;
   }
 
+  /** Un login por clave a la vez: los que llegan mientras hay uno en curso lo esperan. */
+  function loginCompartido(): Promise<string> {
+    const enCurso = loginsEnCurso.get(cacheKey);
+    if (enCurso) return enCurso;
+    const promesa = login().finally(() => loginsEnCurso.delete(cacheKey));
+    loginsEnCurso.set(cacheKey, promesa);
+    return promesa;
+  }
+
+  /** El token y si salió de la caché (o sea, si pudo haber vencido antes de tiempo). */
+  async function tokenConOrigen(): Promise<{ token: string; fromCache: boolean }> {
+    const cached = tokenEnCache();
+    if (cached) return { token: cached, fromCache: true };
+    return { token: await loginCompartido(), fromCache: false };
+  }
+
+  async function getToken(tokenOptions?: { fresh?: boolean }): Promise<string> {
+    if (tokenOptions?.fresh) return loginCompartido();
+    return (await tokenConOrigen()).token;
+  }
+
   /**
-   * Pedido con token. Si Andreani contesta 401 con un token que creíamos vigente, se descarta,
-   * se pide otro y se reintenta UNA vez.
+   * Pedido con token.
    *
-   * [LIVE] Ojo: la tarifa con un token inválido devolvió 400 (no 401), así que un token malo
-   * puede llegar como BUSINESS. Por eso al guardar credenciales se pide un token nuevo antes.
+   * [LIVE] Andreani contesta 400 (no 401) a la tarifa con un token inválido, así que un 400 no
+   * distingue "token vencido" de "dato mal". Regla: si el token salió de la CACHÉ y la respuesta
+   * es 400 o 401, se descarta, se pide uno nuevo y se reintenta UNA vez. Con un token recién
+   * pedido no se reintenta: 400 es BUSINESS y 401 es AUTH. Así un token invalidado antes de las
+   * 24 h no deja a la tienda cotizando mal todo el día, y un 401 real termina en AUTH (que
+   * quien llama traduce en "hay que reconectar").
+   *
+   * Costo aceptado: un 400 de negocio (p. ej. un CP que Andreani no atiende) con token en caché
+   * cuesta un login extra.
    */
   async function authed(spec: Omit<RequestSpec, "headers">): Promise<unknown> {
-    const token = await getToken();
+    const { token, fromCache } = await tokenConOrigen();
     const primera = await send({ ...spec, headers: { [TOKEN_HEADER]: token } });
-    if (primera.status !== 401) return jsonOrThrow(primera);
-    tokenCache.delete(cacheKey);
-    const nuevo = await getToken();
+    if (!fromCache || (primera.status !== 400 && primera.status !== 401)) return jsonOrThrow(primera);
+    // Si otro pedido ya lo renovó mientras tanto, se usa ese; si no, login (compartido).
+    const vigente = tokenEnCache();
+    const nuevo = vigente && vigente !== token ? vigente : await loginCompartido();
     return jsonOrThrow(await send({ ...spec, headers: { [TOKEN_HEADER]: nuevo } }));
   }
 
