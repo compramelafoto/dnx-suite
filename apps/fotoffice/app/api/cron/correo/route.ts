@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { prisma } from "@repo/db";
 import { isAuthorizedCronRequest } from "@/lib/security/cron-auth";
 import { sanitizeError } from "@/lib/payments/connect/log";
-import { resumePendingCampaigns, sendWeeklyDigest } from "@/lib/mailing/campaigns";
+import { resumePendingCampaigns, sendOccasionsForToday, sendWeeklyDigest } from "@/lib/mailing/campaigns";
 import { isDigestWindow } from "@/lib/mailing/schedule";
+import { isOccasionWindow } from "@/lib/mailing/occasions";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -15,6 +16,8 @@ export const maxDuration = 300;
  *    función que se cortó). Cada fila se manda una sola vez: ver `lib/mailing/campaigns.ts`.
  * 2. Los lunes desde las 9:00 (hora argentina) arma el resumen semanal del blog de cada institución
  *    que lo tenga encendido. Uno por semana: lo garantiza la clave única del envío.
+ * 3. Todos los días desde las 9:00: fechas especiales, cumpleaños y aniversarios de ingreso
+ *    (Comunicación → Fechas). Uno por día cada uno, por la misma razón.
  *
  * Una institución que falla no frena a las demás.
  */
@@ -57,7 +60,24 @@ export async function POST(request: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, retomados, resumenes });
+  const saludos: Record<string, Record<string, string>> = {};
+  if (isOccasionWindow(now)) {
+    const instituciones = await prisma.fotofficeMailingSettings.findMany({
+      where: { bulkEnabled: true },
+      select: { workspaceId: true },
+    });
+    for (const { workspaceId } of instituciones) {
+      if (Date.now() >= deadline) break;
+      try {
+        saludos[workspaceId] = await sendOccasionsForToday(workspaceId, now, deadline);
+      } catch (error) {
+        saludos[workspaceId] = { error: "ERROR" };
+        console.error("[fotoffice][correo] fallaron los saludos del día", { workspaceId, detalle: sanitizeError(error) });
+      }
+    }
+  }
+
+  return NextResponse.json({ ok: true, retomados, resumenes, saludos });
 }
 
 /** Vercel Cron usa GET. Mismo camino, misma autorización. */

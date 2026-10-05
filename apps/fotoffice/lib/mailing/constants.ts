@@ -5,20 +5,39 @@
  */
 
 /** Temas de baja. "all" = ningún correo masivo de la institución. */
-export const MAILING_TOPICS = ["blog", "all"] as const;
+export const MAILING_TOPICS = ["blog", "efemerides", "saludos", "all"] as const;
 export type MailingTopic = (typeof MAILING_TOPICS)[number];
 
 export const MAILING_TOPIC_LABEL: Record<MailingTopic, string> = {
   blog: "Novedades del blog",
+  efemerides: "Saludos por fechas especiales",
+  saludos: "Saludos de cumpleaños y aniversario",
   all: "Todos los correos de la institución",
 };
 
-export const CAMPAIGN_KINDS = { BLOG_POST: "BLOG_POST", BLOG_DIGEST: "BLOG_DIGEST" } as const;
+/** Cómo se nombra cada tema dentro de una frase («dejar de recibir …»). */
+export const MAILING_TOPIC_PHRASE: Record<MailingTopic, string> = {
+  blog: "las novedades del blog",
+  efemerides: "los saludos por fechas especiales",
+  saludos: "los saludos de cumpleaños y aniversario",
+  all: "todos los correos de novedades",
+};
+
+export const CAMPAIGN_KINDS = {
+  BLOG_POST: "BLOG_POST",
+  BLOG_DIGEST: "BLOG_DIGEST",
+  OCCASION: "OCCASION",
+  BIRTHDAY: "BIRTHDAY",
+  ANNIVERSARY: "ANNIVERSARY",
+} as const;
 export type CampaignKind = (typeof CAMPAIGN_KINDS)[keyof typeof CAMPAIGN_KINDS];
 
 export const CAMPAIGN_KIND_LABEL: Record<string, string> = {
   BLOG_POST: "Artículo del blog",
   BLOG_DIGEST: "Resumen semanal del blog",
+  OCCASION: "Fecha especial",
+  BIRTHDAY: "Cumpleaños",
+  ANNIVERSARY: "Aniversario de ingreso",
 };
 
 export const CAMPAIGN_STATUS_LABEL: Record<string, string> = {
