@@ -1,5 +1,5 @@
 import { CART_MAX_LINES, CART_SCHEMA_VERSION } from "./constants";
-import { lineKey } from "./line-key";
+import { lineKey, maxQtyForLine } from "./line-key";
 import { clampQty } from "./quantities";
 import type { CartAction, CartLine, CartState } from "./types";
 
@@ -10,11 +10,11 @@ function merge(lines: CartLine[], incoming: CartLine): CartLine[] {
   const i = lines.findIndex((l) => lineKey(l) === key);
   if (i >= 0) {
     const next = lines.slice();
-    next[i] = { ...lines[i], qty: clampQty(lines[i].qty + incoming.qty) };
+    next[i] = { ...lines[i], qty: clampQty(lines[i].qty + incoming.qty, maxQtyForLine(lines[i])) };
     return next;
   }
   if (lines.length >= CART_MAX_LINES) return lines;
-  return [...lines, { ...incoming, qty: clampQty(incoming.qty) }];
+  return [...lines, { ...incoming, qty: clampQty(incoming.qty, maxQtyForLine(incoming)) }];
 }
 
 export function cartReducer(state: CartState, action: CartAction): CartState {
@@ -26,7 +26,7 @@ export function cartReducer(state: CartState, action: CartAction): CartState {
       return {
         ...state,
         lines: state.lines.map((l) =>
-          lineKey(l) === action.key ? { ...l, qty: clampQty(action.qty) } : l,
+          lineKey(l) === action.key ? { ...l, qty: clampQty(action.qty, maxQtyForLine(l)) } : l,
         ),
       };
     }

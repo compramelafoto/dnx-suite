@@ -2,7 +2,15 @@
 
 import { useMemo, useState, useTransition, type FormEvent } from "react";
 import Link from "next/link";
-import { checkoutKeyFor, checkoutLinesSignature, lineKey, renewCheckoutKey } from "@/lib/store/cart";
+import {
+  cartLineDetail,
+  cartLineName,
+  checkoutKeyFor,
+  checkoutLinesSignature,
+  lineKey,
+  renewCheckoutKey,
+  type ProductCartLine,
+} from "@/lib/store/cart";
 import { STORE_HOLD_MINUTES } from "@/lib/store/constants";
 import type { CartProblem } from "@/lib/store/storefront";
 import { useCart } from "@/components/store/cart-provider";
@@ -56,9 +64,16 @@ export function CheckoutForm({
     branchProvince: "",
     agency: null,
   }));
-  const quoteLines = useMemo(
-    () => state.lines.map((l) => ({ productId: l.productId, variantId: l.variantId, qty: l.qty })),
+  // Por ahora el pedido y el envío se arman sólo con productos: las obras entran al checkout en
+  // la etapa siguiente (Task 9). Mientras tanto, con obras en el carrito no se puede pagar.
+  const productLines = useMemo(
+    () => state.lines.filter((l): l is ProductCartLine => l.kind === "product"),
     [state.lines],
+  );
+  const hayObras = productLines.length !== state.lines.length;
+  const quoteLines = useMemo(
+    () => productLines.map((l) => ({ productId: l.productId, variantId: l.variantId, qty: l.qty })),
+    [productLines],
   );
   const {
     view: quote,
@@ -82,7 +97,8 @@ export function CheckoutForm({
   function enviar(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const datos = new FormData(e.currentTarget);
-    const lines = state.lines.map((l) => ({ productId: l.productId, variantId: l.variantId, qty: l.qty }));
+    if (hayObras) return;
+    const lines = productLines.map((l) => ({ productId: l.productId, variantId: l.variantId, qty: l.qty }));
     const sig = checkoutLinesSignature(lines);
     const clientIdempotencyKey = checkoutKeyFor(workspaceSlug, sig);
     let entrega: CheckoutDelivery | Record<string, unknown>;
@@ -145,7 +161,7 @@ export function CheckoutForm({
   // Retiro no se cotiza; con envío hace falta una cotización buena para pagar.
   const faltaEnvio = delivery.method !== "PICKUP" && quote.status !== "ok";
   const envioMinor = quote.status === "ok" ? quote.totalMinor : 0;
-  const bloqueado = enviando || revision.validando || revision.error !== null || faltaEnvio;
+  const bloqueado = enviando || revision.validando || revision.error !== null || faltaEnvio || hayObras;
   const campo = (name: string) =>
     fieldErrors[name] ? (
       <span id={`${name}-error`} className="text-sm text-[var(--fo-danger)]">
@@ -232,9 +248,9 @@ export function CheckoutForm({
             {state.lines.map((l) => (
               <li key={lineKey(l)} className="flex items-start justify-between gap-3 text-sm">
                 <span className="min-w-0">
-                  <span className="block truncate">{l.name}</span>
+                  <span className="block truncate">{cartLineName(l)}</span>
                   <span className="text-xs text-[var(--fo-muted)]">
-                    {l.variantName ? `Talle ${l.variantName} · ` : ""}
+                    {cartLineDetail(l) ? `${cartLineDetail(l)} · ` : ""}
                     {l.qty} × <Price minor={l.unitPriceMinor} />
                   </span>
                 </span>
@@ -285,6 +301,11 @@ export function CheckoutForm({
           {error ? (
             <p role="alert" className="text-sm text-[var(--fo-danger)]">
               {error}
+            </p>
+          ) : null}
+          {hayObras ? (
+            <p role="status" className="text-sm text-[var(--fo-danger)]">
+              Todavía no se pueden pagar online las copias de obras. Quitalas del carrito para comprar el resto.
             </p>
           ) : null}
 

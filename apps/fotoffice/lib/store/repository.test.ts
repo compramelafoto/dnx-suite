@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { item, listing, branding, settings, category, moduleEnabledMock } = vi.hoisted(() => ({
+const { item, listing, branding, settings, category, moduleEnabledMock, obras } = vi.hoisted(() => ({
+  obras: {
+    link: { findMany: vi.fn() },
+    listing: { findMany: vi.fn() },
+    format: { findMany: vi.fn() },
+    print: { findUnique: vi.fn() },
+    consent: { findMany: vi.fn() },
+  },
   item: { findMany: vi.fn() },
   category: { findMany: vi.fn() },
   listing: { findMany: vi.fn(), findFirst: vi.fn() },
@@ -16,6 +23,11 @@ vi.mock("@repo/db", () => ({
     fotofficeWorkspaceBranding: branding,
     storeSettings: settings,
     productCategory: category,
+    workspaceContestOrganizationLink: obras.link,
+    artworkListing: obras.listing,
+    printFormat: obras.format,
+    storePrintSettings: obras.print,
+    artworkConsent: obras.consent,
   },
 }));
 vi.mock("@/lib/modules/gating", () => ({ isModuleEnabledForWorkspace: moduleEnabledMock }));
@@ -196,6 +208,58 @@ describe("consultas del catálogo público", () => {
       isActive: true,
       products: { some: { workspaceId: "ws-1", isActive: true, storeListing: { is: { sellOnline: true } } } },
     });
+  });
+
+  it("validateCartLines con obras: las revisa con sus reglas y devuelve en el orden del carrito", async () => {
+    listing.findMany.mockResolvedValueOnce([fila()]);
+    obras.link.findMany.mockResolvedValueOnce([{ organizationId: "org1" }]);
+    obras.listing.findMany.mockResolvedValueOnce([
+      {
+        id: "l1",
+        slug: "atardecer",
+        status: "PUBLISHED",
+        entryId: "e1",
+        title: "Atardecer",
+        authorDisplayName: null,
+        awardLabel: null,
+        previewUrl: "https://r2/l1.jpg",
+        previewWidth: 1600,
+        previewHeight: 1067,
+        originalWidth: 6000,
+        originalHeight: 4000,
+        contest: { id: "c1", slug: "salon", title: "Salón", organizationId: "org1" },
+      },
+    ]);
+    obras.format.findMany.mockResolvedValueOnce([
+      { id: "f1", name: "Copia 30 × 45", kind: "PRINT", widthCm: 30, heightCm: 45, priceArs: dec("45000.00"), isActive: true },
+    ]);
+    obras.print.findUnique.mockResolvedValueOnce(null);
+    obras.consent.findMany.mockResolvedValueOnce([{ entryId: "e1", basis: "RULES", status: "NOTIFIED", notifiedAt: new Date() }]);
+
+    const r = await validateCartLines("ws-1", [
+      { kind: "artwork", artworkListingId: "lx", printFormatId: "f1", qty: 1, name: "Vieja" },
+      { productId: "p1", variantId: null, qty: 1 },
+      { kind: "artwork", artworkListingId: "l1", printFormatId: "f1", qty: 2, unitPriceMinor: 1 },
+    ]);
+    expect(r.lines.map((l) => [l.key, l.qty, l.unitPriceMinor])).toEqual([
+      ["p1:-", 1, 10000],
+      ["a:l1:f1", 2, 4500000],
+    ]);
+    expect(r.problems.map((p) => p.key)).toEqual(["a:lx:f1", "a:l1:f1"]);
+    expect(obras.listing.findMany.mock.calls[0][0].where).toMatchObject({
+      workspaceId: "ws-1",
+      status: "PUBLISHED",
+      id: { in: ["lx", "l1"] },
+    });
+  });
+
+  it("validateCartLines sólo con obras no consulta productos", async () => {
+    obras.link.findMany.mockResolvedValueOnce([]);
+    const r = await validateCartLines("ws-1", [{ kind: "artwork", artworkListingId: "l1", printFormatId: "f1", qty: 1 }]);
+    expect(r.lines).toEqual([]);
+    expect(r.problems).toEqual([{ key: "a:l1:f1", message: "Una obra ya no está a la venta." }]);
+    expect(listing.findMany).not.toHaveBeenCalled();
+    expect(item.findMany).not.toHaveBeenCalled();
   });
 
   it("validateCartLines con carrito vacío no consulta", async () => {

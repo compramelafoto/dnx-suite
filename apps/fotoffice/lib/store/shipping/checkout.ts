@@ -1,4 +1,5 @@
 import { parseCartLinesInput } from "../cart-lines-input";
+import { isProductLineInput } from "../storefront";
 import { normalizePostalCode } from "./package";
 import { isProvinceCode } from "./provinces";
 import type { QuoteShippingResult, ShippingMethod, ShippingQuoteFailure } from "./quote";
@@ -56,7 +57,8 @@ export function parseQuoteRequest(raw: unknown): { ok: true; value: QuoteRequest
   if (!postalCode) return { ok: false, message: "Ingresá un código postal válido (4 números, ej. 2000)." };
   const provinceCode = typeof r.provinceCode === "string" ? r.provinceCode.trim().toUpperCase() : "";
   if (!isProvinceCode(provinceCode)) return { ok: false, message: "Elegí la provincia." };
-  const lines = parseCartLinesInput(r.lines);
+  // Por ahora se cotizan sólo productos: las obras (con el peso de su formato) llegan con Task 9.
+  const lines = parseCartLinesInput(r.lines)?.filter(isProductLineInput) ?? null;
   if (!lines || lines.length === 0) return { ok: false, message: "El carrito es inválido." };
   return {
     ok: true,
