@@ -7,6 +7,11 @@ import { readVideoCart, VIDEO_CART_EVENT } from "@/lib/videos/video-cart-storage
 import { purchaseButtonState } from "@/lib/videos/purchase-button-label";
 import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
+import {
+  appendPreventaRedeemParams,
+  readPreventaRedeemParams,
+  type PreventaRedeemContext,
+} from "@/lib/preventa-canjeable/preventa-redeem-url";
 import { useGateVisibility } from "@/contexts/GateVisibilityContext";
 import PhotoGrid from "./PhotoGrid";
 import PhotoSlideViewer from "./PhotoSlideViewer";
@@ -347,13 +352,14 @@ function normalizePhotoIdsForComprarQuery(ids: ReadonlyArray<number | string>): 
 function buildAlbumComprarUrl(
   albumPathBase: string,
   photoIds: ReadonlyArray<number | string>,
-  options?: { source?: string; debugCheckout?: boolean }
+  options?: { source?: string; debugCheckout?: boolean; redeem?: PreventaRedeemContext | null }
 ): string {
   const normalized = normalizePhotoIdsForComprarQuery(photoIds);
   const params = new URLSearchParams();
   params.set("photoIds", normalized.join(","));
   if (options?.source) params.set("source", options.source);
   if (options?.debugCheckout) params.set("debugCheckout", "1");
+  appendPreventaRedeemParams(params, options?.redeem);
   const base = albumPathBase.replace(/\/$/, "");
   return `${base}/comprar?${params.toString()}`;
 }
@@ -474,11 +480,16 @@ export default function ClientAlbumView({
   } | null;
 }) {
   const accentColor = tertiaryColor || "#c27b3d";
-  const canPurchaseSingles = singlesPurchaseReady ?? salesReadyToSell;
-  const canPurchasePacks = isAlbumPackGalleryAvailable(album.publicVisiblePacks?.length ?? 0);
-  const purchaseUxV2 = isPurchaseUxV2EnabledClient();
   const router = useRouter();
   const searchParams = useSearchParams();
+  // Modo canje: la familia llega desde el link de su pack de preventa para elegir las fotos
+  // que ya pagó. Se esconde todo lo que es comprar (precios, packs, botones de pago) y se
+  // sigue a la confirmación del canje con el token del pack.
+  const preventaRedeem = useMemo(() => readPreventaRedeemParams(searchParams), [searchParams]);
+  const canPurchaseSingles = !preventaRedeem && (singlesPurchaseReady ?? salesReadyToSell);
+  const canPurchasePacks =
+    !preventaRedeem && isAlbumPackGalleryAvailable(album.publicVisiblePacks?.length ?? 0);
+  const purchaseUxV2 = isPurchaseUxV2EnabledClient();
   const albumComprarPathBase = `/a/${album.id}`;
 
   function handleRequestRemoval(photoId: string) {
@@ -634,7 +645,8 @@ export default function ClientAlbumView({
     packName: string;
   } | null>(null);
 
-  const canSelectPhotosForPurchase = canPurchaseSingles || packSelectionMode != null;
+  const canSelectPhotosForPurchase =
+    canPurchaseSingles || packSelectionMode != null || preventaRedeem != null;
 
   const singlesSelectionCount = packSelectionMode
     ? packSelectionMode.photoIds.size
@@ -899,6 +911,18 @@ export default function ClientAlbumView({
       else next.add(id);
       return next;
     });
+  }
+
+  /** Modo canje: sigue a la confirmación del pack con las fotos marcadas, sin cobrar. */
+  function handleContinuarCanje() {
+    if (!preventaRedeem || checkoutSubmitting) return;
+    const arr = normalizePhotoIdsForComprarQuery(Array.from(selected));
+    if (arr.length === 0) return;
+    setCheckoutSubmitting(true);
+    writeAlbumCheckoutSelection(String(album.id), arr);
+    startCheckoutNavigation(
+      buildAlbumComprarUrl(albumComprarPathBase, arr, { redeem: preventaRedeem })
+    );
   }
 
   function handleComprar() {
@@ -2235,7 +2259,17 @@ export default function ClientAlbumView({
         )}
       </div>
 
-      {!canPurchaseSingles && !canPurchasePacks ? <GallerySalesNotReadyNotice /> : null}
+      {preventaRedeem ? (
+        <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
+          <p className="m-0 font-semibold">Estás canjeando tu pack</p>
+          <p className="m-0 mt-1 text-emerald-900">
+            Buscá y tocá las fotos que querés para tu pack. Cuando termines, tocá
+            &quot;Continuar con el canje&quot;: ahí confirmás sin pagar nada.
+          </p>
+        </div>
+      ) : !canPurchaseSingles && !canPurchasePacks ? (
+        <GallerySalesNotReadyNotice />
+      ) : null}
 
       {canPurchaseSingles ? <GalleryPricingBand pricing={galleryPricing} /> : null}
 
@@ -2985,7 +3019,9 @@ export default function ClientAlbumView({
             ? renderFaceBulkPackCard()
             : null}
 <p className="text-sm text-[#6b7280] mb-4 leading-relaxed">
-            {canSelectPhotosForPurchase
+            {preventaRedeem
+              ? "Tocá cada foto que quieras incluir en tu pack."
+              : canSelectPhotosForPurchase
               ? photoSelectionHelpText
               : canPurchasePacks
                 ? "Explorá las fotos o elegí un pack arriba para comprar."
@@ -3100,6 +3136,26 @@ export default function ClientAlbumView({
       </>
       }
       />
+
+      {preventaRedeem ? (
+        <button
+          type="button"
+          onClick={handleContinuarCanje}
+          disabled={selected.size === 0 || checkoutSubmitting}
+          className={`fixed z-50 right-5 bottom-5 md:right-8 md:bottom-8 px-4 py-3 rounded-full shadow-lg text-white text-sm font-semibold transition-all disabled:pointer-events-none ${
+            selected.size > 0 && !checkoutSubmitting
+              ? "bg-[#c27b3d] hover:bg-[#a0652d]"
+              : "bg-[#9ca3af] cursor-not-allowed"
+          }`}
+          style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)" }}
+        >
+          {checkoutSubmitting
+            ? "Abriendo el canje…"
+            : selected.size > 0
+              ? `Continuar con el canje (${selected.size})`
+              : "Elegí tus fotos"}
+        </button>
+      ) : null}
 
       {/* CTA flotante (legacy — oculto con UX V2) */}
       {canPurchaseSingles && !packSelectionMode && !purchaseUxV2 && (
