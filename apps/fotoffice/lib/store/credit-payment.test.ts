@@ -30,7 +30,29 @@ vi.mock("@/lib/sales/stock-lock", () => ({ lockStockRows: h.lockStockRows }));
 vi.mock("./repository", () => ({ reservedQtyByKey: h.reservedQtyByKey }));
 vi.mock("./emails", () => h.emails);
 
-const { creditStorePayment, hasStockForOrder, lockAndCheckOrderStock } = await import("./credit-payment");
+const { creditStorePayment, finalizePaidOrder, hasStockForOrder, lockAndCheckOrderStock } = await import("./credit-payment");
+const { STORE_NOTE_ROYALTY_UNASSIGNED } = await import("./constants");
+
+/** Las columnas de obra de un renglón de producto: todas vacías. */
+const SIN_OBRA = {
+  artworkListingId: null as string | null,
+  printFormatId: null as string | null,
+  printFormatName: null as string | null,
+  royaltyBps: null as number | null,
+  artworkAuthorUserId: null as number | null,
+};
+
+/** Un renglón del pedido de prueba: de producto o de obra. */
+type Renglon = typeof SIN_OBRA & {
+  id: string;
+  productId: string | null;
+  variantId: string | null;
+  productName: string;
+  variantName: string | null;
+  qty: number;
+  unitPriceArs: string;
+  lineTotalArs: string;
+};
 
 type Status = "PENDING_PAYMENT" | "PAID" | "READY" | "DELIVERED" | "CANCELLED" | "EXPIRED" | "PAID_NO_STOCK";
 
@@ -50,22 +72,28 @@ function pedido(over: { status?: Status; mpPaymentId?: string | null } = {}) {
     totalArs: "25000.00",
     feeArs: "1500.00",
     feeBps: 500,
-    items: [
+    items: <Renglon[]>[
       {
+        ...SIN_OBRA,
+        id: "it1",
         productId: "p1",
         variantId: "v1",
         productName: "Remera",
         variantName: "M",
         qty: 2,
         unitPriceArs: "10000.00",
+        lineTotalArs: "20000.00",
       },
       {
+        ...SIN_OBRA,
+        id: "it2",
         productId: "p2",
         variantId: null,
         productName: "Taza",
         variantName: null,
         qty: 1,
         unitPriceArs: "5000.00",
+        lineTotalArs: "5000.00",
       },
     ],
   };
@@ -103,6 +131,21 @@ function crearTx(
       findMany: vi.fn(async () => [{ id: "v1", stockQty: stock.v1 ?? 5 }]),
     },
     sale: { findUnique: vi.fn(async () => ({ clientId: "cli1" })) },
+    printFormat: {
+      findMany: vi.fn(async () => [
+        { id: "f1", costArs: "3000.00" },
+        { id: "f2", costArs: null },
+      ]),
+    },
+    artworkListing: {
+      findMany: vi.fn(async () => [
+        { id: "l1", contestId: "c1" },
+        { id: "l2", contestId: "c2" },
+      ]),
+    },
+    artworkRoyalty: {
+      createMany: vi.fn<(args: unknown) => Promise<{ count: number }>>(async () => ({ count: 1 })),
+    },
   };
 }
 
@@ -462,5 +505,243 @@ describe("hasStockForOrder", () => {
   it("un producto o talle borrado no alcanza: alguien tiene que mirarlo", () => {
     expect(hasStockForOrder([{ productId: null, variantId: null, qty: 1 }], productos, talles, new Map())).toBe(false);
     expect(hasStockForOrder([{ productId: "p1", variantId: "v9", qty: 1 }], productos, talles, new Map())).toBe(false);
+  });
+});
+
+// ── Obras de concursos (etapa 3: O10, O11) ──────────────────────────────────
+
+
+/** Un renglón de obra como lo deja `artworkOrderItemData`: sin producto, con formato, regalía y autor. */
+function obra(over: Partial<Renglon> = {}): Renglon {
+  return {
+    id: "it3",
+    productId: null,
+    variantId: null,
+    productName: "Atardecer",
+    variantName: "Impresión 30 × 45 cm",
+    qty: 2,
+    unitPriceArs: "15000.00",
+    lineTotalArs: "30000.00",
+    artworkListingId: "l1",
+    printFormatId: "f1",
+    printFormatName: "Impresión 30 × 45 cm",
+    royaltyBps: 2000,
+    artworkAuthorUserId: 501,
+    ...over,
+  };
+}
+
+const niebla = () =>
+  obra({
+    id: "it4",
+    productName: "Niebla",
+    variantName: "Cuadro 50 × 70 cm",
+    printFormatName: "Cuadro 50 × 70 cm",
+    qty: 1,
+    unitPriceArs: "33333.33",
+    lineTotalArs: "33333.33",
+    artworkListingId: "l2",
+    printFormatId: "f2",
+    royaltyBps: 1500,
+    artworkAuthorUserId: 502,
+  });
+
+/** Sólo una obra: $30.000. */
+function pedidoDeObra(over: { shippingArs?: string; totalArs?: string; items?: Renglon[] } = {}) {
+  return {
+    ...pedido(),
+    subtotalArs: "30000.00",
+    totalArs: over.totalArs ?? "30000.00",
+    shippingArs: over.shippingArs ?? "0.00",
+    shippingMethod: over.shippingArs ? "HOME" : null,
+    feeArs: "1500.00",
+    items: over.items ?? [obra()],
+  };
+}
+
+function regalias(): Record<string, unknown>[] {
+  return tx.artworkRoyalty.createMany.mock.calls.flatMap((c) => (c[0] as { data: Record<string, unknown>[] }).data);
+}
+
+describe("creditStorePayment — pedido sólo de obras", () => {
+  it("pasa a PAID (las obras no tienen stock) con renglón suelto de obra y su regalía", async () => {
+    preparar(pedidoDeObra());
+    const r = await creditStorePayment({ amountMinor: 30_000_00, currency: "ARS", orderId: "ord1", providerPaymentId: "mp1" });
+
+    expect(r).toEqual({ applied: true, status: "PAID" });
+    // Nada de stock que bloquear: sólo productos y talles se bloquean.
+    expect(h.lockStockRows).toHaveBeenCalledWith(tx, { workspaceId: "ws1", productIds: [], variantIds: [] });
+    expect(tx.product.findMany).not.toHaveBeenCalled();
+
+    const [, input] = h.recordSale.mock.calls[0] as [unknown, { lines: unknown[] }];
+    expect(input.lines).toEqual([
+      {
+        productId: null,
+        variantId: null,
+        description: "Obra «Atardecer» — Impresión 30 × 45 cm",
+        qty: 2,
+        unitPriceMinor: 15_000_00,
+        unitCostMinor: 3_000_00,
+        priceWasOverridden: false,
+      },
+    ]);
+    // El costo es el del formato HOY, del workspace.
+    expect(tx.printFormat.findMany).toHaveBeenCalledWith({
+      where: { id: { in: ["f1"] }, workspaceId: "ws1" },
+      select: { id: true, costArs: true },
+    });
+
+    expect(tx.artworkListing.findMany).toHaveBeenCalledWith({
+      where: { id: { in: ["l1"] }, workspaceId: "ws1" },
+      select: { id: true, contestId: true },
+    });
+    expect(tx.artworkRoyalty.createMany).toHaveBeenCalledTimes(1);
+    expect(tx.artworkRoyalty.createMany.mock.calls[0]![0]).toMatchObject({ skipDuplicates: true });
+    expect(regalias()).toEqual([
+      {
+        workspaceId: "ws1",
+        orderId: "ord1",
+        orderItemId: "it3",
+        authorUserId: 501,
+        contestId: "c1",
+        baseArs: "30000.00",
+        royaltyBps: 2000,
+        amountArs: "6000.00",
+        status: "ACCRUED",
+      },
+    ]);
+    expect(h.emails.sendOrderPaidEmail).toHaveBeenCalled();
+  });
+
+  it("el envío no entra en la base de la regalía", async () => {
+    preparar(pedidoDeObra({ shippingArs: "4500.00", totalArs: "34500.00" }));
+    const r = await creditStorePayment({ amountMinor: 34_500_00, currency: "ARS", orderId: "ord1", providerPaymentId: "mp1" });
+    expect(r.status).toBe("PAID");
+    expect(regalias()).toEqual([expect.objectContaining({ baseArs: "30000.00", amountArs: "6000.00" })]);
+    // El envío sigue yendo a la venta como renglón suelto.
+    const [, input] = h.recordSale.mock.calls[0] as [unknown, { lines: { description: string }[] }];
+    expect(input.lines.map((l) => l.description)).toEqual(["Obra «Atardecer» — Impresión 30 × 45 cm", "Envío a domicilio"]);
+  });
+
+  it("un renglón sin regalía congelada usa el 20 % por omisión", async () => {
+    preparar(pedidoDeObra({ items: [obra({ royaltyBps: null })] }));
+    await creditStorePayment({ amountMinor: 30_000_00, currency: "ARS", orderId: "ord1", providerPaymentId: "mp1" });
+    expect(regalias()).toEqual([expect.objectContaining({ royaltyBps: 2000, amountArs: "6000.00" })]);
+  });
+
+  it("no vuelve a mirar el permiso del autor: un pedido hecho mientras la obra se vendía se honra", async () => {
+    preparar(pedidoDeObra());
+    await creditStorePayment({ amountMinor: 30_000_00, currency: "ARS", orderId: "ord1", providerPaymentId: "mp1" });
+    // El único bloqueo propio es el del pedido (el de stock es `lockStockRows`): ni permisos ni fichas.
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(tx).not.toHaveProperty("artworkConsent");
+    expect(regalias()).toHaveLength(1);
+  });
+
+  it("sin autor: se acredita igual, sin esa regalía y con una constancia para revisar", async () => {
+    preparar(pedidoDeObra({ items: [obra({ artworkAuthorUserId: null })] }));
+    const r = await creditStorePayment({ amountMinor: 30_000_00, currency: "ARS", orderId: "ord1", providerPaymentId: "mp1" });
+    expect(r.status).toBe("PAID");
+    expect(tx.artworkRoyalty.createMany).not.toHaveBeenCalled();
+    expect(tx.storeOrderEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ orderId: "ord1", note: expect.stringContaining(STORE_NOTE_ROYALTY_UNASSIGNED) }),
+    });
+  });
+
+  it("aviso repetido del mismo pago: ni venta ni regalías nuevas", async () => {
+    preparar({ ...pedidoDeObra(), status: "PAID", mpPaymentId: "mp1" });
+    const r = await creditStorePayment({ amountMinor: 30_000_00, currency: "ARS", orderId: "ord1", providerPaymentId: "mp1" });
+    expect(r.motivo).toBe("aviso repetido");
+    expect(tx.artworkRoyalty.createMany).not.toHaveBeenCalled();
+  });
+
+  it("finalizar dos veces escribe las mismas regalías con skipDuplicates (una por renglón)", async () => {
+    preparar(pedidoDeObra());
+    const order = pedidoDeObra() as never;
+    await finalizePaidOrder(tx as never, order, fechaPago);
+    await finalizePaidOrder(tx as never, order, fechaPago);
+    const [primera, segunda] = tx.artworkRoyalty.createMany.mock.calls.map((c) => c[0]);
+    expect(primera).toEqual(segunda);
+    expect(primera).toMatchObject({ skipDuplicates: true });
+  });
+
+  it("pago menor al total: PAID_NO_STOCK, sin venta y sin regalías", async () => {
+    preparar(pedidoDeObra());
+    const r = await creditStorePayment({ amountMinor: 29_000_00, currency: "ARS", orderId: "ord1", providerPaymentId: "mp1" });
+    expect(r.status).toBe("PAID_NO_STOCK");
+    expect(tx.artworkRoyalty.createMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("creditStorePayment — pedido mixto (productos y obras)", () => {
+  const mixto = () => ({
+    ...pedido(),
+    subtotalArs: "88333.33",
+    totalArs: "88333.33",
+    items: [...pedido().items, obra(), niebla()],
+  });
+  const cobroMixto = { amountMinor: 88_333_33, currency: "ARS" };
+
+  it("productos como siempre, obras como renglón suelto, una regalía por obra", async () => {
+    preparar(mixto());
+    const r = await creditStorePayment({ ...cobroMixto, orderId: "ord1", providerPaymentId: "mp1" });
+    expect(r.status).toBe("PAID");
+
+    expect(h.lockStockRows).toHaveBeenCalledWith(tx, { workspaceId: "ws1", productIds: ["p1", "p2"], variantIds: ["v1"] });
+    const [, input] = h.recordSale.mock.calls[0] as [unknown, { lines: Record<string, unknown>[] }];
+    expect(input.lines).toHaveLength(4);
+    expect(input.lines[0]).toMatchObject({ productId: "p1", variantId: "v1", description: "Remera — M", unitCostMinor: 4_000_00 });
+    expect(input.lines[1]).toMatchObject({ productId: "p2", description: "Taza", unitCostMinor: null });
+    expect(input.lines[2]).toMatchObject({ productId: null, description: "Obra «Atardecer» — Impresión 30 × 45 cm", unitCostMinor: 3_000_00 });
+    expect(input.lines[3]).toMatchObject({
+      productId: null,
+      variantId: null,
+      description: "Obra «Niebla» — Cuadro 50 × 70 cm",
+      qty: 1,
+      unitPriceMinor: 33_333_33,
+      unitCostMinor: null,
+    });
+
+    expect(regalias()).toEqual([
+      expect.objectContaining({ orderItemId: "it3", authorUserId: 501, contestId: "c1", baseArs: "30000.00", amountArs: "6000.00" }),
+      // 15 % de $33.333,33 = $4.999,9995 → $5.000,00 (redondeo al centavo).
+      expect.objectContaining({ orderItemId: "it4", authorUserId: 502, contestId: "c2", baseArs: "33333.33", royaltyBps: 1500, amountArs: "5000.00" }),
+    ]);
+  });
+
+  it("si los productos no alcanzan, PAID_NO_STOCK sin venta ni regalías (las obras no salvan el pedido)", async () => {
+    preparar(mixto(), { v1: 1 });
+    const r = await creditStorePayment({ ...cobroMixto, orderId: "ord1", providerPaymentId: "mp1" });
+    expect(r.status).toBe("PAID_NO_STOCK");
+    expect(h.recordSale).not.toHaveBeenCalled();
+    expect(tx.artworkRoyalty.createMany).not.toHaveBeenCalled();
+  });
+
+  it("pedido sólo de productos: ni formatos, ni fichas, ni regalías", async () => {
+    preparar(pedido());
+    await creditStorePayment({ ...cobro, orderId: "ord1", providerPaymentId: "mp1" });
+    expect(tx.printFormat.findMany).not.toHaveBeenCalled();
+    expect(tx.artworkListing.findMany).not.toHaveBeenCalled();
+    expect(tx.artworkRoyalty.createMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("stock con obras (también lo usa reponer: PAID_NO_STOCK → PAID)", () => {
+  it("hasStockForOrder ignora los renglones de obra", () => {
+    const productos = new Map([["p1", { tracksStock: true, stockQty: 1 }]]);
+    const deObra = { productId: null, variantId: null, qty: 5, artworkListingId: "l1", printFormatName: "Impresión" };
+    expect(hasStockForOrder([deObra], new Map(), new Map(), new Map())).toBe(true);
+    expect(hasStockForOrder([deObra, { productId: "p1", variantId: null, qty: 1 }], productos, new Map(), new Map())).toBe(true);
+    expect(hasStockForOrder([deObra, { productId: "p1", variantId: null, qty: 2 }], productos, new Map(), new Map())).toBe(false);
+  });
+
+  it("una obra cuya ficha se borró (sin ficha) igual se reconoce por el formato congelado", () => {
+    const sinFicha = { productId: null, variantId: null, qty: 1, artworkListingId: null, printFormatName: "Impresión" };
+    expect(hasStockForOrder([sinFicha], new Map(), new Map(), new Map())).toBe(true);
+  });
+
+  it("lockAndCheckOrderStock: un pedido sólo de obras siempre alcanza", async () => {
+    const t = crearTx(pedidoDeObra());
+    expect(await lockAndCheckOrderStock(t as never, pedidoDeObra() as never)).toBe(true);
   });
 });

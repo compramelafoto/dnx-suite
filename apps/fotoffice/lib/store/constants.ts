@@ -41,6 +41,14 @@ export const STORE_NOTE_AMOUNT_MISMATCH = "Pago con monto distinto: revisar";
 export const STORE_NOTE_DUPLICATE_PREFIX = "Pago duplicado";
 export const STORE_NOTE_CREDIT_FAILURE_PREFIX = "Pago aprobado que no se pudo acreditar";
 /**
+ * Regalías de obras (etapa 3, O11). La primera la deja la acreditación cuando un renglón de obra
+ * no tiene a quién (autor) o a qué concurso imputarle la regalía: el pago se acredita igual y una
+ * persona lo resuelve. La segunda, la cancelación de un pedido cuya regalía ya se le pagó al
+ * autor: esa plata hay que recuperarla a mano.
+ */
+export const STORE_NOTE_ROYALTY_UNASSIGNED = "Regalía sin autor o sin concurso: revisar";
+export const STORE_NOTE_ROYALTY_TO_RECOVER = "Regalía ya pagada al autor: hay que recuperarla";
+/**
  * La constancia del botón de arrepentimiento (`regret.ts`). No es un "problema" del panel: queda
  * en el historial del pedido para que el personal la vea. Le sigue `: <motivo>` si lo hubo.
  */

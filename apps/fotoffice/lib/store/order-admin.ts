@@ -6,6 +6,8 @@ import {
   STORE_NOTE_CREDIT_FAILURE_PREFIX,
   STORE_NOTE_DUPLICATE_PREFIX,
   STORE_NOTE_REGRET,
+  STORE_NOTE_ROYALTY_TO_RECOVER,
+  STORE_NOTE_ROYALTY_UNASSIGNED,
 } from "./constants";
 import { finalizePaidOrder, lockAndCheckOrderStock, SELECT_PEDIDO_A_ACREDITAR } from "./credit-payment";
 import { sendOrderPaidEmail, sendOrderReadyEmail, sendOrderShippedEmail } from "./emails";
@@ -24,6 +26,12 @@ import { canTransition } from "./transitions";
  * - Los correos salen DESPUÉS de confirmar la transacción.
  * - Cancelar un pedido pagado anula su venta (`voidSale`) en la misma transacción. El id del pago
  *   de Mercado Pago no se borra nunca: es la constancia de que la plata entró y hay que devolverla.
+ * - Cancelarlo anula también, en la misma transacción, las regalías de obras todavía no pagadas
+ *   (ACCRUED → VOIDED). Una regalía ya PAGADA al autor no se toca: el pedido queda con una
+ *   constancia para recuperarla (y aparece en "Problemas").
+ * - Orden global de los bloqueos: el de `credit-payment.ts` (StoreOrder → Product →
+ *   ProductVariant → ArtworkConsent → ArtworkListing). Las regalías se escriben después de
+ *   bloquear el pedido; ni permisos ni fichas se bloquean acá.
  */
 
 type Tx = Prisma.TransactionClient;
@@ -64,6 +72,8 @@ const PREFIJOS_DE_PROBLEMA = [
   STORE_NOTE_DUPLICATE_PREFIX,
   STORE_NOTE_CREDIT_FAILURE_PREFIX,
   STORE_NOTE_REGRET,
+  STORE_NOTE_ROYALTY_UNASSIGNED,
+  STORE_NOTE_ROYALTY_TO_RECOVER,
 ] as const;
 
 function esNotaDeProblema(note: string | null): boolean {
@@ -232,12 +242,38 @@ export async function changeOrderStatus(input: {
                 if (!anulada.ok) throw new Rechazo(anulada.error);
               }
             }
+            // Las regalías nacen con la venta (`finalizePaidOrder`): sólo un pedido con venta las
+            // tiene. Uno pagado sin stock nunca tuvo venta, así que tampoco regalías.
+            let regaliasPagadas = 0;
+            if (CON_VENTA.includes(from)) {
+              // El `where` con el estado decide en la base: si en paralelo alguien marca pagada
+              // una regalía, una de las dos escrituras espera a la otra y no la pisa.
+              await tx.artworkRoyalty.updateMany({
+                where: { workspaceId: input.workspaceId, orderId: order.id, status: "ACCRUED" },
+                data: { status: "VOIDED" },
+              });
+              regaliasPagadas = await tx.artworkRoyalty.count({
+                where: { workspaceId: input.workspaceId, orderId: order.id, status: "PAID" },
+              });
+            }
             // Sin tocar `mpPaymentId`: el pago existió y hay que devolverlo.
             await tx.storeOrder.updateMany({
               where: donde,
               data: { status: "CANCELLED", cancelledAt: ahora, holdExpiresAt: null },
             });
             await evento(nota);
+            // Una sola constancia por pedido (cancelar es una vez): la plata ya le llegó al autor.
+            if (regaliasPagadas > 0) {
+              await tx.storeOrderEvent.create({
+                data: {
+                  orderId: order.id,
+                  fromStatus: "CANCELLED",
+                  toStatus: "CANCELLED",
+                  actorUserId: input.userId,
+                  note: STORE_NOTE_ROYALTY_TO_RECOVER,
+                },
+              });
+            }
             return;
           }
 

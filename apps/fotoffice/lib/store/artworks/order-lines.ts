@@ -9,6 +9,14 @@
  * Con los permisos bloqueados, el que retira espera a que el pedido termine (y entonces
  * despublica), o el pedido espera al retiro y, al volver a leer, ya no la vende.
  *
+ * Orden GLOBAL de los bloqueos de la tienda (el mismo que documenta `credit-payment.ts`):
+ *
+ *   StoreOrder → Product → ProductVariant → ArtworkConsent → ArtworkListing
+ *
+ * Al crear el pedido, el stock de los productos (`lockStockRows`) se bloquea ANTES que estos
+ * permisos y fichas. La acreditación y la cancelación no bloquean ni permisos ni fichas: un pedido
+ * ya creado se honra aunque el autor retire la obra después (ver `finalizePaidOrder`).
+ *
  * Todo con `workspaceId`. Los ids van como `text[]` (son cuid), igual que `lockStockRows`.
  */
 import "server-only";
