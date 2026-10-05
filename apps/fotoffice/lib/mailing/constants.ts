@@ -32,6 +32,7 @@ export const CAMPAIGN_KINDS = {
   BIRTHDAY: "BIRTHDAY",
   ANNIVERSARY: "ANNIVERSARY",
   CUSTOM: "CUSTOM",
+  LIFECYCLE: "LIFECYCLE",
 } as const;
 export type CampaignKind = (typeof CAMPAIGN_KINDS)[keyof typeof CAMPAIGN_KINDS];
 
@@ -42,6 +43,7 @@ export const CAMPAIGN_KIND_LABEL: Record<string, string> = {
   BIRTHDAY: "Cumpleaños",
   ANNIVERSARY: "Aniversario de ingreso",
   CUSTOM: "Campaña",
+  LIFECYCLE: "Ciclo del socio",
 };
 
 /** Estados de una campaña libre (FotofficeMailingMessage). */

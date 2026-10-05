@@ -103,6 +103,7 @@ export async function createCustomOccasionAction(): Promise<void> {
     imageUrl: null,
     specialties: [],
     milestonesOnly: false,
+    offsetDays: null,
   });
   revalidatePath(LISTA);
   volver(editor(key), { ok: "Creamos la fecha. Poné el nombre, el día y el texto." });
