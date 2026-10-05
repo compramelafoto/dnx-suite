@@ -127,3 +127,6 @@ export const COVERAGE_EMAIL_KEYS = {
  * `lib/modules/registry.ts`, y los roles de plantilla de la Comisión ya la nombraban.
  */
 export const COMMUNICATIONS_MODULE_KEY = "communications";
+
+/** Aviso al Socio de la semana para que complete su perfil, en `SentEmailLog`. */
+export const SPOTLIGHT_NUDGE_EMAIL_KEY = "fotoffice.spotlight.complete-profile";
