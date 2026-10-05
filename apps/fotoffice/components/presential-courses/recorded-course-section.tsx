@@ -1,5 +1,6 @@
 import { formatMoney } from "@/lib/format";
 import { duracionLegible } from "@/lib/course-classroom/aula";
+import { montosDeCompraSinReparto } from "@/lib/course-marketplace/compra";
 import { PublicCourseEnrollmentForm } from "@/components/presential-courses/public-course-enrollment-form";
 
 type Clase = {
@@ -26,6 +27,9 @@ export function RecordedCourseSection({
   publicado,
   clases,
   gratisParaSocios,
+  cargoServicioBps,
+  aLaVenta,
+  dueno,
 }: {
   workspaceSlug: string;
   courseSlug: string;
@@ -35,7 +39,15 @@ export function RecordedCourseSection({
   publicado: boolean;
   clases: Clase[];
   gratisParaSocios: { institucion: string } | null;
+  /** Cargo de servicio de la plataforma, en puntos básicos (500 = 5%). */
+  cargoServicioBps: number;
+  /** false cuando el curso tiene reparto: no se vende hasta la etapa del split. */
+  aLaVenta: boolean;
+  dueno: { workspaceId: string; nombre: string };
 }) {
+  const montos = precioArs
+    ? montosDeCompraSinReparto({ listaArs: precioArs, comisionPlataformaBps: cargoServicioBps, owner: dueno })
+    : null;
   const total = clases.reduce((s, c) => s + (c.durationSeconds ?? 0), 0);
   const plazo = accessMonths === 1 ? "1 mes" : `${accessMonths} meses`;
   return (
@@ -83,9 +95,22 @@ export function RecordedCourseSection({
         </p>
       ) : null}
       {precioArs ? (
-        <p className="text-lg font-semibold">{formatMoney(Number(precioArs), "ARS")}</p>
+        montos?.ok && Number(montos.platformFeeArs) > 0 ? (
+          <p className="text-lg">
+            <strong>{formatMoney(Number(montos.listPriceArs), "ARS")}</strong> +{" "}
+            {formatMoney(Number(montos.platformFeeArs), "ARS")} de cargo por servicio ={" "}
+            <strong>{formatMoney(Number(montos.amountArs), "ARS")}</strong>
+          </p>
+        ) : (
+          <p className="text-lg font-semibold">{formatMoney(Number(precioArs), "ARS")}</p>
+        )
       ) : null}
-      {publicado && precioArs ? (
+      {publicado && precioArs && !aLaVenta ? (
+        <p className="rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] p-3 text-sm font-medium">
+          Disponible próximamente
+        </p>
+      ) : null}
+      {publicado && precioArs && aLaVenta ? (
         <details className="pt-2">
           <summary className="cursor-pointer text-sm text-[var(--fo-accent)]">Comprar el curso</summary>
           <div className="pt-3">
