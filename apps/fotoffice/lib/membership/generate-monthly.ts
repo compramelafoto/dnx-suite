@@ -26,11 +26,21 @@ export async function generateMonthlyCharges(input: {
   workspaceId: string;
   /** `AAAA-MM`. */
   period: string;
+  /**
+   * Sólo para estos socios. Lo usa la reactivación: quien vuelve después de que corrió la
+   * generación del mes quedaría sin la cuota de ese mes para siempre, porque el mes siguiente
+   * se genera el siguiente.
+   */
+  memberIds?: string[];
 }): Promise<GenerateReport> {
   const settings = await getDuesSettings(input.workspaceId);
 
   const socios = await prisma.member.findMany({
-    where: { workspaceId: input.workspaceId, status: { not: "INACTIVE" } },
+    where: {
+      workspaceId: input.workspaceId,
+      status: { not: "INACTIVE" },
+      ...(input.memberIds ? { id: { in: input.memberIds } } : {}),
+    },
     select: {
       id: true,
       status: true,

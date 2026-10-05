@@ -26,6 +26,7 @@ import {
 import { mensajeDePadron } from "@/lib/members/mensajes";
 import { isMemberStatus } from "@/lib/members/status-labels";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
+import { ensureCurrentPeriodCharge } from "@/lib/membership/reactivate";
 
 export type MemberFormState = { error: string | null; fieldErrors?: Record<string, string> };
 
@@ -192,6 +193,15 @@ export async function changeMemberStatusAction(
       (e) => console.error("[fotoffice][comision] aviso de inactivo", e),
     ),
   );
+
+  // Quien vuelve después de la generación del mes quedaría sin la cuota de este mes.
+  if (status === "ACTIVE") {
+    after(() =>
+      ensureCurrentPeriodCharge({ workspaceId: workspace.id, memberId: id }).catch((e) =>
+        console.error("[fotoffice][reactivacion] cuota del mes al reactivar", e),
+      ),
+    );
+  }
 
   revalidatePath("/members");
   revalidatePath(`/members/${id}`);
