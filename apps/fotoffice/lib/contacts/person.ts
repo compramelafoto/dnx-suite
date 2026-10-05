@@ -40,6 +40,15 @@ export type SyncablePerson = {
   organization: string | null;
   /** Lo que se ve en la pantalla del contacto: Nº de socio, Categoría, Estado. Va de ida. */
   labels: Record<string, string>;
+  /**
+   * Lo que va en las Notas del contacto al CREARLO, y nunca más.
+   *
+   * Existe porque el iPhone no muestra los campos personalizados (`labels`) de un contacto de
+   * Google, y las Notas se ven en todos los teléfonos. Se escribe una sola vez porque las Notas
+   * son el campo donde la gente anota lo suyo ("llamar después de las 18"): reescribirlas en
+   * cada corrida borraría esos apuntes. Por eso sólo lleva datos que no cambian.
+   */
+  note?: string | null;
   updatedAt: Date;
 };
 
@@ -104,7 +113,12 @@ function fromGoogleDate(date: GoogleDate | undefined): string | null {
  */
 export function toGooglePersonBody(
   person: SyncablePerson,
-  opts: { moduleKey: string; groupResourceName: string | null },
+  opts: {
+    moduleKey: string;
+    groupResourceName: string | null;
+    /** Sólo al crear: ver `SyncablePerson.note`. */
+    includeNote?: boolean;
+  },
 ): Record<string, unknown> {
   const v = person.values;
   const body: Record<string, unknown> = {
@@ -138,6 +152,10 @@ export function toGooglePersonBody(
 
   const labels = Object.entries(person.labels).filter(([, value]) => !vacio(value));
   if (labels.length > 0) body.userDefined = labels.map(([key, value]) => ({ key, value }));
+
+  if (opts.includeNote && !vacio(person.note)) {
+    body.biographies = [{ value: person.note, contentType: "TEXT_PLAIN" }];
+  }
 
   if (opts.groupResourceName) {
     body.memberships = [

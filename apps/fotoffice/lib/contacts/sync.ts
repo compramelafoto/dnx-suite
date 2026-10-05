@@ -255,6 +255,9 @@ export async function syncModuleContacts(input: {
         // incluye —a propósito, para no tocar los grupos de nadie— así que mandarla sería,
         // en el mejor de los casos, ruido.
         groupResourceName: conGrupo ? groupResourceName : null,
+        // Las Notas se escriben sólo al crear (el mismo caso en que va el grupo): después son
+        // de quien usa la agenda. `UPDATE_PERSON_FIELDS` tampoco las incluye.
+        includeNote: conGrupo,
       },
     );
 
