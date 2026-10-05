@@ -14,6 +14,7 @@ import { resolveDepositTarget } from "@/lib/cash/auto-deposit";
 import { recordCashMovement } from "@/lib/cash/record-movement";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
+import { recordCollectionFees, reverseCollection } from "@/lib/cash/collection";
 
 export type CreditResult =
   | { ok: true; applied: boolean; motivo: string }
@@ -33,7 +34,11 @@ export async function creditMembershipPayment(input: {
   providerStatus: string;
   /** Importe que MercadoPago dice haber cobrado, en centavos. */
   paidAmountMinor: number;
+  /** Fecha de aprobación según Mercado Pago (no la hora del aviso). */
   paidAt: Date;
+  /** Comisiones que se descontaron del cobro, para asentarlas en Caja como egresos. */
+  mpFeeMinor?: number;
+  platformFeeMinor?: number;
 }): Promise<CreditResult> {
   const outcome = outcomeForProviderStatus(input.providerStatus);
 
@@ -100,6 +105,16 @@ export async function creditMembershipPayment(input: {
       await tx.membershipPayment.update({
         where: { id: intento.id },
         data: { status: "RECHAZADO", paidAt: null },
+      });
+
+      // La plata volvió al socio: el ingreso y sus comisiones se anulan en Caja con
+      // contramovimientos, igual que una anulación manual.
+      await reverseCollection(tx, {
+        workspaceId: intento.workspaceId,
+        sourceModule: "membership",
+        sourceRef: intento.id,
+        reason: "Mercado Pago devolvió el pago o el socio lo desconoció",
+        occurredAt: new Date(),
       });
     });
     return { ok: true, applied: true, motivo: "pago revertido" };
@@ -212,6 +227,13 @@ export async function creditMembershipPayment(input: {
           paymentMethod: "MERCADO_PAGO",
           sourceModule: "membership",
           sourceRef: intento.id,
+        });
+        await recordCollectionFees(tx, {
+          workspaceId: intento.workspaceId,
+          sourceModule: "membership",
+          sourceRef: intento.id,
+          mpFeeMinor: input.mpFeeMinor ?? 0,
+          platformFeeMinor: input.platformFeeMinor ?? 0,
         });
       }
     }

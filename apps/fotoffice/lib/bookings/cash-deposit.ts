@@ -105,7 +105,7 @@ export async function depositBookingPayment(
     spaceName: string;
     amountMinor: number;
     occurredAt: Date;
-    paymentMethod: "MERCADO_PAGO" | "TRANSFERENCIA";
+    paymentMethod: "MERCADO_PAGO" | "TRANSFERENCIA" | "EFECTIVO" | "TARJETA";
   },
 ): Promise<void> {
   // Sin importe no hay nada que asentar: una reserva "Sin cargo" no genera movimiento NI

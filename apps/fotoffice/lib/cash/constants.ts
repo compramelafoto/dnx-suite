@@ -35,6 +35,7 @@ export const MOVEMENT_SOURCES = [
   "bookings",
   "sales",
   "work-orders",
+  "courses",
 ] as const;
 export type MovementSource = (typeof MOVEMENT_SOURCES)[number];
 

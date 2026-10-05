@@ -3,6 +3,8 @@ import { prisma } from "@repo/db";
 import { createMercadoPagoCheckoutProLiveAdapter } from "@repo/payments/mercado-pago";
 import { resolveWorkspaceCollector } from "@/lib/payments/connect/collector";
 import { sanitizeError } from "@/lib/payments/connect/log";
+import { fetchMpPayment } from "@/lib/payments/mp/client";
+import { collectionDate } from "@/lib/payments/mp/payment-facts";
 import { creditMembershipPayment } from "./credit-payment";
 import { decimalArsToMinor } from "./money";
 import {
@@ -93,15 +95,21 @@ export async function reconcilePendingDues(
         select: { amountArs: true },
       });
 
+      // El detalle completo (comisiones y fecha real de aprobación) se lee aparte: la búsqueda
+      // del adaptador lo descarta.
+      const hechos = await fetchMpPayment(token, pago.providerPaymentId);
+
       const resultado = await creditMembershipPayment({
         paymentId: pendiente.id,
         providerPaymentRef: pago.providerPaymentId,
-        providerStatus: String(
+        providerStatus: hechos.status || String(
           (pago.rawSanitized as Record<string, unknown>).status ?? pago.status,
         ),
         paidAmountMinor:
-          pago.amountMinor || (intento ? decimalArsToMinor(intento.amountArs) : 0),
-        paidAt: ahora,
+          hechos.grossMinor || pago.amountMinor || (intento ? decimalArsToMinor(intento.amountArs) : 0),
+        paidAt: collectionDate(hechos, ahora),
+        mpFeeMinor: hechos.mpFeeMinor,
+        platformFeeMinor: hechos.platformFeeMinor,
       });
 
       if (!resultado.ok || !resultado.applied) {

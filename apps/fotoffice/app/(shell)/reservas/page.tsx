@@ -62,6 +62,7 @@ export default async function AgendaPage({
       contactName: r.contactName,
       isMember: r.customerType === "MEMBER",
       paymentMethod: r.paymentMethod,
+      paymentStatus: r.paymentStatus,
       totalLabel: formatMinorArs(decimalArsToMinor(r.totalArs)),
       holdExpiresLabel:
         r.holdExpiresAt && r.status === "HOLD"
