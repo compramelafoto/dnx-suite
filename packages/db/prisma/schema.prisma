@@ -329,6 +329,7 @@ model User {
   subilafotoSellerProfiles            SubilafotoSellerProfile[]
   subilafotoCollaborations            SubilafotoCollaborator[]
   coverageEvents                      CoverageEvent[]
+  courseAccesses                      CourseAccess[]
   clickatonReferralCode               ClickatonReferralCode?
   clickatonReferralsMade              ClickatonReferralAttribution[]     @relation("ClickatonReferralReferrer")
   clickatonReferralReceived           ClickatonReferralAttribution?      @relation("ClickatonReferralReferred")
@@ -9068,6 +9069,8 @@ model Course {
   accessMonths          Int                @default(12)
   /// Porcentaje de clases vistas que da el curso por terminado y emite el certificado.
   completionPercent     Int                @default(80)
+  /// El socio activo de la institución lo toma gratis desde su portal; el público lo paga.
+  freeForMembers        Boolean            @default(false)
   createdAt             DateTime           @default(now())
   updatedAt             DateTime           @updatedAt
   workspace             Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -9122,29 +9125,35 @@ model CourseLessonAttachment {
   @@index([lessonId])
 }
 
-/// Quién compró un curso grabado y hasta cuándo puede verlo.
+/// El acceso de una persona a un curso grabado.
 ///
-/// El enlace del aula es la única credencial del alumno: no tiene cuenta ni contraseña. Por eso
-/// en la base queda sólo el SHA-256 del token (`tokenHash`); el crudo viaja una sola vez, en el
-/// correo. Mismo patrón que la invitación del socio.
+/// Es de la **cuenta** (`userId`): el curso se ve en el portal con usuario y contraseña. Puede
+/// venir de una compra (`PURCHASE`, vence según `Course.accessMonths`) o de ser socio
+/// (`MEMBER_BENEFIT`, sin vencimiento: vale mientras sea socio activo). La regla vive en
+/// `lib/course-classroom/access-rules.ts` (`estadoDeAccesoAlCurso`).
 model CourseAccess {
   id           String                 @id @default(cuid())
   workspaceId  String
   courseId     String
-  /// Una inscripción pagada da un solo acceso. El único evita duplicarlo si el aviso de Mercado
-  /// Pago y la vuelta del checkout llegan a la vez.
+  /// La inscripción que lo originó. Si una persona compra un curso que tenía de beneficio, el
+  /// acceso pasa a la inscripción paga.
   enrollmentId String                 @unique
+  userId       Int
+  origin       CourseAccessOrigin     @default(PURCHASE)
   grantedAt    DateTime               @default(now())
-  expiresAt    DateTime
-  tokenHash    String                 @unique
+  /// Null en los de beneficio de socio.
+  expiresAt    DateTime?
   revokedAt    DateTime?
   createdAt    DateTime               @default(now())
   updatedAt    DateTime               @updatedAt
   workspace    Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   course       Course                 @relation(fields: [courseId], references: [id], onDelete: Cascade)
   enrollment   CourseEnrollment       @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  user         User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   progress     CourseLessonProgress[]
 
+  /// Una persona, un acceso por curso: su avance no se parte en dos.
+  @@unique([userId, courseId])
   @@index([workspaceId, courseId])
 }
 
@@ -10939,6 +10948,11 @@ enum CourseLessonVideoStatus {
   ERROR
 }
 
+enum CourseAccessOrigin {
+  PURCHASE
+  MEMBER_BENEFIT
+}
+
 enum CourseStatus {
   DRAFT
   PUBLISHED
@@ -10961,6 +10975,7 @@ enum CourseEnrollmentPaymentStatus {
 
 enum CourseEnrollmentPaymentMethod {
   MERCADO_PAGO
+  MEMBER_BENEFIT
 }
 
 enum ServiceLeadStatus {

@@ -21,16 +21,6 @@ export function calcularVencimiento(desde: Date, meses: number): Date {
   return resultado;
 }
 
-export type EstadoAcceso = "VIGENTE" | "VENCIDO" | "REVOCADO";
-
-export function estadoDelAcceso(
-  acceso: { expiresAt: Date; revokedAt: Date | null },
-  ahora: Date,
-): EstadoAcceso {
-  if (acceso.revokedAt) return "REVOCADO";
-  return ahora.getTime() < acceso.expiresAt.getTime() ? "VIGENTE" : "VENCIDO";
-}
-
 /** Corto para que entre en la marca de agua, y suficiente para encontrar la inscripción. */
 export function numeroDeInscripcion(enrollmentId: string): string {
   return enrollmentId.slice(-6).toUpperCase();

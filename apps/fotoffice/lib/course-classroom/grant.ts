@@ -2,89 +2,122 @@
 import "server-only";
 import { Prisma, prisma } from "@repo/db";
 import type { RenderedEmailSignature } from "@repo/communications/signature";
-import { generateInvitationToken, hashInvitationToken } from "@/lib/members/invitation-tokens";
 import { loadWorkspaceSignature } from "@/lib/communications/load-workspace-signature";
 import { logCourseEvent } from "@/lib/presential-courses/log";
 import { appUrl } from "@/lib/app-url";
 import { calcularVencimiento } from "./access-rules";
-import { enlaceDelAula, sendClassroomAccessEmail } from "./email";
+import { asegurarCuentaDelAlumno, crearEnlaceParaContrasena } from "./account";
+import { sendBienvenidaAlumnoEmail, sendCursoEnTuPortalEmail, type InvitacionASociarse } from "./email";
 
 export type OtorgarResultado =
-  | { ok: true; creado: true; accessId: string; token: string; expiresAt: Date }
-  | { ok: true; creado: false }
+  | { ok: true; accessId: string; expiresAt: Date | null; nuevo: boolean }
   | { ok: false; reason: "inscripcion_no_encontrada" | "inscripcion_no_aprobada" | "no_es_grabado" };
 
 /**
- * Crea el acceso al aula de una inscripción pagada a un curso grabado.
+ * Da a una persona el acceso que pagó.
  *
- * Idempotente: si el acceso ya existe —o lo crea otro pedido al mismo tiempo, por el índice
- * único de `enrollmentId`— devuelve `creado: false` y **no** genera token nuevo. El token crudo
- * sólo sale de acá cuando se crea, para ir al correo.
+ * Idempotente por inscripción: el mismo aviso de pago dos veces no duplica nada. Si la persona
+ * ya tenía el curso —de beneficio de socio, o de una compra anterior— el acceso existente pasa
+ * a esta compra (`@@unique([userId, courseId])`): no se parte el avance. Lo pagado no depende
+ * de ser socio, y el vencimiento nunca se acorta.
  */
-export async function otorgarAccesoAlAula(
-  enrollmentId: string,
+export async function otorgarAccesoPorCompra(
+  input: { enrollmentId: string; userId: number },
   ahora: Date = new Date(),
 ): Promise<OtorgarResultado> {
   const inscripcion = await prisma.courseEnrollment.findUnique({
-    where: { id: enrollmentId },
+    where: { id: input.enrollmentId },
     select: {
       id: true,
       workspaceId: true,
       courseId: true,
       paymentStatus: true,
       course: { select: { deliveryMode: true, accessMonths: true } },
-      access: { select: { id: true } },
     },
   });
   if (!inscripcion) return { ok: false, reason: "inscripcion_no_encontrada" };
   if (inscripcion.paymentStatus !== "APPROVED") return { ok: false, reason: "inscripcion_no_aprobada" };
   if (inscripcion.course.deliveryMode !== "RECORDED") return { ok: false, reason: "no_es_grabado" };
-  if (inscripcion.access) return { ok: true, creado: false };
 
-  const token = generateInvitationToken();
-  const expiresAt = calcularVencimiento(ahora, inscripcion.course.accessMonths);
-  let accessId: string;
+  const clave = { userId_courseId: { userId: input.userId, courseId: inscripcion.courseId } };
+  const vence = calcularVencimiento(ahora, inscripcion.course.accessMonths);
+  const existente = await prisma.courseAccess.findUnique({
+    where: clave,
+    select: { id: true, enrollmentId: true, origin: true, expiresAt: true },
+  });
+
+  if (existente) {
+    if (existente.enrollmentId === inscripcion.id) {
+      return { ok: true, accessId: existente.id, expiresAt: existente.expiresAt, nuevo: false };
+    }
+    const expiresAt =
+      existente.origin === "PURCHASE" && existente.expiresAt && existente.expiresAt > vence
+        ? existente.expiresAt
+        : vence;
+    await prisma.courseAccess.update({
+      where: { id: existente.id },
+      data: { origin: "PURCHASE", enrollmentId: inscripcion.id, expiresAt, revokedAt: null },
+    });
+    return { ok: true, accessId: existente.id, expiresAt, nuevo: true };
+  }
+
   try {
     const creado = await prisma.courseAccess.create({
       data: {
         workspaceId: inscripcion.workspaceId,
         courseId: inscripcion.courseId,
         enrollmentId: inscripcion.id,
+        userId: input.userId,
+        origin: "PURCHASE",
         grantedAt: ahora,
-        expiresAt,
-        tokenHash: hashInvitationToken(token),
+        expiresAt: vence,
       },
       select: { id: true },
     });
-    accessId = creado.id;
+    return { ok: true, accessId: creado.id, expiresAt: vence, nuevo: true };
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      return { ok: true, creado: false };
+      const ganador = await prisma.courseAccess.findUnique({
+        where: clave,
+        select: { id: true, expiresAt: true },
+      });
+      if (ganador) return { ok: true, accessId: ganador.id, expiresAt: ganador.expiresAt, nuevo: false };
     }
     throw error;
   }
-  return { ok: true, creado: true, accessId, token, expiresAt };
 }
 
 export type AvisoDeps = {
-  otorgar: (enrollmentId: string) => Promise<OtorgarResultado>;
-  enviar: typeof sendClassroomAccessEmail;
+  asegurarCuenta: typeof asegurarCuentaDelAlumno;
+  otorgar: typeof otorgarAccesoPorCompra;
+  invitacionASociarse: (workspaceId: string, userId: number) => Promise<InvitacionASociarse | null>;
+  crearEnlaceContrasena: (userId: number, base: string) => Promise<string>;
+  enviarCursoListo: typeof sendCursoEnTuPortalEmail;
+  enviarBienvenida: typeof sendBienvenidaAlumnoEmail;
   cargarFirma: (workspaceId: string) => Promise<RenderedEmailSignature | null>;
   base: string;
 };
 
 function depsPorDefecto(): AvisoDeps {
   return {
-    otorgar: (id) => otorgarAccesoAlAula(id),
-    enviar: sendClassroomAccessEmail,
+    asegurarCuenta: (email) => asegurarCuentaDelAlumno(email),
+    otorgar: (input) => otorgarAccesoPorCompra(input),
+    // La Task 8 conecta la invitación real. Hasta entonces, sin invitación.
+    invitacionASociarse: async () => null,
+    crearEnlaceContrasena: (userId, base) => crearEnlaceParaContrasena(userId, base),
+    enviarCursoListo: sendCursoEnTuPortalEmail,
+    enviarBienvenida: sendBienvenidaAlumnoEmail,
     cargarFirma: loadWorkspaceSignature,
     base: appUrl(),
   };
 }
 
 /**
- * Da el acceso y avisa por correo. **Nunca lanza**: se llama después de aprobar un pago, y un
- * correo que falla no puede deshacer ni trabar esa aprobación. El resultado queda en el log.
+ * Después de aprobarse el pago de un curso grabado: cuenta, acceso y un solo correo.
+ *
+ * **Nunca lanza**: se llama con el pago ya aprobado, y nada de esto puede deshacerlo. Si algo
+ * falla, la persona igual puede entrar con "Olvidé mi contraseña", y Mis cursos le otorga el
+ * acceso que falte (`otorgarAccesosPendientes`).
  */
 export async function avisarAccesoAlAula(
   input: { enrollmentId: string; workspaceId: string; to: string; studentName: string; courseTitle: string },
@@ -95,206 +128,53 @@ export async function avisarAccesoAlAula(
       logCourseEvent("aula_sin_aviso", { enrollmentId: input.enrollmentId, motivo: "sin_app_url" });
       return { avisado: false, motivo: "sin_app_url" };
     }
-    const acceso = await deps.otorgar(input.enrollmentId);
-    if (!acceso.ok || !acceso.creado) {
+    const cuenta = await deps.asegurarCuenta(input.to);
+    if (!cuenta) {
+      logCourseEvent("aula_sin_aviso", { enrollmentId: input.enrollmentId, motivo: "sin_cuenta" });
+      return { avisado: false, motivo: "sin_cuenta" };
+    }
+    const acceso = await deps.otorgar({ enrollmentId: input.enrollmentId, userId: cuenta.userId });
+    if (!acceso.ok || !acceso.nuevo) {
       const motivo = acceso.ok ? "ya_existia" : acceso.reason;
       logCourseEvent("aula_sin_aviso", { enrollmentId: input.enrollmentId, motivo });
       return { avisado: false, motivo };
     }
-    const firma = await deps.cargarFirma(input.workspaceId);
-    const envio = await deps.enviar({
+
+    const [invitacion, firma] = await Promise.all([
+      deps.invitacionASociarse(input.workspaceId, cuenta.userId),
+      deps.cargarFirma(input.workspaceId),
+    ]);
+    const comun = {
       to: input.to,
       studentName: input.studentName,
       courseTitle: input.courseTitle,
-      enlace: enlaceDelAula(deps.base, acceso.token),
       expiresAt: acceso.expiresAt,
+      invitacion,
       signature: firma,
-    });
+    };
+    const envio = cuenta.puedeEntrar
+      ? await deps.enviarCursoListo({ ...comun, portalUrl: `${deps.base}/portal/cursos` })
+      : await deps.enviarBienvenida({
+          ...comun,
+          crearContrasenaUrl: await deps.crearEnlaceContrasena(cuenta.userId, deps.base),
+          loginUrl: `${deps.base}/login?next=/portal/cursos`,
+        });
+
     if (!envio.sent) {
       logCourseEvent("aula_correo_no_enviado", { enrollmentId: input.enrollmentId, motivo: envio.reason });
       return { avisado: false, motivo: envio.reason };
     }
-    logCourseEvent("aula_acceso_avisado", { enrollmentId: input.enrollmentId, workspaceId: input.workspaceId });
+    logCourseEvent("aula_acceso_avisado", {
+      enrollmentId: input.enrollmentId,
+      workspaceId: input.workspaceId,
+      cuentaNueva: cuenta.creada,
+    });
     return { avisado: true };
   } catch (error) {
-    console.error("[fotoffice][cursos] no se pudo dar el acceso al aula", {
+    console.error("[fotoffice][cursos] no se pudo dar el acceso al curso", {
       enrollmentId: input.enrollmentId,
-      error,
+      motivo: error instanceof Error ? error.message : "desconocido",
     });
     return { avisado: false, motivo: "error" };
   }
-}
-
-/** Un acceso rotado hace menos que esto no se vuelve a rotar: frena a quien pide enlaces en bucle. */
-export const ENFRIAMIENTO_REENVIO_MS = 5 * 60 * 1000;
-
-export type ReenvioDeps = {
-  /**
-   * Da el acceso a las inscripciones pagadas de cursos grabados de ese correo que todavía no lo
-   * tienen (un pago aprobado cuyo aviso falló). Devuelve los ids de los accesos creados.
-   */
-  otorgarFaltantes: (email: string, ahora: Date) => Promise<string[]>;
-  buscar: (
-    email: string,
-    ahora: Date,
-  ) => Promise<
-    Array<{
-      id: string;
-      workspaceId: string;
-      expiresAt: Date;
-      to: string;
-      studentName: string;
-      courseTitle: string;
-      /** El hash actual: se restaura si el correo no sale. */
-      tokenHash: string;
-      /** El `updatedAt` del acceso. */
-      ultimaRotacion: Date;
-    }>
-  >;
-  guardarHash: (accessId: string, tokenHash: string) => Promise<void>;
-  enviar: typeof sendClassroomAccessEmail;
-  cargarFirma: (workspaceId: string) => Promise<RenderedEmailSignature | null>;
-  base: string;
-  generarToken: () => string;
-};
-
-function depsReenvioPorDefecto(): ReenvioDeps {
-  return {
-    otorgarFaltantes: async (email, ahora) => {
-      const pendientes = await prisma.courseEnrollment.findMany({
-        where: {
-          email: { equals: email, mode: "insensitive" },
-          paymentStatus: "APPROVED",
-          course: { deliveryMode: "RECORDED" },
-          access: { is: null },
-        },
-        select: { id: true },
-      });
-      const creados: string[] = [];
-      for (const pendiente of pendientes) {
-        const r = await otorgarAccesoAlAula(pendiente.id, ahora);
-        if (r.ok && r.creado) {
-          logCourseEvent("aula_acceso_otorgado_al_reenviar", { enrollmentId: pendiente.id });
-          creados.push(r.accessId);
-        }
-      }
-      return creados;
-    },
-    buscar: async (email, ahora) => {
-      const accesos = await prisma.courseAccess.findMany({
-        where: {
-          revokedAt: null,
-          expiresAt: { gt: ahora },
-          enrollment: { email: { equals: email, mode: "insensitive" } },
-        },
-        select: {
-          id: true,
-          workspaceId: true,
-          expiresAt: true,
-          tokenHash: true,
-          updatedAt: true,
-          enrollment: { select: { email: true, name: true } },
-          course: { select: { title: true } },
-        },
-      });
-      return accesos.map((a) => ({
-        id: a.id,
-        workspaceId: a.workspaceId,
-        expiresAt: a.expiresAt,
-        to: a.enrollment.email,
-        studentName: a.enrollment.name,
-        courseTitle: a.course.title,
-        tokenHash: a.tokenHash,
-        ultimaRotacion: a.updatedAt,
-      }));
-    },
-    guardarHash: async (accessId, tokenHash) => {
-      await prisma.courseAccess.update({ where: { id: accessId }, data: { tokenHash } });
-    },
-    enviar: sendClassroomAccessEmail,
-    cargarFirma: loadWorkspaceSignature,
-    base: appUrl(),
-    generarToken: generateInvitationToken,
-  };
-}
-
-/**
- * Manda un enlace nuevo por cada curso vigente de ese correo.
- *
- * El enlace viejo deja de funcionar: en la base sólo hay un hash por acceso. Si el correo no
- * sale, se restaura el hash anterior para que el alumno no se quede sin enlace válido. Un
- * acceso rotado hace menos de 5 minutos se saltea, salvo que se haya creado en esta misma
- * llamada: antes de buscar se otorgan los accesos que faltan (un pago aprobado cuyo acceso no
- * llegó a crearse), y ése tiene que recibir su enlace ya. El correo va **siempre a la dirección de la
- * inscripción**, nunca a otra. El resultado no se muestra: la pantalla dice lo mismo haya o no
- * cursos.
- */
-export async function reenviarEnlaces(
-  email: string,
-  deps: ReenvioDeps = depsReenvioPorDefecto(),
-  ahora: Date = new Date(),
-): Promise<{ enviados: number }> {
-  const normalizado = email.trim().toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizado)) return { enviados: 0 };
-  if (!deps.base) {
-    logCourseEvent("aula_reenvio_sin_app_url", {});
-    return { enviados: 0 };
-  }
-
-  let recienCreados = new Set<string>();
-  try {
-    recienCreados = new Set(await deps.otorgarFaltantes(normalizado, ahora));
-  } catch (error) {
-    logCourseEvent("aula_reenvio_otorgar_fallo", {
-      motivo: error instanceof Error ? error.message : "error",
-    });
-  }
-
-  const accesos = await deps.buscar(normalizado, ahora);
-  let enviados = 0;
-  for (const acceso of accesos) {
-    if (
-      !recienCreados.has(acceso.id) &&
-      ahora.getTime() - acceso.ultimaRotacion.getTime() < ENFRIAMIENTO_REENVIO_MS
-    ) {
-      logCourseEvent("aula_reenvio_enfriando", { accessId: acceso.id });
-      continue;
-    }
-    let rotado = false;
-    try {
-      const token = deps.generarToken();
-      await deps.guardarHash(acceso.id, hashInvitationToken(token));
-      rotado = true;
-      const envio = await deps.enviar({
-        to: acceso.to,
-        studentName: acceso.studentName,
-        courseTitle: acceso.courseTitle,
-        enlace: enlaceDelAula(deps.base, token),
-        expiresAt: acceso.expiresAt,
-        signature: await deps.cargarFirma(acceso.workspaceId),
-        reenvio: true,
-      });
-      if (envio.sent) {
-        enviados++;
-        continue;
-      }
-      logCourseEvent("aula_reenvio_no_enviado", { accessId: acceso.id, motivo: envio.reason });
-    } catch (error) {
-      logCourseEvent("aula_reenvio_fallo", {
-        accessId: acceso.id,
-        motivo: error instanceof Error ? error.message : "error",
-      });
-    }
-    if (rotado) {
-      try {
-        await deps.guardarHash(acceso.id, acceso.tokenHash);
-      } catch (error) {
-        console.error("[fotoffice][cursos] no se pudo restaurar el enlace del aula", {
-          accessId: acceso.id,
-          error,
-        });
-      }
-    }
-  }
-  return { enviados };
 }

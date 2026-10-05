@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   calcularVencimiento,
   estadoDeAccesoAlCurso,
-  estadoDelAcceso,
   fechaLegibleArgentina,
   numeroDeInscripcion,
 } from "./access-rules";
@@ -27,24 +26,6 @@ describe("vencimiento del acceso", () => {
     const desde = new Date(Date.UTC(2026, 9, 3));
     expect(calcularVencimiento(desde, Number.NaN).toISOString()).toBe("2026-11-03T00:00:00.000Z");
     expect(calcularVencimiento(desde, Infinity).toISOString()).toBe("2026-11-03T00:00:00.000Z");
-  });
-});
-
-describe("estado del acceso", () => {
-  const vence = new Date(Date.UTC(2027, 9, 3));
-
-  it("vigente antes del vencimiento", () => {
-    expect(estadoDelAcceso({ expiresAt: vence, revokedAt: null }, new Date(Date.UTC(2027, 9, 2)))).toBe("VIGENTE");
-  });
-
-  it("vencido desde el instante del vencimiento", () => {
-    expect(estadoDelAcceso({ expiresAt: vence, revokedAt: null }, vence)).toBe("VENCIDO");
-  });
-
-  it("revocado gana aunque no haya vencido", () => {
-    expect(
-      estadoDelAcceso({ expiresAt: vence, revokedAt: new Date(Date.UTC(2026, 9, 5)) }, new Date(Date.UTC(2026, 9, 6))),
-    ).toBe("REVOCADO");
   });
 });
 
