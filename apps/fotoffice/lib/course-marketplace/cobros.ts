@@ -3,7 +3,22 @@
  * Cobros: lo que un negocio vendió y lo que le tocó de cada venta de cursos, desde el reparto
  * congelado (`CourseSaleShare`). Puro. Con el split apagado, cada venta la cobró quien vendió con
  * su Mercado Pago; esto es lo anotado, no un movimiento de plata.
+ *
+ * Los totales salen de agrupar en la base (`resumirGrupos`), no de la lista visible: la lista
+ * tiene tope y los totales no.
  */
+
+/** Un "123.45" de la base (Decimal(12,2) como texto) a centavos enteros, sin pasar por float. */
+export function centavosDeDecimal(valor: string | null | undefined): number {
+  const t = (valor ?? "0").trim() || "0";
+  const negativo = t.startsWith("-");
+  const [entero, dec = ""] = t.replace(/^[-+]/, "").split(".");
+  const c = Number(entero || "0") * 100 + Number((dec + "00").slice(0, 2));
+  return negativo ? -c : c;
+}
+
+/** Lo que devuelve la base agrupado por curso y estado de pago (sólo las partes de este negocio). */
+export type GrupoCobro = { cursoId: string; curso: string; estado: string; ventas: number; montoCentavos: number };
 
 export type FilaCobro = {
   id: string;
@@ -22,7 +37,7 @@ export type ResumenCobros = {
   pendienteCentavos: number;
   ventasAprobadas: number;
   vendidoCentavos: number;
-  porCurso: Array<{ curso: string; ventas: number; cobradoCentavos: number }>;
+  porCurso: Array<{ cursoId: string; curso: string; ventas: number; cobradoCentavos: number }>;
 };
 
 export const ROTULO_DE_PARTE: Record<FilaCobro["kind"], string> = {
@@ -38,32 +53,31 @@ export const ESTADO_DE_PAGO: Record<string, string> = {
   CANCELLED: "Cancelado",
 };
 
-export function resumirCobros(filas: FilaCobro[]): ResumenCobros {
+/**
+ * Totales desde los grupos de la base. `vendidoCentavos` llega aparte: es lo que pagaron los
+ * alumnos de las ventas hechas por este negocio (lista − descuento + cargo por servicio).
+ */
+export function resumirGrupos(grupos: GrupoCobro[], vendidoCentavos: number): ResumenCobros {
   let cobradoCentavos = 0;
   let pendienteCentavos = 0;
-  const aprobadas = new Set<string>();
-  const vendidas = new Map<string, number>();
-  const porCurso = new Map<string, { ventas: Set<string>; cobradoCentavos: number }>();
-
-  for (const f of filas) {
-    if (f.estadoPago === "PENDING") pendienteCentavos += f.montoCentavos;
-    if (f.estadoPago !== "APPROVED") continue;
-    cobradoCentavos += f.montoCentavos;
-    aprobadas.add(f.enrollmentId);
-    if (f.vendioEsteNegocio) vendidas.set(f.enrollmentId, f.pagaElAlumnoCentavos);
-    const c = porCurso.get(f.curso) ?? { ventas: new Set<string>(), cobradoCentavos: 0 };
-    c.ventas.add(f.enrollmentId);
-    c.cobradoCentavos += f.montoCentavos;
-    porCurso.set(f.curso, c);
+  let ventasAprobadas = 0;
+  const porCurso = new Map<string, ResumenCobros["porCurso"][number]>();
+  for (const g of grupos) {
+    if (g.estado === "PENDING") pendienteCentavos += g.montoCentavos;
+    if (g.estado !== "APPROVED") continue;
+    cobradoCentavos += g.montoCentavos;
+    // Cada inscripción es de un solo curso: sumar los conteos por curso no repite ventas.
+    ventasAprobadas += g.ventas;
+    const c = porCurso.get(g.cursoId) ?? { cursoId: g.cursoId, curso: g.curso, ventas: 0, cobradoCentavos: 0 };
+    c.ventas += g.ventas;
+    c.cobradoCentavos += g.montoCentavos;
+    porCurso.set(g.cursoId, c);
   }
-
   return {
     cobradoCentavos,
     pendienteCentavos,
-    ventasAprobadas: aprobadas.size,
-    vendidoCentavos: [...vendidas.values()].reduce((s, v) => s + v, 0),
-    porCurso: [...porCurso.entries()]
-      .map(([curso, c]) => ({ curso, ventas: c.ventas.size, cobradoCentavos: c.cobradoCentavos }))
-      .sort((a, b) => b.cobradoCentavos - a.cobradoCentavos),
+    ventasAprobadas,
+    vendidoCentavos,
+    porCurso: [...porCurso.values()].sort((a, b) => b.cobradoCentavos - a.cobradoCentavos),
   };
 }

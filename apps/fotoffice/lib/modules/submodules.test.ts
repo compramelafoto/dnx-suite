@@ -37,6 +37,7 @@ const GESTIONA: SubmoduleAccess = {
     "courses-sales": "MANAGE",
   },
   actions: [CASH_CONFIGURE_ACTION, COVERAGES_COORDINATE_ACTION, BOOKINGS_CONFIGURE_ACTION, RAFFLES_CONDUCT_ACTION],
+  fullAccess: true,
 };
 
 /** Personal sin roles: ve el padrón y nada más. */
@@ -51,7 +52,17 @@ describe("submodulesFor", () => {
   it("Cursos: Cobros está entre sus pantallas, pide gestionar y tiene su archivo", () => {
     const cobros = submodulesFor(COURSES_SALES_MODULE_KEY, GESTIONA, SOCIO).find((s) => s.href === "/dashboard/cobros-de-cursos");
     expect(cobros?.requiresManage).toBe(true);
+    expect(cobros?.requiresFullAccess).toBe(true);
     expect(existsSync(pageDe("/dashboard/cobros-de-cursos"))).toBe(true);
+  });
+
+  it("Cursos: Cobros no aparece para quien gestiona cursos sin ser dueño ni admin (la página lo echaría)", () => {
+    const encargado: SubmoduleAccess = { levels: { "courses-sales": "MANAGE" }, actions: [] };
+    const hrefs = submodulesFor(COURSES_SALES_MODULE_KEY, encargado, SOCIO).map((s) => s.href);
+    expect(hrefs).not.toContain("/dashboard/cobros-de-cursos");
+    expect(hrefs).toContain("/dashboard/mercado-de-cursos");
+    const conFalse = submodulesFor(COURSES_SALES_MODULE_KEY, { ...encargado, fullAccess: false }, SOCIO).map((s) => s.href);
+    expect(conFalse).not.toContain("/dashboard/cobros-de-cursos");
   });
 
   it("Cursos: el Mercado de cursos está entre sus pantallas y tiene su archivo", () => {
