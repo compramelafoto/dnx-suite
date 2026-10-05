@@ -22,6 +22,7 @@ import {
   setWelcomePublished,
 } from "@/lib/placas/welcomes";
 import { setSpotlightPublished, skipCurrentSpotlight } from "@/lib/spotlight/repository";
+import { sendSpotlightNudge } from "@/lib/spotlight/nudge";
 
 /**
  * Las acciones de Comunicación → Placas.
@@ -139,4 +140,31 @@ export async function skipSpotlightAction(formData: FormData): Promise<void> {
       ? { ok: "Listo. Elegimos a otro socio al azar para esta semana." }
       : { ok: "Lo salteamos. No quedan socios para elegir esta semana." },
   );
+}
+
+/** Le (re)manda al socio de la semana el aviso para que complete su perfil. */
+export async function sendSpotlightNudgeAction(formData: FormData): Promise<void> {
+  const { workspace, level } = await nivel();
+  if (!hasLevel(level, "MANAGE")) {
+    volver(SEMANA, { error: "Para mandar el aviso hace falta gestionar Comunicación." });
+  }
+  const spotlightId = String(formData.get("spotlightId") ?? "");
+  const r = await sendSpotlightNudge({ workspaceId: workspace.id, spotlightId, force: true });
+  revalidatePath(SEMANA);
+  switch (r.status) {
+    case "SENT":
+      volver(SEMANA, {
+        ok: r.viaInvitation
+          ? `Listo: le mandamos a ${r.to} el aviso junto con un enlace nuevo para activar su cuenta.`
+          : `Listo: le mandamos el aviso a ${r.to}.`,
+      });
+    case "NOT_NEEDED":
+      volver(SEMANA, { ok: "Su perfil ya está completo: no hace falta avisarle." });
+    case "NO_EMAIL":
+      volver(SEMANA, { error: "Ese socio no tiene email cargado en el padrón." });
+    case "FAILED":
+      volver(SEMANA, { error: `No salió el aviso: ${r.error}` });
+    default:
+      volver(SEMANA, { error: "Ese socio ya no es el de la semana." });
+  }
 }

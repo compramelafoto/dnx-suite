@@ -4,6 +4,7 @@ import { isAuthorizedCronRequest } from "@/lib/security/cron-auth";
 import { sanitizeError } from "@/lib/payments/connect/log";
 import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
 import { ensureCurrentSpotlight } from "@/lib/spotlight/repository";
+import { sendSpotlightNudge } from "@/lib/spotlight/nudge";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -15,6 +16,9 @@ export const maxDuration = 300;
  * elige, y las demás no hacen nada porque la elección es idempotente —si la semana ya tiene
  * socio, no lo toca—. Correr cada hora y no sólo los viernes es la red por si esa pasada falla. Tampoco es la única manera de que ocurra: la primera visita al panel del socio
  * o a Comunicación también elige.
+ *
+ * Después de elegir, si la tarjeta del socio muestra poco, le avisa que complete su perfil
+ * (`lib/spotlight/nudge.ts`): una vez por semana destacada.
  *
  * Una institución que falla no frena a las demás.
  */
@@ -36,9 +40,20 @@ export async function POST(request: Request) {
 
   let elegidos = 0;
   let fallidos = 0;
+  let avisos = 0;
   for (const { workspaceId } of instituciones) {
     try {
-      if (await ensureCurrentSpotlight(workspaceId)) elegidos += 1;
+      const destacado = await ensureCurrentSpotlight(workspaceId);
+      if (destacado) {
+        elegidos += 1;
+        // Si su tarjeta muestra poco, se le pide que complete su perfil. Una sola vez por semana
+        // destacada (`nudgeSentAt`); si el correo falla, la próxima pasada lo reintenta.
+        const aviso = await sendSpotlightNudge({ workspaceId, spotlightId: destacado.id });
+        if (aviso.status === "SENT") avisos += 1;
+        if (aviso.status === "FAILED") {
+          console.error("[fotoffice][socio-de-la-semana] no salió el aviso", { workspaceId, error: aviso.error });
+        }
+      }
     } catch (error) {
       fallidos += 1;
       console.error("[fotoffice][socio-de-la-semana] falló la elección", {
@@ -47,7 +62,7 @@ export async function POST(request: Request) {
       });
     }
   }
-  return NextResponse.json({ ok: fallidos === 0, instituciones: instituciones.length, elegidos, fallidos });
+  return NextResponse.json({ ok: fallidos === 0, instituciones: instituciones.length, elegidos, avisos, fallidos });
 }
 
 /** Vercel Cron usa GET. Mismo camino, misma autorización. */
