@@ -28,6 +28,8 @@ import { verifyGovernanceUpload } from "@/lib/governance/files";
 import { safeFilename } from "@/lib/governance/file-names";
 import type { ProjectStatus, TaskStatus } from "@/lib/governance/constants";
 import { toDateInputValue } from "@/lib/governance/forms";
+import { remainingOfProject } from "@/lib/governance/money-server";
+import { formatMinorArs, minorToDecimalString } from "@/lib/membership/money";
 
 /**
  * Las acciones del módulo de proyectos de la comisión.
@@ -192,6 +194,11 @@ export async function changeProjectStatusAction(fd: FormData): Promise<void> {
   const problema = validateStatusChange(proyecto.status, v);
   if (problema) conError(detalle(projectId), problema);
 
+  // Al terminar o cancelar, lo que quedó reservado y sin gastar se libera solo (§8.4): si no,
+  // Caja seguiría mostrando como comprometida plata de un proyecto que ya no existe.
+  const cierra = v.to === "DONE" || v.to === "CANCELLED";
+  const sobrante = cierra ? await remainingOfProject(proyecto.id) : 0;
+
   await prisma.$transaction(async (tx) => {
     // Compare-and-set: si otra persona ya lo movió, no se pisa su decisión.
     const r = await tx.govProject.updateMany({
@@ -212,6 +219,25 @@ export async function changeProjectStatusAction(fd: FormData): Promise<void> {
         decision: v.decision,
       },
     });
+    if (sobrante > 0) {
+      const motivo = `Liberado automáticamente al pasar a «${v.to === "DONE" ? "Terminado" : "Cancelado"}».`;
+      await tx.govReservation.create({
+        data: {
+          projectId: proyecto.id,
+          amountArs: minorToDecimalString(-sobrante),
+          reason: motivo,
+          createdByUserId: user.id,
+          actorLabel: actorLabel(user),
+        },
+      });
+      await recordProjectEvent(tx, {
+        projectId: proyecto.id,
+        type: "RESERVATION",
+        actorUserId: user.id,
+        actorLabel: actorLabel(user),
+        data: { amount: formatMinorArs(sobrante), release: true, reason: motivo },
+      });
+    }
   }).catch((e: unknown) => {
     if (e instanceof Error && e.message === "CAMBIO_CONCURRENTE") {
       conError(detalle(projectId), "Alguien cambió el estado recién. Mirá cómo quedó y volvé a intentar.");
@@ -654,9 +680,10 @@ export async function setFileVisibilityAction(fd: FormData): Promise<void> {
   const destino = volverA(fd, detalle(projectId));
   const archivo = await prisma.govAttachment.findFirst({
     where: { id: campo(fd, "attachmentId"), projectId, workspaceId: workspace.id },
-    select: { id: true, filename: true, visibleToMembers: true },
+    select: { id: true, filename: true, visibleToMembers: true, quoteId: true },
   });
   if (!archivo) conError(destino, "Ese archivo no existe.");
+  if (archivo.quoteId) conError(destino, "Los archivos de cotizaciones no se comparten con los socios.");
   const visible = campo(fd, "visible") === "1";
   if (visible === archivo.visibleToMembers) redirect(destino);
   await prisma.$transaction(async (tx) => {

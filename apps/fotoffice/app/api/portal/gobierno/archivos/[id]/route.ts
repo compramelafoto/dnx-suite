@@ -20,6 +20,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     where: {
       id,
       workspaceId: ctx.workspace.id,
+      // Las cotizaciones nunca: pueden tener datos del proveedor.
+      quoteId: null,
       OR: [
         { project: { proposedByMemberId: ctx.member.id } },
         { taskUpdate: { task: { assigneeMemberId: ctx.member.id } } },
