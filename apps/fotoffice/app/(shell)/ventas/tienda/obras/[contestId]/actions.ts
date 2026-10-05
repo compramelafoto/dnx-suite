@@ -101,8 +101,14 @@ export async function publishArtworkAction(contestId: string, entryId: string): 
   } catch (error) {
     const m = mensajeDe(error);
     if (m) return { ok: false, error: m };
-    console.error("[fotoffice][tienda] no se pudo publicar la obra", { workspaceId: workspace.id, entryId: e });
-    throw error;
+    // Lo inesperado (casi siempre R2 o la base): sólo ids y el nombre del error, sin datos personales.
+    console.error("[fotoffice][tienda] no se pudo publicar la obra", {
+      workspaceId: workspace.id,
+      contestId: c,
+      entryId: e,
+      error: error instanceof Error ? error.name : typeof error,
+    });
+    return { ok: false, error: "No pudimos guardar la vista previa. Probá de nuevo." };
   }
   revalidatePath(ruta(c));
   return { ok: true, message: "Obra publicada en la tienda." };

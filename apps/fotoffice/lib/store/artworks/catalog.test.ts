@@ -96,8 +96,26 @@ function baseFalsa(
     opts.royaltyBps === undefined ? [] : [{ workspaceId: WS, contestId: C, royaltyBps: opts.royaltyBps }];
   const results = opts.results ?? [];
   let chocar = opts.chocarUnaVez ?? false;
+  /** Orden de lo que se hace dentro de la transacción de publicar. */
+  const orden: string[] = [];
   const contest = { id: C, title: "Salón 2026", status: opts.contestStatus ?? "COMPLETED", organizationId: "org1", organization: { name: "FCSF" } };
   const db = {
+    $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => {
+      orden.push("BEGIN");
+      try {
+        return await fn(db);
+      } finally {
+        orden.push("END");
+      }
+    }),
+    $queryRaw: vi.fn(async (strings: TemplateStringsArray, ...values: unknown[]) => {
+      const sql = strings.join("?");
+      orden.push(sql.includes("FOR UPDATE") ? "LOCK consent" : "SQL");
+      const [ws, entryId] = values;
+      return consents
+        .filter((c) => c.workspaceId === ws && c.entryId === entryId)
+        .map((c) => ({ basis: c.basis, status: c.status, notifiedAt: c.notifiedAt }));
+    }),
     fotorankContest: {
       findUnique: vi.fn(async ({ where }: { where: { id: string } }) => (where.id === C ? contest : null)),
       findMany: vi.fn(async ({ where }: { where: { organizationId: { in: string[] }; status: { in: string[] } } }) =>
@@ -178,6 +196,7 @@ function baseFalsa(
         return [...cuenta].map(([contestId, n]) => ({ contestId, _count: { _all: n } }));
       }),
       create: vi.fn(async ({ data }: { data: Listing }) => {
+        orden.push("create listing");
         if (chocar) {
           chocar = false;
           listings.push({ ...data, id: "otra", entryId: "otra-obra" });
@@ -190,6 +209,7 @@ function baseFalsa(
         return data;
       }),
       updateMany: vi.fn(async ({ where, data }: { where: Record<string, unknown>; data: Partial<Listing> }) => {
+        orden.push("update listing");
         const filas = listings.filter((l) => cumple(l, where));
         for (const f of filas) Object.assign(f, data);
         return { count: filas.length };
@@ -217,7 +237,7 @@ function baseFalsa(
       findUnique: vi.fn(async () => ({ name: "fcsf", fotofficeBranding: { commercialName: "Foto Club Santa Fe" } })),
     },
   };
-  return { db, consents, listings, settings };
+  return { db, consents, listings, settings, orden };
 }
 
 const avisado = (entryId: string, over: Partial<Consent> = {}): Consent => ({
@@ -510,15 +530,30 @@ describe("publishArtwork", () => {
     expect(listings).toHaveLength(0);
   });
 
-  it("si el autor retiró mientras se publicaba, la obra vuelve a salir", async () => {
-    const { db, consents, listings } = baseFalsa({ consents: [avisado("e1")] });
+  it("el permiso se bloquea y se vuelve a mirar ANTES de escribir la ficha, dentro de la transacción", async () => {
+    const { db, orden } = baseFalsa({ consents: [avisado("e1")] });
+    await publishArtwork(WS, C, "e1", 1, publishDeps(db).deps);
+    expect(orden).toEqual(["BEGIN", "LOCK consent", "create listing", "END"]);
+    const [strings, ...values] = db.$queryRaw.mock.calls[0]!;
+    expect(strings.join("?")).toMatch(/FROM "ArtworkConsent"\s+WHERE "workspaceId" = \? AND "entryId" = \?\s+FOR UPDATE/);
+    expect(values).toEqual([WS, "e1"]);
+
+    // Volver a publicar: también con el bloqueo antes de actualizar.
+    orden.length = 0;
+    await publishArtwork(WS, C, "e1", 1, publishDeps(db).deps);
+    expect(orden).toEqual(["BEGIN", "LOCK consent", "update listing", "END"]);
+  });
+
+  it("si el autor retiró mientras se subía la vista previa, no se publica nada", async () => {
+    const { db, consents, listings, orden } = baseFalsa({ consents: [avisado("e1")] });
     const { deps } = publishDeps(db);
     deps.storePreview.mockImplementationOnce(async (_ws: string, listingId: string) => {
       consents[0]!.status = "WITHDRAWN"; // el autor retiró en el medio
       return { url: `https://cdn.test/${listingId}.jpg`, width: 1600, height: 1067 };
     });
     await expect(publishArtwork(WS, C, "e1", 1, deps)).rejects.toMatchObject({ code: "NO_CONSENT" });
-    expect(listings[0]).toMatchObject({ status: "WITHDRAWN", withdrawnAt: AHORA });
+    expect(listings).toHaveLength(0);
+    expect(orden).toEqual(["BEGIN", "LOCK consent", "END"]);
   });
 });
 

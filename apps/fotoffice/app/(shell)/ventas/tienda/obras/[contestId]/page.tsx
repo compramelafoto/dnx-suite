@@ -90,7 +90,9 @@ export default async function TiendaObrasConcursoPage({
             {filter === "todas" ? "Este concurso no tiene obras confirmadas." : "No hay obras con este filtro."}
           </div>
         ) : (
-          <EntriesTable contestId={catalogo.contest.id} rows={catalogo.rows} />
+          // La clave reinicia la selección al cambiar de página o filtro: "Avisar / pedir permiso"
+          // sólo manda a las obras elegidas que se están viendo.
+          <EntriesTable key={`${filter}-${catalogo.page}`} contestId={catalogo.contest.id} rows={catalogo.rows} />
         )}
 
         {catalogo.totalPages > 1 ? (

@@ -44,6 +44,7 @@ import { artworkSlug } from "./slug";
 
 type Db = Pick<
   typeof prisma,
+  | "$transaction"
   | "fotorankContest"
   | "fotorankContestEntry"
   | "fotorankResultEntry"
@@ -437,42 +438,45 @@ export async function publishArtwork(
       vistaPrevia = await guardar(workspaceId, listingId, buffer);
     }
     const preview = { previewUrl: vistaPrevia.url, previewWidth: vistaPrevia.width, previewHeight: vistaPrevia.height };
+    const vista = vistaPrevia;
     try {
-      if (existente) {
-        await db.artworkListing.updateMany({ where: { id: existente.id, workspaceId }, data: { ...ficha, ...preview } });
-        await despublicarSiPerdioElPermiso(workspaceId, entryId, db, now);
-        return { listingId: existente.id, slug: existente.slug };
-      }
-      const tomadas = await db.artworkListing.findMany({ where: { workspaceId }, select: { slug: true } });
-      const slug = artworkSlug(titulo, entry.entryNumber ?? entryId, new Set(tomadas.map((t) => t.slug)));
-      await db.artworkListing.create({
-        data: { id: listingId, workspaceId, contestId, entryId, slug, ...ficha, ...preview },
+      // La subida a R2 quedó afuera; acá sólo la base. El permiso se bloquea (FOR UPDATE) y se
+      // vuelve a mirar antes de escribir la ficha: si el autor retira o rechaza en este momento,
+      // o su respuesta espera a que esto termine (y entonces despublica), o esto la ve y no publica.
+      return await db.$transaction(async (tx) => {
+        const bloqueado = await tx.$queryRaw<{ basis: string; status: string; notifiedAt: Date | null }[]>`
+          SELECT "basis", "status", "notifiedAt" FROM "ArtworkConsent"
+          WHERE "workspaceId" = ${workspaceId} AND "entryId" = ${entryId}
+          FOR UPDATE`;
+        if (!isSellable(bloqueado[0] ?? null)) throw new ArtworkPublishError("NO_CONSENT");
+        if (existente) {
+          await tx.artworkListing.updateMany({ where: { id: existente.id, workspaceId }, data: { ...ficha, ...preview } });
+          return { listingId: existente.id, slug: existente.slug };
+        }
+        const tomadas = await tx.artworkListing.findMany({ where: { workspaceId }, select: { slug: true } });
+        const slug = artworkSlug(titulo, entry.entryNumber ?? entryId, new Set(tomadas.map((t) => t.slug)));
+        await tx.artworkListing.create({
+          data: {
+            id: listingId,
+            workspaceId,
+            contestId,
+            entryId,
+            slug,
+            ...ficha,
+            previewUrl: vista.url,
+            previewWidth: vista.width,
+            previewHeight: vista.height,
+          },
+        });
+        return { listingId, slug };
       });
-      await despublicarSiPerdioElPermiso(workspaceId, entryId, db, now);
-      return { listingId, slug };
     } catch (e) {
-      // Otra pestaña publicó la misma obra o tomó la misma dirección: se vuelve a leer y se reintenta.
+      // Otra pestaña publicó la misma obra o tomó la misma dirección: la transacción ya se
+      // deshizo; se vuelve a leer y se reintenta en una transacción nueva.
       if (!esUnicoRepetido(e) || intento >= INTENTOS) throw e;
       console.warn("[fotoffice][tienda] publicar obra: reintento por choque de unicidad", { workspaceId, entryId, intento });
     }
   }
-}
-
-/**
- * Si el autor retiró o rechazó mientras se publicaba, `respondConsent` ya despublicó lo que
- * había y esta publicación llegó después: se vuelve a sacar.
- */
-async function despublicarSiPerdioElPermiso(workspaceId: string, entryId: string, db: Db, now: Date): Promise<void> {
-  const consent = await db.artworkConsent.findUnique({
-    where: { workspaceId_entryId: { workspaceId, entryId } },
-    select: { basis: true, status: true, notifiedAt: true },
-  });
-  if (isSellable(consent)) return;
-  await db.artworkListing.updateMany({
-    where: { workspaceId, entryId, status: "PUBLISHED" },
-    data: { status: "WITHDRAWN", withdrawnAt: now },
-  });
-  throw new ArtworkPublishError("NO_CONSENT");
 }
 
 /** Saca la obra de la tienda. No exige vínculo: sacar siempre se puede. */
