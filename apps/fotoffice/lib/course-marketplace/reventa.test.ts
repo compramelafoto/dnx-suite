@@ -39,6 +39,9 @@ describe("porcentajes escritos a mano", () => {
     expect(porcentajeABps(undefined)).toBeNull();
     expect(porcentajeABps("mucho")).toBeNull();
   });
+  it("rechaza notación científica, negativos y más de 2 decimales", () => {
+    for (const x of ["1e1", "-5", "1.005", "  ", "1,2,3"]) expect(porcentajeABps(x)).toBeNull();
+  });
 });
 
 describe("ofrecer un curso a otras instituciones", () => {
@@ -49,6 +52,9 @@ describe("ofrecer un curso a otras instituciones", () => {
     expect(validarOferta({ ofrecido: true, sugeridoBps: 2500, grabadoConPrecio: true })).toEqual([]);
     expect(validarOferta({ ofrecido: true, sugeridoBps: 2500, grabadoConPrecio: false }).join()).toMatch(/grabados con precio/);
     expect(validarOferta({ ofrecido: true, sugeridoBps: null, grabadoConPrecio: true }).join()).toMatch(/sugerido/);
+    expect(validarOferta({ ofrecido: true, sugeridoBps: 9000, grabadoConPrecio: true })).toEqual([]);
+    expect(validarOferta({ ofrecido: true, sugeridoBps: 9001, grabadoConPrecio: true }).join()).toMatch(/90%/);
+    expect(validarOferta({ ofrecido: true, sugeridoBps: 0, grabadoConPrecio: true }).join()).toMatch(/mayor que 0/);
     expect(validarOferta({ ofrecido: true, sugeridoBps: 9500, grabadoConPrecio: true }).join()).toMatch(/90%/);
   });
 });

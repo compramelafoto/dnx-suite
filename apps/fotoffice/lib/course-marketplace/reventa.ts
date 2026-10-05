@@ -25,11 +25,9 @@ export const TOPE_SUGERIDO_BPS = 9000;
 
 /** "12,5" → 1250. Vacío o inválido → null. */
 export function porcentajeABps(texto: string | null | undefined): number | null {
-  const limpio = (texto ?? "").trim().replace("%", "").trim().replace(",", ".");
-  if (!limpio) return null;
-  const n = Number(limpio);
-  if (!Number.isFinite(n)) return null;
-  return Math.round(n * 100);
+  const limpio = (texto ?? "").trim().replace(/\s*%$/, "");
+  if (!/^\d{1,3}([.,]\d{1,2})?$/.test(limpio)) return null;
+  return Math.round(Number(limpio.replace(",", ".")) * 100);
 }
 
 export function validarOferta(input: { ofrecido: boolean; sugeridoBps: number | null; grabadoConPrecio: boolean }): string[] {
@@ -136,6 +134,7 @@ export function mensajeDeAcuerdos(codigo: string | undefined): string | null {
  * Lo que ve una institución al pedir una reventa, en modo lectura: su parte por venta y cuánto
  * pagaría un socio suyo con el descuento elegido. Mismo motor que después cobra.
  */
+// parteCentavos es la parte del revendedor antes del descuento para socios.
 export function simularReventa(input: {
   listaCentavos: number;
   comisionPlataformaBps: number;
