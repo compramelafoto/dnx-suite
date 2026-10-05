@@ -440,6 +440,27 @@ export function ParticipantUploadWizard({
         setUploadPhase("idle");
       };
 
+      /**
+       * Se leen los bytes justo antes de enviar. En iPhone el `File` elegido
+       * puede volverse ilegible si la página quedó un rato en segundo plano (o
+       * la foto está en iCloud): `file.size` sigue diciendo lo que pesaba,
+       * pero el PUT falla y el POST viaja con 0 bytes. Así llegó vacía la obra
+       * SANTAF-000083 y se rechazó sola. Con los bytes en memoria, lo que se
+       * valida es exactamente lo que se manda.
+       */
+      let payload: File;
+      try {
+        const bytes = await file.arrayBuffer();
+        if (bytes.byteLength === 0) {
+          fail("EMPTY_FILE");
+          return;
+        }
+        payload = new File([bytes], file.name || "obra.jpg", { type: file.type || "image/jpeg" });
+      } catch {
+        fail("FILE_UNREADABLE");
+        return;
+      }
+
       try {
         const intentRes = await fetchWithTimeout(
           `/api/fotorank/contests/${contestId}/entries/upload-intent`,
@@ -492,7 +513,7 @@ export function ParticipantUploadWizard({
           setUploadPhase("processing");
           setInfo("Estamos verificando el archivo.");
           const fd = new FormData();
-          fd.set("file", file);
+          fd.set("file", payload);
           if (replace) fd.set("replace", "1");
           if (eligibility) {
             for (const [key, value] of Object.entries(eligibility)) {
@@ -525,7 +546,7 @@ export function ParticipantUploadWizard({
               {
                 method: "PUT",
                 headers: directUpload.headers ?? { "Content-Type": file.type || "image/jpeg" },
-                body: file,
+                body: payload,
               },
               DIRECT_UPLOAD_TIMEOUT_MS,
             );

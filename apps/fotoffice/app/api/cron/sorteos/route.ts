@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { generateMonthlyRaffles } from "@/lib/raffles/monthly";
 import { sealDueRaffles } from "@/lib/raffles/seal";
+import { syncContactsAfterRosterClose } from "@/lib/contacts/after-raffle";
 import { resolveDueRaffles } from "@/lib/raffles/resolve";
 import { expireUnclaimedPrizes } from "@/lib/raffles/delivery";
 import { notifyPendingAwards } from "@/lib/raffles/notify";
@@ -43,6 +44,9 @@ export async function POST(request: Request) {
   try {
     const mensual = await generateMonthlyRaffles();
     const sellado = await sealDueRaffles();
+    // El padrón del sorteo quedó fijo: es el momento de dejar la agenda de Google igual a él.
+    // Va aparte y nunca lanza: un problema con Google no puede frenar el sorteo.
+    const contactos = await syncContactsAfterRosterClose(sellado.workspacesSellados);
     const sorteado = await resolveDueRaffles();
     const avisos = await notifyPendingAwards();
     const vencidos = await expireUnclaimedPrizes();
@@ -55,7 +59,7 @@ export async function POST(request: Request) {
       console.error("[fotoffice][sorteos] falló el envío de resultados", { detalle: sanitizeError(error) });
       resultados = { error: "falló el envío de resultados" };
     }
-    return NextResponse.json({ ok: true, mensual, sellado, sorteado, avisos, vencidos, resultados });
+    return NextResponse.json({ ok: true, mensual, sellado, contactos, sorteado, avisos, vencidos, resultados });
   } catch (error) {
     console.error("[fotoffice][sorteos] falló la tarea programada", {
       detalle: sanitizeError(error),

@@ -14,6 +14,7 @@ describe("catálogo de acciones sensibles", () => {
     expect(MODULE_ACTIONS.coverages.map((a) => a.key)).toEqual(["coverages.coordinate"]);
     expect(MODULE_ACTIONS.bookings.map((a) => a.key)).toEqual([BOOKINGS_CONFIGURE_ACTION]);
     expect(MODULE_ACTIONS.raffles.map((a) => a.key)).toEqual([RAFFLES_CONDUCT_ACTION]);
+    expect(MODULE_ACTIONS.sales.map((a) => a.key)).toEqual(["sales.catalog"]);
     expect(BOOKINGS_CONFIGURE_ACTION).toBe("bookings.configure");
     expect(RAFFLES_CONDUCT_ACTION).toBe("raffles.conduct");
   });

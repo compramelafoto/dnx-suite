@@ -148,6 +148,7 @@ export default async function PortalPage() {
       puedeCambiarPerfil={profiles.length > 1}
       tieneNegocio={profiles.some((p) => p.kind === "TEAM")}
       sorteo={sorteo}
+      whatsappGroupUrl={duesSettings.communityWhatsappUrl}
       socioDeLaSemana={socioDeLaSemana}
     />
   );

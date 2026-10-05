@@ -85,6 +85,14 @@ export function BlogArticleBody({ html }: { html: string }) {
           border: 0;
           border-radius: 12px;
         }
+        /* El reproductor de Instagram es vertical (cabecera + video 4:5 + pie) y no se achica
+           solo: se le da ancho de teléfono y una proporción que deja ver el pie entero. */
+        .fo-blog-prose .blog-instagram-embed iframe {
+          max-width: 400px;
+          margin-inline: auto;
+          aspect-ratio: 400 / 690;
+          background: #fff;
+        }
         .fo-blog-prose hr {
           border: 0;
           height: 1px;

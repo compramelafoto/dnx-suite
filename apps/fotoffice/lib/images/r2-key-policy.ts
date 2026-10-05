@@ -22,6 +22,7 @@ export const FOTOFFICE_R2_PREFIXES = {
   websiteBlockImage: "fotoffice/website-block-images",
   favicon: "fotoffice/favicons",
   templateImage: "fotoffice/template-images",
+  productPhoto: "fotoffice/product-photos",
   memberPortfolioPhoto: "fotoffice/member-portfolio",
   /** Fotos que el socio sube sólo para su placa de Socio de la semana («Más sobre mí»). */
   memberFeaturedPhoto: "fotoffice/member-featured",

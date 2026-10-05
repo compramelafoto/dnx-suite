@@ -3,6 +3,7 @@ import { prisma } from "@repo/db";
 import { PRINTED_CARD_PERIOD } from "./approve";
 import { decimalArsToMinor } from "./money";
 import { buildMembershipWelcomeEmail } from "./application-emails";
+import { getDuesSettings } from "./settings";
 import { issueDigitalCard } from "@/lib/carnet/issue";
 import { issuePrepaidPrintedCard } from "@/lib/carnet/prepaid-card";
 import { loadWorkspaceEmailContext } from "@/lib/communications/load-workspace-signature";
@@ -159,10 +160,21 @@ async function completar(memberId: string): Promise<{ completed: boolean }> {
         // subió, este es el mejor momento para pedírsela.
         needsPhotoForPrintedCard: solicitud.wantsPrintedCard && !socio.avatarUrl,
         hasAccount: socio.userId !== null,
+        whatsappGroupUrl: await grupoDeWhatsapp(solicitud.workspaceId),
+        appBaseUrl: base,
         signature,
       }),
     });
   }
 
   return { completed: true };
+}
+
+/** El grupo de WhatsApp para la bienvenida. Si no se puede leer, la bienvenida sale igual. */
+async function grupoDeWhatsapp(workspaceId: string): Promise<string | null> {
+  try {
+    return (await getDuesSettings(workspaceId)).communityWhatsappUrl;
+  } catch {
+    return null;
+  }
 }
