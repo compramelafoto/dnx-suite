@@ -8,7 +8,7 @@ import {
   arMonthOf,
   monthLabel,
   parseRoyaltyMonth,
-  royaltyStatusLabel,
+  royaltyRowLabel,
   shiftMonth,
 } from "@/lib/store/artworks/royalty-report";
 import { MarkPaidForm } from "./mark-paid-form";
@@ -27,7 +27,8 @@ export default async function RegaliasPage({ searchParams }: { searchParams: Pro
     loadRoyaltyMonth(workspace.id, mes),
     loadRoyaltiesToRecover(workspace.id),
   ]);
-  const esMesActual = mes === arMonthOf(new Date());
+  // "AAAA-MM" compara bien como texto.
+  const hayMesSiguiente = mes < arMonthOf(new Date());
   const totalAPagar = autores.reduce((s, a) => s + a.accruedMinor, 0);
   const totalPagado = autores.reduce((s, a) => s + a.paidMinor, 0);
 
@@ -51,7 +52,7 @@ export default async function RegaliasPage({ searchParams }: { searchParams: Pro
           ← Mes anterior
         </Link>
         <span className="font-semibold capitalize">{monthLabel(mes)}</span>
-        {esMesActual ? null : (
+        {!hayMesSiguiente ? null : (
           <Link href={`?mes=${shiftMonth(mes, 1)}`} className="underline">
             Mes siguiente →
           </Link>
@@ -105,7 +106,7 @@ export default async function RegaliasPage({ searchParams }: { searchParams: Pro
                         </td>
                         <td className="py-1 text-right">{formatMinorArs(r.amountMinor)}</td>
                         <td className="py-1">
-                          {royaltyStatusLabel(r.status)}
+                          {royaltyRowLabel(r)}
                           {r.status === "PAID" && r.paidAt ? (
                             <span className="text-[var(--fo-muted)]">
                               {" "}
@@ -120,7 +121,12 @@ export default async function RegaliasPage({ searchParams }: { searchParams: Pro
                 </table>
               </div>
               {a.accruedMinor > 0 ? (
-                <MarkPaidForm authorUserId={a.authorUserId} month={mes} amountLabel={formatMinorArs(a.accruedMinor)} />
+                <MarkPaidForm
+                  authorUserId={a.authorUserId}
+                  month={mes}
+                  royaltyIds={a.items.filter((r) => r.status === "ACCRUED").map((r) => r.id)}
+                  amountLabel={formatMinorArs(a.accruedMinor)}
+                />
               ) : null}
             </section>
           ))}

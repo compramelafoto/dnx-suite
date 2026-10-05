@@ -102,17 +102,31 @@ export async function loadRoyaltiesToRecover(workspaceId: string): Promise<Royal
   }));
 }
 
-export type MarkPaidResult = { ok: true; count: number } | { ok: false; error: string };
+export type MarkPaidResult = { ok: true; count: number; partial: boolean } | { ok: false; error: string };
+
+/** Tope de regalías por "Marcar pagado" (un autor en un mes). */
+export const MARK_PAID_MAX_IDS = 500;
+
+function parseIds(raw: unknown): string[] | null {
+  if (!Array.isArray(raw)) return null;
+  const ids = [...new Set(raw.filter((x): x is string => typeof x === "string" && x.trim() !== "").map((x) => x.trim()))];
+  if (ids.length === 0 || ids.length > MARK_PAID_MAX_IDS) return null;
+  return ids;
+}
 
 /**
- * Marca pagadas las regalías A PAGAR de un autor en un mes. El `where` con `status: "ACCRUED"`
- * decide en la base: nunca pisa una anulada (pedido cancelado) ni una ya pagada (con su
- * referencia), aunque la cancelación ocurra en paralelo.
+ * Marca pagadas las regalías A PAGAR de un autor en un mes, pero SÓLO las que la persona vio
+ * en pantalla (`royaltyIds`): una regalía que se acreditó después de cargar el resumen no
+ * entra en un pago que no la incluía. El `where` con `status: "ACCRUED"` decide en la base:
+ * nunca pisa una anulada (pedido cancelado) ni una ya pagada (con su referencia), aunque la
+ * cancelación ocurra en paralelo. Si alguna cambió mientras tanto, se marcan las demás y se
+ * avisa (`partial`).
  */
 export async function markAuthorMonthPaid(input: {
   workspaceId: string;
   authorUserId: number;
   month: string;
+  royaltyIds: unknown;
   reference: unknown;
   userId: number;
   now?: Date;
@@ -121,12 +135,15 @@ export async function markAuthorMonthPaid(input: {
     return { ok: false, error: "Falta el autor." };
   }
   if (!MES.test(input.month)) return { ok: false, error: "El mes no es válido." };
+  const ids = parseIds(input.royaltyIds);
+  if (!ids) return { ok: false, error: "No hay regalías para marcar. Recargá la página." };
   const referencia = parsePaidReference(input.reference);
   if (!referencia.ok) return referencia;
 
   const { start, end } = arMonthRange(input.month);
   const { count } = await prisma.artworkRoyalty.updateMany({
     where: {
+      id: { in: ids },
       workspaceId: input.workspaceId,
       authorUserId: input.authorUserId,
       status: "ACCRUED",
@@ -139,6 +156,8 @@ export async function markAuthorMonthPaid(input: {
       paidByUserId: input.userId,
     },
   });
-  if (count === 0) return { ok: false, error: "Este autor no tiene regalías a pagar en ese mes." };
-  return { ok: true, count };
+  if (count === 0) {
+    return { ok: false, error: "Esas regalías ya no están a pagar (cambiaron mientras tanto). Revisá el resumen." };
+  }
+  return { ok: true, count, partial: count !== ids.length };
 }

@@ -7,10 +7,13 @@ import { markAuthorMonthPaidAction, type RoyaltiesActionResult } from "./actions
 export function MarkPaidForm({
   authorUserId,
   month,
+  royaltyIds,
   amountLabel,
 }: {
   authorUserId: number;
   month: string;
+  /** Las regalías A PAGAR que se ven en pantalla: sólo esas se marcan. */
+  royaltyIds: string[];
   amountLabel: string;
 }) {
   const [resultado, setResultado] = useState<RoyaltiesActionResult | null>(null);
@@ -29,6 +32,9 @@ export function MarkPaidForm({
     >
       <input type="hidden" name="authorUserId" value={authorUserId} />
       <input type="hidden" name="month" value={month} />
+      {royaltyIds.map((id) => (
+        <input key={id} type="hidden" name="royaltyId" value={id} />
+      ))}
       <div className="fo-field-stack">
         <label className="fo-label" htmlFor={idCampo}>
           Referencia del pago

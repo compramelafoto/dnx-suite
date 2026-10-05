@@ -8,6 +8,7 @@ import {
   groupRoyaltiesByAuthor,
   parsePaidReference,
   parseRoyaltyMonth,
+  royaltyRowLabel,
   shiftMonth,
   type RoyaltyRow,
 } from "./royalty-report";
@@ -82,6 +83,16 @@ describe("groupRoyaltiesByAuthor", () => {
     expect(zoe.items.map((i) => i.id)).toEqual(["a", "b", "c"]);
   });
 
+  it("una pagada de un pedido cancelado no es una copia vendida y se rotula a recuperar", () => {
+    const [g] = groupRoyaltiesByAuthor(
+      [fila({ id: "a", qty: 2 }), fila({ id: "b", status: "PAID", orderStatus: "CANCELLED", qty: 5, amountMinor: 300 })],
+      new Map(),
+    );
+    expect(g).toMatchObject({ copies: 2, paidMinor: 300 });
+    expect(royaltyRowLabel(g!.items[1]!)).toBe("Pagada · pedido cancelado (a recuperar)");
+    expect(royaltyRowLabel(g!.items[0]!)).toBe("A pagar");
+  });
+
   it("un autor sin datos queda identificado por su número", () => {
     const [g] = groupRoyaltiesByAuthor([fila()], new Map());
     expect(g).toMatchObject({ name: "Autor #10", email: null });
@@ -120,6 +131,13 @@ describe("CSV", () => {
     expect(lineas[1]).toBe(
       `2026-10;José Núñez;jose@example.com;7;"Luz; ""sombra""";Copia;1;30000,00;20;6000,00;Pagada;19/10/2026;'=TRANSF`,
     );
+  });
+
+  it("neutraliza fórmulas aunque vengan detrás de espacios", () => {
+    const [g] = groupRoyaltiesByAuthor([fila({ workTitle: "  =HYPERLINK(1)", formatName: " +1", paidReference: "@x" })], new Map());
+    const linea = buildRoyaltiesCsv([g!], "2026-10").split("\r\n")[1]!;
+    expect(linea).toContain(";'  =HYPERLINK(1);' +1;");
+    expect(linea.endsWith(";'@x")).toBe(true);
   });
 
   it("porcentaje con decimales usa coma", () => {

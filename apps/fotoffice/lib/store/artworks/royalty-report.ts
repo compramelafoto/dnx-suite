@@ -19,6 +19,16 @@ export function royaltyStatusLabel(status: string): string {
   return ROYALTY_STATUS_LABELS[status as RoyaltyStatus] ?? status;
 }
 
+/** Ya pagada al autor, pero el pedido se canceló: hay que recuperarla. */
+export function isRoyaltyToRecover(r: { status: string; orderStatus: string }): boolean {
+  return r.status === "PAID" && r.orderStatus === "CANCELLED";
+}
+
+/** Estado de un renglón para la pantalla y el CSV. */
+export function royaltyRowLabel(r: { status: string; orderStatus: string }): string {
+  return isRoyaltyToRecover(r) ? "Pagada · pedido cancelado (a recuperar)" : royaltyStatusLabel(r.status);
+}
+
 const TZ = "America/Argentina/Buenos_Aires";
 const MES = /^(\d{4})-(0[1-9]|1[0-2])$/;
 const OFFSET_HORAS = 3;
@@ -91,7 +101,7 @@ export type AuthorRoyalties = {
   authorUserId: number;
   name: string;
   email: string | null;
-  /** Copias vendidas (renglones no anulados). */
+  /** Copias vendidas (sin anuladas ni pagadas de pedidos cancelados). */
   copies: number;
   accruedMinor: number;
   paidMinor: number;
@@ -120,7 +130,7 @@ export function groupRoyaltiesByAuthor(rows: readonly RoyaltyRow[], people: Read
       porAutor.set(r.authorUserId, g);
     }
     g.items.push(r);
-    if (r.status !== "VOIDED") g.copies += r.qty;
+    if (r.status !== "VOIDED" && !isRoyaltyToRecover(r)) g.copies += r.qty;
     if (r.status === "ACCRUED") g.accruedMinor += r.amountMinor;
     if (r.status === "PAID") g.paidMinor += r.amountMinor;
   }
@@ -154,8 +164,9 @@ const FORMULA = ["=", "+", "-", "@", "\t", "\r"];
 function celda(valor: string | number | null): string {
   if (valor === null) return "";
   if (typeof valor === "number") return String(valor);
-  // Una celda que empieza como fórmula se ejecutaría al abrir la planilla.
-  const texto = FORMULA.some((f) => valor.startsWith(f)) ? `'${valor}` : valor;
+  // Una celda que empieza como fórmula (aun detrás de espacios) se ejecutaría al abrir la planilla.
+  const inicio = valor.replace(/^[ \u00a0]+/, "");
+  const texto = FORMULA.some((f) => valor.startsWith(f) || inicio.startsWith(f)) ? `'${valor}` : valor;
   return /[";\n\r]/.test(texto) ? `"${texto.replace(/"/g, '""')}"` : texto;
 }
 
@@ -192,7 +203,7 @@ export function buildRoyaltiesCsv(groups: readonly AuthorRoyalties[], month: str
           csvAmount(r.baseMinor),
           porcentaje(r.royaltyBps),
           csvAmount(r.amountMinor),
-          celda(royaltyStatusLabel(r.status)),
+          celda(royaltyRowLabel(r)),
           r.paidAt ? arDate(r.paidAt) : "",
           celda(r.paidReference),
         ].join(";"),
