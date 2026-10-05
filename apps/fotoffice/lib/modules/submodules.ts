@@ -57,6 +57,11 @@ export type SubmoduleItem = {
   levelModuleKey?: string;
   /** Acción sensible (ver `lib/permissions/actions.ts`) que además hace falta tener. */
   requiresAction?: string;
+  /**
+   * Sólo dueño o admin del negocio (`isFullAccessRole`), como exige su página. Para pantallas de
+   * plata que no se delegan con roles: un MANAGE del módulo no alcanza.
+   */
+  requiresFullAccess?: boolean;
   activeMatch: ActiveMatch;
 };
 
@@ -128,6 +133,24 @@ const CURSOS: SubmoduleItem[] = [
     icon: "GraduationCap",
     description: "Los cursos publicados y sus ediciones.",
     requiresManage: false,
+    activeMatch: "under",
+  },
+  {
+    href: "/dashboard/mercado-de-cursos",
+    label: "Mercado de cursos",
+    icon: "Store",
+    description: "Cursos de otros negocios que podés vender, y tus acuerdos de reventa.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
+    href: "/dashboard/cobros-de-cursos",
+    label: "Cobros",
+    icon: "Wallet",
+    description: "Lo que vendiste y lo que te tocó de cada venta de cursos.",
+    requiresManage: true,
+    // La página exige dueño o admin (`requireDuenoOAdminDelNegocio`): es plata.
+    requiresFullAccess: true,
     activeMatch: "under",
   },
   {
@@ -486,7 +509,12 @@ const POR_MODULO: Record<string, SubmoduleItem[]> = {
  * sensibles vigentes que alguna pantalla exige, calculadas en el servidor con `hasModuleAction`.
  * Es serializable a propósito: viaja del servidor al menú, que es un componente de cliente.
  */
-export type SubmoduleAccess = { levels: ModuleLevels; actions: readonly string[] };
+export type SubmoduleAccess = {
+  levels: ModuleLevels;
+  actions: readonly string[];
+  /** Dueño o admin del negocio (`isFullAccessRole`). Sin dato, se asume que no. */
+  fullAccess?: boolean;
+};
 
 function puedeAbrir(moduleKey: string, item: SubmoduleItem, access: SubmoduleAccess): boolean {
   const nivel = (key: string) => access.levels[key] ?? "NONE";
@@ -495,6 +523,7 @@ function puedeAbrir(moduleKey: string, item: SubmoduleItem, access: SubmoduleAcc
   const decide = item.levelModuleKey ?? moduleKey;
   if (!hasLevel(nivel(decide), item.requiresManage ? "MANAGE" : "VIEW")) return false;
   if (item.requiresAction && !access.actions.includes(item.requiresAction)) return false;
+  if (item.requiresFullAccess && access.fullAccess !== true) return false;
   return true;
 }
 

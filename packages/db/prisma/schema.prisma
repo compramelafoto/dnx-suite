@@ -7080,6 +7080,7 @@ model Workspace {
   courses                     Course[]
   courseBeneficiaries         CourseBeneficiary[]
   courseSaleShares            CourseSaleShare[]
+  courseResaleAgreements      CourseResaleAgreement[]
   courseEnrollments           CourseEnrollment[]
   courseAccesses              CourseAccess[]
   courseSalesCourses          CourseSalesCourse[]
@@ -9374,6 +9375,10 @@ model Course {
   completionPercent     Int                @default(80)
   /// El socio activo de la institución lo toma gratis desde su portal; el público lo paga.
   freeForMembers        Boolean            @default(false)
+  /// El dueño lo ofrece en el Mercado de cursos para que otros negocios lo revendan.
+  offeredToResellers    Boolean            @default(false)
+  /// % sugerido para revendedores, en puntos básicos. Hasta acá un pedido se aprueba solo.
+  suggestedResellerBps  Int?
   createdAt             DateTime           @default(now())
   updatedAt             DateTime           @updatedAt
   workspace             Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -9382,6 +9387,7 @@ model Course {
   enrollments           CourseEnrollment[]
   accesses              CourseAccess[]
   beneficiaries         CourseBeneficiary[]
+  resaleAgreements      CourseResaleAgreement[]
 
   @@unique([workspaceId, slug])
   @@index([workspaceId, status])
@@ -9529,6 +9535,38 @@ model CourseSaleShare {
   @@index([workspaceId])
 }
 
+/// Un negocio que vende el curso de otro (spec del mercado de cursos, sección 4.3).
+///
+/// `shareBps` sale de arriba de cada venta; el resto se reparte entre los beneficiarios. Hasta el
+/// % sugerido del curso nace ACTIVO; por encima, PENDIENTE hasta que el dueño lo apruebe. Un
+/// curso, un acuerdo por revendedor: pedir de nuevo después de un rechazo reabre la misma fila.
+model CourseResaleAgreement {
+  id                  String                      @id @default(cuid())
+  courseId            String
+  resellerWorkspaceId String
+  /// Puntos básicos de cada venta para el revendedor: 0 < shareBps < 10000.
+  shareBps            Int
+  /// Descuento para los socios del revendedor, en puntos básicos: 0..shareBps.
+  memberDiscountBps   Int                         @default(0)
+  status              CourseResaleAgreementStatus @default(PENDIENTE)
+  /// Quién pidió y quién aprobó (User.id). Sin relación a propósito: es un registro, no un permiso.
+  requestedByUserId   Int?
+  approvedByUserId    Int?
+  approvedAt          DateTime?
+  /// El negocio que lo pausó: sólo ése lo reanuda.
+  pausedByWorkspaceId String?
+  endedAt             DateTime?
+  createdAt           DateTime                    @default(now())
+  updatedAt           DateTime                    @updatedAt
+  course              Course                      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  resellerWorkspace   Workspace                   @relation(fields: [resellerWorkspaceId], references: [id], onDelete: Cascade)
+  enrollments         CourseEnrollment[]
+
+  @@unique([courseId, resellerWorkspaceId])
+  @@index([resellerWorkspaceId, status])
+  @@index([courseId, status])
+}
+
 model CourseInstance {
   id              String               @id @default(cuid())
   courseId        String
@@ -9570,6 +9608,8 @@ model CourseEnrollment {
   /// ENCIMA (cursos grabados desde el mercado de cursos): `amountArs` = lista − descuento + 5%.
   listPriceArs           Decimal?                      @db.Decimal(12, 2)
   discountArs            Decimal?                      @db.Decimal(12, 2)
+  /// El acuerdo por el que la vendió un revendedor. Null si la vendió el dueño.
+  resaleAgreementId      String?
   platformFeePercent     Decimal                       @db.Decimal(5, 2)
   platformFeeArs         Decimal                       @db.Decimal(12, 2)
   netAmountArs           Decimal                       @db.Decimal(12, 2)
@@ -9581,11 +9621,13 @@ model CourseEnrollment {
   courseInstance         CourseInstance?               @relation(fields: [courseInstanceId], references: [id], onDelete: Cascade)
   access                 CourseAccess?
   saleShares             CourseSaleShare[]
+  resaleAgreement        CourseResaleAgreement?        @relation(fields: [resaleAgreementId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, paymentStatus])
   @@index([courseId, paymentStatus])
   @@index([courseInstanceId, paymentStatus])
   @@index([paymentRef])
+  @@index([resaleAgreementId])
 }
 
 model CourseSalesTeacher {
@@ -11324,6 +11366,14 @@ enum CourseSaleShareKind {
   PLATAFORMA
   REVENDEDOR
   BENEFICIARIO
+}
+
+enum CourseResaleAgreementStatus {
+  PENDIENTE
+  ACTIVO
+  PAUSADO
+  RECHAZADO
+  TERMINADO
 }
 
 enum CourseStatus {

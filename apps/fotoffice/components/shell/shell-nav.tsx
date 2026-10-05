@@ -177,7 +177,8 @@ export function ShellNav({
 }) {
   const path = usePathname() ?? "";
   const { closeDrawer } = useShellNav();
-  const access: SubmoduleAccess = { levels, actions };
+  // Mismos roles que `isFullAccessRole` (dueño o admin): decide las pantallas de plata, como Cobros.
+  const access: SubmoduleAccess = { levels, actions, fullAccess: canManageWorkspaceSettings };
   const ve = (moduleKey: string) => hasLevel(levels[moduleKey] ?? "NONE", "VIEW");
   const gestiona = (moduleKey: string) => hasLevel(levels[moduleKey] ?? "NONE", "MANAGE");
 

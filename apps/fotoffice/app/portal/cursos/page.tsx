@@ -8,6 +8,11 @@ import { fechaLegibleArgentina } from "@/lib/course-classroom/access-rules";
 import { cursosGratisParaSocio, mensajeDeBeneficio } from "@/lib/course-classroom/beneficio";
 import { cursosGratisDeLaInstitucion, rutaAsociarse } from "@/lib/course-classroom/asociarse";
 import { loadPortalContext } from "@/lib/portal/access";
+import { listUserProfiles } from "@/lib/portal/profiles";
+import { InvitacionAEnsenar } from "@/components/course-marketplace/invitacion-a-ensenar";
+import { debeInvitarAEnsenar } from "@/lib/course-marketplace/invitacion-ensenar";
+import { cursosRevendidosParaSocios } from "@/lib/course-marketplace/vitrina";
+import { formatMoney } from "@/lib/format";
 import { anotarmeGratisAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +36,10 @@ export default async function MisCursosPage({ searchParams }: { searchParams: Pr
   await otorgarAccesosPendientes(user.id);
   const grupos = await cargarMisCursos(user.id);
   const socio = await loadPortalContext(user.id);
+  const tieneNegocio = (await listUserProfiles(user.id)).some((p) => p.kind === "TEAM");
   const gratis = socio ? await cursosGratisParaSocio(socio.workspace.id, user.id) : [];
+  const yaTiene = new Set(grupos.flatMap((g) => g.cursos.map((c) => c.courseId)));
+  const revendidos = socio ? (await cursosRevendidosParaSocios(socio.workspace.id)).filter((c) => !yaTiene.has(c.courseId)) : [];
   // Quien todavía no es socia recibe, por institución, la invitación a asociarse (si el
   // formulario está abierto) con los cursos que le saldrían gratis. Paralelo a `grupos`.
   const invitaciones = await Promise.all(
@@ -114,6 +122,35 @@ export default async function MisCursosPage({ searchParams }: { searchParams: Pr
         })
       )}
 
+      {revendidos.length > 0 && socio ? (
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold">Más cursos de {socio.workspace.name}</h2>
+          <ul className="grid gap-3 md:grid-cols-2">
+            {revendidos.map((c) => (
+              <li key={c.courseId} className="fo-card space-y-2">
+                <p className="font-medium">{c.titulo}</p>
+                {c.descripcion ? <p className="text-sm text-[var(--fo-muted)] line-clamp-2">{c.descripcion}</p> : null}
+                {c.precioSocioArs ? (
+                  <p className="text-sm">
+                    Para vos: <strong>{formatMoney(Number(c.precioSocioArs), "ARS")}</strong>
+                    {c.precioPublicoArs ? <span className="text-[var(--fo-muted)]"> (público {formatMoney(Number(c.precioPublicoArs), "ARS")})</span> : null}
+                  </p>
+                ) : c.precioPublicoArs ? (
+                  <p className="text-sm">{formatMoney(Number(c.precioPublicoArs), "ARS")}</p>
+                ) : null}
+                {c.aLaVenta && c.href ? (
+                  <Link href={c.href} className="fo-btn fo-btn-primary inline-flex text-sm">
+                    Comprar
+                  </Link>
+                ) : (
+                  <p className="text-sm font-medium">Disponible próximamente</p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       {gratis.length > 0 ? (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold">Gratis para vos</h2>
@@ -135,6 +172,8 @@ export default async function MisCursosPage({ searchParams }: { searchParams: Pr
           </ul>
         </section>
       ) : null}
+
+      {debeInvitarAEnsenar({ tieneNegocio }) ? <InvitacionAEnsenar modo="portal" /> : null}
     </div>
   );
 }

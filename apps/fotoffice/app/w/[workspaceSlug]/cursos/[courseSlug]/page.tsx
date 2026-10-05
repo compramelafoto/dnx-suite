@@ -5,11 +5,24 @@ import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { formatMoney } from "@/lib/format";
 import { getPlatformFeeBps } from "@/lib/platform-fee/store";
 import { cargarBeneficiarios, cargarDueno } from "@/lib/course-marketplace/cargar";
-import { estadoDeVenta } from "@/lib/course-marketplace/beneficiarios";
+import { beneficiariosParaMotor, estadoDeVenta } from "@/lib/course-marketplace/beneficiarios";
+import { buscarAcuerdoDeVitrina, ESTADOS_DE_CURSO_PROPIO } from "@/lib/course-marketplace/vitrina";
+import { decidirVenta, montosDeVenta } from "@/lib/course-marketplace/venta";
+import { cobroConRepartoHabilitado } from "@/lib/payments/split-1n";
 import { appUrl as direccionDeLaApp } from "@/lib/app-url";
 import { computeAvailableSpots, getApprovedEnrollmentCountsByInstanceIds } from "@/lib/presential-courses/availability";
+import { InvitacionAEnsenar } from "@/components/course-marketplace/invitacion-a-ensenar";
 import { RecordedCourseSection } from "@/components/presential-courses/recorded-course-section";
 import { PublicCourseEnrollmentForm } from "@/components/presential-courses/public-course-enrollment-form";
+
+const INCLUDE_CURSO = {
+  instances: { where: { status: "ACTIVE" as const }, orderBy: { startDateTime: "asc" as const } },
+  lessons: {
+    where: { videoStatus: "READY" as const },
+    orderBy: { sortOrder: "asc" as const },
+    select: { id: true, title: true, description: true, durationSeconds: true, isPreview: true },
+  },
+};
 
 type Props = { params: Promise<{ workspaceSlug: string; courseSlug: string }> };
 
@@ -19,7 +32,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     where: { publicSlug: workspaceSlug },
   });
   if (!branding) return { title: "Curso | Fotoffice" };
-  const presentialCourse = await prisma.course.findFirst({
+  let presentialCourse = await prisma.course.findFirst({
     where: {
       workspaceId: branding.workspaceId,
       slug: courseSlug,
@@ -31,6 +44,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       longDescription: true,
     },
   });
+  if (!presentialCourse) {
+    const acuerdo = await buscarAcuerdoDeVitrina(branding.workspaceId, courseSlug);
+    if (acuerdo) {
+      presentialCourse = await prisma.course.findFirst({
+        where: { id: acuerdo.courseId },
+        select: { title: true, shortDescription: true, longDescription: true },
+      });
+    }
+  }
   if (presentialCourse) {
     return {
       title: `${presentialCourse.title} | ${branding.commercialName}`,
@@ -58,40 +80,55 @@ export default async function PublicCourseLandingPage({ params }: Props) {
   });
   if (!mod?.enabled) notFound();
 
-  const presentialCourse = await prisma.course.findFirst({
-    where: {
-      workspaceId: branding.workspaceId,
-      slug: courseSlug,
-      status: { in: ["PUBLISHED", "UPCOMING"] },
-    },
-    include: {
-      instances: {
-        where: { status: "ACTIVE" },
-        orderBy: { startDateTime: "asc" },
-      },
-      lessons: {
-        where: { videoStatus: "READY" },
-        orderBy: { sortOrder: "asc" },
-        select: { id: true, title: true, description: true, durationSeconds: true, isPreview: true },
-      },
-    },
+  let presentialCourse = await prisma.course.findFirst({
+    where: { workspaceId: branding.workspaceId, slug: courseSlug, status: { in: ESTADOS_DE_CURSO_PROPIO } },
+    include: INCLUDE_CURSO,
   });
+  // Sin curso propio con ese slug, puede ser uno ajeno que este negocio revende.
+  const acuerdo = presentialCourse ? null : await buscarAcuerdoDeVitrina(branding.workspaceId, courseSlug);
+  if (!presentialCourse && acuerdo) {
+    presentialCourse = await prisma.course.findFirst({ where: { id: acuerdo.courseId }, include: INCLUDE_CURSO });
+  }
   if (!presentialCourse) notFound();
+  const revendido = acuerdo !== null;
   const esCursoGrabado = presentialCourse.deliveryMode === "RECORDED";
   const appUrl = direccionDeLaApp();
   let cargoServicioBps = 0;
   let aLaVenta = true;
   let dueno = { workspaceId: presentialCourse.workspaceId, nombre: branding.commercialName };
+  let precioSocios: { institucion: string; amountArs: string } | null = null;
+  let cursoDe: string | null = null;
   if (esCursoGrabado) {
-    cargoServicioBps = await getPlatformFeeBps(presentialCourse.workspaceId, COURSES_SALES_MODULE_KEY);
+    // La comisión de la plataforma es la del módulo de quien vende: este sitio.
+    cargoServicioBps = await getPlatformFeeBps(branding.workspaceId, COURSES_SALES_MODULE_KEY);
     try {
-      dueno = await cargarDueno(presentialCourse.workspaceId);
+      const duenoDelCurso = await cargarDueno(presentialCourse.workspaceId);
+      dueno = duenoDelCurso;
       const registrados = await cargarBeneficiarios(presentialCourse.id);
-      aLaVenta = estadoDeVenta(presentialCourse.workspaceId, registrados).tipo === "SIN_REPARTO";
+      const decision = decidirVenta({
+        estado: estadoDeVenta(presentialCourse.workspaceId, registrados),
+        revendido,
+        splitHabilitado: cobroConRepartoHabilitado(),
+      });
+      aLaVenta = decision.tipo !== "PROXIMAMENTE";
+      if (acuerdo) {
+        cursoDe = duenoDelCurso.nombre;
+        if (acuerdo.memberDiscountBps > 0 && presentialCourse.priceArs) {
+          const m = montosDeVenta({
+            listaArs: presentialCourse.priceArs.toString(),
+            comisionPlataformaBps: cargoServicioBps,
+            beneficiarios: beneficiariosParaMotor(duenoDelCurso, registrados),
+            vendedorWorkspaceId: branding.workspaceId,
+            reventa: { workspaceId: branding.workspaceId, nombre: branding.commercialName, bps: acuerdo.shareBps, descuentoSociosBps: acuerdo.memberDiscountBps },
+            esSocioDelVendedor: true,
+          });
+          if (m.ok) precioSocios = { institucion: branding.commercialName, amountArs: m.amountArs };
+        }
+      }
     } catch (error) {
-      // Si la tabla de beneficiarios todavía no existe, se trata como "sin reparto".
       console.error("[curso-publico] no se pudo cargar el reparto", error instanceof Error ? error.message : error);
-      aLaVenta = true;
+      // Ante la duda, un curso revendido no se vende: nadie queda sin cobrar.
+      aLaVenta = !revendido;
     }
   }
   const approvedCounts = await getApprovedEnrollmentCountsByInstanceIds(
@@ -148,10 +185,12 @@ export default async function PublicCourseLandingPage({ params }: Props) {
           accessMonths={presentialCourse.accessMonths}
           publicado={presentialCourse.status === "PUBLISHED"}
           clases={presentialCourse.lessons}
-          gratisParaSocios={presentialCourse.freeForMembers ? { institucion: branding.commercialName } : null}
+          gratisParaSocios={presentialCourse.freeForMembers && !revendido ? { institucion: branding.commercialName } : null}
           cargoServicioBps={cargoServicioBps}
           aLaVenta={aLaVenta}
           dueno={dueno}
+          precioSocios={precioSocios}
+          cursoDe={cursoDe}
         />
       ) : (
       <section className="fo-card space-y-4">
@@ -252,6 +291,8 @@ export default async function PublicCourseLandingPage({ params }: Props) {
         )}
       </section>
       )}
+
+      {appUrl ? <InvitacionAEnsenar modo="publico" appUrl={appUrl} /> : null}
     </main>
   );
 }

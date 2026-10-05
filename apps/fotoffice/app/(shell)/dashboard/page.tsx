@@ -3,6 +3,7 @@ import { prisma } from "@repo/db";
 import { requireActiveWorkspace, isCoursesSalesEnabledForWorkspace } from "@/lib/workspace";
 import { isMissingCoursesSalesSchemaError } from "@/lib/courses-sales/prisma-errors";
 import { invitacionesPendientesWhere } from "@/lib/course-marketplace/access";
+import { puedePedirReventa } from "@/lib/course-marketplace/mercado";
 import { moduleOffNotice } from "@/lib/dashboard/module-off-notice";
 
 export default async function DashboardPage({
@@ -44,6 +45,20 @@ export default async function DashboardPage({
     }
   }
 
+  let pedidosDeReventa = 0;
+  if (workspace !== null) {
+    try {
+      // Sólo quien puede responder (cursos MANAGE + dueño o admin) ve el aviso.
+      if (await puedePedirReventa(user.id, workspace.id)) {
+        pedidosDeReventa = await prisma.courseResaleAgreement.count({
+          where: { status: "PENDIENTE", course: { workspaceId: workspace.id } },
+        });
+      }
+    } catch {
+      console.error("[dashboard] no se pudieron contar los pedidos de reventa");
+    }
+  }
+
   return (
     <div className="space-y-10">
       <header className="space-y-2">
@@ -64,6 +79,19 @@ export default async function DashboardPage({
           <p className="mt-2 text-sm">
             <Link href="/dashboard/cursos-compartidos" className="text-[var(--fo-accent)] underline">
               Ver invitaciones
+            </Link>
+          </p>
+        </div>
+      ) : null}
+
+      {pedidosDeReventa > 0 ? (
+        <div className="fo-card" role="status">
+          <p className="text-sm font-medium text-[var(--fo-text)]">
+            {pedidosDeReventa === 1 ? "Una institución quiere vender uno de tus cursos" : `${pedidosDeReventa} pedidos para vender tus cursos`}
+          </p>
+          <p className="mt-2 text-sm">
+            <Link href="/dashboard/mercado-de-cursos/acuerdos" className="text-[var(--fo-accent)] underline">
+              Ver los pedidos
             </Link>
           </p>
         </div>

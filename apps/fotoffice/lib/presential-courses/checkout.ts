@@ -101,10 +101,11 @@ export async function createCourseEnrollmentCheckout(input: {
   let fee: Prisma.Decimal;
   let monto: Prisma.Decimal;
   if (inscripcion.listPriceArs) {
-    // Curso grabado: el 5% va ENCIMA de la lista. Se vuelve a comprobar que siga sin reparto:
-    // con el split apagado, un curso con varios beneficiarios no se cobra.
+    // Curso grabado: el 5% va ENCIMA de la lista. Con reparto (revendido o varios beneficiarios)
+    // no hay Checkout Pro: se cobra con una orden que reparte sola (lib/payments/split-1n-cursos.ts),
+    // apagada hasta que Mercado Pago la habilite.
     const beneficiarios = await cargarBeneficiarios(inscripcion.courseId);
-    if (estadoDeVenta(inscripcion.course.workspaceId, beneficiarios).tipo !== "SIN_REPARTO") {
+    if (inscripcion.resaleAgreementId || estadoDeVenta(inscripcion.course.workspaceId, beneficiarios).tipo !== "SIN_REPARTO") {
       return { ok: false, error: "Este curso todavía no está a la venta." };
     }
     const dueno = await cargarDueno(inscripcion.course.workspaceId);
