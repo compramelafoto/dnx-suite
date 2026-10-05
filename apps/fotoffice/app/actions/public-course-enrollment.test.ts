@@ -8,7 +8,9 @@ const {
   countsMock,
   getPlatformFeeBpsMock,
   redirectMock,
+  agreementFindFirstMock,
 } = vi.hoisted(() => ({
+  agreementFindFirstMock: vi.fn(),
   brandingFindUniqueMock: vi.fn(),
   moduleFindUniqueMock: vi.fn(),
   courseFindFirstMock: vi.fn(),
@@ -25,6 +27,10 @@ const txMock = {
   courseEnrollment: { create: (...args: unknown[]) => enrollmentCreateMock(...args) },
   courseSaleShare: { createMany: vi.fn() },
 };
+vi.mock("@/lib/course-marketplace/cargar", () => ({
+  cargarBeneficiarios: vi.fn().mockResolvedValue([]),
+  cargarDueno: vi.fn().mockResolvedValue({ workspaceId: "ws-otro", nombre: "Otro" }),
+}));
 vi.mock("@/lib/auth", () => ({ getAuthUser: vi.fn().mockResolvedValue(null) }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: redirectMock }));
@@ -34,7 +40,7 @@ vi.mock("@repo/db", async () => {
     ...actual,
     prisma: {
       $transaction: async (fn: (tx: unknown) => unknown) => fn(txMock),
-      courseResaleAgreement: { findFirst: vi.fn().mockResolvedValue(null) },
+      courseResaleAgreement: { findFirst: agreementFindFirstMock },
       fotofficeWorkspaceBranding: { findUnique: brandingFindUniqueMock },
       workspaceFeatureModule: { findUnique: moduleFindUniqueMock },
       course: { findFirst: courseFindFirstMock },
@@ -82,6 +88,7 @@ beforeEach(() => {
   brandingFindUniqueMock.mockReset().mockResolvedValue({ workspaceId: "ws-sfpr" });
   moduleFindUniqueMock.mockReset().mockResolvedValue({ enabled: true });
   courseFindFirstMock.mockReset();
+  agreementFindFirstMock.mockReset().mockResolvedValue(null);
   enrollmentCreateMock.mockReset().mockResolvedValue({ id: "enr-1" });
   countsMock.mockReset().mockResolvedValue(new Map());
   getPlatformFeeBpsMock.mockReset().mockResolvedValue(500);
@@ -127,5 +134,28 @@ describe("comisión de la inscripción", () => {
     // tiene ese modelo y la llamada explotaría antes de crear la inscripción.
     const data = await createEnrollment("10000");
     expect(data).toBeDefined();
+  });
+});
+
+describe("curso revendido con el reparto apagado", () => {
+  it("no crea inscripción ni pago: todavía no está a la venta", async () => {
+    agreementFindFirstMock.mockResolvedValue({ id: "ac-1", courseId: "course-ajeno", shareBps: 2000, memberDiscountBps: 500 });
+    courseFindFirstMock
+      .mockResolvedValueOnce(null) // sin curso propio publicado
+      .mockResolvedValueOnce(null) // ni propio en otro estado
+      .mockResolvedValueOnce({ id: "course-ajeno", workspaceId: "ws-otro", deliveryMode: "RECORDED", priceArs: new Prisma.Decimal("10000"), instances: [] });
+    const fd = formOf();
+    fd.delete("courseInstanceId");
+    const r = await createPublicCourseEnrollmentAction("sfpr", "curso-ajeno", undefined, fd);
+    expect(r).toEqual({ error: "Este curso todavía no está a la venta." });
+    expect(enrollmentCreateMock).not.toHaveBeenCalled();
+    expect(redirectMock).not.toHaveBeenCalled();
+  });
+
+  it("un curso propio (aunque no esté publicado) gana: no se busca ningún acuerdo", async () => {
+    courseFindFirstMock.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: "propio" });
+    const r = await createPublicCourseEnrollmentAction("sfpr", "curso-x", undefined, formOf());
+    expect(r).toEqual({ error: "Curso no disponible para inscripción." });
+    expect(agreementFindFirstMock).not.toHaveBeenCalled();
   });
 });

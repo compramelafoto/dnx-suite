@@ -6,7 +6,7 @@ import { formatMoney } from "@/lib/format";
 import { getPlatformFeeBps } from "@/lib/platform-fee/store";
 import { cargarBeneficiarios, cargarDueno } from "@/lib/course-marketplace/cargar";
 import { beneficiariosParaMotor, estadoDeVenta } from "@/lib/course-marketplace/beneficiarios";
-import { buscarAcuerdoDeVitrina } from "@/lib/course-marketplace/vitrina";
+import { buscarAcuerdoDeVitrina, ESTADOS_DE_CURSO_PROPIO } from "@/lib/course-marketplace/vitrina";
 import { decidirVenta, montosDeVenta } from "@/lib/course-marketplace/venta";
 import { cobroConRepartoHabilitado } from "@/lib/payments/split-1n";
 import { appUrl as direccionDeLaApp } from "@/lib/app-url";
@@ -80,7 +80,7 @@ export default async function PublicCourseLandingPage({ params }: Props) {
   if (!mod?.enabled) notFound();
 
   let presentialCourse = await prisma.course.findFirst({
-    where: { workspaceId: branding.workspaceId, slug: courseSlug, status: { in: ["PUBLISHED", "UPCOMING"] } },
+    where: { workspaceId: branding.workspaceId, slug: courseSlug, status: { in: ESTADOS_DE_CURSO_PROPIO } },
     include: INCLUDE_CURSO,
   });
   // Sin curso propio con ese slug, puede ser uno ajeno que este negocio revende.

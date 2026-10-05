@@ -112,7 +112,7 @@ export function RecordedCourseSection({
           <p className="text-lg font-semibold">{formatMoney(Number(precioArs), "ARS")}</p>
         )
       ) : null}
-      {precioSocios && publicado ? (
+      {precioSocios && publicado && aLaVenta ? (
         <p className="rounded-[var(--fo-radius-sm)] border border-[var(--fo-accent)]/40 p-3 text-sm">
           <strong>Socios de {precioSocios.institucion}: {formatMoney(Number(precioSocios.amountArs), "ARS")}.</strong>{" "}
           <a href={`${appUrl}/login?next=/portal/cursos`} className="text-[var(--fo-accent)] underline">

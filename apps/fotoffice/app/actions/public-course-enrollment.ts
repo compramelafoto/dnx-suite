@@ -9,7 +9,7 @@ import { computeAvailableSpots, getApprovedEnrollmentCountsByInstanceIds } from 
 import { resolverObjetivoDeInscripcion } from "@/lib/presential-courses/enrollment-target";
 import { logCourseEvent } from "@/lib/presential-courses/log";
 import { beneficiariosParaMotor, estadoDeVenta } from "@/lib/course-marketplace/beneficiarios";
-import { buscarAcuerdoDeVitrina, esSocioActivoDe } from "@/lib/course-marketplace/vitrina";
+import { buscarAcuerdoDeVitrina, esSocioActivoDe, existeCursoPropio } from "@/lib/course-marketplace/vitrina";
 import { decidirVenta, filasDeReparto, montosDeVenta, type MontosDeVenta } from "@/lib/course-marketplace/venta";
 import { cobroConRepartoHabilitado } from "@/lib/payments/split-1n";
 import { cargarBeneficiarios, cargarDueno } from "@/lib/course-marketplace/cargar";
@@ -75,7 +75,10 @@ export async function createPublicCourseEnrollmentAction(
     },
     include: incluir(parsed.data.courseInstanceId),
   });
-  const acuerdo = course ? null : await buscarAcuerdoDeVitrina(branding.workspaceId, courseSlug);
+  // El curso propio gana con el mismo criterio que la página: si existe (aunque no esté publicado), no se busca reventa.
+  const acuerdo = course || (await existeCursoPropio(branding.workspaceId, courseSlug))
+    ? null
+    : await buscarAcuerdoDeVitrina(branding.workspaceId, courseSlug);
   if (!course && acuerdo) {
     // Un curso revendido es siempre grabado: no tiene ediciones.
     course = await prisma.course.findFirst({

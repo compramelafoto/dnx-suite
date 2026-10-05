@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
-import { buscarAcuerdoDeVitrina } from "@/lib/course-marketplace/vitrina";
+import { buscarAcuerdoDeVitrina, existeCursoPropio } from "@/lib/course-marketplace/vitrina";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import {
   DURACION_PERMISO_SEGUNDOS,
@@ -33,7 +33,9 @@ export default async function MuestraPage({ params }: Props) {
   });
   if (!mod?.enabled) notFound();
 
-  const acuerdo = await buscarAcuerdoDeVitrina(branding.workspaceId, courseSlug);
+  const acuerdo = (await existeCursoPropio(branding.workspaceId, courseSlug))
+    ? null
+    : await buscarAcuerdoDeVitrina(branding.workspaceId, courseSlug);
   const leccion = await prisma.courseLesson.findFirst({
     where: {
       id: lessonId,
