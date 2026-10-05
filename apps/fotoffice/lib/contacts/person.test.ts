@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CLIENT_DATA_KEY } from "./constants";
 import {
+  UPDATE_PERSON_FIELDS,
   readFieldValues,
   readRemoteUpdatedAt,
   readSourceMarker,
@@ -162,5 +163,27 @@ describe("leer lo que Google devuelve", () => {
       },
     };
     expect(readRemoteUpdatedAt(varias)?.toISOString()).toBe("2026-09-16T11:30:00.000Z");
+  });
+});
+
+describe("el número de socio en las Notas", () => {
+  const conNota = () => ({ ...socio(), note: "Nº de socio: 556" });
+
+  it("va en las Notas al crear el contacto, para que se vea también en el iPhone", () => {
+    const body = toGooglePersonBody(conNota(), {
+      moduleKey: "members",
+      groupResourceName: "contactGroups/abc",
+      includeNote: true,
+    });
+    expect(body.biographies).toEqual([{ value: "Nº de socio: 556", contentType: "TEXT_PLAIN" }]);
+  });
+
+  it("al actualizar no se manda: las Notas quedan para lo que anote cada uno", () => {
+    const body = toGooglePersonBody(conNota(), { moduleKey: "members", groupResourceName: null });
+    expect(body.biographies).toBeUndefined();
+  });
+
+  it("las Notas no están entre los campos que se reemplazan al actualizar", () => {
+    expect(UPDATE_PERSON_FIELDS).not.toContain("biographies");
   });
 });
