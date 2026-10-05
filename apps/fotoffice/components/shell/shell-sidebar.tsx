@@ -2,6 +2,8 @@ import Link from "next/link";
 import { FotofficeLogo } from "@/components/fotoffice-logo";
 import { NavToggle } from "./nav-toggle";
 import { ShellNav } from "./shell-nav";
+import { RoleSelector } from "./role-selector";
+import type { RoleSelector as RoleSelectorData } from "@/lib/portal/profiles";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import type { ModuleLevels } from "@/lib/permissions/levels";
 
@@ -12,6 +14,7 @@ export function ShellSidebar({
   canManageWorkspaceSettings,
   platformAdmin,
   vocabulary,
+  roleSelector = null,
 }: {
   /**
    * Nombre de la organización activa. Antes acá decía "Venta de cursos", fijo en el código:
@@ -27,6 +30,8 @@ export function ShellSidebar({
   canManageWorkspaceSettings: boolean;
   platformAdmin: boolean;
   vocabulary: PersonVocabulary;
+  /** Socio y equipo en esta institución: el selector de rol (Comisión/Administración activo). */
+  roleSelector?: RoleSelectorData | null;
 }) {
   return (
     <aside className="min-h-full md:min-h-screen border-b md:border-b-0 md:border-r border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] p-4 md:p-5">
@@ -47,6 +52,8 @@ export function ShellSidebar({
         </Link>
         <NavToggle variant="sidebar" />
       </div>
+      {/* En el teléfono esto está dentro del cajón del menú, que ya contiene esta barra. */}
+      <RoleSelector selector={roleSelector} className="mb-6" />
       <ShellNav
         levels={levels}
         actions={actions}

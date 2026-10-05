@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { RoleSelector } from "@/components/shell/role-selector";
+import type { RoleSelector as RoleSelectorData } from "@/lib/portal/profiles";
 import { type ResolvedPortalItem } from "@/lib/portal/menu";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import { PortalNav, PortalSidebar } from "./portal-nav";
@@ -19,12 +21,15 @@ export function PortalShell({
   member,
   institution,
   vocabulary,
+  roleSelector = null,
   children,
 }: {
   items: ResolvedPortalItem[];
   member: { fullName: string; memberNumber: string | null; category: string | null; photoUrl: string | null };
   institution: { name: string; logoUrl: string | null };
   vocabulary: PersonVocabulary;
+  /** Si el socio también es equipo de esta institución: el selector de rol (socio activo). */
+  roleSelector?: RoleSelectorData | null;
   children: ReactNode;
 }) {
   return (
@@ -68,8 +73,16 @@ export function PortalShell({
       </header>
 
       <div className="mx-auto flex max-w-7xl gap-8 md:px-6">
-        <PortalSidebar items={items} vocabulary={vocabulary} />
-        <main className="min-w-0 flex-1 px-4 py-5 md:px-0 md:py-6">{children}</main>
+        <PortalSidebar
+          items={items}
+          vocabulary={vocabulary}
+          top={<RoleSelector selector={roleSelector} className="mb-5" />}
+        />
+        <main className="min-w-0 flex-1 px-4 py-5 md:px-0 md:py-6">
+          {/* En el teléfono la navegación va abajo: el selector queda arriba del contenido. */}
+          <RoleSelector selector={roleSelector} className="mb-5 md:hidden" />
+          {children}
+        </main>
       </div>
 
       <PortalNav items={items} vocabulary={vocabulary} />

@@ -89,11 +89,16 @@ export function CompraClient(props: {
       {step === "producto" ? (
         <section className="space-y-6">
           <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
-            <div className="flex aspect-[3/2] items-center justify-center bg-gradient-to-br from-neutral-100 to-neutral-200">
-              <span className="text-sm text-neutral-500">
-                Vista previa de la foto
-              </span>
-            </div>
+            {/* Foto propia de DNX, ya pública en sus landings: el recorrido tiene
+                que verse como una compra real en el video de homologación. Se
+                eligió un retrato de una persona adulta a propósito — el material
+                escolar disponible muestra menores identificables y este video se
+                le entrega a un tercero. */}
+            <img
+              src="/dnx/xv/pre-xv-14.jpg"
+              alt="Vista previa de la foto en venta"
+              className="aspect-[3/4] w-full object-cover"
+            />
             <div className="space-y-3 p-5">
               <h1 className="text-xl font-semibold tracking-tight text-neutral-900">
                 Foto digital en alta resolución
