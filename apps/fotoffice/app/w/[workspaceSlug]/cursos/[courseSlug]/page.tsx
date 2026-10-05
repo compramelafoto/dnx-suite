@@ -3,6 +3,9 @@ import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { formatMoney } from "@/lib/format";
+import { getPlatformFeeBps } from "@/lib/platform-fee/store";
+import { cargarBeneficiarios, cargarDueno } from "@/lib/course-marketplace/cargar";
+import { estadoDeVenta } from "@/lib/course-marketplace/beneficiarios";
 import { appUrl as direccionDeLaApp } from "@/lib/app-url";
 import { computeAvailableSpots, getApprovedEnrollmentCountsByInstanceIds } from "@/lib/presential-courses/availability";
 import { RecordedCourseSection } from "@/components/presential-courses/recorded-course-section";
@@ -76,6 +79,21 @@ export default async function PublicCourseLandingPage({ params }: Props) {
   if (!presentialCourse) notFound();
   const esCursoGrabado = presentialCourse.deliveryMode === "RECORDED";
   const appUrl = direccionDeLaApp();
+  let cargoServicioBps = 0;
+  let aLaVenta = true;
+  let dueno = { workspaceId: presentialCourse.workspaceId, nombre: branding.commercialName };
+  if (esCursoGrabado) {
+    cargoServicioBps = await getPlatformFeeBps(presentialCourse.workspaceId, COURSES_SALES_MODULE_KEY);
+    try {
+      dueno = await cargarDueno(presentialCourse.workspaceId);
+      const registrados = await cargarBeneficiarios(presentialCourse.id);
+      aLaVenta = estadoDeVenta(presentialCourse.workspaceId, registrados).tipo === "SIN_REPARTO";
+    } catch (error) {
+      // Si la tabla de beneficiarios todavía no existe, se trata como "sin reparto".
+      console.error("[curso-publico] no se pudo cargar el reparto", error instanceof Error ? error.message : error);
+      aLaVenta = true;
+    }
+  }
   const approvedCounts = await getApprovedEnrollmentCountsByInstanceIds(
     presentialCourse.instances.map((instance) => instance.id),
   );
@@ -131,6 +149,9 @@ export default async function PublicCourseLandingPage({ params }: Props) {
           publicado={presentialCourse.status === "PUBLISHED"}
           clases={presentialCourse.lessons}
           gratisParaSocios={presentialCourse.freeForMembers ? { institucion: branding.commercialName } : null}
+          cargoServicioBps={cargoServicioBps}
+          aLaVenta={aLaVenta}
+          dueno={dueno}
         />
       ) : (
       <section className="fo-card space-y-4">

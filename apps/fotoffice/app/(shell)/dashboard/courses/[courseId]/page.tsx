@@ -15,6 +15,12 @@ import { prisma } from "@repo/db";
 import { CourseLessonsSection } from "@/components/presential-courses/course-lessons-section";
 import { explicarConfiguracionFaltante, readStreamConfig } from "@/lib/courses-video/config";
 import { esGrabado } from "@/lib/presential-courses/delivery-mode";
+import { cargarBeneficiarios, cargarDueno } from "@/lib/course-marketplace/cargar";
+import { formatoPorcentaje } from "@/lib/course-marketplace/reparto";
+import { estadoDeVenta } from "@/lib/course-marketplace/beneficiarios";
+import { requireCoursesSalesContext } from "@/lib/workspace";
+import { isFullAccessRole } from "@/lib/permissions/levels";
+import { BeneficiariosEditor } from "@/components/course-marketplace/beneficiarios-editor";
 
 export default async function DashboardCourseDetailPage({
   params,
@@ -49,6 +55,23 @@ export default async function DashboardCourseDetailPage({
       })
     : [];
   const configVideo = readStreamConfig();
+  const [beneficiarios, dueno, feeBps] = grabado
+    ? await Promise.all([
+        cargarBeneficiarios(course.id),
+        cargarDueno(course.workspaceId),
+        getPlatformFeeBps(course.workspaceId, COURSES_SALES_MODULE_KEY),
+      ])
+    : [[], null, 500];
+  const precioCentavos = Math.round(Number(course.priceArs ?? 0) * 100);
+  const { user, workspace } = await requireCoursesSalesContext("VIEW");
+  const membresia = await prisma.workspaceMembership.findUnique({
+    where: { userId_workspaceId: { userId: user.id, workspaceId: workspace.id } },
+    select: { role: true },
+  });
+  const puedeEditarReparto = isFullAccessRole(membresia?.role);
+  const ESTADOS = { INVITADO: "Invitado", ACEPTADO: "Aceptó", RECHAZADO: "Rechazó" } as const;
+  const ROLES = { DOCENTE: "Docente", PRODUCTOR: "Productor", INSTITUCION: "Institución", OTRO: "Otro" } as const;
+  const estado = dueno ? estadoDeVenta(dueno.workspaceId, beneficiarios) : null;
 
   return (
     <div className="space-y-10">
@@ -145,6 +168,52 @@ export default async function DashboardCourseDetailPage({
         )}
       </section>
       )}
+
+      {grabado && dueno ? (
+        <section className="space-y-4">
+          <h2 className="text-lg font-semibold">Beneficiarios y reparto</h2>
+          {estado?.tipo === "CON_REPARTO" ? (
+            <div className="fo-card text-sm">
+              <p className="font-medium">
+                {estado.listo
+                  ? "Todos aceptaron. Se va a poder vender cuando Mercado Pago habilite el reparto automático."
+                  : "Para vender con reparto falta:"}
+              </p>
+              {!estado.listo ? (
+                <ul className="list-disc pl-5">
+                  {estado.faltantes.map((f) => (
+                    <li key={f}>{f}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
+          {precioCentavos <= 0 ? (
+            <p className="fo-card text-sm">Cargá el precio del curso para armar el reparto.</p>
+          ) : !puedeEditarReparto ? (
+            <div className="fo-card space-y-2 text-sm">
+              <p className="text-[var(--fo-muted)]">
+                Sólo el dueño o un administrador del negocio puede definir quién cobra.
+              </p>
+              <ul className="space-y-1">
+                {beneficiarios.map((b) => (
+                  <li key={b.id}>
+                    {b.nombre} · {ROLES[b.role]} · {formatoPorcentaje(b.shareBps)} · {ESTADOS[b.status]}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+          <BeneficiariosEditor
+            courseId={course.id}
+            dueno={dueno}
+            listaCentavos={precioCentavos}
+            comisionPlataformaBps={feeBps}
+            iniciales={beneficiarios}
+          />
+          )}
+        </section>
+      ) : null}
     </div>
   );
 }
