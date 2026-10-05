@@ -52,6 +52,7 @@ describe("submodulesFor", () => {
     const hrefs = submodulesFor(COURSES_SALES_MODULE_KEY, GESTIONA, SOCIO).map((s) => s.href);
     expect(hrefs).toContain("/dashboard/mercado-de-cursos");
     expect(existsSync(pageDe("/dashboard/mercado-de-cursos")), "falta la pantalla del Mercado").toBe(true);
+    expect(existsSync(pageDe("/dashboard/mercado-de-cursos/acuerdos")), "falta la pantalla de acuerdos").toBe(true);
   });
 
   it("el Diseñador está entre las pantallas de Socios", () => {
