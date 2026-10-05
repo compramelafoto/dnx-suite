@@ -56,6 +56,12 @@ describe("validar la lista que arma el dueño", () => {
     expect(validarFilas([fila({ absorbsProcessorFee: false })]).join()).toMatch(/absorber/);
   });
 
+  it("lista vacía y porcentajes en cero o no enteros", () => {
+    expect(validarFilas([]).length).toBeGreaterThan(0);
+    expect(validarFilas([fila({ shareBps: 0 })]).join()).toMatch(/mayor que cero/);
+    expect(validarFilas([fila({ shareBps: 10000.5 })]).join()).toMatch(/mayor que cero/);
+  });
+
   it("más de 11 beneficiarios", () => {
     const filas = Array.from({ length: 12 }, (_, i) => fila({ workspaceId: `ws-${i}`, shareBps: i === 0 ? 10000 - 11 * 800 : 800, absorbsProcessorFee: i === 0 }));
     expect(validarFilas(filas).join()).toMatch(/como máximo/);
@@ -72,6 +78,15 @@ describe("si un curso se vende sin reparto", () => {
     expect(esSinReparto("ws-sfpr", [{ workspaceId: "ws-sfpr", shareBps: 10000 }])).toBe(true);
   });
 
+  it("una sola fila de correo invitado al 100% tiene reparto", () => {
+    expect(esSinReparto("ws-sfpr", [{ workspaceId: null, shareBps: 10000 }])).toBe(false);
+  });
+
+  it("con una sola fila, ella absorbe la comisión aunque no lo diga", () => {
+    const [b] = beneficiariosParaMotor(owner, [{ id: "x", workspaceId: "ws-maxi", nombre: "Maxi", shareBps: 10000, absorbsProcessorFee: false }]);
+    expect(b.absorbeMp).toBe(true);
+  });
+
   it("cualquier otro caso tiene reparto", () => {
     expect(esSinReparto("ws-sfpr", [{ workspaceId: "ws-maxi", shareBps: 10000 }])).toBe(false);
     expect(esSinReparto("ws-sfpr", [{ workspaceId: "ws-sfpr", shareBps: 3000 }, { workspaceId: "ws-maxi", shareBps: 7000 }])).toBe(false);
@@ -86,6 +101,13 @@ describe("qué falta para vender con reparto", () => {
   it("todo aceptado y conectado: listo", () => {
     const lista = [reg({ id: "a", absorbsProcessorFee: true }), reg({ id: "b" })];
     expect(estadoDeVenta("ws-sfpr", lista)).toEqual({ tipo: "CON_REPARTO", listo: true, faltantes: [] });
+  });
+
+  it("una fila sin negocio nunca está lista, aunque figure aceptada y conectada", () => {
+    const lista = [reg({ id: "a", absorbsProcessorFee: true, workspaceId: null, invitedEmail: "a@b.com" }), reg({ id: "b" })];
+    const e = estadoDeVenta("ws-sfpr", lista);
+    expect(e.tipo === "CON_REPARTO" && e.listo).toBe(false);
+    expect(e.tipo === "CON_REPARTO" && e.faltantes).toContain("a todavía no tiene su negocio en FOTOFFICE.");
   });
 
   it("dice quién falta y por qué", () => {

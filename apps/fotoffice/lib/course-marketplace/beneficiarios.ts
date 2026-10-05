@@ -33,12 +33,26 @@ export type FilaBeneficiario = {
 
 const CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export function validarFilas(filas: FilaBeneficiario[]): string[] {
+/** Tope, porcentajes enteros y positivos, suma 100% y un solo absorbente. Sin mirar quién es cada fila. */
+function validarPorcentajes(filas: Array<Pick<FilaBeneficiario, "shareBps" | "absorbsProcessorFee">>): string[] {
   const errores: string[] = [];
   if (filas.length === 0) return ["Tiene que haber al menos un beneficiario."];
   if (filas.length > MAX_RECEPTORES_SPLIT) {
     errores.push(`Un curso puede tener ${MAX_RECEPTORES_SPLIT} beneficiarios como máximo.`);
   }
+  if (filas.some((f) => !Number.isInteger(f.shareBps) || f.shareBps <= 0)) {
+    errores.push("Cada beneficiario tiene que tener un porcentaje mayor que cero.");
+  }
+  const suma = filas.reduce((s, f) => s + f.shareBps, 0);
+  if (suma !== BPS_TOTAL) errores.push(`Los porcentajes suman ${formatoPorcentaje(suma)}: tienen que sumar 100%.`);
+  if (filas.filter((f) => f.absorbsProcessorFee).length !== 1) {
+    errores.push("Un beneficiario, y sólo uno, tiene que absorber la comisión de Mercado Pago.");
+  }
+  return errores;
+}
+
+export function validarFilas(filas: FilaBeneficiario[]): string[] {
+  const errores = validarPorcentajes(filas);
   const vistos = new Set<string>();
   for (const f of filas) {
     const tieneNegocio = Boolean(f.workspaceId);
@@ -53,14 +67,6 @@ export function validarFilas(filas: FilaBeneficiario[]): string[] {
     const clave = tieneNegocio ? `ws:${f.workspaceId}` : `mail:${f.invitedEmail!.trim().toLowerCase()}`;
     if (vistos.has(clave)) errores.push("Hay un beneficiario repetido.");
     vistos.add(clave);
-    if (!Number.isInteger(f.shareBps) || f.shareBps <= 0) {
-      errores.push("Cada beneficiario tiene que tener un porcentaje mayor que cero.");
-    }
-  }
-  const suma = filas.reduce((s, f) => s + f.shareBps, 0);
-  if (suma !== BPS_TOTAL) errores.push(`Los porcentajes suman ${formatoPorcentaje(suma)}: tienen que sumar 100%.`);
-  if (filas.filter((f) => f.absorbsProcessorFee).length !== 1) {
-    errores.push("Un beneficiario, y sólo uno, tiene que absorber la comisión de Mercado Pago.");
   }
   return [...new Set(errores)];
 }
@@ -84,7 +90,8 @@ export function beneficiariosParaMotor(
     id: r.workspaceId ?? r.id,
     nombre: r.nombre,
     bps: r.shareBps,
-    absorbeMp: r.absorbsProcessorFee,
+    // Con un solo beneficiario, él absorbe: el motor siempre necesita alguien que absorba.
+    absorbeMp: registrados.length === 1 ? true : r.absorbsProcessorFee,
   }));
 }
 
@@ -94,10 +101,11 @@ export function estadoDeVenta(ownerWorkspaceId: string, registrados: Beneficiari
   if (esSinReparto(ownerWorkspaceId, registrados)) return { tipo: "SIN_REPARTO" };
   const faltantes: string[] = [];
   for (const r of registrados) {
+    if (!r.workspaceId) faltantes.push(`${r.nombre} todavía no tiene su negocio en FOTOFFICE.`);
     if (r.status === "RECHAZADO") faltantes.push(`${r.nombre} rechazó ser beneficiario.`);
     else if (r.status === "INVITADO") faltantes.push(`${r.nombre} todavía no aceptó.`);
     else if (!r.mpConectado) faltantes.push(`${r.nombre} no conectó Mercado Pago.`);
   }
-  faltantes.push(...validarFilas(registrados).filter((e) => !e.includes("negocio o un correo")));
+  faltantes.push(...validarPorcentajes(registrados));
   return { tipo: "CON_REPARTO", listo: faltantes.length === 0, faltantes };
 }
