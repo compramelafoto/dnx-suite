@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { requireCoursesSalesContext } from "@/lib/workspace";
-import { cargarMercado } from "@/lib/course-marketplace/mercado";
+import { cargarMercado, puedePedirReventa } from "@/lib/course-marketplace/mercado";
 import { formatoPorcentaje } from "@/lib/course-marketplace/reparto";
 import { pesos } from "@/lib/course-marketplace/formato";
 import { PedirReventaForm } from "@/components/course-marketplace/pedir-reventa-form";
@@ -17,8 +17,11 @@ const ESTADO_DE_MI_ACUERDO = {
 } as const;
 
 export default async function MercadoDeCursosPage() {
-  const { workspace } = await requireCoursesSalesContext("VIEW");
-  const { comisionPlataformaBps, cursos } = await cargarMercado(workspace.id);
+  const { user, workspace } = await requireCoursesSalesContext("VIEW");
+  const [{ comisionPlataformaBps, cursos }, puedePedir] = await Promise.all([
+    cargarMercado(workspace.id),
+    puedePedirReventa(user.id, workspace.id),
+  ]);
 
   return (
     <div className="space-y-8">
@@ -36,7 +39,7 @@ export default async function MercadoDeCursosPage() {
       ) : (
         <ul className="grid gap-4 lg:grid-cols-2">
           {cursos.map((c) => {
-            const puedePedir = !c.miAcuerdo || c.miAcuerdo.status === "RECHAZADO" || c.miAcuerdo.status === "TERMINADO";
+            const sePuedePedir = !c.miAcuerdo || c.miAcuerdo.status === "RECHAZADO" || c.miAcuerdo.status === "TERMINADO";
             return (
               <li key={c.courseId} className="fo-card space-y-3">
                 <div className="space-y-1">
@@ -56,7 +59,7 @@ export default async function MercadoDeCursosPage() {
                   ) : null}
                 </div>
                 {c.miAcuerdo ? <p className="text-sm font-medium">{ESTADO_DE_MI_ACUERDO[c.miAcuerdo.status]}</p> : null}
-                {puedePedir ? (
+                {sePuedePedir && puedePedir ? (
                   <PedirReventaForm
                     courseId={c.courseId}
                     listaCentavos={c.listaCentavos}
@@ -64,6 +67,8 @@ export default async function MercadoDeCursosPage() {
                     beneficiarios={c.beneficiarios}
                     sugeridoBps={c.sugeridoBps}
                   />
+                ) : sePuedePedir ? (
+                  <p className="text-sm text-[var(--fo-muted)]">Sólo el dueño o un administrador de tu negocio puede pedir una reventa.</p>
                 ) : null}
               </li>
             );

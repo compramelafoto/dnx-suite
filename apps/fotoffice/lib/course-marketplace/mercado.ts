@@ -4,22 +4,12 @@ import { appUrl } from "@/lib/app-url";
 import { getPlatformFeeBps } from "@/lib/platform-fee/store";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { nombresDeNegocios } from "./cargar";
-import { beneficiariosParaMotor } from "./beneficiarios";
-import type { BeneficiarioEntrada } from "./reparto";
-import type { EstadoReventa } from "./reventa";
+import { armarCursosEnMercado } from "./mercado-armado";
+import { isFullAccessRole } from "@/lib/permissions/levels";
+import { hasModuleLevel } from "@/lib/permissions/module-access";
+import type { CursoEnMercado } from "./mercado-armado";
 
-export type CursoEnMercado = {
-  courseId: string;
-  titulo: string;
-  docente: string | null;
-  dueno: { workspaceId: string; nombre: string };
-  listaCentavos: number;
-  sugeridoBps: number;
-  clases: number;
-  muestraUrl: string | null;
-  beneficiarios: BeneficiarioEntrada[];
-  miAcuerdo: { id: string; status: EstadoReventa; shareBps: number; memberDiscountBps: number } | null;
-};
+export type { CursoEnMercado } from "./mercado-armado";
 
 /**
  * Los cursos que otros negocios ofrecen para revender (spec, sección 4.2): grabados, publicados,
@@ -37,6 +27,10 @@ export async function cargarMercado(workspaceId: string): Promise<{ comisionPlat
         deliveryMode: "RECORDED",
         priceArs: { gt: 0 },
         workspaceId: { not: workspaceId },
+        // Si quien mira es beneficiario del curso, el servidor le rechazaría el pedido: no se le ofrece.
+        NOT: { beneficiaries: { some: { workspaceId } } },
+        // Si el dueño apagó su módulo de cursos, ni la muestra ni la venta funcionan.
+        workspace: { featureModules: { some: { moduleKey: COURSES_SALES_MODULE_KEY, enabled: true } } },
       },
       select: {
         id: true,
@@ -71,34 +65,24 @@ export async function cargarMercado(workspaceId: string): Promise<{ comisionPlat
       select: { workspaceId: true, publicSlug: true },
     }),
   ]);
-  const slugs = new Map(marcas.map((m) => [m.workspaceId, m.publicSlug]));
-  const base = appUrl();
 
   return {
     comisionPlataformaBps,
-    cursos: filas.map((f) => {
-      const dueno = { workspaceId: f.workspaceId, nombre: nombres.get(f.workspaceId) ?? "Negocio" };
-      const muestra = f.lessons.find((l) => l.isPreview);
-      const slug = slugs.get(f.workspaceId);
-      return {
-        courseId: f.id,
-        titulo: f.title,
-        docente: f.instructorName,
-        dueno,
-        listaCentavos: Math.round(Number(f.priceArs ?? 0) * 100),
-        sugeridoBps: f.suggestedResellerBps ?? 0,
-        clases: f.lessons.length,
-        // La muestra se ve en el sitio del dueño: los videos sólo se reproducen desde FOTOFFICE.
-        muestraUrl: muestra && slug && base ? `${base}/w/${slug}/cursos/${f.slug}/muestra/${muestra.id}` : null,
-        beneficiarios: beneficiariosParaMotor(
-          dueno,
-          f.beneficiaries.map((b) => ({
-            ...b,
-            nombre: b.workspaceId ? nombres.get(b.workspaceId) ?? "Negocio" : b.invitedEmail ?? "Invitado",
-          })),
-        ),
-        miAcuerdo: f.resaleAgreements[0] ?? null,
-      };
+    cursos: armarCursosEnMercado({
+      filas,
+      nombres,
+      slugs: new Map(marcas.map((m) => [m.workspaceId, m.publicSlug])),
+      baseUrl: appUrl(),
     }),
   };
+}
+
+/** Misma regla que `pedirReventaAction`: nivel MANAGE en cursos y dueño o administrador. */
+export async function puedePedirReventa(userId: number, workspaceId: string): Promise<boolean> {
+  if (!(await hasModuleLevel(userId, workspaceId, COURSES_SALES_MODULE_KEY, "MANAGE"))) return false;
+  const membresia = await prisma.workspaceMembership.findUnique({
+    where: { userId_workspaceId: { userId, workspaceId } },
+    select: { role: true },
+  });
+  return isFullAccessRole(membresia?.role);
 }
