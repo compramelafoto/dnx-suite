@@ -20773,6 +20773,7 @@ model GovProject {
   attachments GovAttachment[]
   events      GovProjectEvent[]
   votes       GovVote[]
+  comments    GovComment[]
   meetingItems GovMeetingItem[]
   quotes       GovQuote[]
   reservations GovReservation[]
@@ -20903,6 +20904,23 @@ model GovVote {
   project GovProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, voterUserId])
+}
+
+/// Opinión escrita de un integrante de la comisión sobre un proyecto, antes de tratarlo en
+/// reunión. Nada se borra: quien la escribió la puede retirar y queda "retirada".
+model GovComment {
+  id           String    @id @default(cuid())
+  projectId    String
+  authorUserId Int
+  /// Nombre al momento de escribir, para que el hilo se lea igual si cambia el cargo.
+  authorLabel  String
+  body         String
+  createdAt    DateTime  @default(now())
+  withdrawnAt  DateTime?
+
+  project GovProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
 }
 
 /// Reunión de comisión: temario, tratamiento de cada tema y acta.

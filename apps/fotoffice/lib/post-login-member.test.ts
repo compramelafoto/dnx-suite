@@ -357,3 +357,31 @@ describe("la puerta de una institución", () => {
     expect(dest.path).toBe("/portal");
   });
 });
+
+/**
+ * El enlace de un proyecto o una reunión que llegó por WhatsApp. Igual que la puerta: se vuelve
+ * al enlace, que decide si la persona va al panel de la comisión o a su portal de socio.
+ */
+describe("el enlace compartido de la comisión", () => {
+  it("un socio vuelve al enlace y no al portal genérico", async () => {
+    userKindMock.mockResolvedValue("MEMBER");
+    const dest = await resolveFotofficePostLoginDestination({ userId: 7, next: "/w/sfpr/proyecto/cmabc123" });
+    expect(dest.path).toBe("/w/sfpr/proyecto/cmabc123");
+    expect(findMock).not.toHaveBeenCalled();
+  });
+
+  it("alguien con perfiles en dos instituciones no pasa por la pregunta", async () => {
+    listProfilesMock.mockResolvedValue([
+      { kind: "TEAM", workspaceId: "ws-a", workspaceName: "A", role: "WORKSPACE_OWNER" },
+      { kind: "MEMBER", workspaceId: "ws-b", workspaceName: "B", memberId: "m1", memberNumber: "1" },
+    ]);
+    const dest = await resolveFotofficePostLoginDestination({ userId: 7, next: "/w/sfpr/reunion/cmabc123" });
+    expect(dest.path).toBe("/w/sfpr/reunion/cmabc123");
+  });
+
+  it("un enlace con algo de más no cuenta", async () => {
+    userKindMock.mockResolvedValue("MEMBER");
+    const dest = await resolveFotofficePostLoginDestination({ userId: 7, next: "/w/sfpr/proyecto/abc/../../workspace" });
+    expect(dest.path).toBe("/portal");
+  });
+});

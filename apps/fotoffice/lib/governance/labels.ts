@@ -109,6 +109,20 @@ export function fechaHora(date: Date | null | undefined): string {
   }).format(date);
 }
 
+/** "jueves 15/10, 19:00", en hora argentina: cómo se escribe en un mensaje de WhatsApp. */
+export function diaYHora(date: Date, conHora = true): string {
+  const partes = new Intl.DateTimeFormat("es-AR", {
+    timeZone: ZONA,
+    weekday: "long",
+    day: "2-digit",
+    month: "2-digit",
+    ...(conHora ? { hour: "2-digit", minute: "2-digit", hour12: false } : {}),
+  }).formatToParts(date);
+  const v = (t: string) => partes.find((p) => p.type === t)?.value ?? "";
+  const dia = `${v("weekday")} ${v("day")}/${v("month")}`;
+  return conHora ? `${dia}, ${v("hour")}:${v("minute")}` : dia;
+}
+
 export function tamanioArchivo(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;

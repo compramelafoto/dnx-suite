@@ -3,6 +3,7 @@ import { syncPendingTeamMemberships } from "@/lib/commission/team-membership";
 import { findFotofficeWorkspaceForUser } from "@/lib/ensure-workspace";
 import { WELCOME_PATH } from "@/lib/entrada/welcome";
 import { doorReturnPath } from "@/lib/entrada/institution-door";
+import { sharedReturnPath } from "@/lib/governance/share";
 import { findClaimableMembership } from "@/lib/portal/claim";
 import { isFotofficePlatformAdminRole, resolvePlatformRole } from "@/lib/fotoffice-roles";
 import { safeFotofficeNextPath } from "@/lib/google-login";
@@ -84,6 +85,11 @@ export async function resolveFotofficePostLoginDestination(params: {
   */
   const door = doorReturnPath(params.next);
   if (door) return { path: door, workspaceId: null };
+
+  // Lo mismo con el enlace de un proyecto o una reunión que llegó por WhatsApp: la ruta del
+  // enlace sabe a dónde va cada uno (comisión o socio), así que se vuelve a ella.
+  const shared = sharedReturnPath(params.next);
+  if (shared) return { path: shared, workspaceId: null };
 
   /**
    * Con qué perfil entra. Sólo se pregunta cuando los perfiles están repartidos en más de una

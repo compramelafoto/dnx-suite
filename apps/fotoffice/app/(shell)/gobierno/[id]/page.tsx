@@ -6,7 +6,12 @@ import { Flash, MemberSelect } from "@/components/governance/member-select";
 import { ProgressBar, ProjectStatusBadge, TaskStatusBadge, UrgencyDot } from "@/components/governance/badges";
 import { ProjectFileUploader } from "@/components/governance/project-file-uploader";
 import { requireGovernanceViewer, canWorkOnTask } from "@/lib/governance/access";
-import { getProject, listMemberOptions, loadVoting } from "@/lib/governance/repository";
+import { getProject, listComments, listMemberOptions, loadVoting, nextPlannedMeeting } from "@/lib/governance/repository";
+import { ShareButtons } from "@/components/governance/share-buttons";
+import { buildSharedUrl, loadShareBase } from "@/lib/governance/share-server";
+import { projectShareMessage } from "@/lib/governance/share";
+import { canWithdrawComment, MAX_COMMENT } from "@/lib/governance/comments";
+import { addCommentAction, withdrawCommentAction } from "../comentarios-actions";
 import { isVotingOpen, tallyLabel } from "@/lib/governance/votes";
 import { decimalArsToMinor, formatMinorArs } from "@/lib/membership/money";
 import { castVoteAction } from "../reuniones/actions";
@@ -22,7 +27,7 @@ import {
   requiresReason,
 } from "@/lib/governance/lifecycle";
 import { isTaskOverdue, progressOf, urgencyFor } from "@/lib/governance/urgency";
-import { describeEvent, fecha, fechaHora, projectActionLabel, tamanioArchivo } from "@/lib/governance/labels";
+import { describeEvent, diaYHora, fecha, fechaHora, projectActionLabel, tamanioArchivo } from "@/lib/governance/labels";
 import { toDateInputValue } from "@/lib/governance/forms";
 import type { ProjectStatus } from "@/lib/governance/constants";
 import {
@@ -67,6 +72,12 @@ export default async function ProyectoPage({
     isCashOn(workspace.id),
     canHandleProjectMoney(ctx.user.id, workspace.id),
   ]);
+  const [comentarios, shareBase, proximaReunion] = await Promise.all([
+    listComments(workspace.id, proyecto.id),
+    loadShareBase(workspace.id),
+    nextPlannedMeeting(workspace.id),
+  ]);
+  const enlace = shareBase ? buildSharedUrl("proyecto", proyecto.id, shareBase) : null;
   const [cuentas, categorias] =
     cashOn && puedePlata ? await Promise.all([listAccounts(workspace.id), listCategories(workspace.id)]) : [[], []];
   const recuento = votacion.tallyOf(proyecto.id);
@@ -102,6 +113,18 @@ export default async function ProyectoPage({
           {isClosed(proyecto.status) ? null : <UrgencyDot urgency={urgencyFor(proyecto.deadlineAt, ahora)} />}
           {avance.total > 0 ? <ProgressBar {...avance} /> : null}
         </div>
+        {enlace ? (
+          <ShareButtons
+            url={enlace}
+            message={projectShareMessage({
+              title: proyecto.title,
+              url: enlace,
+              votingOpen: isVotingOpen(proyecto.status),
+              nextMeeting: proximaReunion ? diaYHora(proximaReunion.scheduledAt, false) : null,
+            })}
+            label="El mismo enlace sirve para todos: a cada uno lo lleva a lo que puede ver."
+          />
+        ) : null}
       </div>
 
       <Flash error={avisos.error} ok={avisos.ok} />
@@ -244,6 +267,63 @@ export default async function ProyectoPage({
           ) : null}
         </section>
       ) : null}
+
+      <section id="opiniones" className="fo-card space-y-4 p-6">
+        <div>
+          <h2 className="text-base font-semibold">Opiniones de la comisión</h2>
+          <p className="text-sm text-[var(--fo-muted)]">
+            Para dejar por escrito lo que pensás antes de la reunión: por qué estás a favor o en contra, o con qué
+            condición. No cuentan como voto y sólo las ve la comisión.
+          </p>
+        </div>
+        {comentarios.length > 0 ? (
+          <ul className="space-y-3">
+            {comentarios.map((c) => (
+              <li key={c.id} className="rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] px-4 py-3 text-sm">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <p>
+                    <span className="font-medium">{c.authorLabel}</span>{" "}
+                    <span className="text-xs text-[var(--fo-muted)]">· {fechaHora(c.createdAt)}</span>
+                  </p>
+                  {canWithdrawComment(c, ctx.user.id) ? (
+                    <form action={withdrawCommentAction}>
+                      <input type="hidden" name="commentId" value={c.id} />
+                      <button type="submit" className="fo-btn fo-btn-ghost text-xs">
+                        Retirar
+                      </button>
+                    </form>
+                  ) : null}
+                </div>
+                {c.withdrawnAt ? (
+                  <p className="mt-1 text-xs italic text-[var(--fo-muted)]">Opinión retirada el {fechaHora(c.withdrawnAt)}.</p>
+                ) : (
+                  <p className="mt-1 whitespace-pre-line text-[var(--fo-text-secondary)]">{c.body}</p>
+                )}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-[var(--fo-muted)]">Todavía nadie opinó.</p>
+        )}
+        <form action={addCommentAction} className="space-y-3">
+          <input type="hidden" name="projectId" value={proyecto.id} />
+          <label className="fo-label" htmlFor="comment-body">
+            Tu opinión
+          </label>
+          <textarea
+            id="comment-body"
+            name="body"
+            className="fo-input"
+            rows={3}
+            required
+            maxLength={MAX_COMMENT}
+            placeholder="Ej.: Estoy a favor si conseguimos un segundo presupuesto de impresión."
+          />
+          <button type="submit" className="fo-btn fo-btn-secondary text-sm">
+            Publicar opinión
+          </button>
+        </form>
+      </section>
 
       <section id="etapas" className="space-y-4">
         <div>

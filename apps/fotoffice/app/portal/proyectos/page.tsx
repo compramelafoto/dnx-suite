@@ -17,8 +17,15 @@ const TONO: Record<string, string> = {
   info: "bg-[var(--fo-accent-muted)] text-[var(--fo-accent)]",
 };
 
-export default async function MisProyectosPage() {
+/** Quien llegó por un enlace de WhatsApp a algo que es sólo de la comisión. */
+const AVISO_ENLACE: Record<string, string> = {
+  interno: "Ese proyecto es interno de la comisión directiva. Cuando la comisión lo haga visible para los socios, lo vas a ver acá.",
+  reunion: "Las reuniones son de la comisión directiva. Lo que se decide en cada proyecto visible lo vas a ver acá.",
+};
+
+export default async function MisProyectosPage({ searchParams }: { searchParams: Promise<{ aviso?: string }> }) {
   const { workspace, member } = await requirePortalGovernance();
+  const { aviso } = await searchParams;
   const { propias, visibles } = await loadMemberProjects(workspace.id, member.id);
   const votacion = await loadVoting(workspace.id, visibles.map((p) => p.id));
 
@@ -36,6 +43,8 @@ export default async function MisProyectosPage() {
           Proponer un proyecto
         </Link>
       </header>
+
+      {aviso && AVISO_ENLACE[aviso] ? <p className="fo-alert-warning p-4 text-sm">{AVISO_ENLACE[aviso]}</p> : null}
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Mis propuestas</h2>

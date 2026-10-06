@@ -395,3 +395,40 @@ export function volunteerableTaskWhere(workspaceId: string, taskId: string) {
     project: { workspaceId, visibleToMembers: true, status: { in: VOLUNTARIADO } },
   };
 }
+
+// ─── Opiniones y enlace para compartir ───────────────────────────────────────
+
+/** Las opiniones de un proyecto, de la más vieja a la más nueva (se leen como una charla). */
+export async function listComments(workspaceId: string, projectId: string) {
+  return prisma.govComment.findMany({
+    where: { projectId, project: { workspaceId } },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, authorUserId: true, authorLabel: true, body: true, createdAt: true, withdrawnAt: true },
+  });
+}
+
+/** Opiniones vigentes de varios proyectos a la vez, para el temario de una reunión. */
+export async function listCommentsByProject(workspaceId: string, projectIds: readonly string[]) {
+  const porProyecto = new Map<string, { id: string; authorLabel: string; body: string; createdAt: Date }[]>();
+  if (projectIds.length === 0) return porProyecto;
+  const filas = await prisma.govComment.findMany({
+    where: { projectId: { in: [...projectIds] }, project: { workspaceId }, withdrawnAt: null },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, projectId: true, authorLabel: true, body: true, createdAt: true },
+  });
+  for (const f of filas) {
+    const lista = porProyecto.get(f.projectId) ?? [];
+    lista.push(f);
+    porProyecto.set(f.projectId, lista);
+  }
+  return porProyecto;
+}
+
+/** La próxima reunión convocada, para decir en el mensaje "antes de la reunión del …". */
+export async function nextPlannedMeeting(workspaceId: string, now: Date = new Date()) {
+  return prisma.govMeeting.findFirst({
+    where: { workspaceId, status: "PLANNED", scheduledAt: { gte: now } },
+    orderBy: { scheduledAt: "asc" },
+    select: { id: true, scheduledAt: true },
+  });
+}

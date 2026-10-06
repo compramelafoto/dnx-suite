@@ -54,8 +54,10 @@ const FOTOFFICE_ONLY_SEGMENTS = new Set([
  * - `reservas` cobra distinto al socio que al que no lo es. En el dominio propio el navegador
  *   no manda la cookie de FOTOFFICE, así que ahí todo socio se vería como no socio y pagaría
  *   la tarifa plena. Allá se lo reconoce y se lo lleva a su portal.
+ * - `proyecto` y `reunion` son los enlaces de la comisión para compartir por WhatsApp
+ *   (`lib/governance/share.ts`): deciden según quién los abre.
  */
-const SITE_SEGMENTS_ON_FOTOFFICE = new Set(["entrar", "reservas"]);
+const SITE_SEGMENTS_ON_FOTOFFICE = new Set(["entrar", "reservas", "proyecto", "reunion"]);
 
 const STATIC_FILE = /\.(?:png|jpe?g|gif|webp|avif|svg|ico|mp4|webm|woff2?|ttf|css|js|map|pdf)$/i;
 
