@@ -1,8 +1,10 @@
 import { prisma } from "@repo/db";
 import { requireCommissionAdmin } from "@/lib/commission/access";
 import { ensureCommissionSetupOnce } from "@/lib/commission/seed";
+import { listPendingIntegrants, pendingReasonLabel } from "@/lib/commission/urgent-notice";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { fechaCorta, fechaParaInput, textoMandato } from "./fechas";
+import { AvisoUrgente } from "./aviso-urgente";
 import { EditarIntegrante, QuitarIntegrante, SumarIntegrante } from "./integrantes-form";
 import { historialComision, integrantesVigentes, loadPeriodosComision, type PeriodoComision } from "./personas";
 
@@ -21,7 +23,7 @@ export default async function IntegrantesPage() {
   await ensureCommissionSetupOnce(workspaceId);
   const now = new Date();
 
-  const [periodos, vocab, offices, roles, socios] = await Promise.all([
+  const [periodos, vocab, offices, roles, socios, pendientes] = await Promise.all([
     loadPeriodosComision(workspaceId),
     loadPersonVocabulary(workspaceId),
     prisma.workspaceOffice.findMany({
@@ -39,6 +41,7 @@ export default async function IntegrantesPage() {
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
       select: { id: true, firstName: true, lastName: true, memberNumber: true },
     }),
+    listPendingIntegrants(workspaceId, now),
   ]);
 
   const integrantes = integrantesVigentes(periodos, now);
@@ -56,6 +59,17 @@ export default async function IntegrantesPage() {
         roles={roles}
         vocalRoleId={roles.find((r) => r.templateKey === "board-member")?.id ?? null}
       />
+
+      {pendientes.length > 0 ? (
+        <AvisoUrgente
+          pendientes={pendientes.map((p) => ({
+            memberId: p.memberId,
+            nombre: p.name,
+            motivo: pendingReasonLabel(p),
+            bloqueo: p.blocker,
+          }))}
+        />
+      ) : null}
 
       {integrantes.length === 0 ? (
         <p className="fo-card p-5 text-sm text-[var(--fo-muted)]">
