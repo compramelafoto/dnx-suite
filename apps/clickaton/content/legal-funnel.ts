@@ -61,8 +61,8 @@ export const clickatonLegalFunnelContent = {
       body: "Salvo disposición legal imperativa en contrario, la inscripción paga confirmada no es reembolsable por desistimiento unilateral del participante. Ante cancelación o reprogramación del evento por el organizador, se comunicará por canales oficiales la opción aplicable (reprogramación, crédito o reembolso según el caso). Solicitudes de soporte: canales oficiales del sitio / Mi cuenta.",
     },
     {
-      title: "Kit, remera, QR y credencial",
-      body: "Tras la confirmación del pago, el participante accede a QR y credencial digitales desde Mi cuenta. El QR es personal e intransferible y podrá usarse para acreditación en sede. El beneficio de remera oficial (primeros 100 participantes confirmados o hasta el 30/08/2026 23:59:59.999 hora Argentina, lo que ocurra primero) requiere elección de talle al inscribirse cuando el beneficio aplique. El beneficio no constituye venta de merchandising en storefront.",
+      title: "Kit, QR y credencial",
+      body: "Tras la confirmación del pago, el participante accede a QR y credencial digitales desde Mi cuenta. El QR es personal e intransferible y podrá usarse para acreditación en sede. La inscripción no incluye remera ni otro merchandising, salvo que la ficha de la edición lo indique expresamente al momento de inscribirse. En la edición del 26 de diciembre de 2026 (Navidad) no se entrega remera.",
     },
     {
       title: "Datos personales, Cuenta DNX e imagen",
