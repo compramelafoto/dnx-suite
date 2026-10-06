@@ -1,5 +1,5 @@
 import "server-only";
-import { prisma } from "@repo/db";
+import { prisma, type Prisma } from "@repo/db";
 import { puedeEnContexto, type AccesoEfectivo } from "@/lib/access/policy";
 import { moduloDeTipo } from "@/lib/access/modulos-crm";
 import { sendTransactionalEmail, type OutboundEmail, type SendOutcome } from "@/lib/communications/send-email";
@@ -230,12 +230,31 @@ export function inicioDelDiaAR(ahora: Date): Date {
 }
 
 /**
+ * Filtro que deja afuera los avisos internos al equipo (`CONSULTA_AVISO_EQUIPO`), que se
+ * registran en `FotofficeMessage` con la plantilla del aviso pero tienen su propio tope y nunca
+ * cuentan como respuesta a una persona. Se distinguen por `templateId`: es la única marca que no
+ * necesita columnas nuevas. `{}` si el workspace todavía no tiene la plantilla del aviso.
+ */
+export async function sinAvisosAlEquipo(workspaceId: string): Promise<Prisma.FotofficeMessageWhereInput> {
+  const aviso = await prisma.fotofficeMessageTemplate.findFirst({
+    where: { workspaceId, systemKey: "CONSULTA_AVISO_EQUIPO" },
+    select: { id: true },
+  });
+  // `not` de Prisma deja afuera los null: se suman a mano los mensajes sin plantilla.
+  return aviso ? { OR: [{ templateId: null }, { templateId: { not: aviso.id } }] } : {};
+}
+
+/**
  * Correos enviados (`SENT`) hoy por la organización: los manuales o, con `automaticos`, los
- * automáticos. Cada grupo tiene su propio tope. Usa el índice (workspaceId, channel, createdAt).
+ * automáticos (sin los avisos al equipo, que tienen su propio tope). Cada grupo tiene su propio
+ * tope. Usa el índice (workspaceId, channel, createdAt).
  */
 export async function correosEnviadosHoy(workspaceId: string, ahora: Date, automaticos = false): Promise<number> {
   return prisma.fotofficeMessage.count({
-    where: { workspaceId, channel: "EMAIL", createdAt: { gte: inicioDelDiaAR(ahora) }, status: "SENT", automatic: automaticos },
+    where: {
+      workspaceId, channel: "EMAIL", createdAt: { gte: inicioDelDiaAR(ahora) }, status: "SENT", automatic: automaticos,
+      ...(automaticos ? await sinAvisosAlEquipo(workspaceId) : {}),
+    },
   });
 }
 

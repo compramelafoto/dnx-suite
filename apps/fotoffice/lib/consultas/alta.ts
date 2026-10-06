@@ -292,9 +292,14 @@ export async function altaDeConsulta(
   let creado: { leadId: string; consultaId: string; clientId: string; createdAt: Date; posibleDuplicado: boolean };
   try {
     creado = await prisma.$transaction(async (tx) => {
-      const categoria = v.categoriaId
+      let categoria = v.categoriaId
         ? await categoriaActiva(tx, workspaceId, v.categoriaId)
         : await categoriaParaEventType(tx, workspaceId, v.eventType);
+      // El formulario público nunca pierde una consulta por la configuración: si no queda
+      // ninguna categoría activa, usa la equivalente (o cualquiera) aunque esté archivada.
+      if (!categoria && !v.categoriaId && origenDelAlta === "WEB") {
+        categoria = await categoriaParaEventType(tx, workspaceId, v.eventType, { incluirArchivadas: true });
+      }
       if (!categoria) throw new ErrorDeAlta(MENSAJES_ALTA.categoria);
 
       if (v.origenId) {

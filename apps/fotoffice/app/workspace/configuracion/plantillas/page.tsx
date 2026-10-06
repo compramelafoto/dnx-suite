@@ -141,7 +141,7 @@ export default async function ConfiguracionPlantillasPage({
           cuerpo={aviso?.body ?? ""}
           campos={campos[defAviso.tipo]}
           soloApagar={!conCaptacion}
-          descripcion="Cuando entra una consulta nueva (por el formulario o cargada a mano), se le manda este correo al responsable de consultas nuevas, o al dueño si no hay. Va con el remitente de FOTOFFICE, no cuenta en el tope diario de correos y no queda en el historial de la consulta. Quién lo recibe y si se crea la tarea se configura en Configuración → Consultas → Avisos."
+          descripcion="Cuando entra una consulta nueva (por el formulario o cargada a mano), se le manda este correo al responsable de consultas nuevas, o al dueño si no hay. Va con el remitente de FOTOFFICE y queda en el historial de la consulta. No cuenta en el tope diario de correos: tiene el suyo, de 100 avisos por día; pasado ese número sólo se crea la tarea. Quién lo recibe y si se crea la tarea se configura en Configuración → Consultas → Avisos."
         />
       </div>
     );

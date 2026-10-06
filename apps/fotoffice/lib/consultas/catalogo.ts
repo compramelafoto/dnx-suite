@@ -142,6 +142,17 @@ export function crearCatalogo(config: ConfigCatalogo) {
     return tabla(prisma).count({ where: { workspaceId, archivedAt: null } });
   }
 
+  /**
+   * Con `minimoActivos`, ¿queda al menos ese mínimo además del que se archiva o borra? Corre
+   * dentro de la transacción y con un bloqueo por catálogo y workspace: dos pestañas que archivan
+   * las dos últimas a la vez no dejan el catálogo vacío.
+   */
+  async function quedaOtroActivo(tx: Tx, workspaceId: string): Promise<boolean> {
+    if (config.minimoActivos <= 0) return true;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`fotoffice-catalogo:${config.tabla}:${workspaceId}`}))`;
+    return (await tabla(tx).count({ where: { workspaceId, archivedAt: null } })) > config.minimoActivos;
+  }
+
   async function ordenAlFinal(workspaceId: string): Promise<number> {
     const ultimo = await tabla(prisma).findFirst({
       where: { workspaceId, archivedAt: null },
@@ -236,11 +247,11 @@ export function crearCatalogo(config: ConfigCatalogo) {
     const actual = await delWorkspace(prisma, ctx.workspaceId, id);
     if (!actual) return no(config.textos.noEncontrado);
     if (actual.archivedAt) return { ok: true };
-    if (config.minimoActivos > 0 && (await activos(ctx.workspaceId)) <= config.minimoActivos) {
-      return no(config.textos.ultimoActivo ?? MENSAJES_CATALOGO.datosInvalidos);
-    }
-    await tabla(prisma).updateMany({ where: { id: actual.id, workspaceId: ctx.workspaceId }, data: { archivedAt: new Date() } });
-    return { ok: true };
+    return prisma.$transaction(async (tx) => {
+      if (!(await quedaOtroActivo(tx, ctx.workspaceId))) return no(config.textos.ultimoActivo ?? MENSAJES_CATALOGO.datosInvalidos);
+      await tabla(tx).updateMany({ where: { id: actual.id, workspaceId: ctx.workspaceId }, data: { archivedAt: new Date() } });
+      return { ok: true as const };
+    });
   }
 
   /** Vuelve al final de la lista, si no se pasa el tope de activos. */
@@ -262,15 +273,21 @@ export function crearCatalogo(config: ConfigCatalogo) {
     if (!puedeConfigurar(ctx)) return no(MENSAJES_CATALOGO.sinPermiso);
     const actual = await delWorkspace(prisma, ctx.workspaceId, id);
     if (!actual) return no(config.textos.noEncontrado);
-    if (config.minimoActivos > 0 && actual.archivedAt === null && (await activos(ctx.workspaceId)) <= config.minimoActivos) {
-      return no(config.textos.ultimoActivo ?? MENSAJES_CATALOGO.datosInvalidos);
+    try {
+      return await prisma.$transaction(async (tx) => {
+        if (actual.archivedAt === null && !(await quedaOtroActivo(tx, ctx.workspaceId))) {
+          return no(config.textos.ultimoActivo ?? MENSAJES_CATALOGO.datosInvalidos);
+        }
+        // Adentro de la transacción: un uso registrado en el mismo instante también frena.
+        if (((await config.usos(tx, ctx.workspaceId, [actual.id])).get(actual.id) ?? 0) > 0) return no(config.textos.yaSeUso);
+        await tabla(tx).deleteMany({ where: { id: actual.id, workspaceId: ctx.workspaceId } });
+        return { ok: true as const };
+      });
+    } catch (e) {
+      // Una consulta (o un participante) lo empezó a usar después del conteo: la FK lo frena.
+      if ((e as { code?: unknown } | null)?.code === "P2003") return no(config.textos.yaSeUso);
+      throw e;
     }
-    return prisma.$transaction(async (tx) => {
-      // Adentro de la transacción: un uso registrado en el mismo instante también frena.
-      if (((await config.usos(tx, ctx.workspaceId, [actual.id])).get(actual.id) ?? 0) > 0) return no(config.textos.yaSeUso);
-      await tabla(tx).deleteMany({ where: { id: actual.id, workspaceId: ctx.workspaceId } });
-      return { ok: true as const };
-    });
   }
 
   return { listar, crear, editar, reordenar, archivar, desarchivar, borrar };

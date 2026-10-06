@@ -144,6 +144,31 @@ describe("categorías", () => {
     expect(await C.borrarCategoria(ADMIN, ids[0])).toMatchObject({ ok: false });
   });
 
+  it("el mínimo de activas se vuelve a contar dentro de la transacción, con bloqueo", async () => {
+    const ids = categorias().map((c) => c.id as string);
+    for (const id of ids.slice(2)) await C.archivarCategoria(ADMIN, id);
+    // Entre la lectura y la transacción, otra pestaña archivó la otra activa.
+    B.ganchos.alEjecutarSql = (texto) => {
+      if (texto.includes("pg_advisory_xact_lock")) {
+        const otra = categorias().find((c) => c.id === ids[1])!;
+        otra.archivedAt = new Date();
+      }
+    };
+    expect(await C.archivarCategoria(ADMIN, ids[0])).toEqual({ ok: false, error: "Tiene que quedar al menos una categoría activa." });
+    expect(categorias().find((c) => c.id === ids[0])!.archivedAt).toBeNull();
+    expect(B.sql.some((q) => q.texto.includes("pg_advisory_xact_lock") && String(q.valores[0]).includes("fotofficeConsultaCategoria:ws-1"))).toBe(true);
+  });
+
+  it("borrar: si la FK frena (se usó después del conteo), dice que ya se usó", async () => {
+    const original = B.tablas.fotofficeConsultaCategoria.deleteMany;
+    B.tablas.fotofficeConsultaCategoria.deleteMany = async () => {
+      throw Object.assign(new Error("Foreign key constraint failed"), { code: "P2003" });
+    };
+    expect(await C.borrarCategoria(ADMIN, idDe("Show"))).toEqual({ ok: false, error: "Esta categoría ya tiene consultas: archivala." });
+    B.tablas.fotofficeConsultaCategoria.deleteMany = original;
+    expect(categorias().some((c) => c.name === "Show")).toBe(true);
+  });
+
   it("reordenar: exige todas las activas, sin repetir", async () => {
     const ids = categorias().map((c) => c.id as string);
     expect(await C.reordenarCategorias(ADMIN, ids.slice(1))).toEqual({ ok: false, error: M.ordenDesactualizado });

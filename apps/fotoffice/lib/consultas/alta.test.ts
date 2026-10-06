@@ -191,6 +191,15 @@ describe("altaDeConsulta: la transacción", () => {
     expect(r.ok && consultas().find((c) => c.id === r.consultaId)!.categoryId).not.toBe(categoria("Boda"));
   });
 
+  it("formulario web sin ninguna categoría activa: usa la equivalente archivada y no pierde la consulta", async () => {
+    await A.altaDeConsulta(SISTEMA, ENTRADA, WEB);
+    for (const c of B.datos.fotofficeConsultaCategoria) c.archivedAt = new Date();
+    const r = await A.altaDeConsulta(SISTEMA, ENTRADA, WEB);
+    expect(r.ok && consultas().find((c) => c.id === r.consultaId)!.categoryId).toBe(categoria("Boda"));
+    // Las altas del equipo, en cambio, piden una categoría activa.
+    expect(await A.altaDeConsulta(EQUIPO, ENTRADA, MANUAL)).toEqual({ ok: false, error: M.categoria });
+  });
+
   it("permisos: con usuario exige Gestionar en Consultas; el responsable tiene que poder serlo", async () => {
     const soloVer = { ...EQUIPO, acceso: { role: "STAFF", levels: { "service-leads": "VIEW" } } as never };
     expect(await A.altaDeConsulta(soloVer, ENTRADA, MANUAL)).toEqual({ ok: false, error: M.sinPermiso });

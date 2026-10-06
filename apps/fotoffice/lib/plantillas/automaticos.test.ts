@@ -264,6 +264,13 @@ describe("alta por el formulario público", () => {
     expect(H.notificar).toHaveBeenCalled();
   });
 
+  it("un budgetType de 500 caracteres no frena la consulta: se recorta", async () => {
+    autorespuesta({ enabled: false });
+    expect(await createServiceLead({ ...ENTRADA, meta: { budgetType: "x".repeat(500) } })).toEqual({ success: true });
+    expect(B.datos.fotofficeConsulta).toHaveLength(1);
+    expect(B.datos.serviceSalesLead[0]!.eventSubtype).toBe("x".repeat(200));
+  });
+
   it("sin correo: crea la consulta y no manda nada", async () => {
     autorespuesta();
     expect(await createServiceLead({ ...ENTRADA, email: "" })).toEqual({ success: true });
@@ -274,6 +281,24 @@ describe("alta por el formulario público", () => {
 
 describe("sólo el formulario público responde", () => {
   /** Todos los .ts/.tsx de app, lib y components (sin pruebas) que mencionan la autorespuesta. */
+  /** Los .ts/.tsx de app, lib y components (sin pruebas) cuyo texto cumple `patron`. */
+  function quienesContienen(patron: RegExp): string[] {
+    const raiz = path.resolve(__dirname, "../..");
+    const hallados: string[] = [];
+    const recorrer = (dir: string) => {
+      for (const nombre of readdirSync(dir)) {
+        const ruta = path.join(dir, nombre);
+        if (statSync(ruta).isDirectory()) {
+          if (nombre !== "node_modules" && !nombre.startsWith(".")) recorrer(ruta);
+        } else if (/\.tsx?$/.test(nombre) && !/\.test\.tsx?$/.test(nombre)) {
+          if (patron.test(readFileSync(ruta, "utf8"))) hallados.push(path.relative(raiz, ruta));
+        }
+      }
+    };
+    for (const d of ["app", "lib", "components"]) recorrer(path.join(raiz, d));
+    return hallados.sort();
+  }
+
   function quienesLlaman(): string[] {
     const raiz = path.resolve(__dirname, "../..");
     const hallados: string[] = [];
@@ -299,6 +324,8 @@ describe("sólo el formulario público responde", () => {
     expect(alta).toMatch(/if \(origenDelAlta === "WEB"\) \{\s*try \{\s*await responderConsultaNueva\(/);
     const formulario = readFileSync(path.resolve(__dirname, "../../app/actions/service-lead.ts"), "utf8");
     expect(formulario).toContain('{ origenDelAlta: "WEB" }');
+    // Y nadie más pide el origen WEB: ni las altas manuales ni la importación.
+    expect(quienesContienen(/origenDelAlta\s*:\s*["'`]WEB["'`]|["'`]WEB["'`]\s+as\s+const/)).toEqual(["app/actions/service-lead.ts"]);
     const presencial = readFileSync(path.resolve(__dirname, "../presential-courses/enrollment-workflow.ts"), "utf8");
     expect(presencial).not.toContain("plantillas/automaticos");
   });

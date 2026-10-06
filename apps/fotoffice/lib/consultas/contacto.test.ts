@@ -166,3 +166,36 @@ describe("contactoParaConsulta", () => {
     await expect(enTx((tx) => contactoParaConsulta(tx, "ws-1", { nombre: "a".repeat(201) }))).rejects.toThrow("largo");
   });
 });
+
+describe("contactoParaConsulta: bloqueo antes de buscar", () => {
+  /** Lo que pasa, en orden: cada bloqueo (con su clave) y cada búsqueda de clientes. */
+  function registrar(): string[] {
+    const pasos: string[] = [];
+    B.ganchos.alEjecutarSql = (texto, valores) => {
+      if (texto.includes("pg_advisory_xact_lock")) pasos.push(`lock:${String(valores[0])}`);
+    };
+    const original = B.tablas.client.findMany;
+    B.tablas.client.findMany = async (a) => {
+      pasos.push("buscar");
+      return original(a);
+    };
+    return pasos;
+  }
+
+  it("con correo y teléfono: bloquea por correo (en minúsculas) y por teléfono, antes de buscar", async () => {
+    const pasos = registrar();
+    await enTx((tx) => contactoParaConsulta(tx, "ws-1", { nombre: "Ana", email: " Ana@Mail.COM ", telefono: "341 123-4567" }));
+    expect(pasos[0]).toBe("lock:fotoffice-contacto:ws-1:ana@mail.com");
+    expect(pasos[1]).toBe("lock:fotoffice-contacto-tel:ws-1:3411234567");
+    expect(pasos.indexOf("buscar")).toBe(2);
+  });
+
+  it("formulario web (sólo correo): bloquea por correo, no por teléfono; sin datos, no bloquea", async () => {
+    const pasos = registrar();
+    await enTx((tx) => contactoParaConsulta(tx, "ws-1", { nombre: "Ana", email: "ana@mail.com", telefono: "3411234567" }, undefined, { coincidir: "correo" }));
+    expect(pasos.filter((p) => p.startsWith("lock:"))).toEqual(["lock:fotoffice-contacto:ws-1:ana@mail.com"]);
+    pasos.length = 0;
+    await enTx((tx) => contactoParaConsulta(tx, "ws-1", { nombre: "Sin datos" }));
+    expect(pasos.filter((p) => p.startsWith("lock:"))).toEqual([]);
+  });
+});

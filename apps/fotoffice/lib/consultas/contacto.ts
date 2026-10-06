@@ -71,6 +71,16 @@ export async function contactoParaConsulta(
   // El teléfono con el que se busca: ninguno si sólo vale el correo (igual se guarda al crear).
   const telBusqueda = soloCorreo ? null : tel;
 
+  // Dos altas simultáneas con el mismo correo (o teléfono) no deben crear dos contactos: un
+  // bloqueo por workspace y dato, que dura hasta el fin de la transacción, las pone en fila antes
+  // de buscar. Siempre en el mismo orden (correo, después teléfono) para no trabarse entre sí.
+  if (mail) {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`fotoffice-contacto:${workspaceId}:${mail}`}))`;
+  }
+  if (telBusqueda) {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`fotoffice-contacto-tel:${workspaceId}:${telBusqueda}`}))`;
+  }
+
   if (mail || telBusqueda) {
     const candidatos = await tx.client.findMany({
       where: {

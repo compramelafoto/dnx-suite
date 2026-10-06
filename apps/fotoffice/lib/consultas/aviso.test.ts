@@ -30,7 +30,7 @@ vi.mock("@/lib/modules/gating", () => ({ isModuleEnabledForWorkspace: async () =
 vi.mock("@/lib/circuitos/eventos", () => ({ notificarEvento: async () => ({ movido: true }) }));
 
 const V = await import("./aviso");
-const { TOPE_AUTOMATICOS_DIA, TOPE_CORREOS_DIA } = await import("@/lib/plantillas/constantes");
+const { TOPE_AUTOMATICOS_DIA, TOPE_AVISOS_EQUIPO_DIA, TOPE_CORREOS_DIA } = await import("@/lib/plantillas/constantes");
 
 // 15:00 UTC = 12:00 en Buenos Aires del 1/10: la tarea vence el 1/10 a las 23:59 de allá.
 const AHORA = new Date("2026-10-01T15:00:00.000Z");
@@ -155,7 +155,7 @@ describe("avisarConsultaNueva", () => {
     expect(enviar).not.toHaveBeenCalled();
   });
 
-  it("no cuenta en los topes ni se registra, y no le aplica la regla de 24 h por dirección", async () => {
+  it("queda registrado (para contarlo), pero no cuenta en los topes ni en la regla de 24 h por dirección", async () => {
     const hoy = new Date(AHORA.getTime() - 60_000);
     const fila = (automatic: boolean, toAddress: string) => ({
       workspaceId: "ws-1", channel: "EMAIL", entityType: "CONSULTA", entityId: "otra", toAddress, subject: "s", body: "b",
@@ -167,7 +167,56 @@ describe("avisarConsultaNueva", () => {
     expect((await V.avisarConsultaNueva("ws-1", "l1", {}, deps)).correo).toBe("ENVIADO");
     expect((await V.avisarConsultaNueva("ws-1", "l1", {}, deps)).correo).toBe("ENVIADO");
     expect(enviar).toHaveBeenCalledTimes(2);
-    expect(B.datos.fotofficeMessage).toHaveLength(antes);
+    const avisoId = B.datos.fotofficeMessageTemplate.find((p) => p.systemKey === "CONSULTA_AVISO_EQUIPO")!.id;
+    const nuevos = B.datos.fotofficeMessage.slice(antes);
+    expect(nuevos).toHaveLength(2);
+    expect(nuevos[0]).toMatchObject({
+      channel: "EMAIL", automatic: true, status: "SENT", entityType: "CONSULTA", entityId: "l1", templateId: avisoId,
+      toAddress: "duena@estudio.test", actorLabel: "Aviso al equipo", providerId: "re_1",
+    });
+  });
+
+  it("los avisos registrados no cuentan para los topes de la organización ni frenan la respuesta a la persona", async () => {
+    await V.avisarConsultaNueva("ws-1", "l1", {}, deps);
+    const { correosEnviadosHoy } = await import("@/lib/plantillas/envio");
+    expect(await correosEnviadosHoy("ws-1", AHORA)).toBe(0);
+    expect(await correosEnviadosHoy("ws-1", AHORA, true)).toBe(0);
+    // Si la consulta la mandó alguien del equipo con su propia casilla, la respuesta automática igual sale.
+    B.agregar("fotofficeMessageTemplate", {
+      workspaceId: "ws-1", systemKey: "CONSULTA_AUTORESPUESTA", channel: "EMAIL", entityType: "CONSULTA", name: "Auto",
+      subject: "Recibimos tu consulta", body: "Hola", enabled: true,
+    });
+    B.datos.serviceSalesLead[0]!.email = "duena@estudio.test";
+    const { responderConsultaNueva } = await import("@/lib/plantillas/automaticos");
+    expect(await responderConsultaNueva("ws-1", "l1", { enviar, ahora: () => AHORA })).toBe("ENVIADO");
+  });
+
+  it(`tope propio: ${TOPE_AVISOS_EQUIPO_DIA} por día de Buenos Aires; pasado, sólo la tarea`, async () => {
+    await V.avisarConsultaNueva("ws-1", "l1", {}, deps);
+    const avisoId = B.datos.fotofficeMessageTemplate.find((p) => p.systemKey === "CONSULTA_AVISO_EQUIPO")!.id;
+    const fila = (createdAt: Date, status = "SENT") => ({
+      workspaceId: "ws-1", channel: "EMAIL", entityType: "CONSULTA", entityId: "x", toAddress: "duena@estudio.test", subject: "s",
+      body: "b", status, automatic: true, templateId: avisoId, createdAt,
+    });
+    // Ayer (en Buenos Aires) no cuenta: 02:59 UTC del 1/10 es el 30/9 allá.
+    for (let i = 0; i < 50; i++) B.agregar("fotofficeMessage", fila(new Date("2026-10-01T02:59:00.000Z")));
+    // Hoy: con el de arriba suman 99, contando los fallidos.
+    for (let i = 0; i < TOPE_AVISOS_EQUIPO_DIA - 2; i++) B.agregar("fotofficeMessage", fila(new Date("2026-10-01T03:00:00.000Z"), i % 2 ? "SENT" : "FAILED"));
+    enviar.mockClear();
+    expect((await V.avisarConsultaNueva("ws-1", "l1", {}, deps)).correo).toBe("ENVIADO");
+    const r = await V.avisarConsultaNueva("ws-1", "l1", {}, deps);
+    expect(r).toMatchObject({ correo: "TOPE", tarea: "CREADA" });
+    expect(enviar).toHaveBeenCalledTimes(1);
+    // Otra organización tiene su propio conteo.
+    B.agregar("workspaceMembership", { userId: 1, workspaceId: "ws-2", role: "WORKSPACE_OWNER" });
+    B.agregar("serviceSalesLead", { id: "l2", workspaceId: "ws-2", name: "Otra", eventType: "BODA" });
+    expect((await V.avisarConsultaNueva("ws-2", "l2", {}, deps)).correo).toBe("ENVIADO");
+  });
+
+  it("un aviso que el proveedor rechaza queda registrado como fallido", async () => {
+    enviar.mockResolvedValue({ status: "PROVIDER_REJECTED", detail: "HTTP 422" } as never);
+    expect((await V.avisarConsultaNueva("ws-1", "l1", {}, deps)).correo).toBe("NO_ENVIADO");
+    expect(B.datos.fotofficeMessage[0]).toMatchObject({ status: "FAILED", errorCode: "PROVIDER_REJECTED", providerId: null });
   });
 
   it("nunca lanza: si la tarea o el correo fallan, sigue con lo otro", async () => {

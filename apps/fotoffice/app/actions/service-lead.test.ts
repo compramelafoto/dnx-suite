@@ -18,6 +18,8 @@ vi.mock("@/lib/consultas/alta", () => ({
   altaDeConsulta: H.alta,
   altaDelSistema: (workspaceId: string) => ({ workspaceId, userId: null, userLabel: "Sistema", role: null }),
   MENSAJES_ALTA: { fallo: "No se pudo registrar la consulta." },
+  MAX_TEXTO_CONSULTA: 200,
+  MAX_MENSAJE_CONSULTA: 4000,
 }));
 vi.mock("next/headers", () => ({ headers: H.cabeceras }));
 
@@ -88,6 +90,12 @@ describe("createServiceLead", () => {
     expect(registrado).not.toContain("laura@example.com");
     expect(registrado).toContain("P2000");
     errores.mockRestore();
+  });
+
+  it("un budgetType larguísimo se recorta al tope del alta: la consulta se registra igual", async () => {
+    expect(await createServiceLead({ ...ENTRADA, meta: { budgetType: "x".repeat(500) } })).toEqual({ success: true });
+    const datos = H.alta.mock.calls[0]![1] as { eventSubtype: string; metaJson: unknown };
+    expect(datos.eventSubtype).toBe("x".repeat(200));
   });
 
   it("datos inválidos: no llega al alta", async () => {

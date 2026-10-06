@@ -3,7 +3,9 @@
 import { type Prisma, prisma } from "@repo/db";
 import { headers } from "next/headers";
 import { z } from "zod";
-import { altaDeConsulta, altaDelSistema, MENSAJES_ALTA } from "@/lib/consultas/alta";
+import {
+  altaDeConsulta, altaDelSistema, MAX_MENSAJE_CONSULTA, MAX_TEXTO_CONSULTA, MENSAJES_ALTA,
+} from "@/lib/consultas/alta";
 import { checkRateLimit, clientIp } from "@/lib/geocode/rate-limit";
 
 /**
@@ -77,6 +79,11 @@ function emptyToNull(value?: string): string | null {
   return trimmed ? trimmed : null;
 }
 
+/** Vacío = null; si no, recortado al tope (nunca rechaza: es lo que escribió quien consulta). */
+function recortar(value: string | undefined, max: number): string | null {
+  return emptyToNull(value)?.slice(0, max).trim() || null;
+}
+
 function parseOptionalDate(value?: string): Date | null {
   const trimmed = value?.trim();
   if (!trimmed) return null;
@@ -134,14 +141,16 @@ export async function createServiceLead(
       altaDelSistema(branding.workspaceId),
       {
         contacto: { nombre: data.name, email: emptyToNull(data.email), telefono: emptyToNull(data.phone) },
-        eventType: data.eventType,
-        eventSubtype: emptyToNull(resolvedEventSubtype),
+        eventType: recortar(data.eventType, MAX_TEXTO_CONSULTA),
+        // El subtipo puede venir de `meta.budgetType`, que zod no limita: se recorta al tope del
+        // alta en lugar de rechazar la consulta (lo mismo con los demás textos, por las dudas).
+        eventSubtype: recortar(resolvedEventSubtype, MAX_TEXTO_CONSULTA),
         eventDate: parseOptionalDate(data.eventDate),
-        eventLocation: emptyToNull(data.eventLocation),
-        message: emptyToNull(data.message),
+        eventLocation: recortar(data.eventLocation, MAX_TEXTO_CONSULTA),
+        message: recortar(data.message, MAX_MENSAJE_CONSULTA),
         metaJson: data.meta ? (data.meta as Prisma.InputJsonValue) : null,
         formId: emptyToNull(data.formId),
-        formSlug: emptyToNull(data.formSlug),
+        formSlug: recortar(data.formSlug, MAX_TEXTO_CONSULTA),
       },
       { origenDelAlta: "WEB" },
     );

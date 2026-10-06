@@ -46,6 +46,14 @@ export const TOPE_CORREOS_DIA = 200;
  * formulario público es abierto y alguien podría usarlo para disparar respuestas en masa.
  */
 export const TOPE_AUTOMATICOS_DIA = 50;
+/**
+ * Avisos internos de consulta nueva al equipo (`CONSULTA_AVISO_EQUIPO`) por día (de Buenos Aires)
+ * y organización. Tienen su propio tope: no cuentan en el de manuales ni en el de automáticos.
+ * Pasado el tope sólo se crea la tarea "Responder consulta".
+ */
+export const TOPE_AVISOS_EQUIPO_DIA = 100;
+/** Autor que figura en el registro de los avisos al equipo. */
+export const AUTOR_AVISO_EQUIPO = "Aviso al equipo";
 /** Una sola respuesta automática por dirección de correo y organización en este lapso. */
 export const VENTANA_UNA_AUTORESPUESTA_MS = 24 * 60 * 60 * 1000;
 

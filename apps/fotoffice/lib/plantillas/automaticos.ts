@@ -1,10 +1,12 @@
 import "server-only";
 import { prisma } from "@repo/db";
 import { moduloDeRegistroEncendido } from "@/lib/campos/modulos";
-import { VENTANA_UNA_AUTORESPUESTA_MS } from "./constantes";
+import { AUTOR_AVISO_EQUIPO, CARACTER_MARCADOR, TOPE_AVISOS_EQUIPO_DIA, VENTANA_UNA_AUTORESPUESTA_MS } from "./constantes";
 import { AUTOMATICOS, leerAutomatico } from "./definiciones";
 import { contextoDe, correoValido, destinoDe } from "./contexto";
-import { armarCorreoFinal, completarTextos, enviarCorreo, type CtxEnvio, type DepsEnvio } from "./envio";
+import {
+  armarCorreoFinal, completarTextos, enviarCorreo, inicioDelDiaAR, sinAvisosAlEquipo, type CtxEnvio, type DepsEnvio,
+} from "./envio";
 import { sendTransactionalEmail, type OutboundEmail } from "@/lib/communications/send-email";
 
 /**
@@ -21,6 +23,7 @@ export type ResultadoAutomatico =
   | "NO_ENCONTRADA"
   | "PLANTILLA_CON_ERRORES"
   | "NO_ENVIADO"
+  | "TOPE"
   | "ERROR";
 
 /**
@@ -35,6 +38,8 @@ async function yaRespondida(workspaceId: string, email: string, ahora: Date): Pr
       automatic: true,
       toAddress: { equals: email.trim(), mode: "insensitive" },
       createdAt: { gte: new Date(ahora.getTime() - VENTANA_UNA_AUTORESPUESTA_MS) },
+      // Un aviso al equipo no es una respuesta a esta persona.
+      ...(await sinAvisosAlEquipo(workspaceId)),
     },
     select: { id: true },
   });
@@ -103,12 +108,15 @@ export async function responderConsultaNueva(
 /**
  * Aviso interno de consulta nueva al equipo (etapa 1) con la plantilla del sistema
  * `CONSULTA_AVISO_EQUIPO`, si está encendida. Va a `para` (un usuario del equipo, ya elegido por
- * `lib/consultas/aviso.ts`) con el remitente de FOTOFFICE.
+ * `lib/consultas/aviso.ts`) con el remitente de FOTOFFICE. Nunca lanza y nunca loguea datos.
  *
- * No pasa por `enviarCorreo`: no se registra en `FotofficeMessage` (no es un mensaje a la persona
- * de la ficha), así que no cuenta en el tope de correos manuales (`TOPE_CORREOS_DIA`) ni en el de
- * automáticos, y nunca le aplica la regla de una respuesta por dirección cada 24 h. Nunca lanza
- * y nunca loguea datos: sólo códigos.
+ * Tope propio (R7): `TOPE_AVISOS_EQUIPO_DIA` por día de Buenos Aires y organización; pasado el
+ * tope no se manda (la tarea "Responder consulta" se crea igual). Para contarlos sin columnas ni
+ * tablas nuevas, cada aviso se registra en `FotofficeMessage` (canal EMAIL, automático, ficha
+ * CONSULTA, a la casilla del usuario) con el `templateId` de la plantilla del aviso: esa marca los
+ * deja afuera del tope de manuales (son automáticos), del de automáticos y de la regla de una
+ * respuesta por dirección cada 24 h (`sinAvisosAlEquipo`). Quedan en el historial de la consulta
+ * como constancia de que se avisó al equipo.
  */
 export async function avisarEquipoConsultaNueva(
   workspaceId: string,
@@ -120,6 +128,15 @@ export async function avisarEquipoConsultaNueva(
     const auto = await leerAutomatico(workspaceId, "CONSULTA_AVISO_EQUIPO");
     if (!auto || !auto.enabled || auto.channel !== AUTOMATICOS.CONSULTA_AVISO_EQUIPO.canal) return "APAGADA";
     if (!correoValido(para.email)) return "SIN_CORREO";
+    const ahora = (deps.ahora ?? (() => new Date()))();
+    // Cuentan los intentos del día (enviados y fallidos): un proveedor caído no habilita más.
+    const hoy = await prisma.fotofficeMessage.count({
+      where: { workspaceId, channel: "EMAIL", templateId: auto.id, createdAt: { gte: inicioDelDiaAR(ahora) } },
+    });
+    if (hoy >= TOPE_AVISOS_EQUIPO_DIA) {
+      console.warn("[plantillas] tope de avisos al equipo alcanzado", { codigo: "TOPE_AVISOS_EQUIPO" });
+      return "TOPE";
+    }
     const contexto = await contextoDe(workspaceId, "CONSULTA", leadId, { nombre: para.nombre, email: para.email });
     if (!contexto) return "NO_ENCONTRADA";
     const textos = completarTextos(contexto, "CONSULTA", auto.subject, auto.body);
@@ -134,7 +151,30 @@ export async function avisarEquipoConsultaNueva(
     }
     const enviar = deps.enviar ?? ((m: OutboundEmail) => sendTransactionalEmail(m));
     // Sin `fromName` ni `sender`: sale con el remitente de FOTOFFICE (el del entorno).
-    const r = await enviar({ to: para.email!, subject: correo.asunto, html: correo.html, text: correo.texto });
+    const r = await enviar({ to: para.email, subject: correo.asunto, html: correo.html, text: correo.texto });
+    try {
+      await prisma.fotofficeMessage.create({
+        data: {
+          workspaceId,
+          channel: "EMAIL",
+          entityType: "CONSULTA",
+          entityId: leadId,
+          templateId: auto.id,
+          toAddress: para.email,
+          subject: correo.asunto,
+          body: textos.cuerpo.split(CARACTER_MARCADOR).join(""),
+          status: r.status === "SENT" ? "SENT" : "FAILED",
+          automatic: true,
+          providerId: r.status === "SENT" ? r.providerId : null,
+          errorCode: r.status === "SENT" ? null : r.status,
+          actorUserId: null,
+          actorLabel: AUTOR_AVISO_EQUIPO,
+        },
+        select: { id: true },
+      });
+    } catch (e) {
+      console.error("[plantillas] no se pudo registrar el aviso al equipo", { codigo: (e as { code?: unknown })?.code ?? "desconocido" });
+    }
     if (r.status === "SENT") return "ENVIADO";
     console.warn("[plantillas] el aviso al equipo no salió", { codigo: r.status });
     return "NO_ENVIADO";
