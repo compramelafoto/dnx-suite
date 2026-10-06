@@ -33,6 +33,15 @@ export function partirNombre(nombre: string): { firstName: string; lastName: str
   return { firstName: limpio.slice(0, espacio), lastName: limpio.slice(espacio + 1) || null };
 }
 
+export type OpcionesContacto = {
+  /**
+   * "correo-o-telefono" (por defecto): altas del equipo e importación. "correo": formulario web
+   * (regla R3): desde internet sólo se empareja por correo, porque el teléfono no se verifica y
+   * un tercero que lo conozca podría colgar su consulta de la ficha de otro.
+   */
+  coincidir?: "correo" | "correo-o-telefono";
+};
+
 /**
  * El contacto de una consulta: toda consulta tiene uno (spec §2.1).
  *
@@ -40,8 +49,9 @@ export function partirNombre(nombre: string): { firstName: string; lastName: str
  * si la consulta falla, el contacto no queda suelto) y nunca usa el `prisma` global.
  *
  * Busca primero por correo (sin distinguir mayúsculas) y después por teléfono normalizado
- * (sólo dígitos, como `client-form.ts` lo guarda). Si hay varios, el más reciente; si coincide
- * más de un cliente, avisa "posible duplicado". Si no encuentra a nadie, crea el `Client` con
+ * (sólo dígitos, como `client-form.ts` lo guarda); con `coincidir: "correo"` (formulario web),
+ * sólo por correo. Si hay varios, el más reciente; si más de uno coincide por el mismo criterio
+ * que eligió, avisa "posible duplicado". Si no encuentra a nadie, crea el `Client` con
  * `findOrCreateClient` (número, historial) y su perfil con categoría CONTACTO. Un cliente que ya
  * existía no recibe perfil: sin perfil cuenta como CLIENTE.
  */
@@ -50,20 +60,24 @@ export async function contactoParaConsulta(
   workspaceId: string,
   datos: DatosContacto,
   actor: Actor = ACTOR_SISTEMA,
+  opciones: OpcionesContacto = {},
 ): Promise<ContactoDeConsulta> {
   const nombre = typeof datos.nombre === "string" ? datos.nombre.trim().replace(/\s+/g, " ") : "";
   if (!nombre) throw new Error("Falta el nombre del contacto.");
   if (nombre.length > MAX_NOMBRE_CONTACTO) throw new Error("El nombre del contacto es demasiado largo.");
+  const soloCorreo = opciones.coincidir === "correo";
   const mail = typeof datos.email === "string" ? datos.email.trim().toLowerCase() || null : null;
   const tel = typeof datos.telefono === "string" ? soloDigitos(datos.telefono) || null : null;
+  // El teléfono con el que se busca: ninguno si sólo vale el correo (igual se guarda al crear).
+  const telBusqueda = soloCorreo ? null : tel;
 
-  if (mail || tel) {
+  if (mail || telBusqueda) {
     const candidatos = await tx.client.findMany({
       where: {
         workspaceId,
         OR: [
           ...(mail ? [{ email: { equals: mail, mode: "insensitive" as const } }] : []),
-          ...(tel ? [{ phone: tel }] : []),
+          ...(telBusqueda ? [{ phone: telBusqueda }] : []),
         ],
       },
       // El más reciente primero: `matchExistingClient` se queda con el primero que coincide.
@@ -71,13 +85,15 @@ export async function contactoParaConsulta(
       select: { id: true, docNumber: true, email: true, phone: true },
       take: MAX_CANDIDATOS,
     });
-    const elegido = matchExistingClient(candidatos, { email: mail, phone: tel });
+    const elegido = matchExistingClient(candidatos, { email: mail, phone: telBusqueda });
     if (elegido) {
-      const coinciden = candidatos.filter(
-        (c) =>
-          (mail !== null && !!c.email && c.email.trim().toLowerCase() === mail) ||
-          (tel !== null && !!c.phone && soloDigitos(c.phone) === tel),
-      );
+      // "Posible duplicado" se mide con el mismo criterio que eligió: correo si alguno coincidió
+      // por correo; si no, teléfono.
+      const porCorreo = candidatos.filter((c) => mail !== null && !!c.email && c.email.trim().toLowerCase() === mail);
+      const coinciden =
+        porCorreo.length > 0
+          ? porCorreo
+          : candidatos.filter((c) => telBusqueda !== null && !!c.phone && soloDigitos(c.phone) === telBusqueda);
       return { clientId: elegido.id, creado: false, posibleDuplicado: coinciden.length > 1 };
     }
   }
@@ -85,10 +101,15 @@ export async function contactoParaConsulta(
   const { firstName, lastName } = partirNombre(nombre);
   const cliente = await findOrCreateClient(
     tx,
-    { workspaceId, email: mail, phone: tel, firstName, lastName, createdByUserId: actor.userId },
+    { workspaceId, email: mail, phone: telBusqueda, firstName, lastName, createdByUserId: actor.userId },
     actor,
   );
   if (cliente.created) {
+    // En modo "correo" el teléfono no participó de la búsqueda: se guarda recién ahora, sólo en
+    // el cliente que nació con esta consulta.
+    if (soloCorreo && tel) {
+      await tx.client.update({ where: { id: cliente.id }, data: { phone: tel }, select: { id: true } });
+    }
     await tx.fotofficeContactoPerfil.create({
       data: { workspaceId, clientId: cliente.id, category: CATEGORIA_CONTACTO_NUEVO },
       select: { id: true },

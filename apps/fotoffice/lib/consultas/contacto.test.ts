@@ -45,13 +45,62 @@ describe("contactoParaConsulta", () => {
     expect(r).toEqual({ clientId: "c1", creado: false, posibleDuplicado: false });
   });
 
-  it("el correo gana sobre el teléfono y avisa posible duplicado", async () => {
+  it("el correo gana sobre el teléfono (otro con ese teléfono no cuenta como duplicado)", async () => {
     cliente("c1", { email: "ana@mail.com", createdAt: new Date("2026-01-01") });
     cliente("c2", { phone: "3411234567", createdAt: new Date("2026-05-01") });
     const r = await enTx((tx) =>
       contactoParaConsulta(tx, "ws-1", { nombre: "Ana", email: "ana@mail.com", telefono: "3411234567" }),
     );
-    expect(r).toEqual({ clientId: "c1", creado: false, posibleDuplicado: true });
+    expect(r).toEqual({ clientId: "c1", creado: false, posibleDuplicado: false });
+  });
+
+  it("posible duplicado se mide con el criterio que eligió: correo único, aunque otro coincida por teléfono", async () => {
+    cliente("c1", { email: "ana@mail.com", phone: "3410000000", createdAt: new Date("2026-01-01") });
+    cliente("c2", { phone: "3411234567", createdAt: new Date("2026-05-01") });
+    cliente("c3", { phone: "3411234567", createdAt: new Date("2026-06-01") });
+    const porCorreo = await enTx((tx) =>
+      contactoParaConsulta(tx, "ws-1", { nombre: "Ana", email: "ana@mail.com", telefono: "3411234567" }),
+    );
+    expect(porCorreo).toEqual({ clientId: "c1", creado: false, posibleDuplicado: false });
+    // Sin coincidencia por correo, decide el teléfono: dos clientes con ese teléfono.
+    const porTelefono = await enTx((tx) =>
+      contactoParaConsulta(tx, "ws-1", { nombre: "Ana", email: "nadie@mail.com", telefono: "3411234567" }),
+    );
+    expect(porTelefono).toEqual({ clientId: "c3", creado: false, posibleDuplicado: true });
+  });
+
+  it("modo correo (formulario web): el teléfono no empareja; crea uno nuevo y le guarda el teléfono", async () => {
+    cliente("c1", { email: "ana@mail.com", phone: "3411234567" });
+    const r = await enTx((tx) =>
+      contactoParaConsulta(
+        tx, "ws-1", { nombre: "Intrusa", email: "otra@mail.com", telefono: "341 123-4567" }, undefined, { coincidir: "correo" },
+      ),
+    );
+    expect(r.creado).toBe(true);
+    expect(r.clientId).not.toBe("c1");
+    expect(B.datos.client.find((c) => c.id === r.clientId)).toMatchObject({ email: "otra@mail.com", phone: "3411234567" });
+    expect(B.datos.fotofficeContactoPerfil).toEqual([expect.objectContaining({ clientId: r.clientId, category: "CONTACTO" })]);
+  });
+
+  it("modo correo: el correo sigue emparejando y el cliente existente no cambia", async () => {
+    cliente("c1", { email: "ana@mail.com", phone: "3410000000" });
+    const r = await enTx((tx) =>
+      contactoParaConsulta(tx, "ws-1", { nombre: "Ana", email: "ANA@mail.com", telefono: "3419999999" }, undefined, {
+        coincidir: "correo",
+      }),
+    );
+    expect(r).toEqual({ clientId: "c1", creado: false, posibleDuplicado: false });
+    expect(B.datos.client[0]!.phone).toBe("3410000000");
+  });
+
+  it("modo manual (por defecto) sigue emparejando por teléfono", async () => {
+    cliente("c1", { email: "ana@mail.com", phone: "3411234567" });
+    const r = await enTx((tx) =>
+      contactoParaConsulta(tx, "ws-1", { nombre: "Ana", email: "otra@mail.com", telefono: "341 123-4567" }, undefined, {
+        coincidir: "correo-o-telefono",
+      }),
+    );
+    expect(r).toEqual({ clientId: "c1", creado: false, posibleDuplicado: false });
   });
 
   it("con varios por correo elige el más reciente y avisa posible duplicado", async () => {

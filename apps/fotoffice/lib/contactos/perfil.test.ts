@@ -148,7 +148,7 @@ describe("guardarPerfil", () => {
 
 describe("marcarClienteSiGana", () => {
   it("pasa de CONTACTO a CLIENTE y lo anota", async () => {
-    expect(await enTx((tx) => P.marcarClienteSiGana(tx, "c2"))).toBe(true);
+    expect(await enTx((tx) => P.marcarClienteSiGana(tx, "ws-1", "c2"))).toBe(true);
     expect(B.datos.fotofficeContactoPerfil.find((p) => p.clientId === "c2")?.category).toBe("CLIENTE");
     expect(B.datos.clientAudit).toEqual([
       expect.objectContaining({
@@ -157,14 +157,20 @@ describe("marcarClienteSiGana", () => {
       }),
     ]);
     // La segunda vez ya es CLIENTE: no hace nada.
-    expect(await enTx((tx) => P.marcarClienteSiGana(tx, "c2"))).toBe(false);
+    expect(await enTx((tx) => P.marcarClienteSiGana(tx, "ws-1", "c2"))).toBe(false);
     expect(B.datos.clientAudit).toHaveLength(1);
   });
 
+  it("no toca un contacto de otro workspace", async () => {
+    expect(await enTx((tx) => P.marcarClienteSiGana(tx, "ws-2", "c2"))).toBe(false);
+    expect(B.datos.fotofficeContactoPerfil.find((p) => p.clientId === "c2")?.category).toBe("CONTACTO");
+    expect(B.datos.clientAudit).toHaveLength(0);
+  });
+
   it("no toca las otras categorías ni a los clientes sin perfil", async () => {
-    expect(await enTx((tx) => P.marcarClienteSiGana(tx, "cx"))).toBe(false);
+    expect(await enTx((tx) => P.marcarClienteSiGana(tx, "ws-2", "cx"))).toBe(false);
     expect(B.datos.fotofficeContactoPerfil.find((p) => p.clientId === "cx")?.category).toBe("PROVEEDOR");
-    expect(await enTx((tx) => P.marcarClienteSiGana(tx, "c1"))).toBe(false);
+    expect(await enTx((tx) => P.marcarClienteSiGana(tx, "ws-1", "c1"))).toBe(false);
     expect(B.datos.fotofficeContactoPerfil.some((p) => p.clientId === "c1")).toBe(false);
     expect(B.datos.clientAudit).toHaveLength(0);
   });

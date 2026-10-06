@@ -279,14 +279,14 @@ export async function guardarPerfil(ctx: CtxContacto, clientId: unknown, datos: 
     if (Object.keys(cambios).length === 0) return { ok: true as const };
 
     const data = columnas(Object.fromEntries(Object.keys(cambios).map((k) => [k, despues[k as CampoPerfil]])));
-    if (fila) {
-      await tx.fotofficeContactoPerfil.update({ where: { clientId }, data, select: { id: true } });
-    } else {
-      await tx.fotofficeContactoPerfil.create({
-        data: { ...(data as Record<string, unknown>), workspaceId: ctx.workspaceId, clientId } as Prisma.FotofficeContactoPerfilUncheckedCreateInput,
-        select: { id: true },
-      });
-    }
+    // Upsert por `clientId` (único): si otra pestaña creó el perfil entre la lectura y acá, se
+    // actualiza en lugar de chocar. El cliente ya se verificó en este workspace.
+    await tx.fotofficeContactoPerfil.upsert({
+      where: { clientId },
+      create: { ...(data as Record<string, unknown>), workspaceId: ctx.workspaceId, clientId } as Prisma.FotofficeContactoPerfilUncheckedCreateInput,
+      update: data,
+      select: { id: true },
+    });
     await tx.clientAudit.create({
       data: {
         workspaceId: ctx.workspaceId,
@@ -308,23 +308,20 @@ export async function guardarPerfil(ctx: CtxContacto, clientId: unknown, datos: 
  */
 export async function marcarClienteSiGana(
   tx: Prisma.TransactionClient,
+  workspaceId: string,
   clientId: string,
   actor: Actor = { userId: null, label: "Sistema" },
 ): Promise<boolean> {
-  const perfil = await tx.fotofficeContactoPerfil.findFirst({
-    where: { clientId, category: "CONTACTO" },
-    select: { workspaceId: true },
-  });
-  if (!perfil) return false;
-  // Con la categoría en el `where`: si otro cambio ganó la carrera, no se pisa.
+  // Con el workspace y la categoría en el `where`: no toca otro workspace y, si otro cambio
+  // ganó la carrera, no se pisa.
   const { count } = await tx.fotofficeContactoPerfil.updateMany({
-    where: { clientId, category: "CONTACTO" },
+    where: { workspaceId, clientId, category: "CONTACTO" },
     data: { category: "CLIENTE" },
   });
   if (count === 0) return false;
   await tx.clientAudit.create({
     data: {
-      workspaceId: perfil.workspaceId,
+      workspaceId,
       clientId,
       action: "UPDATED",
       actorUserId: actor.userId,
