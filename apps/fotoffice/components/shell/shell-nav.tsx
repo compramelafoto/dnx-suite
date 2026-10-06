@@ -2,8 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
+import { serializeOpenGroupsCookie, toggleGroup, visibleOpenGroups } from "@/lib/shell/nav-groups";
 import {
   Building2,
+  ChevronDown,
   ClipboardCheck,
   FileText,
   Globe,
@@ -131,35 +134,63 @@ function Section({
   items,
   path,
   onNavigate,
+  open,
+  onToggle,
 }: {
   title: string | null;
   items: Item[];
   path: string;
   /** En el teléfono el menú tapa el contenido: elegir una opción tiene que cerrarlo. */
   onNavigate: () => void;
+  /** Desplegado. El grupo sin título (Inicio) se ve siempre. */
+  open: boolean;
+  onToggle: () => void;
 }) {
   if (items.length === 0) return null;
+  const visible = title === null || open;
+  const id = title ? `menu-grupo-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}` : undefined;
+  const tieneActivo = items.some((i) => i.isActive(path));
   return (
     <div className="flex flex-col gap-0.5">
       {title ? (
-        <p className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-[var(--fo-muted-soft)]">
-          {title}
-        </p>
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={open}
+          aria-controls={id}
+          className="group mt-2 flex items-center gap-2 rounded-lg px-3 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider text-[var(--fo-muted-soft)] transition-colors hover:bg-[var(--fo-surface-hover)] hover:text-[var(--fo-text-secondary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--fo-accent)]"
+        >
+          <span className="min-w-0 flex-1 truncate">{title}</span>
+          {!open ? (
+            <span className="flex items-center gap-1.5 normal-case tracking-normal">
+              {tieneActivo ? <span className="size-1.5 rounded-full bg-[var(--fo-accent)]" aria-hidden /> : null}
+              <span className="text-[10px] font-medium tabular-nums">{items.length}</span>
+            </span>
+          ) : null}
+          <ChevronDown
+            className={`size-3.5 shrink-0 transition-transform motion-reduce:transition-none ${open ? "" : "-rotate-90"}`}
+            aria-hidden
+          />
+        </button>
       ) : null}
-      {items.map((item) => {
-        const Icon = item.icon;
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={onNavigate}
-            className={itemClass(item.isActive(path))}
-          >
-            <Icon className="size-4 shrink-0 opacity-80" aria-hidden />
-            {item.label}
-          </Link>
-        );
-      })}
+      {visible ? (
+        <div id={id} className="flex flex-col gap-0.5">
+          {items.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onNavigate}
+                className={itemClass(item.isActive(path))}
+              >
+                <Icon className="size-4 shrink-0 opacity-80" aria-hidden />
+                {item.label}
+              </Link>
+            );
+          })}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -170,6 +201,7 @@ export function ShellNav({
   canManageWorkspaceSettings,
   platformAdmin,
   vocabulary,
+  openGroups = [],
 }: {
   /** Nivel en cada módulo, de `getModuleLevels`. Un módulo apagado viene en NONE. */
   levels: ModuleLevels;
@@ -179,9 +211,15 @@ export function ShellNav({
   canManageWorkspaceSettings: boolean;
   platformAdmin: boolean;
   vocabulary: PersonVocabulary;
+  /** Grupos que la persona dejó desplegados, leídos de la cookie en el servidor. */
+  openGroups?: readonly string[];
 }) {
   const path = usePathname() ?? "";
   const { closeDrawer } = useShellNav();
+  const [guardados, setGuardados] = useState<string[]>(() => [...openGroups]);
+  // Cerrar el grupo de la pantalla actual vale hasta cambiar de pantalla: al llegar a otra,
+  // su grupo se abre solo.
+  const [cerradoAqui, setCerradoAqui] = useState<{ path: string; title: string } | null>(null);
   // Mismos roles que `isFullAccessRole` (dueño o admin): decide las pantallas de plata, como Cobros.
   const access: SubmoduleAccess = { levels, actions, fullAccess: canManageWorkspaceSettings };
   const ve = (moduleKey: string) => hasLevel(levels[moduleKey] ?? "NONE", "VIEW");
@@ -375,6 +413,22 @@ export function ShellNav({
     })),
   }));
 
+  const grupoActivo = secciones.find((sec) => sec.title && sec.items.some((i) => i.isActive(path)))?.title ?? null;
+  const abiertos = visibleOpenGroups(guardados, grupoActivo);
+  if (cerradoAqui && cerradoAqui.path === path) abiertos.delete(cerradoAqui.title);
+
+  function alternar(title: string) {
+    const abierto = abiertos.has(title);
+    const siguiente = abierto ? guardados.filter((t) => t !== title) : toggleGroup(guardados.filter((t) => t !== title), title);
+    setGuardados(siguiente);
+    setCerradoAqui(abierto && title === grupoActivo ? { path, title } : null);
+    try {
+      document.cookie = serializeOpenGroupsCookie(siguiente);
+    } catch {
+      // Sin cookies el menú igual se pliega; sólo no lo recuerda.
+    }
+  }
+
   return (
     <nav className="flex flex-col gap-0.5" aria-label="Principal">
       <MenuSearch sections={buscables} onNavigate={closeDrawer} />
@@ -385,6 +439,8 @@ export function ShellNav({
           items={sec.items}
           path={path}
           onNavigate={closeDrawer}
+          open={sec.title ? abiertos.has(sec.title) : true}
+          onToggle={() => sec.title && alternar(sec.title)}
         />
       ))}
     </nav>
