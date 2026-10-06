@@ -7,6 +7,7 @@ import { cerrarAction, moverAction } from "@/app/actions/circuitos";
 import { ETIQUETA_SALIDA } from "@/lib/circuitos/constantes";
 import { claseDeColorEtiqueta } from "@/lib/ficha/formato";
 import type { Tablero as DatosTablero, TarjetaVista } from "@/lib/circuitos/tablero";
+import { AltaRapida } from "@/components/consultas/alta-rapida";
 import { DialogoGanada } from "./dialogo-ganada";
 import { DialogoPerdida } from "./dialogo-perdida";
 import type { Destino } from "./mover-a";
@@ -51,11 +52,14 @@ export function Tablero({
   datos,
   filtros,
   puedePasarIgual,
+  altaRapida = null,
 }: {
   datos: DatosTablero;
   filtros: FiltrosVista;
   /** El rol puede `configurar`: ofrece "Pasar igual" ante tareas obligatorias pendientes. */
   puedePasarIgual: boolean;
+  /** Con "Gestionar" en Consultas: el alta rápida de la primera columna, con las categorías activas. */
+  altaRapida?: { categorias: { id: string; nombre: string }[] } | null;
 }) {
   const router = useRouter();
   const ancha = useSyncExternalStore(suscribirAncho, esAncha, esAnchaEnServidor);
@@ -245,7 +249,7 @@ export function Tablero({
       </p>
 
       <div className="flex gap-3 overflow-x-auto pb-4">
-        {columnas.map((col) => {
+        {columnas.map((col, indice) => {
           const { etapa } = col;
           const clave = `etapa:${etapa.id}`;
           const destinos = etapasActivas.filter((e) => e.id !== etapa.id);
@@ -269,6 +273,7 @@ export function Tablero({
                   {col.total}
                 </span>
               </header>
+              {indice === 0 && altaRapida && altaRapida.categorias.length > 0 ? <AltaRapida categorias={altaRapida.categorias} /> : null}
               <ul className="flex flex-col gap-2">
                 {col.tarjetas.map((t) => {
                   const aviso = avisos[t.journeyId];

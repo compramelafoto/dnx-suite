@@ -10,19 +10,34 @@ export const PESTANAS_CAPTACION = [
 ] as const;
 export type PestanaCaptacion = (typeof PESTANAS_CAPTACION)[number]["clave"];
 
-/** Cabecera común de Consultas: título, pestañas y el aviso de las consultas por ordenar. */
+/**
+ * Cabecera común de Consultas: título, botón "Nueva consulta" (sólo con "Gestionar" en
+ * Consultas), pestañas y el aviso de las consultas por ordenar.
+ */
 export function ArmazonCaptacion({
   activa,
   quedan,
+  puedeCrear = false,
   children,
 }: {
   activa: PestanaCaptacion;
   quedan: number;
+  puedeCrear?: boolean;
   children: ReactNode;
 }) {
   return (
     <div className="space-y-6">
-      <PageHeader title="Consultas" description="Consultas de presupuesto, organizadas por etapas." />
+      <PageHeader
+        title="Consultas"
+        description="Consultas de presupuesto, organizadas por etapas."
+        actions={
+          puedeCrear ? (
+            <Link href="/consultas/nueva" className="fo-btn fo-btn-primary text-sm">
+              Nueva consulta
+            </Link>
+          ) : undefined
+        }
+      />
       <nav aria-label="Vistas de Consultas" className="flex gap-1 border-b border-[var(--fo-border)]">
         {PESTANAS_CAPTACION.map((p) => (
           <Link
