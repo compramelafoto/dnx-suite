@@ -7693,6 +7693,7 @@ model Member {
   welcome                         MemberWelcome?
   aboutMe                         MemberAboutMe?
   spotlights                      MemberSpotlight[]
+  notificationSeen                MemberNotificationSeen?
   govProjectsProposed             GovProject[]                      @relation("GovProjectProposer")
   govProjectsResponsible          GovProject[]                      @relation("GovProjectResponsible")
   govTasksAssigned                GovProjectTask[]
@@ -21039,4 +21040,14 @@ model GovProjectMovement {
   cashMovement CashMovement     @relation(fields: [cashMovementId], references: [id], onDelete: Cascade)
 
   @@index([projectId])
+}
+
+/// Hasta cuándo vio el socio sus novedades (la campanita del portal). Las novedades no se
+/// guardan: se arman al leer desde cada módulo. Esto sólo dice cuáles ya vio, para el numerito.
+model MemberNotificationSeen {
+  memberId   String   @id
+  lastSeenAt DateTime
+  updatedAt  DateTime @updatedAt
+
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
 }

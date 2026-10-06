@@ -85,6 +85,7 @@ export default async function PortalLayout({ children }: { children: ReactNode }
       })}
       vocabulary={vocabulary}
       roleSelector={selector}
+      notifications
       institution={{
         name: branding?.commercialName?.trim() || context.workspace.name,
         logoUrl: branding?.logoUrl ?? null,
