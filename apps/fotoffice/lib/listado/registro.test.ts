@@ -17,7 +17,7 @@ describe("registro de listas", () => {
       clientes: "/clientes",
       socios: "/members",
       "caja-movimientos": "/caja/movimientos",
-      captacion: "/captacion/lista",
+      captacion: "/consultas/lista",
     });
   });
 });

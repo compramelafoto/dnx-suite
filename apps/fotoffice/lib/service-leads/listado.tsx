@@ -313,7 +313,7 @@ function textoResultado(r: RecorridoDeFila | null): string | null {
 
 export const listadoCaptacion: DefinicionListado<FilaCaptacion> = {
   clave: "captacion",
-  titulo: "Captación",
+  titulo: "Consultas",
   sustantivo: { singular: "consulta", plural: "consultas" },
   placeholderBusqueda: "Buscar por número, nombre, correo, teléfono o tipo de evento",
   columnas: [
@@ -328,7 +328,7 @@ export const listadoCaptacion: DefinicionListado<FilaCaptacion> = {
       titulo: "Nombre",
       orden: "nombre",
       celda: (f) => (
-        <Link href={`/captacion/${encodeURIComponent(f.id)}`} className="font-medium text-[var(--fo-text)] hover:underline">
+        <Link href={`/consultas/${encodeURIComponent(f.id)}`} className="font-medium text-[var(--fo-text)] hover:underline">
           {f.name}
         </Link>
       ),
@@ -367,7 +367,7 @@ export const listadoCaptacion: DefinicionListado<FilaCaptacion> = {
   ordenes: ["alta", "evento", "nombre", "numero"],
   ordenPorDefecto: { campo: "alta", desc: true },
   idDe: (f) => f.id,
-  hrefFicha: (id) => `/captacion/${encodeURIComponent(id)}`,
+  hrefFicha: (id) => `/consultas/${encodeURIComponent(id)}`,
   contar: async (ctx, c) => prisma.serviceSalesLead.count({ where: await resolverWhere(ctx, c) }),
   traer: async (ctx, c, { skip, take }) => {
     const where = await resolverWhere(ctx, c);

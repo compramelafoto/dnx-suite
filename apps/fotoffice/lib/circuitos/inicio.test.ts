@@ -29,7 +29,7 @@ const USUARIO = { id: 7, name: "Ana Gómez", email: "ana@example.com" };
 const AHORA = new Date("2026-10-15T13:00:00.000Z");
 const tarea = (id: string, vence: string) => ({
   id, titulo: "Llamar", vence: new Date(vence), obligatoria: false, etapa: "Nueva",
-  sujeto: { titulo: "Laura", href: "/captacion/l1" },
+  sujeto: { titulo: "Laura", href: "/consultas/l1" },
 });
 
 beforeEach(() => {

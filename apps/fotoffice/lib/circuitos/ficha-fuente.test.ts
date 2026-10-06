@@ -2,11 +2,11 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-/** Pruebas de fuente de la ficha de una consulta (`/captacion/[id]`). */
+/** Pruebas de fuente de la ficha de una consulta (`/consultas/[id]`). */
 const RAIZ = join(__dirname, "..", "..");
 const leer = (...p: string[]) => readFileSync(join(RAIZ, ...p), "utf8");
 const componente = (f: string) => leer("components", "circuitos", f);
-const pagina = () => leer("app", "(shell)", "captacion", "[id]", "page.tsx");
+const pagina = () => leer("app", "(shell)", "consultas", "[id]", "page.tsx");
 
 describe("ficha de la consulta", () => {
   it("la guarda corre antes de leer y un id ajeno o inexistente es «no encontrado»", () => {

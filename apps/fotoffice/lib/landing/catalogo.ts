@@ -206,7 +206,7 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
   {
     key: SERVICE_LEADS_MODULE_KEY,
     cuadro: "11",
-    nombre: "Captación de presupuestos",
+    nombre: "Consultas de presupuesto",
     resuelve:
       "Un formulario público por tipo de evento —casamiento, quince, lo que arme— que compartís por donde quieras. La consulta entra con todos los datos que pediste y queda en una bandeja, con su historial, en vez de perderse entre mensajes de WhatsApp. El precio todavía lo ponés vos por afuera.",
     pantallas: [
@@ -328,7 +328,7 @@ export const EN_CONSTRUCCION: {
     icono: "presupuestos",
     nombre: "Presupuestos",
     resuelve:
-      "Armar el presupuesto con tus precios, mandárselo al cliente y seguir si lo aceptó. La consulta ya te llega con todos los datos del evento —eso es Captación—; falta ponerle precio y mandarlo desde acá.",
+      "Armar el presupuesto con tus precios, mandárselo al cliente y seguir si lo aceptó. La consulta ya te llega con todos los datos del evento —eso es Consultas—; falta ponerle precio y mandarlo desde acá.",
   },
   {
     cuadro: "16",

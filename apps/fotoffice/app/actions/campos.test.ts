@@ -41,7 +41,7 @@ describe("guardarValoresAction", () => {
 
   it.each([
     ["SOCIO", "members", "/members/m1"],
-    ["CONSULTA", "service-leads", "/captacion/m1"],
+    ["CONSULTA", "service-leads", "/consultas/m1"],
   ])("%s mira el módulo %s y revalida %s", async (entityType, modulo, ruta) => {
     await A.guardarValoresAction({ ...BIEN, entityType, entityId: "m1" });
     expect(H.modulo).toHaveBeenCalledWith("ws-1", modulo);

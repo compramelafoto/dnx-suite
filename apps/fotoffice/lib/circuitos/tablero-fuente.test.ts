@@ -79,12 +79,12 @@ describe("tablero de Captación", () => {
   });
 
   it("la página de Captación muestra el tablero y la pestaña Informe va a su ruta", () => {
-    const p = leer("app", "(shell)", "captacion", "page.tsx");
+    const p = leer("app", "(shell)", "consultas", "page.tsx");
     expect(p).toContain("<Tablero");
     expect(p).toContain("cargarTablero(");
     expect(p).toContain("prepararCaptacion(workspace.id)");
     expect(p).toContain('puede(role, "configurar")');
     expect(p).not.toContain("todavía no está disponible");
-    expect(leer("components", "captacion", "armazon.tsx")).toContain('href: "/captacion/informe"');
+    expect(leer("components", "captacion", "armazon.tsx")).toContain('href: "/consultas/informe"');
   });
 });

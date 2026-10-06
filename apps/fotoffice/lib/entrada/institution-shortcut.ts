@@ -30,11 +30,13 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "bienvenida",
   "c",
   "caja",
+  // Nombre viejo de Consultas: `next.config.ts` lo redirige a `/consultas` (lib/entrada/redirecciones.ts).
   "captacion",
   "cliente",
   "clientes",
   "coberturas",
   "comunicacion",
+  "consultas",
   "correo",
   "courses",
   "cursos",

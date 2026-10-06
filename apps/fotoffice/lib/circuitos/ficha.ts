@@ -8,7 +8,7 @@ import { describirPaso, tareasVisibles, type PasoVista, type TareaFicha } from "
 import { motivosActivos, responsablesDe } from "./tablero";
 
 /**
- * Datos de la ficha de una consulta de Captación (`/captacion/[id]`). Todo se lee acotado al
+ * Datos de la ficha de una consulta de Captación (`/consultas/[id]`). Todo se lee acotado al
  * workspace de la sesión: una consulta de otro workspace (o inexistente) devuelve null y la
  * página responde "no encontrado". Las fechas viajan como ISO (van a componentes de cliente).
  */

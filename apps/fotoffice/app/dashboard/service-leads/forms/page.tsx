@@ -13,7 +13,7 @@ export default async function ServiceLeadFormsPage() {
   return (
     <div className="space-y-10">
       <PageHeader
-        title="Formularios de captación"
+        title="Formularios de consulta"
         description="Administrá los formularios públicos que capturan consultas para este workspace."
       />
 

@@ -28,8 +28,8 @@ export default async function CaptacionPage({
   const vista = uno(sp.vista);
   // La lista y el informe viven en sus propias rutas: `vista` es un parámetro reservado del
   // motor de listados (vistas guardadas) y se perdería al buscar, filtrar o paginar.
-  if (vista === "lista") redirect("/captacion/lista");
-  if (vista === "informe") redirect("/captacion/informe");
+  if (vista === "lista") redirect("/consultas/lista");
+  if (vista === "informe") redirect("/consultas/informe");
 
   // Filtros de la dirección: lo que no tiene forma válida se ignora.
   const circuitoParam = uno(sp.circuito);

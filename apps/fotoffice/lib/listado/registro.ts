@@ -31,7 +31,7 @@ export const LISTAS: Record<string, EntradaLista> = {
   captacion: {
     moduleKey: SERVICE_LEADS_MODULE_KEY,
     // La lista vive en su propia ruta: `vista` es parámetro reservado del motor (vistas guardadas).
-    ruta: "/captacion/lista",
+    ruta: "/consultas/lista",
     cargar: async (ctx) => (await import("@/lib/service-leads/listado")).cargarListadoCaptacion(ctx),
   },
   "caja-movimientos": {

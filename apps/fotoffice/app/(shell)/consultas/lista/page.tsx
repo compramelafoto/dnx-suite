@@ -24,7 +24,7 @@ export default async function CaptacionListaPage({
 
   return (
     <ArmazonCaptacion activa="lista" quedan={quedan}>
-      <Listado def={await cargarListadoCaptacion(ctx)} ctx={ctx} ruta="/captacion/lista" searchParams={searchParams} />
+      <Listado def={await cargarListadoCaptacion(ctx)} ctx={ctx} ruta="/consultas/lista" searchParams={searchParams} />
     </ArmazonCaptacion>
   );
 }

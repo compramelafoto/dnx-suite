@@ -157,7 +157,7 @@ describe("misTareas", () => {
     expect(r.hoy.map((t) => t.id)).toEqual(["mia", "suelta"]);
     expect(r.hoy[0]).toEqual({
       id: "mia", titulo: "mia", vence: d, obligatoria: false, etapa: "Nueva",
-      sujeto: { titulo: "Laura", subtitulo: "Boda", href: "/captacion/lead-1" },
+      sujeto: { titulo: "Laura", subtitulo: "Boda", href: "/consultas/lead-1" },
     });
     expect(r.hoy[1]?.etapa).toBeNull();
     expect(await T.misTareas({ ...EQUIPO, userId: null }, AHORA)).toEqual({ vencidas: [], hoy: [], proximas: [] });

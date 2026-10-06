@@ -109,7 +109,7 @@ function DatosEtapa({ e, venta, unica }: { e: EtapaConfig; venta: boolean; unica
       {venta ? (
         <div className="fo-field-stack max-w-xs">
           <label className="fo-label" htmlFor={`et-estado-${e.id}`}>
-            Estado equivalente en Captación
+            Estado equivalente en Consultas
           </label>
           <select id={`et-estado-${e.id}`} name="estadoCaptacion" defaultValue={e.leadStatus ?? ""} className="fo-input">
             <option value="">Ninguno (no cambia el estado)</option>

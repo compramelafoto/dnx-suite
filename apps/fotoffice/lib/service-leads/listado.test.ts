@@ -213,16 +213,23 @@ describe("acceso a filas", () => {
 
 describe("rutas y guarda (prueba de fuente)", () => {
   const leer = (ruta: string) => readFileSync(resolve(__dirname, "../..", ruta), "utf8");
-  it("/dashboard/service-leads redirige a /captacion", () => {
-    expect(leer("app/dashboard/service-leads/page.tsx")).toContain('redirect("/captacion")');
+  it("/dashboard/service-leads redirige a /consultas", () => {
+    expect(leer("app/dashboard/service-leads/page.tsx")).toContain('redirect("/consultas")');
   });
   it("el guarda es la puerta de main: módulo encendido y nivel por módulo", () => {
     const fuente = leer("lib/service-leads/access.ts");
     expect(fuente).toContain('requireServiceLeadsContext("VIEW")');
   });
-  it("el menú y el registro de módulos apuntan a /captacion", () => {
-    expect(leer("components/shell/shell-nav.tsx")).toContain('href: "/captacion"');
-    expect(leer("lib/modules/registry.ts")).toContain('route: "/captacion"');
+  it("el menú y el registro de módulos apuntan a /consultas", () => {
+    expect(leer("components/shell/shell-nav.tsx")).toContain('href: "/consultas"');
+    expect(leer("lib/modules/registry.ts")).toContain('route: "/consultas"');
+  });
+  it("el grupo del menú se llama Consultas y su ítem no repite el nombre", () => {
+    const nav = leer("components/shell/shell-nav.tsx");
+    expect(nav).toContain('{ title: "Consultas", items: captacion');
+    expect(nav).toContain('label: "Bandeja"');
+    expect(nav).not.toContain('label: "Consultas"');
+    expect(nav).not.toContain('title: "Captación"');
   });
 });
 

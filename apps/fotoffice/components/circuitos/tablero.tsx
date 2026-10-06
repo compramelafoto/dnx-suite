@@ -181,7 +181,7 @@ export function Tablero({
     if (f.responsable !== null) q.set("responsable", String(f.responsable));
     if (f.soloVencidas) q.set("vencidas", "si");
     const s = q.toString();
-    router.push(s ? `/captacion?${s}` : "/captacion");
+    router.push(s ? `/consultas?${s}` : "/consultas");
   }
 
   if (!circuito) {
@@ -195,7 +195,7 @@ export function Tablero({
     );
   }
 
-  const hrefLista = `/captacion/lista?circuito=${encodeURIComponent(circuito.id)}`;
+  const hrefLista = `/consultas/lista?circuito=${encodeURIComponent(circuito.id)}`;
   const zonaClase = (clave: string, color: string) =>
     `flex min-h-24 items-center justify-center rounded-lg border-2 border-dashed p-4 text-center text-sm font-medium ${color} ${
       sobre === clave ? "ring-2 ring-[var(--fo-accent)]" : ""

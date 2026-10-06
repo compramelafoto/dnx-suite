@@ -80,8 +80,8 @@ export function AutomaticoForm({
       </div>
       {soloApagar ? (
         <p role="note" className="rounded-lg border border-[var(--fo-border)] p-3 text-sm">
-          El módulo Captación está apagado, así que esta respuesta no se está mandando aunque figure encendida. Mientras
-          siga apagado sólo podés apagarla; para editar el texto o volver a encenderla, activá Captación en
+          El módulo Consultas está apagado, así que esta respuesta no se está mandando aunque figure encendida. Mientras
+          siga apagado sólo podés apagarla; para editar el texto o volver a encenderla, activá Consultas en
           Configuración → Módulos.
         </p>
       ) : null}

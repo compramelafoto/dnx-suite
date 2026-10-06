@@ -101,7 +101,7 @@ describe("guardas comunes", () => {
 
   it.each(LLAMADAS)("%s: si sale bien, revalida tablero, ficha e inicio", async (_n, llamar) => {
     expect((await llamar()) as { ok: boolean }).toMatchObject({ ok: true });
-    expect(H.revalidate.mock.calls.map((c) => c[0])).toEqual(["/captacion", "/captacion/lead-1", "/dashboard"]);
+    expect(H.revalidate.mock.calls.map((c) => c[0])).toEqual(["/consultas", "/consultas/lead-1", "/dashboard"]);
   });
 
   it("si el motor rechaza, no revalida y devuelve el error", async () => {

@@ -2,15 +2,15 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { PageHeader } from "@/components/page-header";
 
-/** Las pestañas de Captación. El Informe es la Tarea 11. */
+/** Las pestañas de Consultas. El Informe es la Tarea 11. */
 export const PESTANAS_CAPTACION = [
-  { clave: "tablero", texto: "Tablero", href: "/captacion" },
-  { clave: "lista", texto: "Lista", href: "/captacion/lista" },
-  { clave: "informe", texto: "Informe", href: "/captacion/informe" },
+  { clave: "tablero", texto: "Tablero", href: "/consultas" },
+  { clave: "lista", texto: "Lista", href: "/consultas/lista" },
+  { clave: "informe", texto: "Informe", href: "/consultas/informe" },
 ] as const;
 export type PestanaCaptacion = (typeof PESTANAS_CAPTACION)[number]["clave"];
 
-/** Cabecera común de Captación: título, pestañas y el aviso de las consultas por ordenar. */
+/** Cabecera común de Consultas: título, pestañas y el aviso de las consultas por ordenar. */
 export function ArmazonCaptacion({
   activa,
   quedan,
@@ -22,8 +22,8 @@ export function ArmazonCaptacion({
 }) {
   return (
     <div className="space-y-6">
-      <PageHeader title="Captación" description="Consultas de presupuesto, organizadas por etapas." />
-      <nav aria-label="Vistas de Captación" className="flex gap-1 border-b border-[var(--fo-border)]">
+      <PageHeader title="Consultas" description="Consultas de presupuesto, organizadas por etapas." />
+      <nav aria-label="Vistas de Consultas" className="flex gap-1 border-b border-[var(--fo-border)]">
         {PESTANAS_CAPTACION.map((p) => (
           <Link
             key={p.clave}

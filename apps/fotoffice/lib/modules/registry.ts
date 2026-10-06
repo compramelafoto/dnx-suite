@@ -98,12 +98,12 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
   },
   {
     key: SERVICE_LEADS_MODULE_KEY,
-    label: "Captación de presupuestos",
+    label: "Consultas de presupuesto",
     description:
       "Formularios públicos para pedir presupuesto y la bandeja donde llegan esas consultas.",
     category: "GENERAL",
     order: 24,
-    route: "/captacion",
+    route: "/consultas",
     status: "AVAILABLE",
     family: "negocio",
   },
