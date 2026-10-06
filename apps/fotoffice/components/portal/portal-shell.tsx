@@ -4,6 +4,7 @@ import type { RoleSelector as RoleSelectorData } from "@/lib/portal/profiles";
 import { type ResolvedPortalItem } from "@/lib/portal/menu";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import { PortalNav, PortalSidebar } from "./portal-nav";
+import { NotificationBell } from "./notification-bell";
 
 /**
  * El marco del portal: identidad arriba, navegación al costado (computadora) o abajo
@@ -22,6 +23,7 @@ export function PortalShell({
   institution,
   vocabulary,
   roleSelector = null,
+  notifications = false,
   children,
 }: {
   items: ResolvedPortalItem[];
@@ -30,6 +32,8 @@ export function PortalShell({
   vocabulary: PersonVocabulary;
   /** Si el socio también es equipo de esta institución: el selector de rol (socio activo). */
   roleSelector?: RoleSelectorData | null;
+  /** La campanita de novedades: sólo para el socio (el alumno no tiene de qué enterarse acá). */
+  notifications?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -54,6 +58,8 @@ export function PortalShell({
           </div>
 
           <div className="flex min-w-0 items-center gap-3">
+            {/* A la izquierda del nombre: se ve sin tapar la identidad y queda a mano del pulgar. */}
+            {notifications ? <NotificationBell /> : null}
             <div className="min-w-0 text-right">
               <p className="truncate text-sm font-semibold leading-tight">{member.fullName}</p>
               <p className="truncate text-xs text-[var(--fo-muted)]">
