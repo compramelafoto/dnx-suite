@@ -22,10 +22,19 @@ import { GOVERNANCE_MODULE_KEY, type ProjectStatus } from "./constants";
  * - Los tipos de proyecto (las plantillas) son sólo de quien coordina: `requireGovernanceCoordinator`.
  * - El responsable de una tarea, aunque sólo vea, carga sus avances y la cierra (`canWorkOnTask`).
  *
+ * Excepciones a propósito, que siguen con MANAGE solo:
+ * - Las decisiones de una reunión (`treatAgendaItemAction` en `reuniones/actions.ts`) cambian el
+ *   estado del proyecto sin ser su editor: son decisiones colegiadas de la comisión y quedan en el
+ *   acta, no de una persona.
+ * - La plata del proyecto (`dinero-actions.ts`) no sigue esta regla: las cotizaciones y las
+ *   estimaciones de las etapas piden MANAGE; reservar, gastar, ingresar y el saldo inicial piden
+ *   además "Plata de proyectos" de Caja (`canHandleProjectMoney`).
+ *
  * Dueño y admin gestionan y coordinan siempre (`resolveModuleAction` les da toda acción). Los roles
- * de la comisión salen de las plantillas: Presidencia y Secretaría gestionan, el resto ve; la
- * acción de coordinar se tilda a mano en la grilla de roles. El personal sin roles no entra:
- * Gobierno no existía antes de los roles y no hay una compatibilidad que conservar.
+ * de la comisión salen de las plantillas: Presidencia y Secretaría gestionan Gobierno y traen
+ * `governance.coordinate` de fábrica; el resto ve. En la grilla de roles se puede sacar o dar a
+ * otro rol. El personal sin roles no entra: Gobierno no existía antes de los roles y no hay una
+ * compatibilidad que conservar.
  */
 
 async function contextoBase() {
@@ -98,7 +107,16 @@ export async function requireProjectEditor(projectId: string) {
   const ctx = await requireGovernanceManager();
   const p = await prisma.govProject.findFirst({
     where: { id: projectId, workspaceId: ctx.workspace.id },
-    select: { id: true, status: true, title: true, responsibleMemberId: true, createdByUserId: true },
+    select: {
+      id: true,
+      status: true,
+      title: true,
+      description: true,
+      deadlineAt: true,
+      visibleToMembers: true,
+      responsibleMemberId: true,
+      createdByUserId: true,
+    },
   });
   if (!p) redirect("/gobierno?error=" + encodeURIComponent("Ese proyecto no existe."));
   if (!canEditProject(ctx, p)) {

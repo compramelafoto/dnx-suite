@@ -158,9 +158,8 @@ const CAMPOS: Record<string, string> = {
 
 export async function updateProjectAction(fd: FormData): Promise<void> {
   const projectId = campo(fd, "projectId");
-  const { workspace, user } = await requireProjectEditor(projectId);
-  const actual = await prisma.govProject.findFirst({ where: { id: projectId, workspaceId: workspace.id } });
-  if (!actual) conError(LISTA, "Ese proyecto no existe.");
+  // La guarda ya trajo el proyecto (dentro del workspace) con los campos que se comparan acá.
+  const { workspace, user, project: actual } = await requireProjectEditor(projectId);
   const parsed = parseProjectForm(fd);
   if (!parsed.ok) conError(detalle(projectId), parsed.error);
   const v = parsed.values;

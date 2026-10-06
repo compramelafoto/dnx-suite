@@ -193,6 +193,39 @@ describe("editar un proyecto", () => {
     });
   }
 
+  it("una etapa de OTRO proyecto se rechaza aunque se edite el propio, y no se escribe nada", async () => {
+    preparar("coordina");
+    // La base sólo encuentra la etapa si es de este proyecto (s-1 de p-1); s-ajena es de otro.
+    h.db.govProjectStage.findFirst.mockImplementation(async ({ where }: { where: { id: string; projectId: string } }) =>
+      where.id === "s-1" && where.projectId === "p-1" ? { id: "s-1", title: "Etapa", order: 0, _count: { tasks: 0 } } : null,
+    );
+    const noExiste = `/gobierno/p-1?error=${encodeURIComponent("Esa etapa no existe.")}`;
+    expect(
+      await destinoDe(() => acciones.renameStageAction(form({ projectId: "p-1", stageId: "s-ajena", title: "Otra" }))),
+    ).toBe(noExiste);
+    expect(await destinoDe(() => acciones.removeStageAction(form({ projectId: "p-1", stageId: "s-ajena" })))).toBe(noExiste);
+    expect(
+      await destinoDe(() => acciones.moveStageAction(form({ projectId: "p-1", stageId: "s-ajena", direction: "down" }))),
+    ).not.toContain("error=");
+    expect(
+      await destinoDe(() =>
+        acciones.addTaskAction(form({ projectId: "p-1", stageId: "s-ajena", title: "Pedir sillas" })),
+      ),
+    ).toBe(noExiste);
+    expect(h.db.govProjectStage.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "s-ajena", projectId: "p-1" } }),
+    );
+    expect(h.db.govProjectStage.update).not.toHaveBeenCalled();
+    expect(h.db.govProjectStage.delete).not.toHaveBeenCalled();
+    expect(h.db.govProjectTask.create).not.toHaveBeenCalled();
+  });
+
+  it("updateProjectAction lee el proyecto una sola vez", async () => {
+    preparar("responsable");
+    await destinoDe(() => acciones.updateProjectAction(form({ projectId: "p-1", title: "Muestra anual 2027" })));
+    expect(h.db.govProject.findFirst).toHaveBeenCalledTimes(1);
+  });
+
   it("las etapas buscan el proyecto dentro del workspace", async () => {
     preparar("coordina");
     await destinoDe(() => acciones.addStageAction(form({ projectId: "p-1", title: "Buffet" })));
