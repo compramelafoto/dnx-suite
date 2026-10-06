@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { logoutAction } from "@/app/ingresar/actions";
+import { RedaccionMenuSearch } from "@/components/redaccion/redaccion-menu-search";
 import {
   NEWSROOM_NAV,
   newsroomNavActive,
@@ -14,6 +15,8 @@ type AdminNavItem = {
   label: string;
   short: string;
   exact?: boolean;
+  /** Qué se hace ahí, en una línea. Solo la usa el buscador del menú; no se dibuja. */
+  description?: string;
 };
 
 type Props = {
@@ -92,20 +95,73 @@ export function RedaccionNav({
   const search = searchParams?.toString() ?? "";
 
   const adminNav: AdminNavItem[] = [
-    { href: "/admin", label: "Panel de dirección", short: "D", exact: true },
+    {
+      href: "/admin",
+      label: "Panel de dirección",
+      short: "D",
+      exact: true,
+      description: "Herramientas de administración del medio",
+    },
     ...(showApprovals
-      ? [{ href: "/admin/aprobaciones", label: "Aprobaciones", short: "A" }]
+      ? [
+          {
+            href: "/admin/aprobaciones",
+            label: "Aprobaciones",
+            short: "A",
+            description: "Notas en revisión que esperan tu decisión",
+          },
+        ]
       : []),
     ...(showUsers
-      ? [{ href: "/admin/usuarios", label: "Equipo y roles", short: "U" }]
+      ? [
+          {
+            href: "/admin/usuarios",
+            label: "Equipo y roles",
+            short: "U",
+            description: "Quién puede redactar, publicar y administrar",
+          },
+        ]
       : []),
-    { href: "/admin/eventos", label: "Eventos (admin)", short: "Ev" },
-    { href: "/admin/ayuda", label: "Cómo publicar", short: "?" },
-    { href: "/admin/configuracion", label: "Configuración", short: "⚙" },
+    {
+      href: "/admin/eventos",
+      label: "Eventos (admin)",
+      short: "Ev",
+      description: "Cargar y editar los eventos de la agenda",
+    },
+    {
+      href: "/admin/ayuda",
+      label: "Cómo publicar",
+      short: "?",
+      description: "Guía de publicación para la dirección",
+    },
+    {
+      href: "/admin/configuracion",
+      label: "Configuración",
+      short: "⚙",
+      description: "Datos y ajustes del medio",
+    },
   ];
 
   return (
     <nav className="mt-4 flex flex-col gap-1" aria-label="Centro Editorial">
+      {/* Mismos grupos y mismo filtro de permisos que el menú: el buscador no decide nada. */}
+      <div className="mb-2">
+        <RedaccionMenuSearch
+          groups={[
+            { title: "Centro Editorial", items: NEWSROOM_NAV },
+            ...(showAdmin
+              ? [
+                  {
+                    title: "Dirección",
+                    items: adminNav.map((i) => ({ ...i, hint: i.description })),
+                  },
+                ]
+              : []),
+          ]}
+          compact={collapsed}
+          onNavigate={onNavigate}
+        />
+      </div>
       {!collapsed ? (
         <p className="mb-1 hidden px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--is-muted)] lg:block">
           Centro Editorial

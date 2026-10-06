@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import PhotoSlideViewer from "@/components/photo/PhotoSlideViewer";
 import CheckoutTermsAcceptance from "@/components/checkout/CheckoutTermsAcceptance";
 import CheckoutMpPreparingOverlay from "@/components/checkout/CheckoutMpPreparingOverlay";
@@ -17,7 +16,7 @@ import ComboFrames from "./ComboFrames";
 import CanjeSteps, { type CanjeStepKey } from "./CanjeSteps";
 import PhotoPickGrid from "./PhotoPickGrid";
 
-type Paso = "intro" | "combo" | "pregunta" | "extras" | "datos";
+type Paso = "intro" | "combo" | "pregunta" | "extras" | "datos" | "listo";
 
 type Props = {
   token: string;
@@ -59,7 +58,6 @@ function primerNombre(nombre: string | null): string | null {
  * los dos momentos es el punto: la familia nunca tiene que adivinar qué se paga.
  */
 export default function CanjeFlow({ token, album, combo, product, photos }: Props) {
-  const router = useRouter();
   const [paso, setPaso] = useState<Paso>("intro");
   const [comboIds, setComboIds] = useState<number[]>([]);
   const [extras, setExtras] = useState<Array<{ photoId: number; format: CanjeExtraFormat }>>([]);
@@ -81,6 +79,7 @@ export default function CanjeFlow({ token, album, combo, product, photos }: Prop
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [mpPreparando, setMpPreparando] = useState(false);
+  const [resultado, setResultado] = useState<{ pedido: number; downloadUrl: string | null } | null>(null);
   const idempotencyRef = useRef<string | null>(null);
   const selfieInputRef = useRef<HTMLInputElement>(null);
 
@@ -99,7 +98,7 @@ export default function CanjeFlow({ token, album, combo, product, photos }: Prop
   );
   const comboCompleto = comboIds.length >= n;
   const stepKey: CanjeStepKey =
-    paso === "intro" || paso === "combo" ? "combo" : paso === "datos" ? "confirmar" : "extras";
+    paso === "intro" || paso === "combo" ? "combo" : paso === "datos" || paso === "listo" ? "confirmar" : "extras";
 
   const irA = (p: Paso) => {
     setAviso(null);
@@ -280,7 +279,13 @@ export default function CanjeFlow({ token, album, combo, product, photos }: Prop
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || "No pudimos confirmar el pedido.");
       if (data?.paid === true && typeof data?.id === "number") {
-        router.push(`/a/${album.id}/canje/listo?pedido=${data.id}`);
+        // El combo cubrió todo: la última pantalla lleva directo a descargar los digitales.
+        setResultado({
+          pedido: data.id,
+          downloadUrl: typeof data.downloadUrl === "string" ? data.downloadUrl : null,
+        });
+        setEnviando(false);
+        irA("listo");
         return;
       }
       if (data?.initPoint) {
@@ -655,6 +660,40 @@ export default function CanjeFlow({ token, album, combo, product, photos }: Prop
                 error={errorTerminos}
               />
             </div>
+          </section>
+        ) : null}
+
+        {paso === "listo" && resultado ? (
+          <section className="mx-auto max-w-xl rounded-2xl bg-white px-5 py-8 text-center shadow-[0_1px_2px_rgba(60,40,20,0.08)] sm:px-10">
+            <ComboFrames slots={n} photoIds={comboIds} thumbUrl={thumbUrl} size="lg" />
+            <h1 className="m-0 mt-6 text-2xl font-semibold text-[#1f2328]">¡Listo! Tu combo quedó canjeado</h1>
+            <p className="m-0 mt-1 text-sm text-[#6b6f76]">Pedido #{resultado.pedido}</p>
+            {resultado.downloadUrl ? (
+              <>
+                <a
+                  href={resultado.downloadUrl}
+                  className="mt-7 inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-[#2f7d5b] px-6 text-base font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2f7d5b] sm:w-auto"
+                >
+                  Descargar mis fotos digitales
+                </a>
+                <p className="m-0 mt-3 text-sm text-[#4b4f56]">
+                  Si todavía se están preparando, esa página te avisa y se actualiza sola. También te mandamos
+                  el link a <strong>{email.trim()}</strong>.
+                </p>
+              </>
+            ) : (
+              <p className="m-0 mt-5 text-[#4b4f56]">
+                Te mandamos un correo a <strong>{email.trim()}</strong> con el detalle del pedido.
+              </p>
+            )}
+            <p className="m-0 mt-5 text-[15px] text-[#3d4148]">
+              Las fotos impresas te las entrega {album.photographerName ?? "el fotógrafo"}.
+            </p>
+            {album.slug ? (
+              <a href={`/album/${album.slug}`} className="mt-6 inline-block text-sm font-medium text-[#a8652e] underline">
+                Volver a la galería
+              </a>
+            ) : null}
           </section>
         ) : null}
 

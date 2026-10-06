@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { AdminMenuSearch } from "@/components/admin/AdminMenuSearch";
 import { AdminNavIcon } from "@/components/admin/AdminNavIcon";
 import { Wordmark } from "@/components/brand/Wordmark";
 import {
@@ -38,6 +39,17 @@ export function AdminSidebar({ className, onNavigate }: Props) {
         <p className="mt-3 text-xs font-semibold uppercase tracking-[0.14em] text-ck-text-muted">
           Panel operativo
         </p>
+      </div>
+
+      {/* El grupo principal no tiene título en el menú; en el buscador lo llamamos "Operación". */}
+      <div className="border-b border-ck-border px-3 py-3">
+        <AdminMenuSearch
+          groups={[
+            { title: "Operación", items: main },
+            { title: "Sistema", items: system },
+          ]}
+          onNavigate={onNavigate}
+        />
       </div>
 
       <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5" aria-label="Administración">

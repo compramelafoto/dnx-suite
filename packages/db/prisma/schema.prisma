@@ -7080,6 +7080,7 @@ model Workspace {
   courses                     Course[]
   courseBeneficiaries         CourseBeneficiary[]
   courseSaleShares            CourseSaleShare[]
+  courseResaleAgreements      CourseResaleAgreement[]
   courseEnrollments           CourseEnrollment[]
   courseAccesses              CourseAccess[]
   courseSalesCourses          CourseSalesCourse[]
@@ -7122,6 +7123,8 @@ model Workspace {
   raffleSettings              RaffleSettings?
   govProjectTypes             GovProjectType[]
   govProjects                 GovProject[]
+  govMeetings                 GovMeeting[]
+  contestShowcase             WorkspaceContestShowcase?
   clients                     Client[]
   cashAccounts                CashAccount[]
   cashCategories              CashCategory[]
@@ -7285,6 +7288,8 @@ model FotofficeMailingSettings {
   bulkEnabled      Boolean  @default(false)
   /// Resumen semanal del blog (lunes 9:00, hora argentina).
   weeklyBlogDigest Boolean  @default(false)
+  /// Las campañas libres necesitan la aprobación de otra persona con gestión en Comunicación.
+  requireApproval  Boolean  @default(false)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }
@@ -7305,6 +7310,8 @@ model FotofficeEmailCampaign {
   blogPostIds     Int[]                    @default([])
   /// Clave de la fecha (FotofficeMailingOccasion.key) en los saludos de fechas especiales.
   occasionKey     String?
+  /// Campaña libre (FotofficeMailingMessage) que originó este envío.
+  messageId       String?
   /// SENDING · SENT · FAILED
   status          String                   @default("SENDING")
   recipientsTotal Int                      @default(0)
@@ -7335,11 +7342,18 @@ model FotofficeEmailDelivery {
   resendId   String?
   error      String?
   sentAt     DateTime?
+  /// Métricas que informa Resend por webhook (primer evento de cada tipo).
+  deliveredAt  DateTime?
+  openedAt     DateTime?
+  clickedAt    DateTime?
+  bouncedAt    DateTime?
+  complainedAt DateTime?
   createdAt  DateTime               @default(now())
   campaign   FotofficeEmailCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
   @@unique([campaignId, email])
   @@index([campaignId, status])
+  @@index([resendId])
 }
 
 /// Bajas de los correos a socios. `topic = "all"`: ningún correo masivo de la institución.
@@ -7385,7 +7399,7 @@ model FotofficeMailingOccasion {
   workspaceId    String
   /// Clave del catálogo ("navidad", "birthday"…) o "propia-<id>" para las que agrega la institución.
   key            String
-  /// EFEMERIDE · BIRTHDAY · ANNIVERSARY
+  /// EFEMERIDE · BIRTHDAY · ANNIVERSARY · LIFECYCLE
   kind           String
   enabled        Boolean  @default(false)
   /// Día del año en las efemérides. Nulos en los saludos personales y en fechas sin confirmar.
@@ -7399,10 +7413,44 @@ model FotofficeMailingOccasion {
   specialties    String[] @default([])
   /// Aniversario: sólo en 1, 5, 10, 15… años.
   milestonesOnly Boolean  @default(false)
+  /// Ciclo del socio: cuántos días después del ingreso, de la baja o del último ingreso al portal.
+  offsetDays     Int?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   @@unique([workspaceId, key])
+}
+
+/// Una campaña libre redactada en Comunicación → Campañas. Al lanzarse crea un
+/// FotofficeEmailCampaign (kind CUSTOM) que hace el envío.
+model FotofficeMailingMessage {
+  id                  String    @id @default(cuid())
+  workspaceId         String
+  /// Nombre interno, para reconocerla en la lista.
+  name                String
+  subject             String
+  body                String    @db.Text
+  imageUrl            String?
+  ctaLabel            String?
+  ctaUrl              String?
+  /// Filtros (vacío = todos los socios activos). Si hay de los dos, tiene que cumplir ambos.
+  categoryIds         String[]  @default([])
+  specialties         String[]  @default([])
+  /// DRAFT · PENDING_APPROVAL · SCHEDULED · SENT
+  status              String    @default("DRAFT")
+  /// null = enviar apenas esté aprobada (o al apretar «Enviar ahora»).
+  scheduledAt         DateTime?
+  createdByUserId     Int?
+  approvalRequestedAt DateTime?
+  approvedByUserId    Int?
+  approvedAt          DateTime?
+  campaignId          String?
+  sentAt              DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([workspaceId, createdAt])
+  @@index([status, scheduledAt])
 }
 
 /// Snapshot INMUTABLE de una publicación del sitio — nunca se edita después de creado. Solo
@@ -7653,6 +7701,7 @@ model Member {
   welcome                         MemberWelcome?
   aboutMe                         MemberAboutMe?
   spotlights                      MemberSpotlight[]
+  notificationSeen                MemberNotificationSeen?
   govProjectsProposed             GovProject[]                      @relation("GovProjectProposer")
   govProjectsResponsible          GovProject[]                      @relation("GovProjectResponsible")
   govTasksAssigned                GovProjectTask[]
@@ -9335,6 +9384,10 @@ model Course {
   completionPercent     Int                @default(80)
   /// El socio activo de la institución lo toma gratis desde su portal; el público lo paga.
   freeForMembers        Boolean            @default(false)
+  /// El dueño lo ofrece en el Mercado de cursos para que otros negocios lo revendan.
+  offeredToResellers    Boolean            @default(false)
+  /// % sugerido para revendedores, en puntos básicos. Hasta acá un pedido se aprueba solo.
+  suggestedResellerBps  Int?
   createdAt             DateTime           @default(now())
   updatedAt             DateTime           @updatedAt
   workspace             Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -9343,6 +9396,7 @@ model Course {
   enrollments           CourseEnrollment[]
   accesses              CourseAccess[]
   beneficiaries         CourseBeneficiary[]
+  resaleAgreements      CourseResaleAgreement[]
 
   @@unique([workspaceId, slug])
   @@index([workspaceId, status])
@@ -9490,6 +9544,38 @@ model CourseSaleShare {
   @@index([workspaceId])
 }
 
+/// Un negocio que vende el curso de otro (spec del mercado de cursos, sección 4.3).
+///
+/// `shareBps` sale de arriba de cada venta; el resto se reparte entre los beneficiarios. Hasta el
+/// % sugerido del curso nace ACTIVO; por encima, PENDIENTE hasta que el dueño lo apruebe. Un
+/// curso, un acuerdo por revendedor: pedir de nuevo después de un rechazo reabre la misma fila.
+model CourseResaleAgreement {
+  id                  String                      @id @default(cuid())
+  courseId            String
+  resellerWorkspaceId String
+  /// Puntos básicos de cada venta para el revendedor: 0 < shareBps < 10000.
+  shareBps            Int
+  /// Descuento para los socios del revendedor, en puntos básicos: 0..shareBps.
+  memberDiscountBps   Int                         @default(0)
+  status              CourseResaleAgreementStatus @default(PENDIENTE)
+  /// Quién pidió y quién aprobó (User.id). Sin relación a propósito: es un registro, no un permiso.
+  requestedByUserId   Int?
+  approvedByUserId    Int?
+  approvedAt          DateTime?
+  /// El negocio que lo pausó: sólo ése lo reanuda.
+  pausedByWorkspaceId String?
+  endedAt             DateTime?
+  createdAt           DateTime                    @default(now())
+  updatedAt           DateTime                    @updatedAt
+  course              Course                      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  resellerWorkspace   Workspace                   @relation(fields: [resellerWorkspaceId], references: [id], onDelete: Cascade)
+  enrollments         CourseEnrollment[]
+
+  @@unique([courseId, resellerWorkspaceId])
+  @@index([resellerWorkspaceId, status])
+  @@index([courseId, status])
+}
+
 model CourseInstance {
   id              String               @id @default(cuid())
   courseId        String
@@ -9531,6 +9617,8 @@ model CourseEnrollment {
   /// ENCIMA (cursos grabados desde el mercado de cursos): `amountArs` = lista − descuento + 5%.
   listPriceArs           Decimal?                      @db.Decimal(12, 2)
   discountArs            Decimal?                      @db.Decimal(12, 2)
+  /// El acuerdo por el que la vendió un revendedor. Null si la vendió el dueño.
+  resaleAgreementId      String?
   platformFeePercent     Decimal                       @db.Decimal(5, 2)
   platformFeeArs         Decimal                       @db.Decimal(12, 2)
   netAmountArs           Decimal                       @db.Decimal(12, 2)
@@ -9542,11 +9630,13 @@ model CourseEnrollment {
   courseInstance         CourseInstance?               @relation(fields: [courseInstanceId], references: [id], onDelete: Cascade)
   access                 CourseAccess?
   saleShares             CourseSaleShare[]
+  resaleAgreement        CourseResaleAgreement?        @relation(fields: [resaleAgreementId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, paymentStatus])
   @@index([courseId, paymentStatus])
   @@index([courseInstanceId, paymentStatus])
   @@index([paymentRef])
+  @@index([resaleAgreementId])
 }
 
 model CourseSalesTeacher {
@@ -11292,6 +11382,14 @@ enum CourseSaleShareKind {
   PLATAFORMA
   REVENDEDOR
   BENEFICIARIO
+}
+
+enum CourseResaleAgreementStatus {
+  PENDIENTE
+  ACTIVO
+  PAUSADO
+  RECHAZADO
+  TERMINADO
 }
 
 enum CourseStatus {
@@ -18290,6 +18388,8 @@ model CashMovement {
   transfer   CashTransfer? @relation(fields: [transferId], references: [id], onDelete: SetNull)
   reverses   CashMovement? @relation("CashMovementReversal", fields: [reversesMovementId], references: [id], onDelete: SetNull)
   reversedBy CashMovement? @relation("CashMovementReversal")
+  /// Proyecto de la comisión al que pertenece (Gobierno). Vive en la tabla de enlace: esta tabla no cambia.
+  govLink    GovProjectMovement?
 
   /// Lo que hace idempotente al depósito automático: una reserva no puede entrar dos veces.
   /// Los manuales no chocan entre sí porque `sourceRef` es nulo y Postgres no considera
@@ -20870,6 +20970,11 @@ model GovProject {
   tasks       GovProjectTask[]
   attachments GovAttachment[]
   events      GovProjectEvent[]
+  votes       GovVote[]
+  meetingItems GovMeetingItem[]
+  quotes       GovQuote[]
+  reservations GovReservation[]
+  movements    GovProjectMovement[]
 
   @@index([workspaceId, status])
   @@index([workspaceId, deadlineAt])
@@ -20886,6 +20991,8 @@ model GovProjectStage {
 
   project GovProject       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   tasks   GovProjectTask[]
+  quotes    GovQuote[]
+  movements GovProjectMovement[]
 
   @@index([projectId, order])
 }
@@ -20941,6 +21048,8 @@ model GovAttachment {
   workspaceId      String
   projectId        String
   taskUpdateId     String?
+  /// Archivo de una cotización: nunca visible para socios (puede tener datos del proveedor).
+  quoteId          String?
   r2Key            String   @unique
   filename         String
   contentType      String
@@ -20952,6 +21061,7 @@ model GovAttachment {
 
   project    GovProject     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   taskUpdate GovTaskUpdate? @relation(fields: [taskUpdateId], references: [id], onDelete: SetNull)
+  quote      GovQuote?      @relation(fields: [quoteId], references: [id], onDelete: SetNull)
 
   @@index([projectId, createdAt])
   @@index([taskUpdateId])
@@ -20975,4 +21085,181 @@ model GovProjectEvent {
   project GovProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId, createdAt])
+}
+
+/// Voto de un integrante con cargo vigente sobre un proyecto. Mide apoyo; la aprobación formal se
+/// registra en reunión. Se puede cambiar mientras la votación está abierta.
+model GovVote {
+  id          String   @id @default(cuid())
+  projectId   String
+  voterUserId Int
+  /// FOR | AGAINST
+  value       String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project GovProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, voterUserId])
+}
+
+/// Reunión de comisión: temario, tratamiento de cada tema y acta.
+model GovMeeting {
+  id          String    @id @default(cuid())
+  workspaceId String
+  title       String
+  scheduledAt DateTime
+  /// Lugar físico o enlace de la videollamada.
+  location    String?
+  /// PLANNED | HELD | MINUTES_APPROVED
+  status      String    @default("PLANNED")
+  heldAt      DateTime?
+  /// Al aprobar el acta queda fija; lo posterior son notas agregadas.
+  minutesApprovedAt       DateTime?
+  minutesApprovedByUserId Int?
+  createdByUserId         Int?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  workspace Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  items     GovMeetingItem[]
+  attendees GovMeetingAttendee[]
+  notes     GovMeetingNote[]
+
+  @@index([workspaceId, scheduledAt])
+}
+
+/// Quién estuvo. Instantánea del nombre y el cargo: el acta se lee igual aunque cambie la comisión.
+model GovMeetingAttendee {
+  id         String  @id @default(cuid())
+  meetingId  String
+  memberId   String?
+  userId     Int?
+  name       String
+  officeName String?
+
+  meeting GovMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId])
+}
+
+/// Un tema del temario: un proyecto o un tema suelto.
+model GovMeetingItem {
+  id           String    @id @default(cuid())
+  meetingId    String
+  projectId    String?
+  title        String
+  order        Int       @default(0)
+  /// Lo decidido, en texto.
+  decisionText String?
+  /// Sólo para proyectos: APPROVED | REJECTED | POSTPONED | CONTINUES
+  outcome      String?
+  /// Foto de la votación al decidir: a favor, en contra, sin votar, habilitados.
+  voteSnapshot Json?
+  treatedAt    DateTime?
+  treatedByUserId Int?
+
+  meeting GovMeeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  project GovProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([meetingId, order])
+  @@index([projectId])
+}
+
+/// Nota agregada a un acta ya aprobada: la corrección no reescribe, se suma.
+model GovMeetingNote {
+  id           String   @id @default(cuid())
+  meetingId    String
+  body         String
+  authorUserId Int?
+  authorLabel  String
+  createdAt    DateTime @default(now())
+
+  meeting GovMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId, createdAt])
+}
+
+/// Cotización recibida de un proveedor para una etapa. Se llama así para no confundirla con el
+/// módulo Presupuestos (lo que el fotógrafo le manda a su cliente).
+model GovQuote {
+  id           String    @id @default(cuid())
+  projectId    String
+  stageId      String
+  supplier     String
+  amountArs    Decimal   @db.Decimal(12, 2)
+  quotedAt     DateTime
+  validUntil   DateTime?
+  note         String?
+  /// RECEIVED | CHOSEN | DISCARDED. A lo sumo una CHOSEN por etapa.
+  status       String    @default("RECEIVED")
+  discardReason String?
+  createdByUserId Int?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  project     GovProject           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  stage       GovProjectStage      @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  attachments GovAttachment[]
+  movements   GovProjectMovement[]
+
+  @@index([projectId, stageId])
+}
+
+/// Plata reservada para un proyecto sin moverla de su cuenta. Positivo reserva, negativo libera.
+model GovReservation {
+  id              String   @id @default(cuid())
+  projectId       String
+  amountArs       Decimal  @db.Decimal(12, 2)
+  reason          String
+  meetingId       String?
+  createdByUserId Int?
+  actorLabel      String
+  createdAt       DateTime @default(now())
+
+  project GovProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+}
+
+/// Un movimiento de Caja que pertenece a un proyecto. Tabla de enlace a propósito: agregar
+/// columnas a `CashMovement` obligaría a tocar esa tabla en todas las bases que la comparten.
+model GovProjectMovement {
+  id             String   @id @default(cuid())
+  projectId      String
+  stageId        String?
+  quoteId        String?
+  cashMovementId String   @unique
+  createdAt      DateTime @default(now())
+
+  project      GovProject       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  stage        GovProjectStage? @relation(fields: [stageId], references: [id], onDelete: SetNull)
+  quote        GovQuote?        @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  cashMovement CashMovement     @relation(fields: [cashMovementId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+/// Hasta cuándo vio el socio sus novedades (la campanita del portal). Las novedades no se
+/// guardan: se arman al leer desde cada módulo. Esto sólo dice cuáles ya vio, para el numerito.
+model MemberNotificationSeen {
+  memberId   String   @id
+  lastSeenAt DateTime
+  updatedAt  DateTime @updatedAt
+
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+}
+
+/// Cómo muestra cada institución la vitrina de concursos (FotoRank y Clickatón) en su portal.
+/// Sin fila: se muestran todos, que es lo que la plataforma quiere por defecto.
+model WorkspaceContestShowcase {
+  workspaceId      String   @id
+  /// ALL: todos los concursos públicos · OWN: sólo los de sus organizaciones · OFF: apagada.
+  mode             String   @default("ALL")
+  /// Organizaciones de FotoRank que son de esta institución: sus concursos van primero y con su nombre.
+  organizationIds  String[] @default([])
+  includeClickaton Boolean  @default(true)
+  updatedAt        DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }

@@ -10,6 +10,7 @@ import { getGrantedActions, getModuleLevels } from "@/lib/permissions/module-acc
 import { hasLevel } from "@/lib/permissions/levels";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
+import { isFullAccessRole } from "@/lib/permissions/levels";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { loadWorkspaceHome } from "@/lib/workspace-home/load";
 import { WorkspaceHome } from "@/components/workspace-home/workspace-home";
@@ -49,7 +50,8 @@ export default async function WorkspaceHomePage() {
     getGrantedActions(user.id, workspaceId),
   ]);
   // Las mismas acciones sensibles que usa el menú lateral (`AdminShell`), con la misma función.
-  const acceso = { levels, actions };
+  // `fullAccess`: dueño o admin (`isFullAccessRole`), igual que el menú; decide Cobros.
+  const acceso = { levels, actions, fullAccess: isFullAccessRole(role) };
   // Sólo para el aviso "Completar los datos de la institución", que lleva a Configuración.
   const admin = canManageWorkspaceSettings(role);
   // Una tarjeta por módulo que esta persona puede al menos ver: las de un módulo en NONE

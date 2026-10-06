@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@repo/db";
 import { listActiveOfficeHolders } from "@/lib/commission/terms";
 import type { ProjectStatus, TaskStatus } from "./constants";
+import { tally, votingRoll } from "./votes";
 
 /**
  * Lecturas del módulo. Todas filtran por `workspaceId`: nunca se lee un proyecto por su id solo.
@@ -177,4 +178,220 @@ export async function listProjectTypes(workspaceId: string, opts: { includeArchi
       _count: { select: { projects: true } },
     },
   });
+}
+
+// ─── Votación ────────────────────────────────────────────────────────────────
+
+/**
+ * Quiénes votan hoy y los votos de los proyectos pedidos. Un solo viaje a la base por tabla: la
+ * lista de proyectos necesita el recuento de todos a la vez para ordenar por prioridad.
+ */
+export async function loadVoting(workspaceId: string, projectIds: readonly string[]) {
+  const [holders, votes] = await Promise.all([
+    listActiveOfficeHolders(workspaceId).catch(() => []),
+    projectIds.length === 0
+      ? Promise.resolve([])
+      : prisma.govVote.findMany({
+          where: { projectId: { in: [...projectIds] }, project: { workspaceId } },
+          select: { projectId: true, voterUserId: true, value: true, updatedAt: true },
+        }),
+  ]);
+  const roll = votingRoll(holders);
+  const porProyecto = new Map<string, { voterUserId: number; value: string; updatedAt: Date }[]>();
+  for (const v of votes) {
+    const lista = porProyecto.get(v.projectId) ?? [];
+    lista.push(v);
+    porProyecto.set(v.projectId, lista);
+  }
+  return {
+    holders,
+    roll,
+    tallyOf: (projectId: string) => tally(porProyecto.get(projectId) ?? [], roll.userIds, roll.total),
+    votesOf: (projectId: string) => porProyecto.get(projectId) ?? [],
+  };
+}
+
+// ─── Reuniones ───────────────────────────────────────────────────────────────
+
+export async function listMeetings(workspaceId: string) {
+  return prisma.govMeeting.findMany({
+    where: { workspaceId },
+    orderBy: { scheduledAt: "desc" },
+    include: { _count: { select: { items: true, attendees: true } } },
+  });
+}
+
+export async function getMeeting(workspaceId: string, meetingId: string) {
+  return prisma.govMeeting.findFirst({
+    where: { id: meetingId, workspaceId },
+    include: {
+      items: {
+        orderBy: [{ order: "asc" }, { id: "asc" }],
+        include: { project: { select: { id: true, title: true, status: true, deadlineAt: true } } },
+      },
+      attendees: { orderBy: { name: "asc" } },
+      notes: { orderBy: { createdAt: "asc" } },
+    },
+  });
+}
+
+export type MeetingDetail = NonNullable<Awaited<ReturnType<typeof getMeeting>>>;
+
+// ─── Portal del socio ────────────────────────────────────────────────────────
+
+/** Lo que el socio ve de Gobierno: sus propuestas y los proyectos que la comisión hizo visibles. */
+export async function loadMemberProjects(workspaceId: string, memberId: string) {
+  const [propias, visibles] = await Promise.all([
+    prisma.govProject.findMany({
+      where: { workspaceId, proposedByMemberId: memberId },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        statusReason: true,
+        visibleToMembers: true,
+        createdAt: true,
+        attachments: { where: { taskUpdateId: null, quoteId: null }, select: { id: true, filename: true, sizeBytes: true } },
+      },
+    }),
+    prisma.govProject.findMany({
+      where: { workspaceId, visibleToMembers: true, status: { notIn: ["MEMBER_PROPOSAL", "ARCHIVED"] } },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        deadlineAt: true,
+        description: true,
+        tasks: { select: { status: true } },
+      },
+    }),
+  ]);
+  return { propias, visibles };
+}
+
+/** Un proyecto visible, con lo que el socio puede ver: etapas, avance, total de votos y archivos visibles. */
+export async function getVisibleProject(workspaceId: string, projectId: string, memberId: string) {
+  return prisma.govProject.findFirst({
+    where: {
+      id: projectId,
+      workspaceId,
+      OR: [{ visibleToMembers: true, status: { notIn: ["MEMBER_PROPOSAL", "ARCHIVED"] } }, { proposedByMemberId: memberId }],
+    },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      status: true,
+      statusReason: true,
+      deadlineAt: true,
+      visibleToMembers: true,
+      proposedByMemberId: true,
+      stages: {
+        orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+        select: { id: true, title: true, tasks: { orderBy: { order: "asc" }, select: { id: true, title: true, status: true } } },
+      },
+      attachments: {
+        where: { quoteId: null },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, filename: true, sizeBytes: true, visibleToMembers: true, taskUpdateId: true },
+      },
+    },
+  });
+}
+
+export async function listMemberTasks(workspaceId: string, memberId: string) {
+  const rows = await prisma.govProjectTask.findMany({
+    where: { assigneeMemberId: memberId, project: { workspaceId, status: { notIn: ["ARCHIVED", "REJECTED", "CANCELLED"] } } },
+    orderBy: [{ dueAt: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }],
+    select: {
+      id: true,
+      title: true,
+      status: true,
+      dueAt: true,
+      stage: { select: { title: true } },
+      project: { select: { id: true, title: true, status: true } },
+    },
+  });
+  return rows.map((r) => ({
+    ...r,
+    status: r.status as TaskStatus,
+    project: { ...r.project, status: r.project.status as ProjectStatus },
+  }));
+}
+
+/** Una tarea del socio: sólo si es suya. Del proyecto se ve el título y la etapa, nada más. */
+export async function getMemberTask(workspaceId: string, memberId: string, taskId: string) {
+  const t = await prisma.govProjectTask.findFirst({
+    where: { id: taskId, assigneeMemberId: memberId, project: { workspaceId } },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      status: true,
+      notDoneReason: true,
+      dueAt: true,
+      closedAt: true,
+      stage: { select: { title: true } },
+      project: { select: { id: true, title: true, status: true } },
+      updates: {
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          body: true,
+          authorLabel: true,
+          createdAt: true,
+          attachments: { select: { id: true, filename: true, sizeBytes: true } },
+        },
+      },
+    },
+  });
+  return t
+    ? { ...t, status: t.status as TaskStatus, project: { ...t.project, status: t.project.status as ProjectStatus } }
+    : null;
+}
+
+/** Estados de proyecto en los que una tarea suelta puede tomarla un socio voluntario. */
+const VOLUNTARIADO: ProjectStatus[] = ["PROPOSED", "IN_REVIEW", "POSTPONED", "APPROVED", "IN_PROGRESS"];
+
+/**
+ * Tareas sin responsable que cualquier socio puede tomar ("¡necesitamos tu ayuda!").
+ *
+ * Sólo de proyectos que la comisión hizo visibles para socios: lo interno no se ofrece. Ordenadas
+ * por fecha (lo que vence antes primero; sin fecha al final).
+ */
+export async function listOpenTasksForVolunteers(workspaceId: string, take?: number) {
+  const where = {
+    assigneeMemberId: null,
+    status: { in: ["PENDING", "IN_PROGRESS"] },
+    project: { workspaceId, visibleToMembers: true, status: { in: VOLUNTARIADO } },
+  };
+  const [rows, total] = await Promise.all([
+    prisma.govProjectTask.findMany({
+      where,
+      orderBy: [{ dueAt: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }],
+      take,
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        dueAt: true,
+        stage: { select: { title: true } },
+        project: { select: { id: true, title: true } },
+      },
+    }),
+    prisma.govProjectTask.count({ where }),
+  ]);
+  return { tasks: rows, total };
+}
+
+/** La condición de "se puede tomar", para repetirla al escribir y no confiar en lo que se mostró. */
+export function volunteerableTaskWhere(workspaceId: string, taskId: string) {
+  return {
+    id: taskId,
+    assigneeMemberId: null,
+    status: { in: ["PENDING", "IN_PROGRESS"] },
+    project: { workspaceId, visibleToMembers: true, status: { in: VOLUNTARIADO } },
+  };
 }

@@ -4,6 +4,7 @@ import { Fragment, useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
+import MenuSearch, { type MenuSearchSection } from "./MenuSearch";
 
 export type SidebarItem = {
   id: string;
@@ -37,6 +38,8 @@ type Props = {
   showHeader?: boolean;
   /** Contador dinámico por item id (ej. { soporte: 3 } para mostrar badge con número) */
   dynamicBadgeCounts?: Record<string, number>;
+  /** Lupa de búsqueda (⌘K) arriba del menú. Prendida por defecto. */
+  showSearch?: boolean;
 };
 
 const defaultActiveClass = "bg-[#c27b3d]/12 text-[#c27b3d] font-medium border-l-[3px] border-[#c27b3d]";
@@ -63,6 +66,7 @@ export default function SidebarNav({
   inactiveClass = defaultInactiveClass,
   showHeader = true,
   dynamicBadgeCounts = {},
+  showSearch = true,
 }: Props) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -145,6 +149,23 @@ export default function SidebarNav({
     });
   };
 
+  // El buscador recibe lo mismo que se dibuja: las opciones sueltas van en "Menú" y los
+  // hijos, bajo el nombre del padre. Un padre que solo agrupa (sin link propio) no aparece.
+  const searchSections: MenuSearchSection[] = [{ title: "Menú", items: [] }];
+  for (const item of items) {
+    const children = item.children ?? [];
+    if (children.length === 0) {
+      searchSections[0].items.push({ href: hrefFor(item), label: item.label, icon: item.icon });
+      continue;
+    }
+    const childItems = children.map((sub) => ({ href: hrefFor(item, sub), label: sub.label, icon: item.icon }));
+    const parentHref = item.path || item.href;
+    if (parentHref && !childItems.some((c) => c.href === parentHref)) {
+      searchSections[0].items.push({ href: parentHref, label: item.label, icon: item.icon });
+    }
+    searchSections.push({ title: item.label, items: childItems });
+  }
+
   return (
     <div className="flex h-full min-h-0 w-full min-w-0 flex-col bg-white">
       {showHeader && (
@@ -158,6 +179,7 @@ export default function SidebarNav({
           </div>
         </div>
       )}
+      {showSearch && <MenuSearch sections={searchSections} className="shrink-0 px-3 pt-3" />}
       <nav
         className={cn(
           "flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y p-3",

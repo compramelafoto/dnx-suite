@@ -12,6 +12,9 @@ import { pendingPrintedCard } from "@/lib/carnet/pending-print";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { resolvePortalMenu } from "@/lib/portal/menu";
+import { listOpenTasksForVolunteers } from "@/lib/governance/repository";
+import { loadShowcase } from "@/lib/contests/load";
+import { bannerItems, type ShowcaseItem } from "@/lib/contests/showcase";
 import { PortalHome } from "@/components/portal/portal-home";
 import { loadPortalRaffles } from "@/lib/raffles/portal";
 import {
@@ -23,6 +26,8 @@ import { buildSpotlightCard } from "@/lib/spotlight/view";
 import { spotlightWeekLabel } from "@/lib/spotlight/week";
 import { loadBirthdaysOfWeek } from "@/lib/birthdays/repository";
 import type { BirthdayView } from "@/lib/birthdays/week";
+import { loadActivePlacement } from "@/lib/sponsors/placements";
+import { PortalSponsorsSection } from "@/components/sponsors/portal-sponsors-section";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +54,10 @@ export default async function PortalPage() {
     const kind = await resolveFotofficeUserKind(user.id);
     redirect(kind === "TEAM" ? "/workspace" : "/login");
   }
+
+  // La sección de sponsors arranca ya, en paralelo con todo lo demás. Nunca falla y tiene tope de
+  // espera: si no hay o DNX Partners no responde, la portada sale sin la sección.
+  const sponsorsPromesa = loadActivePlacement(context.workspace.id, "FOTOFFICE_PORTAL_SPONSORS");
 
   const profiles = await listUserProfiles(user.id);
   const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
@@ -130,6 +139,36 @@ export default async function PortalPage() {
     });
   }
 
+  // Proyectos de la comisión: proponer y ayudar. Si el módulo está prendido, la portada invita a
+  // las dos cosas, con las tareas sin responsable a la vista. Si falla, el panel sigue.
+  const gobiernoDisponible = secciones.some((s) => s.href === "/portal/proyectos" && s.state === "DISPONIBLE");
+  let gobierno: { tareasLibres: { id: string; title: string; projectTitle: string; dueAt: Date | null }[]; totalLibres: number } | null =
+    null;
+  if (gobiernoDisponible) {
+    try {
+      const libres = await listOpenTasksForVolunteers(context.workspace.id, 3);
+      gobierno = {
+        tareasLibres: libres.tasks.map((t) => ({ id: t.id, title: t.title, projectTitle: t.project.title, dueAt: t.dueAt })),
+        totalLibres: libres.total,
+      };
+    } catch (error) {
+      console.error("[fotoffice][gobierno] no se pudieron cargar las tareas libres", {
+        detalle: error instanceof Error ? error.message : "error desconocido",
+      });
+      gobierno = { tareasLibres: [], totalLibres: 0 };
+    }
+  }
+
+  // La vitrina de concursos (FotoRank y Clickatón). Si falla, el panel sigue sin la franja.
+  let concursos: ShowcaseItem[] = [];
+  try {
+    concursos = bannerItems(await loadShowcase(context.workspace.id));
+  } catch (error) {
+    console.error("[fotoffice][vitrina] no se pudo cargar la vitrina", {
+      detalle: error instanceof Error ? error.message : "error desconocido",
+    });
+  }
+
   // Los cumpleaños de la semana. Igual que la tarjeta de arriba: si falla, el panel sigue.
   let cumpleanos: BirthdayView[] = [];
   try {
@@ -143,7 +182,10 @@ export default async function PortalPage() {
     });
   }
 
+  const sponsors = await sponsorsPromesa;
+
   return (
+    <>
     <PortalHome
       institution={institution}
       member={{
@@ -170,6 +212,12 @@ export default async function PortalPage() {
       whatsappGroupUrl={duesSettings.communityWhatsappUrl}
       socioDeLaSemana={socioDeLaSemana}
       cumpleanos={cumpleanos}
+      gobierno={gobierno}
+      concursos={concursos}
     />
+    <div className="mt-8">
+      <PortalSponsorsSection sponsors={sponsors} />
+    </div>
+    </>
   );
 }

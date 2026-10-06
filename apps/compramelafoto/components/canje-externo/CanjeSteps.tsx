@@ -10,11 +10,19 @@ const PASOS: Array<{ key: CanjeStepKey; label: string }> = [
   { key: "confirmar", label: "Confirmar" },
 ];
 
-export default function CanjeSteps({ current }: { current: CanjeStepKey }) {
-  const idx = PASOS.findIndex((p) => p.key === current);
+export default function CanjeSteps({
+  current,
+  labels,
+}: {
+  current: CanjeStepKey;
+  /** Nombres propios de cada paso (el canje de preventa dice "Tu pack" en vez de "Tu combo"). */
+  labels?: Partial<Record<CanjeStepKey, string>>;
+}) {
+  const pasos = PASOS.map((p) => ({ ...p, label: labels?.[p.key] ?? p.label }));
+  const idx = pasos.findIndex((p) => p.key === current);
   return (
     <ol className="m-0 flex list-none items-center gap-2 p-0 text-xs sm:text-sm" aria-label="Pasos del canje">
-      {PASOS.map((p, i) => {
+      {pasos.map((p, i) => {
         const done = i < idx;
         const active = i === idx;
         return (
@@ -31,7 +39,7 @@ export default function CanjeSteps({ current }: { current: CanjeStepKey }) {
               {done ? "✓" : i + 1}
             </span>
             <span className={active ? "font-semibold text-[#1f2328]" : "text-[#8a8178]"}>{p.label}</span>
-            {i < PASOS.length - 1 ? <span className="mx-0.5 h-px w-3 bg-[#d8d0c7] sm:w-6" aria-hidden /> : null}
+            {i < pasos.length - 1 ? <span className="mx-0.5 h-px w-3 bg-[#d8d0c7] sm:w-6" aria-hidden /> : null}
           </li>
         );
       })}

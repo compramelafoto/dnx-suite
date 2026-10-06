@@ -8,7 +8,10 @@ import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { computeAvailableSpots, getApprovedEnrollmentCountsByInstanceIds } from "@/lib/presential-courses/availability";
 import { resolverObjetivoDeInscripcion } from "@/lib/presential-courses/enrollment-target";
 import { logCourseEvent } from "@/lib/presential-courses/log";
-import { estadoDeVenta } from "@/lib/course-marketplace/beneficiarios";
+import { beneficiariosParaMotor, estadoDeVenta } from "@/lib/course-marketplace/beneficiarios";
+import { buscarAcuerdoDeVitrina, esSocioActivoDe, existeCursoPropio } from "@/lib/course-marketplace/vitrina";
+import { decidirVenta, filasDeReparto, montosDeVenta, type MontosDeVenta } from "@/lib/course-marketplace/venta";
+import { cobroConRepartoHabilitado } from "@/lib/payments/split-1n";
 import { cargarBeneficiarios, cargarDueno } from "@/lib/course-marketplace/cargar";
 import { montosDeCompraSinReparto } from "@/lib/course-marketplace/compra";
 import { splitByPlatformFee } from "@/lib/platform-fee/fee";
@@ -61,18 +64,28 @@ export async function createPublicCourseEnrollmentAction(
   });
   if (!mod?.enabled) return { error: "Este módulo no está habilitado para este workspace." };
 
-  const course = await prisma.course.findFirst({
+  const incluir = (id: string | undefined) => ({
+    instances: id ? { where: { id } } : { where: { id: "" } }, // sin edición elegida: no trae ninguna
+  });
+  let course = await prisma.course.findFirst({
     where: {
       workspaceId: branding.workspaceId,
       slug: courseSlug,
       status: "PUBLISHED",
     },
-    include: {
-      instances: parsed.data.courseInstanceId
-        ? { where: { id: parsed.data.courseInstanceId } }
-        : { where: { id: "" } }, // sin edición elegida: no trae ninguna
-    },
+    include: incluir(parsed.data.courseInstanceId),
   });
+  // El curso propio gana con el mismo criterio que la página: si existe (aunque no esté publicado), no se busca reventa.
+  const acuerdo = course || (await existeCursoPropio(branding.workspaceId, courseSlug))
+    ? null
+    : await buscarAcuerdoDeVitrina(branding.workspaceId, courseSlug);
+  if (!course && acuerdo) {
+    // Un curso revendido es siempre grabado: no tiene ediciones.
+    course = await prisma.course.findFirst({
+      where: { id: acuerdo.courseId, status: "PUBLISHED" },
+      include: incluir(undefined),
+    });
+  }
   if (!course) return { error: "Curso no disponible para inscripción." };
   const instance = course.instances[0] ?? null;
   if (parsed.data.courseInstanceId && !instance) {
@@ -97,19 +110,43 @@ export async function createPublicCourseEnrollmentAction(
   // dueño del workspace podía editar y quedó deprecado.
   const feeBps = await getPlatformFeeBps(branding.workspaceId, COURSES_SALES_MODULE_KEY);
 
-  // Curso grabado: un curso con varios beneficiarios no se vende mientras el split de Mercado
-  // Pago esté apagado, y el 5% de la plataforma va ENCIMA del precio de lista.
-  let montos: ReturnType<typeof montosDeCompraSinReparto> | null = null;
+  // Curso grabado: el 5% de la plataforma va ENCIMA del precio de lista. Con reparto (revendido o
+  // varios beneficiarios) sólo se vende con el split de Mercado Pago encendido.
+  let montos: MontosDeVenta | null = null;
+  let conReparto = false;
   if (objetivo.courseInstanceId === null) {
-    const beneficiarios = await cargarBeneficiarios(course.id);
-    if (estadoDeVenta(course.workspaceId, beneficiarios).tipo !== "SIN_REPARTO") {
-      return { error: "Este curso todavía no está a la venta." };
-    }
-    montos = montosDeCompraSinReparto({
-      listaArs: objetivo.monto.toString(),
-      comisionPlataformaBps: feeBps,
-      owner: await cargarDueno(course.workspaceId),
+    const registrados = await cargarBeneficiarios(course.id);
+    const decision = decidirVenta({
+      estado: estadoDeVenta(course.workspaceId, registrados),
+      revendido: acuerdo !== null,
+      splitHabilitado: cobroConRepartoHabilitado(),
     });
+    if (decision.tipo === "PROXIMAMENTE") return { error: "Este curso todavía no está a la venta." };
+    if (decision.tipo === "SIN_REPARTO") {
+      montos = montosDeCompraSinReparto({
+        listaArs: objetivo.monto.toString(),
+        comisionPlataformaBps: feeBps,
+        owner: await cargarDueno(course.workspaceId),
+      });
+    } else {
+      // Con reparto: sólo llega acá con el split encendido. El descuento lo decide la sesión.
+      const [duenoDelCurso, vendedor, esSocio] = await Promise.all([
+        cargarDueno(course.workspaceId),
+        cargarDueno(branding.workspaceId),
+        esSocioActivoDe(branding.workspaceId),
+      ]);
+      montos = montosDeVenta({
+        listaArs: objetivo.monto.toString(),
+        comisionPlataformaBps: feeBps,
+        beneficiarios: beneficiariosParaMotor(duenoDelCurso, registrados),
+        vendedorWorkspaceId: branding.workspaceId,
+        reventa: acuerdo
+          ? { workspaceId: branding.workspaceId, nombre: vendedor.nombre, bps: acuerdo.shareBps, descuentoSociosBps: acuerdo.memberDiscountBps }
+          : null,
+        esSocioDelVendedor: esSocio,
+      });
+      conReparto = true;
+    }
     if (!montos.ok) return { error: montos.error };
   }
 
@@ -119,7 +156,8 @@ export async function createPublicCourseEnrollmentAction(
     : splitByPlatformFee(amount, feeBps);
   const feePercent = new Prisma.Decimal(feeBps).div(100);
 
-  const enrollment = await prisma.courseEnrollment.create({
+  const enrollment = await prisma.$transaction(async (tx) => {
+    const creada = await tx.courseEnrollment.create({
     data: {
       workspaceId: branding.workspaceId,
       courseId: course.id,
@@ -140,8 +178,16 @@ export async function createPublicCourseEnrollmentAction(
       // Sólo el curso grabado guarda el precio de lista; el presencial queda en null.
       listPriceArs: montos?.ok ? new Prisma.Decimal(montos.listPriceArs) : null,
       discountArs: montos?.ok ? new Prisma.Decimal(montos.discountArs) : null,
+      resaleAgreementId: conReparto && acuerdo ? acuerdo.id : null,
     },
     select: { id: true },
+    });
+    if (conReparto && montos?.ok) {
+      await tx.courseSaleShare.createMany({
+        data: filasDeReparto(montos.partes).map((f) => ({ ...f, enrollmentId: creada.id, amountArs: new Prisma.Decimal(f.amountArs) })),
+      });
+    }
+    return creada;
   });
   logCourseEvent("enrollment_created", {
     enrollmentId: enrollment.id,

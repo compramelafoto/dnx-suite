@@ -10,7 +10,25 @@ import { uploadGovernanceFile } from "./upload";
  * Contar un avance de una tarea: qué se hizo, con archivos si hace falta (la foto del flyer, el
  * presupuesto que mandó la imprenta). Primero suben los archivos y después se guarda todo junto.
  */
-export function TaskProgressForm({ projectId, taskId }: { projectId: string; taskId: string }) {
+type ProgressSubmit = (input: {
+  projectId: string;
+  taskId: string;
+  body: string;
+  files: { key: string; filename: string }[];
+}) => Promise<{ ok: true } | { ok: false; error: string }>;
+
+export function TaskProgressForm({
+  projectId,
+  taskId,
+  submit = addTaskProgressAction,
+  uploadEndpoint,
+}: {
+  projectId: string;
+  taskId: string;
+  /** Desde el portal se pasa la acción del socio; en el panel, la del equipo. */
+  submit?: ProgressSubmit;
+  uploadEndpoint?: string;
+}) {
   const form = useRef<HTMLFormElement>(null);
   const [texto, setTexto] = useState("");
   const [archivos, setArchivos] = useState<File[]>([]);
@@ -31,7 +49,7 @@ export function TaskProgressForm({ projectId, taskId }: { projectId: string; tas
     const subidos: { key: string; filename: string }[] = [];
     for (const [i, file] of archivos.entries()) {
       setDetalle(`Subiendo ${i + 1} de ${archivos.length}: ${file.name}`);
-      const r = await uploadGovernanceFile(file, { projectId, taskId });
+      const r = await uploadGovernanceFile(file, { projectId, taskId }, uploadEndpoint);
       if (!r.ok) {
         setError(`${file.name}: ${r.error}`);
         setEnviando(false);
@@ -41,7 +59,7 @@ export function TaskProgressForm({ projectId, taskId }: { projectId: string; tas
       subidos.push({ key: r.key, filename: r.filename });
     }
     setDetalle(null);
-    const r = await addTaskProgressAction({ projectId, taskId, body: texto, files: subidos });
+    const r = await submit({ projectId, taskId, body: texto, files: subidos });
     setEnviando(false);
     if (!r.ok) {
       setError(r.error);

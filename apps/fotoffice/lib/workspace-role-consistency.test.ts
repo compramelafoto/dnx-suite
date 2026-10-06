@@ -102,12 +102,15 @@ describe("resolución de rol de workspace — menú y páginas leen lo mismo", (
     }
     // `canManageWorkspaceSettings` sólo decide lo que es de Configuración: la sección
     // Institución, la configuración de cursos (que guarda `app/actions/settings.ts`, dueño/admin)
-    // y el dominio propio del sitio (`app/actions/website-domain.ts`, dueño/admin).
+    // y el dominio propio del sitio (`app/actions/website-domain.ts`, dueño/admin). Además, los
+    // mismos roles (`isFullAccessRole`) deciden las pantallas de plata que no se delegan (Cobros,
+    // `requiresFullAccess`), que se pasan como `fullAccess` del acceso a submódulos.
     const usos = navSrc.match(/\bcanManageWorkspaceSettings\b/g) ?? [];
     assert.match(navSrc, /const institucion: Item\[\] = canManageWorkspaceSettings/);
     assert.match(navSrc, /ve\(COURSES_SALES_MODULE_KEY\) && canManageWorkspaceSettings/);
     assert.match(navSrc, /canManageWorkspaceSettings\s*\?\s*\[\{ href: "\/website\/dominio"/);
-    assert.equal(usos.length, 5, "canManageWorkspaceSettings se usa en el menú fuera de Configuración");
+    assert.match(navSrc, /fullAccess: canManageWorkspaceSettings \}/);
+    assert.equal(usos.length, 6, "canManageWorkspaceSettings se usa en el menú fuera de Configuración");
   });
 
   it("el inicio arma los números y las tarjetas por nivel, no por rol", () => {

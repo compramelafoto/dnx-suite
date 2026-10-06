@@ -71,7 +71,8 @@ export default async function FechasPage({ searchParams }: { searchParams: Promi
     proximosCumples += birthdaysToday(socios, { y: d.getUTCFullYear(), m: d.getUTCMonth() + 1, d: d.getUTCDate() }).length;
   }
 
-  const personales = fechas.filter((o) => o.kind !== "EFEMERIDE");
+  const personales = fechas.filter((o) => o.kind === "BIRTHDAY" || o.kind === "ANNIVERSARY");
+  const ciclo = fechas.filter((o) => o.kind === "LIFECYCLE");
   const delAnio = fechas
     .filter((o) => o.kind === "EFEMERIDE")
     .map((o) => ({ o, c: cuando(o, hoy) }))
@@ -131,6 +132,21 @@ export default async function FechasPage({ searchParams }: { searchParams: Promi
       </section>
 
       <section className="space-y-3">
+        <div>
+          <h2 className="text-base font-semibold text-[var(--fo-text)]">Ciclo del socio</h2>
+          <p className="text-sm text-[var(--fo-muted)]">
+            Correos que acompañan cada etapa: los primeros días del socio nuevo, quien hace tiempo que no entra al portal y
+            quien dejó de ser socio.
+          </p>
+        </div>
+        <div className="space-y-2">
+          {ciclo.map((o) => (
+            <Fila key={o.key} o={o} linea1={describirCiclo(o)} linea2={o.cta ? `Con el botón «${o.cta.label}».` : ""} />
+          ))}
+        </div>
+      </section>
+
+      <section className="space-y-3">
         <h2 className="text-base font-semibold text-[var(--fo-text)]">Fechas del año</h2>
         <div className="space-y-2">
           {delAnio.map(({ o, c }) => (
@@ -145,6 +161,15 @@ export default async function FechasPage({ searchParams }: { searchParams: Promi
       </section>
     </div>
   );
+}
+
+function describirCiclo(o: OccasionConfig): string {
+  const n = o.offsetDays ?? 0;
+  const dias = n === 1 ? "1 día" : `${n} días`;
+  if (o.trigger === "JOINED") return `A los ${dias} de entrar a la institución`;
+  if (o.trigger === "LEFT") return `A los ${dias} de la baja, una sola vez (nunca a bajas por sanción)`;
+  if (o.trigger === "NO_LOGIN") return `Cuando lleva ${dias} sin entrar al portal (como mucho una vez cada 90 días)`;
+  return "";
 }
 
 function Fila({ o, linea1, linea2 }: { o: OccasionConfig; linea1: string; linea2: string }) {

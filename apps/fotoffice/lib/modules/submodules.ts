@@ -2,6 +2,7 @@ import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
+import { SPONSORS_MODULE_KEY } from "@/lib/sponsors/constants";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
@@ -57,6 +58,11 @@ export type SubmoduleItem = {
   levelModuleKey?: string;
   /** Acción sensible (ver `lib/permissions/actions.ts`) que además hace falta tener. */
   requiresAction?: string;
+  /**
+   * Sólo dueño o admin del negocio (`isFullAccessRole`), como exige su página. Para pantallas de
+   * plata que no se delegan con roles: un MANAGE del módulo no alcanza.
+   */
+  requiresFullAccess?: boolean;
   activeMatch: ActiveMatch;
 };
 
@@ -128,6 +134,24 @@ const CURSOS: SubmoduleItem[] = [
     icon: "GraduationCap",
     description: "Los cursos publicados y sus ediciones.",
     requiresManage: false,
+    activeMatch: "under",
+  },
+  {
+    href: "/dashboard/mercado-de-cursos",
+    label: "Mercado de cursos",
+    icon: "Store",
+    description: "Cursos de otros negocios que podés vender, y tus acuerdos de reventa.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
+    href: "/dashboard/cobros-de-cursos",
+    label: "Cobros",
+    icon: "Wallet",
+    description: "Lo que vendiste y lo que te tocó de cada venta de cursos.",
+    requiresManage: true,
+    // La página exige dueño o admin (`requireDuenoOAdminDelNegocio`): es plata.
+    requiresFullAccess: true,
     activeMatch: "under",
   },
   {
@@ -213,6 +237,17 @@ const SORTEOS: SubmoduleItem[] = [
   },
 ];
 
+const SPONSORS: SubmoduleItem[] = [
+  {
+    href: "/sponsors",
+    label: "Sponsors",
+    icon: "Handshake",
+    description: "Las marcas que acompañan a la institución y dónde aparece cada una.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+];
+
 const GOBIERNO: SubmoduleItem[] = [
   {
     href: "/gobierno",
@@ -227,6 +262,14 @@ const GOBIERNO: SubmoduleItem[] = [
     label: "Tareas",
     icon: "ListTodo",
     description: "Todas las tareas delegadas: quién tiene qué, para cuándo y qué está vencido.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
+    href: "/gobierno/reuniones",
+    label: "Reuniones",
+    icon: "CalendarClock",
+    description: "Reuniones de comisión: el temario se arma solo, lo resuelto cambia cada proyecto y queda el acta.",
     requiresManage: false,
     activeMatch: "under",
   },
@@ -438,6 +481,14 @@ const COMUNICACION: SubmoduleItem[] = [
     activeMatch: "under",
   },
   {
+    href: "/comunicacion/campanas",
+    label: "Campañas",
+    icon: "Send",
+    description: "Correos propios a todos los {personas} o a una parte: redactar, programar, aprobar y ver aperturas.",
+    requiresManage: true,
+    activeMatch: "under",
+  },
+  {
     href: "/comunicacion/fechas",
     label: "Fechas y saludos",
     icon: "CalendarDays",
@@ -468,6 +519,7 @@ const POR_MODULO: Record<string, SubmoduleItem[]> = {
   [COURSES_SALES_MODULE_KEY]: CURSOS,
   [BOOKINGS_MODULE_KEY]: RESERVAS,
   [RAFFLES_MODULE_KEY]: SORTEOS,
+  [SPONSORS_MODULE_KEY]: SPONSORS,
   [GOVERNANCE_MODULE_KEY]: GOBIERNO,
   [CASH_MODULE_KEY]: CAJA,
   [CLIENTS_MODULE_KEY]: CLIENTES,
@@ -481,7 +533,12 @@ const POR_MODULO: Record<string, SubmoduleItem[]> = {
  * sensibles vigentes que alguna pantalla exige, calculadas en el servidor con `hasModuleAction`.
  * Es serializable a propósito: viaja del servidor al menú, que es un componente de cliente.
  */
-export type SubmoduleAccess = { levels: ModuleLevels; actions: readonly string[] };
+export type SubmoduleAccess = {
+  levels: ModuleLevels;
+  actions: readonly string[];
+  /** Dueño o admin del negocio (`isFullAccessRole`). Sin dato, se asume que no. */
+  fullAccess?: boolean;
+};
 
 function puedeAbrir(moduleKey: string, item: SubmoduleItem, access: SubmoduleAccess): boolean {
   const nivel = (key: string) => access.levels[key] ?? "NONE";
@@ -490,6 +547,7 @@ function puedeAbrir(moduleKey: string, item: SubmoduleItem, access: SubmoduleAcc
   const decide = item.levelModuleKey ?? moduleKey;
   if (!hasLevel(nivel(decide), item.requiresManage ? "MANAGE" : "VIEW")) return false;
   if (item.requiresAction && !access.actions.includes(item.requiresAction)) return false;
+  if (item.requiresFullAccess && access.fullAccess !== true) return false;
   return true;
 }
 

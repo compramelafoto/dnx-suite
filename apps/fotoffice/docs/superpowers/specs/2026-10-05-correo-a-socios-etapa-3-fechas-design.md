@@ -48,3 +48,20 @@ Dos temas nuevos: `efemerides` (fechas especiales) y `saludos` (cumpleaños y an
 
 Placa de cumpleaños con la foto del socio adjunta (se puede sumar con el editor de placas), fechas
 móviles (Día del Padre / de la Madre), métricas de apertura.
+
+## Etapa 5 (05/10/2026): ciclo del socio
+
+Sección «Ciclo del socio» en la misma pantalla (kind `LIFECYCLE`, tema de baja `novedades`, columna
+`offsetDays`, todo apagado):
+
+- **Bienvenida: completá tu perfil** — a los 7 días del ingreso, botón al portal.
+- **Bienvenida: tus beneficios** — a los 30 días del ingreso, botón al portal.
+- **Hace tiempo que no entrás** — socios activos con cuenta y 60 días o más sin entrar
+  (`User.lastLoginAt`); como mucho una vez cada 90 días. Quien nunca activó la cuenta no entra (para eso
+  está la invitación).
+- **Te extrañamos (ex socios)** — a los 60 días de la baja, una vez; **nunca** a bajas por sanción;
+  botón al sitio.
+
+Los días se configuran (1 a 730). Fecha del hecho: si es fecha sola (medianoche UTC) se lee en UTC; si
+tiene hora (la guardó la aplicación) se pasa a la fecha argentina. Envío diario desde las 9, uno por
+correo y día (`lifecycle:<ws>:<clave>:<fecha>`).

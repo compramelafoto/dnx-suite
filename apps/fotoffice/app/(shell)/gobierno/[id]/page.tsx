@@ -6,7 +6,13 @@ import { Flash, MemberSelect } from "@/components/governance/member-select";
 import { ProgressBar, ProjectStatusBadge, TaskStatusBadge, UrgencyDot } from "@/components/governance/badges";
 import { ProjectFileUploader } from "@/components/governance/project-file-uploader";
 import { requireGovernanceViewer, canWorkOnTask } from "@/lib/governance/access";
-import { getProject, listMemberOptions } from "@/lib/governance/repository";
+import { getProject, listMemberOptions, loadVoting } from "@/lib/governance/repository";
+import { isVotingOpen, tallyLabel } from "@/lib/governance/votes";
+import { decimalArsToMinor, formatMinorArs } from "@/lib/membership/money";
+import { castVoteAction } from "../reuniones/actions";
+import { ProjectMoneySection } from "@/components/governance/project-money";
+import { canHandleProjectMoney, isCashOn, loadProjectMoney } from "@/lib/governance/money-server";
+import { listAccounts, listCategories } from "@/lib/cash/repository";
 import {
   canCloseTasks,
   canEditStructure,
@@ -52,13 +58,32 @@ export default async function ProyectoPage({
   const avisos = await searchParams;
   const proyecto = await getProject(workspace.id, id);
   if (!proyecto) notFound();
-  const socios = canManage ? await listMemberOptions(workspace.id) : { commission: [], others: [] };
+  const [socios, votacion] = await Promise.all([
+    canManage ? listMemberOptions(workspace.id) : Promise.resolve({ commission: [], others: [] }),
+    loadVoting(workspace.id, [proyecto.id]),
+  ]);
+  const [money, cashOn, puedePlata] = await Promise.all([
+    loadProjectMoney(workspace.id, proyecto.id),
+    isCashOn(workspace.id),
+    canHandleProjectMoney(ctx.user.id, workspace.id),
+  ]);
+  const [cuentas, categorias] =
+    cashOn && puedePlata ? await Promise.all([listAccounts(workspace.id), listCategories(workspace.id)]) : [[], []];
+  const recuento = votacion.tallyOf(proyecto.id);
+  const votos = votacion.votesOf(proyecto.id);
+  const miVoto = votos.find((v) => v.voterUserId === ctx.user.id)?.value ?? null;
+  const puedoVotar = votacion.roll.userIds.has(ctx.user.id) && isVotingOpen(proyecto.status);
+  const nombrePorUsuario = new Map<number, string>();
+  for (const h of votacion.holders) {
+    if (h.userId !== null && h.votes && !nombrePorUsuario.has(h.userId)) nombrePorUsuario.set(h.userId, `${h.displayName} (${h.officeName})`);
+  }
 
   const ahora = new Date();
   const editable = canManage && canEditStructure(proyecto.status);
   const todasLasTareas = proyecto.stages.flatMap((s) => s.tasks);
   const avance = progressOf(todasLasTareas);
-  const archivosDelProyecto = proyecto.attachments.filter((a) => a.taskUpdateId === null);
+  // Los archivos de cotizaciones se ven en su cotización, no acá: nunca se hacen visibles.
+  const archivosDelProyecto = proyecto.attachments.filter((a) => a.taskUpdateId === null && a.quoteId === null);
   const archivosDeAvances = proyecto.attachments.filter((a) => a.taskUpdateId !== null);
   const aqui = `/gobierno/${proyecto.id}`;
   const responsableActual = proyecto.responsible
@@ -98,6 +123,9 @@ export default async function ProyectoPage({
         />
         <Dato rotulo="Socios" valor={proyecto.visibleToMembers ? "Visible para socios" : "Interno de la comisión"} />
         <Dato rotulo="Creado" valor={fecha(proyecto.createdAt)} />
+        {proyecto.manualNeededArs ? (
+          <Dato rotulo="Costo aproximado" valor={formatMinorArs(decimalArsToMinor(proyecto.manualNeededArs))} />
+        ) : null}
         {proyecto.statusReason && isClosed(proyecto.status) ? (
           <div className="sm:col-span-2 lg:col-span-3">
             <Dato rotulo="Motivo" valor={proyecto.statusReason} />
@@ -159,7 +187,9 @@ export default async function ProyectoPage({
           <div>
             <h2 className="text-base font-semibold">Estado</h2>
             <p className="text-sm text-[var(--fo-muted)]">
-              Aprobar, rechazar o postergar lo decide la comisión en reunión: se anota la fecha y lo decidido.
+              {proyecto.status === "MEMBER_PROPOSAL"
+                ? "Es una propuesta de un socio. Aceptala para que entre al temario de la próxima reunión, o archivala con el motivo (el socio lo ve)."
+                : "Lo habitual es resolverlo en una reunión (Comisión → Reuniones), que lo deja en el acta. Si se decidió fuera del sistema, anotalo acá con la fecha."}
             </p>
           </div>
           <div className="flex flex-col gap-3">
@@ -167,6 +197,51 @@ export default async function ProyectoPage({
               <CambioDeEstado key={to} projectId={proyecto.id} to={to} />
             ))}
           </div>
+        </section>
+      ) : null}
+
+      {votos.length > 0 || isVotingOpen(proyecto.status) ? (
+        <section id="votacion" className="fo-card space-y-4 p-6">
+          <div>
+            <h2 className="text-base font-semibold">Votación de la comisión</h2>
+            <p className="text-sm text-[var(--fo-muted)]">
+              Mide el apoyo y ordena las prioridades. La aprobación formal se registra en una reunión.
+              {isVotingOpen(proyecto.status) ? "" : " La votación está cerrada."}
+            </p>
+          </div>
+          <p className="text-sm">
+            <span className="font-medium">{tallyLabel(recuento)}</span>
+            {recuento.eligible > 0 ? ` · ${recuento.against} en contra · ${recuento.notVoted} sin votar` : ""}
+          </p>
+          {puedoVotar ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {(["FOR", "AGAINST"] as const).map((v) => (
+                <form key={v} action={castVoteAction}>
+                  <input type="hidden" name="projectId" value={proyecto.id} />
+                  <input type="hidden" name="value" value={v} />
+                  <button
+                    type="submit"
+                    className={`fo-btn text-sm ${miVoto === v ? "fo-btn-primary" : "fo-btn-secondary"}`}
+                    aria-pressed={miVoto === v}
+                  >
+                    {v === "FOR" ? "A favor" : "En contra"}
+                  </button>
+                </form>
+              ))}
+              <span className="text-xs text-[var(--fo-muted)]">
+                {miVoto ? "Tu voto está marcado; lo podés cambiar." : "Todavía no votaste."}
+              </span>
+            </div>
+          ) : null}
+          {votos.length > 0 ? (
+            <ul className="space-y-1 text-sm text-[var(--fo-text-secondary)]">
+              {votos.map((v) => (
+                <li key={v.voterUserId}>
+                  {nombrePorUsuario.get(v.voterUserId) ?? "Ex integrante (no cuenta)"}: {v.value === "FOR" ? "a favor" : "en contra"}
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </section>
       ) : null}
 
@@ -341,6 +416,20 @@ export default async function ProyectoPage({
         ) : null}
       </section>
 
+      {money ? (
+        <ProjectMoneySection
+          projectId={proyecto.id}
+          money={money}
+          canManage={canManage}
+          canEditQuotes={canManage && canEditStructure(proyecto.status)}
+          cashOn={cashOn}
+          canHandleMoney={puedePlata}
+          acceptsMoney={proyecto.status === "APPROVED" || proyecto.status === "IN_PROGRESS"}
+          accounts={cuentas}
+          categories={categorias}
+        />
+      ) : null}
+
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -349,7 +438,7 @@ export default async function ProyectoPage({
           </div>
           {canManage ? <ProjectFileUploader projectId={proyecto.id} /> : null}
         </div>
-        {proyecto.attachments.length === 0 ? (
+        {archivosDelProyecto.length + archivosDeAvances.length === 0 ? (
           <p className="fo-card p-6 text-sm text-[var(--fo-muted)]">Todavía no hay archivos.</p>
         ) : (
           <ul className="fo-card divide-y divide-[var(--fo-border-muted)]">

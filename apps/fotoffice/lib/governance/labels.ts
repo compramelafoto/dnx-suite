@@ -132,7 +132,9 @@ export function describeEvent(type: string, data: EventData): string {
         ? `Editó ${(d.fields as string[]).join(", ")}`
         : "Editó los datos del proyecto";
     case "STATUS_CHANGED":
-      return `Pasó de «${projectStatusLabel(s(d.from))}» a «${projectStatusLabel(s(d.to))}»`;
+      return d.meetingTitle
+        ? `Pasó de «${projectStatusLabel(s(d.from))}» a «${projectStatusLabel(s(d.to))}» en «${s(d.meetingTitle)}»`
+        : `Pasó de «${projectStatusLabel(s(d.from))}» a «${projectStatusLabel(s(d.to))}»`;
     case "STAGE_ADDED":
       return `Agregó la etapa «${s(d.title)}»`;
     case "STAGE_RENAMED":
@@ -144,6 +146,7 @@ export function describeEvent(type: string, data: EventData): string {
     case "TASK_UPDATED":
       return `Editó la tarea «${s(d.title)}»`;
     case "TASK_ASSIGNED":
+      if (d.volunteered) return `${s(d.assignee)} se ofreció para «${s(d.title)}»`;
       return d.assignee
         ? `Le asignó «${s(d.title)}» a ${s(d.assignee)}`
         : `Dejó sin responsable la tarea «${s(d.title)}»`;
@@ -161,6 +164,26 @@ export function describeEvent(type: string, data: EventData): string {
         : `Dejó como interno «${s(d.filename)}»`;
     case "NOTE":
       return "Dejó una nota";
+    case "QUOTE_ADDED":
+      return `Cargó la cotización de ${s(d.supplier)} (${s(d.amount)}) para «${s(d.stage)}»`;
+    case "QUOTE_STATUS":
+      return d.status === "CHOSEN"
+        ? `Eligió la cotización de ${s(d.supplier)}`
+        : d.status === "DISCARDED"
+          ? `Descartó la cotización de ${s(d.supplier)}`
+          : `Volvió a considerar la cotización de ${s(d.supplier)}`;
+    case "STAGE_ESTIMATE":
+      return `Estimó «${s(d.stage)}» en ${s(d.amount) || "sin monto"}`;
+    case "RESERVATION":
+      return d.release ? `Liberó ${s(d.amount)} de lo reservado` : `Reservó ${s(d.amount)} para el proyecto`;
+    case "MOVEMENT_LINKED":
+      return d.kind === "INGRESO" ? `Registró un ingreso de ${s(d.amount)} en ${s(d.account)}` : `Registró un gasto de ${s(d.amount)} desde ${s(d.account)}`;
+    case "OPENING_SET":
+      return `Cargó lo asignado (${s(d.assigned)}) y gastado (${s(d.spent)}) antes de usar el sistema`;
+    case "VOTED":
+      return d.value === "FOR"
+        ? d.changed ? "Cambió su voto: a favor" : "Votó a favor"
+        : d.changed ? "Cambió su voto: en contra" : "Votó en contra";
     default:
       return type;
   }

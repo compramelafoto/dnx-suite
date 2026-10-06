@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@repo/db";
+import { partnersReader } from "@/lib/sponsors/clients";
 
 export const runtime = "nodejs";
 
 /**
- * Entrega el logo de un aliado de los sorteos, desde el dominio de FOTOFFICE.
+ * Entrega el logo de un aliado (de los sorteos o de los espacios de sponsors), desde el dominio
+ * de FOTOFFICE.
  *
  * ── Por qué existe ──
  *
@@ -22,7 +23,14 @@ export const runtime = "nodejs";
  * no hay forma de usar esta ruta para leer otra cosa del bucket.
  */
 
-const CLAVE_DE_MARCA = /^clickaton\/partners\/[a-z0-9]+\/brand\/[\w./-]+\.(png|jpe?g|webp)$/i;
+/**
+ * Las dos carpetas de logos de Partners: la de la carga de agosto de 2026
+ * (`partners/<id>/brand/`) y la actual (`partners/logos/<fecha>/`), que es donde suben tanto
+ * el panel de Clickatón como el módulo de sponsors de FOTOFFICE. Son las dos que el proxy de
+ * Clickatón deja servir en público (`apps/clickaton/lib/content/public-media-keys.ts`).
+ */
+const CLAVE_DE_MARCA =
+  /^clickaton\/partners\/(?:[a-z0-9]+\/brand\/[\w./-]+|logos\/[0-9]{4}-[0-9]{2}-[0-9]{2}\/[a-z0-9-]+)\.(png|jpe?g|webp)$/i;
 const ORIGEN = process.env.CLICKATON_MEDIA_ORIGIN?.trim() || "https://clickaton-dnxsuite.vercel.app";
 
 async function buscarArchivo(assetId: string) {
@@ -35,12 +43,10 @@ async function buscarArchivo(assetId: string) {
     },
     select: { storageKey: true },
   };
-  const { getClickatonReadonlyClient, isClickatonReadonlyAvailable } = await import(
-    "@repo/db/clickaton-readonly-client"
-  );
-  return isClickatonReadonlyAvailable()
-    ? getClickatonReadonlyClient().dnxPartnerAsset.findFirst(consulta)
-    : prisma.dnxPartnerAsset.findFirst(consulta);
+  // La misma elección de base que el módulo de sponsors: la conexión de escritura si está (es
+  // donde se registran los logos que sube la institución), si no la de sólo lectura, si no la propia.
+  const db = await partnersReader();
+  return db.dnxPartnerAsset.findFirst(consulta);
 }
 
 export async function GET(_request: Request, { params }: { params: Promise<{ assetId: string }> }) {

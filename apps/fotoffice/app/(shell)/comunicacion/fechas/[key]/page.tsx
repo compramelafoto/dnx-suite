@@ -8,6 +8,8 @@ import { buildOccasionEmail } from "@/lib/mailing/occasions";
 import { OCCASION_LIMITS } from "@/lib/mailing/occasion-form";
 import { topicForOccasion } from "@/lib/mailing/occasions-catalog";
 import { countOccasionAudience } from "@/lib/mailing/campaigns";
+import { ctaUrlFor } from "@/lib/mailing/context";
+import { LIFECYCLE_DAYS_RANGE } from "@/lib/mailing/occasions";
 import { especialidadesPorGrupo } from "@/lib/membership/specialties";
 import {
   deleteCustomOccasionAction,
@@ -42,7 +44,14 @@ export default async function FechaPage({ params, searchParams }: Props) {
       reason: ctx.reason,
       unsubscribeUrl: ctx.unsubscribe ? ctx.unsubscribe("ejemplo@correo.com", topicForOccasion(o.kind)).pageUrl : "#",
     },
+    cta: o.cta ? { label: o.cta.label, url: ctaUrlFor(ctx, o.cta.target) } : null,
   });
+  const etiquetaDias =
+    o.trigger === "JOINED"
+      ? "Días después de entrar a la institución"
+      : o.trigger === "LEFT"
+        ? "Días después de la baja"
+        : "Días sin entrar al portal";
 
   const variables =
     o.kind === "ANNIVERSARY" ? "{nombre}, {institucion} y {años} (se escribe «1 año», «10 años»)" : "{nombre} y {institucion}";
@@ -56,7 +65,9 @@ export default async function FechaPage({ params, searchParams }: Props) {
             ? "Sale a las 9 de la mañana del día del cumpleaños, a cada socio activo que tenga fecha de nacimiento y correo."
             : o.kind === "ANNIVERSARY"
               ? "Sale a las 9 de la mañana del día en que el socio cumple años en la institución (según su fecha de ingreso)."
-              : "Sale a las 9 de la mañana del día elegido, todos los años."
+              : o.kind === "LIFECYCLE"
+                ? "Sale solo a las 9 de la mañana, a cada persona el día que le corresponde."
+                : "Sale a las 9 de la mañana del día elegido, todos los años."
         }
         actions={
           <Link href="/comunicacion/fechas" className="fo-btn fo-btn-ghost text-sm">
@@ -148,6 +159,25 @@ export default async function FechaPage({ params, searchParams }: Props) {
               Una dirección que empiece con https://. Podés subir la imagen en Sitio web → Blog → Imágenes y copiar su dirección.
             </p>
           </div>
+
+          {o.kind === "LIFECYCLE" ? (
+            <div className="fo-field-stack">
+              <label className="fo-label" htmlFor="offsetDays">
+                {etiquetaDias}
+              </label>
+              <input
+                id="offsetDays"
+                name="offsetDays"
+                type="number"
+                min={LIFECYCLE_DAYS_RANGE.min}
+                max={LIFECYCLE_DAYS_RANGE.max}
+                className="fo-input"
+                defaultValue={o.offsetDays ?? ""}
+                required
+              />
+              {o.cta ? <p className="fo-helper">El correo lleva el botón «{o.cta.label}».</p> : null}
+            </div>
+          ) : null}
 
           {o.kind === "ANNIVERSARY" ? (
             <label className="flex items-center gap-2 text-sm text-[var(--fo-text)]">

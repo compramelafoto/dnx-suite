@@ -41,11 +41,14 @@ export function MovementForm({
   categories,
   clients,
   returnTo,
+  projects = [],
 }: {
   accounts: CashAccountRow[];
   categories: CashCategoryRow[];
   clients: ClientRow[];
   returnTo?: string;
+  /** Proyectos de la comisión a los que se puede imputar (sólo quien maneja su plata los recibe). */
+  projects?: { id: string; title: string }[];
 }) {
   const [kind, setKind] = useState<MovementKind>("INGRESO");
   const categoriasDelLado = categories.filter((c) => c.kind === kind);
@@ -140,6 +143,23 @@ export function MovementForm({
           <input id="mov-receipt" name="receiptRef" className="fo-input" placeholder="Número de factura o recibo" />
         </div>
       </div>
+
+      {projects.length > 0 ? (
+        <div className="fo-field-stack">
+          <label className="fo-label" htmlFor="mov-project">
+            Proyecto de la comisión (opcional)
+          </label>
+          <select id="mov-project" name="govProjectId" className="fo-input" defaultValue="">
+            <option value="">Ninguno</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.title}
+              </option>
+            ))}
+          </select>
+          <p className="fo-helper">Si es un gasto o un ingreso de un proyecto, queda sumado en sus números.</p>
+        </div>
+      ) : null}
 
       <div className="fo-field-stack">
         <label className="fo-label" htmlFor="mov-description">

@@ -15,6 +15,8 @@ import { expectedAmountMinor } from "@/lib/cash/shift";
 import { listClients } from "@/lib/clients/repository";
 import { AccountCard } from "./account-card";
 import { MovementForm } from "./movement-form";
+import { canHandleProjectMoney, committedMinor, listMoneyProjects } from "@/lib/governance/money-server";
+import { formatMinorArs } from "@/lib/membership/money";
 import { MovementsTable } from "./movements-table";
 
 export const dynamic = "force-dynamic";
@@ -39,7 +41,7 @@ export default async function CajaPage({
 }: {
   searchParams: Promise<{ error?: string; ok?: string }>;
 }) {
-  const { workspace, canOperate, canConfigure } = await requireCashViewer();
+  const { workspace, canOperate, canConfigure, user } = await requireCashViewer();
   const params = await searchParams;
 
   const cuentas = await listAccounts(workspace.id);
@@ -84,6 +86,13 @@ export default async function CajaPage({
     movimientosParaSaldo,
   );
 
+  // Saldo libre (Gobierno §8.4): lo que hay menos lo comprometido en proyectos vivos.
+  const totalMinor = [...saldos.values()].reduce((a, b) => a + b, 0);
+  const [comprometido, proyectosConPlata] = await Promise.all([
+    committedMinor(workspace.id),
+    canOperate && (await canHandleProjectMoney(user.id, workspace.id)) ? listMoneyProjects(workspace.id) : Promise.resolve([]),
+  ]);
+
   // Sólo el efectivo de mostrador puede tener turno (`canOpenShift`, en `lib/cash/shift.ts`):
   // a la caja fuerte y a lo digital ni les preguntamos.
   const cuentasDeMostrador = cuentas.filter((c) => c.kind === "EFECTIVO" && !c.isVault);
@@ -116,13 +125,34 @@ export default async function CajaPage({
       ) : null}
       {params.ok ? <p className="fo-card p-4 text-sm text-[var(--fo-success)]">Listo.</p> : null}
 
+      {comprometido.totalMinor > 0 ? (
+        <div className="fo-card grid gap-4 p-5 text-sm sm:grid-cols-3">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-[var(--fo-muted)]">Saldo total</p>
+            <p className="text-lg font-semibold tabular-nums">{formatMinorArs(totalMinor)}</p>
+          </div>
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-[var(--fo-muted)]">Comprometido en proyectos</p>
+            <p className="text-lg font-semibold tabular-nums">{formatMinorArs(comprometido.totalMinor)}</p>
+            <p className="text-xs text-[var(--fo-muted)]">
+              {comprometido.projects} proyecto{comprometido.projects === 1 ? "" : "s"} aprobado{comprometido.projects === 1 ? "" : "s"} con plata reservada
+            </p>
+          </div>
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-[var(--fo-muted)]">Saldo libre</p>
+            <p className="text-lg font-semibold tabular-nums">{formatMinorArs(totalMinor - comprometido.totalMinor)}</p>
+            <p className="text-xs text-[var(--fo-muted)]">Lo que se puede usar sin tocar lo de los proyectos</p>
+          </div>
+        </div>
+      ) : null}
+
       {/*
         Siempre disponible y con selector de cuenta: cargar un ingreso o pagar algo no puede
         depender de que haya un turno abierto en ninguna cuenta, ni hoy ni en ningún otro
         camino de la interfaz. Quien sólo ve (VIEW) no lo recibe: la acción lo rebotaría.
       */}
       {canOperate ? (
-        <MovementForm accounts={cuentas} categories={categorias} clients={clientes} returnTo="/caja" />
+        <MovementForm accounts={cuentas} categories={categorias} clients={clientes} returnTo="/caja" projects={proyectosConPlata} />
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

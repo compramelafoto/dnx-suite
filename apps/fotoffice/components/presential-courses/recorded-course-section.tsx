@@ -30,6 +30,8 @@ export function RecordedCourseSection({
   cargoServicioBps,
   aLaVenta,
   dueno,
+  precioSocios,
+  cursoDe,
 }: {
   workspaceSlug: string;
   courseSlug: string;
@@ -44,6 +46,10 @@ export function RecordedCourseSection({
   /** false cuando el curso tiene reparto: no se vende hasta la etapa del split. */
   aLaVenta: boolean;
   dueno: { workspaceId: string; nombre: string };
+  /** Precio para los socios de quien vende, cuando revende con descuento. */
+  precioSocios: { institucion: string; amountArs: string } | null;
+  /** Nombre del dueño cuando el curso es de otro negocio: "Un curso de …". */
+  cursoDe: string | null;
 }) {
   const montos = precioArs
     ? montosDeCompraSinReparto({ listaArs: precioArs, comisionPlataformaBps: cargoServicioBps, owner: dueno })
@@ -52,6 +58,7 @@ export function RecordedCourseSection({
   const plazo = accessMonths === 1 ? "1 mes" : `${accessMonths} meses`;
   return (
     <section className="fo-card space-y-4">
+      {cursoDe ? <p className="text-xs text-[var(--fo-muted)]">Un curso de {cursoDe}</p> : null}
       <h2 className="text-xl font-semibold">Clases</h2>
       <p className="text-sm text-[var(--fo-muted)]">
         {clases.length} {clases.length === 1 ? "clase" : "clases"}
@@ -104,6 +111,15 @@ export function RecordedCourseSection({
         ) : (
           <p className="text-lg font-semibold">{formatMoney(Number(precioArs), "ARS")}</p>
         )
+      ) : null}
+      {precioSocios && publicado && aLaVenta ? (
+        <p className="rounded-[var(--fo-radius-sm)] border border-[var(--fo-accent)]/40 p-3 text-sm">
+          <strong>Socios de {precioSocios.institucion}: {formatMoney(Number(precioSocios.amountArs), "ARS")}.</strong>{" "}
+          <a href={`${appUrl}/login?next=/portal/cursos`} className="text-[var(--fo-accent)] underline">
+            Entrá a tu portal
+          </a>{" "}
+          para comprarlo con tu descuento.
+        </p>
       ) : null}
       {publicado && precioArs && !aLaVenta ? (
         <p className="rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] p-3 text-sm font-medium">
