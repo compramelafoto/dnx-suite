@@ -11,6 +11,7 @@ import { allowedTaskStatuses } from "@/lib/governance/lifecycle";
 import { verifyGovernanceUpload } from "@/lib/governance/files";
 import { safeFilename } from "@/lib/governance/file-names";
 import type { ProjectStatus, TaskStatus } from "@/lib/governance/constants";
+import { volunteerableTaskWhere } from "@/lib/governance/repository";
 
 /**
  * Lo que el socio hace en Gobierno desde su portal: proponer un proyecto (con archivos) y cumplir
@@ -212,4 +213,42 @@ export async function memberSetTaskStatusAction(fd: FormData): Promise<void> {
   revalidatePath("/portal/tareas");
   revalidatePath(`/gobierno/${t.project.id}`);
   redirect(`${destino}?ok=1`);
+}
+
+// ─── Me ofrezco ──────────────────────────────────────────────────────────────
+
+/**
+ * El socio toma una tarea sin responsable. Se asigna en el acto: la comisión ve quién se ofreció
+ * y puede reasignarla. La condición se vuelve a exigir al escribir, así dos socios que tocan a la
+ * vez no se pisan: el segundo recibe "ya la tomó otra persona".
+ */
+export async function volunteerForTaskAction(fd: FormData): Promise<void> {
+  const ctx = await requirePortalGovernance();
+  const taskId = String(fd.get("taskId") ?? "");
+  const tarea = await prisma.govProjectTask.findFirst({
+    where: volunteerableTaskWhere(ctx.workspace.id, taskId),
+    select: { id: true, title: true, projectId: true },
+  });
+  if (!tarea) redirect(`/portal/tareas?error=${encodeURIComponent("Esa tarea ya la tomó otra persona o ya no está disponible.")}#ayudar`);
+  const tomada = await prisma.$transaction(async (tx) => {
+    const r = await tx.govProjectTask.updateMany({
+      where: volunteerableTaskWhere(ctx.workspace.id, tarea.id),
+      data: { assigneeMemberId: ctx.member.id },
+    });
+    if (r.count === 0) return false;
+    await recordProjectEvent(tx, {
+      projectId: tarea.projectId,
+      type: "TASK_ASSIGNED",
+      actorUserId: ctx.user.id,
+      actorLabel: ctx.actor,
+      data: { title: tarea.title, assignee: ctx.actor, volunteered: true },
+      taskId: tarea.id,
+    });
+    return true;
+  });
+  if (!tomada) redirect(`/portal/tareas?error=${encodeURIComponent("Esa tarea ya la tomó otra persona.")}#ayudar`);
+  revalidatePath("/portal/tareas");
+  revalidatePath("/portal");
+  revalidatePath(`/gobierno/${tarea.projectId}`);
+  redirect(`/portal/tareas/${tarea.id}?ok=ofrecida`);
 }

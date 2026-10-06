@@ -53,6 +53,11 @@ export type PortalHomeProps = {
   socioDeLaSemana?: { card: SpotlightCardView; weekLabel: string } | null;
   /** Los socios que cumplen años esta semana (lunes a domingo). */
   cumpleanos?: BirthdayView[];
+  /** Proyectos de la comisión: invitar a proponer y a tomar tareas sin responsable. */
+  gobierno?: {
+    tareasLibres: { id: string; title: string; projectTitle: string; dueAt: Date | null }[];
+    totalLibres: number;
+  } | null;
 };
 
 /**
@@ -78,6 +83,7 @@ export function PortalHome({
   whatsappGroupUrl,
   socioDeLaSemana,
   cumpleanos = [],
+  gobierno = null,
 }: PortalHomeProps) {
   const cuotasPendientes = cuenta.charges.filter((c) => !isOpeningBalance(c.period));
   const alDia = cuenta.charges.length === 0;
@@ -323,6 +329,49 @@ export function PortalHome({
                 Recomendar a un amigo
               </Link>
             </section>
+          ) : null}
+
+          {gobierno ? (
+            <>
+              <section className="space-y-2 rounded-[var(--fo-radius)] border border-[var(--fo-accent)] bg-[var(--fo-accent-soft)] p-5">
+                <h2 className="text-sm font-semibold">Proponé tus proyectos</h2>
+                <p className="text-sm leading-relaxed text-[var(--fo-text-secondary)]">
+                  ¿Tenés una idea para {institution}? Una muestra, un taller, una salida. Contala y la comisión directiva la
+                  trata en su próxima reunión.
+                </p>
+                <Link href="/portal/proyectos/proponer" className="fo-btn fo-btn-primary inline-flex text-sm">
+                  Proponer un proyecto
+                </Link>
+              </section>
+
+              <section className="space-y-3 rounded-[var(--fo-radius)] border border-[var(--fo-warning-border)] bg-[var(--fo-warning-soft)] p-5">
+                <h2 className="text-sm font-semibold">Tareas a realizar en {institution}: ¡necesitamos tu ayuda!</h2>
+                {gobierno.totalLibres === 0 ? (
+                  <p className="text-sm leading-relaxed text-[var(--fo-text-secondary)]">
+                    Por ahora todas las tareas tienen a alguien a cargo. Cuando haga falta una mano, va a aparecer acá.
+                  </p>
+                ) : (
+                  <>
+                    <p className="text-sm leading-relaxed text-[var(--fo-text-secondary)]">
+                      {gobierno.totalLibres === 1
+                        ? "Hay una tarea que todavía no tiene a nadie a cargo."
+                        : `Hay ${gobierno.totalLibres} tareas que todavía no tienen a nadie a cargo.`}
+                    </p>
+                    <ul className="space-y-1 text-sm">
+                      {gobierno.tareasLibres.map((t) => (
+                        <li key={t.id}>
+                          <span className="font-medium">{t.title}</span>
+                          <span className="text-[var(--fo-muted)]"> · {t.projectTitle}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+                <Link href="/portal/tareas#ayudar" className="fo-btn fo-btn-secondary inline-flex text-sm">
+                  {gobierno.totalLibres > 0 ? "Quiero ayudar" : "Ver mis tareas"}
+                </Link>
+              </section>
+            </>
           ) : null}
 
           {/*
