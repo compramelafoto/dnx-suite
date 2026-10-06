@@ -31,6 +31,7 @@
     "@repo/template-editor-ui": "workspace:*",
     "@repo/template-engine": "workspace:*",
     "@repo/template-engine-renderer": "workspace:*",
+    "@repo/quick-search": "workspace:*",
     "bcryptjs": "^3.0.3",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.544.0",
