@@ -351,3 +351,47 @@ export async function getMemberTask(workspaceId: string, memberId: string, taskI
     ? { ...t, status: t.status as TaskStatus, project: { ...t.project, status: t.project.status as ProjectStatus } }
     : null;
 }
+
+/** Estados de proyecto en los que una tarea suelta puede tomarla un socio voluntario. */
+const VOLUNTARIADO: ProjectStatus[] = ["PROPOSED", "IN_REVIEW", "POSTPONED", "APPROVED", "IN_PROGRESS"];
+
+/**
+ * Tareas sin responsable que cualquier socio puede tomar ("¡necesitamos tu ayuda!").
+ *
+ * Sólo de proyectos que la comisión hizo visibles para socios: lo interno no se ofrece. Ordenadas
+ * por fecha (lo que vence antes primero; sin fecha al final).
+ */
+export async function listOpenTasksForVolunteers(workspaceId: string, take?: number) {
+  const where = {
+    assigneeMemberId: null,
+    status: { in: ["PENDING", "IN_PROGRESS"] },
+    project: { workspaceId, visibleToMembers: true, status: { in: VOLUNTARIADO } },
+  };
+  const [rows, total] = await Promise.all([
+    prisma.govProjectTask.findMany({
+      where,
+      orderBy: [{ dueAt: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }],
+      take,
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        dueAt: true,
+        stage: { select: { title: true } },
+        project: { select: { id: true, title: true } },
+      },
+    }),
+    prisma.govProjectTask.count({ where }),
+  ]);
+  return { tasks: rows, total };
+}
+
+/** La condición de "se puede tomar", para repetirla al escribir y no confiar en lo que se mostró. */
+export function volunteerableTaskWhere(workspaceId: string, taskId: string) {
+  return {
+    id: taskId,
+    assigneeMemberId: null,
+    status: { in: ["PENDING", "IN_PROGRESS"] },
+    project: { workspaceId, visibleToMembers: true, status: { in: VOLUNTARIADO } },
+  };
+}

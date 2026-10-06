@@ -12,6 +12,7 @@ import { pendingPrintedCard } from "@/lib/carnet/pending-print";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { resolvePortalMenu } from "@/lib/portal/menu";
+import { listOpenTasksForVolunteers } from "@/lib/governance/repository";
 import { PortalHome } from "@/components/portal/portal-home";
 import { loadPortalRaffles } from "@/lib/raffles/portal";
 import {
@@ -130,6 +131,26 @@ export default async function PortalPage() {
     });
   }
 
+  // Proyectos de la comisión: proponer y ayudar. Si el módulo está prendido, la portada invita a
+  // las dos cosas, con las tareas sin responsable a la vista. Si falla, el panel sigue.
+  const gobiernoDisponible = secciones.some((s) => s.href === "/portal/proyectos" && s.state === "DISPONIBLE");
+  let gobierno: { tareasLibres: { id: string; title: string; projectTitle: string; dueAt: Date | null }[]; totalLibres: number } | null =
+    null;
+  if (gobiernoDisponible) {
+    try {
+      const libres = await listOpenTasksForVolunteers(context.workspace.id, 3);
+      gobierno = {
+        tareasLibres: libres.tasks.map((t) => ({ id: t.id, title: t.title, projectTitle: t.project.title, dueAt: t.dueAt })),
+        totalLibres: libres.total,
+      };
+    } catch (error) {
+      console.error("[fotoffice][gobierno] no se pudieron cargar las tareas libres", {
+        detalle: error instanceof Error ? error.message : "error desconocido",
+      });
+      gobierno = { tareasLibres: [], totalLibres: 0 };
+    }
+  }
+
   // Los cumpleaños de la semana. Igual que la tarjeta de arriba: si falla, el panel sigue.
   let cumpleanos: BirthdayView[] = [];
   try {
@@ -170,6 +191,7 @@ export default async function PortalPage() {
       whatsappGroupUrl={duesSettings.communityWhatsappUrl}
       socioDeLaSemana={socioDeLaSemana}
       cumpleanos={cumpleanos}
+      gobierno={gobierno}
     />
   );
 }

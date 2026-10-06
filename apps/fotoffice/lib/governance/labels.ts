@@ -146,6 +146,7 @@ export function describeEvent(type: string, data: EventData): string {
     case "TASK_UPDATED":
       return `Editó la tarea «${s(d.title)}»`;
     case "TASK_ASSIGNED":
+      if (d.volunteered) return `${s(d.assignee)} se ofreció para «${s(d.title)}»`;
       return d.assignee
         ? `Le asignó «${s(d.title)}» a ${s(d.assignee)}`
         : `Dejó sin responsable la tarea «${s(d.title)}»`;

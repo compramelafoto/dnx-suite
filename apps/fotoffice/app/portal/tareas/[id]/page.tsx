@@ -54,7 +54,11 @@ export default async function MiTareaPage({
           {avisos.error}
         </p>
       ) : null}
-      {avisos.ok ? <p className="fo-alert-success p-4 text-sm">Listo, quedó registrado.</p> : null}
+      {avisos.ok === "ofrecida" ? (
+        <p className="fo-alert-success p-4 text-sm">¡Gracias! La tarea quedó a tu nombre. Acá podés ir contando cómo va.</p>
+      ) : avisos.ok ? (
+        <p className="fo-alert-success p-4 text-sm">Listo, quedó registrado.</p>
+      ) : null}
 
       {abierta && estados.length > 0 ? (
         <section className="fo-card space-y-4 p-5">
