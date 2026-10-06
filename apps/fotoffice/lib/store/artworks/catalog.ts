@@ -3,7 +3,9 @@
  *
  * - `listStoreContests`: los concursos de las organizaciones vinculadas que ya cerraron la carga.
  * - `loadContestCatalog`: las obras de un concurso (CONFIRMED y no retiradas) con su premio, el
- *   estado del permiso del autor y si están publicadas.
+ *   estado del permiso del autor y si están publicadas. Aparte, las publicadas cuya obra ya no está
+ *   en el concurso (rechazada o retirada en FotoRank), para despublicarlas: la tienda ya no las
+ *   vende (§5.3), pero la ficha sigue PUBLISHED hasta que alguien la saque.
  * - `publishArtwork`: exige permiso vigente (`isSellable`) y al menos un formato que la
  *   resolución del original alcance; trae la vista previa con marca de agua de FotoRank, la
  *   guarda en el R2 de FOTOFFICE y arma la ficha (título, autor, premio, dirección). Volver a
@@ -186,6 +188,14 @@ export type CatalogRow = {
   thumbnailUrl: string | null;
 };
 
+/** Una ficha publicada cuya obra ya no está en el concurso de FotoRank. */
+export type OrphanListingRow = {
+  entryId: string;
+  title: string;
+  /** "Rechazada en el concurso" o "Retirada del concurso". */
+  reason: string;
+};
+
 export type ContestCatalog = {
   contest: { id: string; title: string; status: string };
   royaltyBps: number;
@@ -194,7 +204,15 @@ export type ContestCatalog = {
   totalPages: number;
   total: number;
   rows: CatalogRow[];
+  /** Publicadas cuya obra ya no está confirmada en el concurso (o el autor la retiró). */
+  orphans: OrphanListingRow[];
 };
+
+function orphanReason(entry: { status: string; withdrawnAt: Date | null } | undefined): string {
+  if (entry && entry.withdrawnAt === null && entry.status === "REJECTED") return "Rechazada en el concurso";
+  if (entry && entry.withdrawnAt === null && entry.status !== "WITHDRAWN") return "Ya no está confirmada en el concurso";
+  return "Retirada del concurso";
+}
 
 export type CatalogDeps = {
   db?: Db;
@@ -226,7 +244,7 @@ export async function loadContestCatalog(
     }),
     db.artworkListing.findMany({
       where: { workspaceId, contestId },
-      select: { entryId: true, status: true, previewUrl: true },
+      select: { entryId: true, status: true, previewUrl: true, title: true },
     }),
     db.contestStoreSettings.findUnique({
       where: { workspaceId_contestId: { workspaceId, contestId } },
@@ -234,6 +252,20 @@ export async function loadContestCatalog(
     }),
     institutionName(workspaceId, db),
   ]);
+
+  const enConcurso = new Set(entries.map((e) => e.id));
+  const huerfanas = listings.filter((l) => l.status === "PUBLISHED" && !enConcurso.has(l.entryId));
+  const estadoHuerfanas =
+    huerfanas.length === 0
+      ? []
+      : await db.fotorankContestEntry.findMany({
+          where: { contestId, id: { in: huerfanas.map((l) => l.entryId) } },
+          select: { id: true, status: true, withdrawnAt: true },
+        });
+  const estadoPorObra = new Map(estadoHuerfanas.map((e) => [e.id, e]));
+  const orphans: OrphanListingRow[] = huerfanas
+    .map((l) => ({ entryId: l.entryId, title: l.title, reason: orphanReason(estadoPorObra.get(l.entryId)) }))
+    .sort((a, b) => a.title.localeCompare(b.title, "es") || a.entryId.localeCompare(b.entryId));
 
   const filtradas = entries.filter((e) => matchesFilter(premios.get(e.id) ?? null, opts.filter));
   const total = filtradas.length;
@@ -283,6 +315,7 @@ export async function loadContestCatalog(
         thumbnailUrl: miniatura(e.id, listing?.previewUrl),
       };
     }),
+    orphans,
   };
 }
 

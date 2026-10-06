@@ -5,6 +5,7 @@ import { requireStoreConfigurer } from "@/lib/store/access";
 import { loadContestCatalog } from "@/lib/store/artworks/catalog";
 import { parseCatalogFilter, royaltyPercentText, type CatalogFilter } from "@/lib/store/artworks/catalog-rules";
 import { EntriesTable } from "./entries-table";
+import { OrphanListings } from "./orphan-listings";
 import { RoyaltyForm } from "./royalty-form";
 
 export const dynamic = "force-dynamic";
@@ -63,6 +64,8 @@ export default async function TiendaObrasConcursoPage({
         </div>
         <RoyaltyForm contestId={catalogo.contest.id} percent={royaltyPercentText(catalogo.royaltyBps)} />
       </section>
+
+      {catalogo.orphans.length > 0 ? <OrphanListings contestId={catalogo.contest.id} rows={catalogo.orphans} /> : null}
 
       <section className="space-y-4">
         <nav className="flex flex-wrap gap-2" aria-label="Filtros">

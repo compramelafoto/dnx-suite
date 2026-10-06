@@ -355,6 +355,42 @@ describe("loadContestCatalog", () => {
     expect(fuera?.page).toBe(3);
   });
 
+  it("publicadas cuya obra ya no está en el concurso: aparte, para despublicar", async () => {
+    const pub = (entryId: string, title: string, status = "PUBLISHED") =>
+      ({ ...({} as Listing), workspaceId: WS, contestId: C, entryId, status, title, previewUrl: `https://cdn.test/${entryId}.jpg` }) as Listing;
+    const { db } = baseFalsa({
+      entries: [
+        entrada("e1"),
+        entrada("e3", { status: "REJECTED" }),
+        entrada("e4", { status: "WITHDRAWN", withdrawnAt: AHORA }),
+        entrada("e5", { withdrawnAt: AHORA }),
+        entrada("e6", { status: "REJECTED" }),
+      ],
+      listings: [
+        pub("e1", "Confirmada"),
+        pub("e3", "Rechazada"),
+        pub("e4", "Bajada por el autor"),
+        pub("e5", "Confirmada pero retirada"),
+        // Ya despublicada: no hace falta hacer nada.
+        pub("e6", "Ya despublicada", "WITHDRAWN"),
+      ],
+    });
+    const r = await loadContestCatalog(WS, C, { filter: "todas", page: 1 }, { db: db as never, signPreview: firmar });
+    expect(r?.rows.map((x) => x.entryId)).toEqual(["e1"]);
+    expect(r?.orphans).toEqual([
+      { entryId: "e4", title: "Bajada por el autor", reason: "Retirada del concurso" },
+      { entryId: "e5", title: "Confirmada pero retirada", reason: "Retirada del concurso" },
+      { entryId: "e3", title: "Rechazada", reason: "Rechazada en el concurso" },
+    ]);
+  });
+
+  it("sin publicadas fuera del concurso, orphans vacío y sin consulta extra", async () => {
+    const { db } = baseFalsa({});
+    const r = await loadContestCatalog(WS, C, { filter: "todas", page: 1 }, { db: db as never, signPreview: firmar });
+    expect(r?.orphans).toEqual([]);
+    expect(db.fotorankContestEntry.findMany).toHaveBeenCalledTimes(1);
+  });
+
   it("concurso no vinculado o en un estado que no se muestra → null", async () => {
     expect(await loadContestCatalog(WS, C, { filter: "todas", page: 1 }, { db: baseFalsa({ vinculado: false }).db as never })).toBeNull();
     expect(
