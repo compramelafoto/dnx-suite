@@ -131,7 +131,7 @@ export async function createPublicRegistrationAction(
     promotionalLicenseConsent: formBool(formData, "promotionalLicenseConsent"),
     consentVersion: formString(formData, "consentVersion") || "2026-08-social-v1",
     termsVersion:
-      formString(formData, "termsVersion") || "CLICKATON_TERMS_2026_09_19_v2",
+      formString(formData, "termsVersion") || "CLICKATON_TERMS_2026_10_06_v3",
     idempotencyKey: formString(formData, "idempotencyKey"),
     promoCode: formString(formData, "promoCode") || null,
     usePassCredit: formBool(formData, "usePassCredit"),

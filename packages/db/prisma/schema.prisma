@@ -15132,6 +15132,8 @@ enum FotorankResultTieBreakStrategy {
   MEDIAN_THEN_DISPERSION
   MANUAL_ONLY
   SHARED_TIE
+  /// Clickatón desde la 2ª edición: promedio y, si empata, la suma de todas las fotos del participante.
+  PARTICIPANT_TOTAL
 }
 
 enum FotorankRulesGeneratedBy {

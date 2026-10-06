@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Motor puro de ranking de jurado (clickaton-ranking-v2). Sin React/Next/Prisma.",
+  "description": "Motor puro de ranking de jurado (clickaton-ranking-v3). Sin React/Next/Prisma.",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {

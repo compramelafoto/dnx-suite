@@ -3,6 +3,9 @@
  *
  * v1: `CLICKATON_TERMS_2026_09_19_v1` — cronograma histórico (17–21); conservada para audit.
  * v2: `CLICKATON_TERMS_2026_09_19_v2` — Schedule V2 (captura 16–20 / upload 16–22).
+ *     La aceptaron los inscriptos de la 1ª edición; su ranking sigue esa regla.
+ * v3: `CLICKATON_TERMS_2026_10_06_v3` — mismo cronograma; agrega cómo se ordena cada
+ *     consigna y cómo se desempata. Rige desde la 2ª edición.
  *
  * Decisión humana: cronograma V2 definitivo. Nuevas inscripciones aceptan v2.
  * No sobrescribir aceptaciones históricas de v1.
@@ -13,11 +16,13 @@
 import {
   CLICKATON_TERMS_VERSION as EDITION_TERMS_VERSION,
   CLICKATON_TERMS_VERSION_V1,
+  CLICKATON_TERMS_VERSION_V2,
 } from "@/config/editions/argentina-2026";
 
 /** Alias canónico publicado (mismo id que edición AR2026 — v2). */
 export const CLICKATON_TERMS_VERSION = EDITION_TERMS_VERSION;
 export const CLICKATON_TERMS_VERSION_LEGACY_V1 = CLICKATON_TERMS_VERSION_V1;
+export const CLICKATON_TERMS_VERSION_LEGACY_V2 = CLICKATON_TERMS_VERSION_V2;
 export const CLICKATON_PRIVACY_VERSION = "CLICKATON_PRIVACY_2026_09_19_v1" as const;
 
 export const clickatonLegalFunnelContent = {
@@ -33,11 +38,11 @@ export const clickatonLegalFunnelContent = {
   publicationStatus: "PUBLISHED" as const,
   approvedForRegistrationAt: "2026-07-31" as const,
   scheduleV2EffectiveAt: "2026-07-31" as const,
-  supersedesTermsVersion: CLICKATON_TERMS_VERSION_LEGACY_V1,
+  supersedesTermsVersion: CLICKATON_TERMS_VERSION_LEGACY_V2,
   termsSections: [
     {
       title: "Organizador y alcance",
-      body: "Estas Bases y Condiciones (versión CLICKATON_TERMS_2026_09_19_v2) rigen la inscripción y participación en Clickatón Argentina 2026 (edición del 19 de septiembre de 2026, Rosario, Santa Fe, República Argentina). La inscripción implica la aceptación expresa de esta versión publicada, de las reglas de la edición y de la Política de Privacidad publicada en el sitio. El organizador opera la plataforma a través de Clickatón / DNX Suite.",
+      body: "Estas Bases y Condiciones (versión CLICKATON_TERMS_2026_10_06_v3) rigen la inscripción y participación en las ediciones de Clickatón posteriores a la 1ª edición (19 de septiembre de 2026, Rosario, Santa Fe, República Argentina), que se rige por la versión CLICKATON_TERMS_2026_09_19_v2. Cada edición publica su fecha, sede y cronograma en su ficha. La inscripción implica la aceptación expresa de esta versión publicada, de las reglas de la edición y de la Política de Privacidad publicada en el sitio. El organizador opera la plataforma a través de Clickatón / DNX Suite.",
     },
     {
       title: "Cronograma del día del evento (hora Argentina)",
@@ -76,8 +81,12 @@ export const clickatonLegalFunnelContent = {
       body: "El día del evento rigen las reglas operativas de la edición (horario, consignas, límites de envío, criterios técnicos). Hay 10 consignas (1 fotografía por consigna); el mínimo competitivo es 8 obras válidas según ventana de captura. Puede haber además una consigna sorpresa extra, de entrega opcional y fuera de puntaje: no suma al mínimo competitivo ni al ranking. Las consignas se liberan desde las 16:00 según el cronograma oficial. El incumplimiento de reglas técnicas o de integridad (incluida captura fuera de ventana) puede invalidar obras o la participación competitiva sin derecho a reembolso de la inscripción, sin perjuicio de derechos irrenunciables del consumidor cuando correspondan.",
     },
     {
+      title: "Evaluación del jurado, puestos y desempate",
+      body: "Cada fotografía que puntúa es evaluada por el jurado según los criterios publicados para la edición. El ranking se arma por consigna: el puesto de cada fotografía surge del promedio de las calificaciones que recibió del jurado, de mayor a menor. Si dos o más fotografías obtienen el mismo promedio, se ubica primero la del participante con mayor puntaje total, que es la suma de los promedios de todas sus fotografías en las consignas que puntúan (la consigna sorpresa extra no suma). No se aplica ningún otro criterio: si el empate persiste, las fotografías comparten el puesto y, cuando corresponda, el premio.",
+    },
+    {
       title: "Cambios de fecha, sede o cronograma",
-      body: "Clickatón podrá modificar fecha, sede o cronograma por razones operativas, de fuerza mayor o seguridad, comunicándolo por los canales oficiales. El mal tiempo no implica cancelación automática. Esta versión v2 sustituye el cronograma de la v1 para nuevas aceptaciones; las aceptaciones históricas de v1 se conservan en auditoría.",
+      body: "Clickatón podrá modificar fecha, sede o cronograma por razones operativas, de fuerza mayor o seguridad, comunicándolo por los canales oficiales. El mal tiempo no implica cancelación automática. Esta versión v3 sustituye a la v2 para nuevas aceptaciones; las aceptaciones históricas de v1 y v2 se conservan en auditoría.",
     },
     {
       title: "Jurisdicción",

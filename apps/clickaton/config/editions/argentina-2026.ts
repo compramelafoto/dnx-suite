@@ -50,8 +50,14 @@ export const ARGENTINA_2026_TIMEZONE = "America/Argentina/Buenos_Aires" as const
 /** Versión histórica (audit trail; no usar en nuevas aceptaciones). */
 export const CLICKATON_TERMS_VERSION_V1 = "CLICKATON_TERMS_2026_09_19_v1" as const;
 
-/** Versión activa Schedule V2 (cronograma captura/upload 16–20 / 16–22). */
-export const CLICKATON_TERMS_VERSION = "CLICKATON_TERMS_2026_09_19_v2" as const;
+/** Schedule V2 (cronograma captura/upload 16–20 / 16–22). La aceptaron los de la 1ª edición. */
+export const CLICKATON_TERMS_VERSION_V2 = "CLICKATON_TERMS_2026_09_19_v2" as const;
+
+/**
+ * Versión activa desde la 2ª edición: suma cómo se ordena cada consigna y
+ * cómo se desempata (promedio y, si empata, la suma de todas las fotos).
+ */
+export const CLICKATON_TERMS_VERSION = "CLICKATON_TERMS_2026_10_06_v3" as const;
 
 /**
  * Advertencia visible antes de consignas / upload.
