@@ -128,7 +128,7 @@ export function WorkspaceHome({
     pendientes.push({
       cantidad: datos.pedidosNuevos,
       texto: "Consultas nuevas sin responder",
-      href: "/dashboard/service-leads",
+      href: "/consultas",
     });
   }
   if (faltaTipoDeOrganizacion) {

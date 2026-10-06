@@ -17,7 +17,7 @@ import { TIPO_CONSULTA } from "../service-leads/numero";
 export const TOPE_POR_COLUMNA = 300;
 const TIPO_SUJETO = "CAPTACION";
 const CLASE: Clase = "VENTA";
-const RUTA_LISTA = "/captacion/lista";
+const RUTA_LISTA = "/consultas/lista";
 const DIA_MS = 24 * 60 * 60 * 1000;
 
 export type TarjetaVista = {

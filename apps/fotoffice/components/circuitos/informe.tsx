@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import type { InformeCircuito } from "@/lib/circuitos/informe";
 import { ATAJOS_PERIODO, ETIQUETAS_PERIODO, esAtajoPeriodo, etiquetaPeriodo } from "@/lib/listado/periodos";
 
-const RUTA = "/captacion/informe";
+const RUTA = "/consultas/informe";
 const dias = (n: number | null) => (n === null ? "—" : `${n.toLocaleString("es-AR")} ${n === 1 ? "día" : "días"}`);
 
 /**

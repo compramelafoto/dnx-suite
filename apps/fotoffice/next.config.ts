@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { REDIRECCIONES_PERMANENTES } from "./lib/entrada/redirecciones";
 
 const appDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -78,6 +79,10 @@ const nextConfig: NextConfig = {
       "../../node_modules/.pnpm/mupdf@*/node_modules/mupdf/dist/*.wasm",
       "../../node_modules/.pnpm/mupdf@*/node_modules/mupdf/package.json",
     ],
+  },
+  // Direcciones viejas que siguen andando (`/captacion/...` → `/consultas/...`).
+  async redirects() {
+    return REDIRECCIONES_PERMANENTES;
   },
   // La página de un pedido de la tienda se abre con un token en la dirección (la vuelta de
   // Mercado Pago, los correos): no se manda esa dirección a ningún sitio que se abra desde ahí.

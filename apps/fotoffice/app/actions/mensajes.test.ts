@@ -79,7 +79,7 @@ describe("acciones de mensajes", () => {
   it("WhatsApp: devuelve la URL y revalida la ficha de la consulta", async () => {
     expect(await A.abrirWhatsappAction(WSP)).toEqual({ ok: true, url: "https://wa.me/1", mensajeId: "m2" });
     expect(H.modulo).toHaveBeenCalledWith("ws-1", "service-leads");
-    expect(H.revalidate).toHaveBeenCalledWith("/captacion/l1");
+    expect(H.revalidate).toHaveBeenCalledWith("/consultas/l1");
   });
 
   it.each([

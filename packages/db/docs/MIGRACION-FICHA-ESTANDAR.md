@@ -1,8 +1,11 @@
 # Aplicar la migración de la Ficha estándar (FOTOFFICE, etapa 0.3)
 
+Estado: aplicada en producción el 02/10/2026; código publicado el 06/10/2026 (PR 277)
+
 Procedimiento manual, con el mismo criterio que `MIGRACION-LISTADO-ESTANDAR.md`. Las tablas
 van **antes** que el código: no se fusiona el PR sin haber aplicado esto en las bases donde
-corre FOTOFFICE. Además necesita infraestructura de adjuntos privados (sección 6).
+corre FOTOFFICE. Además necesita infraestructura de adjuntos privados (sección 6). **No hay
+staging:** FOTOFFICE va directo a producción.
 
 **Las fichas de Cliente y de Socio leen estas tablas en CADA carga (notas, etiquetas,
 adjuntos, vínculos y línea de tiempo). Publicar el código antes que el SQL deja rotas las dos
@@ -44,15 +47,15 @@ Si no da el checksum de la tabla de arriba, **parar**: el archivo cambió despu�
 
 1. Se fusionan primero el PR 277 (etapa 0.1) y el PR 281 (etapa 0.2).
 2. Esta rama se rebasa sobre `main` actualizado.
-3. Se crean los buckets privados y su CORS (sección 6).
-4. Se carga `R2_PRIVATE_BUCKET` en Vercel, en Production y en Preview.
-5. SQL en **staging** (`dnx-suite-staging`) y **prueba de punta a punta con `next dev`
-   apuntando a staging**: subir un adjunto, confirmarlo, descargarlo, borrarlo y restaurarlo.
-   Es obligatoria: los tests automáticos usan R2 simulado y no detectan un token sin permisos
-   (sección 6, punto 5). Si algún paso falla con `AccessDenied`, no seguir.
-6. SQL en **FOTOFFICE producción** (`compramelafoto` / `development`), con la verificación
+3. Se crea el bucket privado y su CORS (sección 6), y se comprueba el token de R2 (sección 6,
+   punto 5): los tests automáticos usan R2 simulado y no detectan un token sin permisos.
+4. Se carga `R2_PRIVATE_BUCKET` en Vercel, en Production.
+5. SQL en **FOTOFFICE producción** (`compramelafoto` / `development`), con la verificación
    de conversión del paso 3 **inmediatamente después** de aplicarlo y antes del deploy.
-7. Recién entonces se fusiona el PR.
+6. Recién entonces se fusiona el PR.
+7. Con el código publicado, **prueba de punta a punta en producción**: subir un adjunto,
+   confirmarlo, descargarlo, borrarlo y restaurarlo. Si algún paso falla con `AccessDenied`,
+   revisar el token (sección 6, punto 5).
 
 **Aplicar el SQL y publicar el código lo más cerca posible en el tiempo.** El SQL convierte
 las Observaciones una sola vez. Si alguien edita una "Observaciones" con el formulario viejo
@@ -66,7 +69,6 @@ porque la gente edita o borra notas.
 
 | Base | Proyecto / rama Neon | IDs verificados |
 |---|---|---|
-| Staging | `dnx-suite-staging` | — |
 | FOTOFFICE (producción real) | `compramelafoto` / `development` | `divine-hall-10689679` / `br-old-rain-adwthzng` |
 | CompraMeLaFoto | `compramelafoto` / `production` | `divine-hall-10689679` / `production` |
 | Clickatón | `clickaton-production` | `bitter-math-56019731` (rama por defecto) |
@@ -179,14 +181,14 @@ privado (borrar el prefijo `adjuntos/` a mano si se quiere limpiar).
 
 Nada de esto lo hace el código ni el asistente.
 
-1. **Crear dos buckets en R2, sin dominio público** (ni `r2.dev` ni dominio propio):
-   `fotoffice-private-prod` y `fotoffice-private-staging`. Las descargas van siempre por enlace
-   firmado de 300 segundos.
-2. **CORS en cada bucket** (la subida se hace directa desde el navegador con un `PUT`):
+1. **Crear un bucket en R2, sin dominio público** (ni `r2.dev` ni dominio propio):
+   `fotoffice-private-prod`. No hay bucket de staging porque no hay staging. Las descargas van
+   siempre por enlace firmado de 300 segundos.
+2. **CORS en el bucket** (la subida se hace directa desde el navegador con un `PUT`):
 
 ```json
 [{
-  "AllowedOrigins": ["<dominio de producción de FOTOFFICE>", "<dominio de staging>"],
+  "AllowedOrigins": ["<dominio de producción de FOTOFFICE>"],
   "AllowedMethods": ["PUT"],
   "AllowedHeaders": ["content-type"],
   "MaxAgeSeconds": 3600
@@ -195,11 +197,10 @@ Nada de esto lo hace el código ni el asistente.
 
    Los dominios reales **no están en el repositorio** (no figuran en `apps/fotoffice`,
    `.env.example` ni `vercel.json`): completarlos desde la configuración de dominios del
-   proyecto en Vercel. Idealmente el bucket de producción lleva sólo el dominio de producción y
-   el de staging sólo el de staging/desarrollo local.
+   proyecto en Vercel. El bucket lleva sólo el dominio de producción.
 3. **Variable `R2_PRIVATE_BUCKET`** en el proyecto Vercel de FOTOFFICE, en Production
-   (`fotoffice-private-prod`) y en Preview (`fotoffice-private-staging`). También en
-   `.env.local` para `next dev`. Las credenciales de R2 son las mismas que ya usa la app, pero ver el punto 5.
+   (`fotoffice-private-prod`). Las credenciales de R2 son las mismas que ya usa la app, pero
+   ver el punto 5.
 4. **Comprobar el CORS con un preflight** (así se verificó `fotorank-private-prod`):
 
 ```bash
@@ -212,7 +213,7 @@ curl -si -X OPTIONS "https://<cuenta>.r2.cloudflarestorage.com/<bucket>/adjuntos
    Debe responder `204` con `Access-Control-Allow-Methods: PUT`.
 
 5. **Confirmar que el token de API de R2 existente tiene lectura y escritura sobre
-   `fotoffice-private-prod` y `fotoffice-private-staging`.** Los tokens de R2 pueden estar
+   `fotoffice-private-prod`.** Los tokens de R2 pueden estar
    limitados a buckets específicos: si el actual lo está, cada `PUT`, `HEAD` y `GET` falla con
    `AccessDenied` aunque `adjuntosR2Configurado()` devuelva `true` (sólo mira que las variables
    existan). Si está limitado, ampliar el token o crear uno nuevo y cargarlo en Vercel.

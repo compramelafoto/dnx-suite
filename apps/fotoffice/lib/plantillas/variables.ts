@@ -72,15 +72,23 @@ export function fechaAR(d: Date): string {
   return ddmmaaaa(formatoAR, d);
 }
 
+/** Si el instante es exactamente 00:00:00.000 UTC: una fecha de calendario guardada sin hora. */
+export function esFechaSinHora(d: Date): boolean {
+  return d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0 && d.getUTCMilliseconds() === 0;
+}
+
 /**
  * Fecha del evento de una consulta. El formulario público usa `<input type="date">` y guarda
  * `new Date("aaaa-mm-dd")`, o sea medianoche UTC: en Buenos Aires eso es el día anterior a las 21.
  * Si la hora es exactamente 00:00:00.000 UTC se la trata como fecha de calendario (sin zona);
  * cualquier otro instante se muestra en hora de Buenos Aires.
+ *
+ * Es la regla de toda la app: la lista, el tablero y la ficha de Consultas la usan a través de
+ * `fechaDeEvento` de `lib/ficha/formato.ts`. Vive acá porque los módulos de plantillas que
+ * carga el navegador sólo pueden importar entre sí.
  */
 export function fechaDeEvento(d: Date): string {
-  const soloFecha = d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0 && d.getUTCMilliseconds() === 0;
-  return ddmmaaaa(soloFecha ? formatoUTC : formatoAR, d);
+  return ddmmaaaa(esFechaSinHora(d) ? formatoUTC : formatoAR, d);
 }
 
 export const VARIABLES: readonly DefinicionVariable[] = [

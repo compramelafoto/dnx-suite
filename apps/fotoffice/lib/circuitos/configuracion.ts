@@ -41,7 +41,7 @@ export const MENSAJES_CONFIG = {
   dias: `Los días van de 0 a ${MAX_DIAS} (0 = sin vencimiento).`,
   color: "Elegí un color de la lista.",
   estadoCaptacion: "Elegí un estado de Captación de la lista.",
-  estadoSoloVenta: "El estado de Captación sólo se usa en circuitos de venta.",
+  estadoSoloVenta: "El estado de Consultas sólo se usa en circuitos de venta.",
   desactivarPredeterminado: "Es el circuito predeterminado: marcá otro como predeterminado antes de desactivarlo.",
   predeterminadoInactivo: "Activá el circuito antes de marcarlo como predeterminado.",
   ordenInvalido: "El orden no coincide con las etapas del circuito. Recargá la página y probá de nuevo.",

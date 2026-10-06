@@ -2,6 +2,7 @@
  * Formatos y textos de la ficha que comparten el servidor y la pantalla. Módulo PURO: sin
  * base de datos ni `server-only`, así lo importan los componentes de cliente.
  */
+import { esFechaSinHora, fechaDeEvento as fechaDeEventoPlantillas } from "@/lib/plantillas/variables";
 import type { TipoEvento } from "./linea-de-tiempo";
 
 const ZONA = "America/Argentina/Buenos_Aires";
@@ -33,6 +34,22 @@ export function fechaHoraBA(v: string | Date): string {
 export function fechaBA(v: string | Date): string {
   const d = aFecha(v);
   return d ? fechaAR.format(d) : "";
+}
+
+/** Si el instante es exactamente 00:00:00.000 UTC: una fecha de calendario guardada sin hora. */
+export { esFechaSinHora };
+
+/**
+ * Fecha del evento de una consulta ("20/12/2026"). El formulario público usa
+ * `<input type="date">` y guarda `new Date("aaaa-mm-dd")`, o sea medianoche UTC: mostrada en
+ * hora de Buenos Aires sería el día anterior a las 21 (el evento aparecía un día antes). Si la
+ * hora es exactamente 00:00:00.000 UTC se la trata como fecha de calendario (sin zona);
+ * cualquier otro instante se muestra en hora de Buenos Aires. No cambia lo guardado. Es la
+ * misma regla que la variable `{{consulta_fecha}}` de las plantillas.
+ */
+export function fechaDeEvento(v: string | Date): string {
+  const d = aFecha(v);
+  return d ? fechaDeEventoPlantillas(d) : "";
 }
 
 /** Tamaño de archivo legible: "820 KB", "1,5 MB". */

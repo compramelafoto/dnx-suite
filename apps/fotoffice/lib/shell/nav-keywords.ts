@@ -59,9 +59,9 @@ export const NAV_KEYWORDS: Record<string, string[]> = {
   "/reservas/extras": ["equipamiento", "equipos", "accesorios", "luces"],
   "/reservas/configuracion": ["feriado", "cancelacion", "tarifas", "plazos", "precios"],
 
-  // Captación
+  // Consultas (antes Captación)
   "/dashboard/service-leads/forms": ["presupuesto", "contacto", "formulario"],
-  "/dashboard/service-leads": ["contactos", "interesados", "consultas", "presupuestos"],
+  "/consultas": ["captacion", "bandeja", "tablero", "contactos", "interesados", "consultas", "presupuestos"],
 
   // Presencia pública
   "/website": ["web", "pagina", "sitio", "portal", "home publica", "constructor", "menu"],

@@ -11,7 +11,7 @@ import { puede } from "@/lib/access/policy";
 import { cambiosDeConsulta } from "@/lib/campos/ficha";
 import { cargarFicha } from "@/lib/circuitos/ficha";
 import { claveDeRecorrido } from "@/lib/circuitos/ficha-vista";
-import { fechaBA, fechaHoraBA } from "@/lib/ficha/formato";
+import { fechaDeEvento, fechaHoraBA } from "@/lib/ficha/formato";
 import { numeroDe } from "@/lib/numeracion/asignar";
 import { mensajesDeConsulta } from "@/lib/plantillas/registro";
 import { TIPO_CONSULTA, tituloDeConsulta } from "@/lib/service-leads/numero";
@@ -24,7 +24,7 @@ export const dynamic = "force-dynamic";
 const ID_VALIDO = /^[A-Za-z0-9_-]{1,64}$/;
 
 /**
- * Ficha de una consulta de Captación. Primero la guarda (módulo encendido y rol que opera),
+ * Ficha de una consulta (módulo Consultas). Primero la guarda (módulo encendido y rol que opera),
  * después la lectura acotada al workspace de la sesión: una consulta de otro workspace o
  * inexistente cae en `notFound()`.
  */
@@ -72,7 +72,7 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
       ) : null,
     },
     { termino: "Evento", valor: evento },
-    { termino: "Fecha del evento", valor: consulta.fechaEvento ? fechaBA(consulta.fechaEvento) : null },
+    { termino: "Fecha del evento", valor: consulta.fechaEvento ? fechaDeEvento(consulta.fechaEvento) : null },
     { termino: "Lugar", valor: consulta.lugar },
     { termino: "Formulario de origen", valor: consulta.formulario },
     { termino: "Alta", valor: fechaHoraBA(consulta.alta) },
@@ -84,8 +84,8 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
         title={tituloDeConsulta(consulta.nombre, numeros.get(id))}
         description={evento}
         actions={
-          <Link href="/captacion" className="fo-btn fo-btn-secondary text-sm">
-            Volver a Captación
+          <Link href="/consultas" className="fo-btn fo-btn-secondary text-sm">
+            Volver a Consultas
           </Link>
         }
       />
@@ -133,7 +133,7 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
           ) : (
             <>
               <p className="fo-card text-sm text-[var(--fo-muted)]">
-                Esta consulta todavía no está en ningún circuito. Se ordena sola al abrir el tablero de Captación.
+                Esta consulta todavía no está en ningún circuito. Se ordena sola al abrir el tablero de Consultas.
               </p>
               {cambios.length > 0 || mensajes.length > 0 ? <Historial pasos={[]} cambios={cambios} mensajes={mensajes} /> : null}
             </>

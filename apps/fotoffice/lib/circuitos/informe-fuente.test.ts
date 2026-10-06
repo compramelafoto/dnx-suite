@@ -23,8 +23,8 @@ describe("Mis tareas e informe", () => {
     expect(p).toContain("{tareas ? <MisTareas grupos={tareas} /> : null}");
   });
 
-  it("el informe vive en /captacion/informe: guarda primero, circuito del workspace y período en hora AR", () => {
-    const p = leer("app", "(shell)", "captacion", "informe", "page.tsx");
+  it("el informe vive en /consultas/informe: guarda primero, circuito del workspace y período en hora AR", () => {
+    const p = leer("app", "(shell)", "consultas", "informe", "page.tsx");
     const guarda = p.indexOf("await requireServiceLeadsStaff()");
     expect(guarda).toBeGreaterThan(0);
     expect(guarda).toBeLessThan(p.indexOf("await searchParams"));
@@ -33,6 +33,6 @@ describe("Mis tareas e informe", () => {
     expect(p).toContain("informeCircuito(workspace.id, elegido,");
     expect(p).toContain("resolverPeriodo(periodo, hoyEnBuenosAires(");
     expect(p).toContain('activa="informe"');
-    expect(leer("app", "(shell)", "captacion", "page.tsx")).toContain('if (vista === "informe") redirect("/captacion/informe");');
+    expect(leer("app", "(shell)", "consultas", "page.tsx")).toContain('if (vista === "informe") redirect("/consultas/informe");');
   });
 });

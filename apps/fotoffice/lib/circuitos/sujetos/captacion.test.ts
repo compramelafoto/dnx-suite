@@ -27,8 +27,8 @@ describe("adaptadorDe", () => {
   it("sólo Captación está conectada", () => {
     expect(adaptadorDe("CAPTACION")).toBe(adaptadorCaptacion);
     expect(adaptadorCaptacion.moduleKey).toBe("service-leads");
-    expect(adaptadorCaptacion.rutaTablero).toBe("/captacion");
-    expect(adaptadorCaptacion.rutaFicha("a/b")).toBe("/captacion/a%2Fb");
+    expect(adaptadorCaptacion.rutaTablero).toBe("/consultas");
+    expect(adaptadorCaptacion.rutaFicha("a/b")).toBe("/consultas/a%2Fb");
     for (const t of ["CONSULTA", "PROYECTO", "COBERTURA", "toString", ""]) expect(adaptadorDe(t)).toBeNull();
   });
 });
@@ -43,9 +43,16 @@ describe("adaptadorCaptacion", () => {
   it("nombre: título, tipo y fecha del evento, enlace a la ficha; ignora ids ajenos", async () => {
     const m = await adaptadorCaptacion.nombre("ws-1", ["l1", "l2", "l3", "l1"]);
     expect([...m.keys()].sort()).toEqual(["l1", "l2"]);
-    expect(m.get("l1")).toEqual({ titulo: "Laura Pérez", subtitulo: "Boda · 20/12/2026", href: "/captacion/l1" });
-    expect(m.get("l2")).toEqual({ titulo: "Martín", subtitulo: "RARO", href: "/captacion/l2" });
+    expect(m.get("l1")).toEqual({ titulo: "Laura Pérez", subtitulo: "Boda · 20/12/2026", href: "/consultas/l1" });
+    expect(m.get("l2")).toEqual({ titulo: "Martín", subtitulo: "RARO", href: "/consultas/l2" });
     expect((await adaptadorCaptacion.nombre("ws-1", [])).size).toBe(0);
+  });
+
+  it("la tarjeta del tablero muestra la fecha del formulario público sin correrla un día", async () => {
+    // El formulario guarda `new Date("2026-12-20")` = medianoche UTC (19/12 21 h en Buenos Aires).
+    B.agregar("serviceSalesLead", { id: "l4", workspaceId: "ws-1", name: "Sofía", eventType: "BODA", eventDate: new Date("2026-12-20"), status: "NEW" });
+    const m = await adaptadorCaptacion.nombre("ws-1", ["l4"]);
+    expect(m.get("l4")?.subtitulo).toBe("Boda · 20/12/2026");
   });
 
   it("alCambiarEtapa: salida manda, etapa con estado lo pone, etapa sin estado no toca", async () => {

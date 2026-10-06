@@ -313,11 +313,12 @@ export function ShellNav({
         {
           // La bandeja pasó al panel con tablero por etapas, lista e informe (etapa 0.4);
           // `/dashboard/service-leads` redirige acá.
-          href: "/captacion",
-          label: "Consultas",
+          // El grupo ya se llama "Consultas" (antes "Captación"): el ítem no repite el nombre.
+          href: "/consultas",
+          label: "Bandeja",
           description: "Las consultas y pedidos de presupuesto que llegaron, por etapa.",
           icon: Inbox,
-          isActive: under("/captacion"),
+          isActive: under("/consultas"),
         },
       ]
     : [];
@@ -455,7 +456,7 @@ export function ShellNav({
     { title: "Coberturas", items: coberturas, moduleKey: COVERAGES_MODULE_KEY },
     { title: "Cursos", items: cursosItems, moduleKey: COURSES_SALES_MODULE_KEY },
     { title: "Reservas", items: reservas, moduleKey: BOOKINGS_MODULE_KEY },
-    { title: "Captación", items: captacion, moduleKey: SERVICE_LEADS_MODULE_KEY },
+    { title: "Consultas", items: captacion, moduleKey: SERVICE_LEADS_MODULE_KEY },
     { title: "Presencia pública", items: presencia, moduleKey: WEBSITE_MODULE_KEY },
     { title: "Institución", items: institucion, moduleKey: null },
     { title: "Plataforma", items: plataforma, moduleKey: null },

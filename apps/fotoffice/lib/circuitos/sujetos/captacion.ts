@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@repo/db";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { SERVICE_LEAD_EVENT_TYPE_LABELS } from "@/lib/service-leads/form-definitions";
-import { fechaBA } from "@/lib/ficha/formato";
+import { fechaDeEvento } from "@/lib/ficha/formato";
 import { ESTADOS_CAPTACION } from "../constantes";
 import type { Adaptador, NombreDeSujeto } from "./tipos";
 
@@ -17,13 +17,13 @@ function esEstadoDeEtapa(v: string): v is (typeof ESTADOS_CAPTACION)[number] {
 }
 
 export function hrefDeConsulta(id: string): string {
-  return `/captacion/${encodeURIComponent(id)}`;
+  return `/consultas/${encodeURIComponent(id)}`;
 }
 
 /** Captación: el sujeto es una `ServiceSalesLead` (consulta de presupuesto). */
 export const adaptadorCaptacion: Adaptador = {
   moduleKey: SERVICE_LEADS_MODULE_KEY,
-  rutaTablero: "/captacion",
+  rutaTablero: "/consultas",
   rutaFicha: hrefDeConsulta,
 
   async existe(tx, workspaceId, id) {
@@ -40,7 +40,7 @@ export const adaptadorCaptacion: Adaptador = {
     });
     for (const f of filas) {
       const tipo = (SERVICE_LEAD_EVENT_TYPE_LABELS as Record<string, string>)[f.eventType] ?? f.eventType;
-      const partes = [tipo, f.eventDate ? fechaBA(f.eventDate) : ""].filter((p) => p.length > 0);
+      const partes = [tipo, f.eventDate ? fechaDeEvento(f.eventDate) : ""].filter((p) => p.length > 0);
       mapa.set(f.id, {
         titulo: f.name,
         ...(partes.length > 0 ? { subtitulo: partes.join(" · ") } : {}),

@@ -73,7 +73,7 @@ describe("tarjeta Más datos", () => {
   it("está en las fichas de Cliente, Socio y Consulta", () => {
     expect(leer("app", "(shell)", "clientes", "[clientId]", "page.tsx")).toContain('<MasDatos entityType="CLIENTE" entityId={cliente.id} />');
     expect(leer("app", "(shell)", "members", "[id]", "page.tsx")).toContain('<MasDatos entityType="SOCIO" entityId={member.id} />');
-    const consulta = leer("app", "(shell)", "captacion", "[id]", "page.tsx");
+    const consulta = leer("app", "(shell)", "consultas", "[id]", "page.tsx");
     expect(consulta).toContain('<MasDatos entityType="CONSULTA" entityId={id} />');
     // Los cambios de la consulta, recién después de verificarla en el workspace de la sesión.
     expect(consulta.indexOf("cambiosDeConsulta(workspace.id, id)")).toBeGreaterThan(consulta.indexOf("if (!ficha) notFound();"));

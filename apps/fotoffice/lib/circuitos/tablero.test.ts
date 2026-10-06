@@ -102,7 +102,7 @@ describe("cargarTablero", () => {
     const j1 = t.columnas[0]!.tarjetas[0]!;
     expect(j1).toEqual({
       journeyId: "j1",
-      sujeto: { titulo: "Laura", subtitulo: "Boda", href: "/captacion/l1" },
+      sujeto: { titulo: "Laura", subtitulo: "Boda", href: "/consultas/l1" },
       numero: null,
       diasEnEtapa: 1,
       vencida: true,
@@ -184,9 +184,9 @@ describe("cargarTablero", () => {
     const col = t.columnas[1]!;
     expect(col.tarjetas).toHaveLength(TOPE_POR_COLUMNA);
     expect(col.total).toBe(TOPE_POR_COLUMNA + 6);
-    expect(col.masHref).toBe("/captacion/lista?etapa=s2");
+    expect(col.masHref).toBe("/consultas/lista?etapa=s2");
     // Los más viejos primero; una consulta que ya no existe igual se ve y se puede mover.
-    expect(col.tarjetas[0]).toMatchObject({ journeyId: "jj0", sujeto: { titulo: "Consulta sin datos", href: "/captacion/sin-consulta-0" } });
+    expect(col.tarjetas[0]).toMatchObject({ journeyId: "jj0", sujeto: { titulo: "Consulta sin datos", href: "/consultas/sin-consulta-0" } });
     expect(t.columnas[0]!.masHref).toBeNull();
   });
 });

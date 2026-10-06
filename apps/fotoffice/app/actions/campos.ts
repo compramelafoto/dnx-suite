@@ -28,7 +28,7 @@ function rutaFicha(entityType: keyof typeof MODULO, id: string): string {
   const seguro = encodeURIComponent(id);
   if (entityType === "CLIENTE") return `/clientes/${seguro}`;
   if (entityType === "SOCIO") return `/members/${seguro}`;
-  return `/captacion/${seguro}`;
+  return `/consultas/${seguro}`;
 }
 
 const MAX_CLAVES = 100;

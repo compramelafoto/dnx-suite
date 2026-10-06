@@ -38,7 +38,7 @@ function rutaFicha(entityType: TipoFichaMensaje, id: string): string {
   const seguro = encodeURIComponent(id);
   if (entityType === "CLIENTE") return `/clientes/${seguro}`;
   if (entityType === "SOCIO") return `/members/${seguro}`;
-  return `/captacion/${seguro}`;
+  return `/consultas/${seguro}`;
 }
 
 function idValido(v: unknown): v is string {

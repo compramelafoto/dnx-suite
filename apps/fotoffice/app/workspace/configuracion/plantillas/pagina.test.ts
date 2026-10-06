@@ -49,7 +49,7 @@ describe("Configuración → Plantillas", () => {
 
   it("sin Captación el formulario del automático sólo deja apagarlo y explica por qué", () => {
     const f = aqui("automatico-form.tsx");
-    expect(f).toContain("El módulo Captación está apagado");
+    expect(f).toContain("El módulo Consultas está apagado");
     expect(f).toContain("disabled={soloApagar && !encendido}");
     expect(f).toContain("disabled={pendiente || (soloApagar && encendido)}");
     // Los textos viajan tal cual están guardados (así apagar no los revalida) y no se editan.

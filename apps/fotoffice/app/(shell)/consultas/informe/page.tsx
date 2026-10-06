@@ -17,7 +17,7 @@ function uno(v: string | string[] | undefined): string | undefined {
 }
 
 /**
- * Informe por circuito de Captación. El período (atajo o rango "AAAA-MM-DD..AAAA-MM-DD") se
+ * Informe por circuito de Consultas. El período (atajo o rango "AAAA-MM-DD..AAAA-MM-DD") se
  * resuelve en hora de Buenos Aires; el circuito tiene que ser del workspace de la sesión (si no,
  * se muestra el predeterminado).
  */

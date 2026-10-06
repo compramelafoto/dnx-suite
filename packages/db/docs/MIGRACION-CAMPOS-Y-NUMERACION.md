@@ -1,15 +1,19 @@
 # Aplicar la migración de Campos personalizados y Numeración (FOTOFFICE, etapa 0.5)
 
+Estado: aplicada en producción el 02/10/2026; código publicado el 06/10/2026 (PR 277)
+
 Procedimiento manual, con el mismo criterio que `MIGRACION-MOTOR-DE-ETAPAS.md`. Las tablas
 van **antes** que el código: no se fusiona el PR sin haber aplicado esto en las bases donde
-corre FOTOFFICE.
+corre FOTOFFICE. **No hay staging:** FOTOFFICE va directo a producción.
+
+La pantalla que acá se nombra **Consultas** se llamaba "Captación" hasta el 06/10/2026.
 
 **Estas pantallas usan las tablas nuevas. Publicar el código antes que el SQL las rompe:**
 
 - **Configuración → Campos y Configuración → Numeración.**
 - **Las fichas de Cliente, Socio y Consulta (bloque "Más datos").**
-- **Los listados de Clientes, Socios y Captación (columnas, filtros y búsqueda por campo).**
-- **Captación: tablero, lista y ficha (muestran y buscan el número de cada consulta).**
+- **Los listados de Clientes, Socios y Consultas (columnas, filtros y búsqueda por campo).**
+- **Consultas: tablero, lista y ficha (muestran y buscan el número de cada consulta).**
 - **El alta de consultas** (incluido el formulario público y la inscripción presencial a
   cursos): asignan el número de la consulta nueva.
 - **La exportación de los listados** (agrega las columnas de campos personalizados).
@@ -18,11 +22,11 @@ Qué lee cada tabla:
 
 | Tabla | Pantallas que la leen |
 |---|---|
-| `FotofficeCustomField`, `FotofficeCustomFieldOption` | **Configuración → Campos; "Más datos" de Cliente, Socio y Consulta; listados Clientes/Socios/Captación; exportación** |
-| `FotofficeCustomValue` | **"Más datos" de las tres fichas; listados Clientes/Socios/Captación (columnas, filtros, búsqueda); exportación** |
+| `FotofficeCustomField`, `FotofficeCustomFieldOption` | **Configuración → Campos; "Más datos" de Cliente, Socio y Consulta; listados Clientes/Socios/Consultas; exportación** |
+| `FotofficeCustomValue` | **"Más datos" de las tres fichas; listados Clientes/Socios/Consultas (columnas, filtros, búsqueda); exportación** |
 | `FotofficeCustomValueChange` | **Historial de cambios de "Más datos" en las fichas de Cliente, Socio y Consulta** |
 | `FotofficeSequence`, `FotofficeSequenceChange` | **Configuración → Numeración; alta de consultas (formulario público, panel e inscripción presencial)** |
-| `FotofficeRecordNumber` | **Captación (tablero, lista, ficha); búsqueda por número; alta de consultas** |
+| `FotofficeRecordNumber` | **Consultas (tablero, lista, ficha); búsqueda por número; alta de consultas** |
 
 ## 1. Qué se aplica
 
@@ -63,17 +67,15 @@ Si no da el checksum de la tabla de arriba, **parar**: el archivo cambió despu�
 
 1. Se fusionan primero, en orden, los PR 277, 281, 286 y 290.
 2. Esta rama se rebasa sobre `main` actualizado.
-3. SQL en **staging** (`dnx-suite-staging`) y **prueba con `next dev` apuntando a staging**
-   (sección 6).
-4. SQL en **FOTOFFICE producción** (proyecto `compramelafoto`, rama `development`,
+3. SQL en **FOTOFFICE producción** (proyecto `compramelafoto`, rama `development`,
    `divine-hall-10689679` / `br-old-rain-adwthzng`).
-5. Recién entonces se fusiona el PR.
+4. Recién entonces se fusiona el PR.
+5. Con el código publicado, prueba manual en producción (sección 6).
 
 ## 3. En qué bases va
 
 | Base | Proyecto / rama Neon | IDs verificados |
 |---|---|---|
-| Staging | `dnx-suite-staging` | — |
 | FOTOFFICE (producción real) | `compramelafoto` / `development` | `divine-hall-10689679` / `br-old-rain-adwthzng` |
 
 Cada base necesita la tabla `Workspace` (por las claves foráneas). Las otras bases no son
@@ -172,21 +174,21 @@ COMMIT;
 Esto borra los campos definidos, sus valores, su historial, las secuencias y los números
 asignados: no tiene vuelta atrás. Las consultas y los clientes en sí no se tocan.
 
-## 6. Prueba manual (para Daniel, en el PR)
+## 6. Prueba manual (para Daniel, en producción)
 
 1. En Configuración → Campos, crear un campo de tipo **Lista** (con dos o tres opciones) para
    Clientes y filtrar el listado de Clientes por ese campo.
 2. Editar "Más datos" de un socio y verlo en su historial de cambios.
 3. Crear una consulta nueva (formulario público o panel): recibe número; buscarla por ese
-   número en Captación.
+   número en Consultas.
 4. En Configuración → Numeración, configurar Presupuestos con un prefijo y ver la vista previa.
 5. Exportar un listado con campos personalizados: las columnas salen en el archivo.
 
-## 7. Pendiente antes de producción
+## 7. Pendiente de comprobar en producción
 
 Estas dos pruebas no se hicieron: las pruebas automáticas corren con una base en memoria y
-no cubren el comportamiento real de Postgres. Hacerlas contra una rama real de Neon (staging)
-antes de aplicar en producción:
+no cubren el comportamiento real de Postgres. Como no hay staging, se comprueban en
+producción, con el uso real y consultas de sólo lectura (`SELECT`):
 
 - **(a) Concurrencia de `asignarNumero`.** Dos altas de consulta en paralelo no deben dar el
   mismo número ni fallar; y crear una consulta **mientras se enganchan las de un año
