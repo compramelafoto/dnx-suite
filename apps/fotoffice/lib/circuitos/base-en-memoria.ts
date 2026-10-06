@@ -28,6 +28,8 @@ const TABLAS = [
   // Contactos y consultas (etapa 1).
   "clientAudit", "fotofficeContactoPerfil", "fotofficeConsulta", "fotofficeConsultaCategoria", "fotofficeOrigen",
   "fotofficeRolParticipante", "fotofficeConsultaParticipante", "fotofficeConsultaAjustes",
+  // Usuarios del equipo (el aviso de consulta nueva lee su correo).
+  "user",
 ] as const;
 export type Tabla = (typeof TABLAS)[number];
 
@@ -373,6 +375,19 @@ export function crearBaseEnMemoria() {
     }
     if (texto.includes("consultas-sin-numero: otra")) {
       return delWorkspace.some((l) => l.id !== valores[1] && !tieneNumero(l)) ? [{ hay: 1 }] : [];
+    }
+    // "consultas-sin-ficha" (etapa 1): consultas sin `FotofficeConsulta`. Lista (workspaceId,
+    // límite) o cuenta (workspaceId).
+    const sinFicha = () => delWorkspace.filter((l) => !datos.fotofficeConsulta.some((c) => c.leadId === l.id));
+    if (texto.includes("consultas-sin-ficha: cuenta")) return [{ n: BigInt(sinFicha().length) }];
+    if (texto.includes("consultas-sin-ficha: lista")) {
+      return ordenar(sinFicha(), [{ createdAt: "asc" }, { id: "asc" }])
+        .slice(0, valores[1] as number)
+        .map((l) => elegir(l))
+        .map((l) => ({
+          id: l.id, name: l.name, email: l.email ?? null, phone: l.phone ?? null, eventType: l.eventType,
+          eventDate: l.eventDate ?? null, eventLocation: l.eventLocation ?? null,
+        }));
     }
     if (!texto.includes("consultas-sin-recorrido")) throw new Error("SQL crudo no emulado en la base en memoria");
     const sinRecorrido = delWorkspace.filter((l) => !tieneRecorrido(l));

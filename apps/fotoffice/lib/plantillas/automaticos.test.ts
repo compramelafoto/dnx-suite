@@ -291,8 +291,14 @@ describe("sólo el formulario público responde", () => {
     return hallados.sort();
   }
 
-  it("la llama sólo app/actions/service-lead.ts: ni la inscripción presencial ni las altas manuales", () => {
-    expect(quienesLlaman()).toEqual(["app/actions/service-lead.ts", "lib/plantillas/automaticos.ts"]);
+  it("la llama sólo el alta única, y sólo el formulario público le pide el origen WEB", () => {
+    // Etapa 1: el formulario pasa por `altaDeConsulta(..., "WEB")`, que es la única que la llama
+    // (y sólo con ese origen: lo prueban lib/consultas/alta.test.ts).
+    expect(quienesLlaman()).toEqual(["lib/consultas/alta.ts", "lib/plantillas/automaticos.ts"]);
+    const alta = readFileSync(path.resolve(__dirname, "../consultas/alta.ts"), "utf8");
+    expect(alta).toMatch(/if \(origenDelAlta === "WEB"\) \{\s*try \{\s*await responderConsultaNueva\(/);
+    const formulario = readFileSync(path.resolve(__dirname, "../../app/actions/service-lead.ts"), "utf8");
+    expect(formulario).toContain('{ origenDelAlta: "WEB" }');
     const presencial = readFileSync(path.resolve(__dirname, "../presential-courses/enrollment-workflow.ts"), "utf8");
     expect(presencial).not.toContain("plantillas/automaticos");
   });

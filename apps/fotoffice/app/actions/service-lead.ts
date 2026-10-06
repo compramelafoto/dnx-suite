@@ -1,12 +1,10 @@
 "use server";
 
-import { Prisma, prisma } from "@repo/db";
+import { type Prisma, prisma } from "@repo/db";
 import { headers } from "next/headers";
 import { z } from "zod";
-import { notificarEvento } from "@/lib/circuitos/eventos";
+import { altaDeConsulta, altaDelSistema, MENSAJES_ALTA } from "@/lib/consultas/alta";
 import { checkRateLimit, clientIp } from "@/lib/geocode/rate-limit";
-import { responderConsultaNueva } from "@/lib/plantillas/automaticos";
-import { numerarConsultaNueva } from "@/lib/service-leads/numero";
 
 /**
  * Topes de largo del formulario público (es abierto: nadie tiene que iniciar sesión). Los mismos
@@ -128,45 +126,27 @@ export async function createServiceLead(
         : "";
     const resolvedEventSubtype = data.eventSubtype?.trim() || budgetTypeFromMeta || "";
 
-    const creado = await prisma.serviceSalesLead.create({
-      select: { id: true, createdAt: true },
-      data: {
-        workspaceId: branding.workspaceId,
-        formId: emptyToNull(data.formId),
-        formSlug: emptyToNull(data.formSlug),
-        name: data.name,
-        email: emptyToNull(data.email),
-        phone: emptyToNull(data.phone),
+    // El alta única de la etapa 1, como formulario web: en una transacción el contacto (buscado
+    // sólo por correo), la consulta y su ficha nueva con la categoría equivalente al tipo del
+    // formulario; después, cada paso aislado y en orden: número, circuito, aviso al equipo y tarea,
+    // y la respuesta automática (sólo en este camino). Una falla de esos pasos nunca deshace el alta.
+    const alta = await altaDeConsulta(
+      altaDelSistema(branding.workspaceId),
+      {
+        contacto: { nombre: data.name, email: emptyToNull(data.email), telefono: emptyToNull(data.phone) },
         eventType: data.eventType,
         eventSubtype: emptyToNull(resolvedEventSubtype),
         eventDate: parseOptionalDate(data.eventDate),
         eventLocation: emptyToNull(data.eventLocation),
         message: emptyToNull(data.message),
-        metaJson: data.meta ? (data.meta as Prisma.InputJsonValue) : Prisma.JsonNull,
-        status: "NEW",
+        metaJson: data.meta ? (data.meta as Prisma.InputJsonValue) : null,
+        formId: emptyToNull(data.formId),
+        formSlug: emptyToNull(data.formSlug),
       },
-    });
-
-    // La consulta ya quedó registrada: recibe su número en una transacción aparte, para que una
-    // falla de la numeración nunca deshaga el alta (numerarConsultaNueva no lanza; si falla, la
-    // numera el próximo enganche).
-    await numerarConsultaNueva(branding.workspaceId, creado.id, creado.createdAt);
-
-    // Respuesta automática por correo (0.6), sólo en este camino del formulario público: va después
-    // del número para que [consulta_numero] ya exista. Nunca hace fallar el alta (no lanza; si el
-    // correo falla, queda registrado como "Falló").
-    try {
-      await responderConsultaNueva(branding.workspaceId, creado.id);
-    } catch {
-      console.error("[plantillas] no se pudo enganchar la respuesta automática");
-    }
-
-    // El motor de etapas la pone en la primera etapa. Una falla
-    // del motor nunca hace fallar el alta (notificarEvento no lanza; esto es por las dudas).
-    try {
-      await notificarEvento(branding.workspaceId, { tipo: "CAPTACION", id: creado.id }, "CONSULTA_RECIBIDA", creado.id);
-    } catch {
-      console.error("[captacion] no se pudo enganchar la consulta nueva al embudo");
+      { origenDelAlta: "WEB" },
+    );
+    if (!alta.ok) {
+      return { success: false, error: alta.error === MENSAJES_ALTA.fallo ? "No se pudo registrar el lead." : alta.error };
     }
 
     return { success: true };

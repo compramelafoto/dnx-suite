@@ -4,7 +4,8 @@ import { moduloDeRegistroEncendido } from "@/lib/campos/modulos";
 import { VENTANA_UNA_AUTORESPUESTA_MS } from "./constantes";
 import { AUTOMATICOS, leerAutomatico } from "./definiciones";
 import { contextoDe, correoValido, destinoDe } from "./contexto";
-import { completarTextos, enviarCorreo, type CtxEnvio, type DepsEnvio } from "./envio";
+import { armarCorreoFinal, completarTextos, enviarCorreo, type CtxEnvio, type DepsEnvio } from "./envio";
+import { sendTransactionalEmail, type OutboundEmail } from "@/lib/communications/send-email";
 
 /**
  * Mensajes que salen solos (spec §3.5). Hoy, uno: la respuesta automática a una consulta nueva
@@ -95,6 +96,50 @@ export async function responderConsultaNueva(
   } catch (e) {
     // Sólo el código: el mensaje de Prisma puede repetir datos de la persona.
     console.error("[plantillas] falló la respuesta automática", { codigo: (e as { code?: unknown })?.code ?? "desconocido" });
+    return "ERROR";
+  }
+}
+
+/**
+ * Aviso interno de consulta nueva al equipo (etapa 1) con la plantilla del sistema
+ * `CONSULTA_AVISO_EQUIPO`, si está encendida. Va a `para` (un usuario del equipo, ya elegido por
+ * `lib/consultas/aviso.ts`) con el remitente de FOTOFFICE.
+ *
+ * No pasa por `enviarCorreo`: no se registra en `FotofficeMessage` (no es un mensaje a la persona
+ * de la ficha), así que no cuenta en el tope de correos manuales (`TOPE_CORREOS_DIA`) ni en el de
+ * automáticos, y nunca le aplica la regla de una respuesta por dirección cada 24 h. Nunca lanza
+ * y nunca loguea datos: sólo códigos.
+ */
+export async function avisarEquipoConsultaNueva(
+  workspaceId: string,
+  leadId: string,
+  para: { email: string | null; nombre: string | null },
+  deps: DepsEnvio = {},
+): Promise<ResultadoAutomatico> {
+  try {
+    const auto = await leerAutomatico(workspaceId, "CONSULTA_AVISO_EQUIPO");
+    if (!auto || !auto.enabled || auto.channel !== AUTOMATICOS.CONSULTA_AVISO_EQUIPO.canal) return "APAGADA";
+    if (!correoValido(para.email)) return "SIN_CORREO";
+    const contexto = await contextoDe(workspaceId, "CONSULTA", leadId, { nombre: para.nombre, email: para.email });
+    if (!contexto) return "NO_ENCONTRADA";
+    const textos = completarTextos(contexto, "CONSULTA", auto.subject, auto.body);
+    if (!textos.ok) {
+      console.warn("[plantillas] el aviso al equipo tiene variables inválidas", { codigo: "PLANTILLA_CON_ERRORES" });
+      return "PLANTILLA_CON_ERRORES";
+    }
+    const correo = armarCorreoFinal(textos.asunto, textos.cuerpo, contexto.firma);
+    if (!correo.ok) {
+      console.warn("[plantillas] el aviso al equipo no se pudo armar", { codigo: "PLANTILLA_CON_ERRORES" });
+      return "PLANTILLA_CON_ERRORES";
+    }
+    const enviar = deps.enviar ?? ((m: OutboundEmail) => sendTransactionalEmail(m));
+    // Sin `fromName` ni `sender`: sale con el remitente de FOTOFFICE (el del entorno).
+    const r = await enviar({ to: para.email!, subject: correo.asunto, html: correo.html, text: correo.texto });
+    if (r.status === "SENT") return "ENVIADO";
+    console.warn("[plantillas] el aviso al equipo no salió", { codigo: r.status });
+    return "NO_ENVIADO";
+  } catch (e) {
+    console.error("[plantillas] falló el aviso al equipo", { codigo: (e as { code?: unknown })?.code ?? "desconocido" });
     return "ERROR";
   }
 }

@@ -214,3 +214,49 @@ export async function asegurarPlantillasIniciales(workspaceId: string, slug: str
     if ((e as { code?: unknown })?.code !== "P2002") throw e;
   }
 }
+
+/**
+ * Aviso interno de consulta nueva (etapa 1): el mismo texto para todas las organizaciones. Va al
+ * responsable (un usuario del equipo), así que sí repite el mensaje de la consulta. Nace
+ * encendido: es lo que pide la pantalla Configuración → Consultas → Avisos ("mandar correo"), que
+ * es el interruptor que se ve primero; éste permite además editar el texto.
+ */
+export const AVISO_EQUIPO: AutorespuestaInicial = {
+  asunto: "Nueva consulta[si:consulta_numero] n.º [consulta_numero][/si][si:nombre_completo] de [nombre_completo][/si]",
+  cuerpo: `Hola[si:usuario_nombre], [usuario_nombre][/si]:
+
+Entró una consulta nueva[si:consulta_tipo] ([consulta_tipo])[/si]. Estos son los datos:
+
+[si:nombre_completo]Nombre: [nombre_completo]
+[/si][si:email]Correo: [email]
+[/si][si:telefono]Teléfono: [telefono]
+[/si][si:consulta_fecha]Fecha del evento: [consulta_fecha]
+[/si][si:consulta_lugar]Lugar: [consulta_lugar]
+[/si][si:consulta_mensaje]Mensaje: [consulta_mensaje]
+[/si]
+La podés responder desde FOTOFFICE, en Consultas.`,
+};
+
+const CLAVE_AVISO = "CONSULTA_AVISO_EQUIPO" as const;
+
+/**
+ * Crea, una sola vez, la plantilla del aviso al equipo (encendida). Aparte de
+ * `asegurarPlantillasIniciales`, porque los workspaces que ya tenían sembrada la respuesta
+ * automática también la necesitan. Idempotente: conteo afuera y el índice único adentro.
+ */
+export async function asegurarAvisoEquipo(workspaceId: string): Promise<void> {
+  if ((await prisma.fotofficeMessageTemplate.count({ where: { workspaceId, systemKey: CLAVE_AVISO } })) > 0) return;
+  const def = AUTOMATICOS[CLAVE_AVISO];
+  try {
+    await prisma.fotofficeMessageTemplate.create({
+      data: {
+        workspaceId, systemKey: CLAVE_AVISO, channel: def.canal, entityType: def.tipo, name: def.nombre,
+        subject: AVISO_EQUIPO.asunto, body: AVISO_EQUIPO.cuerpo, enabled: true, order: 1,
+      },
+      select: { id: true },
+    });
+  } catch (e) {
+    // Otra corrida la creó en el mismo instante: el índice único nos frena; da igual.
+    if ((e as { code?: unknown })?.code !== "P2002") throw e;
+  }
+}

@@ -10,8 +10,14 @@ export type TipoPlantilla = (typeof TIPOS_PLANTILLA)[number];
 export const ESTADOS_MENSAJE = ["SENT", "FAILED", "OPENED_WHATSAPP"] as const;
 export type EstadoMensaje = (typeof ESTADOS_MENSAJE)[number];
 
-/** Claves de las plantillas automáticas (`FotofficeMessageTemplate.systemKey`). */
-export const CLAVES_AUTOMATICO = ["CONSULTA_AUTORESPUESTA"] as const;
+/**
+ * Claves de las plantillas automáticas (`FotofficeMessageTemplate.systemKey`).
+ * - `CONSULTA_AUTORESPUESTA`: respuesta a quien consultó por el formulario público.
+ * - `CONSULTA_AVISO_EQUIPO`: aviso interno al responsable de una consulta nueva (etapa 1). Va
+ *   sólo a usuarios del equipo, con el remitente de FOTOFFICE: no se registra como mensaje de la
+ *   ficha, no cuenta en ningún tope diario ni en la regla de una respuesta cada 24 h.
+ */
+export const CLAVES_AUTOMATICO = ["CONSULTA_AUTORESPUESTA", "CONSULTA_AVISO_EQUIPO"] as const;
 export type ClaveAutomatico = (typeof CLAVES_AUTOMATICO)[number];
 
 export const ETIQUETA_CANAL: Record<Canal, string> = { EMAIL: "Correo", WHATSAPP: "WhatsApp" };
