@@ -13,6 +13,14 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  experimental: {
+    serverActions: {
+      // El logo de un sponsor se sube con una acción de servidor (`app/(shell)/sponsors/actions.ts`),
+      // y el tope por omisión de 1 MB rechazaba logos comunes. 4 MB queda debajo del corte de
+      // 4,5 MB que Vercel pone a cualquier pedido.
+      bodySizeLimit: "4mb",
+    },
+  },
   // @repo/db NO se transpila: se externaliza para conservar el Query Engine de Prisma.
   // Mismo criterio que apps/clickaton. Transpilarlo funcionaba con Turbopack, pero con
   // webpack el motor nativo no llega al bundle y toda consulta falla en runtime.

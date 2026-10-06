@@ -129,6 +129,21 @@ export async function savePrizeAction(formData: FormData): Promise<void> {
     );
   }
 
+  // El aliado que dona un premio pasa a ser sponsor de la institución: así aparece en su
+  // módulo de sponsors sin cargarlo dos veces. Si la conexión con DNX Partners no está, el
+  // premio igual queda guardado.
+  if (parsed.values.partnerId) {
+    try {
+      const { linkSponsor } = await import("@/lib/sponsors/repository");
+      const { canWriteSponsors } = await import("@/lib/sponsors/clients");
+      if (canWriteSponsors()) await linkSponsor({ workspaceId: workspace.id, partnerId: parsed.values.partnerId });
+    } catch (error) {
+      console.error("[fotoffice][sorteos] no se pudo vincular el aliado como sponsor", {
+        detalle: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
   revalidatePath(detalle(raffleId));
   redirect(`${detalle(raffleId)}?ok=premio`);
 }

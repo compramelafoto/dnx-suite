@@ -10,6 +10,7 @@ import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
+import { SPONSORS_MODULE_KEY } from "@/lib/sponsors/constants";
 import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
 import { SALES_MODULE_KEY } from "@/lib/sales/constants";
 import { STORE_MODULE_KEY } from "@/lib/store/constants";
@@ -79,6 +80,14 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
     resuelve:
       "Sorteás entre los socios que están al día, con premios de las marcas aliadas. El número ganador no lo elige el sistema: sale de una baliza pública de azar que se consulta en varios servidores a la vez. Cualquier socio puede rehacer la cuenta después y comprobar que salió así.",
     pantallas: ["Sorteos y participantes", "Entregas de premios", "Comprobación pública del resultado"],
+  },
+  {
+    key: SPONSORS_MODULE_KEY,
+    cuadro: "03a",
+    nombre: "Sponsors",
+    resuelve:
+      "Cargás las marcas que acompañan a la institución y decidís dónde aparece cada una y hasta cuándo: la franja de logos del sitio, la sección de sponsors del portal de los socios o el aviso que ven al entrar. Cuando vence el período, el logo se baja solo.",
+    pantallas: ["Sponsors de la institución", "Espacios y fechas de cada marca", "Logos en el sitio y en el portal"],
   },
   {
     key: PORTFOLIO_MODULE_KEY,

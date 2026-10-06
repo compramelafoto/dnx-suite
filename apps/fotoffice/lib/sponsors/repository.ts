@@ -234,6 +234,8 @@ export type CatalogOption = {
   id: string;
   name: string;
   logoSrc: string | null;
+  /** El `logoUrl` crudo de la ficha: es lo que guardan como respaldo los premios de los sorteos. */
+  logoUrl: string | null;
   /** Ya es sponsor de esta institución. */
   linked: boolean;
   /** Sólo de los vinculados: los datos de contacto de los demás no son de esta institución. */
@@ -264,7 +266,7 @@ export async function searchCatalog(workspaceId: string, texto: string): Promise
   return filas
     .map((p) => {
       const linked = p.participations.length > 0;
-      return { id: p.id, name: p.name, logoSrc: logoDe(p), linked, email: linked ? p.email : null };
+      return { id: p.id, name: p.name, logoSrc: logoDe(p), logoUrl: p.logoUrl, linked, email: linked ? p.email : null };
     })
     .sort((a, b) => Number(b.linked) - Number(a.linked));
 }

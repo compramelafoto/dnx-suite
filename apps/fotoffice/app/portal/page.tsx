@@ -24,6 +24,8 @@ import { buildSpotlightCard } from "@/lib/spotlight/view";
 import { spotlightWeekLabel } from "@/lib/spotlight/week";
 import { loadBirthdaysOfWeek } from "@/lib/birthdays/repository";
 import type { BirthdayView } from "@/lib/birthdays/week";
+import { loadActivePlacement } from "@/lib/sponsors/placements";
+import { PortalSponsorsSection } from "@/components/sponsors/portal-sponsors-section";
 
 export const dynamic = "force-dynamic";
 
@@ -164,7 +166,11 @@ export default async function PortalPage() {
     });
   }
 
+  // La sección de sponsors de la institución. Nunca falla: si no hay, no se dibuja.
+  const sponsors = await loadActivePlacement(context.workspace.id, "FOTOFFICE_PORTAL_SPONSORS");
+
   return (
+    <>
     <PortalHome
       institution={institution}
       member={{
@@ -193,5 +199,9 @@ export default async function PortalPage() {
       cumpleanos={cumpleanos}
       gobierno={gobierno}
     />
+    <div className="mt-8">
+      <PortalSponsorsSection sponsors={sponsors} />
+    </div>
+    </>
   );
 }

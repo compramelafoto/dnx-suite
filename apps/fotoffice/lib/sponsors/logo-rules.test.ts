@@ -7,16 +7,16 @@ import {
 } from "./logo-rules";
 
 describe("validateSponsorLogo", () => {
-  it("acepta PNG, JPG y WebP de hasta 5 MB", () => {
+  it("acepta PNG, JPG y WebP de hasta 4 MB", () => {
     expect(validateSponsorLogo({ type: "image/png", size: 1000 })).toEqual({ ok: true });
-    expect(validateSponsorLogo({ type: "IMAGE/JPEG", size: 5 * 1024 * 1024 })).toEqual({ ok: true });
+    expect(validateSponsorLogo({ type: "IMAGE/JPEG", size: 3.9 * 1024 * 1024 })).toEqual({ ok: true });
     expect(validateSponsorLogo({ type: "image/webp", size: 1 })).toEqual({ ok: true });
   });
 
   it("rechaza SVG, vacíos y pesados", () => {
     expect(validateSponsorLogo({ type: "image/svg+xml", size: 10 }).ok).toBe(false);
     expect(validateSponsorLogo({ type: "image/png", size: 0 }).ok).toBe(false);
-    expect(validateSponsorLogo({ type: "image/png", size: 5 * 1024 * 1024 + 1 }).ok).toBe(false);
+    expect(validateSponsorLogo({ type: "image/png", size: 4 * 1024 * 1024 }).ok).toBe(false);
   });
 });
 

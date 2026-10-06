@@ -6,7 +6,8 @@
  */
 
 export const SPONSOR_LOGO_TYPES = ["image/png", "image/jpeg", "image/webp"] as const;
-export const SPONSOR_LOGO_MAX_BYTES = 5 * 1024 * 1024;
+/** 4 MB: el pedido entero no puede pasar el `bodySizeLimit` de `next.config.ts`. */
+export const SPONSOR_LOGO_MAX_BYTES = 4 * 1024 * 1024 - 64 * 1024;
 
 const EXTENSION: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
 
@@ -21,7 +22,7 @@ export function validateSponsorLogo(input: { type: string; size: number }): { ok
     return { ok: false, error: "El logo tiene que ser PNG, JPG o WebP." };
   }
   if (input.size <= 0) return { ok: false, error: "El archivo está vacío." };
-  if (input.size > SPONSOR_LOGO_MAX_BYTES) return { ok: false, error: "El logo no puede pesar más de 5 MB." };
+  if (input.size > SPONSOR_LOGO_MAX_BYTES) return { ok: false, error: "El logo no puede pesar más de 4 MB." };
   return { ok: true };
 }
 
