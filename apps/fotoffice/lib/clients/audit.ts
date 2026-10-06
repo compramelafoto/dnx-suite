@@ -32,4 +32,14 @@ export const ETIQUETAS_CAMPO_CLIENTE: Record<string, string> = {
   address: "Domicilio",
   city: "Ciudad",
   status: "Estado",
+  // Perfil ampliado del contacto (etapa 1, `lib/contactos/perfil.ts`): mismo historial.
+  category: "Categoría",
+  mobile: "Celular",
+  email2: "Segundo correo",
+  birthday: "Cumpleaños",
+  website: "Sitio web",
+  province: "Provincia",
+  country: "País",
+  postalCode: "Código postal",
+  about: "Sobre",
 };
