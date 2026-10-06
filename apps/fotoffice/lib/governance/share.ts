@@ -103,6 +103,11 @@ export function projectShareMessage(args: {
   return `Proyecto de la comisión: "${args.title}". ${pedido}\n${args.url}`;
 }
 
+/** Para el grupo de socios: el mismo enlace los lleva a su portal, donde votan en privado. */
+export function memberShareMessage(args: { title: string; institution: string; url: string }): string {
+  return `${args.institution} quiere saber tu opinión sobre "${args.title}". Entrá y contanos si lo apoyás (tu voto es privado) y qué te gustaría que tengamos en cuenta.\n${args.url}`;
+}
+
 export function meetingShareMessage(args: {
   title: string;
   when: string;

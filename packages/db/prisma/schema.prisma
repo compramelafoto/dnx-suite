@@ -20774,6 +20774,7 @@ model GovProject {
   events      GovProjectEvent[]
   votes       GovVote[]
   comments    GovComment[]
+  memberVotes GovMemberVote[]
   meetingItems GovMeetingItem[]
   quotes       GovQuote[]
   reservations GovReservation[]
@@ -20890,6 +20891,23 @@ model GovProjectEvent {
   @@index([projectId, createdAt])
 }
 
+/// Apoyo de los socios a un proyecto visible: una encuesta, no una votación de la comisión.
+/// Privado: ninguna pantalla muestra quién votó qué; la comisión ve sólo los totales. La ficha
+/// se guarda únicamente para que cada socio vote una vez y pueda cambiar su voto.
+model GovMemberVote {
+  id        String   @id @default(cuid())
+  projectId String
+  memberId  String
+  /// FOR | AGAINST
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project GovProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, memberId])
+}
+
 /// Voto de un integrante con cargo vigente sobre un proyecto. Mide apoyo; la aprobación formal se
 /// registra en reunión. Se puede cambiar mientras la votación está abierta.
 model GovVote {
@@ -20906,12 +20924,16 @@ model GovVote {
   @@unique([projectId, voterUserId])
 }
 
-/// Opinión escrita de un integrante de la comisión sobre un proyecto, antes de tratarlo en
-/// reunión. Nada se borra: quien la escribió la puede retirar y queda "retirada".
+/// Opinión escrita sobre un proyecto. De la comisión (antes de tratarlo en reunión) o de un
+/// socio desde su portal, en un proyecto visible. Nada se borra: quien la escribió la puede
+/// retirar y queda "retirada".
 model GovComment {
   id           String    @id @default(cuid())
   projectId    String
   authorUserId Int
+  /// Ficha del socio que opinó desde el portal. null = opinión de la comisión. La de un socio
+  /// la lee sólo la comisión, con su nombre; los demás socios no la ven.
+  authorMemberId String?
   /// Nombre al momento de escribir, para que el hilo se lea igual si cambia el cargo.
   authorLabel  String
   body         String

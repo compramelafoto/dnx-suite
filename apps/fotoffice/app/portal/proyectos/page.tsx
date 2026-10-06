@@ -6,6 +6,7 @@ import { progressOf } from "@/lib/governance/urgency";
 import { fecha, projectStatusLabel } from "@/lib/governance/labels";
 import { isVotingOpen, tallyLabel } from "@/lib/governance/votes";
 import { ProgressBar } from "@/components/governance/badges";
+import { isMemberPollOpen } from "@/lib/governance/member-pulse";
 import type { ProjectStatus } from "@/lib/governance/constants";
 
 export const dynamic = "force-dynamic";
@@ -74,7 +75,12 @@ export default async function MisProyectosPage({ searchParams }: { searchParams:
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Proyectos de la institución</h2>
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold">Proyectos de la institución</h2>
+          <p className="text-sm text-[var(--fo-muted)]">
+            Entrá a cada uno para decir si lo apoyás y dejarle tu opinión a la comisión. Tu voto es privado.
+          </p>
+        </div>
         {visibles.length === 0 ? (
           <p className="fo-card p-6 text-sm text-[var(--fo-muted)]">La comisión todavía no compartió proyectos con los socios.</p>
         ) : (
@@ -92,6 +98,11 @@ export default async function MisProyectosPage({ searchParams }: { searchParams:
                     {isVotingOpen(p.status as ProjectStatus) ? ` · ${tallyLabel(votacion.tallyOf(p.id))}` : ""}
                   </p>
                   {avance.total > 0 ? <ProgressBar {...avance} /> : null}
+                  {isMemberPollOpen({ status: p.status, visibleToMembers: true }) ? (
+                    <Link href={`/portal/proyectos/${p.id}#opinar`} className="inline-block text-xs text-[var(--fo-accent)] hover:underline">
+                      👍 👎 Votá y opiná →
+                    </Link>
+                  ) : null}
                 </li>
               );
             })}

@@ -4,6 +4,7 @@ import {
   decideSharedDestination,
   isValidSharedParams,
   meetingShareMessage,
+  memberShareMessage,
   projectShareMessage,
   sharedReturnPath,
   sharedUrl,
@@ -104,5 +105,14 @@ describe("diaYHora", () => {
     const d = new Date("2026-10-15T22:00:00Z");
     expect(diaYHora(d)).toBe("jueves 15/10, 19:00");
     expect(diaYHora(d, false)).toBe("jueves 15/10");
+  });
+});
+
+describe("memberShareMessage", () => {
+  it("le aclara al socio que su voto es privado", () => {
+    const m = memberShareMessage({ title: "Proyector", institution: "SFPR", url: "u" });
+    expect(m).toContain('SFPR quiere saber tu opinión sobre "Proyector"');
+    expect(m).toContain("tu voto es privado");
+    expect(m.endsWith("\nu")).toBe(true);
   });
 });

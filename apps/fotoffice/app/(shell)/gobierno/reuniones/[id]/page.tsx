@@ -6,7 +6,8 @@ import { PageHeader } from "@/components/page-header";
 import { Flash } from "@/components/governance/member-select";
 import { ProjectStatusBadge } from "@/components/governance/badges";
 import { requireGovernanceViewer } from "@/lib/governance/access";
-import { getMeeting, listCommentsByProject, loadVoting } from "@/lib/governance/repository";
+import { getMeeting, listCommentsByProject, loadMemberPulse, loadVoting } from "@/lib/governance/repository";
+import { memberPulseLabel } from "@/lib/governance/member-pulse";
 import { diaYHora, fechaHora } from "@/lib/governance/labels";
 import { ShareButtons } from "@/components/governance/share-buttons";
 import { buildSharedUrl, loadShareBase } from "@/lib/governance/share-server";
@@ -53,8 +54,9 @@ export default async function ReunionPage({
   const bloqueada = isMinutesLocked(r.status);
   const editable = canManage && !bloqueada;
   const proyectoIds = r.items.flatMap((i) => (i.projectId ? [i.projectId] : []));
-  const [votacion, opiniones, shareBase, holders, otrosProyectos] = await Promise.all([
+  const [votacion, pulsoDe, opiniones, shareBase, holders, otrosProyectos] = await Promise.all([
     loadVoting(workspace.id, proyectoIds),
+    loadMemberPulse(workspace.id, proyectoIds),
     listCommentsByProject(workspace.id, proyectoIds),
     loadShareBase(workspace.id),
     editable ? listActiveOfficeHolders(workspace.id).catch(() => []) : Promise.resolve([]),
@@ -159,7 +161,8 @@ export default async function ReunionPage({
                     {item.project ? (
                       <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--fo-muted)]">
                         <ProjectStatusBadge status={item.project.status} />
-                        <span>{tallyLabel(foto ?? actual!)}</span>
+                        <span>Comisión: {tallyLabel(foto ?? actual!)}</span>
+                        {pulsoDe(item.projectId!).total > 0 ? <span>· Socios: {memberPulseLabel(pulsoDe(item.projectId!))}</span> : null}
                       </div>
                     ) : (
                       <p className="text-xs text-[var(--fo-muted)]">Tema suelto</p>

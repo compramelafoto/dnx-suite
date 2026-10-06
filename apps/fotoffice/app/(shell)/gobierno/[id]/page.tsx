@@ -6,10 +6,11 @@ import { Flash, MemberSelect } from "@/components/governance/member-select";
 import { ProgressBar, ProjectStatusBadge, TaskStatusBadge, UrgencyDot } from "@/components/governance/badges";
 import { ProjectFileUploader } from "@/components/governance/project-file-uploader";
 import { requireGovernanceViewer, canWorkOnTask } from "@/lib/governance/access";
-import { getProject, listComments, listMemberOptions, loadVoting, nextPlannedMeeting } from "@/lib/governance/repository";
+import { getProject, listComments, listMemberOptions, loadMemberPulse, loadVoting, nextPlannedMeeting } from "@/lib/governance/repository";
+import { isMemberPollOpen, memberPulseLabel } from "@/lib/governance/member-pulse";
 import { ShareButtons } from "@/components/governance/share-buttons";
 import { buildSharedUrl, loadShareBase } from "@/lib/governance/share-server";
-import { projectShareMessage } from "@/lib/governance/share";
+import { memberShareMessage, projectShareMessage } from "@/lib/governance/share";
 import { canWithdrawComment, MAX_COMMENT } from "@/lib/governance/comments";
 import { addCommentAction, withdrawCommentAction } from "../comentarios-actions";
 import { isVotingOpen, tallyLabel } from "@/lib/governance/votes";
@@ -72,11 +73,16 @@ export default async function ProyectoPage({
     isCashOn(workspace.id),
     canHandleProjectMoney(ctx.user.id, workspace.id),
   ]);
-  const [comentarios, shareBase, proximaReunion] = await Promise.all([
+  const [todosLosComentarios, shareBase, proximaReunion, pulsoDe] = await Promise.all([
     listComments(workspace.id, proyecto.id),
     loadShareBase(workspace.id),
     nextPlannedMeeting(workspace.id),
+    loadMemberPulse(workspace.id, [proyecto.id]),
   ]);
+  const comentarios = todosLosComentarios.filter((c) => c.authorMemberId === null);
+  const deSocios = todosLosComentarios.filter((c) => c.authorMemberId !== null && c.withdrawnAt === null);
+  const pulso = pulsoDe(proyecto.id);
+  const encuestaAbierta = isMemberPollOpen(proyecto);
   const enlace = shareBase ? buildSharedUrl("proyecto", proyecto.id, shareBase) : null;
   const [cuentas, categorias] =
     cashOn && puedePlata ? await Promise.all([listAccounts(workspace.id), listCategories(workspace.id)]) : [[], []];
@@ -122,6 +128,9 @@ export default async function ProyectoPage({
               votingOpen: isVotingOpen(proyecto.status),
               nextMeeting: proximaReunion ? diaYHora(proximaReunion.scheduledAt, false) : null,
             })}
+            members={
+              encuestaAbierta ? memberShareMessage({ title: proyecto.title, institution: workspace.name, url: enlace }) : null
+            }
             label="El mismo enlace sirve para todos: a cada uno lo lleva a lo que puede ver."
           />
         ) : null}
@@ -324,6 +333,51 @@ export default async function ProyectoPage({
           </button>
         </form>
       </section>
+
+      {proyecto.visibleToMembers || pulso.total > 0 || deSocios.length > 0 ? (
+        <section id="socios" className="fo-card space-y-4 p-6">
+          <div>
+            <h2 className="text-base font-semibold">Lo que piensan los socios</h2>
+            <p className="text-sm text-[var(--fo-muted)]">
+              Una encuesta, no una votación: sirve para saber qué es importante para los socios. El voto es privado y acá
+              se ven sólo los totales. Las opiniones llegan con nombre.
+              {encuestaAbierta ? "" : proyecto.visibleToMembers ? " La encuesta está cerrada." : " El proyecto ya no es visible para los socios."}
+            </p>
+          </div>
+          <div className="space-y-2">
+            <p className="text-sm font-medium">{memberPulseLabel(pulso)}</p>
+            {pulso.total > 0 ? (
+              <>
+                <div
+                  className="flex h-2 overflow-hidden rounded-full bg-[var(--fo-danger-soft)]"
+                  role="img"
+                  aria-label={`${pulso.percentFor} % lo apoya`}
+                >
+                  <div className="bg-[var(--fo-success)]" style={{ width: `${pulso.percentFor}%` }} />
+                </div>
+                <p className="text-xs text-[var(--fo-muted)]">
+                  👍 {pulso.for} lo apoyan · 👎 {pulso.against} no lo apoyan
+                </p>
+              </>
+            ) : null}
+          </div>
+          {deSocios.length > 0 ? (
+            <ul className="space-y-3">
+              {deSocios.map((c) => (
+                <li key={c.id} className="rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] px-4 py-3 text-sm">
+                  <p>
+                    <span className="font-medium">{c.authorLabel}</span>{" "}
+                    <span className="text-xs text-[var(--fo-muted)]">· {fechaHora(c.createdAt)}</span>
+                  </p>
+                  <p className="mt-1 whitespace-pre-line text-[var(--fo-text-secondary)]">{c.body}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-[var(--fo-muted)]">Ningún socio dejó su opinión todavía.</p>
+          )}
+        </section>
+      ) : null}
 
       <section id="etapas" className="space-y-4">
         <div>

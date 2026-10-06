@@ -9,7 +9,18 @@ import { Link2, MessageCircle } from "lucide-react";
  * Cliente sólo por el portapapeles. El mensaje llega armado desde el servidor
  * (`lib/governance/share.ts`) y se puede editar en WhatsApp antes de mandarlo.
  */
-export function ShareButtons({ url, message, label }: { url: string; message: string; label: string }) {
+export function ShareButtons({
+  url,
+  message,
+  label,
+  members,
+}: {
+  url: string;
+  message: string;
+  label: string;
+  /** Si el proyecto es visible: un segundo mensaje, para el grupo de socios. */
+  members?: string | null;
+}) {
   const [copiado, setCopiado] = useState(false);
 
   async function copiar() {
@@ -36,8 +47,19 @@ export function ShareButtons({ url, message, label }: { url: string; message: st
         className="fo-btn fo-btn-secondary text-sm"
       >
         <MessageCircle className="size-4" aria-hidden />
-        Compartir por WhatsApp
+        {members ? "WhatsApp a la comisión" : "Compartir por WhatsApp"}
       </a>
+      {members ? (
+        <a
+          href={`https://wa.me/?text=${encodeURIComponent(members)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="fo-btn fo-btn-secondary text-sm"
+        >
+          <MessageCircle className="size-4" aria-hidden />
+          WhatsApp a los socios
+        </a>
+      ) : null}
       <span className="text-xs text-[var(--fo-muted)]">{label}</span>
     </div>
   );
