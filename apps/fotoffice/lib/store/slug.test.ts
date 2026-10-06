@@ -34,6 +34,8 @@ describe("uniqueSlug", () => {
     expect(uniqueSlug("carrito", new Set())).toBe("carrito-2");
     expect(uniqueSlug("checkout", new Set(["checkout-2"]))).toBe("checkout-3");
     for (const r of STORE_RESERVED_SLUGS) expect(uniqueSlug(r, new Set())).not.toBe(r);
+    // La vidriera de obras (`/tienda/obras`): un producto "Obras" no puede taparla.
+    expect(uniqueSlug("obras", new Set())).toBe("obras-2");
   });
 
   it("si está libre, queda igual", () => {

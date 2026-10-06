@@ -5,7 +5,7 @@ import { sendAndLogEmail } from "@/lib/communications/send-and-log";
 import { decimalArsToMinor } from "@/lib/membership/money";
 import { orderAccessToken, resolveOrderTokenKey } from "./access-token";
 import { orderShippingView } from "./shipping/order-destination";
-import { trackingUrl } from "./shipping/tracking";
+import { trackingCarrierName, trackingUrl } from "./shipping/tracking";
 import {
   buildStoreOrderUrl,
   renderCreditFailureAlert,
@@ -102,7 +102,11 @@ async function cargar(input: StoreOrderEmailInput): Promise<Cargado | null> {
         ? { label: destino.label, amountMinor: decimalArsToMinor(order.shippingArs), lines: destino.lines }
         : null,
       tracking: order.trackingNumber
-        ? { number: order.trackingNumber, url: trackingUrl(order.shippingSource, order.trackingNumber) }
+        ? {
+            number: order.trackingNumber,
+            url: trackingUrl(order.shippingSource, order.trackingNumber),
+            carrier: trackingCarrierName(order.shippingSource),
+          }
         : null,
       // El mismo token que se dio al crear el pedido (es determinista): no invalida la cookie.
       orderUrl: buildStoreOrderUrl({

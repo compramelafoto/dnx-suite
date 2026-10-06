@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPackage, exceedsCorreoLimits, normalizePostalCode } from "./package";
+import { buildPackage, exceedsAndreaniLimits, exceedsCorreoLimits, normalizePostalCode } from "./package";
 
 const cfg = { packagingGrams: 100, defaultUnitGrams: 300, boxLengthCm: 30, boxWidthCm: 20, boxHeightCm: 10 };
 const item = (o: Partial<Parameters<typeof buildPackage>[0][number]> = {}) => ({
@@ -75,5 +75,16 @@ describe("exceedsCorreoLimits", () => {
     expect(exceedsCorreoLimits({ ...ok, lengthCm: 151 })).toBe(true);
     expect(exceedsCorreoLimits({ ...ok, widthCm: 151 })).toBe(true);
     expect(exceedsCorreoLimits({ ...ok, heightCm: 151 })).toBe(true);
+  });
+});
+
+describe("exceedsAndreaniLimits", () => {
+  const caja = { weightGrams: 1000, lengthCm: 30, widthCm: 20, heightCm: 10 };
+  it("hasta 50 kg, 165 cm por lado y 300 cm de suma de lados", () => {
+    expect(exceedsAndreaniLimits(caja)).toBe(false);
+    expect(exceedsAndreaniLimits({ ...caja, weightGrams: 50000 })).toBe(false);
+    expect(exceedsAndreaniLimits({ ...caja, weightGrams: 50001 })).toBe(true);
+    expect(exceedsAndreaniLimits({ ...caja, lengthCm: 166 })).toBe(true);
+    expect(exceedsAndreaniLimits({ weightGrams: 1000, lengthCm: 150, widthCm: 100, heightCm: 51 })).toBe(true);
   });
 });

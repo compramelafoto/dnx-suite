@@ -1,12 +1,13 @@
 import "server-only";
 import { prisma, type Prisma, type StoreOrderStatus } from "@repo/db";
-import { decimalArsToMinor } from "@/lib/membership/money";
+import { decimalArsToMinor, minorToDecimalString } from "@/lib/membership/money";
 import { splitMinorByPlatformFee } from "@/lib/platform-fee/fee";
 import { recordDischarge } from "@/lib/platform-fee/ledger";
 import { recordSale } from "@/lib/sales/record-sale";
 import type { TicketLine } from "@/lib/sales/ticket";
 import { availableQty } from "./availability";
-import { STORE_NOTE_AMOUNT_MISMATCH, STORE_NOTE_DUPLICATE_PREFIX } from "./constants";
+import { DEFAULT_ROYALTY_BPS, royaltyMinor } from "./artworks/royalty";
+import { STORE_NOTE_AMOUNT_MISMATCH, STORE_NOTE_DUPLICATE_PREFIX, STORE_NOTE_ROYALTY_UNASSIGNED } from "./constants";
 import { lineKey } from "./cart/line-key";
 import {
   sendDuplicatePaymentAlert,
@@ -30,6 +31,20 @@ import { canTransition } from "./transitions";
  *
  * La venta la escribe SIEMPRE `recordSale` (Caja, stock y cliente en la misma transacción): la
  * tienda no crea ventas por su cuenta (lo verifica `invariants.test.ts`).
+ *
+ * Obras de concursos (etapa 3): no tienen stock (se imprimen a pedido), así que no cuentan para
+ * "alcanza el stock"; van a la venta como renglón suelto y, en la misma transacción, generan su
+ * regalía (`ArtworkRoyalty` ACCRUED, una por renglón).
+ *
+ * Orden GLOBAL de los bloqueos (`FOR UPDATE`), el mismo en todos los caminos de la tienda para
+ * que nunca se esperen en cruz:
+ *
+ *   StoreOrder → Product → ProductVariant → ArtworkConsent → ArtworkListing
+ *
+ * Cada grupo en orden de id. La acreditación y la cancelación sólo bloquean los dos o tres
+ * primeros: no bloquean permisos ni fichas de obras (no vuelven a decidir si la obra se vende;
+ * ver `finalizePaidOrder`). Crear el pedido (`create-order.ts` + `artworks/order-lines.ts`),
+ * publicar y responder el permiso bloquean permisos y después fichas.
  */
 
 type Tx = Prisma.TransactionClient;
@@ -53,13 +68,36 @@ export const SELECT_PEDIDO_A_ACREDITAR = {
   feeBps: true,
   items: {
     orderBy: { id: "asc" },
-    select: { productId: true, variantId: true, productName: true, variantName: true, qty: true, unitPriceArs: true },
+    select: {
+      id: true,
+      productId: true,
+      variantId: true,
+      productName: true,
+      variantName: true,
+      qty: true,
+      unitPriceArs: true,
+      lineTotalArs: true,
+      artworkListingId: true,
+      printFormatId: true,
+      printFormatName: true,
+      royaltyBps: true,
+      artworkAuthorUserId: true,
+    },
   },
 } satisfies Prisma.StoreOrderSelect;
 
 export type OrderToFinalize = Prisma.StoreOrderGetPayload<{ select: typeof SELECT_PEDIDO_A_ACREDITAR }>;
 
-// ── Regla pura ─────────────────────────────────────────────────────────────
+// ── Reglas puras ───────────────────────────────────────────────────────────
+
+/**
+ * ¿Es un renglón de obra? Lo marca la ficha (`artworkListingId`) o, si la ficha ya no está (la
+ * relación es `SetNull`), el formato congelado al comprar (`printFormatName`), que nunca se borra.
+ * Un renglón de producto no tiene ninguno de los dos.
+ */
+export function isArtworkItem(item: { artworkListingId?: string | null; printFormatName?: string | null }): boolean {
+  return (item.artworkListingId ?? null) !== null || (item.printFormatName ?? null) !== null;
+}
 
 /**
  * ¿Alcanza el stock para entregar el pedido entero? `reserved` son las unidades que retienen
@@ -70,9 +108,18 @@ export type OrderToFinalize = Prisma.StoreOrderGetPayload<{ select: typeof SELEC
  * pedido se hizo antes de que se le cargaran talles. Desde ese momento su stock vive en los
  * talles (D4) y `Product.stockQty` es la suma; vender "el producto" sin talle restaría de la
  * suma sin que ningún talle baje, y dejaría de cuadrar. Que alguien elija el talle a mano.
+ *
+ * Los renglones de obra no se miran: no tienen stock. Un pedido sólo de obras siempre alcanza; uno
+ * mixto, si alcanzan sus productos.
  */
 export function hasStockForOrder(
-  items: readonly { productId: string | null; variantId: string | null; qty: number }[],
+  items: readonly {
+    productId: string | null;
+    variantId: string | null;
+    qty: number;
+    artworkListingId?: string | null;
+    printFormatName?: string | null;
+  }[],
   products: ReadonlyMap<string, { tracksStock: boolean; stockQty: number; hasVariants?: boolean }>,
   variantStock: ReadonlyMap<string, number>,
   reserved: ReadonlyMap<string, number>,
@@ -80,6 +127,7 @@ export function hasStockForOrder(
   // El mismo producto y talle puede repetirse en renglones distintos: se suma por clave.
   const pedidoPorClave = new Map<string, { productId: string; variantId: string | null; qty: number }>();
   for (const it of items) {
+    if (isArtworkItem(it)) continue;
     if (!it.productId) return false;
     const key = lineKey({ productId: it.productId, variantId: it.variantId });
     const previo = pedidoPorClave.get(key);
@@ -109,6 +157,15 @@ export function hasStockForOrder(
 
 function descripcion(item: { productName: string; variantName: string | null }): string {
   return item.productName + (item.variantName ? ` — ${item.variantName}` : "");
+}
+
+/**
+ * El renglón de una obra en la venta (O10): suelto (sin producto ni talle), "Obra «título» —
+ * formato" (`variantName` ya trae el formato con su medida) y el costo del formato de hoy.
+ */
+function descripcionDeObra(item: { productName: string; variantName: string | null; printFormatName: string | null }): string {
+  const formato = item.variantName ?? item.printFormatName;
+  return `Obra «${item.productName}»` + (formato ? ` — ${formato}` : "");
 }
 
 /**
@@ -146,8 +203,22 @@ export async function finalizePaidOrder(
   paidAt: Date,
   opts: { note?: string; actorUserId?: number | null } = {},
 ): Promise<{ saleId: string; saleNumber: number }> {
-  const productIds = [...new Set(order.items.flatMap((i) => (i.productId ? [i.productId] : [])))];
-  // El costo es el del producto HOY: el pedido no lo guarda (no es un dato del comprador).
+  const productos = order.items.filter((i) => !isArtworkItem(i));
+  const obras = order.items.filter(isArtworkItem);
+  const productIds = [...new Set(productos.flatMap((i) => (i.productId ? [i.productId] : [])))];
+  const formatIds = [...new Set(obras.flatMap((i) => (i.printFormatId ? [i.printFormatId] : [])))];
+  // El costo es el del producto (o del formato de impresión) HOY: el pedido no lo guarda (no es
+  // un dato del comprador).
+  const costoDeFormato = new Map(
+    formatIds.length === 0
+      ? []
+      : (
+          await tx.printFormat.findMany({
+            where: { id: { in: formatIds }, workspaceId: order.workspaceId },
+            select: { id: true, costArs: true },
+          })
+        ).map((f) => [f.id, f.costArs === null ? null : decimalArsToMinor(f.costArs)] as const),
+  );
   const costos = new Map(
     productIds.length === 0
       ? []
@@ -159,15 +230,27 @@ export async function finalizePaidOrder(
         ).map((p) => [p.id, p.costArs === null ? null : decimalArsToMinor(p.costArs)] as const),
   );
 
-  const lines: TicketLine[] = order.items.map((i) => ({
-    productId: i.productId,
-    variantId: i.variantId,
-    description: descripcion(i),
-    qty: i.qty,
-    unitPriceMinor: decimalArsToMinor(i.unitPriceArs),
-    unitCostMinor: i.productId ? (costos.get(i.productId) ?? null) : null,
-    priceWasOverridden: false,
-  }));
+  const lines: TicketLine[] = order.items.map((i) =>
+    isArtworkItem(i)
+      ? {
+          productId: null,
+          variantId: null,
+          description: descripcionDeObra(i),
+          qty: i.qty,
+          unitPriceMinor: decimalArsToMinor(i.unitPriceArs),
+          unitCostMinor: i.printFormatId ? (costoDeFormato.get(i.printFormatId) ?? null) : null,
+          priceWasOverridden: false,
+        }
+      : {
+          productId: i.productId,
+          variantId: i.variantId,
+          description: descripcion(i),
+          qty: i.qty,
+          unitPriceMinor: decimalArsToMinor(i.unitPriceArs),
+          unitCostMinor: i.productId ? (costos.get(i.productId) ?? null) : null,
+          priceWasOverridden: false,
+        },
+  );
   const envio = shippingTicketLine(order);
   if (envio) lines.push(envio);
 
@@ -206,6 +289,8 @@ export async function finalizePaidOrder(
     });
   }
 
+  await accrueArtworkRoyalties(tx, order, obras);
+
   await tx.storeOrder.updateMany({
     where: { id: order.id, workspaceId: order.workspaceId },
     data: { status: "PAID", paidAt, saleId: venta.saleId, clientId: conCliente?.clientId ?? null },
@@ -224,22 +309,91 @@ export async function finalizePaidOrder(
 }
 
 /**
+ * Las regalías de las obras del pedido (O11): una `ArtworkRoyalty` ACCRUED por renglón de obra,
+ * con base = total del renglón (SIN envío: el envío es un renglón aparte del pedido), la regalía
+ * congelada en el renglón al comprar (o el 20 % si faltara) y el autor congelado también.
+ *
+ * No se vuelve a mirar el permiso del autor: un pedido creado mientras la obra se podía vender se
+ * honra aunque el autor la haya retirado después (el comprador compró de buena fe y ya pagó), y
+ * la regalía se le debe igual. Por eso la acreditación no bloquea permisos ni fichas.
+ *
+ * Idempotente: `orderItemId` es único y `skipDuplicates` hace que repetir la acreditación no
+ * duplique (ni falle por) una regalía ya creada. Sin `catch` de P2002 dentro de la transacción.
+ *
+ * Un renglón sin autor o sin concurso (no debería pasar: el pedido lo exige al crearse) no frena
+ * el cobro: queda sin regalía y con una constancia para que alguien lo resuelva.
+ */
+async function accrueArtworkRoyalties(tx: Tx, order: OrderToFinalize, obras: OrderToFinalize["items"]): Promise<void> {
+  if (obras.length === 0) return;
+  const listingIds = [...new Set(obras.flatMap((i) => (i.artworkListingId ? [i.artworkListingId] : [])))];
+  // El concurso de una ficha no cambia: se lee sin bloqueo.
+  const concursoDeFicha = new Map(
+    listingIds.length === 0
+      ? []
+      : (
+          await tx.artworkListing.findMany({
+            where: { id: { in: listingIds }, workspaceId: order.workspaceId },
+            select: { id: true, contestId: true },
+          })
+        ).map((f) => [f.id, f.contestId] as const),
+  );
+
+  const filas: Prisma.ArtworkRoyaltyCreateManyInput[] = [];
+  let sinImputar = 0;
+  for (const item of obras) {
+    const contestId = item.artworkListingId ? concursoDeFicha.get(item.artworkListingId) : undefined;
+    const bps = item.royaltyBps ?? DEFAULT_ROYALTY_BPS;
+    const authorUserId = item.artworkAuthorUserId;
+    if (!contestId || authorUserId === null || !Number.isInteger(bps) || bps < 0 || bps > 10000) {
+      sinImputar += 1;
+      continue;
+    }
+    const baseMinor = decimalArsToMinor(item.lineTotalArs);
+    filas.push({
+      workspaceId: order.workspaceId,
+      orderId: order.id,
+      orderItemId: item.id,
+      authorUserId,
+      contestId,
+      baseArs: minorToDecimalString(baseMinor),
+      royaltyBps: bps,
+      amountArs: minorToDecimalString(royaltyMinor(baseMinor, bps)),
+      status: "ACCRUED",
+    });
+  }
+
+  if (filas.length > 0) await tx.artworkRoyalty.createMany({ data: filas, skipDuplicates: true });
+  if (sinImputar > 0) {
+    await tx.storeOrderEvent.create({
+      data: {
+        orderId: order.id,
+        fromStatus: order.status,
+        toStatus: order.status,
+        note: `${STORE_NOTE_ROYALTY_UNASSIGNED} (${sinImputar} ${sinImputar === 1 ? "renglón" : "renglones"} de obra)`,
+      },
+    });
+  }
+}
+
+/**
  * Bloquea el stock del pedido (después del pedido, que quien llama ya bloqueó) y responde si
  * alcanza para entregarlo entero, sin contar la retención del propio pedido. La usan la
  * acreditación y la reposición de stock desde el panel (`order-admin.ts`).
  */
 export async function lockAndCheckOrderStock(tx: Tx, order: OrderToFinalize): Promise<boolean> {
   const workspaceId = order.workspaceId;
+  // Sólo los renglones de producto: las obras no tienen stock (ver `hasStockForOrder`).
+  const conStock = order.items.filter((i) => !isArtworkItem(i));
   await lockStockRows(tx, {
     workspaceId,
-    productIds: order.items.flatMap((i) => (i.productId ? [i.productId] : [])),
-    variantIds: order.items.flatMap((i) => (i.variantId ? [i.variantId] : [])),
+    productIds: conStock.flatMap((i) => (i.productId ? [i.productId] : [])),
+    variantIds: conStock.flatMap((i) => (i.variantId ? [i.variantId] : [])),
   });
   // Recién con el stock bloqueado. Este pedido no compite contra su propia retención.
   const reservado = await reservedQtyByKey(workspaceId, tx, { excludeOrderId: order.id });
 
-  const productIds = [...new Set(order.items.flatMap((i) => (i.productId ? [i.productId] : [])))];
-  const variantIds = [...new Set(order.items.flatMap((i) => (i.variantId ? [i.variantId] : [])))];
+  const productIds = [...new Set(conStock.flatMap((i) => (i.productId ? [i.productId] : [])))];
+  const variantIds = [...new Set(conStock.flatMap((i) => (i.variantId ? [i.variantId] : [])))];
   const [productos, talles] = await Promise.all([
     productIds.length === 0
       ? []

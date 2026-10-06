@@ -9,6 +9,7 @@ import { normalizeSlug } from "../lib/fotorank/slug";
 import { canBulkReplaceContestCategories } from "../lib/fotorank/contestCategoryPolicy";
 import { autoMapNewContestCategory, countContestJudgeAssignments } from "../lib/fotorank/contestCategoryService";
 import { routes } from "../lib/routes";
+import { CONTEST_IN_STORE_ERROR, contestHasStoreArtworks } from "../lib/fotorank/external/contest-store-usage";
 import { decidirBasesAlPublicar } from "../lib/fotorank/registration/basesAlPublicar";
 import { getCurrentPublishedRules, publishRulesVersion } from "../lib/fotorank/registration/rules-service";
 import { isFotorankProductionEnvironment } from "../lib/fotorank/registration/production-gate";
@@ -591,6 +592,7 @@ export async function deleteFotorankContest(contestId: string): Promise<{ ok: tr
     where: { id: contestId, organizationId: orgScope.organizationId },
   });
   if (!contest) return { ok: false, error: "Concurso no encontrado." };
+  if (await contestHasStoreArtworks(contestId, prisma)) return { ok: false, error: CONTEST_IN_STORE_ERROR };
   await prisma.fotorankContest.delete({ where: { id: contestId } });
   revalidatePath(routes.concursos.index());
   return { ok: true };

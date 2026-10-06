@@ -2,13 +2,21 @@
 
 import { useMemo, useState, useTransition, type FormEvent } from "react";
 import Link from "next/link";
-import { checkoutKeyFor, checkoutLinesSignature, lineKey, renewCheckoutKey } from "@/lib/store/cart";
+import {
+  cartLineDetail,
+  cartLineName,
+  checkoutKeyFor,
+  checkoutLinesSignature,
+  lineKey,
+  renewCheckoutKey,
+  type CartLine,
+} from "@/lib/store/cart";
 import { STORE_HOLD_MINUTES } from "@/lib/store/constants";
 import type { CartProblem } from "@/lib/store/storefront";
 import { useCart } from "@/components/store/cart-provider";
 import { useCartRevalidation } from "@/components/store/use-cart-revalidation";
 import { Price } from "@/components/store/price";
-import type { CheckoutDelivery } from "@/lib/store/checkout-input";
+import type { CheckoutDelivery, CheckoutLine } from "@/lib/store/checkout-input";
 import type { DeliveryOptions } from "@/lib/store/shipping/checkout";
 import { placeOrderAction } from "./actions";
 import { DeliverySection, firstMethod, useShippingQuote, type DeliveryState } from "./delivery-section";
@@ -21,6 +29,16 @@ type Props = {
   pickupInstructions: string | null;
   deliveryOptions: DeliveryOptions;
 };
+
+/**
+ * Lo que viaja al servidor de cada línea: qué producto y talle, o qué obra y formato, y cuántos.
+ * Precio, nombre e imagen no: los pone el servidor.
+ */
+function lineaDelPedido(l: CartLine): CheckoutLine {
+  return l.kind === "artwork"
+    ? { kind: "artwork", artworkListingId: l.artworkListingId, printFormatId: l.printFormatId, qty: l.qty }
+    : { productId: l.productId, variantId: l.variantId, qty: l.qty };
+}
 
 function texto(datos: FormData, nombre: string): string {
   return String(datos.get(nombre) ?? "");
@@ -54,17 +72,16 @@ export function CheckoutForm({
     homeProvince: "",
     homePostalCode: "",
     branchProvince: "",
+    branchPostalCode: "",
     agency: null,
   }));
-  const quoteLines = useMemo(
-    () => state.lines.map((l) => ({ productId: l.productId, variantId: l.variantId, qty: l.qty })),
-    [state.lines],
-  );
+  // Productos y obras van al mismo pedido y al mismo envío (la obra pesa lo de su formato).
+  const orderLines = useMemo(() => state.lines.map(lineaDelPedido), [state.lines]);
   const {
     view: quote,
     replace: reemplazarCotizacion,
     retry: reintentarCotizacion,
-  } = useShippingQuote(workspaceSlug, delivery, quoteLines, deliveryOptions.pickup);
+  } = useShippingQuote(workspaceSlug, delivery, orderLines, deliveryOptions.pickup);
 
   if (!hydrated) return <p className="text-sm text-[var(--fo-muted)]">Cargando el carrito…</p>;
 
@@ -82,7 +99,7 @@ export function CheckoutForm({
   function enviar(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const datos = new FormData(e.currentTarget);
-    const lines = state.lines.map((l) => ({ productId: l.productId, variantId: l.variantId, qty: l.qty }));
+    const lines = orderLines;
     const sig = checkoutLinesSignature(lines);
     const clientIdempotencyKey = checkoutKeyFor(workspaceSlug, sig);
     let entrega: CheckoutDelivery | Record<string, unknown>;
@@ -103,6 +120,8 @@ export function CheckoutForm({
       entrega = {
         method: "BRANCH",
         provinceCode: delivery.branchProvince,
+        // Con Andreani la sucursal se buscó por CP: el servidor la vuelve a buscar con éste.
+        postalCode: delivery.branchPostalCode,
         agency: delivery.agency
           ? { id: delivery.agency.id, name: delivery.agency.name, address: delivery.agency.address }
           : null,
@@ -232,9 +251,9 @@ export function CheckoutForm({
             {state.lines.map((l) => (
               <li key={lineKey(l)} className="flex items-start justify-between gap-3 text-sm">
                 <span className="min-w-0">
-                  <span className="block truncate">{l.name}</span>
+                  <span className="block truncate">{cartLineName(l)}</span>
                   <span className="text-xs text-[var(--fo-muted)]">
-                    {l.variantName ? `Talle ${l.variantName} · ` : ""}
+                    {cartLineDetail(l) ? `${cartLineDetail(l)} · ` : ""}
                     {l.qty} × <Price minor={l.unitPriceMinor} />
                   </span>
                 </span>
@@ -245,7 +264,7 @@ export function CheckoutForm({
           <div className="space-y-2 border-t border-[var(--fo-border)] pt-3 text-sm">
             <div className="flex items-baseline justify-between gap-3">
               <span className="text-[var(--fo-muted)]">
-                Productos ({itemsCount} {itemsCount === 1 ? "unidad" : "unidades"})
+                Subtotal ({itemsCount} {itemsCount === 1 ? "unidad" : "unidades"})
               </span>
               <Price minor={subtotalMinor} />
             </div>
@@ -298,7 +317,7 @@ export function CheckoutForm({
                   : "Pagar con Mercado Pago"}
           </button>
           <p className="text-xs text-[var(--fo-muted)]">
-            Al confirmar te reservamos los productos durante {STORE_HOLD_MINUTES} minutos mientras pagás.
+            Al confirmar te reservamos el pedido durante {STORE_HOLD_MINUTES} minutos mientras pagás.
           </p>
           <Link href={cartHref} className="block text-center text-sm underline underline-offset-4 opacity-80 hover:opacity-100">
             Volver al carrito

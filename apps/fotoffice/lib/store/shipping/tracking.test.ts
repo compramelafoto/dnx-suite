@@ -36,4 +36,13 @@ describe("trackingUrl", () => {
       "https://www.correoargentino.com.ar/formularios/e-commerce?id=a%26b%3Dc",
     );
   });
+
+  it("Andreani tiene su propio enlace; la tabla, ninguno", () => {
+    expect(trackingUrl("ANDREANI", "360000123456789")).toBe(
+      "https://www.andreani.com/#!/informacionEnvio/360000123456789",
+    );
+    expect(trackingUrl("ANDREANI", "a&b")).toBe("https://www.andreani.com/#!/informacionEnvio/a%26b");
+    expect(trackingUrl("ANDREANI", null)).toBeNull();
+    expect(trackingUrl("ZIPNOVA", "123")).toBeNull();
+  });
 });

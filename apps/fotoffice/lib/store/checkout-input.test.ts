@@ -58,6 +58,23 @@ describe("parseCheckoutInput", () => {
     expect(errs({ ...ok(), lines: [{ productId: "p", variantId: null, qty: 1.5 }] }).lines).toBeTruthy();
     expect(errs({ ...ok(), lines: [{ productId: "", variantId: null, qty: 1 }] }).lines).toBeTruthy();
   });
+  it("líneas de obra: listing, formato y 1–20 copias; sin kind sigue siendo producto", () => {
+    const obra = { kind: "artwork", artworkListingId: "al1", printFormatId: "f1", qty: 2 };
+    const r = parseCheckoutInput({ ...ok(), lines: [{ productId: "p1", variantId: null, qty: 1 }, { ...obra, unitPriceMinor: 1, name: "x" }] });
+    expect(r.ok && r.value.lines).toEqual([
+      { productId: "p1", variantId: null, qty: 1 },
+      { kind: "artwork", artworkListingId: "al1", printFormatId: "f1", qty: 2 },
+    ]);
+    expect(parseCheckoutInput({ ...ok(), lines: [{ kind: "product", productId: "p1", variantId: null, qty: 1 }] }).ok).toBe(true);
+    expect(errs({ ...ok(), lines: [{ ...obra, qty: 21 }] }).lines).toBeTruthy();
+    expect(errs({ ...ok(), lines: [{ ...obra, qty: 0 }] }).lines).toBeTruthy();
+    expect(errs({ ...ok(), lines: [{ ...obra, printFormatId: "" }] }).lines).toBeTruthy();
+    expect(errs({ ...ok(), lines: [{ ...obra, artworkListingId: undefined }] }).lines).toBeTruthy();
+    // Una obra sin `kind` no es nada: ni producto ni obra.
+    expect(errs({ ...ok(), lines: [{ artworkListingId: "al1", printFormatId: "f1", qty: 1 }] }).lines).toBeTruthy();
+    const muchas = Array.from({ length: 31 }, (_, i) => ({ ...obra, artworkListingId: `al${i}` }));
+    expect(errs({ ...ok(), lines: muchas }).lines).toBeTruthy();
+  });
   it("clave de idempotencia 16–64", () => {
     expect(errs({ ...ok(), clientIdempotencyKey: "corta" }).clientIdempotencyKey).toBeTruthy();
     expect(errs({ ...ok(), clientIdempotencyKey: "k".repeat(65) }).clientIdempotencyKey).toBeTruthy();
@@ -183,6 +200,17 @@ describe("parseCheckoutInput: entrega", () => {
     expect(errs({ ...ok(), delivery: { ...s, agency: { ...s.agency, id: "" } } })["delivery.agency"]).toBeTruthy();
     expect(errs({ ...ok(), delivery: { ...s, agency: { ...s.agency, name: "x".repeat(201) } } })["delivery.agency"]).toBeTruthy();
     expect(errs({ ...ok(), delivery: { ...s, provinceCode: "Ñ" } })["delivery.provinceCode"]).toBeTruthy();
+  });
+
+  it("sucursal de Andreani: se buscó por código postal, sin provincia", () => {
+    const agency = { id: "101", name: "Rosario Centro", address: "Sarmiento 1100" };
+    const r = parseCheckoutInput({ ...ok(), delivery: { method: "BRANCH", postalCode: " s2000abc ", agency } });
+    expect(r.ok && r.value.delivery).toEqual({ method: "BRANCH", provinceCode: null, postalCode: "2000", agency });
+    const conVacia = parseCheckoutInput({ ...ok(), delivery: { method: "BRANCH", provinceCode: "", postalCode: "2000", agency } });
+    expect(conVacia.ok && conVacia.value.delivery).toEqual({ method: "BRANCH", provinceCode: null, postalCode: "2000", agency });
+    expect(errs({ ...ok(), delivery: { method: "BRANCH", postalCode: "abc", agency } })["delivery.postalCode"]).toBeTruthy();
+    // Sin provincia ni CP no hay búsqueda posible.
+    expect(errs({ ...ok(), delivery: { method: "BRANCH", agency } })).toEqual({ "delivery.provinceCode": "Elegí la provincia." });
   });
 
   it("método desconocido", () => {

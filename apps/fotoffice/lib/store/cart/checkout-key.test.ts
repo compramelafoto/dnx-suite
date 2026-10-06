@@ -15,6 +15,19 @@ describe("checkoutLinesSignature", () => {
   });
 });
 
+describe("checkoutLinesSignature con obras", () => {
+  it("la obra cuenta con su formato y cantidad; no se confunde con un producto", () => {
+    const p = { productId: "p1", variantId: null, qty: 1 };
+    const o = { kind: "artwork" as const, artworkListingId: "al1", printFormatId: "f1", qty: 1 };
+    expect(checkoutLinesSignature([p, o])).toBe(checkoutLinesSignature([o, p]));
+    expect(checkoutLinesSignature([p, o])).not.toBe(checkoutLinesSignature([p]));
+    expect(checkoutLinesSignature([o])).not.toBe(checkoutLinesSignature([{ ...o, printFormatId: "f2" }]));
+    expect(checkoutLinesSignature([o])).not.toBe(checkoutLinesSignature([{ ...o, qty: 2 }]));
+    // Los carritos de productos conservan la firma de siempre (no se renuevan las claves guardadas).
+    expect(checkoutLinesSignature([p])).toBe("p1:-=1");
+  });
+});
+
 describe("resolveCheckoutKey", () => {
   it("el mismo carrito conserva su clave (un reintento es el mismo pedido)", () => {
     const guardada = { key: "clave-vieja-000000000001", sig: "s1" };

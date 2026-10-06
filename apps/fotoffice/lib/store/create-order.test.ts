@@ -10,10 +10,11 @@ import { hashAccessToken, orderAccessToken } from "./access-token";
  *
  * `checkCartLines` (puro) NO se mockea: es la regla de disponibilidad que importa de verdad.
  */
-const { prismaMock, lockStockRows, loadCartCatalog, reservedQtyByKey, orden, quoteShipping, loadAgenciesForOrder, loadCheckoutDeliveryOptions } = vi.hoisted(() => {
+const { prismaMock, lockStockRows, loadCartCatalog, reservedQtyByKey, orden, quoteShipping, loadAgenciesForOrder, loadCheckoutDeliveryOptions, loadArtworkCartCatalog } = vi.hoisted(() => {
   const orden: string[] = [];
   return {
     orden,
+    loadArtworkCartCatalog: vi.fn(),
     quoteShipping: vi.fn(),
     loadAgenciesForOrder: vi.fn(),
     loadCheckoutDeliveryOptions: vi.fn(),
@@ -37,6 +38,11 @@ vi.mock("@/lib/sales/stock-lock", () => ({ lockStockRows }));
 vi.mock("./repository", () => ({ loadCartCatalog, reservedQtyByKey }));
 vi.mock("./shipping/quote", () => ({ quoteShipping }));
 vi.mock("./shipping/checkout-server", () => ({ loadAgenciesForOrder, loadCheckoutDeliveryOptions }));
+// Sólo la lectura de la base: las decisiones (`checkArtworkCartLines`) son las de verdad.
+vi.mock("./artworks/storefront", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./artworks/storefront")>()),
+  loadArtworkCartCatalog,
+}));
 
 const { createStoreOrder } = await import("./create-order");
 
@@ -639,6 +645,50 @@ describe("createStoreOrder — envío a sucursal", () => {
   });
 });
 
+describe("createStoreOrder — sucursal de Andreani (por código postal)", () => {
+  const aAndreani = (id = "101"): CheckoutInput => ({
+    ...checkoutBase,
+    shownShippingMinor: 3_000_00,
+    delivery: {
+      method: "BRANCH",
+      provinceCode: null,
+      postalCode: "5000",
+      agency: { id, name: "Nombre inventado", address: "Dirección inventada" },
+    },
+  });
+  const ANDREANI_SUC = { id: "101", name: "Córdoba Centro", address: "Colón 100", city: "Córdoba", postalCode: "5000" };
+
+  it("busca la lista con el CP, toma la sucursal del servidor y cotiza a su CP", async () => {
+    loadAgenciesForOrder.mockResolvedValue({ ok: true, agencies: [ANDREANI_SUC] });
+    quoteShipping.mockResolvedValue({
+      ok: true,
+      quote: { ...COTIZACION, method: "BRANCH", source: "ANDREANI", serviceName: "Andreani a sucursal", totalMinor: 3_000_00 },
+    });
+    const r = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: aAndreani(), now: NOW });
+
+    expect(r.ok).toBe(true);
+    expect(loadAgenciesForOrder).toHaveBeenCalledWith({ workspaceId: "ws1", provinceCode: null, postalCode: "5000" });
+    expect(quoteShipping).toHaveBeenCalledWith(
+      expect.objectContaining({ method: "BRANCH", destination: { postalCode: "5000", provinceCode: "" } }),
+    );
+    const pedido = primerPedido();
+    expect(pedido).toMatchObject({
+      shippingMethod: "BRANCH",
+      shippingSource: "ANDREANI",
+      shippingAgencyJson: { id: "101", name: "Córdoba Centro", address: "Colón 100", city: "Córdoba", postalCode: "5000" },
+    });
+    expect(JSON.stringify(pedido)).not.toContain("inventad");
+  });
+
+  it("un id que no está en la lista de ese CP → error, sin cotizar ni crear", async () => {
+    loadAgenciesForOrder.mockResolvedValue({ ok: true, agencies: [ANDREANI_SUC] });
+    const r = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: aAndreani("999"), now: NOW });
+    expect(r).toEqual({ ok: false, error: "Esa sucursal ya no está disponible. Elegí otra." });
+    expect(quoteShipping).not.toHaveBeenCalled();
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+});
+
 describe("createStoreOrder — sucursales cuando Correo falla", () => {
   it("si no se pudo traer la lista (Correo caído), no dice que la sucursal no existe", async () => {
     loadAgenciesForOrder.mockResolvedValue({ ok: false });
@@ -806,6 +856,284 @@ describe("createStoreOrder — idempotencia con envío", () => {
   it("antes envío y ahora retiro → pide una clave nueva", async () => {
     prismaMock.storeOrder.findUnique.mockResolvedValue(existenteDomicilio());
     const r = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: checkoutBase, now: NOW });
+    expect(r).toMatchObject({ ok: false, renewKey: true });
+  });
+});
+
+// ── Obras de concursos (etapa 3, Task 9) ────────────────────────────────────
+
+describe("createStoreOrder — obras", () => {
+  type Obra = import("./artworks/storefront").PublicArtworkDetail;
+  const obra = (over: Partial<Obra> = {}): Obra => ({
+    listingId: "al1",
+    slug: "atardecer",
+    title: "Atardecer",
+    authorDisplayName: "Juana",
+    awardLabel: null,
+    contestTitle: "Salón 2026",
+    imageUrl: "https://r2/al1.jpg",
+    previewWidth: 1600,
+    previewHeight: 1067,
+    fromPriceMinor: 25_000_00,
+    formats: [{ id: "f1", name: "Copia", kind: "PRINT", widthCm: 30, heightCm: 45, priceMinor: 25_000_00, needsBorders: false }],
+    ...over,
+  });
+  const lineaObra = { kind: "artwork" as const, artworkListingId: "al1", printFormatId: "f1", qty: 2 };
+
+  /** El `tx` del pedido con lo que leen y bloquean las obras; cada SQL crudo deja su marca en `orden`. */
+  function txConObras(opts: { authorUserId?: number | null; royaltyBps?: number | null } = {}) {
+    return Object.assign(orderTx(), {
+      $queryRaw: vi.fn(async (q: { sql: string }) => {
+        if (q.sql.includes('"ArtworkConsent"')) {
+          orden.push("bloqueo-permisos");
+          return [{ entryId: "e1", authorUserId: 55 }];
+        }
+        if (q.sql.includes('"ArtworkListing"')) {
+          orden.push("bloqueo-fichas");
+          return [{ id: "al1" }];
+        }
+        throw new Error(`SQL inesperado: ${q.sql}`);
+      }),
+      artworkListing: {
+        findMany: vi.fn(async () => [
+          { id: "al1", contestId: "c1", entryId: "e1", entry: { authorUserId: opts.authorUserId === undefined ? 77 : opts.authorUserId } },
+        ]),
+      },
+      contestStoreSettings: {
+        findMany: vi.fn(async () =>
+          opts.royaltyBps === null ? [] : [{ contestId: "c1", royaltyBps: opts.royaltyBps ?? 1500 }],
+        ),
+      },
+    });
+  }
+
+  function renglones() {
+    return (tx.storeOrderItem.createMany.mock.calls[0] as unknown as [{ data: Record<string, unknown>[] }])[0].data;
+  }
+
+  let txo: ReturnType<typeof txConObras>;
+
+  beforeEach(() => {
+    tx = txo = txConObras();
+    loadArtworkCartCatalog.mockReset().mockImplementation(async (_ws: string, _ids: string[], db?: unknown) => {
+      orden.push(db ? "obras-en-tx" : "obras-previas");
+      return new Map([["al1", obra()]]);
+    });
+  });
+
+  it("carrito mixto: un pedido con el producto y la obra, total y subtotal con las dos", async () => {
+    const r = await createStoreOrder({
+      workspaceId: "ws1",
+      memberId: null,
+      checkout: { ...checkoutBase, lines: [{ productId: "p1", variantId: null, qty: 1 }, lineaObra] },
+      now: NOW,
+    });
+
+    expect(r.ok).toBe(true);
+    // 10.000 de la remera + 2 × 25.000 de la obra; retiro: sin envío.
+    expect(primerPedido()).toMatchObject({ subtotalArs: "60000.00", shippingArs: "0.00", totalArs: "60000.00" });
+    expect(renglones()).toEqual([
+      expect.objectContaining({ productId: "p1", qty: 1, lineTotalArs: "10000.00" }),
+      {
+        orderId: "ord1",
+        productId: null,
+        variantId: null,
+        productName: "Atardecer",
+        variantName: "Copia (30 × 45 cm)",
+        productSlug: "atardecer",
+        imageUrl: "https://r2/al1.jpg",
+        qty: 2,
+        unitPriceArs: "25000.00",
+        lineTotalArs: "50000.00",
+        artworkListingId: "al1",
+        printFormatId: "f1",
+        printFormatName: "Copia (30 × 45 cm)",
+        royaltyBps: 1500,
+        artworkAuthorUserId: 77,
+      },
+    ]);
+    // El producto sigue su camino (bloqueo de stock); la obra, el suyo.
+    expect(lockStockRows).toHaveBeenCalledWith(tx, { workspaceId: "ws1", productIds: ["p1"], variantIds: [] });
+  });
+
+  it("sólo obras: no bloquea stock ni lee retenciones (no tienen stock)", async () => {
+    const r = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: { ...checkoutBase, lines: [lineaObra] }, now: NOW });
+
+    expect(r.ok).toBe(true);
+    expect(lockStockRows).not.toHaveBeenCalled();
+    expect(reservedQtyByKey).not.toHaveBeenCalled();
+    expect(loadCartCatalog).not.toHaveBeenCalled();
+    expect(primerPedido()).toMatchObject({ subtotalArs: "50000.00", totalArs: "50000.00" });
+  });
+
+  it("en la transacción bloquea permisos y después fichas, y recién ahí vuelve a decidir", async () => {
+    await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: { ...checkoutBase, lines: [lineaObra] }, now: NOW });
+
+    expect(orden).toEqual(["obras-previas", "bloqueo-permisos", "bloqueo-fichas", "obras-en-tx"]);
+    expect(loadArtworkCartCatalog).toHaveBeenLastCalledWith("ws1", ["al1"], tx);
+    const sqls = (txo.$queryRaw.mock.calls as unknown as [{ text: string; values: unknown[] }][]).map(([q]) => q);
+    expect(sqls[0].text).toMatch(/FROM "ArtworkConsent" WHERE "workspaceId" = \$1 AND "entryId" = ANY\(\$2::text\[\]\) ORDER BY "id" FOR UPDATE/);
+    expect(sqls[0].values).toEqual(["ws1", ["e1"]]);
+    expect(sqls[1].text).toMatch(/FROM "ArtworkListing" WHERE "workspaceId" = \$1 AND "id" = ANY\(\$2::text\[\]\) ORDER BY "id" FOR UPDATE/);
+    expect(sqls[1].values).toEqual(["ws1", ["al1"]]);
+    expect(txo.artworkListing.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { workspaceId: "ws1", id: { in: ["al1"] } } }));
+    expect(txo.contestStoreSettings.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { workspaceId: "ws1", contestId: { in: ["c1"] } } }));
+  });
+
+  it("el precio es el del formato leído en la transacción, nunca uno del navegador", async () => {
+    loadArtworkCartCatalog.mockImplementation(async (_ws: string, _ids: string[], db?: unknown) =>
+      new Map([["al1", db ? obra({ formats: [{ ...obra().formats[0], priceMinor: 26_500_00 }] }) : obra()]]),
+    );
+    const r = await createStoreOrder({
+      workspaceId: "ws1",
+      memberId: null,
+      // Basura que el navegador podría mandar: no se usa.
+      checkout: { ...checkoutBase, lines: [{ ...lineaObra, qty: 1, unitPriceMinor: 1 } as typeof lineaObra] },
+      now: NOW,
+    });
+    expect(r.ok).toBe(true);
+    expect(renglones()[0]).toMatchObject({ unitPriceArs: "26500.00", lineTotalArs: "26500.00" });
+    expect(primerPedido()).toMatchObject({ totalArs: "26500.00" });
+  });
+
+  it("obra despublicada, retirada o de un concurso no vinculado → error antes de cotizar, sin pedido", async () => {
+    loadArtworkCartCatalog.mockResolvedValue(new Map());
+    const r = await createStoreOrder({
+      workspaceId: "ws1",
+      memberId: null,
+      checkout: { ...checkoutBase, lines: [lineaObra], delivery: domicilio, shownShippingMinor: 4_500_00 },
+      now: NOW,
+    });
+    expect(r).toEqual({
+      ok: false,
+      error: "Una de las obras ya no está disponible.",
+      problems: [{ key: "a:al1:f1", message: "Una obra ya no está a la venta." }],
+    });
+    expect(quoteShipping).not.toHaveBeenCalled();
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("formato inactivo o que la resolución no alcanza → error, sin pedido", async () => {
+    loadArtworkCartCatalog.mockResolvedValue(new Map([["al1", obra({ formats: [{ ...obra().formats[0], id: "f2" }] })]]));
+    const r = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: { ...checkoutBase, lines: [lineaObra] }, now: NOW });
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error).toBe("Una de las obras ya no está disponible.");
+    expect(r.problems?.[0]?.message).toMatch(/formato elegido de Atardecer/);
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("el autor retira el permiso mientras compra (la relectura bloqueada ya no la vende) → error, sin pedido", async () => {
+    loadArtworkCartCatalog.mockImplementation(async (_ws: string, _ids: string[], db?: unknown) =>
+      db ? new Map() : new Map([["al1", obra()]]),
+    );
+    const r = await createStoreOrder({
+      workspaceId: "ws1",
+      memberId: null,
+      checkout: { ...checkoutBase, lines: [{ productId: "p1", variantId: null, qty: 1 }, lineaObra] },
+      now: NOW,
+    });
+    expect(r).toMatchObject({ ok: false, error: "Una de las obras ya no está disponible." });
+    expect(!r.ok && r.problems).toEqual([{ key: "a:al1:f1", message: "Una obra ya no está a la venta." }]);
+    expect(tx.storeOrder.createMany).not.toHaveBeenCalled();
+    expect(tx.storeOrderItem.createMany).not.toHaveBeenCalled();
+  });
+
+  it("más de 20 copias de la misma obra y formato (sumando renglones) → error, sin pedido", async () => {
+    const r = await createStoreOrder({
+      workspaceId: "ws1",
+      memberId: null,
+      checkout: { ...checkoutBase, lines: [{ ...lineaObra, qty: 15 }, { ...lineaObra, qty: 10 }] },
+      now: NOW,
+    });
+    expect(r.ok).toBe(false);
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("concurso sin ajustes → regalía 20 %; obra sin autor en FotoRank → el del permiso", async () => {
+    tx = txo = txConObras({ royaltyBps: null, authorUserId: null });
+    const r = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: { ...checkoutBase, lines: [lineaObra] }, now: NOW });
+    expect(r.ok).toBe(true);
+    expect(renglones()[0]).toMatchObject({ royaltyBps: 2000, artworkAuthorUserId: 55 });
+  });
+
+  it("con envío: cotiza la obra por su formato", async () => {
+    const r = await createStoreOrder({
+      workspaceId: "ws1",
+      memberId: null,
+      checkout: {
+        ...checkoutBase,
+        lines: [{ productId: "p1", variantId: null, qty: 1 }, lineaObra],
+        delivery: domicilio,
+        shownShippingMinor: 4_500_00,
+      },
+      now: NOW,
+    });
+    expect(r.ok).toBe(true);
+    expect(quoteShipping).toHaveBeenCalledWith(
+      expect.objectContaining({
+        items: [
+          { productId: "p1", variantId: null, qty: 1 },
+          { kind: "artwork", printFormatId: "f1", qty: 2 },
+        ],
+      }),
+    );
+    // El envío no es base de nada: subtotal = productos + obras; total = subtotal + envío.
+    expect(primerPedido()).toMatchObject({ subtotalArs: "60000.00", shippingArs: "4500.00", totalArs: "64500.00" });
+  });
+});
+
+describe("createStoreOrder — idempotencia con obras", () => {
+  const existente = (items: unknown[]) => ({
+    id: "ord-existente",
+    publicId: "ped_existente",
+    status: "PENDING_PAYMENT",
+    holdExpiresAt: new Date("2026-10-04T15:10:00.000Z"),
+    buyerEmail: "ana@example.com",
+    items,
+    deliveryMethod: "PICKUP",
+    shippingMethod: null,
+    shippingAddressJson: null,
+    shippingAgencyJson: null,
+  });
+  const lineas = [
+    { productId: "p1", variantId: null, qty: 1 },
+    { kind: "artwork" as const, artworkListingId: "al1", printFormatId: "f1", qty: 2 },
+  ];
+  const guardados = [
+    { productId: "p1", variantId: null, artworkListingId: null, printFormatId: null, qty: 1 },
+    { productId: null, variantId: null, artworkListingId: "al1", printFormatId: "f1", qty: 2 },
+  ];
+
+  beforeEach(() => {
+    loadArtworkCartCatalog.mockReset();
+  });
+
+  it("la misma compra (producto + obra en su formato) → el mismo pedido, sin volver a validar", async () => {
+    prismaMock.storeOrder.findUnique.mockResolvedValue(existente(guardados));
+    const r = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: { ...checkoutBase, lines: lineas }, now: NOW });
+    expect(r).toMatchObject({ ok: true, orderId: "ord-existente" });
+    expect(loadArtworkCartCatalog).not.toHaveBeenCalled();
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("otro formato, otra cantidad o sin la obra → pide una clave nueva", async () => {
+    for (const cambio of [
+      [lineas[0], { ...lineas[1], printFormatId: "f2" }],
+      [lineas[0], { ...lineas[1], qty: 3 }],
+      [lineas[0]],
+    ]) {
+      prismaMock.storeOrder.findUnique.mockResolvedValue(existente(guardados));
+      const r = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: { ...checkoutBase, lines: cambio }, now: NOW });
+      expect(r).toMatchObject({ ok: false, renewKey: true });
+    }
+  });
+
+  it("un renglón de obra no se confunde con un producto ni con una obra borrada", async () => {
+    prismaMock.storeOrder.findUnique.mockResolvedValue(
+      existente([guardados[0], { productId: null, variantId: null, artworkListingId: null, printFormatId: null, qty: 2 }]),
+    );
+    const r = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: { ...checkoutBase, lines: lineas }, now: NOW });
     expect(r).toMatchObject({ ok: false, renewKey: true });
   });
 });

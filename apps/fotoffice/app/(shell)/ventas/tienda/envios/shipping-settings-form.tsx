@@ -6,22 +6,31 @@ import { saveShippingSettingsAction, type ShippingActionResult } from "./actions
 
 /**
  * Formulario de la configuración de envíos. Las reglas de verdad están en
- * `lib/store/shipping/settings-form.ts` (y la acción agrega si Correo está conectado).
+ * `lib/store/shipping/settings-form.ts` (y la acción agrega si Correo y Andreani están conectados).
  */
 export function ShippingSettingsForm({
   settings,
   surchargeText,
   correoActive,
+  andreaniActive,
+  andreaniBranchContract,
 }: {
   settings: ShippingSettingsValues;
   /** El recargo guardado, ya escrito como se edita ("10,5" o "1500,50"). */
   surchargeText: string;
   correoActive: boolean;
+  andreaniActive: boolean;
+  /** La conexión de Andreani tiene contrato de sucursal. */
+  andreaniBranchContract: boolean;
 }) {
   const [resultado, setResultado] = useState<ShippingActionResult | null>(null);
   const [guardando, startTransition] = useTransition();
   const [source, setSource] = useState(settings.source);
   const [surchargeKind, setSurchargeKind] = useState(settings.surchargeKind);
+  // Con Andreani sin contrato de sucursal, la sucursal no se puede prender (si ya estaba
+  // prendida, se deja destildar).
+  const sucursalBloqueada = source === "ANDREANI" && !andreaniBranchContract && !settings.branchDeliveryEnabled;
+  const nombreCorreo = source === "ANDREANI" ? "Andreani" : "Correo Argentino";
 
   return (
     // `onSubmit` y no `action`: un `<form action={fn}>` se resetea solo al terminar, y si el
@@ -41,13 +50,21 @@ export function ShippingSettingsForm({
         <Casilla name="pickupEnabled" checked={settings.pickupEnabled} label="Retiro en la sede (gratis)" />
         <Casilla name="homeDeliveryEnabled" checked={settings.homeDeliveryEnabled} label="Envío a domicilio" />
         <Casilla
+          // La clave cambia con la fuente: al pasar a Andreani sin contrato, la casilla se rearma.
+          key={sucursalBloqueada ? "sucursal-bloqueada" : "sucursal"}
           name="branchDeliveryEnabled"
-          checked={settings.branchDeliveryEnabled}
-          label="Envío a una sucursal de Correo Argentino"
+          checked={sucursalBloqueada ? false : settings.branchDeliveryEnabled}
+          disabled={sucursalBloqueada}
+          label={source === "TABLE" ? "Envío a una sucursal del correo" : `Envío a una sucursal de ${nombreCorreo}`}
         />
         <p className="fo-helper">
-          El envío a sucursal sólo funciona con Correo Argentino conectado y elegido como fuente del precio.
+          El envío a sucursal sólo funciona con Correo Argentino o Andreani conectado y elegido como fuente del precio.
         </p>
+        {source === "ANDREANI" && !andreaniBranchContract ? (
+          <p className="fo-helper">
+            Para enviar a sucursal de Andreani falta el contrato de sucursal: cargalo en la conexión de Andreani, más abajo.
+          </p>
+        ) : null}
         <div className="fo-field-stack">
           <label className="fo-label" htmlFor="originPostalCode">
             Código postal desde donde despachás
@@ -89,14 +106,26 @@ export function ShippingSettingsForm({
             />
             Correo Argentino (el precio de MiCorreo en el momento)
           </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="radio"
+              name="source"
+              value="ANDREANI"
+              checked={source === "ANDREANI"}
+              onChange={() => setSource("ANDREANI")}
+              disabled={!andreaniActive && source !== "ANDREANI"}
+            />
+            Andreani (el precio de Andreani en el momento)
+          </label>
         </fieldset>
         {!correoActive ? (
           <p className="fo-helper">Para usar Correo Argentino, primero conectalo más abajo.</p>
         ) : null}
+        {!andreaniActive ? <p className="fo-helper">Para usar Andreani, primero conectalo más abajo.</p> : null}
         <Casilla
           name="tableAsFallback"
           checked={settings.tableAsFallback}
-          label="Si Correo Argentino no responde, usar mi tabla"
+          label="Si el correo no responde, usar mi tabla (sólo para envíos a domicilio)"
         />
       </section>
 
@@ -184,10 +213,20 @@ export function ShippingSettingsForm({
   );
 }
 
-function Casilla({ name, checked, label }: { name: string; checked: boolean; label: string }) {
+function Casilla({
+  name,
+  checked,
+  label,
+  disabled = false,
+}: {
+  name: string;
+  checked: boolean;
+  label: string;
+  disabled?: boolean;
+}) {
   return (
     <label className="flex items-center gap-2 text-sm">
-      <input type="checkbox" name={name} defaultChecked={checked} />
+      <input type="checkbox" name={name} defaultChecked={checked} disabled={disabled} />
       {/* El respaldo va DESPUÉS de la casilla: `FormData.get` devuelve la primera coincidencia. */}
       <input type="hidden" name={name} value="off" />
       {label}

@@ -7073,10 +7073,10 @@ model FotorankGlobalCategoryAlias {
 
 /// Workspace compartido (FotoRank judges + Fotoffice / cursos / evaluaciones).
 model Workspace {
-  id                          String                            @id @default(cuid())
+  id                          String                             @id @default(cuid())
   name                        String
-  createdAt                   DateTime                          @default(now())
-  updatedAt                   DateTime                          @updatedAt
+  createdAt                   DateTime                           @default(now())
+  updatedAt                   DateTime                           @updatedAt
   courses                     Course[]
   courseBeneficiaries         CourseBeneficiary[]
   courseSaleShares            CourseSaleShare[]
@@ -7151,13 +7151,20 @@ model Workspace {
   coverageCollaborators       CoverageCollaboratorProfile[]
   coverageEvents              CoverageEvent[]
   vocabulary                  WorkspaceVocabulary?
-  productStoreListings ProductStoreListing[]
-  storeSettings StoreSettings?
-  storeShippingSettings StoreShippingSettings?
-  storeShippingZones StoreShippingZone[]
-  storeOrders StoreOrder[]
+  productStoreListings        ProductStoreListing[]
+  storeSettings               StoreSettings?
+  storeShippingSettings       StoreShippingSettings?
+  storeShippingZones          StoreShippingZone[]
+  storeOrders                 StoreOrder[]
   contactSyncSettings         WorkspaceContactSyncSetting[]
   contactLinks                WorkspaceContactLink[]
+  contestOrganizationLinks    WorkspaceContestOrganizationLink[]
+  storePrintSettings          StorePrintSettings?
+  printFormats                PrintFormat[]
+  contestStoreSettings        ContestStoreSettings[]
+  artworkConsents             ArtworkConsent[]
+  artworkListings             ArtworkListing[]
+  artworkRoyalties            ArtworkRoyalty[]
 }
 
 model WorkspaceFeatureModule {
@@ -9911,7 +9918,8 @@ model ContestOrganization {
   judgeOrganizationMemberships FotorankJudgeOrganizationMembership[]
 
   /// ETAPA 17B — conexiones sociales por organización (Instagram, etc.).
-  socialConnections FotorankSocialConnection[]
+  socialConnections   FotorankSocialConnection[]
+  storeWorkspaceLinks WorkspaceContestOrganizationLink[]
 
   @@index([slug])
   @@index([createdByUserId])
@@ -10033,6 +10041,10 @@ model FotorankContest {
   pricePhases             FotorankContestPricePhase[]
   /// CONCURSOS PRÓXIMOS — calendario de comunicaciones programadas (no dispara envíos por sí solo).
   scheduledCommunications FotorankContestScheduledCommunication[]
+  storeSettings           ContestStoreSettings[]
+  artworkConsents         ArtworkConsent[]
+  artworkListings         ArtworkListing[]
+  artworkRoyalties        ArtworkRoyalty[]
 
   @@unique([organizationId, slug])
   @@index([organizationId])
@@ -10665,6 +10677,8 @@ model FotorankContestEntry {
 
   /// ETAPA 16B — finalistas (§8 master rules).
   finalistSnapshots FotorankFinalistSnapshot[]
+  artworkConsents   ArtworkConsent[]
+  artworkListings   ArtworkListing[]
 
   @@unique([contestId, entryNumber])
   @@unique([contestId, externalRegistrationId, externalPromptId])
@@ -20507,10 +20521,11 @@ model StoreOrder {
   createdAt            DateTime         @default(now())
   updatedAt            DateTime         @updatedAt
 
-  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  client    Client?            @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  items     StoreOrderItem[]
-  events    StoreOrderEvent[]
+  workspace        Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client           Client?           @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  items            StoreOrderItem[]
+  events           StoreOrderEvent[]
+  artworkRoyalties ArtworkRoyalty[]
 
   @@unique([workspaceId, orderNumber])
   @@unique([workspaceId, clientIdempotencyKey])
@@ -20520,25 +20535,39 @@ model StoreOrder {
 }
 
 model StoreOrderItem {
-  id           String  @id @default(cuid())
-  orderId      String
-  productId    String?
-  variantId    String?
-  productName  String
-  variantName  String?
-  productSlug  String
-  imageUrl     String?
-  qty          Int
-  unitPriceArs Decimal @db.Decimal(12, 2)
-  lineTotalArs Decimal @db.Decimal(12, 2)
+  id                  String  @id @default(cuid())
+  orderId             String
+  productId           String?
+  variantId           String?
+  productName         String
+  variantName         String?
+  productSlug         String
+  imageUrl            String?
+  qty                 Int
+  unitPriceArs        Decimal @db.Decimal(12, 2)
+  lineTotalArs        Decimal @db.Decimal(12, 2)
+  /// Renglón de obra de concurso (etapa 3): obra publicada y formato de impresión elegidos.
+  artworkListingId    String?
+  printFormatId       String?
+  /// Nombre del formato al momento de la compra.
+  printFormatName     String?
+  /// Regalía vigente al momento de la compra (bps, 2000 = 20 %).
+  royaltyBps          Int?
+  /// Autor de la obra (User de FotoRank); sin relación a propósito: queda como dato histórico.
+  artworkAuthorUserId Int?
 
-  order   StoreOrder      @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
-  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  order          StoreOrder      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product        Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  variant        ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  artworkListing ArtworkListing? @relation(fields: [artworkListingId], references: [id], onDelete: SetNull)
+  printFormat    PrintFormat?    @relation(fields: [printFormatId], references: [id], onDelete: SetNull)
+  artworkRoyalty ArtworkRoyalty?
 
   @@index([orderId])
   @@index([productId])
   @@index([variantId])
+  @@index([artworkListingId])
+  @@index([printFormatId])
 }
 
 model StoreOrderEvent {
@@ -20677,6 +20706,174 @@ model ClickatonClickatoner {
 
   @@index([weekStart])
   @@index([round])
+}
+
+/// Vínculo entre un espacio de trabajo y una organización de concursos de FotoRank (tienda, etapa 3).
+/// Sólo las obras de concursos de organizaciones vinculadas pueden publicarse.
+model WorkspaceContestOrganizationLink {
+  id             String   @id @default(cuid())
+  workspaceId    String
+  organizationId String
+  /// Quién vinculó (User.id, dato histórico).
+  linkedByUserId Int
+  createdAt      DateTime @default(now())
+
+  workspace    Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  organization ContestOrganization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@unique([workspaceId, organizationId])
+  @@index([organizationId])
+}
+
+/// Ajustes de impresión de la tienda. Una por espacio de trabajo.
+model StorePrintSettings {
+  id          String   @id @default(cuid())
+  workspaceId String   @unique
+  /// Resolución mínima (puntos por pulgada) para ofrecer un formato.
+  minDpi      Int      @default(150)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+/// Formato de impresión de obras (copia o cuadro) con su precio.
+model PrintFormat {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  name         String
+  /// PRINT | FRAME.
+  kind         String
+  widthCm      Int
+  heightCm     Int
+  priceArs     Decimal  @db.Decimal(12, 2)
+  costArs      Decimal? @db.Decimal(12, 2)
+  weightGrams  Int?
+  packLengthCm Int?
+  packWidthCm  Int?
+  packHeightCm Int?
+  isActive     Boolean  @default(true)
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  workspace  Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  orderItems StoreOrderItem[]
+
+  @@index([workspaceId, isActive])
+}
+
+/// Ajustes de la tienda por concurso (hoy: regalía para los autores).
+model ContestStoreSettings {
+  id          String   @id @default(cuid())
+  workspaceId String
+  contestId   String
+  /// Regalía en bps sobre el precio de la obra sin envío (2000 = 20 %).
+  royaltyBps  Int      @default(2000)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contest   FotorankContest @relation(fields: [contestId], references: [id], onDelete: Restrict)
+
+  @@unique([workspaceId, contestId])
+  @@index([contestId])
+}
+
+/// Permiso del autor para vender una obra en un espacio de trabajo. Uno por (espacio, obra).
+model ArtworkConsent {
+  id             String    @id @default(cuid())
+  workspaceId    String
+  contestId      String
+  entryId        String
+  /// Autor de la obra (User.id).
+  authorUserId   Int
+  /// RULES (las bases ya lo permiten) | EXPLICIT (hay que pedirlo).
+  basis          String
+  /// NOTIFIED | GRANTED | PENDING | DECLINED | WITHDRAWN.
+  status         String
+  /// sha256 del token del enlace del correo; el token nunca se guarda.
+  tokenHash      String    @unique
+  tokenExpiresAt DateTime
+  notifiedAt     DateTime?
+  respondedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  workspace Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contest   FotorankContest      @relation(fields: [contestId], references: [id], onDelete: Restrict)
+  entry     FotorankContestEntry @relation(fields: [entryId], references: [id], onDelete: Restrict)
+
+  @@unique([workspaceId, entryId])
+  @@index([contestId])
+  @@index([entryId])
+}
+
+/// Obra de un concurso publicada (o en borrador) en la tienda de un espacio de trabajo.
+model ArtworkListing {
+  id                String    @id @default(cuid())
+  workspaceId       String
+  contestId         String
+  entryId           String
+  slug              String
+  title             String
+  authorDisplayName String?
+  awardLabel        String?
+  /// Vista previa con marca de agua guardada en el R2 de FOTOFFICE.
+  previewUrl        String
+  previewWidth      Int
+  previewHeight     Int
+  originalWidth     Int
+  originalHeight    Int
+  /// DRAFT | PUBLISHED | WITHDRAWN.
+  status            String
+  publishedAt       DateTime?
+  withdrawnAt       DateTime?
+  sortOrder         Int       @default(0)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  workspace  Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contest    FotorankContest      @relation(fields: [contestId], references: [id], onDelete: Restrict)
+  entry      FotorankContestEntry @relation(fields: [entryId], references: [id], onDelete: Restrict)
+  orderItems StoreOrderItem[]
+
+  @@unique([workspaceId, entryId])
+  @@unique([workspaceId, slug])
+  @@index([workspaceId, status])
+  @@index([contestId])
+  @@index([entryId])
+}
+
+/// Regalía devengada para el autor por un renglón de obra de un pedido pagado.
+model ArtworkRoyalty {
+  id            String    @id @default(cuid())
+  workspaceId   String
+  orderId       String
+  orderItemId   String    @unique
+  authorUserId  Int
+  contestId     String
+  /// Base: total del renglón sin envío.
+  baseArs       Decimal   @db.Decimal(12, 2)
+  royaltyBps    Int
+  amountArs     Decimal   @db.Decimal(12, 2)
+  /// ACCRUED | PAID | VOIDED.
+  status        String    @default("ACCRUED")
+  paidAt        DateTime?
+  paidReference String?
+  paidByUserId  Int?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  order     StoreOrder      @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  orderItem StoreOrderItem  @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+  contest   FotorankContest @relation(fields: [contestId], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId, status, createdAt])
+  @@index([orderId])
+  @@index([authorUserId])
+  @@index([contestId])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

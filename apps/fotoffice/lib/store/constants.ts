@@ -9,10 +9,17 @@ export const STORE_LEGAL_VERSION = "2026-10-05";
 /** Segmento de la tienda bajo `/w/[slug]/`. Es un compromiso público: no cambia. */
 export const STORE_PUBLIC_SEGMENT = "tienda";
 /**
- * Direcciones fijas bajo `/w/[slug]/tienda/` (el carrito, el checkout, el pedido…). Un producto
- * no puede llamarse así: la ruta fija le ganaría y su ficha quedaría inalcanzable.
+ * Direcciones fijas bajo `/w/[slug]/tienda/` (el carrito, el checkout, el pedido, las obras…). Un
+ * producto no puede llamarse así: la ruta fija le ganaría y su ficha quedaría inalcanzable.
  */
-export const STORE_RESERVED_SLUGS: readonly string[] = ["carrito", "checkout", "pedido", "arrepentimiento", "terminos"];
+export const STORE_RESERVED_SLUGS: readonly string[] = [
+  "carrito",
+  "checkout",
+  "pedido",
+  "arrepentimiento",
+  "terminos",
+  "obras",
+];
 
 export const STORE_ORDER_STATUS_LABELS: Record<StoreOrderStatus, string> = {
   PENDING_PAYMENT: "Esperando el pago",
@@ -33,6 +40,14 @@ export const STORE_ORDER_STATUS_LABELS: Record<StoreOrderStatus, string> = {
 export const STORE_NOTE_AMOUNT_MISMATCH = "Pago con monto distinto: revisar";
 export const STORE_NOTE_DUPLICATE_PREFIX = "Pago duplicado";
 export const STORE_NOTE_CREDIT_FAILURE_PREFIX = "Pago aprobado que no se pudo acreditar";
+/**
+ * Regalías de obras (etapa 3, O11). La primera la deja la acreditación cuando un renglón de obra
+ * no tiene a quién (autor) o a qué concurso imputarle la regalía: el pago se acredita igual y una
+ * persona lo resuelve. La segunda, la cancelación de un pedido cuya regalía ya se le pagó al
+ * autor: esa plata hay que recuperarla a mano.
+ */
+export const STORE_NOTE_ROYALTY_UNASSIGNED = "Regalía sin autor o sin concurso: revisar";
+export const STORE_NOTE_ROYALTY_TO_RECOVER = "Regalía ya pagada al autor: hay que recuperarla";
 /**
  * La constancia del botón de arrepentimiento (`regret.ts`). No es un "problema" del panel: queda
  * en el historial del pedido para que el personal la vea. Le sigue `: <motivo>` si lo hubo.

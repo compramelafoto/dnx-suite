@@ -30,6 +30,8 @@ export const FOTOFFICE_R2_PREFIXES = {
   memberPortfolioPhoto: "fotoffice/member-portfolio",
   /** Fotos que el socio sube sólo para su placa de Socio de la semana («Más sobre mí»). */
   memberFeaturedPhoto: "fotoffice/member-featured",
+  /** Vista previa con marca de agua de una obra de concurso de FotoRank publicada en la tienda. */
+  artworkPreview: "fotoffice/artwork-previews",
   /**
    * Archivos de proyectos de la comisión (Gobierno): cualquier tipo, privados. Nunca se muestran
    * por la dirección pública: se descargan por una ruta que verifica permiso y firma la URL.

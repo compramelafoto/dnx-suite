@@ -172,6 +172,19 @@ export function createR2PrivateContestStorageProvider(): PrivateContestStoragePr
       );
       return { uploadUrl: url, method: "PUT", headers: { "Content-Type": input.contentType } };
     },
+    async presignDownload(key, opts) {
+      return getSignedUrl(
+        client,
+        new GetObjectCommand({
+          Bucket: cfg.bucket,
+          Key: key,
+          ResponseContentDisposition: `attachment; filename="${opts.fileName.replace(/["\\\r\n]/g, "_")}"`,
+          ResponseContentType: opts.contentType,
+          ResponseCacheControl: "private, no-store",
+        }),
+        { expiresIn: Math.min(Math.max(1, Math.floor(opts.expiresInSeconds)), 600) },
+      );
+    },
     async readObject(key) {
       const res = await withTimeout(() =>
         client.send(new GetObjectCommand({ Bucket: cfg.bucket, Key: key })),

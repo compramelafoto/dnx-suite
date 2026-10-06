@@ -9,6 +9,8 @@ const {
   serviceSalesLeadCountMock,
   memberCountMock,
   serviceLeadFormCountMock,
+  artworkRoyaltyCountMock,
+  artworkListingCountMock,
 } = vi.hoisted(() => ({
   isPlatformAdminMock: vi.fn(),
   workspaceFindUniqueMock: vi.fn(),
@@ -18,6 +20,8 @@ const {
   serviceSalesLeadCountMock: vi.fn(),
   memberCountMock: vi.fn(),
   serviceLeadFormCountMock: vi.fn(),
+  artworkRoyaltyCountMock: vi.fn(),
+  artworkListingCountMock: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -30,6 +34,8 @@ vi.mock("@repo/db", () => ({
     serviceSalesLead: { count: serviceSalesLeadCountMock },
     member: { count: memberCountMock },
     serviceLeadForm: { count: serviceLeadFormCountMock },
+    artworkRoyalty: { count: artworkRoyaltyCountMock },
+    artworkListing: { count: artworkListingCountMock },
   },
 }));
 
@@ -60,6 +66,8 @@ function resetAllCountsToZero() {
   serviceSalesLeadCountMock.mockResolvedValue(0);
   memberCountMock.mockResolvedValue(0);
   serviceLeadFormCountMock.mockResolvedValue(0);
+  artworkRoyaltyCountMock.mockResolvedValue(0);
+  artworkListingCountMock.mockResolvedValue(0);
 }
 
 describe("deleteWorkspaceAction", () => {
@@ -72,6 +80,8 @@ describe("deleteWorkspaceAction", () => {
     serviceSalesLeadCountMock.mockReset();
     memberCountMock.mockReset();
     serviceLeadFormCountMock.mockReset();
+    artworkRoyaltyCountMock.mockReset();
+    artworkListingCountMock.mockReset();
     workspaceFindUniqueMock.mockResolvedValue({
       id: "ws-fixture",
       name: "QA Fixture",
@@ -122,6 +132,23 @@ describe("deleteWorkspaceAction", () => {
     serviceLeadFormCountMock.mockResolvedValue(1);
     const result = await deleteWorkspaceAction(undefined, buildFormData());
     expect(result.error).toContain("formulario");
+    expect(workspaceDeleteMock).not.toHaveBeenCalled();
+  });
+
+  it("bloquea la eliminación si hay regalías de autores (plata de terceros)", async () => {
+    isPlatformAdminMock.mockResolvedValueOnce(true);
+    artworkRoyaltyCountMock.mockResolvedValue(2);
+    const result = await deleteWorkspaceAction(undefined, buildFormData());
+    expect(result.error).toContain("2 regalía(s) de autores");
+    expect(workspaceDeleteMock).not.toHaveBeenCalled();
+  });
+
+  it("bloquea la eliminación si hay obras publicadas en la tienda (cuenta sólo las PUBLISHED del workspace)", async () => {
+    isPlatformAdminMock.mockResolvedValueOnce(true);
+    artworkListingCountMock.mockResolvedValue(4);
+    const result = await deleteWorkspaceAction(undefined, buildFormData());
+    expect(result.error).toContain("4 obra(s) publicada(s)");
+    expect(artworkListingCountMock).toHaveBeenCalledWith({ where: { workspaceId: "ws-fixture", status: "PUBLISHED" } });
     expect(workspaceDeleteMock).not.toHaveBeenCalled();
   });
 

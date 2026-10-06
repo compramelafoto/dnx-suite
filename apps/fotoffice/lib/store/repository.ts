@@ -4,6 +4,8 @@ import { Prisma, prisma } from "@repo/db";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { SALES_MODULE_KEY } from "@/lib/sales/constants";
 import { STORE_MODULE_KEY } from "./constants";
+import { lineKey } from "./cart/line-key";
+import { checkArtworkCartLines, loadArtworkCartCatalog } from "./artworks/storefront";
 import {
   buildStoreProductCard,
   buildStoreProductDetail,
@@ -13,6 +15,8 @@ import {
   type CartProblem,
   type StoreProductCard,
   type StoreProductDetail,
+  isArtworkLineInput,
+  isProductLineInput,
   isSellableOnline,
   type StorefrontProductRow,
   type ValidatedLine,
@@ -251,6 +255,11 @@ export async function loadCartCatalog(
 /**
  * Revalida un carrito: precio, existencia, canal y disponibilidad. No retiene nada (eso lo hace el
  * checkout al crear el pedido). La usan el carrito, para avisar antes, y el checkout.
+ *
+ * Los productos y las obras se revisan cada uno con sus reglas (`checkCartLines` y
+ * `checkArtworkCartLines`: obra publicada, de una organización vinculada, con permiso del autor y
+ * en un formato activo que su resolución alcanza, al precio del formato). El resultado vuelve en
+ * el orden en que llegaron las líneas.
  */
 export async function validateCartLines(
   workspaceId: string,
@@ -258,13 +267,38 @@ export async function validateCartLines(
   db: Db = prisma,
 ): Promise<{ lines: ValidatedLine[]; problems: CartProblem[] }> {
   if (lines.length === 0) return { lines: [], problems: [] };
-  const [catalogo, reserved] = await Promise.all([
-    loadCartCatalog(
-      workspaceId,
-      lines.map((l) => l.productId),
-      db,
-    ),
-    reservedQtyByKey(workspaceId, db),
+  const productos = lines.filter(isProductLineInput);
+  const obras = lines.filter(isArtworkLineInput);
+
+  const [deProductos, deObras] = await Promise.all([
+    productos.length === 0
+      ? { lines: [], problems: [] }
+      : Promise.all([
+          loadCartCatalog(
+            workspaceId,
+            productos.map((l) => l.productId),
+            db,
+          ),
+          reservedQtyByKey(workspaceId, db),
+        ]).then(([catalogo, reserved]) => checkCartLines(catalogo, productos, reserved)),
+    obras.length === 0
+      ? { lines: [], problems: [] }
+      : loadArtworkCartCatalog(
+          workspaceId,
+          obras.map((l) => l.artworkListingId),
+          db,
+        ).then((catalogo) => checkArtworkCartLines(catalogo, obras)),
   ]);
-  return checkCartLines(catalogo, lines, reserved);
+
+  const orden = new Map<string, number>();
+  lines.forEach((l, i) => {
+    const key = lineKey(l);
+    if (!orden.has(key)) orden.set(key, i);
+  });
+  const enOrden = <T extends { key: string }>(xs: T[]) =>
+    xs.sort((a, b) => (orden.get(a.key) ?? 0) - (orden.get(b.key) ?? 0));
+  return {
+    lines: enOrden<ValidatedLine>([...deProductos.lines, ...deObras.lines]),
+    problems: enOrden([...deProductos.problems, ...deObras.problems]),
+  };
 }

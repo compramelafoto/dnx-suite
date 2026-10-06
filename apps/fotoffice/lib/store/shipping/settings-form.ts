@@ -7,15 +7,17 @@ import type { Surcharge } from "./surcharge";
  * El formulario de la configuración de envíos (`StoreShippingSettings`). Módulo PURO.
  *
  * Las reglas viven acá y no en el componente: una acción del servidor se puede llamar a mano y
- * tiene que quedar igual de protegida. Si Correo Argentino está conectado lo sabe la acción
- * (necesita la base), y lo pasa en `ctx.correoActive` junto con lo guardado antes (`ctx.previous`).
+ * tiene que quedar igual de protegida. Si Correo Argentino o Andreani están conectados lo sabe la
+ * acción (necesita la base), y lo pasa en `ctx` junto con lo guardado antes (`ctx.previous`).
  *
  * - Al menos una forma de entrega activa (retiro, domicilio o sucursal).
  * - Domicilio o sucursal exigen el código postal de origen.
- * - Sucursal sólo con Correo Argentino como fuente (E9).
- * - La conexión activa se exige sólo al CAMBIAR a Correo o al PRENDER sucursal. Si ya estaba así
- *   guardado y la conexión pide reconexión, se puede seguir guardando lo demás (la cotización
- *   cae en el respaldo mientras tanto); si no, una credencial vencida bloquearía toda la pantalla.
+ * - Sucursal sólo con un correo como fuente: Correo Argentino (E9) o Andreani.
+ * - La conexión activa se exige sólo al CAMBIAR a un correo o al PRENDER sucursal con él. Si ya
+ *   estaba así guardado y la conexión pide reconexión, se puede seguir guardando lo demás (la
+ *   cotización cae en el respaldo mientras tanto); si no, una credencial vencida bloquearía toda
+ *   la pantalla.
+ * - Sucursal con Andreani exige el contrato de sucursal cargado en la conexión.
  * - Recargo (E3): el porcentaje se escribe como "10" o "10,5" y se guarda en bps; el monto fijo
  *   se escribe en pesos y se guarda en centavos.
  */
@@ -73,18 +75,43 @@ export function parseShippingArsToMinor(raw: string): number | null {
   return parseArsToMinor(s);
 }
 
+type DisconnectPrev = {
+  source: ShippingSource;
+  branchDeliveryEnabled: boolean;
+  pickupEnabled: boolean;
+  homeDeliveryEnabled: boolean;
+};
+type DisconnectChange = {
+  data: { source: "TABLE"; branchDeliveryEnabled: false; pickupEnabled?: true };
+  pickupForced: boolean;
+} | null;
+
 /**
  * Qué cambiar en la configuración al desconectar Correo Argentino: fuente a la tabla y sucursal
  * apagada. Si así quedaran las tres formas de entrega apagadas, se prende el retiro.
  * `null` = no hace falta tocar nada.
  */
-export function settingsAfterCorreoDisconnect(prev: {
-  source: ShippingSource;
-  branchDeliveryEnabled: boolean;
-  pickupEnabled: boolean;
-  homeDeliveryEnabled: boolean;
-}): { data: { source: "TABLE"; branchDeliveryEnabled: false; pickupEnabled?: true }; pickupForced: boolean } | null {
-  if (prev.source !== "CORREO_ARGENTINO" && !prev.branchDeliveryEnabled) return null;
+export function settingsAfterCorreoDisconnect(prev: DisconnectPrev): DisconnectChange {
+  return settingsAfterCarrierDisconnect("CORREO_ARGENTINO", prev);
+}
+
+/** Lo mismo al desconectar Andreani. */
+export function settingsAfterAndreaniDisconnect(prev: DisconnectPrev): DisconnectChange {
+  return settingsAfterCarrierDisconnect("ANDREANI", prev);
+}
+
+/**
+ * Sólo se toca la configuración si el correo que se desconecta es la fuente (o si quedó una
+ * sucursal prendida con la tabla, que no debería existir). Desconectar Correo no apaga la
+ * sucursal de Andreani, ni al revés.
+ */
+function settingsAfterCarrierDisconnect(
+  carrier: "CORREO_ARGENTINO" | "ANDREANI",
+  prev: DisconnectPrev,
+): DisconnectChange {
+  const esLaFuente = prev.source === carrier;
+  const sucursalHuerfana = prev.source === "TABLE" && prev.branchDeliveryEnabled;
+  if (!esLaFuente && !sucursalHuerfana) return null;
   const pickupForced = !prev.pickupEnabled && !prev.homeDeliveryEnabled;
   return {
     data: { source: "TABLE", branchDeliveryEnabled: false, ...(pickupForced ? { pickupEnabled: true as const } : {}) },
@@ -123,6 +150,10 @@ const ENTEROS = [
 
 export type ShippingSettingsFormContext = {
   correoActive: boolean;
+  /** Andreani conectado y activo. */
+  andreaniActive?: boolean;
+  /** La conexión de Andreani (activa o no) tiene contrato de sucursal. */
+  andreaniBranchContract?: boolean;
   /** Lo guardado hasta ahora, o `null` si la institución nunca guardó la configuración. */
   previous: { source: ShippingSource; branchDeliveryEnabled: boolean } | null;
 };
@@ -141,7 +172,7 @@ export function parseShippingSettingsForm(
   }
 
   const sourceRaw = texto(fd, "source");
-  if (sourceRaw !== "TABLE" && sourceRaw !== "CORREO_ARGENTINO") {
+  if (sourceRaw !== "TABLE" && sourceRaw !== "CORREO_ARGENTINO" && sourceRaw !== "ANDREANI") {
     return { ok: false, error: "Elegí de dónde sale el precio del envío." };
   }
   const source: ShippingSource = sourceRaw;
@@ -158,16 +189,27 @@ export function parseShippingSettingsForm(
     return { ok: false, error: "Para enviar a domicilio o a sucursal falta el código postal de origen." };
   }
 
-  if (branchDeliveryEnabled && source !== "CORREO_ARGENTINO") {
-    return { ok: false, error: "El envío a sucursal sólo funciona con Correo Argentino como fuente." };
+  if (branchDeliveryEnabled && source === "TABLE") {
+    return { ok: false, error: "El envío a sucursal sólo funciona con Correo Argentino o Andreani como fuente." };
   }
-  const pasaACorreo = source === "CORREO_ARGENTINO" && ctx.previous?.source !== "CORREO_ARGENTINO";
+  const cambiaDeFuente = source !== ctx.previous?.source;
   const prendeSucursal = branchDeliveryEnabled && !ctx.previous?.branchDeliveryEnabled;
-  if ((pasaACorreo || prendeSucursal) && !ctx.correoActive) {
+  if (source === "CORREO_ARGENTINO" && (cambiaDeFuente || prendeSucursal) && !ctx.correoActive) {
     return {
       ok: false,
       error: "Para usar Correo Argentino (y el envío a sucursal) primero conectá Correo Argentino más abajo.",
     };
+  }
+  if (source === "ANDREANI") {
+    if ((cambiaDeFuente || prendeSucursal) && !ctx.andreaniActive) {
+      return { ok: false, error: "Para usar Andreani (y el envío a sucursal) primero conectá Andreani más abajo." };
+    }
+    if (branchDeliveryEnabled && !ctx.andreaniBranchContract) {
+      return {
+        ok: false,
+        error: "Para enviar a sucursal de Andreani falta el contrato de sucursal: cargalo en la conexión de Andreani, más abajo.",
+      };
+    }
   }
 
   const kindRaw = texto(fd, "surchargeKind");

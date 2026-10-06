@@ -24,6 +24,8 @@ const nextConfig: NextConfig = {
       "../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/**",
       "../../packages/db/prisma/**",
     ],
+    /* Fuente embebida en la marca de agua de las vistas previas que se le dan a FOTOFFICE. */
+    "/api/fotorank/external/entry-image": ["./assets/fonts/Roboto-Regular.ttf"],
   },
   /** Playwright y otros clientes que usan 127.0.0.1 necesitan HMR; sin esto Next 16 bloquea el bundle y no hidrata. */
   allowedDevOrigins: ["127.0.0.1", "localhost"],

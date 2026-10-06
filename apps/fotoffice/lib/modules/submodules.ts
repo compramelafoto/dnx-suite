@@ -450,6 +450,17 @@ const VENTAS: SubmoduleItem[] = [
     requiresAction: STORE_CONFIGURE_ACTION,
     activeMatch: "under",
   },
+  {
+    // Mismo permiso que la configuración de la tienda (`requireStoreConfigurer`).
+    href: "/ventas/tienda/obras",
+    label: "Obras",
+    icon: "Frame",
+    description: "Vender copias y cuadros de las obras de tus concursos de FotoRank, con permiso del autor.",
+    requiresManage: true,
+    levelModuleKey: STORE_MODULE_KEY,
+    requiresAction: STORE_CONFIGURE_ACTION,
+    activeMatch: "under",
+  },
 ];
 
 const COMUNICACION: SubmoduleItem[] = [
