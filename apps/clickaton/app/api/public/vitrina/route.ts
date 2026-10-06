@@ -12,7 +12,12 @@ import type { PublicMarathon } from "@/types/marathon";
  * curso). No expone nada que la ficha pública no muestre.
  */
 
-export const revalidate = 300;
+/**
+ * Dinámica a propósito: si Next la prerenderiza al compilar, consulta la base en el build, y los
+ * builds de vista previa no tienen `DATABASE_URL` (se cortaban todos desde el PR 392). El caché
+ * de 5 minutos lo da el CDN con el `Cache-Control` de la respuesta, igual que antes.
+ */
+export const dynamic = "force-dynamic";
 
 const VIGENTES: ReadonlySet<PublicMarathon["status"]> = new Set([
   "announced",
