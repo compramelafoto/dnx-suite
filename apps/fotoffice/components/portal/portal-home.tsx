@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { ContestCard } from "@/components/contests/contest-card";
+import type { ShowcaseItem } from "@/lib/contests/showcase";
 import { createOwnBusinessAction, switchProfileAction } from "@/app/actions/profile-choice";
 import type { MemberBalance } from "@/lib/membership/balance";
 import { formatMinorArs } from "@/lib/membership/money";
@@ -54,6 +56,8 @@ export type PortalHomeProps = {
   /** Los socios que cumplen años esta semana (lunes a domingo). */
   cumpleanos?: BirthdayView[];
   /** Proyectos de la comisión: invitar a proponer y a tomar tareas sin responsable. */
+  /** La vitrina de concursos (FotoRank y Clickatón): lo abierto y lo que viene. */
+  concursos?: ShowcaseItem[];
   gobierno?: {
     tareasLibres: { id: string; title: string; projectTitle: string; dueAt: Date | null }[];
     totalLibres: number;
@@ -84,6 +88,7 @@ export function PortalHome({
   socioDeLaSemana,
   cumpleanos = [],
   gobierno = null,
+  concursos = [],
 }: PortalHomeProps) {
   const cuotasPendientes = cuenta.charges.filter((c) => !isOpeningBalance(c.period));
   const alDia = cuenta.charges.length === 0;
@@ -214,6 +219,28 @@ export function PortalHome({
             ))}
           </ul>
         </nav>
+      ) : null}
+
+      {/*
+        La vitrina de concursos va debajo de los accesos: es lo que más le interesa al fotógrafo y
+        lo que cambia más seguido. Una sola fila que se desliza; "Ver todos" lleva a la lista.
+      */}
+      {concursos.length > 0 ? (
+        <section className="space-y-3" aria-label="Concursos abiertos">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="text-base font-semibold">Concursos abiertos</h2>
+            <Link href="/portal/concursos" className="text-sm text-[var(--fo-accent-hover)] hover:underline">
+              Ver todos →
+            </Link>
+          </div>
+          <div className="-mx-1 overflow-x-auto px-1 pb-1">
+            <div className="flex gap-3">
+              {concursos.map((c) => (
+                <ContestCard key={c.key} item={c} institution={institution} now={new Date()} className="w-64 shrink-0 sm:w-72" />
+              ))}
+            </div>
+          </div>
+        </section>
       ) : null}
 
       {/*

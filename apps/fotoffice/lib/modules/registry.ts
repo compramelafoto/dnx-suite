@@ -6,6 +6,7 @@ import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
+import { SPONSORS_MODULE_KEY } from "@/lib/sponsors/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
@@ -204,6 +205,16 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     category: "INSTITUTIONAL",
     order: 115,
     route: "/sorteos",
+    status: "AVAILABLE",
+  },
+  {
+    key: SPONSORS_MODULE_KEY,
+    label: "Sponsors",
+    description:
+      "Las marcas que acompañan a la institución: su ficha en la base común de DNX y en qué lugar del sitio y del portal de los {personas} aparece cada una, y hasta cuándo.",
+    category: "INSTITUTIONAL",
+    order: 116,
+    route: "/sponsors",
     status: "AVAILABLE",
   },
   {

@@ -2,6 +2,7 @@ import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
+import { SPONSORS_MODULE_KEY } from "@/lib/sponsors/constants";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
@@ -231,6 +232,17 @@ const SORTEOS: SubmoduleItem[] = [
     label: "Entregas",
     icon: "PackageCheck",
     description: "Los premios ganados que todavía hay que avisar o entregar.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+];
+
+const SPONSORS: SubmoduleItem[] = [
+  {
+    href: "/sponsors",
+    label: "Sponsors",
+    icon: "Handshake",
+    description: "Las marcas que acompañan a la institución y dónde aparece cada una.",
     requiresManage: false,
     activeMatch: "under",
   },
@@ -496,6 +508,7 @@ const POR_MODULO: Record<string, SubmoduleItem[]> = {
   [COURSES_SALES_MODULE_KEY]: CURSOS,
   [BOOKINGS_MODULE_KEY]: RESERVAS,
   [RAFFLES_MODULE_KEY]: SORTEOS,
+  [SPONSORS_MODULE_KEY]: SPONSORS,
   [GOVERNANCE_MODULE_KEY]: GOBIERNO,
   [CASH_MODULE_KEY]: CAJA,
   [CLIENTS_MODULE_KEY]: CLIENTES,

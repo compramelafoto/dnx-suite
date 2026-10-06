@@ -12,6 +12,6 @@ import { searchPartners } from "@/lib/raffles/repository";
  * aunque se la llame desde un componente.
  */
 export async function buscarAliadosAction(texto: string) {
-  await requireRafflesConductor();
-  return searchPartners(texto);
+  const { workspace } = await requireRafflesConductor();
+  return searchPartners(workspace.id, texto);
 }

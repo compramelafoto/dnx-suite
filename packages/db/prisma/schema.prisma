@@ -7124,6 +7124,7 @@ model Workspace {
   govProjectTypes             GovProjectType[]
   govProjects                 GovProject[]
   govMeetings                 GovMeeting[]
+  contestShowcase             WorkspaceContestShowcase?
   clients                     Client[]
   cashAccounts                CashAccount[]
   cashCategories              CashCategory[]
@@ -21094,4 +21095,18 @@ model MemberNotificationSeen {
   updatedAt  DateTime @updatedAt
 
   member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+}
+
+/// Cómo muestra cada institución la vitrina de concursos (FotoRank y Clickatón) en su portal.
+/// Sin fila: se muestran todos, que es lo que la plataforma quiere por defecto.
+model WorkspaceContestShowcase {
+  workspaceId      String   @id
+  /// ALL: todos los concursos públicos · OWN: sólo los de sus organizaciones · OFF: apagada.
+  mode             String   @default("ALL")
+  /// Organizaciones de FotoRank que son de esta institución: sus concursos van primero y con su nombre.
+  organizationIds  String[] @default([])
+  includeClickaton Boolean  @default(true)
+  updatedAt        DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }

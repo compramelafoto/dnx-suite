@@ -69,7 +69,8 @@ export type PortalIconName =
   | "institution"
   | "share"
   | "camera"
-  | "tasks";
+  | "tasks"
+  | "trophy";
 
 /**
  * El mapa del §5 del documento de navegación, con su orden.
@@ -167,6 +168,14 @@ export const PORTAL_MENU: PortalMenuItem[] = [
     description: "Tus cursos y los que te tocan gratis por ser {persona}.",
     icon: "school",
     requiresModule: COURSES_SALES_MODULE_KEY,
+    built: true,
+  },
+  {
+    order: 85,
+    label: "Concursos",
+    href: "/portal/concursos",
+    description: "Concursos de FotoRank y maratones de Clickatón abiertos para participar.",
+    icon: "trophy",
     built: true,
   },
   {

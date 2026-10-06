@@ -129,26 +129,27 @@ const COMMERCIAL_ROWS: Record<DnxPartnerAdPlacementKey, CommercialRow> = {
     mounted: false,
   },
 
-  // FotoOffice — la institución consigue sus propios sponsors. Nada montado.
+  // FotoOffice — la institución consigue sus propios sponsors. Montados los cuatro que usa el
+  // módulo de sponsors (`apps/fotoffice/lib/sponsors/`); beneficio y sorteo todavía no.
   FOTOFFICE_PORTAL_WELCOME: {
     owner: "WORKSPACE",
     contextType: "ORGANIZATION",
     audience: "MEMBERSHIP_HOLDERS",
-    mounted: false,
+    mounted: true,
     access: "BOTH",
   },
   FOTOFFICE_PORTAL_SPONSORS: {
     owner: "WORKSPACE",
     contextType: "ORGANIZATION",
     audience: "MEMBERSHIP_HOLDERS",
-    mounted: false,
+    mounted: true,
     access: "BOTH",
   },
   FOTOFFICE_PORTAL_MARQUEE: {
     owner: "WORKSPACE",
     contextType: "ORGANIZATION",
     audience: "MEMBERSHIP_HOLDERS",
-    mounted: false,
+    mounted: true,
     access: "EXCHANGE",
   },
   FOTOFFICE_BENEFIT_CARD: {
@@ -169,7 +170,7 @@ const COMMERCIAL_ROWS: Record<DnxPartnerAdPlacementKey, CommercialRow> = {
     owner: "WORKSPACE",
     contextType: "ORGANIZATION",
     audience: "ALL_USERS",
-    mounted: false,
+    mounted: true,
     access: "SALE",
   },
 };
