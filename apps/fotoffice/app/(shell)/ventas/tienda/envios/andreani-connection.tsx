@@ -7,6 +7,7 @@ import {
   testAndreaniConnectionAction,
   type ShippingActionResult,
 } from "./actions";
+import { ANDREANI_TEST_MODE_WARNING } from "@/lib/store/shipping/order-destination";
 import { Resultado } from "./shipping-settings-form";
 
 /**
@@ -87,6 +88,11 @@ export function AndreaniConnectionCard({
           </p>
           <p className="text-[var(--fo-muted)]">{datos.join(" · ")}</p>
           <p className="text-[var(--fo-muted)]">Contratos: {contratos.join(" · ")}</p>
+          {connection.env === "QA" ? (
+            <p role="status" className="font-medium text-[var(--fo-danger)]">
+              {ANDREANI_TEST_MODE_WARNING}
+            </p>
+          ) : null}
           <div className="flex flex-wrap gap-2 pt-2">
             {activa ? (
               <button

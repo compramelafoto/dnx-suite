@@ -46,6 +46,8 @@ export type ShippingQuote = {
   serviceName: string;
   package: ShippingPackage;
   raw: unknown;
+  /** Cotizado con el ambiente de pruebas de Andreani: la tarifa no es real. Sólo para el panel. */
+  testMode?: true;
 };
 
 export type ShippingQuoteFailure = "DISABLED" | "NO_COVERAGE" | "TOO_BIG" | "UNAVAILABLE";
@@ -81,7 +83,7 @@ export type QuoteShippingInput = {
   deps?: QuoteShippingDeps;
 };
 
-type BasePrice = { source: ShippingSource; baseMinor: number; serviceName: string; raw: unknown };
+type BasePrice = { source: ShippingSource; baseMinor: number; serviceName: string; raw: unknown; testMode?: true };
 
 function fail(reason: ShippingQuoteFailure): QuoteShippingResult {
   return { ok: false, reason };
@@ -203,6 +205,7 @@ async function quoteFromAndreani(
       baseMinor: r.priceMinor,
       serviceName: method === "HOME" ? "Andreani a domicilio" : "Andreani a sucursal",
       raw: r.raw,
+      ...(conexion.env === "QA" ? { testMode: true as const } : {}),
     };
   } catch (error) {
     // Sólo `kind` y `status`: el mensaje puede traer datos de la cuenta (ver errors.ts).
@@ -311,6 +314,7 @@ export async function quoteShipping(input: QuoteShippingInput): Promise<QuoteShi
       serviceName: base.serviceName,
       package: pkg,
       raw: base.raw,
+      ...(base.testMode ? { testMode: true as const } : {}),
     },
   };
 }

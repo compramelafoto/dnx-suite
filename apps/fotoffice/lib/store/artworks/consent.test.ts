@@ -10,6 +10,7 @@ vi.mock("@/lib/workspace-role", () => ({ resolveWorkspaceRole: vi.fn() }));
 
 const { hashConsentToken } = await import("./consent-token");
 const { ContestNotLinkedError } = await import("./links");
+const { isSellable } = await import("./consent-basis");
 const { ConsentSetupError, loadConsentView, MAX_ENTRIES_PER_REQUEST, rightsAcceptedByAuthor, requestConsents, respondConsent } =
   await import("./consent");
 
@@ -356,6 +357,23 @@ describe("requestConsents", () => {
     // El enlace viejo ya no abre; el nuevo sí.
     expect(await loadConsentView(WS, viejo, { db: db as never, now: luego })).toBeNull();
     expect(await loadConsentView(WS, nuevo, { db: db as never, now: luego })).not.toBeNull();
+  });
+
+  it("si falla el reenvío de un aviso por bases que ya salió, la obra sigue avisada (fecha y enlace anteriores)", async () => {
+    const { db, consents } = baseFalsa({ rights: { allowPrint: true, allowCommercial: true, attributionRequired: true } });
+    await requestConsents(WS, CONCURSO, ["e1"], 1, deps(db));
+    expect(consents[0]).toMatchObject({ basis: "RULES", status: "NOTIFIED", notifiedAt: AHORA });
+    const viejo = tokens.at(-1)!;
+    const expiraba = consents[0]!.tokenExpiresAt;
+
+    const luego = new Date(AHORA.getTime() + 25 * HORA);
+    const falla = vi.fn(async () => ({ status: "PROVIDER_REJECTED" as const, detail: "caído" }));
+    const r = await requestConsents(WS, CONCURSO, ["e1"], 1, deps(db, falla, luego));
+    expect(r.skipped).toEqual([{ entryId: "e1", reason: "EMAIL_FAILED" }]);
+    expect(consents[0]).toMatchObject({ status: "NOTIFIED", notifiedAt: AHORA, tokenHash: hashConsentToken(viejo), tokenExpiresAt: expiraba });
+    expect(isSellable(consents[0]!)).toBe(true);
+    // El enlace del aviso anterior sigue abriendo.
+    expect(await loadConsentView(WS, viejo, { db: db as never, now: luego })).not.toBeNull();
   });
 
   it("si el correo no sale, se informa y se puede reintentar sin esperar", async () => {

@@ -596,7 +596,7 @@ describe("quoteShipping — Andreani", () => {
   const andreaniSettings = (over: Settings = {}) =>
     baseSettings({ source: "ANDREANI", branchDeliveryEnabled: true, ...over });
 
-  type Conexion = { contractBranch?: string | null; originBranch?: string | null };
+  type Conexion = { contractBranch?: string | null; originBranch?: string | null; env?: "QA" | "PROD" };
 
   function andreaniDeps(result: { priceMinor: number; raw: unknown } | Error, conexion: Conexion = {}) {
     const quoteFn = vi.fn<(input: unknown) => Promise<{ priceMinor: number; raw: unknown }>>(async () => {
@@ -605,6 +605,7 @@ describe("quoteShipping — Andreani", () => {
     });
     const loadAndreani = vi.fn(async () => ({
       client: { cacheKey: "k", quote: quoteFn, getToken: vi.fn(), branches: vi.fn() },
+      env: conexion.env ?? ("PROD" as const),
       clientCode: "CL0001",
       contractHome: "400006709",
       contractBranch: conexion.contractBranch === undefined ? "400006711" : conexion.contractBranch,
@@ -711,6 +712,18 @@ describe("quoteShipping — Andreani", () => {
     });
     expect(a.quoteFn.mock.calls[0][0]).toMatchObject({ contract: "400006711", postalCodeDestination: "5000" });
     expect(r.ok && r.quote).toMatchObject({ method: "BRANCH", source: "ANDREANI", baseMinor: 500000, serviceName: "Andreani a sucursal" });
+  });
+
+  it("conectado con el ambiente de pruebas (QA): la cotización queda marcada como de prueba", async () => {
+    const qa = andreaniDeps({ priceMinor: 500000, raw: {} }, { env: "QA" });
+    const db = fakeDb({ settings: andreaniSettings() });
+    const r = await quoteShipping({ workspaceId: "ws1", method: "HOME", destination: ROSARIO, items: ITEMS, db: db as never, deps: qa.deps });
+    expect(r.ok && r.quote.testMode).toBe(true);
+
+    const prod = andreaniDeps({ priceMinor: 500000, raw: {} });
+    const db2 = fakeDb({ settings: andreaniSettings() });
+    const r2 = await quoteShipping({ workspaceId: "ws1", method: "HOME", destination: ROSARIO, items: ITEMS, db: db2 as never, deps: prod.deps });
+    expect(r2.ok && "testMode" in r2.quote).toBe(false);
   });
 
   it("sucursal sin contrato de sucursal → DISABLED, sin cotizar", async () => {

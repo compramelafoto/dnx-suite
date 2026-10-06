@@ -48,7 +48,16 @@ export function orderShippingView(o: OrderShippingFields): OrderShippingView | n
   };
 }
 
-export type OrderQuoteSummary = { sourceLabel: string | null; serviceName: string | null; packageLine: string | null };
+export type OrderQuoteSummary = {
+  sourceLabel: string | null;
+  serviceName: string | null;
+  packageLine: string | null;
+  /** Cotizado con el ambiente de pruebas de Andreani: la tarifa no es real. */
+  testMode: boolean;
+};
+
+/** El aviso cuando Andreani está conectado con el ambiente de pruebas (QA). */
+export const ANDREANI_TEST_MODE_WARNING = "Andreani está en modo prueba: las tarifas no son reales.";
 
 function entero(json: unknown, key: string): number | null {
   if (typeof json !== "object" || json === null) return null;
@@ -77,5 +86,6 @@ export function orderQuoteSummary(json: unknown): OrderQuoteSummary | null {
     sourceLabel: FUENTE[fuente] ?? (fuente || null),
     serviceName: texto(json, "serviceName") || null,
     packageLine: partes.filter(Boolean).join(" · ") || null,
+    testMode: (json as Record<string, unknown>).testMode === true,
   };
 }

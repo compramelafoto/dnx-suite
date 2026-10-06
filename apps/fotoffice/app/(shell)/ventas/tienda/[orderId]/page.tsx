@@ -6,7 +6,7 @@ import { requireStoreOperator } from "@/lib/store/access";
 import { artworkProductionInfo, canDownloadOriginal } from "@/lib/store/artworks/production";
 import { STORE_ORDER_STATUS_LABELS } from "@/lib/store/constants";
 import { cancelNeedsNote, loadStoreOrderDetail, staffTargets } from "@/lib/store/order-admin";
-import { orderQuoteSummary, orderShippingView } from "@/lib/store/shipping/order-destination";
+import { ANDREANI_TEST_MODE_WARNING, orderQuoteSummary, orderShippingView } from "@/lib/store/shipping/order-destination";
 import { trackingCarrierName, trackingUrl } from "@/lib/store/shipping/tracking";
 import { DownloadOriginalButton } from "./download-original-button";
 import { OrderActions } from "./order-actions";
@@ -186,6 +186,11 @@ export default async function PedidoOnlinePage({ params }: { params: Promise<{ o
                     <dt>Paquete cotizado</dt>
                     <dd>{cotizacion.packageLine}</dd>
                   </>
+                ) : null}
+                {cotizacion.testMode ? (
+                  <p role="status" className="font-medium text-[var(--fo-danger)] sm:col-span-2">
+                    {ANDREANI_TEST_MODE_WARNING}
+                  </p>
                 ) : null}
               </dl>
             ) : null}

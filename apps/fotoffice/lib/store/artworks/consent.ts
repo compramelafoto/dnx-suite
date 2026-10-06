@@ -186,7 +186,7 @@ export async function requestConsents(
     }),
     db.artworkConsent.findMany({
       where: { workspaceId, entryId: { in: ids } },
-      select: { id: true, entryId: true, basis: true, status: true, notifiedAt: true },
+      select: { id: true, entryId: true, basis: true, status: true, notifiedAt: true, tokenHash: true, tokenExpiresAt: true },
     }),
     db.artworkListing.findMany({ where: { workspaceId, entryId: { in: ids } }, select: { entryId: true, previewUrl: true } }),
   ]);
@@ -219,6 +219,11 @@ export async function requestConsents(
 
     const { token, tokenHash, tokenExpiresAt } = newConsentToken(now, deps.random);
     const previo = consentPorEntry.get(entryId);
+    // El aviso anterior que sí salió, para dejarlo como estaba si el reenvío falla.
+    const avisoAnterior =
+      previo && previo.notifiedAt !== null
+        ? { notifiedAt: previo.notifiedAt, tokenHash: previo.tokenHash, tokenExpiresAt: previo.tokenExpiresAt }
+        : null;
     let basis: ConsentBasis;
     let consentId: string | null = null;
 
@@ -295,11 +300,14 @@ export async function requestConsents(
       userId: autor.id,
     });
     if (salida.status !== "SENT") {
-      // Sin datos personales. `notifiedAt` en null: se puede reintentar ya mismo.
+      // Sin datos personales. Si nunca se había avisado, `notifiedAt` vuelve a null: se puede
+      // reintentar ya mismo y la obra no se vende sin aviso. Si era un reenvío, queda como estaba
+      // (fecha y enlace del aviso anterior, que sí salió): una falla pasajera del correo no saca
+      // de la venta una obra avisada como corresponde.
       console.warn("[fotoffice][tienda] el correo de permiso no salió", { workspaceId, entryId, status: salida.status });
       await db.artworkConsent.updateMany({
-        where: consentId ? { id: consentId, workspaceId } : { workspaceId, entryId, tokenHash },
-        data: { notifiedAt: null },
+        where: consentId ? { id: consentId, workspaceId, tokenHash } : { workspaceId, entryId, tokenHash },
+        data: avisoAnterior ?? { notifiedAt: null },
       });
       saltear("EMAIL_FAILED");
       continue;

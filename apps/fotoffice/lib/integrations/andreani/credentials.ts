@@ -55,6 +55,8 @@ export type AndreaniDeps = { fetchImpl?: typeof fetch; now?: () => Date };
 
 export type LoadedAndreani = {
   client: AndreaniClient;
+  /** QA: el ambiente de pruebas de Andreani, con tarifas que no son reales. */
+  env: AndreaniEnv;
   clientCode: string;
   contractHome: string;
   contractBranch: string | null;
@@ -180,6 +182,7 @@ export async function loadAndreaniClient(
   const client = createAndreaniClient({ env: secret.env, user: secret.user, password: secret.password, ...deps });
   return {
     client,
+    env: secret.env,
     clientCode: secret.clientCode,
     contractHome: secret.contractHome,
     contractBranch: secret.contractBranch,
