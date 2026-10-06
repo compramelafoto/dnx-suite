@@ -289,11 +289,11 @@ export default async function ProyectoPage({
 
           {hayPropuesta ? (
             <section className="fo-card space-y-4 p-6">
-              <h2 className="text-lg font-semibold">{proyecto.proposedBy ? "Lo que propone el socio" : "Plata y compromisos"}</h2>
+              <h2 className="text-lg font-semibold">{proyecto.proposedBy ? "Lo que propone el socio" : "Dinero y compromisos"}</h2>
               <dl className="grid gap-4 sm:grid-cols-2">
                 {costo ? <Renglon icono={Wallet} rotulo="Costo aproximado" valor={costo} destacado /> : null}
                 {proyecto.fundingIdea ? (
-                  <Renglon icono={Lightbulb} rotulo="Cómo conseguir la plata" valor={proyecto.fundingIdea} />
+                  <Renglon icono={Lightbulb} rotulo="Cómo conseguir el dinero para cumplir el proyecto" valor={proyecto.fundingIdea} />
                 ) : null}
                 {proyecto.proposerCommitment ? (
                   <div className="sm:col-span-2">
@@ -478,7 +478,7 @@ export default async function ProyectoPage({
                   </div>
                   <div className="fo-field-stack">
                     <label className="fo-label" htmlFor="edit-funding">
-                      Cómo conseguir la plata
+                      Cómo conseguir el dinero para cumplir el proyecto
                     </label>
                     <textarea id="edit-funding" name="fundingIdea" className="fo-input" rows={2} defaultValue={proyecto.fundingIdea ?? ""} />
                   </div>

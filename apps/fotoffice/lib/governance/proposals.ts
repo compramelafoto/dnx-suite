@@ -14,7 +14,7 @@ export type ProposalValues = {
   /** Costo aproximado, como texto decimal para `Decimal(12,2)`, o `null` si no lo sabe. */
   approxCostArs: string | null;
   deadlineAt: Date | null;
-  /** Cómo se podría conseguir la plata. */
+  /** Cómo se podría conseguir el dinero para cumplir el proyecto. */
   fundingIdea: string | null;
   /** En qué se compromete a colaborar quien propone. */
   proposerCommitment: string | null;

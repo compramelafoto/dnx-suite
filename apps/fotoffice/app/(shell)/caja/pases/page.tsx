@@ -30,7 +30,7 @@ export default async function PasesPage({
 
   return (
     <div className="space-y-8">
-      <PageHeader title="Pases" description="Los pases de plata entre cuentas: de la caja del mostrador a la caja fuerte, o al revés." />
+      <PageHeader title="Pases" description="Los pases de dinero entre cuentas: de la caja del mostrador a la caja fuerte, o al revés." />
 
       {params.error ? (
         <p className="fo-card p-4 text-sm text-[var(--fo-danger)]" role="alert">
@@ -86,7 +86,7 @@ export default async function PasesPage({
         </form>
       ) : (
         <p className="text-sm text-[var(--fo-muted-soft)]">
-          Hacen falta al menos dos cuentas para pasar plata de una a otra.
+          Hacen falta al menos dos cuentas para pasar dinero de una a otra.
         </p>
       )}
 

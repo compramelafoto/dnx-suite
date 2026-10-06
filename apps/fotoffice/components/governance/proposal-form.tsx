@@ -95,7 +95,7 @@ export function ProposalForm() {
       </div>
       <div className="fo-field-stack">
         <label className="fo-label" htmlFor="fundingIdea">
-          ¿Cómo se podría conseguir la plata? (opcional)
+          ¿Cómo se podría conseguir el dinero para cumplir este proyecto? (opcional)
         </label>
         <textarea
           id="fundingIdea"

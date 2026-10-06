@@ -65,7 +65,7 @@ export default async function NuevoProyectoPage({
         </div>
         <div className="fo-field-stack">
           <label className="fo-label" htmlFor="fundingIdea">
-            ¿Cómo se podría conseguir la plata? (opcional)
+            ¿Cómo se podría conseguir el dinero para cumplir este proyecto? (opcional)
           </label>
           <textarea id="fundingIdea" name="fundingIdea" className="fo-input" rows={2} placeholder="Ej.: una rifa entre los socios, un sponsor, un taller a beneficio." />
         </div>

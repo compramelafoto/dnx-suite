@@ -135,7 +135,7 @@ export default async function CajaPage({
             <p className="text-xs font-medium uppercase tracking-wide text-[var(--fo-muted)]">Comprometido en proyectos</p>
             <p className="text-lg font-semibold tabular-nums">{formatMinorArs(comprometido.totalMinor)}</p>
             <p className="text-xs text-[var(--fo-muted)]">
-              {comprometido.projects} proyecto{comprometido.projects === 1 ? "" : "s"} aprobado{comprometido.projects === 1 ? "" : "s"} con plata reservada
+              {comprometido.projects} proyecto{comprometido.projects === 1 ? "" : "s"} aprobado{comprometido.projects === 1 ? "" : "s"} con dinero reservado
             </p>
           </div>
           <div>

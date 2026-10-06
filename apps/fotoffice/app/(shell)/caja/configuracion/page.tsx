@@ -27,7 +27,7 @@ export default async function CajaConfiguracionPage({
     <div className="space-y-8">
       <PageHeader
         title="Cuentas y categorías"
-        description="Dónde está la plata del negocio y cómo se clasifica lo que entra y sale."
+        description="Dónde está el dinero del negocio y cómo se clasifica lo que entra y sale."
       />
 
       {params.error ? (

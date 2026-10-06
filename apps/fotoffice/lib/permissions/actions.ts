@@ -44,8 +44,8 @@ export const MODULE_ACTIONS: Readonly<Record<string, readonly ModuleActionDef[]>
     },
     {
       key: CASH_PROJECT_MONEY_ACTION,
-      label: "Plata de proyectos",
-      description: "Reservar, gastar e ingresar plata de proyectos de Gobierno.",
+      label: "Dinero de proyectos",
+      description: "Reservar, gastar e ingresar dinero de proyectos de Gobierno.",
     },
   ],
   [COVERAGES_MODULE_KEY]: [

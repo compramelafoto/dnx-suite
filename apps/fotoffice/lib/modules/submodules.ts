@@ -316,7 +316,7 @@ const CAJA: SubmoduleItem[] = [
     href: "/caja/configuracion",
     label: "Cuentas y categorías",
     icon: "Settings",
-    description: "Dónde está la plata y cómo se clasifica lo que entra y sale.",
+    description: "Dónde está el dinero y cómo se clasifica lo que entra y sale.",
     requiresManage: true,
     requiresAction: CASH_CONFIGURE_ACTION,
     activeMatch: "under",
