@@ -20755,6 +20755,10 @@ model GovProject {
   /// --- Dinero (etapa 3). Las columnas nacen ahora para no alterar la tabla después. ---
   /// Costo estimado a mano cuando no hay cotizaciones.
   manualNeededArs    Decimal?  @db.Decimal(12, 2)
+  /// Cómo se podría conseguir la plata, según quien propone (rifa, sponsor, cuota extra…).
+  fundingIdea        String?
+  /// En qué se compromete a colaborar quien propone para que el proyecto se haga.
+  proposerCommitment String?
   /// Proyectos que ya venían en curso: lo asignado y gastado antes de usar el sistema.
   openingAssignedArs Decimal?  @db.Decimal(12, 2)
   openingSpentArs    Decimal?  @db.Decimal(12, 2)

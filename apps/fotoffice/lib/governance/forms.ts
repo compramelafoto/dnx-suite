@@ -50,6 +50,8 @@ export type ProjectFormValues = {
   responsibleMemberId: string | null;
   deadlineAt: Date | null;
   visibleToMembers: boolean;
+  fundingIdea: string | null;
+  proposerCommitment: string | null;
 };
 
 export function parseProjectForm(fd: FormData): Resultado<ProjectFormValues> {
@@ -63,6 +65,11 @@ export function parseProjectForm(fd: FormData): Resultado<ProjectFormValues> {
   const crudaFecha = texto(fd, "deadlineAt");
   const deadlineAt = crudaFecha ? parseDateOnly(crudaFecha) : null;
   if (crudaFecha && !deadlineAt) return { ok: false, error: "La fecha límite no se entiende." };
+  const fundingIdea = opcional(fd, "fundingIdea");
+  const proposerCommitment = opcional(fd, "proposerCommitment");
+  if ((fundingIdea?.length ?? 0) > MAX_TEXTO || (proposerCommitment?.length ?? 0) > MAX_TEXTO) {
+    return { ok: false, error: "El texto es demasiado largo." };
+  }
   return {
     ok: true,
     values: {
@@ -71,6 +78,8 @@ export function parseProjectForm(fd: FormData): Resultado<ProjectFormValues> {
       responsibleMemberId: opcional(fd, "responsibleMemberId"),
       deadlineAt,
       visibleToMembers: fd.get("visibleToMembers") === "on",
+      fundingIdea,
+      proposerCommitment,
     },
   };
 }

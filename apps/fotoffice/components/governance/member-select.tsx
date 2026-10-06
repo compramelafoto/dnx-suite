@@ -1,4 +1,5 @@
 import type { MemberOption } from "@/lib/governance/repository";
+import { CircleAlert, CircleCheck } from "lucide-react";
 
 /**
  * Elegir a una persona: primero la comisión (con su cargo), después el resto del padrón activo.
@@ -66,11 +67,19 @@ const AVISOS: Record<string, string> = {
 export function Flash({ error, ok }: { error?: string; ok?: string }) {
   if (error) {
     return (
-      <p className="fo-alert-error p-4 text-sm" role="alert">
+      <p className="fo-alert-error flex items-center gap-2 px-4 py-2.5 text-sm" role="alert">
+        <CircleAlert className="size-4 shrink-0" aria-hidden />
         {error}
       </p>
     );
   }
-  if (ok) return <p className="fo-alert-success p-4 text-sm">{AVISOS[ok] ?? "Listo."}</p>;
+  if (ok) {
+    return (
+      <p className="fo-alert-success flex items-center gap-2 px-4 py-2.5 text-sm" role="status">
+        <CircleCheck className="size-4 shrink-0" aria-hidden />
+        {AVISOS[ok] ?? "Listo."}
+      </p>
+    );
+  }
   return null;
 }

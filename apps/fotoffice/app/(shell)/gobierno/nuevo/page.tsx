@@ -63,6 +63,12 @@ export default async function NuevoProyectoPage({
           </label>
           <textarea id="description" name="description" className="fo-input" rows={4} placeholder="Qué es, para qué sirve, a quién está dirigido." />
         </div>
+        <div className="fo-field-stack">
+          <label className="fo-label" htmlFor="fundingIdea">
+            ¿Cómo se podría conseguir la plata? (opcional)
+          </label>
+          <textarea id="fundingIdea" name="fundingIdea" className="fo-input" rows={2} placeholder="Ej.: una rifa entre los socios, un sponsor, un taller a beneficio." />
+        </div>
 
         <div className="grid gap-6 sm:grid-cols-2">
           <div className="fo-field-stack">

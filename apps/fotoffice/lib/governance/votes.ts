@@ -74,3 +74,42 @@ export function votingRoll(
   }
   return { userIds, total: personas.size };
 }
+
+export type RosterEntry = {
+  key: string;
+  name: string;
+  office: string;
+  /** null = todavía no votó. */
+  value: VoteValue | null;
+  /** Sin cuenta vinculada no puede votar todavía. */
+  hasAccount: boolean;
+};
+
+/**
+ * Cada integrante que vota, una sola vez aunque tenga dos cargos, con lo que votó. Primero los
+ * que votaron a favor, después en contra y al final los que faltan: así se ve de un vistazo.
+ */
+export function voterRoster(
+  holders: readonly { votes: boolean; userId: number | null; memberId: string | null; termId: string; displayName: string; officeName: string }[],
+  votes: readonly { voterUserId: number; value: string }[],
+): RosterEntry[] {
+  const voto = new Map(votes.map((v) => [v.voterUserId, v.value]));
+  const vistos = new Set<string>();
+  const lista: RosterEntry[] = [];
+  for (const h of holders) {
+    if (!h.votes) continue;
+    const key = h.userId !== null ? `u:${h.userId}` : h.memberId ? `m:${h.memberId}` : `t:${h.termId}`;
+    if (vistos.has(key)) continue;
+    vistos.add(key);
+    const v = h.userId !== null ? voto.get(h.userId) : undefined;
+    lista.push({
+      key,
+      name: h.displayName,
+      office: h.officeName,
+      value: v && isVoteValue(v) ? v : null,
+      hasAccount: h.userId !== null,
+    });
+  }
+  const orden = (e: RosterEntry) => (e.value === "FOR" ? 0 : e.value === "AGAINST" ? 1 : 2);
+  return lista.sort((a, b) => orden(a) - orden(b));
+}

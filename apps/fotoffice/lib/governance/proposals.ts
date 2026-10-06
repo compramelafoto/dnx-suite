@@ -14,13 +14,21 @@ export type ProposalValues = {
   /** Costo aproximado, como texto decimal para `Decimal(12,2)`, o `null` si no lo sabe. */
   approxCostArs: string | null;
   deadlineAt: Date | null;
+  /** Cómo se podría conseguir la plata. */
+  fundingIdea: string | null;
+  /** En qué se compromete a colaborar quien propone. */
+  proposerCommitment: string | null;
 };
+
+const MAX_RENGLON = 2_000;
 
 export function parseProposal(input: {
   title?: unknown;
   description?: unknown;
   approxCost?: unknown;
   deadline?: unknown;
+  fundingIdea?: unknown;
+  commitment?: unknown;
 }): { ok: true; values: ProposalValues } | { ok: false; error: string } {
   const title = String(input.title ?? "").trim();
   if (title === "") return { ok: false, error: "Poné un título para tu propuesta." };
@@ -40,7 +48,14 @@ export function parseProposal(input: {
   const fechaCruda = String(input.deadline ?? "").trim();
   const deadlineAt = fechaCruda ? parseDateOnly(fechaCruda) : null;
   if (fechaCruda && !deadlineAt) return { ok: false, error: "La fecha no se entiende." };
-  return { ok: true, values: { title, description, approxCostArs, deadlineAt } };
+  const fundingIdea = String(input.fundingIdea ?? "").trim() || null;
+  if (fundingIdea && fundingIdea.length > MAX_RENGLON) return { ok: false, error: "La idea para conseguir los fondos es demasiado larga." };
+  const proposerCommitment = String(input.commitment ?? "").trim() || null;
+  if (!proposerCommitment) {
+    return { ok: false, error: "Contanos cómo podrías colaborar: qué tarea te comprometés a hacer para que el proyecto salga." };
+  }
+  if (proposerCommitment.length > MAX_RENGLON) return { ok: false, error: "Tu compromiso es demasiado largo." };
+  return { ok: true, values: { title, description, approxCostArs, deadlineAt, fundingIdea, proposerCommitment } };
 }
 
 /** Cómo se le cuenta al socio en qué quedó su propuesta. */

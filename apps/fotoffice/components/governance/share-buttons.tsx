@@ -17,7 +17,7 @@ export function ShareButtons({
 }: {
   url: string;
   message: string;
-  label: string;
+  label?: string;
   /** Si el proyecto es visible: un segundo mensaje, para el grupo de socios. */
   members?: string | null;
 }) {
@@ -60,7 +60,7 @@ export function ShareButtons({
           WhatsApp a los socios
         </a>
       ) : null}
-      <span className="text-xs text-[var(--fo-muted)]">{label}</span>
+      {label ? <span className="text-xs text-[var(--fo-muted)]">{label}</span> : null}
     </div>
   );
 }

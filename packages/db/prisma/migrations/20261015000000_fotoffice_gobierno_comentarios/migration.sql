@@ -1,3 +1,7 @@
+-- AlterTable
+ALTER TABLE "GovProject" ADD COLUMN "fundingIdea" TEXT,
+ADD COLUMN "proposerCommitment" TEXT;
+
 -- CreateTable
 CREATE TABLE "GovComment" (
     "id" TEXT NOT NULL,

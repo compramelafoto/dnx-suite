@@ -54,9 +54,11 @@ export function taskStatusLabel(status: string): string {
 /** Color de la pastilla de estado: tokens del sistema de diseño, sin colores sueltos. */
 export function projectStatusTone(status: string): "neutral" | "info" | "success" | "warning" | "danger" {
   switch (status) {
-    case "APPROVED":
+    case "PROPOSED":
+    case "IN_REVIEW":
     case "IN_PROGRESS":
       return "info";
+    case "APPROVED":
     case "DONE":
       return "success";
     case "POSTPONED":

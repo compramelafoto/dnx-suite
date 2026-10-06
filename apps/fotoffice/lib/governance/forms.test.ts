@@ -43,6 +43,7 @@ describe("formulario de proyecto", () => {
         responsibleMemberId: "m1",
         deadlineAt: "2026-12-01",
         visibleToMembers: "on",
+        fundingIdea: "Una rifa",
       }),
     );
     expect(r).toEqual({
@@ -53,6 +54,8 @@ describe("formulario de proyecto", () => {
         responsibleMemberId: "m1",
         deadlineAt: new Date("2026-12-01T15:00:00.000Z"),
         visibleToMembers: true,
+        fundingIdea: "Una rifa",
+        proposerCommitment: null,
       },
     });
   });

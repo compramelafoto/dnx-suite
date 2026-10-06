@@ -30,6 +30,7 @@ export function ProjectMoneySection({
   acceptsMoney,
   accounts,
   categories,
+  bare = false,
 }: {
   projectId: string;
   money: ProjectMoney;
@@ -40,6 +41,8 @@ export function ProjectMoneySection({
   acceptsMoney: boolean;
   accounts: CashAccountRow[];
   categories: CashCategoryRow[];
+  /** Sin el título "Dinero": cuando ya lo pone un desplegable que la envuelve. */
+  bare?: boolean;
 }) {
   const { necesario, numeros } = money;
   const ahora = new Date();
@@ -59,7 +62,7 @@ export function ProjectMoneySection({
 
   return (
     <section id="dinero" className="space-y-4">
-      <h2 className="text-lg font-semibold">Dinero</h2>
+      {bare ? null : <h2 className="text-lg font-semibold">Dinero</h2>}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Numero rotulo="Necesario" valor={pesos(numeros.neededMinor)} nota={
