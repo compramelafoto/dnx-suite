@@ -31,10 +31,35 @@ function enlaceDe(p: { destinationUrl: string | null; websiteUrl: string | null;
   return ig.ok && ig.valor ? urlDeUsuario("instagram", ig.valor) : null;
 }
 
+/**
+ * Tope de espera. Si la base de Partners se cuelga en vez de rechazar, la portada y cada página
+ * del portal no pueden quedarse esperando el tiempo de conexión de Prisma: sin sponsors, siguen.
+ */
+const ESPERA_MAXIMA_MS = 2500;
+
 export async function loadActivePlacement(
   workspaceId: string,
   placementKey: SponsorPlacementKey,
   ahora = new Date(),
+): Promise<PlacedSponsor[]> {
+  let corte: ReturnType<typeof setTimeout> | undefined;
+  const tope = new Promise<PlacedSponsor[]>((resolve) => {
+    corte = setTimeout(() => {
+      console.error("[fotoffice][sponsors] el espacio tardó demasiado; se dibuja vacío", { placementKey });
+      resolve([]);
+    }, ESPERA_MAXIMA_MS);
+  });
+  try {
+    return await Promise.race([leerEspacio(workspaceId, placementKey, ahora), tope]);
+  } finally {
+    clearTimeout(corte);
+  }
+}
+
+async function leerEspacio(
+  workspaceId: string,
+  placementKey: SponsorPlacementKey,
+  ahora: Date,
 ): Promise<PlacedSponsor[]> {
   try {
     if (!(await isModuleEnabledForWorkspace(workspaceId, SPONSORS_MODULE_KEY))) return [];

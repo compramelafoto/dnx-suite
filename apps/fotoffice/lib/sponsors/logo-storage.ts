@@ -42,7 +42,9 @@ let cliente: { config: R2Config; s3: S3Client } | null = null;
 function s3(): { config: R2Config; s3: S3Client } {
   if (cliente) return cliente;
   const config = leerConfig();
-  if (!config) throw new Error("SPONSOR_LOGO_STORAGE_NOT_CONFIGURED");
+  if (!config) {
+    throw new Error("Falta configurar el almacenamiento de logos de DNX Partners en FOTOFFICE.");
+  }
   cliente = {
     config,
     s3: new S3Client({

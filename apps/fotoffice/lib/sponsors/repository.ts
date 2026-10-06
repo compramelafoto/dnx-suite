@@ -284,8 +284,29 @@ async function exigirVinculo(db: PartnersDb, workspaceId: string, partnerId: str
 }
 
 /** Vincula un sponsor de la base común a la institución. Si ya lo estaba, no hace nada. */
-export async function linkSponsor(input: { workspaceId: string; partnerId: string }): Promise<void> {
+export async function linkSponsor(input: {
+  workspaceId: string;
+  partnerId: string;
+  /**
+   * Para los vínculos automáticos (guardar un premio): si la institución lo desvinculó alguna
+   * vez, no se lo vuelve a sumar a sus espacios por la puerta de atrás.
+   */
+  salvoSiFueDesvinculado?: boolean;
+}): Promise<void> {
   const db = escritor();
+  if (input.salvoSiFueDesvinculado) {
+    const desvinculado = await db.dnxPartnerParticipation.findFirst({
+      where: {
+        partnerId: input.partnerId,
+        application: "FOTO_OFFICE",
+        contextType: "ORGANIZATION",
+        contextId: input.workspaceId,
+        status: "ARCHIVED",
+      },
+      select: { id: true },
+    });
+    if (desvinculado) return;
+  }
   const partner = await db.dnxPartner.findFirst({
     where: { id: input.partnerId, archivedAt: null },
     select: { id: true },
@@ -439,7 +460,11 @@ function esSuperposicion(err: unknown): boolean {
   const code = (err as { code?: unknown }).code;
   if (code === EXCLUSION_VIOLATION) return true;
   const meta = (err as { meta?: { code?: unknown } }).meta;
-  return code === "P2010" && meta?.code === EXCLUSION_VIOLATION;
+  if (code === "P2010" && meta?.code === EXCLUSION_VIOLATION) return true;
+  // Con una consulta de modelo (no SQL crudo) Prisma no trae el código de Postgres en un campo:
+  // lo deja en el mensaje, como "violates exclusion constraint" o "23P01".
+  const mensaje = err instanceof Error ? err.message : "";
+  return /exclusion constraint|23P01|DnxPartnerInventoryBooking_no_overlap/i.test(mensaje);
 }
 
 /**
@@ -499,7 +524,10 @@ export async function assignPlacement(input: {
       contextId: input.workspaceId,
       range: rango,
       bookings: ocupan as InventoryBooking[],
-      now: ahora,
+      // Una reserva de DNX vencida que la tarea horaria todavía no limpió sigue bloqueando en la
+      // restricción de Postgres. Mirar "desde el principio de los tiempos" la cuenta como ocupada,
+      // igual que la base, en vez de ofrecer un lugar que el insert va a rechazar.
+      now: new Date(0),
       capacity: capacidad,
     });
     if (lugar.slotIndex === null) {

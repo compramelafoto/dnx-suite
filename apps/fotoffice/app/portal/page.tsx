@@ -53,6 +53,10 @@ export default async function PortalPage() {
     redirect(kind === "TEAM" ? "/workspace" : "/login");
   }
 
+  // La sección de sponsors arranca ya, en paralelo con todo lo demás. Nunca falla y tiene tope de
+  // espera: si no hay o DNX Partners no responde, la portada sale sin la sección.
+  const sponsorsPromesa = loadActivePlacement(context.workspace.id, "FOTOFFICE_PORTAL_SPONSORS");
+
   const profiles = await listUserProfiles(user.id);
   const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
     where: { workspaceId: context.workspace.id },
@@ -166,8 +170,7 @@ export default async function PortalPage() {
     });
   }
 
-  // La sección de sponsors de la institución. Nunca falla: si no hay, no se dibuja.
-  const sponsors = await loadActivePlacement(context.workspace.id, "FOTOFFICE_PORTAL_SPONSORS");
+  const sponsors = await sponsorsPromesa;
 
   return (
     <>

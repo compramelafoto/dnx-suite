@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@repo/db";
+import { partnersReader } from "@/lib/sponsors/clients";
 
 export const runtime = "nodejs";
 
@@ -43,12 +43,10 @@ async function buscarArchivo(assetId: string) {
     },
     select: { storageKey: true },
   };
-  const { getClickatonReadonlyClient, isClickatonReadonlyAvailable } = await import(
-    "@repo/db/clickaton-readonly-client"
-  );
-  return isClickatonReadonlyAvailable()
-    ? getClickatonReadonlyClient().dnxPartnerAsset.findFirst(consulta)
-    : prisma.dnxPartnerAsset.findFirst(consulta);
+  // La misma elección de base que el módulo de sponsors: la conexión de escritura si está (es
+  // donde se registran los logos que sube la institución), si no la de sólo lectura, si no la propia.
+  const db = await partnersReader();
+  return db.dnxPartnerAsset.findFirst(consulta);
 }
 
 export async function GET(_request: Request, { params }: { params: Promise<{ assetId: string }> }) {

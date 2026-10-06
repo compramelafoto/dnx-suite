@@ -136,7 +136,13 @@ export async function savePrizeAction(formData: FormData): Promise<void> {
     try {
       const { linkSponsor } = await import("@/lib/sponsors/repository");
       const { canWriteSponsors } = await import("@/lib/sponsors/clients");
-      if (canWriteSponsors()) await linkSponsor({ workspaceId: workspace.id, partnerId: parsed.values.partnerId });
+      if (canWriteSponsors()) {
+        await linkSponsor({
+          workspaceId: workspace.id,
+          partnerId: parsed.values.partnerId,
+          salvoSiFueDesvinculado: true,
+        });
+      }
     } catch (error) {
       console.error("[fotoffice][sorteos] no se pudo vincular el aliado como sponsor", {
         detalle: error instanceof Error ? error.message : String(error),
