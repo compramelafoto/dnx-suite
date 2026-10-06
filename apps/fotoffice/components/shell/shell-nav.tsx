@@ -31,6 +31,7 @@ import {
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
+import { SPONSORS_MODULE_KEY } from "@/lib/sponsors/constants";
 import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
 import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
@@ -195,6 +196,9 @@ export function ShellNav({
   // al día, y separarlo en su propia sección lo dejaría suelto al lado de Cuotas.
   const sorteos: Item[] = itemsDeModulo(RAFFLES_MODULE_KEY, access, vocabulary);
 
+  // Sponsors al lado de Sorteos: muchas de esas marcas son las mismas que donan los premios.
+  const sponsors: Item[] = itemsDeModulo(SPONSORS_MODULE_KEY, access, vocabulary);
+
   // Comisión: los proyectos de la comisión directiva y sus tareas. Grupo propio: lo usa la
   // comisión, que no necesariamente gestiona el padrón.
   const comision: Item[] = itemsDeModulo(GOVERNANCE_MODULE_KEY, access, vocabulary);
@@ -349,6 +353,7 @@ export function ShellNav({
     },
     { title: vocabulary.Plural, items: socios },
     { title: "Sorteos", items: sorteos },
+    { title: "Sponsors", items: sponsors },
     { title: "Comisión", items: comision },
     { title: "Comunicación", items: comunicacion },
     { title: "Coberturas", items: coberturas },

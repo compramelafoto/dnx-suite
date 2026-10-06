@@ -11,6 +11,9 @@ import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { rutaAsociarse } from "@/lib/course-classroom/asociarse";
 import { PortalShell } from "@/components/portal/portal-shell";
 import { listUserProfiles, roleSelector } from "@/lib/portal/profiles";
+import { loadActivePlacement } from "@/lib/sponsors/placements";
+import { SponsorLogoMarquee } from "@/components/sponsors/logo-marquee";
+import { PortalSponsorWelcome } from "@/components/sponsors/portal-welcome";
 
 /**
  * El marco de todo el portal.
@@ -61,7 +64,7 @@ export default async function PortalLayout({ children }: { children: ReactNode }
 
   const context = viewer.context;
 
-  const [branding, foto, enabledModuleKeys, duesSettings, vocabulary, perfiles] = await Promise.all([
+  const [branding, foto, enabledModuleKeys, duesSettings, vocabulary, perfiles, pieDeSponsors, bienvenida] = await Promise.all([
     prisma.fotofficeWorkspaceBranding.findUnique({
       where: { workspaceId: context.workspace.id },
       select: { commercialName: true, logoUrl: true },
@@ -74,6 +77,9 @@ export default async function PortalLayout({ children }: { children: ReactNode }
     getDuesSettings(context.workspace.id),
     loadPersonVocabulary(context.workspace.id),
     listUserProfiles(user.id),
+    // Los dos espacios de sponsors que van en todo el portal. Vacíos si el módulo está apagado.
+    loadActivePlacement(context.workspace.id, "FOTOFFICE_PORTAL_MARQUEE"),
+    loadActivePlacement(context.workspace.id, "FOTOFFICE_PORTAL_WELCOME"),
   ]);
   // Si el socio también es equipo de ESTA institución, el selector de rol lo lleva al panel.
   const selector = roleSelector(perfiles, { kind: "MEMBER", workspaceId: context.workspace.id }, vocabulary);
@@ -99,6 +105,8 @@ export default async function PortalLayout({ children }: { children: ReactNode }
       }}
     >
       {children}
+      <SponsorLogoMarquee sponsors={pieDeSponsors} className="mt-10 border-t border-[var(--fo-border-muted)]" />
+      {bienvenida[0] ? <PortalSponsorWelcome sponsor={bienvenida[0]} /> : null}
     </PortalShell>
   );
 }

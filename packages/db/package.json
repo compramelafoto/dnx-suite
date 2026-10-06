@@ -26,6 +26,7 @@
     "./template-v2-repository": "./src/template-v2-repository.ts",
     "./clickaton-readonly-client": "./src/clickaton-readonly-client.ts",
     "./clickaton-jury-client": "./src/clickaton-jury-client.ts",
+    "./clickaton-partners-client": "./src/clickaton-partners-client.ts",
     "./jury-directory-client": "./src/jury-directory-client.ts",
     "./partners-inventory-bookings": "./src/partners-inventory-bookings.ts",
     "./partners-sales-agents": "./src/partners-sales-agents.ts",
@@ -63,6 +64,7 @@
     "communications:db:identity": "tsx scripts/communications-db-identity.mts",
     "test:communications-identity": "tsx --test scripts/communications-db-identity.test.ts",
     "test:daily-report": "tsx --test src/daily-report-repository.test.ts",
+    "test:clickaton-partners-client": "tsx --test src/clickaton-partners-client.test.ts",
     "test:template-v2-repository": "tsx --test src/template-v2-repository.test.ts"
   },
   "prisma": {

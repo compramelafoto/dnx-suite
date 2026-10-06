@@ -4,6 +4,8 @@ import { loadPublicSite } from "@/lib/website/public-site";
 import { loadWebsiteDynamicData } from "@/lib/website/dynamic-data.server";
 import { WebsitePageRenderer } from "@/components/website/render/website-page-renderer";
 import { PresupuestoLanding } from "./presupuesto-landing";
+import { loadActivePlacement } from "@/lib/sponsors/placements";
+import { SponsorLogoMarquee } from "@/components/sponsors/logo-marquee";
 
 type Props = { params: Promise<{ workspaceSlug: string }> };
 
@@ -23,10 +25,16 @@ export default async function PublicWorkspaceHomePage({ params }: Props) {
   if (site.hasPublishedSite) {
     // Los bloques dinámicos (hoy, "Últimos artículos") leen su contenido acá, al dibujar: no
     // viven en la versión publicada, así un artículo nuevo aparece sin volver a publicar.
-    const dynamicData = await loadWebsiteDynamicData(site, site.homeBlocks);
+    const [dynamicData, sponsors] = await Promise.all([
+      loadWebsiteDynamicData(site, site.homeBlocks),
+      // La franja de sponsors va al final de la portada, antes del pie. Si el módulo está apagado
+      // o DNX Partners no responde, viene vacía y no se dibuja.
+      loadActivePlacement(site.workspaceId, "FOTOFFICE_PUBLIC_MARQUEE"),
+    ]);
     return (
       <main>
         <WebsitePageRenderer blocks={site.homeBlocks} colors={site.colors} designPresets={site.designPresets} dynamicData={dynamicData} />
+        <SponsorLogoMarquee sponsors={sponsors} className="mx-auto max-w-6xl px-4" />
       </main>
     );
   }

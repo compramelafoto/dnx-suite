@@ -24,6 +24,8 @@ import { buildSpotlightCard } from "@/lib/spotlight/view";
 import { spotlightWeekLabel } from "@/lib/spotlight/week";
 import { loadBirthdaysOfWeek } from "@/lib/birthdays/repository";
 import type { BirthdayView } from "@/lib/birthdays/week";
+import { loadActivePlacement } from "@/lib/sponsors/placements";
+import { PortalSponsorsSection } from "@/components/sponsors/portal-sponsors-section";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +52,10 @@ export default async function PortalPage() {
     const kind = await resolveFotofficeUserKind(user.id);
     redirect(kind === "TEAM" ? "/workspace" : "/login");
   }
+
+  // La sección de sponsors arranca ya, en paralelo con todo lo demás. Nunca falla y tiene tope de
+  // espera: si no hay o DNX Partners no responde, la portada sale sin la sección.
+  const sponsorsPromesa = loadActivePlacement(context.workspace.id, "FOTOFFICE_PORTAL_SPONSORS");
 
   const profiles = await listUserProfiles(user.id);
   const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
@@ -164,7 +170,10 @@ export default async function PortalPage() {
     });
   }
 
+  const sponsors = await sponsorsPromesa;
+
   return (
+    <>
     <PortalHome
       institution={institution}
       member={{
@@ -193,5 +202,9 @@ export default async function PortalPage() {
       cumpleanos={cumpleanos}
       gobierno={gobierno}
     />
+    <div className="mt-8">
+      <PortalSponsorsSection sponsors={sponsors} />
+    </div>
+    </>
   );
 }
