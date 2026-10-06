@@ -1,8 +1,10 @@
 # Aplicar la migración del Listado estándar (FOTOFFICE, etapa 0.2)
 
+Estado: aplicada en producción el 02/10/2026; código publicado el 06/10/2026 (PR 277)
+
 Procedimiento manual, con el mismo criterio que `MIGRACION-EQUIPO-Y-MODULOS.md`. Las tablas
 van **antes** que el código: no se fusiona el PR sin haber aplicado esto en las bases donde
-corre FOTOFFICE.
+corre FOTOFFICE. **No hay staging:** FOTOFFICE va directo a producción.
 
 **`<Listado>` lee y escribe `FotofficeListView` en CADA carga de `/clientes`, `/members` y
 `/caja/movimientos`. Publicar el código antes que el SQL deja esas tres páginas rotas para
@@ -41,17 +43,17 @@ Si no da el checksum de la tabla de arriba, **parar**: el archivo cambió despu�
 
 1. Se fusiona primero el PR 277 (etapa 0.1, `MIGRACION-EQUIPO-Y-MODULOS.md`).
 2. Esta rama se rebasa sobre `main` actualizado.
-3. SQL en **staging** (`dnx-suite-staging`).
-4. Probar las tres páginas (`/clientes`, `/members`, `/caja/movimientos`) con `next dev`
-   apuntando a staging: filtros recordados, guardar/renombrar/borrar vista, exportar y un lote.
-5. SQL en **FOTOFFICE producción** (`compramelafoto` / `development`).
-6. Recién entonces se fusiona el PR.
+3. SQL en **FOTOFFICE producción** (`compramelafoto` / `development`), con la verificación
+   de la sección 4.
+4. Recién entonces se fusiona el PR.
+5. Con el código publicado, probar las tres páginas (`/clientes`, `/members`,
+   `/caja/movimientos`) en producción: filtros recordados, guardar/renombrar/borrar vista,
+   exportar y un lote.
 
 ## 3. En qué bases va
 
 | Base | Proyecto / rama Neon | IDs verificados |
 |---|---|---|
-| Staging | `dnx-suite-staging` | — |
 | FOTOFFICE (producción real) | `compramelafoto` / `development` | `divine-hall-10689679` / `br-old-rain-adwthzng` |
 | CompraMeLaFoto | `compramelafoto` / `production` | `divine-hall-10689679` / `production` |
 | Clickatón | `clickaton-production` | `bitter-math-56019731` (rama por defecto) |

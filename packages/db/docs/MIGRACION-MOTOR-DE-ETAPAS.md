@@ -1,10 +1,15 @@
 # Aplicar la migración del Motor de etapas (FOTOFFICE, etapa 0.4)
 
+Estado: aplicada en producción el 02/10/2026; código publicado el 06/10/2026 (PR 277)
+
 Procedimiento manual, con el mismo criterio que `MIGRACION-FICHA-ESTANDAR.md`. Las tablas
 van **antes** que el código: no se fusiona el PR sin haber aplicado esto en las bases donde
-corre FOTOFFICE.
+corre FOTOFFICE. **No hay staging:** FOTOFFICE va directo a producción.
 
-**Captación (tablero, lista, informe y ficha), el inicio ("Mis tareas") y el alta de
+La pantalla se llamaba "Captación" y desde el 06/10/2026 se llama **Consultas**. Las tablas,
+la llave del módulo (`service-leads`) y el tipo de sujeto (`CAPTACION`) no cambiaron.
+
+**Consultas (tablero, lista, informe y ficha), el inicio ("Mis tareas") y el alta de
 consultas usan estas tablas. Publicar el código antes que el SQL rompe esas pantallas.** El
 alta de consultas no se rompe, porque el motor nunca hace fallar `createServiceLead`, pero la
 consulta queda sin recorrido hasta que alguien abra el tablero. Por eso el orden de la
@@ -25,7 +30,7 @@ Crea nueve tablas nuevas: `FotofficeCircuit`, `FotofficeStage`, `FotofficeStageT
 `FotofficeTask` y `FotofficeProcessedEvent`.
 
 **El SQL no carga datos.** Las semillas (circuitos y motivos de pérdida) y el enganche de las
-consultas existentes corren **en código**, al abrir Captación o Configuración → Circuitos:
+consultas existentes corren **en código**, al abrir Consultas o Configuración → Circuitos:
 
 - `asegurarCircuitos` crea los circuitos y motivos que falten del workspace (en DNX: 21
   circuitos y 6 motivos de pérdida).
@@ -41,8 +46,9 @@ consulta, para que dos pestañas abiertas a la vez no creen recorridos duplicado
 que la transacción corre en aislamiento `READ COMMITTED` (el predeterminado de Postgres y de
 Prisma): **no cambiar el nivel de aislamiento de esa transacción.**
 
-**Rutas.** `/captacion` (tablero), `/captacion/lista`, `/captacion/informe` y
-`/captacion/[id]` (ficha). `/dashboard/service-leads` redirige a `/captacion`;
+**Rutas.** `/consultas` (tablero), `/consultas/lista`, `/consultas/informe` y
+`/consultas/[id]` (ficha). `/dashboard/service-leads` redirige a `/consultas`, y las
+direcciones viejas `/captacion/...` redirigen en forma permanente a `/consultas/...`;
 `/dashboard/service-leads/forms` no cambia.
 
 **Dependencia.** Va después de la 0.1 (PR 277), la 0.2 (PR 281) y la 0.3 (PR 286), apilados.
@@ -59,19 +65,17 @@ Si no da el checksum de la tabla de arriba, **parar**: el archivo cambió despu�
 
 1. Se fusionan primero, en orden, el PR 277 (0.1), el PR 281 (0.2) y el PR 286 (0.3).
 2. Esta rama se rebasa sobre `main` actualizado.
-3. SQL en **staging** (`dnx-suite-staging`) y **prueba con `next dev` apuntando a staging**:
-   abrir Captación, mover una consulta, tildar una tarea (sección 6).
-4. SQL en **FOTOFFICE producción** (`compramelafoto` / `development`), con la primera parte
+3. SQL en **FOTOFFICE producción** (`compramelafoto` / `development`), con la primera parte
    del paso 3 de la sección 4 (tablas vacías) inmediatamente después.
-5. Recién entonces se fusiona el PR.
-6. Con el código ya publicado, abrir Captación en DNX, recargar hasta que no diga "quedan N"
+4. Recién entonces se fusiona el PR.
+5. Con el código ya publicado, abrir Consultas en DNX, recargar hasta que no diga "quedan N"
    y hacer la segunda parte del paso 3 (circuitos y recorridos).
+6. Prueba manual en producción (sección 6): mover una consulta, tildar una tarea.
 
 ## 3. En qué bases va
 
 | Base | Proyecto / rama Neon | IDs verificados |
 |---|---|---|
-| Staging | `dnx-suite-staging` | — |
 | FOTOFFICE (producción real) | `compramelafoto` / `development` | `divine-hall-10689679` / `br-old-rain-adwthzng` |
 | CompraMeLaFoto | `compramelafoto` / `production` | `divine-hall-10689679` / `production` |
 | Clickatón | `clickaton-production` | `bitter-math-56019731` (rama por defecto) |
@@ -131,7 +135,7 @@ SELECT count(*) FROM "_prisma_migrations"
 ```
 
 **Después de fusionar el PR** (los circuitos y los recorridos los crea el código nuevo, no el
-SQL: antes de publicarlo estas cuentas dan 0). Abrir Captación en DNX, recargar hasta que no
+SQL: antes de publicarlo estas cuentas dan 0). Abrir Consultas en DNX, recargar hasta que no
 diga "quedan N" y entonces:
 
 Primero, el id del workspace de DNX (sólo lectura):
@@ -154,14 +158,14 @@ SELECT
     WHERE j."workspaceId" = '<id de DNX>' AND j."subjectType" = 'CAPTACION' AND j.kind = 'VENTA') AS recorridos;
 ```
 
-Si `recorridos` es menor, todavía quedan consultas por enganchar: recargar Captación.
+Si `recorridos` es menor, todavía quedan consultas por enganchar: recargar Consultas.
 
 **Si "quedan N" no llega a 0** después de varias recargas, es por una de estas dos causas:
 
 - **Consultas perdidas sin motivo activo.** Una consulta que ya estaba perdida se importa con
   el motivo "Otro" (o el primer motivo activo). Si no hay ninguno activo, esas consultas
   esperan. Solución: en Configuración → Circuitos → Motivos, activar "Otro" (o cualquier
-  motivo) y recargar Captación.
+  motivo) y recargar Consultas.
 - **Una consulta que falla al engancharse.** No queda a medias (se reintenta en cada
   recarga), pero vuelve a fallar. Buscar en los logs de Vercel de FOTOFFICE la línea
   `[circuitos] engancharConsultas falló`: trae el `workspaceId`, el estado de la consulta y el
@@ -170,7 +174,7 @@ Si `recorridos` es menor, todavía quedan consultas por enganchar: recargar Capt
 ## 5. Rollback
 
 **Primero el código, después las tablas.** Si se borran las tablas con el código nuevo
-publicado, Captación y el inicio se rompen.
+publicado, Consultas y el inicio se rompen.
 
 1. Revertir el PR (o volver a publicar en Vercel el deploy anterior de FOTOFFICE) y confirmar
    que producción ya sirve la versión sin motor de etapas.
@@ -193,11 +197,11 @@ COMMIT;
 
 Esto borra circuitos, etapas, recorridos, tareas e historial creados después de la
 migración: no tiene vuelta atrás. `ServiceSalesLead.status` nunca dejó de actualizarse, así
-que la Captación vieja sigue funcionando con los estados de siempre.
+que la bandeja vieja de consultas sigue funcionando con los estados de siempre.
 
-## 6. Prueba manual (para Daniel, en el PR)
+## 6. Prueba manual (para Daniel, en producción)
 
-1. Abrir Captación en DNX: se cargan los circuitos; recargar hasta que no diga "quedan N".
+1. Abrir Consultas en DNX: se cargan los circuitos; recargar hasta que no diga "quedan N".
 2. Arrastrar una consulta a otra etapa. Usar también "Mover a…" (dos pasos).
 3. Marcar una consulta como ganada: pide confirmación.
 4. Marcar otra como perdida: exige elegir un motivo.
@@ -210,6 +214,6 @@ que la Captación vieja sigue funcionando con los estados de siempre.
 10. Aprobar la inscripción a un curso de alguien que **ya tenía una consulta** (mismo correo o
     WhatsApp): en el tablero, esa consulta deja de estar abierta y queda como Ganada, con el
     paso hecho por "Sistema" ("Inscripción aprobada para …").
-11. Después del enganche, abrir el informe de Captación del mes actual: las consultas viejas
+11. Después del enganche, abrir el informe de Consultas del mes actual: las consultas viejas
     no deben aparecer "pasando" por la primera etapa este mes; las ganadas y perdidas
     importadas cuentan en el mes de su última modificación, no en el de la migración.

@@ -1,8 +1,11 @@
 # Aplicar la migración de Equipo y Módulos (FOTOFFICE, etapa 0.1)
 
+Estado: aplicada en producción el 02/10/2026; código publicado el 06/10/2026 (PR 277)
+
 Procedimiento manual, con el mismo criterio que `MIGRACION-COBERTURAS.md`. Las tablas van
 **antes** que el código: no se fusiona el PR sin haber aplicado esto en las bases donde
-corre FOTOFFICE.
+corre FOTOFFICE. **No hay staging:** FOTOFFICE va directo a producción, y el SQL se aplica
+sólo en las bases de producción de la sección 2.
 
 ## 1. Qué se aplica
 
@@ -32,7 +35,6 @@ Si no da el checksum de la tabla de arriba, **parar**: el archivo cambió despu�
 | FOTOFFICE (producción real) | `compramelafoto` / `development` |
 | CompraMeLaFoto | `compramelafoto` / `production` |
 | Clickatón | `clickaton-production` |
-| Staging | `dnx-suite-staging` |
 | InfoSpot | **A verificar al momento de aplicar** |
 
 InfoSpot: hay que comprobar si su base tiene las tablas `Workspace` y
