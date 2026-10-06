@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ContestCard } from "@/components/contests/contest-card";
+import { ContestCarousel } from "@/components/contests/contest-carousel";
 import type { ShowcaseItem } from "@/lib/contests/showcase";
 import { createOwnBusinessAction, switchProfileAction } from "@/app/actions/profile-choice";
 import type { MemberBalance } from "@/lib/membership/balance";
@@ -222,28 +222,6 @@ export function PortalHome({
       ) : null}
 
       {/*
-        La vitrina de concursos va debajo de los accesos: es lo que más le interesa al fotógrafo y
-        lo que cambia más seguido. Una sola fila que se desliza; "Ver todos" lleva a la lista.
-      */}
-      {concursos.length > 0 ? (
-        <section className="space-y-3" aria-label="Concursos abiertos">
-          <div className="flex items-baseline justify-between gap-3">
-            <h2 className="text-base font-semibold">Concursos abiertos</h2>
-            <Link href="/portal/concursos" className="text-sm text-[var(--fo-accent-hover)] hover:underline">
-              Ver todos →
-            </Link>
-          </div>
-          <div className="-mx-1 overflow-x-auto px-1 pb-1">
-            <div className="flex gap-3">
-              {concursos.map((c) => (
-                <ContestCard key={c.key} item={c} institution={institution} now={new Date()} className="w-64 shrink-0 sm:w-72" />
-              ))}
-            </div>
-          </div>
-        </section>
-      ) : null}
-
-      {/*
         Identidad antes que trámite: lo primero que ve el socio es que la institución sabe quién
         es. Son datos que ya existen en la ficha, así que nunca quedan desactualizados.
       */}
@@ -422,6 +400,22 @@ export function PortalHome({
               </div>
               <WhatsappGroupButton href={whatsappGroupUrl} className="self-start" />
             </div>
+          ) : null}
+
+          {/*
+            Los concursos van en la columna lateral, de a una ficha que va pasando sola: muestra
+            todo lo abierto sin ocupar una fila entera. "Ver más" lleva a la lista completa.
+          */}
+          {concursos.length > 0 ? (
+            <section className="space-y-3" aria-label="Concursos fotográficos">
+              <div className="flex items-baseline justify-between gap-3">
+                <h2 className="text-sm font-semibold">Concursos fotográficos</h2>
+                <Link href="/portal/concursos" className="text-sm text-[var(--fo-accent-hover)] hover:underline">
+                  Ver más →
+                </Link>
+              </div>
+              <ContestCarousel items={concursos} institution={institution} now={new Date()} />
+            </section>
           ) : null}
 
           {/*
