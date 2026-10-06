@@ -47,7 +47,7 @@ export function validateTransfer(input: {
     return { ok: false, error: "El importe tiene que ser mayor que cero." };
   }
   if (input.amountMinor > input.fromBalanceMinor) {
-    return { ok: false, error: "No podés pasar más plata de la que hay en esa cuenta." };
+    return { ok: false, error: "No podés pasar más dinero del que hay en esa cuenta." };
   }
   return { ok: true };
 }

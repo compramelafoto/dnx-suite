@@ -6,8 +6,13 @@ import { PageHeader } from "@/components/page-header";
 import { Flash } from "@/components/governance/member-select";
 import { ProjectStatusBadge } from "@/components/governance/badges";
 import { requireGovernanceViewer } from "@/lib/governance/access";
-import { getMeeting, loadVoting } from "@/lib/governance/repository";
-import { fechaHora } from "@/lib/governance/labels";
+import { getMeeting, listCommentsByProject, loadMemberPulse, loadVoting } from "@/lib/governance/repository";
+import { memberPulseLabel } from "@/lib/governance/member-pulse";
+import { diaYHora, fechaHora } from "@/lib/governance/labels";
+import { ShareButtons } from "@/components/governance/share-buttons";
+import { buildSharedUrl, loadShareBase } from "@/lib/governance/share-server";
+import { meetingShareMessage } from "@/lib/governance/share";
+import { commentCountLabel } from "@/lib/governance/comments";
 import {
   canApplyOutcome,
   isMinutesLocked,
@@ -49,8 +54,11 @@ export default async function ReunionPage({
   const bloqueada = isMinutesLocked(r.status);
   const editable = canManage && !bloqueada;
   const proyectoIds = r.items.flatMap((i) => (i.projectId ? [i.projectId] : []));
-  const [votacion, holders, otrosProyectos] = await Promise.all([
+  const [votacion, pulsoDe, opiniones, shareBase, holders, otrosProyectos] = await Promise.all([
     loadVoting(workspace.id, proyectoIds),
+    loadMemberPulse(workspace.id, proyectoIds),
+    listCommentsByProject(workspace.id, proyectoIds),
+    loadShareBase(workspace.id),
     editable ? listActiveOfficeHolders(workspace.id).catch(() => []) : Promise.resolve([]),
     editable
       ? prisma.govProject.findMany({
@@ -66,6 +74,7 @@ export default async function ReunionPage({
   ]);
   const presentes = new Set(r.attendees.map((a) => a.memberId ?? `u:${a.userId}`));
   const sinTratar = r.items.filter((i) => !i.treatedAt).length;
+  const enlace = shareBase ? buildSharedUrl("reunion", r.id, shareBase) : null;
 
   return (
     <div className="space-y-8">
@@ -84,6 +93,19 @@ export default async function ReunionPage({
           }
         />
         <p className="text-sm font-medium text-[var(--fo-text-secondary)]">{meetingStatusLabel(r.status)}</p>
+        {enlace && r.status === "PLANNED" ? (
+          <ShareButtons
+            url={enlace}
+            message={meetingShareMessage({
+              title: r.title,
+              when: diaYHora(r.scheduledAt),
+              location: r.location,
+              topics: r.items.map((i) => i.title),
+              url: enlace,
+            })}
+            label="Manda la convocatoria con el temario al grupo de la comisión."
+          />
+        ) : null}
       </div>
 
       <Flash error={avisos.error} ok={avisos.ok} />
@@ -139,7 +161,8 @@ export default async function ReunionPage({
                     {item.project ? (
                       <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--fo-muted)]">
                         <ProjectStatusBadge status={item.project.status} />
-                        <span>{tallyLabel(foto ?? actual!)}</span>
+                        <span>Comisión: {tallyLabel(foto ?? actual!)}</span>
+                        {pulsoDe(item.projectId!).total > 0 ? <span>· Socios: {memberPulseLabel(pulsoDe(item.projectId!))}</span> : null}
                       </div>
                     ) : (
                       <p className="text-xs text-[var(--fo-muted)]">Tema suelto</p>
@@ -174,6 +197,8 @@ export default async function ReunionPage({
                     </div>
                   ) : null}
                 </div>
+
+                {item.projectId ? <OpinionesDelTema opiniones={opiniones.get(item.projectId) ?? []} projectId={item.projectId} /> : null}
 
                 {item.treatedAt ? (
                   <div className="rounded-[var(--fo-radius-sm)] bg-[var(--fo-surface-muted)] p-3 text-sm">
@@ -355,5 +380,40 @@ export default async function ReunionPage({
         </details>
       ) : null}
     </div>
+  );
+}
+
+/** Lo que la comisión escribió antes de la reunión, a mano mientras se trata el tema. */
+function OpinionesDelTema({
+  opiniones,
+  projectId,
+}: {
+  opiniones: { id: string; authorLabel: string; body: string; createdAt: Date }[];
+  projectId: string;
+}) {
+  if (opiniones.length === 0) {
+    return (
+      <p className="text-xs text-[var(--fo-muted)]">
+        {commentCountLabel(0)} ·{" "}
+        <Link href={`/gobierno/${projectId}#opiniones`} className="hover:underline">
+          opinar
+        </Link>
+      </p>
+    );
+  }
+  return (
+    <details className="text-sm">
+      <summary className="cursor-pointer text-[var(--fo-accent)]">{commentCountLabel(opiniones.length)}</summary>
+      <ul className="mt-2 space-y-2">
+        {opiniones.map((o) => (
+          <li key={o.id} className="border-l-2 border-[var(--fo-border)] pl-3">
+            <p className="text-xs text-[var(--fo-muted)]">
+              <span className="font-medium text-[var(--fo-text)]">{o.authorLabel}</span> · {fechaHora(o.createdAt)}
+            </p>
+            <p className="whitespace-pre-line text-[var(--fo-text-secondary)]">{o.body}</p>
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }

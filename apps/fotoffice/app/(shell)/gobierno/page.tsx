@@ -4,7 +4,8 @@ import { PageHeader } from "@/components/page-header";
 import { Flash } from "@/components/governance/member-select";
 import { ProgressBar, ProjectStatusBadge, UrgencyDot } from "@/components/governance/badges";
 import { requireGovernanceViewer } from "@/lib/governance/access";
-import { listProjects, loadVoting } from "@/lib/governance/repository";
+import { listProjects, loadMemberPulse, loadVoting } from "@/lib/governance/repository";
+import { memberPulseLabel, memberPulseTone, rankByMemberSupport } from "@/lib/governance/member-pulse";
 import { isVotingOpen, tallyLabel } from "@/lib/governance/votes";
 import { ensureDefaultProjectTypes } from "@/lib/governance/seed";
 import { isClosed } from "@/lib/governance/lifecycle";
@@ -12,6 +13,13 @@ import { progressOf, sortByPriority, urgencyFor } from "@/lib/governance/urgency
 import { fecha } from "@/lib/governance/labels";
 
 export const dynamic = "force-dynamic";
+
+const TONO_SOCIOS: Record<string, string> = {
+  neutral: "text-[var(--fo-muted)]",
+  success: "text-[var(--fo-success)]",
+  warning: "text-[var(--fo-warning)]",
+  danger: "text-[var(--fo-danger)]",
+};
 
 const FILTROS = [
   { key: "activos", label: "En curso" },
@@ -29,13 +37,19 @@ export default async function ProyectosPage({
   await ensureDefaultProjectTypes(workspace.id);
   const ahora = new Date();
   const lista = await listProjects(workspace.id);
-  const votacion = await loadVoting(workspace.id, lista.map((p) => p.id));
+  const [votacion, pulsoDe] = await Promise.all([
+    loadVoting(workspace.id, lista.map((p) => p.id)),
+    loadMemberPulse(workspace.id, lista.filter((p) => p.visibleToMembers).map((p) => p.id)),
+  ]);
   const todos = sortByPriority(lista, ahora, (p) => votacion.tallyOf(p.id).percentFor);
   const ver = FILTROS.some((f) => f.key === params.ver) ? params.ver! : "activos";
   const proyectos = todos.filter((p) =>
     ver === "todos" ? true : ver === "cerrados" ? isClosed(p.status) : !isClosed(p.status),
   );
   const propuestas = todos.filter((p) => p.status === "MEMBER_PROPOSAL").length;
+  const loQuePidenLosSocios = rankByMemberSupport(
+    todos.filter((p) => p.visibleToMembers && !isClosed(p.status)).map((p) => ({ id: p.id, title: p.title, pulse: pulsoDe(p.id) })),
+  ).slice(0, 5);
 
   return (
     <div className="space-y-8">
@@ -58,6 +72,28 @@ export default async function ProyectosPage({
           {propuestas === 1 ? "Hay una propuesta de socio esperando respuesta." : `Hay ${propuestas} propuestas de socios esperando respuesta.`}{" "}
           Abrila para aceptarla (pasa al temario de la próxima reunión) o archivarla con el motivo.
         </p>
+      ) : null}
+
+      {loQuePidenLosSocios.length > 0 ? (
+        <section className="fo-card space-y-3 p-5">
+          <div>
+            <h2 className="text-base font-semibold">Lo que más apoyan los socios</h2>
+            <p className="text-sm text-[var(--fo-muted)]">
+              De la encuesta privada en el portal: cada socio dice si apoya o no cada proyecto visible. Sólo se ven
+              los totales.
+            </p>
+          </div>
+          <ol className="space-y-2 text-sm">
+            {loQuePidenLosSocios.map((p, i) => (
+              <li key={p.id} className="flex flex-wrap items-baseline justify-between gap-2">
+                <Link href={`/gobierno/${p.id}#socios`} className="font-medium hover:underline">
+                  {i + 1}. {p.title}
+                </Link>
+                <span className={`text-xs ${TONO_SOCIOS[memberPulseTone(p.pulse)]}`}>{memberPulseLabel(p.pulse)}</span>
+              </li>
+            ))}
+          </ol>
+        </section>
       ) : null}
 
       <nav className="flex flex-wrap gap-2" aria-label="Filtrar proyectos">
@@ -102,7 +138,8 @@ export default async function ProyectosPage({
                 <th className="px-4 py-3 font-medium">Estado</th>
                 <th className="px-4 py-3 font-medium">Fecha límite</th>
                 <th className="px-4 py-3 font-medium">Responsable</th>
-                <th className="px-4 py-3 font-medium">Apoyo</th>
+                <th className="px-4 py-3 font-medium">Comisión</th>
+                <th className="px-4 py-3 font-medium">Socios</th>
                 <th className="px-4 py-3 font-medium">Avance</th>
               </tr>
             </thead>
@@ -132,6 +169,15 @@ export default async function ProyectosPage({
                     <td className="px-4 py-3 text-[var(--fo-text-secondary)]">{p.responsibleName ?? "—"}</td>
                     <td className="px-4 py-3 text-xs text-[var(--fo-muted)]">
                       {isVotingOpen(p.status) ? tallyLabel(votacion.tallyOf(p.id)) : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-xs">
+                      {p.visibleToMembers && pulsoDe(p.id).total > 0 ? (
+                        <span className={TONO_SOCIOS[memberPulseTone(pulsoDe(p.id))]} title={memberPulseLabel(pulsoDe(p.id))}>
+                          👍 {pulsoDe(p.id).percentFor} % de {pulsoDe(p.id).total}
+                        </span>
+                      ) : (
+                        <span className="text-[var(--fo-muted)]">—</span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       {avance.total > 0 ? <ProgressBar {...avance} /> : <span className="text-xs text-[var(--fo-muted)]">Sin tareas</span>}

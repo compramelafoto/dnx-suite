@@ -39,6 +39,12 @@ describe("decideCustomDomainRoute", () => {
     expect(decide("/w/sfpr/reservas/abc")).toEqual({ kind: "redirect", url: `${ORIGIN}/w/sfpr/reservas/abc` });
   });
 
+  it("los enlaces de la comisión se abren en FOTOFFICE, donde está la sesión", () => {
+    expect(decide("/proyecto/cmabc123")).toEqual({ kind: "redirect", url: `${ORIGIN}/w/sfpr/proyecto/cmabc123` });
+    expect(decide("/reunion/cmabc123")).toEqual({ kind: "redirect", url: `${ORIGIN}/w/sfpr/reunion/cmabc123` });
+    expect(decide("/w/sfpr/proyecto/cmabc123")).toEqual({ kind: "redirect", url: `${ORIGIN}/w/sfpr/proyecto/cmabc123` });
+  });
+
   it("no toca recursos de Next, la API ni archivos", () => {
     expect(decide("/_next/data/x.json")).toEqual({ kind: "pass" });
     expect(decide("/api/w/sfpr/blog/views")).toEqual({ kind: "pass" });

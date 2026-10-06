@@ -68,6 +68,8 @@ export async function submitProposalAction(input: {
   description: string;
   approxCost: string;
   deadline: string;
+  fundingIdea: string;
+  commitment: string;
 }): Promise<{ ok: true; projectId: string } | { ok: false; error: string }> {
   const ctx = await loadPortalGovernance();
   if (!ctx) return { ok: false, error: "No podés presentar propuestas en esta institución." };
@@ -94,6 +96,8 @@ export async function submitProposalAction(input: {
         proposedByMemberId: ctx.member.id,
         manualNeededArs: v.approxCostArs,
         deadlineAt: v.deadlineAt,
+        fundingIdea: v.fundingIdea,
+        proposerCommitment: v.proposerCommitment,
         createdByUserId: ctx.user.id,
       },
       select: { id: true },

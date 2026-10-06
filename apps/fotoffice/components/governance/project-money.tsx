@@ -30,6 +30,7 @@ export function ProjectMoneySection({
   acceptsMoney,
   accounts,
   categories,
+  bare = false,
 }: {
   projectId: string;
   money: ProjectMoney;
@@ -40,6 +41,8 @@ export function ProjectMoneySection({
   acceptsMoney: boolean;
   accounts: CashAccountRow[];
   categories: CashCategoryRow[];
+  /** Sin el título "Dinero": cuando ya lo pone un desplegable que la envuelve. */
+  bare?: boolean;
 }) {
   const { necesario, numeros } = money;
   const ahora = new Date();
@@ -59,7 +62,7 @@ export function ProjectMoneySection({
 
   return (
     <section id="dinero" className="space-y-4">
-      <h2 className="text-lg font-semibold">Dinero</h2>
+      {bare ? null : <h2 className="text-lg font-semibold">Dinero</h2>}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Numero rotulo="Necesario" valor={pesos(numeros.neededMinor)} nota={
@@ -179,9 +182,9 @@ export function ProjectMoneySection({
         <div className="fo-card space-y-4 p-5">
           <h3 className="font-semibold">Movimientos y reservas</h3>
           {!acceptsMoney ? (
-            <p className="text-sm text-[var(--fo-muted)]">Se reserva y se registra plata cuando el proyecto está aprobado o en ejecución.</p>
+            <p className="text-sm text-[var(--fo-muted)]">Se reserva y se registra dinero cuando el proyecto está aprobado o en ejecución.</p>
           ) : !canHandleMoney ? (
-            <p className="text-sm text-[var(--fo-muted)]">Mover plata lo hace quien tiene Caja con «Plata de proyectos» (Tesorería).</p>
+            <p className="text-sm text-[var(--fo-muted)]">Mover dinero lo hace quien tiene Caja con «Dinero de proyectos» (Tesorería).</p>
           ) : null}
 
           {money.movimientos.length === 0 && money.reservations.length === 0 ? (
@@ -220,7 +223,7 @@ export function ProjectMoneySection({
           {puedeMover ? (
             <div className="space-y-3">
               <details>
-                <summary className="cursor-pointer text-sm text-[var(--fo-accent)]">Reservar o liberar plata</summary>
+                <summary className="cursor-pointer text-sm text-[var(--fo-accent)]">Reservar o liberar dinero</summary>
                 <form action={addReservationAction} className="mt-3 grid gap-3 sm:grid-cols-2">
                   <input type="hidden" name="projectId" value={projectId} />
                   <div className="fo-field-stack">
@@ -244,7 +247,7 @@ export function ProjectMoneySection({
                     </label>
                     <input id="res-reason" name="reason" className="fo-input" required maxLength={1000} placeholder="Ej.: Aprobado en la reunión del 8/10" />
                   </div>
-                  <p className="fo-helper sm:col-span-2">Reservar no mueve la plata de su cuenta: la aparta, y Caja la descuenta del saldo libre.</p>
+                  <p className="fo-helper sm:col-span-2">Reservar no mueve el dinero de su cuenta: la aparta, y Caja la descuenta del saldo libre.</p>
                   <div className="sm:col-span-2">
                     <button type="submit" className="fo-btn fo-btn-secondary text-sm">
                       Guardar
@@ -356,7 +359,7 @@ export function ProjectMoneySection({
 
           {canManage && canHandleMoney ? (
             <details>
-              <summary className="cursor-pointer text-sm text-[var(--fo-muted)]">Plata de antes de usar el sistema y costo aproximado</summary>
+              <summary className="cursor-pointer text-sm text-[var(--fo-muted)]">Dinero de antes de usar el sistema y costo aproximado</summary>
               <form action={saveOpeningAction} className="mt-3 grid gap-3 sm:grid-cols-2">
                 <input type="hidden" name="projectId" value={projectId} />
                 <div className="fo-field-stack">

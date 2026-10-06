@@ -30,6 +30,8 @@ export function ProposalForm() {
       description: String(fd.get("description") ?? ""),
       approxCost: String(fd.get("approxCost") ?? ""),
       deadline: String(fd.get("deadline") ?? ""),
+      fundingIdea: String(fd.get("fundingIdea") ?? ""),
+      commitment: String(fd.get("commitment") ?? ""),
     });
     if (!r.ok) {
       setError(r.error);
@@ -74,7 +76,7 @@ export function ProposalForm() {
           rows={6}
           required
           minLength={20}
-          placeholder="Qué es, para qué le sirve a la institución, qué haría falta y cómo podrías ayudar."
+          placeholder="Qué es, para qué le sirve a la institución y qué haría falta."
         />
       </div>
       <div className="grid gap-5 sm:grid-cols-2">
@@ -90,6 +92,34 @@ export function ProposalForm() {
           </label>
           <input id="deadline" name="deadline" type="date" className="fo-input" />
         </div>
+      </div>
+      <div className="fo-field-stack">
+        <label className="fo-label" htmlFor="fundingIdea">
+          ¿Cómo se podría conseguir el dinero para cumplir este proyecto? (opcional)
+        </label>
+        <textarea
+          id="fundingIdea"
+          name="fundingIdea"
+          className="fo-input"
+          rows={2}
+          maxLength={2000}
+          placeholder="Ej.: una rifa entre los socios, un sponsor de la zona, un taller a beneficio."
+        />
+      </div>
+      <div className="fo-field-stack">
+        <label className="fo-label" htmlFor="commitment">
+          ¿Cómo podrías colaborar? ¿Qué tarea te comprometés a hacer?
+        </label>
+        <textarea
+          id="commitment"
+          name="commitment"
+          className="fo-input"
+          rows={2}
+          required
+          maxLength={2000}
+          placeholder="Ej.: pido tres presupuestos de carpintería y coordino a los que ayuden el fin de semana."
+        />
+        <p className="fo-helper">Los proyectos salen cuando alguien se pone al frente. Contale a la comisión con qué podés ayudar.</p>
       </div>
       <div className="fo-field-stack">
         <label className="fo-label" htmlFor="files">

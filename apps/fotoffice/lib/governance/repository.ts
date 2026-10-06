@@ -3,6 +3,7 @@ import { prisma } from "@repo/db";
 import { listActiveOfficeHolders } from "@/lib/commission/terms";
 import type { ProjectStatus, TaskStatus } from "./constants";
 import { tally, votingRoll } from "./votes";
+import { memberPulse, type MemberPulse } from "./member-pulse";
 
 /**
  * Lecturas del módulo. Todas filtran por `workspaceId`: nunca se lee un proyecto por su id solo.
@@ -394,4 +395,85 @@ export function volunteerableTaskWhere(workspaceId: string, taskId: string) {
     status: { in: ["PENDING", "IN_PROGRESS"] },
     project: { workspaceId, visibleToMembers: true, status: { in: VOLUNTARIADO } },
   };
+}
+
+// ─── Opiniones y enlace para compartir ───────────────────────────────────────
+
+/** Las opiniones de un proyecto, de la más vieja a la más nueva (se leen como una charla). */
+export async function listComments(workspaceId: string, projectId: string) {
+  return prisma.govComment.findMany({
+    where: { projectId, project: { workspaceId } },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, authorUserId: true, authorMemberId: true, authorLabel: true, body: true, createdAt: true, withdrawnAt: true },
+  });
+}
+
+/** Opiniones vigentes de varios proyectos a la vez, para el temario de una reunión. */
+export async function listCommentsByProject(workspaceId: string, projectIds: readonly string[]) {
+  const porProyecto = new Map<string, { id: string; authorLabel: string; authorMemberId: string | null; body: string; createdAt: Date }[]>();
+  if (projectIds.length === 0) return porProyecto;
+  const filas = await prisma.govComment.findMany({
+    where: { projectId: { in: [...projectIds] }, project: { workspaceId }, withdrawnAt: null },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, projectId: true, authorLabel: true, authorMemberId: true, body: true, createdAt: true },
+  });
+  for (const f of filas) {
+    const lista = porProyecto.get(f.projectId) ?? [];
+    lista.push(f);
+    porProyecto.set(f.projectId, lista);
+  }
+  return porProyecto;
+}
+
+/** La próxima reunión convocada, para decir en el mensaje "antes de la reunión del …". */
+export async function nextPlannedMeeting(workspaceId: string, now: Date = new Date()) {
+  return prisma.govMeeting.findFirst({
+    where: { workspaceId, status: "PLANNED", scheduledAt: { gte: now } },
+    orderBy: { scheduledAt: "asc" },
+    select: { id: true, scheduledAt: true },
+  });
+}
+
+// ─── Lo que piensan los socios ───────────────────────────────────────────────
+
+/**
+ * Totales del voto de los socios por proyecto. Sólo cuentas: la consulta nunca trae quién votó,
+ * así ninguna pantalla de la comisión puede mostrarlo aunque quisiera.
+ */
+export async function loadMemberPulse(workspaceId: string, projectIds: readonly string[]) {
+  const porProyecto = new Map<string, MemberPulse>();
+  if (projectIds.length > 0) {
+    const filas = await prisma.govMemberVote.groupBy({
+      by: ["projectId", "value"],
+      where: { projectId: { in: [...projectIds] }, project: { workspaceId } },
+      _count: { _all: true },
+    });
+    const cuentas = new Map<string, { for: number; against: number }>();
+    for (const f of filas) {
+      const c = cuentas.get(f.projectId) ?? { for: 0, against: 0 };
+      if (f.value === "FOR") c.for += f._count._all;
+      else if (f.value === "AGAINST") c.against += f._count._all;
+      cuentas.set(f.projectId, c);
+    }
+    for (const [id, c] of cuentas) porProyecto.set(id, memberPulse(c));
+  }
+  return (projectId: string) => porProyecto.get(projectId) ?? memberPulse({ for: 0, against: 0 });
+}
+
+/** El voto del propio socio, para marcar su botón. Nunca el de otro. */
+export async function getMyMemberVote(projectId: string, memberId: string): Promise<string | null> {
+  const v = await prisma.govMemberVote.findUnique({
+    where: { projectId_memberId: { projectId, memberId } },
+    select: { value: true },
+  });
+  return v?.value ?? null;
+}
+
+/** Las opiniones que el socio dejó en un proyecto. Las de los demás socios no las ve. */
+export async function listMyComments(projectId: string, memberId: string) {
+  return prisma.govComment.findMany({
+    where: { projectId, authorMemberId: memberId },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, body: true, createdAt: true, withdrawnAt: true },
+  });
 }

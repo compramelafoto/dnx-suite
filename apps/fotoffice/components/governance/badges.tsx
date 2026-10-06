@@ -1,5 +1,20 @@
 import { projectStatusLabel, projectStatusTone, taskStatusLabel, urgencyLabel } from "@/lib/governance/labels";
 import type { Urgency } from "@/lib/governance/urgency";
+import { Archive, Ban, Check, CheckCheck, Clock, Inbox, MessagesSquare, Play, X, type LucideIcon } from "lucide-react";
+
+/** El ícono de cada estado: ✓ y ✗ para lo que se decidió, un reloj para lo postergado. */
+export const STATUS_ICON: Record<string, LucideIcon> = {
+  MEMBER_PROPOSAL: Inbox,
+  PROPOSED: MessagesSquare,
+  IN_REVIEW: MessagesSquare,
+  POSTPONED: Clock,
+  APPROVED: Check,
+  IN_PROGRESS: Play,
+  DONE: CheckCheck,
+  REJECTED: X,
+  CANCELLED: Ban,
+  ARCHIVED: Archive,
+};
 
 /** Pastillas de estado y urgencia del módulo de proyectos. Sólo tokens del sistema de diseño. */
 
@@ -13,8 +28,15 @@ const TONO: Record<string, string> = {
 
 const pastilla = "inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium";
 
-export function ProjectStatusBadge({ status }: { status: string }) {
-  return <span className={`${pastilla} ${TONO[projectStatusTone(status)]}`}>{projectStatusLabel(status)}</span>;
+export function ProjectStatusBadge({ status, size = "sm" }: { status: string; size?: "sm" | "lg" }) {
+  const Icono = STATUS_ICON[status];
+  const grande = size === "lg" ? "gap-1.5 px-3 py-1 text-sm" : "gap-1";
+  return (
+    <span className={`${pastilla} ${grande} ${TONO[projectStatusTone(status)]}`}>
+      {Icono ? <Icono className={size === "lg" ? "size-4" : "size-3"} aria-hidden strokeWidth={2.5} /> : null}
+      {projectStatusLabel(status)}
+    </span>
+  );
 }
 
 const TONO_TAREA: Record<string, string> = {

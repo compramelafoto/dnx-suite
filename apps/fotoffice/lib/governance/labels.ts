@@ -54,9 +54,11 @@ export function taskStatusLabel(status: string): string {
 /** Color de la pastilla de estado: tokens del sistema de diseño, sin colores sueltos. */
 export function projectStatusTone(status: string): "neutral" | "info" | "success" | "warning" | "danger" {
   switch (status) {
-    case "APPROVED":
+    case "PROPOSED":
+    case "IN_REVIEW":
     case "IN_PROGRESS":
       return "info";
+    case "APPROVED":
     case "DONE":
       return "success";
     case "POSTPONED":
@@ -107,6 +109,20 @@ export function fechaHora(date: Date | null | undefined): string {
     minute: "2-digit",
     hour12: false,
   }).format(date);
+}
+
+/** "jueves 15/10, 19:00", en hora argentina: cómo se escribe en un mensaje de WhatsApp. */
+export function diaYHora(date: Date, conHora = true): string {
+  const partes = new Intl.DateTimeFormat("es-AR", {
+    timeZone: ZONA,
+    weekday: "long",
+    day: "2-digit",
+    month: "2-digit",
+    ...(conHora ? { hour: "2-digit", minute: "2-digit", hour12: false } : {}),
+  }).formatToParts(date);
+  const v = (t: string) => partes.find((p) => p.type === t)?.value ?? "";
+  const dia = `${v("weekday")} ${v("day")}/${v("month")}`;
+  return conHora ? `${dia}, ${v("hour")}:${v("minute")}` : dia;
 }
 
 export function tamanioArchivo(bytes: number): string {

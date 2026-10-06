@@ -194,7 +194,7 @@ export async function createMovementAction(formData: FormData): Promise<void> {
   let proyecto: { id: string; title: string } | null = null;
   if (govProjectId) {
     if (!(await canHandleProjectMoney(user.id, workspace.id))) {
-      redirect(`${volver}?error=${encodeURIComponent("Para imputar a un proyecto hace falta «Plata de proyectos».")}`);
+      redirect(`${volver}?error=${encodeURIComponent("Para imputar a un proyecto hace falta «Dinero de proyectos».")}`);
     }
     proyecto = await prisma.govProject.findFirst({
       where: { id: govProjectId, workspaceId: workspace.id, status: { in: ["APPROVED", "IN_PROGRESS"] } },

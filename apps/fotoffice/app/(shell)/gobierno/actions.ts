@@ -112,6 +112,8 @@ export async function createProjectAction(fd: FormData): Promise<void> {
         responsibleMemberId: v.responsibleMemberId,
         deadlineAt: v.deadlineAt,
         visibleToMembers: v.visibleToMembers,
+        fundingIdea: v.fundingIdea,
+        proposerCommitment: v.proposerCommitment,
         createdByUserId: user.id,
         // Las etapas y tareas del tipo se COPIAN: desde acá el proyecto es independiente.
         stages: {
@@ -149,6 +151,8 @@ const CAMPOS: Record<string, string> = {
   responsibleMemberId: "el responsable",
   deadlineAt: "la fecha límite",
   visibleToMembers: "la visibilidad para socios",
+  fundingIdea: "cómo conseguir los fondos",
+  proposerCommitment: "el compromiso de quien propone",
 };
 
 export async function updateProjectAction(fd: FormData): Promise<void> {
@@ -167,6 +171,8 @@ export async function updateProjectAction(fd: FormData): Promise<void> {
   if (v.responsibleMemberId !== actual.responsibleMemberId) cambiados.push(CAMPOS.responsibleMemberId!);
   if (toDateInputValue(v.deadlineAt) !== toDateInputValue(actual.deadlineAt)) cambiados.push(CAMPOS.deadlineAt!);
   if (v.visibleToMembers !== actual.visibleToMembers) cambiados.push(CAMPOS.visibleToMembers!);
+  if ((v.fundingIdea ?? null) !== (actual.fundingIdea ?? null)) cambiados.push(CAMPOS.fundingIdea!);
+  if ((v.proposerCommitment ?? null) !== (actual.proposerCommitment ?? null)) cambiados.push(CAMPOS.proposerCommitment!);
   if (cambiados.length === 0) conOk(detalle(projectId), "sin-cambios");
 
   await prisma.$transaction(async (tx) => {

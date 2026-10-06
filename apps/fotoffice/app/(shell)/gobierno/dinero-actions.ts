@@ -51,7 +51,7 @@ function aceptaPlata(status: ProjectStatus): boolean {
 async function exigirPermisoDePlata(userId: number, workspaceId: string, projectId: string) {
   if (!(await isCashOn(workspaceId))) conError(projectId, "Caja no está encendida en esta institución.");
   if (!(await canHandleProjectMoney(userId, workspaceId))) {
-    conError(projectId, "Para mover plata de proyectos hace falta Caja en Gestionar con «Plata de proyectos».");
+    conError(projectId, "Para mover dinero de proyectos hace falta Caja en Gestionar con «Dinero de proyectos».");
   }
 }
 
@@ -203,7 +203,7 @@ export async function addReservationAction(fd: FormData): Promise<void> {
   const p = await proyectoDe(workspace.id, projectId);
   if (!p) redirect("/gobierno");
   await exigirPermisoDePlata(user.id, workspace.id, projectId);
-  if (!aceptaPlata(p.status)) conError(projectId, "Se reserva plata sólo para proyectos aprobados o en ejecución.");
+  if (!aceptaPlata(p.status)) conError(projectId, "Se reserva dinero sólo para proyectos aprobados o en ejecución.");
   const parsed = parseReservationForm(fd);
   if (!parsed.ok) conError(projectId, parsed.error);
   const { amountMinor, reason } = parsed.values;
@@ -236,7 +236,7 @@ export async function recordProjectMovementAction(fd: FormData): Promise<void> {
   const p = await proyectoDe(workspace.id, projectId);
   if (!p) redirect("/gobierno");
   await exigirPermisoDePlata(user.id, workspace.id, projectId);
-  if (!aceptaPlata(p.status)) conError(projectId, "Se registra plata sólo en proyectos aprobados o en ejecución.");
+  if (!aceptaPlata(p.status)) conError(projectId, "Se registra dinero sólo en proyectos aprobados o en ejecución.");
   const token = campo(fd, "token");
   if (!/^[\w-]{16,64}$/.test(token)) conError(projectId, "Recargá la página y volvé a intentar.");
   const parsed = parseMovementForm(fd);
