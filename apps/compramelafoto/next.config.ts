@@ -88,6 +88,7 @@ const nextConfig: NextConfig = {
   // Evita que un pnpm-lock.yaml fuera del monorepo hijackee la resolución de @prisma/client.
   outputFileTracingRoot: monorepoRoot,
   transpilePackages: [
+    "@repo/quick-search",
     "@repo/db",
     "@repo/partners",
     "@repo/auth",
