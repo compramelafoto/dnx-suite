@@ -127,7 +127,7 @@ async function fromClickaton(campaign: string | null): Promise<ShowcaseItem[]> {
   const data = (await r.json()) as { editions?: EdicionClickaton[] };
   const out: ShowcaseItem[] = [];
   for (const e of data.editions ?? []) {
-    const phase = clickatonPhase(e.registrationStatus, e.status);
+    const phase = clickatonPhase(e.registrationStatus, e.status, fecha(e.startAt), new Date());
     if (!phase || !/^https?:\/\//.test(e.url)) continue;
     out.push({
       key: `clickaton:${e.slug}`,

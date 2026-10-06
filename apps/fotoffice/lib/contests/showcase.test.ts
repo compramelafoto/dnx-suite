@@ -46,6 +46,9 @@ describe("fases", () => {
     expect(clickatonPhase("coming_soon", "announced")).toBe("upcoming");
     expect(clickatonPhase("closed", "in_progress")).toBe("in_progress");
     expect(clickatonPhase("open", "cancelled")).toBeNull();
+    // La 1.ª edición (19/09) ya pasó: no se muestra.
+    expect(clickatonPhase("closed", "registration_closed", new Date("2026-09-19T12:00:00Z"), ahora)).toBeNull();
+    expect(clickatonPhase("open", "registration_open", new Date("2026-12-26T12:00:00Z"), ahora)).toBe("open");
   });
 });
 
