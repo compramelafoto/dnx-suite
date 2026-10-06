@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseProposal, proposalStateForMember } from "./proposals";
+import { parseProposal, proposalJourney, proposalStateForMember } from "./proposals";
 
 describe("propuesta de socio", () => {
   it("pide título y una descripción con algo de detalle", () => {
@@ -30,5 +30,32 @@ describe("propuesta de socio", () => {
     expect(proposalStateForMember("PROPOSED").label).toMatch(/Aceptada/);
     expect(proposalStateForMember("ARCHIVED").tone).toBe("danger");
     expect(proposalStateForMember("APPROVED").tone).toBe("success");
+  });
+});
+
+describe("proposalJourney", () => {
+  const estados = (s: string) => proposalJourney(s).map((p) => p.state);
+  it("marca dónde está", () => {
+    expect(estados("MEMBER_PROPOSAL")).toEqual(["done", "current", "pending", "pending", "pending"]);
+    expect(estados("PROPOSED")).toEqual(["done", "done", "current", "pending", "pending"]);
+    expect(estados("APPROVED")).toEqual(["done", "done", "done", "done", "current"]);
+    expect(estados("DONE")).toEqual(["done", "done", "done", "done", "done"]);
+  });
+  it("marca dónde se cortó, con su nombre", () => {
+    const archivada = proposalJourney("ARCHIVED");
+    expect(archivada.map((p) => p.state)).toEqual(["done", "failed", "pending", "pending", "pending"]);
+    expect(archivada[1]!.label).toBe("Archivada");
+    expect(proposalJourney("REJECTED")[2]!.label).toBe("No aprobada");
+  });
+  it("nombra lo postergado y lo que está en marcha", () => {
+    expect(proposalJourney("POSTPONED")[2]!.label).toMatch(/Postergada/);
+    expect(proposalJourney("IN_PROGRESS")[4]!.label).toBe("En marcha");
+  });
+});
+
+describe("proposalJourney aprobada", () => {
+  it("no dice Realizada antes de tiempo", () => {
+    expect(proposalJourney("APPROVED")[4]!.label).toBe("Por realizarse");
+    expect(proposalJourney("DONE")[4]!.label).toBe("Realizada");
   });
 });
