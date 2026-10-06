@@ -110,7 +110,7 @@ export function createPrismaAffiliateConsentRepository(): AffiliateConsentReposi
 }
 
 /**
- * Adaptador de MP en producción con el token de la cuenta cobradora DNX (la
+ * Adaptador de MP en producción con el token de la cuenta cobradora (la
  * invitación la manda quien cobra, no el fotógrafo). El envío además exige
  * `DNX_MP_SPLIT_CONSENT_PRODUCTION_ENABLED`; las consultas no.
  */
