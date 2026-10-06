@@ -13,6 +13,8 @@ import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { resolvePortalMenu } from "@/lib/portal/menu";
 import { listOpenTasksForVolunteers } from "@/lib/governance/repository";
+import { loadShowcase } from "@/lib/contests/load";
+import { bannerItems, type ShowcaseItem } from "@/lib/contests/showcase";
 import { PortalHome } from "@/components/portal/portal-home";
 import { loadPortalRaffles } from "@/lib/raffles/portal";
 import {
@@ -157,6 +159,16 @@ export default async function PortalPage() {
     }
   }
 
+  // La vitrina de concursos (FotoRank y Clickatón). Si falla, el panel sigue sin la franja.
+  let concursos: ShowcaseItem[] = [];
+  try {
+    concursos = bannerItems(await loadShowcase(context.workspace.id));
+  } catch (error) {
+    console.error("[fotoffice][vitrina] no se pudo cargar la vitrina", {
+      detalle: error instanceof Error ? error.message : "error desconocido",
+    });
+  }
+
   // Los cumpleaños de la semana. Igual que la tarjeta de arriba: si falla, el panel sigue.
   let cumpleanos: BirthdayView[] = [];
   try {
@@ -201,6 +213,7 @@ export default async function PortalPage() {
       socioDeLaSemana={socioDeLaSemana}
       cumpleanos={cumpleanos}
       gobierno={gobierno}
+      concursos={concursos}
     />
     <div className="mt-8">
       <PortalSponsorsSection sponsors={sponsors} />

@@ -13,6 +13,7 @@ import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 import { mergeNotices, windowStart, type Notice } from "./feed";
+import { loadShowcase } from "@/lib/contests/load";
 
 /**
  * De dónde salen las novedades de cada socio. Cada fuente es independiente: si una falla (una
@@ -300,6 +301,41 @@ const reservas: Fuente = async (c) => {
   }));
 };
 
+const TRES_DIAS = 3 * 24 * 60 * 60 * 1000;
+
+/** Concursos nuevos y los que están por cerrar. La vitrina ya respeta lo que eligió la institución. */
+const concursos: Fuente = async (c) => {
+  const items = await loadShowcase(c.workspaceId, c.ahora);
+  const out: Notice[] = [];
+  for (const i of items) {
+    if (i.phase !== "open" && i.phase !== "upcoming") continue;
+    if (i.announcedAt && i.announcedAt >= c.desde) {
+      out.push({
+        key: `contest_new:${i.key}`,
+        kind: "contest",
+        title: `${i.phase === "upcoming" ? "Próximo concurso" : "Nuevo concurso"}: ${i.title}`,
+        body: i.organizer,
+        href: "/portal/concursos",
+        at: i.announcedAt,
+      });
+    }
+    if (i.phase === "open" && i.closesAt) {
+      const aviso = new Date(i.closesAt.getTime() - TRES_DIAS);
+      if (aviso <= c.ahora && i.closesAt > c.ahora) {
+        out.push({
+          key: `contest_closing:${i.key}`,
+          kind: "contest",
+          title: `Últimos días para participar en ${i.title}`,
+          body: "La inscripción cierra en menos de 3 días.",
+          href: "/portal/concursos",
+          at: aviso,
+        });
+      }
+    }
+  }
+  return out;
+};
+
 const FUENTES: { modulos: string[]; fuente: Fuente; nombre: string }[] = [
   { nombre: "blog", modulos: [WEBSITE_MODULE_KEY], fuente: blog },
   { nombre: "gobierno", modulos: [GOVERNANCE_MODULE_KEY], fuente: gobierno },
@@ -309,6 +345,8 @@ const FUENTES: { modulos: string[]; fuente: Fuente; nombre: string }[] = [
   { nombre: "coberturas", modulos: [COVERAGES_MODULE_KEY], fuente: coberturas },
   { nombre: "socio-de-la-semana", modulos: [COMMUNICATIONS_MODULE_KEY], fuente: socioDeLaSemana },
   { nombre: "reservas", modulos: [BOOKINGS_MODULE_KEY], fuente: reservas },
+  // Sin módulo: la vitrina es de la plataforma. Cada institución la apaga desde su configuración.
+  { nombre: "concursos", modulos: [], fuente: concursos },
 ];
 
 export async function loadMemberNotices(input: { workspaceId: string; memberId: string; userId: number; now?: Date }) {
@@ -327,7 +365,7 @@ export async function loadMemberNotices(input: { workspaceId: string; memberId: 
     ahora,
   };
   const grupos = await Promise.all(
-    FUENTES.filter((f) => f.modulos.some((m) => encendidos.has(m))).map((f) =>
+    FUENTES.filter((f) => f.modulos.length === 0 || f.modulos.some((m) => encendidos.has(m))).map((f) =>
       f.fuente(c).catch((error: unknown) => {
         console.error(`[fotoffice][novedades] falló la fuente ${f.nombre}`, {
           detalle: error instanceof Error ? error.message : "error desconocido",
