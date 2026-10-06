@@ -83,3 +83,23 @@ describe("formularios de alta y edición", () => {
     expect(FORM_SOCIO).not.toMatch(/\.notes\b/);
   });
 });
+
+describe("notas con sólo Ver", () => {
+  const FICHA = leer("components", "ficha", "ficha.tsx");
+  const ACCIONES = leer("app", "actions", "ficha.ts");
+  it("ninguna acción de la ficha usa el contexto de lectura: escribir sigue exigiendo Gestionar", () => {
+    expect(ACCIONES).not.toContain("contextoDeLecturaDeNotas");
+    expect(ACCIONES).toContain("contextoDeFicha(");
+  });
+  it("la rama de sólo lectura muestra las notas sin caja de nota ni línea de tiempo", () => {
+    const rama = sinComentarios(FICHA).slice(
+      sinComentarios(FICHA).indexOf("if (!ctx) {"),
+      sinComentarios(FICHA).indexOf("await asegurarCategorias("),
+    );
+    expect(rama).toContain("contextoDeLecturaDeNotas(persona)");
+    expect(rama).toContain("<NotasSoloLectura");
+    expect(rama).not.toContain("<CajaDeNota");
+    expect(rama).not.toContain("<LineaDeTiempo");
+    expect(rama).not.toContain("<Adjuntos");
+  });
+});

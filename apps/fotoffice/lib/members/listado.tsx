@@ -9,6 +9,8 @@ import {
   type MemberAccessFilter,
 } from "@repo/db/fotoffice-member-access-filter";
 import { formatMoney } from "@/lib/format";
+import { puedeEnContexto } from "@/lib/access/policy";
+import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { cargoImpagoWhere } from "@/lib/membership/dues-overview";
 import type { ConsultaResuelta, ContextoListado, DefinicionListado, Opcion, ResultadoLote } from "@/lib/listado/tipos";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
@@ -224,23 +226,29 @@ async function panelSocio(ctx: ContextoListado, id: string) {
   if (!ID_VALIDO.test(id)) return null;
   const m = await prisma.member.findFirst({ where: { id, workspaceId: ctx.workspaceId }, select: SELECT_FILA });
   if (!m) return null;
+  // Deuda y pagos son plata de Cuotas: como en la ficha de main, sólo con Ver en Cuotas.
+  const veCuotas = puedeEnContexto(ctx, "verDinero", MEMBERSHIP_DUES_MODULE_KEY);
   const [deuda, carnet, pagos] = await Promise.all([
-    prisma.membershipCharge.aggregate({
-      where: { ...cargoImpagoWhere(ctx.workspaceId), memberId: m.id },
-      _sum: { balanceArs: true },
-      _count: true,
-    }),
+    veCuotas
+      ? prisma.membershipCharge.aggregate({
+          where: { ...cargoImpagoWhere(ctx.workspaceId), memberId: m.id },
+          _sum: { balanceArs: true },
+          _count: true,
+        })
+      : null,
     prisma.memberCard.findFirst({
       where: { workspaceId: ctx.workspaceId, memberId: m.id },
       orderBy: { issuedAt: "desc" },
       select: { cardNumber: true, validUntil: true, revokedAt: true },
     }),
-    prisma.membershipPayment.findMany({
-      where: { workspaceId: ctx.workspaceId, memberId: m.id, status: "ACREDITADO" },
-      orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
-      take: 3,
-      select: { id: true, amountArs: true, paidAt: true, createdAt: true },
-    }),
+    veCuotas
+      ? prisma.membershipPayment.findMany({
+          where: { workspaceId: ctx.workspaceId, memberId: m.id, status: "ACREDITADO" },
+          orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
+          take: 3,
+          select: { id: true, amountArs: true, paidAt: true, createdAt: true },
+        })
+      : null,
   ]);
   const ahora = Date.now();
   const estadoCarnet = !carnet
@@ -250,18 +258,22 @@ async function panelSocio(ctx: ContextoListado, id: string) {
       : carnet.validUntil.getTime() <= ahora
         ? "Vencido"
         : "Vigente";
-  const impagas = deuda._count;
+  const impagas = deuda?._count ?? 0;
 
   const datos: [string, string][] = [
     ["N°", m.memberNumber],
     ["Estado", etiquetaEstado(m.status)],
     ["Categoría", m.category?.name ?? "—"],
-    [
-      "Deuda",
-      impagas
-        ? `${formatMoney(deuda._sum.balanceArs ?? 0, "ARS")} (${impagas} ${impagas === 1 ? "cuota impaga" : "cuotas impagas"})`
-        : "Al día",
-    ],
+    ...(deuda
+      ? ([
+          [
+            "Deuda",
+            impagas
+              ? `${formatMoney(deuda._sum.balanceArs ?? 0, "ARS")} (${impagas} ${impagas === 1 ? "cuota impaga" : "cuotas impagas"})`
+              : "Al día",
+          ],
+        ] as [string, string][])
+      : []),
     ["Último carnet", carnet ? `${carnet.cardNumber} · ${estadoCarnet}` : "—"],
     ["Acceso al portal", etiquetaAcceso(m)],
   ];
@@ -277,6 +289,7 @@ async function panelSocio(ctx: ContextoListado, id: string) {
           </div>
         ))}
       </dl>
+      {pagos ? (
       <div className="space-y-2">
         <h4 className="font-semibold text-[var(--fo-text)]">Últimos pagos</h4>
         {pagos.length === 0 ? (
@@ -292,6 +305,7 @@ async function panelSocio(ctx: ContextoListado, id: string) {
           </ul>
         )}
       </div>
+      ) : null}
     </div>
   );
 }
@@ -335,7 +349,8 @@ export function listadoSocios(v: PersonVocabulary): DefinicionListado<FilaSocio>
       { tipo: "relacion", clave: "categoria", etiqueta: "Categoría" },
       { tipo: "relacion", clave: "etiqueta", etiqueta: "Etiqueta", conBuscador: true },
       { tipo: "opcion", clave: "acceso", etiqueta: "Acceso al portal", opciones: ACCESOS.map((a) => ({ valor: a, etiqueta: MEMBER_ACCESS_FILTER_LABELS[a] })) },
-      { tipo: "siNo", clave: "deuda", etiqueta: "Deuda", si: "Con deuda", no: "Al día" },
+      // Plata: sólo con Ver en Cuotas (sin eso, ni se ve ni se puede filtrar por deuda).
+      { tipo: "siNo", clave: "deuda", etiqueta: "Deuda", si: "Con deuda", no: "Al día", dinero: MEMBERSHIP_DUES_MODULE_KEY },
     ],
     ordenes: ["apellido", "numero", "categoria", "alta"],
     ordenPorDefecto: { campo: "apellido", desc: false },

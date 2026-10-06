@@ -1,7 +1,7 @@
 import "server-only";
 import type { ReactNode } from "react";
 import { puede, puedeEnContexto } from "@/lib/access/policy";
-import { contextoDeFicha, type PersonaPedida } from "@/lib/ficha/acceso";
+import { contextoDeFicha, contextoDeLecturaDeNotas, type PersonaPedida } from "@/lib/ficha/acceso";
 import { listarAdjuntos } from "@/lib/ficha/adjuntos";
 import { adjuntosR2Configurado } from "@/lib/ficha/adjuntos-r2";
 import { asegurarCategorias, listarCategorias } from "@/lib/ficha/categorias";
@@ -45,12 +45,19 @@ export async function Ficha({
   // A los componentes de cliente viaja sólo esto: el tipo y el id que ya están en la URL.
   const ref = { tipo: persona.tipo, id: persona.id };
   if (!ctx) {
-    // Sin permiso para la historia: se ve lo que la página ya decidió mostrar, nada más.
+    // Sin "Gestionar" no hay historia ni acciones. Con "Ver" sí se leen las notas (en main, las
+    // Observaciones las veía quien ve la persona), sin poder escribirlas.
+    const lectura = await contextoDeLecturaDeNotas(persona);
+    const notas = lectura ? await listarNotas(lectura.workspaceId, lectura.persona, { take: 100 }) : [];
     return (
       <div className="space-y-6">
         <EncabezadoFicha {...encabezado} />
         <div className="grid gap-6 lg:grid-cols-[1fr_360px] lg:items-start">
-          <p className="fo-card p-4 text-sm text-[var(--fo-muted)]">No tenés acceso a la historia de esta ficha.</p>
+          {lectura ? (
+            <NotasSoloLectura notas={notas} />
+          ) : (
+            <p className="fo-card p-4 text-sm text-[var(--fo-muted)]">No tenés acceso a la historia de esta ficha.</p>
+          )}
           <aside className="space-y-4">
             {datos}
             {lateral}
@@ -138,5 +145,37 @@ export async function Ficha({
         </aside>
       </div>
     </div>
+  );
+}
+
+const fechaNota = new Intl.DateTimeFormat("es-AR", {
+  timeZone: "America/Argentina/Buenos_Aires",
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+});
+
+/** Las notas de la persona, sólo para leer: sin caja de nota, sin editar, borrar ni fijar. */
+function NotasSoloLectura({ notas }: { notas: Awaited<ReturnType<typeof listarNotas>> }) {
+  return (
+    <section className="fo-card space-y-3 p-4" aria-label="Observaciones">
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">Observaciones</h2>
+      {notas.length === 0 ? (
+        <p className="text-sm text-[var(--fo-muted)]">No hay observaciones.</p>
+      ) : (
+        <ul className="divide-y divide-[var(--fo-border)]">
+          {notas.map((n) => (
+            <li key={n.id} className="space-y-1 py-3">
+              <p className="text-xs text-[var(--fo-muted)]">
+                {n.category?.name ?? "Observaciones"} · {fechaNota.format(n.createdAt)}
+                {n.authorLabel ? ` · ${n.authorLabel}` : ""}
+                {n.pinned ? " · Fijada" : ""}
+              </p>
+              <p className="whitespace-pre-line text-sm leading-relaxed text-[var(--fo-text)]">{n.body}</p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

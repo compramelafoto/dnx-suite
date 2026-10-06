@@ -13,7 +13,9 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest, { params }: { params: Promise<{ clave: string }> }) {
   const { clave } = await params;
   const ctx = await contextoDeListado(clave);
-  if (!ctx || !exigirCapacidad(ctx, "operar") || !exigirCapacidad(ctx, "verDinero")) return new NextResponse(null, { status: 404 });
+  // Como en main: exporta quien gestiona el módulo. `definicionDe` ya sacó las columnas de plata
+  // que esta persona no puede ver.
+  if (!ctx || !exigirCapacidad(ctx, "operar")) return new NextResponse(null, { status: 404 });
   const def = await definicionDe(clave, ctx);
   if (!def) return new NextResponse(null, { status: 404 });
 

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Download } from "lucide-react";
 import { exigirCapacidad } from "@/lib/listado/acceso";
+import { recortarPorDinero } from "@/lib/listado/dinero";
 import { escribirConsulta, hayConsultaEnDireccion, leerConsulta, type CambiosConsulta } from "@/lib/listado/consulta";
 import { ejecutarListado, resolverConsulta } from "@/lib/listado/ejecutar";
 import { hoyEnBuenosAires } from "@/lib/listado/periodos";
@@ -66,7 +67,7 @@ async function accionesVisibles<F>(def: DefinicionListado<F>, ctx: ContextoLista
  * con su propia guarda; acá sólo se lee y se dibuja lo que el contexto permite.
  */
 export async function Listado<F>({
-  def,
+  def: definicion,
   ctx,
   ruta,
   searchParams,
@@ -78,6 +79,8 @@ export async function Listado<F>({
   searchParams: Parametros | Promise<Parametros>;
   encabezadoExtra?: ReactNode;
 }) {
+  // Sin `verDinero` sobre su módulo, las columnas y filtros de plata no existen para esta persona.
+  const def = recortarPorDinero(definicion, ctx);
   const sp = aURLSearchParams(await searchParams);
   const vistas = await listarVistas(ctx, def.clave);
 
@@ -101,7 +104,9 @@ export async function Listado<F>({
   const queryActual = escribirConsulta(def, consulta, { ver: null, pagina: 1 });
   if (!idVista) await guardarUltima(ctx, def.clave, queryActual);
 
-  const puedeExportar = exigirCapacidad(ctx, "operar") && exigirCapacidad(ctx, "verDinero");
+  // Como en main: exportar es de quien gestiona el módulo. Las columnas de plata sólo salen con
+  // `verDinero` (las saca `recortarPorDinero`).
+  const puedeExportar = exigirCapacidad(ctx, "operar");
   const rutaExportar = `/api/listados/${encodeURIComponent(def.clave)}/exportar`;
   const [filtros, acciones, contenidoPanel, avisoDeLista] = await Promise.all([
     filtrosVisibles(def, ctx, resuelta.etiquetasRelacion),

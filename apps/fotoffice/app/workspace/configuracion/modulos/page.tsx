@@ -1,6 +1,7 @@
 import { PageHeader } from "@/components/page-header";
 import { requireActiveWorkspaceRole } from "@/lib/access/active-context";
 import { puede } from "@/lib/access/policy";
+import { isFotofficePlatformAdmin } from "@/lib/platform-admin";
 import { TIPOS, tipoPorId } from "@/lib/landing/tipos";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { FAMILY_LABELS, getModuleDefinition, listModules } from "@/lib/modules/registry";
@@ -13,7 +14,7 @@ import { ModulosClient, type FamiliaVista, type TipoVista } from "./modulos-clie
 export const dynamic = "force-dynamic";
 
 export default async function ModulosPage() {
-  const { workspace, role } = await requireActiveWorkspaceRole();
+  const { user, workspace, role } = await requireActiveWorkspaceRole();
 
   if (!role || !puede(role, "configurar")) {
     return (
@@ -26,10 +27,12 @@ export default async function ModulosPage() {
     );
   }
 
-  const [tipoActual, encendidos, vocabulario] = await Promise.all([
+  const [tipoActual, encendidos, vocabulario, puedeCambiar] = await Promise.all([
     getOrganizationType(workspace.id),
     getEnabledModuleKeysForWorkspace(workspace.id),
     loadPersonVocabulary(workspace.id),
+    // Como en main: sólo FOTOFFICE enciende o apaga; el resto ve el estado y pide.
+    isFotofficePlatformAdmin(user.id),
   ]);
   const v = (t: string) => aplicarVocabulario(t, vocabulario);
   const tipo = tipoPorId(tipoActual);
@@ -63,9 +66,19 @@ export default async function ModulosPage() {
     <div className="max-w-3xl space-y-8">
       <PageHeader
         title={`Módulos de ${workspace.name}`}
-        description="Encendé o apagá lo que usa tu organización. Apagar un módulo no borra sus datos."
+        description={
+          puedeCambiar
+            ? "Encendé o apagá lo que usa tu organización. Apagar un módulo no borra sus datos."
+            : "Lo que tiene encendido tu organización. Para sumar un módulo, pedí la activación a FOTOFFICE."
+        }
       />
-      <ModulosClient tipos={tipos} tipoActual={tipoActual} familias={familias} nombres={nombres} />
+      <ModulosClient
+        tipos={tipos}
+        tipoActual={tipoActual}
+        familias={familias}
+        nombres={nombres}
+        puedeCambiar={puedeCambiar}
+      />
     </div>
   );
 }

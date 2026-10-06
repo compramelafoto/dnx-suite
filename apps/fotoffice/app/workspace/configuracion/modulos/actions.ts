@@ -9,6 +9,7 @@ import { sendAndLogEmail } from "@/lib/communications/send-and-log";
 import { alApagar, alEncender } from "@/lib/modules/dependencies";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { getModuleDefinition } from "@/lib/modules/registry";
+import { isFotofficePlatformAdmin } from "@/lib/platform-admin";
 import { paqueteSugerido } from "@/lib/modules/suggested";
 import { setOrganizationType } from "@/lib/workspace-type";
 
@@ -43,8 +44,10 @@ export async function toggleModuleAction(
   _prev: ModulosState | undefined,
   fd: FormData,
 ): Promise<ModulosState> {
-  const { user, workspaceId, role } = await contexto();
-  if (!role || !puede(role, "configurar")) return { error: SIN_PERMISO };
+  const { user, workspaceId } = await contexto();
+  // Como en main: encender y apagar módulos es sólo de FOTOFFICE (admin de plataforma). El dueño y
+  // los administradores ven el estado y piden la activación (`requestModuleAction`).
+  if (!(await isFotofficePlatformAdmin(user.id))) return { error: SIN_PERMISO };
   const key = String(fd.get("moduleKey") ?? "");
   const def = getModuleDefinition(key);
   if (!def || def.status !== "AVAILABLE") return { error: NO_EXISTE };
@@ -85,7 +88,8 @@ export async function requestModuleAction(
   if (!role || !puede(role, "configurar")) return { error: SIN_PERMISO };
   const key = String(fd.get("moduleKey") ?? "");
   const def = getModuleDefinition(key);
-  if (!def || def.status !== "AVAILABLE" || !def.platformFee) return { error: NO_EXISTE };
+  // Cualquier módulo disponible: sin poder encenderlo, el dueño o admin lo pide a FOTOFFICE.
+  if (!def || def.status !== "AVAILABLE") return { error: NO_EXISTE };
 
   const encendidos = await getEnabledModuleKeysForWorkspace(workspaceId);
   if (encendidos.has(key)) return { error: null, ok: "Ese módulo ya está activo." };
@@ -141,7 +145,9 @@ export async function chooseOrganizationTypeAction(
   } catch (e) {
     return { error: e instanceof Error ? e.message : "No se pudo guardar el tipo de organización." };
   }
-  if (fd.get("aplicarPaquete") === "1") {
+  // Elegir el tipo es del dueño o admin; encender el paquete sugerido, como todo encendido, sólo
+  // de FOTOFFICE.
+  if (fd.get("aplicarPaquete") === "1" && (await isFotofficePlatformAdmin(user.id))) {
     const encendidos = await getEnabledModuleKeysForWorkspace(workspaceId);
     // Sólo enciende: nunca apaga nada de lo que ya estaba.
     for (const k of paqueteSugerido(tipo)) {

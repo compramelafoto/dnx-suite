@@ -47,14 +47,15 @@ describe("componentes del listado", () => {
     expect(src).toMatch(/guardarUltima\(/);
   });
 
-  it("Exportar sólo aparece con operar y verDinero", () => {
+  it("Exportar aparece con operar (como el padrón de main) y la plata se recorta antes", () => {
     const src = fuente("listado.tsx");
-    expect(src).toContain('exigirCapacidad(ctx, "operar") && exigirCapacidad(ctx, "verDinero")');
-    const guarda = src.indexOf('exigirCapacidad(ctx, "verDinero")');
-    expect(guarda).toBeGreaterThan(-1);
+    expect(src).toContain('const puedeExportar = exigirCapacidad(ctx, "operar");');
+    const recorte = src.indexOf("recortarPorDinero(definicion, ctx)");
+    const guarda = src.indexOf('exigirCapacidad(ctx, "operar")');
     const boton = src.search(/\n\s*Exportar\s*\n/);
-    expect(boton).toBeGreaterThan(-1);
-    expect(guarda).toBeLessThan(boton);
+    expect(recorte).toBeGreaterThan(-1);
+    expect(guarda).toBeGreaterThan(recorte);
+    expect(boton).toBeGreaterThan(guarda);
   });
 
   it("ningún componente toca la base directamente", () => {

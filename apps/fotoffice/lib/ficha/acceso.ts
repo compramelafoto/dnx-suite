@@ -38,6 +38,20 @@ const MODULO_POR_TIPO = {
  * distinguir el motivo y sin redirigir. El `workspaceId` sale siempre de la sesión.
  */
 export async function contextoDeFicha(persona: PersonaPedida): Promise<ContextoFicha | null> {
+  return resolverContextoDeFicha(persona, "operar");
+}
+
+/**
+ * Sólo para LEER las notas (Observaciones) con nivel "Ver" en el módulo de la persona: en main,
+ * quien ve un socio o un cliente ve sus observaciones. No sirve para ninguna acción (crear,
+ * editar, borrar, fijar, adjuntos, etiquetas, relaciones ni "Ver más"): esas usan
+ * `contextoDeFicha`, que exige "Gestionar".
+ */
+export async function contextoDeLecturaDeNotas(persona: PersonaPedida): Promise<ContextoFicha | null> {
+  return resolverContextoDeFicha(persona, "ver");
+}
+
+async function resolverContextoDeFicha(persona: PersonaPedida, capacidad: "operar" | "ver"): Promise<ContextoFicha | null> {
   if (!persona || typeof persona !== "object") return null;
   const { tipo, id } = persona;
   if (typeof tipo !== "string" || !Object.hasOwn(MODULO_POR_TIPO, tipo)) return null;
@@ -50,7 +64,7 @@ export async function contextoDeFicha(persona: PersonaPedida): Promise<ContextoF
   const modulo = MODULO_POR_TIPO[tipo];
   if (!(await isModuleEnabledForWorkspace(workspace.id, modulo))) return null;
   const acceso = await resolverAcceso(user.id, workspace.id);
-  if (!puede(acceso, "operar", modulo)) return null;
+  if (!puede(acceso, capacidad, modulo)) return null;
 
   const ref =
     tipo === "CLIENTE"

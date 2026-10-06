@@ -1,4 +1,5 @@
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
+import { recortarPorDinero } from "./dinero";
 import type { ContextoListado, DefinicionListado } from "./tipos";
 
 /** Las filas de cada lista son de tipos distintos; el registro las trata de forma opaca. */
@@ -51,5 +52,5 @@ export function entradaDeLista(clave: string): EntradaLista | null {
 
 export async function definicionDe(clave: string, ctx: ContextoListado): Promise<ListadoCualquiera | null> {
   const l = entradaDeLista(clave);
-  return l ? l.cargar(ctx) : null;
+  return l ? recortarPorDinero(await l.cargar(ctx), ctx) : null;
 }

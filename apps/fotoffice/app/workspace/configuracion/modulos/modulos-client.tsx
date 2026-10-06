@@ -32,7 +32,15 @@ function Mensajes({ state }: { state: ModulosState | undefined }) {
   );
 }
 
-function FilaModulo({ m, nombres }: { m: ModuloVista; nombres: Record<string, string> }) {
+function FilaModulo({
+  m,
+  nombres,
+  puedeCambiar,
+}: {
+  m: ModuloVista;
+  nombres: Record<string, string>;
+  puedeCambiar: boolean;
+}) {
   const [toggleState, toggle, toggling] = useActionState(toggleModuleAction, undefined);
   const [requestState, request, requesting] = useActionState(requestModuleAction, undefined);
   const [oculta, setOculta] = useState<ModulosState | undefined>(undefined);
@@ -48,9 +56,13 @@ function FilaModulo({ m, nombres }: { m: ModuloVista; nombres: Record<string, st
         </div>
         {m.planned ? (
           <span className="text-xs text-[var(--fo-muted)]">Próximamente</span>
-        ) : m.platformFee ? (
+        ) : m.platformFee || !puedeCambiar ? (
           m.enabled ? (
+            !puedeCambiar && !m.platformFee ? (
+              <span className="text-xs text-[var(--fo-success)]">Encendido</span>
+            ) : (
             <span className="text-xs text-[var(--fo-success)]">Activado por FOTOFFICE</span>
+            )
           ) : (
             <form action={request}>
               <input type="hidden" name="moduleKey" value={m.key} />
@@ -76,7 +88,7 @@ function FilaModulo({ m, nombres }: { m: ModuloVista; nombres: Record<string, st
           </form>
         )}
       </div>
-      {c && !m.planned && !m.platformFee ? (
+      {c && puedeCambiar && !m.planned && !m.platformFee ? (
         <form action={toggle} className="fo-card space-y-2 p-3" role="alertdialog" aria-label="Confirmar">
           <input type="hidden" name="moduleKey" value={m.key} />
           <input type="hidden" name="enabled" value={c.tipo === "ENCENDER" ? "true" : "false"} />
@@ -164,11 +176,14 @@ export function ModulosClient({
   tipoActual,
   familias,
   nombres,
+  puedeCambiar,
 }: {
   tipos: TipoVista[];
   tipoActual: string | null;
   familias: FamiliaVista[];
   nombres: Record<string, string>;
+  /** Sólo FOTOFFICE (admin de plataforma) enciende y apaga, como en main. */
+  puedeCambiar: boolean;
 }) {
   const [cambiando, setCambiando] = useState(false);
   const actual = tipos.find((t) => t.id === tipoActual);
@@ -176,7 +191,7 @@ export function ModulosClient({
   return (
     <div className="space-y-8">
       {!actual || cambiando ? (
-        <SelectorTipo tipos={tipos} actual={tipoActual} puedeAplicar />
+        <SelectorTipo tipos={tipos} actual={tipoActual} puedeAplicar={puedeCambiar} />
       ) : (
         <p className="text-sm">
           Tipo: <strong className="font-medium">{actual.label}</strong> ·{" "}
@@ -190,7 +205,7 @@ export function ModulosClient({
           <h2 className="text-sm font-semibold">{f.label}</h2>
           <ul className="divide-y divide-[var(--fo-border)]">
             {f.modulos.map((m) => (
-              <FilaModulo key={m.key} m={m} nombres={nombres} />
+              <FilaModulo key={m.key} m={m} nombres={nombres} puedeCambiar={puedeCambiar} />
             ))}
           </ul>
         </section>

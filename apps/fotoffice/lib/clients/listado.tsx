@@ -4,6 +4,7 @@ import { prisma, type Prisma } from "@repo/db";
 import { formatMoney } from "@/lib/format";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
+import { puedeEnContexto } from "@/lib/access/policy";
 import type { ConsultaResuelta, ContextoListado, DefinicionListado } from "@/lib/listado/tipos";
 import { CLIENT_KINDS, CLIENT_STATUSES, IVA_CONDITION_LABELS, type IvaCondition } from "./constants";
 import {
@@ -99,7 +100,10 @@ async function panelCliente(ctx: ContextoListado, id: string) {
     select: { ...SELECT_FILA, member: { select: { id: true, memberNumber: true } } },
   });
   if (!c) return null;
-  const conCaja = await isModuleEnabledForWorkspace(ctx.workspaceId, CASH_MODULE_KEY);
+  // Como el Consumo de main: los movimientos sólo con Caja encendida y Ver en Caja.
+  const conCaja =
+    puedeEnContexto(ctx, "verDinero", CASH_MODULE_KEY) &&
+    (await isModuleEnabledForWorkspace(ctx.workspaceId, CASH_MODULE_KEY));
   const movimientos = conCaja
     ? await prisma.cashMovement.findMany({
         where: { workspaceId: ctx.workspaceId, clientId: c.id },
@@ -206,7 +210,8 @@ export const listadoClientes: DefinicionListado<FilaCliente> = {
     { tipo: "opcion", clave: "estado", etiqueta: "Estado", opciones: CLIENT_STATUSES.map((v) => ({ valor: v, etiqueta: ETIQUETA_ESTADO[v] })) },
     { tipo: "relacion", clave: "etiqueta", etiqueta: "Etiqueta", conBuscador: true },
     { tipo: "periodo", clave: "alta", etiqueta: "Alta" },
-    { tipo: "siNo", clave: "movimientos", etiqueta: "Movimientos", si: "Con movimientos", no: "Sin movimientos" },
+    // Plata de Caja: sólo con Ver en Caja, como el Consumo de main.
+    { tipo: "siNo", clave: "movimientos", etiqueta: "Movimientos", si: "Con movimientos", no: "Sin movimientos", dinero: CASH_MODULE_KEY },
   ],
   ordenes: ["numero", "nombre", "alta"],
   ordenPorDefecto: { campo: "numero", desc: true },

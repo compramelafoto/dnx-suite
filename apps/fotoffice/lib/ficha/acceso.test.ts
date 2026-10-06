@@ -21,7 +21,7 @@ vi.mock("@/lib/access/acceso", async () => {
 vi.mock("@/lib/modules/gating", () => ({ isModuleEnabledForWorkspace: H.modulo }));
 vi.mock("./persona", () => ({ resolverPersonaPorCliente: H.porCliente, resolverPersonaPorSocio: H.porSocio }));
 
-const { contextoDeFicha } = await import("./acceso");
+const { contextoDeFicha, contextoDeLecturaDeNotas } = await import("./acceso");
 const REF = { clientId: "c1", memberId: null };
 
 beforeEach(() => {
@@ -71,5 +71,24 @@ describe("contextoDeFicha", () => {
     expect(await contextoDeFicha({ tipo: "toString" as never, id: "x" })).toBeNull();
     expect(await contextoDeFicha({ tipo: "CLIENTE", id: "" })).toBeNull();
     expect(H.user).not.toHaveBeenCalled();
+  });
+});
+
+describe("contextoDeLecturaDeNotas (sólo leer Observaciones)", () => {
+  it("con Ver en Socios alcanza: STAFF sin roles lee las notas del socio, como las Observaciones de main", async () => {
+    expect(await contextoDeFicha({ tipo: "SOCIO", id: "m1" })).toBeNull();
+    expect(await contextoDeLecturaDeNotas({ tipo: "SOCIO", id: "m1" })).toMatchObject({ modulo: "members", persona: { memberId: "m1" } });
+  });
+  it("sin nivel en el módulo, nada: colaborador o socio sin rol", async () => {
+    H.rol.mockResolvedValueOnce("COLLABORATOR");
+    expect(await contextoDeLecturaDeNotas({ tipo: "CLIENTE", id: "c1" })).toBeNull();
+    H.rol.mockResolvedValueOnce(null);
+    expect(await contextoDeLecturaDeNotas({ tipo: "SOCIO", id: "m1" })).toBeNull();
+  });
+  it("respeta módulo apagado y persona de otro workspace", async () => {
+    H.modulo.mockResolvedValueOnce(false);
+    expect(await contextoDeLecturaDeNotas({ tipo: "SOCIO", id: "m1" })).toBeNull();
+    H.porSocio.mockResolvedValueOnce(null);
+    expect(await contextoDeLecturaDeNotas({ tipo: "SOCIO", id: "ajeno" })).toBeNull();
   });
 });

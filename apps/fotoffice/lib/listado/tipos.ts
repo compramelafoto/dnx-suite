@@ -9,12 +9,21 @@ export const PARAMETROS_RESERVADOS = ["q", "orden", "pagina", "filas", "ver", "l
 
 export type Opcion = { valor: string; etiqueta: string };
 
-export type FiltroDef =
+/**
+ * Módulo de plata del que depende una columna, filtro o columna exportada (Caja, Cuotas). Sin
+ * `verDinero` sobre ese módulo, `recortarPorDinero` la saca de la definición: no se ve, no se
+ * filtra por ella y no sale en el archivo.
+ */
+export type ConDinero = { dinero?: string };
+
+export type FiltroDef = (
   | { tipo: "opcion"; clave: string; etiqueta: string; opciones: readonly Opcion[] }
   /** Id de otra tabla (categoría, cuenta, cliente). Se valida contra el workspace en `ejecutar`. */
   | { tipo: "relacion"; clave: string; etiqueta: string; conBuscador?: boolean }
   | { tipo: "periodo"; clave: string; etiqueta: string }
-  | { tipo: "siNo"; clave: string; etiqueta: string; si: string; no: string };
+  | { tipo: "siNo"; clave: string; etiqueta: string; si: string; no: string }
+) &
+  ConDinero;
 
 export type ConsultaListado = {
   q: string;
@@ -55,7 +64,7 @@ export type ContextoListado = {
   modulo?: string;
 };
 
-export type ColumnaDef<F> = {
+export type ColumnaDef<F> = ConDinero & {
   clave: string;
   titulo: string;
   celda: (fila: F) => ReactNode;
@@ -66,7 +75,7 @@ export type ColumnaDef<F> = {
   alinear?: "izquierda" | "derecha";
 };
 
-export type ColumnaExport<F> = {
+export type ColumnaExport<F> = ConDinero & {
   titulo: string;
   tipo: "texto" | "importe" | "fecha" | "fechaHora" | "numero";
   valor: (fila: F) => string | number | Date | null;

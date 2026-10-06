@@ -10,7 +10,11 @@ describe("exportar un listado", () => {
     expect(body.indexOf("contextoDeListado")).toBeGreaterThan(-1);
     expect(body.indexOf("contextoDeListado")).toBeLessThan(body.indexOf("traerIds"));
   });
-  it("exige verDinero", () => expect(body).toMatch(/exigirCapacidad\(ctx, "verDinero"\)/));
+  it("no exige verDinero para todo: las columnas de plata las saca `definicionDe` (recortarPorDinero)", () => {
+    expect(body).not.toMatch(/exigirCapacidad\(ctx, "verDinero"\)/);
+    expect(body).toMatch(/definicionDe\(clave, ctx\)/);
+    expect(readFileSync(join(__dirname, "registro.ts"), "utf8")).toMatch(/recortarPorDinero\(await l\.cargar\(ctx\), ctx\)/);
+  });
   it("exige operar (Gestionar en el módulo de la lista, como la exportación de socios de main)", () =>
     expect(body).toMatch(/exigirCapacidad\(ctx, "operar"\)/));
   it("toda denegación es 404 y no redirige", () => {
