@@ -3,6 +3,7 @@ import { CASH_PROJECT_MONEY_ACTION as DESDE_PLANTILLAS } from "@/lib/commission/
 import {
   BOOKINGS_CONFIGURE_ACTION,
   CASH_PROJECT_MONEY_ACTION,
+  GOVERNANCE_COORDINATE_ACTION,
   isKnownAction,
   MODULE_ACTIONS,
   RAFFLES_CONDUCT_ACTION,
@@ -23,6 +24,16 @@ describe("catálogo de acciones sensibles", () => {
         description: "Abrir o cerrar la tienda, retiro, políticas y avisos.",
       },
     ]);
+    expect(MODULE_ACTIONS.governance).toEqual([
+      {
+        key: GOVERNANCE_COORDINATE_ACTION,
+        label: "Coordinar proyectos",
+        description:
+          "Editar, cambiar de estado y armar las etapas de cualquier proyecto, y administrar los tipos de proyecto.",
+      },
+    ]);
+    expect(GOVERNANCE_COORDINATE_ACTION).toBe("governance.coordinate");
+    expect(isKnownAction("governance", "governance.coordinate")).toBe(true);
     expect(STORE_CONFIGURE_ACTION).toBe("store.configure");
     expect(BOOKINGS_CONFIGURE_ACTION).toBe("bookings.configure");
     expect(RAFFLES_CONDUCT_ACTION).toBe("raffles.conduct");

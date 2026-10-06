@@ -14,6 +14,7 @@ import {
   BOOKINGS_CONFIGURE_ACTION,
   CASH_CONFIGURE_ACTION,
   COVERAGES_COORDINATE_ACTION,
+  GOVERNANCE_COORDINATE_ACTION,
   STORE_CONFIGURE_ACTION,
 } from "@/lib/permissions/actions";
 import { hasLevel, type ModuleLevels } from "@/lib/permissions/levels";
@@ -267,6 +268,7 @@ const GOBIERNO: SubmoduleItem[] = [
     icon: "LayoutTemplate",
     description: "Las plantillas de etapas y tareas con que arranca cada proyecto nuevo.",
     requiresManage: true,
+    requiresAction: GOVERNANCE_COORDINATE_ACTION,
     activeMatch: "under",
   },
 ];

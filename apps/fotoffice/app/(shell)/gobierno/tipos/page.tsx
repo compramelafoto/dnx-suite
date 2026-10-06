@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { Flash } from "@/components/governance/member-select";
-import { requireGovernanceManager } from "@/lib/governance/access";
+import { requireGovernanceCoordinator } from "@/lib/governance/access";
 import { listProjectTypes } from "@/lib/governance/repository";
 import { ensureDefaultProjectTypes } from "@/lib/governance/seed";
 import { archiveProjectTypeAction, saveProjectTypeAction } from "../actions";
@@ -15,7 +15,7 @@ export default async function TiposPage({
 }: {
   searchParams: Promise<{ error?: string; ok?: string }>;
 }) {
-  const { workspace } = await requireGovernanceManager();
+  const { workspace } = await requireGovernanceCoordinator();
   const params = await searchParams;
   await ensureDefaultProjectTypes(workspace.id);
   const tipos = await listProjectTypes(workspace.id, { includeArchived: true });

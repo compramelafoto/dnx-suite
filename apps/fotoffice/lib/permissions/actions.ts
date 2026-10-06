@@ -4,6 +4,7 @@ import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { SALES_MODULE_KEY } from "@/lib/sales/constants";
 import { STORE_MODULE_KEY } from "@/lib/store/constants";
+import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
 
 /**
  * Catálogo de acciones sensibles por módulo (diseño de roles, §12.1.2 y etapa 2b).
@@ -34,6 +35,13 @@ export const SALES_CATALOG_ACTION = "sales.catalog";
 
 /** Acción sensible de la Tienda online: abrirla o cerrarla, el retiro, las políticas y los avisos. */
 export const STORE_CONFIGURE_ACTION = "store.configure";
+
+/**
+ * Acción sensible de Gobierno: editar cualquier proyecto de la comisión (datos, estado, etapas,
+ * quitar tareas, visibilidad de archivos) y administrar los tipos de proyecto. Sin ella, quien
+ * gestiona edita sólo los proyectos de los que es responsable o que creó.
+ */
+export const GOVERNANCE_COORDINATE_ACTION = "governance.coordinate";
 
 export const MODULE_ACTIONS: Readonly<Record<string, readonly ModuleActionDef[]>> = {
   [CASH_MODULE_KEY]: [
@@ -74,6 +82,14 @@ export const MODULE_ACTIONS: Readonly<Record<string, readonly ModuleActionDef[]>
       key: SALES_CATALOG_ACTION,
       label: "Editar el catálogo",
       description: "Alta y edición de productos, precios, costos y categorías.",
+    },
+  ],
+  [GOVERNANCE_MODULE_KEY]: [
+    {
+      key: GOVERNANCE_COORDINATE_ACTION,
+      label: "Coordinar proyectos",
+      description:
+        "Editar, cambiar de estado y armar las etapas de cualquier proyecto, y administrar los tipos de proyecto.",
     },
   ],
   [STORE_MODULE_KEY]: [

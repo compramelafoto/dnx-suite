@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
 import { PageHeader } from "@/components/page-header";
 import { Flash } from "@/components/governance/member-select";
-import { requireGovernanceManager } from "@/lib/governance/access";
+import { requireGovernanceCoordinator } from "@/lib/governance/access";
 import { stagesToText } from "@/lib/governance/templates";
 import { archiveProjectTypeAction, saveProjectTypeAction } from "../../actions";
 
@@ -16,7 +16,7 @@ export default async function EditarTipoPage({
   params: Promise<{ typeId: string }>;
   searchParams: Promise<{ error?: string }>;
 }) {
-  const { workspace } = await requireGovernanceManager();
+  const { workspace } = await requireGovernanceCoordinator();
   const { typeId } = await params;
   const avisos = await searchParams;
   const tipo = await prisma.govProjectType.findFirst({
