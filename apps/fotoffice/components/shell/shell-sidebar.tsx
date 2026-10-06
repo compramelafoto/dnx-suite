@@ -15,6 +15,7 @@ export function ShellSidebar({
   platformAdmin,
   vocabulary,
   roleSelector = null,
+  openGroups = [],
 }: {
   /**
    * Nombre de la organización activa. Antes acá decía "Venta de cursos", fijo en el código:
@@ -32,6 +33,8 @@ export function ShellSidebar({
   vocabulary: PersonVocabulary;
   /** Socio y equipo en esta institución: el selector de rol (Comisión/Administración activo). */
   roleSelector?: RoleSelectorData | null;
+  /** Grupos del menú que la persona dejó desplegados (cookie `fo_nav_grupos`). */
+  openGroups?: readonly string[];
 }) {
   return (
     <aside className="min-h-full md:min-h-screen border-b md:border-b-0 md:border-r border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] p-4 md:p-5">
@@ -60,6 +63,7 @@ export function ShellSidebar({
         canManageWorkspaceSettings={canManageWorkspaceSettings}
         platformAdmin={platformAdmin}
         vocabulary={vocabulary}
+        openGroups={openGroups}
       />
     </aside>
   );

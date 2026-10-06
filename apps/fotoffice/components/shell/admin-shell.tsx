@@ -11,6 +11,7 @@ import { ShellSidebar } from "@/components/shell/shell-sidebar";
 import { ShellFrame } from "@/components/shell/shell-frame";
 import { ShellHeader } from "@/components/shell/shell-header";
 import { SHELL_NAV_COOKIE, parseShellNavPreference } from "@/lib/shell/nav-preference";
+import { NAV_GROUPS_COOKIE, parseOpenGroups } from "@/lib/shell/nav-groups";
 import { hasProfilesInSeveralWorkspaces, listUserProfiles, roleSelector } from "@/lib/portal/profiles";
 
 type PanelUser = {
@@ -77,8 +78,9 @@ export async function AdminShell({ user, children }: { user: PanelUser; children
   // lateral lo lleva a su portal. El "Cambiar de perfil" general queda para varias instituciones.
   const selector = roleSelector(perfiles, { kind: "TEAM", workspaceId: workspace?.id ?? null }, vocabulary);
 
-  const navHidden =
-    parseShellNavPreference((await cookies()).get(SHELL_NAV_COOKIE)?.value) === "hidden";
+  const cookieStore = await cookies();
+  const navHidden = parseShellNavPreference(cookieStore.get(SHELL_NAV_COOKIE)?.value) === "hidden";
+  const openGroups = parseOpenGroups(cookieStore.get(NAV_GROUPS_COOKIE)?.value);
 
   return (
     <ShellFrame
@@ -92,6 +94,7 @@ export async function AdminShell({ user, children }: { user: PanelUser; children
           platformAdmin={platformAdmin}
           vocabulary={vocabulary}
           roleSelector={selector}
+          openGroups={openGroups}
         />
       }
       header={
