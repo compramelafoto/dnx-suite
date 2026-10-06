@@ -34,7 +34,7 @@ describe("validateTransfer", () => {
   it("no se pasa más de lo que hay en la cuenta de origen", () => {
     expect(validateTransfer({ ...base, amountMinor: 60_000_00 })).toEqual({
       ok: false,
-      error: "No podés pasar más plata de la que hay en esa cuenta.",
+      error: "No podés pasar más dinero del que hay en esa cuenta.",
     });
   });
 
