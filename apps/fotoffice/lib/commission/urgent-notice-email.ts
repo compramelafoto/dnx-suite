@@ -128,7 +128,7 @@ export function buildUrgentActivationEmail(
   const paragraphs: Paragraph[] = [
     { text: cargoLine(input.officeName, input.roleNames) },
     {
-      text: "Es urgente que actives tu cuenta: sin ella no figurás en actividad en el sistema y no podés gestionar la Comisión Directiva.",
+      text: "Es urgente que actives tu cuenta: sin ella no podés entrar al sistema ni gestionar la Comisión Directiva.",
       strong: true,
     },
   ];
@@ -157,7 +157,7 @@ export function buildUrgentDebtEmail(
     { text: cargoLine(input.officeName, input.roleNames) },
     { text: cuotasPendientesText(input.debt.count, input.debt.totalMinor) },
     {
-      text: "Es urgente que regularices tu situación para seguir en actividad en el sistema y poder gestionar la Comisión Directiva.",
+      text: "Es urgente que regularices tu situación para poder gestionar la Comisión Directiva.",
       strong: true,
     },
   ];

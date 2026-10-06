@@ -1,7 +1,12 @@
 import { prisma } from "@repo/db";
 import { requireCommissionAdmin } from "@/lib/commission/access";
 import { ensureCommissionSetupOnce } from "@/lib/commission/seed";
-import { listPendingIntegrants, pendingReasonLabel } from "@/lib/commission/urgent-notice";
+import {
+  formatNoticeMoment,
+  listPendingIntegrants,
+  pendingReasonLabel,
+  recentNoticeReason,
+} from "@/lib/commission/urgent-notice";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { fechaCorta, fechaParaInput, textoMandato } from "./fechas";
 import { AvisoUrgente } from "./aviso-urgente";
@@ -66,7 +71,10 @@ export default async function IntegrantesPage() {
             memberId: p.memberId,
             nombre: p.name,
             motivo: pendingReasonLabel(p),
-            bloqueo: p.blocker,
+            bloqueo: p.blocker ?? recentNoticeReason(p.lastNoticeAt, now),
+            ultimoAviso: p.lastNoticeAt
+              ? `${formatNoticeMoment(p.lastNoticeAt).fecha} ${formatNoticeMoment(p.lastNoticeAt).hora}`
+              : null,
           }))}
         />
       ) : null}

@@ -10,6 +10,8 @@ export type PersonaPendiente = {
   motivo: string;
   /** Por qué no le llega el aviso; `null` si le llega. */
   bloqueo: string | null;
+  /** "06/10 14:30", o `null` si nunca se le avisó. */
+  ultimoAviso: string | null;
 };
 
 function personas(n: number): string {
@@ -47,12 +49,19 @@ export function AvisoUrgente({ pendientes }: { pendientes: PersonaPendiente[] })
           <li key={p.memberId} className="py-2">
             <span className="font-medium">{p.nombre}</span>
             <span className="block text-[var(--fo-text-secondary)]">{p.motivo}</span>
+            {p.ultimoAviso ? (
+              <span className="block text-xs text-[var(--fo-muted)]">Último aviso: {p.ultimoAviso}</span>
+            ) : null}
             {p.bloqueo ? <span className="block text-xs text-[var(--fo-danger)]">{p.bloqueo}</span> : null}
           </li>
         ))}
       </ul>
 
-      {!confirmando ? (
+      {/*
+        Después de un envío el botón desaparece hasta recargar y queda el resultado: un segundo
+        clic no tiene a quién mandarle (el servidor saltea a quien ya recibió el aviso hoy).
+      */}
+      {state?.ok ? null : !confirmando ? (
         <button
           type="button"
           className="fo-btn fo-btn-primary min-h-11"

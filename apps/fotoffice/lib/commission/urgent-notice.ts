@@ -81,7 +81,43 @@ export type PendingIntegrant = {
   userId: number | null;
   /** Por qué no se le puede mandar el aviso; `null` si se puede. */
   blocker: string | null;
+  /**
+   * Último aviso que le llegó: el envío de la invitación vigente (sin cuenta) o el último aviso
+   * urgente de cuotas que salió (con cuenta). `null` si nunca.
+   */
+  lastNoticeAt: Date | null;
 };
+
+export const URGENT_DEBT_TEMPLATE_KEY = "commission-urgent-debt";
+
+/** No se repite el aviso antes de esto: dos correos URGENTES el mismo día son spam. */
+export const NOTICE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+export type NoticeHistory = {
+  /** memberId → envío de la invitación vigente más reciente. */
+  invitationSentAt: Map<string, Date>;
+  /** correo (en minúsculas) → último aviso urgente de cuotas que salió. */
+  debtNoticeSentAt: Map<string, Date>;
+};
+
+const AR = "America/Argentina/Buenos_Aires";
+const fechaAr = new Intl.DateTimeFormat("es-AR", { timeZone: AR, day: "2-digit", month: "2-digit" });
+const horaAr = new Intl.DateTimeFormat("es-AR", { timeZone: AR, hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+
+/** "06/10" y "14:30", en hora argentina. */
+export function formatNoticeMoment(d: Date): { fecha: string; hora: string } {
+  // Por partes: con sólo día y mes, es-AR ignora el "2-digit" del día y escribe "6/10".
+  const parts = fechaAr.formatToParts(d);
+  const dos = (type: string) => (parts.find((p) => p.type === type)?.value ?? "").padStart(2, "0");
+  return { fecha: `${dos("day")}/${dos("month")}`, hora: horaAr.format(d) };
+}
+
+/** Si el último aviso fue hace menos de 24 h, el motivo para no repetirlo. */
+export function recentNoticeReason(lastNoticeAt: Date | null, now: Date): string | null {
+  if (!lastNoticeAt || now.getTime() - lastNoticeAt.getTime() >= NOTICE_COOLDOWN_MS) return null;
+  const { fecha, hora } = formatNoticeMoment(lastNoticeAt);
+  return `Ya se le avisó el ${fecha} a las ${hora}`;
+}
 
 export const BLOCKER_NO_EMAIL = "No tiene correo cargado.";
 export const BLOCKER_NOT_ACTIVE = "La ficha no está activa: no se le puede mandar la invitación.";
@@ -95,6 +131,7 @@ export function groupPendingIntegrants(
   periods: readonly PendingPeriod[],
   charges: readonly PendingCharge[],
   now: Date,
+  notices: NoticeHistory = { invitationSentAt: new Map(), debtNoticeSentAt: new Map() },
 ): PendingIntegrant[] {
   const byMember = new Map<string, { member: PendingMember; offices: { name: string; order: number }[]; roles: Set<string> }>();
   for (const p of periods) {
@@ -127,7 +164,8 @@ export function groupPendingIntegrants(
     const hasDebt = debt.count > 0;
     if (!noAccount && !hasDebt) continue;
     const reason: PendingReason = noAccount && hasDebt ? "SIN_CUENTA_Y_DEUDA" : noAccount ? "SIN_CUENTA" : "DEUDA";
-    const email = member.email?.trim() || member.accountEmail?.trim() || null;
+    // En minúsculas, como lo guarda la invitación: así se cruza con el registro de envíos.
+    const email = (member.email?.trim() || member.accountEmail?.trim() || "").toLowerCase() || null;
     const blocker = !email
       ? BLOCKER_NO_EMAIL
       : needsInvitation(reason) && member.status !== "ACTIVE"
@@ -155,6 +193,11 @@ export function groupPendingIntegrants(
       status: member.status,
       userId: member.userId,
       blocker,
+      lastNoticeAt: needsInvitation(reason)
+        ? notices.invitationSentAt.get(member.id) ?? null
+        : email
+          ? notices.debtNoticeSentAt.get(email) ?? null
+          : null,
     });
   }
   return out.sort((a, b) => a.name.localeCompare(b.name, "es"));
@@ -271,6 +314,46 @@ export async function listPendingIntegrants(workspaceId: string, now: Date): Pro
     select: { memberId: true, balanceArs: true, period: true, concept: true, dueDate: true },
   });
 
+  const emails = Array.from(
+    new Set(
+      periods
+        .filter((p) => p.member && isAssignmentActive(p, now))
+        .map((p) => (p.member as PendingMember))
+        .map((m) => (m.email?.trim() || m.accountEmail?.trim() || "").toLowerCase())
+        .filter((e) => e.length > 0),
+    ),
+  );
+  const [invitations, logs] = await Promise.all([
+    prisma.memberInvitation.findMany({
+      where: {
+        workspaceId,
+        memberId: { in: memberIds },
+        acceptedAt: null,
+        revokedAt: null,
+        expiresAt: { gt: now },
+        sentAt: { not: null },
+      },
+      select: { memberId: true, sentAt: true },
+    }),
+    emails.length > 0
+      ? prisma.sentEmailLog.findMany({
+          where: { templateKey: URGENT_DEBT_TEMPLATE_KEY, status: "SENT", to: { in: emails } },
+          select: { to: true, createdAt: true },
+        })
+      : Promise.resolve([]),
+  ]);
+  const notices: NoticeHistory = { invitationSentAt: new Map(), debtNoticeSentAt: new Map() };
+  for (const i of invitations) {
+    if (!i.sentAt) continue;
+    const prev = notices.invitationSentAt.get(i.memberId);
+    if (!prev || prev < i.sentAt) notices.invitationSentAt.set(i.memberId, i.sentAt);
+  }
+  for (const l of logs) {
+    const key = l.to.toLowerCase();
+    const prev = notices.debtNoticeSentAt.get(key);
+    if (!prev || prev < l.createdAt) notices.debtNoticeSentAt.set(key, l.createdAt);
+  }
+
   return groupPendingIntegrants(
     periods,
     charges.map((c) => ({
@@ -281,5 +364,6 @@ export async function listPendingIntegrants(workspaceId: string, now: Date): Pro
       dueDate: c.dueDate,
     })),
     now,
+    notices,
   );
 }

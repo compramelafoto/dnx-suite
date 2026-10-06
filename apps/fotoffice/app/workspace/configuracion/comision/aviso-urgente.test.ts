@@ -55,6 +55,7 @@ function pending(over: Partial<PendingIntegrant>): PendingIntegrant {
     status: "ACTIVE",
     userId: null,
     blocker: null,
+    lastNoticeAt: null,
     ...over,
   };
 }
@@ -169,6 +170,34 @@ describe("sendUrgentCommissionNoticeAction", () => {
       { name: "Cuatro", kind: "DEUDA" },
       { name: "Cinco", kind: "INVITACION" },
     ]);
+  });
+
+  it("si ya se le avisó hace menos de 24 h, un segundo envío saltea a todos y no manda nada", async () => {
+    const haceUnaHora = new Date(Date.now() - 60 * 60 * 1000);
+    H.listPendingIntegrants.mockResolvedValue([
+      pending({ memberId: "a", name: "Uno", lastNoticeAt: haceUnaHora }),
+      pending({ memberId: "b", name: "Dos", reason: "DEUDA", userId: 4, pendingCount: 1, pendingTotalMinor: 100, lastNoticeAt: haceUnaHora }),
+    ]);
+    const res = await sendUrgentCommissionNoticeAction(undefined, form({ confirm: "yes" }));
+    expect(res.sent).toEqual([]);
+    expect(res.skipped.map((s) => s.name)).toEqual(["Uno", "Dos"]);
+    expect(res.skipped[0].reason).toMatch(/^Ya se le avisó el \d{2}\/\d{2} a las \d{2}:\d{2}$/);
+    expect(H.inviteOneMember).not.toHaveBeenCalled();
+    expect(H.sendAndLogEmail).not.toHaveBeenCalled();
+  });
+
+  it("pasadas las 24 h, vuelve a mandar", async () => {
+    const ayer = new Date(Date.now() - 25 * 60 * 60 * 1000);
+    H.listPendingIntegrants.mockResolvedValue([
+      pending({ memberId: "a", name: "Uno", lastNoticeAt: ayer }),
+      pending({ memberId: "b", name: "Dos", reason: "DEUDA", userId: 4, pendingCount: 1, pendingTotalMinor: 100, lastNoticeAt: ayer }),
+    ]);
+    const res = await sendUrgentCommissionNoticeAction(undefined, form({ confirm: "yes" }));
+    expect(res.sent).toEqual([
+      { name: "Uno", kind: "INVITACION" },
+      { name: "Dos", kind: "DEUDA" },
+    ]);
+    expect(res.skipped).toEqual([]);
   });
 
   it("sin dirección pública, el aviso de deuda falla sin mandar nada roto", async () => {

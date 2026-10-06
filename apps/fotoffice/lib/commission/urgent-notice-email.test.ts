@@ -63,8 +63,9 @@ describe("buildUrgentActivationEmail", () => {
     const { text, html } = buildUrgentActivationEmail(input);
     expect(text).toContain("Hola Ana,");
     expect(text).toContain("Integrás la Comisión Directiva como Tesorería (roles: Tesorería, Vocal).");
-    expect(text).toMatch(/urgente/i);
-    expect(text).toContain("activ");
+    expect(text).toContain(
+      "Es urgente que actives tu cuenta: sin ella no podés entrar al sistema ni gestionar la Comisión Directiva.",
+    );
     expect(text).toContain("https://app.test/invitacion/abc");
     expect(text).toContain("14 días");
     expect(text).toContain("Firma SFPR");
@@ -127,7 +128,7 @@ describe("buildUrgentDebtEmail", () => {
     expect(text).toContain("Hola Ana,");
     expect(text).toContain("Integrás la Comisión Directiva como Tesorería (roles: Tesorería, Vocal).");
     expect(text).toContain("Tenés 1 cuota pendiente por $ 12.000.");
-    expect(text).toMatch(/urgente/i);
+    expect(text).toContain("Es urgente que regularices tu situación para poder gestionar la Comisión Directiva.");
     expect(text).toContain("https://app.test/portal/cuotas");
     expect(text).toContain("Firma SFPR");
     expect(html).toContain("Pagar mis cuotas");

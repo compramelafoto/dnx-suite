@@ -6,11 +6,14 @@ const H = vi.hoisted(() => ({
     workspaceRoleAssignment: { findMany: vi.fn() },
     member: { findMany: vi.fn() },
     membershipCharge: { findMany: vi.fn() },
+    memberInvitation: { findMany: vi.fn() },
+    sentEmailLog: { findMany: vi.fn() },
   },
 }));
 vi.mock("@repo/db", () => ({ prisma: H.db }));
 
-const { groupPendingIntegrants, listPendingIntegrants, pendingReasonLabel } = await import("./urgent-notice");
+const { formatNoticeMoment, groupPendingIntegrants, listPendingIntegrants, pendingReasonLabel, recentNoticeReason } =
+  await import("./urgent-notice");
 
 const NOW = new Date("2026-10-06T12:00:00Z");
 const AYER = new Date("2026-10-05T12:00:00Z");
@@ -178,6 +181,40 @@ describe("groupPendingIntegrants", () => {
   });
 });
 
+describe("último aviso", () => {
+  const HACE_1H = new Date("2026-10-06T11:00:00Z");
+  const HACE_25H = new Date("2026-10-05T11:00:00Z");
+
+  it("toma la invitación para quien no tiene cuenta y el registro de correos para quien debe", () => {
+    const notices = {
+      invitationSentAt: new Map([["m1", HACE_1H]]),
+      debtNoticeSentAt: new Map([["deuda@test.com", HACE_25H]]),
+    };
+    const [sinCuenta] = groupPendingIntegrants([period()], [], NOW, notices);
+    expect(sinCuenta.lastNoticeAt).toEqual(HACE_1H);
+    const [deuda] = groupPendingIntegrants(
+      [period({ member: member({ id: "m2", userId: 3, email: "Deuda@Test.com" }) })],
+      [charge({ memberId: "m2" })],
+      NOW,
+      notices,
+    );
+    expect(deuda.email).toBe("deuda@test.com");
+    expect(deuda.lastNoticeAt).toEqual(HACE_25H);
+    const [nunca] = groupPendingIntegrants([period({ member: member({ id: "m3" }) })], [], NOW, notices);
+    expect(nunca.lastNoticeAt).toBeNull();
+  });
+
+  it("formatea en hora argentina", () => {
+    expect(formatNoticeMoment(HACE_1H)).toEqual({ fecha: "06/10", hora: "08:00" });
+  });
+
+  it("dentro de las 24 h bloquea con fecha y hora; después, no", () => {
+    expect(recentNoticeReason(HACE_1H, NOW)).toBe("Ya se le avisó el 06/10 a las 08:00");
+    expect(recentNoticeReason(HACE_25H, NOW)).toBeNull();
+    expect(recentNoticeReason(null, NOW)).toBeNull();
+  });
+});
+
 describe("pendingReasonLabel", () => {
   it("dice el motivo en castellano", () => {
     expect(pendingReasonLabel({ reason: "SIN_CUENTA", pendingCount: 0, pendingTotalMinor: 0 })).toBe(
@@ -209,6 +246,36 @@ describe("listPendingIntegrants", () => {
     H.db.workspaceRoleAssignment.findMany.mockResolvedValue([]);
     H.db.member.findMany.mockResolvedValue([]);
     H.db.membershipCharge.findMany.mockResolvedValue([]);
+    H.db.memberInvitation.findMany.mockResolvedValue([]);
+    H.db.sentEmailLog.findMany.mockResolvedValue([]);
+  });
+
+  it("lee el último aviso: invitaciones válidas enviadas del workspace y avisos de deuda que salieron", async () => {
+    H.db.workspaceOfficeTerm.findMany.mockResolvedValue([
+      {
+        startsAt: null, endsAt: null, revokedAt: null, memberId: "m1", userId: null,
+        member: { ...MEMBER_ROW, workspaceId: "ws-1", userId: null }, office: { name: "Tesorería", order: 0 },
+      },
+    ]);
+    const enviada = new Date("2026-10-06T10:00:00Z");
+    H.db.memberInvitation.findMany.mockResolvedValue([{ memberId: "m1", sentAt: enviada }]);
+
+    const [p] = await listPendingIntegrants("ws-1", NOW);
+
+    expect(H.db.memberInvitation.findMany.mock.calls[0][0].where).toMatchObject({
+      workspaceId: "ws-1",
+      memberId: { in: ["m1"] },
+      acceptedAt: null,
+      revokedAt: null,
+      expiresAt: { gt: NOW },
+      sentAt: { not: null },
+    });
+    expect(H.db.sentEmailLog.findMany.mock.calls[0][0].where).toMatchObject({
+      templateKey: "commission-urgent-debt",
+      status: "SENT",
+      to: { in: ["ana@test.com"] },
+    });
+    expect(p.lastNoticeAt).toEqual(enviada);
   });
 
   it("filtra todo por el workspace y resuelve la ficha de quien está anclado por cuenta", async () => {

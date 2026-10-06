@@ -27,7 +27,13 @@ import {
 import { appUrl } from "@/lib/app-url";
 import { loadWorkspaceEmailContext } from "@/lib/communications/load-workspace-signature";
 import { sendAndLogEmail } from "@/lib/communications/send-and-log";
-import { listPendingIntegrants, needsInvitation, type PendingIntegrant } from "@/lib/commission/urgent-notice";
+import {
+  listPendingIntegrants,
+  needsInvitation,
+  recentNoticeReason,
+  URGENT_DEBT_TEMPLATE_KEY,
+  type PendingIntegrant,
+} from "@/lib/commission/urgent-notice";
 import { buildUrgentActivationEmail, buildUrgentDebtEmail } from "@/lib/commission/urgent-notice-email";
 import { inviteOneMember } from "@/lib/members/invite-member";
 
@@ -790,6 +796,7 @@ const NO_APP_URL = "Falta configuración del sistema para armar el enlace. Avisa
  * - Con cuenta y cuotas vencidas → "regularizá tu situación", con el botón al portal.
  *
  * Exige `confirm=yes`. Nunca se corta por una persona: cada envío falla solo y queda en la lista.
+ * A quien ya se le avisó en las últimas 24 h se lo saltea (`recentNoticeReason`).
  */
 export async function sendUrgentCommissionNoticeAction(
   _prev: UrgentNoticeState | undefined,
@@ -801,7 +808,8 @@ export async function sendUrgentCommissionNoticeAction(
     return { error: "Confirmá el envío del aviso urgente.", ...empty };
   }
 
-  const pending = await listPendingIntegrants(workspaceId, new Date());
+  const now = new Date();
+  const pending = await listPendingIntegrants(workspaceId, now);
   const result: UrgentNoticeState = { error: null, ok: true, sent: [], failed: [], skipped: [] };
   if (pending.length === 0) return result;
 
@@ -811,6 +819,13 @@ export async function sendUrgentCommissionNoticeAction(
   for (const p of pending) {
     if (p.blocker || !p.email) {
       result.skipped.push({ name: p.name, reason: p.blocker ?? "No tiene correo cargado." });
+      continue;
+    }
+    // Se controla acá, en el servidor: un segundo clic, otra pestaña u otro administrador no
+    // pueden mandarle a la misma persona dos correos URGENTES en el mismo día.
+    const recent = recentNoticeReason(p.lastNoticeAt, now);
+    if (recent) {
+      result.skipped.push({ name: p.name, reason: recent });
       continue;
     }
     try {
@@ -865,7 +880,7 @@ async function sendDebtNotice(
   const outcome = await sendAndLogEmail({
     workspaceId,
     to: p.email as string,
-    templateKey: "commission-urgent-debt",
+    templateKey: URGENT_DEBT_TEMPLATE_KEY,
     body,
     userId: p.userId,
   });
