@@ -426,6 +426,28 @@ export async function executePreventaPackRedeemV1InTransaction(
     for (let unitIdx = 0; unitIdx < sel.units.length; unitIdx++) {
       const unit = sel.units[unitIdx];
       for (const photoId of unit) {
+        // Impreso con su digital (librito + digital): la misma foto también sale en digital.
+        if (ben.kind === "PHYSICAL" && ben.includesDigital) {
+          itemsToCreate.push({
+            photoId,
+            productType: OrderItemType.DIGITAL,
+            priceCents: 0,
+            subtotalCents: 0,
+            quantity: 1,
+            size: null,
+            finish: null,
+            lineOrigin: OrderItemLineOrigin.PACK_INCLUDED,
+            benefitStableKey: ben.stableKey,
+            packSlotIndex: unitIdx,
+            metadata: {
+              unitIndex: unitIdx,
+              redeemedFromOrderId: parent.id,
+              snapshotSchemaVersion: snapshot.schemaVersion,
+              packDefinitionIdSnapshot: snapshot.packDefinitionId,
+              includedWithPrint: true,
+            },
+          });
+        }
         itemsToCreate.push({
           photoId,
           productType:

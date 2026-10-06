@@ -823,7 +823,9 @@ export default function ComprarClient() {
             try {
               const entries: Array<[number, LabPricing]> = await Promise.all(
                 uploaderIds.map(async (id) => {
-                  const res = await fetch(`/api/public/lab-pricing?photographerId=${id}`, { cache: "no-store" });
+                  const res = await fetch(`/api/public/lab-pricing?photographerId=${id}&albumId=${albumId}`, {
+                    cache: "no-store",
+                  });
                   if (!res.ok) {
                     return [
                       id,

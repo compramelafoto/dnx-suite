@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { productsForAlbum } from "@/lib/pricing/album-scoped-products";
 
 type PricingResponse = {
   photographerId: number | null;
@@ -15,7 +16,14 @@ type PricingResponse = {
   }>;
 };
 
-export async function getPhotographerPricing(photographerId?: number | null): Promise<PricingResponse> {
+/**
+ * `albumId`: el catálogo que ve la galería de ese álbum (sus productos propios, si tiene).
+ * Sin álbum, sólo los productos generales del fotógrafo. Ver `album-scoped-products`.
+ */
+export async function getPhotographerPricing(
+  photographerId?: number | null,
+  albumId?: number | null
+): Promise<PricingResponse> {
   const prismaAny = prisma as any;
   if (!prismaAny.photographerProduct?.findMany) {
     return {
@@ -58,7 +66,10 @@ export async function getPhotographerPricing(photographerId?: number | null): Pr
     orderBy: [{ name: "asc" }, { size: "asc" }],
   });
 
-  const activeProducts = (Array.isArray(products) ? products : []).filter((p: any) => p.isActive !== false);
+  const activeProducts = productsForAlbum(
+    (Array.isArray(products) ? products : []).filter((p: any) => p.isActive !== false),
+    albumId
+  );
 
   const baseBySize = new Map<string, number>();
   for (const product of activeProducts) {
