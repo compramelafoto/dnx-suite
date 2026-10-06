@@ -323,6 +323,13 @@ const FORMAT_SELECT = {
 } as const;
 
 /**
+ * La obra sigue en el concurso de FotoRank (spec §5.3): confirmada y no retirada. Una rechazada o
+ * retirada después de publicarla sale de la vidriera, de la ficha y del carrito, aunque el panel
+ * no la haya despublicado todavía.
+ */
+const ENTRY_EN_CONCURSO = { status: "CONFIRMED", withdrawnAt: null } as const;
+
+/**
  * Las obras públicas del workspace, en el orden de la institución (y las más recientes primero).
  * `filtro` acota la consulta (una dirección o unos ids); las reglas se aplican igual a todas.
  */
@@ -344,6 +351,7 @@ async function publicArtworks(
         workspaceId,
         status: "PUBLISHED",
         contest: { organizationId: { in: organizaciones } },
+        entry: ENTRY_EN_CONCURSO,
         ...(filtro.slug !== undefined ? { slug: filtro.slug } : {}),
         ...(filtro.ids !== undefined ? { id: { in: [...filtro.ids] } } : {}),
       },
@@ -410,6 +418,7 @@ export const hasPublicArtworks = cache(async function hasPublicArtworks(
         workspaceId,
         status: "PUBLISHED",
         contest: { organizationId: { in: vinculos.map((v) => v.organizationId) } },
+        entry: ENTRY_EN_CONCURSO,
       },
       select: { id: true },
     }),

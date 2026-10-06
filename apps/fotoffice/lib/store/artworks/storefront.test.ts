@@ -257,7 +257,10 @@ describe("checkArtworkCartLines", () => {
 
 // ── Consultas, con una base en memoria ──────────────────────────────────────
 
-type ListingDb = Row & { workspaceId: string; sortOrder: number; publishedAt: Date | null };
+type EntryDb = { status: string; withdrawnAt: Date | null };
+type ListingDb = Row & { workspaceId: string; sortOrder: number; publishedAt: Date | null; entry: EntryDb };
+type EntryWhere = { status: string; withdrawnAt: null };
+const enConcurso = (l: ListingDb, w: EntryWhere) => l.entry.status === w.status && l.entry.withdrawnAt === w.withdrawnAt;
 
 function baseFalsa(opts: {
   links?: { workspaceId: string; organizationId: string }[];
@@ -275,17 +278,30 @@ function baseFalsa(opts: {
       },
     },
     artworkListing: {
-      findFirst: async (a: { where: { workspaceId: string; status: string; contest: { organizationId: { in: string[] } } } }) => {
+      findFirst: async (a: {
+        where: { workspaceId: string; status: string; contest: { organizationId: { in: string[] } }; entry: EntryWhere };
+      }) => {
         calls.first.push(a);
         const w = a.where;
         return (
           (opts.listings ?? []).find(
-            (l) => l.workspaceId === w.workspaceId && l.status === w.status && w.contest.organizationId.in.includes(l.contest.organizationId),
+            (l) =>
+              l.workspaceId === w.workspaceId &&
+              l.status === w.status &&
+              w.contest.organizationId.in.includes(l.contest.organizationId) &&
+              enConcurso(l, w.entry),
           ) ?? null
         );
       },
       findMany: async (a: {
-        where: { workspaceId: string; status: string; slug?: string; id?: { in: string[] }; contest: { organizationId: { in: string[] } } };
+        where: {
+          workspaceId: string;
+          status: string;
+          slug?: string;
+          id?: { in: string[] };
+          contest: { organizationId: { in: string[] } };
+          entry: EntryWhere;
+        };
       }) => {
         calls.listing.push(a);
         const w = a.where;
@@ -294,6 +310,7 @@ function baseFalsa(opts: {
             l.workspaceId === w.workspaceId &&
             l.status === w.status &&
             w.contest.organizationId.in.includes(l.contest.organizationId) &&
+            enConcurso(l, w.entry) &&
             (w.slug === undefined || l.slug === w.slug) &&
             (w.id === undefined || w.id.in.includes(l.id)),
         );
@@ -326,7 +343,7 @@ function baseFalsa(opts: {
 }
 
 function listingDb(id: string, o: Partial<ListingDb> = {}): ListingDb {
-  return { ...fila(id), workspaceId: WS, sortOrder: 0, publishedAt: NOTIFICADO, ...o };
+  return { ...fila(id), workspaceId: WS, sortOrder: 0, publishedAt: NOTIFICADO, entry: { status: "CONFIRMED", withdrawnAt: null }, ...o };
 }
 
 const consentOk = (entryId: string, workspaceId = WS) => ({ workspaceId, entryId, basis: "RULES", status: "NOTIFIED", notifiedAt: NOTIFICADO });
@@ -462,5 +479,54 @@ describe("loadPublicArtworks / getPublicArtwork / hasPublicArtworks / loadArtwor
     const vacio = baseFalsa({});
     expect((await loadArtworkCartCatalog(WS, [], vacio.db)).size).toBe(0);
     expect(vacio.calls.link).toHaveLength(0);
+  });
+  describe("obra que ya no está en el concurso de FotoRank (§5.3)", () => {
+    function conEntrada(entry: EntryDb) {
+      return baseFalsa({
+        links: [{ workspaceId: WS, organizationId: "org1" }],
+        listings: [listingDb("a"), listingDb("r", { entry })],
+        formats: [{ ...formato("f1"), workspaceId: WS, sortOrder: 0 }],
+        minDpi: 150,
+        consents: [consentOk("e-a"), consentOk("e-r")],
+      });
+    }
+    const rechazada = { status: "REJECTED", withdrawnAt: null };
+    const retirada = { status: "WITHDRAWN", withdrawnAt: NOTIFICADO };
+    const retiradaConfirmada = { status: "CONFIRMED", withdrawnAt: NOTIFICADO };
+
+    it("rechazada: no es pública (vidriera, ficha)", async () => {
+      const { db, calls } = conEntrada(rechazada);
+      expect((await loadPublicArtworks(WS, {}, db)).artworks.map((a) => a.listingId)).toEqual(["a"]);
+      expect(await getPublicArtwork(WS, "obra-r", db)).toBeNull();
+      expect((calls.listing[0] as { where: { entry: unknown } }).where.entry).toEqual({ status: "CONFIRMED", withdrawnAt: null });
+    });
+
+    it("retirada: no es pública", async () => {
+      for (const entry of [retirada, retiradaConfirmada]) {
+        const { db } = conEntrada(entry);
+        expect((await loadPublicArtworks(WS, {}, db)).artworks.map((a) => a.listingId)).toEqual(["a"]);
+        expect(await getPublicArtwork(WS, "obra-r", db)).toBeNull();
+      }
+    });
+
+    it("hasPublicArtworks: si la única publicada fue rechazada, false sin cargar el resto", async () => {
+      const { db, calls } = baseFalsa({
+        links: [{ workspaceId: WS, organizationId: "org1" }],
+        listings: [listingDb("r", { entry: rechazada })],
+        formats: [{ ...formato("f1"), workspaceId: WS, sortOrder: 0 }],
+        consents: [consentOk("e-r")],
+      });
+      expect(await hasPublicArtworks(WS, db)).toBe(false);
+      expect(calls.listing).toHaveLength(0);
+    });
+
+    it("carrito: la línea de una obra rechazada se quita", async () => {
+      const { db } = conEntrada(rechazada);
+      const catalogo = await loadArtworkCartCatalog(WS, ["a", "r"], db);
+      expect([...catalogo.keys()]).toEqual(["a"]);
+      const r = checkArtworkCartLines(catalogo, [{ kind: "artwork", artworkListingId: "r", printFormatId: "f1", qty: 1, name: "Rechazada" }]);
+      expect(r.lines).toEqual([]);
+      expect(r.problems).toEqual([{ key: expect.any(String), message: "Rechazada ya no está a la venta." }]);
+    });
   });
 });
