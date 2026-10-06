@@ -79,6 +79,19 @@ export default async function WorkspaceSettingsPage() {
         <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
       </Link>
 
+      <Link
+        href="/workspace/configuracion/concursos"
+        className="fo-card flex items-center justify-between gap-4 p-4 transition hover:border-[var(--fo-accent,#1d4ed8)]"
+      >
+        <span className="space-y-0.5">
+          <span className="block text-sm font-semibold">Vitrina de concursos</span>
+          <span className="block text-xs text-[var(--fo-muted)]">
+            Qué concursos de FotoRank y Clickatón ven tus socios en su portal.
+          </span>
+        </span>
+        <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
+      </Link>
+
       <div className="space-y-3">
         <h1 className="text-2xl font-semibold tracking-tight text-[var(--fo-text)]">
           Configuración del negocio
