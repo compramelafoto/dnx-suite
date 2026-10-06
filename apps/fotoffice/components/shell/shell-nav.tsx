@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import type { ComponentType } from "react";
 import { useShellNav } from "./shell-frame";
+import { MenuSearch, type MenuSearchSection } from "./menu-search";
 import { ICONOS } from "./nav-icons";
 import {
   claimedPrefixes,
@@ -69,6 +70,8 @@ type Item = {
   icon: ComponentType<{ className?: string }>;
   /** Cuándo se marca como actual. Por omisión, coincidencia exacta. */
   isActive: (path: string) => boolean;
+  /** Qué se hace ahí, en una línea. No se dibuja en el menú: el buscador busca dentro. */
+  description?: string;
 };
 
 function exact(href: string) {
@@ -94,6 +97,7 @@ function itemsDeModulo(
   return submodulesFor(moduleKey, access, vocabulary).map((sub: SubmoduleItem) => ({
     href: sub.href,
     label: sub.label,
+    description: sub.description,
     icon: ICONOS[sub.icon] ?? LayoutDashboard,
     isActive:
       sub.activeMatch === "exact"
@@ -216,6 +220,7 @@ export function ShellNav({
           {
             href: "/evaluaciones",
             label: "Evaluaciones",
+            description: "Las evaluaciones de las actividades de cada curso.",
             icon: ClipboardCheck,
             isActive: under("/evaluaciones"),
           },
@@ -229,6 +234,7 @@ export function ShellNav({
           {
             href: "/courses/settings",
             label: "Configuración",
+            description: "Moneda, texto de inscripción y comisión del módulo de cursos.",
             icon: Settings,
             isActive: under("/courses/settings"),
           },
@@ -248,12 +254,14 @@ export function ShellNav({
         {
           href: "/dashboard/service-leads/forms",
           label: "Formularios",
+          description: "Los formularios públicos para pedir presupuesto.",
           icon: FileText,
           isActive: under("/dashboard/service-leads/forms"),
         },
         {
           href: "/dashboard/service-leads",
           label: "Leads",
+          description: "Las consultas y pedidos de presupuesto que llegaron.",
           icon: Inbox,
           isActive: exact("/dashboard/service-leads"),
         },
@@ -269,13 +277,13 @@ export function ShellNav({
   // los dos encendidos. Sólo lo ven quienes pueden escribir en él (`website` MANAGE).
   const presencia: Item[] = ve(WEBSITE_MODULE_KEY)
     ? [
-        { href: "/website", label: "Sitio web", icon: Globe, isActive: isWebsiteNavActive },
+        { href: "/website", label: "Sitio web", description: "El sitio público de la institución: páginas, diseño y menú.", icon: Globe, isActive: isWebsiteNavActive },
         ...(gestiona(WEBSITE_MODULE_KEY)
-          ? [{ href: "/website/blog", label: "Blog", icon: Newspaper, isActive: isBlogNavActive }]
+          ? [{ href: "/website/blog", label: "Blog", description: "Los artículos y novedades del sitio.", icon: Newspaper, isActive: isBlogNavActive }]
           : []),
         // Conectar el dominio propio (ej. sfpr.com.ar) es un dato de la institución: dueño o admin.
         ...(canManageWorkspaceSettings
-          ? [{ href: "/website/dominio", label: "Dominio", icon: Link2, isActive: isDomainNavActive }]
+          ? [{ href: "/website/dominio", label: "Dominio", description: "Conectar el dominio propio del sitio.", icon: Link2, isActive: isDomainNavActive }]
           : []),
       ]
     : [];
@@ -285,24 +293,28 @@ export function ShellNav({
         {
           href: "/workspace/configuracion",
           label: "Datos de la institución",
+          description: "Nombre, logo, domicilio y datos de contacto de la institución.",
           icon: Settings,
           isActive: exact("/workspace/configuracion"),
         },
         {
           href: "/workspace/configuracion/comision",
           label: "Comisión directiva",
+          description: "Quién integra la comisión, con qué cargo y qué puede hacer cada uno.",
           icon: Users,
           isActive: under("/workspace/configuracion/comision"),
         },
         {
           href: "/workspace/configuracion/integraciones",
           label: "Integraciones",
+          description: "Conexiones con Google, WhatsApp y otros servicios.",
           icon: Plug,
           isActive: under("/workspace/configuracion/integraciones"),
         },
         {
           href: "/workspace/configuracion/cobros",
           label: "Cobros",
+          description: "Cómo cobra la institución y en qué cuenta entra la plata.",
           icon: Wallet2,
           isActive: under("/workspace/configuracion/cobros"),
         },
@@ -311,41 +323,65 @@ export function ShellNav({
 
   const plataforma: Item[] = platformAdmin
     ? [
-        { href: "/admin", label: "Administración", icon: Shield, isActive: exact("/admin") },
-        { href: "/admin/workspaces", label: "Workspaces", icon: Building2, isActive: under("/admin/workspaces") },
-        { href: "/admin/users", label: "Usuarios", icon: UserCog, isActive: under("/admin/users") },
-        { href: "/admin/owners", label: "Dueños", icon: Users, isActive: under("/admin/owners") },
+        { href: "/admin", label: "Administración", description: "El panel de la plataforma.", icon: Shield, isActive: exact("/admin") },
+        { href: "/admin/workspaces", label: "Workspaces", description: "Todas las instituciones de la plataforma.", icon: Building2, isActive: under("/admin/workspaces") },
+        { href: "/admin/users", label: "Usuarios", description: "Todas las cuentas de la plataforma.", icon: UserCog, isActive: under("/admin/users") },
+        { href: "/admin/owners", label: "Dueños", description: "Quién es dueño de cada institución.", icon: Users, isActive: under("/admin/owners") },
       ]
     : [];
 
+  // Una sola lista para el menú y para el buscador: el buscador no puede ofrecer una pantalla
+  // que el menú no dibuja, y una pantalla nueva aparece en los dos lados sin acordarse.
+  const secciones: { title: string | null; items: Item[] }[] = [
+    {
+      title: null,
+      items: [
+        // El tablero de la institución. `/dashboard` queda como pantalla de rescate para quien
+        // no tiene permiso en algún módulo, y se marca igual: también es "el inicio".
+        {
+          href: "/workspace",
+          label: "Inicio",
+          description: "El tablero de la institución: lo pendiente y lo último que pasó.",
+          icon: LayoutDashboard,
+          isActive: (p: string) => p === "/workspace" || p === "/dashboard",
+        },
+      ],
+    },
+    { title: vocabulary.Plural, items: socios },
+    { title: "Sorteos", items: sorteos },
+    { title: "Comisión", items: comision },
+    { title: "Comunicación", items: comunicacion },
+    { title: "Coberturas", items: coberturas },
+    { title: "Cursos", items: cursosItems },
+    { title: "Reservas", items: reservas },
+    { title: "Captación", items: captacion },
+    { title: "Presencia pública", items: presencia },
+    { title: "Institución", items: institucion },
+    { title: "Plataforma", items: plataforma },
+  ];
+
+  const buscables: MenuSearchSection[] = secciones.map((sec) => ({
+    title: sec.title ?? "Inicio",
+    items: sec.items.map(({ href, label, description, icon: Icon }) => ({
+      href,
+      label,
+      description,
+      icon: <Icon className="size-4" aria-hidden />,
+    })),
+  }));
+
   return (
     <nav className="flex flex-col gap-0.5" aria-label="Principal">
-      <Section
-        title={null}
-        path={path}
-        onNavigate={closeDrawer}
-        items={[
-          // El tablero de la institución. `/dashboard` queda como pantalla de rescate para quien
-          // no tiene permiso en algún módulo, y se marca igual: también es "el inicio".
-          {
-            href: "/workspace",
-            label: "Inicio",
-            icon: LayoutDashboard,
-            isActive: (p: string) => p === "/workspace" || p === "/dashboard",
-          },
-        ]}
-      />
-      <Section title={vocabulary.Plural} items={socios} path={path} onNavigate={closeDrawer} />
-      <Section title="Sorteos" items={sorteos} path={path} onNavigate={closeDrawer} />
-      <Section title="Comisión" items={comision} path={path} onNavigate={closeDrawer} />
-      <Section title="Comunicación" items={comunicacion} path={path} onNavigate={closeDrawer} />
-      <Section title="Coberturas" items={coberturas} path={path} onNavigate={closeDrawer} />
-      <Section title="Cursos" items={cursosItems} path={path} onNavigate={closeDrawer} />
-      <Section title="Reservas" items={reservas} path={path} onNavigate={closeDrawer} />
-      <Section title="Captación" items={captacion} path={path} onNavigate={closeDrawer} />
-      <Section title="Presencia pública" items={presencia} path={path} onNavigate={closeDrawer} />
-      <Section title="Institución" items={institucion} path={path} onNavigate={closeDrawer} />
-      <Section title="Plataforma" items={plataforma} path={path} onNavigate={closeDrawer} />
+      <MenuSearch sections={buscables} onNavigate={closeDrawer} />
+      {secciones.map((sec) => (
+        <Section
+          key={sec.title ?? "inicio"}
+          title={sec.title}
+          items={sec.items}
+          path={path}
+          onNavigate={closeDrawer}
+        />
+      ))}
     </nav>
   );
 }

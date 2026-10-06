@@ -20,6 +20,7 @@ import { Header } from "../Header";
 import { menuLinksFromSections, type ShellSection } from "./shell-nav";
 import { rolActivo, type MenuDeLaCuenta } from "./menuDeLaCuenta";
 import { RotuloSuperAdmin, SelectorDeRol } from "./SelectorDeRol";
+import { MenuSearch, type MenuSearchGrupo } from "./MenuSearch";
 
 /**
  * El armazón del panel, uno solo para toda la cuenta.
@@ -127,6 +128,16 @@ export function FotorankShell({
     [sections, rolesEfectivos],
   );
 
+  // El buscador mira todos los roles de la persona, no sólo el activo: ver `MenuSearch`.
+  // Pasa por el mismo filtro de permisos que la barra.
+  const gruposDelBuscador = useMemo<MenuSearchGrupo[]>(() => {
+    const filtrar = (secs: ShellSection[]) =>
+      filterSidebarByRoles(secs as SidebarSectionConfig[], rolesEfectivos) as ShellSection[];
+    return menu.tipo === "roles"
+      ? menu.roles.map((r) => ({ rol: r.etiqueta, sections: filtrar(r.sections) }))
+      : [{ sections: filtrar(menu.sections) }];
+  }, [menu, rolesEfectivos]);
+
   // El menú del encabezado se deriva de lo que la barra muestra de verdad: si un ítem está
   // escondido por rol, tampoco aparece en el menú a pantalla completa.
   const menuLinks = useMemo(
@@ -156,6 +167,8 @@ export function FotorankShell({
         sidebar={
           <div className="h-full min-h-0">
             <Sidebar>
+              {/* Con la barra minimizada no se ve, pero sigue montada: ⌘K abre igual. */}
+              <MenuSearch grupos={gruposDelBuscador} onNavigate={closeMobileSidebar} />
               {menu.tipo === "roles" ? (
                 <SelectorDeRol
                   roles={menu.roles}

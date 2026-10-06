@@ -88,6 +88,7 @@
     "@repo/partners": "workspace:*",
     "@repo/recommendations": "workspace:*",
     "@repo/notifications": "workspace:*",
+    "@repo/quick-search": "workspace:*",
     "@tiptap/core": "^2.11.5",
     "@tiptap/extension-link": "^2.11.5",
     "@tiptap/extension-placeholder": "^2.11.5",

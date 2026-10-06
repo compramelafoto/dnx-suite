@@ -7,6 +7,7 @@ import { portalBottomBar, type ResolvedPortalItem } from "@/lib/portal/menu";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
 import { PortalIcon } from "./portal-icon";
+import { MenuSearch } from "@/components/shell/menu-search";
 
 /**
  * La navegación del portal.
@@ -46,6 +47,19 @@ export function PortalSidebar({
   return (
     <aside className="sticky top-24 hidden h-[calc(100vh-6rem)] w-60 shrink-0 flex-col overflow-y-auto py-5 md:flex">
       {top}
+      <MenuSearch
+        sections={[
+          {
+            title: "Portal",
+            items: disponibles.map((i) => ({
+              href: i.href,
+              label: aplicarVocabulario(i.label, vocabulary),
+              description: aplicarVocabulario(i.description, vocabulary),
+              icon: <PortalIcon name={i.icon} className="h-4 w-4" />,
+            })),
+          },
+        ]}
+      />
       <nav aria-label="Secciones" className="space-y-0.5">
         {disponibles.map((i) => {
           const activa = esActiva(pathname, i.href);
