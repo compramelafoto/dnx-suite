@@ -42,7 +42,7 @@ function period(over: Partial<Parameters<typeof groupPendingIntegrants>[0][numbe
   };
 }
 function charge(over: Partial<Parameters<typeof groupPendingIntegrants>[1][number]> = {}) {
-  return { memberId: "m1", balanceMinor: 1_200_000, period: "2026-09", dueDate: AYER, ...over };
+  return { memberId: "m1", balanceMinor: 1_200_000, period: "2026-09", concept: "MENSUAL", dueDate: AYER, ...over };
 }
 
 describe("groupPendingIntegrants", () => {
@@ -90,6 +90,34 @@ describe("groupPendingIntegrants", () => {
         charge({ balanceMinor: 0 }),
         charge({ memberId: "otra" }),
       ],
+      NOW,
+    );
+    expect(out).toEqual([]);
+  });
+
+  it("una cuota de INGRESO impaga cuenta aunque todavía no haya vencido", () => {
+    // Caso real: reactivada hoy con tres cargos de ingreso que vencen 10/10, 10/11 y 10/12.
+    const [p] = groupPendingIntegrants(
+      [period({ member: member({ userId: 7 }) })],
+      [
+        charge({ concept: "INGRESO", period: "2026-10", dueDate: new Date("2026-10-10T12:00:00Z"), balanceMinor: 1_000_000 }),
+        charge({ concept: "INGRESO", period: "2026-11", dueDate: new Date("2026-11-10T12:00:00Z"), balanceMinor: 1_000_000 }),
+        charge({ concept: "INGRESO", period: "2026-12", dueDate: new Date("2026-12-10T12:00:00Z"), balanceMinor: 1_000_000 }),
+        // Mensual vencida: suma. Mensual por vencer: no.
+        charge({ period: "2026-09", balanceMinor: 500_000 }),
+        charge({ period: "2026-10", dueDate: MANANA, balanceMinor: 500_000 }),
+        // Ingreso saldado: no.
+        charge({ concept: "INGRESO", period: "2026-08", balanceMinor: 0 }),
+      ],
+      NOW,
+    );
+    expect(p).toMatchObject({ reason: "DEUDA", pendingCount: 4, pendingTotalMinor: 3_500_000 });
+  });
+
+  it("el saldo de APERTURA no cuenta ni siquiera como ingreso", () => {
+    const out = groupPendingIntegrants(
+      [period({ member: member({ userId: 7 }) })],
+      [charge({ concept: "INGRESO", period: "APERTURA", dueDate: MANANA })],
       NOW,
     );
     expect(out).toEqual([]);
@@ -189,7 +217,7 @@ describe("listPendingIntegrants", () => {
     ]);
     H.db.member.findMany.mockResolvedValue([MEMBER_ROW]);
     H.db.membershipCharge.findMany.mockResolvedValue([
-      { memberId: "m1", balanceArs: { toString: () => "12000.00" }, period: "2026-09", dueDate: AYER },
+      { memberId: "m1", balanceArs: { toString: () => "12000.00" }, period: "2026-09", concept: "MENSUAL", dueDate: AYER },
     ]);
 
     const out = await listPendingIntegrants("ws-1", NOW);
@@ -200,6 +228,9 @@ describe("listPendingIntegrants", () => {
     expect(H.db.membershipCharge.findMany.mock.calls[0][0].where).toMatchObject({
       workspaceId: "ws-1",
       memberId: { in: ["m1"] },
+      balanceArs: { gt: 0 },
+      period: { not: "APERTURA" },
+      OR: [{ concept: "INGRESO" }, { dueDate: { lt: NOW } }],
     });
     expect(out).toEqual([
       expect.objectContaining({ memberId: "m1", reason: "DEUDA", roleNames: ["Vocal"], pendingTotalMinor: 1_200_000 }),

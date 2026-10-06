@@ -13,9 +13,10 @@ import { formatPesos } from "./urgent-notice-email";
  * empieza el mes que viene todavía no le corre prisa. Sólo cuentan las personas con ficha de
  * socio: quien está en la comisión sin ser socio entra con su cuenta y no tiene cuotas.
  *
- * "Deuda" es la misma que deja a alguien fuera de un sorteo (`raffles/eligibility.ts`): saldo
- * mayor a cero, ya vencido y sin el arrastre del sistema anterior (`APERTURA`), que para parte
- * del padrón no reconcilia. Mandar un correo URGENTE por una cuota que todavía no venció, o por
+ * "Deuda" parte del criterio de los sorteos (`raffles/eligibility.ts`): saldo mayor a cero, ya
+ * vencido y sin el arrastre del sistema anterior (`APERTURA`), que para parte del padrón no
+ * reconcilia. Con una excepción: el INGRESO (el alta) impago cuenta aunque no haya vencido; ver
+ * `countsAsDebt`. Mandar un correo URGENTE por una cuota mensual que todavía no venció, o por
  * un saldo migrado que puede estar mal, sería reclamarle a alguien algo que no debe.
  */
 
@@ -42,7 +43,25 @@ export type PendingPeriod = {
   member: PendingMember | null;
 };
 
-export type PendingCharge = { memberId: string; balanceMinor: number; period: string; dueDate: Date };
+export type PendingCharge = {
+  memberId: string;
+  balanceMinor: number;
+  period: string;
+  /** `MembershipChargeConcept` como texto: INGRESO | MENSUAL | EXTRAORDINARIA | OTRO. */
+  concept: string;
+  dueDate: Date;
+};
+
+/**
+ * ¿Esta cuota cuenta como deuda para el aviso? Nunca el arrastre de APERTURA. Un ingreso (el alta)
+ * impago cuenta siempre, aunque no haya vencido: es justo el caso que hay que perseguir. El resto,
+ * sólo si ya venció.
+ */
+export function countsAsDebt(c: PendingCharge, now: Date): boolean {
+  if (c.balanceMinor <= 0 || c.period === APERTURA_PERIOD) return false;
+  if (c.concept === "INGRESO") return true;
+  return c.dueDate.getTime() < now.getTime();
+}
 
 export type PendingIntegrant = {
   memberId: string;
@@ -94,7 +113,7 @@ export function groupPendingIntegrants(
 
   const debts = new Map<string, { count: number; totalMinor: number }>();
   for (const c of charges) {
-    if (c.balanceMinor <= 0 || c.period === APERTURA_PERIOD || c.dueDate.getTime() >= now.getTime()) continue;
+    if (!countsAsDebt(c, now)) continue;
     const d = debts.get(c.memberId) ?? { count: 0, totalMinor: 0 };
     d.count += 1;
     d.totalMinor += c.balanceMinor;
@@ -247,9 +266,9 @@ export async function listPendingIntegrants(workspaceId: string, now: Date): Pro
       memberId: { in: memberIds },
       balanceArs: { gt: 0 },
       period: { not: APERTURA_PERIOD },
-      dueDate: { lt: now },
+      OR: [{ concept: "INGRESO" }, { dueDate: { lt: now } }],
     },
-    select: { memberId: true, balanceArs: true, period: true, dueDate: true },
+    select: { memberId: true, balanceArs: true, period: true, concept: true, dueDate: true },
   });
 
   return groupPendingIntegrants(
@@ -258,6 +277,7 @@ export async function listPendingIntegrants(workspaceId: string, now: Date): Pro
       memberId: c.memberId,
       balanceMinor: decimalArsToMinor(c.balanceArs),
       period: c.period,
+      concept: c.concept,
       dueDate: c.dueDate,
     })),
     now,
