@@ -140,7 +140,7 @@ export type CreateGiftRegistrationDeps = {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const GIFT_MESSAGE_MAX = 500;
 const DEFAULT_HOLD_MINUTES = 20;
-const TERMS_VERSION = "CLICKATON_TERMS_2026_09_19_v2";
+const TERMS_VERSION = "CLICKATON_TERMS_2026_10_06_v3";
 
 function requireName(value: string | undefined, label: string): string {
   const trimmed = (value ?? "").trim();

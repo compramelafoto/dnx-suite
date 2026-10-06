@@ -14,7 +14,6 @@ import {
   ARGENTINA_2026_PUBLIC_PROVINCE,
   ARGENTINA_2026_PUBLIC_VENUE_NAME,
 } from "@/config/editions/argentina-2026-public-facts";
-import { ARGENTINA_2026_SHIRT_BENEFIT_COPY } from "@/lib/catalog/domain/first-n-benefit";
 
 const eventDay = "sábado 19 de septiembre de 2026";
 const captureWindow = "16:00 y las 20:00";
@@ -45,7 +44,8 @@ export const registrationExperienceFaq = {
     },
     {
       question: "¿Incluye remera de regalo?",
-      answer: ARGENTINA_2026_SHIRT_BENEFIT_COPY,
+      answer:
+        "Sólo si la edición lo indica en su ficha y en el detalle de tu inscripción. La edición de Navidad no incluye remera.",
     },
     {
       question: "¿Qué pasa si llueve o hay mal tiempo?",

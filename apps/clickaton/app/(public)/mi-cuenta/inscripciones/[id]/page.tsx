@@ -178,7 +178,8 @@ export default async function RegistrationCredentialPage({ params }: Props) {
       })
     : null;
 
-  const shirt = registration.items.find((i) => i.isIncluded);
+  // Una remera cancelada (Navidad 2026 la dejó de entregar) ya no es parte del kit.
+  const shirt = registration.items.find((i) => i.isIncluded && i.fulfillmentStatus !== "CANCELLED");
   const eventDate = fechaHoraLargaAr(
     registration.edition.startAt,
     registration.edition.timezone,
