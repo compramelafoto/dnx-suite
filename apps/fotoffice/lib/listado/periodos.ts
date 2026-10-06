@@ -88,6 +88,19 @@ export function resolverPeriodo(valor: string, hoyYmd: string): RangoFechas | nu
   }
 }
 
+/**
+ * El mismo período, pero para una columna que guarda fechas de calendario a medianoche UTC
+ * (la fecha del evento de una consulta: `<input type="date">` → `new Date("aaaa-mm-dd")`).
+ * `resolverPeriodo` da días de Buenos Aires (03:00 UTC a 02:59 UTC del día siguiente), y con
+ * eso el 20/12 a medianoche UTC caía en el día 19 y quedaba fuera del 20. Acá cada día va de
+ * 00:00 a 23:59:59.999 UTC: los mismos días de calendario que eligió la persona.
+ */
+export function aDiasDeCalendario(r: RangoFechas): RangoFechas {
+  const desde = hoyEnBuenosAires(r.desde);
+  const hasta = hoyEnBuenosAires(r.hasta);
+  return { desde: new Date(`${desde}T00:00:00.000Z`), hasta: new Date(`${hasta}T23:59:59.999Z`) };
+}
+
 function dma(dia: string) {
   const [y, m, d] = dia.split("-");
   return `${d}/${m}/${y}`;

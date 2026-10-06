@@ -1,9 +1,10 @@
 import "server-only";
 import Link from "next/link";
 import { prisma, type Prisma } from "@repo/db";
-import { claseDeColorEtiqueta } from "@/lib/ficha/formato";
+import { claseDeColorEtiqueta, fechaDeEvento } from "@/lib/ficha/formato";
 import { ETIQUETA_SALIDA } from "@/lib/circuitos/constantes";
 import { estaVencida } from "@/lib/circuitos/calculos";
+import { aDiasDeCalendario } from "@/lib/listado/periodos";
 import type { ConsultaResuelta, ContextoListado, DefinicionListado, Opcion } from "@/lib/listado/tipos";
 import { avisoDeCampos, camposParaListado, conCampos, listasDeCampos } from "@/lib/campos/listado";
 import { presupuestoDeIds, TOPE_IDS_POR_CONSULTA, type PresupuestoDeIds } from "@/lib/listado/presupuesto";
@@ -129,7 +130,11 @@ export function whereCaptacion(
     where.OR = or;
   }
   const evento = c.periodos.evento;
-  if (evento) where.eventDate = { gte: evento.desde, lte: evento.hasta };
+  // La fecha del evento es de calendario (medianoche UTC): se filtra por día de calendario.
+  if (evento) {
+    const dias = aDiasDeCalendario(evento);
+    where.eventDate = { gte: dias.desde, lte: dias.hasta };
+  }
   const alta = c.periodos.alta;
   if (alta) where.createdAt = { gte: alta.desde, lte: alta.hasta };
   // Recorridos y filtros de campos, ya intersecados.
@@ -334,7 +339,7 @@ export const listadoCaptacion: DefinicionListado<FilaCaptacion> = {
       ),
     },
     { clave: "tipo", titulo: "Tipo de evento", celda: (f) => etiquetaTipo(f.eventType) },
-    { clave: "evento", titulo: "Fecha del evento", orden: "evento", celda: (f) => (f.eventDate ? fechaAR.format(f.eventDate) : "—") },
+    { clave: "evento", titulo: "Fecha del evento", orden: "evento", celda: (f) => (f.eventDate ? fechaDeEvento(f.eventDate) : "—") },
     { clave: "etapa", titulo: "Etapa", celda: celdaEtapa },
     {
       clave: "dias",
@@ -430,7 +435,7 @@ export const listadoCaptacion: DefinicionListado<FilaCaptacion> = {
       { titulo: "Correo", tipo: "texto", valor: (f) => f.email },
       { titulo: "Teléfono", tipo: "texto", valor: (f) => f.phone },
       { titulo: "Tipo de evento", tipo: "texto", valor: (f) => etiquetaTipo(f.eventType) },
-      { titulo: "Fecha del evento", tipo: "fecha", valor: (f) => f.eventDate },
+      { titulo: "Fecha del evento", tipo: "texto", valor: (f) => (f.eventDate ? fechaDeEvento(f.eventDate) : null) },
       { titulo: "Circuito", tipo: "texto", valor: (f) => f.recorrido?.circuito ?? null },
       { titulo: "Etapa", tipo: "texto", valor: (f) => f.recorrido?.etapa?.nombre ?? null },
       { titulo: "Resultado", tipo: "texto", valor: (f) => textoResultado(f.recorrido) },

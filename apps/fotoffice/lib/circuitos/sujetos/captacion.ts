@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@repo/db";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { SERVICE_LEAD_EVENT_TYPE_LABELS } from "@/lib/service-leads/form-definitions";
-import { fechaBA } from "@/lib/ficha/formato";
+import { fechaDeEvento } from "@/lib/ficha/formato";
 import { ESTADOS_CAPTACION } from "../constantes";
 import type { Adaptador, NombreDeSujeto } from "./tipos";
 
@@ -40,7 +40,7 @@ export const adaptadorCaptacion: Adaptador = {
     });
     for (const f of filas) {
       const tipo = (SERVICE_LEAD_EVENT_TYPE_LABELS as Record<string, string>)[f.eventType] ?? f.eventType;
-      const partes = [tipo, f.eventDate ? fechaBA(f.eventDate) : ""].filter((p) => p.length > 0);
+      const partes = [tipo, f.eventDate ? fechaDeEvento(f.eventDate) : ""].filter((p) => p.length > 0);
       mapa.set(f.id, {
         titulo: f.name,
         ...(partes.length > 0 ? { subtitulo: partes.join(" · ") } : {}),

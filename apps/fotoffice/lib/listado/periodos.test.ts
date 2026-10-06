@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { etiquetaPeriodo, hoyEnBuenosAires, resolverPeriodo } from "./periodos";
+import { aDiasDeCalendario, etiquetaPeriodo, hoyEnBuenosAires, resolverPeriodo } from "./periodos";
 
 const iso = (r: { desde: Date; hasta: Date } | null) => r && [r.desde.toISOString(), r.hasta.toISOString()];
 
@@ -41,5 +41,22 @@ describe("etiquetaPeriodo", () => {
   it("atajo y rango", () => {
     expect(etiquetaPeriodo("mes-pasado")).toBe("Mes pasado");
     expect(etiquetaPeriodo("2026-02-01..2026-02-28")).toBe("01/02/2026 al 28/02/2026");
+  });
+});
+
+describe("aDiasDeCalendario (fechas guardadas a medianoche UTC)", () => {
+  it("un día de Buenos Aires pasa al mismo día en UTC", () => {
+    const r = aDiasDeCalendario(resolverPeriodo("2026-12-20..2026-12-20", "2026-09-30")!);
+    expect(r).toEqual({ desde: new Date("2026-12-20T00:00:00.000Z"), hasta: new Date("2026-12-20T23:59:59.999Z") });
+    const dentro = (d: Date) => d >= r.desde && d <= r.hasta;
+    expect(dentro(new Date("2026-12-20"))).toBe(true);
+    expect(dentro(new Date("2026-12-19"))).toBe(false);
+    expect(dentro(new Date("2026-12-21"))).toBe(false);
+  });
+  it("los atajos conservan sus días: este mes es del 1 al 30 de septiembre", () => {
+    expect(aDiasDeCalendario(resolverPeriodo("este-mes", "2026-09-30")!)).toEqual({
+      desde: new Date("2026-09-01T00:00:00.000Z"),
+      hasta: new Date("2026-09-30T23:59:59.999Z"),
+    });
   });
 });

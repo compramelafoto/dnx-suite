@@ -48,6 +48,13 @@ describe("adaptadorCaptacion", () => {
     expect((await adaptadorCaptacion.nombre("ws-1", [])).size).toBe(0);
   });
 
+  it("la tarjeta del tablero muestra la fecha del formulario público sin correrla un día", async () => {
+    // El formulario guarda `new Date("2026-12-20")` = medianoche UTC (19/12 21 h en Buenos Aires).
+    B.agregar("serviceSalesLead", { id: "l4", workspaceId: "ws-1", name: "Sofía", eventType: "BODA", eventDate: new Date("2026-12-20"), status: "NEW" });
+    const m = await adaptadorCaptacion.nombre("ws-1", ["l4"]);
+    expect(m.get("l4")?.subtitulo).toBe("Boda · 20/12/2026");
+  });
+
   it("alCambiarEtapa: salida manda, etapa con estado lo pone, etapa sin estado no toca", async () => {
     const cambiar = adaptadorCaptacion.alCambiarEtapa!;
     await cambiar(tx, "ws-1", "l1", { leadStatus: "CONTACTED" }, null);

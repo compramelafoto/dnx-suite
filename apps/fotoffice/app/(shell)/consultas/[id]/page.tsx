@@ -11,7 +11,7 @@ import { puede } from "@/lib/access/policy";
 import { cambiosDeConsulta } from "@/lib/campos/ficha";
 import { cargarFicha } from "@/lib/circuitos/ficha";
 import { claveDeRecorrido } from "@/lib/circuitos/ficha-vista";
-import { fechaBA, fechaHoraBA } from "@/lib/ficha/formato";
+import { fechaDeEvento, fechaHoraBA } from "@/lib/ficha/formato";
 import { numeroDe } from "@/lib/numeracion/asignar";
 import { mensajesDeConsulta } from "@/lib/plantillas/registro";
 import { TIPO_CONSULTA, tituloDeConsulta } from "@/lib/service-leads/numero";
@@ -72,7 +72,7 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
       ) : null,
     },
     { termino: "Evento", valor: evento },
-    { termino: "Fecha del evento", valor: consulta.fechaEvento ? fechaBA(consulta.fechaEvento) : null },
+    { termino: "Fecha del evento", valor: consulta.fechaEvento ? fechaDeEvento(consulta.fechaEvento) : null },
     { termino: "Lugar", valor: consulta.lugar },
     { termino: "Formulario de origen", valor: consulta.formulario },
     { termino: "Alta", valor: fechaHoraBA(consulta.alta) },

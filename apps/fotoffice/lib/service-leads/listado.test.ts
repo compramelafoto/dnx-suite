@@ -56,11 +56,22 @@ describe("whereCaptacion", () => {
     expect(w.OR).toContainEqual({ eventType: { in: ["BODA"] } });
   });
   it("períodos de evento y alta", () => {
-    const evento = { desde: new Date("2026-10-01T03:00:00Z"), hasta: new Date("2026-10-31T02:59:59.999Z") };
-    const alta = { desde: new Date("2026-09-01T03:00:00Z"), hasta: new Date("2026-09-30T02:59:59.999Z") };
+    // Octubre en días de Buenos Aires, como lo da resolverPeriodo.
+    const evento = { desde: new Date("2026-10-01T03:00:00Z"), hasta: new Date("2026-11-01T02:59:59.999Z") };
+    const alta = { desde: new Date("2026-09-01T03:00:00Z"), hasta: new Date("2026-10-01T02:59:59.999Z") };
     const w = whereCaptacion("w1", { ...base, periodos: { evento, alta } }, null);
-    expect(w.eventDate).toEqual({ gte: evento.desde, lte: evento.hasta });
+    // La fecha del evento es de calendario (medianoche UTC): los mismos días, en UTC.
+    expect(w.eventDate).toEqual({ gte: new Date("2026-10-01T00:00:00.000Z"), lte: new Date("2026-10-31T23:59:59.999Z") });
+    // El alta es un instante: queda en hora de Buenos Aires.
     expect(w.createdAt).toEqual({ gte: alta.desde, lte: alta.hasta });
+  });
+  it("un evento del 20/12 guardado a medianoche UTC entra en el filtro del 20/12 y no en el del 19/12", () => {
+    const guardado = new Date("2026-12-20"); // así lo guarda el formulario público
+    const dentro = (r: { gte?: unknown; lte?: unknown }) => guardado >= (r.gte as Date) && guardado <= (r.lte as Date);
+    const del20 = whereCaptacion("w1", { ...base, periodos: { evento: { desde: new Date("2026-12-20T03:00:00Z"), hasta: new Date("2026-12-21T02:59:59.999Z") } } }, null);
+    const del19 = whereCaptacion("w1", { ...base, periodos: { evento: { desde: new Date("2026-12-19T03:00:00Z"), hasta: new Date("2026-12-20T02:59:59.999Z") } } }, null);
+    expect(dentro(del20.eventDate as { gte: Date; lte: Date })).toBe(true);
+    expect(dentro(del19.eventDate as { gte: Date; lte: Date })).toBe(false);
   });
   it("los ids de la subconsulta acotan la consulta", () => {
     expect(whereCaptacion("w1", base, ["a", "b"]).id).toEqual({ in: ["a", "b"] });
@@ -230,6 +241,21 @@ describe("rutas y guarda (prueba de fuente)", () => {
     expect(nav).toContain('label: "Bandeja"');
     expect(nav).not.toContain('label: "Consultas"');
     expect(nav).not.toContain('title: "Captación"');
+  });
+});
+
+describe("fecha del evento en la lista y en la exportación", () => {
+  // El formulario público guarda `new Date("2026-12-20")`: medianoche UTC, que en Buenos Aires
+  // es el 19/12 a las 21. Se tiene que ver 20/12.
+  const fila = { id: "a", name: "Ana", email: null, phone: null, eventType: "BODA", eventDate: new Date("2026-12-20"), createdAt: ahora } as unknown as Parameters<typeof listadoCaptacion.exportar.columnas[number]["valor"]>[0];
+  it("la celda muestra el día elegido, no el anterior", () => {
+    const col = listadoCaptacion.columnas.find((c) => c.clave === "evento")!;
+    expect(col.celda(fila)).toBe("20/12/2026");
+  });
+  it("la exportación también", () => {
+    const col = listadoCaptacion.exportar.columnas.find((c) => c.titulo === "Fecha del evento")!;
+    expect(col.valor(fila)).toBe("20/12/2026");
+    expect(col.valor({ ...fila, eventDate: null } as typeof fila)).toBeNull();
   });
 });
 
