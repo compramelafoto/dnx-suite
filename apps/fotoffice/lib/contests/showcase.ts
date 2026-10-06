@@ -55,9 +55,20 @@ export function fotorankPhase(status: string, closesAt: Date | null, now: Date):
   }
 }
 
-/** Estado de inscripción de Clickatón → fase. */
-export function clickatonPhase(registrationStatus: string, status: string): ShowcasePhase | null {
+/**
+ * Estado de inscripción de Clickatón → fase.
+ *
+ * Una maratón dura un día: si ya pasó hace más de dos, no se muestra (no queda nada que hacer
+ * ahí y "en curso" sería mentira). Sus resultados viven en Clickatón.
+ */
+export function clickatonPhase(
+  registrationStatus: string,
+  status: string,
+  startsAt: Date | null = null,
+  now: Date = new Date(),
+): ShowcasePhase | null {
   if (status === "cancelled" || status === "archived") return null;
+  if (startsAt && startsAt.getTime() < now.getTime() - 2 * 24 * 60 * 60 * 1000) return null;
   if (registrationStatus === "open" || registrationStatus === "last_places") return "open";
   if (registrationStatus === "coming_soon" || status === "announced") return "upcoming";
   return "in_progress";
