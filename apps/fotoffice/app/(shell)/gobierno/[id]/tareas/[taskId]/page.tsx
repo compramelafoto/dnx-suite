@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/page-header";
 import { Flash, MemberSelect } from "@/components/governance/member-select";
 import { ProjectStatusBadge, TaskStatusBadge } from "@/components/governance/badges";
 import { TaskProgressForm } from "@/components/governance/task-progress-form";
-import { canWorkOnTask, requireGovernanceViewer } from "@/lib/governance/access";
+import { canEditProject, canWorkOnTask, requireGovernanceViewer } from "@/lib/governance/access";
 import { getTask, listMemberOptions } from "@/lib/governance/repository";
 import { allowedTaskStatuses, canEditStructure } from "@/lib/governance/lifecycle";
 import { isTaskOverdue } from "@/lib/governance/urgency";
@@ -31,6 +31,8 @@ export default async function TareaPage({
 
   const puedeTrabajar = canWorkOnTask(ctx, t);
   const editable = canManage && canEditStructure(t.project.status);
+  // Editar y reasignar la tarea es de todo el que gestiona; quitarla, de quien edita el proyecto.
+  const puedeQuitar = editable && canEditProject(ctx, t.project);
   const estados = puedeTrabajar ? allowedTaskStatuses(t.project.status).filter((s) => s !== t.status) : [];
   const socios = editable ? await listMemberOptions(workspace.id) : { commission: [], others: [] };
   const vencida = isTaskOverdue(t, new Date());
@@ -195,7 +197,7 @@ export default async function TareaPage({
               </button>
             </div>
           </form>
-          {t.updates.length === 0 && t.status !== "DONE" ? (
+          {puedeQuitar && t.updates.length === 0 && t.status !== "DONE" ? (
             <form action={removeTaskAction} className="mt-6 border-t border-[var(--fo-border-muted)] pt-4">
               <input type="hidden" name="projectId" value={t.project.id} />
               <input type="hidden" name="taskId" value={t.id} />

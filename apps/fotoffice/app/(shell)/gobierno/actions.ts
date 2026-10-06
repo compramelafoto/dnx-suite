@@ -6,8 +6,10 @@ import { prisma, type Prisma } from "@repo/db";
 import {
   actorLabel,
   canWorkOnTask,
+  requireGovernanceCoordinator,
   requireGovernanceManager,
   requireGovernanceViewer,
+  requireProjectEditor,
 } from "@/lib/governance/access";
 import { recordProjectEvent } from "@/lib/governance/events";
 import {
@@ -35,8 +37,11 @@ import { formatMinorArs, minorToDecimalString } from "@/lib/membership/money";
  * Las acciones del módulo de proyectos de la comisión.
  *
  * Todas empiezan por una guarda de `lib/governance/access.ts`, y ninguna decide si algo es válido:
- * eso lo resuelven los módulos puros (`forms.ts`, `lifecycle.ts`). Cada cambio deja su evento en
- * el historial dentro de la misma transacción.
+ * eso lo resuelven los módulos puros (`forms.ts`, `lifecycle.ts`). Las que editan UN proyecto
+ * (datos, estado, etapas, quitar tareas, visibilidad de archivos) usan `requireProjectEditor`:
+ * su responsable, quien lo creó o quien coordina. Los tipos, `requireGovernanceCoordinator`.
+ * Crear proyectos, agregar y repartir tareas, anotar y subir archivos sigue siendo de todo el que
+ * gestiona. Cada cambio deja su evento en el historial dentro de la misma transacción.
  */
 
 const LISTA = "/gobierno";
@@ -152,10 +157,9 @@ const CAMPOS: Record<string, string> = {
 };
 
 export async function updateProjectAction(fd: FormData): Promise<void> {
-  const { workspace, user } = await requireGovernanceManager();
   const projectId = campo(fd, "projectId");
-  const actual = await prisma.govProject.findFirst({ where: { id: projectId, workspaceId: workspace.id } });
-  if (!actual) conError(LISTA, "Ese proyecto no existe.");
+  // La guarda ya trajo el proyecto (dentro del workspace) con los campos que se comparan acá.
+  const { workspace, user, project: actual } = await requireProjectEditor(projectId);
   const parsed = parseProjectForm(fd);
   if (!parsed.ok) conError(detalle(projectId), parsed.error);
   const v = parsed.values;
@@ -184,10 +188,8 @@ export async function updateProjectAction(fd: FormData): Promise<void> {
 }
 
 export async function changeProjectStatusAction(fd: FormData): Promise<void> {
-  const { workspace, user } = await requireGovernanceManager();
   const projectId = campo(fd, "projectId");
-  const proyecto = await proyectoDe(workspace.id, projectId);
-  if (!proyecto) conError(LISTA, "Ese proyecto no existe.");
+  const { user, project: proyecto } = await requireProjectEditor(projectId);
   const parsed = parseStatusChange(fd);
   if (!parsed.ok) conError(detalle(projectId), parsed.error);
   const v = parsed.values;
@@ -270,6 +272,15 @@ export async function addProjectNoteAction(fd: FormData): Promise<void> {
 
 // ─── Etapas ──────────────────────────────────────────────────────────────────
 
+/** Las etapas son del proyecto: las arma quien lo edita, y sólo mientras la estructura siga abierta. */
+async function editorDeEtapas(projectId: string) {
+  const ctx = await requireProjectEditor(projectId);
+  if (!canEditStructure(ctx.project.status)) {
+    conError(detalle(projectId), "En este estado ya no se cambian etapas ni tareas.");
+  }
+  return ctx;
+}
+
 async function proyectoEditable(workspaceId: string, projectId: string) {
   const proyecto = await proyectoDe(workspaceId, projectId);
   if (!proyecto) conError(LISTA, "Ese proyecto no existe.");
@@ -280,9 +291,8 @@ async function proyectoEditable(workspaceId: string, projectId: string) {
 }
 
 export async function addStageAction(fd: FormData): Promise<void> {
-  const { workspace, user } = await requireGovernanceManager();
   const projectId = campo(fd, "projectId");
-  await proyectoEditable(workspace.id, projectId);
+  const { user } = await editorDeEtapas(projectId);
   const parsed = parseStageTitle(fd);
   if (!parsed.ok) conError(detalle(projectId), parsed.error);
   const ultima = await prisma.govProjectStage.aggregate({ where: { projectId }, _max: { order: true } });
@@ -310,9 +320,8 @@ async function etapaDe(projectId: string, stageId: string) {
 }
 
 export async function renameStageAction(fd: FormData): Promise<void> {
-  const { workspace, user } = await requireGovernanceManager();
   const projectId = campo(fd, "projectId");
-  await proyectoEditable(workspace.id, projectId);
+  const { user } = await editorDeEtapas(projectId);
   const etapa = await etapaDe(projectId, campo(fd, "stageId"));
   if (!etapa) conError(detalle(projectId), "Esa etapa no existe.");
   const parsed = parseStageTitle(fd);
@@ -334,9 +343,8 @@ export async function renameStageAction(fd: FormData): Promise<void> {
 
 /** Subir o bajar una etapa. Se intercambia el orden con la vecina. */
 export async function moveStageAction(fd: FormData): Promise<void> {
-  const { workspace } = await requireGovernanceManager();
   const projectId = campo(fd, "projectId");
-  await proyectoEditable(workspace.id, projectId);
+  await editorDeEtapas(projectId);
   const direccion = campo(fd, "direction") === "up" ? -1 : 1;
   const etapas = await prisma.govProjectStage.findMany({
     where: { projectId },
@@ -355,9 +363,8 @@ export async function moveStageAction(fd: FormData): Promise<void> {
 
 /** Sólo una etapa vacía: lo que tiene tareas ya es parte de la historia del proyecto. */
 export async function removeStageAction(fd: FormData): Promise<void> {
-  const { workspace, user } = await requireGovernanceManager();
   const projectId = campo(fd, "projectId");
-  await proyectoEditable(workspace.id, projectId);
+  const { user } = await editorDeEtapas(projectId);
   const etapa = await etapaDe(projectId, campo(fd, "stageId"));
   if (!etapa) conError(detalle(projectId), "Esa etapa no existe.");
   if (etapa._count.tasks > 0) conError(detalle(projectId), "Sólo se quita una etapa sin tareas.");
@@ -532,8 +539,8 @@ export async function setTaskStatusAction(fd: FormData): Promise<void> {
 
 /** Sólo una tarea sin avances: la que ya tiene historia se marca "No se hizo", no se borra. */
 export async function removeTaskAction(fd: FormData): Promise<void> {
-  const { workspace, user } = await requireGovernanceManager();
   const projectId = campo(fd, "projectId");
+  const { workspace, user } = await requireProjectEditor(projectId);
   const actual = await tareaDe(workspace.id, projectId, campo(fd, "taskId"));
   if (!actual) conError(detalle(projectId), "Esa tarea no existe.");
   if (!canEditStructure(actual.project.status)) conError(detalle(projectId), "En este estado ya no se quitan tareas.");
@@ -675,8 +682,8 @@ export async function addTaskProgressAction(input: {
 }
 
 export async function setFileVisibilityAction(fd: FormData): Promise<void> {
-  const { workspace, user } = await requireGovernanceManager();
   const projectId = campo(fd, "projectId");
+  const { workspace, user } = await requireProjectEditor(projectId);
   const destino = volverA(fd, detalle(projectId));
   const archivo = await prisma.govAttachment.findFirst({
     where: { id: campo(fd, "attachmentId"), projectId, workspaceId: workspace.id },
@@ -705,7 +712,7 @@ export async function setFileVisibilityAction(fd: FormData): Promise<void> {
 const TIPOS = `${LISTA}/tipos`;
 
 export async function saveProjectTypeAction(fd: FormData): Promise<void> {
-  const { workspace } = await requireGovernanceManager();
+  const { workspace } = await requireGovernanceCoordinator();
   const typeId = campo(fd, "typeId") || null;
   const destino = typeId ? `${TIPOS}/${typeId}` : TIPOS;
   const name = campo(fd, "name");
@@ -749,7 +756,7 @@ export async function saveProjectTypeAction(fd: FormData): Promise<void> {
 }
 
 export async function archiveProjectTypeAction(fd: FormData): Promise<void> {
-  const { workspace } = await requireGovernanceManager();
+  const { workspace } = await requireGovernanceCoordinator();
   const typeId = campo(fd, "typeId");
   const archivar = campo(fd, "archive") === "1";
   const r = await prisma.govProjectType.updateMany({

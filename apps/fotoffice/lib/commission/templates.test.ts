@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
-import { isKnownAction } from "@/lib/permissions/actions";
+import { GOVERNANCE_COORDINATE_ACTION, isKnownAction } from "@/lib/permissions/actions";
 import { CASH_PROJECT_MONEY_ACTION, OFFICE_TEMPLATES, ROLE_TEMPLATES } from "./templates";
 
 const keys = new Set(MODULE_REGISTRY.map((m) => m.key));
@@ -25,6 +25,14 @@ describe("plantillas de roles", () => {
     expect(nivel("president", "governance")).toBe("MANAGE");
     expect(nivel("secretary", "governance")).toBe("MANAGE");
     expect(nivel("auditor", "governance")).toBe("VIEW");
+  });
+  it("Presidencia y Secretaría además coordinan los proyectos; el Revisor no", () => {
+    for (const key of ["president", "secretary"]) {
+      const gobierno = rol(key).permissions.find((p) => p.moduleKey === "governance");
+      expect(gobierno).toMatchObject({ level: "MANAGE" });
+      expect(gobierno?.actions).toContain(GOVERNANCE_COORDINATE_ACTION);
+    }
+    expect(rol("auditor").permissions.find((p) => p.moduleKey === "governance")?.actions).toBeUndefined();
   });
   it("Comunicación nunca ve plata", () => {
     expect(nivel("communication", "cash")).toBeUndefined();

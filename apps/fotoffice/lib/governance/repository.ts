@@ -77,7 +77,7 @@ export async function getTask(workspaceId: string, projectId: string, taskId: st
     where: { id: taskId, projectId, project: { workspaceId } },
     include: {
       stage: { select: { id: true, title: true } },
-      project: { select: { id: true, title: true, status: true } },
+      project: { select: { id: true, title: true, status: true, responsibleMemberId: true, createdByUserId: true } },
       assignee: { select: { id: true, firstName: true, lastName: true } },
       updates: {
         orderBy: { createdAt: "desc" },

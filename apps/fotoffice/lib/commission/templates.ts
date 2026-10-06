@@ -10,6 +10,7 @@ import {
   BOOKINGS_CONFIGURE_ACTION,
   CASH_CONFIGURE_ACTION,
   CASH_PROJECT_MONEY_ACTION,
+  GOVERNANCE_COORDINATE_ACTION,
   RAFFLES_CONDUCT_ACTION,
 } from "@/lib/permissions/actions";
 
@@ -45,7 +46,7 @@ export const ROLE_TEMPLATES: readonly RoleTemplate[] = [
       { moduleKey: "events", level: V },
       { moduleKey: "exhibitions", level: V },
       { moduleKey: "transparency", level: V },
-      { moduleKey: "governance", level: M },
+      { moduleKey: "governance", level: M, actions: [GOVERNANCE_COORDINATE_ACTION] },
     ],
   },
   {
@@ -55,7 +56,7 @@ export const ROLE_TEMPLATES: readonly RoleTemplate[] = [
     permissions: [
       { moduleKey: "members", level: M },
       { moduleKey: "membership-dues", level: V },
-      { moduleKey: "governance", level: M },
+      { moduleKey: "governance", level: M, actions: [GOVERNANCE_COORDINATE_ACTION] },
     ],
   },
   {

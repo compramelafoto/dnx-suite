@@ -13,7 +13,7 @@ export default async function NuevoProyectoPage({
 }: {
   searchParams: Promise<{ error?: string }>;
 }) {
-  const { workspace } = await requireGovernanceManager();
+  const { workspace, canCoordinate } = await requireGovernanceManager();
   const params = await searchParams;
   await ensureDefaultProjectTypes(workspace.id);
   const [tipos, socios] = await Promise.all([listProjectTypes(workspace.id), listMemberOptions(workspace.id)]);
@@ -49,11 +49,19 @@ export default async function NuevoProyectoPage({
             <option value="">Sin tipo (en blanco)</option>
           </select>
           <p className="fo-helper">
-            Las etapas y tareas se copian al proyecto. Los tipos se editan en{" "}
-            <Link href="/gobierno/tipos" className="underline">
-              Tipos de proyecto
-            </Link>
-            .
+            Las etapas y tareas se copian al proyecto.
+            {canCoordinate ? (
+              <>
+                {" "}
+                Los tipos se editan en{" "}
+                <Link href="/gobierno/tipos" className="underline">
+                  Tipos de proyecto
+                </Link>
+                .
+              </>
+            ) : (
+              " Los tipos los administra quien coordina los proyectos."
+            )}
           </p>
         </div>
 

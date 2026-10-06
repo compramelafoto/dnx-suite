@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/page-header";
 import { Flash, MemberSelect } from "@/components/governance/member-select";
 import { ProgressBar, ProjectStatusBadge, TaskStatusBadge, UrgencyDot } from "@/components/governance/badges";
 import { ProjectFileUploader } from "@/components/governance/project-file-uploader";
-import { requireGovernanceViewer, canWorkOnTask } from "@/lib/governance/access";
+import { canEditProject, requireGovernanceViewer, canWorkOnTask } from "@/lib/governance/access";
 import { getProject, listMemberOptions, loadVoting } from "@/lib/governance/repository";
 import { isVotingOpen, tallyLabel } from "@/lib/governance/votes";
 import { decimalArsToMinor, formatMinorArs } from "@/lib/membership/money";
@@ -79,7 +79,11 @@ export default async function ProyectoPage({
   }
 
   const ahora = new Date();
+  // Agregar y repartir tareas es de todo el que gestiona; editar el proyecto (datos, estado,
+  // etapas, visibilidad de archivos) es de su responsable, quien lo creó o quien coordina.
+  const puedeEditar = canEditProject(ctx, proyecto);
   const editable = canManage && canEditStructure(proyecto.status);
+  const etapasEditables = editable && puedeEditar;
   const todasLasTareas = proyecto.stages.flatMap((s) => s.tasks);
   const avance = progressOf(todasLasTareas);
   // Los archivos de cotizaciones se ven en su cotización, no acá: nunca se hacen visibles.
@@ -133,7 +137,14 @@ export default async function ProyectoPage({
         ) : null}
       </section>
 
-      {canManage ? (
+      {canManage && !puedeEditar ? (
+        <p className="text-sm text-[var(--fo-muted)]">
+          Los datos, el estado y las etapas de este proyecto los editan su responsable, quien lo creó o quien coordina
+          los proyectos. Igual podés agregar y repartir tareas, anotar y subir archivos.
+        </p>
+      ) : null}
+
+      {puedeEditar ? (
         <details className="fo-card p-6">
           <summary className="cursor-pointer text-sm font-medium">Editar datos del proyecto</summary>
           <form action={updateProjectAction} className="mt-6 max-w-2xl space-y-5">
@@ -182,7 +193,7 @@ export default async function ProyectoPage({
         </details>
       ) : null}
 
-      {canManage && nextStatuses(proyecto.status).length > 0 ? (
+      {puedeEditar && nextStatuses(proyecto.status).length > 0 ? (
         <section className="fo-card space-y-4 p-6">
           <div>
             <h2 className="text-base font-semibold">Estado</h2>
@@ -268,7 +279,7 @@ export default async function ProyectoPage({
                   <h3 className="font-semibold">{etapa.title}</h3>
                   {avanceEtapa.total > 0 ? <ProgressBar {...avanceEtapa} /> : null}
                 </div>
-                {editable ? (
+                {etapasEditables ? (
                   <div className="flex items-center gap-1">
                     <form action={moveStageAction}>
                       <input type="hidden" name="projectId" value={proyecto.id} />
@@ -372,35 +383,37 @@ export default async function ProyectoPage({
                       </div>
                     </form>
                   </details>
-                  <details>
-                    <summary className="cursor-pointer text-sm text-[var(--fo-muted)]">Renombrar o quitar la etapa</summary>
-                    <div className="mt-3 flex flex-wrap items-end gap-3">
-                      <form action={renameStageAction} className="flex flex-wrap items-end gap-2">
-                        <input type="hidden" name="projectId" value={proyecto.id} />
-                        <input type="hidden" name="stageId" value={etapa.id} />
-                        <input name="title" className="fo-input" defaultValue={etapa.title} required maxLength={160} aria-label="Nombre de la etapa" />
-                        <button type="submit" className="fo-btn fo-btn-secondary text-sm">
-                          Renombrar
-                        </button>
-                      </form>
-                      {etapa.tasks.length === 0 ? (
-                        <form action={removeStageAction}>
+                  {etapasEditables ? (
+                    <details>
+                      <summary className="cursor-pointer text-sm text-[var(--fo-muted)]">Renombrar o quitar la etapa</summary>
+                      <div className="mt-3 flex flex-wrap items-end gap-3">
+                        <form action={renameStageAction} className="flex flex-wrap items-end gap-2">
                           <input type="hidden" name="projectId" value={proyecto.id} />
                           <input type="hidden" name="stageId" value={etapa.id} />
-                          <button type="submit" className="fo-btn fo-btn-danger-outline text-sm">
-                            Quitar etapa
+                          <input name="title" className="fo-input" defaultValue={etapa.title} required maxLength={160} aria-label="Nombre de la etapa" />
+                          <button type="submit" className="fo-btn fo-btn-secondary text-sm">
+                            Renombrar
                           </button>
                         </form>
-                      ) : null}
-                    </div>
-                  </details>
+                        {etapa.tasks.length === 0 ? (
+                          <form action={removeStageAction}>
+                            <input type="hidden" name="projectId" value={proyecto.id} />
+                            <input type="hidden" name="stageId" value={etapa.id} />
+                            <button type="submit" className="fo-btn fo-btn-danger-outline text-sm">
+                              Quitar etapa
+                            </button>
+                          </form>
+                        ) : null}
+                      </div>
+                    </details>
+                  ) : null}
                 </div>
               ) : null}
             </div>
           );
         })}
 
-        {editable ? (
+        {etapasEditables ? (
           <form action={addStageAction} className="fo-card flex flex-wrap items-end gap-3 p-5">
             <input type="hidden" name="projectId" value={proyecto.id} />
             <div className="fo-field-stack min-w-[16rem] flex-1">
@@ -454,7 +467,7 @@ export default async function ProyectoPage({
                     {a.taskUpdateId ? " · en un avance de tarea" : ""}
                   </p>
                 </div>
-                {canManage ? (
+                {puedeEditar ? (
                   <form action={setFileVisibilityAction}>
                     <input type="hidden" name="projectId" value={proyecto.id} />
                     <input type="hidden" name="attachmentId" value={a.id} />
