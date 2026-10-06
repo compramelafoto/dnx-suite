@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest, { params }: { params: Promise<{ clave: string }> }) {
   const { clave } = await params;
   const ctx = await contextoDeListado(clave);
-  if (!ctx || !exigirCapacidad(ctx, "verDinero")) return new NextResponse(null, { status: 404 });
+  if (!ctx || !exigirCapacidad(ctx, "operar") || !exigirCapacidad(ctx, "verDinero")) return new NextResponse(null, { status: 404 });
   const def = await definicionDe(clave, ctx);
   if (!def) return new NextResponse(null, { status: 404 });
 

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import {
   createMember,
   createMemberCategory,
@@ -10,7 +11,8 @@ import {
   updateMember,
   updateMemberCategory,
 } from "@repo/db/fotoffice-members";
-import { requireMembersConfigureContext, requireMembersManageContext } from "@/lib/members/access";
+import { notifyAdminsIfCommissionMemberInactive } from "@/lib/commission/inactive-notice";
+import { requireMembersManageContext } from "@/lib/members/access";
 import { auditActorFrom, normalizeReason, statusRequiresReason } from "@/lib/members/audit";
 import { documentChanged, normalizeDocument } from "@/lib/members/documents";
 import {
@@ -183,6 +185,14 @@ export async function changeMemberStatusAction(
   }
   if (!updated) return { error: mensajeDePadron("noEncontrado", vocabulary) };
 
+  // Aviso a la dirección si quien queda inactivo tiene cargo o rol en la comisión. No se
+  // revoca nada y no demora la respuesta: si el correo falla, el cambio de estado ya está hecho.
+  after(() =>
+    notifyAdminsIfCommissionMemberInactive({ workspaceId: workspace.id, memberId: id, newStatus: status }).catch(
+      (e) => console.error("[fotoffice][comision] aviso de inactivo", e),
+    ),
+  );
+
   revalidatePath("/members");
   revalidatePath(`/members/${id}`);
   return { error: null };
@@ -192,7 +202,7 @@ export async function createMemberCategoryAction(
   _prev: MemberFormState | undefined,
   formData: FormData,
 ): Promise<MemberFormState> {
-  const { workspace } = await requireMembersConfigureContext();
+  const { workspace } = await requireMembersManageContext();
   const parsed = memberCategorySchema.safeParse({
     name: formData.get("name")?.toString()?.trim() ?? "",
     description: formData.get("description")?.toString()?.trim() || null,
@@ -217,7 +227,7 @@ export async function updateMemberCategoryAction(
   _prev: MemberFormState | undefined,
   formData: FormData,
 ): Promise<MemberFormState> {
-  const { workspace } = await requireMembersConfigureContext();
+  const { workspace } = await requireMembersManageContext();
   const id = formData.get("id")?.toString()?.trim();
   if (!id) return { error: "Categoría inválida." };
 

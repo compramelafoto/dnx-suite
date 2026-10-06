@@ -2,7 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { requireActiveWorkspace } from "@/lib/workspace";
-import { canOperateWorkspaceCollection } from "@/lib/payments/connect/authz";
+import { hasModuleLevel } from "@/lib/permissions/module-access";
+import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { buildPaymentImportPrompt } from "@/lib/membership/history-import/prompt";
 import { PAYMENT_IMPORT_HEADER_ROW } from "@/lib/membership/history-import/columns";
 import { PaymentImportWizard } from "@/components/membership/payment-import-wizard";
@@ -20,7 +21,7 @@ export const dynamic = "force-dynamic";
 export default async function ImportarHistorialPage() {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) redirect("/workspace");
-  if (!(await canOperateWorkspaceCollection(user.id, workspace.id))) redirect("/members/cuotas");
+  if (!(await hasModuleLevel(user.id, workspace.id, MEMBERSHIP_DUES_MODULE_KEY, "MANAGE"))) redirect("/members/cuotas");
   const v = await loadPersonVocabulary(workspace.id);
 
   return (

@@ -1,39 +1,38 @@
 import "server-only";
 import { redirect } from "next/navigation";
 import { requireActiveWorkspace } from "@/lib/workspace";
-import { puede } from "@/lib/access/policy";
-import { resolveWorkspaceRole } from "@/lib/workspace-role";
-import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
-import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
+import { getModuleLevel } from "@/lib/permissions/module-access";
+import { hasLevel } from "@/lib/permissions/levels";
 import { CLIENTS_MODULE_KEY } from "./constants";
 
 /**
- * Control de acceso del módulo, en dos niveles y siempre en el servidor.
+ * Control de acceso del módulo, siempre en el servidor.
  *
- * Nivel 1: el módulo está habilitado para ESE workspace. Nivel 2: la persona tiene rol.
- * Ver, cargar y desactivar un cliente es STAFF+: desactivar es reversible y de bajo riesgo
- * —no borra nada, sólo lo saca de las listas por omisión— y exigir un administrador para eso
- * dejaría al mostrador sin forma de ordenar su propio padrón. `requireClientsAdmin` queda
- * disponible para lo que sí necesite ese nivel más adelante.
+ * El nivel sale de `getModuleLevel`, que ya incluye si el módulo está habilitado para ESE
+ * workspace y qué rol tiene la persona. Esconder el link del menú es lo cosmético, nunca el control.
+ *
+ * Ver el padrón y la ficha pide VIEW. Crear, editar, desactivar y enlazar con un socio pide
+ * MANAGE: desactivar es reversible y de bajo riesgo —no borra nada—, así que no necesita una
+ * acción sensible aparte. El STAFF de antes (sin roles) queda con MANAGE por la compatibilidad
+ * de `levels.ts`, igual que hoy.
  */
+
 async function contextoBase() {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) redirect("/workspace");
-  if (!(await isModuleEnabledForWorkspace(workspace.id, CLIENTS_MODULE_KEY))) {
-    redirect("/dashboard");
-  }
-  const role = await resolveWorkspaceRole(user.id, workspace.id);
-  return { user, workspace, role };
+  const level = await getModuleLevel(user.id, workspace.id, CLIENTS_MODULE_KEY);
+  if (!hasLevel(level, "VIEW")) redirect("/dashboard");
+  return { user, workspace, level, canEdit: hasLevel(level, "MANAGE") };
 }
 
-export async function requireClientsStaff() {
-  const ctx = await contextoBase();
-  if (!puede(ctx.role, "operar")) redirect("/dashboard");
-  return ctx;
+/** Ver el padrón y la ficha. */
+export async function requireClientsViewer() {
+  return contextoBase();
 }
 
-export async function requireClientsAdmin() {
+/** Crear, editar, desactivar y enlazar con un socio. */
+export async function requireClientsEditor() {
   const ctx = await contextoBase();
-  if (!canManageWorkspaceSettings(ctx.role)) redirect("/clientes");
+  if (!ctx.canEdit) redirect("/clientes");
   return ctx;
 }

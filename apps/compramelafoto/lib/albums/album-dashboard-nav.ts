@@ -59,7 +59,8 @@ export type AlbumPublicationPanelId =
   | "visibilidad"
   | "proteccion"
   | "portada"
-  | "instructivos";
+  | "instructivos"
+  | "canjes";
 
 export const ALBUM_PUBLICATION_DEFAULT_PANEL: AlbumPublicationPanelId = "compartir";
 
@@ -220,6 +221,12 @@ export function buildAlbumWorkspaceNavAreas(opts: {
           label: "Instructivos",
           publicationPanel: "instructivos",
         },
+        {
+          id: "publicacion",
+          navKey: "publicacion-canjes",
+          label: "Canjes",
+          publicationPanel: "canjes",
+        },
       ],
     },
     {
@@ -327,7 +334,9 @@ export function parsePublicationPanelFromQuery(
     lower === "compartir" ||
     lower === "visibilidad" ||
     lower === "proteccion" ||
-    lower === "portada"
+    lower === "portada" ||
+    lower === "instructivos" ||
+    lower === "canjes"
   ) {
     return lower;
   }

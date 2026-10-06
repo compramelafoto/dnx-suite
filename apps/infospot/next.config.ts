@@ -3,6 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // Paquetes compartidos del monorepo (mismo patrón que compramelafoto / fotoffice).
   transpilePackages: [
+    "@repo/quick-search",
     "@repo/db",
     "@repo/auth",
     "@repo/auth-ui",

@@ -39,7 +39,8 @@ export async function GET(req: Request) {
 
   const key = url.searchParams.get("integration")?.trim() ?? "";
   const definition = getIntegrationDefinition(key);
-  if (!definition || definition.status !== "AVAILABLE") {
+  // Sólo las de Google se conectan por OAuth; Correo Argentino se carga con un formulario.
+  if (!definition || definition.status !== "AVAILABLE" || definition.provider !== "GOOGLE") {
     return volverConError(origin, "integracion_desconocida");
   }
 

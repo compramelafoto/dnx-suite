@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@repo/db";
-import { puede } from "@/lib/access/policy";
+import { puedeEnContexto } from "@/lib/access/policy";
+import { moduloDeTipo } from "@/lib/access/modulos-crm";
 import type { TipoRegistro } from "./constantes";
 import { esTipoRegistroActivo, leerCampos, type CampoDefinido, type CtxCampos } from "./definiciones";
 import { textoLegible, validarValor, type ValorCampo } from "./validacion";
@@ -128,7 +129,7 @@ export async function guardarValores(
   entityId: string,
   entrada: Record<string, unknown>,
 ): Promise<ResultadoGuardado> {
-  if (!puede(ctx.role, "operar")) return { ok: false, error: MENSAJES_VALORES.sinPermiso };
+  if (!puedeEnContexto(ctx, "operar", moduloDeTipo(entityType))) return { ok: false, error: MENSAJES_VALORES.sinPermiso };
   if (!esTipoRegistroActivo(entityType) || !entrada || typeof entrada !== "object") {
     return { ok: false, error: MENSAJES_VALORES.noEncontrado };
   }

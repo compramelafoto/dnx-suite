@@ -1,7 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { prisma } from "@repo/db";
-import { puede } from "@/lib/access/policy";
+import { puede, puedeEnContexto, type AccesoEfectivo } from "@/lib/access/policy";
 import { DIAS_PURGA, HORAS_PENDIENTE, claveDeAdjunto, validarArchivo } from "./adjuntos-reglas";
 import { borrarObjeto, tamanoReal, urlDeDescarga, urlDeSubida } from "./adjuntos-r2";
 import { registrarEventoPersona } from "./eventos";
@@ -19,6 +19,9 @@ export type CtxAdjuntos = {
   userId: number;
   userLabel: string;
   role: string | null;
+  /** Acceso efectivo (modelo de main) y módulo de la persona, que trae `contextoDeFicha`. */
+  acceso?: AccesoEfectivo;
+  modulo?: string;
   persona: PersonaRef;
 };
 
@@ -110,7 +113,7 @@ export async function pedirSubida(
   persona: PersonaRef,
   archivo: { nombre: unknown; tipo: unknown; tamano: unknown },
 ): Promise<{ ok: true; id: string; url: string } | { ok: false; error: string }> {
-  if (!puede(ctx.role, "operar")) return { ok: false, error: ERROR_SIN_PERMISO_ADJUNTOS };
+  if (!puedeEnContexto(ctx, "operar", ctx.modulo)) return { ok: false, error: ERROR_SIN_PERMISO_ADJUNTOS };
   const v = validarArchivo(archivo);
   if (!v.ok) return v;
   const tipo = archivo.tipo as string;
@@ -143,7 +146,7 @@ export async function pedirSubida(
 
 /** Comprueba en el bucket que llegó lo anunciado; recién ahí el adjunto existe. */
 export async function confirmarSubida(ctx: CtxAdjuntos, id: string): Promise<ResultadoAdjunto> {
-  if (!puede(ctx.role, "operar")) return { ok: false, error: ERROR_SIN_PERMISO_ADJUNTOS };
+  if (!puedeEnContexto(ctx, "operar", ctx.modulo)) return { ok: false, error: ERROR_SIN_PERMISO_ADJUNTOS };
   const fila = await adjuntoDeLaPersona(ctx, id, "PENDIENTE");
   if (!fila) return { ok: false, error: ERROR_ADJUNTO_NO_ENCONTRADO };
 
@@ -190,7 +193,7 @@ export async function enlaceDeDescarga(
   ctx: CtxAdjuntos,
   id: string,
 ): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
-  if (!puede(ctx.role, "operar")) return { ok: false, error: ERROR_SIN_PERMISO_ADJUNTOS };
+  if (!puedeEnContexto(ctx, "operar", ctx.modulo)) return { ok: false, error: ERROR_SIN_PERMISO_ADJUNTOS };
   const fila = await adjuntoDeLaPersona(ctx, id, "LISTO");
   if (!fila) return { ok: false, error: ERROR_ADJUNTO_NO_ENCONTRADO };
   try {
@@ -202,7 +205,7 @@ export async function enlaceDeDescarga(
 
 /** Borrado blando: se puede restaurar durante 30 días; después lo purga la tarea diaria. */
 export async function borrarAdjunto(ctx: CtxAdjuntos, id: string, ahora: Date = new Date()): Promise<ResultadoAdjunto> {
-  if (!puede(ctx.role, "operar")) return { ok: false, error: ERROR_SIN_PERMISO_ADJUNTOS };
+  if (!puedeEnContexto(ctx, "operar", ctx.modulo)) return { ok: false, error: ERROR_SIN_PERMISO_ADJUNTOS };
   const fila = await adjuntoDeLaPersona(ctx, id, "LISTO");
   if (!fila) return { ok: false, error: ERROR_ADJUNTO_NO_ENCONTRADO };
   const purgeAfter = new Date(ahora.getTime() + DIAS_PURGA * MS_DIA);

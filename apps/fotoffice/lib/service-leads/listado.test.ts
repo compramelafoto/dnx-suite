@@ -216,9 +216,9 @@ describe("rutas y guarda (prueba de fuente)", () => {
   it("/dashboard/service-leads redirige a /captacion", () => {
     expect(leer("app/dashboard/service-leads/page.tsx")).toContain('redirect("/captacion")');
   });
-  it("el guarda exige el módulo encendido", () => {
+  it("el guarda es la puerta de main: módulo encendido y nivel por módulo", () => {
     const fuente = leer("lib/service-leads/access.ts");
-    expect(fuente).toContain("isModuleEnabledForWorkspace(workspace.id, SERVICE_LEADS_MODULE_KEY)");
+    expect(fuente).toContain('requireServiceLeadsContext("VIEW")');
   });
   it("el menú y el registro de módulos apuntan a /captacion", () => {
     expect(leer("components/shell/shell-nav.tsx")).toContain('href: "/captacion"');

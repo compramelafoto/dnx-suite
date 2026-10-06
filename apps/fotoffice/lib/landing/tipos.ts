@@ -53,7 +53,7 @@ export const TIPOS: TipoDeOrganizacion[] = [
       },
     ],
     ademas: ["clients", "cash", "correos", "equipo", "courses-sales"],
-    proximo: "12",
+    proximo: "15",
   },
   {
     id: "local",
@@ -78,7 +78,7 @@ export const TIPOS: TipoDeOrganizacion[] = [
       },
     ],
     ademas: ["cobros", "consultas", "website", "courses-sales", "correos", "equipo"],
-    proximo: "12",
+    proximo: "15",
   },
   {
     id: "estudio",
@@ -99,11 +99,11 @@ export const TIPOS: TipoDeOrganizacion[] = [
       {
         key: "equipo",
         porque:
-          "Invitás a quien atiende con el rol justo: usa todo el sistema para trabajar pero no toca la configuración, y queda registrado quién hizo cada cosa.",
+          "Sumás a quien atiende con el permiso justo, módulo por módulo: puede trabajar en consultas y caja sin tocar la configuración ni lo que no le corresponde.",
       },
     ],
     ademas: ["clients", "cobros", "website", "correos", "bookings", "courses-sales"],
-    proximo: "12",
+    proximo: "15",
   },
   {
     id: "escuela",
@@ -128,7 +128,7 @@ export const TIPOS: TipoDeOrganizacion[] = [
       },
     ],
     ademas: ["cobros", "cash", "website", "bookings", "correos", "equipo", "consultas"],
-    proximo: "13",
+    proximo: "16",
   },
   {
     id: "sociedad",
@@ -165,7 +165,7 @@ export const TIPOS: TipoDeOrganizacion[] = [
       "clients",
       "evaluaciones",
     ],
-    proximo: "15",
+    proximo: "17",
   },
   {
     id: "agrupacion",
@@ -190,7 +190,7 @@ export const TIPOS: TipoDeOrganizacion[] = [
       },
     ],
     ademas: ["portal", "carnets", "courses-sales", "bookings", "correos", "equipo", "consultas"],
-    proximo: "14",
+    proximo: "16",
   },
   {
     id: "ong",
@@ -225,7 +225,7 @@ export const TIPOS: TipoDeOrganizacion[] = [
       "bookings",
       "clients",
     ],
-    proximo: "17",
+    proximo: "19",
   },
   {
     id: "espacio",
@@ -250,7 +250,7 @@ export const TIPOS: TipoDeOrganizacion[] = [
       },
     ],
     ademas: ["clients", "website", "consultas", "correos", "equipo", "members", "membership-dues"],
-    proximo: "12",
+    proximo: "15",
   },
 ];
 

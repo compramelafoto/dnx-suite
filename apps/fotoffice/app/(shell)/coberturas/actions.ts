@@ -8,7 +8,7 @@ import { appUrl } from "@/lib/app-url";
 import { COVERAGE_EMAIL_KEYS } from "@/lib/communications/constants";
 import { loadWorkspaceEmailContext } from "@/lib/communications/load-workspace-signature";
 import { sendAndLogEmail } from "@/lib/communications/send-and-log";
-import { requireCoveragesConfigurator, requireCoveragesCoordinator, requireCoveragesReviewer } from "@/lib/coverages/access";
+import { requireCoveragesCoordinator, requireCoveragesReviewer } from "@/lib/coverages/access";
 import { transitionNeedsCoordinator } from "@/lib/coverages/access-policy";
 import {
   buildInfoRequestedEmail,
@@ -189,6 +189,7 @@ export async function changeRequestStatusAction(
       trackingUrl: rawToken && base ? `${base}/sc/${rawToken}` : "",
     };
     const resultado = await sendAndLogEmail({
+      workspaceId: workspace.id,
       to: destino,
       templateKey:
         plan.to === "APROBADA" ? COVERAGE_EMAIL_KEYS.APPROVED : COVERAGE_EMAIL_KEYS.REJECTED,
@@ -291,6 +292,7 @@ export async function requestInfoAction(
   if (destino) {
     const contexto = await loadWorkspaceEmailContext(workspace.id);
     const r = await sendAndLogEmail({
+      workspaceId: workspace.id,
       to: destino,
       templateKey: COVERAGE_EMAIL_KEYS.INFO_REQUESTED,
       body: buildInfoRequestedEmail({
@@ -396,6 +398,7 @@ export async function resendTrackingLinkAction(
 
   const contexto = await loadWorkspaceEmailContext(workspace.id);
   const resultado = await sendAndLogEmail({
+    workspaceId: workspace.id,
     to: destino,
     templateKey: COVERAGE_EMAIL_KEYS.TRACKING_LINK,
     body: buildTrackingLinkEmail({
@@ -463,7 +466,7 @@ export async function saveCoverageSettingsAction(
   _prev: PanelState | undefined,
   formData: FormData,
 ): Promise<PanelState> {
-  const { workspace } = await requireCoveragesConfigurator();
+  const { workspace } = await requireCoveragesCoordinator();
 
   const entero = (nombre: string, min: number, max: number, porOmision: number): number =>
     acotarEntero(formData.get(nombre)?.toString(), min, max, porOmision);

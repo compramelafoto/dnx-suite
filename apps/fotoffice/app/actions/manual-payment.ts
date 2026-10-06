@@ -2,10 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { requireActiveWorkspace } from "@/lib/workspace";
-import { canOperateWorkspaceCollection } from "@/lib/payments/connect/authz";
+import { hasModuleLevel } from "@/lib/permissions/module-access";
+import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { getPlatformFeeBps } from "@/lib/platform-fee/store";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
-import { FEE_SINCE_PERIOD } from "@/lib/platform-fee/debt";
 import { MANUAL_METHODS, registerManualPayment, type ManualMethod } from "@/lib/membership/manual-payment";
 import { parseArsToMinor } from "@/lib/membership/money";
 import { mensajeDePadron } from "@/lib/members/mensajes";
@@ -23,8 +23,8 @@ const money = (minor: number) =>
 /**
  * Registra un pago cobrado en mano.
  *
- * Lo puede hacer quien opera los cobros de la institución: dueño, administradores y Equipo
- * (capacidad `operar`).
+ * Lo puede hacer quien administra los cobros de la institución: hoy el dueño y los
+ * administradores, mañana Tesorería o Secretaría con el mismo permiso.
  */
 export async function registerManualPaymentAction(
   _prev: ManualPaymentState,
@@ -32,8 +32,8 @@ export async function registerManualPaymentAction(
 ): Promise<ManualPaymentState> {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) return { error: "No hay una institución activa.", ok: null };
-  if (!(await canOperateWorkspaceCollection(user.id, workspace.id))) {
-    return { error: "No tenés permiso para registrar un pago.", ok: null };
+  if (!(await hasModuleLevel(user.id, workspace.id, MEMBERSHIP_DUES_MODULE_KEY, "MANAGE"))) {
+    return { error: "Solo quien administra los cobros puede registrar un pago.", ok: null };
   }
 
   const vocabulary = await loadPersonVocabulary(workspace.id);
@@ -51,7 +51,7 @@ export async function registerManualPaymentAction(
 
   const method = String(formData.get("method") ?? "") as ManualMethod;
   if (!MANUAL_METHODS.includes(method)) {
-    return { error: "Elegí si fue en efectivo o por transferencia.", ok: null };
+    return { error: "Elegí cómo pagó: efectivo, transferencia o Mercado Pago.", ok: null };
   }
 
   const fechaCruda = String(formData.get("paidAt") ?? "").trim();
@@ -72,7 +72,6 @@ export async function registerManualPaymentAction(
     paidAt,
     reference,
     feeBps,
-    feeSincePeriod: FEE_SINCE_PERIOD,
   });
   if (!r.ok) return { error: r.error, ok: null };
 

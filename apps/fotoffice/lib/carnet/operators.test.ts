@@ -1,43 +1,58 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const H = vi.hoisted(() => ({ wm: vi.fn(), m: vi.fn(), grant: vi.fn() }));
+const H = vi.hoisted(() => ({
+  hasLevel: vi.fn(),
+  grant: vi.fn(),
+  legacy: vi.fn(),
+  workspaceMembership: vi.fn(),
+}));
+
+vi.mock("@/lib/permissions/module-access", () => ({ hasModuleLevel: H.hasLevel }));
 vi.mock("@repo/db", () => ({
   prisma: {
-    workspaceMembership: { findUnique: H.wm },
-    membership: { findUnique: H.m },
     memberCardOperator: { findUnique: H.grant },
+    membership: { findUnique: H.legacy },
+    workspaceMembership: { findUnique: H.workspaceMembership },
   },
 }));
 
 const { resolveCardCapabilities } = await import("./operators");
 
 beforeEach(() => {
-  H.wm.mockReset().mockResolvedValue(null);
-  H.m.mockReset().mockResolvedValue(null);
+  H.hasLevel.mockReset().mockResolvedValue(false);
   H.grant.mockReset().mockResolvedValue(null);
+  H.legacy.mockReset().mockResolvedValue({ role: "ADMIN" });
+  H.workspaceMembership.mockReset().mockResolvedValue({ role: "WORKSPACE_OWNER" });
 });
 
-describe("resolveCardCapabilities (0.1)", () => {
-  it("Dueño y Admin: todo", async () => {
-    H.wm.mockResolvedValue({ role: "WORKSPACE_OWNER" });
-    expect(await resolveCardCapabilities(1, "w")).toEqual(["PRODUCIR", "ENTREGAR", "ADMINISTRAR"]);
-    H.wm.mockResolvedValue({ role: "WORKSPACE_ADMIN" });
-    expect(await resolveCardCapabilities(1, "w")).toEqual(["PRODUCIR", "ENTREGAR", "ADMINISTRAR"]);
+describe("resolveCardCapabilities", () => {
+  it("con members MANAGE puede todo, sin figurar en la tabla de operadores", async () => {
+    H.hasLevel.mockResolvedValue(true);
+    await expect(resolveCardCapabilities(7, "ws-1")).resolves.toEqual([
+      "PRODUCIR",
+      "ENTREGAR",
+      "ADMINISTRAR",
+    ]);
+    expect(H.hasLevel).toHaveBeenCalledWith(7, "ws-1", "members", "MANAGE");
   });
-  it("Equipo: producir y entregar, no administrar", async () => {
-    H.wm.mockResolvedValue({ role: "STAFF" });
-    expect(await resolveCardCapabilities(1, "w")).toEqual(["PRODUCIR", "ENTREGAR"]);
+
+  it("decide por nivel, no por el rol de membresía ni por la tabla legacy Membership", async () => {
+    // Dueño en la membresía y ADMIN en la tabla vieja, pero sin members MANAGE: nada.
+    await expect(resolveCardCapabilities(7, "ws-1")).resolves.toEqual([]);
+    expect(H.legacy).not.toHaveBeenCalled();
+    expect(H.workspaceMembership).not.toHaveBeenCalled();
   });
-  it("MEMBER legacy se comporta como Equipo", async () => {
-    H.m.mockResolvedValue({ role: "MEMBER" });
-    expect(await resolveCardCapabilities(1, "w")).toEqual(["PRODUCIR", "ENTREGAR"]);
-  });
-  it("Colaborador: nada", async () => {
-    H.wm.mockResolvedValue({ role: "COLLABORATOR" });
-    expect(await resolveCardCapabilities(1, "w")).toEqual([]);
-  });
-  it("un permiso otorgado sigue valiendo para quien no tiene rol de operar", async () => {
+
+  it("sin MANAGE, lo otorgado en MemberCardOperator (el impresor)", async () => {
     H.grant.mockResolvedValue({ canProduce: true, canDeliver: false });
-    expect(await resolveCardCapabilities(1, "w")).toEqual(["PRODUCIR"]);
+    await expect(resolveCardCapabilities(7, "ws-1")).resolves.toEqual(["PRODUCIR"]);
+    expect(H.grant).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { workspaceId_userId: { workspaceId: "ws-1", userId: 7 } } }),
+    );
+  });
+
+  it("entregar sin producir también se puede otorgar", async () => {
+    H.grant.mockResolvedValue({ canProduce: false, canDeliver: true });
+    await expect(resolveCardCapabilities(7, "ws-1")).resolves.toEqual(["ENTREGAR"]);
   });
 });

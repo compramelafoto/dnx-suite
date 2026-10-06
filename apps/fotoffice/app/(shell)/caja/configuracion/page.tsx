@@ -1,6 +1,6 @@
 import { Wallet } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
-import { requireCashAdmin } from "@/lib/cash/access";
+import { requireCashConfigurer } from "@/lib/cash/access";
 import { listAccounts, listCategories } from "@/lib/cash/repository";
 import { AccountForm } from "../account-form";
 import { CategoryForm } from "../category-form";
@@ -13,7 +13,7 @@ export default async function CajaConfiguracionPage({
 }: {
   searchParams: Promise<{ error?: string; ok?: string }>;
 }) {
-  const { workspace } = await requireCashAdmin();
+  const { workspace } = await requireCashConfigurer();
   const params = await searchParams;
 
   const [cuentas, categorias] = await Promise.all([
@@ -27,7 +27,7 @@ export default async function CajaConfiguracionPage({
     <div className="space-y-8">
       <PageHeader
         title="Cuentas y categorías"
-        description="Dónde está la plata del negocio y cómo se clasifica lo que entra y sale."
+        description="Dónde está el dinero del negocio y cómo se clasifica lo que entra y sale."
       />
 
       {params.error ? (

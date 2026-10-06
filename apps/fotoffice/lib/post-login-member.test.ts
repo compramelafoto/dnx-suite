@@ -17,6 +17,9 @@ const { userFindUniqueMock, findMock, userKindMock, listProfilesMock, readChoice
   readChoiceMock: vi.fn(),
 }));
 
+vi.mock("@/lib/commission/team-membership", () => ({
+  syncPendingTeamMemberships: vi.fn().mockResolvedValue(0),
+}));
 vi.mock("@/lib/portal/profile-choice", () => ({ readProfileChoice: readChoiceMock }));
 
 vi.mock("@/lib/portal/profiles", async () => {
@@ -34,6 +37,7 @@ vi.mock("@/lib/team/continuity", () => ({
 vi.mock("@repo/db", () => ({ prisma: { user: { findUnique: userFindUniqueMock } } }));
 vi.mock("@/lib/ensure-workspace", () => ({ findFotofficeWorkspaceForUser: findMock }));
 vi.mock("@/lib/portal/claim", () => ({ findClaimableMembership: async () => null }));
+vi.mock("@/lib/course-classroom/alumno", () => ({ tieneCursos: vi.fn(async () => false) }));
 vi.mock("@/lib/portal/user-kind", () => ({ resolveFotofficeUserKind: userKindMock }));
 
 const { resolveFotofficePostLoginDestination } = await import("./post-login");
@@ -214,6 +218,97 @@ describe("selector de perfil", () => {
 });
 
 /**
+ * Equipo y socio de UNA misma institución: no hay nada que elegir entre instituciones. Entra
+ * directo —al panel si es dueño o admin; si no, al portal del socio— y cambia con un botón.
+ */
+describe("perfiles de una sola institución", () => {
+  const TEAM_SFPR = { kind: "TEAM", workspaceId: "ws-sfpr", workspaceName: "SFPR", role: "WORKSPACE_ADMIN" };
+  const SOCIO_SFPR = { kind: "MEMBER", workspaceId: "ws-sfpr", workspaceName: "SFPR", memberId: "m", memberNumber: "556" };
+
+  beforeEach(() => {
+    userKindMock.mockResolvedValue("TEAM");
+    listProfilesMock.mockResolvedValue([TEAM_SFPR, SOCIO_SFPR]);
+    readChoiceMock.mockResolvedValue(null);
+    findMock.mockResolvedValue({ workspaceId: "ws-sfpr", onboardingCompleted: true });
+  });
+
+  it("admin sin recordado ya no pregunta: va al panel de esa institución", async () => {
+    const dest = await resolveFotofficePostLoginDestination({ userId: 4 });
+    expect(dest).toEqual({ path: "/workspace", workspaceId: "ws-sfpr" });
+  });
+
+  it("staff sin recordado ya no pregunta: va al portal", async () => {
+    listProfilesMock.mockResolvedValue([{ ...TEAM_SFPR, role: "STAFF" }, SOCIO_SFPR]);
+    const dest = await resolveFotofficePostLoginDestination({ userId: 4 });
+    expect(dest).toEqual({ path: "/portal", workspaceId: null });
+    expect(findMock).not.toHaveBeenCalled();
+  });
+
+  it("con el portal recordado va al portal aunque sea admin", async () => {
+    readChoiceMock.mockResolvedValue("MEMBER:ws-sfpr");
+    const dest = await resolveFotofficePostLoginDestination({ userId: 4 });
+    expect(dest).toEqual({ path: "/portal", workspaceId: null });
+  });
+
+  it("con el panel recordado va al panel de esa institución", async () => {
+    readChoiceMock.mockResolvedValue("TEAM:ws-sfpr");
+    const dest = await resolveFotofficePostLoginDestination({ userId: 4 });
+    expect(dest).toEqual({ path: "/workspace", workspaceId: "ws-sfpr" });
+  });
+});
+
+describe("onboarding pendiente y rol", () => {
+  it("un STAFF de una institución con onboarding pendiente va al panel, no al onboarding", async () => {
+    listProfilesMock.mockResolvedValue([
+      { kind: "TEAM", workspaceId: "ws-1", workspaceName: "SFPR", role: "STAFF" },
+    ]);
+    findMock.mockResolvedValue({ workspaceId: "ws-1", onboardingCompleted: false });
+    const dest = await resolveFotofficePostLoginDestination({ userId: 7 });
+    expect(dest).toEqual({ path: "/workspace", workspaceId: "ws-1" });
+  });
+
+  it("el dueño con onboarding pendiente sigue yendo al onboarding", async () => {
+    listProfilesMock.mockResolvedValue([
+      { kind: "TEAM", workspaceId: "ws-1", workspaceName: "Estudio", role: "WORKSPACE_OWNER" },
+    ]);
+    findMock.mockResolvedValue({ workspaceId: "ws-1", onboardingCompleted: false });
+    const dest = await resolveFotofficePostLoginDestination({ userId: 7 });
+    expect(dest).toEqual({ path: "/onboarding", workspaceId: "ws-1" });
+  });
+});
+
+describe("perfil de equipo elegido entre varias instituciones", () => {
+  const TEAM_PROPIO = { kind: "TEAM", workspaceId: "ws-propio", workspaceName: "Estudio", role: "WORKSPACE_OWNER" };
+  const TEAM_SFPR = { kind: "TEAM", workspaceId: "ws-sfpr", workspaceName: "SFPR", role: "WORKSPACE_ADMIN" };
+
+  beforeEach(() => {
+    userKindMock.mockResolvedValue("TEAM");
+    listProfilesMock.mockResolvedValue([TEAM_PROPIO, TEAM_SFPR]);
+    // `find` prefiere la institución de la que es dueño: no es la elegida.
+    findMock.mockResolvedValue({ workspaceId: "ws-propio", onboardingCompleted: true });
+  });
+
+  it("la institución activa es la elegida, no la que prefiere `find`", async () => {
+    readChoiceMock.mockResolvedValue("TEAM:ws-sfpr");
+    const dest = await resolveFotofficePostLoginDestination({ userId: 4 });
+    expect(dest).toEqual({ path: "/workspace", workspaceId: "ws-sfpr" });
+  });
+
+  it("respeta un next seguro con la institución elegida", async () => {
+    readChoiceMock.mockResolvedValue("TEAM:ws-sfpr");
+    const dest = await resolveFotofficePostLoginDestination({ userId: 4, next: "/members" });
+    expect(dest).toEqual({ path: "/members", workspaceId: "ws-sfpr" });
+  });
+
+  it("el onboarding pendiente de OTRA institución no desvía a la elegida", async () => {
+    readChoiceMock.mockResolvedValue("TEAM:ws-sfpr");
+    findMock.mockResolvedValue({ workspaceId: "ws-propio", onboardingCompleted: false });
+    const dest = await resolveFotofficePostLoginDestination({ userId: 4 });
+    expect(dest).toEqual({ path: "/workspace", workspaceId: "ws-sfpr" });
+  });
+});
+
+/**
  * Entrar por la puerta de una institución.
  *
  * Quien entró por `/w/sfpr/entrar` ya dijo a dónde viene. El post-login no resuelve ese caso:
@@ -262,6 +357,34 @@ describe("la puerta de una institución", () => {
       next: "//malo.com/w/sfpr/entrar",
     });
 
+    expect(dest.path).toBe("/portal");
+  });
+});
+
+/**
+ * El enlace de un proyecto o una reunión que llegó por WhatsApp. Igual que la puerta: se vuelve
+ * al enlace, que decide si la persona va al panel de la comisión o a su portal de socio.
+ */
+describe("el enlace compartido de la comisión", () => {
+  it("un socio vuelve al enlace y no al portal genérico", async () => {
+    userKindMock.mockResolvedValue("MEMBER");
+    const dest = await resolveFotofficePostLoginDestination({ userId: 7, next: "/w/sfpr/proyecto/cmabc123" });
+    expect(dest.path).toBe("/w/sfpr/proyecto/cmabc123");
+    expect(findMock).not.toHaveBeenCalled();
+  });
+
+  it("alguien con perfiles en dos instituciones no pasa por la pregunta", async () => {
+    listProfilesMock.mockResolvedValue([
+      { kind: "TEAM", workspaceId: "ws-a", workspaceName: "A", role: "WORKSPACE_OWNER" },
+      { kind: "MEMBER", workspaceId: "ws-b", workspaceName: "B", memberId: "m1", memberNumber: "1" },
+    ]);
+    const dest = await resolveFotofficePostLoginDestination({ userId: 7, next: "/w/sfpr/reunion/cmabc123" });
+    expect(dest.path).toBe("/w/sfpr/reunion/cmabc123");
+  });
+
+  it("un enlace con algo de más no cuenta", async () => {
+    userKindMock.mockResolvedValue("MEMBER");
+    const dest = await resolveFotofficePostLoginDestination({ userId: 7, next: "/w/sfpr/proyecto/abc/../../workspace" });
     expect(dest.path).toBe("/portal");
   });
 });

@@ -2,8 +2,9 @@ import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
 import { requireAuth } from "@/lib/auth";
 import { loadPortalContext } from "@/lib/portal/access";
+import { tieneCursos } from "@/lib/course-classroom/alumno";
 import { resolveFotofficeUserKind } from "@/lib/portal/user-kind";
-import { listUserProfiles } from "@/lib/portal/profiles";
+import { hasProfilesInSeveralWorkspaces, listUserProfiles } from "@/lib/portal/profiles";
 import { loadMemberBalance } from "@/lib/membership/balance";
 import { getDuesSettings } from "@/lib/membership/settings";
 import { describeSeniority } from "@/lib/portal/identity";
@@ -11,8 +12,22 @@ import { pendingPrintedCard } from "@/lib/carnet/pending-print";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { resolvePortalMenu } from "@/lib/portal/menu";
+import { listOpenTasksForVolunteers } from "@/lib/governance/repository";
+import { loadShowcase } from "@/lib/contests/load";
+import { bannerItems, type ShowcaseItem } from "@/lib/contests/showcase";
 import { PortalHome } from "@/components/portal/portal-home";
 import { loadPortalRaffles } from "@/lib/raffles/portal";
+import {
+  ensureCurrentSpotlightSafe,
+  isSpotlightEnabled,
+  loadCurrentSpotlight,
+} from "@/lib/spotlight/repository";
+import { buildSpotlightCard } from "@/lib/spotlight/view";
+import { spotlightWeekLabel } from "@/lib/spotlight/week";
+import { loadBirthdaysOfWeek } from "@/lib/birthdays/repository";
+import type { BirthdayView } from "@/lib/birthdays/week";
+import { loadActivePlacement } from "@/lib/sponsors/placements";
+import { PortalSponsorsSection } from "@/components/sponsors/portal-sponsors-section";
 
 export const dynamic = "force-dynamic";
 
@@ -31,11 +46,18 @@ export default async function PortalPage() {
   const context = await loadPortalContext(user.id);
 
   if (!context) {
+    // Un alumno que entra a una pantalla de socios (todas redirigen a `/portal`) termina en
+    // Mis cursos, que es lo suyo.
+    if (await tieneCursos(user.id)) redirect("/portal/cursos");
     // Quien no es socio no tiene nada que hacer acá. Si administra una institución se lo
     // devuelve a su panel; si no, al inicio de sesión.
     const kind = await resolveFotofficeUserKind(user.id);
     redirect(kind === "TEAM" ? "/workspace" : "/login");
   }
+
+  // La sección de sponsors arranca ya, en paralelo con todo lo demás. Nunca falla y tiene tope de
+  // espera: si no hay o DNX Partners no responde, la portada sale sin la sección.
+  const sponsorsPromesa = loadActivePlacement(context.workspace.id, "FOTOFFICE_PORTAL_SPONSORS");
 
   const profiles = await listUserProfiles(user.id);
   const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
@@ -89,7 +111,81 @@ export default async function PortalPage() {
         .current
     : null;
 
+  // El Socio de la semana. Si la tarea de los viernes no corrió, esta visita lo elige: nunca queda
+  // una semana vacía. Cualquier falla deja el panel sin la tarjeta, nunca sin panel.
+  let socioDeLaSemana: { card: NonNullable<ReturnType<typeof buildSpotlightCard>>; weekLabel: string } | null =
+    null;
+  try {
+    if (await isSpotlightEnabled(context.workspace.id)) {
+      await ensureCurrentSpotlightSafe(context.workspace.id);
+      const destacado = await loadCurrentSpotlight(context.workspace.id);
+      const card = destacado
+        ? buildSpotlightCard({
+            member: destacado.member,
+            about: destacado.about,
+            portfolioPath: destacado.portfolioPath,
+            institution,
+            audience: "portal",
+            viewerMemberId: context.member.id,
+          })
+        : null;
+      if (destacado && card) {
+        socioDeLaSemana = { card, weekLabel: spotlightWeekLabel(destacado.weekStart) };
+      }
+    }
+  } catch (error) {
+    console.error("[fotoffice][socio-de-la-semana] no se pudo mostrar la tarjeta", {
+      detalle: error instanceof Error ? error.message : "error desconocido",
+    });
+  }
+
+  // Proyectos de la comisión: proponer y ayudar. Si el módulo está prendido, la portada invita a
+  // las dos cosas, con las tareas sin responsable a la vista. Si falla, el panel sigue.
+  const gobiernoDisponible = secciones.some((s) => s.href === "/portal/proyectos" && s.state === "DISPONIBLE");
+  let gobierno: { tareasLibres: { id: string; title: string; projectTitle: string; dueAt: Date | null }[]; totalLibres: number } | null =
+    null;
+  if (gobiernoDisponible) {
+    try {
+      const libres = await listOpenTasksForVolunteers(context.workspace.id, 3);
+      gobierno = {
+        tareasLibres: libres.tasks.map((t) => ({ id: t.id, title: t.title, projectTitle: t.project.title, dueAt: t.dueAt })),
+        totalLibres: libres.total,
+      };
+    } catch (error) {
+      console.error("[fotoffice][gobierno] no se pudieron cargar las tareas libres", {
+        detalle: error instanceof Error ? error.message : "error desconocido",
+      });
+      gobierno = { tareasLibres: [], totalLibres: 0 };
+    }
+  }
+
+  // La vitrina de concursos (FotoRank y Clickatón). Si falla, el panel sigue sin la franja.
+  let concursos: ShowcaseItem[] = [];
+  try {
+    concursos = bannerItems(await loadShowcase(context.workspace.id));
+  } catch (error) {
+    console.error("[fotoffice][vitrina] no se pudo cargar la vitrina", {
+      detalle: error instanceof Error ? error.message : "error desconocido",
+    });
+  }
+
+  // Los cumpleaños de la semana. Igual que la tarjeta de arriba: si falla, el panel sigue.
+  let cumpleanos: BirthdayView[] = [];
+  try {
+    cumpleanos = await loadBirthdaysOfWeek({
+      workspaceId: context.workspace.id,
+      viewerMemberId: context.member.id,
+    });
+  } catch (error) {
+    console.error("[fotoffice][cumpleanos] no se pudieron cargar los cumpleaños", {
+      detalle: error instanceof Error ? error.message : "error desconocido",
+    });
+  }
+
+  const sponsors = await sponsorsPromesa;
+
   return (
+    <>
     <PortalHome
       institution={institution}
       member={{
@@ -110,9 +206,18 @@ export default async function PortalPage() {
         recomendar ? duesSettings.recommendationBenefitPercent : null
       }
       perfilVacio={perfilVacio}
-      puedeCambiarPerfil={profiles.length > 1}
+      puedeCambiarPerfil={hasProfilesInSeveralWorkspaces(profiles)}
       tieneNegocio={profiles.some((p) => p.kind === "TEAM")}
       sorteo={sorteo}
+      whatsappGroupUrl={duesSettings.communityWhatsappUrl}
+      socioDeLaSemana={socioDeLaSemana}
+      cumpleanos={cumpleanos}
+      gobierno={gobierno}
+      concursos={concursos}
     />
+    <div className="mt-8">
+      <PortalSponsorsSection sponsors={sponsors} />
+    </div>
+    </>
   );
 }

@@ -57,10 +57,13 @@ vi.mock("@/lib/ficha/proveedores", () => ({
 }));
 
 const m = await import("./ficha");
+const { nivelesPorRol } = await import("@/lib/access/niveles-de-prueba");
 const { crearRelacionAction, borrarRelacionAction, buscarPersonasAction, ponerEtiquetaAction, quitarEtiquetaAction, buscarEtiquetasAction, crearNotaAction, editarNotaAction, borrarNotaAction, fijarNotaAction } = m;
 
+// Como lo arma `contextoDeFicha`: STAFF sin roles de la comisión (Caja en "Gestionar").
 const CTX = {
   workspaceId: "ws-1", workspaceSlug: "sfpr", userId: 1, userLabel: "Ana", role: "STAFF",
+  acceso: { role: "STAFF", levels: nivelesPorRol("STAFF") }, modulo: "clients",
   persona: { clientId: "c1", memberId: "m1" },
 };
 const P = { tipo: "CLIENTE", id: "c1" } as const;
@@ -313,7 +316,7 @@ describe("verMasAction", () => {
   });
 
   it("sin verDinero la plata no se lee ni viaja", async () => {
-    H.ctx.mockResolvedValue({ ...CTX, role: "COLLABORATOR" });
+    H.ctx.mockResolvedValue({ ...CTX, role: "COLLABORATOR", acceso: { role: "COLLABORATOR", levels: nivelesPorRol("COLLABORATOR") } });
     const r = await m.verMasAction(P, null, null);
     expect(r.ok && r.eventos.map((e) => e.id)).toEqual(["notas:n1"]);
     expect(L.caja).not.toHaveBeenCalled();

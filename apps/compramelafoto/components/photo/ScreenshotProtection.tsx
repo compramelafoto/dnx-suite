@@ -97,6 +97,17 @@ export default function ScreenshotProtection({ albumId }: { albumId?: number }) 
       return k === "Meta" || k === "Shift" || k === "Alt";
     }
 
+    /**
+     * Escribiendo en un campo, mantener Shift es escribir una mayúscula, no preparar una
+     * captura: sin esto el nombre o el email de un formulario de compra no se podían tipear.
+     */
+    function isTypingInField(e: Event) {
+      const el = (e.target as HTMLElement | null) ?? null;
+      if (!el) return false;
+      const tag = el.tagName;
+      return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
+    }
+
     const MODIFIER_TRIGGER_DELAY_MS = 350;
 
     function handleKeyDown(e: KeyboardEvent) {
@@ -105,7 +116,7 @@ export default function ScreenshotProtection({ albumId }: { albumId?: number }) 
         triggerBlur();
         return;
       }
-      if (isModifierOnlyKey(e)) {
+      if (isModifierOnlyKey(e) && !isTypingInField(e)) {
         clearModifierKeyTimeout();
         modifierKeyTimeoutRef.current = setTimeout(() => {
           modifierKeyTimeoutRef.current = null;
@@ -118,6 +129,8 @@ export default function ScreenshotProtection({ albumId }: { albumId?: number }) 
     }
 
     function handleContextMenu(e: MouseEvent) {
+      // En un campo de texto el menú sirve para pegar el email o el teléfono.
+      if (isTypingInField(e)) return;
       e.preventDefault();
       e.stopPropagation();
       setPopup({ x: e.clientX, y: e.clientY });

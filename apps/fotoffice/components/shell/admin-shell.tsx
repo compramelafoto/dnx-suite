@@ -1,20 +1,9 @@
 import { cookies } from "next/headers";
 import { prisma } from "@repo/db";
 import { resolveActiveWorkspace } from "@/lib/workspace";
-import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
-import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
-import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
-import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
-import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
-import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
-import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
-import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
-import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
-import { canManageMembers } from "@/lib/members/role-policy";
-import { canCoordinateCoverages } from "@/lib/coverages/access-policy";
+import { getGrantedActions, getModuleLevels } from "@/lib/permissions/module-access";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
-import { puede } from "@/lib/access/policy";
 import { getOrganizationType } from "@/lib/workspace-type";
 import { isFotofficePlatformAdmin } from "@/lib/platform-admin";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
@@ -23,7 +12,8 @@ import { ShellSidebar } from "@/components/shell/shell-sidebar";
 import { ShellFrame } from "@/components/shell/shell-frame";
 import { ShellHeader } from "@/components/shell/shell-header";
 import { SHELL_NAV_COOKIE, parseShellNavPreference } from "@/lib/shell/nav-preference";
-import { listUserProfiles } from "@/lib/portal/profiles";
+import { NAV_GROUPS_COOKIE, parseOpenGroups } from "@/lib/shell/nav-groups";
+import { hasProfilesInSeveralWorkspaces, listUserProfiles, roleSelector } from "@/lib/portal/profiles";
 
 type PanelUser = {
   id: number;
@@ -54,22 +44,16 @@ export async function AdminShell({ user, children }: { user: PanelUser; children
     orderBy: { createdAt: "asc" },
   });
   const workspace = await resolveActiveWorkspace(user.id);
-  const enabledModuleKeys =
-    workspace !== null ? await getEnabledModuleKeysForWorkspace(workspace.id) : new Set<string>();
-  const coursesOn = enabledModuleKeys.has(COURSES_SALES_MODULE_KEY);
-  const evaluacionesOn = enabledModuleKeys.has(EVALUACIONES_MODULE_KEY);
-  const membersOn = enabledModuleKeys.has(MEMBERS_MODULE_KEY);
-  const bookingsOn = enabledModuleKeys.has(BOOKINGS_MODULE_KEY);
-  const rafflesOn = enabledModuleKeys.has(RAFFLES_MODULE_KEY);
-  const coveragesOn = enabledModuleKeys.has(COVERAGES_MODULE_KEY);
-  const websiteOn = enabledModuleKeys.has(WEBSITE_MODULE_KEY);
-  const serviceLeadsOn = enabledModuleKeys.has(SERVICE_LEADS_MODULE_KEY);
-  // Un solo rol resuelto alimenta los dos flags del menú: si se resolvieran por caminos
-  // distintos, volvería a poder pasar que uno ofrezca lo que el otro niega.
+  // El rol sigue alimentando el encabezado y la sección Institución (Configuración no se
+  // delega). Qué módulos y qué pantallas aparecen sale de un solo cálculo de niveles, el mismo
+  // que usan las páginas: un módulo apagado ya viene en NONE.
   const activeRole = workspace !== null ? await resolveWorkspaceRole(user.id, workspace.id) : null;
-  const canManageMembersFlag = canManageMembers(activeRole);
+  const levels = workspace !== null ? await getModuleLevels(user.id, workspace.id) : {};
   const canManageWorkspaceSettingsFlag = canManageWorkspaceSettings(activeRole);
-  const [platformAdmin, organizationType] = await Promise.all([
+  // Las acciones sensibles que alguna entrada del menú exige. Se calculan acá, en el servidor:
+  // el menú es un componente de cliente y sólo recibe la lista ya resuelta.
+  const [actions, platformAdmin, organizationType] = await Promise.all([
+    workspace !== null ? getGrantedActions(user.id, workspace.id) : Promise.resolve([] as string[]),
     isFotofficePlatformAdmin(user.id),
     workspace !== null ? getOrganizationType(workspace.id) : Promise.resolve(null),
   ]);
@@ -94,9 +78,13 @@ export async function AdminShell({ user, children }: { user: PanelUser; children
     listUserProfiles(user.id),
   ]);
   const institucion = branding?.commercialName?.trim() || workspace?.name || null;
+  // Si quien administra también es socio de ESTA institución, el selector de rol del menú
+  // lateral lo lleva a su portal. El "Cambiar de perfil" general queda para varias instituciones.
+  const selector = roleSelector(perfiles, { kind: "TEAM", workspaceId: workspace?.id ?? null }, vocabulary);
 
-  const navHidden =
-    parseShellNavPreference((await cookies()).get(SHELL_NAV_COOKIE)?.value) === "hidden";
+  const cookieStore = await cookies();
+  const navHidden = parseShellNavPreference(cookieStore.get(SHELL_NAV_COOKIE)?.value) === "hidden";
+  const openGroups = parseOpenGroups(cookieStore.get(NAV_GROUPS_COOKIE)?.value);
 
   return (
     <ShellFrame
@@ -104,21 +92,14 @@ export async function AdminShell({ user, children }: { user: PanelUser; children
       sidebar={
         <ShellSidebar
           workspaceName={institucion}
-          coursesEnabled={coursesOn}
-          evaluacionesEnabled={evaluacionesOn}
-          membersEnabled={membersOn}
-          bookingsEnabled={bookingsOn}
-          rafflesEnabled={rafflesOn}
-          coveragesEnabled={coveragesOn}
-          websiteEnabled={websiteOn}
-          serviceLeadsEnabled={serviceLeadsOn}
-          canManageMembers={canManageMembersFlag}
-          canCoordinateCoverages={canCoordinateCoverages(activeRole)}
+          levels={levels}
+          actions={actions}
           canManageWorkspaceSettings={canManageWorkspaceSettingsFlag}
-          canManageTeam={puede(activeRole, "gestionarEquipo")}
           organizationType={organizationType}
           platformAdmin={platformAdmin}
           vocabulary={vocabulary}
+          roleSelector={selector}
+          openGroups={openGroups}
         />
       }
       header={
@@ -127,7 +108,7 @@ export async function AdminShell({ user, children }: { user: PanelUser; children
           userAvatarUrl={perfil?.avatarUrl ?? null}
           workspaceRole={activeRole}
           workspaceLogoUrl={branding?.logoUrl ?? null}
-          canSwitchProfile={perfiles.length > 1}
+          canSwitchProfile={hasProfilesInSeveralWorkspaces(perfiles)}
           userEmail={user.email}
           memberships={memberships.map((m) => ({
             workspaceId: m.workspaceId,

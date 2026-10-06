@@ -2,25 +2,21 @@ import Link from "next/link";
 import { FotofficeLogo } from "@/components/fotoffice-logo";
 import { NavToggle } from "./nav-toggle";
 import { ShellNav } from "./shell-nav";
+import { RoleSelector } from "./role-selector";
+import type { RoleSelector as RoleSelectorData } from "@/lib/portal/profiles";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
+import type { ModuleLevels } from "@/lib/permissions/levels";
 
 export function ShellSidebar({
   workspaceName,
-  coursesEnabled,
-  evaluacionesEnabled,
-  membersEnabled,
-  bookingsEnabled,
-  rafflesEnabled,
-  coveragesEnabled,
-  websiteEnabled,
-  serviceLeadsEnabled,
-  canManageMembers,
-  canCoordinateCoverages,
+  levels,
+  actions,
   canManageWorkspaceSettings,
-  canManageTeam,
   organizationType,
   platformAdmin,
   vocabulary,
+  roleSelector = null,
+  openGroups = [],
 }: {
   /**
    * Nombre de la organización activa. Antes acá decía "Venta de cursos", fijo en el código:
@@ -28,21 +24,20 @@ export function ShellSidebar({
    * módulo que no tiene.
    */
   workspaceName: string | null;
-  coursesEnabled: boolean;
-  evaluacionesEnabled: boolean;
-  membersEnabled: boolean;
-  bookingsEnabled: boolean;
-  rafflesEnabled: boolean;
-  coveragesEnabled: boolean;
-  websiteEnabled: boolean;
-  serviceLeadsEnabled: boolean;
-  canManageMembers: boolean;
-  canCoordinateCoverages: boolean;
+  /** Nivel en cada módulo, de `getModuleLevels`. Un módulo apagado viene en NONE. */
+  levels: ModuleLevels;
+  /** Acciones sensibles vigentes que el menú necesita (`cash.configure`, `coverages.coordinate`). */
+  actions: readonly string[];
+  /** Sólo para la sección Institución: Configuración no se delega. */
   canManageWorkspaceSettings: boolean;
-  canManageTeam: boolean;
+  /** Tipo de organización (etapa 0.1): ordena las secciones del menú por familia. */
   organizationType: string | null;
   platformAdmin: boolean;
   vocabulary: PersonVocabulary;
+  /** Socio y equipo en esta institución: el selector de rol (Comisión/Administración activo). */
+  roleSelector?: RoleSelectorData | null;
+  /** Grupos del menú que la persona dejó desplegados (cookie `fo_nav_grupos`). */
+  openGroups?: readonly string[];
 }) {
   return (
     <aside className="min-h-full md:min-h-screen border-b md:border-b-0 md:border-r border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] p-4 md:p-5">
@@ -63,22 +58,16 @@ export function ShellSidebar({
         </Link>
         <NavToggle variant="sidebar" />
       </div>
+      {/* En el teléfono esto está dentro del cajón del menú, que ya contiene esta barra. */}
+      <RoleSelector selector={roleSelector} className="mb-6" />
       <ShellNav
-        coursesEnabled={coursesEnabled}
-        evaluacionesEnabled={evaluacionesEnabled}
-        membersEnabled={membersEnabled}
-        bookingsEnabled={bookingsEnabled}
-        rafflesEnabled={rafflesEnabled}
-        coveragesEnabled={coveragesEnabled}
-        websiteEnabled={websiteEnabled}
-        serviceLeadsEnabled={serviceLeadsEnabled}
-        canManageMembers={canManageMembers}
-        canCoordinateCoverages={canCoordinateCoverages}
+        levels={levels}
+        actions={actions}
         canManageWorkspaceSettings={canManageWorkspaceSettings}
-        canManageTeam={canManageTeam}
         organizationType={organizationType}
         platformAdmin={platformAdmin}
         vocabulary={vocabulary}
+        openGroups={openGroups}
       />
     </aside>
   );

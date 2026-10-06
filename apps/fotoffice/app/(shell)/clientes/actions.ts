@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma, Prisma } from "@repo/db";
 import { parseClientForm } from "@/lib/clients/client-form";
 import { crearClienteConNumero } from "@/lib/clients/alta";
-import { requireClientsStaff } from "@/lib/clients/access";
+import { requireClientsEditor } from "@/lib/clients/access";
 import { CAMPOS_AUDITADOS_CLIENTE } from "@/lib/clients/audit";
 import { diffCampos, registrarEventoPersona, type Actor } from "@/lib/ficha/eventos";
 import { mudarPiezasDelSocioAlCliente } from "@/lib/ficha/mudanza";
@@ -23,7 +23,7 @@ const LISTA = "/clientes";
  * sobra para un mostrador.
  */
 export async function saveClientAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireClientsStaff();
+  const { workspace, user } = await requireClientsEditor();
 
   const clientId = String(formData.get("clientId") ?? "").trim() || null;
   const destinoError = clientId ? `${LISTA}/${clientId}` : `${LISTA}/nuevo`;
@@ -78,7 +78,7 @@ export async function saveClientAction(formData: FormData): Promise<void> {
  * historial es un error que después no se puede deshacer.
  */
 export async function linkClientToMemberAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireClientsStaff();
+  const { workspace, user } = await requireClientsEditor();
   const actor: Actor = { userId: user.id, label: etiquetaDeUsuario(user) };
   const clientId = String(formData.get("clientId") ?? "").trim();
   const memberId = String(formData.get("memberId") ?? "").trim() || null;

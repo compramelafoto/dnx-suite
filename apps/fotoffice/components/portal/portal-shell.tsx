@@ -1,7 +1,10 @@
 import type { ReactNode } from "react";
+import { RoleSelector } from "@/components/shell/role-selector";
+import type { RoleSelector as RoleSelectorData } from "@/lib/portal/profiles";
 import { type ResolvedPortalItem } from "@/lib/portal/menu";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import { PortalNav, PortalSidebar } from "./portal-nav";
+import { NotificationBell } from "./notification-bell";
 
 /**
  * El marco del portal: identidad arriba, navegación al costado (computadora) o abajo
@@ -19,12 +22,18 @@ export function PortalShell({
   member,
   institution,
   vocabulary,
+  roleSelector = null,
+  notifications = false,
   children,
 }: {
   items: ResolvedPortalItem[];
-  member: { fullName: string; memberNumber: string; category: string | null; photoUrl: string | null };
+  member: { fullName: string; memberNumber: string | null; category: string | null; photoUrl: string | null };
   institution: { name: string; logoUrl: string | null };
   vocabulary: PersonVocabulary;
+  /** Si el socio también es equipo de esta institución: el selector de rol (socio activo). */
+  roleSelector?: RoleSelectorData | null;
+  /** La campanita de novedades: sólo para el socio (el alumno no tiene de qué enterarse acá). */
+  notifications?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -49,10 +58,18 @@ export function PortalShell({
           </div>
 
           <div className="flex min-w-0 items-center gap-3">
+            {/* A la izquierda del nombre: se ve sin tapar la identidad y queda a mano del pulgar. */}
+            {notifications ? <NotificationBell /> : null}
             <div className="min-w-0 text-right">
               <p className="truncate text-sm font-semibold leading-tight">{member.fullName}</p>
               <p className="truncate text-xs text-[var(--fo-muted)]">
-                {vocabulary.Singular} N° <span className="tabular-nums">{member.memberNumber}</span>
+                {member.memberNumber !== null ? (
+                  <>
+                    {vocabulary.Singular} N° <span className="tabular-nums">{member.memberNumber}</span>
+                  </>
+                ) : (
+                  "Alumno"
+                )}
                 {member.category ? <span className="hidden sm:inline"> · {member.category}</span> : null}
               </p>
             </div>
@@ -62,8 +79,16 @@ export function PortalShell({
       </header>
 
       <div className="mx-auto flex max-w-7xl gap-8 md:px-6">
-        <PortalSidebar items={items} vocabulary={vocabulary} />
-        <main className="min-w-0 flex-1 px-4 py-5 md:px-0 md:py-6">{children}</main>
+        <PortalSidebar
+          items={items}
+          vocabulary={vocabulary}
+          top={<RoleSelector selector={roleSelector} className="mb-5" />}
+        />
+        <main className="min-w-0 flex-1 px-4 py-5 md:px-0 md:py-6">
+          {/* En el teléfono la navegación va abajo: el selector queda arriba del contenido. */}
+          <RoleSelector selector={roleSelector} className="mb-5 md:hidden" />
+          {children}
+        </main>
       </div>
 
       <PortalNav items={items} vocabulary={vocabulary} />

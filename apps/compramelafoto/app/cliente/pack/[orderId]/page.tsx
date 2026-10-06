@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import PreventaPackHubJourney from "@/components/preventa/PreventaPackHubJourney";
 import PreventaSelfieStep from "@/components/preventa/PreventaSelfieStep";
 import { buildPreventaPackJourneySteps } from "@/lib/preventa-canjeable/preventa-pack-journey";
-import { buildPreventaRedeemComprarUrl } from "@/lib/preventa-canjeable/preventa-redeem-url";
+import { buildPreventaRedeemGalleryUrl } from "@/lib/preventa-canjeable/preventa-redeem-url";
 import {
   shouldEmbedPreventaSelfieStep,
   type PreventaSelfieUxPhase,
@@ -73,6 +73,29 @@ type OrderResponse = {
     priceArs: number;
   }>;
 };
+
+/**
+ * Qué tiene que hacer la familia con cada beneficio. El `summary` guardado en el pedido es el
+ * texto del panel del fotógrafo ("…y no cargaste un monto acá…") y quedó congelado en cada
+ * preventa vendida, así que se arma acá en vez de mostrarlo.
+ */
+function benefitClientLine(b: {
+  summary: string;
+  kind?: "DIGITAL" | "PHYSICAL";
+  includedQuantity?: number;
+  selectionMode?: "SINGLE_PHOTO" | "MULTI_PHOTO_FIXED" | "ALBUM_CHOICE";
+  requiredPhotoCount?: number;
+}): string {
+  const iq = b.includedQuantity ?? 1;
+  const rpc = b.requiredPhotoCount ?? 1;
+  const destino = b.kind === "DIGITAL" ? "para descargar" : "para imprimir";
+  if (b.selectionMode === "MULTI_PHOTO_FIXED" && rpc > 1) {
+    return iq === 1
+      ? `Cuando estén las fotos, elegís ${rpc} fotos distintas ${destino}.`
+      : `Cuando estén las fotos, elegís ${rpc} fotos distintas para cada una de las ${iq}.`;
+  }
+  return `Cuando estén las fotos, elegís ${iq} ${iq === 1 ? "foto" : "fotos"} ${destino}.`;
+}
 
 export default function ClientePackPage({
   params,
@@ -147,22 +170,22 @@ export default function ClientePackPage({
 
   const redeemEntryHref = useMemo(() => {
     if (!data?.order.album) return null;
-    return buildPreventaRedeemComprarUrl({
+    // Con el link del correo (token) se canjea en el recorrido guiado por pasos. Quien entra
+    // logueado por número de pedido sigue con la galería en modo canje.
+    if (!isNumericId) return `/canje/preventa/${encodeURIComponent(rawId)}`;
+    return buildPreventaRedeemGalleryUrl({
       albumId: data.order.album.id,
       preventaPackOrderId: isNumericId ? data.order.id : undefined,
       preventaPackToken: isNumericId ? undefined : rawId,
     });
   }, [data, isNumericId, rawId]);
 
+  // Los extras se compran como cualquier foto de la galería, sin el token: con el token la
+  // compra entraba en modo canje y no cobraba nada.
   const upsellHref = useMemo(() => {
     if (!data?.order.album) return null;
-    return buildPreventaRedeemComprarUrl({
-      albumId: data.order.album.id,
-      preventaPackOrderId: isNumericId ? data.order.id : undefined,
-      preventaPackToken: isNumericId ? undefined : rawId,
-      source: "pack-upsell",
-    });
-  }, [data, isNumericId, rawId]);
+    return `/a/${data.order.album.id}`;
+  }, [data]);
 
   const journeySteps = useMemo(() => {
     if (!uxV2 || !data?.order) return [];
@@ -343,7 +366,7 @@ export default function ClientePackPage({
               <div key={b.stableKey} className="border rounded-lg p-3">
                 <p className="font-medium">{b.name}</p>
                 <p className="text-sm text-gray-600">{b.kindLabel}</p>
-                <p className="text-sm text-gray-700 mt-1">{b.summary}</p>
+                <p className="text-sm text-gray-700 mt-1">{benefitClientLine(b)}</p>
               </div>
             ))}
           </div>
@@ -449,7 +472,7 @@ export default function ClientePackPage({
               href={redeemEntryHref}
               className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-black text-white text-sm font-medium hover:bg-gray-900"
             >
-              Elegir fotos en el álbum
+              Elegir las fotos de mi pack
             </Link>
           </>
         ) : null}

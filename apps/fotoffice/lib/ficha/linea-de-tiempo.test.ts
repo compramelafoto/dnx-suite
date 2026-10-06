@@ -9,10 +9,13 @@ import {
   type Proveedor,
   type TipoEvento,
 } from "./linea-de-tiempo";
+import { nivelesPorRol } from "@/lib/access/niveles-de-prueba";
 
 const PERSONA = { clientId: "c1", memberId: "m1" };
-const EQUIPO = { workspaceId: "ws-1", role: "STAFF" };
-const COLABORADOR = { workspaceId: "ws-1", role: "COLLABORATOR" };
+// Acceso como lo resuelve main: STAFF sin roles de la comisión tiene Caja en "Gestionar"; el
+// colaborador (valor de 0.1) no tiene ningún módulo.
+const EQUIPO = { workspaceId: "ws-1", role: "STAFF", acceso: { role: "STAFF", levels: nivelesPorRol("STAFF") } };
+const COLABORADOR = { workspaceId: "ws-1", role: "COLLABORATOR", acceso: { role: "COLLABORATOR", levels: nivelesPorRol("COLLABORATOR") } };
 
 function ev(clave: string, n: string, fecha: string, tipo: TipoEvento): EventoFicha {
   return { id: `${clave}:${n}`, tipo, fecha: new Date(fecha), actor: null, titulo: `${clave} ${n}` };
@@ -158,6 +161,21 @@ describe("armarLinea", () => {
     (caja.traer as ReturnType<typeof vi.fn>).mockClear();
     const colab = await armarLinea({ proveedores: [caja, notas], ctx: COLABORADOR, persona: PERSONA, filtro: null, cursor: null });
     expect(colab.eventos.map((e) => e.id)).toEqual(["notas:1"]);
+    expect(caja.traer).not.toHaveBeenCalled();
+  });
+
+  it("la plata de Caja se mira sobre Caja: con Ver en Cuotas pero sin Caja, no sale", async () => {
+    const caja = falso("caja", "plata", [ev("caja", "1", "2026-09-02T00:00:00Z", "plata")], {
+      capacidad: "verDinero",
+      moduloDinero: "cash",
+    });
+    const soloCuotas = {
+      workspaceId: "ws-1",
+      role: "STAFF",
+      acceso: { role: "STAFF", levels: { ...nivelesPorRol("STAFF"), cash: "NONE" as const, "membership-dues": "VIEW" as const } },
+    };
+    const r = await armarLinea({ proveedores: [caja], ctx: soloCuotas, persona: PERSONA, filtro: null, cursor: null });
+    expect(r.eventos).toEqual([]);
     expect(caja.traer).not.toHaveBeenCalled();
   });
 

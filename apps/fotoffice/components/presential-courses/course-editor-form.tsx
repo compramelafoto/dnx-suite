@@ -24,6 +24,7 @@ type CourseFormInitial = {
   priceArs?: string | null;
   accessMonths?: number;
   completionPercent?: number;
+  freeForMembers?: boolean;
   faqJson?: unknown;
   classroomLink?: string | null;
   classroomCode?: string | null;
@@ -91,6 +92,30 @@ export function CourseEditorForm({
               grabado se organiza en clases, y el alumno lo mira cuando quiere.
             </p>
           </div>
+          <fieldset className="space-y-3 rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] p-4 md:col-span-2">
+            <legend className="px-1 text-sm font-semibold">Venta del curso grabado</legend>
+            <p className="text-xs text-[var(--fo-muted)]">
+              Sólo se usa si la modalidad es Grabado. Los presenciales llevan el precio en cada edición.
+            </p>
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="fo-field-stack">
+                <label className="fo-label" htmlFor="priceArs">Precio (pesos)</label>
+                <input id="priceArs" name="priceArs" inputMode="decimal" defaultValue={initial?.priceArs ?? ""} className="fo-input" />
+              </div>
+              <div className="fo-field-stack">
+                <label className="fo-label" htmlFor="accessMonths">Meses de acceso</label>
+                <input id="accessMonths" name="accessMonths" type="number" min={1} max={120} defaultValue={initial?.accessMonths ?? 12} className="fo-input" />
+              </div>
+              <div className="fo-field-stack">
+                <label className="fo-label" htmlFor="completionPercent">% visto para terminarlo</label>
+                <input id="completionPercent" name="completionPercent" type="number" min={1} max={100} defaultValue={initial?.completionPercent ?? 80} className="fo-input" />
+              </div>
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" name="freeForMembers" defaultChecked={initial?.freeForMembers ?? false} />
+              Gratis para socios: el socio activo lo toma sin pagar desde su portal; el público paga el precio.
+            </label>
+          </fieldset>
           <div className="fo-field-stack">
             <label className="fo-label" htmlFor="instructorName">
               Instructor/a

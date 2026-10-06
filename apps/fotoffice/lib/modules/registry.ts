@@ -1,3 +1,4 @@
+import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
@@ -5,10 +6,15 @@ import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
+import { SPONSORS_MODULE_KEY } from "@/lib/sponsors/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
+import { SALES_MODULE_KEY } from "@/lib/sales/constants";
+import { STORE_MODULE_KEY } from "@/lib/store/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
+import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
+import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
 
 /**
  * Catálogo central de módulos de FotoOffice.
@@ -148,12 +154,41 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     family: "base",
   },
   {
-    key: "communications",
+    key: SALES_MODULE_KEY,
+    label: "Ventas",
+    description:
+      "Catálogo de productos y servicios con stock, y una pantalla de mostrador que cobra y deposita en Caja.",
+    category: "GENERAL",
+    order: 35,
+    route: "/ventas",
+    status: "AVAILABLE",
+    family: "negocio",
+  },
+  {
+    // Que la tienda necesita Ventas (vende el mismo catálogo y el mismo stock) lo hace cumplir
+    // `lib/store/access.ts`, y que necesita el Sitio web para verse lo resuelve el sitio
+    // público, que sin él no existe. `dependsOn` sólo lo usa la pantalla de Módulos para avisar.
+    // Sin `route` a propósito: no es una entrada más del menú lateral, sus pantallas cuelgan
+    // del submenú de Ventas (`lib/modules/submodules.ts`).
+    key: STORE_MODULE_KEY,
+    label: "Tienda online",
+    description:
+      "Los productos del catálogo de Ventas a la venta en el sitio público, con cobro por Mercado Pago y retiro en el local. Necesita Ventas y el Sitio web encendidos.",
+    category: "GENERAL",
+    order: 36,
+    status: "AVAILABLE",
+    family: "negocio",
+    dependsOn: [SALES_MODULE_KEY, WEBSITE_MODULE_KEY],
+  },
+  {
+    key: COMMUNICATIONS_MODULE_KEY,
     label: "Comunicación",
-    description: "Envío de comunicaciones/email a clientes o {personas} del workspace.",
+    description:
+      "Placas para redes: la bienvenida a cada {persona} nuevo y el {persona} de la semana, con plantillas que diseña la institución.",
     category: "GENERAL",
     order: 40,
-    status: "PLANNED",
+    route: "/comunicacion/placas",
+    status: "AVAILABLE",
     family: "base",
   },
   {
@@ -211,12 +246,36 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     family: "institucion",
   },
   {
-    key: "governance",
-    label: "Gobierno institucional",
-    description: "Actas, votaciones y resoluciones institucionales.",
+    key: SPONSORS_MODULE_KEY,
+    label: "Sponsors",
+    description:
+      "Las marcas que acompañan a la institución: su ficha en la base común de DNX y en qué lugar del sitio y del portal de los {personas} aparece cada una, y hasta cuándo.",
+    category: "INSTITUTIONAL",
+    order: 116,
+    route: "/sponsors",
+    status: "AVAILABLE",
+    family: "institucion",
+  },
+  {
+    key: PORTFOLIO_MODULE_KEY,
+    label: "Portfolios",
+    description:
+      "Cada una de las {personas} arma su galería y la publica en el sitio de la institución, con su obra, su presentación y su contacto.",
+    category: "INSTITUTIONAL",
+    order: 118,
+    route: "/portfolios",
+    status: "AVAILABLE",
+    family: "institucion",
+  },
+  {
+    key: GOVERNANCE_MODULE_KEY,
+    label: "Proyectos de la comisión",
+    description:
+      "Los proyectos de la comisión directiva: etapas, tareas delegadas con responsable y fecha, archivos e historial de todo lo que pasó.",
     category: "INSTITUTIONAL",
     order: 120,
-    status: "PLANNED",
+    route: "/gobierno",
+    status: "AVAILABLE",
     family: "institucion",
   },
   {

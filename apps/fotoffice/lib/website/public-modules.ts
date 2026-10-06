@@ -1,6 +1,13 @@
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
+import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
+import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
+import { BLOG_PUBLIC_PAGE_KEY } from "./constants";
+import { PORTFOLIO_MODULE_KEY, PORTFOLIO_PUBLIC_SEGMENT } from "@/lib/portfolio/constants";
+import { STORE_MODULE_KEY, STORE_PUBLIC_SEGMENT } from "@/lib/store/constants";
+import { SALES_MODULE_KEY } from "@/lib/sales/constants";
+import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
 /**
  * Las páginas públicas que aporta cada módulo al sitio: qué segmento ocupan bajo
@@ -14,26 +21,101 @@ import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
  * `app/w/[workspaceSlug]/<segment>/`.
  */
 export type PublicModulePage = {
-  /** Mismo valor que `WorkspaceFeatureModule.moduleKey`. */
+  /** Mismo valor que `WorkspaceFeatureModule.moduleKey` — salvo el blog, que no es un módulo y
+   * usa una llave propia (`BLOG_PUBLIC_PAGE_KEY`, ver `buildSiteNav`). */
   moduleKey: string;
   /** Segmento bajo `/w/[slug]/`. Es también su entrada en el menú. */
   segment: string;
-  /** Etiqueta visible. Ojo: el vocabulario por workspace todavía no se aplica acá. */
+  /** Etiqueta visible por omisión. La usa toda página que no declare `labelFromVocabulary`. */
   label: string;
+  /**
+   * Cuando está, la etiqueta sale del vocabulario del workspace en lugar de `label`. Una
+   * institución de voluntarios no puede tener un menú que diga "Socios".
+   *
+   * **El segmento nunca sigue al vocabulario, sólo la etiqueta.** Si la dirección cambiara al
+   * cambiar la palabra en Configuración, se romperían todos los enlaces ya publicados: la palabra
+   * es de cara al visitante, la dirección es un compromiso.
+   */
+  labelFromVocabulary?: "personPlural";
   order: number;
 };
 
 export const PUBLIC_MODULE_PAGES: readonly PublicModulePage[] = [
   { moduleKey: COURSES_SALES_MODULE_KEY, segment: "cursos", label: "Cursos", order: 10 },
   { moduleKey: BOOKINGS_MODULE_KEY, segment: "reservas", label: "Reservas", order: 20 },
+  {
+    moduleKey: PORTFOLIO_MODULE_KEY,
+    segment: PORTFOLIO_PUBLIC_SEGMENT,
+    label: "Socios",
+    labelFromVocabulary: "personPlural",
+    order: 25,
+  },
   { moduleKey: MEMBERS_MODULE_KEY, segment: "asociarse", label: "Asociarse", order: 30 },
+  // Entra al menú sólo con la tienda ABIERTA, no alcanza con el módulo encendido: ver
+  // `withStoreOpenState`, que aplica `loadPublicSite`.
+  { moduleKey: STORE_MODULE_KEY, segment: STORE_PUBLIC_SEGMENT, label: "Tienda", order: 35 },
+  { moduleKey: BLOG_PUBLIC_PAGE_KEY, segment: "blog", label: "Blog", order: 40 },
 ] as const;
+
+/**
+ * La etiqueta que ve el visitante, ya resuelta contra el vocabulario de la institución.
+ *
+ * Las páginas que no declaran `labelFromVocabulary` devuelven su etiqueta fija, así agregar esto
+ * no cambió ninguna de las que ya existían.
+ */
+export function resolvePublicModuleLabel(
+  page: PublicModulePage,
+  vocabulary: PersonVocabulary,
+): string {
+  if (page.labelFromVocabulary === "personPlural") return vocabulary.Plural;
+  return page.label;
+}
 
 /** Las páginas de los módulos habilitados, en su orden de presentación. */
 export function publicModulePagesFor(enabledModuleKeys: ReadonlySet<string>): PublicModulePage[] {
   return PUBLIC_MODULE_PAGES.filter((p) => enabledModuleKeys.has(p.moduleKey))
     .slice()
     .sort((a, b) => a.order - b.order);
+}
+
+/**
+ * La tienda es el único módulo cuya página pública no alcanza con tenerlo encendido: el dueño
+ * la abre y la cierra desde su configuración (`StoreSettings.isOpen`), y una tienda cerrada no
+ * puede quedar en el menú llevando a una vidriera vacía. Saca la clave de la tienda de los
+ * módulos habilitados cuando está cerrada; el resto queda intacto.
+ */
+export function withStoreOpenState(enabledModuleKeys: ReadonlySet<string>, storeOpen: boolean): Set<string> {
+  const claves = new Set(enabledModuleKeys);
+  // La tienda vende el catálogo de Ventas: sin Ventas encendido no hay tienda (igual que `loadOpenStore`).
+  if (!storeOpen || !enabledModuleKeys.has(SALES_MODULE_KEY)) claves.delete(STORE_MODULE_KEY);
+  return claves;
+}
+
+/**
+ * Páginas públicas que existen pero que NO entran solas al menú: el dueño las suma a mano desde
+ * la pestaña Menú del constructor. Están separadas de `PUBLIC_MODULE_PAGES` a propósito — si
+ * vivieran ahí, aparecerían de golpe en el menú de todos los sitios ya publicados.
+ *
+ * `moduleKey: null` es una página del sitio que no depende de ningún módulo.
+ */
+export type OptionalPublicPage = {
+  /** Identificador estable que se guarda en el menú (`navJson`). No cambiarlo nunca. */
+  key: string;
+  moduleKey: string | null;
+  /** Ruta bajo `/w/[slug]/`. */
+  path: string;
+  label: string;
+};
+
+export const OPTIONAL_PUBLIC_PAGES: readonly OptionalPublicPage[] = [
+  { key: "raffles", moduleKey: RAFFLES_MODULE_KEY, path: "sorteos", label: "Sorteos" },
+  { key: "coverages", moduleKey: COVERAGES_MODULE_KEY, path: "coberturas/solicitar", label: "Pedir cobertura" },
+  { key: "entrar", moduleKey: null, path: "entrar", label: "Ingresar" },
+] as const;
+
+/** Las páginas opcionales disponibles con los módulos habilitados. */
+export function optionalPublicPagesFor(enabledModuleKeys: ReadonlySet<string>): OptionalPublicPage[] {
+  return OPTIONAL_PUBLIC_PAGES.filter((p) => p.moduleKey === null || enabledModuleKeys.has(p.moduleKey));
 }
 
 /**
@@ -47,7 +129,11 @@ export function publicModulePagesFor(enabledModuleKeys: ReadonlySet<string>): Pu
 const SEGMENTOS_FIJOS = ["xv", "sitemap.xml", "robots.txt"] as const;
 
 export const SITE_RESERVED_SEGMENTS: readonly string[] = [
-  ...new Set([...PUBLIC_MODULE_PAGES.map((p) => p.segment), ...SEGMENTOS_FIJOS]),
+  ...new Set([
+    ...PUBLIC_MODULE_PAGES.map((p) => p.segment),
+    ...OPTIONAL_PUBLIC_PAGES.map((p) => p.path.split("/")[0]),
+    ...SEGMENTOS_FIJOS,
+  ]),
 ];
 
 export function isSiteSegmentReserved(segment: string): boolean {

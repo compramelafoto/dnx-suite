@@ -1,6 +1,7 @@
 import "server-only";
 import { cache } from "react";
-import { puede } from "@/lib/access/policy";
+import { puedeEnContexto } from "@/lib/access/policy";
+import { moduloDeTipo } from "@/lib/access/modulos-crm";
 import { moduloDeRegistroEncendido } from "@/lib/campos/modulos";
 import { registroDelWorkspace } from "@/lib/campos/valores";
 import { normalizeWhatsappNumber } from "@/lib/contact/whatsapp";
@@ -23,7 +24,7 @@ export async function contextoDelPanelMensaje(entityType: unknown, entityId: unk
   if (!esTipoFichaMensaje(entityType)) return null;
   if (typeof entityId !== "string" || !entityId || entityId.length > 100) return null;
   const ctx = await contextoDelPedido();
-  if (!ctx || !puede(ctx.role, "operar")) return null;
+  if (!ctx || !puedeEnContexto(ctx, "operar", moduloDeTipo(entityType))) return null;
   if (!(await moduloDeRegistroEncendido(ctx.workspaceId, entityType))) return null;
   if (!(await registroDelWorkspace(ctx.workspaceId, entityType, entityId))) return null;
   return ctx;

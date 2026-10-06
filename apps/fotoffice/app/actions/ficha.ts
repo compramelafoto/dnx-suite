@@ -284,7 +284,7 @@ export async function verMasAction(
   const pagina = await armarLinea({
     // Las mismas fuentes que la primera página (según los módulos encendidos).
     proveedores: await proveedoresParaWorkspace(ctx.workspaceId),
-    ctx: { workspaceId: ctx.workspaceId, role: ctx.role },
+    ctx: { workspaceId: ctx.workspaceId, role: ctx.role, acceso: ctx.acceso, modulo: ctx.modulo },
     persona: ctx.persona,
     filtro,
     cursor,

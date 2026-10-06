@@ -3,12 +3,13 @@ import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
 import { PageHeader } from "@/components/page-header";
 import { requireActiveWorkspace } from "@/lib/workspace";
-import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
+import { hasModuleLevel } from "@/lib/permissions/module-access";
+import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { getDuesSettings } from "@/lib/membership/settings";
 import { decimalArsToMinor, formatMinorArs } from "@/lib/membership/money";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { sendDuesReminders } from "@/lib/membership/dues-reminder";
-import { DuesSettingsForm, FeeValueForm, SendReminderButton } from "./forms";
+import { CommunityLinkForm, DuesSettingsForm, FeeValueForm, SendReminderButton } from "./forms";
 
 export const dynamic = "force-dynamic";
 /** El recordatorio manual sale de esta página: unos 100 correos con pausa entre uno y otro. */
@@ -29,7 +30,7 @@ function fechaLegible(d: Date): string {
 export default async function ConfiguracionCuotasPage() {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) redirect("/workspace");
-  if (!(await canManageWorkspaceCollection(user.id, workspace.id))) redirect("/members/cuotas");
+  if (!(await hasModuleLevel(user.id, workspace.id, MEMBERSHIP_DUES_MODULE_KEY, "MANAGE"))) redirect("/members/cuotas");
 
   const ahora = new Date();
   const [settings, categorias, valores, vocab, previa] = await Promise.all([
@@ -140,6 +141,11 @@ export default async function ConfiguracionCuotasPage() {
           {previa.sorteo ? ` Incluye el sorteo «${previa.sorteo}».` : " No hay ningún sorteo anunciado para incluir."}
         </p>
         <SendReminderButton recipients={previa.enviados} />
+      </section>
+
+      <section className="fo-card space-y-3 p-5">
+        <h2 className="text-sm font-semibold">{`Grupo de WhatsApp de los ${vocab.plural}`}</h2>
+        <CommunityLinkForm defaultUrl={settings.communityWhatsappUrl} vocabulary={vocab} />
       </section>
 
       <section className="fo-card space-y-4 p-5">

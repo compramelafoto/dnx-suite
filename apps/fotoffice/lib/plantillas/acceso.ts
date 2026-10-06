@@ -2,8 +2,9 @@ import "server-only";
 import { prisma } from "@repo/db";
 import { getAuthUser } from "@/lib/auth";
 import { resolveActiveWorkspace } from "@/lib/workspace";
-import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { puede } from "@/lib/access/policy";
+import { resolverAcceso } from "@/lib/access/acceso";
+import { MODULOS_CRM } from "@/lib/access/modulos-crm";
 import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import type { CtxPlantillas } from "./definiciones";
 
@@ -26,8 +27,10 @@ export async function contextoDePlantillas(): Promise<ContextoPlantillas | null>
   if (!user) return null;
   const workspace = await resolveActiveWorkspace(user.id);
   if (!workspace) return null;
-  const role = await resolveWorkspaceRole(user.id, workspace.id);
-  if (!puede(role, "operar")) return null;
+  const acceso = await resolverAcceso(user.id, workspace.id);
+  // Usar plantillas y enviar exige `operar` sobre el módulo del registro (cada acción lo mira);
+  // configurar, dueño/admin. Acá alcanza con poder una de las dos cosas en algún módulo.
+  if (!puede(acceso, "operar", MODULOS_CRM) && !puede(acceso, "configurar")) return null;
   const branding = await prisma.fotofficeWorkspaceBranding.findFirst({
     where: { workspaceId: workspace.id },
     select: { publicSlug: true },
@@ -39,6 +42,7 @@ export async function contextoDePlantillas(): Promise<ContextoPlantillas | null>
     userLabel: etiquetaDeUsuario(user),
     userName: user.name?.trim() || null,
     userEmail: user.email?.trim() || null,
-    role,
+    role: acceso.role,
+    acceso,
   };
 }

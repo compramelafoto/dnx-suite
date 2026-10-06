@@ -1,12 +1,13 @@
 import { PageHeader } from "@/components/page-header";
 import { Listado } from "@/components/listado/listado";
-import { requireCashStaff } from "@/lib/cash/access";
+import { requireCashViewer } from "@/lib/cash/access";
+import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { listadoMovimientos } from "@/lib/cash/listado-movimientos";
 import { listAccounts, listCategories } from "@/lib/cash/repository";
 import { listClients } from "@/lib/clients/repository";
-import { etiquetaDeUsuario } from "@/lib/listado/acceso";
-import type { ContextoListado } from "@/lib/listado/tipos";
+import { contextoListadoDePagina } from "@/lib/listado/acceso";
 import { MovementForm } from "../movement-form";
+import { canHandleProjectMoney, listMoneyProjects } from "@/lib/governance/money-server";
 
 export const dynamic = "force-dynamic";
 
@@ -15,17 +16,18 @@ export default async function MovimientosPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { user, workspace, role } = await requireCashStaff();
+  // Ver el libro pide VIEW en Caja; cargar y anular, MANAGE (`canOperate`).
+  const { workspace, canOperate, user } = await requireCashViewer();
+  const proyectosConPlata =
+    canOperate && (await canHandleProjectMoney(user.id, workspace.id)) ? await listMoneyProjects(workspace.id) : [];
   const sp = await searchParams;
   const error = typeof sp.error === "string" ? sp.error : null;
   const ok = typeof sp.ok === "string" ? sp.ok : null;
-  const ctx: ContextoListado = {
-    workspaceId: workspace.id,
-    workspaceName: workspace.name,
-    userId: user.id,
-    userLabel: etiquetaDeUsuario(user),
-    role,
-  };
+  const ctx = await contextoListadoDePagina(user, workspace, CASH_MODULE_KEY);
+  // Sin MANAGE no se ofrece anular por fila (la acción igual rebota en el servidor).
+  const definicion = canOperate
+    ? listadoMovimientos
+    : { ...listadoMovimientos, columnas: listadoMovimientos.columnas.filter((c) => c.clave !== "acciones") };
 
   // Sólo para el formulario de alta (lo mismo que ofrece `/caja`). El filtro por cliente de la
   // lista ya no usa esta lista: es un buscador.
@@ -51,9 +53,11 @@ export default async function MovimientosPage({
         movimiento en este módulo—, repetido acá para no obligar a saltar de pantalla cuando
         ya estás mirando el libro filtrado: `returnTo` es lo único que cambia entre los dos.
       */}
-      <MovementForm accounts={cuentas} categories={categorias} clients={clientes} returnTo="/caja/movimientos" />
+      {canOperate ? (
+        <MovementForm accounts={cuentas} categories={categorias} clients={clientes} returnTo="/caja/movimientos" projects={proyectosConPlata} />
+      ) : null}
 
-      <Listado def={listadoMovimientos} ctx={ctx} ruta="/caja/movimientos" searchParams={sp} />
+      <Listado def={definicion} ctx={ctx} ruta="/caja/movimientos" searchParams={sp} />
     </div>
   );
 }

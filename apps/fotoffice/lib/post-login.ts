@@ -1,7 +1,9 @@
 import { prisma } from "@repo/db";
+import { syncPendingTeamMemberships } from "@/lib/commission/team-membership";
 import { findFotofficeWorkspaceForUser } from "@/lib/ensure-workspace";
 import { WELCOME_PATH } from "@/lib/entrada/welcome";
-import { doorPathFor, parseDoorPath } from "@/lib/entrada/institution-door";
+import { doorReturnPath } from "@/lib/entrada/institution-door";
+import { sharedReturnPath } from "@/lib/governance/share";
 import { findClaimableMembership } from "@/lib/portal/claim";
 import { isFotofficePlatformAdminRole, resolvePlatformRole } from "@/lib/fotoffice-roles";
 import { safeFotofficeNextPath } from "@/lib/google-login";
@@ -9,7 +11,8 @@ import { resolveInvitationContinuityPath } from "@/lib/members/invitation-contin
 import { resolvePortalDestination } from "@/lib/portal/destination";
 import { resolveTeamInvitationContinuityPath } from "@/lib/team/continuity";
 import { readProfileChoice } from "@/lib/portal/profile-choice";
-import { findProfileByKey, listUserProfiles, needsProfileChoice } from "@/lib/portal/profiles";
+import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
+import { listUserProfiles, resolveEntryProfile } from "@/lib/portal/profiles";
 import { resolveFotofficeUserKind } from "@/lib/portal/user-kind";
 
 /** Ruta de aceptación de invitación, validada como interna. `/invitacionfalsa` no cuenta. */
@@ -51,6 +54,14 @@ export async function resolveFotofficePostLoginDestination(params: {
     return { path: next?.startsWith("/admin") ? next : "/admin", workspaceId: null };
   }
 
+  // Un socio que recibió cargo o rol antes de tener cuenta entra al panel desde su primer
+  // inicio de sesión con la cuenta vinculada (diseño de Roles §12.1.4). Si falla, no bloquea el login.
+  try {
+    await syncPendingTeamMemberships(user.id);
+  } catch (error) {
+    console.error("[post-login] No se pudo sincronizar la membresía de equipo", error);
+  }
+
   const kind = await resolveFotofficeUserKind(user.id);
 
   // Quien vuelve a completar una invitación va ahí, sea quien sea. Se resuelve ANTES de
@@ -78,24 +89,28 @@ export async function resolveFotofficePostLoginDestination(params: {
     a qué workspace corresponde ese slug. `parseDoorPath` es estricto: cualquier `next` que no
     sea exactamente esa forma sigue el camino de siempre.
   */
-  const door = parseDoorPath(params.next);
-  if (door) return { path: doorPathFor(door), workspaceId: null };
+  const door = doorReturnPath(params.next);
+  if (door) return { path: door, workspaceId: null };
+
+  // Lo mismo con el enlace de un proyecto o una reunión que llegó por WhatsApp: la ruta del
+  // enlace sabe a dónde va cada uno (comisión o socio), así que se vuelve a ella.
+  const shared = sharedReturnPath(params.next);
+  if (shared) return { path: shared, workspaceId: null };
 
   /**
-   * Con más de un perfil hay que preguntar: la misma persona puede administrar su negocio y
-   * ser socia de una institución, y solo ella sabe a cuál de las dos viene hoy. Si ya eligió
-   * antes, se respeta esa elección y no se vuelve a preguntar.
+   * Con qué perfil entra. Sólo se pregunta cuando los perfiles están repartidos en más de una
+   * institución: equipo y socio de la MISMA institución entra directo (al panel si es dueño o
+   * admin; si no, al portal) y cambia con el botón del encabezado. Una elección recordada y válida se respeta siempre.
    */
   const profiles = await listUserProfiles(user.id);
-  if (needsProfileChoice(profiles)) {
-    const chosen = findProfileByKey(profiles, await readProfileChoice());
-    // Sin elección previa —o con una que ya no corresponde— se pregunta de nuevo.
-    if (!chosen) return { path: "/elegir-perfil", workspaceId: null };
-    if (chosen.kind === "MEMBER") {
-      return { path: resolvePortalDestination(params.next), workspaceId: null };
-    }
-    // Perfil de equipo: sigue por el camino normal, que prepara su workspace.
+  const entry = resolveEntryProfile(profiles, await readProfileChoice());
+  if (entry.kind === "ask") return { path: "/elegir-perfil", workspaceId: null };
+  if (entry.kind === "go" && entry.profile.kind === "MEMBER") {
+    return { path: resolvePortalDestination(params.next), workspaceId: null };
   }
+  // Perfil de equipo: sigue por el camino normal, pero con SU institución como activa.
+  const chosenTeamWorkspaceId =
+    entry.kind === "go" && entry.profile.kind === "TEAM" ? entry.profile.workspaceId : null;
 
   // Un socio no tiene panel administrativo ni workspace propio: nunca se llama a `ensure`.
   if (kind === "MEMBER") {
@@ -117,6 +132,10 @@ export async function resolveFotofficePostLoginDestination(params: {
     return { path: "/soy-socio", workspaceId: null };
   }
 
+  // Alguien que compró un curso y no es socio ni equipo: su lugar es Mis cursos. Va después
+  // de `/soy-socio` a propósito: si además es un socio sin vincular, eso se resuelve primero.
+  if (kind === "STUDENT") return { path: "/portal/cursos", workspaceId: null };
+
   /*
     Hasta acá no se reconoció a nadie: ni equipo, ni socio, ni invitación pendiente. Antes el
     paso siguiente le creaba una institución con esta persona de dueña, y así aparecieron las
@@ -132,14 +151,28 @@ export async function resolveFotofficePostLoginDestination(params: {
   });
   if (!ensured) return { path: WELCOME_PATH, workspaceId: null };
 
-  if (!ensured.onboardingCompleted) {
-    return { path: "/onboarding", workspaceId: ensured.workspaceId };
+  /*
+    `find` prefiere la institución de la que la persona es dueña. Si eligió entrar al panel de
+    OTRA (por ejemplo, la sociedad donde es de la Comisión), esa es la activa: el onboarding
+    pendiente de su estudio propio no la desvía de ahí.
+  */
+  const workspaceId = chosenTeamWorkspaceId ?? ensured.workspaceId;
+
+  /*
+    El onboarding lo completa el dueño o un admin (`app/onboarding` lo exige). Un STAFF de una
+    institución con el onboarding pendiente entra al panel. Sin perfil de equipo en la lista
+    es el caso legacy que `find` acaba de promover a dueño: ése sí va al onboarding.
+  */
+  const teamProfile = profiles.find((p) => p.kind === "TEAM" && p.workspaceId === workspaceId);
+  const canOnboard = teamProfile?.kind === "TEAM" ? canManageWorkspaceSettings(teamProfile.role) : true;
+  if (workspaceId === ensured.workspaceId && !ensured.onboardingCompleted && canOnboard) {
+    return { path: "/onboarding", workspaceId };
   }
 
   const next = safeFotofficeNextPath(params.next);
   if (next && !next.startsWith("/login") && !next.startsWith("/api")) {
-    return { path: next, workspaceId: ensured.workspaceId };
+    return { path: next, workspaceId };
   }
 
-  return { path: "/workspace", workspaceId: ensured.workspaceId };
+  return { path: "/workspace", workspaceId };
 }

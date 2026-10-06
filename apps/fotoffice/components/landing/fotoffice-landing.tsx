@@ -173,7 +173,7 @@ export function FotofficeLanding({ dbUnavailable }: { dbUnavailable?: boolean })
             <h2 className={styles.tituloSeccion}>El dinero va a tu cuenta</h2>
             <p className={styles.textoSeccion}>
               Conectás tu cuenta de Mercado Pago una sola vez y el sistema cobra por vos. El pago
-              entra directo a esa cuenta: FOTOFFICE no se pone en el medio a guardar la plata de
+              entra directo a esa cuenta: FOTOFFICE no se pone en el medio a guardar el dinero de
               nadie. Cuando acredita, lo marca solo y queda pegado a lo que se pagó, así nadie
               tiene que ir a revisar si entró.
             </p>

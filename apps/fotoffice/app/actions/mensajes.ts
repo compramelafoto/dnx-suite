@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { puede } from "@/lib/access/policy";
+import { puedeEnContexto } from "@/lib/access/policy";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
@@ -59,7 +59,7 @@ async function acceso(entityType: TipoFichaMensaje, entityId: string) {
   const ctx = await contextoDePlantillas();
   if (!ctx) return { ok: false as const, falla: SIN_ACCESO };
   if (!(await isModuleEnabledForWorkspace(ctx.workspaceId, MODULO[entityType]))) return { ok: false as const, falla: MODULO_APAGADO };
-  if (!puede(ctx.role, "operar")) return { ok: false as const, falla: SIN_ACCESO };
+  if (!puedeEnContexto(ctx, "operar", MODULO[entityType])) return { ok: false as const, falla: SIN_ACCESO };
   if (!(await registroDelWorkspace(ctx.workspaceId, entityType, entityId))) return { ok: false as const, falla: NO_ENCONTRADO };
   return { ok: true as const, ctx };
 }

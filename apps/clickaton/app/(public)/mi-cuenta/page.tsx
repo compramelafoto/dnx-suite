@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { AffiliateSection } from "@/components/account/AffiliateSection";
 import { ReferralSection } from "@/components/account/ReferralSection";
+import { ClickatonerOptOutSection } from "@/components/account/ClickatonerOptOutSection";
+import { isOptedOut } from "@/lib/clickatoner/repository";
 import { adminRoutes } from "@/config/admin/navigation";
 import { logoutClickatonAction } from "@/app/(public)/login/actions";
 import {
@@ -103,6 +105,13 @@ export default async function MiCuentaPage({ searchParams }: Props) {
     searchParams,
   ]);
   const yaParticipo = registrations.some((reg) => reg.status === "CONFIRMED");
+  // Best-effort, como los demás bloques opcionales: sin la tabla, Mi cuenta sigue andando.
+  const salioDelClickatoner = yaParticipo
+    ? await isOptedOut(user.email).catch((error: unknown) => {
+        console.error("[clickaton] no se pudo leer el permiso del clickatoner:", error);
+        return null;
+      })
+    : null;
 
   return (
     <div className="mx-auto max-w-2xl space-y-8 px-4 py-16 md:py-20">
@@ -157,6 +166,8 @@ export default async function MiCuentaPage({ searchParams }: Props) {
       {programaDeReferidos ? (
         <ReferralSection programa={programaDeReferidos} yaParticipo={yaParticipo} />
       ) : null}
+
+      {salioDelClickatoner !== null ? <ClickatonerOptOutSection optedOut={salioDelClickatoner} /> : null}
 
       <section className="space-y-4" aria-labelledby="mis-inscripciones-title">
         <h2 id="mis-inscripciones-title" className="ck-heading-md">

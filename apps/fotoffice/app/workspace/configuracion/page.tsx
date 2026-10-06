@@ -84,22 +84,8 @@ export default async function WorkspaceSettingsPage() {
         <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
       </Link>
 
-      {/* Sólo dueño o administrador: la acción del servidor vuelve a verificarlo. */}
-      {membership?.role && puede(membership.role, "gestionarEquipo") ? (
-        <Link
-          href="/workspace/configuracion/equipo"
-          className="fo-card flex items-center justify-between gap-4 p-4 transition hover:border-[var(--fo-accent,#1d4ed8)]"
-        >
-          <span className="space-y-0.5">
-            <span className="block text-sm font-semibold">Equipo</span>
-            <span className="block text-xs text-[var(--fo-muted)]">
-              Invitá a quien trabaja con vos y elegí su rol.
-            </span>
-          </span>
-          <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
-        </Link>
-      ) : null}
-
+      {/* Equipo (etapa 0.1) no se muestra: el equipo y sus permisos se administran en Comisión
+          directiva (roles por módulo de main). La pantalla y sus tablas quedan sin enlace. */}
       {membership?.role && puede(membership.role, "configurar") ? (
         <Link
           href="/workspace/configuracion/modulos"
@@ -190,6 +176,19 @@ export default async function WorkspaceSettingsPage() {
         </Link>
       ) : null}
 
+      <Link
+        href="/workspace/configuracion/concursos"
+        className="fo-card flex items-center justify-between gap-4 p-4 transition hover:border-[var(--fo-accent,#1d4ed8)]"
+      >
+        <span className="space-y-0.5">
+          <span className="block text-sm font-semibold">Vitrina de concursos</span>
+          <span className="block text-xs text-[var(--fo-muted)]">
+            Qué concursos de FotoRank y Clickatón ven tus socios en su portal.
+          </span>
+        </span>
+        <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
+      </Link>
+
       <div className="space-y-3">
         <h1 className="text-2xl font-semibold tracking-tight text-[var(--fo-text)]">
           Configuración del negocio
@@ -220,6 +219,7 @@ export default async function WorkspaceSettingsPage() {
           website: branding?.website ?? "",
           instagram: branding?.instagram ?? "",
           emailSignatureNote: branding?.emailSignatureNote ?? "",
+          shortDescription: branding?.shortDescription ?? "",
           activityType: normalizeFotofficeOrganizationType(branding?.activityType),
           specialties: branding?.specialties ?? [],
           logoUrl: branding?.logoUrl ?? null,

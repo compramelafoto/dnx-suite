@@ -23,7 +23,9 @@ export type CellState =
   /** El espacio no abre a esa hora ese día. */
   | "CLOSED"
   /** Ya pasó, o falta demasiado poco para reservarlo. */
-  | "PAST";
+  | "PAST"
+  /** Todavía no se puede pedir: está más allá de la anticipación máxima del espacio. */
+  | "LATER";
 
 export type GridCell = {
   startISO: string;
@@ -61,6 +63,8 @@ export function buildWeekGrid(input: {
   timeZone: string;
   slotMinutes: number;
   minAdvanceHours: number;
+  /** Sin este dato, lo lejano y no libre se muestra como ocupado, que era lo de antes. */
+  maxAdvanceDays?: number;
 }): WeekGrid {
   const { weeklyHours, slotMinutes } = input;
 
@@ -82,6 +86,10 @@ export function buildWeekGrid(input: {
   // Los libres, indexados por instante, para no recorrer la lista en cada casillero.
   const libres = new Set(input.freeSlots.map((s) => s.startAt.getTime()));
   const noAntesDe = input.now.getTime() + input.minAdvanceHours * 60 * 60_000;
+  const noDespuesDe =
+    input.maxAdvanceDays === undefined
+      ? Number.POSITIVE_INFINITY
+      : input.now.getTime() + input.maxAdvanceDays * DIA * 60_000;
 
   const days = diasDeLaSemana(input.weekStart, input.timeZone).map((dia, i) => ({
     ...dia,
@@ -106,7 +114,9 @@ export function buildWeekGrid(input: {
           ? "FREE"
           : startAt.getTime() < noAntesDe
             ? "PAST"
-            : "TAKEN";
+            : startAt.getTime() > noDespuesDe
+              ? "LATER"
+              : "TAKEN";
 
       return { startISO: startAt.toISOString(), endISO: endAt.toISOString(), minuteOfDay: row, state };
     }),
@@ -166,7 +176,9 @@ export function selectRange(grid: WeekGrid, aISO: string, bISO: string): RangeSe
   if (tramo.some((c) => c.state === "CLOSED")) {
     return { ok: false, motivo: "En el medio hay un horario cerrado. Elegí un tramo seguido." };
   }
-  const ocupada = tramo.find((c) => c.state === "TAKEN" || c.state === "PAST");
+  const ocupada = tramo.find(
+    (c) => c.state === "TAKEN" || c.state === "PAST" || c.state === "LATER",
+  );
   if (ocupada) {
     return {
       ok: false,

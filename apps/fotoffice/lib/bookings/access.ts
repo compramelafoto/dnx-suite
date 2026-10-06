@@ -1,39 +1,55 @@
 import "server-only";
 import { redirect } from "next/navigation";
 import { requireActiveWorkspace } from "@/lib/workspace";
-import { puede } from "@/lib/access/policy";
-import { resolveWorkspaceRole } from "@/lib/workspace-role";
-import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
-import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
+import { getModuleLevel, hasModuleAction } from "@/lib/permissions/module-access";
+import { hasLevel } from "@/lib/permissions/levels";
+import { BOOKINGS_CONFIGURE_ACTION } from "@/lib/permissions/actions";
 import { BOOKINGS_MODULE_KEY } from "./constants";
 
 /**
- * Control de acceso del módulo, en dos niveles y siempre en el servidor.
+ * Control de acceso del módulo, siempre en el servidor.
  *
- * Nivel 1: el módulo está habilitado para ESE workspace. Nivel 2: la persona tiene el rol.
- * Esconder el link del menú es el tercer nivel, el cosmético — nunca el control.
+ * El nivel sale de `getModuleLevel`, que ya incluye si el módulo está habilitado para ESE
+ * workspace y qué rol tiene la persona. Esconder el link del menú es lo cosmético, nunca el control.
  *
- * Agenda es STAFF+; Espacios, Extras y Tarifas son ADMIN+.
+ * Tres escalones:
+ * - VIEW: ver la agenda y la lista de reservas. Es lo que promete la grilla de la Comisión
+ *   directiva para "Ver": mirar sin tocar.
+ * - MANAGE: operar — cargar una reserva por teléfono, cancelar, aprobar, rechazar y confirmar
+ *   una transferencia. El STAFF de antes (sin roles) queda acá por la compatibilidad de `levels.ts`.
+ * - MANAGE + `bookings.configure`: espacios, extras, tarifas y reglas. Dueño y admin la tienen
+ *   siempre; el STAFF de antes, nunca (igual que hoy).
  */
 
 async function contextoBase() {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) redirect("/workspace");
-  if (!(await isModuleEnabledForWorkspace(workspace.id, BOOKINGS_MODULE_KEY))) redirect("/dashboard");
-  const role = await resolveWorkspaceRole(user.id, workspace.id);
-  return { user, workspace, role };
+  const [level, tieneAccion] = await Promise.all([
+    getModuleLevel(user.id, workspace.id, BOOKINGS_MODULE_KEY),
+    hasModuleAction(user.id, workspace.id, BOOKINGS_MODULE_KEY, BOOKINGS_CONFIGURE_ACTION),
+  ]);
+  if (!hasLevel(level, "VIEW")) redirect("/dashboard");
+  const canOperate = hasLevel(level, "MANAGE");
+  // La acción sólo vale con MANAGE: `resolveModuleAction` ya lo exige, esto lo repite por las dudas.
+  const canConfigure = canOperate && tieneAccion;
+  return { user, workspace, level, canOperate, canConfigure };
 }
 
-/** Ver la agenda. Cualquiera del equipo. */
-export async function requireBookingsStaff() {
+/** Ver: layout, agenda y lista. */
+export async function requireBookingsViewer() {
+  return contextoBase();
+}
+
+/** Operar: cargar, cancelar, aprobar, rechazar y confirmar transferencias. */
+export async function requireBookingsOperator() {
   const ctx = await contextoBase();
-  if (!puede(ctx.role, "operar")) redirect("/dashboard");
+  if (!ctx.canOperate) redirect("/reservas");
   return ctx;
 }
 
-/** Configurar espacios, extras y tarifas. Solo dueño o administrador. */
-export async function requireBookingsAdmin() {
+/** Configurar: espacios, extras, tarifas, reglas, cierres y calendario de cada espacio. */
+export async function requireBookingsConfigurer() {
   const ctx = await contextoBase();
-  if (!canManageWorkspaceSettings(ctx.role)) redirect("/reservas");
+  if (!ctx.canConfigure) redirect("/reservas");
   return ctx;
 }

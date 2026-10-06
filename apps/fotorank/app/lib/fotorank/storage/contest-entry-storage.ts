@@ -56,6 +56,15 @@ export type PrivateContestStorageProvider = ContestEntryStorageAdapter & {
     expiresInSeconds: number;
   }): Promise<{ uploadUrl: string; method: "PUT"; headers?: Record<string, string> }>;
   readObject?(key: string): Promise<Uint8Array>;
+  /**
+   * Enlace directo y temporal de DESCARGA (attachment) del objeto, sin pasar por la app.
+   * Independiente de `FOTORANK_R2_DIRECT_SIGNED_READ`: quien lo pide ya autorizó el acceso.
+   * `fileName` tiene que venir saneado. Sólo R2 lo implementa.
+   */
+  presignDownload?(
+    key: string,
+    opts: { fileName: string; contentType: string; expiresInSeconds: number },
+  ): Promise<string>;
 };
 
 /** Adapter en memoria para tests — no expone URLs http públicas reales. */

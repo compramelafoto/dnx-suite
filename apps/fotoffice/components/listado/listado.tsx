@@ -101,7 +101,7 @@ export async function Listado<F>({
   const queryActual = escribirConsulta(def, consulta, { ver: null, pagina: 1 });
   if (!idVista) await guardarUltima(ctx, def.clave, queryActual);
 
-  const puedeExportar = exigirCapacidad(ctx, "verDinero");
+  const puedeExportar = exigirCapacidad(ctx, "operar") && exigirCapacidad(ctx, "verDinero");
   const rutaExportar = `/api/listados/${encodeURIComponent(def.clave)}/exportar`;
   const [filtros, acciones, contenidoPanel, avisoDeLista] = await Promise.all([
     filtrosVisibles(def, ctx, resuelta.etiquetasRelacion),

@@ -6,6 +6,9 @@ import { resolveWorkspaceCollector } from "@/lib/payments/connect/collector";
 import { sanitizeError } from "@/lib/payments/connect/log";
 import { getPlatformFeeBps } from "@/lib/platform-fee/store";
 import { splitByPlatformFee } from "@/lib/platform-fee/fee";
+import { estadoDeVenta } from "@/lib/course-marketplace/beneficiarios";
+import { cargarBeneficiarios, cargarDueno } from "@/lib/course-marketplace/cargar";
+import { montosDeCompraSinReparto } from "@/lib/course-marketplace/compra";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { computeAvailableSpots, getApprovedEnrollmentCountsByInstanceIds } from "./availability";
 import { logCourseEvent } from "./log";
@@ -95,19 +98,64 @@ export async function createCourseEnrollmentCheckout(input: {
   }
 
   const feeBps = await getPlatformFeeBps(inscripcion.workspaceId, COURSES_SALES_MODULE_KEY);
-  const { fee, net } = splitByPlatformFee(inscripcion.amountArs, feeBps);
-
-  // La comisión se congela ANTES de abrir el pago: lo que se retiene es exactamente esto.
-  // Que la aprobación no la vuelva a calcular es lo que evita que el número cambie después
-  // de cobrado.
-  await prisma.courseEnrollment.update({
-    where: { id: inscripcion.id },
-    data: {
-      platformFeePercent: new Prisma.Decimal(feeBps).div(100),
-      platformFeeArs: fee,
-      netAmountArs: net,
-    },
-  });
+  let fee: Prisma.Decimal;
+  let monto: Prisma.Decimal;
+  if (inscripcion.listPriceArs) {
+    // Curso grabado: el 5% va ENCIMA de la lista. Con reparto (revendido o varios beneficiarios)
+    // no hay Checkout Pro: se cobra con una orden que reparte sola (lib/payments/split-1n-cursos.ts),
+    // apagada hasta que Mercado Pago la habilite.
+    const beneficiarios = await cargarBeneficiarios(inscripcion.courseId);
+    if (inscripcion.resaleAgreementId || estadoDeVenta(inscripcion.course.workspaceId, beneficiarios).tipo !== "SIN_REPARTO") {
+      return { ok: false, error: "Este curso todavía no está a la venta." };
+    }
+    const dueno = await cargarDueno(inscripcion.course.workspaceId);
+    const montos = montosDeCompraSinReparto({
+      listaArs: inscripcion.listPriceArs.toString(),
+      comisionPlataformaBps: feeBps,
+      owner: dueno,
+    });
+    if (!montos.ok) return { ok: false, error: montos.error };
+    fee = new Prisma.Decimal(montos.platformFeeArs);
+    monto = new Prisma.Decimal(montos.amountArs);
+    // La comisión y el reparto se congelan ANTES de abrir el pago.
+    await prisma.$transaction([
+      prisma.courseEnrollment.update({
+        where: { id: inscripcion.id },
+        data: {
+          amountArs: monto,
+          platformFeePercent: new Prisma.Decimal(feeBps).div(100),
+          platformFeeArs: fee,
+          netAmountArs: new Prisma.Decimal(montos.netAmountArs),
+        },
+      }),
+      prisma.courseSaleShare.deleteMany({ where: { enrollmentId: inscripcion.id } }),
+      prisma.courseSaleShare.createMany({
+        data: montos.partes.map((p) => ({
+          enrollmentId: inscripcion.id,
+          workspaceId: p.tipo === "PLATAFORMA" ? null : p.id,
+          kind: p.tipo,
+          label: p.nombre,
+          amountArs: new Prisma.Decimal((p.centavos / 100).toFixed(2)),
+          absorbsProcessorFee: p.absorbeMp,
+        })),
+      }),
+    ]);
+  } else {
+    const reparto = splitByPlatformFee(inscripcion.amountArs, feeBps);
+    fee = reparto.fee;
+    monto = inscripcion.amountArs;
+    // La comisión se congela ANTES de abrir el pago: lo que se retiene es exactamente esto.
+    // Que la aprobación no la vuelva a calcular es lo que evita que el número cambie después
+    // de cobrado.
+    await prisma.courseEnrollment.update({
+      where: { id: inscripcion.id },
+      data: {
+        platformFeePercent: new Prisma.Decimal(feeBps).div(100),
+        platformFeeArs: reparto.fee,
+        netAmountArs: reparto.net,
+      },
+    });
+  }
 
   const base = (process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "");
   if (!base) return { ok: false, error: "APP_URL no está configurado." };
@@ -116,7 +164,7 @@ export async function createCourseEnrollmentCheckout(input: {
   try {
     const adapter = createMercadoPagoCheckoutProLiveAdapter({});
     const preferencia = await adapter.createPreference({
-      amountMinor: aMinor(inscripcion.amountArs),
+      amountMinor: aMinor(monto),
       currency: "ARS",
       description: `Inscripción: ${inscripcion.course.title}`,
       externalReference: courseExternalReference(inscripcion.id),

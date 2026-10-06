@@ -21,6 +21,7 @@ const ETIQUETA_ORIGEN: Record<MovementSource, string> = {
   bookings: "Reservas",
   sales: "Ventas",
   "work-orders": "Pedidos",
+  governance: "Proyectos de la comisión",
 };
 
 const fechaHoraAR = new Intl.DateTimeFormat("es-AR", {

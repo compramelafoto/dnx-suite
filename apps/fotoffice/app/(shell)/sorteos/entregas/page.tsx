@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PackageCheck } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
-import { requireRafflesStaff } from "@/lib/raffles/access";
+import { requireRafflesViewer } from "@/lib/raffles/access";
 import { listAwardsMissingReceipt, listPendingAwards } from "@/lib/raffles/delivery";
 import { fechaCorta, prizeStatusLabel } from "@/lib/raffles/labels";
 import { advanceAwardAction, registerReceiptAction, retryNoticesAction } from "../actions";
@@ -13,7 +13,8 @@ export default async function EntregasPage({
 }: {
   searchParams: Promise<{ error?: string; ok?: string }>;
 }) {
-  const { workspace } = await requireRafflesStaff();
+  // Con VIEW se ve la lista; los botones de entrega piden operar (MANAGE).
+  const { workspace, canOperate } = await requireRafflesViewer();
   const params = await searchParams;
   const [pendientes, sinComprobante] = await Promise.all([
     listPendingAwards(workspace.id),
@@ -55,13 +56,19 @@ export default async function EntregasPage({
               </li>
             ))}
           </ul>
-          <form action={retryNoticesAction}>
-            <button className="fo-btn fo-btn-secondary text-sm">Reintentar los avisos</button>
-          </form>
-          <p className="text-xs">
-            La tarea programada reintenta sola cada quince minutos. Este botón es para cuando
-            acabás de corregir un correo y no querés esperar.
-          </p>
+          {canOperate ? (
+            <>
+              <form action={retryNoticesAction}>
+                <button className="fo-btn fo-btn-secondary text-sm">Reintentar los avisos</button>
+              </form>
+              <p className="text-xs">
+                La tarea programada reintenta sola cada quince minutos. Este botón es para cuando
+                acabás de corregir un correo y no querés esperar.
+              </p>
+            </>
+          ) : (
+            <p className="text-xs">La tarea programada reintenta sola cada quince minutos.</p>
+          )}
         </div>
       ) : null}
 
@@ -88,16 +95,18 @@ export default async function EntregasPage({
                     {a.deliveredAt ? ` el ${fechaCorta(a.deliveredAt)}` : ""}
                   </p>
                 </div>
-                <form action={registerReceiptAction} className="flex flex-wrap items-center gap-2">
-                  <input type="hidden" name="awardId" value={a.id} />
-                  <input
-                    name="fileUrl"
-                    className="fo-input w-72 text-sm"
-                    placeholder="Enlace al remito (PDF o foto)"
-                  />
-                  <input name="note" className="fo-input w-56 text-sm" placeholder="Nota" />
-                  <button className="fo-btn fo-btn-primary text-sm">Registrar el comprobante</button>
-                </form>
+                {canOperate ? (
+                  <form action={registerReceiptAction} className="flex flex-wrap items-center gap-2">
+                    <input type="hidden" name="awardId" value={a.id} />
+                    <input
+                      name="fileUrl"
+                      className="fo-input w-72 text-sm"
+                      placeholder="Enlace al remito (PDF o foto)"
+                    />
+                    <input name="note" className="fo-input w-56 text-sm" placeholder="Nota" />
+                    <button className="fo-btn fo-btn-primary text-sm">Registrar el comprobante</button>
+                  </form>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -174,46 +183,48 @@ export default async function EntregasPage({
                   </span>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                  {a.status === "GANADO" ? (
-                    <form action={advanceAwardAction}>
+                {canOperate ? (
+                  <div className="flex flex-wrap gap-2">
+                    {a.status === "GANADO" ? (
+                      <form action={advanceAwardAction}>
+                        <input type="hidden" name="awardId" value={a.id} />
+                        <input type="hidden" name="to" value="NOTIFICADO" />
+                        <button className="fo-btn fo-btn-secondary text-sm">Ya le avisamos</button>
+                      </form>
+                    ) : null}
+
+                    <form action={advanceAwardAction} className="flex flex-wrap items-center gap-2">
                       <input type="hidden" name="awardId" value={a.id} />
-                      <input type="hidden" name="to" value="NOTIFICADO" />
-                      <button className="fo-btn fo-btn-secondary text-sm">Ya le avisamos</button>
+                      <input type="hidden" name="to" value="RETIRADO" />
+                      <input
+                        name="note"
+                        className="fo-input w-56 text-sm"
+                        placeholder="Nota de la entrega"
+                      />
+                      <button className="fo-btn fo-btn-primary text-sm">Lo retiró</button>
                     </form>
-                  ) : null}
 
-                  <form action={advanceAwardAction} className="flex flex-wrap items-center gap-2">
-                    <input type="hidden" name="awardId" value={a.id} />
-                    <input type="hidden" name="to" value="RETIRADO" />
-                    <input
-                      name="note"
-                      className="fo-input w-56 text-sm"
-                      placeholder="Nota de la entrega"
-                    />
-                    <button className="fo-btn fo-btn-primary text-sm">Lo retiró</button>
-                  </form>
+                    {vencido ? (
+                      <form action={advanceAwardAction}>
+                        <input type="hidden" name="awardId" value={a.id} />
+                        <input type="hidden" name="to" value="NO_RETIRADO" />
+                        <button className="fo-btn fo-btn-secondary text-sm">No lo retiró</button>
+                      </form>
+                    ) : null}
 
-                  {vencido ? (
-                    <form action={advanceAwardAction}>
+                    <form action={advanceAwardAction} className="flex flex-wrap items-center gap-2">
                       <input type="hidden" name="awardId" value={a.id} />
-                      <input type="hidden" name="to" value="NO_RETIRADO" />
-                      <button className="fo-btn fo-btn-secondary text-sm">No lo retiró</button>
+                      <input type="hidden" name="to" value="ANULADO" />
+                      <input
+                        name="note"
+                        className="fo-input w-56 text-sm"
+                        placeholder="Motivo de la anulación"
+                        required
+                      />
+                      <button className="fo-btn fo-btn-danger-outline text-sm">Anular</button>
                     </form>
-                  ) : null}
-
-                  <form action={advanceAwardAction} className="flex flex-wrap items-center gap-2">
-                    <input type="hidden" name="awardId" value={a.id} />
-                    <input type="hidden" name="to" value="ANULADO" />
-                    <input
-                      name="note"
-                      className="fo-input w-56 text-sm"
-                      placeholder="Motivo de la anulación"
-                      required
-                    />
-                    <button className="fo-btn fo-btn-danger-outline text-sm">Anular</button>
-                  </form>
-                </div>
+                  </div>
+                ) : null}
               </li>
             );
           })}

@@ -8,6 +8,16 @@ vi.mock("@repo/db", () => ({ prisma: { fotofficeWorkspaceBranding: { findFirst: 
 vi.mock("@/lib/auth", () => ({ getAuthUser: H.user }));
 vi.mock("@/lib/workspace", () => ({ resolveActiveWorkspace: H.ws }));
 vi.mock("@/lib/workspace-role", () => ({ resolveWorkspaceRole: H.rol }));
+// El acceso se resuelve con el modelo de main: niveles de un rol sin roles de la comisión.
+vi.mock("@/lib/access/acceso", async () => {
+  const { nivelesPorRol } = await import("@/lib/access/niveles-de-prueba");
+  return {
+    resolverAcceso: async (userId: number, workspaceId: string) => {
+      const role = (await H.rol(userId, workspaceId)) as string | null;
+      return { role, levels: nivelesPorRol(role) };
+    },
+  };
+});
 vi.mock("@/lib/modules/gating", () => ({ isModuleEnabledForWorkspace: H.modulo }));
 vi.mock("./persona", () => ({ resolverPersonaPorCliente: H.porCliente, resolverPersonaPorSocio: H.porSocio }));
 
@@ -29,6 +39,8 @@ describe("contextoDeFicha", () => {
   it("devuelve el contexto con el workspace de la sesión", async () => {
     expect(await contextoDeFicha({ tipo: "CLIENTE", id: "c1" })).toEqual({
       workspaceId: "ws-1", workspaceSlug: "sfpr", userId: 5, userLabel: "Ana", role: "STAFF", persona: REF,
+      acceso: { role: "STAFF", levels: expect.objectContaining({ clients: "MANAGE" }) },
+      modulo: "clients",
     });
     expect(H.porCliente).toHaveBeenCalledWith("ws-1", "c1");
     expect(H.modulo).toHaveBeenCalledWith("ws-1", "clients");
@@ -36,6 +48,12 @@ describe("contextoDeFicha", () => {
   it("socio usa el módulo members", async () => {
     await contextoDeFicha({ tipo: "SOCIO", id: "m1" });
     expect(H.modulo).toHaveBeenCalledWith("ws-1", "members");
+  });
+  it("la historia del socio exige Gestionar en Socios, como la auditoría en main", async () => {
+    // STAFF sin roles tiene Ver en Socios (compatibilidad de main): ve la página, no la historia.
+    expect(await contextoDeFicha({ tipo: "SOCIO", id: "m1" })).toBeNull();
+    H.rol.mockResolvedValueOnce("WORKSPACE_ADMIN");
+    expect(await contextoDeFicha({ tipo: "SOCIO", id: "m1" })).toMatchObject({ modulo: "members" });
   });
   it("null ante cualquier falta", async () => {
     H.user.mockResolvedValueOnce(null);

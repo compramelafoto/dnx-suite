@@ -141,21 +141,23 @@ describe("institutionShortcutRedirect", () => {
     expect(institutionShortcutRedirect("/_next")).toBe(null);
   });
 
-  it("el middleware lo llama de verdad, y su matcher alcanza una dirección de un nivel", () => {
+  it("el proxy lo llama de verdad, y su matcher alcanza una dirección de un nivel", () => {
     /*
       Una función pura que nadie invoca no redirige a nadie. El atajo depende de dos cosas que
       viven fuera de acá —la llamada y la línea del matcher—, y si falta cualquiera de las dos
       deja de andar sin que se rompa ningún test. Por eso se miran las dos.
     */
+    // Next 16 renombró `middleware.ts` a `proxy.ts`.
     const middleware = readFileSync(
-      join(dirname(fileURLToPath(import.meta.url)), "..", "..", "middleware.ts"),
+      join(dirname(fileURLToPath(import.meta.url)), "..", "..", "proxy.ts"),
       "utf8",
     )
       .replace(/\/\*[\s\S]*?\*\//g, "")
       .replace(/(^|[^:])\/\/.*$/gm, "$1");
 
     expect(middleware).toMatch(/institutionShortcutRedirect\s*\(/);
-    expect(middleware).toMatch(/"\/:[a-zA-Z]+"/);
+    // `"/:institucion"` o el matcher que toma todo menos `_next` (lo exigen los dominios propios).
+    expect(middleware).toMatch(/"\/:[a-zA-Z]+"|"\/\(\(\?!_next/);
   });
 
   it("solo el alfabeto de los slugs: nada raro llega a convertirse en destino", () => {

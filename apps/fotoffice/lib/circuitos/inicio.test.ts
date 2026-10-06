@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const M = vi.hoisted(() => ({
-  rol: vi.fn<() => Promise<string | null>>(),
+  rol: vi.fn<(userId?: number, workspaceId?: string) => Promise<string | null>>(),
   modulo: vi.fn<() => Promise<boolean>>(),
   misTareas: vi.fn(),
 }));
@@ -10,6 +10,16 @@ vi.mock("@repo/db", () => ({ prisma: {} }));
 vi.mock("@/lib/auth", () => ({ getAuthUser: vi.fn() }));
 vi.mock("@/lib/workspace", () => ({ resolveActiveWorkspace: vi.fn() }));
 vi.mock("@/lib/workspace-role", () => ({ resolveWorkspaceRole: M.rol }));
+// El acceso se resuelve con el modelo de main: niveles de un rol sin roles de la comisión.
+vi.mock("@/lib/access/acceso", async () => {
+  const { nivelesPorRol } = await import("@/lib/access/niveles-de-prueba");
+  return {
+    resolverAcceso: async (userId: number, workspaceId: string) => {
+      const role = (await M.rol(userId, workspaceId)) as string | null;
+      return { role, levels: nivelesPorRol(role) };
+    },
+  };
+});
 vi.mock("@/lib/modules/gating", () => ({ isModuleEnabledForWorkspace: M.modulo }));
 vi.mock("./tareas", () => ({ misTareas: M.misTareas }));
 

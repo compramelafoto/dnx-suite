@@ -106,7 +106,7 @@ describe("botón «Mensaje»", () => {
       expect(f.indexOf(lectura, f.indexOf("export async function cargarPanelMensaje")), lectura).toBeGreaterThan(guarda);
     }
     const ctx = f.indexOf("await contextoDelPedido()");
-    expect(f.indexOf('puede(ctx.role, "operar")')).toBeGreaterThan(ctx);
+    expect(f.indexOf('puedeEnContexto(ctx, "operar", moduloDeTipo(entityType))')).toBeGreaterThan(ctx);
     expect(f.indexOf("moduloDeRegistroEncendido(ctx.workspaceId")).toBeGreaterThan(ctx);
     expect(f.indexOf("registroDelWorkspace(ctx.workspaceId")).toBeGreaterThan(ctx);
   });

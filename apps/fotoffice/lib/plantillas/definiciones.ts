@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
-import { puede } from "@/lib/access/policy";
+import { puede, type AccesoEfectivo } from "@/lib/access/policy";
 import { listarCampos } from "@/lib/campos/definiciones";
 import {
   CANALES, CLAVES_AUTOMATICO, ETIQUETA_CANAL, MAX_ASUNTO, MAX_CUERPO, MAX_NOMBRE_PLANTILLA,
@@ -11,7 +11,14 @@ import { analizar, tieneMarcadorSinCompletar, type ErrorPlantilla } from "./moto
 import { clavesPermitidas, type CampoParaVariables } from "./variables";
 
 /** Quién configura. Las funciones de escritura exigen `configurar` adentro. */
-export type CtxPlantillas = { workspaceId: string; userId: number; userLabel: string; role: string | null };
+export type CtxPlantillas = {
+  workspaceId: string;
+  userId: number;
+  userLabel: string;
+  role: string | null;
+  /** Acceso efectivo (modelo de main); lo trae `contextoDePlantillas`. */
+  acceso?: AccesoEfectivo;
+};
 
 export type PlantillaDefinida = {
   id: string;

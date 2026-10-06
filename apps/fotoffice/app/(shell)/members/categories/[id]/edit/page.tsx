@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getMemberCategory } from "@repo/db/fotoffice-members";
-import { requireMembersConfigureContext } from "@/lib/members/access";
+import { requireMembersManageContext } from "@/lib/members/access";
 import { PageHeader } from "@/components/page-header";
 import { CategoryForm } from "@/components/members/category-form";
 
@@ -10,7 +10,7 @@ export default async function EditMemberCategoryPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { workspace } = await requireMembersConfigureContext();
+  const { workspace } = await requireMembersManageContext();
   const { id } = await params;
   const category = await getMemberCategory(workspace.id, id);
   if (!category) notFound();

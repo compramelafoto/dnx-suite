@@ -47,8 +47,9 @@ describe("componentes del listado", () => {
     expect(src).toMatch(/guardarUltima\(/);
   });
 
-  it("Exportar sólo aparece con verDinero", () => {
+  it("Exportar sólo aparece con operar y verDinero", () => {
     const src = fuente("listado.tsx");
+    expect(src).toContain('exigirCapacidad(ctx, "operar") && exigirCapacidad(ctx, "verDinero")');
     const guarda = src.indexOf('exigirCapacidad(ctx, "verDinero")');
     expect(guarda).toBeGreaterThan(-1);
     const boton = src.search(/\n\s*Exportar\s*\n/);

@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { listMemberCategories } from "@repo/db/fotoffice-members";
-import { requireMembersConfigureContext } from "@/lib/members/access";
+import { requireMembersManageContext } from "@/lib/members/access";
 import { PageHeader } from "@/components/page-header";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { Tag } from "lucide-react";
 
 export default async function MemberCategoriesPage() {
-  const { workspace } = await requireMembersConfigureContext();
+  const { workspace } = await requireMembersManageContext();
   const [categories, v] = await Promise.all([
     listMemberCategories(workspace.id),
     loadPersonVocabulary(workspace.id),

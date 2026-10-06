@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { prisma, Prisma } from "@repo/db";
-import { requireServiceLeadsStaff } from "@/lib/service-leads/access";
+import { requireServiceLeadsContext } from "@/lib/workspace";
 
 const FORM_MODES = new Set(["SPECIFIC", "GENERAL"]);
 const AUTO_REPLY_MODES = new Set(["EMAIL_TEXT", "EMAIL_WITH_LINK", "EMAIL_WITH_ATTACHMENT"]);
@@ -37,10 +37,8 @@ function getErrorCode(error: unknown): string {
 }
 
 export async function createServiceLeadForm(formData: FormData) {
-  const { workspace } = await requireServiceLeadsStaff();
-  if (!workspace) {
-    redirect("/dashboard/service-leads/forms");
-  }
+  // Crear o editar un formulario público es gestionar Captación: pide MANAGE.
+  const { workspace } = await requireServiceLeadsContext("MANAGE");
 
   const name = parseRequiredText(formData.get("name"));
   const slug = parseSlug(formData.get("slug"));
@@ -95,10 +93,8 @@ export async function createServiceLeadForm(formData: FormData) {
 }
 
 export async function updateServiceLeadForm(formData: FormData) {
-  const { workspace } = await requireServiceLeadsStaff();
-  if (!workspace) {
-    redirect("/dashboard/service-leads/forms");
-  }
+  // Crear o editar un formulario público es gestionar Captación: pide MANAGE.
+  const { workspace } = await requireServiceLeadsContext("MANAGE");
 
   const formId = parseRequiredText(formData.get("formId"));
   const name = parseRequiredText(formData.get("name"));

@@ -1,16 +1,14 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
 import { PageHeader } from "@/components/page-header";
-import { requireServiceLeadsStaff } from "@/lib/service-leads/access";
+import { requireServiceLeadsContext } from "@/lib/workspace";
 import { ShareDetailsClient } from "./share-details-client";
 
 type Props = { params: Promise<{ formId: string }> };
 
 export default async function ShareServiceLeadFormPage({ params }: Props) {
-  const { workspace } = await requireServiceLeadsStaff();
+  const { workspace } = await requireServiceLeadsContext();
   const { formId } = await params;
-
-  if (!workspace) notFound();
 
   const form = await prisma.serviceLeadForm.findFirst({
     where: {

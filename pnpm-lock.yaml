@@ -65,6 +65,9 @@ importers:
       '@repo/promotions':
         specifier: workspace:*
         version: link:../../packages/promotions
+      '@repo/quick-search':
+        specifier: workspace:*
+        version: link:../../packages/quick-search
       '@repo/social-publisher':
         specifier: workspace:*
         version: link:../../packages/social-publisher
@@ -240,6 +243,9 @@ importers:
       '@repo/payments':
         specifier: workspace:*
         version: link:../../packages/payments
+      '@repo/quick-search':
+        specifier: workspace:*
+        version: link:../../packages/quick-search
       '@repo/social-pieces':
         specifier: workspace:*
         version: link:../../packages/social-pieces
@@ -589,6 +595,12 @@ importers:
       '@repo/communications':
         specifier: workspace:*
         version: link:../../packages/communications
+      '@repo/content':
+        specifier: workspace:*
+        version: link:../../packages/content
+      '@repo/content-ui':
+        specifier: workspace:*
+        version: link:../../packages/content-ui
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -604,6 +616,9 @@ importers:
       '@repo/payments':
         specifier: workspace:*
         version: link:../../packages/payments
+      '@repo/quick-search':
+        specifier: workspace:*
+        version: link:../../packages/quick-search
       '@repo/template-editor-core':
         specifier: workspace:*
         version: link:../../packages/template-editor-core
@@ -625,6 +640,9 @@ importers:
       lucide-react:
         specifier: ^0.544.0
         version: 0.544.0(react@19.2.4)
+      mupdf:
+        specifier: ^1.28.1
+        version: 1.28.1
       next:
         specifier: 16.2.1
         version: 16.2.1(@babel/core@7.29.0)(@playwright/test@1.51.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -643,6 +661,9 @@ importers:
       react-leaflet:
         specifier: ^5.0.0
         version: 5.0.0(leaflet@1.9.4)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      sharp:
+        specifier: ^0.34.5
+        version: 0.34.5
       zod:
         specifier: ^3.25.76
         version: 3.25.76
@@ -779,6 +800,9 @@ importers:
       '@repo/payments':
         specifier: workspace:*
         version: link:../../packages/payments
+      '@repo/quick-search':
+        specifier: workspace:*
+        version: link:../../packages/quick-search
       '@repo/template-engine':
         specifier: workspace:*
         version: link:../../packages/template-engine
@@ -909,6 +933,9 @@ importers:
       '@repo/partners':
         specifier: workspace:*
         version: link:../../packages/partners
+      '@repo/quick-search':
+        specifier: workspace:*
+        version: link:../../packages/quick-search
       '@repo/recommendations':
         specifier: workspace:*
         version: link:../../packages/recommendations
@@ -1743,6 +1770,40 @@ importers:
       typescript:
         specifier: 5.9.2
         version: 5.9.2
+
+  packages/quick-search:
+    dependencies:
+      react:
+        specifier: ^19.2.0
+        version: 19.2.8
+      react-dom:
+        specifier: ^19.2.0
+        version: 19.2.8(react@19.2.8)
+    devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^22.15.3
+        version: 22.20.1
+      '@types/react':
+        specifier: 19.2.2
+        version: 19.2.2
+      '@types/react-dom':
+        specifier: 19.2.2
+        version: 19.2.2(@types/react@19.2.2)
+      eslint:
+        specifier: ^9.39.1
+        version: 9.39.1(jiti@2.6.1)
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(jiti@2.6.1)(jsdom@28.1.0)(lightningcss@1.32.0)(tsx@4.23.0)
 
   packages/recommendations:
     dependencies:

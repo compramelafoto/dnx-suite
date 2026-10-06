@@ -1,5 +1,5 @@
 import { PageHeader } from "@/components/page-header";
-import { requireClientsStaff } from "@/lib/clients/access";
+import { requireClientsEditor } from "@/lib/clients/access";
 import { ClientForm } from "../client-form";
 
 export const dynamic = "force-dynamic";
@@ -9,7 +9,8 @@ export default async function NuevoClientePage({
 }: {
   searchParams: Promise<{ error?: string }>;
 }) {
-  await requireClientsStaff();
+  // Es sólo el formulario de alta: sin MANAGE no hay nada para ver acá, vuelve al padrón.
+  await requireClientsEditor();
   const params = await searchParams;
 
   return (

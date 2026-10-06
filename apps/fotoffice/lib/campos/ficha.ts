@@ -1,6 +1,7 @@
 import "server-only";
 import { cache } from "react";
-import { puede } from "@/lib/access/policy";
+import { puede, puedeEnContexto } from "@/lib/access/policy";
+import { moduloDeTipo } from "@/lib/access/modulos-crm";
 import { moduloDeRegistroEncendido } from "./modulos";
 import { contextoDeCampos, type ContextoCampos } from "./acceso";
 import type { TipoRegistroActivo } from "./constantes";
@@ -26,6 +27,7 @@ export async function contextoDeMasDatos(entityType: unknown, entityId: unknown)
   const ctx = await contextoDelPedido();
   if (!ctx) return null;
   if (!(await moduloDeRegistroEncendido(ctx.workspaceId, entityType))) return null;
+  if (!puedeEnContexto(ctx, "ver", moduloDeTipo(entityType))) return null;
   if (!(await registroDelWorkspace(ctx.workspaceId, entityType, entityId))) return null;
   return ctx;
 }
@@ -50,7 +52,7 @@ export async function cargarMasDatos(entityType: TipoRegistroActivo, entityId: s
   const delRegistro = valores.get(entityId);
   return {
     campos: campos.map((c) => vistaDeCampo(c, delRegistro?.get(c.id) ?? null)),
-    puedeEditar: puede(ctx.role, "operar"),
+    puedeEditar: puedeEnContexto(ctx, "operar", moduloDeTipo(entityType)),
     puedeConfigurar: puede(ctx.role, "configurar"),
   };
 }

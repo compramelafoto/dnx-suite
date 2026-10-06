@@ -129,7 +129,7 @@ export function ShellHeader({
             <form action={switchProfileAction}>
               <button
                 type="submit"
-                className="inline-flex size-10 items-center justify-center rounded-full border border-[var(--fo-border)] text-[var(--fo-muted)] hover:text-[var(--fo-text)]"
+                className="inline-flex size-10 items-center justify-center rounded-full border border-[var(--fo-border)] text-[var(--fo-muted)] hover:border-[var(--fo-accent)] hover:text-[var(--fo-text)]"
                 aria-label="Cambiar de perfil"
                 title="Cambiar de perfil"
               >

@@ -1,17 +1,27 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
 import { findClaimableMembership } from "@/lib/portal/claim";
-import { listUserProfiles } from "@/lib/portal/profiles";
+import { tieneCursos } from "@/lib/course-classroom/alumno";
+import {
+  entryProfileForInstitution,
+  institutionChoices,
+  listUserProfiles,
+  profileDestination,
+} from "@/lib/portal/profiles";
+import { readProfileChoice } from "@/lib/portal/profile-choice";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { WELCOME_PATH } from "@/lib/entrada/welcome";
-import { chooseProfileAction, createOwnBusinessAction } from "@/app/actions/profile-choice";
+import { chooseInstitutionAction, createOwnBusinessAction } from "@/app/actions/profile-choice";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Selector de perfil.
+ * Selector de institución (la ruta conserva su nombre histórico).
  *
  * Una misma persona puede administrar su propio negocio y ser socia de una institución, con
- * la misma cuenta. Solo ella sabe a cuál de las dos viene hoy.
+ * la misma cuenta. Solo ella sabe a cuál de las dos viene hoy. Se elige la INSTITUCIÓN, no el
+ * perfil: adentro, socio ⇄ Comisión/Administración se cambia con el selector de rol del menú.
  *
  * También es el lugar donde un socio se entera de que puede usar FotoOffice para su estudio:
  * si todavía no tiene negocio, ve la invitación a crearlo. Esa creación es siempre explícita
@@ -28,53 +38,85 @@ export default async function ChooseProfilePage() {
 
   const profiles = await listUserProfiles(user.id);
 
-  // Con un solo perfil no hay nada que elegir: se lo manda directo.
-  if (profiles.length === 1) {
-    redirect(profiles[0]!.kind === "TEAM" ? "/workspace" : "/portal");
-  }
   // Sin ningún perfil no hay nada que elegir, y mandarlo a `/workspace` era el atajo por el
   // que igual terminaba con una institución creada. La pregunta va en la bienvenida.
   if (profiles.length === 0) redirect(WELCOME_PATH);
 
+  const institutions = institutionChoices(profiles);
+  // Con una sola institución no hay nada que elegir: se lo manda a su vista por defecto.
+  if (institutions.length === 1) {
+    const entry = entryProfileForInstitution(
+      profiles,
+      institutions[0]!.workspaceId,
+      await readProfileChoice(),
+    );
+    redirect(entry ? profileDestination(entry) : WELCOME_PATH);
+  }
+
+  const vocabularies = await Promise.all(
+    institutions.map((i) => (i.memberNumber ? loadPersonVocabulary(i.workspaceId) : null)),
+  );
+  const conCursos = await tieneCursos(user.id);
   const hasBusiness = profiles.some((p) => p.kind === "TEAM");
 
   return (
     <div className="min-h-screen bg-[var(--fo-bg)] text-[var(--fo-text)]">
       <main className="mx-auto max-w-2xl px-4 py-16 space-y-8">
         <div className="space-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight">¿Cómo querés entrar?</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">¿A dónde querés entrar?</h1>
           <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
-            Tu cuenta tiene más de un perfil. Elegí con cuál seguir; vas a poder cambiar cuando
-            quieras.
+            Tu cuenta está en más de una institución. Elegí a cuál entrar; vas a poder cambiar
+            cuando quieras.
           </p>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          {profiles.map((profile) => {
-            const key = `${profile.kind}:${profile.workspaceId}`;
+          {institutions.map((institution, index) => {
+            const vocabulary = vocabularies[index];
+            const team = institution.profiles.find((p) => p.kind === "TEAM");
+            const detail = institution.ownBusiness
+              ? "Administrar tu estudio: clientes, cursos, sitio web."
+              : [
+                  institution.memberNumber && vocabulary
+                    ? `${vocabulary.Singular} N° ${institution.memberNumber}`
+                    : null,
+                  team?.kind === "TEAM"
+                    ? team.role === "STAFF"
+                      ? "Comisión"
+                      : "Administración"
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ");
             return (
-              <form key={key} action={chooseProfileAction}>
-                <input type="hidden" name="profile" value={key} />
+              <form key={institution.workspaceId} action={chooseInstitutionAction}>
+                <input type="hidden" name="workspaceId" value={institution.workspaceId} />
                 <button
                   type="submit"
                   className="fo-card w-full space-y-2 p-5 text-left transition hover:border-[var(--fo-accent,#1d4ed8)]"
                 >
                   <p className="text-xs uppercase tracking-wide text-[var(--fo-muted-soft)]">
-                    {profile.kind === "TEAM" ? "Tu negocio" : "Institución"}
+                    {institution.ownBusiness ? "Tu negocio" : "Institución"}
                   </p>
-                  <p className="text-base font-semibold">{profile.workspaceName}</p>
-                  <p className="text-xs text-[var(--fo-muted)]">
-                    {profile.kind === "TEAM"
-                      ? "Administrar tu estudio: clientes, cursos, sitio web."
-                      : `Socio N° ${profile.memberNumber}`}
-                  </p>
+                  <p className="text-base font-semibold">{institution.workspaceName}</p>
+                  {detail ? <p className="text-xs text-[var(--fo-muted)]">{detail}</p> : null}
                   <p className="pt-1 text-sm font-medium text-[var(--fo-accent,#1d4ed8)]">
-                    {profile.kind === "TEAM" ? "Administrar →" : "Entrar al portal →"}
+                    {institution.ownBusiness ? "Administrar →" : "Entrar →"}
                   </p>
                 </button>
               </form>
             );
           })}
+          {conCursos ? (
+            <Link
+              href="/portal/cursos"
+              className="fo-card block space-y-2 p-5 text-left transition hover:border-[var(--fo-accent,#1d4ed8)]"
+            >
+              <p className="text-base font-semibold">Mis cursos</p>
+              <p className="text-xs text-[var(--fo-muted)]">Los cursos que compraste o tomaste.</p>
+              <p className="pt-1 text-sm font-medium text-[var(--fo-accent,#1d4ed8)]">Entrar →</p>
+            </Link>
+          ) : null}
         </div>
 
         {!hasBusiness ? (

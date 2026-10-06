@@ -192,7 +192,7 @@ estas siete pantallas**, no como ítem nuevo:
 | Registro de pago manual ⬜ | Acción dentro de Cuotas y dentro de la ficha del socio |
 | Referido con mes bonificado ⬜ | Pestaña dentro de Solicitudes |
 | Cuenta corriente del socio ⬜ | Pestaña dentro de la ficha del socio |
-| Sincronización con Google Contacts ⬜ | La cuenta se conecta en Integraciones (§4.10); el interruptor de sincronizar va dentro de Padrón |
+| Sincronización con Google Contacts ✅ | La cuenta se conecta en Integraciones (§4.10); el interruptor vive dentro de Padrón. Implementado el 2026-09-16. |
 
 ### 4.2 · CURSOS
 
@@ -232,13 +232,13 @@ existentes le apagaría el módulo a quien hoy lo usa.
 
 ### 4.4 · PRESENCIA PÚBLICA
 
-Módulo `website`. Sección propia desde ahora, aunque hoy tenga un solo ítem: es la que arregla
+Módulo `website`. Sección propia: es la que arregla
 el defecto de la captura (**P5**), y es donde aterrizan blog, portfolio y redes.
 
 | Orden | Etiqueta | Ruta | Ícono | Módulo | Rol | Estado |
 |---:|---|---|---|---|---|---|
 | 10 | Sitio web | `/website` | `Globe` | `website` | equipo | ✅ |
-| 20 | Blog | `/website/blog` | `Newspaper` | `website` | ADMIN+ | ⬜ |
+| 20 | Blog | `/website/blog` | `Newspaper` | `website` | ADMIN+ | ✅ |
 | 30 | Redes | `/redes` | `Share2` | `social` | ADMIN+ | ⬜ |
 | 40 | Portfolios | `/portfolios` | `Images` | `portfolio` | ADMIN+ | ⬜ |
 
@@ -339,6 +339,10 @@ Lo que es de la organización entera, no de un dominio. Requiere permiso de conf
 | 25 | Integraciones | `/workspace/configuracion/integraciones` | `Plug` | ADMIN+ | ✅ |
 | 30 | Equipo y permisos | `/workspace/configuracion/equipo` | `UserCog` | OWNER | ⬜ |
 | 40 | Auditoría | `/workspace/configuracion/auditoria` | `History` | OWNER | ⬜ |
+
+"Integraciones" conecta hoy dos cuentas de Google: Calendar (Reservas) y, desde el 2026-09-16,
+Contacts (Socios). La tarjeta de cada una muestra qué módulos la están usando, pero no los
+enciende — eso vive en la pantalla de cada módulo. Ver la regla completa en §4.6.
 
 "Equipo y permisos" es el que va a habilitar los roles institucionales de la sección 3. Hasta
 que exista, sumar gente al equipo es tarea del Super Admin.

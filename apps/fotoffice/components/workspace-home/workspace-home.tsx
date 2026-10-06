@@ -57,7 +57,6 @@ export type WorkspaceHomeProps = {
   publicSlug: string | null;
   datos: HomeData;
   vocabulary: PersonVocabulary;
-  admin: boolean;
   puedeCrearSocio: boolean;
   /** Para "Completar los datos de la institución". Vacío si no falta nada o no es admin. */
   faltaConfigurar: string[];
@@ -136,6 +135,20 @@ export function WorkspaceHome({
     pendientes.push({
       texto: "Contanos qué tipo de organización son para ordenar el menú y sugerirte módulos",
       href: "/workspace/configuracion/modulos",
+    });
+  }
+  if (datos.comunicacion?.socioDeLaSemana) {
+    pendientes.push({
+      texto: `Ya está el Socio de la semana: ${datos.comunicacion.socioDeLaSemana}. Su placa está lista para publicar`,
+      href: "/comunicacion/placas/socio-de-la-semana",
+      tono: "warning",
+    });
+  }
+  if (datos.comunicacion?.bienvenidasSinPublicar) {
+    pendientes.push({
+      cantidad: datos.comunicacion.bienvenidasSinPublicar,
+      texto: `${datos.comunicacion.bienvenidasSinPublicar === 1 ? "Bienvenida" : "Bienvenidas"} a socios nuevos sin publicar`,
+      href: "/comunicacion/placas",
     });
   }
   if (faltaConfigurar.length > 0) {

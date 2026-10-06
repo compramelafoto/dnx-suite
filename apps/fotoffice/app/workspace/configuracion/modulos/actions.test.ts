@@ -150,7 +150,7 @@ describe("toggleModuleAction", () => {
   });
 
   it("rechaza claves inexistentes o planificadas", async () => {
-    for (const k of ["nada", "governance"]) {
+    for (const k of ["nada", "exhibitions"]) {
       const r = await toggleModuleAction(undefined, fd({ moduleKey: k, enabled: "true" }));
       expect(r).toEqual({ error: "Ese módulo no existe o todavía no está disponible." });
     }

@@ -3,8 +3,10 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma, Prisma } from "@repo/db";
-import { decimalArsToMinor, minorToDecimalString, parseArsToMinor } from "@/lib/membership/money";
-import { requireCashAdmin, requireCashStaff } from "@/lib/cash/access";
+import { decimalArsToMinor, formatMinorArs, minorToDecimalString, parseArsToMinor } from "@/lib/membership/money";
+import { canHandleProjectMoney } from "@/lib/governance/money-server";
+import { recordProjectEvent } from "@/lib/governance/events";
+import { requireCashConfigurer, requireCashOperator } from "@/lib/cash/access";
 import {
   canCloseShift,
   canOpenShift,
@@ -35,7 +37,7 @@ const CONFIGURACION = "/caja/configuracion";
  * impide que dos personas abriendo a la vez dejen dos turnos abiertos.
  */
 export async function openShiftAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireCashStaff();
+  const { workspace, user } = await requireCashOperator();
   const accountId = String(formData.get("accountId") ?? "").trim();
 
   const apertura = parseOpeningAmountMinor(String(formData.get("openingAmountArs") ?? ""));
@@ -86,7 +88,7 @@ export async function openShiftAction(formData: FormData): Promise<void> {
  * anule un movimiento de ese día.
  */
 export async function closeShiftAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireCashStaff();
+  const { workspace, user } = await requireCashOperator();
   const shiftId = String(formData.get("shiftId") ?? "").trim();
   const countedMinor = parseArsToMinor(String(formData.get("countedAmountArs") ?? ""));
   const note = String(formData.get("differenceNote") ?? "").trim() || null;
@@ -152,7 +154,7 @@ export async function closeShiftAction(formData: FormData): Promise<void> {
  * `lib/cash/return-to.ts`.
  */
 export async function createMovementAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireCashStaff();
+  const { workspace, user } = await requireCashOperator();
 
   const volver = sanitizeReturnTo(String(formData.get("returnTo") ?? ""), CAJA);
 
@@ -186,23 +188,52 @@ export async function createMovementAction(formData: FormData): Promise<void> {
     select: { id: true },
   });
 
-  await prisma.cashMovement.create({
-    data: {
-      workspaceId: workspace.id,
-      accountId: v.accountId,
-      shiftId: turno?.id ?? null,
-      kind: v.kind,
-      amountArs: minorToDecimalString(v.amountMinor),
-      occurredAt: v.occurredAt,
-      categoryId: v.categoryId,
-      paymentMethod: v.paymentMethod,
-      clientId: v.clientId,
-      description: v.description,
-      receiptRef: v.receiptRef,
-      sourceModule: "manual",
-      createdByUserId: user.id,
-    },
+  // Imputarlo a un proyecto de la comisión (Gobierno §8.4): sólo quien maneja esa plata, y sólo
+  // a un proyecto aprobado o en ejecución de esta institución.
+  const govProjectId = String(formData.get("govProjectId") ?? "").trim() || null;
+  let proyecto: { id: string; title: string } | null = null;
+  if (govProjectId) {
+    if (!(await canHandleProjectMoney(user.id, workspace.id))) {
+      redirect(`${volver}?error=${encodeURIComponent("Para imputar a un proyecto hace falta «Dinero de proyectos».")}`);
+    }
+    proyecto = await prisma.govProject.findFirst({
+      where: { id: govProjectId, workspaceId: workspace.id, status: { in: ["APPROVED", "IN_PROGRESS"] } },
+      select: { id: true, title: true },
+    });
+    if (!proyecto) redirect(`${volver}?error=${encodeURIComponent("Ese proyecto no existe o no está aprobado.")}`);
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const mov = await tx.cashMovement.create({
+      data: {
+        workspaceId: workspace.id,
+        accountId: v.accountId,
+        shiftId: turno?.id ?? null,
+        kind: v.kind,
+        amountArs: minorToDecimalString(v.amountMinor),
+        occurredAt: v.occurredAt,
+        categoryId: v.categoryId,
+        paymentMethod: v.paymentMethod,
+        clientId: v.clientId,
+        description: v.description,
+        receiptRef: v.receiptRef,
+        sourceModule: "manual",
+        createdByUserId: user.id,
+      },
+      select: { id: true },
+    });
+    if (proyecto) {
+      await tx.govProjectMovement.create({ data: { projectId: proyecto.id, cashMovementId: mov.id } });
+      await recordProjectEvent(tx, {
+        projectId: proyecto.id,
+        type: "MOVEMENT_LINKED",
+        actorUserId: user.id,
+        actorLabel: user.name?.trim() || user.email || "Equipo",
+        data: { kind: v.kind, amount: formatMinorArs(v.amountMinor), account: "Caja", description: v.description },
+      });
+    }
   });
+  if (proyecto) revalidatePath(`/gobierno/${proyecto.id}`);
 
   revalidatePath(CAJA);
   revalidatePath(MOVIMIENTOS);
@@ -217,7 +248,7 @@ export async function createMovementAction(formData: FormData): Promise<void> {
  * porque el libro completo no viaja: sólo lo que la anulación necesita.
  */
 export async function reverseMovementAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireCashStaff();
+  const { workspace, user } = await requireCashOperator();
   const movementId = String(formData.get("movementId") ?? "").trim();
   const reason = String(formData.get("reverseReason") ?? "");
 
@@ -298,7 +329,7 @@ export async function reverseMovementAction(formData: FormData): Promise<void> {
  * acción.
  */
 export async function transferAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireCashStaff();
+  const { workspace, user } = await requireCashOperator();
   const fromAccountId = String(formData.get("fromAccountId") ?? "").trim();
   const toAccountId = String(formData.get("toAccountId") ?? "").trim();
   const amountMinor = parseArsToMinor(String(formData.get("amountArs") ?? ""));
@@ -365,7 +396,7 @@ export async function transferAction(formData: FormData): Promise<void> {
  * efectivo — en una digital quedan siempre en blanco.
  */
 export async function saveAccountAction(formData: FormData): Promise<void> {
-  const { workspace } = await requireCashAdmin();
+  const { workspace } = await requireCashConfigurer();
   const accountId = String(formData.get("accountId") ?? "").trim() || null;
 
   const parsed = parseAccountForm(formData);
@@ -402,7 +433,7 @@ export async function saveAccountAction(formData: FormData): Promise<void> {
 
 /** Alta y edición de una categoría. */
 export async function saveCategoryAction(formData: FormData): Promise<void> {
-  const { workspace } = await requireCashAdmin();
+  const { workspace } = await requireCashConfigurer();
   const categoryId = String(formData.get("categoryId") ?? "").trim() || null;
 
   const parsed = parseCategoryForm(formData);
@@ -439,7 +470,12 @@ export async function saveCategoryAction(formData: FormData): Promise<void> {
  * más barato que un estado "ya sembrado" que después hay que mantener.
  */
 export async function enableCashForWorkspaceAction(): Promise<void> {
-  const { workspace } = await requireCashAdmin();
+  // Esta acción NO enciende el módulo (eso es Módulos, en la configuración del workspace): sólo
+  // siembra cuentas y categorías cuando Caja ya está habilitada. Con el módulo apagado el nivel es
+  // NONE para todos —también para el dueño— y la guarda rebota a `/dashboard`, igual que hacía
+  // `requireCashAdmin` antes (también exigía el módulo habilitado). Por eso no hace falta un
+  // camino aparte para dueño/admin: con el módulo encendido, `cash.configure` ya los incluye.
+  const { workspace } = await requireCashConfigurer();
   const { accounts, categories } = seedRowsFor(workspace.id);
   await prisma.$transaction([
     prisma.cashAccount.createMany({ data: accounts, skipDuplicates: true }),

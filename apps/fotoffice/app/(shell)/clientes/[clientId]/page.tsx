@@ -5,12 +5,26 @@ import { DatosFicha } from "@/components/ficha/datos-ficha";
 import { MasDatos } from "@/components/campos/mas-datos";
 import { Mensaje } from "@/components/mensajes/mensaje";
 import type { InsigniaFicha } from "@/components/ficha/encabezado-ficha";
-import { requireClientsStaff } from "@/lib/clients/access";
-import { getClient, listMembersAvailableToLink } from "@/lib/clients/repository";
+import { requireClientsViewer } from "@/lib/clients/access";
+import {
+  getClient,
+  listMembersAvailableToLink,
+} from "@/lib/clients/repository";
 import { clientDisplayName } from "@/lib/clients/display";
 import { resolverPersonaPorCliente } from "@/lib/ficha/persona";
+import { CASH_MODULE_KEY } from "@/lib/cash/constants";
+import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
+import { puede } from "@/lib/access/policy";
+import { resolverAcceso } from "@/lib/access/acceso";
+import { getModuleLevel } from "@/lib/permissions/module-access";
+import { hasLevel } from "@/lib/permissions/levels";
+import { listMovements } from "@/lib/cash/repository";
+import { MovementsTable } from "@/app/(shell)/caja/movements-table";
 import { ClientForm } from "../client-form";
 import { linkClientToMemberAction } from "../actions";
+
+/** Cuántos movimientos recientes se muestran en la ficha: es un resumen, no el libro completo. */
+const MOVIMIENTOS_RECIENTES = 20;
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +43,7 @@ export default async function ClientePage({
   params: Promise<{ clientId: string }>;
   searchParams: Promise<{ error?: string; ok?: string }>;
 }) {
-  const { workspace } = await requireClientsStaff();
+  const { user, workspace, canEdit } = await requireClientsViewer();
   const { clientId } = await params;
   const query = await searchParams;
 
@@ -38,20 +52,50 @@ export default async function ClientePage({
   const cliente = await getClient(workspace.id, clientId);
   if (!cliente) notFound();
 
-  const socios = await listMembersAvailableToLink(workspace.id, cliente.member?.id ?? null);
+  const socios = canEdit
+    ? await listMembersAvailableToLink(workspace.id, cliente.member?.id ?? null)
+    : [];
 
   const insignias: InsigniaFicha[] = cliente.member
-    ? [{ texto: `También es socio N° ${cliente.member.memberNumber}`, href: `/members/${cliente.member.id}` }]
+    ? [
+        {
+          texto: `También es socio N° ${cliente.member.memberNumber}`,
+          href: `/members/${cliente.member.id}`,
+        },
+      ]
+    : [];
+
+  // El módulo de Caja es de otro workspace-feature: si está apagado acá, no hay libro que
+  // mostrar. Con roles, además, ver Clientes no da derecho a ver la plata: el consumo sale del
+  // libro de Caja, así que pide al menos VIEW en Caja (el nivel ya incluye que el módulo esté
+  // encendido).
+  // Con "Gestionar" en Clientes la ficha tiene línea de tiempo, y ahí ya están estos movimientos
+  // (filtro Plata, con la misma regla de VIEW en Caja). Sólo sin historia (nivel "Ver") se
+  // muestra la lista de Consumo de main, para que nadie pierda lo que hoy ve.
+  const veHistoria = puede(await resolverAcceso(user.id, workspace.id), "operar", CLIENTS_MODULE_KEY);
+  const cajaHabilitada =
+    !veHistoria &&
+    hasLevel(await getModuleLevel(user.id, workspace.id, CASH_MODULE_KEY), "VIEW");
+  const movimientos = cajaHabilitada
+    ? await listMovements(workspace.id, {
+        clientId: cliente.id,
+        take: MOVIMIENTOS_RECIENTES,
+      })
     : [];
 
   return (
     <div className="space-y-4">
-      <Link href="/clientes" className="text-sm text-[var(--fo-muted)] hover:underline">
+      <Link
+        href="/clientes"
+        className="text-sm text-[var(--fo-muted)] hover:underline"
+      >
         ← Volver a clientes
       </Link>
 
       {query.ok ? (
-        <p className="fo-card p-4 text-sm text-[var(--fo-success)]">Listo, se guardó.</p>
+        <p className="fo-card p-4 text-sm text-[var(--fo-success)]">
+          Listo, se guardó.
+        </p>
       ) : null}
       {/* Arriba de todo (y no dentro del formulario, que ahora está en la columna lateral):
           acá llegan los errores del formulario y los del enlace con el socio. */}
@@ -74,46 +118,72 @@ export default async function ClientePage({
           <>
             <Mensaje entityType="CLIENTE" entityId={cliente.id} />
             <DatosFicha titulo="Datos">
-              <ClientForm client={cliente} enColumna />
+              {/* Sin MANAGE la ficha se ve igual, pero deshabilitada: `fieldset disabled` apaga
+                  cada campo y el botón de guardar. La acción igual rebota del lado del servidor. */}
+              <fieldset disabled={!canEdit} className="contents">
+                <ClientForm client={cliente} enColumna />
+              </fieldset>
             </DatosFicha>
             <MasDatos entityType="CLIENTE" entityId={cliente.id} />
           </>
         }
         lateral={
-          <DatosFicha titulo="¿Es socio?">
-            <p className="text-sm text-[var(--fo-muted)]">
-              {cliente.member ? (
-                <>
-                  Esta ficha está enlazada con el{" "}
-                  <Link href={`/members/${cliente.member.id}`} className="hover:underline">
-                    socio N° {cliente.member.memberNumber}
-                  </Link>
-                  .
-                </>
-              ) : (
-                "Si esta persona también es socio de la institución, elegilo acá para enlazar las dos fichas."
-              )}
-            </p>
-            <form action={linkClientToMemberAction} className="space-y-3">
-              <input type="hidden" name="clientId" value={cliente.id} />
-              <div className="fo-field-stack">
-                <label className="fo-label" htmlFor="memberId">
-                  Socio
-                </label>
-                <select id="memberId" name="memberId" className="fo-input" defaultValue={cliente.member?.id ?? ""}>
-                  <option value="">No es socio</option>
-                  {socios.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      N° {s.memberNumber} — {s.fullName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <button type="submit" className="fo-btn fo-btn-secondary text-sm">
-                Guardar enlace
-              </button>
-            </form>
-          </DatosFicha>
+          <>
+            <DatosFicha titulo="¿Es socio?">
+              <p className="text-sm text-[var(--fo-muted)]">
+                {cliente.member ? (
+                  <>
+                    Esta ficha está enlazada con el{" "}
+                    <Link
+                      href={`/members/${cliente.member.id}`}
+                      className="hover:underline"
+                    >
+                      socio N° {cliente.member.memberNumber}
+                    </Link>
+                    .
+                  </>
+                ) : canEdit ? (
+                  "Si esta persona también es socio de la institución, elegilo acá para enlazar las dos fichas."
+                ) : (
+                  "Esta ficha no está enlazada con ningún socio."
+                )}
+              </p>
+              {canEdit ? (
+                <form action={linkClientToMemberAction} className="space-y-3">
+                  <input type="hidden" name="clientId" value={cliente.id} />
+                  <div className="fo-field-stack">
+                    <label className="fo-label" htmlFor="memberId">
+                      Socio
+                    </label>
+                    <select
+                      id="memberId"
+                      name="memberId"
+                      className="fo-input"
+                      defaultValue={cliente.member?.id ?? ""}
+                    >
+                      <option value="">No es socio</option>
+                      {socios.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          N° {s.memberNumber} — {s.fullName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <button
+                    type="submit"
+                    className="fo-btn fo-btn-secondary text-sm"
+                  >
+                    Guardar enlace
+                  </button>
+                </form>
+              ) : null}
+            </DatosFicha>
+            {cajaHabilitada ? (
+              <DatosFicha titulo="Consumo">
+                <MovementsTable movements={movimientos} showAccount />
+              </DatosFicha>
+            ) : null}
+          </>
         }
       />
     </div>

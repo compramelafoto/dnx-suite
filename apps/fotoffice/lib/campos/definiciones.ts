@@ -1,7 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { prisma } from "@repo/db";
-import { puede } from "@/lib/access/policy";
+import { puede, type AccesoEfectivo } from "@/lib/access/policy";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import {
   MAX_CAMPOS, MAX_CLAVE, MAX_NOMBRE_CAMPO, TIPOS_CAMPO, TIPOS_REGISTRO_ACTIVOS,
@@ -10,7 +10,14 @@ import {
 import { claveDeCampo, validarNombreCampo } from "./validacion";
 
 /** Quién configura. Las funciones de escritura exigen `configurar` adentro. */
-export type CtxCampos = { workspaceId: string; userId: number; userLabel: string; role: string | null };
+export type CtxCampos = {
+  workspaceId: string;
+  userId: number;
+  userLabel: string;
+  role: string | null;
+  /** Acceso efectivo (modelo de main); lo trae `contextoDeCampos`. */
+  acceso?: AccesoEfectivo;
+};
 
 export type OpcionDeCampo = { id: string; label: string; order: number; archivedAt: Date | null };
 

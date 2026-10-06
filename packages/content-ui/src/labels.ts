@@ -35,6 +35,14 @@ export type ContentUiLabels = {
   featurePublishFirst: string;
   featureCheckbox: string;
   featuredUntilLabel: string;
+  scheduleTitle: string;
+  scheduleDateLabel: string;
+  scheduleHint: string;
+  scheduleButton: string;
+  scheduleNeedsFutureDate: string;
+  scheduledNotice: string;
+  scheduledSuccess: string;
+  publishNow: string;
   saveDraft: string;
   publish: string;
   archive: string;
@@ -71,6 +79,8 @@ export type ContentUiLabels = {
   editorHint: string;
   editorLinkPrompt: string;
   editorYoutubePrompt: string;
+  editorInstagramPrompt: string;
+  editorInstagramInvalid: string;
   editorImageUrlPrompt: string;
   editorImageAltPrompt: string;
   toolbarH2: string;
@@ -84,6 +94,7 @@ export type ContentUiLabels = {
   toolbarImageLibrary: string;
   toolbarImageUrl: string;
   toolbarYoutube: string;
+  toolbarInstagram: string;
   toolbarTable: string;
   toolbarUndo: string;
   toolbarRedo: string;
@@ -128,6 +139,14 @@ export const DEFAULT_CONTENT_UI_LABELS: ContentUiLabels = {
   featurePublishFirst: "Para destacar un artículo, primero publicalo.",
   featureCheckbox: "Destacar en home",
   featuredUntilLabel: "Destacado hasta (opcional)",
+  scheduleTitle: "Programar publicación",
+  scheduleDateLabel: "Fecha y hora de publicación",
+  scheduleHint: "Elegí una fecha y hora futuras y tocá «Programar»: el artículo se publica solo en ese momento.",
+  scheduleButton: "Programar",
+  scheduleNeedsFutureDate: "Elegí una fecha y hora que todavía no hayan pasado.",
+  scheduledNotice: "Programado para el {fecha}. Hasta entonces no se ve en el sitio. Para cancelarlo, guardalo como borrador.",
+  scheduledSuccess: "Artículo programado.",
+  publishNow: "Publicar ahora",
   saveDraft: "Guardar borrador",
   publish: "Publicar",
   archive: "Archivar",
@@ -165,6 +184,9 @@ export const DEFAULT_CONTENT_UI_LABELS: ContentUiLabels = {
     "Usá H2–H6 para títulos dentro del artículo. El título principal de la página es el H1 del artículo.",
   editorLinkPrompt: "URL del enlace",
   editorYoutubePrompt: "URL de YouTube",
+  editorInstagramPrompt: "Enlace de la publicación o reel de Instagram (por ejemplo https://www.instagram.com/p/…)",
+  editorInstagramInvalid:
+    "Ese enlace no es de una publicación de Instagram. Copiá el enlace del posteo o reel (tiene /p/ o /reel/).",
   editorImageUrlPrompt: "URL de la imagen",
   editorImageAltPrompt: "Texto alternativo (alt)",
   toolbarH2: "Título H2",
@@ -178,6 +200,7 @@ export const DEFAULT_CONTENT_UI_LABELS: ContentUiLabels = {
   toolbarImageLibrary: "Imagen desde biblioteca",
   toolbarImageUrl: "Imagen por URL",
   toolbarYoutube: "YouTube",
+  toolbarInstagram: "Publicación de Instagram",
   toolbarTable: "Tabla",
   toolbarUndo: "Deshacer",
   toolbarRedo: "Rehacer",

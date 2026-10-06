@@ -1,4 +1,4 @@
-import { puede } from "@/lib/access/policy";
+import { puedeEnContexto, type AccesoEfectivo } from "@/lib/access/policy";
 import type { MensajeVista } from "@/lib/plantillas/vista-mensaje";
 import type { PersonaRef } from "./persona";
 
@@ -46,6 +46,8 @@ export type Proveedor = {
   clave: string;
   tipo: TipoEvento | TipoEvento[];
   capacidad?: "verDinero";
+  /** El módulo de la plata que trae (Caja, Cuotas): `verDinero` se mira sobre ése. */
+  moduloDinero?: string;
   /** Hasta `take` eventos con fecha <= `antesDe` (o los más nuevos si es null), más nuevo primero. */
   traer: (
     ctx: { workspaceId: string },
@@ -102,7 +104,7 @@ function despuesDelCursor(e: EventoFicha, cursor: { fecha: Date; id: string } | 
 
 export async function armarLinea(opts: {
   proveedores: Proveedor[];
-  ctx: { workspaceId: string; role: string | null };
+  ctx: { workspaceId: string; role: string | null; acceso?: AccesoEfectivo; modulo?: string };
   persona: PersonaRef;
   filtro: TipoEvento | null;
   cursor: string | null;
@@ -110,12 +112,12 @@ export async function armarLinea(opts: {
 }): Promise<PaginaLinea> {
   const take = Math.min(Math.max(1, Math.floor(opts.take ?? EVENTOS_POR_PAGINA)), 100);
   const cursor = leerCursor(opts.cursor);
-  const veDinero = puede(opts.ctx.role, "verDinero");
+  const veDinero = puedeEnContexto(opts.ctx, "verDinero");
 
   // Los permisos se aplican ACÁ, en el servidor: un proveedor de plata sin `verDinero` ni
   // siquiera se consulta, y su contenido nunca llega al navegador.
   const activos = opts.proveedores.filter((p) => {
-    if (p.capacidad && !puede(opts.ctx.role, p.capacidad)) return false;
+    if (p.capacidad && !puedeEnContexto(opts.ctx, p.capacidad, p.moduloDinero)) return false;
     if (opts.filtro && !tiposDe(p).includes(opts.filtro)) return false;
     return true;
   });

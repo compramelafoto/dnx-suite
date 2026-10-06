@@ -6,6 +6,7 @@ import {
   PreventaPackRedeemValidationError,
 } from "@/lib/preventa-canjeable/redeem-preventa-pack-order-v1";
 import { getOrderIdForPackAccessToken } from "@/lib/preventa-canjeable/pack-access-tokens";
+import { completePreventaRedemption } from "@/lib/preventa-canjeable/complete-preventa-redemption";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,7 +45,16 @@ export async function POST(req: Request, { params }: RouteParams) {
 
   try {
     const result = await executePreventaPackRedeemV1(lookup.orderId, parsed.data.selections);
-    return NextResponse.json({ redemptionOrderId: result.redemptionOrderId }, { status: 201 });
+    const baseUrl = (process.env.APP_URL || new URL(req.url).origin).replace(/\/+$/, "");
+    const { downloadUrl } = await completePreventaRedemption(
+      result.redemptionOrderId,
+      lookup.orderId,
+      baseUrl
+    );
+    return NextResponse.json(
+      { redemptionOrderId: result.redemptionOrderId, downloadUrl },
+      { status: 201 }
+    );
   } catch (err: unknown) {
     if (err instanceof PreventaPackRedeemValidationError) {
       return NextResponse.json(

@@ -7,6 +7,7 @@ import type { AlbumInstructivoProfile } from "./album-instructivo-profile";
 
 function perfil(over: Partial<AlbumInstructivoProfile> = {}): AlbumInstructivoProfile {
   return {
+    publico: "general",
     entrada: "abierta",
     busqueda: ["cara", "navegar"],
     momento: "postventa",

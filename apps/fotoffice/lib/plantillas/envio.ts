@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@repo/db";
-import { puede } from "@/lib/access/policy";
+import { puedeEnContexto, type AccesoEfectivo } from "@/lib/access/policy";
+import { moduloDeTipo } from "@/lib/access/modulos-crm";
 import { sendTransactionalEmail, type OutboundEmail, type SendOutcome } from "@/lib/communications/send-email";
 import { buildWhatsappUrl, normalizeWhatsappNumber } from "@/lib/contact/whatsapp";
 import {
@@ -26,6 +27,8 @@ export type CtxEnvio = {
   userName?: string | null;
   userEmail?: string | null;
   role: string | null;
+  /** Acceso efectivo (modelo de main); `operar` se mide sobre el módulo del registro. */
+  acceso?: AccesoEfectivo;
 };
 
 export const MENSAJES_ENVIO = {
@@ -241,7 +244,7 @@ export type DatosCorreo = {
  */
 export async function enviarCorreo(ctx: CtxEnvio, datos: DatosCorreo, deps: DepsEnvio = {}): Promise<ResultadoEnvio> {
   const automatico = datos.automatico === true;
-  if (!automatico && !puede(ctx.role, "operar")) return no(MENSAJES_ENVIO.sinPermiso);
+  if (!automatico && !puedeEnContexto(ctx, "operar", moduloDeTipo(datos.entityType))) return no(MENSAJES_ENVIO.sinPermiso);
 
   if (typeof datos.asunto !== "string") return no(MENSAJES_ENVIO.asunto);
   const asunto = datos.asunto.replace(/\s+/g, " ").trim();
@@ -332,7 +335,7 @@ export type ResultadoWhatsapp = { ok: true; url: string; mensajeId: string } | F
  * `OPENED_WHATSAPP`. La firma va sólo si el texto la pide con `[firma]`.
  */
 export async function abrirWhatsapp(ctx: CtxEnvio, datos: DatosWhatsapp): Promise<ResultadoWhatsapp> {
-  if (!puede(ctx.role, "operar")) return no(MENSAJES_ENVIO.sinPermiso);
+  if (!puedeEnContexto(ctx, "operar", moduloDeTipo(datos.entityType))) return no(MENSAJES_ENVIO.sinPermiso);
   const vc = validarCuerpo(datos.cuerpo, "WHATSAPP");
   if (!vc.ok) return vc;
   if (tieneMarcadorSinCompletar(vc.cuerpo)) return no(MENSAJES_ENVIO.marcadorSinCompletar);

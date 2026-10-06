@@ -1,11 +1,8 @@
-import { puede } from "@/lib/access/policy";
-
 /**
  * Política de permisos de "Configuración del Workspace" (branding, contacto, slug público).
- * OWNER/ADMIN → ven y editan. STAFF (Equipo) → solo lectura. Delega en `lib/access/policy`
- * (capacidad `configurar`). `role` acepta tanto `WorkspaceRole` (nuevo,
+ * OWNER/ADMIN → ven y editan. STAFF → solo lectura. `role` acepta tanto `WorkspaceRole` (nuevo,
  * `WorkspaceMembership`) como `MembershipRole` legacy (`ADMIN`/`MEMBER`).
  */
 export function canManageWorkspaceSettings(role: string | null | undefined): boolean {
-  return puede(role, "configurar");
+  return role === "WORKSPACE_OWNER" || role === "WORKSPACE_ADMIN" || role === "ADMIN";
 }

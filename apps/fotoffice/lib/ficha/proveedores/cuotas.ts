@@ -1,4 +1,5 @@
 import "server-only";
+import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { prisma, type Prisma } from "@repo/db";
 import { chargeConceptLabel, chargePeriodLabel, fechaLegible } from "@/lib/membership/charge-labels";
 import { decimalArsToMinor, formatMinorArs } from "@/lib/membership/money";
@@ -17,6 +18,7 @@ export const proveedorCuotas: Proveedor = {
   clave: "cuotas",
   tipo: "plata",
   capacidad: "verDinero",
+  moduloDinero: MEMBERSHIP_DUES_MODULE_KEY,
   async traer(ctx, persona, antesDe, take, opciones) {
     if (!persona.memberId) return [];
     const n = filas(take);

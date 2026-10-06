@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { puede } from "@/lib/access/policy";
+import { puedeEnContexto } from "@/lib/access/policy";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
@@ -62,7 +62,7 @@ export async function guardarValoresAction(datos: {
   const ctx = await contextoDeCampos();
   if (!ctx) return SIN_ACCESO;
   if (!(await isModuleEnabledForWorkspace(ctx.workspaceId, MODULO[entityType]))) return MODULO_APAGADO;
-  if (!puede(ctx.role, "operar")) return SIN_ACCESO;
+  if (!puedeEnContexto(ctx, "operar", MODULO[entityType])) return SIN_ACCESO;
   if (!(await registroDelWorkspace(ctx.workspaceId, entityType, entityId))) return NO_ENCONTRADO;
   const r = await guardarValores(ctx, entityType, entityId, datos.valores);
   if (r.ok) revalidatePath(rutaFicha(entityType, entityId));

@@ -5,7 +5,10 @@ export {
   isContentPlatform,
   assertContentPlatform,
   platformWhere,
+  resolveContentScope,
+  PER_WORKSPACE_CONTENT_PLATFORMS,
   type ContentPlatform,
+  type ContentScope,
 } from "./platform";
 
 // Errors
@@ -67,6 +70,7 @@ export {
   getContentTiptapExtensions,
   getBlogTiptapExtensions,
 } from "./tiptap/extensions";
+export { getInstagramEmbedUrl } from "./tiptap/instagram";
 export {
   sanitizeContentHtml,
   sanitizeBlogHtml,
@@ -178,6 +182,7 @@ export {
   getPublishedPostsByTagSlug,
   listCategoriesForHome,
   mapPublicPostTags,
+  type ContentListOrder,
   type PublicContentPostListItem,
   type PublicBlogPostListItem,
   type PublicContentPostSearchItem,

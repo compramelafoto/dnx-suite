@@ -148,6 +148,8 @@ model User {
   dashboardNotifications                DashboardNotification[]
   fotofficePhotographerProfile          FotofficePhotographerProfile?
   fotofficeInstitutionalMemberships     Member[]
+  /// Portfolios que bajó del sitio. SetNull: borrar su usuario no borra lo que hizo.
+  fotofficePortfoliosHidden             FotofficeMemberPortfolio[]             @relation("PortfolioHiddenBy")
   clickatonRegistrations                ClickatonRegistration[]                @relation("ClickatonRegistrationParticipant")
   clickatonCheckInsOperated             ClickatonCheckIn[]                     @relation("ClickatonCheckInOperator")
   clickatonCheckInsReversed             ClickatonCheckIn[]                     @relation("ClickatonCheckInReverser")
@@ -302,6 +304,8 @@ model User {
   workspaceMembershipsUnified           WorkspaceMembership[]
   workspaceInvitationsSent              WorkspaceInvitation[]                  @relation("WorkspaceInvitationInviter")
   workspaceInvitationsAccepted          WorkspaceInvitation[]                  @relation("WorkspaceInvitationAcceptor")
+  workspaceRoleAssignments              WorkspaceRoleAssignment[]
+  workspaceOfficeTerms                  WorkspaceOfficeTerm[]
   appAccessUnified                      WorkspaceAppAccess[]
   fotorankContestConfigurationVersions  FotorankContestConfigurationVersion[]
   fotorankContestRulesTemplates         FotorankContestRulesTemplate[]
@@ -329,6 +333,7 @@ model User {
   subilafotoSellerProfiles            SubilafotoSellerProfile[]
   subilafotoCollaborations            SubilafotoCollaborator[]
   coverageEvents                      CoverageEvent[]
+  courseAccesses                      CourseAccess[]
   clickatonReferralCode               ClickatonReferralCode?
   clickatonReferralsMade              ClickatonReferralAttribution[]     @relation("ClickatonReferralReferrer")
   clickatonReferralReceived           ClickatonReferralAttribution?      @relation("ClickatonReferralReferred")
@@ -749,6 +754,11 @@ model BlogCategory {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   platform    String
+  /// A qué institución pertenece, dentro de la plataforma. "" = el blog de la plataforma entera
+  /// (CompraMeLaFoto, Clickatón). En FOTOFFICE es el id del workspace: cada institución tiene su
+  /// blog. Texto y no FK a propósito: "" tiene que poder entrar en el `@@unique`, y un NULL no
+  /// cuenta para la unicidad en Postgres.
+  workspaceKey String @default("")
   name        String
   slug        String
   description String?
@@ -756,7 +766,7 @@ model BlogCategory {
   isFeatured  Boolean    @default(false)
   posts       BlogPost[]
 
-  @@unique([platform, slug])
+  @@unique([platform, workspaceKey, slug])
   @@index([platform, sortOrder])
 }
 
@@ -765,11 +775,12 @@ model BlogCategory {
 model BlogTag {
   id       Int           @id @default(autoincrement())
   platform String
+  workspaceKey String @default("")
   name     String
   slug     String
   posts    BlogPostTag[]
 
-  @@unique([platform, slug])
+  @@unique([platform, workspaceKey, slug])
 }
 
 /// *
@@ -779,6 +790,7 @@ model BlogAuthor {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   platform  String
+  workspaceKey String @default("")
   name      String
   slug      String
   bio       String?
@@ -789,7 +801,7 @@ model BlogAuthor {
   user      User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
   posts     BlogPost[]
 
-  @@unique([platform, slug])
+  @@unique([platform, workspaceKey, slug])
   @@index([platform, isActive])
 }
 
@@ -799,6 +811,7 @@ model BlogMedia {
   id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
   platform  String
+  workspaceKey String @default("")
   title     String?
   altText   String?
   caption   String?
@@ -809,6 +822,7 @@ model BlogMedia {
   sizeBytes Int
 
   @@index([platform, createdAt])
+  @@index([platform, workspaceKey, createdAt])
 }
 
 /// *
@@ -818,6 +832,7 @@ model BlogPost {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
   platform       String
+  workspaceKey String @default("")
   title          String
   slug           String
   excerpt        String?
@@ -844,9 +859,11 @@ model BlogPost {
   author         BlogAuthor?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
   tags           BlogPostTag[]
   views          BlogPostView[]
+  bannerSlot     FotofficeBlogBannerSlot?
 
-  @@unique([platform, slug])
+  @@unique([platform, workspaceKey, slug])
   @@index([platform, status, publishedAt])
+  @@index([platform, workspaceKey, status, publishedAt])
   @@index([platform, status, isFeatured])
   @@index([platform, categoryId])
   @@index([platform, type])
@@ -7061,12 +7078,16 @@ model FotorankGlobalCategoryAlias {
 
 /// Workspace compartido (FotoRank judges + Fotoffice / cursos / evaluaciones).
 model Workspace {
-  id                          String                            @id @default(cuid())
+  id                          String                             @id @default(cuid())
   name                        String
-  createdAt                   DateTime                          @default(now())
-  updatedAt                   DateTime                          @updatedAt
+  createdAt                   DateTime                           @default(now())
+  updatedAt                   DateTime                           @updatedAt
   courses                     Course[]
+  courseBeneficiaries         CourseBeneficiary[]
+  courseSaleShares            CourseSaleShare[]
+  courseResaleAgreements      CourseResaleAgreement[]
   courseEnrollments           CourseEnrollment[]
+  courseAccesses              CourseAccess[]
   courseSalesCourses          CourseSalesCourse[]
   courseSalesLeads            CourseSalesLead[]
   courseSalesTeachers         CourseSalesTeacher[]
@@ -7075,6 +7096,8 @@ model Workspace {
   fotofficeListViews          FotofficeListView[]
   fotofficeListActivity       FotofficeListActivity[]
   fotofficeWebsite            FotofficeWorkspaceWebsite?
+  fotofficeDomain             FotofficeWorkspaceDomain?
+  fotofficeBlogBannerSlots    FotofficeBlogBannerSlot[]
   fotorankJudgeAccounts       FotorankJudgeAccount[]
   memberships                 Membership[]
   serviceLeadForms            ServiceLeadForm[]
@@ -7085,10 +7108,16 @@ model Workspace {
   workspaceMembershipsUnified WorkspaceMembership[]
   workspaceInvitations        WorkspaceInvitation[]
   adminEvents                 WorkspaceAdminEvent[]
+  customRoles                 WorkspaceCustomRole[]
+  offices                     WorkspaceOffice[]
+  memberWelcomes              MemberWelcome[]
+  memberAboutMes              MemberAboutMe[]
+  memberSpotlights            MemberSpotlight[]
   appAccessUnified            WorkspaceAppAccess[]
   institutionalMembers        Member[]
   memberCategories            MemberCategory[]
   memberAudits                MemberAudit[]
+  memberPortfolios            FotofficeMemberPortfolio[]
   memberInvitations           MemberInvitation[]
   moduleFees                  WorkspaceModuleFee[]
   integrations                WorkspaceIntegration[]
@@ -7101,12 +7130,20 @@ model Workspace {
   raffles                     Raffle[]
   rafflePrizeCommitments      RafflePrizeCommitment[]
   raffleSettings              RaffleSettings?
+  govProjectTypes             GovProjectType[]
+  govProjects                 GovProject[]
+  govMeetings                 GovMeeting[]
+  contestShowcase             WorkspaceContestShowcase?
   clients                     Client[]
   cashAccounts                CashAccount[]
   cashCategories              CashCategory[]
   cashShifts                  CashShift[]
   cashMovements               CashMovement[]
   cashTransfers               CashTransfer[]
+  productCategories           ProductCategory[]
+  products                    Product[]
+  stockMovements              StockMovement[]
+  sales                       Sale[]
   feeLedger                   WorkspaceFeeLedgerEntry[]
   membershipApplications      MembershipApplication[]
   membershipDuesSettings      MembershipDuesSettings?
@@ -7143,6 +7180,20 @@ model Workspace {
   fotofficeMessageTemplates FotofficeMessageTemplate[]
   fotofficeMessages FotofficeMessage[]
   clientAudits ClientAudit[]
+  productStoreListings        ProductStoreListing[]
+  storeSettings               StoreSettings?
+  storeShippingSettings       StoreShippingSettings?
+  storeShippingZones          StoreShippingZone[]
+  storeOrders                 StoreOrder[]
+  contactSyncSettings         WorkspaceContactSyncSetting[]
+  contactLinks                WorkspaceContactLink[]
+  contestOrganizationLinks    WorkspaceContestOrganizationLink[]
+  storePrintSettings          StorePrintSettings?
+  printFormats                PrintFormat[]
+  contestStoreSettings        ContestStoreSettings[]
+  artworkConsents             ArtworkConsent[]
+  artworkListings             ArtworkListing[]
+  artworkRoyalties            ArtworkRoyalty[]
 }
 
 model WorkspaceFeatureModule {
@@ -7192,6 +7243,10 @@ model FotofficeWorkspaceBranding {
   /// El resto de la firma (nombre, logo, contacto, redes) sale de los campos de arriba: una
   /// sola fuente de verdad entre el sitio público y los emails.
   emailSignatureNote    String?
+  /// Descripción breve de la institución (texto plano, hasta 300 caracteres). Es lo que muestran
+  /// Google y la vista previa al compartir el sitio (WhatsApp, Facebook) si en Sitio web → SEO no
+  /// se cargó una descripción propia.
+  shortDescription      String?
   /// null = onboarding incompleto; set cuando el fotógrafo termina o saltea
   onboardingCompletedAt DateTime?
   createdAt             DateTime  @default(now())
@@ -7456,6 +7511,202 @@ model FotofficeWorkspaceWebsite {
   versions           FotofficeWorkspaceWebsiteVersion[] @relation("WebsiteVersionHistory")
 }
 
+/// Dominio propio del sitio público de una institución (ej. `sfpr.com.ar`). Tabla aparte y no
+/// columnas en `FotofficeWorkspaceWebsite`: el esquema se comparte con otras bases y una columna
+/// sin aplicar rompe todas las consultas del modelo. Spec:
+/// `apps/fotoffice/docs/superpowers/specs/2026-10-02-sitio-web-dominio-propio-design.md`.
+model FotofficeWorkspaceDomain {
+  id                 String    @id @default(cuid())
+  workspaceId        String    @unique
+  /// Dominio raíz, en minúsculas, sin `www.` ni protocolo. `www.<domain>` se atiende solo.
+  domain             String    @unique
+  /// PENDING (falta el DNS) · CONNECTED (apunta bien) · ERROR. Texto y no enum: agregar un
+  /// estado no obliga a migrar las otras bases que comparten el esquema.
+  status             String    @default("PENDING")
+  /// Cuándo se agregó al proyecto de Vercel. null = sin token configurado o falló.
+  vercelRegisteredAt DateTime?
+  lastCheckedAt      DateTime?
+  /// Último problema, en lenguaje claro para el dueño de la institución.
+  lastError          String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  workspace          Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+/// Correo a socios (Comunicación → Correo): interruptores por institución.
+/// Spec: apps/fotoffice/docs/superpowers/specs/2026-10-05-correo-a-socios-etapas-1-2-design.md
+model FotofficeMailingSettings {
+  id               String   @id @default(cuid())
+  workspaceId      String   @unique
+  /// Interruptor general de los envíos a muchos socios. Apagado: sólo se mandan pruebas.
+  bulkEnabled      Boolean  @default(false)
+  /// Resumen semanal del blog (lunes 9:00, hora argentina).
+  weeklyBlogDigest Boolean  @default(false)
+  /// Las campañas libres necesitan la aprobación de otra persona con gestión en Comunicación.
+  requireApproval  Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+/// Un envío a muchos socios (un artículo del blog, el resumen semanal…).
+model FotofficeEmailCampaign {
+  id              String                   @id @default(cuid())
+  workspaceId     String
+  /// BLOG_POST · BLOG_DIGEST. Texto y no enum: sumar tipos no obliga a migrar las otras bases.
+  kind            String
+  /// Tema de baja que respeta este envío ("blog"). Ver FotofficeEmailOptOut.
+  topic           String
+  /// Evita repetir: un artículo se manda una vez; un resumen por semana.
+  dedupeKey       String                   @unique
+  subject         String
+  blogPostId      Int?
+  /// Ids de los artículos del resumen semanal.
+  blogPostIds     Int[]                    @default([])
+  /// Clave de la fecha (FotofficeMailingOccasion.key) en los saludos de fechas especiales.
+  occasionKey     String?
+  /// Campaña libre (FotofficeMailingMessage) que originó este envío.
+  messageId       String?
+  /// SENDING · SENT · FAILED
+  status          String                   @default("SENDING")
+  recipientsTotal Int                      @default(0)
+  sentCount       Int                      @default(0)
+  failedCount     Int                      @default(0)
+  /// Socios que no lo reciben porque se dieron de baja.
+  optedOutCount   Int                      @default(0)
+  createdByUserId Int?
+  createdAt       DateTime                 @default(now())
+  finishedAt      DateTime?
+  deliveries      FotofficeEmailDelivery[]
+
+  @@index([workspaceId, createdAt])
+  @@index([status])
+}
+
+/// Un destinatario de un envío a muchos.
+model FotofficeEmailDelivery {
+  id         String                 @id @default(cuid())
+  campaignId String
+  memberId   String?
+  /// En minúsculas.
+  email      String
+  firstName  String?
+  /// PENDING · SENDING · SENT · FAILED
+  status     String                 @default("PENDING")
+  claimedAt  DateTime?
+  resendId   String?
+  error      String?
+  sentAt     DateTime?
+  /// Métricas que informa Resend por webhook (primer evento de cada tipo).
+  deliveredAt  DateTime?
+  openedAt     DateTime?
+  clickedAt    DateTime?
+  bouncedAt    DateTime?
+  complainedAt DateTime?
+  createdAt  DateTime               @default(now())
+  campaign   FotofficeEmailCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, email])
+  @@index([campaignId, status])
+  @@index([resendId])
+}
+
+/// Bajas de los correos a socios. `topic = "all"`: ningún correo masivo de la institución.
+/// Los avisos transaccionales (cuotas, alta, reservas) no se cortan con esto.
+model FotofficeEmailOptOut {
+  id          String   @id @default(cuid())
+  workspaceId String
+  /// En minúsculas.
+  email       String
+  topic       String
+  createdAt   DateTime @default(now())
+
+  @@unique([workspaceId, email, topic])
+}
+
+/// Un artículo del blog destacado como placa del banner principal del sitio, por un tiempo.
+/// Se elige desde el editor del artículo ("en la placa 2, por 15 días") y el sitio público lo
+/// lee en vivo: no hace falta republicar, y al pasar `endsAt` la placa deja de mostrarse sola.
+/// Tabla aparte y no columnas en `BlogPost`: ese modelo lo comparten otras plataformas y una
+/// columna sin aplicar rompe todas sus consultas.
+model FotofficeBlogBannerSlot {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  /// Un artículo ocupa a lo sumo una placa.
+  postId       Int       @unique
+  /// Número de placa, desde 1. Si el banner tiene menos placas, va al final.
+  position     Int
+  durationDays Int
+  startsAt     DateTime  @default(now())
+  endsAt       DateTime
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  post         BlogPost  @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, endsAt])
+}
+
+/// Una fecha de saludo configurada por la institución (Comunicación → Fechas). Sin fila rige el
+/// valor por defecto del catálogo en código (`lib/mailing/occasions-catalog.ts`).
+model FotofficeMailingOccasion {
+  id             String   @id @default(cuid())
+  workspaceId    String
+  /// Clave del catálogo ("navidad", "birthday"…) o "propia-<id>" para las que agrega la institución.
+  key            String
+  /// EFEMERIDE · BIRTHDAY · ANNIVERSARY · LIFECYCLE
+  kind           String
+  enabled        Boolean  @default(false)
+  /// Día del año en las efemérides. Nulos en los saludos personales y en fechas sin confirmar.
+  month          Int?
+  day            Int?
+  title          String
+  subject        String
+  message        String   @db.Text
+  imageUrl       String?
+  /// Especialidades a las que va (vacío = a todos los socios).
+  specialties    String[] @default([])
+  /// Aniversario: sólo en 1, 5, 10, 15… años.
+  milestonesOnly Boolean  @default(false)
+  /// Ciclo del socio: cuántos días después del ingreso, de la baja o del último ingreso al portal.
+  offsetDays     Int?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([workspaceId, key])
+}
+
+/// Una campaña libre redactada en Comunicación → Campañas. Al lanzarse crea un
+/// FotofficeEmailCampaign (kind CUSTOM) que hace el envío.
+model FotofficeMailingMessage {
+  id                  String    @id @default(cuid())
+  workspaceId         String
+  /// Nombre interno, para reconocerla en la lista.
+  name                String
+  subject             String
+  body                String    @db.Text
+  imageUrl            String?
+  ctaLabel            String?
+  ctaUrl              String?
+  /// Filtros (vacío = todos los socios activos). Si hay de los dos, tiene que cumplir ambos.
+  categoryIds         String[]  @default([])
+  specialties         String[]  @default([])
+  /// DRAFT · PENDING_APPROVAL · SCHEDULED · SENT
+  status              String    @default("DRAFT")
+  /// null = enviar apenas esté aprobada (o al apretar «Enviar ahora»).
+  scheduledAt         DateTime?
+  createdByUserId     Int?
+  approvalRequestedAt DateTime?
+  approvedByUserId    Int?
+  approvedAt          DateTime?
+  campaignId          String?
+  sentAt              DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([workspaceId, createdAt])
+  @@index([status, scheduledAt])
+}
+
 /// Snapshot INMUTABLE de una publicación del sitio — nunca se edita después de creado. Solo
 /// contiene contenido del propio sitio (mismo shape que el borrador); NO copia branding general
 /// (nombre/logo/colores/contacto siguen viviendo solo en FotofficeWorkspaceBranding, se leen en
@@ -7613,6 +7864,22 @@ model Member {
   specialties    String[] @default([])
   /// Presentación breve, en palabras del socio.
   bio            String?
+
+  /// --- Dónde atiende: el domicilio del ESTUDIO, nunca el particular ---
+  ///
+  /// `address`, `city`, `province` y `postalCode` de más arriba son los datos personales del
+  /// socio y **no se publican**. Estos son los del local donde trabaja, y sí salen en su ficha
+  /// pública y en sus datos estructurados. Tener dos juegos de campos no es redundancia:
+  /// publicar por error el domicilio particular de alguien es un daño que no se deshace.
+  studioStreet     String?
+  studioCity       String?
+  studioProvince   String?
+  studioPostalCode String?
+  /// Coordenadas del local, para que Google lo ubique en el mapa. El socio pega un enlace de
+  /// Google Maps y se sacan de ahí: nadie anda con sus coordenadas a mano.
+  /// Ver `apps/fotoffice/lib/membership/studio-location.ts`.
+  studioLat        Float?
+  studioLng        Float?
   website        String?
   /// Instagram y TikTok se guardan como usuario, sin arroba. Facebook, YouTube y LinkedIn como
   /// dirección completa: en esas tres el perfil tiene varias formas válidas. Ver lib/membership/social.ts.
@@ -7680,6 +7947,18 @@ model Member {
   coverageApplications            CoverageApplication[]
   coverageAssignments             CoverageAssignment[]
   coverageDeliverables            CoverageDeliverable[]
+  /// Su portfolio, si alguna vez entró a armarlo. La fila se crea recién cuando la persona
+  /// abre la pantalla: no se le inventa un portfolio vacío a todo el padrón.
+  portfolio                       FotofficeMemberPortfolio?
+  roleAssignments                 WorkspaceRoleAssignment[]
+  officeTerms                     WorkspaceOfficeTerm[]
+  welcome                         MemberWelcome?
+  aboutMe                         MemberAboutMe?
+  spotlights                      MemberSpotlight[]
+  notificationSeen                MemberNotificationSeen?
+  govProjectsProposed             GovProject[]                      @relation("GovProjectProposer")
+  govProjectsResponsible          GovProject[]                      @relation("GovProjectResponsible")
+  govTasksAssigned                GovProjectTask[]
 
   @@unique([workspaceId, memberNumber])
   @@unique([workspaceId, email])
@@ -7856,6 +8135,9 @@ model MembershipDuesSettings {
   /// Porcentaje de la cuota que se bonifica por cada recomendado que termina de pagar su
   /// ingreso. 100 = una cuota entera.
   recommendationBenefitPercent Decimal @default(100) @db.Decimal(5, 2)
+  /// Enlace de invitación al grupo de WhatsApp de los socios (`https://chat.whatsapp.com/...`).
+  /// Va en el correo de bienvenida y como botón en el inicio del portal. `null` = no hay grupo.
+  communityWhatsappUrl String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -8179,6 +8461,10 @@ enum MemberAuditAction {
   INVITE_SEND_FAILED
   INVITE_REVOKED
   INVITE_ACCEPTED
+  /// La institución bajó el portfolio del sitio. Exige motivo, como la suspensión y la baja.
+  PORTFOLIO_HIDDEN
+  /// La institución lo volvió a publicar, o lo publicó pese a la deuda.
+  PORTFOLIO_RESTORED
 }
 
 /// De dónde vino la operación. `SYSTEM` queda para procesos automáticos futuros
@@ -8282,6 +8568,142 @@ model MemberAudit {
   @@index([batchId])
 }
 
+/// El portfolio de una persona del padrón: una galería, con una foto destacada.
+///
+/// NO guarda la presencia profesional (presentación, especialidades, redes, sitio): eso vive en
+/// `Member` desde el alta y se lee de ahí. Duplicarlo sería garantizar que algún día digan
+/// cosas distintas.
+model FotofficeMemberPortfolio {
+  id          String @id @default(cuid())
+  workspaceId String
+  memberId    String @unique
+
+  /// Dirección pública: `/w/{slug}/socios/{publicSlug}`. Se calcula al crear y NO se recalcula
+  /// si la persona cambia de apellido — una dirección publicada que deja de funcionar es un
+  /// enlace roto en el sitio de otro.
+  publicSlug String
+
+  /// El interruptor de la persona. Arranca apagado: tener un portfolio y publicarlo son dos
+  /// actos distintos.
+  memberPublished   Boolean   @default(false)
+  memberPublishedAt DateTime?
+
+  /// La foto que la representa en el directorio. SetNull: si se borra esa foto el portfolio
+  /// sigue existiendo y la destacada pasa a ser la primera que quede.
+  coverPhotoId String? @unique
+
+  /// La bajada de la institución. Los tres campos van juntos: nunca se baja sin motivo.
+  hiddenByAdminAt     DateTime?
+  hiddenByAdminUserId Int?
+  hiddenReason        String?
+
+  /// El perdón de deuda. Saltea SOLO la condición de cargos vencidos, ninguna otra — ver
+  /// `apps/fotoffice/lib/portfolio/visibility.ts`. Existe porque la migración del historial de
+  /// pagos está incompleta y hay gente al día que figura debiendo: una regla automática sin
+  /// forma humana de contradecirla es una trampa.
+  adminForcePublish Boolean @default(false)
+
+  /// Si la ficha pública muestra la franja de posteos de Instagram. Apagado por omisión: trae un
+  /// script de Meta al sitio de la institución, y eso se decide, no se hereda.
+  instagramEnabled  Boolean  @default(false)
+  /// Enlaces a posteos propios que el socio eligió mostrar, en orden. Tope de 6, validado en la
+  /// acción. No es el feed: leer el feed de alguien exige OAuth y una app aprobada por Meta desde
+  /// que cerró la Basic Display API, en diciembre de 2024.
+  instagramPostUrls String[] @default([])
+
+  /// --- Cómo se ve esta ficha en Google y al compartirla ---
+  ///
+  /// Los tres son OPCIONALES y vacíos se comportan como antes de existir: el título se arma con
+  /// nombre, estudio y ciudad, la descripción es la presentación del socio, y la miniatura sigue
+  /// el orden logo → destacada → foto de perfil. Nadie empeora por no tocarlos.
+  ///
+  /// Existen porque la presentación y la descripción de Google tienen trabajos distintos: una
+  /// puede ser larga y en primera persona, la otra se corta a ~160 caracteres y conviene que sea
+  /// un resumen con las palabras que la gente busca.
+  seoTitle       String?
+  seoDescription String?
+  /// "LOGO" | "COVER" | "PROFILE". Texto y no enum: el conjunto cerrado vive en
+  /// `lib/portfolio/seo-fields.ts`, y agregarle una opción no debería ser una migración.
+  seoImageChoice String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace    Workspace                       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member       Member                          @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  hiddenByUser User?                           @relation("PortfolioHiddenBy", fields: [hiddenByAdminUserId], references: [id], onDelete: SetNull)
+  photos       FotofficeMemberPortfolioPhoto[] @relation("PortfolioPhotos")
+  videos       FotofficeMemberPortfolioVideo[]
+  coverPhoto   FotofficeMemberPortfolioPhoto?  @relation("PortfolioCoverPhoto", fields: [coverPhotoId], references: [id], onDelete: SetNull)
+
+  /// Dos personas de la misma institución no pueden compartir dirección. Dos de instituciones
+  /// distintas sí: las direcciones viven bajo `/w/{slug}/`.
+  @@unique([workspaceId, publicSlug])
+  @@index([workspaceId])
+}
+
+/// Una foto del portfolio de una persona.
+model FotofficeMemberPortfolioPhoto {
+  id          String @id @default(cuid())
+  portfolioId String
+
+  /// Key dentro del bucket compartido del monorepo, bajo `fotoffice/member-portfolio/`.
+  r2Key       String
+  url         String
+  contentType String
+  sizeBytes   Int
+  /// Se guardan para reservar el espacio de cada foto antes de que cargue: sin esto la galería
+  /// salta mientras se arma.
+  width       Int
+  height      Int
+
+  /// El orden que eligió la persona. Denso dentro de un portfolio, arranca en 0.
+  order Int
+  title String?
+  year  Int?
+  /// Descripción de lo que se ve en la foto. Va al atributo `alt` de la imagen.
+  ///
+  /// Es lo que lee Google para encontrar la foto **y** lo que escucha quien usa un lector de
+  /// pantalla. Un solo texto para las dos cosas: separarlos produciría dos descripciones de la
+  /// misma foto que algún día se contradicen.
+  altText String?
+
+  createdAt DateTime @default(now())
+
+  portfolio FotofficeMemberPortfolio  @relation("PortfolioPhotos", fields: [portfolioId], references: [id], onDelete: Cascade)
+  coverOf   FotofficeMemberPortfolio? @relation("PortfolioCoverPhoto")
+
+  @@index([portfolioId, order])
+}
+
+/// Un video del portfolio, agregado pegando su dirección.
+///
+/// No se guarda el archivo: un video pesa cientos de megas y ya está alojado donde el socio lo
+/// subió. Se guarda de dónde viene y cómo mostrarlo.
+model FotofficeMemberPortfolioVideo {
+  id          String @id @default(cuid())
+  portfolioId String
+
+  /// YOUTUBE, VIMEO, INSTAGRAM, TIKTOK u OTRO. Texto y no enum a propósito: agregar una plataforma
+  /// es cambiar `lib/portfolio/videos.ts`, no migrar la base.
+  platform String
+  /// La dirección canónica, ya normalizada por `parsePortfolioVideoUrl`.
+  url      String
+  /// Identificador del video. Sólo lo tienen YouTube y Vimeo, que se embeben por iframe.
+  videoId  String?
+  /// Título que puso el socio. Opcional: un video sin título es un video válido.
+  title    String?
+
+  /// El orden que eligió el socio. Denso dentro de un portfolio, arranca en 0.
+  order Int
+
+  createdAt DateTime @default(now())
+
+  portfolio FotofficeMemberPortfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+
+  @@index([portfolioId, order])
+}
+
 model CourseSalesWorkspaceSettings {
   id                 String    @id @default(cuid())
   workspaceId        String    @unique
@@ -8346,6 +8768,10 @@ model WorkspaceIntegration {
   connectedByUserId Int?
   connectedAt       DateTime  @default(now())
   lastUsedAt        DateTime?
+  /// Marca de "dame solo lo que cambió" del proveedor. En Contacts es el syncToken de la
+  /// People API, que es por CUENTA y no por módulo — por eso vive acá y no en el interruptor.
+  /// Vence a los 7 días aunque nadie toque nada; cuando eso pasa se borra y se recarga todo.
+  syncCursor        String?
   revokedAt         DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
@@ -8370,6 +8796,77 @@ model WorkspaceIntegrationOAuthState {
 
   @@index([expiresAt])
   @@index([workspaceId])
+}
+
+/// El interruptor de "agendar en Google" de UN módulo. Genérico a propósito: sumar Reservas
+/// o Cursos no migra nada, solo agrega una fila.
+model WorkspaceContactSyncSetting {
+  id          String  @id @default(cuid())
+  workspaceId String
+  /// Clave de `lib/modules/registry.ts`, p. ej. "members".
+  moduleKey   String
+  enabled     Boolean @default(false)
+
+  /// El grupo de Google de ESTE módulo ("people/c123..."). Se crea al encender por primera vez.
+  googleGroupResourceName String?
+
+  /// Para la pantalla: qué pasó en la última corrida, en el idioma del dueño.
+  lastSyncAt      DateTime?
+  lastSyncOk      Boolean?
+  lastSyncMessage String?
+  syncedContacts  Int       @default(0)
+
+  /// Auditoría: encender esto sube datos personales de terceros a una cuenta de Google.
+  enabledByUserId Int?
+  enabledAt       DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, moduleKey])
+  @@index([enabled])
+}
+
+/// El puente entre una persona de FOTOFFICE y su contacto en Google.
+model WorkspaceContactLink {
+  id          String @id @default(cuid())
+  workspaceId String
+  moduleKey   String
+  /// Lo declara la fuente del módulo. "MEMBER" para el padrón.
+  sourceType  String
+  /// El id del registro local. String para no atarse al tipo de id de cada módulo.
+  sourceId    String
+
+  /// El contacto en Google: "people/c123456789".
+  resourceName String
+  /// Versión del recurso. La People API la exige para actualizar sin pisar a otro.
+  etag         String?
+
+  /// Cómo quedaron los datos de cada lado en la última corrida. Es lo que permite saber QUÉ
+  /// LADO cambió en vez de adivinarlo por fechas, que es el error clásico de estas
+  /// sincronizaciones: los relojes no coinciden y alguien pierde trabajo en silencio.
+  localFingerprint  String
+  remoteFingerprint String
+
+  /// LINKED         — vigente, se sincroniza.
+  /// UNGROUPED      — la persona dejó de estar vigente: salió del grupo y el contacto sigue
+  ///                  en la agenda. Si vuelve a estar vigente, vuelve al grupo sin crear nada.
+  /// REMOTE_DELETED — alguien borró el contacto en Google. No se recrea: recrearlo sería
+  ///                  desobedecer a quien lo borró.
+  status String @default("LINKED")
+
+  lastPushedAt DateTime?
+  lastPulledAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, sourceType, sourceId])
+  @@unique([workspaceId, resourceName])
+  @@index([workspaceId, moduleKey, status])
 }
 
 /// ─────────────────────────────────────────────────────────────────────────────
@@ -8402,8 +8899,25 @@ model BookingSpace {
   requiresApproval  Boolean @default(false)
 
   /// Tarifas por hora. El precio de socio ES el precio promocional.
+  /// Sólo se usan con `pricingMode = "HOURLY"`.
   memberHourlyPriceArs    Decimal @default(0) @db.Decimal(12, 2)
   nonMemberHourlyPriceArs Decimal @default(0) @db.Decimal(12, 2)
+
+  /// --- Cómo se cobra este espacio ---
+  ///
+  /// `"HOURLY"`: precio por hora, prorrateado por minuto. Es como nació el módulo.
+  ///
+  /// `"BLOCK"`: se cobra por bloque, no por hora. Existe porque así se vende de verdad:
+  /// el estudio va en paquetes de 2 horas a un precio, y el salón tiene precio plano por
+  /// jornada. Ninguno de los dos se puede escribir como tarifa horaria —no hay número por hora
+  /// que dé el mismo total para 3, 4 y 5 horas— y fingir que sí obligaba a mostrarle a la gente
+  /// un precio por hora que no es el que paga.
+  pricingMode String @default("HOURLY")
+  /// Tamaño del bloque, en minutos. **`null` = un solo bloque por reserva** (la "jornada"):
+  /// se cobra lo mismo dure lo que dure, y el piso lo pone `minBookingMinutes`.
+  blockMinutes Int?
+  memberBlockPriceArs    Decimal @default(0) @db.Decimal(12, 2)
+  nonMemberBlockPriceArs Decimal @default(0) @db.Decimal(12, 2)
   /// Horas bonificadas por mes para socios. 0 = este espacio no bonifica.
   memberFreeHoursPerMonth Int     @default(0)
   allowsNonMembers        Boolean @default(true)
@@ -8503,7 +9017,14 @@ model Booking {
   /// Dinero, todo congelado en el momento de reservar.
   billedMinutes   Int
   freeMinutesUsed Int     @default(0)
+  /// El precio por hora que se aplicó. Sólo tiene sentido con `pricingModeSnapshot = "HOURLY"`.
   hourlyPriceArs  Decimal @db.Decimal(12, 2)
+  /// Cómo se cobró ESTA reserva. Congelado: si mañana el espacio cambia de modo o de precio,
+  /// lo que se cobró no se reescribe.
+  pricingModeSnapshot String  @default("HOURLY")
+  /// Con `"BLOCK"`: cuánto salía cada bloque y cuántos se cobraron.
+  blockPriceArs       Decimal? @db.Decimal(12, 2)
+  blocksBilled        Int?
   totalArs        Decimal @db.Decimal(12, 2)
   /// Puntos básicos: 500 = 5%. Entero, nunca porcentaje decimal.
   feeBps          Int     @default(0)
@@ -9121,12 +9642,21 @@ model Course {
   accessMonths          Int                @default(12)
   /// Porcentaje de clases vistas que da el curso por terminado y emite el certificado.
   completionPercent     Int                @default(80)
+  /// El socio activo de la institución lo toma gratis desde su portal; el público lo paga.
+  freeForMembers        Boolean            @default(false)
+  /// El dueño lo ofrece en el Mercado de cursos para que otros negocios lo revendan.
+  offeredToResellers    Boolean            @default(false)
+  /// % sugerido para revendedores, en puntos básicos. Hasta acá un pedido se aprueba solo.
+  suggestedResellerBps  Int?
   createdAt             DateTime           @default(now())
   updatedAt             DateTime           @updatedAt
   workspace             Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   instances             CourseInstance[]
   lessons               CourseLesson[]
   enrollments           CourseEnrollment[]
+  accesses              CourseAccess[]
+  beneficiaries         CourseBeneficiary[]
+  resaleAgreements      CourseResaleAgreement[]
 
   @@unique([workspaceId, slug])
   @@index([workspaceId, status])
@@ -9154,6 +9684,7 @@ model CourseLesson {
   updatedAt       DateTime                 @updatedAt
   course          Course                   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   attachments     CourseLessonAttachment[]
+  progress        CourseLessonProgress[]
 
   @@index([courseId, sortOrder])
 }
@@ -9171,6 +9702,138 @@ model CourseLessonAttachment {
   lesson     CourseLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 
   @@index([lessonId])
+}
+
+/// El acceso de una persona a un curso grabado.
+///
+/// Es de la **cuenta** (`userId`): el curso se ve en el portal con usuario y contraseña. Puede
+/// venir de una compra (`PURCHASE`, vence según `Course.accessMonths`) o de ser socio
+/// (`MEMBER_BENEFIT`, sin vencimiento: vale mientras sea socio activo). La regla vive en
+/// `lib/course-classroom/access-rules.ts` (`estadoDeAccesoAlCurso`).
+model CourseAccess {
+  id           String                 @id @default(cuid())
+  workspaceId  String
+  courseId     String
+  /// La inscripción que lo originó. Si una persona compra un curso que tenía de beneficio, el
+  /// acceso pasa a la inscripción paga.
+  enrollmentId String                 @unique
+  userId       Int
+  origin       CourseAccessOrigin     @default(PURCHASE)
+  grantedAt    DateTime               @default(now())
+  /// Null en los de beneficio de socio.
+  expiresAt    DateTime?
+  revokedAt    DateTime?
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+  workspace    Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  course       Course                 @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  enrollment   CourseEnrollment       @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  user         User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  progress     CourseLessonProgress[]
+
+  /// Una persona, un acceso por curso: su avance no se parte en dos.
+  @@unique([userId, courseId])
+  @@index([workspaceId, courseId])
+}
+
+/// Cuánto vio un alumno de una clase.
+///
+/// `secondsWatched` es tiempo **mirado**, no la posición: arrastrar la barra al final no suma.
+/// La regla vive en `lib/course-classroom/progress-rules.ts`, con test.
+model CourseLessonProgress {
+  id                  String       @id @default(cuid())
+  accessId            String
+  lessonId            String
+  secondsWatched      Int          @default(0)
+  /// Para retomar donde quedó.
+  lastPositionSeconds Int          @default(0)
+  /// Cuándo llegó el último reporte. Con esto el servidor sabe cuánto pudo mirar de verdad.
+  lastReportAt        DateTime?
+  completedAt         DateTime?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  access              CourseAccess @relation(fields: [accessId], references: [id], onDelete: Cascade)
+  lesson              CourseLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([accessId, lessonId])
+  @@index([lessonId])
+}
+
+/// Quién cobra una parte de cada venta de un curso (spec del mercado de cursos, sección 4.1).
+///
+/// Es un negocio de FOTOFFICE (`workspaceId`), o un correo invitado que todavía no tiene negocio:
+/// al aceptar se completa `workspaceId`. Sin filas, el dueño del curso cobra el 100%.
+model CourseBeneficiary {
+  id                  String                  @id @default(cuid())
+  courseId            String
+  workspaceId         String?
+  invitedEmail        String?
+  role                CourseBeneficiaryRole
+  /// Puntos básicos: 10000 = 100%. La lista de un curso suma 10000.
+  shareBps            Int
+  /// Absorbe la comisión de Mercado Pago. Uno solo por curso.
+  absorbsProcessorFee Boolean                 @default(false)
+  status              CourseBeneficiaryStatus @default(INVITADO)
+  respondedAt         DateTime?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  course              Course                  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  workspace           Workspace?              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, workspaceId])
+  @@index([workspaceId, status])
+  @@index([invitedEmail])
+}
+
+/// El reparto congelado de una venta: una fila por parte, con el monto en pesos. Si después
+/// cambian los porcentajes, lo ya vendido no cambia (spec, sección 2.3).
+model CourseSaleShare {
+  id                  String              @id @default(cuid())
+  enrollmentId        String
+  workspaceId         String?
+  kind                CourseSaleShareKind
+  /// Nombre del negocio al momento de la venta, para mostrarlo aunque después cambie.
+  label               String
+  amountArs           Decimal             @db.Decimal(12, 2)
+  absorbsProcessorFee Boolean             @default(false)
+  createdAt           DateTime            @default(now())
+  enrollment          CourseEnrollment    @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  workspace           Workspace?          @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+
+  @@index([enrollmentId])
+  @@index([workspaceId])
+}
+
+/// Un negocio que vende el curso de otro (spec del mercado de cursos, sección 4.3).
+///
+/// `shareBps` sale de arriba de cada venta; el resto se reparte entre los beneficiarios. Hasta el
+/// % sugerido del curso nace ACTIVO; por encima, PENDIENTE hasta que el dueño lo apruebe. Un
+/// curso, un acuerdo por revendedor: pedir de nuevo después de un rechazo reabre la misma fila.
+model CourseResaleAgreement {
+  id                  String                      @id @default(cuid())
+  courseId            String
+  resellerWorkspaceId String
+  /// Puntos básicos de cada venta para el revendedor: 0 < shareBps < 10000.
+  shareBps            Int
+  /// Descuento para los socios del revendedor, en puntos básicos: 0..shareBps.
+  memberDiscountBps   Int                         @default(0)
+  status              CourseResaleAgreementStatus @default(PENDIENTE)
+  /// Quién pidió y quién aprobó (User.id). Sin relación a propósito: es un registro, no un permiso.
+  requestedByUserId   Int?
+  approvedByUserId    Int?
+  approvedAt          DateTime?
+  /// El negocio que lo pausó: sólo ése lo reanuda.
+  pausedByWorkspaceId String?
+  endedAt             DateTime?
+  createdAt           DateTime                    @default(now())
+  updatedAt           DateTime                    @updatedAt
+  course              Course                      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  resellerWorkspace   Workspace                   @relation(fields: [resellerWorkspaceId], references: [id], onDelete: Cascade)
+  enrollments         CourseEnrollment[]
+
+  @@unique([courseId, resellerWorkspaceId])
+  @@index([resellerWorkspaceId, status])
+  @@index([courseId, status])
 }
 
 model CourseInstance {
@@ -9210,6 +9873,12 @@ model CourseEnrollment {
   paymentProvider        CourseEnrollmentPaymentMethod @default(MERCADO_PAGO)
   paymentRef             String?
   amountArs              Decimal                       @db.Decimal(12, 2)
+  /// Precio de lista al momento de la compra. Si no es null, el 5% de la plataforma se cobró
+  /// ENCIMA (cursos grabados desde el mercado de cursos): `amountArs` = lista − descuento + 5%.
+  listPriceArs           Decimal?                      @db.Decimal(12, 2)
+  discountArs            Decimal?                      @db.Decimal(12, 2)
+  /// El acuerdo por el que la vendió un revendedor. Null si la vendió el dueño.
+  resaleAgreementId      String?
   platformFeePercent     Decimal                       @db.Decimal(5, 2)
   platformFeeArs         Decimal                       @db.Decimal(12, 2)
   netAmountArs           Decimal                       @db.Decimal(12, 2)
@@ -9219,11 +9888,15 @@ model CourseEnrollment {
   workspace              Workspace                     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   course                 Course                        @relation(fields: [courseId], references: [id], onDelete: Cascade)
   courseInstance         CourseInstance?               @relation(fields: [courseInstanceId], references: [id], onDelete: Cascade)
+  access                 CourseAccess?
+  saleShares             CourseSaleShare[]
+  resaleAgreement        CourseResaleAgreement?        @relation(fields: [resaleAgreementId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, paymentStatus])
   @@index([courseId, paymentStatus])
   @@index([courseInstanceId, paymentStatus])
   @@index([paymentRef])
+  @@index([resaleAgreementId])
 }
 
 model CourseSalesTeacher {
@@ -9551,7 +10224,8 @@ model ContestOrganization {
   judgeOrganizationMemberships FotorankJudgeOrganizationMembership[]
 
   /// ETAPA 17B — conexiones sociales por organización (Instagram, etc.).
-  socialConnections FotorankSocialConnection[]
+  socialConnections   FotorankSocialConnection[]
+  storeWorkspaceLinks WorkspaceContestOrganizationLink[]
 
   @@index([slug])
   @@index([createdByUserId])
@@ -9673,6 +10347,10 @@ model FotorankContest {
   pricePhases             FotorankContestPricePhase[]
   /// CONCURSOS PRÓXIMOS — calendario de comunicaciones programadas (no dispara envíos por sí solo).
   scheduledCommunications FotorankContestScheduledCommunication[]
+  storeSettings           ContestStoreSettings[]
+  artworkConsents         ArtworkConsent[]
+  artworkListings         ArtworkListing[]
+  artworkRoyalties        ArtworkRoyalty[]
 
   @@unique([organizationId, slug])
   @@index([organizationId])
@@ -10305,6 +10983,8 @@ model FotorankContestEntry {
 
   /// ETAPA 16B — finalistas (§8 master rules).
   finalistSnapshots FotorankFinalistSnapshot[]
+  artworkConsents   ArtworkConsent[]
+  artworkListings   ArtworkListing[]
 
   @@unique([contestId, entryNumber])
   @@unique([contestId, externalRegistrationId, externalPromptId])
@@ -10987,6 +11667,38 @@ enum CourseLessonVideoStatus {
   ERROR
 }
 
+enum CourseAccessOrigin {
+  PURCHASE
+  MEMBER_BENEFIT
+}
+
+enum CourseBeneficiaryRole {
+  DOCENTE
+  PRODUCTOR
+  INSTITUCION
+  OTRO
+}
+
+enum CourseBeneficiaryStatus {
+  INVITADO
+  ACEPTADO
+  RECHAZADO
+}
+
+enum CourseSaleShareKind {
+  PLATAFORMA
+  REVENDEDOR
+  BENEFICIARIO
+}
+
+enum CourseResaleAgreementStatus {
+  PENDIENTE
+  ACTIVO
+  PAUSADO
+  RECHAZADO
+  TERMINADO
+}
+
 enum CourseStatus {
   DRAFT
   PUBLISHED
@@ -11009,6 +11721,7 @@ enum CourseEnrollmentPaymentStatus {
 
 enum CourseEnrollmentPaymentMethod {
   MERCADO_PAGO
+  MEMBER_BENEFIT
 }
 
 enum ServiceLeadStatus {
@@ -15074,6 +15787,8 @@ model FotorankJurySeatPromptOverride {
   seatNumber       Int
   promptExternalId String
   motivo           String
+  /// Verdadero = le saca la consigna a la vacante en lugar de sumársela.
+  quita            Boolean  @default(false)
   createdByUserId  Int?
   createdAt        DateTime @default(now())
 
@@ -17801,6 +18516,7 @@ model Client {
   member           Member?           @relation(fields: [memberId], references: [id], onDelete: SetNull)
   movements        CashMovement[]
   coverageRequests CoverageRequest[]
+  sales            Sale[]
 
   @@unique([workspaceId, clientNumber])
   @@index([workspaceId, status])
@@ -17813,6 +18529,7 @@ model Client {
   audits ClientAudit[]
   relationsFrom FotofficePersonRelation[] @relation("RelationFromClient")
   relationsTo FotofficePersonRelation[] @relation("RelationToClient")
+  storeOrders StoreOrder[]
 }
 
 /// Una cuenta de caja: dónde está la plata.
@@ -17985,6 +18702,8 @@ model CashMovement {
   transfer   CashTransfer? @relation(fields: [transferId], references: [id], onDelete: SetNull)
   reverses   CashMovement? @relation("CashMovementReversal", fields: [reversesMovementId], references: [id], onDelete: SetNull)
   reversedBy CashMovement? @relation("CashMovementReversal")
+  /// Proyecto de la comisión al que pertenece (Gobierno). Vive en la tabla de enlace: esta tabla no cambia.
+  govLink    GovProjectMovement?
 
   /// Lo que hace idempotente al depósito automático: una reserva no puede entrar dos veces.
   /// Los manuales no chocan entre sí porque `sourceRef` es nulo y Postgres no considera
@@ -19940,4 +20659,1325 @@ model ClickatonAffiliateCommission {
 
   @@index([affiliateId, status])
   @@index([editionId, status])
+}
+
+// ─── FOTOFFICE: roles personalizados (Comisión directiva) ───────────────────
+// Diseño: docs/superpowers/specs/2026-10-02-fotoffice-roles-comision-directiva-design.md
+
+/// Nivel de un rol sobre un módulo del catálogo de FOTOFFICE.
+enum ModulePermissionLevel {
+  NONE
+  VIEW
+  MANAGE
+}
+
+/// Rol definido por un workspace. El nombre y los módulos los elige cada institución.
+model WorkspaceCustomRole {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  description String?
+  color       String?
+  /// Plantilla de la que nació ("treasury", "secretary"…). Null si se creó de cero.
+  templateKey String?
+  /// Archivado al "borrarlo" con personas asignadas. Nada se borra (diseño §12.2).
+  archivedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace   Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  permissions WorkspaceRolePermission[]
+  assignments WorkspaceRoleAssignment[]
+
+  @@unique([workspaceId, name])
+}
+
+/// Nivel de un rol sobre un módulo (`moduleKey` = clave de `lib/modules/registry.ts`).
+model WorkspaceRolePermission {
+  id        String                @id @default(cuid())
+  roleId    String
+  moduleKey String
+  level     ModulePermissionLevel
+  /// Etapa 5: acciones sensibles extra, p. ej. "membership-dues.manual_payment".
+  actions   String[]              @default([])
+
+  role WorkspaceCustomRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, moduleKey])
+}
+
+/// Persona ↔ rol en un workspace. Persona = usuario (`userId`) o ficha de socio (`memberId`);
+/// al menos uno. Un socio sin cuenta recibe el rol igual y entra cuando la active (§12.1.4).
+model WorkspaceRoleAssignment {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  userId       Int?
+  memberId     String?
+  roleId       String
+  startsAt     DateTime?
+  /// Null = no vence.
+  endsAt       DateTime?
+  /// Quién hizo la asignación. Sin relación a propósito: no agrega otra back-relation a `User`.
+  assignedById Int
+  revokedAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  user   User?               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  member Member?             @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  role   WorkspaceCustomRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, userId])
+  @@index([workspaceId, memberId])
+  @@index([roleId])
+}
+
+/// Cargo de la comisión, definido por cada institución ("Tesorero", "Vocal titular").
+model WorkspaceOffice {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  /// Integra la comisión y vota (diseño §12.1.1). Revisor de cuentas: false.
+  votes       Boolean  @default(true)
+  order       Int      @default(0)
+  /// Plantilla de la que nació ("president", "auditor"…). Null si se creó de cero.
+  templateKey String?
+  archivedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  terms     WorkspaceOfficeTerm[]
+
+  @@unique([workspaceId, name])
+}
+
+/// Mandato: una persona en un cargo por un período. Persona = socio o usuario (al menos uno).
+model WorkspaceOfficeTerm {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  officeId     String
+  memberId     String?
+  userId       Int?
+  startsAt     DateTime?
+  /// Null = sin vencimiento cargado.
+  endsAt       DateTime?
+  revokedAt    DateTime?
+  assignedById Int
+  createdAt    DateTime  @default(now())
+
+  office WorkspaceOffice @relation(fields: [officeId], references: [id], onDelete: Cascade)
+  member Member?         @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  user   User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, officeId])
+  @@index([workspaceId, memberId])
+  @@index([workspaceId, userId])
+}
+
+/// Catálogo maestro de productos, por código de barras. **Compartido por toda la suite.**
+///
+/// Es la ÚNICA tabla de FotoOffice sin `workspaceId`, y es a propósito: el código de barras
+/// de un portarretratos es el mismo en Rosario que en Tokio, así que la identidad de la cosa
+/// se puede compartir aunque el negocio no.
+///
+/// Guarda identidad y NADA de comercio: ni precio, ni costo, ni existencia. Lo que cada
+/// negocio cobra es suyo. Si alguna vez alguien agrega acá un campo de plata, está rompiendo
+/// la única razón por la que esta tabla puede ser global.
+model GlobalProduct {
+  id          String  @id @default(cuid())
+  /// La llave. Único en todo el sistema.
+  barcode     String  @unique
+  name        String
+  brand       String?
+  description String?
+  imageUrl    String?
+
+  /// Quién la cargó primero. Para poder preguntarle, no para darle permisos.
+  /// Sin clave foránea: la ficha sobrevive aunque ese workspace se elimine.
+  createdByWorkspaceId String?
+  createdByUserId      Int?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  products Product[]
+}
+
+/// Categoría de producto, definida por cada negocio.
+model ProductCategory {
+  id          String  @id @default(cuid())
+  workspaceId String
+  name        String
+  order       Int     @default(0)
+  isActive    Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  products  Product[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, isActive])
+}
+
+/// Lo que el negocio vende: un producto o un servicio.
+///
+/// Dos interruptores independientes. `kind` dice qué es —sirve para agrupar y para que el
+/// reporte separe la línea—. `tracksStock` dice si hay algo que contar: el trípode sí, la
+/// sesión de fotos no, y el cuadro tercerizado tampoco aunque sea un producto. Atarlos
+/// obligaría a mentir en uno de los dos.
+model Product {
+  id          String  @id @default(cuid())
+  workspaceId String
+  categoryId  String?
+
+  /// PRODUCTO | SERVICIO
+  kind String @default("PRODUCTO")
+  /// Código interno, el que se inventa cada negocio.
+  sku             String?
+  /// Código de barras del fabricante. La llave del catálogo maestro.
+  barcode         String?
+  globalProductId String?
+
+  name        String
+  description String?
+  /// La marca que el negocio decidió quedarse para ESTE producto. Existe también en
+  /// `GlobalProduct.brand` (la ficha maestra dice qué marca es esa cosa en el mundo), pero
+  /// son copias independientes: si no hubiera columna acá, la marca precargada al escanear
+  /// un código se perdería en cuanto se guardara el alta, igual que pasaría con `name` si no
+  /// tuviera su propia columna en esta tabla.
+  brand String?
+
+  priceArs Decimal  @db.Decimal(12, 2)
+  costArs  Decimal? @db.Decimal(12, 2)
+
+  tracksStock Boolean @default(true)
+  /// Copia; la verdad es la suma de StockMovement. Puede ser negativa: eso es información,
+  /// significa que falta cargar una entrada.
+  stockQty    Int     @default(0)
+  minStockQty Int?
+
+  imageUrl     String?
+  supplierName String?
+  /// Se desactiva, no se borra: las ventas viejas lo siguen nombrando.
+  isActive     Boolean @default(true)
+
+  createdByUserId Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  workspace      Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  category       ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  globalProduct  GlobalProduct?   @relation(fields: [globalProductId], references: [id], onDelete: SetNull)
+  stockMovements StockMovement[]
+  saleItems      SaleItem[]
+  storeListing   ProductStoreListing?
+  images         ProductImage[]
+  variants       ProductVariant[]
+  storeOrderItems StoreOrderItem[]
+
+  @@unique([workspaceId, sku])
+  @@index([workspaceId, isActive])
+  @@index([workspaceId, categoryId])
+  @@index([workspaceId, barcode])
+  @@index([globalProductId])
+}
+
+/// El libro de existencias. La cantidad que se muestra es la suma de esta columna.
+model StockMovement {
+  id          String @id @default(cuid())
+  workspaceId String
+  productId   String
+
+  /// Firmado: la venta resta, la entrada suma.
+  qty    Int
+  /// VENTA | ENTRADA | AJUSTE | DEVOLUCION | INICIAL
+  reason String
+
+  /// En las entradas: lo que costó esa vez.
+  unitCostArs Decimal? @db.Decimal(12, 2)
+
+  sourceModule String?
+  sourceRef    String?
+  /// Obligatoria de hecho en los ajustes: un ajuste sin explicar no se entiende después.
+  note         String?
+  /// Talle vendido / movido. Nulo en productos sin variantes y en todo lo anterior a la tienda.
+  variantId String?
+  variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  createdByUserId Int?
+  createdAt       DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId, createdAt])
+  @@index([productId, createdAt])
+  @@index([variantId])
+}
+
+/// Una venta de mostrador.
+model Sale {
+  id          String @id @default(cuid())
+  workspaceId String
+  /// Correlativo dentro del workspace.
+  saleNumber  Int
+
+  clientId   String?
+  occurredAt DateTime
+  /// COMPLETADA | ANULADA
+  status     String   @default("COMPLETADA")
+
+  subtotalArs Decimal @db.Decimal(12, 2)
+  discountArs Decimal @default(0) @db.Decimal(12, 2)
+  totalArs    Decimal @db.Decimal(12, 2)
+
+  /// EFECTIVO | MERCADO_PAGO | TRANSFERENCIA | TARJETA | OTRO
+  paymentMethod String
+  /// El ingreso que generó. Único: una venta deposita una sola vez.
+  cashMovementId String? @unique
+
+  note String?
+  /// Cuando se facturó por fuera. La facturación propia es la etapa 6.
+  externalInvoiceRef String?
+
+  voidedAt       DateTime?
+  voidedByUserId Int?
+  voidReason     String?
+
+  createdByUserId Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  workspace Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client    Client?    @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  items     SaleItem[]
+
+  @@unique([workspaceId, saleNumber])
+  @@index([workspaceId, occurredAt])
+  @@index([clientId, occurredAt])
+  @@index([workspaceId, status])
+}
+
+/// Un renglón de la venta.
+///
+/// `description`, `unitPriceArs` y `unitCostArs` son instantáneas: la venta del año pasado
+/// tiene que seguir mostrando lo que se cobró y lo que costó ESA vez, aunque el producto
+/// después cambie de nombre o de precio.
+model SaleItem {
+  id     String @id @default(cuid())
+  saleId String
+  /// Nulo en un renglón suelto, escrito a mano.
+  productId String?
+
+  description  String
+  qty          Int
+  unitPriceArs Decimal  @db.Decimal(12, 2)
+  unitCostArs  Decimal? @db.Decimal(12, 2)
+  lineTotalArs Decimal  @db.Decimal(12, 2)
+  /// Si el precio se pisó a mano. Para poder explicarlo meses después.
+  priceWasOverridden Boolean @default(false)
+  /// Talle vendido / movido. Nulo en productos sin variantes y en todo lo anterior a la tienda.
+  variantId String?
+  variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  sale    Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([saleId])
+  @@index([productId])
+  @@index([variantId])
+}
+
+/// Ficha online de un producto. Sin fila = se vende sólo en mostrador (el comportamiento de
+/// siempre). Tabla aparte y no columnas en `Product` para no tocar las filas existentes.
+model ProductStoreListing {
+  id                String   @id @default(cuid())
+  workspaceId       String
+  productId         String   @unique
+  sellOnline        Boolean  @default(false)
+  sellAtCounter     Boolean  @default(true)
+  slug              String
+  onlineTitle       String?
+  onlineDescription String?
+  sizeChartImageUrl String?
+  weightGrams       Int?
+  lengthCm          Int?
+  widthCm           Int?
+  heightCm          Int?
+  maxPerOrder       Int?
+  sortOrder         Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, slug])
+  @@index([workspaceId, sellOnline])
+}
+
+/// Galería del producto. La de menor `sortOrder` es la principal en la tienda.
+model ProductImage {
+  id          String   @id @default(cuid())
+  workspaceId String
+  productId   String
+  url         String
+  alt         String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, sortOrder])
+}
+
+/// Talle (o variante) de un producto. Si un producto tiene variantes activas, su stock vive
+/// acá y `Product.stockQty` es la suma, mantenida en la misma transacción.
+model ProductVariant {
+  id          String   @id @default(cuid())
+  workspaceId String
+  productId   String
+  name        String
+  sku         String?
+  barcode     String?
+  /// null = hereda `Product.priceArs`.
+  priceArs    Decimal? @db.Decimal(12, 2)
+  stockQty    Int      @default(0)
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  product        Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  saleItems      SaleItem[]
+  stockMovements StockMovement[]
+  orderItems     StoreOrderItem[]
+
+  @@unique([workspaceId, sku])
+  @@unique([workspaceId, barcode])
+  @@index([productId, sortOrder])
+}
+
+model StoreSettings {
+  id                 String   @id @default(cuid())
+  workspaceId        String   @unique
+  isOpen             Boolean  @default(false)
+  pickupAddress      String?
+  pickupHours        String?
+  pickupInstructions String?
+  returnsPolicy      String?
+  notifyEmail        String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+/// Configuración de envíos de la tienda online. Una por espacio de trabajo.
+model StoreShippingSettings {
+  id                    String   @id @default(cuid())
+  workspaceId           String   @unique
+  homeDeliveryEnabled   Boolean  @default(false)
+  /// Envío a sucursal: sólo disponible con Correo Argentino.
+  branchDeliveryEnabled Boolean  @default(false)
+  pickupEnabled         Boolean  @default(true)
+  /// Fuente de la cotización: TABLE | CORREO_ARGENTINO.
+  source                String   @default("TABLE")
+  /// Si Correo falla, usar la tabla propia.
+  tableAsFallback       Boolean  @default(true)
+  originPostalCode      String?
+  /// Recargo sobre el envío: NONE | PERCENT | FIXED.
+  surchargeKind         String   @default("NONE")
+  /// bps si es PERCENT, centavos si es FIXED.
+  surchargeValue        Int      @default(0)
+  packagingGrams        Int      @default(0)
+  defaultUnitGrams      Int      @default(500)
+  boxLengthCm           Int      @default(30)
+  boxWidthCm            Int      @default(20)
+  boxHeightCm           Int      @default(10)
+  /// Aviso para el comprador, ej. "Despachamos en 48 h hábiles".
+  handlingNote          String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+/// Zona de la tabla de envíos propia: códigos postales y/o provincias con sus escalones de precio.
+model StoreShippingZone {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  name            String
+  /// Códigos postales exactos, ej. ["2000","2001"].
+  postalCodes     String[]
+  /// Códigos de provincia de Correo Argentino (A..Z).
+  provinceCodes   String[]
+  isRestOfCountry Boolean  @default(false)
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  workspace Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  rates     StoreShippingRate[]
+
+  @@index([workspaceId, sortOrder])
+}
+
+/// Escalón de precio de una zona: hasta maxGrams gramos cuesta priceArs.
+model StoreShippingRate {
+  id       String  @id @default(cuid())
+  zoneId   String
+  maxGrams Int
+  priceArs Decimal @db.Decimal(12, 2)
+
+  zone StoreShippingZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  @@unique([zoneId, maxGrams])
+}
+
+enum StoreOrderStatus {
+  PENDING_PAYMENT
+  PAID
+  READY
+  DELIVERED
+  CANCELLED
+  EXPIRED
+  PAID_NO_STOCK
+  SHIPPED
+}
+
+model StoreOrder {
+  id                   String           @id @default(cuid())
+  workspaceId          String
+  publicId             String           @unique
+  orderNumber          Int
+  accessTokenHash      String
+  status               StoreOrderStatus @default(PENDING_PAYMENT)
+  buyerName            String
+  buyerEmail           String
+  buyerPhone           String?
+  clientId             String?
+  memberId             String?
+  deliveryMethod       String           @default("PICKUP")
+  subtotalArs          Decimal          @db.Decimal(12, 2)
+  shippingArs          Decimal          @default(0) @db.Decimal(12, 2)
+  totalArs             Decimal          @db.Decimal(12, 2)
+  feeBps               Int              @default(0)
+  feeArs               Decimal          @default(0) @db.Decimal(12, 2)
+  holdExpiresAt        DateTime?
+  mpPreferenceId       String?
+  mpPaymentId          String?          @unique
+  paidAt               DateTime?
+  readyAt              DateTime?
+  deliveredAt          DateTime?
+  cancelledAt          DateTime?
+  saleId               String?          @unique
+  legalAcceptedAt      DateTime
+  legalVersion         String
+  clientIdempotencyKey String
+  internalNote         String?
+  /// Método de envío elegido: HOME (a domicilio) o BRANCH (a sucursal). Nulo = retiro.
+  shippingMethod       String?
+  /// Fuente de la cotización: TABLE (tabla propia) o CORREO_ARGENTINO.
+  shippingSource       String?
+  /// Dirección de entrega: nombre, calle, número, piso/depto, localidad, provincia, CP y teléfono.
+  shippingAddressJson  Json?
+  /// Sucursal elegida: id, nombre y dirección.
+  shippingAgencyJson   Json?
+  /// Lo que devolvió la fuente, más recargo, peso y medidas usados.
+  shippingQuoteJson    Json?
+  /// Número de seguimiento cargado al despachar.
+  trackingNumber       String?
+  shippedAt            DateTime?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  workspace        Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client           Client?           @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  items            StoreOrderItem[]
+  events           StoreOrderEvent[]
+  artworkRoyalties ArtworkRoyalty[]
+
+  @@unique([workspaceId, orderNumber])
+  @@unique([workspaceId, clientIdempotencyKey])
+  @@index([workspaceId, status, createdAt])
+  @@index([status, holdExpiresAt])
+  @@index([workspaceId, buyerEmail, status])
+}
+
+model StoreOrderItem {
+  id                  String  @id @default(cuid())
+  orderId             String
+  productId           String?
+  variantId           String?
+  productName         String
+  variantName         String?
+  productSlug         String
+  imageUrl            String?
+  qty                 Int
+  unitPriceArs        Decimal @db.Decimal(12, 2)
+  lineTotalArs        Decimal @db.Decimal(12, 2)
+  /// Renglón de obra de concurso (etapa 3): obra publicada y formato de impresión elegidos.
+  artworkListingId    String?
+  printFormatId       String?
+  /// Nombre del formato al momento de la compra.
+  printFormatName     String?
+  /// Regalía vigente al momento de la compra (bps, 2000 = 20 %).
+  royaltyBps          Int?
+  /// Autor de la obra (User de FotoRank); sin relación a propósito: queda como dato histórico.
+  artworkAuthorUserId Int?
+
+  order          StoreOrder      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product        Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  variant        ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  artworkListing ArtworkListing? @relation(fields: [artworkListingId], references: [id], onDelete: SetNull)
+  printFormat    PrintFormat?    @relation(fields: [printFormatId], references: [id], onDelete: SetNull)
+  artworkRoyalty ArtworkRoyalty?
+
+  @@index([orderId])
+  @@index([productId])
+  @@index([variantId])
+  @@index([artworkListingId])
+  @@index([printFormatId])
+}
+
+model StoreOrderEvent {
+  id          String            @id @default(cuid())
+  orderId     String
+  fromStatus  StoreOrderStatus?
+  toStatus    StoreOrderStatus
+  actorUserId Int?
+  note        String?
+  createdAt   DateTime          @default(now())
+
+  order StoreOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
+}
+
+/// Bienvenida en redes a un socio nuevo (FOTOFFICE, Comunicación → Placas).
+/// Una por socio: se recibe una sola vez. La placa no se guarda: se dibuja al pedirla con la
+/// plantilla vigente (diseño 2026-10-04-socio-de-la-semana-y-placas).
+model MemberWelcome {
+  id                String    @id @default(cuid())
+  workspaceId       String
+  memberId          String    @unique
+  /// AUTO: al pagar la primera cuota. MANUAL: la sumó alguien de Comunicación.
+  source            String    @default("AUTO")
+  /// Marca "ya publicada" de Comunicación. Null = pendiente.
+  publishedAt       DateTime?
+  publishedByUserId Int?
+  createdAt         DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member    Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+}
+
+/// «Más sobre mí»: lo que el socio cuenta para que los colegas lo conozcan (Socio de la semana).
+/// Todo opcional: sólo se muestra lo que contestó. Una fila por socio.
+model MemberAboutMe {
+  memberId          String   @id
+  workspaceId       String
+  howStarted        String?
+  passion           String?
+  inspiration       String?
+  gear              String?
+  proudPhotoText    String?
+  proudPhotoUrl     String?
+  canHelpWith       String?
+  wantsToLearn      String?
+  beyondPhotography String?
+  /// Acepta que los colegas le escriban por WhatsApp (sólo dentro del portal).
+  whatsappOptIn     Boolean  @default(false)
+  /// Sabe que en algún momento va a salir como Socio de la semana.
+  spotlightNoticeAt DateTime?
+  /// Hasta 3 fotos para su placa, en orden.
+  featuredPhotoUrls String[] @default([])
+  updatedAt         DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member    Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+}
+
+/// Socio de la semana: quién salió cada semana (viernes 00:00 a jueves 23:59, hora argentina).
+/// Una fila por elección. Un salteo deja la fila con `skippedAt` y se elige otra para esa semana.
+model MemberSpotlight {
+  id                String    @id @default(cuid())
+  workspaceId       String
+  memberId          String
+  /// Viernes 00:00 hora argentina, como instante UTC.
+  weekStart         DateTime
+  /// Vuelta: nadie se repite dentro de una vuelta.
+  round             Int
+  skippedAt         DateTime?
+  skippedByUserId   Int?
+  skipReason        String?
+  /// Marca "ya publicada" de Comunicación.
+  publishedAt       DateTime?
+  publishedByUserId Int?
+  /// Cuándo se le mandó el aviso para completar su perfil. Null = todavía no (o no hizo falta).
+  nudgeSentAt       DateTime?
+  createdAt         DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member    Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, weekStart])
+  @@index([workspaceId, round])
+}
+
+/// Clickatón: una edición con resultados anunciados. Su existencia es el interruptor
+/// "Resultados publicados" del panel: recién entonces sus participantes entran en la rotación
+/// del Clickatoner de la semana y sus obras se pueden ver en público. Sin FK a propósito, como
+/// las demás tablas que esta función agrega: no toca ninguna tabla existente.
+model ClickatonEditionResultsPublication {
+  editionId         String   @id
+  publishedAt       DateTime @default(now())
+  publishedByUserId Int?
+}
+
+/// Clickatón: personas que pidieron no aparecer como Clickatoner de la semana.
+/// La persona es el email en minúsculas, que es como Clickatón une a alguien entre ediciones.
+model ClickatonClickatonerOptOut {
+  email     String   @id
+  userId    Int?
+  createdAt DateTime @default(now())
+}
+
+/// Clickatón: la página pública de un clickatoner (`/clickatoners/<slug>`). Nace la primera vez
+/// que la persona sale como Clickatoner de la semana.
+model ClickatonPublicProfile {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  slug      String   @unique
+  createdAt DateTime @default(now())
+}
+
+/// Clickatón: quién salió como Clickatoner de la semana (viernes 00:00 a jueves 23:59, hora
+/// argentina). Una fila por elección; un salteo deja `skippedAt` y se elige otro.
+model ClickatonClickatoner {
+  id              String    @id @default(cuid())
+  /// Viernes 00:00 hora argentina, como instante UTC.
+  weekStart       DateTime
+  round           Int
+  /// La persona (email en minúsculas): nadie se repite dentro de una vuelta.
+  email           String
+  /// La inscripción con la que se la muestra (nombre, ciudad, foto, Instagram).
+  registrationId  String
+  /// La obra destacada: la premiada o la mejor ubicada, elegida al momento de salir.
+  submissionId    String?
+  skippedAt       DateTime?
+  skippedByUserId Int?
+  skipReason      String?
+  createdAt       DateTime  @default(now())
+
+  @@index([weekStart])
+  @@index([round])
+}
+
+/// Vínculo entre un espacio de trabajo y una organización de concursos de FotoRank (tienda, etapa 3).
+/// Sólo las obras de concursos de organizaciones vinculadas pueden publicarse.
+model WorkspaceContestOrganizationLink {
+  id             String   @id @default(cuid())
+  workspaceId    String
+  organizationId String
+  /// Quién vinculó (User.id, dato histórico).
+  linkedByUserId Int
+  createdAt      DateTime @default(now())
+
+  workspace    Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  organization ContestOrganization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@unique([workspaceId, organizationId])
+  @@index([organizationId])
+}
+
+/// Ajustes de impresión de la tienda. Una por espacio de trabajo.
+model StorePrintSettings {
+  id          String   @id @default(cuid())
+  workspaceId String   @unique
+  /// Resolución mínima (puntos por pulgada) para ofrecer un formato.
+  minDpi      Int      @default(150)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+/// Formato de impresión de obras (copia o cuadro) con su precio.
+model PrintFormat {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  name         String
+  /// PRINT | FRAME.
+  kind         String
+  widthCm      Int
+  heightCm     Int
+  priceArs     Decimal  @db.Decimal(12, 2)
+  costArs      Decimal? @db.Decimal(12, 2)
+  weightGrams  Int?
+  packLengthCm Int?
+  packWidthCm  Int?
+  packHeightCm Int?
+  isActive     Boolean  @default(true)
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  workspace  Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  orderItems StoreOrderItem[]
+
+  @@index([workspaceId, isActive])
+}
+
+/// Ajustes de la tienda por concurso (hoy: regalía para los autores).
+model ContestStoreSettings {
+  id          String   @id @default(cuid())
+  workspaceId String
+  contestId   String
+  /// Regalía en bps sobre el precio de la obra sin envío (2000 = 20 %).
+  royaltyBps  Int      @default(2000)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contest   FotorankContest @relation(fields: [contestId], references: [id], onDelete: Restrict)
+
+  @@unique([workspaceId, contestId])
+  @@index([contestId])
+}
+
+/// Permiso del autor para vender una obra en un espacio de trabajo. Uno por (espacio, obra).
+model ArtworkConsent {
+  id             String    @id @default(cuid())
+  workspaceId    String
+  contestId      String
+  entryId        String
+  /// Autor de la obra (User.id).
+  authorUserId   Int
+  /// RULES (las bases ya lo permiten) | EXPLICIT (hay que pedirlo).
+  basis          String
+  /// NOTIFIED | GRANTED | PENDING | DECLINED | WITHDRAWN.
+  status         String
+  /// sha256 del token del enlace del correo; el token nunca se guarda.
+  tokenHash      String    @unique
+  tokenExpiresAt DateTime
+  notifiedAt     DateTime?
+  respondedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  workspace Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contest   FotorankContest      @relation(fields: [contestId], references: [id], onDelete: Restrict)
+  entry     FotorankContestEntry @relation(fields: [entryId], references: [id], onDelete: Restrict)
+
+  @@unique([workspaceId, entryId])
+  @@index([contestId])
+  @@index([entryId])
+}
+
+/// Obra de un concurso publicada (o en borrador) en la tienda de un espacio de trabajo.
+model ArtworkListing {
+  id                String    @id @default(cuid())
+  workspaceId       String
+  contestId         String
+  entryId           String
+  slug              String
+  title             String
+  authorDisplayName String?
+  awardLabel        String?
+  /// Vista previa con marca de agua guardada en el R2 de FOTOFFICE.
+  previewUrl        String
+  previewWidth      Int
+  previewHeight     Int
+  originalWidth     Int
+  originalHeight    Int
+  /// DRAFT | PUBLISHED | WITHDRAWN.
+  status            String
+  publishedAt       DateTime?
+  withdrawnAt       DateTime?
+  sortOrder         Int       @default(0)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  workspace  Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contest    FotorankContest      @relation(fields: [contestId], references: [id], onDelete: Restrict)
+  entry      FotorankContestEntry @relation(fields: [entryId], references: [id], onDelete: Restrict)
+  orderItems StoreOrderItem[]
+
+  @@unique([workspaceId, entryId])
+  @@unique([workspaceId, slug])
+  @@index([workspaceId, status])
+  @@index([contestId])
+  @@index([entryId])
+}
+
+/// Regalía devengada para el autor por un renglón de obra de un pedido pagado.
+model ArtworkRoyalty {
+  id            String    @id @default(cuid())
+  workspaceId   String
+  orderId       String
+  orderItemId   String    @unique
+  authorUserId  Int
+  contestId     String
+  /// Base: total del renglón sin envío.
+  baseArs       Decimal   @db.Decimal(12, 2)
+  royaltyBps    Int
+  amountArs     Decimal   @db.Decimal(12, 2)
+  /// ACCRUED | PAID | VOIDED.
+  status        String    @default("ACCRUED")
+  paidAt        DateTime?
+  paidReference String?
+  paidByUserId  Int?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  order     StoreOrder      @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  orderItem StoreOrderItem  @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+  contest   FotorankContest @relation(fields: [contestId], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId, status, createdAt])
+  @@index([orderId])
+  @@index([authorUserId])
+  @@index([contestId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FOTOFFICE — Gobierno institucional (proyectos de la comisión directiva).
+// Diseño: apps/fotoffice/docs/superpowers/specs/2026-10-03-fotoffice-gobierno-proyectos-design.md
+// Estados como texto y no como enum, igual que Raffle y Booking: el schema lo comparten
+// varias bases y un enum que falte en alguna rompe sus escrituras.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Tipo de proyecto (plantilla): "Muestra fotográfica", "Evento o celebración"…
+/// Sus etapas y tareas se COPIAN al crear un proyecto; editar el tipo no toca proyectos existentes.
+model GovProjectType {
+  id          String    @id @default(cuid())
+  workspaceId String
+  name        String
+  description String?
+  order       Int       @default(0)
+  /// Plantilla sembrada de la que nació ("exhibition", "blank"…). Null si se creó de cero.
+  templateKey String?
+  archivedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  workspace Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  stages    GovProjectTypeStage[]
+  projects  GovProject[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, order])
+}
+
+model GovProjectTypeStage {
+  id     String @id @default(cuid())
+  typeId String
+  title  String
+  order  Int    @default(0)
+
+  type  GovProjectType       @relation(fields: [typeId], references: [id], onDelete: Cascade)
+  tasks GovProjectTypeTask[]
+
+  @@index([typeId, order])
+}
+
+model GovProjectTypeTask {
+  id      String @id @default(cuid())
+  stageId String
+  title   String
+  order   Int    @default(0)
+
+  stage GovProjectTypeStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+
+  @@index([stageId, order])
+}
+
+/// Un proyecto de la institución, desde que alguien lo propone hasta que se termina.
+model GovProject {
+  id          String  @id @default(cuid())
+  workspaceId String
+  typeId      String?
+  title       String
+  description String?
+
+  /// MEMBER_PROPOSAL | ARCHIVED | PROPOSED | IN_REVIEW | POSTPONED | REJECTED | APPROVED |
+  /// IN_PROGRESS | DONE | CANCELLED
+  status       String  @default("PROPOSED")
+  /// COMMISSION | MEMBER_PROPOSAL
+  origin       String  @default("COMMISSION")
+  /// Motivo del último archivo, rechazo o cancelación. El historial guarda todos.
+  statusReason String?
+
+  proposedByMemberId  String?
+  responsibleMemberId String?
+  /// Fecha límite. Se guarda al mediodía de Argentina para que ningún huso la corra de día.
+  deadlineAt          DateTime?
+  visibleToMembers    Boolean   @default(false)
+
+  /// --- Dinero (etapa 3). Las columnas nacen ahora para no alterar la tabla después. ---
+  /// Costo estimado a mano cuando no hay cotizaciones.
+  manualNeededArs    Decimal?  @db.Decimal(12, 2)
+  /// Cómo se podría conseguir la plata, según quien propone (rifa, sponsor, cuota extra…).
+  fundingIdea        String?
+  /// En qué se compromete a colaborar quien propone para que el proyecto se haga.
+  proposerCommitment String?
+  /// Proyectos que ya venían en curso: lo asignado y gastado antes de usar el sistema.
+  openingAssignedArs Decimal?  @db.Decimal(12, 2)
+  openingSpentArs    Decimal?  @db.Decimal(12, 2)
+  openingAt          DateTime?
+
+  createdByUserId Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  workspace   Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  type        GovProjectType?   @relation(fields: [typeId], references: [id], onDelete: SetNull)
+  proposedBy  Member?           @relation("GovProjectProposer", fields: [proposedByMemberId], references: [id], onDelete: SetNull)
+  responsible Member?           @relation("GovProjectResponsible", fields: [responsibleMemberId], references: [id], onDelete: SetNull)
+  stages      GovProjectStage[]
+  tasks       GovProjectTask[]
+  attachments GovAttachment[]
+  events      GovProjectEvent[]
+  votes       GovVote[]
+  comments    GovComment[]
+  memberVotes GovMemberVote[]
+  meetingItems GovMeetingItem[]
+  quotes       GovQuote[]
+  reservations GovReservation[]
+  movements    GovProjectMovement[]
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, deadlineAt])
+}
+
+model GovProjectStage {
+  id               String   @id @default(cuid())
+  projectId        String
+  title            String
+  order            Int      @default(0)
+  /// Costo estimado a mano de la etapa (etapa 3 lo combina con las cotizaciones).
+  estimatedCostArs Decimal? @db.Decimal(12, 2)
+  createdAt        DateTime @default(now())
+
+  project GovProject       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks   GovProjectTask[]
+  quotes    GovQuote[]
+  movements GovProjectMovement[]
+
+  @@index([projectId, order])
+}
+
+model GovProjectTask {
+  id          String  @id @default(cuid())
+  projectId   String
+  stageId     String
+  title       String
+  description String?
+  order       Int     @default(0)
+
+  /// Cualquier socio de la institución, o nadie todavía.
+  assigneeMemberId String?
+  dueAt            DateTime?
+  /// PENDING | IN_PROGRESS | DONE | NOT_DONE
+  status           String    @default("PENDING")
+  /// Obligatorio al marcarla NOT_DONE.
+  notDoneReason    String?
+  closedAt         DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project  GovProject      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  stage    GovProjectStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  assignee Member?         @relation(fields: [assigneeMemberId], references: [id], onDelete: SetNull)
+  updates  GovTaskUpdate[]
+
+  @@index([projectId, stageId, order])
+  @@index([assigneeMemberId, status])
+}
+
+/// Un avance de una tarea: lo que se hizo, con archivos.
+model GovTaskUpdate {
+  id           String   @id @default(cuid())
+  taskId       String
+  body         String
+  authorUserId Int?
+  authorLabel  String
+  createdAt    DateTime @default(now())
+
+  task        GovProjectTask  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  attachments GovAttachment[]
+
+  @@index([taskId, createdAt])
+}
+
+/// Archivo de un proyecto (o de un avance de tarea). Vive en el bucket R2 de FOTOFFICE y se
+/// descarga siempre por una ruta que verifica permiso y firma la URL por pocos minutos.
+model GovAttachment {
+  id               String   @id @default(cuid())
+  workspaceId      String
+  projectId        String
+  taskUpdateId     String?
+  /// Archivo de una cotización: nunca visible para socios (puede tener datos del proveedor).
+  quoteId          String?
+  r2Key            String   @unique
+  filename         String
+  contentType      String
+  sizeBytes        Int
+  /// Interno por defecto: la comisión decide qué ven los socios.
+  visibleToMembers Boolean  @default(false)
+  uploadedByUserId Int?
+  createdAt        DateTime @default(now())
+
+  project    GovProject     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  taskUpdate GovTaskUpdate? @relation(fields: [taskUpdateId], references: [id], onDelete: SetNull)
+  quote      GovQuote?      @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, createdAt])
+  @@index([taskUpdateId])
+}
+
+/// Historial del proyecto. Nada se borra: toda acción y toda corrección deja una fila.
+model GovProjectEvent {
+  id          String   @id @default(cuid())
+  projectId   String
+  /// CREATED | UPDATED | STATUS_CHANGED | STAGE_ADDED | STAGE_RENAMED | STAGE_REMOVED |
+  /// TASK_CREATED | TASK_UPDATED | TASK_ASSIGNED | TASK_STATUS | TASK_PROGRESS | TASK_REMOVED |
+  /// FILE_ADDED | FILE_VISIBILITY | NOTE
+  type        String
+  actorUserId Int?
+  actorLabel  String
+  /// Detalle del evento (estado anterior y nuevo, motivo, título de la tarea…).
+  data        Json?
+  taskId      String?
+  createdAt   DateTime @default(now())
+
+  project GovProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+}
+
+/// Apoyo de los socios a un proyecto visible: una encuesta, no una votación de la comisión.
+/// Privado: ninguna pantalla muestra quién votó qué; la comisión ve sólo los totales. La ficha
+/// se guarda únicamente para que cada socio vote una vez y pueda cambiar su voto.
+model GovMemberVote {
+  id        String   @id @default(cuid())
+  projectId String
+  memberId  String
+  /// FOR | AGAINST
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project GovProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, memberId])
+}
+
+/// Voto de un integrante con cargo vigente sobre un proyecto. Mide apoyo; la aprobación formal se
+/// registra en reunión. Se puede cambiar mientras la votación está abierta.
+model GovVote {
+  id          String   @id @default(cuid())
+  projectId   String
+  voterUserId Int
+  /// FOR | AGAINST
+  value       String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project GovProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, voterUserId])
+}
+
+/// Opinión escrita sobre un proyecto. De la comisión (antes de tratarlo en reunión) o de un
+/// socio desde su portal, en un proyecto visible. Nada se borra: quien la escribió la puede
+/// retirar y queda "retirada".
+model GovComment {
+  id           String    @id @default(cuid())
+  projectId    String
+  authorUserId Int
+  /// Ficha del socio que opinó desde el portal. null = opinión de la comisión. La de un socio
+  /// la lee sólo la comisión, con su nombre; los demás socios no la ven.
+  authorMemberId String?
+  /// Nombre al momento de escribir, para que el hilo se lea igual si cambia el cargo.
+  authorLabel  String
+  body         String
+  createdAt    DateTime  @default(now())
+  withdrawnAt  DateTime?
+
+  project GovProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+}
+
+/// Reunión de comisión: temario, tratamiento de cada tema y acta.
+model GovMeeting {
+  id          String    @id @default(cuid())
+  workspaceId String
+  title       String
+  scheduledAt DateTime
+  /// Lugar físico o enlace de la videollamada.
+  location    String?
+  /// PLANNED | HELD | MINUTES_APPROVED
+  status      String    @default("PLANNED")
+  heldAt      DateTime?
+  /// Al aprobar el acta queda fija; lo posterior son notas agregadas.
+  minutesApprovedAt       DateTime?
+  minutesApprovedByUserId Int?
+  createdByUserId         Int?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  workspace Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  items     GovMeetingItem[]
+  attendees GovMeetingAttendee[]
+  notes     GovMeetingNote[]
+
+  @@index([workspaceId, scheduledAt])
+}
+
+/// Quién estuvo. Instantánea del nombre y el cargo: el acta se lee igual aunque cambie la comisión.
+model GovMeetingAttendee {
+  id         String  @id @default(cuid())
+  meetingId  String
+  memberId   String?
+  userId     Int?
+  name       String
+  officeName String?
+
+  meeting GovMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId])
+}
+
+/// Un tema del temario: un proyecto o un tema suelto.
+model GovMeetingItem {
+  id           String    @id @default(cuid())
+  meetingId    String
+  projectId    String?
+  title        String
+  order        Int       @default(0)
+  /// Lo decidido, en texto.
+  decisionText String?
+  /// Sólo para proyectos: APPROVED | REJECTED | POSTPONED | CONTINUES
+  outcome      String?
+  /// Foto de la votación al decidir: a favor, en contra, sin votar, habilitados.
+  voteSnapshot Json?
+  treatedAt    DateTime?
+  treatedByUserId Int?
+
+  meeting GovMeeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  project GovProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([meetingId, order])
+  @@index([projectId])
+}
+
+/// Nota agregada a un acta ya aprobada: la corrección no reescribe, se suma.
+model GovMeetingNote {
+  id           String   @id @default(cuid())
+  meetingId    String
+  body         String
+  authorUserId Int?
+  authorLabel  String
+  createdAt    DateTime @default(now())
+
+  meeting GovMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId, createdAt])
+}
+
+/// Cotización recibida de un proveedor para una etapa. Se llama así para no confundirla con el
+/// módulo Presupuestos (lo que el fotógrafo le manda a su cliente).
+model GovQuote {
+  id           String    @id @default(cuid())
+  projectId    String
+  stageId      String
+  supplier     String
+  amountArs    Decimal   @db.Decimal(12, 2)
+  quotedAt     DateTime
+  validUntil   DateTime?
+  note         String?
+  /// RECEIVED | CHOSEN | DISCARDED. A lo sumo una CHOSEN por etapa.
+  status       String    @default("RECEIVED")
+  discardReason String?
+  createdByUserId Int?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  project     GovProject           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  stage       GovProjectStage      @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  attachments GovAttachment[]
+  movements   GovProjectMovement[]
+
+  @@index([projectId, stageId])
+}
+
+/// Plata reservada para un proyecto sin moverla de su cuenta. Positivo reserva, negativo libera.
+model GovReservation {
+  id              String   @id @default(cuid())
+  projectId       String
+  amountArs       Decimal  @db.Decimal(12, 2)
+  reason          String
+  meetingId       String?
+  createdByUserId Int?
+  actorLabel      String
+  createdAt       DateTime @default(now())
+
+  project GovProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+}
+
+/// Un movimiento de Caja que pertenece a un proyecto. Tabla de enlace a propósito: agregar
+/// columnas a `CashMovement` obligaría a tocar esa tabla en todas las bases que la comparten.
+model GovProjectMovement {
+  id             String   @id @default(cuid())
+  projectId      String
+  stageId        String?
+  quoteId        String?
+  cashMovementId String   @unique
+  createdAt      DateTime @default(now())
+
+  project      GovProject       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  stage        GovProjectStage? @relation(fields: [stageId], references: [id], onDelete: SetNull)
+  quote        GovQuote?        @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  cashMovement CashMovement     @relation(fields: [cashMovementId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+/// Hasta cuándo vio el socio sus novedades (la campanita del portal). Las novedades no se
+/// guardan: se arman al leer desde cada módulo. Esto sólo dice cuáles ya vio, para el numerito.
+model MemberNotificationSeen {
+  memberId   String   @id
+  lastSeenAt DateTime
+  updatedAt  DateTime @updatedAt
+
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+}
+
+/// Cómo muestra cada institución la vitrina de concursos (FotoRank y Clickatón) en su portal.
+/// Sin fila: se muestran todos, que es lo que la plataforma quiere por defecto.
+model WorkspaceContestShowcase {
+  workspaceId      String   @id
+  /// ALL: todos los concursos públicos · OWN: sólo los de sus organizaciones · OFF: apagada.
+  mode             String   @default("ALL")
+  /// Organizaciones de FotoRank que son de esta institución: sus concursos van primero y con su nombre.
+  organizationIds  String[] @default([])
+  includeClickaton Boolean  @default(true)
+  updatedAt        DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }

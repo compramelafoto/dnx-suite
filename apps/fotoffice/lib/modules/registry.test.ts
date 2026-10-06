@@ -6,10 +6,16 @@ import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
+import { SPONSORS_MODULE_KEY } from "@/lib/sponsors/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
+import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
+import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
+import { SALES_MODULE_KEY } from "@/lib/sales/constants";
+import { STORE_MODULE_KEY } from "@/lib/store/constants";
+import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
 import {
   FAMILY_LABELS,
   MODULE_REGISTRY,
@@ -34,7 +40,7 @@ describe("MODULE_REGISTRY", () => {
     }
   });
 
-  it("los módulos AVAILABLE hoy son exactamente courses-sales, evaluaciones, website, reservas, coberturas, members, membership-dues, sorteos, caja, clientes y captación", () => {
+  it("los módulos AVAILABLE hoy son exactamente courses-sales, evaluaciones, website, reservas, coberturas, members, membership-dues, sorteos, sponsors, portfolios, caja, clientes, captación, ventas, comunicación, tienda online y proyectos de la comisión", () => {
     expect(listAvailableModuleKeys().sort()).toEqual(
       [
         COURSES_SALES_MODULE_KEY,
@@ -45,9 +51,15 @@ describe("MODULE_REGISTRY", () => {
         MEMBERS_MODULE_KEY,
         MEMBERSHIP_DUES_MODULE_KEY,
         RAFFLES_MODULE_KEY,
+        SPONSORS_MODULE_KEY,
+        PORTFOLIO_MODULE_KEY,
         CASH_MODULE_KEY,
         CLIENTS_MODULE_KEY,
         SERVICE_LEADS_MODULE_KEY,
+        SALES_MODULE_KEY,
+        COMMUNICATIONS_MODULE_KEY,
+        STORE_MODULE_KEY,
+        GOVERNANCE_MODULE_KEY,
       ].sort(),
     );
   });
@@ -115,5 +127,33 @@ describe("familias y dependencias (0.1)", () => {
     expect(MODULE_REGISTRY.filter((m) => m.platformFee).map((m) => m.key).sort()).toEqual(
       ["bookings", "courses-sales", "membership-dues"],
     );
+  });
+});
+
+describe("portfolios", () => {
+  it("está en el catálogo, disponible, con su ruta y en el grupo institucional", () => {
+    const def = getModuleDefinition(PORTFOLIO_MODULE_KEY);
+    expect(def).toBeDefined();
+    expect(def?.status).toBe("AVAILABLE");
+    expect(def?.route).toBe("/portfolios");
+    expect(def?.category).toBe("INSTITUTIONAL");
+  });
+
+  it("su descripción usa el vocabulario de la institución, no la palabra fija", () => {
+    const def = getModuleDefinition(PORTFOLIO_MODULE_KEY);
+    expect(def?.description).toContain("{personas}");
+  });
+
+  it("no duplica ninguna clave del catálogo", () => {
+    expect(findDuplicateModuleKeys()).toEqual([]);
+  });
+});
+
+describe("tienda online", () => {
+  it("avisa en su descripción que necesita Ventas y el Sitio web", () => {
+    const tienda = getModuleDefinition(STORE_MODULE_KEY);
+    expect(tienda?.status).toBe("AVAILABLE");
+    expect(tienda?.description).toContain("Ventas");
+    expect(tienda?.description).toContain("Sitio web");
   });
 });

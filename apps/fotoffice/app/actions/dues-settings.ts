@@ -3,9 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
 import { requireActiveWorkspace } from "@/lib/workspace";
-import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
+import { hasModuleLevel } from "@/lib/permissions/module-access";
+import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { parseFeeValue, validateDuesSettings } from "@/lib/membership/fee-value-rules";
 import { parseRecommendationPercent } from "@/lib/membership/settings";
+import { parseWhatsappGroupUrl } from "@/lib/membership/community-link";
 import { minorToDecimalString } from "@/lib/membership/money";
 import { sendDuesReminders } from "@/lib/membership/dues-reminder";
 
@@ -20,7 +22,7 @@ export type SettingsResult = { ok: true } | { ok: false; error: string };
 export async function saveDuesSettingsAction(formData: FormData): Promise<SettingsResult> {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) return { ok: false, error: "No hay una institución activa." };
-  if (!(await canManageWorkspaceCollection(user.id, workspace.id))) {
+  if (!(await hasModuleLevel(user.id, workspace.id, MEMBERSHIP_DUES_MODULE_KEY, "MANAGE"))) {
     return { ok: false, error: "Solo el dueño o un administrador puede cambiar esto." };
   }
 
@@ -58,6 +60,33 @@ export async function saveDuesSettingsAction(formData: FormData): Promise<Settin
 }
 
 /**
+ * El grupo de WhatsApp de los socios.
+ *
+ * Va por separado del calendario de cobranza: es otro formulario en la misma pantalla, y
+ * guardar uno no tiene por qué tocar lo del otro.
+ */
+export async function saveCommunityLinkAction(formData: FormData): Promise<SettingsResult> {
+  const { user, workspace } = await requireActiveWorkspace();
+  if (!workspace) return { ok: false, error: "No hay una institución activa." };
+  if (!(await hasModuleLevel(user.id, workspace.id, MEMBERSHIP_DUES_MODULE_KEY, "MANAGE"))) {
+    return { ok: false, error: "Solo el dueño o un administrador puede cambiar esto." };
+  }
+
+  const enlace = parseWhatsappGroupUrl(formData.get("communityWhatsappUrl"));
+  if (!enlace.ok) return enlace;
+
+  await prisma.membershipDuesSettings.upsert({
+    where: { workspaceId: workspace.id },
+    create: { workspaceId: workspace.id, communityWhatsappUrl: enlace.value },
+    update: { communityWhatsappUrl: enlace.value },
+  });
+
+  revalidatePath("/members/cuotas/configuracion");
+  revalidatePath("/portal");
+  return { ok: true };
+}
+
+/**
  * Carga un valor de cuota.
  *
  * **No se edita el valor vigente: se carga uno nuevo con su fecha.** Los cargos ya emitidos
@@ -67,7 +96,7 @@ export async function saveDuesSettingsAction(formData: FormData): Promise<Settin
 export async function saveFeeValueAction(formData: FormData): Promise<SettingsResult> {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) return { ok: false, error: "No hay una institución activa." };
-  if (!(await canManageWorkspaceCollection(user.id, workspace.id))) {
+  if (!(await hasModuleLevel(user.id, workspace.id, MEMBERSHIP_DUES_MODULE_KEY, "MANAGE"))) {
     return { ok: false, error: "Solo el dueño o un administrador puede cambiar esto." };
   }
 
@@ -129,7 +158,7 @@ export async function sendDuesReminderNowAction(): Promise<
 > {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) return { ok: false, error: "No hay una institución activa." };
-  if (!(await canManageWorkspaceCollection(user.id, workspace.id))) {
+  if (!(await hasModuleLevel(user.id, workspace.id, MEMBERSHIP_DUES_MODULE_KEY, "MANAGE"))) {
     return { ok: false, error: "Solo el dueño o un administrador puede mandar el recordatorio." };
   }
 

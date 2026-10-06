@@ -14,6 +14,23 @@ describe("r2-key-policy — namespace de FotoOffice dentro del bucket compartido
     }
   });
 
+  it("la galería y la tabla de talles de la tienda tienen su propio prefijo, borrable", () => {
+    expect(FOTOFFICE_R2_PREFIXES.productGallery).toBe("fotoffice/product-gallery");
+    expect(FOTOFFICE_R2_PREFIXES.sizeChart).toBe("fotoffice/size-charts");
+    expect(isFotofficeOwnedR2Key("fotoffice/product-gallery/ws_1/a.webp")).toBe(true);
+    expect(isFotofficeOwnedR2Key("fotoffice/size-charts/ws_1/a.webp")).toBe(true);
+  });
+
+  it("las vistas previas de obras de concursos tienen su propio prefijo, borrable", () => {
+    expect(FOTOFFICE_R2_PREFIXES.artworkPreview).toBe("fotoffice/artwork-previews");
+    expect(isFotofficeOwnedR2Key("fotoffice/artwork-previews/ws_1/listing_1/a.jpg")).toBe(true);
+  });
+
+  it("la galería y la tabla de talles se suben con su propio preset (el mismo componente que la foto de producto)", () => {
+    expect(IMAGE_PRESETS).toHaveProperty("productGallery");
+    expect(IMAGE_PRESETS).toHaveProperty("sizeChart");
+  });
+
   it("una key propia de FotoOffice es borrable", () => {
     const key = "fotoffice/workspace-logos/ws_123/abc.png";
     expect(isFotofficeOwnedR2Key(key)).toBe(true);

@@ -22,7 +22,9 @@ export type EntryErrorCode =
   | "FROZEN"
   | "RULES_VERSION_MISMATCH"
   /** El objeto de la subida directa no está en staging: PUT perdido o vencido. */
-  | "STAGED_FILE_MISSING";
+  | "STAGED_FILE_MISSING"
+  /** Llegó un archivo de 0 bytes: el navegador no pudo leer la foto (típico en iPhone). */
+  | "EMPTY_FILE";
 
 export class EntryError extends Error {
   readonly code: EntryErrorCode;

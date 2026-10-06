@@ -1,12 +1,12 @@
 import { PageHeader } from "@/components/page-header";
-import { requireCoveragesConfigurator } from "@/lib/coverages/access";
+import { requireCoveragesCoordinator } from "@/lib/coverages/access";
 import { loadSettings } from "@/lib/coverages/repository";
 import { SettingsForm } from "./settings-form";
 
 export const dynamic = "force-dynamic";
 
 export default async function ConfiguracionCoberturasPage() {
-  const { workspace } = await requireCoveragesConfigurator();
+  const { workspace } = await requireCoveragesCoordinator();
   const settings = await loadSettings(workspace.id);
 
   return (

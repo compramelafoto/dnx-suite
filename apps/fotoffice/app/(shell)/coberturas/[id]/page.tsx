@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/page-header";
 import { appUrl } from "@/lib/app-url";
 import { EstadoCoberturaChip, EstadoSolicitudChip } from "@/components/coberturas/estado-chip";
 import { LugarConfirmado } from "@/components/coberturas/lugar-confirmado";
-import { requireCoveragesReviewer } from "@/lib/coverages/access";
+import { requireCoveragesViewer } from "@/lib/coverages/access";
 import { listEvents } from "@/lib/coverages/events";
 import {
   datetimeLocalValue,
@@ -19,7 +19,6 @@ import { loadRequest, loadSettings } from "@/lib/coverages/repository";
 import { avisoAlCerrarSolicitud } from "@/lib/coverages/cierre-de-solicitud";
 import { puedeReemitirEnlace } from "@/lib/coverages/reenvio-enlace";
 import { coverageEventLabel, requestStatusLabel } from "@/lib/coverages/states";
-import { canCoordinateCoverages } from "@/lib/coverages/access-policy";
 import { CONSENT_LABELS, type ConsentKind } from "@/lib/coverages/consents";
 import { EvaluacionPanel } from "./evaluacion-panel";
 import { GenerarCoberturaPanel } from "./generar-cobertura-panel";
@@ -44,7 +43,7 @@ export default async function FichaSolicitudPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { workspace, role } = await requireCoveragesReviewer();
+  const { workspace, canReview, canCoordinate } = await requireCoveragesViewer();
   const { id } = await params;
 
   const solicitud = await loadRequest({ workspaceId: workspace.id, id });
@@ -59,7 +58,7 @@ export default async function FichaSolicitudPage({
     (solicitud.endsAt.getTime() - solicitud.startsAt.getTime()) / 60000,
   );
   const refuerzo = recomendarRefuerzo({ durationMinutes: duracion, assigned: 0, settings });
-  const puedeCoordinar = canCoordinateCoverages(role);
+  const puedeCoordinar = canCoordinate;
   const muestraCoberturas = solicitud.coverages.length > 0 || solicitud.status === "APROBADA";
 
   /*
@@ -106,6 +105,7 @@ export default async function FichaSolicitudPage({
       <EvaluacionPanel
         id={solicitud.id}
         status={solicitud.status}
+        puedeRevisar={canReview}
         puedeCoordinar={puedeCoordinar}
         infoRequested={solicitud.infoRequested}
         advertenciaOtraCobertura={advertirOtraCobertura(solicitud.otherCoverage)}

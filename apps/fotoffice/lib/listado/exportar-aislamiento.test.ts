@@ -11,6 +11,8 @@ describe("exportar un listado", () => {
     expect(body.indexOf("contextoDeListado")).toBeLessThan(body.indexOf("traerIds"));
   });
   it("exige verDinero", () => expect(body).toMatch(/exigirCapacidad\(ctx, "verDinero"\)/));
+  it("exige operar (Gestionar en el módulo de la lista, como la exportación de socios de main)", () =>
+    expect(body).toMatch(/exigirCapacidad\(ctx, "operar"\)/));
   it("toda denegación es 404 y no redirige", () => {
     expect(body).toMatch(/status: 404/);
     expect(body).not.toMatch(/status: 40[13]|redirect\(/);

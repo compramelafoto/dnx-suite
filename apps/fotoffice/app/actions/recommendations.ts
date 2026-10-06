@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import type { AuthUser } from "@/lib/auth";
 import { requireActiveWorkspace } from "@/lib/workspace";
-import { canOperateWorkspaceCollection } from "@/lib/payments/connect/authz";
+import { hasModuleLevel } from "@/lib/permissions/module-access";
+import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { voidRecommendationBenefit } from "@/lib/membership/recommendation-store";
 
 export type RecommendationActionState = { error: string | null; ok: string | null };
@@ -17,7 +18,7 @@ async function requireSecretary(): Promise<
 > {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) return { ok: false, error: "No hay institución activa." };
-  if (!(await canOperateWorkspaceCollection(user.id, workspace.id))) {
+  if (!(await hasModuleLevel(user.id, workspace.id, MEMBERSHIP_DUES_MODULE_KEY, "MANAGE"))) {
     return { ok: false, error: "No tenés permiso para anular bonificaciones." };
   }
   return { ok: true, workspaceId: workspace.id, user };

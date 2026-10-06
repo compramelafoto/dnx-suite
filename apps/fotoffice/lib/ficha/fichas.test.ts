@@ -21,16 +21,16 @@ function pos(fuente: string, texto: string): number {
 
 describe("ficha de Cliente", () => {
   it("usa <Ficha> y resuelve la persona después del guarda", () => {
-    const guarda = pos(CLIENTE, "await requireClientsStaff()");
+    const guarda = pos(CLIENTE, "await requireClientsViewer()");
     expect(pos(CLIENTE, "resolverPersonaPorCliente(")).toBeGreaterThan(guarda);
     expect(pos(CLIENTE, "<Ficha")).toBeGreaterThan(guarda);
     expect(CLIENTE).toContain("notFound()");
   });
 
-  it("no lee `notes` ni muestra la lista de Consumo (ahora es la línea de tiempo)", () => {
+  it("no lee `notes`; la lista de Consumo de main queda sólo para quien no ve la historia", () => {
     expect(CLIENTE).not.toMatch(/\.notes\b/);
-    expect(CLIENTE).not.toContain("MovementsTable");
-    expect(CLIENTE).not.toContain("listMovements");
+    // Con "Gestionar" en Clientes los movimientos están en la línea de tiempo (filtro Plata).
+    expect(sinComentarios(CLIENTE)).toMatch(/!veHistoria &&\s*hasLevel\(await getModuleLevel\(user\.id, workspace\.id, CASH_MODULE_KEY\), "VIEW"\)/);
   });
 
   it("conserva el formulario, el enlace con el socio y los avisos", () => {
@@ -58,7 +58,8 @@ describe("ficha de Socio", () => {
   });
 
   it("los permisos de hoy siguen decidiendo tarjetas y botones", () => {
-    expect(SOCIO).toContain("canOperateWorkspaceCollection(");
+    // Modelo de main: cobrar exige Gestionar en Cuotas.
+    expect(SOCIO).toContain("hasModuleLevel(");
     expect(SOCIO).toMatch(/canManage \?/);
     for (const pieza of [
       "MemberStatusChanger",

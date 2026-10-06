@@ -1,4 +1,5 @@
 import "server-only";
+import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { prisma, type Prisma } from "@repo/db";
 import { decimalArsToMinor, formatMinorArs } from "@/lib/membership/money";
 import { whereCorte, type Proveedor } from "../linea-de-tiempo";
@@ -19,6 +20,7 @@ export const proveedorCaja: Proveedor = {
   clave: "caja",
   tipo: "plata",
   capacidad: "verDinero",
+  moduloDinero: CASH_MODULE_KEY,
   async traer(ctx, persona, antesDe, take, opciones) {
     if (!persona.clientId) return [];
     const movimientos = await prisma.cashMovement.findMany({

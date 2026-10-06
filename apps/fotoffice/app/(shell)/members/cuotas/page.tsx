@@ -2,7 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { requireActiveWorkspace } from "@/lib/workspace";
-import { canManageWorkspaceCollection, canOperateWorkspaceCollection } from "@/lib/payments/connect/authz";
+import { hasModuleLevel } from "@/lib/permissions/module-access";
+import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { getWorkspaceCollectionStatus } from "@/lib/payments/connect/status";
 import { loadDuesOverview } from "@/lib/membership/dues-overview";
 import { formatMinorArs } from "@/lib/membership/money";
@@ -47,10 +48,9 @@ export default async function CuotasPage() {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) redirect("/workspace");
 
-  const puedeVer = await canOperateWorkspaceCollection(user.id, workspace.id);
+  const puedeVer = await hasModuleLevel(user.id, workspace.id, MEMBERSHIP_DUES_MODULE_KEY, "VIEW");
   if (!puedeVer) redirect("/members");
-  // Valores y calendario son configuración: Equipo opera las cuotas pero no ve ese acceso.
-  const puedeConfigurar = await canManageWorkspaceCollection(user.id, workspace.id);
+  const puedeGestionar = await hasModuleLevel(user.id, workspace.id, MEMBERSHIP_DUES_MODULE_KEY, "MANAGE");
 
   const [overview, cobros, v] = await Promise.all([
     loadDuesOverview(workspace.id),
@@ -72,12 +72,10 @@ export default async function CuotasPage() {
         <p className="text-xs text-[var(--fo-muted)] leading-relaxed">
           {`Crea la cuota del mes para cada ${v.singular} con estado activo, según su categoría y su escala. Correrlo de nuevo no duplica nada.`}
         </p>
-        <GenerateDuesButton defaultPeriod={periodOf(new Date())} />
-        {puedeConfigurar ? (
-          <Link href="/members/cuotas/configuracion" className="text-xs text-[var(--fo-muted)] hover:underline">
-            Valores y calendario →
-          </Link>
-        ) : null}
+        {puedeGestionar ? <GenerateDuesButton defaultPeriod={periodOf(new Date())} /> : null}
+        <Link href="/members/cuotas/configuracion" className="text-xs text-[var(--fo-muted)] hover:underline">
+          Valores y calendario →
+        </Link>
       </div>
 
       <div className="fo-card space-y-3 p-5">

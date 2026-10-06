@@ -2,8 +2,9 @@ import "server-only";
 import { prisma } from "@repo/db";
 import { getAuthUser } from "@/lib/auth";
 import { resolveActiveWorkspace } from "@/lib/workspace";
-import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { puede } from "@/lib/access/policy";
+import { resolverAcceso } from "@/lib/access/acceso";
+import { MODULOS_CRM } from "@/lib/access/modulos-crm";
 import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import type { CtxCampos } from "./definiciones";
 
@@ -23,8 +24,10 @@ export async function contextoDeCampos(): Promise<ContextoCampos | null> {
   if (!user) return null;
   const workspace = await resolveActiveWorkspace(user.id);
   if (!workspace) return null;
-  const role = await resolveWorkspaceRole(user.id, workspace.id);
-  if (!puede(role, "operar")) return null;
+  const acceso = await resolverAcceso(user.id, workspace.id);
+  // "Ver" en alguno de los módulos con campos: leer "Más datos" sigue al nivel de la ficha;
+  // guardar valores exige `operar` sobre el módulo del registro, y configurar, dueño/admin.
+  if (!puede(acceso, "ver", MODULOS_CRM) && !puede(acceso, "configurar")) return null;
   const branding = await prisma.fotofficeWorkspaceBranding.findFirst({
     where: { workspaceId: workspace.id },
     select: { publicSlug: true },
@@ -34,6 +37,7 @@ export async function contextoDeCampos(): Promise<ContextoCampos | null> {
     workspaceSlug: branding?.publicSlug ?? "",
     userId: user.id,
     userLabel: etiquetaDeUsuario(user),
-    role,
+    role: acceso.role,
+    acceso,
   };
 }

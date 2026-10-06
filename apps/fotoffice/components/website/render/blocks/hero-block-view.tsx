@@ -4,6 +4,10 @@ import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, ty
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { HeroBlockConfig, HeroContentPosition, HeroHeightPreset, HeroImageFocus, HeroOverlayPreset, HeroSlideAlign } from "@/lib/website/blocks";
 import { useHeroEditingSlideId } from "@/lib/website/hero-editing-context";
+import { enlaceDeBoton } from "@/lib/website/button-href";
+import { mergeHeroBlogSlides, type HeroRenderSlide } from "@/lib/website/blog-banner";
+import type { WebsiteDynamicData } from "@/lib/website/dynamic-data";
+import { levelStyle } from "@/lib/website/typography";
 
 const HEIGHT_CLASS: Record<HeroHeightPreset, string> = {
   compact: "min-h-[240px] sm:min-h-[320px]",
@@ -45,8 +49,11 @@ function usePrefersReducedMotion(): boolean {
  * en cualquier otro árbol (incluida esta etapa, que todavía no conecta el sitio público) es un
  * no-op y el carrusel se comporta con su autoplay normal.
  */
-export function HeroBlockView({ config, blockId }: { config: HeroBlockConfig; blockId?: string }) {
-  const slides = config.slides;
+export function HeroBlockView({ config, blockId, data }: { config: HeroBlockConfig; blockId?: string; data?: WebsiteDynamicData }) {
+  // Los artículos que el blog destacó en este banner (solo en el sitio publicado: el builder no
+  // recibe `data`). Se intercalan con las placas propias en el número que eligió cada uno.
+  const heroBlog = data?.heroBlog && data.heroBlog.blockId === blockId ? data.heroBlog.slides : null;
+  const slides: HeroRenderSlide[] = heroBlog ? mergeHeroBlogSlides(config.slides, heroBlog) : config.slides;
   const forcedSlideId = useHeroEditingSlideId(blockId ?? "");
   const reducedMotion = usePrefersReducedMotion();
   const [activeIndex, setActiveIndex] = useState(0);
@@ -145,6 +152,9 @@ export function HeroBlockView({ config, blockId }: { config: HeroBlockConfig; bl
         const style: CSSProperties = useSlideEffect
           ? { transform: `translateX(${(index - effectiveIndex) * 100}%)`, transition: `transform ${transitionMs}ms ease` }
           : { opacity: isActive ? 1 : 0, transition: `opacity ${transitionMs}ms ease` };
+        // Las placas apiladas e invisibles no deben tapar los clics de la que se ve.
+        if (!isActive) style.pointerEvents = "none";
+        const slideHref = enlaceDeBoton(slide.href);
         return (
           <div key={slide.id} className="absolute inset-0" style={style} aria-hidden={!isActive}>
             <div
@@ -157,25 +167,39 @@ export function HeroBlockView({ config, blockId }: { config: HeroBlockConfig; bl
               }}
             />
             <div className="absolute inset-0" style={{ background: `rgba(15, 23, 42, ${OVERLAY_ALPHA[slide.overlay]})` }} />
+            {slideHref ? (
+              // La placa entera lleva al artículo. Fuera del orden de tabulación: el botón ya es
+              // el camino con teclado, y dos enlaces seguidos al mismo lugar molestan.
+              <a href={slideHref} className="absolute inset-0" tabIndex={-1} aria-hidden="true" />
+            ) : null}
             <div
-              className={`relative flex h-full flex-col gap-4 px-6 py-16 sm:py-20 max-w-4xl mx-auto ${CONTENT_JUSTIFY[slide.contentPosition]} ${ALIGN_CLASS[slide.align]}`}
+              className={`relative flex h-full flex-col gap-4 px-6 py-16 sm:py-20 max-w-4xl mx-auto ${CONTENT_JUSTIFY[slide.contentPosition]} ${ALIGN_CLASS[slide.align]} ${slideHref ? "pointer-events-none [&_a]:pointer-events-auto" : ""}`}
             >
+              {/* Sobre la foto, título y subtítulo van siempre en blanco: no toman el color del nivel. */}
               <h1
-                className="text-3xl sm:text-5xl text-white"
-                style={{ textWrap: "balance", fontFamily: "var(--wsite-heading-font)", fontWeight: "var(--wsite-heading-weight)", letterSpacing: "var(--wsite-letter-spacing)" }}
+                className="text-white"
+                style={{ ...levelStyle("title", { color: false }), textWrap: "balance", letterSpacing: "var(--wsite-letter-spacing)" }}
               >
                 {slide.title || "Título principal"}
               </h1>
-              {slide.subtitle ? <p className="text-lg sm:text-xl max-w-2xl leading-relaxed text-white/90">{slide.subtitle}</p> : null}
-              {slide.showButton && slide.buttonLabel && slide.buttonUrl ? (
+              {slide.subtitle ? (
+                <p
+                  // La bajada de un artículo puede ser larga: tres renglones y "…".
+                  className={`max-w-2xl leading-relaxed text-white/90 ${slideHref ? "line-clamp-3" : ""}`}
+                  style={levelStyle("subtitle", { color: false })}
+                >
+                  {slide.subtitle}
+                </p>
+              ) : null}
+              {slide.showButton && slide.buttonLabel && enlaceDeBoton(slide.buttonUrl) ? (
                 <a
-                  href={slide.buttonUrl}
-                  className="inline-flex mt-2 text-sm transition-transform hover:scale-[1.02]"
+                  href={enlaceDeBoton(slide.buttonUrl) ?? undefined}
+                  className="inline-flex mt-2 transition-transform hover:scale-[1.02]"
                   style={{
+                    ...levelStyle("button", { color: false }),
                     borderRadius: "var(--wsite-button-radius)",
                     paddingInline: "var(--wsite-button-padding-x)",
                     paddingBlock: "var(--wsite-button-padding-y)",
-                    fontWeight: "var(--wsite-button-weight)",
                     ...(slide.buttonStyle === "solid"
                       ? { backgroundColor: "var(--wsite-accent)", color: "#ffffff" }
                       : { border: "2px solid #ffffff", color: "#ffffff" }),

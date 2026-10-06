@@ -1,38 +1,31 @@
 import { prisma } from "@repo/db";
-import { puede } from "@/lib/access/policy";
+import { hasModuleLevel } from "@/lib/permissions/module-access";
+import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import type { FulfillmentCapability } from "./fulfillment";
 
 /**
  * Qué puede hacer una persona con los carnets de un workspace.
  *
- * El dueño y los administradores pueden todo sin figurar en ninguna tabla: son quienes
- * responden por la institución. Los permisos otorgados existen para el caso que motivó
- * esto — el impresor entra al sistema, marca los carnets como impresos, y nada más.
+ * Quien gestiona Socios (`members` MANAGE: dueño, admin o un rol que lo dé) puede todo sin
+ * figurar en ninguna tabla: responde por el padrón. Los permisos otorgados existen para el caso
+ * que motivó esto — el impresor entra al sistema, marca los carnets como impresos, y nada más.
+ *
+ * Ya no se lee la tabla legacy `Membership`: el nivel sale de `WorkspaceMembership` y de los
+ * roles, como en el resto de los módulos (la única cuenta sólo-legacy es un seed de FotoRank).
  */
 export async function resolveCardCapabilities(
   userId: number,
   workspaceId: string,
 ): Promise<FulfillmentCapability[]> {
-  const [membership, legacy, grant] = await Promise.all([
-    prisma.workspaceMembership.findUnique({
-      where: { userId_workspaceId: { userId, workspaceId } },
-      select: { role: true },
-    }),
-    prisma.membership.findUnique({
-      where: { userId_workspaceId: { userId, workspaceId } },
-      select: { role: true },
-    }),
+  const [gestiona, grant] = await Promise.all([
+    hasModuleLevel(userId, workspaceId, MEMBERS_MODULE_KEY, "MANAGE"),
     prisma.memberCardOperator.findUnique({
       where: { workspaceId_userId: { workspaceId, userId } },
       select: { canProduce: true, canDeliver: true },
     }),
   ]);
 
-  const roles = [membership?.role, legacy?.role];
-  // Desde 0.1 Equipo opera los carnets (emitir, imprimir, entregar); otorgar permisos de
-  // carnets es configuración y queda para Dueño/Admin (`ADMINISTRAR`).
-  if (roles.some((r) => puede(r, "configurar"))) return ["PRODUCIR", "ENTREGAR", "ADMINISTRAR"];
-  if (roles.some((r) => puede(r, "operar"))) return ["PRODUCIR", "ENTREGAR"];
+  if (gestiona) return ["PRODUCIR", "ENTREGAR", "ADMINISTRAR"];
 
   const capacidades: FulfillmentCapability[] = [];
   if (grant?.canProduce) capacidades.push("PRODUCIR");

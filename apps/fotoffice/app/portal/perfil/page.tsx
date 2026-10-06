@@ -8,6 +8,7 @@ import { ProfessionalProfileForm } from "@/components/portal/professional-profil
 import { MemberPhotoUpload } from "@/components/portal/member-photo-upload";
 import { BusinessLogoUpload } from "@/components/portal/business-logo-upload";
 import { PersonalDataForm } from "@/components/portal/personal-data-form";
+import { ProfileTabs } from "@/components/portal/profile-tabs";
 
 export const metadata = { title: "Mi perfil" };
 
@@ -59,6 +60,12 @@ export default async function PerfilPage() {
       youtube: true,
       linkedin: true,
       directoryOptIn: true,
+      studioStreet: true,
+      studioCity: true,
+      studioProvince: true,
+      studioPostalCode: true,
+      studioLat: true,
+      studioLng: true,
       avatarUrl: true,
       profilePhotoUrl: true,
       category: { select: { name: true } },
@@ -78,6 +85,7 @@ export default async function PerfilPage() {
           Estos datos son tuyos. Se publican solo si lo autorizás.
         </p>
       </header>
+      <ProfileTabs active="datos" />
 
       {/*
         Modo lectura y separado a propósito. Mezclar el número o el estado entre los campos
@@ -158,10 +166,22 @@ export default async function PerfilPage() {
           youtube: socio.youtube,
           linkedin: socio.linkedin,
           directoryOptIn: socio.directoryOptIn,
+          studioStreet: socio.studioStreet,
+          studioCity: socio.studioCity,
+          studioProvince: socio.studioProvince,
+          studioPostalCode: socio.studioPostalCode,
+          // Se devuelven las coordenadas guardadas, no el enlace original: el enlace no se guarda
+          // (es larguísimo y efímero) y "lat, lng" vuelve a entrar por el mismo campo.
+          studioMapsUrl: coordenadasComoTexto(socio.studioLat, socio.studioLng),
         }}
       />
     </div>
   );
+}
+
+/** Lo que se le muestra al socio de vuelta en el campo de ubicación. */
+function coordenadasComoTexto(lat: number | null, lng: number | null): string {
+  return lat !== null && lng !== null ? `${lat}, ${lng}` : "";
 }
 
 function Dato({ etiqueta, children }: { etiqueta: string; children: React.ReactNode }) {

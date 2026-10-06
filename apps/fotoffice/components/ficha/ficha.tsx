@@ -1,6 +1,6 @@
 import "server-only";
 import type { ReactNode } from "react";
-import { puede } from "@/lib/access/policy";
+import { puede, puedeEnContexto } from "@/lib/access/policy";
 import { contextoDeFicha, type PersonaPedida } from "@/lib/ficha/acceso";
 import { listarAdjuntos } from "@/lib/ficha/adjuntos";
 import { adjuntosR2Configurado } from "@/lib/ficha/adjuntos-r2";
@@ -62,7 +62,7 @@ export async function Ficha({
 
   await asegurarCategorias(ctx.workspaceId, ctx.workspaceSlug);
   const esConfigurador = puede(ctx.role, "configurar");
-  const veDinero = puede(ctx.role, "verDinero");
+  const veDinero = puedeEnContexto(ctx, "verDinero");
   // Sólo las fuentes de los módulos encendidos (Caja con `cash`; cuotas y carnets con `members`).
   const proveedores = await proveedoresParaWorkspace(ctx.workspaceId);
 
@@ -72,7 +72,7 @@ export async function Ficha({
     listarNotas(ctx.workspaceId, ctx.persona, { take: MAX_NOTAS_FIJADAS + 5 }),
     armarLinea({
       proveedores,
-      ctx: { workspaceId: ctx.workspaceId, role: ctx.role },
+      ctx: { workspaceId: ctx.workspaceId, role: ctx.role, acceso: ctx.acceso, modulo: ctx.modulo },
       persona: ctx.persona,
       filtro: null,
       cursor: null,

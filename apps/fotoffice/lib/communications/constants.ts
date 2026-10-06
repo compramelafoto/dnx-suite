@@ -121,3 +121,12 @@ export const COVERAGE_EMAIL_KEYS = {
   /** Se completaron todos los roles. Sale a la organización solicitante. */
   TEAM_COMPLETE: "fotoffice.coverages.team-complete",
 } as const;
+
+/**
+ * Clave del módulo Comunicación (Comunicación → Placas). Estaba reservada como `PLANNED` en
+ * `lib/modules/registry.ts`, y los roles de plantilla de la Comisión ya la nombraban.
+ */
+export const COMMUNICATIONS_MODULE_KEY = "communications";
+
+/** Aviso al Socio de la semana para que complete su perfil, en `SentEmailLog`. */
+export const SPOTLIGHT_NUDGE_EMAIL_KEY = "fotoffice.spotlight.complete-profile";

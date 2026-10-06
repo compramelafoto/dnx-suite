@@ -26,7 +26,7 @@ vi.mock("@repo/db", async () => {
   return { ...actual, prisma: { fotofficeWorkspaceBranding: { findUnique: vi.fn() } } };
 });
 vi.mock("@/lib/workspace", () => ({ requireActiveWorkspace: H.requireWorkspace }));
-vi.mock("@/lib/payments/connect/authz", () => ({ canOperateWorkspaceCollection: H.canManage }));
+vi.mock("@/lib/permissions/module-access", () => ({ hasModuleLevel: H.canManage }));
 vi.mock("@/lib/payments/connect/status", () => ({ getWorkspaceCollectionStatus: vi.fn() }));
 vi.mock("@/lib/membership/repository", () => ({
   approveApplication: H.approve,

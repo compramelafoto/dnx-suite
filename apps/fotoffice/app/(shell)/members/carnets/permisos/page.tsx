@@ -2,7 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { requireActiveWorkspace } from "@/lib/workspace";
-import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
+import { hasModuleLevel } from "@/lib/permissions/module-access";
+import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { listOperatorCandidates } from "@/lib/carnet/operator-admin";
 import { OperatorRow } from "./operator-row";
 
@@ -18,7 +19,7 @@ export default async function PermisosCarnetsPage() {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) redirect("/workspace");
 
-  const puede = await canManageWorkspaceCollection(user.id, workspace.id);
+  const puede = await hasModuleLevel(user.id, workspace.id, MEMBERS_MODULE_KEY, "MANAGE");
   if (!puede) redirect("/members/carnets");
 
   const gente = await listOperatorCandidates(workspace.id);
@@ -50,7 +51,7 @@ export default async function PermisosCarnetsPage() {
               <p className="text-xs text-[var(--fo-muted)]">
                 {/* No se le ofrecen casillas: quitárselas no le sacaría nada, porque puede
                     todo por su rol, y mostrarlas desmarcadas haría creer lo contrario. */}
-                Puede imprimir y entregar por su rol
+                Administra la institución: puede todo
               </p>
             ) : (
               <OperatorRow

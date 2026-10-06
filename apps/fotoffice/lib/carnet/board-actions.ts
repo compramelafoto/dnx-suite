@@ -1,6 +1,6 @@
 import {
   allowedTransitions,
-  canPerform,
+  capabilityFor,
   type FulfillmentCapability,
   type FulfillmentState,
 } from "./fulfillment";
@@ -30,7 +30,7 @@ export function commonTransitions(
   const comunes = allowedTransitions(primero!).filter((destino) =>
     resto.every((otro) => allowedTransitions(otro).includes(destino)),
   );
-  return comunes.filter((destino) => canPerform(capabilities, destino));
+  return comunes.filter((destino) => capabilities.includes(capabilityFor(destino)));
 }
 
 /**

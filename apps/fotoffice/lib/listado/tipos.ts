@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { Capacidad } from "@/lib/access/policy";
+import type { AccesoEfectivo, Capacidad } from "@/lib/access/policy";
 
 export const FILAS_PERMITIDAS = [10, 25, 50, 100] as const;
 export type FilasPorPagina = (typeof FILAS_PERMITIDAS)[number];
@@ -49,6 +49,10 @@ export type ContextoListado = {
   userId: number;
   userLabel: string;
   role: string | null;
+  /** Acceso efectivo (modelo de main). Siempre presente en producción; las pruebas pueden omitirlo. */
+  acceso?: AccesoEfectivo;
+  /** Módulo de la lista: sobre él se miden `operar` y `ver`. */
+  modulo?: string;
 };
 
 export type ColumnaDef<F> = {

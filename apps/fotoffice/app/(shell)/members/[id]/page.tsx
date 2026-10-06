@@ -18,7 +18,8 @@ import { PaymentHistoryList } from "@/components/membership/payment-history-list
 import { loadMemberPaymentHistory } from "@/lib/membership/payment-history";
 import { loadMemberBalance } from "@/lib/membership/balance";
 import { CreditCallout } from "@/components/membership/credit-callout";
-import { canOperateWorkspaceCollection } from "@/lib/payments/connect/authz";
+import { hasModuleLevel } from "@/lib/permissions/module-access";
+import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { getPlatformFeeBps } from "@/lib/platform-fee/store";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { formatFeeBpsAsPercent } from "@/lib/platform-fee/fee";
@@ -41,8 +42,8 @@ function fmtDate(d: Date | null | undefined): string {
  * Ficha del socio sobre la ficha estándar. Al centro, notas y línea de tiempo (ahí están
  * ahora las observaciones y el historial de cambios, estado y acceso). A la derecha, las
  * tarjetas de siempre, con los mismos permisos de siempre: `canManage` para cambiar estado,
- * gestionar el acceso, editar y anular bonificaciones; `canOperateWorkspaceCollection` para
- * registrar y ver pagos.
+ * gestionar el acceso, editar y anular bonificaciones; nivel MANAGE en Cuotas para registrar y
+ * ver pagos.
  */
 export default async function MemberDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { workspace, canManage, user } = await requireMembersContext();
@@ -70,7 +71,7 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
 
   // Registrar un cobro es una atribución de quien maneja la plata, no de quien consulta el
   // padrón: se resuelve con el mismo permiso que gobierna los cobros del workspace.
-  const puedeCobrar = await canOperateWorkspaceCollection(user.id, workspace.id);
+  const puedeCobrar = await hasModuleLevel(user.id, workspace.id, MEMBERSHIP_DUES_MODULE_KEY, "MANAGE");
   const feePercent = puedeCobrar
     ? formatFeeBpsAsPercent(await getPlatformFeeBps(workspace.id, MEMBERS_MODULE_KEY))
     : "";

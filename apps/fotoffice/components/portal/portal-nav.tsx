@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { portalBottomBar, type ResolvedPortalItem } from "@/lib/portal/menu";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
 import { PortalIcon } from "./portal-icon";
+import { MenuSearch } from "@/components/shell/menu-search";
 
 /**
  * La navegación del portal.
@@ -32,9 +33,12 @@ export const PROXIMAS_TITULO = "Próximas funcionalidades";
 export function PortalSidebar({
   items,
   vocabulary,
+  top = null,
 }: {
   items: ResolvedPortalItem[];
   vocabulary: PersonVocabulary;
+  /** Lo que va arriba de las secciones: el selector de rol, si corresponde. */
+  top?: ReactNode;
 }) {
   const pathname = usePathname() ?? "";
   const disponibles = items.filter((i) => i.state === "DISPONIBLE");
@@ -42,6 +46,20 @@ export function PortalSidebar({
 
   return (
     <aside className="sticky top-24 hidden h-[calc(100vh-6rem)] w-60 shrink-0 flex-col overflow-y-auto py-5 md:flex">
+      {top}
+      <MenuSearch
+        sections={[
+          {
+            title: "Portal",
+            items: disponibles.map((i) => ({
+              href: i.href,
+              label: aplicarVocabulario(i.label, vocabulary),
+              description: aplicarVocabulario(i.description, vocabulary),
+              icon: <PortalIcon name={i.icon} className="h-4 w-4" />,
+            })),
+          },
+        ]}
+      />
       <nav aria-label="Secciones" className="space-y-0.5">
         {disponibles.map((i) => {
           const activa = esActiva(pathname, i.href);
@@ -65,10 +83,22 @@ export function PortalSidebar({
       </nav>
 
       {proximas.length > 0 ? (
-        <div className="mt-6 space-y-0.5">
-          <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
-            {PROXIMAS_TITULO}
-          </p>
+        <details className="group mt-6 space-y-0.5">
+          <summary className="flex cursor-pointer list-none items-center gap-2 rounded-[var(--fo-radius-sm)] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)] hover:bg-[var(--fo-surface-hover)] hover:text-[var(--fo-text-secondary)] [&::-webkit-details-marker]:hidden">
+            <span className="min-w-0 flex-1">{PROXIMAS_TITULO}</span>
+            <span className="text-[10px] font-medium normal-case tracking-normal group-open:hidden">{proximas.length}</span>
+            <svg
+              className="h-3.5 w-3.5 shrink-0 -rotate-90 transition-transform group-open:rotate-0 motion-reduce:transition-none"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              aria-hidden
+            >
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </summary>
           {proximas.map((i) => (
             <p
               key={i.href}
@@ -79,7 +109,7 @@ export function PortalSidebar({
               {aplicarVocabulario(i.label, vocabulary)}
             </p>
           ))}
-        </div>
+        </details>
       ) : null}
 
       <form action="/api/auth/logout" method="post" className="mt-auto pt-6">

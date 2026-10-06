@@ -16,7 +16,7 @@ const nextConfig: NextConfig = {
     "@prisma/client",
     "@repo/db",
   ],
-  transpilePackages: ["@repo/auth", "@repo/jury-ranking", "@repo/payments"],
+  transpilePackages: ["@repo/auth", "@repo/quick-search", "@repo/jury-ranking", "@repo/payments"],
   outputFileTracingRoot: monorepoRoot,
   /**
    * Prisma en las funciones de Vercel: solo lo que Node necesita para ejecutar en Linux.
@@ -61,6 +61,8 @@ const nextConfig: NextConfig = {
       "../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/runtime/*.wasm-base64.*",
       "../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/runtime/query_*",
     ],
+    /* Fuente embebida en la marca de agua de las vistas previas que se le dan a FOTOFFICE. */
+    "/api/fotorank/external/entry-image": ["./assets/fonts/Roboto-Regular.ttf"],
   },
   /** Playwright y otros clientes que usan 127.0.0.1 necesitan HMR; sin esto Next 16 bloquea el bundle y no hidrata. */
   allowedDevOrigins: ["127.0.0.1", "localhost"],

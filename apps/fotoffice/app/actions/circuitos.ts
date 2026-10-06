@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { puede } from "@/lib/access/policy";
+import { puede, puedeEnContexto } from "@/lib/access/policy";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { contextoDeCircuitos, type CtxCircuitos } from "@/lib/circuitos/acceso";
 import { SALIDAS } from "@/lib/circuitos/constantes";
@@ -54,10 +54,11 @@ type Preparado = { ctx: CtxCircuitos; adaptador: Adaptador; sujeto: Sujeto };
 /** Contexto, pertenencia al workspace y módulo encendido. */
 async function preparar(buscar: (workspaceId: string) => Promise<Sujeto | null>): Promise<Preparado | Falla> {
   const ctx = await contextoDeCircuitos();
-  if (!ctx || !puede(ctx.role, "operar")) return SIN_ACCESO;
+  if (!ctx) return SIN_ACCESO;
   const sujeto = await buscar(ctx.workspaceId);
   const adaptador = sujeto ? adaptadorDe(sujeto.tipo) : null;
   if (!sujeto || !adaptador) return NO_ENCONTRADO;
+  if (!puedeEnContexto(ctx, "operar", adaptador.moduleKey)) return SIN_ACCESO;
   if (!(await isModuleEnabledForWorkspace(ctx.workspaceId, adaptador.moduleKey))) return MODULO_APAGADO;
   return { ctx, adaptador, sujeto };
 }

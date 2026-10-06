@@ -3,6 +3,8 @@ import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
+import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
+import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
 
 /**
  * El menú del socio, en un solo lugar.
@@ -66,7 +68,9 @@ export type PortalIconName =
   | "school"
   | "institution"
   | "share"
-  | "camera";
+  | "camera"
+  | "tasks"
+  | "trophy";
 
 /**
  * El mapa del §5 del documento de navegación, con su orden.
@@ -114,6 +118,15 @@ export const PORTAL_MENU: PortalMenuItem[] = [
     primary: true,
   },
   {
+    order: 45,
+    label: "Mi portfolio",
+    href: "/portal/portfolio",
+    description: "Tus fotos, publicadas en el sitio de la institución.",
+    icon: "camera",
+    requiresModule: PORTFOLIO_MODULE_KEY,
+    built: true,
+  },
+  {
     order: 50,
     label: "Beneficios",
     href: "/portal/beneficios",
@@ -152,19 +165,36 @@ export const PORTAL_MENU: PortalMenuItem[] = [
     order: 80,
     label: "Cursos",
     href: "/portal/cursos",
-    description: "Los cursos de la institución y cómo anotarte.",
+    description: "Tus cursos y los que te tocan gratis por ser {persona}.",
     icon: "school",
     requiresModule: COURSES_SALES_MODULE_KEY,
-    built: false,
+    built: true,
+  },
+  {
+    order: 85,
+    label: "Concursos",
+    href: "/portal/concursos",
+    description: "Concursos de FotoRank y maratones de Clickatón abiertos para participar.",
+    icon: "trophy",
+    built: true,
   },
   {
     order: 90,
-    label: "Institucional",
-    href: "/portal/institucional",
-    description: "Novedades, actas y en qué se usa la cuota.",
+    label: "Mis proyectos",
+    href: "/portal/proyectos",
+    description: "Proponé un proyecto a la comisión, mirá en qué quedó y seguí los proyectos de la institución.",
     icon: "institution",
-    requiresModule: "governance",
-    built: false,
+    requiresModule: GOVERNANCE_MODULE_KEY,
+    built: true,
+  },
+  {
+    order: 95,
+    label: "Mis tareas",
+    href: "/portal/tareas",
+    description: "Lo que te encargaron en un proyecto: para cuándo es, contar cómo va y darlo por hecho.",
+    icon: "tasks",
+    requiresModule: GOVERNANCE_MODULE_KEY,
+    built: true,
   },
   {
     order: 100,
@@ -210,4 +240,36 @@ export function resolvePortalMenu(
 /** Las que van en la barra inferior del teléfono, ya resueltas. */
 export function portalBottomBar(items: ResolvedPortalItem[]): ResolvedPortalItem[] {
   return items.filter((i) => i.primary).slice(0, 4);
+}
+
+/**
+ * El menú de quien tiene cursos y no es socio: sólo lo suyo y la invitación a asociarse.
+ * Ninguna sección de socios aparece, ni siquiera como "Próximamente": no le corresponde.
+ */
+export function resolveStudentPortalMenu(opciones: { asociarseHref: string | null }): ResolvedPortalItem[] {
+  const items: ResolvedPortalItem[] = [
+    {
+      order: 80,
+      label: "Mis cursos",
+      href: "/portal/cursos",
+      description: "Tus cursos y tu avance.",
+      icon: "school",
+      built: true,
+      primary: true,
+      state: "DISPONIBLE",
+    },
+  ];
+  if (opciones.asociarseHref) {
+    items.push({
+      order: 90,
+      label: "Hacete socio",
+      href: opciones.asociarseHref,
+      description: "Sumate a la institución.",
+      icon: "institution",
+      built: true,
+      primary: true,
+      state: "DISPONIBLE",
+    });
+  }
+  return items;
 }

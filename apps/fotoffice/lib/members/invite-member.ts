@@ -1,4 +1,5 @@
 import "server-only";
+import { loadWorkspaceSender } from "@/lib/communications/load-workspace-sender";
 import {
   createMemberInvitation,
   getMember,
@@ -174,7 +175,7 @@ export async function inviteOneMember(
         video: extras.video,
         memberNumber: member.memberNumber,
       });
-  const outcome = await sendTransactionalEmail({ to: email, ...body });
+  const outcome = await sendTransactionalEmail({ to: email, ...body, sender: await loadWorkspaceSender(workspace.id) });
 
   await markMemberInvitationDelivery(
     workspace.id,
