@@ -9,6 +9,7 @@ import { isFotofficePlatformAdminRole, resolvePlatformRole } from "@/lib/fotoffi
 import { safeFotofficeNextPath } from "@/lib/google-login";
 import { resolveInvitationContinuityPath } from "@/lib/members/invitation-continuity-resolve";
 import { resolvePortalDestination } from "@/lib/portal/destination";
+import { resolveTeamInvitationContinuityPath } from "@/lib/team/continuity";
 import { readProfileChoice } from "@/lib/portal/profile-choice";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { listUserProfiles, resolveEntryProfile } from "@/lib/portal/profiles";
@@ -73,6 +74,11 @@ export async function resolveFotofficePostLoginDestination(params: {
   // revalida contra la base. No consume la invitación — devuelve a la pantalla donde se acepta.
   const continuity = await resolveInvitationContinuityPath(user.email);
   if (continuity) return { path: continuity, workspaceId: null };
+
+  // Después, la de una invitación al equipo. Si hay de las dos, la de socios tiene prioridad;
+  // la de equipo sigue guardada y se retoma en el próximo ingreso.
+  const teamContinuity = await resolveTeamInvitationContinuityPath(user.email);
+  if (teamContinuity) return { path: teamContinuity, workspaceId: null };
 
   /*
     Quien entró por la puerta de una institución —`/w/sfpr/entrar`— ya dijo a dónde viene, y

@@ -12,6 +12,8 @@ import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { isFullAccessRole } from "@/lib/permissions/levels";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
+import { puede } from "@/lib/access/policy";
+import { getOrganizationType } from "@/lib/workspace-type";
 import { loadWorkspaceHome } from "@/lib/workspace-home/load";
 import { WorkspaceHome } from "@/components/workspace-home/workspace-home";
 
@@ -60,6 +62,9 @@ export default async function WorkspaceHomePage() {
     hasLevel(levels[m.key] ?? "NONE", "VIEW"),
   );
   const puedeAdministrarSocios = levels[MEMBERS_MODULE_KEY] === "MANAGE";
+  // Sin tipo elegido no se puede ordenar el menú ni sugerir módulos: se lo pedimos a quien puede decidirlo.
+  const faltaTipoDeOrganizacion =
+    puede(role, "configurar") && (await getOrganizationType(workspaceId)) === null;
 
   const nombre = (profile?.displayName ?? user.name ?? "").split(" ")[0] || "equipo";
   const institucion = branding?.commercialName?.trim() || activa?.name || "tu institución";
@@ -80,6 +85,7 @@ export default async function WorkspaceHomePage() {
       vocabulary={vocabulary}
       puedeCrearSocio={puedeAdministrarSocios && enabled.has(MEMBERS_MODULE_KEY)}
       faltaConfigurar={faltaConfigurar}
+      faltaTipoDeOrganizacion={faltaTipoDeOrganizacion}
       modulos={modulos.map((m) => ({
         ...m,
         // Las mismas pantallas, con la misma regla, que muestra el menú lateral.

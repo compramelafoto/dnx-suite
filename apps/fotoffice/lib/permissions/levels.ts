@@ -122,7 +122,7 @@ export function isAssignmentActive(
  * El orden importa (spec §9):
  * 1. módulo apagado → nada; 2. sin rol en el workspace → nada;
  * 3. dueño/admin → todo; 4. con asignaciones (cualquiera) → el máximo entre las vigentes, o NONE;
- * 5. STAFF que nunca tuvo asignaciones → lo de hoy.
+ * 5. STAFF que nunca tuvo asignaciones → lo de hoy (el colaborador de 0.1, nada).
  */
 export function resolveModuleLevel(input: {
   moduleKey: string;
@@ -145,7 +145,17 @@ export function resolveModuleLevel(input: {
       ),
     );
   }
+  // `COLLABORATOR` (etapa 0.1, ya en el enum de la base) no es personal: sin roles de la
+  // comisión no ve ningún módulo. Sin esto caería en la compatibilidad de STAFF.
+  if (!hasLegacyStaffFallback(input.workspaceRole)) return "NONE";
   return legacyStaffLevel(input.moduleKey);
+}
+
+/** Roles sin compatibilidad de STAFF: sin asignaciones no tienen nivel en ningún módulo. */
+const ROLES_SIN_COMPATIBILIDAD = new Set(["COLLABORATOR"]);
+
+export function hasLegacyStaffFallback(role: string): boolean {
+  return !ROLES_SIN_COMPATIBILIDAD.has(role);
 }
 
 /**

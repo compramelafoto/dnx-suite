@@ -41,6 +41,17 @@ export type ModuleCategory = "GENERAL" | "INSTITUTIONAL";
  */
 export type ModuleStatus = "AVAILABLE" | "PLANNED";
 
+export type ModuleFamily = "base" | "negocio" | "institucion" | "coberturas" | "formacion" | "espacios";
+
+export const FAMILY_LABELS: Record<ModuleFamily, string> = {
+  base: "Base",
+  negocio: "Negocio fotográfico",
+  institucion: "Institución",
+  coberturas: "Coberturas y voluntariado",
+  formacion: "Formación",
+  espacios: "Espacios",
+};
+
 export type ModuleDefinition = {
   /** Clave técnica y estable. Es el mismo valor que `WorkspaceFeatureModule.moduleKey`. */
   key: string;
@@ -52,6 +63,12 @@ export type ModuleDefinition = {
   /** Ruta principal del módulo, si ya tiene pantalla implementada. */
   route?: string;
   status: ModuleStatus;
+  /** Familia en la que se agrupa en la pantalla de Módulos. */
+  family: ModuleFamily;
+  /** Claves de módulos que deben estar encendidos para que este funcione. */
+  dependsOn?: string[];
+  /** Módulo con comisión de plataforma: no se enciende solo, se pide la activación. */
+  platformFee?: boolean;
 };
 
 export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
@@ -65,6 +82,8 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     order: 10,
     route: "/dashboard/courses",
     status: "AVAILABLE",
+    family: "formacion",
+    platformFee: true,
   },
   {
     key: EVALUACIONES_MODULE_KEY,
@@ -74,6 +93,8 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     order: 20,
     route: "/evaluaciones",
     status: "AVAILABLE",
+    family: "formacion",
+    dependsOn: ["courses-sales"],
   },
   {
     key: SERVICE_LEADS_MODULE_KEY,
@@ -82,8 +103,9 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
       "Formularios públicos para pedir presupuesto y la bandeja donde llegan esas consultas.",
     category: "GENERAL",
     order: 24,
-    route: "/dashboard/service-leads",
+    route: "/captacion",
     status: "AVAILABLE",
+    family: "negocio",
   },
   {
     key: WEBSITE_MODULE_KEY,
@@ -93,6 +115,7 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     order: 25,
     route: "/website",
     status: "AVAILABLE",
+    family: "base",
   },
   {
     key: BOOKINGS_MODULE_KEY,
@@ -103,6 +126,8 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     order: 60,
     route: "/reservas",
     status: "AVAILABLE",
+    family: "espacios",
+    platformFee: true,
   },
   {
     key: COVERAGES_MODULE_KEY,
@@ -113,6 +138,7 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     order: 65,
     route: "/coberturas",
     status: "AVAILABLE",
+    family: "coberturas",
   },
 
   // --- Reservados para etapas futuras. Claves fijadas, SIN implementar. ---
@@ -125,6 +151,7 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     order: 30,
     route: "/caja",
     status: "AVAILABLE",
+    family: "base",
   },
   {
     key: SALES_MODULE_KEY,
@@ -135,11 +162,12 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     order: 35,
     route: "/ventas",
     status: "AVAILABLE",
+    family: "negocio",
   },
   {
-    // El registro no tiene un campo de dependencias: que la tienda necesita Ventas (vende el
-    // mismo catálogo y el mismo stock) lo hace cumplir `lib/store/access.ts`, y que necesita
-    // el Sitio web para verse lo resuelve el sitio público, que sin él no existe.
+    // Que la tienda necesita Ventas (vende el mismo catálogo y el mismo stock) lo hace cumplir
+    // `lib/store/access.ts`, y que necesita el Sitio web para verse lo resuelve el sitio
+    // público, que sin él no existe. `dependsOn` sólo lo usa la pantalla de Módulos para avisar.
     // Sin `route` a propósito: no es una entrada más del menú lateral, sus pantallas cuelgan
     // del submenú de Ventas (`lib/modules/submodules.ts`).
     key: STORE_MODULE_KEY,
@@ -149,6 +177,8 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     category: "GENERAL",
     order: 36,
     status: "AVAILABLE",
+    family: "negocio",
+    dependsOn: [SALES_MODULE_KEY, WEBSITE_MODULE_KEY],
   },
   {
     key: COMMUNICATIONS_MODULE_KEY,
@@ -159,6 +189,7 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     order: 40,
     route: "/comunicacion/placas",
     status: "AVAILABLE",
+    family: "base",
   },
   {
     key: "events",
@@ -167,6 +198,7 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     category: "GENERAL",
     order: 50,
     status: "PLANNED",
+    family: "institucion",
   },
   {
     key: CLIENTS_MODULE_KEY,
@@ -177,6 +209,7 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     order: 70,
     route: "/clientes",
     status: "AVAILABLE",
+    family: "base",
   },
   {
     key: MEMBERS_MODULE_KEY,
@@ -186,6 +219,7 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     order: 100,
     route: "/members",
     status: "AVAILABLE",
+    family: "institucion",
   },
   {
     key: MEMBERSHIP_DUES_MODULE_KEY,
@@ -196,6 +230,9 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     order: 110,
     route: "/members/cuotas",
     status: "AVAILABLE",
+    family: "institucion",
+    dependsOn: ["members"],
+    platformFee: true,
   },
   {
     key: RAFFLES_MODULE_KEY,
@@ -206,6 +243,7 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     order: 115,
     route: "/sorteos",
     status: "AVAILABLE",
+    family: "institucion",
   },
   {
     key: SPONSORS_MODULE_KEY,
@@ -216,6 +254,7 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     order: 116,
     route: "/sponsors",
     status: "AVAILABLE",
+    family: "institucion",
   },
   {
     key: PORTFOLIO_MODULE_KEY,
@@ -226,6 +265,7 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     order: 118,
     route: "/portfolios",
     status: "AVAILABLE",
+    family: "institucion",
   },
   {
     key: GOVERNANCE_MODULE_KEY,
@@ -236,6 +276,7 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     order: 120,
     route: "/gobierno",
     status: "AVAILABLE",
+    family: "institucion",
   },
   {
     key: "exhibitions",
@@ -244,6 +285,7 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     category: "INSTITUTIONAL",
     order: 130,
     status: "PLANNED",
+    family: "institucion",
   },
   {
     key: "transparency",
@@ -252,6 +294,54 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     category: "INSTITUTIONAL",
     order: 140,
     status: "PLANNED",
+    family: "institucion",
+  },
+  {
+    key: "quotes",
+    label: "Consultas y presupuestos",
+    description: "Consultas de clientes y presupuestos con seguimiento hasta el trabajo cerrado.",
+    category: "GENERAL",
+    order: 26,
+    status: "PLANNED",
+    family: "negocio",
+  },
+  {
+    key: "orders",
+    label: "Pedidos",
+    description: "Pedidos de trabajos y su estado de producción y entrega.",
+    category: "GENERAL",
+    order: 27,
+    status: "PLANNED",
+    family: "negocio",
+    dependsOn: ["clients"],
+  },
+  {
+    key: "projects",
+    label: "Proyectos",
+    description: "Proyectos fotográficos con sus tareas, fechas y equipo.",
+    category: "GENERAL",
+    order: 28,
+    status: "PLANNED",
+    family: "negocio",
+  },
+  {
+    key: "gallery",
+    label: "Galería",
+    description: "Galerías para entregar y mostrar las fotos de cada proyecto.",
+    category: "GENERAL",
+    order: 29,
+    status: "PLANNED",
+    family: "negocio",
+    dependsOn: ["projects"],
+  },
+  {
+    key: "agenda",
+    label: "Agenda",
+    description: "Agenda de compromisos del equipo.",
+    category: "GENERAL",
+    order: 35,
+    status: "PLANNED",
+    family: "base",
   },
 ] as const;
 

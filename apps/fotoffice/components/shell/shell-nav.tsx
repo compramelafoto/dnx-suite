@@ -9,17 +9,23 @@ import {
   ChevronDown,
   ClipboardCheck,
   FileText,
+  Hash,
   Globe,
   Link2,
   Plug,
   Inbox,
   LayoutDashboard,
+  LayoutGrid,
+  ListPlus,
+  MessageSquareText,
   Newspaper,
   Settings,
   Shield,
+  Tags,
   UserCog,
   Users,
   Wallet2,
+  Workflow,
 } from "lucide-react";
 import type { ComponentType } from "react";
 import { useShellNav } from "./shell-frame";
@@ -43,6 +49,7 @@ import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 import { hasLevel, type ModuleLevels } from "@/lib/permissions/levels";
+import { ordenarSecciones } from "@/lib/modules/nav-order";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import { isBlogNavActive, isDomainNavActive, isWebsiteNavActive } from "@/lib/blog/admin-nav";
 
@@ -199,6 +206,7 @@ export function ShellNav({
   levels,
   actions,
   canManageWorkspaceSettings,
+  organizationType = null,
   platformAdmin,
   vocabulary,
   openGroups = [],
@@ -209,6 +217,8 @@ export function ShellNav({
   actions: readonly string[];
   /** Sólo para la sección Institución: Configuración no se delega. */
   canManageWorkspaceSettings: boolean;
+  /** Tipo de organización (etapa 0.1): ordena las secciones de módulos por familia. */
+  organizationType?: string | null;
   platformAdmin: boolean;
   vocabulary: PersonVocabulary;
   /** Grupos que la persona dejó desplegados, leídos de la cookie en el servidor. */
@@ -301,11 +311,13 @@ export function ShellNav({
           isActive: under("/dashboard/service-leads/forms"),
         },
         {
-          href: "/dashboard/service-leads",
-          label: "Leads",
-          description: "Las consultas y pedidos de presupuesto que llegaron.",
+          // La bandeja pasó al panel con tablero por etapas, lista e informe (etapa 0.4);
+          // `/dashboard/service-leads` redirige acá.
+          href: "/captacion",
+          label: "Consultas",
+          description: "Las consultas y pedidos de presupuesto que llegaron, por etapa.",
           icon: Inbox,
-          isActive: exact("/dashboard/service-leads"),
+          isActive: under("/captacion"),
         },
       ]
     : [];
@@ -360,6 +372,49 @@ export function ShellNav({
           icon: Wallet2,
           isActive: under("/workspace/configuracion/cobros"),
         },
+        // Etapas 0.1–0.6: configuración de dueño o admin, igual que el resto de Institución.
+        {
+          href: "/workspace/configuracion/modulos",
+          label: "Módulos",
+          description: "Encendé o apagá lo que usa tu organización.",
+          icon: LayoutGrid,
+          isActive: under("/workspace/configuracion/modulos"),
+        },
+        {
+          href: "/workspace/configuracion/ficha",
+          label: "Ficha",
+          description: "Categorías de las notas y etiquetas de las fichas.",
+          icon: Tags,
+          isActive: under("/workspace/configuracion/ficha"),
+        },
+        {
+          href: "/workspace/configuracion/circuitos",
+          label: "Circuitos",
+          description: "Etapas de ventas y trabajos, tareas automáticas y motivos de pérdida.",
+          icon: Workflow,
+          isActive: under("/workspace/configuracion/circuitos"),
+        },
+        {
+          href: "/workspace/configuracion/campos",
+          label: "Campos",
+          description: "Datos propios para las fichas.",
+          icon: ListPlus,
+          isActive: under("/workspace/configuracion/campos"),
+        },
+        {
+          href: "/workspace/configuracion/plantillas",
+          label: "Plantillas",
+          description: "Textos de correo y WhatsApp para mandar desde las fichas, y la respuesta automática.",
+          icon: MessageSquareText,
+          isActive: under("/workspace/configuracion/plantillas"),
+        },
+        {
+          href: "/workspace/configuracion/numeracion",
+          label: "Numeración",
+          description: "Prefijo, año y próximo número de consultas, presupuestos, pedidos y proyectos.",
+          icon: Hash,
+          isActive: under("/workspace/configuracion/numeracion"),
+        },
       ]
     : [];
 
@@ -374,9 +429,12 @@ export function ShellNav({
 
   // Una sola lista para el menú y para el buscador: el buscador no puede ofrecer una pantalla
   // que el menú no dibuja, y una pantalla nueva aparece en los dos lados sin acordarse.
-  const secciones: { title: string | null; items: Item[] }[] = [
+  // Las secciones con módulo se ordenan por la familia que le corresponde al tipo de
+  // organización (etapa 0.1); Inicio, Institución y Plataforma conservan su lugar.
+  const secciones: { title: string | null; items: Item[]; moduleKey: string | null }[] = ordenarSecciones([
     {
       title: null,
+      moduleKey: null,
       items: [
         // El tablero de la institución. `/dashboard` queda como pantalla de rescate para quien
         // no tiene permiso en algún módulo, y se marca igual: también es "el inicio".
@@ -389,19 +447,19 @@ export function ShellNav({
         },
       ],
     },
-    { title: vocabulary.Plural, items: socios },
-    { title: "Sorteos", items: sorteos },
-    { title: "Sponsors", items: sponsors },
-    { title: "Comisión", items: comision },
-    { title: "Comunicación", items: comunicacion },
-    { title: "Coberturas", items: coberturas },
-    { title: "Cursos", items: cursosItems },
-    { title: "Reservas", items: reservas },
-    { title: "Captación", items: captacion },
-    { title: "Presencia pública", items: presencia },
-    { title: "Institución", items: institucion },
-    { title: "Plataforma", items: plataforma },
-  ];
+    { title: vocabulary.Plural, items: socios, moduleKey: MEMBERS_MODULE_KEY },
+    { title: "Sorteos", items: sorteos, moduleKey: RAFFLES_MODULE_KEY },
+    { title: "Sponsors", items: sponsors, moduleKey: SPONSORS_MODULE_KEY },
+    { title: "Comisión", items: comision, moduleKey: GOVERNANCE_MODULE_KEY },
+    { title: "Comunicación", items: comunicacion, moduleKey: COMMUNICATIONS_MODULE_KEY },
+    { title: "Coberturas", items: coberturas, moduleKey: COVERAGES_MODULE_KEY },
+    { title: "Cursos", items: cursosItems, moduleKey: COURSES_SALES_MODULE_KEY },
+    { title: "Reservas", items: reservas, moduleKey: BOOKINGS_MODULE_KEY },
+    { title: "Captación", items: captacion, moduleKey: SERVICE_LEADS_MODULE_KEY },
+    { title: "Presencia pública", items: presencia, moduleKey: WEBSITE_MODULE_KEY },
+    { title: "Institución", items: institucion, moduleKey: null },
+    { title: "Plataforma", items: plataforma, moduleKey: null },
+  ], organizationType);
 
   const buscables: MenuSearchSection[] = secciones.map((sec) => ({
     title: sec.title ?? "Inicio",

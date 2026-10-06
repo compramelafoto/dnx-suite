@@ -43,7 +43,6 @@ type MemberInitial = {
   city: string | null;
   province: string | null;
   postalCode: string | null;
-  notes: string | null;
   /// Testigo de concurrencia optimista: el `updatedAt` que el formulario vio al abrirse.
   updatedAt?: Date | string | null;
 };
@@ -326,25 +325,6 @@ export function MemberForm({
             />
             <p className="fo-helper">Solo si corresponde. Se completa sola al pasar a Inactivo.</p>
           </div>
-        </div>
-      </section>
-
-      <section className="fo-card space-y-6">
-        <div>
-          <h2 className="text-lg font-semibold text-[var(--fo-text)]">Observaciones</h2>
-        </div>
-        <div className="fo-field-stack">
-          <label className="fo-label" htmlFor="notes">
-            Notas internas
-          </label>
-          <textarea
-            id="notes"
-            name="notes"
-            rows={4}
-            defaultValue={member?.notes ?? ""}
-            className="fo-input"
-            placeholder="Solo visible para administradores del workspace."
-          />
         </div>
       </section>
 

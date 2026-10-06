@@ -212,6 +212,11 @@ describe("nadie fuera de Configuración decide el acceso por el rol crudo", () =
       patron: /^lib\/post-login\.ts$/,
       razon: "sólo el desvío al onboarding después del login, igual que el layout del panel",
     },
+    {
+      patron: /^lib\/access\/policy\.ts$/,
+      razon:
+        "adaptador de las etapas 0.1–0.6: `configurar` ES la regla de Configuración (catálogos de la ficha, circuitos, campos, plantillas, numeración); `operar`/`ver` van por nivel",
+    },
     // Las propias definiciones.
     { patron: /^lib\/workspace-settings-access\.ts$/, razon: "definición" },
   ];

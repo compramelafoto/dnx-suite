@@ -4,6 +4,8 @@ import { avisarAccesoAlAula } from "@/lib/course-classroom/grant";
 import { sendEnrollmentApprovedEmail } from "./email";
 import { loadWorkspaceSignature } from "@/lib/communications/load-workspace-signature";
 import { computeAvailableSpots, getApprovedEnrollmentCountsByInstanceIds } from "./availability";
+import { ganarConsultaPorSistema } from "@/lib/circuitos/eventos";
+import { numerarConsultaNueva } from "@/lib/service-leads/numero";
 
 function decimalToNumber(value: Prisma.Decimal) {
   return Number(value.toString());
@@ -167,13 +169,17 @@ export async function approveCourseEnrollment(args: {
           metaJson: crmPayload,
         },
       });
+      // La consulta quedó ganada: su recorrido de venta abierto también se cierra, para que no
+      // siga abierta en el tablero. Nunca lanza ni frena la aprobación.
+      await ganarConsultaPorSistema(enrollment.workspaceId, existingContact.id, `Inscripción aprobada para ${enrollment.course.title}`);
       logCourseEvent("crm_contact_updated", {
         workspaceId: enrollment.workspaceId,
         enrollmentId: enrollment.id,
         leadId: existingContact.id,
       });
     } else {
-      await prisma.serviceSalesLead.create({
+      const creado = await prisma.serviceSalesLead.create({
+        select: { id: true, createdAt: true },
         data: {
           workspaceId: enrollment.workspaceId,
           name: enrollment.name,
@@ -186,6 +192,9 @@ export async function approveCourseEnrollment(args: {
           metaJson: crmPayload as Prisma.InputJsonValue,
         },
       });
+      // Su número, en una transacción aparte: nunca lanza ni frena la aprobación (si falla, la
+      // numera el próximo enganche al abrir Captación).
+      await numerarConsultaNueva(enrollment.workspaceId, creado.id, creado.createdAt);
       logCourseEvent("crm_contact_created", {
         workspaceId: enrollment.workspaceId,
         enrollmentId: enrollment.id,

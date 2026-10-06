@@ -2,6 +2,9 @@ import "server-only";
 import { Prisma } from "@repo/db";
 import { matchExistingClient, soloDigitos } from "./match";
 import { nextClientNumber } from "./client-number";
+import type { Actor } from "@/lib/ficha/eventos";
+
+const ACTOR_SISTEMA: Actor = { userId: null, label: "Sistema" };
 
 /**
  * La única puerta por la que los otros módulos consiguen un cliente.
@@ -26,6 +29,9 @@ export async function findOrCreateClient(
     businessName?: string | null;
     createdByUserId?: number | null;
   },
+  // Quién origina el alta. Reservas y coberturas llegan sin usuario (el pago o el formulario
+  // público): quedan como "Sistema".
+  actor: Actor = ACTOR_SISTEMA,
 ): Promise<{ id: string; created: boolean }> {
   const doc = input.docNumber?.replace(/[.\-\s]/g, "") || null;
   const mail = input.email?.trim().toLowerCase() || null;
@@ -100,6 +106,15 @@ export async function findOrCreateClient(
       const creado = await tx.client.findUniqueOrThrow({
         where: { workspaceId_clientNumber: { workspaceId: input.workspaceId, clientNumber } },
         select: { id: true },
+      });
+      await tx.clientAudit.create({
+        data: {
+          workspaceId: input.workspaceId,
+          clientId: creado.id,
+          action: "CREATED",
+          actorUserId: actor.userId,
+          actorLabel: actor.label,
+        },
       });
       return { id: creado.id, created: true };
     }

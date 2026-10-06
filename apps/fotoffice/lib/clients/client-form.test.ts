@@ -10,6 +10,13 @@ function form(campos: Record<string, string>): FormData {
 const persona = { kind: "PERSONA", firstName: "Juan", lastName: "Pérez" };
 
 describe("parseClientForm", () => {
+  it("ya no lee ni devuelve las observaciones: viven en notas de la ficha", () => {
+    const r = parseClientForm(form({ ...persona, notes: "algo" }));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect("notes" in r.values).toBe(false);
+  });
+
   it("una persona con nombre y apellido alcanza", () => {
     const r = parseClientForm(form(persona));
     expect(r.ok).toBe(true);

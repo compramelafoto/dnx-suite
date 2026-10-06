@@ -44,6 +44,9 @@ vi.mock("@/lib/portal/claim", () => ({ findClaimableMembership: async () => null
 vi.mock("@/lib/members/invitation-continuity-resolve", () => ({
   resolveInvitationContinuityPath: vi.fn(async () => null),
 }));
+vi.mock("@/lib/team/continuity", () => ({
+  resolveTeamInvitationContinuityPath: vi.fn(async () => null),
+}));
 
 vi.mock("@repo/db", () => ({
   prisma: {
@@ -66,6 +69,8 @@ vi.mock("@repo/db", () => ({
 }));
 
 const { resolveFotofficePostLoginDestination } = await import("./post-login");
+const memberContinuity = await import("@/lib/members/invitation-continuity-resolve");
+const teamContinuity = await import("@/lib/team/continuity");
 
 function resetMocks() {
   userFindUniqueMock.mockReset();
@@ -199,6 +204,49 @@ describe("resolveFotofficePostLoginDestination — B: resolución de workspace a
 
     expect(workspaceCreateMock).not.toHaveBeenCalled();
     expect(dest).toEqual({ path: "/bienvenida", workspaceId: null });
+  });
+});
+
+describe("resolveFotofficePostLoginDestination — continuidad de invitación al equipo", () => {
+  beforeEach(() => {
+    resetMocks();
+    userFindUniqueMock.mockResolvedValue({
+      id: 7,
+      email: "ana@example.com",
+      name: "Ana",
+      role: "PHOTOGRAPHER",
+      globalRole: "USER",
+    });
+    vi.mocked(memberContinuity.resolveInvitationContinuityPath).mockReset().mockResolvedValue(null);
+    vi.mocked(teamContinuity.resolveTeamInvitationContinuityPath).mockReset().mockResolvedValue(null);
+  });
+
+  it("con cookie de equipo válida y sin `next`, vuelve a la invitación del equipo", async () => {
+    vi.mocked(teamContinuity.resolveTeamInvitationContinuityPath).mockResolvedValue(
+      "/invitacion/equipo/tok",
+    );
+    const dest = await resolveFotofficePostLoginDestination({ userId: 7 });
+    expect(dest).toEqual({ path: "/invitacion/equipo/tok", workspaceId: null });
+    expect(teamContinuity.resolveTeamInvitationContinuityPath).toHaveBeenCalledWith("ana@example.com");
+    expect(workspaceCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("si existen las dos continuidades, la de socios tiene prioridad", async () => {
+    vi.mocked(memberContinuity.resolveInvitationContinuityPath).mockResolvedValue("/invitacion/socio-tok");
+    vi.mocked(teamContinuity.resolveTeamInvitationContinuityPath).mockResolvedValue(
+      "/invitacion/equipo/tok",
+    );
+    const dest = await resolveFotofficePostLoginDestination({ userId: 7 });
+    expect(dest.path).toBe("/invitacion/socio-tok");
+    expect(teamContinuity.resolveTeamInvitationContinuityPath).not.toHaveBeenCalled();
+  });
+
+  it("un `next` de invitación de equipo explícito se respeta", async () => {
+    const dest = await resolveFotofficePostLoginDestination({
+      userId: 7,
+      next: "/invitacion/equipo/tok",
+    });
+    expect(dest.path).toBe("/invitacion/equipo/tok");
   });
 });
 

@@ -17,6 +17,7 @@ import { SALES_MODULE_KEY } from "@/lib/sales/constants";
 import { STORE_MODULE_KEY } from "@/lib/store/constants";
 import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
 import {
+  FAMILY_LABELS,
   MODULE_REGISTRY,
   findDuplicateModuleKeys,
   getModuleDefinition,
@@ -112,6 +113,20 @@ describe("sorteos", () => {
 
   it("no duplica ninguna clave del catálogo", () => {
     expect(findDuplicateModuleKeys()).toEqual([]);
+  });
+});
+
+describe("familias y dependencias (0.1)", () => {
+  it("todo módulo tiene familia con etiqueta", () => {
+    for (const m of MODULE_REGISTRY) expect(FAMILY_LABELS[m.family]).toBeTruthy();
+  });
+  it("dependsOn apunta a claves existentes", () => {
+    for (const m of MODULE_REGISTRY) for (const d of m.dependsOn ?? []) expect(getModuleDefinition(d)).toBeDefined();
+  });
+  it("los módulos con comisión son exactamente cuotas, reservas y cursos", () => {
+    expect(MODULE_REGISTRY.filter((m) => m.platformFee).map((m) => m.key).sort()).toEqual(
+      ["bookings", "courses-sales", "membership-dues"],
+    );
   });
 });
 

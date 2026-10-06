@@ -22,6 +22,7 @@
     "./fotoffice-user-lookup": "./src/fotoffice-user-lookup.ts",
     "./fotoffice-member-access-filter": "./src/fotoffice-member-access-filter.ts",
     "./fotoffice-member-invitations": "./src/fotoffice-member-invitations.ts",
+    "./fotoffice-team": "./src/fotoffice-team.ts",
     "./daily-report-repository": "./src/daily-report-repository.ts",
     "./template-v2-repository": "./src/template-v2-repository.ts",
     "./clickaton-readonly-client": "./src/clickaton-readonly-client.ts",

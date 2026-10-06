@@ -23,6 +23,14 @@ export type OutboundEmail = {
   html: string;
   text: string;
   /**
+   * Nombre visible del remitente (opcional). Reemplaza el nombre configurado y conserva la
+   * casilla de `FOTOFFICE_NOTIFICATIONS_FROM`: la dirección sigue saliendo sólo del entorno.
+   * Si viene, tiene prioridad sobre `sender.name`.
+   */
+  fromName?: string;
+  /** "Responder a" (opcional): una sola dirección. Tiene prioridad sobre `sender.replyTo`. */
+  replyTo?: string;
+  /**
    * Remitente de la institución (`loadWorkspaceSender`): el nombre visible pasa a ser el suyo y
    * las respuestas van a su casilla. Sin esto sale con el remitente del entorno.
    */
@@ -31,16 +39,20 @@ export type OutboundEmail = {
   headers?: Record<string, string>;
 };
 
+/** Cuánto se espera a Resend antes de cortar el pedido. */
+export const RESEND_TIMEOUT_MS = 10_000;
+
 /** Lo que Resend recibe por cada correo: el mismo cuerpo para el envío suelto y el de a tandas. */
 function providerPayload(message: OutboundEmail, envFrom: string) {
   const payload: Record<string, unknown> = {
-    from: buildFromHeader(envFrom, message.sender?.name),
+    from: message.fromName ? buildFrom(envFrom, message.fromName) : buildFromHeader(envFrom, message.sender?.name),
     to: [message.to],
     subject: message.subject,
     html: message.html,
     text: message.text,
   };
-  if (message.sender?.replyTo) payload.reply_to = [message.sender.replyTo];
+  if (message.replyTo) payload.reply_to = message.replyTo;
+  else if (message.sender?.replyTo) payload.reply_to = [message.sender.replyTo];
   if (message.headers && Object.keys(message.headers).length > 0) payload.headers = message.headers;
   return payload;
 }
@@ -93,6 +105,26 @@ function describeRejection(httpStatus: number, body: string, apiKey: string): st
   return sanitizeDetail(parts.join(" · "), apiKey);
 }
 
+/** Casilla del remitente configurado: lo de adentro de `<…>` o el valor pelado. */
+function senderAddress(from: string): string {
+  const m = from.match(/<([^<>]+)>\s*$/);
+  return (m ? m[1]! : from).trim();
+}
+
+/**
+ * Nombre visible seguro para la cabecera: sin comillas, `<>`, barras ni saltos de línea (que
+ * permitirían inyectar cabeceras o una casilla distinta), en una línea y truncado.
+ */
+function safeDisplayName(name: string): string {
+  return name.replace(/["<>\\\r\n\t]/g, " ").replace(/\s+/g, " ").trim().slice(0, 100);
+}
+
+/** Remitente final: el configurado, o su casilla con el nombre visible pedido. */
+export function buildFrom(configuredFrom: string, fromName?: string): string {
+  const name = fromName ? safeDisplayName(fromName) : "";
+  return name ? `"${name}" <${senderAddress(configuredFrom)}>` : configuredFrom;
+}
+
 export async function sendTransactionalEmail(
   message: OutboundEmail,
   deps: SendDeps = {},
@@ -117,8 +149,14 @@ export async function sendTransactionalEmail(
         "Content-Type": "application/json",
       },
       body: JSON.stringify(providerPayload(message, from)),
+      // Un proveedor colgado no deja la acción esperando para siempre: a los 10 s se corta y
+      // queda como error de conexión.
+      signal: AbortSignal.timeout(RESEND_TIMEOUT_MS),
     });
   } catch (error) {
+    if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
+      return { status: "INTERNAL_ERROR", detail: `Sin respuesta del proveedor en ${RESEND_TIMEOUT_MS / 1000} s` };
+    }
     const reason = error instanceof Error ? error.message : "error desconocido";
     return { status: "INTERNAL_ERROR", detail: sanitizeDetail(reason, apiKey) };
   }

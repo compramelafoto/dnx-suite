@@ -12,6 +12,7 @@ export function ShellSidebar({
   levels,
   actions,
   canManageWorkspaceSettings,
+  organizationType,
   platformAdmin,
   vocabulary,
   roleSelector = null,
@@ -29,6 +30,8 @@ export function ShellSidebar({
   actions: readonly string[];
   /** Sólo para la sección Institución: Configuración no se delega. */
   canManageWorkspaceSettings: boolean;
+  /** Tipo de organización (etapa 0.1): ordena las secciones del menú por familia. */
+  organizationType: string | null;
   platformAdmin: boolean;
   vocabulary: PersonVocabulary;
   /** Socio y equipo en esta institución: el selector de rol (Comisión/Administración activo). */
@@ -61,6 +64,7 @@ export function ShellSidebar({
         levels={levels}
         actions={actions}
         canManageWorkspaceSettings={canManageWorkspaceSettings}
+        organizationType={organizationType}
         platformAdmin={platformAdmin}
         vocabulary={vocabulary}
         openGroups={openGroups}

@@ -52,6 +52,9 @@ vi.mock("@/lib/course-classroom/alumno", () => ({ tieneCursos: vi.fn(async () =>
 vi.mock("@/lib/members/invitation-continuity-resolve", () => ({
   resolveInvitationContinuityPath: vi.fn(async () => null),
 }));
+vi.mock("@/lib/team/continuity", () => ({
+  resolveTeamInvitationContinuityPath: vi.fn(async () => null),
+}));
 
 vi.mock("@repo/db", () => ({
   prisma: {

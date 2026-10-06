@@ -60,6 +60,8 @@ export type WorkspaceHomeProps = {
   puedeCrearSocio: boolean;
   /** Para "Completar los datos de la institución". Vacío si no falta nada o no es admin. */
   faltaConfigurar: string[];
+  /** Quien puede configurar y todavía no eligió el tipo de organización (ordena el menú y sugiere módulos). */
+  faltaTipoDeOrganizacion?: boolean;
   modulos: { key: string; label: string; route: string; pantallas: SubmoduleItem[] }[];
 };
 
@@ -72,6 +74,7 @@ export function WorkspaceHome({
   vocabulary,
   puedeCrearSocio,
   faltaConfigurar,
+  faltaTipoDeOrganizacion = false,
   modulos,
 }: WorkspaceHomeProps) {
   // ── Lo que espera a alguien ──
@@ -126,6 +129,12 @@ export function WorkspaceHome({
       cantidad: datos.pedidosNuevos,
       texto: "Consultas nuevas sin responder",
       href: "/dashboard/service-leads",
+    });
+  }
+  if (faltaTipoDeOrganizacion) {
+    pendientes.push({
+      texto: "Contanos qué tipo de organización son para ordenar el menú y sugerirte módulos",
+      href: "/workspace/configuracion/modulos",
     });
   }
   if (datos.comunicacion?.socioDeLaSemana) {

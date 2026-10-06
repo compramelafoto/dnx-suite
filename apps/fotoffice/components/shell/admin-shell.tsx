@@ -4,6 +4,7 @@ import { resolveActiveWorkspace } from "@/lib/workspace";
 import { getGrantedActions, getModuleLevels } from "@/lib/permissions/module-access";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
+import { getOrganizationType } from "@/lib/workspace-type";
 import { isFotofficePlatformAdmin } from "@/lib/platform-admin";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { personVocabulary } from "@/lib/vocabulario/personas";
@@ -51,8 +52,11 @@ export async function AdminShell({ user, children }: { user: PanelUser; children
   const canManageWorkspaceSettingsFlag = canManageWorkspaceSettings(activeRole);
   // Las acciones sensibles que alguna entrada del menú exige. Se calculan acá, en el servidor:
   // el menú es un componente de cliente y sólo recibe la lista ya resuelta.
-  const actions = workspace !== null ? await getGrantedActions(user.id, workspace.id) : [];
-  const platformAdmin = await isFotofficePlatformAdmin(user.id);
+  const [actions, platformAdmin, organizationType] = await Promise.all([
+    workspace !== null ? getGrantedActions(user.id, workspace.id) : Promise.resolve([] as string[]),
+    isFotofficePlatformAdmin(user.id),
+    workspace !== null ? getOrganizationType(workspace.id) : Promise.resolve(null),
+  ]);
   // Sin workspace activo (recién invitado, todavía sin `ensure`) no hay fila que leer: el
   // vocabulario por omisión es lo correcto, ya que tampoco hay ningún módulo habilitado.
   const vocabulary =
@@ -91,6 +95,7 @@ export async function AdminShell({ user, children }: { user: PanelUser; children
           levels={levels}
           actions={actions}
           canManageWorkspaceSettings={canManageWorkspaceSettingsFlag}
+          organizationType={organizationType}
           platformAdmin={platformAdmin}
           vocabulary={vocabulary}
           roleSelector={selector}
