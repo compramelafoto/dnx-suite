@@ -81,3 +81,33 @@ describe("datos de la ficha", () => {
     });
   });
 });
+
+describe("sin «Ver» en Clientes (R10)", () => {
+  it("la ficha pierde los datos de otros contactos pero conserva los ids", () => {
+    const datos = {
+      consultaId: "k1",
+      contacto: { id: "c1", nombre: "Laura Pérez", email: "laura@persona.test", telefono: "3415550000" },
+      referente: { id: "c2", nombre: "Laura Gómez" },
+      participantes: [{ id: "p1", contacto: { id: "c3", nombre: "Salón Real" }, rol: { id: "r1", nombre: "Salón" }, nota: "nota" }],
+      posiblesDuplicados: [{ id: "c2", nombre: "Laura Gómez" }],
+      superpuestas: [],
+    } as unknown as import("./ficha").DatosConsultaFicha;
+    const r = F.sinDatosDeOtrosContactos(datos);
+    expect(JSON.stringify([r.referente, r.participantes, r.posiblesDuplicados])).not.toMatch(/Gómez|Salón Real/);
+    expect(r.referente).toEqual({ id: "c2", nombre: F.CONTACTO_RESERVADO });
+    expect(r.participantes[0]).toEqual({ id: "p1", contacto: { id: "c3", nombre: F.CONTACTO_RESERVADO }, rol: { id: "r1", nombre: "Salón" }, nota: "nota" });
+    expect(r.posiblesDuplicados).toEqual([]);
+    expect(r.contacto).toEqual(datos.contacto);
+    // No toca el original.
+    expect(datos.posiblesDuplicados).toHaveLength(1);
+  });
+
+  it("la página la aplica en el servidor antes de pasar las props", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const pagina = readFileSync(join(process.cwd(), "app/(shell)/consultas/[id]/page.tsx"), "utf8");
+    expect(pagina).toMatch(/datosCompletos && !veContacto \? sinDatosDeOtrosContactos\(datosCompletos\) : datosCompletos/);
+    // Sólo se usa en esa línea, al cargarla y para saber si hay duplicado: ningún componente la recibe.
+    expect(pagina.match(/datosCompletos/g)!.length).toBe(5);
+  });
+});

@@ -107,17 +107,25 @@ async function engancharUna(workspaceId: string, lead: ConsultaSinFicha): Promis
 /**
  * Engancha hasta `tope` consultas sin `FotofficeConsulta`, de la más vieja a la más nueva.
  * Antes siembra los catálogos si faltan. `completo`: no quedó ninguna sin enganchar.
+ *
+ * Una consulta que falla no frena a las de atrás: se sigue con la próxima y sólo las enganchadas
+ * cuentan para el `tope`. Para que el trabajo por llamada siga acotado, como mucho se intentan
+ * `2 × tope` (así hasta `tope` consultas trabadas al principio no dejan sin enganchar al resto).
  */
 export async function engancharConsultasExistentes(
   workspaceId: string,
   tope: number = LOTE_ENGANCHE,
 ): Promise<{ enganchadas: number; completo: boolean }> {
   await asegurarCatalogosDelWorkspace(workspaceId);
-  const lote = await consultasSinFicha(workspaceId, tope + 1);
+  const maxIntentos = tope * 2;
+  const lote = await consultasSinFicha(workspaceId, maxIntentos + 1);
   if (lote.length === 0) return { enganchadas: 0, completo: true };
   let enganchadas = 0;
   let fallidas = 0;
-  for (const lead of lote.slice(0, tope)) {
+  let intentos = 0;
+  for (const lead of lote.slice(0, maxIntentos)) {
+    if (enganchadas >= tope) break;
+    intentos++;
     try {
       if (await engancharUna(workspaceId, lead)) enganchadas++;
     } catch (error) {
@@ -125,5 +133,5 @@ export async function engancharConsultasExistentes(
       registrarFalla("engancharConsultasExistentes", error);
     }
   }
-  return { enganchadas, completo: lote.length <= tope && fallidas === 0 };
+  return { enganchadas, completo: intentos === lote.length && fallidas === 0 };
 }

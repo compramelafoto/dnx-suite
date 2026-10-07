@@ -104,7 +104,8 @@ describe("componentes de cliente", () => {
     expect(n).toContain("veContactos && contactoParam");
     const p = leer("app", "(shell)", "consultas", "[id]", "page.tsx");
     expect(p).toContain("puedeEditar={puedeEditar && veContacto}");
-    expect(p).toContain("posibleDuplicado: datosConsulta.posiblesDuplicados.length > 0");
+    expect(p).toContain("posibleDuplicado: hayPosibleDuplicado");
+    expect(p).toContain("sinDatosDeOtrosContactos(datosCompletos)");
   });
 
   it("el buscador de contactos no ofrece crear sin pasar por el aviso de duplicado", () => {

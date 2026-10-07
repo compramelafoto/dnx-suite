@@ -14,7 +14,7 @@ import { Participantes } from "@/components/consultas/participantes";
 import { puede } from "@/lib/access/policy";
 import { resolverAcceso } from "@/lib/access/acceso";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
-import { cargarDatosConsulta, opcionesDeConsulta, responsablesDeConsultas } from "@/lib/consultas/ficha";
+import { cargarDatosConsulta, opcionesDeConsulta, responsablesDeConsultas, sinDatosDeOtrosContactos } from "@/lib/consultas/ficha";
 import { resumenDelContacto } from "@/lib/consultas/resumen-contacto";
 import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
@@ -48,7 +48,7 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
   if (!ficha) notFound();
   // Recién con la consulta verificada en el workspace de la sesión: sus cambios de "Más datos", sus
   // mensajes y su número.
-  const [cambios, mensajes, numeros, datosConsulta, acceso] = await Promise.all([
+  const [cambios, mensajes, numeros, datosCompletos, acceso] = await Promise.all([
     cambiosDeConsulta(workspace.id, id),
     mensajesDeConsulta(workspace.id, id),
     numeroDe(workspace.id, TIPO_CONSULTA, [id]),
@@ -59,6 +59,10 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
   // adjuntos del contacto son datos de Clientes: se muestran (sólo para leer) con "Ver" ahí.
   const puedeEditar = puede(acceso, "operar", SERVICE_LEADS_MODULE_KEY);
   const veContacto = puede(acceso, "ver", CLIENTS_MODULE_KEY);
+  // Sin "Ver" en Clientes (R10), los datos de otros contactos no salen del servidor: sólo si hay
+  // un posible duplicado (para el aviso), sin nombres.
+  const hayPosibleDuplicado = (datosCompletos?.posiblesDuplicados.length ?? 0) > 0;
+  const datosConsulta = datosCompletos && !veContacto ? sinDatosDeOtrosContactos(datosCompletos) : datosCompletos;
   const [opciones, responsablesConsultas, resumenContacto] = datosConsulta
     ? await Promise.all([
         opcionesDeConsulta(workspace.id),
@@ -128,7 +132,7 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
             // Los datos del otro contacto, sólo con "Ver" en Clientes (R10); si no, el aviso solo.
             veContacto
               ? { fechaSuperpuesta: datosConsulta.superpuestas, duplicados: datosConsulta.posiblesDuplicados }
-              : { fechaSuperpuesta: datosConsulta.superpuestas, posibleDuplicado: datosConsulta.posiblesDuplicados.length > 0 }
+              : { fechaSuperpuesta: datosConsulta.superpuestas, posibleDuplicado: hayPosibleDuplicado }
           }
         />
       ) : null}

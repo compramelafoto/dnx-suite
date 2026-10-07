@@ -201,7 +201,7 @@ function aDatosEvento(e: Partial<EventoConvertido>): DatosEvento {
  * "Ver" en Clientes, sólo el aviso, sin nombres ni enlaces (R10).
  */
 async function avisosDe(
-  r: { leadId: string; clientId: string; avisos: { fechaSuperpuesta?: ConsultaSuperpuesta[]; posibleDuplicado?: boolean } },
+  r: { leadId: string; clientId: string | null; avisos: { fechaSuperpuesta?: ConsultaSuperpuesta[]; posibleDuplicado?: boolean } },
   workspaceId: string,
   conDatos: boolean,
 ) {
@@ -209,7 +209,7 @@ async function avisosDe(
   if (r.avisos.fechaSuperpuesta?.length) avisos.fechaSuperpuesta = r.avisos.fechaSuperpuesta;
   let hay = r.avisos.posibleDuplicado === true;
   try {
-    const c = await prisma.client.findFirst({ where: { id: r.clientId, workspaceId }, select: { id: true, email: true, phone: true } });
+    const c = r.clientId ? await prisma.client.findFirst({ where: { id: r.clientId, workspaceId }, select: { id: true, email: true, phone: true } }) : null;
     if (c) {
       const duplicados = await posiblesDuplicadosDe(workspaceId, { id: c.id, email: c.email, telefono: c.phone });
       if (duplicados.length > 0) {

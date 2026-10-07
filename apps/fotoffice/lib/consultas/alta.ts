@@ -29,6 +29,11 @@ import { asegurarCatalogosDelWorkspace } from "./semillas";
  *   3. aviso al equipo y tarea "Responder consulta" (salvo en la importación);
  *   4. respuesta automática a la persona (0.6), SÓLO desde el formulario web.
  *
+ * El formulario público NUNCA pierde una consulta: si la transacción falla por algo que no es
+ * una validación (la base, un bloqueo, los catálogos, ninguna categoría), se guarda sólo la
+ * consulta vieja con los mismos campos que antes de la etapa 1 y corren igual los pasos de
+ * después. El enganche (`./enganche.ts`) le pone el contacto y la categoría más tarde.
+ *
  * Nunca loguea datos personales: sólo códigos.
  */
 
@@ -100,7 +105,9 @@ export type DatosAlta = {
 
 export type AvisosDelAlta = { fechaSuperpuesta?: ConsultaSuperpuesta[]; posibleDuplicado?: boolean };
 export type ResultadoAlta =
-  | { ok: true; leadId: string; consultaId: string; clientId: string; avisos: AvisosDelAlta }
+  | { ok: true; leadId: string; consultaId: string; clientId: string; avisos: AvisosDelAlta; sinFicha?: false }
+  /** Formulario web cuando la transacción falló: sólo la consulta vieja; la engancha `./enganche.ts`. */
+  | { ok: true; leadId: string; consultaId: null; clientId: null; avisos: AvisosDelAlta; sinFicha: true }
   | { ok: false; error: string };
 
 export type DepsAlta = DepsAjustes;
@@ -112,6 +119,9 @@ export function altaDelSistema(workspaceId: string): CtxConsultas {
 
 /** Error de validación con un mensaje para mostrar. Dentro de la transacción la deshace. */
 class ErrorDeAlta extends Error {}
+
+/** El formulario web sin ninguna categoría: no es culpa de quien consulta, va al respaldo. */
+const SIN_CATEGORIA = "SIN_CATEGORIA";
 
 function registrarFalla(donde: string, error: unknown): void {
   const e = error as { name?: string; code?: string } | null;
@@ -290,7 +300,7 @@ export async function altaDeConsulta(
   }
 
   const actor = { userId: quien.userId, label: quien.userLabel };
-  let creado: { leadId: string; consultaId: string; clientId: string; createdAt: Date; posibleDuplicado: boolean };
+  let creado: { leadId: string; consultaId: string | null; clientId: string | null; createdAt: Date; posibleDuplicado: boolean };
   try {
     creado = await prisma.$transaction(async (tx) => {
       let categoria = v.categoriaId
@@ -301,7 +311,10 @@ export async function altaDeConsulta(
       if (!categoria && !v.categoriaId && origenDelAlta === "WEB") {
         categoria = await categoriaParaEventType(tx, workspaceId, v.eventType, { incluirArchivadas: true });
       }
-      if (!categoria) throw new ErrorDeAlta(MENSAJES_ALTA.categoria);
+      if (!categoria) {
+        if (origenDelAlta === "WEB" && !v.categoriaId) throw Object.assign(new Error("sin categoría"), { code: SIN_CATEGORIA });
+        throw new ErrorDeAlta(MENSAJES_ALTA.categoria);
+      }
 
       if (v.origenId) {
         const origen = await tx.fotofficeOrigen.findFirst({ where: { id: v.origenId, workspaceId, archivedAt: null }, select: { id: true } });
@@ -397,7 +410,15 @@ export async function altaDeConsulta(
   } catch (e) {
     if (e instanceof ErrorDeAlta) return { ok: false, error: e.message };
     registrarFalla("altaDeConsulta", e);
-    return { ok: false, error: MENSAJES_ALTA.fallo };
+    if (origenDelAlta !== "WEB" || "clientId" in v.contacto) return { ok: false, error: MENSAJES_ALTA.fallo };
+    try {
+      const lead = await soloLaConsultaVieja(workspaceId, v, v.contacto, datos.metaJson);
+      creado = { leadId: lead.id, consultaId: null, clientId: null, createdAt: lead.createdAt, posibleDuplicado: false };
+      console.warn("[consultas] alta web guardada sin ficha", { codigo: "ALTA_WEB_RESPALDO" });
+    } catch (error) {
+      registrarFalla("altaDeConsulta:respaldo", error);
+      return { ok: false, error: MENSAJES_ALTA.fallo };
+    }
   }
 
   const { leadId } = creado;
@@ -425,7 +446,12 @@ export async function altaDeConsulta(
   // 3. Aviso al equipo y tarea (la importación de consultas viejas no avisa).
   if (origenDelAlta !== "IMPORTACION") {
     try {
-      await avisarConsultaNueva(workspaceId, leadId, { responsableUserId: v.responsableUserId }, deps);
+      await avisarConsultaNueva(
+        workspaceId,
+        leadId,
+        { responsableUserId: v.responsableUserId, origenDelAlta, creadorUserId: quien.userId },
+        deps,
+      );
     } catch (error) {
       registrarFalla("avisarConsultaNueva", error);
     }
@@ -450,5 +476,48 @@ export async function altaDeConsulta(
       registrarFalla("fechasSuperpuestas", error);
     }
   }
+  if (creado.consultaId === null || creado.clientId === null) {
+    return { ok: true, leadId, consultaId: null, clientId: null, avisos, sinFicha: true };
+  }
   return { ok: true, leadId, consultaId: creado.consultaId, clientId: creado.clientId, avisos };
+}
+
+/**
+ * Respaldo del formulario web: sólo la consulta vieja, con los mismos campos que guardaba el
+ * formulario antes de la etapa 1. Sin contacto ni ficha: los pone el enganche.
+ */
+async function soloLaConsultaVieja(
+  workspaceId: string,
+  v: Validado,
+  persona: { nombre: string; email: string | null; telefono: string | null },
+  metaJson: DatosAlta["metaJson"],
+): Promise<{ id: string; createdAt: Date }> {
+  // El formulario que llega del navegador sólo vale si es de este workspace; si no se puede
+  // comprobar, la consulta se guarda igual sin él.
+  let formId: string | null = null;
+  if (v.formId) {
+    try {
+      formId = (await prisma.serviceLeadForm.findFirst({ where: { id: v.formId, workspaceId }, select: { id: true } }))?.id ?? null;
+    } catch (error) {
+      registrarFalla("altaDeConsulta:formulario", error);
+    }
+  }
+  return prisma.serviceSalesLead.create({
+    data: {
+      workspaceId,
+      formId,
+      formSlug: v.formSlug,
+      name: persona.nombre,
+      email: persona.email,
+      phone: persona.telefono,
+      eventType: v.eventType ?? "OTRO_EVENTO",
+      eventSubtype: v.eventSubtype,
+      eventDate: v.eventDate,
+      eventLocation: v.eventLocation,
+      message: v.message,
+      metaJson: metaJson ?? Prisma.JsonNull,
+      status: "NEW",
+    },
+    select: { id: true, createdAt: true },
+  });
 }

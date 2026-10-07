@@ -218,6 +218,43 @@ describe("pasar a otro circuito", () => {
     expect(B.datos.serviceSalesLead.find((l) => l.id === "l1")!.status).toBe("CONTACTED");
   });
 
+  /** La etapa "Nueva" exige tareas y j1 tiene una obligatoria sin tildar (j2, una ya hecha). */
+  function conObligatoriaPendiente() {
+    B.datos.fotofficeStage.find((e) => e.id === "s1")!.requireTasks = true;
+    B.agregar("fotofficeTask", { workspaceId: "ws-1", journeyId: "j1", stageId: "s1", title: "Enviar presupuesto", required: true, doneAt: null });
+    B.agregar("fotofficeTask", { workspaceId: "ws-1", journeyId: "j2", stageId: "s1", title: "Enviar presupuesto", required: true, doneAt: new Date() });
+  }
+  const STAFF: Ctx = { ...CTX, userId: 8, userLabel: "Beto", role: "STAFF" };
+
+  it("con tareas obligatorias pendientes, quien no puede configurar no la pasa (queda excluida)", async () => {
+    conObligatoriaPendiente();
+    const p = await prepararLote(def, accion("circuito"), STAFF, ids(["l1", "l2"]), "c2", HOY);
+    expect(p).toMatchObject({ ok: true, cantidad: 1, excluidos: [{ id: "l1", motivo: MOTIVOS_LOTE.tareasPendientes }] });
+    // Si igual llega al motor (cambió entre confirmar y aplicar), el motor la rechaza.
+    const r = await accion("circuito").aplicar(STAFF, ["l1", "l2"], "c2");
+    expect(r.aplicados).toBe(1);
+    expect(r.fallidos).toEqual([{ id: "l1", error: "Faltan tareas obligatorias: Enviar presupuesto." }]);
+    expect(recorrido("j1")).toMatchObject({ circuitId: "c1", stageId: "s1" });
+    expect(recorrido("j2")).toMatchObject({ circuitId: "c2", stageId: "b1" });
+  });
+
+  it("con tareas obligatorias pendientes, quien puede configurar la pasa igual y queda marcado", async () => {
+    conObligatoriaPendiente();
+    const { preparacion, aplicado } = await correr("circuito", ["l1"], "c2");
+    expect(preparacion).toMatchObject({ ok: true, cantidad: 1, excluidos: [] });
+    expect(aplicado).toMatchObject({ estado: "hecho", resultado: { aplicados: 1 } });
+    expect(pasos("j1")).toEqual([expect.objectContaining({ toStageId: "b1", forcedWithPendingTasks: true })]);
+  });
+
+  it("si la etapa no exige tareas, las obligatorias pendientes no frenan", async () => {
+    conObligatoriaPendiente();
+    B.datos.fotofficeStage.find((e) => e.id === "s1")!.requireTasks = false;
+    const p = await prepararLote(def, accion("circuito"), STAFF, ids(["l1"]), "c2", HOY);
+    expect(p).toMatchObject({ ok: true, cantidad: 1, excluidos: [] });
+    expect((await accion("circuito").aplicar(STAFF, ["l1"], "c2")).aplicados).toBe(1);
+    expect(pasos("j1")).toEqual([expect.objectContaining({ forcedWithPendingTasks: false })]);
+  });
+
   it("una falla de una consulta no frena a las demás y queda con su motivo", async () => {
     // Otra pestaña la cerró entre confirmar y aplicar.
     const r = await accion("circuito").aplicar(CTX, ["l2", "l-cerrada", "l1"], "c2");

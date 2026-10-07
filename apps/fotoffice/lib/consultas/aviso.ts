@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
+import { moduloDeRegistroEncendido } from "@/lib/campos/modulos";
 import { avisarEquipoConsultaNueva, type ResultadoAutomatico } from "@/lib/plantillas/automaticos";
 import type { DepsEnvio } from "@/lib/plantillas/envio";
 import { inicioDelDiaAR } from "@/lib/plantillas/envio";
@@ -13,6 +14,11 @@ import { AJUSTES_DE_FABRICA, leerAjustes, puedeSerResponsable, type AjustesConsu
  *
  * Destinatario: el responsable de la consulta (si el alta lo eligió), si no el de los ajustes, y
  * si ninguno sirve (ya no es del equipo o perdió "Gestionar" en Consultas), el dueño.
+ *
+ * Con Consultas (service-leads) apagado no se avisa nada: la consulta no se ve en ningún lado.
+ *
+ * Altas a mano (MANUAL o RAPIDA): quien la carga ya la conoce, así que no hay correo; la tarea
+ * sólo se crea si el destinatario es otra persona (si es quien la cargó, no hay ni tarea).
  *
  * Nunca lanza: la consulta ya quedó creada. Los errores van al registro sólo con su código.
  */
@@ -66,17 +72,31 @@ export async function destinatarioDelAviso(
 export async function avisarConsultaNueva(
   workspaceId: string,
   leadId: string,
-  opciones: { responsableUserId?: number | null } = {},
+  opciones: {
+    responsableUserId?: number | null;
+    /** Cómo se dio de alta. MANUAL y RAPIDA: sin correo (ver arriba). */
+    origenDelAlta?: "MANUAL" | "RAPIDA" | "WEB" | "IMPORTACION";
+    /** Quien la cargó (null: el sistema). */
+    creadorUserId?: number | null;
+  } = {},
   deps: DepsAviso = {},
 ): Promise<ResultadoAviso> {
   const resultado: ResultadoAviso = { destinatarioUserId: null, correo: "OMITIDO", tarea: "OMITIDA" };
+  try {
+    if (!(await moduloDeRegistroEncendido(workspaceId, "CONSULTA"))) return resultado;
+  } catch (error) {
+    registrarFalla("moduloDeRegistroEncendido", error);
+    return resultado;
+  }
+  const aMano = opciones.origenDelAlta === "MANUAL" || opciones.origenDelAlta === "RAPIDA";
   let ajustes: AjustesConsultas = AJUSTES_DE_FABRICA;
   try {
     ajustes = await leerAjustes(workspaceId);
   } catch (error) {
     registrarFalla("leerAjustes", error);
   }
-  if (!ajustes.crearTarea && !ajustes.notificarCorreo) return resultado;
+  const notificarCorreo = ajustes.notificarCorreo && !aMano;
+  if (!ajustes.crearTarea && !notificarCorreo) return resultado;
 
   try {
     resultado.destinatarioUserId = await destinatarioDelAviso(workspaceId, [opciones.responsableUserId, ajustes.responsableUserId], deps);
@@ -84,8 +104,10 @@ export async function avisarConsultaNueva(
     registrarFalla("destinatarioDelAviso", error);
   }
   const para = resultado.destinatarioUserId;
+  // Cargada a mano por quien la recibiría: ya la tiene, no hace falta ni la tarea.
+  const paraQuienLaCargo = aMano && typeof opciones.creadorUserId === "number" && para === opciones.creadorUserId;
 
-  if (ajustes.crearTarea) {
+  if (ajustes.crearTarea && !paraQuienLaCargo) {
     try {
       const ahora = (deps.ahora ?? (() => new Date()))();
       const recorrido = await prisma.fotofficeJourney.findFirst({
@@ -115,7 +137,7 @@ export async function avisarConsultaNueva(
     }
   }
 
-  if (ajustes.notificarCorreo) {
+  if (notificarCorreo) {
     if (para === null) {
       resultado.correo = "SIN_DESTINATARIO";
     } else {

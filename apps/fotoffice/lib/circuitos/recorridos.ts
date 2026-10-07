@@ -487,6 +487,9 @@ export async function asignarResponsable(
  * Es el mismo recorrido (conserva responsable e historial): el paso queda con la nota
  * "Pasó al circuito «…»". Las tareas de la etapa anterior quedan como están. Con `esperado`,
  * sólo lo pasa si el recorrido sigue en la etapa desde ese momento.
+ *
+ * Como "Pasar igual": si la etapa actual exige tareas y tiene obligatorias sin tildar, sólo quien
+ * puede `configurar` lo pasa (el paso queda marcado como forzado); los demás reciben el rechazo.
  */
 export async function cambiarDeCircuito(
   ctx: CtxCircuitos,
@@ -503,6 +506,14 @@ export async function cambiarDeCircuito(
     });
     if (!circuito) throw new Rechazo(MENSAJES.circuitoInvalido);
     if (circuito.id === j.circuitId) throw new Rechazo(MENSAJES.mismoCircuito);
+    const actual = await tx.fotofficeStage.findFirst({
+      where: { id: j.stageId, circuit: { workspaceId } },
+      select: { requireTasks: true },
+    });
+    const pendientes = actual?.requireTasks ? await obligatoriasPendientes(tx, workspaceId, j.id, j.stageId) : [];
+    if (pendientes.length > 0 && !puede(ctx.role, "configurar")) {
+      throw new Rechazo(mensajeTareasPendientes(pendientes), pendientes);
+    }
     const primera = await tx.fotofficeStage.findFirst({
       where: { circuitId: circuito.id, circuit: { workspaceId }, archivedAt: null },
       select: { id: true, days: true, leadStatus: true },
@@ -522,6 +533,7 @@ export async function cambiarDeCircuito(
         fromStageId: j.stageId,
         toStageId: primera.id,
         note: `Pasó al circuito «${circuito.name}».`,
+        forcedWithPendingTasks: pendientes.length > 0,
         actorUserId: ctx.userId,
         actorLabel: ctx.userLabel,
         createdAt: ahora,

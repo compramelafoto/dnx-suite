@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { createServiceLead } from "@/app/actions/service-lead";
+import { CampoTrampa } from "@/components/consultas/campo-trampa";
+import { CAMPO_TRAMPA } from "@/lib/consultas/trampa";
 
 type XvFormConfig = {
   postSubmitAction?: {
@@ -88,6 +90,7 @@ export function PublicServiceLeadForm({
           eventDate: formData.get("eventDate")?.toString() ?? "",
           eventLocation: formData.get("eventLocation")?.toString() ?? "",
           message: formData.get("message")?.toString() ?? "",
+          [CAMPO_TRAMPA]: formData.get(CAMPO_TRAMPA)?.toString() ?? "",
         };
 
         startTransition(async () => {
@@ -101,6 +104,7 @@ export function PublicServiceLeadForm({
         });
       }}
     >
+      <CampoTrampa />
       <div className="fo-field-stack">
         <label className="fo-label" htmlFor="xv-name">
           Nombre

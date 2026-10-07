@@ -152,3 +152,32 @@ describe("abuso del formulario público", () => {
     expect(await createServiceLead(ENTRADA)).toEqual({ success: true });
   });
 });
+
+describe("campo trampa", () => {
+  it("lleno: responde como éxito, no crea nada y loguea sólo el código", async () => {
+    const avisos = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(await createServiceLead({ ...ENTRADA, website2: "http://spam.test" })).toEqual({ success: true });
+    expect(H.alta).not.toHaveBeenCalled();
+    expect(H.branding).not.toHaveBeenCalled();
+    expect(JSON.stringify(avisos.mock.calls)).toContain("CAMPO_TRAMPA");
+    expect(JSON.stringify(avisos.mock.calls)).not.toMatch(/laura|spam/i);
+    avisos.mockRestore();
+  });
+
+  it("vacío o con espacios: alta normal", async () => {
+    expect(await createServiceLead({ ...ENTRADA, website2: "  " })).toEqual({ success: true });
+    expect(H.alta).toHaveBeenCalledTimes(1);
+  });
+
+  it("los dos formularios públicos lo dibujan oculto y lo mandan", () => {
+    const campo = readFileSync(path.join(process.cwd(), "components/consultas/campo-trampa.tsx"), "utf8");
+    expect(campo).toContain('aria-hidden="true"');
+    expect(campo).toContain("tabIndex={-1}");
+    expect(campo).toContain('autoComplete="off"');
+    for (const f of ["app/w/[workspaceSlug]/xv/public-service-lead-form.tsx", "app/w/[workspaceSlug]/public-dynamic-service-lead-form.tsx"]) {
+      const fuente = readFileSync(path.join(process.cwd(), f), "utf8");
+      expect(fuente).toContain("<CampoTrampa />");
+      expect(fuente).toContain('[CAMPO_TRAMPA]: formData.get(CAMPO_TRAMPA)?.toString() ?? ""');
+    }
+  });
+});

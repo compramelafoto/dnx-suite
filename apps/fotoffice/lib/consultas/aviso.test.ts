@@ -10,6 +10,7 @@ const B = await vi.hoisted(async () => {
 const H = vi.hoisted(() => ({
   transporte: vi.fn(async (_m: unknown) => ({ status: "SENT", providerId: "no-deberia" })),
   nivel: vi.fn(async (..._a: unknown[]) => true),
+  modulo: vi.fn(async (..._a: unknown[]) => true),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -26,7 +27,7 @@ vi.mock("@/lib/communications/load-workspace-signature", () => ({
     contact: { email: "hola@estudio.test", phone: null, whatsapp: null, website: null, instagram: null, city: null },
   }),
 }));
-vi.mock("@/lib/modules/gating", () => ({ isModuleEnabledForWorkspace: async () => true }));
+vi.mock("@/lib/modules/gating", () => ({ isModuleEnabledForWorkspace: H.modulo }));
 vi.mock("@/lib/circuitos/eventos", () => ({ notificarEvento: async () => ({ movido: true }) }));
 
 const V = await import("./aviso");
@@ -49,6 +50,8 @@ beforeEach(() => {
   H.nivel.mockReset();
   H.nivel.mockResolvedValue(true);
   H.transporte.mockClear();
+  H.modulo.mockReset();
+  H.modulo.mockResolvedValue(true);
   B.agregar("user", { id: 1, email: "duena@estudio.test", name: "Dueña" });
   B.agregar("user", { id: 5, email: "vendedor@estudio.test", name: "Vendedor" });
   B.agregar("workspaceMembership", { userId: 1, workspaceId: "ws-1", role: "WORKSPACE_OWNER", createdAt: new Date("2025-01-01") });
@@ -236,5 +239,38 @@ describe("avisarConsultaNueva", () => {
     B.datos.fotofficeJourney = [];
     await V.avisarConsultaNueva("ws-1", "l1", {}, deps);
     expect(tareas()[0]).toMatchObject({ journeyId: null, subjectId: "l1" });
+  });
+
+  it("con Consultas apagado no avisa nada: ni correo ni tarea", async () => {
+    H.modulo.mockImplementation(async (_ws: unknown, modulo: unknown) => modulo !== "service-leads");
+    expect(await V.avisarConsultaNueva("ws-1", "l1", {}, deps)).toEqual({ destinatarioUserId: null, correo: "OMITIDO", tarea: "OMITIDA" });
+    expect(tareas()).toHaveLength(0);
+    expect(enviar).not.toHaveBeenCalled();
+  });
+
+  it("alta a mano por otra persona: sin correo, con tarea para el responsable", async () => {
+    for (const origenDelAlta of ["MANUAL", "RAPIDA"] as const) {
+      B.datos.fotofficeTask = [];
+      const r = await V.avisarConsultaNueva("ws-1", "l1", { origenDelAlta, creadorUserId: 5 }, deps);
+      expect(r).toEqual({ destinatarioUserId: 1, correo: "OMITIDO", tarea: "CREADA" });
+      expect(tareas()[0]).toMatchObject({ assigneeUserId: 1 });
+    }
+    expect(enviar).not.toHaveBeenCalled();
+  });
+
+  it("alta a mano por el mismo destinatario: ni correo ni tarea", async () => {
+    const r = await V.avisarConsultaNueva("ws-1", "l1", { origenDelAlta: "MANUAL", creadorUserId: 1 }, deps);
+    expect(r).toMatchObject({ destinatarioUserId: 1, correo: "OMITIDO", tarea: "OMITIDA" });
+    expect(tareas()).toHaveLength(0);
+    expect(enviar).not.toHaveBeenCalled();
+    // Con responsable elegido distinto de quien la carga, la tarea va a él.
+    const otra = await V.avisarConsultaNueva("ws-1", "l1", { origenDelAlta: "RAPIDA", creadorUserId: 1, responsableUserId: 5 }, deps);
+    expect(otra).toMatchObject({ destinatarioUserId: 5, correo: "OMITIDO", tarea: "CREADA" });
+  });
+
+  it("el formulario web avisa por correo como siempre", async () => {
+    expect(await V.avisarConsultaNueva("ws-1", "l1", { origenDelAlta: "WEB", creadorUserId: null }, deps)).toMatchObject({
+      correo: "ENVIADO", tarea: "CREADA",
+    });
   });
 });

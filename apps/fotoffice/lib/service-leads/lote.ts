@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
+import { puede } from "@/lib/access/policy";
 import type { CtxCircuitos } from "@/lib/circuitos/acceso";
 import { SALIDAS } from "@/lib/circuitos/constantes";
 import { finDelDiaElegido } from "@/lib/circuitos/ficha-vista";
@@ -29,9 +30,10 @@ export const MOTIVOS_LOTE = {
   mismaFecha: "ya tiene esa siguiente acción",
   mismoCircuito: "ya está en ese circuito",
   opcion: "la opción elegida ya no es válida",
+  tareasPendientes: "tiene tareas obligatorias pendientes",
 } as const;
 
-type Abierto = { journeyId: string; ownerUserId: number | null; circuitId: string; stageDueAt: Date | null };
+type Abierto = { journeyId: string; ownerUserId: number | null; circuitId: string; stageId: string | null; stageDueAt: Date | null };
 type Excluido = { id: string; motivo: string };
 
 function motor(ctx: ContextoListado): CtxCircuitos {
@@ -44,12 +46,34 @@ export async function recorridosAbiertos(workspaceId: string, leadIds: readonly 
   if (leadIds.length === 0) return mapa;
   const filas = await prisma.fotofficeJourney.findMany({
     where: { workspaceId, subjectType: "CAPTACION", kind: "VENTA", closedAt: null, subjectId: { in: [...leadIds] } },
-    select: { id: true, subjectId: true, ownerUserId: true, circuitId: true, stageDueAt: true },
+    select: { id: true, subjectId: true, ownerUserId: true, circuitId: true, stageId: true, stageDueAt: true },
   });
   for (const j of filas) {
-    mapa.set(j.subjectId, { journeyId: j.id, ownerUserId: j.ownerUserId, circuitId: j.circuitId, stageDueAt: j.stageDueAt });
+    mapa.set(j.subjectId, { journeyId: j.id, ownerUserId: j.ownerUserId, circuitId: j.circuitId, stageId: j.stageId, stageDueAt: j.stageDueAt });
   }
   return mapa;
+}
+
+/**
+ * Los recorridos cuya etapa actual exige tareas y tiene obligatorias sin tildar (la misma regla
+ * del motor para avanzar o cambiar de circuito). Una lectura por tabla para todo el lote.
+ */
+async function conObligatoriasPendientes(workspaceId: string, abiertos: Abierto[]): Promise<Set<string>> {
+  const conEtapa = abiertos.filter((a) => a.stageId !== null);
+  if (conEtapa.length === 0) return new Set();
+  const exigen = await prisma.fotofficeStage.findMany({
+    where: { id: { in: [...new Set(conEtapa.map((a) => a.stageId!))] }, circuit: { workspaceId }, requireTasks: true },
+    select: { id: true },
+  });
+  const etapas = new Set(exigen.map((e) => e.id));
+  const candidatos = conEtapa.filter((a) => etapas.has(a.stageId!));
+  if (candidatos.length === 0) return new Set();
+  const tareas = await prisma.fotofficeTask.findMany({
+    where: { workspaceId, journeyId: { in: candidatos.map((a) => a.journeyId) }, required: true, doneAt: null },
+    select: { journeyId: true, stageId: true },
+  });
+  const etapaDe = new Map(candidatos.map((a) => [a.journeyId, a.stageId]));
+  return new Set(tareas.filter((t) => t.journeyId !== null && etapaDe.get(t.journeyId) === t.stageId).map((t) => t.journeyId!));
 }
 
 /** Separa las consultas sin recorrido abierto y las que la acción dejaría igual. */
@@ -196,7 +220,21 @@ export const ACCIONES_CONSULTAS: AccionLote[] = [
     maximo: MAXIMO_LOTE_CONSULTAS,
     confirmacion: "Vas a pasar {n} consultas al circuito «{parametro}». Empiezan en su primera etapa.",
     parametro: { etiqueta: "Circuito", opciones: opcionesDeCircuito },
-    elegibles: (ctx, ids, parametro) => separar(ctx, ids, (a) => (a.circuitId === parametro ? MOTIVOS_LOTE.mismoCircuito : null)),
+    elegibles: async (ctx, ids, parametro) => {
+      const r = await separar(ctx, ids, (a) => (a.circuitId === parametro ? MOTIVOS_LOTE.mismoCircuito : null));
+      // Con obligatorias pendientes sólo pasa quien puede `configurar` (como "Pasar igual").
+      if (puede(ctx.role, "configurar") || r.elegibles.length === 0) return r;
+      const abiertos = await recorridosAbiertos(ctx.workspaceId, r.elegibles);
+      const frenados = await conObligatoriasPendientes(ctx.workspaceId, [...abiertos.values()]);
+      if (frenados.size === 0) return r;
+      const elegibles: string[] = [];
+      for (const id of r.elegibles) {
+        const a = abiertos.get(id);
+        if (a && frenados.has(a.journeyId)) r.excluidos.push({ id, motivo: MOTIVOS_LOTE.tareasPendientes });
+        else elegibles.push(id);
+      }
+      return { elegibles, excluidos: r.excluidos };
+    },
     aplicar: (ctx, ids, parametro) =>
       porConsulta(
         ctx,

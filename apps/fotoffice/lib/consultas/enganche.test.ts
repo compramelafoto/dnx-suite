@@ -104,6 +104,33 @@ describe("engancharConsultasExistentes", () => {
     expect(await E.engancharConsultasExistentes("ws-1")).toEqual({ enganchadas: 1, completo: true });
   });
 
+  it("las que fallan siempre al principio no traban al resto: cuentan sólo las enganchadas, con tope de intentos", async () => {
+    // 5 que fallan siempre (las más viejas) y 12 sanas; tope 5 → hasta 10 intentos por llamada.
+    for (let i = 0; i < 17; i++) lead(`l${String(i).padStart(2, "0")}`, { createdAt: new Date(Date.UTC(2026, 0, 1, 0, i)) });
+    const trabadas = new Set(["l00", "l01", "l02", "l03", "l04"]);
+    const original = B.tablas.fotofficeConsulta.create;
+    let intentos = 0;
+    B.tablas.fotofficeConsulta.create = async (a) => {
+      intentos++;
+      if (trabadas.has((a as { data: { leadId: string } }).data.leadId)) throw Object.assign(new Error("x"), { code: "P1001" });
+      return original(a);
+    };
+    expect(await E.engancharConsultasExistentes("ws-1", 5)).toEqual({ enganchadas: 5, completo: false });
+    expect(intentos).toBe(10);
+    expect(await E.engancharConsultasExistentes("ws-1", 5)).toEqual({ enganchadas: 5, completo: false });
+    // Quedan las 5 trabadas y 2 sanas: se enganchan las sanas y la llamada termina (no hay más).
+    intentos = 0;
+    expect(await E.engancharConsultasExistentes("ws-1", 5)).toEqual({ enganchadas: 2, completo: false });
+    expect(intentos).toBe(7);
+    expect(await E.contarSinFicha("ws-1")).toBe(5);
+    // Todas trabadas: el trabajo sigue acotado (2 × tope).
+    intentos = 0;
+    expect(await E.engancharConsultasExistentes("ws-1", 2)).toEqual({ enganchadas: 0, completo: false });
+    expect(intentos).toBe(4);
+    B.tablas.fotofficeConsulta.create = original;
+    expect(await E.engancharConsultasExistentes("ws-1", 5)).toEqual({ enganchadas: 5, completo: true });
+  });
+
   it("siembra los catálogos si faltan; una categoría archivada sigue valiendo para lo viejo", async () => {
     lead("l1", { eventType: "BODA" }, "ws-2");
     expect(await E.engancharConsultasExistentes("ws-2")).toEqual({ enganchadas: 1, completo: true });

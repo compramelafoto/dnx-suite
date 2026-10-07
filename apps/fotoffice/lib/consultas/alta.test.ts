@@ -101,12 +101,12 @@ describe("altaDeConsulta: la transacción", () => {
     for (const f of [H.numerar, H.notificar, H.avisar, H.responder]) expect(f).not.toHaveBeenCalled();
   });
 
-  it("una falla de la base (no de validación) devuelve un error genérico y loguea sólo el código", async () => {
+  it("una falla de la base (no de validación) en un alta del equipo devuelve un error genérico y loguea sólo el código", async () => {
     const original = B.tablas.fotofficeConsulta.create;
     B.tablas.fotofficeConsulta.create = async () => {
       throw Object.assign(new Error("Laura Pérez laura@persona.test"), { code: "P2003" });
     };
-    expect(await A.altaDeConsulta(SISTEMA, ENTRADA, WEB)).toEqual({ ok: false, error: M.fallo });
+    expect(await A.altaDeConsulta(EQUIPO, ENTRADA, MANUAL)).toEqual({ ok: false, error: M.fallo });
     B.tablas.fotofficeConsulta.create = original;
     expect(leads()).toHaveLength(0);
     expect(JSON.stringify(errores.mock.calls)).toContain("P2003");
@@ -211,7 +211,7 @@ describe("altaDeConsulta: la transacción", () => {
     expect(r.ok).toBe(true);
     // El responsable queda en el recorrido y se le pasa al aviso.
     expect(B.datos.fotofficeJourney[0]).toMatchObject({ ownerUserId: 5 });
-    expect(H.avisar).toHaveBeenCalledWith("ws-1", r.ok && r.leadId, { responsableUserId: 5 }, {});
+    expect(H.avisar).toHaveBeenCalledWith("ws-1", r.ok && r.leadId, { responsableUserId: 5, origenDelAlta: "MANUAL", creadorUserId: 7 }, {});
     expect(leads()).toHaveLength(1);
   });
 
@@ -226,6 +226,115 @@ describe("altaDeConsulta: la transacción", () => {
   });
 });
 
+describe("altaDeConsulta: el formulario web nunca pierde una consulta", () => {
+  const FORMULARIO = {
+    ...ENTRADA,
+    eventSubtype: "Civil",
+    eventDate: new Date("2026-12-20"),
+    eventLocation: "Salón Real",
+    message: "Queremos fotos",
+    metaJson: { budgetType: "Civil" },
+    formId: "f1",
+    formSlug: "bodas",
+  };
+  const falla = (code: string) => Object.assign(new Error("Laura Pérez laura@persona.test"), { code });
+  const originales = {
+    client: B.tablas.client.createMany,
+    categorias: B.tablas.fotofficeConsultaCategoria.createMany,
+    consulta: B.tablas.fotofficeConsulta.create,
+    lead: B.tablas.serviceSalesLead.create,
+  };
+  afterEach(() => {
+    B.tablas.client.createMany = originales.client;
+    B.tablas.fotofficeConsultaCategoria.createMany = originales.categorias;
+    B.tablas.fotofficeConsulta.create = originales.consulta;
+    B.tablas.serviceSalesLead.create = originales.lead;
+  });
+
+  /** Quedó sólo la consulta vieja, con los campos de siempre, y corrieron los pasos de después. */
+  async function quedoSoloLaConsultaVieja() {
+    B.agregar("serviceLeadForm", { id: "f1", workspaceId: "ws-1", slug: "bodas" });
+    const r = await A.altaDeConsulta(SISTEMA, FORMULARIO, WEB);
+    expect(r).toMatchObject({ ok: true, sinFicha: true, consultaId: null, clientId: null });
+    expect(leads()).toHaveLength(1);
+    expect(leads()[0]).toMatchObject({
+      workspaceId: "ws-1", formId: "f1", formSlug: "bodas", name: "Laura Pérez", email: "laura@persona.test",
+      phone: "341 555-0000", eventType: "BODA", eventSubtype: "Civil", eventDate: new Date("2026-12-20"),
+      eventLocation: "Salón Real", message: "Queremos fotos", metaJson: { budgetType: "Civil" }, status: "NEW",
+    });
+    expect(consultas()).toHaveLength(0);
+    expect(B.datos.client).toHaveLength(0);
+    const leadId = r.ok ? r.leadId : "";
+    expect(H.numerar).toHaveBeenCalledWith("ws-1", leadId, expect.any(Date));
+    expect(H.notificar).toHaveBeenCalledWith("ws-1", { tipo: "CAPTACION", id: leadId }, "CONSULTA_RECIBIDA", leadId);
+    expect(H.avisar).toHaveBeenCalledTimes(1);
+    expect(H.responder).toHaveBeenCalledWith("ws-1", leadId);
+    return r;
+  }
+
+  it("bloqueo vencido (P2028) en la transacción", async () => {
+    B.ganchos.alEjecutarSql = (texto) => {
+      if (texto.includes("pg_advisory_xact_lock")) throw falla("P2028");
+    };
+    await quedoSoloLaConsultaVieja();
+    expect(JSON.stringify(errores.mock.calls)).toContain("P2028");
+  });
+
+  it("sin número de cliente después de los reintentos", async () => {
+    // Las tres veces otra alta "ganó" el número: `createMany` no inserta nada.
+    B.tablas.client.createMany = async () => ({ count: 0 });
+    await quedoSoloLaConsultaVieja();
+  });
+
+  it("sin catálogos (no se pudieron sembrar): ninguna categoría", async () => {
+    B.tablas.fotofficeConsultaCategoria.createMany = async () => {
+      throw falla("P1001");
+    };
+    await quedoSoloLaConsultaVieja();
+    expect(B.datos.fotofficeConsultaCategoria).toHaveLength(0);
+    expect(JSON.stringify(errores.mock.calls)).toContain("SIN_CATEGORIA");
+  });
+
+  it("una falla inesperada de la base al crear la ficha", async () => {
+    B.tablas.fotofficeConsulta.create = async () => {
+      throw falla("P2003");
+    };
+    await quedoSoloLaConsultaVieja();
+  });
+
+  it("el formulario de otro workspace no se guarda en el respaldo", async () => {
+    B.tablas.fotofficeConsulta.create = async () => {
+      throw falla("P2003");
+    };
+    B.agregar("serviceLeadForm", { id: "f2", workspaceId: "ws-2", slug: "otra" });
+    const r = await A.altaDeConsulta(SISTEMA, { ...FORMULARIO, formId: "f2" }, WEB);
+    expect(r.ok).toBe(true);
+    expect(leads()[0]).toMatchObject({ formId: null });
+  });
+
+  it("si también falla el respaldo, error genérico; las validaciones siguen rechazando", async () => {
+    B.tablas.fotofficeConsulta.create = async () => {
+      throw falla("P2003");
+    };
+    B.tablas.serviceSalesLead.create = async () => {
+      throw falla("P1001");
+    };
+    expect(await A.altaDeConsulta(SISTEMA, FORMULARIO, WEB)).toEqual({ ok: false, error: M.fallo });
+    expect(await A.altaDeConsulta(SISTEMA, { ...FORMULARIO, message: "x".repeat(A.MAX_MENSAJE_CONSULTA + 1) }, WEB)).toEqual({
+      ok: false, error: M.mensaje,
+    });
+    expect(H.numerar).not.toHaveBeenCalled();
+  });
+
+  it("el equipo no tiene respaldo: sin categoría, se le pide una", async () => {
+    B.tablas.fotofficeConsultaCategoria.createMany = async () => {
+      throw falla("P1001");
+    };
+    expect(await A.altaDeConsulta(EQUIPO, ENTRADA, MANUAL)).toEqual({ ok: false, error: M.categoria });
+    expect(leads()).toHaveLength(0);
+  });
+});
+
 describe("altaDeConsulta: los pasos de después", () => {
   it("en orden: número → circuito → aviso y tarea → respuesta automática (web)", async () => {
     const r = await A.altaDeConsulta(SISTEMA, ENTRADA, WEB);
@@ -233,7 +342,7 @@ describe("altaDeConsulta: los pasos de después", () => {
     if (!r.ok) return;
     expect(H.numerar).toHaveBeenCalledWith("ws-1", r.leadId, expect.any(Date));
     expect(H.notificar).toHaveBeenCalledWith("ws-1", { tipo: "CAPTACION", id: r.leadId }, "CONSULTA_RECIBIDA", r.leadId);
-    expect(H.avisar).toHaveBeenCalledWith("ws-1", r.leadId, { responsableUserId: null }, {});
+    expect(H.avisar).toHaveBeenCalledWith("ws-1", r.leadId, { responsableUserId: null, origenDelAlta: "WEB", creadorUserId: null }, {});
     expect(H.responder).toHaveBeenCalledWith("ws-1", r.leadId);
     expect(orden(H.numerar)).toBeLessThan(orden(H.notificar));
     expect(orden(H.notificar)).toBeLessThan(orden(H.avisar));

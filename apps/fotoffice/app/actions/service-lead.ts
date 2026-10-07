@@ -6,6 +6,7 @@ import { z } from "zod";
 import {
   altaDeConsulta, altaDelSistema, MAX_MENSAJE_CONSULTA, MAX_TEXTO_CONSULTA, MENSAJES_ALTA,
 } from "@/lib/consultas/alta";
+import { CAMPO_TRAMPA, cayoEnLaTrampa } from "@/lib/consultas/trampa";
 import { checkRateLimit, clientIp } from "@/lib/geocode/rate-limit";
 
 /**
@@ -70,6 +71,8 @@ type CreateServiceLeadInput = {
   eventLocation?: string;
   message?: string;
   meta?: Record<string, unknown> | null;
+  /** El campo trampa (`lib/consultas/trampa.ts`): una persona lo deja vacío. */
+  [CAMPO_TRAMPA]?: string;
 };
 
 type CreateServiceLeadResult = { success: true } | { success: false; error: string };
@@ -94,6 +97,11 @@ function parseOptionalDate(value?: string): Date | null {
 export async function createServiceLead(
   input: CreateServiceLeadInput,
 ): Promise<CreateServiceLeadResult> {
+  // Un robot llenó el campo trampa: la misma respuesta que con éxito, sin crear nada.
+  if (cayoEnLaTrampa(input?.[CAMPO_TRAMPA])) {
+    console.warn("[consultas] formulario público descartado", { codigo: "CAMPO_TRAMPA" });
+    return { success: true };
+  }
   try {
     const parsed = serviceLeadSchema.safeParse({
       workspaceSlug: input.workspaceSlug?.trim() ?? "",

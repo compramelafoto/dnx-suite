@@ -147,6 +147,24 @@ export type DatosConsultaFicha = {
   superpuestas: ConsultaSuperpuesta[];
 };
 
+/** Lo que ve quien no tiene "Ver" en Clientes en lugar del nombre de otro contacto (R10). */
+export const CONTACTO_RESERVADO = "Contacto reservado";
+
+/**
+ * Para quien no tiene "Ver" en Clientes (R10): la ficha sin los datos de OTROS contactos (los
+ * posibles duplicados, el nombre del referente y los de los participantes). Se aplica en el
+ * servidor, antes de pasar las props a los componentes de cliente. Los ids quedan (la edición los
+ * reenvía sin cambiarlos) y el contacto de la consulta también (sus datos son los de la consulta).
+ */
+export function sinDatosDeOtrosContactos(datos: DatosConsultaFicha): DatosConsultaFicha {
+  return {
+    ...datos,
+    referente: datos.referente ? { id: datos.referente.id, nombre: CONTACTO_RESERVADO } : null,
+    participantes: datos.participantes.map((p) => ({ ...p, contacto: { id: p.contacto.id, nombre: CONTACTO_RESERVADO } })),
+    posiblesDuplicados: [],
+  };
+}
+
 /** Otros contactos con el mismo correo (sin mayúsculas) o el mismo teléfono (sólo dígitos). */
 export async function posiblesDuplicadosDe(
   workspaceId: string,

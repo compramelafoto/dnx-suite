@@ -18,12 +18,16 @@ sola operación.** Si el código se publica **antes** que el SQL:
 
 - Las tablas nuevas no existen, el sistema intenta sembrar los catálogos (falla, queda sólo un
   error con código en el log) y después la operación de alta falla entera.
-- Como todo va en una única transacción, **no se guarda nada**: ni la consulta ni el contacto.
-  La persona que llena el formulario ve el cartel **"No se pudo registrar el lead."** y la
-  consulta **se pierde** (hay que pedirle que la mande de nuevo).
-- Tampoco funcionan Consultas (tablero, lista, informe, ficha, nueva) ni el aviso al equipo.
+- **Respaldo del formulario público:** cuando esa operación falla por algo que no es un dato
+  mal cargado (tabla inexistente, bloqueo vencido, base caída, ninguna categoría), el formulario
+  guarda **sólo la consulta vieja** (`ServiceSalesLead`), con los mismos campos que antes de esta
+  etapa, y le da número, circuito, aviso y respuesta automática igual. La persona ve el cartel de
+  éxito. En el log queda `[consultas] altaDeConsulta falló` con el código y después
+  `[consultas] alta web guardada sin ficha` (`ALTA_WEB_RESPALDO`). Cuando las tablas existan, el
+  enganche le pone contacto y categoría al abrir Consultas.
+- Aun así **no funcionan Consultas** (tablero, lista, informe, ficha, nueva) hasta aplicar el SQL.
 
-Por eso **el SQL se aplica primero, siempre**. Con el SQL ya aplicado y el código viejo todavía
+Por eso **el SQL se aplica primero, siempre** (el respaldo es una red, no el plan). Con el SQL ya aplicado y el código viejo todavía
 publicado no pasa nada: las tablas nuevas simplemente no se usan.
 
 Qué lee cada tabla (confirmado en el código de `apps/fotoffice`):
@@ -192,7 +196,8 @@ SELECT k.name, k."group", count(c.*) FROM "FotofficeConsultaCategoria" k
 ## 5. Rollback
 
 **Primero el código, después las tablas.** Si se borran las tablas con el código nuevo
-publicado, el formulario público deja de guardar consultas (ver la advertencia crítica).
+publicado, el formulario público sigue guardando la consulta vieja por el respaldo (ver la
+advertencia crítica), pero Consultas deja de funcionar.
 
 1. Revertir el PR (o volver a publicar en Vercel el deploy anterior de FOTOFFICE) y confirmar
    que producción ya sirve la versión anterior.
@@ -224,21 +229,32 @@ Todo en **DNX Estudio**, con datos de prueba que después se archivan.
    correo de Daniel. Debe aparecer en Consultas, **enganchada a un contacto** (si el correo ya
    existía, usa ese contacto; si no, crea uno nuevo como CONTACTO), con su categoría equivalente
    al tipo de evento, y **crear la tarea "Responder consulta" del equipo** (y el aviso por
-   correo si está encendido).
+   correo si está encendido). Con el módulo Consultas apagado no hay ni aviso ni tarea.
+   El formulario tiene un **campo trampa** invisible (`website2`): si un robot lo llena, ve el
+   mismo cartel de éxito pero no se guarda nada (en el log, sólo el código `CAMPO_TRAMPA`).
 2. **Nueva consulta a mano (boda):** Consultas → Nueva consulta, categoría de boda, cargar
    **novios**, **lugares** (ceremonia y recepción), invitados y valor estimado, más un
    participante con rol. Poner una **fecha que coincida con otra consulta ya cargada**: debe
-   aparecer el **aviso de fecha superpuesta** (no impide guardar).
+   aparecer el **aviso de fecha superpuesta** (no impide guardar). Las altas a mano (nueva y
+   rápida) **no mandan el correo de aviso**: la tarea "Responder consulta" se crea sólo si el
+   responsable es otra persona; si quien la carga es el responsable, no hay ni correo ni tarea.
 3. **Alta rápida:** en el tablero, agregar una consulta con el alta rápida **en la columna del
    circuito predeterminado**: debe caer en la primera etapa del circuito.
 4. **Acción en lote:** seleccionar **3 consultas** y **asignar responsable**; las tres deben
-   mostrar el nuevo responsable (y cada una, su entrada en el historial).
+   mostrar el nuevo responsable (y cada una, su entrada en el historial). **Pasar a otro
+   circuito** deja afuera, con el motivo "tiene tareas obligatorias pendientes", las consultas
+   cuya etapa exige tareas y tiene obligatorias sin tildar, salvo para quien puede configurar
+   (como "Pasar igual"; el paso queda marcado como forzado).
 5. **Totales del tablero:** el total (valor estimado) al pie de cada columna debe coincidir con
    la suma de las tarjetas de esa columna; probar también con el filtro de categoría.
 6. **Enganche de las consultas viejas:** abrir Consultas dos o tres veces y correr las
-   verificaciones posteriores de la sección 4 hasta que `sin_ficha` llegue a 0.
+   verificaciones posteriores de la sección 4 hasta que `sin_ficha` llegue a 0. Una consulta que
+   falla no traba a las demás: cada vez se engancha hasta el lote (50) intentando como mucho el
+   doble, y las que fallan se reintentan la próxima vez.
 7. **Limpieza:** archivar las consultas de prueba.
 
-Si el formulario público devuelve "No se pudo registrar el lead.", casi seguro falta aplicar
-el SQL (o falló): mirar el log de Vercel de FOTOFFICE; busca la línea `[consultas] altaDeConsulta falló`
-con su código (por ejemplo `P2021` = la tabla no existe).
+Si en el log de Vercel de FOTOFFICE aparece `[consultas] alta web guardada sin ficha`, la
+consulta se guardó por el respaldo: casi seguro falta aplicar el SQL (o falló). La línea
+anterior, `[consultas] altaDeConsulta falló`, trae el código (por ejemplo `P2021` = la tabla no
+existe). Si el formulario devuelve "No se pudo registrar el lead.", falló también el respaldo
+(la base no responde).
