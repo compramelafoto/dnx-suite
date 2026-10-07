@@ -25,7 +25,8 @@ import { asegurarCatalogosDelWorkspace } from "./semillas";
  * Después, fuera de la transacción y cada paso aislado (si uno falla, la consulta queda igual y
  * los demás corren), en este orden:
  *   1. número (0.5);
- *   2. circuito (0.4): entra a la primera etapa del circuito predeterminado;
+ *   2. circuito (0.4): entra a la primera etapa del circuito predeterminado (la importación,
+ *      sin las tareas automáticas de la etapa);
  *   3. aviso al equipo y tarea "Responder consulta" (salvo en la importación);
  *   4. respuesta automática a la persona (0.6), SÓLO desde el formulario web.
  *
@@ -432,7 +433,10 @@ export async function altaDeConsulta(
 
   // 2. Circuito: primera etapa del predeterminado y, si se eligió, su responsable.
   try {
-    await notificarEvento(workspaceId, { tipo: "CAPTACION", id: leadId }, "CONSULTA_RECIBIDA", leadId);
+    // La importación CSV entra al circuito sin las tareas automáticas de la etapa (spec §3.6).
+    await notificarEvento(workspaceId, { tipo: "CAPTACION", id: leadId }, "CONSULTA_RECIBIDA", leadId, {
+      sinTareas: origenDelAlta === "IMPORTACION",
+    });
     if (v.responsableUserId !== null) {
       await prisma.fotofficeJourney.updateMany({
         where: { workspaceId, subjectType: "CAPTACION", subjectId: leadId, kind: "VENTA", closedAt: null },

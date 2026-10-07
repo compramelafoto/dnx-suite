@@ -72,6 +72,15 @@ describe("notificarEvento: CONSULTA_RECIBIDA", () => {
     expect(H.asegurar).not.toHaveBeenCalled();
   });
 
+  it("con `sinTareas` (importación CSV) entra sin las tareas de la etapa; sin la opción, con ellas", async () => {
+    B.agregar("fotofficeStageTaskTemplate", { stageId: "s1", title: "Llamar", required: true, order: 0 });
+    B.agregar("serviceSalesLead", { id: "lead-2", workspaceId: "ws-1", name: "Pedro", eventType: "BODA", status: "NEW" });
+    expect(await E.notificarEvento("ws-1", CONSULTA, "CONSULTA_RECIBIDA", "lead-1", { sinTareas: true })).toEqual({ movido: true });
+    expect(B.datos.fotofficeTask.filter((t) => t.subjectId === "lead-1")).toHaveLength(0);
+    expect(await E.notificarEvento("ws-1", { tipo: "CAPTACION", id: "lead-2" }, "CONSULTA_RECIBIDA", "lead-2")).toEqual({ movido: true });
+    expect(B.datos.fotofficeTask.filter((t) => t.subjectId === "lead-2")).toHaveLength(1);
+  });
+
   it("sin ningún circuito, carga los iniciales con el slug público antes de empezar", async () => {
     B.vaciar();
     B.agregar("serviceSalesLead", { id: "lead-1", workspaceId: "ws-1", name: "Laura", eventType: "BODA", status: "NEW" });

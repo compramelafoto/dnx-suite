@@ -30,6 +30,13 @@ export const OPCIONES_TRANSACCION = { timeout: 15_000 };
  */
 export type Importacion = { fecha: Date; nota: string };
 
+/**
+ * `sinTareas`: no crea las tareas modelo de la etapa en la que se entra. Lo usa la importación
+ * CSV de consultas (spec §3.6): una consulta vieja cargada de una planilla no tiene que llenar el
+ * tablero de tareas automáticas. Todos los demás caminos las crean como siempre.
+ */
+export type OpcionesDeEntrada = { sinTareas?: boolean };
+
 export const MENSAJES = {
   noEncontrado: "No encontramos ese registro.",
   otroCircuito: "Esa etapa no es de este circuito.",
@@ -148,6 +155,7 @@ export async function iniciarEnTransaccion(
   circuitoId?: string,
   leido?: { kind: string | null },
   importacion?: Importacion,
+  opcionesEntrada: OpcionesDeEntrada = {},
 ): Promise<{ journeyId: string }> {
   const adaptador = adaptadorDe(sujeto.tipo);
   if (!adaptador) throw new Error(MENSAJES.noEncontrado);
@@ -198,7 +206,7 @@ export async function iniciarEnTransaccion(
       createdAt: entrada,
     },
   });
-  await crearTareasDeEtapa(tx, ctx, j, primera.id, ahora);
+  if (!opcionesEntrada.sinTareas) await crearTareasDeEtapa(tx, ctx, j, primera.id, ahora);
   return { journeyId: j.id };
 }
 
@@ -208,12 +216,17 @@ export async function iniciarEnTransaccion(
  * No toca el estado compatible del registro: entrar al circuito no es un cambio de estado.
  * Lanza si el registro no es del workspace o no hay circuito/etapa donde empezar.
  */
-export async function iniciarRecorrido(ctx: CtxCircuitos, sujeto: Sujeto, circuitoId?: string): Promise<{ journeyId: string }> {
+export async function iniciarRecorrido(
+  ctx: CtxCircuitos,
+  sujeto: Sujeto,
+  circuitoId?: string,
+  opcionesEntrada: OpcionesDeEntrada = {},
+): Promise<{ journeyId: string }> {
   if (!adaptadorDe(sujeto.tipo)) throw new Error(MENSAJES.noEncontrado);
   // Clase del circuito elegido, para buscar el recorrido ganador si otra petición se adelantó.
   const leido: { kind: string | null } = { kind: null };
   try {
-    return await prisma.$transaction((tx) => iniciarEnTransaccion(tx, ctx, sujeto, circuitoId, leido), OPCIONES_TRANSACCION);
+    return await prisma.$transaction((tx) => iniciarEnTransaccion(tx, ctx, sujeto, circuitoId, leido, undefined, opcionesEntrada), OPCIONES_TRANSACCION);
   } catch (error) {
     // Otra petición abrió el recorrido al mismo tiempo (índice único parcial): se usa ése.
     if (esChoqueDeUnicidad(error) && leido.kind !== null) {
@@ -249,7 +262,7 @@ export async function mover(
   ctx: CtxCircuitos,
   journeyId: string,
   destinoId: string,
-  opts: { nota?: string; forzar?: boolean; esperado?: Date; auto?: { evento: string } } = {},
+  opts: { nota?: string; forzar?: boolean; esperado?: Date; auto?: { evento: string }; sinTareas?: boolean } = {},
 ): Promise<ResultadoMover> {
   return enTransaccion((tx) => moverEnTransaccion(tx, ctx, journeyId, destinoId, opts));
 }
@@ -260,7 +273,7 @@ export async function moverEnTransaccion(
   ctx: CtxCircuitos,
   journeyId: string,
   destinoId: string,
-  opts: { nota?: string; forzar?: boolean; esperado?: Date; auto?: { evento: string }; fecha?: Date } = {},
+  opts: { nota?: string; forzar?: boolean; esperado?: Date; auto?: { evento: string }; fecha?: Date; sinTareas?: boolean } = {},
 ): Promise<{ ok: true }> {
   const { workspaceId } = ctx;
   const j = await recorridoAbierto(tx, workspaceId, journeyId);
@@ -311,7 +324,8 @@ export async function moverEnTransaccion(
       createdAt: entrada,
     },
   });
-  await crearTareasDeEtapa(tx, ctx, j, etapaDestino.id, ahora);
+  // `sinTareas`: ver `OpcionesDeEntrada` (sólo la importación CSV de consultas).
+  if (!opts.sinTareas) await crearTareasDeEtapa(tx, ctx, j, etapaDestino.id, ahora);
   await adaptadorDe(j.subjectType)?.alCambiarEtapa?.(tx, workspaceId, j.subjectId, { leadStatus: etapaDestino.leadStatus }, null);
   return { ok: true as const };
 }

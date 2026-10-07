@@ -292,15 +292,22 @@ git diff origin/main..HEAD -- packages/db/prisma
   categoría equivalente de un formulario público está archivada, la pantalla lo avisa.
 - **Consultas → Importar** (botón "Importar" en la cabecera de Consultas, con "Gestionar"):
   CSV con nombre, correo, teléfono, categoría, fecha del evento, lugar, invitados, origen, valor,
-  responsable (por correo), etapa (por nombre) y nota. Cada fila entra por el mismo camino que el
-  alta manual (contacto buscado por correo o teléfono, o creado; número; circuito), **sin aviso al
-  equipo, sin tarea y sin respuesta automática**. La etapa, si viene, mueve la consulta con el
-  motor de circuitos. Queda registrada en la bitácora de la lista de Consultas
+  responsable (por correo), etapa (por nombre) y nota. **Hasta 500 filas por archivo.** Las filas
+  se cargan **de a una** (en paralelo, los contactos nuevos chocaban en el número de cliente) por el
+  mismo camino que el alta manual (contacto buscado por correo o teléfono, o creado; número;
+  circuito), **sin aviso al equipo, sin tarea "Responder consulta", sin respuesta automática y sin
+  las tareas automáticas de las etapas** (ni al entrar al circuito ni al pasar a la etapa pedida).
+  Las filas que fallan por la base (no por un dato mal cargado) se reintentan una vez al final. La
+  etapa, si viene, mueve la consulta con el motor de circuitos. Al terminar, la importación
+  **numera las consultas pendientes** durante unos 20 segundos; si quedan sin número, lo dice y se
+  numeran al abrir Consultas. Queda registrada en la bitácora de la lista de Consultas
   (`FotofficeListActivity`, `action = 'IMPORTAR_CSV'`, sólo conteos).
-- **Las dos importaciones:** hasta 2.000 filas y 2 MB por archivo; **una sola a la vez por
+- **Las dos importaciones:** 2 MB por archivo (clientes hasta 2.000 filas, consultas hasta 500);
+  **una sola a la vez por
   organización** (la segunda ve "Ya hay una importación en curso; probá en unos minutos."). El
   candado es una fila `kind = 'IMPORT_LOCK'` en `FotofficeListActivity` que se borra al terminar
-  y vence sola a los 10 minutos. Si una importación de clientes no pudo guardar algunas filas, dice
+  y vence sola a los 10 minutos. En la de clientes, si un lote de 100 filas falla por algo que no
+  es el número, se reintenta fila por fila: sólo fallan las filas malas, y el resultado dice
   cuáles, para reimportar sólo esas.
 
 ## 8. Límites conocidos
@@ -309,9 +316,11 @@ git diff origin/main..HEAD -- packages/db/prisma
   clave es correo + categoría + fecha del evento). Si se repite la importación, se cargan de
   nuevo. La vista previa avisa cuántas son.
 - **Importación de clientes:** igual con las filas sin documento, correo ni teléfono.
-- Las consultas se dan de alta de a **5 en paralelo** (para que 2.000 filas entren en los 300 s
-  de la función). Si la base anduviera lenta, una importación muy grande puede cortarse: lo que
-  entró queda, y al repetir el archivo las filas con correo no se duplican.
+- Las consultas se dan de alta **de a una**: un archivo de 500 filas puede tardar unos minutos
+  (la función tiene 300 s). Si la base anduviera lenta y se cortara, lo que entró queda, y al
+  repetir el archivo las filas con correo no se duplican.
+- Como la importación no crea las tareas automáticas de las etapas, las consultas importadas no
+  aparecen con tareas pendientes; si hacen falta, se cargan a mano desde la ficha.
 - Si la etapa pedida exige tareas obligatorias en la etapa de entrada, sólo un dueño o
   administrador la puede forzar al importar; para el resto, la consulta queda en la primera
   etapa y el resultado lo informa.
@@ -338,8 +347,10 @@ Todo en **DNX Estudio**, con datos de prueba que después se archivan.
 6. **Consultas → Importar:** un CSV de 3 filas (una con etapa "Presupuesto enviado" u otra etapa
    real del circuito de ventas, una con el correo de un contacto existente, una con una categoría
    que no existe). Vista previa con el error en la tercera. Confirmar: las dos válidas aparecen
-   en el tablero (una en la etapa pedida), enganchadas a su contacto, **sin correo de aviso ni
-   tarea "Responder consulta" ni respuesta automática**. Repetir el archivo: "ya existen".
+   en el tablero (una en la etapa pedida), enganchadas a su contacto, **con número**, **sin correo
+   de aviso, sin tarea "Responder consulta", sin respuesta automática y sin las tareas automáticas
+   de la etapa** (mirar la ficha: la lista de tareas está vacía). Repetir el archivo: "ya existen".
+   Un CSV de 501 filas se rechaza ("hasta 500 filas por vez").
 7. **Una a la vez:** con una importación grande corriendo, intentar otra (de clientes o de
    consultas) desde otra pestaña: debe decir "Ya hay una importación en curso; probá en unos
    minutos."

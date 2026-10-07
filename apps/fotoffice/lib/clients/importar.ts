@@ -294,7 +294,8 @@ export type ResultadoImportacion =
     };
 
 /**
- * Confirma: vuelve a analizar el texto y crea las filas válidas. Cada lote de hasta 100 filas va
+ * Confirma: vuelve a analizar el texto y crea las filas válidas. Si un lote falla por algo que no
+ * es el número, se reintenta fila por fila (sólo fallan las malas). Cada lote de hasta 100 filas va
  * en una transacción: lee el último número del workspace y crea, por fila, el cliente, su
  * `ClientAudit CREATED` y su perfil ampliado (si trae alguno). Si choca con un alta simultánea
  * (P2002 en el número), reintenta el lote. Un lote que falla no deshace los anteriores.
@@ -315,12 +316,13 @@ async function importarConCandado(ctx: CtxContacto, texto: string): Promise<Resu
   const actor: Actor = { userId: ctx.userId, label: ctx.userLabel };
   const aCrear = analisis.filas.filter((f) => f.estado === "VALIDA" && f.cliente);
 
-  let creados = 0;
-  const filasFallidas: number[] = [];
-  for (let i = 0; i < aCrear.length; i += FILAS_POR_LOTE) {
-    const lote = aCrear.slice(i, i + FILAS_POR_LOTE);
-    let hecho = false;
-    for (let intento = 0; intento < 3 && !hecho; intento++) {
+  /**
+   * Crea un grupo de filas en UNA transacción: lee el último número del workspace y numera
+   * seguido. Si choca con un alta simultánea (P2002 en el número), reintenta hasta 3 veces.
+   * true si entró todo el grupo; si no, no queda nada del grupo.
+   */
+  async function crearGrupo(grupo: FilaInterna[]): Promise<boolean> {
+    for (let intento = 0; intento < 3; intento++) {
       try {
         await prisma.$transaction(
           async (tx) => {
@@ -330,7 +332,7 @@ async function importarConCandado(ctx: CtxContacto, texto: string): Promise<Resu
               select: { clientNumber: true },
             });
             let numero = nextClientNumber(ultimo?.clientNumber ?? null);
-            for (const f of lote) {
+            for (const f of grupo) {
               const creado = await tx.client.create({
                 data: { ...f.cliente!, workspaceId, clientNumber: numero, createdByUserId: actor.userId },
                 select: { id: true },
@@ -353,18 +355,32 @@ async function importarConCandado(ctx: CtxContacto, texto: string): Promise<Resu
           },
           { timeout: 60_000, maxWait: 10_000 },
         );
-        hecho = true;
-        creados += lote.length;
+        return true;
       } catch (e) {
         const choque = e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
         if (!choque) {
           const err = e as { name?: string; code?: string } | null;
-          console.error("[clientes] importación: falló un lote", { error: err?.name ?? "desconocido", codigo: err?.code ?? null });
-          break;
+          console.error("[clientes] importación: falló un grupo", { filas: grupo.length, error: err?.name ?? "desconocido", codigo: err?.code ?? null });
+          return false;
         }
       }
     }
-    if (!hecho) filasFallidas.push(...lote.map((f) => f.fila));
+    return false;
+  }
+
+  let creados = 0;
+  const filasFallidas: number[] = [];
+  for (let i = 0; i < aCrear.length; i += FILAS_POR_LOTE) {
+    const lote = aCrear.slice(i, i + FILAS_POR_LOTE);
+    if (await crearGrupo(lote)) {
+      creados += lote.length;
+      continue;
+    }
+    // El lote no entró: se reintenta fila por fila, así sólo fallan las filas malas.
+    for (const f of lote) {
+      if (await crearGrupo([f])) creados += 1;
+      else filasFallidas.push(f.fila);
+    }
   }
   const r = resumen(analisis.filas);
   return {

@@ -127,14 +127,44 @@ describe("previsualizar e importar", () => {
     expect(B.datos.client).toHaveLength(2);
   });
 
-  it("si falla el perfil, se deshace el lote entero (cliente, historial y perfil)", async () => {
+  it("si un lote falla por algo que no es el número, se reintenta fila por fila: sólo fallan las malas", async () => {
+    const original = B.tablas.fotofficeContactoPerfil.create;
+    // Sólo el perfil de Laura (fila 1) falla.
+    B.tablas.fotofficeContactoPerfil.create = async (...a: Parameters<typeof original>) => {
+      if ((a[0] as { data: { about?: string } }).data.about === "Florista") throw new Error("falla");
+      return original(...a);
+    };
+    const errores = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const r = await I.importarClientes(GESTIONA, CSV);
+      expect(r).toMatchObject({ ok: true, creados: 2, fallidas: 1, filasFallidas: [1] });
+      const nuevos = B.datos.client.filter((c) => c.workspaceId === "ws-1" && c.id !== "viejo");
+      expect(nuevos.map((c) => c.firstName).sort()).toEqual(["Martín", "Sin"]);
+      // Numerados seguidos y sin restos de Laura (ni cliente, ni historial, ni perfil).
+      expect(nuevos.map((c) => c.clientNumber).sort()).toEqual([42, 43]);
+      expect(B.datos.clientAudit).toHaveLength(2);
+      expect(B.datos.fotofficeContactoPerfil.some((p) => p.about === "Florista")).toBe(false);
+      // Sin datos personales en el registro.
+      expect(JSON.stringify(errores.mock.calls)).not.toContain("laura");
+    } finally {
+      errores.mockRestore();
+      B.tablas.fotofficeContactoPerfil.create = original;
+    }
+  });
+
+  it("si falla el perfil de todas, cada fila se deshace entera (cliente, historial y perfil)", async () => {
+    const original = B.tablas.fotofficeContactoPerfil.create;
     B.tablas.fotofficeContactoPerfil.create = async () => {
       throw new Error("falla");
     };
-    const r = await I.importarClientes(GESTIONA, CSV);
-    // Devuelve los números de fila que no entraron, para reimportar sólo esas.
-    expect(r).toMatchObject({ ok: true, creados: 0, fallidas: 3, filasFallidas: [1, 2, 3] });
-    expect(B.datos.client).toHaveLength(2);
-    expect(B.datos.clientAudit).toHaveLength(0);
+    try {
+      const r = await I.importarClientes(GESTIONA, CSV);
+      // Laura y Martín traen perfil y fallan; "Sin Datos" no trae perfil y entra.
+      expect(r).toMatchObject({ ok: true, creados: 1, fallidas: 2, filasFallidas: [1, 2] });
+      expect(B.datos.client).toHaveLength(3);
+      expect(B.datos.clientAudit).toHaveLength(1);
+    } finally {
+      B.tablas.fotofficeContactoPerfil.create = original;
+    }
   });
 });

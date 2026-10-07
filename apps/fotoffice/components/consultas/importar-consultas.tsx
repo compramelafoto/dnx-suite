@@ -86,6 +86,7 @@ export function ImportarConsultas({ encabezado }: { encabezado: string }) {
               importar el archivo: las que ya entraron no se repiten.
             </li>
           ) : null}
+          {resultado.quedanSinNumero ? <li>Algunas todavía no tienen número: se numeran al abrir Consultas.</li> : null}
           {resultado.sinEtapa.length > 0 ? (
             <li>
               {resultado.sinEtapa.length} se cargaron pero quedaron en la primera etapa:
@@ -125,7 +126,8 @@ export function ImportarConsultas({ encabezado }: { encabezado: string }) {
             <li>Fecha del evento: dd/mm/aaaa o aaaa-mm-dd. Valor: sin símbolo, por ejemplo 150000 o 150.000,50.</li>
             <li>Responsable: el correo de alguien del equipo con permiso para gestionar Consultas.</li>
             <li>El contacto se busca por correo o teléfono; si no existe, se crea. No se repiten consultas con el mismo correo, categoría y fecha.</li>
-            <li>No se manda ningún aviso al equipo ni respuesta automática.</li>
+            <li>Hasta 500 filas por archivo; se cargan de a una, así que un archivo grande puede tardar unos minutos.</li>
+            <li>No se manda ningún aviso al equipo ni respuesta automática, y no se crean las tareas automáticas de las etapas.</li>
           </ul>
         </div>
         <div className="fo-field-stack">

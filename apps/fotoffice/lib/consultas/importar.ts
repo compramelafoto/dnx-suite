@@ -8,11 +8,12 @@ import { conBloqueoDeImportacion } from "@/lib/importacion/bloqueo";
 import { registrarActividad } from "@/lib/listado/actividad";
 import { parseAmountToMinor } from "@/lib/membership/history-import/amount";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
+import { numerarConsultasPendientes } from "@/lib/service-leads/numero";
 import { puedeSerResponsable, type DepsAjustes } from "./ajustes";
-import { altaDeConsulta, MAX_INVITADOS, MAX_MENSAJE_CONSULTA, MAX_TEXTO_CONSULTA, MAX_VALOR_ESTIMADO, type DatosAlta } from "./alta";
+import { altaDeConsulta, MENSAJES_ALTA, MAX_INVITADOS, MAX_MENSAJE_CONSULTA, MAX_TEXTO_CONSULTA, MAX_VALOR_ESTIMADO, type DatosAlta } from "./alta";
 import type { CtxConsultas } from "./catalogo";
 import { categoriaParaEventType } from "./categorias";
-import { MAX_FILAS_IMPORTACION } from "./constantes";
+import { MAX_FILAS_IMPORTACION_CONSULTAS } from "./constantes";
 import { MAX_NOMBRE_CONTACTO } from "./contacto";
 import { asegurarCatalogosDelWorkspace } from "./semillas";
 
@@ -34,12 +35,9 @@ import { asegurarCatalogosDelWorkspace } from "./semillas";
  */
 
 export const MAX_BYTES_IMPORTACION_CONSULTAS = 2 * 1024 * 1024;
-/** Altas en paralelo al confirmar: cada una es su propia transacción (2.000 de a una no entran en 300 s). */
-const ALTAS_EN_PARALELO = 5;
-
 export type DepsImportacion = DepsAjustes & {
-  /** Altas a la vez. Las pruebas usan 1: la base en memoria no admite transacciones simultáneas. */
-  enParalelo?: number;
+  /** Reloj (ms) para el tiempo de numeración; inyectable en las pruebas. */
+  reloj?: () => number;
 };
 const NOTA_ETAPA = "Importada desde un CSV";
 
@@ -49,7 +47,7 @@ export const MENSAJES_IMPORTACION_CONSULTAS = {
   grande: "El archivo pesa más de 2 MB. Partilo en varios archivos más chicos.",
   sinEncabezado: "No encontramos el encabezado. La primera fila tiene que tener los nombres de las columnas.",
   sinNombre: "Falta la columna del nombre del contacto.",
-  demasiadas: `Se pueden importar hasta ${MAX_FILAS_IMPORTACION.toLocaleString("es-AR")} filas por vez.`,
+  demasiadas: `Se pueden importar hasta ${MAX_FILAS_IMPORTACION_CONSULTAS.toLocaleString("es-AR")} filas por vez.`,
 } as const;
 
 /** Encabezado de ejemplo para la pantalla. */
@@ -137,7 +135,7 @@ export function leerCsvConsultas(texto: unknown): { ok: false; error: string } |
     if (c && ![...campoDe.values()].includes(c)) campoDe.set(h, c);
   }
   if (![...campoDe.values()].includes("nombre")) return no(MENSAJES_IMPORTACION_CONSULTAS.sinNombre);
-  if (r.data.length > MAX_FILAS_IMPORTACION) return no(MENSAJES_IMPORTACION_CONSULTAS.demasiadas);
+  if (r.data.length > MAX_FILAS_IMPORTACION_CONSULTAS) return no(MENSAJES_IMPORTACION_CONSULTAS.demasiadas);
   return {
     ok: true,
     filas: r.data.map((original) => {
@@ -416,18 +414,25 @@ export type ResultadoImportacionConsultas =
       creadas: number;
       conError: number;
       duplicadas: number;
-      /** Filas válidas que el alta rechazó o no pudo guardar. */
+      /** Filas válidas que el alta rechazó o no pudo guardar (ni en el reintento). */
       fallidas: { fila: number; error: string }[];
       /** Cargadas que no pudieron pasar a la etapa pedida (quedaron en la primera). */
       sinEtapa: { fila: number; error: string }[];
+      /** Quedaron consultas sin número al terminar: se numeran al abrir Consultas. */
+      quedanSinNumero: boolean;
     };
 
+/** Error del alta que vale reintentar (la base, un bloqueo): no una validación. */
+const NO_SE_PUDO_GUARDAR = "No se pudo guardar.";
+
 /**
- * Confirma: vuelve a analizar y da de alta las filas válidas, de a `ALTAS_EN_PARALELO`, cada una
- * por `altaDeConsulta(…, IMPORTACION)` (sin avisos ni respuesta automática). Una fila que falla no
- * frena a las demás. Con etapa, mueve el recorrido con el motor (`mover`), como lo haría quien
- * importa: si la etapa de entrada exige tareas, sólo quien puede configurar lo fuerza. Si ya hay
- * otra importación en curso en la organización, no corre (`conBloqueoDeImportacion`).
+ * Confirma: vuelve a analizar y da de alta las filas válidas, DE A UNA (en paralelo los contactos
+ * nuevos chocan en el número de cliente y no se gana nada), cada una por
+ * `altaDeConsulta(…, IMPORTACION)`: sin avisos, sin respuesta automática y sin las tareas
+ * automáticas de la etapa. Una fila que falla no frena a las demás; las que fallaron por la base
+ * (no por validación) se reintentan una vez al final. Con etapa, mueve el recorrido con el motor
+ * (`mover`, también sin tareas). Después numera las consultas pendientes durante ~20 s. Si ya
+ * hay otra importación en curso en la organización, no corre (`conBloqueoDeImportacion`).
  */
 export async function importarConsultas(
   ctx: CtxConsultas,
@@ -448,52 +453,66 @@ async function importarConCandado(ctx: CtxConsultas, texto: unknown, deps: DepsI
   const aCargar = a.filas.filter((f) => f.estado === "VALIDA" && f.datos);
 
   let creadas = 0;
-  const fallidas: { fila: number; error: string }[] = [];
   const sinEtapa: { fila: number; error: string }[] = [];
 
-  const enParalelo = Math.max(1, Math.min(deps.enParalelo ?? ALTAS_EN_PARALELO, 10));
-  for (const lote of trozos(aCargar, enParalelo)) {
-    await Promise.all(
-      lote.map(async (f) => {
-        let leadId: string;
-        try {
-          const r = await altaDeConsulta(ctx, f.datos!, { origenDelAlta: "IMPORTACION" }, deps);
-          if (!r.ok) {
-            fallidas.push({ fila: f.fila, error: r.error });
-            return;
-          }
-          creadas += 1;
-          leadId = r.leadId;
-        } catch (e) {
-          const err = e as { name?: string; code?: string } | null;
-          console.error("[consultas] importación: falló una fila", { error: err?.name ?? "desconocido", codigo: err?.code ?? null });
-          fallidas.push({ fila: f.fila, error: "No se pudo guardar." });
-          return;
-        }
-        if (!f.etapaId) return;
-        try {
-          const j = await prisma.fotofficeJourney.findFirst({
-            where: { workspaceId, subjectType: "CAPTACION", subjectId: leadId, kind: "VENTA", closedAt: null },
-            select: { id: true, stageId: true },
-          });
-          if (!j) {
-            sinEtapa.push({ fila: f.fila, error: "No entró al circuito de ventas." });
-            return;
-          }
-          if (j.stageId === f.etapaId) return;
-          const m = await mover(ctx, j.id, f.etapaId, { nota: NOTA_ETAPA, forzar: true });
-          if (!m.ok) sinEtapa.push({ fila: f.fila, error: m.error });
-        } catch (e) {
-          const err = e as { name?: string; code?: string } | null;
-          console.error("[consultas] importación: no se pudo mover de etapa", { error: err?.name ?? "desconocido", codigo: err?.code ?? null });
-          sinEtapa.push({ fila: f.fila, error: "No se pudo mover de etapa." });
-        }
-      }),
-    );
+  /** Da de alta una fila y, si viene, la pasa a su etapa. Devuelve el error del alta, o null. */
+  async function cargar(f: FilaInterna): Promise<string | null> {
+    let leadId: string;
+    try {
+      const r = await altaDeConsulta(ctx, f.datos!, { origenDelAlta: "IMPORTACION" }, deps);
+      if (!r.ok) return r.error;
+      creadas += 1;
+      leadId = r.leadId;
+    } catch (e) {
+      const err = e as { name?: string; code?: string } | null;
+      console.error("[consultas] importación: falló una fila", { error: err?.name ?? "desconocido", codigo: err?.code ?? null });
+      return NO_SE_PUDO_GUARDAR;
+    }
+    if (!f.etapaId) return null;
+    try {
+      const j = await prisma.fotofficeJourney.findFirst({
+        where: { workspaceId, subjectType: "CAPTACION", subjectId: leadId, kind: "VENTA", closedAt: null },
+        select: { id: true, stageId: true },
+      });
+      if (!j) {
+        sinEtapa.push({ fila: f.fila, error: "No entró al circuito de ventas." });
+        return null;
+      }
+      if (j.stageId === f.etapaId) return null;
+      const m = await mover(ctx, j.id, f.etapaId, { nota: NOTA_ETAPA, forzar: true, sinTareas: true });
+      if (!m.ok) sinEtapa.push({ fila: f.fila, error: m.error });
+    } catch (e) {
+      const err = e as { name?: string; code?: string } | null;
+      console.error("[consultas] importación: no se pudo mover de etapa", { error: err?.name ?? "desconocido", codigo: err?.code ?? null });
+      sinEtapa.push({ fila: f.fila, error: "No se pudo mover de etapa." });
+    }
+    return null;
   }
 
+  let fallidas: { fila: number; error: string; f: FilaInterna }[] = [];
+  for (const f of aCargar) {
+    const error = await cargar(f);
+    if (error) fallidas.push({ fila: f.fila, error, f });
+  }
+  // Un solo reintento, de a una, de las que fallaron por la base (no por validación).
+  const reintentables = (x: { error: string }) => x.error === MENSAJES_ALTA.fallo || x.error === NO_SE_PUDO_GUARDAR;
+  if (fallidas.some(reintentables)) {
+    const siguen: typeof fallidas = [];
+    for (const x of fallidas) {
+      if (!reintentables(x)) {
+        siguen.push(x);
+        continue;
+      }
+      const error = await cargar(x.f);
+      if (error) siguen.push({ ...x, error });
+    }
+    fallidas = siguen;
+  }
+
+  const quedanSinNumero = !(await numerarPendientes(workspaceId, deps));
+
   const r = resumen(a.filas);
-  fallidas.sort((x, y) => x.fila - y.fila);
+  const fallidasInforme = fallidas.map(({ fila, error }) => ({ fila, error })).sort((x, y) => x.fila - y.fila);
   sinEtapa.sort((x, y) => x.fila - y.fila);
 
   // Bitácora de la lista de Consultas: sólo conteos, ningún dato personal.
@@ -505,12 +524,37 @@ async function importarConCandado(ctx: CtxConsultas, texto: unknown, deps: DepsI
       action: "IMPORTAR_CSV",
       rowCount: creadas,
       query: "",
-      detail: { filas: r.filas.length, creadas, conError: r.conError, duplicadas: r.duplicadas, fallidas: fallidas.length, sinEtapa: sinEtapa.length },
+      detail: { filas: r.filas.length, creadas, conError: r.conError, duplicadas: r.duplicadas, fallidas: fallidasInforme.length, sinEtapa: sinEtapa.length, quedanSinNumero },
     });
   } catch (e) {
     const err = e as { name?: string; code?: string } | null;
     console.error("[consultas] importación: no se pudo registrar en la bitácora", { error: err?.name ?? "desconocido", codigo: err?.code ?? null });
   }
 
-  return { ok: true, creadas, conError: r.conError, duplicadas: r.duplicadas, fallidas, sinEtapa };
+  return { ok: true, creadas, conError: r.conError, duplicadas: r.duplicadas, fallidas: fallidasInforme, sinEtapa, quedanSinNumero };
+}
+
+/** Tiempo que la importación dedica a numerar lo que quedó pendiente (el resto, al abrir Consultas). */
+const TIEMPO_NUMERACION_MS = 20_000;
+const LOTE_NUMERACION = 50;
+
+/**
+ * Cada alta numera su consulta sólo si no hay otras sin número antes (para no saltear el orden):
+ * si quedó alguna vieja pendiente, las importadas esperan. Acá se numeran todas, en orden de alta,
+ * hasta terminar o hasta ~20 s. true si no quedó ninguna sin número. Nunca lanza.
+ */
+async function numerarPendientes(workspaceId: string, deps: DepsImportacion): Promise<boolean> {
+  const reloj = deps.reloj ?? Date.now;
+  const limite = reloj() + TIEMPO_NUMERACION_MS;
+  try {
+    while (reloj() < limite) {
+      const r = await numerarConsultasPendientes(workspaceId, LOTE_NUMERACION);
+      if (r.completo) return true;
+      if (r.numeradas === 0) return false;
+    }
+  } catch (e) {
+    const err = e as { name?: string; code?: string } | null;
+    console.error("[consultas] importación: numeración pendiente falló", { error: err?.name ?? "desconocido", codigo: err?.code ?? null });
+  }
+  return false;
 }

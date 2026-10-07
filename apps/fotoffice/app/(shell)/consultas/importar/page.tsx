@@ -5,12 +5,12 @@ import { ImportarConsultas } from "@/components/consultas/importar-consultas";
 import { puede } from "@/lib/access/policy";
 import { resolverAcceso } from "@/lib/access/acceso";
 import { ENCABEZADO_EJEMPLO_CONSULTAS } from "@/lib/consultas/importar";
-import { MAX_FILAS_IMPORTACION } from "@/lib/consultas/constantes";
+import { MAX_FILAS_IMPORTACION_CONSULTAS } from "@/lib/consultas/constantes";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { requireServiceLeadsStaff } from "@/lib/service-leads/access";
 
 export const dynamic = "force-dynamic";
-// La confirmación (server action) corre bajo la configuración de esta página: hasta 2.000 filas.
+// La confirmación (server action) corre bajo la configuración de esta página: hasta 500 filas, de a una.
 export const maxDuration = 300;
 
 /** Consultas → Importar: CSV de consultas (spec §3.6). Pide "Gestionar" en Consultas. */
@@ -23,7 +23,7 @@ export default async function ImportarConsultasPage() {
     <div className="space-y-8">
       <PageHeader
         title="Importar consultas"
-        description={`Cargá hasta ${MAX_FILAS_IMPORTACION.toLocaleString("es-AR")} consultas a la vez desde un CSV. No se manda ningún aviso ni respuesta automática.`}
+        description={`Cargá hasta ${MAX_FILAS_IMPORTACION_CONSULTAS.toLocaleString("es-AR")} consultas a la vez desde un CSV. No se manda ningún aviso ni respuesta automática, ni se crean tareas.`}
         actions={
           <Link href="/consultas/lista" className="fo-btn fo-btn-secondary text-sm">
             Volver a Consultas

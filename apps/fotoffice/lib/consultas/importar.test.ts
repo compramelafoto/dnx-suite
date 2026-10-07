@@ -14,12 +14,14 @@ const H = vi.hoisted(() => ({
   avisar: vi.fn(async (..._a: unknown[]): Promise<unknown> => ({})),
   responder: vi.fn(async (..._a: unknown[]): Promise<unknown> => "ENVIADO"),
   nivel: vi.fn(async (..._a: unknown[]) => true),
+  pendientes: vi.fn(async (..._a: unknown[]): Promise<{ numeradas: number; completo: boolean }> => ({ numeradas: 0, completo: true })),
 }));
 
 vi.mock("server-only", () => ({}));
 vi.mock("@repo/db", () => ({ prisma: B.prisma, Prisma: { JsonNull: null } }));
 vi.mock("@/lib/service-leads/numero", () => ({
   numerarConsultaNueva: H.numerar,
+  numerarConsultasPendientes: H.pendientes,
   tituloDeConsulta: (nombre: string) => nombre,
 }));
 vi.mock("@/lib/circuitos/eventos", () => ({ notificarEvento: H.notificar }));
@@ -37,8 +39,6 @@ const EQUIPO = {
 };
 const SOLO_VER = { ...EQUIPO, acceso: { role: "STAFF", levels: { "service-leads": "VIEW" } } as never };
 const OTRO_WS = { ...EQUIPO, workspaceId: "ws-2" };
-/** La base en memoria no admite transacciones simultáneas: de a una. */
-const SECUENCIAL = { enParalelo: 1 };
 
 const consultas = (ws = "ws-1") => B.datos.fotofficeConsulta.filter((c) => c.workspaceId === ws);
 const leads = (ws = "ws-1") => B.datos.serviceSalesLead.filter((c) => c.workspaceId === ws);
@@ -52,6 +52,8 @@ let errores: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
   B.vaciar();
   for (const f of [H.numerar, H.notificar, H.avisar, H.responder]) f.mockClear();
+  H.pendientes.mockReset();
+  H.pendientes.mockResolvedValue({ numeradas: 0, completo: true });
   H.notificar.mockImplementation(async (ws: unknown, sujeto: unknown) => {
     B.agregar("fotofficeJourney", {
       workspaceId: ws, subjectType: "CAPTACION", subjectId: (sujeto as { id: string }).id, kind: "VENTA",
@@ -97,13 +99,13 @@ describe("permisos", () => {
 });
 
 describe("lectura del CSV", () => {
-  it("rechaza vacío, sin nombre, más de 2 MB y más de 2.000 filas", () => {
+  it("rechaza vacío, sin nombre, más de 2 MB y más de 500 filas", () => {
     expect(I.leerCsvConsultas("")).toEqual({ ok: false, error: M.vacio });
     expect(I.leerCsvConsultas("correo,telefono\na@b.test,1")).toEqual({ ok: false, error: M.sinNombre });
     expect(I.leerCsvConsultas(`nombre\n${"x".repeat(2 * 1024 * 1024)}`)).toEqual({ ok: false, error: M.grande });
-    const muchas = `nombre\n${Array.from({ length: K.MAX_FILAS_IMPORTACION + 1 }, (_x, i) => `P${i}`).join("\n")}`;
+    const muchas = `nombre\n${Array.from({ length: K.MAX_FILAS_IMPORTACION_CONSULTAS + 1 }, (_x, i) => `P${i}`).join("\n")}`;
     expect(I.leerCsvConsultas(muchas)).toEqual({ ok: false, error: M.demasiadas });
-    const justas = `nombre\n${Array.from({ length: K.MAX_FILAS_IMPORTACION }, (_x, i) => `P${i}`).join("\n")}`;
+    const justas = `nombre\n${Array.from({ length: K.MAX_FILAS_IMPORTACION_CONSULTAS }, (_x, i) => `P${i}`).join("\n")}`;
     expect(I.leerCsvConsultas(justas).ok).toBe(true);
   });
 
@@ -178,7 +180,7 @@ describe("importar", () => {
       "Laura Pérez,,341 555-0000,Boda,20/12/2026,Salón Real,120,Instagram,150.000,vendedora@estudio.test,,Vino por IG",
       "Pedro Gómez,pedro@persona.test,,bautismo,2027-03-05,,,,,,,",
     ].join("\n");
-    const r = await I.importarConsultas(EQUIPO, csv, SECUENCIAL);
+    const r = await I.importarConsultas(EQUIPO, csv);
     expect(r).toMatchObject({ ok: true, creadas: 2, conError: 0, duplicadas: 0, fallidas: [], sinEtapa: [] });
     expect(consultas()).toHaveLength(2);
     const laura = consultas().find((c) => c.clientId === "c-viejo");
@@ -208,7 +210,7 @@ describe("importar", () => {
       "Laura otra fecha,laura@persona.test,,Boda,21/12/2026,,,,,,,",
       "Sin correo,,341,Boda,20/12/2026,,,,,,,",
     ].join("\n");
-    const r1 = await I.importarConsultas(EQUIPO, csv, SECUENCIAL);
+    const r1 = await I.importarConsultas(EQUIPO, csv);
     expect(r1).toMatchObject({ ok: true, creadas: 3, duplicadas: 1 });
     const r2 = await I.previsualizarImportacionConsultas(EQUIPO, csv);
     if (!r2.ok) throw new Error(r2.error);
@@ -221,7 +223,7 @@ describe("importar", () => {
 
   it("la etapa por nombre mueve el recorrido con el motor después del alta", async () => {
     const csv = `${ENC}\nLaura,laura@persona.test,,Boda,,,,,,,presupuesto ENVIADO,\nPedro,pedro@persona.test,,Boda,,,,,,,Nueva,`;
-    const r = await I.importarConsultas(EQUIPO, csv, SECUENCIAL);
+    const r = await I.importarConsultas(EQUIPO, csv);
     expect(r).toMatchObject({ ok: true, creadas: 2, sinEtapa: [] });
     const laura = leads().find((l) => l.email === "laura@persona.test")!;
     const j = B.datos.fotofficeJourney.find((x) => x.subjectId === laura.id)!;
@@ -246,7 +248,7 @@ describe("importar", () => {
       B.agregar("fotofficeTask", { workspaceId: ws, journeyId: j.id, stageId: "e1", subjectType: "CAPTACION", subjectId: (sujeto as { id: string }).id, title: "Llamar", required: true });
       return { movido: true };
     });
-    const r = await I.importarConsultas(EQUIPO, `${ENC}\nLaura,laura@persona.test,,Boda,,,,,,,Presupuesto enviado,`, SECUENCIAL);
+    const r = await I.importarConsultas(EQUIPO, `${ENC}\nLaura,laura@persona.test,,Boda,,,,,,,Presupuesto enviado,`);
     expect(r).toMatchObject({ ok: true, creadas: 1, sinEtapa: [{ fila: 1, error: "Faltan tareas obligatorias: Llamar." }] });
     expect(consultas()).toHaveLength(1);
     expect(B.datos.fotofficeJourney[0]!.stageId).toBe("e1");
@@ -256,11 +258,11 @@ describe("importar", () => {
     const csv = `${ENC}\nLaura,laura@persona.test,,Boda,,,,,,,,`;
     const { conBloqueoDeImportacion, MENSAJE_IMPORTACION_EN_CURSO } = await import("@/lib/importacion/bloqueo");
     // Mientras corre otra importación (acá, una de clientes simulada), la de consultas no entra.
-    const otra = await conBloqueoDeImportacion(EQUIPO, "clientes", async () => I.importarConsultas(EQUIPO, csv, SECUENCIAL));
+    const otra = await conBloqueoDeImportacion(EQUIPO, "clientes", async () => I.importarConsultas(EQUIPO, csv));
     expect(otra).toEqual({ ok: true, valor: { ok: false, error: MENSAJE_IMPORTACION_EN_CURSO } });
     expect(consultas()).toHaveLength(0);
     // Otra organización no queda trabada, y al terminar se puede de nuevo.
-    expect(await I.importarConsultas(EQUIPO, csv, SECUENCIAL)).toMatchObject({ ok: true, creadas: 1 });
+    expect(await I.importarConsultas(EQUIPO, csv)).toMatchObject({ ok: true, creadas: 1 });
     expect(B.datos.fotofficeListActivity.filter((f) => f.kind === "IMPORT_LOCK")).toHaveLength(0);
   });
 
@@ -269,8 +271,69 @@ describe("importar", () => {
     expect(r).toMatchObject({ ok: true, validas: 2, sinCorreo: 1 });
   });
 
+  it("no crea las tareas automáticas: ni al entrar al circuito ni al pasar a la etapa pedida", async () => {
+    B.agregar("fotofficeStageTaskTemplate", { stageId: "e2", title: "Mandar presupuesto", days: 1, required: true, order: 0 });
+    const r = await I.importarConsultas(EQUIPO, `${ENC}\nLaura,laura@persona.test,,Boda,,,,,,,Presupuesto enviado,`);
+    expect(r).toMatchObject({ ok: true, creadas: 1, sinEtapa: [] });
+    // El alta pide entrar al circuito sin tareas…
+    expect(H.notificar.mock.calls[0]?.[4]).toEqual({ sinTareas: true });
+    // …y el motor real mueve a la etapa sin crear las suyas.
+    expect(B.datos.fotofficeJourney[0]).toMatchObject({ stageId: "e2" });
+    expect(B.datos.fotofficeTask).toHaveLength(0);
+  });
+
+  it("de a una, y las que fallan por la base se reintentan una vez al final", async () => {
+    const original = B.tablas.fotofficeConsulta.create;
+    let veces = 0;
+    B.tablas.fotofficeConsulta.create = async (...a: Parameters<typeof original>) => {
+      veces += 1;
+      if (veces === 1) throw Object.assign(new Error("caída"), { code: "P1001" });
+      return original(...a);
+    };
+    try {
+      const r = await I.importarConsultas(EQUIPO, `${ENC}\nLaura,laura@persona.test,,Boda,,,,,,,,\nPedro,pedro@persona.test,,Boda,,,,,,,,`);
+      expect(r).toMatchObject({ ok: true, creadas: 2, fallidas: [] });
+      expect(consultas()).toHaveLength(2);
+      // Pedro entró primero (Laura falló y se reintentó al final).
+      const porLead = (email: string) => leads().find((l) => l.email === email)!.id;
+      expect(B.datos.serviceSalesLead.map((l) => l.id)).toEqual([porLead("pedro@persona.test"), porLead("laura@persona.test")]);
+    } finally {
+      B.tablas.fotofficeConsulta.create = original;
+    }
+  });
+
+  it("si vuelve a fallar en el reintento, queda informada con el error del alta", async () => {
+    const original = B.tablas.fotofficeConsulta.create;
+    B.tablas.fotofficeConsulta.create = async () => {
+      throw Object.assign(new Error("caída"), { code: "P1001" });
+    };
+    try {
+      const r = await I.importarConsultas(EQUIPO, `${ENC}\nLaura,laura@persona.test,,Boda,,,,,,,,`);
+      expect(r).toMatchObject({ ok: true, creadas: 0, fallidas: [{ fila: 1, error: "No se pudo registrar la consulta." }] });
+    } finally {
+      B.tablas.fotofficeConsulta.create = original;
+    }
+  });
+
+  it("al terminar numera las pendientes hasta completar, o ~20 s, y avisa si quedaron", async () => {
+    const csv = `${ENC}\nLaura,laura@persona.test,,Boda,,,,,,,,`;
+    H.pendientes.mockResolvedValueOnce({ numeradas: 50, completo: false }).mockResolvedValueOnce({ numeradas: 3, completo: true });
+    expect(await I.importarConsultas(EQUIPO, csv)).toMatchObject({ ok: true, quedanSinNumero: false });
+    expect(H.pendientes).toHaveBeenCalledTimes(2);
+    expect(H.pendientes).toHaveBeenCalledWith("ws-1", 50);
+
+    // Se acaba el tiempo con pendientes: lo informa.
+    H.pendientes.mockReset();
+    H.pendientes.mockResolvedValue({ numeradas: 50, completo: false });
+    let t = 0;
+    const reloj = () => (t += 6_000);
+    const r = await I.importarConsultas(EQUIPO, `${ENC}\nPedro,pedro@persona.test,,Boda,,,,,,,,`, { reloj });
+    expect(r).toMatchObject({ ok: true, creadas: 1, quedanSinNumero: true });
+    expect(H.pendientes.mock.calls.length).toBeLessThanOrEqual(4);
+  });
+
   it("queda en la bitácora de la lista de Consultas, sin datos personales", async () => {
-    await I.importarConsultas(EQUIPO, `${ENC}\nLaura,laura@persona.test,,Boda,,,,,,,,\n,x@persona.test,,,,,,,,,,`, SECUENCIAL);
+    await I.importarConsultas(EQUIPO, `${ENC}\nLaura,laura@persona.test,,Boda,,,,,,,,\n,x@persona.test,,,,,,,,,,`);
     expect(B.datos.fotofficeListActivity).toHaveLength(1);
     const a = B.datos.fotofficeListActivity[0]!;
     expect(a).toMatchObject({ workspaceId: "ws-1", listKey: "captacion", kind: "BULK_ACTION", action: "IMPORTAR_CSV", rowCount: 1, actorUserId: 7 });
