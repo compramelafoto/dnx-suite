@@ -11,6 +11,7 @@ import { AvisosConsulta } from "@/components/consultas/avisos-consulta";
 import { ContactoDeConsulta } from "@/components/consultas/contacto-de-consulta";
 import { DatosConsulta } from "@/components/consultas/datos-consulta";
 import { Participantes } from "@/components/consultas/participantes";
+import { aTarjeta, TarjetaPresupuestos } from "@/components/presupuestos/tarjeta-presupuestos";
 import { puede } from "@/lib/access/policy";
 import { resolverAcceso } from "@/lib/access/acceso";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
@@ -27,6 +28,9 @@ import { mensajesDeConsulta } from "@/lib/plantillas/registro";
 import { TIPO_CONSULTA, tituloDeConsulta } from "@/lib/service-leads/numero";
 import { requireServiceLeadsStaff } from "@/lib/service-leads/access";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
+import { QUOTES_MODULE_KEY } from "@/lib/presupuestos/acceso";
+import { listarPresupuestos } from "@/lib/presupuestos/presupuestos";
+import { eventosDePresupuestos } from "@/lib/presupuestos/historial";
 
 export const dynamic = "force-dynamic";
 
@@ -75,6 +79,14 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
           : Promise.resolve(null),
       ])
     : [null, [], null];
+
+  // Tarjeta "Presupuestos": con "Ver" en Presupuestos (el nivel ya incluye el módulo encendido).
+  // "Nuevo presupuesto" con "Gestionar". La tarjeta nunca lleva costos (`aTarjeta`).
+  const vePresupuestos = puede(acceso, "ver", QUOTES_MODULE_KEY);
+  const ctxPresupuestos = { workspaceId: workspace.id, userId: user.id, userLabel: etiquetaDeUsuario(user), role: acceso.role, acceso };
+  const presupuestos = vePresupuestos ? (await listarPresupuestos(ctxPresupuestos, { consultaLeadId: id })).map(aTarjeta) : null;
+  // Envíos, vistas y aceptaciones de sus presupuestos, para el historial (sin costos ni IP).
+  const eventosPresupuestos = vePresupuestos ? await eventosDePresupuestos(ctxPresupuestos, id) : [];
 
   const { consulta, recorrido } = ficha;
   const evento = [consulta.tipo, consulta.subtipo].filter(Boolean).join(" · ");
@@ -163,6 +175,14 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
               />
             </>
           ) : null}
+          {presupuestos ? (
+            <TarjetaPresupuestos
+              presupuestos={presupuestos}
+              hrefNuevo={`/presupuestos/nuevo?consulta=${encodeURIComponent(id)}`}
+              puedeCrear={puede(acceso, "operar", QUOTES_MODULE_KEY) && datosConsulta !== null}
+              vacio="Esta consulta todavía no tiene presupuestos."
+            />
+          ) : null}
           <section aria-labelledby="datos-titulo" className="fo-card space-y-3">
             <h2 id="datos-titulo" className="text-base font-semibold text-[var(--fo-text)]">
               {datosConsulta ? "Contacto y mensaje" : "Datos de la consulta"}
@@ -200,14 +220,16 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
               />
               <Tareas key={recorrido.id} journeyId={recorrido.id} tareas={ficha.tareas} abierto={recorrido.abierto} />
               {ficha.proyeccion ? <Proyeccion proyeccion={ficha.proyeccion} /> : null}
-              <Historial pasos={ficha.historial} cambios={cambios} mensajes={mensajes} />
+              <Historial pasos={ficha.historial} cambios={cambios} mensajes={mensajes} presupuestos={eventosPresupuestos} />
             </>
           ) : (
             <>
               <p className="fo-card text-sm text-[var(--fo-muted)]">
                 Esta consulta todavía no está en ningún circuito. Se ordena sola al abrir el tablero de Consultas.
               </p>
-              {cambios.length > 0 || mensajes.length > 0 ? <Historial pasos={[]} cambios={cambios} mensajes={mensajes} /> : null}
+              {cambios.length > 0 || mensajes.length > 0 || eventosPresupuestos.length > 0 ? (
+                <Historial pasos={[]} cambios={cambios} mensajes={mensajes} presupuestos={eventosPresupuestos} />
+              ) : null}
             </>
           )}
         </div>

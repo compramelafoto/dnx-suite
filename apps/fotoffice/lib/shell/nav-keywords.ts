@@ -62,6 +62,7 @@ export const NAV_KEYWORDS: Record<string, string[]> = {
   // Consultas (antes Captación)
   "/dashboard/service-leads/forms": ["presupuesto", "contacto", "formulario"],
   "/consultas": ["captacion", "bandeja", "tablero", "contactos", "interesados", "consultas", "presupuestos"],
+  "/presupuestos": ["cotizacion", "cotizar", "precio", "cuanto cobro", "propuesta", "vencidos"],
 
   // Presencia pública
   "/website": ["web", "pagina", "sitio", "portal", "home publica", "constructor", "menu"],

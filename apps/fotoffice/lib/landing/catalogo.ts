@@ -208,11 +208,24 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
     cuadro: "11",
     nombre: "Consultas de presupuesto",
     resuelve:
-      "Un formulario público por tipo de evento —casamiento, quince, lo que arme— que compartís por donde quieras. La consulta entra con todos los datos que pediste y queda en una bandeja, con su historial, en vez de perderse entre mensajes de WhatsApp. El precio todavía lo ponés vos por afuera.",
+      "Un formulario público por tipo de evento —casamiento, quince, lo que arme— que compartís por donde quieras. La consulta entra con todos los datos que pediste y queda en una bandeja, con su historial, en vez de perderse entre mensajes de WhatsApp. El precio se lo ponés con Presupuestos.",
     pantallas: [
       "Formularios por tipo de evento",
       "Enlace para compartir",
       "Bandeja de consultas",
+    ],
+  },
+  {
+    key: "quotes",
+    cuadro: "15",
+    nombre: "Presupuestos",
+    resuelve:
+      "El presupuesto sale de la consulta, con los precios de tu catálogo o calculado con ¿Cuánto Cobro?. Se lo mandás por correo o WhatsApp con un enlace: el cliente lo ve, lo descarga y lo acepta ahí mismo, y la consulta pasa a ganada sola. Cada cambio después de enviarlo es una versión nueva, y tu equipo no ve tus costos.",
+    pantallas: [
+      "Presupuestos por consulta",
+      "Ítems de lista o calculados",
+      "Enlace para que el cliente acepte",
+      "Versiones y quién lo vio",
     ],
   },
   {
@@ -324,13 +337,6 @@ export const EN_CONSTRUCCION: {
   icono: string;
 }[] = [
   {
-    cuadro: "15",
-    icono: "presupuestos",
-    nombre: "Presupuestos",
-    resuelve:
-      "Armar el presupuesto con tus precios, mandárselo al cliente y seguir si lo aceptó. La consulta ya te llega con todos los datos del evento —eso es Consultas—; falta ponerle precio y mandarlo desde acá.",
-  },
-  {
     cuadro: "16",
     icono: "eventos",
     nombre: "Eventos",
@@ -353,6 +359,13 @@ export const EN_CONSTRUCCION: {
     icono: "transparencia",
     nombre: "Transparencia",
     resuelve: "Publicar el balance y la rendición para que el socio vea en qué se usó su cuota.",
+  },
+  {
+    cuadro: "20",
+    icono: "pedidos",
+    nombre: "Pedidos",
+    resuelve:
+      "Del presupuesto aceptado al trabajo hecho: el pedido con sus fechas, quién lo hace y cuándo se entrega.",
   },
 ];
 

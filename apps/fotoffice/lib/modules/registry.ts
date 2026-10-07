@@ -108,6 +108,21 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     family: "negocio",
   },
   {
+    // Etapa 2 (Entrega A): presupuestos de las consultas, con enlace público y aceptación. Los
+    // presupuestos cuelgan de una consulta, por eso depende de Consultas. Lo enciende el
+    // administrador de la plataforma, como el resto (la pantalla de Módulos no cambia).
+    key: "quotes",
+    label: "Presupuestos",
+    description:
+      "Presupuestos de las consultas con productos del catálogo o calculados con ¿Cuánto Cobro?, enlace para el cliente y aceptación en línea.",
+    category: "GENERAL",
+    order: 26,
+    route: "/presupuestos",
+    status: "AVAILABLE",
+    family: "negocio",
+    dependsOn: [SERVICE_LEADS_MODULE_KEY],
+  },
+  {
     key: WEBSITE_MODULE_KEY,
     label: "Sitio web",
     description: "Sitio público del workspace: portada, secciones y datos de publicación.",
@@ -295,15 +310,6 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     order: 140,
     status: "PLANNED",
     family: "institucion",
-  },
-  {
-    key: "quotes",
-    label: "Consultas y presupuestos",
-    description: "Consultas de clientes y presupuestos con seguimiento hasta el trabajo cerrado.",
-    category: "GENERAL",
-    order: 26,
-    status: "PLANNED",
-    family: "negocio",
   },
   {
     key: "orders",

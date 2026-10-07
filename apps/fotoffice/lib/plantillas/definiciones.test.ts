@@ -87,7 +87,10 @@ describe("crear, validar y listar", () => {
     expect((await r({ canal: "WHATSAPP", asunto: null, cuerpo: "x".repeat(4_001) })).ok).toBe(false);
     expect((await r({ canal: "WHATSAPP", asunto: null, cuerpo: "x".repeat(4_000) })).ok).toBe(true);
     expect(await r({ canal: "SMS" })).toEqual({ ok: false, error: M.canalInvalido });
-    expect(await r({ tipo: "PRESUPUESTO" })).toEqual({ ok: false, error: M.tipoInvalido });
+    expect(await r({ tipo: "COBERTURA" })).toEqual({ ok: false, error: M.tipoInvalido });
+    // PRESUPUESTO (etapa 2): vale, con las variables del presupuesto y de la consulta.
+    expect((await r({ tipo: "PRESUPUESTO", cuerpo: "Mirá [presupuesto_enlace] ([consulta_fecha])" })).ok).toBe(true);
+    expect((await r({ tipo: "CONSULTA", cuerpo: "Mirá [presupuesto_enlace]" })).ok).toBe(false);
   });
 
   it("una variable desconocida se rechaza diciendo cuál y dónde", async () => {

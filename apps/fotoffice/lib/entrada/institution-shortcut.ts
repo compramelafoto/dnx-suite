@@ -51,6 +51,7 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "onboarding",
   "portal",
   "portfolios",
+  "presupuestos",
   "privacidad",
   "recuperar",
   "reservas",

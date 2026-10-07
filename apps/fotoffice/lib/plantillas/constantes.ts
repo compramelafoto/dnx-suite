@@ -2,8 +2,12 @@
 export const CANALES = ["EMAIL", "WHATSAPP"] as const;
 export type Canal = (typeof CANALES)[number];
 
-/** Tipo de ficha de una plantilla. GENERAL sirve en cualquier ficha y sólo usa variables comunes. */
-export const TIPOS_PLANTILLA = ["GENERAL", "CLIENTE", "SOCIO", "CONSULTA"] as const;
+/**
+ * Tipo de ficha de una plantilla. GENERAL sirve en cualquier ficha y sólo usa variables comunes.
+ * PRESUPUESTO (etapa 2) no es una ficha: es el envío de un presupuesto, que sale desde la consulta
+ * con las variables de la consulta más las del presupuesto (`[presupuesto_enlace]`, etc.).
+ */
+export const TIPOS_PLANTILLA = ["GENERAL", "CLIENTE", "SOCIO", "CONSULTA", "PRESUPUESTO"] as const;
 export type TipoPlantilla = (typeof TIPOS_PLANTILLA)[number];
 
 /** Estado de un mensaje en el registro (`FotofficeMessage.status`). */
@@ -26,6 +30,7 @@ export const ETIQUETA_TIPO_PLANTILLA: Record<TipoPlantilla, string> = {
   CLIENTE: "Cliente",
   SOCIO: "Socio",
   CONSULTA: "Consulta",
+  PRESUPUESTO: "Presupuesto",
 };
 export const ETIQUETA_ESTADO_MENSAJE: Record<EstadoMensaje, string> = {
   SENT: "Enviado",

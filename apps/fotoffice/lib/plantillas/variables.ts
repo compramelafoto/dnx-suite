@@ -26,11 +26,13 @@ export type ContextoVariables = {
     etapa: string | null;
   };
   socio?: { numero: string | null };
+  /** Sólo al enviar un presupuesto (etapa 2): ya formateados para leer. */
+  presupuesto?: { numero: string | null; enlace: string | null; total: string | null; vence: string | null };
   /** Valores legibles de los campos personalizados, por clave del campo (sin el prefijo `campo:`). */
   campos: Record<string, string>;
 };
 
-export type GrupoVariable = "Persona" | "Organización" | "Usuario que envía" | "Fecha" | "Consulta" | "Socio" | "Campos";
+export type GrupoVariable = "Persona" | "Organización" | "Usuario que envía" | "Fecha" | "Consulta" | "Presupuesto" | "Socio" | "Campos";
 
 export type DefinicionVariable = {
   clave: string;
@@ -44,7 +46,9 @@ export type DefinicionVariable = {
 export const PREFIJO_CAMPO = "campo:";
 
 const TODAS = TIPOS_PLANTILLA;
-const CONSULTA: readonly TipoPlantilla[] = ["CONSULTA"];
+/** El presupuesto sale de una consulta: sus plantillas también usan los datos de la consulta. */
+const CONSULTA: readonly TipoPlantilla[] = ["CONSULTA", "PRESUPUESTO"];
+const PRESUPUESTO: readonly TipoPlantilla[] = ["PRESUPUESTO"];
 const SOCIO: readonly TipoPlantilla[] = ["SOCIO"];
 const CON_CAMPOS: readonly TipoPlantilla[] = ["CLIENTE", "SOCIO", "CONSULTA"];
 
@@ -119,6 +123,11 @@ export const VARIABLES: readonly DefinicionVariable[] = [
   { clave: "consulta_lugar", etiqueta: "Lugar del evento", descripcion: "El lugar del evento.", grupo: "Consulta", tipos: CONSULTA, obtener: (c) => limpio(c.consulta?.lugar) },
   { clave: "consulta_mensaje", etiqueta: "Mensaje de la consulta", descripcion: "Lo que escribió la persona al consultar.", grupo: "Consulta", tipos: CONSULTA, obtener: (c) => limpio(c.consulta?.mensaje) },
   { clave: "consulta_etapa", etiqueta: "Etapa de la consulta", descripcion: "La etapa actual de la consulta en su recorrido.", grupo: "Consulta", tipos: CONSULTA, obtener: (c) => limpio(c.consulta?.etapa) },
+  // Presupuesto (etapa 2)
+  { clave: "presupuesto_numero", etiqueta: "Número de presupuesto", descripcion: "El número del presupuesto (se asigna al enviarlo por primera vez).", grupo: "Presupuesto", tipos: PRESUPUESTO, obtener: (c) => limpio(c.presupuesto?.numero) },
+  { clave: "presupuesto_enlace", etiqueta: "Enlace al presupuesto", descripcion: "La dirección donde la persona ve y acepta el presupuesto.", grupo: "Presupuesto", tipos: PRESUPUESTO, obtener: (c) => limpio(c.presupuesto?.enlace) },
+  { clave: "presupuesto_total", etiqueta: "Total del presupuesto", descripcion: "El total, en pesos (sin los opcionales).", grupo: "Presupuesto", tipos: PRESUPUESTO, obtener: (c) => limpio(c.presupuesto?.total) },
+  { clave: "presupuesto_vence", etiqueta: "Vencimiento del presupuesto", descripcion: "El último día de validez, en dd/mm/aaaa.", grupo: "Presupuesto", tipos: PRESUPUESTO, obtener: (c) => limpio(c.presupuesto?.vence) },
   // Socio
   { clave: "socio_numero", etiqueta: "Número de socio", descripcion: "El número de socio, si la organización los numera.", grupo: "Socio", tipos: SOCIO, obtener: (c) => limpio(c.socio?.numero) },
 ];

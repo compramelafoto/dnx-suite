@@ -6,6 +6,7 @@ import { sendTransactionalEmail, type OutboundEmail, type SendOutcome } from "@/
 import { buildWhatsappUrl, normalizeWhatsappNumber } from "@/lib/contact/whatsapp";
 import {
   CARACTER_MARCADOR, CLAVE_FIRMA, MARCADOR_FIRMA, MAX_ASUNTO, MAX_CUERPO, TOPE_AUTOMATICOS_DIA, TOPE_CORREOS_DIA, ZONA_HORARIA, type Canal, type ClaveAutomatico,
+  type TipoPlantilla,
 } from "./constantes";
 import { contextoDe, correoValido, type ContextoMensaje, type TipoFichaMensaje } from "./contexto";
 import { plantillaParaUsar } from "./definiciones";
@@ -82,7 +83,7 @@ export type MensajePreparado = {
  */
 export function completarTextos(
   contexto: ContextoMensaje,
-  tipo: TipoFichaMensaje,
+  tipo: TipoPlantilla,
   asunto: string | null,
   cuerpo: string,
 ): { ok: true; asunto: string; cuerpo: string; vacias: string[] } | Falla {
@@ -161,7 +162,7 @@ async function validarPlantilla(
   workspaceId: string,
   templateId: unknown,
   canal: Canal,
-  tipo: TipoFichaMensaje,
+  tipo: TipoPlantilla,
   automatico: boolean,
 ): Promise<{ ok: true; id: string | null } | Falla> {
   if (templateId === undefined || templateId === null || templateId === "") {
@@ -260,6 +261,14 @@ export async function correosEnviadosHoy(workspaceId: string, ahora: Date, autom
 
 // ─── Correo ──────────────────────────────────────────────────────────────────
 
+/**
+ * Para envíos de otro módulo desde la ficha (hoy: el presupuesto, etapa 2). Sólo código del
+ * servidor los pasa (nunca lo que llega de un formulario):
+ * - `modulo`: el módulo cuyo "Gestionar" se exige en vez del de la ficha;
+ * - `tipoPlantilla`: el tipo de plantilla válido (PRESUPUESTO) en vez del de la ficha.
+ */
+export type OpcionesDeEnvio = { modulo?: string; tipoPlantilla?: TipoPlantilla };
+
 export type DepsEnvio = {
   /** Inyectable en las pruebas: nunca se manda un correo real desde un test. */
   enviar?: (mensaje: OutboundEmail) => Promise<SendOutcome>;
@@ -295,9 +304,9 @@ export type DatosCorreo = {
  * mira antes: al llegar, no se envía ni se registra. Una falla del proveedor queda registrada
  * con su código y no se reintenta.
  */
-export async function enviarCorreo(ctx: CtxEnvio, datos: DatosCorreo, deps: DepsEnvio = {}): Promise<ResultadoEnvio> {
+export async function enviarCorreo(ctx: CtxEnvio, datos: DatosCorreo, deps: DepsEnvio = {}, opciones: OpcionesDeEnvio = {}): Promise<ResultadoEnvio> {
   const automatico = datos.automatico === true;
-  if (!automatico && !puedeEnContexto(ctx, "operar", moduloDeTipo(datos.entityType))) return no(MENSAJES_ENVIO.sinPermiso);
+  if (!automatico && !puedeEnContexto(ctx, "operar", opciones.modulo ?? moduloDeTipo(datos.entityType))) return no(MENSAJES_ENVIO.sinPermiso);
 
   if (typeof datos.asunto !== "string") return no(MENSAJES_ENVIO.asunto);
   const asunto = datos.asunto.replace(/\s+/g, " ").trim();
@@ -312,7 +321,7 @@ export async function enviarCorreo(ctx: CtxEnvio, datos: DatosCorreo, deps: Deps
 
   const contexto = await contextoDe(ctx.workspaceId, datos.entityType, datos.entityId, usuarioDe(ctx));
   if (!contexto) return no(MENSAJES_ENVIO.noEncontrado);
-  const plantilla = await validarPlantilla(ctx.workspaceId, datos.templateId, "EMAIL", datos.entityType, automatico);
+  const plantilla = await validarPlantilla(ctx.workspaceId, datos.templateId, "EMAIL", opciones.tipoPlantilla ?? datos.entityType, automatico);
   if (!plantilla.ok) return plantilla;
   const para = contexto.destino.email;
   if (!correoValido(para)) return no(MENSAJES_ENVIO.sinCorreo);
@@ -387,8 +396,8 @@ export type ResultadoWhatsapp = { ok: true; url: string; mensajeId: string } | F
  * Arma el enlace `wa.me` con el texto final para el teléfono de la persona y lo registra como
  * `OPENED_WHATSAPP`. La firma va sólo si el texto la pide con `[firma]`.
  */
-export async function abrirWhatsapp(ctx: CtxEnvio, datos: DatosWhatsapp): Promise<ResultadoWhatsapp> {
-  if (!puedeEnContexto(ctx, "operar", moduloDeTipo(datos.entityType))) return no(MENSAJES_ENVIO.sinPermiso);
+export async function abrirWhatsapp(ctx: CtxEnvio, datos: DatosWhatsapp, opciones: OpcionesDeEnvio = {}): Promise<ResultadoWhatsapp> {
+  if (!puedeEnContexto(ctx, "operar", opciones.modulo ?? moduloDeTipo(datos.entityType))) return no(MENSAJES_ENVIO.sinPermiso);
   const vc = validarCuerpo(datos.cuerpo, "WHATSAPP");
   if (!vc.ok) return vc;
   if (tieneMarcadorSinCompletar(vc.cuerpo)) return no(MENSAJES_ENVIO.marcadorSinCompletar);
@@ -397,7 +406,7 @@ export async function abrirWhatsapp(ctx: CtxEnvio, datos: DatosWhatsapp): Promis
 
   const contexto = await contextoDe(ctx.workspaceId, datos.entityType, datos.entityId, usuarioDe(ctx));
   if (!contexto) return no(MENSAJES_ENVIO.noEncontrado);
-  const plantilla = await validarPlantilla(ctx.workspaceId, datos.templateId, "WHATSAPP", datos.entityType, false);
+  const plantilla = await validarPlantilla(ctx.workspaceId, datos.templateId, "WHATSAPP", opciones.tipoPlantilla ?? datos.entityType, false);
   if (!plantilla.ok) return plantilla;
   const numero = normalizeWhatsappNumber(contexto.destino.telefono);
   if (!numero) return no(MENSAJES_ENVIO.sinWhatsapp);

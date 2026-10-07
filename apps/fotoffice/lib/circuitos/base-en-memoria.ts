@@ -32,6 +32,10 @@ const TABLAS = [
   "user",
   // Bitácora de las listas (la importación de consultas deja su registro).
   "fotofficeListActivity",
+  // Catálogo de Ventas y su ampliación para presupuestos (etapa 2).
+  "product", "productCategory", "fotofficeProductoCatalogo", "fotofficeComboItem", "fotofficeCostoPlantilla",
+  // Presupuestos (etapa 2).
+  "fotofficePresupuesto", "fotofficePresupuestoVersion", "fotofficePresupuestoVista", "fotofficePresupuestoAjustes",
 ] as const;
 export type Tabla = (typeof TABLAS)[number];
 
@@ -94,6 +98,24 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
   fotofficeRolParticipante: () => ({ order: 0, archivedAt: null, createdAt: new Date() }),
   fotofficeConsultaParticipante: () => ({ note: null, createdAt: new Date() }),
   fotofficeConsultaAjustes: () => ({ defaultOwnerUserId: null, notifyEmail: true, createTask: true, updatedAt: new Date() }),
+  product: () => ({ kind: "PRODUCTO", categoryId: null, isActive: true, costArs: null, createdAt: new Date(), updatedAt: new Date() }),
+  productCategory: () => ({ order: 0, isActive: true, createdAt: new Date(), updatedAt: new Date() }),
+  fotofficeProductoCatalogo: () => ({ inPriceList: false, incomeLabel: null, isCombo: false, createdAt: new Date(), updatedAt: new Date() }),
+  fotofficeComboItem: () => ({ quantity: 1, order: 0, createdAt: new Date() }),
+  fotofficeCostoPlantilla: () => ({ supplierClientId: null, perUnit: false, daysFromEvent: 0, order: 0, createdAt: new Date(), updatedAt: new Date() }),
+  fotofficePresupuesto: () => ({
+    status: "BORRADOR", currentVersionId: null, acceptedVersionId: null, ownerUserId: null, validUntil: null,
+    pedidoPorConfirmar: false, createdAt: new Date(), updatedAt: new Date(),
+  }),
+  fotofficePresupuestoVersion: () => ({
+    terms: null, paymentProposal: null, costSnapshot: null, createdByUserId: null, createdAt: new Date(), sentAt: null,
+    tokenHash: null, tokenExpiresAt: null, revokedAt: null, acceptedAt: null, acceptedName: null, acceptedIpHash: null,
+    acceptedUserAgent: null,
+  }),
+  fotofficePresupuestoVista: () => ({ viewedAt: new Date(), ipHash: null, userAgent: null }),
+  fotofficePresupuestoAjustes: () => ({
+    validityDays: 15, terms: null, paymentProposal: null, followUpDays: 3, followUpEnabled: false, updatedAt: new Date(),
+  }),
 };
 
 function igual(a: unknown, b: unknown): boolean {
@@ -202,6 +224,19 @@ export function crearBaseEnMemoria() {
     fotofficeRolParticipante: [{ columnas: ["workspaceId", "name"] }],
     fotofficeConsultaParticipante: [{ columnas: ["consultaId", "clientId", "roleId"] }],
     fotofficeConsultaAjustes: [{ columnas: ["workspaceId"] }],
+    // Etapa 2: los de la migración (y el de categorías de Ventas, que ya existía).
+    productCategory: [{ columnas: ["workspaceId", "name"] }],
+    fotofficeProductoCatalogo: [{ columnas: ["productId"] }],
+    fotofficeComboItem: [{ columnas: ["comboProductId", "componentProductId"] }],
+    fotofficePresupuesto: [
+      { columnas: ["currentVersionId"], aplica: (f) => f.currentVersionId !== null && f.currentVersionId !== undefined },
+      { columnas: ["acceptedVersionId"], aplica: (f) => f.acceptedVersionId !== null && f.acceptedVersionId !== undefined },
+    ],
+    fotofficePresupuestoVersion: [
+      { columnas: ["presupuestoId", "number"] },
+      { columnas: ["tokenHash"], aplica: (f) => f.tokenHash !== null && f.tokenHash !== undefined },
+    ],
+    fotofficePresupuestoAjustes: [{ columnas: ["workspaceId"] }],
   };
 
   /**

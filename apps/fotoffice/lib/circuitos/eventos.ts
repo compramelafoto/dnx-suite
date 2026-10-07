@@ -111,6 +111,62 @@ export async function ganarConsultaPorSistema(workspaceId: string, leadId: strin
   }
 }
 
+/**
+ * Un presupuesto de una consulta PERDIDA se aceptó (spec etapa 2 §5): la consulta se reabre como
+ * Ganada, como Sistema. Con un recorrido de venta abierto no hace nada (ahí deciden las reglas del
+ * circuito, `notificarEvento`). Si el último recorrido de venta cerró como Perdida, ese cierre pasa
+ * a Ganada (sin motivo de pérdida) con un paso nuevo en su historial; sin recorrido, una consulta
+ * que todavía no está WON (perdida o en cualquier otro estado) pasa a WON. En los dos casos el adaptador pone el estado compatible y el contacto
+ * pasa a Cliente (`alCambiarEtapa`), en la misma transacción. Nunca lanza.
+ */
+export async function reabrirComoGanadaPorSistema(workspaceId: string, leadId: string, nota: string): Promise<{ reabierta: boolean }> {
+  try {
+    const ctx = contextoDeSistema(workspaceId);
+    const exito = SALIDAS.VENTA.exito;
+    const fracaso = SALIDAS.VENTA.fracaso;
+    return await prisma.$transaction(async (tx) => {
+      const delLead = { workspaceId, subjectType: "CAPTACION", subjectId: leadId, kind: "VENTA" };
+      if (await tx.fotofficeJourney.findFirst({ where: { ...delLead, closedAt: null }, select: { id: true } })) return { reabierta: false };
+      const ultimo = await tx.fotofficeJourney.findFirst({
+        where: { ...delLead, closedAt: { not: null } },
+        orderBy: [{ closedAt: "desc" }],
+        select: { id: true, outcome: true },
+      });
+      const ahora = new Date();
+      if (ultimo) {
+        if (ultimo.outcome !== fracaso) return { reabierta: false };
+        // Condicional: si otro cambio ganó la carrera, no se pisa.
+        const r = await tx.fotofficeJourney.updateMany({
+          where: { id: ultimo.id, workspaceId, outcome: fracaso },
+          data: { outcome: exito, lossReasonId: null, closedAt: ahora },
+        });
+        if (r.count !== 1) return { reabierta: false };
+        await tx.fotofficeJourneyStep.create({
+          data: {
+            journeyId: ultimo.id,
+            fromStageId: null,
+            toStageId: null,
+            outcome: exito,
+            note: nota,
+            auto: true,
+            actorUserId: ctx.userId,
+            actorLabel: ctx.userLabel,
+            createdAt: ahora,
+          },
+        });
+      } else {
+        const lead = await tx.serviceSalesLead.findFirst({ where: { id: leadId, workspaceId }, select: { status: true } });
+        if (!lead || lead.status === "WON") return { reabierta: false };
+      }
+      await adaptadorDe("CAPTACION")?.alCambiarEtapa?.(tx, workspaceId, leadId, null, exito);
+      return { reabierta: true };
+    }, OPCIONES_TRANSACCION);
+  } catch (error) {
+    registrarFalla("reabrirComoGanadaPorSistema", { workspaceId }, error);
+    return { reabierta: false };
+  }
+}
+
 async function aplicarRegla(
   ctx: CtxCircuitos,
   j: { id: string; circuitId: string; stageId: string; enteredStageAt: Date },

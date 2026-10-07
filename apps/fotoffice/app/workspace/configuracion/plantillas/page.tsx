@@ -13,6 +13,9 @@ import {
   listarPlantillas,
 } from "@/lib/plantillas/definiciones";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
+import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
+import { QUOTES_MODULE_KEY } from "@/lib/presupuestos/acceso";
+import { asegurarPlantillasPresupuesto } from "@/lib/presupuestos/plantillas";
 import { prisma } from "@repo/db";
 import { AutomaticoForm } from "./automatico-form";
 import type { CamposPorTipo, OpcionTipo } from "./editor-texto";
@@ -56,20 +59,25 @@ export default async function ConfiguracionPlantillasPage({
   // El aviso al equipo (etapa 1) también lo necesitan los workspaces ya sembrados.
   await asegurarAvisoEquipo(workspace.id);
 
-  const [vocabulario, encendidos] = await Promise.all([
+  const [vocabulario, encendidos, conPresupuestos] = await Promise.all([
     loadPersonVocabulary(workspace.id),
     tiposConModuloEncendido(workspace.id),
+    isModuleEnabledForWorkspace(workspace.id, QUOTES_MODULE_KEY),
   ]);
+  // Las de envío de presupuestos (etapa 2), con su módulo encendido.
+  if (conPresupuestos) await asegurarPlantillasPresupuesto(workspace.id);
   const etiquetas: Record<TipoPlantilla, string> = {
     GENERAL: "General",
     CLIENTE: "Clientes",
     SOCIO: vocabulario.Plural,
     CONSULTA: "Consultas",
+    PRESUPUESTO: "Presupuestos",
   };
-  // GENERAL siempre; Clientes, Socios y Consultas sólo con su módulo encendido.
+  // GENERAL siempre; Clientes, Socios y Consultas sólo con su módulo encendido; Presupuestos, con el suyo.
   const tipos: OpcionTipo[] = [
     { valor: "GENERAL", etiqueta: etiquetas.GENERAL },
     ...encendidos.map((t) => ({ valor: t, etiqueta: etiquetas[t] })),
+    ...(conPresupuestos ? [{ valor: "PRESUPUESTO" as const, etiqueta: etiquetas.PRESUPUESTO }] : []),
   ];
   const conCaptacion = encendidos.includes("CONSULTA");
   const auto = await leerAutomatico(workspace.id, "CONSULTA_AUTORESPUESTA");
@@ -83,7 +91,7 @@ export default async function ConfiguracionPlantillasPage({
   const elegida = pestanas.find((p) => p.slug === pedido) ?? pestanas[0]!;
 
   // Campos personalizados activos de cada tipo encendido, para la lista de variables.
-  const campos: CamposPorTipo = { GENERAL: [], CLIENTE: [], SOCIO: [], CONSULTA: [] };
+  const campos: CamposPorTipo = { GENERAL: [], CLIENTE: [], SOCIO: [], CONSULTA: [], PRESUPUESTO: [] };
   const listas = await Promise.all(encendidos.map((t) => listarCampos(workspace.id, t)));
   encendidos.forEach((t, i) => {
     campos[t] = listas[i]!.map((c) => ({ clave: c.key, nombre: c.name }));

@@ -15,6 +15,7 @@ import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { enumerar, tiposConModuloEncendido } from "@/lib/campos/modulos";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
+import { QUOTES_MODULE_KEY } from "@/lib/presupuestos/acceso";
 
 export default async function WorkspaceSettingsPage() {
   const user = await requireAuth();
@@ -46,6 +47,9 @@ export default async function WorkspaceSettingsPage() {
   const tiposConCampos = (await tiposConModuloEncendido(ensured.workspaceId)).map((t) => NOMBRE_TIPO[t]);
   // Configuración → Consultas, sólo con el módulo encendido (como su pantalla).
   const consultasEncendido = await isModuleEnabledForWorkspace(ensured.workspaceId, SERVICE_LEADS_MODULE_KEY);
+  // Configuración → Presupuestos: con Consultas o Presupuestos encendido (los ajustes se dejan
+  // listos antes de encender el módulo, como en el menú).
+  const presupuestosVisible = consultasEncendido || (await isModuleEnabledForWorkspace(ensured.workspaceId, QUOTES_MODULE_KEY));
 
   return (
     <div className="space-y-8 max-w-xl">
@@ -159,6 +163,21 @@ export default async function WorkspaceSettingsPage() {
             <span className="block text-sm font-semibold">Consultas</span>
             <span className="block text-xs text-[var(--fo-muted)]">
               Categorías, orígenes, roles de participante y avisos de consultas nuevas.
+            </span>
+          </span>
+          <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
+        </Link>
+      ) : null}
+
+      {membership?.role && puede(membership.role, "configurar") && presupuestosVisible ? (
+        <Link
+          href="/workspace/configuracion/presupuestos"
+          className="fo-card flex items-center justify-between gap-4 p-4 transition hover:border-[var(--fo-accent,#1d4ed8)]"
+        >
+          <span className="space-y-0.5">
+            <span className="block text-sm font-semibold">Presupuestos</span>
+            <span className="block text-xs text-[var(--fo-muted)]">
+              Validez, condiciones generales, propuesta de pago y seguimiento de los presupuestos.
             </span>
           </span>
           <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
