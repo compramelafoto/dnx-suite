@@ -1,4 +1,5 @@
 import "server-only";
+import { after } from "next/server";
 import { Prisma, prisma } from "@repo/db";
 import { puedeEnContexto } from "@/lib/access/policy";
 import { notificarEvento } from "@/lib/circuitos/eventos";
@@ -124,6 +125,27 @@ class ErrorDeAlta extends Error {}
 
 /** El formulario web sin ninguna categoría: no es culpa de quien consulta, va al respaldo. */
 const SIN_CATEGORIA = "SIN_CATEGORIA";
+
+/**
+ * Corre `tarea` después de mandar la respuesta (`after` de Next, que en Vercel la mantiene viva
+ * hasta que termina, dentro del `maxDuration` de la ruta). Fuera de un pedido (pruebas, scripts)
+ * `after` lanza al instante y la tarea corre acá mismo, en orden. La tarea nunca lanza: cada paso
+ * atrapa sus errores; si igual lanzara, sólo se registra el código.
+ */
+async function despuesDeResponder(tarea: () => Promise<void>): Promise<void> {
+  const segura = async () => {
+    try {
+      await tarea();
+    } catch (error) {
+      registrarFalla("despuesDeResponder", error);
+    }
+  };
+  try {
+    after(segura);
+  } catch {
+    await segura();
+  }
+}
 
 function registrarFalla(donde: string, error: unknown): void {
   const e = error as { name?: string; code?: string } | null;
@@ -466,21 +488,25 @@ export async function altaDeConsulta(
   //    la propuesta modelo de la categoría, si sale sola (etapa 2, Entrega B); si no salió, la
   //    común. Nunca las dos: la propuesta la reemplaza (y comparten la regla de una por dirección
   //    cada 24 h). Se carga recién acá: Presupuestos usa el alta y así no hay un ciclo de imports.
+  //    Corre DESPUÉS de responderle al navegador (`despuesDeResponder`): la persona no espera a
+  //    que se arme y se mande el correo.
   if (origenDelAlta === "WEB") {
-    let comun = true;
-    try {
-      const { correspondeAutorespuestaComun, enviarPropuestaModelo } = await import("@/lib/presupuestos/propuesta-automatica");
-      comun = correspondeAutorespuestaComun(await enviarPropuestaModelo(workspaceId, leadId, deps));
-    } catch (error) {
-      registrarFalla("enviarPropuestaModelo", error);
-    }
-    if (comun) {
+    await despuesDeResponder(async () => {
+      let comun = true;
       try {
-        await responderConsultaNueva(workspaceId, leadId);
+        const { correspondeAutorespuestaComun, enviarPropuestaModelo } = await import("@/lib/presupuestos/propuesta-automatica");
+        comun = correspondeAutorespuestaComun(await enviarPropuestaModelo(workspaceId, leadId, deps));
       } catch (error) {
-        registrarFalla("responderConsultaNueva", error);
+        registrarFalla("enviarPropuestaModelo", error);
       }
-    }
+      if (comun) {
+        try {
+          await responderConsultaNueva(workspaceId, leadId);
+        } catch (error) {
+          registrarFalla("responderConsultaNueva", error);
+        }
+      }
+    });
   }
 
   const avisos: AvisosDelAlta = {};

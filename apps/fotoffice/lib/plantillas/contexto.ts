@@ -154,7 +154,6 @@ export async function contextoDe(
   let persona: DatosPersona;
   let consulta: ContextoVariables["consulta"];
   let socio: ContextoVariables["socio"];
-  let listaPrecios: string | null = null;
 
   if (entityType === "CONSULTA") {
     const lead = await prisma.serviceSalesLead.findFirst({
@@ -163,12 +162,7 @@ export async function contextoDe(
     });
     if (!lead) return null;
     persona = { nombreCompleto: limpio(lead.name), email: limpio(lead.email), telefono: limpio(lead.phone) };
-    const [numeros, etapa, lista] = await Promise.all([
-      numeroDe(workspaceId, "CONSULTA", [entityId]),
-      etapaDeConsulta(workspaceId, entityId),
-      listaDePrecios(workspaceId),
-    ]);
-    listaPrecios = lista;
+    const [numeros, etapa] = await Promise.all([numeroDe(workspaceId, "CONSULTA", [entityId]), etapaDeConsulta(workspaceId, entityId)]);
     consulta = {
       numero: numeros.get(entityId) ?? null,
       tipo: (SERVICE_LEAD_EVENT_TYPE_LABELS as Record<string, string>)[lead.eventType] ?? limpio(lead.eventType),
@@ -210,7 +204,6 @@ export async function contextoDe(
     hoy,
     ...(consulta ? { consulta } : {}),
     ...(socio ? { socio } : {}),
-    ...(entityType === "CONSULTA" ? { listaPrecios } : {}),
     campos: campos.campos,
   };
 
@@ -221,6 +214,26 @@ export async function contextoDe(
     remitente: { nombre: org.organizationName, replyTo: contacto.email },
     camposActivos: campos.activos,
   };
+}
+
+/** ¿Alguno de los textos usa `[lista_precios]` (o `[si:lista_precios]`)? */
+export function usaListaDePrecios(...textos: (string | null | undefined)[]): boolean {
+  return textos.some((t) => typeof t === "string" && t.includes("lista_precios"));
+}
+
+/**
+ * `[lista_precios]` (etapa 2, Entrega B) se lee SÓLO si el texto la usa: arma la lista con una
+ * lectura del catálogo y la suma al contexto de una consulta. En otra ficha, o si ningún texto la
+ * menciona, devuelve el mismo contexto sin leer nada.
+ */
+export async function conListaDePrecios(
+  workspaceId: string,
+  contexto: ContextoMensaje,
+  ...textos: (string | null | undefined)[]
+): Promise<ContextoMensaje> {
+  if (!contexto.variables.consulta || !usaListaDePrecios(...textos)) return contexto;
+  const listaPrecios = await listaDePrecios(workspaceId);
+  return { ...contexto, variables: { ...contexto.variables, listaPrecios } };
 }
 
 /**

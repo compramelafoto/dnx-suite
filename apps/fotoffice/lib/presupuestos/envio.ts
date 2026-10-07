@@ -5,7 +5,7 @@ import { OPCIONES_TRANSACCION } from "@/lib/circuitos/recorridos";
 import { normalizeWhatsappNumber } from "@/lib/contact/whatsapp";
 import { numeroDe } from "@/lib/numeracion/asignar";
 import { CANALES, MAX_ASUNTO, TOPE_AUTOMATICOS_DIA, TOPE_CORREOS_DIA, type Canal } from "@/lib/plantillas/constantes";
-import { contextoDe, correoValido, type ContextoMensaje } from "@/lib/plantillas/contexto";
+import { conListaDePrecios, contextoDe, correoValido, type ContextoMensaje } from "@/lib/plantillas/contexto";
 import { listarPlantillas, plantillaParaUsar } from "@/lib/plantillas/definiciones";
 import {
   abrirWhatsapp,
@@ -183,7 +183,7 @@ type Hecho =
   | { tipo: "NUEVA" | "REENVIO"; versionId: string; validUntil: Date | null; numero: string | null; totals: TotalesGuardados | null };
 
 /** Quién envía: una persona del equipo (con "Gestionar") o el sistema (la propuesta modelo, Entrega B). */
-type Emisor = { workspaceId: string; ctxEnvio: CtxEnvio; nombre: string | null; automatico: boolean };
+type Emisor = { workspaceId: string; ctxEnvio: CtxEnvio; nombre: string | null; automatico: boolean; registroId?: string };
 
 export async function enviarPresupuesto(
   ctx: CtxPresupuestos,
@@ -201,16 +201,19 @@ export async function enviarPresupuesto(
  * propuesta modelo de la consulta web, `./propuesta-automatica.ts`). Sin usuario ni permisos: lo
  * llama sólo el servidor. Es un correo AUTOMÁTICO: cuenta en el tope de los automáticos
  * (`TOPE_AUTOMATICOS_DIA`), no en el de los manuales, y queda registrado con `automatic=true`.
- * La regla de una respuesta por dirección cada 24 h la mira quien llama, antes de crear nada.
+ * La regla de una respuesta por dirección cada 24 h la mira quien llama, antes de crear nada; con
+ * `registroId` el registro completa la reserva que hizo quien llama (`reservarEnvioAutomatico`).
  */
 export async function enviarPresupuestoDelSistema(
   workspaceId: string,
   presupuestoId: string,
   templateId: string,
   deps: DepsEnvioPresupuesto = {},
+  opciones: { registroId?: string } = {},
 ): Promise<ResultadoEnvioPresupuesto> {
   const ctxEnvio: CtxEnvio = { workspaceId, userId: null, userLabel: null, userName: null, userEmail: null, role: null };
-  return enviarComo({ workspaceId, ctxEnvio, nombre: null, automatico: true }, presupuestoId, { canal: "EMAIL", templateId }, deps);
+  const emisor: Emisor = { workspaceId, ctxEnvio, nombre: null, automatico: true, registroId: opciones.registroId };
+  return enviarComo(emisor, presupuestoId, { canal: "EMAIL", templateId }, deps);
 }
 
 async function enviarComo(
@@ -247,8 +250,9 @@ async function enviarComo(
   const fuente = await fuenteDelTexto(workspaceId, canal, datos, emisor.automatico);
   if ("ok" in fuente) return fuente;
   const usuario = { nombre: emisor.nombre, email: null };
-  const contexto = await contextoDe(workspaceId, "CONSULTA", p.consultaLeadId, usuario, ahora);
-  if (!contexto) return no(MENSAJES_PRESUPUESTO.consulta);
+  const leido = await contextoDe(workspaceId, "CONSULTA", p.consultaLeadId, usuario, ahora);
+  if (!leido) return no(MENSAJES_PRESUPUESTO.consulta);
+  const contexto = await conListaDePrecios(workspaceId, leido, fuente.asunto, fuente.cuerpo);
   if (canal === "EMAIL" && !correoValido(contexto.destino.email)) return no(MENSAJES_ENVIO.sinCorreo);
   if (canal === "WHATSAPP" && !normalizeWhatsappNumber(contexto.destino.telefono)) return no(MENSAJES_ENVIO.sinWhatsapp);
   const borradorAntes = await prisma.fotofficePresupuestoVersion.findFirst({
@@ -365,6 +369,7 @@ async function enviarComo(
       {
         entityType: "CONSULTA", entityId: p.consultaLeadId, templateId: fuente.templateId, asunto: textos.asunto, cuerpo: textos.cuerpo,
         automatico: emisor.automatico,
+        ...(emisor.registroId ? { registroId: emisor.registroId } : {}),
       },
       { enviar: deps.enviar, ahora: () => ahora },
       opciones,

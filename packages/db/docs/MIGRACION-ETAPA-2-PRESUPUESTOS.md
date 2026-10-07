@@ -474,14 +474,32 @@ propuesta modelo ni el seguimiento salen (la consulta recibe la respuesta común
   `FOTOFFICE_CRON_SECRET`); sin eso, 401. `maxDuration` 300.
 - Sólo revisa organizaciones con el seguimiento **encendido** y el módulo Presupuestos encendido.
   Mientras nadie lo encienda, cada corrida termina sin mandar nada.
-- Una vez **por versión** enviada (si se envía la V2, vuelve a contar desde ese envío). Cuenta en el
-  tope de 50 automáticos por día, respeta la regla de una respuesta automática por dirección cada
+- Una vez **por versión** enviada de **cada presupuesto** (si se envía la V2, vuelve a contar desde
+  ese envío). El mensaje queda registrado en el presupuesto (`FotofficeMessage.entityType =
+  'PRESUPUESTO'`, `entityId` = el presupuesto; esa columna no tiene CHECK), así dos presupuestos de
+  la misma consulta no se pisan; el historial de la consulta lo muestra igual. Dos corridas a la
+  vez no repiten: candado por presupuesto (`pg_advisory_xact_lock`) y reserva del registro antes de
+  mandar. Cuenta en el tope de 50 automáticos por día, respeta la regla de una respuesta automática por dirección cada
   24 h (si le tocó otra, se intenta al día siguiente) y manda como mucho **200** por corrida.
 - Responde sólo contadores: `{ ok, organizaciones, enviados, fallidos, salteados, conTopeDiario, topeCorrida }`.
 - Cada seguimiento queda en el historial de la consulta (mensaje automático y la línea «Se envió el
   seguimiento automático del presupuesto N° …»).
 
-### 9.4 Cómo encender el seguimiento
+### 9.4 Detalles de la propuesta que sale sola
+
+- Corre **después** de responderle al navegador (`after` de Next): la persona ve «enviada» sin
+  esperar el correo. El orden número → circuito → aviso → respuesta se mantiene.
+- Dos envíos simultáneos del formulario con la misma dirección: candado por organización y
+  dirección (`pg_advisory_xact_lock`), se vuelve a mirar la regla de 24 h y se reserva el registro
+  del correo antes de crear el presupuesto. El segundo no crea nada ni recibe respuesta.
+- Si el presupuesto quedó **Enviado** pero el correo no llegó (el proveedor lo rechazó, o algo
+  falló después de congelarlo), el responsable (o el dueño) recibe la tarea **«Revisar envío del
+  presupuesto N° …»** en la consulta, para reenviarlo desde la ficha. Si algo falló después de
+  congelarlo, **no** se manda la respuesta común (el correo pudo haber salido). En el registro queda
+  una fila «Falló» con el código del proveedor o `EN_CURSO`.
+- `[lista_precios]` sólo lee el catálogo si el texto la usa.
+
+### 9.5 Cómo encender el seguimiento
 
 1. Configuración → Presupuestos → Ajustes → **Seguimiento**: días (DNX: 3) y tildar **Activar el
    seguimiento**. Guardar.
@@ -493,7 +511,7 @@ Para la propuesta modelo: Configuración → Presupuestos → **Propuestas model
 productos, condiciones, plantilla y «Enviar sola al llegar una consulta web». La respuesta
 automática común (Plantillas → Automáticos) tiene que estar encendida.
 
-### 9.5 Rollback
+### 9.6 Rollback
 
 Primero el código (revertir el PR o volver al deploy anterior) y después:
 
@@ -510,7 +528,7 @@ Borra las propuestas modelo (no tiene vuelta atrás). Los presupuestos que ya sa
 mensajes de seguimiento quedan: son presupuestos y mensajes comunes. Para frenar sólo el seguimiento
 sin rollback alcanza con destildar «Activar el seguimiento».
 
-### 9.6 Prueba en producción (para Daniel, en el PR)
+### 9.7 Prueba en producción (para Daniel, en el PR)
 
 Todo en **DNX Estudio**, con una consulta de prueba hecha desde el formulario web con **un correo
 propio de Daniel** (y otro correo distinto para cada prueba, por la regla de 24 h).

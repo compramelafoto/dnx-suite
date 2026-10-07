@@ -256,7 +256,7 @@ describe("las fallas caen a la autorespuesta común, sin duplicar", () => {
     expect(B.datos.fotofficePresupuestoVersion).toHaveLength(0);
   });
 
-  it("si el proveedor rechaza la propuesta, no se insiste con la común (una por dirección)", async () => {
+  it("si el proveedor rechaza la propuesta, no se insiste con la común (una por dirección) y el responsable tiene una tarea", async () => {
     autorespuesta();
     propuesta();
     H.enviar.mockResolvedValue({ status: "PROVIDER_REJECTED", detail: "HTTP 422" });
@@ -264,8 +264,11 @@ describe("las fallas caen a la autorespuesta común, sin duplicar", () => {
     expect(H.enviar).toHaveBeenCalledTimes(1);
     expect(mensajes()).toHaveLength(1);
     expect(mensajes()[0]).toMatchObject({ status: "FAILED", templateId: plantillaPresupuesto, automatic: true });
-    // El presupuesto quedó enviado: se puede reenviar desde la ficha.
+    // El presupuesto quedó enviado: se puede reenviar desde la ficha, y hay una tarea para revisarlo.
     expect(presupuestos()[0]!.status).toBe("ENVIADO");
+    const tareas = B.datos.fotofficeTask.filter((t) => String(t.title).startsWith("Revisar envío del presupuesto"));
+    expect(tareas).toHaveLength(1);
+    expect(tareas[0]).toMatchObject({ assigneeUserId: 1, subjectType: "CAPTACION" });
   });
 
   it("si la base explota en el medio, no frena el alta y va la común", async () => {
@@ -305,3 +308,51 @@ describe("enviarPropuestaModelo (directo)", () => {
     for (const r of ["NO_APLICA", "SIN_CORREO", "TOPE", "FALLO", "ERROR"] as const) expect(PA.correspondeAutorespuestaComun(r)).toBe(true);
   });
 });
+
+describe("revisión: carreras y fallas después de enviar", () => {
+  it("toma el candado por organización y dirección (en minúsculas) antes de crear el presupuesto", async () => {
+    autorespuesta();
+    propuesta();
+    await createServiceLead({ ...ENTRADA, email: "Laura@Persona.TEST" });
+    expect(B.sql.some((q) => q.texto.includes("pg_advisory_xact_lock") && q.valores.includes(`fotoffice-respuesta-web:ws-1:${EMAIL}`))).toBe(true);
+    // La reserva quedó completa (ninguna EN_CURSO) y es la única respuesta.
+    expect(mensajes()).toHaveLength(1);
+    expect(mensajes()[0]).toMatchObject({ status: "SENT", errorCode: null });
+  });
+
+  it("dos envíos simultáneos con la misma dirección: el segundo ve la respuesta del primero dentro del candado", async () => {
+    autorespuesta();
+    propuesta();
+    // Mientras éste espera el candado, el otro envío ya reservó su respuesta a la misma dirección.
+    B.ganchos.alEjecutarSql = (texto, valores) => {
+      if (!texto.includes("pg_advisory_xact_lock") || !String(valores[0]).startsWith("fotoffice-respuesta-web:")) return;
+      B.agregar("fotofficeMessage", {
+        workspaceId: "ws-1", channel: "EMAIL", entityType: "CONSULTA", entityId: "otra", toAddress: EMAIL, body: "",
+        status: "FAILED", automatic: true, errorCode: "EN_CURSO",
+      });
+    };
+    expect(await createServiceLead(ENTRADA)).toEqual({ success: true });
+    expect(presupuestos()).toHaveLength(0);
+    // Ni la propuesta ni la común.
+    expect(H.enviar).not.toHaveBeenCalled();
+  });
+
+  it("si algo falla después de congelar el presupuesto, no va la común (el correo pudo haber salido)", async () => {
+    autorespuesta();
+    propuesta();
+    H.notificar.mockImplementation(async (...a: unknown[]) => {
+      if (a[2] === "PRESUPUESTO_ENVIADO") throw Object.assign(new Error("motor caído"), { code: "P2024" });
+      return { movido: true };
+    });
+    expect(await createServiceLead(ENTRADA)).toEqual({ success: true });
+    expect(presupuestos()[0]!.status).toBe("ENVIADO");
+    // Ni el correo de la propuesta (cortó antes) ni la común.
+    expect(H.enviar).not.toHaveBeenCalled();
+    expect(B.datos.fotofficeTask.filter((t) => String(t.title).startsWith("Revisar envío del presupuesto"))).toHaveLength(1);
+    // Directo: el resultado es ERROR_TRAS_ENVIO (con otra dirección, para que la regla de 24 h no lo tape).
+    B.datos.serviceSalesLead.at(-1)!.email = "otra@persona.test";
+    expect(await PA.enviarPropuestaModelo("ws-1", B.datos.serviceSalesLead.at(-1)!.id as string)).toBe("ERROR_TRAS_ENVIO");
+    expect(PA.correspondeAutorespuestaComun("ERROR_TRAS_ENVIO")).toBe(false);
+  });
+});
+

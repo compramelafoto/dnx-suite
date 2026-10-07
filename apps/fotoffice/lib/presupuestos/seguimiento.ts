@@ -1,11 +1,12 @@
 import "server-only";
-import { prisma } from "@repo/db";
+import { prisma, type Prisma } from "@repo/db";
+import { OPCIONES_TRANSACCION } from "@/lib/circuitos/recorridos";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { numeroDe } from "@/lib/numeracion/asignar";
 import { yaRespondida } from "@/lib/plantillas/automaticos";
-import { contextoDe, correoValido } from "@/lib/plantillas/contexto";
+import { conListaDePrecios, contextoDe, correoValido } from "@/lib/plantillas/contexto";
 import { leerAutomatico } from "@/lib/plantillas/definiciones";
-import { enviarCorreo, MENSAJES_ENVIO, type CtxEnvio, type DepsEnvio } from "@/lib/plantillas/envio";
+import { enviarCorreo, liberarReserva, MENSAJES_ENVIO, reservarEnvioAutomatico, type CtxEnvio, type DepsEnvio } from "@/lib/plantillas/envio";
 import { QUOTES_MODULE_KEY } from "./acceso";
 import { ENTIDAD_NUMERACION, esEstadoPresupuesto, type EstadoPresupuesto } from "./constantes";
 import { pesos } from "./editor";
@@ -27,9 +28,13 @@ import type { TotalesGuardados } from "./versiones";
  * el correo de la plantilla automática `PRESUPUESTO_SEGUIMIENTO` (con el enlace a la versión
  * vigente).
  *
- * - **Una vez por versión:** antes de enviar busca un mensaje de esa plantilla en la consulta
- *   registrado desde el envío de la versión (enviado o fallido). Una versión nueva vuelve a
- *   contar desde su envío.
+ * - **Una vez por versión:** el mensaje se registra en el PRESUPUESTO (`entityType` PRESUPUESTO,
+ *   `entityId` = su id; el historial de la consulta lo muestra igual) y antes de enviar se busca
+ *   uno de esa plantilla para ese presupuesto desde el envío de la versión vigente (enviado,
+ *   fallido o reservado). Dos presupuestos de la misma consulta no se pisan. Una versión nueva
+ *   vuelve a contar desde su envío.
+ * - **Dos corridas a la vez:** candado por presupuesto (`pg_advisory_xact_lock`), se vuelve a
+ *   mirar adentro y se reserva el registro antes de mandar.
  * - **Topes:** es un correo AUTOMÁTICO (`enviarCorreo` con `automatico`): cuenta en el tope diario
  *   de los automáticos, sigue la regla de una respuesta automática por dirección cada 24 h (si
  *   le tocó otra, se intenta al día siguiente) y, por corrida, como mucho
@@ -95,6 +100,17 @@ export function correspondeSeguimiento(args: {
   return diasDesdeElEnvio(args.sentAt, args.ahora) >= args.dias;
 }
 
+type LectorMensajes = Pick<Prisma.TransactionClient, "fotofficeMessage">;
+
+/** ¿Ya hay un seguimiento (enviado, fallido o reservado) de este presupuesto desde el envío de la vigente? */
+async function yaTieneSeguimiento(cliente: LectorMensajes, workspaceId: string, templateId: string, presupuestoId: string, sentAt: Date): Promise<boolean> {
+  const previo = await cliente.fotofficeMessage.findFirst({
+    where: { workspaceId, channel: "EMAIL", templateId, entityType: "PRESUPUESTO", entityId: presupuestoId, createdAt: { gte: sentAt } },
+    select: { id: true },
+  });
+  return previo !== null;
+}
+
 function ctxDelSistema(workspaceId: string): CtxEnvio {
   return { workspaceId, userId: null, userLabel: null, userName: null, userEmail: null, role: null };
 }
@@ -150,25 +166,23 @@ async function seguimientosDe(
       reporte.topeCorrida = true;
       return;
     }
-    // Una vez por versión: cualquier seguimiento registrado en la consulta desde que se envió.
-    const previo = await prisma.fotofficeMessage.findFirst({
-      where: { workspaceId, channel: "EMAIL", templateId: auto.id, entityType: "CONSULTA", entityId: p.consultaLeadId, createdAt: { gte: v.sentAt } },
-      select: { id: true },
-    });
-    if (previo) {
+    // Una vez por versión: un seguimiento de ESTE presupuesto registrado desde que se envió la vigente.
+    if (await yaTieneSeguimiento(prisma, workspaceId, auto.id, p.id, v.sentAt)) {
       reporte.salteados++;
       continue;
     }
-    const contexto = await contextoDe(workspaceId, "CONSULTA", p.consultaLeadId, { nombre: null, email: null }, ahora);
-    if (!contexto || !correoValido(contexto.destino.email)) {
+    const leido = await contextoDe(workspaceId, "CONSULTA", p.consultaLeadId, { nombre: null, email: null }, ahora);
+    if (!leido || !correoValido(leido.destino.email)) {
       reporte.salteados++;
       continue;
     }
     // Una respuesta automática por dirección cada 24 h: si le tocó otra, mañana.
-    if (await yaRespondida(workspaceId, contexto.destino.email, ahora)) {
+    const email = leido.destino.email;
+    if (await yaRespondida(workspaceId, email, ahora)) {
       reporte.salteados++;
       continue;
     }
+    const contexto = await conListaDePrecios(workspaceId, leido, auto.subject, auto.body);
     const numero = (await numeroDe(workspaceId, ENTIDAD_NUMERACION, [p.id])).get(p.id) ?? null;
     const enlace = urlDelPresupuesto({ ...sitio, appOrigin: origen, token: tokenDeVersion(v.id, clave) });
     const textos = textosFinales(contexto, "EMAIL", { asunto: auto.subject ?? "", cuerpo: auto.body, templateId: auto.id }, {
@@ -183,10 +197,25 @@ async function seguimientosDe(
       reporte.fallidos++;
       return;
     }
+    // Dos corridas a la vez: el candado por presupuesto las pone en fila y, adentro, se vuelve a
+    // mirar y se reserva el registro. La segunda ve la reserva de la primera y no manda. El correo
+    // sale DESPUÉS de soltar el candado (no se tiene una conexión tomada mientras responde el proveedor).
+    const reserva = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`fotoffice-seguimiento:${p.id}`}))`;
+      if (await yaTieneSeguimiento(tx, workspaceId, auto.id, p.id, v.sentAt)) return null;
+      return reservarEnvioAutomatico(tx, { workspaceId, entityType: "PRESUPUESTO", entityId: p.id, templateId: auto.id, toAddress: email });
+    }, OPCIONES_TRANSACCION);
+    if (!reserva) {
+      reporte.salteados++;
+      continue;
+    }
     contador.intentos++;
     const r = await enviarCorreo(
       ctxDelSistema(workspaceId),
-      { entityType: "CONSULTA", entityId: p.consultaLeadId, templateId: auto.id, asunto: textos.asunto, cuerpo: textos.cuerpo, automatico: true },
+      {
+        entityType: "CONSULTA", entityId: p.consultaLeadId, templateId: auto.id, asunto: textos.asunto, cuerpo: textos.cuerpo, automatico: true,
+        registroId: reserva, registrarEn: { entityType: "PRESUPUESTO", entityId: p.id },
+      },
       { enviar: deps.enviar, ahora: () => ahora },
       { tipoPlantilla: "PRESUPUESTO" },
     );
@@ -194,8 +223,9 @@ async function seguimientosDe(
       reporte.enviados++;
       continue;
     }
+    // Si no se llegó a mandar (tope, texto), la reserva sigue EN_CURSO: se libera para mañana.
+    await liberarReserva(workspaceId, reserva);
     if (r.error === MENSAJES_ENVIO.topeAutomaticos) {
-      // No se registró nada: quedan para mañana.
       contador.intentos--;
       reporte.conTopeDiario++;
       return;

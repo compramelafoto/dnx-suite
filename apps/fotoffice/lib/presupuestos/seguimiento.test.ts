@@ -111,7 +111,7 @@ describe("puras", () => {
 
 describe("enviarSeguimientos", () => {
   it("manda el seguimiento con su plantilla, el enlace y el registro automático", async () => {
-    const { leadId } = enviado(3);
+    const { presupuestoId } = enviado(3);
     const d = deps();
     const r = await S.enviarSeguimientos(d);
     expect(r).toMatchObject({ organizaciones: 1, enviados: 1, fallidos: 0, topeCorrida: false });
@@ -124,7 +124,12 @@ describe("enviarSeguimientos", () => {
     const plantilla = B.datos.fotofficeMessageTemplate.find((t) => t.systemKey === "PRESUPUESTO_SEGUIMIENTO")!;
     expect(plantilla).toMatchObject({ entityType: "PRESUPUESTO", channel: "EMAIL", enabled: true });
     expect(mensajes()).toHaveLength(1);
-    expect(mensajes()[0]).toMatchObject({ entityType: "CONSULTA", entityId: leadId, templateId: plantilla.id, automatic: true, status: "SENT", actorUserId: null });
+    // Registrado en el presupuesto (no en la consulta): se cuenta por presupuesto.
+    expect(mensajes()[0]).toMatchObject({
+      entityType: "PRESUPUESTO", entityId: presupuestoId, templateId: plantilla.id, automatic: true, status: "SENT", actorUserId: null, errorCode: null,
+    });
+    // Con el candado por presupuesto.
+    expect(B.sql.some((q) => q.texto.includes("pg_advisory_xact_lock") && q.valores.includes(`fotoffice-seguimiento:${presupuestoId}`))).toBe(true);
     expect(H.real).not.toHaveBeenCalled();
   });
 
@@ -256,3 +261,85 @@ describe("la plantilla del seguimiento se edita como los otros automáticos", ()
     expect(mal.ok).toBe(false);
   });
 });
+
+describe("por presupuesto y con candado (revisión)", () => {
+  it("dos presupuestos activos de la misma consulta: cada uno tiene su seguimiento", async () => {
+    const a = enviado(5);
+    // Otro presupuesto de la MISMA consulta, enviado después.
+    const p2 = B.agregar("fotofficePresupuesto", {
+      workspaceId: "ws-1", consultaLeadId: a.leadId, clientId: "cli-x", status: "ENVIADO", validUntil: new Date("2026-12-31T00:00:00.000Z"),
+    });
+    const v2 = B.agregar("fotofficePresupuestoVersion", {
+      workspaceId: "ws-1", presupuestoId: p2.id, number: 1, items: [], totals: { total: 1 }, sentAt: new Date(AHORA.getTime() - 4 * DIA),
+    });
+    p2.currentVersionId = v2.id;
+    const d = deps();
+    // El mismo día sale uno solo (una respuesta automática por dirección cada 24 h)...
+    expect((await S.enviarSeguimientos(d)).enviados).toBe(1);
+    // ...y al día siguiente el otro: el seguimiento del primero no frena al segundo.
+    vi.setSystemTime(new Date(AHORA.getTime() + DIA + 60_000));
+    expect((await S.enviarSeguimientos(deps())).enviados).toBe(1);
+    const porPresupuesto = mensajes().map((m) => m.entityId).sort();
+    expect(porPresupuesto).toEqual([a.presupuestoId, p2.id].sort());
+    // Y ninguno se repite.
+    vi.setSystemTime(new Date(AHORA.getTime() + 3 * DIA));
+    expect((await S.enviarSeguimientos(deps())).enviados).toBe(0);
+  });
+
+  it("otra corrida a la vez: adentro del candado ve la reserva de la otra y no manda", async () => {
+    const { presupuestoId } = enviado(5);
+    // Mientras ésta espera el candado, la otra corrida reservó el registro de este presupuesto.
+    B.ganchos.alEjecutarSql = (texto, valores) => {
+      if (!texto.includes("pg_advisory_xact_lock") || !valores.includes(`fotoffice-seguimiento:${presupuestoId}`)) return;
+      const plantilla = B.datos.fotofficeMessageTemplate.find((t) => t.systemKey === "PRESUPUESTO_SEGUIMIENTO")!;
+      B.agregar("fotofficeMessage", {
+        workspaceId: "ws-1", channel: "EMAIL", entityType: "PRESUPUESTO", entityId: presupuestoId, templateId: plantilla.id,
+        toAddress: EMAIL, body: "", status: "FAILED", automatic: true, errorCode: "EN_CURSO",
+      });
+    };
+    const d = deps();
+    expect(await S.enviarSeguimientos(d)).toMatchObject({ enviados: 0, salteados: 1 });
+    expect(d.enviar).not.toHaveBeenCalled();
+    expect(mensajes()).toHaveLength(1);
+  });
+
+  it("si no se llegó a mandar (tope), la reserva se libera y vuelve a intentarse otro día", async () => {
+    enviado(5);
+    for (let i = 0; i < TOPE_AUTOMATICOS_DIA; i++) {
+      B.agregar("fotofficeMessage", {
+        workspaceId: "ws-1", channel: "EMAIL", entityType: "CONSULTA", entityId: `x${i}`, toAddress: `q${i}@x.test`, body: "b",
+        status: "SENT", automatic: true, createdAt: new Date(AHORA.getTime() - 60_000),
+      });
+    }
+    await S.enviarSeguimientos(deps());
+    expect(mensajes().filter((m) => m.errorCode === "EN_CURSO")).toHaveLength(0);
+    vi.setSystemTime(new Date(AHORA.getTime() + DIA));
+    expect((await S.enviarSeguimientos(deps())).enviados).toBe(1);
+  });
+});
+
+describe("[lista_precios] se lee sólo si el texto la usa", () => {
+  it("sin la variable no lee el catálogo; con ella la arma", async () => {
+    enviado(5);
+    B.agregar("product", { id: "p1", workspaceId: "ws-1", name: "Cobertura", priceArs: "1000.00" });
+    B.agregar("fotofficeProductoCatalogo", { workspaceId: "ws-1", productId: "p1", inPriceList: true });
+    const original = B.tablas.fotofficeProductoCatalogo.findMany;
+    const lecturas = vi.fn(original);
+    B.tablas.fotofficeProductoCatalogo.findMany = lecturas as never;
+    try {
+      const d = deps();
+      await S.enviarSeguimientos(d);
+      expect(lecturas).not.toHaveBeenCalled();
+      // Con la variable en el texto, se lee y sale en el correo.
+      enviado(5, { email: "otra@x.test" });
+      B.datos.fotofficeMessageTemplate.find((t) => t.systemKey === "PRESUPUESTO_SEGUIMIENTO")!.body = "Precios:\n[lista_precios]\n\n[presupuesto_enlace]\n\n[firma]";
+      const d2 = deps();
+      await S.enviarSeguimientos(d2);
+      expect(lecturas).toHaveBeenCalled();
+      expect(d2.enviar.mock.calls[0]![0].text.replace(/\u00a0/g, " ")).toContain("- Cobertura: $ 1.000");
+    } finally {
+      B.tablas.fotofficeProductoCatalogo.findMany = original;
+    }
+  });
+});
+

@@ -1,9 +1,9 @@
 import "server-only";
-import { prisma } from "@repo/db";
+import { prisma, type Prisma } from "@repo/db";
 import { moduloDeRegistroEncendido } from "@/lib/campos/modulos";
 import { AUTOR_AVISO_EQUIPO, CARACTER_MARCADOR, TOPE_AVISOS_EQUIPO_DIA, VENTANA_UNA_AUTORESPUESTA_MS } from "./constantes";
 import { AUTOMATICOS, leerAutomatico } from "./definiciones";
-import { contextoDe, correoValido, destinoDe } from "./contexto";
+import { conListaDePrecios, contextoDe, correoValido, destinoDe } from "./contexto";
 import {
   armarCorreoFinal, completarTextos, enviarCorreo, inicioDelDiaAR, sinAvisosAlEquipo, type CtxEnvio, type DepsEnvio,
 } from "./envio";
@@ -32,8 +32,15 @@ export type ResultadoAutomatico =
  * la propuesta modelo que sale sola (`lib/presupuestos/propuesta-automatica.ts`): las dos son
  * respuestas automáticas a la misma persona y comparten la regla.
  */
-export async function yaRespondida(workspaceId: string, email: string, ahora: Date): Promise<boolean> {
-  const previo = await prisma.fotofficeMessage.findFirst({
+export async function yaRespondida(
+  workspaceId: string,
+  email: string,
+  ahora: Date,
+  /** Dentro de una transacción (con su candado): su cliente y el filtro ya armado afuera. */
+  enTransaccion?: { cliente: Pick<Prisma.TransactionClient, "fotofficeMessage">; filtro: Prisma.FotofficeMessageWhereInput },
+): Promise<boolean> {
+  const cliente = enTransaccion?.cliente ?? prisma;
+  const previo = await cliente.fotofficeMessage.findFirst({
     where: {
       workspaceId,
       channel: "EMAIL",
@@ -41,7 +48,7 @@ export async function yaRespondida(workspaceId: string, email: string, ahora: Da
       toAddress: { equals: email.trim(), mode: "insensitive" },
       createdAt: { gte: new Date(ahora.getTime() - VENTANA_UNA_AUTORESPUESTA_MS) },
       // Un aviso al equipo no es una respuesta a esta persona.
-      ...(await sinAvisosAlEquipo(workspaceId)),
+      ...(enTransaccion?.filtro ?? (await sinAvisosAlEquipo(workspaceId))),
     },
     select: { id: true },
   });
@@ -83,8 +90,9 @@ export async function responderConsultaNueva(
     if (!correoValido(destino.email)) return "SIN_CORREO";
     if (await yaRespondida(workspaceId, destino.email, (deps.ahora ?? (() => new Date()))())) return "YA_RESPONDIDO";
 
-    const contexto = await contextoDe(workspaceId, "CONSULTA", leadId, { nombre: null, email: null });
-    if (!contexto) return "NO_ENCONTRADA";
+    const leido = await contextoDe(workspaceId, "CONSULTA", leadId, { nombre: null, email: null });
+    if (!leido) return "NO_ENCONTRADA";
+    const contexto = await conListaDePrecios(workspaceId, leido, auto.subject, auto.body);
     const textos = completarTextos(contexto, "CONSULTA", auto.subject, auto.body);
     if (!textos.ok) {
       console.warn("[plantillas] la respuesta automática tiene variables inválidas", { codigo: "PLANTILLA_CON_ERRORES" });
@@ -139,8 +147,9 @@ export async function avisarEquipoConsultaNueva(
       console.warn("[plantillas] tope de avisos al equipo alcanzado", { codigo: "TOPE_AVISOS_EQUIPO" });
       return "TOPE";
     }
-    const contexto = await contextoDe(workspaceId, "CONSULTA", leadId, { nombre: para.nombre, email: para.email });
-    if (!contexto) return "NO_ENCONTRADA";
+    const leido = await contextoDe(workspaceId, "CONSULTA", leadId, { nombre: para.nombre, email: para.email });
+    if (!leido) return "NO_ENCONTRADA";
+    const contexto = await conListaDePrecios(workspaceId, leido, auto.subject, auto.body);
     const textos = completarTextos(contexto, "CONSULTA", auto.subject, auto.body);
     if (!textos.ok) {
       console.warn("[plantillas] el aviso al equipo tiene variables inválidas", { codigo: "PLANTILLA_CON_ERRORES" });
