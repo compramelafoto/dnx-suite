@@ -53,7 +53,7 @@ export const TIPOS: TipoDeOrganizacion[] = [
       },
     ],
     ademas: ["clients", "cash", "correos", "equipo", "courses-sales"],
-    proximo: "15",
+    proximo: "20",
   },
   {
     id: "local",
@@ -78,7 +78,7 @@ export const TIPOS: TipoDeOrganizacion[] = [
       },
     ],
     ademas: ["cobros", "consultas", "website", "courses-sales", "correos", "equipo"],
-    proximo: "15",
+    proximo: "20",
   },
   {
     id: "estudio",
@@ -103,7 +103,7 @@ export const TIPOS: TipoDeOrganizacion[] = [
       },
     ],
     ademas: ["clients", "cobros", "website", "correos", "bookings", "courses-sales"],
-    proximo: "15",
+    proximo: "20",
   },
   {
     id: "escuela",
@@ -250,7 +250,7 @@ export const TIPOS: TipoDeOrganizacion[] = [
       },
     ],
     ademas: ["clients", "website", "consultas", "correos", "equipo", "members", "membership-dues"],
-    proximo: "15",
+    proximo: "16",
   },
 ];
 

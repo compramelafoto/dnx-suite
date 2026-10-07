@@ -327,8 +327,8 @@ export function ShellNav({
         },
       ]
     : []),
-    // Presupuestos (etapa 2): módulo propio (`quotes`), con su nivel. Mientras el módulo siga
-    // PLANNED nadie tiene nivel y el ítem no aparece.
+    // Presupuestos (etapa 2): módulo propio (`quotes`), con su nivel. Apagado en el workspace,
+    // nadie tiene nivel y el ítem no aparece.
     ...(ve(QUOTES_MODULE_KEY)
       ? [
           {
@@ -430,6 +430,19 @@ export function ShellNav({
                 description: "Categorías, orígenes, roles de participante y avisos de consultas nuevas.",
                 icon: Inbox,
                 isActive: under("/workspace/configuracion/consultas"),
+              },
+            ]
+          : []),
+        // Etapa 2: ajustes de Presupuestos. Con Consultas o Presupuestos encendido: los ajustes se
+        // pueden dejar listos antes de encender el módulo `quotes`.
+        ...(ve(SERVICE_LEADS_MODULE_KEY) || ve(QUOTES_MODULE_KEY)
+          ? [
+              {
+                href: "/workspace/configuracion/presupuestos",
+                label: "Presupuestos",
+                description: "Validez, condiciones generales, propuesta de pago y seguimiento de los presupuestos.",
+                icon: Calculator,
+                isActive: under("/workspace/configuracion/presupuestos"),
               },
             ]
           : []),

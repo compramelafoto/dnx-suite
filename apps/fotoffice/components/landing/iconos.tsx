@@ -12,6 +12,7 @@ import {
   CalendarCheck,
   CalendarDays,
   ClipboardCheck,
+  ClipboardList,
   Contact,
   CreditCard,
   DoorOpen,
@@ -59,9 +60,10 @@ const ICONOS: Record<string, LucideIcon> = {
   carnets: QrCode,
   correos: Mail,
   equipo: UserCog,
+  quotes: FileText,
 
   // En construcción
-  presupuestos: FileText,
+  pedidos: ClipboardList,
   comunicacion: Megaphone,
   eventos: CalendarCheck,
   gobierno: Gavel,
