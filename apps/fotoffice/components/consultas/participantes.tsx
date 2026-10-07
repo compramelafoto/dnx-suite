@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { X } from "lucide-react";
 import { agregarParticipanteAction, quitarParticipanteAction } from "@/app/actions/consultas";
 import type { ParticipanteFicha } from "@/lib/consultas/ficha";
+import { marcaDeCampo, type CampoConError } from "@/lib/consultas/formulario";
 import { SelectorContacto, type ContactoElegido } from "./selector-contacto";
 
 const MENSAJE_FALLA = "No se pudo guardar el cambio. Probá de nuevo.";
@@ -32,32 +33,34 @@ export function Participantes({
   const [contacto, setContacto] = useState<ContactoElegido | null>(null);
   const [rolId, setRolId] = useState("");
   const [nota, setNota] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ mensaje: string; campo?: CampoConError } | null>(null);
+  const idError = useId();
+  const marca = (c: CampoConError) => marcaDeCampo(error, c, idError);
 
-  function correr(accion: () => Promise<{ ok: true } | { ok: false; error: string }>, alTerminar?: () => void) {
+  function correr(accion: () => Promise<{ ok: true } | { ok: false; error: string; campo?: CampoConError }>, alTerminar?: () => void) {
     setError(null);
     iniciar(async () => {
       try {
         const r = await accion();
         if (!r.ok) {
-          setError(r.error);
+          setError({ mensaje: r.error, campo: r.campo });
           return;
         }
         alTerminar?.();
         router.refresh();
       } catch {
-        setError(MENSAJE_FALLA);
+        setError({ mensaje: MENSAJE_FALLA });
       }
     });
   }
 
   function agregar() {
     if (!contacto) {
-      setError("Elegí un contacto.");
+      setError({ mensaje: "Elegí un contacto.", campo: "participanteContacto" });
       return;
     }
     if (!rolId) {
-      setError("Elegí un rol.");
+      setError({ mensaje: "Elegí un rol.", campo: "rol" });
       return;
     }
     correr(
@@ -127,10 +130,10 @@ export function Participantes({
           }}
         >
           <fieldset className="space-y-2" disabled={pendiente}>
-            <SelectorContacto etiqueta="Contacto" elegido={contacto} onElegir={setContacto} deshabilitado={pendiente} />
+            <SelectorContacto etiqueta="Contacto" elegido={contacto} onElegir={setContacto} deshabilitado={pendiente} marca={marca("participanteContacto")} />
             <label className="fo-field-stack">
               <span className="fo-label">Rol</span>
-              <select className="fo-input" value={rolId} onChange={(e) => setRolId(e.target.value)}>
+              <select className="fo-input" value={rolId} {...marca("rol")} onChange={(e) => setRolId(e.target.value)}>
                 <option value="">Elegí un rol</option>
                 {roles.map((r) => (
                   <option key={r.id} value={r.id}>
@@ -141,7 +144,7 @@ export function Participantes({
             </label>
             <label className="fo-field-stack">
               <span className="fo-label">Nota (opcional)</span>
-              <input className="fo-input" maxLength={200} value={nota} onChange={(e) => setNota(e.target.value)} />
+              <input className="fo-input" maxLength={200} value={nota} {...marca("participanteNota")} onChange={(e) => setNota(e.target.value)} />
             </label>
             <div className="flex gap-2">
               <button type="submit" className="fo-btn fo-btn-primary text-xs">
@@ -156,8 +159,8 @@ export function Participantes({
       ) : null}
 
       {error ? (
-        <p role="alert" className="text-sm text-[var(--fo-danger)]">
-          {error}
+        <p id={idError} role="alert" className="text-sm text-[var(--fo-danger)]">
+          {error.mensaje}
         </p>
       ) : null}
     </section>

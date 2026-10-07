@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useId, useState } from "react";
 import { X } from "lucide-react";
 import { buscarContactosAction } from "@/app/actions/consultas";
+import type { MarcaDeCampo } from "@/lib/consultas/formulario";
 
 export type ContactoElegido = { id: string; nombre: string; email: string | null; telefono: string | null };
 
@@ -20,6 +21,7 @@ export function SelectorContacto({
   onElegir,
   excluir,
   deshabilitado,
+  marca = {},
 }: {
   etiqueta: string;
   elegido: ContactoElegido | null;
@@ -27,6 +29,8 @@ export function SelectorContacto({
   /** Ids que no se ofrecen (por ejemplo, el propio contacto de la consulta). */
   excluir?: readonly string[];
   deshabilitado?: boolean;
+  /** `aria-invalid` + `aria-describedby` si el error de la acción apunta a este dato. */
+  marca?: MarcaDeCampo;
 }) {
   const id = useId();
   const [texto, setTexto] = useState("");
@@ -69,7 +73,7 @@ export function SelectorContacto({
     return (
       <div className="fo-field-stack">
         <span className="fo-label">{etiqueta}</span>
-        <div className="flex items-center justify-between gap-2 rounded-lg bg-[var(--fo-surface-muted)] px-3 py-2 text-sm">
+        <div role="group" aria-label={etiqueta} {...marca} className="flex items-center justify-between gap-2 rounded-lg bg-[var(--fo-surface-muted)] px-3 py-2 text-sm">
           <span className="min-w-0">
             <Link href={`/clientes/${elegido.id}`} className="font-medium text-[var(--fo-text)] hover:underline">
               {elegido.nombre}
@@ -108,6 +112,7 @@ export function SelectorContacto({
         value={texto}
         maxLength={100}
         disabled={deshabilitado}
+        {...marca}
         onChange={(e) => setTexto(e.target.value)}
         placeholder="Buscá por nombre, correo o teléfono"
         autoComplete="off"

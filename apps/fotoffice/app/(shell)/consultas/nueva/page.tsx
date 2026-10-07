@@ -6,6 +6,7 @@ import { puede } from "@/lib/access/policy";
 import { resolverAcceso } from "@/lib/access/acceso";
 import { contactoDelWorkspace, opcionesDeConsulta, responsablesDeConsultas } from "@/lib/consultas/ficha";
 import { asegurarCatalogosDelWorkspace } from "@/lib/consultas/semillas";
+import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { requireServiceLeadsStaff } from "@/lib/service-leads/access";
 
@@ -34,6 +35,9 @@ export default async function NuevaConsultaPage({
   const acceso = await resolverAcceso(user.id, workspace.id);
   if (!puede(acceso, "operar", SERVICE_LEADS_MODULE_KEY)) redirect("/consultas");
 
+  // Elegir un contacto existente (buscador, `?contacto=`, referente) pide "Ver" en Clientes (R10):
+  // sin él sólo se carga "Contacto nuevo".
+  const veContactos = puede(acceso, "ver", CLIENTS_MODULE_KEY);
   const sp = await searchParams;
   const contactoParam = uno(sp.contacto);
   try {
@@ -44,7 +48,7 @@ export default async function NuevaConsultaPage({
   const [opciones, responsables, contactoInicial] = await Promise.all([
     opcionesDeConsulta(workspace.id),
     responsablesDeConsultas(workspace.id),
-    contactoParam && ID_VALIDO.test(contactoParam) ? contactoDelWorkspace(workspace.id, contactoParam) : Promise.resolve(null),
+    veContactos && contactoParam && ID_VALIDO.test(contactoParam) ? contactoDelWorkspace(workspace.id, contactoParam) : Promise.resolve(null),
   ]);
 
   return (
@@ -68,6 +72,7 @@ export default async function NuevaConsultaPage({
           origenes={opciones.origenes}
           responsables={responsables}
           contactoInicial={contactoInicial}
+          veContactos={veContactos}
         />
       )}
     </div>

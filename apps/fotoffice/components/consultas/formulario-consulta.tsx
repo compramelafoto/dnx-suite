@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useId, useState, useTransition } from "react";
 import { buscarContactosAction, crearConsultaAction } from "@/app/actions/consultas";
 import type { GrupoConsulta } from "@/lib/consultas/constantes";
-import type { FormEvento } from "@/lib/consultas/formulario";
+import { marcaDeCampo, type CampoConError, type FormEvento } from "@/lib/consultas/formulario";
 import { AvisosConsulta, type AvisosVista } from "./avisos-consulta";
 import { CamposEvento } from "./campos-evento";
 import { SelectorContacto, type ContactoElegido } from "./selector-contacto";
@@ -20,21 +20,29 @@ const soloDigitos = (v: string) => v.replace(/\D/g, "");
  * "Nueva consulta" (spec §3.1): contacto (buscado o nuevo), categoría con los datos de su grupo,
  * origen, referente, valor, cierre previsto, responsable y nota. Al guardar va a la ficha; si hay
  * avisos (fecha superpuesta o posible duplicado), primero los muestra.
+ *
+ * Sin "Ver" en Clientes (`veContactos`, regla R10) no hay buscador, ni referente, ni aviso de
+ * contacto existente: sólo "Contacto nuevo" (el servidor igual lo empareja por correo o teléfono).
+ * Un error de la acción marca su dato con `aria-invalid` y lo une al mensaje.
  */
 export function FormularioConsulta({
   categorias,
   origenes,
   responsables,
   contactoInicial,
+  veContactos,
 }: {
   categorias: (Opcion & { grupo: GrupoConsulta })[];
   origenes: Opcion[];
   responsables: { id: number; nombre: string }[];
   contactoInicial: ContactoElegido | null;
+  /** "Ver" en Clientes: puede buscar y elegir contactos existentes. */
+  veContactos: boolean;
 }) {
+  const idError = useId();
   const router = useRouter();
   const [pendiente, iniciar] = useTransition();
-  const [modo, setModo] = useState<"buscar" | "nuevo">("buscar");
+  const [modo, setModo] = useState<"buscar" | "nuevo">(veContactos ? "buscar" : "nuevo");
   const [contacto, setContacto] = useState<ContactoElegido | null>(contactoInicial);
   const [nuevo, setNuevo] = useState({ nombre: "", email: "", telefono: "" });
   const [existentes, setExistentes] = useState<ContactoElegido[]>([]);
@@ -46,7 +54,8 @@ export function FormularioConsulta({
   const [cierre, setCierre] = useState("");
   const [responsable, setResponsable] = useState("");
   const [nota, setNota] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ mensaje: string; campo?: CampoConError } | null>(null);
+  const marca = (c: CampoConError | readonly CampoConError[]) => marcaDeCampo(error, c, idError);
   const [creada, setCreada] = useState<{ leadId: string; avisos: AvisosVista } | null>(null);
 
   const grupo = categorias.find((c) => c.id === categoriaId)?.grupo ?? null;
@@ -54,7 +63,7 @@ export function FormularioConsulta({
   // "Contacto nuevo": si el correo o el teléfono ya existen, ofrece usar ese contacto.
   const email = nuevo.email.trim().toLowerCase();
   const telefono = soloDigitos(nuevo.telefono);
-  const buscaExistentes = modo === "nuevo" && (email.includes("@") || telefono.length >= 6);
+  const buscaExistentes = veContactos && modo === "nuevo" && (email.includes("@") || telefono.length >= 6);
   useEffect(() => {
     if (!buscaExistentes) return;
     let vigente = true;
@@ -90,19 +99,19 @@ export function FormularioConsulta({
     let datosContacto: { clientId: string } | { nombre: string; email: string; telefono: string };
     if (modo === "buscar") {
       if (!contacto) {
-        setError("Elegí un contacto o cargá uno nuevo.");
+        setError({ mensaje: "Elegí un contacto o cargá uno nuevo.", campo: "contacto" });
         return;
       }
       datosContacto = { clientId: contacto.id };
     } else {
       if (!nuevo.nombre.trim()) {
-        setError("Escribí el nombre del contacto nuevo.");
+        setError({ mensaje: "Escribí el nombre del contacto nuevo.", campo: "nombre" });
         return;
       }
       datosContacto = { nombre: nuevo.nombre, email: nuevo.email, telefono: nuevo.telefono };
     }
     if (!categoriaId) {
-      setError("Elegí una categoría.");
+      setError({ mensaje: "Elegí una categoría.", campo: "categoria" });
       return;
     }
     iniciar(async () => {
@@ -112,21 +121,22 @@ export function FormularioConsulta({
           categoriaId,
           evento,
           origenId: origenId || null,
-          referenteClientId: referente?.id ?? null,
+          referenteClientId: veContactos ? (referente?.id ?? null) : null,
           valor,
           cierrePrevisto: cierre,
           responsableUserId: responsable ? Number(responsable) : null,
           nota,
         });
         if (!r.ok) {
-          setError(r.error);
+          setError({ mensaje: r.error, campo: r.campo });
           return;
         }
-        const hayAvisos = (r.avisos.fechaSuperpuesta?.length ?? 0) > 0 || (r.avisos.duplicados?.length ?? 0) > 0;
+        const hayAvisos =
+          (r.avisos.fechaSuperpuesta?.length ?? 0) > 0 || (r.avisos.duplicados?.length ?? 0) > 0 || r.avisos.posibleDuplicado === true;
         if (hayAvisos) setCreada({ leadId: r.leadId, avisos: r.avisos });
         else router.push(`/consultas/${r.leadId}`);
       } catch {
-        setError(MENSAJE_FALLA);
+        setError({ mensaje: MENSAJE_FALLA });
       }
     });
   }
@@ -156,6 +166,7 @@ export function FormularioConsulta({
     >
       <fieldset className="space-y-3" disabled={pendiente}>
         <legend className="text-base font-semibold text-[var(--fo-text)]">Contacto</legend>
+        {veContactos ? (
         <div className="flex gap-2 text-sm" role="group" aria-label="Contacto existente o nuevo">
           <button
             type="button"
@@ -174,22 +185,23 @@ export function FormularioConsulta({
             Contacto nuevo
           </button>
         </div>
-        {modo === "buscar" ? (
-          <SelectorContacto etiqueta="Contacto" elegido={contacto} onElegir={setContacto} />
+        ) : null}
+        {modo === "buscar" && veContactos ? (
+          <SelectorContacto etiqueta="Contacto" elegido={contacto} onElegir={setContacto} marca={marca("contacto")} />
         ) : (
           <div className="space-y-3">
             <div className="grid gap-3 sm:grid-cols-3">
               <label className="fo-field-stack">
                 <span className="fo-label">Nombre y apellido</span>
-                <input className="fo-input" value={nuevo.nombre} maxLength={200} onChange={(e) => setNuevo({ ...nuevo, nombre: e.target.value })} />
+                <input className="fo-input" value={nuevo.nombre} maxLength={200} {...marca(["nombre", "contacto"])} onChange={(e) => setNuevo({ ...nuevo, nombre: e.target.value })} />
               </label>
               <label className="fo-field-stack">
                 <span className="fo-label">Correo</span>
-                <input type="email" className="fo-input" value={nuevo.email} maxLength={254} onChange={(e) => setNuevo({ ...nuevo, email: e.target.value })} />
+                <input type="email" className="fo-input" value={nuevo.email} maxLength={254} {...marca("email")} onChange={(e) => setNuevo({ ...nuevo, email: e.target.value })} />
               </label>
               <label className="fo-field-stack">
                 <span className="fo-label">Teléfono</span>
-                <input type="tel" className="fo-input" value={nuevo.telefono} maxLength={40} onChange={(e) => setNuevo({ ...nuevo, telefono: e.target.value })} />
+                <input type="tel" className="fo-input" value={nuevo.telefono} maxLength={40} {...marca("telefono")} onChange={(e) => setNuevo({ ...nuevo, telefono: e.target.value })} />
               </label>
             </div>
             {duplicadosVisibles.length > 0 ? (
@@ -227,7 +239,7 @@ export function FormularioConsulta({
         <legend className="text-base font-semibold text-[var(--fo-text)]">Consulta</legend>
         <label className="fo-field-stack">
           <span className="fo-label">Categoría</span>
-          <select className="fo-input" value={categoriaId} onChange={(e) => setCategoriaId(e.target.value)}>
+          <select className="fo-input" value={categoriaId} {...marca("categoria")} onChange={(e) => setCategoriaId(e.target.value)}>
             <option value="">Elegí una categoría</option>
             {categorias.map((c) => (
               <option key={c.id} value={c.id}>
@@ -236,11 +248,11 @@ export function FormularioConsulta({
             ))}
           </select>
         </label>
-        <CamposEvento grupo={grupo} valor={evento} onCambiar={setEvento} deshabilitado={pendiente} />
+        <CamposEvento grupo={grupo} valor={evento} onCambiar={setEvento} deshabilitado={pendiente} marca={(c) => marca(c)} />
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="fo-field-stack">
             <span className="fo-label">Origen</span>
-            <select className="fo-input" value={origenId} onChange={(e) => setOrigenId(e.target.value)}>
+            <select className="fo-input" value={origenId} {...marca("origen")} onChange={(e) => setOrigenId(e.target.value)}>
               <option value="">Sin especificar</option>
               {origenes.map((o) => (
                 <option key={o.id} value={o.id}>
@@ -251,7 +263,7 @@ export function FormularioConsulta({
           </label>
           <label className="fo-field-stack">
             <span className="fo-label">Responsable</span>
-            <select className="fo-input" value={responsable} onChange={(e) => setResponsable(e.target.value)}>
+            <select className="fo-input" value={responsable} {...marca("responsable")} onChange={(e) => setResponsable(e.target.value)}>
               <option value="">El de la configuración</option>
               {responsables.map((r) => (
                 <option key={r.id} value={r.id}>
@@ -262,29 +274,32 @@ export function FormularioConsulta({
           </label>
           <label className="fo-field-stack">
             <span className="fo-label">Valor estimado</span>
-            <input className="fo-input" inputMode="decimal" placeholder="Ej.: 350.000" value={valor} maxLength={20} onChange={(e) => setValor(e.target.value)} />
+            <input className="fo-input" inputMode="decimal" placeholder="Ej.: 350.000" value={valor} maxLength={20} {...marca("valor")} onChange={(e) => setValor(e.target.value)} />
           </label>
           <label className="fo-field-stack">
             <span className="fo-label">Cierre previsto</span>
-            <input type="date" className="fo-input" value={cierre} onChange={(e) => setCierre(e.target.value)} />
+            <input type="date" className="fo-input" value={cierre} {...marca("cierrePrevisto")} onChange={(e) => setCierre(e.target.value)} />
           </label>
         </div>
-        <SelectorContacto
-          etiqueta="Referente (quién la recomendó)"
-          elegido={referente}
-          onElegir={setReferente}
-          excluir={contacto && modo === "buscar" ? [contacto.id] : undefined}
-          deshabilitado={pendiente}
-        />
+        {veContactos ? (
+          <SelectorContacto
+            etiqueta="Referente (quién la recomendó)"
+            elegido={referente}
+            onElegir={setReferente}
+            excluir={contacto && modo === "buscar" ? [contacto.id] : undefined}
+            deshabilitado={pendiente}
+            marca={marca("referente")}
+          />
+        ) : null}
         <label className="fo-field-stack">
           <span className="fo-label">Mensaje o nota inicial</span>
-          <textarea className="fo-input" rows={4} maxLength={4000} value={nota} onChange={(e) => setNota(e.target.value)} />
+          <textarea className="fo-input" rows={4} maxLength={4000} value={nota} {...marca("nota")} onChange={(e) => setNota(e.target.value)} />
         </label>
       </fieldset>
 
       {error ? (
-        <p role="alert" className="text-sm text-[var(--fo-danger)]">
-          {error}
+        <p id={idError} role="alert" className="text-sm text-[var(--fo-danger)]">
+          {error.mensaje}
         </p>
       ) : null}
       <div className="flex gap-2">

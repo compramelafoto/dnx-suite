@@ -35,7 +35,8 @@ export type TarjetaVista = {
 
 export type EtapaVista = { id: string; nombre: string; color: string; archivada: boolean };
 export type ColumnaVista = { etapa: EtapaVista; tarjetas: TarjetaVista[]; total: number; masHref: string | null };
-export type CircuitoVista = { id: string; nombre: string; clase: Clase };
+/** `predeterminado`: el circuito donde entran las consultas nuevas (ahí va el alta rápida). */
+export type CircuitoVista = { id: string; nombre: string; clase: Clase; predeterminado: boolean };
 
 export type Tablero = {
   circuito: CircuitoVista | null;
@@ -93,7 +94,7 @@ async function elegirCircuito(workspaceId: string, circuitoId: string | null) {
     circuitos.find((c) => c.isDefault) ??
     circuitos[0] ??
     null;
-  const vista = (c: (typeof circuitos)[number]): CircuitoVista => ({ id: c.id, nombre: c.name, clase: CLASE });
+  const vista = (c: (typeof circuitos)[number]): CircuitoVista => ({ id: c.id, nombre: c.name, clase: CLASE, predeterminado: c.isDefault });
   return { circuito: elegido ? vista(elegido) : null, circuitos: circuitos.map(vista) };
 }
 

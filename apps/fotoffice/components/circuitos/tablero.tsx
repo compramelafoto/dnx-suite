@@ -58,7 +58,10 @@ export function Tablero({
   filtros: FiltrosVista;
   /** El rol puede `configurar`: ofrece "Pasar igual" ante tareas obligatorias pendientes. */
   puedePasarIgual: boolean;
-  /** Con "Gestionar" en Consultas: el alta rápida de la primera columna, con las categorías activas. */
+  /**
+   * Con "Gestionar" en Consultas: el alta rápida de la primera columna, con las categorías
+   * activas. Sólo en el circuito predeterminado, que es donde entra toda consulta nueva.
+   */
   altaRapida?: { categorias: { id: string; nombre: string }[] } | null;
 }) {
   const router = useRouter();
@@ -273,7 +276,7 @@ export function Tablero({
                   {col.total}
                 </span>
               </header>
-              {indice === 0 && altaRapida && altaRapida.categorias.length > 0 ? <AltaRapida categorias={altaRapida.categorias} /> : null}
+              {indice === 0 && altaRapida && circuito.predeterminado && altaRapida.categorias.length > 0 ? <AltaRapida categorias={altaRapida.categorias} /> : null}
               <ul className="flex flex-col gap-2">
                 {col.tarjetas.map((t) => {
                   const aviso = avisos[t.journeyId];

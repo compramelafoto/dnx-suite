@@ -3,6 +3,8 @@ import Link from "next/link";
 export type AvisosVista = {
   fechaSuperpuesta?: { leadId: string; display: string }[];
   duplicados?: { id: string; nombre: string }[];
+  /** Hay otro contacto con el mismo correo o teléfono, pero quien mira no ve Clientes (R10). */
+  posibleDuplicado?: boolean;
 };
 
 /**
@@ -13,7 +15,8 @@ export type AvisosVista = {
 export function AvisosConsulta({ avisos }: { avisos: AvisosVista }) {
   const superpuestas = avisos.fechaSuperpuesta ?? [];
   const duplicados = avisos.duplicados ?? [];
-  if (superpuestas.length === 0 && duplicados.length === 0) return null;
+  const soloAviso = duplicados.length === 0 && avisos.posibleDuplicado === true;
+  if (superpuestas.length === 0 && duplicados.length === 0 && !soloAviso) return null;
   return (
     <div className="space-y-2">
       {superpuestas.length > 0 ? (
@@ -44,6 +47,12 @@ export function AvisosConsulta({ avisos }: { avisos: AvisosVista }) {
               </li>
             ))}
           </ul>
+        </div>
+      ) : null}
+      {soloAviso ? (
+        <div role="status" className="rounded-lg border border-[var(--fo-warning-border)] bg-[var(--fo-warning-soft)] p-3 text-sm">
+          <p className="font-medium text-[var(--fo-text)]">Posible duplicado</p>
+          <p className="text-[var(--fo-muted)]">Otro contacto tiene el mismo correo o teléfono. Quien gestiona Clientes lo puede revisar.</p>
         </div>
       ) : null}
     </div>

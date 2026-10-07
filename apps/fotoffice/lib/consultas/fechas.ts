@@ -3,6 +3,7 @@ import { prisma } from "@repo/db";
 import { ESTADOS_CAPTACION } from "@/lib/circuitos/constantes";
 import { esFechaSinHora } from "@/lib/plantillas/variables";
 import { tituloDeConsulta } from "@/lib/service-leads/numero";
+import { esGrupoConsulta, grupoPide } from "./constantes";
 
 /**
  * Aviso de fecha superpuesta (spec §3.1): otra consulta ABIERTA del workspace con el evento el
@@ -26,6 +27,32 @@ export function diaDeCalendario(d: Date): string {
 }
 
 export type ConsultaSuperpuesta = { leadId: string; display: string };
+
+/**
+ * De estas consultas, las que NO cuentan para la superposición (regla R11): su categoría es de un
+ * grupo que no pide "Fecha y hora" (p. ej. Trabajo sin fecha). Al cambiar de categoría, el día que
+ * quedó guardado no se borra, pero deja de tener significado. Las consultas sin ficha de la etapa
+ * 1 (todavía no enganchadas) cuentan como siempre.
+ */
+export async function sinFechaQueCuente(workspaceId: string, leadIds: readonly string[]): Promise<Set<string>> {
+  if (leadIds.length === 0) return new Set();
+  const fichas = await prisma.fotofficeConsulta.findMany({
+    where: { workspaceId, leadId: { in: [...leadIds] } },
+    select: { leadId: true, categoryId: true },
+  });
+  if (fichas.length === 0) return new Set();
+  const categorias = await prisma.fotofficeConsultaCategoria.findMany({
+    where: { workspaceId, id: { in: [...new Set(fichas.map((f) => f.categoryId))] } },
+    select: { id: true, group: true },
+  });
+  const grupoDe = new Map(categorias.map((c) => [c.id, c.group]));
+  const fuera = new Set<string>();
+  for (const f of fichas) {
+    const g = grupoDe.get(f.categoryId);
+    if (esGrupoConsulta(g) && !grupoPide(g, "fechaHora")) fuera.add(f.leadId);
+  }
+  return fuera;
+}
 
 /**
  * Consultas abiertas (Nueva, Contactada, Presupuestada, Interesada) del workspace con el evento el
@@ -52,9 +79,13 @@ export async function fechasSuperpuestas(
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     take: 200,
   });
-  const mismas = candidatas
-    .filter((c) => c.id !== excluirId && c.eventDate !== null && diaDeCalendario(new Date(c.eventDate)) === dia)
-    .slice(0, MAX_SUPERPUESTAS);
+  const delDia = candidatas.filter((c) => c.id !== excluirId && c.eventDate !== null && diaDeCalendario(new Date(c.eventDate)) === dia);
+  if (delDia.length === 0) return [];
+  // La propia consulta, si su grupo no pide fecha, no se superpone con nadie (R11).
+  const ids = excluirId ? [...delDia.map((c) => c.id), excluirId] : delDia.map((c) => c.id);
+  const fuera = await sinFechaQueCuente(workspaceId, ids);
+  if (excluirId && fuera.has(excluirId)) return [];
+  const mismas = delDia.filter((c) => !fuera.has(c.id)).slice(0, MAX_SUPERPUESTAS);
   if (mismas.length === 0) return [];
   const numeros = await prisma.fotofficeRecordNumber.findMany({
     where: { workspaceId, entityType: "CONSULTA", entityId: { in: mismas.map((m) => m.id) } },

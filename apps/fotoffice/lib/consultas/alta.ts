@@ -50,6 +50,7 @@ export const MENSAJES_ALTA = {
   categoria: "Elegí una categoría.",
   origen: "Elegí un origen válido.",
   referente: "No encontramos el contacto que la recomendó.",
+  referentePropio: "El referente no puede ser el mismo contacto de la consulta.",
   responsable: "El responsable tiene que ser alguien del equipo con permiso para gestionar Consultas.",
   texto: `Los textos pueden tener hasta ${MAX_TEXTO_CONSULTA} caracteres.`,
   mensaje: `El mensaje puede tener hasta ${MAX_MENSAJE_CONSULTA} caracteres.`,
@@ -337,6 +338,8 @@ export async function altaDeConsulta(
         posibleDuplicado = r.posibleDuplicado;
         persona = { name: v.contacto.nombre, email: v.contacto.email, phone: v.contacto.telefono };
       }
+      // Nadie se recomienda a sí mismo.
+      if (v.referenteClientId && v.referenteClientId === clientId) throw new ErrorDeAlta(MENSAJES_ALTA.referentePropio);
 
       const lead = await tx.serviceSalesLead.create({
         data: {

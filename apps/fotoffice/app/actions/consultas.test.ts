@@ -9,6 +9,7 @@ const H = vi.hoisted(() => ({
   agregar: vi.fn(),
   quitar: vi.fn(),
   buscar: vi.fn(),
+  veContactos: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: H.revalidate }));
@@ -19,6 +20,8 @@ vi.mock("@/lib/consultas/edicion", () => ({
   editarConsulta: H.editar,
   agregarParticipante: H.agregar,
   quitarParticipante: H.quitar,
+  veContactos: H.veContactos,
+  MENSAJES_EDICION: { sinContactos: "Sin contactos." },
 }));
 vi.mock("@/lib/consultas/ficha", () => ({ buscarContactos: H.buscar }));
 
@@ -34,6 +37,7 @@ beforeEach(() => {
   for (const f of [H.editar, H.agregar, H.quitar]) f.mockResolvedValue({ ok: true });
   for (const f of [H.manual, H.rapida]) f.mockResolvedValue({ ok: true, leadId: "lead-1", avisos: {} });
   H.buscar.mockResolvedValue([]);
+  H.veContactos.mockReturnValue(true);
 });
 
 const LLAMADAS: [string, () => Promise<unknown>][] = [
@@ -73,6 +77,13 @@ describe("acciones de Consultas", () => {
     H.editar.mockResolvedValue({ ok: false, error: "x" });
     expect(await A.editarConsultaAction({ leadId: "lead-1", form: { categoriaId: "cat" } })).toEqual({ ok: false, error: "x" });
     expect(H.revalidate).not.toHaveBeenCalled();
+  });
+
+  it("el buscador de contactos pide además «Ver» en Clientes (R10)", async () => {
+    H.veContactos.mockReturnValue(false);
+    expect(await A.buscarContactosAction("laura")).toEqual({ ok: false, error: "Sin contactos." });
+    expect(H.veContactos).toHaveBeenCalledWith(CTX);
+    expect(H.buscar).not.toHaveBeenCalled();
   });
 
   it("forma inválida no llega a la base", async () => {

@@ -7,7 +7,9 @@ import {
   crearConsultaManual,
   crearConsultaRapida,
   editarConsulta,
+  MENSAJES_EDICION,
   quitarParticipante,
+  veContactos,
   type FormAltaRapida,
   type FormEdicion,
   type FormNuevaConsulta,
@@ -32,10 +34,14 @@ function revalidarConsulta(leadId: string): void {
   revalidatePath(`/consultas/${leadId}`);
 }
 
-/** Buscador de contactos del formulario: nombre, correo o teléfono (2 caracteres o más, hasta 20). */
+/**
+ * Buscador de contactos del formulario: nombre, correo o teléfono (2 caracteres o más, hasta 20).
+ * Además de "Gestionar" en Consultas pide "Ver" en Clientes (R10): es el padrón de clientes.
+ */
 export async function buscarContactosAction(texto: string): Promise<{ ok: true; contactos: ContactoEncontrado[] } | { ok: false; error: string }> {
   const ctx = await contextoDeConsultas("operar");
   if (!ctx) return SIN_ACCESO;
+  if (!veContactos(ctx)) return { ok: false, error: MENSAJES_EDICION.sinContactos };
   return { ok: true, contactos: await buscarContactos(ctx.workspaceId, texto) };
 }
 

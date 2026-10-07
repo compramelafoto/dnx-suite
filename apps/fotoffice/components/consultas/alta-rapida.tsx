@@ -1,9 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { Plus } from "lucide-react";
 import { altaRapidaAction } from "@/app/actions/consultas";
+import { marcaDeCampo, type CampoConError } from "@/lib/consultas/formulario";
 import { AvisosConsulta, type AvisosVista } from "./avisos-consulta";
 
 const MENSAJE_FALLA = "No se pudo guardar la consulta. Probá de nuevo.";
@@ -19,7 +20,9 @@ export function AltaRapida({ categorias }: { categorias: { id: string; nombre: s
   const [nombre, setNombre] = useState("");
   const [dato, setDato] = useState("");
   const [categoriaId, setCategoriaId] = useState(categorias[0]?.id ?? "");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ mensaje: string; campo?: CampoConError } | null>(null);
+  const idError = useId();
+  const marca = (c: CampoConError | readonly CampoConError[]) => marcaDeCampo(error, c, idError);
   const [avisos, setAvisos] = useState<AvisosVista | null>(null);
   const [estado, setEstado] = useState("");
 
@@ -42,25 +45,26 @@ export function AltaRapida({ categorias }: { categorias: { id: string; nombre: s
   function guardar() {
     setError(null);
     if (!nombre.trim()) {
-      setError("Escribí el nombre.");
+      setError({ mensaje: "Escribí el nombre.", campo: "nombre" });
       return;
     }
     if (!dato.trim()) {
-      setError("Escribí un teléfono o un correo.");
+      setError({ mensaje: "Escribí un teléfono o un correo.", campo: "telefonoOCorreo" });
       return;
     }
     if (!categoriaId) {
-      setError("Elegí una categoría.");
+      setError({ mensaje: "Elegí una categoría.", campo: "categoria" });
       return;
     }
     iniciar(async () => {
       try {
         const r = await altaRapidaAction({ nombre, telefonoOCorreo: dato, categoriaId });
         if (!r.ok) {
-          setError(r.error);
+          setError({ mensaje: r.error, campo: r.campo });
           return;
         }
-        const hay = (r.avisos.fechaSuperpuesta?.length ?? 0) > 0 || (r.avisos.duplicados?.length ?? 0) > 0;
+        const hay =
+          (r.avisos.fechaSuperpuesta?.length ?? 0) > 0 || (r.avisos.duplicados?.length ?? 0) > 0 || r.avisos.posibleDuplicado === true;
         setAvisos(hay ? r.avisos : null);
         setEstado(`Consulta de ${nombre.trim()} cargada.`);
         setNombre("");
@@ -68,7 +72,7 @@ export function AltaRapida({ categorias }: { categorias: { id: string; nombre: s
         setAbierta(false);
         router.refresh();
       } catch {
-        setError(MENSAJE_FALLA);
+        setError({ mensaje: MENSAJE_FALLA });
       }
     });
   }
@@ -83,16 +87,17 @@ export function AltaRapida({ categorias }: { categorias: { id: string; nombre: s
       }}
     >
       <fieldset className="space-y-2" disabled={pendiente}>
-        <input className="fo-input" placeholder="Nombre" aria-label="Nombre" maxLength={200} value={nombre} onChange={(e) => setNombre(e.target.value)} />
+        <input className="fo-input" placeholder="Nombre" aria-label="Nombre" maxLength={200} {...marca(["nombre", "contacto"])} value={nombre} onChange={(e) => setNombre(e.target.value)} />
         <input
           className="fo-input"
           placeholder="Teléfono o correo"
           aria-label="Teléfono o correo"
           maxLength={254}
+          {...marca(["telefonoOCorreo", "email", "telefono"])}
           value={dato}
           onChange={(e) => setDato(e.target.value)}
         />
-        <select className="fo-input" aria-label="Categoría" value={categoriaId} onChange={(e) => setCategoriaId(e.target.value)}>
+        <select className="fo-input" aria-label="Categoría" {...marca("categoria")} value={categoriaId} onChange={(e) => setCategoriaId(e.target.value)}>
           {categorias.map((c) => (
             <option key={c.id} value={c.id}>
               {c.nombre}
@@ -100,8 +105,8 @@ export function AltaRapida({ categorias }: { categorias: { id: string; nombre: s
           ))}
         </select>
         {error ? (
-          <p role="alert" className="text-xs text-[var(--fo-danger)]">
-            {error}
+          <p id={idError} role="alert" className="text-xs text-[var(--fo-danger)]">
+            {error.mensaje}
           </p>
         ) : null}
         <div className="flex gap-2">

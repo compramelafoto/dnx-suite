@@ -2,7 +2,7 @@
 
 import { useId } from "react";
 import { CAMPOS_POR_GRUPO, ETIQUETA_CAMPO_EVENTO, type GrupoConsulta } from "@/lib/consultas/constantes";
-import type { FormEvento } from "@/lib/consultas/formulario";
+import type { CampoConError, FormEvento, MarcaDeCampo } from "@/lib/consultas/formulario";
 
 /**
  * Los datos del evento que pide el grupo de la categoría (`CAMPOS_POR_GRUPO`): al cambiar de
@@ -14,11 +14,14 @@ export function CamposEvento({
   valor,
   onCambiar,
   deshabilitado,
+  marca = () => ({}),
 }: {
   grupo: GrupoConsulta | null;
   valor: FormEvento;
   onCambiar: (v: FormEvento) => void;
   deshabilitado?: boolean;
+  /** Marca de error de cada dato ("fecha", "invitados" o "evento" para los textos). */
+  marca?: (campo: CampoConError) => MarcaDeCampo;
 }) {
   const id = useId();
   if (!grupo) return null;
@@ -34,6 +37,7 @@ export function CamposEvento({
         value={valor[k] ?? ""}
         maxLength={max}
         disabled={deshabilitado}
+        {...marca("evento")}
         onChange={(e) => poner(k, e.target.value)}
       />
     </label>
@@ -49,7 +53,7 @@ export function CamposEvento({
               <div key={campo} className="grid grid-cols-2 gap-2 sm:col-span-2">
                 <label className="fo-field-stack">
                   <span className="fo-label">Fecha del evento</span>
-                  <input type="date" className="fo-input" value={valor.fecha ?? ""} onChange={(e) => poner("fecha", e.target.value)} />
+                  <input type="date" className="fo-input" value={valor.fecha ?? ""} onChange={(e) => poner("fecha", e.target.value)} {...marca("fecha")} />
                 </label>
                 <label className="fo-field-stack">
                   <span className="fo-label">Hora (opcional)</span>
@@ -58,6 +62,7 @@ export function CamposEvento({
                     className="fo-input"
                     value={valor.hora ?? ""}
                     disabled={deshabilitado || !valor.fecha}
+                    {...marca("fecha")}
                     onChange={(e) => poner("hora", e.target.value)}
                   />
                 </label>
@@ -74,6 +79,7 @@ export function CamposEvento({
                   inputMode="numeric"
                   className="fo-input"
                   value={valor.invitados ?? ""}
+                  {...marca("invitados")}
                   onChange={(e) => poner("invitados", e.target.value)}
                 />
               </label>

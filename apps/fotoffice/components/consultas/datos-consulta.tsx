@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { editarConsultaAction } from "@/app/actions/consultas";
 import { valoresDeVencimiento } from "@/lib/circuitos/ficha-vista";
 import { CAMPOS_POR_GRUPO, ETIQUETA_CAMPO_EVENTO, type GrupoConsulta } from "@/lib/consultas/constantes";
 import type { DatosConsultaFicha } from "@/lib/consultas/ficha";
-import { formularioDelEvento, type FormEvento } from "@/lib/consultas/formulario";
+import { formularioDelEvento, marcaDeCampo, type CampoConError, type FormEvento } from "@/lib/consultas/formulario";
 import { fechaBA, fechaDeEvento, fechaHoraBA } from "@/lib/ficha/formato";
 import { CamposEvento } from "./campos-evento";
 import { SelectorContacto, type ContactoElegido } from "./selector-contacto";
@@ -66,6 +66,7 @@ export function DatosConsulta({
   siguienteAccion,
   recorridoAbierto,
   puedeEditar,
+  veContactos,
 }: {
   leadId: string;
   datos: DatosConsultaFicha;
@@ -79,11 +80,15 @@ export function DatosConsulta({
   siguienteAccion: string | null;
   recorridoAbierto: boolean;
   puedeEditar: boolean;
+  /** "Ver" en Clientes (R10): sin él, el referente se muestra pero no se elige otro. */
+  veContactos: boolean;
 }) {
+  const idError = useId();
   const router = useRouter();
   const [pendiente, iniciar] = useTransition();
   const [editando, setEditando] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ mensaje: string; campo?: CampoConError } | null>(null);
+  const marca = (c: CampoConError | readonly CampoConError[]) => marcaDeCampo(error, c, idError);
   const [estado, setEstado] = useState("");
 
   const inicial = () => ({
@@ -126,14 +131,14 @@ export function DatosConsulta({
           },
         });
         if (!r.ok) {
-          setError(r.error);
+          setError({ mensaje: r.error, campo: r.campo });
           return;
         }
         setEditando(false);
         setEstado("Datos guardados.");
         router.refresh();
       } catch {
-        setError(MENSAJE_FALLA);
+        setError({ mensaje: MENSAJE_FALLA });
       }
     });
   }
@@ -209,7 +214,7 @@ export function DatosConsulta({
           <fieldset className="space-y-3" disabled={pendiente}>
             <label className="fo-field-stack">
               <span className="fo-label">Categoría</span>
-              <select className="fo-input" value={form.categoriaId} onChange={(e) => setForm({ ...form, categoriaId: e.target.value })}>
+              <select className="fo-input" value={form.categoriaId} {...marca("categoria")} onChange={(e) => setForm({ ...form, categoriaId: e.target.value })}>
                 {opcionesCategoria.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.nombre}
@@ -217,10 +222,10 @@ export function DatosConsulta({
                 ))}
               </select>
             </label>
-            <CamposEvento grupo={grupoElegido} valor={form.evento} onCambiar={(evento) => setForm({ ...form, evento })} deshabilitado={pendiente} />
+            <CamposEvento grupo={grupoElegido} valor={form.evento} onCambiar={(evento) => setForm({ ...form, evento })} deshabilitado={pendiente} marca={(c) => marca(c)} />
             <label className="fo-field-stack">
               <span className="fo-label">Origen</span>
-              <select className="fo-input" value={form.origenId} onChange={(e) => setForm({ ...form, origenId: e.target.value })}>
+              <select className="fo-input" value={form.origenId} {...marca("origen")} onChange={(e) => setForm({ ...form, origenId: e.target.value })}>
                 <option value="">Sin especificar</option>
                 {opcionesOrigen.map((o) => (
                   <option key={o.id} value={o.id}>
@@ -229,26 +234,34 @@ export function DatosConsulta({
                 ))}
               </select>
             </label>
-            <SelectorContacto
-              etiqueta="Referente"
-              elegido={form.referente}
-              onElegir={(referente) => setForm({ ...form, referente })}
-              excluir={[datos.contacto.id]}
-              deshabilitado={pendiente}
-            />
+            {veContactos ? (
+              <SelectorContacto
+                etiqueta="Referente"
+                elegido={form.referente}
+                onElegir={(referente) => setForm({ ...form, referente })}
+                excluir={[datos.contacto.id]}
+                deshabilitado={pendiente}
+                marca={marca("referente")}
+              />
+            ) : (
+              <div className="fo-field-stack">
+                <span className="fo-label">Referente</span>
+                <span className="text-sm text-[var(--fo-text)]">{datos.referente?.nombre ?? "—"}</span>
+              </div>
+            )}
             <label className="fo-field-stack">
               <span className="fo-label">Valor estimado</span>
-              <input className="fo-input" inputMode="decimal" maxLength={20} value={form.valor} onChange={(e) => setForm({ ...form, valor: e.target.value })} />
+              <input className="fo-input" inputMode="decimal" maxLength={20} value={form.valor} {...marca("valor")} onChange={(e) => setForm({ ...form, valor: e.target.value })} />
             </label>
             <label className="fo-field-stack">
               <span className="fo-label">Cierre previsto</span>
-              <input type="date" className="fo-input" value={form.cierre} onChange={(e) => setForm({ ...form, cierre: e.target.value })} />
+              <input type="date" className="fo-input" value={form.cierre} {...marca("cierrePrevisto")} onChange={(e) => setForm({ ...form, cierre: e.target.value })} />
             </label>
             {recorridoAbierto ? (
               <>
                 <label className="fo-field-stack">
                   <span className="fo-label">Responsable</span>
-                  <select className="fo-input" value={form.responsable} onChange={(e) => setForm({ ...form, responsable: e.target.value })}>
+                  <select className="fo-input" value={form.responsable} {...marca("responsable")} onChange={(e) => setForm({ ...form, responsable: e.target.value })}>
                     <option value="">Sin responsable</option>
                     {responsableId !== null && !responsables.some((r) => r.id === responsableId) ? (
                       <option value={responsableId}>Responsable actual (sin permiso para gestionar)</option>
@@ -262,7 +275,7 @@ export function DatosConsulta({
                 </label>
                 <label className="fo-field-stack">
                   <span className="fo-label">Siguiente acción</span>
-                  <input type="date" className="fo-input" value={form.siguiente} onChange={(e) => setForm({ ...form, siguiente: e.target.value })} />
+                  <input type="date" className="fo-input" value={form.siguiente} {...marca("siguienteAccion")} onChange={(e) => setForm({ ...form, siguiente: e.target.value })} />
                   <span className="text-xs text-[var(--fo-muted)]">Es el vencimiento de la etapa: el cambio queda en el historial.</span>
                 </label>
               </>
@@ -271,8 +284,8 @@ export function DatosConsulta({
             )}
           </fieldset>
           {error ? (
-            <p role="alert" className="text-sm text-[var(--fo-danger)]">
-              {error}
+            <p id={idError} role="alert" className="text-sm text-[var(--fo-danger)]">
+              {error.mensaje}
             </p>
           ) : null}
           <div className="flex gap-2">

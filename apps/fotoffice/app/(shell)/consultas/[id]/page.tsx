@@ -123,7 +123,14 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
       />
 
       {datosConsulta ? (
-        <AvisosConsulta avisos={{ fechaSuperpuesta: datosConsulta.superpuestas, duplicados: datosConsulta.posiblesDuplicados }} />
+        <AvisosConsulta
+          avisos={
+            // Los datos del otro contacto, sólo con "Ver" en Clientes (R10); si no, el aviso solo.
+            veContacto
+              ? { fechaSuperpuesta: datosConsulta.superpuestas, duplicados: datosConsulta.posiblesDuplicados }
+              : { fechaSuperpuesta: datosConsulta.superpuestas, posibleDuplicado: datosConsulta.posiblesDuplicados.length > 0 }
+          }
+        />
       ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
@@ -142,8 +149,14 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
                 siguienteAccion={recorridoAbierto?.stageDueAt ?? null}
                 recorridoAbierto={recorridoAbierto !== null}
                 puedeEditar={puedeEditar}
+                veContactos={veContacto}
               />
-              <Participantes leadId={id} participantes={datosConsulta.participantes} roles={opciones.roles} puedeEditar={puedeEditar} />
+              <Participantes
+                leadId={id}
+                participantes={datosConsulta.participantes}
+                roles={opciones.roles}
+                puedeEditar={puedeEditar && veContacto}
+              />
             </>
           ) : null}
           <section aria-labelledby="datos-titulo" className="fo-card space-y-3">

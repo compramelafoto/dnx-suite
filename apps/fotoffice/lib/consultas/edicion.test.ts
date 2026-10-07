@@ -31,8 +31,11 @@ const K = await import("./constantes");
 const { MENSAJES_ALTA: M } = await import("./alta");
 const ME = E.MENSAJES_EDICION;
 
-const acceso = (nivel: "VIEW" | "MANAGE") => ({ role: "STAFF", levels: { "service-leads": nivel } }) as never;
+const acceso = (nivel: "VIEW" | "MANAGE", clientes: "NONE" | "VIEW" = "VIEW") =>
+  ({ role: "STAFF", levels: { "service-leads": nivel, clients: clientes } }) as never;
 const GESTIONA = { workspaceId: "ws-1", userId: 7, userLabel: "Ana", role: "STAFF", acceso: acceso("MANAGE") };
+/** Gestiona Consultas pero no ve Clientes (R10). */
+const SIN_CLIENTES = { ...GESTIONA, acceso: acceso("MANAGE", "NONE") };
 const SOLO_VE = { ...GESTIONA, acceso: acceso("VIEW") };
 const AJENO = { ...GESTIONA, workspaceId: "ws-2" };
 
@@ -146,14 +149,14 @@ describe("Nueva consulta (alta MANUAL)", () => {
 
   it("cada id se busca en el workspace de la sesión", async () => {
     const base = { contacto: { clientId: "cli-1" }, categoriaId: categoria("Boda") };
-    expect(await E.crearConsultaManual(GESTIONA, { ...base, contacto: { clientId: "cli-ajeno" } })).toEqual({ ok: false, error: M.contactoNoEncontrado });
-    expect(await E.crearConsultaManual(GESTIONA, { ...base, categoriaId: categoria("Boda", "ws-2") })).toEqual({ ok: false, error: M.categoria });
-    expect(await E.crearConsultaManual(GESTIONA, { ...base, origenId: origen("Otro", "ws-2") })).toEqual({ ok: false, error: M.origen });
-    expect(await E.crearConsultaManual(GESTIONA, { ...base, referenteClientId: "cli-ajeno" })).toEqual({ ok: false, error: M.referente });
+    expect(await E.crearConsultaManual(GESTIONA, { ...base, contacto: { clientId: "cli-ajeno" } })).toEqual({ ok: false, error: M.contactoNoEncontrado, campo: "contacto" });
+    expect(await E.crearConsultaManual(GESTIONA, { ...base, categoriaId: categoria("Boda", "ws-2") })).toEqual({ ok: false, error: M.categoria, campo: "categoria" });
+    expect(await E.crearConsultaManual(GESTIONA, { ...base, origenId: origen("Otro", "ws-2") })).toEqual({ ok: false, error: M.origen, campo: "origen" });
+    expect(await E.crearConsultaManual(GESTIONA, { ...base, referenteClientId: "cli-ajeno" })).toEqual({ ok: false, error: M.referente, campo: "referente" });
     // Responsable: alguien de otro workspace, o del equipo sin "Gestionar".
-    expect(await E.crearConsultaManual(GESTIONA, { ...base, responsableUserId: 9 })).toEqual({ ok: false, error: M.responsable });
+    expect(await E.crearConsultaManual(GESTIONA, { ...base, responsableUserId: 9 })).toEqual({ ok: false, error: M.responsable, campo: "responsable" });
     H.nivel.mockResolvedValue(false);
-    expect(await E.crearConsultaManual(GESTIONA, { ...base, responsableUserId: 8 })).toEqual({ ok: false, error: M.responsable });
+    expect(await E.crearConsultaManual(GESTIONA, { ...base, responsableUserId: 8 })).toEqual({ ok: false, error: M.responsable, campo: "responsable" });
     expect(B.datos.serviceSalesLead).toHaveLength(0);
     expect(B.datos.fotofficeConsulta).toHaveLength(0);
   });
@@ -161,16 +164,16 @@ describe("Nueva consulta (alta MANUAL)", () => {
   it("una categoría archivada no se ofrece en altas nuevas", async () => {
     const id = categoria("Boda");
     B.datos.fotofficeConsultaCategoria.find((c) => c.id === id)!.archivedAt = new Date();
-    expect(await E.crearConsultaManual(GESTIONA, { contacto: { clientId: "cli-1" }, categoriaId: id })).toEqual({ ok: false, error: M.categoria });
+    expect(await E.crearConsultaManual(GESTIONA, { contacto: { clientId: "cli-1" }, categoriaId: id })).toEqual({ ok: false, error: M.categoria, campo: "categoria" });
   });
 
   it("datos que no se entienden se rechazan sin crear nada", async () => {
     const base = { contacto: { clientId: "cli-1" }, categoriaId: categoria("Boda") };
-    expect(await E.crearConsultaManual(GESTIONA, { ...base, valor: "mucho" })).toEqual({ ok: false, error: M.valor });
-    expect(await E.crearConsultaManual(GESTIONA, { ...base, evento: { fecha: "2026-02-31" } })).toEqual({ ok: false, error: M.fecha });
-    expect(await E.crearConsultaManual(GESTIONA, { ...base, evento: { invitados: "1,5" } })).toEqual({ ok: false, error: M.invitados });
-    expect(await E.crearConsultaManual(GESTIONA, { ...base, cierrePrevisto: "mañana" })).toEqual({ ok: false, error: M.fecha });
-    expect(await E.crearConsultaManual(GESTIONA, { contacto: { nombre: "  " }, categoriaId: categoria("Boda") })).toEqual({ ok: false, error: M.contacto });
+    expect(await E.crearConsultaManual(GESTIONA, { ...base, valor: "mucho" })).toEqual({ ok: false, error: M.valor, campo: "valor" });
+    expect(await E.crearConsultaManual(GESTIONA, { ...base, evento: { fecha: "2026-02-31" } })).toEqual({ ok: false, error: M.fecha, campo: "fecha" });
+    expect(await E.crearConsultaManual(GESTIONA, { ...base, evento: { invitados: "1,5" } })).toEqual({ ok: false, error: M.invitados, campo: "invitados" });
+    expect(await E.crearConsultaManual(GESTIONA, { ...base, cierrePrevisto: "mañana" })).toEqual({ ok: false, error: M.fecha, campo: "cierrePrevisto" });
+    expect(await E.crearConsultaManual(GESTIONA, { contacto: { nombre: "  " }, categoriaId: categoria("Boda") })).toEqual({ ok: false, error: M.contacto, campo: "nombre" });
     expect(B.datos.serviceSalesLead).toHaveLength(0);
   });
 
@@ -198,8 +201,8 @@ describe("alta rápida del tablero", () => {
   });
 
   it("exige teléfono o correo y una categoría del workspace", async () => {
-    expect(await E.crearConsultaRapida(GESTIONA, { nombre: "Ana", telefonoOCorreo: " ", categoriaId: categoria("Boda") })).toEqual({ ok: false, error: ME.contactoRapido });
-    expect(await E.crearConsultaRapida(GESTIONA, { nombre: "Ana", telefonoOCorreo: "ana@x.test", categoriaId: categoria("Boda", "ws-2") })).toEqual({ ok: false, error: M.categoria });
+    expect(await E.crearConsultaRapida(GESTIONA, { nombre: "Ana", telefonoOCorreo: " ", categoriaId: categoria("Boda") })).toEqual({ ok: false, error: ME.contactoRapido, campo: "telefonoOCorreo" });
+    expect(await E.crearConsultaRapida(GESTIONA, { nombre: "Ana", telefonoOCorreo: "ana@x.test", categoriaId: categoria("Boda", "ws-2") })).toEqual({ ok: false, error: M.categoria, campo: "categoria" });
   });
 });
 
@@ -234,19 +237,19 @@ describe("ficha: editar los datos", () => {
     expect(await E.editarConsulta(GESTIONA, leadId, { categoriaId: boda, valor: "10" })).toEqual({ ok: true });
     const corpo = categoria("Evento Corporativo");
     B.datos.fotofficeConsultaCategoria.find((c) => c.id === corpo)!.archivedAt = new Date();
-    expect(await E.editarConsulta(GESTIONA, leadId, { categoriaId: corpo })).toEqual({ ok: false, error: M.categoria });
+    expect(await E.editarConsulta(GESTIONA, leadId, { categoriaId: corpo })).toEqual({ ok: false, error: M.categoria, campo: "categoria" });
   });
 
   it("cada id se busca en el workspace de la sesión", async () => {
     const leadId = await nueva();
     const boda = categoria("Boda");
     expect(await E.editarConsulta(AJENO, leadId, { categoriaId: boda })).toEqual({ ok: false, error: ME.noEncontrada });
-    expect(await E.editarConsulta(GESTIONA, leadId, { categoriaId: categoria("Boda", "ws-2") })).toEqual({ ok: false, error: M.categoria });
-    expect(await E.editarConsulta(GESTIONA, leadId, { categoriaId: boda, origenId: origen("Otro", "ws-2") })).toEqual({ ok: false, error: M.origen });
-    expect(await E.editarConsulta(GESTIONA, leadId, { categoriaId: boda, referenteClientId: "cli-ajeno" })).toEqual({ ok: false, error: M.referente });
-    expect(await E.editarConsulta(GESTIONA, leadId, { categoriaId: boda, responsableUserId: 9 })).toEqual({ ok: false, error: M.responsable });
+    expect(await E.editarConsulta(GESTIONA, leadId, { categoriaId: categoria("Boda", "ws-2") })).toEqual({ ok: false, error: M.categoria, campo: "categoria" });
+    expect(await E.editarConsulta(GESTIONA, leadId, { categoriaId: boda, origenId: origen("Otro", "ws-2") })).toEqual({ ok: false, error: M.origen, campo: "origen" });
+    expect(await E.editarConsulta(GESTIONA, leadId, { categoriaId: boda, referenteClientId: "cli-ajeno" })).toEqual({ ok: false, error: M.referente, campo: "referente" });
+    expect(await E.editarConsulta(GESTIONA, leadId, { categoriaId: boda, responsableUserId: 9 })).toEqual({ ok: false, error: M.responsable, campo: "responsable" });
     H.nivel.mockResolvedValue(false);
-    expect(await E.editarConsulta(GESTIONA, leadId, { categoriaId: boda, responsableUserId: 8 })).toEqual({ ok: false, error: M.responsable });
+    expect(await E.editarConsulta(GESTIONA, leadId, { categoriaId: boda, responsableUserId: 8 })).toEqual({ ok: false, error: M.responsable, campo: "responsable" });
     expect(B.datos.fotofficeConsulta[0]).toMatchObject({ categoryId: boda, originId: null, referrerClientId: null });
     expect(recorridoDe(leadId).ownerUserId).toBeNull();
   });
@@ -278,8 +281,8 @@ describe("ficha: editar los datos", () => {
   it("sin recorrido abierto, el responsable y la siguiente acción no se cambian", async () => {
     const leadId = await nueva();
     recorridoDe(leadId).closedAt = new Date();
-    expect(await E.editarConsulta(GESTIONA, leadId, { categoriaId: categoria("Boda"), siguienteAccion: "2026-10-20" })).toEqual({ ok: false, error: ME.sinCircuito });
-    expect(await E.editarConsulta(GESTIONA, leadId, { categoriaId: categoria("Boda"), siguienteAccion: "20/10/2026" })).toEqual({ ok: false, error: ME.siguienteAccion });
+    expect(await E.editarConsulta(GESTIONA, leadId, { categoriaId: categoria("Boda"), siguienteAccion: "2026-10-20" })).toEqual({ ok: false, error: ME.sinCircuito, campo: "siguienteAccion" });
+    expect(await E.editarConsulta(GESTIONA, leadId, { categoriaId: categoria("Boda"), siguienteAccion: "20/10/2026" })).toEqual({ ok: false, error: ME.siguienteAccion, campo: "siguienteAccion" });
   });
 });
 
@@ -297,12 +300,12 @@ describe("participantes", () => {
   it("aislamiento: contacto, rol, consulta y participante de otro lado no valen", async () => {
     const leadId = await nueva();
     const otraLead = await nueva();
-    expect(await E.agregarParticipante(GESTIONA, leadId, { clientId: "cli-ajeno", roleId: rol("DJ") })).toEqual({ ok: false, error: M.contactoNoEncontrado });
-    expect(await E.agregarParticipante(GESTIONA, leadId, { clientId: "cli-2", roleId: rol("Salón", "ws-2") })).toEqual({ ok: false, error: ME.rol });
+    expect(await E.agregarParticipante(GESTIONA, leadId, { clientId: "cli-ajeno", roleId: rol("DJ") })).toEqual({ ok: false, error: M.contactoNoEncontrado, campo: "participanteContacto" });
+    expect(await E.agregarParticipante(GESTIONA, leadId, { clientId: "cli-2", roleId: rol("Salón", "ws-2") })).toEqual({ ok: false, error: ME.rol, campo: "rol" });
     expect(await E.agregarParticipante(AJENO, leadId, { clientId: "cli-2", roleId: rol("DJ") })).toEqual({ ok: false, error: ME.noEncontrada });
     // Un rol archivado no se ofrece.
     B.datos.fotofficeRolParticipante.find((r) => r.id === rol("Catering"))!.archivedAt = new Date();
-    expect(await E.agregarParticipante(GESTIONA, leadId, { clientId: "cli-2", roleId: rol("Catering") })).toEqual({ ok: false, error: ME.rol });
+    expect(await E.agregarParticipante(GESTIONA, leadId, { clientId: "cli-2", roleId: rol("Catering") })).toEqual({ ok: false, error: ME.rol, campo: "rol" });
     expect(B.datos.fotofficeConsultaParticipante).toHaveLength(0);
 
     await E.agregarParticipante(GESTIONA, otraLead, { clientId: "cli-2", roleId: rol("DJ") });
@@ -310,5 +313,95 @@ describe("participantes", () => {
     expect(await E.quitarParticipante(GESTIONA, leadId, deLaOtra)).toEqual({ ok: false, error: ME.participanteNoEncontrado });
     expect(await E.quitarParticipante(AJENO, otraLead, deLaOtra)).toEqual({ ok: false, error: ME.noEncontrada });
     expect(B.datos.fotofficeConsultaParticipante).toHaveLength(1);
+  });
+});
+
+describe("contactos existentes sólo con «Ver» en Clientes (R10)", () => {
+  it("sin «Ver» en Clientes no elige contacto, referente ni participante existentes", async () => {
+    const boda = categoria("Boda");
+    expect(await E.crearConsultaManual(SIN_CLIENTES, { contacto: { clientId: "cli-1" }, categoriaId: boda })).toEqual({
+      ok: false, error: ME.sinContactos, campo: "contacto",
+    });
+    expect(await E.crearConsultaManual(SIN_CLIENTES, { contacto: { nombre: "Ana Ruiz" }, categoriaId: boda, referenteClientId: "cli-2" })).toEqual({
+      ok: false, error: ME.sinContactos, campo: "referente",
+    });
+    expect(B.datos.serviceSalesLead).toHaveLength(0);
+    const leadId = await nueva({ referenteClientId: "cli-2" });
+    expect(await E.agregarParticipante(SIN_CLIENTES, leadId, { clientId: "cli-2", roleId: rol("DJ") })).toEqual({
+      ok: false, error: ME.sinContactos, campo: "participanteContacto",
+    });
+    // Cambiar el referente, no; dejar el mismo (o quitarlo), sí.
+    B.agregar("client", { id: "cli-4", clientNumber: 4, workspaceId: "ws-1", firstName: "Otro", kind: "PERSONA" });
+    expect(await E.editarConsulta(SIN_CLIENTES, leadId, { categoriaId: boda, referenteClientId: "cli-4" })).toEqual({
+      ok: false, error: ME.sinContactos, campo: "referente",
+    });
+    expect(await E.editarConsulta(SIN_CLIENTES, leadId, { categoriaId: boda, referenteClientId: "cli-2", valor: "5" })).toEqual({ ok: true });
+    expect(B.datos.fotofficeConsultaParticipante).toHaveLength(0);
+  });
+
+  it("«Contacto nuevo» sí: se empareja en silencio y el aviso no muestra al otro contacto", async () => {
+    // Dos contactos con el mismo correo: el alta usa el más reciente y avisa.
+    B.agregar("client", { id: "cli-3", clientNumber: 3, workspaceId: "ws-1", firstName: "Laura", lastName: "P.", email: "laura@persona.test", kind: "PERSONA" });
+    const r = await E.crearConsultaManual(SIN_CLIENTES, { contacto: { nombre: "Laura", email: "laura@persona.test" }, categoriaId: categoria("Boda") });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.avisos.posibleDuplicado).toBe(true);
+    expect(r.avisos.duplicados).toBeUndefined();
+    expect(JSON.stringify(r.avisos)).not.toContain("cli-");
+    // Con «Ver» en Clientes, el mismo aviso trae los datos.
+    const conVer = await E.crearConsultaManual(GESTIONA, { contacto: { nombre: "Laura", email: "laura@persona.test" }, categoriaId: categoria("Boda") });
+    expect(conVer.ok && conVer.avisos.duplicados?.length).toBeGreaterThan(0);
+  });
+});
+
+describe("el referente no puede ser el propio contacto", () => {
+  it("ni en el alta ni en la ficha", async () => {
+    expect(await E.crearConsultaManual(GESTIONA, { contacto: { clientId: "cli-1" }, categoriaId: categoria("Boda"), referenteClientId: "cli-1" })).toEqual({
+      ok: false, error: M.referentePropio, campo: "referente",
+    });
+    expect(B.datos.serviceSalesLead).toHaveLength(0);
+    const leadId = await nueva();
+    expect(await E.editarConsulta(GESTIONA, leadId, { categoriaId: categoria("Boda"), referenteClientId: "cli-1" })).toEqual({
+      ok: false, error: M.referentePropio, campo: "referente",
+    });
+    expect(B.datos.fotofficeConsulta[0]!.referrerClientId).toBeNull();
+  });
+});
+
+describe("ficha: el responsable tiene que poder gestionar Consultas", () => {
+  it("rechaza a alguien del equipo sin «Gestionar»", async () => {
+    const leadId = await nueva();
+    H.nivel.mockImplementation(async (u: unknown) => u !== 8);
+    expect(await E.editarConsulta(GESTIONA, leadId, { categoriaId: categoria("Boda"), responsableUserId: 8 })).toEqual({
+      ok: false, error: M.responsable, campo: "responsable",
+    });
+    expect(recorridoDe(leadId).ownerUserId).toBeNull();
+  });
+
+  it("rechaza a alguien de otro workspace aunque tenga «Gestionar» allá", async () => {
+    const leadId = await nueva();
+    expect(await E.editarConsulta(GESTIONA, leadId, { categoriaId: categoria("Boda"), responsableUserId: 9 })).toEqual({
+      ok: false, error: M.responsable, campo: "responsable",
+    });
+    expect(recorridoDe(leadId).ownerUserId).toBeNull();
+    expect(B.datos.fotofficeJourneyStep).toHaveLength(0);
+  });
+});
+
+describe("fecha superpuesta sólo entre grupos que piden fecha (R11)", () => {
+  it("una consulta cuya categoría no pide fecha no se superpone, ni como candidata ni como propia", async () => {
+    const conFecha = await nueva({ evento: { fecha: "2026-12-20" } });
+    // Pasa a "Sesión de Fotos" (Trabajo sin fecha): el día queda guardado pero no cuenta.
+    expect(await E.editarConsulta(GESTIONA, conFecha, { categoriaId: categoria("Sesión de Fotos") })).toEqual({ ok: true });
+    expect((B.datos.serviceSalesLead[0]!.eventDate as Date).toISOString()).toBe("2026-12-20T00:00:00.000Z");
+    const otra = await E.crearConsultaManual(GESTIONA, { contacto: { clientId: "cli-2" }, categoriaId: categoria("Boda"), evento: { fecha: "2026-12-20" } });
+    expect(otra.ok && otra.avisos.fechaSuperpuesta).toBeUndefined();
+
+    const { fechasSuperpuestas } = await import("./fechas");
+    // Como propia: la que no pide fecha no ve superpuestas aunque otra abierta caiga ese día.
+    expect(await fechasSuperpuestas("ws-1", new Date("2026-12-20"), conFecha)).toEqual([]);
+    // La de Boda sí se ve con una tercera de Boda.
+    const tercera = await nueva({ evento: { fecha: "2026-12-20" } });
+    expect((await fechasSuperpuestas("ws-1", new Date("2026-12-20"), tercera)).map((x) => x.leadId)).toEqual([otra.ok ? otra.leadId : ""]);
   });
 });

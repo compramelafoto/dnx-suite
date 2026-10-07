@@ -62,7 +62,7 @@ export default async function CaptacionPage({
         datos={datos}
         filtros={{ circuito: datos.circuito?.id ?? null, responsable, soloVencidas }}
         puedePasarIgual={puede(role, "configurar")}
-        altaRapida={puedeCrear ? { categorias: categorias.map((c) => ({ id: c.id, nombre: c.nombre })) } : null}
+        altaRapida={puedeCrear && datos.circuito?.predeterminado ? { categorias: categorias.map((c) => ({ id: c.id, nombre: c.nombre })) } : null}
       />
     </ArmazonCaptacion>
   );

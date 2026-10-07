@@ -69,10 +69,42 @@ describe("componentes de cliente", () => {
     expect(leer("components/consultas/campos-evento.tsx")).toContain("CAMPOS_POR_GRUPO[grupo]");
   });
 
-  it("el alta rápida recarga el tablero y vive en la primera columna", () => {
+  it("el alta rápida recarga el tablero y vive en la primera columna del circuito predeterminado", () => {
     expect(leer("components/consultas/alta-rapida.tsx")).toContain("router.refresh()");
     const t = leer("components/circuitos/tablero.tsx");
-    expect(t).toContain("indice === 0 && altaRapida");
+    expect(t).toContain("indice === 0 && altaRapida && circuito.predeterminado");
+    expect(leer("app", "(shell)", "consultas", "page.tsx")).toContain("altaRapida={puedeCrear && datos.circuito?.predeterminado ?");
+    expect(leer("lib", "circuitos", "tablero.ts")).toContain("predeterminado: c.isDefault");
+  });
+
+  it("los errores de las acciones marcan su dato (aria-invalid + aria-describedby)", () => {
+    for (const f of [
+      "components/consultas/formulario-consulta.tsx",
+      "components/consultas/alta-rapida.tsx",
+      "components/consultas/datos-consulta.tsx",
+      "components/consultas/participantes.tsx",
+    ]) {
+      const c = leer(f);
+      expect(c, f).toContain("marcaDeCampo(error,");
+      expect(c, f).toContain("campo: r.campo");
+      expect(c, f).toContain("id={idError}");
+    }
+    const formulario = leer("lib", "consultas", "formulario.ts");
+    expect(formulario).toContain('"aria-invalid": true, "aria-describedby": idDelMensaje');
+  });
+
+  it("sin «Ver» en Clientes no hay buscador, referente ni aviso con datos (R10)", () => {
+    const f = leer("components/consultas/formulario-consulta.tsx");
+    expect(f).toContain('useState<"buscar" | "nuevo">(veContactos ? "buscar" : "nuevo")');
+    expect(f).toContain("const buscaExistentes = veContactos &&");
+    expect(f).toContain('{modo === "buscar" && veContactos ? (');
+    expect(leer("components/consultas/datos-consulta.tsx")).toContain("{veContactos ? (");
+    const n = leer("app", "(shell)", "consultas", "nueva", "page.tsx");
+    expect(n).toContain('const veContactos = puede(acceso, "ver", CLIENTS_MODULE_KEY);');
+    expect(n).toContain("veContactos && contactoParam");
+    const p = leer("app", "(shell)", "consultas", "[id]", "page.tsx");
+    expect(p).toContain("puedeEditar={puedeEditar && veContacto}");
+    expect(p).toContain("posibleDuplicado: datosConsulta.posiblesDuplicados.length > 0");
   });
 
   it("el buscador de contactos no ofrece crear sin pasar por el aviso de duplicado", () => {
@@ -109,7 +141,7 @@ describe("páginas", () => {
   it("tablero y lista: «Nueva consulta» y alta rápida sólo con «Gestionar»", () => {
     const t = leer("app", "(shell)", "consultas", "page.tsx");
     expect(t).toContain('const puedeCrear = puede(acceso, "operar", SERVICE_LEADS_MODULE_KEY);');
-    expect(t).toContain("altaRapida={puedeCrear ?");
+    expect(t).toContain("altaRapida={puedeCrear && datos.circuito?.predeterminado ?");
     expect(leer("app", "(shell)", "consultas", "lista", "page.tsx")).toContain('puedeCrear={puedeEnContexto(ctx, "operar", SERVICE_LEADS_MODULE_KEY)}');
     expect(leer("components", "captacion", "armazon.tsx")).toContain('href="/consultas/nueva"');
   });

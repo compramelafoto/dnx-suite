@@ -23,6 +23,31 @@ export function diaDeFecha(d: Date): string {
   return esFechaSinHora(d) ? d.toISOString().slice(0, 10) : diaAR.format(d);
 }
 
+/**
+ * El dato del formulario al que apunta un error de las acciones de Consultas: la pantalla lo
+ * marca con `aria-invalid` y lo une al mensaje con `aria-describedby`.
+ */
+export type CampoConError =
+  | "contacto"
+  | "nombre"
+  | "email"
+  | "telefono"
+  | "telefonoOCorreo"
+  | "categoria"
+  | "fecha"
+  | "invitados"
+  | "evento"
+  | "origen"
+  | "referente"
+  | "valor"
+  | "cierrePrevisto"
+  | "responsable"
+  | "siguienteAccion"
+  | "nota"
+  | "participanteContacto"
+  | "rol"
+  | "participanteNota";
+
 /** Los datos del evento tal como los escribe la persona (todo texto). */
 export type FormEvento = {
   fecha?: string;
@@ -198,4 +223,21 @@ export function formularioDelEvento(ev: {
     lugar: ev.venue ?? "",
     ciudad: ev.city ?? "",
   };
+}
+
+/** Props de accesibilidad de un dato del formulario: marcado si el error apunta a él. */
+export type MarcaDeCampo = { "aria-invalid"?: true; "aria-describedby"?: string };
+
+/**
+ * `aria-invalid` + `aria-describedby` (el id del mensaje de error) para el dato al que apunta el
+ * error; nada para los demás.
+ */
+export function marcaDeCampo(
+  error: { campo?: CampoConError } | null | undefined,
+  campos: CampoConError | readonly CampoConError[],
+  idDelMensaje: string,
+): MarcaDeCampo {
+  if (!error?.campo) return {};
+  const lista: readonly CampoConError[] = typeof campos === "string" ? [campos] : campos;
+  return lista.includes(error.campo) ? { "aria-invalid": true, "aria-describedby": idDelMensaje } : {};
 }
