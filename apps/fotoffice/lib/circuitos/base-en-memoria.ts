@@ -30,6 +30,8 @@ const TABLAS = [
   "fotofficeRolParticipante", "fotofficeConsultaParticipante", "fotofficeConsultaAjustes",
   // Usuarios del equipo (el aviso de consulta nueva lee su correo).
   "user",
+  // Bitácora de las listas (la importación de consultas deja su registro).
+  "fotofficeListActivity",
 ] as const;
 export type Tabla = (typeof TABLAS)[number];
 
