@@ -28,7 +28,7 @@ import { calcularTotales, type TotalesPresupuesto } from "./totales";
  *   los de ¿Cuánto Cobro? recalculados con el motor desde sus entradas (R2), totales y
  *   `costSnapshot`. Así, al congelar (enviar) no hay nada que calcular: se copia lo guardado.
  * - `costSnapshot` y la instantánea del cálculo son internos: `versionParaVista` los saca para
- *   quien no tiene `configurar` ni `verDinero`.
+ *   quien no tiene `configurar` (R4).
  */
 
 type Tx = Prisma.TransactionClient;
@@ -90,7 +90,7 @@ export type CostoDeCatalogo = {
 
 /**
  * Costo y margen de una versión. PURO.
- * - ítem de ¿Cuánto Cobro?: el precio mínimo sostenible del cálculo (lo que cubre horas y costos);
+ * - ítem de ¿Cuánto Cobro?: la base de costo del motor (`costoBase`, con la que mide su margen);
  * - ítem del catálogo: sus costos-plantilla (fijos una vez, por unidad × cantidad) o, si no tiene,
  *   su costo por unidad × cantidad;
  * - ítem de texto libre o sin costos: sin costo conocido.
@@ -107,7 +107,7 @@ export function costosDeVersion(
     let c: number | null = null;
     let origen: OrigenCosto | null = null;
     if (it.modoPrecio === "CALCULO" && it.calculo) {
-      c = aCentavos(it.calculo.precioMinimo);
+      c = aCentavos(it.calculo.costoBase);
       origen = "CALCULO";
     } else if (it.productId && catalogo.has(it.productId)) {
       const k = catalogo.get(it.productId)!;

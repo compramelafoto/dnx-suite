@@ -138,6 +138,9 @@ CREATE INDEX "FotofficeCostoPlantilla_workspaceId_productId_order_idx" ON "Fotof
 CREATE INDEX "FotofficeCostoPlantilla_workspaceId_supplierClientId_idx" ON "FotofficeCostoPlantilla"("workspaceId", "supplierClientId");
 
 -- CreateIndex
+CREATE INDEX "FotofficeCostoPlantilla_productId_idx" ON "FotofficeCostoPlantilla"("productId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "FotofficePresupuesto_currentVersionId_key" ON "FotofficePresupuesto"("currentVersionId");
 
 -- CreateIndex
@@ -154,6 +157,12 @@ CREATE INDEX "FotofficePresupuesto_workspaceId_clientId_idx" ON "FotofficePresup
 
 -- CreateIndex
 CREATE INDEX "FotofficePresupuesto_workspaceId_validUntil_idx" ON "FotofficePresupuesto"("workspaceId", "validUntil");
+
+-- CreateIndex
+CREATE INDEX "FotofficePresupuesto_consultaLeadId_idx" ON "FotofficePresupuesto"("consultaLeadId");
+
+-- CreateIndex
+CREATE INDEX "FotofficePresupuesto_clientId_idx" ON "FotofficePresupuesto"("clientId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "FotofficePresupuestoVersion_tokenHash_key" ON "FotofficePresupuestoVersion"("tokenHash");
@@ -201,10 +210,10 @@ ALTER TABLE "FotofficeCostoPlantilla" ADD CONSTRAINT "FotofficeCostoPlantilla_su
 ALTER TABLE "FotofficePresupuesto" ADD CONSTRAINT "FotofficePresupuesto_workspaceId_fkey" FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "FotofficePresupuesto" ADD CONSTRAINT "FotofficePresupuesto_consultaLeadId_fkey" FOREIGN KEY ("consultaLeadId") REFERENCES "ServiceSalesLead"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "FotofficePresupuesto" ADD CONSTRAINT "FotofficePresupuesto_consultaLeadId_fkey" FOREIGN KEY ("consultaLeadId") REFERENCES "ServiceSalesLead"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "FotofficePresupuesto" ADD CONSTRAINT "FotofficePresupuesto_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "Client"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "FotofficePresupuesto" ADD CONSTRAINT "FotofficePresupuesto_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "Client"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "FotofficePresupuesto" ADD CONSTRAINT "FotofficePresupuesto_currentVersionId_fkey" FOREIGN KEY ("currentVersionId") REFERENCES "FotofficePresupuestoVersion"("id") ON DELETE SET NULL ON UPDATE CASCADE;

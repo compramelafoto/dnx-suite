@@ -117,6 +117,8 @@ describe("costos-plantilla", () => {
       { supplierClientId: null, concept: "Viáticos", amountMinor: 3_000_00, perUnit: false, daysFromEvent: -1 },
     ]);
     expect(r).toEqual({ ok: true });
+    // Toma el candado del producto antes de borrar y crear.
+    expect(B.sql.some((q) => q.texto.includes("pg_advisory_xact_lock") && q.valores[0] === "fotoffice-costos:ws-1:p1")).toBe(true);
     expect(B.datos.fotofficeCostoPlantilla[0]).toMatchObject({ amountArs: "12500.50", order: 0 });
     const costos = await K.leerCostos("ws-1", "p1");
     expect(costos.map((c) => [c.concept, c.supplierName, c.amountMinor, c.perUnit, c.daysFromEvent])).toEqual([

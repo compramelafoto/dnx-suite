@@ -3,8 +3,10 @@
  *
  * El motor (`calculateCuantoCobro(perfil, presupuesto)`) devuelve el precio del TRABAJO entero:
  * `chosenPriceEffective` es el manual si se cargó uno y, si no, el recomendado con el
- * posicionamiento comercial (`recommendedBusinessPrice`). Ese precio es el del renglón: el
- * unitario es ese total dividido por la cantidad.
+ * posicionamiento comercial (`recommendedBusinessPrice`). Ese precio es el del renglón entero:
+ * el ítem queda con cantidad 1 y ese precio, para que el renglón sea EXACTAMENTE el precio
+ * elegido (dividirlo por una cantidad no exacta corría centavos). Las unidades que cubre el
+ * trabajo quedan en la instantánea (`unidades`), sólo para mostrar.
  *
  * Quien arma el presupuesto puede ajustar el precio (`precioAjustado`): el ítem queda con ese
  * precio y la instantánea guarda lo que sugirió el motor, para ver después cuánto se apartó.
@@ -24,7 +26,7 @@ export type EntradaItemCalculado = {
   id: string;
   nombre: string;
   descripcion?: string | null;
-  /** Por omisión 1. */
+  /** Unidades que cubre el trabajo (por omisión 1). Informativo: el ítem queda con cantidad 1. */
   cantidad?: number;
   /** Precio del renglón entero elegido por la persona; null o ausente: el sugerido del motor. */
   precioAjustado?: number | null;
@@ -64,6 +66,9 @@ export function itemDesdeCalculo(resultado: CuantoCobroCalculationResult, entrad
     return { ok: false, error: "El cálculo no dio un precio: revisá horas y costos.", faltan: [] };
   }
 
+  // Margen del precio elegido con la cuenta del motor: chosenMargin = chosenPrice − minimumPrice.
+  const costoBase = redondear2(finito(resultado.minimumPrice));
+  const margenElegido = redondear2(precioRenglon - costoBase);
   const calculo: InstantaneaCalculo = {
     motor: "cuanto-cobro-core",
     calculadoEn: (entrada.calculadoEn ?? new Date()).toISOString(),
@@ -77,6 +82,11 @@ export function itemDesdeCalculo(resultado: CuantoCobroCalculationResult, entrad
     costosVariables: redondear2(finito(resultado.variableCosts)),
     margen: redondear2(finito(resultado.chosenMargin)),
     margenProporcion: resultado.chosenMarginRatio,
+    costoBase,
+    precioElegido: precioRenglon,
+    unidades: cantidad,
+    margenElegido,
+    margenElegidoProporcion: costoBase > 0 ? Math.round((margenElegido / costoBase) * 10_000) / 10_000 : null,
     estadoRentabilidad: resultado.chosenMarginStatus,
     posicionamiento: resultado.commercialPositioningLabel,
     advertencias: [...resultado.warnings],
@@ -90,8 +100,8 @@ export function itemDesdeCalculo(resultado: CuantoCobroCalculationResult, entrad
       productId: entrada.productId ?? null,
       nombre: entrada.nombre.trim(),
       descripcion: entrada.descripcion?.trim() || null,
-      cantidad,
-      precioUnitario: redondear2(precioRenglon / cantidad),
+      cantidad: 1,
+      precioUnitario: precioRenglon,
       descuento: entrada.descuento ?? null,
       modoPrecio: "CALCULO",
       calculo,
@@ -135,6 +145,11 @@ export function entradaDelMotor(v: unknown): EntradaMotor | null {
  * lo que la persona puede elegir (nombre, cantidad, descuento, sección, opcional y el precio, que
  * es ajustable). Si el precio que llegó es 0, queda el sugerido del motor.
  */
+function unidadesPrevias(item: ItemPresupuesto): number {
+  const u = (item.calculo as { unidades?: unknown } | null)?.unidades;
+  return typeof u === "number" && Number.isFinite(u) && u > 0 && u <= 100_000 ? u : 1;
+}
+
 export function recalcularItemCalculo(
   item: ItemPresupuesto,
   entrada: EntradaMotor,
@@ -154,7 +169,8 @@ export function recalcularItemCalculo(
     id: item.id,
     nombre: item.nombre,
     descripcion: item.descripcion,
-    cantidad: item.cantidad,
+    // El ítem guardado tiene cantidad 1: las unidades informativas vienen de la instantánea anterior.
+    cantidad: item.cantidad > 1 ? item.cantidad : unidadesPrevias(item),
     precioAjustado: ajustado ? redondear2(item.precioUnitario * item.cantidad) : null,
     descuento: item.descuento,
     seccion: item.seccion,
@@ -163,7 +179,5 @@ export function recalcularItemCalculo(
     parametros: entrada,
     calculadoEn,
   });
-  // El unitario elegido queda tal cual (sin la vuelta por el total, que puede correr un centavo).
-  if (r.ok && ajustado) r.item.precioUnitario = item.precioUnitario;
   return r;
 }

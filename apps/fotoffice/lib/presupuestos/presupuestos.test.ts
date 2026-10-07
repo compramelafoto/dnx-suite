@@ -32,6 +32,8 @@ vi.mock("@/lib/plantillas/automaticos", () => ({ responderConsultaNueva: H.respo
 vi.mock("@/lib/consultas/aviso", () => ({ avisarConsultaNueva: H.avisar }));
 vi.mock("@/lib/permissions/module-access", () => ({ hasModuleLevel: H.nivel }));
 
+const { puede } = await import("@/lib/access/policy");
+type AccesoEfectivo = import("@/lib/access/policy").AccesoEfectivo;
 const P = await import("./presupuestos");
 const V = await import("./versiones");
 const A = await import("./ajustes");
@@ -47,7 +49,8 @@ const niveles = { quotes: "MANAGE", "service-leads": "MANAGE", clients: "MANAGE"
 const DUENO = { workspaceId: "ws-1", userId: 1, userLabel: "Dueño", role: "WORKSPACE_OWNER", acceso: { role: "WORKSPACE_OWNER", levels: niveles } as never };
 const EQUIPO = { workspaceId: "ws-1", userId: 2, userLabel: "Ana", role: "STAFF", acceso: { role: "STAFF", levels: niveles } as never };
 const LECTOR = { workspaceId: "ws-1", userId: 3, userLabel: "Leo", role: "STAFF", acceso: { role: "STAFF", levels: { quotes: "VIEW" } } as never };
-const CAJERA = { workspaceId: "ws-1", userId: 4, userLabel: "Caja", role: "STAFF", acceso: { role: "STAFF", levels: { quotes: "VIEW", cash: "VIEW" } } as never };
+// Tesorería: Caja y Cuotas (verDinero), pero no configura: no ve costos de presupuestos (R4).
+const TESORERIA = { workspaceId: "ws-1", userId: 4, userLabel: "Caja", role: "STAFF", acceso: { role: "STAFF", levels: { quotes: "MANAGE", cash: "MANAGE", "membership-dues": "MANAGE" } } as never };
 const OTRO = { workspaceId: "ws-2", userId: 9, userLabel: "Otro", role: "WORKSPACE_OWNER", acceso: { role: "WORKSPACE_OWNER", levels: niveles } as never };
 
 function consulta(leadId: string, ws = "ws-1", clientId = `cli-${leadId}`) {
@@ -62,7 +65,7 @@ function entradaMotor() {
 const SUGERIDO = (() => {
   const r = calculateCuantoCobro(createBaseCompleteProfile(), createBaseCompleteQuote({ chosenPrice: "" }));
   if (r.status !== "complete") throw new Error("fixture incompleta");
-  return { precio: Math.round(r.chosenPriceEffective * 100) / 100, minimo: Math.round(r.minimumSustainablePrice * 100) / 100 };
+  return { precio: Math.round(r.chosenPriceEffective * 100) / 100, minimo: Math.round(r.minimumPrice * 100) / 100 };
 })();
 
 const itemLista = (id: string, datos: Record<string, unknown> = {}) => ({
@@ -200,12 +203,12 @@ describe("borrador", () => {
 
   it("R2: un ítem de ¿Cuánto Cobro? se recalcula con el motor; la instantánea del navegador no cuenta", async () => {
     const { presupuestoId } = await nuevo();
-    const trucho = { motor: "cuanto-cobro-core", precioMinimo: 1, margen: 999_999, precioSugerido: 5, entrada: entradaMotor() };
+    const trucho = { motor: "cuanto-cobro-core", costoBase: 1, margen: 999_999, precioSugerido: 5, entrada: entradaMotor() };
     expect(await P.guardarBorrador(DUENO, presupuestoId, { items: [itemLista("x", { modoPrecio: "CALCULO", precioUnitario: 0, calculo: trucho })] }, deps)).toEqual({ ok: true });
-    const [item] = versionesDe(presupuestoId)[0]!.items as { precioUnitario: number; calculo: { precioMinimo: number; precioSugerido: number } }[];
+    const [item] = versionesDe(presupuestoId)[0]!.items as { precioUnitario: number; calculo: { costoBase: number; precioSugerido: number } }[];
     expect(item!.precioUnitario).toBe(SUGERIDO.precio);
     expect(item!.calculo.precioSugerido).toBe(SUGERIDO.precio);
-    expect(item!.calculo.precioMinimo).toBe(SUGERIDO.minimo);
+    expect(item!.calculo.costoBase).toBe(SUGERIDO.minimo);
     expect((versionesDe(presupuestoId)[0]!.costSnapshot as { costoTotal: number }).costoTotal).toBe(SUGERIDO.minimo);
   });
 
@@ -233,9 +236,10 @@ describe("borrador", () => {
     const items = vista!.borrador!.items;
     expect(items[0]).toMatchObject({ modoPrecio: "CALCULO", calculo: null });
     expect(await P.guardarBorrador(EQUIPO, presupuestoId, { items: items.map((i) => ({ ...i, cantidad: 2 })) }, deps)).toEqual({ ok: true });
-    const [item] = versionesDe(presupuestoId)[0]!.items as { cantidad: number; calculo: { precioMinimo: number } | null }[];
-    expect(item!.cantidad).toBe(2);
-    expect(item!.calculo?.precioMinimo).toBe(SUGERIDO.minimo);
+    const [item] = versionesDe(presupuestoId)[0]!.items as { cantidad: number; precioUnitario: number; calculo: { costoBase: number; unidades: number } | null }[];
+    // Cantidad 2 del navegador = el renglón por 2, guardado como cantidad 1 con el precio entero.
+    expect(item).toMatchObject({ cantidad: 1, precioUnitario: Math.round(SUGERIDO.precio * 2 * 100) / 100 });
+    expect(item!.calculo).toMatchObject({ costoBase: SUGERIDO.minimo, unidades: 2 });
   });
 
   it("un producto de otro workspace no entra", async () => {
@@ -291,6 +295,29 @@ describe("versiones", () => {
     };
     expect(await V.crearNuevaVersion(DUENO, presupuestoId)).toEqual({ ok: true, versionId: "v2-otra", number: 2, yaExistia: true });
     expect(versionesDe(presupuestoId)).toHaveLength(2);
+  });
+
+  it("si la otra pestaña gana el número (P2002), se reintenta y se devuelve su borrador", async () => {
+    const { presupuestoId } = await nuevo();
+    await enviar(presupuestoId);
+    const original = B.tablas.fotofficePresupuestoVersion.create;
+    let creaciones = 0;
+    B.tablas.fotofficePresupuestoVersion.create = async (...args: Parameters<typeof original>) => {
+      creaciones += 1;
+      if (creaciones === 1) throw Object.assign(new Error("Unique constraint failed"), { code: "P2002" });
+      return original(...args);
+    };
+    let candados = 0;
+    B.ganchos.alEjecutarSql = (texto) => {
+      if (!texto.includes("pg_advisory_xact_lock")) return;
+      candados += 1;
+      // Entre el primer intento (deshecho) y el reintento, la otra pestaña confirmó su V2.
+      if (candados === 2) B.agregar("fotofficePresupuestoVersion", { id: "v2-ganadora", workspaceId: "ws-1", presupuestoId, number: 2, items: [], totals: {} });
+    };
+    expect(await V.crearNuevaVersion(DUENO, presupuestoId)).toEqual({ ok: true, versionId: "v2-ganadora", number: 2, yaExistia: true });
+    B.tablas.fotofficePresupuestoVersion.create = original;
+    expect(candados).toBe(2);
+    expect(versionesDe(presupuestoId).map((v) => v.number).sort()).toEqual([1, 2]);
   });
 
   it("congelar es una sola vez", async () => {
@@ -367,7 +394,7 @@ describe("aislamiento y costos", () => {
     expect(presupuesto(presupuestoId).status).toBe("ENVIADO");
   });
 
-  it("costo y margen: el dueño y quien ve plata sí; el equipo y quien sólo ve, nunca (ni en el JSON)", async () => {
+  it("costo y margen: sólo el dueño (configurar); el equipo, quien sólo ve y Tesorería, nunca (ni en el JSON)", async () => {
     B.agregar("product", { id: "p1", workspaceId: "ws-1", name: "Álbum", priceArs: "1000.00", costArs: "400.00" });
     const { presupuestoId } = await nuevo();
     await P.guardarBorrador(DUENO, presupuestoId, {
@@ -378,16 +405,16 @@ describe("aislamiento y costos", () => {
     expect(delDueno!.veCostos).toBe(true);
     expect(delDueno!.vigente!.costos).toMatchObject({ costoTotal: 400 + SUGERIDO.minimo });
     expect((await P.listarPresupuestos(DUENO, {}, deps))[0]).toMatchObject({ costo: 400 + SUGERIDO.minimo });
-    expect((await P.leerPresupuesto(CAJERA, presupuestoId, deps))!.veCostos).toBe(true);
 
-    for (const ctx of [EQUIPO, LECTOR]) {
+    expect(puede((TESORERIA as { acceso: AccesoEfectivo }).acceso, "verDinero")).toBe(true);
+    for (const ctx of [EQUIPO, LECTOR, TESORERIA]) {
       const d = await P.leerPresupuesto(ctx, presupuestoId, deps);
       const l = await P.listarPresupuestos(ctx, {}, deps);
       expect(d!.veCostos).toBe(false);
       expect(d!.vigente!.costos).toBeNull();
       expect(l[0]).toMatchObject({ costo: null, margen: null, total: 1000 + SUGERIDO.precio });
       const json = JSON.stringify([d, l]);
-      for (const prohibido of ["precioMinimo", "costoTotal", "costoHumano", "margenProporcion", "entrada", "perfil"]) {
+      for (const prohibido of ["precioMinimo", "costoBase", "margenElegido", "costoTotal", "costoHumano", "margenProporcion", "entrada", "perfil"]) {
         expect(json).not.toContain(prohibido);
       }
     }

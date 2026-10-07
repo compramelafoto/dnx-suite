@@ -6,12 +6,13 @@ import type { CtxConsultas } from "@/lib/consultas/catalogo";
  * sesión: la guarda que arma el contexto está en `./contexto.ts`.
  *
  * - Módulo `quotes`: "Ver" para leer; "Gestionar" para armar, editar, rechazar y enviar.
- * - Costo y margen (la instantánea del cálculo, `costSnapshot`): sólo con `configurar` (dueño y
- *   administradores) o `verDinero` (R1). Quien no los tiene recibe los ítems sin el cálculo y la
- *   versión sin costos: el servidor los saca antes de devolver nada.
+ * - Costo y margen (la instantánea del cálculo, `costSnapshot`): SÓLO con `configurar` (dueño y
+ *   administradores), R4. `verDinero` no alcanza: un rol de Tesorería con Caja o Cuotas no ve los
+ *   costos de los presupuestos. Quien no los tiene recibe los ítems sin el cálculo y la versión
+ *   sin costos: el servidor los saca antes de devolver nada.
+ * - El costo del catálogo sigue con `sales.catalog`, como en main (R3).
  *
- * `quotes` NO se suma a `MODULOS_DE_PLATA`: si se sumara, "Ver" en Presupuestos daría
- * `verDinero` y con eso los costos a todo el equipo, que es justo lo que R1 no quiere.
+ * `quotes` NO se suma a `MODULOS_DE_PLATA` (daría `verDinero` a todo el que vea Presupuestos).
  */
 export const QUOTES_MODULE_KEY = "quotes";
 
@@ -26,9 +27,9 @@ export function puedeGestionarPresupuestos(ctx: CtxPresupuestos): boolean {
   return ctx.userId !== null && puedeEnContexto(ctx, "operar", QUOTES_MODULE_KEY);
 }
 
-/** Costo y margen: `configurar` o `verDinero`. */
+/** Costo y margen: sólo `configurar` (dueño y administradores), R4. */
 export function veCostos(ctx: CtxPresupuestos): boolean {
-  return ctx.userId !== null && (puedeEnContexto(ctx, "configurar") || puedeEnContexto(ctx, "verDinero"));
+  return ctx.userId !== null && puedeEnContexto(ctx, "configurar");
 }
 
 /** Ajustes de presupuestos (Configuración → Presupuestos). */

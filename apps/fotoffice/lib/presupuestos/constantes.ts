@@ -81,9 +81,27 @@ export type InstantaneaCalculo = {
   horasTotales: number;
   costoHumano: number;
   costosVariables: number;
-  /** Margen del precio sugerido, en pesos y como proporción (null si no se puede calcular). */
+  /**
+   * Base de costo con la que el motor mide el margen (`minimumPrice`: lo que cubre el trabajo sin
+   * ganancia). `chosenMargin` = precio − esta base.
+   */
+  costoBase: number;
+  /** Margen del precio SUGERIDO según el motor, en pesos y como proporción (null si no se puede calcular). */
   margen: number;
   margenProporcion: number | null;
+  /** El precio del renglón que quedó (el ajustado o, si no, el sugerido). */
+  precioElegido: number;
+  /**
+   * Unidades que cubre el trabajo calculado (informativo). El ítem se guarda SIEMPRE con cantidad
+   * 1 y el precio del renglón entero, así el renglón es exactamente el precio elegido.
+   */
+  unidades: number;
+  /**
+   * Margen del precio ELEGIDO, con la misma cuenta que el motor (precio − `costoBase`; proporción
+   * sobre `costoBase`). Es el que muestra la pantalla: con un precio ajustado, `margen` ya no vale.
+   */
+  margenElegido: number;
+  margenElegidoProporcion: number | null;
   estadoRentabilidad: string;
   posicionamiento: string;
   advertencias: string[];

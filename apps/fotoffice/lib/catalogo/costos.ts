@@ -69,6 +69,8 @@ export async function guardarCostos(workspaceId: string, productId: string, entr
   const costos = normal.valor;
 
   return prisma.$transaction(async (tx) => {
+    // Candado por producto: dos guardados a la vez no intercalan su borrar-y-crear.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`fotoffice-costos:${workspaceId}:${productId}`}))`;
     const producto = await tx.product.findFirst({ where: { id: productId, workspaceId }, select: { id: true } });
     if (!producto) return NO_EXISTE;
 

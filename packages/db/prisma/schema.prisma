@@ -20687,6 +20687,8 @@ model FotofficeCostoPlantilla {
 
   @@index([workspaceId, productId, order])
   @@index([workspaceId, supplierClientId])
+  /// Para la cascada al borrar un producto.
+  @@index([productId])
 }
 
 /// Presupuesto de una consulta (y de su contacto).
@@ -20710,8 +20712,8 @@ model FotofficePresupuesto {
   updatedAt          DateTime  @updatedAt
 
   workspace       Workspace                     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  consultaLead    ServiceSalesLead              @relation(fields: [consultaLeadId], references: [id], onDelete: Cascade)
-  client          Client                        @relation("FotofficePresupuestoContacto", fields: [clientId], references: [id], onDelete: Cascade)
+  consultaLead    ServiceSalesLead              @relation(fields: [consultaLeadId], references: [id], onDelete: Restrict)
+  client          Client                        @relation("FotofficePresupuestoContacto", fields: [clientId], references: [id], onDelete: Restrict)
   currentVersion  FotofficePresupuestoVersion?  @relation("FotofficePresupuestoVigente", fields: [currentVersionId], references: [id], onDelete: SetNull)
   acceptedVersion FotofficePresupuestoVersion?  @relation("FotofficePresupuestoAceptado", fields: [acceptedVersionId], references: [id], onDelete: SetNull)
   versions        FotofficePresupuestoVersion[] @relation("FotofficePresupuestoVersiones")
@@ -20720,6 +20722,9 @@ model FotofficePresupuesto {
   @@index([workspaceId, consultaLeadId])
   @@index([workspaceId, clientId])
   @@index([workspaceId, validUntil])
+  /// Para el chequeo de la FK al borrar una consulta o un contacto.
+  @@index([consultaLeadId])
+  @@index([clientId])
 }
 
 /// Versión de un presupuesto (V1, V2…). Inmutable una vez enviada (`sentAt`).

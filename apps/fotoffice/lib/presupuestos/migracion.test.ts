@@ -57,6 +57,12 @@ describe("migración de la etapa 2 (catálogo y presupuestos)", () => {
     }
   });
 
+  it("tiene índices que empiezan por la FK para borrar producto, consulta o contacto sin recorrer la tabla", () => {
+    expect(sql).toContain('ON "FotofficeCostoPlantilla"("productId")');
+    expect(sql).toContain('ON "FotofficePresupuesto"("consultaLeadId")');
+    expect(sql).toContain('ON "FotofficePresupuesto"("clientId")');
+  });
+
   it("FKs: todo cuelga del workspace; borrar un proveedor no borra el costo", () => {
     const fk = (tabla: string, col: string, destino: string, accion: string) =>
       expect(sql).toMatch(
@@ -68,8 +74,8 @@ describe("migración de la etapa 2 (catálogo y presupuestos)", () => {
     fk("FotofficeComboItem", "componentProductId", "Product", "CASCADE");
     fk("FotofficeCostoPlantilla", "productId", "Product", "CASCADE");
     fk("FotofficeCostoPlantilla", "supplierClientId", "Client", "SET NULL");
-    fk("FotofficePresupuesto", "consultaLeadId", "ServiceSalesLead", "CASCADE");
-    fk("FotofficePresupuesto", "clientId", "Client", "CASCADE");
+    fk("FotofficePresupuesto", "consultaLeadId", "ServiceSalesLead", "RESTRICT");
+    fk("FotofficePresupuesto", "clientId", "Client", "RESTRICT");
     fk("FotofficePresupuesto", "currentVersionId", "FotofficePresupuestoVersion", "SET NULL");
     fk("FotofficePresupuesto", "acceptedVersionId", "FotofficePresupuestoVersion", "SET NULL");
     fk("FotofficePresupuestoVersion", "presupuestoId", "FotofficePresupuesto", "CASCADE");

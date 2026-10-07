@@ -48,12 +48,29 @@ describe("itemDesdeCalculo (motor real de ¿Cuánto Cobro?)", () => {
     if (!res.ok) throw new Error("debía andar");
     expect(res.item.precioUnitario).toBe(123456.79);
     expect(res.item.calculo!.precioSugerido).toBe(Math.round(r.chosenPriceEffective * 100) / 100);
+    // El margen que vale es el del precio elegido, con la cuenta del motor (precio − minimumPrice).
+    const base = Math.round(r.minimumPrice * 100) / 100;
+    expect(res.item.calculo).toMatchObject({ costoBase: base, precioElegido: 123456.79, margenElegido: Math.round((123456.79 - base) * 100) / 100 });
+    expect(res.item.calculo!.margen).toBe(Math.round(r.chosenMargin * 100) / 100);
   });
 
-  it("el precio del motor es el del renglón: con cantidad 4, el unitario es la cuarta parte", () => {
-    const res = itemDesdeCalculo(calculoCompleto("100000"), { id: "i1", nombre: "X", cantidad: 4, seccion: " Fiesta ", opcional: true });
+  it("sin ajuste, el margen elegido es el del motor", () => {
+    const r = calculoCompleto();
+    const res = itemDesdeCalculo(r, { id: "i1", nombre: "X" });
     if (!res.ok) throw new Error("debía andar");
-    expect(res.item).toMatchObject({ cantidad: 4, precioUnitario: 25000, seccion: "Fiesta", opcional: true });
+    expect(res.item.calculo!.margenElegido).toBeCloseTo(r.chosenMargin, 2);
+    expect(res.item.calculo!.margenElegidoProporcion).toBeCloseTo(r.chosenMarginRatio ?? 0, 3);
+  });
+
+  it("el precio del motor es el del renglón: con 3 unidades (no divisible) el ítem queda en cantidad 1 y el renglón es exacto", () => {
+    const res = itemDesdeCalculo(calculoCompleto("100000"), { id: "i1", nombre: "X", cantidad: 3, seccion: " Fiesta ", opcional: false });
+    if (!res.ok) throw new Error("debía andar");
+    expect(res.item).toMatchObject({ cantidad: 1, precioUnitario: 100000, seccion: "Fiesta" });
+    expect(res.item.calculo!.unidades).toBe(3);
+    expect(calcularTotales([res.item], null).total).toBe(100000);
+    const ajustado = itemDesdeCalculo(calculoCompleto(), { id: "i2", nombre: "Y", cantidad: 3, precioAjustado: 100000.01 });
+    if (!ajustado.ok) throw new Error("debía andar");
+    expect(calcularTotales([ajustado.item], null).total).toBe(100000.01);
   });
 
   it("un cálculo incompleto no da ítem y dice qué falta", () => {
