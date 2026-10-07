@@ -21,7 +21,8 @@ type Confirmacion = {
   parametro: string | null;
   firma: string;
 };
-type Final = { aplicados: number; fallidos: { id: string; error: string }[] };
+/** `omitidos`: los que quedaron afuera al confirmar y los que fallaron al aplicar, con su motivo. */
+type Final = { aplicados: number; omitidos: Excluido[] };
 
 /** Si la llamada al servidor falla (red, caída, error inesperado), se avisa acá y la lista sigue. */
 const ERROR_INESPERADO_LOTE = "No se pudo completar la acción. Probá de nuevo.";
@@ -31,6 +32,13 @@ function resumirExcluidos(excluidos: Excluido[]): string[] {
   const porMotivo = new Map<string, number>();
   for (const e of excluidos) porMotivo.set(e.motivo, (porMotivo.get(e.motivo) ?? 0) + 1);
   return Array.from(porMotivo, ([motivo, n]) => `${numero(n)} ${n === 1 ? "queda" : "quedan"} afuera: ${motivo}`);
+}
+
+/** "3: no está en un circuito abierto", una línea por motivo. */
+function omitidosPorMotivo(omitidos: Excluido[]): string[] {
+  const porMotivo = new Map<string, number>();
+  for (const e of omitidos) porMotivo.set(e.motivo, (porMotivo.get(e.motivo) ?? 0) + 1);
+  return Array.from(porMotivo, ([motivo, n]) => `${numero(n)}: ${motivo}`);
 }
 
 /**
@@ -126,7 +134,10 @@ export function BarraDeSeleccion() {
       }
       cancelar();
       s.limpiar();
-      setFinal({ aplicados: r.resultado.aplicados, fallidos: r.resultado.fallidos });
+      setFinal({
+        aplicados: r.resultado.aplicados,
+        omitidos: [...previa.excluidos, ...r.resultado.fallidos.map((f) => ({ id: f.id, motivo: f.error }))],
+      });
       router.refresh();
     });
   }
@@ -141,14 +152,14 @@ export function BarraDeSeleccion() {
             <div className="flex flex-wrap items-center gap-2 text-sm" role="status">
               <span className="font-medium text-[var(--fo-text)]">
                 Listo: {numero(final.aplicados)} {final.aplicados === 1 ? "actualizado" : "actualizados"}
-                {final.fallidos.length ? `, ${numero(final.fallidos.length)} no se ${final.fallidos.length === 1 ? "pudo" : "pudieron"}` : ""}
+                {final.omitidos.length ? `, ${numero(final.omitidos.length)} ${final.omitidos.length === 1 ? "omitido" : "omitidos"}` : ""}
               </span>
-              {final.fallidos.length ? (
+              {final.omitidos.length ? (
                 <details className="text-[var(--fo-muted)]">
-                  <summary className="cursor-pointer underline">ver detalle</summary>
+                  <summary className="cursor-pointer underline">ver motivos</summary>
                   <ul className="mt-1 max-h-32 overflow-y-auto">
-                    {final.fallidos.map((f) => (
-                      <li key={f.id}>{f.error}</li>
+                    {omitidosPorMotivo(final.omitidos).map((l) => (
+                      <li key={l}>{l}</li>
                     ))}
                   </ul>
                 </details>
@@ -195,7 +206,12 @@ export function BarraDeSeleccion() {
               {confirmacion ? (
                 <p className="w-full text-sm text-[var(--fo-warning)]">Cambiaste la selección: tocá Continuar para recalcular.</p>
               ) : null}
-              {accion.parametro ? (
+              {accion.parametro?.fecha ? (
+                <label className="flex min-w-56 flex-col gap-1 text-sm">
+                  <span className="fo-label">{accion.parametro.etiqueta}</span>
+                  <input type="date" className="fo-input" value={parametro} onChange={(e) => setParametro(e.target.value)} />
+                </label>
+              ) : accion.parametro ? (
                 <label className="flex min-w-56 flex-col gap-1 text-sm">
                   <span className="fo-label">{accion.parametro.etiqueta}</span>
                   <select className="fo-input" value={parametro} onChange={(e) => setParametro(e.target.value)}>

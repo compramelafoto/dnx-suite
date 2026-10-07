@@ -32,7 +32,6 @@
     "selfcheck:edition-finance": "tsx scripts/edition-finance.selfcheck.ts",
     "selfcheck:edition-checkout-allocations": "tsx scripts/edition-checkout-allocations.selfcheck.ts",
     "selfcheck:fotorank-sync": "tsx scripts/fotorank-sync.selfcheck.ts",
-    "selfcheck:welcome-card": "tsx scripts/welcome-card.selfcheck.ts",
     "selfcheck:social-publisher": "tsx scripts/social-publisher.selfcheck.ts",
     "selfcheck:timeline": "tsx scripts/timeline.selfcheck.ts",
     "selfcheck:photo-upload": "tsx scripts/photo-upload.selfcheck.ts",

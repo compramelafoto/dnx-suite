@@ -2078,6 +2078,9 @@ model PhotographerProduct {
   retailPrice         Int                  @default(0)
   currency            String               @default("ARS")
   isActive            Boolean              @default(true)
+  /// Producto de un solo álbum (precios de un colegio). Si un álbum tiene productos propios, su galería
+  /// ofrece sólo esos; los que no tienen álbum se ofrecen en el resto. Sin relación: no bloquea borrar el álbum.
+  albumId             Int?
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   benefitDefinitions  BenefitDefinition[]
@@ -2087,6 +2090,7 @@ model PhotographerProduct {
   @@index([userId])
   @@index([isActive])
   @@index([createdAt])
+  @@index([albumId])
 }
 
 /// Catálogo global reutilizable del fotógrafo (Fase 1 — sin vínculo álbum/checkout).
@@ -7179,6 +7183,13 @@ model Workspace {
   fotofficeRecordNumbers FotofficeRecordNumber[]
   fotofficeMessageTemplates FotofficeMessageTemplate[]
   fotofficeMessages FotofficeMessage[]
+  fotofficeConsultas FotofficeConsulta[]
+  fotofficeConsultaCategorias FotofficeConsultaCategoria[]
+  fotofficeOrigenes FotofficeOrigen[]
+  fotofficeRolesParticipante FotofficeRolParticipante[]
+  fotofficeConsultaParticipantes FotofficeConsultaParticipante[]
+  fotofficeContactoPerfiles FotofficeContactoPerfil[]
+  fotofficeConsultaAjustes FotofficeConsultaAjustes?
   clientAudits ClientAudit[]
   productStoreListings        ProductStoreListing[]
   storeSettings               StoreSettings?
@@ -10035,6 +10046,7 @@ model ServiceSalesLead {
   formSlug      String?
   form          ServiceLeadForm?  @relation(fields: [formId], references: [id])
   workspace     Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  fotofficeConsulta FotofficeConsulta?
 
   @@index([workspaceId])
   @@index([status])
@@ -18530,6 +18542,10 @@ model Client {
   relationsFrom FotofficePersonRelation[] @relation("RelationFromClient")
   relationsTo FotofficePersonRelation[] @relation("RelationToClient")
   storeOrders StoreOrder[]
+  fotofficeConsultas FotofficeConsulta[] @relation("FotofficeConsultaContacto")
+  fotofficeConsultasReferidas FotofficeConsulta[] @relation("FotofficeConsultaReferente")
+  fotofficeParticipaciones FotofficeConsultaParticipante[] @relation("FotofficeConsultaParticipante")
+  fotofficePerfil FotofficeContactoPerfil?
 }
 
 /// Una cuenta de caja: dónde está la plata.
@@ -20438,6 +20454,159 @@ model FotofficeMessage {
 
   @@index([workspaceId, entityType, entityId, createdAt])
   @@index([workspaceId, channel, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Etapa 1 FOTOFFICE: contactos y consultas. Sólo tablas nuevas: `ServiceSalesLead` y `Client`
+// no reciben columnas (CompraMeLaFoto lee `ServiceSalesLead` y el esquema es compartido).
+// ---------------------------------------------------------------------------
+
+/// Datos propios de FOTOFFICE de una consulta (1:1 con `ServiceSalesLead`). Toda consulta tiene contacto.
+model FotofficeConsulta {
+  id                String    @id @default(cuid())
+  workspaceId       String
+  leadId            String    @unique
+  /// El contacto de la consulta (obligatorio).
+  clientId          String
+  categoryId        String
+  originId          String?
+  /// Quién la recomendó (otro contacto), si se sabe.
+  referrerClientId  String?
+  /// Valor estimado: no es plata cobrada.
+  estimatedValue    Decimal?  @db.Decimal(14, 2)
+  expectedCloseDate DateTime? @db.Date
+  /// Día y hora del evento. El día también se refleja en `ServiceSalesLead.eventDate`.
+  eventStartsAt     DateTime?
+  /// false: sólo se sabe el día (la hora guardada no significa nada).
+  eventTimeKnown    Boolean   @default(false)
+  venue             String?
+  ceremonyVenue     String?
+  receptionVenue    String?
+  city              String?
+  guests            Int?
+  partnerOneName    String?
+  partnerTwoName    String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  workspace     Workspace                       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  lead          ServiceSalesLead                @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  client        Client                          @relation("FotofficeConsultaContacto", fields: [clientId], references: [id], onDelete: Cascade)
+  referrer      Client?                         @relation("FotofficeConsultaReferente", fields: [referrerClientId], references: [id], onDelete: SetNull)
+  category      FotofficeConsultaCategoria      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  origin        FotofficeOrigen?                @relation(fields: [originId], references: [id], onDelete: SetNull)
+  participantes FotofficeConsultaParticipante[]
+
+  @@index([workspaceId, clientId])
+  @@index([workspaceId, categoryId])
+  @@index([workspaceId, originId])
+  @@index([workspaceId, eventStartsAt])
+}
+
+/// Categoría de consulta de una organización. group: BODA | EVENTO | TRABAJO_CON_FECHA | TRABAJO_SIN_FECHA (CHECK en el SQL).
+model FotofficeConsultaCategoria {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  name            String
+  group           String
+  order           Int       @default(0)
+  archivedAt      DateTime?
+  /// Uno de los 9 `eventType` viejos que esta categoría reemplaza (formularios y consultas existentes).
+  legacyEventType String?
+  createdAt       DateTime  @default(now())
+
+  workspace Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  consultas FotofficeConsulta[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, archivedAt, order])
+}
+
+/// Origen de las consultas ("¿Cómo nos conociste?").
+model FotofficeOrigen {
+  id          String    @id @default(cuid())
+  workspaceId String
+  name        String
+  order       Int       @default(0)
+  archivedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  workspace Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  consultas FotofficeConsulta[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, archivedAt, order])
+}
+
+/// Rol de un participante (Fotógrafo principal, Salón, DJ...).
+model FotofficeRolParticipante {
+  id          String    @id @default(cuid())
+  workspaceId String
+  name        String
+  order       Int       @default(0)
+  archivedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  workspace     Workspace                       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  participantes FotofficeConsultaParticipante[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, archivedAt, order])
+}
+
+/// Un contacto que participa en una consulta con un rol.
+model FotofficeConsultaParticipante {
+  id          String   @id @default(cuid())
+  workspaceId String
+  consultaId  String
+  clientId    String
+  roleId      String
+  note        String?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  consulta  FotofficeConsulta        @relation(fields: [consultaId], references: [id], onDelete: Cascade)
+  client    Client                   @relation("FotofficeConsultaParticipante", fields: [clientId], references: [id], onDelete: Cascade)
+  role      FotofficeRolParticipante @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@unique([consultaId, clientId, roleId])
+  @@index([workspaceId, clientId])
+}
+
+/// Datos ampliados de un contacto (1:1 con `Client`). Un cliente sin perfil se trata como CLIENTE.
+/// category: CONTACTO | CLIENTE | PROVEEDOR | COLABORADOR (CHECK en el SQL).
+model FotofficeContactoPerfil {
+  id          String    @id @default(cuid())
+  workspaceId String
+  clientId    String    @unique
+  category    String    @default("CLIENTE")
+  mobile      String?
+  email2      String?
+  birthday    DateTime? @db.Date
+  website     String?
+  province    String?
+  country     String?
+  postalCode  String?
+  about       String?
+  updatedAt   DateTime  @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client    Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, category])
+}
+
+/// Ajustes del aviso de consulta nueva (uno por organización).
+model FotofficeConsultaAjustes {
+  id                 String   @id @default(cuid())
+  workspaceId        String   @unique
+  /// Responsable de las consultas nuevas; null = el dueño.
+  defaultOwnerUserId Int?
+  notifyEmail        Boolean  @default(true)
+  createTask         Boolean  @default(true)
+  updatedAt          DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
 // ---------------------------------------------------------------------------

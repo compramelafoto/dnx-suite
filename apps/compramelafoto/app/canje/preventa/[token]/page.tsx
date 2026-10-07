@@ -12,6 +12,7 @@ import { HIDDEN_ALBUM_GRANT_COOKIE } from "@/lib/hidden-album-audit";
 import ProtectedAlbumWrapper from "@/components/photo/ProtectedAlbumWrapper";
 import HiddenAlbumVerificationGate from "@/components/photo/HiddenAlbumVerificationGate";
 import PreventaCanjeFlow from "@/components/canje-externo/PreventaCanjeFlow";
+import { isPlaceholderEmail, parseExternalPreventaRefs } from "@/lib/canje-externo/external-preventa";
 
 export const dynamic = "force-dynamic";
 
@@ -64,7 +65,9 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
       origin: true,
       status: true,
       buyerName: true,
+      buyerEmail: true,
       redemptionOrderId: true,
+      redemptionPaymentRefsJson: true,
       preventaPackSnapshotJson: true,
       preCompraPaymentRef: true,
       album: {
@@ -158,9 +161,12 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
         select: { studentFirstName: true, studentLastName: true, buyerName: true },
       })
     : null;
-  const familia = order.buyerName?.trim() || preCompra?.buyerName?.trim() || null;
+  // Pack cobrado por fuera: no hay PreCompraOrder; alumno y adulto vienen con el pack.
+  const externo = parseExternalPreventaRefs(order.redemptionPaymentRefsJson);
+  const familia = externo?.parentName || order.buyerName?.trim() || preCompra?.buyerName?.trim() || null;
   const alumno = studentNameForGreeting(
-    [preCompra?.studentFirstName, preCompra?.studentLastName].filter(Boolean).join(" "),
+    externo?.studentName ||
+      [preCompra?.studentFirstName, preCompra?.studentLastName].filter(Boolean).join(" "),
     familia
   );
 
@@ -214,6 +220,7 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
           studentName: alumno,
         }}
         photos={photos}
+        pedirContacto={isPlaceholderEmail(order.buyerEmail)}
       />
     </ProtectedAlbumWrapper>
   );

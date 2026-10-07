@@ -30,6 +30,13 @@ export const OPCIONES_TRANSACCION = { timeout: 15_000 };
  */
 export type Importacion = { fecha: Date; nota: string };
 
+/**
+ * `sinTareas`: no crea las tareas modelo de la etapa en la que se entra. Lo usa la importación
+ * CSV de consultas (spec §3.6): una consulta vieja cargada de una planilla no tiene que llenar el
+ * tablero de tareas automáticas. Todos los demás caminos las crean como siempre.
+ */
+export type OpcionesDeEntrada = { sinTareas?: boolean };
+
 export const MENSAJES = {
   noEncontrado: "No encontramos ese registro.",
   otroCircuito: "Esa etapa no es de este circuito.",
@@ -42,6 +49,8 @@ export const MENSAJES = {
   noEsDelEquipo: "Esa persona no es del equipo.",
   sinCircuito: "No hay un circuito para empezar.",
   sinEtapas: "Ese circuito no tiene etapas activas.",
+  mismoCircuito: "Ya está en ese circuito.",
+  circuitoInvalido: "Ese circuito no existe o no está activo.",
 } as const;
 
 export function mensajeTareasPendientes(pendientes: string[]): string {
@@ -146,6 +155,7 @@ export async function iniciarEnTransaccion(
   circuitoId?: string,
   leido?: { kind: string | null },
   importacion?: Importacion,
+  opcionesEntrada: OpcionesDeEntrada = {},
 ): Promise<{ journeyId: string }> {
   const adaptador = adaptadorDe(sujeto.tipo);
   if (!adaptador) throw new Error(MENSAJES.noEncontrado);
@@ -196,7 +206,7 @@ export async function iniciarEnTransaccion(
       createdAt: entrada,
     },
   });
-  await crearTareasDeEtapa(tx, ctx, j, primera.id, ahora);
+  if (!opcionesEntrada.sinTareas) await crearTareasDeEtapa(tx, ctx, j, primera.id, ahora);
   return { journeyId: j.id };
 }
 
@@ -206,12 +216,17 @@ export async function iniciarEnTransaccion(
  * No toca el estado compatible del registro: entrar al circuito no es un cambio de estado.
  * Lanza si el registro no es del workspace o no hay circuito/etapa donde empezar.
  */
-export async function iniciarRecorrido(ctx: CtxCircuitos, sujeto: Sujeto, circuitoId?: string): Promise<{ journeyId: string }> {
+export async function iniciarRecorrido(
+  ctx: CtxCircuitos,
+  sujeto: Sujeto,
+  circuitoId?: string,
+  opcionesEntrada: OpcionesDeEntrada = {},
+): Promise<{ journeyId: string }> {
   if (!adaptadorDe(sujeto.tipo)) throw new Error(MENSAJES.noEncontrado);
   // Clase del circuito elegido, para buscar el recorrido ganador si otra petición se adelantó.
   const leido: { kind: string | null } = { kind: null };
   try {
-    return await prisma.$transaction((tx) => iniciarEnTransaccion(tx, ctx, sujeto, circuitoId, leido), OPCIONES_TRANSACCION);
+    return await prisma.$transaction((tx) => iniciarEnTransaccion(tx, ctx, sujeto, circuitoId, leido, undefined, opcionesEntrada), OPCIONES_TRANSACCION);
   } catch (error) {
     // Otra petición abrió el recorrido al mismo tiempo (índice único parcial): se usa ése.
     if (esChoqueDeUnicidad(error) && leido.kind !== null) {
@@ -247,7 +262,7 @@ export async function mover(
   ctx: CtxCircuitos,
   journeyId: string,
   destinoId: string,
-  opts: { nota?: string; forzar?: boolean; esperado?: Date; auto?: { evento: string } } = {},
+  opts: { nota?: string; forzar?: boolean; esperado?: Date; auto?: { evento: string }; sinTareas?: boolean } = {},
 ): Promise<ResultadoMover> {
   return enTransaccion((tx) => moverEnTransaccion(tx, ctx, journeyId, destinoId, opts));
 }
@@ -258,7 +273,7 @@ export async function moverEnTransaccion(
   ctx: CtxCircuitos,
   journeyId: string,
   destinoId: string,
-  opts: { nota?: string; forzar?: boolean; esperado?: Date; auto?: { evento: string }; fecha?: Date } = {},
+  opts: { nota?: string; forzar?: boolean; esperado?: Date; auto?: { evento: string }; fecha?: Date; sinTareas?: boolean } = {},
 ): Promise<{ ok: true }> {
   const { workspaceId } = ctx;
   const j = await recorridoAbierto(tx, workspaceId, journeyId);
@@ -309,7 +324,8 @@ export async function moverEnTransaccion(
       createdAt: entrada,
     },
   });
-  await crearTareasDeEtapa(tx, ctx, j, etapaDestino.id, ahora);
+  // `sinTareas`: ver `OpcionesDeEntrada` (sólo la importación CSV de consultas).
+  if (!opts.sinTareas) await crearTareasDeEtapa(tx, ctx, j, etapaDestino.id, ahora);
   await adaptadorDe(j.subjectType)?.alCambiarEtapa?.(tx, workspaceId, j.subjectId, { leadStatus: etapaDestino.leadStatus }, null);
   return { ok: true as const };
 }
@@ -447,11 +463,20 @@ export async function cambiarVencimiento(
   });
 }
 
-/** Asigna (o quita, con null) el responsable de un recorrido abierto. Sólo miembros del workspace. */
-export async function asignarResponsable(ctx: CtxCircuitos, journeyId: string, userId: number | null): Promise<Resultado> {
+/**
+ * Asigna (o quita, con null) el responsable de un recorrido abierto. Sólo miembros del workspace.
+ * Con `nota` (las acciones en lote) queda además en el historial, como un paso de la etapa a sí
+ * misma con esa nota; la ficha, como siempre, no deja paso.
+ */
+export async function asignarResponsable(
+  ctx: CtxCircuitos,
+  journeyId: string,
+  userId: number | null,
+  opts: { nota?: string } = {},
+): Promise<Resultado> {
   const { workspaceId } = ctx;
   return enTransaccion(async (tx) => {
-    const j = await tx.fotofficeJourney.findFirst({ where: { id: journeyId, workspaceId }, select: { id: true, closedAt: true } });
+    const j = await tx.fotofficeJourney.findFirst({ where: { id: journeyId, workspaceId }, select: { id: true, closedAt: true, stageId: true } });
     if (!j) throw new Rechazo(MENSAJES.noEncontrado);
     if (j.closedAt !== null) throw new Rechazo(MENSAJES.cerrado);
     if (userId !== null) {
@@ -460,6 +485,76 @@ export async function asignarResponsable(ctx: CtxCircuitos, journeyId: string, u
     }
     const actualizado = await tx.fotofficeJourney.updateMany({ where: { id: j.id, workspaceId, closedAt: null }, data: { ownerUserId: userId } });
     if (actualizado.count !== 1) throw new Rechazo(MENSAJES.cerrado);
+    const nota = opts.nota?.trim();
+    if (nota) {
+      await tx.fotofficeJourneyStep.create({
+        data: { journeyId: j.id, fromStageId: j.stageId, toStageId: j.stageId, note: nota, actorUserId: ctx.userId, actorLabel: ctx.userLabel },
+      });
+    }
+    return { ok: true as const };
+  });
+}
+
+/**
+ * Pasa un recorrido abierto a otro circuito activo de su misma clase: entra en la primera etapa
+ * activa de ese circuito, con su vencimiento y sus tareas modelo, como si recién empezara ahí.
+ * Es el mismo recorrido (conserva responsable e historial): el paso queda con la nota
+ * "Pasó al circuito «…»". Las tareas de la etapa anterior quedan como están. Con `esperado`,
+ * sólo lo pasa si el recorrido sigue en la etapa desde ese momento.
+ *
+ * Como "Pasar igual": si la etapa actual exige tareas y tiene obligatorias sin tildar, sólo quien
+ * puede `configurar` lo pasa (el paso queda marcado como forzado); los demás reciben el rechazo.
+ */
+export async function cambiarDeCircuito(
+  ctx: CtxCircuitos,
+  journeyId: string,
+  circuitoId: string,
+  opts: { esperado?: Date } = {},
+): Promise<Resultado> {
+  const { workspaceId } = ctx;
+  return enTransaccion(async (tx) => {
+    const j = await recorridoAbierto(tx, workspaceId, journeyId);
+    const circuito = await tx.fotofficeCircuit.findFirst({
+      where: { id: circuitoId, workspaceId, isActive: true, kind: j.kind },
+      select: { id: true, name: true },
+    });
+    if (!circuito) throw new Rechazo(MENSAJES.circuitoInvalido);
+    if (circuito.id === j.circuitId) throw new Rechazo(MENSAJES.mismoCircuito);
+    const actual = await tx.fotofficeStage.findFirst({
+      where: { id: j.stageId, circuit: { workspaceId } },
+      select: { requireTasks: true },
+    });
+    const pendientes = actual?.requireTasks ? await obligatoriasPendientes(tx, workspaceId, j.id, j.stageId) : [];
+    if (pendientes.length > 0 && !puede(ctx.role, "configurar")) {
+      throw new Rechazo(mensajeTareasPendientes(pendientes), pendientes);
+    }
+    const primera = await tx.fotofficeStage.findFirst({
+      where: { circuitId: circuito.id, circuit: { workspaceId }, archivedAt: null },
+      select: { id: true, days: true, leadStatus: true },
+      orderBy: { order: "asc" },
+    });
+    if (!primera) throw new Rechazo(MENSAJES.sinEtapas);
+
+    const ahora = new Date();
+    const actualizado = await tx.fotofficeJourney.updateMany({
+      where: { id: j.id, workspaceId, circuitId: j.circuitId, stageId: j.stageId, enteredStageAt: opts.esperado ?? j.enteredStageAt, closedAt: null },
+      data: { circuitId: circuito.id, stageId: primera.id, enteredStageAt: ahora, stageDueAt: vencimientoDeEtapa(ahora, primera.days) },
+    });
+    if (actualizado.count !== 1) throw new Rechazo(MENSAJES.cambio);
+    await tx.fotofficeJourneyStep.create({
+      data: {
+        journeyId: j.id,
+        fromStageId: j.stageId,
+        toStageId: primera.id,
+        note: `Pasó al circuito «${circuito.name}».`,
+        forcedWithPendingTasks: pendientes.length > 0,
+        actorUserId: ctx.userId,
+        actorLabel: ctx.userLabel,
+        createdAt: ahora,
+      },
+    });
+    await crearTareasDeEtapa(tx, ctx, j, primera.id, ahora);
+    await adaptadorDe(j.subjectType)?.alCambiarEtapa?.(tx, workspaceId, j.subjectId, { leadStatus: primera.leadStatus }, null);
     return { ok: true as const };
   });
 }

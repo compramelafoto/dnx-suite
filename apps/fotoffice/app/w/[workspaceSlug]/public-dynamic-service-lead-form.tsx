@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { createServiceLead } from "@/app/actions/service-lead";
+import { CampoTrampa } from "@/components/consultas/campo-trampa";
+import { CAMPO_TRAMPA } from "@/lib/consultas/trampa";
 
 type SelectorOption = { value: string; label: string };
 type FieldDefinition = {
@@ -167,6 +169,7 @@ export function PublicDynamicServiceLeadForm({
           email: formData.get("email")?.toString() ?? "",
           phone: formData.get("phone")?.toString() ?? "",
           meta,
+          [CAMPO_TRAMPA]: formData.get(CAMPO_TRAMPA)?.toString() ?? "",
         };
 
         startTransition(async () => {
@@ -179,6 +182,7 @@ export function PublicDynamicServiceLeadForm({
         });
       }}
     >
+      <CampoTrampa />
       <div className="fo-field-stack">
         <label className="fo-label" htmlFor="general-budget-type">
           {selector?.label ?? "Solicitud de presupuesto para"}

@@ -99,7 +99,7 @@ export default async function CanjePage({ params }: { params: Promise<{ token: s
     );
   }
 
-  const product = await resolveComboPrintProduct(album.userId, voucher.refs.size);
+  const product = await resolveComboPrintProduct(album.userId, voucher.refs.size, album.id);
   if (!product) {
     return (
       <Aviso

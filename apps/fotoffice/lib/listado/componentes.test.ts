@@ -82,4 +82,15 @@ describe("componentes del listado", () => {
     }
     expect(src).toContain('"No se pudo completar la acción. Probá de nuevo."');
   });
+
+  it("el resultado del lote resume actualizados y omitidos, con sus motivos (excluidos y fallidos)", () => {
+    const src = fuente("barra-de-seleccion.tsx");
+    expect(src).toMatch(/omitidos: \[\.\.\.previa\.excluidos, \.\.\.r\.resultado\.fallidos/);
+    expect(src).toMatch(/"omitido" : "omitidos"/);
+    expect(src).toMatch(/omitidosPorMotivo\(final\.omitidos\)/);
+  });
+
+  it("un parámetro de fecha se elige con un campo de fecha", () => {
+    expect(fuente("barra-de-seleccion.tsx")).toMatch(/accion\.parametro\?\.fecha \?[\s\S]{0,200}type="date"/);
+  });
 });

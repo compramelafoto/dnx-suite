@@ -34,7 +34,7 @@
     "test:school-design": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/school-render/ensure-school-design-for-preventa-order-item.test.ts",
     "test:preventa-copy": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/preventa-canjeable/benefit-copy.test.ts lib/preventa-canjeable/pack-savings.test.ts lib/preventa-canjeable/preventa-redeem-url.test.ts lib/preventa-canjeable/preventa-canje-slots.test.ts lib/albums/album-share-image.test.ts",
     "test:video-cleanup": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.test.json --test lib/videos/video-cleanup.test.ts",
-    "test:pricing-digital": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.test.json --test lib/pricing/album-digital-base-price.test.ts",
+    "test:pricing-digital": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.test.json --test lib/pricing/album-digital-base-price.test.ts lib/pricing/album-scoped-products.test.ts lib/clipboard/copy-pending-text.test.ts",
     "test:video-frames": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.test.json --test lib/videos/video-frame-matching.test.ts"
   },
   "dependencies": {

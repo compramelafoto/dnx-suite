@@ -139,7 +139,7 @@ export function counterpartProfile(
 
 export type RoleOption = {
   kind: "TEAM" | "MEMBER";
-  /** "Socio" (palabra del vocabulario) o "Comisión" / "Administración" según el rol de equipo. */
+  /** "Socio" (palabra del vocabulario) o "Comisión Directiva". */
   label: string;
   /** El activo sale de la pantalla en la que está la persona, no de un estado guardado. */
   active: boolean;
@@ -151,8 +151,7 @@ export type RoleSelector = { workspaceId: string; options: RoleOption[] };
  * El selector de rol del menú lateral, como el de FotoRank.
  *
  * Sólo existe si la persona tiene los DOS perfiles (socio y equipo) en la institución que está
- * viendo; perfiles en otras instituciones no cuentan. El equipo se llama "Comisión" cuando su
- * rol es STAFF y "Administración" cuando es dueño o admin.
+ * viendo; perfiles en otras instituciones no cuentan. El equipo se llama "Comisión Directiva".
  *
  * Pura a propósito: los marcos sólo dibujan lo que esto decide.
  */
@@ -176,8 +175,12 @@ export function roleSelector(
   };
 }
 
-function teamRoleLabel(role: string): string {
-  return PANEL_DAILY_ROLES.has(role) ? "Administración" : "Comisión";
+/**
+ * El selector sólo aparece en una institución de la que la persona es socia: ahí el equipo es la
+ * Comisión Directiva, administre o no (pedido de SFPR, 06/10/2026). El rol no cambia el nombre.
+ */
+function teamRoleLabel(_role: string): string {
+  return "Comisión Directiva";
 }
 
 export type InstitutionChoice = {

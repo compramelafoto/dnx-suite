@@ -25,6 +25,13 @@ const TABLAS = [
   "fotofficeSequence", "fotofficeSequenceChange", "fotofficeRecordNumber",
   // Plantillas de mensajes (0.6).
   "fotofficeMessageTemplate", "fotofficeMessage",
+  // Contactos y consultas (etapa 1).
+  "clientAudit", "fotofficeContactoPerfil", "fotofficeConsulta", "fotofficeConsultaCategoria", "fotofficeOrigen",
+  "fotofficeRolParticipante", "fotofficeConsultaParticipante", "fotofficeConsultaAjustes",
+  // Usuarios del equipo (el aviso de consulta nueva lee su correo).
+  "user",
+  // Bitácora de las listas (la importación de consultas deja su registro).
+  "fotofficeListActivity",
 ] as const;
 export type Tabla = (typeof TABLAS)[number];
 
@@ -72,6 +79,21 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
     templateId: null, subject: null, automatic: false, providerId: null, errorCode: null, actorUserId: null, actorLabel: null,
     createdAt: new Date(),
   }),
+  clientAudit: () => ({ actorUserId: null, changesJson: null, createdAt: new Date() }),
+  fotofficeContactoPerfil: () => ({
+    category: "CLIENTE", mobile: null, email2: null, birthday: null, website: null, province: null, country: null,
+    postalCode: null, about: null, updatedAt: new Date(),
+  }),
+  fotofficeConsulta: () => ({
+    originId: null, referrerClientId: null, estimatedValue: null, expectedCloseDate: null, eventStartsAt: null,
+    eventTimeKnown: false, venue: null, ceremonyVenue: null, receptionVenue: null, city: null, guests: null,
+    partnerOneName: null, partnerTwoName: null, createdAt: new Date(), updatedAt: new Date(),
+  }),
+  fotofficeConsultaCategoria: () => ({ order: 0, archivedAt: null, legacyEventType: null, createdAt: new Date() }),
+  fotofficeOrigen: () => ({ order: 0, archivedAt: null, createdAt: new Date() }),
+  fotofficeRolParticipante: () => ({ order: 0, archivedAt: null, createdAt: new Date() }),
+  fotofficeConsultaParticipante: () => ({ note: null, createdAt: new Date() }),
+  fotofficeConsultaAjustes: () => ({ defaultOwnerUserId: null, notifyEmail: true, createTask: true, updatedAt: new Date() }),
 };
 
 function igual(a: unknown, b: unknown): boolean {
@@ -170,7 +192,30 @@ export function crearBaseEnMemoria() {
     fotofficeMessageTemplate: [
       { columnas: ["workspaceId", "systemKey"], aplica: (f) => f.systemKey !== null && f.systemKey !== undefined },
     ],
+    // Las pruebas viejas cargan clientes sin número: el único sólo aplica a los que lo tienen.
+    client: [{ columnas: ["workspaceId", "clientNumber"], aplica: (f) => f.clientNumber !== null && f.clientNumber !== undefined }],
+    // Etapa 1: los de la migración.
+    fotofficeContactoPerfil: [{ columnas: ["clientId"] }],
+    fotofficeConsulta: [{ columnas: ["leadId"] }],
+    fotofficeConsultaCategoria: [{ columnas: ["workspaceId", "name"] }],
+    fotofficeOrigen: [{ columnas: ["workspaceId", "name"] }],
+    fotofficeRolParticipante: [{ columnas: ["workspaceId", "name"] }],
+    fotofficeConsultaParticipante: [{ columnas: ["consultaId", "clientId", "roleId"] }],
+    fotofficeConsultaAjustes: [{ columnas: ["workspaceId"] }],
   };
+
+  /**
+   * `where` de un `findUnique`/`update`/`upsert`: aplana las claves compuestas de Prisma
+   * (`workspaceId_clientNumber: { workspaceId, clientNumber }`) a igualdades comunes.
+   */
+  function aplanarUnico(where: Where): Where {
+    const out: Where = {};
+    for (const [k, v] of Object.entries(where)) {
+      if (k.includes("_") && v && typeof v === "object" && !(v instanceof Date)) Object.assign(out, v);
+      else out[k] = v;
+    }
+    return out;
+  }
 
   function verificarUnicidad(tabla: Tabla, f: Fila) {
     for (const u of UNICOS[tabla] ?? []) {
@@ -196,6 +241,30 @@ export function crearBaseEnMemoria() {
       findMany: async (a: { where?: Where; select?: Record<string, boolean>; orderBy?: Orden | Orden[]; take?: number } = {}) =>
         ordenar(datos[tabla].filter((x) => cumple(x, a.where)), a.orderBy).slice(0, a.take ?? Infinity).map((x) => elegir(x, a.select)),
       count: async (a: { where?: Where } = {}) => datos[tabla].filter((x) => cumple(x, a.where)).length,
+      findUnique: async (a: { where: Where; select?: Record<string, boolean> }) => {
+        const f = datos[tabla].find((x) => cumple(x, aplanarUnico(a.where)));
+        return f ? elegir(f, a.select) : null;
+      },
+      findUniqueOrThrow: async (a: { where: Where; select?: Record<string, boolean> }) => {
+        const f = datos[tabla].find((x) => cumple(x, aplanarUnico(a.where)));
+        if (!f) throw Object.assign(new Error("No record was found"), { code: "P2025" });
+        return elegir(f, a.select);
+      },
+      /** Como Prisma: el `where` es único y, si no hay fila, lanza P2025. */
+      update: async (a: { where: Where; data: Fila; select?: Record<string, boolean> }) => {
+        const f = datos[tabla].find((x) => cumple(x, aplanarUnico(a.where)));
+        if (!f) throw Object.assign(new Error("Record to update not found"), { code: "P2025" });
+        Object.assign(f, clonar(a.data));
+        verificarUnicidad(tabla, f);
+        return elegir(f, a.select);
+      },
+      upsert: async (a: { where: Where; create: Fila; update: Fila; select?: Record<string, boolean> }) => {
+        const f = datos[tabla].find((x) => cumple(x, aplanarUnico(a.where)));
+        if (!f) return elegir(insertar(tabla, a.create), a.select);
+        Object.assign(f, clonar(a.update));
+        verificarUnicidad(tabla, f);
+        return elegir(f, a.select);
+      },
       /** Mínimo: agrupa por columnas y sólo admite `_count: true` (cantidad de filas por grupo). */
       groupBy: async (a: { by: string[]; where?: Where; _count?: true }) => {
         const grupos = new Map<string, Fila>();
@@ -308,6 +377,19 @@ export function crearBaseEnMemoria() {
     }
     if (texto.includes("consultas-sin-numero: otra")) {
       return delWorkspace.some((l) => l.id !== valores[1] && !tieneNumero(l)) ? [{ hay: 1 }] : [];
+    }
+    // "consultas-sin-ficha" (etapa 1): consultas sin `FotofficeConsulta`. Lista (workspaceId,
+    // límite) o cuenta (workspaceId).
+    const sinFicha = () => delWorkspace.filter((l) => !datos.fotofficeConsulta.some((c) => c.leadId === l.id));
+    if (texto.includes("consultas-sin-ficha: cuenta")) return [{ n: BigInt(sinFicha().length) }];
+    if (texto.includes("consultas-sin-ficha: lista")) {
+      return ordenar(sinFicha(), [{ createdAt: "asc" }, { id: "asc" }])
+        .slice(0, valores[1] as number)
+        .map((l) => elegir(l))
+        .map((l) => ({
+          id: l.id, name: l.name, email: l.email ?? null, phone: l.phone ?? null, eventType: l.eventType,
+          eventDate: l.eventDate ?? null, eventLocation: l.eventLocation ?? null,
+        }));
     }
     if (!texto.includes("consultas-sin-recorrido")) throw new Error("SQL crudo no emulado en la base en memoria");
     const sinRecorrido = delWorkspace.filter((l) => !tieneRecorrido(l));

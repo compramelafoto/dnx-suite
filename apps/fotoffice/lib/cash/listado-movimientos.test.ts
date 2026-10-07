@@ -221,7 +221,7 @@ describe("cambiar rubro", () => {
 
   it("las opciones son los rubros activos de este workspace, con su tipo", async () => {
     H.catFindMany.mockResolvedValue([{ id: "r1", name: "Luz", kind: "EGRESO" }]);
-    expect(await rubro().parametro!.opciones(ctx)).toEqual([{ valor: "r1", etiqueta: "Luz (egreso)" }]);
+    expect(await rubro().parametro!.opciones!(ctx)).toEqual([{ valor: "r1", etiqueta: "Luz (egreso)" }]);
     expect(H.catFindMany.mock.calls[0][0].where).toEqual({ workspaceId: "w1", isActive: true });
   });
 

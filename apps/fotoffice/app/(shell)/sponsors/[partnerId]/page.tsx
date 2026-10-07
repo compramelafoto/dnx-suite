@@ -4,7 +4,8 @@ import { PageHeader } from "@/components/page-header";
 import { SponsorLogo } from "@/components/sponsors/sponsor-logo";
 import { requireSponsorsViewer } from "@/lib/sponsors/access";
 import { getWorkspaceSponsor } from "@/lib/sponsors/repository";
-import { sponsorsWriteBlockedReason } from "@/lib/sponsors/clients";
+import { partnersReader, sponsorsWriteBlockedReason } from "@/lib/sponsors/clients";
+import { selfSignupStatuses, type SelfSignupStatus } from "@/lib/sponsors/self-signup";
 import { FOTOFFICE_SPONSOR_PLACEMENTS, placementLabel, placementWhere } from "@/lib/sponsors/constants";
 import { diaArgentino, fechaCorta } from "@/lib/sponsors/slots";
 import {
@@ -15,6 +16,7 @@ import {
   quitarEspacioAction,
   subirLogoAction,
 } from "../actions";
+import { GenerarEnlaceAutoalta } from "../enlace-autoalta";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +32,31 @@ const AVISOS: Record<string, string> = {
 
 const DIA_MS = 24 * 60 * 60 * 1000;
 
+function fechaYHora(d: Date): string {
+  return new Intl.DateTimeFormat("es-AR", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(d);
+}
+
+function estadoDelEnlace(estado: SelfSignupStatus): string {
+  switch (estado.kind) {
+    case "NONE":
+      return "Todavía no le mandaste ningún enlace.";
+    case "WAITING":
+      return estado.openedAt
+        ? `Abrió el enlace el ${fechaYHora(estado.openedAt)} pero todavía no mandó sus datos.`
+        : `Generaste un enlace el ${fechaYHora(estado.createdAt)}. Todavía no lo abrió.`;
+    case "SUBMITTED":
+      return `Completó sus datos el ${fechaYHora(estado.submittedAt)}. Revisá la ficha de la marca y el texto de la institución, más abajo.`;
+    case "EXPIRED":
+      return "El último enlace venció sin que lo usara. Generá otro si hace falta.";
+  }
+}
+
 export default async function SponsorPage({
   params,
   searchParams,
@@ -42,6 +69,10 @@ export default async function SponsorPage({
   const aviso = await searchParams;
   const sponsor = await getWorkspaceSponsor(workspace.id, partnerId);
   if (!sponsor) notFound();
+  const autoalta =
+    (await selfSignupStatuses(await partnersReader(), workspace.id, [sponsor.partnerId]).catch(() => null))?.get(
+      sponsor.partnerId,
+    ) ?? ({ kind: "NONE" } as const);
 
   const puedeEditar = canManage && !sponsorsWriteBlockedReason();
   const ahora = new Date();
@@ -142,6 +173,38 @@ export default async function SponsorPage({
             </div>
           ))}
         </dl>
+      </section>
+
+      <section className="fo-card space-y-4 p-5">
+        <div className="space-y-1">
+          <h2 className="text-base font-semibold">Que el sponsor cargue sus datos</h2>
+          <p className="text-sm text-[var(--fo-muted)]">
+            Generá un enlace y mandáselo: el sponsor sube su logo, sus redes, el beneficio para los socios y un
+            contacto, sin necesidad de cuenta. Lo que cargue queda en esta ficha.
+          </p>
+        </div>
+        <p className="text-sm">{estadoDelEnlace(autoalta)}</p>
+        {autoalta.kind === "SUBMITTED" && autoalta.contact ? (
+          <p className="text-sm text-[var(--fo-text-secondary)]">
+            Contacto que dejó: <span className="font-medium">{autoalta.contact.name}</span>
+            {autoalta.contact.email ? (
+              <>
+                {" · "}
+                <a href={`mailto:${autoalta.contact.email}`} className="underline">
+                  {autoalta.contact.email}
+                </a>
+              </>
+            ) : null}
+            {autoalta.contact.phone ? ` · ${autoalta.contact.phone}` : null}
+          </p>
+        ) : null}
+        {puedeEditar ? (
+          <GenerarEnlaceAutoalta
+            partnerId={sponsor.partnerId}
+            institucion={workspace.name}
+            yaHayUno={autoalta.kind === "WAITING"}
+          />
+        ) : null}
       </section>
 
       <section className="fo-card space-y-4 p-5">

@@ -342,17 +342,6 @@ export function createApplyPaymentEventUseCase(deps: {
           });
         }
 
-        // Etapa 8: placa de bienvenida durable. Nunca revierte PAID.
-        try {
-          const { enqueueWelcomeCardAfterPaid } = await import("@/lib/welcome-card/enqueue");
-          void enqueueWelcomeCardAfterPaid({
-            registrationId: confirmed.id,
-            editionId: confirmed.editionId,
-          });
-        } catch {
-          // soft-fail: el cron reintenta desde el outbox y PAID permanece confirmado
-        }
-
         // Placas de participante V2 (welcome + member). Soft-fail: si el render
         // no está disponible, el cron /api/cron/participant-cards reintenta.
         try {

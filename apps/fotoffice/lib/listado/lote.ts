@@ -3,6 +3,7 @@ import { prisma, type Prisma } from "@repo/db";
 import { registrarActividad } from "./actividad";
 import { consultaSaneada, leerConsulta } from "./consulta";
 import { resolverConsulta } from "./ejecutar";
+import { esRangoValido } from "./periodos";
 import type { AccionLote, ContextoListado, DefinicionListado, ResultadoLote } from "./tipos";
 
 export type Seleccion = { tipo: "ids"; ids: string[] } | { tipo: "todos"; query: string };
@@ -10,6 +11,12 @@ export type Seleccion = { tipo: "ids"; ids: string[] } | { tipo: "todos"; query:
 type Excluido = { id: string; motivo: string };
 
 const OPCION_INVALIDA = "Elegí una opción válida.";
+const FECHA_INVALIDA = "Elegí una fecha válida.";
+
+/** "aaaa-mm-dd" de un día que existe (el regex solo deja pasar "2026-02-31"). */
+export function esDiaValido(v: string): boolean {
+  return esRangoValido(`${v}..${v}`);
+}
 
 export async function resolverObjetivo<F>(
   def: DefinicionListado<F>,
@@ -45,7 +52,11 @@ async function calcular<F>(
   hoyYmd: string,
 ): Promise<(PreparacionLote & { ok: true; elegibles: string[] }) | { ok: false; error: string }> {
   let etiquetaParametro = "";
-  if (accion.parametro) {
+  if (accion.parametro?.fecha) {
+    const dia = typeof parametro === "string" && esDiaValido(parametro) ? parametro : null;
+    if (!dia) return { ok: false, error: FECHA_INVALIDA };
+    etiquetaParametro = dia.split("-").reverse().join("/");
+  } else if (accion.parametro) {
     const opciones = await accion.parametro.opciones(ctx);
     const elegida = opciones.find((o) => o.valor === parametro);
     if (!elegida) return { ok: false, error: OPCION_INVALIDA };

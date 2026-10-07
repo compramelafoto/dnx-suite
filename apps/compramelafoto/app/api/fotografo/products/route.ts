@@ -84,7 +84,9 @@ export async function PUT(req: NextRequest) {
       where: { userId: user.id },
     });
     const existingIds = new Set(sanitized.map((p: any) => p.id).filter(Boolean));
-    const toDelete = existingProducts.filter((p: any) => !existingIds.has(p.id));
+    // Los productos de un álbum (precios de un colegio) se cargan aparte: guardar la lista
+    // general no los borra aunque la pantalla no los mande.
+    const toDelete = existingProducts.filter((p: any) => !existingIds.has(p.id) && p.albumId == null);
     for (const product of toDelete) {
       await prismaAny.photographerProduct.delete({ where: { id: product.id } });
     }

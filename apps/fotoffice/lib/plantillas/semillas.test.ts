@@ -25,6 +25,7 @@ describe("textos iniciales", () => {
     ...S.PLANTILLAS_DNX.map((p) => ({ nombre: p.nombre, canal: p.canal, tipo: p.tipo, asunto: p.asunto, cuerpo: p.cuerpo })),
     { nombre: "Autorespuesta DNX", canal: "EMAIL" as const, tipo: "CONSULTA" as const, ...S.AUTORESPUESTA_DNX },
     { nombre: "Autorespuesta genérica", canal: "EMAIL" as const, tipo: "CONSULTA" as const, ...S.AUTORESPUESTA_GENERICA },
+    { nombre: "Aviso al equipo", canal: "EMAIL" as const, tipo: "CONSULTA" as const, ...S.AVISO_EQUIPO },
   ];
 
   it.each(todos)("$nombre valida con las variables de su ficha (sin campos) y respeta los límites", (t) => {
@@ -130,5 +131,22 @@ describe("asegurarPlantillasIniciales", () => {
     await S.asegurarPlantillasIniciales("ws-1", "dnx-estudio");
     B.tablas.fotofficeMessageTemplate.count = original;
     expect(plantillas()).toHaveLength(1);
+  });
+});
+
+describe("asegurarAvisoEquipo", () => {
+  it("crea una vez el aviso al equipo, encendido, aparte de las demás semillas", async () => {
+    await S.asegurarPlantillasIniciales("ws-1", "dnx-estudio");
+    await S.asegurarAvisoEquipo("ws-1");
+    await S.asegurarAvisoEquipo("ws-1");
+    const aviso = await D.leerAutomatico("ws-1", "CONSULTA_AVISO_EQUIPO");
+    expect(aviso).toMatchObject({ enabled: true, channel: "EMAIL", entityType: "CONSULTA", subject: S.AVISO_EQUIPO.asunto });
+    expect(plantillas().filter((p) => p.systemKey === "CONSULTA_AVISO_EQUIPO")).toHaveLength(1);
+    expect(plantillas()).toHaveLength(9);
+    expect(await D.leerAutomatico("ws-2", "CONSULTA_AVISO_EQUIPO")).toBeNull();
+    // Apagado a mano, no vuelve a encenderse.
+    B.datos.fotofficeMessageTemplate.find((p) => p.systemKey === "CONSULTA_AVISO_EQUIPO")!.enabled = false;
+    await S.asegurarAvisoEquipo("ws-1");
+    expect((await D.leerAutomatico("ws-1", "CONSULTA_AVISO_EQUIPO"))?.enabled).toBe(false);
   });
 });

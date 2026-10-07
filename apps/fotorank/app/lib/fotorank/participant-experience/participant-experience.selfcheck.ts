@@ -90,6 +90,44 @@ const reacceptAction = resolveParticipantNextAction({
 assert.equal(reacceptAction.key, "reaccept_rules");
 assert.ok(reacceptAction.enabled);
 
+/* Varias fotos: con la primera enviada y cupo libre, se ofrece subir otra. */
+const addAnother = resolveParticipantNextAction({
+  registrationId: "reg-1",
+  contestSlug: "retratos-del-mundo",
+  registrationStatus: "CONFIRMED",
+  entryStatus: "CONFIRMED",
+  upload: open,
+  remainingEntries: 2,
+});
+assert.equal(addAnother.key, "add_photo");
+assert.equal(addAnother.href, "/concursos/retratos-del-mundo/inscripcion");
+
+// Sin cupo (o concurso de una foto) no cambia nada.
+for (const remainingEntries of [0, undefined]) {
+  const done = resolveParticipantNextAction({
+    registrationId: "reg-1",
+    contestSlug: "santa-fe-en-foco",
+    registrationStatus: "CONFIRMED",
+    entryStatus: "CONFIRMED",
+    upload: open,
+    remainingEntries,
+  });
+  assert.equal(done.key, "view_detail");
+}
+
+// Ventana cerrada: no se ofrece subir aunque quede cupo.
+assert.equal(
+  resolveParticipantNextAction({
+    registrationId: "reg-1",
+    contestSlug: "retratos-del-mundo",
+    registrationStatus: "CONFIRMED",
+    entryStatus: "CONFIRMED",
+    upload: closed,
+    remainingEntries: 2,
+  }).key,
+  "view_detail",
+);
+
 const incomplete = resolveParticipantNextAction({
   registrationId: "reg-2",
   contestSlug: "x",

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { DragEvent } from "react";
 import type { TarjetaVista } from "@/lib/circuitos/tablero";
+import { formatoPesos } from "@/lib/consultas/valor";
 import { MoverA, type Destino } from "./mover-a";
 
 export type AvisoTarjeta = { mensaje: string; pendientes?: string[]; puedePasarIgual: boolean };
@@ -56,7 +57,19 @@ export function Tarjeta({
         <Link href={sujeto.href} className="block truncate font-medium text-[var(--fo-text)] hover:underline" draggable={false}>
           {sujeto.titulo}
         </Link>
-        {sujeto.subtitulo ? <p className="truncate text-xs text-[var(--fo-muted)]">{sujeto.subtitulo}</p> : null}
+        {tarjeta.categoria ? (
+          // Con ficha de la etapa 1: categoría y día del evento (fecha de calendario).
+          <p className="truncate text-xs text-[var(--fo-muted)]">
+            {[tarjeta.categoria, tarjeta.fechaEvento].filter(Boolean).join(" · ")}
+          </p>
+        ) : sujeto.subtitulo ? (
+          <p className="truncate text-xs text-[var(--fo-muted)]">{sujeto.subtitulo}</p>
+        ) : null}
+        {tarjeta.valor !== null ? (
+          <p className="text-xs font-medium tabular-nums text-[var(--fo-text)]" title="Valor estimado">
+            {formatoPesos(tarjeta.valor)}
+          </p>
+        ) : null}
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5 text-xs">

@@ -16,10 +16,6 @@
       "schedule": "*/5 * * * *"
     },
     {
-      "path": "/api/cron/welcome-cards",
-      "schedule": "*/5 * * * *"
-    },
-    {
       "path": "/api/cron/participant-cards",
       "schedule": "*/5 * * * *"
     },

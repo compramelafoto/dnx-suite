@@ -288,6 +288,26 @@ describe("arreglos de revisión", () => {
     expect(mensajes()).toHaveLength(0);
   });
 
+  it("el aviso al equipo nunca sale a la persona de la ficha por el envío automático", async () => {
+    B.agregar("serviceSalesLead", { id: "l1", workspaceId: "ws-1", name: "Mara", email: "mara@x.test", eventType: "BODA" });
+    const aviso = plantilla({ entityType: "CONSULTA", systemKey: "CONSULTA_AVISO_EQUIPO", enabled: true });
+    const sinUsuario = { workspaceId: "ws-1", userId: null, userLabel: null, role: null };
+    const d = { entityType: "CONSULTA" as const, entityId: "l1", asunto: "Hola", cuerpo: "Gracias", automatico: true, templateId: aviso };
+    const enviar = enviador();
+    expect(await E.enviarCorreo(sinUsuario, d, { enviar, ahora: () => AHORA })).toEqual({ ok: false, error: M.plantillaNoEncontrada });
+    expect(enviar).not.toHaveBeenCalled();
+  });
+
+  it("armarCorreoFinal: mismas reglas que el envío y la firma donde va [firma]", () => {
+    const firma = { html: "<b>F</b>", texto: "F" };
+    expect(E.armarCorreoFinal("  Hola  ", "Texto\n\n[firma]", firma)).toMatchObject({ ok: true, asunto: "Hola" });
+    const r = E.armarCorreoFinal("Hola", "Texto\n\n[firma]", firma);
+    expect(r.ok && r.texto).toContain("F");
+    expect(E.armarCorreoFinal("", "x", firma)).toEqual({ ok: false, error: M.asunto });
+    expect(E.armarCorreoFinal("Hola", "[COMPLETÁ ESTO]", firma)).toEqual({ ok: false, error: M.marcadorSinCompletar });
+    expect(E.armarCorreoFinal("Hola", "Hola [nombre]", firma)).toMatchObject({ ok: false });
+  });
+
   it("los corchetes de un dato se vuelven paréntesis y no frenan el envío", async () => {
     cliente({ id: "c2", firstName: "[Estudio]", lastName: "[NOMBRE]" });
     const id = plantilla({ subject: "Hola [nombre_completo]", body: "Hola [nombre_completo]" });

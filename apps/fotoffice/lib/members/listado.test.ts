@@ -187,7 +187,7 @@ describe("cambiar categoría", () => {
 
   it("las opciones son las categorías activas de este workspace", async () => {
     H.categoryFindMany.mockResolvedValue([{ id: "c1", name: "Activo" }]);
-    expect(await accion("categoria").parametro!.opciones(ctx)).toEqual([{ valor: "c1", etiqueta: "Activo" }]);
+    expect(await accion("categoria").parametro!.opciones!(ctx)).toEqual([{ valor: "c1", etiqueta: "Activo" }]);
     expect(H.categoryFindMany.mock.calls[0][0].where).toEqual({ workspaceId: "w1", isActive: true });
   });
 

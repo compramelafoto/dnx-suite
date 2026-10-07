@@ -109,6 +109,9 @@ describe("cargarTablero", () => {
       tareas: { hechas: 1, total: 3 },
       enteredStageAt: "2026-10-15T02:30:00.000Z",
       responsableId: 7,
+      categoria: null,
+      fechaEvento: null,
+      valor: null,
     });
     const j2 = t.columnas[1]!.tarjetas[0]!;
     expect(j2).toMatchObject({ diasEnEtapa: 3, vencida: false, tareas: { hechas: 0, total: 0 } });
@@ -188,5 +191,43 @@ describe("cargarTablero", () => {
     // Los más viejos primero; una consulta que ya no existe igual se ve y se puede mover.
     expect(col.tarjetas[0]).toMatchObject({ journeyId: "jj0", sujeto: { titulo: "Consulta sin datos", href: "/consultas/sin-consulta-0" } });
     expect(t.columnas[0]!.masHref).toBeNull();
+  });
+
+  it("total de valor por columna (todas sus consultas, también las que pasan el tope) y datos de la tarjeta", async () => {
+    B.agregar("fotofficeConsultaCategoria", { id: "cat-boda", workspaceId: "ws-1", name: "Boda", group: "BODA" });
+    B.agregar("fotofficeConsultaCategoria", { id: "cat-sin", workspaceId: "ws-1", name: "Retoque", group: "TRABAJO_SIN_FECHA" });
+    // Evento del 20/12 guardado como fecha de calendario (medianoche UTC): se lee 20/12, no 19/12.
+    B.agregar("fotofficeConsulta", {
+      workspaceId: "ws-1", leadId: "l1", clientId: "c", categoryId: "cat-boda", estimatedValue: "1250000.50",
+      eventStartsAt: new Date("2026-12-20T00:00:00.000Z"),
+    });
+    // Grupo que no pide fecha (regla R11): el día guardado no se muestra.
+    B.agregar("fotofficeConsulta", {
+      workspaceId: "ws-1", leadId: "l2", clientId: "c", categoryId: "cat-sin", estimatedValue: 300,
+      eventStartsAt: new Date("2026-11-02T00:00:00.000Z"),
+    });
+    // Una consulta de otro workspace con el mismo id de consulta no suma.
+    B.agregar("fotofficeConsulta", { workspaceId: "ws-2", leadId: "lx", clientId: "c", categoryId: "cat-boda", estimatedValue: 999 });
+    for (let i = 0; i < TOPE_POR_COLUMNA + 2; i++) {
+      B.agregar("fotofficeJourney", { ...base, id: `jv${i}`, subjectId: `lv${i}`, stageId: "s2", enteredStageAt: new Date(Date.UTC(2026, 9, 13, 0, 0, i)) });
+      B.agregar("fotofficeConsulta", { workspaceId: "ws-1", leadId: `lv${i}`, clientId: "c", categoryId: "cat-boda", estimatedValue: 10 });
+    }
+    const t = await cargarTablero(CTX, null, {}, AHORA);
+    expect(t.columnas[0]!.valorTotal).toBe(1250000.5);
+    // 300 + 302 × 10: la columna dibuja 300 tarjetas pero suma las 303 consultas.
+    expect(t.columnas[1]!.tarjetas).toHaveLength(TOPE_POR_COLUMNA);
+    expect(t.columnas[1]!.valorTotal).toBe(300 + (TOPE_POR_COLUMNA + 2) * 10);
+    expect(t.columnas[2]!.valorTotal).toBe(0);
+    expect(t.columnas[0]!.tarjetas[0]).toMatchObject({ categoria: "Boda", fechaEvento: "20/12/2026", valor: 1250000.5 });
+    const j2 = t.columnas[1]!.tarjetas.find((x) => x.journeyId === "j2")!;
+    expect(j2).toMatchObject({ categoria: "Retoque", fechaEvento: null, valor: 300 });
+  });
+
+  it("el total respeta los filtros del tablero", async () => {
+    B.agregar("fotofficeConsultaCategoria", { id: "cat", workspaceId: "ws-1", name: "Boda", group: "BODA" });
+    B.agregar("fotofficeConsulta", { workspaceId: "ws-1", leadId: "l1", clientId: "c", categoryId: "cat", estimatedValue: 100 });
+    B.agregar("fotofficeConsulta", { workspaceId: "ws-1", leadId: "l2", clientId: "c", categoryId: "cat", estimatedValue: 200 });
+    const t = await cargarTablero(CTX, null, { responsable: 8 }, AHORA);
+    expect(t.columnas.map((c) => c.valorTotal)).toEqual([0, 200]);
   });
 });

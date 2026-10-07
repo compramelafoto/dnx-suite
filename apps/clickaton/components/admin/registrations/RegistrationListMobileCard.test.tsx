@@ -35,9 +35,6 @@ function fila(overrides: Partial<AdminRegistrationListItem> = {}): AdminRegistra
     fotoRankSyncedAt: null,
     instagramHandle: null,
     profilePhotoAssetId: null,
-    welcomeCardId: null,
-    welcomeCardStatus: null,
-    welcomeCardAssetId: null,
     welcomePublicationStatus: null,
     ...overrides,
   } as AdminRegistrationListItem;

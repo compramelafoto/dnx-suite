@@ -53,25 +53,31 @@ export async function GET(request: Request) {
   const rows = toExportRowsFromList(result.data);
   const socialRegistrations = await prisma.clickatonRegistration.findMany({
       where: { id: { in: rows.map((row) => row.registrationId) } },
-      select: {
-        id: true, instagramHandle: true, profilePhotoAssetId: true,
-        welcomeCardStatus: true, welcomePublicationStatus: true, welcomeCardAssetId: true,
-      },
+      select: { id: true, instagramHandle: true, profilePhotoAssetId: true, welcomePublicationStatus: true },
     });
-  const urls = new Map(
-    (await prisma.dnxMediaAsset.findMany({
-      where: { id: { in: socialRegistrations.map((registration) => registration.welcomeCardAssetId).filter((id): id is string => Boolean(id)) } },
-      select: { id: true, publicUrl: true },
-    })).map((asset) => [asset.id, asset.publicUrl]),
+  // La placa de bienvenida es la del sistema de placas del participante. Se descarga por la ruta
+  // del panel, que pide sesión de admin: la imagen lleva la cara y el nombre de una persona.
+  const placasListas = new Set(
+    (await prisma.clickatonParticipantCard.findMany({
+      where: {
+        registrationId: { in: rows.map((row) => row.registrationId) },
+        cardType: "WELCOME",
+        status: "READY",
+      },
+      select: { registrationId: true },
+    })).map((card) => card.registrationId),
   );
   const socialByRegistration = new Map(socialRegistrations.map((registration) => [registration.id, registration]));
   for (const row of rows) {
     const social = socialByRegistration.get(row.registrationId);
+    const placaLista = placasListas.has(row.registrationId);
     row.instagramHandle = social?.instagramHandle ?? null;
     row.profilePhotoAssetId = social?.profilePhotoAssetId ?? null;
-    row.welcomeCardStatus = social?.welcomeCardStatus ?? null;
+    row.welcomeCardStatus = placaLista ? "READY" : null;
     row.welcomePublicationStatus = social?.welcomePublicationStatus ?? null;
-    row.welcomeUrl = social?.welcomeCardAssetId ? urls.get(social.welcomeCardAssetId) ?? null : null;
+    row.welcomeUrl = placaLista
+      ? `${url.origin}/api/admin/registrations/${encodeURIComponent(row.registrationId)}/cards/welcome`
+      : null;
   }
   const orderedSizes = ARGENTINA_2026_SHIRT_SIZES.map((s) => s.code);
 
