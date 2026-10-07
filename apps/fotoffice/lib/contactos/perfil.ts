@@ -331,3 +331,23 @@ export async function marcarClienteSiGana(
   });
   return true;
 }
+
+/**
+ * Una consulta que otro módulo dio por ganada sin recorrido abierto (p. ej. una inscripción a un
+ * curso aprobada para alguien que ya había consultado y cuya consulta no estaba en el tablero):
+ * su contacto pasa de "Contacto" a "Cliente" igual, en una transacción. Con recorrido abierto lo
+ * hace el cierre del motor (`adaptadorCaptacion.alCambiarEtapa`). Idempotente; nunca lanza.
+ */
+export async function marcarClienteDeConsultaGanada(workspaceId: string, leadId: string): Promise<boolean> {
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const consulta = await tx.fotofficeConsulta.findFirst({ where: { leadId, workspaceId }, select: { clientId: true } });
+      if (!consulta) return false;
+      return marcarClienteSiGana(tx, workspaceId, consulta.clientId);
+    });
+  } catch (error) {
+    const e = error as { name?: string; code?: string } | null;
+    console.error("[contactos] marcar cliente de consulta ganada falló", { error: e?.name ?? "desconocido", codigo: e?.code ?? null });
+    return false;
+  }
+}

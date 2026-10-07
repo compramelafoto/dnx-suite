@@ -175,3 +175,30 @@ describe("marcarClienteSiGana", () => {
     expect(B.datos.clientAudit).toHaveLength(0);
   });
 });
+
+describe("marcarClienteDeConsultaGanada", () => {
+  it("con la consulta del workspace, su contacto pasa a CLIENTE en una transacción", async () => {
+    B.agregar("fotofficeConsulta", { workspaceId: "ws-1", leadId: "l1", clientId: "c2" });
+    const antes = B.transacciones.length;
+    expect(await P.marcarClienteDeConsultaGanada("ws-1", "l1")).toBe(true);
+    expect(B.transacciones.length).toBe(antes + 1);
+    expect(B.datos.fotofficeContactoPerfil.find((p) => p.clientId === "c2")?.category).toBe("CLIENTE");
+    // Idempotente.
+    expect(await P.marcarClienteDeConsultaGanada("ws-1", "l1")).toBe(false);
+  });
+
+  it("una consulta de otro workspace o inexistente no toca nada; una falla no lanza", async () => {
+    B.agregar("fotofficeConsulta", { workspaceId: "ws-1", leadId: "l1", clientId: "c2" });
+    expect(await P.marcarClienteDeConsultaGanada("ws-2", "l1")).toBe(false);
+    expect(await P.marcarClienteDeConsultaGanada("ws-1", "nada")).toBe(false);
+    expect(B.datos.fotofficeContactoPerfil.find((p) => p.clientId === "c2")?.category).toBe("CONTACTO");
+    const original = B.tablas.fotofficeConsulta.findFirst;
+    B.tablas.fotofficeConsulta.findFirst = async () => {
+      throw Object.assign(new Error("x"), { code: "P1001" });
+    };
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await P.marcarClienteDeConsultaGanada("ws-1", "l1")).toBe(false);
+    err.mockRestore();
+    B.tablas.fotofficeConsulta.findFirst = original;
+  });
+});

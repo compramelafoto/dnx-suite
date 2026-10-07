@@ -5,6 +5,7 @@ import { sendEnrollmentApprovedEmail } from "./email";
 import { loadWorkspaceSignature } from "@/lib/communications/load-workspace-signature";
 import { computeAvailableSpots, getApprovedEnrollmentCountsByInstanceIds } from "./availability";
 import { ganarConsultaPorSistema } from "@/lib/circuitos/eventos";
+import { marcarClienteDeConsultaGanada } from "@/lib/contactos/perfil";
 import { numerarConsultaNueva } from "@/lib/service-leads/numero";
 
 function decimalToNumber(value: Prisma.Decimal) {
@@ -171,7 +172,14 @@ export async function approveCourseEnrollment(args: {
       });
       // La consulta quedó ganada: su recorrido de venta abierto también se cierra, para que no
       // siga abierta en el tablero. Nunca lanza ni frena la aprobación.
-      await ganarConsultaPorSistema(enrollment.workspaceId, existingContact.id, `Inscripción aprobada para ${enrollment.course.title}`);
+      const { cerrado } = await ganarConsultaPorSistema(
+        enrollment.workspaceId,
+        existingContact.id,
+        `Inscripción aprobada para ${enrollment.course.title}`,
+      );
+      // Sin recorrido abierto que cerrar, el motor no pasa el contacto a "Cliente": se hace acá
+      // (en su propia transacción; nunca lanza).
+      if (!cerrado) await marcarClienteDeConsultaGanada(enrollment.workspaceId, existingContact.id);
       logCourseEvent("crm_contact_updated", {
         workspaceId: enrollment.workspaceId,
         enrollmentId: enrollment.id,
