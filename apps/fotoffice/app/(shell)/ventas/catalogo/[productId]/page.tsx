@@ -8,6 +8,10 @@ import { STORE_MODULE_KEY } from "@/lib/store/constants";
 import { ProductForm } from "../../product-form";
 import { toggleProductActiveAction } from "../../actions";
 import { StoreSections } from "./store-sections";
+import { PresupuestoSections } from "./presupuesto-sections";
+import { leerPerfil, rubrosUsados } from "@/lib/catalogo/perfil";
+import { leerCombo, productosParaCombo } from "@/lib/catalogo/combos";
+import { leerCostos, proveedoresDelWorkspace } from "@/lib/catalogo/costos";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +33,17 @@ export default async function ProductoPage({
     loadPublicSlug(workspace.id),
   ]);
   if (!producto) notFound();
+
+  // Etapa 2: combo, costos-plantilla y datos para presupuestos. Esta ficha ya exige
+  // `sales.catalog` (`requireSalesAdmin`), que es el permiso para ver costos y margen.
+  const [perfil, rubros, combo, productosCombo, costos, proveedores] = await Promise.all([
+    leerPerfil(workspace.id, producto.id),
+    rubrosUsados(workspace.id),
+    leerCombo(workspace.id, producto.id, producto.priceMinor),
+    productosParaCombo(workspace.id, producto.id),
+    leerCostos(workspace.id, producto.id),
+    proveedoresDelWorkspace(workspace.id),
+  ]);
 
   return (
     <div className="space-y-8">
@@ -57,6 +72,17 @@ export default async function ProductoPage({
       ) : null}
 
       <ProductForm product={producto} categories={categorias} error={query.error} />
+
+      <PresupuestoSections
+        productId={producto.id}
+        priceMinor={producto.priceMinor}
+        perfil={perfil}
+        rubros={rubros}
+        combo={combo}
+        productosCombo={productosCombo}
+        costos={costos}
+        proveedores={proveedores}
+      />
 
       <StoreSections product={producto} publicSlug={publicSlug} storeEnabled={storeEnabled} />
     </div>

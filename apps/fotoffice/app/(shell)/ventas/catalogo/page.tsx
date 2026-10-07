@@ -6,6 +6,8 @@ import { listProducts, listProductCategories } from "@/lib/sales/repository";
 import { PRODUCT_KIND_LABELS, type ProductKind } from "@/lib/sales/constants";
 import { formatMinorArs } from "@/lib/membership/money";
 import { CategoryForm } from "../category-form";
+import { loadPublicSlug } from "@/lib/blog/admin-queries";
+import { asegurarCategoriasProductoDnx } from "@/lib/catalogo/semillas";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +24,10 @@ export default async function CatalogoPage({
   // Editar el catálogo es ADMIN+: esconder acá el alta y la administración de categorías es
   // sólo cosmético, el control de verdad vuelve a pedirse en cada pantalla y cada acción.
   const puedeEditar = canEditCatalog;
+
+  // DNX Estudio recibe sus 11 categorías de producto (etapa 2): sólo las que faltan, y sólo
+  // cuando entra alguien que puede editar el catálogo. Para las demás organizaciones no hace nada.
+  if (puedeEditar) await asegurarCategoriasProductoDnx(workspace.id, await loadPublicSlug(workspace.id));
 
   const [productos, categorias] = await Promise.all([
     listProducts(workspace.id, { search: q, categoryId, onlyActive: !verInactivos }),
