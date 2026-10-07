@@ -53,7 +53,9 @@ export default async function PresupuestoPage({ params }: { params: Promise<{ id
       costosCatalogo,
       perfil,
     });
-    editor = <EditorPresupuesto key={borrador.id} datos={datos} puedeGuardar />;
+    // La clave cambia con cada guardado: después de `router.refresh()` el editor se vuelve a montar
+    // con lo que guardó el servidor (precios recalculados, ítems validados), no con su estado viejo.
+    editor = <EditorPresupuesto key={`${borrador.id}:${detalle.updatedAt.getTime()}`} datos={datos} puedeGuardar />;
   }
 
   const enviadoVigente = vigente !== null && vigente.sentAt !== null;

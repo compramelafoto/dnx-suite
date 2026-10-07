@@ -6,7 +6,7 @@ import type { ItemPresupuesto } from "@/lib/presupuestos/constantes";
 import { pesos } from "@/lib/presupuestos/editor";
 import {
   calcularItemDelPanel,
-  PERFIL_VACIO,
+  perfilParaPanel,
   TIPOS_TRABAJO,
   trabajoDesdeMotor,
   trabajoVacio,
@@ -183,8 +183,9 @@ export function PanelCuantoCobro({
   onCerrar: () => void;
 }) {
   const inicial = trabajoDelItem(item);
-  const [perfil, setPerfil] = useState<PerfilPanel>(perfilInicial ?? PERFIL_VACIO);
-  const [verPerfil, setVerPerfil] = useState(perfilInicial === null);
+  // Un ítem ya calculado se reabre con SU perfil guardado, no con el último del editor.
+  const [perfil, setPerfil] = useState<PerfilPanel>(() => perfilParaPanel(item, perfilInicial));
+  const [verPerfil, setVerPerfil] = useState(perfilInicial === null && !item.calculo);
   const [trabajo, setTrabajo] = useState<TrabajoPanel>(inicial.trabajo);
   const [tipoDeTrabajo, setTipoDeTrabajo] = useState(inicial.tipoDeTrabajo);
 
@@ -222,6 +223,10 @@ export function PanelCuantoCobro({
       <CampoTexto etiqueta="Tipo de trabajo" tipo="text" valor={tipoDeTrabajo} onCambio={setTipoDeTrabajo} ayuda="Por ejemplo: Boda, 15 años, Corporativo." />
       <CamposTrabajo trabajo={trabajo} onCambio={setTrabajo} />
 
+      {/* Región viva siempre presente: anuncia sólo el resultado final, no cada dato que falta. */}
+      <p className="sr-only" aria-live="polite">
+        {resultado.ok && c ? `Precio sugerido: ${pesos(c.precioSugerido)}` : ""}
+      </p>
       {resultado.ok && c ? (
         <div className="space-y-2 rounded-[var(--fo-radius-sm)] bg-[var(--fo-surface-hover)] p-3 text-sm">
           <p className="text-base font-semibold text-[var(--fo-text)]">Precio sugerido: {pesos(c.precioSugerido)}</p>
@@ -245,7 +250,7 @@ export function PanelCuantoCobro({
           </button>
         </div>
       ) : (
-        <div className="rounded-[var(--fo-radius-sm)] bg-[var(--fo-surface-hover)] p-3 text-sm" role="status">
+        <div className="rounded-[var(--fo-radius-sm)] bg-[var(--fo-surface-hover)] p-3 text-sm">
           <p className="text-[var(--fo-text)]">{resultado.ok ? "" : resultado.error}</p>
           {!resultado.ok && resultado.faltan.length > 0 ? (
             <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs text-[var(--fo-muted)]">

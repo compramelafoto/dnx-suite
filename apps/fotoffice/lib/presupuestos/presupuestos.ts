@@ -477,6 +477,8 @@ export type DetallePresupuesto = {
   ownerUserId: number | null;
   validUntil: string | null;
   pedidoPorConfirmar: boolean;
+  /** Último cambio (cada guardado del borrador lo mueve): el editor se vuelve a montar con él. */
+  updatedAt: Date;
   /** La del enlace. */
   vigente: VersionVista | null;
   /** El borrador editable (puede ser la vigente, si nunca se envió). */
@@ -495,7 +497,7 @@ export async function leerPresupuesto(ctx: CtxPresupuestos, presupuestoId: unkno
     where: { id: presupuestoId, workspaceId },
     select: {
       id: true, status: true, consultaLeadId: true, clientId: true, ownerUserId: true, validUntil: true,
-      currentVersionId: true, pedidoPorConfirmar: true,
+      currentVersionId: true, pedidoPorConfirmar: true, updatedAt: true,
     },
   });
   if (!p || !esEstadoPresupuesto(p.status)) return null;
@@ -521,6 +523,7 @@ export async function leerPresupuesto(ctx: CtxPresupuestos, presupuestoId: unkno
     ownerUserId: p.ownerUserId,
     validUntil: textoDeFecha(p.validUntil),
     pedidoPorConfirmar: p.pedidoPorConfirmar,
+    updatedAt: p.updatedAt,
     vigente: vigente ? versionParaVista(vigente, conCostos) : null,
     borrador: borrador && p.status !== "ACEPTADO" ? versionParaVista(borrador, conCostos) : null,
     versiones: versiones.map((v) => ({ id: v.id, number: v.number, sentAt: v.sentAt, revokedAt: v.revokedAt, acceptedAt: v.acceptedAt })),

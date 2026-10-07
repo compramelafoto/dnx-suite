@@ -4,6 +4,7 @@ import { prisma, type Prisma } from "@repo/db";
 import { claseDeColorEtiqueta } from "@/lib/ficha/formato";
 import type { AccionLote, ConsultaResuelta, ContextoListado, DefinicionListado, Opcion } from "@/lib/listado/tipos";
 import { numeroDe } from "@/lib/numeracion/asignar";
+import { presupuestoDeIds, TOPE_IDS_POR_CONSULTA, type PresupuestoDeIds } from "@/lib/listado/presupuesto";
 import { responsablesDe } from "@/lib/circuitos/tablero";
 import { TIPO_CONSULTA } from "@/lib/service-leads/numero";
 import type { CtxPresupuestos } from "./acceso";
@@ -21,7 +22,10 @@ import { marcarVencidos } from "./presupuestos";
  */
 
 const ID_VALIDO = /^[A-Za-z0-9_-]{1,64}$/;
-const TOPE_NUMERO = 20_000;
+/** Tope de ids por subconsulta: comparten el presupuesto de parámetros de la consulta (`presupuestoDeIds`). */
+const TOPE_NUMERO = TOPE_IDS_POR_CONSULTA;
+
+export const AVISO_DEMASIADOS = "Hay demasiados presupuestos con ese número. Escribí el número más completo.";
 
 export type FilaListaPresupuesto = {
   id: string;
@@ -85,10 +89,28 @@ export function whereEstado(estado: EstadoPresupuesto, hoy: Date): Prisma.Fotoff
 }
 
 /**
- * Puro: lo que se le pide a Prisma. `workspaceId` va siempre. `idsNumero`: presupuestos cuyo
- * número contiene lo buscado (se suma al OR de la búsqueda).
+ * Puro: las listas de ids de la búsqueda por número en un solo presupuesto de parámetros: los
+ * presupuestos cuyo número contiene lo buscado y los de las consultas cuyo número lo contiene
+ * (el que se ve en la columna Consulta). `null` en una lista = esa subconsulta pasó su tope. Si se
+ * pasan, `excedido`: la lista sale vacía con un aviso, nunca parcial.
  */
-export function wherePresupuestos(workspaceId: string, c: ConsultaResuelta, ahora: Date, idsNumero: string[] = []): Prisma.FotofficePresupuestoWhereInput {
+export function idsDeBusqueda(c: ConsultaResuelta, idsNumero: string[] | null = [], idsPorConsulta: string[] | null = []): PresupuestoDeIds {
+  if (!c.q.trim()) return presupuestoDeIds({ y: [], o: [] });
+  if (idsNumero === null || idsPorConsulta === null) return { excedido: true };
+  return presupuestoDeIds({ y: [], o: [idsNumero, idsPorConsulta] });
+}
+
+/**
+ * Puro: lo que se le pide a Prisma. `workspaceId` va siempre. `busqueda`: los presupuestos que
+ * la búsqueda por número encontró (se suman al OR de la búsqueda).
+ */
+export function wherePresupuestos(
+  workspaceId: string,
+  c: ConsultaResuelta,
+  ahora: Date,
+  busqueda: PresupuestoDeIds = idsDeBusqueda(c),
+): Prisma.FotofficePresupuestoWhereInput {
+  if (busqueda.excedido) return { workspaceId, id: { in: [] } };
   const hoy = hoyEnBuenosAires(ahora);
   const and: Prisma.FotofficePresupuestoWhereInput[] = [];
   const q = c.q.trim();
@@ -100,7 +122,7 @@ export function wherePresupuestos(workspaceId: string, c: ConsultaResuelta, ahor
       { client: { is: { businessName: contiene } } },
       { consultaLead: { is: { name: contiene } } },
     ];
-    if (idsNumero.length > 0) or.push({ id: { in: idsNumero } });
+    if (busqueda.o.length > 0) or.push({ id: { in: busqueda.o } });
     and.push({ OR: or });
   }
   const estado = c.filtros.estado;
@@ -112,20 +134,45 @@ export function wherePresupuestos(workspaceId: string, c: ConsultaResuelta, ahor
   return and.length > 0 ? { workspaceId, AND: and } : { workspaceId };
 }
 
-/** Presupuestos cuyo número mostrado contiene lo buscado (si son demasiados, no suma nada). */
-async function idsPorNumero(workspaceId: string, q: string): Promise<string[]> {
+/** Puro: lo buscado como número ("N° 42" o "Nro. 42" buscan "42"); null sin dígitos. */
+export function textoDeNumero(q: string): string | null {
   const t = q.trim().replace(/^(n\s*[°º]|nro\.?)\s*/i, "").trim();
-  if (!/\d/.test(t)) return [];
+  return /\d/.test(t) ? t : null;
+}
+
+/** Entidades cuyo número mostrado contiene lo buscado; null si son más que el tope. */
+async function entidadesPorNumero(workspaceId: string, entityType: string, texto: string): Promise<string[] | null> {
   const filas = await prisma.fotofficeRecordNumber.findMany({
-    where: { workspaceId, entityType: ENTIDAD_NUMERACION, display: { contains: t, mode: "insensitive" } },
+    where: { workspaceId, entityType, display: { contains: texto, mode: "insensitive" } },
     select: { entityId: true },
     take: TOPE_NUMERO + 1,
   });
-  return filas.length > TOPE_NUMERO ? [] : filas.map((f) => f.entityId);
+  return filas.length > TOPE_NUMERO ? null : filas.map((f) => f.entityId);
+}
+
+/** La búsqueda por número del presupuesto y por número de su consulta, en un solo presupuesto de ids. */
+async function busquedaPorNumero(workspaceId: string, c: ConsultaResuelta): Promise<PresupuestoDeIds> {
+  const texto = textoDeNumero(c.q);
+  if (!texto) return idsDeBusqueda(c);
+  const [propios, consultas] = await Promise.all([
+    entidadesPorNumero(workspaceId, ENTIDAD_NUMERACION, texto),
+    entidadesPorNumero(workspaceId, TIPO_CONSULTA, texto),
+  ]);
+  let deConsultas: string[] | null = [];
+  if (consultas === null) deConsultas = null;
+  else if (consultas.length > 0) {
+    const filas = await prisma.fotofficePresupuesto.findMany({
+      where: { workspaceId, consultaLeadId: { in: consultas } },
+      select: { id: true },
+      take: TOPE_NUMERO + 1,
+    });
+    deConsultas = filas.length > TOPE_NUMERO ? null : filas.map((f) => f.id);
+  }
+  return idsDeBusqueda(c, propios, deConsultas);
 }
 
 async function resolverWhere(ctx: ContextoListado, c: ConsultaResuelta): Promise<Prisma.FotofficePresupuestoWhereInput> {
-  return wherePresupuestos(ctx.workspaceId, c, new Date(), await idsPorNumero(ctx.workspaceId, c.q));
+  return wherePresupuestos(ctx.workspaceId, c, new Date(), await busquedaPorNumero(ctx.workspaceId, c));
 }
 
 function ordenarPor(c: ConsultaResuelta): Prisma.FotofficePresupuestoOrderByWithRelationInput[] {
@@ -232,7 +279,7 @@ export const listadoPresupuestos: DefinicionListado<FilaListaPresupuesto> = {
   clave: "presupuestos",
   titulo: "Presupuestos",
   sustantivo: { singular: "presupuesto", plural: "presupuestos" },
-  placeholderBusqueda: "Buscar por número, contacto o consulta",
+  placeholderBusqueda: "Buscar por número del presupuesto o de la consulta, contacto o consulta",
   columnas: [
     {
       clave: "numero",
@@ -302,6 +349,7 @@ export const listadoPresupuestos: DefinicionListado<FilaListaPresupuesto> = {
     const r = (await responsablesDe(ctx.workspaceId)).find((x) => String(x.id) === id);
     return r?.nombre ?? null;
   },
+  aviso: async (ctx, c) => ((await busquedaPorNumero(ctx.workspaceId, c)).excedido ? AVISO_DEMASIADOS : null),
   acciones: [ACCION_MARCAR_VENCIDOS],
   exportar: {
     columnas: [

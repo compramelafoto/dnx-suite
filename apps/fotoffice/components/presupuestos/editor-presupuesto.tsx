@@ -49,7 +49,9 @@ function secciones(items: readonly ItemPresupuesto[]): (string | null)[] {
 
 function DescuentoCampos({ valor, onCambio, etiqueta }: { valor: Descuento | null; onCambio: (d: Descuento | null) => void; etiqueta: string }) {
   const id = useId();
-  const tipo: TipoDescuento = valor?.tipo ?? "PORCENTAJE";
+  // El tipo vive acá: pasar a "$" con el valor vacío no tiene que volver a "%".
+  const [tipo, setTipo] = useState<TipoDescuento>(valor?.tipo ?? "PORCENTAJE");
+  const tope = (t: TipoDescuento, n: number) => (t === "PORCENTAJE" ? Math.min(n, 100) : n);
   return (
     <div className="flex items-center gap-1">
       <label htmlFor={id} className="sr-only">
@@ -59,19 +61,25 @@ function DescuentoCampos({ valor, onCambio, etiqueta }: { valor: Descuento | nul
         id={id}
         type="number"
         min={0}
+        max={tipo === "PORCENTAJE" ? 100 : undefined}
         className="fo-input w-20 text-right"
         value={valor ? String(valor.valor) : ""}
         placeholder="0"
         onChange={(e) => {
           const n = aNumero(e.target.value);
-          onCambio(n > 0 ? { tipo, valor: tipo === "PORCENTAJE" ? Math.min(n, 100) : n } : null);
+          onCambio(n > 0 ? { tipo, valor: tope(tipo, n) } : null);
         }}
       />
       <select
         aria-label={`${etiqueta}: tipo`}
         className="fo-input w-14"
         value={tipo}
-        onChange={(e) => onCambio(valor ? { tipo: e.target.value as TipoDescuento, valor: valor.valor } : null)}
+        onChange={(e) => {
+          const t = e.target.value as TipoDescuento;
+          setTipo(t);
+          // Al pasar a %, un monto mayor que 100 queda en 100.
+          if (valor) onCambio({ tipo: t, valor: tope(t, valor.valor) });
+        }}
       >
         <option value="PORCENTAJE">%</option>
         <option value="MONTO">$</option>
@@ -79,6 +87,14 @@ function DescuentoCampos({ valor, onCambio, etiqueta }: { valor: Descuento | nul
     </div>
   );
 }
+
+/**
+ * Presupuestos guardados hace un momento. Después de guardar, la página se refresca y el editor se
+ * vuelve a montar con lo que guardó el servidor (la clave es el `updatedAt`); esto sólo sirve para
+ * seguir mostrando "Guardado." después de ese remontaje.
+ */
+const guardadosRecientes = new Map<string, number>();
+const RECIENTE_MS = 10_000;
 
 export function EditorPresupuesto({ datos, puedeGuardar }: { datos: DatosEditor; puedeGuardar: boolean }) {
   const router = useRouter();
@@ -94,7 +110,9 @@ export function EditorPresupuesto({ datos, puedeGuardar }: { datos: DatosEditor;
   const [nuevoCalculado, setNuevoCalculado] = useState<string | null>(null);
   const [asistente, setAsistente] = useState(false);
   const [perfil, setPerfil] = useState<PerfilPanel | null>(datos.internos?.perfil ?? null);
-  const [mensaje, setMensaje] = useState<{ ok: boolean; texto: string } | null>(null);
+  const [mensaje, setMensaje] = useState<{ ok: boolean; texto: string } | null>(() =>
+    Date.now() - (guardadosRecientes.get(datos.presupuestoId) ?? 0) < RECIENTE_MS ? { ok: true, texto: "Guardado." } : null,
+  );
   const [cambios, setCambios] = useState(false);
   /** Ítems calculados con el precio tocado a mano: al guardar viajan con `precioAjustado: true`. */
   const [ajustados, setAjustados] = useState<Set<string>>(() => ajustadosIniciales(datos.items));
@@ -153,6 +171,7 @@ export function EditorPresupuesto({ datos, puedeGuardar }: { datos: DatosEditor;
         propuestaPago,
       }).catch(() => ({ ok: false as const, error: "No se pudo guardar. Probá de nuevo." }));
       if (r.ok) {
+        guardadosRecientes.set(datos.presupuestoId, Date.now());
         setCambios(false);
         setMensaje({ ok: true, texto: "Guardado." });
         router.refresh();
@@ -324,18 +343,19 @@ export function EditorPresupuesto({ datos, puedeGuardar }: { datos: DatosEditor;
                         const r = totales.renglones[it.id];
                         const c = costos?.porItem[it.id];
                         const calculado = it.modoPrecio === "CALCULO";
+                        const etiquetaFila = it.nombre.trim() ? `"${it.nombre.trim()}"` : "ítem sin nombre";
                         return (
                           <tr key={it.id} className="border-t border-[var(--fo-border)] align-top">
                             <td className="py-2 pr-2">
                               <input
-                                aria-label="Nombre del ítem"
+                                aria-label={`Nombre del ítem ${etiquetaFila}`}
                                 className="fo-input"
                                 value={it.nombre}
                                 disabled={!puedeGuardar}
                                 onChange={(e) => actualizar(it.id, { nombre: e.target.value })}
                               />
                               <input
-                                aria-label="Descripción"
+                                aria-label={`Descripción de ${etiquetaFila}`}
                                 className="fo-input mt-1 text-xs"
                                 placeholder="Descripción (opcional)"
                                 value={it.descripcion ?? ""}
@@ -343,12 +363,12 @@ export function EditorPresupuesto({ datos, puedeGuardar }: { datos: DatosEditor;
                                 onChange={(e) => actualizar(it.id, { descripcion: e.target.value || null })}
                               />
                               <label className="mt-1 flex items-center gap-1 text-xs text-[var(--fo-muted)]">
-                                <input type="checkbox" checked={it.opcional} disabled={!puedeGuardar} onChange={(e) => actualizar(it.id, { opcional: e.target.checked })} />
+                                <input type="checkbox" aria-label={`${etiquetaFila} es opcional (no suma al total)`} checked={it.opcional} disabled={!puedeGuardar} onChange={(e) => actualizar(it.id, { opcional: e.target.checked })} />
                                 Opcional (no suma al total)
                               </label>
                               {puedeGuardar && opcionesSeccion.length > 1 ? (
                                 <select
-                                  aria-label="Sección del ítem"
+                                  aria-label={`Sección de ${etiquetaFila}`}
                                   className="fo-input mt-1 text-xs"
                                   value={it.seccion ?? ""}
                                   onChange={(e) => actualizar(it.id, { seccion: e.target.value || null })}
@@ -363,7 +383,7 @@ export function EditorPresupuesto({ datos, puedeGuardar }: { datos: DatosEditor;
                             </td>
                             <td className="py-2 pr-2">
                               <select
-                                aria-label="Cómo se fija el precio"
+                                aria-label={`Cómo se fija el precio de ${etiquetaFila}`}
                                 className="fo-input"
                                 value={it.modoPrecio}
                                 disabled={!puedeGuardar || (!internos && !calculado)}
@@ -383,7 +403,7 @@ export function EditorPresupuesto({ datos, puedeGuardar }: { datos: DatosEditor;
                             </td>
                             <td className="py-2 pr-2">
                               <input
-                                aria-label="Cantidad"
+                                aria-label={`Cantidad de ${etiquetaFila}`}
                                 type="number"
                                 min={0}
                                 className="fo-input w-20 text-right"
@@ -395,7 +415,7 @@ export function EditorPresupuesto({ datos, puedeGuardar }: { datos: DatosEditor;
                             </td>
                             <td className="py-2 pr-2">
                               <input
-                                aria-label="Precio unitario"
+                                aria-label={`Precio unitario de ${etiquetaFila}`}
                                 type="number"
                                 min={0}
                                 className="fo-input w-32 text-right"
@@ -409,7 +429,7 @@ export function EditorPresupuesto({ datos, puedeGuardar }: { datos: DatosEditor;
                             </td>
                             <td className="py-2 pr-2">
                               {puedeGuardar ? (
-                                <DescuentoCampos etiqueta="Descuento del ítem" valor={it.descuento} onCambio={(d) => actualizar(it.id, { descuento: d })} />
+                                <DescuentoCampos etiqueta={`Descuento de ${etiquetaFila}`} valor={it.descuento} onCambio={(d) => actualizar(it.id, { descuento: d })} />
                               ) : it.descuento ? (
                                 it.descuento.tipo === "PORCENTAJE" ? `${it.descuento.valor} %` : pesos(it.descuento.valor)
                               ) : (
@@ -425,13 +445,13 @@ export function EditorPresupuesto({ datos, puedeGuardar }: { datos: DatosEditor;
                             <td className="py-2">
                               {puedeGuardar ? (
                                 <div className="flex gap-1">
-                                  <button type="button" className="fo-btn fo-btn-ghost p-1" aria-label="Subir" onClick={() => mover(it.id, -1)}>
+                                  <button type="button" className="fo-btn fo-btn-ghost p-1" aria-label={`Subir ${etiquetaFila}`} onClick={() => mover(it.id, -1)}>
                                     <ArrowUp className="size-4" aria-hidden />
                                   </button>
-                                  <button type="button" className="fo-btn fo-btn-ghost p-1" aria-label="Bajar" onClick={() => mover(it.id, 1)}>
+                                  <button type="button" className="fo-btn fo-btn-ghost p-1" aria-label={`Bajar ${etiquetaFila}`} onClick={() => mover(it.id, 1)}>
                                     <ArrowDown className="size-4" aria-hidden />
                                   </button>
-                                  <button type="button" className="fo-btn fo-btn-ghost p-1" aria-label="Quitar" onClick={() => cambiar(items.filter((x) => x.id !== it.id))}>
+                                  <button type="button" className="fo-btn fo-btn-ghost p-1" aria-label={`Quitar ${etiquetaFila}`} onClick={() => cambiar(items.filter((x) => x.id !== it.id))}>
                                     <X className="size-4" aria-hidden />
                                   </button>
                                 </div>

@@ -12,6 +12,7 @@ import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 export const dynamic = "force-dynamic";
 
 const ID_VALIDO = /^[A-Za-z0-9_-]{1,64}$/;
+const CONSULTA_GENERICA = "Consulta seleccionada";
 const texto = (v: string | string[] | undefined) => (typeof v === "string" && ID_VALIDO.test(v) ? v : null);
 
 /**
@@ -26,7 +27,9 @@ export default async function NuevoPresupuestoPage({ searchParams }: { searchPar
   const consultaId = texto(sp.consulta);
   const contactoId = texto(sp.contacto);
 
-  const veConsultas = puedeEnContexto(ctx, "ver", SERVICE_LEADS_MODULE_KEY);
+  // La etiqueta de una consulta lleva el nombre del contacto: sólo con "Ver" en Consultas y en
+  // Clientes (R10). Sin eso, la consulta pedida se muestra genérica y no se listan las recientes.
+  const veConsultas = puedeEnContexto(ctx, "ver", SERVICE_LEADS_MODULE_KEY) && puedeEnContexto(ctx, "ver", CLIENTS_MODULE_KEY);
   // Crear la consulta con un contacto existente: el alta pide "Gestionar" en Consultas y "Ver" en Clientes.
   const puedeCrearConsulta = puedeEnContexto(ctx, "operar", SERVICE_LEADS_MODULE_KEY) && puedeEnContexto(ctx, "ver", CLIENTS_MODULE_KEY);
 
@@ -34,7 +37,7 @@ export default async function NuevoPresupuestoPage({ searchParams }: { searchPar
   if (consultaId) {
     const c = await consultaParaPresupuesto(workspace.id, consultaId);
     if (!c) notFound();
-    consultas = [c];
+    consultas = [veConsultas ? c : { id: c.id, etiqueta: CONSULTA_GENERICA }];
   } else if (veConsultas) {
     consultas = await consultasParaPresupuesto(workspace.id, contactoId);
   }

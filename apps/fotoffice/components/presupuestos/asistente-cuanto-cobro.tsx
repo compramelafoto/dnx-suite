@@ -25,7 +25,11 @@ export function AsistenteCuantoCobro({
   const [seccion, setSeccion] = useState("");
   const [trabajos, setTrabajos] = useState<TrabajoPanel[]>([trabajoVacio("Cobertura")]);
 
-  const r = armarItemsDelAsistente(perfil, trabajos, tipoDeTrabajo, { seccion: seccion.trim() || null, nuevaClave });
+  // La vista previa usa claves fijas (por posición): las claves de verdad se generan recién al
+  // agregar, así no cambian en cada tecla.
+  const opciones = (clave: () => string) => ({ seccion: seccion.trim() || null, nuevaClave: clave });
+  let n = 0;
+  const r = armarItemsDelAsistente(perfil, trabajos, tipoDeTrabajo, opciones(() => `vista-${n++}`));
   const total = r.ok ? r.items.reduce((s, i) => s + i.precioUnitario, 0) : 0;
 
   return (
@@ -54,11 +58,16 @@ export function AsistenteCuantoCobro({
 
       <ol className="space-y-4">
         {trabajos.map((t, i) => (
-          <li key={i} className="space-y-2 rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] p-3">
+          <li key={i} aria-label={`Concepto ${i + 1}${t.nombre.trim() ? `: ${t.nombre.trim()}` : ""}`} className="space-y-2 rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] p-3">
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-medium text-[var(--fo-text)]">Concepto {i + 1}</p>
               {trabajos.length > 1 ? (
-                <button type="button" className="fo-btn fo-btn-ghost text-xs" onClick={() => setTrabajos((ts) => ts.filter((_, j) => j !== i))}>
+                <button
+                  type="button"
+                  className="fo-btn fo-btn-ghost text-xs"
+                  aria-label={`Quitar el concepto ${i + 1}${t.nombre.trim() ? ` (${t.nombre.trim()})` : ""}`}
+                  onClick={() => setTrabajos((ts) => ts.filter((_, j) => j !== i))}
+                >
                   Quitar
                 </button>
               ) : null}
@@ -72,6 +81,10 @@ export function AsistenteCuantoCobro({
         Agregar concepto
       </button>
 
+      {/* Región viva siempre presente: anuncia sólo el resultado final, no cada dato que falta. */}
+      <p className="sr-only" aria-live="polite">
+        {r.ok ? `Total sugerido: ${pesos(total)}` : ""}
+      </p>
       {r.ok ? (
         <div className="space-y-2 rounded-[var(--fo-radius-sm)] bg-[var(--fo-surface-hover)] p-3 text-sm">
           <ul className="space-y-1">
@@ -83,12 +96,19 @@ export function AsistenteCuantoCobro({
             ))}
           </ul>
           <p className="font-semibold text-[var(--fo-text)]">Total sugerido: {pesos(total)}</p>
-          <button type="button" className="fo-btn fo-btn-primary text-sm" onClick={() => onAgregar(r.items, perfil)}>
+          <button
+            type="button"
+            className="fo-btn fo-btn-primary text-sm"
+            onClick={() => {
+              const final = armarItemsDelAsistente(perfil, trabajos, tipoDeTrabajo, opciones(nuevaClave));
+              if (final.ok) onAgregar(final.items, perfil);
+            }}
+          >
             Agregar {r.items.length === 1 ? "el ítem" : `los ${r.items.length} ítems`}
           </button>
         </div>
       ) : (
-        <div className="rounded-[var(--fo-radius-sm)] bg-[var(--fo-surface-hover)] p-3 text-sm" role="status">
+        <div className="rounded-[var(--fo-radius-sm)] bg-[var(--fo-surface-hover)] p-3 text-sm">
           <p>{r.error}</p>
           {r.faltan.length > 0 ? (
             <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs text-[var(--fo-muted)]">

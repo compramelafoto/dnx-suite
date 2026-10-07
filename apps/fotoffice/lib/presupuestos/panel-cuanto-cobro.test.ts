@@ -8,6 +8,7 @@ import {
   entradaDelPanel,
   PERFIL_VACIO,
   perfilAlMotor,
+  perfilParaPanel,
   perfilDesdeMotor,
   trabajoDesdeMotor,
   trabajoVacio,
@@ -81,5 +82,15 @@ describe("panel de ¿Cuánto Cobro? (motor real)", () => {
     const segunda = trabajoDesdeMotor((r.items[1]!.calculo!.entrada as { presupuesto: unknown }).presupuesto)!;
     expect(segunda.trabajo.horasCliente).toBe("");
     expect(armarItemsDelAsistente(PERFIL, [], "", { nuevaClave: () => "z" }).ok).toBe(false);
+  });
+
+  it("al reabrir un ítem calculado, el panel usa SU perfil guardado y no el último del editor", () => {
+    const r = calcularItemDelPanel(PERFIL, BODA, "Boda", { id: "i1", nombre: "Boda" }, CUANDO);
+    if (!r.ok) throw new Error(r.error);
+    const otro: PerfilPanel = { ...PERFIL, gastosPersonales: "1", horasSemanales: "10" };
+    expect(perfilParaPanel(r.item, otro)).toMatchObject({ gastosPersonales: "900000", horasSemanales: "40" });
+    expect(perfilParaPanel({ calculo: null }, otro)).toBe(otro);
+    expect(perfilParaPanel(null, null)).toEqual(PERFIL_VACIO);
+    expect(perfilParaPanel({ calculo: { entrada: { perfil: "roto" } } }, otro)).toBe(otro);
   });
 });

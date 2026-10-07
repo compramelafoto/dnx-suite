@@ -255,6 +255,16 @@ export function perfilDesdeMotor(raw: unknown): PerfilPanel | null {
   };
 }
 
+/**
+ * El perfil con el que se abre el panel de un ítem: el que quedó guardado en SU cálculo (así se
+ * reabre con los mismos números con los que se calculó); si no tiene, el del editor (el último
+ * usado), y si tampoco, el vacío.
+ */
+export function perfilParaPanel(item: { calculo: { entrada: unknown } | null } | null, perfilDelEditor: PerfilPanel | null): PerfilPanel {
+  const guardado = item?.calculo ? perfilDesdeMotor((item.calculo.entrada as { perfil?: unknown } | null)?.perfil) : null;
+  return guardado ?? perfilDelEditor ?? PERFIL_VACIO;
+}
+
 /** El primer concepto del trabajo guardado, en corto. */
 export function trabajoDesdeMotor(raw: unknown): { trabajo: TrabajoPanel; tipoDeTrabajo: string } | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;

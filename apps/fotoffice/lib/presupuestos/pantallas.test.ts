@@ -91,8 +91,25 @@ describe("lista de Presupuestos (motor 0.2)", () => {
     ]);
     expect(L.wherePresupuestos("ws-1", consulta({ vencidos: "no" }), AHORA).AND).toEqual([{ NOT: L.whereVencido(HOY) }]);
     expect(L.wherePresupuestos("ws-1", consulta({ estado: "INVENTADO", responsable: "x" }), AHORA)).toEqual({ workspaceId: "ws-1" });
-    const conBusqueda = L.wherePresupuestos("ws-1", consulta({}, "Laura"), AHORA, ["p9"]);
-    expect(JSON.stringify(conBusqueda)).toContain('"id":{"in":["p9"]}');
+    const c = consulta({}, "42");
+    const conBusqueda = L.wherePresupuestos("ws-1", c, AHORA, L.idsDeBusqueda(c, ["p9"], ["p7", "p9"]));
+    // Número del presupuesto y de su consulta, sin repetidos, en el OR de la búsqueda.
+    expect(JSON.stringify(conBusqueda)).toContain('"id":{"in":["p9","p7"]}');
+  });
+
+  it("búsqueda por número: pasado el tope (o una subconsulta que se pasó) la lista sale vacía, con aviso", () => {
+    const c = consulta({ estado: "BORRADOR" }, "N° 2");
+    expect(L.textoDeNumero("N° 2026-0042")).toBe("2026-0042");
+    expect(L.textoDeNumero("Laura")).toBeNull();
+    expect(L.idsDeBusqueda(c, null, [])).toEqual({ excedido: true });
+    expect(L.idsDeBusqueda(c, [], null)).toEqual({ excedido: true });
+    const muchos = Array.from({ length: 20_001 }, (_, i) => `p${i}`);
+    expect(L.idsDeBusqueda(c, muchos, []).excedido).toBe(true);
+    expect(L.wherePresupuestos("ws-1", c, AHORA, { excedido: true })).toEqual({ workspaceId: "ws-1", id: { in: [] } });
+    // Sin texto no hay búsqueda por número aunque lleguen listas.
+    expect(L.idsDeBusqueda(consulta({}), null, null)).toEqual({ excedido: false, y: null, o: [] });
+    expect(typeof L.listadoPresupuestos.aviso).toBe("function");
+    expect(L.AVISO_DEMASIADOS).toMatch(/demasiados/);
   });
 
   it("marcar vencidos: sólo los enviados o vistos que ya vencieron, dentro del workspace", async () => {
@@ -193,5 +210,32 @@ describe("fuente de las pantallas", () => {
     const pos = orden.map((s) => guarda.indexOf(s));
     expect(pos.every((p) => p > -1)).toBe(true);
     expect([...pos].sort((a, b) => a - b)).toEqual(pos);
+  });
+
+  it("revisión de la Task 4: editor, asistente, accesibilidad y Nuevo", () => {
+    const editor = leer("components/presupuestos/editor-presupuesto.tsx");
+    // El tipo del descuento vive en el campo (pasar a "$" vacío no vuelve a "%"); % se acota a 100.
+    expect(editor).toMatch(/const \[tipo, setTipo\] = useState<TipoDescuento>/);
+    expect(editor).toContain('t === "PORCENTAJE" ? Math.min(n, 100) : n');
+    // Etiquetas por fila con el nombre del ítem.
+    expect(editor).toContain("aria-label={`Cantidad de ${etiquetaFila}`}");
+    expect(editor).not.toMatch(/aria-label="(Cantidad|Precio unitario|Quitar)"/);
+    // Después de guardar, el editor se vuelve a montar con lo del servidor.
+    expect(leer("app/(shell)/presupuestos/[id]/page.tsx")).toContain("key={`${borrador.id}:${detalle.updatedAt.getTime()}`}");
+    const asistente = leer("components/presupuestos/asistente-cuanto-cobro.tsx");
+    // Claves de verdad sólo al agregar; la vista previa usa claves fijas.
+    expect(asistente.match(/opciones\(nuevaClave\)/g)).toHaveLength(1);
+    expect(asistente.indexOf("opciones(nuevaClave)")).toBeGreaterThan(asistente.indexOf("onClick={() => {"));
+    // Una sola región viva por componente, siempre presente y sólo con el resultado.
+    for (const ruta of ["components/presupuestos/asistente-cuanto-cobro.tsx", "components/presupuestos/panel-cuanto-cobro.tsx"]) {
+      const src = leer(ruta);
+      expect(src.match(/aria-live=/g)).toHaveLength(1);
+      expect(src).not.toContain('role="status"');
+    }
+    expect(leer("components/presupuestos/panel-cuanto-cobro.tsx")).toContain("perfilParaPanel(item, perfilInicial)");
+    // Nuevo: el nombre del contacto de la consulta, sólo con Ver en Consultas y en Clientes.
+    const nuevo = leer("app/(shell)/presupuestos/nuevo/page.tsx");
+    expect(nuevo).toContain('puedeEnContexto(ctx, "ver", SERVICE_LEADS_MODULE_KEY) && puedeEnContexto(ctx, "ver", CLIENTS_MODULE_KEY)');
+    expect(nuevo).toContain("veConsultas ? c : { id: c.id, etiqueta: CONSULTA_GENERICA }");
   });
 });
