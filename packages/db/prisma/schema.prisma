@@ -2078,6 +2078,9 @@ model PhotographerProduct {
   retailPrice         Int                  @default(0)
   currency            String               @default("ARS")
   isActive            Boolean              @default(true)
+  /// Producto de un solo álbum (precios de un colegio). Si un álbum tiene productos propios, su galería
+  /// ofrece sólo esos; los que no tienen álbum se ofrecen en el resto. Sin relación: no bloquea borrar el álbum.
+  albumId             Int?
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   benefitDefinitions  BenefitDefinition[]
@@ -2087,6 +2090,7 @@ model PhotographerProduct {
   @@index([userId])
   @@index([isActive])
   @@index([createdAt])
+  @@index([albumId])
 }
 
 /// Catálogo global reutilizable del fotógrafo (Fase 1 — sin vínculo álbum/checkout).

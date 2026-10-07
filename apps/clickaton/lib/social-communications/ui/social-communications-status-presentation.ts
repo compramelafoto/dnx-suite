@@ -244,22 +244,6 @@ export const SOCIAL_PUBLISH_STATUS_FILTER_OPTIONS: Array<{
   { value: "REJECTED", label: "Rechazada" },
 ];
 
-export function presentWelcomeCardAdminActionLabels(hasCard: boolean): {
-  generate: string;
-  regenerate: string;
-  retry: string;
-  approve: string;
-  reject: string;
-} {
-  return {
-    generate: "Generar placa",
-    regenerate: "Volver a generar",
-    retry: hasCard ? "Volver a intentar la generación" : "Generar placa",
-    approve: "Aprobar placa",
-    reject: "Rechazar placa",
-  };
-}
-
 export function presentEmailQueueOperationalStatus(
   status: string | null | undefined,
 ): SocialCommunicationsStatusPresentation {
@@ -446,12 +430,6 @@ export const SOCIAL_SENSITIVE_CONFIRM = {
   duplicate:
     "¿Duplicar esta solicitud? Se creará una nueva preparación. No publica automáticamente.",
   schedule: "¿Programar esta publicación para la fecha indicada?",
-  regenerateWelcome:
-    "¿Volver a generar la placa? Se creará una nueva versión con los datos actuales. Las descargas anteriores pueden quedar desactualizadas. No se publica automáticamente.",
-  retryWelcome:
-    "¿Volver a intentar la generación? Los datos del participante siguen guardados. No se envía ni publica automáticamente.",
-  approveWelcome: "¿Aprobar esta placa para el flujo editorial?",
-  rejectWelcome: "¿Rechazar esta placa? Deberá generarse nuevamente si corresponde.",
   resendEmail:
     "¿Reenviar el correo de confirmación? El participante recibirá un nuevo mensaje. Puede duplicar comunicaciones si ya lo recibió.",
 } as const;

@@ -80,11 +80,7 @@ export default async function ChooseProfilePage() {
                   institution.memberNumber && vocabulary
                     ? `${vocabulary.Singular} N° ${institution.memberNumber}`
                     : null,
-                  team?.kind === "TEAM"
-                    ? team.role === "STAFF"
-                      ? "Comisión"
-                      : "Administración"
-                    : null,
+                  team?.kind === "TEAM" ? "Comisión Directiva" : null,
                 ]
                   .filter(Boolean)
                   .join(" · ");

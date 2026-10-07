@@ -28,6 +28,25 @@ export function buildCanjeWhatsAppMessage(input: {
   );
 }
 
+/** Mensaje para un pack de preventa cobrado por fuera (librito, copias, digitales). */
+export function buildPreventaCanjeWhatsAppMessage(input: {
+  parentName: string | null;
+  studentName: string | null;
+  albumTitle: string;
+  packLabel: string;
+  link: string;
+}): string {
+  const saludo = input.parentName?.trim() ? `¡Hola ${input.parentName.trim()}!` : "¡Hola!";
+  // Nombres completos: las listas de colegio vienen "APELLIDO Nombre" y el primer token sería el apellido.
+  const alumno = input.studentName?.trim();
+  return (
+    `${saludo} Ya están las fotos de "${input.albumTitle}".\n\n` +
+    `Lo que compraste${alumno ? ` para ${alumno}` : ""} (${input.packLabel}) ya está pago. ` +
+    `Entrá al link y elegí las fotos que van en tu pedido. ` +
+    `Si querés, después podés sumar más fotos (esas se pagan aparte).\n\n${input.link}`
+  );
+}
+
 export function buildWhatsAppUrl(phone: string, message: string): string | null {
   const tel = telefonoWhatsAppArgentina(phone);
   return tel ? `https://wa.me/${tel}?text=${encodeURIComponent(message)}` : null;

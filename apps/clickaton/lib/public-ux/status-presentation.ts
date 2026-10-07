@@ -348,38 +348,6 @@ export function presentPaymentReturn(input: {
   };
 }
 
-export function presentWelcomeCardStatus(
-  status: string | null | undefined,
-): PublicStatusPresentation {
-  switch (status) {
-    case "GENERATED":
-      return {
-        label: "Lista para compartir",
-        description: "Ya podés ver, descargar y compartir tu placa de bienvenida.",
-        tone: "success",
-        isFinal: true,
-      };
-    case "FAILED":
-      return {
-        label: "No pudimos generar la placa",
-        description: "Revisá tu foto de perfil o pedí ayuda desde el formulario de contacto.",
-        tone: "danger",
-        nextAction: "Volvé a intentar más tarde desde esta misma pantalla.",
-        isFinal: false,
-      };
-    case "PENDING":
-    case null:
-    case undefined:
-    default:
-      return {
-        label: "Generando tu placa",
-        description: "En unos momentos vas a poder previsualizarla y descargarla acá.",
-        tone: "info",
-        isFinal: false,
-      };
-  }
-}
-
 export function presentPromptStatus(status: string | null | undefined): string {
   switch (status) {
     case "LOCKED":

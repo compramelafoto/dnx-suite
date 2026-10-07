@@ -15,6 +15,7 @@ import { queueEmail } from "@/lib/email-queue";
 import { createPackAccessTokenForOrder } from "./pack-access-tokens";
 import { parsePreCompraOrderIdFromPaymentRef } from "./preventa-redeem-url";
 import { studentNameForGreeting } from "./preventa-canje-slots";
+import { isPlaceholderEmail } from "@/lib/canje-externo/external-preventa";
 
 const AVISO_REF_KEY = "fotosListasAvisoAt";
 
@@ -127,7 +128,9 @@ export async function notifyPreventaPhotosReady(params: {
   let enviados = 0;
   let sinEmail = 0;
   const avisar = async (o: (typeof orders)[number]) => {
-    if (!o.buyerEmail?.includes("@")) {
+    // Los packs cobrados por fuera no tienen email hasta que la familia canjea: a esos les
+    // llega el link por el chat de la fotógrafa (panel Canjes), no por correo.
+    if (!o.buyerEmail?.includes("@") || isPlaceholderEmail(o.buyerEmail)) {
       sinEmail++;
       return;
     }

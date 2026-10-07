@@ -112,15 +112,6 @@ async function main() {
     action: "payment.updated",
   });
 
-  try {
-    const { enqueueWelcomeCardAfterPaid } = await import("../lib/welcome-card/enqueue");
-    await enqueueWelcomeCardAfterPaid({
-      registrationId: REG,
-      editionId: reg.editionId,
-    });
-  } catch {
-    // soft
-  }
 
   const after = await prisma.clickatonRegistration.findUnique({
     where: { id: REG },

@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import PhotoSlideViewer from "@/components/photo/PhotoSlideViewer";
+import { getCheckoutEmailValidationError } from "@/lib/email-validation";
 import type { PreventaPackSnapshotBenefitV1 } from "@/lib/preventa-canjeable/preventa-pack-snapshot-v1";
 import {
   buildCanjeSlotPlan,
@@ -33,12 +34,25 @@ type Props = {
     benefits: Array<
       Pick<
         PreventaPackSnapshotBenefitV1,
-        "stableKey" | "kind" | "selectionMode" | "includedQuantity" | "requiredPhotoCount" | "sortOrder" | "name"
+        | "stableKey"
+        | "kind"
+        | "selectionMode"
+        | "includedQuantity"
+        | "requiredPhotoCount"
+        | "sortOrder"
+        | "name"
+        | "includesDigital"
+        | "previewImageUrl"
       >
     >;
     parentName: string | null;
     studentName: string | null;
   };
+  /**
+   * Pack cobrado por fuera: no tenemos el email de la familia, así que se lo pedimos antes de
+   * confirmar (ahí le llegan los digitales y el comprobante).
+   */
+  pedirContacto?: boolean;
   photos: Array<{ id: number; sellPrint: boolean; sellDigital: boolean }>;
 };
 
@@ -46,8 +60,8 @@ function primerNombre(nombre: string | null): string | null {
   return nombre ? nombre.trim().split(/\s+/)[0] : null;
 }
 
-function describirGrupo(g: { kind: string; units: number; photosPerUnit: number }): string {
-  const formato = g.kind === "DIGITAL" ? "digital" : "impresa";
+function describirGrupo(g: { kind: string; units: number; photosPerUnit: number }, conDigital = false): string {
+  const formato = g.kind === "DIGITAL" ? "digital" : conDigital ? "impresa + su digital" : "impresa";
   if (g.photosPerUnit > 1) {
     return g.units === 1
       ? `${g.photosPerUnit} fotos distintas · ${formato}`
@@ -61,8 +75,13 @@ function describirGrupo(g: { kind: string; units: number; photosPerUnit: number 
  * cobrados por fuera: casilleros que se llenan, grilla para tocar fotos y un cierre con la
  * descarga. Los casilleros salen de lo que incluye el pack (copia grupal, librito, digitales).
  */
-export default function PreventaCanjeFlow({ token, album, pack, photos }: Props) {
+export default function PreventaCanjeFlow({ token, album, pack, photos, pedirContacto = false }: Props) {
   const plan = useMemo(() => buildCanjeSlotPlan(pack.benefits), [pack.benefits]);
+  const beneficio = useMemo(() => new Map(pack.benefits.map((b) => [b.stableKey, b])), [pack.benefits]);
+  const [boceto, setBoceto] = useState<{ url: string; titulo: string } | null>(null);
+  const [nombre, setNombre] = useState(pack.parentName ?? "");
+  const [email, setEmail] = useState("");
+  const [telefono, setTelefono] = useState("");
   const [paso, setPaso] = useState<Paso>("intro");
   const [filled, setFilled] = useState<Array<number | null>>(() => emptyCanjeFill(plan));
   const [aviso, setAviso] = useState<string | null>(null);
@@ -147,13 +166,27 @@ export default function PreventaCanjeFlow({ token, album, pack, photos }: Props)
 
   async function confirmar() {
     if (enviando || !completo) return;
-    setEnviando(true);
     setError(null);
+    if (pedirContacto) {
+      if (!nombre.trim()) return setError("Escribí tu nombre.");
+      const errEmail = getCheckoutEmailValidationError(email);
+      if (errEmail) return setError(errEmail);
+      const { isValidPhoneForPurchase } = await import("@/lib/phone-validation");
+      if (!telefono.trim() || !isValidPhoneForPurchase(telefono)) {
+        return setError("Escribí tu WhatsApp con código de área (por ejemplo 341 555-1234).");
+      }
+    }
+    setEnviando(true);
     try {
       const res = await fetch(`/api/public/pack/${encodeURIComponent(token)}/redeem`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ selections: buildRedeemSelections(plan, filled) }),
+        body: JSON.stringify({
+          selections: buildRedeemSelections(plan, filled),
+          ...(pedirContacto
+            ? { contacto: { nombre: nombre.trim(), email: email.trim(), telefono: telefono.trim() } }
+            : {}),
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || "No pudimos confirmar el canje.");
@@ -181,7 +214,27 @@ export default function PreventaCanjeFlow({ token, album, pack, photos }: Props)
             size={size}
           />
           <p className="m-0 mt-2 text-sm font-medium text-[#1f2328]">{g.label}</p>
-          <p className="m-0 text-xs text-[#6b6f76]">{describirGrupo(g)}</p>
+          <p className="m-0 text-xs text-[#6b6f76]">
+            {describirGrupo(g, beneficio.get(g.benefitKey)?.includesDigital === true)}
+          </p>
+          {beneficio.get(g.benefitKey)?.previewImageUrl ? (
+            <button
+              type="button"
+              onClick={() =>
+                setBoceto({ url: beneficio.get(g.benefitKey)!.previewImageUrl!, titulo: g.label })
+              }
+              className="mx-auto mt-2 block rounded-lg border border-[#e7e1da] bg-white p-1 hover:border-[#c27b3d]"
+              aria-label={`Ver cómo queda: ${g.label}`}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={beneficio.get(g.benefitKey)!.previewImageUrl!}
+                alt=""
+                className={`${size === "sm" ? "h-10" : "h-20"} w-auto rounded object-contain`}
+              />
+              <span className="block text-[11px] text-[#a8652e] underline">Ver cómo queda</span>
+            </button>
+          ) : null}
         </div>
       ))}
     </div>
@@ -323,6 +376,46 @@ export default function PreventaCanjeFlow({ token, album, pack, photos }: Props)
             >
               Cambiar fotos
             </button>
+            {pedirContacto ? (
+              <div className="mt-7 space-y-4 border-t border-[#efeae4] pt-6 text-left">
+                <h2 className="m-0 text-lg font-semibold text-[#1f2328]">Tus datos</h2>
+                <p className="m-0 text-sm text-[#6b6f76]">
+                  Al email te mandamos los archivos digitales. El WhatsApp es para coordinar la entrega de lo impreso.
+                </p>
+                <label className="block">
+                  <span className="mb-1 block text-sm font-medium text-[#1f2328]">Nombre y apellido</span>
+                  <input
+                    className="min-h-11 w-full rounded-lg border border-[#d8d0c7] px-3 text-base focus:border-[#c27b3d] focus:outline-none"
+                    value={nombre}
+                    onChange={(e) => setNombre(e.target.value)}
+                    autoComplete="name"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-sm font-medium text-[#1f2328]">Email</span>
+                  <input
+                    className="min-h-11 w-full rounded-lg border border-[#d8d0c7] px-3 text-base focus:border-[#c27b3d] focus:outline-none"
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    spellCheck={false}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-sm font-medium text-[#1f2328]">WhatsApp</span>
+                  <input
+                    className="min-h-11 w-full rounded-lg border border-[#d8d0c7] px-3 text-base focus:border-[#c27b3d] focus:outline-none"
+                    type="tel"
+                    autoComplete="tel"
+                    placeholder="341 555-1234"
+                    value={telefono}
+                    onChange={(e) => setTelefono(e.target.value)}
+                  />
+                </label>
+              </div>
+            ) : null}
           </section>
         ) : null}
 
@@ -341,7 +434,7 @@ export default function PreventaCanjeFlow({ token, album, pack, photos }: Props)
                 </a>
                 <p className="m-0 mt-3 text-sm text-[#4b4f56]">
                   Si todavía se están preparando, esa página te avisa y se actualiza sola. También te llega el
-                  link por correo.
+                  link por correo{pedirContacto && email.trim() ? ` a ${email.trim()}` : ""}.
                 </p>
               </>
             ) : null}
@@ -412,6 +505,22 @@ export default function PreventaCanjeFlow({ token, album, pack, photos }: Props)
               </button>
             )}
           </div>
+        </div>
+      ) : null}
+
+      {boceto ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Cómo queda: ${boceto.titulo}`}
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/80 p-4"
+          onClick={() => setBoceto(null)}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={boceto.url} alt={`Boceto: ${boceto.titulo}`} className="max-h-[80vh] max-w-full rounded-lg bg-white object-contain" />
+          <p className="m-0 mt-3 text-center text-sm text-white">
+            {boceto.titulo} · boceto ilustrativo. Tocá en cualquier lugar para cerrar.
+          </p>
         </div>
       ) : null}
 

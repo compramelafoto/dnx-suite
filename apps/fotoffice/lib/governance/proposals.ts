@@ -68,3 +68,49 @@ export function proposalStateForMember(status: string): { label: string; tone: "
   if (status === "DONE") return { label: "Realizada", tone: "success" };
   return { label: "Aceptada: la comisión la está tratando", tone: "info" };
 }
+
+export type JourneyStepState = "done" | "current" | "pending" | "failed";
+export type JourneyStep = { key: "sent" | "review" | "meeting" | "approved" | "done"; label: string; state: JourneyStepState };
+
+const PASOS: { key: JourneyStep["key"]; label: string }[] = [
+  { key: "sent", label: "Enviada" },
+  { key: "review", label: "La revisa la comisión" },
+  { key: "meeting", label: "Se trata en reunión" },
+  { key: "approved", label: "Aprobada" },
+  { key: "done", label: "Realizada" },
+];
+
+/**
+ * El camino de una propuesta en cinco pasos, para dibujarlo como una línea de avance. El paso
+ * donde se cortó (archivada, no aprobada, cancelada) queda marcado como fallido con su nombre.
+ */
+export function proposalJourney(status: string): JourneyStep[] {
+  const corte: Record<string, { at: number; label: string }> = {
+    ARCHIVED: { at: 1, label: "Archivada" },
+    REJECTED: { at: 2, label: "No aprobada" },
+    CANCELLED: { at: 4, label: "Cancelada" },
+  };
+  const actual: Record<string, { at: number; label?: string }> = {
+    MEMBER_PROPOSAL: { at: 1 },
+    PROPOSED: { at: 2 },
+    IN_REVIEW: { at: 2 },
+    POSTPONED: { at: 2, label: "Postergada a otra reunión" },
+    APPROVED: { at: 4, label: "Por realizarse" },
+    IN_PROGRESS: { at: 4, label: "En marcha" },
+    DONE: { at: 5 },
+  };
+  const c = corte[status];
+  if (c) {
+    return PASOS.map((p, i) => ({
+      ...p,
+      label: i === c.at ? c.label : p.label,
+      state: i < c.at ? "done" : i === c.at ? "failed" : "pending",
+    }));
+  }
+  const a = actual[status] ?? { at: 1 };
+  return PASOS.map((p, i) => ({
+    ...p,
+    label: i === a.at && a.label ? a.label : p.label,
+    state: i < a.at ? "done" : i === a.at ? "current" : "pending",
+  }));
+}

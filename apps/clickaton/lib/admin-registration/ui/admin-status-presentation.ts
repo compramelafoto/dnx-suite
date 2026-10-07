@@ -14,7 +14,6 @@ import {
 } from "@/lib/admin-registration/ui/status-labels";
 import {
   presentFulfillmentStatus,
-  presentWelcomeCardStatus,
   type PublicStatusPresentation,
   type PublicStatusTone,
 } from "@/lib/public-ux/status-presentation";
@@ -236,26 +235,6 @@ export function presentAdminFulfillmentStatus(
         nextAction: "Marcá como entregado cuando lo entregues en sede.",
       };
   }
-}
-
-export function presentAdminWelcomeCardStatus(
-  status: string | null | undefined,
-): AdminStatusPresentation {
-  const base = presentWelcomeCardStatus(status);
-  const adminLabel =
-    status === "GENERATED"
-      ? "Placa disponible"
-      : status === "FAILED"
-        ? "Placa con error"
-        : status === "PENDING" || !status
-          ? "Placa pendiente"
-          : base.label;
-  return {
-    ...base,
-    label: adminLabel,
-    attention:
-      status === "GENERATED" ? "ok" : status === "FAILED" ? "action" : "watch",
-  };
 }
 
 export function presentAdminEmailQueueStatus(

@@ -5,7 +5,6 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { AccreditationLiveRedirect } from "@/components/account/AccreditationLiveRedirect";
 import { CredentialPrintActions } from "@/components/account/CredentialPrintActions";
-import { WelcomeCardShareCard } from "@/components/account/WelcomeCardShareCard";
 import {
   ParticipantCardsSection,
   type ParticipantCardUiState,
@@ -17,7 +16,6 @@ import { hasClickatonCardConsent } from "@/lib/participant-cards";
 import { evaluateClickatonCardEligibility } from "@/lib/participant-cards";
 import { canExposeParticipantCardsActions } from "@/lib/participant-cards/participant-card-runtime-config";
 import { isParticipantCardsPublicUiEnabled } from "@/lib/participant-cards/participant-card-feature-flags";
-import { isSistemaViejoDePlacasActivo } from "@/lib/welcome-card/sistema-viejo";
 import { decideParticipantCardsSections } from "@/lib/participant-cards/participant-card-section-visibility";
 import { CLICKATON_LOGIN_PATH } from "@/lib/auth/return-path";
 import { participantLivePath } from "@/lib/participant-live/routes";
@@ -99,12 +97,11 @@ export default async function RegistrationCredentialPage({ params }: Props) {
     (registration.paymentStatus === "APPROVED" ||
       registration.paymentStatus === "NOT_REQUIRED");
 
-  // Cuál de los dos sistemas de placas se muestra. Nunca los dos, y nunca ninguno si pagó.
+  // Si se muestra la sección de placas.
   const cardSections = decideParticipantCardsSections({
     paid,
     v2Available: canExposeParticipantCardsActions(),
     publicUiEnabled: isParticipantCardsPublicUiEnabled(),
-    legacyEnabled: isSistemaViejoDePlacasActivo(),
   });
 
   const temporal = await getEditionTemporalState(registration.editionId);
@@ -360,17 +357,6 @@ export default async function RegistrationCredentialPage({ params }: Props) {
       })()
         : null}
 
-      {cardSections.legacy ? (
-        <WelcomeCardShareCard
-          registrationId={registration.id}
-          status={registration.welcomeCardStatus}
-          visibleCode={registration.visibleCode}
-          instagramHandle={registration.instagramHandle}
-          participantName={`${registration.firstName} ${registration.lastName}`.trim()}
-          city={registration.city}
-          categoryLabel={registration.ticketType?.name ?? null}
-        />
-      ) : null}
 
       <Card variant="outlined" className="space-y-4 p-6">
         <h2 className="font-semibold">Acreditación</h2>

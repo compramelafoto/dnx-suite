@@ -46,6 +46,13 @@ export type PreventaPackSnapshotBenefitV1 = {
   kindLabel: string;
   /** Texto largo para UI cliente / soporte */
   summary: string;
+  /**
+   * Impreso que trae además el digital de las mismas fotos (p. ej. "librito + su digital" de
+   * una preventa cobrada por fuera). Al canjear se agrega la línea digital de cada foto.
+   */
+  includesDigital?: boolean;
+  /** Boceto que ve la familia mientras elige (p. ej. cómo queda el librito). Sólo https. */
+  previewImageUrl?: string | null;
 };
 
 export type PreventaPackSnapshotV1 = {
@@ -368,6 +375,11 @@ export function parsePreventaPackSnapshotV1(raw: unknown): PreventaPackSnapshotV
       description: b.description as string | null | undefined,
       kindLabel: typeof b.kindLabel === "string" ? b.kindLabel : undefined,
       summary: typeof b.summary === "string" ? b.summary : undefined,
+      includesDigital: b.includesDigital === true,
+      previewImageUrl:
+        typeof b.previewImageUrl === "string" && /^https:\/\/\S+$/.test(b.previewImageUrl.trim())
+          ? b.previewImageUrl.trim()
+          : null,
     };
     benefits.push(enrichBenefitHumanFields(packDefinitionId, technical));
   }
