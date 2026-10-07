@@ -10,7 +10,14 @@
  * precio y la instantánea guarda lo que sugirió el motor, para ver después cuánto se apartó.
  * La instantánea tiene costos y márgenes: es interna (ver `itemSinDatosInternos`).
  */
-import type { CuantoCobroCalculationResult } from "@repo/cuanto-cobro-core";
+import {
+  calculateCuantoCobro,
+  INITIAL_CUANTO_COBRO_PROFILE,
+  INITIAL_CUANTO_COBRO_QUOTE,
+  type CuantoCobroCalculationResult,
+  type CuantoCobroProfileInput,
+  type CuantoCobroQuoteInput,
+} from "@repo/cuanto-cobro-core";
 import type { Descuento, InstantaneaCalculo, ItemPresupuesto } from "./constantes";
 
 export type EntradaItemCalculado = {
@@ -92,4 +99,71 @@ export function itemDesdeCalculo(resultado: CuantoCobroCalculationResult, entrad
       opcional: entrada.opcional === true,
     },
   };
+}
+
+// --- Recalcular en el servidor (R2) ------------------------------------------------------------
+
+/**
+ * Lo que el panel guarda en `calculo.entrada` para poder recalcular: el perfil y el trabajo, tal
+ * como los recibe el motor.
+ */
+export type EntradaMotor = { perfil: CuantoCobroProfileInput; presupuesto: CuantoCobroQuoteInput };
+
+/** Tope del JSON de entrada (el perfil y el trabajo de un panel real pesan unos pocos KB). */
+export const TOPE_ENTRADA_MOTOR = 200_000;
+
+function objetoPlano(v: unknown): v is Record<string, unknown> {
+  return !!v && typeof v === "object" && !Array.isArray(v);
+}
+
+/** Valida la forma de la entrada (sin confiar en nada) o devuelve null. */
+export function entradaDelMotor(v: unknown): EntradaMotor | null {
+  if (!objetoPlano(v) || !objetoPlano(v.perfil) || !objetoPlano(v.presupuesto)) return null;
+  let largo: number;
+  try {
+    largo = JSON.stringify(v).length;
+  } catch {
+    return null;
+  }
+  if (largo > TOPE_ENTRADA_MOTOR) return null;
+  return { perfil: v.perfil as CuantoCobroProfileInput, presupuesto: v.presupuesto as CuantoCobroQuoteInput };
+}
+
+/**
+ * R2: el servidor nunca confía en la instantánea que manda el navegador. Con las ENTRADAS
+ * guardadas corre el motor otra vez y arma la instantánea de nuevo; del ítem que llegó sólo toma
+ * lo que la persona puede elegir (nombre, cantidad, descuento, sección, opcional y el precio, que
+ * es ajustable). Si el precio que llegó es 0, queda el sugerido del motor.
+ */
+export function recalcularItemCalculo(
+  item: ItemPresupuesto,
+  entrada: EntradaMotor,
+  calculadoEn: Date = new Date(),
+): ResultadoItemCalculado {
+  let resultado: CuantoCobroCalculationResult;
+  try {
+    resultado = calculateCuantoCobro(
+      { ...INITIAL_CUANTO_COBRO_PROFILE, ...entrada.perfil },
+      { ...INITIAL_CUANTO_COBRO_QUOTE, ...entrada.presupuesto },
+    );
+  } catch {
+    return { ok: false, error: "Los datos del cálculo de ¿Cuánto Cobro? no son válidos.", faltan: [] };
+  }
+  const ajustado = item.precioUnitario > 0;
+  const r = itemDesdeCalculo(resultado, {
+    id: item.id,
+    nombre: item.nombre,
+    descripcion: item.descripcion,
+    cantidad: item.cantidad,
+    precioAjustado: ajustado ? redondear2(item.precioUnitario * item.cantidad) : null,
+    descuento: item.descuento,
+    seccion: item.seccion,
+    opcional: item.opcional,
+    productId: item.productId,
+    parametros: entrada,
+    calculadoEn,
+  });
+  // El unitario elegido queda tal cual (sin la vuelta por el total, que puede correr un centavo).
+  if (r.ok && ajustado) r.item.precioUnitario = item.precioUnitario;
+  return r;
 }

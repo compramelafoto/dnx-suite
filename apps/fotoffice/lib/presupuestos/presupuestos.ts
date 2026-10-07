@@ -1,0 +1,489 @@
+import "server-only";
+import { prisma, type Prisma } from "@repo/db";
+import { altaDeConsulta, type DatosAlta } from "@/lib/consultas/alta";
+import type { DatosContacto } from "@/lib/consultas/contacto";
+import { puedeEnContexto } from "@/lib/access/policy";
+import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
+import { asignarNumero, numeroDe, type NumeroAsignado } from "@/lib/numeracion/asignar";
+import { hasModuleLevel } from "@/lib/permissions/module-access";
+import {
+  MENSAJES_PRESUPUESTO,
+  puedeGestionarPresupuestos,
+  puedeVerPresupuestos,
+  QUOTES_MODULE_KEY,
+  veCostos,
+  type CtxPresupuestos,
+} from "./acceso";
+import { leerAjustes } from "./ajustes";
+import { ENTIDAD_NUMERACION, esEstadoPresupuesto, type EstadoPresupuesto } from "./constantes";
+import { estadoEfectivo, ESTADOS_QUE_VENCEN, hoyEnBuenosAires, puedePasar, textoDeFecha, vencimientoDesde } from "./estados";
+import {
+  bloquearPresupuesto,
+  costosVacios,
+  entradasGuardadas,
+  normalizarBorrador,
+  SELECT_VERSION,
+  totalesVacios,
+  versionParaVista,
+  type CostosVersion,
+  type EntradaBorrador,
+  type TotalesGuardados,
+  type VersionVista,
+} from "./versiones";
+
+/**
+ * Presupuestos (spec §2 A.2, §3.2): crear, editar el borrador, rechazar, vencer y leer.
+ *
+ * Reglas comunes:
+ * - el `workspaceId` sale del contexto (la sesión); cada id que llega se busca DENTRO del
+ *   workspace y, si no está, "no existe" (no se distingue de uno de otro workspace);
+ * - los cambios de estado pasan por `puedePasar` y se escriben condicionales (`status` = el
+ *   leído), así dos personas a la vez no pisan un estado que cambió;
+ * - costo y margen sólo salen con `veCostos` (R1).
+ *
+ * Nunca loguea datos personales.
+ */
+
+type Tx = Prisma.TransactionClient;
+
+export type Resultado = { ok: true } | { ok: false; error: string };
+
+export type DepsPresupuestos = {
+  /** ¿Tiene "Gestionar" en Presupuestos? Inyectable en las pruebas; por omisión, los niveles de main. */
+  tieneGestionar?: (userId: number, workspaceId: string) => Promise<boolean>;
+  ahora?: () => Date;
+};
+
+const tieneGestionarPorDefecto = (userId: number, workspaceId: string) =>
+  hasModuleLevel(userId, workspaceId, QUOTES_MODULE_KEY, "MANAGE");
+
+function falla(donde: string, error: unknown): void {
+  const e = error as { name?: string; code?: string } | null;
+  console.error(`[presupuestos] ${donde} falló`, { error: e?.name ?? "desconocido", codigo: e?.code ?? null });
+}
+
+function idValido(v: unknown): v is string {
+  return typeof v === "string" && v.length > 0 && v.length <= 64;
+}
+
+// --- Crear ---------------------------------------------------------------------------------------
+
+export type DatosNuevoPresupuesto = {
+  /** Una consulta del workspace (`ServiceSalesLead.id`). */
+  consultaLeadId?: string | null;
+  /** Sin consulta: se crea una (alta MANUAL) con este contacto y esta categoría. */
+  nuevaConsulta?: { contacto: { clientId: string } | DatosContacto; categoriaId: string } | null;
+  /** Responsable; por omisión, quien lo crea. */
+  ownerUserId?: number | null;
+};
+
+export type ResultadoCreacion = { ok: true; presupuestoId: string; versionId: string; leadId: string } | { ok: false; error: string };
+
+async function puedeSerResponsable(workspaceId: string, userId: unknown, deps: DepsPresupuestos): Promise<boolean> {
+  if (typeof userId !== "number" || !Number.isSafeInteger(userId) || userId <= 0) return false;
+  const miembro = await prisma.workspaceMembership.findFirst({ where: { userId, workspaceId }, select: { id: true } });
+  if (!miembro) return false;
+  return (deps.tieneGestionar ?? tieneGestionarPorDefecto)(userId, workspaceId);
+}
+
+/** La consulta (y su contacto) dentro del workspace, o null. */
+async function consultaDelWorkspace(workspaceId: string, leadId: string): Promise<{ leadId: string; clientId: string } | null | "sinContacto"> {
+  const lead = await prisma.serviceSalesLead.findFirst({ where: { id: leadId, workspaceId }, select: { id: true } });
+  if (!lead) return null;
+  const ficha = await prisma.fotofficeConsulta.findFirst({ where: { leadId, workspaceId }, select: { clientId: true } });
+  return ficha ? { leadId, clientId: ficha.clientId } : "sinContacto";
+}
+
+/**
+ * "Nuevo presupuesto" de una consulta. Si no se eligió consulta, se crea una con el alta de
+ * siempre (`altaDeConsulta`, origen MANUAL: número, circuito y aviso como cualquier alta), lo que
+ * además pide "Gestionar" en Consultas. Crea el presupuesto en BORRADOR con su V1 vacía (las
+ * condiciones y la propuesta de pago salen de los ajustes) y la validez desde los ajustes.
+ */
+export async function crearPresupuesto(
+  ctx: CtxPresupuestos,
+  datos: DatosNuevoPresupuesto,
+  deps: DepsPresupuestos = {},
+): Promise<ResultadoCreacion> {
+  if (!puedeGestionarPresupuestos(ctx) || ctx.userId === null) return { ok: false, error: MENSAJES_PRESUPUESTO.sinPermiso };
+  if (!datos || typeof datos !== "object") return { ok: false, error: MENSAJES_PRESUPUESTO.datosInvalidos };
+  const { workspaceId } = ctx;
+  const ahora = deps.ahora?.() ?? new Date();
+
+  const owner = datos.ownerUserId ?? ctx.userId;
+  if (owner !== ctx.userId && !(await puedeSerResponsable(workspaceId, owner, deps))) {
+    return { ok: false, error: MENSAJES_PRESUPUESTO.responsable };
+  }
+
+  let consulta: { leadId: string; clientId: string };
+  if (datos.consultaLeadId !== undefined && datos.consultaLeadId !== null) {
+    if (!idValido(datos.consultaLeadId)) return { ok: false, error: MENSAJES_PRESUPUESTO.consulta };
+    const c = await consultaDelWorkspace(workspaceId, datos.consultaLeadId);
+    if (c === null) return { ok: false, error: MENSAJES_PRESUPUESTO.consulta };
+    if (c === "sinContacto") return { ok: false, error: MENSAJES_PRESUPUESTO.consultaSinContacto };
+    consulta = c;
+  } else if (datos.nuevaConsulta && typeof datos.nuevaConsulta === "object") {
+    const { contacto, categoriaId } = datos.nuevaConsulta;
+    if (!contacto || typeof contacto !== "object" || !idValido(categoriaId)) return { ok: false, error: MENSAJES_PRESUPUESTO.elegirConsulta };
+    // Un contacto existente sólo con "Ver" en Clientes (R10 de la etapa 1), como el alta de consultas.
+    if ("clientId" in contacto && !puedeEnContexto(ctx, "ver", CLIENTS_MODULE_KEY)) return { ok: false, error: MENSAJES_PRESUPUESTO.sinContactos };
+    // El responsable de la consulta lo decide el alta (sus ajustes): el de Presupuestos puede no gestionar Consultas.
+    const alta: DatosAlta = { contacto, categoriaId };
+    const r = await altaDeConsulta(ctx, alta, { origenDelAlta: "MANUAL" });
+    if (!r.ok) return r;
+    if (r.clientId === null) return { ok: false, error: MENSAJES_PRESUPUESTO.consultaSinContacto };
+    consulta = { leadId: r.leadId, clientId: r.clientId };
+  } else {
+    return { ok: false, error: MENSAJES_PRESUPUESTO.elegirConsulta };
+  }
+
+  const ajustes = await leerAjustes(workspaceId);
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const p = await tx.fotofficePresupuesto.create({
+        data: {
+          workspaceId,
+          consultaLeadId: consulta.leadId,
+          clientId: consulta.clientId,
+          status: "BORRADOR",
+          ownerUserId: owner,
+          validUntil: vencimientoDesde(ahora, ajustes.validezDias),
+        },
+        select: { id: true },
+      });
+      const v = await tx.fotofficePresupuestoVersion.create({
+        data: {
+          workspaceId,
+          presupuestoId: p.id,
+          number: 1,
+          items: [] as Prisma.InputJsonValue,
+          totals: totalesVacios() as unknown as Prisma.InputJsonValue,
+          terms: ajustes.condiciones,
+          paymentProposal: ajustes.propuestaPago,
+          costSnapshot: costosVacios() as unknown as Prisma.InputJsonValue,
+          createdByUserId: ctx.userId,
+        },
+        select: { id: true },
+      });
+      await tx.fotofficePresupuesto.update({ where: { id: p.id }, data: { currentVersionId: v.id }, select: { id: true } });
+      return { ok: true as const, presupuestoId: p.id, versionId: v.id, leadId: consulta.leadId };
+    });
+  } catch (e) {
+    falla("crearPresupuesto", e);
+    return { ok: false, error: MENSAJES_PRESUPUESTO.fallo };
+  }
+}
+
+// --- Borrador --------------------------------------------------------------------------------------
+
+/**
+ * Guarda el borrador: ítems (validados; los de ¿Cuánto Cobro? recalculados en el servidor),
+ * descuentos, condiciones y propuesta de pago. Sólo hay borrador si la última versión no se
+ * envió: para cambiar uno enviado primero se crea la versión siguiente (`crearNuevaVersion`).
+ *
+ * La escritura es condicional (`sentAt IS NULL`, con el candado del presupuesto): si mientras se
+ * guardaba alguien la envió, no se toca la versión enviada.
+ */
+export async function guardarBorrador(
+  ctx: CtxPresupuestos,
+  presupuestoId: unknown,
+  entrada: EntradaBorrador,
+  deps: DepsPresupuestos = {},
+): Promise<Resultado> {
+  if (!puedeGestionarPresupuestos(ctx)) return { ok: false, error: MENSAJES_PRESUPUESTO.sinPermiso };
+  if (!idValido(presupuestoId)) return { ok: false, error: MENSAJES_PRESUPUESTO.datosInvalidos };
+  const { workspaceId } = ctx;
+  const ahora = deps.ahora?.() ?? new Date();
+
+  const p = await prisma.fotofficePresupuesto.findFirst({ where: { id: presupuestoId, workspaceId }, select: { id: true, status: true } });
+  if (!p) return { ok: false, error: MENSAJES_PRESUPUESTO.noExiste };
+  if (p.status === "ACEPTADO") return { ok: false, error: MENSAJES_PRESUPUESTO.aceptado };
+  const borrador = await prisma.fotofficePresupuestoVersion.findFirst({
+    where: { workspaceId, presupuestoId, sentAt: null },
+    select: { id: true, items: true },
+  });
+  if (!borrador) return { ok: false, error: MENSAJES_PRESUPUESTO.yaEnviado };
+
+  const n = await normalizarBorrador(workspaceId, entrada, entradasGuardadas(borrador.items), ahora);
+  if (!n.ok) return n;
+
+  try {
+    return await prisma.$transaction(async (tx): Promise<Resultado> => {
+      await bloquearPresupuesto(tx, presupuestoId);
+      const actual = await tx.fotofficePresupuesto.findFirst({ where: { id: presupuestoId, workspaceId }, select: { status: true } });
+      if (!actual) return { ok: false, error: MENSAJES_PRESUPUESTO.noExiste };
+      if (actual.status === "ACEPTADO") return { ok: false, error: MENSAJES_PRESUPUESTO.aceptado };
+      const r = await tx.fotofficePresupuestoVersion.updateMany({
+        where: { id: borrador.id, workspaceId, presupuestoId, sentAt: null },
+        data: {
+          items: n.valor.items as unknown as Prisma.InputJsonValue,
+          totals: n.valor.totals as unknown as Prisma.InputJsonValue,
+          terms: n.valor.terms,
+          paymentProposal: n.valor.paymentProposal,
+          costSnapshot: n.valor.costSnapshot as unknown as Prisma.InputJsonValue,
+        },
+      });
+      if (r.count !== 1) return { ok: false, error: MENSAJES_PRESUPUESTO.yaEnviado };
+      await tx.fotofficePresupuesto.update({ where: { id: presupuestoId }, data: { updatedAt: ahora }, select: { id: true } });
+      return { ok: true };
+    });
+  } catch (e) {
+    falla("guardarBorrador", e);
+    return { ok: false, error: MENSAJES_PRESUPUESTO.fallo };
+  }
+}
+
+// --- Estados -------------------------------------------------------------------------------------
+
+/**
+ * Cambia el estado de un presupuesto validando la transición contra el estado EFECTIVO (un
+ * enviado que venció cuenta como vencido) y escribiendo condicional sobre el guardado. Lo usan
+ * rechazar (acá) y enviar, ver y aceptar (Task 5).
+ */
+export async function pasarEstado(
+  cliente: Pick<Tx, "fotofficePresupuesto">,
+  args: { workspaceId: string; presupuestoId: string; a: EstadoPresupuesto; ahora: Date; datos?: Prisma.FotofficePresupuestoUncheckedUpdateManyInput },
+): Promise<Resultado> {
+  const p = await cliente.fotofficePresupuesto.findFirst({
+    where: { id: args.presupuestoId, workspaceId: args.workspaceId },
+    select: { status: true, validUntil: true },
+  });
+  if (!p || !esEstadoPresupuesto(p.status)) return { ok: false, error: MENSAJES_PRESUPUESTO.noExiste };
+  const de = estadoEfectivo(p.status, p.validUntil, args.ahora);
+  if (!puedePasar(de, args.a)) return { ok: false, error: MENSAJES_PRESUPUESTO.transicion };
+  const r = await cliente.fotofficePresupuesto.updateMany({
+    where: { id: args.presupuestoId, workspaceId: args.workspaceId, status: p.status },
+    data: { ...args.datos, status: args.a },
+  });
+  return r.count === 1 ? { ok: true } : { ok: false, error: MENSAJES_PRESUPUESTO.cambio };
+}
+
+/** "Rechazado": desde enviado, visto o vencido. */
+export async function rechazarPresupuesto(ctx: CtxPresupuestos, presupuestoId: unknown, deps: DepsPresupuestos = {}): Promise<Resultado> {
+  if (!puedeGestionarPresupuestos(ctx)) return { ok: false, error: MENSAJES_PRESUPUESTO.sinPermiso };
+  if (!idValido(presupuestoId)) return { ok: false, error: MENSAJES_PRESUPUESTO.datosInvalidos };
+  return pasarEstado(prisma, { workspaceId: ctx.workspaceId, presupuestoId, a: "RECHAZADO", ahora: deps.ahora?.() ?? new Date() });
+}
+
+/**
+ * Lote "marcar vencidos": escribe VENCIDO en los enviados o vistos cuyo último día de validez ya
+ * pasó (Buenos Aires). Con `ids`, sólo entre esos (los que se tildaron en la lista; los de otro
+ * workspace no coinciden). Devuelve cuántos marcó.
+ */
+export async function marcarVencidos(
+  ctx: CtxPresupuestos,
+  ids?: unknown,
+  deps: DepsPresupuestos = {},
+): Promise<{ ok: true; marcados: number } | { ok: false; error: string }> {
+  if (!puedeGestionarPresupuestos(ctx)) return { ok: false, error: MENSAJES_PRESUPUESTO.sinPermiso };
+  let filtro: string[] | undefined;
+  if (ids !== undefined && ids !== null) {
+    if (!Array.isArray(ids) || ids.length > 500 || !ids.every(idValido)) return { ok: false, error: MENSAJES_PRESUPUESTO.datosInvalidos };
+    filtro = [...new Set(ids)];
+  }
+  const hoy = hoyEnBuenosAires(deps.ahora?.() ?? new Date());
+  const r = await prisma.fotofficePresupuesto.updateMany({
+    where: {
+      workspaceId: ctx.workspaceId,
+      status: { in: [...ESTADOS_QUE_VENCEN] },
+      validUntil: { lt: hoy },
+      ...(filtro ? { id: { in: filtro } } : {}),
+    },
+    data: { status: "VENCIDO" },
+  });
+  return { ok: true, marcados: r.count };
+}
+
+// --- Número -----------------------------------------------------------------------------------------
+
+/**
+ * Número PRESUPUESTO del presupuesto, dentro de la transacción del primer envío (Task 5). Si ya
+ * tenía, devuelve ése sin consumir otro.
+ */
+export function numerarPresupuesto(tx: Tx, args: { workspaceId: string; presupuestoId: string; fecha: Date }): Promise<NumeroAsignado> {
+  return asignarNumero(tx, {
+    workspaceId: args.workspaceId,
+    key: "PRESUPUESTO",
+    entityType: ENTIDAD_NUMERACION,
+    entityId: args.presupuestoId,
+    fecha: args.fecha,
+  });
+}
+
+// --- Lectura ----------------------------------------------------------------------------------------
+
+export type FilaPresupuesto = {
+  id: string;
+  numero: string | null;
+  estado: EstadoPresupuesto;
+  consultaLeadId: string;
+  clientId: string;
+  contacto: string;
+  ownerUserId: number | null;
+  /** "aaaa-mm-dd". */
+  validUntil: string | null;
+  total: number;
+  /** Versión vigente y si hay un borrador más nuevo. */
+  version: number;
+  tieneBorrador: boolean;
+  pedidoPorConfirmar: boolean;
+  updatedAt: Date;
+  /** Sólo con permiso de costos; si no, null. */
+  costo: number | null;
+  margen: number | null;
+};
+
+export type FiltrosPresupuestos = {
+  estado?: EstadoPresupuesto | null;
+  consultaLeadId?: string | null;
+  clientId?: string | null;
+};
+
+function nombreDeContacto(c: { firstName: string | null; lastName: string | null; businessName: string | null } | undefined): string {
+  if (!c) return "Sin nombre";
+  return c.businessName?.trim() || [c.firstName, c.lastName].filter(Boolean).join(" ").trim() || "Sin nombre";
+}
+
+const TOPE_LISTA = 500;
+
+/**
+ * Lista (y tarjetas de la consulta y del contacto): estado efectivo, total de la vigente, vence,
+ * número y contacto. El filtro VENCIDO incluye los que vencieron sin marcar; ENVIADO y VISTO
+ * excluyen los vencidos.
+ */
+export async function listarPresupuestos(
+  ctx: CtxPresupuestos,
+  filtros: FiltrosPresupuestos = {},
+  deps: DepsPresupuestos = {},
+): Promise<FilaPresupuesto[]> {
+  if (!puedeVerPresupuestos(ctx)) return [];
+  const { workspaceId } = ctx;
+  const ahora = deps.ahora?.() ?? new Date();
+  const conCostos = veCostos(ctx);
+  const estado = filtros.estado && esEstadoPresupuesto(filtros.estado) ? filtros.estado : null;
+  const guardados: EstadoPresupuesto[] | null = estado === null
+    ? null
+    : estado === "VENCIDO" ? ["VENCIDO", ...ESTADOS_QUE_VENCEN] : [estado];
+
+  const filas = await prisma.fotofficePresupuesto.findMany({
+    where: {
+      workspaceId,
+      ...(guardados ? { status: { in: guardados } } : {}),
+      ...(filtros.consultaLeadId ? { consultaLeadId: filtros.consultaLeadId } : {}),
+      ...(filtros.clientId ? { clientId: filtros.clientId } : {}),
+    },
+    orderBy: [{ updatedAt: "desc" }],
+    take: TOPE_LISTA,
+    select: {
+      id: true, status: true, consultaLeadId: true, clientId: true, ownerUserId: true, validUntil: true,
+      currentVersionId: true, pedidoPorConfirmar: true, updatedAt: true,
+    },
+  });
+  if (filas.length === 0) return [];
+  const ids = filas.map((f) => f.id);
+  const [versiones, contactos, numeros] = await Promise.all([
+    prisma.fotofficePresupuestoVersion.findMany({
+      where: { workspaceId, presupuestoId: { in: ids } },
+      select: { id: true, presupuestoId: true, number: true, sentAt: true, totals: true, ...(conCostos ? { costSnapshot: true } : {}) },
+    }),
+    prisma.client.findMany({
+      where: { workspaceId, id: { in: [...new Set(filas.map((f) => f.clientId))] } },
+      select: { id: true, firstName: true, lastName: true, businessName: true },
+    }),
+    numeroDe(workspaceId, ENTIDAD_NUMERACION, ids),
+  ]);
+  const porId = new Map(versiones.map((v) => [v.id, v]));
+  const conBorrador = new Set(versiones.filter((v) => v.sentAt === null).map((v) => v.presupuestoId));
+  const contactoPorId = new Map(contactos.map((c) => [c.id, c]));
+
+  const out: FilaPresupuesto[] = [];
+  for (const f of filas) {
+    if (!esEstadoPresupuesto(f.status)) continue;
+    const efectivo = estadoEfectivo(f.status, f.validUntil, ahora);
+    if (estado !== null && efectivo !== estado) continue;
+    const vigente = f.currentVersionId ? porId.get(f.currentVersionId) : undefined;
+    const totales = vigente?.totals as TotalesGuardados | undefined;
+    const costos = conCostos ? ((vigente as { costSnapshot?: unknown } | undefined)?.costSnapshot as CostosVersion | null | undefined) : null;
+    out.push({
+      id: f.id,
+      numero: numeros.get(f.id) ?? null,
+      estado: efectivo,
+      consultaLeadId: f.consultaLeadId,
+      clientId: f.clientId,
+      contacto: nombreDeContacto(contactoPorId.get(f.clientId)),
+      ownerUserId: f.ownerUserId,
+      validUntil: textoDeFecha(f.validUntil),
+      total: totales?.total ?? 0,
+      version: vigente?.number ?? 1,
+      // La V1 sin enviar es borrador y vigente a la vez: no es "un borrador más nuevo".
+      tieneBorrador: conBorrador.has(f.id) && vigente?.sentAt !== null,
+      pedidoPorConfirmar: f.pedidoPorConfirmar,
+      updatedAt: f.updatedAt,
+      costo: costos ? costos.costoTotal : null,
+      margen: costos ? costos.margen : null,
+    });
+  }
+  return out;
+}
+
+export type DetallePresupuesto = {
+  id: string;
+  numero: string | null;
+  estado: EstadoPresupuesto;
+  estadoGuardado: EstadoPresupuesto;
+  consultaLeadId: string;
+  clientId: string;
+  contacto: string;
+  ownerUserId: number | null;
+  validUntil: string | null;
+  pedidoPorConfirmar: boolean;
+  /** La del enlace. */
+  vigente: VersionVista | null;
+  /** El borrador editable (puede ser la vigente, si nunca se envió). */
+  borrador: VersionVista | null;
+  versiones: { id: string; number: number; sentAt: Date | null; revokedAt: Date | null; acceptedAt: Date | null }[];
+  veCostos: boolean;
+};
+
+/** La ficha del presupuesto (editor y vista). Sin token ni datos de la aceptación más allá de la fecha. */
+export async function leerPresupuesto(ctx: CtxPresupuestos, presupuestoId: unknown, deps: DepsPresupuestos = {}): Promise<DetallePresupuesto | null> {
+  if (!puedeVerPresupuestos(ctx) || !idValido(presupuestoId)) return null;
+  const { workspaceId } = ctx;
+  const ahora = deps.ahora?.() ?? new Date();
+  const conCostos = veCostos(ctx);
+  const p = await prisma.fotofficePresupuesto.findFirst({
+    where: { id: presupuestoId, workspaceId },
+    select: {
+      id: true, status: true, consultaLeadId: true, clientId: true, ownerUserId: true, validUntil: true,
+      currentVersionId: true, pedidoPorConfirmar: true,
+    },
+  });
+  if (!p || !esEstadoPresupuesto(p.status)) return null;
+  const [versiones, contacto, numeros] = await Promise.all([
+    prisma.fotofficePresupuestoVersion.findMany({
+      where: { workspaceId, presupuestoId },
+      orderBy: [{ number: "asc" }],
+      select: SELECT_VERSION,
+    }),
+    prisma.client.findFirst({ where: { id: p.clientId, workspaceId }, select: { firstName: true, lastName: true, businessName: true } }),
+    numeroDe(workspaceId, ENTIDAD_NUMERACION, [p.id]),
+  ]);
+  const vigente = versiones.find((v) => v.id === p.currentVersionId);
+  const borrador = versiones.find((v) => v.sentAt === null);
+  return {
+    id: p.id,
+    numero: numeros.get(p.id) ?? null,
+    estado: estadoEfectivo(p.status, p.validUntil, ahora),
+    estadoGuardado: p.status,
+    consultaLeadId: p.consultaLeadId,
+    clientId: p.clientId,
+    contacto: nombreDeContacto(contacto ?? undefined),
+    ownerUserId: p.ownerUserId,
+    validUntil: textoDeFecha(p.validUntil),
+    pedidoPorConfirmar: p.pedidoPorConfirmar,
+    vigente: vigente ? versionParaVista(vigente, conCostos) : null,
+    borrador: borrador && p.status !== "ACEPTADO" ? versionParaVista(borrador, conCostos) : null,
+    versiones: versiones.map((v) => ({ id: v.id, number: v.number, sentAt: v.sentAt, revokedAt: v.revokedAt, acceptedAt: v.acceptedAt })),
+    veCostos: conCostos,
+  };
+}
