@@ -5,7 +5,8 @@ import { AUTOR_AVISO_EQUIPO, CARACTER_MARCADOR, TOPE_AVISOS_EQUIPO_DIA, VENTANA_
 import { AUTOMATICOS, leerAutomatico } from "./definiciones";
 import { conListaDePrecios, contextoDe, correoValido, destinoDe } from "./contexto";
 import {
-  armarCorreoFinal, completarTextos, enviarCorreo, inicioDelDiaAR, sinAvisosAlEquipo, type CtxEnvio, type DepsEnvio,
+  armarCorreoFinal, candadoDeDireccion, completarTextos, enviarCorreo, inicioDelDiaAR, liberarReserva, reservarEnvioAutomatico,
+  sinAvisosAlEquipo, sinReservasViejas, type CtxEnvio, type DepsEnvio,
 } from "./envio";
 import { sendTransactionalEmail, type OutboundEmail } from "@/lib/communications/send-email";
 
@@ -47,8 +48,12 @@ export async function yaRespondida(
       automatic: true,
       toAddress: { equals: email.trim(), mode: "insensitive" },
       createdAt: { gte: new Date(ahora.getTime() - VENTANA_UNA_AUTORESPUESTA_MS) },
-      // Un aviso al equipo no es una respuesta a esta persona.
-      ...(enTransaccion?.filtro ?? (await sinAvisosAlEquipo(workspaceId))),
+      AND: [
+        // Un aviso al equipo no es una respuesta a esta persona.
+        enTransaccion?.filtro ?? (await sinAvisosAlEquipo(workspaceId)),
+        // Una reserva abandonada (de hace más de una hora) no cuenta.
+        sinReservasViejas(ahora),
+      ],
     },
     select: { id: true },
   });
@@ -99,12 +104,27 @@ export async function responderConsultaNueva(
       return "PLANTILLA_CON_ERRORES";
     }
 
+    // Dos respuestas a la misma persona a la vez (otra consulta, la propuesta modelo, el
+    // seguimiento): el candado por dirección las pone en fila; adentro se vuelve a mirar la regla de
+    // 24 h y se reserva el registro antes de mandar.
+    const email = destino.email;
+    const ahora = (deps.ahora ?? (() => new Date()))();
+    const filtro = await sinAvisosAlEquipo(workspaceId);
+    const reserva = await prisma.$transaction(async (tx) => {
+      await candadoDeDireccion(tx, workspaceId, email);
+      if (await yaRespondida(workspaceId, email, ahora, { cliente: tx, filtro })) return null;
+      return reservarEnvioAutomatico(tx, { workspaceId, entityType: "CONSULTA", entityId: leadId, templateId: auto.id, toAddress: email });
+    });
+    if (!reserva) return "YA_RESPONDIDO";
+
     const r = await enviarCorreo(
       ctxDelSistema(workspaceId),
-      { entityType: "CONSULTA", entityId: leadId, templateId: auto.id, asunto: textos.asunto, cuerpo: textos.cuerpo, automatico: true },
+      { entityType: "CONSULTA", entityId: leadId, templateId: auto.id, asunto: textos.asunto, cuerpo: textos.cuerpo, automatico: true, registroId: reserva },
       deps,
     );
     if (r.ok) return "ENVIADO";
+    // Sin registrar (tope, texto): la reserva no se usó y se libera.
+    if (!r.registrado) await liberarReserva(workspaceId, reserva);
     // El motivo (tope, proveedor, etc.) ya lo registró o lo logueó `enviarCorreo` con su código.
     console.warn("[plantillas] la respuesta automática no salió", { codigo: r.registrado ? "REGISTRADO_FALLIDO" : "NO_ENVIADO" });
     return "NO_ENVIADO";

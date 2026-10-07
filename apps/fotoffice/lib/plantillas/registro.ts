@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
+import { CODIGO_ENVIO_EN_CURSO } from "./constantes";
 import { vistaDeMensaje, type MensajeVista } from "./vista-mensaje";
 
 /** Lo que se lee de un mensaje registrado para mostrarlo (línea de tiempo e historial). */
@@ -42,6 +43,8 @@ export async function mensajesDeConsulta(workspaceId: string, consultaId: string
         { entityType: "CONSULTA", entityId: consultaId },
         ...(presupuestos.length ? [{ entityType: "PRESUPUESTO", entityId: { in: presupuestos.map((p) => p.id) } }] : []),
       ],
+      // Las reservas de un envío automático en curso (o abandonado) no son mensajes.
+      AND: [{ OR: [{ errorCode: null }, { errorCode: { not: CODIGO_ENVIO_EN_CURSO } }] }],
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: MENSAJES_EN_HISTORIAL,

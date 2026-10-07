@@ -6,13 +6,23 @@ import { numeroDe } from "@/lib/numeracion/asignar";
 import { yaRespondida } from "@/lib/plantillas/automaticos";
 import { conListaDePrecios, contextoDe, correoValido } from "@/lib/plantillas/contexto";
 import { leerAutomatico } from "@/lib/plantillas/definiciones";
-import { enviarCorreo, liberarReserva, MENSAJES_ENVIO, reservarEnvioAutomatico, type CtxEnvio, type DepsEnvio } from "@/lib/plantillas/envio";
+import {
+  candadoDeDireccion,
+  enviarCorreo,
+  liberarReserva,
+  MENSAJES_ENVIO,
+  reservarEnvioAutomatico,
+  sinAvisosAlEquipo,
+  sinReservasViejas,
+  type CtxEnvio,
+  type DepsEnvio,
+} from "@/lib/plantillas/envio";
 import { QUOTES_MODULE_KEY } from "./acceso";
 import { ENTIDAD_NUMERACION, esEstadoPresupuesto, type EstadoPresupuesto } from "./constantes";
 import { pesos } from "./editor";
 import { resolverClaveDeEnlace, tokenDeVersion, urlDelPresupuesto } from "./enlace";
 import { ddmmaaaa, origenDe, textosFinales } from "./envio";
-import { diaEnBuenosAires, estadoEfectivo } from "./estados";
+import { diaEnBuenosAires, estadoEfectivo, hoyEnBuenosAires } from "./estados";
 import { asegurarPlantillaSeguimiento } from "./plantillas";
 import { sitioDelWorkspace } from "./sitio";
 import type { TotalesGuardados } from "./versiones";
@@ -20,6 +30,10 @@ import type { TotalesGuardados } from "./versiones";
 /**
  * Seguimiento automático de presupuestos (etapa 2, Entrega B, spec §2 B.14). Lo corre una tarea
  * diaria (`app/api/cron/presupuestos-seguimiento`, 10:00 de Buenos Aires).
+ *
+ * Sólo se miran las versiones enviadas dentro de la ventana [hoy − (`followUpDays` +
+ * `VENTANA_DIAS`), hoy − `followUpDays`], en páginas de la más vieja a la más nueva: así los
+ * presupuestos viejos no tapan a los nuevos.
  *
  * Para cada organización con el seguimiento encendido (Configuración → Presupuestos) y el módulo
  * Presupuestos encendido, toma los presupuestos ENVIADO o VISTO (sin aceptar, ni rechazar, ni
@@ -47,8 +61,11 @@ import type { TotalesGuardados } from "./versiones";
  */
 
 export const TOPE_SEGUIMIENTOS_CORRIDA = 200;
-/** Presupuestos que se leen por organización y corrida (los más viejos primero). */
-const CANDIDATOS_POR_ORGANIZACION = 500;
+/** Versiones que se leen por página (de la más vieja a la más nueva, dentro de la ventana). */
+export const CANDIDATOS_POR_PAGINA = 500;
+const MAX_PAGINAS = 20;
+/** Días después de `followUpDays` en los que todavía se manda el seguimiento. */
+export const VENTANA_DIAS = 30;
 const DIA_MS = 24 * 60 * 60 * 1000;
 
 export type ReporteSeguimiento = {
@@ -103,9 +120,20 @@ export function correspondeSeguimiento(args: {
 type LectorMensajes = Pick<Prisma.TransactionClient, "fotofficeMessage">;
 
 /** ¿Ya hay un seguimiento (enviado, fallido o reservado) de este presupuesto desde el envío de la vigente? */
-async function yaTieneSeguimiento(cliente: LectorMensajes, workspaceId: string, templateId: string, presupuestoId: string, sentAt: Date): Promise<boolean> {
+async function yaTieneSeguimiento(
+  cliente: LectorMensajes,
+  workspaceId: string,
+  templateId: string,
+  presupuestoId: string,
+  sentAt: Date,
+  ahora: Date,
+): Promise<boolean> {
   const previo = await cliente.fotofficeMessage.findFirst({
-    where: { workspaceId, channel: "EMAIL", templateId, entityType: "PRESUPUESTO", entityId: presupuestoId, createdAt: { gte: sentAt } },
+    where: {
+      workspaceId, channel: "EMAIL", templateId, entityType: "PRESUPUESTO", entityId: presupuestoId, createdAt: { gte: sentAt },
+      // Una reserva abandonada (de hace más de una hora) no cuenta: se vuelve a intentar.
+      AND: [sinReservasViejas(ahora)],
+    },
     select: { id: true },
   });
   return previo !== null;
@@ -138,100 +166,153 @@ async function seguimientosDe(
     return;
   }
 
-  const presupuestos = await prisma.fotofficePresupuesto.findMany({
-    where: { workspaceId, status: { in: ["ENVIADO", "VISTO"] }, currentVersionId: { not: null } },
-    select: { id: true, consultaLeadId: true, currentVersionId: true, validUntil: true, status: true },
-    orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
-    take: CANDIDATOS_POR_ORGANIZACION,
-  });
-  if (presupuestos.length === 0) return;
-  const versiones = await prisma.fotofficePresupuestoVersion.findMany({
-    where: { workspaceId, id: { in: presupuestos.map((p) => p.currentVersionId as string) } },
-    select: { id: true, sentAt: true, acceptedAt: true, totals: true },
-  });
-  const deId = new Map(versiones.map((v) => [v.id, v]));
-  const candidatos = presupuestos
-    .map((p) => ({ p, v: deId.get(p.currentVersionId as string) }))
-    .filter(
-      (x): x is { p: (typeof presupuestos)[number]; v: (typeof versiones)[number] & { sentAt: Date } } =>
-        x.v !== undefined &&
-        x.v.sentAt !== null &&
-        esEstadoPresupuesto(x.p.status) &&
-        correspondeSeguimiento({ status: x.p.status, validUntil: x.p.validUntil, sentAt: x.v.sentAt, aceptada: x.v.acceptedAt !== null, dias, ahora }),
-    )
-    .sort((a, b) => a.v.sentAt.getTime() - b.v.sentAt.getTime());
+  // Candidatas: las versiones vigentes (enviadas, sin aceptar ni reemplazar) enviadas dentro de la
+  // ventana [hoy − (días + VENTANA_DIAS), hoy − días], en páginas de la más vieja a la más nueva.
+  // Fuera de la ventana no se miran: así los presupuestos viejos (ya seguidos o abandonados) no
+  // tapan a los nuevos. Cada página saca los vencidos, los que no están enviados o vistos y los
+  // que ya tienen su seguimiento.
+  const desde = new Date(ahora.getTime() - (dias + VENTANA_DIAS + 1) * DIA_MS);
+  const hasta = new Date(ahora.getTime() - (dias - 1) * DIA_MS);
+  let cursor: { sentAt: Date; id: string } | null = null;
+  for (let pagina = 0; pagina < MAX_PAGINAS; pagina++) {
+    const versiones: { id: string; presupuestoId: string; sentAt: Date | null; totals: unknown }[] =
+      await prisma.fotofficePresupuestoVersion.findMany({
+        where: {
+          workspaceId,
+          sentAt: { gte: desde, lte: hasta },
+          acceptedAt: null,
+          revokedAt: null,
+          ...(cursor ? { OR: [{ sentAt: { gt: cursor.sentAt } }, { sentAt: cursor.sentAt, id: { gt: cursor.id } }] } : {}),
+        },
+        orderBy: [{ sentAt: "asc" }, { id: "asc" }],
+        select: { id: true, presupuestoId: true, sentAt: true, totals: true },
+        take: CANDIDATOS_POR_PAGINA,
+      });
+    if (versiones.length === 0) return;
+    const ultima = versiones[versiones.length - 1]!;
+    cursor = { sentAt: ultima.sentAt as Date, id: ultima.id };
 
-  for (const { p, v } of candidatos) {
-    if (contador.intentos >= contador.tope) {
-      reporte.topeCorrida = true;
-      return;
-    }
-    // Una vez por versión: un seguimiento de ESTE presupuesto registrado desde que se envió la vigente.
-    if (await yaTieneSeguimiento(prisma, workspaceId, auto.id, p.id, v.sentAt)) {
-      reporte.salteados++;
-      continue;
-    }
-    const leido = await contextoDe(workspaceId, "CONSULTA", p.consultaLeadId, { nombre: null, email: null }, ahora);
-    if (!leido || !correoValido(leido.destino.email)) {
-      reporte.salteados++;
-      continue;
-    }
-    // Una respuesta automática por dirección cada 24 h: si le tocó otra, mañana.
-    const email = leido.destino.email;
-    if (await yaRespondida(workspaceId, email, ahora)) {
-      reporte.salteados++;
-      continue;
-    }
-    const contexto = await conListaDePrecios(workspaceId, leido, auto.subject, auto.body);
-    const numero = (await numeroDe(workspaceId, ENTIDAD_NUMERACION, [p.id])).get(p.id) ?? null;
-    const enlace = urlDelPresupuesto({ ...sitio, appOrigin: origen, token: tokenDeVersion(v.id, clave) });
-    const textos = textosFinales(contexto, "EMAIL", { asunto: auto.subject ?? "", cuerpo: auto.body, templateId: auto.id }, {
-      numero,
-      enlace,
-      total: pesos((v.totals as TotalesGuardados | null)?.total ?? 0),
-      vence: ddmmaaaa(p.validUntil),
+    const ids = [...new Set(versiones.map((v) => v.presupuestoId))];
+    const [presupuestos, seguidos] = await Promise.all([
+      prisma.fotofficePresupuesto.findMany({
+        where: {
+          workspaceId,
+          id: { in: ids },
+          status: { in: ["ENVIADO", "VISTO"] },
+          OR: [{ validUntil: null }, { validUntil: { gte: hoyEnBuenosAires(ahora) } }],
+        },
+        select: { id: true, consultaLeadId: true, currentVersionId: true, validUntil: true, status: true },
+      }),
+      prisma.fotofficeMessage.findMany({
+        where: {
+          workspaceId, channel: "EMAIL", templateId: auto.id, entityType: "PRESUPUESTO", entityId: { in: ids }, createdAt: { gte: desde },
+          AND: [sinReservasViejas(ahora)],
+        },
+        select: { entityId: true, createdAt: true },
+      }),
+    ]);
+    const deId = new Map(presupuestos.map((p) => [p.id, p]));
+    const candidatos = versiones.flatMap((v) => {
+      const p = deId.get(v.presupuestoId);
+      if (!p || p.currentVersionId !== v.id || !v.sentAt || !esEstadoPresupuesto(p.status)) return [];
+      const sentAt = v.sentAt;
+      if (!correspondeSeguimiento({ status: p.status, validUntil: p.validUntil, sentAt, aceptada: false, dias, ahora })) return [];
+      if (seguidos.some((m) => m.entityId === p.id && m.createdAt.getTime() >= sentAt.getTime())) return [];
+      return [{ p, v: { ...v, sentAt } }];
     });
-    if (!textos.ok) {
-      // La plantilla no sirve para nadie: no tiene sentido seguir con esta organización.
-      console.warn("[presupuestos] la plantilla del seguimiento tiene errores", { codigo: "PLANTILLA_CON_ERRORES" });
-      reporte.fallidos++;
-      return;
+    for (const c of candidatos) {
+      if (contador.intentos >= contador.tope) {
+        reporte.topeCorrida = true;
+        return;
+      }
+      if ((await seguimientoDe(workspaceId, c.p, c.v, auto, sitio, origen, clave, ahora, reporte, contador, deps)) === "CORTAR") return;
     }
-    // Dos corridas a la vez: el candado por presupuesto las pone en fila y, adentro, se vuelve a
-    // mirar y se reserva el registro. La segunda ve la reserva de la primera y no manda. El correo
-    // sale DESPUÉS de soltar el candado (no se tiene una conexión tomada mientras responde el proveedor).
-    const reserva = await prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`fotoffice-seguimiento:${p.id}`}))`;
-      if (await yaTieneSeguimiento(tx, workspaceId, auto.id, p.id, v.sentAt)) return null;
-      return reservarEnvioAutomatico(tx, { workspaceId, entityType: "PRESUPUESTO", entityId: p.id, templateId: auto.id, toAddress: email });
-    }, OPCIONES_TRANSACCION);
-    if (!reserva) {
-      reporte.salteados++;
-      continue;
-    }
-    contador.intentos++;
-    const r = await enviarCorreo(
-      ctxDelSistema(workspaceId),
-      {
-        entityType: "CONSULTA", entityId: p.consultaLeadId, templateId: auto.id, asunto: textos.asunto, cuerpo: textos.cuerpo, automatico: true,
-        registroId: reserva, registrarEn: { entityType: "PRESUPUESTO", entityId: p.id },
-      },
-      { enviar: deps.enviar, ahora: () => ahora },
-      { tipoPlantilla: "PRESUPUESTO" },
-    );
-    if (r.ok) {
-      reporte.enviados++;
-      continue;
-    }
-    // Si no se llegó a mandar (tope, texto), la reserva sigue EN_CURSO: se libera para mañana.
-    await liberarReserva(workspaceId, reserva);
-    if (r.error === MENSAJES_ENVIO.topeAutomaticos) {
-      contador.intentos--;
-      reporte.conTopeDiario++;
-      return;
-    }
-    reporte.fallidos++;
+    if (versiones.length < CANDIDATOS_POR_PAGINA) return;
   }
+}
+
+type Automatico = NonNullable<Awaited<ReturnType<typeof leerAutomatico>>>;
+type Sitio = NonNullable<Awaited<ReturnType<typeof sitioDelWorkspace>>>;
+
+/** El seguimiento de un presupuesto. "CORTAR": no seguir con esta organización (tope o plantilla rota). */
+async function seguimientoDe(
+  workspaceId: string,
+  p: { id: string; consultaLeadId: string; validUntil: Date | null },
+  v: { id: string; sentAt: Date; totals: unknown },
+  auto: Automatico,
+  sitio: Sitio,
+  origen: string,
+  clave: string,
+  ahora: Date,
+  reporte: ReporteSeguimiento,
+  contador: Contador,
+  deps: DepsSeguimiento,
+): Promise<"SEGUIR" | "CORTAR"> {
+  const leido = await contextoDe(workspaceId, "CONSULTA", p.consultaLeadId, { nombre: null, email: null }, ahora);
+  if (!leido || !correoValido(leido.destino.email)) {
+    reporte.salteados++;
+    return "SEGUIR";
+  }
+  // Una respuesta automática por dirección cada 24 h: si le tocó otra, mañana.
+  const email = leido.destino.email;
+  if (await yaRespondida(workspaceId, email, ahora)) {
+    reporte.salteados++;
+    return "SEGUIR";
+  }
+  const contexto = await conListaDePrecios(workspaceId, leido, auto.subject, auto.body);
+  const numero = (await numeroDe(workspaceId, ENTIDAD_NUMERACION, [p.id])).get(p.id) ?? null;
+  const enlace = urlDelPresupuesto({ ...sitio, appOrigin: origen, token: tokenDeVersion(v.id, clave) });
+  const textos = textosFinales(contexto, "EMAIL", { asunto: auto.subject ?? "", cuerpo: auto.body, templateId: auto.id }, {
+    numero,
+    enlace,
+    total: pesos((v.totals as TotalesGuardados | null)?.total ?? 0),
+    vence: ddmmaaaa(p.validUntil),
+  });
+  if (!textos.ok) {
+    // La plantilla no sirve para nadie: no tiene sentido seguir con esta organización.
+    console.warn("[presupuestos] la plantilla del seguimiento tiene errores", { codigo: "PLANTILLA_CON_ERRORES" });
+    reporte.fallidos++;
+    return "CORTAR";
+  }
+  // Candados: primero el de la dirección (el mismo que la respuesta común y la propuesta modelo:
+  // nunca dos respuestas automáticas a la misma persona) y después el del presupuesto (dos
+  // corridas a la vez). Adentro se vuelve a mirar todo y se reserva el registro; el correo sale
+  // DESPUÉS de soltarlos (no se tiene una conexión tomada mientras responde el proveedor).
+  const filtro = await sinAvisosAlEquipo(workspaceId);
+  const reserva = await prisma.$transaction(async (tx) => {
+    await candadoDeDireccion(tx, workspaceId, email);
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`fotoffice-seguimiento:${p.id}`}))`;
+    if (await yaRespondida(workspaceId, email, ahora, { cliente: tx, filtro })) return null;
+    if (await yaTieneSeguimiento(tx, workspaceId, auto.id, p.id, v.sentAt, ahora)) return null;
+    return reservarEnvioAutomatico(tx, { workspaceId, entityType: "PRESUPUESTO", entityId: p.id, templateId: auto.id, toAddress: email });
+  }, OPCIONES_TRANSACCION);
+  if (!reserva) {
+    reporte.salteados++;
+    return "SEGUIR";
+  }
+  contador.intentos++;
+  const r = await enviarCorreo(
+    ctxDelSistema(workspaceId),
+    {
+      entityType: "CONSULTA", entityId: p.consultaLeadId, templateId: auto.id, asunto: textos.asunto, cuerpo: textos.cuerpo, automatico: true,
+      registroId: reserva, registrarEn: { entityType: "PRESUPUESTO", entityId: p.id },
+    },
+    { enviar: deps.enviar, ahora: () => ahora },
+    { tipoPlantilla: "PRESUPUESTO" },
+  );
+  if (r.ok) {
+    reporte.enviados++;
+    return "SEGUIR";
+  }
+  // Si no se llegó a mandar (tope, texto), la reserva sigue EN_CURSO: se libera para mañana.
+  await liberarReserva(workspaceId, reserva);
+  if (r.error === MENSAJES_ENVIO.topeAutomaticos) {
+    contador.intentos--;
+    reporte.conTopeDiario++;
+    return "CORTAR";
+  }
+  reporte.fallidos++;
+  return "SEGUIR";
 }
 
 /** La corrida diaria. Devuelve sólo contadores (sin datos de nadie). */

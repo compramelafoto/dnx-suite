@@ -10,6 +10,7 @@ import { TOPE_AUTOMATICOS_DIA } from "@/lib/plantillas/constantes";
 import { correoValido, destinoDe } from "@/lib/plantillas/contexto";
 import { AUTOMATICOS, leerAutomatico } from "@/lib/plantillas/definiciones";
 import {
+  candadoDeDireccion,
   CODIGO_ENVIO_EN_CURSO,
   correosEnviadosHoy,
   liberarReserva,
@@ -172,7 +173,7 @@ export async function enviarPropuestaModelo(
     // presupuesto (como `crearPresupuesto`, pero del sistema: sin usuario) y se reserva el registro
     // del correo; el segundo ve la reserva del primero y no crea nada.
     const hecho = await prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`fotoffice-respuesta-web:${workspaceId}:${email.trim().toLowerCase()}`}))`;
+      await candadoDeDireccion(tx, workspaceId, email);
       if (await yaRespondida(workspaceId, email, ahora, { cliente: tx, filtro })) return null;
       const p = await tx.fotofficePresupuesto.create({
         data: {

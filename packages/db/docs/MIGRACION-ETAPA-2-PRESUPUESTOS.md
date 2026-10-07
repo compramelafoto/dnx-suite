@@ -481,6 +481,9 @@ propuesta modelo ni el seguimiento salen (la consulta recibe la respuesta común
   vez no repiten: candado por presupuesto (`pg_advisory_xact_lock`) y reserva del registro antes de
   mandar. Cuenta en el tope de 50 automáticos por día, respeta la regla de una respuesta automática por dirección cada
   24 h (si le tocó otra, se intenta al día siguiente) y manda como mucho **200** por corrida.
+- Sólo mira las versiones enviadas hace entre `followUpDays` y `followUpDays + 30` días (los más
+  viejos ya no reciben seguimiento), sin los vencidos ni los ya seguidos, de a 500 por página: los
+  presupuestos viejos no tapan a los nuevos.
 - Responde sólo contadores: `{ ok, organizaciones, enviados, fallidos, salteados, conTopeDiario, topeCorrida }`.
 - Cada seguimiento queda en el historial de la consulta (mensaje automático y la línea «Se envió el
   seguimiento automático del presupuesto N° …»).
@@ -491,7 +494,11 @@ propuesta modelo ni el seguimiento salen (la consulta recibe la respuesta común
   esperar el correo. El orden número → circuito → aviso → respuesta se mantiene.
 - Dos envíos simultáneos del formulario con la misma dirección: candado por organización y
   dirección (`pg_advisory_xact_lock`), se vuelve a mirar la regla de 24 h y se reserva el registro
-  del correo antes de crear el presupuesto. El segundo no crea nada ni recibe respuesta.
+  del correo antes de crear el presupuesto. El segundo no crea nada ni recibe respuesta. La
+  respuesta común y el seguimiento toman el **mismo** candado y reservan igual: nunca salen dos
+  respuestas automáticas a la misma persona a la vez.
+- Una reserva (`errorCode = 'EN_CURSO'`) que quedó de hace más de una hora (el proceso murió entre
+  reservar y mandar) ya no frena nada y no se muestra en el historial.
 - Si el presupuesto quedó **Enviado** pero el correo no llegó (el proveedor lo rechazó, o algo
   falló después de congelarlo), el responsable (o el dueño) recibe la tarea **«Revisar envío del
   presupuesto N° …»** en la consulta, para reenviarlo desde la ficha. Si algo falló después de

@@ -139,7 +139,8 @@ describe("enviarSeguimientos", () => {
     // Al día siguiente (y pasadas las 24 h): ya tiene su seguimiento.
     vi.setSystemTime(new Date(AHORA.getTime() + 2 * DIA));
     const d2 = deps();
-    expect(await S.enviarSeguimientos(d2)).toMatchObject({ enviados: 0, salteados: 1 });
+    // Ya no es candidato (tiene su seguimiento): ni se cuenta.
+    expect(await S.enviarSeguimientos(d2)).toMatchObject({ enviados: 0 });
     expect(d2.enviar).not.toHaveBeenCalled();
     // Una versión nueva enviada después del seguimiento: se cuenta desde su envío.
     const v = B.datos.fotofficePresupuestoVersion.find((x) => x.id === versionId)!;
@@ -340,6 +341,91 @@ describe("[lista_precios] se lee sólo si el texto la usa", () => {
     } finally {
       B.tablas.fotofficeProductoCatalogo.findMany = original;
     }
+  });
+});
+
+describe("revisión final", () => {
+  function viejo(i: number, diasAtras: number, conSeguimiento: boolean, plantillaId: string) {
+    const pr = B.agregar("fotofficePresupuesto", {
+      workspaceId: "ws-1", consultaLeadId: `viejo-${i}`, clientId: "c", status: "ENVIADO", validUntil: new Date("2026-12-31T00:00:00.000Z"),
+    });
+    const v = B.agregar("fotofficePresupuestoVersion", {
+      workspaceId: "ws-1", presupuestoId: pr.id, number: 1, items: [], totals: { total: 1 }, sentAt: new Date(AHORA.getTime() - diasAtras * DIA - i * 1000),
+    });
+    pr.currentVersionId = v.id;
+    if (conSeguimiento) {
+      B.agregar("fotofficeMessage", {
+        workspaceId: "ws-1", channel: "EMAIL", entityType: "PRESUPUESTO", entityId: pr.id, templateId: plantillaId, toAddress: `v${i}@x.test`,
+        body: "b", status: "SENT", automatic: true, createdAt: new Date(AHORA.getTime() - (diasAtras - 3) * DIA),
+      });
+    }
+  }
+
+  it("más de 500 presupuestos viejos (fuera de la ventana o ya seguidos) no tapan a uno nuevo", async () => {
+    const plantilla = B.agregar("fotofficeMessageTemplate", {
+      workspaceId: "ws-1", systemKey: "PRESUPUESTO_SEGUIMIENTO", channel: "EMAIL", entityType: "PRESUPUESTO", name: "S", enabled: true,
+      subject: "Seguimiento", body: "[presupuesto_enlace]\n\n[firma]",
+    }).id as string;
+    for (let i = 0; i < 300; i++) viejo(i, 60, false, plantilla); // fuera de la ventana
+    for (let i = 300; i < 900; i++) viejo(i, 10, true, plantilla); // en la ventana, ya seguidos
+    const { presupuestoId } = enviado(3);
+    const d = deps();
+    expect(await S.enviarSeguimientos(d)).toMatchObject({ enviados: 1 });
+    expect(mensajes().filter((m) => m.entityId === presupuestoId && m.status === "SENT")).toHaveLength(1);
+  });
+
+  it("los vencidos se descartan en la consulta (no ocupan lugar)", async () => {
+    enviado(5, { validUntil: new Date("2026-10-06T00:00:00.000Z") });
+    const d = deps();
+    expect(await S.enviarSeguimientos(d)).toMatchObject({ enviados: 0, salteados: 0 });
+  });
+
+  it("una reserva abandonada (más de una hora) no frena: se vuelve a intentar", async () => {
+    const { presupuestoId } = enviado(5);
+    await S.enviarSeguimientos(deps({ enviar: vi.fn(async () => ({ status: "SENT" as const, providerId: "x" })) }));
+    // Simula una corrida que murió: la reserva quedó EN_CURSO hace dos horas.
+    const m = mensajes()[0]!;
+    Object.assign(m, { status: "FAILED", errorCode: "EN_CURSO", createdAt: new Date(AHORA.getTime() - 2 * 60 * 60 * 1000) });
+    vi.setSystemTime(new Date(AHORA.getTime() + 60_000));
+    expect((await S.enviarSeguimientos(deps())).enviados).toBe(1);
+    expect(mensajes().filter((x) => x.entityId === presupuestoId && x.status === "SENT")).toHaveLength(1);
+  });
+
+  it("una reserva reciente sí frena", async () => {
+    enviado(5);
+    await S.enviarSeguimientos(deps());
+    Object.assign(mensajes()[0]!, { status: "FAILED", errorCode: "EN_CURSO" });
+    vi.setSystemTime(new Date(AHORA.getTime() + 30 * 60 * 1000));
+    expect((await S.enviarSeguimientos(deps())).enviados).toBe(0);
+  });
+
+  it("toma también el candado por dirección (el mismo que las otras respuestas) y vuelve a mirar las 24 h adentro", async () => {
+    enviado(5);
+    B.ganchos.alEjecutarSql = (texto, valores) => {
+      if (!texto.includes("pg_advisory_xact_lock") || valores[0] !== `fotoffice-respuesta-web:ws-1:${EMAIL}`) return;
+      // Mientras esperaba, otra respuesta automática le llegó a esa persona.
+      B.agregar("fotofficeMessage", {
+        workspaceId: "ws-1", channel: "EMAIL", entityType: "CONSULTA", entityId: "otra", toAddress: EMAIL, body: "b", status: "SENT", automatic: true,
+      });
+    };
+    const d = deps();
+    expect(await S.enviarSeguimientos(d)).toMatchObject({ enviados: 0, salteados: 1 });
+    expect(d.enviar).not.toHaveBeenCalled();
+  });
+
+  it("las reservas no se ven en el historial de mensajes de la consulta", async () => {
+    const { leadId, presupuestoId } = enviado(5);
+    B.agregar("fotofficeMessage", {
+      workspaceId: "ws-1", channel: "EMAIL", entityType: "PRESUPUESTO", entityId: presupuestoId, toAddress: EMAIL, body: "", status: "FAILED",
+      automatic: true, errorCode: "EN_CURSO",
+    });
+    B.agregar("fotofficeMessage", {
+      workspaceId: "ws-1", channel: "EMAIL", entityType: "PRESUPUESTO", entityId: presupuestoId, toAddress: EMAIL, body: "Hola", status: "SENT",
+      automatic: true, errorCode: null,
+    });
+    const { mensajesDeConsulta } = await import("@/lib/plantillas/registro");
+    const vistos = await mensajesDeConsulta("ws-1", leadId);
+    expect(vistos).toHaveLength(1);
   });
 });
 

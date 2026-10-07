@@ -80,6 +80,39 @@ afterEach(() => {
 });
 
 describe("responderConsultaNueva", () => {
+  it("toma el candado por dirección (el de la propuesta modelo) y completa su reserva: un solo registro", async () => {
+    autorespuesta();
+    consulta({ email: "Laura@Persona.TEST" });
+    expect(await A.responderConsultaNueva("ws-1", "l1")).toBe("ENVIADO");
+    expect(B.sql.some((q) => q.texto.includes("pg_advisory_xact_lock") && q.valores[0] === `fotoffice-respuesta-web:ws-1:${EMAIL}`)).toBe(true);
+    expect(mensajes()).toHaveLength(1);
+    expect(mensajes()[0]).toMatchObject({ status: "SENT", errorCode: null, automatic: true });
+  });
+
+  it("si mientras esperaba el candado otra respuesta (la propuesta modelo) reservó esa dirección, no manda", async () => {
+    autorespuesta();
+    consulta();
+    B.ganchos.alEjecutarSql = (texto, valores) => {
+      if (!texto.includes("pg_advisory_xact_lock") || valores[0] !== `fotoffice-respuesta-web:ws-1:${EMAIL}`) return;
+      B.agregar("fotofficeMessage", {
+        workspaceId: "ws-1", channel: "EMAIL", entityType: "CONSULTA", entityId: "otra", toAddress: EMAIL, body: "", status: "FAILED",
+        automatic: true, errorCode: "EN_CURSO",
+      });
+    };
+    expect(await A.responderConsultaNueva("ws-1", "l1")).toBe("YA_RESPONDIDO");
+    expect(H.enviar).not.toHaveBeenCalled();
+  });
+
+  it("una reserva abandonada (más de una hora) no frena la respuesta", async () => {
+    autorespuesta();
+    consulta();
+    B.agregar("fotofficeMessage", {
+      workspaceId: "ws-1", channel: "EMAIL", entityType: "CONSULTA", entityId: "otra", toAddress: EMAIL, body: "", status: "FAILED",
+      automatic: true, errorCode: "EN_CURSO", createdAt: new Date(AHORA.getTime() - 2 * 60 * 60 * 1000),
+    });
+    expect(await A.responderConsultaNueva("ws-1", "l1")).toBe("ENVIADO");
+  });
+
   it("apagada: no envía ni registra", async () => {
     autorespuesta({ enabled: false });
     consulta();

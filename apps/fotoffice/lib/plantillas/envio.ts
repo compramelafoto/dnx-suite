@@ -5,7 +5,8 @@ import { moduloDeTipo } from "@/lib/access/modulos-crm";
 import { sendTransactionalEmail, type OutboundEmail, type SendOutcome } from "@/lib/communications/send-email";
 import { buildWhatsappUrl, normalizeWhatsappNumber } from "@/lib/contact/whatsapp";
 import {
-  CARACTER_MARCADOR, CLAVE_FIRMA, MARCADOR_FIRMA, MAX_ASUNTO, MAX_CUERPO, TOPE_AUTOMATICOS_DIA, TOPE_CORREOS_DIA, ZONA_HORARIA, type Canal, type ClaveAutomatico,
+  CARACTER_MARCADOR, CLAVE_FIRMA, CODIGO_ENVIO_EN_CURSO, MARCADOR_FIRMA, MAX_ASUNTO, MAX_CUERPO, TOPE_AUTOMATICOS_DIA, TOPE_CORREOS_DIA,
+  VIDA_RESERVA_MS, ZONA_HORARIA, type Canal, type ClaveAutomatico,
   type TipoPlantilla,
 } from "./constantes";
 import { conListaDePrecios, contextoDe, correoValido, type ContextoMensaje, type TipoFichaMensaje } from "./contexto";
@@ -324,8 +325,27 @@ export type DatosCorreo = {
   registrarEn?: { entityType: "PRESUPUESTO"; entityId: string };
 };
 
-/** Código de una reserva de envío automático que todavía no se completó. */
-export const CODIGO_ENVIO_EN_CURSO = "EN_CURSO";
+export { CODIGO_ENVIO_EN_CURSO };
+
+/** Filtro: sin las reservas abandonadas (EN_CURSO de hace más de `VIDA_RESERVA_MS`). */
+export function sinReservasViejas(ahora: Date): Prisma.FotofficeMessageWhereInput {
+  return {
+    OR: [
+      { errorCode: null },
+      { errorCode: { not: CODIGO_ENVIO_EN_CURSO } },
+      { createdAt: { gte: new Date(ahora.getTime() - VIDA_RESERVA_MS) } },
+    ],
+  };
+}
+
+/**
+ * Candado por organización y dirección (dentro de una transacción): lo toman todas las respuestas
+ * automáticas a una persona (la común, la propuesta modelo y el seguimiento) antes de mirar la
+ * regla de 24 h y reservar, así dos a la vez no le mandan dos correos.
+ */
+export async function candadoDeDireccion(tx: Pick<Prisma.TransactionClient, "$executeRaw">, workspaceId: string, email: string): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`fotoffice-respuesta-web:${workspaceId}:${email.trim().toLowerCase()}`}))`;
+}
 
 /**
  * Reserva el registro de un envío automático ANTES de mandarlo (dentro de la transacción que tiene
