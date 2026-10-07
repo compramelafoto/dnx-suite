@@ -32,9 +32,14 @@ export default async function SponsorsPage({
         description="Las marcas que acompañan a la institución y en qué lugar del sitio y del portal aparece cada una. La ficha de cada marca es la misma en toda la red de DNX."
         actions={
           puedeEditar ? (
-            <Link href="/sponsors/nuevo" className="fo-btn fo-btn-primary text-sm">
-              Agregar sponsor
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <Link href="/sponsors/invitar" className="fo-btn fo-btn-secondary text-sm">
+                Invitar a un sponsor
+              </Link>
+              <Link href="/sponsors/nuevo" className="fo-btn fo-btn-primary text-sm">
+                Agregar sponsor
+              </Link>
+            </div>
           ) : null
         }
       />
@@ -65,9 +70,14 @@ export default async function SponsorsPage({
             </p>
           </div>
           {puedeEditar ? (
-            <Link href="/sponsors/nuevo" className="fo-btn fo-btn-primary text-sm">
-              Agregar el primero
-            </Link>
+            <div className="flex flex-wrap justify-center gap-2">
+              <Link href="/sponsors/nuevo" className="fo-btn fo-btn-primary text-sm">
+                Agregar el primero
+              </Link>
+              <Link href="/sponsors/invitar" className="fo-btn fo-btn-secondary text-sm">
+                Invitarlo a que cargue sus datos
+              </Link>
+            </div>
           ) : null}
         </div>
       ) : (
