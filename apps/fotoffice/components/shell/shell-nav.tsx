@@ -6,6 +6,7 @@ import { useState } from "react";
 import { serializeOpenGroupsCookie, toggleGroup, visibleOpenGroups } from "@/lib/shell/nav-groups";
 import {
   Building2,
+  Calculator,
   ChevronDown,
   ClipboardCheck,
   FileText,
@@ -52,6 +53,9 @@ import { hasLevel, type ModuleLevels } from "@/lib/permissions/levels";
 import { ordenarSecciones } from "@/lib/modules/nav-order";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import { isBlogNavActive, isDomainNavActive, isWebsiteNavActive } from "@/lib/blog/admin-nav";
+
+// Clave del módulo como texto: `lib/presupuestos/acceso` arrastra la política de acceso al navegador.
+const QUOTES_MODULE_KEY = "quotes";
 
 /**
  * Menú principal.
@@ -301,7 +305,8 @@ export function ShellNav({
     mundo** usara o no la función —la deuda estaba anotada en este mismo lugar desde que se
     agregaron—. Ahora es un módulo como los demás y arranca apagado.
   */
-  const captacion: Item[] = ve(SERVICE_LEADS_MODULE_KEY)
+  const captacion: Item[] = [
+    ...(ve(SERVICE_LEADS_MODULE_KEY)
     ? [
         {
           href: "/dashboard/service-leads/forms",
@@ -321,7 +326,21 @@ export function ShellNav({
           isActive: under("/consultas"),
         },
       ]
-    : [];
+    : []),
+    // Presupuestos (etapa 2): módulo propio (`quotes`), con su nivel. Mientras el módulo siga
+    // PLANNED nadie tiene nivel y el ítem no aparece.
+    ...(ve(QUOTES_MODULE_KEY)
+      ? [
+          {
+            href: "/presupuestos",
+            label: "Presupuestos",
+            description: "Los presupuestos de las consultas: armarlos, versionarlos y seguirlos.",
+            icon: Calculator,
+            isActive: under("/presupuestos"),
+          },
+        ]
+      : []),
+  ];
 
   // Presencia pública: el sitio y su blog. Es donde aterrizan los portfolios y las redes
   // cuando existan.

@@ -242,6 +242,20 @@ describe("borrador", () => {
     expect(item!.calculo).toMatchObject({ costoBase: SUGERIDO.minimo, unidades: 2 });
   });
 
+  it("R4: sin configurar no se carga ni se cambia un cálculo (el navegador no puede colar entradas)", async () => {
+    const { presupuestoId } = await nuevo();
+    // Un ítem calculado nuevo, armado por alguien del equipo: no tiene entrada guardada y no pasa.
+    const r = await P.guardarBorrador(EQUIPO, presupuestoId, { items: [itemLista("n", { modoPrecio: "CALCULO", precioUnitario: 0, calculo: { entrada: entradaMotor() } })] }, deps);
+    expect(r.ok === false && r.error).toContain(M.calculoFaltante);
+    // Uno existente: la entrada que manda se ignora y se usa la guardada.
+    await P.guardarBorrador(DUENO, presupuestoId, { items: [itemLista("x", { modoPrecio: "CALCULO", precioUnitario: 0, calculo: { entrada: entradaMotor() } })] }, deps);
+    const otra = entradaMotor();
+    otra.presupuesto = { ...otra.presupuesto, chosenPrice: "1" };
+    expect(await P.guardarBorrador(TESORERIA, presupuestoId, { items: [itemLista("x", { modoPrecio: "CALCULO", precioUnitario: 0, calculo: { entrada: otra } })] }, deps)).toEqual({ ok: true });
+    const [item] = versionesDe(presupuestoId)[0]!.items as { precioUnitario: number }[];
+    expect(item!.precioUnitario).toBe(SUGERIDO.precio);
+  });
+
   it("un producto de otro workspace no entra", async () => {
     B.agregar("product", { id: "ajeno", workspaceId: "ws-2", name: "Ajeno", priceArs: "1.00" });
     const { presupuestoId } = await nuevo();

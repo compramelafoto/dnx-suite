@@ -176,6 +176,15 @@ export async function crearPresupuesto(
 
 // --- Borrador --------------------------------------------------------------------------------------
 
+/** Los ítems sin la instantánea del cálculo (y por lo tanto sin entradas del motor). */
+export function sinEntradasDeCalculo(entrada: EntradaBorrador): EntradaBorrador {
+  if (!entrada || typeof entrada !== "object" || !Array.isArray(entrada.items)) return entrada;
+  return {
+    ...entrada,
+    items: entrada.items.map((x: unknown) => (x && typeof x === "object" && !Array.isArray(x) ? { ...(x as Record<string, unknown>), calculo: null } : x)),
+  };
+}
+
 /**
  * Guarda el borrador: ítems (validados; los de ¿Cuánto Cobro? recalculados en el servidor),
  * descuentos, condiciones y propuesta de pago. Sólo hay borrador si la última versión no se
@@ -204,7 +213,10 @@ export async function guardarBorrador(
   });
   if (!borrador) return { ok: false, error: MENSAJES_PRESUPUESTO.yaEnviado };
 
-  const n = await normalizarBorrador(workspaceId, entrada, entradasGuardadas(borrador.items), ahora);
+  // R4 (Task 4): sin `configurar`, el cálculo no se carga ni se cambia. Las entradas que lleguen
+  // del navegador se ignoran y cada ítem de ¿Cuánto Cobro? se recalcula con la que ya estaba
+  // guardada para ese renglón; uno nuevo, sin entrada guardada, no pasa.
+  const n = await normalizarBorrador(workspaceId, veCostos(ctx) ? entrada : sinEntradasDeCalculo(entrada), entradasGuardadas(borrador.items), ahora);
   if (!n.ok) return n;
 
   try {

@@ -9,6 +9,7 @@ describe("registro de listas", () => {
       socios: "members",
       "caja-movimientos": "cash",
       captacion: "service-leads",
+      presupuestos: "quotes",
     });
   });
 
@@ -18,6 +19,7 @@ describe("registro de listas", () => {
       socios: "/members",
       "caja-movimientos": "/caja/movimientos",
       captacion: "/consultas/lista",
+      presupuestos: "/presupuestos",
     });
   });
 });

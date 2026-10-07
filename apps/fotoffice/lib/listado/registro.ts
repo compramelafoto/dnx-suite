@@ -34,6 +34,13 @@ export const LISTAS: Record<string, EntradaLista> = {
     ruta: "/consultas/lista",
     cargar: async (ctx) => (await import("@/lib/service-leads/listado")).cargarListadoCaptacion(ctx),
   },
+  // Presupuestos (etapa 2): módulo `quotes`. Sin columnas de plata con `dinero`: el total es el
+  // precio al cliente, y el costo y el margen no están en la lista.
+  presupuestos: {
+    moduleKey: "quotes",
+    ruta: "/presupuestos",
+    cargar: async () => (await import("@/lib/presupuestos/listado")).listadoPresupuestos,
+  },
   "caja-movimientos": {
     moduleKey: "cash",
     ruta: "/caja/movimientos",
