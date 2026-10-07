@@ -115,6 +115,7 @@ Si no da el checksum de la tabla de arriba, **parar**: el archivo cambió despu�
 
 ## 2. Orden de publicación (sin staging)
 
+0. Comprobar que ninguna organización tiene Presupuestos encendido (sección 4, paso 0).
 1. SQL de esta migración en **FOTOFFICE producción** (proyecto `compramelafoto`, rama
    `development`, `divine-hall-10689679` / `br-old-rain-adwthzng`).
 2. Verificar (paso 3 de la sección 4).
@@ -147,6 +148,19 @@ Generar una con `openssl rand -base64 32`, marcarla como sensible y volver a pub
 nuevas no llegan a un deploy ya hecho).
 
 ## 4. Procedimiento
+
+### Paso 0 — Nadie tiene Presupuestos encendido (antes de publicar el código)
+
+```sql
+SELECT count(*) AS encendidos
+FROM "WorkspaceFeatureModule"
+WHERE "moduleKey" = 'quotes' AND enabled = true;
+```
+
+Tiene que dar **0**: el código nuevo trata `quotes` como disponible, y una organización que ya lo
+tuviera encendido vería Presupuestos (y leería estas tablas) en cuanto se publique. En producción
+dio 0 el 07/10/2026; volver a mirarlo el día de la publicación. Si da más de 0, **parar** y apagarlo
+primero (o aplicar la migración antes de publicar, como dice la sección 2).
 
 ### Paso 1 — Comprobar que no está aplicada
 

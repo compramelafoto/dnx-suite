@@ -11,6 +11,7 @@ const {
   serviceLeadFormCountMock,
   artworkRoyaltyCountMock,
   artworkListingCountMock,
+  presupuestoCountMock,
 } = vi.hoisted(() => ({
   isPlatformAdminMock: vi.fn(),
   workspaceFindUniqueMock: vi.fn(),
@@ -22,6 +23,7 @@ const {
   serviceLeadFormCountMock: vi.fn(),
   artworkRoyaltyCountMock: vi.fn(),
   artworkListingCountMock: vi.fn(),
+  presupuestoCountMock: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -36,6 +38,7 @@ vi.mock("@repo/db", () => ({
     serviceLeadForm: { count: serviceLeadFormCountMock },
     artworkRoyalty: { count: artworkRoyaltyCountMock },
     artworkListing: { count: artworkListingCountMock },
+    fotofficePresupuesto: { count: presupuestoCountMock },
   },
 }));
 
@@ -68,6 +71,7 @@ function resetAllCountsToZero() {
   serviceLeadFormCountMock.mockResolvedValue(0);
   artworkRoyaltyCountMock.mockResolvedValue(0);
   artworkListingCountMock.mockResolvedValue(0);
+  presupuestoCountMock.mockResolvedValue(0);
 }
 
 describe("deleteWorkspaceAction", () => {
@@ -82,6 +86,7 @@ describe("deleteWorkspaceAction", () => {
     serviceLeadFormCountMock.mockReset();
     artworkRoyaltyCountMock.mockReset();
     artworkListingCountMock.mockReset();
+    presupuestoCountMock.mockReset();
     workspaceFindUniqueMock.mockResolvedValue({
       id: "ws-fixture",
       name: "QA Fixture",
@@ -149,6 +154,15 @@ describe("deleteWorkspaceAction", () => {
     const result = await deleteWorkspaceAction(undefined, buildFormData());
     expect(result.error).toContain("4 obra(s) publicada(s)");
     expect(artworkListingCountMock).toHaveBeenCalledWith({ where: { workspaceId: "ws-fixture", status: "PUBLISHED" } });
+    expect(workspaceDeleteMock).not.toHaveBeenCalled();
+  });
+
+  it("bloquea la eliminación si hay presupuestos (evidencia de aceptación de clientes)", async () => {
+    isPlatformAdminMock.mockResolvedValueOnce(true);
+    presupuestoCountMock.mockResolvedValue(2);
+    const result = await deleteWorkspaceAction(undefined, buildFormData());
+    expect(result.error).toContain("2 presupuesto(s)");
+    expect(presupuestoCountMock).toHaveBeenCalledWith({ where: { workspaceId: "ws-fixture" } });
     expect(workspaceDeleteMock).not.toHaveBeenCalled();
   });
 

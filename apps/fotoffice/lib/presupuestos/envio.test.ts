@@ -17,6 +17,7 @@ const H = vi.hoisted(() => ({
   real: vi.fn(),
   notificar: vi.fn(async (..._a: unknown[]): Promise<unknown> => ({ movido: true })),
   reabrir: vi.fn(async (..._a: unknown[]): Promise<unknown> => ({ reabierta: false })),
+  ganar: vi.fn(async (..._a: unknown[]): Promise<unknown> => ({ cerrado: true })),
   nivel: vi.fn(async (..._a: unknown[]) => true),
 }));
 
@@ -31,7 +32,7 @@ vi.mock("@/lib/communications/load-workspace-signature", () => ({
 }));
 // Red de seguridad: si algo llamara al transporte real, la prueba lo detecta (y no sale nada).
 vi.mock("@/lib/communications/send-email", () => ({ sendTransactionalEmail: H.real }));
-vi.mock("@/lib/circuitos/eventos", () => ({ notificarEvento: H.notificar, reabrirComoGanadaPorSistema: H.reabrir }));
+vi.mock("@/lib/circuitos/eventos", () => ({ notificarEvento: H.notificar, reabrirComoGanadaPorSistema: H.reabrir, ganarConsultaPorSistema: H.ganar }));
 vi.mock("@/lib/permissions/module-access", () => ({ hasModuleLevel: H.nivel }));
 vi.mock("./sitio", () => ({
   sitioDelWorkspace: async (ws: string) =>
@@ -133,6 +134,7 @@ beforeEach(() => {
   H.real.mockReset();
   H.notificar.mockClear();
   H.reabrir.mockClear();
+  H.ganar.mockClear();
   H.nivel.mockResolvedValue(true);
   consulta("lead-1");
   consulta("lead-9", "ws-2");
@@ -503,6 +505,17 @@ describe("vistas", () => {
     expect(tareas(AV.TITULO_TAREA_VISTO)).toHaveLength(0);
   });
 
+  it("quien abre con sesión y es del equipo no cuenta como vista", async () => {
+    const { esDelEquipo } = await import("./vistas");
+    expect(await esDelEquipo("ws-1", 1)).toBe(true);
+    expect(await esDelEquipo("ws-1", 9)).toBe(false);
+    expect(await esDelEquipo("ws-2", 1)).toBe(false);
+    expect(await esDelEquipo("ws-1", null)).toBe(false);
+    const raiz = join(__dirname, "..", "..");
+    const pagina = readFileSync(join(raiz, "app/w/[workspaceSlug]/presupuesto/[token]/page.tsx"), "utf8");
+    expect(pagina).toMatch(/const registrar = !\(await abreAlguienDelEquipo\(workspaceId\)\);[\s\S]*\{ registrar, ipHash/);
+  });
+
   it("la vista para imprimir y los robots no se registran ni marcan visto", async () => {
     const { presupuestoId, versionId } = await enviado();
     const t = token(versionId);
@@ -553,7 +566,10 @@ describe("aceptar", () => {
     expect(version(versionId)).toMatchObject({ acceptedAt: cuando, acceptedName: "Laura Pérez", acceptedIpHash: "hash-ip", acceptedUserAgent: "Mozilla/5.0" });
     expect(presupuesto(presupuestoId)).toMatchObject({ status: "ACEPTADO", acceptedVersionId: versionId, pedidoPorConfirmar: true });
     expect(H.notificar).toHaveBeenLastCalledWith("ws-1", { tipo: "CAPTACION", id: "lead-1" }, "PRESUPUESTO_ACEPTADO", versionId);
+    expect(H.ganar).toHaveBeenCalledWith("ws-1", "lead-1", expect.stringContaining("Ganada: el cliente aceptó"));
     expect(H.reabrir).toHaveBeenCalledWith("ws-1", "lead-1", expect.stringContaining("Se reabrió como ganada"));
+    // Primero el evento, después ganar la consulta.
+    expect(H.notificar.mock.invocationCallOrder.at(-1)!).toBeLessThan(H.ganar.mock.invocationCallOrder[0]!);
     expect(tareas(AV.TITULO_TAREA_ACEPTADO)).toEqual([expect.objectContaining({ subjectId: "lead-1", assigneeUserId: 1 })]);
     expect(avisos).toHaveBeenCalledTimes(1);
     const correo = avisos.mock.calls[0]![0];

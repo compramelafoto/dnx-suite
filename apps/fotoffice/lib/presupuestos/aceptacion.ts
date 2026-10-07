@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
-import { notificarEvento, reabrirComoGanadaPorSistema } from "@/lib/circuitos/eventos";
+import { ganarConsultaPorSistema, notificarEvento, reabrirComoGanadaPorSistema } from "@/lib/circuitos/eventos";
 import { OPCIONES_TRANSACCION } from "@/lib/circuitos/recorridos";
 import { numeroDe } from "@/lib/numeracion/asignar";
 import { avisarAceptacion, crearTareaDeConsulta, destinatarioDelPresupuesto, TITULO_TAREA_PEDIR_NUEVO, type DepsAvisos } from "./avisos";
@@ -23,9 +23,11 @@ import { bloquearPresupuesto, type TotalesGuardados } from "./versiones";
  * - Evidencia en la versión: fecha, nombre, IP con hash y navegador.
  * - El presupuesto pasa a ACEPTADO con la versión aceptada y "Pedido por confirmar".
  * - Después (fuera de la transacción, sin poder romper la aceptación): el motor recibe
- *   `PRESUPUESTO_ACEPTADO` (la consulta avanza o se gana según las reglas de su circuito); si la
- *   consulta estaba perdida, se reabre como ganada; y se avisa al responsable (tarea + correo
- *   interno con tope).
+ *   `PRESUPUESTO_ACEPTADO` (la consulta avanza según las reglas de su circuito); después la
+ *   consulta se GANA: con recorrido de venta abierto, se cierra como Ganada como Sistema
+ *   (`ganarConsultaPorSistema`, idempotente); si estaba perdida, se reabre como ganada; sin
+ *   recorrido, pasa a WON (`reabrirComoGanadaPorSistema`). En los tres casos el contacto pasa a
+ *   Cliente (el adaptador del motor). Y se avisa al responsable (tarea + correo interno con tope).
  *
  * Nunca loguea datos personales (ni el nombre que se escribió).
  */
@@ -125,11 +127,11 @@ export async function aceptarPresupuesto(
     .then((m) => m.get(v0.presupuestoId) ?? null)
     .catch(() => null);
   await notificarEvento(workspaceId, { tipo: "CAPTACION", id: aceptado.leadId }, "PRESUPUESTO_ACEPTADO", v0.id);
-  await reabrirComoGanadaPorSistema(
-    workspaceId,
-    aceptado.leadId,
-    `Se reabrió como ganada: el cliente aceptó el presupuesto${numero ? ` N° ${numero}` : ""}.`,
-  );
+  const cual = numero ? ` N° ${numero}` : "";
+  // Las dos nunca lanzan. La primera cierra el recorrido abierto (si hay); la segunda cubre la
+  // consulta perdida o sin recorrido (con el recorrido ya ganado, no hace nada).
+  await ganarConsultaPorSistema(workspaceId, aceptado.leadId, `Ganada: el cliente aceptó el presupuesto${cual}.`);
+  await reabrirComoGanadaPorSistema(workspaceId, aceptado.leadId, `Se reabrió como ganada: el cliente aceptó el presupuesto${cual}.`);
   await avisarAceptacion(
     { workspaceId, leadId: aceptado.leadId, presupuestoId: v0.presupuestoId, ownerUserId: aceptado.ownerUserId, numero, total: pesos(aceptado.total) },
     { ...deps, ahora: () => ahora },

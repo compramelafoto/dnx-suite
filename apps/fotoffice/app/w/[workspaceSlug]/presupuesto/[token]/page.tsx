@@ -5,7 +5,7 @@ import { ESTILO_IMPRESION, PresupuestoPublico } from "@/components/presupuestos/
 import { abrirPresupuestoPublico } from "@/lib/presupuestos/publico";
 import { workspaceDelSlug } from "@/lib/presupuestos/sitio";
 import type { VistaPublica } from "@/lib/presupuestos/vista-publica";
-import { visitanteDelEnlace } from "./visitante";
+import { abreAlguienDelEquipo, visitanteDelEnlace } from "./visitante";
 
 export const dynamic = "force-dynamic";
 
@@ -45,7 +45,9 @@ export default async function PresupuestoPublicoPage({ params }: Props) {
   }
   const workspaceId = await workspaceDelSlug(workspaceSlug);
   if (!workspaceId) notFound();
-  const r = await abrirPresupuestoPublico(workspaceId, token, { registrar: true, ipHash: visitante.ipHash, userAgent: visitante.userAgent });
+  // Si lo abre alguien del equipo (con sesión), no cuenta como vista del cliente.
+  const registrar = !(await abreAlguienDelEquipo(workspaceId));
+  const r = await abrirPresupuestoPublico(workspaceId, token, { registrar, ipHash: visitante.ipHash, userAgent: visitante.userAgent });
   if (!r) notFound();
   if ("redirigir" in r) redirect(r.redirigir);
   const { vista } = r;

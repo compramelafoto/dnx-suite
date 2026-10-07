@@ -58,6 +58,8 @@ export async function createWorkspaceAction(
  * - ArtworkRoyalty: regalías de autores de FotoRank (plata de terceros, devengada
  *   o ya pagada); además referencian el pedido con `onDelete: Restrict`.
  * - ArtworkListing PUBLISHED: obras de autores a la venta en la tienda pública.
+ * - FotofficePresupuesto: presupuestos enviados o aceptados a clientes (evidencia de aceptación);
+ *   además cuelgan de la consulta y del contacto con `onDelete: Restrict`, que podría frenar el borrado.
  * No se decide una política de soft-delete/archivado: se bloquea explícitamente
  * y se informa qué lo bloquea, para que la decisión de negocio quede en manos
  * de un humano.
@@ -71,6 +73,7 @@ async function findWorkspaceDeletionBlockers(workspaceId: string): Promise<strin
     serviceLeadForms,
     artworkRoyalties,
     publishedArtworks,
+    presupuestos,
   ] = await Promise.all([
     prisma.courseEnrollment.count({ where: { workspaceId } }),
     prisma.courseSalesLead.count({ where: { workspaceId } }),
@@ -79,6 +82,7 @@ async function findWorkspaceDeletionBlockers(workspaceId: string): Promise<strin
     prisma.serviceLeadForm.count({ where: { workspaceId } }),
     prisma.artworkRoyalty.count({ where: { workspaceId } }),
     prisma.artworkListing.count({ where: { workspaceId, status: "PUBLISHED" } }),
+    prisma.fotofficePresupuesto.count({ where: { workspaceId } }),
   ]);
   const blockers: string[] = [];
   if (enrollments > 0) blockers.push(`${enrollments} inscripción(es) a cursos con datos de pago`);
@@ -88,6 +92,7 @@ async function findWorkspaceDeletionBlockers(workspaceId: string): Promise<strin
   if (serviceLeadForms > 0) blockers.push(`${serviceLeadForms} formulario(s) de consultas`);
   if (artworkRoyalties > 0) blockers.push(`${artworkRoyalties} regalía(s) de autores de obras`);
   if (publishedArtworks > 0) blockers.push(`${publishedArtworks} obra(s) publicada(s) en la tienda`);
+  if (presupuestos > 0) blockers.push(`${presupuestos} presupuesto(s)`);
   return blockers;
 }
 

@@ -116,7 +116,7 @@ export async function ganarConsultaPorSistema(workspaceId: string, leadId: strin
  * Ganada, como Sistema. Con un recorrido de venta abierto no hace nada (ahí deciden las reglas del
  * circuito, `notificarEvento`). Si el último recorrido de venta cerró como Perdida, ese cierre pasa
  * a Ganada (sin motivo de pérdida) con un paso nuevo en su historial; sin recorrido, una consulta
- * con estado LOST pasa a WON. En los dos casos el adaptador pone el estado compatible y el contacto
+ * que todavía no está WON (perdida o en cualquier otro estado) pasa a WON. En los dos casos el adaptador pone el estado compatible y el contacto
  * pasa a Cliente (`alCambiarEtapa`), en la misma transacción. Nunca lanza.
  */
 export async function reabrirComoGanadaPorSistema(workspaceId: string, leadId: string, nota: string): Promise<{ reabierta: boolean }> {
@@ -156,7 +156,7 @@ export async function reabrirComoGanadaPorSistema(workspaceId: string, leadId: s
         });
       } else {
         const lead = await tx.serviceSalesLead.findFirst({ where: { id: leadId, workspaceId }, select: { status: true } });
-        if (lead?.status !== "LOST") return { reabierta: false };
+        if (!lead || lead.status === "WON") return { reabierta: false };
       }
       await adaptadorDe("CAPTACION")?.alCambiarEtapa?.(tx, workspaceId, leadId, null, exito);
       return { reabierta: true };

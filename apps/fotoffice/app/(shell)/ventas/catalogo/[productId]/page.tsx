@@ -5,6 +5,7 @@ import { getProduct, listProductCategories } from "@/lib/sales/repository";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { loadPublicSlug } from "@/lib/blog/admin-queries";
 import { STORE_MODULE_KEY } from "@/lib/store/constants";
+import { QUOTES_MODULE_KEY } from "@/lib/presupuestos/acceso";
 import { ProductForm } from "../../product-form";
 import { toggleProductActiveAction } from "../../actions";
 import { StoreSections } from "./store-sections";
@@ -26,24 +27,28 @@ export default async function ProductoPage({
   const { productId } = await params;
   const query = await searchParams;
 
-  const [producto, categorias, storeEnabled, publicSlug] = await Promise.all([
+  const [producto, categorias, storeEnabled, publicSlug, presupuestosEnabled] = await Promise.all([
     getProduct(workspace.id, productId),
     listProductCategories(workspace.id),
     isModuleEnabledForWorkspace(workspace.id, STORE_MODULE_KEY),
     loadPublicSlug(workspace.id),
+    isModuleEnabledForWorkspace(workspace.id, QUOTES_MODULE_KEY),
   ]);
   if (!producto) notFound();
 
-  // Etapa 2: combo, costos-plantilla y datos para presupuestos. Esta ficha ya exige
+  // Etapa 2: combo, costos-plantilla y datos para presupuestos, SÓLO con el módulo Presupuestos
+  // encendido (si no, la ficha queda como antes y ni se leen). Esta ficha ya exige
   // `sales.catalog` (`requireSalesAdmin`), que es el permiso para ver costos y margen.
-  const [perfil, rubros, combo, productosCombo, costos, proveedores] = await Promise.all([
-    leerPerfil(workspace.id, producto.id),
-    rubrosUsados(workspace.id),
-    leerCombo(workspace.id, producto.id, producto.priceMinor),
-    productosParaCombo(workspace.id, producto.id),
-    leerCostos(workspace.id, producto.id),
-    proveedoresDelWorkspace(workspace.id),
-  ]);
+  const etapa2 = presupuestosEnabled
+    ? await Promise.all([
+        leerPerfil(workspace.id, producto.id),
+        rubrosUsados(workspace.id),
+        leerCombo(workspace.id, producto.id, producto.priceMinor),
+        productosParaCombo(workspace.id, producto.id),
+        leerCostos(workspace.id, producto.id),
+        proveedoresDelWorkspace(workspace.id),
+      ])
+    : null;
 
   return (
     <div className="space-y-8">
@@ -73,16 +78,18 @@ export default async function ProductoPage({
 
       <ProductForm product={producto} categories={categorias} error={query.error} />
 
-      <PresupuestoSections
-        productId={producto.id}
-        priceMinor={producto.priceMinor}
-        perfil={perfil}
-        rubros={rubros}
-        combo={combo}
-        productosCombo={productosCombo}
-        costos={costos}
-        proveedores={proveedores}
-      />
+      {etapa2 ? (
+        <PresupuestoSections
+          productId={producto.id}
+          priceMinor={producto.priceMinor}
+          perfil={etapa2[0]}
+          rubros={etapa2[1]}
+          combo={etapa2[2]}
+          productosCombo={etapa2[3]}
+          costos={etapa2[4]}
+          proveedores={etapa2[5]}
+        />
+      ) : null}
 
       <StoreSections product={producto} publicSlug={publicSlug} storeEnabled={storeEnabled} />
     </div>

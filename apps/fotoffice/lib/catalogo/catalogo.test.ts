@@ -200,6 +200,13 @@ describe("fuente de la ficha", () => {
     expect(pagina.indexOf("requireSalesAdmin()")).toBeLessThan(pagina.indexOf("leerCostos("));
   });
 
+  it("combo, costos y datos para presupuestos sólo con el módulo Presupuestos encendido", () => {
+    expect(pagina).toContain("isModuleEnabledForWorkspace(workspace.id, QUOTES_MODULE_KEY)");
+    expect(pagina).toMatch(/const etapa2 = presupuestosEnabled\s*\?/);
+    expect(pagina.indexOf("presupuestosEnabled\n")).toBeLessThan(pagina.indexOf("leerCostos("));
+    expect(pagina).toMatch(/\{etapa2 \? \(\s*<PresupuestoSections/);
+  });
+
   it("el componente del navegador no importa la base ni módulos de servidor (salvo tipos)", () => {
     expect(secciones).not.toMatch(/from "@repo\/db"/);
     for (const m of secciones.matchAll(/^import (?!type )[^;]*from "@\/lib\/catalogo\/(\w+)"/gm)) expect(m[1]).toBe("reglas");

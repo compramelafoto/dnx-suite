@@ -59,6 +59,19 @@ describe("validarItems", () => {
     expect(validarItems([base, { ...base, id: "b" }]).ok).toBe(true);
     expect(validarItems("x").ok).toBe(false);
   });
+
+  it("topes: textos del ítem y cantidad de ítems por versión", () => {
+    const ok = (x: Record<string, unknown>) => validarItem({ ...base, ...x }).ok;
+    expect(ok({ descripcion: "x".repeat(2000), seccion: "s".repeat(120), id: "i".repeat(64), productId: "p".repeat(64), nombre: "n".repeat(200) })).toBe(true);
+    expect(ok({ descripcion: "x".repeat(2001) })).toBe(false);
+    expect(ok({ seccion: "s".repeat(121) })).toBe(false);
+    expect(ok({ id: "i".repeat(65) })).toBe(false);
+    expect(ok({ productId: "p".repeat(65) })).toBe(false);
+    expect(ok({ nombre: "n".repeat(201) })).toBe(false);
+    const muchos = (n: number) => Array.from({ length: n }, (_, i) => ({ ...base, id: `r${i}` }));
+    expect(validarItems(muchos(200)).ok).toBe(true);
+    expect(validarItems(muchos(201))).toEqual({ ok: false, error: "Un presupuesto admite hasta 200 ítems." });
+  });
 });
 
 describe("estados", () => {

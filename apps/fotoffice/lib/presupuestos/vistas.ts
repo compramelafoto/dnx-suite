@@ -5,6 +5,17 @@ import { pasarEstado } from "./presupuestos";
 import type { EnlaceEncontrado } from "./publico";
 
 /**
+ * ¿Quien abre el enlace es del equipo de ESA organización (sesión iniciada y miembro)? Entonces su
+ * apertura no cuenta: no se registra, no pasa a VISTO y no crea tarea (el equipo revisa el enlace
+ * que mandó; eso no es que el cliente lo vio). Sin sesión, o de otra organización, sí cuenta.
+ */
+export async function esDelEquipo(workspaceId: string, userId: number | null | undefined): Promise<boolean> {
+  if (typeof userId !== "number") return false;
+  const m = await prisma.workspaceMembership.findFirst({ where: { workspaceId, userId }, select: { id: true } });
+  return m !== null;
+}
+
+/**
  * Cada apertura del enlace queda registrada (`FotofficePresupuestoVista`: versión, hora, IP con
  * hash y navegador; nunca la IP).
  *

@@ -582,6 +582,30 @@ describe("presupuestos (etapa 2): enviado, aceptado y consulta perdida", () => {
     expect(await E.reabrirComoGanadaPorSistema("ws-1", "lead-1", "x")).toEqual({ reabierta: false });
   });
 
+  it("al aceptar con un recorrido abierto: el evento mueve y después la consulta se gana (contacto → Cliente)", async () => {
+    conContacto();
+    const id = await iniciado();
+    regla("s4", "PRESUPUESTO_ACEPTADO");
+    await E.notificarEvento("ws-1", CONSULTA, "PRESUPUESTO_ACEPTADO", "version-1");
+    expect(await E.ganarConsultaPorSistema("ws-1", "lead-1", "Ganada: aceptó")).toEqual({ cerrado: true });
+    expect(await E.reabrirComoGanadaPorSistema("ws-1", "lead-1", "x")).toEqual({ reabierta: false });
+    expect(recorrido(id)).toMatchObject({ outcome: "GANADA", stageId: null });
+    expect(lead().status).toBe("WON");
+    expect(B.datos.fotofficeContactoPerfil[0]).toMatchObject({ category: "CLIENTE" });
+    // Idempotente: aceptar de nuevo no hace nada.
+    expect(await E.ganarConsultaPorSistema("ws-1", "lead-1", "x")).toEqual({ cerrado: false });
+  });
+
+  it("sin recorrido: una consulta en cualquier estado salvo WON pasa a WON", async () => {
+    conContacto();
+    expect(lead().status).toBe("NEW");
+    expect(await E.ganarConsultaPorSistema("ws-1", "lead-1", "x")).toEqual({ cerrado: false });
+    expect(await E.reabrirComoGanadaPorSistema("ws-1", "lead-1", "x")).toEqual({ reabierta: true });
+    expect(lead().status).toBe("WON");
+    expect(B.datos.fotofficeContactoPerfil[0]).toMatchObject({ category: "CLIENTE" });
+    expect(await E.reabrirComoGanadaPorSistema("ws-1", "lead-1", "x")).toEqual({ reabierta: false });
+  });
+
   it("sin recorrido: una consulta LOST pasa a WON; de otro workspace, nada", async () => {
     conContacto();
     lead().status = "LOST";

@@ -152,6 +152,12 @@ export function itemSinDatosInternos(item: ItemPresupuesto): ItemPublico {
 
 export const TOPE_IMPORTE = 999_999_999.99;
 export const TOPE_CANTIDAD = 100_000;
+/** Topes de los textos de un ítem (el JSON no tiene límites en el SQL) y de ítems por versión. */
+export const MAX_NOMBRE_ITEM = 200;
+export const MAX_DESCRIPCION_ITEM = 2000;
+export const MAX_SECCION_ITEM = 120;
+export const MAX_CLAVE_ITEM = 64;
+export const MAX_ITEMS_VERSION = 200;
 
 export type ResultadoValidacion<T> = { ok: true; valor: T } | { ok: false; error: string };
 
@@ -186,7 +192,7 @@ export function validarItem(raw: unknown): ResultadoValidacion<ItemPresupuesto> 
   const r = raw as Record<string, unknown>;
   const nombre = textoOpcional(r.nombre);
   if (!nombre) return { ok: false, error: "Cada ítem necesita un nombre." };
-  if (nombre.length > 200) return { ok: false, error: "El nombre del ítem es demasiado largo." };
+  if (nombre.length > MAX_NOMBRE_ITEM) return { ok: false, error: "El nombre del ítem es demasiado largo." };
   if (!esModoPrecio(r.modoPrecio)) return { ok: false, error: `El modo de precio de "${nombre}" no es válido.` };
   const cantidad = numeroFinito(r.cantidad);
   if (cantidad === null || cantidad <= 0 || cantidad > TOPE_CANTIDAD) {
@@ -202,20 +208,30 @@ export function validarItem(raw: unknown): ResultadoValidacion<ItemPresupuesto> 
     ? (r.calculo as InstantaneaCalculo)
     : null;
   const id = textoOpcional(r.id);
-  if (!id) return { ok: false, error: "El ítem no tiene clave." };
+  if (!id || id.length > MAX_CLAVE_ITEM) return { ok: false, error: "El ítem no tiene clave." };
+  const productId = textoOpcional(r.productId);
+  if (productId !== null && productId.length > MAX_CLAVE_ITEM) return { ok: false, error: `El producto de "${nombre}" no es válido.` };
+  const descripcion = textoOpcional(r.descripcion);
+  if (descripcion !== null && descripcion.length > MAX_DESCRIPCION_ITEM) {
+    return { ok: false, error: `La descripción de "${nombre}" puede tener hasta ${MAX_DESCRIPCION_ITEM.toLocaleString("es-AR")} caracteres.` };
+  }
+  const seccion = textoOpcional(r.seccion);
+  if (seccion !== null && seccion.length > MAX_SECCION_ITEM) {
+    return { ok: false, error: `La sección de "${nombre}" puede tener hasta ${MAX_SECCION_ITEM} caracteres.` };
+  }
   return {
     ok: true,
     valor: {
       id,
-      productId: textoOpcional(r.productId),
+      productId,
       nombre,
-      descripcion: textoOpcional(r.descripcion),
+      descripcion,
       cantidad,
       precioUnitario: Math.round(precio * 100) / 100,
       descuento: descuento.valor,
       modoPrecio: r.modoPrecio,
       calculo,
-      seccion: textoOpcional(r.seccion),
+      seccion,
       opcional: r.opcional === true,
     },
   };
@@ -223,7 +239,7 @@ export function validarItem(raw: unknown): ResultadoValidacion<ItemPresupuesto> 
 
 export function validarItems(raw: unknown): ResultadoValidacion<ItemPresupuesto[]> {
   if (!Array.isArray(raw)) return { ok: false, error: "Los ítems no son válidos." };
-  if (raw.length > 200) return { ok: false, error: "Un presupuesto admite hasta 200 ítems." };
+  if (raw.length > MAX_ITEMS_VERSION) return { ok: false, error: `Un presupuesto admite hasta ${MAX_ITEMS_VERSION} ítems.` };
   const items: ItemPresupuesto[] = [];
   const claves = new Set<string>();
   for (const x of raw) {
