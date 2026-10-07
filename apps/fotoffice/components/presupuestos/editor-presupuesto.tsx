@@ -6,6 +6,7 @@ import { ArrowDown, ArrowUp, X } from "lucide-react";
 import { guardarBorradorAction } from "@/app/actions/presupuestos";
 import type { Descuento, ItemPresupuesto, ModoPrecio, TipoDescuento } from "@/lib/presupuestos/constantes";
 import {
+  ajustadosIniciales,
   buscarEnCatalogo,
   costosEnVivo,
   itemDesdeProducto,
@@ -95,6 +96,15 @@ export function EditorPresupuesto({ datos, puedeGuardar }: { datos: DatosEditor;
   const [perfil, setPerfil] = useState<PerfilPanel | null>(datos.internos?.perfil ?? null);
   const [mensaje, setMensaje] = useState<{ ok: boolean; texto: string } | null>(null);
   const [cambios, setCambios] = useState(false);
+  /** Ítems calculados con el precio tocado a mano: al guardar viajan con `precioAjustado: true`. */
+  const [ajustados, setAjustados] = useState<Set<string>>(() => ajustadosIniciales(datos.items));
+  const marcarAjuste = (id: string, ajustado: boolean) =>
+    setAjustados((prev) => {
+      const s = new Set(prev);
+      if (ajustado) s.add(id);
+      else s.delete(id);
+      return s;
+    });
   const internos = datos.internos;
   const idBusqueda = useId();
 
@@ -137,7 +147,7 @@ export function EditorPresupuesto({ datos, puedeGuardar }: { datos: DatosEditor;
     iniciar(async () => {
       const r = await guardarBorradorAction({
         presupuestoId: datos.presupuestoId,
-        items: itemsParaGuardar(items, !!internos),
+        items: itemsParaGuardar(items, !!internos, ajustados),
         descuento,
         condiciones,
         propuestaPago,
@@ -261,6 +271,8 @@ export function EditorPresupuesto({ datos, puedeGuardar }: { datos: DatosEditor;
           }}
           onUsar={(item, p) => {
             setPerfil(p);
+            // El precio del panel es el del motor (o su precio a mano): sigue al cálculo.
+            marcarAjuste(item.id, false);
             actualizar(item.id, item);
             setNuevoCalculado(null);
             setCalculando(null);
@@ -389,7 +401,10 @@ export function EditorPresupuesto({ datos, puedeGuardar }: { datos: DatosEditor;
                                 className="fo-input w-32 text-right"
                                 value={it.precioUnitario}
                                 disabled={!puedeGuardar}
-                                onChange={(e) => actualizar(it.id, { precioUnitario: aNumero(e.target.value) })}
+                                onChange={(e) => {
+                                  if (calculado) marcarAjuste(it.id, true);
+                                  actualizar(it.id, { precioUnitario: aNumero(e.target.value) });
+                                }}
                               />
                             </td>
                             <td className="py-2 pr-2">

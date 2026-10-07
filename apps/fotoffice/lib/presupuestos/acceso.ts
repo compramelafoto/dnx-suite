@@ -57,4 +57,5 @@ export const MENSAJES_PRESUPUESTO = {
   transicion: "El presupuesto no puede pasar a ese estado.",
   cambio: "El presupuesto cambió mientras tanto. Volvé a abrirlo.",
   fallo: "No se pudo guardar el presupuesto.",
+  falloConConsulta: "La consulta se creó, pero el presupuesto no. Abrila y creá el presupuesto desde ahí.",
 } as const;

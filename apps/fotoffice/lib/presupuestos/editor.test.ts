@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ItemPresupuesto } from "./constantes";
-import { armarDatosEditor, buscarEnCatalogo, costosEnVivo, itemDesdeProducto, itemLibre, itemsParaGuardar, type ProductoParaEditor } from "./editor";
+import { ajustadosIniciales, armarDatosEditor, buscarEnCatalogo, costosEnVivo, itemDesdeProducto, itemLibre, itemsParaGuardar, type ProductoParaEditor } from "./editor";
 import { calcularItemDelPanel, PERFIL_VACIO, trabajoVacio } from "./panel-cuanto-cobro";
 import { calcularTotales } from "./totales";
 
@@ -60,7 +60,11 @@ describe("ítems del editor", () => {
 
   it("al guardar viaja sólo la entrada del motor, y sólo con permiso", () => {
     const [conPermiso] = itemsParaGuardar([calculado], true) as { calculo: Record<string, unknown> }[];
-    expect(Object.keys(conPermiso!.calculo)).toEqual(["entrada"]);
+    expect(Object.keys(conPermiso!.calculo)).toEqual(["entrada", "precioAjustado"]);
+    expect(conPermiso!.calculo.precioAjustado).toBe(false);
+    const [tocado] = itemsParaGuardar([calculado], true, new Set(["c1"])) as { calculo: Record<string, unknown> }[];
+    expect(tocado!.calculo.precioAjustado).toBe(true);
+    expect([...ajustadosIniciales([calculado, { ...calculado, id: "c2", calculo: { ...calculado.calculo!, precioElegido: 1 } }])]).toEqual(["c2"]);
     const [sinPermiso] = itemsParaGuardar([calculado], false) as { calculo: unknown }[];
     expect(sinPermiso!.calculo).toBeNull();
     const [lista] = itemsParaGuardar([{ ...calculado, modoPrecio: "LISTA" }], true) as { calculo: unknown }[];

@@ -34,6 +34,8 @@ export function NuevoPresupuesto({
   const [contacto, setContacto] = useState<ContactoElegido | null>(contactoInicial);
   const [categoria, setCategoria] = useState(categorias[0]?.id ?? "");
   const [error, setError] = useState<string | null>(null);
+  /** La consulta que se creó aunque el presupuesto falló: se ofrece abrirla en vez de crear otra. */
+  const [consultaCreada, setConsultaCreada] = useState<string | null>(null);
 
   function crear() {
     setError(null);
@@ -44,7 +46,10 @@ export function NuevoPresupuesto({
           : { nuevaConsulta: contacto ? { contacto: { clientId: contacto.id }, categoriaId: categoria } : null };
       const r = await crearPresupuestoAction(datos).catch(() => ({ ok: false as const, error: "No se pudo crear el presupuesto. Probá de nuevo." }));
       if (r.ok) router.push(`/presupuestos/${encodeURIComponent(r.presupuestoId)}`);
-      else setError(r.error);
+      else {
+        setError(r.error);
+        setConsultaCreada("leadId" in r && r.leadId ? r.leadId : null);
+      }
     });
   }
 
@@ -106,6 +111,14 @@ export function NuevoPresupuesto({
         {error ? (
           <p role="alert" className="text-sm text-[var(--fo-danger)]">
             {error}
+            {consultaCreada ? (
+              <>
+                {" "}
+                <a href={`/consultas/${encodeURIComponent(consultaCreada)}`} className="underline">
+                  Abrir la consulta
+                </a>
+              </>
+            ) : null}
           </p>
         ) : null}
       </div>

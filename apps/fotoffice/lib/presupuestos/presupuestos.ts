@@ -14,9 +14,9 @@ import {
   veCostos,
   type CtxPresupuestos,
 } from "./acceso";
-import { leerAjustes } from "./ajustes";
+import { leerAjustes, type AjustesPresupuestos } from "./ajustes";
 import { ENTIDAD_NUMERACION, esEstadoPresupuesto, type EstadoPresupuesto } from "./constantes";
-import { estadoEfectivo, ESTADOS_QUE_VENCEN, hoyEnBuenosAires, puedePasar, textoDeFecha, vencimientoDesde } from "./estados";
+import { estadoEfectivo, ESTADOS_QUE_VENCEN, hoyEnBuenosAires, puedePasar, textoDeFecha, vencimientoDesde, vencio } from "./estados";
 import {
   bloquearPresupuesto,
   costosVacios,
@@ -58,8 +58,9 @@ const tieneGestionarPorDefecto = (userId: number, workspaceId: string) =>
   hasModuleLevel(userId, workspaceId, QUOTES_MODULE_KEY, "MANAGE");
 
 function falla(donde: string, error: unknown): void {
-  const e = error as { name?: string; code?: string } | null;
-  console.error(`[presupuestos] ${donde} falló`, { error: e?.name ?? "desconocido", codigo: e?.code ?? null });
+  // Sólo el código del error: ni ids, ni mensajes (pueden traer datos personales).
+  const e = error as { code?: unknown } | null;
+  console.error(`[presupuestos] ${donde} falló`, { codigo: typeof e?.code === "string" ? e.code : null });
 }
 
 function idValido(v: unknown): v is string {
@@ -77,7 +78,14 @@ export type DatosNuevoPresupuesto = {
   ownerUserId?: number | null;
 };
 
-export type ResultadoCreacion = { ok: true; presupuestoId: string; versionId: string; leadId: string } | { ok: false; error: string };
+/**
+ * `leadId` en el error: la consulta que el alta SÍ creó (sin consulta elegida) cuando después
+ * falló el presupuesto. La consulta queda (es un alta completa: número, circuito, aviso) y la
+ * pantalla puede llevar a ella en vez de crear otra al reintentar.
+ */
+export type ResultadoCreacion =
+  | { ok: true; presupuestoId: string; versionId: string; leadId: string }
+  | { ok: false; error: string; leadId?: string };
 
 async function puedeSerResponsable(workspaceId: string, userId: unknown, deps: DepsPresupuestos): Promise<boolean> {
   if (typeof userId !== "number" || !Number.isSafeInteger(userId) || userId <= 0) return false;
@@ -116,6 +124,8 @@ export async function crearPresupuesto(
   }
 
   let consulta: { leadId: string; clientId: string };
+  /** La consulta la creó esta llamada (para devolverla si el presupuesto falla). */
+  let consultaCreada = false;
   if (datos.consultaLeadId !== undefined && datos.consultaLeadId !== null) {
     if (!idValido(datos.consultaLeadId)) return { ok: false, error: MENSAJES_PRESUPUESTO.consulta };
     const c = await consultaDelWorkspace(workspaceId, datos.consultaLeadId);
@@ -133,6 +143,7 @@ export async function crearPresupuesto(
     if (!r.ok) return r;
     if (r.clientId === null) return { ok: false, error: MENSAJES_PRESUPUESTO.consultaSinContacto };
     consulta = { leadId: r.leadId, clientId: r.clientId };
+    consultaCreada = true;
   } else {
     return { ok: false, error: MENSAJES_PRESUPUESTO.elegirConsulta };
   }
@@ -169,7 +180,9 @@ export async function crearPresupuesto(
       return { ok: true as const, presupuestoId: p.id, versionId: v.id, leadId: consulta.leadId };
     });
   } catch (e) {
+    // Sólo el código del error en el registro (sin ids ni datos personales).
     falla("crearPresupuesto", e);
+    if (consultaCreada) return { ok: false, error: MENSAJES_PRESUPUESTO.falloConConsulta, leadId: consulta.leadId };
     return { ok: false, error: MENSAJES_PRESUPUESTO.fallo };
   }
 }
@@ -248,6 +261,15 @@ export async function guardarBorrador(
 // --- Estados -------------------------------------------------------------------------------------
 
 /**
+ * Lo que se escribe en el presupuesto al ENVIAR (cada envío, también el de la V2 o el reenvío de
+ * uno vencido o rechazado): la validez se cuenta de nuevo desde hoy con los ajustes. La Task 5
+ * lo pasa como `datos` de `pasarEstado(…, a: "ENVIADO")`, junto con `currentVersionId`.
+ */
+export function datosDeEnvio(ahora: Date, ajustes: Pick<AjustesPresupuestos, "validezDias">): { validUntil: Date } {
+  return { validUntil: vencimientoDesde(ahora, ajustes.validezDias) };
+}
+
+/**
  * Cambia el estado de un presupuesto validando la transición contra el estado EFECTIVO (un
  * enviado que venció cuenta como vencido) y escribiendo condicional sobre el guardado. Lo usan
  * rechazar (acá) y enviar, ver y aceptar (Task 5).
@@ -263,6 +285,12 @@ export async function pasarEstado(
   if (!p || !esEstadoPresupuesto(p.status)) return { ok: false, error: MENSAJES_PRESUPUESTO.noExiste };
   const de = estadoEfectivo(p.status, p.validUntil, args.ahora);
   if (!puedePasar(de, args.a)) return { ok: false, error: MENSAJES_PRESUPUESTO.transicion };
+  // Enviar exige la validez renovada (`datosDeEnvio`): sin ella, un vencido o rechazado que se
+  // reenvía quedaría ENVIADO con la fecha vieja y se vería vencido de nuevo al instante.
+  if (args.a === "ENVIADO") {
+    const v = args.datos?.validUntil;
+    if (!(v instanceof Date) || vencio(v, args.ahora)) return { ok: false, error: MENSAJES_PRESUPUESTO.transicion };
+  }
   const r = await cliente.fotofficePresupuesto.updateMany({
     where: { id: args.presupuestoId, workspaceId: args.workspaceId, status: p.status },
     data: { ...args.datos, status: args.a },
@@ -381,8 +409,8 @@ export async function listarPresupuestos(
     where: {
       workspaceId,
       ...(guardados ? { status: { in: guardados } } : {}),
-      ...(filtros.consultaLeadId ? { consultaLeadId: filtros.consultaLeadId } : {}),
-      ...(filtros.clientId ? { clientId: filtros.clientId } : {}),
+      ...(idValido(filtros.consultaLeadId) ? { consultaLeadId: filtros.consultaLeadId } : {}),
+      ...(idValido(filtros.clientId) ? { clientId: filtros.clientId } : {}),
     },
     orderBy: [{ updatedAt: "desc" }],
     take: TOPE_LISTA,

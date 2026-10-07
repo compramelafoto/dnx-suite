@@ -101,3 +101,18 @@ describe("itemDesdeCalculo (motor real de ¿Cuánto Cobro?)", () => {
     for (const palabra of ["costo", "margen", "precioMinimo", "valorHora"]) expect(json).not.toContain(palabra);
   });
 });
+
+describe("esPrecioAjustado (contrato del precio al recalcular)", async () => {
+  const { esPrecioAjustado } = await import("./calculo-cuanto-cobro");
+  it("la marca explícita manda; sin marca, sólo si difiere del sugerido guardado", () => {
+    expect(esPrecioAjustado(100, { precioAjustado: true })).toBe(true);
+    expect(esPrecioAjustado(100, { precioAjustado: false, sugeridoAnterior: 5 })).toBe(false);
+    expect(esPrecioAjustado(0, { precioAjustado: true })).toBe(false);
+    expect(esPrecioAjustado(100, { sugeridoAnterior: 100 })).toBe(false);
+    expect(esPrecioAjustado(100.001, { sugeridoAnterior: 100 })).toBe(false);
+    expect(esPrecioAjustado(101, { sugeridoAnterior: 100 })).toBe(true);
+    // Ítem nuevo, sin sugerido guardado: un precio > 0 es un ajuste; 0 es "el del motor".
+    expect(esPrecioAjustado(100)).toBe(true);
+    expect(esPrecioAjustado(0)).toBe(false);
+  });
+});

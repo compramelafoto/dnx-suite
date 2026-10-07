@@ -165,7 +165,7 @@ describe("fuente de las pantallas", () => {
     // El panel y el asistente sólo se dibujan con `internos`.
     expect(editor).toMatch(/itemCalculando && internos \?/);
     expect(editor).toMatch(/asistente && internos \?/);
-    expect(editor).toContain("itemsParaGuardar(items, !!internos)");
+    expect(editor).toContain("itemsParaGuardar(items, !!internos, ajustados)");
   });
 
   it("las tarjetas de la consulta y del contacto pasan por `aTarjeta` (sin costo ni margen)", () => {

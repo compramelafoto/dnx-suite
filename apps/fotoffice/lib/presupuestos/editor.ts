@@ -128,14 +128,25 @@ export function buscarEnCatalogo(catalogo: readonly ProductoParaEditor[], texto:
 
 /**
  * Lo que el editor manda a `guardarBorradorAction`. De un ítem de ¿Cuánto Cobro? sólo viaja la
- * entrada del motor (el servidor recalcula todo lo demás, R2) y sólo si quien guarda la puede
- * ver; sin permiso viaja sin cálculo y el servidor usa la entrada guardada.
+ * entrada del motor (el servidor recalcula todo lo demás, R2) y la marca `precioAjustado`: true si
+ * la persona tocó el precio del renglón (manda su precio), false si sigue al motor. Todo eso sólo
+ * si quien guarda ve el cálculo; sin permiso viaja sin cálculo y el servidor usa la entrada
+ * guardada y compara el precio con el sugerido guardado (`recalcularItemCalculo`).
  */
-export function itemsParaGuardar(items: readonly ItemPresupuesto[], conCalculo: boolean): unknown[] {
+export function itemsParaGuardar(items: readonly ItemPresupuesto[], conCalculo: boolean, ajustados: ReadonlySet<string> = new Set()): unknown[] {
   return items.map((i) => ({
     ...i,
-    calculo: conCalculo && i.modoPrecio === "CALCULO" && i.calculo ? { entrada: i.calculo.entrada } : null,
+    calculo: conCalculo && i.modoPrecio === "CALCULO" && i.calculo ? { entrada: i.calculo.entrada, precioAjustado: ajustados.has(i.id) } : null,
   }));
+}
+
+/** Los ítems calculados cuyo precio ya estaba ajustado a mano (el elegido no es el sugerido). */
+export function ajustadosIniciales(items: readonly ItemPresupuesto[]): Set<string> {
+  return new Set(
+    items
+      .filter((i) => i.modoPrecio === "CALCULO" && i.calculo && Math.abs(i.calculo.precioElegido - i.calculo.precioSugerido) >= 0.005)
+      .map((i) => i.id),
+  );
 }
 
 /** Costo y margen en vivo (sólo con `internos`). */

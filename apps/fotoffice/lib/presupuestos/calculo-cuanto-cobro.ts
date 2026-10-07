@@ -142,18 +142,49 @@ export function entradaDelMotor(v: unknown): EntradaMotor | null {
 /**
  * R2: el servidor nunca confía en la instantánea que manda el navegador. Con las ENTRADAS
  * guardadas corre el motor otra vez y arma la instantánea de nuevo; del ítem que llegó sólo toma
- * lo que la persona puede elegir (nombre, cantidad, descuento, sección, opcional y el precio, que
- * es ajustable). Si el precio que llegó es 0, queda el sugerido del motor.
+ * lo que la persona puede elegir (nombre, cantidad, descuento, sección, opcional y el precio).
+ *
+ * Contrato del precio (revisión de la Task 3):
+ * - `opciones.precioAjustado === true`: el precio del renglón que llegó es el elegido a mano y
+ *   manda sobre el sugerido (el editor lo manda así cuando la persona toca el precio);
+ * - `opciones.precioAjustado === false`: manda el motor (el precio que llegó se ignora);
+ * - sin indicación (quien no ve costos recibe el ítem sin el cálculo y no puede mandar la
+ *   marca): el precio cuenta como ajustado sólo si es > 0 y DISTINTO del sugerido que había
+ *   quedado guardado (`sugeridoAnterior`). Si es igual, se sigue al motor: cuando cambian las
+ *   entradas, el precio sigue al cálculo nuevo en vez de quedar pegado al viejo. Sin sugerido
+ *   anterior (ítem nuevo), un precio > 0 cuenta como ajustado.
+ *
+ * Las unidades informativas salen de la instantánea del ítem que llegó o, si llegó sin ella, de
+ * las guardadas (`opciones.unidades`).
  */
-function unidadesPrevias(item: ItemPresupuesto): number {
-  const u = (item.calculo as { unidades?: unknown } | null)?.unidades;
+function unidadesPrevias(item: ItemPresupuesto, guardadas?: number | null): number {
+  const u = (item.calculo as { unidades?: unknown } | null)?.unidades ?? guardadas;
   return typeof u === "number" && Number.isFinite(u) && u > 0 && u <= 100_000 ? u : 1;
+}
+
+export type OpcionesRecalculo = {
+  /** Marca explícita del editor: true = precio elegido a mano; false = el del motor. */
+  precioAjustado?: boolean;
+  /** El precio sugerido que había quedado guardado para este renglón (para comparar). */
+  sugeridoAnterior?: number | null;
+  /** Unidades informativas guardadas (si el ítem llegó sin instantánea). */
+  unidades?: number | null;
+};
+
+/** ¿El precio del renglón que llegó es un ajuste a mano? Ver el contrato arriba. */
+export function esPrecioAjustado(precioRenglon: number, opciones: OpcionesRecalculo = {}): boolean {
+  if (opciones.precioAjustado !== undefined) return opciones.precioAjustado && precioRenglon > 0;
+  if (!(precioRenglon > 0)) return false;
+  const ref = opciones.sugeridoAnterior;
+  if (typeof ref !== "number" || !Number.isFinite(ref)) return true;
+  return Math.abs(redondear2(precioRenglon) - redondear2(ref)) >= 0.005;
 }
 
 export function recalcularItemCalculo(
   item: ItemPresupuesto,
   entrada: EntradaMotor,
   calculadoEn: Date = new Date(),
+  opciones: OpcionesRecalculo = {},
 ): ResultadoItemCalculado {
   let resultado: CuantoCobroCalculationResult;
   try {
@@ -164,14 +195,14 @@ export function recalcularItemCalculo(
   } catch {
     return { ok: false, error: "Los datos del cálculo de ¿Cuánto Cobro? no son válidos.", faltan: [] };
   }
-  const ajustado = item.precioUnitario > 0;
+  const precioRenglon = redondear2(item.precioUnitario * item.cantidad);
   const r = itemDesdeCalculo(resultado, {
     id: item.id,
     nombre: item.nombre,
     descripcion: item.descripcion,
     // El ítem guardado tiene cantidad 1: las unidades informativas vienen de la instantánea anterior.
-    cantidad: item.cantidad > 1 ? item.cantidad : unidadesPrevias(item),
-    precioAjustado: ajustado ? redondear2(item.precioUnitario * item.cantidad) : null,
+    cantidad: item.cantidad > 1 ? item.cantidad : unidadesPrevias(item, opciones.unidades),
+    precioAjustado: esPrecioAjustado(precioRenglon, opciones) ? precioRenglon : null,
     descuento: item.descuento,
     seccion: item.seccion,
     opcional: item.opcional,

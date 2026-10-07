@@ -87,13 +87,26 @@ export async function costosDelCatalogo(workspaceId: string, productIds: string[
 
 // --- Normalizar el borrador -----------------------------------------------------------------------
 
-/** La entrada guardada del cálculo de cada ítem de un borrador (para recalcular sin que la reenvíen). */
-export function entradasGuardadas(itemsGuardados: unknown): Map<string, unknown> {
-  const mapa = new Map<string, unknown>();
+/** Lo que queda guardado del cálculo de un renglón y sirve para recalcularlo sin que lo reenvíen. */
+export type CalculoGuardado = {
+  entrada: unknown;
+  /** El sugerido del motor la última vez (para saber si el precio que llega es un ajuste). */
+  precioSugerido: number | null;
+  /** Unidades informativas. */
+  unidades: number | null;
+};
+
+const numeroONulo = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+
+/** El cálculo guardado de cada ítem de ¿Cuánto Cobro? de un borrador, por clave de renglón. */
+export function entradasGuardadas(itemsGuardados: unknown): Map<string, CalculoGuardado> {
+  const mapa = new Map<string, CalculoGuardado>();
   if (!Array.isArray(itemsGuardados)) return mapa;
   for (const x of itemsGuardados) {
-    const it = x as { id?: unknown; modoPrecio?: unknown; calculo?: { entrada?: unknown } | null } | null;
-    if (it && typeof it.id === "string" && it.modoPrecio === "CALCULO" && it.calculo?.entrada) mapa.set(it.id, it.calculo.entrada);
+    const it = x as { id?: unknown; modoPrecio?: unknown; calculo?: { entrada?: unknown; precioSugerido?: unknown; unidades?: unknown } | null } | null;
+    if (it && typeof it.id === "string" && it.modoPrecio === "CALCULO" && it.calculo?.entrada) {
+      mapa.set(it.id, { entrada: it.calculo.entrada, precioSugerido: numeroONulo(it.calculo.precioSugerido), unidades: numeroONulo(it.calculo.unidades) });
+    }
   }
   return mapa;
 }
@@ -110,7 +123,7 @@ export function entradasGuardadas(itemsGuardados: unknown): Map<string, unknown>
 export async function normalizarBorrador(
   workspaceId: string,
   entrada: EntradaBorrador,
-  guardadas: ReadonlyMap<string, unknown>,
+  guardadas: ReadonlyMap<string, CalculoGuardado>,
   ahora: Date,
 ): Promise<ResultadoValidacion<BorradorNormalizado>> {
   if (!entrada || typeof entrada !== "object") return { ok: false, error: MENSAJES_PRESUPUESTO.datosInvalidos };
@@ -128,11 +141,19 @@ export async function normalizarBorrador(
       items.push({ ...it, calculo: null });
       continue;
     }
-    const cruda = (it.calculo as { entrada?: unknown } | null)?.entrada ?? guardadas.get(it.id);
+    const llegado = it.calculo as { entrada?: unknown; precioAjustado?: unknown } | null;
+    const guardado = guardadas.get(it.id);
+    const cruda = llegado?.entrada ?? guardado?.entrada;
     if (cruda === undefined || cruda === null) return { ok: false, error: `${MENSAJES_PRESUPUESTO.calculoFaltante} (${it.nombre})` };
     const motor = entradaDelMotor(cruda);
     if (!motor) return { ok: false, error: `${MENSAJES_PRESUPUESTO.calculoInvalido} (${it.nombre})` };
-    const r = recalcularItemCalculo(it, motor, ahora);
+    // Precio: la marca explícita del editor o, sin ella, la comparación con el sugerido guardado.
+    // Unidades: si el ítem llegó sin instantánea, las guardadas (ver `recalcularItemCalculo`).
+    const r = recalcularItemCalculo(it, motor, ahora, {
+      precioAjustado: typeof llegado?.precioAjustado === "boolean" ? llegado.precioAjustado : undefined,
+      sugeridoAnterior: guardado?.precioSugerido ?? null,
+      unidades: guardado?.unidades ?? null,
+    });
     if (!r.ok) return { ok: false, error: `${r.error} (${it.nombre})` };
     items.push(r.item);
   }

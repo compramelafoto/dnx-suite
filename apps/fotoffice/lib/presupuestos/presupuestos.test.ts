@@ -83,12 +83,12 @@ const presupuesto = (id: string) => B.datos.fotofficePresupuesto.find((p) => p.i
 const versionesDe = (id: string) => B.datos.fotofficePresupuestoVersion.filter((v) => v.presupuestoId === id);
 
 /** Simula el envío (Task 5): congela el borrador, lo deja vigente y pasa a ENVIADO. */
-async function enviar(presupuestoId: string) {
+async function enviar(presupuestoId: string, ahora = AHORA) {
   const borrador = versionesDe(presupuestoId).find((v) => v.sentAt === null)!;
   await (B.prisma.$transaction as (fn: (tx: never) => Promise<unknown>) => Promise<unknown>)(async (tx) => {
-    expect(await V.congelarVersion(tx, { workspaceId: "ws-1", versionId: borrador.id as string, ahora: AHORA, tokenHash: `h-${borrador.id}` })).toBe(true);
-    await V.revocarAnteriores(tx, { workspaceId: "ws-1", presupuestoId, vigenteId: borrador.id as string, ahora: AHORA });
-    expect(await P.pasarEstado(tx, { workspaceId: "ws-1", presupuestoId, a: "ENVIADO", ahora: AHORA, datos: { currentVersionId: borrador.id as string } })).toEqual({ ok: true });
+    expect(await V.congelarVersion(tx, { workspaceId: "ws-1", versionId: borrador.id as string, ahora, tokenHash: `h-${borrador.id}` })).toBe(true);
+    await V.revocarAnteriores(tx, { workspaceId: "ws-1", presupuestoId, vigenteId: borrador.id as string, ahora });
+    expect(await P.pasarEstado(tx, { workspaceId: "ws-1", presupuestoId, a: "ENVIADO", ahora, datos: { ...P.datosDeEnvio(ahora, { validezDias: 15 }), currentVersionId: borrador.id as string } })).toEqual({ ok: true });
   });
 }
 
@@ -142,6 +142,29 @@ describe("crear", () => {
     expect(ficha).toMatchObject({ workspaceId: "ws-1" });
     expect(presupuesto(r.presupuestoId)).toMatchObject({ consultaLeadId: r.leadId, clientId: ficha.clientId });
     expect(H.numerar).toHaveBeenCalled();
+  });
+
+  it("si el presupuesto falla después de crear la consulta, devuelve la consulta creada (y registra sólo el código)", async () => {
+    B.agregar("fotofficeWorkspaceBranding", { workspaceId: "ws-1", publicSlug: SLUG_DNX });
+    await asegurarCatalogosDelWorkspace("ws-1");
+    const categoriaId = B.datos.fotofficeConsultaCategoria.find((c) => c.workspaceId === "ws-1" && c.name === "Boda")!.id as string;
+    const original = B.tablas.fotofficePresupuesto.create;
+    B.tablas.fotofficePresupuesto.create = async () => {
+      throw Object.assign(new Error("Laura Gómez rompió todo"), { code: "P2003" });
+    };
+    try {
+      const r = await P.crearPresupuesto(DUENO, { nuevaConsulta: { contacto: { nombre: "Laura Gómez", email: "laura@persona.test" }, categoriaId } }, deps);
+      expect(r.ok).toBe(false);
+      if (r.ok) return;
+      expect(r.error).toBe(M.falloConConsulta);
+      expect(B.datos.serviceSalesLead.some((l) => l.id === r.leadId)).toBe(true);
+      expect(errores.mock.calls.at(-1)?.[1]).toEqual({ codigo: "P2003" });
+      // De una consulta elegida no hay consulta creada que devolver.
+      const r2 = await P.crearPresupuesto(DUENO, { consultaLeadId: "lead-1" }, deps);
+      expect(r2).toEqual({ ok: false, error: M.fallo });
+    } finally {
+      B.tablas.fotofficePresupuesto.create = original;
+    }
   });
 
   it("sin consulta ni contacto, o un contacto existente sin permiso de Clientes, no crea nada", async () => {
@@ -254,6 +277,38 @@ describe("borrador", () => {
     expect(await P.guardarBorrador(TESORERIA, presupuestoId, { items: [itemLista("x", { modoPrecio: "CALCULO", precioUnitario: 0, calculo: { entrada: otra } })] }, deps)).toEqual({ ok: true });
     const [item] = versionesDe(presupuestoId)[0]!.items as { precioUnitario: number }[];
     expect(item!.precioUnitario).toBe(SUGERIDO.precio);
+  });
+
+  it("contrato del precio: la marca del editor manda; sin marca, igual al sugerido guardado = sigue al motor", async () => {
+    const { presupuestoId } = await nuevo();
+    await P.guardarBorrador(DUENO, presupuestoId, { items: [itemLista("x", { modoPrecio: "CALCULO", precioUnitario: 0, calculo: { entrada: entradaMotor() } })] }, deps);
+    const precioDe = () => (versionesDe(presupuestoId)[0]!.items as { precioUnitario: number }[])[0]!.precioUnitario;
+    expect(precioDe()).toBe(SUGERIDO.precio);
+    // Cambian las entradas (precio manual del motor) y el renglón llega con el precio viejo, sin
+    // tocar: sigue al motor.
+    const otra = entradaMotor();
+    otra.presupuesto = { ...otra.presupuesto, chosenPrice: "333333" };
+    await P.guardarBorrador(DUENO, presupuestoId, { items: [itemLista("x", { modoPrecio: "CALCULO", precioUnitario: SUGERIDO.precio, calculo: { entrada: otra, precioAjustado: false } })] }, deps);
+    expect(precioDe()).toBe(333333);
+    // Sin marca y con el mismo precio que el sugerido guardado: también sigue al motor.
+    await P.guardarBorrador(DUENO, presupuestoId, { items: [itemLista("x", { modoPrecio: "CALCULO", precioUnitario: 333333, calculo: { entrada: entradaMotor() } })] }, deps);
+    expect(precioDe()).toBe(SUGERIDO.precio);
+    // Con la marca, manda el precio elegido aunque coincida con otro valor.
+    await P.guardarBorrador(DUENO, presupuestoId, { items: [itemLista("x", { modoPrecio: "CALCULO", precioUnitario: 4444, calculo: { entrada: entradaMotor(), precioAjustado: true } })] }, deps);
+    expect(precioDe()).toBe(4444);
+    // Quien no ve costos (sin marca) mantiene el ajuste: 4444 no es el sugerido guardado.
+    await P.guardarBorrador(EQUIPO, presupuestoId, { items: [itemLista("x", { modoPrecio: "CALCULO", precioUnitario: 4444, calculo: null })] }, deps);
+    expect(precioDe()).toBe(4444);
+  });
+
+  it("sin instantánea en el ítem que llega, las unidades salen de las guardadas", async () => {
+    const { presupuestoId } = await nuevo();
+    await P.guardarBorrador(DUENO, presupuestoId, { items: [itemLista("x", { modoPrecio: "CALCULO", precioUnitario: 0, calculo: { entrada: entradaMotor(), unidades: 3 } })] }, deps);
+    const unidades = () => (versionesDe(presupuestoId)[0]!.items as { calculo: { unidades: number } }[])[0]!.calculo.unidades;
+    expect(unidades()).toBe(3);
+    const items = (await P.leerPresupuesto(EQUIPO, presupuestoId, deps))!.borrador!.items;
+    expect(await P.guardarBorrador(EQUIPO, presupuestoId, { items }, deps)).toEqual({ ok: true });
+    expect(unidades()).toBe(3);
   });
 
   it("un producto de otro workspace no entra", async () => {
@@ -382,6 +437,34 @@ describe("estados", () => {
     const ajeno = B.agregar("fotofficePresupuesto", { workspaceId: "ws-2", consultaLeadId: "lead-9", clientId: "cli-lead-9", status: "ENVIADO", validUntil: new Date("2026-01-01") });
     expect(await P.marcarVencidos(DUENO, [ajeno.id], deps)).toEqual({ ok: true, marcados: 0 });
     expect(await P.marcarVencidos(DUENO, "x", deps)).toEqual({ ok: false, error: M.datosInvalidos });
+  });
+
+  it("enviar renueva la validez (datosDeEnvio); sin ella no pasa a ENVIADO, y un vencido o rechazado se reenvía con la fecha nueva", async () => {
+    const { presupuestoId } = await nuevo();
+    await enviar(presupuestoId);
+    expect(presupuesto(presupuestoId).validUntil).toEqual(new Date("2026-10-22T00:00:00.000Z"));
+    // Un mes después está vencido; versión nueva y reenvío.
+    const despues = new Date("2026-11-20T15:00:00.000Z");
+    expect((await P.leerPresupuesto(DUENO, presupuestoId, { ahora: () => despues }))!.estado).toBe("VENCIDO");
+    await V.crearNuevaVersion(DUENO, presupuestoId);
+    // Sin la validez renovada (o con una ya pasada) no se envía.
+    expect(await P.pasarEstado(B.prisma as never, { workspaceId: "ws-1", presupuestoId, a: "ENVIADO", ahora: despues })).toEqual({ ok: false, error: M.transicion });
+    expect(
+      await P.pasarEstado(B.prisma as never, { workspaceId: "ws-1", presupuestoId, a: "ENVIADO", ahora: despues, datos: { validUntil: new Date("2026-11-01T00:00:00.000Z") } }),
+    ).toEqual({ ok: false, error: M.transicion });
+    await enviar(presupuestoId, despues);
+    expect(presupuesto(presupuestoId)).toMatchObject({ status: "ENVIADO", validUntil: new Date("2026-12-05T00:00:00.000Z") });
+    expect((await P.leerPresupuesto(DUENO, presupuestoId, { ahora: () => despues }))!.estado).toBe("ENVIADO");
+    // Rechazado → ENVIADO, también con la fecha nueva.
+    expect(await P.rechazarPresupuesto(DUENO, presupuestoId, { ahora: () => despues })).toEqual({ ok: true });
+    expect(P.datosDeEnvio(despues, { validezDias: 3 })).toEqual({ validUntil: new Date("2026-11-23T00:00:00.000Z") });
+  });
+
+  it("los filtros de la tarjeta sólo aceptan ids de texto", async () => {
+    await nuevo();
+    expect(await P.listarPresupuestos(DUENO, { consultaLeadId: { not: "x" } as never }, deps)).toHaveLength(1);
+    expect(await P.listarPresupuestos(DUENO, { clientId: "cli-lead-1" }, deps)).toHaveLength(1);
+    expect(await P.listarPresupuestos(DUENO, { clientId: "otro" }, deps)).toHaveLength(0);
   });
 
   it("número PRESUPUESTO: se asigna una vez", async () => {
