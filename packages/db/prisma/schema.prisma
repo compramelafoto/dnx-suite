@@ -7190,6 +7190,13 @@ model Workspace {
   fotofficeConsultaParticipantes FotofficeConsultaParticipante[]
   fotofficeContactoPerfiles FotofficeContactoPerfil[]
   fotofficeConsultaAjustes FotofficeConsultaAjustes?
+  fotofficeProductosCatalogo FotofficeProductoCatalogo[]
+  fotofficeComboItems FotofficeComboItem[]
+  fotofficeCostosPlantilla FotofficeCostoPlantilla[]
+  fotofficePresupuestos FotofficePresupuesto[]
+  fotofficePresupuestoVersiones FotofficePresupuestoVersion[]
+  fotofficePresupuestoVistas FotofficePresupuestoVista[]
+  fotofficePresupuestoAjustes FotofficePresupuestoAjustes?
   clientAudits ClientAudit[]
   productStoreListings        ProductStoreListing[]
   storeSettings               StoreSettings?
@@ -10047,6 +10054,7 @@ model ServiceSalesLead {
   form          ServiceLeadForm?  @relation(fields: [formId], references: [id])
   workspace     Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   fotofficeConsulta FotofficeConsulta?
+  fotofficePresupuestos FotofficePresupuesto[]
 
   @@index([workspaceId])
   @@index([status])
@@ -18546,6 +18554,8 @@ model Client {
   fotofficeConsultasReferidas FotofficeConsulta[] @relation("FotofficeConsultaReferente")
   fotofficeParticipaciones FotofficeConsultaParticipante[] @relation("FotofficeConsultaParticipante")
   fotofficePerfil FotofficeContactoPerfil?
+  fotofficeCostosProveedor FotofficeCostoPlantilla[] @relation("FotofficeCostoProveedor")
+  fotofficePresupuestos FotofficePresupuesto[] @relation("FotofficePresupuestoContacto")
 }
 
 /// Una cuenta de caja: dónde está la plata.
@@ -20610,6 +20620,175 @@ model FotofficeConsultaAjustes {
 }
 
 // ---------------------------------------------------------------------------
+// FOTOFFICE · Etapa 2 · Entrega A: catálogo ampliado y presupuestos.
+// Sólo tablas nuevas: `Product`, `Client` y `ServiceSalesLead` no reciben columnas.
+// Los CHECK (estado, cantidades, importes) viven en el SQL de la migración.
+// ---------------------------------------------------------------------------
+
+/// Datos de un producto para presupuestos (1:1 con `Product`). Un producto sin fila está fuera
+/// de la lista de precios, sin rubro y no es combo.
+model FotofficeProductoCatalogo {
+  id          String   @id @default(cuid())
+  workspaceId String
+  productId   String   @unique
+  /// Aparece en la lista de precios (Entrega B: variable `[lista_precios]`).
+  inPriceList Boolean  @default(false)
+  /// Rubro de ingreso, en texto (la jerarquía de cuentas llega con Caja, etapa 3).
+  incomeLabel String?
+  isCombo     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, inPriceList])
+}
+
+/// Componente de un combo. Mismo workspace y sin ciclos: lo valida el código (`lib/catalogo/combos.ts`);
+/// el SQL frena cantidad <= 0 y que un combo se contenga a sí mismo.
+model FotofficeComboItem {
+  id                 String   @id @default(cuid())
+  workspaceId        String
+  comboProductId     String
+  componentProductId String
+  quantity           Int      @default(1)
+  order              Int      @default(0)
+  createdAt          DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  combo     Product   @relation("FotofficeComboItemCombo", fields: [comboProductId], references: [id], onDelete: Cascade)
+  component Product   @relation("FotofficeComboItemComponente", fields: [componentProductId], references: [id], onDelete: Cascade)
+
+  @@unique([comboProductId, componentProductId])
+  @@index([workspaceId, componentProductId])
+}
+
+/// Costo previsto de un producto (sólo se registra; los pagos llegan con la etapa 3).
+/// El proveedor es opcional y, si está, es un contacto del mismo workspace (lo valida el código).
+model FotofficeCostoPlantilla {
+  id               String   @id @default(cuid())
+  workspaceId      String
+  productId        String
+  supplierClientId String?
+  concept          String
+  amountArs        Decimal  @db.Decimal(12, 2)
+  /// true: el importe es por unidad vendida; false: fijo, una vez por presupuesto.
+  perUnit          Boolean  @default(false)
+  /// Días desde el evento en que corresponde el costo (negativo: antes del evento).
+  daysFromEvent    Int      @default(0)
+  order            Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  supplier  Client?   @relation("FotofficeCostoProveedor", fields: [supplierClientId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, productId, order])
+  @@index([workspaceId, supplierClientId])
+}
+
+/// Presupuesto de una consulta (y de su contacto).
+/// status: BORRADOR | ENVIADO | VISTO | ACEPTADO | RECHAZADO | VENCIDO (CHECK en el SQL).
+/// VENCIDO también se calcula al leer, a partir de `validUntil`.
+model FotofficePresupuesto {
+  id                 String    @id @default(cuid())
+  workspaceId        String
+  consultaLeadId     String
+  clientId           String
+  status             String    @default("BORRADOR")
+  /// La versión vigente (la que muestra el enlace); null sólo mientras se crea.
+  currentVersionId   String?   @unique
+  acceptedVersionId  String?   @unique
+  ownerUserId        Int?
+  /// Último día de validez (fecha de Argentina).
+  validUntil         DateTime? @db.Date
+  /// Aceptado y todavía no convertido en pedido (etapa 3).
+  pedidoPorConfirmar Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  workspace       Workspace                     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  consultaLead    ServiceSalesLead              @relation(fields: [consultaLeadId], references: [id], onDelete: Cascade)
+  client          Client                        @relation("FotofficePresupuestoContacto", fields: [clientId], references: [id], onDelete: Cascade)
+  currentVersion  FotofficePresupuestoVersion?  @relation("FotofficePresupuestoVigente", fields: [currentVersionId], references: [id], onDelete: SetNull)
+  acceptedVersion FotofficePresupuestoVersion?  @relation("FotofficePresupuestoAceptado", fields: [acceptedVersionId], references: [id], onDelete: SetNull)
+  versions        FotofficePresupuestoVersion[] @relation("FotofficePresupuestoVersiones")
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, consultaLeadId])
+  @@index([workspaceId, clientId])
+  @@index([workspaceId, validUntil])
+}
+
+/// Versión de un presupuesto (V1, V2…). Inmutable una vez enviada (`sentAt`).
+/// `items` y `totals` son instantáneas (ver `lib/presupuestos/constantes.ts`); el modo de precio
+/// de cada ítem (LISTA | CALCULO) vive en el JSON y lo valida el código.
+/// `costSnapshot` nunca se envía al público. El token se guarda como hash SHA-256.
+model FotofficePresupuestoVersion {
+  id                String    @id @default(cuid())
+  workspaceId       String
+  presupuestoId     String
+  number            Int
+  items             Json
+  totals            Json
+  terms             String?
+  paymentProposal   String?
+  costSnapshot      Json?
+  createdByUserId   Int?
+  createdAt         DateTime  @default(now())
+  sentAt            DateTime?
+  tokenHash         String?   @unique
+  tokenExpiresAt    DateTime?
+  revokedAt         DateTime?
+  acceptedAt        DateTime?
+  acceptedName      String?
+  acceptedIpHash    String?
+  acceptedUserAgent String?
+
+  workspace   Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  presupuesto FotofficePresupuesto        @relation("FotofficePresupuestoVersiones", fields: [presupuestoId], references: [id], onDelete: Cascade)
+  vigenteDe   FotofficePresupuesto?       @relation("FotofficePresupuestoVigente")
+  aceptadaDe  FotofficePresupuesto?       @relation("FotofficePresupuestoAceptado")
+  vistas      FotofficePresupuestoVista[]
+
+  @@unique([presupuestoId, number])
+  @@index([workspaceId, sentAt])
+}
+
+/// Cada apertura del enlace público (sin datos personales: la IP va con hash).
+model FotofficePresupuestoVista {
+  id          String   @id @default(cuid())
+  workspaceId String
+  versionId   String
+  viewedAt    DateTime @default(now())
+  ipHash      String?
+  userAgent   String?
+
+  workspace Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  version   FotofficePresupuestoVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@index([versionId, viewedAt])
+  @@index([workspaceId, viewedAt])
+}
+
+/// Ajustes de presupuestos (uno por organización).
+model FotofficePresupuestoAjustes {
+  id              String   @id @default(cuid())
+  workspaceId     String   @unique
+  validityDays    Int      @default(15)
+  terms           String?
+  paymentProposal String?
+  /// Seguimiento automático (Entrega B).
+  followUpDays    Int      @default(3)
+  followUpEnabled Boolean  @default(false)
+  updatedAt       DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
 // Números reales por edición (Clickatón)
 //
 // Separa gastos, sobrante y comisiones de cada edición para ver, edición sobre
@@ -21044,6 +21223,10 @@ model Product {
   images         ProductImage[]
   variants       ProductVariant[]
   storeOrderItems StoreOrderItem[]
+  fotofficeCatalogo   FotofficeProductoCatalogo?
+  fotofficeComboItems FotofficeComboItem[]      @relation("FotofficeComboItemCombo")
+  fotofficeEnCombos   FotofficeComboItem[]      @relation("FotofficeComboItemComponente")
+  fotofficeCostos     FotofficeCostoPlantilla[]
 
   @@unique([workspaceId, sku])
   @@index([workspaceId, isActive])

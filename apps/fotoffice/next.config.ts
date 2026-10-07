@@ -36,6 +36,8 @@ const nextConfig: NextConfig = {
     "@repo/design-studio",
     // Sólo el selector de logos de los aliados de los sorteos (`lib/raffles/partners-live.ts`).
     "@repo/partners",
+    // El motor de ¿Cuánto Cobro? (presupuestos, etapa 2): es TypeScript fuente, como en CompraMeLaFoto.
+    "@repo/cuanto-cobro-core",
   ],
   serverExternalPackages: [
     "@prisma/client",
