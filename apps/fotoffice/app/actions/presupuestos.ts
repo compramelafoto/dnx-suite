@@ -13,6 +13,7 @@ import {
   type ResultadoCreacion,
 } from "@/lib/presupuestos/presupuestos";
 import { crearNuevaVersion, type ResultadoVersionNueva } from "@/lib/presupuestos/versiones";
+import { enviarPresupuesto, type ResultadoEnvioPresupuesto } from "@/lib/presupuestos/envio";
 
 // Archivo "use server": sólo exporta funciones async. Cada acción, en este orden: revisa la forma
 // de lo que llega, arma el contexto (sesión + workspace de la sesión + módulo `quotes` encendido
@@ -122,5 +123,35 @@ export async function guardarAjustesPresupuestosAction(datos: {
   if (!ctx) return SIN_ACCESO;
   const r = await guardarAjustes(ctx, datos);
   if (r.ok) revalidatePath("/workspace/configuracion/presupuestos");
+  return r;
+}
+
+/**
+ * "Enviar" (o "Reenviar") por correo o WhatsApp. El texto llega con variables y lo completa el
+ * servidor; el workspace, el responsable y el enlace salen del servidor, nunca de acá.
+ */
+export async function enviarPresupuestoAction(datos: {
+  presupuestoId: string;
+  canal: string;
+  templateId?: string | null;
+  asunto?: string | null;
+  cuerpo?: string | null;
+  reenviar?: boolean;
+}): Promise<ResultadoEnvioPresupuesto> {
+  if (!esObjeto(datos) || !esId(datos.presupuestoId) || typeof datos.canal !== "string") return INVALIDO;
+  if (datos.templateId != null && !esId(datos.templateId)) return INVALIDO;
+  if (datos.asunto != null && typeof datos.asunto !== "string") return INVALIDO;
+  if (datos.cuerpo != null && typeof datos.cuerpo !== "string") return INVALIDO;
+  if (datos.reenviar != null && typeof datos.reenviar !== "boolean") return INVALIDO;
+  const ctx = await contextoDePresupuestos("operar");
+  if (!ctx) return SIN_ACCESO;
+  const r = await enviarPresupuesto(ctx, datos.presupuestoId, {
+    canal: datos.canal,
+    templateId: datos.templateId ?? null,
+    asunto: datos.asunto ?? null,
+    cuerpo: datos.cuerpo ?? null,
+    reenviar: datos.reenviar === true,
+  });
+  if (r.ok || r.enviado) revalidar(datos.presupuestoId);
   return r;
 }

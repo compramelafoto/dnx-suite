@@ -536,3 +536,59 @@ describe("engancharConsultas: numeración (0.5)", () => {
     expect(numero("c-1")).toBe("2026-0002");
   });
 });
+
+describe("presupuestos (etapa 2): enviado, aceptado y consulta perdida", () => {
+  const lead = () => B.datos.serviceSalesLead.find((l) => l.id === "lead-1")!;
+  function conContacto() {
+    B.agregar("fotofficeConsulta", { workspaceId: "ws-1", leadId: "lead-1", clientId: "cli-1", categoryId: "cat" });
+    B.agregar("fotofficeContactoPerfil", { workspaceId: "ws-1", clientId: "cli-1", category: "CONTACTO" });
+  }
+
+  it("PRESUPUESTO_ENVIADO y PRESUPUESTO_ACEPTADO están conectados", async () => {
+    const { EVENTOS, EVENTOS_CONECTADOS } = await import("./constantes");
+    expect(EVENTOS).toContain("PRESUPUESTO_ENVIADO");
+    expect(EVENTOS_CONECTADOS).toEqual(expect.arrayContaining(["PRESUPUESTO_ENVIADO", "PRESUPUESTO_ACEPTADO"]));
+  });
+
+  it("PRESUPUESTO_ENVIADO mueve con su regla y la misma versión no mueve dos veces", async () => {
+    const id = await iniciado();
+    regla("s4", "PRESUPUESTO_ENVIADO");
+    expect(await E.notificarEvento("ws-1", CONSULTA, "PRESUPUESTO_ENVIADO", "version-1")).toEqual({ movido: true });
+    expect(recorrido(id).stageId).toBe("s4");
+    expect(lead().status).toBe("QUOTED");
+    expect(await E.notificarEvento("ws-1", CONSULTA, "PRESUPUESTO_ENVIADO", "version-1")).toEqual({ movido: false });
+  });
+
+  it("una consulta perdida se reabre como ganada: el cierre pasa a Ganada, queda el paso y el contacto pasa a Cliente", async () => {
+    conContacto();
+    const id = await iniciado();
+    expect(await R.cerrar(EQUIPO, id, "PERDIDA", "r-precio")).toEqual({ ok: true });
+    expect(lead().status).toBe("LOST");
+    expect(await E.reabrirComoGanadaPorSistema("ws-1", "lead-1", "Se reabrió como ganada")).toEqual({ reabierta: true });
+    expect(recorrido(id)).toMatchObject({ outcome: "GANADA", lossReasonId: null, stageId: null });
+    expect(pasos(id).at(-1)).toMatchObject({ outcome: "GANADA", note: "Se reabrió como ganada", auto: true, actorUserId: null, actorLabel: "Sistema" });
+    expect(lead().status).toBe("WON");
+    expect(B.datos.fotofficeContactoPerfil[0]).toMatchObject({ category: "CLIENTE" });
+    // Otra vez: ya está ganada, no hace nada.
+    expect(await E.reabrirComoGanadaPorSistema("ws-1", "lead-1", "x")).toEqual({ reabierta: false });
+  });
+
+  it("con un recorrido abierto o ganado no toca nada (deciden las reglas del circuito)", async () => {
+    const id = await iniciado();
+    const antes = foto();
+    expect(await E.reabrirComoGanadaPorSistema("ws-1", "lead-1", "x")).toEqual({ reabierta: false });
+    expect(foto()).toBe(antes);
+    expect(await R.cerrar(EQUIPO, id, "GANADA")).toEqual({ ok: true });
+    expect(await E.reabrirComoGanadaPorSistema("ws-1", "lead-1", "x")).toEqual({ reabierta: false });
+  });
+
+  it("sin recorrido: una consulta LOST pasa a WON; de otro workspace, nada", async () => {
+    conContacto();
+    lead().status = "LOST";
+    expect(await E.reabrirComoGanadaPorSistema("ws-2", "lead-1", "x")).toEqual({ reabierta: false });
+    expect(lead().status).toBe("LOST");
+    expect(await E.reabrirComoGanadaPorSistema("ws-1", "lead-1", "x")).toEqual({ reabierta: true });
+    expect(lead().status).toBe("WON");
+    expect(B.datos.fotofficeContactoPerfil[0]).toMatchObject({ category: "CLIENTE" });
+  });
+});

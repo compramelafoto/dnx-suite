@@ -246,3 +246,9 @@ ALTER TABLE "FotofficeComboItem" ADD CONSTRAINT "FotofficeComboItem_not_self" CH
 ALTER TABLE "FotofficeCostoPlantilla" ADD CONSTRAINT "FotofficeCostoPlantilla_amountArs" CHECK ("amountArs" >= 0);
 ALTER TABLE "FotofficePresupuestoAjustes" ADD CONSTRAINT "FotofficePresupuestoAjustes_validityDays" CHECK ("validityDays" BETWEEN 1 AND 365);
 ALTER TABLE "FotofficePresupuestoAjustes" ADD CONSTRAINT "FotofficePresupuestoAjustes_followUpDays" CHECK ("followUpDays" BETWEEN 1 AND 90);
+
+-- Plantillas de mensajes (0.6): el tipo PRESUPUESTO, para el envío de presupuestos (Task 5).
+-- No es una columna nueva: sólo se amplía la lista del CHECK que ya existía (los valores viejos
+-- siguen valiendo). Idempotente.
+ALTER TABLE "FotofficeMessageTemplate" DROP CONSTRAINT IF EXISTS "FotofficeMessageTemplate_entityType";
+ALTER TABLE "FotofficeMessageTemplate" ADD CONSTRAINT "FotofficeMessageTemplate_entityType" CHECK ("entityType" IN ('GENERAL', 'CLIENTE', 'SOCIO', 'CONSULTA', 'PRESUPUESTO'));

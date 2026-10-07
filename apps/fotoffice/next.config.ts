@@ -97,6 +97,9 @@ const nextConfig: NextConfig = {
       // El enlace del permiso del autor lleva su token en la dirección: misma regla.
       { source: "/w/:slug/obras/permiso/:path*", headers: noReferrer },
       { source: "/obras/permiso/:path*", headers: noReferrer },
+      // El enlace de un presupuesto también (etapa 2).
+      { source: "/w/:slug/presupuesto/:path*", headers: noReferrer },
+      { source: "/presupuesto/:path*", headers: noReferrer },
     ];
   },
   images: {

@@ -26,9 +26,18 @@ function modelo(nombre: string): string {
 }
 
 describe("migración de la etapa 2 (catálogo y presupuestos)", () => {
-  it("no altera tablas existentes ni borra nada", () => {
-    expect(sql).not.toMatch(new RegExp(`ALTER TABLE "(?!(${TABLAS.join("|")})")`));
-    expect(sql).not.toMatch(/DROP |DELETE FROM|UPDATE "|ADD COLUMN/);
+  // Única excepción (Task 5): el CHECK del tipo de plantilla se amplía con PRESUPUESTO. Es la
+  // misma lista de antes más un valor: ninguna columna nueva y nada que borrar.
+  const AMPLIAR_TIPO_PLANTILLA = [
+    `ALTER TABLE "FotofficeMessageTemplate" DROP CONSTRAINT IF EXISTS "FotofficeMessageTemplate_entityType";`,
+    `ALTER TABLE "FotofficeMessageTemplate" ADD CONSTRAINT "FotofficeMessageTemplate_entityType" CHECK ("entityType" IN ('GENERAL', 'CLIENTE', 'SOCIO', 'CONSULTA', 'PRESUPUESTO'));`,
+  ];
+  const sinExcepcion = AMPLIAR_TIPO_PLANTILLA.reduce((t, linea) => t.replace(linea, ""), sql);
+
+  it("no altera tablas existentes ni borra nada (salvo ampliar el CHECK del tipo de plantilla)", () => {
+    for (const linea of AMPLIAR_TIPO_PLANTILLA) expect(sql).toContain(linea);
+    expect(sinExcepcion).not.toMatch(new RegExp(`ALTER TABLE "(?!(${TABLAS.join("|")})")`));
+    expect(sinExcepcion).not.toMatch(/DROP |DELETE FROM|UPDATE "|ADD COLUMN/);
   });
 
   it("crea las siete tablas de la Entrega A y nada más (sin la propuesta modelo)", () => {

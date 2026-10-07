@@ -30,6 +30,7 @@ import { requireServiceLeadsStaff } from "@/lib/service-leads/access";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { QUOTES_MODULE_KEY } from "@/lib/presupuestos/acceso";
 import { listarPresupuestos } from "@/lib/presupuestos/presupuestos";
+import { eventosDePresupuestos } from "@/lib/presupuestos/historial";
 
 export const dynamic = "force-dynamic";
 
@@ -82,14 +83,10 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
   // Tarjeta "Presupuestos": con "Ver" en Presupuestos (el nivel ya incluye el módulo encendido).
   // "Nuevo presupuesto" con "Gestionar". La tarjeta nunca lleva costos (`aTarjeta`).
   const vePresupuestos = puede(acceso, "ver", QUOTES_MODULE_KEY);
-  const presupuestos = vePresupuestos
-    ? (
-        await listarPresupuestos(
-          { workspaceId: workspace.id, userId: user.id, userLabel: etiquetaDeUsuario(user), role: acceso.role, acceso },
-          { consultaLeadId: id },
-        )
-      ).map(aTarjeta)
-    : null;
+  const ctxPresupuestos = { workspaceId: workspace.id, userId: user.id, userLabel: etiquetaDeUsuario(user), role: acceso.role, acceso };
+  const presupuestos = vePresupuestos ? (await listarPresupuestos(ctxPresupuestos, { consultaLeadId: id })).map(aTarjeta) : null;
+  // Envíos, vistas y aceptaciones de sus presupuestos, para el historial (sin costos ni IP).
+  const eventosPresupuestos = vePresupuestos ? await eventosDePresupuestos(ctxPresupuestos, id) : [];
 
   const { consulta, recorrido } = ficha;
   const evento = [consulta.tipo, consulta.subtipo].filter(Boolean).join(" · ");
@@ -223,14 +220,16 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
               />
               <Tareas key={recorrido.id} journeyId={recorrido.id} tareas={ficha.tareas} abierto={recorrido.abierto} />
               {ficha.proyeccion ? <Proyeccion proyeccion={ficha.proyeccion} /> : null}
-              <Historial pasos={ficha.historial} cambios={cambios} mensajes={mensajes} />
+              <Historial pasos={ficha.historial} cambios={cambios} mensajes={mensajes} presupuestos={eventosPresupuestos} />
             </>
           ) : (
             <>
               <p className="fo-card text-sm text-[var(--fo-muted)]">
                 Esta consulta todavía no está en ningún circuito. Se ordena sola al abrir el tablero de Consultas.
               </p>
-              {cambios.length > 0 || mensajes.length > 0 ? <Historial pasos={[]} cambios={cambios} mensajes={mensajes} /> : null}
+              {cambios.length > 0 || mensajes.length > 0 || eventosPresupuestos.length > 0 ? (
+                <Historial pasos={[]} cambios={cambios} mensajes={mensajes} presupuestos={eventosPresupuestos} />
+              ) : null}
             </>
           )}
         </div>

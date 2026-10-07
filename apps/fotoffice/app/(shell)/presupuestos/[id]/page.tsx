@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { AccionesPresupuesto } from "@/components/presupuestos/acciones-presupuesto";
 import { EditorPresupuesto } from "@/components/presupuestos/editor-presupuesto";
+import { EnviarPresupuesto } from "@/components/presupuestos/enviar-presupuesto";
 import { VistaPresupuesto } from "@/components/presupuestos/vista-presupuesto";
 import { claseDeEstado } from "@/lib/presupuestos/listado";
 import { puedeGestionarPresupuestos } from "@/lib/presupuestos/acceso";
@@ -11,6 +12,7 @@ import { armarDatosEditor } from "@/lib/presupuestos/editor";
 import { catalogoParaEditor, costosCatalogoParaEditor, ultimoPerfilDelWorkspace } from "@/lib/presupuestos/editor-datos";
 import { requirePresupuestos } from "@/lib/presupuestos/pagina";
 import { leerPresupuesto } from "@/lib/presupuestos/presupuestos";
+import { opcionesDeEnvio } from "@/lib/presupuestos/envio";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +60,9 @@ export default async function PresupuestoPage({ params }: { params: Promise<{ id
     editor = <EditorPresupuesto key={`${borrador.id}:${detalle.updatedAt.getTime()}`} datos={datos} puedeGuardar />;
   }
 
+  // Enviar / Reenviar / Copiar enlace: con "Gestionar" y mientras no esté aceptado (el enlace se
+  // puede copiar igual de uno aceptado: el cliente ve su aceptación).
+  const envio = gestiona ? await opcionesDeEnvio(ctx, detalle.id) : null;
   const enviadoVigente = vigente !== null && vigente.sentAt !== null;
   const titulo = detalle.numero ? `Presupuesto N° ${detalle.numero}` : "Presupuesto sin enviar";
   const ultima = detalle.versiones.at(-1)?.number ?? 1;
@@ -96,6 +101,8 @@ export default async function PresupuestoPage({ params }: { params: Promise<{ id
           siguienteVersion={ultima + 1}
         />
       ) : null}
+
+      {envio ? <EnviarPresupuesto presupuestoId={detalle.id} opciones={envio} /> : null}
 
       {editando && borrador && enviadoVigente && vigente && vigente.id !== borrador.id ? (
         <p className="fo-card text-sm text-[var(--fo-muted)]">

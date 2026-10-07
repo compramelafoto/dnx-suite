@@ -3,32 +3,41 @@ import type { CambioVista } from "@/lib/campos/vista";
 import { fechaHoraBA } from "@/lib/ficha/formato";
 import type { MensajeVista } from "@/lib/plantillas/vista-mensaje";
 import { MensajeRegistrado } from "@/components/mensajes/mensaje-registrado";
+import Link from "next/link";
+
+/** Un envío, una vista o una aceptación de un presupuesto de la consulta (etapa 2). */
+export type EventoPresupuestoVista = { id: string; fecha: Date | string; texto: string; href: string };
 
 type Entrada =
   | { tipo: "paso"; paso: PasoVista }
   | { tipo: "cambio"; cambio: CambioVista }
-  | { tipo: "mensaje"; mensaje: MensajeVista };
+  | { tipo: "mensaje"; mensaje: MensajeVista }
+  | { tipo: "presupuesto"; evento: EventoPresupuestoVista };
 
-const fechaDe = (e: Entrada) => (e.tipo === "paso" ? e.paso.fecha : e.tipo === "cambio" ? e.cambio.fecha : e.mensaje.fecha);
+const fechaDe = (e: Entrada) =>
+  e.tipo === "paso" ? e.paso.fecha : e.tipo === "cambio" ? e.cambio.fecha : e.tipo === "mensaje" ? e.mensaje.fecha : e.evento.fecha;
 
 /**
  * Qué pasó en la consulta, lo último primero: los pasos del recorrido, los cambios de
- * "Más datos" y los mensajes (correo o WhatsApp), intercalados por fecha. Las fechas van en
- * hora de Buenos Aires.
+ * "Más datos", los mensajes (correo o WhatsApp) y los envíos, vistas y aceptaciones de sus
+ * presupuestos, intercalados por fecha. Las fechas van en hora de Buenos Aires.
  */
 export function Historial({
   pasos,
   cambios = [],
   mensajes = [],
+  presupuestos = [],
 }: {
   pasos: PasoVista[];
   cambios?: CambioVista[];
   mensajes?: MensajeVista[];
+  presupuestos?: EventoPresupuestoVista[];
 }) {
   const entradas: Entrada[] = [
     ...pasos.map((paso) => ({ tipo: "paso" as const, paso })),
     ...cambios.map((cambio) => ({ tipo: "cambio" as const, cambio })),
     ...mensajes.map((mensaje) => ({ tipo: "mensaje" as const, mensaje })),
+    ...presupuestos.map((evento) => ({ tipo: "presupuesto" as const, evento })),
   ].sort((a, b) => new Date(fechaDe(b)).getTime() - new Date(fechaDe(a)).getTime());
 
   return (
@@ -42,6 +51,15 @@ export function Historial({
           e.tipo === "mensaje" ? (
             <li key={`mensaje-${e.mensaje.id}`} className="border-l-2 border-[var(--fo-border)] pl-3 text-sm">
               <MensajeRegistrado mensaje={e.mensaje} conEncabezado />
+            </li>
+          ) : e.tipo === "presupuesto" ? (
+            <li key={`presupuesto-${e.evento.id}`} className="border-l-2 border-[var(--fo-border)] pl-3 text-sm">
+              <p className="text-xs text-[var(--fo-muted)]">{fechaHoraBA(e.evento.fecha)} · Presupuestos</p>
+              <p className="text-[var(--fo-text)]">
+                <Link href={e.evento.href} className="hover:underline">
+                  {e.evento.texto}
+                </Link>
+              </p>
             </li>
           ) : e.tipo === "cambio" ? (
             <li key={`cambio-${e.cambio.id}`} className="border-l-2 border-[var(--fo-border)] pl-3 text-sm">
