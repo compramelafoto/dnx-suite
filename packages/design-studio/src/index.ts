@@ -48,6 +48,9 @@ export { FONT_CATALOG, FONT_IDS, isFontId, slotFor } from "./fonts/catalog";
 /* Las tipografías incrustadas: las usa también la composición de placas, que dibuja con sharp
  * y necesita que la familia viaje dentro del SVG. */
 export { readFontBytes } from "./fonts/load";
+/* librsvg ignora ese `@font-face`: para que el texto salga igual en el servidor, mejor en trazos. */
+export { textoATrazos, medirTexto } from "./fonts/trazos";
+export type { TextoEnTrazos } from "./fonts/trazos";
 export type { FontId, FontSlot, FontDefinition } from "./fonts/catalog";
 
 export { RENDERER_VERSION } from "./render/version";

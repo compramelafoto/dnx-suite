@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { DescargaParaRedes } from "@/components/admin/edition-results/DescargaParaRedes";
 import { AdminDataTable } from "@/components/admin/AdminDataTable";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { MiniaturaDeEnvio } from "@/components/admin/admission/MiniaturaDeEnvio";
 import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { adminRoutes } from "@/config/admin/navigation";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
@@ -14,6 +16,12 @@ import {
   cargarResultadosDeEdicion,
   type FilaConAutor,
 } from "@/lib/edition-results/cargar-resultados";
+import {
+  filtroActivo,
+  filtroAQuery,
+  leerFiltro,
+  pasaElFiltro,
+} from "@/lib/edition-results/redes-seleccion";
 
 export const dynamic = "force-dynamic";
 
@@ -30,11 +38,14 @@ function formatearNota(nota: number | null): string {
  */
 export default async function ResultadosDeLaEdicionPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ editionId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   await requireClickatonAdmin();
   const { editionId } = await params;
+  const filtro = leerFiltro(await searchParams);
 
   const edicion = await prisma.clickatonEdition.findUnique({
     where: { id: editionId },
@@ -79,7 +90,16 @@ export default async function ResultadosDeLaEdicionPage({
   }
 
   const esFinal = resultados.modo === "FINAL";
-  const grupos = porConsigna(resultados.filas, consignas);
+  const hayFiltro = filtroActivo(filtro);
+  const filtradas = resultados.filas.filter((f) => pasaElFiltro(f, filtro));
+  const grupos = porConsigna(filtradas, consignas).filter(
+    (g) => !hayFiltro || g.filas.length > 0,
+  );
+  const conPuestoFiltradas = filtradas.filter((f) => f.puesto != null);
+  const publicables = conPuestoFiltradas.filter(
+    (f) => f.autor?.autorizaRedes && f.autor.submissionId,
+  ).length;
+  const sinPermiso = conPuestoFiltradas.filter((f) => f.autor && !f.autor.autorizaRedes);
   const tituloDe = new Map(
     consignas.map((c) => [
       c.id,
@@ -121,6 +141,95 @@ export default async function ResultadosDeLaEdicionPage({
           ))}
         </nav>
       </Card>
+
+      <Card variant="outlined" className="space-y-4 p-6">
+        <div className="space-y-1">
+          <h2 className="text-base font-semibold text-ck-text">Filtrar y descargar para redes</h2>
+          <p className="text-sm leading-relaxed text-ck-text-secondary">
+            Elegí consignas y puestos. La descarga es un ZIP con una carpeta por consigna: la
+            foto y la ficha de cada obra, en el orden del carrusel, y el copy listo para pegar.
+          </p>
+        </div>
+        <form method="get" className="space-y-4">
+          <fieldset className="space-y-2">
+            <legend className="text-xs font-semibold uppercase tracking-wide text-ck-text-muted">
+              Consignas (ninguna marcada = todas)
+            </legend>
+            <div className="flex flex-wrap gap-2">
+              {consignas.map((c) => (
+                <label
+                  key={c.id}
+                  className="flex cursor-pointer items-center gap-2 rounded-[var(--ck-radius-sm)] border border-ck-border px-3 py-1.5 text-xs text-ck-text-secondary has-[:checked]:border-ck-yellow has-[:checked]:text-ck-text"
+                >
+                  <input
+                    type="checkbox"
+                    name="consigna"
+                    value={c.id}
+                    defaultChecked={filtro.consignas.includes(c.id)}
+                    className="accent-[var(--ck-yellow)]"
+                  />
+                  {tituloDe.get(c.id)}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="space-y-1 text-xs text-ck-text-muted">
+              <span className="block font-semibold uppercase tracking-wide">Desde el puesto</span>
+              <input
+                type="number"
+                name="desde"
+                min={1}
+                defaultValue={filtro.desde ?? ""}
+                placeholder="1"
+                className="w-24 rounded-[var(--ck-radius-sm)] border border-ck-border bg-ck-surface px-3 py-2 text-sm text-ck-text"
+              />
+            </label>
+            <label className="space-y-1 text-xs text-ck-text-muted">
+              <span className="block font-semibold uppercase tracking-wide">Hasta el puesto</span>
+              <input
+                type="number"
+                name="hasta"
+                min={1}
+                defaultValue={filtro.hasta ?? ""}
+                placeholder="3"
+                className="w-24 rounded-[var(--ck-radius-sm)] border border-ck-border bg-ck-surface px-3 py-2 text-sm text-ck-text"
+              />
+            </label>
+            <Button type="submit" variant="outline" size="sm">
+              Filtrar
+            </Button>
+            {hayFiltro ? (
+              <Button href={`${base}/resultados`} variant="ghost" size="sm">
+                Quitar filtro
+              </Button>
+            ) : null}
+          </div>
+        </form>
+        <DescargaParaRedes
+          editionId={editionId}
+          query={filtroAQuery(filtro)}
+          obras={publicables}
+        />
+        {sinPermiso.length > 0 ? (
+          <p className="text-sm leading-relaxed text-[var(--ck-warning)]">
+            Quedan afuera del ZIP porque no autorizaron publicar su obra en redes:{" "}
+            {sinPermiso
+              .map(
+                (f) =>
+                  `${f.autor?.nombre} (${f.promptExternalId ? (tituloDe.get(f.promptExternalId) ?? "consigna") : "sin consigna"}, puesto ${f.puesto})`,
+              )
+              .join(" · ")}
+            . Tampoco se los nombra en el copy.
+          </p>
+        ) : null}
+      </Card>
+
+      {hayFiltro && grupos.length === 0 ? (
+        <Card variant="outlined" className="p-6">
+          <p className="text-sm text-ck-text-secondary">Ninguna obra coincide con el filtro.</p>
+        </Card>
+      ) : null}
 
       {grupos.map((g) => (
         <section
@@ -174,6 +283,11 @@ export default async function ResultadosDeLaEdicionPage({
                       >
                         {f.autor.nombre}
                       </Link>
+                      {!f.autor.autorizaRedes ? (
+                        <Badge variant="warning" className="ml-2">
+                          Sin permiso para redes
+                        </Badge>
+                      ) : null}
                       <p className="text-xs text-ck-text-muted">
                         {f.autor.numero ? `N.º ${f.autor.numero}` : null}
                         {f.autor.instagram ? (

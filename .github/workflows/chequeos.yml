@@ -46,6 +46,17 @@ jobs:
       - name: Instalar dependencias
         run: pnpm install --frozen-lockfile
 
+      # Las placas se dibujan en Vercel, que no tiene ninguna tipografía instalada. En una Mac
+      # el texto siempre sale (con Helvetica), así que las pruebas pasaban aunque en producción
+      # la placa saliera sin una palabra. Acá se corren con fontconfig apuntando a una carpeta
+      # vacía: un servidor sin fuentes, como Vercel.
+      - name: Pruebas de placas, sin ninguna fuente instalada
+        run: |
+          mkdir -p "$RUNNER_TEMP/sin-fuentes"
+          printf '<?xml version="1.0"?><fontconfig><dir>%s</dir><cachedir>%s</cachedir></fontconfig>' \
+            "$RUNNER_TEMP/sin-fuentes" "$RUNNER_TEMP/fc-cache" > "$RUNNER_TEMP/fonts.conf"
+          FONTCONFIG_FILE="$RUNNER_TEMP/fonts.conf" pnpm --filter @repo/media-composition test
+
       # Los 4 GB que Node usa por defecto no alcanzan para este repo.
       - name: Chequear tipos
         run: pnpm --filter compramelafoto typecheck
