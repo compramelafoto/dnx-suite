@@ -156,7 +156,7 @@ describe("abuso del formulario público", () => {
 describe("campo trampa", () => {
   it("lleno: responde como éxito, no crea nada y loguea sólo el código", async () => {
     const avisos = vi.spyOn(console, "warn").mockImplementation(() => {});
-    expect(await createServiceLead({ ...ENTRADA, website2: "http://spam.test" })).toEqual({ success: true });
+    expect(await createServiceLead({ ...ENTRADA, fo_hp_x: "http://spam.test" })).toEqual({ success: true });
     expect(H.alta).not.toHaveBeenCalled();
     expect(H.branding).not.toHaveBeenCalled();
     expect(JSON.stringify(avisos.mock.calls)).toContain("CAMPO_TRAMPA");
@@ -165,7 +165,7 @@ describe("campo trampa", () => {
   });
 
   it("vacío o con espacios: alta normal", async () => {
-    expect(await createServiceLead({ ...ENTRADA, website2: "  " })).toEqual({ success: true });
+    expect(await createServiceLead({ ...ENTRADA, fo_hp_x: "  " })).toEqual({ success: true });
     expect(H.alta).toHaveBeenCalledTimes(1);
   });
 

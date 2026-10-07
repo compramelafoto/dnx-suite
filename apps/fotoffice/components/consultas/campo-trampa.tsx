@@ -8,7 +8,7 @@ export function CampoTrampa() {
       style={{ position: "absolute", left: "-10000px", top: "auto", width: 1, height: 1, overflow: "hidden" }}
     >
       <label htmlFor={`campo-${CAMPO_TRAMPA}`}>No completar</label>
-      <input id={`campo-${CAMPO_TRAMPA}`} name={CAMPO_TRAMPA} type="text" tabIndex={-1} autoComplete="off" defaultValue="" />
+      <input id={`campo-${CAMPO_TRAMPA}`} name={CAMPO_TRAMPA} type="text" tabIndex={-1} autoComplete="off" data-1p-ignore="true" data-lpignore="true" data-form-type="other" defaultValue="" />
     </div>
   );
 }

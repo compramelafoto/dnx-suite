@@ -230,7 +230,7 @@ Todo en **DNX Estudio**, con datos de prueba que después se archivan.
    existía, usa ese contacto; si no, crea uno nuevo como CONTACTO), con su categoría equivalente
    al tipo de evento, y **crear la tarea "Responder consulta" del equipo** (y el aviso por
    correo si está encendido). Con el módulo Consultas apagado no hay ni aviso ni tarea.
-   El formulario tiene un **campo trampa** invisible (`website2`): si un robot lo llena, ve el
+   El formulario tiene un **campo trampa** invisible (`fo_hp_x`): si un robot lo llena, ve el
    mismo cartel de éxito pero no se guarda nada (en el log, sólo el código `CAMPO_TRAMPA`).
 2. **Nueva consulta a mano (boda):** Consultas → Nueva consulta, categoría de boda, cargar
    **novios**, **lugares** (ceremonia y recepción), invitados y valor estimado, más un

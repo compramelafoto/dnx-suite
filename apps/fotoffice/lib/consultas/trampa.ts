@@ -3,7 +3,7 @@
  * pantalla, `aria-hidden`, sin tabulación ni autocompletado), sólo lo llenan los robots. Si llega
  * con algo, el servidor responde lo mismo que con éxito y no crea nada.
  */
-export const CAMPO_TRAMPA = "website2";
+export const CAMPO_TRAMPA = "fo_hp_x";
 
 /** ¿La trampa vino llena? */
 export function cayoEnLaTrampa(valor: unknown): boolean {
