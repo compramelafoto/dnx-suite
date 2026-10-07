@@ -258,3 +258,92 @@ consulta se guardó por el respaldo: casi seguro falta aplicar el SQL (o falló)
 anterior, `[consultas] altaDeConsulta falló`, trae el código (por ejemplo `P2021` = la tabla no
 existe). Si el formulario devuelve "No se pudo registrar el lead.", falló también el respaldo
 (la base no responde).
+
+---
+
+# Segunda entrega (tareas 7 a 9): sin SQL
+
+**Esta entrega no trae SQL.** No hay tablas, columnas, índices ni migraciones nuevas: usa las
+siete tablas de la primera entrega (sección 1), ya aplicadas en producción con el PR 408, y
+`FotofficeListActivity` (del listado estándar, ya existente). Se publica como cualquier cambio
+de código: se fusiona el PR y listo, sin pasos en la base.
+
+Comprobación (debe dar vacío; se corrió antes de abrir el PR):
+
+```bash
+git diff origin/main...HEAD -- packages/db/prisma
+git diff origin/main..HEAD -- packages/db/prisma
+```
+
+## 7. Qué trae
+
+- **Clientes con datos ampliados:** la ficha del cliente muestra y edita categoría (Contacto,
+  Cliente, Proveedor, Colaborador), celular, segundo correo, cumpleaños, web, provincia, país,
+  código postal y "Sobre", y la tarjeta con **todas sus consultas**. La lista de Clientes suma la
+  columna y el filtro de categoría. Un contacto pasa solo a "Cliente" cuando gana una consulta
+  (también cuando la gana por una inscripción a un curso aprobada, aunque esa consulta no tuviera
+  recorrido abierto en el tablero).
+- **Clientes → Importar:** CSV con los datos del cliente y los ampliados; vista previa con
+  errores por fila; no duplica (mismo documento, correo o teléfono).
+- **Configuración → Consultas** (dueño o administrador, con el módulo Consultas encendido):
+  pestañas Categorías (con grupo), Orígenes, Roles de participante y Avisos (responsable de las
+  consultas nuevas, correo sí/no, tarea sí/no; el texto del correo se edita en Plantillas →
+  Automáticos). Una categoría con consultas no se borra (se archiva) y su grupo no cambia. Si la
+  categoría equivalente de un formulario público está archivada, la pantalla lo avisa.
+- **Consultas → Importar** (botón "Importar" en la cabecera de Consultas, con "Gestionar"):
+  CSV con nombre, correo, teléfono, categoría, fecha del evento, lugar, invitados, origen, valor,
+  responsable (por correo), etapa (por nombre) y nota. Cada fila entra por el mismo camino que el
+  alta manual (contacto buscado por correo o teléfono, o creado; número; circuito), **sin aviso al
+  equipo, sin tarea y sin respuesta automática**. La etapa, si viene, mueve la consulta con el
+  motor de circuitos. Queda registrada en la bitácora de la lista de Consultas
+  (`FotofficeListActivity`, `action = 'IMPORTAR_CSV'`, sólo conteos).
+- **Las dos importaciones:** hasta 2.000 filas y 2 MB por archivo; **una sola a la vez por
+  organización** (la segunda ve "Ya hay una importación en curso; probá en unos minutos."). El
+  candado es una fila `kind = 'IMPORT_LOCK'` en `FotofficeListActivity` que se borra al terminar
+  y vence sola a los 10 minutos. Si una importación de clientes no pudo guardar algunas filas, dice
+  cuáles, para reimportar sólo esas.
+
+## 8. Límites conocidos
+
+- **Importación de consultas:** las filas **sin correo no se controlan como duplicadas** (la
+  clave es correo + categoría + fecha del evento). Si se repite la importación, se cargan de
+  nuevo. La vista previa avisa cuántas son.
+- **Importación de clientes:** igual con las filas sin documento, correo ni teléfono.
+- Las consultas se dan de alta de a **5 en paralelo** (para que 2.000 filas entren en los 300 s
+  de la función). Si la base anduviera lenta, una importación muy grande puede cortarse: lo que
+  entró queda, y al repetir el archivo las filas con correo no se duplican.
+- Si la etapa pedida exige tareas obligatorias en la etapa de entrada, sólo un dueño o
+  administrador la puede forzar al importar; para el resto, la consulta queda en la primera
+  etapa y el resultado lo informa.
+
+## 9. Prueba manual en producción (segunda entrega)
+
+Todo en **DNX Estudio**, con datos de prueba que después se archivan.
+
+1. **Ficha del cliente:** abrir un cliente, cargar categoría Proveedor, celular, cumpleaños y
+   "Sobre"; guardar y recargar. En la lista de Clientes, filtrar por categoría Proveedor: aparece.
+   En su ficha, la tarjeta de consultas lista las suyas.
+2. **Pasa a Cliente al ganar:** una consulta de prueba de un contacto nuevo (categoría
+   Contacto) → cerrarla como Ganada en el tablero → el contacto queda como Cliente.
+3. **Clientes → Importar:** un CSV de 3 filas (una nueva, una con el correo de un cliente
+   existente, una con una fecha inválida). Vista previa: "1 se carga · 1 ya existe · 1 con
+   errores". Confirmar y repetir: la segunda vez no carga nada. Un archivo de más de 2 MB se
+   rechaza antes de subirlo.
+4. **Configuración → Consultas:** crear una categoría de prueba (grupo Evento), subirla y
+   bajarla, archivarla y desarchivarla, borrarla (no tiene consultas). En "Boda" (que tiene
+   consultas) el grupo aparece bloqueado y no hay "Borrar". En Avisos, elegir responsable y
+   guardar; el enlace lleva a Plantillas → Automáticos.
+5. **Categoría reemplazada:** archivar la categoría equivalente de un formulario público → la
+   pestaña Categorías muestra el aviso con la categoría que la reemplaza. Desarchivarla.
+6. **Consultas → Importar:** un CSV de 3 filas (una con etapa "Presupuesto enviado" u otra etapa
+   real del circuito de ventas, una con el correo de un contacto existente, una con una categoría
+   que no existe). Vista previa con el error en la tercera. Confirmar: las dos válidas aparecen
+   en el tablero (una en la etapa pedida), enganchadas a su contacto, **sin correo de aviso ni
+   tarea "Responder consulta" ni respuesta automática**. Repetir el archivo: "ya existen".
+7. **Una a la vez:** con una importación grande corriendo, intentar otra (de clientes o de
+   consultas) desde otra pestaña: debe decir "Ya hay una importación en curso; probá en unos
+   minutos."
+8. **Limpieza:** archivar las consultas y clientes de prueba.
+
+Si en el log de Vercel aparece `[importacion] soltar el candado falló`, la organización queda
+sin poder importar hasta 10 minutos; se resuelve solo.
