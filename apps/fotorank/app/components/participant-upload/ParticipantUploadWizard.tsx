@@ -109,7 +109,18 @@ export function ParticipantUploadWizard({
   const [pending] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  /**
+   * `entry` es la obra sobre la que trabaja el asistente: la única en concursos
+   * de una foto; en los de varias, la que el participante eligió reemplazar
+   * (null = está agregando una nueva). `entries` son todas las suyas.
+   */
   const [entry, setEntry] = useState<EntryView | null>(null);
+  const [entries, setEntries] = useState<EntryView[]>([]);
+  /**
+   * Obra que el servidor asignó a una carga nueva que no llegó a terminar. Se
+   * reusa en el reintento para que un envío fallido no ocupe otro lugar.
+   */
+  const pendingNewEntryIdRef = useRef<string | null>(null);
   const [uploadPhase, setUploadPhase] = useState<"idle" | "uploading" | "processing" | "done">(
     "idle",
   );
@@ -122,10 +133,14 @@ export function ParticipantUploadWizard({
   const inputRef = useRef<HTMLInputElement>(null);
   const errorRef = useRef<HTMLParagraphElement>(null);
 
+  const multi = requirements.maxFiles > 1;
+  const remainingSlots = Math.max(0, requirements.maxFiles - entries.length);
+  const entryPosition = entry ? entries.findIndex((e) => e.id === entry.id) + 1 || 1 : entries.length + 1;
+
   const startGate = canStartUpload({
     registrationStatus,
     uploadWindow: requirements.uploadWindow,
-    uploadedCount: entry ? 1 : 0,
+    uploadedCount: multi ? entries.length : entry ? 1 : 0,
     maxFiles: requirements.maxFiles,
     admissionStatus: entry?.admissionStatus,
     frozen: entry?.admissionPublic?.frozen,
@@ -137,7 +152,22 @@ export function ParticipantUploadWizard({
     (Boolean(entry) &&
       entry?.status !== "CONFIRMED" &&
       requirements.allowReplace &&
-      requirements.uploadWindow.isOpen);
+      requirements.uploadWindow.isOpen) ||
+    (multi && entries.some(isReplacementRequested));
+
+  /**
+   * Si una obra de un concurso de varias fotos admite otra carga. Replica lo
+   * que el servidor exige en `processUploadedFile`: congelada nunca, admitida
+   * sólo si el organizador pidió corrección, y el resto mientras la ventana
+   * esté abierta y las bases permitan reemplazo.
+   */
+  function canReplaceEntry(e: EntryView): boolean {
+    if (e.admissionPublic?.frozen || e.admissionStatus === "FROZEN_FOR_JURY") return false;
+    if (e.status === "WITHDRAWN") return false;
+    if (isReplacementRequested(e)) return true;
+    if (!requirements.uploadWindow.isOpen || !requirements.allowReplace) return false;
+    return e.admissionStatus !== "ADMITTED";
+  }
 
   const fileStatus = mapEntryToUploadFileStatus({
     entryStatus: entry?.status,
@@ -285,8 +315,43 @@ export function ParticipantUploadWizard({
     if (isFixture) return;
     const res = await fetch(`/api/fotorank/contests/${contestId}/entries/me`);
     if (!res.ok) return;
-    const data = (await res.json()) as { entry: EntryView | null };
-    if (data.entry) setEntry(data.entry);
+    const data = (await res.json()) as { entry: EntryView | null; entries?: EntryView[] };
+    const list = data.entries ?? (data.entry ? [data.entry] : []);
+    setEntries(list);
+    if (!multi) {
+      if (data.entry) setEntry(data.entry);
+      return;
+    }
+    // Con varias fotos no se elige ninguna sola: se refresca la que esté en curso.
+    setEntry((prev) => (prev ? (list.find((e) => e.id === prev.id) ?? prev) : prev));
+  }
+
+  /** Entra al asistente para una obra (reemplazo) o para una nueva (null). */
+  function startEntryFlow(target: EntryView | null) {
+    setError(null);
+    setInfo(null);
+    setEntry(target);
+    pendingNewEntryIdRef.current = null;
+    setFile(null);
+    setFileMeta(null);
+    revokePreview();
+    setUploadPhase("idle");
+    // Las declaraciones son de cada foto; Instagram es de la persona.
+    setWorkData((prev) => ({ ...EMPTY_WORK_DATA, instagramHandle: prev.instagramHandle }));
+    setDirty(false);
+    setStep("photo");
+  }
+
+  function backToEntryList() {
+    setError(null);
+    setInfo(null);
+    setEntry(null);
+    pendingNewEntryIdRef.current = null;
+    setFile(null);
+    setFileMeta(null);
+    revokePreview();
+    setUploadPhase("idle");
+    setStep("requirements");
   }
 
   function updateWorkData<K extends keyof WorkDataForm>(key: K, value: WorkDataForm[K]) {
@@ -385,7 +450,8 @@ export function ParticipantUploadWizard({
 
   function goBack() {
     setError(null);
-    if (step === "photo") setStep("requirements");
+    if (step === "photo" && multi) backToEntryList();
+    else if (step === "photo") setStep("requirements");
     else if (step === "data") setStep("photo");
     else if (step === "review") setStep("data");
   }
@@ -467,7 +533,11 @@ export function ParticipantUploadWizard({
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ contentType: file.type || "image/jpeg" }),
+            body: JSON.stringify({
+              contentType: file.type || "image/jpeg",
+              // Sin id el servidor crea una obra nueva (o reusa un borrador vacío).
+              entryId: entry?.id ?? pendingNewEntryIdRef.current ?? undefined,
+            }),
           },
           API_TIMEOUT_MS,
         );
@@ -491,6 +561,7 @@ export function ParticipantUploadWizard({
           fail("UNEXPECTED_RESPONSE");
           return;
         }
+        if (!entry) pendingNewEntryIdRef.current = intentEntryId;
 
         // Solo replace si ya hay obra presentada (no DRAFT/PROCESSING).
         const replace = Boolean(
@@ -650,6 +721,7 @@ export function ParticipantUploadWizard({
         setUploadPhase("idle");
         return;
       }
+      pendingNewEntryIdRef.current = null;
       setUploadPhase("done");
       setDirty(false);
       setStep("confirmation");
@@ -732,6 +804,9 @@ export function ParticipantUploadWizard({
         <h2 className="fr-upload-wizard__title">Participación guiada</h2>
         <p className="fr-upload-wizard__lead">
           {requirements.categoryName} · {registrationNumber}
+          {multi && step !== "requirements" && step !== "confirmation"
+            ? ` · Foto ${entryPosition} de ${requirements.maxFiles}`
+            : null}
         </p>
         <UploadStepper current={step} />
       </header>
@@ -837,16 +912,38 @@ export function ParticipantUploadWizard({
           <p className="fr-upload-wizard__note">
             El GPS no es obligatorio y nunca se publica. El original se guarda de forma privada.
           </p>
+          {multi ? (
+            <EntryList
+              entries={entries}
+              maxFiles={requirements.maxFiles}
+              canReplace={canReplaceEntry}
+              onReplace={startEntryFlow}
+            />
+          ) : null}
           <div className="fr-upload-wizard__actions">
-            <button
-              type="button"
-              className="fr-public-btn fr-public-btn--primary"
-              data-testid="upload-start"
-              disabled={!startGate.allowed && !replacementAllowed}
-              onClick={goNext}
-            >
-              Comenzar carga
-            </button>
+            {multi ? (
+              remainingSlots > 0 ? (
+                <button
+                  type="button"
+                  className="fr-public-btn fr-public-btn--primary"
+                  data-testid="upload-start"
+                  disabled={!startGate.allowed}
+                  onClick={() => startEntryFlow(null)}
+                >
+                  {entries.length === 0 ? "Comenzar carga" : "Agregar otra fotografía"}
+                </button>
+              ) : null
+            ) : (
+              <button
+                type="button"
+                className="fr-public-btn fr-public-btn--primary"
+                data-testid="upload-start"
+                disabled={!startGate.allowed && !replacementAllowed}
+                onClick={goNext}
+              >
+                Comenzar carga
+              </button>
+            )}
             <Link href={requirements.basesHref} className="fr-public-btn fr-public-btn--secondary">
               Consultar bases
             </Link>
@@ -1249,9 +1346,44 @@ export function ParticipantUploadWizard({
                 <dd>{entry.entryNumber}</dd>
               </div>
             ) : null}
+            {multi ? (
+              <div>
+                <dt>Fotografías enviadas</dt>
+                <dd data-testid="entries-count">
+                  {entries.length} de {requirements.maxFiles}
+                </dd>
+              </div>
+            ) : null}
           </dl>
           <div className="fr-upload-wizard__actions">
-            <Link href={detailHref} className="fr-public-btn fr-public-btn--primary">
+            {multi && remainingSlots > 0 && requirements.uploadWindow.isOpen ? (
+              <button
+                type="button"
+                className="fr-public-btn fr-public-btn--primary"
+                data-testid="upload-add-another"
+                onClick={() => startEntryFlow(null)}
+              >
+                Subir otra fotografía
+              </button>
+            ) : null}
+            {multi ? (
+              <button
+                type="button"
+                className="fr-public-btn fr-public-btn--secondary"
+                data-testid="upload-back-to-list"
+                onClick={backToEntryList}
+              >
+                Ver mis fotografías
+              </button>
+            ) : null}
+            <Link
+              href={detailHref}
+              className={`fr-public-btn ${
+                multi && remainingSlots > 0 && requirements.uploadWindow.isOpen
+                  ? "fr-public-btn--secondary"
+                  : "fr-public-btn--primary"
+              }`}
+            >
               Ver detalle
             </Link>
             <Link href={participacionesHref} className="fr-public-btn fr-public-btn--secondary">
@@ -1276,6 +1408,82 @@ export function ParticipantUploadWizard({
 
       {/* silence unused */}
       <span className="sr-only">{contestSlug} {registrationId}</span>
+    </section>
+  );
+}
+
+function isReplacementRequested(e: EntryView): boolean {
+  return Boolean(e.admissionPublic?.replacementAllowed) || e.manualReviewStatus === "REPLACEMENT_REQUESTED";
+}
+
+/** Las obras de un concurso de varias fotos, con su estado y qué se puede hacer. */
+function EntryList({
+  entries,
+  maxFiles,
+  canReplace,
+  onReplace,
+}: {
+  entries: EntryView[];
+  maxFiles: number;
+  canReplace: (e: EntryView) => boolean;
+  onReplace: (e: EntryView) => void;
+}) {
+  return (
+    <section className="fr-upload-entries" data-testid="upload-entry-list" aria-labelledby="upload-entries-title">
+      <h4 id="upload-entries-title" className="fr-upload-entries__title">
+        Tus fotografías · {entries.length} de {maxFiles}
+      </h4>
+      {entries.length === 0 ? (
+        <p className="fr-upload-wizard__note">
+          Todavía no cargaste ninguna. Podés enviar hasta {maxFiles}, una por vez.
+        </p>
+      ) : (
+        <ol className="fr-upload-entries__list">
+          {entries.map((e, i) => {
+            const status = presentUploadFileStatus(
+              mapEntryToUploadFileStatus({
+                entryStatus: e.status,
+                technicalSummaryStatus: e.technicalSummaryStatus,
+                manualReviewStatus: e.manualReviewStatus,
+                admissionStatus: e.admissionStatus,
+              }),
+            );
+            const pendingSubmit = e.status === "READY_TO_CONFIRM" || e.status === "REQUIRES_REVIEW" || e.status === "DRAFT";
+            return (
+              <li key={e.id} className="fr-upload-entries__item" data-testid="upload-entry-item">
+                {e.previewUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={e.previewUrl} alt={`Fotografía ${i + 1}`} className="fr-upload-entries__thumb" />
+                ) : (
+                  <div className="fr-upload-entries__thumb fr-upload-entries__thumb--empty" aria-hidden />
+                )}
+                <div className="fr-upload-entries__body">
+                  <p className="fr-upload-entries__name">
+                    Foto {i + 1}
+                    {e.entryNumber ? <span className="fr-upload-entries__number"> · {e.entryNumber}</span> : null}
+                  </p>
+                  <p className="fr-upload-entries__status">{status.label}</p>
+                  {isReplacementRequested(e) && (e.publicRejectionReason || e.admissionPublic?.publicMessage) ? (
+                    <p className="fr-upload-entries__status" data-testid="admission-public-status">
+                      {e.publicRejectionReason || e.admissionPublic?.publicMessage}
+                    </p>
+                  ) : null}
+                </div>
+                {canReplace(e) ? (
+                  <button
+                    type="button"
+                    className="fr-public-btn fr-public-btn--secondary"
+                    data-testid="upload-entry-replace"
+                    onClick={() => onReplace(e)}
+                  >
+                    {pendingSubmit ? "Completar envío" : isReplacementRequested(e) ? "Corregir" : "Reemplazar"}
+                  </button>
+                ) : null}
+              </li>
+            );
+          })}
+        </ol>
+      )}
     </section>
   );
 }

@@ -12,18 +12,21 @@ export async function POST(req: Request, ctx: Ctx) {
   const { contestId } = await ctx.params;
   try {
     /**
-     * El cuerpo es opcional: sólo trae el MIME que el navegador usará en el
-     * PUT directo, y que va firmado dentro de la URL. Un cliente que no lo
-     * mande sigue funcionando con el tipo por defecto de la policy.
+     * El cuerpo es opcional: trae el MIME que el navegador usará en el PUT
+     * directo (va firmado dentro de la URL) y, si la carga es sobre una obra
+     * existente, su id. Sin id se pide una obra nueva; un cliente que no mande
+     * nada sigue funcionando con el tipo por defecto de la policy.
      */
     let contentType: string | null = null;
+    let entryId: string | null = null;
     try {
-      const body = (await req.json()) as { contentType?: unknown };
+      const body = (await req.json()) as { contentType?: unknown; entryId?: unknown };
       if (typeof body?.contentType === "string") contentType = body.contentType;
+      if (typeof body?.entryId === "string" && body.entryId.trim()) entryId = body.entryId.trim();
     } catch {
       contentType = null;
     }
-    const intent = await createUploadIntent({ contestId, participantUserId: user.id, contentType });
+    const intent = await createUploadIntent({ contestId, participantUserId: user.id, contentType, entryId });
     return NextResponse.json({ ok: true, ...intent });
   } catch (err) {
     if (err instanceof EntryError) {
