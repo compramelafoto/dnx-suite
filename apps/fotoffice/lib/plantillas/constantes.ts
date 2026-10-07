@@ -20,8 +20,11 @@ export type EstadoMensaje = (typeof ESTADOS_MENSAJE)[number];
  * - `CONSULTA_AVISO_EQUIPO`: aviso interno al responsable de una consulta nueva (etapa 1). Va
  *   sólo a usuarios del equipo, con el remitente de FOTOFFICE: no se registra como mensaje de la
  *   ficha, no cuenta en ningún tope diario ni en la regla de una respuesta cada 24 h.
+ * - `PRESUPUESTO_SEGUIMIENTO`: recordatorio a la persona de un presupuesto enviado que no
+ *   respondió (etapa 2, Entrega B). Lo manda la tarea diaria `lib/presupuestos/seguimiento.ts`
+ *   si la organización encendió el seguimiento en Configuración → Presupuestos.
  */
-export const CLAVES_AUTOMATICO = ["CONSULTA_AUTORESPUESTA", "CONSULTA_AVISO_EQUIPO"] as const;
+export const CLAVES_AUTOMATICO = ["CONSULTA_AUTORESPUESTA", "CONSULTA_AVISO_EQUIPO", "PRESUPUESTO_SEGUIMIENTO"] as const;
 export type ClaveAutomatico = (typeof CLAVES_AUTOMATICO)[number];
 
 export const ETIQUETA_CANAL: Record<Canal, string> = { EMAIL: "Correo", WHATSAPP: "WhatsApp" };

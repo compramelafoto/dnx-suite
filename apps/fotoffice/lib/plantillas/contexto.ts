@@ -8,6 +8,7 @@ import { loadWorkspaceEmailContext } from "@/lib/communications/load-workspace-s
 import { ETIQUETA_SALIDA } from "@/lib/circuitos/constantes";
 import { resolverPersonaPorCliente, resolverPersonaPorSocio } from "@/lib/ficha/persona";
 import { numeroDe } from "@/lib/numeracion/asignar";
+import { listaDePrecios } from "@/lib/presupuestos/lista-precios";
 import { SERVICE_LEAD_EVENT_TYPE_LABELS } from "@/lib/service-leads/form-definitions";
 import type { ContextoVariables } from "./variables";
 
@@ -153,6 +154,7 @@ export async function contextoDe(
   let persona: DatosPersona;
   let consulta: ContextoVariables["consulta"];
   let socio: ContextoVariables["socio"];
+  let listaPrecios: string | null = null;
 
   if (entityType === "CONSULTA") {
     const lead = await prisma.serviceSalesLead.findFirst({
@@ -161,7 +163,12 @@ export async function contextoDe(
     });
     if (!lead) return null;
     persona = { nombreCompleto: limpio(lead.name), email: limpio(lead.email), telefono: limpio(lead.phone) };
-    const [numeros, etapa] = await Promise.all([numeroDe(workspaceId, "CONSULTA", [entityId]), etapaDeConsulta(workspaceId, entityId)]);
+    const [numeros, etapa, lista] = await Promise.all([
+      numeroDe(workspaceId, "CONSULTA", [entityId]),
+      etapaDeConsulta(workspaceId, entityId),
+      listaDePrecios(workspaceId),
+    ]);
+    listaPrecios = lista;
     consulta = {
       numero: numeros.get(entityId) ?? null,
       tipo: (SERVICE_LEAD_EVENT_TYPE_LABELS as Record<string, string>)[lead.eventType] ?? limpio(lead.eventType),
@@ -203,6 +210,7 @@ export async function contextoDe(
     hoy,
     ...(consulta ? { consulta } : {}),
     ...(socio ? { socio } : {}),
+    ...(entityType === "CONSULTA" ? { listaPrecios } : {}),
     campos: campos.campos,
   };
 

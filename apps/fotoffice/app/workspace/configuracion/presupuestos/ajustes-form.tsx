@@ -17,8 +17,8 @@ const MAX_TEXTO = 4000;
 
 /**
  * Ajustes de los presupuestos nuevos: validez, condiciones generales y propuesta de pago se
- * copian a cada presupuesto al crearlo (y se pueden cambiar en cada uno). El seguimiento se
- * guarda ahora y lo usa la Entrega B.
+ * copian a cada presupuesto al crearlo (y se pueden cambiar en cada uno). El seguimiento lo
+ * manda una tarea diaria (`lib/presupuestos/seguimiento.ts`).
  */
 export function AjustesForm({ ajustes }: { ajustes: AjustesVista }) {
   const [estado, guardar, guardando] = useActionState(guardarAjustesPresupuestosAction, INICIAL);
@@ -88,13 +88,12 @@ export function AjustesForm({ ajustes }: { ajustes: AjustesVista }) {
       <section className="fo-card space-y-4 p-5" aria-labelledby="seguimiento-presupuesto-titulo">
         <div className="space-y-1">
           <h2 id="seguimiento-presupuesto-titulo" className="text-base font-semibold">
-            Seguimiento <span className="ml-1 rounded-full border border-[var(--fo-border)] px-2 py-0.5 align-middle text-xs font-normal text-[var(--fo-muted)]">
-              Se usa próximamente
-            </span>
+            Seguimiento
           </h2>
           <p className="text-sm text-[var(--fo-muted)]">
-            Si el cliente no responde, recordarle el presupuesto a los días que elijas. Lo dejás configurado ahora y
-            empieza a funcionar con la próxima entrega.
+            Si el cliente no responde, se le recuerda el presupuesto por correo a los días que elijas (una vez por
+            versión enviada, a las 10 de la mañana). No sale si ya lo aceptó, lo rechazó o venció. El texto se edita en
+            Configuración → Plantillas → Automáticos.
           </p>
         </div>
         <div className="fo-field-stack max-w-xs">

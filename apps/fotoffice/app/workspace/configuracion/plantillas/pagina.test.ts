@@ -42,7 +42,11 @@ describe("Configuración → Plantillas", () => {
     expect(p).toContain('{ valor: "GENERAL", etiqueta: etiquetas.GENERAL }');
     expect(p).toContain("...encendidos.map((t) => ({ valor: t, etiqueta: etiquetas[t] }))");
     expect(p).toContain("SOCIO: vocabulario.Plural");
-    expect(p).toContain('const conAutomaticos = conCaptacion || auto?.enabled === true;');
+    // Entrega B: con Presupuestos encendido también, por el seguimiento automático.
+    expect(p).toContain("const conAutomaticos = conCaptacion || auto?.enabled === true || conPresupuestos;");
+    expect(p).toContain('clave="PRESUPUESTO_SEGUIMIENTO"');
+    expect(p).toContain("{conPresupuestos ? (\n          <AutomaticoForm");
+    expect(p).toContain("await asegurarPlantillaSeguimiento(workspace.id);");
     expect(p).toContain('p.slug !== "automaticos" || conAutomaticos');
     expect(p).toContain("soloApagar={!conCaptacion}");
   });

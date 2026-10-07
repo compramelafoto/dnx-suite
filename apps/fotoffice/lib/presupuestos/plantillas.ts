@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
+import { AUTOMATICOS } from "@/lib/plantillas/definiciones";
 import type { PlantillaInicial } from "@/lib/plantillas/semillas";
 
 /**
@@ -43,15 +44,15 @@ Si te queda alguna duda o querés ajustar algo, respondé este correo[si:organiz
 
 /**
  * Crea, una sola vez por organización, las plantillas de PRESUPUESTO. La marca de "ya sembrado"
- * es que exista alguna plantilla de ese tipo (también archivada): las que alguien borró del todo
- * vuelven sólo si no queda ninguna. Idempotente: conteo afuera y re-chequeo adentro.
+ * es que exista alguna plantilla común de ese tipo (también archivada; la automática del
+ * seguimiento no cuenta): las que alguien borró del todo vuelven sólo si no queda ninguna. Idempotente: conteo afuera y re-chequeo adentro.
  */
 export async function asegurarPlantillasPresupuesto(workspaceId: string): Promise<void> {
-  if ((await prisma.fotofficeMessageTemplate.count({ where: { workspaceId, entityType: "PRESUPUESTO" } })) > 0) return;
+  if ((await prisma.fotofficeMessageTemplate.count({ where: { workspaceId, entityType: "PRESUPUESTO", systemKey: null } })) > 0) return;
   await prisma.$transaction(async (tx) => {
     // Dos pestañas a la vez: el candado por organización las pone en fila y la segunda ya cuenta las de la primera.
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`fotoffice-plantillas-presupuesto:${workspaceId}`}))`;
-    if ((await tx.fotofficeMessageTemplate.count({ where: { workspaceId, entityType: "PRESUPUESTO" } })) > 0) return;
+    if ((await tx.fotofficeMessageTemplate.count({ where: { workspaceId, entityType: "PRESUPUESTO", systemKey: null } })) > 0) return;
     const ultimos = await tx.fotofficeMessageTemplate.findMany({
       where: { workspaceId, systemKey: null },
       select: { channel: true, order: true },
@@ -63,4 +64,44 @@ export async function asegurarPlantillasPresupuesto(workspaceId: string): Promis
       })),
     });
   });
+}
+
+/** Texto inicial del seguimiento automático (Entrega B). Sólo variables válidas para PRESUPUESTO. */
+export const SEGUIMIENTO_INICIAL = {
+  asunto: "¿Pudiste ver el presupuesto[si:presupuesto_numero] N° [presupuesto_numero][/si]?",
+  cuerpo: `Hola[si:nombre], [nombre][/si]:
+
+Hace unos días te mandamos el presupuesto[si:consulta_fecha] para tu evento del [consulta_fecha][/si]. Queríamos saber si lo pudiste ver y si te quedó alguna duda.
+
+Lo podés volver a abrir acá:
+
+[presupuesto_enlace]
+
+[si:presupuesto_vence]Vale hasta el [presupuesto_vence]. [/si]Si querés ajustar algo, respondé este correo[si:organizacion_whatsapp] o escribinos por WhatsApp al [organizacion_whatsapp][/si].
+
+[firma]`,
+} as const;
+
+const CLAVE_SEGUIMIENTO = "PRESUPUESTO_SEGUIMIENTO" as const;
+
+/**
+ * Crea, una sola vez por organización, la plantilla automática del seguimiento (encendida: el
+ * interruptor que manda es el de Configuración → Presupuestos, que nace apagado). Idempotente:
+ * conteo afuera y el índice único (workspaceId, systemKey) adentro.
+ */
+export async function asegurarPlantillaSeguimiento(workspaceId: string): Promise<void> {
+  if ((await prisma.fotofficeMessageTemplate.count({ where: { workspaceId, systemKey: CLAVE_SEGUIMIENTO } })) > 0) return;
+  const def = AUTOMATICOS[CLAVE_SEGUIMIENTO];
+  try {
+    await prisma.fotofficeMessageTemplate.create({
+      data: {
+        workspaceId, systemKey: CLAVE_SEGUIMIENTO, channel: def.canal, entityType: def.tipo, name: def.nombre,
+        subject: SEGUIMIENTO_INICIAL.asunto, body: SEGUIMIENTO_INICIAL.cuerpo, enabled: true, order: 2,
+      },
+      select: { id: true },
+    });
+  } catch (e) {
+    // Otra corrida la creó en el mismo instante: el índice único nos frena; da igual.
+    if ((e as { code?: unknown })?.code !== "P2002") throw e;
+  }
 }

@@ -27,7 +27,7 @@ describe("catálogo de variables", () => {
       "organizacion_instagram", "organizacion_ciudad", "firma",
       "usuario_nombre", "usuario_email",
       "hoy",
-      "consulta_numero", "consulta_tipo", "consulta_fecha", "consulta_lugar", "consulta_mensaje", "consulta_etapa",
+      "consulta_numero", "consulta_tipo", "consulta_fecha", "consulta_lugar", "consulta_mensaje", "consulta_etapa", "lista_precios",
       "presupuesto_numero", "presupuesto_enlace", "presupuesto_total", "presupuesto_vence",
       "socio_numero",
     ]);

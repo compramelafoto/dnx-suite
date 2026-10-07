@@ -120,12 +120,12 @@ function idValido(v: unknown): v is string {
   return typeof v === "string" && v.length > 0 && v.length <= 64;
 }
 
-function origenDe(deps: DepsEnvioPresupuesto): string {
+export function origenDe(deps: DepsEnvioPresupuesto): string {
   return (deps.appOrigin ?? (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "")).replace(/\/+$/, "");
 }
 
 /** "aaaa-mm-dd" → "dd/mm/aaaa". */
-function ddmmaaaa(fecha: Date | null): string | null {
+export function ddmmaaaa(fecha: Date | null): string | null {
   const t = textoDeFecha(fecha);
   return t ? t.split("-").reverse().join("/") : null;
 }
@@ -139,7 +139,7 @@ export function conEnlace(cuerpo: string, enlace: string): string {
   return `${cuerpo.slice(0, i).trimEnd()}\n\n${linea}\n\n${cuerpo.slice(i)}`;
 }
 
-type Fuente = { asunto: string | null; cuerpo: string; templateId: string | null };
+export type Fuente = { asunto: string | null; cuerpo: string; templateId: string | null };
 
 /** El texto a completar: el que llegó o el de la plantilla (PRESUPUESTO o GENERAL, del canal). */
 async function fuenteDelTexto(workspaceId: string, canal: Canal, datos: DatosEnvioPresupuesto, automatico = false): Promise<Fuente | Falla> {
@@ -160,10 +160,10 @@ async function fuenteDelTexto(workspaceId: string, canal: Canal, datos: DatosEnv
   return { asunto: canal === "EMAIL" ? (plantilla.subject ?? "") : null, cuerpo: plantilla.body, templateId };
 }
 
-type ValoresPresupuesto = NonNullable<ContextoMensaje["variables"]["presupuesto"]>;
+export type ValoresPresupuesto = NonNullable<ContextoMensaje["variables"]["presupuesto"]>;
 
 /** Completa el texto con las variables (las del presupuesto incluidas) y lo deja listo para enviar. */
-function textosFinales(
+export function textosFinales(
   contexto: ContextoMensaje,
   canal: Canal,
   fuente: Fuente,

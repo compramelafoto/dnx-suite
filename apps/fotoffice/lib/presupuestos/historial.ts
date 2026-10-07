@@ -6,8 +6,8 @@ import { ENTIDAD_NUMERACION } from "./constantes";
 
 /**
  * Entradas de presupuestos para el historial de la consulta (spec etapa 2 §2 A.11): cada envío de
- * una versión, la primera vez que el cliente la abrió (con cuántas veces en total) y la
- * aceptación. Con "Ver" en Presupuestos; si no, nada. Sin costos, sin IP y sin navegador.
+ * una versión, la primera vez que el cliente la abrió (con cuántas veces en total), la
+ * aceptación y el seguimiento automático (Entrega B, el correo de `PRESUPUESTO_SEGUIMIENTO`). Con "Ver" en Presupuestos; si no, nada. Sin costos, sin IP y sin navegador.
  */
 export type EventoDePresupuesto = {
   id: string;
@@ -63,6 +63,30 @@ export async function eventosDePresupuestos(ctx: CtxPresupuestos, leadId: string
     if (v.acceptedAt) {
       const quien = v.acceptedName ? ` (${v.acceptedName})` : "";
       out.push({ id: `aceptado-${v.id}`, fecha: v.acceptedAt, texto: `El cliente aceptó el presupuesto ${cual}${quien}`, href });
+    }
+  }
+  // Seguimientos automáticos: cada uno, del presupuesto cuya versión se envió último antes que él.
+  const plantilla = await prisma.fotofficeMessageTemplate.findFirst({
+    where: { workspaceId, systemKey: "PRESUPUESTO_SEGUIMIENTO" },
+    select: { id: true },
+  });
+  if (plantilla) {
+    const seguimientos = await prisma.fotofficeMessage.findMany({
+      where: { workspaceId, templateId: plantilla.id, entityType: "CONSULTA", entityId: leadId },
+      select: { id: true, createdAt: true, status: true },
+      take: 200,
+    });
+    for (const m of seguimientos) {
+      const v = versiones
+        .filter((x) => x.sentAt && x.sentAt.getTime() <= m.createdAt.getTime())
+        .sort((a, b) => b.sentAt!.getTime() - a.sentAt!.getTime())[0];
+      if (!v) continue;
+      const numero = numeros.get(v.presupuestoId);
+      const cual = `${numero ? `N° ${numero}` : "sin número"} (V${v.number})`;
+      const texto = m.status === "SENT"
+        ? `Se envió el seguimiento automático del presupuesto ${cual}`
+        : `No salió el seguimiento automático del presupuesto ${cual}`;
+      out.push({ id: `seguimiento-${m.id}`, fecha: m.createdAt, texto, href: `/presupuestos/${encodeURIComponent(v.presupuestoId)}` });
     }
   }
   return out.sort((a, b) => b.fecha.getTime() - a.fecha.getTime());

@@ -50,13 +50,14 @@ describe("Configuración → Presupuestos", () => {
     expect(a).toContain('puede(role, "configurar")');
   });
 
-  it("el formulario es de cliente, no importa la base y marca el seguimiento como «Se usa próximamente»", () => {
+  it("el formulario es de cliente, no importa la base y el seguimiento ya no dice «Se usa próximamente»", () => {
     const c = aqui("ajustes-form.tsx");
     expect(c.startsWith('"use client";')).toBe(true);
     expect(c).not.toContain("@repo/db");
     expect(c).not.toContain("@/lib/presupuestos/ajustes");
     expect(c).not.toContain("@/lib/presupuestos/semillas");
-    expect(c).toContain("Se usa próximamente");
+    expect(c).not.toContain("Se usa próximamente");
+    expect(c).toContain("Configuración → Plantillas → Automáticos");
     for (const campo of ['name="validez"', 'name="condiciones"', 'name="propuestaPago"', 'name="seguimiento"', 'name="seguimientoActivo"']) {
       expect(c, campo).toContain(campo);
     }

@@ -51,6 +51,10 @@
     {
       "path": "/api/cron/correo",
       "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/cron/presupuestos-seguimiento",
+      "schedule": "0 13 * * *"
     }
   ]
 }

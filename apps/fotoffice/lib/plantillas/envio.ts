@@ -170,11 +170,15 @@ async function validarPlantilla(
     return automatico ? no(MENSAJES_ENVIO.plantillaNoEncontrada) : { ok: true, id: null };
   }
   if (typeof templateId !== "string" || templateId.length > 100) return no(MENSAJES_ENVIO.plantillaNoEncontrada);
-  // La propuesta modelo que sale sola (etapa 2, Entrega B) va con una plantilla común de correo de
-  // PRESUPUESTO del workspace. Sólo el código del servidor pide ese tipo (`opciones.tipoPlantilla`).
+  // Etapa 2, Entrega B: la propuesta modelo que sale sola va con una plantilla común de correo de
+  // PRESUPUESTO del workspace, y el seguimiento con la automática `PRESUPUESTO_SEGUIMIENTO`
+  // (encendida). Sólo el código del servidor pide ese tipo (`opciones.tipoPlantilla`).
   if (automatico && tipo === "PRESUPUESTO") {
     const f = await prisma.fotofficeMessageTemplate.findFirst({
-      where: { id: templateId, workspaceId, channel: canal, entityType: "PRESUPUESTO", systemKey: null, archivedAt: null },
+      where: {
+        id: templateId, workspaceId, channel: canal, entityType: "PRESUPUESTO", archivedAt: null,
+        OR: [{ systemKey: null }, { systemKey: CLAVE_SEGUIMIENTO, enabled: true }],
+      },
       select: { id: true },
     });
     return f ? { ok: true, id: f.id } : no(MENSAJES_ENVIO.plantillaNoEncontrada);
@@ -197,6 +201,8 @@ async function validarPlantilla(
 
 /** La única automática que va a la persona de la ficha. */
 const CLAVE_RESPUESTA_A_LA_PERSONA: ClaveAutomatico = "CONSULTA_AUTORESPUESTA";
+/** El seguimiento de un presupuesto (Entrega B): también va a la persona de la consulta. */
+const CLAVE_SEGUIMIENTO: ClaveAutomatico = "PRESUPUESTO_SEGUIMIENTO";
 
 /**
  * Asunto, HTML y texto listos para el transporte a partir de textos ya completados
