@@ -35,6 +35,7 @@ describe("buildCanjeWhatsAppMessage", () => {
     });
     assert.ok(m.startsWith("¡Hola María Jimena! Te paso el link para elegir las fotos de Josefina"));
     assert.ok(m.includes("elegí las 3 fotos del combo"));
+    assert.ok(m.includes("por favor no lo compartas"));
     assert.ok(m.endsWith("https://www.compramelafoto.com/canje/abc"));
   });
 });
@@ -50,6 +51,7 @@ describe("buildPreventaCanjeWhatsAppMessage", () => {
     });
     assert.ok(m.startsWith("¡Hola Bianciotti Sabrina!"));
     assert.ok(m.includes("para Araujo Ines (1 librito formal + su digital) ya está pago"));
+    assert.ok(m.includes("Este link es único para tu familia: por favor no lo compartas."));
     assert.ok(m.endsWith("https://www.compramelafoto.com/canje/preventa/abc"));
   });
 });
