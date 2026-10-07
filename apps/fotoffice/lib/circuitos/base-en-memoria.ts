@@ -36,6 +36,8 @@ const TABLAS = [
   "product", "productCategory", "fotofficeProductoCatalogo", "fotofficeComboItem", "fotofficeCostoPlantilla",
   // Presupuestos (etapa 2).
   "fotofficePresupuesto", "fotofficePresupuestoVersion", "fotofficePresupuestoVista", "fotofficePresupuestoAjustes",
+  // Propuesta modelo por categoría (etapa 2, Entrega B).
+  "fotofficePropuestaModelo",
 ] as const;
 export type Tabla = (typeof TABLAS)[number];
 
@@ -116,6 +118,7 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
   fotofficePresupuestoAjustes: () => ({
     validityDays: 15, terms: null, paymentProposal: null, followUpDays: 3, followUpEnabled: false, updatedAt: new Date(),
   }),
+  fotofficePropuestaModelo: () => ({ terms: null, autoSendOnWeb: false, templateId: null, updatedAt: new Date(), updatedByUserId: null }),
 };
 
 function igual(a: unknown, b: unknown): boolean {
@@ -237,6 +240,7 @@ export function crearBaseEnMemoria() {
       { columnas: ["tokenHash"], aplica: (f) => f.tokenHash !== null && f.tokenHash !== undefined },
     ],
     fotofficePresupuestoAjustes: [{ columnas: ["workspaceId"] }],
+    fotofficePropuestaModelo: [{ columnas: ["workspaceId", "categoryId"] }],
   };
 
   /**

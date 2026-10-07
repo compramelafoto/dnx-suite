@@ -7,7 +7,6 @@ import { guardarBorradorAction } from "@/app/actions/presupuestos";
 import type { Descuento, ItemPresupuesto, ModoPrecio, TipoDescuento } from "@/lib/presupuestos/constantes";
 import {
   ajustadosIniciales,
-  buscarEnCatalogo,
   costosEnVivo,
   itemDesdeProducto,
   itemLibre,
@@ -19,6 +18,7 @@ import {
 import type { PerfilPanel } from "@/lib/presupuestos/panel-cuanto-cobro";
 import { calcularTotales } from "@/lib/presupuestos/totales";
 import { AsistenteCuantoCobro } from "./asistente-cuanto-cobro";
+import { BuscadorCatalogo } from "./buscador-catalogo";
 import { PanelCuantoCobro } from "./panel-cuanto-cobro";
 
 /**
@@ -103,7 +103,6 @@ export function EditorPresupuesto({ datos, puedeGuardar }: { datos: DatosEditor;
   const [descuento, setDescuento] = useState<Descuento | null>(datos.descuento);
   const [condiciones, setCondiciones] = useState(datos.condiciones ?? "");
   const [propuestaPago, setPropuestaPago] = useState(datos.propuestaPago ?? "");
-  const [busqueda, setBusqueda] = useState("");
   const [seccionNueva, setSeccionNueva] = useState("");
   const [calculando, setCalculando] = useState<string | null>(null);
   /** Ítem recién creado para calcular: si se cierra el panel sin usarlo, se descarta. */
@@ -128,7 +127,6 @@ export function EditorPresupuesto({ datos, puedeGuardar }: { datos: DatosEditor;
 
   const totales = calcularTotales(items, descuento);
   const costos = internos ? costosEnVivo(items, totales, internos) : null;
-  const resultados = busqueda.trim() ? buscarEnCatalogo(datos.catalogo, busqueda) : [];
   const seccionActual = seccionNueva.trim() || null;
   const opcionesSeccion = [...new Set<string | null>([null, ...secciones(items), seccionActual])];
 
@@ -188,50 +186,7 @@ export function EditorPresupuesto({ datos, puedeGuardar }: { datos: DatosEditor;
       {puedeGuardar ? (
         <section aria-label="Agregar ítems" className="fo-card space-y-3">
           <div className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-            <div className="fo-field-stack relative">
-              <label htmlFor={idBusqueda} className="fo-label">
-                Buscar en el catálogo
-              </label>
-              <input
-                id={idBusqueda}
-                className="fo-input"
-                value={busqueda}
-                onChange={(e) => setBusqueda(e.target.value)}
-                placeholder="Producto, servicio o combo"
-                autoComplete="off"
-              />
-              {resultados.length > 0 ? (
-                <ul className="mt-1 max-h-72 overflow-auto rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] bg-[var(--fo-surface)] text-sm">
-                  {resultados.map((p) => (
-                    <li key={p.id}>
-                      <button
-                        type="button"
-                        className="flex w-full items-baseline justify-between gap-3 px-3 py-2 text-left hover:bg-[var(--fo-surface-hover)]"
-                        onClick={() => {
-                          cambiar([...items, itemDesdeProducto(p, nuevaClave(), seccionActual)]);
-                          setBusqueda("");
-                        }}
-                      >
-                        <span>
-                          <span className="font-medium text-[var(--fo-text)]">{p.nombre}</span>
-                          {p.esCombo ? (
-                            <span className="block text-xs text-[var(--fo-muted)]">
-                              Combo
-                              {p.ahorro !== null && p.ahorro > 0 && p.sumaComponentes !== null
-                                ? ` · ahorrás ${pesos(p.ahorro)} (por separado ${pesos(p.sumaComponentes)})`
-                                : ""}
-                            </span>
-                          ) : null}
-                        </span>
-                        <span className="shrink-0 tabular-nums">{pesos(p.precio)}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : busqueda.trim() ? (
-                <p className="text-xs text-[var(--fo-muted)]">No hay productos con ese nombre.</p>
-              ) : null}
-            </div>
+            <BuscadorCatalogo id={idBusqueda} catalogo={datos.catalogo} onElegir={(p) => cambiar([...items, itemDesdeProducto(p, nuevaClave(), seccionActual)])} />
             <div className="fo-field-stack">
               <label htmlFor={`${idBusqueda}-sec`} className="fo-label">
                 Sección para lo que agregues

@@ -5,14 +5,17 @@ import { requireActiveWorkspaceRole } from "@/lib/access/active-context";
 import { puede } from "@/lib/access/policy";
 import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import { guardarAjustes } from "@/lib/presupuestos/ajustes";
+import { borrarPropuestaModelo, guardarPropuestaModelo } from "@/lib/presupuestos/propuestas-modelo";
 import type { CtxPresupuestos } from "@/lib/presupuestos/acceso";
 
 /** Estado del formulario de Configuración → Presupuestos (`useActionState`). */
 export type EstadoPresupuestosConfig = { error: string | null; ok?: string };
 
 const RUTA = "/workspace/configuracion/presupuestos";
+const RUTA_PROPUESTAS = "/workspace/configuracion/presupuestos/propuestas";
 const SIN_PERMISO: EstadoPresupuestosConfig = { error: "Sólo el dueño o un administrador pueden configurar los presupuestos." };
 const DATOS_INVALIDOS: EstadoPresupuestosConfig = { error: "Los datos no son válidos." };
+const SIN_PERMISO_PROPUESTA = { ok: false as const, error: "Sólo el dueño o un administrador pueden configurar los presupuestos." };
 
 /**
  * Sesión, workspace activo y rol salen siempre de la sesión, nunca del formulario. Sin
@@ -52,4 +55,43 @@ export async function guardarAjustesPresupuestosAction(
   if (!r.ok) return { error: r.error };
   revalidatePath(RUTA);
   return { error: null, ok: "Ajustes guardados." };
+}
+
+/** Resultado de las acciones de la propuesta modelo (el editor las llama con datos, no con un formulario). */
+export type ResultadoPropuestaModeloAction = { ok: true } | { ok: false; error: string };
+
+/**
+ * Guarda la propuesta modelo de una categoría. `guardarPropuestaModelo` valida todo: categoría y
+ * plantilla del workspace, productos activos del catálogo en modo lista, topes y textos.
+ */
+export async function guardarPropuestaModeloAction(datos: {
+  categoriaId: unknown;
+  items: unknown;
+  condiciones?: unknown;
+  enviarSola?: unknown;
+  plantillaId?: unknown;
+}): Promise<ResultadoPropuestaModeloAction> {
+  const ctx = await contexto();
+  if (!ctx) return SIN_PERMISO_PROPUESTA;
+  if (!datos || typeof datos !== "object") return { ok: false, error: "Los datos no son válidos." };
+  const r = await guardarPropuestaModelo(ctx, {
+    categoriaId: datos.categoriaId,
+    items: datos.items,
+    condiciones: datos.condiciones,
+    enviarSola: datos.enviarSola,
+    plantillaId: datos.plantillaId,
+  });
+  if (!r.ok) return r;
+  revalidatePath(RUTA_PROPUESTAS, "layout");
+  return { ok: true };
+}
+
+/** Borra la propuesta modelo de una categoría. */
+export async function borrarPropuestaModeloAction(categoriaId: unknown): Promise<ResultadoPropuestaModeloAction> {
+  const ctx = await contexto();
+  if (!ctx) return SIN_PERMISO_PROPUESTA;
+  const r = await borrarPropuestaModelo(ctx, categoriaId);
+  if (!r.ok) return r;
+  revalidatePath(RUTA_PROPUESTAS, "layout");
+  return { ok: true };
 }
