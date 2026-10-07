@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { aceptarPresupuestoAction, pedirPresupuestoNuevoAction } from "@/app/w/[workspaceSlug]/presupuesto/[token]/actions";
-import type { EstadoDelEnlace } from "@/lib/presupuestos/vista-publica";
+import type { EstadoDeLaVista } from "@/lib/presupuestos/vista-publica";
 
 /**
  * Botones del enlace público: "Acepto" (nombre + tilde), "Tengo dudas" (WhatsApp de la
@@ -20,7 +20,7 @@ export function AccionesPublicas({
 }: {
   slug: string;
   token: string;
-  estado: EstadoDelEnlace;
+  estado: EstadoDeLaVista;
   whatsappUrl: string | null;
   email: string | null;
   hrefImprimir: string;

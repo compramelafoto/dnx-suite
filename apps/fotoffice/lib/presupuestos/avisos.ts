@@ -63,33 +63,37 @@ export async function crearTareaDeConsulta(
   opciones: { unaSolaAbierta?: boolean } = {},
 ): Promise<"CREADA" | "YA_EXISTIA" | "ERROR"> {
   try {
-    if (opciones.unaSolaAbierta) {
-      const ya = await prisma.fotofficeTask.findFirst({
-        where: { workspaceId, subjectType: "CAPTACION", subjectId: leadId, title: titulo, doneAt: null },
+    return await prisma.$transaction(async (tx) => {
+      if (opciones.unaSolaAbierta) {
+        // Dos pedidos a la vez: el candado por consulta y título los pone en fila; el segundo ve la tarea del primero.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`fotoffice-tarea-presupuesto:${workspaceId}:${leadId}:${titulo}`}))`;
+        const ya = await tx.fotofficeTask.findFirst({
+          where: { workspaceId, subjectType: "CAPTACION", subjectId: leadId, title: titulo, doneAt: null },
+          select: { id: true },
+        });
+        if (ya) return "YA_EXISTIA" as const;
+      }
+      const recorrido = await tx.fotofficeJourney.findFirst({
+        where: { workspaceId, subjectType: "CAPTACION", subjectId: leadId, kind: "VENTA", closedAt: null },
         select: { id: true },
       });
-      if (ya) return "YA_EXISTIA";
-    }
-    const recorrido = await prisma.fotofficeJourney.findFirst({
-      where: { workspaceId, subjectType: "CAPTACION", subjectId: leadId, kind: "VENTA", closedAt: null },
-      select: { id: true },
+      await tx.fotofficeTask.create({
+        data: {
+          workspaceId,
+          journeyId: recorrido?.id ?? null,
+          stageId: null,
+          subjectType: "CAPTACION",
+          subjectId: leadId,
+          title: titulo,
+          dueAt: venceHoyALas2359(ahora),
+          required: false,
+          assigneeUserId: para,
+          createdByUserId: null,
+        },
+        select: { id: true },
+      });
+      return "CREADA" as const;
     });
-    await prisma.fotofficeTask.create({
-      data: {
-        workspaceId,
-        journeyId: recorrido?.id ?? null,
-        stageId: null,
-        subjectType: "CAPTACION",
-        subjectId: leadId,
-        title: titulo,
-        dueAt: venceHoyALas2359(ahora),
-        required: false,
-        assigneeUserId: para,
-        createdByUserId: null,
-      },
-      select: { id: true },
-    });
-    return "CREADA";
   } catch (error) {
     registrarFalla("crearTareaDeConsulta", error);
     return "ERROR";

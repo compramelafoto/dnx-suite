@@ -55,7 +55,7 @@ Qué lee cada tabla (confirmado con `grep` en `apps/fotoffice`; las otras apps n
 |---|---|
 | Migración | `20261020120000_fotoffice_etapa_2_presupuestos` |
 | Archivo | `packages/db/prisma/migrations/20261020120000_fotoffice_etapa_2_presupuestos/migration.sql` |
-| Checksum SHA-256 | `c7646f5a76d7c24398f7346ea730ec301db7a07674f733c2ff51e2dc32afe28f` |
+| Checksum SHA-256 | `6a5a70a805dd1e8640f5b80eccd38c1504525acad780db037d69139de3d6d221` |
 | Operaciones | 7 `CREATE TABLE`, índices comunes y únicos, claves foráneas a `Workspace`, `Product`, `Client` y `ServiceSalesLead`, 8 `CHECK` nuevos y **el reemplazo de un `CHECK` existente** (ver abajo) |
 | Destructivas | Ninguna. No agrega ni borra columnas de tablas existentes; `Product`, `Client` y `ServiceSalesLead` no reciben columnas (las claves foráneas nacen en las tablas nuevas) |
 
@@ -166,7 +166,7 @@ INSERT INTO "_prisma_migrations"
   (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count)
 SELECT
   gen_random_uuid()::text,
-  'c7646f5a76d7c24398f7346ea730ec301db7a07674f733c2ff51e2dc32afe28f',
+  '6a5a70a805dd1e8640f5b80eccd38c1504525acad780db037d69139de3d6d221',
   now(),
   '20261020120000_fotoffice_etapa_2_presupuestos',
   NULL, NULL, now(), 1

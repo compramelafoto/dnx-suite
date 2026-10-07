@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { AccionesPublicas } from "@/components/presupuestos/acciones-publicas";
 import { ESTILO_IMPRESION, PresupuestoPublico } from "@/components/presupuestos/presupuesto-publico";
 import { abrirPresupuestoPublico } from "@/lib/presupuestos/publico";
@@ -18,18 +18,6 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 function Aviso({ vista }: { vista: VistaPublica }) {
-  if (vista.estado === "REEMPLAZADO") {
-    return (
-      <div className="fo-card space-y-2 p-4">
-        <p className="font-semibold">Este presupuesto fue reemplazado por una versión más nueva.</p>
-        {vista.enlaceVigente ? (
-          <a href={vista.enlaceVigente} className="fo-btn fo-btn-primary text-sm">
-            Ver la versión vigente
-          </a>
-        ) : null}
-      </div>
-    );
-  }
   if (vista.estado === "ACEPTADO") {
     return <p className="fo-card p-4 font-semibold">¡Gracias! Este presupuesto ya está aceptado. Te vamos a escribir para confirmar los detalles.</p>;
   }
@@ -42,7 +30,8 @@ function Aviso({ vista }: { vista: VistaPublica }) {
 /**
  * El enlace público de un presupuesto (spec etapa 2 §3.3), sin sesión: el token es la llave.
  * Enlace desconocido, de otra organización, sin enviar o vencido hace más de 30 días: el 404
- * genérico del sitio. Cada apertura queda registrada; la primera marca el presupuesto como visto.
+ * genérico del sitio. Una versión reemplazada no se muestra nunca: redirige al enlace de la vigente
+ * (o 404 si no hay). Cada apertura queda registrada; la primera marca el presupuesto como visto.
  */
 export default async function PresupuestoPublicoPage({ params }: Props) {
   const { workspaceSlug, token } = await params;
@@ -58,6 +47,7 @@ export default async function PresupuestoPublicoPage({ params }: Props) {
   if (!workspaceId) notFound();
   const r = await abrirPresupuestoPublico(workspaceId, token, { registrar: true, ipHash: visitante.ipHash, userAgent: visitante.userAgent });
   if (!r) notFound();
+  if ("redirigir" in r) redirect(r.redirigir);
   const { vista } = r;
 
   return (

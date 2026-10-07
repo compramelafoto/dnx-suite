@@ -42,14 +42,16 @@ export function vencimientoDelToken(validUntil: Date): Date {
 /**
  * La clave para firmar los enlaces, o null si no hay (sin clave no se envían presupuestos).
  *
- * En producción: `PRESUPUESTO_TOKEN_SECRET` o, si no está, la de los pedidos de la Tienda
- * (`STORE_ORDER_TOKEN_SECRET`; el prefijo del mensaje separa los dos usos). Nunca el secreto del
- * cron. En local y en previews se aceptan también los secretos del cron, para probar sin
- * configurar nada. Cambiar la clave invalida todos los enlaces ya enviados.
+ * En producción (`VERCEL_ENV` o `NODE_ENV` = "production"): `PRESUPUESTO_TOKEN_SECRET` o, si no
+ * está, la de los pedidos de la Tienda (`STORE_ORDER_TOKEN_SECRET`; el prefijo del mensaje separa
+ * los dos usos). Nunca el secreto del cron. Sólo en desarrollo y pruebas (`NODE_ENV` distinto de
+ * "production") se aceptan también los secretos del cron, para probar sin configurar nada. Un
+ * build de preview corre con NODE_ENV=production: necesita una de las dos claves. Cambiar la clave
+ * invalida todos los enlaces ya enviados.
  */
 export function resolverClaveDeEnlace(env: Record<string, string | undefined> = process.env): string | null {
   const nombres =
-    env.VERCEL_ENV === "production"
+    env.VERCEL_ENV === "production" || env.NODE_ENV === "production"
       ? ["PRESUPUESTO_TOKEN_SECRET", "STORE_ORDER_TOKEN_SECRET"]
       : ["PRESUPUESTO_TOKEN_SECRET", "STORE_ORDER_TOKEN_SECRET", "FOTOFFICE_CRON_SECRET", "CRON_SECRET"];
   for (const nombre of nombres) {

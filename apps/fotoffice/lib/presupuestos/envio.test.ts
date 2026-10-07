@@ -116,6 +116,8 @@ const presupuesto = (id: string) => B.datos.fotofficePresupuesto.find((p) => p.i
 const version = (id: string) => B.datos.fotofficePresupuestoVersion.find((v) => v.id === id)!;
 const tareas = (titulo: string) => B.datos.fotofficeTask.filter((t) => t.title === titulo);
 const token = (versionId: string) => L.tokenDeVersion(versionId, CLAVE);
+/** La vista de una apertura (null si es 404 o una redirección). */
+const vistaDe = (r: Awaited<ReturnType<typeof PU.abrirPresupuestoPublico>>) => (r && "vista" in r ? r.vista : null);
 
 async function enviado(ctx = DUENO, leadId = "lead-1", items?: unknown[]) {
   const r = await armado(ctx, leadId, items);
@@ -175,6 +177,9 @@ describe("enlace y token", () => {
     expect(L.resolverClaveDeEnlace({ VERCEL_ENV: "production", STORE_ORDER_TOKEN_SECRET: "s" })).toBe("s");
     expect(L.resolverClaveDeEnlace({ VERCEL_ENV: "production", PRESUPUESTO_TOKEN_SECRET: " p ", STORE_ORDER_TOKEN_SECRET: "s" })).toBe("p");
     expect(L.resolverClaveDeEnlace({ CRON_SECRET: "c" })).toBe("c");
+    // Un build de producción (también un preview) nunca usa el del cron.
+    expect(L.resolverClaveDeEnlace({ NODE_ENV: "production", VERCEL_ENV: "preview", CRON_SECRET: "c" })).toBeNull();
+    expect(L.resolverClaveDeEnlace({ NODE_ENV: "development", CRON_SECRET: "c" })).toBe("c");
     expect(L.hashDeIp("1.2.3.4", "")).toBeNull();
     expect(L.hashDeIp(null, "sal")).toBeNull();
     expect(L.hashDeIp("1.2.3.4", "sal")).toMatch(/^[0-9a-f]{64}$/);
@@ -210,6 +215,8 @@ describe("plantillas del presupuesto", () => {
     await PL.asegurarPlantillasPresupuesto("ws-1");
     const delWs = B.datos.fotofficeMessageTemplate.filter((t) => t.workspaceId === "ws-1" && t.entityType === "PRESUPUESTO");
     expect(delWs.map((t) => [t.channel, t.name])).toEqual([["EMAIL", "Te enviamos tu presupuesto"], ["WHATSAPP", "Tu presupuesto"]]);
+    // Con el candado por organización antes de contar.
+    expect(B.sql.some((q) => q.texto.includes("pg_advisory_xact_lock") && q.valores.includes("fotoffice-plantillas-presupuesto:ws-1"))).toBe(true);
   });
 });
 
@@ -297,9 +304,16 @@ describe("enviar", () => {
     expect(presupuesto(presupuestoId)).toMatchObject({ status: "ENVIADO", currentVersionId: nueva.versionId, validUntil: new Date("2026-10-24T00:00:00.000Z") });
     expect(H.notificar).toHaveBeenLastCalledWith("ws-1", { tipo: "CAPTACION", id: "lead-1" }, "PRESUPUESTO_ENVIADO", nueva.versionId);
 
-    // El enlace viejo muestra que fue reemplazado, con el enlace de la vigente.
+    // El enlace viejo NO muestra sus ítems ni precios: redirige a la vigente.
     const viejo = await PU.abrirPresupuestoPublico("ws-1", token(v1), { registrar: true, ipHash: null, userAgent: null }, depsPublico(despues));
-    expect(viejo?.vista).toMatchObject({ estado: "REEMPLAZADO", enlaceVigente: `${ORIGEN}/w/dnx/presupuesto/${token(nueva.versionId)}`, version: 1 });
+    expect(viejo).toEqual({ redirigir: `${ORIGEN}/w/dnx/presupuesto/${token(nueva.versionId)}` });
+    expect(JSON.stringify(viejo)).not.toContain("Ítem");
+    // La vista para imprimir de la versión vieja: 404.
+    expect(await PU.abrirPresupuestoPublico("ws-1", token(v1), { registrar: false, ipHash: null, userAgent: null, permitirReemplazo: false }, depsPublico(despues))).toBeNull();
+    // Y si la vigente tampoco sirve (sin enviar), 404.
+    presupuesto(presupuestoId).currentVersionId = null;
+    expect(await PU.abrirPresupuestoPublico("ws-1", token(v1), { registrar: true, ipHash: null, userAgent: null }, depsPublico(despues))).toBeNull();
+    presupuesto(presupuestoId).currentVersionId = nueva.versionId;
     // …y no se puede aceptar.
     expect(await AC.aceptarPresupuesto("ws-1", token(v1), { nombre: "Laura", acepta: true }, { ipHash: null, userAgent: null }, { ahora: () => despues }))
       .toEqual({ ok: false, error: AC.MENSAJES_ACEPTACION.reemplazado });
@@ -405,12 +419,12 @@ describe("enlace público", () => {
     for (const prohibido of ["costo", "Costo", "margen", "Margen", "calculo", "entrada", "perfil", "costSnapshot", "productId", "prod-1", "modoPrecio", "27777", "31234", "precioMinimo", "valorHora"]) {
       expect(json).not.toContain(prohibido);
     }
-    expect(r!.vista).toMatchObject({
+    expect(vistaDe(r)).toMatchObject({
       estado: "ACTIVO", version: 1, vence: "22/10/2026",
       organizacion: { nombre: "Estudio DNX", logoUrl: "https://cdn.test/logo.png", whatsappUrl: expect.stringMatching(/^https:\/\/wa\.me\/5493415551111/) },
     });
-    expect(r!.vista.items.map((i) => [i.nombre, i.opcional, i.seccion])).toEqual([["Álbum", false, null], ["Ítem b", false, null], ["Video", true, "Extras"]]);
-    expect(Object.keys(r!.vista.items[0]!).sort()).toEqual(["cantidad", "descripcion", "descuento", "id", "neto", "nombre", "opcional", "precioUnitario", "seccion"]);
+    expect(vistaDe(r)!.items.map((i) => [i.nombre, i.opcional, i.seccion])).toEqual([["Álbum", false, null], ["Ítem b", false, null], ["Video", true, "Extras"]]);
+    expect(Object.keys(vistaDe(r)!.items[0]!).sort()).toEqual(["cantidad", "descripcion", "descuento", "id", "neto", "nombre", "opcional", "precioUnitario", "seccion"]);
   });
 
   it("la fuente: la página y sus componentes no leen ni muestran costos", () => {
@@ -426,7 +440,10 @@ describe("enlace público", () => {
       "components/presupuestos/presupuesto-publico.tsx",
       "components/presupuestos/acciones-publicas.tsx",
     ]) {
-      const src = sinComentarios(leer(r));
+      const crudo = leer(r);
+      // La vista del presupuesto se arma en el servidor: no es un componente del navegador.
+      if (r.endsWith("presupuesto-publico.tsx") || r.endsWith("page.tsx")) expect(crudo).not.toMatch(/^\s*["']use client["']/m);
+      const src = sinComentarios(crudo);
       expect(src).not.toMatch(/costSnapshot|veCostos|costo|margen|calculo|leerPresupuesto|versionParaVista/i);
     }
   });
@@ -440,7 +457,7 @@ describe("enlace público", () => {
     expect(await abrir("ws-2", t)).toBeNull();
     expect(await abrir("ws-1", t, new Date("2026-11-22T00:00:00.001Z"))).toBeNull();
     // Vencida la validez pero dentro del margen: se ve, como vencido.
-    expect((await abrir("ws-1", t, new Date("2026-11-01T15:00:00.000Z")))?.vista.estado).toBe("VENCIDO");
+    expect(vistaDe(await abrir("ws-1", t, new Date("2026-11-01T15:00:00.000Z")))?.estado).toBe("VENCIDO");
     // Revocado y sin vigente que sirva: 404.
     version(versionId).revokedAt = AHORA;
     presupuesto(presupuestoId).currentVersionId = null;
@@ -472,6 +489,18 @@ describe("vistas", () => {
     expect(B.datos.fotofficePresupuestoVista[0]).toMatchObject({ workspaceId: "ws-1", versionId, ipHash: "hash-ip", userAgent: "Mozilla/5.0 (iPhone)" });
     expect(presupuesto(presupuestoId).status).toBe("VISTO");
     expect(tareas(AV.TITULO_TAREA_VISTO)).toHaveLength(1);
+  });
+
+  it("VISTO sólo si la versión vista sigue siendo la vigente", async () => {
+    const { presupuestoId, versionId } = await enviado();
+    const enlace = await PU.buscarEnlace("ws-1", token(versionId), AHORA);
+    expect(enlace?.estado).toBe("ACTIVO");
+    // Mientras tanto se envió otra versión: la vista de la vieja no la marca como vista.
+    presupuesto(presupuestoId).currentVersionId = "otra-version";
+    const { registrarVista } = await import("./vistas");
+    expect(await registrarVista(enlace!, { ipHash: null, userAgent: null }, AHORA)).toEqual({ registrada: true, primera: false });
+    expect(presupuesto(presupuestoId).status).toBe("ENVIADO");
+    expect(tareas(AV.TITULO_TAREA_VISTO)).toHaveLength(0);
   });
 
   it("la vista para imprimir y los robots no se registran ni marcan visto", async () => {
@@ -534,7 +563,7 @@ describe("aceptar", () => {
 
     // La página ahora lo muestra aceptado, con quién y cuándo.
     const vista = await PU.abrirPresupuestoPublico("ws-1", token(versionId), { registrar: false, ipHash: null, userAgent: null }, depsPublico(cuando));
-    expect(vista?.vista).toMatchObject({ estado: "ACEPTADO", aceptacion: { nombre: "Laura Pérez", fecha: "07/10/2026 12:10" } });
+    expect(vistaDe(vista)).toMatchObject({ estado: "ACEPTADO", aceptacion: { nombre: "Laura Pérez", fecha: "07/10/2026 12:10" } });
   });
 
   it("una sola vez: la segunda ve «Ya fue aceptado» y no avisa de nuevo", async () => {
@@ -602,6 +631,7 @@ describe("aceptar", () => {
     expect(await AC.pedirPresupuestoNuevo("ws-1", t, { ahora: tarde })).toEqual({ ok: true });
     expect(await AC.pedirPresupuestoNuevo("ws-1", t, { ahora: tarde })).toEqual({ ok: true });
     expect(tareas(AV.TITULO_TAREA_PEDIR_NUEVO)).toEqual([expect.objectContaining({ assigneeUserId: 1, subjectId: "lead-1" })]);
+    expect(B.sql.some((q) => q.valores.includes(`fotoffice-tarea-presupuesto:ws-1:lead-1:${AV.TITULO_TAREA_PEDIR_NUEVO}`))).toBe(true);
     expect(await AC.pedirPresupuestoNuevo("ws-2", t, { ahora: tarde })).toEqual({ ok: false, error: AC.MENSAJES_ACEPTACION.enlaceInvalido });
   });
 

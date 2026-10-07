@@ -91,15 +91,20 @@ const nextConfig: NextConfig = {
   // Dos formas porque en el dominio propio de la institución la tienda vive en `/tienda`.
   async headers() {
     const noReferrer = [{ key: "Referrer-Policy", value: "no-referrer" }];
+    const sinMarco = [
+      { key: "X-Frame-Options", value: "DENY" },
+      { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+    ];
     return [
       { source: "/w/:slug/tienda/pedido/:path*", headers: noReferrer },
       { source: "/tienda/pedido/:path*", headers: noReferrer },
       // El enlace del permiso del autor lleva su token en la dirección: misma regla.
       { source: "/w/:slug/obras/permiso/:path*", headers: noReferrer },
       { source: "/obras/permiso/:path*", headers: noReferrer },
-      // El enlace de un presupuesto también (etapa 2).
-      { source: "/w/:slug/presupuesto/:path*", headers: noReferrer },
-      { source: "/presupuesto/:path*", headers: noReferrer },
+      // El enlace de un presupuesto también (etapa 2), y además no se puede enmarcar en otro sitio:
+      // tiene el botón "Acepto" (clickjacking). Vale para la página y para la vista de impresión.
+      { source: "/w/:slug/presupuesto/:path*", headers: [...noReferrer, ...sinMarco] },
+      { source: "/presupuesto/:path*", headers: [...noReferrer, ...sinMarco] },
     ];
   },
   images: {

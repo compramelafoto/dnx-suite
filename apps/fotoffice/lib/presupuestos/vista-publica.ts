@@ -9,8 +9,9 @@
 import type { Descuento, ItemPresupuesto } from "./constantes";
 import type { TotalesGuardados } from "./versiones";
 
-/** El estado del enlace, visto desde el cliente. */
+/** El estado del enlace. REEMPLAZADO nunca llega a la vista: la página redirige a la vigente. */
 export type EstadoDelEnlace = "ACTIVO" | "VENCIDO" | "ACEPTADO" | "RECHAZADO" | "REEMPLAZADO";
+export type EstadoDeLaVista = Exclude<EstadoDelEnlace, "REEMPLAZADO">;
 
 export type ItemDeLaVista = {
   id: string;
@@ -25,7 +26,7 @@ export type ItemDeLaVista = {
 };
 
 export type VistaPublica = {
-  estado: EstadoDelEnlace;
+  estado: EstadoDeLaVista;
   organizacion: { nombre: string; logoUrl: string | null; whatsappUrl: string | null; email: string | null };
   numero: string | null;
   version: number;
@@ -37,8 +38,6 @@ export type VistaPublica = {
   propuestaPago: string | null;
   /** Sólo si ESTA versión se aceptó. */
   aceptacion: { fecha: string; nombre: string } | null;
-  /** Sólo si se reemplazó: el enlace de la versión vigente. */
-  enlaceVigente: string | null;
 };
 
 const numero = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
@@ -59,12 +58,11 @@ function ddmmaaaa(fecha: Date | null): string | null {
 }
 
 export function armarVistaPublica(args: {
-  estado: EstadoDelEnlace;
+  estado: EstadoDeLaVista;
   organizacion: VistaPublica["organizacion"];
   numero: string | null;
   version: { number: number; items: readonly ItemPresupuesto[]; totals: TotalesGuardados | null; terms: string | null; paymentProposal: string | null; acceptedAt: Date | null; acceptedName: string | null };
   validUntil: Date | null;
-  enlaceVigente: string | null;
 }): VistaPublica {
   const t = args.version.totals;
   const renglones = t?.renglones ?? {};
@@ -103,7 +101,6 @@ export function armarVistaPublica(args: {
       args.estado === "ACEPTADO" && args.version.acceptedAt
         ? { fecha: fechaHoraBA.format(args.version.acceptedAt).replace(",", ""), nombre: args.version.acceptedName ?? "" }
         : null,
-    enlaceVigente: args.estado === "REEMPLAZADO" ? args.enlaceVigente : null,
   };
 }
 

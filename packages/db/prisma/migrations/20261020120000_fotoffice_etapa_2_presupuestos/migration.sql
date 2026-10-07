@@ -1,6 +1,8 @@
--- Etapa 2 FOTOFFICE · Entrega A: catálogo ampliado y presupuestos. Puramente ADITIVO: siete tablas nuevas.
--- No altera ninguna tabla existente: `Product`, `Client` y `ServiceSalesLead` no reciben columnas (las FKs
--- nacen en las tablas nuevas). Sin `FotofficePropuestaModelo` (llega con la Entrega B).
+-- Etapa 2 FOTOFFICE · Entrega A: catálogo ampliado y presupuestos. Crea siete tablas nuevas y, en una
+-- tabla existente, SÓLO reemplaza el CHECK de `FotofficeMessageTemplate.entityType` por la misma lista
+-- más 'PRESUPUESTO' (al final del archivo; ninguna fila deja de cumplirlo). No agrega ni borra columnas:
+-- `Product`, `Client` y `ServiceSalesLead` no reciben columnas (las FKs nacen en las tablas nuevas).
+-- Sin `FotofficePropuestaModelo` (llega con la Entrega B).
 -- NO SE APLICA A NINGUNA BASE desde el código: se corre a mano, con el flujo de migraciones de FOTOFFICE.
 -- El modo de precio de cada ítem (LISTA | CALCULO) vive dentro del JSON `items` y no se puede chequear
 -- acá: lo valida el código (`lib/presupuestos/constantes.ts`). Lo mismo los ciclos de combos y que el

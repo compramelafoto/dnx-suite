@@ -49,6 +49,8 @@ Si te queda alguna duda o querés ajustar algo, respondé este correo[si:organiz
 export async function asegurarPlantillasPresupuesto(workspaceId: string): Promise<void> {
   if ((await prisma.fotofficeMessageTemplate.count({ where: { workspaceId, entityType: "PRESUPUESTO" } })) > 0) return;
   await prisma.$transaction(async (tx) => {
+    // Dos pestañas a la vez: el candado por organización las pone en fila y la segunda ya cuenta las de la primera.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`fotoffice-plantillas-presupuesto:${workspaceId}`}))`;
     if ((await tx.fotofficeMessageTemplate.count({ where: { workspaceId, entityType: "PRESUPUESTO" } })) > 0) return;
     const ultimos = await tx.fotofficeMessageTemplate.findMany({
       where: { workspaceId, systemKey: null },

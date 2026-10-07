@@ -30,8 +30,9 @@ export default async function ImprimirPresupuestoPage({ params }: Props) {
   }
   const workspaceId = await workspaceDelSlug(workspaceSlug);
   if (!workspaceId) notFound();
-  const r = await abrirPresupuestoPublico(workspaceId, token, { registrar: false, ipHash: null, userAgent: null });
-  if (!r) notFound();
+  const r = await abrirPresupuestoPublico(workspaceId, token, { registrar: false, ipHash: null, userAgent: null, permitirReemplazo: false });
+  // Una versión reemplazada no se imprime: 404 (la página del enlace es la que redirige).
+  if (!r || !("vista" in r)) notFound();
 
   return (
     <main className="mx-auto max-w-3xl space-y-6 bg-white px-4 py-8 text-black md:px-8">

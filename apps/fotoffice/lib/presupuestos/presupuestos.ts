@@ -276,7 +276,15 @@ export function datosDeEnvio(ahora: Date, ajustes: Pick<AjustesPresupuestos, "va
  */
 export async function pasarEstado(
   cliente: Pick<Tx, "fotofficePresupuesto">,
-  args: { workspaceId: string; presupuestoId: string; a: EstadoPresupuesto; ahora: Date; datos?: Prisma.FotofficePresupuestoUncheckedUpdateManyInput },
+  args: {
+    workspaceId: string;
+    presupuestoId: string;
+    a: EstadoPresupuesto;
+    ahora: Date;
+    datos?: Prisma.FotofficePresupuestoUncheckedUpdateManyInput;
+    /** Condiciones extra de la escritura (p. ej. VISTO sólo si la vigente sigue siendo la que se vio). */
+    donde?: Prisma.FotofficePresupuestoWhereInput;
+  },
 ): Promise<Resultado> {
   const p = await cliente.fotofficePresupuesto.findFirst({
     where: { id: args.presupuestoId, workspaceId: args.workspaceId },
@@ -292,7 +300,7 @@ export async function pasarEstado(
     if (!(v instanceof Date) || vencio(v, args.ahora)) return { ok: false, error: MENSAJES_PRESUPUESTO.transicion };
   }
   const r = await cliente.fotofficePresupuesto.updateMany({
-    where: { id: args.presupuestoId, workspaceId: args.workspaceId, status: p.status },
+    where: { ...args.donde, id: args.presupuestoId, workspaceId: args.workspaceId, status: p.status },
     data: { ...args.datos, status: args.a },
   });
   return r.count === 1 ? { ok: true } : { ok: false, error: MENSAJES_PRESUPUESTO.cambio };

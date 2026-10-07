@@ -7,7 +7,7 @@ import { hashDeToken, resolverClaveDeEnlace, tokenConForma, tokenDeVersion, urlD
 import { estadoEfectivo } from "./estados";
 import { sitioDelWorkspace } from "./sitio";
 import { itemsGuardados, type TotalesGuardados } from "./versiones";
-import { armarVistaPublica, esRobot, type EstadoDelEnlace, type VistaPublica } from "./vista-publica";
+import { armarVistaPublica, esRobot, type EstadoDeLaVista, type EstadoDelEnlace, type VistaPublica } from "./vista-publica";
 import { registrarVista } from "./vistas";
 
 /**
@@ -17,8 +17,9 @@ import { registrarVista } from "./vistas";
  *
  * - Token sin forma, desconocido, de otro workspace, de una versión sin enviar o vencido (validez
  *   + 30 días): null, y la página responde el 404 genérico.
- * - Versión reemplazada (revocada al enviar una nueva): muestra el enlace de la vigente; si la
- *   vigente tampoco sirve, 404.
+ * - Versión reemplazada (revocada al enviar una nueva): NUNCA se muestran sus ítems ni sus
+ *   precios. La página redirige al enlace de la vigente (`redirigir`); si la vigente no sirve, o
+ *   si quien abre es la vista para imprimir (`permitirReemplazo: false`), 404.
  * - Nunca se lee `costSnapshot` ni nada interno del presupuesto: sólo lo que arma la vista.
  */
 
@@ -122,20 +123,23 @@ export type DepsPublico = {
  * Abre el enlace: arma la vista y, si `registrar` (la página, no la vista de impresión) y no es
  * un robot de vista previa, registra la visita (ver `registrarVista`). null = 404.
  */
+export type AperturaPublica = { vista: VistaPublica } | { redirigir: string };
+
 export async function abrirPresupuestoPublico(
   workspaceId: string,
   token: unknown,
-  visita: { registrar: boolean; ipHash: string | null; userAgent: string | null },
+  visita: { registrar: boolean; ipHash: string | null; userAgent: string | null; permitirReemplazo?: boolean },
   deps: DepsPublico = {},
-): Promise<{ vista: VistaPublica } | null> {
+): Promise<AperturaPublica | null> {
   const ahora = (deps.ahora ?? (() => new Date()))();
   const enlace = await buscarEnlace(workspaceId, token, ahora);
   if (!enlace) return null;
   const sitio = await sitioDelWorkspace(workspaceId);
   if (!sitio) return null;
 
-  let enlaceVigente: string | null = null;
   if (enlace.estado === "REEMPLAZADO") {
+    // Sin vista: el contenido de una versión reemplazada no sale nunca.
+    if (visita.permitirReemplazo === false) return null;
     const clave = deps.clave !== undefined ? deps.clave : resolverClaveDeEnlace();
     const vigente = enlace.currentVersionId
       ? await prisma.fotofficePresupuestoVersion.findFirst({
@@ -145,13 +149,13 @@ export async function abrirPresupuestoPublico(
       : null;
     const sirve = vigente?.sentAt && !vigente.revokedAt && !(vigente.tokenExpiresAt && vigente.tokenExpiresAt.getTime() < ahora.getTime());
     const origen = (deps.appOrigin ?? (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "")).replace(/\/+$/, "");
-    enlaceVigente = sirve && clave ? urlDelPresupuesto({ ...sitio, appOrigin: origen, token: tokenDeVersion(vigente.id, clave) }) : null;
-    if (!enlaceVigente) return null;
+    const enlaceVigente = sirve && clave ? urlDelPresupuesto({ ...sitio, appOrigin: origen, token: tokenDeVersion(vigente.id, clave) }) : null;
+    return enlaceVigente ? { redirigir: enlaceVigente } : null;
   }
 
   const numero = (await numeroDe(workspaceId, ENTIDAD_NUMERACION, [enlace.presupuestoId])).get(enlace.presupuestoId) ?? null;
   const vista = armarVistaPublica({
-    estado: enlace.estado,
+    estado: enlace.estado as EstadoDeLaVista,
     organizacion: {
       nombre: sitio.nombre,
       logoUrl: sitio.logoUrl && /^https:\/\//i.test(sitio.logoUrl) ? sitio.logoUrl : null,
@@ -169,7 +173,6 @@ export async function abrirPresupuestoPublico(
       acceptedName: enlace.version.acceptedName,
     },
     validUntil: enlace.validUntil,
-    enlaceVigente,
   });
 
   if (visita.registrar && !esRobot(visita.userAgent)) {

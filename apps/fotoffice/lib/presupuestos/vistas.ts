@@ -32,7 +32,11 @@ export async function registrarVista(
   }
   if (enlace.estado !== "ACTIVO" || enlace.estadoGuardado !== "ENVIADO") return { registrada, primera: false };
   try {
-    const r = await pasarEstado(prisma, { workspaceId: enlace.workspaceId, presupuestoId: enlace.presupuestoId, a: "VISTO", ahora });
+    // Sólo si la versión vista sigue siendo la vigente: si mientras tanto se envió otra, no.
+    const r = await pasarEstado(prisma, {
+      workspaceId: enlace.workspaceId, presupuestoId: enlace.presupuestoId, a: "VISTO", ahora,
+      donde: { currentVersionId: enlace.versionId },
+    });
     if (!r.ok) return { registrada, primera: false };
     const para = await destinatarioDelPresupuesto(enlace.workspaceId, enlace.ownerUserId);
     await crearTareaDeConsulta(enlace.workspaceId, enlace.leadId, TITULO_TAREA_VISTO, para, ahora);
